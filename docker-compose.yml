@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reforma-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reforma
+      POSTGRES_PASSWORD: reforma_dev_only_change_me
+      POSTGRES_DB: reforma
+    ports:
+      - "5435:5432"
+    volumes:
+      - reforma_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reforma -d reforma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: reforma-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: reforma
+      MINIO_ROOT_PASSWORD: reforma_minio_dev_secret
+    ports:
+      - "9200:9000"
+      - "9201:9001"
+    volumes:
+      - reforma_minio_data:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: reforma-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      NODE_ENV: development
+      API_PORT: 3003
+      API_PREFIX: api/v1
+      CORS_ORIGINS: http://localhost:5175,http://127.0.0.1:5175
+      DATABASE_URL: postgresql://reforma:reforma_dev_only_change_me@postgres:5432/reforma?schema=public
+      JWT_ACCESS_SECRET: dev-only-local-access-secret-change-me
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ROOT_USER: reforma
+      MINIO_ROOT_PASSWORD: reforma_minio_dev_secret
+      MINIO_BUCKET: xml-uploads
+    ports:
+      - "3003:3003"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: reforma-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:3003/api/v1
+    ports:
+      - "5175:5175"
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+volumes:
+  reforma_pg_data:
+  reforma_minio_data:

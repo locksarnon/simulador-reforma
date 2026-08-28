@@ -1,0 +1,192 @@
+{
+  "name": "Operacao",
+  "type": "object",
+  "properties": {
+    "id_operacao": {
+      "type": "string"
+    },
+    "empresa_id": {
+      "type": "string"
+    },
+    "data": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ano": {
+      "type": "number"
+    },
+    "direcao": {
+      "type": "string",
+      "enum": [
+        "Saida",
+        "Entrada"
+      ]
+    },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "Mercadoria",
+        "Servico",
+        "Outro"
+      ]
+    },
+    "descricao": {
+      "type": "string"
+    },
+    "quantidade": {
+      "type": "number"
+    },
+    "preco_unitario": {
+      "type": "number"
+    },
+    "desconto_incondicional": {
+      "type": "number",
+      "default": 0
+    },
+    "frete": {
+      "type": "number",
+      "default": 0
+    },
+    "seguro": {
+      "type": "number",
+      "default": 0
+    },
+    "outras_despesas": {
+      "type": "number",
+      "default": 0
+    },
+    "valor_bruto": {
+      "type": "number"
+    },
+    "ncm": {
+      "type": "string"
+    },
+    "nbs": {
+      "type": "string"
+    },
+    "cfop_servico": {
+      "type": "string"
+    },
+    "uf_origem": {
+      "type": "string"
+    },
+    "uf_destino": {
+      "type": "string"
+    },
+    "municipio_destino": {
+      "type": "string"
+    },
+    "documento": {
+      "type": "string"
+    },
+    "regime_atual": {
+      "type": "string"
+    },
+    "c_class_trib": {
+      "type": "string"
+    },
+    "cst_ibs_cbs": {
+      "type": "string"
+    },
+    "pis_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "cofins_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "icms_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "fcp_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "mva_st_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "iss_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "ipi_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "credito_elegivel_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "split_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "c_cred_pres": {
+      "type": "string"
+    },
+    "credito_presumido_ibs_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "credito_presumido_cbs_pct": {
+      "type": "number",
+      "default": 0
+    },
+    "grupo_rtc": {
+      "type": "string"
+    },
+    "reducao_informada": {
+      "type": "string"
+    },
+    "diferimento_informado": {
+      "type": "string"
+    },
+    "tributacao_regular_informada": {
+      "type": "string"
+    },
+    "credito_presumido_informado": {
+      "type": "string"
+    },
+    "compra_governamental_informado": {
+      "type": "string"
+    },
+    "finalidade_dfe": {
+      "type": "string"
+    },
+    "crt_emitente": {
+      "type": "string"
+    },
+    "ambiente": {
+      "type": "string"
+    },
+    "custo_base_pct": {
+      "type": "number",
+      "default": 0.65
+    },
+    "margem_meta_pct": {
+      "type": "number",
+      "default": 0.18
+    },
+    "observacao_dfe": {
+      "type": "string"
+    },
+    "situacao": {
+      "type": "string",
+      "enum": [
+        "ATIVA",
+        "CANCELADA",
+        "ESTORNADA"
+      ],
+      "default": "ATIVA"
+    }
+  },
+  "required": [
+    "id_operacao",
+    "empresa_id",
+    "direcao",
+    "valor_bruto"
+  ]
+}

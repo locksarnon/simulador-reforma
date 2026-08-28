@@ -1,0 +1,60 @@
+{
+  "name": "Empresa",
+  "type": "object",
+  "properties": {
+    "id_empresa": {
+      "type": "string"
+    },
+    "grupo": {
+      "type": "string"
+    },
+    "razao_social": {
+      "type": "string"
+    },
+    "cnpj_cpf": {
+      "type": "string"
+    },
+    "regime_atual": {
+      "type": "string"
+    },
+    "setor": {
+      "type": "string"
+    },
+    "uf": {
+      "type": "string"
+    },
+    "municipio": {
+      "type": "string"
+    },
+    "contribuinte_ibs_cbs": {
+      "type": "string"
+    },
+    "produtor_rural": {
+      "type": "string"
+    },
+    "cooperativa": {
+      "type": "string"
+    },
+    "erp": {
+      "type": "string"
+    },
+    "responsavel_fiscal": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "default": "Ativa"
+    },
+    "data_inicio": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id_empresa",
+    "razao_social"
+  ]
+}

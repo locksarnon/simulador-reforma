@@ -1,0 +1,35 @@
+{
+  "name": "Grupo",
+  "type": "object",
+  "properties": {
+    "numero": {
+      "type": "string"
+    },
+    "nome": {
+      "type": "string"
+    },
+    "tipo": {
+      "type": "string",
+      "default": "Grupo familiar"
+    },
+    "ifme_consolidado": {
+      "type": "number",
+      "default": 0
+    },
+    "ifme_meta": {
+      "type": "number",
+      "default": 3
+    },
+    "status_ifme": {
+      "type": "string",
+      "default": "Pendente"
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "numero",
+    "nome"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "name": "ClassTrib",
+  "type": "object",
+  "properties": {
+    "c_class_trib": {
+      "type": "string"
+    },
+    "cst": {
+      "type": "string"
+    },
+    "descricao_oficial": {
+      "type": "string"
+    },
+    "grupo_operacional": {
+      "type": "string"
+    },
+    "pct_reducao_ibs": {
+      "type": "number",
+      "default": 0
+    },
+    "pct_reducao_cbs": {
+      "type": "number",
+      "default": 0
+    },
+    "tributacao_regular": {
+      "type": "string"
+    },
+    "credito_presumido": {
+      "type": "string"
+    },
+    "estorno_credito": {
+      "type": "string"
+    },
+    "receita_bruta": {
+      "type": "string"
+    },
+    "dfe_relacionados": {
+      "type": "string"
+    },
+    "fonte": {
+      "type": "string"
+    },
+    "publicacao": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "default": "Ativo"
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "c_class_trib"
+  ]
+}

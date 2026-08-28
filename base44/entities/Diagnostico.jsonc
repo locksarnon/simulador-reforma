@@ -1,0 +1,36 @@
+{
+  "name": "Diagnostico",
+  "type": "object",
+  "properties": {
+    "grupo_id": {
+      "type": "string"
+    },
+    "nome": {
+      "type": "string"
+    },
+    "etapa_atual": {
+      "type": "number",
+      "default": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "rascunho",
+        "em_progresso",
+        "em_validacao",
+        "finalizado"
+      ],
+      "default": "rascunho"
+    },
+    "data_criacao": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "grupo_id"
+  ]
+}

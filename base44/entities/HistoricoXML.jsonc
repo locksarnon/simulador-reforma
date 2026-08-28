@@ -1,0 +1,41 @@
+{
+  "name": "HistoricoXML",
+  "type": "object",
+  "properties": {
+    "grupo_id": {
+      "type": "string"
+    },
+    "empresa_id": {
+      "type": "string"
+    },
+    "chave_nfe": {
+      "type": "string"
+    },
+    "numero_item": {
+      "type": "number"
+    },
+    "perspectiva": {
+      "type": "string",
+      "enum": [
+        "EMITENTE",
+        "DESTINATARIO"
+      ]
+    },
+    "operacao_id": {
+      "type": "string"
+    },
+    "lote_id": {
+      "type": "string"
+    },
+    "importado_em": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "grupo_id",
+    "chave_nfe",
+    "numero_item",
+    "perspectiva"
+  ]
+}

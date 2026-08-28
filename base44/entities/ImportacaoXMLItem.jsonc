@@ -1,0 +1,224 @@
+{
+  "name": "ImportacaoXMLItem",
+  "type": "object",
+  "properties": {
+    "lote_id": {
+      "type": "string"
+    },
+    "arquivo_id": {
+      "type": "string"
+    },
+    "grupo_id": {
+      "type": "string"
+    },
+    "chave_nfe": {
+      "type": "string"
+    },
+    "numero_item": {
+      "type": "number"
+    },
+    "empresa_id": {
+      "type": "string"
+    },
+    "perspectiva": {
+      "type": "string",
+      "enum": [
+        "EMITENTE",
+        "DESTINATARIO",
+        "PENDENTE"
+      ]
+    },
+    "direcao": {
+      "type": "string",
+      "enum": [
+        "Entrada",
+        "Saida"
+      ]
+    },
+    "tipo_relacionamento": {
+      "type": "string",
+      "enum": [
+        "TERCEIRO",
+        "INTERCOMPANY",
+        "TRANSFERENCIA_INTERNA"
+      ]
+    },
+    "status_mapeamento": {
+      "type": "string"
+    },
+    "resultado_final": {
+      "type": "string",
+      "enum": [
+        "IMPORTAVEL",
+        "IMPORTAVEL_COM_ALERTA",
+        "BLOQUEADO",
+        "CANCELADO",
+        "DUPLICADO",
+        "CONFIRMADO",
+        "ESTORNADO"
+      ]
+    },
+    "validacao_documental_json": {
+      "type": "string"
+    },
+    "validacao_cadastral_json": {
+      "type": "string"
+    },
+    "validacao_tributaria_json": {
+      "type": "string"
+    },
+    "validacao_operacional_json": {
+      "type": "string"
+    },
+    "snapshot_versoes_json": {
+      "type": "string"
+    },
+    "vinculo_item_id": {
+      "type": "string"
+    },
+    "confirmado_em": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operacao_id": {
+      "type": "string"
+    },
+    "descricao": {
+      "type": "string"
+    },
+    "ncm": {
+      "type": "string"
+    },
+    "nbs": {
+      "type": "string"
+    },
+    "cfop_servico": {
+      "type": "string"
+    },
+    "uf_origem": {
+      "type": "string"
+    },
+    "uf_destino": {
+      "type": "string"
+    },
+    "municipio_destino": {
+      "type": "string"
+    },
+    "quantidade": {
+      "type": "number",
+      "default": 0
+    },
+    "preco_unitario": {
+      "type": "number",
+      "default": 0
+    },
+    "desconto_incondicional": {
+      "type": "number",
+      "default": 0
+    },
+    "frete": {
+      "type": "number",
+      "default": 0
+    },
+    "seguro": {
+      "type": "number",
+      "default": 0
+    },
+    "outras_despesas": {
+      "type": "number",
+      "default": 0
+    },
+    "valor_bruto": {
+      "type": "number",
+      "default": 0
+    },
+    "cst_original": {
+      "type": "string"
+    },
+    "cst_normalizado": {
+      "type": "string"
+    },
+    "c_class_trib_original": {
+      "type": "string"
+    },
+    "c_class_trib_normalizado": {
+      "type": "string"
+    },
+    "c_cred_pres_original": {
+      "type": "string"
+    },
+    "c_cred_pres_normalizado": {
+      "type": "string"
+    },
+    "pis_pct_original": {
+      "type": "string"
+    },
+    "pis_pct_normalizado": {
+      "type": "number"
+    },
+    "cofins_pct_original": {
+      "type": "string"
+    },
+    "cofins_pct_normalizado": {
+      "type": "number"
+    },
+    "icms_pct_original": {
+      "type": "string"
+    },
+    "icms_pct_normalizado": {
+      "type": "number"
+    },
+    "fcp_pct_original": {
+      "type": "string"
+    },
+    "fcp_pct_normalizado": {
+      "type": "number"
+    },
+    "ipi_pct_original": {
+      "type": "string"
+    },
+    "ipi_pct_normalizado": {
+      "type": "number"
+    },
+    "iss_pct_original": {
+      "type": "string"
+    },
+    "iss_pct_normalizado": {
+      "type": "number"
+    },
+    "credito_presumido_ibs_pct_original": {
+      "type": "string"
+    },
+    "credito_presumido_ibs_pct_normalizado": {
+      "type": "number"
+    },
+    "credito_presumido_cbs_pct_original": {
+      "type": "string"
+    },
+    "credito_presumido_cbs_pct_normalizado": {
+      "type": "number"
+    },
+    "grupo_rtc": {
+      "type": "string"
+    },
+    "finalidade_dfe": {
+      "type": "string"
+    },
+    "crt_emitente": {
+      "type": "string"
+    },
+    "ambiente": {
+      "type": "string"
+    },
+    "data_emissao": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "lote_id",
+    "grupo_id",
+    "chave_nfe",
+    "numero_item"
+  ]
+}

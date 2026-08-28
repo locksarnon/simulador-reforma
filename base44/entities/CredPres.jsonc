@@ -1,0 +1,67 @@
+{
+  "name": "CredPres",
+  "type": "object",
+  "properties": {
+    "c_cred_pres": {
+      "type": "string"
+    },
+    "descricao_oficial": {
+      "type": "string"
+    },
+    "apropria_dfe": {
+      "type": "string"
+    },
+    "apropria_evento": {
+      "type": "string"
+    },
+    "deduz_credito_presumido": {
+      "type": "string"
+    },
+    "ibs_aplicavel": {
+      "type": "string"
+    },
+    "inicio_ibs": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fim_ibs": {
+      "type": "string"
+    },
+    "cbs_aplicavel": {
+      "type": "string"
+    },
+    "inicio_cbs": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "fim_cbs": {
+      "type": "string"
+    },
+    "percentual_oficial": {
+      "type": "string"
+    },
+    "metodo_calculo": {
+      "type": "string"
+    },
+    "base_legal_metodo": {
+      "type": "string"
+    },
+    "fonte": {
+      "type": "string"
+    },
+    "publicacao": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "default": "Ativo"
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "c_cred_pres"
+  ]
+}

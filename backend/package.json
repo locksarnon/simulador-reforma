@@ -1,0 +1,56 @@
+{
+  "name": "@simulador-reforma/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Simulador FAL — Reforma Tributária — backend próprio (NestJS + PostgreSQL, substitui o backend hospedado Base44)",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main.js",
+    "lint": "eslint \"{src}/**/*.ts\" --fix || true",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.12",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.0.12",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.12",
+    "@prisma/client": "^6.5.0",
+    "@xmldom/xmldom": "^0.9.3",
+    "argon2": "^0.41.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "helmet": "^8.1.0",
+    "minio": "^8.0.7",
+    "multer": "^1.4.5-lts.1",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.5",
+    "@nestjs/schematics": "^11.0.2",
+    "@types/express": "^5.0.1",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.13.10",
+    "@types/passport-jwt": "^4.0.1",
+    "prisma": "^6.5.0",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "argon2@0.41.1": true,
+    "prisma@6.19.3": true
+  }
+}

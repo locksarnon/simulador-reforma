@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-ssr
+backend
+.git
+*.log
+adaptable-tax-leap-flow.zip

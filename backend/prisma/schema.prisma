@@ -1,0 +1,517 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Auth
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  admin
+  user
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         Role      @default(user)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Enums (portados de base44/entities/*.jsonc)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Direcao {
+  Saida
+  Entrada
+}
+
+enum TipoOperacao {
+  Mercadoria
+  Servico
+  Outro
+}
+
+enum SituacaoOperacao {
+  ATIVA
+  CANCELADA
+  ESTORNADA
+}
+
+enum StatusDiagnostico {
+  rascunho
+  em_progresso
+  em_validacao
+  finalizado
+}
+
+enum StatusLoteXML {
+  RECEBIDO
+  PROCESSANDO
+  AGUARDANDO_CONFIRMACAO
+  PROCESSADO
+  PROCESSADO_COM_FALHAS
+  FALHOU
+}
+
+enum TipoXml {
+  NFE_PROC
+  NFE
+  EVENTO_CANCELAMENTO
+  EVENTO_CARTA_CORRECAO
+  EVENTO_OUTRO
+  XML_DESCONHECIDO
+}
+
+enum SituacaoFiscalXML {
+  AUTORIZADO
+  AUTORIZADO_FORA_PRAZO
+  CANCELADO
+  HOMOLOGACAO
+  SEM_PROTOCOLO
+  DUPLICADO_HASH
+  DUPLICADO_CHAVE
+  INVALIDO
+  EVENTO_PROCESSADO
+  EVENTO_PENDENTE
+  IGNORADO
+  ERRO_PROCESSAMENTO
+}
+
+enum StatusTecnico {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDO
+  FALHOU
+}
+
+enum Perspectiva {
+  EMITENTE
+  DESTINATARIO
+  PENDENTE
+}
+
+enum TipoRelacionamento {
+  TERCEIRO
+  INTERCOMPANY
+  TRANSFERENCIA_INTERNA
+}
+
+enum ResultadoFinalXML {
+  IMPORTAVEL
+  IMPORTAVEL_COM_ALERTA
+  BLOQUEADO
+  CANCELADO
+  DUPLICADO
+  CONFIRMADO
+  ESTORNADO
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Entidades de dados (portadas de base44/entities/*.jsonc)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Grupo {
+  id               String   @id @default(cuid())
+  numero           String
+  nome             String
+  tipo             String   @default("Grupo familiar")
+  ifme_consolidado Float    @default(0)
+  ifme_meta        Float    @default(3)
+  status_ifme      String   @default("Pendente")
+  observacao       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Empresa {
+  id                   String    @id @default(cuid())
+  id_empresa           String
+  grupo                String?
+  razao_social         String
+  cnpj_cpf             String?
+  regime_atual         String?
+  setor                String?
+  uf                   String?
+  municipio            String?
+  contribuinte_ibs_cbs String?
+  produtor_rural       String?
+  cooperativa          String?
+  erp                  String?
+  responsavel_fiscal   String?
+  status               String    @default("Ativa")
+  data_inicio          DateTime?
+  observacao           String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([grupo])
+}
+
+model Operacao {
+  id                              String           @id @default(cuid())
+  id_operacao                     String
+  empresa_id                      String
+  data                            DateTime?
+  ano                             Int?
+  direcao                         Direcao
+  tipo                            TipoOperacao?
+  descricao                       String?
+  quantidade                      Float?
+  preco_unitario                  Float?
+  desconto_incondicional          Float            @default(0)
+  frete                           Float            @default(0)
+  seguro                          Float            @default(0)
+  outras_despesas                 Float            @default(0)
+  valor_bruto                     Float
+  ncm                             String?
+  nbs                             String?
+  cfop_servico                    String?
+  uf_origem                       String?
+  uf_destino                      String?
+  municipio_destino               String?
+  documento                       String?
+  regime_atual                    String?
+  c_class_trib                    String?
+  cst_ibs_cbs                     String?
+  pis_pct                         Float            @default(0)
+  cofins_pct                      Float            @default(0)
+  icms_pct                        Float            @default(0)
+  fcp_pct                         Float            @default(0)
+  mva_st_pct                      Float            @default(0)
+  iss_pct                         Float            @default(0)
+  ipi_pct                         Float            @default(0)
+  credito_elegivel_pct            Float            @default(0)
+  split_pct                       Float            @default(0)
+  c_cred_pres                     String?
+  credito_presumido_ibs_pct       Float            @default(0)
+  credito_presumido_cbs_pct       Float            @default(0)
+  grupo_rtc                       String?
+  reducao_informada               String?
+  diferimento_informado           String?
+  tributacao_regular_informada    String?
+  credito_presumido_informado     String?
+  compra_governamental_informado  String?
+  finalidade_dfe                  String?
+  crt_emitente                    String?
+  ambiente                        String?
+  custo_base_pct                  Float            @default(0.65)
+  margem_meta_pct                 Float            @default(0.18)
+  observacao_dfe                  String?
+  situacao                        SituacaoOperacao @default(ATIVA)
+  createdAt                       DateTime         @default(now())
+  updatedAt                       DateTime         @updatedAt
+
+  @@index([empresa_id])
+  @@index([ano])
+}
+
+model Cenario {
+  id                          String   @id @default(cuid())
+  nome                        String
+  descricao                   String?
+  fator_volume                Float    @default(1)
+  fator_preco                 Float    @default(1)
+  fator_custo                 Float    @default(1)
+  fator_credito_aproveitado   Float    @default(1)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+}
+
+model TransicaoAno {
+  id                 String   @id @default(cuid())
+  ano                Int
+  pis_cofins_fator   Float    @default(1)
+  ipi_fator_geral    Float    @default(1)
+  icms_fator         Float    @default(1)
+  iss_fator          Float    @default(1)
+  ibs_efetivo        Float    @default(0)
+  ibs_uf_aliquota    Float    @default(0)
+  ibs_mun_aliquota   Float    @default(0)
+  cbs_efetiva        Float    @default(0)
+  efeito_financeiro  Float    @default(0)
+  carater            String?
+  fonte              String?
+  status             String?
+  observacao         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([ano])
+}
+
+model ClassTrib {
+  id                  String    @id @default(cuid())
+  c_class_trib        String
+  cst                 String?
+  descricao_oficial   String?
+  grupo_operacional   String?
+  pct_reducao_ibs     Float     @default(0)
+  pct_reducao_cbs     Float     @default(0)
+  tributacao_regular  String?
+  credito_presumido   String?
+  estorno_credito     String?
+  receita_bruta       String?
+  dfe_relacionados    String?
+  fonte               String?
+  publicacao          DateTime?
+  status              String    @default("Ativo")
+  observacao          String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([c_class_trib])
+}
+
+model CstIbsCbs {
+  id                          String    @id @default(cuid())
+  cst                         String
+  descricao_oficial           String?
+  exige_tributacao            String?
+  reducao_bc                  String?
+  reducao_aliquota             String?
+  transferencia_credito       String?
+  diferimento                 String?
+  monofasica                  String?
+  credito_presumido_ibs_zfm   String?
+  ajuste_competencia          String?
+  origem                      String?
+  publicacao_referencia       DateTime?
+  status                      String    @default("Ativo")
+  observacao                  String?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  @@index([cst])
+}
+
+model CredPres {
+  id                     String    @id @default(cuid())
+  c_cred_pres            String
+  descricao_oficial      String?
+  apropria_dfe           String?
+  apropria_evento        String?
+  deduz_credito_presumido String?
+  ibs_aplicavel          String?
+  inicio_ibs             DateTime?
+  fim_ibs                String?
+  cbs_aplicavel          String?
+  inicio_cbs             DateTime?
+  fim_cbs                String?
+  percentual_oficial     String?
+  metodo_calculo         String?
+  base_legal_metodo      String?
+  fonte                  String?
+  publicacao             DateTime?
+  status                 String    @default("Ativo")
+  observacao             String?
+  createdAt              DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([c_cred_pres])
+}
+
+model Configuracao {
+  id                             String    @id @default(cuid())
+  versao_simulador               String    @default("v0.18")
+  data_base_normativa            DateTime?
+  cenario_ativo                  String    @default("Base")
+  margem_meta_pct                Float     @default(0.18)
+  prazo_realizacao_credito_dias  Float     @default(60)
+  taxa_custo_financeiro_pct      Float     @default(0.015)
+  observacao                     String?
+  createdAt                      DateTime  @default(now())
+  updatedAt                      DateTime  @updatedAt
+}
+
+model Diagnostico {
+  id            String            @id @default(cuid())
+  grupo_id      String
+  nome          String?
+  etapa_atual   Float             @default(1)
+  status        StatusDiagnostico @default(rascunho)
+  data_criacao  DateTime?
+  observacao    String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([grupo_id])
+}
+
+model ImportacaoXMLLote {
+  id                            String        @id @default(cuid())
+  grupo_id                      String
+  idempotency_key                String
+  status                        StatusLoteXML @default(RECEBIDO)
+  total_arquivos                Int           @default(0)
+  arquivos_validos              Int           @default(0)
+  arquivos_invalidos            Int           @default(0)
+  total_itens                   Int           @default(0)
+  itens_importaveis             Int           @default(0)
+  itens_importaveis_com_alerta  Int           @default(0)
+  itens_bloqueados              Int           @default(0)
+  itens_duplicados              Int           @default(0)
+  itens_cancelados              Int           @default(0)
+  itens_confirmados             Int           @default(0)
+  versao_regras                 String        @default("v0.18")
+  processado_em                 DateTime?
+  observacao                    String?
+  createdAt                     DateTime      @default(now())
+  updatedAt                     DateTime      @updatedAt
+
+  @@unique([grupo_id, idempotency_key])
+}
+
+model ImportacaoXMLArquivo {
+  id                       String              @id @default(cuid())
+  lote_id                  String
+  grupo_id                 String
+  nome_original            String
+  storage_key              String?
+  hash_sha256              String?
+  tamanho_bytes            Int                 @default(0)
+  tipo_xml                 TipoXml?
+  situacao_fiscal          SituacaoFiscalXML?
+  status_tecnico           StatusTecnico       @default(PENDENTE)
+  chave_nfe                String?
+  numero_nf                String?
+  serie                    String?
+  data_emissao             DateTime?
+  cstat                    String?
+  xmotivo                  String?
+  ambiente                 String?
+  qtd_itens                Int                 @default(0)
+  motivo_duplicidade       String?
+  conteudo_extraido_json   String?
+  erro_processamento       String?
+  processado_em            DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  @@index([lote_id])
+}
+
+model ImportacaoXMLItem {
+  id                                          String              @id @default(cuid())
+  lote_id                                     String
+  arquivo_id                                  String?
+  grupo_id                                    String
+  chave_nfe                                   String
+  numero_item                                 Int
+  empresa_id                                  String?
+  perspectiva                                 Perspectiva?
+  direcao                                     Direcao?
+  tipo_relacionamento                         TipoRelacionamento?
+  status_mapeamento                           String?
+  resultado_final                             ResultadoFinalXML?
+  validacao_documental_json                   String?
+  validacao_cadastral_json                    String?
+  validacao_tributaria_json                   String?
+  validacao_operacional_json                  String?
+  snapshot_versoes_json                       String?
+  vinculo_item_id                             String?
+  confirmado_em                               DateTime?
+  operacao_id                                 String?
+  descricao                                   String?
+  ncm                                         String?
+  nbs                                         String?
+  cfop_servico                                String?
+  uf_origem                                   String?
+  uf_destino                                  String?
+  municipio_destino                           String?
+  quantidade                                  Float               @default(0)
+  preco_unitario                              Float               @default(0)
+  desconto_incondicional                      Float               @default(0)
+  frete                                       Float               @default(0)
+  seguro                                      Float               @default(0)
+  outras_despesas                             Float               @default(0)
+  valor_bruto                                 Float               @default(0)
+  cst_original                                String?
+  cst_normalizado                             String?
+  c_class_trib_original                       String?
+  c_class_trib_normalizado                    String?
+  c_cred_pres_original                        String?
+  c_cred_pres_normalizado                     String?
+  pis_pct_original                            String?
+  pis_pct_normalizado                         Float?
+  cofins_pct_original                         String?
+  cofins_pct_normalizado                      Float?
+  icms_pct_original                           String?
+  icms_pct_normalizado                        Float?
+  fcp_pct_original                            String?
+  fcp_pct_normalizado                         Float?
+  ipi_pct_original                            String?
+  ipi_pct_normalizado                         Float?
+  iss_pct_original                            String?
+  iss_pct_normalizado                         Float?
+  credito_presumido_ibs_pct_original          String?
+  credito_presumido_ibs_pct_normalizado       Float?
+  credito_presumido_cbs_pct_original          String?
+  credito_presumido_cbs_pct_normalizado       Float?
+  grupo_rtc                                   String?
+  finalidade_dfe                              String?
+  crt_emitente                                String?
+  ambiente                                    String?
+  data_emissao                                DateTime?
+  createdAt                                   DateTime            @default(now())
+  updatedAt                                   DateTime            @updatedAt
+
+  @@index([lote_id])
+  @@index([grupo_id, chave_nfe])
+}
+
+model HistoricoXML {
+  id            String       @id @default(cuid())
+  grupo_id      String
+  empresa_id    String?
+  chave_nfe     String
+  numero_item   Int
+  perspectiva   Perspectiva
+  operacao_id   String?
+  lote_id       String?
+  importado_em  DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([grupo_id])
+  @@index([chave_nfe, numero_item, perspectiva])
+}

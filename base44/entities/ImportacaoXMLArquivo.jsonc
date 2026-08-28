@@ -1,0 +1,107 @@
+{
+  "name": "ImportacaoXMLArquivo",
+  "type": "object",
+  "properties": {
+    "lote_id": {
+      "type": "string"
+    },
+    "grupo_id": {
+      "type": "string"
+    },
+    "nome_original": {
+      "type": "string"
+    },
+    "storage_key": {
+      "type": "string"
+    },
+    "hash_sha256": {
+      "type": "string"
+    },
+    "tamanho_bytes": {
+      "type": "number",
+      "default": 0
+    },
+    "tipo_xml": {
+      "type": "string",
+      "enum": [
+        "NFE_PROC",
+        "NFE",
+        "EVENTO_CANCELAMENTO",
+        "EVENTO_CARTA_CORRECAO",
+        "EVENTO_OUTRO",
+        "XML_DESCONHECIDO"
+      ]
+    },
+    "situacao_fiscal": {
+      "type": "string",
+      "enum": [
+        "AUTORIZADO",
+        "AUTORIZADO_FORA_PRAZO",
+        "CANCELADO",
+        "HOMOLOGACAO",
+        "SEM_PROTOCOLO",
+        "DUPLICADO_HASH",
+        "DUPLICADO_CHAVE",
+        "INVALIDO",
+        "EVENTO_PROCESSADO",
+        "EVENTO_PENDENTE",
+        "IGNORADO",
+        "ERRO_PROCESSAMENTO"
+      ]
+    },
+    "status_tecnico": {
+      "type": "string",
+      "enum": [
+        "PENDENTE",
+        "PROCESSANDO",
+        "CONCLUIDO",
+        "FALHOU"
+      ],
+      "default": "PENDENTE"
+    },
+    "chave_nfe": {
+      "type": "string"
+    },
+    "numero_nf": {
+      "type": "string"
+    },
+    "serie": {
+      "type": "string"
+    },
+    "data_emissao": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cstat": {
+      "type": "string"
+    },
+    "xmotivo": {
+      "type": "string"
+    },
+    "ambiente": {
+      "type": "string"
+    },
+    "qtd_itens": {
+      "type": "number",
+      "default": 0
+    },
+    "motivo_duplicidade": {
+      "type": "string"
+    },
+    "conteudo_extraido_json": {
+      "type": "string"
+    },
+    "erro_processamento": {
+      "type": "string"
+    },
+    "processado_em": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "lote_id",
+    "grupo_id",
+    "nome_original"
+  ]
+}

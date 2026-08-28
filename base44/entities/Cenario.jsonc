@@ -1,0 +1,31 @@
+{
+  "name": "Cenario",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string"
+    },
+    "descricao": {
+      "type": "string"
+    },
+    "fator_volume": {
+      "type": "number",
+      "default": 1
+    },
+    "fator_preco": {
+      "type": "number",
+      "default": 1
+    },
+    "fator_custo": {
+      "type": "number",
+      "default": 1
+    },
+    "fator_credito_aproveitado": {
+      "type": "number",
+      "default": 1
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}

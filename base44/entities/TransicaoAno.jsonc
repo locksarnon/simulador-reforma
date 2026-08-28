@@ -1,0 +1,60 @@
+{
+  "name": "TransicaoAno",
+  "type": "object",
+  "properties": {
+    "ano": {
+      "type": "number"
+    },
+    "pis_cofins_fator": {
+      "type": "number",
+      "default": 1
+    },
+    "ipi_fator_geral": {
+      "type": "number",
+      "default": 1
+    },
+    "icms_fator": {
+      "type": "number",
+      "default": 1
+    },
+    "iss_fator": {
+      "type": "number",
+      "default": 1
+    },
+    "ibs_efetivo": {
+      "type": "number",
+      "default": 0
+    },
+    "ibs_uf_aliquota": {
+      "type": "number",
+      "default": 0
+    },
+    "ibs_mun_aliquota": {
+      "type": "number",
+      "default": 0
+    },
+    "cbs_efetiva": {
+      "type": "number",
+      "default": 0
+    },
+    "efeito_financeiro": {
+      "type": "number",
+      "default": 0
+    },
+    "carater": {
+      "type": "string"
+    },
+    "fonte": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ano"
+  ]
+}

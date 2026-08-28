@@ -1,0 +1,36 @@
+{
+  "name": "Configuracao",
+  "type": "object",
+  "properties": {
+    "versao_simulador": {
+      "type": "string",
+      "default": "v0.18"
+    },
+    "data_base_normativa": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cenario_ativo": {
+      "type": "string",
+      "default": "Base"
+    },
+    "margem_meta_pct": {
+      "type": "number",
+      "default": 0.18
+    },
+    "prazo_realizacao_credito_dias": {
+      "type": "number",
+      "default": 60
+    },
+    "taxa_custo_financeiro_pct": {
+      "type": "number",
+      "default": 0.015
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "versao_simulador"
+  ]
+}

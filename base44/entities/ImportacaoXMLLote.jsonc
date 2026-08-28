@@ -1,0 +1,79 @@
+{
+  "name": "ImportacaoXMLLote",
+  "type": "object",
+  "properties": {
+    "grupo_id": {
+      "type": "string"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "RECEBIDO",
+        "PROCESSANDO",
+        "AGUARDANDO_CONFIRMACAO",
+        "PROCESSADO",
+        "PROCESSADO_COM_FALHAS",
+        "FALHOU"
+      ],
+      "default": "RECEBIDO"
+    },
+    "total_arquivos": {
+      "type": "number",
+      "default": 0
+    },
+    "arquivos_validos": {
+      "type": "number",
+      "default": 0
+    },
+    "arquivos_invalidos": {
+      "type": "number",
+      "default": 0
+    },
+    "total_itens": {
+      "type": "number",
+      "default": 0
+    },
+    "itens_importaveis": {
+      "type": "number",
+      "default": 0
+    },
+    "itens_importaveis_com_alerta": {
+      "type": "number",
+      "default": 0
+    },
+    "itens_bloqueados": {
+      "type": "number",
+      "default": 0
+    },
+    "itens_duplicados": {
+      "type": "number",
+      "default": 0
+    },
+    "itens_cancelados": {
+      "type": "number",
+      "default": 0
+    },
+    "itens_confirmados": {
+      "type": "number",
+      "default": 0
+    },
+    "versao_regras": {
+      "type": "string",
+      "default": "v0.18"
+    },
+    "processado_em": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observacao": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "grupo_id",
+    "idempotency_key"
+  ]
+}
