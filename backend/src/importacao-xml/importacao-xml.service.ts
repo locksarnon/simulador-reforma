@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import {
   normalizeCnpj,
   parsePercentage,
@@ -12,6 +13,7 @@ import {
   Check,
 } from './shared/xml-utils';
 import { parseXml, getFirst, getAll, getText, getTextDeep, getAttr, identificarTipoXml, MAX_ITENS } from './shared/xml-parser';
+import { agruparPorCodigo, escolherVigente } from './shared/vigencia';
 
 const MAX_ARQUIVOS = 5000;
 const DOWNLOAD_BATCH = 50;
@@ -19,7 +21,7 @@ const ITEM_BULK_BATCH = 500;
 const ARQ_BULK_BATCH = 500;
 const CONFIRMAR_BULK_BATCH = 500;
 
-type ArquivoInput = { nome: string; file_url: string; tamanho?: number };
+type ArquivoInput = { nome: string; file_url: string; storage_key?: string; tamanho?: number };
 type ProcessarLoteBody = { grupo_id: string; idempotency_key: string; arquivos: ArquivoInput[] };
 type ConfirmarBody = { lote_id: string; perspectivas_ids: string[] };
 
@@ -33,7 +35,10 @@ type ConfirmarBody = { lote_id: string; perspectivas_ids: string[] };
 export class ImportacaoXmlService {
   private readonly logger = new Logger(ImportacaoXmlService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   // ── processarLoteXML ────────────────────────────────────────────────
 
@@ -64,7 +69,12 @@ export class ImportacaoXmlService {
       lote_id: lote.id,
       grupo_id,
       nome_original: a.nome,
-      storage_key: a.file_url,
+      // storage_key é a chave do objeto no MinIO (pra re-assinar a URL depois,
+      // no reprocessamento) — file_url é só a URL pré-assinada, que expira em
+      // 24h. Se o cliente não mandar storage_key (uploads antigos), cai no
+      // file_url mesmo — reprocessar um lote desses não vai funcionar depois
+      // que a URL expirar, mas o processamento imediato funciona igual.
+      storage_key: a.storage_key || a.file_url,
       tamanho_bytes: a.tamanho || 0,
       status_tecnico: 'PENDENTE' as const,
     }));
@@ -98,18 +108,133 @@ export class ImportacaoXmlService {
     try {
       await this.prisma.importacaoXMLLote.update({ where: { id: loteId }, data: { status: 'PROCESSANDO' } });
 
+      const contadores = await this.processarArquivos(grupoId, arquivosReg);
+
+      const statusFinal = this.calcularStatusLote(contadores);
+      await this.prisma.importacaoXMLLote.update({
+        where: { id: loteId },
+        data: {
+          status: statusFinal,
+          arquivos_validos: contadores.arquivosValidos,
+          arquivos_invalidos: contadores.arquivosInvalidos,
+          total_itens: contadores.totalItens,
+          itens_importaveis: contadores.itensImportaveis,
+          itens_importaveis_com_alerta: contadores.itensAlerta,
+          itens_bloqueados: contadores.itensBloqueados,
+          itens_duplicados: contadores.itensDuplicados,
+          itens_cancelados: contadores.itensCancelados,
+          processado_em: new Date(),
+        },
+      });
+    } catch (err) {
+      await this.prisma.importacaoXMLLote
+        .update({ where: { id: loteId }, data: { status: 'FALHOU', observacao: String((err as Error)?.message || err) } })
+        .catch(() => {});
+    }
+  }
+
+  // ── reprocessarLoteXML ──────────────────────────────────────────────
+  // Retoma um lote FALHOU/PROCESSADO_COM_FALHAS sem reenviar arquivos: só
+  // reprocessa o que ficou PENDENTE ou FALHOU tecnicamente (arquivos já
+  // CONCLUIDOs não são tocados de novo, pra não duplicar itens/operações).
+  // A URL de download original expira em 24h — aqui é sempre re-assinada a
+  // partir da storage_key salva no MinIO antes de tentar de novo.
+
+  async reprocessarLote(body: { lote_id: string }) {
+    const loteId = body?.lote_id;
+    if (!loteId) throw new BadRequestException('lote_id é obrigatório.');
+
+    const lote = await this.prisma.importacaoXMLLote.findUnique({ where: { id: loteId } });
+    if (!lote) throw new NotFoundException('Lote não localizado.');
+
+    const pendentes = await this.prisma.importacaoXMLArquivo.findMany({
+      where: { lote_id: loteId, status_tecnico: { in: ['PENDENTE', 'FALHOU'] } },
+    });
+    if (pendentes.length === 0) {
+      return { lote_id: loteId, reprocessados: 0, status: lote.status, observacao: 'Nada pendente para reprocessar.' };
+    }
+
+    const arquivosReg = await Promise.all(
+      pendentes.map(async (arq) => ({
+        id: arq.id,
+        lote_id: loteId,
+        grupo_id: lote.grupo_id,
+        nome: arq.nome_original,
+        file_url: await this.storage.getPresignedUrl(arq.storage_key || ''),
+      })),
+    );
+
+    await this.prisma.importacaoXMLLote.update({ where: { id: loteId }, data: { status: 'PROCESSANDO' } });
+    const contadores = await this.processarArquivos(lote.grupo_id, arquivosReg);
+
+    // Incrementa em cima do que já estava consolidado (arquivos que já
+    // tinham CONCLUIDO em uma tentativa anterior não entram nesses deltas).
+    const atualizado = await this.prisma.importacaoXMLLote.update({
+      where: { id: loteId },
+      data: {
+        arquivos_validos: { increment: contadores.arquivosValidos },
+        arquivos_invalidos: { increment: contadores.arquivosInvalidos },
+        total_itens: { increment: contadores.totalItens },
+        itens_importaveis: { increment: contadores.itensImportaveis },
+        itens_importaveis_com_alerta: { increment: contadores.itensAlerta },
+        itens_bloqueados: { increment: contadores.itensBloqueados },
+        itens_duplicados: { increment: contadores.itensDuplicados },
+        itens_cancelados: { increment: contadores.itensCancelados },
+        processado_em: new Date(),
+      },
+    });
+
+    const statusFinal = this.calcularStatusLote({
+      arquivosValidos: atualizado.arquivos_validos,
+      itensImportaveis: atualizado.itens_importaveis,
+      itensAlerta: atualizado.itens_importaveis_com_alerta,
+      itensBloqueados: atualizado.itens_bloqueados,
+    });
+    await this.prisma.importacaoXMLLote.update({ where: { id: loteId }, data: { status: statusFinal } });
+
+    return { lote_id: loteId, reprocessados: pendentes.length, status: statusFinal };
+  }
+
+  private calcularStatusLote(c: {
+    arquivosValidos: number;
+    itensImportaveis: number;
+    itensAlerta: number;
+    itensBloqueados: number;
+  }): 'PROCESSADO' | 'PROCESSADO_COM_FALHAS' | 'AGUARDANDO_CONFIRMACAO' {
+    if (c.arquivosValidos === 0) return 'PROCESSADO_COM_FALHAS';
+    if (c.itensImportaveis + c.itensAlerta > 0) return 'AGUARDANDO_CONFIRMACAO';
+    if (c.itensBloqueados > 0 && c.itensImportaveis + c.itensAlerta === 0) return 'PROCESSADO_COM_FALHAS';
+    return 'PROCESSADO';
+  }
+
+  /** Núcleo do processamento — baixa, valida e grava itens para uma lista de arquivos. Não toca no status do lote. */
+  private async processarArquivos(
+    grupoId: string,
+    arquivosReg: { id: string; lote_id: string; grupo_id: string; nome: string; file_url: string }[],
+  ) {
+    {
       const empresas = await this.prisma.empresa.findMany({ where: { grupo: grupoId } });
       const empresasByCnpj = new Map<string, (typeof empresas)[number]>();
       for (const e of empresas) {
         if (e.cnpj_cpf) empresasByCnpj.set(normalizeCnpj(e.cnpj_cpf), e);
       }
 
-      const cstCatalogo = await this.prisma.cstIbsCbs.findMany();
-      const classTribCatalogo = await this.prisma.classTrib.findMany();
-      const credPresCatalogo = await this.prisma.credPres.findMany();
-      const cstSet = new Set(cstCatalogo.map((c) => c.cst));
-      const classTribMap = new Map(classTribCatalogo.map((c) => [c.c_class_trib, c]));
-      const credPresSet = new Set(credPresCatalogo.map((c) => c.c_cred_pres));
+      // Só regras com status "Ativo" contam como localizadas — uma classificação
+      // revogada/desativada não deve validar uma operação como se ainda valesse.
+      // Agrupadas por código (não Map 1:1) porque pode haver mais de uma versão
+      // histórica do mesmo código — escolherVigente() decide qual vale na data
+      // de emissão de cada documento, mais abaixo.
+      const cstCatalogo = await this.prisma.cstIbsCbs.findMany({ where: { status: 'Ativo' } });
+      const classTribCatalogo = await this.prisma.classTrib.findMany({ where: { status: 'Ativo' } });
+      const credPresCatalogo = await this.prisma.credPres.findMany({ where: { status: 'Ativo' } });
+      const cstGrouped = agruparPorCodigo(cstCatalogo, (c) => c.cst);
+      const classTribGrouped = agruparPorCodigo(classTribCatalogo, (c) => c.c_class_trib);
+      const credPresGrouped = agruparPorCodigo(credPresCatalogo, (c) => c.c_cred_pres);
+
+      // NCM/CFOP: validação leniente — só bloqueia quando o catálogo já tem
+      // pelo menos uma linha (senão quem ainda não cadastrou nada trava tudo).
+      const ncmSet = new Set((await this.prisma.ncm.findMany({ where: { status: 'Ativo' } })).map((n) => n.codigo));
+      const cfopSet = new Set((await this.prisma.cfop.findMany({ where: { status: 'Ativo' } })).map((c) => c.codigo));
 
       const historico = await this.prisma.historicoXML.findMany({ where: { grupo_id: grupoId } });
       const histKeys = new Set(historico.map((h) => `${h.chave_nfe}|${h.numero_item}|${h.perspectiva}`));
@@ -209,6 +334,24 @@ export class ImportacaoXmlService {
             continue;
           }
 
+          if (tipoXml === 'CTE' || tipoXml === 'MDFE' || tipoXml === 'NFSE') {
+            // Reconhecido corretamente pela raiz, mas sem extração de
+            // item/tributo — schema totalmente diferente da NF-e (ver
+            // comentário do enum TipoXml). Marcado como IGNORADO, não
+            // FALHOU/INVALIDO: o arquivo está correto, só não é suportado.
+            arqUpdates.push({
+              id: arq.id,
+              hash_sha256: hash,
+              tipo_xml: tipoXml,
+              situacao_fiscal: 'IGNORADO',
+              status_tecnico: 'CONCLUIDO',
+              erro_processamento: `${tipoXml} reconhecido, mas extração de itens/tributos não é suportada nesta versão — nenhuma Operação foi gerada a partir deste arquivo.`,
+              processado_em: new Date(),
+            });
+            arquivosValidos++;
+            continue;
+          }
+
           if (tipoXml === 'XML_DESCONHECIDO') {
             arqUpdates.push({
               id: arq.id,
@@ -230,9 +373,11 @@ export class ImportacaoXmlService {
             hash,
             grupoId,
             empresasByCnpj,
-            cstSet,
-            classTribMap,
-            credPresSet,
+            cstGrouped,
+            classTribGrouped,
+            credPresGrouped,
+            ncmSet,
+            cfopSet,
             histKeys,
             chavesVistas,
           );
@@ -269,30 +414,10 @@ export class ImportacaoXmlService {
         await this.prisma.$transaction(allItems.map((row) => this.prisma.importacaoXMLItem.create({ data: row as any })));
       }
 
-      let statusFinal: 'PROCESSADO' | 'PROCESSADO_COM_FALHAS' | 'AGUARDANDO_CONFIRMACAO' = 'PROCESSADO';
-      if (arquivosValidos === 0) statusFinal = 'PROCESSADO_COM_FALHAS';
-      else if (itensImportaveis + itensAlerta > 0) statusFinal = 'AGUARDANDO_CONFIRMACAO';
-      else if (itensBloqueados > 0 && itensImportaveis + itensAlerta === 0) statusFinal = 'PROCESSADO_COM_FALHAS';
-
-      await this.prisma.importacaoXMLLote.update({
-        where: { id: loteId },
-        data: {
-          status: statusFinal,
-          arquivos_validos: arquivosValidos,
-          arquivos_invalidos: arquivosInvalidos,
-          total_itens: totalItens,
-          itens_importaveis: itensImportaveis,
-          itens_importaveis_com_alerta: itensAlerta,
-          itens_bloqueados: itensBloqueados,
-          itens_duplicados: itensDuplicados,
-          itens_cancelados: itensCancelados,
-          processado_em: new Date(),
-        },
-      });
-    } catch (err) {
-      await this.prisma.importacaoXMLLote
-        .update({ where: { id: loteId }, data: { status: 'FALHOU', observacao: String((err as Error)?.message || err) } })
-        .catch(() => {});
+      return {
+        arquivosValidos, arquivosInvalidos, totalItens,
+        itensImportaveis, itensAlerta, itensBloqueados, itensDuplicados, itensCancelados,
+      };
     }
   }
 
@@ -334,9 +459,11 @@ export class ImportacaoXmlService {
     hash: string,
     grupoId: string,
     empresasByCnpj: Map<string, any>,
-    cstSet: Set<string>,
-    classTribMap: Map<string, any>,
-    credPresSet: Set<string>,
+    cstGrouped: Map<string, any[]>,
+    classTribGrouped: Map<string, any[]>,
+    credPresGrouped: Map<string, any[]>,
+    ncmSet: Set<string>,
+    cfopSet: Set<string>,
     histKeys: Set<string>,
     chavesVistas: Map<string, string>,
   ) {
@@ -384,6 +511,12 @@ export class ImportacaoXmlService {
     const dataEmi = getText(ide, 'dhEmi') || getText(ide, 'dEmi');
     const ambiente = getText(ide, 'tpAmb');
     const finalidade = getText(ide, 'finNFe');
+    // Documentos referenciados (ide > NFref > refNFe) — presentes em
+    // devolução (finNFe=4), nota complementar (finNFe=2) e ajuste (finNFe=3).
+    // Só guarda a lista para rastreabilidade; não altera o cálculo da
+    // operação (a direção Entrada/Saída já é resolvida por perspectiva
+    // EMITENTE/DESTINATARIO, então o sinal do crédito/débito já sai certo).
+    const nfRefs = getAll(ide, 'NFref').map((nf) => getText(nf, 'refNFe')).filter(Boolean);
 
     const protNFe = getFirst(doc.documentElement, 'protNFe') || getFirst(nfe, 'protNFe');
     const infProt = getFirst(protNFe, 'infProt');
@@ -427,6 +560,9 @@ export class ImportacaoXmlService {
       tipo_xml: tipoXml,
       situacao_fiscal: situacaoFiscal,
       status_tecnico: 'CONCLUIDO',
+      // Limpa erro de uma tentativa anterior (reprocessamento) — sem isso a
+      // mensagem de falha antiga ficava visível mesmo depois do sucesso.
+      erro_processamento: null,
       chave_nfe: chaveNfe,
       numero_nf: numero,
       serie,
@@ -566,12 +702,17 @@ export class ImportacaoXmlService {
           credito_presumido_cbs_pct_normalizado: parsePercentage(cpCbsPct),
           grupo_rtc: grupoRtc || null,
           finalidade_dfe: finalidade || null,
+          documentos_referenciados_json: nfRefs.length > 0 ? JSON.stringify(nfRefs) : null,
           crt_emitente: null,
           ambiente,
           data_emissao: dataEmi ? new Date(dataEmi) : null,
         };
 
-        const ctx = { cstSet, classTribMap, credPresSet, histKeys, cStat, ambiente, situacaoFiscal, chaveValida };
+        const ctx = {
+          cstGrouped, classTribGrouped, credPresGrouped, ncmSet, cfopSet,
+          dataEmiDate: dataEmi ? new Date(dataEmi) : new Date(),
+          histKeys, cStat, ambiente, situacaoFiscal, chaveValida,
+        };
 
         const itemPreparado = this.prepararItem(dados, ctx);
         resultado.items.push(itemPreparado.data);
@@ -592,9 +733,12 @@ export class ImportacaoXmlService {
   private prepararItem(
     dados: Record<string, unknown>,
     ctx: {
-      cstSet: Set<string>;
-      classTribMap: Map<string, any>;
-      credPresSet: Set<string>;
+      cstGrouped: Map<string, any[]>;
+      classTribGrouped: Map<string, any[]>;
+      credPresGrouped: Map<string, any[]>;
+      ncmSet: Set<string>;
+      cfopSet: Set<string>;
+      dataEmiDate: Date;
       histKeys: Set<string>;
       cStat: string;
       ambiente: string;
@@ -673,7 +817,7 @@ export class ImportacaoXmlService {
     return checks;
   }
 
-  private validarCadastral(dados: Record<string, unknown>, _ctx: unknown): Check[] {
+  private validarCadastral(dados: Record<string, unknown>, ctx: { ncmSet: Set<string>; cfopSet: Set<string> }): Check[] {
     const checks: Check[] = [];
     if (!dados.empresa_id) {
       checks.push(check('CAD_EMPRESA_NAO_LOCALIZADA', STATUS.NAO_CONFORME, 'Nenhum CNPJ (emitente/destinatário) localizado no grupo.', true, 'empresa_id'));
@@ -686,9 +830,15 @@ export class ImportacaoXmlService {
     }
     if (!dados.ncm && !dados.nbs) {
       checks.push(check('CAD_NCM_AUSENTE', STATUS.ALERTA, 'NCM e NBS ausentes — verifique se aplicável.', false, 'ncm'));
+    } else if (dados.ncm && ctx.ncmSet.size > 0 && !ctx.ncmSet.has(dados.ncm as string)) {
+      // Só valida contra o catálogo se ele já tiver alguma linha cadastrada
+      // — senão bloquearia todo mundo que ainda não populou a base de NCM.
+      checks.push(check('CAD_NCM_NAO_LOCALIZADO', STATUS.ALERTA, `NCM ${dados.ncm} não localizado no catálogo cadastrado.`, false, 'ncm'));
     }
     if (!dados.cfop_servico) {
       checks.push(check('CAD_CFOP_AUSENTE', STATUS.ALERTA, 'CFOP ausente.', false, 'cfop_servico'));
+    } else if (ctx.cfopSet.size > 0 && !ctx.cfopSet.has(dados.cfop_servico as string)) {
+      checks.push(check('CAD_CFOP_NAO_LOCALIZADO', STATUS.ALERTA, `CFOP ${dados.cfop_servico} não localizado no catálogo cadastrado.`, false, 'cfop_servico'));
     }
     if (!dados.uf_origem) {
       checks.push(check('CAD_UF_ORIGEM_AUSENTE', STATUS.ALERTA, 'UF de origem ausente.', false, 'uf_origem'));
@@ -707,18 +857,43 @@ export class ImportacaoXmlService {
 
   private validarTributaria(
     dados: Record<string, unknown>,
-    ctx: { cstSet: Set<string>; classTribMap: Map<string, any>; credPresSet: Set<string> },
+    ctx: {
+      cstGrouped: Map<string, any[]>;
+      classTribGrouped: Map<string, any[]>;
+      credPresGrouped: Map<string, any[]>;
+      dataEmiDate: Date;
+    },
   ): Check[] {
     const checks: Check[] = [];
-    if (dados.cst_normalizado && !ctx.cstSet.has(dados.cst_normalizado as string)) {
-      checks.push(check('TRIB_CST_NAO_LOCALIZADO', STATUS.NAO_CONFORME, `CST ${dados.cst_normalizado} não localizado no catálogo.`, true, 'cst_ibs_cbs'));
+    const dataFmt = ctx.dataEmiDate.toLocaleDateString('pt-BR');
+
+    if (dados.cst_normalizado) {
+      const candidatos = ctx.cstGrouped.get(dados.cst_normalizado as string) || [];
+      if (candidatos.length === 0) {
+        checks.push(check('TRIB_CST_NAO_LOCALIZADO', STATUS.NAO_CONFORME, `CST ${dados.cst_normalizado} não localizado no catálogo.`, true, 'cst_ibs_cbs'));
+      } else if (!escolherVigente(candidatos, ctx.dataEmiDate)) {
+        checks.push(check('TRIB_CST_FORA_DE_VIGENCIA', STATUS.NAO_CONFORME, `CST ${dados.cst_normalizado} existe no catálogo, mas nenhuma versão estava vigente em ${dataFmt}.`, true, 'cst_ibs_cbs'));
+      }
     }
-    if (dados.c_class_trib_normalizado && !ctx.classTribMap.has(dados.c_class_trib_normalizado as string)) {
-      checks.push(check('TRIB_CLASS_TRIB_NAO_LOCALIZADO', STATUS.NAO_CONFORME, `cClassTrib ${dados.c_class_trib_normalizado} não localizado no catálogo.`, true, 'c_class_trib'));
+
+    if (dados.c_class_trib_normalizado) {
+      const candidatos = ctx.classTribGrouped.get(dados.c_class_trib_normalizado as string) || [];
+      if (candidatos.length === 0) {
+        checks.push(check('TRIB_CLASS_TRIB_NAO_LOCALIZADO', STATUS.NAO_CONFORME, `cClassTrib ${dados.c_class_trib_normalizado} não localizado no catálogo.`, true, 'c_class_trib'));
+      } else if (!escolherVigente(candidatos, ctx.dataEmiDate)) {
+        checks.push(check('TRIB_CLASS_TRIB_FORA_DE_VIGENCIA', STATUS.NAO_CONFORME, `cClassTrib ${dados.c_class_trib_normalizado} existe no catálogo, mas nenhuma versão estava vigente em ${dataFmt}.`, true, 'c_class_trib'));
+      }
     }
-    if (dados.c_cred_pres_normalizado && !ctx.credPresSet.has(dados.c_cred_pres_normalizado as string)) {
-      checks.push(check('TRIB_CRED_PRES_AUSENTE', STATUS.ALERTA, `cCredPres ${dados.c_cred_pres_normalizado} não localizado no catálogo.`, false, 'c_cred_pres'));
+
+    if (dados.c_cred_pres_normalizado) {
+      const candidatos = ctx.credPresGrouped.get(dados.c_cred_pres_normalizado as string) || [];
+      if (candidatos.length === 0) {
+        checks.push(check('TRIB_CRED_PRES_AUSENTE', STATUS.ALERTA, `cCredPres ${dados.c_cred_pres_normalizado} não localizado no catálogo.`, false, 'c_cred_pres'));
+      } else if (!escolherVigente(candidatos, ctx.dataEmiDate)) {
+        checks.push(check('TRIB_CRED_PRES_FORA_DE_VIGENCIA', STATUS.ALERTA, `cCredPres ${dados.c_cred_pres_normalizado} existe no catálogo, mas nenhuma versão estava vigente em ${dataFmt}.`, false, 'c_cred_pres'));
+      }
     }
+
     if (!dados.grupo_rtc && dados.c_class_trib_normalizado) {
       checks.push(check('TRIB_GRUPO_RTC_DIVERGENTE', STATUS.NAO_APLICAVEL, 'Grupo RTC não informado — verifique exigência do cClassTrib.', false, 'grupo_rtc'));
     }
@@ -734,6 +909,35 @@ export class ImportacaoXmlService {
     if ((dados.quantidade as number) < 0) {
       checks.push(check('OPER_VALOR_NEGATIVO_BLOQUEANTE', STATUS.NAO_CONFORME, 'Quantidade negativa não permitida.', true, 'quantidade'));
     }
+
+    // finNFe: 2=Complementar, 3=Ajuste, 4=Devolução/Retorno. A direção
+    // (Entrada/Saída) já sai certa pela perspectiva EMITENTE/DESTINATARIO —
+    // isso não recalcula nada, só avisa pra revisão humana antes de
+    // confirmar, e mostra a que documento original o XML se refere quando
+    // a nota trouxer NFref.
+    const finalidade = dados.finalidade_dfe as string | null;
+    if (finalidade === '4') {
+      const refs = dados.documentos_referenciados_json ? JSON.parse(dados.documentos_referenciados_json as string) : [];
+      checks.push(check(
+        'OPER_DEVOLUCAO_REVISAR',
+        STATUS.ALERTA,
+        refs.length > 0
+          ? `Documento de devolução/retorno (finNFe=4), referencia ${refs.length} NF-e original(is) — confira o vínculo antes de confirmar.`
+          : 'Documento de devolução/retorno (finNFe=4) sem NF-e de referência informada — confira manualmente.',
+        false,
+        'finalidade_dfe',
+        refs,
+      ));
+    } else if (finalidade === '2' || finalidade === '3') {
+      checks.push(check(
+        'OPER_COMPLEMENTAR_AJUSTE_REVISAR',
+        STATUS.ALERTA,
+        `Documento ${finalidade === '2' ? 'complementar' : 'de ajuste'} (finNFe=${finalidade}) — verifique se os valores já não estão contemplados na NF-e original antes de confirmar, para não contar em dobro.`,
+        false,
+        'finalidade_dfe',
+      ));
+    }
+
     return checks;
   }
 

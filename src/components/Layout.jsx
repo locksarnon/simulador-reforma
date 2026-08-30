@@ -10,6 +10,7 @@ import {
   Plus,
   Layers,
   Code2,
+  SlidersHorizontal,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const sections = [
   {
     title: "Bases Técnicas",
     items: [
+      { to: "/cenarios", label: "Cenários", icon: SlidersHorizontal },
       { to: "/transicao", label: "Transição 2026–2033", icon: CalendarClock },
       { to: "/catalogos", label: "Catálogos IBS/CBS", icon: BookMarked },
       { to: "/configuracao", label: "Configuração", icon: Settings },

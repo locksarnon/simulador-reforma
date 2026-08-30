@@ -100,6 +100,14 @@ enum TipoXml {
   EVENTO_CANCELAMENTO
   EVENTO_CARTA_CORRECAO
   EVENTO_OUTRO
+  // Reconhecidos pela raiz do XML, mas sem extração de itens/tributos —
+  // schemas totalmente diferentes da NF-e (CT-e tem ICMS sobre frete, MDF-e
+  // é manifesto sem dado tributário, e NFS-e varia por prefeitura — mais de
+  // 5000 layouts municipais distintos, sem padrão nacional viável de cobrir
+  // aqui; só a "NFS-e nacional", padrão mais recente, é reconhecida).
+  CTE
+  MDFE
+  NFSE
   XML_DESCONHECIDO
 }
 
@@ -295,6 +303,8 @@ model ClassTrib {
   dfe_relacionados    String?
   fonte               String?
   publicacao          DateTime?
+  vigencia_inicio     DateTime?
+  vigencia_fim        DateTime?
   status              String    @default("Ativo")
   observacao          String?
   createdAt           DateTime  @default(now())
@@ -317,6 +327,8 @@ model CstIbsCbs {
   ajuste_competencia          String?
   origem                      String?
   publicacao_referencia       DateTime?
+  vigencia_inicio             DateTime?
+  vigencia_fim                DateTime?
   status                      String    @default("Ativo")
   observacao                  String?
   createdAt                   DateTime  @default(now())
@@ -334,10 +346,10 @@ model CredPres {
   deduz_credito_presumido String?
   ibs_aplicavel          String?
   inicio_ibs             DateTime?
-  fim_ibs                String?
+  fim_ibs                DateTime?
   cbs_aplicavel          String?
   inicio_cbs             DateTime?
-  fim_cbs                String?
+  fim_cbs                DateTime?
   percentual_oficial     String?
   metodo_calculo         String?
   base_legal_metodo      String?
@@ -490,6 +502,7 @@ model ImportacaoXMLItem {
   credito_presumido_cbs_pct_normalizado       Float?
   grupo_rtc                                   String?
   finalidade_dfe                              String?
+  documentos_referenciados_json                String?
   crt_emitente                                String?
   ambiente                                    String?
   data_emissao                                DateTime?
@@ -514,4 +527,84 @@ model HistoricoXML {
 
   @@index([grupo_id])
   @@index([chave_nfe, numero_item, perspectiva])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Simulacao — snapshot imutável de uma rodada de cálculo do simulador.
+//
+// O motor (taxEngine.js) roda hoje inteiramente ao vivo no navegador: nada
+// do que ele calcula fica gravado em lugar nenhum, então não há como provar
+// depois com que regras/premissas um número foi produzido. Este model é o
+// registro de auditoria que faltava — "Salvar simulação" grava aqui uma
+// cópia imutável da entrada e do resultado.
+// ─────────────────────────────────────────────────────────────────────────
+
+model Simulacao {
+  id             String   @id @default(cuid())
+  grupo_id       String?
+  empresa_id     String?
+  nome           String?
+  escopo         String
+  input_hash     String
+  versao_motor   String
+  versao_regras  String
+  entrada_json   String
+  resultado_json String
+  criado_por     String?
+  createdAt      DateTime @default(now())
+
+  @@index([grupo_id])
+  @@index([input_hash])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Catálogos oficiais adicionais — NCM, CFOP e Benefício Fiscal eram apenas
+// campos de texto livre em Operacao/ImportacaoXMLItem (qualquer valor
+// passava, mesmo um código inexistente). Estes três models tornam-os
+// catálogos de verdade, no mesmo padrão de ClassTrib/CstIbsCbs/CredPres —
+// mas a validação continua "leniente": só bloqueia um código quando o
+// catálogo já tem pelo menos uma linha cadastrada (evita quebrar quem ainda
+// não populou a base).
+// ─────────────────────────────────────────────────────────────────────────
+
+model Ncm {
+  id          String    @id @default(cuid())
+  codigo      String
+  descricao   String?
+  status      String    @default("Ativo")
+  observacao  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([codigo])
+}
+
+model Cfop {
+  id               String    @id @default(cuid())
+  codigo           String
+  descricao        String?
+  tipo_operacao    String?
+  aplicavel_a      String?
+  status           String    @default("Ativo")
+  observacao       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([codigo])
+}
+
+model BeneficioFiscal {
+  id                String    @id @default(cuid())
+  codigo            String
+  descricao         String?
+  uf                String?
+  fundamento_legal  String?
+  vigencia_inicio   DateTime?
+  vigencia_fim      DateTime?
+  status            String    @default("Ativo")
+  observacao        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([codigo])
 }

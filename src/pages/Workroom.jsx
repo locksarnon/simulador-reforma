@@ -33,7 +33,7 @@ export default function Workroom() {
   const handleStepClick = (step) => {
     if (step === 1) navigate(`/workroom/${id}/empresas`);
     else if (step === 2) navigate(`/workroom/${id}/operacoes`);
-    else if (step === 3) navigate("/cockpit");
+    else if (step === 3) navigate(`/cockpit?grupo=${encodeURIComponent(grupo?.numero || "")}`);
     else if (step === 5) navigate(`/workroom/${id}`);
   };
 
@@ -58,13 +58,6 @@ export default function Workroom() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">IFME™</span>
-                <span className="text-lg font-heading font-bold text-primary">
-                  {(grupo?.ifme_consolidado || 0).toFixed(2)}
-                </span>
-                <span className="text-xs text-muted-foreground">/ {(grupo?.ifme_meta || 3).toFixed(2)}</span>
-              </div>
               <button
                 onClick={handleDelete}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
@@ -83,7 +76,7 @@ export default function Workroom() {
         </div>
       </div>
 
-      <Outlet />
+      <Outlet context={{ grupo }} />
     </div>
   );
 }

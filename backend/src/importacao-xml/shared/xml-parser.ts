@@ -102,7 +102,11 @@ export function getAttr(el: any, attrName: string): string {
   return '';
 }
 
-/** Identifica o tipo de XML pela raiz. */
+/**
+ * Identifica o tipo de XML pela raiz. CT-e/MDF-e/NFS-e são reconhecidos
+ * (não caem em XML_DESCONHECIDO) mas não têm extração de item/tributo —
+ * ver comentário do enum TipoXml no schema.prisma sobre por quê.
+ */
 export function identificarTipoXml(doc: any): string {
   const root = doc.documentElement;
   if (!root) return 'XML_DESCONHECIDO';
@@ -115,6 +119,12 @@ export function identificarTipoXml(doc: any): string {
     if (tp === '110110') return 'EVENTO_CARTA_CORRECAO';
     return 'EVENTO_OUTRO';
   }
+  if (name === 'cteproc' || name === 'cte') return 'CTE';
+  if (name === 'mdfeproc' || name === 'mdfe') return 'MDFE';
+  // NFS-e nacional (padrão mais recente, unificado); layouts municipais
+  // legados (ABRASF e variações próprias de cada prefeitura) não têm um
+  // nome de raiz único e não são cobertos aqui.
+  if (name === 'nfse') return 'NFSE';
   return 'XML_DESCONHECIDO';
 }
 

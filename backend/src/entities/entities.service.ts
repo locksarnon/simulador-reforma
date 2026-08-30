@@ -24,6 +24,10 @@ const ALLOWED_MODELS = [
   'ImportacaoXMLArquivo',
   'ImportacaoXMLItem',
   'HistoricoXML',
+  'Simulacao',
+  'Ncm',
+  'Cfop',
+  'BeneficioFiscal',
 ] as const;
 
 export type AllowedModel = (typeof ALLOWED_MODELS)[number];
@@ -47,6 +51,41 @@ export class EntitiesService {
     const meta = Prisma.dmmf.datamodel.models.find((m) => m.name === model);
     if (!meta) throw new NotFoundException(`Entidade "${model}" não existe.`);
     return new Set(meta.fields.filter((f) => f.kind === 'scalar' || f.kind === 'enum').map((f) => f.name));
+  }
+
+  /**
+   * O frontend manda "" para campos numéricos/data deixados em branco (ex:
+   * um <input type="date"> vazio, ou um <input type="number"> limpo pelo
+   * usuário) — Prisma rejeita "" para DateTime/Int/Float com um erro baixo
+   * nível ("premature end of input. Expected ISO-8601 DateTime"). Converte
+   * "" para null nesses campos antes de mandar pro Prisma.
+   *
+   * <input type="date"> também manda só "YYYY-MM-DD" (sem hora) quando
+   * preenchido — que Prisma TAMBÉM rejeita com o mesmo erro ("premature end
+   * of input", porque ISO-8601 completo exige a parte de hora). Completa
+   * com "T00:00:00.000Z" nesse caso.
+   *
+   * Ignora campos que não existem no model (evita "Unknown argument" em
+   * payloads com lixo).
+   */
+  private sanitize(model: AllowedModel, data: Record<string, unknown>): Record<string, unknown> {
+    const meta = Prisma.dmmf.datamodel.models.find((m) => m.name === model);
+    if (!meta) throw new NotFoundException(`Entidade "${model}" não existe.`);
+    const fieldTypes = new Map(meta.fields.map((f) => [f.name, f.type]));
+    const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (!fieldTypes.has(key)) continue;
+      const type = fieldTypes.get(key) as string;
+      if (value === '' && ['DateTime', 'Int', 'Float'].includes(type)) {
+        out[key] = null;
+      } else if (type === 'DateTime' && typeof value === 'string' && DATE_ONLY.test(value)) {
+        out[key] = `${value}T00:00:00.000Z`;
+      } else {
+        out[key] = value;
+      }
+    }
+    return out;
   }
 
   private delegate(model: AllowedModel) {
@@ -103,13 +142,13 @@ export class EntitiesService {
 
   async create(modelName: string, data: Record<string, unknown>) {
     const model = this.assertAllowed(modelName);
-    return this.delegate(model).create({ data });
+    return this.delegate(model).create({ data: this.sanitize(model, data) });
   }
 
   async update(modelName: string, id: string, data: Record<string, unknown>) {
     const model = this.assertAllowed(modelName);
     const { id: _drop, ...rest } = data;
-    return this.delegate(model).update({ where: { id }, data: rest });
+    return this.delegate(model).update({ where: { id }, data: this.sanitize(model, rest) });
   }
 
   async remove(modelName: string, id: string) {
@@ -125,14 +164,14 @@ export class EntitiesService {
     // transação para poder devolver os registros completos (com id), que é
     // o contrato que o SDK base44 original (e o código que consome a
     // resposta) espera.
-    return this.prisma.$transaction(rows.map((row) => delegate.create({ data: row })));
+    return this.prisma.$transaction(rows.map((row) => delegate.create({ data: this.sanitize(model, row) })));
   }
 
   async bulkUpdate(modelName: string, rows: { id: string; [key: string]: unknown }[]) {
     const model = this.assertAllowed(modelName);
     const delegate = this.delegate(model);
     return this.prisma.$transaction(
-      rows.map(({ id, ...rest }) => delegate.update({ where: { id }, data: rest })),
+      rows.map(({ id, ...rest }) => delegate.update({ where: { id }, data: this.sanitize(model, rest) })),
     );
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { Loader2, CheckCircle2, AlertTriangle, Download, FileSearch } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, Download, FileSearch, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -20,8 +20,19 @@ export default function ImportacaoXMLPage() {
   const [drawerCamada, setDrawerCamada] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+  const [reprocessando, setReprocessando] = useState(false);
 
   const isProcessing = imp.lote?.status === "RECEBIDO" || imp.lote?.status === "PROCESSANDO";
+  const temFalha = imp.lote?.status === "FALHOU" || imp.lote?.status === "PROCESSADO_COM_FALHAS";
+
+  const handleReprocessar = async () => {
+    setReprocessando(true);
+    try {
+      await imp.reprocessarLote();
+    } finally {
+      setReprocessando(false);
+    }
+  };
 
   const toggleSelect = (itemId, grupo) => {
     setSelectedIds((prev) => {
@@ -111,6 +122,19 @@ export default function ImportacaoXMLPage() {
             <p className="text-sm text-foreground">
               Processando lote... {imp.lote?.status === "PROCESSANDO" ? "Validando arquivos e itens." : "Aguardando início."}
             </p>
+          </div>
+        )}
+
+        {temFalha && (
+          <div className="flex items-center justify-between gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
+            <p className="text-sm text-foreground">
+              Este lote teve arquivos que falharam ({imp.lote.arquivos_invalidos || 0} de {imp.lote.total_arquivos || 0}).
+              Reprocessar retoma só o que falhou, sem reenviar os arquivos que já foram concluídos.
+            </p>
+            <Button onClick={handleReprocessar} disabled={reprocessando} variant="outline" className="gap-2 shrink-0">
+              {reprocessando ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Reprocessar
+            </Button>
           </div>
         )}
 

@@ -50,8 +50,8 @@ function App() {
                     <Route path="empresas" element={<EmpresasPage />} />
                     <Route path="operacoes" element={<OperacoesPage />} />
                     <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
-                    <Route path="cenarios" element={<CenariosPage />} />
                   </Route>
+                  <Route path="/cenarios" element={<CenariosPage />} />
                   <Route path="/transicao" element={<TransicaoPage />} />
                   <Route path="/catalogos" element={<CatalogosPage />} />
                   <Route path="/configuracao" element={<ConfiguracaoPage />} />

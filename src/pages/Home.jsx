@@ -1,39 +1,70 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSimuladorData } from "@/hooks/useSimuladorData";
-import { consolidarPorAno } from "../../base44/shared/taxEngine";
+import { consolidarPorAno, VERSAO_MOTOR } from "../../base44/shared/taxEngine";
+import { base44 } from "@/api/base44Client";
+import { hashSnapshot } from "@/lib/snapshotHash";
+import { gerarRelatorioSimulacao } from "@/lib/pdfReport";
 import KpiCard from "@/components/KpiCard";
-import { BRL, pct, num } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
+import { BRL, pct } from "@/lib/format";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   Legend, LineChart, Line,
 } from "recharts";
-import { AlertTriangle, TrendingUp, Wallet, FileText, Scale } from "lucide-react";
+import { AlertTriangle, TrendingUp, Wallet, FileText, Scale, Save, Loader2, Download } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 
 export default function Home() {
-  const { operacoesCalculadas, isLoading } = useSimuladorData();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const grupoNumero = searchParams.get("grupo") || "";
+  const {
+    operacoesCalculadas, isLoading, cenarioAtivo, config, transicao, classTrib, credPres, grupos,
+  } = useSimuladorData({ grupoNumero: grupoNumero || undefined });
+  const grupoSelecionado = grupos.find((g) => g.numero === grupoNumero);
+  const [salvando, setSalvando] = useState(false);
 
+  const handleGrupoChange = (e) => {
+    const value = e.target.value;
+    if (value) setSearchParams({ grupo: value });
+    else setSearchParams({});
+  };
+  const qc = useQueryClient();
+  const simulacoesQ = useQuery({
+    queryKey: ["simulacoes"],
+    queryFn: () => base44.entities.Simulacao.filter({}, "-createdAt", 20),
+  });
+
+  const transicaoPorAno = useMemo(
+    () => new Map(transicao.map((t) => [t.ano, t])),
+    [transicao]
+  );
   const consolidado = useMemo(
-    () => consolidarPorAno(operacoesCalculadas),
-    [operacoesCalculadas]
+    () => consolidarPorAno(operacoesCalculadas, transicaoPorAno),
+    [operacoesCalculadas, transicaoPorAno]
   );
 
+  // Deriva os KPIs do topo do mesmo consolidado por ano (já compensado por
+  // empresa) em vez de re-somar operacoesCalculadas cru — evitava que os
+  // dois lugares divergissem sobre como truncar IBS/CBS em zero.
   const totais = useMemo(() => {
-    return operacoesCalculadas.reduce(
-      (acc, oc) => {
-        acc.valorBruto += num(oc.op.valor_bruto);
-        acc.tributosAtuais += oc.sistemaAtual.tributosLiquidos;
-        acc.cargaTransicao += oc.transicao.cargaTotalTransicao;
-        acc.ibsCbs += oc.ibsCbs.ibsCbsLiquido;
-        acc.split += oc.ibsCbs.splitRetido;
-        acc.funding += oc.caixa.fundingTributario;
-        acc.margemAtual += oc.precoMargem.margemAtual;
-        acc.margemTransicao += oc.precoMargem.margemTransicao;
+    return consolidado.reduce(
+      (acc, c) => {
+        acc.valorBruto += c.valorBruto;
+        acc.tributosAtuais += c.tributosAtuaisLiquidos;
+        acc.cargaTransicao += c.cargaTransicao;
+        acc.ibsCbs += c.ibsCbsLiquido;
+        acc.split += c.splitRetido;
+        acc.funding += c.funding;
+        acc.margemAtual += c.margemAtual;
+        acc.margemTransicao += c.margemTransicao;
         return acc;
       },
       { valorBruto: 0, tributosAtuais: 0, cargaTransicao: 0, ibsCbs: 0, split: 0, funding: 0, margemAtual: 0, margemTransicao: 0 }
     );
-  }, [operacoesCalculadas]);
+  }, [consolidado]);
 
   const chartData = consolidado.map((c) => ({
     ano: String(c.ano),
@@ -48,6 +79,49 @@ export default function Home() {
     "Margem transição": +(c.margemTransicao / (c.valorBruto || 1) * 100).toFixed(1),
   }));
 
+  const handleSalvarSimulacao = async () => {
+    setSalvando(true);
+    try {
+      const entrada = {
+        operacoes: operacoesCalculadas.map((oc) => oc.op),
+        cenarioAtivo, config, transicao, classTrib, credPres,
+      };
+      const resultado = { consolidado, totais };
+      const nomeGrupo = grupoSelecionado ? `${grupoSelecionado.numero} · ${grupoSelecionado.nome}` : "todos os grupos";
+      await base44.entities.Simulacao.create({
+        escopo: grupoSelecionado ? "grupo" : "global",
+        grupo_id: grupoSelecionado?.id || null,
+        nome: `Painel executivo (${nomeGrupo}) — ${new Date().toLocaleString("pt-BR")}`,
+        versao_motor: VERSAO_MOTOR,
+        versao_regras: config.versao_simulador || "v0.18",
+        input_hash: hashSnapshot(entrada),
+        entrada_json: JSON.stringify(entrada),
+        resultado_json: JSON.stringify(resultado),
+      });
+      toast({ title: "Simulação salva", description: "Snapshot gravado com sucesso — os dados de entrada e o resultado ficaram registrados." });
+      qc.invalidateQueries({ queryKey: ["simulacoes"] });
+    } catch (err) {
+      toast({ title: "Falha ao salvar simulação", description: err.message, variant: "destructive" });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const handleExportarPdf = () => {
+    try {
+      const nome = gerarRelatorioSimulacao({
+        totais, consolidado,
+        versaoMotor: VERSAO_MOTOR,
+        versaoRegras: config.versao_simulador || "v0.18",
+        cenarioNome: cenarioAtivo?.nome,
+        grupoNome: grupoSelecionado ? `${grupoSelecionado.numero} · ${grupoSelecionado.nome}` : "Todos os grupos",
+      });
+      toast({ title: "PDF gerado", description: nome });
+    } catch (err) {
+      toast({ title: "Falha ao gerar PDF", description: err.message, variant: "destructive" });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[60vh]">
@@ -58,18 +132,42 @@ export default function Home() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
-          <Scale className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">Painel Executivo</h1>
-            <InfoTooltip pagina="home" chave="header" />
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
+            <Scale className="w-5 h-5" />
           </div>
-          <p className="text-sm text-muted-foreground">
-            Visão consolidada do sistema atual, IBS/CBS, transição, margem e caixa
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-heading font-semibold">Painel Executivo</h1>
+              <InfoTooltip pagina="home" chave="header" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {grupoSelecionado
+                ? `Grupo ${grupoSelecionado.numero} · ${grupoSelecionado.nome}`
+                : "Todos os grupos — sistema atual, IBS/CBS, transição, margem e caixa"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={grupoNumero}
+            onChange={handleGrupoChange}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">Todos os grupos</option>
+            {grupos.map((g) => (
+              <option key={g.id} value={g.numero}>{g.numero} · {g.nome}</option>
+            ))}
+          </select>
+          <Button variant="outline" onClick={handleExportarPdf} disabled={operacoesCalculadas.length === 0} className="gap-2">
+            <Download className="w-4 h-4" />
+            Exportar PDF
+          </Button>
+          <Button onClick={handleSalvarSimulacao} disabled={salvando || operacoesCalculadas.length === 0} className="gap-2">
+            {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Salvar simulação
+          </Button>
         </div>
       </div>
 
@@ -167,6 +265,44 @@ export default function Home() {
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-muted-foreground">
                     Nenhuma operação cadastrada ainda.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Save className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-heading font-medium text-sm">Simulações salvas</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="py-2 pr-4 font-medium">Data</th>
+                <th className="py-2 pr-4 font-medium">Nome</th>
+                <th className="py-2 pr-4 font-medium">Versão motor</th>
+                <th className="py-2 pr-4 font-medium">Versão regras</th>
+                <th className="py-2 pr-4 font-medium">Hash da entrada</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(simulacoesQ.data || []).map((s) => (
+                <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
+                  <td className="py-2.5 pr-4 whitespace-nowrap">{new Date(s.createdAt).toLocaleString("pt-BR")}</td>
+                  <td className="py-2.5 pr-4">{s.nome}</td>
+                  <td className="py-2.5 pr-4 font-mono text-xs">{s.versao_motor}</td>
+                  <td className="py-2.5 pr-4 font-mono text-xs">{s.versao_regras}</td>
+                  <td className="py-2.5 pr-4 font-mono text-xs text-muted-foreground">{s.input_hash}</td>
+                </tr>
+              ))}
+              {(simulacoesQ.data || []).length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    Nenhuma simulação salva ainda — clique em "Salvar simulação" acima.
                   </td>
                 </tr>
               )}

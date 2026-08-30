@@ -151,6 +151,7 @@ const ENTITY_NAMES = [
   'Grupo', 'Empresa', 'Operacao', 'Cenario', 'TransicaoAno', 'ClassTrib',
   'CstIbsCbs', 'CredPres', 'Configuracao', 'Diagnostico',
   'ImportacaoXMLLote', 'ImportacaoXMLArquivo', 'ImportacaoXMLItem', 'HistoricoXML',
+  'Simulacao',
 ];
 
 const entities = Object.fromEntries(ENTITY_NAMES.map((name) => [name, makeEntityClient(name)]));
@@ -158,6 +159,7 @@ const entities = Object.fromEntries(ENTITY_NAMES.map((name) => [name, makeEntity
 const FUNCTION_ROUTES = {
   processarLoteXML: '/xml/processar-lote',
   confirmarImportacaoXML: '/xml/confirmar-importacao',
+  reprocessarLoteXML: '/xml/reprocessar-lote',
 };
 
 export const base44 = {

@@ -1,20 +1,24 @@
 import React from "react";
-import { useParams, Link } from "react-router-dom";
-import { ChevronRight, Building2, FileText, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMarked, ShieldCheck, FileSearch } from "lucide-react";
+import { useParams, useOutletContext, Link } from "react-router-dom";
+import { ChevronRight, Building2, FileText, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMarked, UploadCloud, FileSearch } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 
 export default function WorkroomOverview() {
   const { id } = useParams();
+  const { grupo } = useOutletContext() || {};
 
   const modules = [
     { label: "Empresas do Grupo", to: `/workroom/${id}/empresas`, icon: Building2, desc: "Cadastro mestre de empresas vinculadas ao grupo" },
     { label: "Operações FAL", to: `/workroom/${id}/operacoes`, icon: FileText, desc: "Lançamentos e modelagem de operações do grupo" },
     { label: "Importação XML", to: `/workroom/${id}/importacao-xml`, icon: FileSearch, desc: "Upload de NF-e/NFC-e com validador DF-e e staging auditável" },
-    { label: "Cenários", to: `/workroom/${id}/cenarios`, icon: SlidersHorizontal, desc: "Fatores de volume, preço e custo aplicados ao motor" },
   ];
 
-  const externalModules = [
-    { label: "Painel Executivo", to: "/cockpit", icon: LayoutDashboard, desc: "Visão consolidada e cálculos do motor" },
+  // Compartilhados entre todos os grupos — não são exclusivos deste
+  // (Cenário, Configuração, Transição e Catálogos não têm vínculo com
+  // nenhum grupo específico no banco; editar aqui afeta todo mundo).
+  const globalModules = [
+    { label: "Painel Executivo", to: `/cockpit?grupo=${encodeURIComponent(grupo?.numero || "")}`, icon: LayoutDashboard, desc: "Visão consolidada e cálculos do motor, filtrada por este grupo" },
+    { label: "Cenários", to: "/cenarios", icon: SlidersHorizontal, desc: "Fatores de volume, preço e custo aplicados ao motor" },
     { label: "Transição 2026–2033", to: "/transicao", icon: CalendarClock, desc: "Parâmetros normativos por ano" },
     { label: "Catálogos IBS/CBS", to: "/catalogos", icon: BookMarked, desc: "CST, cClassTrib e cCredPres" },
   ];
@@ -28,7 +32,7 @@ export default function WorkroomOverview() {
             <InfoTooltip pagina="workroom" chave="header" />
           </div>
           <p className="text-sm text-muted-foreground">
-            Navegue pelas etapas. Cada módulo abre dentro do contexto deste grupo.
+            Empresas, operações e importação de XML ficam só neste grupo. As bases técnicas abaixo são compartilhadas com os outros grupos.
           </p>
         </div>
 
@@ -55,9 +59,14 @@ export default function WorkroomOverview() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="font-heading font-medium text-sm mb-3">Bases Técnicas e Análise</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {externalModules.map((item) => {
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="font-heading font-medium text-sm">Bases Técnicas e Análise</h3>
+            <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+              Compartilhado entre grupos
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {globalModules.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
@@ -76,10 +85,10 @@ export default function WorkroomOverview() {
           </div>
         </div>
 
-        <div className="flex items-start gap-3 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-emerald-700 leading-relaxed">
-            Importação XML com Validador DF-e ativo: upload de NF-e/NFC-e, processamento backend, 4 camadas de validação e staging auditável.
+        <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50 border border-border">
+          <UploadCloud className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Comece cadastrando as empresas deste grupo, depois lance operações manualmente ou importe XMLs de NF-e/NFC-e para gerá-las automaticamente.
           </p>
         </div>
       </div>

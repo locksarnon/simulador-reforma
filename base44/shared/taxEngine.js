@@ -12,6 +12,19 @@
  * Fórmulas reproduzem a aba "Caixa e Split" e "Preço e margem" do Excel v0.16.
  */
 
+/** Versão do motor — bump manual sempre que uma fórmula de cálculo mudar.
+ * Gravada em cada Simulacao salva, para saber depois com qual versão do
+ * motor um resultado foi produzido.
+ * 1.1.0 (2026-08-30): calcTransicao() passou a descontar o crédito de
+ * entrada do remanescente do sistema atual — antes, compras creditáveis
+ * inflavam "carga da transição"/"carga efetiva" sem nunca ser compensadas.
+ * 1.2.0 (2026-08-30): consolidarPorAno() passou a compensar débito e
+ * crédito de IBS/CBS por empresa+ano antes de truncar em zero — antes, cada
+ * operação truncava seu próprio saldo isoladamente, e o Painel Executivo
+ * somava esses saldos já truncados, descartando o excedente de crédito de
+ * uma entrada em vez de abater o débito de uma saída no mesmo período. */
+export const VERSAO_MOTOR = "1.2.0";
+
 const num = (v) => (typeof v === "number" ? v : Number(v) || 0);
 
 /** Módulo 1 — Sistema atual */
@@ -144,10 +157,21 @@ export function calcTransicao(op, sisAtual, ibsCbs, anoParams) {
   const fIpi = num(anoParams.ipi_fator_geral);
   const fIcms = num(anoParams.icms_fator);
   const fIss = num(anoParams.iss_fator);
+  const isEntrada = op.direcao === "Entrada";
 
-  const pisCofinsAtual = (sisAtual.pis + sisAtual.cofins) * fPisCofins;
-  const ipiAtual = sisAtual.ipi * fIpi;
-  const icmsFcpStAtual = (sisAtual.icmsProprio + sisAtual.fcp + sisAtual.icmsSt) * fIcms;
+  // Mesma base de crédito do Módulo 1 (sistema atual): numa Entrada, o
+  // crédito elegível abate PIS/Cofins/ICMS próprio/FCP/IPI — ICMS-ST e ISS
+  // nunca são creditáveis, igual à baseCredito de calcSistemaAtual(). Sem
+  // esse desconto aqui, uma compra creditável inflava "carga da transição"
+  // com um valor que nunca era compensado em lugar nenhum — nem por
+  // operação, nem na apuração por empresa (achado de simulação de caso
+  // real em 2026-08-30: numa compra de R$45.000 com crédito de 100%, a
+  // carga da transição de 2026 caía de 27,89% para 18,16% com este ajuste).
+  const netFactor = isEntrada ? Math.max(0, 1 - num(op.credito_elegivel_pct)) : 1;
+
+  const pisCofinsAtual = (sisAtual.pis + sisAtual.cofins) * fPisCofins * netFactor;
+  const ipiAtual = sisAtual.ipi * fIpi * netFactor;
+  const icmsFcpStAtual = ((sisAtual.icmsProprio + sisAtual.fcp) * netFactor + sisAtual.icmsSt) * fIcms;
   const issAtual = sisAtual.iss * fIss;
   const sistemaAtualRemanescente = pisCofinsAtual + ipiAtual + icmsFcpStAtual + issAtual;
 
@@ -325,28 +349,74 @@ export function apuracaoPorEmpresa(operacoesCalculadas, filtro = {}) {
   });
 }
 
-/** Agrega operações calculadas por ano (para o painel executivo) */
-export function consolidarPorAno(operacoesCalculadas) {
-  const porAno = {};
+/**
+ * Agrega operações calculadas por ano (para o painel executivo).
+ *
+ * Compensa débito e crédito de IBS/CBS por empresa+ano ANTES de truncar em
+ * zero — mesma lógica de apuracaoPorEmpresa() — em vez de somar o
+ * ibsCbsLiquido já truncado de cada operação isolada. Sem isso, o crédito de
+ * uma entrada (zerado no cálculo por operação porque não pode ficar
+ * negativo sozinho) desaparecia sem nunca abater o débito de uma saída no
+ * mesmo período (achado da revisão de créditos, 2026-08-30: uma venda de
+ * R$80.000 + compra de R$45.000 100% creditável no mesmo ano mostravam
+ * R$800 de IBS/CBS líquido — o correto, compensado, é R$350).
+ *
+ * @param transicaoPorAno Map<ano, TransicaoAno> — para aplicar o mesmo
+ * efeito_financeiro por ano usado em calcTransicao() ao saldo já compensado.
+ */
+export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map()) {
+  const porEmpresaAno = new Map();
   for (const oc of operacoesCalculadas) {
-    const ano = oc.op.ano;
-    if (!porAno[ano]) {
-      porAno[ano] = {
-        ano, valorBruto: 0, tributosAtuaisLiquidos: 0, ibsCbsLiquido: 0,
+    const key = `${oc.op.empresa_id}|${oc.op.ano}`;
+    if (!porEmpresaAno.has(key)) {
+      porEmpresaAno.set(key, {
+        ano: oc.op.ano,
+        valorBruto: 0, tributosAtuaisLiquidos: 0,
+        debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0,
+        sistemaAtualRemanescente: 0,
+        margemAtual: 0, margemTransicao: 0,
+        splitRetido: 0, creditoAcumulado: 0, funding: 0,
+      });
+    }
+    const e = porEmpresaAno.get(key);
+    e.valorBruto += num(oc.op.valor_bruto);
+    e.tributosAtuaisLiquidos += oc.sistemaAtual.tributosLiquidos;
+    e.debitoIbs += oc.ibsCbs.debitoIbs;
+    e.debitoCbs += oc.ibsCbs.debitoCbs;
+    e.creditoIbs += oc.ibsCbs.creditoIbs;
+    e.creditoCbs += oc.ibsCbs.creditoCbs;
+    e.credPresTotal += oc.ibsCbs.credPresTotal;
+    e.sistemaAtualRemanescente += oc.transicao.sistemaAtualRemanescente;
+    e.margemAtual += oc.precoMargem.margemAtual;
+    e.margemTransicao += oc.precoMargem.margemTransicao;
+    e.splitRetido += oc.ibsCbs.splitRetido;
+    e.creditoAcumulado += oc.caixa.creditoAcumulado;
+    e.funding += oc.caixa.fundingTributario;
+  }
+
+  const porAno = {};
+  for (const e of porEmpresaAno.values()) {
+    if (!porAno[e.ano]) {
+      porAno[e.ano] = {
+        ano: e.ano, valorBruto: 0, tributosAtuaisLiquidos: 0, ibsCbsLiquido: 0,
         cargaTransicao: 0, margemAtual: 0, margemTransicao: 0,
         splitRetido: 0, creditoAcumulado: 0, funding: 0,
       };
     }
-    const a = porAno[ano];
-    a.valorBruto += num(oc.op.valor_bruto);
-    a.tributosAtuaisLiquidos += oc.sistemaAtual.tributosLiquidos;
-    a.ibsCbsLiquido += oc.ibsCbs.ibsCbsLiquido;
-    a.cargaTransicao += oc.transicao.cargaTotalTransicao;
-    a.margemAtual += oc.precoMargem.margemAtual;
-    a.margemTransicao += oc.precoMargem.margemTransicao;
-    a.splitRetido += oc.ibsCbs.splitRetido;
-    a.creditoAcumulado += oc.caixa.creditoAcumulado;
-    a.funding += oc.caixa.fundingTributario;
+    const a = porAno[e.ano];
+    const ibsCbsApurado =
+      Math.max(0, e.debitoIbs - e.creditoIbs - e.credPresTotal) +
+      Math.max(0, e.debitoCbs - e.creditoCbs);
+    const efeitoFinanceiro = num(transicaoPorAno.get?.(e.ano)?.efeito_financeiro);
+    a.valorBruto += e.valorBruto;
+    a.tributosAtuaisLiquidos += e.tributosAtuaisLiquidos;
+    a.ibsCbsLiquido += ibsCbsApurado;
+    a.cargaTransicao += e.sistemaAtualRemanescente + ibsCbsApurado * efeitoFinanceiro;
+    a.margemAtual += e.margemAtual;
+    a.margemTransicao += e.margemTransicao;
+    a.splitRetido += e.splitRetido;
+    a.creditoAcumulado += e.creditoAcumulado;
+    a.funding += e.funding;
   }
   return Object.values(porAno).sort((x, y) => x.ano - y.ano);
 }

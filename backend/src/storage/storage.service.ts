@@ -73,4 +73,16 @@ export class StorageService implements OnModuleInit {
     const url = await this.client.presignedGetObject(this.bucket, objectKey, expirySeconds);
     return { storageKey: objectKey, url };
   }
+
+  /**
+   * Gera uma nova URL pré-assinada para um objeto já existente (sem
+   * reenviar o conteúdo) — usado no reprocessamento de lote: a URL assinada
+   * no upload original expira em 24h, então se o processamento falhar e for
+   * retomado depois disso, precisa de uma assinatura nova para o mesmo
+   * arquivo que já está salvo no MinIO.
+   */
+  async getPresignedUrl(objectKey: string, expirySeconds = 24 * 60 * 60): Promise<string> {
+    this.assertReady();
+    return this.client.presignedGetObject(this.bucket, objectKey, expirySeconds);
+  }
 }

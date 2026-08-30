@@ -60,8 +60,8 @@ export function useImportacaoXML(grupoId) {
         const batch = selectedFiles.slice(i, i + UPLOAD_CONCURRENCY);
         const results = await Promise.all(
           batch.map(async (f) => {
-            const { file_url } = await base44.integrations.Core.UploadFile({ file: f });
-            return { nome: f.name, file_url, tamanho: f.size };
+            const { file_url, storage_key } = await base44.integrations.Core.UploadFile({ file: f });
+            return { nome: f.name, file_url, storage_key, tamanho: f.size };
           })
         );
         arquivosRefs.push(...results);
@@ -127,11 +127,22 @@ export function useImportacaoXML(grupoId) {
     return resp.data;
   }, [loteId, qc]);
 
+  // Retoma um lote que ficou FALHOU/PROCESSADO_COM_FALHAS sem precisar
+  // reenviar os arquivos — o backend re-assina as URLs a partir da
+  // storage_key já salva e reprocessa só o que não deu certo.
+  const reprocessarLote = useCallback(async (idDoLote) => {
+    const alvo = idDoLote || loteId;
+    const resp = await base44.functions.invoke("reprocessarLoteXML", { lote_id: alvo });
+    qc.invalidateQueries({ queryKey: ["lote-xml", alvo] });
+    qc.invalidateQueries({ queryKey: ["arquivos-xml", alvo] });
+    return resp.data;
+  }, [loteId, qc]);
+
   return {
     selectedFiles, addFiles, removeFile, clearFiles,
     uploading, uploadProgress, enviarProcessamento, error,
     loteId, lote: loteQuery.data, loteLoading: loteQuery.isLoading,
     arquivos: arquivosQuery.data || [], itens: itensQuery.data || [],
-    confirmarImportacao,
+    confirmarImportacao, reprocessarLote,
   };
 }

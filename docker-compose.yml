@@ -4,15 +4,15 @@ services:
     container_name: reforma-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: reforma
-      POSTGRES_PASSWORD: reforma_dev_only_change_me
-      POSTGRES_DB: reforma
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5435:5432"
     volumes:
       - reforma_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reforma -d reforma"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,13 +23,18 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: reforma
-      MINIO_ROOT_PASSWORD: reforma_minio_dev_secret
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "9200:9000"
       - "9201:9001"
     volumes:
       - reforma_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
@@ -41,26 +46,32 @@ services:
       postgres:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       API_PORT: 3003
       API_PREFIX: api/v1
       CORS_ORIGINS: http://localhost:5175,http://127.0.0.1:5175
-      DATABASE_URL: postgresql://reforma:reforma_dev_only_change_me@postgres:5432/reforma?schema=public
-      JWT_ACCESS_SECRET: dev-only-local-access-secret-change-me
-      JWT_ACCESS_TTL: 15m
-      JWT_REFRESH_TTL: 7d
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL}
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
-      MINIO_ROOT_USER: reforma
-      MINIO_ROOT_PASSWORD: reforma_minio_dev_secret
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: xml-uploads
     ports:
       - "3003:3003"
     volumes:
       - ./backend:/app
       - /app/node_modules
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3003/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   frontend:
     build:
@@ -69,7 +80,8 @@ services:
     container_name: reforma-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       VITE_API_URL: http://localhost:3003/api/v1
     ports:
@@ -77,6 +89,12 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5175/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
 volumes:
   reforma_pg_data:
