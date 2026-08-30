@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -25,6 +26,25 @@ function VigenciaFields({ form, set, inicioKey = "vigencia_inicio", fimKey = "vi
         <label className="text-xs text-muted-foreground">{label} — fim <span className="opacity-70">(vazio = sem previsão)</span></label>
         <Input type="date" value={toDateInput(form[fimKey])} onChange={(e) => set(fimKey, e.target.value || null)} />
       </div>
+    </div>
+  );
+}
+
+/** Select fixo (em vez de texto livre) — o motor só reconhece exatamente
+ * "sim"/"fora" (case-insensitive); um valor digitado errado hoje silencia
+ * o crédito presumido sem nenhum aviso em tela. */
+function FixedSelect({ label, value, fallback, options, onChange }) {
+  return (
+    <div>
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <Select value={value || fallback} onValueChange={onChange}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -236,7 +256,13 @@ function CredPresTable() {
   const [open, setOpen] = useState(false);
   const rows = (data || []).filter((r) => !q || (r.c_cred_pres + " " + (r.descricao_oficial || "")).toLowerCase().includes(q.toLowerCase()));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const empty = { c_cred_pres: "", descricao_oficial: "", percentual_oficial: "", status: "Ativo", inicio_ibs: "", fim_ibs: "", inicio_cbs: "", fim_cbs: "" };
+  const empty = {
+    c_cred_pres: "", descricao_oficial: "",
+    ibs_aplicavel: "Não", cbs_aplicavel: "Não", metodo_calculo: "Direto",
+    percentual_oficial: "", status: "Ativo",
+    inicio_ibs: "", fim_ibs: "", inicio_cbs: "", fim_cbs: "",
+  };
+  const pendente = String(form.percentual_oficial || "").toLowerCase().includes("pendente");
 
   const save = async (e) => {
     e.preventDefault();
@@ -288,8 +314,51 @@ function CredPresTable() {
           <form onSubmit={save} className="space-y-3">
             <div><label className="text-xs text-muted-foreground">cCredPres</label><Input value={form.c_cred_pres || ""} onChange={(e) => set("c_cred_pres", e.target.value)} required /></div>
             <div><label className="text-xs text-muted-foreground">Descrição oficial</label><Input value={form.descricao_oficial || ""} onChange={(e) => set("descricao_oficial", e.target.value)} /></div>
-            <div><label className="text-xs text-muted-foreground">Percentual oficial</label><Input value={form.percentual_oficial || ""} onChange={(e) => set("percentual_oficial", e.target.value)} /></div>
-            <div><label className="text-xs text-muted-foreground">Método de cálculo</label><Input value={form.metodo_calculo || ""} onChange={(e) => set("metodo_calculo", e.target.value)} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <FixedSelect
+                label="Aplicável ao IBS"
+                value={form.ibs_aplicavel}
+                fallback="Não"
+                onChange={(v) => set("ibs_aplicavel", v)}
+                options={[{ value: "Sim", label: "Sim" }, { value: "Não", label: "Não" }]}
+              />
+              <FixedSelect
+                label="Aplicável ao CBS"
+                value={form.cbs_aplicavel}
+                fallback="Não"
+                onChange={(v) => set("cbs_aplicavel", v)}
+                options={[{ value: "Sim", label: "Sim" }, { value: "Não", label: "Não" }]}
+              />
+            </div>
+            <FixedSelect
+              label="Método de cálculo"
+              value={form.metodo_calculo}
+              fallback="Direto"
+              onChange={(v) => set("metodo_calculo", v)}
+              options={[
+                { value: "Direto", label: "Direto — CP = valor × percentual" },
+                { value: "Por Fora", label: "Por Fora — CP = valor × percentual / (1 + percentual)" },
+              ]}
+            />
+            <div>
+              <label className="text-xs text-muted-foreground">Situação oficial</label>
+              <div className="flex items-center gap-4 h-9">
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input type="radio" name="situacao_oficial" checked={!pendente} onChange={() => set("percentual_oficial", "")} />
+                  Regulamentado
+                </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input type="radio" name="situacao_oficial" checked={pendente} onChange={() => set("percentual_oficial", "Pendente de regulamentação")} />
+                  Pendente de regulamentação
+                </label>
+              </div>
+            </div>
+            {!pendente && (
+              <div>
+                <label className="text-xs text-muted-foreground">Percentual oficial</label>
+                <Input value={form.percentual_oficial || ""} onChange={(e) => set("percentual_oficial", e.target.value)} placeholder="ex.: 1,5%" />
+              </div>
+            )}
             <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
             <VigenciaFields form={form} set={set} inicioKey="inicio_ibs" fimKey="fim_ibs" label="Vigência IBS" />
             <VigenciaFields form={form} set={set} inicioKey="inicio_cbs" fimKey="fim_cbs" label="Vigência CBS" />
