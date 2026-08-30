@@ -6,6 +6,7 @@ import {
   parsePercentage,
   originalValue,
   validateAccessKey,
+  validateCnpj,
   sha256,
   VERSAO_REGRAS,
   check,
@@ -213,7 +214,15 @@ export class ImportacaoXmlService {
     arquivosReg: { id: string; lote_id: string; grupo_id: string; nome: string; file_url: string }[],
   ) {
     {
-      const empresas = await this.prisma.empresa.findMany({ where: { grupo: grupoId } });
+      // Empresa.grupo guarda o código de negócio (Grupo.numero), não o id do
+      // banco — enquanto grupoId aqui é sempre o Grupo.id (mesma convenção de
+      // ImportacaoXMLLote.grupo_id/HistoricoXML.grupo_id). Sem essa tradução,
+      // a busca de empresa por grupo nunca batia com nada e todo item de XML
+      // caía em CAD_EMPRESA_NAO_LOCALIZADA mesmo com a empresa cadastrada.
+      const grupoRecord = await this.prisma.grupo.findUnique({ where: { id: grupoId } });
+      const empresas = grupoRecord
+        ? await this.prisma.empresa.findMany({ where: { grupo: grupoRecord.numero } })
+        : [];
       const empresasByCnpj = new Map<string, (typeof empresas)[number]>();
       for (const e of empresas) {
         if (e.cnpj_cpf) empresasByCnpj.set(normalizeCnpj(e.cnpj_cpf), e);
@@ -712,6 +721,7 @@ export class ImportacaoXmlService {
           cstGrouped, classTribGrouped, credPresGrouped, ncmSet, cfopSet,
           dataEmiDate: dataEmi ? new Date(dataEmi) : new Date(),
           histKeys, cStat, ambiente, situacaoFiscal, chaveValida,
+          cnpjEmit, cnpjDest,
         };
 
         const itemPreparado = this.prepararItem(dados, ctx);
@@ -744,6 +754,8 @@ export class ImportacaoXmlService {
       ambiente: string;
       situacaoFiscal: string;
       chaveValida: ReturnType<typeof validateAccessKey>;
+      cnpjEmit: string;
+      cnpjDest: string;
     },
   ) {
     const docChecks = this.validarDocumental(dados, ctx);
@@ -791,7 +803,10 @@ export class ImportacaoXmlService {
     return { data, resultado: resultadoFinal };
   }
 
-  private validarDocumental(dados: Record<string, unknown>, ctx: { cStat: string; ambiente: string; situacaoFiscal: string; chaveValida: ReturnType<typeof validateAccessKey> }): Check[] {
+  private validarDocumental(
+    dados: Record<string, unknown>,
+    ctx: { cStat: string; ambiente: string; situacaoFiscal: string; chaveValida: ReturnType<typeof validateAccessKey>; cnpjEmit: string; cnpjDest: string },
+  ): Check[] {
     const checks: Check[] = [];
     checks.push(check('DOC_XML_BEM_FORMADO', STATUS.CONFORME, 'XML bem-formado e parseado com sucesso.'));
     checks.push(check('DOC_TIPO_RECONHECIDO', STATUS.CONFORME, 'Tipo de documento reconhecido (NF-e/NFC-e).'));
@@ -799,6 +814,24 @@ export class ImportacaoXmlService {
       checks.push(check(ctx.chaveValida.codigo || 'DOC_CHAVE_INVALIDA', STATUS.NAO_CONFORME, ctx.chaveValida.mensagem, true, 'chave_nfe'));
     } else {
       checks.push(check('DOC_CHAVE_FORMATO_INVALIDO', STATUS.CONFORME, 'Chave de acesso válida (formato e DV).'));
+    }
+    // Dígito verificador do CNPJ — não confirma que a empresa existe, só que
+    // o número é matematicamente válido. Pego cedo: um CNPJ com DV errado
+    // indica XML corrompido, digitado à mão ou adulterado, e bloqueia antes
+    // de tentar casar com o cadastro de empresas (evita "TERCEIRO" fantasma).
+    const emitCheck = validateCnpj(ctx.cnpjEmit);
+    if (!emitCheck.valido) {
+      checks.push(check(emitCheck.codigo || 'DOC_CNPJ_EMITENTE_INVALIDO', STATUS.NAO_CONFORME, `Emitente: ${emitCheck.mensagem}`, true, 'cnpj_emitente'));
+    } else {
+      checks.push(check('DOC_CNPJ_EMITENTE_VALIDO', STATUS.CONFORME, 'CNPJ do emitente válido (dígito verificador confere).'));
+    }
+    if (ctx.cnpjDest) {
+      const destCheck = validateCnpj(ctx.cnpjDest);
+      if (!destCheck.valido) {
+        checks.push(check(destCheck.codigo || 'DOC_CNPJ_DESTINATARIO_INVALIDO', STATUS.NAO_CONFORME, `Destinatário: ${destCheck.mensagem}`, true, 'cnpj_destinatario'));
+      } else {
+        checks.push(check('DOC_CNPJ_DESTINATARIO_VALIDO', STATUS.CONFORME, 'CNPJ do destinatário válido (dígito verificador confere).'));
+      }
     }
     if (!ctx.cStat) {
       checks.push(check('DOC_PROTOCOLO_AUSENTE', STATUS.NAO_CONFORME, 'Protocolo de autorização ausente.', true, 'protNFe'));

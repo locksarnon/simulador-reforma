@@ -142,6 +142,38 @@ export function validateAccessKey(
   return result;
 }
 
+export type CnpjValidationResult = { valido: boolean; codigo: string | null; mensagem: string };
+
+/**
+ * Valida CNPJ pelo algoritmo oficial da Receita Federal (dígitos
+ * verificadores, módulo 11) — não confirma que o CNPJ existe, só que é
+ * matematicamente bem-formado. Um CNPJ com DV inválido no emitente ou no
+ * destinatário indica XML corrompido, digitado à mão ou adulterado.
+ */
+export function validateCnpj(cnpjRaw: unknown): CnpjValidationResult {
+  const cnpj = normalizeCnpj(cnpjRaw);
+  if (!cnpj || cnpj === '00000000000000') {
+    return { valido: false, codigo: 'DOC_CNPJ_AUSENTE', mensagem: 'CNPJ ausente.' };
+  }
+  if (!/^\d{14}$/.test(cnpj)) {
+    return { valido: false, codigo: 'DOC_CNPJ_FORMATO_INVALIDO', mensagem: 'CNPJ deve ter 14 dígitos numéricos.' };
+  }
+  if (/^(\d)\1{13}$/.test(cnpj)) {
+    return { valido: false, codigo: 'DOC_CNPJ_FORMATO_INVALIDO', mensagem: 'CNPJ com todos os dígitos iguais.' };
+  }
+  const calcDv = (base: string, pesos: number[]) => {
+    const soma = base.split('').reduce((acc, d, i) => acc + Number(d) * pesos[i], 0);
+    const resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  };
+  const dv1 = calcDv(cnpj.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const dv2 = calcDv(cnpj.slice(0, 12) + String(dv1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  if (String(dv1) !== cnpj[12] || String(dv2) !== cnpj[13]) {
+    return { valido: false, codigo: 'DOC_CNPJ_DV_INVALIDO', mensagem: `Dígito verificador do CNPJ ${cnpj} inválido.` };
+  }
+  return { valido: true, codigo: null, mensagem: '' };
+}
+
 /** Códigos UF Sefaz. */
 export const UF_CODIGOS: Record<string, string> = {
   '12': 'AC', '27': 'AL', '13': 'AM', '16': 'AP', '29': 'BA', '23': 'CE',

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeCnpj, parsePercentage, parseDecimal, originalValue, validateAccessKey, sha256 } from './xml-utils';
+import { normalizeCnpj, parsePercentage, parseDecimal, originalValue, validateAccessKey, validateCnpj, sha256 } from './xml-utils';
 
 // Chave real, gerada e validada manualmente na simulação de uso de
 // 2026-08-29 (mesma chave do XML de teste que passou pelo pipeline completo
@@ -15,6 +15,43 @@ describe('normalizeCnpj', () => {
   it('retorna string vazia para valor ausente', () => {
     expect(normalizeCnpj(null)).toBe('');
     expect(normalizeCnpj(undefined)).toBe('');
+  });
+});
+
+describe('validateCnpj', () => {
+  it('aceita CNPJ com dígito verificador correto, formatado ou não', () => {
+    expect(validateCnpj('11.222.333/0001-81').valido).toBe(true);
+    expect(validateCnpj('11222333000181').valido).toBe(true);
+    // CNPJ real usado no teste de importação de XML em massa (2026-08-30) —
+    // achado real: a raiz 36940852 aparece com duas filiais (000297/000106).
+    expect(validateCnpj('36940852000297').valido).toBe(true);
+  });
+
+  it('rejeita dígito verificador incorreto — achado real do teste de importação de 2026-08-30', () => {
+    // Mesma base do CNPJ válido acima, só trocando o último dígito.
+    const r = validateCnpj('11222333000180');
+    expect(r.valido).toBe(false);
+    expect(r.codigo).toBe('DOC_CNPJ_DV_INVALIDO');
+  });
+
+  it('rejeita CNPJ com todos os dígitos iguais', () => {
+    expect(validateCnpj('11111111111111').valido).toBe(false);
+    expect(validateCnpj('00000000000000').valido).toBe(false);
+  });
+
+  it('rejeita formato com número errado de dígitos', () => {
+    const r = validateCnpj('123');
+    expect(r.valido).toBe(false);
+    // normalizeCnpj preenche com zeros à esquerda até 14 dígitos — vira
+    // "00000000000123", que cai na regra de "todos iguais" só se for zero;
+    // aqui o DV é que falha.
+    expect(r.codigo).toBe('DOC_CNPJ_DV_INVALIDO');
+  });
+
+  it('rejeita CNPJ ausente', () => {
+    const r = validateCnpj('');
+    expect(r.valido).toBe(false);
+    expect(r.codigo).toBe('DOC_CNPJ_AUSENTE');
   });
 });
 
