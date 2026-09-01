@@ -11,6 +11,7 @@ import {
 import { Search, Plus, Pencil } from "lucide-react";
 import { pct } from "@/lib/format";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageHeader from "@/components/PageHeader";
 
 /** <input type="date"> exige "YYYY-MM-DD" — corta o resto do ISO. */
 const toDateInput = (v) => (v ? String(v).slice(0, 10) : "");
@@ -57,6 +58,8 @@ function VigenciaBadge({ inicio, fim }) {
 
 export default function CatalogosPage() {
   return (
+    <div>
+      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Catálogos IBS/CBS" }]} />
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
@@ -81,6 +84,7 @@ export default function CatalogosPage() {
         <TabsContent value="beneficio"><BeneficioFiscalTable /></TabsContent>
         <TabsContent value="credpres"><CredPresTable /></TabsContent>
       </Tabs>
+    </div>
     </div>
   );
 }

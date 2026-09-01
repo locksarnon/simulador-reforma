@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Check } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageHeader from "@/components/PageHeader";
 
 const empty = { nome: "", descricao: "", fator_volume: 1, fator_preco: 1, fator_custo: 1, fator_credito_aproveitado: 1 };
 
@@ -44,6 +45,8 @@ export default function CenariosPage() {
   };
 
   return (
+    <div>
+      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Cenários" }]} />
     <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
@@ -116,6 +119,7 @@ export default function CenariosPage() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

@@ -19,6 +19,8 @@ import WorkroomOverview from '@/pages/WorkroomOverview';
 import OperacoesPage from '@/pages/OperacoesPage';
 import ImportacaoXMLPage from '@/pages/ImportacaoXMLPage';
 import EmpresasPage from '@/pages/EmpresasPage';
+import EmpresaWorkroom from '@/pages/EmpresaWorkroom';
+import EmpresaPainel from '@/pages/EmpresaPainel';
 import CenariosPage from '@/pages/CenariosPage';
 import TransicaoPage from '@/pages/TransicaoPage';
 import CatalogosPage from '@/pages/CatalogosPage';
@@ -50,6 +52,11 @@ function App() {
                     <Route path="empresas" element={<EmpresasPage />} />
                     <Route path="operacoes" element={<OperacoesPage />} />
                     <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
+                    <Route path="empresas/:empresaId" element={<EmpresaWorkroom />}>
+                      <Route index element={<EmpresaPainel />} />
+                      <Route path="operacoes" element={<OperacoesPage />} />
+                      <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
+                    </Route>
                   </Route>
                   <Route path="/cenarios" element={<CenariosPage />} />
                   <Route path="/transicao" element={<TransicaoPage />} />

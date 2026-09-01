@@ -21,7 +21,7 @@ function StatusIcon({ checks }) {
   return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
 }
 
-export default function StagingTable({ itens, selectedIds, onToggleSelect, onOpenDrawer }) {
+export default function StagingTable({ itens, empresaMap, selectedIds, onToggleSelect, onOpenDrawer }) {
   if (!itens || itens.length === 0) return null;
 
   // Agrupa intercompany por chave_nfe + numero_item.
@@ -90,8 +90,8 @@ export default function StagingTable({ itens, selectedIds, onToggleSelect, onOpe
                       <span className="font-mono text-[10px] text-muted-foreground">#{it.numero_item}</span>
                       <span className="block truncate max-w-[160px]" title={it.descricao}>{it.descricao || "—"}</span>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[120px]" title={it.empresa_id}>
-                      {it.empresa_id ? String(it.empresa_id).substring(0, 12) : "—"}
+                    <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[160px]" title={empresaMap?.get(it.empresa_id)?.razao_social || it.empresa_id}>
+                      {it.empresa_id ? (empresaMap?.get(it.empresa_id)?.razao_social || it.empresa_id) : "—"}
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground">{it.perspectiva === "EMITENTE" ? "Emit." : "Dest."}</td>
                     <td className="px-3 py-2.5">

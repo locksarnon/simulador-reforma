@@ -1,9 +1,9 @@
 import React from "react";
-import { useParams, useNavigate, Outlet, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { ChevronLeft, Trash2 } from "lucide-react";
-import PipelineStepper from "@/components/PipelineStepper";
+import { Trash2 } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 
 export default function Workroom() {
   const { id } = useParams();
@@ -24,57 +24,33 @@ export default function Workroom() {
     navigate("/");
   };
 
-  const path = location.pathname;
-  let currentStep = 1;
-  if (path.includes("/operacoes")) currentStep = 2;
-  if (path.includes("/importacao-xml")) currentStep = 2;
-  if (path.includes("/cenarios")) currentStep = 2;
-
-  const handleStepClick = (step) => {
-    if (step === 1) navigate(`/workroom/${id}/empresas`);
-    else if (step === 2) navigate(`/workroom/${id}/operacoes`);
-    else if (step === 3) navigate(`/cockpit?grupo=${encodeURIComponent(grupo?.numero || "")}`);
-    else if (step === 5) navigate(`/workroom/${id}`);
-  };
+  // Só mostra o cabeçalho do grupo na visão geral — cada rota filha
+  // (Empresas, Operações, Importação XML, workspace de uma empresa) já tem
+  // o próprio PageHeader com o breadcrumb completo. Sem isso os dois
+  // cabeçalhos empilhavam, duplicando "Voltar" e a trilha.
+  const isOverview = location.pathname === `/workroom/${id}`;
 
   return (
     <div className="min-h-screen">
-      <div className="border-b border-border bg-card px-6 lg:px-8 py-4">
-        <div className="max-w-7xl mx-auto">
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            DataHub
-          </button>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h1 className="text-lg font-heading font-semibold">
-                {isLoading ? "Carregando..." : grupo?.nome || "Grupo"}
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                {grupo?.numero} · {grupo?.tipo}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleDelete}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-6 lg:px-8 py-6 bg-background">
-        <div className="max-w-7xl mx-auto">
-          <PipelineStepper currentStep={currentStep} onStepClick={handleStepClick} />
-        </div>
-      </div>
+      {isOverview && (
+        <PageHeader
+          crumbs={[
+            { label: "DataHub", to: "/" },
+            { label: isLoading ? "Carregando..." : (grupo?.nome || "Grupo") },
+          ]}
+          title={isLoading ? "Carregando..." : grupo?.nome || "Grupo"}
+          subtitle={grupo ? `${grupo.numero} · ${grupo.tipo}` : ""}
+          actions={
+            <button
+              onClick={handleDelete}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Excluir
+            </button>
+          }
+        />
+      )}
 
       <Outlet context={{ grupo }} />
     </div>

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageHeader from "@/components/PageHeader";
 
 const empty = {
   versao_simulador: "v0.16",
@@ -44,6 +45,8 @@ export default function ConfiguracaoPage() {
   };
 
   return (
+    <div>
+      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Configuração" }]} />
     <div className="p-6 lg:p-8 max-w-2xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
@@ -91,6 +94,7 @@ export default function ConfiguracaoPage() {
           </button>
         </div>
       </form>
+    </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageHeader from "@/components/PageHeader";
 
 const SIM_NAO = ["Sim", "Não"];
 const REGIMES = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "Produtor rural PF"];
@@ -24,6 +25,7 @@ const empty = {
 
 export default function EmpresasPage() {
   const { id: grupoId } = useParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: grupo } = useQuery({
     queryKey: ["grupo", grupoId],
@@ -62,6 +64,14 @@ export default function EmpresasPage() {
   const start = (em) => { setForm(em === "new" ? { ...empty, grupo: grupoNumero || "" } : em); setEditing(em); setOpen(true); };
 
   return (
+    <div>
+      <PageHeader
+        crumbs={[
+          { label: "DataHub", to: "/" },
+          { label: grupo?.nome || "Grupo", to: `/workroom/${grupoId}` },
+          { label: "Empresas" },
+        ]}
+      />
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
@@ -69,7 +79,7 @@ export default function EmpresasPage() {
             <h1 className="text-xl font-heading font-semibold">Empresas do Grupo</h1>
             <InfoTooltip pagina="empresas" chave="header" />
           </div>
-          <p className="text-sm text-muted-foreground">Vinculadas a {grupoNumero || "—"}</p>
+          <p className="text-sm text-muted-foreground">Vinculadas a {grupoNumero || "—"} · clique numa empresa para abrir o workspace dela</p>
         </div>
         <button onClick={() => start("new")} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
           <Plus className="w-4 h-4" /> Nova empresa
@@ -93,7 +103,11 @@ export default function EmpresasPage() {
           </thead>
           <tbody>
             {(data || []).map((em) => (
-              <tr key={em.id} className="border-t border-border/50 hover:bg-muted/20">
+              <tr
+                key={em.id}
+                onClick={() => grupoId && navigate(`/workroom/${grupoId}/empresas/${em.id}`)}
+                className={`border-t border-border/50 hover:bg-muted/20 ${grupoId ? "cursor-pointer" : ""}`}
+              >
                 <td className="py-2.5 px-4 font-medium">{em.id_empresa}</td>
                 <td className="py-2.5 px-4">{em.razao_social}</td>
                 <td className="py-2.5 px-4 text-muted-foreground">{em.grupo}</td>
@@ -106,7 +120,7 @@ export default function EmpresasPage() {
                   </span>
                 </td>
                 <td className="py-2.5 px-4 text-muted-foreground">{em.status}</td>
-                <td className="py-2.5 px-4">
+                <td className="py-2.5 px-4" onClick={(e) => e.stopPropagation()}>
                   <div className="flex gap-1">
                     <button onClick={() => start(em)} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
                     <button onClick={() => del(em)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -163,6 +177,7 @@ export default function EmpresasPage() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

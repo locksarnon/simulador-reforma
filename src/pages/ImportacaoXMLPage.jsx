@@ -1,11 +1,14 @@
 import React, { useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
-import { Loader2, CheckCircle2, AlertTriangle, Download, FileSearch, RefreshCw } from "lucide-react";
+import { useParams, useOutletContext } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, CheckCircle2, AlertTriangle, Download, FileSearch, RefreshCw, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageHeader from "@/components/PageHeader";
+import { base44 } from "@/api/base44Client";
 import { useImportacaoXML } from "@/hooks/useImportacaoXML";
 import DropzoneXML from "@/components/importacao/DropzoneXML";
 import ArquivosLog from "@/components/importacao/ArquivosLog";
@@ -14,6 +17,25 @@ import ValidacaoDrawer from "@/components/importacao/ValidacaoDrawer";
 
 export default function ImportacaoXMLPage() {
   const { id } = useParams();
+  // Quando aninhada em EmpresaWorkroom (.../empresas/:empresaId/importacao-xml),
+  // o Outlet traz a empresa — a "trava" pedida: por padrão só mostra os itens
+  // dela, escondendo o resto do grupo atrás de um toggle explícito.
+  const { grupo: grupoCtx, empresa: empresaTravada } = useOutletContext() || {};
+  const { data: grupo } = useQuery({
+    queryKey: ["grupo", id],
+    queryFn: () => base44.entities.Grupo.get(id),
+    enabled: !!id && !grupoCtx,
+  });
+  const grupoNumero = grupoCtx?.numero || grupo?.numero;
+  const grupoNome = grupoCtx?.nome || grupo?.nome;
+  const { data: empresasDoGrupo = [] } = useQuery({
+    queryKey: ["empresas", grupoNumero],
+    queryFn: () => base44.entities.Empresa.filter({ grupo: grupoNumero }),
+    enabled: !!grupoNumero,
+  });
+  const empresaMap = useMemo(() => new Map(empresasDoGrupo.map((e) => [e.id_empresa, e])), [empresasDoGrupo]);
+  const [mostrarOutras, setMostrarOutras] = useState(false);
+
   const imp = useImportacaoXML(id);
   const [selectedIds, setSelectedIds] = useState([]);
   const [drawerItem, setDrawerItem] = useState(null);
@@ -21,6 +43,15 @@ export default function ImportacaoXMLPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [reprocessando, setReprocessando] = useState(false);
+
+  const itensVisiveis = useMemo(() => {
+    if (!empresaTravada || mostrarOutras) return imp.itens;
+    return imp.itens.filter((it) => it.empresa_id === empresaTravada.id_empresa);
+  }, [imp.itens, empresaTravada, mostrarOutras]);
+  const outrasCount = useMemo(() => {
+    if (!empresaTravada) return 0;
+    return imp.itens.filter((it) => it.empresa_id && it.empresa_id !== empresaTravada.id_empresa).length;
+  }, [imp.itens, empresaTravada]);
 
   const isProcessing = imp.lote?.status === "RECEBIDO" || imp.lote?.status === "PROCESSANDO";
   const temFalha = imp.lote?.status === "FALHOU" || imp.lote?.status === "PROCESSADO_COM_FALHAS";
@@ -54,8 +85,8 @@ export default function ImportacaoXMLPage() {
   };
 
   const selecionaveis = useMemo(
-    () => imp.itens.filter((it) => it.resultado_final === "IMPORTAVEL" || it.resultado_final === "IMPORTAVEL_COM_ALERTA"),
-    [imp.itens]
+    () => itensVisiveis.filter((it) => it.resultado_final === "IMPORTAVEL" || it.resultado_final === "IMPORTAVEL_COM_ALERTA"),
+    [itensVisiveis]
   );
   const selecionadosItens = useMemo(
     () => selecionaveis.filter((it) => selectedIds.includes(it.id)),
@@ -80,7 +111,7 @@ export default function ImportacaoXMLPage() {
 
   const contadores = useMemo(() => {
     const c = { importaveis: 0, alerta: 0, bloqueados: 0, duplicados: 0, cancelados: 0 };
-    for (const it of imp.itens) {
+    for (const it of itensVisiveis) {
       if (it.resultado_final === "IMPORTAVEL") c.importaveis++;
       else if (it.resultado_final === "IMPORTAVEL_COM_ALERTA") c.alerta++;
       else if (it.resultado_final === "BLOQUEADO") c.bloqueados++;
@@ -88,20 +119,48 @@ export default function ImportacaoXMLPage() {
       else if (it.resultado_final === "CANCELADO") c.cancelados++;
     }
     return c;
-  }, [imp.itens]);
+  }, [itensVisiveis]);
 
   return (
-    <div className="px-6 lg:px-8 pb-12">
+    <div>
+      {/* Só mostra o próprio cabeçalho quando alcançada direto pelo grupo —
+          dentro do workspace de uma empresa, o EmpresaWorkroom já mostra um. */}
+      {!empresaTravada && (
+        <PageHeader
+          crumbs={[
+            { label: "DataHub", to: "/" },
+            { label: grupoNome || "Grupo", to: `/workroom/${id}` },
+            { label: "Importação XML" },
+          ]}
+        />
+      )}
+    <div className="px-6 lg:px-8 py-6 pb-12">
       <div className="max-w-7xl mx-auto space-y-5">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h2 className="font-heading font-semibold text-base">Importação XML — Validador DF-e</h2>
+            <h2 className="font-heading font-semibold text-base">
+              Importação XML {empresaTravada ? `· ${empresaTravada.id_empresa}` : ""}
+            </h2>
             <InfoTooltip pagina="importacao" chave="header" />
           </div>
           <p className="text-sm text-muted-foreground">
-            Upload de NF-e/NFC-e com processamento backend, 4 camadas de validação e staging auditável.
+            {empresaTravada
+              ? `Notas em que ${empresaTravada.razao_social} aparece como emitente ou destinatária. O lote continua sendo do grupo — se houver transferência interna com outra empresa, ela fica escondida por padrão.`
+              : "Upload de NF-e/NFC-e com processamento backend, 4 camadas de validação e staging auditável."}
           </p>
         </div>
+
+        {empresaTravada && outrasCount > 0 && (
+          <button
+            onClick={() => setMostrarOutras((v) => !v)}
+            className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 w-fit"
+          >
+            <Users className="w-3.5 h-3.5" />
+            {mostrarOutras
+              ? "Ocultar operações de outras empresas do grupo"
+              : `Mostrar também ${outrasCount} operação(ões) de outras empresas deste grupo (transferência interna)`}
+          </button>
+        )}
 
         {/* Resumo do lote */}
         {imp.lote && (
@@ -158,10 +217,11 @@ export default function ImportacaoXMLPage() {
 
         {imp.arquivos.length > 0 && <ArquivosLog arquivos={imp.arquivos} />}
 
-        {imp.itens.length > 0 && (
+        {itensVisiveis.length > 0 && (
           <>
             <StagingTable
-              itens={imp.itens}
+              itens={itensVisiveis}
+              empresaMap={empresaMap}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onOpenDrawer={openDrawer}
@@ -208,6 +268,7 @@ export default function ImportacaoXMLPage() {
           onClose={() => setDrawerItem(null)}
         />
       </div>
+    </div>
     </div>
   );
 }

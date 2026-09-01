@@ -1,62 +1,121 @@
-import React from "react";
-import { useParams, useOutletContext, Link } from "react-router-dom";
-import { ChevronRight, Building2, FileText, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMarked, UploadCloud, FileSearch } from "lucide-react";
+import React, { useState } from "react";
+import { useParams, useNavigate, useOutletContext, Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { base44 } from "@/api/base44Client";
+import { ChevronRight, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMarked, UploadCloud, Plus } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import EmpresaCard from "@/components/EmpresaCard";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const REGIMES = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "Produtor rural PF"];
+const empty = {
+  id_empresa: "", grupo: "", razao_social: "", cnpj_cpf: "", regime_atual: "Lucro Real",
+  setor: "", uf: "", municipio: "", contribuinte_ibs_cbs: "Sim", produtor_rural: "Não",
+  cooperativa: "Não", erp: "", responsavel_fiscal: "", status: "Ativa", observacao: "",
+};
 
 export default function WorkroomOverview() {
   const { id } = useParams();
   const { grupo } = useOutletContext() || {};
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const grupoNumero = grupo?.numero;
 
-  const modules = [
-    { label: "Empresas do Grupo", to: `/workroom/${id}/empresas`, icon: Building2, desc: "Cadastro mestre de empresas vinculadas ao grupo" },
-    { label: "Operações FAL", to: `/workroom/${id}/operacoes`, icon: FileText, desc: "Lançamentos e modelagem de operações do grupo" },
-    { label: "Importação XML", to: `/workroom/${id}/importacao-xml`, icon: FileSearch, desc: "Upload de NF-e/NFC-e com validador DF-e e staging auditável" },
-  ];
+  const { data: empresas = [], isLoading } = useQuery({
+    queryKey: ["empresas", grupoNumero],
+    queryFn: () => base44.entities.Empresa.filter({ grupo: grupoNumero }),
+    enabled: !!grupoNumero,
+  });
+
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(empty);
+  const [open, setOpen] = useState(false);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const startNew = () => { setForm({ ...empty, grupo: grupoNumero || "" }); setEditing("new"); setOpen(true); };
+  const startEdit = (em) => { setForm(em); setEditing(em); setOpen(true); };
+  const save = async (e) => {
+    e.preventDefault();
+    const payload = { ...form, grupo: grupoNumero };
+    if (editing === "new") await base44.entities.Empresa.create(payload);
+    else await base44.entities.Empresa.update(editing.id, payload);
+    setOpen(false);
+    qc.invalidateQueries({ queryKey: ["empresas"] });
+  };
+  const del = async (em) => {
+    if (!confirm(`Excluir ${em.id_empresa}?`)) return;
+    await base44.entities.Empresa.delete(em.id);
+    qc.invalidateQueries({ queryKey: ["empresas"] });
+  };
 
   // Compartilhados entre todos os grupos — não são exclusivos deste
   // (Cenário, Configuração, Transição e Catálogos não têm vínculo com
   // nenhum grupo específico no banco; editar aqui afeta todo mundo).
   const globalModules = [
-    { label: "Painel Executivo", to: `/cockpit?grupo=${encodeURIComponent(grupo?.numero || "")}`, icon: LayoutDashboard, desc: "Visão consolidada e cálculos do motor, filtrada por este grupo" },
+    { label: "Painel Executivo (todo o grupo)", to: `/cockpit?grupo=${encodeURIComponent(grupoNumero || "")}`, icon: LayoutDashboard, desc: "Visão consolidada de todas as empresas do grupo — para ver uma empresa por vez, abra o card dela abaixo" },
     { label: "Cenários", to: "/cenarios", icon: SlidersHorizontal, desc: "Fatores de volume, preço e custo aplicados ao motor" },
     { label: "Transição 2026–2033", to: "/transicao", icon: CalendarClock, desc: "Parâmetros normativos por ano" },
     { label: "Catálogos IBS/CBS", to: "/catalogos", icon: BookMarked, desc: "CST, cClassTrib e cCredPres" },
   ];
 
   return (
-    <div className="px-6 lg:px-8 pb-12">
+    <div className="px-6 lg:px-8 py-6 pb-12">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="font-heading font-semibold text-base">Pipeline do Diagnóstico</h2>
-            <InfoTooltip pagina="workroom" chave="header" />
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="font-heading font-semibold text-base">Empresas deste grupo</h2>
+              <InfoTooltip pagina="workroom" chave="header" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Abra uma empresa para lançar operações, importar XML e ver o resultado dela — sem misturar com as outras.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Empresas, operações e importação de XML ficam só neste grupo. As bases técnicas abaixo são compartilhadas com os outros grupos.
-          </p>
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/workroom/${id}/empresas`}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              Cadastro completo
+            </Link>
+            <button
+              onClick={startNew}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90"
+            >
+              <Plus className="w-4 h-4" /> Nova empresa
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {modules.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="flex items-start gap-3 p-4 rounded-lg border border-border bg-card hover:border-primary hover:bg-muted/40 transition-colors group"
-              >
-                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <Icon className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{item.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 mt-0.5" />
-              </Link>
-            );
-          })}
-        </div>
+        {isLoading ? (
+          <div className="p-8 flex items-center justify-center">
+            <div className="w-6 h-6 border-4 border-border border-t-primary rounded-full animate-spin" />
+          </div>
+        ) : empresas.length === 0 ? (
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50 border border-border">
+            <UploadCloud className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Nenhuma empresa cadastrada ainda. Comece criando a primeira — depois é só abrir o card dela para lançar operações, importar XML ou ver o resultado calculado.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {empresas.map((em) => (
+              <EmpresaCard
+                key={em.id}
+                empresa={em}
+                onClick={() => navigate(`/workroom/${id}/empresas/${em.id}`)}
+                onEdit={startEdit}
+                onDelete={del}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-center gap-2 mb-3">
@@ -79,19 +138,38 @@ export default function WorkroomOverview() {
                     <p className="text-sm font-medium">{item.label}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
                   </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 mt-0.5" />
                 </Link>
               );
             })}
           </div>
         </div>
-
-        <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50 border border-border">
-          <UploadCloud className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Comece cadastrando as empresas deste grupo, depois lance operações manualmente ou importe XMLs de NF-e/NFC-e para gerá-las automaticamente.
-          </p>
-        </div>
       </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing === "new" ? "Nova empresa" : `Editar ${editing?.id_empresa}`}</DialogTitle></DialogHeader>
+          <form onSubmit={save} className="grid grid-cols-2 gap-3">
+            <div><Label className="text-xs">ID empresa</Label><Input value={form.id_empresa} onChange={(e) => set("id_empresa", e.target.value)} required /></div>
+            <div><Label className="text-xs">Grupo</Label><Input value={form.grupo} disabled readOnly className="bg-muted/50 cursor-not-allowed" /></div>
+            <div className="col-span-2"><Label className="text-xs">Razão social</Label><Input value={form.razao_social} onChange={(e) => set("razao_social", e.target.value)} required /></div>
+            <div><Label className="text-xs">CNPJ/CPF</Label><Input value={form.cnpj_cpf} onChange={(e) => set("cnpj_cpf", e.target.value)} /></div>
+            <div>
+              <Label className="text-xs">Regime atual</Label>
+              <Select value={form.regime_atual} onValueChange={(v) => set("regime_atual", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{REGIMES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label className="text-xs">Setor</Label><Input value={form.setor} onChange={(e) => set("setor", e.target.value)} /></div>
+            <div><Label className="text-xs">UF</Label><Input value={form.uf} onChange={(e) => set("uf", e.target.value)} /></div>
+            <div className="col-span-2 flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
+              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

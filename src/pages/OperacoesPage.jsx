@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useOutletContext } from "react-router-dom";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useSimuladorData } from "@/hooks/useSimuladorData";
@@ -11,9 +11,14 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageHeader from "@/components/PageHeader";
 
 export default function OperacoesPage() {
   const { id: grupoId } = useParams();
+  // Quando esta página é renderizada dentro de EmpresaWorkroom (rota
+  // .../empresas/:empresaId/operacoes), o Outlet já traz a empresa — trava o
+  // filtro nela em vez de misturar todas as empresas do grupo.
+  const { empresa: empresaTravada } = useOutletContext() || {};
   const { operacoesCalculadas, empresas, transicao, classTrib, cenarioAtivo, config, isLoading } = useSimuladorData();
   const qc = useQueryClient();
   const { data: grupo } = useQuery({
@@ -32,6 +37,7 @@ export default function OperacoesPage() {
   const [expanded, setExpanded] = useState(null);
   const [filterEmpresa, setFilterEmpresa] = useState("");
   const [filterAno, setFilterAno] = useState("");
+  const filtroEmpresaEfetivo = empresaTravada ? empresaTravada.id_empresa : filterEmpresa;
 
   const transicaoMap = useMemo(() => new Map(transicao.map((t) => [t.ano, t])), [transicao]);
   const classTribMap = useMemo(() => new Map(classTrib.map((c) => [c.c_class_trib, c])), [classTrib]);
@@ -41,7 +47,7 @@ export default function OperacoesPage() {
     ? operacoesCalculadas.filter(oc => grupoEmpresaIds.has(oc.op.empresa_id))
     : operacoesCalculadas;
   const filtered = grupoOps.filter((oc) => {
-    if (filterEmpresa && oc.op.empresa_id !== filterEmpresa) return false;
+    if (filtroEmpresaEfetivo && oc.op.empresa_id !== filtroEmpresaEfetivo) return false;
     if (filterAno && String(oc.op.ano) !== filterAno) return false;
     return true;
   });
@@ -74,11 +80,25 @@ export default function OperacoesPage() {
   }
 
   return (
+    <div>
+      {/* Só mostra o próprio cabeçalho quando alcançada direto pelo grupo —
+          dentro do workspace de uma empresa, o EmpresaWorkroom já mostra um. */}
+      {!empresaTravada && (
+        <PageHeader
+          crumbs={[
+            { label: "DataHub", to: "/" },
+            { label: grupo?.nome || "Grupo", to: `/workroom/${grupoId}` },
+            { label: "Operações" },
+          ]}
+        />
+      )}
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">Operações {grupoId ? `· ${grupoNumero || ""}` : ""}</h1>
+            <h1 className="text-xl font-heading font-semibold">
+              Operações {empresaTravada ? `· ${empresaTravada.id_empresa}` : (grupoId ? `· ${grupoNumero || ""}` : "")}
+            </h1>
             <InfoTooltip pagina="operacoes" chave="header" />
           </div>
           <p className="text-sm text-muted-foreground">
@@ -100,10 +120,16 @@ export default function OperacoesPage() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <select value={filterEmpresa} onChange={(e) => setFilterEmpresa(e.target.value)} className="px-3 py-1.5 text-sm rounded-md border border-border bg-background">
-          <option value="">Todas as empresas</option>
-          {(grupoEmpresaIds ? empresas.filter(e => grupoEmpresaIds.has(e.id_empresa)) : empresas).map((em) => <option key={em.id} value={em.id_empresa}>{em.id_empresa} — {em.razao_social}</option>)}
-        </select>
+        {empresaTravada ? (
+          <span className="px-3 py-1.5 text-sm rounded-md border border-border bg-muted/40 text-muted-foreground">
+            {empresaTravada.id_empresa} — {empresaTravada.razao_social}
+          </span>
+        ) : (
+          <select value={filterEmpresa} onChange={(e) => setFilterEmpresa(e.target.value)} className="px-3 py-1.5 text-sm rounded-md border border-border bg-background">
+            <option value="">Todas as empresas</option>
+            {(grupoEmpresaIds ? empresas.filter(e => grupoEmpresaIds.has(e.id_empresa)) : empresas).map((em) => <option key={em.id} value={em.id_empresa}>{em.id_empresa} — {em.razao_social}</option>)}
+          </select>
+        )}
         <select value={filterAno} onChange={(e) => setFilterAno(e.target.value)} className="px-3 py-1.5 text-sm rounded-md border border-border bg-background">
           <option value="">Todos os anos</option>
           {anos.map((a) => <option key={a} value={String(a)}>{a}</option>)}
@@ -205,13 +231,14 @@ export default function OperacoesPage() {
             <DialogTitle>{editing === "new" ? "Nova operação" : `Editar ${editing?.id_operacao || ""}`}</DialogTitle>
           </DialogHeader>
           <OperacaoForm
-            initial={editing === "new" ? {} : editing}
-            empresas={empresas}
+            initial={editing === "new" ? (empresaTravada ? { empresa_id: empresaTravada.id_empresa } : {}) : editing}
+            empresas={empresaTravada ? [empresaTravada] : empresas}
             onSave={handleSave}
             onCancel={() => { setOpen(false); setEditing(null); }}
           />
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

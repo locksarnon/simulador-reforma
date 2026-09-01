@@ -10,6 +10,7 @@ import {
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { pct } from "@/lib/format";
 import InfoTooltip from "@/components/InfoTooltip";
+import PageHeader from "@/components/PageHeader";
 
 const empty = {
   ano: new Date().getFullYear(), pis_cofins_fator: 1, ipi_fator_geral: 1, icms_fator: 1,
@@ -41,6 +42,8 @@ export default function TransicaoPage() {
   };
 
   return (
+    <div>
+      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Transição 2026–2033" }]} />
     <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
@@ -120,6 +123,7 @@ export default function TransicaoPage() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

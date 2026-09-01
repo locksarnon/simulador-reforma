@@ -7,11 +7,12 @@ const PCT = (n) => n / 100;
 
 /**
  * Carrega e calcula todas as operações com o motor.
- * @param {{ grupoNumero?: string }} opts — quando grupoNumero é informado,
- * restringe às empresas daquele grupo (Empresa.grupo === grupoNumero) antes
- * de calcular. Sem isso, o painel mistura todos os grupos cadastrados.
+ * @param {{ grupoNumero?: string, empresaId?: string }} opts — grupoNumero
+ * restringe às empresas daquele grupo; empresaId (Empresa.id_empresa) é mais
+ * restrito ainda e trava numa única empresa, ignorando grupoNumero quando os
+ * dois são informados. Sem nenhum dos dois, mantém todos os grupos/empresas.
  */
-export function useSimuladorData({ grupoNumero } = {}) {
+export function useSimuladorData({ grupoNumero, empresaId } = {}) {
   const operacoesQ = useQuery({
     queryKey: ["operacoes"],
     queryFn: () => base44.entities.Operacao.filter({}, "-ano", 500),
@@ -71,12 +72,20 @@ export function useSimuladorData({ grupoNumero } = {}) {
   // ex: "EMP-001") — não Empresa.id (chave interna do banco). Mesma
   // convenção de Empresa.grupo, que guarda Grupo.numero, não Grupo.id.
   // Confirmado em OperacoesPage.jsx, que já usa essa mesma chave.
+  // "empresas" continua sendo a lista do grupo inteiro (não reduzida por
+  // empresaId) — telas como o seletor do Painel Executivo precisam listar
+  // todas as empresas do grupo para montar as opções, mesmo quando uma
+  // única empresa está selecionada para o cálculo.
   const empresas = grupoNumero ? todasEmpresas.filter((e) => e.grupo === grupoNumero) : todasEmpresas;
-  const empresaIdsDoGrupo = grupoNumero ? new Set(empresas.map((e) => e.id_empresa)) : null;
+  // empresaId trava as OPERAÇÕES numa única empresa — mais restrito que
+  // grupoNumero, usado pelo workspace de empresa.
+  const empresaIdsPermitidos = empresaId
+    ? new Set([empresaId])
+    : (grupoNumero ? new Set(empresas.map((e) => e.id_empresa)) : null);
 
   const operacoes = (operacoesQ.data || [])
     .filter((op) => !op.situacao || op.situacao === "ATIVA")
-    .filter((op) => !empresaIdsDoGrupo || empresaIdsDoGrupo.has(op.empresa_id));
+    .filter((op) => !empresaIdsPermitidos || empresaIdsPermitidos.has(op.empresa_id));
 
   const calculadas = operacoes.map((op) => {
     const opNorm = { ...op, direcao: String(op.direcao || "").startsWith("S") ? "Saida" : op.direcao };
