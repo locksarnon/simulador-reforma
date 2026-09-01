@@ -70,7 +70,7 @@ export default function TransicaoPage() {
               <th className="py-2.5 px-4 font-medium">IBS efetivo</th>
               <th className="py-2.5 px-4 font-medium">CBS efetiva</th>
               <th className="py-2.5 px-4 font-medium">Efeito financeiro</th>
-              <th className="py-2.5 px-4 font-medium">Caráter</th>
+              <th className="py-2.5 px-4 font-medium">Caráter*</th>
               <th className="py-2.5 px-4 font-medium w-20"></th>
             </tr>
           </thead>
@@ -98,6 +98,16 @@ export default function TransicaoPage() {
           </tbody>
         </table>
       </div>
+
+      <p className="text-xs text-muted-foreground leading-relaxed border-l-2 border-border pl-3">
+        * O calendário de fatores (extinção de PIS/Cofins e IPI em 2027; redução de ICMS/ISS em 10/20/30/40%
+        entre 2029 e 2032, com extinção total em 2033) é o que a LC 214/2025 determina em lei — isso está fixado.
+        Já as alíquotas de IBS/CBS de 2027 em diante usam a estimativa <strong>provisória</strong> do Comitê
+        Gestor do IBS (Resolução CGIBS nº 14, de 29/07/2026: 18,70% IBS + 9,21% CBS = 27,91% plena), que o
+        próprio CGIBS classifica como sujeita a revisão conforme dados reais de arrecadação. A alíquota
+        definitiva ainda será fixada pelo Senado Federal — só o valor de 2026 (IBS 0,1% / CBS 0,9%, arts. 343
+        e 346) é oficial e confirmado. Confira o campo "Fonte" de cada linha para o detalhe.
+      </p>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
