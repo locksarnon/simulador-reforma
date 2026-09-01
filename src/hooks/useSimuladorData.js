@@ -6,13 +6,36 @@ import { agruparPorCodigo, escolherVigente } from "@/lib/vigencia";
 const PCT = (n) => n / 100;
 
 /**
- * Carrega e calcula todas as operações com o motor.
- * @param {{ grupoNumero?: string, empresaId?: string }} opts — grupoNumero
- * restringe às empresas daquele grupo; empresaId (Empresa.id_empresa) é mais
- * restrito ainda e trava numa única empresa, ignorando grupoNumero quando os
- * dois são informados. Sem nenhum dos dois, mantém todos os grupos/empresas.
+ * Roda o motor (calcOperacao) sobre uma lista de operações já filtradas,
+ * para um cenário arbitrário — extraído de useSimuladorData para permitir
+ * recalcular a MESMA base de operações sob outros cenários (comparação
+ * Normal/Conservador/Otimista no Painel Executivo) sem refazer as queries.
  */
-export function useSimuladorData({ grupoNumero, empresaId } = {}) {
+export function calcularOperacoes(operacoes, transicaoMap, classTribGrouped, credPresGrouped, cenario, config) {
+  return operacoes.map((op) => {
+    const opNorm = { ...op, direcao: String(op.direcao || "").startsWith("S") ? "Saida" : op.direcao };
+    const anoParams = transicaoMap.get(Number(op.ano)) || {};
+    const dataOp = op.data ? new Date(op.data) : new Date(Number(op.ano) || new Date().getFullYear(), 0, 1);
+    const classTrib = escolherVigente(classTribGrouped.get(op.c_class_trib) || [], dataOp) || {};
+    const credPresResolvida = escolherVigente(credPresGrouped.get(op.c_cred_pres) || [], dataOp);
+    const credPresMap = new Map(credPresResolvida ? [[op.c_cred_pres, credPresResolvida]] : []);
+    return {
+      op: opNorm,
+      ...calcOperacao(opNorm, anoParams, classTrib, cenario, config, credPresMap),
+    };
+  });
+}
+
+/**
+ * Carrega e calcula todas as operações com o motor.
+ * @param {{ grupoNumero?: string, empresaId?: string, cenarioNome?: string }} opts —
+ * grupoNumero restringe às empresas daquele grupo; empresaId (Empresa.id_empresa)
+ * é mais restrito ainda e trava numa única empresa, ignorando grupoNumero quando
+ * os dois são informados. Sem nenhum dos dois, mantém todos os grupos/empresas.
+ * cenarioNome escolhe qual Cenario usar no motor — sem ele, usa
+ * Configuracao.cenario_ativo (comportamento de sempre).
+ */
+export function useSimuladorData({ grupoNumero, empresaId, cenarioNome } = {}) {
   const operacoesQ = useQuery({
     queryKey: ["operacoes"],
     queryFn: () => base44.entities.Operacao.filter({}, "-ano", 500),
@@ -54,7 +77,7 @@ export function useSimuladorData({ grupoNumero, empresaId } = {}) {
   const config = configQ.data?.[0] || {};
   const cenarios = cenarioQ.data || [];
   const cenarioAtivo =
-    cenarios.find((c) => c.nome === (config.cenario_ativo || "Base")) || cenarios[0] || {};
+    cenarios.find((c) => c.nome === (cenarioNome || config.cenario_ativo || "Base")) || cenarios[0] || {};
   const transicaoMap = new Map((transicaoQ.data || []).map((t) => [t.ano, t]));
   // Só classificações com status "Ativo" alimentam o motor — uma regra
   // desativada não deve continuar sendo aplicada às operações. Agrupadas
@@ -87,27 +110,17 @@ export function useSimuladorData({ grupoNumero, empresaId } = {}) {
     .filter((op) => !op.situacao || op.situacao === "ATIVA")
     .filter((op) => !empresaIdsPermitidos || empresaIdsPermitidos.has(op.empresa_id));
 
-  const calculadas = operacoes.map((op) => {
-    const opNorm = { ...op, direcao: String(op.direcao || "").startsWith("S") ? "Saida" : op.direcao };
-    const anoParams = transicaoMap.get(Number(op.ano)) || {};
-    // Data de referência pra vigência: a data da operação, ou 1º de janeiro
-    // do ano informado quando a data não foi preenchida.
-    const dataOp = op.data ? new Date(op.data) : new Date(Number(op.ano) || new Date().getFullYear(), 0, 1);
-    const classTrib = escolherVigente(classTribGrouped.get(op.c_class_trib) || [], dataOp) || {};
-    const credPresResolvida = escolherVigente(credPresGrouped.get(op.c_cred_pres) || [], dataOp);
-    const credPresMap = new Map(credPresResolvida ? [[op.c_cred_pres, credPresResolvida]] : []);
-    return {
-      op: opNorm,
-      ...calcOperacao(opNorm, anoParams, classTrib, cenarioAtivo, config, credPresMap),
-    };
-  });
+  const calculadas = calcularOperacoes(operacoes, transicaoMap, classTribGrouped, credPresGrouped, cenarioAtivo, config);
 
   return {
     isLoading,
     operacoes,
     operacoesCalculadas: calculadas,
     transicao: transicaoQ.data || [],
+    transicaoMap,
     classTrib: classTribQ.data || [],
+    classTribGrouped,
+    credPresGrouped,
     cenarios,
     cenarioAtivo,
     config,

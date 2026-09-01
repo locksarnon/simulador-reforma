@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSimuladorData } from "@/hooks/useSimuladorData";
+import { useSimuladorData, calcularOperacoes } from "@/hooks/useSimuladorData";
 import { consolidarPorAno, VERSAO_MOTOR } from "../../../base44/shared/taxEngine";
 import { base44 } from "@/api/base44Client";
 import { hashSnapshot } from "@/lib/snapshotHash";
@@ -13,7 +13,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   Legend, LineChart, Line,
 } from "recharts";
-import { AlertTriangle, TrendingUp, Wallet, FileText, Scale, Save, Loader2, Download } from "lucide-react";
+import { AlertTriangle, TrendingUp, Wallet, FileText, Scale, Save, Loader2, Download, GitCompare } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 
 function Card({ className, children, ...props }) {
@@ -21,6 +21,26 @@ function Card({ className, children, ...props }) {
     <div className={`rounded-lg border border-border bg-card ${className || ""}`} {...props}>
       {children}
     </div>
+  );
+}
+
+// Soma o consolidado por ano nos mesmos totais do topo — usada tanto para o
+// cenário selecionado quanto para cada cenário na comparação lado a lado,
+// pra garantir que as duas telas nunca divirjam sobre como somar/truncar.
+function somarTotais(consolidado) {
+  return consolidado.reduce(
+    (acc, c) => {
+      acc.valorBruto += c.valorBruto;
+      acc.tributosAtuais += c.tributosAtuaisLiquidos;
+      acc.cargaTransicao += c.cargaTransicao;
+      acc.ibsCbs += c.ibsCbsLiquido;
+      acc.split += c.splitRetido;
+      acc.funding += c.funding;
+      acc.margemAtual += c.margemAtual;
+      acc.margemTransicao += c.margemTransicao;
+      return acc;
+    },
+    { valorBruto: 0, tributosAtuais: 0, cargaTransicao: 0, ibsCbs: 0, split: 0, funding: 0, margemAtual: 0, margemTransicao: 0 }
   );
 }
 
@@ -42,9 +62,21 @@ export default function PainelExecutivoView({
   grupoNumero, empresaId, grupoLabel, empresaLabel, headerControls,
   escopo = "global", grupoId = null, empresaDbId = null,
 }) {
+  // Cenário selecionado no seletor abaixo — null usa o padrão (Configuracao.cenario_ativo).
+  // Os 3 cenários (Normal/Conservador/Otimista, ou o que estiver cadastrado)
+  // ficam sempre disponíveis: o usuário escolhe qual ver em detalhe, ou liga
+  // "Comparar" para ver os três lado a lado — nenhum fica "trancado" fora da tela.
+  const [cenarioNome, setCenarioNome] = useState(null);
+  const [comparar, setComparar] = useState(false);
+
   const {
-    operacoesCalculadas, isLoading, cenarioAtivo, config, transicao, classTrib, credPres,
-  } = useSimuladorData({ grupoNumero: grupoNumero || undefined, empresaId: empresaId || undefined });
+    operacoes, operacoesCalculadas, isLoading, cenarioAtivo, cenarios, config,
+    transicao, transicaoMap, classTrib, classTribGrouped, credPresGrouped, credPres,
+  } = useSimuladorData({
+    grupoNumero: grupoNumero || undefined,
+    empresaId: empresaId || undefined,
+    cenarioNome: cenarioNome || undefined,
+  });
   const [salvando, setSalvando] = useState(false);
 
   const qc = useQueryClient();
@@ -69,22 +101,19 @@ export default function PainelExecutivoView({
   // Deriva os KPIs do topo do mesmo consolidado por ano (já compensado por
   // empresa) em vez de re-somar operacoesCalculadas cru — evitava que os
   // dois lugares divergissem sobre como truncar IBS/CBS em zero.
-  const totais = useMemo(() => {
-    return consolidado.reduce(
-      (acc, c) => {
-        acc.valorBruto += c.valorBruto;
-        acc.tributosAtuais += c.tributosAtuaisLiquidos;
-        acc.cargaTransicao += c.cargaTransicao;
-        acc.ibsCbs += c.ibsCbsLiquido;
-        acc.split += c.splitRetido;
-        acc.funding += c.funding;
-        acc.margemAtual += c.margemAtual;
-        acc.margemTransicao += c.margemTransicao;
-        return acc;
-      },
-      { valorBruto: 0, tributosAtuais: 0, cargaTransicao: 0, ibsCbs: 0, split: 0, funding: 0, margemAtual: 0, margemTransicao: 0 }
-    );
-  }, [consolidado]);
+  const totais = useMemo(() => somarTotais(consolidado), [consolidado]);
+
+  // Comparação lado a lado: recalcula o motor para CADA cenário cadastrado
+  // sobre a MESMA base de operações já filtrada (grupo/empresa) — sem
+  // refazer nenhuma query, só reaproveitando os dados já carregados.
+  const comparacaoCenarios = useMemo(() => {
+    if (!comparar || cenarios.length === 0) return [];
+    return cenarios.map((cen) => {
+      const calc = calcularOperacoes(operacoes, transicaoMap, classTribGrouped, credPresGrouped, cen, config);
+      const cons = consolidarPorAno(calc, transicaoPorAno);
+      return { cenario: cen, totais: somarTotais(cons) };
+    });
+  }, [comparar, cenarios, operacoes, transicaoMap, classTribGrouped, credPresGrouped, config, transicaoPorAno]);
 
   const chartData = consolidado.map((c) => ({
     ano: String(c.ano),
@@ -180,6 +209,85 @@ export default function PainelExecutivoView({
           </Button>
         </div>
       </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted-foreground mr-1">Cenário:</span>
+        {cenarios.map((cen) => {
+          const nomeEfetivo = cenarioNome || cenarioAtivo?.nome;
+          const selecionado = cen.nome === nomeEfetivo;
+          return (
+            <button
+              key={cen.id}
+              onClick={() => setCenarioNome(cen.nome)}
+              disabled={comparar}
+              title={cen.descricao || cen.nome}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                selecionado && !comparar
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border hover:bg-muted text-foreground"
+              }`}
+            >
+              {cen.nome}
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setComparar((v) => !v)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+            comparar ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted text-foreground"
+          }`}
+        >
+          <GitCompare className="w-3.5 h-3.5" />
+          Comparar os {cenarios.length || 3}
+        </button>
+      </div>
+
+      {comparar && comparacaoCenarios.length > 0 && (
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <GitCompare className="w-4 h-4 text-muted-foreground" />
+            <h2 className="font-heading font-medium text-sm">Comparação entre cenários</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">Cenário</th>
+                  <th className="py-2 pr-4 font-medium">Fatores (vol · preço · custo)</th>
+                  <th className="py-2 pr-4 font-medium">Margem atual</th>
+                  <th className="py-2 pr-4 font-medium">Margem transição</th>
+                  <th className="py-2 pr-4 font-medium">Margem % transição</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparacaoCenarios.map(({ cenario: cen, totais: t }) => (
+                  <tr key={cen.id} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="py-2.5 pr-4 font-medium">
+                      {cen.nome}
+                      {cen.nome === config.cenario_ativo && (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground align-middle">padrão</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4 text-xs text-muted-foreground font-mono">
+                      {cen.fator_volume}x · {cen.fator_preco}x · {cen.fator_custo}x
+                    </td>
+                    <td className="py-2.5 pr-4">{BRL(t.margemAtual)}</td>
+                    <td className={`py-2.5 pr-4 font-medium ${t.margemTransicao < t.margemAtual ? "text-destructive" : "text-chart-2"}`}>
+                      {BRL(t.margemTransicao)}
+                    </td>
+                    <td className="py-2.5 pr-4">{t.valorBruto > 0 ? pct(t.margemTransicao / t.valorBruto) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Cada linha recalcula o mesmo conjunto de operações sob os fatores de volume/preço/custo daquele cenário (aba Cenários).
+            Valor bruto, tributos, IBS/CBS e funding não mudam entre cenários — só a margem, porque só ela usa esses fatores hoje.
+            Os gráficos e o consolidado por ano abaixo mostram sempre o cenário selecionado nas abas acima.
+          </p>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Operações carregadas" value={operacoesCalculadas.length} sub="total na base" />

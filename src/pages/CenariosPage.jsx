@@ -54,7 +54,10 @@ export default function CenariosPage() {
             <h1 className="text-xl font-heading font-semibold">Cenários</h1>
             <InfoTooltip pagina="cenarios" chave="header" />
           </div>
-          <p className="text-sm text-muted-foreground">Fatores de volume, preço, custo e crédito aplicados ao motor</p>
+          <p className="text-sm text-muted-foreground">
+            Fatores de volume, preço, custo e crédito aplicados ao motor. Os cenários ficam sempre disponíveis lado a lado
+            no Painel Executivo — o "padrão" abaixo só define qual deles vem pré-selecionado lá.
+          </p>
         </div>
         <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
           <Plus className="w-4 h-4" /> Novo cenário
@@ -70,7 +73,7 @@ export default function CenariosPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-heading font-medium">{c.nome}</h3>
-                    {active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground">ATIVO</span>}
+                    {active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground">PADRÃO</span>}
                   </div>
                   {c.descricao && <p className="text-xs text-muted-foreground mt-0.5">{c.descricao}</p>}
                 </div>
@@ -87,7 +90,7 @@ export default function CenariosPage() {
               </div>
               {!active && (
                 <button onClick={() => setActive(c.nome)} className="mt-4 w-full text-xs py-1.5 rounded-md border border-border hover:bg-muted inline-flex items-center justify-center gap-1.5">
-                  <Check className="w-3.5 h-3.5" /> Ativar cenário
+                  <Check className="w-3.5 h-3.5" /> Definir como padrão
                 </button>
               )}
             </div>
