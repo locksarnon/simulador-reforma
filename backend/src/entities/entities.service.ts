@@ -28,6 +28,8 @@ const ALLOWED_MODELS = [
   'Ncm',
   'Cfop',
   'BeneficioFiscal',
+  'CorrelacaoServico',
+  'NoticiaReforma',
 ] as const;
 
 export type AllowedModel = (typeof ALLOWED_MODELS)[number];

@@ -608,3 +608,51 @@ model BeneficioFiscal {
 
   @@index([codigo])
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Ferramentas — submódulos utilitários (não presos a Grupo/Empresa)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Correlação Item LC 116 <-> NBS <-> cIndOp <-> cClassTrib, importada do
+ * Anexo VIII (Receita Federal / Comitê Gestor da NFS-e). Alimenta o
+ * Classificador cClassTrib, o Conversor LC116<->NBS, o Identificador cIndOp
+ * e o Conversor 4-em-1 — são recortes diferentes da mesma tabela oficial.
+ */
+model CorrelacaoServico {
+  id                    String   @id @default(cuid())
+  item_lc116            String?
+  descricao_item        String?
+  nbs                   String?
+  descricao_nbs         String?
+  ps_onerosa            String?
+  adq_exterior          String?
+  ind_op                String?
+  local_incidencia_ibs  String?
+  c_class_trib          String?
+  nome_class_trib       String?
+  fonte                 String   @default("Anexo VIII RTC")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([item_lc116])
+  @@index([nbs])
+  @@index([ind_op])
+  @@index([c_class_trib])
+}
+
+/** Acervo de notícias sobre a Reforma Tributária — lista curada manualmente. */
+model NoticiaReforma {
+  id           String    @id @default(cuid())
+  titulo       String
+  resumo       String?
+  url          String?
+  fonte        String?
+  publicado_em DateTime?
+  tags         String?
+  status       String    @default("Publicada")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([publicado_em])
+}

@@ -151,7 +151,7 @@ const ENTITY_NAMES = [
   'Grupo', 'Empresa', 'Operacao', 'Cenario', 'TransicaoAno', 'ClassTrib',
   'CstIbsCbs', 'CredPres', 'Configuracao', 'Diagnostico',
   'ImportacaoXMLLote', 'ImportacaoXMLArquivo', 'ImportacaoXMLItem', 'HistoricoXML',
-  'Simulacao',
+  'Simulacao', 'Ncm', 'Cfop', 'BeneficioFiscal', 'CorrelacaoServico', 'NoticiaReforma',
 ];
 
 const entities = Object.fromEntries(ENTITY_NAMES.map((name) => [name, makeEntityClient(name)]));

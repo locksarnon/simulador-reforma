@@ -11,6 +11,10 @@ import {
   Layers,
   Code2,
   SlidersHorizontal,
+  Wrench,
+  Calculator,
+  BookOpenText,
+  Newspaper,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -30,6 +34,15 @@ const sections = [
       { to: "/transicao", label: "Transição 2026–2033", icon: CalendarClock },
       { to: "/catalogos", label: "Catálogos IBS/CBS", icon: BookMarked },
       { to: "/configuracao", label: "Configuração", icon: Settings },
+    ],
+  },
+  {
+    title: "Ferramentas",
+    items: [
+      { to: "/ferramentas/classificacao", label: "Classificador & Conversor", icon: Wrench },
+      { to: "/ferramentas/calculadora", label: "Calculadora Rápida", icon: Calculator },
+      { to: "/ferramentas/art-11", label: "Guia do Art. 11", icon: BookOpenText },
+      { to: "/ferramentas/noticias", label: "Acervo de Notícias", icon: Newspaper },
     ],
   },
   {

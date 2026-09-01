@@ -27,6 +27,10 @@ import CatalogosPage from '@/pages/CatalogosPage';
 import ConfiguracaoPage from '@/pages/ConfiguracaoPage';
 import ManualPage from '@/pages/ManualPage';
 import ArquiteturaPage from '@/pages/ArquiteturaPage';
+import FerramentasClassificacao from '@/pages/FerramentasClassificacao';
+import FerramentasCalculadora from '@/pages/FerramentasCalculadora';
+import FerramentasArt11 from '@/pages/FerramentasArt11';
+import FerramentasNoticias from '@/pages/FerramentasNoticias';
 // Add page imports here
 
 function App() {
@@ -62,6 +66,10 @@ function App() {
                   <Route path="/transicao" element={<TransicaoPage />} />
                   <Route path="/catalogos" element={<CatalogosPage />} />
                   <Route path="/configuracao" element={<ConfiguracaoPage />} />
+                  <Route path="/ferramentas/classificacao" element={<FerramentasClassificacao />} />
+                  <Route path="/ferramentas/calculadora" element={<FerramentasCalculadora />} />
+                  <Route path="/ferramentas/art-11" element={<FerramentasArt11 />} />
+                  <Route path="/ferramentas/noticias" element={<FerramentasNoticias />} />
                   <Route path="/manual" element={<ManualPage />} />
                   <Route path="/arquitetura" element={<ArquiteturaPage />} />
                 </Route>
