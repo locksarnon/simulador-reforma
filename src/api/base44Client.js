@@ -161,6 +161,7 @@ const FUNCTION_ROUTES = {
   confirmarImportacaoXML: '/xml/confirmar-importacao',
   reprocessarLoteXML: '/xml/reprocessar-lote',
   buscarAtualizacoesNoticias: '/noticias/buscar-atualizacoes',
+  validarNfse: '/validador-nfse/validar',
 };
 
 export const base44 = {

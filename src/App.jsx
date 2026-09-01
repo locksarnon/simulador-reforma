@@ -31,6 +31,7 @@ import FerramentasClassificacao from '@/pages/FerramentasClassificacao';
 import FerramentasCalculadora from '@/pages/FerramentasCalculadora';
 import FerramentasArt11 from '@/pages/FerramentasArt11';
 import FerramentasNoticias from '@/pages/FerramentasNoticias';
+import FerramentasValidadorNFSe from '@/pages/FerramentasValidadorNFSe';
 // Add page imports here
 
 function App() {
@@ -70,6 +71,7 @@ function App() {
                   <Route path="/ferramentas/calculadora" element={<FerramentasCalculadora />} />
                   <Route path="/ferramentas/art-11" element={<FerramentasArt11 />} />
                   <Route path="/ferramentas/noticias" element={<FerramentasNoticias />} />
+                  <Route path="/ferramentas/validador-nfse" element={<FerramentasValidadorNFSe />} />
                   <Route path="/manual" element={<ManualPage />} />
                   <Route path="/arquitetura" element={<ArquiteturaPage />} />
                 </Route>
