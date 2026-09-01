@@ -4,11 +4,18 @@ import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 
 const REGRAS = [
-  { inciso: "I", titulo: "Bem móvel material", regra: "Local de entrega ou disponibilização do bem ao destinatário." },
-  { inciso: "II", titulo: "Bem imóvel e serviços sobre imóvel", regra: "Onde o imóvel está situado." },
-  { inciso: "III", titulo: "Serviços prestados sobre pessoas", regra: "Local da prestação do serviço (ex.: serviços de beleza, saúde)." },
-  { inciso: "IV–IX", titulo: "Casos específicos", regra: "Feiras/eventos, serviços sobre bens móveis, transporte de passageiros, transporte de carga, exploração de rodovia/utilidade e telefonia fixa — cada um com sua própria regra de local." },
-  { inciso: "X", titulo: "Demais serviços e bens móveis intangíveis (regra residual)", regra: "Se a operação é onerosa: domicílio do adquirente. Se não onerosa: domicílio do destinatário." },
+  { inciso: "I", titulo: "Bem móvel material", regra: "Local de entrega ou disponibilização do bem ao destinatário. Em vendas não presenciais (e-commerce), vale o destino final indicado pelo adquirente." },
+  { inciso: "II", titulo: "Bem imóvel e serviços sobre imóvel", regra: "Onde o imóvel está situado — locação, venda, administração, ou serviço físico executado nele (ex.: pintura, reforma)." },
+  { inciso: "III", titulo: "Serviços prestados fisicamente sobre pessoas", regra: "Local da prestação física do serviço (ex.: academias, salões de beleza, clínicas médicas)." },
+  { inciso: "IV", titulo: "Feiras e eventos", regra: "Endereço onde ocorre o evento — organização de feiras, congressos, espetáculos." },
+  { inciso: "V–IX", titulo: "Transporte e demais casos específicos", regra: "Transporte de passageiros: local de início da viagem. Transporte de carga: local da entrega. Mais serviços sobre bens móveis, exploração de rodovia/utilidade e telefonia fixa, cada um com regra própria." },
+  { inciso: "X", titulo: "Regra residual — operações digitais, bens imateriais e serviços de TI", regra: "Serviços não enquadrados nos incisos anteriores (licenciamento de software, streaming, consultoria digital): domicílio principal do adquirente, se onerosa; domicílio do destinatário, se não onerosa." },
+];
+
+const EXEMPLOS = [
+  { servico: "Reforma de fachada / pintura", inciso: "II — serviço sobre imóvel", cindop: "Aponta a tag de localização do imóvel", local: "Município onde o prédio está construído" },
+  { servico: "Corte de cabelo / atendimento médico", inciso: "III — fisicamente sobre a pessoa", cindop: "Indica execução presencial", local: "Município do estabelecimento prestador" },
+  { servico: "Consultoria de TI / licença de software", inciso: "X — regra residual, onerosa", cindop: "Direciona o processamento para o adquirente", local: "Município do domicílio do cliente" },
 ];
 
 export default function FerramentasArt11() {
@@ -68,6 +75,53 @@ export default function FerramentasArt11() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-heading font-medium text-base">Exemplos práticos</h2>
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40">
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="py-2.5 px-4 font-medium">Natureza do serviço</th>
+                    <th className="py-2.5 px-4 font-medium">Regra do Art. 11</th>
+                    <th className="py-2.5 px-4 font-medium">Como o cIndOp atua</th>
+                    <th className="py-2.5 px-4 font-medium">Local de incidência do IBS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {EXEMPLOS.map((e) => (
+                    <tr key={e.servico} className="border-t border-border/50">
+                      <td className="py-2.5 px-4 font-medium">{e.servico}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground font-mono text-xs">{e.inciso}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground">{e.cindop}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground">{e.local}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-heading font-medium text-base">O fluxo de amarração na emissão</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Na prática, preencher uma nota corretamente passa por 4 etapas encadeadas — e é exatamente por isso
+            que o Classificador &amp; Conversor busca as 4 juntas:
+          </p>
+          <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+            <li><strong className="text-foreground">Item de serviço</strong> — classificação tradicional pela LC 116/2003.</li>
+            <li><strong className="text-foreground">NBS</strong> — código de classificação nacional (Nomenclatura Brasileira de Serviços).</li>
+            <li><strong className="text-foreground">cIndOp</strong> — como e onde a operação acontece na prática (Anexo VII do regulamento).</li>
+            <li><strong className="text-foreground">Local de incidência</strong> — resultado automático da combinação do cIndOp com o Art. 11.</li>
+          </ol>
+          <div className="rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/50 p-4 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+            <strong>Impacto prático:</strong> preencher o cIndOp errado manda o IBS para o município errado. Durante
+            o período de testes, o Comitê Gestor não rejeita a nota na hora por erro nos campos de IBS/CBS — mas
+            isso deixa a empresa em desconformidade perante o fisco mesmo assim.
           </div>
         </section>
 

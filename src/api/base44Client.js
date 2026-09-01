@@ -160,6 +160,7 @@ const FUNCTION_ROUTES = {
   processarLoteXML: '/xml/processar-lote',
   confirmarImportacaoXML: '/xml/confirmar-importacao',
   reprocessarLoteXML: '/xml/reprocessar-lote',
+  buscarAtualizacoesNoticias: '/noticias/buscar-atualizacoes',
 };
 
 export const base44 = {

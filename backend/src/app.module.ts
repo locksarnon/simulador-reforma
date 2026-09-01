@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { EntitiesModule } from './entities/entities.module';
 import { StorageModule } from './storage/storage.module';
 import { ImportacaoXmlModule } from './importacao-xml/importacao-xml.module';
+import { NoticiasModule } from './noticias/noticias.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -18,6 +19,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     EntitiesModule,
     StorageModule,
     ImportacaoXmlModule,
+    NoticiasModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })
