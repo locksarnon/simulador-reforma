@@ -1,18 +1,19 @@
 import React from "react";
-import { useParams, Outlet, NavLink } from "react-router-dom";
+import { useParams, useLocation, Outlet, NavLink, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { LayoutDashboard, FileText, FileSearch, Trash2 } from "lucide-react";
+import { LayoutDashboard, FileText, FileSearch, Trash2, Lock } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 
 const tabs = [
-  { label: "Painel", to: "", icon: LayoutDashboard, end: true },
-  { label: "Operações", to: "operacoes", icon: FileText },
   { label: "Importação XML", to: "importacao-xml", icon: FileSearch },
+  { label: "Operações", to: "operacoes", icon: FileText },
+  { label: "Painel", to: "painel", icon: LayoutDashboard },
 ];
 
 export default function EmpresaWorkroom() {
   const { id: grupoId, empresaId } = useParams();
+  const location = useLocation();
   const qc = useQueryClient();
 
   const { data: grupo } = useQuery({
@@ -25,6 +26,21 @@ export default function EmpresaWorkroom() {
     queryFn: () => base44.entities.Empresa.get(empresaId),
     enabled: !!empresaId,
   });
+  // Trava do Painel: só libera depois de existir pelo menos 1 operação
+  // lançada pra essa empresa — o resultado é a última etapa do processo,
+  // não a porta de entrada. Enquanto a query carrega, trata como travado
+  // (padrão seguro: nunca libera antes de confirmar que há dados).
+  const { data: operacoesDaEmpresa, isLoading: isLoadingOperacoes } = useQuery({
+    queryKey: ["empresa-tem-operacoes", empresa?.id_empresa],
+    queryFn: () => base44.entities.Operacao.filter({ empresa_id: empresa.id_empresa }, undefined, 1),
+    enabled: !!empresa?.id_empresa,
+  });
+  const painelLiberado = !isLoadingOperacoes && (operacoesDaEmpresa?.length || 0) > 0;
+  const estaNoPainel = location.pathname.endsWith("/painel");
+  // Só redireciona quando a checagem já terminou E deu vazio — enquanto
+  // carrega, mostra um spinner em vez do conteúdo (evita "piscar" o Painel
+  // antes de decidir se ele deveria estar bloqueado).
+  const deveRedirecionarDoPainel = estaNoPainel && !isLoadingOperacoes && !painelLiberado && !!empresa;
 
   const handleDelete = async () => {
     if (!confirm(`Excluir a empresa "${empresa?.razao_social}"? Esta ação não pode ser desfeita.`)) return;
@@ -58,11 +74,23 @@ export default function EmpresaWorkroom() {
         <div className="max-w-screen-2xl mx-auto flex gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
+            const bloqueado = tab.to === "painel" && !painelLiberado;
+            if (bloqueado) {
+              return (
+                <span
+                  key={tab.to}
+                  title="Lance ao menos uma operação (manual ou via importação de XML) para liberar o Painel — o resultado é a última etapa, não a primeira."
+                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm border-b-2 border-transparent text-muted-foreground/40 cursor-not-allowed select-none"
+                >
+                  <Lock className="w-3 h-3" />
+                  {tab.label}
+                </span>
+              );
+            }
             return (
               <NavLink
                 key={tab.to}
                 to={tab.to}
-                end={tab.end}
                 className={({ isActive }) =>
                   `flex items-center gap-1.5 px-3 py-2.5 text-sm border-b-2 transition-colors ${
                     isActive
@@ -79,7 +107,15 @@ export default function EmpresaWorkroom() {
         </div>
       </div>
 
-      <Outlet context={{ grupo, empresa }} />
+      {estaNoPainel && isLoadingOperacoes ? (
+        <div className="p-12 flex items-center justify-center">
+          <div className="w-6 h-6 border-4 border-border border-t-primary rounded-full animate-spin" />
+        </div>
+      ) : deveRedirecionarDoPainel ? (
+        <Navigate to={`/workroom/${grupoId}/empresas/${empresaId}/importacao-xml`} replace />
+      ) : (
+        <Outlet context={{ grupo, empresa }} />
+      )}
     </div>
   );
 }

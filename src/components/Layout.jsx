@@ -5,7 +5,6 @@ import {
   CalendarClock,
   BookMarked,
   Settings,
-  Scale,
   HelpCircle,
   Plus,
   Layers,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
+import Logo from "@/components/Logo";
 
 const sections = [
   {
@@ -65,7 +65,7 @@ export default function Layout() {
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
-              <Scale className="w-5 h-5" />
+              <Logo className="w-5 h-5" />
             </div>
             <div className="leading-tight">
               <p className="font-heading font-semibold text-sm text-foreground">Simulador FAL</p>

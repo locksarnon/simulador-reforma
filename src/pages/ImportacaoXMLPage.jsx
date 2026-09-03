@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, AlertTriangle, Download, FileSearch, RefreshCw, Users } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, Download, FileSearch, RefreshCw, Users, CheckSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -48,13 +48,41 @@ export default function ImportacaoXMLPage() {
     if (!empresaTravada || mostrarOutras) return imp.itens;
     return imp.itens.filter((it) => it.empresa_id === empresaTravada.id_empresa);
   }, [imp.itens, empresaTravada, mostrarOutras]);
+  // Inclui itens SEM empresa_id (CNPJ emitente/destinatário não localizado em
+  // nenhuma empresa do grupo) — antes só contava "de outra empresa conhecida"
+  // e por isso o botão "mostrar outras" nunca aparecia pra esse caso, deixando
+  // o item bloqueado praticamente invisível, sem explicação nenhuma na tela.
   const outrasCount = useMemo(() => {
     if (!empresaTravada) return 0;
-    return imp.itens.filter((it) => it.empresa_id && it.empresa_id !== empresaTravada.id_empresa).length;
+    return imp.itens.filter((it) => it.empresa_id !== empresaTravada.id_empresa).length;
   }, [imp.itens, empresaTravada]);
 
+  // Motivos de bloqueio agregados (só os bloqueantes) — direto do lote
+  // inteiro, não do itensVisiveis, porque itens sem empresa correspondente
+  // ficam escondidos pela trava e o motivo não pode desaparecer junto.
+  const motivosBloqueio = useMemo(() => {
+    const contagem = new Map();
+    for (const it of imp.itens) {
+      if (it.resultado_final !== "BLOQUEADO") continue;
+      for (const chk of extrairChecksBloqueantes(it)) {
+        contagem.set(chk, (contagem.get(chk) || 0) + 1);
+      }
+    }
+    return [...contagem.entries()].sort((a, b) => b[1] - a[1]);
+  }, [imp.itens]);
+  const totalBloqueados = useMemo(
+    () => imp.itens.filter((it) => it.resultado_final === "BLOQUEADO").length,
+    [imp.itens]
+  );
+
   const isProcessing = imp.lote?.status === "RECEBIDO" || imp.lote?.status === "PROCESSANDO";
-  const temFalha = imp.lote?.status === "FALHOU" || imp.lote?.status === "PROCESSADO_COM_FALHAS";
+  // "Falha" no sentido de arquivo tecnicamente corrompido/ilegível — aí faz
+  // sentido reprocessar. Diferente de itens bloqueados por regra de negócio
+  // (ex.: CNPJ não cadastrado), onde reprocessar o mesmo XML não muda nada.
+  const temFalhaArquivos = imp.lote?.status === "FALHOU" ||
+    (imp.lote?.status === "PROCESSADO_COM_FALHAS" && (imp.lote?.arquivos_invalidos || 0) > 0);
+  const temSoItensBloqueados = imp.lote?.status === "PROCESSADO_COM_FALHAS" &&
+    (imp.lote?.arquivos_invalidos || 0) === 0 && totalBloqueados > 0;
 
   const handleReprocessar = async () => {
     setReprocessando(true);
@@ -83,6 +111,15 @@ export default function ImportacaoXMLPage() {
     setDrawerItem(item);
     setDrawerCamada(camada);
   };
+
+  const selecionarTodosImportaveis = () => {
+    setSelectedIds(
+      itensVisiveis
+        .filter((it) => it.resultado_final === "IMPORTAVEL" || it.resultado_final === "IMPORTAVEL_COM_ALERTA")
+        .map((it) => it.id)
+    );
+  };
+  const limparSelecao = () => setSelectedIds([]);
 
   const selecionaveis = useMemo(
     () => itensVisiveis.filter((it) => it.resultado_final === "IMPORTAVEL" || it.resultado_final === "IMPORTAVEL_COM_ALERTA"),
@@ -157,8 +194,8 @@ export default function ImportacaoXMLPage() {
           >
             <Users className="w-3.5 h-3.5" />
             {mostrarOutras
-              ? "Ocultar operações de outras empresas do grupo"
-              : `Mostrar também ${outrasCount} operação(ões) de outras empresas deste grupo (transferência interna)`}
+              ? "Ocultar itens de outras empresas / CNPJ não cadastrado"
+              : `Mostrar também ${outrasCount} item(ns) de outras empresas do grupo ou de CNPJ não cadastrado`}
           </button>
         )}
 
@@ -184,7 +221,7 @@ export default function ImportacaoXMLPage() {
           </div>
         )}
 
-        {temFalha && (
+        {temFalhaArquivos && (
           <div className="flex items-center justify-between gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
             <p className="text-sm text-foreground">
               Este lote teve arquivos que falharam ({imp.lote.arquivos_invalidos || 0} de {imp.lote.total_arquivos || 0}).
@@ -194,6 +231,38 @@ export default function ImportacaoXMLPage() {
               {reprocessando ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               Reprocessar
             </Button>
+          </div>
+        )}
+
+        {/* Todos os arquivos foram lidos com sucesso (0 falhas técnicas), mas
+            nenhum item pôde ser importado — o motivo é uma regra de negócio
+            (mais comum: CNPJ emitente/destinatário não cadastrado como
+            empresa neste grupo), não um problema no XML. Reprocessar não
+            resolveria nada aqui, então nem mostra esse botão. */}
+        {temSoItensBloqueados && (
+          <div className="flex flex-col gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/40">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-foreground font-medium">
+                  Os {imp.lote.arquivos_validos || 0} arquivo(s) foram lidos sem erro, mas {totalBloqueados} item(ns) ficaram bloqueados — nenhum pôde ser importado.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Isso não é um problema no XML — é uma regra de validação que impediu a importação. Motivo(s) encontrado(s):
+                </p>
+                <ul className="text-xs text-muted-foreground mt-1.5 space-y-0.5 list-disc list-inside">
+                  {motivosBloqueio.map(([mensagem, qtd]) => (
+                    <li key={mensagem}>{mensagem} <span className="text-muted-foreground/70">({qtd}x)</span></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            {empresaTravada && !mostrarOutras && (
+              <Button variant="outline" size="sm" onClick={() => setMostrarOutras(true)} className="w-fit gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                Ver os itens bloqueados
+              </Button>
+            )}
           </div>
         )}
 
@@ -226,7 +295,19 @@ export default function ImportacaoXMLPage() {
               onToggleSelect={toggleSelect}
               onOpenDrawer={openDrawer}
             />
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={selecionarTodosImportaveis} disabled={selecionaveis.length === 0} className="gap-1.5">
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  Selecionar todos importáveis ({selecionaveis.length})
+                </Button>
+                {selectedIds.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={limparSelecao} className="gap-1.5">
+                    <Square className="w-3.5 h-3.5" />
+                    Limpar seleção
+                  </Button>
+                )}
+              </div>
               <Button
                 onClick={handleImportar}
                 disabled={selecionadosItens.length === 0 || confirmando}
@@ -271,6 +352,26 @@ export default function ImportacaoXMLPage() {
     </div>
     </div>
   );
+}
+
+const CAMADAS_VALIDACAO = [
+  "validacao_documental_json", "validacao_cadastral_json",
+  "validacao_tributaria_json", "validacao_operacional_json",
+];
+
+// Junta as mensagens BLOQUEANTE das 4 camadas de validação de um item —
+// é o "motivo da falha" que o usuário precisa ver quando um item vira
+// BLOQUEADO, em vez de só um badge vermelho sem explicação.
+function extrairChecksBloqueantes(item) {
+  const mensagens = [];
+  for (const campo of CAMADAS_VALIDACAO) {
+    let checks = [];
+    try { checks = JSON.parse(item[campo] || "[]"); } catch { checks = []; }
+    for (const chk of checks) {
+      if (chk.bloqueante && chk.status === "NAO_CONFORME" && chk.mensagem) mensagens.push(chk.mensagem);
+    }
+  }
+  return [...new Set(mensagens)];
 }
 
 function ResumoCard({ label, value, icon: Icon, color }) {

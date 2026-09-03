@@ -1,5 +1,5 @@
-import React from "react";
-import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2 } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const RESULTADO_CONFIG = {
@@ -9,6 +9,17 @@ const RESULTADO_CONFIG = {
   CANCELADO: { label: "Cancelado", color: "bg-gray-100 text-gray-600 border-gray-200" },
   DUPLICADO: { label: "Duplicado", color: "bg-blue-100 text-blue-700 border-blue-200" },
 };
+
+const FILTROS = [
+  { value: "TODOS", label: "Todos" },
+  { value: "IMPORTAVEL", label: "Importável" },
+  { value: "IMPORTAVEL_COM_ALERTA", label: "Importável c/ alerta" },
+  { value: "BLOQUEADO", label: "Bloqueado" },
+  { value: "DUPLICADO", label: "Duplicado" },
+  { value: "CANCELADO", label: "Cancelado" },
+];
+
+const PAGE_SIZE = 50;
 
 function StatusIcon({ checks }) {
   if (!checks || checks.length === 0) return <Minus className="w-4 h-4 text-muted-foreground/40" />;
@@ -21,24 +32,64 @@ function StatusIcon({ checks }) {
   return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
 }
 
+/**
+ * Staging de itens importados de XML. Pensada para volumes pequenos (uma
+ * dúzia de notas) até grandes (centenas/milhares — ex.: 12 meses de
+ * faturamento real de uma empresa): filtro por status pra pular direto pro
+ * que precisa de atenção humana, e paginação (por GRUPO de item, não por
+ * linha solta, pra nunca partir um par intercompany entre páginas).
+ */
 export default function StagingTable({ itens, empresaMap, selectedIds, onToggleSelect, onOpenDrawer }) {
-  if (!itens || itens.length === 0) return null;
+  const [filtro, setFiltro] = useState("TODOS");
+  const [pagina, setPagina] = useState(0);
 
-  // Agrupa intercompany por chave_nfe + numero_item.
-  const grupos = {};
-  for (const it of itens) {
-    const key = `${it.chave_nfe}|${it.numero_item}`;
-    if (!grupos[key]) grupos[key] = [];
-    grupos[key].push(it);
-  }
+  const itensFiltrados = useMemo(
+    () => (filtro === "TODOS" ? itens : (itens || []).filter((it) => it.resultado_final === filtro)),
+    [itens, filtro]
+  );
+
+  // Agrupa intercompany por chave_nfe + numero_item — cada grupo é 1 ou 2 linhas.
+  const grupos = useMemo(() => {
+    const map = {};
+    for (const it of itensFiltrados) {
+      const key = `${it.chave_nfe}|${it.numero_item}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(it);
+    }
+    return Object.entries(map);
+  }, [itensFiltrados]);
+
+  const totalPaginas = Math.max(1, Math.ceil(grupos.length / PAGE_SIZE));
+  const paginaAtual = Math.min(pagina, totalPaginas - 1);
+  const gruposPagina = grupos.slice(paginaAtual * PAGE_SIZE, (paginaAtual + 1) * PAGE_SIZE);
+
+  const mudarFiltro = (v) => { setFiltro(v); setPagina(0); };
+
+  if (!itens || itens.length === 0) return null;
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-5 py-3 border-b border-border">
-        <h3 className="font-heading font-medium text-sm">Staging de Itens</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {itens.length} perspectiva(s) · Clique nos ícones de validação para detalhar
-        </p>
+      <div className="px-5 py-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h3 className="font-heading font-medium text-sm">Staging de Itens</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {itensFiltrados.length} de {itens.length} perspectiva(s) · Clique nos ícones de validação para detalhar
+          </p>
+        </div>
+        <div className="flex items-center gap-1 flex-wrap">
+          {FILTROS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => mudarFiltro(f.value)}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-xs font-medium border transition-colors",
+                filtro === f.value ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted text-foreground"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="overflow-x-auto max-h-[600px]">
         <table className="w-full text-xs min-w-[900px]">
@@ -62,7 +113,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {Object.entries(grupos).map(([key, group]) => {
+            {gruposPagina.map(([key, group]) => {
               const isIntercompany = group.length === 2;
               return group.map((it, idx) => {
                 const cfg = RESULTADO_CONFIG[it.resultado_final] || RESULTADO_CONFIG.BLOQUEADO;
@@ -130,9 +181,37 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
                 );
               });
             })}
+            {gruposPagina.length === 0 && (
+              <tr>
+                <td colSpan={15} className="py-8 text-center text-muted-foreground">
+                  Nenhum item com esse status.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+      {totalPaginas > 1 && (
+        <div className="px-5 py-2.5 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+          <span>Página {paginaAtual + 1} de {totalPaginas} · {grupos.length} item(ns) filtrado(s)</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPagina((p) => Math.max(0, p - 1))}
+              disabled={paginaAtual === 0}
+              className="p-1.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+              disabled={paginaAtual >= totalPaginas - 1}
+              className="p-1.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
