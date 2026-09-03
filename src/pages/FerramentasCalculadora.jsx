@@ -41,7 +41,7 @@ export default function FerramentasCalculadora() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Calculadora Rápida" }]} />
-      <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-5">
+      <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
         <div>
           <div className="flex items-center gap-2">
             <Calculator className="w-5 h-5 text-muted-foreground" />

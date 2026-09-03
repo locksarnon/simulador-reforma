@@ -17,7 +17,7 @@ export default function PageHeader({ crumbs = [], title, subtitle, actions }) {
 
   return (
     <div className="border-b border-border bg-card px-6 lg:px-8 py-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-screen-2xl mx-auto">
         <div className="flex items-center gap-3 mb-2">
           <button
             onClick={() => navigate(-1)}

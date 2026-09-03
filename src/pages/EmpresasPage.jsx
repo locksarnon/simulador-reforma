@@ -1,27 +1,12 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
-
-const SIM_NAO = ["Sim", "Não"];
-const REGIMES = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "Produtor rural PF"];
-
-const empty = {
-  id_empresa: "", grupo: "", razao_social: "", cnpj_cpf: "", regime_atual: "Lucro Real",
-  setor: "", uf: "", municipio: "", contribuinte_ibs_cbs: "Sim", produtor_rural: "Não",
-  cooperativa: "Não", erp: "", responsavel_fiscal: "", status: "Ativa", observacao: "",
-};
+import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 
 export default function EmpresasPage() {
   const { id: grupoId } = useParams();
@@ -41,19 +26,7 @@ export default function EmpresasPage() {
     enabled: grupoNumero !== undefined,
   });
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(empty);
   const [open, setOpen] = useState(false);
-
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const save = async (e) => {
-    e.preventDefault();
-    const payload = { ...form, grupo: grupoNumero || form.grupo };
-    if (editing === "new") await base44.entities.Empresa.create(payload);
-    else await base44.entities.Empresa.update(editing.id, payload);
-    setOpen(false);
-    qc.invalidateQueries({ queryKey: ["empresas"] });
-  };
 
   const del = async (em) => {
     if (!confirm(`Excluir ${em.id_empresa}?`)) return;
@@ -61,7 +34,7 @@ export default function EmpresasPage() {
     qc.invalidateQueries({ queryKey: ["empresas"] });
   };
 
-  const start = (em) => { setForm(em === "new" ? { ...empty, grupo: grupoNumero || "" } : em); setEditing(em); setOpen(true); };
+  const start = (em) => { setEditing(em); setOpen(true); };
 
   return (
     <div>
@@ -72,7 +45,7 @@ export default function EmpresasPage() {
           { label: "Empresas" },
         ]}
       />
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
+    <div className="p-6 lg:p-8 max-w-screen-2xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -135,48 +108,7 @@ export default function EmpresasPage() {
         </table>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing === "new" ? "Nova empresa" : `Editar ${editing?.id_empresa}`}</DialogTitle></DialogHeader>
-          <form onSubmit={save} className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs">ID empresa <InfoTooltip pagina="empresas" chave="id_empresa" /></Label><Input value={form.id_empresa} onChange={(e) => set("id_empresa", e.target.value)} required /></div>
-            <div><Label className="text-xs">Grupo <InfoTooltip pagina="empresas" chave="grupo" /></Label><Input value={form.grupo} disabled readOnly className="bg-muted/50 cursor-not-allowed" /></div>
-            <div className="col-span-2"><Label className="text-xs">Razão social <InfoTooltip pagina="empresas" chave="razao_social" /></Label><Input value={form.razao_social} onChange={(e) => set("razao_social", e.target.value)} required /></div>
-            <div><Label className="text-xs">CNPJ/CPF <InfoTooltip pagina="empresas" chave="cnpj_cpf" /></Label><Input value={form.cnpj_cpf} onChange={(e) => set("cnpj_cpf", e.target.value)} /></div>
-            <div>
-              <Label className="text-xs">Regime atual <InfoTooltip pagina="empresas" chave="regime_atual" /></Label>
-              <Select value={form.regime_atual} onValueChange={(v) => set("regime_atual", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{REGIMES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label className="text-xs">Setor <InfoTooltip pagina="empresas" chave="setor" /></Label><Input value={form.setor} onChange={(e) => set("setor", e.target.value)} /></div>
-            <div><Label className="text-xs">UF <InfoTooltip pagina="empresas" chave="uf" /></Label><Input value={form.uf} onChange={(e) => set("uf", e.target.value)} /></div>
-            <div><Label className="text-xs">Município <InfoTooltip pagina="empresas" chave="municipio" /></Label><Input value={form.municipio} onChange={(e) => set("municipio", e.target.value)} /></div>
-            <div>
-              <Label className="text-xs">Contribuinte IBS/CBS <InfoTooltip pagina="empresas" chave="contribuinte_ibs_cbs" /></Label>
-              <Select value={form.contribuinte_ibs_cbs} onValueChange={(v) => set("contribuinte_ibs_cbs", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{SIM_NAO.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Produtor rural <InfoTooltip pagina="empresas" chave="produtor_rural" /></Label>
-              <Select value={form.produtor_rural} onValueChange={(v) => set("produtor_rural", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{SIM_NAO.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label className="text-xs">ERP <InfoTooltip pagina="empresas" chave="erp" /></Label><Input value={form.erp} onChange={(e) => set("erp", e.target.value)} /></div>
-            <div><Label className="text-xs">Responsável fiscal <InfoTooltip pagina="empresas" chave="responsavel_fiscal" /></Label><Input value={form.responsavel_fiscal} onChange={(e) => set("responsavel_fiscal", e.target.value)} /></div>
-            <div className="col-span-2"><Label className="text-xs">Observação <InfoTooltip pagina="empresas" chave="observacao" /></Label><Input value={form.observacao} onChange={(e) => set("observacao", e.target.value)} /></div>
-            <div className="col-span-2 flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <EmpresaFormDialog open={open} onOpenChange={setOpen} editing={editing} grupoNumero={grupoNumero} />
     </div>
     </div>
   );

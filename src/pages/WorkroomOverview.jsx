@@ -5,19 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { ChevronRight, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMarked, UploadCloud, Plus } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import EmpresaCard from "@/components/EmpresaCard";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const REGIMES = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "Produtor rural PF"];
-const empty = {
-  id_empresa: "", grupo: "", razao_social: "", cnpj_cpf: "", regime_atual: "Lucro Real",
-  setor: "", uf: "", municipio: "", contribuinte_ibs_cbs: "Sim", produtor_rural: "Não",
-  cooperativa: "Não", erp: "", responsavel_fiscal: "", status: "Ativa", observacao: "",
-};
+import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 
 export default function WorkroomOverview() {
   const { id } = useParams();
@@ -33,20 +21,10 @@ export default function WorkroomOverview() {
   });
 
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(empty);
   const [open, setOpen] = useState(false);
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const startNew = () => { setForm({ ...empty, grupo: grupoNumero || "" }); setEditing("new"); setOpen(true); };
-  const startEdit = (em) => { setForm(em); setEditing(em); setOpen(true); };
-  const save = async (e) => {
-    e.preventDefault();
-    const payload = { ...form, grupo: grupoNumero };
-    if (editing === "new") await base44.entities.Empresa.create(payload);
-    else await base44.entities.Empresa.update(editing.id, payload);
-    setOpen(false);
-    qc.invalidateQueries({ queryKey: ["empresas"] });
-  };
+  const startNew = () => { setEditing("new"); setOpen(true); };
+  const startEdit = (em) => { setEditing(em); setOpen(true); };
   const del = async (em) => {
     if (!confirm(`Excluir ${em.id_empresa}?`)) return;
     await base44.entities.Empresa.delete(em.id);
@@ -65,7 +43,7 @@ export default function WorkroomOverview() {
 
   return (
     <div className="px-6 lg:px-8 py-6 pb-12">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-screen-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -81,7 +59,7 @@ export default function WorkroomOverview() {
               to={`/workroom/${id}/empresas`}
               className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
             >
-              Cadastro completo
+              Ver como tabela
             </Link>
             <button
               onClick={startNew}
@@ -146,30 +124,7 @@ export default function WorkroomOverview() {
         </div>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing === "new" ? "Nova empresa" : `Editar ${editing?.id_empresa}`}</DialogTitle></DialogHeader>
-          <form onSubmit={save} className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs">ID empresa</Label><Input value={form.id_empresa} onChange={(e) => set("id_empresa", e.target.value)} required /></div>
-            <div><Label className="text-xs">Grupo</Label><Input value={form.grupo} disabled readOnly className="bg-muted/50 cursor-not-allowed" /></div>
-            <div className="col-span-2"><Label className="text-xs">Razão social</Label><Input value={form.razao_social} onChange={(e) => set("razao_social", e.target.value)} required /></div>
-            <div><Label className="text-xs">CNPJ/CPF</Label><Input value={form.cnpj_cpf} onChange={(e) => set("cnpj_cpf", e.target.value)} /></div>
-            <div>
-              <Label className="text-xs">Regime atual</Label>
-              <Select value={form.regime_atual} onValueChange={(v) => set("regime_atual", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{REGIMES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label className="text-xs">Setor</Label><Input value={form.setor} onChange={(e) => set("setor", e.target.value)} /></div>
-            <div><Label className="text-xs">UF</Label><Input value={form.uf} onChange={(e) => set("uf", e.target.value)} /></div>
-            <div className="col-span-2 flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <EmpresaFormDialog open={open} onOpenChange={setOpen} editing={editing} grupoNumero={grupoNumero} />
     </div>
   );
 }

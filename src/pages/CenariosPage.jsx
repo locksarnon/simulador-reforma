@@ -47,7 +47,7 @@ export default function CenariosPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Cenários" }]} />
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-5">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">

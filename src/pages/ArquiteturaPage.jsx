@@ -14,7 +14,7 @@ export default function ArquiteturaPage() {
   const [busca, setBusca] = useState("");
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-screen-2xl mx-auto space-y-6">
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-heading font-semibold">Arquitetura & Correlações Front↔Back</h1>

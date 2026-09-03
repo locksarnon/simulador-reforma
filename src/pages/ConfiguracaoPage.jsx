@@ -47,7 +47,7 @@ export default function ConfiguracaoPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Configuração" }]} />
-    <div className="p-6 lg:p-8 max-w-2xl mx-auto space-y-5">
+    <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-heading font-semibold">Configuração</h1>

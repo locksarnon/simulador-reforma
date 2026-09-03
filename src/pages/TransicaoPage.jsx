@@ -44,7 +44,7 @@ export default function TransicaoPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Transição 2026–2033" }]} />
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
+    <div className="p-6 lg:p-8 max-w-screen-2xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">

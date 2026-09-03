@@ -135,7 +135,7 @@ export default function ImportacaoXMLPage() {
         />
       )}
     <div className="px-6 lg:px-8 py-6 pb-12">
-      <div className="max-w-7xl mx-auto space-y-5">
+      <div className="max-w-screen-2xl mx-auto space-y-5">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-heading font-semibold text-base">

@@ -251,6 +251,14 @@ export const base44 = {
           throw unwrapError(err);
         }
       },
+      async ConsultarCNPJ(cnpj) {
+        try {
+          const { data } = await http.get(`/cnpj/${cnpj}`);
+          return data;
+        } catch (err) {
+          throw unwrapError(err);
+        }
+      },
     },
   },
 };

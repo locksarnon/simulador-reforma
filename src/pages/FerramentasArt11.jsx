@@ -22,7 +22,7 @@ export default function FerramentasArt11() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Guia do Art. 11" }]} />
-      <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
         <div>
           <div className="flex items-center gap-2">
             <BookOpenText className="w-5 h-5 text-muted-foreground" />

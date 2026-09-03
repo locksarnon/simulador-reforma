@@ -60,7 +60,7 @@ export default function CatalogosPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Catálogos IBS/CBS" }]} />
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
+    <div className="p-6 lg:p-8 max-w-screen-2xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-heading font-semibold">Catálogos IBS/CBS</h1>

@@ -73,7 +73,7 @@ export default function FerramentasNoticias() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Acervo de Notícias" }]} />
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-5">
+      <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-5">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">

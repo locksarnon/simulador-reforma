@@ -9,6 +9,7 @@ import { StorageModule } from './storage/storage.module';
 import { ImportacaoXmlModule } from './importacao-xml/importacao-xml.module';
 import { NoticiasModule } from './noticias/noticias.module';
 import { ValidadorNfseModule } from './validador-nfse/validador-nfse.module';
+import { CnpjModule } from './cnpj/cnpj.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -22,6 +23,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     ImportacaoXmlModule,
     NoticiasModule,
     ValidadorNfseModule,
+    CnpjModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

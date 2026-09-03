@@ -55,7 +55,7 @@ export default function EmpresaWorkroom() {
       />
 
       <div className="border-b border-border bg-card px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex gap-1">
+        <div className="max-w-screen-2xl mx-auto flex gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
