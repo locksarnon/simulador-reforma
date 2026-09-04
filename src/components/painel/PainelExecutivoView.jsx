@@ -24,6 +24,20 @@ function Card({ className, children, ...props }) {
   );
 }
 
+const num = (v) => Number(v) || 0;
+const fmtFator = (v) => `${(num(v) * 100).toFixed(0)}%`;
+
+// Linha simples de memória de cálculo — deliberadamente sem cor/ícone,
+// só rótulo + valor alinhado à direita, tipo planilha.
+function MemRow({ label, value, strong }) {
+  return (
+    <tr className={strong ? "font-medium" : ""}>
+      <td className="py-0.5 pr-4 text-muted-foreground">{label}</td>
+      <td className="py-0.5 text-right tabular-nums">{value}</td>
+    </tr>
+  );
+}
+
 // Soma o consolidado por ano nos mesmos totais do topo — usada tanto para o
 // cenário selecionado quanto para cada cenário na comparação lado a lado,
 // pra garantir que as duas telas nunca divirjam sobre como somar/truncar.
@@ -129,7 +143,21 @@ export default function PainelExecutivoView({
       const opsProjetadas = operacoes.map((op) => ({ ...op, ano: anoAlvo, data: null }));
       const calc = calcularOperacoes(opsProjetadas, transicaoMap, classTribGrouped, credPresGrouped, cenarioAtivo, config);
       const cons = consolidarPorAno(calc, transicaoPorAno);
-      return { ano: anoAlvo, ...somarTotais(cons) };
+      // Memória de cálculo: soma os 4 componentes do sistema atual remanescente
+      // (já com fator e o desconto de crédito de entrada aplicados por
+      // calcTransicao, sem nenhuma etapa de truncamento) — a soma dos 4 bate
+      // exatamente com "sistemaAtualRemanescente" abaixo, sem aproximação.
+      const memoria = calc.reduce(
+        (acc, oc) => {
+          acc.pisCofinsAtual += oc.transicao.pisCofinsAtual;
+          acc.ipiAtual += oc.transicao.ipiAtual;
+          acc.icmsFcpStAtual += oc.transicao.icmsFcpStAtual;
+          acc.issAtual += oc.transicao.issAtual;
+          return acc;
+        },
+        { pisCofinsAtual: 0, ipiAtual: 0, icmsFcpStAtual: 0, issAtual: 0 }
+      );
+      return { ano: anoAlvo, ...somarTotais(cons), memoria, parametros: transicaoPorAno.get(anoAlvo) || {} };
     });
   }, [verProjecao, operacoes, transicaoPorAno, transicaoMap, classTribGrouped, credPresGrouped, cenarioAtivo, config]);
 
@@ -467,6 +495,46 @@ export default function PainelExecutivoView({
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground mb-2">Memória de cálculo, ano a ano (fechada por padrão — clique para abrir):</p>
+                <div className="space-y-1">
+                  {projecaoTransicao.map((p) => {
+                    const par = p.parametros;
+                    return (
+                      <details key={p.ano} className="border border-border rounded text-xs">
+                        <summary className="cursor-pointer select-none px-3 py-2 font-medium">
+                          {p.ano} — {par.carater || par.status || "parâmetros"}
+                        </summary>
+                        <div className="px-3 pb-3 pt-1 overflow-x-auto">
+                          <table className="w-full border-collapse">
+                            <tbody>
+                              <tr><td className="py-1 pr-4 text-muted-foreground" colSpan={2}>Parâmetros usados (Transição {p.ano})</td></tr>
+                              <MemRow label="Fator ICMS" value={fmtFator(par.icms_fator)} />
+                              <MemRow label="Fator ISS" value={fmtFator(par.iss_fator)} />
+                              <MemRow label="Fator PIS/COFINS" value={fmtFator(par.pis_cofins_fator)} />
+                              <MemRow label="Fator IPI" value={fmtFator(par.ipi_fator_geral)} />
+                              <MemRow label="IBS efetivo" value={pct(num(par.ibs_efetivo))} />
+                              <MemRow label="CBS efetiva" value={pct(num(par.cbs_efetiva))} />
+                              <MemRow label="Efeito financeiro" value={fmtFator(par.efeito_financeiro)} />
+                              <tr><td className="pt-2 pr-4 text-muted-foreground" colSpan={2}>Sistema atual remanescente (soma dos 4, já com fator aplicado)</td></tr>
+                              <MemRow label="PIS/COFINS remanescente" value={BRL(p.memoria.pisCofinsAtual)} />
+                              <MemRow label="IPI remanescente" value={BRL(p.memoria.ipiAtual)} />
+                              <MemRow label="ICMS + FCP + ST remanescente" value={BRL(p.memoria.icmsFcpStAtual)} />
+                              <MemRow label="ISS remanescente" value={BRL(p.memoria.issAtual)} />
+                              <MemRow label="= Sistema atual remanescente" value={BRL(p.memoria.pisCofinsAtual + p.memoria.ipiAtual + p.memoria.icmsFcpStAtual + p.memoria.issAtual)} strong />
+                              <tr><td className="pt-2 pr-4 text-muted-foreground" colSpan={2}>IBS/CBS financeiro</td></tr>
+                              <MemRow label="IBS/CBS líquido apurado (débitos − créditos, nunca negativo)" value={BRL(p.ibsCbs)} />
+                              <MemRow label={`× Efeito financeiro (${fmtFator(par.efeito_financeiro)})`} value={BRL(p.ibsCbs * num(par.efeito_financeiro))} />
+                              <tr><td className="pt-2 pr-4 font-medium" colSpan={2}>= Carga total da transição: {BRL(p.cargaTransicao)}</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
               </div>
             </>
           )
