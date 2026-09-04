@@ -2,12 +2,18 @@ import React, { useState, useMemo } from "react";
 import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// O enum ResultadoFinalXML no schema tem CONFIRMADO e ESTORNADO além destes
+// 5 — faltavam aqui, então um item já importado (CONFIRMADO) caía no
+// fallback BLOQUEADO abaixo e aparecia com badge vermelho "Bloqueado",
+// como se tivesse dado erro, quando na verdade já virou Operação com sucesso.
 const RESULTADO_CONFIG = {
   IMPORTAVEL: { label: "Importável", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   IMPORTAVEL_COM_ALERTA: { label: "Importável c/ alerta", color: "bg-amber-100 text-amber-700 border-amber-200" },
   BLOQUEADO: { label: "Bloqueado", color: "bg-red-100 text-red-700 border-red-200" },
   CANCELADO: { label: "Cancelado", color: "bg-gray-100 text-gray-600 border-gray-200" },
   DUPLICADO: { label: "Duplicado", color: "bg-blue-100 text-blue-700 border-blue-200" },
+  CONFIRMADO: { label: "Já importado", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  ESTORNADO: { label: "Estornado", color: "bg-orange-100 text-orange-700 border-orange-200" },
 };
 
 const FILTROS = [
@@ -17,6 +23,7 @@ const FILTROS = [
   { value: "BLOQUEADO", label: "Bloqueado" },
   { value: "DUPLICADO", label: "Duplicado" },
   { value: "CANCELADO", label: "Cancelado" },
+  { value: "CONFIRMADO", label: "Já importado" },
 ];
 
 const PAGE_SIZE = 50;

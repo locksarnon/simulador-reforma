@@ -641,6 +641,32 @@ model CorrelacaoServico {
   @@index([c_class_trib])
 }
 
+/**
+ * Correlação NCM → cClassTrib para MERCADORIA (a CorrelacaoServico acima é
+ * de serviço, via NBS/LC116 — não cobre produto). Extraída dos Anexos da
+ * LC 214/2025 que listam NCM com tratamento tributário diferenciado
+ * (alimentação, dispositivos médicos, higiene/limpeza, insumos
+ * agropecuários, acessibilidade PCD, hortícolas/frutas/ovos) e cruzada
+ * com o código cClassTrib oficial (Informe Técnico RT 2025.002) cuja
+ * descrição cita o mesmo Anexo. `ncm` pode vir truncado (ex: "0206.2",
+ * "38.24") quando é assim que a lei escreve a faixa — o match na
+ * importação de XML deve ser por prefixo, não igualdade exata.
+ */
+model CorrelacaoNcm {
+  id                String   @id @default(cuid())
+  anexo             String
+  item_lei          Int?
+  ncm               String
+  descricao_produto String?
+  c_class_trib      String?
+  fonte             String   @default("LC 214/2025")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ncm])
+  @@index([c_class_trib])
+}
+
 /** Acervo de notícias sobre a Reforma Tributária — lista curada manualmente. */
 model NoticiaReforma {
   id           String    @id @default(cuid())

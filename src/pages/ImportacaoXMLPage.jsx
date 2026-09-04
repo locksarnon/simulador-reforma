@@ -33,7 +33,12 @@ export default function ImportacaoXMLPage() {
     queryFn: () => base44.entities.Empresa.filter({ grupo: grupoNumero }),
     enabled: !!grupoNumero,
   });
-  const empresaMap = useMemo(() => new Map(empresasDoGrupo.map((e) => [e.id_empresa, e])), [empresasDoGrupo]);
+  // ImportacaoXMLItem.empresa_id guarda o cuid (Empresa.id) que o backend usa
+  // pra vincular — NÃO o id_empresa (código de negócio, ex: "36940852"). O
+  // Map e as comparações abaixo têm que usar a mesma chave, senão a trava
+  // por empresa nunca reconhece os itens que são DELA MESMA e eles caem
+  // sempre em "outras empresas do grupo", mesmo sendo da empresa certa.
+  const empresaMap = useMemo(() => new Map(empresasDoGrupo.map((e) => [e.id, e])), [empresasDoGrupo]);
   const [mostrarOutras, setMostrarOutras] = useState(false);
 
   const imp = useImportacaoXML(id);
@@ -46,16 +51,21 @@ export default function ImportacaoXMLPage() {
 
   const itensVisiveis = useMemo(() => {
     if (!empresaTravada || mostrarOutras) return imp.itens;
-    return imp.itens.filter((it) => it.empresa_id === empresaTravada.id_empresa);
+    return imp.itens.filter((it) => it.empresa_id === empresaTravada.id);
   }, [imp.itens, empresaTravada, mostrarOutras]);
-  // Inclui itens SEM empresa_id (CNPJ emitente/destinatário não localizado em
-  // nenhuma empresa do grupo) — antes só contava "de outra empresa conhecida"
-  // e por isso o botão "mostrar outras" nunca aparecia pra esse caso, deixando
-  // o item bloqueado praticamente invisível, sem explicação nenhuma na tela.
-  const outrasCount = useMemo(() => {
+  // Dois motivos BEM diferentes pra um item ficar escondido pela trava —
+  // separados pra não confundir "é de outra empresa que a gente já conhece"
+  // (o consultor deveria ir lá importar) com "esse CNPJ não é de ninguém
+  // cadastrado aqui" (provavelmente lixo/nota de terceiro sem relação).
+  const outrasEmpresasCount = useMemo(() => {
     if (!empresaTravada) return 0;
-    return imp.itens.filter((it) => it.empresa_id !== empresaTravada.id_empresa).length;
+    return imp.itens.filter((it) => it.empresa_id && it.empresa_id !== empresaTravada.id).length;
   }, [imp.itens, empresaTravada]);
+  const cnpjNaoCadastradoCount = useMemo(() => {
+    if (!empresaTravada) return 0;
+    return imp.itens.filter((it) => !it.empresa_id).length;
+  }, [imp.itens, empresaTravada]);
+  const outrasCount = outrasEmpresasCount + cnpjNaoCadastradoCount;
 
   // Motivos de bloqueio agregados (só os bloqueantes) — direto do lote
   // inteiro, não do itensVisiveis, porque itens sem empresa correspondente
@@ -193,9 +203,10 @@ export default function ImportacaoXMLPage() {
             className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 w-fit"
           >
             <Users className="w-3.5 h-3.5" />
-            {mostrarOutras
-              ? "Ocultar itens de outras empresas / CNPJ não cadastrado"
-              : `Mostrar também ${outrasCount} item(ns) de outras empresas do grupo ou de CNPJ não cadastrado`}
+            {mostrarOutras ? "Ocultar" : "Mostrar também"} {[
+              outrasEmpresasCount > 0 && `${outrasEmpresasCount} de outra(s) empresa(s) já cadastrada(s) do grupo`,
+              cnpjNaoCadastradoCount > 0 && `${cnpjNaoCadastradoCount} de CNPJ não cadastrado em nenhuma empresa`,
+            ].filter(Boolean).join(" + ")}
           </button>
         )}
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -92,6 +92,23 @@ export function useImportacaoXML(grupoId) {
       setUploadProgress({ current: 0, total: 0 });
     }
   }, [grupoId, selectedFiles, qc]);
+
+  // O loteId vivia só em useState — ao sair da tela e voltar (ou dar F5), o
+  // componente remonta do zero e o lote desaparece da tela mesmo os itens
+  // continuando staged no banco. Ao montar sem loteId, busca o lote mais
+  // recente do grupo e retoma de onde parou — reimportar o mesmo item já
+  // confirmado é bloqueado no backend por HistoricoXML, então retomar um
+  // lote antigo (já totalmente confirmado ou não) nunca duplica Operação.
+  const latestLoteQuery = useQuery({
+    queryKey: ["latest-lote-xml", grupoId],
+    queryFn: () => base44.entities.ImportacaoXMLLote.filter({ grupo_id: grupoId }, "-createdAt", 1),
+    enabled: !!grupoId && !loteId,
+  });
+  useEffect(() => {
+    if (!loteId && latestLoteQuery.data?.length > 0) {
+      setLoteId(latestLoteQuery.data[0].id);
+    }
+  }, [loteId, latestLoteQuery.data]);
 
   // Poll do lote.
   const loteQuery = useQuery({

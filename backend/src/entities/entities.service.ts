@@ -29,6 +29,7 @@ const ALLOWED_MODELS = [
   'Cfop',
   'BeneficioFiscal',
   'CorrelacaoServico',
+  'CorrelacaoNcm',
   'NoticiaReforma',
 ] as const;
 

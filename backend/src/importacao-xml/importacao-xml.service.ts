@@ -16,6 +16,29 @@ import {
 import { parseXml, getFirst, getAll, getText, getTextDeep, getAttr, identificarTipoXml, MAX_ITENS } from './shared/xml-parser';
 import { agruparPorCodigo, escolherVigente } from './shared/vigencia';
 
+/**
+ * NCM da nota comparado por PREFIXO contra a tabela CorrelacaoNcm (que às
+ * vezes só tem o prefixo, ex: "38.24" cobrindo qualquer coisa em 3824.xx.xx).
+ * Normaliza tirando pontuação dos dois lados antes de comparar.
+ */
+function buscarClassTribPorNcm(
+  ncm: string | undefined,
+  nbs: string | undefined,
+  lista: { ncm: string; c_class_trib: string | null }[],
+): { cClassTrib: string; cst: string } | null {
+  if (nbs || !ncm) return null; // serviço (NBS) não usa esta tabela
+  const ncmDigits = ncm.replace(/\D/g, '');
+  if (!ncmDigits) return null;
+  for (const c of lista) {
+    if (!c.c_class_trib) continue;
+    const candidatoDigits = c.ncm.replace(/\D/g, '');
+    if (candidatoDigits && ncmDigits.startsWith(candidatoDigits)) {
+      return { cClassTrib: c.c_class_trib, cst: c.c_class_trib.slice(0, 3) };
+    }
+  }
+  return null;
+}
+
 const MAX_ARQUIVOS = 5000;
 const DOWNLOAD_BATCH = 50;
 const ITEM_BULK_BATCH = 500;
@@ -245,6 +268,16 @@ export class ImportacaoXmlService {
       const ncmSet = new Set((await this.prisma.ncm.findMany({ where: { status: 'Ativo' } })).map((n) => n.codigo));
       const cfopSet = new Set((await this.prisma.cfop.findMany({ where: { status: 'Ativo' } })).map((c) => c.codigo));
 
+      // NCM -> cClassTrib (mercadoria) extraída dos Anexos da LC 214/2025 —
+      // usada só quando o próprio XML não traz cClassTrib (comum em NF-e
+      // emitidas antes do IBS/CBS existir, 2024/2025). Ordenada do NCM mais
+      // longo pro mais curto: a lei às vezes lista o código completo
+      // (0401.10.10) e às vezes só o prefixo (38.24); o prefixo mais
+      // específico que bater primeiro é o correto.
+      const correlacaoNcmList = (await this.prisma.correlacaoNcm.findMany())
+        .filter((c) => c.ncm)
+        .sort((a, b) => (b.ncm as string).length - (a.ncm as string).length);
+
       const historico = await this.prisma.historicoXML.findMany({ where: { grupo_id: grupoId } });
       const histKeys = new Set(historico.map((h) => `${h.chave_nfe}|${h.numero_item}|${h.perspectiva}`));
 
@@ -389,6 +422,7 @@ export class ImportacaoXmlService {
             cfopSet,
             histKeys,
             chavesVistas,
+            correlacaoNcmList,
           );
 
           arqUpdates.push(result.arquivoUpdate);
@@ -475,6 +509,7 @@ export class ImportacaoXmlService {
     cfopSet: Set<string>,
     histKeys: Set<string>,
     chavesVistas: Map<string, string>,
+    correlacaoNcmList: { ncm: string; c_class_trib: string | null }[],
   ) {
     const resultado: {
       sucesso: boolean;
@@ -654,10 +689,31 @@ export class ImportacaoXmlService {
       const issPct = getTextDeep(getFirst(imposto, 'ISSQN'), 'vAliq');
 
       const ibscbs = getFirst(imposto, 'IBSCBS');
-      const cstIbs = getTextDeep(ibscbs, 'CST');
-      const cClassTrib = getTextDeep(ibscbs, 'cClassTrib');
+      const cstIbsOriginal = getTextDeep(ibscbs, 'CST');
+      const cClassTribOriginal = getTextDeep(ibscbs, 'cClassTrib');
       const cCredPres = getTextDeep(ibscbs, 'cCredPres');
       const grupoRtc = getTextDeep(ibscbs, 'gRTC');
+
+      // O grupo IBSCBS só existe em NF-e emitidas depois que o imposto passou
+      // a existir de fato — notas de 2024/2025 nunca vão ter cClassTrib no
+      // XML, não porque falhou a leitura, mas porque o campo simplesmente não
+      // existia quando a nota foi emitida. Pra mercadoria (NBS vazio), deriva
+      // a partir do NCM x LC 214/2025; sem match numa exceção conhecida,
+      // assume regime padrão (000001) em vez de deixar nulo e zerar tudo.
+      // c_class_trib_original preserva o que REALMENTE veio no XML (vazio,
+      // nesse caso) — só o _normalizado recebe o valor inferido.
+      let cstIbs = cstIbsOriginal;
+      let cClassTrib = cClassTribOriginal;
+      if (!cClassTrib && !nbs && ncm) {
+        const derivado = buscarClassTribPorNcm(ncm, nbs, correlacaoNcmList);
+        if (derivado) {
+          cClassTrib = derivado.cClassTrib;
+          cstIbs = cstIbs || derivado.cst;
+        } else {
+          cClassTrib = '000001';
+          cstIbs = cstIbs || '000';
+        }
+      }
       const cpIbsPct = getTextDeep(ibscbs, 'pCredPresIBS');
       const cpCbsPct = getTextDeep(ibscbs, 'pCredPresCBS');
 
@@ -687,9 +743,9 @@ export class ImportacaoXmlService {
           seguro: vSeg,
           outras_despesas: vOutro,
           valor_bruto: valorBruto,
-          cst_original: originalValue(cstIbs),
+          cst_original: originalValue(cstIbsOriginal),
           cst_normalizado: cstIbs || null,
-          c_class_trib_original: originalValue(cClassTrib),
+          c_class_trib_original: originalValue(cClassTribOriginal),
           c_class_trib_normalizado: cClassTrib || null,
           c_cred_pres_original: originalValue(cCredPres),
           c_cred_pres_normalizado: cCredPres || null,
@@ -916,6 +972,19 @@ export class ImportacaoXmlService {
       } else if (!escolherVigente(candidatos, ctx.dataEmiDate)) {
         checks.push(check('TRIB_CLASS_TRIB_FORA_DE_VIGENCIA', STATUS.NAO_CONFORME, `cClassTrib ${dados.c_class_trib_normalizado} existe no catálogo, mas nenhuma versão estava vigente em ${dataFmt}.`, true, 'c_class_trib'));
       }
+    }
+
+    // c_class_trib_original vazio + normalizado preenchido só acontece
+    // quando ESTA importação inferiu o código (a nota não trazia o campo,
+    // comum em NF-e anteriores ao IBS/CBS existir) — avisa, não bloqueia.
+    if (!dados.c_class_trib_original && dados.c_class_trib_normalizado) {
+      checks.push(check(
+        'TRIB_CLASS_TRIB_INFERIDO',
+        STATUS.ALERTA,
+        `cClassTrib ${dados.c_class_trib_normalizado} não veio no XML — inferido a partir do NCM ${dados.ncm || '—'} cruzado com os Anexos da LC 214/2025 (ou assumido como regime padrão, se nenhuma exceção bateu). Confira antes de confiar no resultado tributário.`,
+        false,
+        'c_class_trib',
+      ));
     }
 
     if (dados.c_cred_pres_normalizado) {
