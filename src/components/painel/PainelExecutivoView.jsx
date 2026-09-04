@@ -68,6 +68,7 @@ export default function PainelExecutivoView({
   // "Comparar" para ver os três lado a lado — nenhum fica "trancado" fora da tela.
   const [cenarioNome, setCenarioNome] = useState(null);
   const [comparar, setComparar] = useState(false);
+  const [verProjecao, setVerProjecao] = useState(false);
 
   const {
     operacoes, operacoesCalculadas, isLoading, cenarioAtivo, cenarios, config,
@@ -114,6 +115,23 @@ export default function PainelExecutivoView({
       return { cenario: cen, totais: somarTotais(cons) };
     });
   }, [comparar, cenarios, operacoes, transicaoMap, classTribGrouped, credPresGrouped, config, transicaoPorAno]);
+
+  // Projeção da transição 2026-2033: o "Consolidado por ano" acima é
+  // histórico — só mostra os anos em que existe operação de verdade
+  // lançada (ex.: hoje só 2024-2027). Pra ver a curva completa até 2033,
+  // simula o MESMO conjunto de operações que já existe repetido em cada
+  // ano da tabela Transição, trocando só os parâmetros daquele ano —
+  // "se meu volume atual se repetisse, como fica a carga em cada ano".
+  const projecaoTransicao = useMemo(() => {
+    if (!verProjecao || operacoes.length === 0) return [];
+    const anosProjecao = [...transicaoPorAno.keys()].sort((a, b) => a - b);
+    return anosProjecao.map((anoAlvo) => {
+      const opsProjetadas = operacoes.map((op) => ({ ...op, ano: anoAlvo, data: null }));
+      const calc = calcularOperacoes(opsProjetadas, transicaoMap, classTribGrouped, credPresGrouped, cenarioAtivo, config);
+      const cons = consolidarPorAno(calc, transicaoPorAno);
+      return { ano: anoAlvo, ...somarTotais(cons) };
+    });
+  }, [verProjecao, operacoes, transicaoPorAno, transicaoMap, classTribGrouped, credPresGrouped, cenarioAtivo, config]);
 
   const chartData = consolidado.map((c) => ({
     ano: String(c.ano),
@@ -389,6 +407,70 @@ export default function PainelExecutivoView({
             </tbody>
           </table>
         </div>
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            <h2 className="font-heading font-medium text-sm">Projeção da transição (2026-2033)</h2>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setVerProjecao((v) => !v)} className="gap-1.5">
+            {verProjecao ? "Ocultar projeção" : "Ver projeção"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          O "Consolidado por ano" acima é histórico — só mostra anos com operação real lançada. Esta projeção simula o
+          MESMO conjunto de operações que você já tem repetido em cada ano da tabela Transição, trocando só os
+          parâmetros daquele ano — é uma simulação ("se meu volume atual se repetisse todo ano"), não um dado real.
+        </p>
+        {verProjecao && (
+          projecaoTransicao.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma operação cadastrada para projetar.</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={projecaoTransicao.map((p) => ({
+                  ano: String(p.ano),
+                  "Carga efetiva %": p.valorBruto > 0 ? +((p.cargaTransicao / p.valorBruto) * 100).toFixed(2) : 0,
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="ano" className="text-xs" />
+                  <YAxis className="text-xs" tickFormatter={(v) => `${v}%`} />
+                  <Tooltip formatter={(v) => `${v}%`} />
+                  <Legend />
+                  <Line type="monotone" dataKey="Carga efetiva %" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="overflow-x-auto mt-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                      <th className="py-2 pr-4 font-medium">Ano</th>
+                      <th className="py-2 pr-4 font-medium">Valor bruto (mesmo volume)</th>
+                      <th className="py-2 pr-4 font-medium">Tributos atuais</th>
+                      <th className="py-2 pr-4 font-medium">IBS/CBS</th>
+                      <th className="py-2 pr-4 font-medium">Carga transição</th>
+                      <th className="py-2 pr-4 font-medium">Carga efetiva</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projecaoTransicao.map((p) => (
+                      <tr key={p.ano} className="border-b border-border/50 hover:bg-muted/30">
+                        <td className="py-2.5 pr-4 font-medium">{p.ano}</td>
+                        <td className="py-2.5 pr-4">{BRL(p.valorBruto)}</td>
+                        <td className="py-2.5 pr-4">{BRL(p.tributosAtuais)}</td>
+                        <td className="py-2.5 pr-4">{BRL(p.ibsCbs)}</td>
+                        <td className="py-2.5 pr-4">{BRL(p.cargaTransicao)}</td>
+                        <td className="py-2.5 pr-4">{p.valorBruto > 0 ? pct(p.cargaTransicao / p.valorBruto) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )
+        )}
       </Card>
 
       <Card className="p-5">
