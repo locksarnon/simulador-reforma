@@ -667,6 +667,33 @@ model CorrelacaoNcm {
   @@index([c_class_trib])
 }
 
+/**
+ * Alíquota de ISS vigente por município (código IBGE) x item de serviço
+ * da lista da LC 116/2003 — base oficial das prefeituras, ~1,9M linhas
+ * (todos os municípios x todos os itens tributáveis). `aliquota` fica
+ * guardada como fração (5% -> 0.05), igual ao padrão de Operacao.iss_pct
+ * e ClassTrib.pct_reducao_ibs, pra usar direto sem conversão.
+ * dt_ini/dt_fim marcam vigência — pode haver mais de uma versão histórica
+ * do mesmo (codigo_ibge, codigo_servico); escolherVigente() decide qual
+ * vale numa data, mesmo padrão já usado pra ClassTrib/CredPres/Cst.
+ */
+model AliquotaIssMunicipio {
+  id             String    @id @default(cuid())
+  codigo_ibge    String
+  uf             String
+  nome_municipio String
+  codigo_servico String
+  aliquota       Float?
+  dt_ini         DateTime?
+  dt_fim         DateTime?
+  fonte          String    @default("Portal Nacional da NFS-e (gov.br/nfse) — extração 2026-09-03")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([codigo_ibge, codigo_servico])
+  @@index([uf])
+}
+
 /** Acervo de notícias sobre a Reforma Tributária — lista curada manualmente. */
 model NoticiaReforma {
   id           String    @id @default(cuid())

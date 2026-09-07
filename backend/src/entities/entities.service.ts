@@ -30,6 +30,7 @@ const ALLOWED_MODELS = [
   'BeneficioFiscal',
   'CorrelacaoServico',
   'CorrelacaoNcm',
+  'AliquotaIssMunicipio',
   'NoticiaReforma',
 ] as const;
 

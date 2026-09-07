@@ -39,6 +39,24 @@ function buscarClassTribPorNcm(
   return null;
 }
 
+/**
+ * NBS (serviço) -> item da lista LC 116/2003, via CorrelacaoServico. O
+ * item_lc116 cadastrado às vezes só tem o prefixo (ex: "01.01"), enquanto a
+ * tabela de alíquotas por município usa o código completo com subitem (ex:
+ * "01.01.01.000") — pega o candidato mais específico (string mais longa) e
+ * exige formato "NN.NN..." (descarta lixo tipo "18" cadastrado sem ponto).
+ */
+function escolherItemLc116PorNbs(
+  nbs: string | undefined,
+  lista: { nbs: string | null; item_lc116: string | null }[],
+): string | null {
+  if (!nbs) return null;
+  const candidatos = lista.filter((c) => c.nbs === nbs && c.item_lc116 && /^\d{2}\.\d{2}/.test(c.item_lc116));
+  if (candidatos.length === 0) return null;
+  candidatos.sort((a, b) => (b.item_lc116 as string).length - (a.item_lc116 as string).length);
+  return candidatos[0].item_lc116;
+}
+
 const MAX_ARQUIVOS = 5000;
 const DOWNLOAD_BATCH = 50;
 const ITEM_BULK_BATCH = 500;
@@ -278,6 +296,15 @@ export class ImportacaoXmlService {
         .filter((c) => c.ncm)
         .sort((a, b) => (b.ncm as string).length - (a.ncm as string).length);
 
+      // NBS -> item_lc116 (serviço), usada junto com a tabela de alíquotas de
+      // ISS por município (~1,9M linhas — não cabe em memória, então é
+      // consultada sob demanda no banco, com cache por lote em issCache).
+      const correlacaoServicoList = (await this.prisma.correlacaoServico.findMany({
+        where: { nbs: { not: null }, item_lc116: { not: null } },
+        select: { nbs: true, item_lc116: true },
+      })) as { nbs: string | null; item_lc116: string | null }[];
+      const issCache = new Map<string, { aliquota: number; itemLc116: string } | null>();
+
       const historico = await this.prisma.historicoXML.findMany({ where: { grupo_id: grupoId } });
       const histKeys = new Set(historico.map((h) => `${h.chave_nfe}|${h.numero_item}|${h.perspectiva}`));
 
@@ -408,7 +435,7 @@ export class ImportacaoXmlService {
             continue;
           }
 
-          const result = this.prepararNfe(
+          const result = await this.prepararNfe(
             arq,
             doc,
             tipoXml,
@@ -423,6 +450,8 @@ export class ImportacaoXmlService {
             histKeys,
             chavesVistas,
             correlacaoNcmList,
+            correlacaoServicoList,
+            issCache,
           );
 
           arqUpdates.push(result.arquivoUpdate);
@@ -495,7 +524,42 @@ export class ImportacaoXmlService {
     return { update, chNFe };
   }
 
-  private prepararNfe(
+  /**
+   * Alíquota de ISS vigente por município (IBGE) x item LC 116, consultada
+   * sob demanda na tabela AliquotaIssMunicipio (~1,9M linhas — grande demais
+   * pra pré-carregar como CorrelacaoNcm). Cacheada por (município, item) pra
+   * não repetir a mesma consulta em notas diferentes do mesmo lote.
+   * Só aplica automaticamente quando todas as subclasses do item batido têm
+   * a MESMA alíquota — se houver divergência entre subitens, fica ambíguo
+   * demais pra assumir sozinho e a função devolve null (sem inferir).
+   */
+  private async buscarAliquotaIss(
+    codigoIbge: string,
+    nbs: string,
+    correlacaoServicoList: { nbs: string | null; item_lc116: string | null }[],
+    cache: Map<string, { aliquota: number; itemLc116: string } | null>,
+  ): Promise<{ aliquota: number; itemLc116: string } | null> {
+    const itemLc116 = escolherItemLc116PorNbs(nbs, correlacaoServicoList);
+    if (!itemLc116) return null;
+
+    const cacheKey = `${codigoIbge}|${itemLc116}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey) ?? null;
+
+    const rows = await this.prisma.aliquotaIssMunicipio.findMany({
+      where: { codigo_ibge: codigoIbge, codigo_servico: { startsWith: itemLc116 } },
+      select: { aliquota: true },
+    });
+    const valores = new Set(rows.filter((r) => r.aliquota !== null).map((r) => r.aliquota));
+
+    let resultado: { aliquota: number; itemLc116: string } | null = null;
+    if (valores.size === 1) {
+      resultado = { aliquota: [...valores][0] as number, itemLc116 };
+    }
+    cache.set(cacheKey, resultado);
+    return resultado;
+  }
+
+  private async prepararNfe(
     arq: { id: string; lote_id: string },
     doc: any,
     tipoXml: string,
@@ -510,6 +574,8 @@ export class ImportacaoXmlService {
     histKeys: Set<string>,
     chavesVistas: Map<string, string>,
     correlacaoNcmList: { ncm: string; c_class_trib: string | null }[],
+    correlacaoServicoList: { nbs: string | null; item_lc116: string | null }[],
+    issCache: Map<string, { aliquota: number; itemLc116: string } | null>,
   ) {
     const resultado: {
       sucesso: boolean;
@@ -717,6 +783,23 @@ export class ImportacaoXmlService {
       const cpIbsPct = getTextDeep(ibscbs, 'pCredPresIBS');
       const cpCbsPct = getTextDeep(ibscbs, 'pCredPresCBS');
 
+      // ISSQN por dentro do XML costuma vir zerado/ausente em serviço sem
+      // retenção — quando a nota não traz vAliq, busca a alíquota real
+      // vigente no município do destinatário (IBGE) x item da lista LC 116
+      // (via NBS -> CorrelacaoServico), na base oficial do Portal Nacional
+      // da NFS-e (gov.br/nfse, ~1,9M linhas, todos os municípios do país).
+      // Só se aplica a serviço (nbs presente); nunca sobrescreve um vAliq
+      // que já veio no XML.
+      let issIssPctDerivado: number | null = null;
+      let issItemLc116Usado: string | null = null;
+      if (!issPct && nbs && munDest) {
+        const derivado = await this.buscarAliquotaIss(munDest, nbs, correlacaoServicoList, issCache);
+        if (derivado) {
+          issIssPctDerivado = derivado.aliquota;
+          issItemLc116Usado = derivado.itemLc116;
+        }
+      }
+
       for (const p of perspectivas) {
         const dados: Record<string, unknown> = {
           lote_id: arq.lote_id,
@@ -760,7 +843,7 @@ export class ImportacaoXmlService {
           ipi_pct_original: originalValue(ipiPct),
           ipi_pct_normalizado: parsePercentage(ipiPct),
           iss_pct_original: originalValue(issPct),
-          iss_pct_normalizado: parsePercentage(issPct),
+          iss_pct_normalizado: parsePercentage(issPct) ?? issIssPctDerivado,
           credito_presumido_ibs_pct_original: originalValue(cpIbsPct),
           credito_presumido_ibs_pct_normalizado: parsePercentage(cpIbsPct),
           credito_presumido_cbs_pct_original: originalValue(cpCbsPct),
@@ -776,6 +859,7 @@ export class ImportacaoXmlService {
         const ctx = {
           cstGrouped, classTribGrouped, credPresGrouped, ncmSet, cfopSet,
           dataEmiDate: dataEmi ? new Date(dataEmi) : new Date(),
+          issItemLc116Usado,
           histKeys, cStat, ambiente, situacaoFiscal, chaveValida,
           cnpjEmit, cnpjDest,
         };
@@ -805,6 +889,7 @@ export class ImportacaoXmlService {
       ncmSet: Set<string>;
       cfopSet: Set<string>;
       dataEmiDate: Date;
+      issItemLc116Usado: string | null;
       histKeys: Set<string>;
       cStat: string;
       ambiente: string;
@@ -951,6 +1036,7 @@ export class ImportacaoXmlService {
       classTribGrouped: Map<string, any[]>;
       credPresGrouped: Map<string, any[]>;
       dataEmiDate: Date;
+      issItemLc116Usado: string | null;
     },
   ): Check[] {
     const checks: Check[] = [];
@@ -984,6 +1070,20 @@ export class ImportacaoXmlService {
         `cClassTrib ${dados.c_class_trib_normalizado} não veio no XML — inferido a partir do NCM ${dados.ncm || '—'} cruzado com os Anexos da LC 214/2025 (ou assumido como regime padrão, se nenhuma exceção bateu). Confira antes de confiar no resultado tributário.`,
         false,
         'c_class_trib',
+      ));
+    }
+
+    // Mesma lógica do cClassTrib acima, mas pro ISS: iss_pct_original vazio +
+    // normalizado preenchido só acontece quando a alíquota veio da tabela do
+    // Portal Nacional da NFS-e (município x item LC 116), não do XML.
+    if (!dados.iss_pct_original && dados.iss_pct_normalizado) {
+      const pctFmt = ((dados.iss_pct_normalizado as number) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+      checks.push(check(
+        'TRIB_ISS_INFERIDO',
+        STATUS.ALERTA,
+        `Alíquota de ISS de ${pctFmt}% não veio no XML — inferida pelo município do destinatário (IBGE ${dados.municipio_destino || '—'}) cruzado com o item ${ctx.issItemLc116Usado || '—'} da lista LC 116/2003, na base oficial do Portal Nacional da NFS-e (gov.br/nfse). Confira antes de confiar no resultado tributário.`,
+        false,
+        'iss_pct',
       ));
     }
 
