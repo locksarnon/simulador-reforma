@@ -47,7 +47,7 @@ export default function CenariosPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Cenários" }]} />
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
+    <div className="p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -64,7 +64,7 @@ export default function CenariosPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {(data || []).map((c) => {
           const active = c.nome === activeName;
           return (
@@ -97,7 +97,7 @@ export default function CenariosPage() {
           );
         })}
         {(!data || data.length === 0) && (
-          <div className="col-span-2 py-12 text-center text-muted-foreground border border-dashed border-border rounded-lg">
+          <div className="col-span-full py-12 text-center text-muted-foreground border border-dashed border-border rounded-lg">
             Nenhum cenário cadastrado.
           </div>
         )}

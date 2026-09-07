@@ -45,7 +45,7 @@ export default function EmpresasPage() {
           { label: "Empresas" },
         ]}
       />
-    <div className="p-6 lg:p-8 max-w-screen-2xl mx-auto space-y-5">
+    <div className="p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">

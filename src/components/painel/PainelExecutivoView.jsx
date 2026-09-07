@@ -27,13 +27,16 @@ function Card({ className, children, ...props }) {
 const num = (v) => Number(v) || 0;
 const fmtFator = (v) => `${(num(v) * 100).toFixed(0)}%`;
 
-// Linha simples de memória de cálculo — deliberadamente sem cor/ícone,
-// só rótulo + valor alinhado à direita, tipo planilha.
-function MemRow({ label, value, strong }) {
+// Linha da memória de cálculo — Base × Fator = Resultado, com linhas de
+// grade (planilha) e listras alternadas (n par/ímpar) só pra facilitar a
+// leitura, sem cor de destaque nenhuma.
+function FormulaRow({ n, label, base, fator, resultado }) {
   return (
-    <tr className={strong ? "font-medium" : ""}>
-      <td className="py-0.5 pr-4 text-muted-foreground">{label}</td>
-      <td className="py-0.5 text-right tabular-nums">{value}</td>
+    <tr className={n % 2 === 1 ? "bg-muted/15" : ""}>
+      <td className="border border-border px-2 py-1 text-muted-foreground">{label}</td>
+      <td className="border border-border px-2 py-1 text-right tabular-nums">{base}</td>
+      <td className="border border-border px-2 py-1 text-right tabular-nums">{fator}</td>
+      <td className="border border-border px-2 py-1 text-right tabular-nums">{resultado}</td>
     </tr>
   );
 }
@@ -147,15 +150,31 @@ export default function PainelExecutivoView({
       // (já com fator e o desconto de crédito de entrada aplicados por
       // calcTransicao, sem nenhuma etapa de truncamento) — a soma dos 4 bate
       // exatamente com "sistemaAtualRemanescente" abaixo, sem aproximação.
+      //
+      // Além do já-calculado, junta também a BASE de cada componente antes
+      // do fator (mas já líquida do desconto de crédito de entrada, que é
+      // por operação — sem isso "base × fator" não bateria com o valor já
+      // calculado). netFactor replica exatamente calcTransicao(): numa
+      // Entrada, desconta o crédito elegível; numa Saída, é sempre 1.
       const memoria = calc.reduce(
         (acc, oc) => {
+          const s = oc.sistemaAtual;
+          const isEntrada = oc.op.direcao === "Entrada";
+          const netFactor = isEntrada ? Math.max(0, 1 - num(oc.op.credito_elegivel_pct)) : 1;
+          acc.basePisCofins += (s.pis + s.cofins) * netFactor;
+          acc.baseIpi += s.ipi * netFactor;
+          acc.baseIcmsFcpSt += (s.icmsProprio + s.fcp) * netFactor + s.icmsSt;
+          acc.baseIss += s.iss;
           acc.pisCofinsAtual += oc.transicao.pisCofinsAtual;
           acc.ipiAtual += oc.transicao.ipiAtual;
           acc.icmsFcpStAtual += oc.transicao.icmsFcpStAtual;
           acc.issAtual += oc.transicao.issAtual;
           return acc;
         },
-        { pisCofinsAtual: 0, ipiAtual: 0, icmsFcpStAtual: 0, issAtual: 0 }
+        {
+          basePisCofins: 0, baseIpi: 0, baseIcmsFcpSt: 0, baseIss: 0,
+          pisCofinsAtual: 0, ipiAtual: 0, icmsFcpStAtual: 0, issAtual: 0,
+        }
       );
       return { ano: anoAlvo, ...somarTotais(cons), memoria, parametros: transicaoPorAno.get(anoAlvo) || {} };
     });
@@ -227,7 +246,7 @@ export default function PainelExecutivoView({
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-screen-2xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
@@ -502,34 +521,43 @@ export default function PainelExecutivoView({
                 <div className="space-y-1">
                   {projecaoTransicao.map((p) => {
                     const par = p.parametros;
+                    const sistemaAtualTotal = p.memoria.pisCofinsAtual + p.memoria.ipiAtual + p.memoria.icmsFcpStAtual + p.memoria.issAtual;
+                    const ibsCbsFinanceiro = p.ibsCbs * num(par.efeito_financeiro);
                     return (
                       <details key={p.ano} className="border border-border rounded text-xs">
                         <summary className="cursor-pointer select-none px-3 py-2 font-medium">
                           {p.ano} — {par.carater || par.status || "parâmetros"}
                         </summary>
                         <div className="px-3 pb-3 pt-1 overflow-x-auto">
-                          <table className="w-full border-collapse">
+                          <table className="w-full border border-border border-collapse">
+                            <thead>
+                              <tr className="bg-muted/40">
+                                <th className="border border-border px-2 py-1 text-left font-medium">Componente</th>
+                                <th className="border border-border px-2 py-1 text-right font-medium">Base (líquida de crédito)</th>
+                                <th className="border border-border px-2 py-1 text-right font-medium">× Fator</th>
+                                <th className="border border-border px-2 py-1 text-right font-medium">= Remanescente</th>
+                              </tr>
+                            </thead>
                             <tbody>
-                              <tr><td className="py-1 pr-4 text-muted-foreground" colSpan={2}>Parâmetros usados (Transição {p.ano})</td></tr>
-                              <MemRow label="Fator ICMS" value={fmtFator(par.icms_fator)} />
-                              <MemRow label="Fator ISS" value={fmtFator(par.iss_fator)} />
-                              <MemRow label="Fator PIS/COFINS" value={fmtFator(par.pis_cofins_fator)} />
-                              <MemRow label="Fator IPI" value={fmtFator(par.ipi_fator_geral)} />
-                              <MemRow label="IBS efetivo" value={pct(num(par.ibs_efetivo))} />
-                              <MemRow label="CBS efetiva" value={pct(num(par.cbs_efetiva))} />
-                              <MemRow label="Efeito financeiro" value={fmtFator(par.efeito_financeiro)} />
-                              <tr><td className="pt-2 pr-4 text-muted-foreground" colSpan={2}>Sistema atual remanescente (soma dos 4, já com fator aplicado)</td></tr>
-                              <MemRow label="PIS/COFINS remanescente" value={BRL(p.memoria.pisCofinsAtual)} />
-                              <MemRow label="IPI remanescente" value={BRL(p.memoria.ipiAtual)} />
-                              <MemRow label="ICMS + FCP + ST remanescente" value={BRL(p.memoria.icmsFcpStAtual)} />
-                              <MemRow label="ISS remanescente" value={BRL(p.memoria.issAtual)} />
-                              <MemRow label="= Sistema atual remanescente" value={BRL(p.memoria.pisCofinsAtual + p.memoria.ipiAtual + p.memoria.icmsFcpStAtual + p.memoria.issAtual)} strong />
-                              <tr><td className="pt-2 pr-4 text-muted-foreground" colSpan={2}>IBS/CBS financeiro</td></tr>
-                              <MemRow label="IBS/CBS líquido apurado (débitos − créditos, nunca negativo)" value={BRL(p.ibsCbs)} />
-                              <MemRow label={`× Efeito financeiro (${fmtFator(par.efeito_financeiro)})`} value={BRL(p.ibsCbs * num(par.efeito_financeiro))} />
-                              <tr><td className="pt-2 pr-4 font-medium" colSpan={2}>= Carga total da transição: {BRL(p.cargaTransicao)}</td></tr>
+                              <FormulaRow n={0} label="PIS/COFINS" base={BRL(p.memoria.basePisCofins)} fator={fmtFator(par.pis_cofins_fator)} resultado={BRL(p.memoria.pisCofinsAtual)} />
+                              <FormulaRow n={1} label="IPI" base={BRL(p.memoria.baseIpi)} fator={fmtFator(par.ipi_fator_geral)} resultado={BRL(p.memoria.ipiAtual)} />
+                              <FormulaRow n={2} label="ICMS + FCP + ST" base={BRL(p.memoria.baseIcmsFcpSt)} fator={fmtFator(par.icms_fator)} resultado={BRL(p.memoria.icmsFcpStAtual)} />
+                              <FormulaRow n={3} label="ISS" base={BRL(p.memoria.baseIss)} fator={fmtFator(par.iss_fator)} resultado={BRL(p.memoria.issAtual)} />
+                              <tr className="bg-muted/30 font-medium">
+                                <td className="border border-border px-2 py-1" colSpan={3}>= Sistema atual remanescente (soma das 4 linhas acima)</td>
+                                <td className="border border-border px-2 py-1 text-right tabular-nums">{BRL(sistemaAtualTotal)}</td>
+                              </tr>
+                              <FormulaRow n={4} label="IBS/CBS líquido apurado (débitos − créditos, nunca negativo)" base={BRL(p.ibsCbs)} fator={fmtFator(par.efeito_financeiro)} resultado={BRL(ibsCbsFinanceiro)} />
+                              <tr className="bg-muted/30 font-medium">
+                                <td className="border border-border px-2 py-1" colSpan={3}>= Carga total da transição (sistema atual remanescente + IBS/CBS financeiro)</td>
+                                <td className="border border-border px-2 py-1 text-right tabular-nums">{BRL(sistemaAtualTotal + ibsCbsFinanceiro)}</td>
+                              </tr>
                             </tbody>
                           </table>
+                          <p className="text-muted-foreground mt-2">
+                            IBS efetivo do ano: {pct(num(par.ibs_efetivo))} · CBS efetiva do ano: {pct(num(par.cbs_efetiva))} — já embutidos no "IBS/CBS líquido apurado" acima
+                            (calculado operação por operação, não recalculável direto de uma alíquota única sobre o valor bruto).
+                          </p>
                         </div>
                       </details>
                     );
