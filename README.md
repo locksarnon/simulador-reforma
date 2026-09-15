@@ -47,6 +47,19 @@ npm run dev
 
 `.env.local` já aponta `VITE_API_URL` para `http://localhost:3003/api/v1`.
 
+## Deploy em produção (VPS + Traefik)
+
+Exemplo em produção: [https://simulador.clarityib.com.br](https://simulador.clarityib.com.br)
+
+No servidor (Docker + rede externa `traefik-net`):
+
+```bash
+cp .env.example .env   # preencha senhas/JWT
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build
+```
+
+O overlay `docker-compose.traefik.yml` publica o app em HTTPS via Traefik (`simulador.clarityib.com.br`), com API em `/api` e redirect HTTP→HTTPS. DNS: registro A (ou wildcard `*.clarityib.com.br`) apontando para o IP do VPS.
+
 ## Docs & Support
 
 Ver [backend/README.md](backend/README.md) para detalhes do backend.

@@ -1,0 +1,47 @@
+# Deploy no VPS Clarity (Traefik + TLS).
+# Uso no servidor (rede externa `traefik-net` já existente):
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build
+#
+# Domínio: https://simulador.clarityib.com.br
+
+services:
+  backend:
+    ports: !override []
+    environment:
+      CORS_ORIGINS: https://simulador.clarityib.com.br,http://simulador.clarityib.com.br
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-net
+      - traefik.http.routers.simulador-api.rule=Host(`simulador.clarityib.com.br`) && PathPrefix(`/api`)
+      - traefik.http.routers.simulador-api.entrypoints=websecure
+      - traefik.http.routers.simulador-api.tls.certresolver=myresolver
+      - traefik.http.routers.simulador-api.priority=100
+      - traefik.http.services.simulador-api.loadbalancer.server.port=3003
+    networks:
+      - default
+      - traefik-net
+
+  frontend:
+    ports: !override []
+    environment:
+      VITE_API_URL: https://simulador.clarityib.com.br/api/v1
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-net
+      - traefik.http.routers.simulador-web.rule=Host(`simulador.clarityib.com.br`)
+      - traefik.http.routers.simulador-web.entrypoints=websecure
+      - traefik.http.routers.simulador-web.tls.certresolver=myresolver
+      - traefik.http.routers.simulador-web.priority=1
+      - traefik.http.services.simulador-web.loadbalancer.server.port=5175
+      - traefik.http.routers.simulador-web-http.rule=Host(`simulador.clarityib.com.br`)
+      - traefik.http.routers.simulador-web-http.entrypoints=web
+      - traefik.http.routers.simulador-web-http.middlewares=simulador-https-redirect
+      - traefik.http.middlewares.simulador-https-redirect.redirectscheme.scheme=https
+      - traefik.http.middlewares.simulador-https-redirect.redirectscheme.permanent=true
+    networks:
+      - default
+      - traefik-net
+
+networks:
+  traefik-net:
+    external: true

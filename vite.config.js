@@ -11,6 +11,7 @@ export default defineConfig({
     host: true,
     port: 5175,
     strictPort: true,
+    allowedHosts: ['simulador.clarityib.com.br', '.clarityib.com.br'],
     // Bind mounts do Docker Desktop no Windows não entregam eventos de
     // inotify de forma confiável — sem polling, o Vite não percebe edições
     // no host e continua servindo o módulo antigo até o container reiniciar.

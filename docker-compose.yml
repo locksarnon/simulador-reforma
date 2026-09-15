@@ -18,7 +18,8 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    # Docker Hub (minio/minio) pode negar pull — use o registry oficial.
+    image: quay.io/minio/minio:latest
     container_name: reforma-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -31,10 +32,11 @@ services:
     volumes:
       - reforma_minio_data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/9000' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 10s
 
   backend:
     build:
