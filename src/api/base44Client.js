@@ -152,7 +152,7 @@ const ENTITY_NAMES = [
   'CstIbsCbs', 'CredPres', 'Configuracao', 'Diagnostico',
   'ImportacaoXMLLote', 'ImportacaoXMLArquivo', 'ImportacaoXMLItem', 'HistoricoXML',
   'Simulacao', 'Ncm', 'Cfop', 'BeneficioFiscal', 'CorrelacaoServico', 'CorrelacaoNcm',
-  'AliquotaIssMunicipio', 'NoticiaReforma',
+  'AliquotaIssMunicipio', 'NoticiaReforma', 'RadarReformaItem', 'RadarReformaExecucao',
 ];
 
 const entities = Object.fromEntries(ENTITY_NAMES.map((name) => [name, makeEntityClient(name)]));
@@ -162,6 +162,7 @@ const FUNCTION_ROUTES = {
   confirmarImportacaoXML: '/xml/confirmar-importacao',
   reprocessarLoteXML: '/xml/reprocessar-lote',
   buscarAtualizacoesNoticias: '/noticias/buscar-atualizacoes',
+  gerarRadarReforma: '/radar-reforma/gerar',
   validarNfse: '/validador-nfse/validar',
 };
 

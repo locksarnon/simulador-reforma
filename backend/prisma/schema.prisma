@@ -709,3 +709,44 @@ model NoticiaReforma {
 
   @@index([publicado_em])
 }
+
+/**
+ * Item do Radar de Novidades da Reforma Tributária — gerado semanalmente por
+ * IA com busca na web (Gemini), seguindo o prompt de analista tributário
+ * definido pelo usuário. Cada linha é uma novidade estruturada nas 8 colunas
+ * pedidas (fonte, categoria, resumo, impacto, prazo, ação, prioridade).
+ * Nunca inventa prazo/alíquota: quando o modelo não confirma um dado, o
+ * próprio campo vem como "A confirmar" (ver prompt em radar-reforma.service.ts).
+ */
+model RadarReformaItem {
+  id                  String    @id @default(cuid())
+  semana_referencia   String
+  data_publicacao     DateTime?
+  data_publicacao_txt String?
+  fonte_nome          String?
+  fonte_url           String?
+  categoria           String
+  resumo              String
+  impacto_pratico     String?
+  prazo_vigencia      String?
+  status_normativo    String?
+  acao_recomendada    String?
+  prioridade          String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([semana_referencia])
+  @@index([prioridade])
+}
+
+/** Log de cada execução (manual ou semanal automática) do Radar de Novidades. */
+model RadarReformaExecucao {
+  id                String   @id @default(cuid())
+  semana_referencia String   @unique
+  resumo_executivo  String?
+  status            String   @default("OK")
+  erro              String?
+  itens_gerados     Int      @default(0)
+  disparo            String  @default("MANUAL")
+  executado_em      DateTime @default(now())
+}

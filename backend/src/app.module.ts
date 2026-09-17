@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
@@ -8,6 +9,7 @@ import { EntitiesModule } from './entities/entities.module';
 import { StorageModule } from './storage/storage.module';
 import { ImportacaoXmlModule } from './importacao-xml/importacao-xml.module';
 import { NoticiasModule } from './noticias/noticias.module';
+import { RadarReformaModule } from './radar-reforma/radar-reforma.module';
 import { ValidadorNfseModule } from './validador-nfse/validador-nfse.module';
 import { CnpjModule } from './cnpj/cnpj.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -15,6 +17,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     HealthModule,
     AuthModule,
@@ -22,6 +25,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     StorageModule,
     ImportacaoXmlModule,
     NoticiasModule,
+    RadarReformaModule,
     ValidadorNfseModule,
     CnpjModule,
   ],

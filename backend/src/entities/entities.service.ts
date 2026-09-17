@@ -32,6 +32,8 @@ const ALLOWED_MODELS = [
   'CorrelacaoNcm',
   'AliquotaIssMunicipio',
   'NoticiaReforma',
+  'RadarReformaItem',
+  'RadarReformaExecucao',
 ] as const;
 
 export type AllowedModel = (typeof ALLOWED_MODELS)[number];

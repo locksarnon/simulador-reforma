@@ -15,6 +15,7 @@ import {
   BookOpenText,
   Newspaper,
   ShieldCheck,
+  Radar,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ const sections = [
       { to: "/ferramentas/calculadora", label: "Calculadora Rápida", icon: Calculator },
       { to: "/ferramentas/art-11", label: "Guia do Art. 11", icon: BookOpenText },
       { to: "/ferramentas/noticias", label: "Acervo de Notícias", icon: Newspaper },
+      { to: "/ferramentas/radar-reforma", label: "Radar de Novidades", icon: Radar },
       { to: "/ferramentas/validador-nfse", label: "Validador NFS-e", icon: ShieldCheck },
     ],
   },
