@@ -1,0 +1,31 @@
+---
+description: Entrega segura Simulador FAL — commit Git, push e deploy VPS com Traefik
+alwaysApply: false
+---
+
+# Entrega segura (Git + Deploy)
+
+Ao usuário pedir salvar, commit, push ou deploy deste projeto, seguir `docs/deploy/UPDATE.md` e o prompt em `docs/deploy/PROMPT-AGENTE-DEPLOY.md`.
+
+## Ordem obrigatória
+1. Testar/alterar
+2. Commit (se pedido)
+3. Push (se pedido)
+4. Sync VPS `/var/www/html/simulador-reforma` (`git pull` — bind-mount)
+5. `docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build`
+6. Smoke: containers healthy + `/api/v1/health` + feature
+
+## Proibido
+- Commitar `.env` / secrets
+- Force push em main
+- Sobrescrever `.env` no VPS (`cp .env.example .env` em update)
+- Deploy de working tree não commitada
+- Apagar volumes de produção sem pedido explícito
+- Usar só `docker-compose.yml` no VPS (API vira localhost)
+
+## Deploy
+- Responder em português
+- Confirmar hash do commit deployado
+- Aguardar `reforma-frontend` / `reforma-backend` healthy
+- Domínio: https://simulador.clarityib.com.br
+- Erros: `docs/deploy/TROUBLESHOOTING.md`

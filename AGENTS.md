@@ -22,3 +22,4 @@ Start with `README.md` for the Docker workflow.
 - Backend dev: `cd backend && npm run start:dev` (needs Postgres/MinIO reachable — `docker compose up -d postgres minio` covers that).
 - Prisma schema changes: edit `backend/prisma/schema.prisma`, then `npx prisma migrate dev --name <description>` against a running Postgres to generate a migration, commit the generated `backend/prisma/migrations/*` folder.
 - Run `npm run lint` (frontend) / `npm run build` (backend, via `nest build`) before finishing code changes.
+- Deploy VPS: `docs/deploy/UPDATE.md`. Erros comuns: `docs/deploy/TROUBLESHOOTING.md`. Nunca `cp .env.example .env` em produção já existente. Comando: `docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build` depois de `git pull` em `/var/www/html/simulador-reforma`.

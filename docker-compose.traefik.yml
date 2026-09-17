@@ -1,8 +1,13 @@
 # Deploy no VPS Clarity (Traefik + TLS).
+# Código no VPS: /var/www/html/simulador-reforma
+# Requer Docker Compose ≥ 2.24 (`ports: !override`).
 # Uso no servidor (rede externa `traefik-net` já existente):
+#   git pull
 #   docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build
+# NÃO use este overlay no notebook. NÃO recrie o .env num ambiente que já roda.
 #
 # Domínio: https://simulador.clarityib.com.br
+# Guia: docs/deploy/UPDATE.md  |  Erros: docs/deploy/TROUBLESHOOTING.md
 
 services:
   backend:

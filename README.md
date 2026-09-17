@@ -49,16 +49,21 @@ npm run dev
 
 ## Deploy em produção (VPS + Traefik)
 
-Exemplo em produção: [https://simulador.clarityib.com.br](https://simulador.clarityib.com.br)
+Produção: [https://simulador.clarityib.com.br](https://simulador.clarityib.com.br)
 
-No servidor (Docker + rede externa `traefik-net`):
+**Não** publique com `docker compose up` no notebook. O VPS precisa dos **dois** arquivos de compose, de um `.env` que já existe no servidor, e de `git pull` (o código é bind-mount).
 
 ```bash
-cp .env.example .env   # preencha senhas/JWT
+cd /var/www/html/simulador-reforma
+git pull
 docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build
 ```
 
-O overlay `docker-compose.traefik.yml` publica o app em HTTPS via Traefik (`simulador.clarityib.com.br`), com API em `/api` e redirect HTTP→HTTPS. DNS: registro A (ou wildcard `*.clarityib.com.br`) apontando para o IP do VPS.
+- Atualizar: [docs/deploy/UPDATE.md](docs/deploy/UPDATE.md)
+- Primeiro ambiente: [docs/deploy/FIRST-DEPLOY.md](docs/deploy/FIRST-DEPLOY.md)
+- Deu erro: [docs/deploy/TROUBLESHOOTING.md](docs/deploy/TROUBLESHOOTING.md)
+
+Nunca rode `cp .env.example .env` num servidor que já tem banco — isso troca a senha do Postgres/JWT e o backend cai.
 
 ## Docs & Support
 
