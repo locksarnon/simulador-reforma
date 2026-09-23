@@ -28,6 +28,12 @@ services:
 
   frontend:
     ports: !override []
+    # Produção serve o build otimizado (vite preview), não o servidor de
+    # desenvolvimento. Se o build falhar, cai no modo dev para o site não sair
+    # do ar — e o erro aparece em `docker logs reforma-frontend`.
+    command: ["sh", "-c", "npm run build && exec npm run preview || exec npm run dev"]
+    healthcheck:
+      start_period: 120s
     environment:
       VITE_API_URL: https://simulador.clarityib.com.br/api/v1
     labels:

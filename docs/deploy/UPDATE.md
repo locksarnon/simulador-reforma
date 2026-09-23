@@ -108,5 +108,16 @@ Se algo falhar: [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md).
 - [ ] Containers healthy
 - [ ] Health + smoke da feature ok
 
+## Operação do InTAX (extras)
+
+| Assunto | Como |
+|---|---|
+| Tabela de NCM (Siscomex) | `docker exec reforma-backend node scripts/carregar-ncm.mjs` — reexecutável quando a nomenclatura mudar |
+| Backup do banco | `scripts/backup-db.sh` (cron diário às 03h, guarda 14 dias em `/var/backups/simulador-reforma`) |
+| Cadastro por convite | `INVITE_CODE` no `.env` do servidor. Vazio = cadastro aberto |
+| E-mail (leads, newsletter) | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, `NOTIFY_EMAIL` no `.env`. Sem `SMTP_HOST` o envio fica desligado |
+| Dependência nova no `package.json` do backend | subir com `up -d --build --force-recreate -V backend` — sem `-V` o volume antigo de `node_modules` esconde o pacote novo |
+| Frontend em produção | serve o build (`vite preview`); se o build falhar, cai no modo dev e o erro aparece em `docker logs reforma-frontend` |
+
 Primeiro deploy / secrets: [`FIRST-DEPLOY.md`](./FIRST-DEPLOY.md).
 Prompt para o agente: [`PROMPT-AGENTE-DEPLOY.md`](./PROMPT-AGENTE-DEPLOY.md).

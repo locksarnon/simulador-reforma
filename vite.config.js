@@ -20,6 +20,14 @@ export default defineConfig({
       interval: 300,
     },
   },
+  // Produção serve o build (vite preview), não o servidor de desenvolvimento:
+  // um arquivo otimizado em vez de ~100 módulos por visita, sem código-fonte exposto.
+  preview: {
+    host: true,
+    port: 5175,
+    strictPort: true,
+    allowedHosts: ['simulador.clarityib.com.br', '.clarityib.com.br'],
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
