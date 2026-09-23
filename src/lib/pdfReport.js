@@ -20,7 +20,7 @@ export function gerarRelatorioSimulacao({ totais, consolidado, versaoMotor, vers
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Simulador FAL — Reforma Tributária", MARGIN, y);
+  doc.text("InTAX — Reforma Tributária", MARGIN, y);
   y += 6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);

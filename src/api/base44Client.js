@@ -153,6 +153,7 @@ const ENTITY_NAMES = [
   'ImportacaoXMLLote', 'ImportacaoXMLArquivo', 'ImportacaoXMLItem', 'HistoricoXML',
   'Simulacao', 'Ncm', 'Cfop', 'BeneficioFiscal', 'CorrelacaoServico', 'CorrelacaoNcm',
   'AliquotaIssMunicipio', 'NoticiaReforma', 'RadarReformaItem', 'RadarReformaExecucao',
+  'Lead', 'NewsletterInscrito', 'NewsletterEdicao',
 ];
 
 const entities = Object.fromEntries(ENTITY_NAMES.map((name) => [name, makeEntityClient(name)]));
@@ -164,6 +165,50 @@ const FUNCTION_ROUTES = {
   buscarAtualizacoesNoticias: '/noticias/buscar-atualizacoes',
   gerarRadarReforma: '/radar-reforma/gerar',
   validarNfse: '/validador-nfse/validar',
+};
+
+/**
+ * Chamadas diretas às rotas novas do InTAX (públicas e autenticadas) que não
+ * seguem o padrão de entidade. Erros saem no mesmo formato do resto do app.
+ */
+export const api = {
+  async get(url, params) {
+    try { return (await http.get(url, { params })).data; } catch (err) { throw unwrapError(err); }
+  },
+  async post(url, body) {
+    try { return (await http.post(url, body)).data; } catch (err) { throw unwrapError(err); }
+  },
+  async put(url, body) {
+    try { return (await http.put(url, body)).data; } catch (err) { throw unwrapError(err); }
+  },
+  /** Envio de arquivo (multipart) com campos extras. */
+  async upload(url, file, campos = {}) {
+    const form = new FormData();
+    form.append('arquivo', file);
+    Object.entries(campos).forEach(([k, v]) => { if (v !== undefined && v !== null) form.append(k, typeof v === 'string' ? v : JSON.stringify(v)); });
+    try { return (await http.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' } })).data; } catch (err) { throw unwrapError(err); }
+  },
+  /** Baixa um arquivo gerado no servidor e dispara o download no navegador. */
+  async baixar(method, url, { body, file, campos, nome } = {}) {
+    try {
+      let res;
+      if (file) {
+        const form = new FormData();
+        form.append('arquivo', file);
+        Object.entries(campos || {}).forEach(([k, v]) => { if (v !== undefined && v !== null) form.append(k, typeof v === 'string' ? v : JSON.stringify(v)); });
+        res = await http.post(url, form, { responseType: 'blob', headers: { 'Content-Type': 'multipart/form-data' } });
+      } else {
+        res = await http.request({ method, url, data: body, responseType: 'blob' });
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(res.data);
+      a.download = nome || 'arquivo';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch (err) { throw unwrapError(err); }
+  },
 };
 
 export const base44 = {
@@ -188,9 +233,9 @@ export const base44 = {
         throw unwrapError(err);
       }
     },
-    async register({ email, password, name }) {
+    async register({ email, password, name, inviteCode }) {
       try {
-        const { data } = await http.post('/auth/register', { email, password, name });
+        const { data } = await http.post('/auth/register', { email, password, name, inviteCode });
         storeTokens(data);
         return data;
       } catch (err) {

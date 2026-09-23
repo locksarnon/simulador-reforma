@@ -43,7 +43,7 @@ const ETAPAS = [
 const SECOES = [
   {
     titulo: "1. Objetivo",
-    corpo: "O Simulador FAL calcula o impacto financeiro da Reforma Tributária (IBS/CBS) sobre as operações da empresa, comparando o sistema atual com o regime de transição (2026–2033) e projetando preço-alvo, margem, caixa e funding tributário.",
+    corpo: "O InTAX calcula o impacto financeiro da Reforma Tributária (IBS/CBS) sobre as operações da empresa, comparando o sistema atual com o regime de transição (2026–2033) e projetando preço-alvo, margem, caixa e funding tributário.",
   },
   {
     titulo: "2. Ordem recomendada de uso",

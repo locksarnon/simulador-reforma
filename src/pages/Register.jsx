@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { api, base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,12 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [conviteObrigatorio, setConviteObrigatorio] = useState(false);
+
+  useEffect(() => {
+    api.get("/auth/register-config").then((c) => setConviteObrigatorio(Boolean(c?.invite_required))).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,7 +30,7 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await base44.auth.register({ email, password });
+      await base44.auth.register({ email, password, inviteCode: inviteCode || undefined });
       window.location.href = safeReturnTo();
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -106,6 +112,20 @@ export default function Register() {
             />
           </div>
         </div>
+        {conviteObrigatorio && (
+          <div className="space-y-2">
+            <Label htmlFor="invite">Código de convite</Label>
+            <Input
+              id="invite"
+              autoComplete="off"
+              placeholder="Fornecido pela equipe FAL"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              className="h-12"
+              required
+            />
+          </div>
+        )}
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>

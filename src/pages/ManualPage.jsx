@@ -14,7 +14,7 @@ export default function ManualPage() {
           <InfoTooltip pagina="manual" chave="header" />
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          Fluxograma de utilização, manual técnico e perguntas frequentes do Simulador FAL — v0.16
+          Fluxograma de utilização, manual técnico e perguntas frequentes do InTAX — v0.16
         </p>
       </div>
 

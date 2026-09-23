@@ -21,7 +21,7 @@ export default function ArquiteturaPage() {
           <InfoTooltip text="Documentação técnica interna para o time de desenvolvimento. Mapeia todas as entidades, backend functions, páginas, hooks e módulos shared." />
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          Simulador FAL v{ARQUITETURA_RESUMO.versao} — atualizado em {ARQUITETURA_RESUMO.dataBase}
+          InTAX v{ARQUITETURA_RESUMO.versao} — atualizado em {ARQUITETURA_RESUMO.dataBase}
         </p>
       </div>
 

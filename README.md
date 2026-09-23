@@ -1,4 +1,4 @@
-# Simulador FAL — Reforma Tributária
+# InTAX — Reforma Tributária
 
 Simulador de impactos da Reforma Tributária (IBS/CBS) para grupos econômicos: cadastro de empresas, operações, cenários, transição 2026–2033, catálogos IBS/CBS e importação de XML de NF-e.
 

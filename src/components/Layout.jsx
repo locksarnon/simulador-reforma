@@ -16,6 +16,11 @@ import {
   Newspaper,
   ShieldCheck,
   Radar,
+  Search,
+  ListChecks,
+  Mail,
+  Users,
+  ExternalLink,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -23,10 +28,36 @@ import Logo from "@/components/Logo";
 
 const sections = [
   {
-    title: "Geral",
+    title: "Diagnóstico",
     items: [
       { to: "/", label: "DataHub", icon: Layers, end: true },
       { to: "/cockpit", label: "Cockpit", icon: LayoutDashboard },
+      { to: "/ferramentas/calculadora", label: "Calculadora Rápida", icon: Calculator },
+    ],
+  },
+  {
+    title: "Validação fiscal",
+    items: [
+      { to: "/ferramentas/validador-cadastro", label: "Validador de cadastro", icon: ListChecks },
+      { to: "/ferramentas/consulta-ncm", label: "Consulta NCM", icon: Search },
+      { to: "/ferramentas/classificacao", label: "Classificador & Conversor", icon: Wrench },
+      { to: "/ferramentas/validador-nfse", label: "Validador NFS-e", icon: ShieldCheck },
+      { to: "/ferramentas/art-11", label: "Guia do Art. 11", icon: BookOpenText },
+    ],
+  },
+  {
+    title: "Inteligência de mercado",
+    items: [
+      { to: "/ferramentas/radar-reforma", label: "Radar de Novidades", icon: Radar },
+      { to: "/ferramentas/noticias", label: "Acervo de Notícias", icon: Newspaper },
+      { to: "/comercial/newsletter", label: "Newsletter", icon: Mail },
+    ],
+  },
+  {
+    title: "Comercial",
+    items: [
+      { to: "/comercial/leads", label: "Leads", icon: Users },
+      { to: "/calculadora", label: "Calculadora pública", icon: ExternalLink, externo: true },
     ],
   },
   {
@@ -36,17 +67,6 @@ const sections = [
       { to: "/transicao", label: "Transição 2026–2033", icon: CalendarClock },
       { to: "/catalogos", label: "Catálogos IBS/CBS", icon: BookMarked },
       { to: "/configuracao", label: "Configuração", icon: Settings },
-    ],
-  },
-  {
-    title: "Ferramentas",
-    items: [
-      { to: "/ferramentas/classificacao", label: "Classificador & Conversor", icon: Wrench },
-      { to: "/ferramentas/calculadora", label: "Calculadora Rápida", icon: Calculator },
-      { to: "/ferramentas/art-11", label: "Guia do Art. 11", icon: BookOpenText },
-      { to: "/ferramentas/noticias", label: "Acervo de Notícias", icon: Newspaper },
-      { to: "/ferramentas/radar-reforma", label: "Radar de Novidades", icon: Radar },
-      { to: "/ferramentas/validador-nfse", label: "Validador NFS-e", icon: ShieldCheck },
     ],
   },
   {
@@ -70,8 +90,8 @@ export default function Layout() {
               <Logo className="w-5 h-5" />
             </div>
             <div className="leading-tight">
-              <p className="font-heading font-semibold text-sm text-foreground">Simulador FAL</p>
-              <p className="text-[11px] text-muted-foreground">Reforma Tributária</p>
+              <p className="font-heading font-semibold text-sm text-foreground">InTAX</p>
+              <p className="text-[11px] text-muted-foreground">por FAL Agro · Reforma Tributária</p>
             </div>
           </div>
         </div>
@@ -94,7 +114,18 @@ export default function Layout() {
                 {section.title}
               </p>
               <div className="space-y-0.5">
-                {section.items.map((item) => (
+                {section.items.map((item) => item.externo ? (
+                  <a
+                    key={item.to}
+                    href={item.to}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60"
+                  >
+                    <item.icon className="w-4 h-4 shrink-0" />
+                    {item.label}
+                  </a>
+                ) : (
                   <NavLink
                     key={item.to}
                     to={item.to}
@@ -117,7 +148,7 @@ export default function Layout() {
         </nav>
 
         <div className="p-4 border-t border-sidebar-border flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">v0.18 · 14/08/2026</span>
+          <span className="text-[11px] text-muted-foreground">InTAX v1.0 · 23/09/2026</span>
           <ThemeToggle />
         </div>
       </aside>

@@ -33,6 +33,14 @@ import FerramentasArt11 from '@/pages/FerramentasArt11';
 import FerramentasNoticias from '@/pages/FerramentasNoticias';
 import RadarReformaPage from '@/pages/RadarReformaPage';
 import FerramentasValidadorNFSe from '@/pages/FerramentasValidadorNFSe';
+import FerramentasConsultaNcm from '@/pages/FerramentasConsultaNcm';
+import FerramentasValidadorCadastro from '@/pages/FerramentasValidadorCadastro';
+import LeadsPage from '@/pages/LeadsPage';
+import NewsletterPage from '@/pages/NewsletterPage';
+import PublicLayout from '@/pages/publico/PublicLayout';
+import CalculadoraPage from '@/pages/publico/CalculadoraPage';
+import ConsultaNcmPublica from '@/pages/publico/ConsultaNcmPublica';
+import ValidadorPublico from '@/pages/publico/ValidadorPublico';
 // Add page imports here
 
 function App() {
@@ -48,6 +56,13 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+
+              {/* Ferramentas abertas do InTAX (isca): sem login, sem menu lateral */}
+              <Route element={<PublicLayout />}>
+                <Route path="/calculadora" element={<CalculadoraPage />} />
+                <Route path="/consulta-ncm" element={<ConsultaNcmPublica />} />
+                <Route path="/validador-cadastro" element={<ValidadorPublico />} />
+              </Route>
 
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
@@ -75,6 +90,10 @@ function App() {
                   <Route path="/ferramentas/noticias" element={<FerramentasNoticias />} />
                   <Route path="/ferramentas/radar-reforma" element={<RadarReformaPage />} />
                   <Route path="/ferramentas/validador-nfse" element={<FerramentasValidadorNFSe />} />
+                  <Route path="/ferramentas/consulta-ncm" element={<FerramentasConsultaNcm />} />
+                  <Route path="/ferramentas/validador-cadastro" element={<FerramentasValidadorCadastro />} />
+                  <Route path="/comercial/leads" element={<LeadsPage />} />
+                  <Route path="/comercial/newsletter" element={<NewsletterPage />} />
                   <Route path="/manual" element={<ManualPage />} />
                   <Route path="/arquitetura" element={<ArquiteturaPage />} />
                 </Route>
