@@ -15,6 +15,7 @@ import {
 } from './shared/xml-utils';
 import { parseXml, getFirst, getAll, getText, getTextDeep, getAttr, identificarTipoXml, MAX_ITENS } from './shared/xml-parser';
 import { agruparPorCodigo, escolherVigente } from './shared/vigencia';
+import { avaliarNcm, compararComDeclarado, prepararLista, ClasseInfo, CorrelacaoNcmRow } from '../classificacao/ncm-classe';
 
 /**
  * NCM da nota comparado por PREFIXO contra a tabela CorrelacaoNcm (que às
@@ -296,6 +297,11 @@ export class ImportacaoXmlService {
         .filter((c) => c.ncm)
         .sort((a, b) => (b.ncm as string).length - (a.ncm as string).length);
 
+      // Mesma base, preparada para a conferência NCM x cClassTrib DECLARADO
+      // (quando a nota traz o cClassTrib, confere se combina com o NCM).
+      const listaNcm = prepararLista(correlacaoNcmList as unknown as CorrelacaoNcmRow[]);
+      const classesInfo = new Map<string, ClasseInfo>(classTribCatalogo.map((c) => [c.c_class_trib, c as unknown as ClasseInfo]));
+
       // NBS -> item_lc116 (serviço), usada junto com a tabela de alíquotas de
       // ISS por município (~1,9M linhas — não cabe em memória, então é
       // consultada sob demanda no banco, com cache por lote em issCache).
@@ -452,6 +458,8 @@ export class ImportacaoXmlService {
             correlacaoNcmList,
             correlacaoServicoList,
             issCache,
+            listaNcm,
+            classesInfo,
           );
 
           arqUpdates.push(result.arquivoUpdate);
@@ -576,6 +584,8 @@ export class ImportacaoXmlService {
     correlacaoNcmList: { ncm: string; c_class_trib: string | null }[],
     correlacaoServicoList: { nbs: string | null; item_lc116: string | null }[],
     issCache: Map<string, { aliquota: number; itemLc116: string } | null>,
+    listaNcm: ReturnType<typeof prepararLista>,
+    classesInfo: Map<string, ClasseInfo>,
   ) {
     const resultado: {
       sucesso: boolean;
@@ -800,6 +810,14 @@ export class ImportacaoXmlService {
         }
       }
 
+      // Conferência NCM x cClassTrib: só quando a NOTA trouxe o cClassTrib
+      // (se foi inferido aqui, o alerta TRIB_CLASS_TRIB_INFERIDO já cobre).
+      // Nunca bloqueia — é sugestão para revisão humana.
+      const ncmComparacao =
+        cClassTribOriginal && !nbs && ncm
+          ? compararComDeclarado(cClassTribOriginal, avaliarNcm(ncm, listaNcm), classesInfo)
+          : null;
+
       for (const p of perspectivas) {
         const dados: Record<string, unknown> = {
           lote_id: arq.lote_id,
@@ -860,6 +878,7 @@ export class ImportacaoXmlService {
           cstGrouped, classTribGrouped, credPresGrouped, ncmSet, cfopSet,
           dataEmiDate: dataEmi ? new Date(dataEmi) : new Date(),
           issItemLc116Usado,
+          ncmComparacao,
           histKeys, cStat, ambiente, situacaoFiscal, chaveValida,
           cnpjEmit, cnpjDest,
         };
@@ -890,6 +909,7 @@ export class ImportacaoXmlService {
       cfopSet: Set<string>;
       dataEmiDate: Date;
       issItemLc116Usado: string | null;
+      ncmComparacao: ReturnType<typeof compararComDeclarado> | null;
       histKeys: Set<string>;
       cStat: string;
       ambiente: string;
@@ -1037,6 +1057,7 @@ export class ImportacaoXmlService {
       credPresGrouped: Map<string, any[]>;
       dataEmiDate: Date;
       issItemLc116Usado: string | null;
+      ncmComparacao: ReturnType<typeof compararComDeclarado> | null;
     },
   ): Check[] {
     const checks: Check[] = [];
@@ -1071,6 +1092,13 @@ export class ImportacaoXmlService {
         false,
         'c_class_trib',
       ));
+    }
+
+    // Conferência NCM x cClassTrib declarado: divergências viram alerta (nunca
+    // bloqueio) — a base vem dos anexos da LC 214 e pode não cobrir toda base legal.
+    const cmp = ctx.ncmComparacao;
+    if (cmp && (cmp.severidade === 'alerta' || cmp.severidade === 'alta')) {
+      checks.push(check('TRIB_NCM_CLASSE_DIVERGENTE', STATUS.ALERTA, cmp.mensagem, false, 'c_class_trib', [{ tipo: cmp.codigo }]));
     }
 
     // Mesma lógica do cClassTrib acima, mas pro ISS: iss_pct_original vazio +

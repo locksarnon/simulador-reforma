@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -17,7 +17,16 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
+  /** Cadastro fechado: com INVITE_CODE definido no servidor, só entra quem tem o código. */
+  get conviteObrigatorio() {
+    return Boolean(this.config.get<string>('INVITE_CODE'));
+  }
+
   async register(dto: RegisterDto, meta?: { ip?: string; userAgent?: string }) {
+    const convite = this.config.get<string>('INVITE_CODE');
+    if (convite && dto.inviteCode !== convite) {
+      throw new ForbiddenException('O cadastro é por convite. Peça o código de acesso à equipe FAL.');
+    }
     const email = dto.email.toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {

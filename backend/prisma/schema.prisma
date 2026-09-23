@@ -750,3 +750,72 @@ model RadarReformaExecucao {
   disparo            String  @default("MANUAL")
   executado_em      DateTime @default(now())
 }
+
+/**
+ * Contato captado pelas ferramentas públicas do InTAX (calculadora, consulta
+ * NCM, validador de cadastro). `score` e `destino` seguem a regra do funil:
+ * porte + impacto + regime decidem consultoria, BPO, parceria ou nutrição.
+ */
+model Lead {
+  id                 String    @id @default(cuid())
+  nome               String
+  email              String
+  empresa            String?
+  cargo              String?
+  telefone           String?
+  porte              String?
+  segmento           String?
+  perfil             String?
+  origem             String
+  consentimento_email Boolean  @default(false)
+  consentimento_em   DateTime?
+  score              Int       @default(0)
+  destino            String?
+  dados_json         String?
+  status             String    @default("Novo")
+  notas              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/** Inscritos na newsletter — só entra quem deu consentimento explícito. */
+model NewsletterInscrito {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  nome             String?
+  segmento         String?
+  perfil           String?
+  origem           String?
+  ativo            Boolean   @default(true)
+  token            String    @unique @default(cuid())
+  consentimento_em DateTime?
+  descadastrado_em DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+/**
+ * Edição da newsletter. Nasce como rascunho a partir do Radar e só sai depois
+ * de aprovada por uma pessoa — o Radar é gerado por IA e nunca vai direto ao
+ * cliente sem revisão.
+ */
+model NewsletterEdicao {
+  id                String    @id @default(cuid())
+  assunto           String
+  semana_referencia String?
+  corpo_html        String
+  status            String    @default("Rascunho")
+  aprovada_por      String?
+  aprovada_em       DateTime?
+  enviada_em        DateTime?
+  destinatarios     Int       @default(0)
+  falhas            Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+}

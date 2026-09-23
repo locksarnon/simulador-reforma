@@ -17,6 +17,12 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
+  @Get('register-config')
+  registerConfig() {
+    return { invite_required: this.auth.conviteObrigatorio };
+  }
+
+  @Public()
   @Post('register')
   register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.auth.register(dto, { ip: req.ip, userAgent: req.headers['user-agent'] });
