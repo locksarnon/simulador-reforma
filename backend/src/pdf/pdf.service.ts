@@ -44,15 +44,15 @@ export class PdfService {
 
       pdf.y = 90;
       pdf.font('Helvetica-Bold').fontSize(17).fillColor(VERDE).text(cortar(doc.titulo, 140), 48, pdf.y, { width: largura });
-      if (doc.subtitulo) pdf.moveDown(0.3).font('Helvetica').fontSize(10).fillColor(CINZA).text(cortar(doc.subtitulo, 240), { width: largura });
+      if (doc.subtitulo) pdf.moveDown(0.3).font('Helvetica').fontSize(10).fillColor(CINZA).text(cortar(doc.subtitulo, 240), 48, pdf.y, { width: largura });
       pdf.moveDown(0.8);
 
       for (const s of doc.secoes.slice(0, 20)) {
         if (pdf.y > pdf.page.height - 140) pdf.addPage();
-        pdf.font('Helvetica-Bold').fontSize(12).fillColor(VERDE).text(cortar(s.titulo, 100), { width: largura });
+        pdf.font('Helvetica-Bold').fontSize(12).fillColor(VERDE).text(cortar(s.titulo, 100), 48, pdf.y, { width: largura });
         pdf.moveDown(0.25).font('Helvetica').fontSize(10).fillColor('#1c2b24');
-        (s.paragrafos || []).slice(0, 12).forEach((p) => pdf.text(cortar(p, 900), { width: largura }).moveDown(0.3));
-        (s.itens || []).slice(0, 15).forEach((i) => pdf.text(`•  ${cortar(i, 500)}`, { width: largura, indent: 4 }).moveDown(0.15));
+        (s.paragrafos || []).slice(0, 12).forEach((p) => pdf.text(cortar(p, 900), 48, pdf.y, { width: largura }).moveDown(0.3));
+        (s.itens || []).slice(0, 15).forEach((i) => pdf.text(`•  ${cortar(i, 500)}`, 52, pdf.y, { width: largura - 4 }).moveDown(0.15));
 
         if (s.tabela) {
           const cab = s.tabela.cabecalho.slice(0, 8);
@@ -65,6 +65,7 @@ export class PdfService {
             if (fundo) pdf.rect(48, yy, largura, h).fill(fundo);
             pdf.fillColor(negrito ? '#ffffff' : '#1c2b24').font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
             cels.slice(0, cab.length).forEach((c, i) => pdf.text(cortar(c, 40), 52 + i * w, yy + 5, { width: w - 6, lineBreak: false }));
+            pdf.x = 48;
             pdf.y = yy + h;
           };
           pdf.moveDown(0.2);

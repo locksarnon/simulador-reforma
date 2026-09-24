@@ -105,13 +105,20 @@ export default function CalculadoraPage() {
 
       {/* 0 — perfil */}
       {passo === 0 && (
-        <div className="grid sm:grid-cols-2 gap-3">
-          {PERFIS.map((p) => (
-            <button key={p.id} type="button" onClick={() => escolherPerfil(p.id)} className="text-left rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-colors">
-              <div className="text-2xl mb-1" aria-hidden>{p.emoji}</div>
-              <div className="font-medium">{p.label}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{p.descricao}</div>
-            </button>
+        <div className="space-y-6">
+          {["Agro", "Mineração", "Comércio e varejo"].map((g) => (
+            <section key={g}>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{g}</h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {PERFIS.filter((p) => (p.grupo || "Agro") === g).map((p) => (
+                  <button key={p.id} type="button" onClick={() => escolherPerfil(p.id)} className="text-left rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-colors">
+                    <div className="text-2xl mb-1" aria-hidden>{p.emoji}</div>
+                    <div className="font-medium">{p.label}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{p.descricao}</div>
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
@@ -154,7 +161,7 @@ export default function CalculadoraPage() {
           </div>
           <div>
             <p className="text-sm font-medium">Como seus principais produtos são tratados na reforma?</p>
-            <p className="text-xs text-muted-foreground mb-2">Muitos itens do agro têm alíquota zero ou reduzida. Não sabe? Use a <a href="/consulta-ncm" target="_blank" rel="noreferrer" className="underline">Consulta NCM</a>.</p>
+            <p className="text-xs text-muted-foreground mb-2">Muitos itens (alimentos, insumos, medicamentos) têm alíquota zero ou reduzida. Não sabe? Use a <a href="/consulta-ncm" target="_blank" rel="noreferrer" className="underline">Consulta NCM</a>.</p>
             <div className="flex flex-wrap gap-2">
               {[[0, "Alíquota padrão"], [0.6, "Redução de 60% (insumos, alimentos)"], [1, "Alíquota zero (cesta básica, hortifrúti)"]].map(([v, r]) => (
                 <button key={v} type="button" onClick={() => setDados((d) => ({ ...d, reducao: v }))} className={`px-3 py-2 rounded-md border text-sm ${dados.reducao === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{r}</button>
@@ -170,12 +177,12 @@ export default function CalculadoraPage() {
           </div>
           <Slider label="Compras de insumos e mercadorias" ajuda="Quanto do faturamento vai para compras (valor inicial típico do seu perfil)." valor={dados.comprasPct} onChange={(v) => setDados((d) => ({ ...d, comprasPct: v }))} max={95} />
           <Slider label="Compras de fornecedores que geram crédito" ajuda="Parte das compras feita com nota fiscal de fornecedor que destaca o tributo." valor={dados.creditoPct} onChange={(v) => setDados((d) => ({ ...d, creditoPct: v }))} />
-          {flagsExporta && <Slider label="Parcela das vendas exportada" valor={dados.exportaPct} onChange={(v) => setDados((d) => ({ ...d, exportaPct: v }))} max={95} />}
+          {flagsExporta && <Slider label="Parcela do faturamento exportada" valor={dados.exportaPct} onChange={(v) => setDados((d) => ({ ...d, exportaPct: v }))} max={95} />}
           <details className="text-sm">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Sei a carga tributária atual (opcional, deixa a estimativa mais precisa)</summary>
             <div className="mt-2 flex items-center gap-2">
               <input inputMode="decimal" value={dados.carga} onChange={(e) => setDados((d) => ({ ...d, carga: e.target.value.replace(/[^\d,.]/g, "") }))} placeholder="Ex.: 9,5" className="h-10 w-28 rounded-md border border-input bg-background px-3 tabular-nums" />
-              <span className="text-muted-foreground">% das vendas</span>
+              <span className="text-muted-foreground">% do faturamento</span>
             </div>
           </details>
           {isError && <p className="text-sm text-destructive">Não foi possível carregar os parâmetros da transição. Tente novamente em instantes.</p>}
@@ -196,7 +203,7 @@ export default function CalculadoraPage() {
               <div key={c.t} className={`rounded-xl border p-4 ${i === 2 ? "border-primary bg-primary/5" : "border-border bg-card"}`}>
                 <p className="text-xs text-muted-foreground">{c.t}</p>
                 <p className="text-2xl sm:text-3xl font-semibold tabular-nums mt-1">{pct(c.v)}</p>
-                <p className="text-[11px] text-muted-foreground">das vendas</p>
+                <p className="text-[11px] text-muted-foreground">do faturamento</p>
               </div>
             ))}
           </div>
@@ -205,7 +212,7 @@ export default function CalculadoraPage() {
           </p>
 
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-sm font-medium mb-2">Carga estimada por ano (% das vendas)</p>
+            <p className="text-sm font-medium mb-2">Carga estimada por ano (% do faturamento)</p>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={resultado.serie.map((s) => ({ ano: s.ano, "Carga estimada": Number(s.pctTransicao.toFixed(2)), Hoje: Number(resultado.atual.toFixed(2)) }))}>

@@ -19,6 +19,11 @@ const REGIMES = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "Produtor 
 // Setores amplos o bastante pra cobrir a maioria dos casos sem virar uma
 // lista de CNAE — se precisar de algo mais fino, "Outros" + observação resolve.
 const SETORES = [
+  // Ramos do InTAX (mesmos perfis da calculadora pública)
+  "Agro — Produtor rural", "Agro — Sementeira", "Agro — Ração animal", "Agro — Etanol e biocombustíveis",
+  "Mineração", "Comércio — Bares e restaurantes", "Comércio — Farmácias", "Comércio — Mercados (varejo)",
+  "Comércio — Atacado",
+  // Setores gerais
   "Comércio", "Indústria", "Serviços", "Agropecuário", "Construção Civil",
   "Tecnologia", "Saúde", "Educação", "Financeiro", "Transporte e Logística",
   "Energia", "Imobiliário", "Alimentício", "Outros",

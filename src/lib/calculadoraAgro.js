@@ -77,6 +77,57 @@ export const PERFIS = [
       SIM_NAO("exporta", "Você exporta?", "Exportação é desonerada, com manutenção de créditos.", { exporta: true }),
     ],
   },
+  {
+    id: "mineradora", grupo: "Mineração", label: "Mineradora", emoji: "⛏️",
+    descricao: "Extração e beneficiamento de minérios.",
+    regimes: ["presumido", "real"], reducao_vendas: 0, icms_padrao: 0.05, compras_pct: 0.4,
+    imposto_seletivo_pct: 0.0025, // alíquota MÁXIMA prevista na extração (a definir em lei) — premissa
+    perguntas: [
+      SIM_NAO("exporta", "Você exporta parte do minério?", "O Imposto Seletivo incide na extração mesmo quando o produto é exportado.", { exporta: true }),
+      SIM_NAO("contratos_longo", "Tem contratos de longo prazo com preço fixo?", "Contratos que atravessam 2027 precisam de cláusula de revisão tributária.", { contratos_longo: true }),
+      SIM_NAO("logistica_propria", "Opera logística própria (frota, ferrovia, porto)?", "Combustível, peças e manutenção passam a gerar crédito.", { logistica_propria: true }),
+    ],
+  },
+  {
+    id: "restaurante", grupo: "Comércio e varejo", label: "Bar ou restaurante", emoji: "🍽️",
+    descricao: "Bares, restaurantes, lanchonetes e hotelaria.",
+    regimes: ["simples", "presumido", "real"], reducao_vendas: 0.4, icms_padrao: 0.03, compras_pct: 0.35,
+    perguntas: [
+      SIM_NAO("b2c", "A maior parte das vendas é para consumidor final (pessoa física)?", "Consumidor final não usa crédito: o preço pesa mais que o tributo destacado.", { b2c: true }),
+      SIM_NAO("fornecedor_simples", "Compra com frequência de fornecedores do Simples Nacional?", "Fornecedor do Simples gera menos crédito.", { fornecedor_simples: true }),
+      SIM_NAO("split_cartao", "A maioria dos recebimentos é em cartão ou Pix?", "É onde o split payment mais mexe no caixa.", { split_cartao: true }),
+    ],
+  },
+  {
+    id: "farmacia", grupo: "Comércio e varejo", label: "Farmácia", emoji: "💊",
+    descricao: "Drogarias e farmácias de manipulação.",
+    regimes: ["simples", "presumido", "real"], reducao_vendas: 0.6, icms_padrao: 0.1, compras_pct: 0.7,
+    perguntas: [
+      SIM_NAO("medicamentos", "A maior parte das vendas é de medicamentos (não perfumaria ou higiene)?", "Medicamentos têm redução, e alguns têm alíquota zero.", { medicamentos: true }),
+      SIM_NAO("vende_empresas", "Vende também para empresas, planos de saúde ou hospitais?", "Cliente empresa aproveita crédito.", { b2b: true }),
+      SIM_NAO("fornecedor_simples", "Compra com frequência de distribuidores do Simples Nacional?", "Fornecedor do Simples gera menos crédito.", { fornecedor_simples: true }),
+    ],
+  },
+  {
+    id: "mercado", grupo: "Comércio e varejo", label: "Mercado / supermercado (varejo)", emoji: "🛒",
+    descricao: "Mercearias, supermercados e hipermercados.",
+    regimes: ["simples", "presumido", "real"], reducao_vendas: 0, icms_padrao: 0.1, compras_pct: 0.78,
+    perguntas: [
+      SIM_NAO("cesta_basica", "Boa parte das vendas é de alimentos da cesta básica?", "Muitos itens da cesta básica têm alíquota zero.", { cesta_basica: true }),
+      SIM_NAO("vende_empresas", "Vende também no atacado, para revenda?", "Cliente empresa aproveita crédito.", { b2b: true }),
+      SIM_NAO("fornecedor_simples", "Compra com frequência de fornecedores do Simples Nacional?", "Fornecedor do Simples gera menos crédito.", { fornecedor_simples: true }),
+    ],
+  },
+  {
+    id: "atacado", grupo: "Comércio e varejo", label: "Atacado e distribuição", emoji: "📦",
+    descricao: "Atacadistas, distribuidores e centros de distribuição.",
+    regimes: ["simples", "presumido", "real"], reducao_vendas: 0, icms_padrao: 0.1, compras_pct: 0.85,
+    perguntas: [
+      SIM_NAO("vende_empresas", "Vende principalmente para outras empresas (revenda)?", "Seus clientes vão olhar o crédito que você gera.", { b2b: true }),
+      SIM_NAO("multi_uf", "Opera em mais de um estado?", "Com o IBS, a tributação passa a ser no destino.", { multi_uf: true }),
+      SIM_NAO("icms_st", "Trabalha com substituição tributária (ICMS-ST) hoje?", "O ICMS-ST desaparece gradualmente na transição.", { icms_st: true }),
+    ],
+  },
 ];
 
 export const PORTES = [
@@ -90,6 +141,7 @@ export const PORTES = [
 const SIMPLES_DAS_PADRAO = 0.08;
 
 const semaforo = (delta) => (delta <= -0.5 ? "verde" : delta <= 1 ? "amarelo" : "vermelho");
+const pct2 = (v) => `${(v * 100).toFixed(2).replace(".", ",")}%`;
 const pct1 = (v) => `${(v * 100).toFixed(1).replace(".", ",")}%`;
 export const brl = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
@@ -169,9 +221,11 @@ export function estimar(entrada, parametros) {
     // Excedente de crédito: não é "economia" — fica acumulado até ser compensado ou ressarcido.
     const saldoCredor = Math.max(0, creditoNovo - debitoNovo) * (ap.efeito_financeiro || 0);
 
-    const futuro = Math.max(0, remS - remCred) + ibsCbsFin;
+    // Imposto Seletivo (ex.: extração mineral): incide sobre o faturamento total, inclusive exportado.
+    const impostoSeletivo = ap.ano >= 2027 ? fatAnual * (perfil.imposto_seletivo_pct || 0) : 0;
+    const futuro = Math.max(0, remS - remCred) + ibsCbsFin + impostoSeletivo;
     const atual = regime === "simples" ? vendasInternas * dasPct : atualPagar;
-    const base = vendasInternas || 1;
+    const base = fatAnual || 1;
     return {
       ano: ap.ano,
       cargaAtual: atual, cargaTransicao: regime === "simples" ? Math.max(atual, 0) : futuro,
@@ -196,7 +250,7 @@ export function estimar(entrada, parametros) {
   cards.push({
     cor: semaforo(delta2033),
     titulo: delta2033 <= -0.5 ? "A carga tende a cair até 2033" : delta2033 <= 1 ? "Impacto moderado na carga" : "A carga tende a subir até 2033",
-    texto: `Estimativa de ${pct1(atual / 100)} hoje para ${pct1(a2033.pctTransicao / 100)} em 2033 sobre as vendas (${delta2033 >= 0 ? "+" : ""}${delta2033.toFixed(1).replace(".", ",")} p.p.).`,
+    texto: `Estimativa de ${pct1(atual / 100)} hoje para ${pct1(a2033.pctTransicao / 100)} em 2033 sobre o faturamento (${delta2033 >= 0 ? "+" : ""}${delta2033.toFixed(1).replace(".", ",")} p.p.).`,
   });
   if (a2033.saldoCredor > vendasInternas * 0.005) {
     cards.push({
@@ -213,6 +267,18 @@ export function estimar(entrada, parametros) {
   if (flags.compra_de_pf) cards.push({ cor: "amarelo", titulo: "Compras de produtor PF: crédito presumido", texto: "Essas compras geram crédito presumido, não o crédito cheio. Revise a cadeia de fornecedores no mapa de créditos." });
   if (flags.exporta) cards.push({ cor: "verde", titulo: "Exportação é desonerada", texto: "O tributo não incide na exportação e os créditos são mantidos, com ressarcimento. Atenção ao prazo de devolução, que afeta o caixa." });
   if (flags.multi_uf) cards.push({ cor: "amarelo", titulo: "Tributação no destino", texto: "Operando em mais de um estado, o IBS passa a seguir o destino da venda. Reveja preços e logística por região." });
+  if (perfil.imposto_seletivo_pct) {
+    cards.push({ cor: "amarelo", titulo: "Imposto Seletivo na extração", texto: `Estimado em até ${pct2(perfil.imposto_seletivo_pct)} do faturamento (${brl(fatAnual * perfil.imposto_seletivo_pct)}/ano), inclusive sobre o que é exportado. A alíquota final ainda depende de lei; provisione no custo.` });
+  }
+  if (flags.b2c) cards.push({ cor: "amarelo", titulo: "Consumidor final não aproveita crédito", texto: "Se vende principalmente para pessoa física, o preço final é o que importa. Revise a precificação e a margem por item antes de 2027." });
+  if (flags.b2b) cards.push({ cor: "verde", titulo: "Clientes empresas valorizam o crédito", texto: "Ao vender para empresas, o crédito que você gera entra na decisão de compra. Mostre o custo líquido depois do crédito." });
+  if (flags.fornecedor_simples) cards.push({ cor: "amarelo", titulo: "Fornecedores do Simples geram menos crédito", texto: "Compare fornecedores pelo custo líquido depois do crédito, não só pelo preço da nota." });
+  if (flags.split_cartao) cards.push({ cor: "amarelo", titulo: "Split payment no cartão e no Pix", texto: "É onde a retenção do tributo na liquidação mais afeta o caixa. Projete o capital de giro e revise prazos com fornecedores." });
+  if (flags.cesta_basica) cards.push({ cor: "verde", titulo: "Itens da cesta básica com alíquota zero", texto: "Muitos alimentos básicos têm alíquota zero. Confirme cada item pelo NCM na Consulta NCM: a lista é específica." });
+  if (flags.medicamentos) cards.push({ cor: "verde", titulo: "Medicamentos têm tratamento favorecido", texto: "Há redução e, para alguns itens, alíquota zero. Perfumaria e higiene seguem regra diferente: separe as categorias no cadastro." });
+  if (flags.icms_st) cards.push({ cor: "amarelo", titulo: "O ICMS-ST sai de cena aos poucos", texto: "Reveja a formação de preço e o estoque de mercadorias com ST retido durante a transição." });
+  if (flags.contratos_longo) cards.push({ cor: "vermelho", titulo: "Contratos de longo prazo com preço fixo", texto: "Contratos que atravessam 2027 sem cláusula de revisão tributária concentram risco de margem. Renegocie antes." });
+  if (flags.logistica_propria) cards.push({ cor: "verde", titulo: "Logística própria passa a gerar crédito", texto: "Combustível, peças, pneus e manutenção entram no crédito. Organize as notas de insumos para não perder crédito." });
   if (flags.cadeia_combustiveis) cards.push({ cor: "amarelo", titulo: "Cadeia de combustíveis tem regras próprias", texto: "Confirme o enquadramento das suas vendas a distribuidoras nas regras específicas para biocombustíveis." });
   cards.push({ cor: "amarelo", titulo: "Split payment e caixa", texto: "A partir da fase de testes, parte do tributo será retida na liquidação do pagamento. Projete o capital de giro antes de 2027." });
 
@@ -227,9 +293,10 @@ export function estimar(entrada, parametros) {
   const premissas = [
     `Faturamento anual estimado: ${brl(fatAnual)}; compras de ${pct1(entrada.comprasPct / 100)} do faturamento, com ${pct1(creditoPct)} vindas de fornecedores que geram crédito.`,
     regime === "simples"
-      ? `Carga atual: DAS médio de ${pct1(dasPct)} sobre as vendas${cargaInf != null ? " (informado por você)" : " (premissa padrão)"}. O regime regular é mostrado só como comparação.`
+      ? `Carga atual: DAS médio de ${pct1(dasPct)} sobre o faturamento${cargaInf != null ? " (informado por você)" : " (premissa padrão)"}. O regime regular é mostrado só como comparação.`
       : `Carga atual: PIS/Cofins do regime ${REGIMES.find((r) => r.id === regime).label} e ICMS médio de ${pct1(tx.icms)}${cargaInf != null ? " (ajustado à carga que você informou)" : " (premissa do segmento)"}.`,
     `Redução média de IBS/CBS nas vendas: ${flags.fora_ibs ? "fora do IBS/CBS (receita abaixo do teto)" : pct1(reducao)}.`,
+    ...(perfil.imposto_seletivo_pct ? [`Imposto Seletivo: ${pct2(perfil.imposto_seletivo_pct)} do faturamento a partir de 2027 (alíquota máxima prevista; a definir em lei).`] : []),
     "Alíquotas do IBS/CBS e fatores de transição: parâmetros do InTAX (as alíquotas finais do IBS ainda serão fixadas).",
     `Premissas ${PREMISSAS_VERSAO}.`,
   ];
