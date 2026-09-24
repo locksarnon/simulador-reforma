@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 
 const TOAST_LIMIT = 20;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_REMOVE_DELAY = 500;
+const TOAST_AUTO_DISMISS = 5000; // ms; erros ficam um pouco mais (ver toast())
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -133,6 +134,11 @@ function toast({ ...props }) {
       },
     },
   });
+
+  // Some sozinho: sem isso o aviso ficava preso na tela cobrindo botões.
+  if (props.duration !== Infinity) {
+    setTimeout(dismiss, props.duration ?? (props.variant === "destructive" ? 8000 : TOAST_AUTO_DISMISS));
+  }
 
   return {
     id,
