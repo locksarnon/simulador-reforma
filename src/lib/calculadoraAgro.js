@@ -28,8 +28,8 @@ const SIM_NAO = (id, texto, ajuda, sim = {}, nao = {}) => ({ id, texto, ajuda, s
  */
 export const PERFIS = [
   {
-    id: "produtor_pj", label: "Produtor rural — pessoa jurídica", emoji: "🌾",
-    descricao: "Fazenda ou empresa rural que produz grãos, gado, hortifrúti, etc.",
+    id: "produtor_pj", grupo: "Regimes diferenciados", lei: "Título IV, Cap. VII (Arts. 164–168)", label: "Produtor rural — pessoa jurídica", emoji: "🌾",
+    descricao: "Produtor rural que pode ser não contribuinte se a receita anual for inferior a R$ 3,6 milhões.",
     regimes: ["presumido", "real", "simples"], reducao_vendas: 0, icms_padrao: 0, compras_pct: 0.55,
     perguntas: [
       SIM_NAO("receita_3_6", "Sua receita anual passa de R$ 3,6 milhões?", "Abaixo desse valor, o produtor pode ficar fora do IBS/CBS.", {}, { fora_ibs: true }),
@@ -38,8 +38,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "produtor_pf", label: "Produtor rural — pessoa física", emoji: "🧑‍🌾",
-    descricao: "Produtor rural que atua em nome próprio (livro-caixa / carnê-leão).",
+    id: "produtor_pf", grupo: "Regimes diferenciados", lei: "Título IV, Cap. VII (Arts. 164–168)", label: "Produtor rural — pessoa física", emoji: "🧑‍🌾",
+    descricao: "Produtor rural que atua em nome próprio; pode ser não contribuinte abaixo de R$ 3,6 milhões.",
     regimes: ["produtor_pf"], reducao_vendas: 0, icms_padrao: 0, compras_pct: 0.5,
     perguntas: [
       SIM_NAO("receita_3_6", "Sua receita anual passa de R$ 3,6 milhões?", "Abaixo desse valor, o produtor pode ficar fora do IBS/CBS.", {}, { fora_ibs: true }),
@@ -48,8 +48,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "sementeira", label: "Sementeira", emoji: "🌱",
-    descricao: "Produção e venda de sementes e mudas.",
+    id: "sementeira", grupo: "Regimes diferenciados", lei: "Art. 128, IX · Anexo IX", label: "Insumos agropecuários e aquícolas — sementes e mudas", emoji: "🌱",
+    descricao: "Produção e venda de sementes e mudas (redução de 60%).",
     regimes: ["presumido", "real", "simples"], reducao_vendas: 0.6, icms_padrao: 0.04, compras_pct: 0.6,
     perguntas: [
       SIM_NAO("vende_produtor", "Você vende principalmente para produtores rurais?", "Insumos agropecuários têm tratamento favorecido.", { cliente_produtor: true }),
@@ -58,8 +58,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "racao", label: "Indústria de ração animal", emoji: "🐄",
-    descricao: "Fabricação de ração e suplementos para animais.",
+    id: "racao", grupo: "Regimes diferenciados", lei: "Art. 128, IX · Anexo IX", label: "Insumos agropecuários e aquícolas — rações e suplementos", emoji: "🐄",
+    descricao: "Fabricação de rações e suplementos para animais (redução de 60%).",
     regimes: ["presumido", "real", "simples"], reducao_vendas: 0.6, icms_padrao: 0.07, compras_pct: 0.7,
     perguntas: [
       SIM_NAO("compra_de_pf", "Você compra grãos direto de produtores rurais?", "Compra de produtor PF gera crédito presumido.", { compra_de_pf: true }),
@@ -68,8 +68,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "etanol", label: "Indústria de etanol", emoji: "⛽",
-    descricao: "Usinas e destilarias de etanol e biocombustíveis.",
+    id: "etanol", grupo: "Regimes específicos", lei: "Título V, Cap. I (Arts. 172–180)", label: "Combustíveis — etanol e biocombustíveis", emoji: "⛽",
+    descricao: "Usinas e destilarias (IBS/CBS uma única vez na cadeia).",
     regimes: ["presumido", "real"], reducao_vendas: 0, icms_padrao: 0.12, compras_pct: 0.6,
     perguntas: [
       SIM_NAO("vende_distribuidora", "Você vende para distribuidoras de combustíveis?", "A cadeia de combustíveis tem regras específicas.", { cadeia_combustiveis: true }),
@@ -78,8 +78,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "mineradora", grupo: "Mineração", label: "Mineradora", emoji: "⛏️",
-    descricao: "Extração e beneficiamento de minérios.",
+    id: "mineradora", grupo: "Imposto Seletivo", lei: "Livro II, Art. 409 e Art. 422, § 2º", label: "Bens minerais — extração", emoji: "⛏️",
+    descricao: "Extração de minério (Imposto Seletivo de até 0,25%, inclusive sobre o exportado).",
     regimes: ["presumido", "real"], reducao_vendas: 0, icms_padrao: 0.05, compras_pct: 0.4,
     imposto_seletivo_pct: 0.0025, // alíquota MÁXIMA prevista na extração (a definir em lei) — premissa
     perguntas: [
@@ -89,8 +89,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "restaurante", grupo: "Comércio e varejo", label: "Bar ou restaurante", emoji: "🍽️",
-    descricao: "Bares, restaurantes, lanchonetes e hotelaria.",
+    id: "restaurante", grupo: "Regimes específicos", lei: "Título V, Cap. VII, Seção I (Arts. 273–280)", label: "Bares e restaurantes", emoji: "🍽️",
+    descricao: "Inclui lanchonetes e bebidas não alcoólicas preparadas no local (redução de 40%; sem crédito ao cliente).",
     regimes: ["simples", "presumido", "real"], reducao_vendas: 0.4, icms_padrao: 0.03, compras_pct: 0.35,
     perguntas: [
       SIM_NAO("b2c", "A maior parte das vendas é para consumidor final (pessoa física)?", "Consumidor final não usa crédito: o preço pesa mais que o tributo destacado.", { b2c: true }),
@@ -99,8 +99,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "farmacia", grupo: "Comércio e varejo", label: "Farmácia", emoji: "💊",
-    descricao: "Drogarias e farmácias de manipulação.",
+    id: "farmacia", grupo: "Regimes diferenciados", lei: "Art. 133 · Art. 146", label: "Medicamentos — comércio", emoji: "💊",
+    descricao: "Drogarias e farmácias de manipulação (redução de 60%; lista com alíquota zero).",
     regimes: ["simples", "presumido", "real"], reducao_vendas: 0.6, icms_padrao: 0.1, compras_pct: 0.7,
     perguntas: [
       SIM_NAO("medicamentos", "A maior parte das vendas é de medicamentos (não perfumaria ou higiene)?", "Medicamentos têm redução, e alguns têm alíquota zero.", { medicamentos: true }),
@@ -109,8 +109,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "mercado", grupo: "Comércio e varejo", label: "Mercado / supermercado (varejo)", emoji: "🛒",
-    descricao: "Mercearias, supermercados e hipermercados.",
+    id: "mercado", grupo: "Regimes diferenciados", lei: "Art. 128, VI · Título III, Cap. II", label: "Alimentos para consumo humano e cesta básica — comércio", emoji: "🛒",
+    descricao: "Mercearias e supermercados (redução de 60%; cesta básica com alíquota zero).",
     regimes: ["simples", "presumido", "real"], reducao_vendas: 0, icms_padrao: 0.1, compras_pct: 0.78,
     perguntas: [
       SIM_NAO("cesta_basica", "Boa parte das vendas é de alimentos da cesta básica?", "Muitos itens da cesta básica têm alíquota zero.", { cesta_basica: true }),
@@ -119,8 +119,8 @@ export const PERFIS = [
     ],
   },
   {
-    id: "atacado", grupo: "Comércio e varejo", label: "Atacado e distribuição", emoji: "📦",
-    descricao: "Atacadistas, distribuidores e centros de distribuição.",
+    id: "atacado", grupo: "Regime regular", lei: "Livro I, Título I", label: "Regime regular — atacado e distribuição", emoji: "📦",
+    descricao: "Atacadistas e distribuidores, sem regime diferenciado.",
     regimes: ["simples", "presumido", "real"], reducao_vendas: 0, icms_padrao: 0.1, compras_pct: 0.85,
     perguntas: [
       SIM_NAO("vende_empresas", "Vende principalmente para outras empresas (revenda)?", "Seus clientes vão olhar o crédito que você gera.", { b2b: true }),

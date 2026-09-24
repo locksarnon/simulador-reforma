@@ -37,6 +37,7 @@ import FerramentasConsultaNcm from '@/pages/FerramentasConsultaNcm';
 import FerramentasValidadorCadastro from '@/pages/FerramentasValidadorCadastro';
 import LeadsPage from '@/pages/LeadsPage';
 import NewsletterPage from '@/pages/NewsletterPage';
+import RoteiroTestesPage from '@/pages/RoteiroTestesPage';
 import PublicLayout from '@/pages/publico/PublicLayout';
 import CalculadoraPage from '@/pages/publico/CalculadoraPage';
 import ConsultaNcmPublica from '@/pages/publico/ConsultaNcmPublica';
@@ -94,6 +95,7 @@ function App() {
                   <Route path="/ferramentas/validador-cadastro" element={<FerramentasValidadorCadastro />} />
                   <Route path="/comercial/leads" element={<LeadsPage />} />
                   <Route path="/comercial/newsletter" element={<NewsletterPage />} />
+                  <Route path="/roteiro-testes" element={<RoteiroTestesPage />} />
                   <Route path="/manual" element={<ManualPage />} />
                   <Route path="/arquitetura" element={<ArquiteturaPage />} />
                 </Route>

@@ -106,15 +106,16 @@ export default function CalculadoraPage() {
       {/* 0 — perfil */}
       {passo === 0 && (
         <div className="space-y-6">
-          {["Agro", "Mineração", "Comércio e varejo"].map((g) => (
+          {["Regimes diferenciados", "Regimes específicos", "Imposto Seletivo", "Regime regular"].map((g) => (
             <section key={g}>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{g}</h2>
               <div className="grid sm:grid-cols-2 gap-3">
-                {PERFIS.filter((p) => (p.grupo || "Agro") === g).map((p) => (
+                {PERFIS.filter((p) => p.grupo === g).map((p) => (
                   <button key={p.id} type="button" onClick={() => escolherPerfil(p.id)} className="text-left rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-colors">
                     <div className="text-2xl mb-1" aria-hidden>{p.emoji}</div>
                     <div className="font-medium">{p.label}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">{p.descricao}</div>
+                    <div className="text-[10px] text-muted-foreground/80 mt-2">LC 214/2025 · {p.lei}</div>
                   </button>
                 ))}
               </div>

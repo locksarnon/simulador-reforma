@@ -21,6 +21,7 @@ import {
   Mail,
   Users,
   ExternalLink,
+  ClipboardCheck,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ const sections = [
   {
     title: "Suporte",
     items: [
+      { to: "/roteiro-testes", label: "Roteiro de testes (provisório)", icon: ClipboardCheck },
       { to: "/manual", label: "FAQ & Manual", icon: HelpCircle },
       { to: "/arquitetura", label: "Arquitetura & Correlações", icon: Code2 },
     ],
