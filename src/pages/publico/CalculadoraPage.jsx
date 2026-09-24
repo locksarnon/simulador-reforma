@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "@/api/base44Client";
-import { PERFIS, REGIMES, estimar, montarRelatorio, brl } from "@/lib/calculadoraAgro";
+import { PERFIS, REGIMES, estimar, montarRelatorio, brl, CONTATO } from "@/lib/calculadoraAgro";
 import { comoEraComoFica, pontosTratados, pontosNaoTratados, secoesReforma } from "@/lib/relatorioReforma";
 import LeadForm from "@/components/ferramentas/LeadForm";
 
@@ -286,6 +286,17 @@ export default function CalculadoraPage() {
             <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground text-xs">{resultado.premissas.map((p) => <li key={p}>{p}</li>)}</ul>
           </details>
 
+          <div className="rounded-xl border border-border bg-muted/40 p-5">
+            <p className="font-semibold">Quer ver isso com as suas notas reais?</p>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-prose">
+              Este resultado usa médias do seu segmento. Com as suas notas fiscais, a equipe da FAL Agro calcula item a item e mostra onde a reforma mais pesa ou ajuda no seu caso. Sem compromisso: começamos com uma conversa curta.
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+              <a href={`${CONTATO.whatsappLink}?text=${encodeURIComponent("Olá! Fiz a calculadora da reforma tributária no InTAX e gostaria de conversar sobre o meu caso.")}`} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary/5">Conversar no WhatsApp</a>
+              <a href={`mailto:${CONTATO.email}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{CONTATO.email}</a>
+            </div>
+          </div>
+
           {!enviado ? (
             <LeadForm
               origem="calculadora" titulo="Receba o relatório completo em PDF"
@@ -297,7 +308,7 @@ export default function CalculadoraPage() {
           ) : (
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 p-5 space-y-3">
               <p className="font-medium flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Pronto, {enviado.nome?.split(" ")[0]}!</p>
-              <p className="text-sm text-muted-foreground">{enviado.email_configurado ? "Enviamos o relatório para o seu e-mail." : "Baixe o relatório abaixo."} Nossa equipe pode ajudar a refazer esse cálculo com as suas notas fiscais reais.</p>
+              <p className="text-sm text-muted-foreground">{enviado.email_configurado ? "Enviamos o relatório para o seu e-mail." : "Baixe o relatório abaixo."} Se quiser, refazemos esse cálculo com as suas notas fiscais reais: {CONTATO.whatsapp} · {CONTATO.email}.</p>
               <button type="button" onClick={baixarPdf} disabled={baixando} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
                 {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Baixar PDF agora
               </button>

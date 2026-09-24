@@ -10,6 +10,12 @@ import { calcSistemaAtual, calcIbsCbs } from "../../base44/shared/taxEngine";
  * para o especialista revisar. Nada aqui é promessa de economia: o resultado
  * é sempre apresentado como estimativa e convida ao diagnóstico com notas reais.
  */
+export const CONTATO = {
+  whatsapp: "+55 66 99718-5304",
+  whatsappLink: "https://wa.me/5566997185304",
+  email: "contato@falagro.com.br",
+};
+
 export const PREMISSAS_VERSAO = "0.1 — premissas a validar pelo especialista tributário";
 
 export const REGIMES = [
@@ -332,7 +338,11 @@ export function montarRelatorio(entrada, r) {
       { titulo: "Pontos de atenção", itens: r.cards.map((c) => `${c.titulo}: ${c.texto}`) },
       { titulo: "3 ações prioritárias", itens: r.acoes },
       { titulo: "Premissas desta estimativa", itens: r.premissas },
-      { titulo: "Próximo passo", paragrafos: ["Quer esse cálculo com as suas notas fiscais reais, nota a nota? Solicite o diagnóstico InTAX com a equipe FAL Agro."] },
+      {
+        titulo: "Fale com a FAL Agro",
+        paragrafos: ["Esta é uma estimativa por médias. Se quiser ver o cálculo com as suas notas fiscais reais, nota a nota, e tirar dúvidas sobre o seu caso, é só chamar:"],
+        itens: [`WhatsApp: ${CONTATO.whatsapp}`, `E-mail: ${CONTATO.email}`],
+      },
     ],
   };
 }
