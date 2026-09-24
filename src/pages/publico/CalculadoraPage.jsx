@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Download, Loader2, CheckCircle2 } from "lucide-r
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "@/api/base44Client";
 import { PERFIS, REGIMES, estimar, montarRelatorio, brl } from "@/lib/calculadoraAgro";
+import { comoEraComoFica, pontosTratados, pontosNaoTratados, secoesReforma } from "@/lib/relatorioReforma";
 import LeadForm from "@/components/ferramentas/LeadForm";
 
 const COR = {
@@ -82,13 +83,20 @@ export default function CalculadoraPage() {
   const resultado = useMemo(() => {
     if (passo < 3 || !perfil || !parametros?.length) return null;
     return estimar({
-      perfil: perfil.id, regime: dados.regime, faturamentoMensal: numMoeda(dados.faturamento),
+      perfil: perfil.id, regime: dados.regime, faturamentoAnual: numMoeda(dados.faturamento),
       comprasPct: dados.comprasPct, creditoPct: dados.creditoPct, exportaPct: dados.exportaPct, reducao: dados.reducao,
       respostas, cargaInformada: dados.carga === "" ? null : Number(dados.carga.replace(",", ".")),
     }, parametros);
   }, [passo, perfil, parametros, dados, respostas]);
 
-  const relatorio = useMemo(() => (resultado ? montarRelatorio(dados, resultado) : null), [resultado, dados]);
+  const relatorio = useMemo(() => {
+    if (!resultado) return null;
+    const base = montarRelatorio(dados, resultado);
+    const i = base.secoes.findIndex((s) => s.titulo === "Pontos de atenção");
+    base.secoes.splice(i < 0 ? base.secoes.length : i, 0, ...secoesReforma(resultado));
+    return base;
+  }, [resultado, dados]);
+  const comparativo = useMemo(() => (resultado ? comoEraComoFica(resultado.perfil, resultado.regime) : null), [resultado]);
 
   const baixarPdf = async () => {
     setBaixando(true);
@@ -170,10 +178,10 @@ export default function CalculadoraPage() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium" htmlFor="fat">Faturamento mensal médio</label>
+            <label className="text-sm font-medium" htmlFor="fat">Faturamento anual (R$)</label>
             <div className="relative mt-1.5">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R$</span>
-              <input id="fat" inputMode="numeric" value={dados.faturamento} onChange={(e) => setDados((d) => ({ ...d, faturamento: fmtMoeda(e.target.value) }))} placeholder="500.000" className="w-full h-11 rounded-md border border-input bg-background pl-10 pr-3 text-base tabular-nums" />
+              <input id="fat" inputMode="numeric" value={dados.faturamento} onChange={(e) => setDados((d) => ({ ...d, faturamento: fmtMoeda(e.target.value) }))} placeholder="6.000.000" className="w-full h-11 rounded-md border border-input bg-background pl-10 pr-3 text-base tabular-nums" />
             </div>
           </div>
           <Slider label="Compras de insumos e mercadorias" ajuda="Quanto do faturamento vai para compras (valor inicial típico do seu perfil)." valor={dados.comprasPct} onChange={(v) => setDados((d) => ({ ...d, comprasPct: v }))} max={95} />
@@ -229,6 +237,34 @@ export default function CalculadoraPage() {
             {resultado.regularComparacao && (
               <p className="text-xs text-muted-foreground mt-2">Se optar pelo regime regular (fora do Simples), a carga estimada em 2033 seria {pct(resultado.regularComparacao.pct2033)}.</p>
             )}
+          </div>
+
+          {comparativo && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="font-medium text-sm">Como era × como fica ({comparativo.regimeRot})</p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead><tr className="bg-muted/60 text-left text-xs"><th className="p-2 border border-border w-1/5">Tema</th><th className="p-2 border border-border">Como era</th><th className="p-2 border border-border">Como fica</th></tr></thead>
+                  <tbody>{comparativo.linhas.map((l) => (
+                    <tr key={l.tema} className="align-top">
+                      <td className="p-2 border border-border font-medium">{l.tema}{l.base && <div className="text-[11px] font-normal text-muted-foreground">{l.base}</div>}</td>
+                      <td className="p-2 border border-border text-muted-foreground">{l.era}</td>
+                      <td className="p-2 border border-border">{l.fica}{l.confirmar && <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">A confirmar: {l.confirmar}</div>}</td>
+                    </tr>))}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/10 p-4">
+              <p className="font-medium text-sm mb-2">Já considerado nesta estimativa</p>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-muted-foreground">{pontosTratados(resultado).map((t) => <li key={t}>{t}</li>)}</ul>
+            </div>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/10 p-4">
+              <p className="font-medium text-sm mb-2">Ainda não considerado</p>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-muted-foreground">{pontosNaoTratados(resultado).map((t) => <li key={t.t}><b className="text-foreground">{t.t}.</b> {t.p}</li>)}</ul>
+            </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">

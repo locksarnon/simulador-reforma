@@ -161,7 +161,7 @@ function taxasAtuais(regime, perfil, cargaInformada) {
 }
 
 /**
- * @param entrada { perfil, regime, faturamentoMensal, comprasPct, creditoPct, exportaPct, respostas, cargaInformada }
+ * @param entrada { perfil, regime, faturamentoAnual, comprasPct, creditoPct, exportaPct, respostas, cargaInformada }
  * @param parametros linhas de TransicaoAno (GET /public/parametros-transicao)
  */
 export function estimar(entrada, parametros) {
@@ -170,7 +170,7 @@ export function estimar(entrada, parametros) {
   perfil.perguntas.forEach((q) => Object.assign(flags, entrada.respostas?.[q.id] === "sim" ? q.sim : q.nao));
 
   const regime = entrada.regime;
-  const fatAnual = entrada.faturamentoMensal * 12;
+  const fatAnual = entrada.faturamentoAnual;
   const exportaPct = flags.exporta ? Math.min(0.95, Math.max(0, (entrada.exportaPct ?? 0) / 100)) : 0;
   const vendasInternas = fatAnual * (1 - exportaPct);
   const compras = fatAnual * Math.min(0.95, Math.max(0, entrada.comprasPct / 100));
@@ -302,7 +302,7 @@ export function estimar(entrada, parametros) {
   ];
 
   return {
-    perfil: perfil.id, perfilLabel: perfil.label, regime, base: { fatAnual, compras, vendasInternas },
+    perfil: perfil.id, perfilLabel: perfil.label, regime, reducao, base: { fatAnual, compras, vendasInternas },
     serie, atual, y2027: a2027, y2033: a2033, delta2027, delta2033, deltaReais2033,
     regularComparacao: regime === "simples" ? { pct2033: a2033.pctRegular, delta: a2033.pctRegular - atual } : null,
     cards, acoes, premissas, flags,

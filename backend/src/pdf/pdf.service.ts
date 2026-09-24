@@ -12,6 +12,8 @@ export type SecaoPdf = {
   paragrafos?: string[];
   itens?: string[];
   tabela?: { cabecalho: string[]; linhas: string[][] };
+  /** Comparativo com texto longo (quebra de linha): tema, como era, como fica, base legal. */
+  blocos?: { tema: string; era: string; fica: string; base?: string; confirmar?: string }[];
 };
 
 export type DocumentoPdf = {
@@ -68,6 +70,32 @@ export class PdfService {
         pdf.moveDown(0.25).font('Helvetica').fontSize(10).fillColor('#1c2b24');
         (s.paragrafos || []).slice(0, 12).forEach((p) => pdf.text(cortar(p, 900), 48, pdf.y, { width: largura }).moveDown(0.3));
         (s.itens || []).slice(0, 15).forEach((i) => pdf.text(`•  ${cortar(i, 500)}`, 52, pdf.y, { width: largura - 4 }).moveDown(0.15));
+
+        if (s.blocos) {
+          const colW = (largura - 10) / 2;
+          s.blocos.slice(0, 12).forEach((b) => {
+            pdf.font('Helvetica').fontSize(9);
+            const hEra = pdf.heightOfString(cortar(b.era, 400), { width: colW });
+            const hFica = pdf.heightOfString(cortar(b.fica, 400), { width: colW });
+            const h = Math.max(hEra, hFica) + 30;
+            if (pdf.y + h > pdf.page.height - 70) pdf.addPage();
+            const y0 = pdf.y;
+            pdf.rect(48, y0, largura, 14).fill('#e8efe9');
+            pdf.fillColor(VERDE).font('Helvetica-Bold').fontSize(9).text(cortar(b.tema, 80) + (b.base ? `  (${cortar(b.base, 60)})` : ''), 52, y0 + 3, { width: largura - 8, lineBreak: false });
+            pdf.fillColor(CINZA).font('Helvetica-Bold').fontSize(8).text('COMO ERA', 52, y0 + 18, { width: colW, lineBreak: false });
+            pdf.text('COMO FICA', 52 + colW + 10, y0 + 18, { width: colW, lineBreak: false });
+            pdf.fillColor('#1c2b24').font('Helvetica').fontSize(9);
+            pdf.text(cortar(b.era, 400), 52, y0 + 29, { width: colW - 4 });
+            pdf.text(cortar(b.fica, 400), 52 + colW + 10, y0 + 29, { width: colW - 4 });
+            let fim = y0 + 29 + Math.max(hEra, hFica);
+            if (b.confirmar) {
+              pdf.font('Helvetica-Oblique').fontSize(8).fillColor(CINZA).text(`A confirmar: ${cortar(b.confirmar, 200)}`, 52, fim + 2, { width: largura - 8 });
+              fim = pdf.y;
+            }
+            pdf.x = 48;
+            pdf.y = fim + 8;
+          });
+        }
 
         if (s.tabela) {
           const cab = s.tabela.cabecalho.slice(0, 8);
