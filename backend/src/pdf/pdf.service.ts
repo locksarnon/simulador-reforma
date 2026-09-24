@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import PDFDocument from 'pdfkit';
+
+/** Logo FAL Agro (backend/assets). Se o arquivo faltar, o cabeçalho cai no texto "FAL Agro". */
+const LOGO_PATH = join(process.cwd(), 'assets', 'logo-fal-agro.png');
+const LOGO: Buffer | null = existsSync(LOGO_PATH) ? readFileSync(LOGO_PATH) : null;
 
 export type SecaoPdf = {
   titulo: string;
@@ -38,8 +44,17 @@ export class PdfService {
       const largura = pdf.page.width - 96;
 
       pdf.rect(0, 0, pdf.page.width, 64).fill(VERDE);
-      pdf.fillColor('#ffffff').font('Helvetica-Bold').fontSize(20).text('InTAX', 48, 22, { continued: true });
-      pdf.font('Helvetica').fontSize(10).text('   por FAL Agro');
+      pdf.fillColor('#ffffff').font('Helvetica-Bold').fontSize(20).text('InTAX', 48, 22, { lineBreak: false });
+      const xInTax = 48 + pdf.widthOfString('InTAX');
+      pdf.font('Helvetica').fontSize(10).text('por', xInTax + 8, 33, { lineBreak: false });
+      const xLogo = xInTax + 8 + pdf.widthOfString('por') + 6;
+      if (LOGO) {
+        // Base branca: o logo tem fundo claro e o cabeçalho é verde-escuro.
+        pdf.roundedRect(xLogo, 19, 72, 26, 4).fill('#ffffff');
+        pdf.image(LOGO, xLogo + 5, 22, { height: 20 });
+      } else {
+        pdf.text('FAL Agro', xLogo, 33, { lineBreak: false });
+      }
       pdf.fillColor('#000000');
 
       pdf.y = 90;
