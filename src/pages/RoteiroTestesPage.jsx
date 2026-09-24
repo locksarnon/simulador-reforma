@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ClipboardCopy, ExternalLink, AlertTriangle, RotateCcw, ListChecks, Map as MapIcon } from "lucide-react";
+import { api } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import PageHeader from "@/components/PageHeader";
 import { toast } from "@/components/ui/use-toast";
 import { ROTEIRO, GRUPOS_ROTEIRO, CSV_TESTE_CADASTRO } from "@/lib/roteiroTestes";
@@ -13,12 +15,105 @@ const STATUS = [
   { id: "problema", rotulo: "Com problema", cor: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300" },
 ];
 
+/**
+ * Estado do roteiro com autosave no servidor (por usuário) e cópia local como
+ * reserva. Carrega o do servidor ao abrir; se o servidor estiver vazio, sobe o
+ * que já existir no navegador.
+ */
 function useEstado() {
   const [estado, setEstado] = useState(() => {
     try { return JSON.parse(localStorage.getItem(CHAVE) || "{}"); } catch { return {}; }
   });
-  useEffect(() => { try { localStorage.setItem(CHAVE, JSON.stringify(estado)); } catch { /* sem storage */ } }, [estado]);
-  return [estado, setEstado];
+  const [salvo, setSalvo] = useState({ status: "carregando", em: null });
+  const pronto = React.useRef(false);
+  const sujo = React.useRef(false);
+
+  useEffect(() => {
+    let vivo = true;
+    api.get("/roteiro-testes/meu").then((r) => {
+      if (!vivo) return;
+      if (r?.estado && Object.keys(r.estado).length) { setEstado(r.estado); setSalvo({ status: "salvo", em: r.atualizado_em }); }
+      else { sujo.current = true; setSalvo({ status: "pendente", em: null }); }
+      pronto.current = true;
+    }).catch(() => { if (vivo) { pronto.current = true; setSalvo({ status: "erro", em: null }); } });
+    return () => { vivo = false; };
+  }, []);
+
+  const enviar = React.useCallback(async (est) => {
+    setSalvo((s) => ({ ...s, status: "salvando" }));
+    try { const r = await api.put("/roteiro-testes/meu", { estado: est }); sujo.current = false; setSalvo({ status: "salvo", em: r.atualizado_em }); }
+    catch { setSalvo((s) => ({ ...s, status: "erro" })); }
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(CHAVE, JSON.stringify(estado)); } catch { /* sem storage */ }
+    if (!pronto.current) return undefined;
+    sujo.current = true;
+    setSalvo((s) => (s.status === "salvando" ? s : { ...s, status: "pendente" }));
+    const t = setTimeout(() => enviar(estado), 1200);
+    return () => clearTimeout(t);
+  }, [estado, enviar]);
+
+  // Não perde o último clique ao fechar a aba.
+  useEffect(() => {
+    const aviso = (e) => { if (sujo.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, []);
+
+  return [estado, setEstado, salvo, () => enviar(estado)];
+}
+
+function IndicadorSalvo({ salvo, onSalvar }) {
+  const hora = salvo.em ? new Date(salvo.em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+  const txt = { carregando: "Carregando…", pendente: "Alterações ainda não salvas", salvando: "Salvando…", erro: "Não salvou — verifique a conexão", salvo: `Salvo${hora ? ` às ${hora}` : ""}` }[salvo.status];
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className={salvo.status === "erro" ? "text-red-600" : salvo.status === "salvo" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>{txt}</span>
+      <button type="button" onClick={onSalvar} className="px-2.5 py-1 rounded-md border border-border hover:bg-muted">Salvar agora</button>
+    </div>
+  );
+}
+
+/** Visão do administrador: progresso de cada tester, somente leitura. */
+function EquipeTestes() {
+  const [lista, setLista] = useState(null);
+  const [sel, setSel] = useState(0);
+  useEffect(() => { api.get("/roteiro-testes/todos").then(setLista).catch(() => setLista([])); }, []);
+  if (!lista) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  if (!lista.length) return <p className="text-sm text-muted-foreground">Nenhum tester salvou progresso ainda.</p>;
+  const t = lista[Math.min(sel, lista.length - 1)];
+  const est = t.estado || {};
+  const total = ROTEIRO.reduce((a, f) => a + f.passos.length, 0);
+  const feitos = ROTEIRO.reduce((a, f) => a + f.passos.filter((_, i) => est[f.id]?.passos?.[i]).length, 0);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={sel} onChange={(e) => setSel(Number(e.target.value))} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+          {lista.map((x, i) => <option key={x.email} value={i}>{x.nome || x.email}</option>)}
+        </select>
+        <span className="text-sm text-muted-foreground">{t.email} · {feitos}/{total} passos · atualizado em {new Date(t.atualizado_em).toLocaleString("pt-BR")}</span>
+      </div>
+      <div className="rounded-xl border border-border overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead><tr className="bg-muted/60 text-left text-xs"><th className="p-2 border border-border">Funcionalidade</th><th className="p-2 border border-border">Status</th><th className="p-2 border border-border">Passos</th><th className="p-2 border border-border">Observações</th></tr></thead>
+          <tbody>{ROTEIRO.map((f) => {
+            const e = est[f.id] || { passos: {}, status: "", obs: "" };
+            const st = STATUS.find((s) => s.id === e.status) || STATUS[0];
+            const n = f.passos.filter((_, i) => e.passos?.[i]).length;
+            return (
+              <tr key={f.id} className="align-top">
+                <td className="p-2 border border-border font-medium">{f.titulo}</td>
+                <td className="p-2 border border-border"><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${st.cor}`}>{st.rotulo}</span></td>
+                <td className="p-2 border border-border tabular-nums">{n}/{f.passos.length}</td>
+                <td className="p-2 border border-border whitespace-pre-wrap">{e.obs || "—"}</td>
+              </tr>
+            );
+          })}</tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function Funcao({ f, indice, estado, setEstado }) {
@@ -163,7 +258,9 @@ function Mapa() {
 /** Página PROVISÓRIA para o tester (remover depois). */
 export default function RoteiroTestesPage() {
   const [aba, setAba] = useState("roteiro");
-  const [estado, setEstado] = useEstado();
+  const [estado, setEstado, salvo, salvarAgora] = useEstado();
+  const { user } = useAuth();
+  const ehAdmin = user?.role === "admin";
 
   const progresso = useMemo(() => {
     const totalPassos = ROTEIRO.reduce((a, f) => a + f.passos.length, 0);
@@ -188,7 +285,7 @@ export default function RoteiroTestesPage() {
     try { await navigator.clipboard.writeText(linhas.join("\n")); toast({ title: "Relatório copiado", description: "Cole no e-mail ou no chat para enviar." }); } catch { toast({ title: "Não foi possível copiar", variant: "destructive" }); }
   };
 
-  const limpar = () => { if (window.confirm("Apagar todo o progresso e as observações deste roteiro neste navegador?")) setEstado({}); };
+  const limpar = () => { if (window.confirm("Apagar todo o progresso e as observações deste roteiro?")) setEstado({}); };
   const pct = progresso.totalPassos ? Math.round((progresso.feitos / progresso.totalPassos) * 100) : 0;
   let n = 0;
 
@@ -198,7 +295,7 @@ export default function RoteiroTestesPage() {
       <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 text-sm">
           <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-          <span><b>Tela provisória para a fase de testes</b> — será removida depois. O progresso e as observações ficam salvos só neste navegador. Use dados de teste e prefixe tudo que criar com "TESTE-".</span>
+          <span><b>Tela provisória para a fase de testes</b> — será removida depois. O progresso e as observações são salvos automaticamente na sua conta e o administrador consegue acompanhar. Use dados de teste e prefixe tudo que criar com "TESTE-".</span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -206,19 +303,20 @@ export default function RoteiroTestesPage() {
             <h1 className="text-xl font-heading font-semibold">Roteiro de testes do InTAX</h1>
             <p className="text-sm text-muted-foreground">Passo a passo por funcionalidade: onde clicar, o que esperar, cuidados e quando considerar aprovado.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <IndicadorSalvo salvo={salvo} onSalvar={salvarAgora} />
             <button onClick={copiarRelatorio} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm"><ClipboardCopy className="w-4 h-4" /> Copiar relatório</button>
             <button onClick={limpar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted"><RotateCcw className="w-4 h-4" /> Recomeçar</button>
           </div>
         </div>
 
         <div className="flex gap-2 border-b border-border">
-          {[["roteiro", "Roteiro de uso", ListChecks], ["mapa", "Mapa de setores da reforma", MapIcon]].map(([id, rot, Icon]) => (
+          {[["roteiro", "Roteiro de uso", ListChecks], ["mapa", "Mapa de setores da reforma", MapIcon], ...(ehAdmin ? [["equipe", "Progresso da equipe", ListChecks]] : [])].map(([id, rot, Icon]) => (
             <button key={id} onClick={() => setAba(id)} className={`inline-flex items-center gap-2 px-4 py-2 text-sm border-b-2 -mb-px ${aba === id ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Icon className="w-4 h-4" />{rot}</button>
           ))}
         </div>
 
-        {aba === "mapa" ? <Mapa /> : (
+        {aba === "equipe" ? <EquipeTestes /> : aba === "mapa" ? <Mapa /> : (
           <div className="grid lg:grid-cols-[260px_1fr] gap-6 items-start">
             <aside className="lg:sticky lg:top-4 space-y-4">
               <div className="rounded-xl border border-border bg-card p-4">

@@ -8,6 +8,7 @@ import { NewsletterService } from '../newsletter/newsletter.service';
 import { PdfService } from '../pdf/pdf.service';
 import { ProdutosController } from '../produtos/produtos.controller';
 import { ProdutosService } from '../produtos/produtos.service';
+import { RoteiroTestesController } from '../roteiro-testes/roteiro-testes.controller';
 import { PublicoController } from '../publico/publico.controller';
 
 /**
@@ -17,7 +18,7 @@ import { PublicoController } from '../publico/publico.controller';
  */
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }])],
-  controllers: [ClassificacaoController, ProdutosController, NewsletterController, PublicoController],
+  controllers: [ClassificacaoController, ProdutosController, NewsletterController, PublicoController, RoteiroTestesController],
   providers: [ClassificacaoService, ProdutosService, LeadsService, NewsletterService, PdfService],
   exports: [ClassificacaoService],
 })

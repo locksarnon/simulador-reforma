@@ -819,3 +819,14 @@ model NewsletterEdicao {
 
   @@index([status])
 }
+
+
+/** Progresso do "Roteiro de testes" (provisório) por tester — autosave no servidor. */
+model RoteiroTesteProgresso {
+  id         String   @id @default(cuid())
+  user_email String   @unique
+  user_nome  String?
+  estado     Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
