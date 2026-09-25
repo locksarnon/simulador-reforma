@@ -181,6 +181,9 @@ export const api = {
   async put(url, body) {
     try { return (await http.put(url, body)).data; } catch (err) { throw unwrapError(err); }
   },
+  async delete(url) {
+    try { return (await http.delete(url)).data; } catch (err) { throw unwrapError(err); }
+  },
   /** Envio de arquivo (multipart) com campos extras. */
   async upload(url, file, campos = {}) {
     const form = new FormData();

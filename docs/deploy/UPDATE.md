@@ -132,3 +132,5 @@ docker exec reforma-backend node scripts/carregar-base-legal.js lcp-214-2025 --f
 ```
 
 As normas ficam em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas). O assistente ("Perguntas ao assistente") usa `GEMINI_API_KEY` do `.env`; sem a chave, a tela mostra só os dispositivos relacionados.
+
+Perguntas frequentes revisadas (Base legal): o primeiro lote entra como RASCUNHO, com cada trecho conferido contra o texto da lei (`docker exec reforma-backend node scripts/carregar-cartoes.js`, idempotente). Só depois de "Revisar e publicar" (administrador) os consultores passam a ver cada cartão. Também dá para criar/editar cartões pela própria tela (o trecho é conferido no salvamento).

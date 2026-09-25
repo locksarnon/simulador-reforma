@@ -38,4 +38,21 @@ describe('base legal — parser', () => {
     expect(d[0].secao).toBe('Livro I — DO IBS › Título IV — DOS REGIMES DIFERENCIADOS');
     expect(d[4].texto).toContain('1006 | Arroz');
   });
+
+  it('em lei alteradora, artigos citados de outra lei não viram dispositivos', () => {
+    const t = htmlParaTexto(`<p>Art. 1º Esta Lei altera o CTN.</p><p>Art. 2º O CTN passa a vigorar com as seguintes alterações:</p>
+      <p>Art. 208-A. Novo artigo citado.</p><p>Art. 208-B. Outro citado.</p><p>Art. 208-C. Mais um.</p><p>Art. 3º Esta Lei entra em vigor.</p>`);
+    expect(extrairDispositivos(t).map((x) => x.caminho)).toEqual(['art-1', 'art-2', 'art-3']);
+  });
+
+  it('numeração com lacuna grande (bloco de artigos revogados) continua sendo uma só sequência', () => {
+    const nums = [...Array.from({ length: 51 }, (_, i) => i + 1), ...Array.from({ length: 80 }, (_, i) => i + 70)];
+    const t = htmlParaTexto(nums.map((n) => `<p>Art. ${n}. Texto ${n}.</p>`).join(''));
+    expect(extrairDispositivos(t)).toHaveLength(131);
+  });
+
+  it('separa o ADCT da Constituição', () => {
+    const t = htmlParaTexto('<p>Art. 1º Principal.</p><p>Art. 2º Segundo.</p><p>ATO DAS DISPOSIÇÕES CONSTITUCIONAIS TRANSITÓRIAS</p><p>Art. 1º Transitório.</p><p>Art. 2º Outro transitório.</p>');
+    expect(extrairDispositivos(t).map((x) => x.caminho)).toEqual(['art-1', 'art-2', 'adct-art-1', 'adct-art-2']);
+  });
 });

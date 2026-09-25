@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import AssistenteLegal from "@/components/base-legal/AssistenteLegal";
+import CartoesLegais from "@/components/base-legal/CartoesLegais";
 import AlertasBaseLegal from "@/components/base-legal/AlertasBaseLegal";
 
 export const fmtData = (v) => {
@@ -102,6 +103,8 @@ export default function BaseLegalPage() {
         {admin && <AlertasBaseLegal />}
 
         <AssistenteLegal admin={admin} />
+
+        <CartoesLegais admin={admin} />
 
         <div className="relative max-w-2xl">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />

@@ -72,12 +72,62 @@ const cap = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 /** Divide o texto de uma norma em artigos e anexos, guardando o caminho (Título › Capítulo…). */
 export function extrairDispositivos(texto: string): DispositivoExtraido[] {
   const linhas = texto.split('\n');
+  // Constituição: o ADCT tem numeração própria (Art. 1º…) — é tratado como um segundo bloco.
+  const iAdct = linhas.findIndex((l) => /^ATO DAS DISPOSI[ÇC][ÕO]ES CONSTITUCIONAIS TRANSIT[ÓO]RIAS$/.test(l.trim()));
+  if (iAdct > 0) {
+    const corpo = extrairSegmento(linhas.slice(0, iAdct), '', 0);
+    const adct = extrairSegmento(linhas.slice(iAdct + 1), 'adct', corpo.length);
+    return [...corpo, ...adct];
+  }
+  return extrairSegmento(linhas, '', 0);
+}
+
+const chaveArtigo = (num: string, suf?: string) => {
+  let v = 0;
+  for (const c of (suf ?? '').toUpperCase()) v = v * 27 + (c.charCodeAt(0) - 64);
+  return Number(num) * 100000 + v;
+};
+
+/**
+ * Linhas que iniciam de fato os artigos da própria norma: a maior sequência crescente de
+ * numeração (Art. 10 < 10-A < 11). Artigos de OUTRAS leis citados dentro de um artigo
+ * alterador ("passa a vigorar com a redação…") ficam fora dela e continuam no texto do artigo.
+ */
+function linhasDeArtigos(linhas: string[]): Set<number> {
+  const cand: { i: number; k: number; n: number }[] = [];
+  linhas.forEach((l, i) => {
+    const m = RE_ARTIGO.exec(l);
+    if (m) cand.push({ i, k: chaveArtigo(m[1], m[2]), n: Number(m[1]) });
+  });
+  // Cadeia crescente de maior "pontuação": cada artigo vale 1 e um salto grande de numeração
+  // (ex.: 165 → 323-G) custa 40. Assim a sequência real (densa) vence uma sequência de artigos
+  // citados de outra lei, mesmo quando esta é mais longa que o fim da norma.
+  const SALTO = 10;
+  const CUSTO = 40;
+  // Artigo inicial da cadeia: normas começam em números baixos; começar em 208-A é sinal de citação.
+  const dp: number[] = cand.map((c) => 1 - (c.n > SALTO ? CUSTO : 0));
+  const pai: number[] = new Array(cand.length).fill(-1);
+  for (let j = 0; j < cand.length; j++) {
+    for (let i = 0; i < j; i++) {
+      if (cand[i].k >= cand[j].k) continue;
+      const v = dp[i] + 1 - (cand[j].n - cand[i].n > SALTO ? CUSTO : 0);
+      if (v > dp[j]) { dp[j] = v; pai[j] = i; }
+    }
+  }
+  let melhor = -1;
+  dp.forEach((v, j) => { if (melhor < 0 || v > dp[melhor]) melhor = j; });
+  const aceitos = new Set<number>();
+  for (let x = melhor; x >= 0; x = pai[x]) aceitos.add(cand[x].i);
+  return aceitos;
+}
+
+function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number): DispositivoExtraido[] {
+  const aceitos = linhasDeArtigos(linhas);
   const saida: DispositivoExtraido[] = [];
   const niveis: (string | null)[] = [null, null, null, null, null];
   let atual: { d: DispositivoExtraido; linhas: string[] } | null = null;
   let paiAnexo = '';
   let ultimoAnexo = 0;
-  let ultimoNumero = 0; // numeração própria da norma; artigos citados de outra lei (redação nova) não a reiniciam
   const usados = new Map<string, number>();
 
   const fechar = () => {
@@ -107,23 +157,19 @@ export function extrairDispositivos(texto: string): DispositivoExtraido[] {
       const rotulo = sub ? `Anexo ${paiAnexo} › Anexo ${id}` : `Anexo ${id}`;
       const base = sub ? `anexo-${paiAnexo.toLowerCase()}-${id.toLowerCase()}` : `anexo-${id.toLowerCase()}`;
       atual = {
-        d: { tipo: 'anexo', rotulo, caminho: caminhoUnico(base), ordem: saida.length + 1, secao: 'Anexos', texto: '', revogado: false },
+        d: { tipo: 'anexo', rotulo, caminho: caminhoUnico(prefixo ? `${prefixo}-${base}` : base), ordem: ordemBase + saida.length + 1, secao: 'Anexos', texto: '', revogado: false },
         linhas: [l],
       };
       continue;
     }
     {
-      const ma = RE_ARTIGO.exec(l);
-      const n = ma ? Number(ma[1]) : 0;
-      // Aceita o mesmo número (Art. 10-A) ou um pequeno avanço; números menores ou saltos
-      // grandes são artigos citados dentro de outro (ex.: "passa a vigorar com a redação…").
-      if (ma && (ultimoNumero === 0 || n === ultimoNumero || (n > ultimoNumero && n <= ultimoNumero + 5))) {
-        ultimoNumero = n;
+      const ma = aceitos.has(i) ? RE_ARTIGO.exec(l) : null;
+      if (ma) {
         fechar();
         const num = ma[1];
         const suf = ma[2] ? `-${ma[2]}` : '';
         atual = {
-          d: { tipo: 'artigo', rotulo: `Art. ${num}${Number(num) <= 9 && !suf ? 'º' : ''}${suf}`, caminho: caminhoUnico(`art-${num}${suf.toLowerCase()}`), ordem: saida.length + 1, secao: secaoAtual(), texto: '', revogado: false },
+          d: { tipo: 'artigo', rotulo: `${prefixo ? 'ADCT, ' : ''}Art. ${num}${Number(num) <= 9 && !suf ? 'º' : ''}${suf}`, caminho: caminhoUnico(`${prefixo ? `${prefixo}-` : ''}art-${num}${suf.toLowerCase()}`), ordem: ordemBase + saida.length + 1, secao: prefixo ? `ADCT${secaoAtual() ? ' › ' + secaoAtual() : ''}` : secaoAtual(), texto: '', revogado: false },
           linhas: [l],
         };
         continue;

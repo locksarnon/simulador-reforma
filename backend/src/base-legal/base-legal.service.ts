@@ -11,6 +11,8 @@ const MESES: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
 };
 
+const AVISOS_TOPO = /^(?:[|\s]+|\([^)]*\)|(?:Mensagem de veto|Produ[çc][ãa]o de efeitos|Vig[êe]ncia|Regulamento|Texto compilado|Promulga[çc][ãa]o|Vide))+/i;
+
 export type ResultadoImportacao = {
   chave: string;
   alterada: boolean;
@@ -35,12 +37,10 @@ function lerCabecalho(texto: string): { data: Date | null; ementa: string | null
   let ementa: string | null = null;
   if (i >= 0) {
     for (i += 1; i < linhas.length; i++) {
-      const l = linhas[i]
-        .replace(/^[|\s]+/, '')
-        .replace(/^(?:(?:Mensagem de veto|Produ[çc][ãa]o de efeitos|Vig[êe]ncia|Regulamento|Texto compilado|Promulga[çc][ãa]o|Vide)\s*(?:\([^)]*\)\s*)*)+/i, '')
-        .replace(/^[|\s]+/, '')
-        .trim();
+      // Tira os avisos do topo da página ("Mensagem de veto | ", "Produção de efeitos (Vide…)") até sobrar a ementa.
+      const l = linhas[i].trim().replace(AVISOS_TOPO, '').trim();
       if (/^(O PRESIDENTE|As Mesas|O CONGRESSO)/i.test(l)) break;
+      if (/^(\(Republica|Denominado)/i.test(l)) continue;
       if (l.length >= 40) { ementa = l.slice(0, 700); break; }
     }
   }
@@ -120,7 +120,7 @@ export class BaseLegalService {
       where: { id: norma.id },
       data: {
         hash_atual: hash, capturada_em: new Date(), total_dispositivos: extraidos.length,
-        ...(cab.data ? { data_publicacao: cab.data } : {}), ...(cab.ementa ? { ementa: cab.ementa } : {}),
+        ...(cab.data ? { data_publicacao: cab.data } : {}), ementa: cab.ementa,
       },
     });
     this.log.log(`${chave}: ${extraidos.length} dispositivos (${novos.length} novos, ${alterados} alterados, ${removidos.length} removidos)`);

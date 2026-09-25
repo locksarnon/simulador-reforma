@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api } from "@/api/base44Client";
+import { CartaoResposta } from "@/components/base-legal/CartoesLegais";
 
 const EXEMPLOS = [
   "Qual o limite de receita para o produtor rural não ser contribuinte do IBS e da CBS?",
@@ -100,11 +101,14 @@ export default function AssistenteLegal({ admin }) {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const [resultado, setResultado] = useState(null);
+  const [revisados, setRevisados] = useState([]);
 
   const perguntar = async (texto = pergunta) => {
     const t = texto.trim();
     if (t.length < 8 || carregando) return;
-    setCarregando(true); setErro(""); setResultado(null);
+    setCarregando(true); setErro(""); setResultado(null); setRevisados([]);
+    // Respostas já revisadas pela equipe aparecem primeiro (não dependem da IA).
+    api.get("/base-legal/cartoes/busca", { q: t }).then(setRevisados).catch(() => {});
     try { setResultado(await api.post("/base-legal/perguntar", { pergunta: t })); }
     catch (e) { setErro(e.message || "Não foi possível consultar agora."); }
     finally { setCarregando(false); }
@@ -134,7 +138,18 @@ export default function AssistenteLegal({ admin }) {
       )}
       {carregando && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Consultando as normas… pode levar até 30 segundos.</p>}
       {erro && <p className="text-sm text-red-600">{erro}</p>}
-      {resultado && <div className="max-w-3xl"><Resultado key={resultado.id} r={resultado} /></div>}
+      {revisados.length > 0 && (
+        <div className="max-w-3xl space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Respostas revisadas para perguntas parecidas</p>
+          {revisados.map((c, i) => <CartaoResposta key={c.id} c={c} admin={admin} aberto={i === 0} />)}
+        </div>
+      )}
+      {resultado && (
+        <div className="max-w-3xl space-y-2">
+          {revisados.length > 0 && <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resposta do assistente (não revisada)</p>}
+          <Resultado key={resultado.id} r={resultado} />
+        </div>
+      )}
       {admin && <div className="max-w-3xl pt-2"><PerguntasRecentes /></div>}
     </section>
   );

@@ -927,3 +927,23 @@ model AlertaBaseLegal {
   @@index([status])
   @@index([tipo, referencia])
 }
+
+
+/// Pergunta frequente com resposta e base legal. Nasce como rascunho; só aparece para os consultores depois de revisada.
+model CartaoLegal {
+  id           String    @id @default(cuid())
+  tema         String
+  pergunta     String    @unique
+  sinonimos    String?
+  resposta     String
+  ressalvas    String?
+  fundamentos  Json      @default("[]")
+  status       String    @default("rascunho") // rascunho | revisado
+  revisado_por String?
+  revisado_em  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([tema])
+}

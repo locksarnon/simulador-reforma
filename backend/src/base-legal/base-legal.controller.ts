@@ -1,11 +1,12 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { BaseLegalService } from './base-legal.service';
+import { CartoesService, DadosCartao } from './cartoes.service';
 
 @Controller('base-legal')
 export class BaseLegalController {
-  constructor(private readonly service: BaseLegalService) {}
+  constructor(private readonly service: BaseLegalService, private readonly cartoes: CartoesService) {}
 
   @Get('normas')
   normas() {
@@ -25,6 +26,54 @@ export class BaseLegalController {
   @Get('busca')
   busca(@Query('q') q: string, @Query('norma') norma?: string) {
     return this.service.buscar(q, norma || undefined);
+  }
+
+  // ───── Perguntas frequentes revisadas ─────
+
+  @Get('cartoes')
+  listarCartoes(@CurrentUser() user: AuthUser) {
+    return this.cartoes.listar(user.role === 'admin');
+  }
+
+  @Get('cartoes/busca')
+  buscarCartoes(@CurrentUser() user: AuthUser, @Query('q') q: string) {
+    return this.cartoes.buscar(q ?? '', user.role === 'admin');
+  }
+
+  @Post('cartoes')
+  criarCartao(@CurrentUser() user: AuthUser, @Body() body: DadosCartao) {
+    this.exigirAdmin(user);
+    return this.cartoes.criar(body, user.email);
+  }
+
+  @Post('cartoes/semear')
+  semearCartoes(@CurrentUser() user: AuthUser) {
+    this.exigirAdmin(user);
+    return this.cartoes.semear();
+  }
+
+  @Put('cartoes/:id')
+  atualizarCartao(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: DadosCartao) {
+    this.exigirAdmin(user);
+    return this.cartoes.atualizar(id, body);
+  }
+
+  @Post('cartoes/:id/revisar')
+  revisarCartao(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    this.exigirAdmin(user);
+    return this.cartoes.definirStatus(id, 'revisado', user.email);
+  }
+
+  @Post('cartoes/:id/despublicar')
+  despublicarCartao(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    this.exigirAdmin(user);
+    return this.cartoes.definirStatus(id, 'rascunho', user.email);
+  }
+
+  @Delete('cartoes/:id')
+  removerCartao(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    this.exigirAdmin(user);
+    return this.cartoes.remover(id);
   }
 
   /** Pergunta livre ao assistente (responde só com o texto das normas carregadas). */
