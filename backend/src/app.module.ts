@@ -13,6 +13,7 @@ import { RadarReformaModule } from './radar-reforma/radar-reforma.module';
 import { MailModule } from './mail/mail.module';
 import { ComercialModule } from './comercial/comercial.module';
 import { ValidadorNfseModule } from './validador-nfse/validador-nfse.module';
+import { BaseLegalModule } from './base-legal/base-legal.module';
 import { CnpjModule } from './cnpj/cnpj.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
@@ -32,6 +33,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     ComercialModule,
     ValidadorNfseModule,
     CnpjModule,
+    BaseLegalModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

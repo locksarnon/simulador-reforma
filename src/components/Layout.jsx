@@ -16,6 +16,7 @@ import {
   Newspaper,
   ShieldCheck,
   Radar,
+  Scale,
   Search,
   ListChecks,
   Mail,
@@ -49,6 +50,7 @@ const sections = [
   {
     title: "Inteligência de mercado",
     items: [
+      { to: "/base-legal", label: "Base legal", icon: Scale },
       { to: "/ferramentas/radar-reforma", label: "Radar de Novidades", icon: Radar },
       { to: "/ferramentas/noticias", label: "Acervo de Notícias", icon: Newspaper },
       { to: "/comercial/newsletter", label: "Newsletter", icon: Mail },

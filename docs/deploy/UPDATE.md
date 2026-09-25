@@ -121,3 +121,14 @@ Se algo falhar: [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md).
 
 Primeiro deploy / secrets: [`FIRST-DEPLOY.md`](./FIRST-DEPLOY.md).
 Prompt para o agente: [`PROMPT-AGENTE-DEPLOY.md`](./PROMPT-AGENTE-DEPLOY.md).
+
+## Base legal (texto das normas)
+
+Depois de um deploy que traga novas normas ou mudanças no parser, carregar/atualizar o texto na VPS (dentro do container do backend; não sobrescreve o que não mudou):
+
+```
+docker exec reforma-backend node scripts/carregar-base-legal.js            # todas as normas
+docker exec reforma-backend node scripts/carregar-base-legal.js lcp-214-2025 --forcar   # reprocessa uma norma
+```
+
+As normas ficam em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas). O assistente ("Perguntas ao assistente") usa `GEMINI_API_KEY` do `.env`; sem a chave, a tela mostra só os dispositivos relacionados.

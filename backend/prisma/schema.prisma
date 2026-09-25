@@ -830,3 +830,79 @@ model RoteiroTesteProgresso {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+
+/// Base legal: texto integral das normas, capturado da fonte oficial (Planalto etc.),
+/// dividido por dispositivo (artigo/anexo) e versionado por hash.
+model NormaLegal {
+  id                 String    @id @default(cuid())
+  chave              String    @unique
+  tipo               String
+  numero             String
+  titulo             String
+  ementa             String?
+  orgao              String?
+  data_publicacao    DateTime?
+  url_oficial        String
+  prioridade         Int       @default(1)
+  fonte_primaria     Boolean   @default(true)
+  situacao           String    @default("vigente")
+  hash_atual         String?
+  capturada_em       DateTime?
+  total_dispositivos Int       @default(0)
+  observacao         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  dispositivos DispositivoLegal[]
+}
+
+model DispositivoLegal {
+  id        String   @id @default(cuid())
+  norma_id  String
+  tipo      String
+  rotulo    String
+  caminho   String
+  ordem     Int
+  secao     String?
+  texto     String
+  hash      String
+  revogado  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  norma   NormaLegal               @relation(fields: [norma_id], references: [id], onDelete: Cascade)
+  versoes DispositivoLegalVersao[]
+
+  @@unique([norma_id, caminho])
+  @@index([norma_id, ordem])
+}
+
+model DispositivoLegalVersao {
+  id             String   @id @default(cuid())
+  dispositivo_id String
+  texto          String
+  hash           String
+  capturada_em   DateTime @default(now())
+
+  dispositivo DispositivoLegal @relation(fields: [dispositivo_id], references: [id], onDelete: Cascade)
+
+  @@index([dispositivo_id])
+}
+
+
+/// Perguntas feitas ao assistente da Base legal (para revisão e para achar lacunas na base).
+model PerguntaLegal {
+  id          String   @id @default(cuid())
+  user_email  String
+  pergunta    String
+  resposta    String?
+  fundamentos Json?
+  suficiente  Boolean  @default(false)
+  modelo      String?
+  util        Boolean?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([user_email])
+}
