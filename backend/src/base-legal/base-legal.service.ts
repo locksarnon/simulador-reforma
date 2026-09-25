@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron } from '@nestjs/schedule';
+import { chaveDe, normasCitadas, referenciaDe, urlOficialValida } from './base-legal.deteccao';
 import { PrismaService } from '../prisma/prisma.service';
 import { AVISO_ASSISTENTE, Candidato, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
 import { decodificar, extrairDispositivos, htmlParaTexto, sha256 } from './base-legal.parser';
@@ -73,9 +75,7 @@ export class BaseLegalService {
     const norma = await this.prisma.normaLegal.findUnique({ where: { chave } });
     if (!norma) throw new NotFoundException(`Norma "${chave}" não cadastrada`);
 
-    const resp = await fetch(norma.url_oficial, { headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)' }, signal: AbortSignal.timeout(90_000) });
-    if (!resp.ok) throw new BadRequestException(`Fonte oficial respondeu ${resp.status}`);
-    const texto = htmlParaTexto(decodificar(Buffer.from(await resp.arrayBuffer())));
+    const texto = await this.baixarTexto(norma.url_oficial);
     const hash = sha256(texto);
 
     if (!opcoes.forcar && norma.hash_atual === hash) {
@@ -127,12 +127,132 @@ export class BaseLegalService {
     return { chave, alterada: true, dispositivos: extraidos.length, novos: novos.length, alterados, removidos: removidos.length, hash };
   }
 
+  /** Baixa e normaliza o texto de uma fonte oficial (só https em sites oficiais; PDF ainda não é suportado). */
+  private async baixarTexto(url: string): Promise<string> {
+    if (!urlOficialValida(url)) throw new BadRequestException('URL fora dos sites oficiais aceitos (planalto.gov.br, cgibs.gov.br, gov.br)');
+    const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)' }, signal: AbortSignal.timeout(90_000) });
+    if (!resp.ok) throw new BadRequestException(`Fonte oficial respondeu ${resp.status}`);
+    if (/pdf/i.test(resp.headers.get('content-type') || '')) throw new BadRequestException('A fonte é um PDF; informe a página HTML do texto da norma.');
+    return htmlParaTexto(decodificar(Buffer.from(await resp.arrayBuffer())));
+  }
+
   async importarTodas(): Promise<(ResultadoImportacao | { chave: string; erro: string })[]> {
+    await this.garantirNormas();
     const out: (ResultadoImportacao | { chave: string; erro: string })[] = [];
-    for (const f of FONTES_NORMAS) {
-      try { out.push(await this.importar(f.chave)); } catch (e) { out.push({ chave: f.chave, erro: (e as Error).message }); }
+    const normas = await this.prisma.normaLegal.findMany({ select: { chave: true }, orderBy: { createdAt: 'asc' } });
+    for (const { chave } of normas) {
+      try { out.push(await this.importar(chave)); } catch (e) { out.push({ chave, erro: (e as Error).message }); }
     }
     return out;
+  }
+
+  // ─────────────── Verificação de atualizações e alertas (nada entra sem aprovação) ───────────────
+
+  private async criarAlertaSeNovo(a: { tipo: string; chave?: string; referencia: string; titulo: string; detalhe?: string; url?: string; origem: string }, atualizarPendente = false) {
+    const existente = await this.prisma.alertaBaseLegal.findFirst({
+      where: { tipo: a.tipo, referencia: a.referencia, ...(a.tipo === 'texto_alterado' ? { status: 'pendente' } : {}) },
+    });
+    if (existente) {
+      if (atualizarPendente && existente.status === 'pendente') await this.prisma.alertaBaseLegal.update({ where: { id: existente.id }, data: { detalhe: a.detalhe ?? null, titulo: a.titulo } });
+      return null;
+    }
+    return this.prisma.alertaBaseLegal.create({ data: { tipo: a.tipo, chave: a.chave ?? null, referencia: a.referencia, titulo: a.titulo, detalhe: a.detalhe ?? null, url: a.url ?? null, origem: a.origem } });
+  }
+
+  /** Compara o texto oficial de hoje com o carregado e abre alerta quando muda (não altera a base). */
+  async verificarAtualizacoes(origem = 'verificacao'): Promise<{ verificadas: number; alertas: number; erros: string[] }> {
+    const normas = await this.prisma.normaLegal.findMany({ where: { total_dispositivos: { gt: 0 } } });
+    let alertas = 0;
+    const erros: string[] = [];
+    for (const n of normas) {
+      try {
+        const texto = await this.baixarTexto(n.url_oficial);
+        if (sha256(texto) === n.hash_atual) {
+          await this.prisma.normaLegal.update({ where: { id: n.id }, data: { capturada_em: new Date() } });
+          continue;
+        }
+        const extraidos = extrairDispositivos(texto);
+        const atuais = new Map((await this.prisma.dispositivoLegal.findMany({ where: { norma_id: n.id }, select: { caminho: true, hash: true, rotulo: true } })).map((d) => [d.caminho, d]));
+        const alterados = extraidos.filter((d) => atuais.has(d.caminho) && atuais.get(d.caminho)!.hash !== sha256(d.texto));
+        const novos = extraidos.filter((d) => !atuais.has(d.caminho));
+        const vistos = new Set(extraidos.map((d) => d.caminho));
+        const removidos = [...atuais.keys()].filter((c) => !vistos.has(c));
+        const lista = (xs: { rotulo: string }[]) => xs.slice(0, 8).map((x) => x.rotulo).join(', ') + (xs.length > 8 ? '…' : '');
+        const detalhe = [
+          alterados.length ? `${alterados.length} dispositivo(s) alterado(s): ${lista(alterados)}` : null,
+          novos.length ? `${novos.length} novo(s): ${lista(novos)}` : null,
+          removidos.length ? `${removidos.length} removido(s)` : null,
+        ].filter(Boolean).join(' · ') || 'O texto oficial mudou (sem alteração de artigo identificada — pode ser só formatação).';
+        const criado = await this.criarAlertaSeNovo({ tipo: 'texto_alterado', chave: n.chave, referencia: n.chave, titulo: `${n.numero}: texto oficial atualizado`, detalhe, url: n.url_oficial, origem }, true);
+        if (criado) alertas += 1;
+      } catch (e) {
+        erros.push(`${n.chave}: ${(e as Error).message}`);
+      }
+    }
+    return { verificadas: normas.length, alertas, erros };
+  }
+
+  /** Depois de gerar o Radar: procura normas citadas que ainda não estão na base e reconfere o texto das já carregadas. */
+  async aposRadar(semana: string): Promise<{ novasNormas: number; atualizacoes: number }> {
+    const itens = await this.prisma.radarReformaItem.findMany({ where: { semana_referencia: semana } });
+    const normas = await this.prisma.normaLegal.findMany({ select: { numero: true } });
+    const conhecidas = new Set(normas.map((n) => referenciaDe(n.numero)));
+    let novasNormas = 0;
+    for (const it of itens) {
+      const texto = [it.resumo, it.fonte_nome, it.status_normativo, it.acao_recomendada].filter(Boolean).join(' ');
+      for (const c of normasCitadas(texto)) {
+        if (conhecidas.has(c.referencia)) continue;
+        const criado = await this.criarAlertaSeNovo({
+          tipo: 'nova_norma', referencia: c.referencia, titulo: `${c.rotulo} citada no Radar e ainda não está na Base legal`,
+          detalhe: it.resumo.slice(0, 400), url: it.fonte_url ?? undefined, origem: 'radar',
+        });
+        if (criado) novasNormas += 1;
+      }
+    }
+    const v = await this.verificarAtualizacoes('radar');
+    return { novasNormas, atualizacoes: v.alertas };
+  }
+
+  /** Toda segunda, 06h30 (o Radar roda às 06h): reconfere as fontes oficiais. */
+  @Cron('30 6 * * 1', { timeZone: 'America/Sao_Paulo' })
+  async verificacaoSemanal() {
+    try {
+      const r = await this.verificarAtualizacoes('agendada');
+      this.log.log(`Verificação semanal: ${r.verificadas} normas, ${r.alertas} alerta(s), ${r.erros.length} erro(s)`);
+    } catch (e) {
+      this.log.error(`Verificação semanal falhou: ${(e as Error).message}`);
+    }
+  }
+
+  listarAlertas(status = 'pendente') {
+    return this.prisma.alertaBaseLegal.findMany({ where: status === 'todos' ? {} : { status }, orderBy: { createdAt: 'desc' }, take: 100 });
+  }
+
+  /** Aprovar: atualiza o texto (texto_alterado) ou cadastra a nova norma pela URL oficial e carrega. */
+  async resolverAlerta(id: string, acao: 'aprovar' | 'descartar', por: string, url?: string) {
+    const a = await this.prisma.alertaBaseLegal.findUnique({ where: { id } });
+    if (!a) throw new NotFoundException('Alerta não encontrado');
+    if (a.status !== 'pendente') throw new BadRequestException('Este alerta já foi resolvido');
+    let resultado: ResultadoImportacao | null = null;
+
+    if (acao === 'aprovar') {
+      if (a.tipo === 'texto_alterado' && a.chave) {
+        resultado = await this.importar(a.chave);
+      } else if (a.tipo === 'nova_norma') {
+        const alvo = (url || a.url || '').trim();
+        if (!urlOficialValida(alvo)) throw new BadRequestException('Informe a URL oficial (https) da página com o texto da norma — planalto.gov.br ou cgibs.gov.br');
+        const chave = chaveDe(a.referencia);
+        const tipo = /^lc\b/.test(a.referencia) ? 'Lei Complementar' : /^ec\b/.test(a.referencia) ? 'Emenda Constitucional' : /^decreto\b/.test(a.referencia) ? 'Decreto' : 'Norma';
+        await this.prisma.normaLegal.upsert({
+          where: { chave },
+          create: { chave, tipo, numero: a.titulo.split(' citada')[0], titulo: a.titulo.split(' citada')[0], url_oficial: alvo, prioridade: 1, observacao: 'Incluída a partir de alerta do Radar.' },
+          update: { url_oficial: alvo },
+        });
+        resultado = await this.importar(chave);
+      }
+    }
+    await this.prisma.alertaBaseLegal.update({ where: { id }, data: { status: acao === 'aprovar' ? 'aprovado' : 'descartado', resolvido_por: por, resolvido_em: new Date() } });
+    return { ok: true, resultado };
   }
 
   listar() {

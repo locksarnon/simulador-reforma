@@ -906,3 +906,24 @@ model PerguntaLegal {
   @@index([createdAt])
   @@index([user_email])
 }
+
+
+/// Avisos para o administrador da Base legal: texto oficial que mudou ou norma nova citada pelo Radar.
+/// Nada entra na base sem aprovação humana.
+model AlertaBaseLegal {
+  id            String    @id @default(cuid())
+  tipo          String // texto_alterado | nova_norma
+  chave         String?
+  referencia    String
+  titulo        String
+  detalhe       String?
+  url           String?
+  origem        String    @default("verificacao")
+  status        String    @default("pendente") // pendente | aprovado | descartado
+  resolvido_por String?
+  resolvido_em  DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([status])
+  @@index([tipo, referencia])
+}

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BaseLegalService } from '../base-legal/base-legal.service';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -102,6 +103,7 @@ export class RadarReformaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly baseLegal: BaseLegalService,
   ) {}
 
   /** Toda segunda-feira às 06h (horário de Brasília). */
@@ -170,6 +172,15 @@ export class RadarReformaService {
           },
         }),
       ]);
+
+      // Base legal: avisa se o Radar citou norma que ainda não está na base ou se algum texto oficial mudou.
+      // Falha aqui nunca derruba o Radar.
+      try {
+        const b = await this.baseLegal.aposRadar(semanaReferencia);
+        if (b.novasNormas || b.atualizacoes) this.logger.log(`Base legal: ${b.novasNormas} norma(s) nova(s) e ${b.atualizacoes} atualização(ões) aguardando aprovação.`);
+      } catch (e) {
+        this.logger.warn(`Verificação da Base legal após o Radar falhou: ${(e as Error).message}`);
+      }
 
       return { semana_referencia: semanaReferencia, itens_gerados: itensValidos.length, resumo_executivo };
     } catch (err) {

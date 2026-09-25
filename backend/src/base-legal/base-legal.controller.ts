@@ -45,6 +45,35 @@ export class BaseLegalController {
     return this.service.listarPerguntas();
   }
 
+  /** Avisos de texto oficial alterado / norma nova citada pelo Radar. Só administradores. */
+  @Get('alertas')
+  alertas(@CurrentUser() user: AuthUser, @Query('status') status?: string) {
+    this.exigirAdmin(user);
+    return this.service.listarAlertas(status === 'todos' ? 'todos' : 'pendente');
+  }
+
+  @Post('alertas/verificar')
+  verificar(@CurrentUser() user: AuthUser) {
+    this.exigirAdmin(user);
+    return this.service.verificarAtualizacoes('manual');
+  }
+
+  @Post('alertas/:id/aprovar')
+  aprovar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { url?: string }) {
+    this.exigirAdmin(user);
+    return this.service.resolverAlerta(id, 'aprovar', user.email, body?.url);
+  }
+
+  @Post('alertas/:id/descartar')
+  descartar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    this.exigirAdmin(user);
+    return this.service.resolverAlerta(id, 'descartar', user.email);
+  }
+
+  private exigirAdmin(user: AuthUser) {
+    if (user.role !== 'admin') throw new ForbiddenException('Somente administradores');
+  }
+
   /** Captura/atualiza do texto oficial. Só administradores. */
   @Post('importar')
   importar(@CurrentUser() user: AuthUser, @Body() body: { chave?: string; forcar?: boolean }) {

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import AssistenteLegal from "@/components/base-legal/AssistenteLegal";
+import AlertasBaseLegal from "@/components/base-legal/AlertasBaseLegal";
 
 export const fmtData = (v) => {
   if (!v) return "—";
@@ -97,6 +98,8 @@ export default function BaseLegalPage() {
           <h1 className="text-xl font-heading font-semibold flex items-center gap-2"><Scale className="w-5 h-5" /> Base legal</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Texto integral das normas da Reforma Tributária do Consumo, capturado das fontes oficiais e organizado por artigo. Use a busca para achar o dispositivo e a base legal de uma resposta.</p>
         </div>
+
+        {admin && <AlertasBaseLegal />}
 
         <AssistenteLegal admin={admin} />
 
