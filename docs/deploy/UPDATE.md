@@ -134,3 +134,13 @@ docker exec reforma-backend node scripts/carregar-base-legal.js lcp-214-2025 --f
 As normas ficam em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas). O assistente ("Perguntas ao assistente") usa `GEMINI_API_KEY` do `.env`; sem a chave, a tela mostra só os dispositivos relacionados.
 
 Perguntas frequentes revisadas (Base legal): o primeiro lote entra como RASCUNHO, com cada trecho conferido contra o texto da lei (`docker exec reforma-backend node scripts/carregar-cartoes.js`, idempotente). Só depois de "Revisar e publicar" (administrador) os consultores passam a ver cada cartão. Também dá para criar/editar cartões pela própria tela (o trecho é conferido no salvamento).
+
+## ATENÇÃO: o frontend só recompila se o container for recriado
+
+O código do frontend é montado por volume e o build (`npm run build`) roda apenas quando o container **inicia**. `docker compose up -d --build` NÃO recria o container do frontend quando a imagem não mudou — o site continua com a versão antiga (aconteceu em 24–25/09/2026: o backend atualizou, a tela não). Depois de qualquer deploy que mude `src/`, rode:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build --force-recreate frontend
+```
+
+e confira que o bundle novo está no ar (ex.: `curl -s https://simulador.clarityib.com.br/ | grep -o 'assets/index-[^"]*\.js'` muda de nome e contém o texto novo). Aguarde ~1 min (build + healthcheck).
