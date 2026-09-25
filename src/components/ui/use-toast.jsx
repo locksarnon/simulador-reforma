@@ -1,9 +1,9 @@
 // Inspired by react-hot-toast library
 import { useState, useEffect } from "react";
 
-const TOAST_LIMIT = 20;
+const TOAST_LIMIT = 3; // no máximo 3 avisos na tela; os mais antigos saem sozinhos
 const TOAST_REMOVE_DELAY = 500;
-const TOAST_AUTO_DISMISS = 5000; // ms; erros ficam um pouco mais (ver toast())
+export const TOAST_AUTO_DISMISS = 5000; // ms; erros ficam um pouco mais (ver Toaster)
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -111,8 +111,18 @@ function dispatch(action) {
   });
 }
 
+const recentes = new Map();
+
 function toast({ ...props }) {
+  // Mesmo aviso repetido em poucos segundos (ex.: clique duplo) não empilha de novo.
+  const chave = `${props.title ?? ''}|${props.description ?? ''}|${props.variant ?? ''}`;
+  const agora = Date.now();
+  const anterior = recentes.get(chave);
+  if (anterior && agora - anterior.em < 4000 && memoryState.toasts.some((t) => t.id === anterior.id && t.open !== false)) {
+    return { id: anterior.id, dismiss: () => dispatch({ type: actionTypes.DISMISS_TOAST, toastId: anterior.id }), update: () => {} };
+  }
   const id = genId();
+  recentes.set(chave, { id, em: agora });
 
   const update = (props) =>
     dispatch({
@@ -134,11 +144,6 @@ function toast({ ...props }) {
       },
     },
   });
-
-  // Some sozinho: sem isso o aviso ficava preso na tela cobrindo botões.
-  if (props.duration !== Infinity) {
-    setTimeout(dismiss, props.duration ?? (props.variant === "destructive" ? 8000 : TOAST_AUTO_DISMISS));
-  }
 
   return {
     id,
