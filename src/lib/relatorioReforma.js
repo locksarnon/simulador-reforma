@@ -150,7 +150,7 @@ export function pontosNaoTratados(r) {
     { t: "Incentivos fiscais estaduais de ICMS", p: "Benefícios do ICMS terminam ao longo da transição; o efeito depende do seu estado e do incentivo. A validar com o especialista." },
   ];
   if (f.compra_de_pf || f.fora_ibs || r.perfil === "racao" || r.perfil === "etanol" || r.perfil === "sementeira") {
-    l.push({ t: "Crédito presumido nas compras de produtor rural", p: "Compras de produtor não contribuinte geram crédito presumido, com regra e percentual próprios (Art. 168), ainda não modelados." });
+    l.push({ t: "Crédito presumido nas compras de produtor rural", p: "Compras de produtor não contribuinte geram crédito presumido, cujos percentuais são definidos e divulgados a cada ano, até setembro, por ato conjunto do Ministro da Fazenda e do Comitê Gestor do IBS, valendo a partir de 1º de janeiro seguinte (Art. 168, §4º). Ainda não modelado aqui: qualquer valor de crédito presumido é estimativa e pode não ser o real." });
   }
   if (f.logistica_propria) l.push({ t: "Crédito presumido de transportador autônomo", p: "Contratação de autônomo pessoa física gera crédito presumido (Art. 169), não modelado." });
   if (f.icms_st) l.push({ t: "Fim gradual do ICMS-ST", p: "Substituição tributária sai aos poucos: revise preço e estoque com ST retido." });

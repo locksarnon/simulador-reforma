@@ -144,3 +144,14 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .e
 ```
 
 e confira que o bundle novo está no ar (ex.: `curl -s https://simulador.clarityib.com.br/ | grep -o 'assets/index-[^"]*\.js'` muda de nome e contém o texto novo). Aguarde ~1 min (build + healthcheck).
+
+## Correções de dados a rodar depois do deploy (idempotentes)
+
+```
+docker exec reforma-backend node scripts/revalidar-cpf.js --simular   # mostra quantos itens de importação estavam bloqueados por CPF tratado como CNPJ
+docker exec reforma-backend node scripts/revalidar-cpf.js             # corrige e recalcula os contadores dos lotes
+docker exec reforma-backend node scripts/completar-correlacao-anexos.js   # itens que faltavam na tabela NCM x anexos (ver docs/conferencia-anexos-lc214.md)
+```
+
+## Lembrete de deploy do frontend
+Depois de mudar `src/`, o container do frontend precisa ser recriado (`up -d --build --force-recreate frontend`) e o bundle novo conferido no ar.

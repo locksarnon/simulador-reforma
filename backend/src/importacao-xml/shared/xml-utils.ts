@@ -174,6 +174,33 @@ export function validateCnpj(cnpjRaw: unknown): CnpjValidationResult {
   return { valido: true, codigo: null, mensagem: '' };
 }
 
+
+/**
+ * Valida CPF (11 dígitos, módulo 11). Produtor rural pessoa física é cliente e até emitente
+ * frequente no agro — o CPF vem na tag <CPF> do XML e NÃO pode ser validado como CNPJ.
+ */
+export function validateCpf(cpfRaw: unknown): CnpjValidationResult {
+  const cpf = String(cpfRaw ?? '').replace(/\D/g, '').padStart(11, '0').slice(-11);
+  if (!cpf || cpf === '00000000000') return { valido: false, codigo: 'DOC_CPF_AUSENTE', mensagem: 'CPF ausente.' };
+  if (/^(\d)\1{10}$/.test(cpf)) return { valido: false, codigo: 'DOC_CPF_FORMATO_INVALIDO', mensagem: 'CPF com todos os dígitos iguais.' };
+  const dv = (base: string) => {
+    const soma = base.split('').reduce((acc, d, i) => acc + Number(d) * (base.length + 1 - i), 0);
+    const r = (soma * 10) % 11;
+    return r === 10 ? 0 : r;
+  };
+  if (dv(cpf.slice(0, 9)) !== Number(cpf[9]) || dv(cpf.slice(0, 10)) !== Number(cpf[10])) {
+    return { valido: false, codigo: 'DOC_CPF_DV_INVALIDO', mensagem: `Dígito verificador do CPF ${cpf} inválido.` };
+  }
+  return { valido: true, codigo: null, mensagem: '' };
+}
+
+/** CPF (até 11 dígitos) ou CNPJ (12 a 14): valida pelo tipo certo. */
+export function validateDocumento(raw: unknown): CnpjValidationResult & { tipo: 'CPF' | 'CNPJ' } {
+  const digitos = String(raw ?? '').replace(/\D/g, '');
+  if (digitos.length > 0 && digitos.length <= 11) return { ...validateCpf(digitos), tipo: 'CPF' };
+  return { ...validateCnpj(raw), tipo: 'CNPJ' };
+}
+
 /** Códigos UF Sefaz. */
 export const UF_CODIGOS: Record<string, string> = {
   '12': 'AC', '27': 'AL', '13': 'AM', '16': 'AP', '29': 'BA', '23': 'CE',

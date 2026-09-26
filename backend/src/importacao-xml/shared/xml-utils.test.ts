@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeCnpj, parsePercentage, parseDecimal, originalValue, validateAccessKey, validateCnpj, sha256 } from './xml-utils';
+import { normalizeCnpj, parsePercentage, parseDecimal, originalValue, validateAccessKey, validateCnpj, validateCpf, validateDocumento, sha256 } from './xml-utils';
 
 // Chave real, gerada e validada manualmente na simulação de uso de
 // 2026-08-29 (mesma chave do XML de teste que passou pelo pipeline completo
@@ -141,5 +141,29 @@ describe('sha256', () => {
 
   it('conteúdos diferentes geram hashes diferentes', () => {
     expect(sha256('a')).not.toBe(sha256('b'));
+  });
+});
+
+describe('validateCpf / validateDocumento (produtor rural pessoa física)', () => {
+  it('aceita CPF válido, com ou sem formatação', () => {
+    expect(validateCpf('529.982.247-25').valido).toBe(true);
+    expect(validateCpf('52998224725').valido).toBe(true);
+  });
+
+  it('rejeita CPF com dígito errado ou repetido', () => {
+    expect(validateCpf('52998224726').codigo).toBe('DOC_CPF_DV_INVALIDO');
+    expect(validateCpf('11111111111').valido).toBe(false);
+  });
+
+  it('CPF NÃO é validado como CNPJ (bug: vendas a PF ficavam bloqueadas)', () => {
+    expect(validateCnpj('52998224725').valido).toBe(false);
+    const r = validateDocumento('52998224725');
+    expect(r.valido).toBe(true);
+    expect(r.tipo).toBe('CPF');
+  });
+
+  it('CNPJ continua sendo validado como CNPJ', () => {
+    expect(validateDocumento('11222333000181')).toMatchObject({ valido: true, tipo: 'CNPJ' });
+    expect(validateDocumento('11222333000180')).toMatchObject({ valido: false, codigo: 'DOC_CNPJ_DV_INVALIDO' });
   });
 });

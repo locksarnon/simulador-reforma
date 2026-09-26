@@ -84,18 +84,23 @@ export class LeadsService {
       });
     }
 
-    // E-mails são "melhor esforço": falha de envio nunca derruba o cadastro.
-    void this.notificar(lead.id, dto, score, destino).catch((e) => this.logger.warn(`Notificação do lead falhou: ${e.message}`));
-    return { id: lead.id, score, destino, email_configurado: this.mail.configurado };
+    // E-mails são "melhor esforço": falha de envio nunca derruba o cadastro — mas a tela precisa saber
+    // se o relatório saiu de verdade (antes dizia "enviamos" só porque o e-mail estava configurado).
+    const notif = await this.notificar(lead.id, dto, score, destino).catch((e) => {
+      this.logger.warn(`Notificação do lead falhou: ${e.message}`);
+      return { relatorio_enviado: false };
+    });
+    return { id: lead.id, score, destino, email_configurado: this.mail.configurado, relatorio_enviado: notif.relatorio_enviado };
   }
 
-  private async notificar(_id: string, dto: NovoLead, score: number, destino: string) {
-    if (!this.mail.configurado) return;
+  private async notificar(_id: string, dto: NovoLead, score: number, destino: string): Promise<{ relatorio_enviado: boolean }> {
+    let relatorioEnviado = false;
+    if (!this.mail.configurado) return { relatorio_enviado: false };
     const email = dto.email.trim().toLowerCase();
 
     if (dto.relatorio) {
       const pdf = await this.pdf.gerar(dto.relatorio);
-      await this.mail.enviar({
+      const r = await this.mail.enviar({
         to: email,
         subject: `Seu relatório InTAX: ${dto.relatorio.titulo}`.slice(0, 150),
         html: emailLayout(
@@ -105,6 +110,8 @@ export class LeadsService {
         ),
         attachments: [{ filename: 'relatorio-intax.pdf', content: pdf, contentType: 'application/pdf' }],
       });
+      relatorioEnviado = r.enviado;
+      if (!r.enviado) this.logger.warn(`Relatório não enviado para ${email}: ${r.motivo ?? 'motivo não informado'}`);
     }
 
     if (this.mail.emailInterno) {
@@ -118,6 +125,7 @@ export class LeadsService {
           <tr><td><b>Origem</b></td><td>${esc(dto.origem)}</td></tr><tr><td><b>Score / destino</b></td><td>${score} / ${esc(destino)}</td></tr></table>`),
       });
     }
+    return { relatorio_enviado: relatorioEnviado };
   }
 
   /** Confere se existe lead recente com o e-mail — libera o resultado completo das ferramentas gratuitas. */

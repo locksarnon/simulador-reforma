@@ -13,6 +13,8 @@ import {
 import { Search, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import InfoTooltip from "@/components/InfoTooltip";
+import { useRascunho } from "@/hooks/useRascunho";
+import RascunhoAviso from "@/components/RascunhoAviso";
 
 const SIM_NAO = ["Sim", "Não"];
 const REGIMES = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "Produtor rural PF"];
@@ -37,7 +39,7 @@ const UFS = [
 const empty = {
   id_empresa: "", grupo: "", razao_social: "", cnpj_cpf: "", regime_atual: "Lucro Real",
   setor: "", uf: "", municipio: "", contribuinte_ibs_cbs: "Sim", produtor_rural: "Não",
-  cooperativa: "Não", erp: "", responsavel_fiscal: "", status: "Ativa", observacao: "",
+  cooperativa: "Não", inscricao_estadual: "", erp: "", responsavel_fiscal: "", status: "Ativa", observacao: "",
 };
 
 /**
@@ -61,6 +63,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
   }, [open, editing, grupoNumero]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const rascunho = useRascunho(`empresa:${editing === "new" ? "nova" : editing?.id || "x"}`, form, open && Boolean(editing));
 
   // ID empresa não é mais digitado à mão — é sempre a raiz do CNPJ (8
   // primeiros dígitos, que identifica a matriz/o grupo de filiais na
@@ -98,6 +101,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
     const payload = { ...form, grupo: grupoNumero || form.grupo };
     if (editing === "new") await base44.entities.Empresa.create(payload);
     else await base44.entities.Empresa.update(editing.id, payload);
+    rascunho.limpar();
     onOpenChange(false);
     qc.invalidateQueries({ queryKey: ["empresas"] });
   };
@@ -107,6 +111,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editing === "new" ? "Nova empresa" : `Editar ${editing?.id_empresa}`}</DialogTitle></DialogHeader>
         <form onSubmit={save} className="grid grid-cols-2 gap-3">
+          <div className="col-span-2"><RascunhoAviso rascunho={rascunho} aplicar={(v) => setForm(v)} /></div>
           <div>
             <Label className="text-xs">CNPJ/CPF <InfoTooltip pagina="empresas" chave="cnpj_cpf" /></Label>
             <div className="flex gap-2">
@@ -164,6 +169,11 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{SIM_NAO.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
             </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Inscrição Estadual (IE) <InfoTooltip text="Cada estabelecimento (matriz ou filial em outro estado) tem a sua IE. Cadastre uma empresa por CNPJ completo, com a IE e a UF dele. A consulta automática de IE não é possível (o Sintegra usa captcha); use o link para conferir no site oficial." /></Label>
+            <Input value={form.inscricao_estadual || ""} onChange={(e) => set("inscricao_estadual", e.target.value.replace(/[^0-9A-Za-z./-]/g, "").slice(0, 20))} placeholder="Só números, ou ISENTO" />
+            <a href="https://www.sintegra.gov.br/" target="_blank" rel="noreferrer" className="text-[11px] text-muted-foreground underline">Conferir no Sintegra (site oficial)</a>
           </div>
           <div><Label className="text-xs">ERP <InfoTooltip pagina="empresas" chave="erp" /></Label><Input value={form.erp} onChange={(e) => set("erp", e.target.value)} /></div>
           <div><Label className="text-xs">Responsável fiscal <InfoTooltip pagina="empresas" chave="responsavel_fiscal" /></Label><Input value={form.responsavel_fiscal} onChange={(e) => set("responsavel_fiscal", e.target.value)} /></div>

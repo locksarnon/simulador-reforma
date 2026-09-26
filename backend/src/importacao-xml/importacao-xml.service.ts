@@ -1,12 +1,15 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { CfopService } from '../cfop/cfop.service';
+import { tratamentoEfetivo } from '../cfop/cfop.regras';
 import {
   normalizeCnpj,
   parsePercentage,
   originalValue,
   validateAccessKey,
   validateCnpj,
+  validateDocumento,
   sha256,
   VERSAO_REGRAS,
   check,
@@ -81,6 +84,7 @@ export class ImportacaoXmlService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly cfop: CfopService,
   ) {}
 
   // ── processarLoteXML ────────────────────────────────────────────────
@@ -980,18 +984,19 @@ export class ImportacaoXmlService {
     // o número é matematicamente válido. Pego cedo: um CNPJ com DV errado
     // indica XML corrompido, digitado à mão ou adulterado, e bloqueia antes
     // de tentar casar com o cadastro de empresas (evita "TERCEIRO" fantasma).
-    const emitCheck = validateCnpj(ctx.cnpjEmit);
+    // CPF (produtor rural pessoa física) tem outro algoritmo — validar como CNPJ bloqueava toda venda para PF.
+    const emitCheck = validateDocumento(ctx.cnpjEmit);
     if (!emitCheck.valido) {
       checks.push(check(emitCheck.codigo || 'DOC_CNPJ_EMITENTE_INVALIDO', STATUS.NAO_CONFORME, `Emitente: ${emitCheck.mensagem}`, true, 'cnpj_emitente'));
     } else {
-      checks.push(check('DOC_CNPJ_EMITENTE_VALIDO', STATUS.CONFORME, 'CNPJ do emitente válido (dígito verificador confere).'));
+      checks.push(check('DOC_CNPJ_EMITENTE_VALIDO', STATUS.CONFORME, `${emitCheck.tipo} do emitente válido (dígito verificador confere).`));
     }
     if (ctx.cnpjDest) {
-      const destCheck = validateCnpj(ctx.cnpjDest);
+      const destCheck = validateDocumento(ctx.cnpjDest);
       if (!destCheck.valido) {
         checks.push(check(destCheck.codigo || 'DOC_CNPJ_DESTINATARIO_INVALIDO', STATUS.NAO_CONFORME, `Destinatário: ${destCheck.mensagem}`, true, 'cnpj_destinatario'));
       } else {
-        checks.push(check('DOC_CNPJ_DESTINATARIO_VALIDO', STATUS.CONFORME, 'CNPJ do destinatário válido (dígito verificador confere).'));
+        checks.push(check('DOC_CNPJ_DESTINATARIO_VALIDO', STATUS.CONFORME, `${destCheck.tipo} do destinatário válido (dígito verificador confere).`));
       }
     }
     if (!ctx.cStat) {
@@ -1202,6 +1207,10 @@ export class ImportacaoXmlService {
     const historico = await this.prisma.historicoXML.findMany({ where: { grupo_id: lote.grupo_id } });
     const histKeys = new Set(historico.map((h) => `${h.chave_nfe}|${h.numero_item}|${h.perspectiva}`));
 
+    // Ajustes de CFOP por empresa (devolução de venda entra como receita NEGATIVA).
+    const ajustesCfop = new Map<string, Record<string, string>>();
+    for (const id of empresaIds) ajustesCfop.set(id, await this.cfop.ajustesDaEmpresa(id));
+
     const operacoesToCreate: Record<string, unknown>[] = [];
     const itemLinks: { itemId: string; item: (typeof itemsToProcess)[number] }[] = [];
     const resultados: { id: string; sucesso: boolean; erro?: string; operacao_id?: string }[] = [];
@@ -1226,6 +1235,8 @@ export class ImportacaoXmlService {
       histKeys.add(histKey);
 
       const idOp = `IMP-${item.chave_nfe.substring(25, 34)}-${item.numero_item}-${(item.perspectiva || '').substring(0, 3)}`;
+      const trat = tratamentoEfetivo(item.cfop_servico, item.direcao, ajustesCfop.get(item.empresa_id as string));
+      const sinal = trat === 'DEVOLUCAO_VENDA' ? -1 : 1;
       operacoesToCreate.push({
         id_operacao: idOp,
         empresa_id: empresa.id_empresa,
@@ -1240,7 +1251,7 @@ export class ImportacaoXmlService {
         frete: item.frete,
         seguro: item.seguro,
         outras_despesas: item.outras_despesas,
-        valor_bruto: item.valor_bruto,
+        valor_bruto: sinal * Math.abs(Number(item.valor_bruto) || 0),
         ncm: item.ncm,
         nbs: item.nbs,
         cfop_servico: item.cfop_servico,

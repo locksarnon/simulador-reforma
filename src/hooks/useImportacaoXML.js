@@ -4,7 +4,28 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const MAX_FILES = 5000;
 const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
-const UPLOAD_CONCURRENCY = 10;
+// Poucos envios simultâneos e com nova tentativa: 10 ao mesmo tempo, sem retry, fazia um único erro de rede
+// (ou um limite do servidor/firewall) derrubar a rodada inteira sem dizer qual arquivo falhou.
+const UPLOAD_CONCURRENCY = 4;
+const UPLOAD_TENTATIVAS = 3;
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Envia um arquivo com até 3 tentativas (espera 1s, depois 3s). Devolve { ok, ref } ou { ok:false, erro }. */
+async function enviarComRetry(base44, f) {
+  let ultimoErro = null;
+  for (let t = 1; t <= UPLOAD_TENTATIVAS; t++) {
+    try {
+      const { file_url, storage_key } = await base44.integrations.Core.UploadFile({ file: f });
+      return { ok: true, ref: { nome: f.name, file_url, storage_key, tamanho: f.size } };
+    } catch (err) {
+      ultimoErro = err;
+      const status = err?.status ?? err?.response?.status;
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) break; // erro do arquivo: repetir não ajuda
+      if (t < UPLOAD_TENTATIVAS) await esperar(t === 1 ? 1000 : 3000);
+    }
+  }
+  return { ok: false, arquivo: f, erro: String(ultimoErro?.message || ultimoErro) };
+}
 
 export function useImportacaoXML(grupoId) {
   const qc = useQueryClient();
@@ -56,16 +77,23 @@ export function useImportacaoXML(grupoId) {
     try {
       // 1. Upload dos arquivos para storage em paralelo (concurrency 10).
       const arquivosRefs = [];
+      const falhas = [];
       for (let i = 0; i < selectedFiles.length; i += UPLOAD_CONCURRENCY) {
         const batch = selectedFiles.slice(i, i + UPLOAD_CONCURRENCY);
-        const results = await Promise.all(
-          batch.map(async (f) => {
-            const { file_url, storage_key } = await base44.integrations.Core.UploadFile({ file: f });
-            return { nome: f.name, file_url, storage_key, tamanho: f.size };
-          })
-        );
-        arquivosRefs.push(...results);
+        const results = await Promise.all(batch.map((f) => enviarComRetry(base44, f)));
+        results.forEach((r) => (r.ok ? arquivosRefs.push(r.ref) : falhas.push(r)));
         setUploadProgress({ current: Math.min(i + UPLOAD_CONCURRENCY, selectedFiles.length), total: selectedFiles.length });
+      }
+
+      // Alguns falharam: o que subiu segue para processamento; os que falharam ficam selecionados para reenviar.
+      if (falhas.length > 0) {
+        setSelectedFiles(falhas.map((x) => x.arquivo));
+        const nomes = falhas.slice(0, 5).map((x) => x.arquivo.name).join(", ");
+        setError(
+          `${falhas.length} arquivo(s) não foram enviados (${nomes}${falhas.length > 5 ? "…" : ""}). ` +
+          (arquivosRefs.length > 0 ? `Os outros ${arquivosRefs.length} seguem em processamento — clique em enviar de novo para reenviar só estes.` : "Confira a conexão e clique em enviar de novo: só estes serão reenviados.")
+        );
+        if (arquivosRefs.length === 0) return;
       }
 
       // 2. Gera idempotency_key (UUID v4 client-side).
@@ -83,7 +111,7 @@ export function useImportacaoXML(grupoId) {
         arquivos: arquivosRefs,
       });
       setLoteId(resp.data.lote_id);
-      setSelectedFiles([]);
+      if (falhas.length === 0) setSelectedFiles([]);
       qc.invalidateQueries({ queryKey: ["lote-xml", resp.data.lote_id] });
     } catch (err) {
       setError(String(err?.response?.data?.error || err?.message || err));

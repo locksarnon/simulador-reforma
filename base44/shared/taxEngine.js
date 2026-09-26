@@ -399,6 +399,7 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
     if (!porAno[e.ano]) {
       porAno[e.ano] = {
         ano: e.ano, valorBruto: 0, tributosAtuaisLiquidos: 0, ibsCbsLiquido: 0,
+        debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0,
         cargaTransicao: 0, margemAtual: 0, margemTransicao: 0,
         splitRetido: 0, creditoAcumulado: 0, funding: 0,
       };
@@ -410,6 +411,11 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
     const efeitoFinanceiro = num(transicaoPorAno.get?.(e.ano)?.efeito_financeiro);
     a.valorBruto += e.valorBruto;
     a.tributosAtuaisLiquidos += e.tributosAtuaisLiquidos;
+    a.debitoIbs += e.debitoIbs;
+    a.debitoCbs += e.debitoCbs;
+    a.creditoIbs += e.creditoIbs;
+    a.creditoCbs += e.creditoCbs;
+    a.credPresTotal += e.credPresTotal;
     a.ibsCbsLiquido += ibsCbsApurado;
     a.cargaTransicao += e.sistemaAtualRemanescente + ibsCbsApurado * efeitoFinanceiro;
     a.margemAtual += e.margemAtual;

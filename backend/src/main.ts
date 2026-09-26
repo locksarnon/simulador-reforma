@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
@@ -6,7 +7,9 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: false });
+  // O padrão do Express é 100 KB — pequeno demais para salvar uma simulação do Painel (centenas de operações).
+  app.useBodyParser('json', { limit: '20mb' });
   const config = app.get(ConfigService);
 
   const prefix = config.get<string>('API_PREFIX', 'api/v1');

@@ -13,6 +13,9 @@ import { useImportacaoXML } from "@/hooks/useImportacaoXML";
 import DropzoneXML from "@/components/importacao/DropzoneXML";
 import ArquivosLog from "@/components/importacao/ArquivosLog";
 import StagingTable from "@/components/importacao/StagingTable";
+import { api } from "@/api/base44Client";
+import { toast } from "@/components/ui/use-toast";
+import { tratamentoDoItem, entraNoCalculo } from "@/lib/cfopTratamento";
 import ValidacaoDrawer from "@/components/importacao/ValidacaoDrawer";
 
 export default function ImportacaoXMLPage() {
@@ -122,10 +125,31 @@ export default function ImportacaoXMLPage() {
     setDrawerCamada(camada);
   };
 
+  // Regras de CFOP (lista-padrão + ajustes da empresa): só o que gera receita vem marcado por padrão.
+  const empresaIdsItens = useMemo(() => [...new Set(itensVisiveis.map((it) => it.empresa_id).filter(Boolean))], [itensVisiveis]);
+  const regrasQuery = useQuery({
+    queryKey: ["cfop-tratamentos", empresaIdsItens.join(",")],
+    queryFn: () => api.get("/cfop/tratamentos", { empresa_ids: empresaIdsItens.join(",") }),
+    staleTime: 60_000,
+  });
+  const regras = regrasQuery.data;
+
+  const alterarCfop = async (it, novo, desfazer = false) => {
+    try {
+      if (desfazer || novo === null) await api.delete(`/cfop/empresa?empresa_id=${encodeURIComponent(it.empresa_id)}&cfop=${encodeURIComponent(String(it.cfop_servico || "").replace(/\D/g, "").slice(0, 4))}`);
+      else await api.put("/cfop/empresa", { empresa_id: it.empresa_id, cfop: it.cfop_servico, tratamento: novo });
+      await regrasQuery.refetch();
+      toast({ title: desfazer ? "CFOP voltou ao padrão" : "CFOP ajustado para esta empresa", description: desfazer ? undefined : "Vale para as próximas importações também. Dá para voltar ao padrão na própria linha." });
+    } catch (e) {
+      toast({ title: "Não foi possível ajustar o CFOP", description: e.message, variant: "destructive" });
+    }
+  };
+
   const selecionarTodosImportaveis = () => {
     setSelectedIds(
       itensVisiveis
         .filter((it) => it.resultado_final === "IMPORTAVEL" || it.resultado_final === "IMPORTAVEL_COM_ALERTA")
+        .filter((it) => entraNoCalculo(tratamentoDoItem(regras, it.empresa_id, it.cfop_servico, it.direcao).tratamento))
         .map((it) => it.id)
     );
   };
@@ -305,12 +329,14 @@ export default function ImportacaoXMLPage() {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onOpenDrawer={openDrawer}
+              regras={regras}
+              onCfopChange={alterarCfop}
             />
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={selecionarTodosImportaveis} disabled={selecionaveis.length === 0} className="gap-1.5">
                   <CheckSquare className="w-3.5 h-3.5" />
-                  Selecionar todos importáveis ({selecionaveis.length})
+                  Selecionar todos que entram no cálculo
                 </Button>
                 {selectedIds.length > 0 && (
                   <Button variant="outline" size="sm" onClick={limparSelecao} className="gap-1.5">

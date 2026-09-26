@@ -74,6 +74,20 @@ export class StorageService implements OnModuleInit {
     return { storageKey: objectKey, url };
   }
 
+  /** Lê o conteúdo de um objeto guardado. */
+  async getObjectBuffer(objectKey: string): Promise<Buffer> {
+    this.assertReady();
+    const stream = await this.client.getObject(this.bucket, objectKey);
+    const partes: Buffer[] = [];
+    for await (const parte of stream) partes.push(Buffer.isBuffer(parte) ? parte : Buffer.from(parte));
+    return Buffer.concat(partes);
+  }
+
+  async removeObject(objectKey: string): Promise<void> {
+    this.assertReady();
+    await this.client.removeObject(this.bucket, objectKey);
+  }
+
   /**
    * Gera uma nova URL pré-assinada para um objeto já existente (sem
    * reenviar o conteúdo) — usado no reprocessamento de lote: a URL assinada

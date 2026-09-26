@@ -8,6 +8,8 @@ import { NewsletterService } from '../newsletter/newsletter.service';
 import { PdfService } from '../pdf/pdf.service';
 import { ProdutosController } from '../produtos/produtos.controller';
 import { ProdutosService } from '../produtos/produtos.service';
+import { ValidacoesService } from '../produtos/validacoes.service';
+import { StorageModule } from '../storage/storage.module';
 import { RoteiroTestesController } from '../roteiro-testes/roteiro-testes.controller';
 import { PublicoController } from '../publico/publico.controller';
 
@@ -17,9 +19,9 @@ import { PublicoController } from '../publico/publico.controller';
  * rotas públicas (por controller), nunca no app autenticado.
  */
 @Module({
-  imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }])],
+  imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]), StorageModule],
   controllers: [ClassificacaoController, ProdutosController, NewsletterController, PublicoController, RoteiroTestesController],
-  providers: [ClassificacaoService, ProdutosService, LeadsService, NewsletterService, PdfService],
+  providers: [ClassificacaoService, ProdutosService, ValidacoesService, LeadsService, NewsletterService, PdfService],
   exports: [ClassificacaoService],
 })
 export class ComercialModule {}

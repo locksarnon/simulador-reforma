@@ -5,6 +5,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import InfoTooltip from "@/components/InfoTooltip";
+import PctInput from "@/components/ui/pct-input";
+import { useRascunho } from "@/hooks/useRascunho";
+import RascunhoAviso from "@/components/RascunhoAviso";
+import { RESSALVA_CRED_PRES } from "@/lib/ressalvas";
+import { sugerirTributosAtuais } from "@/lib/tabelasLegais";
 
 const DIRECOES = ["Saida", "Entrada"];
 const TIPOS = ["Mercadoria", "Servico", "Outro"];
@@ -77,6 +82,7 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
   }));
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const rascunho = useRascunho(`operacao:${initial?.id || "nova"}`, form, true);
 
   // auto-calc valor bruto
   const recalcValorBruto = (next) => {
@@ -104,13 +110,27 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
   // motor recebe a fração decimal (0,0165). Exibe valor×100, armazena /100.
   const handlePct = (k) => (e) => set(k, Number(e.target.value) / 100);
 
+  // Preenchimento pela tabela da legislação (PIS/Cofins pelo regime; ICMS só quando interestadual).
+  const [explicacaoTabela, setExplicacaoTabela] = useState([]);
+  const aplicarTabela = () => {
+    const s = sugerirTributosAtuais(form);
+    setForm((f) => ({
+      ...f,
+      ...(s.pis_pct !== undefined ? { pis_pct: s.pis_pct, cofins_pct: s.cofins_pct } : {}),
+      ...(s.icms_pct !== undefined ? { icms_pct: s.icms_pct } : {}),
+    }));
+    setExplicacaoTabela(s.explicacao);
+  };
+
   const submit = (e) => {
     e.preventDefault();
+    rascunho.limpar();
     onSave(form);
   };
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <RascunhoAviso rascunho={rascunho} aplicar={(v) => setForm(v)} />
       <section>
         <h3 className="text-sm font-heading font-medium mb-3 flex items-center gap-1.5">
           Identificação <InfoTooltip pagina="operacao_form" chave="header_identificacao" />
@@ -205,7 +225,13 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
       <section>
         <h3 className="text-sm font-heading font-medium mb-3 flex items-center gap-1.5">
           Tributos atuais (%) <InfoTooltip pagina="operacao_form" chave="header_tributos_atuais" />
+          <button type="button" onClick={aplicarTabela} className="ml-auto text-xs font-normal px-2.5 py-1 rounded-md border border-border hover:bg-muted" title="Preenche PIS/Cofins pelo regime e o ICMS interestadual pelas UFs">
+            Preencher pela tabela da legislação
+          </button>
         </h3>
+        {explicacaoTabela.length > 0 && (
+          <ul className="mb-3 text-xs text-muted-foreground list-disc pl-5 space-y-0.5">{explicacaoTabela.map((t) => <li key={t}>{t}</li>)}</ul>
+        )}
         <div className="grid grid-cols-4 gap-3">
           {[
             ["PIS %", "pis_pct"], ["Cofins %", "cofins_pct"], ["ICMS %", "icms_pct"],
@@ -213,7 +239,7 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
             ["IPI %", "ipi_pct"], ["Crédito elegível %", "credito_elegivel_pct"],
           ].map(([label, key]) => (
             <Field key={key} label={label} pagina="operacao_form" chave={key}>
-              <Input type="number" step="any" value={form[key] * 100} onChange={handlePct(key)} />
+              <PctInput value={form[key]} onChange={(v) => set(key, v)} />
             </Field>
           ))}
         </div>
@@ -224,14 +250,15 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
           IBS/CBS e split <InfoTooltip pagina="operacao_form" chave="header_ibs_cbs" />
         </h3>
         <div className="grid grid-cols-4 gap-3">
-          <Field label="Split %" pagina="operacao_form" chave="split_pct"><Input type="number" step="any" value={form.split_pct * 100} onChange={handlePct("split_pct")} /></Field>
+          <Field label="Split %" pagina="operacao_form" chave="split_pct"><PctInput value={form.split_pct} onChange={(v) => set("split_pct", v)} /></Field>
           <Field label="cCredPres" pagina="operacao_form" chave="c_cred_pres"><Input value={form.c_cred_pres} onChange={(e) => set("c_cred_pres", e.target.value)} /></Field>
-          <Field label="Crédito presumido IBS %" pagina="operacao_form" chave="credito_presumido_ibs_pct"><Input type="number" step="any" value={form.credito_presumido_ibs_pct * 100} onChange={handlePct("credito_presumido_ibs_pct")} /></Field>
-          <Field label="Crédito presumido CBS %" pagina="operacao_form" chave="credito_presumido_cbs_pct"><Input type="number" step="any" value={form.credito_presumido_cbs_pct * 100} onChange={handlePct("credito_presumido_cbs_pct")} /></Field>
+          <Field label="Crédito presumido IBS %" pagina="operacao_form" chave="credito_presumido_ibs_pct"><PctInput value={form.credito_presumido_ibs_pct} onChange={(v) => set("credito_presumido_ibs_pct", v)} /></Field>
+          <Field label="Crédito presumido CBS %" pagina="operacao_form" chave="credito_presumido_cbs_pct"><PctInput value={form.credito_presumido_cbs_pct} onChange={(v) => set("credito_presumido_cbs_pct", v)} /></Field>
           <Field label="Grupo RTC" pagina="operacao_form" chave="grupo_rtc"><Input value={form.grupo_rtc} onChange={(e) => set("grupo_rtc", e.target.value)} /></Field>
-          <Field label="Custo base % (p/ margem)" pagina="operacao_form" chave="custo_base_pct"><Input type="number" step="any" value={form.custo_base_pct * 100} onChange={handlePct("custo_base_pct")} /></Field>
-          <Field label="Margem meta %" pagina="operacao_form" chave="margem_meta_pct"><Input type="number" step="any" value={form.margem_meta_pct * 100} onChange={handlePct("margem_meta_pct")} /></Field>
+          <Field label="Custo base % (p/ margem)" pagina="operacao_form" chave="custo_base_pct"><PctInput value={form.custo_base_pct} onChange={(v) => set("custo_base_pct", v)} /></Field>
+          <Field label="Margem meta %" pagina="operacao_form" chave="margem_meta_pct"><PctInput value={form.margem_meta_pct} onChange={(v) => set("margem_meta_pct", v)} /></Field>
         </div>
+        <p className="mt-3 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-2.5">{RESSALVA_CRED_PRES}</p>
       </section>
 
       <section>

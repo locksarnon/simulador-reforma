@@ -2,6 +2,8 @@ import React, { useMemo, useRef, useState } from "react";
 import { UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
 import { api } from "@/api/base44Client";
 import LeadForm from "@/components/ferramentas/LeadForm";
+import HistoricoValidacoes from "@/components/ferramentas/HistoricoValidacoes";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cClassTrib"];
 
@@ -52,6 +54,8 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   const [pagina, setPagina] = useState(0);
   const [emailLiberado, setEmailLiberado] = useState("");
   const inputRef = useRef(null);
+  const qc = useQueryClient();
+  const [abrindo, setAbrindo] = useState(null);
 
   const rotaPrevia = publico ? "/public/produtos/amostra" : "/produtos/ler";
   const rotaValidar = publico ? "/public/produtos/amostra" : "/produtos/validar";
@@ -80,6 +84,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     try {
       const r = await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
       setResultado(r); setEtapa("resultado"); setPagina(0);
+      if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -87,11 +92,26 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     }
   };
 
+  const abrirSalva = async (v) => {
+    setErro(""); setAbrindo(v.id);
+    try {
+      const r = await api.get(`/produtos/validacoes/${v.id}`);
+      setArquivo(null); setResultado(r); setMapa(r.mapeamento || {}); setEtapa("resultado"); setPagina(0); setFiltro("PROBLEMAS"); setBusca("");
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setAbrindo(null);
+    }
+  };
+
   const baixarModelo = () => api.baixar("GET", "/public/produtos/modelo", { nome: "modelo-cadastro-produtos-intax.xlsx" }).catch((e) => setErro(e.message));
   const copiarCab = async () => {
     try { await navigator.clipboard.writeText(CABECALHO_MODELO.join("\t")); setCopiado(true); setTimeout(() => setCopiado(false), 2000); } catch { setErro("Não foi possível copiar. Selecione e copie manualmente: " + CABECALHO_MODELO.join(", ")); }
   };
-  const exportar = () => api.baixar("POST", "/produtos/exportar", { file: arquivo, campos: { mapeamento: mapa }, nome: "cadastro-validado-intax.xlsx" }).catch((e) => setErro(e.message));
+  const exportar = () => (arquivo
+    ? api.baixar("POST", "/produtos/exportar", { file: arquivo, campos: { mapeamento: mapa }, nome: "cadastro-validado-intax.xlsx" })
+    : api.baixar("GET", `/produtos/validacoes/${resultado?.validacao_id}/exportar`, { nome: "cadastro-validado-intax.xlsx" })
+  ).catch((e) => setErro(e.message));
 
   const itensFiltrados = useMemo(() => {
     if (!resultado) return [];
@@ -123,6 +143,8 @@ export default function ValidadorCadastro({ modo = "interno" }) {
           <p className="text-xs text-muted-foreground mt-1">Excel (.xlsx) ou CSV{publico ? " · até 300 produtos, 2 MB" : " · até 50 mil produtos"}</p>
         </div>
         {erro && <p className="text-sm text-destructive">{erro}</p>}
+
+        {!publico && <HistoricoValidacoes onAbrir={abrirSalva} abrindo={abrindo} />}
 
         <div className="rounded-xl border border-border bg-card p-5 space-y-3">
           <h3 className="font-heading font-semibold text-sm">Como preparar a planilha</h3>

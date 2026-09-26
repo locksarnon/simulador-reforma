@@ -41,6 +41,9 @@ export default function OperacoesPage() {
 
   const transicaoMap = useMemo(() => new Map(transicao.map((t) => [t.ano, t])), [transicao]);
   const classTribMap = useMemo(() => new Map(classTrib.map((c) => [c.c_class_trib, c])), [classTrib]);
+  // Catálogo de CST (descrição oficial), para explicar o código que veio no XML.
+  const { data: cstLista = [] } = useQuery({ queryKey: ["cst-ibs-cbs"], queryFn: () => base44.entities.CstIbsCbs.list(), staleTime: 10 * 60_000 });
+  const cstMap = useMemo(() => new Map(cstLista.map((c) => [String(c.cst), c])), [cstLista]);
   const empresaMap = useMemo(() => new Map(empresas.map((e) => [e.id_empresa, e])), [empresas]);
 
   const grupoOps = grupoEmpresaIds
@@ -202,6 +205,17 @@ export default function OperacoesPage() {
                             <OperacaoCalcDetail calc={oc} />
                             <div className="space-y-2 text-sm">
                               <div><span className="text-muted-foreground">cClassTrib:</span> {op.c_class_trib} · <span className="text-muted-foreground">CST:</span> {op.cst_ibs_cbs}</div>
+                              {classTribMap.get(op.c_class_trib) && (
+                                <div className="text-xs rounded-md border border-border/60 p-2 space-y-0.5">
+                                  <p><span className="font-medium">cClassTrib {op.c_class_trib}:</span> {classTribMap.get(op.c_class_trib).descricao_oficial}</p>
+                                  <p className="text-muted-foreground">Redução de IBS {((classTribMap.get(op.c_class_trib).pct_reducao_ibs || 0) * 100).toFixed(0)}% · CBS {((classTribMap.get(op.c_class_trib).pct_reducao_cbs || 0) * 100).toFixed(0)}% (catálogo {classTribMap.get(op.c_class_trib).fonte ? "oficial" : "do sistema"})</p>
+                                </div>
+                              )}
+                              {cstMap.get(String(op.cst_ibs_cbs)) && (
+                                <div className="text-xs rounded-md border border-border/60 p-2">
+                                  <span className="font-medium">CST {op.cst_ibs_cbs}:</span> {cstMap.get(String(op.cst_ibs_cbs)).descricao_oficial}
+                                </div>
+                              )}
                               <div><span className="text-muted-foreground">NCM:</span> {op.ncm || "—"} · <span className="text-muted-foreground">CFOP:</span> {op.cfop_servico || "—"}</div>
                               <div><span className="text-muted-foreground">UF origem→destino:</span> {op.uf_origem} → {op.uf_destino}</div>
                               {op.observacao_dfe && <div className="text-muted-foreground text-xs pt-2 border-t border-border/40">{op.observacao_dfe}</div>}

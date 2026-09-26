@@ -1,11 +1,12 @@
 import { BRL, pct } from "@/lib/format";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+import InfoLegal from "@/components/InfoLegal";
 
-function Row({ label, value, isPct, strong }) {
+function Row({ label, value, isPct, strong, legal }) {
   return (
     <div className="flex justify-between py-1.5 text-sm border-b border-border/40 last:border-0">
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground">{label}{legal && <InfoLegal chave={legal} />}</span>
       <span className={strong ? "font-medium font-heading" : ""}>{isPct ? pct(value) : BRL(value)}</span>
     </div>
   );
@@ -46,29 +47,29 @@ export default function OperacaoCalcDetail({ calc }) {
       </Module>
 
       <Module title="IBS/CBS">
-        <Row label="IBS nominal" value={ib.ibsNominal} isPct />
-        <Row label="CBS nominal" value={ib.cbsNominal} isPct />
+        <Row label="IBS nominal" value={ib.ibsNominal} isPct legal="aliquotas_transicao" />
+        <Row label="CBS nominal" value={ib.cbsNominal} isPct legal="aliquotas_transicao" />
         <Row label="IBS efetiva" value={ib.ibsEfetiva} isPct />
         <Row label="CBS efetiva" value={ib.cbsEfetiva} isPct />
         <Row label="Débito IBS" value={ib.debitoIbs} />
         <Row label="Débito CBS" value={ib.debitoCbs} />
-        <Row label="Crédito IBS" value={ib.creditoIbs} />
-        <Row label="Crédito CBS" value={ib.creditoCbs} />
-        <Row label="Crédito presumido total" value={ib.credPresTotal} />
+        <Row label="Crédito IBS" value={ib.creditoIbs} legal="credito_ibs_cbs" />
+        <Row label="Crédito CBS" value={ib.creditoCbs} legal="credito_ibs_cbs" />
+        <Row label="Crédito presumido total (estimativa)" value={ib.credPresTotal} legal="credito_presumido" />
         <div className="flex justify-between py-1.5 text-sm border-b border-border/40 last:border-0">
           <span className="text-muted-foreground">Status crédito presumido</span>
           <span className={`font-medium ${ib.statusCredPres === "Localizado" ? "text-chart-2" : ib.statusCredPres === "Pendente" || ib.statusCredPres === "Não localizado" ? "text-destructive" : "text-muted-foreground"}`}>{ib.statusCredPres}</span>
         </div>
         <Row label="IBS/CBS líquido" value={ib.ibsCbsLiquido} strong />
         <Row label="Carga efetiva" value={ib.cargaEfetiva} isPct strong />
-        <Row label="Split retido" value={ib.splitRetido} />
+        <Row label="Split retido" value={ib.splitRetido} legal="split_payment" />
       </Module>
 
       <Module title="Transição">
-        <Row label="PIS/Cofins remanescente" value={t.pisCofinsAtual} />
+        <Row label="PIS/Cofins remanescente" value={t.pisCofinsAtual} legal="extincao_pis_cofins" />
         <Row label="IPI remanescente" value={t.ipiAtual} />
-        <Row label="ICMS/FCP/ST remanescente" value={t.icmsFcpStAtual} />
-        <Row label="ISS remanescente" value={t.issAtual} />
+        <Row label="ICMS/FCP/ST remanescente" value={t.icmsFcpStAtual} legal="icms_iss_transicao" />
+        <Row label="ISS remanescente" value={t.issAtual} legal="icms_iss_transicao" />
         <Row label="Sistema atual remanescente" value={t.sistemaAtualRemanescente} strong />
         <Row label="IBS/CBS financeiro" value={t.ibsCbsFinanceiro} />
         <Row label="Carga total transição" value={t.cargaTotalTransicao} strong />
@@ -93,8 +94,8 @@ export default function OperacaoCalcDetail({ calc }) {
 
       <Module title="Caixa e split payment">
         <Row label="Débito IBS/CBS" value={cx.debitoIbsCbs} />
-        <Row label="Crédito IBS/CBS total" value={cx.creditoIbsCbsTotal} />
-        <Row label="Split retido" value={cx.splitRetido} />
+        <Row label="Crédito IBS/CBS total" value={cx.creditoIbsCbsTotal} legal="credito_ibs_cbs" />
+        <Row label="Split retido" value={cx.splitRetido} legal="split_payment" />
         <Row label="Caixa imediato" value={cx.caixaImediato} />
         <Row label="Crédito acumulado" value={cx.creditoAcumulado} />
         <Row label="Custo financeiro do crédito" value={cx.custoFinanceiro} />

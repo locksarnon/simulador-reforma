@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -47,13 +47,29 @@ function Slider({ label, ajuda, valor, onChange, min = 0, max = 100 }) {
 }
 
 /** Calculadora InTAX — "Quanto a reforma muda para mim?" (ferramenta-isca, sem login). */
+const CHAVE_SESSAO = "intax_calculadora_v1";
+const DADOS_INICIAIS = { regime: "", faturamento: "", comprasPct: 55, creditoPct: 70, exportaPct: 20, carga: "", reducao: 0 };
+
+/** Retoma o preenchimento se a página for recarregada (fica só nesta aba do navegador). */
+function lerSessao() {
+  try { const s = JSON.parse(sessionStorage.getItem(CHAVE_SESSAO) || "null"); return s && PERFIS.some((p) => p.id === s.perfilId) ? s : null; } catch { return null; }
+}
+
 export default function CalculadoraPage() {
-  const [passo, setPasso] = useState(0);
-  const [perfilId, setPerfilId] = useState(null);
-  const [respostas, setRespostas] = useState({});
-  const [dados, setDados] = useState({ regime: "", faturamento: "", comprasPct: 55, creditoPct: 70, exportaPct: 20, carga: "", reducao: 0 });
+  const sessao = useMemo(lerSessao, []);
+  const [passo, setPasso] = useState(sessao?.passo ?? 0);
+  const [perfilId, setPerfilId] = useState(sessao?.perfilId ?? null);
+  const [respostas, setRespostas] = useState(sessao?.respostas ?? {});
+  const [dados, setDados] = useState(sessao?.dados ?? DADOS_INICIAIS);
   const [enviado, setEnviado] = useState(null);
   const [baixando, setBaixando] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (perfilId) sessionStorage.setItem(CHAVE_SESSAO, JSON.stringify({ passo: Math.min(passo, 3), perfilId, respostas, dados }));
+      else sessionStorage.removeItem(CHAVE_SESSAO);
+    } catch { /* sem storage */ }
+  }, [passo, perfilId, respostas, dados]);
 
   const perfil = PERFIS.find((p) => p.id === perfilId);
   const { data: parametros, isLoading: carregandoParams, isError } = useQuery({
@@ -308,7 +324,7 @@ export default function CalculadoraPage() {
           ) : (
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 p-5 space-y-3">
               <p className="font-medium flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Pronto, {enviado.nome?.split(" ")[0]}!</p>
-              <p className="text-sm text-muted-foreground">{enviado.email_configurado ? "Enviamos o relatório para o seu e-mail." : "Baixe o relatório abaixo."} Se quiser, refazemos esse cálculo com as suas notas fiscais reais: {CONTATO.whatsapp} · {CONTATO.email}.</p>
+              <p className="text-sm text-muted-foreground">{enviado.relatorio_enviado ? "Enviamos o relatório para o seu e-mail." : "Não conseguimos enviar o e-mail agora — baixe o relatório abaixo (ele também fica disponível com a nossa equipe)."} Se quiser, refazemos esse cálculo com as suas notas fiscais reais: {CONTATO.whatsapp} · {CONTATO.email}.</p>
               <button type="button" onClick={baixarPdf} disabled={baixando} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
                 {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Baixar PDF agora
               </button>

@@ -261,6 +261,36 @@ export const ROTEIRO = [
 
   // ───────────────────────── INTELIGÊNCIA ─────────────────────────
   {
+    id: "cfop", grupo: "Diagnóstico com notas", titulo: "Importação XML — CFOP que gera receita e CPF de produtor", rota: "/",
+    objetivo: "Conferir que só o que gera receita entra no cálculo e que venda para produtor pessoa física (CPF) não fica bloqueada.",
+    preparo: ["Um grupo e uma empresa de teste já cadastrados.", "XMLs de venda (CFOP 5101/5102), de remessa para depósito (5905) e uma venda para CPF."],
+    passos: [
+      p("Importe os XMLs na tela Importação XML.", "Vendas para CPF aparecem como importáveis (antes ficavam Bloqueado por \"CNPJ inválido\")."),
+      p("Olhe a coluna \"Cálculo\" ao lado do CFOP.", "5101/5102: \"Entra (receita)\". 5905, 5910, 5949 e transferências: \"Fora do cálculo\". Devolução de venda (1202): \"Devolução de venda (−)\"."),
+      p("Clique em \"Selecionar todos que entram no cálculo\".", "Os itens \"Fora do cálculo\" ficam de fora da seleção."),
+      p("Troque um CFOP (ex.: 5905) para \"Entra (receita)\" na própria linha.", "Aviso \"CFOP ajustado para esta empresa\"; aparece o link \"padrão\". Vale nas próximas importações da empresa."),
+      p("Clique em \"padrão\".", "O CFOP volta ao tratamento da lista-padrão."),
+      p("Use o filtro \"Fora do cálculo\" e importe os selecionados.", "Só entram as operações marcadas. A devolução de venda entra com valor negativo."),
+    ],
+    cuidados: ["A lista-padrão é ponto de partida: o especialista deve revisar os CFOPs ambíguos.", "O ajuste vale para a empresa (todas as importações futuras)."],
+    criterio: "CPF não bloqueia; CFOP fora do cálculo não vem marcado; ajuste por empresa grava e desfaz.",
+  },
+  {
+    id: "base-legal", grupo: "Inteligência de mercado", titulo: "Base legal e Perguntas ao assistente", rota: "/base-legal",
+    objetivo: "Ler a lei dentro do sistema, buscar por artigo e perguntar em linguagem natural com a base legal citada.",
+    preparo: ["Estar logado (o administrador vê os painéis extras)."],
+    passos: [
+      p("Abra \"Base legal\" no menu.", "Cards das normas (EC 132, LC 214, LC 227, LC 235, Decreto 12.955, CF, LC 123, LC 87, LC 116, CTN, LC 225, LC 236, Lei 5.764)."),
+      p("Busque \"art 164\".", "Aparece o atalho para o Art. 164 da LC 214 (e dos outros textos que tenham esse número)."),
+      p("Pergunte: \"Até quanto de receita o produtor rural fica fora do IBS e da CBS?\"", "Resposta com o Art. 164 e trecho literal; leva de 15 a 30 s."),
+      p("Pergunte algo fora do assunto (ex.: carros voadores em Marte).", "O assistente diz que não encontrou base nas normas carregadas."),
+      p("Clique em um artigo citado.", "Abre o texto integral com \"Copiar com citação\"."),
+      p("Como administrador: abra \"Perguntas frequentes revisadas\" e use \"Revisar e publicar\" em um cartão.", "O cartão passa a aparecer para os consultores."),
+    ],
+    cuidados: ["Cartões novos nascem como rascunho: só o administrador vê até serem revisados.", "Respostas do assistente não substituem parecer tributário."],
+    criterio: "Busca acha o artigo; assistente cita a fonte e recusa o que não está na lei; cartão revisado fica visível.",
+  },
+  {
     id: "radar", grupo: "Inteligência de mercado", titulo: "Radar de Novidades", rota: "/ferramentas/radar-reforma",
     objetivo: "Conferir o radar semanal gerado por IA (fontes reais, prazos, prioridade).",
     preparo: [],

@@ -4,6 +4,10 @@ import { useSimuladorData, calcularOperacoes } from "@/hooks/useSimuladorData";
 import { consolidarPorAno, VERSAO_MOTOR } from "../../../base44/shared/taxEngine";
 import { base44 } from "@/api/base44Client";
 import { hashSnapshot } from "@/lib/snapshotHash";
+import { Link } from "react-router-dom";
+import InfoLegal from "@/components/InfoLegal";
+import ComparacaoClassificacao from "@/components/painel/ComparacaoClassificacao";
+import { RESSALVA_CRED_PRES, RESSALVA_ALIQUOTAS, LINK_CRED_PRES } from "@/lib/ressalvas";
 import { gerarRelatorioSimulacao } from "@/lib/pdfReport";
 import KpiCard from "@/components/KpiCard";
 import { Button } from "@/components/ui/button";
@@ -51,13 +55,18 @@ function somarTotais(consolidado) {
       acc.tributosAtuais += c.tributosAtuaisLiquidos;
       acc.cargaTransicao += c.cargaTransicao;
       acc.ibsCbs += c.ibsCbsLiquido;
+      acc.debitoIbs += c.debitoIbs || 0;
+      acc.debitoCbs += c.debitoCbs || 0;
+      acc.creditoIbs += c.creditoIbs || 0;
+      acc.creditoCbs += c.creditoCbs || 0;
+      acc.credPres += c.credPresTotal || 0;
       acc.split += c.splitRetido;
       acc.funding += c.funding;
       acc.margemAtual += c.margemAtual;
       acc.margemTransicao += c.margemTransicao;
       return acc;
     },
-    { valorBruto: 0, tributosAtuais: 0, cargaTransicao: 0, ibsCbs: 0, split: 0, funding: 0, margemAtual: 0, margemTransicao: 0 }
+    { valorBruto: 0, tributosAtuais: 0, cargaTransicao: 0, ibsCbs: 0, debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPres: 0, split: 0, funding: 0, margemAtual: 0, margemTransicao: 0 }
   );
 }
 
@@ -196,9 +205,13 @@ export default function PainelExecutivoView({
   const handleSalvarSimulacao = async () => {
     setSalvando(true);
     try {
+      // Só as linhas do catálogo que as operações usam (o catálogo inteiro passava de 100 KB à toa).
+      const usadosCt = new Set(operacoesCalculadas.map((oc) => oc.op?.c_class_trib).filter(Boolean));
       const entrada = {
         operacoes: operacoesCalculadas.map((oc) => oc.op),
-        cenarioAtivo, config, transicao, classTrib, credPres,
+        cenarioAtivo, config, transicao,
+        classTrib: classTrib.filter((c) => usadosCt.has(c.c_class_trib)),
+        credPres,
       };
       const resultado = { consolidado, totais };
       const nomeEscopo = empresaLabel || grupoLabel || "todos os grupos";
@@ -226,6 +239,9 @@ export default function PainelExecutivoView({
     try {
       const nome = gerarRelatorioSimulacao({
         totais, consolidado,
+        transicaoAnos: [...transicao].sort((a, b) => a.ano - b.ano),
+        comparacaoCenarios: comparar ? comparacaoCenarios : null,
+        ressalvas: [totais.credPres > 0 ? RESSALVA_CRED_PRES : null, RESSALVA_ALIQUOTAS].filter(Boolean),
         versaoMotor: VERSAO_MOTOR,
         versaoRegras: config.versao_simulador || "v0.18",
         cenarioNome: cenarioAtivo?.nome,
@@ -363,8 +379,8 @@ export default function PainelExecutivoView({
           value={BRL(totais.cargaTransicao)}
           sub={totais.valorBruto > 0 ? pct(totais.cargaTransicao / totais.valorBruto) : "—"}
         />
-        <KpiCard label="IBS/CBS líquido" value={BRL(totais.ibsCbs)} accent="text-chart-2" />
-        <KpiCard label="Split retido" value={BRL(totais.split)} sub="split payment" />
+        <KpiCard label="IBS/CBS líquido" value={BRL(totais.ibsCbs)} sub="débitos − créditos (por empresa/ano)" accent="text-chart-2" />
+        <KpiCard label={<>Split retido<InfoLegal chave="split_payment" /></>} value={BRL(totais.split)} sub="split payment" />
         <KpiCard label="Funding tributário estimado" value={BRL(totais.funding)} accent="text-destructive" />
         <KpiCard
           label="Δ Margem transição"
@@ -372,6 +388,24 @@ export default function PainelExecutivoView({
           accent={totais.margemTransicao < totais.margemAtual ? "text-destructive" : "text-chart-2"}
         />
       </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <KpiCard label="Débito de IBS" value={BRL(totais.debitoIbs)} sub="sobre as vendas" />
+        <KpiCard label="Débito de CBS" value={BRL(totais.debitoCbs)} sub="sobre as vendas" />
+        <KpiCard label={<>Crédito de IBS<InfoLegal chave="credito_ibs_cbs" /></>} value={BRL(totais.creditoIbs)} sub="das compras" accent="text-chart-2" />
+        <KpiCard label={<>Crédito de CBS<InfoLegal chave="credito_ibs_cbs" /></>} value={BRL(totais.creditoCbs)} sub="das compras" accent="text-chart-2" />
+        <KpiCard label={<>Crédito presumido (estimativa)<InfoLegal chave="credito_presumido" /></>} value={BRL(totais.credPres)} sub="ver ressalva abaixo" accent="text-amber-600" />
+      </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        {RESSALVA_CRED_PRES}{" "}
+        <Link to={LINK_CRED_PRES} className="underline">Ler o art. 168</Link>
+      </p>
+
+      <ComparacaoClassificacao
+        operacoes={operacoes} transicaoMap={transicaoMap} transicaoPorAno={transicaoPorAno}
+        classTribGrouped={classTribGrouped} credPresGrouped={credPresGrouped}
+        cenarioAtivo={cenarioAtivo} config={config} totaisXml={totais}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-5">

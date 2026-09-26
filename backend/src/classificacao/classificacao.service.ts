@@ -80,6 +80,31 @@ export class ClassificacaoService {
     return { situacao, titulo, classes, anexos, confianca: textoConfianca(av.confianca), aviso };
   }
 
+  /**
+   * Sugestão de classificação por NCM, em lote (usado pelo Painel para comparar "como no XML" com
+   * "conforme a LC 214 pelo NCM"). Só sugere quando o NCM aponta UMA classe (sem ambiguidade).
+   */
+  async sugerirLote(ncms: string[]) {
+    await this.garantirBase();
+    const unicos = [...new Set(ncms.map((n) => soDigitos(n)).filter((d) => d.length >= 4))].slice(0, 2000);
+    const saida: Record<string, { c_class_trib: string | null; ambiguo: boolean; confianca: string; pct_reducao_ibs: number; pct_reducao_cbs: number; descricao: string | null; anexos: string[] }> = {};
+    for (const d of unicos) {
+      const av = avaliarNcm(d, this.lista);
+      const c = !av.encontrado || av.ambiguo ? null : av.esperado;
+      const info = c ? this.classes.get(c) : null;
+      saida[d] = {
+        c_class_trib: c,
+        ambiguo: av.ambiguo,
+        confianca: textoConfianca(av.confianca),
+        pct_reducao_ibs: Number(info?.pct_reducao_ibs ?? 0),
+        pct_reducao_cbs: Number(info?.pct_reducao_cbs ?? 0),
+        descricao: info?.descricao_oficial ?? null,
+        anexos: [...new Set(av.matches.map((m) => m.anexo))],
+      };
+    }
+    return saida;
+  }
+
   /** Consulta por código (prefixo) ou por texto da descrição. */
   async consultar(q: string, limite = 25) {
     const termo = (q || '').trim();

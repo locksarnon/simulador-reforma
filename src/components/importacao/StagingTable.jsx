@@ -1,6 +1,30 @@
 import React, { useState, useMemo } from "react";
 import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TRATAMENTO_COR, TRATAMENTO_ROTULO, tratamentoDoItem } from "@/lib/cfopTratamento";
+
+/** Coluna "Cálculo": mostra se o CFOP entra no cálculo e deixa trocar (vale para a empresa; dá para voltar ao padrão). */
+function CfopCelula({ it, regras, onCfopChange }) {
+  const { tratamento, origem } = tratamentoDoItem(regras, it.empresa_id, it.cfop_servico, it.direcao);
+  const descricao = regras?.padrao?.[String(it.cfop_servico || "").replace(/\D/g, "").slice(0, 4)]?.descricao;
+  if (!onCfopChange || !it.empresa_id) return <span className="text-[10px] text-muted-foreground">—</span>;
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={tratamento === "NAO_CLASSIFICADO" ? "" : tratamento}
+        onChange={(e) => onCfopChange(it, e.target.value || null)}
+        title={`${descricao || "CFOP sem descrição na lista-padrão"}${origem === "empresa" ? " — ajustado para esta empresa" : ""}`}
+        className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium cursor-pointer max-w-[128px]", TRATAMENTO_COR[tratamento])}
+      >
+        {tratamento === "NAO_CLASSIFICADO" && <option value="">{TRATAMENTO_ROTULO.NAO_CLASSIFICADO}</option>}
+        {["RECEITA", "NAO_RECEITA", "DEVOLUCAO_VENDA", "COMPRA"].map((k) => <option key={k} value={k}>{TRATAMENTO_ROTULO[k]}</option>)}
+      </select>
+      {origem === "empresa" && (
+        <button type="button" onClick={() => onCfopChange(it, null, true)} className="text-[10px] text-muted-foreground underline" title="Voltar ao padrão para esta empresa">padrão</button>
+      )}
+    </div>
+  );
+}
 
 // O enum ResultadoFinalXML no schema tem CONFIRMADO e ESTORNADO além destes
 // 5 — faltavam aqui, então um item já importado (CONFIRMADO) caía no
@@ -24,6 +48,7 @@ const FILTROS = [
   { value: "DUPLICADO", label: "Duplicado" },
   { value: "CANCELADO", label: "Cancelado" },
   { value: "CONFIRMADO", label: "Já importado" },
+  { value: "FORA_CALCULO", label: "Fora do cálculo" },
 ];
 
 const PAGE_SIZE = 50;
@@ -46,13 +71,17 @@ function StatusIcon({ checks }) {
  * que precisa de atenção humana, e paginação (por GRUPO de item, não por
  * linha solta, pra nunca partir um par intercompany entre páginas).
  */
-export default function StagingTable({ itens, empresaMap, selectedIds, onToggleSelect, onOpenDrawer }) {
+export default function StagingTable({ itens, empresaMap, selectedIds, onToggleSelect, onOpenDrawer, regras, onCfopChange }) {
   const [filtro, setFiltro] = useState("TODOS");
   const [pagina, setPagina] = useState(0);
 
   const itensFiltrados = useMemo(
-    () => (filtro === "TODOS" ? itens : (itens || []).filter((it) => it.resultado_final === filtro)),
-    [itens, filtro]
+    () => {
+      if (filtro === "TODOS") return itens;
+      if (filtro === "FORA_CALCULO") return (itens || []).filter((it) => tratamentoDoItem(regras, it.empresa_id, it.cfop_servico, it.direcao).tratamento === "NAO_RECEITA");
+      return (itens || []).filter((it) => it.resultado_final === filtro);
+    },
+    [itens, filtro, regras]
   );
 
   // Agrupa intercompany por chave_nfe + numero_item — cada grupo é 1 ou 2 linhas.
@@ -111,6 +140,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
               <th className="text-left font-medium px-3 py-2.5">Rel.</th>
               <th className="text-left font-medium px-3 py-2.5">NCM/NBS</th>
               <th className="text-left font-medium px-3 py-2.5">CFOP</th>
+              <th className="text-left font-medium px-3 py-2.5" title="Se a operação entra no cálculo como receita">Cálculo</th>
               <th className="text-right font-medium px-3 py-2.5">Valor</th>
               <th className="text-center font-medium px-2 py-2.5" title="Documental">DOC</th>
               <th className="text-center font-medium px-2 py-2.5" title="Cadastral">CAD</th>
@@ -164,6 +194,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
                     </td>
                     <td className="px-3 py-2.5 font-mono text-[10px] text-muted-foreground">{it.ncm || it.nbs || "—"}</td>
                     <td className="px-3 py-2.5 font-mono text-[10px] text-muted-foreground">{it.cfop_servico || "—"}</td>
+                    <td className="px-3 py-2.5"><CfopCelula it={it} regras={regras} onCfopChange={onCfopChange} /></td>
                     <td className="px-3 py-2.5 text-right tabular-nums">
                       {(it.valor_bruto || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </td>
@@ -190,7 +221,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
             })}
             {gruposPagina.length === 0 && (
               <tr>
-                <td colSpan={15} className="py-8 text-center text-muted-foreground">
+                <td colSpan={16} className="py-8 text-center text-muted-foreground">
                   Nenhum item com esse status.
                 </td>
               </tr>

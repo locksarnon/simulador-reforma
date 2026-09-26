@@ -241,3 +241,21 @@ describe("consolidarPorAno", () => {
     expect(ano2026.ibsCbsLiquido).toBeCloseTo(800);
   });
 });
+
+describe('consolidarPorAno: débito e crédito separados', () => {
+  it('soma débitos, créditos e crédito presumido de IBS/CBS por ano', () => {
+    const oc = (empresa, ano, d) => ({
+      op: { empresa_id: empresa, ano, valor_bruto: 1000 },
+      sistemaAtual: { tributosLiquidos: 100 },
+      ibsCbs: { debitoIbs: d.dI, debitoCbs: d.dC, creditoIbs: d.cI, creditoCbs: d.cC, credPresTotal: d.cp, splitRetido: 0 },
+      transicao: { sistemaAtualRemanescente: 50 },
+      precoMargem: { margemAtual: 10, margemTransicao: 9 },
+      caixa: { creditoAcumulado: 0, fundingTributario: 0 },
+    });
+    const [a2027] = consolidarPorAno([
+      oc('E1', 2027, { dI: 10, dC: 90, cI: 2, cC: 20, cp: 1 }),
+      oc('E2', 2027, { dI: 5, dC: 45, cI: 1, cC: 10, cp: 0 }),
+    ]);
+    expect(a2027).toMatchObject({ ano: 2027, debitoIbs: 15, debitoCbs: 135, creditoIbs: 3, creditoCbs: 30, credPresTotal: 1 });
+  });
+});

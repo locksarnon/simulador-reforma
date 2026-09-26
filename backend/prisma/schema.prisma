@@ -185,6 +185,7 @@ model Empresa {
   contribuinte_ibs_cbs String?
   produtor_rural       String?
   cooperativa          String?
+  inscricao_estadual   String?
   erp                  String?
   responsavel_fiscal   String?
   status               String    @default("Ativa")
@@ -946,4 +947,38 @@ model CartaoLegal {
 
   @@index([status])
   @@index([tema])
+}
+
+
+/// Ajuste, por empresa, do tratamento de um CFOP no cálculo (a lista-padrão mora em src/cfop/cfop.regras.ts).
+/// tratamento: RECEITA | NAO_RECEITA | DEVOLUCAO_VENDA | COMPRA
+model CfopEmpresaRegra {
+  id             String   @id @default(cuid())
+  empresa_id     String
+  cfop           String
+  tratamento     String
+  atualizado_por String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([empresa_id, cfop])
+}
+
+
+/// Validações de cadastro de produtos salvas (o arquivo fica no armazenamento; reabrir refaz a validação).
+model ValidacaoCadastro {
+  id              String   @id @default(cuid())
+  criado_por      String
+  nome_arquivo    String
+  storage_key     String
+  tamanho         Int      @default(0)
+  mapeamento_json String?
+  total           Int      @default(0)
+  itens_ok        Int      @default(0)
+  itens_alerta    Int      @default(0)
+  itens_erro      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([criado_por])
 }
