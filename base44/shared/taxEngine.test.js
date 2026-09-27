@@ -259,3 +259,43 @@ describe('consolidarPorAno: débito e crédito separados', () => {
     expect(a2027).toMatchObject({ ano: 2027, debitoIbs: 15, debitoCbs: 135, creditoIbs: 3, creditoCbs: 30, credPresTotal: 1 });
   });
 });
+
+describe('devolução de venda (receita negativa)', () => {
+  const base = { empresa_id: 'E1', ano: 2027, direcao: 'Saida', pis_pct: 0.0165, cofins_pct: 0.076, icms_pct: 0.12, fcp_pct: 0, mva_st_pct: 0, iss_pct: 0, ipi_pct: 0, credito_elegivel_pct: 1, custo_base_pct: 0.65, margem_meta_pct: 0.18, split_pct: 0.5 };
+  const ano = { pis_cofins_fator: 0, ipi_fator_geral: 0, icms_fator: 1, iss_fator: 1, ibs_efetivo: 0.001, cbs_efetiva: 0.0921, ibs_uf_aliquota: 0.05, ibs_mun_aliquota: 0.05, efeito_financeiro: 1 };
+  const cen = { fator_volume: 1, fator_preco: 1, fator_custo: 1 };
+  const calc = (v, extra = {}) => { const op = { ...base, ...extra, valor_bruto: v }; return { op, ...calcOperacao(op, ano, {}, cen, {}, {}) }; };
+  const consolidar = (vs) => consolidarPorAno(vs.map((v) => calc(v)), new Map([[2027, ano]]))[0];
+
+  it('uma venda de 1.000 com devolução de 200 dá exatamente o resultado de uma venda de 800', () => {
+    const a = consolidar([1000, -200]);
+    const b = consolidar([800]);
+    for (const k of Object.keys(b)) {
+      if (typeof b[k] === 'number') expect(a[k], k).toBeCloseTo(b[k], 6);
+    }
+  });
+
+  it('a operação de estorno é o espelho da venda (valores em R$ trocam de sinal, percentuais não)', () => {
+    const v = calc(200);
+    const e = calc(-200);
+    expect(e.estorno).toBe(true);
+    expect(e.sistemaAtual.tributosLiquidos).toBeCloseTo(-v.sistemaAtual.tributosLiquidos, 6);
+    expect(e.ibsCbs.debitoCbs).toBeCloseTo(-v.ibsCbs.debitoCbs, 6);
+    expect(e.ibsCbs.ibsCbsLiquido).toBeCloseTo(-v.ibsCbs.ibsCbsLiquido, 6);
+    expect(e.precoMargem.margemTransicao).toBeCloseTo(-v.precoMargem.margemTransicao, 6);
+    expect(e.caixa.fundingTributario).toBeCloseTo(0, 6); // não vira funding falso
+    expect(e.caixa.creditoAcumulado).toBeCloseTo(0, 6); // nem crédito acumulado falso
+    expect(e.ibsCbs.cbsEfetiva).toBe(v.ibsCbs.cbsEfetiva); // alíquotas continuam positivas
+    expect(e.ibsCbs.cargaEfetiva).toBeCloseTo(v.ibsCbs.cargaEfetiva, 6);
+  });
+
+  it('devolução maior que as vendas do ano reduz o total (a empresa passa a ter saldo a favor)', () => {
+    const c = consolidar([100, -300]);
+    expect(c.valorBruto).toBe(-200);
+    expect(c.debitoCbs).toBeLessThan(0);
+  });
+
+  it('venda comum não é afetada (sem marca de estorno)', () => {
+    expect(calc(1000).estorno).toBeUndefined();
+  });
+});

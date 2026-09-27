@@ -39,3 +39,15 @@ describe("PDF do Painel Executivo", () => {
     expect(traços).toBeGreaterThan(10);
   });
 });
+
+describe("PDF com devolução de venda (valores negativos)", () => {
+  it("mostra o líquido negativo com sinal, sem quebrar as tabelas", () => {
+    chamadas.textos.length = 0;
+    const neg = [{ ano: 2027, valorBruto: -200, tributosAtuaisLiquidos: -34, ibsCbsLiquido: -18.6, cargaTransicao: -34.1, debitoIbs: -0.2, debitoCbs: -18.4, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0, margemAtual: -27.5, margemTransicao: -29, splitRetido: -9.3, funding: 0 }];
+    const t = { valorBruto: -200, tributosAtuais: -34, cargaTransicao: -34.1, ibsCbs: -18.6, debitoIbs: -0.2, debitoCbs: -18.4, creditoIbs: 0, creditoCbs: 0, credPres: 0, split: -9.3, funding: 0, margemAtual: -27.5, margemTransicao: -29 };
+    gerarRelatorioSimulacao({ totais: t, consolidado: neg, versaoMotor: "t", versaoRegras: "t", transicaoAnos: transicao });
+    const tudo = chamadas.textos.join("|");
+    expect(tudo).toMatch(/-\s?R\$\s?200/);
+    expect(tudo).toContain("2033");
+  });
+});

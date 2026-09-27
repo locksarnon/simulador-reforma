@@ -268,8 +268,33 @@ export function calcCaixaSplit(op, ibsCbs, transicao, sisAtual, config = {}) {
   };
 }
 
+// Campos que são razão/percentual/prazo — não mudam de sinal quando a operação é um estorno.
+const NAO_ESPELHAR = new Set(["ibsNominal", "cbsNominal", "ibsEfetiva", "cbsEfetiva", "cargaEfetiva", "diferencaPct", "margemPctAtual", "margemPctTransicao", "prazo"]);
+
+/**
+ * Devolução de venda = receita NEGATIVA (valor_bruto < 0): o cálculo é o espelho exato da venda de mesmo valor.
+ * Sem isso, os pisos "nunca negativo" (Math.max) de cada operação transformavam o estorno em crédito acumulado e
+ * funding falsos, e a margem não abatia a receita devolvida. Calcula com o valor positivo e inverte os valores em R$.
+ */
+function espelharEstorno(r) {
+  const out = {};
+  for (const [modulo, campos] of Object.entries(r)) {
+    out[modulo] = {};
+    for (const [k, v] of Object.entries(campos)) {
+      out[modulo][k] = typeof v === "number" && !NAO_ESPELHAR.has(k) ? (v === 0 ? 0 : -v) : v;
+    }
+  }
+  out.precoMargem.alerta = null; // meta de margem não se aplica a um estorno
+  out.caixa.classificacao = "Estorno (devolução de venda)";
+  out.estorno = true;
+  return out;
+}
+
 /** Orquestra todos os módulos para uma operação */
 export function calcOperacao(op, anoParams, classTrib, cenario, config, credPresMap = {}) {
+  if (num(op.valor_bruto) < 0) {
+    return espelharEstorno(calcOperacao({ ...op, valor_bruto: -num(op.valor_bruto) }, anoParams, classTrib, cenario, config, credPresMap));
+  }
   const sisAtual = calcSistemaAtual(op);
   const credPres =
     (credPresMap && credPresMap.get && credPresMap.get(op.c_cred_pres)) || {};
