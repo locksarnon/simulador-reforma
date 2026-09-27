@@ -5,9 +5,17 @@ module.exports = {
   theme: {
   	extend: {
   		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			// Design sem cantos arredondados: zera todo o alfabeto de radius exceto
+  			// "full" (mantido — é o círculo/pílula de avatares, badges e bolinhas de
+  			// status, não uma "esquina redonda" de card/botão).
+  			none: '0px',
+  			sm: '0px',
+  			DEFAULT: '0px',
+  			md: '0px',
+  			lg: '0px',
+  			xl: '0px',
+  			'2xl': '0px',
+  			'3xl': '0px'
   		},
   		colors: {
   			background: 'hsl(var(--background))',

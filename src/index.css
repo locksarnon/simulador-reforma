@@ -28,7 +28,7 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --radius: 0rem; /* sem cantos arredondados — ver tailwind.config.js (borderRadius) */
     --font-heading: ui-sans-serif, system-ui, sans-serif;
     --font-body: ui-sans-serif, system-ui, sans-serif;
     --font-display: ui-sans-serif, system-ui, sans-serif;
@@ -44,38 +44,41 @@
   }
 
   .dark {
-    --background: 210 60% 8%;
-    --foreground: 0 0% 100%;
-    --card: 209 55% 14%;
-    --card-foreground: 0 0% 100%;
-    --popover: 209 55% 14%;
-    --popover-foreground: 0 0% 100%;
-    --primary: 142 71% 45%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 18%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 210 35% 16%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 210 40% 20%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 40%;
+    /* Modo escuro suavizado (27/09/2026): menos saturado e mais claro que a versão
+       anterior (fundo ia a 8% de luminosidade, quase preto-azulado) — mesma família
+       de cor, contraste mais confortável para uso prolongado. */
+    --background: 215 28% 15%;
+    --foreground: 210 20% 96%;
+    --card: 215 25% 19%;
+    --card-foreground: 210 20% 96%;
+    --popover: 215 25% 19%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 142 55% 48%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: 215 22% 25%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 215 20% 24%;
+    --muted-foreground: 215 15% 72%;
+    --accent: 215 22% 27%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 55% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 210 30% 22%;
-    --input: 210 30% 20%;
-    --ring: 142 71% 45%;
-    --chart-1: 142 71% 45%;
-    --chart-2: 173 58% 45%;
-    --chart-3: 197 37% 40%;
-    --chart-4: 43 74% 56%;
-    --chart-5: 27 87% 57%;
-    --sidebar-background: 210 60% 6%;
-    --sidebar-foreground: 215 20% 65%;
-    --sidebar-primary: 142 71% 45%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 16%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 210 30% 18%;
-    --sidebar-ring: 142 71% 45%;
+    --border: 215 18% 29%;
+    --input: 215 18% 27%;
+    --ring: 142 55% 48%;
+    --chart-1: 142 55% 48%;
+    --chart-2: 173 45% 48%;
+    --chart-3: 197 35% 45%;
+    --chart-4: 43 65% 60%;
+    --chart-5: 27 75% 60%;
+    --sidebar-background: 215 30% 13%;
+    --sidebar-foreground: 215 15% 72%;
+    --sidebar-primary: 142 55% 48%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 215 22% 21%;
+    --sidebar-accent-foreground: 210 20% 96%;
+    --sidebar-border: 215 18% 23%;
+    --sidebar-ring: 142 55% 48%;
   }
 }
 
