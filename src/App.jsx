@@ -42,6 +42,7 @@ import BaseLegalNormaPage from '@/pages/BaseLegalNormaPage';
 import RoteiroTestesPage from '@/pages/RoteiroTestesPage';
 import PublicLayout from '@/pages/publico/PublicLayout';
 import CalculadoraPage from '@/pages/publico/CalculadoraPage';
+import SimplesHibridoPage from '@/pages/publico/SimplesHibridoPage';
 import ConsultaNcmPublica from '@/pages/publico/ConsultaNcmPublica';
 import ValidadorPublico from '@/pages/publico/ValidadorPublico';
 // Add page imports here
@@ -63,6 +64,7 @@ function App() {
               {/* Ferramentas abertas do InTAX (isca): sem login, sem menu lateral */}
               <Route element={<PublicLayout />}>
                 <Route path="/calculadora" element={<CalculadoraPage />} />
+                <Route path="/simples-hibrido" element={<SimplesHibridoPage />} />
                 <Route path="/consulta-ncm" element={<ConsultaNcmPublica />} />
                 <Route path="/validador-cadastro" element={<ValidadorPublico />} />
               </Route>

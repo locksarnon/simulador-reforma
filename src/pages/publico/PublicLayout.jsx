@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
-import { Mail, Check } from "lucide-react";
+import { Mail, Check, Instagram, Linkedin, Globe } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { api } from "@/api/base44Client";
 
 const LINKS = [
   { to: "/calculadora", label: "Calculadora" },
+  { to: "/simples-hibrido", label: "Simples × Híbrido" },
   { to: "/consulta-ncm", label: "Consulta NCM" },
   { to: "/validador-cadastro", label: "Validador de cadastro" },
 ];
@@ -54,6 +55,15 @@ export default function PublicLayout() {
       <footer className="border-t border-border bg-card">
         <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
           <Inscricao />
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/60">
+            <a href="https://www.falagro.com.br" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+              <Globe className="w-4 h-4" /> www.falagro.com.br <span className="text-[11px] text-muted-foreground/80">· by FALAGRO</span>
+            </a>
+            <div className="flex items-center gap-3">
+              <a href="https://www.instagram.com/agro.fal/" target="_blank" rel="noreferrer" aria-label="Instagram da FAL Agro" className="text-muted-foreground hover:text-foreground"><Instagram className="w-4 h-4" /></a>
+              <a href="https://www.linkedin.com/company/fal-agro/" target="_blank" rel="noreferrer" aria-label="LinkedIn da FAL Agro" className="text-muted-foreground hover:text-foreground"><Linkedin className="w-4 h-4" /></a>
+            </div>
+          </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed max-w-3xl">
             InTAX é uma ferramenta orientativa da FAL Agro, baseada na EC 132/2023 e na LC 214/2025. Os resultados são estimativas e não constituem parecer tributário; as regras e alíquotas da transição ainda estão sendo definidas. Valide com um especialista antes de decidir.
           </p>
