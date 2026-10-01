@@ -14,7 +14,7 @@ import { esc } from '../mail/mail.service';
 
 const AMOSTRA_LINHAS = 300;
 const AMOSTRA_BYTES = 2 * 1024 * 1024;
-const ORIGENS = ['calculadora', 'consulta_ncm', 'validador_cadastro', 'site'];
+const ORIGENS = ['calculadora', 'consulta_ncm', 'validador_cadastro', 'simples-hibrido', 'site'];
 
 /**
  * Superfície pública do InTAX (ferramentas-isca). Tudo aqui é aberto, então

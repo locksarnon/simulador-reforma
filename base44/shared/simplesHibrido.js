@@ -166,9 +166,18 @@ export function calcularSimplesPuro({ receitaMensal, rbt12, folha12, modo, pctCl
   // consumidor final ou do próprio Simples não credita nada.
   const creditoClientePuro = ibsCbsNoSimples * num(pctClientesRegimeRegular);
 
+  // A partir da 6ª faixa, ICMS/ISS saem do DAS e passam a ser recolhidos à
+  // parte, pelo regime normal (LC 123/2006, art. 18, §20) — o DAS mensal
+  // acima NÃO inclui esse valor.
+  const avisoIcmsIssForaDas = linha.faixa === 6;
+  // No Anexo IV, a CPP (contribuição patronal) nunca entra no DAS: é sempre
+  // recolhida por fora, pelo regime normal (LC 123/2006, art. 18, §5º-C).
+  const avisoCppForaDas = anexo === "Anexo IV";
+
   return {
     ...enquadramento, fatorR, aliquotaEfetiva, ibsCbsSimplesPct,
     dasMensal, ibsCbsNoSimples, creditoClientePuro,
+    avisoIcmsIssForaDas, avisoCppForaDas,
   };
 }
 
@@ -198,12 +207,24 @@ export function calcularHibrido({ receitaMensal, aliquotaEfetivaSimples, ibsCbsS
 
 /**
  * Pontos de preço:
- *  - equilibrio: repasse que mantém o resultado líquido igual ao Simples puro.
- *  - neutroCliente: repasse máximo em que o custo líquido do cliente não piora.
+ *  - equilibrio: repasse que mantém o resultado líquido do VENDEDOR igual ao
+ *    do Simples puro. Não depende do mix de clientes — a carga híbrida incide
+ *    sobre 100% da receita, seja o cliente empresa ou consumidor final.
+ *  - neutroCliente: repasse máximo em que o custo líquido médio da CARTEIRA
+ *    de clientes não piora. Pondera pela fração de clientes que é
+ *    contribuinte do regime regular (pctClientesRegimeRegular): só esses
+ *    recuperam crédito de IBS/CBS, nos dois cenários. Um consumidor final
+ *    (fração 1-pctClientesRegimeRegular) nunca credita nada — pra ele, todo
+ *    repasse de preço é piora líquida, então o ponto neutro da carteira
+ *    converge pra 0% quando pctClientesRegimeRegular → 0.
+ *    Dedução: custoHoje = 1 - p·ibsCbsSimplesPct; custoNovo = (1+m)·(1 - p·ibsCbsRegularPct);
+ *    igualando custoHoje = custoNovo e isolando m. Com p=1, reduz à fórmula
+ *    "só empresas" original; com p=0, dá m=0 (nenhuma margem de repasse).
  */
-export function calcularPontosEquilibrio({ aliquotaEfetivaSimples, ibsCbsSimplesPct, cargaHibridaPct, ibsCbsRegularPct }) {
+export function calcularPontosEquilibrio({ aliquotaEfetivaSimples, ibsCbsSimplesPct, cargaHibridaPct, ibsCbsRegularPct, pctClientesRegimeRegular = 1 }) {
+  const p = num(pctClientesRegimeRegular);
   const markupEquilibrio = (1 - aliquotaEfetivaSimples) / (1 - cargaHibridaPct) - 1;
-  const markupNeutroCliente = (1 - ibsCbsSimplesPct) / (1 - ibsCbsRegularPct) - 1;
+  const markupNeutroCliente = (1 - p * ibsCbsSimplesPct) / (1 - p * ibsCbsRegularPct) - 1;
   return { markupEquilibrio, markupNeutroCliente, gapComercial: markupEquilibrio - markupNeutroCliente };
 }
 
@@ -225,6 +246,7 @@ export function simularSimplesHibrido({ receitaMensal, rbt12, folha12, modo, pct
     ibsCbsSimplesPct: puro.ibsCbsSimplesPct,
     cargaHibridaPct: hibrido.cargaHibridaPct,
     ibsCbsRegularPct: hibrido.ibsCbsRegularPct,
+    pctClientesRegimeRegular,
   });
 
   return { puro, hibrido, pontos };

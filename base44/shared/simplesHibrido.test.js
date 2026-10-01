@@ -78,6 +78,60 @@ describe("calcularSimplesPuro — paridade com a planilha (T01-T07)", () => {
   });
 });
 
+/**
+ * Reproduz o achado de QA: "passar de 0% para 100% de clientes empresas não
+ * muda nenhum resultado" — o ponto neutro do cliente tem que mudar com o mix,
+ * e cair pra zero quando 100% da carteira é consumidor final (que nunca
+ * credita, nos dois cenários — logo nenhum repasse de preço é neutro pra ele).
+ */
+describe("ponto neutro do cliente pondera pelo mix da carteira (regressão do achado de QA)", () => {
+  const anoParams = { ibs_efetivo: 0.001, cbs_efetiva: 0.089 };
+  const base = { receitaMensal: 100_000, rbt12: 1_200_000, folha12: 360_000, modo: "Anexo III" };
+
+  it("100% empresas: ponto neutro = fórmula clássica (igual à versão anterior)", () => {
+    const r = simularSimplesHibrido({ ...base, pctClientesRegimeRegular: 1 }, anoParams);
+    const esperado = (1 - r.puro.ibsCbsSimplesPct) / (1 - r.hibrido.ibsCbsRegularPct) - 1;
+    expect(r.pontos.markupNeutroCliente).toBeCloseTo(esperado, 8);
+  });
+
+  it("0% empresas (só consumidor final): ponto neutro é exatamente 0", () => {
+    const r = simularSimplesHibrido({ ...base, pctClientesRegimeRegular: 0 }, anoParams);
+    expect(r.pontos.markupNeutroCliente).toBeCloseTo(0, 10);
+  });
+
+  it("0% e 100% empresas não podem dar o mesmo ponto neutro", () => {
+    const r0 = simularSimplesHibrido({ ...base, pctClientesRegimeRegular: 0 }, anoParams);
+    const r100 = simularSimplesHibrido({ ...base, pctClientesRegimeRegular: 1 }, anoParams);
+    expect(r0.pontos.markupNeutroCliente).not.toBeCloseTo(r100.pontos.markupNeutroCliente, 4);
+  });
+
+  it("ponto de equilíbrio (lado do vendedor) NÃO muda com o mix de clientes", () => {
+    const r0 = simularSimplesHibrido({ ...base, pctClientesRegimeRegular: 0 }, anoParams);
+    const r100 = simularSimplesHibrido({ ...base, pctClientesRegimeRegular: 1 }, anoParams);
+    expect(r0.pontos.markupEquilibrio).toBeCloseTo(r100.pontos.markupEquilibrio, 10);
+  });
+});
+
+describe("avisos de tributo fora do DAS", () => {
+  it("6ª faixa de qualquer Anexo avisa ICMS/ISS fora do DAS", () => {
+    const r = calcularSimplesPuro({ receitaMensal: 400_000, rbt12: 4_000_000, folha12: 0, modo: "Anexo I" });
+    expect(r.faixa).toBe(6);
+    expect(r.avisoIcmsIssForaDas).toBe(true);
+  });
+
+  it("Anexo IV avisa CPP fora do DAS em qualquer faixa", () => {
+    const r = calcularSimplesPuro({ receitaMensal: 100_000, rbt12: 1_200_000, folha12: 0, modo: "Anexo IV" });
+    expect(r.avisoCppForaDas).toBe(true);
+    expect(r.avisoIcmsIssForaDas).toBe(false);
+  });
+
+  it("Anexo I na 4ª faixa não dispara nenhum dos dois avisos", () => {
+    const r = calcularSimplesPuro({ receitaMensal: 100_000, rbt12: 1_200_000, folha12: 0, modo: "Anexo I" });
+    expect(r.avisoIcmsIssForaDas).toBe(false);
+    expect(r.avisoCppForaDas).toBe(false);
+  });
+});
+
 describe("casos de borda — não cobertos pela planilha", () => {
   it("RBT12 acima de R$ 4,8 milhões: acima do limite do Simples (LC 123/2006, art. 3º, §2º)", () => {
     const r = calcularSimplesPuro({ receitaMensal: 500_000, rbt12: RBT12_LIMITE_SIMPLES + 0.01, folha12: 1_500_000, modo: "automatico" });
