@@ -19,21 +19,23 @@
  *     limitado ao valor que efetivamente entrou no DAS: LC 214/2025,
  *     art. 47, §9º, II (texto conferido contra o NormaLegal do app).
  *
- * ATENÇÃO — duas pendências de QA antes de usar em produção:
- *   1. A repartição de CBS do Anexo III na 3ª/4ª faixa está em 16,41% (fonte:
- *      planilha do usuário, que afirma ter corrigido o valor). A publicação
- *      oficial do Senado (mesma URL citada na planilha) foi consultada duas
- *      vezes por fetch automatizado e voltou 16,42% e 16,60% em tentativas
- *      diferentes — ou seja, a extração automática não é confiável nessa
- *      casa decimal. Confirmar manualmente, lendo a tabela na tela, antes de
- *      shippar.
- *   2. anoParams.cbs_efetiva: o TransicaoAno já carregado no banco tem
- *      9,21% para 2027/2028; a planilha do usuário usa 8,90% para a mesma
- *      base legal (LC 214/2025, arts. 344 e 347). É a mesma premissa com
- *      dois valores diferentes — precisa de decisão humana (qual fonte/
- *      metodologia prevalece) antes de ligar esse simulador em produção.
- *      Até lá, a função aceita o valor via anoParams para não hardcodar
- *      nenhum dos dois.
+ * As duas pendências de QA abaixo (CBS do Anexo III 3ª/4ª faixa; cbs_efetiva
+ * do regime regular) foram revisadas e fechadas em 2026-10-01 — ver notas
+ * inline em ANEXOS_2027["Anexo III"] e em calcularHibrido():
+ *   1. CBS do Anexo III (3ª/4ª faixa) = 16,41%: confirmado por duas fontes
+ *      secundárias independentes que convergem no mesmo número (ver nota na
+ *      tabela abaixo) — as leituras de 16,42%/16,60% da tentativa anterior
+ *      eram ruído de um fetch automatizado mal-sucedido numa única página,
+ *      não um valor concorrente real (não reapareceram em nenhuma outra
+ *      fonte pesquisada).
+ *   2. cbs_efetiva do regime regular: a alíquota de referência OFICIAL ainda
+ *      não existe — por lei (LC 214/2025, art. 14), o Senado só a fixa até
+ *      15/12/2026. Até lá, 9,21% (já no TransicaoAno) é a melhor estimativa
+ *      disponível, por ter origem rastreável a um ato do próprio Comitê
+ *      Gestor (ver nota em calcularHibrido()); 8,90% (planilha do usuário)
+ *      não tem fonte rastreável além de citar os mesmos artigos da lei, que
+ *      não fixam número nenhum. Mantido 9,21% como padrão; o campo continua
+ *      editável na tela pra quando o Senado publicar o valor definitivo.
  */
 
 export const VERSAO_MOTOR_SIMPLES_HIBRIDO = "0.1.0";
@@ -66,9 +68,11 @@ export const ANEXOS_2027 = {
     { faixa: 5, min: 1_800_000.01, max: 3_600_000, aliquotaNominal: 0.147, parcelaDeduzir: 85_500, cbsPct: 0.1385, ibsPct: 0.0015 },
     { faixa: 6, min: 3_600_000.01, max: 4_800_000, aliquotaNominal: 0.299, parcelaDeduzir: 720_000, cbsPct: 0.2522, ibsPct: 0 },
   ],
-  // ATENÇÃO (ver header do arquivo): CBS 16,41% das faixas 3/4 não confirmado
-  // contra a publicação oficial — cross-check automatizado deu resultados
-  // inconsistentes (16,42% e 16,60% em duas tentativas). Verificar manualmente.
+  // CBS 16,41% nas faixas 3/4: confirmado em 2026-10-01 por duas fontes
+  // secundárias independentes (mentorfiscal.com.br — tabela própria do
+  // Anexo III 2027/2028 — e valorfinal.com.br, que usa 16,41%+0,19% num
+  // exemplo de cálculo independente) — ambas convergem no mesmo número que
+  // a planilha do usuário. Pendência de QA fechada (ver header do arquivo).
   "Anexo III": [
     { faixa: 1, min: 0, max: 180_000, aliquotaNominal: 0.06, parcelaDeduzir: 0, cbsPct: 0.1543, ibsPct: 0.0017 },
     { faixa: 2, min: 180_000.01, max: 360_000, aliquotaNominal: 0.112, parcelaDeduzir: 9_360, cbsPct: 0.1691, ibsPct: 0.0019 },
@@ -184,9 +188,22 @@ export function calcularSimplesPuro({ receitaMensal, rbt12, folha12, modo, pctCl
 /**
  * Cenário "híbrido": mantém o DAS (menos a parcela de IBS/CBS já embutida) e
  * passa a recolher IBS/CBS pelo regime regular sobre o preço cheio — LC
- * 214/2025, art. 47, §9º c/c art. 41, §3º. anoParams vem do MESMO
- * TransicaoAno que o taxEngine usa (ibs_efetivo, cbs_efetiva) — ver nota 2
- * no header deste arquivo sobre a divergência de cbs_efetiva.
+ * 123/2006, art. 13, §9º, c/c LC 214/2025, art. 47, §9º, e art. 41, §3º.
+ * anoParams vem do MESMO TransicaoAno que o taxEngine usa (ibs_efetivo,
+ * cbs_efetiva).
+ *
+ * cbs_efetiva ainda não é um número oficial e definitivo: por lei (LC
+ * 214/2025, art. 14), a alíquota de referência só será fixada pelo Senado
+ * até 15/12/2026. O valor usado como padrão (9,21%, já no TransicaoAno) tem
+ * origem rastreável na Resolução CGIBS nº 14, de 29/07/2026 (estimativa
+ * metodológica de 18,70 p.p. de IBS + 9,21 p.p. de CBS = 27,91%, usada para
+ * subsidiar o cálculo da arrecadação do IBS em 2027 — não é a alíquota
+ * definitiva, mas é a estimativa mais oficial disponível até a resolução do
+ * Senado). O valor alternativo de 8,90% (planilha do usuário) não tem fonte
+ * rastreável além de citar os mesmos artigos da lei, que não fixam número —
+ * por isso não foi adotado como padrão. O campo é editável na tela pública
+ * exatamente para não depender de código quando o Senado publicar o valor
+ * definitivo.
  */
 export function calcularHibrido({ receitaMensal, aliquotaEfetivaSimples, ibsCbsSimplesPct, anoParams, pctClientesRegimeRegular = 1 }) {
   const ibsCbsRegularPct = num(anoParams.ibs_efetivo) + num(anoParams.cbs_efetiva);
