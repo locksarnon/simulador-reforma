@@ -30,17 +30,30 @@ function lerSessao() {
   try { const s = JSON.parse(sessionStorage.getItem(CHAVE_SESSAO) || "null"); return s || null; } catch { return null; }
 }
 
-function Passos({ atual }) {
+/** Passos já concluídos (i < atual) voltam a ficar editáveis — só "Simulação" (puramente uma animação) pula direto pro Resultado. */
+function Passos({ atual, onIr }) {
   const nomes = ["Enquadramento", "Números", "Simulação", "Resultado"];
   return (
     <ol className="flex items-center gap-2 text-xs mb-6" aria-label="Etapas">
-      {nomes.map((n, i) => (
-        <li key={n} className="flex items-center gap-2">
-          <span className={`w-6 h-6 rounded-full flex items-center justify-center font-medium ${i <= atual ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{i + 1}</span>
-          <span className={i === atual ? "font-medium" : "text-muted-foreground hidden sm:inline"}>{n}</span>
-          {i < nomes.length - 1 && <span className="w-6 h-px bg-border" />}
-        </li>
-      ))}
+      {nomes.map((n, i) => {
+        const concluido = i < atual;
+        const destino = i === 2 ? 3 : i;
+        const Item = concluido ? "button" : "span";
+        return (
+          <li key={n} className="flex items-center gap-2">
+            <Item
+              type={concluido ? "button" : undefined}
+              onClick={concluido ? () => onIr(destino) : undefined}
+              className={`flex items-center gap-2 ${concluido ? "cursor-pointer group" : ""}`}
+              aria-current={i === atual ? "step" : undefined}
+            >
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center font-medium ${i <= atual ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"} ${concluido ? "group-hover:ring-2 group-hover:ring-primary/40" : ""}`}>{i + 1}</span>
+              <span className={`${i === atual ? "font-medium" : "text-muted-foreground hidden sm:inline"} ${concluido ? "group-hover:text-foreground underline underline-offset-2 decoration-dotted" : ""}`}>{n}</span>
+            </Item>
+            {i < nomes.length - 1 && <span className="w-6 h-px bg-border" />}
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -164,7 +177,7 @@ export default function SimplesHibridoPage() {
         <h1 className="text-2xl sm:text-3xl font-heading font-semibold">Vale a pena virar contribuinte regular do IBS/CBS?</h1>
         <p className="text-muted-foreground mt-2">Compare ficar no Simples puro com optar pelo regime regular do IBS/CBS (LC 123/2006, art. 13, §9º, c/c LC 214/2025, art. 47, §9º) — com o ponto de preço em que as duas opções empatam.</p>
       </div>
-      <Passos atual={passo} />
+      <Passos atual={passo} onIr={setPasso} />
 
       {/* 0 — enquadramento */}
       {passo === 0 && (
