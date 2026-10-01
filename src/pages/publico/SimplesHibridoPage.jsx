@@ -116,6 +116,16 @@ export default function SimplesHibridoPage() {
     );
   }, [passo, dadosValidos, anoParamsUsado, dados]);
 
+  // "Melhor opção, sem mexer no preço": compara o custo híbrido à receita de
+  // HOJE (resultado.hibrido.cargaHibridaMensal, sem repasse nenhum) contra o
+  // DAS de hoje — é a comparação mais honesta, porque não depende de o
+  // cliente aceitar nenhum aumento de preço (isso é tratado à parte, nos
+  // pontos de equilíbrio/neutro/gap).
+  const melhorOpcao = useMemo(() => {
+    if (!resultado?.pontos) return null;
+    return resultado.hibrido.cargaHibridaMensal <= resultado.puro.dasMensal ? "hibrido" : "puro";
+  }, [resultado]);
+
   const relatorioDados = useMemo(() => {
     if (!resultado?.pontos) return null;
     return {
@@ -130,9 +140,13 @@ export default function SimplesHibridoPage() {
   const relatorioPdf = useMemo(() => {
     if (!resultado?.pontos) return null;
     const p = resultado.puro, h = resultado.hibrido, pt = resultado.pontos;
+    const ibsCbsRegular = h.cargaHibridaMensal - h.dasResidualPct * numMoeda(dados.receitaMensal);
     const avisos = [];
     if (p.avisoIcmsIssForaDas) avisos.push("Na 6ª faixa, ICMS e ISS saem do DAS e são recolhidos à parte, pelo regime normal (LC 123/2006, art. 18, §20).");
     if (p.avisoCppForaDas) avisos.push("No Anexo IV, a CPP (contribuição patronal) é sempre recolhida fora do DAS, pelo regime normal (LC 123/2006, art. 18, §5º-C).");
+    const resumoEquilibrio = melhorOpcao === "hibrido"
+      ? `Virar contribuinte regular já custa menos hoje, mesmo sem mudar o preço (${brl(h.cargaHibridaMensal)} contra ${brl(p.dasMensal)} no Simples puro). Pra manter a mesma margem de hoje, bastaria repassar ${pct2(pt.markupEquilibrio)} — abaixo disso já há ganho.`
+      : `Pra se adaptar ao regime regular sem perder margem, repasse pelo menos ${pct2(pt.markupEquilibrio)} no preço do que vende. Seu comprador aceita até ${pct2(pt.markupNeutroCliente)} sem o custo líquido dele piorar${pt.gapComercial <= 0 ? " — o repasse cabe dentro do que ele já aceita, sem fricção." : ` — há ${pct2(pt.gapComercial)} de diferença pra negociar com ele antes do seu ponto de equilíbrio.`}`;
     return {
       titulo: "Simples puro × Híbrido (IBS/CBS regular)",
       subtitulo: `${p.anexo} · faixa ${p.faixa} · RBT12 ${brl(numMoeda(dados.rbt12))} · ${dados.pctClientes}% da carteira contribuinte do regime regular`,
@@ -142,17 +156,39 @@ export default function SimplesHibridoPage() {
           paragrafos: [
             `Hoje, no Simples puro, o DAS mensal estimado é ${brl(p.dasMensal)} (alíquota efetiva de ${pct2(p.aliquotaEfetiva)}).`,
             `Optando pelo regime regular do IBS/CBS (LC 123/2006, art. 13, §9º, c/c LC 214/2025, art. 47, §9º) e repassando ${pct2(pt.markupEquilibrio)} no preço, o resultado líquido fica igual ao de hoje.`,
-            `Com o mix de clientes informado, o repasse que não piora o custo líquido médio da carteira é de ${pct2(pt.markupNeutroCliente)} — a diferença entre os dois (${pct2(pt.gapComercial)}) é a margem de negociação com o cliente.`,
+            resumoEquilibrio,
+          ],
+          destaques: [
+            { rotulo: "Ponto de equilíbrio", valor: pct2(pt.markupEquilibrio), detalhe: "mantém seu resultado líquido" },
+            { rotulo: "Ponto neutro do cliente", valor: pct2(pt.markupNeutroCliente), detalhe: "custo líquido dele não piora" },
+            { rotulo: "Gap comercial", valor: pct2(pt.gapComercial), detalhe: "margem de negociação" },
           ],
         },
         {
-          titulo: "Composição do Simples puro e do híbrido",
+          titulo: `Simples puro × Híbrido, lado a lado${melhorOpcao === "hibrido" ? " — híbrido é a melhor opção hoje" : ""}`,
+          comparativo: {
+            tituloA: "Simples puro", selosA: melhorOpcao === "puro" ? "Melhor opção" : "Hoje",
+            linhasA: [
+              { rotulo: "Alíquota efetiva", valor: pct2(p.aliquotaEfetiva) },
+              { rotulo: "DAS mensal", valor: brl(p.dasMensal) },
+              { rotulo: "Crédito que a carteira recupera", valor: brl(p.creditoClientePuro) },
+            ],
+            tituloB: "Híbrido, no equilíbrio", selosB: melhorOpcao === "hibrido" ? "Melhor opção" : "Simulado", destacarB: true,
+            linhasB: [
+              { rotulo: "Preço repassado ao cliente", valor: `+${pct2(pt.markupEquilibrio)}` },
+              { rotulo: "Carga híbrida mensal", valor: brl(h.cargaHibridaMensal * (1 + pt.markupEquilibrio)) },
+              { rotulo: "Crédito que a carteira recupera", valor: brl(h.creditoClienteHibrido) },
+            ],
+          },
+        },
+        {
+          titulo: "O que contar pro seu comprador",
+          paragrafos: ["Se o comprador for contribuinte do regime regular (não consumidor final), ele credita IBS/CBS sobre o que compra de você — mas o valor muda conforme seu enquadramento, e precisa estar destacado na nota fiscal (valores por comprador 100% contribuinte do regime regular):"],
           tabela: {
-            cabecalho: ["Item", "Simples puro", "Híbrido (preço de hoje)"],
+            cabecalho: ["Cenário", "Crédito do comprador/mês", "Base legal"],
             linhas: [
-              ["Carga mensal total", brl(p.dasMensal), brl(h.cargaHibridaMensal)],
-              ["IBS/CBS embutido/recolhido", brl(p.ibsCbsNoSimples), brl(h.cargaHibridaMensal - h.dasResidualPct * numMoeda(dados.receitaMensal))],
-              ["Crédito que a carteira recupera", brl(p.creditoClientePuro), brl(h.creditoClienteHibrido)],
+              ["Você continua no Simples puro", brl(p.ibsCbsNoSimples), "LC 214/25 art.47 §9º,II c/c LC123/06 art.26 §§1º-A/2º"],
+              ["Você vira híbrido (regime regular)", brl(ibsCbsRegular), "LC 214/2025, art. 47, caput"],
             ],
           },
         },
@@ -162,14 +198,16 @@ export default function SimplesHibridoPage() {
           "Resultado sujeito a ajuste quando a alíquota de referência for fixada; valide com um especialista antes de decidir.",
         ] },
         ...(avisos.length ? [{ titulo: "Avisos específicos do seu Anexo", itens: avisos }] : []),
-        {
-          titulo: "Fale com a FAL Agro",
-          paragrafos: ["Esta simulação usa só a sua média informada. Se quiser ver o cálculo com as suas notas fiscais reais e os créditos das suas compras, é só chamar:"],
-          itens: [`WhatsApp: ${CONTATO.whatsapp}`, `E-mail: ${CONTATO.email}`],
-        },
       ],
+      cta: {
+        titulo: "Quer decidir isso com quem entende da reforma e da sua operação?",
+        texto: "Esta simulação usa só a sua média informada, sem os créditos das suas compras. A equipe da FAL Agro avalia se compensa migrar pro regime regular no seu caso, com as suas notas fiscais reais.",
+        whatsapp: CONTATO.whatsappLink,
+        whatsappTexto: "Olá! Simulei Simples puro × Híbrido no InTAX e quero entender se vale migrar para o regime regular do IBS/CBS.",
+        email: CONTATO.email,
+      },
     };
-  }, [resultado, dados.rbt12, dados.receitaMensal, dados.pctClientes, cbsEditavel, anoParams2027]);
+  }, [resultado, melhorOpcao, dados.rbt12, dados.receitaMensal, dados.pctClientes, cbsEditavel, anoParams2027]);
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -205,7 +243,8 @@ export default function SimplesHibridoPage() {
             )}
           </div>
           <div>
-            <div className="flex justify-between text-sm"><label className="font-medium">Que fração dos seus clientes compra para revender ou usar na própria empresa (regime regular do IBS/CBS)?</label><span className="tabular-nums text-muted-foreground">{dados.pctClientes}%</span></div>
+            <div className="flex justify-between text-sm"><label className="font-medium">Quantos dos seus clientes são empresas (não consumidor final) que também vão virar contribuintes do regime regular?</label><span className="tabular-nums text-muted-foreground">{dados.pctClientes}%</span></div>
+            <p className="text-xs text-muted-foreground mt-1">Só esse tipo de cliente consegue tomar crédito do IBS/CBS que você cobra — um consumidor final nunca credita nada, nos dois cenários.</p>
             <input type="range" min={0} max={100} value={dados.pctClientes} onChange={(e) => setDados((d) => ({ ...d, pctClientes: Number(e.target.value) }))} className="w-full mt-2" />
             <div className="flex justify-between text-[11px] text-muted-foreground mt-1"><span>0% — só consumidor final</span><span>100% — só empresas</span></div>
           </div>
@@ -270,20 +309,48 @@ export default function SimplesHibridoPage() {
       {passo === 3 && resultado?.pontos && (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border bg-card p-5">
-              <div className="flex justify-between items-center"><span className="font-medium text-sm">Simples puro</span><span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted px-2 py-0.5 rounded">hoje</span></div>
+            <div className={`rounded-xl border p-5 ${melhorOpcao === "puro" ? "border-emerald-500 ring-1 ring-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/10" : "border-border bg-card"}`}>
+              <div className="flex justify-between items-center gap-2">
+                <span className="font-medium text-sm">Simples puro</span>
+                <div className="flex items-center gap-1.5">
+                  {melhorOpcao === "puro" && <span className="text-[11px] font-semibold uppercase tracking-wide text-white bg-emerald-600 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Melhor opção hoje</span>}
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted px-2 py-0.5 rounded">hoje</span>
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground mt-3">Alíquota efetiva do Simples</p>
               <p className="text-2xl font-semibold tabular-nums mt-0.5">{pct2(resultado.puro.aliquotaEfetiva)}</p>
               <p className="text-xs text-muted-foreground mt-3">DAS mensal estimado</p>
               <p className="text-lg font-semibold tabular-nums mt-0.5">{brl(resultado.puro.dasMensal)}</p>
             </div>
-            <div className="rounded-xl border border-primary bg-primary/5 p-5">
-              <div className="flex justify-between items-center"><span className="font-medium text-sm">Híbrido, repassando o equilíbrio</span><span className="text-[11px] font-semibold uppercase tracking-wide text-primary-foreground bg-primary px-2 py-0.5 rounded">simulado</span></div>
+            <div className={`rounded-xl border p-5 ${melhorOpcao === "hibrido" ? "border-emerald-500 ring-1 ring-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/10" : "border-primary bg-primary/5"}`}>
+              <div className="flex justify-between items-center gap-2">
+                <span className="font-medium text-sm">Híbrido, repassando o equilíbrio</span>
+                <div className="flex items-center gap-1.5">
+                  {melhorOpcao === "hibrido" && <span className="text-[11px] font-semibold uppercase tracking-wide text-white bg-emerald-600 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Melhor opção hoje</span>}
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-primary-foreground bg-primary px-2 py-0.5 rounded">simulado</span>
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground mt-3">Preço repassado ao cliente</p>
               <p className="text-2xl font-semibold tabular-nums mt-0.5 text-primary">+{pct2(resultado.pontos.markupEquilibrio)}</p>
               <p className="text-xs text-muted-foreground mt-3">Carga híbrida mensal (no preço novo)</p>
               <p className="text-lg font-semibold tabular-nums mt-0.5 text-primary">{brl(resultado.hibrido.cargaHibridaMensal * (1 + resultado.pontos.markupEquilibrio))}</p>
+              {melhorOpcao === "hibrido" && <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-2">Mesmo sem repassar nada ao preço, o híbrido já custaria {brl(resultado.hibrido.cargaHibridaMensal)}/mês — menos que o Simples puro hoje.</p>}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
+            <p className="font-semibold text-sm">Resumo do ponto de equilíbrio</p>
+            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+              {melhorOpcao === "hibrido" ? (
+                <>Virar contribuinte regular já custa menos hoje, mesmo sem mudar seu preço ({brl(resultado.hibrido.cargaHibridaMensal)} contra {brl(resultado.puro.dasMensal)} no Simples puro). Pra manter exatamente a mesma margem de hoje, você só precisaria repassar <strong>{pct2(resultado.pontos.markupEquilibrio)}</strong> — abaixo disso.</>
+              ) : (
+                <>Pra se adaptar ao regime regular sem perder margem, repasse pelo menos <strong>{pct2(resultado.pontos.markupEquilibrio)}</strong> no preço do que você vende. Seu comprador aceita até <strong>{pct2(resultado.pontos.markupNeutroCliente)}</strong> sem o custo líquido dele piorar{" "}
+                  {resultado.pontos.gapComercial <= 0
+                    ? "— ou seja, dá pra fechar sem fricção, o repasse cabe dentro do que ele já aceita."
+                    : <>— ou seja, há <strong>{pct2(resultado.pontos.gapComercial)}</strong> de diferença pra negociar com ele antes de bater o seu ponto de equilíbrio.</>}
+                </>
+              )}
+            </p>
           </div>
 
           <div className="grid sm:grid-cols-3 gap-3">
@@ -313,6 +380,26 @@ export default function SimplesHibridoPage() {
               </div>
             </div>
           )}
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <p className="font-semibold text-sm">O que você deve contar pro seu comprador?</p>
+            <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">Se o seu comprador for contribuinte do regime regular (não consumidor final), ele credita IBS/CBS sobre o que compra de você — mas o valor muda dependendo de como você está enquadrado, e precisa estar destacado na nota fiscal.</p>
+            <div className="mt-4 grid sm:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border p-3.5">
+                <p className="text-xs font-semibold">Se você continuar no Simples puro</p>
+                <p className="text-lg font-semibold tabular-nums mt-1">{brl(resultado.puro.ibsCbsNoSimples)}<span className="text-xs font-normal text-muted-foreground">/mês</span></p>
+                <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">É só isso que ele credita — limitado ao que efetivamente entrou no seu DAS, mesmo que ele seja 100% contribuinte do regime regular. A alíquota do crédito precisa constar destacada na NF.</p>
+                <p className="text-[10px] text-muted-foreground/80 mt-2">LC 214/2025, art. 47, §9º, II, c/c LC 123/2006, art. 26, §§1º-A e 2º</p>
+              </div>
+              <div className="rounded-lg border border-primary/40 bg-primary/5 p-3.5">
+                <p className="text-xs font-semibold text-primary">Se você virar contribuinte do regime regular (híbrido)</p>
+                <p className="text-lg font-semibold tabular-nums mt-1 text-primary">{brl(resultado.hibrido.cargaHibridaMensal - resultado.hibrido.dasResidualPct * numMoeda(dados.receitaMensal))}<span className="text-xs font-normal text-muted-foreground">/mês</span></p>
+                <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">Ele credita o valor integral do IBS/CBS cobrado na nota — crédito pleno, sem o limite do DAS. É esse o principal argumento comercial pra justificar o repasse de preço.</p>
+                <p className="text-[10px] text-muted-foreground/80 mt-2">LC 214/2025, art. 47, caput</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-3">Valores por comprador 100% contribuinte do regime regular — ajuste pela proporção real da sua carteira ({dados.pctClientes}% informado) ao conversar com ele.</p>
+          </div>
 
           <div className="rounded-xl border border-border bg-card p-5">
             <p className="font-medium text-sm">Premissas do híbrido (conferíveis e editáveis)</p>

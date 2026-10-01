@@ -318,6 +318,7 @@ export function estimar(entrada, parametros) {
 /** Conteúdo do PDF (montado aqui para PDF na hora e anexo de e-mail serem idênticos). */
 export function montarRelatorio(entrada, r) {
   const perfil = PERFIS.find((p) => p.id === r.perfil);
+  const sinal2033 = r.delta2033 >= 0 ? "+" : "";
   return {
     titulo: "Quanto a reforma tributária muda para o seu negócio?",
     subtitulo: `${perfil.label} · ${REGIMES.find((x) => x.id === r.regime).label} · faturamento estimado ${brl(r.base.fatAnual)}/ano`,
@@ -325,7 +326,12 @@ export function montarRelatorio(entrada, r) {
       {
         titulo: "Resumo",
         paragrafos: [
-          `Carga estimada hoje: ${pct1(r.atual / 100)} das vendas. Em 2027: ${pct1(r.y2027.pctTransicao / 100)}. Em 2033: ${pct1(r.y2033.pctTransicao / 100)} (${r.delta2033 >= 0 ? "+" : ""}${r.delta2033.toFixed(1).replace(".", ",")} p.p., cerca de ${brl(Math.abs(r.deltaReais2033))}/ano ${r.deltaReais2033 >= 0 ? "a mais" : "a menos"}).`,
+          `Carga estimada hoje: ${pct1(r.atual / 100)} das vendas. Em 2027: ${pct1(r.y2027.pctTransicao / 100)}. Em 2033: ${pct1(r.y2033.pctTransicao / 100)} (${sinal2033}${r.delta2033.toFixed(1).replace(".", ",")} p.p., cerca de ${brl(Math.abs(r.deltaReais2033))}/ano ${r.deltaReais2033 >= 0 ? "a mais" : "a menos"}).`,
+        ],
+        destaques: [
+          { rotulo: "Carga hoje", valor: pct1(r.atual / 100) },
+          { rotulo: "Carga em 2033", valor: pct1(r.y2033.pctTransicao / 100), detalhe: `${sinal2033}${r.delta2033.toFixed(1).replace(".", ",")} p.p.` },
+          { rotulo: "Impacto anual", valor: `${r.deltaReais2033 >= 0 ? "+" : "-"}${brl(Math.abs(r.deltaReais2033))}`, detalhe: r.deltaReais2033 >= 0 ? "a mais por ano" : "a menos por ano" },
         ],
       },
       {
@@ -338,11 +344,13 @@ export function montarRelatorio(entrada, r) {
       { titulo: "Pontos de atenção", itens: r.cards.map((c) => `${c.titulo}: ${c.texto}`) },
       { titulo: "3 ações prioritárias", itens: r.acoes },
       { titulo: "Premissas desta estimativa", itens: r.premissas },
-      {
-        titulo: "Fale com a FAL Agro",
-        paragrafos: ["Esta é uma estimativa por médias. Se quiser ver o cálculo com as suas notas fiscais reais, nota a nota, e tirar dúvidas sobre o seu caso, é só chamar:"],
-        itens: [`WhatsApp: ${CONTATO.whatsapp}`, `E-mail: ${CONTATO.email}`],
-      },
     ],
+    cta: {
+      titulo: "Quer ver isso com as suas notas fiscais reais?",
+      texto: "Esta é uma estimativa por médias de mercado. A equipe da FAL Agro refaz esse cálculo nota a nota, com os seus números reais, e tira as suas dúvidas sobre o caso específico do seu negócio.",
+      whatsapp: CONTATO.whatsappLink,
+      whatsappTexto: "Olá! Recebi o relatório do InTAX e quero entender meu caso com mais detalhe.",
+      email: CONTATO.email,
+    },
   };
 }
