@@ -32,11 +32,15 @@ function Passos({ atual }) {
   );
 }
 
-const ANEXOS = [
-  { id: "automatico", label: "Fator R automático (recomendado)" },
+const ANEXOS_SEM_FATOR_R = [
   { id: "Anexo I", label: "Anexo I · Comércio" },
   { id: "Anexo II", label: "Anexo II · Indústria" },
   { id: "Anexo IV", label: "Anexo IV · Serviços (§5º-C)" },
+];
+
+const ANEXOS_FATOR_R = [
+  { id: "Anexo III", label: "Anexo III · Fator R ≥ 28%" },
+  { id: "Anexo V", label: "Anexo V · Fator R < 28%" },
 ];
 
 /** Simulador "Simples puro × Híbrido (IBS/CBS regular)" — ferramenta pública do InTAX. */
@@ -94,16 +98,24 @@ export default function SimplesHibridoPage() {
       {passo === 0 && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-6">
           <div>
-            <p className="text-sm font-medium mb-2">Como seu negócio se enquadra no Simples?</p>
+            <p className="text-sm font-medium mb-2">Qual Anexo do Simples se aplica ao seu negócio?</p>
             <div className="flex flex-wrap gap-2">
-              {ANEXOS.map((a) => (
+              {ANEXOS_SEM_FATOR_R.map((a) => (
                 <button key={a.id} type="button" onClick={() => setDados((d) => ({ ...d, modo: a.id }))} className={`px-4 py-2 rounded-md border text-sm ${dados.modo === a.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{a.label}</button>
               ))}
+            </div>
+
+            <p className="text-xs text-muted-foreground mt-4 mb-2">Presta serviço e pode cair no Anexo III ou V? Esses dois dependem do Fator R (folha ÷ receita, nos últimos 12 meses):</p>
+            <div className="flex flex-wrap gap-2">
+              {ANEXOS_FATOR_R.map((a) => (
+                <button key={a.id} type="button" onClick={() => setDados((d) => ({ ...d, modo: a.id }))} className={`px-4 py-2 rounded-md border text-sm ${dados.modo === a.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{a.label}</button>
+              ))}
+              <button type="button" onClick={() => setDados((d) => ({ ...d, modo: "automatico" }))} className={`px-4 py-2 rounded-md border text-sm font-medium ${dados.modo === "automatico" ? "bg-primary text-primary-foreground border-primary" : "border-primary/50 text-primary hover:bg-primary/5"}`}>Não sei — calcular automaticamente</button>
             </div>
             {dados.modo === "automatico" && (
               <div className="flex gap-2 items-start text-xs text-muted-foreground bg-muted/40 border border-border rounded-md p-3 mt-3">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>Não sabe seu Fator R? Deixe no automático: calculamos a partir da folha e da receita dos últimos 12 meses, e aplicamos o Anexo III (≥28%, LC 123/2006 art. 18 §5º-J) ou V (&lt;28%, §5º-M) automaticamente.</span>
+                <span>Calculamos o Fator R a partir da folha e da receita dos últimos 12 meses, e aplicamos o Anexo III (≥28%, LC 123/2006 art. 18 §5º-J) ou V (&lt;28%, §5º-M) automaticamente.</span>
               </div>
             )}
           </div>
