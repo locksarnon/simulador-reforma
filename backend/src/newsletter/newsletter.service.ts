@@ -11,9 +11,13 @@ const COR: Record<string, string> = { Alta: '#b3261e', Média: '#a86a00' };
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Newsletter do InTAX: o Radar gera o RASCUNHO toda segunda; uma pessoa revisa,
- * aprova e dispara. Nada sai automaticamente — o Radar é gerado por IA e pode
- * errar. Só recebe quem deu consentimento, e todo e-mail leva link de descadastro.
+ * Newsletter do InTAX: o Radar gera o RASCUNHO toda segunda às 7h30, e às 8h
+ * (ver `envioAutomaticoSemanal`) o sistema aprova e dispara sozinho pra quem
+ * deu consentimento — decisão explícita do usuário em 2026-10-01, ciente de
+ * que o conteúdo vem de IA (Radar/Gemini) e vai pra lista sem revisão humana.
+ * Uma edição já tocada manualmente antes das 8h (aprovada/enviada) nunca é
+ * reenviada pelo cron — só edições ainda em "Rascunho" são auto-enviadas.
+ * Todo e-mail leva link de descadastro (one-click, LGPD/CAN-SPAM).
  */
 @Injectable()
 export class NewsletterService {
@@ -27,6 +31,34 @@ export class NewsletterService {
       await this.gerarRascunho();
     } catch (err) {
       this.logger.warn(`Rascunho semanal não gerado: ${(err as Error).message}`);
+    }
+  }
+
+  /** 30 min depois do rascunho — tempo de a geração do Radar/rascunho terminar antes de tentar enviar. */
+  @Cron('0 8 * * 1', { timeZone: 'America/Sao_Paulo' })
+  async envioAutomaticoSemanal() {
+    let ed;
+    try {
+      ed = await this.gerarRascunho();
+    } catch (err) {
+      this.logger.warn(`Envio automático: sem rascunho esta semana (${(err as Error).message}).`);
+      return;
+    }
+    if (ed.status !== 'Rascunho') return; // já aprovada/enviada manualmente antes do cron rodar
+
+    try {
+      await this.aprovar(ed.id, 'sistema (envio automático)');
+      const enviada = await this.enviar(ed.id);
+      this.logger.log(`Newsletter "${enviada.assunto}" enviada automaticamente: ${enviada.destinatarios} ok, ${enviada.falhas} falhas.`);
+      if (this.mail.emailInterno) {
+        await this.mail.enviar({
+          to: this.mail.emailInterno,
+          subject: `[InTAX] Newsletter enviada automaticamente: ${enviada.assunto}`.slice(0, 150),
+          html: emailLayout('Newsletter enviada automaticamente', `<p style="font-size:14px;line-height:1.6">A edição da semana ${esc(enviada.semana_referencia)} foi aprovada e enviada sozinha pelo sistema, sem revisão humana.</p><p style="font-size:14px"><b>Destinatários:</b> ${enviada.destinatarios} enviados, ${enviada.falhas} falhas.</p><p style="font-size:13px;color:#5b6b63">Revise o conteúdo em /comercial/newsletter — se algo saiu errado, o próximo passo é corrigir a fonte (Radar) antes da próxima segunda.</p>`),
+        });
+      }
+    } catch (err) {
+      this.logger.error(`Envio automático da newsletter falhou: ${(err as Error).message}`);
     }
   }
 

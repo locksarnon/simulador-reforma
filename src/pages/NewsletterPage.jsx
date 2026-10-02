@@ -13,8 +13,12 @@ const COR = {
 };
 
 /**
- * Newsletter: o Radar gera o rascunho toda segunda; uma pessoa revisa,
- * aprova e dispara. Nada é enviado sem aprovação (o Radar é gerado por IA).
+ * Newsletter: o Radar gera o rascunho toda segunda às 7h30 e, às 8h, o
+ * sistema aprova e envia sozinho pra quem deu consentimento — decisão
+ * explícita do usuário, ciente de que o conteúdo vem de IA (Radar/Gemini)
+ * e sai sem revisão humana por padrão. Pra revisar antes, basta abrir esta
+ * tela e editar/aprovar/enviar manualmente antes das 8h de segunda — o
+ * envio automático nunca mexe numa edição que já saiu do status "Rascunho".
  */
 export default function NewsletterPage() {
   const qc = useQueryClient();
@@ -47,7 +51,7 @@ export default function NewsletterPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2"><Mail className="w-5 h-5 text-muted-foreground" /><h1 className="text-xl font-heading font-semibold">Newsletter</h1></div>
-            <p className="text-sm text-muted-foreground">Radar de novidades por e-mail: o rascunho nasce do Radar toda segunda, você revisa, aprova e envia.</p>
+            <p className="text-sm text-muted-foreground">Radar de novidades por e-mail: o rascunho nasce do Radar toda segunda às 7h30 e é enviado sozinho às 8h. Pra revisar antes, edite/aprove/envie aqui nessa janela.</p>
           </div>
           <button onClick={() => acao("rascunho", async () => { const n = await api.post("/newsletter/rascunho"); setSelId(n.id); }, "Rascunho pronto")} disabled={ocupado === "rascunho"} className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">
             {ocupado === "rascunho" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Gerar rascunho do Radar
