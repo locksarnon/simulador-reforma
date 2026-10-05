@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import LimparDadosButton from "@/components/LimparDadosButton";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 
 export default function EmpresasPage() {
@@ -54,9 +55,17 @@ export default function EmpresasPage() {
           </div>
           <p className="text-sm text-muted-foreground">Vinculadas a {grupoNumero || "—"} · clique numa empresa para abrir o workspace dela</p>
         </div>
-        <button onClick={() => start("new")} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Nova empresa
-        </button>
+        <div className="flex items-center gap-3">
+          {grupoId && (
+            <LimparDadosButton
+              tela="empresas" grupoId={grupoId} rotulo="Limpar empresas"
+              oQueApaga="Apaga todas as empresas deste workroom e tudo ligado a elas: operações, regras de CFOP, simulações salvas e o vínculo dos itens de XML (os itens ficam sem empresa)."
+            />
+          )}
+          <button onClick={() => start("new")} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
+            <Plus className="w-4 h-4" /> Nova empresa
+          </button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-card overflow-x-auto">

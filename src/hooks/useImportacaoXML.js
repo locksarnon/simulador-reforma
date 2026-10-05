@@ -149,6 +149,12 @@ export function useImportacaoXML(grupoId) {
     },
   });
 
+  // Lote apagado (ex.: "Limpar todos os XMLs"): esquece o id em vez de ficar
+  // consultando um lote que não existe mais.
+  useEffect(() => {
+    if (loteId && loteQuery.isError && loteQuery.error?.status === 404) setLoteId(null);
+  }, [loteId, loteQuery.isError, loteQuery.error]);
+
   const arquivosQuery = useQuery({
     queryKey: ["arquivos-xml", loteId],
     queryFn: () => base44.entities.ImportacaoXMLArquivo.filter({ lote_id: loteId }),

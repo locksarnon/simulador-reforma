@@ -7,6 +7,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import InfoTooltip from "@/components/InfoTooltip";
+import LimparDadosButton from "@/components/LimparDadosButton";
 import PageHeader from "@/components/PageHeader";
 import { base44 } from "@/api/base44Client";
 import { useImportacaoXML } from "@/hooks/useImportacaoXML";
@@ -207,18 +208,27 @@ export default function ImportacaoXMLPage() {
       )}
     <div className="px-6 lg:px-8 py-6 pb-12">
       <div className="space-y-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="font-heading font-semibold text-base">
-              Importação XML {empresaTravada ? `· ${empresaTravada.id_empresa}` : ""}
-            </h2>
-            <InfoTooltip pagina="importacao" chave="header" />
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="font-heading font-semibold text-base">
+                Importação XML {empresaTravada ? `· ${empresaTravada.id_empresa}` : ""}
+              </h2>
+              <InfoTooltip pagina="importacao" chave="header" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {empresaTravada
+                ? `Notas em que ${empresaTravada.razao_social} aparece como emitente ou destinatária. O lote continua sendo do grupo — se houver transferência interna com outra empresa, ela fica escondida por padrão.`
+                : "Upload de NF-e/NFC-e com processamento backend, 4 camadas de validação e staging auditável."}
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {empresaTravada
-              ? `Notas em que ${empresaTravada.razao_social} aparece como emitente ou destinatária. O lote continua sendo do grupo — se houver transferência interna com outra empresa, ela fica escondida por padrão.`
-              : "Upload de NF-e/NFC-e com processamento backend, 4 camadas de validação e staging auditável."}
-          </p>
+          <LimparDadosButton
+            tela="importacao-xml" grupoId={id} empresaId={empresaTravada?.id}
+            rotulo={empresaTravada ? "Limpar XMLs desta empresa" : "Limpar todos os XMLs"}
+            oQueApaga={empresaTravada
+              ? `Apaga os itens importados e o histórico de ${empresaTravada.razao_social}, e as operações criadas por eles. Os arquivos do lote continuam, pois são do grupo.`
+              : "Apaga todos os lotes, arquivos XML (inclusive do armazenamento), itens, histórico de importação e as operações criadas pelas importações deste workroom."}
+          />
         </div>
 
         {empresaTravada && outrasCount > 0 && (

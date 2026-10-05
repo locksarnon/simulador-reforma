@@ -12,6 +12,7 @@ import {
 import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import LimparDadosButton from "@/components/LimparDadosButton";
 
 export default function OperacoesPage() {
   const { id: grupoId } = useParams();
@@ -111,6 +112,15 @@ export default function OperacoesPage() {
         <div className="flex items-center gap-3">
           {!hasEmpresas && (
             <span className="text-xs text-destructive">Cadastre uma empresa primeiro</span>
+          )}
+          {grupoId && (
+            <LimparDadosButton
+              tela="operacoes" grupoId={grupoId} empresaId={empresaTravada?.id}
+              rotulo={empresaTravada ? "Limpar operações desta empresa" : "Limpar operações"}
+              oQueApaga={empresaTravada
+                ? `Apaga todas as operações de ${empresaTravada.razao_social}. Itens de XML ligados a elas voltam a ficar não confirmados.`
+                : "Apaga todas as operações das empresas deste workroom. Itens de XML ligados a elas voltam a ficar não confirmados."}
+            />
           )}
           <button
             onClick={() => { if (hasEmpresas) { setEditing("new"); setOpen(true); } }}

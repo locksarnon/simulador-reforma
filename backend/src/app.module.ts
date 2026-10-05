@@ -16,6 +16,7 @@ import { ValidadorNfseModule } from './validador-nfse/validador-nfse.module';
 import { CfopModule } from './cfop/cfop.module';
 import { BaseLegalModule } from './base-legal/base-legal.module';
 import { CnpjModule } from './cnpj/cnpj.module';
+import { LimpezaModule } from './limpeza/limpeza.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -36,6 +37,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     CnpjModule,
     BaseLegalModule,
     CfopModule,
+    LimpezaModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

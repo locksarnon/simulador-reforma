@@ -6,6 +6,7 @@ import { ChevronRight, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMa
 import InfoTooltip from "@/components/InfoTooltip";
 import EmpresaCard from "@/components/EmpresaCard";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
+import LimparDadosButton from "@/components/LimparDadosButton";
 
 export default function WorkroomOverview() {
   const { id } = useParams();
@@ -61,6 +62,10 @@ export default function WorkroomOverview() {
             >
               Ver como tabela
             </Link>
+            <LimparDadosButton
+              tela="workroom" grupoId={id} rotulo="Zerar este workroom"
+              oQueApaga="Apaga todos os dados de teste deste workroom: empresas, operações, XMLs (lotes, arquivos e histórico, inclusive do armazenamento), regras de CFOP, simulações e diagnósticos. O workroom em si continua, vazio."
+            />
             <button
               onClick={startNew}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90"
