@@ -11,7 +11,7 @@ const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cC
 const ROTULO_PROBLEMA = {
   DUPLICIDADE_EXATA: "Descrição e unidade iguais", POSSIVEL_DUPLICIDADE: "Possível duplicidade",
   NCM_AUSENTE: "NCM ausente", NCM_FORMATO: "NCM com formato errado", NCM_INEXISTENTE: "NCM inexistente", NCM_INATIVO: "NCM não vigente",
-  NCM_ZERO_RESTAURADO: "Zero à esquerda corrigido", CODIGO_AUSENTE: "Sem código", DESCRICAO_AUSENTE: "Sem descrição",
+  NCM_ZERO_RESTAURADO: "Zero à esquerda corrigido", DATA_INVALIDA: "Data de movimentação não reconhecida", SEM_DATA_MOVIMENTO: "Sem data de movimentação", CODIGO_AUSENTE: "Sem código", DESCRICAO_AUSENTE: "Sem descrição",
   CODIGO_DUPLICADO: "Código duplicado", PRODUTO_DUPLICADO: "Produto duplicado", CLASSE_SUGERIDA: "Classificação sugerida",
   BENEFICIO_POSSIVELMENTE_PERDIDO: "Benefício possivelmente perdido", REDUCAO_MAIOR_QUE_ESPERADO: "Redução maior que a esperada",
   SEM_AMPARO_NO_ANEXO: "Redução sem amparo nos anexos", CLASSE_DIVERGENTE: "Classe divergente", AMBIGUO_REVISAR: "NCM ambíguo — revisar",
@@ -26,6 +26,22 @@ const ROT_SIT = { OK: "OK", ALERTA: "Atenção", ERRO: "Corrigir" };
 const POR_PAGINA = 50;
 
 // Mesma ordem e títulos da planilha corrigida (ProdutosService.exportarXlsx).
+const mesesAtras = (n) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const dataBr = (iso) => (iso ? iso.split("-").reverse().join("/") : "…");
+const COLUNAS_PERIODO = [
+  { chave: "ultima_mov", titulo: "Última movimentação" },
+  { chave: "periodo", titulo: "No período" },
+];
+const ROT_PERIODO = { DENTRO: "Dentro", SEM_DATA: "Sem data", DATA_INVALIDA: "Data inválida" };
+const COR_PERIODO = {
+  DENTRO: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+  SEM_DATA: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+  DATA_INVALIDA: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300",
+};
 const COLUNAS = [
   { chave: "linha", titulo: "Linha", alinhar: "text-right" },
   { chave: "codigo", titulo: "Código" },
@@ -66,6 +82,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   const [opcoes, setOpcoes] = useState({ cClassTrib: true, duplicidades: true, principioAtivo: false, dataInicio: "", dataFim: "", erps: [], gruposContabeis: false });
   const [excluir, setExcluir] = useState([]);
   const [problemasSelecionados, setProblemasSelecionados] = useState([]);
+  const [periodoFiltro, setPeriodoFiltro] = useState("ANALISE");
   const mudarOpcao = (k, v) => setOpcoes(o => ({ ...o, [k]: v }));
   const [etapa, setEtapa] = useState("enviar");
   const [arquivo, setArquivo] = useState(null);
@@ -88,7 +105,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   const rotaValidar = publico ? "/public/produtos/amostra" : "/produtos/validar";
 
   const reiniciar = () => {
-    setExcluir([]); setProblemasSelecionados([]);
+    setExcluir([]); setProblemasSelecionados([]); setPeriodoFiltro("ANALISE");
     setEtapa("enviar"); setArquivo(null); setPrevia(null); setMapa({}); setResultado(null); setErro("");
     setFiltro("PROBLEMAS"); setBusca(""); setPagina(0); setEmailLiberado("");
     if (inputRef.current) inputRef.current.value = "";
@@ -111,7 +128,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     setErro(""); setCarregando(true);
     try {
       const r = await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(!publico ? { empresa_id: empresaId, opcoes } : {}), ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
-      setExcluir([]); setResultado(r); setEtapa("resultado"); setPagina(0);
+      setExcluir([]); setPeriodoFiltro("ANALISE"); setResultado(r); setEtapa("resultado"); setPagina(0);
       if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
       setErro(e.message);
@@ -125,7 +142,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     try {
       const r = await api.get(`/produtos/validacoes/${v.id}`, { empresa_id: empresaId });
       if (r.opcoes) setOpcoes(r.opcoes);
-      setArquivo(null); setResultado(r); setMapa(r.mapeamento || {}); setEtapa("resultado"); setPagina(0); setFiltro("PROBLEMAS"); setBusca("");
+      setArquivo(null); setResultado(r); setMapa(r.mapeamento || {}); setEtapa("resultado"); setPagina(0); setFiltro("PROBLEMAS"); setBusca(""); setPeriodoFiltro("ANALISE");
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -138,7 +155,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validacaoId, empresaId, publico]);
 
-  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['gruposContabeis','Analisar grupos contábeis (requer plano de referência)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div><div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{['Protheus','SAP','Sankhya','Outro'].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, mapeie a data do cadastro ou movimento. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
+  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['gruposContabeis','Analisar grupos contábeis (requer plano de referência)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div><div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{['Protheus','SAP','Sankhya','Outro'].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><div className="flex flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Atalho — sanear só quem movimentou nos últimos:</span>{[6, 12, 18, 24, 36].map(m => <button key={m} type="button" onClick={() => { mudarOpcao("dataInicio", mesesAtras(m)); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border hover:bg-muted">{m} meses</button>)}{(opcoes.dataInicio || opcoes.dataFim) && <button type="button" onClick={() => { mudarOpcao("dataInicio", ""); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted">Limpar período</button>}</div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, indique a coluna da data da última movimentação (ou do cadastro): quem tem data fora do período sai do saneamento e vai para uma aba separada da planilha; quem não tem data legível continua na análise, sinalizado. Datas lidas como dia/mês/ano. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
 
   const baixarModelo = () => api.baixar("GET", "/public/produtos/modelo", { nome: "modelo-cadastro-produtos-intax.xlsx" }).catch((e) => setErro(e.message));
   const copiarCab = async () => {
@@ -153,12 +170,13 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     if (!resultado) return [];
     const t = busca.trim().toLowerCase();
     return resultado.itens.filter((i) => {
+      if (periodoFiltro === "FORA") return false;
       if (problemasSelecionados.length && !i.problemas.some(p => problemasSelecionados.includes(p.codigo))) return false;
       if (filtro === "PROBLEMAS" ? i.situacao === "OK" : filtro !== "TODOS" && i.situacao !== filtro) return false;
       if (!t) return true;
       return `${i.codigo} ${i.descricao} ${i.ncm_original}`.toLowerCase().includes(t);
     });
-  }, [resultado, filtro, busca, problemasSelecionados]);
+  }, [resultado, filtro, busca, problemasSelecionados, periodoFiltro]);
 
   const totalPaginas = Math.max(1, Math.ceil(itensFiltrados.length / POR_PAGINA));
   const visiveis = itensFiltrados.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
@@ -268,6 +286,21 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     return (
       <div className="space-y-5">
         {resultado.avisos?.map(a => <p key={a} className="text-sm text-amber-700 dark:text-amber-300">{a}</p>)}
+        {r.periodo && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <p className="text-sm">
+              Base enviada: <b>{r.periodo.base.toLocaleString("pt-BR")}</b> produtos. Período {dataBr(r.periodo.inicio)} a {r.periodo.fim ? dataBr(r.periodo.fim) : "hoje"}: movimentaram <b className="text-primary">{r.periodo.dentro.toLocaleString("pt-BR")}</b>
+              {r.periodo.sem_data + r.periodo.data_invalida > 0 && <> · sem data legível (mantidos na análise): <b>{(r.periodo.sem_data + r.periodo.data_invalida).toLocaleString("pt-BR")}</b></>}
+              {" "}· sem movimento no período: <b>{r.periodo.fora.toLocaleString("pt-BR")}</b>.
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {[["ANALISE", "No saneamento"], ["FORA", "Sem movimento no período"]].map(([v, rot]) => (
+                <button key={v} type="button" onClick={() => { setPeriodoFiltro(v); setPagina(0); }} className={`px-3 py-1.5 rounded-full border ${periodoFiltro === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{rot}</button>
+              ))}
+            </div>
+            {periodoFiltro === "FORA" && <p className="text-xs text-muted-foreground">Estes produtos não entram no saneamento: são candidatos a inativar no ERP. A lista completa vai numa aba própria da planilha baixada.</p>}
+          </div>
+        )}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Cartao titulo="Produtos analisados" valor={r.total} ativo={filtro === "TODOS"} onClick={() => { setFiltro("TODOS"); setPagina(0); }} />
           <Cartao titulo="Sem problemas" valor={r.ok} cor="text-emerald-600" ativo={filtro === "OK"} onClick={() => { setFiltro("OK"); setPagina(0); }} />
@@ -300,12 +333,33 @@ export default function ValidadorCadastro({ modo = "interno" }) {
 
         {!publico && arquivo && <p className="text-xs text-muted-foreground">Selecione as linhas duplicadas que deseja retirar da cópia saneada ({excluir.length} selecionadas). A exportação mantém o relatório completo e registra as exclusões em aba separada. O cadastro do ERP não é alterado.</p>}
         {/* Mesma estrutura da planilha corrigida (ver ProdutosService.exportarXlsx): uma linha por produto, um dado por coluna, nada empilhado dentro da célula. */}
+        {r.periodo && periodoFiltro === "FORA" ? (
+          <div className="rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
+            <table className="w-full text-xs border-collapse">
+              <thead className="sticky top-0 z-10 bg-muted"><tr className="text-left text-muted-foreground">
+                {["Linha", "Código", "Descrição", "NCM informado", "Última movimentação"].map((t) => <th key={t} className="px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0">{t}</th>)}
+              </tr></thead>
+              <tbody>
+                {(resultado.fora_periodo || []).slice(0, 500).map((f) => (
+                  <tr key={f.linha}>
+                    <td className="px-3 py-1.5 border-b border-r border-border text-right tabular-nums text-muted-foreground">{f.linha}</td>
+                    <td className="px-3 py-1.5 border-b border-r border-border font-medium">{f.codigo || "—"}</td>
+                    <td className="px-3 py-1.5 border-b border-r border-border max-w-[320px] truncate" title={f.descricao}>{f.descricao || "—"}</td>
+                    <td className="px-3 py-1.5 border-b border-r border-border font-mono">{f.ncm_original || "—"}</td>
+                    <td className="px-3 py-1.5 border-b border-border tabular-nums">{dataBr(f.ultima_mov)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {(resultado.fora_periodo || []).length > 500 && <p className="p-3 text-xs text-muted-foreground">Mostrando 500 de {resultado.fora_periodo.length.toLocaleString("pt-BR")}. A lista completa está na planilha baixada.</p>}
+          </div>
+        ) : (
         <div className="rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-muted">
               <tr className="text-left text-muted-foreground">
                 {!publico && arquivo && <th className="p-2 border border-border">Excluir da cópia saneada</th>}
-                {COLUNAS.map((c) => <th key={c.chave} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</th>)}
+                {(r.periodo ? [...COLUNAS, ...COLUNAS_PERIODO] : COLUNAS).map((c) => <th key={c.chave} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -333,6 +387,12 @@ export default function ValidadorCadastro({ modo = "interno" }) {
                     <td className={`${cel} text-right tabular-nums`}>{sug ? `${Math.round(sug.reducao * 100)}%` : "—"}</td>
                     <td className={cel}>{sug ? sug.confianca : "—"}</td>
                     <td className={cel}>{sug?.anexo || "—"}</td>
+                    {r.periodo && (
+                      <>
+                        <td className={`${cel} tabular-nums`}>{i.ultima_mov ? i.ultima_mov.split("-").reverse().join("/") : "—"}</td>
+                        <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_PERIODO[i.periodo] || ""}`}>{ROT_PERIODO[i.periodo] || "—"}</span></td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
@@ -340,6 +400,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
           </table>
           {visiveis.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Nenhum item neste filtro.</p>}
         </div>
+        )}
 
         {totalPaginas > 1 && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">
