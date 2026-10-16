@@ -22,6 +22,10 @@ services:
       - traefik.http.routers.simulador-api.tls.certresolver=myresolver
       - traefik.http.routers.simulador-api.priority=100
       - traefik.http.services.simulador-api.loadbalancer.server.port=3003
+      # O compose base também define reforma-api; cada roteador precisa do serviço explícito.
+      - traefik.http.routers.simulador-api.service=simulador-api
+      - traefik.http.routers.reforma-api.service=reforma-api
+      - traefik.http.routers.reforma-api-http.service=reforma-api
     networks:
       - default
       - traefik-net
@@ -44,6 +48,10 @@ services:
       - traefik.http.routers.simulador-web.tls.certresolver=myresolver
       - traefik.http.routers.simulador-web.priority=1
       - traefik.http.services.simulador-web.loadbalancer.server.port=5175
+      - traefik.http.routers.simulador-web.service=simulador-web
+      - traefik.http.routers.simulador-web-http.service=simulador-web
+      - traefik.http.routers.reforma-web.service=reforma-web
+      - traefik.http.routers.reforma-web-http.service=reforma-web
       - traefik.http.routers.simulador-web-http.rule=Host(`simulador.clarityib.com.br`)
       - traefik.http.routers.simulador-web-http.entrypoints=web
       - traefik.http.routers.simulador-web-http.middlewares=simulador-https-redirect
