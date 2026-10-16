@@ -20,7 +20,7 @@ Criar a empresa de análise e identificar versões, linha PIMS e mecanismo de in
 
 ## Conexão de dados: etapa seguinte
 
-O conector de banco do Protheus ainda não está implementado. O usuário informou SQL; Microsoft SQL Server é hipótese a confirmar, não um driver já configurado.
+O conector de banco do Protheus ainda não está implementado. O usuário informou que a conexão já é usada no Gestor Protheus. A inspeção do código desse projeto confirmou o driver mssql, conexões separadas de Protheus/PIMS e roteamento opcional por espelhos. Isso confirma a arquitetura disponível no Gestor, não um conector já implementado no InTAX nem uma conexão testada por este módulo. O banco e o escopo da empresa devem ser confirmados antes da vinculação.
 
 Antes da conexão, levantar: mecanismo e versão do banco, empresa/filiais de escopo, linha/versão do PIMS, onde os bancos estão hospedados e acesso por rede privada, VPN/túnel ou coletor local. Usar uma identidade dedicada de leitura, preferencialmente em views aprovadas pela equipe do cliente. Credenciais devem ficar no servidor/cofre de segredos, nunca em documentos de conhecimento ou no frontend. Não abrir o banco publicamente para esta integração.
 
