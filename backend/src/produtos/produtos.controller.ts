@@ -1,6 +1,6 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { lerOpcoes } from './opcoes-validacao';
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ValidacoesService } from './validacoes.service';
@@ -36,6 +36,27 @@ export class ProdutosController {
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
   ler(@UploadedFile() file: Express.Multer.File) {
     return this.service.previa(file);
+  }
+
+  /** Autosave: a análise nasce como rascunho no upload (arquivo guardado), antes de qualquer processamento. */
+  @Post('rascunhos')
+  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
+  async criarRascunho(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthUser, @Body('empresa_id') empresa_id?: string) {
+    if (!empresa_id || !await this.prisma.empresa.findUnique({ where: { id: empresa_id } })) throw new BadRequestException('Escolha uma empresa válida para esta análise.');
+    if (!file?.buffer?.length) throw new BadRequestException('Arquivo vazio ou não enviado.');
+    return this.validacoes.criarRascunho(file, user.email, empresa_id);
+  }
+
+  /** Autosave de colunas, parâmetros e linhas marcadas para exclusão. */
+  @Put('validacoes/:id/progresso')
+  salvarProgresso(@Param('id') id: string, @Body() body: { mapeamento?: unknown; opcoes?: unknown; excluir?: unknown; empresa_id?: string }) {
+    const excluir = body?.excluir;
+    if (excluir !== undefined && (!Array.isArray(excluir) || excluir.length > 50000 || excluir.some((x) => !Number.isInteger(x)))) throw new BadRequestException('Seleção de duplicidades inválida.');
+    return this.validacoes.salvarProgresso(id, {
+      mapeamento: body?.mapeamento ? lerMapeamento(JSON.stringify(body.mapeamento)) : undefined,
+      opcoes: body?.opcoes ? lerOpcoes(JSON.stringify(body.opcoes)) : undefined,
+      excluir: excluir as number[] | undefined,
+    }, body?.empresa_id);
   }
 
   @Post('validar')

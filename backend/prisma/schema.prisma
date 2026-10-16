@@ -985,6 +985,9 @@ model ValidacaoCadastro {
   itens_alerta    Int      @default(0)
   itens_erro      Int      @default(0)
   createdAt       DateTime @default(now())
+  /// RASCUNHO (arquivo enviado, ainda não processado) ou PROCESSADA.
+  status          String   @default("PROCESSADA")
+  updatedAt       DateTime @default(now()) @updatedAt
 
   @@index([createdAt])
   @@index([criado_por])

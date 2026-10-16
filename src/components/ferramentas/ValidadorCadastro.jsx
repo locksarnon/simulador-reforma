@@ -110,6 +110,9 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const [arrastando, setArrastando] = useState(false);
   const [filtro, setFiltro] = useState("TODOS");
   const [aba, setAba] = useState("TODOS");
+  // Autosave: a análise existe no servidor desde o upload (rascunho); cada ajuste é salvo sozinho.
+  const [rascunhoId, setRascunhoId] = useState(null);
+  const [autosave, setAutosave] = useState(null);
   const [porPagina, setPorPagina] = useState(100);
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(0);
@@ -122,7 +125,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const rotaValidar = publico ? "/public/produtos/amostra" : "/produtos/validar";
 
   const reiniciar = () => {
-    setExcluir([]); setProblemasSelecionados([]); setPeriodoFiltro("ANALISE");
+    setExcluir([]); setProblemasSelecionados([]); setPeriodoFiltro("ANALISE"); setRascunhoId(null); setAutosave(null);
     setEtapa("enviar"); setArquivo(null); setPrevia(null); setMapa({}); setResultado(null); setErro("");
     setFiltro("TODOS"); setAba("TODOS"); setBusca(""); setPagina(0); setEmailLiberado("");
     if (inputRef.current) inputRef.current.value = "";
@@ -132,8 +135,10 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     if (!file) return;
     setErro(""); setCarregando(true);
     try {
-      const r = await api.upload(rotaPrevia, file, publico ? { somente_ler: "true" } : {});
-      setArquivo(file); setPrevia(r); setMapa(r.mapeamento || {}); setEtapa("colunas");
+      // Interno: já cria a análise como rascunho no servidor (arquivo guardado), para não perder nada se a tela fechar.
+      const r = publico ? await api.upload(rotaPrevia, file, { somente_ler: "true" }) : await api.upload("/produtos/rascunhos", file, { empresa_id: empresaId });
+      setArquivo(file); setPrevia(r); setMapa(r.mapeamento || {}); setRascunhoId(!publico ? r.validacao_id : null); setEtapa("colunas");
+      if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
       setErro(e.status === 429 ? "Muitos envios seguidos. Aguarde um minuto e tente de novo." : e.message);
     } finally {
@@ -145,11 +150,11 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     setErro(""); setCarregando(true);
     try {
       // Refazer depois de ajustar parâmetros: usa o arquivo já guardado no servidor e atualiza a mesma validação do histórico.
-      const idSalvo = !publico && resultado?.validacao_id;
+      const idSalvo = !publico && (resultado?.validacao_id || rascunhoId);
       const r = idSalvo
         ? await api.post(`/produtos/validacoes/${idSalvo}/refazer`, { mapeamento: mapa, opcoes, empresa_id: empresaId })
         : await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(!publico ? { empresa_id: empresaId, opcoes } : {}), ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
-      setExcluir([]); setPeriodoFiltro("ANALISE"); setResultado(r); setEtapa("resultado"); setPagina(0);
+      setExcluir([]); setPeriodoFiltro("ANALISE"); setResultado(r); setRascunhoId(null); setEtapa("resultado"); setPagina(0);
       if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
       setErro(e.message);
@@ -174,8 +179,16 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const abrirSalva = async (v) => {
     setErro(""); setAbrindo(v.id);
     try {
+      if (v.status === "RASCUNHO") {
+        // Retomar de onde parou: colunas, parâmetros e linhas marcadas exatamente como foram autosalvos.
+        const d = await api.get(`/produtos/validacoes/${v.id}/colunas`, { empresa_id: empresaId });
+        setArquivo(null); setResultado(null); setPrevia(d); setMapa(d.mapeamento || {}); if (d.opcoes) setOpcoes(d.opcoes);
+        setExcluir(d.excluir || []); setRascunhoId(v.id); setAutosave(null); setEtapa("colunas");
+        return;
+      }
       const r = await api.get(`/produtos/validacoes/${v.id}`, { empresa_id: empresaId });
       if (r.opcoes) setOpcoes(r.opcoes);
+      setExcluir(r.excluir || []); setRascunhoId(null); setAutosave(null);
       setArquivo(null); setResultado(r); setMapa(r.mapeamento || {}); setEtapa("resultado"); setPagina(0); setFiltro("TODOS"); setAba("TODOS"); setBusca(""); setPeriodoFiltro("ANALISE");
     } catch (e) {
       setErro(e.message);
@@ -199,6 +212,28 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     ? api.baixar("POST", "/produtos/exportar", { file: arquivo, campos: { mapeamento: mapa, opcoes, excluir }, nome: "cadastro-validado-intax.xlsx" })
     : api.baixar("GET", `/produtos/validacoes/${resultado?.validacao_id}/exportar`, { nome: "cadastro-validado-intax.xlsx" })
   ).catch((e) => setErro(e.message));
+
+  const idAuto = !publico ? (resultado?.validacao_id || rascunhoId) : null;
+  useEffect(() => {
+    if (!idAuto || (etapa !== "colunas" && etapa !== "resultado")) return undefined;
+    const t = setTimeout(async () => {
+      setAutosave({ estado: "salvando" });
+      try {
+        // Em análise já processada o servidor só guarda as linhas marcadas (os parâmetros dela mudam ao refazer).
+        await api.put(`/produtos/validacoes/${idAuto}/progresso`, { mapeamento: mapa, opcoes, excluir, empresa_id: empresaId });
+        setAutosave({ estado: "salvo", em: new Date() });
+        qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
+      } catch { setAutosave({ estado: "erro" }); }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [idAuto, etapa, mapa, opcoes, excluir, empresaId, qc]);
+  const indicadorAutosave = !publico && idAuto && autosave && (
+    <span className={`text-xs ${autosave.estado === "erro" ? "text-destructive" : "text-muted-foreground"}`}>
+      {autosave.estado === "salvando" && "Salvando…"}
+      {autosave.estado === "salvo" && `Salvo automaticamente às ${autosave.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+      {autosave.estado === "erro" && "Não foi possível salvar automaticamente"}
+    </span>
+  );
 
   const itensFiltrados = useMemo(() => {
     if (!resultado) return [];
@@ -266,7 +301,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <FileSpreadsheet className="w-4 h-4" /> <b className="text-foreground">{arquivo?.name || resultado?.nome_arquivo}</b> · {previa.total_linhas.toLocaleString("pt-BR")} produtos
+          <FileSpreadsheet className="w-4 h-4" /> <b className="text-foreground">{arquivo?.name || previa?.nome_arquivo || resultado?.nome_arquivo}</b> · {previa.total_linhas.toLocaleString("pt-BR")} produtos
           {publico && previa.total_linhas > 300 && <span className="text-amber-600">(a amostra analisa os 300 primeiros)</span>}
         </div>
 
@@ -308,6 +343,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
 
         {erro && <p className="text-sm text-destructive">{erro}</p>}
         <div className="flex gap-2">
+          {indicadorAutosave}
           {resultado && <button type="button" onClick={() => setEtapa("resultado")} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Voltar ao resultado</button>}
           <button type="button" onClick={reiniciar} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Trocar arquivo</button>
           <button type="button" disabled={!obrigatoriosOk || carregando} onClick={() => validar()} className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
@@ -380,7 +416,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input value={busca} onChange={(e) => { setBusca(e.target.value); setPagina(0); }} placeholder="Buscar código, descrição ou NCM" className="h-9 w-64 rounded-md border border-input bg-background pl-8 pr-2 text-sm" />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {indicadorAutosave}
             {!publico && resultado.validacao_id && <button type="button" onClick={ajustar} disabled={carregando} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-primary text-primary text-sm hover:bg-primary/5 disabled:opacity-50">{carregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SlidersHorizontal className="w-4 h-4" />} Ajustar parâmetros e refazer</button>}
             <button type="button" onClick={reiniciar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted"><RotateCcw className="w-4 h-4" /> Validar outro arquivo</button>
             {!publico && <button type="button" onClick={exportar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90"><Download className="w-4 h-4" /> Baixar planilha corrigida</button>}
