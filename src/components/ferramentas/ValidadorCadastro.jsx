@@ -25,11 +25,13 @@ const COR_SIT = {
   ERRO: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300",
 };
 const ROT_SIT = { OK: "OK", ALERTA: "Atenção", ERRO: "Corrigir" };
-const OPCOES_POR_PAGINA = [50, 100, 250, 500];
+// 0 = todos os itens da aba numa página só.
+const OPCOES_POR_PAGINA = [50, 100, 250, 500, 0];
 const tem = (...codigos) => (i) => i.problemas.some((p) => codigos.includes(p.codigo));
 // Abas de análise: cada item aparece em todas as abas a que pertence (um duplicado com NCM errado entra nas duas).
 const ABAS = [
-  { id: "TODOS", titulo: "Todos os itens", testa: () => true },
+  { id: "TODOS", titulo: "Todos os itens (sem segregação)", testa: () => true },
+  { id: "REGULARES_CLASSE", titulo: "100% regulares com cClassTrib identificado", testa: (i) => i.situacao === "OK" && !!i.sugestao?.c_class_trib },
   { id: "REGULARES", titulo: "100% regulares", testa: (i) => i.situacao === "OK" },
   { id: "DUPLICADOS", titulo: "Duplicados para crítica", testa: tem("DUPLICIDADE_EXATA", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO") },
   { id: "NCM", titulo: "NCM a corrigir", testa: tem("NCM_AUSENTE", "NCM_CHAVE_SAP", "NCM_FORMATO", "NCM_INEXISTENTE", "NCM_INATIVO") },
@@ -281,8 +283,9 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
 
   const contagemAbas = useMemo(() => Object.fromEntries(ABAS.map((a) => [a.id, resultado ? resultado.itens.filter(a.testa).length : 0])), [resultado]);
 
-  const totalPaginas = Math.max(1, Math.ceil(itensFiltrados.length / porPagina));
-  const visiveis = itensFiltrados.slice(pagina * porPagina, (pagina + 1) * porPagina);
+  const tamanhoPagina = porPagina === 0 ? Math.max(1, itensFiltrados.length) : porPagina;
+  const totalPaginas = Math.max(1, Math.ceil(itensFiltrados.length / tamanhoPagina));
+  const visiveis = itensFiltrados.slice(pagina * tamanhoPagina, (pagina + 1) * tamanhoPagina);
 
   // ── Etapa 1: enviar ──
   if (etapa === "enviar") {
@@ -430,7 +433,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
             const n = a.id === "FORA" ? r.periodo?.fora ?? 0 : contagemAbas[a.id];
             const ativa = aba === a.id;
             return (
-              <button key={a.id} type="button" role="tab" aria-selected={ativa} onClick={() => { setAba(a.id); setPeriodoFiltro(a.id === "FORA" ? "FORA" : "ANALISE"); setPagina(0); }}
+              <button key={a.id} type="button" role="tab" aria-selected={ativa} onClick={() => { setAba(a.id); setPeriodoFiltro(a.id === "FORA" ? "FORA" : "ANALISE"); if (a.id === "TODOS") { setFiltro("TODOS"); setProblemasSelecionados([]); } setPagina(0); }}
                 className={`px-3 py-1.5 rounded-full border text-xs whitespace-nowrap ${ativa ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>
                 {a.titulo} <b className="tabular-nums">({n.toLocaleString("pt-BR")})</b>
               </button>
@@ -562,7 +565,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
             <span>{itensFiltrados.length.toLocaleString("pt-BR")} itens nesta aba · página {pagina + 1} de {totalPaginas}</span>
             <div className="flex items-center gap-2">
-              <label className="text-xs flex items-center gap-1">Itens por página <select value={porPagina} onChange={(e) => { setPorPagina(Number(e.target.value)); setPagina(0); }} className="h-8 rounded-md border border-input bg-background px-1">{OPCOES_POR_PAGINA.map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+              <label className="text-xs flex items-center gap-1">Itens por página <select value={porPagina} onChange={(e) => { setPorPagina(Number(e.target.value)); setPagina(0); }} className="h-8 rounded-md border border-input bg-background px-1">{OPCOES_POR_PAGINA.map((n) => <option key={n} value={n}>{n === 0 ? "Todos" : n}</option>)}</select></label>
               <button disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} className="px-3 py-1.5 rounded-md border border-border disabled:opacity-40">Anterior</button>
               <button disabled={pagina + 1 >= totalPaginas} onClick={() => setPagina((p) => p + 1)} className="px-3 py-1.5 rounded-md border border-border disabled:opacity-40">Próxima</button>
             </div>
