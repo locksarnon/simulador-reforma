@@ -6,7 +6,7 @@ import ExcelJS from 'exceljs';
 import { parse } from 'csv-parse/sync';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
-import { avaliarNcm, compararComDeclarado, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
+import { avaliarNcm, compararComDeclarado, referenciasNcm, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
 
 export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto'] as const;
 export type Campo = (typeof CAMPOS)[number];
@@ -59,11 +59,11 @@ export type LinhaResultado = {
   ncm: string;
   situacao: 'OK' | 'ALERTA' | 'ERRO';
   problemas: Problema[];
-  sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null; padrao?: boolean } | null;
+  sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null; padrao?: boolean; referencia?: boolean } | null;
   c_class_trib_informado: string;
   unidade: string; principio_ativo: string; grupo_contabil: string; candidatos_duplicidade: number[];
   /** Grupo de produto: como é (coluna do cliente), como deveria (por tratamento tributário) e flag. */
-  grupo_atual: string; grupo_sugerido: string | null; grupo_flag: FlagComparacao | null;
+  grupo_atual: string; grupo_sugerido: string | null; grupo_flag: FlagComparacao | null; grupo_evidencia: string | null;
   /** Conta contábil: atual = `grupo_contabil`; sugerida só vem do de-para do cliente. */
   conta_sugerida: string | null; conta_flag: FlagComparacao | null;
   /** Data da coluna de movimentação/cadastro (AAAA-MM-DD), quando legível. */
@@ -73,12 +73,13 @@ export type LinhaResultado = {
 };
 export type FlagComparacao = 'IGUAL' | 'DIFERENTE' | 'SEM_ATUAL' | 'SEM_SUGESTAO' | 'SEM_REGRA' | 'SEM_PLANO';
 const igualTexto = (a: string, b: string) => normalizarProduto(a) === normalizarProduto(b);
-/** Grupo "como deveria": agrupa pelo tratamento tributário (classe sugerida), nunca por palavra da descrição. */
-function grupoSugeridoDe(sug: LinhaResultado['sugestao'], classes: Map<string, { descricao_oficial?: string | null }>): string | null {
-  if (!sug?.c_class_trib) return null;
-  if (sug.padrao) return 'Tributação integral (padrão IBS/CBS)';
-  return (classes.get(sug.c_class_trib)?.descricao_oficial || `Classe ${sug.c_class_trib}`).trim();
-}
+/**
+ * Grupo "como deveria" = o grupo que o PRÓPRIO cliente já usa para o mesmo NCM na planilha (uso no agro: o grupo vem do uso, não da
+ * tributação). Só sugere com alta certeza: no mínimo 3 OUTROS itens com o mesmo NCM (8 dígitos) já agrupados e pelo menos 90% deles
+ * no mesmo grupo. Sem isso, não sugere nada.
+ */
+const GRUPO_MIN_EVIDENCIA = 3;
+const GRUPO_LIMIAR = 0.9;
 function compararGrupo(atual: string, sugerido: string | null): FlagComparacao {
   if (!sugerido) return 'SEM_SUGESTAO';
   if (!atual) return 'SEM_ATUAL';
@@ -88,7 +89,7 @@ function compararGrupo(atual: string, sugerido: string | null): FlagComparacao {
 function resumirGrupos(itens: LinhaResultado[]) {
   const m = new Map<string, { qtd: number; atuais: Map<string, number> }>();
   for (const i of itens) {
-    const k = i.grupo_sugerido ?? 'Sem sugestão (NCM ambíguo ou inválido)';
+    const k = i.grupo_sugerido ?? 'Sem sugestão (certeza insuficiente)';
     const e = m.get(k) ?? { qtd: 0, atuais: new Map<string, number>() };
     e.qtd++;
     const a = i.grupo_atual || '(sem grupo atual)';
@@ -239,6 +240,7 @@ export class ProdutosService {
     const origem = (limiteLinhas ? p.linhas.slice(0, limiteLinhas) : p.linhas).map((l, i) => ({ l, linha: i + 2 }));
     if ((opcoes.dataInicio || opcoes.dataFim) && mapa.data_cadastro == null) throw new BadRequestException('Mapeie a coluna de data para aplicar o período.');
     if (opcoes.gruposContabeis && mapa.grupo_contabil == null) throw new BadRequestException('Mapeie a coluna do grupo/conta contábil atual para a análise contábil.');
+    if (opcoes.grupos && mapa.grupo_produto == null) throw new BadRequestException('Mapeie a coluna do grupo de produto: a sugestão de grupo usa os grupos que o próprio cliente já tem na planilha.');
     if (opcoes.principioAtivo && mapa.principio_ativo == null) throw new BadRequestException('Mapeie a coluna de princípio ativo.');
     if (opcoes.duplicidades && (mapa.descricao == null || mapa.unidade == null)) throw new BadRequestException('Mapeie descrição e unidade para analisar duplicidades.');
     // Período: quem tem data fora da janela sai da análise (e vai para `fora_periodo`). Quem não tem data legível
@@ -259,7 +261,7 @@ export class ProdutosService {
     }));
     const linhas = selecionadas.map(x => x.l);
 
-    const [{ lista, classes }, ncmRows] = await Promise.all([
+    const [{ lista, classes, referencias }, ncmRows] = await Promise.all([
       this.classificacao.base(),
       this.prisma.ncm.findMany({ select: { codigo: true, status: true, descricao: true } }),
     ]);
@@ -281,6 +283,23 @@ export class ProdutosService {
     const exatos = new Map<string, number[]>();
     const chaveExata = (l: string[]) => normalizarProduto(g(l, 'descricao')) + '|' + normalizarProduto(g(l, 'unidade'));
     linhas.forEach((l, i) => { if (g(l, 'descricao') && g(l, 'unidade')) { const a = exatos.get(chaveExata(l)) || []; a.push(i); exatos.set(chaveExata(l), a); } });
+    // Uso real de grupos por NCM (só itens que JÁ têm grupo informado). Usado para sugerir grupo a quem difere ou está sem grupo.
+    const chaveNcm = (l: string[]) => {
+      let d = soDigitos(g(l, 'ncm'));
+      if (d.length === 7 && (p.ncmNumerico[mapa.ncm as number] || (catalogoCarregado && tabNcm.has('0' + d)))) d = d.padStart(8, '0');
+      return d.length === 8 ? d : '';
+    };
+    const usoGrupos = new Map<string, Map<string, { n: number; nomes: Map<string, number> }>>();
+    if (opcoes.grupos) {
+      for (const l of linhas) {
+        const k = chaveNcm(l); const nome = g(l, 'grupo_produto').trim();
+        if (!k || !nome) continue;
+        const porGrupo = usoGrupos.get(k) ?? new Map();
+        const e = porGrupo.get(normalizarProduto(nome)) ?? { n: 0, nomes: new Map<string, number>() };
+        e.n++; e.nomes.set(nome, (e.nomes.get(nome) || 0) + 1);
+        porGrupo.set(normalizarProduto(nome), e); usoGrupos.set(k, porGrupo);
+      }
+    }
     const resultado: LinhaResultado[] = linhas.map((l, i) => {
       const problemas: Problema[] = [];
       const codigo = g(l, 'codigo');
@@ -348,23 +367,42 @@ export class ProdutosService {
       if (opcoes.cClassTrib && ncm.length === 8) {
         const av = avaliarNcm(ncm, lista);
         const cmp = compararComDeclarado(informado, av, classes);
-        const alvo = av.esperado || (av.ambiguo ? null : null);
+        const alvo = av.esperado;
         const info = alvo ? classes.get(alvo) : null;
+        // Confiança descreve o que a lei de fato especifica: capítulo inteiro e posição inteira NÃO são o mesmo que o código completo.
+        const confTxt = !av.confianca ? '—'
+          : av.especificidade <= 2 ? 'Baixa (capítulo inteiro no anexo — confirmar requisitos)'
+          : av.especificidade <= 4 ? 'Baixa (só a posição — confirmar a subposição)'
+          : textoConfianca(av.confianca);
         sugestao = {
           c_class_trib: alvo,
           descricao: info?.descricao_oficial ?? (av.ambiguo ? `Possíveis: ${av.classes.join(', ')}` : null),
           reducao: alvo ? Math.max(Number(info?.pct_reducao_ibs ?? 0), Number(info?.pct_reducao_cbs ?? 0)) : 0,
-          confianca: textoConfianca(av.confianca),
+          confianca: confTxt,
           ambiguo: av.ambiguo,
           anexo: av.matches[0] ? `Anexo ${av.matches[0].anexo}${av.matches[0].item_lei ? `, item ${av.matches[0].item_lei}` : ''}` : null,
         };
-        // NCM válido que não aparece em nenhum anexo consultado: sugere a classe padrão (tributação integral) em vez de deixar em branco,
-        // marcada como "padrão" — não prova ausência de benefício por outra base legal (produtor rural, regime específico...).
+        // NCM sem classe nos anexos mapeados. Duas situações, que NÃO podem ser confundidas:
+        //  (a) o NCM está em capítulo/posição que um anexo cita inteiro (referência): não afirma nem "padrão" nem benefício — manda revisar;
+        //  (b) nenhuma referência: "sem enquadramento nos anexos consultados" (padrão 000001), sem afirmar que não existe outra base legal.
         const ncmValido = !catalogoCarregado || tabNcm.get(ncm)?.status === 'Ativo';
-        if (!av.encontrado && ncmValido && classes.has('000001')) {
-          sugestao = { c_class_trib: '000001', descricao: classes.get('000001')?.descricao_oficial ?? null, reducao: 0, confianca: 'Padrão (NCM fora dos anexos consultados)', ambiguo: false, anexo: null, padrao: true };
+        const refs = !av.encontrado ? referenciasNcm(ncm, referencias) : [];
+        if (!av.encontrado && ncmValido) {
+          if (refs.length) {
+            const rot = (r: (typeof refs)[number]) => `Anexo ${r.anexo}${r.item_lei ? `, item ${r.item_lei}` : ''}`;
+            sugestao = { c_class_trib: null, descricao: refs[0].descricao_produto, reducao: 0, confianca: 'Referência por capítulo — revisar requisitos', ambiguo: false, anexo: rot(refs[0]), referencia: true };
+            const outras = [...new Set(refs.slice(1).map(rot))];
+            problemas.push({
+              codigo: 'REFERENCIA_ANEXO', severidade: 'info',
+              mensagem: `O NCM está em capítulo/posição citado no ${rot(refs[0])} da LC 214 (${(refs[0].descricao_produto || '').slice(0, 110)}). O enquadramento depende dos requisitos e ressalvas do próprio item: revisar. Nenhuma classe foi sugerida.${outras.length ? ` Também citado em: ${outras.join('; ')}.` : ''}`,
+            });
+          } else if (classes.has('000001')) {
+            sugestao = { c_class_trib: '000001', descricao: classes.get('000001')?.descricao_oficial ?? null, reducao: 0, confianca: 'Sem enquadramento nos anexos consultados (padrão)', ambiguo: false, anexo: null, padrao: true };
+          }
         }
-        if (informado) {
+        if (informado && refs.length && cmp.codigo === 'SEM_AMPARO_NO_ANEXO') {
+          // Já explicado pela referência acima: o NCM não é "fora dos anexos", só não tem classe própria no mapeamento.
+        } else if (informado) {
           if (cmp.severidade === 'alta') problemas.push({ codigo: cmp.codigo, severidade: 'erro', mensagem: cmp.mensagem });
           else if (cmp.severidade === 'alerta') problemas.push({ codigo: cmp.codigo, severidade: 'alerta', mensagem: cmp.mensagem });
           else if (cmp.severidade === 'info') problemas.push({ codigo: cmp.codigo, severidade: 'info', mensagem: cmp.mensagem });
@@ -380,17 +418,36 @@ export class ProdutosService {
       }
 
       // Grupos (como é x como deveria) e conta contábil (atual x do de-para do cliente) — sempre sugestão, nunca alteração.
-      const grupoRef = grupoSugeridoDe(sugestao, classes);
-      const grupo_atual = g(l, 'grupo_produto');
-      const grupo_sugerido = opcoes.grupos ? grupoRef : null;
-      const grupo_flag: FlagComparacao | null = opcoes.grupos ? compararGrupo(grupo_atual, grupoRef) : null;
+      const grupo_atual = g(l, 'grupo_produto').trim();
+      let grupo_sugerido: string | null = null;
+      let grupo_evidencia: string | null = null;
+      if (opcoes.grupos) {
+        const porGrupo = usoGrupos.get(chaveNcm(l));
+        if (porGrupo) {
+          // Leave-one-out: o próprio item não conta como evidência para si.
+          const cont = [...porGrupo.entries()].map(([k, e]) => ({ k, n: e.n - (grupo_atual && normalizarProduto(grupo_atual) === k ? 1 : 0), nomes: e.nomes }));
+          const total = cont.reduce((a, c) => a + c.n, 0);
+          const dom = [...cont].sort((a, b) => b.n - a.n)[0];
+          if (dom && total >= GRUPO_MIN_EVIDENCIA && dom.n / total >= GRUPO_LIMIAR) {
+            grupo_sugerido = [...dom.nomes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+            grupo_evidencia = `${dom.n} de ${total} outros itens com este NCM estão em "${grupo_sugerido}" (${Math.round((dom.n / total) * 100)}%)`;
+          } else if (total > 0) {
+            grupo_evidencia = `Evidência insuficiente: ${total} outros itens com este NCM, sem grupo dominante com 90% ou mais (mínimo ${GRUPO_MIN_EVIDENCIA} itens)`;
+          } else {
+            grupo_evidencia = 'Sem outros itens com este NCM já agrupados na planilha';
+          }
+        } else {
+          grupo_evidencia = chaveNcm(l) ? 'Sem outros itens com este NCM já agrupados na planilha' : 'NCM inválido: sem base para sugerir grupo';
+        }
+      }
+      const grupo_flag: FlagComparacao | null = opcoes.grupos ? compararGrupo(grupo_atual, grupo_sugerido) : null;
       const contaAtual = g(l, 'grupo_contabil');
       let conta_sugerida: string | null = null;
       let conta_flag: FlagComparacao | null = null;
       if (opcoes.gruposContabeis) {
         if (!plano) conta_flag = 'SEM_PLANO';
         else {
-          conta_sugerida = (sugestao?.c_class_trib && plano.regras[sugestao.c_class_trib]) || (grupoRef && plano.regras[chavePlano(grupoRef)]) || null;
+          conta_sugerida = (sugestao?.c_class_trib && plano.regras[sugestao.c_class_trib]) || ((grupo_sugerido || grupo_atual) && plano.regras[chavePlano(grupo_sugerido || grupo_atual)]) || null;
           const codigo = conta_sugerida ? conta_sugerida.split(' — ')[0] : '';
           conta_flag = !conta_sugerida ? 'SEM_REGRA' : !contaAtual ? 'SEM_ATUAL' : igualTexto(contaAtual, conta_sugerida) || igualTexto(contaAtual, codigo) ? 'IGUAL' : 'DIFERENTE';
         }
@@ -401,11 +458,13 @@ export class ProdutosService {
       if (periodo === 'SEM_DATA') problemas.push({ codigo: 'SEM_DATA_MOVIMENTO', severidade: 'info', mensagem: 'Sem data de movimentação; mantido na análise por segurança.' });
 
       const situacao: LinhaResultado['situacao'] = problemas.some((x) => x.severidade === 'erro') ? 'ERRO' : problemas.some((x) => x.severidade === 'alerta') ? 'ALERTA' : 'OK';
-      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, conta_sugerida, conta_flag, candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
+      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, grupo_evidencia, conta_sugerida, conta_flag, candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
     });
 
     const resumo = {
       grupos: opcoes.grupos ? resumirGrupos(resultado) : null,
+      referencias_anexo: resultado.filter((r) => r.sugestao?.referencia).length,
+      anexos_consultados: [...new Set(lista.map((l) => l.anexo))].sort(),
       periodo: periodoAtivo
         ? {
             inicio: opcoes.dataInicio, fim: opcoes.dataFim, base: origem.length,
@@ -444,7 +503,7 @@ export class ProdutosService {
     const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: 1 }] });
     const per = r.resumo.periodo;
     const dataBr = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
-    const ROT_FLAG: Record<FlagComparacao, string> = { IGUAL: 'Igual', DIFERENTE: 'Diferente', SEM_ATUAL: 'Sem valor atual', SEM_SUGESTAO: 'Sem sugestão', SEM_REGRA: 'Sem regra no de-para', SEM_PLANO: 'Sem de-para enviado' };
+    const ROT_FLAG: Record<FlagComparacao, string> = { IGUAL: 'Igual', DIFERENTE: 'Diferente', SEM_ATUAL: 'Sem valor atual', SEM_SUGESTAO: 'Sem sugestão (certeza insuficiente)', SEM_REGRA: 'Sem regra no de-para', SEM_PLANO: 'Sem de-para enviado' };
     const ROT_PERIODO = { DENTRO: 'Dentro', SEM_DATA: 'Sem data', DATA_INVALIDA: 'Data inválida' } as const;
     ws.columns = [
       { header: 'Linha', key: 'linha', width: 8 },
@@ -464,7 +523,7 @@ export class ProdutosService {
       { header: 'Grupo contábil atual', key: 'grupo_contabil', width: 22 },
       { header: 'Linhas para revisão de duplicidade', key: 'candidatos', width: 35 },
       ...(r.opcoes.grupos ? [
-        { header: 'Grupo atual', key: 'grupo_atual', width: 26 }, { header: 'Grupo sugerido (tratamento tributário)', key: 'grupo_sugerido', width: 44 }, { header: 'Flag grupo', key: 'grupo_flag', width: 18 },
+        { header: 'Grupo atual', key: 'grupo_atual', width: 26 }, { header: 'Grupo sugerido (uso do cliente)', key: 'grupo_sugerido', width: 34 }, { header: 'Flag grupo', key: 'grupo_flag', width: 18 }, { header: 'Evidência do grupo', key: 'grupo_evidencia', width: 60 },
       ] : []),
       ...(r.opcoes.gruposContabeis ? [
         { header: 'Conta contábil sugerida', key: 'conta_sugerida', width: 34 }, { header: 'Flag conta', key: 'conta_flag', width: 20 },
@@ -478,7 +537,7 @@ export class ProdutosService {
     r.itens.forEach((it) => {
       const row = ws.addRow({
         ultima_mov: dataBr(it.ultima_mov), periodo: it.periodo ? ROT_PERIODO[it.periodo] : '',
-        grupo_atual: it.grupo_atual, grupo_sugerido: it.grupo_sugerido ?? '', grupo_flag: it.grupo_flag ? ROT_FLAG[it.grupo_flag] : '',
+        grupo_atual: it.grupo_atual, grupo_sugerido: it.grupo_sugerido ?? '', grupo_flag: it.grupo_flag ? ROT_FLAG[it.grupo_flag] : '', grupo_evidencia: it.grupo_evidencia ?? '',
         conta_sugerida: it.conta_sugerida ?? '', conta_flag: it.conta_flag ? ROT_FLAG[it.conta_flag] : '',
         unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.join(', '),
         linha: it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,

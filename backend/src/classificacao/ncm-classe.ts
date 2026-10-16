@@ -38,6 +38,24 @@ export type AvaliacaoNcm = {
   matches: CorrelacaoNcmRow[];
 };
 
+/** Item de anexo que a lei especifica por capítulo/posição inteira (sem classe própria): serve para "revisar", nunca para sugerir classe. */
+export type ReferenciaAnexo = { anexo: string; item_lei: number | null; descricao_produto: string | null; _d: string };
+
+export function prepararReferencias(rows: CorrelacaoNcmRow[]): ReferenciaAnexo[] {
+  return rows
+    .filter((r) => !r.c_class_trib)
+    .map((r) => ({ anexo: r.anexo, item_lei: r.item_lei, descricao_produto: r.descricao_produto, _d: soDigitos(r.ncm) }))
+    .filter((r) => r._d.length >= 2)
+    .sort((a, b) => b._d.length - a._d.length);
+}
+
+/** Referências (capítulo/posição citados em anexos) que alcançam o NCM, mais específicas primeiro; no máximo 4. */
+export function referenciasNcm(ncm: string | null | undefined, refs: ReferenciaAnexo[]): ReferenciaAnexo[] {
+  const d = soDigitos(ncm);
+  if (d.length < 2) return [];
+  return refs.filter((r) => d.startsWith(r._d)).slice(0, 4);
+}
+
 export const soDigitos = (s: unknown) => String(s ?? '').replace(/\D/g, '');
 
 /** Lista ordenada do prefixo mais longo para o mais curto (busca mais específica primeiro). */
@@ -109,7 +127,7 @@ export function compararComDeclarado(
     }
     return {
       codigo: 'PADRAO_SEM_EXCECAO', severidade: 'ok',
-      mensagem: 'NCM sem tratamento diferenciado nos anexos consultados (tributação padrão).',
+      mensagem: 'NCM sem enquadramento nos anexos consultados da LC 214 (não indica, por si só, ausência de benefício por outra base legal).',
     };
   }
 

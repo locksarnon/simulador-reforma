@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  AvaliacaoNcm, ClasseInfo, CorrelacaoNcmRow, avaliarNcm, prepararLista, soDigitos, textoConfianca,
+  AvaliacaoNcm, ClasseInfo, CorrelacaoNcmRow, ReferenciaAnexo, avaliarNcm, prepararLista, prepararReferencias, soDigitos, textoConfianca,
 } from './ncm-classe';
 
 const CACHE_MS = 5 * 60 * 1000;
@@ -22,6 +22,7 @@ export type Tratamento = {
 @Injectable()
 export class ClassificacaoService {
   private lista: ReturnType<typeof prepararLista> = [];
+  private referencias: ReferenciaAnexo[] = [];
   private classes = new Map<string, ClasseInfo>();
   private carregadoEm = 0;
 
@@ -34,13 +35,14 @@ export class ClassificacaoService {
       this.prisma.classTrib.findMany({ where: { status: 'Ativo' } }),
     ]);
     this.lista = prepararLista(corr as CorrelacaoNcmRow[]);
+    this.referencias = prepararReferencias(corr as CorrelacaoNcmRow[]);
     this.classes = new Map(cls.map((c) => [c.c_class_trib, c as unknown as ClasseInfo]));
     this.carregadoEm = Date.now();
   }
 
   async base() {
     await this.garantirBase();
-    return { lista: this.lista, classes: this.classes };
+    return { lista: this.lista, classes: this.classes, referencias: this.referencias };
   }
 
   async avaliar(ncm: string) {
@@ -54,7 +56,7 @@ export class ClassificacaoService {
     if (!av.encontrado) {
       return {
         situacao: 'PADRAO_OU_OUTRA_BASE',
-        titulo: 'Sem tratamento diferenciado nos anexos consultados',
+        titulo: 'Sem enquadramento nos anexos consultados',
         classes: [], anexos: [], confianca: '—',
         aviso: `${aviso} Isso não exclui benefício por outra base legal (produtor rural, regime específico, etc.).`,
       };

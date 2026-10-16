@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SlidersHorizontal, UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
 import { api } from "@/api/base44Client";
 import LeadForm from "@/components/ferramentas/LeadForm";
+import AnexoLeiPainel from "@/components/ferramentas/AnexoLeiPainel";
 import HistoricoValidacoes from "@/components/ferramentas/HistoricoValidacoes";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -39,7 +40,8 @@ const ABAS = [
   { id: "CLASSE", titulo: "cClassTrib a revisar", testa: tem("BENEFICIO_POSSIVELMENTE_PERDIDO", "REDUCAO_MAIOR_QUE_ESPERADO", "SEM_AMPARO_NO_ANEXO", "CLASSE_DIVERGENTE", "AMBIGUO_REVISAR") },
   { id: "CADASTRO", titulo: "Cadastro incompleto", testa: tem("CODIGO_AUSENTE", "DESCRICAO_AUSENTE", "DATA_INVALIDA") },
   { id: "SUGERIDA", titulo: "Com classe sugerida (anexos)", testa: (i) => !!i.sugestao?.c_class_trib && !i.sugestao.padrao },
-  { id: "PADRAO", titulo: "Tributação padrão (000001)", testa: (i) => !!i.sugestao?.padrao },
+  { id: "REFERENCIA", titulo: "NCM em capítulo citado por anexo (revisar)", testa: (i) => !!i.sugestao?.referencia },
+  { id: "PADRAO", titulo: "Sem enquadramento nos anexos consultados (padrão)", testa: (i) => !!i.sugestao?.padrao },
   { id: "GRUPO", titulo: "Grupo divergente", so: "grupos", testa: (i) => i.grupo_flag === "DIFERENTE" },
   { id: "CONTA", titulo: "Conta contábil divergente", so: "gruposContabeis", testa: (i) => i.conta_flag === "DIFERENTE" },
 ];
@@ -52,7 +54,7 @@ const mesesAtras = (n) => {
 };
 const dataBr = (iso) => (iso ? iso.split("-").reverse().join("/") : "…");
 const COLUNAS_GRUPOS = [
-  { chave: "grupo_atual", titulo: "Grupo atual" }, { chave: "grupo_sugerido", titulo: "Grupo sugerido (tratamento tributário)" }, { chave: "grupo_flag", titulo: "Flag grupo" },
+  { chave: "grupo_atual", titulo: "Grupo atual" }, { chave: "grupo_sugerido", titulo: "Grupo sugerido (uso do cliente)" }, { chave: "grupo_flag", titulo: "Flag grupo" },
 ];
 const COLUNAS_CONTA = [
   { chave: "conta_atual", titulo: "Conta contábil atual" }, { chave: "conta_sugerida", titulo: "Conta contábil sugerida" }, { chave: "conta_flag", titulo: "Flag conta" },
@@ -129,6 +131,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const [rascunhoId, setRascunhoId] = useState(null);
   const [autosave, setAutosave] = useState(null);
   const [plano, setPlano] = useState(null);
+  const [baseLeiAberta, setBaseLeiAberta] = useState(null); // ex.: "Anexo IX, item 2" — painel lateral do anexo
   const idAuto = !publico ? (resultado?.validacao_id || rascunhoId) : null;
   const [porPagina, setPorPagina] = useState(100);
   const [busca, setBusca] = useState("");
@@ -228,7 +231,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validacaoId, empresaId, publico]);
 
-  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['grupos','Sugerir grupos de produto por tratamento tributário (como é × como deveria)'],['gruposContabeis','Análise contábil: conta atual × sugerida (requer o de-para da empresa)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div>{opcoes.gruposContabeis && <div className="rounded-lg border border-dashed border-border p-3 space-y-2"><p className="text-sm font-medium">De-para contábil da empresa</p><p className="text-xs text-muted-foreground">Arquivo .xlsx ou .csv com uma coluna <b>cClassTrib</b> (ou <b>Grupo sugerido</b>) e uma coluna <b>Conta contábil</b> (opcional: <b>Nome da conta</b>). O InTAX só sugere a conta que o seu de-para indica; sem regra para o item, nenhuma conta é sugerida.</p>{!idAuto ? <p className="text-xs text-muted-foreground">Envie a planilha de produtos primeiro para anexar o de-para.</p> : <div className="flex flex-wrap items-center gap-2"><input type="file" accept=".xlsx,.csv,.txt" onChange={(e) => anexarPlano(e.target.files?.[0])} className="text-xs" />{plano && <span className="text-xs">Anexado: <b>{plano.nome}</b> ({plano.linhas} regras) <button type="button" onClick={removerPlano} className="underline text-destructive ml-1">remover</button></span>}</div>}{opcoes.gruposContabeis && !plano && idAuto && <p className="text-xs text-amber-700 dark:text-amber-300">Sem de-para anexado, o resultado mostra só a conta atual.</p>}</div>}<div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{[...ERPS,...opcoes.erps.filter(e=>!ERPS.includes(e))].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><div className="flex flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Atalho — sanear só quem movimentou nos últimos:</span>{[6, 12, 18, 24, 36].map(m => <button key={m} type="button" onClick={() => { mudarOpcao("dataInicio", mesesAtras(m)); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border hover:bg-muted">{m} meses</button>)}{(opcoes.dataInicio || opcoes.dataFim) && <button type="button" onClick={() => { mudarOpcao("dataInicio", ""); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted">Limpar período</button>}</div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, indique a coluna da data da última movimentação (ou do cadastro): quem tem data fora do período sai do saneamento e vai para uma aba separada da planilha; quem não tem data legível continua na análise, sinalizado. Datas lidas como dia/mês/ano. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
+  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['grupos','Sugerir grupos de produto pelo uso do cliente neste arquivo (só com certeza alta)'],['gruposContabeis','Análise contábil: conta atual × sugerida (requer o de-para da empresa)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div>{opcoes.gruposContabeis && <div className="rounded-lg border border-dashed border-border p-3 space-y-2"><p className="text-sm font-medium">De-para contábil da empresa</p><p className="text-xs text-muted-foreground">Arquivo .xlsx ou .csv com uma coluna <b>cClassTrib</b> (ou <b>Grupo sugerido</b>) e uma coluna <b>Conta contábil</b> (opcional: <b>Nome da conta</b>). O InTAX só sugere a conta que o seu de-para indica; sem regra para o item, nenhuma conta é sugerida.</p>{!idAuto ? <p className="text-xs text-muted-foreground">Envie a planilha de produtos primeiro para anexar o de-para.</p> : <div className="flex flex-wrap items-center gap-2"><input type="file" accept=".xlsx,.csv,.txt" onChange={(e) => anexarPlano(e.target.files?.[0])} className="text-xs" />{plano && <span className="text-xs">Anexado: <b>{plano.nome}</b> ({plano.linhas} regras) <button type="button" onClick={removerPlano} className="underline text-destructive ml-1">remover</button></span>}</div>}{opcoes.gruposContabeis && !plano && idAuto && <p className="text-xs text-amber-700 dark:text-amber-300">Sem de-para anexado, o resultado mostra só a conta atual.</p>}</div>}<div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{[...ERPS,...opcoes.erps.filter(e=>!ERPS.includes(e))].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><div className="flex flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Atalho — sanear só quem movimentou nos últimos:</span>{[6, 12, 18, 24, 36].map(m => <button key={m} type="button" onClick={() => { mudarOpcao("dataInicio", mesesAtras(m)); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border hover:bg-muted">{m} meses</button>)}{(opcoes.dataInicio || opcoes.dataFim) && <button type="button" onClick={() => { mudarOpcao("dataInicio", ""); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted">Limpar período</button>}</div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, indique a coluna da data da última movimentação (ou do cadastro): quem tem data fora do período sai do saneamento e vai para uma aba separada da planilha; quem não tem data legível continua na análise, sinalizado. Datas lidas como dia/mês/ano. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
 
   const baixarModelo = () => api.baixar("GET", "/public/produtos/modelo", { nome: "modelo-cadastro-produtos-intax.xlsx" }).catch((e) => setErro(e.message));
   const copiarCab = async () => {
@@ -329,7 +332,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   // ── Etapa 2: conferir colunas ──
   if (etapa === "colunas" && previa) {
     const tem = k => mapa[k] !== null && mapa[k] !== undefined && mapa[k] !== "";
-    const obrigatoriosOk = tem("ncm") && (publico || ((!opcoes.duplicidades || (tem("descricao") && tem("unidade"))) && (!opcoes.principioAtivo || tem("principio_ativo")) && (!opcoes.gruposContabeis || tem("grupo_contabil")) && (!(opcoes.dataInicio || opcoes.dataFim) || tem("data_cadastro"))));
+    const obrigatoriosOk = tem("ncm") && (publico || ((!opcoes.duplicidades || (tem("descricao") && tem("unidade"))) && (!opcoes.principioAtivo || tem("principio_ativo")) && (!opcoes.grupos || tem("grupo_produto")) && (!opcoes.gruposContabeis || tem("grupo_contabil")) && (!(opcoes.dataInicio || opcoes.dataFim) || tem("data_cadastro"))));
     const indicesMapeados = new Set(Object.values(mapa).filter((v) => v !== null && v !== undefined && v !== ""));
     return (
       <div className="space-y-5">
@@ -413,10 +416,10 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
         )}
         {r.grupos?.length > 0 && (
           <details className="rounded-xl border border-border bg-card p-4">
-            <summary className="cursor-pointer text-sm font-medium">Grupos: como é → como deveria ({r.grupos.length} grupos sugeridos)</summary>
+            <summary className="cursor-pointer text-sm font-medium">Grupos sugeridos pelo uso do cliente ({r.grupos.length})</summary>
             <div className="mt-3 overflow-auto max-h-[50vh]">
               <table className="w-full text-xs border-collapse">
-                <thead className="bg-muted"><tr className="text-left text-muted-foreground"><th className="px-3 py-2">Grupo sugerido (tratamento tributário)</th><th className="px-3 py-2 text-right">Itens</th><th className="px-3 py-2">Hoje estão em</th></tr></thead>
+                <thead className="bg-muted"><tr className="text-left text-muted-foreground"><th className="px-3 py-2">Grupo sugerido (uso do cliente)</th><th className="px-3 py-2 text-right">Itens</th><th className="px-3 py-2">Hoje estão em</th></tr></thead>
                 <tbody>{r.grupos.map((g) => (
                   <tr key={g.grupo} className="border-t border-border align-top">
                     <td className="px-3 py-1.5 font-medium">{g.grupo}</td>
@@ -448,8 +451,11 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
           <Cartao titulo="Corrigir" valor={r.erro} cor="text-red-600" ativo={filtro === "ERRO"} onClick={() => { setFiltro("ERRO"); setPagina(0); }} />
         </div>
 
+        {r.referencias_anexo > 0 && (
+          <p className="text-xs text-muted-foreground"><b className="text-foreground">{r.referencias_anexo.toLocaleString("pt-BR")}</b> itens estão em capítulo/posição que um anexo cita por inteiro (ex.: Anexo IX, item 2 — Capítulo 31): nenhuma classe foi sugerida e o enquadramento deve ser revisado conforme os requisitos do item. Clique em "Base na lei" para ler o anexo.</p>
+        )}
         {r.tributacao_padrao !== undefined && (
-          <p className="text-xs text-muted-foreground">cClassTrib sugerido: <b className="text-foreground">{r.com_sugestao.toLocaleString("pt-BR")}</b> com benefício identificado nos anexos da LC 214 · <b className="text-foreground">{r.tributacao_padrao.toLocaleString("pt-BR")}</b> sem benefício nos anexos consultados (sugestão padrão 000001 — confirme se há outra base legal, como produtor rural ou regime específico).</p>
+          <p className="text-xs text-muted-foreground">cClassTrib sugerido: <b className="text-foreground">{r.com_sugestao.toLocaleString("pt-BR")}</b> com benefício identificado nos anexos da LC 214 · <b className="text-foreground">{r.tributacao_padrao.toLocaleString("pt-BR")}</b> sem enquadramento nos anexos consultados (sugestão padrão 000001). Anexos consultados: {(r.anexos_consultados || []).join(", ")}. Isto não indica ausência de benefício por outra base legal (produtor rural, regime específico) e o Anexo XI (bens de soberania e segurança) ainda não está mapeado por NCM.</p>
         )}
         {!r.catalogo_ncm_carregado && <p className="text-xs text-amber-600">A tabela oficial de NCM ainda não está carregada neste ambiente: a existência do NCM não foi conferida.</p>}
         {r.truncado && <p className="text-xs text-muted-foreground">Arquivo com {r.linhas_no_arquivo.toLocaleString("pt-BR")} linhas: a amostra analisou as primeiras {r.total}.</p>}
@@ -528,14 +534,14 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
                     <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_SIT[i.situacao]}`}>{ROT_SIT[i.situacao]}</span></td>
                     <td className={`${cel} ${temErro ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}`}>{problemas.length ? problemas.map((p) => p.mensagem).join(" | ") : "—"}</td>
                     <td className={`${cel} font-mono`}>{i.c_class_trib_informado || "—"}</td>
-                    <td className={`${cel} font-mono font-semibold`}>{sug ? sug.c_class_trib : i.sugestao?.ambiguo ? <span className="font-sans font-normal text-amber-700">Depende do produto</span> : "—"}</td>
+                    <td className={`${cel} font-mono font-semibold`}>{sug ? sug.c_class_trib : i.sugestao?.referencia ? <span className="font-sans font-normal text-amber-700" title="NCM em capítulo/posição citado por anexo: o enquadramento depende dos requisitos do item. Nenhuma classe foi sugerida.">Revisar</span> : i.sugestao?.ambiguo ? <span className="font-sans font-normal text-amber-700">Depende do produto</span> : "—"}</td>
                     <td className={`${cel} text-right tabular-nums`}>{sug ? `${Math.round(sug.reducao * 100)}%` : "—"}</td>
-                    <td className={cel}>{sug ? sug.confianca : "—"}</td>
-                    <td className={cel}>{sug?.anexo || "—"}</td>
+                    <td className={cel}>{i.sugestao?.confianca && (sug || i.sugestao.referencia) ? i.sugestao.confianca : "—"}</td>
+                    <td className={cel}>{i.sugestao?.anexo ? <button type="button" onClick={() => setBaseLeiAberta(i.sugestao.anexo)} className="text-primary underline underline-offset-2 hover:opacity-80" title="Abrir o anexo da LC 214/2025 sem sair desta tela">{i.sugestao.anexo}</button> : "—"}</td>
                     {opRes.grupos && (
                       <>
                         <td className={cel}>{i.grupo_atual || "—"}</td>
-                        <td className={`${cel} max-w-[320px] truncate`} title={i.grupo_sugerido || ""}>{i.grupo_sugerido || "—"}</td>
+                        <td className={`${cel} max-w-[320px] truncate`} title={i.grupo_evidencia || i.grupo_sugerido || ""}>{i.grupo_sugerido || "—"}</td>
                         <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_FLAG[i.grupo_flag] || "bg-muted text-muted-foreground"}`}>{ROT_FLAG[i.grupo_flag] || "—"}</span></td>
                       </>
                     )}
@@ -571,6 +577,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
             </div>
           </div>
         )}
+
+        <AnexoLeiPainel baseLei={baseLeiAberta} onFechar={() => setBaseLeiAberta(null)} />
 
         {bloqueado && resultado.detalhes_bloqueados && (
           <div className="rounded-xl border border-primary/40 bg-primary/5 p-1">
