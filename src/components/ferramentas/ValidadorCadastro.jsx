@@ -23,6 +23,22 @@ const COR_SIT = {
 const ROT_SIT = { OK: "OK", ALERTA: "Atenção", ERRO: "Corrigir" };
 const POR_PAGINA = 50;
 
+// Mesma ordem e títulos da planilha corrigida (ProdutosService.exportarXlsx).
+const COLUNAS = [
+  { chave: "linha", titulo: "Linha", alinhar: "text-right" },
+  { chave: "codigo", titulo: "Código" },
+  { chave: "descricao", titulo: "Descrição" },
+  { chave: "ncm_original", titulo: "NCM informado" },
+  { chave: "ncm", titulo: "NCM corrigido" },
+  { chave: "situacao", titulo: "Situação" },
+  { chave: "problemas", titulo: "Problemas encontrados" },
+  { chave: "informado", titulo: "cClassTrib informado" },
+  { chave: "sugerido", titulo: "cClassTrib sugerido" },
+  { chave: "reducao", titulo: "Redução sugerida", alinhar: "text-right" },
+  { chave: "confianca", titulo: "Confiança" },
+  { chave: "anexo", titulo: "Base na lei" },
+];
+
 function Cartao({ titulo, valor, cor, ativo, onClick }) {
   return (
     <button type="button" onClick={onClick} className={`text-left rounded-lg border p-3 transition-colors ${ativo ? "border-primary ring-1 ring-primary" : "border-border hover:bg-muted/40"} bg-card`}>
@@ -257,23 +273,38 @@ export default function ValidadorCadastro({ modo = "interno" }) {
         </div>
         {erro && <p className="text-sm text-destructive">{erro}</p>}
 
-        <div className="rounded-xl border border-border bg-card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground uppercase tracking-wide">
-              <th className="px-3 py-2 font-medium">Linha</th><th className="px-3 py-2 font-medium">Produto</th><th className="px-3 py-2 font-medium">NCM</th>
-              <th className="px-3 py-2 font-medium">Situação</th><th className="px-3 py-2 font-medium">O que encontramos</th><th className="px-3 py-2 font-medium">Classificação sugerida</th>
-            </tr></thead>
+        {/* Mesma estrutura da planilha corrigida (ver ProdutosService.exportarXlsx): uma linha por produto, um dado por coluna, nada empilhado dentro da célula. */}
+        <div className="rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
+          <table className="w-full text-xs border-collapse">
+            <thead className="sticky top-0 z-10 bg-muted">
+              <tr className="text-left text-muted-foreground">
+                {COLUNAS.map((c) => <th key={c.chave} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</th>)}
+              </tr>
+            </thead>
             <tbody>
-              {visiveis.map((i, idx) => (
-                <tr key={i.linha} className={`border-b border-border align-top last:border-0 ${idx % 2 ? "bg-muted/15" : ""}`}>
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">{i.linha}</td>
-                  <td className="px-3 py-2 max-w-[260px]"><div className="font-medium truncate">{i.codigo || "—"}</div><div className="text-xs text-muted-foreground truncate">{i.descricao}</div></td>
-                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{i.ncm_original || "—"}{i.ncm && i.ncm !== i.ncm_original.replace(/\D/g, "") ? <div className="text-emerald-700">→ {i.ncm}</div> : null}</td>
-                  <td className="px-3 py-2"><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_SIT[i.situacao]}`}>{ROT_SIT[i.situacao]}</span></td>
-                  <td className="px-3 py-2 text-xs max-w-[340px]">{i.problemas.filter((p) => p.codigo !== "CLASSE_SUGERIDA").map((p, k) => <div key={k} className={p.severidade === "erro" ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}>• {p.mensagem}</div>)}{i.problemas.filter((p) => p.codigo !== "CLASSE_SUGERIDA").length === 0 && <span className="text-muted-foreground">—</span>}</td>
-                  <td className="px-3 py-2 text-xs">{i.sugestao?.c_class_trib ? <><span className="font-mono font-semibold">{i.sugestao.c_class_trib}</span>{i.sugestao.reducao > 0 ? ` · redução ${Math.round(i.sugestao.reducao * 100)}%` : ""}<div className="text-muted-foreground">{i.sugestao.anexo} · {i.sugestao.confianca.split(" ")[0]}</div></> : i.sugestao?.ambiguo ? <span className="text-amber-700">Depende do produto</span> : <span className="text-muted-foreground">—</span>}</td>
-                </tr>
-              ))}
+              {visiveis.map((i, idx) => {
+                const problemas = i.problemas.filter((p) => p.codigo !== "CLASSE_SUGERIDA");
+                const temErro = problemas.some((p) => p.severidade === "erro");
+                const sug = i.sugestao?.c_class_trib ? i.sugestao : null;
+                const ncmMudou = i.ncm && i.ncm !== (i.ncm_original || "").replace(/\D/g, "");
+                const cel = "px-3 py-1.5 whitespace-nowrap border-b border-r border-border last:border-r-0";
+                return (
+                  <tr key={i.linha} className={idx % 2 ? "bg-muted/15" : ""}>
+                    <td className={`${cel} tabular-nums text-muted-foreground text-right`}>{i.linha}</td>
+                    <td className={`${cel} font-medium`}>{i.codigo || "—"}</td>
+                    <td className={`${cel} max-w-[320px] truncate`} title={i.descricao}>{i.descricao || "—"}</td>
+                    <td className={`${cel} font-mono`}>{i.ncm_original || "—"}</td>
+                    <td className={`${cel} font-mono ${ncmMudou ? "text-emerald-700 dark:text-emerald-400 font-semibold" : ""}`}>{i.ncm || "—"}</td>
+                    <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_SIT[i.situacao]}`}>{ROT_SIT[i.situacao]}</span></td>
+                    <td className={`${cel} ${temErro ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}`}>{problemas.length ? problemas.map((p) => p.mensagem).join(" | ") : "—"}</td>
+                    <td className={`${cel} font-mono`}>{i.c_class_trib_informado || "—"}</td>
+                    <td className={`${cel} font-mono font-semibold`}>{sug ? sug.c_class_trib : i.sugestao?.ambiguo ? <span className="font-sans font-normal text-amber-700">Depende do produto</span> : "—"}</td>
+                    <td className={`${cel} text-right tabular-nums`}>{sug ? `${Math.round(sug.reducao * 100)}%` : "—"}</td>
+                    <td className={cel}>{sug ? sug.confianca : "—"}</td>
+                    <td className={cel}>{sug?.anexo || "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {visiveis.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Nenhum item neste filtro.</p>}
