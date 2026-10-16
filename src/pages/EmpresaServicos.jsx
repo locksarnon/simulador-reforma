@@ -1,3 +1,4 @@
+import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/base44Client";
@@ -17,6 +18,7 @@ export default function EmpresaServicos({ historico = false }) {
   return <div className="p-6 lg:p-8 space-y-6">
     <div><h1 className="text-xl font-heading font-semibold">{historico ? 'Histórico de análises' : 'Serviços e análises'}</h1><p className="text-sm text-muted-foreground mt-1">{empresa.razao_social} · Escolha um serviço ou retome uma análise salva.</p></div>
     {!historico && <div className="grid md:grid-cols-2 gap-4">{SERVICOS.map(([to, titulo, desc]) => <Link key={to} to={base + '/' + to} className="block p-5 rounded-xl border border-border bg-card hover:border-primary hover:bg-muted/30"><h2 className="font-medium">{titulo}</h2><p className="text-sm text-muted-foreground mt-2">{desc}</p><span className="block text-primary text-sm mt-4">Acessar serviço →</span></Link>)}</div>}
+    {!historico && <ConhecimentoEmpresa empresa={empresa} editar />}
     <section><h2 className="font-medium mb-3">Análises salvas</h2>{isLoading ? <p>Carregando…</p> : isError || erroValidacoes ? <p role="alert">Não foi possível carregar todo o histórico. Tente novamente.</p> : lista.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma análise salva nesta empresa. O diagnóstico tributário permanece disponível nas abas de importação, operações e painel.</p> : <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-3">Análise</th><th className="p-3">Serviço</th><th className="p-3">Data</th><th className="p-3">Ação</th></tr></thead><tbody>{lista.map(a => <tr key={a.id} className="border-t border-border"><td className="p-3">{a.titulo}</td><td className="p-3">{SERVICOS.find(s => s[0] === a.servico)?.[1] || a.servico}</td><td className="p-3">{new Date(a.createdAt).toLocaleString('pt-BR')}</td><td className="p-3"><Link to={a.to} className="text-primary underline">Abrir análise</Link></td></tr>)}</tbody></table></div>}</section>
   </div>;
 }

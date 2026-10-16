@@ -1,8 +1,10 @@
+import { useOutletContext } from "react-router-dom";
 import React from "react";
 import { ListChecks } from "lucide-react";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 
 export default function FerramentasValidadorCadastro() {
+  const { empresa } = useOutletContext() || {};
   return (
     <div>
       <div className="p-6 lg:p-8 space-y-5">
@@ -12,7 +14,7 @@ export default function FerramentasValidadorCadastro() {
             <p className="text-sm text-muted-foreground">Confere NCM e classificação (cClassTrib) de uma planilha de produtos do ERP — Excel ou CSV, até 50 mil itens — e devolve a planilha corrigida.</p>
           </div>
         </div>
-        <ValidadorCadastro modo="interno" />
+        <ValidadorCadastro modo="interno" empresa={empresa} />
       </div>
     </div>
   );

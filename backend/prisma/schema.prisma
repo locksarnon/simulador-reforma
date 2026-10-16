@@ -187,6 +187,9 @@ model Empresa {
   cooperativa          String?
   inscricao_estadual   String?
   erp                  String?
+  erp_versao           String?
+  addons               String[] @default([])
+  addons_versoes       Json?
   responsavel_fiscal   String?
   status               String    @default("Ativa")
   data_inicio          DateTime?

@@ -1,3 +1,5 @@
+import { ERPS } from "@/lib/conhecimentoSistemas";
+import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
@@ -59,11 +61,11 @@ function Cartao({ titulo, valor, cor, ativo, onClick }) {
  * como está e indicar as colunas. modo "publico" limita a 300 itens e libera o
  * detalhe após o cadastro do contato.
  */
-export default function ValidadorCadastro({ modo = "interno" }) {
+export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const publico = modo === "publico";
   const { empresaId } = useParams();
   const [searchParams] = useSearchParams();
-  const [opcoes, setOpcoes] = useState({ cClassTrib: true, duplicidades: true, principioAtivo: false, dataInicio: "", dataFim: "", erps: [], gruposContabeis: false });
+  const [opcoes, setOpcoes] = useState({ cClassTrib: true, duplicidades: true, principioAtivo: false, dataInicio: "", dataFim: "", erps: empresa?.erp ? [empresa.erp] : [], addons: empresa?.addons || [], gruposContabeis: false });
   const [excluir, setExcluir] = useState([]);
   const [problemasSelecionados, setProblemasSelecionados] = useState([]);
   const mudarOpcao = (k, v) => setOpcoes(o => ({ ...o, [k]: v }));
@@ -138,7 +140,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validacaoId, empresaId, publico]);
 
-  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['gruposContabeis','Analisar grupos contábeis (requer plano de referência)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div><div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{['Protheus','SAP','Sankhya','Outro'].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, mapeie a data do cadastro ou movimento. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
+  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['gruposContabeis','Analisar grupos contábeis (requer plano de referência)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div><div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{[...ERPS,...opcoes.erps.filter(e=>!ERPS.includes(e))].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, mapeie a data do cadastro ou movimento. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
 
   const baixarModelo = () => api.baixar("GET", "/public/produtos/modelo", { nome: "modelo-cadastro-produtos-intax.xlsx" }).catch((e) => setErro(e.message));
   const copiarCab = async () => {
@@ -167,6 +169,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   if (etapa === "enviar") {
     return (
       <div className="space-y-5">
+        {!publico && empresa && <ConhecimentoEmpresa empresa={empresa} />}
         {painelOpcoes}
         <div
           onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
