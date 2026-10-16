@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
 import { api } from "@/api/base44Client";
 import LeadForm from "@/components/ferramentas/LeadForm";
@@ -8,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cClassTrib"];
 
 const ROTULO_PROBLEMA = {
+  DUPLICIDADE_EXATA: "Descrição e unidade iguais", POSSIVEL_DUPLICIDADE: "Possível duplicidade",
   NCM_AUSENTE: "NCM ausente", NCM_FORMATO: "NCM com formato errado", NCM_INEXISTENTE: "NCM inexistente", NCM_INATIVO: "NCM não vigente",
   NCM_ZERO_RESTAURADO: "Zero à esquerda corrigido", CODIGO_AUSENTE: "Sem código", DESCRICAO_AUSENTE: "Sem descrição",
   CODIGO_DUPLICADO: "Código duplicado", PRODUTO_DUPLICADO: "Produto duplicado", CLASSE_SUGERIDA: "Classificação sugerida",
@@ -28,6 +30,9 @@ const COLUNAS = [
   { chave: "linha", titulo: "Linha", alinhar: "text-right" },
   { chave: "codigo", titulo: "Código" },
   { chave: "descricao", titulo: "Descrição" },
+  { chave: "unidade", titulo: "Unidade" },
+  { chave: "principio_ativo", titulo: "Princípio ativo" },
+  { chave: "grupo_contabil", titulo: "Grupo contábil atual" },
   { chave: "ncm_original", titulo: "NCM informado" },
   { chave: "ncm", titulo: "NCM corrigido" },
   { chave: "situacao", titulo: "Situação" },
@@ -56,6 +61,12 @@ function Cartao({ titulo, valor, cor, ativo, onClick }) {
  */
 export default function ValidadorCadastro({ modo = "interno" }) {
   const publico = modo === "publico";
+  const { empresaId } = useParams();
+  const [searchParams] = useSearchParams();
+  const [opcoes, setOpcoes] = useState({ cClassTrib: true, duplicidades: true, principioAtivo: false, dataInicio: "", dataFim: "", erps: [], gruposContabeis: false });
+  const [excluir, setExcluir] = useState([]);
+  const [problemasSelecionados, setProblemasSelecionados] = useState([]);
+  const mudarOpcao = (k, v) => setOpcoes(o => ({ ...o, [k]: v }));
   const [etapa, setEtapa] = useState("enviar");
   const [arquivo, setArquivo] = useState(null);
   const [previa, setPrevia] = useState(null);
@@ -77,6 +88,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   const rotaValidar = publico ? "/public/produtos/amostra" : "/produtos/validar";
 
   const reiniciar = () => {
+    setExcluir([]); setProblemasSelecionados([]);
     setEtapa("enviar"); setArquivo(null); setPrevia(null); setMapa({}); setResultado(null); setErro("");
     setFiltro("PROBLEMAS"); setBusca(""); setPagina(0); setEmailLiberado("");
     if (inputRef.current) inputRef.current.value = "";
@@ -98,8 +110,8 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   const validar = async (email) => {
     setErro(""); setCarregando(true);
     try {
-      const r = await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
-      setResultado(r); setEtapa("resultado"); setPagina(0);
+      const r = await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(!publico ? { empresa_id: empresaId, opcoes } : {}), ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
+      setExcluir([]); setResultado(r); setEtapa("resultado"); setPagina(0);
       if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
       setErro(e.message);
@@ -111,7 +123,8 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   const abrirSalva = async (v) => {
     setErro(""); setAbrindo(v.id);
     try {
-      const r = await api.get(`/produtos/validacoes/${v.id}`);
+      const r = await api.get(`/produtos/validacoes/${v.id}`, { empresa_id: empresaId });
+      if (r.opcoes) setOpcoes(r.opcoes);
       setArquivo(null); setResultado(r); setMapa(r.mapeamento || {}); setEtapa("resultado"); setPagina(0); setFiltro("PROBLEMAS"); setBusca("");
     } catch (e) {
       setErro(e.message);
@@ -120,12 +133,19 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     }
   };
 
+  const validacaoId = searchParams.get('validacao');
+  useEffect(() => { if (!publico && validacaoId) abrirSalva({ id: validacaoId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [validacaoId, empresaId, publico]);
+
+  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['gruposContabeis','Analisar grupos contábeis (requer plano de referência)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div><div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{['Protheus','SAP','Sankhya','Outro'].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, mapeie a data do cadastro ou movimento. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
+
   const baixarModelo = () => api.baixar("GET", "/public/produtos/modelo", { nome: "modelo-cadastro-produtos-intax.xlsx" }).catch((e) => setErro(e.message));
   const copiarCab = async () => {
     try { await navigator.clipboard.writeText(CABECALHO_MODELO.join("\t")); setCopiado(true); setTimeout(() => setCopiado(false), 2000); } catch { setErro("Não foi possível copiar. Selecione e copie manualmente: " + CABECALHO_MODELO.join(", ")); }
   };
   const exportar = () => (arquivo
-    ? api.baixar("POST", "/produtos/exportar", { file: arquivo, campos: { mapeamento: mapa }, nome: "cadastro-validado-intax.xlsx" })
+    ? api.baixar("POST", "/produtos/exportar", { file: arquivo, campos: { mapeamento: mapa, opcoes, excluir }, nome: "cadastro-validado-intax.xlsx" })
     : api.baixar("GET", `/produtos/validacoes/${resultado?.validacao_id}/exportar`, { nome: "cadastro-validado-intax.xlsx" })
   ).catch((e) => setErro(e.message));
 
@@ -133,11 +153,12 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     if (!resultado) return [];
     const t = busca.trim().toLowerCase();
     return resultado.itens.filter((i) => {
+      if (problemasSelecionados.length && !i.problemas.some(p => problemasSelecionados.includes(p.codigo))) return false;
       if (filtro === "PROBLEMAS" ? i.situacao === "OK" : filtro !== "TODOS" && i.situacao !== filtro) return false;
       if (!t) return true;
       return `${i.codigo} ${i.descricao} ${i.ncm_original}`.toLowerCase().includes(t);
     });
-  }, [resultado, filtro, busca]);
+  }, [resultado, filtro, busca, problemasSelecionados]);
 
   const totalPaginas = Math.max(1, Math.ceil(itensFiltrados.length / POR_PAGINA));
   const visiveis = itensFiltrados.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
@@ -146,6 +167,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
   if (etapa === "enviar") {
     return (
       <div className="space-y-5">
+        {painelOpcoes}
         <div
           onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
           onDragLeave={() => setArrastando(false)}
@@ -160,7 +182,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
         </div>
         {erro && <p className="text-sm text-destructive">{erro}</p>}
 
-        {!publico && <HistoricoValidacoes onAbrir={abrirSalva} abrindo={abrindo} />}
+        {!publico && <HistoricoValidacoes empresaId={empresaId} onAbrir={abrirSalva} abrindo={abrindo} />}
 
         <div className="rounded-xl border border-border bg-card p-5 space-y-3">
           <h3 className="font-heading font-semibold text-sm">Como preparar a planilha</h3>
@@ -181,7 +203,8 @@ export default function ValidadorCadastro({ modo = "interno" }) {
 
   // ── Etapa 2: conferir colunas ──
   if (etapa === "colunas" && previa) {
-    const obrigatoriosOk = mapa.ncm !== null && mapa.ncm !== undefined && mapa.ncm !== "";
+    const tem = k => mapa[k] !== null && mapa[k] !== undefined && mapa[k] !== "";
+    const obrigatoriosOk = tem("ncm") && (publico || ((!opcoes.duplicidades || (tem("descricao") && tem("unidade"))) && (!opcoes.principioAtivo || tem("principio_ativo")) && (!(opcoes.dataInicio || opcoes.dataFim) || tem("data_cadastro"))));
     const indicesMapeados = new Set(Object.values(mapa).filter((v) => v !== null && v !== undefined && v !== ""));
     return (
       <div className="space-y-5">
@@ -190,6 +213,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
           {publico && previa.total_linhas > 300 && <span className="text-amber-600">(a amostra analisa os 300 primeiros)</span>}
         </div>
 
+        {painelOpcoes}
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-heading font-semibold text-sm mb-1">Confirme as colunas</h3>
           <p className="text-xs text-muted-foreground mb-4">Reconhecemos automaticamente o que foi possível. Ajuste se algo estiver errado.</p>
@@ -232,7 +256,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
             {carregando && <Loader2 className="w-4 h-4 animate-spin" />} {carregando ? "Validando…" : "Validar cadastro"}
           </button>
         </div>
-        {!obrigatoriosOk && <p className="text-xs text-destructive">Indique a coluna do NCM para continuar.</p>}
+        {!obrigatoriosOk && <p className="text-xs text-destructive">Mapeie o NCM e as colunas exigidas pelo escopo selecionado (descrição, unidade, princípio ativo e data, quando aplicável).</p>}
       </div>
     );
   }
@@ -243,6 +267,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
     const bloqueado = publico && resultado.modo !== "completo";
     return (
       <div className="space-y-5">
+        {resultado.avisos?.map(a => <p key={a} className="text-sm text-amber-700 dark:text-amber-300">{a}</p>)}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Cartao titulo="Produtos analisados" valor={r.total} ativo={filtro === "TODOS"} onClick={() => { setFiltro("TODOS"); setPagina(0); }} />
           <Cartao titulo="Sem problemas" valor={r.ok} cor="text-emerald-600" ativo={filtro === "OK"} onClick={() => { setFiltro("OK"); setPagina(0); }} />
@@ -256,7 +281,7 @@ export default function ValidadorCadastro({ modo = "interno" }) {
         {r.por_problema.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {r.por_problema.filter((p) => p.codigo !== "CLASSE_SUGERIDA" && p.codigo !== "NCM_ZERO_RESTAURADO").slice(0, 8).map((p) => (
-              <span key={p.codigo} className="text-xs px-2 py-1 rounded-full bg-muted">{ROTULO_PROBLEMA[p.codigo] || p.codigo}: <b>{p.qtd}</b></span>
+              <label key={p.codigo} className="text-xs px-2 py-1 rounded-full bg-muted flex gap-2"><input type="checkbox" checked={problemasSelecionados.includes(p.codigo)} onChange={e => { setProblemasSelecionados(s => e.target.checked ? [...s, p.codigo] : s.filter(x => x !== p.codigo)); setFiltro("TODOS"); setPagina(0); }} />{ROTULO_PROBLEMA[p.codigo] || p.codigo}: <b>{p.qtd}</b></label>
             ))}
           </div>
         )}
@@ -273,11 +298,13 @@ export default function ValidadorCadastro({ modo = "interno" }) {
         </div>
         {erro && <p className="text-sm text-destructive">{erro}</p>}
 
+        {!publico && arquivo && <p className="text-xs text-muted-foreground">Selecione as linhas duplicadas que deseja retirar da cópia saneada ({excluir.length} selecionadas). A exportação mantém o relatório completo e registra as exclusões em aba separada. O cadastro do ERP não é alterado.</p>}
         {/* Mesma estrutura da planilha corrigida (ver ProdutosService.exportarXlsx): uma linha por produto, um dado por coluna, nada empilhado dentro da célula. */}
         <div className="rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-muted">
               <tr className="text-left text-muted-foreground">
+                {!publico && arquivo && <th className="p-2 border border-border">Excluir da cópia saneada</th>}
                 {COLUNAS.map((c) => <th key={c.chave} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</th>)}
               </tr>
             </thead>
@@ -290,9 +317,13 @@ export default function ValidadorCadastro({ modo = "interno" }) {
                 const cel = "px-3 py-1.5 whitespace-nowrap border-b border-r border-border last:border-r-0";
                 return (
                   <tr key={i.linha} className={idx % 2 ? "bg-muted/15" : ""}>
+                    {!publico && arquivo && <td className={cel}><input type="checkbox" aria-label={`Excluir linha ${i.linha} da cópia saneada`} disabled={!i.candidatos_duplicidade?.length} checked={excluir.includes(i.linha)} onChange={e => setExcluir(xs => e.target.checked ? [...xs, i.linha] : xs.filter(n => n !== i.linha))} /></td>}
                     <td className={`${cel} tabular-nums text-muted-foreground text-right`}>{i.linha}</td>
                     <td className={`${cel} font-medium`}>{i.codigo || "—"}</td>
                     <td className={`${cel} max-w-[320px] truncate`} title={i.descricao}>{i.descricao || "—"}</td>
+                    <td className={cel}>{i.unidade || "—"}</td>
+                    <td className={cel}>{i.principio_ativo || "—"}</td>
+                    <td className={cel}>{i.grupo_contabil || "—"}</td>
                     <td className={`${cel} font-mono`}>{i.ncm_original || "—"}</td>
                     <td className={`${cel} font-mono ${ncmMudou ? "text-emerald-700 dark:text-emerald-400 font-semibold" : ""}`}>{i.ncm || "—"}</td>
                     <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_SIT[i.situacao]}`}>{ROT_SIT[i.situacao]}</span></td>

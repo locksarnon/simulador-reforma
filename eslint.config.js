@@ -5,6 +5,7 @@ import pluginReactHooks from "eslint-plugin-react-hooks";
 import pluginUnusedImports from "eslint-plugin-unused-imports";
 
 export default [
+  { files: ["src/hooks/**/*.{js,jsx}"], plugins: { "react-hooks": pluginReactHooks }, rules: { "react-hooks/rules-of-hooks": "error" } },
   {
     files: [
       "src/components/**/*.{js,mjs,cjs,jsx}",

@@ -1,3 +1,4 @@
+import { OpcoesValidacao, OPCOES_PADRAO } from './opcoes-validacao';
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
@@ -19,12 +20,13 @@ export class ValidacoesService {
   ) {}
 
   /** Salva sem nunca derrubar a validação: se o armazenamento falhar, o resultado ainda volta ao usuário. */
-  async salvar(file: Express.Multer.File, mapeamento: Mapeamento | undefined, resultado: { mapeamento: Mapeamento; resumo: { total: number; ok: number; alerta: number; erro: number } }, email: string) {
+  async salvar(file: Express.Multer.File, mapeamento: Mapeamento | undefined, resultado: { mapeamento: Mapeamento; resumo: { total: number; ok: number; alerta: number; erro: number } }, email: string, empresa_id?: string, opcoes: OpcoesValidacao = OPCOES_PADRAO) {
     try {
       const chave = `validacoes/${randomUUID()}-${(file.originalname || 'planilha').replace(/[^\w.\-]+/g, '_')}`;
       await this.storage.putFileAndGetUrl(chave, file.buffer, file.mimetype || MIME_XLSX);
       const reg = await this.prisma.validacaoCadastro.create({
         data: {
+          empresa_id: empresa_id || null, opcoes_json: JSON.stringify(opcoes), resultado_json: JSON.stringify(resultado),
           criado_por: email, nome_arquivo: (file.originalname || 'planilha').slice(0, 200), storage_key: chave, tamanho: file.size ?? file.buffer.length,
           mapeamento_json: JSON.stringify(resultado.mapeamento ?? mapeamento ?? {}), total: resultado.resumo.total,
           itens_ok: resultado.resumo.ok, itens_alerta: resultado.resumo.alerta, itens_erro: resultado.resumo.erro,
@@ -37,13 +39,13 @@ export class ValidacoesService {
     }
   }
 
-  listar() {
-    return this.prisma.validacaoCadastro.findMany({ orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, criado_por: true, nome_arquivo: true, tamanho: true, total: true, itens_ok: true, itens_alerta: true, itens_erro: true, createdAt: true } });
+  listar(empresa_id?: string) {
+    return this.prisma.validacaoCadastro.findMany({ where: empresa_id ? { empresa_id } : { empresa_id: null }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, criado_por: true, nome_arquivo: true, tamanho: true, total: true, itens_ok: true, itens_alerta: true, itens_erro: true, createdAt: true } });
   }
 
-  private async carregar(id: string) {
+  private async carregar(id: string, empresa_id?: string) {
     const v = await this.prisma.validacaoCadastro.findUnique({ where: { id } });
-    if (!v) throw new NotFoundException('Validação não encontrada (talvez já excluída).');
+    if (!v || (empresa_id && v.empresa_id !== empresa_id)) throw new NotFoundException('Validação não encontrada nesta empresa.');
     const buffer = await this.storage.getObjectBuffer(v.storage_key);
     const file = { buffer, originalname: v.nome_arquivo, mimetype: MIME_XLSX, size: buffer.length } as Express.Multer.File;
     const mapa = v.mapeamento_json ? (JSON.parse(v.mapeamento_json) as Mapeamento) : undefined;
@@ -51,15 +53,15 @@ export class ValidacoesService {
   }
 
   /** Reabre: refaz a validação a partir do arquivo guardado (mesmo formato do resultado original). */
-  async obter(id: string) {
-    const { v, file, mapa } = await this.carregar(id);
-    const r = await this.produtos.validar(file, mapa);
+  async obter(id: string, empresa_id?: string) {
+    const { v, file, mapa } = await this.carregar(id, empresa_id);
+    const r = v.resultado_json ? JSON.parse(v.resultado_json) : await this.produtos.validar(file, mapa, undefined, v.opcoes_json ? JSON.parse(v.opcoes_json) : OPCOES_PADRAO);
     return { ...r, validacao_id: v.id, nome_arquivo: v.nome_arquivo, criado_por: v.criado_por, criado_em: v.createdAt };
   }
 
   async exportar(id: string) {
     const { v, file, mapa } = await this.carregar(id);
-    const buf = await this.produtos.exportarXlsx(file, mapa);
+    const buf = await this.produtos.exportarXlsx(file, mapa, v.opcoes_json ? JSON.parse(v.opcoes_json) : OPCOES_PADRAO, [], v.resultado_json ? JSON.parse(v.resultado_json) : undefined);
     return { buf, nome: `validado-${v.nome_arquivo.replace(/\.[^.]+$/, '')}.xlsx` };
   }
 

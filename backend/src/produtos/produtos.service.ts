@@ -1,3 +1,4 @@
+import { dataProduto, normalizarProduto, OPCOES_PADRAO, OpcoesValidacao } from './opcoes-validacao';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import { parse } from 'csv-parse/sync';
@@ -5,11 +6,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
 import { avaliarNcm, compararComDeclarado, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
 
-export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib'] as const;
+export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil'] as const;
 export type Campo = (typeof CAMPOS)[number];
 export type Mapeamento = Partial<Record<Campo, number | null>>;
 
 export const ROTULOS: Record<Campo, string> = {
+  principio_ativo: 'Princípio ativo (inclua concentração e formulação)',
+  data_cadastro: 'Data de cadastro / movimento (para o corte)',
+  grupo_contabil: 'Grupo contábil atual',
   codigo: 'Código do produto',
   descricao: 'Descrição',
   ncm: 'NCM',
@@ -20,6 +24,9 @@ export const ROTULOS: Record<Campo, string> = {
 
 /** Nomes de coluna (já normalizados) que cada ERP costuma usar. */
 const SINONIMOS: Record<Campo, string[]> = {
+  principio_ativo: ['principioativo', 'ingredienteativo', 'composicao', 'ativo'],
+  data_cadastro: ['datacadastro', 'datamovimento', 'ultimomovimento', 'data', 'b1datref'],
+  grupo_contabil: ['grupocontabil', 'contacontabil', 'b1grupo', 'grupoproduto'],
   codigo: ['codigo', 'cod', 'codproduto', 'codprod', 'b1cod', 'itemcode', 'material', 'sku', 'referencia', 'codigoproduto', 'codigodoproduto', 'codigointerno', 'codigoitem'],
   descricao: ['descricao', 'desc', 'descrproduto', 'descrprod', 'b1desc', 'itemname', 'denominacao', 'nome', 'produto', 'descricaodoproduto', 'textobreve', 'descricaomaterial', 'descricaoproduto', 'descricaoitem'],
   ncm: ['ncm', 'ncmcode', 'b1posipi', 'posipi', 'steuc', 'classificacaofiscal', 'codigoncm', 'ncmsh', 'posicaoipi', 'nbm', 'classfiscal', 'codncm'],
@@ -46,6 +53,7 @@ export type LinhaResultado = {
   problemas: Problema[];
   sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null } | null;
   c_class_trib_informado: string;
+  unidade: string; principio_ativo: string; grupo_contabil: string; candidatos_duplicidade: number[];
 };
 
 @Injectable()
@@ -168,7 +176,7 @@ export class ProdutosService {
 
   // ── Validação ────────────────────────────────────────────────────────
 
-  async validar(file: Express.Multer.File, mapeamentoInformado?: Mapeamento, limiteLinhas?: number) {
+  async validar(file: Express.Multer.File, mapeamentoInformado?: Mapeamento, limiteLinhas?: number, opcoes: OpcoesValidacao = OPCOES_PADRAO) {
     const p = await this.lerArquivo(file);
     const mapa = { ...this.detectarMapeamento(p.cabecalho), ...(mapeamentoInformado || {}) };
     if (mapa.ncm === null || mapa.ncm === undefined) {
@@ -177,7 +185,17 @@ export class ProdutosService {
     const g = (l: string[], c: Campo) => (mapa[c] === null || mapa[c] === undefined ? '' : (l[mapa[c] as number] ?? '').trim());
 
     const truncado = limiteLinhas && p.linhas.length > limiteLinhas ? p.linhas.length : 0;
-    const linhas = limiteLinhas ? p.linhas.slice(0, limiteLinhas) : p.linhas;
+    const origem = (limiteLinhas ? p.linhas.slice(0, limiteLinhas) : p.linhas).map((l, i) => ({ l, linha: i + 2 }));
+    if ((opcoes.dataInicio || opcoes.dataFim) && mapa.data_cadastro == null) throw new BadRequestException('Mapeie a coluna de data para aplicar o período.');
+    if (opcoes.principioAtivo && mapa.principio_ativo == null) throw new BadRequestException('Mapeie a coluna de princípio ativo.');
+    if (opcoes.duplicidades && (mapa.descricao == null || mapa.unidade == null)) throw new BadRequestException('Mapeie descrição e unidade para analisar duplicidades.');
+    const selecionadas = origem.filter(({ l, linha }) => {
+      if (!opcoes.dataInicio && !opcoes.dataFim) return true;
+      const d = dataProduto(g(l, 'data_cadastro'));
+      if (!d) throw new BadRequestException('Data ausente ou inválida na linha ' + linha + '. Use dd/mm/aaaa ou aaaa-mm-dd.');
+      return (!opcoes.dataInicio || d >= opcoes.dataInicio) && (!opcoes.dataFim || d <= opcoes.dataFim);
+    });
+    const linhas = selecionadas.map(x => x.l);
 
     const [{ lista, classes }, ncmRows] = await Promise.all([
       this.classificacao.base(),
@@ -194,6 +212,13 @@ export class ProdutosService {
       if (dn.length > 1) cont.descNcm.set(dn, (cont.descNcm.get(dn) || 0) + 1);
     });
 
+    // Índice invertido limita candidatos; nunca compara todos os pares de 50 mil itens.
+    const indice = new Map<string, number[]>();
+    const termos = linhas.map(l => normalizarProduto(g(l, 'descricao')).split(' ').filter(t => t.length > 2));
+    termos.forEach((ts, i) => { for (const t of new Set(ts)) { const k = normalizarProduto(g(linhas[i], 'unidade')) + '|' + t; const a = indice.get(k) || []; a.push(i); indice.set(k, a); } });
+    const exatos = new Map<string, number[]>();
+    const chaveExata = (l: string[]) => normalizarProduto(g(l, 'descricao')) + '|' + normalizarProduto(g(l, 'unidade'));
+    linhas.forEach((l, i) => { if (g(l, 'descricao') && g(l, 'unidade')) { const a = exatos.get(chaveExata(l)) || []; a.push(i); exatos.set(chaveExata(l), a); } });
     const resultado: LinhaResultado[] = linhas.map((l, i) => {
       const problemas: Problema[] = [];
       const codigo = g(l, 'codigo');
@@ -225,13 +250,34 @@ export class ProdutosService {
       if (c && (cont.codigo.get(c) || 0) > 1) {
         problemas.push({ codigo: 'CODIGO_DUPLICADO', severidade: 'alerta', mensagem: `Código "${codigo}" aparece ${cont.codigo.get(c)} vezes.` });
       }
-      const dn = `${descricao.toLowerCase()}|${ncm}`;
-      if (descricao && (cont.descNcm.get(dn) || 0) > 1 && !(c && (cont.codigo.get(c) || 0) > 1)) {
-        problemas.push({ codigo: 'PRODUTO_DUPLICADO', severidade: 'alerta', mensagem: 'Mesma descrição e NCM em mais de um código.' });
+      const unidade = g(l, 'unidade');
+      const principio_ativo = g(l, 'principio_ativo');
+      const candidatos = new Set<number>();
+      if (opcoes.duplicidades && descricao && unidade) {
+        for (const j of (exatos.get(chaveExata(l)) || []).slice(0, 21)) if (j !== i) candidatos.add(j);
+        for (const t of termos[i]) for (const j of (indice.get(normalizarProduto(unidade) + '|' + t) || []).slice(0, 250)) candidatos.add(j);
       }
+      const candidatos_duplicidade: number[] = [];
+      let exata = false;
+      for (const j of candidatos) {
+        if (j === i) continue;
+        const outro = linhas[j];
+        const paOutro = g(outro, 'principio_ativo');
+        if (opcoes.principioAtivo && (!principio_ativo || !paOutro || normalizarProduto(principio_ativo) !== normalizarProduto(paOutro))) continue;
+        const igual = chaveExata(l) === chaveExata(outro);
+        const a = new Set(termos[i]); const b = new Set(termos[j]);
+        const inter = [...a].filter(t => b.has(t)).length;
+        const similar = inter / Math.max(1, new Set([...a, ...b]).size);
+        // Números diferentes (concentração, dose, embalagem) impedem sugestão aproximada.
+        const nums = (s: string) => (s.match(/\d+(?:[.,]\d+)?/g) || []).join('|');
+        if (!igual && (similar < 0.65 || nums(descricao) !== nums(g(outro, 'descricao')))) continue;
+        candidatos_duplicidade.push(selecionadas[j].linha); exata ||= igual;
+        if (candidatos_duplicidade.length >= 20) break;
+      }
+      if (candidatos_duplicidade.length) problemas.push({ codigo: exata ? 'DUPLICIDADE_EXATA' : 'POSSIVEL_DUPLICIDADE', severidade: 'alerta', mensagem: (exata ? 'Descrição e unidade iguais' : 'Descrição semelhante e mesma unidade') + ' — revisar linhas ' + candidatos_duplicidade.join(', ') + (opcoes.principioAtivo ? '; princípio ativo coincidente' : '') + '. Nenhum cadastro foi excluído.' });
 
       let sugestao: LinhaResultado['sugestao'] = null;
-      if (ncm.length === 8) {
+      if (opcoes.cClassTrib && ncm.length === 8) {
         const av = avaliarNcm(ncm, lista);
         const cmp = compararComDeclarado(informado, av, classes);
         const alvo = av.esperado || (av.ambiguo ? null : null);
@@ -260,7 +306,7 @@ export class ProdutosService {
       }
 
       const situacao: LinhaResultado['situacao'] = problemas.some((x) => x.severidade === 'erro') ? 'ERRO' : problemas.some((x) => x.severidade === 'alerta') ? 'ALERTA' : 'OK';
-      return { linha: i + 2, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado };
+      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado };
     });
 
     const resumo = {
@@ -276,13 +322,17 @@ export class ProdutosService {
         resultado.flatMap((r) => r.problemas).reduce<Record<string, number>>((a, pb) => ((a[pb.codigo] = (a[pb.codigo] || 0) + 1), a), {}),
       ).sort((a, b) => b[1] - a[1]).map(([codigo, qtd]) => ({ codigo, qtd })),
     };
-    return { mapeamento: mapa, resumo, itens: resultado };
+    return { mapeamento: mapa, opcoes, resumo, itens: resultado, avisos: [
+      ...(opcoes.erps.length ? ['ERPs registrados como contexto. Não foram aplicadas regras específicas de ERP sem um perfil homologado.'] : []),
+      ...(opcoes.gruposContabeis ? ['Sugestões contábeis pendentes: informe o plano de contas e regras da empresa. O grupo atual foi preservado.'] : []),
+      ...(opcoes.duplicidades ? ['Duplicidades são candidatos para revisão. Princípio ativo deve incluir concentração e formulação; não substitui a decisão sobre o cadastro.'] : []),
+    ] };
   }
 
   // ── Exportação ───────────────────────────────────────────────────────
 
-  async exportarXlsx(file: Express.Multer.File, mapeamento?: Mapeamento): Promise<Buffer> {
-    const r = await this.validar(file, mapeamento);
+  async exportarXlsx(file: Express.Multer.File, mapeamento?: Mapeamento, opcoes: OpcoesValidacao = OPCOES_PADRAO, excluir: number[] = [], salvo?: Awaited<ReturnType<ProdutosService['validar']>>): Promise<Buffer> {
+    const r = salvo || await this.validar(file, mapeamento, undefined, opcoes);
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX — FAL Agro';
     const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: 1 }] });
@@ -299,10 +349,15 @@ export class ProdutosService {
       { header: 'Redução sugerida', key: 'reducao', width: 16 },
       { header: 'Confiança', key: 'confianca', width: 26 },
       { header: 'Base na lei', key: 'anexo', width: 20 },
+      { header: 'Unidade', key: 'unidade', width: 12 },
+      { header: 'Princípio ativo', key: 'principio_ativo', width: 35 },
+      { header: 'Grupo contábil atual', key: 'grupo_contabil', width: 22 },
+      { header: 'Linhas para revisão de duplicidade', key: 'candidatos', width: 35 },
     ];
     const cor = { OK: 'FFE8F5E9', ALERTA: 'FFFFF8E1', ERRO: 'FFFDECEA' } as const;
     r.itens.forEach((it) => {
       const row = ws.addRow({
+        unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.join(', '),
         linha: it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,
         situacao: it.situacao === 'OK' ? 'OK' : it.situacao === 'ALERTA' ? 'Atenção' : 'Corrigir',
         problemas: it.problemas.filter((p) => p.severidade !== 'info' || p.codigo === 'CLASSE_SUGERIDA').map((p) => p.mensagem).join(' | '),
@@ -315,8 +370,21 @@ export class ProdutosService {
     const cab = ws.getRow(1);
     cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-    ws.autoFilter = { from: 'A1', to: 'L1' };
+    ws.autoFilter = { from: 'A1', to: 'P1' };
 
+    if (excluir.length) {
+      const exclusoes = new Set(excluir);
+      const permitidas = new Set(r.itens.filter(i => i.candidatos_duplicidade.length).map(i => i.linha));
+      if (excluir.some(i => !Number.isInteger(i) || !permitidas.has(i))) throw new BadRequestException('Selecione somente linhas com indicação de duplicidade para a planilha saneada.');
+      const original = await this.lerArquivo(file);
+      const saneada = wb.addWorksheet('Cadastro saneado');
+      saneada.addRow(original.cabecalho);
+      const linhasAnalisadas = new Set(r.itens.map(i => i.linha));
+      original.linhas.forEach((linha, i) => { if (linhasAnalisadas.has(i + 2) && !exclusoes.has(i + 2)) saneada.addRow(linha); });
+      const decisoes = wb.addWorksheet('Exclusões confirmadas');
+      decisoes.addRow(['Linha original', 'Código', 'Descrição', 'Motivo']);
+      r.itens.filter(i => exclusoes.has(i.linha)).forEach(i => decisoes.addRow([i.linha, i.codigo, i.descricao, 'Duplicidade selecionada pelo usuário; removida apenas da cópia saneada.']));
+    }
     const rs = wb.addWorksheet('Resumo');
     rs.columns = [{ width: 44 }, { width: 16 }];
     rs.addRows([

@@ -1,9 +1,11 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { lerOpcoes } from './opcoes-validacao';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ValidacoesService } from './validacoes.service';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Mapeamento, ProdutosService } from './produtos.service';
+import { CAMPOS, Mapeamento, ProdutosService } from './produtos.service';
 
 const MAX_SIZE = 25 * 1024 * 1024;
 
@@ -11,8 +13,14 @@ export function lerMapeamento(bruto?: string): Mapeamento | undefined {
   if (!bruto) return undefined;
   try {
     const m = JSON.parse(bruto);
+    if (!m || typeof m !== 'object' || Array.isArray(m)) throw new Error();
     const out: Mapeamento = {};
-    for (const [k, v] of Object.entries(m)) out[k as keyof Mapeamento] = v === null || v === '' ? null : Number(v);
+    for (const [k, v] of Object.entries(m)) {
+      if (!(CAMPOS as readonly string[]).includes(k)) throw new Error();
+      const n = v === null || v === '' ? null : Number(v);
+      if (n !== null && (!Number.isInteger(n) || n < 0 || n > 16383)) throw new Error();
+      out[k as keyof Mapeamento] = n;
+    }
     return out;
   } catch {
     throw new BadRequestException('Mapeamento de colunas inválido.');
@@ -22,7 +30,7 @@ export function lerMapeamento(bruto?: string): Mapeamento | undefined {
 /** Validador de cadastro de produtos — versão completa, para usuários logados. */
 @Controller('produtos')
 export class ProdutosController {
-  constructor(private readonly service: ProdutosService, private readonly validacoes: ValidacoesService) {}
+  constructor(private readonly service: ProdutosService, private readonly validacoes: ValidacoesService, private readonly prisma: PrismaService) {}
 
   @Post('ler')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
@@ -32,23 +40,25 @@ export class ProdutosController {
 
   @Post('validar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
-  async validar(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthUser, @Body('mapeamento') mapeamento?: string) {
+  async validar(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthUser, @Body('mapeamento') mapeamento?: string, @Body('empresa_id') empresa_id?: string, @Body('opcoes') bruto?: string) {
+    if (!empresa_id || !await this.prisma.empresa.findUnique({ where: { id: empresa_id } })) throw new BadRequestException('Escolha uma empresa válida para esta análise.');
+    const opcoes = lerOpcoes(bruto);
     const mapa = lerMapeamento(mapeamento);
-    const resultado = await this.service.validar(file, mapa);
+    const resultado = await this.service.validar(file, mapa, undefined, opcoes);
     // Guarda o arquivo para reabrir depois (falha no armazenamento não impede o resultado).
-    const validacao_id = await this.validacoes.salvar(file, mapa, resultado, user.email);
+    const validacao_id = await this.validacoes.salvar(file, mapa, resultado, user.email, empresa_id, opcoes);
     return { ...resultado, validacao_id };
   }
 
   /** Histórico (todos os usuários do tenant veem todas; excluir: quem enviou ou administrador). */
   @Get('validacoes')
-  listarValidacoes() {
-    return this.validacoes.listar();
+  listarValidacoes(@Query('empresa_id') empresa_id?: string) {
+    return this.validacoes.listar(empresa_id);
   }
 
   @Get('validacoes/:id')
-  abrirValidacao(@Param('id') id: string) {
-    return this.validacoes.obter(id);
+  abrirValidacao(@Param('id') id: string, @Query('empresa_id') empresa_id?: string) {
+    return this.validacoes.obter(id, empresa_id);
   }
 
   @Get('validacoes/:id/exportar')
@@ -64,8 +74,11 @@ export class ProdutosController {
 
   @Post('exportar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
-  async exportar(@UploadedFile() file: Express.Multer.File, @Body('mapeamento') mapeamento?: string) {
-    const buf = await this.service.exportarXlsx(file, lerMapeamento(mapeamento));
+  async exportar(@UploadedFile() file: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('opcoes') opcoes?: string, @Body('excluir') brutoExcluir?: string) {
+    let excluir: number[] = [];
+    try { excluir = brutoExcluir ? JSON.parse(brutoExcluir) : []; } catch { throw new BadRequestException('Seleção de duplicidades inválida.'); }
+    if (!Array.isArray(excluir) || excluir.length > 50000 || excluir.some(x => !Number.isInteger(x))) throw new BadRequestException('Seleção de duplicidades inválida.');
+    const buf = await this.service.exportarXlsx(file, lerMapeamento(mapeamento), lerOpcoes(opcoes), excluir);
     return new StreamableFile(buf, {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       disposition: 'attachment; filename="cadastro-validado-intax.xlsx"',

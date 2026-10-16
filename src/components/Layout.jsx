@@ -1,50 +1,36 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import {
-  LayoutDashboard,
   CalendarClock,
   BookMarked,
   Settings,
   HelpCircle,
-  Plus,
   Layers,
   Code2,
   SlidersHorizontal,
-  Wrench,
-  Calculator,
-  BookOpenText,
   Newspaper,
-  ShieldCheck,
   Radar,
   Scale,
   Search,
-  ListChecks,
   Mail,
   Users,
   ExternalLink,
   ClipboardCheck,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
 
 const sections = [
   {
-    title: "Diagnóstico",
+    title: "Trabalho",
     items: [
-      { to: "/", label: "DataHub", icon: Layers, end: true },
-      { to: "/cockpit", label: "Cockpit", icon: LayoutDashboard },
-      { to: "/ferramentas/calculadora", label: "Calculadora Rápida", icon: Calculator },
+      { to: "/", label: "Grupos e empresas", icon: Layers, end: true },
     ],
   },
   {
-    title: "Validação fiscal",
+    title: "Consultas",
     items: [
-      { to: "/ferramentas/validador-cadastro", label: "Validador de cadastro", icon: ListChecks },
       { to: "/ferramentas/consulta-ncm", label: "Consulta NCM", icon: Search },
-      { to: "/ferramentas/classificacao", label: "Classificador & Conversor", icon: Wrench },
-      { to: "/ferramentas/validador-nfse", label: "Validador NFS-e", icon: ShieldCheck },
-      { to: "/ferramentas/art-11", label: "Guia do Art. 11", icon: BookOpenText },
     ],
   },
   {
@@ -83,7 +69,6 @@ const sections = [
 ];
 
 export default function Layout() {
-  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -98,17 +83,6 @@ export default function Layout() {
               <p className="text-[11px] text-muted-foreground">por FAL Agro · Reforma Tributária</p>
             </div>
           </div>
-        </div>
-
-        <div className="p-3 border-b border-sidebar-border">
-          <Button
-            className="w-full gap-2"
-            size="sm"
-            onClick={() => navigate("/")}
-          >
-            <Plus className="w-4 h-4" />
-            Novo Diagnóstico
-          </Button>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-4">

@@ -1,9 +1,9 @@
+import { useAnaliseEmpresa } from "@/hooks/useAnaliseEmpresa";
 import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Textarea } from "@/components/ui/textarea";
 import { ShieldCheck, Upload, CheckCircle2, AlertTriangle, XCircle, Info, Loader2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
-import PageHeader from "@/components/PageHeader";
 
 const CAMADAS = [
   { key: "estrutura", titulo: "1. Estrutura do XML", desc: "O arquivo está bem formado e a raiz é reconhecida (DPS/NFSe)?" },
@@ -32,12 +32,13 @@ export default function FerramentasValidadorNFSe() {
   const [validando, setValidando] = useState(false);
   const [erro, setErro] = useState("");
   const fileRef = useRef(null);
+  const analise = useAnaliseEmpresa("validador-nfse", d => { setXml(d.xml || ""); setResultado(d.resultado || null); });
 
   const onFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setXml(String(reader.result || ""));
+    reader.onload = () => { setXml(String(reader.result || "")); setResultado(null); };
     reader.readAsText(file);
     e.target.value = "";
   };
@@ -61,7 +62,6 @@ export default function FerramentasValidadorNFSe() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Validador NFS-e" }]} />
       <div className="p-6 lg:p-8 space-y-5">
         <div>
           <div className="flex items-center gap-2">
@@ -71,14 +71,14 @@ export default function FerramentasValidadorNFSe() {
           </div>
           <p className="text-sm text-muted-foreground">
             Cole ou envie o XML da DPS/NFS-e para conferir a estrutura e os campos de IBS/CBS exigidos pelo layout nacional (XSD v1.01).
-            Nada é salvo — o XML é processado só na hora e descartado.
+            O XML é processado ao validar. Use Salvar análise para guardar o documento e o resultado no histórico da empresa.
           </p>
         </div>
 
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <Textarea
             value={xml}
-            onChange={(e) => setXml(e.target.value)}
+            onChange={(e) => { setXml(e.target.value); setResultado(null); }}
             placeholder="Cole aqui o conteúdo do XML da DPS/NFS-e…"
             className="font-mono text-xs min-h-[220px]"
           />
@@ -102,6 +102,8 @@ export default function FerramentasValidadorNFSe() {
           </div>
         </div>
 
+        {resultado && <button type="button" disabled={analise.ocupado} onClick={() => analise.salvar({ xml, resultado }, "Validação de NFS-e")} className="border border-border rounded-md px-3 py-2 text-sm disabled:opacity-50">Salvar análise na empresa</button>}
+        {analise.mensagem && <p role="status" className="text-sm">{analise.mensagem}</p>}
         {erro && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm p-3">{erro}</div>
         )}

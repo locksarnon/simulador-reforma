@@ -1,3 +1,4 @@
+import { afinidadeSetor } from "@/lib/setoresBaseLegal";
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -103,7 +104,7 @@ function Editor({ inicial, onFechar, onSalvo }) {
 }
 
 /** Perguntas frequentes com resposta e base legal, agrupadas por tema. Consultores veem só os revisados. */
-export default function CartoesLegais({ admin }) {
+export default function CartoesLegais({ admin, setor }) {
   const qc = useQueryClient();
   const [editando, setEditando] = useState(null); // null | "novo" | cartão
   const [carregando, setCarregando] = useState(false);
@@ -120,7 +121,7 @@ export default function CartoesLegais({ admin }) {
     finally { setCarregando(false); }
   };
 
-  const porTema = cartoes.reduce((m, c) => { (m[c.tema] ||= []).push(c); return m; }, {});
+  const ordenados = [...cartoes].sort((a,b) => Number(afinidadeSetor(b, setor)) - Number(afinidadeSetor(a, setor)));
   const pendentes = cartoes.filter((c) => c.status !== "revisado").length;
 
   if (!admin && !isLoading && cartoes.length === 0) return null;
@@ -142,12 +143,7 @@ export default function CartoesLegais({ admin }) {
       {editando && <Editor inicial={editando === "novo" ? null : editando} onFechar={() => setEditando(null)} onSalvo={() => { setEditando(null); recarregar(); }} />}
       {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : (
         <div className="space-y-4">
-          {Object.entries(porTema).map(([tema, itens]) => (
-            <div key={tema} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tema}</p>
-              {itens.map((c) => <CartaoResposta key={c.id} c={c} admin={admin} onMudou={recarregar} onEditar={setEditando} />)}
-            </div>
-          ))}
+          <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-3">Tema</th><th className="p-3">Pergunta, resposta e fundamento</th><th className="p-3">Revisão</th></tr></thead><tbody>{ordenados.map(c => <tr key={c.id} className="border-t border-border align-top"><td className="p-3">{c.tema}{setor && afinidadeSetor(c,setor) && <span className="block text-xs text-primary mt-1">Relacionado ao setor</span>}</td><td className="p-3"><CartaoResposta c={c} admin={admin} onMudou={recarregar} onEditar={setEditando} /></td><td className="p-3"><span className={c.status === 'revisado' ? 'text-xs rounded px-2 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'text-xs rounded px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'}>{c.status === 'revisado' ? 'Revisado' : 'Rascunho'}</span></td></tr>)}</tbody></table></div>
           {cartoes.length === 0 && admin && <p className="text-sm text-muted-foreground">Nenhum cartão ainda. Carregue o lote inicial (rascunhos com a base legal já conferida) e revise um a um.</p>}
         </div>
       )}

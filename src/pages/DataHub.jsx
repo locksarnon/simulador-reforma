@@ -84,11 +84,11 @@ export default function DataHub() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">Hub de Grupos</h1>
+            <h1 className="text-xl font-heading font-semibold">Grupos e empresas</h1>
             <InfoTooltip pagina="datahub" chave="header" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Gestão de grupos econômicos e diagnósticos tributários
+            Organize suas empresas e acesse os serviços e análises de cada uma
           </p>
         </div>
         <Button onClick={openNew} className="gap-2">

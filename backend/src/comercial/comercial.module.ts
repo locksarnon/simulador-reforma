@@ -1,3 +1,4 @@
+import { AnalisesController } from '../produtos/analises.controller';
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ClassificacaoController } from '../classificacao/classificacao.controller';
@@ -20,7 +21,7 @@ import { PublicoController } from '../publico/publico.controller';
  */
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]), StorageModule],
-  controllers: [ClassificacaoController, ProdutosController, NewsletterController, PublicoController, RoteiroTestesController],
+  controllers: [AnalisesController, ClassificacaoController, ProdutosController, NewsletterController, PublicoController, RoteiroTestesController],
   providers: [ClassificacaoService, ProdutosService, ValidacoesService, LeadsService, NewsletterService, PdfService],
   exports: [ClassificacaoService],
 })

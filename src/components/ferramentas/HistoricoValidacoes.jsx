@@ -8,10 +8,10 @@ import { toast } from "@/components/ui/use-toast";
 const fmtTamanho = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
 /** Validações já feitas: reabre o resultado, baixa a planilha corrigida ou exclui (quem enviou ou administrador). */
-export default function HistoricoValidacoes({ onAbrir, abrindo }) {
+export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const { data: lista = [], isLoading } = useQuery({ queryKey: ["validacoes-cadastro"], queryFn: () => api.get("/produtos/validacoes") });
+  const { data: lista = [], isLoading } = useQuery({ queryKey: ["validacoes-cadastro", empresaId], queryFn: () => api.get("/produtos/validacoes", { empresa_id: empresaId }) });
 
   const excluir = async (v) => {
     if (!window.confirm(`Excluir a validação de "${v.nome_arquivo}"? O arquivo guardado também será apagado.`)) return;

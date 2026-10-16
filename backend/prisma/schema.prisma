@@ -967,6 +967,10 @@ model CfopEmpresaRegra {
 
 /// Validações de cadastro de produtos salvas (o arquivo fica no armazenamento; reabrir refaz a validação).
 model ValidacaoCadastro {
+  @@index([empresa_id])
+  empresa_id String?
+  opcoes_json String?
+  resultado_json String?
   id              String   @id @default(cuid())
   criado_por      String
   nome_arquivo    String
@@ -981,4 +985,16 @@ model ValidacaoCadastro {
 
   @@index([createdAt])
   @@index([criado_por])
+}
+
+model AnaliseEmpresa {
+  id String @id @default(cuid())
+  empresa_id String
+  servico String
+  titulo String
+  dados Json
+  criado_por String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([empresa_id, createdAt])
 }

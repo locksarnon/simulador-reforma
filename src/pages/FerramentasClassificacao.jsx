@@ -1,3 +1,5 @@
+import { buscarServicos as buscar } from "@/lib/buscaServicos";
+import { useAnaliseEmpresa } from "@/hooks/useAnaliseEmpresa";
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
@@ -6,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Search, Wrench, Download, HelpCircle } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
-import PageHeader from "@/components/PageHeader";
 
 // Valores reais de "Local incidência IBS" encontrados no Anexo VIII — não é
 // uma categoria inventada, é o próprio agrupamento que a tabela oficial usa.
@@ -21,15 +22,6 @@ const CATEGORIAS_LOCAL = [
   { label: "Exploração de via/rodovia", filtro: "via explorada", inciso: "V–IX" },
   { label: "TI, software, consultoria digital", filtro: "domicílio principal do adquirente", inciso: "X" },
 ];
-
-function buscar(data, termo) {
-  const t = termo.trim().toLowerCase();
-  if (!t) return [];
-  return data.filter((r) =>
-    [r.item_lc116, r.descricao_item, r.nbs, r.descricao_nbs, r.ind_op, r.c_class_trib, r.nome_class_trib, r.local_incidencia_ibs]
-      .some((v) => v && String(v).toLowerCase().includes(t))
-  );
-}
 
 function baixarCsv(nome, linhas) {
   const csv = linhas.map((l) => l.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
@@ -56,16 +48,20 @@ export default function FerramentasClassificacao() {
     queryFn: () => base44.entities.CorrelacaoServico.list(),
   });
   const [q, setQ] = useState("");
+  const [campo, setCampo] = useState("todos");
+  const [snapshot, setSnapshot] = useState(null);
   const [mostrarAjuda, setMostrarAjuda] = useState(false);
   const [lote, setLote] = useState("");
   const [resultadosLote, setResultadosLote] = useState(null);
 
-  const resultados = useMemo(() => buscar(data, q).slice(0, 100), [data, q]);
+  const analise = useAnaliseEmpresa("classificacao-servicos", d => { setQ(d.q || ""); setCampo(d.campo || "todos"); setLote(d.lote || ""); setResultadosLote(d.resultadosLote || null); setSnapshot(d.resultados || null); });
+  const encontrados = useMemo(() => buscar(data, q, campo), [data, q, campo]);
+  const resultados = snapshot || encontrados.slice(0, 100);
 
   const processarLote = () => {
     const termos = lote.split("\n").map((l) => l.trim()).filter(Boolean);
     const linhas = termos.map((termo) => {
-      const achados = buscar(data, termo);
+      const achados = buscar(data, termo, campo);
       return { termo, achados };
     });
     setResultadosLote(linhas);
@@ -92,12 +88,11 @@ export default function FerramentasClassificacao() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Classificador & Conversor" }]} />
       <div className="p-6 lg:p-8 space-y-5">
         <div>
           <div className="flex items-center gap-2">
             <Wrench className="w-5 h-5 text-muted-foreground" />
-            <h1 className="text-xl font-heading font-semibold">Classificador & Conversor de Códigos de Serviço</h1>
+            <h1 className="text-xl font-heading font-semibold">Classificação e conversão de serviços</h1>
             <InfoTooltip pagina="ferramentas" chave="classificacao_header" />
           </div>
           <p className="text-sm text-muted-foreground max-w-2xl">
@@ -107,6 +102,10 @@ export default function FerramentasClassificacao() {
           </p>
         </div>
 
+        <div className="flex flex-wrap gap-3 items-center"><label className="text-sm">Pesquisar em <select aria-label="Campo de pesquisa de serviços" value={campo} onChange={e => { setCampo(e.target.value); setSnapshot(null); }} className="ml-2 border rounded-md p-2 bg-background">{[['todos','Todos os códigos e descrições'],['descricao_nbs','Descrição NBS'],['descricao_item','Descrição LC 116'],['item_lc116','Item LC 116'],['nbs','NBS'],['ind_op','cIndOp'],['c_class_trib','cClassTrib'],['local_incidencia_ibs','Local de incidência IBS']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label><button type="button" disabled={analise.ocupado || (!q.trim() && !resultadosLote)} onClick={() => analise.salvar({ q, campo, lote, resultadosLote, resultados }, q.trim() || 'Consulta de serviços em lote')} className="border border-border rounded-md px-3 py-2 text-sm disabled:opacity-50">Salvar análise na empresa</button></div>
+        {analise.mensagem && <p role="status" className="text-sm">{analise.mensagem}</p>}
+        <p className="text-xs text-muted-foreground">A busca exige os termos relevantes e prioriza correspondências exatas. Campos sem correspondência na tabela não são preenchidos por inferência.</p>
+        <a href="https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc" target="_blank" rel="noreferrer" className="text-xs text-primary underline">Conferir versões na documentação oficial da NFS-e</a>
         <Tabs defaultValue="busca">
           <TabsList>
             <TabsTrigger value="busca">Busca</TabsTrigger>
@@ -119,7 +118,7 @@ export default function FerramentasClassificacao() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   value={q}
-                  onChange={(e) => setQ(e.target.value)}
+                  onChange={(e) => { setQ(e.target.value); setSnapshot(null); }}
                   placeholder="Ex.: 01.01, análise de sistemas, 1.1502.10.00, 100301, 000001..."
                   className="pl-9"
                   disabled={isLoading}
@@ -138,14 +137,14 @@ export default function FerramentasClassificacao() {
               <div className="rounded-lg border border-border bg-muted/30 p-4">
                 <p className="text-xs text-muted-foreground mb-3">
                   Cada botão filtra pelo "local de incidência" que a própria tabela oficial já usa — mesma lógica do{" "}
-                  <a href="/ferramentas/art-11" className="text-primary underline underline-offset-2">Guia do Art. 11</a>.
+                  <a href="/base-legal/guia-art-11" className="text-primary underline underline-offset-2">Guia do Art. 11</a>.
                   Bem material com NCM (sem serviço) não está nesta base — veja o Catálogo NCM.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {CATEGORIAS_LOCAL.map((c) => (
                     <button
                       key={c.label}
-                      onClick={() => { setQ(c.filtro); setMostrarAjuda(false); }}
+                      onClick={() => { setQ(c.filtro); setCampo("local_incidencia_ibs"); setSnapshot(null); setMostrarAjuda(false); }}
                       className="text-xs px-3 py-1.5 rounded-full border border-border hover:border-primary hover:bg-primary/5"
                     >
                       {c.label} <span className="text-muted-foreground font-mono ml-1">Art.11-{c.inciso}</span>
@@ -159,7 +158,7 @@ export default function FerramentasClassificacao() {
             {!isLoading && q && resultados.length === 0 && (
               <p className="text-sm text-muted-foreground">Nenhuma correspondência para "{q}".</p>
             )}
-            {resultados.length > 0 && <TabelaResultados resultados={resultados} />}
+            {resultados.length > 0 && <><p className="text-xs text-muted-foreground">{snapshot ? "Resultado salvo · " : encontrados.length + " correspondências · "} Exibindo {resultados.length}, ordenadas por relevância. Refine os termos para reduzir a lista.</p><TabelaResultados resultados={resultados} /></>}
           </TabsContent>
 
           <TabsContent value="lote" className="space-y-4 pt-4">
@@ -215,7 +214,7 @@ export default function FerramentasClassificacao() {
                               <span className="text-xs px-1.5 py-0.5 rounded bg-chart-2/15 text-chart-2">Encontrado</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-4 font-mono text-xs">{r.achados[0]?.c_class_trib || "—"}</td>
+                          <td className="py-2.5 px-4 font-mono text-xs">{r.achados.length > 1 ? "Revisar candidatos" : r.achados[0]?.c_class_trib || "Não informado na base"}</td>
                           <td className="py-2.5 px-4 text-muted-foreground max-w-[360px] truncate">
                             {r.achados[0]?.descricao_nbs || r.achados[0]?.descricao_item || "—"}
                           </td>
@@ -256,11 +255,11 @@ function TabelaResultados({ resultados }) {
                 <td className="py-2.5 px-4 text-muted-foreground max-w-[320px] truncate" title={r.descricao_nbs || r.descricao_item}>
                   {r.descricao_nbs || r.descricao_item || "—"}
                 </td>
-                <td className="py-2.5 px-4 font-mono text-xs">{r.ind_op || "—"}</td>
+                <td className="py-2.5 px-4 font-mono text-xs">{r.ind_op || "Não informado na base"}</td>
                 <td className="py-2.5 px-4 text-xs text-muted-foreground">{r.local_incidencia_ibs || "—"}</td>
                 <td className="py-2.5 px-4">
                   <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-accent/15" title={r.nome_class_trib}>
-                    {r.c_class_trib || "—"}
+                    {r.c_class_trib || "Não informado na base"}
                   </span>
                 </td>
               </tr>

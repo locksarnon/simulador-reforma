@@ -2,10 +2,12 @@ import React from "react";
 import { useParams, useLocation, Outlet, NavLink, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { LayoutDashboard, FileText, FileSearch, Trash2, Lock } from "lucide-react";
+import { LayoutDashboard, FileText, FileSearch, Trash2, Lock, Layers, History } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 
 const tabs = [
+  { label: "Serviços e análises", to: "servicos", icon: Layers },
+  { label: "Histórico", to: "historico", icon: History },
   { label: "Importação XML", to: "importacao-xml", icon: FileSearch },
   { label: "Operações", to: "operacoes", icon: FileText },
   { label: "Painel", to: "painel", icon: LayoutDashboard },
@@ -16,7 +18,7 @@ export default function EmpresaWorkroom() {
   const location = useLocation();
   const qc = useQueryClient();
 
-  const { data: grupo } = useQuery({
+  const { data: grupo, isLoading: grupoLoading } = useQuery({
     queryKey: ["grupo", grupoId],
     queryFn: () => base44.entities.Grupo.get(grupoId),
     enabled: !!grupoId,
@@ -53,7 +55,7 @@ export default function EmpresaWorkroom() {
     <div className="min-h-screen">
       <PageHeader
         crumbs={[
-          { label: "DataHub", to: "/" },
+          { label: "Grupos e empresas", to: "/" },
           { label: grupo?.nome || "Grupo", to: `/workroom/${grupoId}` },
           { label: isLoading ? "Carregando..." : (empresa?.razao_social || "Empresa") },
         ]}
@@ -71,7 +73,7 @@ export default function EmpresaWorkroom() {
       />
 
       <div className="border-b border-border bg-card px-6 lg:px-8">
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const bloqueado = tab.to === "painel" && !painelLiberado;
@@ -107,14 +109,14 @@ export default function EmpresaWorkroom() {
         </div>
       </div>
 
-      {estaNoPainel && isLoadingOperacoes ? (
+      {isLoading || grupoLoading ? <p className="p-6">Carregando empresa…</p> : !empresa || !grupo || empresa.grupo !== grupo.numero ? <p role="alert" className="p-6">Empresa não encontrada neste grupo.</p> : estaNoPainel && isLoadingOperacoes ? (
         <div className="p-12 flex items-center justify-center">
           <div className="w-6 h-6 border-4 border-border border-t-primary rounded-full animate-spin" />
         </div>
       ) : deveRedirecionarDoPainel ? (
         <Navigate to={`/workroom/${grupoId}/empresas/${empresaId}/importacao-xml`} replace />
       ) : (
-        <Outlet context={{ grupo, empresa }} />
+        <Outlet key={empresaId} context={{ grupo, empresa }} />
       )}
     </div>
   );

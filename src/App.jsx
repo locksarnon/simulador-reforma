@@ -28,7 +28,7 @@ import ConfiguracaoPage from '@/pages/ConfiguracaoPage';
 import ManualPage from '@/pages/ManualPage';
 import ArquiteturaPage from '@/pages/ArquiteturaPage';
 import FerramentasClassificacao from '@/pages/FerramentasClassificacao';
-import FerramentasCalculadora from '@/pages/FerramentasCalculadora';
+import EmpresaServicos from '@/pages/EmpresaServicos';
 import FerramentasArt11 from '@/pages/FerramentasArt11';
 import FerramentasNoticias from '@/pages/FerramentasNoticias';
 import RadarReformaPage from '@/pages/RadarReformaPage';
@@ -79,7 +79,12 @@ function App() {
                     <Route path="operacoes" element={<OperacoesPage />} />
                     <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
                     <Route path="empresas/:empresaId" element={<EmpresaWorkroom />}>
-                      <Route index element={<Navigate to="importacao-xml" replace />} />
+                      <Route index element={<EmpresaServicos />} />
+                      <Route path="servicos" element={<EmpresaServicos />} />
+                      <Route path="historico" element={<EmpresaServicos historico />} />
+                      <Route path="validador-cadastro" element={<FerramentasValidadorCadastro />} />
+                      <Route path="classificacao-servicos" element={<FerramentasClassificacao />} />
+                      <Route path="validador-nfse" element={<FerramentasValidadorNFSe />} />
                       <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
                       <Route path="operacoes" element={<OperacoesPage />} />
                       <Route path="painel" element={<EmpresaPainel />} />
@@ -89,14 +94,15 @@ function App() {
                   <Route path="/transicao" element={<TransicaoPage />} />
                   <Route path="/catalogos" element={<CatalogosPage />} />
                   <Route path="/configuracao" element={<ConfiguracaoPage />} />
-                  <Route path="/ferramentas/classificacao" element={<FerramentasClassificacao />} />
-                  <Route path="/ferramentas/calculadora" element={<FerramentasCalculadora />} />
-                  <Route path="/ferramentas/art-11" element={<FerramentasArt11 />} />
+                  <Route path="/ferramentas/classificacao" element={<Navigate to="/" replace />} />
+                  <Route path="/ferramentas/calculadora" element={<Navigate to="/calculadora" replace />} />
+                  <Route path="/ferramentas/art-11" element={<Navigate to="/base-legal/guia-art-11" replace />} />
+                  <Route path="/base-legal/guia-art-11" element={<FerramentasArt11 />} />
                   <Route path="/ferramentas/noticias" element={<FerramentasNoticias />} />
                   <Route path="/ferramentas/radar-reforma" element={<RadarReformaPage />} />
-                  <Route path="/ferramentas/validador-nfse" element={<FerramentasValidadorNFSe />} />
+                  <Route path="/ferramentas/validador-nfse" element={<Navigate to="/" replace />} />
                   <Route path="/ferramentas/consulta-ncm" element={<FerramentasConsultaNcm />} />
-                  <Route path="/ferramentas/validador-cadastro" element={<FerramentasValidadorCadastro />} />
+                  <Route path="/ferramentas/validador-cadastro" element={<Navigate to="/" replace />} />
                   <Route path="/comercial/leads" element={<LeadsPage />} />
                   <Route path="/comercial/newsletter" element={<NewsletterPage />} />
                   <Route path="/base-legal" element={<BaseLegalPage />} />

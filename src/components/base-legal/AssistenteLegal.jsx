@@ -96,7 +96,7 @@ function PerguntasRecentes() {
 }
 
 /** "Perguntas ao assistente": responde só com o texto das normas carregadas, sempre citando o dispositivo. */
-export default function AssistenteLegal({ admin }) {
+export default function AssistenteLegal({ admin, setor }) {
   const [pergunta, setPergunta] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
@@ -133,7 +133,7 @@ export default function AssistenteLegal({ admin }) {
       </div>
       {!resultado && !carregando && (
         <div className="flex flex-wrap gap-2 max-w-3xl">
-          {EXEMPLOS.map((e) => <button key={e} type="button" onClick={() => { setPergunta(e); perguntar(e); }} className="px-2.5 py-1 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted text-left">{e}</button>)}
+          {(setor?.perguntas || EXEMPLOS).map((e) => <button key={e} type="button" onClick={() => { setPergunta(e); perguntar(e); }} className="px-2.5 py-1 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted text-left">{e}</button>)}
         </div>
       )}
       {carregando && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Consultando as normas… pode levar até 30 segundos.</p>}
