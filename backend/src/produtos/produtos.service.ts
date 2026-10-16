@@ -1,4 +1,5 @@
-import { dataProduto, normalizarProduto, OPCOES_PADRAO, OpcoesValidacao } from './opcoes-validacao';
+import { normalizarProduto, OPCOES_PADRAO, OpcoesValidacao } from './opcoes-validacao';
+import { lerDataMovimento } from './data-movimento';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import { parse } from 'csv-parse/sync';
@@ -12,7 +13,7 @@ export type Mapeamento = Partial<Record<Campo, number | null>>;
 
 export const ROTULOS: Record<Campo, string> = {
   principio_ativo: 'Princípio ativo (inclua concentração e formulação)',
-  data_cadastro: 'Data de cadastro / movimento (para o corte)',
+  data_cadastro: 'Data da última movimentação ou do cadastro (para o corte)',
   grupo_contabil: 'Grupo contábil atual',
   codigo: 'Código do produto',
   descricao: 'Descrição',
@@ -25,7 +26,10 @@ export const ROTULOS: Record<Campo, string> = {
 /** Nomes de coluna (já normalizados) que cada ERP costuma usar. */
 const SINONIMOS: Record<Campo, string[]> = {
   principio_ativo: ['principioativo', 'ingredienteativo', 'composicao', 'ativo'],
-  data_cadastro: ['datacadastro', 'datamovimento', 'ultimomovimento', 'data', 'b1datref'],
+  // b1ucom (Protheus) e lastpurdat (SAP B1) são a data da última COMPRA — confirmado na documentação dos ERPs; nenhum dos dois é "última venda".
+  data_cadastro: ['datacadastro', 'datamovimento', 'ultimomovimento', 'data', 'b1datref', 'ultimamovimentacao', 'dataultimamovimentacao', 'dtultimamovimentacao',
+    'dtmovimento', 'dtultmov', 'ultmov', 'ultimavenda', 'dataultimavenda', 'dtultvenda', 'ultimacompra', 'dataultimacompra', 'dtultcompra', 'ultcompra',
+    'dataultimaentrada', 'dataultimasaida', 'b1ucom', 'lastpurdat'],
   grupo_contabil: ['grupocontabil', 'contacontabil', 'b1grupo', 'grupoproduto'],
   codigo: ['codigo', 'cod', 'codproduto', 'codprod', 'b1cod', 'itemcode', 'material', 'sku', 'referencia', 'codigoproduto', 'codigodoproduto', 'codigointerno', 'codigoitem'],
   descricao: ['descricao', 'desc', 'descrproduto', 'descrprod', 'b1desc', 'itemname', 'denominacao', 'nome', 'produto', 'descricaodoproduto', 'textobreve', 'descricaomaterial', 'descricaoproduto', 'descricaoitem'],
@@ -54,7 +58,12 @@ export type LinhaResultado = {
   sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null } | null;
   c_class_trib_informado: string;
   unidade: string; principio_ativo: string; grupo_contabil: string; candidatos_duplicidade: number[];
+  /** Data da coluna de movimentação/cadastro (AAAA-MM-DD), quando legível. */
+  ultima_mov: string | null;
+  /** Só com período: DENTRO, SEM_DATA ou DATA_INVALIDA (FORA não entra na análise; vai em `fora_periodo`). */
+  periodo: 'DENTRO' | 'SEM_DATA' | 'DATA_INVALIDA' | null;
 };
+export type ForaDoPeriodo = { linha: number; codigo: string; descricao: string; ncm_original: string; ultima_mov: string };
 
 @Injectable()
 export class ProdutosService {
@@ -189,12 +198,22 @@ export class ProdutosService {
     if ((opcoes.dataInicio || opcoes.dataFim) && mapa.data_cadastro == null) throw new BadRequestException('Mapeie a coluna de data para aplicar o período.');
     if (opcoes.principioAtivo && mapa.principio_ativo == null) throw new BadRequestException('Mapeie a coluna de princípio ativo.');
     if (opcoes.duplicidades && (mapa.descricao == null || mapa.unidade == null)) throw new BadRequestException('Mapeie descrição e unidade para analisar duplicidades.');
-    const selecionadas = origem.filter(({ l, linha }) => {
-      if (!opcoes.dataInicio && !opcoes.dataFim) return true;
-      const d = dataProduto(g(l, 'data_cadastro'));
-      if (!d) throw new BadRequestException('Data ausente ou inválida na linha ' + linha + '. Use dd/mm/aaaa ou aaaa-mm-dd.');
-      return (!opcoes.dataInicio || d >= opcoes.dataInicio) && (!opcoes.dataFim || d <= opcoes.dataFim);
+    // Período: quem tem data fora da janela sai da análise (e vai para `fora_periodo`). Quem não tem data legível
+    // CONTINUA na análise, sinalizado — uma data em branco numa base de 50 mil linhas não pode derrubar a validação
+    // nem fazer um produto ativo sumir.
+    const periodoAtivo = Boolean(opcoes.dataInicio || opcoes.dataFim);
+    const classificadas = origem.map(({ l, linha }) => {
+      if (!periodoAtivo) return { l, linha, data: null as string | null, bruto: '', periodo: null as LinhaResultado['periodo'] | 'FORA' };
+      const bruto = g(l, 'data_cadastro');
+      const lida = lerDataMovimento(bruto);
+      const dentro = lida.data !== null && (!opcoes.dataInicio || lida.data >= opcoes.dataInicio) && (!opcoes.dataFim || lida.data <= opcoes.dataFim);
+      const periodo: LinhaResultado['periodo'] | 'FORA' = lida.data ? (dentro ? 'DENTRO' : 'FORA') : lida.invalida ? 'DATA_INVALIDA' : 'SEM_DATA';
+      return { l, linha, data: lida.data, bruto, periodo };
     });
+    const selecionadas = classificadas.filter((x) => x.periodo !== 'FORA');
+    const foraDoPeriodo: ForaDoPeriodo[] = classificadas.filter((x) => x.periodo === 'FORA').map((x) => ({
+      linha: x.linha, codigo: g(x.l, 'codigo'), descricao: g(x.l, 'descricao'), ncm_original: g(x.l, 'ncm'), ultima_mov: x.data as string,
+    }));
     const linhas = selecionadas.map(x => x.l);
 
     const [{ lista, classes }, ncmRows] = await Promise.all([
@@ -305,11 +324,24 @@ export class ProdutosService {
         }
       }
 
+      const periodo = selecionadas[i].periodo === 'FORA' ? null : selecionadas[i].periodo;
+      if (periodo === 'DATA_INVALIDA') problemas.push({ codigo: 'DATA_INVALIDA', severidade: 'alerta', mensagem: `Data "${selecionadas[i].bruto}" não reconhecida (esperado dia/mês/ano); mantido na análise.` });
+      if (periodo === 'SEM_DATA') problemas.push({ codigo: 'SEM_DATA_MOVIMENTO', severidade: 'info', mensagem: 'Sem data de movimentação; mantido na análise por segurança.' });
+
       const situacao: LinhaResultado['situacao'] = problemas.some((x) => x.severidade === 'erro') ? 'ERRO' : problemas.some((x) => x.severidade === 'alerta') ? 'ALERTA' : 'OK';
-      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado };
+      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
     });
 
     const resumo = {
+      periodo: periodoAtivo
+        ? {
+            inicio: opcoes.dataInicio, fim: opcoes.dataFim, base: origem.length,
+            dentro: resultado.filter((r) => r.periodo === 'DENTRO').length,
+            fora: foraDoPeriodo.length,
+            sem_data: resultado.filter((r) => r.periodo === 'SEM_DATA').length,
+            data_invalida: resultado.filter((r) => r.periodo === 'DATA_INVALIDA').length,
+          }
+        : null,
       total: resultado.length,
       ok: resultado.filter((r) => r.situacao === 'OK').length,
       alerta: resultado.filter((r) => r.situacao === 'ALERTA').length,
@@ -322,7 +354,7 @@ export class ProdutosService {
         resultado.flatMap((r) => r.problemas).reduce<Record<string, number>>((a, pb) => ((a[pb.codigo] = (a[pb.codigo] || 0) + 1), a), {}),
       ).sort((a, b) => b[1] - a[1]).map(([codigo, qtd]) => ({ codigo, qtd })),
     };
-    return { mapeamento: mapa, opcoes, resumo, itens: resultado, avisos: [
+    return { mapeamento: mapa, opcoes, resumo, itens: resultado, fora_periodo: foraDoPeriodo, avisos: [
       ...(opcoes.erps.length ? ['ERPs registrados como contexto. Não foram aplicadas regras específicas de ERP sem um perfil homologado.'] : []),
       ...(opcoes.gruposContabeis ? ['Sugestões contábeis pendentes: informe o plano de contas e regras da empresa. O grupo atual foi preservado.'] : []),
       ...(opcoes.duplicidades ? ['Duplicidades são candidatos para revisão. Princípio ativo deve incluir concentração e formulação; não substitui a decisão sobre o cadastro.'] : []),
@@ -336,6 +368,9 @@ export class ProdutosService {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX — FAL Agro';
     const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const per = r.resumo.periodo;
+    const dataBr = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+    const ROT_PERIODO = { DENTRO: 'Dentro', SEM_DATA: 'Sem data', DATA_INVALIDA: 'Data inválida' } as const;
     ws.columns = [
       { header: 'Linha', key: 'linha', width: 8 },
       { header: 'Código', key: 'codigo', width: 16 },
@@ -353,10 +388,15 @@ export class ProdutosService {
       { header: 'Princípio ativo', key: 'principio_ativo', width: 35 },
       { header: 'Grupo contábil atual', key: 'grupo_contabil', width: 22 },
       { header: 'Linhas para revisão de duplicidade', key: 'candidatos', width: 35 },
+      ...(per ? [
+        { header: 'Última movimentação', key: 'ultima_mov', width: 20 },
+        { header: 'No período', key: 'periodo', width: 16 },
+      ] : []),
     ];
     const cor = { OK: 'FFE8F5E9', ALERTA: 'FFFFF8E1', ERRO: 'FFFDECEA' } as const;
     r.itens.forEach((it) => {
       const row = ws.addRow({
+        ultima_mov: dataBr(it.ultima_mov), periodo: it.periodo ? ROT_PERIODO[it.periodo] : '',
         unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.join(', '),
         linha: it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,
         situacao: it.situacao === 'OK' ? 'OK' : it.situacao === 'ALERTA' ? 'Atenção' : 'Corrigir',
@@ -370,7 +410,21 @@ export class ProdutosService {
     const cab = ws.getRow(1);
     cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-    ws.autoFilter = { from: 'A1', to: 'P1' };
+    ws.autoFilter = { from: 'A1', to: per ? 'R1' : 'P1' };
+
+    // Quem não movimentou no período não entra no saneamento: vai para aba própria (candidatos a inativar no ERP).
+    if (per && r.fora_periodo.length) {
+      const fora = wb.addWorksheet('Sem movimento no período', { views: [{ state: 'frozen', ySplit: 1 }] });
+      fora.columns = [
+        { header: 'Linha', key: 'linha', width: 8 }, { header: 'Código', key: 'codigo', width: 16 }, { header: 'Descrição', key: 'descricao', width: 44 },
+        { header: 'NCM informado', key: 'ncm', width: 16, style: { numFmt: '@' } }, { header: 'Última movimentação', key: 'mov', width: 20 },
+      ];
+      r.fora_periodo.forEach((f) => fora.addRow({ linha: f.linha, codigo: f.codigo, descricao: f.descricao, ncm: f.ncm_original, mov: dataBr(f.ultima_mov) }));
+      const cabF = fora.getRow(1);
+      cabF.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cabF.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
+      fora.autoFilter = { from: 'A1', to: 'E1' };
+    }
 
     if (excluir.length) {
       const exclusoes = new Set(excluir);
@@ -389,7 +443,16 @@ export class ProdutosService {
     rs.columns = [{ width: 44 }, { width: 16 }];
     rs.addRows([
       ['Resumo da validação de cadastro', ''],
-      ['Produtos analisados', r.resumo.total],
+      ...(per ? [
+        ['Período de movimentação', `${per.inicio ? dataBr(per.inicio) : '…'} a ${per.fim ? dataBr(per.fim) : '…'}`],
+        ['Produtos na base enviada', per.base],
+        ['Movimentaram no período', per.dentro],
+        ['Sem movimento no período (aba própria)', per.fora],
+        ['Sem data de movimentação (mantidos na análise)', per.sem_data],
+        ['Data não reconhecida (mantidos na análise)', per.data_invalida],
+        ['', ''],
+      ] : []),
+      [per ? 'Produtos no escopo do saneamento' : 'Produtos analisados', r.resumo.total],
       ['Sem problemas', r.resumo.ok],
       ['Com atenção', r.resumo.alerta],
       ['A corrigir', r.resumo.erro],
