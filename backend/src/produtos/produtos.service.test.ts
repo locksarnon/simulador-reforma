@@ -137,3 +137,29 @@ describe('grupos pelo uso do próprio cliente (certeza alta)', () => {
     await expect(comBase.validar(file('Codigo;Descricao;NCM\nA;x;84713012'), undefined, undefined, opcG)).rejects.toThrow('grupo de produto');
   });
 });
+
+describe('comparativo de duplicidade', () => {
+  it('encontra abreviação, grafia errada e ordem diferente, com nota, motivos, grupo e mestre; não funde doses diferentes', async () => {
+    const f = file([
+      'Codigo;Descricao;NCM;Unidade;EAN',
+      'A;Fertilizante Superfosfato Simples 50kg;31031100;KG;',
+      'B;Fert. Superfosfato Simples Saco 50 Kg;31031100;KG;',
+      'C;SUPERFOSFATO SIMPLES FERTILIZANTE 50 KG;31031100;KG;',
+      'D;Herbicida Glifosato 480 g/L 20L;38089329;L;',
+      'E;Herbicida Glifosto 480 g/L 20 L;38089329;L;',
+      'F;Herbicida Glifosato 360 g/L 20L;38089329;L;',
+      'G;Arroz agulhinha tipo 1 5kg;10063021;KG;',
+    ].join('\n'));
+    const r = await service.validar(f, undefined, undefined, opcoes);
+    const [a, b, c, d, e, ff, g2] = r.itens;
+    expect(a.candidatos_duplicidade).toEqual(expect.arrayContaining([3, 4]));
+    expect(a.duplicidade?.grupo).not.toBeNull();
+    expect(a.duplicidade?.candidatos.every((x) => x.motivos.length > 0)).toBe(true);
+    expect(new Set([a.duplicidade?.grupo, b.duplicidade?.grupo, c.duplicidade?.grupo]).size).toBe(1);
+    expect(d.candidatos_duplicidade).toContain(6);
+    expect(d.candidatos_duplicidade).not.toContain(7);
+    expect(ff.candidatos_duplicidade).toEqual([]);
+    expect(g2.duplicidade).toBeNull();
+    expect(a.problemas.some((p) => /DUPLICIDADE/.test(p.codigo))).toBe(true);
+  });
+});

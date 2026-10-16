@@ -1,5 +1,6 @@
 import { normalizarProduto, OPCOES_PADRAO, OpcoesValidacao } from './opcoes-validacao';
 import { lerDataMovimento } from './data-movimento';
+import { detectarDuplicidades, NivelDup } from './duplicidade';
 import { chavePlano, montarPlanoContas, PlanoContas } from './plano-contas';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
@@ -8,15 +9,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
 import { avaliarNcm, compararComDeclarado, referenciasNcm, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
 
-export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto'] as const;
+export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto', 'codigo_barras'] as const;
 export type Campo = (typeof CAMPOS)[number];
 export type Mapeamento = Partial<Record<Campo, number | null>>;
 
+const ROT_NIVEL_DUP: Record<NivelDup, string> = { EXATA: 'Idêntico', MUITO_PROVAVEL: 'Muito provável', POSSIVEL: 'Possível' };
 export const ROTULOS: Record<Campo, string> = {
   principio_ativo: 'Princípio ativo (inclua concentração e formulação)',
   data_cadastro: 'Data da última movimentação ou do cadastro (para o corte)',
   grupo_contabil: 'Grupo contábil atual',
   grupo_produto: 'Grupo de produto atual (opcional)',
+  codigo_barras: 'Código de barras / EAN (opcional — reforça a busca de duplicados)',
   codigo: 'Código do produto',
   descricao: 'Descrição',
   ncm: 'NCM',
@@ -34,6 +37,7 @@ const SINONIMOS: Record<Campo, string[]> = {
     'dataultimaentrada', 'dataultimasaida', 'b1ucom', 'lastpurdat'],
   grupo_contabil: ['grupocontabil', 'contacontabil'],
   // B1_GRUPO (Protheus) e "grupo do produto" são grupo de PRODUTO, não conta contábil.
+  codigo_barras: ['codigobarras', 'codbarras', 'codbar', 'ean', 'ean13', 'gtin', 'codigoean', 'b1codbar', 'eancode', 'codebars'],
   grupo_produto: ['grupoproduto', 'grupodoproduto', 'b1grupo', 'grupo', 'itmsgrpcod', 'familia'],
   codigo: ['codigo', 'cod', 'codproduto', 'codprod', 'b1cod', 'itemcode', 'material', 'sku', 'referencia', 'codigoproduto', 'codigodoproduto', 'codigointerno', 'codigoitem'],
   descricao: ['descricao', 'desc', 'descrproduto', 'descrprod', 'b1desc', 'itemname', 'denominacao', 'nome', 'produto', 'descricaodoproduto', 'textobreve', 'descricaomaterial', 'descricaoproduto', 'descricaoitem'],
@@ -62,6 +66,8 @@ export type LinhaResultado = {
   sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null; padrao?: boolean; referencia?: boolean } | null;
   c_class_trib_informado: string;
   unidade: string; principio_ativo: string; grupo_contabil: string; candidatos_duplicidade: number[];
+  /** Comparativo de duplicidade: nível, grupo de variantes, cadastro mestre sugerido e, por candidato, a nota e os motivos da correspondência. */
+  duplicidade: { nivel: NivelDup; score: number; grupo: number | null; mestre: number | null; candidatos: { linha: number; score: number; nivel: NivelDup; motivos: string[] }[] } | null;
   /** Grupo de produto: como é (coluna do cliente), como deveria (por tratamento tributário) e flag. */
   grupo_atual: string; grupo_sugerido: string | null; grupo_flag: FlagComparacao | null; grupo_evidencia: string | null;
   /** Conta contábil: atual = `grupo_contabil`; sugerida só vem do de-para do cliente. */
@@ -242,7 +248,7 @@ export class ProdutosService {
     if (opcoes.gruposContabeis && mapa.grupo_contabil == null) throw new BadRequestException('Mapeie a coluna do grupo/conta contábil atual para a análise contábil.');
     if (opcoes.grupos && mapa.grupo_produto == null) throw new BadRequestException('Mapeie a coluna do grupo de produto: a sugestão de grupo usa os grupos que o próprio cliente já tem na planilha.');
     if (opcoes.principioAtivo && mapa.principio_ativo == null) throw new BadRequestException('Mapeie a coluna de princípio ativo.');
-    if (opcoes.duplicidades && (mapa.descricao == null || mapa.unidade == null)) throw new BadRequestException('Mapeie descrição e unidade para analisar duplicidades.');
+    if (opcoes.duplicidades && mapa.descricao == null) throw new BadRequestException('Mapeie a descrição para analisar duplicidades (a unidade é recomendada: sem ela, só há sinalização "possível").');
     // Período: quem tem data fora da janela sai da análise (e vai para `fora_periodo`). Quem não tem data legível
     // CONTINUA na análise, sinalizado — uma data em branco numa base de 50 mil linhas não pode derrubar a validação
     // nem fazer um produto ativo sumir.
@@ -276,13 +282,10 @@ export class ProdutosService {
       if (dn.length > 1) cont.descNcm.set(dn, (cont.descNcm.get(dn) || 0) + 1);
     });
 
-    // Índice invertido limita candidatos; nunca compara todos os pares de 50 mil itens.
-    const indice = new Map<string, number[]>();
-    const termos = linhas.map(l => normalizarProduto(g(l, 'descricao')).split(' ').filter(t => t.length > 2));
-    termos.forEach((ts, i) => { for (const t of new Set(ts)) { const k = normalizarProduto(g(linhas[i], 'unidade')) + '|' + t; const a = indice.get(k) || []; a.push(i); indice.set(k, a); } });
-    const exatos = new Map<string, number[]>();
-    const chaveExata = (l: string[]) => normalizarProduto(g(l, 'descricao')) + '|' + normalizarProduto(g(l, 'unidade'));
-    linhas.forEach((l, i) => { if (g(l, 'descricao') && g(l, 'unidade')) { const a = exatos.get(chaveExata(l)) || []; a.push(i); exatos.set(chaveExata(l), a); } });
+    // Detecção de duplicados: compara tudo com tudo de forma inteligente (abreviações, grafia, truncamento, ordem, medidas equivalentes) sem varrer todos os pares.
+    const dups = opcoes.duplicidades
+      ? detectarDuplicidades(linhas.map((l) => ({ descricao: g(l, 'descricao'), unidade: g(l, 'unidade'), ncm: soDigitos(g(l, 'ncm')), principio: g(l, 'principio_ativo'), barras: soDigitos(g(l, 'codigo_barras')), codigo: g(l, 'codigo') })), { exigirPrincipio: opcoes.principioAtivo })
+      : [];
     // Uso real de grupos por NCM (só itens que JÁ têm grupo informado). Usado para sugerir grupo a quem difere ou está sem grupo.
     const chaveNcm = (l: string[]) => {
       let d = soDigitos(g(l, 'ncm'));
@@ -339,29 +342,19 @@ export class ProdutosService {
       }
       const unidade = g(l, 'unidade');
       const principio_ativo = g(l, 'principio_ativo');
-      const candidatos = new Set<number>();
-      if (opcoes.duplicidades && descricao && unidade) {
-        for (const j of (exatos.get(chaveExata(l)) || []).slice(0, 21)) if (j !== i) candidatos.add(j);
-        for (const t of termos[i]) for (const j of (indice.get(normalizarProduto(unidade) + '|' + t) || []).slice(0, 250)) candidatos.add(j);
+      const rd = dups[i];
+      const candidatos_duplicidade: number[] = rd ? rd.candidatos.map((c) => selecionadas[c.idx].linha) : [];
+      let duplicidade: LinhaResultado['duplicidade'] = null;
+      if (rd && rd.candidatos.length) {
+        const melhor = rd.candidatos[0];
+        duplicidade = {
+          nivel: melhor.nivel, score: melhor.score, grupo: rd.grupo, mestre: rd.mestre === null ? null : selecionadas[rd.mestre].linha,
+          candidatos: rd.candidatos.map((c) => ({ linha: selecionadas[c.idx].linha, score: c.score, nivel: c.nivel, motivos: c.motivos })),
+        };
+        const rotulo = { EXATA: 'Cadastro com a mesma descrição e unidade', MUITO_PROVAVEL: 'Cadastro muito provavelmente duplicado', POSSIVEL: 'Cadastro possivelmente duplicado' }[melhor.nivel];
+        const codigoProblema = { EXATA: 'DUPLICIDADE_EXATA', MUITO_PROVAVEL: 'DUPLICIDADE_PROVAVEL', POSSIVEL: 'POSSIVEL_DUPLICIDADE' }[melhor.nivel];
+        problemas.push({ codigo: codigoProblema, severidade: 'alerta', mensagem: `${rotulo} — revisar linhas ${candidatos_duplicidade.join(', ')} (melhor correspondência ${Math.round(melhor.score * 100)}%: ${melhor.motivos.slice(0, 3).join('; ')}).${opcoes.principioAtivo ? ' Princípio ativo coincidente.' : ''} Nenhum cadastro foi excluído.` });
       }
-      const candidatos_duplicidade: number[] = [];
-      let exata = false;
-      for (const j of candidatos) {
-        if (j === i) continue;
-        const outro = linhas[j];
-        const paOutro = g(outro, 'principio_ativo');
-        if (opcoes.principioAtivo && (!principio_ativo || !paOutro || normalizarProduto(principio_ativo) !== normalizarProduto(paOutro))) continue;
-        const igual = chaveExata(l) === chaveExata(outro);
-        const a = new Set(termos[i]); const b = new Set(termos[j]);
-        const inter = [...a].filter(t => b.has(t)).length;
-        const similar = inter / Math.max(1, new Set([...a, ...b]).size);
-        // Números diferentes (concentração, dose, embalagem) impedem sugestão aproximada.
-        const nums = (s: string) => (s.match(/\d+(?:[.,]\d+)?/g) || []).join('|');
-        if (!igual && (similar < 0.65 || nums(descricao) !== nums(g(outro, 'descricao')))) continue;
-        candidatos_duplicidade.push(selecionadas[j].linha); exata ||= igual;
-        if (candidatos_duplicidade.length >= 20) break;
-      }
-      if (candidatos_duplicidade.length) problemas.push({ codigo: exata ? 'DUPLICIDADE_EXATA' : 'POSSIVEL_DUPLICIDADE', severidade: 'alerta', mensagem: (exata ? 'Descrição e unidade iguais' : 'Descrição semelhante e mesma unidade') + ' — revisar linhas ' + candidatos_duplicidade.join(', ') + (opcoes.principioAtivo ? '; princípio ativo coincidente' : '') + '. Nenhum cadastro foi excluído.' });
 
       let sugestao: LinhaResultado['sugestao'] = null;
       if (opcoes.cClassTrib && ncm.length === 8) {
@@ -458,7 +451,7 @@ export class ProdutosService {
       if (periodo === 'SEM_DATA') problemas.push({ codigo: 'SEM_DATA_MOVIMENTO', severidade: 'info', mensagem: 'Sem data de movimentação; mantido na análise por segurança.' });
 
       const situacao: LinhaResultado['situacao'] = problemas.some((x) => x.severidade === 'erro') ? 'ERRO' : problemas.some((x) => x.severidade === 'alerta') ? 'ALERTA' : 'OK';
-      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, grupo_evidencia, conta_sugerida, conta_flag, candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
+      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, grupo_evidencia, conta_sugerida, conta_flag, candidatos_duplicidade, duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
     });
 
     const resumo = {
@@ -522,6 +515,11 @@ export class ProdutosService {
       { header: 'Princípio ativo', key: 'principio_ativo', width: 35 },
       { header: 'Grupo contábil atual', key: 'grupo_contabil', width: 22 },
       { header: 'Linhas para revisão de duplicidade', key: 'candidatos', width: 35 },
+      { header: 'Duplicidade: nível', key: 'dup_nivel', width: 18 },
+      { header: 'Duplicidade: nota', key: 'dup_nota', width: 12 },
+      { header: 'Duplicidade: motivos da melhor correspondência', key: 'dup_motivos', width: 60 },
+      { header: 'Grupo de duplicados', key: 'dup_grupo', width: 14 },
+      { header: 'Cadastro mestre sugerido (linha)', key: 'dup_mestre', width: 20 },
       ...(r.opcoes.grupos ? [
         { header: 'Grupo atual', key: 'grupo_atual', width: 26 }, { header: 'Grupo sugerido (uso do cliente)', key: 'grupo_sugerido', width: 34 }, { header: 'Flag grupo', key: 'grupo_flag', width: 18 }, { header: 'Evidência do grupo', key: 'grupo_evidencia', width: 60 },
       ] : []),
@@ -540,6 +538,9 @@ export class ProdutosService {
         grupo_atual: it.grupo_atual, grupo_sugerido: it.grupo_sugerido ?? '', grupo_flag: it.grupo_flag ? ROT_FLAG[it.grupo_flag] : '', grupo_evidencia: it.grupo_evidencia ?? '',
         conta_sugerida: it.conta_sugerida ?? '', conta_flag: it.conta_flag ? ROT_FLAG[it.conta_flag] : '',
         unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.join(', '),
+        dup_nivel: it.duplicidade ? ROT_NIVEL_DUP[it.duplicidade.nivel] : '', dup_nota: it.duplicidade ? `${Math.round(it.duplicidade.score * 100)}%` : '',
+        dup_motivos: it.duplicidade ? (it.duplicidade.candidatos[0]?.motivos ?? []).join('; ') : '', dup_grupo: it.duplicidade?.grupo != null ? `G${it.duplicidade.grupo + 1}` : '',
+        dup_mestre: it.duplicidade?.mestre != null ? (it.duplicidade.mestre === it.linha ? 'este item' : it.duplicidade.mestre) : '',
         linha: it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,
         situacao: it.situacao === 'OK' ? 'OK' : it.situacao === 'ALERTA' ? 'Atenção' : 'Corrigir',
         problemas: it.problemas.filter((p) => p.severidade !== 'info' || p.codigo === 'CLASSE_SUGERIDA').map((p) => p.mensagem).join(' | '),

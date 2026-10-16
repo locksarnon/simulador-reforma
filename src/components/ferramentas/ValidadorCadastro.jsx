@@ -6,13 +6,14 @@ import { SlidersHorizontal, UploadCloud, FileSpreadsheet, Copy, Check, Download,
 import { api } from "@/api/base44Client";
 import LeadForm from "@/components/ferramentas/LeadForm";
 import AnexoLeiPainel from "@/components/ferramentas/AnexoLeiPainel";
+import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
 import HistoricoValidacoes from "@/components/ferramentas/HistoricoValidacoes";
 import { useQueryClient } from "@tanstack/react-query";
 
 const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cClassTrib"];
 
 const ROTULO_PROBLEMA = {
-  DUPLICIDADE_EXATA: "Descrição e unidade iguais", POSSIVEL_DUPLICIDADE: "Possível duplicidade",
+  DUPLICIDADE_EXATA: "Descrição e unidade iguais", DUPLICIDADE_PROVAVEL: "Duplicidade muito provável", POSSIVEL_DUPLICIDADE: "Possível duplicidade",
   NCM_AUSENTE: "NCM ausente", NCM_FORMATO: "NCM com formato errado", NCM_INEXISTENTE: "NCM inexistente", NCM_INATIVO: "NCM não vigente",
   NCM_ZERO_RESTAURADO: "Zero à esquerda corrigido", NCM_CHAVE_SAP: "NCM é código interno do SAP", DATA_INVALIDA: "Data de movimentação não reconhecida", SEM_DATA_MOVIMENTO: "Sem data de movimentação", CODIGO_AUSENTE: "Sem código", DESCRICAO_AUSENTE: "Sem descrição",
   CODIGO_DUPLICADO: "Código duplicado", PRODUTO_DUPLICADO: "Produto duplicado", CLASSE_SUGERIDA: "Classificação sugerida",
@@ -34,7 +35,7 @@ const ABAS = [
   { id: "TODOS", titulo: "Todos os itens (sem segregação)", testa: () => true },
   { id: "REGULARES_CLASSE", titulo: "100% regulares com cClassTrib identificado", testa: (i) => i.situacao === "OK" && !!i.sugestao?.c_class_trib },
   { id: "REGULARES", titulo: "100% regulares", testa: (i) => i.situacao === "OK" },
-  { id: "DUPLICADOS", titulo: "Duplicados para crítica", testa: tem("DUPLICIDADE_EXATA", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO") },
+  { id: "DUPLICADOS", titulo: "Duplicados para crítica", testa: tem("DUPLICIDADE_EXATA", "DUPLICIDADE_PROVAVEL", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO") },
   { id: "NCM", titulo: "NCM a corrigir", testa: tem("NCM_AUSENTE", "NCM_CHAVE_SAP", "NCM_FORMATO", "NCM_INEXISTENTE", "NCM_INATIVO") },
   { id: "AUTO", titulo: "Corrigidos automaticamente", testa: tem("NCM_ZERO_RESTAURADO") },
   { id: "CLASSE", titulo: "cClassTrib a revisar", testa: tem("BENEFICIO_POSSIVELMENTE_PERDIDO", "REDUCAO_MAIOR_QUE_ESPERADO", "SEM_AMPARO_NO_ANEXO", "CLASSE_DIVERGENTE", "AMBIGUO_REVISAR") },
@@ -131,6 +132,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const [rascunhoId, setRascunhoId] = useState(null);
   const [autosave, setAutosave] = useState(null);
   const [plano, setPlano] = useState(null);
+  const [comparativo, setComparativo] = useState(null); // item cujo comparativo de duplicidade está aberto
   const [baseLeiAberta, setBaseLeiAberta] = useState(null); // ex.: "Anexo IX, item 2" — painel lateral do anexo
   const idAuto = !publico ? (resultado?.validacao_id || rascunhoId) : null;
   const [porPagina, setPorPagina] = useState(100);
@@ -332,7 +334,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   // ── Etapa 2: conferir colunas ──
   if (etapa === "colunas" && previa) {
     const tem = k => mapa[k] !== null && mapa[k] !== undefined && mapa[k] !== "";
-    const obrigatoriosOk = tem("ncm") && (publico || ((!opcoes.duplicidades || (tem("descricao") && tem("unidade"))) && (!opcoes.principioAtivo || tem("principio_ativo")) && (!opcoes.grupos || tem("grupo_produto")) && (!opcoes.gruposContabeis || tem("grupo_contabil")) && (!(opcoes.dataInicio || opcoes.dataFim) || tem("data_cadastro"))));
+    const obrigatoriosOk = tem("ncm") && (publico || ((!opcoes.duplicidades || tem("descricao")) && (!opcoes.principioAtivo || tem("principio_ativo")) && (!opcoes.grupos || tem("grupo_produto")) && (!opcoes.gruposContabeis || tem("grupo_contabil")) && (!(opcoes.dataInicio || opcoes.dataFim) || tem("data_cadastro"))));
     const indicesMapeados = new Set(Object.values(mapa).filter((v) => v !== null && v !== undefined && v !== ""));
     return (
       <div className="space-y-5">
@@ -532,7 +534,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
                     <td className={`${cel} font-mono`}>{i.ncm_original || "—"}</td>
                     <td className={`${cel} font-mono ${ncmMudou ? "text-emerald-700 dark:text-emerald-400 font-semibold" : ""}`}>{i.ncm || "—"}</td>
                     <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_SIT[i.situacao]}`}>{ROT_SIT[i.situacao]}</span></td>
-                    <td className={`${cel} ${temErro ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}`}>{problemas.length ? problemas.map((p) => p.mensagem).join(" | ") : "—"}</td>
+                    <td className={`${cel} ${temErro ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}`}>{problemas.length ? problemas.map((p) => p.mensagem).join(" | ") : "—"}{i.duplicidade && <button type="button" onClick={() => setComparativo(i)} className="ml-2 text-primary underline underline-offset-2 hover:opacity-80 whitespace-nowrap">Comparar</button>}</td>
                     <td className={`${cel} font-mono`}>{i.c_class_trib_informado || "—"}</td>
                     <td className={`${cel} font-mono font-semibold`}>{sug ? sug.c_class_trib : i.sugestao?.referencia ? <span className="font-sans font-normal text-amber-700" title="NCM em capítulo/posição citado por anexo: o enquadramento depende dos requisitos do item. Nenhuma classe foi sugerida.">Revisar</span> : i.sugestao?.ambiguo ? <span className="font-sans font-normal text-amber-700">Depende do produto</span> : "—"}</td>
                     <td className={`${cel} text-right tabular-nums`}>{sug ? `${Math.round(sug.reducao * 100)}%` : "—"}</td>
@@ -578,6 +580,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
           </div>
         )}
 
+        <ComparativoDuplicidade item={comparativo} itens={resultado.itens} excluir={excluir} setExcluir={setExcluir} podeExcluir={!publico && !!arquivo} onFechar={() => setComparativo(null)} />
         <AnexoLeiPainel baseLei={baseLeiAberta} onFechar={() => setBaseLeiAberta(null)} />
 
         {bloqueado && resultado.detalhes_bloqueados && (
