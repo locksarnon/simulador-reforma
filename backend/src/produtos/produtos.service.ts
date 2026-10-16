@@ -1,5 +1,6 @@
 import { normalizarProduto, OPCOES_PADRAO, OpcoesValidacao } from './opcoes-validacao';
 import { lerDataMovimento } from './data-movimento';
+import { chavePlano, montarPlanoContas, PlanoContas } from './plano-contas';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import { parse } from 'csv-parse/sync';
@@ -7,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
 import { avaliarNcm, compararComDeclarado, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
 
-export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil'] as const;
+export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto'] as const;
 export type Campo = (typeof CAMPOS)[number];
 export type Mapeamento = Partial<Record<Campo, number | null>>;
 
@@ -15,6 +16,7 @@ export const ROTULOS: Record<Campo, string> = {
   principio_ativo: 'Princípio ativo (inclua concentração e formulação)',
   data_cadastro: 'Data da última movimentação ou do cadastro (para o corte)',
   grupo_contabil: 'Grupo contábil atual',
+  grupo_produto: 'Grupo de produto atual (opcional)',
   codigo: 'Código do produto',
   descricao: 'Descrição',
   ncm: 'NCM',
@@ -30,7 +32,9 @@ const SINONIMOS: Record<Campo, string[]> = {
   data_cadastro: ['datacadastro', 'datamovimento', 'ultimomovimento', 'data', 'b1datref', 'ultimamovimentacao', 'dataultimamovimentacao', 'dtultimamovimentacao',
     'dtmovimento', 'dtultmov', 'ultmov', 'ultimavenda', 'dataultimavenda', 'dtultvenda', 'ultimacompra', 'dataultimacompra', 'dtultcompra', 'ultcompra',
     'dataultimaentrada', 'dataultimasaida', 'b1ucom', 'lastpurdat'],
-  grupo_contabil: ['grupocontabil', 'contacontabil', 'b1grupo', 'grupoproduto'],
+  grupo_contabil: ['grupocontabil', 'contacontabil'],
+  // B1_GRUPO (Protheus) e "grupo do produto" são grupo de PRODUTO, não conta contábil.
+  grupo_produto: ['grupoproduto', 'grupodoproduto', 'b1grupo', 'grupo', 'itmsgrpcod', 'familia'],
   codigo: ['codigo', 'cod', 'codproduto', 'codprod', 'b1cod', 'itemcode', 'material', 'sku', 'referencia', 'codigoproduto', 'codigodoproduto', 'codigointerno', 'codigoitem'],
   descricao: ['descricao', 'desc', 'descrproduto', 'descrprod', 'b1desc', 'itemname', 'denominacao', 'nome', 'produto', 'descricaodoproduto', 'textobreve', 'descricaomaterial', 'descricaoproduto', 'descricaoitem'],
   ncm: ['ncm', 'ncmcode', 'b1posipi', 'posipi', 'steuc', 'classificacaofiscal', 'codigoncm', 'ncmsh', 'posicaoipi', 'nbm', 'classfiscal', 'codncm'],
@@ -58,11 +62,43 @@ export type LinhaResultado = {
   sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null; padrao?: boolean } | null;
   c_class_trib_informado: string;
   unidade: string; principio_ativo: string; grupo_contabil: string; candidatos_duplicidade: number[];
+  /** Grupo de produto: como é (coluna do cliente), como deveria (por tratamento tributário) e flag. */
+  grupo_atual: string; grupo_sugerido: string | null; grupo_flag: FlagComparacao | null;
+  /** Conta contábil: atual = `grupo_contabil`; sugerida só vem do de-para do cliente. */
+  conta_sugerida: string | null; conta_flag: FlagComparacao | null;
   /** Data da coluna de movimentação/cadastro (AAAA-MM-DD), quando legível. */
   ultima_mov: string | null;
   /** Só com período: DENTRO, SEM_DATA ou DATA_INVALIDA (FORA não entra na análise; vai em `fora_periodo`). */
   periodo: 'DENTRO' | 'SEM_DATA' | 'DATA_INVALIDA' | null;
 };
+export type FlagComparacao = 'IGUAL' | 'DIFERENTE' | 'SEM_ATUAL' | 'SEM_SUGESTAO' | 'SEM_REGRA' | 'SEM_PLANO';
+const igualTexto = (a: string, b: string) => normalizarProduto(a) === normalizarProduto(b);
+/** Grupo "como deveria": agrupa pelo tratamento tributário (classe sugerida), nunca por palavra da descrição. */
+function grupoSugeridoDe(sug: LinhaResultado['sugestao'], classes: Map<string, { descricao_oficial?: string | null }>): string | null {
+  if (!sug?.c_class_trib) return null;
+  if (sug.padrao) return 'Tributação integral (padrão IBS/CBS)';
+  return (classes.get(sug.c_class_trib)?.descricao_oficial || `Classe ${sug.c_class_trib}`).trim();
+}
+function compararGrupo(atual: string, sugerido: string | null): FlagComparacao {
+  if (!sugerido) return 'SEM_SUGESTAO';
+  if (!atual) return 'SEM_ATUAL';
+  return igualTexto(atual, sugerido) ? 'IGUAL' : 'DIFERENTE';
+}
+/** Pivô "como é → como deveria": cada grupo sugerido com os grupos atuais que ele reúne. */
+function resumirGrupos(itens: LinhaResultado[]) {
+  const m = new Map<string, { qtd: number; atuais: Map<string, number> }>();
+  for (const i of itens) {
+    const k = i.grupo_sugerido ?? 'Sem sugestão (NCM ambíguo ou inválido)';
+    const e = m.get(k) ?? { qtd: 0, atuais: new Map<string, number>() };
+    e.qtd++;
+    const a = i.grupo_atual || '(sem grupo atual)';
+    e.atuais.set(a, (e.atuais.get(a) || 0) + 1);
+    m.set(k, e);
+  }
+  return [...m.entries()].sort((a, b) => b[1].qtd - a[1].qtd).slice(0, 100)
+    .map(([grupo, e]) => ({ grupo, qtd: e.qtd, atuais: [...e.atuais.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([g, qtd]) => ({ grupo: g, qtd })) }));
+}
+
 export type ForaDoPeriodo = { linha: number; codigo: string; descricao: string; ncm_original: string; ultima_mov: string };
 
 @Injectable()
@@ -170,6 +206,12 @@ export class ProdutosService {
     return map;
   }
 
+  /** De-para contábil enviado pelo cliente (xlsx/csv): chave (cClassTrib ou grupo sugerido) -> conta. */
+  async lerPlanoContas(file: Express.Multer.File): Promise<PlanoContas> {
+    const p = await this.lerArquivo(file);
+    return montarPlanoContas((file.originalname || 'de-para').slice(0, 120), p.cabecalho, p.linhas);
+  }
+
   async previa(file: Express.Multer.File) {
     const p = await this.lerArquivo(file);
     const mapeamento = this.detectarMapeamento(p.cabecalho);
@@ -185,7 +227,7 @@ export class ProdutosService {
 
   // ── Validação ────────────────────────────────────────────────────────
 
-  async validar(file: Express.Multer.File, mapeamentoInformado?: Mapeamento, limiteLinhas?: number, opcoes: OpcoesValidacao = OPCOES_PADRAO) {
+  async validar(file: Express.Multer.File, mapeamentoInformado?: Mapeamento, limiteLinhas?: number, opcoes: OpcoesValidacao = OPCOES_PADRAO, plano: PlanoContas | null = null) {
     const p = await this.lerArquivo(file);
     const mapa = { ...this.detectarMapeamento(p.cabecalho), ...(mapeamentoInformado || {}) };
     if (mapa.ncm === null || mapa.ncm === undefined) {
@@ -196,6 +238,7 @@ export class ProdutosService {
     const truncado = limiteLinhas && p.linhas.length > limiteLinhas ? p.linhas.length : 0;
     const origem = (limiteLinhas ? p.linhas.slice(0, limiteLinhas) : p.linhas).map((l, i) => ({ l, linha: i + 2 }));
     if ((opcoes.dataInicio || opcoes.dataFim) && mapa.data_cadastro == null) throw new BadRequestException('Mapeie a coluna de data para aplicar o período.');
+    if (opcoes.gruposContabeis && mapa.grupo_contabil == null) throw new BadRequestException('Mapeie a coluna do grupo/conta contábil atual para a análise contábil.');
     if (opcoes.principioAtivo && mapa.principio_ativo == null) throw new BadRequestException('Mapeie a coluna de princípio ativo.');
     if (opcoes.duplicidades && (mapa.descricao == null || mapa.unidade == null)) throw new BadRequestException('Mapeie descrição e unidade para analisar duplicidades.');
     // Período: quem tem data fora da janela sai da análise (e vai para `fora_periodo`). Quem não tem data legível
@@ -332,15 +375,33 @@ export class ProdutosService {
         }
       }
 
+      // Grupos (como é x como deveria) e conta contábil (atual x do de-para do cliente) — sempre sugestão, nunca alteração.
+      const grupoRef = grupoSugeridoDe(sugestao, classes);
+      const grupo_atual = g(l, 'grupo_produto');
+      const grupo_sugerido = opcoes.grupos ? grupoRef : null;
+      const grupo_flag: FlagComparacao | null = opcoes.grupos ? compararGrupo(grupo_atual, grupoRef) : null;
+      const contaAtual = g(l, 'grupo_contabil');
+      let conta_sugerida: string | null = null;
+      let conta_flag: FlagComparacao | null = null;
+      if (opcoes.gruposContabeis) {
+        if (!plano) conta_flag = 'SEM_PLANO';
+        else {
+          conta_sugerida = (sugestao?.c_class_trib && plano.regras[sugestao.c_class_trib]) || (grupoRef && plano.regras[chavePlano(grupoRef)]) || null;
+          const codigo = conta_sugerida ? conta_sugerida.split(' — ')[0] : '';
+          conta_flag = !conta_sugerida ? 'SEM_REGRA' : !contaAtual ? 'SEM_ATUAL' : igualTexto(contaAtual, conta_sugerida) || igualTexto(contaAtual, codigo) ? 'IGUAL' : 'DIFERENTE';
+        }
+      }
+
       const periodo = selecionadas[i].periodo === 'FORA' ? null : selecionadas[i].periodo;
       if (periodo === 'DATA_INVALIDA') problemas.push({ codigo: 'DATA_INVALIDA', severidade: 'alerta', mensagem: `Data "${selecionadas[i].bruto}" não reconhecida (esperado dia/mês/ano); mantido na análise.` });
       if (periodo === 'SEM_DATA') problemas.push({ codigo: 'SEM_DATA_MOVIMENTO', severidade: 'info', mensagem: 'Sem data de movimentação; mantido na análise por segurança.' });
 
       const situacao: LinhaResultado['situacao'] = problemas.some((x) => x.severidade === 'erro') ? 'ERRO' : problemas.some((x) => x.severidade === 'alerta') ? 'ALERTA' : 'OK';
-      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
+      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, conta_sugerida, conta_flag, candidatos_duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
     });
 
     const resumo = {
+      grupos: opcoes.grupos ? resumirGrupos(resultado) : null,
       periodo: periodoAtivo
         ? {
             inicio: opcoes.dataInicio, fim: opcoes.dataFim, base: origem.length,
@@ -365,20 +426,21 @@ export class ProdutosService {
     };
     return { mapeamento: mapa, opcoes, resumo, itens: resultado, fora_periodo: foraDoPeriodo, avisos: [
       ...(opcoes.erps.length ? ['ERPs registrados como contexto. Não foram aplicadas regras específicas de ERP sem um perfil homologado.'] : []),
-      ...(opcoes.gruposContabeis ? ['Sugestões contábeis pendentes: informe o plano de contas e regras da empresa. O grupo atual foi preservado.'] : []),
+      ...(opcoes.gruposContabeis ? [plano ? `Conta sugerida conforme o de-para enviado (${plano.nome}, ${plano.linhas} regras). Sem regra para o item, nenhuma conta é sugerida; o grupo/conta atual foi preservado.` : 'Análise contábil sem de-para: envie o plano de contas/de-para da empresa para ver a conta sugerida. O grupo atual foi preservado.'] : []),
       ...(opcoes.duplicidades ? ['Duplicidades são candidatos para revisão. Princípio ativo deve incluir concentração e formulação; não substitui a decisão sobre o cadastro.'] : []),
     ] };
   }
 
   // ── Exportação ───────────────────────────────────────────────────────
 
-  async exportarXlsx(file: Express.Multer.File, mapeamento?: Mapeamento, opcoes: OpcoesValidacao = OPCOES_PADRAO, excluir: number[] = [], salvo?: Awaited<ReturnType<ProdutosService['validar']>>): Promise<Buffer> {
-    const r = salvo || await this.validar(file, mapeamento, undefined, opcoes);
+  async exportarXlsx(file: Express.Multer.File, mapeamento?: Mapeamento, opcoes: OpcoesValidacao = OPCOES_PADRAO, excluir: number[] = [], salvo?: Awaited<ReturnType<ProdutosService['validar']>>, plano: PlanoContas | null = null): Promise<Buffer> {
+    const r = salvo || await this.validar(file, mapeamento, undefined, opcoes, plano);
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX — FAL Agro';
     const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: 1 }] });
     const per = r.resumo.periodo;
     const dataBr = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+    const ROT_FLAG: Record<FlagComparacao, string> = { IGUAL: 'Igual', DIFERENTE: 'Diferente', SEM_ATUAL: 'Sem valor atual', SEM_SUGESTAO: 'Sem sugestão', SEM_REGRA: 'Sem regra no de-para', SEM_PLANO: 'Sem de-para enviado' };
     const ROT_PERIODO = { DENTRO: 'Dentro', SEM_DATA: 'Sem data', DATA_INVALIDA: 'Data inválida' } as const;
     ws.columns = [
       { header: 'Linha', key: 'linha', width: 8 },
@@ -397,6 +459,12 @@ export class ProdutosService {
       { header: 'Princípio ativo', key: 'principio_ativo', width: 35 },
       { header: 'Grupo contábil atual', key: 'grupo_contabil', width: 22 },
       { header: 'Linhas para revisão de duplicidade', key: 'candidatos', width: 35 },
+      ...(r.opcoes.grupos ? [
+        { header: 'Grupo atual', key: 'grupo_atual', width: 26 }, { header: 'Grupo sugerido (tratamento tributário)', key: 'grupo_sugerido', width: 44 }, { header: 'Flag grupo', key: 'grupo_flag', width: 18 },
+      ] : []),
+      ...(r.opcoes.gruposContabeis ? [
+        { header: 'Conta contábil sugerida', key: 'conta_sugerida', width: 34 }, { header: 'Flag conta', key: 'conta_flag', width: 20 },
+      ] : []),
       ...(per ? [
         { header: 'Última movimentação', key: 'ultima_mov', width: 20 },
         { header: 'No período', key: 'periodo', width: 16 },
@@ -406,6 +474,8 @@ export class ProdutosService {
     r.itens.forEach((it) => {
       const row = ws.addRow({
         ultima_mov: dataBr(it.ultima_mov), periodo: it.periodo ? ROT_PERIODO[it.periodo] : '',
+        grupo_atual: it.grupo_atual, grupo_sugerido: it.grupo_sugerido ?? '', grupo_flag: it.grupo_flag ? ROT_FLAG[it.grupo_flag] : '',
+        conta_sugerida: it.conta_sugerida ?? '', conta_flag: it.conta_flag ? ROT_FLAG[it.conta_flag] : '',
         unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.join(', '),
         linha: it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,
         situacao: it.situacao === 'OK' ? 'OK' : it.situacao === 'ALERTA' ? 'Atenção' : 'Corrigir',
@@ -419,7 +489,7 @@ export class ProdutosService {
     const cab = ws.getRow(1);
     cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-    ws.autoFilter = { from: 'A1', to: per ? 'R1' : 'P1' };
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columnCount } };
 
     // Quem não movimentou no período não entra no saneamento: vai para aba própria (candidatos a inativar no ERP).
     if (per && r.fora_periodo.length) {

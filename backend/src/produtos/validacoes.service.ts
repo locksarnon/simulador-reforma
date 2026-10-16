@@ -5,6 +5,7 @@ import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { Mapeamento, ProdutosService } from './produtos.service';
+import { PlanoContas } from './plano-contas';
 
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -42,7 +43,18 @@ export class ValidacoesService {
   /** Opções salvas (sem a seleção de exclusões, que mora no mesmo JSON). */
   private parametrosDe(json: string | null) {
     if (!json) return null;
-    try { const { excluirLinhas: _x, ...o } = JSON.parse(json); return o as OpcoesValidacao; } catch { return null; }
+    try {
+      const { excluirLinhas: _x, planoContas, ...o } = JSON.parse(json);
+      return { ...o, ...(planoContas ? { planoContasNome: planoContas.nome } : {}) } as OpcoesValidacao;
+    } catch { return null; }
+  }
+  private planoDe(json: string | null): PlanoContas | null {
+    try { const p = json ? JSON.parse(json).planoContas : null; return p && p.regras ? (p as PlanoContas) : null; } catch { return null; }
+  }
+  /** Opções + exclusões marcadas + de-para contábil, tudo no mesmo JSON (sem mudar o banco). */
+  private montarJson(opcoes: OpcoesValidacao, excluir: number[], plano: PlanoContas | null) {
+    const { planoContasNome: _n, ...limpas } = opcoes as OpcoesValidacao & { planoContasNome?: string };
+    return JSON.stringify({ ...limpas, excluirLinhas: excluir, ...(plano ? { planoContas: plano } : {}) });
   }
   private excluirDe(json: string | null): number[] {
     try { const x = json ? JSON.parse(json).excluirLinhas : []; return Array.isArray(x) ? x.filter(Number.isInteger) : []; } catch { return []; }
@@ -74,7 +86,7 @@ export class ValidacoesService {
     const excluir = dados.excluir ?? this.excluirDe(v.opcoes_json);
     await this.prisma.validacaoCadastro.update({
       where: { id },
-      data: { opcoes_json: JSON.stringify({ ...base, excluirLinhas: excluir }), ...(rascunho && dados.mapeamento ? { mapeamento_json: JSON.stringify(dados.mapeamento) } : {}) },
+      data: { opcoes_json: this.montarJson(base, excluir, this.planoDe(v.opcoes_json)), ...(rascunho && dados.mapeamento ? { mapeamento_json: JSON.stringify(dados.mapeamento) } : {}) },
     });
     return { ok: true, salvo_em: new Date().toISOString() };
   }
@@ -98,8 +110,24 @@ export class ValidacoesService {
   /** Reabre: refaz a validação a partir do arquivo guardado (mesmo formato do resultado original). */
   async obter(id: string, empresa_id?: string) {
     const { v, file, mapa } = await this.carregar(id, empresa_id);
-    const r = v.resultado_json ? JSON.parse(v.resultado_json) : await this.produtos.validar(file, mapa, undefined, this.parametrosDe(v.opcoes_json) ?? OPCOES_PADRAO);
+    const r = v.resultado_json ? JSON.parse(v.resultado_json) : await this.produtos.validar(file, mapa, undefined, this.parametrosDe(v.opcoes_json) ?? OPCOES_PADRAO, this.planoDe(v.opcoes_json));
     return { ...r, validacao_id: v.id, nome_arquivo: v.nome_arquivo, criado_por: v.criado_por, criado_em: v.createdAt, status: v.status, excluir: this.excluirDe(v.opcoes_json) };
+  }
+
+  /** Anexa (ou troca) o de-para contábil da análise. Vale para as próximas execuções (refazer). */
+  async anexarPlano(id: string, file: Express.Multer.File, empresa_id?: string) {
+    const v = await this.prisma.validacaoCadastro.findUnique({ where: { id } });
+    if (!v || (empresa_id && v.empresa_id !== empresa_id)) throw new NotFoundException('Validação não encontrada nesta empresa.');
+    const plano = await this.produtos.lerPlanoContas(file);
+    await this.prisma.validacaoCadastro.update({ where: { id }, data: { opcoes_json: this.montarJson(this.parametrosDe(v.opcoes_json) ?? OPCOES_PADRAO, this.excluirDe(v.opcoes_json), plano) } });
+    return { nome: plano.nome, linhas: plano.linhas };
+  }
+
+  async removerPlano(id: string, empresa_id?: string) {
+    const v = await this.prisma.validacaoCadastro.findUnique({ where: { id } });
+    if (!v || (empresa_id && v.empresa_id !== empresa_id)) throw new NotFoundException('Validação não encontrada nesta empresa.');
+    await this.prisma.validacaoCadastro.update({ where: { id }, data: { opcoes_json: this.montarJson(this.parametrosDe(v.opcoes_json) ?? OPCOES_PADRAO, this.excluirDe(v.opcoes_json), null) } });
+    return { ok: true };
   }
 
   /** Colunas do arquivo guardado — para reabrir a tela de parâmetros de uma validação antiga. */
@@ -110,6 +138,7 @@ export class ValidacoesService {
       ...previa, validacao_id: v.id, nome_arquivo: v.nome_arquivo, status: v.status,
       mapeamento: v.mapeamento_json ? JSON.parse(v.mapeamento_json) : previa.mapeamento,
       opcoes: this.parametrosDe(v.opcoes_json) ?? OPCOES_PADRAO, excluir: this.excluirDe(v.opcoes_json),
+      plano: this.planoDe(v.opcoes_json) ? { nome: this.planoDe(v.opcoes_json)!.nome, linhas: this.planoDe(v.opcoes_json)!.linhas } : null,
     };
   }
 
@@ -119,11 +148,12 @@ export class ValidacoesService {
    */
   async refazer(id: string, mapeamento: Mapeamento | undefined, opcoes: OpcoesValidacao, empresa_id?: string) {
     const { v, file } = await this.carregar(id, empresa_id);
-    const r = await this.produtos.validar(file, mapeamento, undefined, opcoes);
+    const plano = this.planoDe(v.opcoes_json);
+    const r = await this.produtos.validar(file, mapeamento, undefined, opcoes, plano);
     await this.prisma.validacaoCadastro.update({
       where: { id },
       data: {
-        status: 'PROCESSADA', opcoes_json: JSON.stringify({ ...opcoes, excluirLinhas: [] }), resultado_json: JSON.stringify(r), mapeamento_json: JSON.stringify(r.mapeamento ?? mapeamento ?? {}),
+        status: 'PROCESSADA', opcoes_json: this.montarJson(opcoes, [], plano), resultado_json: JSON.stringify(r), mapeamento_json: JSON.stringify(r.mapeamento ?? mapeamento ?? {}),
         total: r.resumo.total, itens_ok: r.resumo.ok, itens_alerta: r.resumo.alerta, itens_erro: r.resumo.erro,
       },
     });
@@ -132,7 +162,7 @@ export class ValidacoesService {
 
   async exportar(id: string) {
     const { v, file, mapa } = await this.carregar(id);
-    const buf = await this.produtos.exportarXlsx(file, mapa, this.parametrosDe(v.opcoes_json) ?? OPCOES_PADRAO, this.excluirDe(v.opcoes_json), v.resultado_json ? JSON.parse(v.resultado_json) : undefined);
+    const buf = await this.produtos.exportarXlsx(file, mapa, this.parametrosDe(v.opcoes_json) ?? OPCOES_PADRAO, this.excluirDe(v.opcoes_json), v.resultado_json ? JSON.parse(v.resultado_json) : undefined, this.planoDe(v.opcoes_json));
     return { buf, nome: `validado-${v.nome_arquivo.replace(/\.[^.]+$/, '')}.xlsx` };
   }
 

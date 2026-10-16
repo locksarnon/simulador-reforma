@@ -1,11 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
-export type OpcoesValidacao = { cClassTrib: boolean; duplicidades: boolean; principioAtivo: boolean; dataInicio: string; dataFim: string; erps: string[]; addons: string[]; gruposContabeis: boolean };
-export const OPCOES_PADRAO: OpcoesValidacao = { cClassTrib: true, duplicidades: false, principioAtivo: false, dataInicio: '', dataFim: '', erps: [], addons: [], gruposContabeis: false };
+export type OpcoesValidacao = { cClassTrib: boolean; duplicidades: boolean; principioAtivo: boolean; dataInicio: string; dataFim: string; erps: string[]; addons: string[]; gruposContabeis: boolean; grupos: boolean };
+export const OPCOES_PADRAO: OpcoesValidacao = { cClassTrib: true, duplicidades: false, principioAtivo: false, dataInicio: '', dataFim: '', erps: [], addons: [], gruposContabeis: false, grupos: false };
 export function lerOpcoes(bruto?: string): OpcoesValidacao {
   let o: Partial<OpcoesValidacao>;
   try { o = bruto ? JSON.parse(bruto) : {}; } catch { throw new BadRequestException('Opções de validação inválidas.'); }
   if (!o || Array.isArray(o) || typeof o !== 'object') throw new BadRequestException('Opções inválidas.');
-  for (const k of ['cClassTrib', 'duplicidades', 'principioAtivo', 'gruposContabeis'] as const) if (o[k] !== undefined && typeof o[k] !== 'boolean') throw new BadRequestException('Opção inválida: ' + k);
+  for (const k of ['cClassTrib', 'duplicidades', 'principioAtivo', 'gruposContabeis', 'grupos'] as const) if (o[k] !== undefined && typeof o[k] !== 'boolean') throw new BadRequestException('Opção inválida: ' + k);
   if (o.erps !== undefined && (!Array.isArray(o.erps) || o.erps.length > 10 || o.erps.some(e => typeof e !== 'string' || e.length > 80))) throw new BadRequestException('ERPs inválidos.');
   if (o.addons !== undefined && (!Array.isArray(o.addons) || o.addons.some(a => !['pims','farmbox'].includes(a)))) throw new BadRequestException('Add-ons inválidos.');
   const r = { ...OPCOES_PADRAO, ...o };

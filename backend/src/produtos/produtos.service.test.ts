@@ -55,3 +55,27 @@ describe('cClassTrib sugerido', () => {
     expect(r.itens.every((i) => !i.sugestao?.c_class_trib)).toBe(true);
   });
 });
+
+describe('grupos e conta contábil', () => {
+  const csv = 'Codigo;Descricao;NCM;Grupo do produto;Conta contabil\nA;Feijão;07133319;Mercearia;3.1.99\nB;Notebook;84713012;;3.1.02\nC;Inexistente;99999999;X;1';
+  it('grupo sugerido vem do tratamento tributário, com flag; sem sugestão não inventa grupo', async () => {
+    const r = await comBase.validar(file(csv), undefined, undefined, { ...opcoesClasse, grupos: true });
+    expect(r.itens[0]).toMatchObject({ grupo_atual: 'Mercearia', grupo_flag: 'DIFERENTE' });
+    expect(r.itens[0].grupo_sugerido).toContain('limentação humana');
+    expect(r.itens[1]).toMatchObject({ grupo_sugerido: 'Tributação integral (padrão IBS/CBS)', grupo_flag: 'SEM_ATUAL' });
+    expect(r.itens[2]).toMatchObject({ grupo_sugerido: null, grupo_flag: 'SEM_SUGESTAO' });
+    expect(r.resumo.grupos?.[0].qtd).toBe(1);
+  });
+  it('conta sugerida só existe com de-para; sem regra, não inventa', async () => {
+    const plano = { nome: 'p.csv', linhas: 2, regras: { '200003': '3.1.01 — Alimentos', '000001': '3.1.02' } };
+    const opc = { ...opcoesClasse, gruposContabeis: true };
+    const sem = await comBase.validar(file(csv), undefined, undefined, opc);
+    expect(sem.itens.every((i) => i.conta_flag === 'SEM_PLANO' && i.conta_sugerida === null)).toBe(true);
+    const com = await comBase.validar(file(csv), undefined, undefined, opc, plano);
+    expect(com.itens.map((i) => i.conta_flag)).toEqual(['DIFERENTE', 'IGUAL', 'SEM_REGRA']);
+    expect(com.itens[0].conta_sugerida).toBe('3.1.01 — Alimentos');
+  });
+  it('exige a coluna da conta atual na análise contábil', async () => {
+    await expect(comBase.validar(file('Codigo;Descricao;NCM\nA;x;07133319'), undefined, undefined, { ...opcoesClasse, gruposContabeis: true })).rejects.toThrow('conta contábil');
+  });
+});

@@ -38,6 +38,8 @@ const ABAS = [
   { id: "CADASTRO", titulo: "Cadastro incompleto", testa: tem("CODIGO_AUSENTE", "DESCRICAO_AUSENTE", "DATA_INVALIDA") },
   { id: "SUGERIDA", titulo: "Com classe sugerida (anexos)", testa: (i) => !!i.sugestao?.c_class_trib && !i.sugestao.padrao },
   { id: "PADRAO", titulo: "Tributação padrão (000001)", testa: (i) => !!i.sugestao?.padrao },
+  { id: "GRUPO", titulo: "Grupo divergente", so: "grupos", testa: (i) => i.grupo_flag === "DIFERENTE" },
+  { id: "CONTA", titulo: "Conta contábil divergente", so: "gruposContabeis", testa: (i) => i.conta_flag === "DIFERENTE" },
 ];
 
 // Mesma ordem e títulos da planilha corrigida (ProdutosService.exportarXlsx).
@@ -47,6 +49,17 @@ const mesesAtras = (n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 const dataBr = (iso) => (iso ? iso.split("-").reverse().join("/") : "…");
+const COLUNAS_GRUPOS = [
+  { chave: "grupo_atual", titulo: "Grupo atual" }, { chave: "grupo_sugerido", titulo: "Grupo sugerido (tratamento tributário)" }, { chave: "grupo_flag", titulo: "Flag grupo" },
+];
+const COLUNAS_CONTA = [
+  { chave: "conta_atual", titulo: "Conta contábil atual" }, { chave: "conta_sugerida", titulo: "Conta contábil sugerida" }, { chave: "conta_flag", titulo: "Flag conta" },
+];
+const ROT_FLAG = { IGUAL: "Igual", DIFERENTE: "Diferente", SEM_ATUAL: "Sem valor atual", SEM_SUGESTAO: "Sem sugestão", SEM_REGRA: "Sem regra no de-para", SEM_PLANO: "Sem de-para" };
+const COR_FLAG = {
+  IGUAL: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+  DIFERENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+};
 const COLUNAS_PERIODO = [
   { chave: "ultima_mov", titulo: "Última movimentação" },
   { chave: "periodo", titulo: "No período" },
@@ -94,7 +107,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const publico = modo === "publico";
   const { empresaId } = useParams();
   const [searchParams] = useSearchParams();
-  const [opcoes, setOpcoes] = useState({ cClassTrib: true, duplicidades: true, principioAtivo: false, dataInicio: "", dataFim: "", erps: empresa?.erp ? [empresa.erp] : [], addons: empresa?.addons || [], gruposContabeis: false });
+  const [opcoes, setOpcoes] = useState({ cClassTrib: true, duplicidades: true, principioAtivo: false, dataInicio: "", dataFim: "", erps: empresa?.erp ? [empresa.erp] : [], addons: empresa?.addons || [], gruposContabeis: false, grupos: false });
   const [excluir, setExcluir] = useState([]);
   const [problemasSelecionados, setProblemasSelecionados] = useState([]);
   const [periodoFiltro, setPeriodoFiltro] = useState("ANALISE");
@@ -113,6 +126,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   // Autosave: a análise existe no servidor desde o upload (rascunho); cada ajuste é salvo sozinho.
   const [rascunhoId, setRascunhoId] = useState(null);
   const [autosave, setAutosave] = useState(null);
+  const [plano, setPlano] = useState(null);
+  const idAuto = !publico ? (resultado?.validacao_id || rascunhoId) : null;
   const [porPagina, setPorPagina] = useState(100);
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(0);
@@ -125,7 +140,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const rotaValidar = publico ? "/public/produtos/amostra" : "/produtos/validar";
 
   const reiniciar = () => {
-    setExcluir([]); setProblemasSelecionados([]); setPeriodoFiltro("ANALISE"); setRascunhoId(null); setAutosave(null);
+    setExcluir([]); setProblemasSelecionados([]); setPeriodoFiltro("ANALISE"); setRascunhoId(null); setAutosave(null); setPlano(null);
     setEtapa("enviar"); setArquivo(null); setPrevia(null); setMapa({}); setResultado(null); setErro("");
     setFiltro("TODOS"); setAba("TODOS"); setBusca(""); setPagina(0); setEmailLiberado("");
     if (inputRef.current) inputRef.current.value = "";
@@ -137,7 +152,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     try {
       // Interno: já cria a análise como rascunho no servidor (arquivo guardado), para não perder nada se a tela fechar.
       const r = publico ? await api.upload(rotaPrevia, file, { somente_ler: "true" }) : await api.upload("/produtos/rascunhos", file, { empresa_id: empresaId });
-      setArquivo(file); setPrevia(r); setMapa(r.mapeamento || {}); setRascunhoId(!publico ? r.validacao_id : null); setEtapa("colunas");
+      setArquivo(file); setPrevia(r); setMapa(r.mapeamento || {}); setRascunhoId(!publico ? r.validacao_id : null); setPlano(null); setEtapa("colunas");
       if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
       setErro(e.status === 429 ? "Muitos envios seguidos. Aguarde um minuto e tente de novo." : e.message);
@@ -168,12 +183,21 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     setErro("");
     if (!previa && resultado?.validacao_id) {
       setCarregando(true);
-      try { setPrevia(await api.get(`/produtos/validacoes/${resultado.validacao_id}/colunas`, { empresa_id: empresaId })); } catch (e) { setErro(e.message); setCarregando(false); return; }
+      try { const d = await api.get(`/produtos/validacoes/${resultado.validacao_id}/colunas`, { empresa_id: empresaId }); setPrevia(d); setPlano(d.plano || null); } catch (e) { setErro(e.message); setCarregando(false); return; }
       setCarregando(false);
     }
     if (resultado?.mapeamento) setMapa(resultado.mapeamento);
     if (resultado?.opcoes) setOpcoes(resultado.opcoes);
     setExcluir([]); setEtapa("colunas");
+  };
+
+  const anexarPlano = async (file) => {
+    if (!file || !idAuto) return;
+    setErro("");
+    try { setPlano(await api.upload(`/produtos/validacoes/${idAuto}/plano-contas`, file, { empresa_id: empresaId })); } catch (e) { setErro(e.message); }
+  };
+  const removerPlano = async () => {
+    try { await api.delete(`/produtos/validacoes/${idAuto}/plano-contas?empresa_id=${encodeURIComponent(empresaId || "")}`); setPlano(null); } catch (e) { setErro(e.message); }
   };
 
   const abrirSalva = async (v) => {
@@ -183,7 +207,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
         // Retomar de onde parou: colunas, parâmetros e linhas marcadas exatamente como foram autosalvos.
         const d = await api.get(`/produtos/validacoes/${v.id}/colunas`, { empresa_id: empresaId });
         setArquivo(null); setResultado(null); setPrevia(d); setMapa(d.mapeamento || {}); if (d.opcoes) setOpcoes(d.opcoes);
-        setExcluir(d.excluir || []); setRascunhoId(v.id); setAutosave(null); setEtapa("colunas");
+        setExcluir(d.excluir || []); setRascunhoId(v.id); setPlano(d.plano || null); setAutosave(null); setEtapa("colunas");
         return;
       }
       const r = await api.get(`/produtos/validacoes/${v.id}`, { empresa_id: empresaId });
@@ -202,18 +226,24 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validacaoId, empresaId, publico]);
 
-  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['gruposContabeis','Analisar grupos contábeis (requer plano de referência)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div><div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{[...ERPS,...opcoes.erps.filter(e=>!ERPS.includes(e))].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><div className="flex flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Atalho — sanear só quem movimentou nos últimos:</span>{[6, 12, 18, 24, 36].map(m => <button key={m} type="button" onClick={() => { mudarOpcao("dataInicio", mesesAtras(m)); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border hover:bg-muted">{m} meses</button>)}{(opcoes.dataInicio || opcoes.dataFim) && <button type="button" onClick={() => { mudarOpcao("dataInicio", ""); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted">Limpar período</button>}</div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, indique a coluna da data da última movimentação (ou do cadastro): quem tem data fora do período sai do saneamento e vai para uma aba separada da planilha; quem não tem data legível continua na análise, sinalizado. Datas lidas como dia/mês/ano. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
+  const painelOpcoes = !publico && <fieldset className="rounded-xl border border-border p-5 space-y-4"><legend className="font-medium px-2">Escopo do saneamento</legend><p className="text-sm">NCM: validação obrigatória em todas as análises.</p><div className="flex flex-wrap gap-4">{[['cClassTrib','Conferir cClassTrib'],['duplicidades','Investigar duplicidades'],['principioAtivo','Comparar princípio ativo, concentração e formulação'],['grupos','Sugerir grupos de produto por tratamento tributário (como é × como deveria)'],['gruposContabeis','Análise contábil: conta atual × sugerida (requer o de-para da empresa)']].map(([k, nome]) => <label key={k} className="text-sm flex items-center gap-2"><input type="checkbox" checked={opcoes[k]} onChange={e => mudarOpcao(k, e.target.checked)} />{nome}</label>)}</div>{opcoes.gruposContabeis && <div className="rounded-lg border border-dashed border-border p-3 space-y-2"><p className="text-sm font-medium">De-para contábil da empresa</p><p className="text-xs text-muted-foreground">Arquivo .xlsx ou .csv com uma coluna <b>cClassTrib</b> (ou <b>Grupo sugerido</b>) e uma coluna <b>Conta contábil</b> (opcional: <b>Nome da conta</b>). O InTAX só sugere a conta que o seu de-para indica; sem regra para o item, nenhuma conta é sugerida.</p>{!idAuto ? <p className="text-xs text-muted-foreground">Envie a planilha de produtos primeiro para anexar o de-para.</p> : <div className="flex flex-wrap items-center gap-2"><input type="file" accept=".xlsx,.csv,.txt" onChange={(e) => anexarPlano(e.target.files?.[0])} className="text-xs" />{plano && <span className="text-xs">Anexado: <b>{plano.nome}</b> ({plano.linhas} regras) <button type="button" onClick={removerPlano} className="underline text-destructive ml-1">remover</button></span>}</div>}{opcoes.gruposContabeis && !plano && idAuto && <p className="text-xs text-amber-700 dark:text-amber-300">Sem de-para anexado, o resultado mostra só a conta atual.</p>}</div>}<div><p className="text-sm font-medium mb-2">ERPs de referência</p><div className="flex flex-wrap gap-4">{[...ERPS,...opcoes.erps.filter(e=>!ERPS.includes(e))].map(erp => <label key={erp} className="text-sm flex gap-2"><input type="checkbox" checked={opcoes.erps.includes(erp)} onChange={e => mudarOpcao('erps', e.target.checked ? [...opcoes.erps, erp] : opcoes.erps.filter(x => x !== erp))} />{erp}</label>)}</div><p className="text-xs text-muted-foreground mt-2">A seleção registra o contexto do ERP. Regras específicas e sugestões contábeis dependem de perfis e plano de contas homologados.</p></div><div className="flex flex-wrap gap-3"><label className="text-sm">De <input aria-label="Data inicial do corte" type="date" value={opcoes.dataInicio} onChange={e => mudarOpcao('dataInicio', e.target.value)} className="border rounded p-2 bg-background" /></label><label className="text-sm">Até <input aria-label="Data final do corte" type="date" value={opcoes.dataFim} onChange={e => mudarOpcao('dataFim', e.target.value)} className="border rounded p-2 bg-background" /></label></div><div className="flex flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Atalho — sanear só quem movimentou nos últimos:</span>{[6, 12, 18, 24, 36].map(m => <button key={m} type="button" onClick={() => { mudarOpcao("dataInicio", mesesAtras(m)); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border hover:bg-muted">{m} meses</button>)}{(opcoes.dataInicio || opcoes.dataFim) && <button type="button" onClick={() => { mudarOpcao("dataInicio", ""); mudarOpcao("dataFim", ""); }} className="px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:bg-muted">Limpar período</button>}</div><p className="text-xs text-muted-foreground">Deixe as datas vazias para analisar todo o arquivo. Com período, indique a coluna da data da última movimentação (ou do cadastro): quem tem data fora do período sai do saneamento e vai para uma aba separada da planilha; quem não tem data legível continua na análise, sinalizado. Datas lidas como dia/mês/ano. <Link className="text-primary underline" to="/ferramentas/consulta-ncm" target="_blank" rel="noreferrer">Abrir consulta NCM</Link></p></fieldset>;
 
   const baixarModelo = () => api.baixar("GET", "/public/produtos/modelo", { nome: "modelo-cadastro-produtos-intax.xlsx" }).catch((e) => setErro(e.message));
   const copiarCab = async () => {
     try { await navigator.clipboard.writeText(CABECALHO_MODELO.join("\t")); setCopiado(true); setTimeout(() => setCopiado(false), 2000); } catch { setErro("Não foi possível copiar. Selecione e copie manualmente: " + CABECALHO_MODELO.join(", ")); }
   };
-  const exportar = () => (arquivo
-    ? api.baixar("POST", "/produtos/exportar", { file: arquivo, campos: { mapeamento: mapa, opcoes, excluir }, nome: "cadastro-validado-intax.xlsx" })
-    : api.baixar("GET", `/produtos/validacoes/${resultado?.validacao_id}/exportar`, { nome: "cadastro-validado-intax.xlsx" })
-  ).catch((e) => setErro(e.message));
+  const exportar = async () => {
+    try {
+      if (!publico && resultado?.validacao_id) {
+        // Garante que as linhas marcadas já estão salvas e baixa o resultado guardado (inclui grupos, conta sugerida e período).
+        await api.put(`/produtos/validacoes/${resultado.validacao_id}/progresso`, { excluir, empresa_id: empresaId });
+        await api.baixar("GET", `/produtos/validacoes/${resultado.validacao_id}/exportar`, { nome: "cadastro-validado-intax.xlsx" });
+      } else if (arquivo) {
+        await api.baixar("POST", "/produtos/exportar", { file: arquivo, campos: { mapeamento: mapa, opcoes, excluir }, nome: "cadastro-validado-intax.xlsx" });
+      }
+    } catch (e) { setErro(e.message); }
+  };
 
-  const idAuto = !publico ? (resultado?.validacao_id || rascunhoId) : null;
   useEffect(() => {
     if (!idAuto || (etapa !== "colunas" && etapa !== "resultado")) return undefined;
     const t = setTimeout(async () => {
@@ -296,7 +326,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   // ── Etapa 2: conferir colunas ──
   if (etapa === "colunas" && previa) {
     const tem = k => mapa[k] !== null && mapa[k] !== undefined && mapa[k] !== "";
-    const obrigatoriosOk = tem("ncm") && (publico || ((!opcoes.duplicidades || (tem("descricao") && tem("unidade"))) && (!opcoes.principioAtivo || tem("principio_ativo")) && (!(opcoes.dataInicio || opcoes.dataFim) || tem("data_cadastro"))));
+    const obrigatoriosOk = tem("ncm") && (publico || ((!opcoes.duplicidades || (tem("descricao") && tem("unidade"))) && (!opcoes.principioAtivo || tem("principio_ativo")) && (!opcoes.gruposContabeis || tem("grupo_contabil")) && (!(opcoes.dataInicio || opcoes.dataFim) || tem("data_cadastro"))));
     const indicesMapeados = new Set(Object.values(mapa).filter((v) => v !== null && v !== undefined && v !== ""));
     return (
       <div className="space-y-5">
@@ -358,6 +388,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   // ── Etapa 3: resultado ──
   if (etapa === "resultado" && resultado) {
     const r = resultado.resumo;
+    const opRes = resultado.opcoes || {};
     const bloqueado = publico && resultado.modo !== "completo";
     return (
       <div className="space-y-5">
@@ -377,8 +408,25 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
             {periodoFiltro === "FORA" && <p className="text-xs text-muted-foreground">Estes produtos não entram no saneamento: são candidatos a inativar no ERP. A lista completa vai numa aba própria da planilha baixada.</p>}
           </div>
         )}
+        {r.grupos?.length > 0 && (
+          <details className="rounded-xl border border-border bg-card p-4">
+            <summary className="cursor-pointer text-sm font-medium">Grupos: como é → como deveria ({r.grupos.length} grupos sugeridos)</summary>
+            <div className="mt-3 overflow-auto max-h-[50vh]">
+              <table className="w-full text-xs border-collapse">
+                <thead className="bg-muted"><tr className="text-left text-muted-foreground"><th className="px-3 py-2">Grupo sugerido (tratamento tributário)</th><th className="px-3 py-2 text-right">Itens</th><th className="px-3 py-2">Hoje estão em</th></tr></thead>
+                <tbody>{r.grupos.map((g) => (
+                  <tr key={g.grupo} className="border-t border-border align-top">
+                    <td className="px-3 py-1.5 font-medium">{g.grupo}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{g.qtd.toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{g.atuais.map((a) => `${a.grupo} (${a.qtd})`).join(" · ")}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </details>
+        )}
         <div role="tablist" aria-label="Análises" className="flex flex-wrap gap-2">
-          {[...ABAS, ...(r.periodo ? [{ id: "FORA", titulo: "Sem movimento no período" }] : [])].map((a) => {
+          {[...ABAS.filter((a) => !a.so || opRes[a.so]), ...(r.periodo ? [{ id: "FORA", titulo: "Sem movimento no período" }] : [])].map((a) => {
             const n = a.id === "FORA" ? r.periodo?.fora ?? 0 : contagemAbas[a.id];
             const ativa = aba === a.id;
             return (
@@ -453,7 +501,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
             <thead className="sticky top-0 z-10 bg-muted">
               <tr className="text-left text-muted-foreground">
                 {!publico && arquivo && <th className="p-2 border border-border">Excluir da cópia saneada</th>}
-                {(r.periodo ? [...COLUNAS, ...COLUNAS_PERIODO] : COLUNAS).map((c) => <th key={c.chave} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</th>)}
+                {[...COLUNAS, ...(opRes.grupos ? COLUNAS_GRUPOS : []), ...(opRes.gruposContabeis ? COLUNAS_CONTA : []), ...(r.periodo ? COLUNAS_PERIODO : [])].map((c) => <th key={c.chave} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -481,6 +529,20 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
                     <td className={`${cel} text-right tabular-nums`}>{sug ? `${Math.round(sug.reducao * 100)}%` : "—"}</td>
                     <td className={cel}>{sug ? sug.confianca : "—"}</td>
                     <td className={cel}>{sug?.anexo || "—"}</td>
+                    {opRes.grupos && (
+                      <>
+                        <td className={cel}>{i.grupo_atual || "—"}</td>
+                        <td className={`${cel} max-w-[320px] truncate`} title={i.grupo_sugerido || ""}>{i.grupo_sugerido || "—"}</td>
+                        <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_FLAG[i.grupo_flag] || "bg-muted text-muted-foreground"}`}>{ROT_FLAG[i.grupo_flag] || "—"}</span></td>
+                      </>
+                    )}
+                    {opRes.gruposContabeis && (
+                      <>
+                        <td className={cel}>{i.grupo_contabil || "—"}</td>
+                        <td className={`${cel} max-w-[260px] truncate`} title={i.conta_sugerida || ""}>{i.conta_sugerida || "—"}</td>
+                        <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_FLAG[i.conta_flag] || "bg-muted text-muted-foreground"}`}>{ROT_FLAG[i.conta_flag] || "—"}</span></td>
+                      </>
+                    )}
                     {r.periodo && (
                       <>
                         <td className={`${cel} tabular-nums`}>{i.ultima_mov ? i.ultima_mov.split("-").reverse().join("/") : "—"}</td>

@@ -59,6 +59,19 @@ export class ProdutosController {
     }, body?.empresa_id);
   }
 
+  /** De-para contábil (xlsx/csv: cClassTrib ou grupo sugerido + conta contábil) para a análise contábil. */
+  @Post('validacoes/:id/plano-contas')
+  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
+  anexarPlano(@Param('id') id: string, @UploadedFile() file: Express.Multer.File, @Body('empresa_id') empresa_id?: string) {
+    if (!file?.buffer?.length) throw new BadRequestException('Arquivo vazio ou não enviado.');
+    return this.validacoes.anexarPlano(id, file, empresa_id);
+  }
+
+  @Delete('validacoes/:id/plano-contas')
+  removerPlano(@Param('id') id: string, @Query('empresa_id') empresa_id?: string) {
+    return this.validacoes.removerPlano(id, empresa_id);
+  }
+
   @Post('validar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
   async validar(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthUser, @Body('mapeamento') mapeamento?: string, @Body('empresa_id') empresa_id?: string, @Body('opcoes') bruto?: string) {
