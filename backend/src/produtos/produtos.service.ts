@@ -302,7 +302,11 @@ export class ProdutosService {
           problemas.push({ codigo: 'NCM_ZERO_RESTAURADO', severidade: 'info', mensagem: `O zero à esquerda do NCM foi perdido na planilha; corrigido para ${ncm}.` });
         }
         if (ncm.length !== 8) {
-          problemas.push({ codigo: 'NCM_FORMATO', severidade: 'erro', mensagem: `NCM "${ncmOriginal}" tem ${ncm.length} dígitos; o correto são 8.` });
+          // SAP Business One: OITM.NCMCode é um número interno (chave da tabela ONCM), não o NCM — confirmado na documentação do SDK.
+          const sapInterno = opcoes.erps.some((e) => /sap/i.test(e)) && /^\d{1,6}$/.test(ncmOriginal.trim());
+          problemas.push(sapInterno
+            ? { codigo: 'NCM_CHAVE_SAP', severidade: 'erro', mensagem: `"${ncmOriginal}" parece o código interno do NCM no SAP Business One (OITM.NCMCode, chave da tabela ONCM), não o NCM. Exporte o texto do NCM (ONCM.NcmCode) junto com o item.` }
+            : { codigo: 'NCM_FORMATO', severidade: 'erro', mensagem: `NCM "${ncmOriginal}" tem ${ncm.length} dígitos; o correto são 8.` });
         } else if (catalogoCarregado) {
           const t = tabNcm.get(ncm);
           if (!t) problemas.push({ codigo: 'NCM_INEXISTENTE', severidade: 'erro', mensagem: `NCM ${ncm} não existe na tabela oficial vigente.` });

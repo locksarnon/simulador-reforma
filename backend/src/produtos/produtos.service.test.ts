@@ -79,3 +79,13 @@ describe('grupos e conta contábil', () => {
     await expect(comBase.validar(file('Codigo;Descricao;NCM\nA;x;07133319'), undefined, undefined, { ...opcoesClasse, gruposContabeis: true })).rejects.toThrow('conta contábil');
   });
 });
+
+describe('SAP Business One', () => {
+  it('avisa que NCM curto parece o código interno (OITM.NCMCode) só quando SAP está selecionado', async () => {
+    const csv = 'Codigo;Descricao;NCM\nA;Item;4521';
+    const sap = await comBase.validar(file(csv), undefined, undefined, { ...opcoesClasse, erps: ['SAP'] });
+    expect(sap.itens[0].problemas.map((p) => p.codigo)).toContain('NCM_CHAVE_SAP');
+    const outro = await comBase.validar(file(csv), undefined, undefined, { ...opcoesClasse, erps: ['Protheus'] });
+    expect(outro.itens[0].problemas.map((p) => p.codigo)).toContain('NCM_FORMATO');
+  });
+});

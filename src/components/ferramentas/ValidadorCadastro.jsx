@@ -13,7 +13,7 @@ const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cC
 const ROTULO_PROBLEMA = {
   DUPLICIDADE_EXATA: "Descrição e unidade iguais", POSSIVEL_DUPLICIDADE: "Possível duplicidade",
   NCM_AUSENTE: "NCM ausente", NCM_FORMATO: "NCM com formato errado", NCM_INEXISTENTE: "NCM inexistente", NCM_INATIVO: "NCM não vigente",
-  NCM_ZERO_RESTAURADO: "Zero à esquerda corrigido", DATA_INVALIDA: "Data de movimentação não reconhecida", SEM_DATA_MOVIMENTO: "Sem data de movimentação", CODIGO_AUSENTE: "Sem código", DESCRICAO_AUSENTE: "Sem descrição",
+  NCM_ZERO_RESTAURADO: "Zero à esquerda corrigido", NCM_CHAVE_SAP: "NCM é código interno do SAP", DATA_INVALIDA: "Data de movimentação não reconhecida", SEM_DATA_MOVIMENTO: "Sem data de movimentação", CODIGO_AUSENTE: "Sem código", DESCRICAO_AUSENTE: "Sem descrição",
   CODIGO_DUPLICADO: "Código duplicado", PRODUTO_DUPLICADO: "Produto duplicado", CLASSE_SUGERIDA: "Classificação sugerida",
   BENEFICIO_POSSIVELMENTE_PERDIDO: "Benefício possivelmente perdido", REDUCAO_MAIOR_QUE_ESPERADO: "Redução maior que a esperada",
   SEM_AMPARO_NO_ANEXO: "Redução sem amparo nos anexos", CLASSE_DIVERGENTE: "Classe divergente", AMBIGUO_REVISAR: "NCM ambíguo — revisar",
@@ -32,7 +32,7 @@ const ABAS = [
   { id: "TODOS", titulo: "Todos os itens", testa: () => true },
   { id: "REGULARES", titulo: "100% regulares", testa: (i) => i.situacao === "OK" },
   { id: "DUPLICADOS", titulo: "Duplicados para crítica", testa: tem("DUPLICIDADE_EXATA", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO") },
-  { id: "NCM", titulo: "NCM a corrigir", testa: tem("NCM_AUSENTE", "NCM_FORMATO", "NCM_INEXISTENTE", "NCM_INATIVO") },
+  { id: "NCM", titulo: "NCM a corrigir", testa: tem("NCM_AUSENTE", "NCM_CHAVE_SAP", "NCM_FORMATO", "NCM_INEXISTENTE", "NCM_INATIVO") },
   { id: "AUTO", titulo: "Corrigidos automaticamente", testa: tem("NCM_ZERO_RESTAURADO") },
   { id: "CLASSE", titulo: "cClassTrib a revisar", testa: tem("BENEFICIO_POSSIVELMENTE_PERDIDO", "REDUCAO_MAIOR_QUE_ESPERADO", "SEM_AMPARO_NO_ANEXO", "CLASSE_DIVERGENTE", "AMBIGUO_REVISAR") },
   { id: "CADASTRO", titulo: "Cadastro incompleto", testa: tem("CODIGO_AUSENTE", "DESCRICAO_AUSENTE", "DATA_INVALIDA") },
