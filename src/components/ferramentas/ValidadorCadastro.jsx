@@ -2,7 +2,7 @@ import { ERPS } from "@/lib/conhecimentoSistemas";
 import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
+import { SlidersHorizontal, UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
 import { api } from "@/api/base44Client";
 import LeadForm from "@/components/ferramentas/LeadForm";
 import HistoricoValidacoes from "@/components/ferramentas/HistoricoValidacoes";
@@ -129,7 +129,11 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const validar = async (email) => {
     setErro(""); setCarregando(true);
     try {
-      const r = await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(!publico ? { empresa_id: empresaId, opcoes } : {}), ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
+      // Refazer depois de ajustar parâmetros: usa o arquivo já guardado no servidor e atualiza a mesma validação do histórico.
+      const idSalvo = !publico && resultado?.validacao_id;
+      const r = idSalvo
+        ? await api.post(`/produtos/validacoes/${idSalvo}/refazer`, { mapeamento: mapa, opcoes, empresa_id: empresaId })
+        : await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(!publico ? { empresa_id: empresaId, opcoes } : {}), ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
       setExcluir([]); setPeriodoFiltro("ANALISE"); setResultado(r); setEtapa("resultado"); setPagina(0);
       if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
@@ -137,6 +141,19 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     } finally {
       setCarregando(false);
     }
+  };
+
+  // Volta da tela de resultado para as colunas/parâmetros, mantendo tudo o que já foi escolhido, para ajustar e refazer.
+  const ajustar = async () => {
+    setErro("");
+    if (!previa && resultado?.validacao_id) {
+      setCarregando(true);
+      try { setPrevia(await api.get(`/produtos/validacoes/${resultado.validacao_id}/colunas`, { empresa_id: empresaId })); } catch (e) { setErro(e.message); setCarregando(false); return; }
+      setCarregando(false);
+    }
+    if (resultado?.mapeamento) setMapa(resultado.mapeamento);
+    if (resultado?.opcoes) setOpcoes(resultado.opcoes);
+    setExcluir([]); setEtapa("colunas");
   };
 
   const abrirSalva = async (v) => {
@@ -230,7 +247,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <FileSpreadsheet className="w-4 h-4" /> <b className="text-foreground">{arquivo?.name}</b> · {previa.total_linhas.toLocaleString("pt-BR")} produtos
+          <FileSpreadsheet className="w-4 h-4" /> <b className="text-foreground">{arquivo?.name || resultado?.nome_arquivo}</b> · {previa.total_linhas.toLocaleString("pt-BR")} produtos
           {publico && previa.total_linhas > 300 && <span className="text-amber-600">(a amostra analisa os 300 primeiros)</span>}
         </div>
 
@@ -272,6 +289,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
 
         {erro && <p className="text-sm text-destructive">{erro}</p>}
         <div className="flex gap-2">
+          {resultado && <button type="button" onClick={() => setEtapa("resultado")} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Voltar ao resultado</button>}
           <button type="button" onClick={reiniciar} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Trocar arquivo</button>
           <button type="button" disabled={!obrigatoriosOk || carregando} onClick={() => validar()} className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
             {carregando && <Loader2 className="w-4 h-4 animate-spin" />} {carregando ? "Validando…" : "Validar cadastro"}
@@ -311,6 +329,9 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
           <Cartao titulo="Corrigir" valor={r.erro} cor="text-red-600" ativo={filtro === "ERRO"} onClick={() => { setFiltro("ERRO"); setPagina(0); }} />
         </div>
 
+        {r.tributacao_padrao !== undefined && (
+          <p className="text-xs text-muted-foreground">cClassTrib sugerido: <b className="text-foreground">{r.com_sugestao.toLocaleString("pt-BR")}</b> com benefício identificado nos anexos da LC 214 · <b className="text-foreground">{r.tributacao_padrao.toLocaleString("pt-BR")}</b> sem benefício nos anexos consultados (sugestão padrão 000001 — confirme se há outra base legal, como produtor rural ou regime específico).</p>
+        )}
         {!r.catalogo_ncm_carregado && <p className="text-xs text-amber-600">A tabela oficial de NCM ainda não está carregada neste ambiente: a existência do NCM não foi conferida.</p>}
         {r.truncado && <p className="text-xs text-muted-foreground">Arquivo com {r.linhas_no_arquivo.toLocaleString("pt-BR")} linhas: a amostra analisou as primeiras {r.total}.</p>}
 
@@ -328,6 +349,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
             <input value={busca} onChange={(e) => { setBusca(e.target.value); setPagina(0); }} placeholder="Buscar código, descrição ou NCM" className="h-9 w-64 rounded-md border border-input bg-background pl-8 pr-2 text-sm" />
           </div>
           <div className="flex gap-2">
+            {!publico && resultado.validacao_id && <button type="button" onClick={ajustar} disabled={carregando} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-primary text-primary text-sm hover:bg-primary/5 disabled:opacity-50">{carregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SlidersHorizontal className="w-4 h-4" />} Ajustar parâmetros e refazer</button>}
             <button type="button" onClick={reiniciar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted"><RotateCcw className="w-4 h-4" /> Validar outro arquivo</button>
             {!publico && <button type="button" onClick={exportar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90"><Download className="w-4 h-4" /> Baixar planilha corrigida</button>}
           </div>

@@ -61,6 +61,18 @@ export class ProdutosController {
     return this.validacoes.obter(id, empresa_id);
   }
 
+  @Get('validacoes/:id/colunas')
+  colunasValidacao(@Param('id') id: string, @Query('empresa_id') empresa_id?: string) {
+    return this.validacoes.colunas(id, empresa_id);
+  }
+
+  /** Ajustar colunas/opções e refazer sobre o arquivo já guardado (atualiza a mesma validação do histórico). */
+  @Post('validacoes/:id/refazer')
+  refazerValidacao(@Param('id') id: string, @Body() body: { mapeamento?: unknown; opcoes?: unknown; empresa_id?: string }) {
+    const mapa = body?.mapeamento ? lerMapeamento(JSON.stringify(body.mapeamento)) : undefined;
+    return this.validacoes.refazer(id, mapa, lerOpcoes(JSON.stringify(body?.opcoes ?? {})), body?.empresa_id);
+  }
+
   @Get('validacoes/:id/exportar')
   async exportarValidacao(@Param('id') id: string) {
     const { buf, nome } = await this.validacoes.exportar(id);

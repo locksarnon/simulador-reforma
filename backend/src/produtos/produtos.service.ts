@@ -55,7 +55,7 @@ export type LinhaResultado = {
   ncm: string;
   situacao: 'OK' | 'ALERTA' | 'ERRO';
   problemas: Problema[];
-  sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null } | null;
+  sugestao: { c_class_trib: string | null; descricao: string | null; reducao: number; confianca: string; ambiguo: boolean; anexo: string | null; padrao?: boolean } | null;
   c_class_trib_informado: string;
   unidade: string; principio_ativo: string; grupo_contabil: string; candidatos_duplicidade: number[];
   /** Data da coluna de movimentação/cadastro (AAAA-MM-DD), quando legível. */
@@ -252,9 +252,11 @@ export class ProdutosService {
       if (!ncm) {
         problemas.push({ codigo: 'NCM_AUSENTE', severidade: 'erro', mensagem: 'NCM não informado.' });
       } else {
-        if (ncm.length === 7 && p.ncmNumerico[mapa.ncm as number]) {
+        // NCM de 7 dígitos: o Excel/CSV costuma comer o zero à esquerda (capítulos 01 a 09 — justamente os alimentos dos anexos). Restaura se a coluna é
+        // numérica ou se a versão com zero existe na tabela oficial (nesse caso a correção é praticamente certa).
+        if (ncm.length === 7 && (p.ncmNumerico[mapa.ncm as number] || (catalogoCarregado && tabNcm.has('0' + ncm)))) {
           ncm = ncm.padStart(8, '0');
-          problemas.push({ codigo: 'NCM_ZERO_RESTAURADO', severidade: 'info', mensagem: `O Excel removeu o zero à esquerda; corrigido para ${ncm}.` });
+          problemas.push({ codigo: 'NCM_ZERO_RESTAURADO', severidade: 'info', mensagem: `O zero à esquerda do NCM foi perdido na planilha; corrigido para ${ncm}.` });
         }
         if (ncm.length !== 8) {
           problemas.push({ codigo: 'NCM_FORMATO', severidade: 'erro', mensagem: `NCM "${ncmOriginal}" tem ${ncm.length} dígitos; o correto são 8.` });
@@ -309,6 +311,12 @@ export class ProdutosService {
           ambiguo: av.ambiguo,
           anexo: av.matches[0] ? `Anexo ${av.matches[0].anexo}${av.matches[0].item_lei ? `, item ${av.matches[0].item_lei}` : ''}` : null,
         };
+        // NCM válido que não aparece em nenhum anexo consultado: sugere a classe padrão (tributação integral) em vez de deixar em branco,
+        // marcada como "padrão" — não prova ausência de benefício por outra base legal (produtor rural, regime específico...).
+        const ncmValido = !catalogoCarregado || tabNcm.get(ncm)?.status === 'Ativo';
+        if (!av.encontrado && ncmValido && classes.has('000001')) {
+          sugestao = { c_class_trib: '000001', descricao: classes.get('000001')?.descricao_oficial ?? null, reducao: 0, confianca: 'Padrão (NCM fora dos anexos consultados)', ambiguo: false, anexo: null, padrao: true };
+        }
         if (informado) {
           if (cmp.severidade === 'alta') problemas.push({ codigo: cmp.codigo, severidade: 'erro', mensagem: cmp.mensagem });
           else if (cmp.severidade === 'alerta') problemas.push({ codigo: cmp.codigo, severidade: 'alerta', mensagem: cmp.mensagem });
@@ -346,7 +354,8 @@ export class ProdutosService {
       ok: resultado.filter((r) => r.situacao === 'OK').length,
       alerta: resultado.filter((r) => r.situacao === 'ALERTA').length,
       erro: resultado.filter((r) => r.situacao === 'ERRO').length,
-      com_sugestao: resultado.filter((r) => r.sugestao?.c_class_trib).length,
+      com_sugestao: resultado.filter((r) => r.sugestao?.c_class_trib && !r.sugestao.padrao).length,
+      tributacao_padrao: resultado.filter((r) => r.sugestao?.padrao).length,
       catalogo_ncm_carregado: catalogoCarregado,
       linhas_no_arquivo: truncado || resultado.length,
       truncado: Boolean(truncado),
@@ -456,7 +465,8 @@ export class ProdutosService {
       ['Sem problemas', r.resumo.ok],
       ['Com atenção', r.resumo.alerta],
       ['A corrigir', r.resumo.erro],
-      ['Com classificação sugerida', r.resumo.com_sugestao],
+      ['Com benefício identificado nos anexos (classe sugerida)', r.resumo.com_sugestao],
+      ['Sem benefício nos anexos consultados (padrão 000001)', r.resumo.tributacao_padrao],
       ['', ''],
       ['Aviso: as sugestões são orientativas, baseadas nos anexos da LC 214/2025 já mapeados.', ''],
       ['A classificação fiscal é responsabilidade do contribuinte e deve ser validada por um especialista.', ''],

@@ -23,3 +23,35 @@ describe('saneamento cadastral', () => {
  it('rejeita datas e opções inválidas', () => { expect(()=>lerOpcoes('{"dataInicio":"2026-02-30"}')).toThrow(); expect(()=>lerOpcoes('{"dataInicio":"2026-02-02","dataFim":"2026-01-01"}')).toThrow(); });
  it('mantém NCM obrigatório mesmo com cClassTrib desligado', async () => { await expect(service.validar(file('Codigo;Descricao\nA;Milho'),undefined,undefined,opcoes)).rejects.toThrow('NCM'); });
 });
+
+// Cobertura do cClassTrib sugerido: zero à esquerda perdido em CSV e classe padrão para NCM fora dos anexos.
+import { prepararLista } from '../classificacao/ncm-classe';
+const catalogo = [
+  ...Array.from({ length: 120 }, (_, i) => ({ codigo: String(90000000 + i), status: 'Ativo', descricao: 'x' })),
+  { codigo: '07133319', status: 'Ativo', descricao: 'Feijão' }, { codigo: '84713012', status: 'Ativo', descricao: 'Notebook' },
+];
+const classes = new Map<string, any>([
+  ['000001', { c_class_trib: '000001', descricao_oficial: 'Tributação integral', pct_reducao_ibs: 0, pct_reducao_cbs: 0 }],
+  ['200003', { c_class_trib: '200003', descricao_oficial: 'Alimentação humana (Anexo I)', pct_reducao_ibs: 1, pct_reducao_cbs: 1 }],
+]);
+const lista = prepararLista([{ ncm: '0713.33.19', c_class_trib: '200003', anexo: 'I', item_lei: 1, descricao_produto: 'Feijão' }]);
+const comBase = new ProdutosService({ ncm: { findMany: async () => catalogo } } as any, { base: async () => ({ lista, classes }) } as any);
+const opcoesClasse = { ...OPCOES_PADRAO, cClassTrib: true };
+
+describe('cClassTrib sugerido', () => {
+  it('restaura o zero à esquerda do NCM em CSV quando a tabela oficial confirma', async () => {
+    const r = await comBase.validar(file('Codigo;Descricao;NCM\nA;Feijão;7133319'), undefined, undefined, opcoesClasse);
+    expect(r.itens[0].ncm).toBe('07133319');
+    expect(r.itens[0].sugestao?.c_class_trib).toBe('200003');
+  });
+  it('NCM válido fora dos anexos recebe a classe padrão, marcada como padrão', async () => {
+    const r = await comBase.validar(file('Codigo;Descricao;NCM\nB;Notebook;84713012'), undefined, undefined, opcoesClasse);
+    expect(r.itens[0].sugestao).toMatchObject({ c_class_trib: '000001', padrao: true });
+    expect(r.resumo.tributacao_padrao).toBe(1);
+    expect(r.resumo.com_sugestao).toBe(0);
+  });
+  it('NCM inexistente ou com formato errado nunca recebe sugestão', async () => {
+    const r = await comBase.validar(file('Codigo;Descricao;NCM\nC;Inexistente;99999999\nD;Curto;1234'), undefined, undefined, opcoesClasse);
+    expect(r.itens.every((i) => !i.sugestao?.c_class_trib)).toBe(true);
+  });
+});

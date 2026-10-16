@@ -59,6 +59,29 @@ export class ValidacoesService {
     return { ...r, validacao_id: v.id, nome_arquivo: v.nome_arquivo, criado_por: v.criado_por, criado_em: v.createdAt };
   }
 
+  /** Colunas do arquivo guardado — para reabrir a tela de parâmetros de uma validação antiga. */
+  async colunas(id: string, empresa_id?: string) {
+    const { file } = await this.carregar(id, empresa_id);
+    return this.produtos.previa(file);
+  }
+
+  /**
+   * Refaz a validação do MESMO arquivo guardado com outros parâmetros (colunas e opções), sem reenviar a planilha,
+   * e atualiza o mesmo registro do histórico em vez de criar um novo a cada ajuste.
+   */
+  async refazer(id: string, mapeamento: Mapeamento | undefined, opcoes: OpcoesValidacao, empresa_id?: string) {
+    const { v, file } = await this.carregar(id, empresa_id);
+    const r = await this.produtos.validar(file, mapeamento, undefined, opcoes);
+    await this.prisma.validacaoCadastro.update({
+      where: { id },
+      data: {
+        opcoes_json: JSON.stringify(opcoes), resultado_json: JSON.stringify(r), mapeamento_json: JSON.stringify(r.mapeamento ?? mapeamento ?? {}),
+        total: r.resumo.total, itens_ok: r.resumo.ok, itens_alerta: r.resumo.alerta, itens_erro: r.resumo.erro,
+      },
+    });
+    return { ...r, validacao_id: v.id, nome_arquivo: v.nome_arquivo, criado_por: v.criado_por, criado_em: v.createdAt };
+  }
+
   async exportar(id: string) {
     const { v, file, mapa } = await this.carregar(id);
     const buf = await this.produtos.exportarXlsx(file, mapa, v.opcoes_json ? JSON.parse(v.opcoes_json) : OPCOES_PADRAO, [], v.resultado_json ? JSON.parse(v.resultado_json) : undefined);
