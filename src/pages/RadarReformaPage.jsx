@@ -80,7 +80,7 @@ export default function RadarReformaPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Radar de Novidades" }]} />
-      <div className="p-6 lg:p-8 space-y-5">
+      <div className="p-4 lg:p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <TituloPagina icon={Radar}>Radar de Novidades — Reforma Tributária</TituloPagina>

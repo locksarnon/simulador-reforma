@@ -14,7 +14,7 @@ export default function ArquiteturaPage() {
   const [busca, setBusca] = useState("");
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="p-4 lg:p-5 space-y-4">
       <div>
         <TituloPagina icon={Network} ajuda={<InfoTooltip text="Documentação técnica interna para o time de desenvolvimento. Mapeia todas as entidades, backend functions, páginas, hooks e módulos shared." />}>Arquitetura & Correlações Front↔Back</TituloPagina>
         <p className="text-sm text-muted-foreground mt-1">

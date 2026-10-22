@@ -8,7 +8,7 @@ export default function FerramentasValidadorCadastro() {
   const { empresa } = useOutletContext() || {};
   return (
     <div>
-      <div className="p-6 lg:p-8 space-y-5">
+      <div className="p-4 lg:p-5 space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <TituloPagina icon={ListChecks}>Validador de cadastro de produtos</TituloPagina>

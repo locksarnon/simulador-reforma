@@ -61,7 +61,7 @@ export default function CatalogosPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Catálogos IBS/CBS" }]} />
-    <div className="p-6 lg:p-8 space-y-5">
+    <div className="p-4 lg:p-5 space-y-4">
       <div>
         <TituloPagina icon={Library} ajuda={<InfoTooltip pagina="catalogos" chave="header" />}>Catálogos IBS/CBS</TituloPagina>
         <p className="text-sm text-muted-foreground">CST, cClassTrib e cCredPres — bases oficiais versionadas</p>

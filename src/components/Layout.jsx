@@ -72,8 +72,8 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <aside className="w-64 shrink-0 border-r border-border bg-sidebar h-screen sticky top-0 flex flex-col">
-        <div className="p-5 border-b border-sidebar-border">
+      <aside className="w-56 shrink-0 border-r border-border bg-sidebar h-screen sticky top-0 flex flex-col">
+        <div className="p-3.5 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
               <Logo className="w-5 h-5" />
@@ -85,10 +85,10 @@ export default function Layout() {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+        <nav className="flex-1 overflow-y-auto p-2 space-y-3">
           {sections.map((section) => (
             <div key={section.title}>
-              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <p className="px-2.5 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                 {section.title}
               </p>
               <div className="space-y-0.5">
@@ -98,7 +98,7 @@ export default function Layout() {
                     href={item.to}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60"
+                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60"
                   >
                     <item.icon className="w-4 h-4 shrink-0" />
                     {item.label}
@@ -109,7 +109,7 @@ export default function Layout() {
                     to={item.to}
                     end={item.end}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
                         isActive
                           ? "bg-sidebar-accent text-sidebar-accent-foreground"
                           : "text-sidebar-foreground hover:bg-sidebar-accent/60"

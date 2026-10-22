@@ -8,7 +8,7 @@ export default function FerramentasConsultaNcm() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Consulta NCM" }]} />
-      <div className="p-6 lg:p-8 space-y-5 max-w-4xl">
+      <div className="p-4 lg:p-5 space-y-4 max-w-4xl">
         <div>
           <TituloPagina icon={Search}>Consulta NCM</TituloPagina>
           <p className="text-sm text-muted-foreground">Tratamento de cada NCM na LC 214/2025 (anexos já mapeados), com a tabela oficial vigente do Siscomex.</p>

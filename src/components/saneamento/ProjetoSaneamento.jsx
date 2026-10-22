@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Loader2, ArrowLeft } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, ArrowLeft, Check, Lock } from "lucide-react";
 import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
@@ -39,7 +39,11 @@ function Acc({ aberto, onToggle, titulo, children }) {
     </div>
   );
 }
-const Botao = ({ className = "", ...p }) => <button type="button" {...p} className={`px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted disabled:opacity-50 ${className}`} />;
+const Botao = ({ className = "", ...p }) => <button type="button" {...p} className={`px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:border-dashed ${className}`} />;
+const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
+const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
+/** Resumo curto do achado; a frase completa fica no tooltip. */
+const achadoCurto = (c, it, motivo) => (c.id === "duplicidade" && it.duplicidade ? `${NIVEL_ROT[it.duplicidade.nivel]} · similaridade ${it.duplicidade.score.toFixed(2).replace(".", ",")} · linha ${it.duplicidade.candidatos[0]?.linha ?? "—"}` : motivo);
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const { user } = useAuth();
@@ -51,6 +55,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [critAtivo, setCritAtivo] = useState(CRITERIOS[0].id);
   const [comparativo, setComparativo] = useState(null);
   const [salvo, setSalvo] = useState(null);
+  const [programaAberto, setProgramaAberto] = useState(false);
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
@@ -126,7 +131,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <div className="space-y-2">
         <h3 className="font-medium text-sm">Mapa por grupo de itens (em escopo)</h3>
         {grupos.map((g) => (
-          <Acc key={g.nome} aberto={!!aberto["m" + g.nome]} onToggle={() => alternar("m" + g.nome)} titulo={<><b className="font-medium">{g.nome}</b><span className="text-xs text-muted-foreground">{fmt(g.itens.length)} itens</span></>}>
+          <Acc key={g.nome} aberto={!!aberto["m" + g.nome]} onToggle={() => alternar("m" + g.nome)} titulo={<><b className="font-medium">{g.nome}</b><span className="text-xs text-muted-foreground">{plural(g.itens.length, "item", "itens")}</span></>}>
             <TabelaItens itens={g.itens} colunas={["linha", "codigo", "descricao", "unidade", "ultima_mov"]} />
           </Acc>))}
         {escopo.fora.length > 0 && (
@@ -195,12 +200,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
                 const ach = aberto[chave] ? achadosDoCriterio(c, g.itens, testes) : null;
                 const n = ach ? ach.length : c.auto ? achadosDoCriterio(c, g.itens, testes).length : null;
                 return (
-                  <Acc key={c.id} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<>{c.titulo}{tratado ? <Chip tom="g">Tratado</Chip> : <Chip tom="a">A tratar</Chip>}<span className="text-xs text-muted-foreground">{c.auto ? `${fmt(n)} achados` : "conferência manual"}</span></>}>
+                  <Acc key={c.id} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<>{c.titulo}{tratado ? <Chip tom="g">Tratado</Chip> : <Chip tom="a">A tratar</Chip>}<span className="text-xs text-muted-foreground">{c.auto ? plural(n, "achado", "achados") : "conferência manual"}</span></>}>
                     {!c.auto ? <p className="text-sm text-muted-foreground">Este critério ainda não tem teste automático: confira os itens do grupo e marque como tratado.</p> : (ach || []).length === 0 ? <p className="text-sm text-muted-foreground">Nenhum achado neste grupo para este critério.</p> : (
                       <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Linha</th><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">Achado</th><th className="p-1.5">Encaminhar</th></tr></thead>
                         <tbody>{ach.slice(0, 100).map(({ item: it, motivo }) => (
                           <tr key={it.linha} className="border-t border-border align-top"><td className="p-1.5 tabular-nums">{it.linha}</td><td className="p-1.5">{it.codigo || "—"}</td><td className="p-1.5 max-w-[260px]">{it.descricao || "—"}</td>
-                            <td className="p-1.5 max-w-[320px]">{motivo}{c.id === "duplicidade" && it.duplicidade && <button type="button" className="ml-2 text-primary underline" onClick={() => setComparativo(it)}>Comparar</button>}</td>
+                            <td className="p-1.5 max-w-[320px]"><span title={motivo} className="line-clamp-2">{achadoCurto(c, it, motivo)}</span>{c.id === "duplicidade" && it.duplicidade && <button type="button" className="ml-2 text-primary underline" onClick={() => setComparativo(it)}>Comparar</button>}</td>
                             <td className="p-1.5"><input type="checkbox" aria-label={`Encaminhar linha ${it.linha}`} checked={!!estado.decisoes[`${it.linha}|${c.id}`]} disabled={estado.decisoes[`${it.linha}|${c.id}`] && estado.decisoes[`${it.linha}|${c.id}`].status !== "PROP"} onChange={() => alternarDecisao(it, c, g.nome)} /></td></tr>))}</tbody></table>
                         {ach.length > 100 && <p className="text-xs text-muted-foreground p-2">Mostrando 100 de {fmt(ach.length)}.</p>}</div>)}
                     <div className="mt-2"><Botao onClick={() => mudar({ tratados: { ...estado.tratados, [k]: !tratado }, saneados: tratado ? { ...estado.saneados, [g.nome]: false } : estado.saneados })}>{tratado ? "Reabrir critério no grupo" : "Marcar como tratado"}</Botao></div>
@@ -247,21 +252,53 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   );
 
   const corpo = [triagem, criterios, piloto, analises, depara][passo] ?? proxima;
+
+  // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
+  const nGrupos = grupos.length; const nSan = grupos.filter((g) => estado.saneados[g.nome]).length;
+  const nCrit = CRITERIOS.filter((c) => criterioAprovado(estado, c.id)).length;
+  const nPil = CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length;
+  const nDec = decisoesLista.length; const nDecFeitas = decisoesLista.filter((d) => d.status !== "PROP").length;
+  const resumoPassos = [
+    { feito: !!validacaoId, sub: validacaoId ? `${fmt(escopo.resumo.emEscopo)} em escopo` : "sem base" },
+    { feito: nCrit === CRITERIOS.length, sub: `${nCrit}/${CRITERIOS.length} aprovados` },
+    { feito: nPil === CASOS_PILOTO.length, sub: `${nPil}/${CASOS_PILOTO.length} testados` },
+    { feito: nGrupos > 0 && nSan === nGrupos, sub: nGrupos ? `${nSan}/${nGrupos} grupos` : "sem base" },
+    { feito: nDec > 0 && nDecFeitas === nDec, sub: nDec ? `${nDecFeitas}/${nDec} decididos` : "sem casos" },
+    { sub: "em breve" }, { sub: "em breve" },
+    { sub: nSan ? plural(nSan, "grupo liberado", "grupos liberados") : "aguarda saneamento", bloqueado: nSan === 0 },
+    { sub: "em breve" },
+  ];
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/60 px-3 py-2">
-        <div className="flex items-center gap-2"><button type="button" onClick={onVoltar} className="text-muted-foreground hover:text-foreground" aria-label="Voltar à lista de projetos"><ArrowLeft className="w-4 h-4" /></button><b className="font-medium">{nome}</b></div>
-        <span className="text-xs text-muted-foreground">{salvo ? `Salvo às ${salvo.toLocaleTimeString("pt-BR")}` : "Salvamento automático"}</span>
+    <div className="space-y-3">
+      <div className="sticky top-0 z-20 -mx-4 lg:-mx-5 px-4 lg:px-5 py-2 bg-background/95 backdrop-blur border-b border-border space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0"><button type="button" onClick={onVoltar} className="text-muted-foreground hover:text-foreground" aria-label="Voltar à lista de projetos"><ArrowLeft className="w-4 h-4" /></button><b className="font-medium truncate">{nome}</b></div>
+          <span className="text-xs text-muted-foreground">{salvo ? `Salvo às ${salvo.toLocaleTimeString("pt-BR")}` : "Salvamento automático"}</span>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Passos do saneamento">
+          {PASSOS.map((p, i) => {
+            const rp = resumoPassos[i]; const ativo = i === passo;
+            return (
+              <button key={p.t} type="button" role="tab" aria-selected={ativo} onClick={() => irPara(i)}
+                className={`flex-1 min-w-[104px] flex flex-col items-start gap-0.5 rounded-md border px-2 py-1.5 text-left ${ativo ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted"}`}>
+                <span className={`flex items-center gap-1.5 text-[12px] font-medium ${ativo ? "text-primary" : ""}`}>
+                  <span className={`grid place-items-center w-4 h-4 shrink-0 rounded-full text-[10px] ${rp.feito ? "bg-primary text-primary-foreground" : ativo ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>{rp.feito ? <Check className="w-3 h-3" /> : rp.bloqueado ? <Lock className="w-2.5 h-2.5" /> : i + 1}</span>
+                  {p.t}
+                </span>
+                <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap">{rp.sub}</span>
+              </button>);
+          })}
+        </div>
       </div>
-      <div className="grid grid-cols-3 sm:grid-cols-9 gap-1" role="tablist" aria-label="Passos do saneamento">
-        {PASSOS.map((p, i) => <button key={p.t} type="button" role="tab" aria-selected={i === passo} onClick={() => irPara(i)} className={`px-1 py-1.5 rounded-md border text-center text-[11px] leading-tight ${i === passo ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}><b className="block text-sm font-medium">{i + 1}</b>{p.t}</button>)}
+      <div className="rounded-lg bg-muted/50 text-xs text-muted-foreground">
+        <button type="button" onClick={() => setProgramaAberto((a) => !a)} aria-expanded={programaAberto} className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left">
+          <span><b className="font-medium text-foreground">Programa de trabalho</b> · {PASSOS[passo].t}</span>
+          {programaAberto ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+        </button>
+        {programaAberto && <div className="px-3 pb-2 space-y-1"><p>{PASSOS[passo].programa}</p><p><b className="font-medium text-foreground">Para avançar:</b> {PASSOS[passo].avancar}</p></div>}
       </div>
-      <p className="text-xs rounded-lg bg-muted/60 px-3 py-2 text-muted-foreground"><b className="font-medium text-foreground">Programa de trabalho:</b> {PASSOS[passo].programa}</p>
       {corpo}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <span className="text-xs text-muted-foreground"><b className="font-medium text-foreground">Para avançar:</b> {PASSOS[passo].avancar}</span>
-        <div className="flex gap-2">{passo > 0 && <Botao onClick={() => irPara(passo - 1)}>Voltar</Botao>}{passo < PASSOS.length - 1 && <Botao onClick={() => irPara(passo + 1)}>Concluir e seguir</Botao>}</div>
-      </div>
+      <div className="flex justify-end gap-2 pt-1">{passo > 0 && <Botao onClick={() => irPara(passo - 1)}>Voltar</Botao>}{passo < PASSOS.length - 1 && <Botao onClick={() => irPara(passo + 1)}>Concluir e seguir</Botao>}</div>
       <ComparativoDuplicidade item={comparativo} itens={itens} excluir={[]} setExcluir={() => {}} podeExcluir={false} onFechar={() => setComparativo(null)} />
     </div>
   );

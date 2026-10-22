@@ -43,7 +43,7 @@ export default function WorkroomOverview() {
   ];
 
   return (
-    <div className="px-6 lg:px-8 py-6 pb-12">
+    <div className="px-4 lg:px-5 py-4 pb-10">
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>

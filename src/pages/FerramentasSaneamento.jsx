@@ -28,7 +28,7 @@ export default function FerramentasSaneamento() {
   });
 
   return (
-    <div className="p-6 lg:p-8 space-y-5">
+    <div className="p-4 lg:p-5 space-y-4">
       <div>
         <TituloPagina icon={ClipboardList}>Saneamento de estoques</TituloPagina>
         <p className="text-sm text-muted-foreground">Passo a passo: triagem da base, critérios aprovados, análise por grupo, decisões e, ao final, relatório e política de uso.</p>

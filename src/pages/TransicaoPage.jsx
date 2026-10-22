@@ -45,7 +45,7 @@ export default function TransicaoPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Transição 2026–2033" }]} />
-    <div className="p-6 lg:p-8 space-y-5">
+    <div className="p-4 lg:p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <TituloPagina icon={CalendarRange} ajuda={<InfoTooltip pagina="transicao" chave="header" />}>Transição 2026–2033</TituloPagina>

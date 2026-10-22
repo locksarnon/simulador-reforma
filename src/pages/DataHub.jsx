@@ -81,7 +81,7 @@ export default function DataHub() {
   const nextNumero = `#${String(grupos.length + 1).padStart(3, "0")}`;
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="p-4 lg:p-5 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <TituloPagina icon={LayoutGrid} ajuda={<InfoTooltip pagina="datahub" chave="header" />}>Grupos e empresas</TituloPagina>
