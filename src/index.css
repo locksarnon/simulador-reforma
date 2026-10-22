@@ -10,6 +10,8 @@
        InTAX como única cor de destaque nos dois modos, e neutros com um leve tom
        esverdeado em vez de cinza puro (ver tailwind.config.js e index.html p/ fontes). */
     --background: 0 0% 100%;
+    /* Fundo da página (23/10/2026): cinza claro, para os cartões brancos se destacarem. */
+    --canvas: 150 12% 95.5%;
     --foreground: 150 12% 10%;
     --card: 0 0% 100%;
     --card-foreground: 150 12% 10%;
@@ -53,6 +55,7 @@
        anterior (fundo ia a 8% de luminosidade, quase preto-azulado) — mesma família
        de cor, contraste mais confortável para uso prolongado. */
     --background: 215 28% 15%;
+    --canvas: 215 28% 15%;
     --foreground: 210 20% 96%;
     --card: 215 25% 19%;
     --card-foreground: 210 20% 96%;

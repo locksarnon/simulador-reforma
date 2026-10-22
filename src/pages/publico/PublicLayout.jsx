@@ -35,7 +35,7 @@ function Inscricao() {
 /** Moldura das ferramentas abertas do InTAX (sem menu lateral, sem login). */
 export default function PublicLayout() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-canvas flex flex-col">
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
           <Link to="/calculadora" className="flex items-center gap-2 shrink-0">

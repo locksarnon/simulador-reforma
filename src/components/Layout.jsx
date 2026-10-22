@@ -71,7 +71,7 @@ const sections = [
 export default function Layout() {
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-canvas flex">
       <aside className="w-56 shrink-0 border-r border-border bg-sidebar h-screen sticky top-0 flex flex-col">
         <div className="p-3.5 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
