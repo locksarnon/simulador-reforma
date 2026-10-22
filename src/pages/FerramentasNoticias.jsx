@@ -74,7 +74,7 @@ export default function FerramentasNoticias() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Acervo de Notícias" }]} />
-      <div className="p-4 lg:p-5 space-y-4">
+      <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-center justify-between">
           <div>
             <TituloPagina icon={Newspaper} ajuda={<InfoTooltip pagina="ferramentas" chave="noticias_header" />}>Acervo de Notícias</TituloPagina>

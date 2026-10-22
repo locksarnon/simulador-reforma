@@ -8,7 +8,7 @@ import TituloPagina from "@/components/TituloPagina";
 
 export default function ManualPage() {
   return (
-    <div className="p-4 lg:p-5 space-y-4">
+    <div className="p-6 lg:p-8 space-y-6">
       <div>
         <TituloPagina icon={BookOpen} ajuda={<InfoTooltip pagina="manual" chave="header" />}>FAQ & Manual</TituloPagina>
         <p className="text-sm text-muted-foreground mt-1">

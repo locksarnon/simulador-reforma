@@ -48,7 +48,7 @@ export default function ConfiguracaoPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Configuração" }]} />
-    <div className="p-4 lg:p-5 space-y-4">
+    <div className="p-6 lg:p-8 space-y-5">
       <div>
         <TituloPagina icon={Settings} ajuda={<InfoTooltip pagina="config" chave="header" />}>Configuração</TituloPagina>
         <p className="text-sm text-muted-foreground">Premissas centrais, cenário ativo e parâmetros globais do motor</p>

@@ -47,7 +47,7 @@ export default function EmpresasPage() {
           { label: "Empresas" },
         ]}
       />
-    <div className="p-4 lg:p-5 space-y-4">
+    <div className="p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <TituloPagina icon={Building2} ajuda={<InfoTooltip pagina="empresas" chave="header" />}>Empresas do Grupo</TituloPagina>

@@ -64,7 +64,7 @@ export default function BaseLegalPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Base legal" }]} />
-      <div className="p-4 lg:p-5 space-y-4 max-w-6xl">
+      <div className="p-6 lg:p-8 space-y-6 max-w-6xl">
         <div>
           <h1 className="text-xl font-heading font-semibold flex items-center gap-2"><Scale className="w-5 h-5" /> Base legal</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Texto integral das normas da Reforma Tributária do Consumo, capturado das fontes oficiais e organizado por artigo. Use a busca para achar o dispositivo e a base legal de uma resposta.</p>

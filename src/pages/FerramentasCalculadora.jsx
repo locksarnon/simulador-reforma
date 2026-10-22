@@ -42,7 +42,7 @@ export default function FerramentasCalculadora() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Calculadora Rápida" }]} />
-      <div className="p-4 lg:p-5 space-y-4">
+      <div className="p-6 lg:p-8 space-y-5">
         <div>
           <TituloPagina icon={Calculator} ajuda={<InfoTooltip pagina="ferramentas" chave="calculadora_header" />}>Calculadora Reforma Tributária</TituloPagina>
           <p className="text-sm text-muted-foreground max-w-2xl">

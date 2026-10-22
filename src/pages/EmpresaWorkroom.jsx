@@ -72,7 +72,7 @@ export default function EmpresaWorkroom() {
         }
       />
 
-      <div className="border-b border-border bg-card px-4 lg:px-5">
+      <div className="border-b border-border bg-card px-6 lg:px-8">
         <div className="flex gap-1 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;

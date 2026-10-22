@@ -59,7 +59,7 @@ export default function LeadsPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Leads" }]} />
-      <div className="p-4 lg:p-5 space-y-4">
+      <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <TituloPagina icon={Users}>Leads</TituloPagina>

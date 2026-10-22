@@ -293,7 +293,7 @@ export default function RoteiroTestesPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Roteiro de testes" }]} />
-      <div className="p-4 lg:p-5 space-y-4">
+      <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 text-sm">
           <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
           <span><b>Tela provisória para a fase de testes</b> — será removida depois. O progresso e as observações são salvos automaticamente na sua conta e o administrador consegue acompanhar. Use dados de teste e prefixe tudo que criar com "TESTE-".</span>

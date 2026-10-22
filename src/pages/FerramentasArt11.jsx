@@ -23,7 +23,7 @@ export default function FerramentasArt11() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Guia do Art. 11" }]} />
-      <div className="p-4 lg:p-5 space-y-4">
+      <div className="p-6 lg:p-8 space-y-6">
         <div>
           <TituloPagina icon={BookOpenText} ajuda={<InfoTooltip pagina="ferramentas" chave="art11_header" />}>Guia do Art. 11 — Local da Operação</TituloPagina>
           <p className="text-sm text-muted-foreground max-w-2xl">

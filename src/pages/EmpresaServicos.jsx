@@ -30,7 +30,7 @@ export default function EmpresaServicos({ historico = false }) {
   const nomeServico = (s) => SERVICOS.find((x) => x[0] === s)?.[1] || s;
 
   return (
-    <div className="p-4 lg:p-5 space-y-4">
+    <div className="p-6 lg:p-8 space-y-5">
       <div>
         <TituloPagina icon={historico ? History : LayoutGrid}>{historico ? "Histórico de análises" : "Serviços e análises"}</TituloPagina>
         <p className="text-sm text-muted-foreground mt-0.5">{empresa.razao_social} · escolha um serviço ou retome uma análise salva.</p>

@@ -63,7 +63,7 @@ export default function FerramentasValidadorNFSe() {
 
   return (
     <div>
-      <div className="p-4 lg:p-5 space-y-4">
+      <div className="p-6 lg:p-8 space-y-5">
         <div>
           <TituloPagina icon={ShieldCheck} ajuda={<InfoTooltip pagina="ferramentas" chave="validador_nfse_header" />}>Validador NFS-e (DPS Padrão Nacional)</TituloPagina>
           <p className="text-sm text-muted-foreground">
