@@ -56,6 +56,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [comparativo, setComparativo] = useState(null);
   const [salvo, setSalvo] = useState(null);
   const [programaAberto, setProgramaAberto] = useState(false);
+  const [importando, setImportando] = useState(false);
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
@@ -76,6 +77,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     return () => clearTimeout(t);
   }, [estado, validacaoId, projetoId, empresaId]);
 
+  useEffect(() => {
+    if (!importando) return undefined;
+    const aviso = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, [importando]);
   const basesSalvas = useQuery({ queryKey: ["saneamento-bases", empresaId], enabled: !validacaoId, queryFn: () => api.get(`/produtos/validacoes?empresa_id=${empresaId}`) });
   const base = useQuery({ queryKey: ["saneamento-base", validacaoId], enabled: !!validacaoId, queryFn: () => api.get(`/produtos/validacoes/${validacaoId}?empresa_id=${empresaId}`), staleTime: 5 * 60 * 1000 });
   const itens = useMemo(() => base.data?.itens || [], [base.data]);
@@ -96,8 +103,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const itemPorLinha = (linha) => itens.find((i) => i.linha === linha);
 
   // ── Passo 1: Triagem ──
-  const triagem = !validacaoId ? (
-    <div className="space-y-3">
+  const importador = !validacaoId ? (
+    <div className={passo === 0 ? "space-y-3" : "hidden"}>
       <div className="rounded-lg border border-dashed border-border p-4 text-sm">
         <p className="font-medium">Importe a base de itens</p>
         <p className="text-muted-foreground mt-1">Envie a exportação do ERP e confirme as colunas. Mapeie a <b>data da última movimentação</b> (não a de atualização do cadastro) e o <b>grupo de produto</b>: o parâmetro de saneamento e a análise por grupo dependem deles. Ao processar, a base fica vinculada a este projeto.</p>
@@ -109,9 +116,10 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
             </select>
           </label>)}
       </div>
-      <ValidadorCadastro modo="interno" empresa={empresa} modoProjeto aoProcessar={(r) => setValidacaoId(r.validacao_id)} />
+      <ValidadorCadastro modo="interno" empresa={empresa} modoProjeto aoCarregar={setImportando} aoProcessar={(r) => setValidacaoId(r.validacao_id)} />
     </div>
-  ) : base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p> : base.error ? <p role="alert" className="text-sm text-destructive">Não foi possível abrir a base: {base.error.message}</p> : (
+  ) : null;
+  const triagem = !validacaoId ? null : base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p> : base.error ? <p role="alert" className="text-sm text-destructive">Não foi possível abrir a base: {base.error.message}</p> : (
     <div className="space-y-4">
       <div className="rounded-xl border-2 border-primary/40 bg-card p-4 space-y-3">
         <h3 className="font-medium">Parâmetro de saneamento</h3>
@@ -259,7 +267,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const nPil = CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length;
   const nDec = decisoesLista.length; const nDecFeitas = decisoesLista.filter((d) => d.status !== "PROP").length;
   const resumoPassos = [
-    { feito: !!validacaoId, sub: validacaoId ? `${fmt(escopo.resumo.emEscopo)} em escopo` : "sem base" },
+    { feito: !!validacaoId, sub: importando ? "importando…" : validacaoId ? `${fmt(escopo.resumo.emEscopo)} em escopo` : "sem base" },
     { feito: nCrit === CRITERIOS.length, sub: `${nCrit}/${CRITERIOS.length} aprovados` },
     { feito: nPil === CASOS_PILOTO.length, sub: `${nPil}/${CASOS_PILOTO.length} testados` },
     { feito: nGrupos > 0 && nSan === nGrupos, sub: nGrupos ? `${nSan}/${nGrupos} grupos` : "sem base" },
@@ -273,7 +281,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <div className="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8 py-2 bg-background/95 backdrop-blur border-b border-border space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0"><button type="button" onClick={onVoltar} className="text-muted-foreground hover:text-foreground" aria-label="Voltar à lista de projetos"><ArrowLeft className="w-4 h-4" /></button><b className="font-medium truncate">{nome}</b></div>
-          <span className="text-xs text-muted-foreground">{salvo ? `Salvo às ${salvo.toLocaleTimeString("pt-BR")}` : "Salvamento automático"}</span>
+          {importando ? <span className="inline-flex items-center gap-1.5 text-xs text-primary"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando e processando a base… você pode trocar de aba, mas não feche esta página</span> : <span className="text-xs text-muted-foreground">{salvo ? `Salvo às ${salvo.toLocaleTimeString("pt-BR")}` : "Salvamento automático"}</span>}
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Passos do saneamento">
           {PASSOS.map((p, i) => {
@@ -297,6 +305,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         </button>
         {programaAberto && <div className="px-3 pb-2 space-y-1"><p>{PASSOS[passo].programa}</p><p><b className="font-medium text-foreground">Para avançar:</b> {PASSOS[passo].avancar}</p></div>}
       </div>
+      {importador}
       {corpo}
       <div className="flex justify-end gap-2 pt-1">{passo > 0 && <Botao onClick={() => irPara(passo - 1)}>Voltar</Botao>}{passo < PASSOS.length - 1 && <Botao onClick={() => irPara(passo + 1)}>Concluir e seguir</Botao>}</div>
       <ComparativoDuplicidade item={comparativo} itens={itens} excluir={[]} setExcluir={() => {}} podeExcluir={false} onFechar={() => setComparativo(null)} />

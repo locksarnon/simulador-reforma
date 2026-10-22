@@ -108,7 +108,7 @@ function Cartao({ titulo, valor, cor, ativo, onClick }) {
  * como está e indicar as colunas. modo "publico" limita a 300 itens e libera o
  * detalhe após o cadastro do contato.
  */
-export default function ValidadorCadastro({ modo = "interno", empresa, aoProcessar, modoProjeto = false }) {
+export default function ValidadorCadastro({ modo = "interno", empresa, aoProcessar, aoCarregar, modoProjeto = false }) {
   const publico = modo === "publico";
   const { empresaId } = useParams();
   const [searchParams] = useSearchParams();
@@ -123,6 +123,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
   const [mapa, setMapa] = useState({});
   const [resultado, setResultado] = useState(null);
   const [carregando, setCarregando] = useState(false);
+  // Avisa quem hospeda este componente quando há envio/processamento em andamento (o projeto de saneamento mostra isso em qualquer aba).
+  useEffect(() => { aoCarregar?.(carregando); }, [carregando]); // eslint-disable-line react-hooks/exhaustive-deps
   const [erro, setErro] = useState("");
   const [copiado, setCopiado] = useState(false);
   const [arrastando, setArrastando] = useState(false);
