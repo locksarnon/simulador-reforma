@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Loader2, ArrowLeft, Check, Lock } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, ArrowLeft, Check, Lock, Download } from "lucide-react";
 import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
-import { CRITERIOS, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, grupoPodeSanear, hojeIso } from "./logica";
+import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, hojeIso } from "./logica";
+import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
+import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 
 const PASSOS = [
   { t: "Triagem", programa: "Fixar data-base, origem e universo; definir o parâmetro de saneamento (quais itens entram no trabalho); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
@@ -14,14 +16,14 @@ const PASSOS = [
   { t: "Análises", programa: "Grupo a grupo, trata-se um critério aprovado por vez. O grupo fica saneado quando todos os critérios aprovados foram tratados.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
   { t: "De/para", programa: "As propostas encaminhadas viram decisões rastreáveis. Ausência de resposta não é aprovação.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data." },
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências.", proxima: true },
-  { t: "Conferência", programa: "Conciliar o executado com as evidências e medir volumes; casos sem prova permanecem pendentes.", avancar: "Resultados conciliados.", proxima: true },
+  { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises e itens inativados por data de uso) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
   { t: "Fiscal", programa: "Cada grupo saneado e conferido é liberado para a revisão fiscal: NCM, CST IBS/CBS e cClassTrib por operação (produtos) e NBS/LC 116 (serviços).", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências.", proxima: true },
   { t: "Política", programa: "Procedimentos para criar, comprar, usar, padronizar e descontinuar itens, a partir dos critérios aprovados e das causas encontradas.", avancar: "Política aprovada, com responsáveis e controles registrados.", proxima: true },
 ];
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { ateOn: false, ate: "", diasOn: false, dias: 540, dataBase: hojeIso() }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false });
+const estadoInicial = () => ({ passo: 0, params: { ateOn: false, ate: "", diasOn: false, dias: 540, dataBase: hojeIso() }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} } });
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const dataBr = (d) => (d ? d.split("-").reverse().join("/") : "—");
 const Chip = ({ children, tom = "n" }) => {
@@ -57,6 +59,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [salvo, setSalvo] = useState(null);
   const [programaAberto, setProgramaAberto] = useState(false);
   const [importando, setImportando] = useState(false);
+  const [msgResposta, setMsgResposta] = useState("");
+  const [gerando, setGerando] = useState(false);
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
@@ -88,7 +92,10 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const itens = useMemo(() => base.data?.itens || [], [base.data]);
   const escopo = useMemo(() => aplicarEscopo(itens, estado?.params), [itens, estado?.params]);
   const grupos = useMemo(() => agruparPorGrupo(escopo.emEscopo), [escopo]);
-  const testes = useMemo(() => criarTestes(escopo.emEscopo), [escopo]);
+  const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
+  const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
+  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado, itens, escopo, testes }) : null), [estado, validacaoId, base.data, itens, escopo, testes, nome]);
 
   if (proj.isLoading || !estado) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o projeto…</p>;
   if (proj.error) return <p role="alert" className="text-sm text-destructive">Não foi possível abrir o projeto: {proj.error.message}</p>;
@@ -100,7 +107,10 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const setParam = (k, v) => mudar({ params: { ...params, [k]: v } });
   const aprovados = CRITERIOS.filter((c) => criterioAprovado(estado, c.id));
   const decisoesLista = Object.entries(estado.decisoes).map(([k, d]) => ({ k, ...d }));
-  const itemPorLinha = (linha) => itens.find((i) => i.linha === linha);
+  const itemPorLinha = (linha) => mapaLinha.get(linha);
+  const regrasPad = { ...REGRAS_PADRAO, ...(estado.padronizacao?.regras || {}) };
+  const abrevPad = estado.padronizacao?.abreviacoes || {};
+  const slug = (nome || "projeto").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
   // ── Passo 1: Triagem ──
   const importador = !validacaoId ? (
@@ -155,6 +165,23 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const crit = CRITERIOS.find((c) => c.id === critAtivo);
   const cEst = estado.criterios[crit.id] || {};
   const setCrit = (patch) => mudar({ criterios: { ...estado.criterios, [crit.id]: { ...cEst, ...patch } } });
+  const mudarPad = (patch) => mudar({ padronizacao: { regras: regrasPad, abreviacoes: abrevPad, ...patch }, criterios: { ...estado.criterios, padrao: { ...(estado.criterios.padrao || {}), aprovado: false } } });
+  const painelPadrao = crit.id === "padrao" ? (
+    <div className="rounded-lg border border-border p-3 space-y-3">
+      <p className="text-sm font-medium">Regras de padronização</p>
+      <div className="space-y-1">{Object.entries(ROTULO_REGRAS).map(([k, rot]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!regrasPad[k]} onChange={(e) => mudarPad({ regras: { ...regrasPad, [k]: e.target.checked } })} /> {rot}</label>)}</div>
+      <p className="text-sm font-medium">Abreviações encontradas na base</p>
+      <p className="text-xs text-muted-foreground">Só valem as que você aprovar. A palavra completa pode ser editada. O sistema nunca troca nada sozinho: as trocas viram sugestões para aprovação.</p>
+      {abrevCand.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma abreviação frequente identificada.</p> : (
+        <div className="max-h-64 overflow-auto">
+          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Abreviação</th><th className="p-1.5">Palavra completa</th><th className="p-1.5">Usos (abrev. / completa)</th><th className="p-1.5">Aprovar</th></tr></thead>
+            <tbody>{abrevCand.slice(0, 60).map((a) => { const k = a.de.toLowerCase(); const cur = abrevPad[k]; const para = (cur?.para ?? a.para).toUpperCase();
+              return (<tr key={k} className="border-t border-border"><td className="p-1.5 font-mono">{a.de}</td>
+                <td className="p-1.5"><input value={para} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para: e.target.value.toUpperCase(), aprovada: !!cur?.aprovada } } })} className="border rounded px-1.5 py-0.5 w-40 bg-background font-mono" aria-label={`Palavra completa para ${a.de}`} /></td>
+                <td className="p-1.5 tabular-nums">{fmt(a.nDe)} / {fmt(a.nPara)}</td>
+                <td className="p-1.5"><input type="checkbox" aria-label={`Aprovar ${a.de} → ${para}`} checked={!!cur?.aprovada} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para, aprovada: e.target.checked } } })} /></td></tr>); })}</tbody></table>
+        </div>)}
+    </div>) : null;
   const criterios = (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
@@ -170,6 +197,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
           <Botao onClick={() => setCrit(cEst.aprovado ? { aprovado: false } : { aprovado: true, por: quem, em: hojeIso(), regra: cEst.regra ?? crit.regra })}>{cEst.aprovado ? "Reabrir critério" : "Aprovar critério"}</Botao>
         </div>
         <p className="text-xs text-muted-foreground">Editar a regra reabre a aprovação. A análise só trata critérios aprovados.</p>
+        {painelPadrao}
       </div>
     </div>
   );
@@ -189,11 +217,19 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   );
 
   // ── Passo 4: Análises ──
-  const alternarDecisao = (it, c, grupo) => {
-    const k = `${it.linha}|${c.id}`; const d = { ...estado.decisoes };
-    if (d[k]) { if (d[k].status === "PROP") delete d[k]; } else d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso() };
-    mudar({ decisoes: d });
-  };
+  // Cada decisão guarda o que precisa para as listas finais: destino da unificação (duplicidade) ou a descrição sugerida (padronização).
+  const extraDecisao = (c, it, sugerida) => (c.id === "padrao" ? { sugerida } : c.id === "duplicidade" ? { destino: it.duplicidade?.mestre ?? null } : {});
+  // Atualizações funcionais: duas ações seguidas nunca sobrescrevem uma à outra.
+  const alternarDecisao = (it, c, grupo, sugerida) => setEstado((e) => {
+    const k = `${it.linha}|${c.id}`; const d = { ...e.decisoes };
+    if (d[k]) { if (d[k].status === "PROP") delete d[k]; } else d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, it, sugerida) };
+    return { ...e, decisoes: d };
+  });
+  const encaminharTodas = (c, grupo, ach) => setEstado((e) => {
+    const d = { ...e.decisoes };
+    for (const a of ach) { const k = `${a.item.linha}|${c.id}`; if (!d[k]) d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, a.item, a.sugerida) }; }
+    return { ...e, decisoes: d };
+  });
   const analises = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para analisar.</p> : (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground"><b className="text-foreground">{grupos.filter((g) => estado.saneados[g.nome]).length} de {grupos.length}</b> grupos saneados · critérios aprovados disponíveis: {aprovados.length} de {CRITERIOS.length}</p>
@@ -210,11 +246,11 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
                 return (
                   <Acc key={c.id} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<>{c.titulo}{tratado ? <Chip tom="g">Tratado</Chip> : <Chip tom="a">A tratar</Chip>}<span className="text-xs text-muted-foreground">{c.auto ? plural(n, "achado", "achados") : "conferência manual"}</span></>}>
                     {!c.auto ? <p className="text-sm text-muted-foreground">Este critério ainda não tem teste automático: confira os itens do grupo e marque como tratado.</p> : (ach || []).length === 0 ? <p className="text-sm text-muted-foreground">Nenhum achado neste grupo para este critério.</p> : (
-                      <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Linha</th><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">Achado</th><th className="p-1.5">Encaminhar</th></tr></thead>
-                        <tbody>{ach.slice(0, 100).map(({ item: it, motivo }) => (
+                      <div className="overflow-x-auto">{(c.id === "padrao" || c.id === "duplicidade") && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => encaminharTodas(c, g.nome, ach)}>{c.id === "padrao" ? (ach.length === 1 ? "Encaminhar a sugestão do grupo" : `Encaminhar as ${fmt(ach.length)} sugestões do grupo`) : (ach.length === 1 ? "Encaminhar o achado do grupo" : `Encaminhar os ${fmt(ach.length)} achados do grupo`)}</Botao></div>}<table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Linha</th><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">{c.id === "padrao" ? "Descrição sugerida" : "Achado"}</th><th className="p-1.5">Encaminhar</th></tr></thead>
+                        <tbody>{ach.slice(0, 100).map(({ item: it, motivo, sugerida }) => (
                           <tr key={it.linha} className="border-t border-border align-top"><td className="p-1.5 tabular-nums">{it.linha}</td><td className="p-1.5">{it.codigo || "—"}</td><td className="p-1.5 max-w-[260px]">{it.descricao || "—"}</td>
-                            <td className="p-1.5 max-w-[320px]"><span title={motivo} className="line-clamp-2">{achadoCurto(c, it, motivo)}</span>{c.id === "duplicidade" && it.duplicidade && <button type="button" className="ml-2 text-primary underline" onClick={() => setComparativo(it)}>Comparar</button>}</td>
-                            <td className="p-1.5"><input type="checkbox" aria-label={`Encaminhar linha ${it.linha}`} checked={!!estado.decisoes[`${it.linha}|${c.id}`]} disabled={estado.decisoes[`${it.linha}|${c.id}`] && estado.decisoes[`${it.linha}|${c.id}`].status !== "PROP"} onChange={() => alternarDecisao(it, c, g.nome)} /></td></tr>))}</tbody></table>
+                            <td className="p-1.5 max-w-[320px]">{sugerida ? <div><b className="font-medium break-words">{sugerida}</b><div className="text-[11px] text-muted-foreground">{motivo}</div></div> : <span title={motivo} className="line-clamp-2">{achadoCurto(c, it, motivo)}</span>}{c.id === "duplicidade" && it.duplicidade && <button type="button" className="ml-2 text-primary underline" onClick={() => setComparativo(it)}>Comparar</button>}</td>
+                            <td className="p-1.5"><input type="checkbox" aria-label={`Encaminhar linha ${it.linha}`} checked={!!estado.decisoes[`${it.linha}|${c.id}`]} disabled={estado.decisoes[`${it.linha}|${c.id}`] && estado.decisoes[`${it.linha}|${c.id}`].status !== "PROP"} onChange={() => alternarDecisao(it, c, g.nome, sugerida)} /></td></tr>))}</tbody></table>
                         {ach.length > 100 && <p className="text-xs text-muted-foreground p-2">Mostrando 100 de {fmt(ach.length)}.</p>}</div>)}
                     <div className="mt-2"><Botao onClick={() => mudar({ tratados: { ...estado.tratados, [k]: !tratado }, saneados: tratado ? { ...estado.saneados, [g.nome]: false } : estado.saneados })}>{tratado ? "Reabrir critério no grupo" : "Marcar como tratado"}</Botao></div>
                   </Acc>);
@@ -230,25 +266,68 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   );
 
   // ── Passo 5: De/para (decisões) ──
-  const decidir = (ks, status) => { const d = { ...estado.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP") d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); mudar({ decisoes: d }); };
+  const decidir = (ks, status) => setEstado((e) => { const d = { ...e.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP") d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); return { ...e, decisoes: d }; });
   const porGrupoDec = [...new Set(decisoesLista.map((d) => d.grupo))];
+  const temPadrao = decisoesLista.some((d) => d.k.endsWith("|padrao"));
+  const emitirListaCliente = async () => {
+    const linhas = linhasListaCliente(estado.decisoes, itens, { somentePendentes: true });
+    if (!linhas.length) { setMsgResposta("Não há correções de descrição aguardando resposta."); return; }
+    await gerarListaCliente(linhas, `${slug}-sugestoes-de-descricao.xlsx`); setMsgResposta(`Lista emitida com ${fmt(linhas.length)} sugestões.`);
+  };
+  const importarResposta = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+    try {
+      const linhas = await lerRespostaCliente(f);
+      const res = aplicarRespostas(estado.decisoes, itens, linhas, { quem, hoje: hojeIso(), regras: regrasPad, abrev: abreviacoesAprovadas(estado) });
+      mudar({ decisoes: res.decisoes }); const x = res.resumo;
+      setMsgResposta(`Resposta importada: ${fmt(x.aceitas)} aceitas, ${fmt(x.ajustadas)} ajustadas pelo cliente, ${fmt(x.rejeitadas)} mantidas, ${fmt(x.semResposta)} sem resposta${x.naoEncontradas.length ? `, ${fmt(x.naoEncontradas.length)} códigos não encontrados` : ""}.`);
+    } catch (err) { setMsgResposta(err.message); }
+  };
   const depara = (
     <div className="space-y-3">
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={estado.bloco} onChange={(e) => mudar({ bloco: e.target.checked })} /> Aprovar em bloco (opcional)</label>
       <p className="text-xs text-muted-foreground">Cada caso continua registrado individualmente, com aprovador e data. Resumo: {fmt(decisoesLista.filter((d) => d.status === "PROP").length)} propostos · {fmt(decisoesLista.filter((d) => d.status === "APR").length)} aprovados · {fmt(decisoesLista.filter((d) => d.status === "REJ").length)} rejeitados.</p>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
+        <span className="text-sm font-medium">Correções de descrição com o cliente</span>
+        <Botao onClick={emitirListaCliente} disabled={!temPadrao}><Download className="w-3.5 h-3.5 inline mr-1" />Emitir lista para o cliente</Botao>
+        <label className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted cursor-pointer">Importar resposta<input type="file" accept=".xlsx,.csv,.txt" className="hidden" onChange={importarResposta} /></label>
+        {msgResposta && <span className="text-xs text-muted-foreground" role="status">{msgResposta}</span>}
+        <span className="basis-full text-xs text-muted-foreground">O cliente responde OK ou escreve ao lado como deve ficar. Nada é alterado no cadastro: a resposta fica registrada como decisão, com a descrição original preservada.</span>
+      </div>
       {decisoesLista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum caso encaminhado. Marque “Encaminhar” nos achados do passo Análises.</p>}
       {porGrupoDec.map((gn) => { const lista = decisoesLista.filter((d) => d.grupo === gn); const pend = lista.filter((d) => d.status === "PROP");
         return (<Acc key={gn} aberto={!!aberto["d" + gn]} onToggle={() => alternar("d" + gn)} titulo={<><b className="font-medium">{gn}</b><span className="text-xs text-muted-foreground">{fmt(lista.length)} casos · {fmt(pend.length)} aguardando decisão</span></>}>
           {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao></div>}
           <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Caso</th><th className="p-1.5">Critério</th><th className="p-1.5">Descrição</th><th className="p-1.5">Situação</th><th className="p-1.5"></th></tr></thead>
             <tbody>{lista.slice(0, 200).map((d) => { const [linha, cid] = d.k.split("|"); const it = itemPorLinha(Number(linha));
-              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums">L{linha}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{it?.descricao || "—"}</td>
+              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums">L{linha}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== Number(linha) ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorLinha(d.destino)?.codigo ?? "—"}</div></div> : (it?.descricao || "—")}</td>
                 <td className="p-1.5">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}</td>
                 <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}</td></tr>); })}</tbody></table>
             {lista.length > 200 && <p className="text-xs text-muted-foreground p-2">Mostrando 200 de {fmt(lista.length)}.</p>}</div>
         </Acc>); })}
     </div>
   );
+
+  const baixar = async (ids, sufixo) => { if (!listas) return; setGerando(true); try { await gerarXlsx(listas, ids, `${slug}-${sufixo}.xlsx`); } finally { setGerando(false); } };
+  const conferencia = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para emitir as listas.</p> : !listas ? <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Montando as listas…</p> : (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {[["Universo", listas.contagem.universo], ["Lista final", listas.contagem.listaFinal], ["Descrições corrigidas", listas.contagem.descricoesCorrigidas], ["Unificações aprovadas", listas.contagem.unificacoesAprovadas], ["Unificações em decisão", listas.contagem.unificacoesPendentes], ["Inativados por data de uso", listas.contagem.inativados]].map(([l, v]) => (
+          <div key={l} className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p></div>))}
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <h3 className="font-medium">Listas finais</h3>
+        <p className="text-xs text-muted-foreground">Cada lista sai em planilha Excel e reflete as decisões registradas aqui. A execução no SAP e no físico é conferida nos passos próprios; nenhum cadastro é alterado por esta ferramenta.</p>
+        <div className="flex flex-wrap gap-2">
+          <Botao disabled={gerando} onClick={() => baixar(["resumo", "final", "dedup", "analises", "inativados"], "listas-finais")}><Download className="w-3.5 h-3.5 inline mr-1" />Pacote completo (5 abas)</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["final"], "lista-final-corrigida")}>Lista final corrigida ({fmt(listas.contagem.listaFinal)})</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["dedup"], "desduplicacoes")}>Desduplicações ({fmt(listas.desduplicacoes.length)})</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["analises"], "analises")}>Análises ({fmt(listas.contagem.achados)})</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["inativados"], "inativados-por-data-de-uso")}>Inativados por data de uso ({fmt(listas.contagem.inativados)})</Botao>
+        </div>
+        {gerando && <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Gerando a planilha…</p>}
+      </div>
+    </div>);
 
   const proxima = (
     <div className="rounded-xl border border-dashed border-border p-4 text-sm space-y-1">
@@ -259,7 +338,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     </div>
   );
 
-  const corpo = [triagem, criterios, piloto, analises, depara][passo] ?? proxima;
+  const corpo = [triagem, criterios, piloto, analises, depara, proxima, conferencia][passo] ?? proxima;
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => estado.saneados[g.nome]).length;
@@ -272,7 +351,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     { feito: nPil === CASOS_PILOTO.length, sub: `${nPil}/${CASOS_PILOTO.length} testados` },
     { feito: nGrupos > 0 && nSan === nGrupos, sub: nGrupos ? `${nSan}/${nGrupos} grupos` : "sem base" },
     { feito: nDec > 0 && nDecFeitas === nDec, sub: nDec ? `${nDecFeitas}/${nDec} decididos` : "sem casos" },
-    { sub: "em breve" }, { sub: "em breve" },
+    { sub: "em breve" }, { sub: "listas finais" },
     { sub: nSan ? plural(nSan, "grupo liberado", "grupos liberados") : "aguarda saneamento", bloqueado: nSan === 0 },
     { sub: "em breve" },
   ];
