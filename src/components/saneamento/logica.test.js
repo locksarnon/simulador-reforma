@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { achadosUnidade, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, grupoDe, grupoPodeSanear, normalizarParams, SEM_GRUPO, unidadeCanonica } from "./logica";
+import { achadosUnidade, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, grupoDe, normalizarParams, SEM_GRUPO, unidadeCanonica } from "./logica";
 
 const item = (linha, ultima_mov, extra = {}) => ({ linha, ultima_mov, problemas: [], ...extra });
 
@@ -76,12 +76,5 @@ describe("testes por critério e saneamento do grupo", () => {
     expect(t.ncm(it1).achado).toBe(true); expect(t.ncm(it2).achado).toBe(false);
     expect(t.duplicidade(it2).achado).toBe(true);
     expect(t.utilizacao(it3).achado).toBe(true); expect(t.utilizacao(it1).achado).toBe(false);
-  });
-  it("grupo só pode ser saneado com todos os critérios aprovados tratados", () => {
-    const estado = { criterios: { ncm: { aprovado: true }, duplicidade: { aprovado: true } }, tratados: { "Peças|ncm": true } };
-    expect(grupoPodeSanear(estado, "Peças")).toBe(false);
-    estado.tratados["Peças|duplicidade"] = true;
-    expect(grupoPodeSanear(estado, "Peças")).toBe(true);
-    expect(grupoPodeSanear({ criterios: {}, tratados: {} }, "Peças")).toBe(false);
   });
 });

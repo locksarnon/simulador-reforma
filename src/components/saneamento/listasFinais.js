@@ -1,6 +1,7 @@
 // Listas finais do saneamento: lista final corrigida, desduplicações, análises e itens inativados por data de uso.
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
-import { CRITERIOS, achadosDoCriterio, criterioAprovado, dataBr, dataDoCorte, grupoDe } from "./logica";
+import { dataBr, dataDoCorte, grupoDe } from "./logica";
+import { calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } from "./analise";
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
@@ -72,9 +73,11 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
 
   // 3) Análises: achados dos critérios aprovados, com a decisão tomada
   const analises = [];
-  const aprovados = CRITERIOS.filter((c) => criterioAprovado(estado, c.id) && c.auto);
-  for (const c of aprovados) {
-    for (const a of achadosDoCriterio(c, escopo.emEscopo, testes)) {
+  const achadosPorCriterio = calcularAchados(escopo.emEscopo, testes);
+  const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length);
+  const aprovados = criteriosAprovados(estado, contagemCriterios); // inclui os aprovados automaticamente (sem achados)
+  for (const c of aprovados.filter((x) => x.auto)) {
+    for (const a of achadosPorCriterio[c.id] || []) {
       const d = decisaoDe(estado, a.item.linha, c.id);
       analises.push({
         criterio: c.titulo, grupo: grupoDe(a.item), codigo: a.item.codigo, descricao: a.item.descricao, achado: a.motivo, proposta: propostaDoAchado(a),
@@ -103,7 +106,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
     ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
     ["Critérios aprovados", aprovados.length ? "" : "nenhum"],
-    ...CRITERIOS.filter((c) => criterioAprovado(estado, c.id)).map((c) => [`  ${c.titulo}`, `aprovado por ${estado.criterios[c.id].por || "—"} em ${dataBr(estado.criterios[c.id].em)}`]),
+    ...aprovados.map((c) => [`  ${c.titulo}`, situacaoCriterio(estado, c, contagemCriterios) === "AUTO" ? "aprovado automaticamente (sem achados na base)" : `aprovado por ${estado.criterios[c.id]?.por || "—"} em ${dataBr(estado.criterios[c.id]?.em)}`]),
     ["", ""],
     ["Atenção", "Estas listas refletem as decisões registradas no sistema. A execução no SAP e no físico é conferida nos passos de execução e conferência; nenhum cadastro foi alterado por esta ferramenta."],
   ];

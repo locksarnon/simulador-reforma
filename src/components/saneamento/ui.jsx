@@ -1,5 +1,5 @@
 // Peças visuais e formatos compartilhados pelos passos do projeto de saneamento.
-import React from "react";
+import React, { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { dataBr as dataBrBase } from "./logica";
 
@@ -20,6 +20,19 @@ export function Acc({ aberto, onToggle, titulo, children }) {
         <span className="flex flex-wrap items-center gap-2 min-w-0">{titulo}</span>
       </button>
       {aberto && <div className="border-t border-border p-3">{children}</div>}
+    </div>
+  );
+}
+
+/** Tabela de itens (linha, código, descrição, unidade, última movimentação) com "Mostrar mais". */
+export function TabelaItens({ itens, colunas }) {
+  const [n, setN] = useState(50);
+  const rot = { linha: "Linha", codigo: "Código", descricao: "Descrição", unidade: "Unidade", ultima_mov: "Última mov." };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground">{colunas.map((c) => <th key={c} className="p-1.5">{rot[c]}</th>)}</tr></thead>
+        <tbody>{itens.slice(0, n).map((i) => <tr key={i.linha} className="border-t border-border">{colunas.map((c) => <td key={c} className={`p-1.5 ${c === "descricao" ? "max-w-[320px]" : ""}`}>{c === "ultima_mov" ? dataBr(i[c]) : (i[c] ?? "") || "—"}</td>)}</tr>)}</tbody></table>
+      {itens.length > n && <button type="button" onClick={() => setN(n + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(itens.length - n)} restantes)</button>}
     </div>
   );
 }

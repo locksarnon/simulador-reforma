@@ -5,19 +5,22 @@ import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
-import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, dataDoCorte, hojeIso, normalizarParams } from "./logica";
+import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, descobrirAbreviacoes, hojeIso, normalizarParams } from "./logica";
+import { achadosDe, calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } from "./analise";
+import { AbasCriterios, AcaoAprovacao, SelosCriterio } from "./CriterioUi";
+import PassoAnalises from "./PassoAnalises";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
-import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
+import { Acc, Botao, Chip, TabelaItens, dataBr, fmt, plural } from "./ui";
 import RelacaoTriagem from "./RelacaoTriagem";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
   { t: "Triagem", programa: "Fixar a origem e o universo; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
-  { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Nada é tratado antes de o critério correspondente estar aprovado.", avancar: "Critérios aplicáveis aprovados e exceções identificadas." },
+  { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Critério sem achados na base abre aprovado (com a opção de revisar manualmente); os demais só são tratados depois de aprovados.", avancar: "Critérios aplicáveis aprovados e exceções identificadas." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
-  { t: "Análises", programa: "Grupo a grupo, trata-se um critério aprovado por vez. O grupo fica saneado quando todos os critérios aprovados foram tratados.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
+  { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, critica cada um (encaminha ou não) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aprovados foram tratados nele.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
   { t: "De/para", programa: "As propostas encaminhadas viram decisões rastreáveis. Ausência de resposta não é aprovação.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data." },
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências.", proxima: true },
   { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises e itens inativados por data de uso) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
@@ -28,9 +31,6 @@ const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produ
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
 const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} } });
-const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
-/** Resumo curto do achado; a frase completa fica no tooltip. */
-const achadoCurto = (c, it, motivo) => (c.id === "duplicidade" && it.duplicidade ? `${NIVEL_ROT[it.duplicidade.nivel]} · similaridade ${it.duplicidade.score.toFixed(2).replace(".", ",")} · linha ${it.duplicidade.candidatos[0]?.linha ?? "—"}` : motivo);
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -80,6 +80,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const escopo = useMemo(() => aplicarEscopo(itens, estado?.params), [itens, estado?.params]);
   const grupos = useMemo(() => agruparPorGrupo(escopo.emEscopo), [escopo]);
   const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao, estado?.politicaUnidade]);
+  const achados = useMemo(() => (validacaoId ? calcularAchados(escopo.emEscopo, testes) : {}), [validacaoId, escopo, testes]);
+  const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length) : null), [validacaoId, achados, escopo]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
   const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras]);
@@ -92,7 +94,6 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const passo = estado.passo;
   const irPara = (i) => mudar({ passo: Math.max(0, Math.min(PASSOS.length - 1, i)) });
   const params = normalizarParams(estado.params); // aceita projetos salvos com os dois cortes antigos
-  const aprovados = CRITERIOS.filter((c) => criterioAprovado(estado, c.id));
   const decisoesLista = Object.entries(estado.decisoes).map(([k, d]) => ({ k, ...d }));
   const itemPorLinha = (linha) => mapaLinha.get(linha);
   const regrasPad = { ...REGRAS_PADRAO, ...(estado.padronizacao?.regras || {}) };
@@ -151,8 +152,14 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   // ── Passo 2: Critérios ──
   const crit = CRITERIOS.find((c) => c.id === critAtivo);
   const cEst = estado.criterios[crit.id] || {};
-  const setCrit = (patch) => mudar({ criterios: { ...estado.criterios, [crit.id]: { ...cEst, ...patch } } });
-  const mudarPad = (patch) => mudar({ padronizacao: { regras: regrasPad, abreviacoes: abrevPad, ...patch }, criterios: { ...estado.criterios, padrao: { ...(estado.criterios.padrao || {}), aprovado: false } } });
+  // Alterações no critério (aprovação, regra): funcionais, para duas ações seguidas não se sobrescreverem.
+  const alterarCriterio = (id, patch) => setEstado((e) => ({ ...e, criterios: { ...e.criterios, [id]: { ...(e.criterios[id] || {}), ...patch } } }));
+  const aprovarCriterio = (c) => alterarCriterio(c.id, { aprovado: true, por: quem, em: hojeIso(), regra: estado.criterios[c.id]?.regra ?? c.regra });
+  const reabrirCriterio = (c) => alterarCriterio(c.id, { aprovado: false }); // revisão manual
+  const setCrit = (patch) => alterarCriterio(crit.id, patch);
+  // Mudar o que alimenta o teste (regras de padronização, política de unidades) desfaz a aprovação: se o teste continuar sem achados, o critério volta a abrir aprovado.
+  const semAprovacao = (criterios, id) => { const { aprovado: _a, por: _p, em: _e, ...resto } = criterios[id] || {}; return { ...criterios, [id]: resto }; };
+  const mudarPad = (patch) => mudar({ padronizacao: { regras: regrasPad, abreviacoes: abrevPad, ...patch }, criterios: semAprovacao(estado.criterios, "padrao") });
   const painelPadrao = crit.id === "padrao" ? (
     <div className="rounded-lg border border-border p-3 space-y-3">
       <p className="text-sm font-medium">Regras de padronização</p>
@@ -173,7 +180,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const polUn = estado.politicaUnidade || { ativa: true, regras: {} };
   const editarUn = (fn) => setEstado((e) => {
     const pol = e.politicaUnidade || { ativa: true, regras: {} };
-    return { ...e, politicaUnidade: fn({ ativa: pol.ativa !== false, regras: { ...(pol.regras || {}) } }), criterios: { ...e.criterios, unidade: { ...(e.criterios.unidade || {}), aprovado: false } } };
+    return { ...e, politicaUnidade: fn({ ativa: pol.ativa !== false, regras: { ...(pol.regras || {}) } }), criterios: semAprovacao(e.criterios, "unidade") };
   });
   const setRegraUn = (chave, regra) => editarUn((pol) => { if (regra) pol.regras[chave] = regra; else delete pol.regras[chave]; return pol; });
   const painelUnidade = crit.id === "unidade" ? (
@@ -208,21 +215,19 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
             })}</tbody></table></div>
         </div>)}
     </div>) : null;
+  const sit = situacaoCriterio(estado, crit, contagem);
+  const nAchCrit = achadosDe(contagem, crit);
   const criterios = (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5">
-        {CRITERIOS.map((c) => <button key={c.id} type="button" onClick={() => setCritAtivo(c.id)} className={`px-2.5 py-1 text-xs rounded-md border ${c.id === critAtivo ? "border-primary bg-primary/10 text-primary" : "border-border bg-card"}`}>{c.titulo}{criterioAprovado(estado, c.id) ? " ✓" : ""}</button>)}
-      </div>
+      <AbasCriterios estado={estado} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} marca={(e, c) => situacaoCriterio(e, c, contagem) !== "PENDENTE"} />
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{crit.titulo}</h3><div className="flex gap-2">{crit.auto ? <Chip tom="b">Teste automático</Chip> : <Chip>Conferência manual</Chip>}{cEst.aprovado ? <Chip tom="g">Aprovado por {cEst.por} em {dataBr(cEst.em)}</Chip> : <Chip tom="a">Pendente de aprovação</Chip>}</div></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{crit.titulo}</h3><div className="flex gap-2"><SelosCriterio crit={crit} situacao={sit} cEst={cEst} /></div></div>
         <div><label className="text-xs text-muted-foreground" htmlFor="regra">Regra (editável)</label>
           <textarea id="regra" className="w-full border rounded-md p-2 text-sm bg-background min-h-[84px]" value={cEst.regra ?? crit.regra} onChange={(e) => setCrit({ regra: e.target.value, aprovado: false })} /></div>
         <p className="text-xs text-muted-foreground">Exemplo: {crit.exemplo}.{crit.params && <> Parâmetro: {crit.params}.</>}</p>
-        {crit.auto && validacaoId && <p className="text-xs text-muted-foreground">Na base atual: <b>{fmt(achadosDoCriterio(crit, escopo.emEscopo, testes).length)}</b> itens em escopo com achado neste critério.</p>}
-        <div className="flex flex-wrap gap-2">
-          <Botao onClick={() => setCrit(cEst.aprovado ? { aprovado: false } : { aprovado: true, por: quem, em: hojeIso(), regra: cEst.regra ?? crit.regra })}>{cEst.aprovado ? "Reabrir critério" : "Aprovar critério"}</Botao>
-        </div>
-        <p className="text-xs text-muted-foreground">Editar a regra reabre a aprovação. A análise só trata critérios aprovados.</p>
+        {nAchCrit != null && <p className="text-xs text-muted-foreground">Na base atual: <b>{fmt(nAchCrit)}</b> itens em escopo com achado neste critério.{sit === "AUTO" ? " Sem achados, o critério abre aprovado." : ""}</p>}
+        <div className="flex flex-wrap gap-2"><AcaoAprovacao situacao={sit} onAprovar={() => aprovarCriterio(crit)} onReabrir={() => reabrirCriterio(crit)} /></div>
+        <p className="text-xs text-muted-foreground">Critério sem achados abre aprovado; use “Revisar manualmente” para conferi-lo. Editar a regra reabre a aprovação. A análise só trata critérios aprovados.</p>
         {painelPadrao}
         {painelUnidade}
       </div>
@@ -243,57 +248,10 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     </div>
   );
 
-  // ── Passo 4: Análises ──
-  // Cada decisão guarda o que precisa para as listas finais: destino da unificação (duplicidade) ou a descrição sugerida (padronização).
-  const extraDecisao = (c, it, sugerida, extra) => (c.id === "padrao" ? { sugerida } : c.id === "duplicidade" ? { destino: it.duplicidade?.mestre ?? null }
-    : c.id === "unidade" && sugerida ? { tipo: extra?.tipo ?? "grafia", de: extra?.de ?? it.unidade, para: sugerida, fator: extra?.fator ?? null, evidencia: extra?.evidencia ?? null, grandeza: extra?.grandeza ?? null } : {});
-  // Atualizações funcionais: duas ações seguidas nunca sobrescrevem uma à outra.
-  const alternarDecisao = (it, c, grupo, sugerida, extra) => setEstado((e) => {
-    const k = `${it.linha}|${c.id}`; const d = { ...e.decisoes };
-    if (d[k]) { if (d[k].status === "PROP") delete d[k]; } else d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, it, sugerida, extra) };
-    return { ...e, decisoes: d };
-  });
-  const encaminharTodas = (c, grupo, ach) => setEstado((e) => {
-    const d = { ...e.decisoes };
-    for (const a of ach) { const k = `${a.item.linha}|${c.id}`; if (!d[k]) d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, a.item, a.sugerida, a.extra) }; }
-    return { ...e, decisoes: d };
-  });
-  // Na unidade, só os achados com sugestão (conversão e grafia) vão em bloco; vazio e unidade sem regra o analista trata um a um.
-  const paraEncaminhar = (c, ach) => (c.id === "unidade" ? ach.filter((a) => a.sugerida) : ach);
-  const rotuloEncaminhar = (c, ach) => { const n = paraEncaminhar(c, ach).length; const sug = c.id === "padrao" || c.id === "unidade"; return n === 1 ? `Encaminhar ${sug ? "a sugestão" : "o achado"} do grupo` : `Encaminhar ${sug ? "as" : "os"} ${fmt(n)} ${sug ? "sugestões" : "achados"} do grupo`; };
+  // ── Passo 4: Análises (uma aba por critério, as mesmas do passo Critérios) ──
   const analises = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para analisar.</p> : (
-    <div className="space-y-2">
-      <p className="text-sm text-muted-foreground"><b className="text-foreground">{grupos.filter((g) => estado.saneados[g.nome]).length} de {grupos.length}</b> grupos saneados · critérios aprovados disponíveis: {aprovados.length} de {CRITERIOS.length}</p>
-      {aprovados.length === 0 && <p className="text-sm text-amber-700 dark:text-amber-300">Aprove ao menos um critério no passo Critérios para tratá-lo aqui.</p>}
-      {grupos.map((g) => {
-        const san = !!estado.saneados[g.nome];
-        return (
-          <Acc key={g.nome} aberto={!!aberto["g" + g.nome]} onToggle={() => alternar("g" + g.nome)} titulo={<><b className="font-medium">{g.nome}</b>{san ? <Chip tom="g">Saneado</Chip> : <Chip tom="a">Pendente</Chip>}<span className="text-xs text-muted-foreground">{fmt(g.itens.length)} {g.itens.length === 1 ? "item" : "itens"} em escopo</span></>}>
-            <div className="space-y-2">
-              {aprovados.map((c) => {
-                const k = `${g.nome}|${c.id}`; const tratado = !!estado.tratados[k]; const chave = "a" + k;
-                const ach = aberto[chave] ? achadosDoCriterio(c, g.itens, testes) : null;
-                const n = ach ? ach.length : c.auto ? achadosDoCriterio(c, g.itens, testes).length : null;
-                return (
-                  <Acc key={c.id} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<>{c.titulo}{tratado ? <Chip tom="g">Tratado</Chip> : <Chip tom="a">A tratar</Chip>}<span className="text-xs text-muted-foreground">{c.auto ? plural(n, "achado", "achados") : "conferência manual"}</span></>}>
-                    {!c.auto ? <p className="text-sm text-muted-foreground">Este critério ainda não tem teste automático: confira os itens do grupo e marque como tratado.</p> : (ach || []).length === 0 ? <p className="text-sm text-muted-foreground">Nenhum achado neste grupo para este critério.</p> : (
-                      <div className="overflow-x-auto">{(c.id === "padrao" || c.id === "duplicidade" || (c.id === "unidade" && paraEncaminhar(c, ach).length > 0)) && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => encaminharTodas(c, g.nome, paraEncaminhar(c, ach))}>{rotuloEncaminhar(c, ach)}</Botao></div>}<table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Linha</th><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">{c.id === "padrao" ? "Descrição sugerida" : c.id === "unidade" ? "Unidade de estoque sugerida" : "Achado"}</th><th className="p-1.5">Encaminhar</th></tr></thead>
-                        <tbody>{ach.slice(0, 100).map(({ item: it, motivo, sugerida, extra }) => (
-                          <tr key={it.linha} className="border-t border-border align-top"><td className="p-1.5 tabular-nums">{it.linha}</td><td className="p-1.5">{it.codigo || "—"}</td><td className="p-1.5 max-w-[260px]">{it.descricao || "—"}</td>
-                            <td className="p-1.5 max-w-[320px]">{sugerida ? <div><b className="font-medium break-words">{sugerida}</b><div className="text-[11px] text-muted-foreground">{motivo}</div></div> : <span title={motivo} className="line-clamp-2">{achadoCurto(c, it, motivo)}</span>}{c.id === "duplicidade" && it.duplicidade && <button type="button" className="ml-2 text-primary underline" onClick={() => setComparativo(it)}>Comparar</button>}</td>
-                            <td className="p-1.5"><input type="checkbox" aria-label={`Encaminhar linha ${it.linha}`} checked={!!estado.decisoes[`${it.linha}|${c.id}`]} disabled={estado.decisoes[`${it.linha}|${c.id}`] && estado.decisoes[`${it.linha}|${c.id}`].status !== "PROP"} onChange={() => alternarDecisao(it, c, g.nome, sugerida, extra)} /></td></tr>))}</tbody></table>
-                        {ach.length > 100 && <p className="text-xs text-muted-foreground p-2">Mostrando 100 de {fmt(ach.length)}.</p>}</div>)}
-                    <div className="mt-2"><Botao onClick={() => mudar({ tratados: { ...estado.tratados, [k]: !tratado }, saneados: tratado ? { ...estado.saneados, [g.nome]: false } : estado.saneados })}>{tratado ? "Reabrir critério no grupo" : "Marcar como tratado"}</Botao></div>
-                  </Acc>);
-              })}
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <Botao disabled={!san && !grupoPodeSanear(estado, g.nome)} onClick={() => mudar({ saneados: { ...estado.saneados, [g.nome]: !san } })}>{san ? "Reabrir grupo" : "Marcar grupo como saneado"}</Botao>
-                <span className="text-xs text-muted-foreground">Só encerra com todos os critérios aprovados tratados.</span>
-              </div>
-            </div>
-          </Acc>);
-      })}
-    </div>
+    <PassoAnalises estado={estado} setEstado={setEstado} grupos={grupos} achados={achados} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} quem={quem}
+      onComparar={setComparativo} onIrCriterios={() => irPara(1)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio} />
   );
 
   // ── Passo 5: De/para (decisões) ──
@@ -387,7 +345,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => estado.saneados[g.nome]).length;
-  const nCrit = CRITERIOS.filter((c) => criterioAprovado(estado, c.id)).length;
+  const nCrit = criteriosAprovados(estado, contagem).length;
   const nPil = CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length;
   const nDec = decisoesLista.length; const nDecFeitas = decisoesLista.filter((d) => d.status !== "PROP").length;
   const resumoPassos = [
@@ -433,18 +391,6 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       {corpo}
       <div className="flex justify-end gap-2 pt-1">{passo > 0 && <Botao onClick={() => irPara(passo - 1)}>Voltar</Botao>}{passo < PASSOS.length - 1 && <Botao onClick={() => irPara(passo + 1)}>Concluir e seguir</Botao>}</div>
       <ComparativoDuplicidade item={comparativo} itens={itens} excluir={[]} setExcluir={() => {}} podeExcluir={false} onFechar={() => setComparativo(null)} />
-    </div>
-  );
-}
-
-function TabelaItens({ itens, colunas }) {
-  const [n, setN] = useState(50);
-  const rot = { linha: "Linha", codigo: "Código", descricao: "Descrição", unidade: "Unidade", ultima_mov: "Última mov." };
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground">{colunas.map((c) => <th key={c} className="p-1.5">{rot[c]}</th>)}</tr></thead>
-        <tbody>{itens.slice(0, n).map((i) => <tr key={i.linha} className="border-t border-border">{colunas.map((c) => <td key={c} className={`p-1.5 ${c === "descricao" ? "max-w-[320px]" : ""}`}>{c === "ultima_mov" ? dataBr(i[c]) : (i[c] ?? "") || "—"}</td>)}</tr>)}</tbody></table>
-      {itens.length > n && <button type="button" onClick={() => setN(n + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(itens.length - n)} restantes)</button>}
     </div>
   );
 }

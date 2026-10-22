@@ -166,12 +166,3 @@ export function achadosDoCriterio(crit, itens, testes) {
   for (const it of itens) { const r = t(it); if (r.achado) saida.push({ item: it, motivo: r.motivo, sugerida: r.sugerida, extra: r.extra }); }
   return saida;
 }
-
-/** Um critério só pode ser tratado se estiver aprovado. */
-export const criterioAprovado = (estado, id) => Boolean(estado?.criterios?.[id]?.aprovado);
-
-/** Grupo está saneado quando todos os critérios aprovados foram marcados como tratados nele. */
-export function grupoPodeSanear(estado, grupo) {
-  const aprovados = CRITERIOS.filter((c) => criterioAprovado(estado, c.id));
-  return aprovados.length > 0 && aprovados.every((c) => estado?.tratados?.[`${grupo}|${c.id}`]);
-}

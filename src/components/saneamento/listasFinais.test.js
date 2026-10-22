@@ -48,6 +48,16 @@ describe("listas finais do saneamento", () => {
     expect(l.finalCorrigida.find((i) => i.codigo === "C1").mudanca).toBe("Mantido");
     expect(l.contagem.unificacoesPendentes).toBe(1);
   });
+  it("critério sem achados abre aprovado e consta no resumo como aprovado automaticamente; o com achados só entra nas análises depois de aprovado", () => {
+    const sem = base({ ...estado, criterios: {} }); // o analista não aprovou nada
+    const resumo = sem.resumo.map((x) => x.join(" | "));
+    expect(resumo.some((x) => x.includes("NCM e classificação cadastral | aprovado automaticamente (sem achados na base)"))).toBe(true);
+    expect(resumo.some((x) => x.startsWith("Critérios aprovados | nenhum"))).toBe(false);
+    expect(sem.analises).toEqual([]); // duplicidade e padronização têm achados e ainda não foram aprovadas
+    const aprovada = base({ ...estado, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } } });
+    expect(aprovada.analises.filter((a) => a.criterio === "Duplicidade").length).toBeGreaterThan(0);
+    expect(aprovada.resumo.map((x) => x.join(" | ")).some((x) => x.includes("Duplicidade | aprovado por ana em 20/10/2026"))).toBe(true);
+  });
   it("projeto salvo com o corte no formato antigo gera as mesmas listas", () => {
     const antigo = { ...estado, params: { ateOn: true, ate: "2024-12-31", diasOn: false, dias: 540, dataBase: "2026-10-22" } };
     const l = base(antigo);
