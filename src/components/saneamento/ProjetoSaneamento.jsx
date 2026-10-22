@@ -226,12 +226,14 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <AbasCriterios estado={estado} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} marca={(e, c) => situacaoCriterio(e, c, contagem) !== "PENDENTE"} />
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{crit.titulo}</h3><div className="flex gap-2"><SelosCriterio crit={crit} situacao={sit} cEst={cEst} /></div></div>
-        <div><label className="text-xs text-muted-foreground" htmlFor="regra">Regra (editável)</label>
-          <textarea id="regra" className="w-full border rounded-md p-2 text-sm bg-background min-h-[84px]" value={cEst.regra ?? crit.regra} onChange={(e) => setCrit({ regra: e.target.value, aprovado: false })} /></div>
+        <div><label className="text-xs text-muted-foreground" htmlFor="regra">Regra do critério (texto de registro)</label>
+          <textarea id="regra" className="w-full border rounded-md p-2 text-sm bg-background min-h-[84px]" value={cEst.regra ?? crit.regra} onChange={(e) => setCrit({ regra: e.target.value, aprovado: false })} />
+          <p className="text-xs text-muted-foreground mt-1">O texto descreve o que o critério verifica e fica registrado com a aprovação, para orientar a conferência e a política final. Editá-lo <b className="font-medium text-foreground">não muda o teste</b> e reabre a aprovação.</p></div>
+        <p className="text-xs text-muted-foreground"><b className="font-medium text-foreground">O que muda o teste:</b> {crit.id === "padrao" ? "as regras de padronização e as abreviações, logo abaixo." : crit.id === "unidade" ? "a política da menor unidade e a tabela de unidades, logo abaixo." : crit.id === "utilizacao" ? <>o corte por data, no <button type="button" onClick={() => irPara(0)} className="text-primary underline">Parâmetro de saneamento (passo Triagem)</button>.</> : crit.auto ? "este critério ainda não tem ajustes: o teste automático é fixo (o texto da regra só o descreve)." : "nada: é conferência manual, e o texto da regra serve de roteiro para conferir os itens de cada grupo."}</p>
         <p className="text-xs text-muted-foreground">Exemplo: {crit.exemplo}.{crit.params && <> Parâmetro: {crit.params}.</>}</p>
         {nAchCrit != null && <p className="text-xs text-muted-foreground">Na base atual: <b>{fmt(nAchCrit)}</b> itens em escopo com achado neste critério.{sit === "AUTO" ? " Sem achados, o critério abre aprovado." : ""}</p>}
         <div className="flex flex-wrap gap-2"><AcaoAprovacao situacao={sit} onAprovar={() => aprovarCriterio(crit)} onReabrir={() => reabrirCriterio(crit)} /></div>
-        <p className="text-xs text-muted-foreground">Critério sem achados abre aprovado; use “Revisar manualmente” para conferi-lo. Editar a regra reabre a aprovação. A análise só trata critérios aprovados.</p>
+        <p className="text-xs text-muted-foreground">Critério sem achados abre aprovado; use “Revisar manualmente” para conferi-lo. A análise só trata critérios aprovados.</p>
         {painelPadrao}
         {painelUnidade}
       </div>
