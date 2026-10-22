@@ -2,11 +2,20 @@
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
 import { CRITERIOS, achadosDoCriterio, criterioAprovado, grupoDe } from "./logica";
 import { COLUNAS_LISTA } from "./respostaCliente";
+import { fatorDaDecisao, numeroBr } from "./unidades";
 
 const dataBr = (d) => (d ? String(d).split("-").reverse().join("/") : "");
 const ROT_STATUS = { PROP: "Proposto (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const decisaoDe = (estado, linha, critId) => estado?.decisoes?.[`${linha}|${critId}`] || null;
+/** Texto da proposta de um achado: a sugestão e, na conversão de unidade, a unidade de compra e o "itens por unidade de compra". */
+const propostaDoAchado = (a) => {
+  if (!a.sugerida) return "";
+  const e = a.extra;
+  if (e?.tipo !== "conversao") return a.sugerida;
+  const itens = e.fator != null ? `${numeroBr(e.fator)}${e.evidencia === "descricao" ? " (confirmar)" : ""}` : "a informar";
+  return `${a.sugerida} · unidade de compra ${String(e.de).toUpperCase()} · itens por unidade de compra: ${itens}`;
+};
 
 /** Itens que saem do cadastro ativo por duplicidade aprovada: o item encaminhado, aprovado e com destino diferente dele mesmo. */
 export function unificacoesAprovadas(estado, itens) {
@@ -37,11 +46,15 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
     if (saemPorUnificacao.has(it.linha)) continue;
     const dp = decisaoDe(estado, it.linha, "padrao");
     const aplicada = dp && dp.status === "APR" ? (dp.final || dp.sugerida) : null;
+    const du = decisaoDe(estado, it.linha, "unidade");
+    const unidade = du && du.status === "APR" && du.para ? du : null; // unidade de estoque aprovada
+    const conversao = unidade && unidade.tipo === "conversao";
     finalCorrigida.push({
       linha: it.linha, codigo: it.codigo, original: it.descricao, final: aplicada || it.descricao,
-      mudanca: aplicada && aplicada !== it.descricao ? "Descrição corrigida" : "Mantido",
+      mudanca: [aplicada && aplicada !== it.descricao ? "Descrição corrigida" : "", unidade ? "Unidade de estoque ajustada" : ""].filter(Boolean).join(" + ") || "Mantido",
       origem: dp && dp.status === "APR" ? (dp.origemFinal === "cliente" ? "Ajustada pelo cliente" : "Sugestão aprovada") : "",
-      unidade: it.unidade, grupo: grupoDe(it), ncm: it.ncm || it.ncm_original || "", ultima_mov: dataBr(it.ultima_mov),
+      unidade: it.unidade, unidadeProposta: unidade ? unidade.para : "", unidadeCompra: conversao ? unidade.de : "", itensPorCompra: conversao ? (fatorDaDecisao(unidade) ?? "a informar") : "",
+      grupo: grupoDe(it), ncm: it.ncm || it.ncm_original || "", ultima_mov: dataBr(it.ultima_mov),
     });
   }
 
@@ -64,7 +77,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
     for (const a of achadosDoCriterio(c, escopo.emEscopo, testes)) {
       const d = decisaoDe(estado, a.item.linha, c.id);
       analises.push({
-        criterio: c.titulo, grupo: grupoDe(a.item), codigo: a.item.codigo, descricao: a.item.descricao, achado: a.motivo, proposta: a.sugerida || "",
+        criterio: c.titulo, grupo: grupoDe(a.item), codigo: a.item.codigo, descricao: a.item.descricao, achado: a.motivo, proposta: propostaDoAchado(a),
         decisao: d ? ROT_STATUS[d.status] || d.status : "Sem encaminhamento", aprovador: d?.decididoPor || "", data: dataBr(d?.decididoEm),
       });
     }
@@ -80,14 +93,15 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
     universo: itens.length, emEscopo: escopo.emEscopo.length, inativados: inativados.length, semData: escopo.semData.length,
     unificacoesAprovadas: desduplicacoes.filter((x) => x.decisao === "Aprovado" && x.acao.startsWith("Unificar")).length,
     unificacoesPendentes: desduplicacoes.filter((x) => x.decisao.startsWith("Proposto")).length,
-    descricoesCorrigidas: finalCorrigida.filter((x) => x.mudanca === "Descrição corrigida").length,
+    descricoesCorrigidas: finalCorrigida.filter((x) => x.mudanca.includes("Descrição corrigida")).length,
+    unidadesAjustadas: finalCorrigida.filter((x) => x.unidadeProposta).length,
     listaFinal: finalCorrigida.length, achados: analises.length,
   };
   const resumo = [
     ["Projeto", nomeProjeto], ["Base importada", nomeBase || ""], ["Gerado em", new Date().toLocaleString("pt-BR")], ["", ""],
     ["Parâmetro de saneamento", [params.ateOn ? `desconsiderar movimentados até ${dataBr(params.ate)}` : "", params.diasOn ? `desconsiderar sem movimento há mais de ${params.dias} dias (data-base ${dataBr(params.dataBase)})` : ""].filter(Boolean).join(" · ") || "sem corte"],
     ["Universo (códigos)", contagem.universo], ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Em escopo sem data de movimentação legível", contagem.semData],
-    ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas],
+    ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
     ["Critérios aprovados", aprovados.length ? "" : "nenhum"],
     ...CRITERIOS.filter((c) => criterioAprovado(estado, c.id)).map((c) => [`  ${c.titulo}`, `aprovado por ${estado.criterios[c.id].por || "—"} em ${dataBr(estado.criterios[c.id].em)}`]),
@@ -99,7 +113,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
 
 const ABAS = {
   resumo: { nome: "Resumo" },
-  final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16]], fonte: "finalCorrigida" },
+  final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade de estoque (atual)", "unidade", 16], ["Unidade de estoque (proposta)", "unidadeProposta", 18], ["Unidade de compra (proposta)", "unidadeCompra", 18], ["Itens por unidade de compra", "itensPorCompra", 16], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16]], fonte: "finalCorrigida" },
   dedup: { nome: "Desduplicações", colunas: [["Grupo", "grupo", 28], ["Código de origem", "codigoOrigem", 14], ["Descrição de origem", "descricaoOrigem", 44], ["Unidade", "unidadeOrigem", 10], ["Ação", "acao", 26], ["Código mantido", "codigoDestino", 14], ["Descrição do mantido", "descricaoDestino", 44], ["Indicação", "nivel", 16], ["Pontuação de similaridade", "similaridade", 14], ["Motivos", "motivos", 50], ["Decisão", "decisao", 22], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "desduplicacoes" },
   analises: { nome: "Análises", colunas: [["Critério", "criterio", 26], ["Grupo", "grupo", 28], ["Código", "codigo", 14], ["Descrição", "descricao", 44], ["Achado", "achado", 60], ["Proposta", "proposta", 44], ["Decisão", "decisao", 24], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "analises" },
   inativados: { nome: "Inativados por data de uso", colunas: [["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["Última movimentação", "ultima_mov", 16], ["Critério de corte", "criterio", 50]], fonte: "inativados" },

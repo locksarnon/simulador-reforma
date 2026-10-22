@@ -1,4 +1,5 @@
 // Regras puras do projeto de saneamento (sem React): escopo pelo parâmetro de saneamento, grupos e achados por critério.
+import { achadosUnidade } from "./unidades";
 
 export const SEM_GRUPO = "(sem grupo)";
 export const grupoDe = (item) => (item.grupo_atual || "").trim() || SEM_GRUPO;
@@ -47,30 +48,8 @@ export function agruparPorGrupo(itens) {
   return [...m.entries()].map(([nome, lista]) => ({ nome, itens: lista })).sort((a, b) => b.itens.length - a.itens.length || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
-// ── Unidades: variações de grafia da mesma unidade ──
-const SINONIMOS_UNIDADE = {
-  kg: ["kg", "kgs", "kilo", "kilos", "quilo", "quilos", "quilograma", "quilogramas"], g: ["g", "gr", "grama", "gramas"], t: ["t", "ton", "tonelada", "toneladas"],
-  l: ["l", "lt", "lts", "litro", "litros"], ml: ["ml", "mililitro", "mililitros"], m: ["m", "mt", "mts", "metro", "metros"],
-  un: ["un", "und", "unid", "unidade", "unidades", "pc", "pca", "peca", "pecas", "pç", "pç.", "p"], cx: ["cx", "caixa", "caixas"], sc: ["sc", "saco", "sacos", "sca"],
-  pct: ["pct", "pacote", "pacotes", "pc."], gl: ["gl", "galao", "galoes"], fr: ["fr", "frasco", "frascos"], par: ["par", "pares"],
-};
-const MAPA_UNIDADE = new Map(Object.entries(SINONIMOS_UNIDADE).flatMap(([canon, lista]) => lista.map((v) => [v, canon])));
-const limpa = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[.\s]/g, "");
-export const unidadeCanonica = (u) => { const k = limpa(u); return k ? (MAPA_UNIDADE.get(k) ?? null) : null; };
-
-/** Para cada unidade canônica, a grafia dominante; itens com outra grafia da mesma unidade, ou com unidade desconhecida/vazia, são achados. */
-export function achadosUnidade(itens) {
-  const cont = new Map();
-  for (const it of itens) { const c = unidadeCanonica(it.unidade); if (!c) continue; const mm = cont.get(c) ?? new Map(); const k = String(it.unidade).trim(); mm.set(k, (mm.get(k) || 0) + 1); cont.set(c, mm); }
-  const dominante = new Map([...cont].map(([c, mm]) => [c, [...mm.entries()].sort((a, b) => b[1] - a[1])[0][0]]));
-  return (it) => {
-    const raw = String(it.unidade || "").trim();
-    if (!raw) return { achado: true, motivo: "Sem unidade de medida" };
-    const c = unidadeCanonica(raw);
-    if (!c) return { achado: true, motivo: `Unidade "${raw}" fora da lista conhecida` };
-    return raw !== dominante.get(c) ? { achado: true, motivo: `Grafia "${raw}" difere da dominante "${dominante.get(c)}"` } : { achado: false };
-  };
-}
+// ── Unidades de medida: a política da menor unidade de estoque e a tabela de unidades ficam em ./unidades ──
+export { GRANDEZAS, achadosUnidade, classificarUnidade, fatorPelaDescricao, resumoUnidades, rotulosPadrao, unidadeCanonica } from "./unidades";
 
 const temProblema = (it, ...codigos) => it.problemas?.some((p) => codigos.includes(p.codigo) || codigos.some((c) => c.endsWith("*") && p.codigo.startsWith(c.slice(0, -1))));
 const mensagens = (it, ...codigos) => it.problemas.filter((p) => codigos.includes(p.codigo) || codigos.some((c) => c.endsWith("*") && p.codigo.startsWith(c.slice(0, -1)))).map((p) => p.mensagem).join(" | ");
@@ -99,8 +78,8 @@ export const CRITERIOS = [
     regra: "O grupo segue o uso que o próprio cliente já faz na planilha; só se sugere com certeza alta (mínimo de itens e participação).",
     exemplo: "Item sem grupo com 94% dos similares no grupo Peças", params: "Participação mínima: 90%" },
   { id: "unidade", titulo: "Unidade de medida", auto: true,
-    regra: "Uma grafia por unidade (KG, não KGS ou Kg); unidade vazia ou desconhecida é pendência; conversões só com fator comprovado.",
-    exemplo: "KG, KGS e kg no mesmo cadastro", params: "" },
+    regra: "A unidade de estoque de cada item é a MENOR unidade prática da medida em que ele é controlado: massa em quilograma, volume em litro, comprimento em metro, área em metro quadrado e contagem em unidade. Unidade maior (tonelada, hectolitro, dúzia, metro cúbico...) e embalagem (saca, big bag, galão, caixa, pacote...) passam a ser unidade de COMPRA, com o fator de conversão cadastrado. A regra vale para qualquer unidade da base, não só para os exemplos: o sistema reconhece as unidades de medida usuais e o analista classifica as demais na tabela de unidades. O fator só é dado como certo quando é exato por definição (1 tonelada = 1.000 kg) ou está escrito na própria unidade (BALDE 20KG); se vem da descrição, fica para confirmar; nos demais casos fica a informar. Unidade já menor que a padrão (g, ml, cm) é aceita. Uma grafia por unidade (KG, não KGS ou Kg); unidade vazia ou sem regra é pendência. Para item com histórico de movimentação, o SAP pode não permitir a troca da unidade de estoque: validar no piloto (passo 3) e tratar como de/para ou novo cadastro.",
+    exemplo: "Item estocado em TONELADA ou SACA (passa para KG, com a unidade maior como unidade de compra); em GALÃO (passa para LITRO); em CAIXA (passa para UNIDADE); KG, KGS e kg no mesmo cadastro", params: "política da menor unidade de estoque, com exceções por unidade na tabela do critério" },
   { id: "utilizacao", titulo: "Utilização", auto: true,
     regra: "Item dentro do escopo sem data de movimentação legível é sinalizado. A ausência de movimento por si só não determina bloqueio.",
     exemplo: "Item sem data de última movimentação", params: "Corte vem do parâmetro de saneamento" },
@@ -160,7 +139,7 @@ export function descobrirAbreviacoes(itens, { minimo = 8 } = {}) {
 
 /** Teste de cada critério automático: devolve { achado, motivo } por item. `itens` é o universo em escopo (alguns testes dependem do conjunto). */
 export function criarTestes(itens, estado = {}) {
-  const unidade = achadosUnidade(itens);
+  const unidade = achadosUnidade(itens, { politica: estado?.politicaUnidade?.ativa !== false, regras: estado?.politicaUnidade?.regras || {} });
   const regras = { ...REGRAS_PADRAO, ...(estado?.padronizacao?.regras || {}) }; const abrev = abreviacoesAprovadas(estado);
   return {
     padrao: (it) => { const r = padronizarDescricao(it.descricao, regras, abrev); return r.mudou ? { achado: true, motivo: r.motivos.join("; ") + (r.longa ? ` · acima de ${LIMITE_DESCRICAO} caracteres` : ""), sugerida: r.sugerida } : { achado: false }; },
@@ -178,7 +157,7 @@ export function achadosDoCriterio(crit, itens, testes) {
   const t = testes[crit.id];
   if (!crit.auto || !t) return [];
   const saida = [];
-  for (const it of itens) { const r = t(it); if (r.achado) saida.push({ item: it, motivo: r.motivo, sugerida: r.sugerida }); }
+  for (const it of itens) { const r = t(it); if (r.achado) saida.push({ item: it, motivo: r.motivo, sugerida: r.sugerida, extra: r.extra }); }
   return saida;
 }
 

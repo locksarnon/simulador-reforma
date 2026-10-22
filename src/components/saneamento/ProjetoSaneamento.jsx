@@ -8,6 +8,7 @@ import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicid
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, hojeIso } from "./logica";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
+import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
@@ -24,7 +25,7 @@ const PASSOS = [
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { ateOn: false, ate: "", diasOn: false, dias: 540, dataBase: hojeIso() }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} } });
+const estadoInicial = () => ({ passo: 0, params: { ateOn: false, ate: "", diasOn: false, dias: 540, dataBase: hojeIso() }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} } });
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const dataBr = (d) => (d ? d.split("-").reverse().join("/") : "—");
 const Chip = ({ children, tom = "n" }) => {
@@ -94,9 +95,10 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const itens = useMemo(() => base.data?.itens || [], [base.data]);
   const escopo = useMemo(() => aplicarEscopo(itens, estado?.params), [itens, estado?.params]);
   const grupos = useMemo(() => agruparPorGrupo(escopo.emEscopo), [escopo]);
-  const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao]); // eslint-disable-line react-hooks/exhaustive-deps
+  const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao, estado?.politicaUnidade]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
+  const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras]);
   const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado, itens, escopo, testes }) : null), [estado, validacaoId, base.data, itens, escopo, testes, nome]);
 
   if (proj.isLoading || !estado) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o projeto…</p>;
@@ -189,6 +191,45 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
                 <td className="p-1.5"><input type="checkbox" aria-label={`Aprovar ${a.de} → ${para}`} checked={!!cur?.aprovada} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para, aprovada: e.target.checked } } })} /></td></tr>); })}</tbody></table>
         </div>)}
     </div>) : null;
+  // Critério "Unidade de medida": liga/desliga a política da menor unidade e deixa o analista classificar as unidades que a tabela não conhece.
+  const polUn = estado.politicaUnidade || { ativa: true, regras: {} };
+  const editarUn = (fn) => setEstado((e) => {
+    const pol = e.politicaUnidade || { ativa: true, regras: {} };
+    return { ...e, politicaUnidade: fn({ ativa: pol.ativa !== false, regras: { ...(pol.regras || {}) } }), criterios: { ...e.criterios, unidade: { ...(e.criterios.unidade || {}), aprovado: false } } };
+  });
+  const setRegraUn = (chave, regra) => editarUn((pol) => { if (regra) pol.regras[chave] = regra; else delete pol.regras[chave]; return pol; });
+  const painelUnidade = crit.id === "unidade" ? (
+    <div className="rounded-lg border border-border p-3 space-y-3">
+      <p className="text-sm font-medium">Política da menor unidade de estoque</p>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={polUn.ativa !== false} onChange={(e) => editarUn((pol) => ({ ...pol, ativa: e.target.checked }))} />
+        <span>Aplicar a política: a unidade de estoque é a menor unidade prática da medida do item; a maior vira unidade de compra, com o fator de conversão.
+          <span className="block text-xs text-muted-foreground">Desligada, o critério só confere a grafia (KG × KGS), a unidade vazia e a unidade sem regra.</span></span></label>
+      {!validacaoId ? <p className="text-xs text-muted-foreground">Importe a base no passo Triagem para ver as unidades dela.</p> : resumoUn && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Unidade de estoque por medida (o nome que a própria base já usa): {Object.entries(GRANDEZAS).map(([g, v]) => `${v.rotulo} → ${resumoUn.padroes[g]}`).join(" · ")}.</p>
+          <p className="text-sm font-medium">Unidades encontradas na base ({fmt(resumoUn.linhas.length)}{resumoUn.semUnidade ? ` · ${plural(resumoUn.semUnidade, "item sem unidade", "itens sem unidade")}` : ""})</p>
+          <p className="text-xs text-muted-foreground">O sistema reconhece as unidades de medida usuais e as embalagens mais comuns. As que ele não conhece aparecem como “Sem regra”: diga de que medida a unidade é (e, se souber, quantas unidades padrão ela tem) ou marque “Manter como está”. A escolha vale para todos os itens com a unidade e nada é alterado no cadastro.</p>
+          <div className="max-h-80 overflow-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Unidade</th><th className="p-1.5">Itens</th><th className="p-1.5">Como a política trata</th><th className="p-1.5">Seu ajuste</th></tr></thead>
+            <tbody>{resumoUn.linhas.map((l) => {
+              const sel = l.regra?.manter ? "manter" : (l.regra?.grandeza || ""); const alvo = sel && sel !== "manter" ? resumoUn.padroes[sel] : null;
+              return (<tr key={l.chave} className="border-t border-border align-top">
+                <td className="p-1.5 font-mono">{l.rotulo}{l.grafias.length > 1 && <span className="block text-[10px] text-muted-foreground font-sans">também: {l.grafias.slice(1, 4).join(", ")}</span>}</td>
+                <td className="p-1.5 tabular-nums">{fmt(l.n)}</td>
+                <td className={`p-1.5 ${l.k ? "" : "text-amber-700 dark:text-amber-300"}`}>{l.texto}</td>
+                <td className="p-1.5">
+                  <select aria-label={`Como tratar a unidade ${l.rotulo}`} value={sel} className="border rounded px-1 py-0.5 bg-background"
+                    onChange={(e) => { const v = e.target.value; setRegraUn(l.chave, v === "" ? null : v === "manter" ? { manter: true } : { grandeza: v, fator: null, fatorTxt: "" }); }}>
+                    <option value="">{l.conhecida ? "Seguir a tabela" : "Sem regra"}</option>
+                    <option value="manter">Manter como está</option>
+                    {Object.entries(GRANDEZAS).map(([id, v]) => <option key={id} value={id}>É medida de {v.rotulo.toLowerCase()}</option>)}
+                  </select>
+                  {alvo && <span className="mt-1 flex items-center gap-1 whitespace-nowrap">1 {l.rotulo.toUpperCase()} =
+                    <input inputMode="decimal" value={l.regra.fatorTxt ?? (l.regra.fator ?? "")} placeholder="a informar" aria-label={`Quantos ${alvo} há em 1 ${l.rotulo}`} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums"
+                      onChange={(e) => setRegraUn(l.chave, { grandeza: sel, fatorTxt: e.target.value, fator: lerFator(e.target.value) })} /> {alvo}</span>}
+                </td></tr>);
+            })}</tbody></table></div>
+        </div>)}
+    </div>) : null;
   const criterios = (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
@@ -205,6 +246,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         </div>
         <p className="text-xs text-muted-foreground">Editar a regra reabre a aprovação. A análise só trata critérios aprovados.</p>
         {painelPadrao}
+        {painelUnidade}
       </div>
     </div>
   );
@@ -225,18 +267,22 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
 
   // ── Passo 4: Análises ──
   // Cada decisão guarda o que precisa para as listas finais: destino da unificação (duplicidade) ou a descrição sugerida (padronização).
-  const extraDecisao = (c, it, sugerida) => (c.id === "padrao" ? { sugerida } : c.id === "duplicidade" ? { destino: it.duplicidade?.mestre ?? null } : {});
+  const extraDecisao = (c, it, sugerida, extra) => (c.id === "padrao" ? { sugerida } : c.id === "duplicidade" ? { destino: it.duplicidade?.mestre ?? null }
+    : c.id === "unidade" && sugerida ? { tipo: extra?.tipo ?? "grafia", de: extra?.de ?? it.unidade, para: sugerida, fator: extra?.fator ?? null, evidencia: extra?.evidencia ?? null, grandeza: extra?.grandeza ?? null } : {});
   // Atualizações funcionais: duas ações seguidas nunca sobrescrevem uma à outra.
-  const alternarDecisao = (it, c, grupo, sugerida) => setEstado((e) => {
+  const alternarDecisao = (it, c, grupo, sugerida, extra) => setEstado((e) => {
     const k = `${it.linha}|${c.id}`; const d = { ...e.decisoes };
-    if (d[k]) { if (d[k].status === "PROP") delete d[k]; } else d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, it, sugerida) };
+    if (d[k]) { if (d[k].status === "PROP") delete d[k]; } else d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, it, sugerida, extra) };
     return { ...e, decisoes: d };
   });
   const encaminharTodas = (c, grupo, ach) => setEstado((e) => {
     const d = { ...e.decisoes };
-    for (const a of ach) { const k = `${a.item.linha}|${c.id}`; if (!d[k]) d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, a.item, a.sugerida) }; }
+    for (const a of ach) { const k = `${a.item.linha}|${c.id}`; if (!d[k]) d[k] = { acao: "ENC", status: "PROP", grupo, por: quem, em: hojeIso(), ...extraDecisao(c, a.item, a.sugerida, a.extra) }; }
     return { ...e, decisoes: d };
   });
+  // Na unidade, só os achados com sugestão (conversão e grafia) vão em bloco; vazio e unidade sem regra o analista trata um a um.
+  const paraEncaminhar = (c, ach) => (c.id === "unidade" ? ach.filter((a) => a.sugerida) : ach);
+  const rotuloEncaminhar = (c, ach) => { const n = paraEncaminhar(c, ach).length; const sug = c.id === "padrao" || c.id === "unidade"; return n === 1 ? `Encaminhar ${sug ? "a sugestão" : "o achado"} do grupo` : `Encaminhar ${sug ? "as" : "os"} ${fmt(n)} ${sug ? "sugestões" : "achados"} do grupo`; };
   const analises = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para analisar.</p> : (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground"><b className="text-foreground">{grupos.filter((g) => estado.saneados[g.nome]).length} de {grupos.length}</b> grupos saneados · critérios aprovados disponíveis: {aprovados.length} de {CRITERIOS.length}</p>
@@ -253,11 +299,11 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
                 return (
                   <Acc key={c.id} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<>{c.titulo}{tratado ? <Chip tom="g">Tratado</Chip> : <Chip tom="a">A tratar</Chip>}<span className="text-xs text-muted-foreground">{c.auto ? plural(n, "achado", "achados") : "conferência manual"}</span></>}>
                     {!c.auto ? <p className="text-sm text-muted-foreground">Este critério ainda não tem teste automático: confira os itens do grupo e marque como tratado.</p> : (ach || []).length === 0 ? <p className="text-sm text-muted-foreground">Nenhum achado neste grupo para este critério.</p> : (
-                      <div className="overflow-x-auto">{(c.id === "padrao" || c.id === "duplicidade") && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => encaminharTodas(c, g.nome, ach)}>{c.id === "padrao" ? (ach.length === 1 ? "Encaminhar a sugestão do grupo" : `Encaminhar as ${fmt(ach.length)} sugestões do grupo`) : (ach.length === 1 ? "Encaminhar o achado do grupo" : `Encaminhar os ${fmt(ach.length)} achados do grupo`)}</Botao></div>}<table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Linha</th><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">{c.id === "padrao" ? "Descrição sugerida" : "Achado"}</th><th className="p-1.5">Encaminhar</th></tr></thead>
-                        <tbody>{ach.slice(0, 100).map(({ item: it, motivo, sugerida }) => (
+                      <div className="overflow-x-auto">{(c.id === "padrao" || c.id === "duplicidade" || (c.id === "unidade" && paraEncaminhar(c, ach).length > 0)) && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => encaminharTodas(c, g.nome, paraEncaminhar(c, ach))}>{rotuloEncaminhar(c, ach)}</Botao></div>}<table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Linha</th><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">{c.id === "padrao" ? "Descrição sugerida" : c.id === "unidade" ? "Unidade de estoque sugerida" : "Achado"}</th><th className="p-1.5">Encaminhar</th></tr></thead>
+                        <tbody>{ach.slice(0, 100).map(({ item: it, motivo, sugerida, extra }) => (
                           <tr key={it.linha} className="border-t border-border align-top"><td className="p-1.5 tabular-nums">{it.linha}</td><td className="p-1.5">{it.codigo || "—"}</td><td className="p-1.5 max-w-[260px]">{it.descricao || "—"}</td>
                             <td className="p-1.5 max-w-[320px]">{sugerida ? <div><b className="font-medium break-words">{sugerida}</b><div className="text-[11px] text-muted-foreground">{motivo}</div></div> : <span title={motivo} className="line-clamp-2">{achadoCurto(c, it, motivo)}</span>}{c.id === "duplicidade" && it.duplicidade && <button type="button" className="ml-2 text-primary underline" onClick={() => setComparativo(it)}>Comparar</button>}</td>
-                            <td className="p-1.5"><input type="checkbox" aria-label={`Encaminhar linha ${it.linha}`} checked={!!estado.decisoes[`${it.linha}|${c.id}`]} disabled={estado.decisoes[`${it.linha}|${c.id}`] && estado.decisoes[`${it.linha}|${c.id}`].status !== "PROP"} onChange={() => alternarDecisao(it, c, g.nome, sugerida)} /></td></tr>))}</tbody></table>
+                            <td className="p-1.5"><input type="checkbox" aria-label={`Encaminhar linha ${it.linha}`} checked={!!estado.decisoes[`${it.linha}|${c.id}`]} disabled={estado.decisoes[`${it.linha}|${c.id}`] && estado.decisoes[`${it.linha}|${c.id}`].status !== "PROP"} onChange={() => alternarDecisao(it, c, g.nome, sugerida, extra)} /></td></tr>))}</tbody></table>
                         {ach.length > 100 && <p className="text-xs text-muted-foreground p-2">Mostrando 100 de {fmt(ach.length)}.</p>}</div>)}
                     <div className="mt-2"><Botao onClick={() => mudar({ tratados: { ...estado.tratados, [k]: !tratado }, saneados: tratado ? { ...estado.saneados, [g.nome]: false } : estado.saneados })}>{tratado ? "Reabrir critério no grupo" : "Marcar como tratado"}</Botao></div>
                   </Acc>);
@@ -273,7 +319,21 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   );
 
   // ── Passo 5: De/para (decisões) ──
-  const decidir = (ks, status) => setEstado((e) => { const d = { ...e.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP") d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); return { ...e, decisoes: d }; });
+  const decidir = (ks, status) => setEstado((e) => { const d = { ...e.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP" && !(status === "APR" && precisaFator(d[k]))) d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); return { ...e, decisoes: d }; });
+  // O fator digitado vale mais que o sugerido; apagar o campo volta a "a informar" (e impede a aprovação).
+  const setFatorDecisao = (k, txt) => setEstado((e) => ({ ...e, decisoes: { ...e.decisoes, [k]: { ...e.decisoes[k], fatorTxt: txt, fatorFinal: lerFator(txt) ?? "" } } }));
+  const celulaUnidade = (d, it) => {
+    const f = fatorDaDecisao(d); const compra = String(d.de).toUpperCase();
+    return (
+      <div>{it?.descricao || "—"}
+        <div className="text-[11px]"><b className="font-medium">Unidade de estoque: {d.de} → {d.para}</b>
+          {d.tipo === "conversao" && (d.status === "PROP" ? (
+            <label className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-muted-foreground"><span>unidade de compra {compra}: 1 =</span>
+              <span className="inline-flex items-center gap-1 whitespace-nowrap"><input inputMode="decimal" value={d.fatorTxt ?? (d.fator ?? "")} placeholder="a informar" aria-label={`Itens por unidade de compra, linha ${d.k.split("|")[0]}`} onChange={(e) => setFatorDecisao(d.k, e.target.value)} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums" /> {d.para}</span>
+              {d.evidencia === "descricao" && d.fatorFinal === undefined && <span>(lido da descrição: confirme)</span>}</label>
+          ) : <span className="block text-muted-foreground">unidade de compra {compra}: {f != null ? `1 = ${numeroBr(f)} ${d.para}` : "itens por unidade de compra a informar"}</span>)}
+        </div></div>);
+  };
   const porGrupoDec = [...new Set(decisoesLista.map((d) => d.grupo))];
   const temPadrao = decisoesLista.some((d) => d.k.endsWith("|padrao"));
   const emitirListaCliente = async () => {
@@ -304,12 +364,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       {decisoesLista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum caso encaminhado. Marque “Encaminhar” nos achados do passo Análises.</p>}
       {porGrupoDec.map((gn) => { const lista = decisoesLista.filter((d) => d.grupo === gn); const pend = lista.filter((d) => d.status === "PROP");
         return (<Acc key={gn} aberto={!!aberto["d" + gn]} onToggle={() => alternar("d" + gn)} titulo={<><b className="font-medium">{gn}</b><span className="text-xs text-muted-foreground">{fmt(lista.length)} casos · {fmt(pend.length)} aguardando decisão</span></>}>
-          {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao></div>}
+          {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.filter((d) => !precisaFator(d)).length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao>{pend.some(precisaFator) && <span className="self-center text-xs text-muted-foreground">Conversões de unidade sem fator ficam aguardando.</span>}</div>}
           <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Caso</th><th className="p-1.5">Critério</th><th className="p-1.5">Descrição</th><th className="p-1.5">Situação</th><th className="p-1.5"></th></tr></thead>
             <tbody>{lista.slice(0, 200).map((d) => { const [linha, cid] = d.k.split("|"); const it = itemPorLinha(Number(linha));
-              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums">L{linha}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== Number(linha) ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorLinha(d.destino)?.codigo ?? "—"}</div></div> : (it?.descricao || "—")}</td>
+              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums">L{linha}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== Number(linha) ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorLinha(d.destino)?.codigo ?? "—"}</div></div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
                 <td className="p-1.5">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}</td>
-                <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}</td></tr>); })}</tbody></table>
+                <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d)} title={precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}</td></tr>); })}</tbody></table>
             {lista.length > 200 && <p className="text-xs text-muted-foreground p-2">Mostrando 200 de {fmt(lista.length)}.</p>}</div>
         </Acc>); })}
     </div>
@@ -318,8 +378,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const baixar = async (ids, sufixo) => { if (!listas) return; setGerando(true); try { await gerarXlsx(listas, ids, `${slug}-${sufixo}.xlsx`); } finally { setGerando(false); } };
   const conferencia = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para emitir as listas.</p> : !listas ? <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Montando as listas…</p> : (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {[["Universo", listas.contagem.universo], ["Lista final", listas.contagem.listaFinal], ["Descrições corrigidas", listas.contagem.descricoesCorrigidas], ["Unificações aprovadas", listas.contagem.unificacoesAprovadas], ["Unificações em decisão", listas.contagem.unificacoesPendentes], ["Inativados por data de uso", listas.contagem.inativados]].map(([l, v]) => (
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {[["Universo", listas.contagem.universo], ["Lista final", listas.contagem.listaFinal], ["Descrições corrigidas", listas.contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas", listas.contagem.unidadesAjustadas], ["Unificações aprovadas", listas.contagem.unificacoesAprovadas], ["Unificações em decisão", listas.contagem.unificacoesPendentes], ["Inativados por data de uso", listas.contagem.inativados]].map(([l, v]) => (
           <div key={l} className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p></div>))}
       </div>
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
