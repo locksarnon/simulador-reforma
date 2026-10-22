@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Search, Plus, Layers } from "lucide-react";
+import { Search, Plus, Layers, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import GrupoCard from "@/components/GrupoCard";
 import InfoTooltip from "@/components/InfoTooltip";
+import TituloPagina from "@/components/TituloPagina";
 
 export default function DataHub() {
   const [search, setSearch] = useState("");
@@ -83,10 +84,7 @@ export default function DataHub() {
     <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">Grupos e empresas</h1>
-            <InfoTooltip pagina="datahub" chave="header" />
-          </div>
+          <TituloPagina icon={LayoutGrid} ajuda={<InfoTooltip pagina="datahub" chave="header" />}>Grupos e empresas</TituloPagina>
           <p className="text-sm text-muted-foreground mt-1">
             Organize suas empresas e acesse os serviços e análises de cada uma
           </p>

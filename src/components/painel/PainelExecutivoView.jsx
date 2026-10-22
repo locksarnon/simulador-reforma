@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { AlertTriangle, TrendingUp, Wallet, FileText, Scale, Save, Loader2, Download, GitCompare } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import TituloPagina from "@/components/TituloPagina";
 
 function Card({ className, children, ...props }) {
   return (
@@ -269,10 +270,7 @@ export default function PainelExecutivoView({
             <Scale className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-heading font-semibold">Painel Executivo</h1>
-              <InfoTooltip pagina="home" chave="header" />
-            </div>
+            <TituloPagina ajuda={<InfoTooltip pagina="home" chave="header" />}>Painel Executivo</TituloPagina>
             <p className="text-sm text-muted-foreground">
               {empresaLabel || grupoLabel || "Todos os grupos — sistema atual, IBS/CBS, transição, margem e caixa"}
             </p>

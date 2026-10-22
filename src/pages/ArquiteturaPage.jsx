@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import {
-  Database, Server, Layout as LayoutIcon, Webhook, Boxes, Plug, FileText, Search, BookOpen,
-} from "lucide-react";
+  Database, Server, Layout as LayoutIcon, Webhook, Boxes, Plug, FileText, Search, BookOpen, Network } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import InfoTooltip from "@/components/InfoTooltip";
+import TituloPagina from "@/components/TituloPagina";
 import {
   ARQUITETURA_RESUMO, ENTIDADES, BACKEND_FUNCTIONS, FRONTEND_PAGES,
   HOOKS, SHARED_MODULES, INTEGRATIONS, ORIENTACOES, COMPONENTES_AUXILIARES,
@@ -16,10 +16,7 @@ export default function ArquiteturaPage() {
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-heading font-semibold">Arquitetura & Correlações Front↔Back</h1>
-          <InfoTooltip text="Documentação técnica interna para o time de desenvolvimento. Mapeia todas as entidades, backend functions, páginas, hooks e módulos shared." />
-        </div>
+        <TituloPagina icon={Network} ajuda={<InfoTooltip text="Documentação técnica interna para o time de desenvolvimento. Mapeia todas as entidades, backend functions, páginas, hooks e módulos shared." />}>Arquitetura & Correlações Front↔Back</TituloPagina>
         <p className="text-sm text-muted-foreground mt-1">
           InTAX v{ARQUITETURA_RESUMO.versao} — atualizado em {ARQUITETURA_RESUMO.dataBase}
         </p>

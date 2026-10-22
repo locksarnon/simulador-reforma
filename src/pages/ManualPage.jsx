@@ -4,15 +4,13 @@ import { BookOpen, HelpCircle, TriangleAlert } from "lucide-react";
 import FluxogramaManual from "@/components/manual/FluxogramaManual";
 import FaqAccordion from "@/components/manual/FaqAccordion";
 import InfoTooltip from "@/components/InfoTooltip";
+import TituloPagina from "@/components/TituloPagina";
 
 export default function ManualPage() {
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-heading font-semibold">FAQ & Manual</h1>
-          <InfoTooltip pagina="manual" chave="header" />
-        </div>
+        <TituloPagina icon={BookOpen} ajuda={<InfoTooltip pagina="manual" chave="header" />}>FAQ & Manual</TituloPagina>
         <p className="text-sm text-muted-foreground mt-1">
           Fluxograma de utilização, manual técnico e perguntas frequentes do InTAX — v0.16
         </p>

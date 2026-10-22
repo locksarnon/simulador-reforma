@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, CalendarRange } from "lucide-react";
 import { pct } from "@/lib/format";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const empty = {
   ano: new Date().getFullYear(), pis_cofins_fator: 1, ipi_fator_geral: 1, icms_fator: 1,
@@ -47,10 +48,7 @@ export default function TransicaoPage() {
     <div className="p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">Transição 2026–2033</h1>
-            <InfoTooltip pagina="transicao" chave="header" />
-          </div>
+          <TituloPagina icon={CalendarRange} ajuda={<InfoTooltip pagina="transicao" chave="header" />}>Transição 2026–2033</TituloPagina>
           <p className="text-sm text-muted-foreground">Cronograma paramétrico — fatores de extinção e alíquotas de referência</p>
         </div>
         <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">

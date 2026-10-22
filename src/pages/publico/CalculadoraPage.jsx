@@ -175,7 +175,7 @@ export default function CalculadoraPage() {
 
       {/* 2 — números */}
       {passo === 2 && perfil && (
-        <div className="rounded-xl border border-border bg-card p-5 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-4 space-y-6">
           <div>
             <p className="text-sm font-medium mb-2">Regime tributário</p>
             <div className="flex flex-wrap gap-2">

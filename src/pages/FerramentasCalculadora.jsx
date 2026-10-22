@@ -9,6 +9,7 @@ import { Calculator } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import { BRL, pct } from "@/lib/format";
+import TituloPagina from "@/components/TituloPagina";
 
 const empty = {
   valor_bruto: 1000, direcao: "Saida",
@@ -43,11 +44,7 @@ export default function FerramentasCalculadora() {
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Calculadora Rápida" }]} />
       <div className="p-6 lg:p-8 space-y-5">
         <div>
-          <div className="flex items-center gap-2">
-            <Calculator className="w-5 h-5 text-muted-foreground" />
-            <h1 className="text-xl font-heading font-semibold">Calculadora Reforma Tributária</h1>
-            <InfoTooltip pagina="ferramentas" chave="calculadora_header" />
-          </div>
+          <TituloPagina icon={Calculator} ajuda={<InfoTooltip pagina="ferramentas" chave="calculadora_header" />}>Calculadora Reforma Tributária</TituloPagina>
           <p className="text-sm text-muted-foreground max-w-2xl">
             Simulação de uma operação avulsa, sem cadastrar Empresa nem Operação — mesmo motor de cálculo
             (<code className="font-mono text-xs">taxEngine.js</code>) usado no resto do simulador. Para guardar o

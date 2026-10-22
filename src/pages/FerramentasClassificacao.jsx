@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Search, Wrench, Download, HelpCircle } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import TituloPagina from "@/components/TituloPagina";
 
 // Valores reais de "Local incidência IBS" encontrados no Anexo VIII — não é
 // uma categoria inventada, é o próprio agrupamento que a tabela oficial usa.
@@ -90,11 +91,7 @@ export default function FerramentasClassificacao() {
     <div>
       <div className="p-6 lg:p-8 space-y-5">
         <div>
-          <div className="flex items-center gap-2">
-            <Wrench className="w-5 h-5 text-muted-foreground" />
-            <h1 className="text-xl font-heading font-semibold">Classificação e conversão de serviços</h1>
-            <InfoTooltip pagina="ferramentas" chave="classificacao_header" />
-          </div>
+          <TituloPagina icon={Wrench} ajuda={<InfoTooltip pagina="ferramentas" chave="classificacao_header" />}>Classificação e conversão de serviços</TituloPagina>
           <p className="text-sm text-muted-foreground max-w-2xl">
             Item da LC 116/2003, NBS, cIndOp e cClassTrib — os quatro numa base só. Base:{" "}
             {data.length ? data.length.toLocaleString("pt-BR") : "…"} linhas do <strong>Anexo VIII</strong> (Receita

@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Radar, RefreshCw, ExternalLink, AlertCircle, ArrowRight } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const PRIORIDADE_ORDEM = { Alta: 0, Média: 1, Baixa: 2 };
 
@@ -82,10 +83,7 @@ export default function RadarReformaPage() {
       <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <Radar className="w-5 h-5 text-muted-foreground" />
-              <h1 className="text-xl font-heading font-semibold">Radar de Novidades — Reforma Tributária</h1>
-            </div>
+            <TituloPagina icon={Radar}>Radar de Novidades — Reforma Tributária</TituloPagina>
             <p className="text-sm text-muted-foreground">
               Gerado por IA com busca na web, toda segunda-feira — foco em ação prática pro time fiscal, não em análise acadêmica.
             </p>

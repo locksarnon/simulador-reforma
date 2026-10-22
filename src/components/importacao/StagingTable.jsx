@@ -34,7 +34,7 @@ const RESULTADO_CONFIG = {
   IMPORTAVEL: { label: "Importável", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   IMPORTAVEL_COM_ALERTA: { label: "Importável c/ alerta", color: "bg-amber-100 text-amber-700 border-amber-200" },
   BLOQUEADO: { label: "Bloqueado", color: "bg-red-100 text-red-700 border-red-200" },
-  CANCELADO: { label: "Cancelado", color: "bg-gray-100 text-gray-600 border-gray-200" },
+  CANCELADO: { label: "Cancelado", color: "bg-muted text-muted-foreground border-border" },
   DUPLICADO: { label: "Duplicado", color: "bg-blue-100 text-blue-700 border-blue-200" },
   CONFIRMADO: { label: "Já importado", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   ESTORNADO: { label: "Estornado", color: "bg-orange-100 text-orange-700 border-orange-200" },

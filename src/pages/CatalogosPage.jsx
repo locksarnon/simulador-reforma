@@ -8,10 +8,11 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Plus, Pencil } from "lucide-react";
+import { Search, Plus, Pencil, Library } from "lucide-react";
 import { pct } from "@/lib/format";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 /** <input type="date"> exige "YYYY-MM-DD" — corta o resto do ISO. */
 const toDateInput = (v) => (v ? String(v).slice(0, 10) : "");
@@ -62,10 +63,7 @@ export default function CatalogosPage() {
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Catálogos IBS/CBS" }]} />
     <div className="p-6 lg:p-8 space-y-5">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-heading font-semibold">Catálogos IBS/CBS</h1>
-          <InfoTooltip pagina="catalogos" chave="header" />
-        </div>
+        <TituloPagina icon={Library} ajuda={<InfoTooltip pagina="catalogos" chave="header" />}>Catálogos IBS/CBS</TituloPagina>
         <p className="text-sm text-muted-foreground">CST, cClassTrib e cCredPres — bases oficiais versionadas</p>
       </div>
       <Tabs defaultValue="cst">

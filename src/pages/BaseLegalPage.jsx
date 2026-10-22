@@ -70,7 +70,7 @@ export default function BaseLegalPage() {
           <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Texto integral das normas da Reforma Tributária do Consumo, capturado das fontes oficiais e organizado por artigo. Use a busca para achar o dispositivo e a base legal de uma resposta.</p>
         </div>
 
-        <Link to="/base-legal/guia-art-11" className="block rounded-xl border border-border bg-card p-5 hover:border-primary"><strong>Guia do Artigo 11</strong><p className="text-sm text-muted-foreground mt-1">Consulte o local de incidência do IBS por tipo de operação.</p></Link>
+        <Link to="/base-legal/guia-art-11" className="block rounded-xl border border-border bg-card p-4 hover:border-primary"><strong>Guia do Artigo 11</strong><p className="text-sm text-muted-foreground mt-1">Consulte o local de incidência do IBS por tipo de operação.</p></Link>
 
         {admin && <AlertasBaseLegal />}
 

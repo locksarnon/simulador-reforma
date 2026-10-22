@@ -9,10 +9,11 @@ import OperacaoCalcDetail from "@/components/operacoes/OperacaoCalcDetail";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronRight, ArrowLeftRight } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import LimparDadosButton from "@/components/LimparDadosButton";
+import TituloPagina from "@/components/TituloPagina";
 
 export default function OperacoesPage() {
   const { id: grupoId } = useParams();
@@ -99,12 +100,9 @@ export default function OperacoesPage() {
     <div className="p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">
+          <TituloPagina icon={ArrowLeftRight} ajuda={<InfoTooltip pagina="operacoes" chave="header" />}>
               Operações {empresaTravada ? `· ${empresaTravada.id_empresa}` : (grupoId ? `· ${grupoNumero || ""}` : "")}
-            </h1>
-            <InfoTooltip pagina="operacoes" chave="header" />
-          </div>
+            </TituloPagina>
           <p className="text-sm text-muted-foreground">
             {filtered.length} lançamentos · motor calcula sistema atual, IBS/CBS, transição, margem e caixa
           </p>

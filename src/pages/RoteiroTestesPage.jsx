@@ -7,6 +7,7 @@ import PageHeader from "@/components/PageHeader";
 import { toast } from "@/components/ui/use-toast";
 import { ROTEIRO, GRUPOS_ROTEIRO, CSV_TESTE_CADASTRO } from "@/lib/roteiroTestes";
 import { SETORES_REFORMA, COBERTURA, resumoCobertura } from "@/lib/setoresReforma";
+import TituloPagina from "@/components/TituloPagina";
 
 const CHAVE = "intax_roteiro_testes_v1";
 const STATUS = [
@@ -300,7 +301,7 @@ export default function RoteiroTestesPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-heading font-semibold">Roteiro de testes do InTAX</h1>
+            <TituloPagina icon={ListChecks}>Roteiro de testes do InTAX</TituloPagina>
             <p className="text-sm text-muted-foreground">Passo a passo por funcionalidade: onde clicar, o que esperar, cuidados e quando considerar aprovado.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -346,7 +347,7 @@ export default function RoteiroTestesPage() {
             </aside>
             <div className="space-y-5 min-w-0">
               {ROTEIRO.map((f, i) => <Funcao key={f.id} f={f} indice={i + 1} estado={estado} setEstado={setEstado} />)}
-              <div className="rounded-xl border border-border bg-card p-5 text-sm">
+              <div className="rounded-xl border border-border bg-card p-4 text-sm">
                 <h3 className="font-medium mb-1">Terminou?</h3>
                 <p className="text-muted-foreground">Clique em "Copiar relatório" no alto da página e envie o texto para a equipe. Revise também a aba <Link to="#" onClick={(e) => { e.preventDefault(); setAba("mapa"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="underline">Mapa de setores da reforma</Link> para conferir o que ainda não está coberto.</p>
               </div>

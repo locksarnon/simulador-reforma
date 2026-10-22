@@ -13,7 +13,7 @@ const SITUACAO_CONFIG = {
   INVALIDO: { label: "Inválido", color: "bg-red-100 text-red-700 border-red-200", icon: XCircle },
   EVENTO_PROCESSADO: { label: "Evento processado", color: "bg-orange-100 text-orange-700 border-orange-200", icon: Clock },
   EVENTO_PENDENTE: { label: "Evento pendente", color: "bg-orange-100 text-orange-700 border-orange-200", icon: Clock },
-  IGNORADO: { label: "Ignorado", color: "bg-gray-100 text-gray-600 border-gray-200", icon: Minus },
+  IGNORADO: { label: "Ignorado", color: "bg-muted text-muted-foreground border-border", icon: Minus },
   ERRO_PROCESSAMENTO: { label: "Erro", color: "bg-red-100 text-red-700 border-red-200", icon: XCircle },
 };
 

@@ -3,9 +3,10 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save } from "lucide-react";
+import { Save, Settings } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const empty = {
   versao_simulador: "v0.16",
@@ -49,10 +50,7 @@ export default function ConfiguracaoPage() {
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Configuração" }]} />
     <div className="p-6 lg:p-8 space-y-5">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-heading font-semibold">Configuração</h1>
-          <InfoTooltip pagina="config" chave="header" />
-        </div>
+        <TituloPagina icon={Settings} ajuda={<InfoTooltip pagina="config" chave="header" />}>Configuração</TituloPagina>
         <p className="text-sm text-muted-foreground">Premissas centrais, cenário ativo e parâmetros globais do motor</p>
       </div>
 

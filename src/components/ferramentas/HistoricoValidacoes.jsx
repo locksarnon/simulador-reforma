@@ -42,7 +42,7 @@ export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
 
   if (isLoading || lista.length === 0) return null;
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div>
         <h3 className="font-heading font-semibold text-sm">Análises realizadas</h3>
         <p className="text-xs text-muted-foreground">Cada planilha enviada é salva automaticamente desde o upload. Retome um rascunho de onde parou, reabra o resultado ou ajuste os parâmetros e refaça.</p>

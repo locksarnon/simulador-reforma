@@ -38,7 +38,7 @@ function Resultado({ r }) {
   const semIa = r.motivo === "sem_ia" || r.motivo === "erro_ia";
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-4">
       {r.suficiente ? (
         <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{r.resposta}</p>
       ) : (

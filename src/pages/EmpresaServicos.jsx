@@ -1,8 +1,9 @@
 import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, History, LayoutGrid } from "lucide-react";
 import { api } from "@/api/base44Client";
+import TituloPagina from "@/components/TituloPagina";
 
 const SERVICOS = [
   ["importacao-xml", "Diagnóstico tributário", "Importe XML, revise as operações e consulte o painel."],
@@ -31,7 +32,7 @@ export default function EmpresaServicos({ historico = false }) {
   return (
     <div className="p-6 lg:p-8 space-y-5">
       <div>
-        <h1 className="text-xl font-heading font-semibold">{historico ? "Histórico de análises" : "Serviços e análises"}</h1>
+        <TituloPagina icon={historico ? History : LayoutGrid}>{historico ? "Histórico de análises" : "Serviços e análises"}</TituloPagina>
         <p className="text-sm text-muted-foreground mt-0.5">{empresa.razao_social} · escolha um serviço ou retome uma análise salva.</p>
       </div>
       {!historico && (

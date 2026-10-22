@@ -45,7 +45,7 @@ export default function LeadForm({ origem, titulo, subtitulo, botao = "Receber o
   };
 
   return (
-    <form onSubmit={enviar} className="rounded-xl border border-border bg-card p-5 space-y-4">
+    <form onSubmit={enviar} className="rounded-xl border border-border bg-card p-4 space-y-4">
       <div>
         <h3 className="font-heading font-semibold text-base">{titulo}</h3>
         {subtitulo && <p className="text-sm text-muted-foreground mt-1">{subtitulo}</p>}

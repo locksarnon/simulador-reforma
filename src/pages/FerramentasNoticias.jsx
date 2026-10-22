@@ -10,6 +10,7 @@ import { Plus, Pencil, Trash2, Newspaper, ExternalLink, RefreshCw, Check } from 
 import { toast } from "@/components/ui/use-toast";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const empty = { titulo: "", resumo: "", url: "", fonte: "", publicado_em: "", tags: "", status: "Publicada" };
 
@@ -76,11 +77,7 @@ export default function FerramentasNoticias() {
       <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <Newspaper className="w-5 h-5 text-muted-foreground" />
-              <h1 className="text-xl font-heading font-semibold">Acervo de Notícias</h1>
-              <InfoTooltip pagina="ferramentas" chave="noticias_header" />
-            </div>
+            <TituloPagina icon={Newspaper} ajuda={<InfoTooltip pagina="ferramentas" chave="noticias_header" />}>Acervo de Notícias</TituloPagina>
             <p className="text-sm text-muted-foreground">
               Busca automática em feeds oficiais + cadastro manual — itens encontrados entram como rascunho até você revisar.
             </p>

@@ -3,11 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import LimparDadosButton from "@/components/LimparDadosButton";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
+import TituloPagina from "@/components/TituloPagina";
 
 export default function EmpresasPage() {
   const { id: grupoId } = useParams();
@@ -49,10 +50,7 @@ export default function EmpresasPage() {
     <div className="p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">Empresas do Grupo</h1>
-            <InfoTooltip pagina="empresas" chave="header" />
-          </div>
+          <TituloPagina icon={Building2} ajuda={<InfoTooltip pagina="empresas" chave="header" />}>Empresas do Grupo</TituloPagina>
           <p className="text-sm text-muted-foreground">Vinculadas a {grupoNumero || "—"} · clique numa empresa para abrir o workspace dela</p>
         </div>
         <div className="flex items-center gap-3">

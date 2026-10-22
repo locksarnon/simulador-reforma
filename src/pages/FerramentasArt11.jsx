@@ -2,6 +2,7 @@ import React from "react";
 import { BookOpenText, ExternalLink } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const REGRAS = [
   { inciso: "I", titulo: "Bem móvel material", regra: "Local de entrega ou disponibilização do bem ao destinatário. Em vendas não presenciais (e-commerce), vale o destino final indicado pelo adquirente." },
@@ -24,11 +25,7 @@ export default function FerramentasArt11() {
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Guia do Art. 11" }]} />
       <div className="p-6 lg:p-8 space-y-6">
         <div>
-          <div className="flex items-center gap-2">
-            <BookOpenText className="w-5 h-5 text-muted-foreground" />
-            <h1 className="text-xl font-heading font-semibold">Guia do Art. 11 — Local da Operação</h1>
-            <InfoTooltip pagina="ferramentas" chave="art11_header" />
-          </div>
+          <TituloPagina icon={BookOpenText} ajuda={<InfoTooltip pagina="ferramentas" chave="art11_header" />}>Guia do Art. 11 — Local da Operação</TituloPagina>
           <p className="text-sm text-muted-foreground max-w-2xl">
             Resumo comentado do Art. 11 da LC 214/2025 — as regras de territorialidade que definem onde uma
             operação é considerada realizada para fins de IBS/CBS, e como isso se conecta ao cIndOp.

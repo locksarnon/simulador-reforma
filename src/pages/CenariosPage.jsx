@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, GitCompareArrows } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const empty = { nome: "", descricao: "", fator_volume: 1, fator_preco: 1, fator_custo: 1, fator_credito_aproveitado: 1 };
 
@@ -50,10 +51,7 @@ export default function CenariosPage() {
     <div className="p-6 lg:p-8 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-heading font-semibold">Cenários</h1>
-            <InfoTooltip pagina="cenarios" chave="header" />
-          </div>
+          <TituloPagina icon={GitCompareArrows} ajuda={<InfoTooltip pagina="cenarios" chave="header" />}>Cenários</TituloPagina>
           <p className="text-sm text-muted-foreground">
             Fatores de volume, preço, custo e crédito aplicados ao motor. Os cenários ficam sempre disponíveis lado a lado
             no Painel Executivo — o "padrão" abaixo só define qual deles vem pré-selecionado lá.

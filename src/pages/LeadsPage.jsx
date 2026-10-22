@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Users } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const STATUS = ["Novo", "Contatado", "Qualificado", "Reunião", "Fechado", "Perdido"];
 const DESTINOS = { consultoria: "Consultoria", bpo: "BPO fiscal", parceria: "Parceria", nutricao: "Nutrição" };
@@ -61,7 +62,7 @@ export default function LeadsPage() {
       <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <div className="flex items-center gap-2"><Users className="w-5 h-5 text-muted-foreground" /><h1 className="text-xl font-heading font-semibold">Leads</h1></div>
+            <TituloPagina icon={Users}>Leads</TituloPagina>
             <p className="text-sm text-muted-foreground">Contatos das ferramentas públicas, pontuados por porte, impacto, regime e cargo — o destino sugere o próximo passo.</p>
           </div>
           <button onClick={exportar} disabled={filtrados.length === 0} className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"><Download className="w-4 h-4" /> Exportar CSV</button>

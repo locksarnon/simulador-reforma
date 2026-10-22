@@ -55,7 +55,7 @@ export default function PageHeader({ crumbs = [], title, subtitle, actions }) {
         {(title || actions) && (
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              {title && <h1 className="text-lg font-heading font-semibold">{title}</h1>}
+              {title && <h1 className="text-xl font-heading font-semibold">{title}</h1>}
               {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
             </div>
             {actions && <div className="flex items-center gap-3">{actions}</div>}

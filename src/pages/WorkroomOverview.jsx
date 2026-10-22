@@ -100,7 +100,7 @@ export default function WorkroomOverview() {
           </div>
         )}
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <h3 className="font-heading font-medium text-sm">Bases Técnicas e Análise</h3>
             <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">

@@ -252,7 +252,7 @@ export default function ImportacaoXMLPage() {
             <ResumoCard label="Com alerta" value={contadores.alerta} icon={AlertTriangle} color="text-amber-500" />
             <ResumoCard label="Bloqueados" value={contadores.bloqueados} icon={AlertTriangle} color="text-red-500" />
             <ResumoCard label="Duplicados" value={contadores.duplicados} icon={FileSearch} color="text-blue-500" />
-            <ResumoCard label="Cancelados" value={contadores.cancelados} icon={AlertTriangle} color="text-gray-500" />
+            <ResumoCard label="Cancelados" value={contadores.cancelados} icon={AlertTriangle} color="text-muted-foreground" />
           </div>
         )}
 

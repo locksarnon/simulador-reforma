@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Trash2 } from "lucide-react";
 import { api } from "@/api/base44Client";
 import ProjetoSaneamento from "@/components/saneamento/ProjetoSaneamento";
+import TituloPagina from "@/components/TituloPagina";
 
 /** Saneamento de estoques completo, passo a passo: um projeto por empresa, salvo automaticamente. */
 export default function FerramentasSaneamento() {
@@ -29,7 +30,7 @@ export default function FerramentasSaneamento() {
   return (
     <div className="p-6 lg:p-8 space-y-5">
       <div>
-        <div className="flex items-center gap-2"><ClipboardList className="w-5 h-5 text-muted-foreground" /><h1 className="text-xl font-heading font-semibold">Saneamento de estoques</h1></div>
+        <TituloPagina icon={ClipboardList}>Saneamento de estoques</TituloPagina>
         <p className="text-sm text-muted-foreground">Passo a passo: triagem da base, critérios aprovados, análise por grupo, decisões e, ao final, relatório e política de uso.</p>
       </div>
       {projetoId ? (

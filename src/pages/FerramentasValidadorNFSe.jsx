@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Textarea } from "@/components/ui/textarea";
 import { ShieldCheck, Upload, CheckCircle2, AlertTriangle, XCircle, Info, Loader2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
+import TituloPagina from "@/components/TituloPagina";
 
 const CAMADAS = [
   { key: "estrutura", titulo: "1. Estrutura do XML", desc: "O arquivo está bem formado e a raiz é reconhecida (DPS/NFSe)?" },
@@ -64,11 +65,7 @@ export default function FerramentasValidadorNFSe() {
     <div>
       <div className="p-6 lg:p-8 space-y-5">
         <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-muted-foreground" />
-            <h1 className="text-xl font-heading font-semibold">Validador NFS-e (DPS Padrão Nacional)</h1>
-            <InfoTooltip pagina="ferramentas" chave="validador_nfse_header" />
-          </div>
+          <TituloPagina icon={ShieldCheck} ajuda={<InfoTooltip pagina="ferramentas" chave="validador_nfse_header" />}>Validador NFS-e (DPS Padrão Nacional)</TituloPagina>
           <p className="text-sm text-muted-foreground">
             Cole ou envie o XML da DPS/NFS-e para conferir a estrutura e os campos de IBS/CBS exigidos pelo layout nacional (XSD v1.01).
             O XML é processado ao validar. Use Salvar análise para guardar o documento e o resultado no histórico da empresa.

@@ -4,6 +4,7 @@ import { Mail, Loader2, Send, CheckCheck, Save, FlaskConical, AlertTriangle } fr
 import { api, base44 } from "@/api/base44Client";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import TituloPagina from "@/components/TituloPagina";
 
 const COR = {
   Rascunho: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
@@ -50,7 +51,7 @@ export default function NewsletterPage() {
       <div className="p-6 lg:p-8 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <div className="flex items-center gap-2"><Mail className="w-5 h-5 text-muted-foreground" /><h1 className="text-xl font-heading font-semibold">Newsletter</h1></div>
+            <TituloPagina icon={Mail}>Newsletter</TituloPagina>
             <p className="text-sm text-muted-foreground">Radar de novidades por e-mail: o rascunho nasce do Radar toda segunda às 7h30 e é enviado sozinho às 8h. Pra revisar antes, edite/aprove/envie aqui nessa janela.</p>
           </div>
           <button onClick={() => acao("rascunho", async () => { const n = await api.post("/newsletter/rascunho"); setSelId(n.id); }, "Rascunho pronto")} disabled={ocupado === "rascunho"} className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">

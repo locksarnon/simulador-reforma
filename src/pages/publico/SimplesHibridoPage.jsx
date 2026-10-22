@@ -219,7 +219,7 @@ export default function SimplesHibridoPage() {
 
       {/* 0 — enquadramento */}
       {passo === 0 && (
-        <div className="rounded-xl border border-border bg-card p-5 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-4 space-y-6">
           <div>
             <p className="text-sm font-medium mb-2">Qual Anexo do Simples se aplica ao seu negócio?</p>
             <div className="flex flex-wrap gap-2">
@@ -256,7 +256,7 @@ export default function SimplesHibridoPage() {
 
       {/* 1 — números */}
       {passo === 1 && (
-        <div className="rounded-xl border border-border bg-card p-5 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-4 space-y-6">
           <div>
             <label className="text-sm font-medium" htmlFor="rbt12">RBT12 — receita bruta dos últimos 12 meses (R$)</label>
             <input id="rbt12" inputMode="decimal" value={dados.rbt12} onChange={(e) => setDados((d) => ({ ...d, rbt12: fmtMoeda(e.target.value), rbt12Negativo: contemSinalNegativo(e.target.value) }))} placeholder="1.200.000,00" className="w-full h-11 mt-1.5 rounded-md border border-input bg-background px-3 text-base tabular-nums" />
@@ -381,7 +381,7 @@ export default function SimplesHibridoPage() {
             </div>
           )}
 
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-xl border border-border bg-card p-4">
             <p className="font-semibold text-sm">O que você deve contar pro seu comprador?</p>
             <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">Se o seu comprador for contribuinte do regime regular (não consumidor final), ele credita IBS/CBS sobre o que compra de você — mas o valor muda dependendo de como você está enquadrado, e precisa estar destacado na nota fiscal.</p>
             <div className="mt-4 grid sm:grid-cols-2 gap-3">
@@ -401,7 +401,7 @@ export default function SimplesHibridoPage() {
             <p className="text-[11px] text-muted-foreground mt-3">Valores por comprador 100% contribuinte do regime regular — ajuste pela proporção real da sua carteira ({dados.pctClientes}% informado) ao conversar com ele.</p>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-xl border border-border bg-card p-4">
             <p className="font-medium text-sm">Premissas do híbrido (conferíveis e editáveis)</p>
             <div className="mt-3 flex items-center justify-between gap-3">
               <label htmlFor="cbsEditavel" className="text-xs text-muted-foreground max-w-[60%]">Alíquota de CBS do regime regular usada no cálculo — estimativa oficial (Resolução CGIBS nº 14/2026); o Senado fixa o valor definitivo até 15/12/2026</label>

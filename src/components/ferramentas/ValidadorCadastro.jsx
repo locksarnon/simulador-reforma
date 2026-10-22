@@ -316,7 +316,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
 
         {!publico && !modoProjeto && <HistoricoValidacoes empresaId={empresaId} onAbrir={abrirSalva} abrindo={abrindo} />}
 
-        <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h3 className="font-heading font-semibold text-sm">Como preparar a planilha</h3>
           <p className="text-sm text-muted-foreground">Uma linha por produto. Colunas: <b className="text-foreground">Código, Descrição e NCM</b> (obrigatórias) e Unidade, Origem e cClassTrib (opcionais).</p>
           <div className="flex flex-wrap gap-2">
@@ -346,7 +346,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         </div>
 
         {painelOpcoes}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="font-heading font-semibold text-sm mb-1">Confirme as colunas</h3>
           <p className="text-xs text-muted-foreground mb-4">Reconhecemos automaticamente o que foi possível. Ajuste se algo estiver errado.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">

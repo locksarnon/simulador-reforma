@@ -25,7 +25,7 @@ export default function DropzoneXML({ files, onAddFiles, onRemoveFile, onClear, 
   const podeEnviar = files.length > 0 && !uploading && !disabled;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-4">
       <div className="flex items-center gap-2">
         <h3 className="font-heading font-medium text-sm">Upload de XML (NF-e / NFC-e)</h3>
         <InfoTooltip pagina="importacao" chave="header" />
