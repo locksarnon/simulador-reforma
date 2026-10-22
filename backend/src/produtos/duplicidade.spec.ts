@@ -108,3 +108,33 @@ describe('grupos de duplicados e cadastro mestre', () => {
     expect(Date.now() - t0).toBeLessThan(15000);
   });
 });
+
+describe('peças e manutenção (referência no nome, descrições curtas)', () => {
+  const un = (d: string, g = 'PEÇAS') => item(d, 'UNIDADE', { grupo: g });
+  it('referência diferente veta, mesmo com o nome igual', () => {
+    expect(detecta(un('ANEL TRAVA  1440478X1'), un('ANEL TRAVA 2801154M1'))).toBeNull();
+    expect(detecta(un('CORREIA A-72'), un('CORREIA B74'))).toBeNull();
+    expect(detecta(un('ARRUELA A90671'), un('ARRUELA 1.1/8'))).toBeNull();
+  });
+  it('mesma referência com formatação diferente é o mesmo item', () => {
+    expect(detecta(un('GUIA CORRENTE 80364194'), un('GUIA DA CORRENTE 8036-4194'))?.nivel).toBe('EXATA');
+    expect(detecta(un('FILTRO AR CONDICIONADO G (11186)'), un('FILTRO AR CONDICIONADO G 11186'))?.nivel).toBe('EXATA');
+  });
+  it('dimensões em outra ordem de palavras', () => {
+    expect(detecta(un('PNEU 1000X20 - BORRACHUDO'), un('PNEU BORRACHUDO 1000X20'))?.nivel).toBe('EXATA');
+    expect(detecta(un('ABRACADEIRA NYLON 4X200MM'), un('ABRACADEIRA NYLON 20X4MM'))).toBeNull();
+  });
+  it('descrição genérica idêntica não prova duplicidade', () => {
+    const r = detecta(un('RETENTOR'), un('RETENTOR'));
+    expect(r?.nivel).toBe('POSSIVEL');
+    expect(r?.motivos.join(' ')).toContain('genérica');
+  });
+  it('genérico x específico não é duplicidade', () => { expect(detecta(un('ANEL DE PRESSAO L219493'), un('ANEL DE PRESSAO'))).toBeNull(); });
+  it('gênero (bezerra x bezerro) não é erro de grafia', () => { expect(detecta(item('BEZERRA ATE 12 MESES', 'CABECA'), item('BEZERRO ATE 12 MESES', 'CABECA'))).toBeNull(); });
+  it('variante em letra solta (M.L x M.C) são itens diferentes', () => { expect(detecta(un('CAMISETE TRIC. 1426 M.L GG'), un('CAMISETE TRIC. 1426 M.C GG'))).toBeNull(); });
+  it('mesmo item em grupos diferentes continua idêntico e avisa o grupo', () => {
+    const r = detecta(un('ROLAMENTO C1VV1215A', 'ANEIS/ROLAMENTOS'), un('ROLAMENTO C1VV1215A', 'MANUTENCAO'));
+    expect(r?.nivel).toBe('EXATA');
+    expect(r?.motivos.join(' ')).toContain('grupos de itens diferentes');
+  });
+});

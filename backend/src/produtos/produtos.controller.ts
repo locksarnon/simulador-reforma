@@ -7,7 +7,7 @@ import { ValidacoesService } from './validacoes.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CAMPOS, Mapeamento, ProdutosService } from './produtos.service';
 
-const MAX_SIZE = 25 * 1024 * 1024;
+const MAX_SIZE = 60 * 1024 * 1024; // exportações de ERP com centenas de colunas passam de 25 MB (ex.: SAP B1 OITM, ~30 mil itens, 28 MB)
 
 export function lerMapeamento(bruto?: string): Mapeamento | undefined {
   if (!bruto) return undefined;

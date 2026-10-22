@@ -13,7 +13,7 @@
  * É uma CRÍTICA para revisão humana: nunca exclui nada.
  */
 
-export type ItemDup = { descricao: string; unidade: string; ncm: string; principio: string; barras: string; codigo: string };
+export type ItemDup = { descricao: string; unidade: string; ncm: string; principio: string; barras: string; codigo: string; grupo?: string };
 export type NivelDup = 'EXATA' | 'MUITO_PROVAVEL' | 'POSSIVEL';
 export type CandidatoDup = { idx: number; score: number; nivel: NivelDup; motivos: string[] };
 export type ResultadoDup = { candidatos: CandidatoDup[]; grupo: number | null; mestre: number | null };
@@ -27,13 +27,13 @@ const ABREV: Record<string, string> = {
   bisn: 'bisnaga', sol: 'solucao', susp: 'suspensao', conc: 'concentrado', emuls: 'emulsao', liq: 'liquido', inj: 'injetavel', vet: 'veterinario',
   bov: 'bovino', sui: 'suino', gran: 'granulado', pó: 'po', adub: 'adubo', fert: 'fertilizante', fertil: 'fertilizante', herb: 'herbicida',
   inset: 'inseticida', fung: 'fungicida', sem: 'semente', semen: 'semente', def: 'defensivo', defens: 'defensivo', org: 'organico', quim: 'quimico',
-  ref: 'refil', emb: 'embalagem', tp: 'tipo', trat: 'tratamento', ind: 'industrial', nat: 'natural', orig: 'original', s: '', c: '',
+  ref: 'refil', emb: 'embalagem', tp: 'tipo', trat: 'tratamento', ind: 'industrial', nat: 'natural', orig: 'original',
 };
-const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'em', 'no', 'na', 'nos', 'nas', 'para', 'por', 'ao', 'com', 'un', 'und', 'unid', 'unidade', 'tipo', 'marca']);
+const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'em', 'no', 'na', 'nos', 'nas', 'para', 'por', 'ao', 'com', 'un', 'und', 'unid', 'unidade', 'tipo', 'marca', 'x']);
 
 const UNIDADES: Record<string, string> = {
   kg: 'kg', kgs: 'kg', quilo: 'kg', quilos: 'kg', quilograma: 'kg', g: 'g', gr: 'g', grs: 'g', grama: 'g', gramas: 'g',
-  l: 'l', lt: 'l', lts: 'l', litro: 'l', litros: 'l', ml: 'ml', un: 'un', und: 'un', unid: 'un', unidade: 'un', pc: 'un', pca: 'un', peca: 'un', pç: 'un',
+  l: 'l', lt: 'l', lts: 'l', litro: 'l', litros: 'l', ml: 'ml', un: 'un', und: 'un', unid: 'un', unidade: 'un', pc: 'un', pca: 'un', peca: 'un', pecas: 'un', pç: 'un', quilogram: 'kg', quilogramas: 'kg', metrocub: 'm3',
   cx: 'cx', caixa: 'cx', sc: 'sc', saco: 'sc', pct: 'pct', pacote: 'pct', fr: 'fr', frasco: 'fr', t: 't', ton: 't', tonelada: 't', m: 'm', mt: 'm', metro: 'm', dz: 'dz',
 };
 /** Unidades da mesma grandeza (L/ML, KG/G) não vetam: a medida da descrição é que decide. */
@@ -56,7 +56,23 @@ function add(m: Medidas, dim: string, val: string) { (m.get(dim) ?? m.set(dim, n
 /** Texto -> tokens informativos + medidas + números + códigos. Pesos (IDF) entram depois. */
 export function normalizar(descricao: string): Norm {
   let s = sem(descricao).replace(/(\d),(\d)/g, '$1.$2').replace(/c\//g, ' com ').replace(/s\//g, ' sem ').replace(/p\//g, ' para ').replace(/&/g, ' e ');
-  const medidas: Medidas = new Map(); const numeros = new Set<string>();
+  const medidas: Medidas = new Map(); const numeros = new Set<string>(); const codigos = new Set<string>();
+
+  // 0) Referências de peça/fabricante (ANEL TRAVA 1440478X1, JUNTA R531581, SR-TA-2E, 7410-1296): token com 5+ caracteres que mistura letras e dígitos
+  //    ou é só número longo vira CÓDIGO (exige igualdade) — antes que "1440478x1" seja lido como embalagem ou "57m8964" como metros.
+  const MEDIDA_SIMPLES = /^\d+(?:\.\d+)?(?:kgs?|grs?|g|mg|ml|l|lts?|mm|cm|m|mt|%|ui|cc|ton|pol)$/;
+  const DIMENSAO = /^\d{1,4}(?:\.\d+)?x\d{1,4}(?:\.\d+)?(?:x\d{1,4}(?:\.\d+)?)?(?:mm|cm|m|ml|l|kg|g)?$/;
+  s = s.split(/\s+/).map((tk) => {
+    const limpo = tk.replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
+    if (/^[a-z]{1,3}-\d{1,4}[a-z]?$/.test(limpo)) { codigos.add(limpo.replace('-', '')); return ' '; }
+    if (limpo.length < 5 || limpo.includes('/') || MEDIDA_SIMPLES.test(limpo) || DIMENSAO.test(limpo)) return tk;
+    const so = limpo.replace(/[^a-z0-9]/g, '');
+    if (so.length < 5 || !/\d/.test(so)) return tk;
+    if (!/[a-z]/.test(so) && !/^\d{5,}$/.test(so)) return tk;
+    codigos.add(so.replace(/^0+(?=\d)/, '')); return ' ';
+  }).join(' ');
+  // fração (polegadas): 11/16, 1/2 — compara como número
+  s = s.replace(/(\d+)\/(\d+)/g, (_m, a: string, b: string) => { numeros.add(a + '/' + b); return ' '; });
 
   // 1) concentração "500 g/l", "500mg/ml"
   s = s.replace(/(\d+(?:\.\d+)?)\s*(kg|g|gr|mg|ui)\s*\/\s*(l|lt|ml)\b/g, (_m, n: string, a: string, b: string) => {
@@ -64,10 +80,12 @@ export function normalizar(descricao: string): Norm {
     add(medidas, 'conc', arred((massa / vol) * 1000)); return ' ';
   });
   // 2) embalagem "12x500ml", "caixa com 12 frascos", "c/ 20 un"
-  s = s.replace(/(\d+)\s*x\s*(?=\d)/g, (_m, n: string) => { add(medidas, 'pack', n); return ' '; });
+  s = s.replace(/(\d+)\s*x\s*(?=\d+(?:\.\d+)?\s*(?:kgs?|grs?|g|mg|ml|l|lts?|litros?|cc)(?![a-z]))/g, (_m, n: string) => { add(medidas, 'pack', n); return ' '; });
+  // dimensões "AxB[xC]" (pneu 1000x20, abraçadeira 18x27, oring 5.33x59.69): a ordem importa
+  s = s.replace(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)(?:\s*x\s*(\d+(?:\.\d+)?))?\s*(?:mm|cm|m)?(?![a-z0-9])/g, (_m, a: string, b: string, c?: string) => { add(medidas, 'dim', [a, b, c].filter(Boolean).map((x) => arred(Number(x))).join('x')); return ' '; });
   s = s.replace(/\bcom\s+(\d+)\s*(?:un|und|unid|unidades?|frascos?|ampolas?|comprimidos?|capsulas?|sachês?|saches?|pecas?|tubos?)\b/g, (_m, n: string) => { add(medidas, 'pack', n); return ' '; });
   // 3) medidas simples
-  s = s.replace(/(\d+(?:\.\d+)?)\s*(kgs?|grs?|g|mg|tonelada|ton|litros?|lts?|lt|l|ml|cc|mt|cm|mm|m|%|ui)(?![a-z])/g, (_m, n: string, u: string) => {
+  s = s.replace(/(\d+(?:\.\d+)?)\s*(kgs?|grs?|g|mg|tonelada|ton|litros?|lts?|lt|l|ml|cc|mt|cm|mm|m|%|ui)(?![a-z0-9])/g, (_m, n: string, u: string) => {
     const v = Number(n);
     if (MASSA[u] !== undefined) add(medidas, 'massa', arred(v * MASSA[u]));
     else if (VOL[u] !== undefined || /^litros?$/.test(u)) add(medidas, 'volume', arred(v * (VOL[u] ?? 1000)));
@@ -78,7 +96,7 @@ export function normalizar(descricao: string): Norm {
   });
 
   const brutos = s.split(/[^a-z0-9.]+/).map((x) => x.replace(/^\.+|\.+$/g, '')).filter(Boolean);
-  const tokens: Tok[] = []; const codigos = new Set<string>();
+  const tokens: Tok[] = [];
   for (const b of brutos) {
     if (/^\d+(\.\d+)?$/.test(b)) { numeros.add(arred(Number(b))); continue; }
     if (/\d/.test(b) && /[a-z]/.test(b)) { codigos.add(b); continue; } // 30f35, bt2, a2024: variedade/código — exige igualdade
@@ -119,13 +137,14 @@ export function fonetica(t: string): string {
 }
 
 /** Similaridade entre duas palavras (0 a 1) e a razão, para explicar. */
-export function simToken(a: Tok, b: Tok): { s: number; motivo?: string } {
+export function simToken(a: Tok, b: Tok): { s: number; motivo?: string; genero?: boolean } {
   if (a.t === b.t) return a.orig !== b.orig ? { s: 1, motivo: `abreviação: "${a.orig.length < b.orig.length ? a.orig : b.orig}" = "${a.t}"` } : { s: 1 };
   const [c, l] = a.t.length <= b.t.length ? [a.t, b.t] : [b.t, a.t];
   if (c.length >= 4 && l.startsWith(c) && c.length / l.length >= 0.5) return { s: 0.92, motivo: `nome truncado: "${c}" ≈ "${l}"` };
   const max = Math.max(a.t.length, b.t.length);
-  if (Math.min(a.t.length, b.t.length) >= 5) {
-    const lim = max >= 9 ? 2 : 1;
+  if (Math.min(a.t.length, b.t.length) >= 6) {
+    const lim = max >= 10 ? 2 : 1;
+    if (a.t.length === b.t.length && a.t.slice(0, -1) === b.t.slice(0, -1) && /^[aoe]$/.test(a.t.slice(-1)) && /^[aoe]$/.test(b.t.slice(-1))) return { s: 0, genero: true };
     const d = distancia(a.t, b.t, lim);
     if (d <= lim) return { s: d === 1 ? 0.9 : 0.85, motivo: `grafia próxima: "${a.t}" ≈ "${b.t}"` };
     if (fonetica(a.t) === fonetica(b.t) && fonetica(a.t).length >= 4) return { s: 0.85, motivo: `mesma pronúncia: "${a.t}" ≈ "${b.t}"` };
@@ -149,19 +168,34 @@ function compararPar(a: Norm, b: Norm, ia: ItemDup, ib: ItemDup, ua: string, ub:
   }
   const unidadesConhecidas = !!(ua && ub);
   if (unidadesConhecidas && !unidadesCompativeis(ua, ub) && !barras) return null;
-  if (a.codigos.size && b.codigos.size) { if ([...a.codigos].some((c) => !b.codigos.has(c)) || [...b.codigos].some((c) => !a.codigos.has(c))) return null; }
+  const codigosEmComum = [...a.codigos].filter((c) => b.codigos.has(c)).length;
+  if (a.codigos.size && b.codigos.size && codigosEmComum === 0) return null;
   for (const [dim, va] of a.medidas) {
     const vb = b.medidas.get(dim);
     if (vb && ([...va].some((x) => !vb.has(x)) || [...vb].some((x) => !va.has(x)))) return null;
   }
   if (a.numeros.size && b.numeros.size && ([...a.numeros].some((x) => !b.numeros.has(x)) || [...b.numeros].some((x) => !a.numeros.has(x)))) return null;
 
+  // Letras soltas distinguem variante (M.L x M.C, tamanho P x G): se os dois lados têm e diferem, são produtos diferentes.
+  const soltasA = new Set(a.tokens.filter((t) => t.t.length === 1).map((t) => t.t)); const soltasB = new Set(b.tokens.filter((t) => t.t.length === 1).map((t) => t.t));
+  if (soltasA.size && soltasB.size && ([...soltasA].some((x) => !soltasB.has(x)) || [...soltasB].some((x) => !soltasA.has(x)))) return null;
+  // Só um lado traz informação identificadora (referência, medida, número): é descrição genérica x específica — outro achado, não duplicidade.
+  const identificaA = a.codigos.size + a.medidas.size + a.numeros.size > 0; const identificaB = b.codigos.size + b.medidas.size + b.numeros.size > 0;
+  if (!barras && identificaA !== identificaB) return null;
+  // Os dois trazem informação identificadora, mas nenhuma em comum (referência x fração, dimensões diferentes...): são peças diferentes.
+  const compartilha = codigosEmComum > 0 || [...a.numeros].some((n) => b.numeros.has(n))
+    || [...a.medidas].some(([d, v]) => { const w = b.medidas.get(d); return !!w && v.size === w.size && [...v].every((x) => w.has(x)); });
+  if (!barras && identificaA && identificaB && !compartilha) return null;
+
   // ── pontuação: alinhamento palavra a palavra, ponderado por raridade ──
   const A = a.tokens; const B = b.tokens;
   let casados = 0; let wTot = 0; let temInformativo = false; const usados = new Set<number>(); const explic = new Set<string>();
   const wA = A.reduce((x, t) => x + t.w, 0); const wB = B.reduce((x, t) => x + t.w, 0);
   const pares: { i: number; j: number; s: number; motivo?: string }[] = [];
-  A.forEach((ta, i) => B.forEach((tb, j) => { const r = simToken(ta, tb); if (r.s > 0) pares.push({ i, j, s: r.s, motivo: r.motivo }); }));
+  let generoOposto = false;
+  A.forEach((ta, i) => B.forEach((tb, j) => { const r = simToken(ta, tb); if (r.genero) generoOposto = true; if (r.s > 0) pares.push({ i, j, s: r.s, motivo: r.motivo }); }));
+  // Palavras que só diferem pela vogal de gênero (bezerra x bezerro) são produtos diferentes, não erro de digitação.
+  if (generoOposto && !barras) return null;
   pares.sort((x, y) => y.s - x.s);
   const usadoA = new Set<number>();
   for (const p of pares) {
@@ -180,7 +214,10 @@ function compararPar(a: Norm, b: Norm, ia: ItemDup, ib: ItemDup, ua: string, ub:
   let incompleto = false;
   for (const dim of new Set([...a.medidas.keys(), ...b.medidas.keys()])) { if (!a.medidas.has(dim) || !b.medidas.has(dim)) { score -= 0.07; incompleto = true; motivos.push(`só uma descrição traz a medida (${dim})`); } }
   if ((a.numeros.size === 0) !== (b.numeros.size === 0)) { score -= 0.05; incompleto = true; }
-  if ((a.codigos.size === 0) !== (b.codigos.size === 0)) { score -= 0.1; incompleto = true; motivos.push('só uma descrição traz o código/variedade'); }
+  if ((a.codigos.size === 0) !== (b.codigos.size === 0)) { score -= 0.1; incompleto = true; motivos.push('só uma descrição traz a referência/código'); }
+  else if (a.codigos.size && (a.codigos.size !== b.codigos.size || codigosEmComum !== a.codigos.size)) { score -= 0.1; incompleto = true; motivos.push('as referências/códigos coincidem só em parte'); }
+  const sobraA = A.filter((t, i) => !usadoA.has(i) && !t.leve); const sobraB = B.filter((t, j) => !usados.has(j) && !t.leve);
+  if (sobraA.length || sobraB.length) { incompleto = true; motivos.push(`palavra só em uma das descrições: ${[...sobraA, ...sobraB].map((t) => t.orig).slice(0, 3).join(', ')}`); }
 
   const mesmoNcm = ia.ncm && ib.ncm && ia.ncm === ib.ncm; const ncmDiferente = ia.ncm && ib.ncm && ia.ncm !== ib.ncm;
   if (mesmoNcm) { score += 0.03; motivos.push('mesmo NCM'); }
@@ -197,6 +234,14 @@ function compararPar(a: Norm, b: Norm, ia: ItemDup, ib: ItemDup, ua: string, ub:
   else if (score >= 0.9 && unidadesConhecidas && !incompleto && !ncmDiferente) nivel = 'MUITO_PROVAVEL';
   else if (score >= 0.78) nivel = 'POSSIVEL';
   else return null;
+  // Descrição genérica (sem referência, número nem medida): igualdade de texto não prova que seja o mesmo produto.
+  const generica = identico && a.codigos.size === 0 && a.numeros.size === 0 && a.medidas.size === 0;
+  if (generica && nivel === 'EXATA') { nivel = 'POSSIVEL'; score = 0.85; motivos.unshift('descrição genérica, sem referência nem medida: não dá para afirmar que é o mesmo produto'); }
+  const gA = sem(ia.grupo || '').replace(/\s+/g, ' ').trim(); const gB = sem(ib.grupo || '').replace(/\s+/g, ' ').trim();
+  if (gA && gB && gA !== gB) {
+    motivos.push(`grupos de itens diferentes (${ia.grupo} × ${ib.grupo})`);
+    if (nivel === 'MUITO_PROVAVEL') nivel = 'POSSIVEL';
+  }
   return { score: Math.min(1, Math.max(0, score)), nivel, motivos: [...new Set(motivos)] };
 }
 

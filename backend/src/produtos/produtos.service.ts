@@ -285,7 +285,7 @@ export class ProdutosService {
 
     // Detecção de duplicados: compara tudo com tudo de forma inteligente (abreviações, grafia, truncamento, ordem, medidas equivalentes) sem varrer todos os pares.
     const dups = opcoes.duplicidades
-      ? detectarDuplicidades(linhas.map((l) => ({ descricao: g(l, 'descricao'), unidade: g(l, 'unidade'), ncm: soDigitos(g(l, 'ncm')), principio: g(l, 'principio_ativo'), barras: soDigitos(g(l, 'codigo_barras')), codigo: g(l, 'codigo') })), { exigirPrincipio: opcoes.principioAtivo })
+      ? detectarDuplicidades(linhas.map((l) => ({ descricao: g(l, 'descricao'), unidade: g(l, 'unidade'), ncm: soDigitos(g(l, 'ncm')), principio: g(l, 'principio_ativo'), barras: soDigitos(g(l, 'codigo_barras')), codigo: g(l, 'codigo'), grupo: g(l, 'grupo_produto') })), { exigirPrincipio: opcoes.principioAtivo })
       : [];
     // Uso real de grupos por NCM (só itens que JÁ têm grupo informado). Usado para sugerir grupo a quem difere ou está sem grupo.
     const chaveNcm = (l: string[]) => {
