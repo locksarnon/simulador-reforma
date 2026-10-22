@@ -71,6 +71,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     return () => clearTimeout(t);
   }, [estado, validacaoId, projetoId, empresaId]);
 
+  const basesSalvas = useQuery({ queryKey: ["saneamento-bases", empresaId], enabled: !validacaoId, queryFn: () => api.get(`/produtos/validacoes?empresa_id=${empresaId}`) });
   const base = useQuery({ queryKey: ["saneamento-base", validacaoId], enabled: !!validacaoId, queryFn: () => api.get(`/produtos/validacoes/${validacaoId}?empresa_id=${empresaId}`), staleTime: 5 * 60 * 1000 });
   const itens = useMemo(() => base.data?.itens || [], [base.data]);
   const escopo = useMemo(() => aplicarEscopo(itens, estado?.params), [itens, estado?.params]);
@@ -94,9 +95,16 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     <div className="space-y-3">
       <div className="rounded-lg border border-dashed border-border p-4 text-sm">
         <p className="font-medium">Importe a base de itens</p>
-        <p className="text-muted-foreground mt-1">Envie a exportação do ERP e confirme as colunas. Para o parâmetro de saneamento e a análise por grupo, mapeie também a <b>data da última movimentação</b> e o <b>grupo de produto</b>. Ao processar, a base fica vinculada a este projeto.</p>
+        <p className="text-muted-foreground mt-1">Envie a exportação do ERP e confirme as colunas. Mapeie a <b>data da última movimentação</b> (não a de atualização do cadastro) e o <b>grupo de produto</b>: o parâmetro de saneamento e a análise por grupo dependem deles. Ao processar, a base fica vinculada a este projeto.</p>
+        {(basesSalvas.data || []).length > 0 && (
+          <label className="block mt-3 text-sm">Ou use uma base já processada nesta empresa (sem filtro de período)
+            <select className="mt-1 w-full border rounded-md p-2 bg-background" defaultValue="" onChange={(e) => e.target.value && setValidacaoId(e.target.value)}>
+              <option value="">Escolha uma base…</option>
+              {basesSalvas.data.filter((v) => v.status === "PROCESSADA" && !v.parametros?.dataInicio && !v.parametros?.dataFim).map((v) => <option key={v.id} value={v.id}>{v.nome_arquivo} · {fmt(v.total)} itens · {new Date(v.updatedAt).toLocaleDateString("pt-BR")}</option>)}
+            </select>
+          </label>)}
       </div>
-      <ValidadorCadastro modo="interno" empresa={empresa} aoProcessar={(r) => setValidacaoId(r.validacao_id)} />
+      <ValidadorCadastro modo="interno" empresa={empresa} modoProjeto aoProcessar={(r) => setValidacaoId(r.validacao_id)} />
     </div>
   ) : base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p> : base.error ? <p role="alert" className="text-sm text-destructive">Não foi possível abrir a base: {base.error.message}</p> : (
     <div className="space-y-4">
