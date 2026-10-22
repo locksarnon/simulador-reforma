@@ -7,38 +7,44 @@ export const grupoDe = (item) => (item.grupo_atual || "").trim() || SEM_GRUPO;
 const DIA = 86400000;
 const iso = (d) => d.toISOString().slice(0, 10);
 
-/** Data-base padrão: hoje. Vem em AAAA-MM-DD. */
+/** Hoje em AAAA-MM-DD. */
 export const hojeIso = () => iso(new Date());
 
-/** Data limite a partir de "há mais de X dias" contada da data-base. */
-export function dataPorDias(dataBase, dias) {
-  const t = Date.parse(`${dataBase}T00:00:00Z`);
-  if (Number.isNaN(t) || !Number.isFinite(dias) || dias < 0) return null;
-  return iso(new Date(t - dias * DIA));
-}
+/** AAAA-MM-DD → DD/MM/AAAA ("" se vazio). */
+export const dataBr = (d) => (d ? String(d).split("-").reverse().join("/") : "");
+
+const somaDias = (d, dias) => { const t = Date.parse(`${d}T00:00:00Z`); return Number.isNaN(t) ? null : iso(new Date(t + dias * DIA)); };
 
 /**
- * Parâmetro de saneamento. Dois cortes opcionais e independentes; vale o que estiver marcado, e o item sai do escopo se atender a qualquer um:
- *  - `ateOn`: desconsidera itens movimentados ATÉ a data `ate` (inclusive);
- *  - `diasOn`: desconsidera itens sem movimento há mais de `dias` dias, contados da `dataBase`.
+ * Parâmetro de saneamento: um único corte, "desconsiderar itens não movimentados desde DD/MM/AAAA". Formato: { desde: "AAAA-MM-DD" } (vazio = sem corte).
+ * Projetos salvos antes tinham dois cortes ({ ateOn, ate, diasOn, dias, dataBase }); eles viram uma data só, a mais recente (o item saía do escopo se
+ * atendesse a qualquer um): "movimentado até X" (inclusive) = "não movimentado desde X + 1 dia"; "parado há mais de N dias" = "não movimentado desde data-base − N dias".
+ */
+export function normalizarParams(params) {
+  const p = params || {};
+  if ("desde" in p) return { desde: p.desde || "" };
+  const datas = [];
+  if (p.ateOn && p.ate) datas.push(somaDias(p.ate, 1));
+  if (p.diasOn && Number.isFinite(Number(p.dias)) && Number(p.dias) >= 0) datas.push(somaDias(p.dataBase, -Number(p.dias)));
+  return { desde: datas.filter(Boolean).sort().pop() || "" };
+}
+
+/** Data do corte em DD/MM/AAAA, ou "" se não há corte. */
+export const dataDoCorte = (params) => dataBr(normalizarParams(params).desde);
+
+/**
+ * Aplica o parâmetro de saneamento: o item cuja última movimentação é ANTERIOR à data `desde` sai do escopo; o movimentado nela ou depois continua.
  * Item sem data de movimento legível NÃO sai do escopo (fica sinalizado), para um campo em branco não esconder produto ativo.
  */
-export function aplicarEscopo(itens, params = {}) {
-  const p = { ateOn: false, ate: "", diasOn: false, dias: 540, dataBase: hojeIso(), ...params };
-  const limiteDias = p.diasOn ? dataPorDias(p.dataBase, Number(p.dias)) : null;
+export function aplicarEscopo(itens, params) {
+  const { desde } = normalizarParams(params);
   const emEscopo = []; const fora = []; const semData = [];
   for (const it of itens) {
     const d = it.ultima_mov || "";
     if (!d) { semData.push(it.linha); emEscopo.push(it); continue; }
-    const motivos = [];
-    if (p.ateOn && p.ate && d <= p.ate) motivos.push("ate");
-    if (limiteDias && d < limiteDias) motivos.push("dias");
-    if (motivos.length) fora.push({ item: it, motivos }); else emEscopo.push(it);
+    if (desde && d < desde) fora.push(it); else emEscopo.push(it);
   }
-  const porAte = fora.filter((f) => f.motivos.includes("ate")).length;
-  const porDias = fora.filter((f) => f.motivos.includes("dias")).length;
-  const ambos = fora.filter((f) => f.motivos.length === 2).length;
-  return { emEscopo, fora, semData, resumo: { total: itens.length, fora: fora.length, emEscopo: emEscopo.length, porAte, porDias, ambos, semData: semData.length } };
+  return { emEscopo, fora, semData, resumo: { total: itens.length, fora: fora.length, emEscopo: emEscopo.length, semData: semData.length } };
 }
 
 /** Grupos de itens (coluna do cliente) com contagem, ordenados do maior para o menor. */

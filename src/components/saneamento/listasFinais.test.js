@@ -18,7 +18,7 @@ const base = (estado) => {
 
 describe("listas finais do saneamento", () => {
   const estado = {
-    params: { ateOn: true, ate: "2024-12-31" },
+    params: { desde: "2025-01-01" },
     criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
     decisoes: {
       "2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: 3, decididoPor: "ana", decididoEm: "2026-10-21" },
@@ -29,7 +29,7 @@ describe("listas finais do saneamento", () => {
   it("lista de inativados por data de uso traz o critério do corte", () => {
     const l = base(estado);
     expect(l.inativados.map((i) => i.codigo)).toEqual(["B1"]);
-    expect(l.inativados[0].criterio).toContain("movimento até 31/12/2024");
+    expect(l.inativados[0].criterio).toBe("não movimentado desde 01/01/2025");
   });
   it("unificação aprovada tira o item de origem da lista final e entra em desduplicações", () => {
     const l = base(estado);
@@ -48,6 +48,18 @@ describe("listas finais do saneamento", () => {
     expect(l.finalCorrigida.find((i) => i.codigo === "C1").mudanca).toBe("Mantido");
     expect(l.contagem.unificacoesPendentes).toBe(1);
   });
+  it("projeto salvo com o corte no formato antigo gera as mesmas listas", () => {
+    const antigo = { ...estado, params: { ateOn: true, ate: "2024-12-31", diasOn: false, dias: 540, dataBase: "2026-10-22" } };
+    const l = base(antigo);
+    expect(l.inativados.map((i) => i.codigo)).toEqual(["B1"]);
+    expect(l.inativados[0].criterio).toBe("não movimentado desde 01/01/2025");
+    expect(l.resumo.some((x) => x.join(" ").includes("desconsiderar itens não movimentados desde 01/01/2025"))).toBe(true);
+  });
+  it("sem corte, ninguém é inativado e o resumo diz 'sem corte'", () => {
+    const l = base({ ...estado, params: { desde: "" } });
+    expect(l.inativados).toEqual([]);
+    expect(l.resumo.find((x) => x[0] === "Parâmetro de saneamento")[1]).toBe("sem corte");
+  });
   it("mestre da própria decisão não é baixado", () => {
     const e3 = { ...estado, decisoes: { "3|duplicidade": { acao: "ENC", status: "APR", destino: 3 } } };
     const l = base(e3);
@@ -57,7 +69,7 @@ describe("listas finais do saneamento", () => {
   });
   it("resumo registra o parâmetro de saneamento e avisa que nada foi alterado no cadastro", () => {
     const r = base(estado).resumo.map((l) => l.join(" "));
-    expect(r.some((l) => l.includes("desconsiderar movimentados até 31/12/2024"))).toBe(true);
+    expect(r.some((l) => l.includes("desconsiderar itens não movimentados desde 01/01/2025"))).toBe(true);
     expect(r.some((l) => l.includes("nenhum cadastro foi alterado"))).toBe(true);
   });
 });
@@ -67,7 +79,7 @@ describe("planilha das listas finais", () => {
     const ExcelJS = (await import("exceljs")).default;
     const { criarWorkbook } = await import("./listasFinais");
     const estado = {
-      params: { ateOn: true, ate: "2024-12-31" }, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
+      params: { desde: "2025-01-01" }, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
       decisoes: { "2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: 3, decididoPor: "ana", decididoEm: "2026-10-21" } },
     };
     const escopo = aplicarEscopo(itens, estado.params);

@@ -1,10 +1,9 @@
 // Listas finais do saneamento: lista final corrigida, desduplicações, análises e itens inativados por data de uso.
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
-import { CRITERIOS, achadosDoCriterio, criterioAprovado, grupoDe } from "./logica";
+import { CRITERIOS, achadosDoCriterio, criterioAprovado, dataBr, dataDoCorte, grupoDe } from "./logica";
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 
-const dataBr = (d) => (d ? String(d).split("-").reverse().join("/") : "");
 const ROT_STATUS = { PROP: "Proposto (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const decisaoDe = (estado, linha, critId) => estado?.decisoes?.[`${linha}|${critId}`] || null;
@@ -36,7 +35,7 @@ export function unificacoesAprovadas(estado, itens) {
  * Nada aqui altera o cadastro: são relatórios do que foi proposto, aprovado ou deixado de fora.
  */
 export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, testes }) {
-  const params = estado?.params || {};
+  const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
   const uni = unificacoesAprovadas(estado, itens);
   const saemPorUnificacao = new Set(uni.filter((u) => u.d.status === "APR" && u.destinoLinha != null && u.destinoLinha !== u.origem.linha).map((u) => u.origem.linha));
 
@@ -84,9 +83,8 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
   }
 
   // 4) Itens inativados por data de uso (fora do escopo pelo parâmetro de saneamento)
-  const criterioTxt = (motivos) => motivos.map((m) => (m === "ate" ? `movimento até ${dataBr(params.ate)}` : `parado há mais de ${params.dias} dias (data-base ${dataBr(params.dataBase)})`)).join(" e ");
-  const inativados = escopo.fora.map((f) => ({
-    codigo: f.item.codigo, descricao: f.item.descricao, unidade: f.item.unidade, grupo: grupoDe(f.item), ultima_mov: dataBr(f.item.ultima_mov), criterio: criterioTxt(f.motivos),
+  const inativados = escopo.fora.map((it) => ({
+    codigo: it.codigo, descricao: it.descricao, unidade: it.unidade, grupo: grupoDe(it), ultima_mov: dataBr(it.ultima_mov), criterio: `não movimentado desde ${corte}`,
   }));
 
   const contagem = {
@@ -99,7 +97,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
   };
   const resumo = [
     ["Projeto", nomeProjeto], ["Base importada", nomeBase || ""], ["Gerado em", new Date().toLocaleString("pt-BR")], ["", ""],
-    ["Parâmetro de saneamento", [params.ateOn ? `desconsiderar movimentados até ${dataBr(params.ate)}` : "", params.diasOn ? `desconsiderar sem movimento há mais de ${params.dias} dias (data-base ${dataBr(params.dataBase)})` : ""].filter(Boolean).join(" · ") || "sem corte"],
+    ["Parâmetro de saneamento", corte ? `desconsiderar itens não movimentados desde ${corte}` : "sem corte"],
     ["Universo (códigos)", contagem.universo], ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Em escopo sem data de movimentação legível", contagem.semData],
     ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],

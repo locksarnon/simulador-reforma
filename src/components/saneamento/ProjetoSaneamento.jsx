@@ -5,14 +5,14 @@ import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
-import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, hojeIso } from "./logica";
+import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, hojeIso, normalizarParams } from "./logica";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
-  { t: "Triagem", programa: "Fixar data-base, origem e universo; definir o parâmetro de saneamento (quais itens entram no trabalho); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
+  { t: "Triagem", programa: "Fixar a origem e o universo; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
   { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Nada é tratado antes de o critério correspondente estar aprovado.", avancar: "Critérios aplicáveis aprovados e exceções identificadas." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
   { t: "Análises", programa: "Grupo a grupo, trata-se um critério aprovado por vez. O grupo fica saneado quando todos os critérios aprovados foram tratados.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
@@ -25,7 +25,7 @@ const PASSOS = [
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { ateOn: false, ate: "", diasOn: false, dias: 540, dataBase: hojeIso() }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} } });
+const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} } });
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const dataBr = (d) => (d ? d.split("-").reverse().join("/") : "—");
 const Chip = ({ children, tom = "n" }) => {
@@ -107,8 +107,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const mudar = (patch) => setEstado((e) => ({ ...e, ...patch }));
   const passo = estado.passo;
   const irPara = (i) => mudar({ passo: Math.max(0, Math.min(PASSOS.length - 1, i)) });
-  const params = estado.params;
-  const setParam = (k, v) => mudar({ params: { ...params, [k]: v } });
+  const params = normalizarParams(estado.params); // aceita projetos salvos com os dois cortes antigos
   const aprovados = CRITERIOS.filter((c) => criterioAprovado(estado, c.id));
   const decisoesLista = Object.entries(estado.decisoes).map(([k, d]) => ({ k, ...d }));
   const itemPorLinha = (linha) => mapaLinha.get(linha);
@@ -142,19 +141,16 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     <div className="space-y-4">
       <div className="rounded-xl border-2 border-primary/40 bg-card p-4 space-y-3">
         <h3 className="font-medium">Parâmetro de saneamento</h3>
-        <p className="text-xs text-muted-foreground">Define quem entra no trabalho. Os dois cortes são opcionais e independentes; o item sai do escopo se atender a qualquer um dos marcados. Item sem data de movimentação legível continua no escopo, sinalizado.</p>
-        <label className="flex flex-wrap items-center gap-2 text-sm"><input type="checkbox" checked={params.ateOn} onChange={(e) => setParam("ateOn", e.target.checked)} /> Desconsiderar itens movimentados até
-          <input type="date" value={params.ate} onChange={(e) => mudar({ params: { ...params, ate: e.target.value, ateOn: !!e.target.value } })} className="border rounded p-1.5 bg-background" aria-label="Data de corte" /></label>
-        <label className="flex flex-wrap items-center gap-2 text-sm"><input type="checkbox" checked={params.diasOn} onChange={(e) => setParam("diasOn", e.target.checked)} /> Desconsiderar itens sem movimento há mais de
-          <input type="number" min="1" value={params.dias} onChange={(e) => mudar({ params: { ...params, dias: Number(e.target.value), diasOn: Number(e.target.value) > 0 } })} className="border rounded p-1.5 bg-background w-24" aria-label="Dias sem movimento" /> dias, contados da data-base
-          <input type="date" value={params.dataBase} onChange={(e) => setParam("dataBase", e.target.value)} className="border rounded p-1.5 bg-background" aria-label="Data-base" /></label>
+        <p className="text-xs text-muted-foreground">Define quem entra no trabalho: o item cuja última movimentação é anterior à data escolhida fica fora do escopo; o movimentado nela ou depois continua. Item sem data de movimentação legível continua no escopo, sinalizado.</p>
+        <label className="flex flex-wrap items-center gap-2 text-sm">Desconsiderar itens não movimentados desde
+          <input type="date" value={params.desde} onChange={(e) => mudar({ params: { desde: e.target.value } })} className="border rounded p-1.5 bg-background" aria-label="Desconsiderar itens não movimentados desde" />
+          {params.desde && <button type="button" onClick={() => mudar({ params: { desde: "" } })} className="text-xs text-primary underline">Sem corte</button>}</label>
         {itens.length > 0 && !itens.some((i) => i.ultima_mov) && <p className="text-xs text-amber-700 dark:text-amber-300">Nenhuma data de movimentação foi lida. Mapeie a coluna de data na importação (use “Ajustar e refazer”) para o corte funcionar.</p>}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[["Universo", escopo.resumo.total], ["Fora do escopo", escopo.resumo.fora], ["Em escopo", escopo.resumo.emEscopo], ["Sem data legível", escopo.resumo.semData]].map(([l, v]) => (
           <div key={l} className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p></div>))}
       </div>
-      {(params.ateOn || params.diasOn) && <p className="text-xs text-muted-foreground">Fora do escopo: {fmt(escopo.resumo.porAte)} pelo corte por data, {fmt(escopo.resumo.porDias)} pelo corte por dias parados, {fmt(escopo.resumo.ambos)} pelos dois.</p>}
       <div className="space-y-2">
         <h3 className="font-medium text-sm">Mapa por grupo de itens (em escopo)</h3>
         {grupos.map((g) => (
@@ -162,8 +158,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
             <TabelaItens itens={g.itens} colunas={["linha", "codigo", "descricao", "unidade", "ultima_mov"]} />
           </Acc>))}
         {escopo.fora.length > 0 && (
-          <Acc aberto={!!aberto.fora} onToggle={() => alternar("fora")} titulo={<><b className="font-medium">Fora do escopo</b><span className="text-xs text-muted-foreground">{fmt(escopo.fora.length)} itens, com o motivo do corte</span></>}>
-            <TabelaItens itens={escopo.fora.map((f) => ({ ...f.item, _motivo: f.motivos.map((m) => (m === "ate" ? "Movimento até o corte" : "Parado há mais dias que o limite")).join(" e ") }))} colunas={["linha", "codigo", "descricao", "ultima_mov", "_motivo"]} />
+          <Acc aberto={!!aberto.fora} onToggle={() => alternar("fora")} titulo={<><b className="font-medium">Fora do escopo</b><span className="text-xs text-muted-foreground">{plural(escopo.fora.length, "item", "itens")} não movimentados desde {dataBr(params.desde)}</span></>}>
+            <TabelaItens itens={escopo.fora} colunas={["linha", "codigo", "descricao", "ultima_mov"]} />
           </Acc>)}
       </div>
       <Botao onClick={async () => { if (await confirmar({ titulo: "Trocar a base?", descricao: "A base vinculada sai do projeto (o arquivo continua guardado no histórico). Os critérios aprovados são mantidos, mas as decisões por item podem deixar de corresponder à nova base.", rotulo: "Trocar a base" })) setValidacaoId(null); }}>Trocar a base</Botao>
@@ -461,7 +457,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
 
 function TabelaItens({ itens, colunas }) {
   const [n, setN] = useState(50);
-  const rot = { linha: "Linha", codigo: "Código", descricao: "Descrição", unidade: "Unidade", ultima_mov: "Última mov.", _motivo: "Motivo" };
+  const rot = { linha: "Linha", codigo: "Código", descricao: "Descrição", unidade: "Unidade", ultima_mov: "Última mov." };
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground">{colunas.map((c) => <th key={c} className="p-1.5">{rot[c]}</th>)}</tr></thead>
