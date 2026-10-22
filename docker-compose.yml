@@ -52,6 +52,8 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: 3003
+      # Teto de memória do Node: sem ele, uma leitura pesada derrubava o servidor (erro 502). A leitura de planilhas agora é em fluxo; isto é a rede de segurança.
+      NODE_OPTIONS: "--max-old-space-size=3072"
       API_PREFIX: api/v1
       CORS_ORIGINS: http://localhost:5175,http://127.0.0.1:5175,https://simulador.clarityib.com.br
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public

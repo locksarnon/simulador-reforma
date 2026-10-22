@@ -4,7 +4,7 @@ import { detectarDuplicidades, NivelDup } from './duplicidade';
 import { chavePlano, montarPlanoContas, PlanoContas } from './plano-contas';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
-import { parse } from 'csv-parse/sync';
+import { lerPlanilha, lerPrevia, MAX_LINHAS, Planilha } from './leitura-planilha';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
 import { avaliarNcm, compararComDeclarado, referenciasNcm, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
@@ -38,11 +38,12 @@ const SINONIMOS: Record<Campo, string[]> = {
   grupo_contabil: ['grupocontabil', 'contacontabil'],
   // B1_GRUPO (Protheus) e "grupo do produto" são grupo de PRODUTO, não conta contábil.
   codigo_barras: ['codigobarras', 'codbarras', 'codbar', 'ean', 'ean13', 'gtin', 'codigoean', 'b1codbar', 'eancode', 'codebars'],
-  grupo_produto: ['grupoproduto', 'grupodoproduto', 'b1grupo', 'grupo', 'itmsgrpcod', 'familia'],
+  grupo_produto: ['grupoproduto', 'grupodoproduto', 'b1grupo', 'grupo', 'itmsgrpcod', 'familia', 'descricaodogrupodeitens', 'descricaogrupodeitens', 'grupodeitens', 'itmsgrpnam'],
   codigo: ['codigo', 'cod', 'codproduto', 'codprod', 'b1cod', 'itemcode', 'material', 'sku', 'referencia', 'codigoproduto', 'codigodoproduto', 'codigointerno', 'codigoitem'],
   descricao: ['descricao', 'desc', 'descrproduto', 'descrprod', 'b1desc', 'itemname', 'denominacao', 'nome', 'produto', 'descricaodoproduto', 'textobreve', 'descricaomaterial', 'descricaoproduto', 'descricaoitem'],
   ncm: ['ncm', 'ncmcode', 'b1posipi', 'posipi', 'steuc', 'classificacaofiscal', 'codigoncm', 'ncmsh', 'posicaoipi', 'nbm', 'classfiscal', 'codncm'],
-  unidade: ['un', 'um', 'unid', 'unidade', 'unidademedida', 'b1um', 'unidadedemedida', 'salunitmsr'],
+  // A política de unidades vale para a unidade de ESTOQUE (SAP B1: InvntryUom); ela vence a unidade de compra/venda quando as duas estão na planilha.
+  unidade: ['un', 'um', 'unid', 'unidade', 'unidademedida', 'b1um', 'unidadedemedida', 'salunitmsr', 'unidadedemedidadeestoque', 'unidademedidaestoque', 'unidadedeestoque', 'invntryuom'],
   origem: ['origem', 'b1origem', 'origemmercadoria', 'orig'],
   c_class_trib: ['cclasstrib', 'classtrib', 'classificacaotributaria', 'classetributaria', 'codigoclasstrib'],
 };
@@ -50,9 +51,7 @@ const SINONIMOS: Record<Campo, string[]> = {
 const normCab = (s: unknown) =>
   String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-const MAX_LINHAS = 50_000;
-
-export type Planilha = { cabecalho: string[]; linhas: string[][]; ncmNumerico: boolean[]; formato: 'xlsx' | 'csv' };
+export type { Planilha } from './leitura-planilha';
 
 export type Problema = { codigo: string; severidade: 'erro' | 'alerta' | 'info'; mensagem: string };
 export type LinhaResultado = {
@@ -117,85 +116,17 @@ export class ProdutosService {
 
   // ── Leitura ──────────────────────────────────────────────────────────
 
-  async lerArquivo(file: Express.Multer.File): Promise<Planilha> {
-    if (!file?.buffer?.length) throw new BadRequestException('Arquivo vazio ou não enviado.');
-    const nome = (file.originalname || '').toLowerCase();
-    if (nome.endsWith('.xlsx')) return this.lerXlsx(file.buffer);
-    if (nome.endsWith('.csv') || nome.endsWith('.txt')) return this.lerCsv(file.buffer);
-    if (nome.endsWith('.xls')) {
-      throw new BadRequestException('O formato .xls (Excel antigo) não é suportado. Salve a planilha como .xlsx ou .csv e envie novamente.');
-    }
-    throw new BadRequestException('Formato não reconhecido. Envie um arquivo .xlsx ou .csv.');
+  /**
+   * Lê a planilha em fluxo (sem montar tudo na memória). Com `colunas`, guarda só essas colunas — usado na validação, que só precisa das colunas mapeadas.
+   * (O leitor antigo carregava a planilha inteira e derrubou o servidor com uma base de 30 mil itens: erro 502.)
+   */
+  async lerArquivo(file: Express.Multer.File, colunas?: number[] | null): Promise<Planilha> {
+    return lerPlanilha(file, colunas);
   }
 
-  private async lerXlsx(buf: Buffer): Promise<Planilha> {
-    const wb = new ExcelJS.Workbook();
-    try {
-      await wb.xlsx.load(buf as unknown as ArrayBuffer);
-    } catch {
-      throw new BadRequestException('Não consegui abrir o Excel. Confirme que o arquivo não está corrompido ou protegido por senha.');
-    }
-    const ws = wb.worksheets.find((w) => w.actualRowCount > 0);
-    if (!ws) throw new BadRequestException('A planilha está vazia.');
-
-    const texto = (v: ExcelJS.CellValue): string => {
-      if (v === null || v === undefined) return '';
-      if (typeof v === 'object') {
-        const o = v as unknown as Record<string, unknown>;
-        if ('result' in o) return texto(o.result as ExcelJS.CellValue);
-        if ('richText' in o) return (o.richText as { text: string }[]).map((t) => t.text).join('');
-        if ('text' in o) return String(o.text);
-        if (v instanceof Date) return v.toISOString().slice(0, 10);
-      }
-      return String(v).trim();
-    };
-
-    const linhas: string[][] = [];
-    const numericos: boolean[][] = [];
-    let colunas = 0;
-    ws.eachRow({ includeEmpty: false }, (row) => {
-      const vals = row.values as ExcelJS.CellValue[];
-      const cel: string[] = [];
-      const num: boolean[] = [];
-      for (let i = 1; i < vals.length; i++) {
-        cel.push(texto(vals[i]));
-        num.push(typeof vals[i] === 'number');
-      }
-      colunas = Math.max(colunas, cel.length);
-      linhas.push(cel);
-      numericos.push(num);
-    });
-    return this.montar(linhas, numericos, colunas, 'xlsx');
-  }
-
-  private lerCsv(buf: Buffer): Planilha {
-    let txt = buf.toString('utf8');
-    if (txt.includes('�')) txt = buf.toString('latin1'); // ERPs brasileiros costumam exportar em Latin-1
-    const primeira = txt.split(/\r?\n/, 1)[0] || '';
-    const cont = (c: string) => primeira.split(c).length - 1;
-    const delimitador = [';', '\t', ',', '|'].sort((a, b) => cont(b) - cont(a))[0];
-    let registros: string[][];
-    try {
-      registros = parse(txt, {
-        delimiter: delimitador, bom: true, relax_column_count: true, skip_empty_lines: true, relax_quotes: true, trim: true,
-      });
-    } catch {
-      throw new BadRequestException('Não consegui ler o CSV. Confira o separador (; ou ,) e as aspas do arquivo.');
-    }
-    const colunas = Math.max(0, ...registros.map((r) => r.length));
-    return this.montar(registros, registros.map((r) => r.map(() => false)), colunas, 'csv');
-  }
-
-  private montar(linhas: string[][], numericos: boolean[][], colunas: number, formato: 'xlsx' | 'csv'): Planilha {
-    if (linhas.length < 2) throw new BadRequestException('A planilha precisa ter o cabeçalho e ao menos uma linha de produto.');
-    const pad = (r: string[]) => Array.from({ length: colunas }, (_, i) => r[i] ?? '');
-    const cabecalho = pad(linhas[0]).map((c, i) => c || `Coluna ${i + 1}`);
-    const corpo = linhas.slice(1).map(pad);
-    if (corpo.length > MAX_LINHAS) {
-      throw new BadRequestException(`A planilha tem ${corpo.length.toLocaleString('pt-BR')} linhas; o limite por envio é ${MAX_LINHAS.toLocaleString('pt-BR')}. Divida o arquivo em partes.`);
-    }
-    const ncmNumerico = Array.from({ length: colunas }, (_, c) => numericos.slice(1).some((r) => r[c]));
-    return { cabecalho, linhas: corpo, ncmNumerico, formato };
+  /** Índices das colunas mapeadas (as únicas que a validação usa). */
+  private colunasDoMapa(m: Mapeamento): number[] {
+    return Object.values(m).filter((v): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0);
   }
 
   // ── Mapeamento ───────────────────────────────────────────────────────
@@ -220,14 +151,14 @@ export class ProdutosService {
   }
 
   async previa(file: Express.Multer.File) {
-    const p = await this.lerArquivo(file);
+    const p = await lerPrevia(file); // só cabeçalho, contagem e amostra: não guarda a planilha
     const mapeamento = this.detectarMapeamento(p.cabecalho);
     return {
       formato: p.formato,
-      total_linhas: p.linhas.length,
-      colunas: p.cabecalho.map((nome, indice) => ({ indice, nome, exemplo: p.linhas.find((l) => l[indice])?.[indice] ?? '' })),
+      total_linhas: p.total,
+      colunas: p.cabecalho.map((nome, indice) => ({ indice, nome, exemplo: p.exemplos[indice] ?? '' })),
       mapeamento,
-      previa: p.linhas.slice(0, 10),
+      previa: p.amostra,
       campos: CAMPOS.map((c) => ({ campo: c, rotulo: ROTULOS[c], obrigatorio: ['codigo', 'descricao', 'ncm'].includes(c) })),
     };
   }
@@ -235,7 +166,13 @@ export class ProdutosService {
   // ── Validação ────────────────────────────────────────────────────────
 
   async validar(file: Express.Multer.File, mapeamentoInformado?: Mapeamento, limiteLinhas?: number, opcoes: OpcoesValidacao = OPCOES_PADRAO, plano: PlanoContas | null = null) {
-    const p = await this.lerArquivo(file);
+    // Só as colunas mapeadas são guardadas (uma exportação de ERP pode ter centenas de colunas). A tela sempre envia o mapeamento completo;
+    // numa chamada com mapeamento parcial, lê antes só o cabeçalho para detectar o restante.
+    const completo = !!mapeamentoInformado && CAMPOS.every((c) => c in mapeamentoInformado);
+    const colunas = completo
+      ? this.colunasDoMapa(mapeamentoInformado)
+      : this.colunasDoMapa({ ...this.detectarMapeamento((await lerPrevia(file)).cabecalho), ...(mapeamentoInformado || {}) });
+    const p = await this.lerArquivo(file, colunas);
     const mapa = { ...this.detectarMapeamento(p.cabecalho), ...(mapeamentoInformado || {}) };
     if (mapa.ncm === null || mapa.ncm === undefined) {
       throw new BadRequestException('Não identifiquei a coluna do NCM. Indique qual coluna contém o NCM e envie novamente.');
@@ -574,6 +511,11 @@ export class ProdutosService {
       const exclusoes = new Set(excluir);
       const permitidas = new Set(r.itens.filter(i => i.candidatos_duplicidade.length).map(i => i.linha));
       if (excluir.some(i => !Number.isInteger(i) || !permitidas.has(i))) throw new BadRequestException('Selecione somente linhas com indicação de duplicidade para a planilha saneada.');
+      // A cópia saneada repete TODAS as colunas da planilha original; numa base grande isso passa de milhões de células e derrubaria o servidor.
+      const dim = await lerPrevia(file);
+      if (dim.total * dim.cabecalho.length > 2_500_000) {
+        throw new BadRequestException(`A cópia saneada completa desta planilha teria ${(dim.total * dim.cabecalho.length).toLocaleString('pt-BR')} células (${dim.total.toLocaleString('pt-BR')} linhas x ${dim.cabecalho.length} colunas), acima do limite de 2,5 milhões. Baixe o relatório sem a seleção de exclusões ou envie a planilha só com as colunas necessárias.`);
+      }
       const original = await this.lerArquivo(file);
       const saneada = wb.addWorksheet('Cadastro saneado');
       saneada.addRow(original.cabecalho);
