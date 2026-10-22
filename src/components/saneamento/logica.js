@@ -34,22 +34,35 @@ export function normalizarParams(params) {
 export const dataDoCorte = (params) => dataBr(normalizarParams(params).desde);
 
 /**
- * Aplica o parâmetro de saneamento: o item cuja última movimentação é ANTERIOR à data `desde` sai do escopo; o movimentado nela ou depois continua.
- * Item sem data de movimentação legível: por padrão NÃO sai do escopo (fica sinalizado), para um campo em branco não esconder produto ativo; com
- * semData = "anterior" é tratado como anterior à data e sai junto. Se nenhum item da base tem data, a opção é ignorada (senão a base inteira sairia).
- * `semData` (devolvido) lista TODOS os itens sem data legível, dentro ou fora do escopo; `resumo.semDataFora` conta os que saíram.
+ * Aplica as escolhas da triagem e devolve o que entra no trabalho.
+ *  1. Grupos: os de `gruposFora` ({ [nome]: true }) não entram no saneamento; saem do trabalho sem serem inativados (`foraGrupos`).
+ *  2. Parâmetro de saneamento: o item cuja última movimentação é ANTERIOR à data `desde` sai do escopo (`fora`); o movimentado nela ou depois continua.
+ *     Item sem data de movimentação legível: por padrão NÃO sai do escopo (fica sinalizado), para um campo em branco não esconder produto ativo; com
+ *     semData = "anterior" é tratado como anterior à data e sai junto. Se nenhum item dos grupos marcados tem data, a opção é ignorada (senão tudo sairia).
+ * `semData` (devolvido) lista os itens sem data legível dos grupos marcados, dentro ou fora do escopo; `resumo.semDataFora` conta os que saíram.
+ * Vale a partição: total = foraGrupos + fora + emEscopo.
  */
-export function aplicarEscopo(itens, params) {
+export function aplicarEscopo(itens, params, gruposFora) {
   const { desde, semData: trato } = normalizarParams(params);
-  const algumaData = itens.some((it) => it.ultima_mov);
+  const foraGrupos = []; const marcados = [];
+  for (const it of itens) { if (gruposFora?.[grupoDe(it)]) foraGrupos.push(it); else marcados.push(it); }
+  const algumaData = marcados.some((it) => it.ultima_mov);
   const semDataSai = trato === "anterior" && !!desde && algumaData;
   const emEscopo = []; const fora = []; const semData = []; let semDataFora = 0;
-  for (const it of itens) {
+  for (const it of marcados) {
     const d = it.ultima_mov || "";
     if (!d) { semData.push(it.linha); if (semDataSai) { fora.push(it); semDataFora += 1; } else emEscopo.push(it); continue; }
     if (desde && d < desde) fora.push(it); else emEscopo.push(it);
   }
-  return { emEscopo, fora, semData, resumo: { total: itens.length, fora: fora.length, emEscopo: emEscopo.length, semData: semData.length, semDataFora, semDataIgnorada: trato === "anterior" && !!desde && !algumaData } };
+  return { emEscopo, fora, foraGrupos, semData, resumo: { total: itens.length, foraGrupos: foraGrupos.length, fora: fora.length, emEscopo: emEscopo.length, semData: semData.length, semDataFora, semDataIgnorada: trato === "anterior" && !!desde && !algumaData } };
+}
+
+/** Decisões dos itens que estão no trabalho: as de itens de grupos fora do saneamento ficam guardadas, mas não geram tarefa, lista nem pendência. */
+export function decisoesDoTrabalho(decisoes, escopo) {
+  const lista = escopo?.foraGrupos;
+  if (!lista?.length) return decisoes || {};
+  const fora = new Set(lista.map((it) => it.linha));
+  return Object.fromEntries(Object.entries(decisoes || {}).filter(([k]) => !fora.has(Number(k.split("|")[0]))));
 }
 
 /** Grupos de itens (coluna do cliente) com contagem, ordenados do maior para o menor. */

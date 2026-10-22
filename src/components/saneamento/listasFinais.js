@@ -1,6 +1,6 @@
 // Listas finais do saneamento: lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução (tarefas e confirmações).
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
-import { dataBr, dataDoCorte, grupoDe } from "./logica";
+import { dataBr, dataDoCorte, decisoesDoTrabalho, grupoDe } from "./logica";
 import { calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } from "./analise";
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
@@ -37,7 +37,8 @@ export function unificacoesAprovadas(estado, itens) {
  * Monta todas as listas. `escopo` vem de aplicarEscopo (emEscopo/fora) e `testes` de criarTestes.
  * Nada aqui altera o cadastro: são relatórios do que foi proposto, aprovado ou deixado de fora.
  */
-export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, testes }) {
+export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes }) {
+  const estado = { ...estadoBruto, decisoes: decisoesDoTrabalho(estadoBruto?.decisoes, escopo) }; // decisões de grupos fora do saneamento ficam guardadas e fora das listas
   const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
   const uni = unificacoesAprovadas(estado, itens);
   // Execução: tarefas das decisões aprovadas (e dos itens inativados) e a confirmação de cada frente, conciliadas com a evidência
@@ -100,6 +101,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
   const contagem = {
     tarefas: rex.total, concluidas: rex.CONCLUIDA, emAndamento: rex.EM_ANDAMENTO, pendentes: rex.PENDENTE, divergencias: rex.DIVERGENCIA,
     universo: itens.length, emEscopo: escopo.emEscopo.length, inativados: inativados.length, semData: escopo.semData.length, semDataFora: escopo.resumo.semDataFora, semDataEmEscopo: escopo.semData.length - escopo.resumo.semDataFora,
+    gruposFora: new Set((escopo.foraGrupos || []).map(grupoDe)).size, itensForaGrupos: (escopo.foraGrupos || []).length,
     unificacoesAprovadas: desduplicacoes.filter((x) => x.decisao === "Aprovado" && x.acao.startsWith("Unificar")).length,
     unificacoesPendentes: desduplicacoes.filter((x) => x.decisao.startsWith("Proposto")).length,
     descricoesCorrigidas: finalCorrigida.filter((x) => x.mudanca.includes("Descrição corrigida")).length,
@@ -109,7 +111,9 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
   const resumo = [
     ["Projeto", nomeProjeto], ["Base importada", nomeBase || ""], ["Gerado em", new Date().toLocaleString("pt-BR")], ["", ""],
     ["Parâmetro de saneamento", corte ? `desconsiderar itens não movimentados desde ${corte}${contagem.semDataFora ? "; itens sem data de movimentação tratados como anteriores à data" : ""}` : "sem corte"],
-    ["Universo (códigos)", contagem.universo], ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Itens sem data de movimentação legível", contagem.semData], ["  Mantidos no escopo (sinalizados)", contagem.semDataEmEscopo], ["  Tratados como anteriores à data (fora do escopo)", contagem.semDataFora],
+    ["Universo (códigos)", contagem.universo],
+    ...(contagem.itensForaGrupos ? [["Grupos fora do saneamento (não marcados na triagem)", contagem.gruposFora], ["Itens dos grupos fora do saneamento", contagem.itensForaGrupos]] : []),
+    ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Itens sem data de movimentação legível", contagem.semData], ["  Mantidos no escopo (sinalizados)", contagem.semDataEmEscopo], ["  Tratados como anteriores à data (fora do escopo)", contagem.semDataFora],
     ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
     ["Tarefas de execução (decisões aprovadas e itens inativados)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],

@@ -101,3 +101,34 @@ describe("relações com os sem data tratados como anteriores à data", () => {
     expect(texto.some((t) => t.includes("desconsiderar itens não movimentados desde 01/01/2025; itens sem data de movimentação tratados como anteriores à data"))).toBe(true);
   });
 });
+
+describe("relação dos grupos fora do saneamento", () => {
+  const gi = [item(2, "2023-05-01", { grupo_atual: "A" }), item(3, "2026-01-10", { grupo_atual: "A" }), item(4, "2023-05-01", { grupo_atual: "B" }), item(5, null, { grupo_atual: "B" }), item(6, "2026-01-10", { grupo_atual: "B" })];
+  const e = aplicarEscopo(gi, { desde: "2025-01-01" }, { B: true });
+  it("os cartões formam uma partição do universo, e cada relação tem exatamente o que o cartão conta", () => {
+    const { resumo } = e;
+    expect(resumo.foraGrupos + resumo.fora + resumo.emEscopo).toBe(resumo.total);
+    expect(linhas(itensDaRelacao("universo", gi, e))).toEqual([2, 3, 4, 5, 6]);
+    expect(linhas(itensDaRelacao("foraGrupos", gi, e))).toEqual([4, 5, 6]); expect(itensDaRelacao("foraGrupos", gi, e)).toHaveLength(resumo.foraGrupos);
+    expect(linhas(itensDaRelacao("fora", gi, e))).toEqual([2]); expect(linhas(itensDaRelacao("emEscopo", gi, e))).toEqual([3]);
+    expect(itensDaRelacao("semData", gi, e)).toEqual([]); // o item sem data é de um grupo desmarcado
+  });
+  it("sem grupo desmarcado a relação é vazia", () => {
+    expect(itensDaRelacao("foraGrupos", gi, aplicarEscopo(gi, { desde: "2025-01-01" }))).toEqual([]);
+  });
+  it("a situação e a frase explicam: grupo fora do saneamento não é inativação", () => {
+    const s = criarSituacao(e, "01/01/2025");
+    expect(s(gi[2])).toBe("Grupo fora do saneamento"); expect(s(gi[3])).toBe("Grupo fora do saneamento");
+    expect(s(gi[0])).toBe("Fora do escopo (não movimentado desde 01/01/2025)"); expect(s(gi[1])).toBe("Em escopo");
+    expect(descricaoRelacao("foraGrupos", "01/01/2025")).toBe("Itens de grupos que não foram marcados para o saneamento: não entram no trabalho e não são inativados.");
+    expect(RELACOES.foraGrupos).toEqual({ titulo: "Fora dos grupos marcados", arquivo: "fora-dos-grupos" });
+  });
+  it("o Excel da relação sai com a situação de cada item", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = criarWorkbookRelacao(ExcelJS, { id: "foraGrupos", lista: itensDaRelacao("foraGrupos", gi, e), escopo: e, corte: "01/01/2025", nomeProjeto: "P", nomeBase: "b.xlsx" });
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
+    expect(lido.worksheets.map((w) => w.name)).toEqual(["Fora dos grupos marcados", "Resumo"]);
+    const ws = lido.getWorksheet("Fora dos grupos marcados"); expect(ws.rowCount).toBe(4);
+    expect(ws.getRow(2).getCell(4).value).toBe("B"); expect(ws.getRow(2).getCell(7).value).toBe("Grupo fora do saneamento");
+  });
+});

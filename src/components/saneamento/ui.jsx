@@ -27,7 +27,7 @@ export function Acc({ aberto, onToggle, titulo, children }) {
 /** Tabela de itens (linha, código, descrição, unidade, última movimentação) com "Mostrar mais". */
 export function TabelaItens({ itens, colunas }) {
   const [n, setN] = useState(50);
-  const rot = { linha: "Linha", codigo: "Código", descricao: "Descrição", unidade: "Unidade", ultima_mov: "Última mov." };
+  const rot = { linha: "Linha", codigo: "Código", descricao: "Descrição", unidade: "Unidade", ultima_mov: "Última mov.", situacao: "Situação" };
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground">{colunas.map((c) => <th key={c} className="p-1.5">{rot[c]}</th>)}</tr></thead>

@@ -26,6 +26,7 @@ describe("listas finais do saneamento", () => {
     },
   };
 
+  const estadoE0 = () => ({ ...estado, execucao: { tipos: {}, registros: {} } });
   it("lista de inativados por data de uso traz o critério do corte", () => {
     const l = base(estado);
     expect(l.inativados.map((i) => i.codigo)).toEqual(["B1"]);
@@ -77,6 +78,21 @@ describe("listas finais do saneamento", () => {
     const resumo = l.resumo.map((x) => x.join(" | "));
     expect(resumo).toContain("  Mantidos no escopo (sinalizados) | 1"); expect(resumo).toContain("  Tratados como anteriores à data (fora do escopo) | 0");
     expect(resumo.some((x) => x.includes("tratados como anteriores à data") && x.startsWith("Parâmetro"))).toBe(false);
+  });
+  it("grupo fora do saneamento não entra nas listas nem é inativado, e o resumo conta os grupos e os itens", () => {
+    const e = estadoE0();
+    const escopo = aplicarEscopo(itens, e.params, { Peças: true });
+    const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens, escopo, testes: criarTestes(escopo.emEscopo, e) });
+    expect(l.finalCorrigida).toEqual([]); expect(l.inativados).toEqual([]); // todos os itens de teste são do grupo Peças
+    expect(l.desduplicacoes).toEqual([]); expect(l.execucao).toEqual([]); // as decisões do grupo ficam guardadas, mas fora das listas e das tarefas
+    const resumo = l.resumo.map((x) => x.join(" | "));
+    expect(resumo).toContain("Grupos fora do saneamento (não marcados na triagem) | 1"); expect(resumo).toContain("Itens dos grupos fora do saneamento | 4");
+    expect(resumo).toContain("Universo (códigos) | 4"); expect(resumo).toContain("Em escopo | 0");
+    expect(l.contagem).toMatchObject({ universo: 4, emEscopo: 0, gruposFora: 1, itensForaGrupos: 4 });
+  });
+  it("sem grupo desmarcado, o resumo não traz as linhas de grupos", () => {
+    const resumo = base(estado).resumo.map((x) => x.join(" | "));
+    expect(resumo.some((x) => x.startsWith("Grupos fora do saneamento"))).toBe(false);
   });
   it("projeto salvo com o corte no formato antigo gera as mesmas listas", () => {
     const antigo = { ...estado, params: { ateOn: true, ate: "2024-12-31", diasOn: false, dias: 540, dataBase: "2026-10-22" } };

@@ -8,12 +8,14 @@ export const RELACOES = {
   fora: { titulo: "Fora do escopo", arquivo: "fora-do-escopo" },
   emEscopo: { titulo: "Em escopo", arquivo: "em-escopo" },
   semData: { titulo: "Sem data legível", arquivo: "sem-data-legivel" },
+  foraGrupos: { titulo: "Fora dos grupos marcados", arquivo: "fora-dos-grupos" },
 };
 
 /** O que a relação reúne, em uma frase. `corte` é a data do parâmetro de saneamento em DD/MM/AAAA ("" = sem corte). */
 export function descricaoRelacao(id, corte, semDataFora = false) {
   switch (id) {
     case "universo": return "Todos os itens da base importada.";
+    case "foraGrupos": return "Itens de grupos que não foram marcados para o saneamento: não entram no trabalho e não são inativados.";
     case "fora": return corte ? `Itens não movimentados desde ${corte}${semDataFora ? ", inclusive os sem data de movimentação (tratados como anteriores à data)" : ""}: ficam fora do trabalho.` : "Sem corte definido: nenhum item fica fora do trabalho.";
     case "emEscopo": return semDataFora ? "Itens que entram no trabalho." : "Itens que entram no trabalho (inclui os sem data de movimentação legível).";
     default: return semDataFora ? `Itens sem data de última movimentação legível: tratados como anteriores a ${corte}, ficam fora do escopo.` : "Itens sem data de última movimentação legível: continuam no escopo, sinalizados.";
@@ -23,6 +25,7 @@ export function descricaoRelacao(id, corte, semDataFora = false) {
 /** Itens de cada relação. Os números dos cartões (aplicarEscopo().resumo) são os tamanhos destas listas. */
 export function itensDaRelacao(id, itens, escopo) {
   if (id === "universo") return itens;
+  if (id === "foraGrupos") return escopo.foraGrupos || [];
   if (id === "fora") return escopo.fora;
   if (id === "emEscopo") return escopo.emEscopo;
   const semData = new Set(escopo.semData);
@@ -31,8 +34,8 @@ export function itensDaRelacao(id, itens, escopo) {
 
 /** Função que diz a situação de um item no escopo: fora (pelo corte ou, sem data, por ser tratado como anterior a ele), em escopo sem data legível, ou em escopo. */
 export function criarSituacao(escopo, corte) {
-  const fora = new Set(escopo.fora.map((it) => it.linha)); const semData = new Set(escopo.semData);
-  return (it) => (fora.has(it.linha)
+  const fora = new Set(escopo.fora.map((it) => it.linha)); const semData = new Set(escopo.semData); const foraGr = new Set((escopo.foraGrupos || []).map((it) => it.linha));
+  return (it) => (foraGr.has(it.linha) ? "Grupo fora do saneamento" : fora.has(it.linha)
     ? (semData.has(it.linha) ? `Fora do escopo (sem data de movimentação, tratado como anterior a ${corte})` : `Fora do escopo (não movimentado desde ${corte})`)
     : semData.has(it.linha) ? "Em escopo, sem data de movimentação legível" : "Em escopo");
 }

@@ -5,7 +5,7 @@ import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
-import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, descobrirAbreviacoes, hojeIso, normalizarParams } from "./logica";
+import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, decisoesDoTrabalho, descobrirAbreviacoes, hojeIso, normalizarParams } from "./logica";
 import { achadosDe, calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } from "./analise";
 import { AbasCriterios, AcaoAprovacao, SelosCriterio } from "./CriterioUi";
 import PassoAnalises from "./PassoAnalises";
@@ -14,12 +14,14 @@ import { gerarTarefas, resumoExecucao } from "./execucao";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
-import { Acc, Botao, Chip, TabelaItens, dataBr, fmt, plural } from "./ui";
+import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
 import RelacaoTriagem from "./RelacaoTriagem";
+import GruposDoSaneamento from "./GruposDoSaneamento";
+import { criarSituacao } from "./relacoes";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
-  { t: "Triagem", programa: "Fixar a origem e o universo; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho; os sem data seguem a regra escolhida); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
+  { t: "Triagem", programa: "Fixar a origem e o universo; escolher os grupos que entram no saneamento; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho; os sem data seguem a regra escolhida); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
   { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Critério sem achados na base abre aprovado (com a opção de revisar manualmente); os demais só são tratados depois de aprovados.", avancar: "Critérios aplicáveis aprovados e exceções identificadas." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
   { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, critica cada um (encaminha ou não) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aprovados foram tratados nele.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
@@ -32,7 +34,7 @@ const PASSOS = [
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} } });
+const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {} });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -79,12 +81,16 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const basesSalvas = useQuery({ queryKey: ["saneamento-bases", empresaId], enabled: !validacaoId, queryFn: () => api.get(`/produtos/validacoes?empresa_id=${empresaId}`) });
   const base = useQuery({ queryKey: ["saneamento-base", validacaoId], enabled: !!validacaoId, queryFn: () => api.get(`/produtos/validacoes/${validacaoId}?empresa_id=${empresaId}`), staleTime: 5 * 60 * 1000 });
   const itens = useMemo(() => base.data?.itens || [], [base.data]);
-  const escopo = useMemo(() => aplicarEscopo(itens, estado?.params), [itens, estado?.params]);
+  const escopo = useMemo(() => aplicarEscopo(itens, estado?.params, estado?.gruposFora), [itens, estado?.params, estado?.gruposFora]);
   const grupos = useMemo(() => agruparPorGrupo(escopo.emEscopo), [escopo]);
+  const gruposTodos = useMemo(() => agruparPorGrupo(itens), [itens]); // todos os grupos da base, para escolher quais entram no saneamento
+  const emEscopoPorGrupo = useMemo(() => new Map(grupos.map((g) => [g.nome, g.itens.length])), [grupos]);
+  const situacaoItem = useMemo(() => criarSituacao(escopo, dataDoCorte(estado?.params)), [escopo, estado?.params]);
+  const decisoesTrabalho = useMemo(() => decisoesDoTrabalho(estado?.decisoes, escopo), [estado?.decisoes, escopo]); // sem as de grupos fora do saneamento
   const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao, estado?.politicaUnidade]);
   const achados = useMemo(() => (validacaoId ? calcularAchados(escopo.emEscopo, testes) : {}), [validacaoId, escopo, testes]);
   const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length) : null), [validacaoId, achados, escopo]);
-  const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: estado?.decisoes, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, estado?.decisoes, estado?.execucao?.tipos, estado?.params, itens, escopo]);
+  const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: decisoesTrabalho, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, decisoesTrabalho, estado?.execucao?.tipos, estado?.params, itens, escopo]);
   const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, estado?.execucao?.registros), [execGerada, estado?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
@@ -95,10 +101,14 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   if (proj.error) return <p role="alert" className="text-sm text-destructive">Não foi possível abrir o projeto: {proj.error.message}</p>;
 
   const mudar = (patch) => setEstado((e) => ({ ...e, ...patch }));
+  // Grupos do saneamento (funcionais, como as demais escolhas): `gruposFora` guarda só os desmarcados.
+  const alternarGrupo = (nome) => setEstado((e) => { const fora = { ...(e.gruposFora || {}) }; if (fora[nome]) delete fora[nome]; else fora[nome] = true; return { ...e, gruposFora: fora }; });
+  const marcarGrupos = (nomes, marcar) => setEstado((e) => { const fora = { ...(e.gruposFora || {}) }; for (const n of nomes) { if (marcar) delete fora[n]; else fora[n] = true; } return { ...e, gruposFora: fora }; });
   const passo = estado.passo;
   const irPara = (i) => mudar({ passo: Math.max(0, Math.min(PASSOS.length - 1, i)) });
   const params = normalizarParams(estado.params); // aceita projetos salvos com os dois cortes antigos
-  const decisoesLista = Object.entries(estado.decisoes).map(([k, d]) => ({ k, ...d }));
+  const decisoesLista = Object.entries(decisoesTrabalho).map(([k, d]) => ({ k, ...d }));
+  const nDecOcultas = Object.keys(estado.decisoes).length - Object.keys(decisoesTrabalho).length; // de grupos fora do saneamento
   const itemPorLinha = (linha) => mapaLinha.get(linha);
   const regrasPad = { ...REGRAS_PADRAO, ...(estado.padronizacao?.regras || {}) };
   const abrevPad = estado.padronizacao?.abreviacoes || {};
@@ -145,19 +155,13 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
           </fieldset>); })()}
         {itens.length > 0 && !itens.some((i) => i.ultima_mov) && <p className="text-xs text-amber-700 dark:text-amber-300">Nenhuma data de movimentação foi lida. Mapeie a coluna de data na importação (use “Ajustar e refazer”) para o corte funcionar.</p>}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {[["universo", "Universo", escopo.resumo.total], ["fora", "Fora do escopo", escopo.resumo.fora], ["emEscopo", "Em escopo", escopo.resumo.emEscopo], ["semData", "Sem data legível", escopo.resumo.semData]].map(([id, l, v]) => (
+      <div className={`grid grid-cols-2 ${escopo.resumo.foraGrupos > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2`}>
+        {[["universo", "Universo", escopo.resumo.total], ...(escopo.resumo.foraGrupos > 0 ? [["foraGrupos", "Fora dos grupos marcados", escopo.resumo.foraGrupos]] : []), ["fora", "Fora do escopo", escopo.resumo.fora], ["emEscopo", "Em escopo", escopo.resumo.emEscopo], ["semData", "Sem data legível", escopo.resumo.semData]].map(([id, l, v]) => (
           <button key={id} type="button" aria-pressed={relacao === id} onClick={() => setRelacao(relacao === id ? null : id)} title="Ver a relação de itens e emitir o Excel" className={`rounded-lg bg-muted/60 hover:bg-muted p-3 text-left ${relacao === id ? "ring-2 ring-primary" : ""}`}>
             <p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p><p className="text-[11px] text-primary">{relacao === id ? "Ocultar relação" : "Ver relação e Excel"}</p></button>))}
       </div>
-      {relacao && <RelacaoTriagem key={relacao} id={relacao} itens={itens} escopo={escopo} corte={dataDoCorte(estado.params)} semDataFora={escopo.resumo.semDataFora > 0} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />}
-      <div className="space-y-2">
-        <h3 className="font-medium text-sm">Mapa por grupo de itens (em escopo)</h3>
-        {grupos.map((g) => (
-          <Acc key={g.nome} aberto={!!aberto["m" + g.nome]} onToggle={() => alternar("m" + g.nome)} titulo={<><b className="font-medium">{g.nome}</b><span className="text-xs text-muted-foreground">{plural(g.itens.length, "item", "itens")}</span></>}>
-            <TabelaItens itens={g.itens} colunas={["linha", "codigo", "descricao", "unidade", "ultima_mov"]} />
-          </Acc>))}
-      </div>
+      {relacao && (relacao !== "foraGrupos" || escopo.resumo.foraGrupos > 0) && <RelacaoTriagem key={relacao} id={relacao} itens={itens} escopo={escopo} corte={dataDoCorte(estado.params)} semDataFora={escopo.resumo.semDataFora > 0} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />}
+      <GruposDoSaneamento grupos={gruposTodos} emEscopoPorGrupo={emEscopoPorGrupo} gruposFora={estado.gruposFora || {}} situacao={situacaoItem} onAlternar={alternarGrupo} onMarcar={marcarGrupos} />
       <Botao onClick={async () => { if (await confirmar({ titulo: "Trocar a base?", descricao: "A base vinculada sai do projeto (o arquivo continua guardado no histórico). Os critérios aprovados são mantidos, mas as decisões por item podem deixar de corresponder à nova base.", rotulo: "Trocar a base" })) setValidacaoId(null); }}>Trocar a base</Botao>
     </div>
   );
@@ -294,7 +298,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const porGrupoDec = [...new Set(decisoesLista.map((d) => d.grupo))];
   const temPadrao = decisoesLista.some((d) => d.k.endsWith("|padrao"));
   const emitirListaCliente = async () => {
-    const linhas = linhasListaCliente(estado.decisoes, itens, { somentePendentes: true });
+    const linhas = linhasListaCliente(decisoesTrabalho, itens, { somentePendentes: true });
     if (!linhas.length) { setMsgResposta("Não há correções de descrição aguardando resposta."); return; }
     await gerarListaCliente(linhas, `${slug}-sugestoes-de-descricao.xlsx`); setMsgResposta(`Lista emitida com ${fmt(linhas.length)} sugestões.`);
   };
@@ -318,6 +322,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         {msgResposta && <span className="text-xs text-muted-foreground" role="status">{msgResposta}</span>}
         <span className="basis-full text-xs text-muted-foreground">O cliente responde OK ou escreve ao lado como deve ficar. Nada é alterado no cadastro: a resposta fica registrada como decisão, com a descrição original preservada.</span>
       </div>
+      {nDecOcultas > 0 && <p className="text-xs text-muted-foreground">{plural(nDecOcultas, "decisão de grupo fora do saneamento fica guardada", "decisões de grupos fora do saneamento ficam guardadas")} e não {nDecOcultas === 1 ? "aparece" : "aparecem"} aqui.</p>}
       {decisoesLista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum caso encaminhado. Marque “Encaminhar” nos achados do passo Análises.</p>}
       {porGrupoDec.map((gn) => { const lista = decisoesLista.filter((d) => d.grupo === gn); const pend = lista.filter((d) => d.status === "PROP");
         return (<Acc key={gn} aberto={!!aberto["d" + gn]} onToggle={() => alternar("d" + gn)} titulo={<><b className="font-medium">{gn}</b><span className="text-xs text-muted-foreground">{fmt(lista.length)} casos · {fmt(pend.length)} aguardando decisão</span></>}>
