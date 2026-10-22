@@ -10,7 +10,7 @@ export default function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent"
+      className="h-8 w-8 text-rail-foreground hover:bg-rail-accent hover:text-rail-strong"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       title={isDark ? "Modo claro" : "Modo escuro"}
     >

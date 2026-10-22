@@ -59,6 +59,15 @@ module.exports = {
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
   			},
+  			rail: {
+  				DEFAULT: 'hsl(var(--rail))',
+  				foreground: 'hsl(var(--rail-foreground))',
+  				strong: 'hsl(var(--rail-strong))',
+  				muted: 'hsl(var(--rail-muted))',
+  				accent: 'hsl(var(--rail-accent))',
+  				border: 'hsl(var(--rail-border))',
+  				primary: 'hsl(var(--rail-primary))'
+  			},
   			sidebar: {
   				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',

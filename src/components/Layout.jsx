@@ -72,15 +72,15 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-canvas flex">
-      <aside className="w-64 shrink-0 border-r border-border bg-sidebar h-screen sticky top-0 flex flex-col">
-        <div className="p-5 border-b border-sidebar-border">
+      <aside className="w-64 shrink-0 border-r border-rail-border bg-rail h-screen sticky top-0 flex flex-col">
+        <div className="p-5 border-b border-rail-border">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
               <Logo className="w-5 h-5" />
             </div>
             <div className="leading-tight">
-              <p className="font-heading font-semibold text-sm text-foreground">InTAX</p>
-              <p className="text-[11px] text-muted-foreground">por FAL Agro · Reforma Tributária</p>
+              <p className="font-heading font-semibold text-sm text-rail-strong">InTAX</p>
+              <p className="text-[11px] text-rail-muted">por FAL Agro · Reforma Tributária</p>
             </div>
           </div>
         </div>
@@ -88,7 +88,7 @@ export default function Layout() {
         <nav className="flex-1 overflow-y-auto p-3 space-y-4">
           {sections.map((section) => (
             <div key={section.title}>
-              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-rail-muted">
                 {section.title}
               </p>
               <div className="space-y-0.5">
@@ -98,7 +98,7 @@ export default function Layout() {
                     href={item.to}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60"
+                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-rail-foreground hover:bg-rail-accent/60 hover:text-rail-strong"
                   >
                     <item.icon className="w-4 h-4 shrink-0" />
                     {item.label}
@@ -111,8 +111,8 @@ export default function Layout() {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+                          ? "bg-rail-accent text-rail-strong shadow-[inset_3px_0_0_hsl(var(--rail-primary))]"
+                          : "text-rail-foreground hover:bg-rail-accent/60 hover:text-rail-strong"
                       }`
                     }
                   >
@@ -125,8 +125,8 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">InTAX v1.0 · 23/09/2026</span>
+        <div className="p-4 border-t border-rail-border flex items-center justify-between">
+          <span className="text-[11px] text-rail-muted">InTAX v1.0 · 23/09/2026</span>
           <ThemeToggle />
         </div>
       </aside>

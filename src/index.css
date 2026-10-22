@@ -4,31 +4,27 @@
 
 @layer base {
   :root {
-    /* Identidade visual (30/09/2026): antes as 3 variáveis de fonte apontavam todas
-       pra fonte padrão do sistema (a cara mais genérica possível) e o botão principal
-       do modo claro era preto — só o escuro usava o verde da marca. Unifica: verde
-       InTAX como única cor de destaque nos dois modos, e neutros com um leve tom
-       esverdeado em vez de cinza puro (ver tailwind.config.js e index.html p/ fontes). */
+    /* Paleta C (23/10/2026): neutros frios (azul-acinzentado) com verde InTAX só como destaque e barra lateral marinho.
+       Só cor: espaçamentos e formato das telas seguem como antes. */
     --background: 0 0% 100%;
-    /* Fundo da página (23/10/2026): cinza claro, para os cartões brancos se destacarem. */
-    --canvas: 150 12% 95.5%;
-    --foreground: 150 12% 10%;
+    --canvas: 210 16% 96%;
+    --foreground: 215 36% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 150 12% 10%;
+    --card-foreground: 215 36% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 150 12% 10%;
-    --primary: 152 64% 27%;
+    --popover-foreground: 215 36% 14%;
+    --primary: 152 60% 29%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 150 16% 95%;
-    --secondary-foreground: 150 30% 14%;
-    --muted: 150 16% 95%;
-    --muted-foreground: 150 8% 38%;
-    --accent: 150 20% 94%;
-    --accent-foreground: 150 30% 14%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 215 36% 14%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 213 13% 40%;
+    --accent: 210 22% 93%;
+    --accent-foreground: 215 36% 14%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 150 14% 88%;
-    --input: 150 14% 88%;
+    --border: 212 18% 88%;
+    --input: 212 18% 88%;
     --ring: 152 60% 34%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -40,57 +36,67 @@
     --font-body: 'Manrope', ui-sans-serif, system-ui, sans-serif;
     --font-display: 'Fraunces', ui-serif, Georgia, serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    --sidebar-background: 150 18% 98%;
-    --sidebar-foreground: 150 10% 30%;
-    --sidebar-primary: 152 64% 27%;
+    --sidebar-background: 210 20% 97%;
+    --sidebar-foreground: 215 20% 30%;
+    --sidebar-primary: 152 60% 29%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 150 16% 94%;
-    --sidebar-accent-foreground: 150 30% 14%;
-    --sidebar-border: 150 14% 90%;
+    --sidebar-accent: 210 20% 93%;
+    --sidebar-accent-foreground: 215 36% 14%;
+    --sidebar-border: 212 18% 90%;
     --sidebar-ring: 152 60% 34%;
+    /* Barra lateral de navegação (marinho) */
+    --rail: 215 49% 16%;
+    --rail-foreground: 213 30% 82%;
+    --rail-strong: 0 0% 100%;
+    --rail-muted: 213 20% 62%;
+    --rail-accent: 215 40% 25%;
+    --rail-border: 215 40% 22%;
+    --rail-primary: 152 55% 46%;
   }
 
   .dark {
-    /* Modo escuro suavizado (27/09/2026): menos saturado e mais claro que a versão
-       anterior (fundo ia a 8% de luminosidade, quase preto-azulado) — mesma família
-       de cor, contraste mais confortável para uso prolongado. */
-    --background: 215 28% 15%;
-    --canvas: 215 28% 15%;
-    --foreground: 210 20% 96%;
-    --card: 215 25% 19%;
-    --card-foreground: 210 20% 96%;
-    --popover: 215 25% 19%;
-    --popover-foreground: 210 20% 96%;
-    --primary: 142 55% 48%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 215 22% 25%;
-    --secondary-foreground: 210 20% 96%;
-    --muted: 215 20% 24%;
-    --muted-foreground: 215 15% 72%;
-    --accent: 215 22% 27%;
-    --accent-foreground: 210 20% 96%;
+    --background: 215 33% 10%;
+    --canvas: 215 33% 10%;
+    --foreground: 213 25% 94%;
+    --card: 214 31% 15%;
+    --card-foreground: 213 25% 94%;
+    --popover: 214 31% 15%;
+    --popover-foreground: 213 25% 94%;
+    --primary: 152 55% 46%;
+    --primary-foreground: 150 50% 8%;
+    --secondary: 214 26% 20%;
+    --secondary-foreground: 213 25% 94%;
+    --muted: 214 26% 19%;
+    --muted-foreground: 213 14% 64%;
+    --accent: 214 26% 22%;
+    --accent-foreground: 213 25% 94%;
     --destructive: 0 55% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 215 18% 29%;
-    --input: 215 18% 27%;
-    --ring: 142 55% 48%;
-    --chart-1: 142 55% 48%;
+    --border: 214 26% 22%;
+    --input: 214 26% 23%;
+    --ring: 152 55% 46%;
+    --chart-1: 152 55% 46%;
     --chart-2: 173 45% 48%;
     --chart-3: 197 35% 45%;
     --chart-4: 43 65% 60%;
     --chart-5: 27 75% 60%;
-    --sidebar-background: 215 30% 13%;
-    --sidebar-foreground: 215 15% 72%;
-    --sidebar-primary: 142 55% 48%;
-    --sidebar-primary-foreground: 210 20% 98%;
-    --sidebar-accent: 215 22% 21%;
-    --sidebar-accent-foreground: 210 20% 96%;
-    --sidebar-border: 215 18% 23%;
-    --sidebar-ring: 142 55% 48%;
+    --sidebar-background: 214 31% 13%;
+    --sidebar-foreground: 213 14% 68%;
+    --sidebar-primary: 152 55% 46%;
+    --sidebar-primary-foreground: 150 50% 8%;
+    --sidebar-accent: 214 26% 20%;
+    --sidebar-accent-foreground: 213 25% 94%;
+    --sidebar-border: 214 24% 20%;
+    --sidebar-ring: 152 55% 46%;
+    --rail: 213 40% 8%;
+    --rail-foreground: 213 20% 76%;
+    --rail-strong: 213 25% 94%;
+    --rail-muted: 213 14% 55%;
+    --rail-accent: 214 30% 17%;
+    --rail-border: 214 30% 14%;
+    --rail-primary: 152 55% 46%;
   }
 }
-
-
 
 @layer base {
   * {
