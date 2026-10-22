@@ -1004,3 +1004,19 @@ model AnaliseEmpresa {
   updatedAt DateTime @updatedAt
   @@index([empresa_id, createdAt])
 }
+
+/// Projeto de saneamento de estoques (modo completo, passo a passo). O estado (parâmetro de saneamento, critérios aprovados,
+/// grupos saneados, decisões por caso) mora em JSON para evoluir sem migração a cada ajuste; a base de itens é a ValidacaoCadastro.
+model SaneamentoProjeto {
+  id            String   @id @default(cuid())
+  empresa_id    String
+  nome          String
+  criado_por    String
+  validacao_id  String?
+  status        String   @default("ANDAMENTO")
+  estado_json   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@index([empresa_id])
+}

@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
-const ROT_NIVEL = { EXATA: "Idêntico", MUITO_PROVAVEL: "Muito provável", POSSIVEL: "Possível" };
+const ROT_NIVEL = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const COR_NIVEL = {
   EXATA: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300",
   MUITO_PROVAVEL: "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
@@ -55,7 +55,7 @@ export default function ComparativoDuplicidade({ item, itens, excluir, setExclui
                   <span className="font-semibold">Linha {ln}</span>
                   {base && <span className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-primary text-primary-foreground">item analisado</span>}
                   {dup?.mestre === ln && <span className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">mestre sugerido</span>}
-                  {m && <span className={`text-[10px] uppercase font-medium px-1.5 py-0.5 rounded ${COR_NIVEL[m.nivel]}`}>{ROT_NIVEL[m.nivel]} · {Math.round(m.score * 100)}%</span>}
+                  {m && <span className={`text-[10px] uppercase font-medium px-1.5 py-0.5 rounded ${COR_NIVEL[m.nivel]}`}>{ROT_NIVEL[m.nivel]} · similaridade {m.score.toFixed(2).replace(".", ",")}</span>}
                   {podeExcluir && !base && (
                     <label className="ml-auto inline-flex items-center gap-1.5 text-xs cursor-pointer">
                       <input type="checkbox" checked={excluir.includes(ln)} disabled={!it.candidatos_duplicidade?.length}
@@ -75,7 +75,7 @@ export default function ComparativoDuplicidade({ item, itens, excluir, setExclui
               </div>
             );
           })}
-          <p className="text-xs text-muted-foreground">Nenhum cadastro é excluído ou alterado no seu ERP: a marcação vale apenas para a cópia saneada que você baixa.</p>
+          <p className="text-xs text-muted-foreground">A pontuação de similaridade não é probabilidade de duplicidade, e similaridade não equivale a identidade técnica: confirme cada caso. Nenhum cadastro é excluído ou alterado no seu ERP; a marcação vale apenas para a cópia saneada que você baixa.</p>
         </div>
       </SheetContent>
     </Sheet>

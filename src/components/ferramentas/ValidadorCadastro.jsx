@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cClassTrib"];
 
 const ROTULO_PROBLEMA = {
-  DUPLICIDADE_EXATA: "Descrição e unidade iguais", DUPLICIDADE_PROVAVEL: "Duplicidade muito provável", POSSIVEL_DUPLICIDADE: "Possível duplicidade",
+  DUPLICIDADE_EXATA: "Descrição e unidade iguais", DUPLICIDADE_PROVAVEL: "Indicação alta de duplicidade", POSSIVEL_DUPLICIDADE: "Possível duplicidade",
   NCM_AUSENTE: "NCM ausente", NCM_FORMATO: "NCM com formato errado", NCM_INEXISTENTE: "NCM inexistente", NCM_INATIVO: "NCM não vigente",
   NCM_ZERO_RESTAURADO: "Zero à esquerda corrigido", NCM_CHAVE_SAP: "NCM é código interno do SAP", DATA_INVALIDA: "Data de movimentação não reconhecida", SEM_DATA_MOVIMENTO: "Sem data de movimentação", CODIGO_AUSENTE: "Sem código", DESCRICAO_AUSENTE: "Sem descrição",
   CODIGO_DUPLICADO: "Código duplicado", PRODUTO_DUPLICADO: "Produto duplicado", CLASSE_SUGERIDA: "Classificação sugerida",
@@ -108,7 +108,7 @@ function Cartao({ titulo, valor, cor, ativo, onClick }) {
  * como está e indicar as colunas. modo "publico" limita a 300 itens e libera o
  * detalhe após o cadastro do contato.
  */
-export default function ValidadorCadastro({ modo = "interno", empresa }) {
+export default function ValidadorCadastro({ modo = "interno", empresa, aoProcessar }) {
   const publico = modo === "publico";
   const { empresaId } = useParams();
   const [searchParams] = useSearchParams();
@@ -135,6 +135,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa }) {
   const [comparativo, setComparativo] = useState(null); // item cujo comparativo de duplicidade está aberto
   const [baseLeiAberta, setBaseLeiAberta] = useState(null); // ex.: "Anexo IX, item 2" — painel lateral do anexo
   const idAuto = !publico ? (resultado?.validacao_id || rascunhoId) : null;
+  // Dentro de um projeto de saneamento: avisa quando a base foi processada e salva, para vinculá-la ao projeto.
+  useEffect(() => { if (aoProcessar && resultado?.validacao_id) aoProcessar(resultado); }, [resultado?.validacao_id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [porPagina, setPorPagina] = useState(100);
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(0);

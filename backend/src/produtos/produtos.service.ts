@@ -13,7 +13,7 @@ export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_cla
 export type Campo = (typeof CAMPOS)[number];
 export type Mapeamento = Partial<Record<Campo, number | null>>;
 
-const ROT_NIVEL_DUP: Record<NivelDup, string> = { EXATA: 'Idêntico', MUITO_PROVAVEL: 'Muito provável', POSSIVEL: 'Possível' };
+const ROT_NIVEL_DUP: Record<NivelDup, string> = { EXATA: 'Idêntico', MUITO_PROVAVEL: 'Indicação alta', POSSIVEL: 'Indicação possível' };
 export const ROTULOS: Record<Campo, string> = {
   principio_ativo: 'Princípio ativo (inclua concentração e formulação)',
   data_cadastro: 'Data da última movimentação ou do cadastro (para o corte)',
@@ -254,7 +254,8 @@ export class ProdutosService {
     // nem fazer um produto ativo sumir.
     const periodoAtivo = Boolean(opcoes.dataInicio || opcoes.dataFim);
     const classificadas = origem.map(({ l, linha }) => {
-      if (!periodoAtivo) return { l, linha, data: null as string | null, bruto: '', periodo: null as LinhaResultado['periodo'] | 'FORA' };
+      // Sem período, a data ainda é lida (quando a coluna está mapeada): o projeto de saneamento aplica o corte por conta própria.
+      if (!periodoAtivo) return { l, linha, data: mapa.data_cadastro != null ? lerDataMovimento(g(l, 'data_cadastro')).data : null, bruto: '', periodo: null as LinhaResultado['periodo'] | 'FORA' };
       const bruto = g(l, 'data_cadastro');
       const lida = lerDataMovimento(bruto);
       const dentro = lida.data !== null && (!opcoes.dataInicio || lida.data >= opcoes.dataInicio) && (!opcoes.dataFim || lida.data <= opcoes.dataFim);
@@ -351,9 +352,9 @@ export class ProdutosService {
           nivel: melhor.nivel, score: melhor.score, grupo: rd.grupo, mestre: rd.mestre === null ? null : selecionadas[rd.mestre].linha,
           candidatos: rd.candidatos.map((c) => ({ linha: selecionadas[c.idx].linha, score: c.score, nivel: c.nivel, motivos: c.motivos })),
         };
-        const rotulo = { EXATA: 'Cadastro com a mesma descrição e unidade', MUITO_PROVAVEL: 'Cadastro muito provavelmente duplicado', POSSIVEL: 'Cadastro possivelmente duplicado' }[melhor.nivel];
+        const rotulo = { EXATA: 'Cadastro com a mesma descrição e unidade', MUITO_PROVAVEL: 'Indicação alta de duplicidade (exige confirmação técnica)', POSSIVEL: 'Indicação possível de duplicidade' }[melhor.nivel];
         const codigoProblema = { EXATA: 'DUPLICIDADE_EXATA', MUITO_PROVAVEL: 'DUPLICIDADE_PROVAVEL', POSSIVEL: 'POSSIVEL_DUPLICIDADE' }[melhor.nivel];
-        problemas.push({ codigo: codigoProblema, severidade: 'alerta', mensagem: `${rotulo} — revisar linhas ${candidatos_duplicidade.join(', ')} (melhor correspondência ${Math.round(melhor.score * 100)}%: ${melhor.motivos.slice(0, 3).join('; ')}).${opcoes.principioAtivo ? ' Princípio ativo coincidente.' : ''} Nenhum cadastro foi excluído.` });
+        problemas.push({ codigo: codigoProblema, severidade: 'alerta', mensagem: `${rotulo} — revisar linhas ${candidatos_duplicidade.join(', ')} (pontuação de similaridade ${melhor.score.toFixed(2).replace('.', ',')}, que não é probabilidade: ${melhor.motivos.slice(0, 3).join('; ')}).${opcoes.principioAtivo ? ' Princípio ativo coincidente.' : ''} Nenhum cadastro foi excluído.` });
       }
 
       let sugestao: LinhaResultado['sugestao'] = null;
@@ -516,7 +517,7 @@ export class ProdutosService {
       { header: 'Grupo contábil atual', key: 'grupo_contabil', width: 22 },
       { header: 'Linhas para revisão de duplicidade', key: 'candidatos', width: 35 },
       { header: 'Duplicidade: nível', key: 'dup_nivel', width: 18 },
-      { header: 'Duplicidade: nota', key: 'dup_nota', width: 12 },
+      { header: 'Duplicidade: pontuação de similaridade', key: 'dup_nota', width: 16 },
       { header: 'Duplicidade: motivos da melhor correspondência', key: 'dup_motivos', width: 60 },
       { header: 'Grupo de duplicados', key: 'dup_grupo', width: 14 },
       { header: 'Cadastro mestre sugerido (linha)', key: 'dup_mestre', width: 20 },
@@ -538,7 +539,7 @@ export class ProdutosService {
         grupo_atual: it.grupo_atual, grupo_sugerido: it.grupo_sugerido ?? '', grupo_flag: it.grupo_flag ? ROT_FLAG[it.grupo_flag] : '', grupo_evidencia: it.grupo_evidencia ?? '',
         conta_sugerida: it.conta_sugerida ?? '', conta_flag: it.conta_flag ? ROT_FLAG[it.conta_flag] : '',
         unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.join(', '),
-        dup_nivel: it.duplicidade ? ROT_NIVEL_DUP[it.duplicidade.nivel] : '', dup_nota: it.duplicidade ? `${Math.round(it.duplicidade.score * 100)}%` : '',
+        dup_nivel: it.duplicidade ? ROT_NIVEL_DUP[it.duplicidade.nivel] : '', dup_nota: it.duplicidade ? it.duplicidade.score.toFixed(2).replace('.', ',') : '',
         dup_motivos: it.duplicidade ? (it.duplicidade.candidatos[0]?.motivos ?? []).join('; ') : '', dup_grupo: it.duplicidade?.grupo != null ? `G${it.duplicidade.grupo + 1}` : '',
         dup_mestre: it.duplicidade?.mestre != null ? (it.duplicidade.mestre === it.linha ? 'este item' : it.duplicidade.mestre) : '',
         linha: it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,

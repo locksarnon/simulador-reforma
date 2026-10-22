@@ -5,6 +5,7 @@ import { api } from "@/api/base44Client";
 const SERVICOS = [
   ["importacao-xml", "Diagnóstico tributário", "Importe XML, revise as operações e consulte o painel da empresa."],
   ["validador-cadastro", "Validação de cadastro", "Saneamento fiscal, NCM e revisão de duplicidades dos produtos."],
+  ["saneamento-estoque", "Saneamento de estoques (completo)", "Projeto passo a passo: triagem, critérios, análise por grupo, decisões e política de uso."],
   ["classificacao-servicos", "Classificação e conversão de serviços", "Consulte a correlação entre LC 116, NBS, cIndOp e cClassTrib."],
   ["validador-nfse", "Validação de NFS-e", "Confira os documentos de serviço desta empresa."],
 ];

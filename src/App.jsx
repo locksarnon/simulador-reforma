@@ -35,6 +35,7 @@ import RadarReformaPage from '@/pages/RadarReformaPage';
 import FerramentasValidadorNFSe from '@/pages/FerramentasValidadorNFSe';
 import FerramentasConsultaNcm from '@/pages/FerramentasConsultaNcm';
 import FerramentasValidadorCadastro from '@/pages/FerramentasValidadorCadastro';
+import FerramentasSaneamento from '@/pages/FerramentasSaneamento';
 import LeadsPage from '@/pages/LeadsPage';
 import NewsletterPage from '@/pages/NewsletterPage';
 import BaseLegalPage from '@/pages/BaseLegalPage';
@@ -83,6 +84,7 @@ function App() {
                       <Route path="servicos" element={<EmpresaServicos />} />
                       <Route path="historico" element={<EmpresaServicos historico />} />
                       <Route path="validador-cadastro" element={<FerramentasValidadorCadastro />} />
+                      <Route path="saneamento-estoque" element={<FerramentasSaneamento />} />
                       <Route path="classificacao-servicos" element={<FerramentasClassificacao />} />
                       <Route path="validador-nfse" element={<FerramentasValidadorNFSe />} />
                       <Route path="importacao-xml" element={<ImportacaoXMLPage />} />

@@ -10,6 +10,8 @@ import { PdfService } from '../pdf/pdf.service';
 import { ProdutosController } from '../produtos/produtos.controller';
 import { ProdutosService } from '../produtos/produtos.service';
 import { ValidacoesService } from '../produtos/validacoes.service';
+import { SaneamentoController } from '../produtos/saneamento.controller';
+import { SaneamentoService } from '../produtos/saneamento.service';
 import { StorageModule } from '../storage/storage.module';
 import { RoteiroTestesController } from '../roteiro-testes/roteiro-testes.controller';
 import { PublicoController } from '../publico/publico.controller';
@@ -21,8 +23,8 @@ import { PublicoController } from '../publico/publico.controller';
  */
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]), StorageModule],
-  controllers: [AnalisesController, ClassificacaoController, ProdutosController, NewsletterController, PublicoController, RoteiroTestesController],
-  providers: [ClassificacaoService, ProdutosService, ValidacoesService, LeadsService, NewsletterService, PdfService],
+  controllers: [AnalisesController, ClassificacaoController, ProdutosController, SaneamentoController, NewsletterController, PublicoController, RoteiroTestesController],
+  providers: [ClassificacaoService, ProdutosService, ValidacoesService, SaneamentoService, LeadsService, NewsletterService, PdfService],
   exports: [ClassificacaoService],
 })
 export class ComercialModule {}
