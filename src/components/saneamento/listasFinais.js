@@ -93,13 +93,13 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
 
   // 4) Itens inativados por data de uso (fora do escopo pelo parâmetro de saneamento)
   const inativados = escopo.fora.map((it) => ({
-    codigo: it.codigo, descricao: it.descricao, unidade: it.unidade, grupo: grupoDe(it), ultima_mov: dataBr(it.ultima_mov), criterio: `não movimentado desde ${corte}`,
+    codigo: it.codigo, descricao: it.descricao, unidade: it.unidade, grupo: grupoDe(it), ultima_mov: dataBr(it.ultima_mov), criterio: it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`,
   }));
 
   const execucao = linhasExecucao(tarefas, registros); const rex = resumoExecucao(tarefas, registros);
   const contagem = {
     tarefas: rex.total, concluidas: rex.CONCLUIDA, emAndamento: rex.EM_ANDAMENTO, pendentes: rex.PENDENTE, divergencias: rex.DIVERGENCIA,
-    universo: itens.length, emEscopo: escopo.emEscopo.length, inativados: inativados.length, semData: escopo.semData.length,
+    universo: itens.length, emEscopo: escopo.emEscopo.length, inativados: inativados.length, semData: escopo.semData.length, semDataFora: escopo.resumo.semDataFora, semDataEmEscopo: escopo.semData.length - escopo.resumo.semDataFora,
     unificacoesAprovadas: desduplicacoes.filter((x) => x.decisao === "Aprovado" && x.acao.startsWith("Unificar")).length,
     unificacoesPendentes: desduplicacoes.filter((x) => x.decisao.startsWith("Proposto")).length,
     descricoesCorrigidas: finalCorrigida.filter((x) => x.mudanca.includes("Descrição corrigida")).length,
@@ -108,8 +108,8 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
   };
   const resumo = [
     ["Projeto", nomeProjeto], ["Base importada", nomeBase || ""], ["Gerado em", new Date().toLocaleString("pt-BR")], ["", ""],
-    ["Parâmetro de saneamento", corte ? `desconsiderar itens não movimentados desde ${corte}` : "sem corte"],
-    ["Universo (códigos)", contagem.universo], ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Em escopo sem data de movimentação legível", contagem.semData],
+    ["Parâmetro de saneamento", corte ? `desconsiderar itens não movimentados desde ${corte}${contagem.semDataFora ? "; itens sem data de movimentação tratados como anteriores à data" : ""}` : "sem corte"],
+    ["Universo (códigos)", contagem.universo], ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Itens sem data de movimentação legível", contagem.semData], ["  Mantidos no escopo (sinalizados)", contagem.semDataEmEscopo], ["  Tratados como anteriores à data (fora do escopo)", contagem.semDataFora],
     ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
     ["Tarefas de execução (decisões aprovadas e itens inativados)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],

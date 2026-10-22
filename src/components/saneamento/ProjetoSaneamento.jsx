@@ -19,7 +19,7 @@ import RelacaoTriagem from "./RelacaoTriagem";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
-  { t: "Triagem", programa: "Fixar a origem e o universo; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
+  { t: "Triagem", programa: "Fixar a origem e o universo; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho; os sem data seguem a regra escolhida); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
   { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Critério sem achados na base abre aprovado (com a opção de revisar manualmente); os demais só são tratados depois de aprovados.", avancar: "Critérios aplicáveis aprovados e exceções identificadas." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
   { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, critica cada um (encaminha ou não) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aprovados foram tratados nele.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
@@ -130,10 +130,19 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     <div className="space-y-4">
       <div className="rounded-xl border-2 border-primary/40 bg-card p-4 space-y-3">
         <h3 className="font-medium">Parâmetro de saneamento</h3>
-        <p className="text-xs text-muted-foreground">Define quem entra no trabalho: o item cuja última movimentação é anterior à data escolhida fica fora do escopo; o movimentado nela ou depois continua. Item sem data de movimentação legível continua no escopo, sinalizado.</p>
+        <p className="text-xs text-muted-foreground">Define quem entra no trabalho: o item cuja última movimentação é anterior à data escolhida fica fora do escopo; o movimentado nela ou depois continua. O que fazer com o item sem data de movimentação legível você escolhe abaixo.</p>
         <label className="flex flex-wrap items-center gap-2 text-sm">Desconsiderar itens não movimentados desde
-          <input type="date" value={params.desde} onChange={(e) => mudar({ params: { desde: e.target.value } })} className="border rounded p-1.5 bg-background" aria-label="Desconsiderar itens não movimentados desde" />
-          {params.desde && <button type="button" onClick={() => mudar({ params: { desde: "" } })} className="text-xs text-primary underline">Sem corte</button>}</label>
+          <input type="date" value={params.desde} onChange={(e) => mudar({ params: { desde: e.target.value, semData: e.target.value ? params.semData : "manter" } })} className="border rounded p-1.5 bg-background" aria-label="Desconsiderar itens não movimentados desde" />
+          {params.desde && <button type="button" onClick={() => mudar({ params: { desde: "", semData: "manter" } })} className="text-xs text-primary underline">Sem corte</button>}</label>
+        {escopo.resumo.semData > 0 && (() => { const temDatas = itens.some((i) => i.ultima_mov); return (
+          <fieldset className="space-y-1.5 rounded-lg bg-muted/40 p-3 text-sm">
+            <legend className="px-1 text-xs font-medium text-muted-foreground">Itens sem data de movimentação legível ({fmt(escopo.resumo.semData)})</legend>
+            <label className="flex items-start gap-2"><input type="radio" name="semData" className="mt-1" checked={params.semData !== "anterior"} onChange={() => mudar({ params: { ...params, semData: "manter" } })} />
+              <span>Manter no escopo, sinalizados<span className="block text-xs text-muted-foreground">O campo em branco não esconde produto ativo; o critério Utilização aponta os itens para tratar.</span></span></label>
+            <label className="flex items-start gap-2"><input type="radio" name="semData" className="mt-1" checked={params.semData === "anterior"} disabled={!params.desde || !temDatas} onChange={() => mudar({ params: { ...params, semData: "anterior" } })} />
+              <span>Tratar como anteriores à data informada<span className="block text-xs text-muted-foreground">{!temDatas ? "Nenhuma data de movimentação foi lida: mapeie a coluna de data para usar esta opção." : !params.desde ? "Informe a data de corte para usar esta opção." : `Saem do escopo junto com os não movimentados desde ${dataBr(params.desde)} e entram na lista de inativados por data de uso.`}</span></span></label>
+            {escopo.resumo.semDataIgnorada && <p className="text-xs text-amber-700 dark:text-amber-300">Nenhuma data de movimentação foi lida nesta base: a opção de tratar como anteriores foi ignorada.</p>}
+          </fieldset>); })()}
         {itens.length > 0 && !itens.some((i) => i.ultima_mov) && <p className="text-xs text-amber-700 dark:text-amber-300">Nenhuma data de movimentação foi lida. Mapeie a coluna de data na importação (use “Ajustar e refazer”) para o corte funcionar.</p>}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -141,7 +150,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
           <button key={id} type="button" aria-pressed={relacao === id} onClick={() => setRelacao(relacao === id ? null : id)} title="Ver a relação de itens e emitir o Excel" className={`rounded-lg bg-muted/60 hover:bg-muted p-3 text-left ${relacao === id ? "ring-2 ring-primary" : ""}`}>
             <p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p><p className="text-[11px] text-primary">{relacao === id ? "Ocultar relação" : "Ver relação e Excel"}</p></button>))}
       </div>
-      {relacao && <RelacaoTriagem key={relacao} id={relacao} itens={itens} escopo={escopo} corte={dataDoCorte(estado.params)} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />}
+      {relacao && <RelacaoTriagem key={relacao} id={relacao} itens={itens} escopo={escopo} corte={dataDoCorte(estado.params)} semDataFora={escopo.resumo.semDataFora > 0} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />}
       <div className="space-y-2">
         <h3 className="font-medium text-sm">Mapa por grupo de itens (em escopo)</h3>
         {grupos.map((g) => (

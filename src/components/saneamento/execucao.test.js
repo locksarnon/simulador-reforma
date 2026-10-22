@@ -66,6 +66,14 @@ describe("tarefas a partir das decisões aprovadas", () => {
     expect(t.instrucao.adm).toBe("Inativar o item (não movimentado desde 01/01/2025).");
     expect(gerarTarefas({ decisoes: {}, tipos: {}, itens, escopo: aplicarEscopo(itens, { desde: "" }), params: { desde: "" } }).tarefas).toEqual([]);
   });
+  it("item inativado por não ter data (tratado como anterior à data) leva o critério próprio na instrução", () => {
+    const sem = [...itens, item(7, "F1", "SEM DATA", { ultima_mov: null })];
+    const p = { desde: "2025-01-01", semData: "anterior" };
+    const t = gerarTarefas({ decisoes: {}, tipos: {}, itens: sem, escopo: aplicarEscopo(sem, p), params: p }).tarefas;
+    expect(t.map((x) => x.id)).toEqual(["4|inativacao", "7|inativacao"]);
+    expect(t[0].instrucao.adm).toBe("Inativar o item (não movimentado desde 01/01/2025).");
+    expect(t[1].instrucao.adm).toBe("Inativar o item (sem data de movimentação, tratado como anterior a 01/01/2025).");
+  });
   it("critério sem receita própria vira tarefa genérica com o nome do critério", () => {
     expect(tarefa(r, "4|ncm")).toMatchObject({ tipo: "outro", instrucao: { adm: 'Tratar conforme o critério "NCM e classificação cadastral" (aprovado no passo De/para).', alm: "" } });
   });

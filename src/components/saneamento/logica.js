@@ -16,17 +16,18 @@ export const dataBr = (d) => (d ? String(d).split("-").reverse().join("/") : "")
 const somaDias = (d, dias) => { const t = Date.parse(`${d}T00:00:00Z`); return Number.isNaN(t) ? null : iso(new Date(t + dias * DIA)); };
 
 /**
- * Parâmetro de saneamento: um único corte, "desconsiderar itens não movimentados desde DD/MM/AAAA". Formato: { desde: "AAAA-MM-DD" } (vazio = sem corte).
+ * Parâmetro de saneamento: um único corte, "desconsiderar itens não movimentados desde DD/MM/AAAA". Formato: { desde: "AAAA-MM-DD", semData } (desde vazio = sem corte).
+ * `semData` diz o que fazer com o item sem data de movimentação legível: "manter" (fica no escopo, sinalizado; padrão) ou "anterior" (tratado como anterior à data: sai do escopo).
  * Projetos salvos antes tinham dois cortes ({ ateOn, ate, diasOn, dias, dataBase }); eles viram uma data só, a mais recente (o item saía do escopo se
  * atendesse a qualquer um): "movimentado até X" (inclusive) = "não movimentado desde X + 1 dia"; "parado há mais de N dias" = "não movimentado desde data-base − N dias".
  */
 export function normalizarParams(params) {
   const p = params || {};
-  if ("desde" in p) return { desde: p.desde || "" };
+  if ("desde" in p || "semData" in p) return { desde: p.desde || "", semData: p.semData === "anterior" ? "anterior" : "manter" };
   const datas = [];
   if (p.ateOn && p.ate) datas.push(somaDias(p.ate, 1));
   if (p.diasOn && Number.isFinite(Number(p.dias)) && Number(p.dias) >= 0) datas.push(somaDias(p.dataBase, -Number(p.dias)));
-  return { desde: datas.filter(Boolean).sort().pop() || "" };
+  return { desde: datas.filter(Boolean).sort().pop() || "", semData: "manter" };
 }
 
 /** Data do corte em DD/MM/AAAA, ou "" se não há corte. */
@@ -34,17 +35,21 @@ export const dataDoCorte = (params) => dataBr(normalizarParams(params).desde);
 
 /**
  * Aplica o parâmetro de saneamento: o item cuja última movimentação é ANTERIOR à data `desde` sai do escopo; o movimentado nela ou depois continua.
- * Item sem data de movimento legível NÃO sai do escopo (fica sinalizado), para um campo em branco não esconder produto ativo.
+ * Item sem data de movimentação legível: por padrão NÃO sai do escopo (fica sinalizado), para um campo em branco não esconder produto ativo; com
+ * semData = "anterior" é tratado como anterior à data e sai junto. Se nenhum item da base tem data, a opção é ignorada (senão a base inteira sairia).
+ * `semData` (devolvido) lista TODOS os itens sem data legível, dentro ou fora do escopo; `resumo.semDataFora` conta os que saíram.
  */
 export function aplicarEscopo(itens, params) {
-  const { desde } = normalizarParams(params);
-  const emEscopo = []; const fora = []; const semData = [];
+  const { desde, semData: trato } = normalizarParams(params);
+  const algumaData = itens.some((it) => it.ultima_mov);
+  const semDataSai = trato === "anterior" && !!desde && algumaData;
+  const emEscopo = []; const fora = []; const semData = []; let semDataFora = 0;
   for (const it of itens) {
     const d = it.ultima_mov || "";
-    if (!d) { semData.push(it.linha); emEscopo.push(it); continue; }
+    if (!d) { semData.push(it.linha); if (semDataSai) { fora.push(it); semDataFora += 1; } else emEscopo.push(it); continue; }
     if (desde && d < desde) fora.push(it); else emEscopo.push(it);
   }
-  return { emEscopo, fora, semData, resumo: { total: itens.length, fora: fora.length, emEscopo: emEscopo.length, semData: semData.length } };
+  return { emEscopo, fora, semData, resumo: { total: itens.length, fora: fora.length, emEscopo: emEscopo.length, semData: semData.length, semDataFora, semDataIgnorada: trato === "anterior" && !!desde && !algumaData } };
 }
 
 /** Grupos de itens (coluna do cliente) com contagem, ordenados do maior para o menor. */
@@ -87,8 +92,8 @@ export const CRITERIOS = [
     regra: "A unidade de estoque de cada item é a MENOR unidade prática da medida em que ele é controlado: massa em quilograma, volume em litro, comprimento em metro, área em metro quadrado e contagem em unidade. Unidade maior (tonelada, hectolitro, dúzia, metro cúbico...) e embalagem (saca, big bag, galão, caixa, pacote...) passam a ser unidade de COMPRA, com o fator de conversão cadastrado. A regra vale para qualquer unidade da base, não só para os exemplos: o sistema reconhece as unidades de medida usuais e o analista classifica as demais na tabela de unidades. O fator só é dado como certo quando é exato por definição (1 tonelada = 1.000 kg) ou está escrito na própria unidade (BALDE 20KG); se vem da descrição, fica para confirmar; nos demais casos fica a informar. Unidade já menor que a padrão (g, ml, cm) é aceita. Uma grafia por unidade (KG, não KGS ou Kg); unidade vazia ou sem regra é pendência. Para item com histórico de movimentação, o SAP pode não permitir a troca da unidade de estoque: validar no piloto (passo 3) e tratar como de/para ou novo cadastro.",
     exemplo: "Item estocado em TONELADA ou SACA (passa para KG, com a unidade maior como unidade de compra); em GALÃO (passa para LITRO); em CAIXA (passa para UNIDADE); KG, KGS e kg no mesmo cadastro", params: "política da menor unidade de estoque, com exceções por unidade na tabela do critério" },
   { id: "utilizacao", titulo: "Utilização", auto: true,
-    regra: "Item dentro do escopo sem data de movimentação legível é sinalizado. A ausência de movimento por si só não determina bloqueio.",
-    exemplo: "Item sem data de última movimentação", params: "Corte vem do parâmetro de saneamento" },
+    regra: "Item dentro do escopo sem data de movimentação legível é sinalizado (se o parâmetro de saneamento os trata como anteriores à data, eles saem do escopo e não chegam aqui). A ausência de movimento por si só não determina bloqueio.",
+    exemplo: "Item sem data de última movimentação", params: "Corte e tratamento dos itens sem data vêm do parâmetro de saneamento" },
   { id: "saldos", titulo: "Saldos e sinais de excesso", auto: false,
     regra: "Saldos negativos e concentração de valor viram indício, não conclusão. Criticidade, prazo de reposição e sazonalidade são considerados antes de propor redução.",
     exemplo: "Saldo negativo em item movimentado", params: "" },

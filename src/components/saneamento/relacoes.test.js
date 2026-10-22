@@ -71,3 +71,33 @@ describe("relações dos cartões da triagem", () => {
     expect(lido.getWorksheet("Universo").rowCount).toBe(7);
   });
 });
+
+describe("relações com os sem data tratados como anteriores à data", () => {
+  const escopoAnt = aplicarEscopo(itens, { desde: "2025-01-01", semData: "anterior" });
+  it("os sem data saem do escopo, e o cartão Sem data legível continua com todos", () => {
+    expect(linhas(itensDaRelacao("fora", itens, escopoAnt))).toEqual([2, 3, 6, 7]);
+    expect(linhas(itensDaRelacao("emEscopo", itens, escopoAnt))).toEqual([4, 5]);
+    expect(linhas(itensDaRelacao("semData", itens, escopoAnt))).toEqual([6, 7]);
+    expect(escopoAnt.resumo).toMatchObject({ fora: 4, emEscopo: 2, semData: 2, semDataFora: 2 });
+  });
+  it("a situação e as frases dizem o que aconteceu", () => {
+    const s = criarSituacao(escopoAnt, "01/01/2025");
+    expect(s(itens[0])).toBe("Fora do escopo (não movimentado desde 01/01/2025)");
+    expect(s(itens[4])).toBe("Fora do escopo (sem data de movimentação, tratado como anterior a 01/01/2025)");
+    expect(s(itens[2])).toBe("Em escopo");
+    expect(descricaoRelacao("semData", "01/01/2025", true)).toBe("Itens sem data de última movimentação legível: tratados como anteriores a 01/01/2025, ficam fora do escopo.");
+    expect(descricaoRelacao("fora", "01/01/2025", true)).toContain("inclusive os sem data de movimentação");
+    expect(descricaoRelacao("emEscopo", "01/01/2025", true)).toBe("Itens que entram no trabalho.");
+    expect(descricaoRelacao("semData", "01/01/2025", false)).toContain("continuam no escopo, sinalizados");
+  });
+  it("o Excel registra no resumo o que foi feito com os sem data", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = criarWorkbookRelacao(ExcelJS, { id: "fora", lista: itensDaRelacao("fora", itens, escopoAnt), escopo: escopoAnt, corte: "01/01/2025", nomeProjeto: "P", nomeBase: "b.xlsx", semDataFora: true });
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
+    const ws = lido.getWorksheet("Fora do escopo");
+    expect(ws.rowCount).toBe(5);
+    expect(ws.getRow(4).getCell(7).value).toBe("Fora do escopo (sem data de movimentação, tratado como anterior a 01/01/2025)");
+    const texto = []; lido.getWorksheet("Resumo").eachRow((x) => texto.push(x.values.slice(1).join(" | ")));
+    expect(texto.some((t) => t.includes("desconsiderar itens não movimentados desde 01/01/2025; itens sem data de movimentação tratados como anteriores à data"))).toBe(true);
+  });
+});

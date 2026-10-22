@@ -7,7 +7,7 @@ import { RELACOES, criarSituacao, descricaoRelacao, gerarRelacao, itensDaRelacao
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Relação de itens de um cartão da triagem (universo, fora do escopo, em escopo, sem data legível), com filtro e Excel do que está na tela. */
-export default function RelacaoTriagem({ id, itens, escopo, corte, nomeProjeto, nomeBase, slug }) {
+export default function RelacaoTriagem({ id, itens, escopo, corte, semDataFora, nomeProjeto, nomeBase, slug }) {
   const [filtro, setFiltro] = useState("");
   const [mostrar, setMostrar] = useState(50);
   const [gerando, setGerando] = useState(false);
@@ -24,7 +24,7 @@ export default function RelacaoTriagem({ id, itens, escopo, corte, nomeProjeto, 
   const emitir = async () => {
     setGerando(true); setMsg("");
     try {
-      await gerarRelacao({ id, lista, escopo, corte, nomeProjeto, nomeBase, filtro: filtro.trim() }, `${slug}-${rel.arquivo}.xlsx`);
+      await gerarRelacao({ id, lista, escopo, corte, semDataFora, nomeProjeto, nomeBase, filtro: filtro.trim() }, `${slug}-${rel.arquivo}.xlsx`);
       setMsg(`Planilha emitida com ${fmt(lista.length)} ${lista.length === 1 ? "item" : "itens"}.`);
     } catch (e) { setMsg(`Não foi possível emitir a planilha: ${e.message}`); } finally { setGerando(false); }
   };
@@ -34,7 +34,7 @@ export default function RelacaoTriagem({ id, itens, escopo, corte, nomeProjeto, 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-medium">Relação: {rel.titulo} <span className="text-sm text-muted-foreground tabular-nums">({fmt(base.length)})</span></h3>
-          <p className="text-xs text-muted-foreground">{descricaoRelacao(id, corte)}</p>
+          <p className="text-xs text-muted-foreground">{descricaoRelacao(id, corte, semDataFora)}</p>
         </div>
         <Botao disabled={gerando || lista.length === 0} onClick={emitir}>
           {gerando ? <Loader2 className="w-3.5 h-3.5 inline mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 inline mr-1" />}Emitir Excel ({fmt(lista.length)})

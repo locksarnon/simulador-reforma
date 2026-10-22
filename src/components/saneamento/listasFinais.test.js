@@ -58,6 +58,26 @@ describe("listas finais do saneamento", () => {
     expect(aprovada.analises.filter((a) => a.criterio === "Duplicidade").length).toBeGreaterThan(0);
     expect(aprovada.resumo.map((x) => x.join(" | ")).some((x) => x.includes("Duplicidade | aprovado por ana em 20/10/2026"))).toBe(true);
   });
+  it("com os sem data tratados como anteriores à data, entram nos inativados com o critério próprio e o resumo conta", () => {
+    const sem = [...itens, item(6, "E1", "ITEM SEM DATA", null)];
+    const e = { ...estado, params: { desde: "2025-01-01", semData: "anterior" } };
+    const escopo = aplicarEscopo(sem, e.params);
+    const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens: sem, escopo, testes: criarTestes(escopo.emEscopo, e) });
+    expect(l.inativados.map((i) => [i.codigo, i.criterio])).toEqual([["B1", "não movimentado desde 01/01/2025"], ["E1", "sem data de movimentação, tratado como anterior a 01/01/2025"]]);
+    const resumo = l.resumo.map((x) => x.join(" | "));
+    expect(resumo.some((x) => x.includes("desconsiderar itens não movimentados desde 01/01/2025; itens sem data de movimentação tratados como anteriores à data"))).toBe(true);
+    expect(resumo).toContain("Itens sem data de movimentação legível | 1"); expect(resumo).toContain("  Mantidos no escopo (sinalizados) | 0"); expect(resumo).toContain("  Tratados como anteriores à data (fora do escopo) | 1");
+    expect(l.contagem).toMatchObject({ semData: 1, semDataFora: 1, semDataEmEscopo: 0, inativados: 2 });
+  });
+  it("sem a opção, o item sem data continua em escopo, sinalizado, e o resumo conta", () => {
+    const sem = [...itens, item(6, "E1", "ITEM SEM DATA", null)];
+    const escopo = aplicarEscopo(sem, estado.params);
+    const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens: sem, escopo, testes: criarTestes(escopo.emEscopo, estado) });
+    expect(l.inativados.map((i) => i.codigo)).toEqual(["B1"]);
+    const resumo = l.resumo.map((x) => x.join(" | "));
+    expect(resumo).toContain("  Mantidos no escopo (sinalizados) | 1"); expect(resumo).toContain("  Tratados como anteriores à data (fora do escopo) | 0");
+    expect(resumo.some((x) => x.includes("tratados como anteriores à data") && x.startsWith("Parâmetro"))).toBe(false);
+  });
   it("projeto salvo com o corte no formato antigo gera as mesmas listas", () => {
     const antigo = { ...estado, params: { ateOn: true, ate: "2024-12-31", diasOn: false, dias: 540, dataBase: "2026-10-22" } };
     const l = base(antigo);

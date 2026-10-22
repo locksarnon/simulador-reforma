@@ -11,12 +11,12 @@ export const RELACOES = {
 };
 
 /** O que a relação reúne, em uma frase. `corte` é a data do parâmetro de saneamento em DD/MM/AAAA ("" = sem corte). */
-export function descricaoRelacao(id, corte) {
+export function descricaoRelacao(id, corte, semDataFora = false) {
   switch (id) {
     case "universo": return "Todos os itens da base importada.";
-    case "fora": return corte ? `Itens não movimentados desde ${corte}: ficam fora do trabalho.` : "Sem corte definido: nenhum item fica fora do trabalho.";
-    case "emEscopo": return "Itens que entram no trabalho (inclui os sem data de movimentação legível).";
-    default: return "Itens sem data de última movimentação legível: continuam no escopo, sinalizados.";
+    case "fora": return corte ? `Itens não movimentados desde ${corte}${semDataFora ? ", inclusive os sem data de movimentação (tratados como anteriores à data)" : ""}: ficam fora do trabalho.` : "Sem corte definido: nenhum item fica fora do trabalho.";
+    case "emEscopo": return semDataFora ? "Itens que entram no trabalho." : "Itens que entram no trabalho (inclui os sem data de movimentação legível).";
+    default: return semDataFora ? `Itens sem data de última movimentação legível: tratados como anteriores a ${corte}, ficam fora do escopo.` : "Itens sem data de última movimentação legível: continuam no escopo, sinalizados.";
   }
 }
 
@@ -29,10 +29,12 @@ export function itensDaRelacao(id, itens, escopo) {
   return itens.filter((it) => semData.has(it.linha));
 }
 
-/** Função que diz a situação de um item no escopo: fora (com a data do corte), em escopo sem data legível, ou em escopo. */
+/** Função que diz a situação de um item no escopo: fora (pelo corte ou, sem data, por ser tratado como anterior a ele), em escopo sem data legível, ou em escopo. */
 export function criarSituacao(escopo, corte) {
   const fora = new Set(escopo.fora.map((it) => it.linha)); const semData = new Set(escopo.semData);
-  return (it) => (fora.has(it.linha) ? `Fora do escopo (não movimentado desde ${corte})` : semData.has(it.linha) ? "Em escopo, sem data de movimentação legível" : "Em escopo");
+  return (it) => (fora.has(it.linha)
+    ? (semData.has(it.linha) ? `Fora do escopo (sem data de movimentação, tratado como anterior a ${corte})` : `Fora do escopo (não movimentado desde ${corte})`)
+    : semData.has(it.linha) ? "Em escopo, sem data de movimentação legível" : "Em escopo");
 }
 
 export const COLUNAS_RELACAO = [
@@ -50,7 +52,7 @@ export function linhasRelacao(lista, escopo, corte) {
 }
 
 /** Monta o workbook da relação (separado do download para poder ser testado): a lista e uma aba de resumo. */
-export function criarWorkbookRelacao(ExcelJS, { id, lista, escopo, corte, nomeProjeto, nomeBase, filtro = "" }) {
+export function criarWorkbookRelacao(ExcelJS, { id, lista, escopo, corte, nomeProjeto, nomeBase, filtro = "", semDataFora = false }) {
   const wb = new ExcelJS.Workbook(); wb.created = new Date();
   const ws = wb.addWorksheet(RELACOES[id].titulo);
   ws.columns = COLUNAS_RELACAO.map(([titulo, chave, largura]) => ({ header: titulo, key: chave, width: largura }));
@@ -60,9 +62,9 @@ export function criarWorkbookRelacao(ExcelJS, { id, lista, escopo, corte, nomePr
   const resumo = wb.addWorksheet("Resumo");
   resumo.columns = [{ width: 32 }, { width: 90 }];
   [
-    ["Relação", RELACOES[id].titulo], ["O que reúne", descricaoRelacao(id, corte)], ...(filtro ? [["Filtro aplicado na tela", filtro]] : []),
+    ["Relação", RELACOES[id].titulo], ["O que reúne", descricaoRelacao(id, corte, semDataFora)], ...(filtro ? [["Filtro aplicado na tela", filtro]] : []),
     ["Itens nesta planilha", lista.length], ["Projeto", nomeProjeto || ""], ["Base importada", nomeBase || ""],
-    ["Parâmetro de saneamento", corte ? `desconsiderar itens não movimentados desde ${corte}` : "sem corte"], ["Gerado em", new Date().toLocaleString("pt-BR")],
+    ["Parâmetro de saneamento", corte ? `desconsiderar itens não movimentados desde ${corte}${semDataFora ? "; itens sem data de movimentação tratados como anteriores à data" : ""}` : "sem corte"], ["Gerado em", new Date().toLocaleString("pt-BR")],
     ["Atenção", "Relação para conferência: nenhum cadastro foi alterado por esta ferramenta."],
   ].forEach((l) => resumo.addRow(l));
   resumo.getColumn(1).font = { bold: true };

@@ -11,7 +11,7 @@ describe("parâmetro de saneamento: não movimentados desde a data", () => {
     const r = aplicarEscopo(itens, { desde: "2024-10-21" });
     expect(linhas(r.fora)).toEqual([2, 3]);
     expect(linhas(r.emEscopo)).toEqual([4, 5, 6]);
-    expect(r.resumo).toEqual({ total: 5, fora: 2, emEscopo: 3, semData: 1 });
+    expect(r.resumo).toEqual({ total: 5, fora: 2, emEscopo: 3, semData: 1, semDataFora: 0, semDataIgnorada: false });
   });
   it("sem data, nada sai do escopo", () => {
     expect(aplicarEscopo(itens, { desde: "" }).resumo.fora).toBe(0);
@@ -27,29 +27,29 @@ describe("parâmetro de saneamento: não movimentados desde a data", () => {
     expect(dataDoCorte({ desde: "2025-01-01" })).toBe("01/01/2025"); expect(dataDoCorte({ desde: "" })).toBe(""); expect(dataDoCorte(undefined)).toBe("");
   });
   it("projeto salvo com os dois cortes antigos vira uma data só: 'movimentados até X' = 'não movimentados desde X + 1 dia'", () => {
-    expect(normalizarParams({ ateOn: true, ate: "2024-10-20", diasOn: false, dias: 540, dataBase: "2026-10-22" })).toEqual({ desde: "2024-10-21" });
+    expect(normalizarParams({ ateOn: true, ate: "2024-10-20", diasOn: false, dias: 540, dataBase: "2026-10-22" })).toEqual({ desde: "2024-10-21", semData: "manter" });
     expect(linhas(aplicarEscopo(itens, { ateOn: true, ate: "2024-10-20" }).fora)).toEqual([2, 3]); // mesmo resultado de antes
     expect(linhas(aplicarEscopo(itens, { ateOn: true, ate: "2024-10-21" }).fora)).toEqual([2, 3, 4]);
-    expect(normalizarParams({ ateOn: true, ate: "2024-02-28" })).toEqual({ desde: "2024-02-29" }); // ano bissexto
+    expect(normalizarParams({ ateOn: true, ate: "2024-02-28" })).toEqual({ desde: "2024-02-29", semData: "manter" }); // ano bissexto
   });
   it("'parado há mais de N dias' antigo vira a data (data-base − N dias); com os dois cortes vale o mais recente", () => {
-    expect(normalizarParams({ diasOn: true, dias: 365, dataBase: "2026-10-22" })).toEqual({ desde: "2025-10-22" });
+    expect(normalizarParams({ diasOn: true, dias: 365, dataBase: "2026-10-22" })).toEqual({ desde: "2025-10-22", semData: "manter" });
     expect(linhas(aplicarEscopo(itens, { diasOn: true, dias: 365, dataBase: "2026-10-22" }).fora)).toEqual([2, 3, 4]);
-    expect(normalizarParams({ ateOn: true, ate: "2024-10-20", diasOn: true, dias: 365, dataBase: "2026-10-22" })).toEqual({ desde: "2025-10-22" });
-    expect(normalizarParams({ ateOn: true, ate: "2026-06-30", diasOn: true, dias: 365, dataBase: "2026-10-22" })).toEqual({ desde: "2026-07-01" });
+    expect(normalizarParams({ ateOn: true, ate: "2024-10-20", diasOn: true, dias: 365, dataBase: "2026-10-22" })).toEqual({ desde: "2025-10-22", semData: "manter" });
+    expect(normalizarParams({ ateOn: true, ate: "2026-06-30", diasOn: true, dias: 365, dataBase: "2026-10-22" })).toEqual({ desde: "2026-07-01", semData: "manter" });
   });
   it("o estado que estava salvo na tela (0 dias, data-base 01/01/2025) vira 'não movimentados desde 01/01/2025'", () => {
-    expect(normalizarParams({ ateOn: false, ate: "", diasOn: true, dias: 0, dataBase: "2025-01-01" })).toEqual({ desde: "2025-01-01" });
+    expect(normalizarParams({ ateOn: false, ate: "", diasOn: true, dias: 0, dataBase: "2025-01-01" })).toEqual({ desde: "2025-01-01", semData: "manter" });
   });
   it("corte antigo marcado mas incompleto ou inválido é ignorado, como antes", () => {
-    expect(normalizarParams({ ateOn: true, ate: "" })).toEqual({ desde: "" });
-    expect(normalizarParams({ diasOn: true, dias: -3, dataBase: "2026-10-22" })).toEqual({ desde: "" });
-    expect(normalizarParams({ diasOn: true, dias: "x", dataBase: "2026-10-22" })).toEqual({ desde: "" });
-    expect(normalizarParams({ diasOn: true, dias: 30, dataBase: "lixo" })).toEqual({ desde: "" });
-    expect(normalizarParams(null)).toEqual({ desde: "" }); expect(normalizarParams({ ateOn: false, diasOn: false })).toEqual({ desde: "" });
+    expect(normalizarParams({ ateOn: true, ate: "" })).toEqual({ desde: "", semData: "manter" });
+    expect(normalizarParams({ diasOn: true, dias: -3, dataBase: "2026-10-22" })).toEqual({ desde: "", semData: "manter" });
+    expect(normalizarParams({ diasOn: true, dias: "x", dataBase: "2026-10-22" })).toEqual({ desde: "", semData: "manter" });
+    expect(normalizarParams({ diasOn: true, dias: 30, dataBase: "lixo" })).toEqual({ desde: "", semData: "manter" });
+    expect(normalizarParams(null)).toEqual({ desde: "", semData: "manter" }); expect(normalizarParams({ ateOn: false, diasOn: false })).toEqual({ desde: "", semData: "manter" });
   });
   it("formato novo passa como está", () => {
-    expect(normalizarParams({ desde: "2025-03-01" })).toEqual({ desde: "2025-03-01" });
+    expect(normalizarParams({ desde: "2025-03-01" })).toEqual({ desde: "2025-03-01", semData: "manter" });
   });
 });
 
@@ -76,5 +76,35 @@ describe("testes por critério e saneamento do grupo", () => {
     expect(t.ncm(it1).achado).toBe(true); expect(t.ncm(it2).achado).toBe(false);
     expect(t.duplicidade(it2).achado).toBe(true);
     expect(t.utilizacao(it3).achado).toBe(true); expect(t.utilizacao(it1).achado).toBe(false);
+  });
+});
+
+describe("itens sem data de movimentação: manter no escopo ou tratar como anteriores à data", () => {
+  const itens = [item(2, "2023-05-01"), item(3, "2025-06-10"), item(4, null), item(5, null)];
+  const linhas = (l) => l.map((i) => i.linha);
+  it("por padrão ficam no escopo, sinalizados", () => {
+    const r = aplicarEscopo(itens, { desde: "2025-01-01" });
+    expect(linhas(r.fora)).toEqual([2]); expect(linhas(r.emEscopo)).toEqual([3, 4, 5]); expect(r.semData).toEqual([4, 5]);
+    expect(r.resumo).toMatchObject({ semData: 2, semDataFora: 0, semDataIgnorada: false });
+  });
+  it("tratados como anteriores à data, saem junto, e a lista de sem data continua com todos", () => {
+    const r = aplicarEscopo(itens, { desde: "2025-01-01", semData: "anterior" });
+    expect(linhas(r.fora)).toEqual([2, 4, 5]); expect(linhas(r.emEscopo)).toEqual([3]); expect(r.semData).toEqual([4, 5]);
+    expect(r.resumo).toEqual({ total: 4, fora: 3, emEscopo: 1, semData: 2, semDataFora: 2, semDataIgnorada: false });
+  });
+  it("a opção só vale com uma data de corte", () => {
+    const r = aplicarEscopo(itens, { desde: "", semData: "anterior" });
+    expect(r.fora).toEqual([]); expect(r.emEscopo).toHaveLength(4); expect(r.resumo.semDataFora).toBe(0);
+  });
+  it("base sem nenhuma data: a opção é ignorada, para a base inteira não sair do escopo", () => {
+    const sem = [item(2, null), item(3, null)];
+    const r = aplicarEscopo(sem, { desde: "2025-01-01", semData: "anterior" });
+    expect(r.fora).toEqual([]); expect(r.emEscopo).toHaveLength(2); expect(r.resumo).toMatchObject({ semDataFora: 0, semDataIgnorada: true });
+  });
+  it("normalizarParams: valor desconhecido vira manter, e projeto antigo vem como manter", () => {
+    expect(normalizarParams({ desde: "2025-01-01", semData: "qualquer" }).semData).toBe("manter");
+    expect(normalizarParams({ desde: "2025-01-01", semData: "anterior" })).toEqual({ desde: "2025-01-01", semData: "anterior" });
+    expect(normalizarParams({ ateOn: true, ate: "2024-10-20" })).toEqual({ desde: "2024-10-21", semData: "manter" });
+    expect(normalizarParams({ semData: "anterior" })).toEqual({ desde: "", semData: "anterior" });
   });
 });

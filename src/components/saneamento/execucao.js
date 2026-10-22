@@ -76,7 +76,7 @@ export function gerarTarefas({ decisoes, tipos, itens, escopo, params }) {
     } else nova("outro", k, it, d.grupo, { criterio: tituloCriterio(crit) });
   }
   const corte = dataDoCorte(params);
-  for (const it of escopo?.fora || []) nova("inativacao", `${it.linha}|inativacao`, it, null, { corte: `não movimentado desde ${corte}`, ultimaMov: it.ultima_mov });
+  for (const it of escopo?.fora || []) nova("inativacao", `${it.linha}|inativacao`, it, null, { corte: it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`, ultimaMov: it.ultima_mov });
   const geradasPorTipo = {};
   for (const t of brutas) geradasPorTipo[t.tipo] = (geradasPorTipo[t.tipo] || 0) + 1;
   const tarefas = brutas.filter((t) => cfg[t.tipo].incluir).map((t) => {
