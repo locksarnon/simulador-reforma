@@ -1,10 +1,11 @@
-// Listas finais do saneamento: lista final corrigida, desduplicações, análises e itens inativados por data de uso.
+// Listas finais do saneamento: lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução (tarefas e confirmações).
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
 import { dataBr, dataDoCorte, grupoDe } from "./logica";
 import { calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } from "./analise";
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
+import { COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, LARGURAS_FRENTE, ROT_SITUACAO_GERAL, gerarTarefas, linhasExecucao, resumoExecucao, situacaoPorLinha } from "./execucao";
 
 const ROT_STATUS = { PROP: "Proposto (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
@@ -39,6 +40,10 @@ export function unificacoesAprovadas(estado, itens) {
 export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, testes }) {
   const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
   const uni = unificacoesAprovadas(estado, itens);
+  // Execução: tarefas das decisões aprovadas (e dos itens inativados) e a confirmação de cada frente, conciliadas com a evidência
+  const { tarefas } = gerarTarefas({ decisoes: estado?.decisoes, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params });
+  const registros = estado?.execucao?.registros || {};
+  const situacaoItem = situacaoPorLinha(tarefas, registros);
   const saemPorUnificacao = new Set(uni.filter((u) => u.d.status === "APR" && u.destinoLinha != null && u.destinoLinha !== u.origem.linha).map((u) => u.origem.linha));
 
   // 1) Lista final corrigida: itens em escopo que permanecem, com a descrição final aprovada
@@ -55,7 +60,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
       mudanca: [aplicada && aplicada !== it.descricao ? "Descrição corrigida" : "", unidade ? "Unidade de estoque ajustada" : ""].filter(Boolean).join(" + ") || "Mantido",
       origem: dp && dp.status === "APR" ? (dp.origemFinal === "cliente" ? "Ajustada pelo cliente" : "Sugestão aprovada") : "",
       unidade: it.unidade, unidadeProposta: unidade ? unidade.para : "", unidadeCompra: conversao ? unidade.de : "", itensPorCompra: conversao ? (fatorDaDecisao(unidade) ?? "a informar") : "",
-      grupo: grupoDe(it), ncm: it.ncm || it.ncm_original || "", ultima_mov: dataBr(it.ultima_mov),
+      grupo: grupoDe(it), ncm: it.ncm || it.ncm_original || "", ultima_mov: dataBr(it.ultima_mov), execucao: ROT_SITUACAO_GERAL[situacaoItem.get(it.linha)] || "",
     });
   }
 
@@ -91,7 +96,9 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
     codigo: it.codigo, descricao: it.descricao, unidade: it.unidade, grupo: grupoDe(it), ultima_mov: dataBr(it.ultima_mov), criterio: `não movimentado desde ${corte}`,
   }));
 
+  const execucao = linhasExecucao(tarefas, registros); const rex = resumoExecucao(tarefas, registros);
   const contagem = {
+    tarefas: rex.total, concluidas: rex.CONCLUIDA, emAndamento: rex.EM_ANDAMENTO, pendentes: rex.PENDENTE, divergencias: rex.DIVERGENCIA,
     universo: itens.length, emEscopo: escopo.emEscopo.length, inativados: inativados.length, semData: escopo.semData.length,
     unificacoesAprovadas: desduplicacoes.filter((x) => x.decisao === "Aprovado" && x.acao.startsWith("Unificar")).length,
     unificacoesPendentes: desduplicacoes.filter((x) => x.decisao.startsWith("Proposto")).length,
@@ -105,20 +112,22 @@ export function montarListas({ nomeProjeto, nomeBase, estado, itens, escopo, tes
     ["Universo (códigos)", contagem.universo], ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Em escopo sem data de movimentação legível", contagem.semData],
     ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
+    ["Tarefas de execução (decisões aprovadas e itens inativados)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],
     ["Critérios aprovados", aprovados.length ? "" : "nenhum"],
     ...aprovados.map((c) => [`  ${c.titulo}`, situacaoCriterio(estado, c, contagemCriterios) === "AUTO" ? "aprovado automaticamente (sem achados na base)" : `aprovado por ${estado.criterios[c.id]?.por || "—"} em ${dataBr(estado.criterios[c.id]?.em)}`]),
     ["", ""],
     ["Atenção", "Estas listas refletem as decisões registradas no sistema. A execução no SAP e no físico é conferida nos passos de execução e conferência; nenhum cadastro foi alterado por esta ferramenta."],
   ];
-  return { resumo, finalCorrigida, desduplicacoes, analises, inativados, contagem };
+  return { resumo, finalCorrigida, desduplicacoes, analises, inativados, execucao, contagem };
 }
 
 const ABAS = {
   resumo: { nome: "Resumo" },
-  final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade de estoque (atual)", "unidade", 16], ["Unidade de estoque (proposta)", "unidadeProposta", 18], ["Unidade de compra (proposta)", "unidadeCompra", 18], ["Itens por unidade de compra", "itensPorCompra", 16], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16]], fonte: "finalCorrigida" },
+  final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade de estoque (atual)", "unidade", 16], ["Unidade de estoque (proposta)", "unidadeProposta", 18], ["Unidade de compra (proposta)", "unidadeCompra", 18], ["Itens por unidade de compra", "itensPorCompra", 16], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16], ["Execução", "execucao", 18]], fonte: "finalCorrigida" },
   dedup: { nome: "Desduplicações", colunas: [["Grupo", "grupo", 28], ["Código de origem", "codigoOrigem", 14], ["Descrição de origem", "descricaoOrigem", 44], ["Unidade", "unidadeOrigem", 10], ["Ação", "acao", 26], ["Código mantido", "codigoDestino", 14], ["Descrição do mantido", "descricaoDestino", 44], ["Indicação", "nivel", 16], ["Pontuação de similaridade", "similaridade", 14], ["Motivos", "motivos", 50], ["Decisão", "decisao", 22], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "desduplicacoes" },
   analises: { nome: "Análises", colunas: [["Critério", "criterio", 26], ["Grupo", "grupo", 28], ["Código", "codigo", 14], ["Descrição", "descricao", 44], ["Achado", "achado", 60], ["Proposta", "proposta", 44], ["Decisão", "decisao", 24], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "analises" },
   inativados: { nome: "Inativados por data de uso", colunas: [["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["Última movimentação", "ultima_mov", 16], ["Critério de corte", "criterio", 50]], fonte: "inativados" },
+  execucao: { nome: "Execução", colunas: COLUNAS_EXECUCAO, fonte: "execucao" },
 };
 export const ABAS_DISPONIVEIS = Object.entries(ABAS).map(([id, a]) => ({ id, nome: a.nome }));
 
@@ -158,5 +167,27 @@ export async function gerarListaCliente(linhas, nomeArquivo) {
   const instr = wb.addWorksheet("Como responder");
   instr.columns = [{ width: 110 }];
   ["Para cada linha: se concordar com a descrição sugerida, escreva OK na coluna de resposta.", "Se não concordar, escreva na coluna 'Como deve ficar' a descrição que deseja. Não precisa preencher a resposta.", "Se quiser manter a descrição atual, escreva NÃO.", "Linhas sem resposta continuam aguardando. Não altere a coluna Código.", "Nenhuma alteração é feita no cadastro por esta planilha: ela só registra a decisão."].forEach((t) => instr.addRow([t]));
+  baixarXlsx(await wb.xlsx.writeBuffer(), nomeArquivo);
+}
+
+/** Planilha de uma frente (administrativo ou almoxarifado): as tarefas a executar, com as colunas de resposta em branco e a aba de instruções. */
+export async function gerarListaFrente(frente, linhas, nomeArquivo) {
+  const ExcelJS = await carregarExcelJS();
+  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet(`Tarefas - ${FRENTES[frente]}`.slice(0, 31));
+  ws.columns = COLUNAS_FRENTE[frente].map((h, i) => ({ header: h, key: "c" + i, width: LARGURAS_FRENTE[frente][i] }));
+  ws.addRows(linhas);
+  ws.getRow(1).font = { bold: true }; ws.getRow(1).alignment = { wrapText: true, vertical: "top" }; ws.views = [{ state: "frozen", ySplit: 1 }];
+  ws.getColumn(7).alignment = { wrapText: true, vertical: "top" }; // "O que fazer"
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUNAS_FRENTE[frente].length } };
+  const instr = wb.addWorksheet("Como responder");
+  instr.columns = [{ width: 110 }];
+  [
+    "Para cada linha: escreva FEITO quando a tarefa estiver concluída e informe a evidência (número do documento no SAP, foto, etiqueta ou link).",
+    "Se não foi possível concluir, escreva DIVERGÊNCIA e explique na observação.",
+    "FEITO sem evidência não conta como concluído: a tarefa continua pendente.",
+    ...(frente === "alm" ? ["Almoxarifado: informe também o endereço de origem, o endereço de destino e a quantidade realocada."] : []),
+    "Não altere a coluna ID da tarefa. Linhas sem resposta continuam pendentes.",
+    "Nenhuma alteração é feita no SAP nem no físico por esta planilha: ela só registra a confirmação.",
+  ].forEach((t) => instr.addRow([t]));
   baixarXlsx(await wb.xlsx.writeBuffer(), nomeArquivo);
 }

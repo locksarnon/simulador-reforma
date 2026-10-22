@@ -167,3 +167,45 @@ describe("listas finais: unidade de estoque (menor unidade, com a unidade maior 
     expect(t1).toEqual(expect.arrayContaining(["TONELADA", "QUILOGRAM", 1000]));
   });
 });
+
+describe("listas finais: execução (administrativo e almoxarifado)", () => {
+  const aprov = (extra) => ({ acao: "ENC", status: "APR", grupo: "Peças", decididoPor: "ana", decididoEm: "2026-10-21", ...extra });
+  const estadoE = (registros = {}) => ({
+    params: { desde: "2025-01-01" }, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
+    decisoes: { "2|duplicidade": aprov({ destino: 3 }), "5|padrao": aprov({ sugerida: "CORREIA A72", final: "CORREIA A-72 TRAPEZOIDAL" }) },
+    execucao: { tipos: {}, registros },
+  });
+  const ok = (e) => ({ status: "FEITO", evidencia: e, por: "ana", em: "2026-10-22" });
+  it("as tarefas saem das decisões aprovadas e dos itens inativados, e a aba Execução mostra a confirmação de cada frente", () => {
+    const l = base(estadoE({ "2|duplicidade": { adm: ok("SAP 1"), alm: ok("foto 2") } }));
+    expect(l.execucao.map((x) => x.tarefa)).toEqual(["Unificar códigos duplicados", "Corrigir descrição", "Inativar item sem movimento"]);
+    expect(l.execucao[0]).toMatchObject({ codigo: "A1", adm: "Confirmado", evidAdm: "SAP 1", alm: "Confirmado", situacao: "Concluída" });
+    expect(l.execucao[1]).toMatchObject({ codigo: "C1", adm: "Pendente", alm: "Não se aplica", situacao: "Pendente" });
+    expect(l.execucao[2]).toMatchObject({ codigo: "B1", tarefa: "Inativar item sem movimento" });
+    expect(l.contagem).toMatchObject({ tarefas: 3, concluidas: 1, pendentes: 2, emAndamento: 0, divergencias: 0 });
+  });
+  it("a lista final corrigida diz a situação da execução de cada item, e o resumo conta as tarefas", () => {
+    const l = base(estadoE({ "5|padrao": { adm: { status: "DIV", obs: "já alterada" } } }));
+    expect(l.finalCorrigida.find((i) => i.codigo === "C1").execucao).toBe("Com divergência");
+    expect(l.finalCorrigida.find((i) => i.codigo === "A2").execucao).toBe(""); // sem tarefa
+    const resumo = l.resumo.map((x) => x.join(" | "));
+    expect(resumo.some((x) => x.startsWith("Tarefas de execução (decisões aprovadas e itens inativados) | 3"))).toBe(true);
+    expect(resumo.some((x) => x.startsWith("  Com divergência | 1"))).toBe(true);
+  });
+  it("tirar um tipo da execução tira as tarefas dele da aba e do resumo", () => {
+    const e = estadoE(); e.execucao.tipos = { inativacao: { incluir: false } };
+    expect(base(e).execucao.map((x) => x.codigo)).toEqual(["A1", "C1"]);
+    expect(base(e).contagem.tarefas).toBe(2);
+  });
+  it("a planilha do pacote completo tem a aba Execução e a coluna na lista final", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const { criarWorkbook } = await import("./listasFinais");
+    const wb = criarWorkbook(ExcelJS, base(estadoE({ "2|duplicidade": { adm: ok("SAP 1") } })), ["final", "execucao"]);
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
+    expect(lido.worksheets.map((w) => w.name)).toEqual(["Lista final corrigida", "Execução"]);
+    expect(lido.getWorksheet("Lista final corrigida").getRow(1).values.slice(1)).toContain("Execução");
+    const ex = lido.getWorksheet("Execução"); expect(ex.rowCount).toBe(4);
+    expect(ex.getRow(1).values.slice(1)).toEqual(expect.arrayContaining(["Lote (grupo)", "Administrativo", "Almoxarifado", "Situação da tarefa"]));
+    expect(ex.getRow(2).getCell(6).value).toBe("Confirmado"); // administrativo da unificação
+  });
+});

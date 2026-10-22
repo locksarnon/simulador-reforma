@@ -9,6 +9,8 @@ import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparP
 import { achadosDe, calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } from "./analise";
 import { AbasCriterios, AcaoAprovacao, SelosCriterio } from "./CriterioUi";
 import PassoAnalises from "./PassoAnalises";
+import PassoExecucao from "./PassoExecucao";
+import { gerarTarefas, resumoExecucao } from "./execucao";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
@@ -22,15 +24,15 @@ const PASSOS = [
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
   { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, critica cada um (encaminha ou não) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aprovados foram tratados nele.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
   { t: "De/para", programa: "As propostas encaminhadas viram decisões rastreáveis. Ausência de resposta não é aprovação.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data." },
-  { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências.", proxima: true },
-  { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises e itens inativados por data de uso) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
+  { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências." },
+  { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
   { t: "Fiscal", programa: "Cada grupo saneado e conferido é liberado para a revisão fiscal: NCM, CST IBS/CBS e cClassTrib por operação (produtos) e NBS/LC 116 (serviços).", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências.", proxima: true },
   { t: "Política", programa: "Procedimentos para criar, comprar, usar, padronizar e descontinuar itens, a partir dos critérios aprovados e das causas encontradas.", avancar: "Política aprovada, com responsáveis e controles registrados.", proxima: true },
 ];
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} } });
+const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} } });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -82,6 +84,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao, estado?.politicaUnidade]);
   const achados = useMemo(() => (validacaoId ? calcularAchados(escopo.emEscopo, testes) : {}), [validacaoId, escopo, testes]);
   const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length) : null), [validacaoId, achados, escopo]);
+  const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: estado?.decisoes, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, estado?.decisoes, estado?.execucao?.tipos, estado?.params, itens, escopo]);
+  const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, estado?.execucao?.registros), [execGerada, estado?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
   const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras]);
@@ -254,6 +258,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       onComparar={setComparativo} onIrCriterios={() => irPara(1)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio} />
   );
 
+  // ── Passo 6: Execução (realocações físicas) ──
+  const execucao = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para preparar a execução.</p> : (
+    <PassoExecucao estado={estado} setEstado={setEstado} tarefas={execGerada.tarefas} geradasPorTipo={execGerada.geradasPorTipo} resumo={resumoEx} quem={quem} slug={slug}
+      pilotoTestados={CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length} pilotoTotal={CASOS_PILOTO.length} />
+  );
+
   // ── Passo 5: De/para (decisões) ──
   const decidir = (ks, status) => setEstado((e) => { const d = { ...e.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP" && !(status === "APR" && precisaFator(d[k]))) d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); return { ...e, decisoes: d }; });
   // O fator digitado vale mais que o sugerido; apagar o campo volta a "a informar" (e impede a aprovação).
@@ -314,19 +324,20 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const baixar = async (ids, sufixo) => { if (!listas) return; setGerando(true); try { await gerarXlsx(listas, ids, `${slug}-${sufixo}.xlsx`); } finally { setGerando(false); } };
   const conferencia = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para emitir as listas.</p> : !listas ? <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Montando as listas…</p> : (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-        {[["Universo", listas.contagem.universo], ["Lista final", listas.contagem.listaFinal], ["Descrições corrigidas", listas.contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas", listas.contagem.unidadesAjustadas], ["Unificações aprovadas", listas.contagem.unificacoesAprovadas], ["Unificações em decisão", listas.contagem.unificacoesPendentes], ["Inativados por data de uso", listas.contagem.inativados]].map(([l, v]) => (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[["Universo", listas.contagem.universo], ["Lista final", listas.contagem.listaFinal], ["Descrições corrigidas", listas.contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas", listas.contagem.unidadesAjustadas], ["Unificações aprovadas", listas.contagem.unificacoesAprovadas], ["Unificações em decisão", listas.contagem.unificacoesPendentes], ["Inativados por data de uso", listas.contagem.inativados], [`Tarefas concluídas (de ${fmt(listas.contagem.tarefas)})`, listas.contagem.concluidas]].map(([l, v]) => (
           <div key={l} className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p></div>))}
       </div>
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h3 className="font-medium">Listas finais</h3>
-        <p className="text-xs text-muted-foreground">Cada lista sai em planilha Excel e reflete as decisões registradas aqui. A execução no SAP e no físico é conferida nos passos próprios; nenhum cadastro é alterado por esta ferramenta.</p>
+        <p className="text-xs text-muted-foreground">Cada lista sai em planilha Excel e reflete as decisões registradas aqui. A execução no SAP e no físico aparece conforme as confirmações com evidência registradas no passo Execução; nenhum cadastro é alterado por esta ferramenta.</p>
         <div className="flex flex-wrap gap-2">
-          <Botao disabled={gerando} onClick={() => baixar(["resumo", "final", "dedup", "analises", "inativados"], "listas-finais")}><Download className="w-3.5 h-3.5 inline mr-1" />Pacote completo (5 abas)</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["resumo", "final", "dedup", "analises", "inativados", "execucao"], "listas-finais")}><Download className="w-3.5 h-3.5 inline mr-1" />Pacote completo (6 abas)</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["final"], "lista-final-corrigida")}>Lista final corrigida ({fmt(listas.contagem.listaFinal)})</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["dedup"], "desduplicacoes")}>Desduplicações ({fmt(listas.desduplicacoes.length)})</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["analises"], "analises")}>Análises ({fmt(listas.contagem.achados)})</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["inativados"], "inativados-por-data-de-uso")}>Inativados por data de uso ({fmt(listas.contagem.inativados)})</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["execucao"], "execucao")}>Execução ({fmt(listas.contagem.tarefas)})</Botao>
         </div>
         {gerando && <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Gerando a planilha…</p>}
       </div>
@@ -341,7 +352,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     </div>
   );
 
-  const corpo = [triagem, criterios, piloto, analises, depara, proxima, conferencia][passo] ?? proxima;
+  const corpo = [triagem, criterios, piloto, analises, depara, execucao, conferencia][passo] ?? proxima;
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => estado.saneados[g.nome]).length;
@@ -354,7 +365,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     { feito: nPil === CASOS_PILOTO.length, sub: `${nPil}/${CASOS_PILOTO.length} testados` },
     { feito: nGrupos > 0 && nSan === nGrupos, sub: nGrupos ? `${nSan}/${nGrupos} grupos` : "sem base" },
     { feito: nDec > 0 && nDecFeitas === nDec, sub: nDec ? `${nDecFeitas}/${nDec} decididos` : "sem casos" },
-    { sub: "em breve" }, { sub: "listas finais" },
+    { feito: resumoEx.total > 0 && resumoEx.CONCLUIDA === resumoEx.total, sub: resumoEx.total ? `${fmt(resumoEx.CONCLUIDA)}/${fmt(resumoEx.total)} concluídas` : "sem tarefas" }, { sub: "listas finais" },
     { sub: nSan ? plural(nSan, "grupo liberado", "grupos liberados") : "aguarda saneamento", bloqueado: nSan === 0 },
     { sub: "em breve" },
   ];

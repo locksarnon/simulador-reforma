@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aplicarRespostas, interpretarResposta, lerCsv, linhasListaCliente, mapearColunasResposta } from "./respostaCliente";
+import { COLUNAS_LISTA, aplicarRespostas, chaveTexto, interpretarResposta, lerCsv, lerMatriz, lerRespostaCliente, linhasListaCliente, mapearColunasResposta } from "./respostaCliente";
 import { abreviacoesAprovadas, descobrirAbreviacoes, padronizarDescricao } from "./logica";
 
 const it1 = (linha, codigo, descricao, extra = {}) => ({ linha, codigo, descricao, grupo_atual: "Peças", unidade: "UN", problemas: [], ...extra });
@@ -53,5 +53,28 @@ describe("resposta do cliente", () => {
   it("lê CSV com ; e aspas e acha colunas mesmo com títulos alterados", () => {
     expect(lerCsv('Código;Resposta;"Como deve ficar"\n1001;OK;\n1002;;"CHAVE; 16MM"\n')).toEqual([["Código", "Resposta", "Como deve ficar"], ["1001", "OK", ""], ["1002", "", "CHAVE; 16MM"]]);
     expect(mapearColunasResposta(["Código", "Descrição atual", "Descrição sugerida", "Resposta do cliente (OK ou deixe em branco)", "Como deve ficar (se não aceitar a sugestão)"])).toMatchObject({ codigo: 0, resposta: 3, comoFica: 4, ok: true });
+  });
+});
+
+describe("leitura do arquivo devolvido (xlsx ou csv)", () => {
+  it("texto comparável: sem acento, minúsculo e só letras e números", () => {
+    expect(chaveTexto("Resposta (OK ou deixe em branco)")).toBe("respostaokoudeixeembranco"); expect(chaveTexto("Código")).toBe("codigo"); expect(chaveTexto(undefined)).toBe("");
+  });
+  it("lê CSV: separador, aspas e linhas em branco", async () => {
+    const m = await lerMatriz(new File(["Código;Resposta\r\n1;OK\r\n\r\n2;\"não;sei\"\r\n"], "r.csv"));
+    expect(m).toEqual([["Código", "Resposta"], ["1", "OK"], ["2", "não;sei"]]);
+  });
+  it("lê a lista do cliente em CSV e em Excel, com as colunas da planilha emitida pelo sistema", async () => {
+    const csv = COLUNAS_LISTA.join(";") + "\n1065;MILHO;MILHO GRAO;OK;;\n1066;SOJA;SOJA GRAO;;SOJA EM GRAO;\n";
+    const a = await lerRespostaCliente(new File([csv], "cliente.csv"));
+    expect(a).toEqual([{ codigo: "1065", resposta: "OK", comoFica: "" }, { codigo: "1066", resposta: "", comoFica: "SOJA EM GRAO" }]);
+    const ExcelJS = (await import("exceljs")).default; const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("x");
+    ws.addRow(COLUNAS_LISTA); ws.addRow(["1065", "MILHO", "MILHO GRAO", "OK", "", ""]); ws.addRow(["1066", "SOJA", "SOJA GRAO", "", "SOJA EM GRAO", ""]);
+    const b = await lerRespostaCliente(new File([await wb.xlsx.writeBuffer()], "cliente.xlsx"));
+    expect(b).toEqual(a);
+  });
+  it("avisa quando faltam as colunas ou quando a planilha está vazia", async () => {
+    await expect(lerRespostaCliente(new File(["Nome;Idade\nA;3\n"], "x.csv"))).rejects.toThrow("Não encontrei as colunas");
+    await expect(lerRespostaCliente(new File([""], "vazio.csv"))).rejects.toThrow("vazia");
   });
 });
