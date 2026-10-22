@@ -2,6 +2,7 @@
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
 import { CRITERIOS, achadosDoCriterio, criterioAprovado, dataBr, dataDoCorte, grupoDe } from "./logica";
 import { COLUNAS_LISTA } from "./respostaCliente";
+import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 
 const ROT_STATUS = { PROP: "Proposto (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
@@ -137,21 +138,15 @@ export function criarWorkbook(ExcelJS, listas, ids) {
   return wb;
 }
 
-function baixar(buf, nomeArquivo) {
-  const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-  const a = document.createElement("a"); a.href = url; a.download = nomeArquivo; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
 /** Gera e baixa o XLSX com as abas pedidas. A biblioteca é carregada só nesta hora (não pesa no resto do sistema). */
 export async function gerarXlsx(listas, ids, nomeArquivo) {
-  const mod = await import("exceljs"); const ExcelJS = mod.default || mod;
-  baixar(await criarWorkbook(ExcelJS, listas, ids).xlsx.writeBuffer(), nomeArquivo);
+  const ExcelJS = await carregarExcelJS();
+  baixarXlsx(await criarWorkbook(ExcelJS, listas, ids).xlsx.writeBuffer(), nomeArquivo);
 }
 
 /** Planilha das sugestões de descrição para o cliente: ele responde OK ou escreve ao lado como deve ficar. */
 export async function gerarListaCliente(linhas, nomeArquivo) {
-  const mod = await import("exceljs"); const ExcelJS = mod.default || mod;
+  const ExcelJS = await carregarExcelJS();
   const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Sugestões de descrição");
   ws.columns = COLUNAS_LISTA.map((h, i) => ({ header: h, key: "c" + i, width: [14, 46, 46, 22, 46, 28][i] }));
   ws.addRows(linhas);
@@ -160,8 +155,5 @@ export async function gerarListaCliente(linhas, nomeArquivo) {
   const instr = wb.addWorksheet("Como responder");
   instr.columns = [{ width: 110 }];
   ["Para cada linha: se concordar com a descrição sugerida, escreva OK na coluna de resposta.", "Se não concordar, escreva na coluna 'Como deve ficar' a descrição que deseja. Não precisa preencher a resposta.", "Se quiser manter a descrição atual, escreva NÃO.", "Linhas sem resposta continuam aguardando. Não altere a coluna Código.", "Nenhuma alteração é feita no cadastro por esta planilha: ela só registra a decisão."].forEach((t) => instr.addRow([t]));
-  const buf = await wb.xlsx.writeBuffer();
-  const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-  const a = document.createElement("a"); a.href = url; a.download = nomeArquivo; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  baixarXlsx(await wb.xlsx.writeBuffer(), nomeArquivo);
 }

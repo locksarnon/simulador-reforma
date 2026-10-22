@@ -5,10 +5,12 @@ import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
-import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, hojeIso, normalizarParams } from "./logica";
+import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, dataDoCorte, hojeIso, normalizarParams } from "./logica";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
+import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
+import RelacaoTriagem from "./RelacaoTriagem";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
@@ -26,25 +28,6 @@ const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produ
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
 const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} } });
-const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
-const dataBr = (d) => (d ? d.split("-").reverse().join("/") : "—");
-const Chip = ({ children, tom = "n" }) => {
-  const c = { g: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300", a: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300", b: "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300", n: "bg-muted text-muted-foreground" }[tom];
-  return <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${c}`}>{children}</span>;
-};
-function Acc({ aberto, onToggle, titulo, children }) {
-  return (
-    <div className="rounded-lg border border-border bg-card">
-      <button type="button" onClick={onToggle} aria-expanded={aberto} className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50">
-        {aberto ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
-        <span className="flex flex-wrap items-center gap-2 min-w-0">{titulo}</span>
-      </button>
-      {aberto && <div className="border-t border-border p-3">{children}</div>}
-    </div>
-  );
-}
-const Botao = ({ className = "", ...p }) => <button type="button" {...p} className={`px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:border-dashed ${className}`} />;
-const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 /** Resumo curto do achado; a frase completa fica no tooltip. */
 const achadoCurto = (c, it, motivo) => (c.id === "duplicidade" && it.duplicidade ? `${NIVEL_ROT[it.duplicidade.nivel]} · similaridade ${it.duplicidade.score.toFixed(2).replace(".", ",")} · linha ${it.duplicidade.candidatos[0]?.linha ?? "—"}` : motivo);
@@ -64,6 +47,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [importando, setImportando] = useState(false);
   const [msgResposta, setMsgResposta] = useState("");
   const [gerando, setGerando] = useState(false);
+  const [relacao, setRelacao] = useState(null); // cartão da triagem cuja relação de itens está aberta
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
@@ -148,19 +132,17 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         {itens.length > 0 && !itens.some((i) => i.ultima_mov) && <p className="text-xs text-amber-700 dark:text-amber-300">Nenhuma data de movimentação foi lida. Mapeie a coluna de data na importação (use “Ajustar e refazer”) para o corte funcionar.</p>}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {[["Universo", escopo.resumo.total], ["Fora do escopo", escopo.resumo.fora], ["Em escopo", escopo.resumo.emEscopo], ["Sem data legível", escopo.resumo.semData]].map(([l, v]) => (
-          <div key={l} className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p></div>))}
+        {[["universo", "Universo", escopo.resumo.total], ["fora", "Fora do escopo", escopo.resumo.fora], ["emEscopo", "Em escopo", escopo.resumo.emEscopo], ["semData", "Sem data legível", escopo.resumo.semData]].map(([id, l, v]) => (
+          <button key={id} type="button" aria-pressed={relacao === id} onClick={() => setRelacao(relacao === id ? null : id)} title="Ver a relação de itens e emitir o Excel" className={`rounded-lg bg-muted/60 hover:bg-muted p-3 text-left ${relacao === id ? "ring-2 ring-primary" : ""}`}>
+            <p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p><p className="text-[11px] text-primary">{relacao === id ? "Ocultar relação" : "Ver relação e Excel"}</p></button>))}
       </div>
+      {relacao && <RelacaoTriagem key={relacao} id={relacao} itens={itens} escopo={escopo} corte={dataDoCorte(estado.params)} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />}
       <div className="space-y-2">
         <h3 className="font-medium text-sm">Mapa por grupo de itens (em escopo)</h3>
         {grupos.map((g) => (
           <Acc key={g.nome} aberto={!!aberto["m" + g.nome]} onToggle={() => alternar("m" + g.nome)} titulo={<><b className="font-medium">{g.nome}</b><span className="text-xs text-muted-foreground">{plural(g.itens.length, "item", "itens")}</span></>}>
             <TabelaItens itens={g.itens} colunas={["linha", "codigo", "descricao", "unidade", "ultima_mov"]} />
           </Acc>))}
-        {escopo.fora.length > 0 && (
-          <Acc aberto={!!aberto.fora} onToggle={() => alternar("fora")} titulo={<><b className="font-medium">Fora do escopo</b><span className="text-xs text-muted-foreground">{plural(escopo.fora.length, "item", "itens")} não movimentados desde {dataBr(params.desde)}</span></>}>
-            <TabelaItens itens={escopo.fora} colunas={["linha", "codigo", "descricao", "ultima_mov"]} />
-          </Acc>)}
       </div>
       <Botao onClick={async () => { if (await confirmar({ titulo: "Trocar a base?", descricao: "A base vinculada sai do projeto (o arquivo continua guardado no histórico). Os critérios aprovados são mantidos, mas as decisões por item podem deixar de corresponder à nova base.", rotulo: "Trocar a base" })) setValidacaoId(null); }}>Trocar a base</Botao>
     </div>
