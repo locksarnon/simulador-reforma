@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 
 /**
  * Nomes de entidade expostos via /entities/:model — espelham exatamente os
@@ -47,7 +48,9 @@ function delegateKey(model: AllowedModel): string {
 
 @Injectable()
 export class EntitiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly log = new Logger(EntitiesService.name);
+
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly storage?: StorageService) {}
 
   assertAllowed(model: string): AllowedModel {
     if (!(ALLOWED_MODELS as readonly string[]).includes(model)) {
@@ -162,8 +165,26 @@ export class EntitiesService {
 
   async remove(modelName: string, id: string) {
     const model = this.assertAllowed(modelName);
+    if (model === 'Empresa') await this.apagarAnalisesDaEmpresa(id);
     await this.delegate(model).delete({ where: { id } });
     return { ok: true };
+  }
+
+  /**
+   * Ao excluir uma empresa, saem junto os itens da lista "Análises salvas" dela (análises de serviços, validações de cadastro com o arquivo guardado e
+   * projetos de saneamento). Sem isso ficavam registros órfãos, sem empresa para abri-los nem como excluí-los.
+   */
+  private async apagarAnalisesDaEmpresa(empresa_id: string) {
+    const validacoes = await this.prisma.validacaoCadastro.findMany({ where: { empresa_id }, select: { storage_key: true } });
+    await this.prisma.$transaction([
+      this.prisma.saneamentoProjeto.deleteMany({ where: { empresa_id } }),
+      this.prisma.analiseEmpresa.deleteMany({ where: { empresa_id } }),
+      this.prisma.validacaoCadastro.deleteMany({ where: { empresa_id } }),
+    ]);
+    for (const v of validacoes) {
+      if (!this.storage || !v.storage_key || /^https?:\/\//i.test(v.storage_key)) continue;
+      await this.storage.removeObject(v.storage_key).catch((e) => this.log.warn(`Arquivo ${v.storage_key} não removido do armazenamento: ${(e as Error).message}`));
+    }
   }
 
   async bulkCreate(modelName: string, rows: Record<string, unknown>[]) {

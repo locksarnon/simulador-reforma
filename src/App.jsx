@@ -46,6 +46,7 @@ import CalculadoraPage from '@/pages/publico/CalculadoraPage';
 import SimplesHibridoPage from '@/pages/publico/SimplesHibridoPage';
 import ConsultaNcmPublica from '@/pages/publico/ConsultaNcmPublica';
 import ValidadorPublico from '@/pages/publico/ValidadorPublico';
+import { ConfirmProvider } from "@/components/ConfirmProvider";
 // Add page imports here
 
 function App() {
@@ -54,6 +55,7 @@ function App() {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <AuthProvider>
         <QueryClientProvider client={queryClientInstance}>
+          <ConfirmProvider>
           <Router>
             <ScrollToTop />
             <Routes>
@@ -120,6 +122,7 @@ function App() {
             </Routes>
             <Toaster />
           </Router>
+          </ConfirmProvider>
         </QueryClientProvider>
       </AuthProvider>
     </ThemeProvider>

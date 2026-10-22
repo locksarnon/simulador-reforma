@@ -10,8 +10,10 @@ import { useNavigate } from "react-router-dom";
 import GrupoCard from "@/components/GrupoCard";
 import InfoTooltip from "@/components/InfoTooltip";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 export default function DataHub() {
+  const confirmar = useConfirmar();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGrupo, setEditingGrupo] = useState(null);
@@ -43,7 +45,7 @@ export default function DataHub() {
   });
 
   const handleDelete = async (g) => {
-    if (!confirm(`Excluir o grupo "${g.nome}"? Esta ação não pode ser desfeita.`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir o grupo "${g.nome}"? Esta ação não pode ser desfeita.`, rotulo: "Excluir" }))) return;
     await base44.entities.Grupo.delete(g.id);
     queryClient.invalidateQueries({ queryKey: ["grupos"] });
   };

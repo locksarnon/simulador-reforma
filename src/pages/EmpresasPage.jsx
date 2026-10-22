@@ -9,8 +9,10 @@ import PageHeader from "@/components/PageHeader";
 import LimparDadosButton from "@/components/LimparDadosButton";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 export default function EmpresasPage() {
+  const confirmar = useConfirmar();
   const { id: grupoId } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -31,7 +33,7 @@ export default function EmpresasPage() {
   const [open, setOpen] = useState(false);
 
   const del = async (em) => {
-    if (!confirm(`Excluir ${em.id_empresa}?`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa ${em.id_empresa}?`, rotulo: "Excluir" }))) return;
     await base44.entities.Empresa.delete(em.id);
     qc.invalidateQueries({ queryKey: ["empresas"] });
   };

@@ -8,6 +8,7 @@ import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicid
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, achadosDoCriterio, agruparPorGrupo, aplicarEscopo, criarTestes, criterioAprovado, descobrirAbreviacoes, grupoPodeSanear, hojeIso } from "./logica";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
   { t: "Triagem", programa: "Fixar data-base, origem e universo; definir o parâmetro de saneamento (quais itens entram no trabalho); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
@@ -48,6 +49,7 @@ const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSS
 const achadoCurto = (c, it, motivo) => (c.id === "duplicidade" && it.duplicidade ? `${NIVEL_ROT[it.duplicidade.nivel]} · similaridade ${it.duplicidade.score.toFixed(2).replace(".", ",")} · linha ${it.duplicidade.candidatos[0]?.linha ?? "—"}` : motivo);
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
+  const confirmar = useConfirmar();
   const { user } = useAuth();
   const quem = user?.email || "usuário";
   const [estado, setEstado] = useState(null);
@@ -129,7 +131,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <ValidadorCadastro modo="interno" empresa={empresa} modoProjeto aoCarregar={setImportando} aoProcessar={(r) => setValidacaoId(r.validacao_id)} />
     </div>
   ) : null;
-  const triagem = !validacaoId ? null : base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p> : base.error ? <p role="alert" className="text-sm text-destructive">Não foi possível abrir a base: {base.error.message}</p> : (
+  const triagem = !validacaoId ? null : base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p> : base.error ? (
+    <div role="alert" className="rounded-lg border border-border p-4 space-y-2 text-sm">
+      <p className="text-destructive">{/não encontrad/i.test(base.error.message) ? "A base deste projeto não existe mais (foi excluída)." : `Não foi possível abrir a base: ${base.error.message}`}</p>
+      <p className="text-muted-foreground">Os critérios e as decisões do projeto continuam salvos. Importe a planilha de novo ou escolha outra base já processada.</p>
+      <Botao onClick={() => setValidacaoId(null)}>Importar ou escolher outra base</Botao>
+    </div>) : (
     <div className="space-y-4">
       <div className="rounded-xl border-2 border-primary/40 bg-card p-4 space-y-3">
         <h3 className="font-medium">Parâmetro de saneamento</h3>
@@ -157,7 +164,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
             <TabelaItens itens={escopo.fora.map((f) => ({ ...f.item, _motivo: f.motivos.map((m) => (m === "ate" ? "Movimento até o corte" : "Parado há mais dias que o limite")).join(" e ") }))} colunas={["linha", "codigo", "descricao", "ultima_mov", "_motivo"]} />
           </Acc>)}
       </div>
-      <Botao onClick={() => { if (window.confirm("Trocar a base vinculada? Os critérios aprovados são mantidos, mas as decisões por item podem deixar de corresponder.")) setValidacaoId(null); }}>Trocar a base</Botao>
+      <Botao onClick={async () => { if (await confirmar({ titulo: "Trocar a base?", descricao: "A base vinculada sai do projeto (o arquivo continua guardado no histórico). Os critérios aprovados são mantidos, mas as decisões por item podem deixar de corresponder à nova base.", rotulo: "Trocar a base" })) setValidacaoId(null); }}>Trocar a base</Botao>
     </div>
   );
 

@@ -3,13 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { AuthUser } from '../auth/auth.types';
 
-export type TelaLimpeza = 'importacao-xml' | 'operacoes' | 'empresas' | 'workroom' | 'validacoes';
+/** 'analises' = tudo da lista "Análises salvas" da empresa; 'saneamento' = só os projetos de saneamento da empresa e as bases importadas neles. */
+export type TelaLimpeza = 'importacao-xml' | 'operacoes' | 'empresas' | 'workroom' | 'validacoes' | 'analises' | 'saneamento';
 export type PedidoLimpeza = { tela: TelaLimpeza; grupo_id?: string; empresa_id?: string };
 export type Contagens = Record<string, number>;
 
 export const FRASE_CONFIRMACAO = 'APAGAR';
 
-const TELAS: TelaLimpeza[] = ['importacao-xml', 'operacoes', 'empresas', 'workroom', 'validacoes'];
+const TELAS: TelaLimpeza[] = ['importacao-xml', 'operacoes', 'empresas', 'workroom', 'validacoes', 'analises', 'saneamento'];
 const ehChaveDeObjeto = (k: string | null | undefined): k is string => !!k && !/^https?:\/\//i.test(k);
 const unicos = <T>(xs: (T | null | undefined)[]) => [...new Set(xs.filter((x): x is T => x != null))];
 
@@ -33,6 +34,7 @@ export class LimpezaService {
     if (!TELAS.includes(p.tela)) throw new BadRequestException('Tela desconhecida.');
     if (p.tela === 'validacoes') return null;
     if (!p.grupo_id) throw new BadRequestException('Informe o workroom (grupo_id).');
+    if ((p.tela === 'analises' || p.tela === 'saneamento') && !p.empresa_id) throw new BadRequestException('Informe a empresa (empresa_id).');
     const grupo = await this.prisma.grupo.findUnique({ where: { id: p.grupo_id } });
     if (!grupo) throw new NotFoundException('Workroom não encontrado.');
     const empresas = await this.prisma.empresa.findMany({
@@ -45,7 +47,7 @@ export class LimpezaService {
 
   /** IDs de tudo que será apagado + chaves de arquivos no armazenamento. */
   private async levantar(p: PedidoLimpeza, user: AuthUser) {
-    const ids = { itens: [] as string[], historico: [] as string[], arquivos: [] as string[], lotes: [] as string[], operacoes: [] as string[], empresas: [] as string[], regrasCfop: [] as string[], simulacoes: [] as string[], diagnosticos: [] as string[], validacoes: [] as string[] };
+    const ids = { itens: [] as string[], historico: [] as string[], arquivos: [] as string[], lotes: [] as string[], operacoes: [] as string[], empresas: [] as string[], regrasCfop: [] as string[], simulacoes: [] as string[], diagnosticos: [] as string[], validacoes: [] as string[], analises: [] as string[], projetos: [] as string[] };
     const chaves: string[] = [];
     let desvincularOperacoes: string[] = [];
     let desvincularEmpresas: string[] = [];
@@ -88,11 +90,30 @@ export class LimpezaService {
       ids.operacoes.push(...ops.map((o) => o.id));
     };
 
+    // Lista "Análises salvas" das empresas: análises de serviços, projetos de saneamento e validações de cadastro (com o arquivo guardado).
+    // `soProjetos`: só os projetos e as bases importadas neles (tela do Saneamento), sem mexer nas demais análises da empresa.
+    const levantarAnalises = async (soProjetos: boolean) => {
+      const projetos = await this.prisma.saneamentoProjeto.findMany({ where: { empresa_id: { in: esc.empresaIds } }, select: { id: true, validacao_id: true } });
+      ids.projetos = projetos.map((x) => x.id);
+      const validacoes = soProjetos
+        ? await this.prisma.validacaoCadastro.findMany({ where: { id: { in: unicos(projetos.map((x) => x.validacao_id)) } }, select: { id: true, storage_key: true } })
+        : await this.prisma.validacaoCadastro.findMany({ where: { empresa_id: { in: esc.empresaIds } }, select: { id: true, storage_key: true } });
+      ids.validacoes = validacoes.map((v) => v.id);
+      chaves.push(...validacoes.map((v) => v.storage_key).filter(ehChaveDeObjeto));
+      if (!soProjetos) {
+        const analises = await this.prisma.analiseEmpresa.findMany({ where: { empresa_id: { in: esc.empresaIds } }, select: { id: true } });
+        ids.analises = analises.map((a) => a.id);
+      }
+    };
+
     if (p.tela === 'importacao-xml') await levantarXml();
     if (p.tela === 'operacoes') await levantarOperacoes();
+    if (p.tela === 'analises') await levantarAnalises(false);
+    if (p.tela === 'saneamento') await levantarAnalises(true);
     if (p.tela === 'empresas' || p.tela === 'workroom') {
       if (p.tela === 'workroom') await levantarXml();
       await levantarOperacoes();
+      await levantarAnalises(false); // a empresa some, então o que está na lista dela também (senão ficam registros órfãos)
       ids.empresas = esc.empresaIds;
       desvincularEmpresas = esc.empresaIds;
       const regras = await this.prisma.cfopEmpresaRegra.findMany({ where: { empresa_id: { in: esc.empresaIds } }, select: { id: true } });
@@ -123,7 +144,9 @@ export class LimpezaService {
       'Regras de CFOP por empresa': ids.regrasCfop.length,
       'Simulações salvas': ids.simulacoes.length,
       'Diagnósticos': ids.diagnosticos.length,
-      'Validações de cadastro': ids.validacoes.length,
+      'Validações de cadastro e bases importadas': ids.validacoes.length,
+      'Projetos de saneamento': ids.projetos.length,
+      'Análises de serviços salvas': ids.analises.length,
       'Arquivos no armazenamento': arquivosNoStorage,
     };
     return Object.fromEntries(Object.entries(c).filter(([, v]) => v > 0));
@@ -160,7 +183,11 @@ export class LimpezaService {
       await tx.simulacao.deleteMany({ where: { id: { in: ids.simulacoes } } });
       await tx.diagnostico.deleteMany({ where: { id: { in: ids.diagnosticos } } });
       await tx.empresa.deleteMany({ where: { id: { in: ids.empresas } } });
+      await tx.saneamentoProjeto.deleteMany({ where: { id: { in: ids.projetos } } });
+      await tx.analiseEmpresa.deleteMany({ where: { id: { in: ids.analises } } });
       await tx.validacaoCadastro.deleteMany({ where: { id: { in: ids.validacoes } } });
+      // Projetos que sobraram (limpeza só de validações) não ficam apontando para uma base que não existe mais.
+      if (ids.validacoes.length) await tx.saneamentoProjeto.updateMany({ where: { validacao_id: { in: ids.validacoes } }, data: { validacao_id: null } });
     });
 
     // Armazenamento só depois do commit: se a transação falhar, nada some do MinIO.

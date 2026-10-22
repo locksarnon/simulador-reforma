@@ -12,6 +12,7 @@ import { pct } from "@/lib/format";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const empty = {
   ano: new Date().getFullYear(), pis_cofins_fator: 1, ipi_fator_geral: 1, icms_fator: 1,
@@ -20,6 +21,7 @@ const empty = {
 };
 
 export default function TransicaoPage() {
+  const confirmar = useConfirmar();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["transicao"], queryFn: () => base44.entities.TransicaoAno.list() });
   const [editing, setEditing] = useState(null);
@@ -37,7 +39,7 @@ export default function TransicaoPage() {
   };
 
   const del = async (r) => {
-    if (!confirm(`Excluir ano ${r.ano}?`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir o ano ${r.ano}?`, rotulo: "Excluir" }))) return;
     await base44.entities.TransicaoAno.delete(r.id);
     qc.invalidateQueries({ queryKey: ["transicao"] });
   };

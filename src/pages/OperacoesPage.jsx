@@ -14,8 +14,10 @@ import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import LimparDadosButton from "@/components/LimparDadosButton";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 export default function OperacoesPage() {
+  const confirmar = useConfirmar();
   const { id: grupoId } = useParams();
   // Quando esta página é renderizada dentro de EmpresaWorkroom (rota
   // .../empresas/:empresaId/operacoes), o Outlet já traz a empresa — trava o
@@ -71,7 +73,7 @@ export default function OperacoesPage() {
   };
 
   const handleDelete = async (op) => {
-    if (!confirm(`Excluir ${op.id_operacao}?`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a operação ${op.id_operacao}?`, rotulo: "Excluir" }))) return;
     await base44.entities.Operacao.delete(op.id);
     qc.invalidateQueries({ queryKey: ["operacoes"] });
   };

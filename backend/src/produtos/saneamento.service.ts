@@ -1,6 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 
 const LIMITE_ESTADO = 8 * 1024 * 1024;
 
@@ -14,7 +15,9 @@ export function validarEstado(estado: unknown): string {
 
 @Injectable()
 export class SaneamentoService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly log = new Logger(SaneamentoService.name);
+
+  constructor(private readonly prisma: PrismaService, private readonly storage: StorageService) {}
 
   private async achar(id: string, empresa_id?: string) {
     const p = await this.prisma.saneamentoProjeto.findUnique({ where: { id } });
@@ -62,10 +65,30 @@ export class SaneamentoService {
     return { ok: true, salvo_em: p.updatedAt.toISOString() };
   }
 
-  async excluir(id: string, user: AuthUser, empresa_id?: string) {
+  /**
+   * Exclui o projeto. Com `apagarBase`, apaga também a base importada (o registro da análise e o arquivo guardado), a menos que outro projeto
+   * ainda a use ou que a pessoa não tenha permissão sobre ela — nesses casos a base é mantida e a resposta explica o motivo.
+   */
+  async excluir(id: string, user: AuthUser, empresa_id?: string, apagarBase = false) {
     const p = await this.achar(id, empresa_id);
-    if (user.role !== 'admin' && p.criado_por !== user.email) throw new ForbiddenException('Só quem criou ou um administrador pode excluir.');
+    if (user.role !== 'admin' && p.criado_por !== user.email) throw new ForbiddenException(`Só quem criou o projeto (${p.criado_por}) ou um administrador pode excluir.`);
     await this.prisma.saneamentoProjeto.delete({ where: { id } });
-    return { ok: true };
+    let baseApagada = false; let aviso: string | undefined;
+    if (apagarBase && p.validacao_id) {
+      const outros = await this.prisma.saneamentoProjeto.count({ where: { validacao_id: p.validacao_id } });
+      if (outros > 0) aviso = 'A base foi mantida porque outro projeto também a usa.';
+      else {
+        const v = await this.prisma.validacaoCadastro.findUnique({ where: { id: p.validacao_id }, select: { id: true, criado_por: true, storage_key: true } });
+        if (v) {
+          if (user.role !== 'admin' && v.criado_por !== user.email) aviso = `A base foi mantida: só quem a enviou (${v.criado_por}) ou um administrador pode excluí-la.`;
+          else {
+            await this.prisma.validacaoCadastro.delete({ where: { id: v.id } });
+            if (v.storage_key && !/^https?:\/\//i.test(v.storage_key)) await this.storage.removeObject(v.storage_key).catch((e) => this.log.warn(`Arquivo da base não removido do armazenamento: ${(e as Error).message}`));
+            baseApagada = true;
+          }
+        }
+      }
+    }
+    return { ok: true, base_apagada: baseApagada, ...(aviso ? { aviso } : {}) };
   }
 }

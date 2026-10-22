@@ -4,6 +4,7 @@ import { Download, FolderOpen, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const dataBr = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
 /** Resumo curto dos parâmetros usados na análise, para distinguir uma da outra na lista. */
@@ -22,12 +23,13 @@ const fmtTamanho = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${M
 
 /** Validações já feitas: reabre o resultado, baixa a planilha corrigida ou exclui (quem enviou ou administrador). */
 export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
+  const confirmar = useConfirmar();
   const { user } = useAuth();
   const qc = useQueryClient();
   const { data: lista = [], isLoading } = useQuery({ queryKey: ["validacoes-cadastro", empresaId], queryFn: () => api.get("/produtos/validacoes", { empresa_id: empresaId }) });
 
   const excluir = async (v) => {
-    if (!window.confirm(`Excluir a validação de "${v.nome_arquivo}"? O arquivo guardado também será apagado.`)) return;
+    if (!(await confirmar({ titulo: "Excluir a validação?", descricao: `Excluir a validação de "${v.nome_arquivo}"? O arquivo guardado também será apagado, e projetos de saneamento que usam esta base ficam sem base vinculada.`, rotulo: "Excluir" }))) return;
     try {
       await api.delete(`/produtos/validacoes/${v.id}`);
       toast({ title: "Validação excluída" });

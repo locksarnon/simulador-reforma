@@ -11,6 +11,7 @@ import { toast } from "@/components/ui/use-toast";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const empty = { titulo: "", resumo: "", url: "", fonte: "", publicado_em: "", tags: "", status: "Publicada" };
 
@@ -21,6 +22,7 @@ const empty = { titulo: "", resumo: "", url: "", fonte: "", publicado_em: "", ta
  * Itens encontrados entram como rascunho — nada é publicado sem revisão.
  */
 export default function FerramentasNoticias() {
+  const confirmar = useConfirmar();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["noticiasReforma"],
@@ -64,7 +66,7 @@ export default function FerramentasNoticias() {
   };
 
   const del = async (n) => {
-    if (!confirm(`Excluir "${n.titulo}"?`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir "${n.titulo}"?`, rotulo: "Excluir" }))) return;
     await base44.entities.NoticiaReforma.delete(n.id);
     qc.invalidateQueries({ queryKey: ["noticiasReforma"] });
   };

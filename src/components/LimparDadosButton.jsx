@@ -12,8 +12,8 @@ import {
  * servidor (quantos registros/arquivos vão embora) e só apaga depois que a
  * pessoa digita a frase de confirmação — o servidor confere a frase de novo.
  *
- * tela: 'importacao-xml' | 'operacoes' | 'empresas' | 'workroom' | 'validacoes'
- * escopo: { grupo_id, empresa_id? } — o servidor nunca apaga fora dele.
+ * tela: 'importacao-xml' | 'operacoes' | 'empresas' | 'workroom' | 'validacoes' | 'analises' (lista "Análises salvas" da empresa) | 'saneamento' (projetos e bases da empresa)
+ * escopo: { grupo_id, empresa_id? } — o servidor nunca apaga fora dele ('analises' e 'saneamento' exigem a empresa).
  */
 export default function LimparDadosButton({ tela, grupoId, empresaId, rotulo = "Limpar dados", oQueApaga, className = "" }) {
   const qc = useQueryClient();

@@ -170,9 +170,11 @@ export class ValidacoesService {
   async excluir(id: string, user: AuthUser) {
     const v = await this.prisma.validacaoCadastro.findUnique({ where: { id } });
     if (!v) throw new NotFoundException('Validação não encontrada.');
-    if (user.role !== 'admin' && v.criado_por !== user.email) throw new ForbiddenException('Só quem enviou ou um administrador pode excluir.');
+    if (user.role !== 'admin' && v.criado_por !== user.email) throw new ForbiddenException(`Só quem enviou a análise (${v.criado_por}) ou um administrador pode excluir.`);
     await this.storage.removeObject(v.storage_key).catch((e) => this.log.warn(`Arquivo não removido do armazenamento: ${(e as Error).message}`));
     await this.prisma.validacaoCadastro.delete({ where: { id } });
+    // Projetos de saneamento que usavam esta base ficam sem base vinculada (a tela avisa e deixa importar de novo), em vez de apontar para algo que não existe.
+    await this.prisma.saneamentoProjeto.updateMany({ where: { validacao_id: id }, data: { validacao_id: null } });
     return { ok: true };
   }
 }

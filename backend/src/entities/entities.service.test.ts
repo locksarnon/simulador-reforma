@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { EntitiesService } from './entities.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -65,5 +65,36 @@ describe('EntitiesService.assertAllowed', () => {
 
   it('bloqueia nomes de modelo inexistentes', () => {
     expect(() => service.assertAllowed('TabelaQualquer')).toThrow();
+  });
+});
+
+describe('EntitiesService.remove', () => {
+  const montar = () => {
+    const prisma = {
+      empresa: { delete: vi.fn() }, grupo: { delete: vi.fn() },
+      validacaoCadastro: { findMany: vi.fn().mockResolvedValue([{ storage_key: 'validacoes/a.xlsx' }, { storage_key: 'https://externo/x.xlsx' }]), deleteMany: vi.fn() },
+      saneamentoProjeto: { deleteMany: vi.fn() }, analiseEmpresa: { deleteMany: vi.fn() },
+      $transaction: vi.fn(async (ops: unknown[]) => ops),
+    };
+    const storage = { removeObject: vi.fn().mockResolvedValue(undefined) };
+    return { prisma, storage, service: new EntitiesService(prisma as unknown as PrismaService, storage as never) };
+  };
+
+  it('excluir empresa leva junto análises salvas, validações (com o arquivo) e projetos de saneamento', async () => {
+    const { prisma, storage, service } = montar();
+    await service.remove('Empresa', 'E1');
+    expect(prisma.saneamentoProjeto.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.analiseEmpresa.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.validacaoCadastro.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(storage.removeObject).toHaveBeenCalledTimes(1); // o endereço externo não é apagado
+    expect(storage.removeObject).toHaveBeenCalledWith('validacoes/a.xlsx');
+    expect(prisma.empresa.delete).toHaveBeenCalledWith({ where: { id: 'E1' } });
+  });
+
+  it('outras entidades seguem sendo excluídas sem cascata', async () => {
+    const { prisma, service } = montar();
+    await service.remove('Grupo', 'G1');
+    expect(prisma.grupo.delete).toHaveBeenCalledWith({ where: { id: 'G1' } });
+    expect(prisma.validacaoCadastro.findMany).not.toHaveBeenCalled();
   });
 });

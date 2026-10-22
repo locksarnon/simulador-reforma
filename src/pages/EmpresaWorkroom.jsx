@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { LayoutDashboard, FileText, FileSearch, Trash2, Lock, Layers, History } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const tabs = [
   { label: "Serviços e análises", to: "servicos", icon: Layers },
@@ -14,6 +15,7 @@ const tabs = [
 ];
 
 export default function EmpresaWorkroom() {
+  const confirmar = useConfirmar();
   const { id: grupoId, empresaId } = useParams();
   const location = useLocation();
   const qc = useQueryClient();
@@ -45,7 +47,7 @@ export default function EmpresaWorkroom() {
   const deveRedirecionarDoPainel = estaNoPainel && !isLoadingOperacoes && !painelLiberado && !!empresa;
 
   const handleDelete = async () => {
-    if (!confirm(`Excluir a empresa "${empresa?.razao_social}"? Esta ação não pode ser desfeita.`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa "${empresa?.razao_social}"? Saem junto as análises salvas dela (serviços, validações de cadastro com os arquivos e projetos de saneamento). Esta ação não pode ser desfeita.`, rotulo: "Excluir" }))) return;
     await base44.entities.Empresa.delete(empresaId);
     qc.invalidateQueries({ queryKey: ["empresas"] });
     window.location.assign(`/workroom/${grupoId}`);

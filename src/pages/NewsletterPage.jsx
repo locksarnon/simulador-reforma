@@ -5,6 +5,7 @@ import { api, base44 } from "@/api/base44Client";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const COR = {
   Rascunho: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
@@ -22,6 +23,7 @@ const COR = {
  * envio automático nunca mexe numa edição que já saiu do status "Rascunho".
  */
 export default function NewsletterPage() {
+  const confirmar = useConfirmar();
   const qc = useQueryClient();
   const { data: edicoes = [] } = useQuery({ queryKey: ["nlEdicoes"], queryFn: () => base44.entities.NewsletterEdicao.filter({}, "-createdAt", 30) });
   const { data: resumo } = useQuery({ queryKey: ["nlResumo"], queryFn: () => api.get("/newsletter/resumo") });
@@ -99,7 +101,7 @@ export default function NewsletterPage() {
                 <input value={emailTeste} onChange={(e) => setEmailTeste(e.target.value)} placeholder="e-mail para teste (vazio = o seu)" className="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm" />
                 <button onClick={() => acao("teste", () => api.post(`/newsletter/edicoes/${ed.id}/teste`, { para: emailTeste }), "Teste enviado")} disabled={!!ocupado} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"><FlaskConical className="w-4 h-4" /> Enviar teste</button>
                 {ed.status === "Rascunho" && <button onClick={() => acao("aprovar", () => api.post(`/newsletter/edicoes/${ed.id}/aprovar`), "Edição aprovada")} disabled={alterado || !!ocupado} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50"><CheckCheck className="w-4 h-4" /> Aprovar</button>}
-                {ed.status === "Aprovada" && <button onClick={() => { if (window.confirm(`Enviar para ${resumo?.inscritos_ativos ?? 0} inscritos? Esta ação não pode ser desfeita.`)) acao("enviar", () => api.post(`/newsletter/edicoes/${ed.id}/enviar`), "Envio concluído"); }} disabled={!!ocupado} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">{ocupado === "enviar" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Enviar para {resumo?.inscritos_ativos ?? 0} inscritos</button>}
+                {ed.status === "Aprovada" && <button onClick={async () => { if (await confirmar({ titulo: "Enviar a edição?", descricao: `Enviar para ${resumo?.inscritos_ativos ?? 0} inscritos? Esta ação não pode ser desfeita.`, rotulo: "Enviar", perigoso: false })) acao("enviar", () => api.post(`/newsletter/edicoes/${ed.id}/enviar`), "Envio concluído"); }} disabled={!!ocupado} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">{ocupado === "enviar" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Enviar para {resumo?.inscritos_ativos ?? 0} inscritos</button>}
               </div>
               {ed.aprovada_por && <p className="text-xs text-muted-foreground">Aprovada por {ed.aprovada_por}{ed.aprovada_em ? ` em ${new Date(ed.aprovada_em).toLocaleString("pt-BR")}` : ""}.</p>}
               {alterado && <p className="text-xs text-amber-600">Há alterações não salvas — salve antes de aprovar.</p>}

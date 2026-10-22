@@ -20,7 +20,8 @@ export class SaneamentoController {
     return this.service.salvar(id, { nome: b?.nome, validacao_id: b?.validacao_id, status: b?.status, estado: b?.estado }, b?.empresa_id);
   }
 
-  @Delete(':id') excluir(@Param('id') id: string, @CurrentUser() user: AuthUser, @Query('empresa_id') empresa_id?: string) {
-    return this.service.excluir(id, user, empresa_id);
+  /** `apagar_base=true` apaga junto a base importada neste projeto (se nenhum outro projeto a usa). */
+  @Delete(':id') excluir(@Param('id') id: string, @CurrentUser() user: AuthUser, @Query('empresa_id') empresa_id?: string, @Query('apagar_base') apagarBase?: string) {
+    return this.service.excluir(id, user, empresa_id, apagarBase === 'true');
   }
 }

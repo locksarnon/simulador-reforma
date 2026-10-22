@@ -7,8 +7,10 @@ import InfoTooltip from "@/components/InfoTooltip";
 import EmpresaCard from "@/components/EmpresaCard";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import LimparDadosButton from "@/components/LimparDadosButton";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 export default function WorkroomOverview() {
+  const confirmar = useConfirmar();
   const { id } = useParams();
   const { grupo } = useOutletContext() || {};
   const navigate = useNavigate();
@@ -27,7 +29,7 @@ export default function WorkroomOverview() {
   const startNew = () => { setEditing("new"); setOpen(true); };
   const startEdit = (em) => { setEditing(em); setOpen(true); };
   const del = async (em) => {
-    if (!confirm(`Excluir ${em.id_empresa}?`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa ${em.id_empresa}?`, rotulo: "Excluir" }))) return;
     await base44.entities.Empresa.delete(em.id);
     qc.invalidateQueries({ queryKey: ["empresas"] });
   };

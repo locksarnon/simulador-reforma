@@ -11,10 +11,12 @@ import { Plus, Pencil, Trash2, Check, GitCompareArrows } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const empty = { nome: "", descricao: "", fator_volume: 1, fator_preco: 1, fator_custo: 1, fator_credito_aproveitado: 1 };
 
 export default function CenariosPage() {
+  const confirmar = useConfirmar();
   const qc = useQueryClient();
   const { data: config } = useQuery({ queryKey: ["config"], queryFn: () => base44.entities.Configuracao.list() });
   const { data, isLoading } = useQuery({ queryKey: ["cenario"], queryFn: () => base44.entities.Cenario.list() });
@@ -33,7 +35,7 @@ export default function CenariosPage() {
   };
 
   const del = async (c) => {
-    if (!confirm(`Excluir cenário ${c.nome}?`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir o cenário ${c.nome}?`, rotulo: "Excluir" }))) return;
     await base44.entities.Cenario.delete(c.id);
     qc.invalidateQueries({ queryKey: ["cenario"] });
   };

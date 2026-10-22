@@ -4,8 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Trash2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 export default function Workroom() {
+  const confirmar = useConfirmar();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -18,7 +20,7 @@ export default function Workroom() {
   });
 
   const handleDelete = async () => {
-    if (!confirm(`Excluir o grupo "${grupo?.nome}"? Esta ação não pode ser desfeita.`)) return;
+    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir o grupo "${grupo?.nome}"? Esta ação não pode ser desfeita.`, rotulo: "Excluir" }))) return;
     await base44.entities.Grupo.delete(id);
     qc.invalidateQueries({ queryKey: ["grupos"] });
     navigate("/");

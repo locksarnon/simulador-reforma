@@ -5,14 +5,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BadgeCheck, ChevronDown, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/base44Client";
 import { toast } from "@/components/ui/use-toast";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString("pt-BR") : "");
 
 /** Um cartão: pergunta, resposta e a base legal com link para o artigo. */
 export function CartaoResposta({ c, admin, onMudou, onEditar, aberto = false }) {
+  const confirmar = useConfirmar();
   const [ocupado, setOcupado] = useState("");
   const agir = async (acao) => {
-    if (acao === "excluir" && !window.confirm("Excluir este cartão?")) return;
+    if (acao === "excluir" && !(await confirmar({ titulo: "Excluir o cartão?", descricao: "Excluir este cartão?", rotulo: "Excluir" }))) return;
     setOcupado(acao);
     try {
       if (acao === "excluir") await api.delete(`/base-legal/cartoes/${c.id}`);

@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { ROTEIRO, GRUPOS_ROTEIRO, CSV_TESTE_CADASTRO } from "@/lib/roteiroTestes";
 import { SETORES_REFORMA, COBERTURA, resumoCobertura } from "@/lib/setoresReforma";
 import TituloPagina from "@/components/TituloPagina";
+import { useConfirmar } from "@/components/ConfirmProvider";
 
 const CHAVE = "intax_roteiro_testes_v1";
 const STATUS = [
@@ -258,6 +259,7 @@ function Mapa() {
 
 /** Página PROVISÓRIA para o tester (remover depois). */
 export default function RoteiroTestesPage() {
+  const confirmar = useConfirmar();
   const [aba, setAba] = useState("roteiro");
   const [estado, setEstado, salvo, salvarAgora] = useEstado();
   const { user } = useAuth();
@@ -286,7 +288,7 @@ export default function RoteiroTestesPage() {
     try { await navigator.clipboard.writeText(linhas.join("\n")); toast({ title: "Relatório copiado", description: "Cole no e-mail ou no chat para enviar." }); } catch { toast({ title: "Não foi possível copiar", variant: "destructive" }); }
   };
 
-  const limpar = () => { if (window.confirm("Apagar todo o progresso e as observações deste roteiro?")) setEstado({}); };
+  const limpar = async () => { if (await confirmar({ titulo: "Apagar o progresso?", descricao: "Apagar todo o progresso e as observações deste roteiro?", rotulo: "Apagar" })) setEstado({}); };
   const pct = progresso.totalPassos ? Math.round((progresso.feitos / progresso.totalPassos) * 100) : 0;
   let n = 0;
 
