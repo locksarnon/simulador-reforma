@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CRITERIOS, REGRAS_PADRAO, achadosDoCriterio, criarTestes, padronizarDescricao } from "./logica";
 import { dadosDoItem, formatarNcm, leituraAchado, textoLinhas } from "./leituraAchados";
+import { aplicarEscolha, montarConjuntos } from "./conjuntos";
 
 const crit = (id) => CRITERIOS.find((c) => c.id === id);
 const item = (linha, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "ITEM", unidade: "UN", grupo_atual: "Peças", problemas: [], ...extra });
@@ -55,6 +56,19 @@ describe("leitura dos achados: como é, como seria e por quê", () => {
     expect(valor(l2.seria, "Ação")).toBe("unificar no código C3"); expect(valor(l2.seria, "Fica")).toBe("TRAVA ANEL"); expect(l2.porque).toBe("mesmas palavras em outra ordem");
     const l3 = leituraAchado(crit("duplicidade"), { item: a3, motivo: "x" }, { itemPorLinha: mapa });
     expect(valor(l3.seria, "Ação")).toBe("manter este código");
+  });
+  it("duplicidade com conjunto: a ação é a escolha do analista ou, sem escolha, a sugestão (maior saldo)", () => {
+    const dup = (c) => ({ nivel: "EXATA", score: 1, grupo: 0, mestre: 2, candidatos: c.map((l) => ({ linha: l, score: 1, nivel: "EXATA", motivos: ["descrição idêntica"] })) });
+    const a2 = item(2, { descricao: "ANEL", saldo: 3, duplicidade: dup([3]) }); const a3 = item(3, { descricao: "ANEL", saldo: 12, duplicidade: dup([2]) });
+    const [conj] = montarConjuntos([a2, a3]); const conjuntoDe = new Map([[2, conj], [3, conj]]); const itemPorLinha = new Map([[2, a2], [3, a3]]);
+    const le = (a, decisoes) => leituraAchado(crit("duplicidade"), { item: a, motivo: "x" }, { itemPorLinha, conjuntoDe, decisoes });
+    const l2 = le(a2, {});
+    expect(valor(l2.como, "Parecido com")).toBe("C3 · ANEL (saldo 12)");
+    expect(valor(l2.seria, "Ação")).toBe("unificar no código C3 (sugerido)"); expect(valor(l2.seria, "Fica")).toBe("ANEL (saldo 12)"); expect(l2.porque).toBe("Sugestão: manter C3 (maior saldo em estoque (12 contra 3)).");
+    expect(valor(le(a3, {}).seria, "Ação")).toBe("manter este código (sugerido)");
+    const escolhido = aplicarEscolha({}, conj, 2, { quem: "ana", hoje: "2026-10-22" }); // o analista prefere ficar com o de menor saldo
+    expect(valor(le(a2, escolhido).seria, "Ação")).toBe("fica este código (escolhido)");
+    const l3 = le(a3, escolhido); expect(valor(l3.seria, "Ação")).toBe("unificar no código C2 (escolhido)"); expect(l3.porque).toContain("Escolha do analista diferente da sugestão.");
   });
   it("grupo, NCM, utilização e descrição ausente: hoje, sugestão e razão", () => {
     const g = leituraAchado(crit("grupo"), { item: item(2, { grupo_atual: "", grupo_sugerido: "Peças", grupo_evidencia: "9 de 10 outros itens com este NCM estão em Peças" }), motivo: "m" });

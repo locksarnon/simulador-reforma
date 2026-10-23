@@ -38,6 +38,13 @@ describe("listas finais do saneamento", () => {
     expect(l.desduplicacoes).toHaveLength(1);
     expect(l.desduplicacoes[0]).toMatchObject({ codigoOrigem: "A1", codigoDestino: "A2", decisao: "Aprovado", aprovador: "ana", acao: "Unificar no código mantido" });
   });
+  it("a desduplicação traz o saldo do código de origem e o do mantido, na escala escolhida", () => {
+    const comSaldo = itens.map((i) => (i.linha === 2 ? { ...i, saldo: 3000000 } : i.linha === 3 ? { ...i, saldo: 12000000 } : i));
+    const escopo = aplicarEscopo(comSaldo, estado.params);
+    const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens: comSaldo, escopo, testes: criarTestes(escopo.emEscopo, estado), escalaSaldo: 1e6 });
+    expect(l.desduplicacoes[0]).toMatchObject({ saldoOrigem: 3, saldoDestino: 12 });
+    expect(base(estado).desduplicacoes[0]).toMatchObject({ saldoOrigem: "", saldoDestino: "" }); // base sem saldo: colunas vazias, nunca zero inventado
+  });
   it("descrição final é a aprovada (do cliente, quando ele ajustou) e a original fica registrada", () => {
     const c1 = base(estado).finalCorrigida.find((i) => i.codigo === "C1");
     expect(c1).toMatchObject({ original: "CORREIA A-72", final: "CORREIA A-72 TRAPEZOIDAL", mudanca: "Descrição corrigida", origem: "Ajustada pelo cliente" });

@@ -2,6 +2,7 @@
 // Cada lado é uma lista de linhas { rotulo, valor, destaque }. Só SUGERE: nada é alterado no cadastro. Funções puras (sem React).
 import { GRANDEZAS, numeroBr } from "./unidades";
 import { dataBr } from "./logica";
+import { escolhaDoConjunto } from "./conjuntos";
 
 export const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const L = (rotulo, valor, destaque = false) => ({ rotulo, valor, destaque });
@@ -40,12 +41,27 @@ function leituraUnidade(a, escala) {
   return { como, seria, porque: `${lead}: o estoque passa a ser controlado em ${a.sugerida} e ${embalagem ? "a embalagem" : nome} vira unidade de compra.${dica}` };
 }
 
-function leituraDuplicidade(a, itemPorLinha) {
+const saldoTxt = (it, escala) => { const s = it.saldo != null && Number.isFinite(Number(it.saldo)) ? Number(it.saldo) / (escala || 1) : null; return s == null ? "" : ` (saldo ${numeroBr(s)})`; };
+
+/**
+ * Duplicidade. Com o conjunto do item (`conjuntoDe`, de conjuntos.js) a ação é a escolha do analista ou, sem escolha, a sugestão (quem fica pelo saldo, movimentação,
+ * cadastro e código); sem conjunto, vale o cadastro mestre que o teste indicou.
+ */
+function leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala = 1 } = {}) {
   const it = a.item; const dup = it.duplicidade;
   if (!dup) return { como: [L("Indicação", "duplicidade apontada pelo teste")], seria: [L("Ação", "confirmar se é o mesmo produto")], porque: a.motivo || "" };
   const cands = dup.candidatos || [];
-  const nomes = cands.slice(0, 3).map((c) => { const o = itemPorLinha?.get(c.linha); return o ? `${o.codigo || `linha ${c.linha}`}${o.descricao ? ` · ${o.descricao}` : ""}` : `linha ${c.linha}`; });
+  const nomes = cands.slice(0, 3).map((c) => { const o = itemPorLinha?.get(c.linha); return o ? `${o.codigo || `linha ${c.linha}`}${o.descricao ? ` · ${o.descricao}` : ""}${saldoTxt(o, escala)}` : `linha ${c.linha}`; });
   const como = [L("Parecido com", nomes.length ? nomes.join(" | ") + (cands.length > nomes.length ? ` (+${cands.length - nomes.length})` : "") : "—"), L("Indicação", `${NIVEL_ROT[dup.nivel] ?? dup.nivel} · similaridade ${num2(dup.score)}`)];
+  const conj = conjuntoDe?.get(it.linha);
+  if (conj) {
+    const esc = escolhaDoConjunto(conj, decisoes || {}); const fica = esc.fica ?? conj.sugestao.linha; const o = conj.membros.find((m) => m.linha === fica);
+    const seria = fica === it.linha ? [L("Ação", esc.fica != null ? "fica este código (escolhido)" : "manter este código (sugerido)", true)]
+      : [L("Ação", `unificar no código ${o?.codigo || `da linha ${fica}`}${esc.fica != null ? " (escolhido)" : " (sugerido)"}`, true), ...(o?.descricao ? [L("Fica", `${o.descricao}${saldoTxt(o, escala)}`)] : [])];
+    const sug = conj.membros.find((m) => m.linha === conj.sugestao.linha);
+    const porque = conj.sugestao.motivo ? `Sugestão: manter ${sug?.codigo || `a linha ${conj.sugestao.linha}`} (${conj.sugestao.motivo}).${esc.fica != null && esc.fica !== conj.sugestao.linha ? " Escolha do analista diferente da sugestão." : ""}` : (cands[0]?.motivos || []).join("; ");
+    return { como, seria, porque };
+  }
   const m = dup.mestre; const o = m != null ? itemPorLinha?.get(m) : null;
   const seria = m == null ? [L("Ação", "confirmar se é o mesmo produto")]
     : m === it.linha ? [L("Ação", "manter este código", true)]
@@ -68,12 +84,12 @@ function leituraNcm(a) {
  * Leitura de um achado: { como, seria, porque }. `crit` é o critério; `a` é { item, motivo, sugerida, extra } (o que o teste devolveu).
  * `itemPorLinha` (Map) resolve os itens parecidos da duplicidade; `escala` divide o saldo.
  */
-export function leituraAchado(crit, a, { itemPorLinha, escala = 1 } = {}) {
+export function leituraAchado(crit, a, { itemPorLinha, escala = 1, conjuntoDe, decisoes } = {}) {
   const it = a.item;
   switch (crit.id) {
     case "unidade": return leituraUnidade(a, escala);
     case "padrao": return { como: [L("Descrição", it.descricao || "(vazia)")], seria: [L("Descrição", a.sugerida ?? "", true)], porque: a.motivo || "" };
-    case "duplicidade": return leituraDuplicidade(a, itemPorLinha);
+    case "duplicidade": return leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala });
     case "grupo": return { como: [L("Grupo", it.grupo_atual || "(sem grupo)")], seria: [L("Grupo", it.grupo_sugerido || "—", true)], porque: it.grupo_evidencia || a.motivo || "" };
     case "ncm": return leituraNcm(a);
     case "utilizacao": return { como: [L("Última movimentação", "sem data legível")], seria: [L("Ação", "obter a data com o cliente (ou tratar como anterior ao corte, no parâmetro de saneamento)")], porque: a.motivo || "" };

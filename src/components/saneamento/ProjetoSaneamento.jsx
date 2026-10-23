@@ -18,6 +18,7 @@ import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } f
 import RelacaoTriagem from "./RelacaoTriagem";
 import GruposDoSaneamento from "./GruposDoSaneamento";
 import { criarSituacao } from "./relacoes";
+import { detectarEscalaSaldo } from "./conjuntos";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
@@ -94,9 +95,11 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: decisoesTrabalho, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, decisoesTrabalho, estado?.execucao?.tipos, estado?.params, itens, escopo]);
   const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, estado?.execucao?.registros), [execGerada, estado?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
+  const temSaldo = useMemo(() => itens.some((i) => i.saldo != null), [itens]);
+  const escalaSaldo = useMemo(() => estado?.saldoEscala ?? detectarEscalaSaldo(itens), [estado?.saldoEscala, itens]); // a escolha do analista vale mais que a escala detectada
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
   const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
-  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado, itens, escopo, testes }) : null), [estado, validacaoId, base.data, itens, escopo, testes, nome]);
+  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado, itens, escopo, testes, escalaSaldo }) : null), [estado, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo]);
 
   if (proj.isLoading || !estado) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o projeto…</p>;
   if (proj.error) return <p role="alert" className="text-sm text-destructive">Não foi possível abrir o projeto: {proj.error.message}</p>;
@@ -279,7 +282,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const analises = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para analisar.</p> : (
     <PassoAnalises estado={estado} setEstado={setEstado} grupos={grupos} achados={achados} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} quem={quem}
       onComparar={setComparativo} onIrCriterios={() => irPara(1)} onIrDepara={() => irPara(4)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio}
-      itemPorLinha={mapaLinha} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />
+      itemPorLinha={mapaLinha} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} escalaSaldo={escalaSaldo} temSaldo={temSaldo} onEscala={(v) => mudar({ saldoEscala: v })} />
   );
 
   // ── Passo 6: Execução (realocações físicas) ──

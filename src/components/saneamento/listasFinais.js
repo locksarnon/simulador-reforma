@@ -5,6 +5,7 @@ import { calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } 
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
+import { saldoNaEscala } from "./conjuntos";
 import { COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, LARGURAS_FRENTE, ROT_SITUACAO_GERAL, gerarTarefas, linhasExecucao, resumoExecucao, situacaoPorLinha } from "./execucao";
 
 const ROT_STATUS = { PROP: "Encaminhado (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
@@ -37,7 +38,7 @@ export function unificacoesAprovadas(estado, itens) {
  * Monta todas as listas. `escopo` vem de aplicarEscopo (emEscopo/fora) e `testes` de criarTestes.
  * Nada aqui altera o cadastro: são relatórios do que foi proposto, aprovado ou deixado de fora.
  */
-export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes }) {
+export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes, escalaSaldo = 1 }) {
   const estado = { ...estadoBruto, decisoes: decisoesDoTrabalho(estadoBruto?.decisoes, escopo) }; // decisões de grupos fora do saneamento ficam guardadas e fora das listas
   const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
   const uni = unificacoesAprovadas(estado, itens);
@@ -69,8 +70,8 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   const desduplicacoes = uni.map(({ d, origem, destino, destinoLinha }) => {
     const cand = origem.duplicidade?.candidatos?.find((c) => c.linha === destinoLinha) || origem.duplicidade?.candidatos?.[0];
     return {
-      grupo: d.grupo || grupoDe(origem), codigoOrigem: origem.codigo, descricaoOrigem: origem.descricao, unidadeOrigem: origem.unidade,
-      codigoDestino: destino ? destino.codigo : "", descricaoDestino: destino ? destino.descricao : "",
+      grupo: d.grupo || grupoDe(origem), codigoOrigem: origem.codigo, descricaoOrigem: origem.descricao, unidadeOrigem: origem.unidade, saldoOrigem: saldoNaEscala(origem.saldo, escalaSaldo) ?? "",
+      codigoDestino: destino ? destino.codigo : "", descricaoDestino: destino ? destino.descricao : "", saldoDestino: destino ? saldoNaEscala(destino.saldo, escalaSaldo) ?? "" : "",
       acao: destinoLinha != null && destinoLinha !== origem.linha ? "Unificar no código mantido" : "Código mantido (sem baixa)",
       nivel: origem.duplicidade ? NIVEL_ROT[origem.duplicidade.nivel] : "", similaridade: cand ? cand.score : "", motivos: cand ? cand.motivos.join("; ") : "",
       decisao: ROT_STATUS[d.status] || d.status, aprovador: d.decididoPor || "", data: dataBr(d.decididoEm),
@@ -128,7 +129,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
 const ABAS = {
   resumo: { nome: "Resumo" },
   final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade de estoque (atual)", "unidade", 16], ["Unidade de estoque (proposta)", "unidadeProposta", 18], ["Unidade de compra (proposta)", "unidadeCompra", 18], ["Itens por unidade de compra", "itensPorCompra", 16], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16], ["Execução", "execucao", 18]], fonte: "finalCorrigida" },
-  dedup: { nome: "Desduplicações", colunas: [["Grupo", "grupo", 28], ["Código de origem", "codigoOrigem", 14], ["Descrição de origem", "descricaoOrigem", 44], ["Unidade", "unidadeOrigem", 10], ["Ação", "acao", 26], ["Código mantido", "codigoDestino", 14], ["Descrição do mantido", "descricaoDestino", 44], ["Indicação", "nivel", 16], ["Pontuação de similaridade", "similaridade", 14], ["Motivos", "motivos", 50], ["Decisão", "decisao", 22], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "desduplicacoes" },
+  dedup: { nome: "Desduplicações", colunas: [["Grupo", "grupo", 28], ["Código de origem", "codigoOrigem", 14], ["Descrição de origem", "descricaoOrigem", 44], ["Unidade", "unidadeOrigem", 10], ["Saldo de origem", "saldoOrigem", 14], ["Ação", "acao", 26], ["Código mantido", "codigoDestino", 14], ["Descrição do mantido", "descricaoDestino", 44], ["Saldo do mantido", "saldoDestino", 14], ["Indicação", "nivel", 16], ["Pontuação de similaridade", "similaridade", 14], ["Motivos", "motivos", 50], ["Decisão", "decisao", 22], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "desduplicacoes" },
   analises: { nome: "Análises", colunas: [["Critério", "criterio", 26], ["Grupo", "grupo", 28], ["Código", "codigo", 14], ["Descrição", "descricao", 44], ["Achado", "achado", 60], ["Proposta", "proposta", 44], ["Decisão", "decisao", 24], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "analises" },
   inativados: { nome: "Inativados por data de uso", colunas: [["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["Última movimentação", "ultima_mov", 16], ["Critério de corte", "criterio", 50]], fonte: "inativados" },
   execucao: { nome: "Execução", colunas: COLUNAS_EXECUCAO, fonte: "execucao" },

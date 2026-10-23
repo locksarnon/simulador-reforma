@@ -98,6 +98,20 @@ describe("Excel das análises: a planilha", () => {
     expect(ws.getRow(2).values.slice(1, 9)).toEqual(["Código", "Descrição", "Unidade", "Grupo", "NCM", "Última movimentação", "Saldo em estoque", "Linha da planilha"]);
     expect(ws.getRow(4).getCell(7).value).toBe(5); // 5.000.000 na escala ×1.000.000
   });
+  it("duplicidade: o Como seria traz a escolha de quem fica (ou a sugestão pelo saldo) e o saldo aparece na planilha", async () => {
+    const d = (c) => ({ nivel: "EXATA", score: 1, grupo: 0, mestre: null, candidatos: c.map((l) => ({ linha: l, score: 1, nivel: "EXATA", motivos: ["descrição idêntica"] })) });
+    const its = [item(2, "Peças", { descricao: "ANEL", saldo: 3000000, duplicidade: d([3]) }), item(3, "Peças", { descricao: "ANEL", saldo: 12000000, duplicidade: d([2]) })];
+    const ach = calcularAchados(its, criarTestes(its, {})); const cont = contarAchados(ach, its.length);
+    const gera = (decisoes) => montarRelatorioAnalises({ achados: ach, criterios: ["duplicidade"], grupos: null, estado: { decisoes, criterios: {} }, contagem: cont, itemPorLinha: new Map(its.map((i) => [i.linha, i])), totaisGrupos: new Map([["Peças", 2]]), escalaSaldo: 1e6 });
+    const r = gera({}); expect(r.temSaldo).toBe(true); expect(r.linhas.map((l) => l.saldo)).toEqual([3, 12]);
+    expect(r.linhas[0].porCriterio.duplicidade.seria).toContain("Ação: unificar no código C3 (sugerido)"); expect(r.linhas[1].porCriterio.duplicidade.seria).toBe("Ação: manter este código (sugerido)");
+    expect(r.linhas[1].porCriterio.duplicidade.porque).toBe("Sugestão: manter C3 (maior saldo em estoque (12 contra 3)).");
+    const escolhido = gera({ "3|duplicidade": { acao: "ENC", status: "PROP", destino: 2, escolhaPor: "analista" } }); // o analista escolheu ficar com o código C2
+    expect(escolhido.linhas[0].porCriterio.duplicidade.seria).toBe("Ação: fica este código (escolhido)"); expect(escolhido.linhas[1].porCriterio.duplicidade.seria).toContain("Ação: unificar no código C2 (escolhido)");
+    expect(escolhido.linhas[1].porCriterio.duplicidade.decisao).toBe("Encaminhado (aguarda decisão)");
+    const ws = (await carregar(r)).getWorksheet("Análises");
+    expect(ws.getRow(2).values.slice(1, 9)).toEqual(["Código", "Descrição", "Unidade", "Grupo", "NCM", "Última movimentação", "Saldo em estoque", "Linha da planilha"]);
+  });
   it("o resumo diz o que foi escolhido, os totais, a situação dos critérios e como ler, sem concluir nada", async () => {
     const lido = await carregar(monta(["padrao", "unidade"], ["Peças"]));
     const texto = []; lido.getWorksheet("Resumo").eachRow((r) => texto.push(r.values.slice(1).join(" | ")));

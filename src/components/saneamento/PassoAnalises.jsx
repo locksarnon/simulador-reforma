@@ -6,12 +6,16 @@ import { AbasCriterios, AcaoAprovacao, SelosCriterio } from "./CriterioUi";
 import { Acc, Botao, Chip, TabelaItens, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 import ExportarAnalises from "./ExportarAnalises";
 import TabelaAchados, { LegendaEncaminhar, rotuloEncaminhar } from "./TabelaAchados";
+import ConjuntosDuplicidade, { LegendaConjuntos } from "./ConjuntosDuplicidade";
+import { aplicarEscolha, desfazerEscolha, escolhaDoConjunto, montarConjuntos } from "./conjuntos";
 
 // Cada decisão guarda o que precisa para as listas finais: destino da unificação (duplicidade), descrição sugerida (padronização) ou a unidade e o fator.
 const extraDecisao = (c, it, sugerida, extra) => (c.id === "padrao" ? { sugerida } : c.id === "duplicidade" ? { destino: it.duplicidade?.mestre ?? null }
   : c.id === "unidade" && sugerida ? { tipo: extra?.tipo ?? "grafia", de: extra?.de ?? it.unidade, para: sugerida, fator: extra?.fator ?? null, evidencia: extra?.evidencia ?? null, grandeza: extra?.grandeza ?? null } : {});
-// Nos critérios com sugestão pronta (padronização, unidade) e na duplicidade dá para encaminhar tudo de uma vez; na unidade só o que tem sugestão (vazio e unidade sem regra são caso a caso).
-const EM_BLOCO = ["padrao", "unidade", "duplicidade"];
+// Nos critérios com sugestão pronta (padronização, unidade) dá para encaminhar tudo de uma vez; na unidade só o que tem sugestão (vazio e unidade sem regra são caso a caso).
+// A duplicidade tem a sua própria escolha, por conjunto (qual código fica).
+const EM_BLOCO = ["padrao", "unidade"];
+const ESCALAS_SALDO = [[1, "como está na base"], [1000, "÷ 1.000"], [1000000, "÷ 1.000.000"]];
 const paraEncaminhar = (c, ach) => (c.id === "unidade" ? ach.filter((a) => a.sugerida) : ach);
 
 /**
@@ -19,7 +23,7 @@ const paraEncaminhar = (c, ach) => (c.id === "unidade" ? ach.filter((a) => a.sug
  * como é hoje e como seria, critica cada um (encaminha para aprovação no De/para ou deixa como está) e marca o grupo como tratado. Critério sem
  * achados já abre aprovado, com a opção de revisar manualmente.
  */
-export default function PassoAnalises({ estado, setEstado, grupos, achados, contagem, ativo, onSelecionar, quem, onComparar, onIrCriterios, onIrDepara, onAprovar, onReabrir, itemPorLinha, nomeProjeto, nomeBase, slug }) {
+export default function PassoAnalises({ estado, setEstado, grupos, achados, contagem, ativo, onSelecionar, quem, onComparar, onIrCriterios, onIrDepara, onAprovar, onReabrir, itemPorLinha, nomeProjeto, nomeBase, slug, escalaSaldo = 1, temSaldo = false, onEscala }) {
   const [aberto, setAberto] = useState({});
   const [exportando, setExportando] = useState(false);
   const [ordGrupos, ordenarGrupos] = useOrdenacao();
@@ -55,6 +59,19 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
     return <Botao title="Cria uma proposta para cada item, aguardando a sua aprovação no passo De/para. Nada é alterado no cadastro." onClick={() => encaminharTodas(c, restam)}>{rotuloEncaminhar(c, restam.length, restam.length < todas.length, ondeTxt)}</Botao>;
   };
   const encGrupo = (ach) => ach.filter((a) => estado.decisoes[`${a.item.linha}|${crit.id}`]).length;
+  // Duplicidade: conjuntos de itens parecidos, lado a lado, com a sugestão de qual código fica. Escolher quem fica encaminha os outros ao De/para.
+  const ehDup = crit.id === "duplicidade";
+  const conjuntos = useMemo(() => (ehDup && aprovado ? montarConjuntos(lista.map((a) => a.item), { escala: escalaSaldo }) : []), [ehDup, aprovado, lista, escalaSaldo]);
+  const emConjunto = useMemo(() => new Set(conjuntos.flatMap((c) => c.membros.map((m) => m.linha))), [conjuntos]);
+  const escolher = (conj, linha, origem) => setEstado((e) => { const d = aplicarEscolha(e.decisoes, conj, linha, { quem, hoje: hojeIso(), origem }); return d === e.decisoes ? e : { ...e, decisoes: d }; });
+  const desfazer = (conj) => setEstado((e) => { const d = desfazerEscolha(e.decisoes, conj); return d === e.decisoes ? e : { ...e, decisoes: d }; });
+  const aceitarVarios = (conjs) => setEstado((e) => { let d = e.decisoes; for (const c of conjs) d = aplicarEscolha(d, c, c.sugestao.linha, { quem, hoje: hojeIso(), origem: "sugestao" }); return d === e.decisoes ? e : { ...e, decisoes: d }; });
+  // Aceitar a sugestão em bloco só nos conjuntos de indicação alta ou idênticos e ainda sem escolha; os de indicação possível o analista olha um a um.
+  const botaoAceitar = (conjs, ondeTxt) => {
+    const fortes = conjs.filter((c) => c.nivel !== "POSSIVEL" && escolhaDoConjunto(c, estado.decisoes).status === "nenhuma");
+    if (!fortes.length) return null;
+    return <Botao title="Em cada conjunto, mantém o código sugerido e encaminha os outros ao De/para para aprovação. Os conjuntos de indicação possível ficam para você escolher um a um." onClick={() => aceitarVarios(fortes)}>Aceitar a sugestão {fortes.length === 1 ? "no conjunto de indicação alta ou idêntico" : `nos ${fmt(fortes.length)} conjuntos de indicação alta ou idênticos`} {ondeTxt}</Botao>;
+  };
   const alternarTratado = (grupo) => setEstado((e) => {
     const k = `${grupo}|${crit.id}`; const marcado = !e.tratados?.[k];
     return { ...e, tratados: { ...e.tratados, [k]: marcado }, saneados: marcado ? e.saneados : { ...e.saneados, [grupo]: false } };
@@ -85,12 +102,21 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
   ) : (
     <div className="space-y-2">
       {EM_BLOCO.includes(crit.id) && paraEncaminhar(crit, lista).length > 0 && <div className="flex flex-wrap items-center gap-2">{botaoEmBloco(crit, lista, "de todos os grupos")}</div>}
+      {ehDup && <div className="flex flex-wrap items-center gap-2">{botaoAceitar(conjuntos, "de todos os grupos")}</div>}
       {porGrupo.map(({ grupo, achados: ach }) => {
         const chave = `${crit.id}|${grupo}`; const trat = grupoTratado(estado, grupo, crit, contagem); const enc = encGrupo(ach);
+        const cards = ehDup ? conjuntos.filter((c) => c.grupo === grupo) : []; // conjuntos aparecem no grupo de itens mais frequente entre os membros
+        const resto = ehDup ? ach.filter((a) => !emConjunto.has(a.item.linha)) : ach; // achados sem conjunto para comparar seguem na tabela de achados
         return (
-          <Acc key={grupo} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<><b className="font-medium">{grupo}</b>{trat ? <Chip tom="g">Tratado</Chip> : <Chip tom="a">A tratar</Chip>}<span className="text-xs text-muted-foreground">{plural(ach.length, "achado", "achados")}{enc > 0 && ` · ${plural(enc, "encaminhado", "encaminhados")}`}</span></>}>
+          <Acc key={grupo} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<><b className="font-medium">{grupo}</b>{trat ? <Chip tom="g">Tratado</Chip> : <Chip tom="a">A tratar</Chip>}<span className="text-xs text-muted-foreground">{ehDup ? `${plural(cards.length, "conjunto", "conjuntos")} · ${plural(ach.length, "item", "itens")}` : `${plural(ach.length, "achado", "achados")}${enc > 0 ? ` · ${plural(enc, "encaminhado", "encaminhados")}` : ""}`}</span></>}>
             {EM_BLOCO.includes(crit.id) && paraEncaminhar(crit, ach).length > 0 && <div className="flex flex-wrap items-center gap-2 mb-2">{botaoEmBloco(crit, ach, "do grupo")}</div>}
-            <TabelaAchados ach={ach} crit={crit} decisoes={estado.decisoes} itemPorLinha={itemPorLinha} onAlternar={alternarAchado} onComparar={onComparar} />
+            {ehDup && cards.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">{botaoAceitar(cards, "do grupo")}</div>
+                <ConjuntosDuplicidade conjuntos={cards} decisoes={estado.decisoes} escala={escalaSaldo} onEscolher={escolher} onDesfazer={desfazer} onComparar={onComparar} />
+              </div>)}
+            {resto.length > 0 && <>{ehDup && cards.length > 0 && <p className="mt-3 mb-1 text-xs text-muted-foreground">Outros achados de duplicidade deste grupo (sem conjunto para comparar)</p>}<TabelaAchados ach={resto} crit={crit} decisoes={estado.decisoes} itemPorLinha={itemPorLinha} escalaSaldo={escalaSaldo} onAlternar={alternarAchado} onComparar={onComparar} /></>}
+            {ehDup && cards.length === 0 && resto.length === 0 && <p className="text-xs text-muted-foreground">Os itens deste grupo estão em conjuntos de outro grupo.</p>}
             {botaoTratado(grupo)}
           </Acc>);
       })}
@@ -108,9 +134,14 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground"><b className="text-foreground">{nSan} de {grupos.length}</b> grupos saneados · critérios aprovados: {aprovadosLista.length} de {CRITERIOS.length}</p>
-        <Botao onClick={() => setExportando((x) => !x)} aria-expanded={exportando}><Download className="w-3.5 h-3.5 inline mr-1" />Emitir Excel</Botao>
+        <div className="flex flex-wrap items-center gap-3">
+          {temSaldo && <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="A exportação do ERP pode trazer o saldo multiplicado (a da Crestani vem ×1.000.000). A escala só muda como o saldo é mostrado.">Saldo da base
+            <select value={escalaSaldo} onChange={(e) => onEscala(Number(e.target.value))} aria-label="Escala do saldo em estoque" className="border rounded px-1 py-0.5 bg-background text-foreground">
+              {ESCALAS_SALDO.map(([v, rot]) => <option key={v} value={v}>{rot}</option>)}</select></label>}
+          <Botao onClick={() => setExportando((x) => !x)} aria-expanded={exportando}><Download className="w-3.5 h-3.5 inline mr-1" />Emitir Excel</Botao>
+        </div>
       </div>
-      {exportando && <ExportarAnalises ativo={ativo} grupos={grupos} achados={achados} contagem={contagem} estado={estado} itemPorLinha={itemPorLinha} nomeProjeto={nomeProjeto} nomeBase={nomeBase} slug={slug} onFechar={() => setExportando(false)} />}
+      {exportando && <ExportarAnalises ativo={ativo} grupos={grupos} achados={achados} contagem={contagem} estado={estado} itemPorLinha={itemPorLinha} escalaSaldo={escalaSaldo} nomeProjeto={nomeProjeto} nomeBase={nomeBase} slug={slug} onFechar={() => setExportando(false)} />}
       <AbasCriterios estado={estado} contagem={contagem} ativo={ativo} onSelecionar={onSelecionar} marca={concluido} />
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -118,7 +149,7 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
           <div className="flex flex-wrap items-center gap-2"><SelosCriterio crit={crit} situacao={sit} cEst={cEst} /><AcaoAprovacao situacao={sit} onAprovar={() => onAprovar(crit)} onReabrir={() => onReabrir(crit)} /></div>
         </div>
         <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Ver a regra deste critério</summary><p className="mt-1">{cEst.regra ?? crit.regra}</p></details>
-        {aprovado && crit.auto && n > 0 && <LegendaEncaminhar lista={lista} decisoes={estado.decisoes} critId={crit.id} onIrDepara={onIrDepara} />}
+        {aprovado && crit.auto && n > 0 && (ehDup && conjuntos.length > 0 ? <LegendaConjuntos conjuntos={conjuntos} decisoes={estado.decisoes} onIrDepara={onIrDepara} /> : <LegendaEncaminhar lista={lista} decisoes={estado.decisoes} critId={crit.id} onIrDepara={onIrDepara} />)}
         {corpo}
       </div>
       <Acc aberto={!!aberto.__grupos} onToggle={() => alternar("__grupos")} titulo={<><b className="font-medium">Situação por grupo</b><span className="text-xs text-muted-foreground">{nSan} de {grupos.length} saneados</span></>}>

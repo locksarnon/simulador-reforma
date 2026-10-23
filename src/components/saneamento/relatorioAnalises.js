@@ -4,6 +4,7 @@ import { CRITERIOS, dataBr, grupoDe } from "./logica";
 import { situacaoCriterio } from "./analise";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { formatarNcm, leituraAchado, textoLinhas } from "./leituraAchados";
+import { montarConjuntos } from "./conjuntos";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -36,12 +37,15 @@ export function contarSelecao({ achados, criterios, grupos }) {
  */
 export function montarRelatorioAnalises({ achados, criterios, grupos, estado, contagem, itemPorLinha, totaisGrupos, escalaSaldo = 1 }) {
   const sel = criteriosDoRelatorio().filter((c) => criterios.includes(c.id));
+  // a duplicidade sai com a escolha de quem fica (ou a sugestão): os conjuntos são montados sobre todos os achados do critério
+  const conjuntoDe = new Map();
+  if (sel.some((c) => c.id === "duplicidade")) for (const c of montarConjuntos((achados?.duplicidade || []).map((a) => a.item), { escala: escalaSaldo })) for (const m of c.membros) conjuntoDe.set(m.linha, c);
   const gs = grupos ? new Set(grupos) : null; const linhas = new Map(); const colunas = []; let totalAchados = 0;
   for (const c of sel) {
     let total = 0;
     for (const a of achados?.[c.id] || []) {
       const g = grupoDe(a.item); if (gs && !gs.has(g)) continue;
-      const it = a.item; const l = leituraAchado(c, a, { itemPorLinha, escala: escalaSaldo });
+      const it = a.item; const l = leituraAchado(c, a, { itemPorLinha, escala: escalaSaldo, conjuntoDe, decisoes: estado?.decisoes });
       let r = linhas.get(it.linha);
       if (!r) {
         const saldo = it.saldo != null && Number.isFinite(Number(it.saldo)) ? Number(it.saldo) / (escalaSaldo || 1) : null;
