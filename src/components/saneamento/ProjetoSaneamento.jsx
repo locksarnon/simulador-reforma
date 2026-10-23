@@ -11,7 +11,8 @@ import { AbasCriterios, AcaoAprovacao, SelosCriterio } from "./CriterioUi";
 import PassoAnalises from "./PassoAnalises";
 import PassoExecucao from "./PassoExecucao";
 import { gerarTarefas, resumoExecucao } from "./execucao";
-import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
+import { gerarListaCliente, gerarXlsx, linhasQueSaem, montarListas } from "./listasFinais";
+import PassoFiscal from "./PassoFiscal";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
 import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
@@ -29,13 +30,13 @@ const PASSOS = [
   { t: "De/para", programa: "Recebe o que foi encaminhado nas Análises. Cada caso é aprovado ou rejeitado, com aprovador e data, e só o aprovado entra nas listas finais e na execução. Ausência de resposta não é aprovação.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data." },
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências." },
   { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
-  { t: "Fiscal", programa: "Cada grupo saneado e conferido é liberado para a revisão fiscal: NCM, CST IBS/CBS e cClassTrib por operação (produtos) e NBS/LC 116 (serviços).", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências.", proxima: true },
+  { t: "Fiscal", programa: "Cada grupo saneado é liberado para a revisão fiscal: o analista confere o NCM e o cClassTrib (com o CST e a redução) de cada item contra os anexos da LC 214/2025 consultados e decide o que fica; o que parece serviço segue por NBS e LC 116. O CST e o cClassTrib de cada operação seguem na validação das operações.", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências." },
   { t: "Política", programa: "Procedimentos para criar, comprar, usar, padronizar e descontinuar itens, a partir dos critérios aprovados e das causas encontradas.", avancar: "Política aprovada, com responsáveis e controles registrados.", proxima: true },
 ];
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {} });
+const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} } });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -96,6 +97,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, estado?.execucao?.registros), [execGerada, estado?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const temSaldo = useMemo(() => itens.some((i) => i.saldo != null), [itens]);
+  const temAnalise = useMemo(() => itens.some((i) => i.sugestao), [itens]); // a base foi processada com a análise de cClassTrib
+  const saem = useMemo(() => linhasQueSaem(estado, itens), [estado?.decisoes, itens]); // itens unificados em outro código: fora da revisão fiscal
   const escalaSaldo = useMemo(() => estado?.saldoEscala ?? detectarEscalaSaldo(itens), [estado?.saldoEscala, itens]); // a escolha do analista vale mais que a escala detectada
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
   const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
@@ -376,15 +379,20 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     <div className="rounded-xl border border-dashed border-border p-4 text-sm space-y-1">
       <p className="font-medium">Disponível na próxima fase</p>
       <p className="text-muted-foreground">{PASSOS[passo].programa}</p>
-      {passo === 7 && <p className="text-muted-foreground">A revisão fiscal usará as leituras que o InTAX já tem: NCM → cClassTrib pelos anexos da LC 214 (produtos) e LC 116 ↔ NBS ↔ cIndOp ↔ cClassTrib (serviços).</p>}
       <p className="text-muted-foreground">Até lá, o andamento dos passos anteriores fica salvo e você pode voltar quando quiser.</p>
     </div>
   );
 
-  const corpo = [triagem, criterios, piloto, analises, depara, execucao, conferencia][passo] ?? proxima;
+  // ── Passo 8: Fiscal (revisão fiscal dos grupos saneados) ──
+  const fiscalUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para a revisão fiscal.</p> : (
+    <PassoFiscal estado={estado} setEstado={setEstado} grupos={grupos} saem={saem} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} temAnalise={temAnalise} onIrAnalises={() => irPara(3)} />
+  );
+
+  const corpo = [triagem, criterios, piloto, analises, depara, execucao, conferencia, fiscalUi][passo] ?? proxima;
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => estado.saneados[g.nome]).length;
+  const nFisc = grupos.filter((g) => estado.saneados[g.nome] && estado.fiscal?.grupos?.[g.nome]).length; // grupos saneados com a revisão fiscal concluída
   const nCrit = criteriosAprovados(estado, contagem).length;
   const nPil = CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length;
   const nDec = decisoesLista.length; const nDecFeitas = decisoesLista.filter((d) => d.status !== "PROP").length;
@@ -395,7 +403,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     { feito: nGrupos > 0 && nSan === nGrupos, sub: nGrupos ? `${nSan}/${nGrupos} grupos` : "sem base" },
     { feito: nDec > 0 && nDecFeitas === nDec, sub: nDec ? `${nDecFeitas}/${nDec} decididos` : "sem casos" },
     { feito: resumoEx.total > 0 && resumoEx.CONCLUIDA === resumoEx.total, sub: resumoEx.total ? `${fmt(resumoEx.CONCLUIDA)}/${fmt(resumoEx.total)} concluídas` : "sem tarefas" }, { sub: "listas finais" },
-    { sub: nSan ? plural(nSan, "grupo liberado", "grupos liberados") : "aguarda saneamento", bloqueado: nSan === 0 },
+    { feito: nSan > 0 && nFisc === nSan, sub: nSan ? `${nFisc}/${nSan} grupos revisados` : "aguarda saneamento", bloqueado: nSan === 0 },
     { sub: "em breve" },
   ];
   return (

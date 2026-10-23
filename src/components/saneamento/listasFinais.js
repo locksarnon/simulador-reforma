@@ -34,6 +34,11 @@ export function unificacoesAprovadas(estado, itens) {
   return saida;
 }
 
+/** Linhas que saem da lista final porque a unificação foi aprovada (o item é unificado em outro código): não precisam de classificação fiscal própria. */
+export function linhasQueSaem(estado, itens) {
+  return new Set(unificacoesAprovadas(estado, itens).filter((u) => u.d.status === "APR" && u.destinoLinha != null && u.destinoLinha !== u.origem.linha).map((u) => u.origem.linha));
+}
+
 /**
  * Monta todas as listas. `escopo` vem de aplicarEscopo (emEscopo/fora) e `testes` de criarTestes.
  * Nada aqui altera o cadastro: são relatórios do que foi proposto, aprovado ou deixado de fora.
@@ -46,7 +51,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   const { tarefas } = gerarTarefas({ decisoes: estado?.decisoes, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params });
   const registros = estado?.execucao?.registros || {};
   const situacaoItem = situacaoPorLinha(tarefas, registros);
-  const saemPorUnificacao = new Set(uni.filter((u) => u.d.status === "APR" && u.destinoLinha != null && u.destinoLinha !== u.origem.linha).map((u) => u.origem.linha));
+  const saemPorUnificacao = linhasQueSaem(estado, itens);
 
   // 1) Lista final corrigida: itens em escopo que permanecem, com a descrição final aprovada
   const finalCorrigida = [];
