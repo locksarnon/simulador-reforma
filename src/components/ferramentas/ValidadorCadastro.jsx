@@ -8,6 +8,7 @@ import LeadForm from "@/components/ferramentas/LeadForm";
 import AnexoLeiPainel from "@/components/ferramentas/AnexoLeiPainel";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
 import HistoricoValidacoes from "@/components/ferramentas/HistoricoValidacoes";
+import { Th, ordenarPor, useOrdenacao } from "@/components/saneamento/ui";
 import { useQueryClient } from "@tanstack/react-query";
 
 const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cClassTrib"];
@@ -92,6 +93,14 @@ const COLUNAS = [
   { chave: "confianca", titulo: "Confiança" },
   { chave: "anexo", titulo: "Base na lei" },
 ];
+/** Valor de cada coluna da tabela de resultado, para ordenar ao clicar no cabeçalho (situação por gravidade; vazio sempre por último). */
+const ACESSORES_ITEM = {
+  linha: (i) => i.linha, codigo: (i) => i.codigo, descricao: (i) => i.descricao, unidade: (i) => i.unidade, principio_ativo: (i) => i.principio_ativo, grupo_contabil: (i) => i.grupo_contabil,
+  ncm_original: (i) => i.ncm_original, ncm: (i) => i.ncm, situacao: (i) => ({ OK: 0, ALERTA: 1, ERRO: 2 })[i.situacao], problemas: (i) => i.problemas.filter((p) => p.codigo !== "CLASSE_SUGERIDA").length,
+  informado: (i) => i.c_class_trib_informado, sugerido: (i) => i.sugestao?.c_class_trib, reducao: (i) => (i.sugestao?.c_class_trib ? i.sugestao.reducao : null), confianca: (i) => i.sugestao?.confianca, anexo: (i) => i.sugestao?.anexo,
+  grupo_atual: (i) => i.grupo_atual, grupo_sugerido: (i) => i.grupo_sugerido, grupo_flag: (i) => i.grupo_flag, conta_atual: (i) => i.grupo_contabil, conta_sugerida: (i) => i.conta_sugerida, conta_flag: (i) => i.conta_flag,
+  ultima_mov: (i) => i.ultima_mov, periodo: (i) => i.periodo,
+};
 
 function Cartao({ titulo, valor, cor, ativo, onClick }) {
   return (
@@ -142,6 +151,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
   const [porPagina, setPorPagina] = useState(100);
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(0);
+  const [ordItens, ordenarItensBase] = useOrdenacao(); const [ordFora, ordenarFora] = useOrdenacao(); const [ordGrupos, ordenarGrupos] = useOrdenacao();
+  const ordenarItens = (k) => { ordenarItensBase(k); setPagina(0); };
   const [emailLiberado, setEmailLiberado] = useState("");
   const inputRef = useRef(null);
   const qc = useQueryClient();
@@ -294,7 +305,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
 
   const tamanhoPagina = porPagina === 0 ? Math.max(1, itensFiltrados.length) : porPagina;
   const totalPaginas = Math.max(1, Math.ceil(itensFiltrados.length / tamanhoPagina));
-  const visiveis = itensFiltrados.slice(pagina * tamanhoPagina, (pagina + 1) * tamanhoPagina);
+  const itensOrdenados = useMemo(() => ordenarPor(itensFiltrados, ordItens, ACESSORES_ITEM), [itensFiltrados, ordItens]);
+  const visiveis = itensOrdenados.slice(pagina * tamanhoPagina, (pagina + 1) * tamanhoPagina);
 
   // ── Etapa 1: enviar ──
   if (etapa === "enviar") {
@@ -425,8 +437,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
             <summary className="cursor-pointer text-sm font-medium">Grupos sugeridos pelo uso do cliente ({r.grupos.length})</summary>
             <div className="mt-3 overflow-auto max-h-[50vh]">
               <table className="w-full text-xs border-collapse">
-                <thead className="bg-muted"><tr className="text-left text-muted-foreground"><th className="px-3 py-2">Grupo sugerido (uso do cliente)</th><th className="px-3 py-2 text-right">Itens</th><th className="px-3 py-2">Hoje estão em</th></tr></thead>
-                <tbody>{r.grupos.map((g) => (
+                <thead className="bg-muted"><tr className="text-left text-muted-foreground"><Th chave="grupo" ord={ordGrupos} onOrdenar={ordenarGrupos} className="px-3 py-2">Grupo sugerido (uso do cliente)</Th><Th chave="qtd" ord={ordGrupos} onOrdenar={ordenarGrupos} className="px-3 py-2 text-right">Itens</Th><Th chave="atuais" ord={ordGrupos} onOrdenar={ordenarGrupos} className="px-3 py-2">Hoje estão em</Th></tr></thead>
+                <tbody>{ordenarPor(r.grupos, ordGrupos, { grupo: (g) => g.grupo, qtd: (g) => g.qtd, atuais: (g) => g.atuais.map((a) => a.grupo).join(" ") }).map((g) => (
                   <tr key={g.grupo} className="border-t border-border align-top">
                     <td className="px-3 py-1.5 font-medium">{g.grupo}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{g.qtd.toLocaleString("pt-BR")}</td>
@@ -494,10 +506,10 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
           <div className="rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
             <table className="w-full text-xs border-collapse">
               <thead className="sticky top-0 z-10 bg-muted"><tr className="text-left text-muted-foreground">
-                {["Linha", "Código", "Descrição", "NCM informado", "Última movimentação"].map((t) => <th key={t} className="px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0">{t}</th>)}
+                {[["linha", "Linha"], ["codigo", "Código"], ["descricao", "Descrição"], ["ncm_original", "NCM informado"], ["ultima_mov", "Última movimentação"]].map(([k, t]) => <Th key={k} chave={k} ord={ordFora} onOrdenar={ordenarFora} className="px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0">{t}</Th>)}
               </tr></thead>
               <tbody>
-                {(resultado.fora_periodo || []).slice(0, 500).map((f) => (
+                {ordenarPor(resultado.fora_periodo || [], ordFora, ACESSORES_ITEM).slice(0, 500).map((f) => (
                   <tr key={f.linha}>
                     <td className="px-3 py-1.5 border-b border-r border-border text-right tabular-nums text-muted-foreground">{f.linha}</td>
                     <td className="px-3 py-1.5 border-b border-r border-border font-medium">{f.codigo || "—"}</td>
@@ -516,7 +528,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
             <thead className="sticky top-0 z-10 bg-muted">
               <tr className="text-left text-muted-foreground">
                 {!publico && arquivo && <th className="p-2 border border-border">Excluir da cópia saneada</th>}
-                {[...COLUNAS, ...(opRes.grupos ? COLUNAS_GRUPOS : []), ...(opRes.gruposContabeis ? COLUNAS_CONTA : []), ...(r.periodo ? COLUNAS_PERIODO : [])].map((c) => <th key={c.chave} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</th>)}
+                {[...COLUNAS, ...(opRes.grupos ? COLUNAS_GRUPOS : []), ...(opRes.gruposContabeis ? COLUNAS_CONTA : []), ...(r.periodo ? COLUNAS_PERIODO : [])].map((c) => <Th key={c.chave} chave={c.chave} ord={ordItens} onOrdenar={ordenarItens} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</Th>)}
               </tr>
             </thead>
             <tbody>

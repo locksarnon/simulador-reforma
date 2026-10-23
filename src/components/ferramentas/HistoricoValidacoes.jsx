@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FolderOpen, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import { Th, ordenarPor, useOrdenacao } from "@/components/saneamento/ui";
 
 const dataBr = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
 /** Resumo curto dos parâmetros usados na análise, para distinguir uma da outra na lista. */
@@ -27,6 +28,12 @@ export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const { data: lista = [], isLoading } = useQuery({ queryKey: ["validacoes-cadastro", empresaId], queryFn: () => api.get("/produtos/validacoes", { empresa_id: empresaId }) });
+
+  const [ord, ordenar] = useOrdenacao();
+  const ordenada = useMemo(() => ordenarPor(lista, ord, {
+    atualizada: (v) => v.updatedAt || v.createdAt, situacao: (v) => (v.status === "RASCUNHO" ? 0 : 1), arquivo: (v) => v.nome_arquivo, parametros: (v) => resumoParametros(v.parametros), enviado: (v) => v.criado_por,
+    total: (v) => v.total, ok: (v) => v.itens_ok, alerta: (v) => v.itens_alerta, erro: (v) => v.itens_erro,
+  }), [lista, ord]);
 
   const excluir = async (v) => {
     if (!(await confirmar({ titulo: "Excluir a validação?", descricao: `Excluir a validação de "${v.nome_arquivo}"? O arquivo guardado também será apagado, e projetos de saneamento que usam esta base ficam sem base vinculada.`, rotulo: "Excluir" }))) return;
@@ -51,8 +58,8 @@ export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
-          <thead><tr className="text-left text-muted-foreground border-b border-border"><th className="py-1.5 pr-3">Atualizada</th><th className="pr-3">Situação</th><th className="pr-3">Arquivo</th><th className="pr-3">Parâmetros</th><th className="pr-3">Enviado por</th><th className="pr-3 text-right">Itens</th><th className="pr-3 text-right">OK</th><th className="pr-3 text-right">Atenção</th><th className="pr-3 text-right">Corrigir</th><th /></tr></thead>
-          <tbody>{lista.map((v) => (
+          <thead><tr className="text-left text-muted-foreground border-b border-border"><Th chave="atualizada" ord={ord} onOrdenar={ordenar} className="py-1.5 pr-3">Atualizada</Th><Th chave="situacao" ord={ord} onOrdenar={ordenar} className="pr-3">Situação</Th><Th chave="arquivo" ord={ord} onOrdenar={ordenar} className="pr-3">Arquivo</Th><Th chave="parametros" ord={ord} onOrdenar={ordenar} className="pr-3">Parâmetros</Th><Th chave="enviado" ord={ord} onOrdenar={ordenar} className="pr-3">Enviado por</Th><Th chave="total" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Itens</Th><Th chave="ok" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">OK</Th><Th chave="alerta" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Atenção</Th><Th chave="erro" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Corrigir</Th><th /></tr></thead>
+          <tbody>{ordenada.map((v) => (
             <tr key={v.id} className="border-b border-border/50 last:border-0">
               <td className="py-2 pr-3 whitespace-nowrap">{new Date(v.updatedAt || v.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
               <td className="pr-3 whitespace-nowrap"><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${v.status === "RASCUNHO" ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"}`}>{v.status === "RASCUNHO" ? "Rascunho" : "Processada"}</span></td>
