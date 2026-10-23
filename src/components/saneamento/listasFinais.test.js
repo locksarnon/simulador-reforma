@@ -151,7 +151,8 @@ describe("listas finais: unidade de estoque (menor unidade, com a unidade maior 
   ];
   const aprovada = (extra) => ({ acao: "ENC", status: "APR", grupo: "Peças", decididoPor: "ana", decididoEm: "2026-10-22", ...extra });
   const estadoU = {
-    params: {}, criterios: { unidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
+    params: {}, politicaUnidade: { ativa: true, regras: {}, rotulos: { massa: "QUILOGRAM" } }, // o analista manteve o nome que o ERP do cliente usa para a massa
+    criterios: { unidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
     decisoes: {
       "2|unidade": aprovada({ tipo: "conversao", de: "TONELADA", para: "QUILOGRAM", fator: 1000, evidencia: "universal" }),
       "5|unidade": aprovada({ tipo: "conversao", de: "BB", para: "QUILOGRAM", fator: null, fatorFinal: 25 }),

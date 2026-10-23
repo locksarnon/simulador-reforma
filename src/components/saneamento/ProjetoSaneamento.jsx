@@ -14,7 +14,7 @@ import { gerarTarefas, resumoExecucao } from "./execucao";
 import { gerarListaCliente, gerarXlsx, montarListas } from "./listasFinais";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
-import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
+import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 import RelacaoTriagem from "./RelacaoTriagem";
 import GruposDoSaneamento from "./GruposDoSaneamento";
 import { criarSituacao } from "./relacoes";
@@ -24,8 +24,8 @@ const PASSOS = [
   { t: "Triagem", programa: "Fixar a origem e o universo; escolher os grupos que entram no saneamento; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho; os sem data seguem a regra escolhida); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
   { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Critério sem achados na base abre aprovado (com a opção de revisar manualmente); os demais só são tratados depois de aprovados.", avancar: "Critérios aplicáveis aprovados e exceções identificadas." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
-  { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, critica cada um (encaminha ou não) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aprovados foram tratados nele.", avancar: "Grupo com todos os critérios tratados e propostas encaminhadas." },
-  { t: "De/para", programa: "As propostas encaminhadas viram decisões rastreáveis. Ausência de resposta não é aprovação.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data." },
+  { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, vê como é hoje e como seria, e decide se encaminha cada um para aprovação no De/para (ou deixa como está) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aprovados foram tratados nele.", avancar: "Grupo com todos os critérios tratados e, nele, o que deve mudar encaminhado ao De/para." },
+  { t: "De/para", programa: "Recebe o que foi encaminhado nas Análises. Cada caso é aprovado ou rejeitado, com aprovador e data, e só o aprovado entra nas listas finais e na execução. Ausência de resposta não é aprovação.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data." },
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências." },
   { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
   { t: "Fiscal", programa: "Cada grupo saneado e conferido é liberado para a revisão fiscal: NCM, CST IBS/CBS e cClassTrib por operação (produtos) e NBS/LC 116 (serviços).", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências.", proxima: true },
@@ -52,6 +52,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [msgResposta, setMsgResposta] = useState("");
   const [gerando, setGerando] = useState(false);
   const [relacao, setRelacao] = useState(null); // cartão da triagem cuja relação de itens está aberta
+  const [ordAbrev, ordenarAbrev] = useOrdenacao(); const [ordUn, ordenarUn] = useOrdenacao(); const [ordDec, ordenarDec] = useOrdenacao(); // ordem das tabelas dos passos Critérios e De/para
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
@@ -94,7 +95,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, estado?.execucao?.registros), [execGerada, estado?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
-  const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras]);
+  const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
   const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado, itens, escopo, testes }) : null), [estado, validacaoId, base.data, itens, escopo, testes, nome]);
 
   if (proj.isLoading || !estado) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o projeto…</p>;
@@ -185,8 +186,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <p className="text-xs text-muted-foreground">Só valem as que você aprovar. A palavra completa pode ser editada. O sistema nunca troca nada sozinho: as trocas viram sugestões para aprovação.</p>
       {abrevCand.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma abreviação frequente identificada.</p> : (
         <div className="max-h-64 overflow-auto">
-          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Abreviação</th><th className="p-1.5">Palavra completa</th><th className="p-1.5">Usos (abrev. / completa)</th><th className="p-1.5">Aprovar</th></tr></thead>
-            <tbody>{abrevCand.slice(0, 60).map((a) => { const k = a.de.toLowerCase(); const cur = abrevPad[k]; const para = (cur?.para ?? a.para).toUpperCase();
+          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="abrev" ord={ordAbrev} onOrdenar={ordenarAbrev}>Abreviação</Th><Th chave="palavra" ord={ordAbrev} onOrdenar={ordenarAbrev}>Palavra completa</Th><Th chave="usos" ord={ordAbrev} onOrdenar={ordenarAbrev}>Usos (abrev. / completa)</Th><Th chave="aprovar" ord={ordAbrev} onOrdenar={ordenarAbrev}>Aprovar</Th></tr></thead>
+            <tbody>{ordenarPor(abrevCand.slice(0, 60), ordAbrev, { abrev: (a) => a.de, palavra: (a) => a.para, usos: (a) => a.nDe, aprovar: (a) => (abrevPad[a.de.toLowerCase()]?.aprovada ? 1 : 0) }).map((a) => { const k = a.de.toLowerCase(); const cur = abrevPad[k]; const para = (cur?.para ?? a.para).toUpperCase();
               return (<tr key={k} className="border-t border-border"><td className="p-1.5 font-mono">{a.de}</td>
                 <td className="p-1.5"><input value={para} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para: e.target.value.toUpperCase(), aprovada: !!cur?.aprovada } } })} className="border rounded px-1.5 py-0.5 w-40 bg-background font-mono" aria-label={`Palavra completa para ${a.de}`} /></td>
                 <td className="p-1.5 tabular-nums">{fmt(a.nDe)} / {fmt(a.nPara)}</td>
@@ -197,9 +198,11 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const polUn = estado.politicaUnidade || { ativa: true, regras: {} };
   const editarUn = (fn) => setEstado((e) => {
     const pol = e.politicaUnidade || { ativa: true, regras: {} };
-    return { ...e, politicaUnidade: fn({ ativa: pol.ativa !== false, regras: { ...(pol.regras || {}) } }), criterios: semAprovacao(e.criterios, "unidade") };
+    return { ...e, politicaUnidade: fn({ ativa: pol.ativa !== false, regras: { ...(pol.regras || {}) }, rotulos: { ...(pol.rotulos || {}) } }), criterios: semAprovacao(e.criterios, "unidade") };
   });
   const setRegraUn = (chave, regra) => editarUn((pol) => { if (regra) pol.regras[chave] = regra; else delete pol.regras[chave]; return pol; });
+  // Nome da unidade de estoque de cada medida: o que o analista digita vale mais que o padrão (vazio volta ao padrão).
+  const setRotuloUn = (grandeza, valor) => editarUn((pol) => { if (valor.trim()) pol.rotulos[grandeza] = valor.toUpperCase(); else delete pol.rotulos[grandeza]; return pol; });
   const painelUnidade = crit.id === "unidade" ? (
     <div className="rounded-lg border border-border p-3 space-y-3">
       <p className="text-sm font-medium">Política da menor unidade de estoque</p>
@@ -208,11 +211,16 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
           <span className="block text-xs text-muted-foreground">Desligada, o critério só confere a grafia (KG × KGS), a unidade vazia e a unidade sem regra.</span></span></label>
       {!validacaoId ? <p className="text-xs text-muted-foreground">Importe a base no passo Triagem para ver as unidades dela.</p> : resumoUn && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Unidade de estoque por medida (o nome que a própria base já usa): {Object.entries(GRANDEZAS).map(([g, v]) => `${v.rotulo} → ${resumoUn.padroes[g]}`).join(" · ")}.</p>
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">Nome da unidade de estoque de cada medida. Por padrão vale o símbolo (KG, L, M, M2) e, na contagem, a grafia que a base já usa. Troque o nome se o seu ERP usa outro (por exemplo QUILOGRAM): todos os itens passam a ser conferidos contra ele.</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">{Object.entries(GRANDEZAS).map(([g, v]) => (
+              <label key={g} className="flex items-center gap-1.5 text-xs">{v.rotulo}
+                <input value={polUn.rotulos?.[g] ?? ""} placeholder={resumoUn.padroes[g]} onChange={(e) => setRotuloUn(g, e.target.value)} aria-label={`Nome da unidade de estoque de ${v.rotulo.toLowerCase()}`} className="border rounded px-1.5 py-0.5 w-24 bg-background font-mono uppercase" /></label>))}</div>
+          </div>
           <p className="text-sm font-medium">Unidades encontradas na base ({fmt(resumoUn.linhas.length)}{resumoUn.semUnidade ? ` · ${plural(resumoUn.semUnidade, "item sem unidade", "itens sem unidade")}` : ""})</p>
           <p className="text-xs text-muted-foreground">O sistema reconhece as unidades de medida usuais e as embalagens mais comuns. As que ele não conhece aparecem como “Sem regra”: diga de que medida a unidade é (e, se souber, quantas unidades padrão ela tem) ou marque “Manter como está”. A escolha vale para todos os itens com a unidade e nada é alterado no cadastro.</p>
-          <div className="max-h-80 overflow-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Unidade</th><th className="p-1.5">Itens</th><th className="p-1.5">Como a política trata</th><th className="p-1.5">Seu ajuste</th></tr></thead>
-            <tbody>{resumoUn.linhas.map((l) => {
+          <div className="max-h-80 overflow-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="unidade" ord={ordUn} onOrdenar={ordenarUn}>Unidade</Th><Th chave="itens" ord={ordUn} onOrdenar={ordenarUn}>Itens</Th><Th chave="trata" ord={ordUn} onOrdenar={ordenarUn}>Como a política trata</Th><th className="p-1.5">Seu ajuste</th></tr></thead>
+            <tbody>{ordenarPor(resumoUn.linhas, ordUn, { unidade: (l) => l.rotulo, itens: (l) => l.n, trata: (l) => l.texto }).map((l) => {
               const sel = l.regra?.manter ? "manter" : (l.regra?.grandeza || ""); const alvo = sel && sel !== "manter" ? resumoUn.padroes[sel] : null;
               return (<tr key={l.chave} className="border-t border-border align-top">
                 <td className="p-1.5 font-mono">{l.rotulo}{l.grafias.length > 1 && <span className="block text-[10px] text-muted-foreground font-sans">também: {l.grafias.slice(1, 4).join(", ")}</span>}</td>
@@ -270,7 +278,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   // ── Passo 4: Análises (uma aba por critério, as mesmas do passo Critérios) ──
   const analises = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para analisar.</p> : (
     <PassoAnalises estado={estado} setEstado={setEstado} grupos={grupos} achados={achados} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} quem={quem}
-      onComparar={setComparativo} onIrCriterios={() => irPara(1)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio} />
+      onComparar={setComparativo} onIrCriterios={() => irPara(1)} onIrDepara={() => irPara(4)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio}
+      itemPorLinha={mapaLinha} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />
   );
 
   // ── Passo 6: Execução (realocações físicas) ──
@@ -313,8 +322,9 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   };
   const depara = (
     <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">Aqui chegam os casos encaminhados no passo Análises. Aprove ou rejeite cada um: só o aprovado entra nas listas finais e na execução; sem resposta, o caso continua aguardando. Nada é alterado no cadastro.</p>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={estado.bloco} onChange={(e) => mudar({ bloco: e.target.checked })} /> Aprovar em bloco (opcional)</label>
-      <p className="text-xs text-muted-foreground">Cada caso continua registrado individualmente, com aprovador e data. Resumo: {fmt(decisoesLista.filter((d) => d.status === "PROP").length)} propostos · {fmt(decisoesLista.filter((d) => d.status === "APR").length)} aprovados · {fmt(decisoesLista.filter((d) => d.status === "REJ").length)} rejeitados.</p>
+      <p className="text-xs text-muted-foreground">Cada caso continua registrado individualmente, com aprovador e data. Resumo: {fmt(decisoesLista.filter((d) => d.status === "PROP").length)} aguardando decisão · {fmt(decisoesLista.filter((d) => d.status === "APR").length)} aprovados · {fmt(decisoesLista.filter((d) => d.status === "REJ").length)} rejeitados.</p>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
         <span className="text-sm font-medium">Correções de descrição com o cliente</span>
         <Botao onClick={emitirListaCliente} disabled={!temPadrao}><Download className="w-3.5 h-3.5 inline mr-1" />Emitir lista para o cliente</Botao>
@@ -323,12 +333,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         <span className="basis-full text-xs text-muted-foreground">O cliente responde OK ou escreve ao lado como deve ficar. Nada é alterado no cadastro: a resposta fica registrada como decisão, com a descrição original preservada.</span>
       </div>
       {nDecOcultas > 0 && <p className="text-xs text-muted-foreground">{plural(nDecOcultas, "decisão de grupo fora do saneamento fica guardada", "decisões de grupos fora do saneamento ficam guardadas")} e não {nDecOcultas === 1 ? "aparece" : "aparecem"} aqui.</p>}
-      {decisoesLista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum caso encaminhado. Marque “Encaminhar” nos achados do passo Análises.</p>}
+      {decisoesLista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum caso encaminhado ainda. No passo Análises, marque “Encaminhar para aprovação” nos achados que devem ser decididos (ou use o botão que encaminha o grupo todo).</p>}
       {porGrupoDec.map((gn) => { const lista = decisoesLista.filter((d) => d.grupo === gn); const pend = lista.filter((d) => d.status === "PROP");
         return (<Acc key={gn} aberto={!!aberto["d" + gn]} onToggle={() => alternar("d" + gn)} titulo={<><b className="font-medium">{gn}</b><span className="text-xs text-muted-foreground">{fmt(lista.length)} casos · {fmt(pend.length)} aguardando decisão</span></>}>
           {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.filter((d) => !precisaFator(d)).length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao>{pend.some(precisaFator) && <span className="self-center text-xs text-muted-foreground">Conversões de unidade sem fator ficam aguardando.</span>}</div>}
-          <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Caso</th><th className="p-1.5">Critério</th><th className="p-1.5">Descrição</th><th className="p-1.5">Situação</th><th className="p-1.5"></th></tr></thead>
-            <tbody>{lista.slice(0, 200).map((d) => { const [linha, cid] = d.k.split("|"); const it = itemPorLinha(Number(linha));
+          <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="caso" ord={ordDec} onOrdenar={ordenarDec}>Caso</Th><Th chave="criterio" ord={ordDec} onOrdenar={ordenarDec}>Critério</Th><Th chave="descricao" ord={ordDec} onOrdenar={ordenarDec}>Descrição</Th><Th chave="situacao" ord={ordDec} onOrdenar={ordenarDec}>Situação</Th><th className="p-1.5"></th></tr></thead>
+            <tbody>{ordenarPor(lista, ordDec, { caso: (d) => Number(d.k.split("|")[0]), criterio: (d) => CRITERIOS.find((c) => c.id === d.k.split("|")[1])?.titulo, descricao: (d) => itemPorLinha(Number(d.k.split("|")[0]))?.descricao, situacao: (d) => (d.status === "PROP" ? 0 : d.status === "APR" ? 1 : 2) }).slice(0, 200).map((d) => { const [linha, cid] = d.k.split("|"); const it = itemPorLinha(Number(linha));
               return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums">L{linha}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== Number(linha) ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorLinha(d.destino)?.codigo ?? "—"}</div></div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
                 <td className="p-1.5">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}</td>
                 <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d)} title={precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}</td></tr>); })}</tbody></table>

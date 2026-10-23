@@ -7,7 +7,7 @@ import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 import { COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, LARGURAS_FRENTE, ROT_SITUACAO_GERAL, gerarTarefas, linhasExecucao, resumoExecucao, situacaoPorLinha } from "./execucao";
 
-const ROT_STATUS = { PROP: "Proposto (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
+const ROT_STATUS = { PROP: "Encaminhado (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const decisaoDe = (estado, linha, critId) => estado?.decisoes?.[`${linha}|${critId}`] || null;
 /** Texto da proposta de um achado: a sugestão e, na conversão de unidade, a unidade de compra e o "itens por unidade de compra". */
@@ -87,7 +87,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
       const d = decisaoDe(estado, a.item.linha, c.id);
       analises.push({
         criterio: c.titulo, grupo: grupoDe(a.item), codigo: a.item.codigo, descricao: a.item.descricao, achado: a.motivo, proposta: propostaDoAchado(a),
-        decisao: d ? ROT_STATUS[d.status] || d.status : "Sem encaminhamento", aprovador: d?.decididoPor || "", data: dataBr(d?.decididoEm),
+        decisao: d ? ROT_STATUS[d.status] || d.status : "Não encaminhado", aprovador: d?.decididoPor || "", data: dataBr(d?.decididoEm),
       });
     }
   }
@@ -103,7 +103,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
     universo: itens.length, emEscopo: escopo.emEscopo.length, inativados: inativados.length, semData: escopo.semData.length, semDataFora: escopo.resumo.semDataFora, semDataEmEscopo: escopo.semData.length - escopo.resumo.semDataFora,
     gruposFora: new Set((escopo.foraGrupos || []).map(grupoDe)).size, itensForaGrupos: (escopo.foraGrupos || []).length,
     unificacoesAprovadas: desduplicacoes.filter((x) => x.decisao === "Aprovado" && x.acao.startsWith("Unificar")).length,
-    unificacoesPendentes: desduplicacoes.filter((x) => x.decisao.startsWith("Proposto")).length,
+    unificacoesPendentes: desduplicacoes.filter((x) => x.decisao.startsWith("Encaminhado")).length,
     descricoesCorrigidas: finalCorrigida.filter((x) => x.mudanca.includes("Descrição corrigida")).length,
     unidadesAjustadas: finalCorrigida.filter((x) => x.unidadeProposta).length,
     listaFinal: finalCorrigida.length, achados: analises.length,

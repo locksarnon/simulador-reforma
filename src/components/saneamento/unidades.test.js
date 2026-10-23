@@ -5,7 +5,9 @@ import { criarTestes } from "./logica";
 const it1 = (unidade, descricao = "ITEM", linha = 2) => ({ linha, unidade, descricao, problemas: [] });
 // Base de apoio que já usa os nomes do cliente para as unidades padrão (como na base real: QUILOGRAM, LITRO, METRO, UNIDADE).
 const apoio = [it1("QUILOGRAM", "ADUBO", 90), it1("QUILOGRAM", "OUTRO", 91), it1("LITRO", "OLEO", 92), it1("METRO", "CABO", 93), it1("UNIDADE", "PARAFUSO", 94), it1("UNIDADE", "PORCA", 95)];
-const roda = (itens, opcoes) => achadosUnidade([...apoio, ...itens], opcoes);
+// Projeto em que o analista manteve os nomes que o ERP do cliente já usa (definidos na tabela do critério). Sem isso, o padrão é o símbolo (KG, L, M, M2).
+const NOMES_ERP = { massa: "QUILOGRAM", volume: "LITRO", comprimento: "METRO", area: "METRO QUA" };
+const roda = (itens, opcoes) => achadosUnidade([...apoio, ...itens], { rotulos: NOMES_ERP, ...opcoes });
 
 describe("chave e classe da unidade", () => {
   it("ignora acento, ponto, espaço e expoente", () => {
@@ -108,12 +110,12 @@ describe("achados do critério de unidade", () => {
   it("a regra vale para qualquer medida, não só para tonelada e galão", () => {
     const casos = [["HL", "LITRO", 100], ["METRO CUB", "LITRO", 1000], ["KM", "METRO", 1000], ["DZ", "UNIDADE", 12], ["CENTO", "UNIDADE", 100], ["MILHAR", "UNIDADE", 1000]];
     for (const [u, alvo, fator] of casos) { const x = it1(u); expect(roda([x])(x)).toMatchObject({ achado: true, sugerida: alvo, extra: { fator, evidencia: "universal" } }); }
-    const ha = it1("HA"); expect(roda([ha])(ha)).toMatchObject({ sugerida: "M2", extra: { fator: 10000 } });
+    const ha = it1("HA"); expect(roda([ha])(ha)).toMatchObject({ sugerida: "METRO QUA", extra: { fator: 10000 } });
   });
-  it("sem a unidade padrão na base, usa o nome da política (KG, LITRO, UNIDADE, METRO)", () => {
+  it("sem nada definido, usa o símbolo da política (KG, L, M, M2) e UN na contagem quando a base não tem unidade de contagem", () => {
     const solo = (u, d) => { const x = it1(u, d); return achadosUnidade([x])(x); };
-    expect(solo("TON", "SOJA").sugerida).toBe("KG"); expect(solo("GALAO", "HERBICIDA 5L").sugerida).toBe("LITRO");
-    expect(solo("CAIXA", "LUVA C/12").sugerida).toBe("UNIDADE"); expect(solo("HA", "TERRA").sugerida).toBe("M2");
+    expect(solo("TON", "SOJA").sugerida).toBe("KG"); expect(solo("GALAO", "HERBICIDA 5L").sugerida).toBe("L");
+    expect(solo("CAIXA", "LUVA C/12").sugerida).toBe("UN"); expect(solo("HA", "TERRA").sugerida).toBe("M2"); expect(solo("KM", "ESTRADA").sugerida).toBe("M");
   });
   it("embalagem: fator da descrição fica para confirmar; sem medida inequívoca fica a informar (nunca inventado)", () => {
     const a = it1("SACA", "SEMENTE MILHO SACO 60 KG"); expect(roda([a])(a)).toMatchObject({ sugerida: "QUILOGRAM", extra: { fator: 60, evidencia: "descricao" } });
@@ -140,11 +142,12 @@ describe("achados do critério de unidade", () => {
     const x = it1("ROLO"); expect(roda([x])(x)).toMatchObject({ achado: true }); expect(roda([x])(x).motivo).toContain("sem regra na política");
     expect(roda([x])(x).sugerida).toBeUndefined();
   });
-  it("grafia diferente da dominante sugere a dominante", () => {
+  it("grafia diferente do nome padrão sugere o nome padrão (o definido no projeto, o símbolo, ou a grafia dominante na contagem)", () => {
     const x = it1("KG", "SEMENTE DE ALGODAO"); const y = it1("KGS"); const z = it1("UN");
-    expect(roda([x])(x)).toMatchObject({ achado: true, sugerida: "QUILOGRAM", extra: { tipo: "grafia", de: "KG" }, motivo: 'Grafia "KG" difere da dominante "QUILOGRAM"' });
-    expect(roda([y])(y).sugerida).toBe("QUILOGRAM"); expect(roda([z])(z).sugerida).toBe("UNIDADE");
-    const m2 = [it1("METRO QUA"), it1("METRO QUA"), it1("M2")]; expect(achadosUnidade(m2)(m2[2]).sugerida).toBe("METRO QUA");
+    expect(roda([x])(x)).toMatchObject({ achado: true, sugerida: "QUILOGRAM", extra: { tipo: "grafia", de: "KG", para: "QUILOGRAM" }, motivo: 'Grafia "KG" difere do padrão "QUILOGRAM"' });
+    expect(roda([y])(y).sugerida).toBe("QUILOGRAM"); expect(roda([z])(z)).toMatchObject({ sugerida: "UNIDADE", motivo: 'Grafia "UN" difere do padrão "UNIDADE"' });
+    const m2 = [it1("METRO QUA"), it1("METRO QUA"), it1("M2")]; expect(achadosUnidade(m2, { rotulos: NOMES_ERP })(m2[2]).sugerida).toBe("METRO QUA");
+    expect(achadosUnidade(m2)(m2[0])).toMatchObject({ sugerida: "M2", motivo: 'Grafia "METRO QUA" difere do padrão "M2"' }); expect(achadosUnidade(m2)(m2[2]).achado).toBe(false); // sem nome definido, vale o símbolo
     const pc = it1("PECA", "ANEL"); expect(roda([pc])(pc)).toMatchObject({ achado: true, sugerida: "UNIDADE", extra: { tipo: "grafia" } }); // peça e unidade: uma grafia só
   });
   it("com a política desligada só restam as regras de grafia", () => {
@@ -201,7 +204,7 @@ describe("base real da Crestani (unidade de estoque, 26 grafias)", () => {
     return l;
   };
   const itens = montar();
-  const teste = achadosUnidade(itens);
+  const teste = achadosUnidade(itens, { rotulos: NOMES_ERP });
   const por = (u) => itens.filter((i) => i.unidade === u).map((i) => teste(i));
 
   it("o que já segue o conceito não gera achado", () => {
@@ -229,7 +232,7 @@ describe("base real da Crestani (unidade de estoque, 26 grafias)", () => {
     expect(porUnidade).toEqual({ CAIXA: 3, PACOTE: 3, BB: 2, "BIG BAG": 1, "METRO CUB": 2, UN: 2, "BALDE 20KG": 2, KG: 1, M2: 1, PC: 1, GALAO: 1, FARDO: 1, ESTERO: 1, BALDE: 1, SE: 1, "(vazio)": 2 });
   });
   it("a tabela de unidades resume a base, com contagem e classificação", () => {
-    const r = resumoUnidades(itens);
+    const r = resumoUnidades(itens, { rotulos: NOMES_ERP });
     expect(r.semUnidade).toBe(2); expect(r.padroes).toMatchObject({ massa: "QUILOGRAM", volume: "LITRO", comprimento: "METRO", area: "METRO QUA", contagem: "UNIDADE" });
     expect(r.linhas[0]).toMatchObject({ rotulo: "UNIDADE", n: 270 });
     const l = (u) => r.linhas.find((x) => x.rotulo === u);
@@ -243,7 +246,7 @@ describe("base real da Crestani (unidade de estoque, 26 grafias)", () => {
   });
   it("classificar as unidades sem regra na tabela zera esses achados", () => {
     const regras = { [chaveUnidade("ESTERO")]: { grandeza: "volume", fator: 1000 }, [chaveUnidade("BALDE")]: { grandeza: "massa", fator: null }, [chaveUnidade("SE")]: { manter: true } };
-    const t = achadosUnidade(itens, { regras }); const x = (u) => t(itens.find((i) => i.unidade === u));
+    const t = achadosUnidade(itens, { regras, rotulos: NOMES_ERP }); const x = (u) => t(itens.find((i) => i.unidade === u));
     expect(x("SE").achado).toBe(false);
     expect(x("ESTERO")).toMatchObject({ sugerida: "LITRO", extra: { fator: 1000, evidencia: "regra" } });
     expect(x("BALDE")).toMatchObject({ sugerida: "QUILOGRAM", extra: { fator: null } });
@@ -252,9 +255,27 @@ describe("base real da Crestani (unidade de estoque, 26 grafias)", () => {
 });
 
 describe("nome da unidade padrão e decisões", () => {
-  it("usa o nome que a base já usa, ou o da política quando não há", () => {
-    expect(rotulosPadrao(apoio)).toEqual({ massa: "QUILOGRAM", volume: "LITRO", comprimento: "METRO", area: "M2", contagem: "UNIDADE" });
-    expect(rotulosPadrao([])).toEqual({ massa: "KG", volume: "LITRO", comprimento: "METRO", area: "M2", contagem: "UNIDADE" });
+  it("as medidas usam o símbolo (KG é melhor que QUILOGRAM) e a contagem usa o nome que a base já usa, ou UN quando não há", () => {
+    expect(rotulosPadrao(apoio)).toEqual({ massa: "KG", volume: "L", comprimento: "M", area: "M2", contagem: "UNIDADE" });
+    expect(rotulosPadrao([])).toEqual({ massa: "KG", volume: "L", comprimento: "M", area: "M2", contagem: "UN" });
+  });
+  it("o nome definido pelo analista vale mais (sem espaços e em maiúsculas); vazio volta ao padrão", () => {
+    expect(rotulosPadrao(apoio, NOMES_ERP)).toEqual({ massa: "QUILOGRAM", volume: "LITRO", comprimento: "METRO", area: "METRO QUA", contagem: "UNIDADE" });
+    expect(rotulosPadrao(apoio, { massa: "  kgs ", volume: "", contagem: "un" })).toEqual({ massa: "KGS", volume: "L", comprimento: "M", area: "M2", contagem: "UN" });
+  });
+  it("conferência dos nomes: QUILOGRAM passa a ser sugestão de KG, e KG já está certo; a contagem não vira 27 mil achados", () => {
+    const itens = [it1("QUILOGRAM", "ADUBO", 2), it1("QUILOGRAM", "OUTRO", 3), it1("KG", "SEMENTE", 4), it1("LITRO", "OLEO", 5), it1("METRO", "CABO", 6), it1("UNIDADE", "PORCA", 7), it1("UNIDADE", "PARAFUSO", 8)];
+    const t = achadosUnidade(itens);
+    expect(t(itens[0])).toMatchObject({ achado: true, sugerida: "KG", extra: { tipo: "grafia", de: "QUILOGRAM", para: "KG" }, motivo: 'Grafia "QUILOGRAM" difere do padrão "KG"' });
+    expect(t(itens[2]).achado).toBe(false);
+    expect(t(itens[3])).toMatchObject({ sugerida: "L" }); expect(t(itens[4])).toMatchObject({ sugerida: "M" });
+    expect(t(itens[5]).achado).toBe(false); // UNIDADE é a grafia da base na contagem
+  });
+  it("a conversão também usa o nome padrão: TONELADA vira unidade de compra e o estoque passa a ser em KG", () => {
+    const itens = [it1("TONELADA", "SOJA", 2), it1("BB", "SEMENTE DE SOJA", 3)];
+    const t = achadosUnidade(itens);
+    expect(t(itens[0])).toMatchObject({ sugerida: "KG", extra: { tipo: "conversao", de: "TONELADA", fator: 1000, evidencia: "universal" }, motivo: "Maior que a unidade padrão de massa (KG): 1 TONELADA = 1.000 KG" });
+    expect(t(itens[1])).toMatchObject({ sugerida: "KG", extra: { fator: null }, motivo: "Embalagem de massa: informe quantos KG há em cada BB" });
   });
   it("conversão sem fator não pode ser aprovada; o fator do analista vale mais que o sugerido", () => {
     expect(precisaFator({ tipo: "conversao", para: "KG", fator: null })).toBe(true);

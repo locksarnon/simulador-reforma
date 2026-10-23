@@ -1,7 +1,7 @@
 // Política de unidades de medida do estoque (saneamento de estoques).
 //
-// CONCEITO. A unidade de ESTOQUE de um item é a menor unidade prática da medida em que ele é controlado: massa em KG, volume em LITRO,
-// comprimento em METRO, área em M2, contagem em UNIDADE. Unidade maior (tonelada, hectolitro, dúzia, metro cúbico...) e embalagem (saca,
+// CONCEITO. A unidade de ESTOQUE de um item é a menor unidade prática da medida em que ele é controlado: massa em KG, volume em L,
+// comprimento em M, área em M2, contagem em UN. Unidade maior (tonelada, hectolitro, dúzia, metro cúbico...) e embalagem (saca,
 // big bag, galão, caixa, pacote...) passam a ser unidade de COMPRA, com o fator de conversão cadastrado. TON → KG e GALÃO → LITRO são só
 // exemplos: a regra vale para qualquer unidade que a tabela abaixo, o texto da própria unidade ("BALDE 20KG") ou o analista (tabela do
 // projeto) relacione a uma medida.
@@ -10,13 +10,16 @@
 // da descrição (uma única medida citada) fica "para confirmar"; nos demais casos fica "a informar". Unidade que a política não conhece
 // nunca é adivinhada: vai para o analista classificar.
 
-/** Medidas com a unidade de estoque padrão. `base` é a classe (grafias da mesma unidade) da unidade padrão. */
+/**
+ * Medidas com a unidade de estoque padrão. `base` é a classe (grafias da mesma unidade) da unidade padrão; `si` diz que o nome padrão é o símbolo
+ * (KG, L, M, M2), sem acompanhar a grafia da base. Na contagem o nome acompanha o que a base já usa (UNIDADE ou UN).
+ */
 export const GRANDEZAS = {
-  massa: { rotulo: "Massa", padrao: "KG", base: "kg" },
-  volume: { rotulo: "Volume", padrao: "LITRO", base: "l" },
-  comprimento: { rotulo: "Comprimento", padrao: "METRO", base: "m" },
-  area: { rotulo: "Área", padrao: "M2", base: "m2" },
-  contagem: { rotulo: "Contagem", padrao: "UNIDADE", base: "un" },
+  massa: { rotulo: "Massa", padrao: "KG", base: "kg", si: true },
+  volume: { rotulo: "Volume", padrao: "L", base: "l", si: true },
+  comprimento: { rotulo: "Comprimento", padrao: "M", base: "m", si: true },
+  area: { rotulo: "Área", padrao: "M2", base: "m2", si: true },
+  contagem: { rotulo: "Contagem", padrao: "UN", base: "un", si: false },
 };
 
 const semAcento = (s) => String(s ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "");
@@ -177,9 +180,13 @@ function dominantes(itens) {
   }
   return new Map([...cont].map(([c, mm]) => [c, [...mm.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0]]));
 }
-const padroesDe = (dom) => Object.fromEntries(Object.entries(GRANDEZAS).map(([g, v]) => [g, dom.get(v.base) || v.padrao]));
-/** Nome da unidade padrão de cada medida: o que a própria base já usa (ex.: QUILOGRAM) ou, se não há, o nome da política (KG). */
-export const rotulosPadrao = (itens) => padroesDe(dominantes(itens));
+const rotuloTxt = (s) => String(s ?? "").trim().toUpperCase();
+/**
+ * Nome da unidade padrão de cada medida. Vale o que o analista definiu no projeto (`rotulos`); sem isso, as medidas do SI usam o símbolo (KG, L, M, M2:
+ * "KG" é melhor que "QUILOGRAM") e a contagem usa a grafia que a própria base já adota (UNIDADE ou UN), para não reescrever a base inteira à toa.
+ */
+const padroesDe = (dom, rotulos = {}) => Object.fromEntries(Object.entries(GRANDEZAS).map(([g, v]) => [g, rotuloTxt(rotulos?.[g]) || (v.si ? v.padrao : dom.get(v.base) || v.padrao)]));
+export const rotulosPadrao = (itens, rotulos = {}) => padroesDe(dominantes(itens), rotulos);
 
 function conversao(it, raw, k, alvo) {
   const nome = raw.toUpperCase(); const medida = GRANDEZAS[k.grandeza].rotulo.toLowerCase();
@@ -201,8 +208,8 @@ function conversao(it, raw, k, alvo) {
  *  - grafia diferente da dominante da mesma unidade (KGS × KG) → sugere a dominante.
  * Unidade já menor que a padrão, conjunto e unidade marcada para manter são aceitos.
  */
-export function achadosUnidade(itens, { politica = true, regras = {} } = {}) {
-  const dom = dominantes(itens); const padroes = padroesDe(dom);
+export function achadosUnidade(itens, { politica = true, regras = {}, rotulos = {} } = {}) {
+  const dom = dominantes(itens); const padroes = padroesDe(dom, rotulos);
   const memo = new Map();
   const cls = (raw) => { if (!memo.has(raw)) memo.set(raw, classificarUnidade(raw, regras)); return memo.get(raw); };
   return (it) => {
@@ -213,8 +220,9 @@ export function achadosUnidade(itens, { politica = true, regras = {} } = {}) {
     if (k.nivel === "mantida") return { achado: false };
     if (politica && (k.nivel === "maior" || k.nivel === "embalagem")) return conversao(it, raw, k, padroes[k.grandeza]);
     if (!k.classe) return { achado: false };
-    const dominante = dom.get(k.classe);
-    return raw !== dominante ? { achado: true, motivo: `Grafia "${raw}" difere da dominante "${dominante}"`, sugerida: dominante, extra: { tipo: "grafia", de: raw } } : { achado: false };
+    const padrao = !!k.grandeza && k.classe === GRANDEZAS[k.grandeza].base; // a unidade padrão da medida tem nome definido; as demais seguem a grafia dominante
+    const alvo = padrao ? padroes[k.grandeza] : dom.get(k.classe);
+    return raw !== alvo ? { achado: true, motivo: `Grafia "${raw}" difere ${padrao ? "do padrão" : "da dominante"} "${alvo}"`, sugerida: alvo, extra: { tipo: "grafia", de: raw, para: alvo } } : { achado: false };
   };
 }
 
@@ -237,8 +245,8 @@ export function descreverClassificacao(k, rotulo, padroes) {
 }
 
 /** Todas as unidades da base (por chave), com quantidade de itens, grafia mais usada e classificação; mais frequentes primeiro. */
-export function resumoUnidades(itens, { regras = {} } = {}) {
-  const padroes = rotulosPadrao(itens);
+export function resumoUnidades(itens, { regras = {}, rotulos = {} } = {}) {
+  const padroes = rotulosPadrao(itens, rotulos);
   const por = new Map(); let semUnidade = 0;
   for (const it of itens) {
     const raw = String(it.unidade ?? "").trim(); if (!raw) { semUnidade += 1; continue; }

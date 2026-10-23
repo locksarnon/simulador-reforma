@@ -3,9 +3,12 @@ import { Download, Loader2 } from "lucide-react";
 import { hojeIso } from "./logica";
 import { FRENTES, ORDEM_TIPOS, TIPOS_TAREFA, aplicarRespostaExecucao, lerRespostaExecucao, linhasListaFrente, situacaoFrente, situacaoTarefa, tiposEfetivos } from "./execucao";
 import { gerarListaFrente } from "./listasFinais";
-import { Acc, Botao, Chip, fmt, plural } from "./ui";
+import { Acc, Botao, Chip, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 
 const OPCOES = [["", "Pendente"], ["FEITO", "Feito"], ["DIV", "Divergência"]];
+// Ordem das situações nas colunas ordenáveis (o que não se aplica fica por último)
+const RANQUE_FRENTE = { NA: null, PENDENTE: 0, SEM_EVIDENCIA: 1, DIVERGENCIA: 2, FEITO: 3 };
+const RANQUE_GERAL = { PENDENTE: 0, EM_ANDAMENTO: 1, DIVERGENCIA: 2, CONCLUIDA: 3 };
 
 /** Resumo curto de uma frente (para o título do lote e do tipo). */
 const progresso = (r) => `administrativo ${fmt(r.adm.feitas)}/${fmt(r.adm.total)}${r.alm.total ? ` · almoxarifado ${fmt(r.alm.feitas)}/${fmt(r.alm.total)}` : ""}`;
@@ -29,6 +32,7 @@ function CelulaFrente({ t, frente, reg, onStatus, onNota }) {
 
 /** Conteúdo de um lote (grupo): por tipo de tarefa, o registro em lote e a tabela das tarefas. Só é montado com o lote aberto. */
 function Lote({ g, tarefasPorTipo, registros, mostrar, setMostrar, evidLote, setEvidLote, onStatus, onNota, onLote }) {
+  const [ord, ordenar] = useOrdenacao(); // a mesma ordem vale para as tabelas de todos os tipos do lote
   return (
     <div className="space-y-3">
       {g.tipos.map((tp) => {
@@ -43,8 +47,8 @@ function Lote({ g, tarefasPorTipo, registros, mostrar, setMostrar, evidLote, set
               {comAlm && <Botao disabled={!evid} title={evid ? undefined : "Informe a evidência para registrar"} onClick={() => onLote(doTipo.filter((t) => t.aplica.alm).map((t) => t.id), "alm", evid)}>Almoxarifado: marcar como feito</Botao>}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">O que fazer</th><th className="p-1.5">Administrativo</th><th className="p-1.5">Almoxarifado</th><th className="p-1.5">Situação</th></tr></thead>
-                <tbody>{doTipo.slice(0, lim).map((t) => {
+              <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><Th chave="fazer" ord={ord} onOrdenar={ordenar}>O que fazer</Th><Th chave="adm" ord={ord} onOrdenar={ordenar}>Administrativo</Th><Th chave="alm" ord={ord} onOrdenar={ordenar}>Almoxarifado</Th><Th chave="situacao" ord={ord} onOrdenar={ordenar}>Situação</Th></tr></thead>
+                <tbody>{ordenarPor(doTipo, ord, { codigo: (t) => t.codigo, descricao: (t) => t.descricao, fazer: (t) => t.instrucao.adm, adm: (t) => RANQUE_FRENTE[situacaoTarefa(t, registros[t.id]).adm], alm: (t) => RANQUE_FRENTE[situacaoTarefa(t, registros[t.id]).alm], situacao: (t) => RANQUE_GERAL[situacaoTarefa(t, registros[t.id]).geral] }).slice(0, lim).map((t) => {
                   const s = situacaoTarefa(t, registros[t.id]);
                   return (
                     <tr key={t.id} className="border-t border-border align-top">
@@ -73,6 +77,7 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
   const [evidLote, setEvidLote] = useState({});
   const [msg, setMsg] = useState("");
   const [gerando, setGerando] = useState("");
+  const [ordTipos, ordenarTipos] = useOrdenacao();
   const registros = estado.execucao?.registros || {};
   const cfg = tiposEfetivos(estado.execucao?.tipos);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
@@ -133,8 +138,8 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
 
       <Acc aberto={!!aberto.__tipos} onToggle={() => alternar("__tipos")} titulo={<><b className="font-medium">Tipos de tarefa e frentes aplicáveis</b><span className="text-xs text-muted-foreground">escolha o que entra na execução e onde há movimento físico</span></>}>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Tipo</th><th className="p-1.5">Geradas</th><th className="p-1.5">Entra na execução</th><th className="p-1.5">Almoxarifado participa</th><th className="p-1.5">O que se faz</th></tr></thead>
-            <tbody>{ORDEM_TIPOS.map((t) => {
+          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="tipo" ord={ordTipos} onOrdenar={ordenarTipos}>Tipo</Th><Th chave="geradas" ord={ordTipos} onOrdenar={ordenarTipos}>Geradas</Th><Th chave="entra" ord={ordTipos} onOrdenar={ordenarTipos}>Entra na execução</Th><Th chave="alm" ord={ordTipos} onOrdenar={ordenarTipos}>Almoxarifado participa</Th><th className="p-1.5">O que se faz</th></tr></thead>
+            <tbody>{ordenarPor(ORDEM_TIPOS, ordTipos, { tipo: (t) => TIPOS_TAREFA[t].titulo, geradas: (t) => geradasPorTipo[t] || 0, entra: (t) => (cfg[t].incluir ? 1 : 0), alm: (t) => (TIPOS_TAREFA[t].comoAlm ? (cfg[t].alm ? 1 : 0) : null) }).map((t) => {
               const base = TIPOS_TAREFA[t]; const c = cfg[t];
               return (
                 <tr key={t} className="border-t border-border align-top">

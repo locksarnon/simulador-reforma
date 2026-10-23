@@ -96,13 +96,13 @@ export const CRITERIOS = [
     regra: "Padrão de descrição por família (a definir com o cliente): ordem das palavras, abreviações permitidas, atributos obrigatórios. O teste automático hoje aponta descrição ausente.",
     exemplo: "Item sem descrição", params: "" },
   { id: "padrao", titulo: "Padronização da descrição", auto: true,
-    regra: "Descrição no padrão aprovado (NOME + REFERÊNCIA + COMPLEMENTO): sem espaços duplicados, em caixa alta, unidade colada ao número e só abreviações da lista aprovada. O sistema apenas SUGERE: cada correção passa por aprovação e a descrição original é sempre preservada. Padronizar o nome não funde itens.",
+    regra: "Descrição no padrão aprovado (NOME + REFERÊNCIA + COMPLEMENTO): sem espaços duplicados, com espaço depois do ponto da abreviação, em caixa alta, unidade colada ao número e só abreviações da lista aprovada. O sistema apenas SUGERE: cada correção passa por aprovação e a descrição original é sempre preservada. Padronizar o nome não funde itens.",
     exemplo: '"ANEL TRAVA  1440478X1" → "ANEL TRAVA 1440478X1"', params: "Limite de 100 caracteres no SAP B1 (a confirmar)" },
   { id: "grupo", titulo: "Grupo de itens", auto: true,
     regra: "O grupo segue o uso que o próprio cliente já faz na planilha; só se sugere com certeza alta (mínimo de itens e participação).",
     exemplo: "Item sem grupo com 94% dos similares no grupo Peças", params: "Participação mínima: 90%" },
   { id: "unidade", titulo: "Unidade de medida", auto: true,
-    regra: "A unidade de estoque de cada item é a MENOR unidade prática da medida em que ele é controlado: massa em quilograma, volume em litro, comprimento em metro, área em metro quadrado e contagem em unidade. Unidade maior (tonelada, hectolitro, dúzia, metro cúbico...) e embalagem (saca, big bag, galão, caixa, pacote...) passam a ser unidade de COMPRA, com o fator de conversão cadastrado. A regra vale para qualquer unidade da base, não só para os exemplos: o sistema reconhece as unidades de medida usuais e o analista classifica as demais na tabela de unidades. O fator só é dado como certo quando é exato por definição (1 tonelada = 1.000 kg) ou está escrito na própria unidade (BALDE 20KG); se vem da descrição, fica para confirmar; nos demais casos fica a informar. Unidade já menor que a padrão (g, ml, cm) é aceita. Uma grafia por unidade (KG, não KGS ou Kg); unidade vazia ou sem regra é pendência. Para item com histórico de movimentação, o SAP pode não permitir a troca da unidade de estoque: validar no piloto (passo 3) e tratar como de/para ou novo cadastro.",
+    regra: "A unidade de estoque de cada item é a MENOR unidade prática da medida em que ele é controlado: massa em quilograma, volume em litro, comprimento em metro, área em metro quadrado e contagem em unidade. Unidade maior (tonelada, hectolitro, dúzia, metro cúbico...) e embalagem (saca, big bag, galão, caixa, pacote...) passam a ser unidade de COMPRA, com o fator de conversão cadastrado. A regra vale para qualquer unidade da base, não só para os exemplos: o sistema reconhece as unidades de medida usuais e o analista classifica as demais na tabela de unidades. O fator só é dado como certo quando é exato por definição (1 tonelada = 1.000 kg) ou está escrito na própria unidade (BALDE 20KG); se vem da descrição, fica para confirmar; nos demais casos fica a informar. Unidade já menor que a padrão (g, ml, cm) é aceita. Uma grafia por unidade (KG, não KGS, Kg ou QUILOGRAM): o nome padrão das medidas é o símbolo (KG, L, M, M2), na contagem vale a grafia que a base já usa, e o analista pode trocar o nome de qualquer uma na tabela do critério; unidade vazia ou sem regra é pendência. Para item com histórico de movimentação, o SAP pode não permitir a troca da unidade de estoque: validar no piloto (passo 3) e tratar como de/para ou novo cadastro.",
     exemplo: "Item estocado em TONELADA ou SACA (passa para KG, com a unidade maior como unidade de compra); em GALÃO (passa para LITRO); em CAIXA (passa para UNIDADE); KG, KGS e kg no mesmo cadastro", params: "política da menor unidade de estoque, com exceções por unidade na tabela do critério" },
   { id: "utilizacao", titulo: "Utilização", auto: true,
     regra: "Item dentro do escopo sem data de movimentação legível é sinalizado (se o parâmetro de saneamento os trata como anteriores à data, eles saem do escopo e não chegam aqui). A ausência de movimento por si só não determina bloqueio.",
@@ -116,9 +116,10 @@ export const CRITERIOS = [
 ];
 
 // ── Padronização de descrição: só SUGERE; nada é gravado no cadastro ──
-export const REGRAS_PADRAO = { espacos: true, parenteses: true, unidadeColada: true, caixaAlta: true };
+export const REGRAS_PADRAO = { espacos: true, pontoColado: true, parenteses: true, unidadeColada: true, caixaAlta: true };
 export const ROTULO_REGRAS = {
   espacos: "Remover espaços duplicados e nas pontas",
+  pontoColado: "Espaço depois do ponto da abreviação (ex.: LÍQ.CONFEITARIA → LÍQ. CONFEITARIA)",
   parenteses: "Tirar parênteses em volta de referência (ex.: (11186) → 11186)",
   unidadeColada: "Unidade colada ao número (ex.: 16 MM → 16MM)",
   caixaAlta: "Caixa alta",
@@ -134,6 +135,7 @@ export function padronizarDescricao(desc, regras = REGRAS_PADRAO, abrev = {}) {
   const original = String(desc ?? ""); let s = original; const motivos = [];
   const aplica = (motivo, novo) => { if (novo !== s) { motivos.push(motivo); s = novo; } };
   if (regras.espacos) aplica("espaços duplicados ou nas pontas", s.replace(/\s+/g, " ").trim());
+  if (regras.pontoColado) aplica("espaço depois do ponto da abreviação", s.replace(/([A-Za-zÀ-ÿ]{2,})\.(?=[A-Za-zÀ-ÿ]{3,})/g, "$1. "));
   if (regras.parenteses) aplica("parênteses em volta de referência", s.replace(/\(\s*([A-Za-z0-9][A-Za-z0-9\-/.]*)\s*\)/g, (m, t) => (/\d/.test(t) && t.length >= 3 ? t : m)));
   if (regras.unidadeColada) aplica("unidade colada ao número", s.replace(new RegExp(String.raw`(\d+(?:[.,]\d+)?)\s+(${UNIDADES_COLAVEIS})(?![A-Za-z0-9.])`, "gi"), (_m, n, u) => n + u.toUpperCase()));
   for (const [de, para] of Object.entries(abrev)) {
@@ -163,7 +165,7 @@ export function descobrirAbreviacoes(itens, { minimo = 8 } = {}) {
 
 /** Teste de cada critério automático: devolve { achado, motivo } por item. `itens` é o universo em escopo (alguns testes dependem do conjunto). */
 export function criarTestes(itens, estado = {}) {
-  const unidade = achadosUnidade(itens, { politica: estado?.politicaUnidade?.ativa !== false, regras: estado?.politicaUnidade?.regras || {} });
+  const unidade = achadosUnidade(itens, { politica: estado?.politicaUnidade?.ativa !== false, regras: estado?.politicaUnidade?.regras || {}, rotulos: estado?.politicaUnidade?.rotulos || {} });
   const regras = { ...REGRAS_PADRAO, ...(estado?.padronizacao?.regras || {}) }; const abrev = abreviacoesAprovadas(estado);
   return {
     padrao: (it) => { const r = padronizarDescricao(it.descricao, regras, abrev); return r.mudou ? { achado: true, motivo: r.motivos.join("; ") + (r.longa ? ` · acima de ${LIMITE_DESCRICAO} caracteres` : ""), sugerida: r.sugerida } : { achado: false }; },

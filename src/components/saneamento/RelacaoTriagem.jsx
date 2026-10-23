@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { Botao, dataBr, fmt } from "./ui";
+import { Botao, Th, dataBr, fmt, ordenarPor, useOrdenacao } from "./ui";
 import { grupoDe } from "./logica";
 import { RELACOES, criarSituacao, descricaoRelacao, gerarRelacao, itensDaRelacao } from "./relacoes";
 
@@ -20,11 +20,14 @@ export default function RelacaoTriagem({ id, itens, escopo, corte, semDataFora, 
     return q ? base.filter((it) => semAcento(`${it.codigo} ${it.descricao} ${grupoDe(it)} ${it.unidade}`).includes(q)) : base;
   }, [base, filtro]);
   const comSituacao = id === "universo";
+  const [ord, ordenar] = useOrdenacao();
+  // o Excel sai com o que está na tela: o filtro e também a ordem escolhida
+  const ordenada = useMemo(() => ordenarPor(lista, ord, { codigo: (it) => it.codigo, descricao: (it) => it.descricao, unidade: (it) => it.unidade, grupo: (it) => grupoDe(it), ultima: (it) => it.ultima_mov, situacao: (it) => situacao(it) }), [lista, ord, situacao]);
 
   const emitir = async () => {
     setGerando(true); setMsg("");
     try {
-      await gerarRelacao({ id, lista, escopo, corte, semDataFora, nomeProjeto, nomeBase, filtro: filtro.trim() }, `${slug}-${rel.arquivo}.xlsx`);
+      await gerarRelacao({ id, lista: ordenada, escopo, corte, semDataFora, nomeProjeto, nomeBase, filtro: filtro.trim() }, `${slug}-${rel.arquivo}.xlsx`);
       setMsg(`Planilha emitida com ${fmt(lista.length)} ${lista.length === 1 ? "item" : "itens"}.`);
     } catch (e) { setMsg(`Não foi possível emitir a planilha: ${e.message}`); } finally { setGerando(false); }
   };
@@ -47,8 +50,8 @@ export default function RelacaoTriagem({ id, itens, escopo, corte, semDataFora, 
       {base.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item nesta relação.</p> : lista.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item corresponde ao filtro.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
-            <thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5">Unidade</th><th className="p-1.5">Grupo</th><th className="p-1.5">Última mov.</th>{comSituacao && <th className="p-1.5">Situação</th>}</tr></thead>
-            <tbody>{lista.slice(0, mostrar).map((it) => (
+            <thead><tr className="text-left text-muted-foreground"><Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><Th chave="unidade" ord={ord} onOrdenar={ordenar}>Unidade</Th><Th chave="grupo" ord={ord} onOrdenar={ordenar}>Grupo</Th><Th chave="ultima" ord={ord} onOrdenar={ordenar}>Última mov.</Th>{comSituacao && <Th chave="situacao" ord={ord} onOrdenar={ordenar}>Situação</Th>}</tr></thead>
+            <tbody>{ordenada.slice(0, mostrar).map((it) => (
               <tr key={it.linha} className="border-t border-border">
                 <td className="p-1.5">{it.codigo || "—"}</td><td className="p-1.5 max-w-[320px]">{it.descricao || "—"}</td><td className="p-1.5">{it.unidade || "—"}</td>
                 <td className="p-1.5">{grupoDe(it)}</td><td className="p-1.5 tabular-nums">{dataBr(it.ultima_mov)}</td>{comSituacao && <td className="p-1.5">{situacao(it)}</td>}
