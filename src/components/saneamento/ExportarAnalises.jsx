@@ -72,7 +72,7 @@ export default function ExportarAnalises({ ativo, grupos, achados, contagem, est
             {disponiveis.map((c) => (
               <label key={c.id} className={`flex items-center gap-2 text-sm ${c.n === 0 ? "text-muted-foreground" : ""}`}>
                 <input type="checkbox" checked={crit.includes(c.id)} disabled={c.n === 0} onChange={() => alternarCrit(c.id)} aria-label={`Incluir o critério ${c.titulo} no Excel`} />
-                <span className="flex-1 min-w-0">{c.titulo}{c.n > 0 && situacaoCriterio(estado, c, contagem) === "PENDENTE" && <span className="text-xs text-muted-foreground"> · a aprovar</span>}</span>
+                <span className="flex-1 min-w-0">{c.titulo}{c.n > 0 && ["PENDENTE", "SEM_ANALISE", "NAO_APLICAVEL"].includes(situacaoCriterio(estado, c, contagem)) && <span className="text-xs text-muted-foreground"> · {{ PENDENTE: "a aprovar", SEM_ANALISE: "análise não executada", NAO_APLICAVEL: "não aplicável" }[situacaoCriterio(estado, c, contagem)]}</span>}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">{c.n === 0 ? "sem achados" : plural(c.n, "achado", "achados")}</span>
               </label>))}
           </div>

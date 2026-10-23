@@ -2,7 +2,7 @@
 // padronizar e descontinuar), regras por grupo e uma versão estruturada para configurar o módulo de cadastro automático do cliente. Critério ainda não aprovado
 // não gera regra. Só SUGERE: é uma proposta de política que o responsável revisa e aprova; nada é alterado no cadastro nem no ERP. Funções puras.
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, dataBr, dataDoCorte, normalizarParams } from "./logica";
-import { criteriosPendentesDoGrupo, situacaoCriterio } from "./analise";
+import { coberturaDoCriterio, criteriosPendentesDoGrupo, grupoSaneado, naoAplicavelDe, situacaoCriterio } from "./analise";
 import { GRANDEZAS, resumoUnidades } from "./unidades";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
@@ -33,7 +33,7 @@ export function contarDecisoes(decisoes) {
 export function montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto = "", nomeBase = "" }) {
   const pol = estado?.politica || {}; const dec = contarDecisoes(estado?.decisoes); const params = normalizarParams(estado?.params);
   const sitDe = (id) => situacaoCriterio(estado, CRITERIOS.find((c) => c.id === id), contagem);
-  const ativo = (id) => sitDe(id) !== "PENDENTE";
+  const ativo = (id) => ["APROVADO", "AUTO"].includes(sitDe(id)); // só o critério em uso gera regra: pendente, sem a análise executada ou não aplicável ficam de fora
   const achados = (id) => contagem?.porCriterio?.[id] ?? 0;
   const origem = (id) => {
     const c = CRITERIOS.find((x) => x.id === id); const e = estado?.criterios?.[id]; const s = sitDe(id);
@@ -70,12 +70,14 @@ export function montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto =
   if (ativo("cartilhas")) regras.push(R("descontinuar.vinculos", "descontinuar", "Antes de inativar, conferir vínculos em cartilhas, planos de manutenção e documentos abertos.", "cartilhas", "Critério de conferência manual."));
 
   const secoes = SECOES.map((s) => ({ ...s, regras: regras.filter((r) => r.secao === s.id), responsavel: pol.secoes?.[s.id]?.responsavel || "", controle: pol.secoes?.[s.id]?.controle || "" }));
-  const porGrupo = (grupos || []).map((g) => ({
-    grupo: g.nome, itens: g.itens.length, saneado: !!estado?.saneados?.[g.nome], criteriosPendentes: criteriosPendentesDoGrupo(estado, g.nome, contagem).length,
-    fiscal: estado?.fiscal?.grupos?.[g.nome] ? "Revisão concluída" : estado?.saneados?.[g.nome] ? "Em revisão" : "Não liberado", regra: pol.grupos?.[g.nome]?.regra || "",
-  }));
+  const porGrupo = (grupos || []).map((g) => {
+    const saneado = grupoSaneado(estado, g.nome, contagem);
+    return { grupo: g.nome, itens: g.itens.length, saneado, criteriosPendentes: criteriosPendentesDoGrupo(estado, g.nome, contagem).length, fiscal: estado?.fiscal?.grupos?.[g.nome] ? "Revisão concluída" : saneado ? "Em revisão" : "Não liberado", regra: pol.grupos?.[g.nome]?.regra || "" };
+  });
+  const naoAplicaveis = CRITERIOS.filter((c) => sitDe(c.id) === "NAO_APLICAVEL").map((c) => { const n = naoAplicavelDe(estado, c); return { id: c.id, criterio: c.titulo, justificativa: n.justificativa, por: n.por || "", em: n.em || "" }; });
   const pendencias = [
     ...CRITERIOS.filter((c) => sitDe(c.id) === "PENDENTE").map((c) => `O critério "${c.titulo}" ainda não foi aprovado: a regra correspondente não entra na política.`),
+    ...CRITERIOS.filter((c) => sitDe(c.id) === "SEM_ANALISE").map((c) => `O critério "${c.titulo}" não pode ser dado como verificado: ${coberturaDoCriterio(contagem, c).falta} não foi executada nesta base. A regra não entra na política até a análise ser feita ou o critério ser declarado não aplicável, com justificativa.`),
     ...(Object.values(estado?.piloto || {}).filter((p) => p.status === "Testado").length < 4 ? ["O piloto SAP não tem os quatro casos testados: os procedimentos de execução ficam sem liberação."] : []),
     ...porGrupo.filter((g) => g.saneado && g.fiscal !== "Revisão concluída").map((g) => `A revisão fiscal do grupo "${g.grupo}" não foi concluída.`),
     ...secoes.filter((s) => !s.responsavel.trim() || !s.controle.trim()).map((s) => `Falta o responsável ou o controle de "${s.titulo}".`),
@@ -84,12 +86,12 @@ export function montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto =
   return {
     secoes, porGrupo, pendencias, aprovada, situacao: aprovada ? "Aprovada" : "Rascunho",
     prontaParaAprovar: secoes.every((s) => s.responsavel.trim() && s.controle.trim()) && regras.length > 0,
-    estruturada: estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada }),
+    estruturada: estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis }),
   };
 }
 
 /** Versão estruturada da política (JSON), para configurar o módulo de cadastro automático do cliente. */
-function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada }) {
+function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis }) {
   const regras = { ...REGRAS_PADRAO, ...(estado?.padronizacao?.regras || {}) };
   return {
     versao: 1, projeto: nomeProjeto, base: nomeBase, situacao: aprovada ? "Aprovada" : "Rascunho", aprovadaPor: aprovada?.por || null, aprovadaEm: aprovada?.em || null,
@@ -105,6 +107,7 @@ function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, p
     },
     fiscal: { ncm: "8 digitos vigentes na tabela oficial", classificacao: "cClassTrib conferido contra os anexos da LC 214/2025; capitulo ou posicao citado no anexo e NCM ambiguo = revisao com especialista", servicos: "NBS e LC 116" },
     descontinuacao: { semMovimentoDesde: params.desde || null, itensSemData: params.semData, tratamentoComSaldoOuHistorico: "transferir saldo e preservar historico antes de inativar; evidencia obrigatoria", itensForaDoEscopo: escopo?.fora?.length ?? 0 },
+    criteriosNaoAplicaveis: naoAplicaveis,
     grupos: porGrupo.map((g) => ({ nome: g.grupo, itens: g.itens, saneado: g.saneado, revisaoFiscal: g.fiscal, regra: g.regra })),
     procedimentos: secoes.map((s) => ({ id: s.id, titulo: s.titulo, responsavel: s.responsavel, controle: s.controle, regras: s.regras.map((r) => ({ id: r.id, texto: r.texto, origem: r.origem, evidencia: r.evidencia })) })),
   };

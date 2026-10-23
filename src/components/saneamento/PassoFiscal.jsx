@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, Info, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { hojeIso } from "./logica";
+import { grupoSaneado } from "./analise";
 import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 import { ACOES, ORDEM_SITUACOES, SITUACOES, decisaoValida, itensDoGrupoFiscal, leituraFiscal, linhasMatriz, mapaClasses, podeConcluir, resumoDeLeituras } from "./fiscal";
 import { gerarXlsxFiscal } from "./matrizFiscal";
@@ -102,11 +103,11 @@ function GrupoFiscal({ g, saem, classes, decisoes, concl, onMudar, onLote, onCon
  * Passo Fiscal: cada grupo saneado é liberado para a revisão fiscal. O analista confere o NCM e o cClassTrib de cada item contra os anexos da LC 214/2025
  * consultados e decide o que fica; o resultado é a matriz fiscal do grupo (proposta, fundamento, validação e pendências).
  */
-export default function PassoFiscal({ estado, setEstado, grupos, saem, quem, nomeProjeto, nomeBase, slug, temAnalise, onIrAnalises }) {
+export default function PassoFiscal({ estado, setEstado, grupos, contagem, saem, quem, nomeProjeto, nomeBase, slug, temAnalise, onIrAnalises }) {
   const catalogo = useQuery({ queryKey: ["classTrib"], queryFn: () => base44.entities.ClassTrib.list(), staleTime: 10 * 60 * 1000 });
   const classes = useMemo(() => mapaClasses(catalogo.data), [catalogo.data]);
   const fiscal = estado.fiscal || {}; const decisoes = fiscal.decisoes || {}; const concluidos = fiscal.grupos || {};
-  const liberados = grupos.filter((g) => estado.saneados?.[g.nome]);
+  const liberados = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem));
   const [gerando, setGerando] = useState(false); const [msg, setMsg] = useState("");
 
   const editar = (fn) => setEstado((e) => { const f = e.fiscal || {}; return { ...e, fiscal: fn({ ...f, decisoes: { ...(f.decisoes || {}) }, grupos: { ...(f.grupos || {}) } }) }; });
@@ -143,7 +144,7 @@ export default function PassoFiscal({ estado, setEstado, grupos, saem, quem, nom
       {liberados.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-3 text-sm space-y-2">
           <p className="font-medium">Nenhum grupo liberado ainda</p>
-          <p className="text-muted-foreground">A revisão fiscal só começa em grupo saneado. Trate os critérios de cada grupo no passo Análises e marque o grupo como saneado.</p>
+          <p className="text-muted-foreground">A revisão fiscal só começa em grupo saneado: com todos os critérios aplicáveis aprovados e tratados nele, os de conferência manual inclusive. Trate os critérios de cada grupo no passo Análises e marque o grupo como saneado.</p>
           <Botao onClick={onIrAnalises}>Ir para as Análises</Botao>
         </div>
       ) : (

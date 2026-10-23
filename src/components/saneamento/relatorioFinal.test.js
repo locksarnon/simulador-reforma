@@ -20,10 +20,13 @@ const item = (linha, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "P
   sugestao: { c_class_trib: "000001", descricao: "Tributação integral", reducao: 0, confianca: "Sem enquadramento nos anexos consultados (padrão)", ambiguo: false, anexo: null, padrao: true }, ...extra });
 const dup = (mestre) => ({ nivel: "EXATA", score: 1, grupo: 0, mestre, candidatos: [{ linha: mestre, score: 1, nivel: "EXATA", motivos: ["descrição idêntica"] }] });
 const itens = [item(2, { descricao: "ANEL  TRAVA 123", duplicidade: dup(3) }), item(3, { descricao: "ANEL TRAVA 123", duplicidade: dup(3) }), item(4, { grupo_atual: "Insumos", descricao: "ADUBO", unidade: "QUILOGRAM" }), item(5, { ultima_mov: "2020-01-01" })];
+const ok = { aprovado: true, por: "ana", em: "2026-10-20" }; const marca = { por: "ana", em: "2026-10-22" };
 const estado = {
-  params: { desde: "2025-01-01", semData: "manter" }, criterios: { padrao: { aprovado: true, por: "ana", em: "2026-10-20", regra: "Regra registrada de padronização." } },
+  // Peças é um grupo saneado de verdade: critérios aprovados (identidade, não aplicável, com justificativa) e tratados nele
+  params: { desde: "2025-01-01", semData: "manter" }, criterios: { padrao: { ...ok, regra: "Regra registrada de padronização." }, duplicidade: ok, unidade: ok, saldos: ok, cartilhas: ok, identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-21", justificativa: "Um só fabricante por código neste cadastro." } } },
+  tratados: { "Peças|padrao": marca, "Peças|duplicidade": marca, "Peças|saldos": marca, "Peças|cartilhas": marca },
   decisoes: { "2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: 3, decididoPor: "ana", decididoEm: "2026-10-21" }, "4|unidade": { acao: "ENC", status: "PROP", grupo: "Insumos" } },
-  saneados: { "Peças": true }, tratados: {}, piloto: { "Unificar duplicados": { status: "Testado", evidencia: "doc SAP 123" } }, padronizacao: { regras: {}, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} },
+  saneados: { "Peças": true }, piloto: { "Unificar duplicados": { status: "Testado", evidencia: "doc SAP 123" } }, padronizacao: { regras: {}, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} },
   fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: { criar: { responsavel: "Gestor", controle: "Amostragem" } } }, gruposFora: {},
 };
 const escopo = aplicarEscopo(itens, estado.params, estado.gruposFora); const testes = criarTestes(escopo.emEscopo, estado);
@@ -48,7 +51,9 @@ describe("relatório do programa de trabalho", () => {
     expect(t).toContain("Parâmetro de saneamento: desconsiderar itens não movimentados desde 01/01/2025. Itens sem data de movimentação legível permaneceram no escopo, sinalizados.");
     const grp = tabelaDe(relatorio, "Grupo de itens"); expect(grp.linhas).toEqual([["Peças", "3", "2", "Sim"], ["Insumos", "1", "1", "Sim"]]);
     const crit = tabelaDe(relatorio, "Critério"); expect(crit.linhas.find((l) => l[0] === "Padronização da descrição")).toEqual(["Padronização da descrição", "Automático", "Aprovado por ana em 20/10/2026", "1"]);
-    expect(crit.linhas.find((l) => l[0] === "Identidade do produto")[2]).toBe("Pendente"); expect(crit.linhas).toHaveLength(CRITERIOS.length);
+    expect(crit.linhas.find((l) => l[0] === "Identidade do produto")[2]).toBe("Não se aplica ao projeto (ana, 21/10/2026): Um só fabricante por código neste cadastro.");
+    expect(crit.linhas.find((l) => l[0] === "Saldos e sinais de excesso")[2]).toBe("Aprovado por ana em 20/10/2026"); expect(crit.linhas).toHaveLength(CRITERIOS.length);
+    expect(t).toContain("Critério declarado não aplicável a este projeto. Justificativa: Um só fabricante por código neste cadastro.");
     expect(t).toContain("Regra registrada de padronização.");
     const piloto = tabelaDe(relatorio, "Caso"); expect(piloto.linhas[0]).toEqual(["Unificar duplicados", "Testado", "doc SAP 123", "—"]); expect(piloto.linhas[1][1]).toBe("Não iniciado");
     const dec = relatorio.blocos.filter((b) => b.t === "tabela").find((b) => b.cols[1].label === "Encaminhadas");

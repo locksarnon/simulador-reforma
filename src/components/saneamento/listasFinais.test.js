@@ -66,6 +66,17 @@ describe("listas finais do saneamento", () => {
     expect(aprovada.analises.filter((a) => a.criterio === "Duplicidade").length).toBeGreaterThan(0);
     expect(aprovada.resumo.map((x) => x.join(" | ")).some((x) => x.includes("Duplicidade | aprovado por ana em 20/10/2026"))).toBe(true);
   });
+  it("análise que não rodou na importação não vira \"aprovado automaticamente\": o resumo diz que está pendente; critério não aplicável consta com a justificativa", () => {
+    const escopo = aplicarEscopo(itens, estado.params);
+    const cobertura = { grupo: { completa: false, opcao: "grupos", falta: "a sugestão de grupos de produto" } };
+    const e = { ...estado, criterios: { identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-23", justificativa: "Um só fabricante por código." } } } };
+    const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens, escopo, testes: criarTestes(escopo.emEscopo, e), cobertura });
+    const resumo = l.resumo.map((x) => x.join(" | "));
+    expect(resumo.some((x) => x.includes("Grupo de itens | aprovado automaticamente"))).toBe(false);
+    expect(resumo).toContain("  Grupo de itens | pendente: a análise de que o teste depende não foi executada nesta base");
+    expect(resumo).toContain("  Identidade do produto | não se aplica ao projeto: Um só fabricante por código.");
+    expect(resumo).toContain("Critérios fora do trabalho | ");
+  });
   it("com os sem data tratados como anteriores à data, entram nos inativados com o critério próprio e o resumo conta", () => {
     const sem = [...itens, item(6, "E1", "ITEM SEM DATA", null)];
     const e = { ...estado, params: { desde: "2025-01-01", semData: "anterior" } };

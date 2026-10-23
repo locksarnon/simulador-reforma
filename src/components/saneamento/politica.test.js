@@ -12,6 +12,8 @@ const base = (estadoExtra = {}) => {
   return { estado, escopo, contagem, grupos: agruparPorGrupo(escopo.emEscopo), nomeProjeto: "Projeto X", nomeBase: "itens.xlsx" };
 };
 const aprov = (por = "ana") => ({ aprovado: true, por, em: "2026-10-20" });
+// Grupo saneado de verdade: os três critérios de conferência manual e os que têm achado nele aprovados e tratados no grupo (os demais abrem aprovados, sem achados).
+const saneavel = (grupo, comAchado = []) => { const ids = ["identidade", "saldos", "cartilhas", ...comAchado]; return { criterios: Object.fromEntries(ids.map((id) => [id, aprov()])), tratados: Object.fromEntries(ids.map((id) => [`${grupo}|${id}`, { por: "ana", em: "2026-10-23" }])) }; };
 const regra = (p, id) => p.secoes.flatMap((s) => s.regras).find((r) => r.id === id);
 
 describe("política de uso dos estoques", () => {
@@ -50,11 +52,24 @@ describe("política de uso dos estoques", () => {
     expect(p2.situacao).toBe("Aprovada"); expect(p2.estruturada).toMatchObject({ situacao: "Aprovada", aprovadaPor: "ana" });
   });
   it("por grupo: situação do grupo, pendências de critério e a regra escrita pelo analista", () => {
-    const b = base({ criterios: {}, saneados: { "Peças": true }, fiscal: { grupos: { "Peças": { por: "ana", em: "2026-10-23" } } }, politica: { grupos: { "Insumos": { regra: "Adubo só em KG" } } } });
+    const b = base({ ...saneavel("Peças", ["padrao", "unidade"]), saneados: { "Peças": true }, fiscal: { grupos: { "Peças": { por: "ana", em: "2026-10-23" } } }, politica: { grupos: { "Insumos": { regra: "Adubo só em KG" } } } });
     const p = montarPolitica(b);
     expect(p.porGrupo.find((g) => g.grupo === "Peças")).toMatchObject({ itens: 2, saneado: true, fiscal: "Revisão concluída" });
     expect(p.porGrupo.find((g) => g.grupo === "Insumos")).toMatchObject({ itens: 1, saneado: false, fiscal: "Não liberado", regra: "Adubo só em KG" });
-    expect(montarPolitica(base({ saneados: { "Peças": true } })).pendencias).toContain('A revisão fiscal do grupo "Peças" não foi concluída.');
+    expect(montarPolitica(base({ ...saneavel("Peças", ["padrao", "unidade"]), saneados: { "Peças": true } })).pendencias).toContain('A revisão fiscal do grupo "Peças" não foi concluída.');
+    // marcado como saneado sem cumprir os critérios (aqui, os de conferência manual sem aprovação): não vale como saneado nem libera a revisão fiscal
+    const sem = montarPolitica(base({ criterios: { padrao: aprov(), unidade: aprov() }, saneados: { "Peças": true } }));
+    expect(sem.porGrupo.find((g) => g.grupo === "Peças")).toMatchObject({ saneado: false, fiscal: "Não liberado" });
+    expect(sem.pendencias.some((x) => x.startsWith("A revisão fiscal do grupo"))).toBe(false);
+  });
+  it("critério sem a análise executada ou não aplicável não gera regra: aparece como pendência ou com a justificativa", () => {
+    const b = base({ criterios: { padrao: aprov(), identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-23", justificativa: "Fabricante único no cadastro deste cliente." } } } });
+    const c = contarAchados(calcularAchados(b.escopo.emEscopo, criarTestes(b.escopo.emEscopo, b.estado)), b.escopo.emEscopo.length, { grupo: { completa: false, opcao: "grupos", falta: "a sugestão de grupos de produto" } });
+    const p = montarPolitica({ ...b, contagem: c });
+    expect(regra(p, "criar.grupo")).toBeFalsy(); // sem a análise, "sem achados" não prova nada
+    expect(p.pendencias).toContain("O critério \"Grupo de itens\" não pode ser dado como verificado: a sugestão de grupos de produto não foi executada nesta base. A regra não entra na política até a análise ser feita ou o critério ser declarado não aplicável, com justificativa.");
+    expect(regra(p, "criar.identidade")).toBeFalsy(); expect(p.pendencias.some((x) => x.includes("Identidade do produto"))).toBe(false);
+    expect(p.estruturada.criteriosNaoAplicaveis).toEqual([{ id: "identidade", criterio: "Identidade do produto", justificativa: "Fabricante único no cadastro deste cliente.", por: "ana", em: "2026-10-23" }]);
   });
   it("a versão estruturada traz o padrão, as unidades, a duplicidade com complementos, o fiscal, a descontinuação, os grupos e os procedimentos", () => {
     const b = base({ criterios: { padrao: aprov(), unidade: aprov(), duplicidade: aprov() } });

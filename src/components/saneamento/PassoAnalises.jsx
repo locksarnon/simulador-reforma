@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { CRITERIOS, grupoDe, hojeIso } from "./logica";
-import { achadosDe, agruparAchados, criteriosAprovados, criteriosPendentesDoGrupo, grupoPodeSanear, grupoTratado, situacaoCriterio } from "./analise";
-import { AbasCriterios, AcaoAprovacao, SelosCriterio } from "./CriterioUi";
+import { achadosDe, agruparAchados, criteriosAprovados, criteriosPendentesDoGrupo, criterioResolvido, grupoSaneado, grupoTratado, situacaoCriterio } from "./analise";
+import { AbasCriterios, AcaoAprovacao, AvisoCriterio, SelosCriterio } from "./CriterioUi";
+import { useConfirmar } from "@/components/ConfirmProvider";
 import { Acc, Botao, Chip, TabelaItens, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 import ExportarAnalises from "./ExportarAnalises";
 import TabelaAchados, { LegendaEncaminhar, rotuloEncaminhar } from "./TabelaAchados";
@@ -23,22 +24,24 @@ const paraEncaminhar = (c, ach) => (c.id === "unidade" ? ach.filter((a) => a.sug
  * como é hoje e como seria, critica cada um (encaminha para aprovação no De/para ou deixa como está) e marca o grupo como tratado. Critério sem
  * achados já abre aprovado, com a opção de revisar manualmente.
  */
-export default function PassoAnalises({ estado, setEstado, grupos, achados, contagem, ativo, onSelecionar, quem, onComparar, onIrCriterios, onIrDepara, onAprovar, onReabrir, itemPorLinha, nomeProjeto, nomeBase, slug, escalaSaldo = 1, temSaldo = false, onEscala }) {
+export default function PassoAnalises({ estado, setEstado, grupos, achados, contagem, ativo, onSelecionar, quem, onComparar, onIrCriterios, onIrDepara, onIrTriagem, onAprovar, onReabrir, onNaoAplicavel, itemPorLinha, nomeProjeto, nomeBase, slug, escalaSaldo = 1, temSaldo = false, onEscala }) {
+  const confirmar = useConfirmar();
   const [aberto, setAberto] = useState({});
   const [exportando, setExportando] = useState(false);
   const [ordGrupos, ordenarGrupos] = useOrdenacao();
   const crit = CRITERIOS.find((c) => c.id === ativo);
   const cEst = estado.criterios[crit.id] || {};
   const sit = situacaoCriterio(estado, crit, contagem);
-  const aprovado = sit !== "PENDENTE";
+  const aprovado = sit === "APROVADO" || sit === "AUTO"; // em uso: gera análise; não aplicável e sem análise executada ficam de fora
   const lista = achados[crit.id] || [];
   const porGrupo = useMemo(() => agruparAchados(lista), [lista]);
   const n = achadosDe(contagem, crit);
   const totalEmEscopo = grupos.reduce((s, g) => s + g.itens.length, 0);
   const aprovadosLista = criteriosAprovados(estado, contagem);
-  const nSan = grupos.filter((g) => estado.saneados[g.nome]).length;
+  const nNaoAplicaveis = CRITERIOS.filter((c) => situacaoCriterio(estado, c, contagem) === "NAO_APLICAVEL").length;
+  const nSan = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem)).length;
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
-  const concluido = (e, c) => situacaoCriterio(e, c, contagem) !== "PENDENTE" && grupos.every((g) => grupoTratado(e, g.nome, c, contagem));
+  const concluido = (e, c) => criterioResolvido(e, c, contagem) && (situacaoCriterio(e, c, contagem) === "NAO_APLICAVEL" || grupos.every((g) => grupoTratado(e, g.nome, c, contagem)));
 
   // Atualizações funcionais: duas ações seguidas nunca sobrescrevem uma à outra.
   const alternarAchado = (a) => setEstado((e) => {
@@ -72,14 +75,22 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
     if (!fortes.length) return null;
     return <Botao title="Em cada conjunto, mantém o código sugerido e encaminha os outros ao De/para para aprovação. Os conjuntos de indicação possível ficam para você escolher um a um." onClick={() => aceitarVarios(fortes)}>Aceitar a sugestão {fortes.length === 1 ? "no conjunto de indicação alta ou idêntico" : `nos ${fmt(fortes.length)} conjuntos de indicação alta ou idênticos`} {ondeTxt}</Botao>;
   };
+  // A marca de tratado guarda quem conferiu e quando (marcas antigas eram só "true" e continuam valendo).
   const alternarTratado = (grupo) => setEstado((e) => {
     const k = `${grupo}|${crit.id}`; const marcado = !e.tratados?.[k];
-    return { ...e, tratados: { ...e.tratados, [k]: marcado }, saneados: marcado ? e.saneados : { ...e.saneados, [grupo]: false } };
+    return { ...e, tratados: { ...e.tratados, [k]: marcado ? { por: quem, em: hojeIso() } : false }, saneados: marcado ? e.saneados : { ...e.saneados, [grupo]: false } };
   });
   const alternarSaneado = (grupo) => setEstado((e) => ({ ...e, saneados: { ...e.saneados, [grupo]: !e.saneados?.[grupo] } }));
   const botaoTratado = (grupo) => <div className="mt-2"><Botao onClick={() => alternarTratado(grupo)}>{estado.tratados?.[`${grupo}|${crit.id}`] ? "Reabrir neste grupo" : "Marcar como tratado neste grupo"}</Botao></div>;
+  // Conferência manual de muitos grupos de uma vez: continua uma declaração do analista, registrada em cada grupo com o seu nome e a data.
+  const conferirTodos = async () => {
+    const faltam = grupos.filter((g) => !grupoTratado(estado, g.nome, crit, contagem)).map((g) => g.nome);
+    if (!faltam.length) return;
+    if (!(await confirmar({ titulo: "Marcar todos os grupos como conferidos?", descricao: `Você declara que conferiu os itens ${faltam.length === 1 ? "do grupo que falta" : `dos ${faltam.length} grupos que faltam`} no critério “${crit.titulo}”. Cada grupo fica registrado como tratado, com o seu nome e a data. Nada é alterado no cadastro.`, rotulo: "Marcar como conferidos" }))) return;
+    setEstado((e) => { const t = { ...e.tratados }; for (const nome of faltam) t[`${nome}|${crit.id}`] = { por: quem, em: hojeIso() }; return { ...e, tratados: t }; });
+  };
 
-  const corpo = !aprovado ? (
+  const corpo = sit === "NAO_APLICAVEL" || sit === "SEM_ANALISE" ? null : !aprovado ? (
     <div className="rounded-lg border border-dashed border-border p-3 text-sm space-y-2">
       <p className="text-amber-700 dark:text-amber-300">Este critério ainda não foi aprovado.{n > 0 ? ` O teste achou ${plural(n, "item", "itens")} em escopo.` : ""}</p>
       <p className="text-muted-foreground">Confira a regra acima e aprove o critério para tratá-lo aqui. Para ajustar a regra, abra o critério no passo Critérios.</p>
@@ -87,7 +98,8 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
     </div>
   ) : !crit.auto ? (
     <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">Conferência manual: este critério ainda não tem teste automático. Confira os itens de cada grupo e marque como tratado.</p>
+      <p className="text-sm text-muted-foreground">Conferência manual: este critério ainda não tem teste automático. Confira os itens de cada grupo e marque como tratado: o grupo só é saneado com a conferência concluída.</p>
+      {grupos.some((g) => !grupoTratado(estado, g.nome, crit, contagem)) && <div className="flex flex-wrap items-center gap-2"><Botao onClick={conferirTodos} title="Registra a conferência de todos os grupos que faltam, cada um com o seu nome e a data">Marcar todos os grupos como conferidos</Botao></div>}
       {grupos.map((g) => {
         const chave = `${crit.id}|${g.nome}`; const trat = grupoTratado(estado, g.nome, crit, contagem);
         return (
@@ -125,15 +137,15 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
 
   // Situação por grupo: ordenável por grupo, itens e situação (saneado, pronto para sanear, com pendências).
   const linhasGrupos = useMemo(() => grupos.map((g) => {
-    const san = !!estado.saneados[g.nome]; const falta = criteriosPendentesDoGrupo(estado, g.nome, contagem); const pode = grupoPodeSanear(estado, g.nome, contagem);
-    return { g, san, falta, pode, rank: san ? 2 : falta.length === 0 ? 1 : 0 };
+    const falta = criteriosPendentesDoGrupo(estado, g.nome, contagem); const pode = falta.length === 0; const san = !!estado.saneados[g.nome] && pode;
+    return { g, san, falta, pode, rank: san ? 2 : pode ? 1 : 0 };
   }), [grupos, estado, contagem]);
   const gruposOrdenados = useMemo(() => ordenarPor(linhasGrupos, ordGrupos, { grupo: (x) => x.g.nome, itens: (x) => x.g.itens.length, situacao: (x) => x.rank }), [linhasGrupos, ordGrupos]);
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground"><b className="text-foreground">{nSan} de {grupos.length}</b> grupos saneados · critérios aprovados: {aprovadosLista.length} de {CRITERIOS.length}</p>
+        <p className="text-sm text-muted-foreground"><b className="text-foreground">{nSan} de {grupos.length}</b> grupos saneados · critérios aprovados: {aprovadosLista.length} de {CRITERIOS.length}{nNaoAplicaveis > 0 ? ` (${plural(nNaoAplicaveis, "não aplicável", "não aplicáveis")})` : ""}</p>
         <div className="flex flex-wrap items-center gap-3">
           {temSaldo && <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="A exportação do ERP pode trazer o saldo multiplicado (a da Crestani vem ×1.000.000). A escala só muda como o saldo é mostrado.">Saldo da base
             <select value={escalaSaldo} onChange={(e) => onEscala(Number(e.target.value))} aria-label="Escala do saldo em estoque" className="border rounded px-1 py-0.5 bg-background text-foreground">
@@ -146,22 +158,24 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-medium">{crit.titulo}</h3>
-          <div className="flex flex-wrap items-center gap-2"><SelosCriterio crit={crit} situacao={sit} cEst={cEst} /><AcaoAprovacao situacao={sit} onAprovar={() => onAprovar(crit)} onReabrir={() => onReabrir(crit)} /></div>
+          <div className="flex flex-wrap items-center gap-2"><SelosCriterio crit={crit} situacao={sit} cEst={cEst} /></div>
         </div>
+        <AcaoAprovacao situacao={sit} onAprovar={() => onAprovar(crit)} onReabrir={() => onReabrir(crit)} onNaoAplicavel={(j) => onNaoAplicavel(crit, j)} />
+        <AvisoCriterio estado={estado} crit={crit} situacao={sit} contagem={contagem} onIrTriagem={onIrTriagem} />
         <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Ver a regra deste critério</summary><p className="mt-1">{cEst.regra ?? crit.regra}</p></details>
         {aprovado && crit.auto && n > 0 && (ehDup && conjuntos.length > 0 ? <LegendaConjuntos conjuntos={conjuntos} decisoes={estado.decisoes} onIrDepara={onIrDepara} /> : <LegendaEncaminhar lista={lista} decisoes={estado.decisoes} critId={crit.id} onIrDepara={onIrDepara} />)}
         {corpo}
       </div>
       <Acc aberto={!!aberto.__grupos} onToggle={() => alternar("__grupos")} titulo={<><b className="font-medium">Situação por grupo</b><span className="text-xs text-muted-foreground">{nSan} de {grupos.length} saneados</span></>}>
-        {aprovadosLista.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum critério aprovado ainda: aprove os critérios para tratar os grupos.</p> : (
+        {grupos.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum grupo em escopo.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="grupo" ord={ordGrupos} onOrdenar={ordenarGrupos}>Grupo</Th><Th chave="itens" ord={ordGrupos} onOrdenar={ordenarGrupos}>Itens</Th><Th chave="situacao" ord={ordGrupos} onOrdenar={ordenarGrupos}>Situação</Th><th className="p-1.5"></th></tr></thead>
               <tbody>{gruposOrdenados.map(({ g, san, falta, pode }) => (
                 <tr key={g.nome} className="border-t border-border align-top">
                   <td className="p-1.5">{g.nome}</td><td className="p-1.5 tabular-nums">{fmt(g.itens.length)}</td>
-                  <td className="p-1.5">{san ? <Chip tom="g">Saneado</Chip> : falta.length === 0 ? <Chip tom="b">Pronto para sanear</Chip> : <span className="text-muted-foreground">faltam{" "}{falta.slice(0, 3).map((c, i) => <React.Fragment key={c.id}>{i > 0 && ", "}<button type="button" className="underline text-primary" onClick={() => onSelecionar(c.id)}>{c.titulo}{situacaoCriterio(estado, c, contagem) === "PENDENTE" ? " (a aprovar)" : ""}</button></React.Fragment>)}{falta.length > 3 ? `+${falta.length - 3}` : ""}</span>}</td>
+                  <td className="p-1.5">{san ? <Chip tom="g">Saneado</Chip> : falta.length === 0 ? <Chip tom="b">Pronto para sanear</Chip> : <span className="text-muted-foreground">faltam{" "}{falta.slice(0, 3).map((c, i) => <React.Fragment key={c.id}>{i > 0 && ", "}<button type="button" className="underline text-primary" onClick={() => onSelecionar(c.id)}>{c.titulo}{{ PENDENTE: " (a aprovar)", SEM_ANALISE: " (análise não executada)" }[situacaoCriterio(estado, c, contagem)] ?? ""}</button></React.Fragment>)}{falta.length > 3 ? `+${falta.length - 3}` : ""}</span>}</td>
                   <td className="p-1.5 whitespace-nowrap"><Botao disabled={!san && !pode} onClick={() => alternarSaneado(g.nome)}>{san ? "Reabrir grupo" : "Marcar como saneado"}</Botao></td></tr>))}</tbody></table>
-            <p className="text-xs text-muted-foreground pt-2">O grupo só encerra com todos os critérios aprovados tratados nele.</p>
+            <p className="text-xs text-muted-foreground pt-2">O grupo só encerra com todos os critérios aplicáveis aprovados e tratados nele, os de conferência manual inclusive. Critério que não se aplica ao projeto precisa de justificativa escrita.</p>
           </div>)}
       </Acc>
     </div>

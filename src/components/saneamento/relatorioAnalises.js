@@ -10,7 +10,7 @@ const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "");
 const slugTxt = (s) => semAcento(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-const SITUACAO = { APROVADO: "aprovado pelo analista", AUTO: "aprovado automaticamente (sem achados)", PENDENTE: "ainda não aprovado" };
+const SITUACAO = { APROVADO: "aprovado pelo analista", AUTO: "aprovado automaticamente (sem achados)", PENDENTE: "ainda não aprovado", SEM_ANALISE: "com a análise não executada nesta base", NAO_APLICAVEL: "declarado não aplicável ao projeto" };
 
 /** Critérios que têm achados calculados (teste automático): são os que o Excel pode listar. */
 export const criteriosDoRelatorio = () => CRITERIOS.filter((c) => c.auto);

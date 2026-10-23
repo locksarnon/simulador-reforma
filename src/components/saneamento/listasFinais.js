@@ -1,7 +1,7 @@
 // Listas finais do saneamento: lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução (tarefas e confirmações).
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
-import { dataBr, dataDoCorte, decisoesDoTrabalho, grupoDe } from "./logica";
-import { calcularAchados, contarAchados, criteriosAprovados, situacaoCriterio } from "./analise";
+import { CRITERIOS, dataBr, dataDoCorte, decisoesDoTrabalho, grupoDe } from "./logica";
+import { calcularAchados, contarAchados, criteriosAprovados, naoAplicavelDe, situacaoCriterio } from "./analise";
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
@@ -43,7 +43,7 @@ export function linhasQueSaem(estado, itens) {
  * Monta todas as listas. `escopo` vem de aplicarEscopo (emEscopo/fora) e `testes` de criarTestes.
  * Nada aqui altera o cadastro: são relatórios do que foi proposto, aprovado ou deixado de fora.
  */
-export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes, escalaSaldo = 1 }) {
+export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes, escalaSaldo = 1, cobertura = {} }) {
   const estado = { ...estadoBruto, decisoes: decisoesDoTrabalho(estadoBruto?.decisoes, escopo) }; // decisões de grupos fora do saneamento ficam guardadas e fora das listas
   const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
   const uni = unificacoesAprovadas(estado, itens);
@@ -86,7 +86,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   // 3) Análises: achados dos critérios aprovados, com a decisão tomada
   const analises = [];
   const achadosPorCriterio = calcularAchados(escopo.emEscopo, testes);
-  const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length);
+  const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length, cobertura);
   const aprovados = criteriosAprovados(estado, contagemCriterios); // inclui os aprovados automaticamente (sem achados)
   for (const c of aprovados.filter((x) => x.auto)) {
     for (const a of achadosPorCriterio[c.id] || []) {
@@ -125,6 +125,10 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
     ["Tarefas de execução (decisões aprovadas e itens inativados)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],
     ["Critérios aprovados", aprovados.length ? "" : "nenhum"],
     ...aprovados.map((c) => [`  ${c.titulo}`, situacaoCriterio(estado, c, contagemCriterios) === "AUTO" ? "aprovado automaticamente (sem achados na base)" : `aprovado por ${estado.criterios[c.id]?.por || "—"} em ${dataBr(estado.criterios[c.id]?.em)}`]),
+    ...(() => {
+      const sem = CRITERIOS.map((c) => [c, situacaoCriterio(estado, c, contagemCriterios)]).filter(([, st]) => st === "NAO_APLICAVEL" || st === "SEM_ANALISE");
+      return sem.length ? [["Critérios fora do trabalho", ""], ...sem.map(([c, st]) => [`  ${c.titulo}`, st === "NAO_APLICAVEL" ? `não se aplica ao projeto: ${naoAplicavelDe(estado, c).justificativa}` : "pendente: a análise de que o teste depende não foi executada nesta base"])] : [];
+    })(),
     ["", ""],
     ["Atenção", "Estas listas refletem as decisões registradas no sistema. A execução no SAP e no físico é conferida nos passos de execução e conferência; nenhum cadastro foi alterado por esta ferramenta."],
   ];
