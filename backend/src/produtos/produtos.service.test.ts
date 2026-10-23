@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ProdutosService } from './produtos.service';
+import ExcelJS from 'exceljs';
+import { CAMPOS, lerSaldo, ProdutosService } from './produtos.service';
 import { lerOpcoes, OPCOES_PADRAO } from './opcoes-validacao';
 const service = new ProdutosService({ ncm: { findMany: async () => [] } } as any, { base: async () => ({ lista: [], classes: new Map() }) } as any);
 const file = (s: string) => ({ buffer: Buffer.from(s), originalname: 'produtos.csv' }) as Express.Multer.File;
@@ -161,5 +162,81 @@ describe('comparativo de duplicidade', () => {
     expect(ff.candidatos_duplicidade).toEqual([]);
     expect(g2.duplicidade).toBeNull();
     expect(a.problemas.some((p) => /DUPLICIDADE/.test(p.codigo))).toBe(true);
+  });
+});
+
+describe('saldo em estoque (coluna opcional, usada para sugerir qual duplicado fica)', () => {
+  const xlsx = async (linhas: unknown[][]) => {
+    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Itens');
+    linhas.forEach((l) => ws.addRow(l));
+    return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), originalname: 'itens.xlsx' } as Express.Multer.File;
+  };
+  const cabecalho = ['Código', 'Descrição', 'NCM'];
+
+  it('lê o saldo de uma célula: pt-BR, americano, inteiro e sinal; o resto vira null', () => {
+    const casos: [string, number | null][] = [
+      ['0', 0], ['3', 3], ['1500000', 1500000], ['0.5', 0.5], ['0.500', 0.5], ['1234.56', 1234.56], ['1234,56', 1234.56], ['0,5', 0.5],
+      ['1.234,56', 1234.56], ['12.345,6', 12345.6], ['1.234.567', 1234567], ['1.234', 1234], ['1,234', 1.234], ['1,234,567', 1234567], ['1,234.56', 1234.56],
+      ['-5', -5], ['+5', 5], ['-0', 0], ['1.5E6', 1500000], ['  7  ', 7],
+      ['', null], ['   ', null], ['Y', null], ['N', null], ['ABC', null], ['12 345', null], ['10-', null], ['1.234,5,6', null], ['1..2', null], ['--', null], ['1e999', null],
+    ];
+    for (const [texto, esperado] of casos) expect([texto, lerSaldo(texto)]).toEqual([texto, esperado]);
+    expect(lerSaldo(undefined as unknown as string)).toBeNull();
+  });
+  it('em coluna numérica de XLSX o ponto é sempre decimal; em texto, "1.234" é milhar', () => {
+    expect(lerSaldo('1.234', true)).toBe(1.234);
+    expect(lerSaldo('1.234', false)).toBe(1234);
+    expect(lerSaldo('12.345', true)).toBe(12.345);
+    expect(lerSaldo('1.234,5', true)).toBe(1234.5); // texto com vírgula numa coluna mista segue o costume brasileiro
+  });
+
+  it('lê o saldo da coluna "Quantidade em Estoque", sem escalar nem arredondar', async () => {
+    const f = file('Codigo;Descricao;NCM;Unidade;Quantidade em Estoque\nA;Item A;12345678;UN;1.234,56\nB;Item B;12345678;UN;\nC;Item C;12345678;UN;abc\nD;Item D;12345678;UN;0\nE;Item E;12345678;UN;1500000\nF;Item F;12345678;UN;-3');
+    const r = await service.validar(f, undefined, undefined, opcoes);
+    expect(r.mapeamento.saldo).toBe(4);
+    expect(r.itens.map((i) => i.saldo)).toEqual([1234.56, null, null, 0, 1500000, -3]);
+  });
+  it('sem a coluna, o saldo é null em todos os itens', async () => {
+    const r = await service.validar(file('Codigo;Descricao;NCM;Unidade\nA;Item A;12345678;UN'), undefined, undefined, opcoes);
+    expect(r.mapeamento.saldo).toBeNull();
+    expect(r.itens[0].saldo).toBeNull();
+  });
+  it('XLSX: número de verdade vale como está (sem escala); texto segue o costume brasileiro', async () => {
+    const numerica = await xlsx([
+      ['Codigo', 'Descricao', 'NCM', 'Unidade', 'Quantidade em Estoque'],
+      ['A', 'Item A', '12345678', 'UN', 1500000], ['B', 'Item B', '12345678', 'UN', 1234.567], ['C', 'Item C', '12345678', 'UN', 0],
+      ['D', 'Item D', '12345678', 'UN', '1.234,5'], ['E', 'Item E', '12345678', 'UN', 'Y'], ['F', 'Item F', '12345678', 'UN', null], ['G', 'Item G', '12345678', 'UN', 1.234],
+    ]);
+    expect((await service.validar(numerica, undefined, undefined, opcoes)).itens.map((i) => i.saldo)).toEqual([1500000, 1234.567, 0, 1234.5, null, null, 1.234]);
+    const texto = await xlsx([['Codigo', 'Descricao', 'NCM', 'Unidade', 'Quantidade em Estoque'], ['A', 'Item A', '12345678', 'UN', '1.234'], ['B', 'Item B', '12345678', 'UN', '12,5']]);
+    expect((await service.validar(texto, undefined, undefined, opcoes)).itens.map((i) => i.saldo)).toEqual([1234, 12.5]);
+  });
+
+  it('não confunde unidade de medida de estoque, estoque mínimo ou máximo com o saldo', async () => {
+    const m = service.detectarMapeamento([...cabecalho, 'Unidade de Medida de Estoque', 'Estoque Mínimo', 'Estoque Máximo', 'Quantidade em Estoque']);
+    expect(m).toMatchObject({ unidade: 3, saldo: 6 });
+    const sem = service.detectarMapeamento([...cabecalho, 'Unidade de Medida de Estoque', 'Estoque Mínimo', 'Estoque Máximo', 'Estoque de Segurança', 'Saldo Mínimo', 'Lead time estoque']);
+    expect(sem.unidade).toBe(3); expect(sem.saldo).toBeNull();
+    const r = await service.validar(file('Codigo;Descricao;NCM;Unidade de Medida de Estoque;Estoque Minimo\nA;Item;12345678;UN;5'), undefined, undefined, opcoes);
+    expect(r.mapeamento).toMatchObject({ unidade: 3, saldo: null });
+    expect(r.itens[0]).toMatchObject({ unidade: 'UN', saldo: null });
+  });
+  it('reconhece os nomes de coluna de saldo mais comuns, só pelo nome exato', () => {
+    for (const nome of ['Quantidade em Estoque', 'Qtd. em Estoque', 'Qtde em estoque', 'Saldo em Estoque', 'Saldo Estoque', 'Saldo', 'Estoque Atual', 'Estoque', 'Em Estoque', 'Quantidade em Estoque Total', 'OnHand']) {
+      expect([nome, service.detectarMapeamento([...cabecalho, nome]).saldo]).toEqual([nome, 3]);
+    }
+  });
+  it('mapeamento manual: a coluna escolhida vale, "não tenho" desliga e o mapeamento salvo antes do campo existir ainda detecta', async () => {
+    const csv = 'Codigo;Descricao;NCM;Unidade;Qtd atual;Quantidade em Estoque\nA;Item A;12345678;UN;7;9';
+    const todos = Object.fromEntries(CAMPOS.map((c) => [c, null])); const base = { codigo: 0, descricao: 1, ncm: 2, unidade: 3 };
+    expect((await service.validar(file(csv), { ...todos, ...base, saldo: 4 }, undefined, opcoes)).itens[0].saldo).toBe(7);
+    expect((await service.validar(file(csv), { ...todos, ...base, saldo: null }, undefined, opcoes)).itens[0].saldo).toBeNull();
+    const { saldo: _fora, ...antigo } = { ...todos, ...base };
+    expect((await service.validar(file(csv), antigo as any, undefined, opcoes)).itens[0].saldo).toBe(9);
+  });
+  it('a tela de colunas ganha o campo opcional, já mapeado quando a planilha traz o saldo', async () => {
+    const p = await service.previa(file('Codigo;Descricao;NCM;Quantidade em Estoque\nA;x;12345678;5'));
+    expect(p.campos.find((c) => c.campo === 'saldo')).toMatchObject({ obrigatorio: false });
+    expect(p.mapeamento.saldo).toBe(3);
   });
 });

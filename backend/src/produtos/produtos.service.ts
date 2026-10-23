@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
 import { avaliarNcm, compararComDeclarado, referenciasNcm, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
 
-export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto', 'codigo_barras'] as const;
+export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto', 'codigo_barras', 'saldo'] as const;
 export type Campo = (typeof CAMPOS)[number];
 export type Mapeamento = Partial<Record<Campo, number | null>>;
 
@@ -20,6 +20,7 @@ export const ROTULOS: Record<Campo, string> = {
   grupo_contabil: 'Grupo contábil atual',
   grupo_produto: 'Grupo de produto atual (opcional)',
   codigo_barras: 'Código de barras / EAN (opcional — reforça a busca de duplicados)',
+  saldo: 'Saldo em estoque (opcional — ajuda a escolher qual cadastro manter entre duplicados)',
   codigo: 'Código do produto',
   descricao: 'Descrição',
   ncm: 'NCM',
@@ -38,6 +39,8 @@ const SINONIMOS: Record<Campo, string[]> = {
   grupo_contabil: ['grupocontabil', 'contacontabil'],
   // B1_GRUPO (Protheus) e "grupo do produto" são grupo de PRODUTO, não conta contábil.
   codigo_barras: ['codigobarras', 'codbarras', 'codbar', 'ean', 'ean13', 'gtin', 'codigoean', 'b1codbar', 'eancode', 'codebars'],
+  // Só casamento EXATO (ver SO_EXATO): "estoque" solto, por aproximação, pegaria "estoque mínimo" ou "unidade de medida de estoque".
+  saldo: ['quantidadeemestoque', 'qtdemestoque', 'qtdeemestoque', 'saldoemestoque', 'saldoestoque', 'saldo', 'estoqueatual', 'estoque', 'emestoque', 'quantidadeemestoquetotal', 'onhand'],
   grupo_produto: ['grupoproduto', 'grupodoproduto', 'b1grupo', 'grupo', 'itmsgrpcod', 'familia', 'descricaodogrupodeitens', 'descricaogrupodeitens', 'grupodeitens', 'itmsgrpnam'],
   codigo: ['codigo', 'cod', 'codproduto', 'codprod', 'b1cod', 'itemcode', 'material', 'sku', 'referencia', 'codigoproduto', 'codigodoproduto', 'codigointerno', 'codigoitem'],
   descricao: ['descricao', 'desc', 'descrproduto', 'descrprod', 'b1desc', 'itemname', 'denominacao', 'nome', 'produto', 'descricaodoproduto', 'textobreve', 'descricaomaterial', 'descricaoproduto', 'descricaoitem'],
@@ -50,6 +53,34 @@ const SINONIMOS: Record<Campo, string[]> = {
 
 const normCab = (s: unknown) =>
   String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** Campos reconhecidos só pelo nome exato da coluna (sem o casamento por aproximação, que pegaria "estoque mínimo" como saldo). */
+const SO_EXATO: readonly Campo[] = ['saldo'];
+
+const SALDO_INTEIRO = /^\d+$/;
+const SALDO_EXPOENTE = /^\d+(?:\.\d+)?[eE][+-]?\d+$/; // como o JS escreve número muito grande ou muito pequeno
+const SALDO_MILHAR_PONTO = /^[1-9]\d{0,2}(?:\.\d{3})+(?:,\d+)?$/; // 1.234 · 1.234.567 · 1.234,56 (costume brasileiro)
+const SALDO_MILHAR_VIRGULA = /^[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?$/; // 1,234,567 · 1,234.56 (costume americano)
+const SALDO_DECIMAL_PONTO = /^\d+\.\d+$/; // 1234.56 · 0.5
+const SALDO_DECIMAL_VIRGULA = /^\d+,\d+$/; // 1234,56 · 0,5
+/**
+ * Saldo em estoque de uma célula, como veio: sem escala e sem arredondamento. Só devolve número quando a célula é um número; vazio, Y/N e texto
+ * viram null. `numerica` diz que a coluna tem células numéricas de verdade (XLSX): aí o ponto é sempre decimal ("1.234" = 1,234). Em texto
+ * (CSV ou célula de texto) vale o costume brasileiro: "1.234" e "1.234,56" usam o ponto como milhar, "1,234" é decimal e "1234.56" é decimal com ponto.
+ */
+export function lerSaldo(bruto: string, numerica = false): number | null {
+  const m = /^([+-]?)(\S+)$/.exec(String(bruto ?? '').trim());
+  if (!m) return null;
+  const t = m[2];
+  let n: number | null = null;
+  if (SALDO_INTEIRO.test(t) || SALDO_EXPOENTE.test(t)) n = Number(t);
+  else if (SALDO_MILHAR_PONTO.test(t) && !(numerica && SALDO_DECIMAL_PONTO.test(t))) n = Number(t.replace(/\./g, '').replace(',', '.'));
+  else if (SALDO_MILHAR_VIRGULA.test(t) && (t.includes('.') || t.split(',').length > 2)) n = Number(t.replace(/,/g, ''));
+  else if (SALDO_DECIMAL_PONTO.test(t)) n = Number(t);
+  else if (SALDO_DECIMAL_VIRGULA.test(t)) n = Number(t.replace(',', '.'));
+  if (n === null || !Number.isFinite(n)) return null;
+  return n === 0 ? 0 : m[1] === '-' ? -n : n;
+}
 
 export type { Planilha } from './leitura-planilha';
 
@@ -73,6 +104,8 @@ export type LinhaResultado = {
   conta_sugerida: string | null; conta_flag: FlagComparacao | null;
   /** Data da coluna de movimentação/cadastro (AAAA-MM-DD), quando legível. */
   ultima_mov: string | null;
+  /** Saldo em estoque da coluna mapeada, como veio na planilha (sem escala nem arredondamento); null sem a coluna ou quando a célula não é um número. */
+  saldo: number | null;
   /** Só com período: DENTRO, SEM_DATA ou DATA_INVALIDA (FORA não entra na análise; vai em `fora_periodo`). */
   periodo: 'DENTRO' | 'SEM_DATA' | 'DATA_INVALIDA' | null;
 };
@@ -137,7 +170,7 @@ export class ProdutosService {
     const map: Mapeamento = {};
     for (const campo of CAMPOS) {
       let idx = norm.findIndex((n, i) => !usado.has(i) && SINONIMOS[campo].includes(n));
-      if (idx < 0) idx = norm.findIndex((n, i) => !usado.has(i) && n.length >= 3 && SINONIMOS[campo].some((s) => s.length >= 4 && n.includes(s)));
+      if (idx < 0 && !SO_EXATO.includes(campo)) idx = norm.findIndex((n, i) => !usado.has(i) && n.length >= 3 && SINONIMOS[campo].some((s) => s.length >= 4 && n.includes(s)));
       map[campo] = idx >= 0 ? idx : null;
       if (idx >= 0) usado.add(idx);
     }
@@ -241,6 +274,7 @@ export class ProdutosService {
         porGrupo.set(normalizarProduto(nome), e); usoGrupos.set(k, porGrupo);
       }
     }
+    const saldoNumerico = mapa.saldo != null && !!p.ncmNumerico[mapa.saldo]; // coluna com número de verdade (XLSX): o ponto é decimal
     const resultado: LinhaResultado[] = linhas.map((l, i) => {
       const problemas: Problema[] = [];
       const codigo = g(l, 'codigo');
@@ -389,7 +423,7 @@ export class ProdutosService {
       if (periodo === 'SEM_DATA') problemas.push({ codigo: 'SEM_DATA_MOVIMENTO', severidade: 'info', mensagem: 'Sem data de movimentação; mantido na análise por segurança.' });
 
       const situacao: LinhaResultado['situacao'] = problemas.some((x) => x.severidade === 'erro') ? 'ERRO' : problemas.some((x) => x.severidade === 'alerta') ? 'ALERTA' : 'OK';
-      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, grupo_evidencia, conta_sugerida, conta_flag, candidatos_duplicidade, duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, periodo };
+      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, grupo_evidencia, conta_sugerida, conta_flag, candidatos_duplicidade, duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, saldo: lerSaldo(g(l, 'saldo'), saldoNumerico), periodo };
     });
 
     const resumo = {

@@ -7,7 +7,8 @@
  *  - tolera grafia errada (glifosto ≈ glifosato), fonética (ss/ç/ch...) e nome truncado (fertiliz ≈ fertilizante), em qualquer ordem de palavras;
  *  - dá mais peso a palavras raras do cadastro (IDF) e quase nenhum a palavras comuns ("produto", "tipo");
  *  - VETA o que parece igual mas é diferente: dose/medida diferente, unidade diferente, variedade/código alfanumérico diferente
- *    (30F35 x 30F53), número diferente (tipo 1 x tipo 2) e, se pedido, princípio ativo diferente;
+ *    (30F35 x 30F53), número diferente (tipo 1 x tipo 2), complemento diferente (produto + cor, tamanho, lado, material, sabor: CORANTE ROSA x CORANTE VERDE
+ *    são o mesmo produto em dois itens, não duplicidade) e, se pedido, princípio ativo diferente;
  *  - explica o porquê (motivos) e agrupa os duplicados, sugerindo qual cadastro manter (o mais completo).
  *
  * É uma CRÍTICA para revisão humana: nunca exclui nada.
@@ -41,10 +42,36 @@ const unidadesCompativeis = (a: string, b: string) => a === b || (['l', 'ml'].in
 export const unidadeCanonica = (u: string) => { const k = sem(u).replace(/[^a-z]/g, ''); return UNIDADES[k] ?? k; };
 
 type Medidas = Map<string, Set<string>>; // dimensão -> valores canônicos
+
+/**
+ * COMPLEMENTOS: palavras que distinguem VARIANTES do mesmo produto. O produto é o nome (CORANTE ALIMENTÍCIO LÍQUIDO); o complemento (ROSA, VERDE, GG, ESQUERDO,
+ * INOX, MORANGO...) faz outro item: complemento diferente, ou presente em só um dos lados, não é duplicidade. Cada linha: [valor canônico, ...grafias e apelidos].
+ * A lista cobre o que é comum; o que ficar fora dela é pego pela regra geral (palavras diferentes nos dois lados), ver compararPar.
+ */
+const COMPLEMENTOS: Record<string, string[][]> = {
+  cor: [['branco', 'branca', 'bco', 'bca'], ['preto', 'preta', 'pto', 'pta'], ['azul', 'azuis', 'azl'], ['verde'], ['vermelho', 'vermelha', 'verm'], ['amarelo', 'amarela', 'amar'], ['rosa'], ['roxo', 'roxa'], ['laranja'],
+    ['cinza', 'cinzento'], ['marrom', 'marron'], ['bege'], ['dourado', 'dourada'], ['prateado', 'prateada'], ['violeta'], ['lilas'], ['vinho'], ['turquesa'], ['grafite'], ['creme'], ['marfim'], ['bordo'], ['salmao'], ['ciano'],
+    ['magenta'], ['fucsia'], ['petroleo'], ['musgo'], ['chumbo'], ['incolor'], ['transparente', 'transp']],
+  tom: [['claro', 'clara'], ['escuro', 'escura'], ['fosco', 'fosca'], ['brilhante'], ['neon'], ['perolado', 'perolada']],
+  tamanho: [['pp'], ['p'], ['m'], ['g'], ['gg'], ['xg', 'exg'], ['xgg', 'egg'], ['pequeno', 'pequena'], ['medio', 'media'], ['grande'], ['mini'], ['maxi'], ['jumbo'], ['infantil'], ['adulto', 'adulta']],
+  posicao: [['esquerdo', 'esquerda', 'esq'], ['direito', 'direita', 'dir'], ['dianteiro', 'dianteira', 'diant'], ['traseiro', 'traseira', 'tras'], ['superior', 'sup'], ['inferior', 'inf'], ['interno', 'interna'], ['externo', 'externa'],
+    ['central'], ['lateral'], ['frontal'], ['macho'], ['femea']],
+  condicao: [['novo', 'nova'], ['usado', 'usada'], ['recondicionado', 'recondicionada', 'recond'], ['remanufaturado', 'remanufaturada', 'reman'], ['original'], ['paralelo', 'paralela'], ['similar'], ['generico', 'generica'],
+    ['importado', 'importada'], ['nacional']],
+  material: [['aco'], ['inox', 'inoxidavel'], ['aluminio'], ['latao'], ['bronze'], ['cobre'], ['ferro'], ['plastico'], ['pvc'], ['borracha'], ['nylon', 'nailon'], ['couro'], ['madeira'], ['vidro'], ['ceramica'], ['silicone'], ['teflon'],
+    ['zincado', 'zinc'], ['galvanizado', 'galv'], ['cromado'], ['niquelado'], ['polido'], ['pintado']],
+  sabor: [['morango'], ['baunilha'], ['chocolate'], ['limao'], ['uva'], ['maracuja'], ['abacaxi'], ['coco'], ['menta', 'hortela'], ['caramelo'], ['banana'], ['pessego'], ['framboesa'], ['cereja'], ['tangerina'], ['acerola'],
+    ['mamao'], ['manga'], ['goiaba'], ['melancia'], ['caju'], ['maca'], ['pera']],
+};
+const COMPL_DA_PALAVRA = new Map<string, { classe: string; valor: string }>();
+for (const [classe, linhas] of Object.entries(COMPLEMENTOS)) {
+  for (const l of linhas) for (const w of l) { if (COMPL_DA_PALAVRA.has(w)) throw new Error(`Complemento "${w}" repetido na lista`); COMPL_DA_PALAVRA.set(w, { classe, valor: l[0] }); }
+}
+const complDe = (t: Tok) => COMPL_DA_PALAVRA.get(t.t) ?? COMPL_DA_PALAVRA.get(t.orig);
 type Tok = { t: string; orig: string; w: number; leve?: boolean };
 /** Palavras de embalagem: pesam pouco ("saco", "frasco" não distinguem produto; a unidade e a medida já cuidam disso). */
 const EMBALAGEM = new Set(['saco', 'caixa', 'frasco', 'pacote', 'galao', 'tubo', 'ampola', 'bisnaga', 'refil', 'embalagem', 'peca', 'unidade']);
-export type Norm = { tokens: Tok[]; medidas: Medidas; numeros: Set<string>; codigos: Set<string>; chave: string };
+export type Norm = { tokens: Tok[]; medidas: Medidas; numeros: Set<string>; codigos: Set<string>; compl: Medidas; chave: string };
 
 const arred = (n: number) => String(Math.round(n * 1000) / 1000);
 const MASSA: Record<string, number> = { kg: 1000, kgs: 1000, g: 1, gr: 1, grs: 1, mg: 0.001, ton: 1e6, t: 1e6 };
@@ -55,7 +82,8 @@ function add(m: Medidas, dim: string, val: string) { (m.get(dim) ?? m.set(dim, n
 
 /** Texto -> tokens informativos + medidas + números + códigos. Pesos (IDF) entram depois. */
 export function normalizar(descricao: string): Norm {
-  let s = sem(descricao).replace(/(\d),(\d)/g, '$1.$2').replace(/c\//g, ' com ').replace(/s\//g, ' sem ').replace(/p\//g, ' para ').replace(/&/g, ' e ');
+  // "LÍQ.CONFEITARIA": o ponto da abreviação cola a palavra seguinte; separa (decimais como 2.5 e siglas de uma letra, como M.L, ficam como estão)
+  let s = sem(descricao).replace(/(\d),(\d)/g, '$1.$2').replace(/([a-z]{2,})\.(?=[a-z]{2,})/g, '$1 ').replace(/c\//g, ' com ').replace(/s\//g, ' sem ').replace(/p\//g, ' para ').replace(/&/g, ' e ');
   const medidas: Medidas = new Map(); const numeros = new Set<string>(); const codigos = new Set<string>();
 
   // 0) Referências de peça/fabricante (ANEL TRAVA 1440478X1, JUNTA R531581, SR-TA-2E, 7410-1296): token com 5+ caracteres que mistura letras e dígitos
@@ -107,9 +135,11 @@ export function normalizar(descricao: string): Norm {
     if (t.length > 4 && t.endsWith('s') && !t.endsWith('ss')) t = t.slice(0, -1); // plural simples
     tokens.push({ t, orig: t0, w: 1, leve: EMBALAGEM.has(t) });
   }
+  const compl: Medidas = new Map();
+  for (const tk of tokens) { const c = complDe(tk); if (c) add(compl, c.classe, c.valor); }
   const chave = [...tokens.map((x) => x.t)].sort().join(' ') + '|' + [...medidas.entries()].map(([d, v]) => d + ':' + [...v].sort().join(',')).sort().join(';')
     + '|' + [...numeros].sort().join(',') + '|' + [...codigos].sort().join(',');
-  return { tokens, medidas, numeros, codigos, chave };
+  return { tokens, medidas, numeros, codigos, compl, chave };
 }
 
 /** Distância de Damerau-Levenshtein (OSA) com corte: devolve max+1 quando passa do limite. */
@@ -217,6 +247,16 @@ function compararPar(a: Norm, b: Norm, ia: ItemDup, ib: ItemDup, ua: string, ub:
   if ((a.codigos.size === 0) !== (b.codigos.size === 0)) { score -= 0.1; incompleto = true; motivos.push('só uma descrição traz a referência/código'); }
   else if (a.codigos.size && (a.codigos.size !== b.codigos.size || codigosEmComum !== a.codigos.size)) { score -= 0.1; incompleto = true; motivos.push('as referências/códigos coincidem só em parte'); }
   const sobraA = A.filter((t, i) => !usadoA.has(i) && !t.leve); const sobraB = B.filter((t, j) => !usados.has(j) && !t.leve);
+  // O nome é o mesmo, mas o COMPLEMENTO faz outro item (cor, tom, tamanho, posição, condição, material, sabor). Vale para a palavra que sobrou da comparação (a que
+  // não é grafia nem abreviação de outra): complemento diferente nos dois lados, ou presente em só um deles (a outra descrição está incompleta: outro achado), não é duplicidade.
+  if (!barras) {
+    const classes = new Set<string>();
+    for (const t of [...sobraA, ...sobraB]) { const c = complDe(t); if (c) classes.add(c.classe); }
+    for (const cl of classes) { const va = a.compl.get(cl); const vb = b.compl.get(cl); if (!va || !vb || ![...va].some((x) => vb.has(x))) return null; }
+  }
+  // Regra geral, para o complemento que não está na lista: palavras que sobram nos DOIS lados, sem ser grafia uma da outra, são complementos diferentes (outro item).
+  // Se sobra só de um lado, é descrição incompleta e segue como possível; e a mesma referência de fabricante nos dois (mesma peça) afasta a regra.
+  if (!barras && codigosEmComum === 0 && sobraA.length && sobraB.length) return null;
   if (sobraA.length || sobraB.length) { incompleto = true; motivos.push(`palavra só em uma das descrições: ${[...sobraA, ...sobraB].map((t) => t.orig).slice(0, 3).join(', ')}`); }
 
   const mesmoNcm = ia.ncm && ib.ncm && ia.ncm === ib.ncm; const ncmDiferente = ia.ncm && ib.ncm && ia.ncm !== ib.ncm;
