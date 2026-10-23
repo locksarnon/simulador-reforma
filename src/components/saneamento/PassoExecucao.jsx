@@ -161,7 +161,7 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
         <span className="basis-full text-xs text-muted-foreground">Cada equipe responde FEITO ou DIVERGÊNCIA, com a evidência (documento no SAP, foto, link); o almoxarifado informa também os endereços e a quantidade realocada. A lista só traz o que ainda falta confirmar.</span>
       </div>
 
-      {tarefas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma tarefa ainda: elas nascem das decisões aprovadas no passo De/para e dos itens inativados pelo parâmetro de saneamento.</p> : resumo.grupos.map((g) => (
+      {tarefas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma tarefa ainda: elas nascem das decisões e das inativações aprovadas no passo De/para (o corte por data sozinho não gera tarefa).</p> : resumo.grupos.map((g) => (
         <Acc key={g.grupo} aberto={!!aberto["g" + g.grupo]} onToggle={() => alternar("g" + g.grupo)}
           titulo={<><b className="font-medium">{g.grupo}</b>{g.CONCLUIDA === g.total ? <Chip tom="g">Concluído</Chip> : <Chip tom="a">Em execução</Chip>}{g.DIVERGENCIA > 0 && <Chip tom="a">{plural(g.DIVERGENCIA, "divergência", "divergências")}</Chip>}<span className="text-xs text-muted-foreground">{plural(g.total, "tarefa", "tarefas")} · {progresso(g)}</span></>}>
           <Lote g={g} tarefasPorTipo={tarefasPorTipo} registros={registros} mostrar={mostrar} setMostrar={setMostrar} evidLote={evidLote} setEvidLote={setEvidLote} onStatus={mudarStatus} onNota={escreverNota} onLote={registrarLote} />

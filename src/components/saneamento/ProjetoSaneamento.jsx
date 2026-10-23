@@ -26,6 +26,8 @@ import { criarSituacao } from "./relacoes";
 import { indexar, itemPorId, origemCompleta, partirChave, precisaMigrar, semChavesAntigas, textoOrigem, versaoDasChaves } from "./identidade";
 import MigracaoChaves, { PainelLegado } from "./MigracaoChaves";
 import { ConciliacaoBase, OrigemDosDados } from "./OrigemDosDados";
+import InativacaoLotes from "./InativacaoLotes";
+import { inativacaoVazia } from "./inativacao";
 import { coerenciaDaDecisao } from "./aprovacao";
 import { detectarEscalaSaldo } from "./conjuntos";
 import { useConfirmar } from "@/components/ConfirmProvider";
@@ -35,16 +37,16 @@ const PASSOS = [
   { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Critério com teste automático que rodou por inteiro e não achou nada na base abre aprovado (com a opção de revisar manualmente); os demais só são tratados depois de aprovados. A análise que não rodou na importação deixa o critério pendente, e o critério que não se aplica ao projeto é declarado com justificativa escrita.", avancar: "Critérios aplicáveis aprovados (ou declarados não aplicáveis, com justificativa) e exceções identificadas." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
   { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, vê como é hoje e como seria, e decide se encaminha cada um para aprovação no De/para (ou deixa como está) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aplicáveis foram aprovados e tratados nele, os de conferência manual inclusive.", avancar: "Grupo com todos os critérios aplicáveis tratados e, nele, o que deve mudar encaminhado ao De/para." },
-  { t: "De/para", programa: "Recebe o que foi encaminhado nas Análises. Cada caso é aprovado ou rejeitado, com aprovador e data, e só o aprovado entra nas listas finais e na execução. Ausência de resposta não é aprovação.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data." },
+  { t: "De/para", programa: "Recebe o que foi encaminhado nas Análises. Cada caso é aprovado ou rejeitado, com aprovador e data, e só o aprovado entra nas listas finais e na execução. Ausência de resposta não é aprovação. A inativação por data de uso também é aprovada aqui: em lote por grupo, com lista fechada de itens, ou item a item; o corte só seleciona candidatos.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data; inativação aprovada por lista fechada ou individualmente." },
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências." },
-  { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
+  { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, candidatos à inativação por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
   { t: "Fiscal", programa: "Cada grupo saneado é liberado para a revisão fiscal: o analista confere o NCM e o cClassTrib (com o CST e a redução) de cada item contra os anexos da LC 214/2025 consultados e decide o que fica; o que parece serviço segue por NBS e LC 116. O CST e o cClassTrib de cada operação seguem na validação das operações.", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências." },
   { t: "Política", programa: "Procedimentos para criar, comprar, usar, padronizar e descontinuar itens, a partir dos critérios aprovados e das causas encontradas. A política é uma proposta gerada do projeto: o responsável a revisa, define o responsável e o controle de cada procedimento e aprova. Sai em Excel, em JSON estruturado para o cadastro automático do cliente e no relatório do programa de trabalho em PDF.", avancar: "Política aprovada, com responsáveis e controles registrados." },
 ];
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null }, origem: {} });
+const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null }, origem: {}, extraidaEm: "", inativacao: inativacaoVazia() });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -109,7 +111,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const achados = useMemo(() => (validacaoId ? calcularAchados(escopo.emEscopo, testes) : {}), [validacaoId, escopo, testes]);
   const cobertura = useMemo(() => coberturaDaBase(base.data), [base.data]); // quais análises rodaram na importação: "sem achados" só vale onde a análise rodou
   const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length, cobertura) : null), [validacaoId, achados, escopo, cobertura]);
-  const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: decisoesTrabalho, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, decisoesTrabalho, estado?.execucao?.tipos, estado?.params, itens, escopo]);
+  const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: decisoesTrabalho, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params, inativacao: estado?.inativacao }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, decisoesTrabalho, estado?.execucao?.tipos, estado?.params, estado?.inativacao, itens, escopo]);
   const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, vivo?.execucao?.registros), [execGerada, vivo?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const temSaldo = useMemo(() => itens.some((i) => i.saldo != null), [itens]);
@@ -139,7 +141,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const trocarBase = async () => {
     if (!origemCompleta(estado.origem)) { setAvisoTroca("Declare a origem dos dados (ERP, instância e empresa) no quadro acima antes de trocar a base: é ela que garante que o código do item continua apontando para o mesmo produto na nova extração."); return; }
     setAvisoTroca("");
-    if (await confirmar({ titulo: "Trocar a base?", descricao: `A nova base precisa ser outra extração de ${textoOrigem(estado.origem)}: o mesmo ERP, a mesma instância e a mesma empresa. As decisões ficam presas ao código do item: o que não aparecer na nova base fica guardado, e o que mudou no cadastro desde a decisão volta para nova avaliação. Para outra empresa ou instância, crie outro projeto. O arquivo da base atual continua guardado no histórico.`, rotulo: "Trocar a base" })) setValidacaoId(null);
+    if (await confirmar({ titulo: "Trocar a base?", descricao: `A nova base precisa ser outra extração de ${textoOrigem(estado.origem)}: o mesmo ERP, a mesma instância e a mesma empresa. As decisões ficam presas ao código do item: o que não aparecer na nova base fica guardado, e o que mudou no cadastro desde a decisão volta para nova avaliação. Para outra empresa ou instância, crie outro projeto. O arquivo da base atual continua guardado no histórico.`, rotulo: "Trocar a base" })) { setValidacaoId(null); mudar({ extraidaEm: "" }); } // a data da extração é da base: a nova base traz a sua
   };
   // Grupos do saneamento (funcionais, como as demais escolhas): `gruposFora` guarda só os desmarcados.
   const alternarGrupo = (nome) => setEstado((e) => { const fora = { ...(e.gruposFora || {}) }; if (fora[nome]) delete fora[nome]; else fora[nome] = true; return { ...e, gruposFora: fora }; });
@@ -397,6 +399,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
                   {(coer.estado === "MUDOU" || (coer.estado === "AUSENTE" && d.status !== "APR")) && <Botao className="ml-1" title="Tira a decisão desta lista e guarda no histórico do projeto; o achado pode ser encaminhado de novo, com o cadastro como está agora" onClick={() => descartarDecisao(d.k, coer.motivo)}>Descartar</Botao>}</td></tr>); })}</tbody></table>
             {lista.length > 200 && <p className="text-xs text-muted-foreground p-2">Mostrando 200 de {fmt(lista.length)}.</p>}</div>
         </Acc>); })}
+      <InativacaoLotes estado={estado} setEstado={setEstado} escopo={escopo} indice={indice} quem={quem} baseInfo={{ id: validacaoId, arquivo: base.data?.nome_arquivo }} escalaSaldo={escalaSaldo} onMudarExtracao={(v) => mudar({ extraidaEm: v })} />
     </div>
   );
 
@@ -404,18 +407,18 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const conferencia = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para emitir as listas.</p> : !listas ? <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Montando as listas…</p> : (
     <div className="space-y-3">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {[["Universo", listas.contagem.universo], ["Lista final", listas.contagem.listaFinal], ["Descrições corrigidas", listas.contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas", listas.contagem.unidadesAjustadas], ["Unificações aprovadas", listas.contagem.unificacoesAprovadas], ["Unificações em decisão", listas.contagem.unificacoesPendentes], ["Inativados por data de uso", listas.contagem.inativados], [`Tarefas concluídas (de ${fmt(listas.contagem.tarefas)})`, listas.contagem.concluidas]].map(([l, v]) => (
+        {[["Universo", listas.contagem.universo], ["Lista final", listas.contagem.listaFinal], ["Descrições corrigidas", listas.contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas", listas.contagem.unidadesAjustadas], ["Unificações aprovadas", listas.contagem.unificacoesAprovadas], ["Unificações em decisão", listas.contagem.unificacoesPendentes], ["Candidatos à inativação", listas.contagem.candidatosInativacao], ["Inativação aprovada", listas.contagem.inativacaoAprovada], [`Tarefas concluídas (de ${fmt(listas.contagem.tarefas)})`, listas.contagem.concluidas]].map(([l, v]) => (
           <div key={l} className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="text-xl font-medium tabular-nums">{fmt(v)}</p></div>))}
       </div>
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h3 className="font-medium">Listas finais</h3>
         <p className="text-xs text-muted-foreground">Cada lista sai em planilha Excel e reflete as decisões registradas aqui. A execução no SAP e no físico aparece conforme as confirmações com evidência registradas no passo Execução; nenhum cadastro é alterado por esta ferramenta.</p>
         <div className="flex flex-wrap gap-2">
-          <Botao disabled={gerando} onClick={() => baixar(["resumo", "final", "dedup", "analises", "inativados", "execucao"], "listas-finais")}><Download className="w-3.5 h-3.5 inline mr-1" />Pacote completo (6 abas)</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["resumo", "final", "dedup", "analises", "candidatos", "execucao"], "listas-finais")}><Download className="w-3.5 h-3.5 inline mr-1" />Pacote completo (6 abas)</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["final"], "lista-final-corrigida")}>Lista final corrigida ({fmt(listas.contagem.listaFinal)})</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["dedup"], "desduplicacoes")}>Desduplicações ({fmt(listas.desduplicacoes.length)})</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["analises"], "analises")}>Análises ({fmt(listas.contagem.achados)})</Botao>
-          <Botao disabled={gerando} onClick={() => baixar(["inativados"], "inativados-por-data-de-uso")}>Inativados por data de uso ({fmt(listas.contagem.inativados)})</Botao>
+          <Botao disabled={gerando} onClick={() => baixar(["candidatos"], "candidatos-a-inativacao")}>Candidatos à inativação ({fmt(listas.contagem.candidatosInativacao)})</Botao>
           <Botao disabled={gerando} onClick={() => baixar(["execucao"], "execucao")}>Execução ({fmt(listas.contagem.tarefas)})</Botao>
         </div>
         {gerando && <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Gerando a planilha…</p>}
@@ -432,12 +435,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const emitirRelatorioFinal = async () => {
     const nomeBase = base.data?.nome_arquivo;
     const listasAgora = montarListas({ nomeProjeto: nome, nomeBase, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura });
-    const politica = montarPolitica({ estado: vivo, contagem, escopo, grupos, nomeProjeto: nome, nomeBase });
+    const politica = montarPolitica({ estado: vivo, contagem, escopo, grupos, itens, nomeProjeto: nome, nomeBase });
     const rel = montarRelatorioFinal({ nomeProjeto: nome, nomeBase, quem, estado: vivo, itens, escopo, contagem, listas: listasAgora, politica });
     return gerarPdfRelatorio(rel, `${slug}-relatorio-do-programa-de-trabalho.pdf`);
   };
   const politicaUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para montar a política.</p> : (
-    <PassoPolitica estado={estado} setEstado={setEstado} contagem={contagem} escopo={escopo} grupos={grupos} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} onRelatorio={emitirRelatorioFinal} />
+    <PassoPolitica estado={estado} setEstado={setEstado} contagem={contagem} escopo={escopo} grupos={grupos} itens={itens} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} onRelatorio={emitirRelatorioFinal} />
   );
 
   // Projeto antigo: nenhum passo que use decisões abre antes da migração (a Triagem fica livre para vincular a base original).

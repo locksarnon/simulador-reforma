@@ -33,7 +33,7 @@ describe("relações dos cartões da triagem", () => {
     expect(s(itens[4])).toBe("Em escopo, sem data de movimentação legível");
   });
   it("a frase de cada relação usa a data do corte, ou avisa que não há corte", () => {
-    expect(descricaoRelacao("fora", "01/01/2025")).toBe("Itens não movimentados desde 01/01/2025: ficam fora do trabalho.");
+    expect(descricaoRelacao("fora", "01/01/2025")).toBe("Itens não movimentados desde 01/01/2025: ficam fora do trabalho e são só candidatos à inativação, que depende de aprovação (lote com lista fechada ou individual, no passo De/para).");
     expect(descricaoRelacao("fora", "")).toContain("Sem corte");
     for (const id of Object.keys(RELACOES)) expect(descricaoRelacao(id, "01/01/2025").length).toBeGreaterThan(10);
   });

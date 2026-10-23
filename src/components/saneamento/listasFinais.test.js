@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aplicarEscopo, criarTestes } from "./logica";
 import { montarListas, unificacoesAprovadas } from "./listasFinais";
+import { aprovarLote } from "./inativacao";
 
 const item = (linha, codigo, descricao, ultima_mov, extra = {}) => ({ linha, codigo, descricao, ultima_mov, unidade: "UN", grupo_atual: "Peças", problemas: [], ...extra });
 const dup = (mestre) => ({ nivel: "EXATA", score: 1, grupo: 0, mestre, candidatos: [{ linha: mestre, score: 1, nivel: "EXATA", motivos: ["descrição idêntica"] }] });
@@ -11,6 +12,8 @@ const itens = [
   item(4, "B1", "FILTRO DE AR", "2023-05-05"),
   item(5, "C1", "CORREIA A-72", "2025-12-01"),
 ];
+// o corte só seleciona candidatos: a inativação entra nas tarefas só depois de aprovada (aqui, em lote, com a lista fechada do grupo)
+const loteB1 = () => aprovarLote(null, "Peças", { lista: ["B1"], justificativa: "Item parado há mais de dois anos, conferido.", verificacoes: {}, base: { id: "v1", arquivo: "itens.xlsx" }, extraidaEm: "2026-10-21", corte: "2025-01-01", semData: "manter", por: "ana", em: "2026-10-22", saldoLidoEmTodos: true });
 const base = (estado) => {
   const escopo = aplicarEscopo(itens, estado.params);
   return montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens, escopo, testes: criarTestes(escopo.emEscopo, estado) });
@@ -27,10 +30,18 @@ describe("listas finais do saneamento", () => {
   };
 
   const estadoE0 = () => ({ ...estado, execucao: { tipos: {}, registros: {} } });
-  it("lista de inativados por data de uso traz o critério do corte", () => {
+  it("a lista de candidatos à inativação traz o critério do corte e a situação: sem aprovação o item só aguarda; aprovado em lote, traz o aprovador e a data", () => {
     const l = base(estado);
-    expect(l.inativados.map((i) => i.codigo)).toEqual(["B1"]);
-    expect(l.inativados[0].criterio).toBe("não movimentado desde 01/01/2025");
+    expect(l.candidatos.map((i) => i.codigo)).toEqual(["B1"]);
+    expect(l.candidatos[0]).toMatchObject({ criterio: "não movimentado desde 01/01/2025", situacao: "Elegível: aguarda a aprovação da lista", aprovador: "", data: "" });
+    expect(l.contagem).toMatchObject({ candidatosInativacao: 1, inativacaoAprovada: 0, inativacaoAguardando: 1 }); // nenhuma tarefa de inativação nasce do corte
+    expect(l.execucao.some((x) => x.tarefa.startsWith("Inativar"))).toBe(false);
+    const aprov = base({ ...estado, inativacao: loteB1() });
+    expect(aprov.candidatos[0]).toMatchObject({ situacao: "Aprovado em lote", aprovador: "ana", data: "22/10/2026" });
+    expect(aprov.contagem).toMatchObject({ candidatosInativacao: 1, inativacaoAprovada: 1, inativacaoAguardando: 0 });
+    expect(aprov.execucao.some((x) => x.tarefa === "Inativar item aprovado por data de uso" && x.codigo === "B1")).toBe(true);
+    const resumo = aprov.resumo.map((x) => x.join(" | "));
+    expect(resumo).toContain("Candidatos à inativação por data de uso (fora do escopo) | 1"); expect(resumo).toContain("  Com a inativação aprovada (lote ou individual) | 1"); expect(resumo).toContain("  Aguardando aprovação | 0");
   });
   it("unificação aprovada tira o item de origem da lista final e entra em desduplicações", () => {
     const l = base(estado);
@@ -77,31 +88,31 @@ describe("listas finais do saneamento", () => {
     expect(resumo).toContain("  Identidade do produto | não se aplica ao projeto: Um só fabricante por código.");
     expect(resumo).toContain("Critérios fora do trabalho | ");
   });
-  it("com os sem data tratados como anteriores à data, entram nos inativados com o critério próprio e o resumo conta", () => {
+  it("com os sem data tratados como anteriores à data, entram nos candidatos à inativação com o critério próprio e o resumo conta", () => {
     const sem = [...itens, item(6, "E1", "ITEM SEM DATA", null)];
     const e = { ...estado, params: { desde: "2025-01-01", semData: "anterior" } };
     const escopo = aplicarEscopo(sem, e.params);
     const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens: sem, escopo, testes: criarTestes(escopo.emEscopo, e) });
-    expect(l.inativados.map((i) => [i.codigo, i.criterio])).toEqual([["B1", "não movimentado desde 01/01/2025"], ["E1", "sem data de movimentação, tratado como anterior a 01/01/2025"]]);
+    expect(l.candidatos.map((i) => [i.codigo, i.criterio])).toEqual([["B1", "não movimentado desde 01/01/2025"], ["E1", "sem data de movimentação, tratado como anterior a 01/01/2025"]]); // ambos candidatos: o corte não os inativa
     const resumo = l.resumo.map((x) => x.join(" | "));
     expect(resumo.some((x) => x.includes("desconsiderar itens não movimentados desde 01/01/2025; itens sem data de movimentação tratados como anteriores à data"))).toBe(true);
     expect(resumo).toContain("Itens sem data de movimentação legível | 1"); expect(resumo).toContain("  Mantidos no escopo (sinalizados) | 0"); expect(resumo).toContain("  Tratados como anteriores à data (fora do escopo) | 1");
-    expect(l.contagem).toMatchObject({ semData: 1, semDataFora: 1, semDataEmEscopo: 0, inativados: 2 });
+    expect(l.contagem).toMatchObject({ semData: 1, semDataFora: 1, semDataEmEscopo: 0, candidatosInativacao: 2 });
   });
   it("sem a opção, o item sem data continua em escopo, sinalizado, e o resumo conta", () => {
     const sem = [...itens, item(6, "E1", "ITEM SEM DATA", null)];
     const escopo = aplicarEscopo(sem, estado.params);
     const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens: sem, escopo, testes: criarTestes(escopo.emEscopo, estado) });
-    expect(l.inativados.map((i) => i.codigo)).toEqual(["B1"]);
+    expect(l.candidatos.map((i) => i.codigo)).toEqual(["B1"]);
     const resumo = l.resumo.map((x) => x.join(" | "));
     expect(resumo).toContain("  Mantidos no escopo (sinalizados) | 1"); expect(resumo).toContain("  Tratados como anteriores à data (fora do escopo) | 0");
     expect(resumo.some((x) => x.includes("tratados como anteriores à data") && x.startsWith("Parâmetro"))).toBe(false);
   });
-  it("grupo fora do saneamento não entra nas listas nem é inativado, e o resumo conta os grupos e os itens", () => {
+  it("grupo fora do saneamento não entra nas listas nem é candidato à inativação, e o resumo conta os grupos e os itens", () => {
     const e = estadoE0();
     const escopo = aplicarEscopo(itens, e.params, { Peças: true });
     const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens, escopo, testes: criarTestes(escopo.emEscopo, e) });
-    expect(l.finalCorrigida).toEqual([]); expect(l.inativados).toEqual([]); // todos os itens de teste são do grupo Peças
+    expect(l.finalCorrigida).toEqual([]); expect(l.candidatos).toEqual([]); // todos os itens de teste são do grupo Peças
     expect(l.desduplicacoes).toEqual([]); expect(l.execucao).toEqual([]); // as decisões do grupo ficam guardadas, mas fora das listas e das tarefas
     const resumo = l.resumo.map((x) => x.join(" | "));
     expect(resumo).toContain("Grupos fora do saneamento (não marcados na triagem) | 1"); expect(resumo).toContain("Itens dos grupos fora do saneamento | 4");
@@ -115,13 +126,13 @@ describe("listas finais do saneamento", () => {
   it("projeto salvo com o corte no formato antigo gera as mesmas listas", () => {
     const antigo = { ...estado, params: { ateOn: true, ate: "2024-12-31", diasOn: false, dias: 540, dataBase: "2026-10-22" } };
     const l = base(antigo);
-    expect(l.inativados.map((i) => i.codigo)).toEqual(["B1"]);
-    expect(l.inativados[0].criterio).toBe("não movimentado desde 01/01/2025");
+    expect(l.candidatos.map((i) => i.codigo)).toEqual(["B1"]);
+    expect(l.candidatos[0].criterio).toBe("não movimentado desde 01/01/2025");
     expect(l.resumo.some((x) => x.join(" ").includes("desconsiderar itens não movimentados desde 01/01/2025"))).toBe(true);
   });
-  it("sem corte, ninguém é inativado e o resumo diz 'sem corte'", () => {
+  it("sem corte, ninguém é candidato à inativação e o resumo diz 'sem corte'", () => {
     const l = base({ ...estado, params: { desde: "" } });
-    expect(l.inativados).toEqual([]);
+    expect(l.candidatos).toEqual([]);
     expect(l.resumo.find((x) => x[0] === "Parâmetro de saneamento")[1]).toBe("sem corte");
   });
   it("mestre da própria decisão não é baixado", () => {
@@ -148,11 +159,11 @@ describe("planilha das listas finais", () => {
     };
     const escopo = aplicarEscopo(itens, estado.params);
     const listas = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens, escopo, testes: criarTestes(escopo.emEscopo, estado) });
-    const wb = criarWorkbook(ExcelJS, listas, ["resumo", "final", "dedup", "analises", "inativados"]);
+    const wb = criarWorkbook(ExcelJS, listas, ["resumo", "final", "dedup", "analises", "candidatos"]);
     const buf = await wb.xlsx.writeBuffer();
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(buf);
-    expect(lido.worksheets.map((w) => w.name)).toEqual(["Resumo", "Lista final corrigida", "Desduplicações", "Análises", "Inativados por data de uso"]);
-    expect(lido.getWorksheet("Inativados por data de uso").getRow(2).getCell(1).value).toBe("B1");
+    expect(lido.worksheets.map((w) => w.name)).toEqual(["Resumo", "Lista final corrigida", "Desduplicações", "Análises", "Candidatos à inativação"]);
+    expect(lido.getWorksheet("Candidatos à inativação").getRow(2).getCell(1).value).toBe("B1");
     expect(lido.getWorksheet("Desduplicações").getRow(2).getCell(2).value).toBe("A1");
     expect(lido.getWorksheet("Lista final corrigida").rowCount).toBe(3);
   });
@@ -228,15 +239,15 @@ describe("listas finais: execução (administrativo e almoxarifado)", () => {
   const estadoE = (registros = {}) => ({
     params: { desde: "2025-01-01" }, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
     decisoes: { "A1|duplicidade": aprov({ destino: "A2" }), "C1|padrao": aprov({ sugerida: "CORREIA A72", final: "CORREIA A-72 TRAPEZOIDAL" }) },
-    execucao: { tipos: {}, registros },
+    inativacao: loteB1(), execucao: { tipos: {}, registros },
   });
   const ok = (e) => ({ status: "FEITO", evidencia: e, por: "ana", em: "2026-10-22" });
   it("as tarefas saem das decisões aprovadas e dos itens inativados, e a aba Execução mostra a confirmação de cada frente", () => {
     const l = base(estadoE({ "A1|duplicidade": { adm: ok("SAP 1"), alm: ok("foto 2") } }));
-    expect(l.execucao.map((x) => x.tarefa)).toEqual(["Unificar códigos duplicados", "Corrigir descrição", "Inativar item sem movimento"]);
+    expect(l.execucao.map((x) => x.tarefa)).toEqual(["Unificar códigos duplicados", "Corrigir descrição", "Inativar item aprovado por data de uso"]);
     expect(l.execucao[0]).toMatchObject({ codigo: "A1", adm: "Confirmado", evidAdm: "SAP 1", alm: "Confirmado", situacao: "Concluída" });
     expect(l.execucao[1]).toMatchObject({ codigo: "C1", adm: "Pendente", alm: "Não se aplica", situacao: "Pendente" });
-    expect(l.execucao[2]).toMatchObject({ codigo: "B1", tarefa: "Inativar item sem movimento" });
+    expect(l.execucao[2]).toMatchObject({ codigo: "B1", tarefa: "Inativar item aprovado por data de uso" });
     expect(l.contagem).toMatchObject({ tarefas: 3, concluidas: 1, pendentes: 2, emAndamento: 0, divergencias: 0 });
   });
   it("a lista final corrigida diz a situação da execução de cada item, e o resumo conta as tarefas", () => {
@@ -244,7 +255,7 @@ describe("listas finais: execução (administrativo e almoxarifado)", () => {
     expect(l.finalCorrigida.find((i) => i.codigo === "C1").execucao).toBe("Com divergência");
     expect(l.finalCorrigida.find((i) => i.codigo === "A2").execucao).toBe(""); // sem tarefa
     const resumo = l.resumo.map((x) => x.join(" | "));
-    expect(resumo.some((x) => x.startsWith("Tarefas de execução (decisões aprovadas e itens inativados) | 3"))).toBe(true);
+    expect(resumo.some((x) => x.startsWith("Tarefas de execução (decisões e inativações aprovadas) | 3"))).toBe(true);
     expect(resumo.some((x) => x.startsWith("  Com divergência | 1"))).toBe(true);
   });
   it("tirar um tipo da execução tira as tarefas dele da aba e do resumo", () => {

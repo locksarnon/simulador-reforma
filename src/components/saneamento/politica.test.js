@@ -31,11 +31,16 @@ describe("política de uso dos estoques", () => {
     expect(r.origem).toBe('Critério "Padronização da descrição", aprovado por ana em 20/10/2026');
     expect(r.evidencia).toBe("1 item em escopo com achado na base analisada; 1 correção aprovada de 2 encaminhadas.");
   });
+  it("a regra de descontinuação diz que o corte só seleciona candidatos e que a inativação exige aprovação em lista fechada ou individual", () => {
+    const p = montarPolitica(base({}));
+    expect(regra(p, "descontinuar.aprovacao").texto).toContain("não autoriza a inativação"); expect(regra(p, "descontinuar.aprovacao").texto).toContain("lista fechada de códigos"); expect(regra(p, "descontinuar.aprovacao").texto).toContain("não cobre itens que entrem depois na lista");
+    expect(p.estruturada.descontinuacao).toMatchObject({ candidatosInativacao: 1, inativacaoAprovada: 0 }); expect(p.estruturada.descontinuacao.aprovacao).toContain("so seleciona candidatos");
+  });
   it("a unidade usa os nomes padrão do projeto, e a descontinuação o corte por data e o tratamento dos itens sem data", () => {
     const p = montarPolitica(base({ criterios: { unidade: aprov() }, politicaUnidade: { ativa: true, regras: {}, rotulos: { massa: "QUILOGRAM" } } }));
     expect(regra(p, "criar.unidade").texto).toContain("massa em QUILOGRAM"); expect(regra(p, "criar.unidade").texto).toContain("volume em L");
     expect(regra(p, "descontinuar.corte").texto).toContain("desde 01/01/2025"); expect(regra(p, "descontinuar.corte").texto).toContain("permanece no escopo, sinalizado");
-    expect(regra(p, "descontinuar.corte").evidencia).toBe("1 item fora do escopo pelo parâmetro de saneamento.");
+    expect(regra(p, "descontinuar.corte").evidencia).toBe("1 item fora do escopo pelo parâmetro de saneamento (candidatos à inativação); 0 com a inativação aprovada.");
     expect(regra(p, "descontinuar.corte").origem).toBe("Parâmetro de saneamento do projeto");
     expect(regra(montarPolitica(base({ params: { desde: "2025-01-01", semData: "anterior" } })), "descontinuar.corte").texto).toContain("tratado como anterior à data");
     expect(regra(montarPolitica(base({ params: { desde: "" } })), "descontinuar.corte").texto).toContain("sem data de corte definida");

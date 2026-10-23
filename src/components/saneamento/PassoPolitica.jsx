@@ -17,11 +17,11 @@ const SUGESTOES = {
  * Passo Política: a política de uso dos estoques nasce dos critérios aprovados e das causas encontradas. O analista revisa as regras, define o responsável e o
  * controle de cada procedimento, escreve regras por grupo e aprova. Sai em Excel, em JSON estruturado (cadastro automático do cliente) e no relatório em PDF.
  */
-export default function PassoPolitica({ estado, setEstado, contagem, escopo, grupos, quem, nomeProjeto, nomeBase, slug, onRelatorio }) {
+export default function PassoPolitica({ estado, setEstado, contagem, escopo, grupos, itens, quem, nomeProjeto, nomeBase, slug, onRelatorio }) {
   const [aberto, setAberto] = useState({});
   const [gerando, setGerando] = useState(false); const [gerandoRelatorio, setGerandoRelatorio] = useState(false); const [msg, setMsg] = useState("");
   const [ord, ordenar] = useOrdenacao();
-  const politica = useMemo(() => montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto, nomeBase }), [estado, contagem, escopo, grupos, nomeProjeto, nomeBase]);
+  const politica = useMemo(() => montarPolitica({ estado, contagem, escopo, grupos, itens, nomeProjeto, nomeBase }), [estado, contagem, escopo, grupos, itens, nomeProjeto, nomeBase]);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
   const aprovada = politica.aprovada;
 

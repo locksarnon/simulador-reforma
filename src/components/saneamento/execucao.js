@@ -2,11 +2,12 @@
 // (realocações físicas). A tarefa só conta como concluída quando todas as frentes aplicáveis confirmam COM evidência; sem prova, continua
 // pendente. Nada é gravado no SAP nem no físico por esta ferramenta: ela emite as listas, recebe as confirmações e registra as divergências.
 // Funções puras (sem React); a geração do XLSX fica em listasFinais.js.
-import { CRITERIOS, dataDoCorte, grupoDe } from "./logica";
+import { CRITERIOS, dataBr, dataDoCorte, grupoDe } from "./logica";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 import { chaveTexto, lerMatriz } from "./respostaCliente";
 import { chaveDe, idItem, indexar, itemPorId, partirChave } from "./identidade";
 import { coerenciaDaDecisao } from "./aprovacao";
+import { inativacoesAprovadas } from "./inativacao";
 
 export const FRENTES = { adm: "Administrativo (SAP)", alm: "Almoxarifado (físico)" };
 
@@ -21,8 +22,8 @@ export const TIPOS_TAREFA = {
     comoAdm: "Passar a unidade de estoque para a proposta, cadastrar a unidade de compra com os itens por unidade de compra e converter o saldo. Se o SAP não permitir a troca (item com movimentação), tratar como de/para ou novo cadastro, conforme o piloto.",
     comoAlm: "Recontar o saldo físico na nova unidade e trocar a identificação do endereço." },
   grafia: { titulo: "Padronizar a grafia da unidade", almPadrao: false, comoAdm: "Trocar a grafia da unidade no cadastro.", comoAlm: "" },
-  inativacao: { titulo: "Inativar item sem movimento", almPadrao: false,
-    comoAdm: "Inativar o item no cadastro.", comoAlm: "Segregar e identificar o saldo físico, se houver." },
+  inativacao: { titulo: "Inativar item aprovado por data de uso", almPadrao: false,
+    comoAdm: "Inativar o item no cadastro, conforme a aprovação registrada (lote com lista fechada ou decisão individual).", comoAlm: "Segregar e identificar o saldo físico, se houver." },
   outro: { titulo: "Tratar conforme o critério", almPadrao: false, comoAdm: "Tratar o item conforme o critério aprovado no passo De/para.", comoAlm: "" },
 };
 export const ORDEM_TIPOS = Object.keys(TIPOS_TAREFA);
@@ -45,17 +46,18 @@ const INSTRUCAO = {
     adm: `Unidade de estoque: ${t.dados.unidadeDe} → ${t.dados.unidadePara}. Unidade de compra: ${t.dados.unidadeDe}; itens por unidade de compra: ${t.dados.itensPorCompra != null ? numeroBr(t.dados.itensPorCompra) : "a informar"}. Se o SAP não permitir a troca (item com movimentação), tratar como de/para ou novo cadastro, conforme o piloto.`,
     alm: `Recontar o saldo físico em ${t.dados.unidadePara} e trocar a identificação do endereço.` }),
   grafia: (t) => ({ adm: `Trocar a grafia da unidade: ${t.dados.unidadeDe} → ${t.dados.unidadePara}.`, alm: "" }),
-  inativacao: (t) => ({ adm: `Inativar o item (${t.dados.corte}).`, alm: TIPOS_TAREFA.inativacao.comoAlm }),
+  inativacao: (t) => ({ adm: `Inativar o item (${t.dados.corte}). Aprovação: ${t.dados.aprovacao}.`, alm: TIPOS_TAREFA.inativacao.comoAlm }),
   outro: (t) => ({ adm: `Tratar conforme o critério "${t.dados.criterio}" (aprovado no passo De/para).`, alm: "" }),
 };
 
 /**
- * Tarefas de execução: uma por decisão APROVADA (ausência de resposta não é aprovação) e uma por item inativado pelo parâmetro de saneamento.
+ * Tarefas de execução: uma por decisão APROVADA (ausência de resposta não é aprovação) e uma por inativação APROVADA (em lote, com lista fechada, ou individualmente): o corte
+ * por data só seleciona candidatos e nunca gera tarefa sozinho.
  * Devolve { tarefas, geradasPorTipo }: `tarefas` já sem os tipos que o analista tirou da execução; `geradasPorTipo` conta tudo o que foi gerado.
  * O id da tarefa é a chave da decisão ("código|critério"); a inativação usa "código|inativacao". A tarefa nasce do que foi aprovado para o código do item: se o cadastro
  * dele mudou para outra coisa desde a aprovação, ela não cobre o que está lá e não gera tarefa; se o item não está mais na base, a tarefa sai do que foi guardado na aprovação.
  */
-export function gerarTarefas({ decisoes, tipos, itens, escopo, params }) {
+export function gerarTarefas({ decisoes, tipos, itens, escopo, params, inativacao }) {
   const cfg = tiposEfetivos(tipos);
   const indice = indexar(itens);
   const tituloCriterio = (id) => CRITERIOS.find((c) => c.id === id)?.titulo ?? id;
@@ -84,7 +86,12 @@ export function gerarTarefas({ decisoes, tipos, itens, escopo, params }) {
     } else nova("outro", k, it, d.grupo, { criterio: tituloCriterio(crit) });
   }
   const corte = dataDoCorte(params);
-  for (const it of escopo?.fora || []) if (idItem(it) && !indice.repetidos.has(idItem(it))) nova("inativacao", chaveDe(it, "inativacao"), it, null, { corte: it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`, ultimaMov: it.ultima_mov });
+  for (const a of inativacoesAprovadas(inativacao, escopo, indice)) {
+    nova("inativacao", chaveDe(a.it, "inativacao"), a.it, null, {
+      corte: a.it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`, ultimaMov: a.it.ultima_mov,
+      aprovacao: a.via === "LOTE" ? `lista fechada do grupo ${a.grupo}, aprovada por ${a.por} em ${dataBr(a.em)}` : `decisão individual de ${a.por} em ${dataBr(a.em)}`,
+    });
+  }
   const geradasPorTipo = {};
   for (const t of brutas) geradasPorTipo[t.tipo] = (geradasPorTipo[t.tipo] || 0) + 1;
   const tarefas = brutas.filter((t) => cfg[t.tipo].incluir).map((t) => {

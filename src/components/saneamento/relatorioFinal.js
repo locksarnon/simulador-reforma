@@ -8,6 +8,7 @@ import { ORDEM_SITUACOES, SITUACOES, itensDoGrupoFiscal, leituraFiscal, resumoDe
 import { linhasQueSaem } from "./listasFinais";
 import { resumoUnidades } from "./unidades";
 import { indexar } from "./identidade";
+import { candidatosDaInativacao, situacaoDoCandidato } from "./inativacao";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -54,7 +55,7 @@ export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, iten
   T(null, "Resumo");
   b.push({ t: "tabela", cols: [{ label: "Passo", w: 22 }, { label: "Situação", w: 18 }, { label: "Andamento", w: 60 }], linhas: andamentoDosPassos({ estado, itens, escopo, grupos, contagem, listas, politica }) });
   b.push({ t: "kv", linhas: [
-    ["Universo (códigos da base)", fmt(c.universo)], ...(c.itensForaGrupos ? [["Em grupos fora do saneamento", fmt(c.itensForaGrupos)]] : []), ["Fora do escopo (inativados por data de uso)", fmt(c.inativados)], ["Em escopo", fmt(c.emEscopo)],
+    ["Universo (códigos da base)", fmt(c.universo)], ...(c.itensForaGrupos ? [["Em grupos fora do saneamento", fmt(c.itensForaGrupos)]] : []), ["Fora do escopo (candidatos à inativação por data de uso)", fmt(c.candidatosInativacao)], ["Inativação aprovada (lote com lista fechada ou individual)", fmt(c.inativacaoAprovada)], ["Em escopo", fmt(c.emEscopo)],
     ["Lista final corrigida (códigos)", fmt(c.listaFinal)], ["Descrições corrigidas (aprovadas)", fmt(c.descricoesCorrigidas)], ["Unidades de estoque ajustadas (aprovadas)", fmt(c.unidadesAjustadas)],
     ["Unificações aprovadas", fmt(c.unificacoesAprovadas)], ["Unificações ainda em decisão", fmt(c.unificacoesPendentes)],
   ] });
@@ -91,7 +92,17 @@ export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, iten
 
   T(5, "Execução e conferência");
   b.push({ t: "kv", linhas: [["Tarefas geradas", fmt(c.tarefas)], ["Concluídas (todas as frentes, com evidência)", fmt(c.concluidas)], ["Em andamento", fmt(c.emAndamento)], ["Pendentes", fmt(c.pendentes)], ["Com divergência", fmt(c.divergencias)]] });
-  P("As listas finais (lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução) são emitidas em Excel no passo Conferência e refletem as decisões registradas.", "nota");
+  P("As listas finais (lista final corrigida, desduplicações, análises, candidatos à inativação por data de uso e execução) são emitidas em Excel no passo Conferência e refletem as decisões registradas.", "nota");
+  // Inativação: o corte por data só seleciona candidatos; só a aprovação (lote com lista fechada ou individual) gera tarefa
+  const ina = estado.inativacao; const cand = candidatosDaInativacao(escopo, indexar(itens), ina);
+  if (cand.total) {
+    S("Inativação por data de uso");
+    P("O corte por data seleciona candidatos para avaliação e não autoriza a inativação. Ela só foi executada para o que consta aprovado abaixo, em lote por grupo (lista fechada de códigos, base e data analisadas, verificações, aprovador e justificativa) ou item a item; itens com saldo, documento aberto ou dependência não esclarecida ficam para decisão individual.");
+    b.push({ t: "tabela", cols: [{ label: "Grupo", w: 40 }, { label: "Candidatos", w: 16, align: "right" }, { label: "Aprovados em lote", w: 20, align: "right" }, { label: "Individual: inativar", w: 22, align: "right" }, { label: "Aguardando", w: 18, align: "right" }],
+      linhas: cand.grupos.map((g) => { const st = g.candidatos.map((x) => situacaoDoCandidato(x, g.grupo, ina)); const n = (s) => st.filter((x) => x === s).length; return [g.grupo, fmt(g.candidatos.length), fmt(n("LOTE")), fmt(n("INATIVAR")), fmt(g.candidatos.length - n("LOTE") - n("INATIVAR") - n("MANTER"))]; }) });
+    const lotes = Object.values(ina?.lotes || {});
+    if (lotes.length) b.push({ t: "lista", itens: lotes.map((l) => `Grupo ${l.grupo}: lista fechada de ${plural(l.itens.length, "item", "itens")} aprovada por ${l.por} em ${dataBr(l.em)}, na base ${l.base?.arquivo || "—"} (extração de ${dataBr(l.extraidaEm)}; corte ${dataBr(l.corte)}). Justificativa: ${l.justificativa}`) });
+  }
 
   T(6, "Revisão fiscal");
   const saem = linhasQueSaem(estado, itens); const indice = indexar(itens); const liberados = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem));

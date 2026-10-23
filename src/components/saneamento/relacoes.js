@@ -16,7 +16,7 @@ export function descricaoRelacao(id, corte, semDataFora = false) {
   switch (id) {
     case "universo": return "Todos os itens da base importada.";
     case "foraGrupos": return "Itens de grupos que não foram marcados para o saneamento: não entram no trabalho e não são inativados.";
-    case "fora": return corte ? `Itens não movimentados desde ${corte}${semDataFora ? ", inclusive os sem data de movimentação (tratados como anteriores à data)" : ""}: ficam fora do trabalho.` : "Sem corte definido: nenhum item fica fora do trabalho.";
+    case "fora": return corte ? `Itens não movimentados desde ${corte}${semDataFora ? ", inclusive os sem data de movimentação (tratados como anteriores à data)" : ""}: ficam fora do trabalho e são só candidatos à inativação, que depende de aprovação (lote com lista fechada ou individual, no passo De/para).` : "Sem corte definido: nenhum item fica fora do trabalho.";
     case "emEscopo": return semDataFora ? "Itens que entram no trabalho." : "Itens que entram no trabalho (inclui os sem data de movimentação legível).";
     default: return semDataFora ? `Itens sem data de última movimentação legível: tratados como anteriores a ${corte}, ficam fora do escopo.` : "Itens sem data de última movimentação legível: continuam no escopo, sinalizados.";
   }

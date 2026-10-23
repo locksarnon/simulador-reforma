@@ -2,7 +2,8 @@
 // padronizar e descontinuar), regras por grupo e uma versão estruturada para configurar o módulo de cadastro automático do cliente. Critério ainda não aprovado
 // não gera regra. Só SUGERE: é uma proposta de política que o responsável revisa e aprova; nada é alterado no cadastro nem no ERP. Funções puras.
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, dataBr, dataDoCorte, normalizarParams } from "./logica";
-import { partirChave } from "./identidade";
+import { indexar, partirChave } from "./identidade";
+import { resumoInativacao } from "./inativacao";
 import { coberturaDoCriterio, criteriosPendentesDoGrupo, grupoSaneado, naoAplicavelDe, situacaoCriterio } from "./analise";
 import { GRANDEZAS, resumoUnidades } from "./unidades";
 
@@ -31,7 +32,7 @@ export function contarDecisoes(decisoes) {
  * Monta a política a partir do estado do projeto. `contagem` é o contarAchados() dos critérios, `escopo` o aplicarEscopo(), `grupos` o agruparPorGrupo() do que está em escopo.
  * Devolve { secoes, porGrupo, pendencias, estruturada, situacao }.
  */
-export function montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto = "", nomeBase = "" }) {
+export function montarPolitica({ estado, contagem, escopo, grupos, itens, nomeProjeto = "", nomeBase = "" }) {
   const pol = estado?.politica || {}; const dec = contarDecisoes(estado?.decisoes); const params = normalizarParams(estado?.params);
   const sitDe = (id) => situacaoCriterio(estado, CRITERIOS.find((c) => c.id === id), contagem);
   const ativo = (id) => ["APROVADO", "AUTO"].includes(sitDe(id)); // só o critério em uso gera regra: pendente, sem a análise executada ou não aplicável ficam de fora
@@ -46,6 +47,7 @@ export function montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto =
   const un = resumoUnidades(escopo?.emEscopo || [], { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos });
   const nomesUn = Object.entries(GRANDEZAS).map(([g, v]) => `${v.rotulo.toLowerCase()} em ${un.padroes[g]}`).join(", ");
   const ajustesUn = dec.unidade || { APR: 0, total: 0 }; const dupl = dec.duplicidade || { APR: 0, total: 0 }; const pad = dec.padrao || { APR: 0, total: 0 };
+  const resInativacao = resumoInativacao(estado?.inativacao, escopo, indexar(itens ?? [...(escopo?.emEscopo || []), ...(escopo?.fora || []), ...(escopo?.foraGrupos || [])]));
   const piloto = Object.entries(estado?.piloto || {}).map(([caso, p]) => `${caso}: ${p.status || "Não iniciado"}`);
 
   const R = (id, secao, texto, origemId, evidencia, origemTxt = "Programa de trabalho do saneamento") => ({ id, secao, texto, origem: origemId ? origem(origemId) : origemTxt, evidencia });
@@ -66,7 +68,8 @@ export function montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto =
   regras.push(R("padronizar.periodica", "padronizar", "Os critérios aprovados são reaplicados à base viva na periodicidade definida pelo responsável, e os achados novos seguem o mesmo fluxo (encaminhar, aprovar, executar e conferir). A alteração de descrição, unidade ou grupo é registrada com aprovador e data, e a descrição original é preservada.", null, "Fluxo do programa de trabalho."));
   regras.push(R("padronizar.unificacao", "padronizar", "Unificar itens exige aprovação por caso, escolha de qual código fica (maior saldo, movimentação mais recente, cadastro mais completo, menor código) e tratamento do saldo e do histórico do código que sai: de/para e transferência de saldo, confirmados com evidência.", null, "Fluxo do programa de trabalho."));
   if (piloto.length) regras.push(R("padronizar.piloto", "padronizar", "Unificar, separar, preservar referências e descontinuar com dependências só valem como procedimento testado no ambiente do cliente; o que o piloto não comprovou fica sem liberação para execução em massa.", null, `Piloto SAP: ${piloto.join("; ")}.`));
-  regras.push(R("descontinuar.corte", "descontinuar", `Item não movimentado ${params.desde ? `desde ${dataDoCorte(estado?.params)}` : "(sem data de corte definida neste projeto)"} é candidato à inativação, não à exclusão. ${params.desde ? (params.semData === "anterior" ? "O item sem data de movimentação legível é tratado como anterior à data." : "O item sem data de movimentação legível permanece no escopo, sinalizado.") : ""}`.trim(), null, `${plural(escopo?.fora?.length || 0, "item fora do escopo", "itens fora do escopo")} pelo parâmetro de saneamento.`, "Parâmetro de saneamento do projeto"));
+  regras.push(R("descontinuar.corte", "descontinuar", `Item não movimentado ${params.desde ? `desde ${dataDoCorte(estado?.params)}` : "(sem data de corte definida neste projeto)"} é candidato à inativação, não à exclusão. ${params.desde ? (params.semData === "anterior" ? "O item sem data de movimentação legível é tratado como anterior à data." : "O item sem data de movimentação legível permanece no escopo, sinalizado.") : ""}`.trim(), null, `${plural(escopo?.fora?.length || 0, "item fora do escopo", "itens fora do escopo")} pelo parâmetro de saneamento (candidatos à inativação); ${plural(resInativacao.aprovados, "com a inativação aprovada", "com a inativação aprovada")}.`, "Parâmetro de saneamento do projeto"));
+  regras.push(R("descontinuar.aprovacao", "descontinuar", "A data de corte seleciona candidatos para avaliação e não autoriza a inativação. A inativação só é executada depois de aprovada: em lote, por grupo de itens, com lista fechada de códigos (base e data analisadas, verificações de movimentação, saldo, documentos abertos e vínculos, aprovador e justificativa), ou item a item. Itens com saldo, documento aberto ou dependência não esclarecida ficam para decisão individual, e a aprovação em lote não cobre itens que entrem depois na lista.", null, "Fluxo do programa de trabalho (passo De/para)."));
   regras.push(R("descontinuar.saldo", "descontinuar", "Item com saldo ou histórico tem tratamento próprio: o saldo é transferido ao código que fica e o histórico é preservado antes da inativação; a inativação só conta como feita com a evidência registrada.", null, "Fluxo do programa de trabalho (passos De/para, Execução e Conferência)."));
   if (ativo("cartilhas")) regras.push(R("descontinuar.vinculos", "descontinuar", "Antes de inativar, conferir vínculos em cartilhas, planos de manutenção e documentos abertos.", "cartilhas", "Critério de conferência manual."));
 
@@ -87,12 +90,12 @@ export function montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto =
   return {
     secoes, porGrupo, pendencias, aprovada, situacao: aprovada ? "Aprovada" : "Rascunho",
     prontaParaAprovar: secoes.every((s) => s.responsavel.trim() && s.controle.trim()) && regras.length > 0,
-    estruturada: estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis }),
+    estruturada: estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis, inativacao: resInativacao }),
   };
 }
 
 /** Versão estruturada da política (JSON), para configurar o módulo de cadastro automático do cliente. */
-function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis }) {
+function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis, inativacao }) {
   const regras = { ...REGRAS_PADRAO, ...(estado?.padronizacao?.regras || {}) };
   return {
     versao: 1, projeto: nomeProjeto, base: nomeBase, situacao: aprovada ? "Aprovada" : "Rascunho", aprovadaPor: aprovada?.por || null, aprovadaEm: aprovada?.em || null,
@@ -107,7 +110,8 @@ function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, p
       ordemParaEscolherQuemFica: ["maior saldo em estoque", "movimentacao mais recente", "cadastro mais completo", "menor codigo"], exigeConfirmacaoTecnica: true,
     },
     fiscal: { ncm: "8 digitos vigentes na tabela oficial", classificacao: "cClassTrib conferido contra os anexos da LC 214/2025; capitulo ou posicao citado no anexo e NCM ambiguo = revisao com especialista", servicos: "NBS e LC 116" },
-    descontinuacao: { semMovimentoDesde: params.desde || null, itensSemData: params.semData, tratamentoComSaldoOuHistorico: "transferir saldo e preservar historico antes de inativar; evidencia obrigatoria", itensForaDoEscopo: escopo?.fora?.length ?? 0 },
+    descontinuacao: { semMovimentoDesde: params.desde || null, itensSemData: params.semData, tratamentoComSaldoOuHistorico: "transferir saldo e preservar historico antes de inativar; evidencia obrigatoria", itensForaDoEscopo: escopo?.fora?.length ?? 0,
+      aprovacao: "o corte por data so seleciona candidatos; a inativacao exige aprovacao em lote por grupo (lista fechada de codigos, base e data analisadas, verificacoes, aprovador e justificativa) ou decisao individual", candidatosInativacao: inativacao.candidatos, inativacaoAprovada: inativacao.aprovados },
     criteriosNaoAplicaveis: naoAplicaveis,
     grupos: porGrupo.map((g) => ({ nome: g.grupo, itens: g.itens, saneado: g.saneado, revisaoFiscal: g.fiscal, regra: g.regra })),
     procedimentos: secoes.map((s) => ({ id: s.id, titulo: s.titulo, responsavel: s.responsavel, controle: s.controle, regras: s.regras.map((r) => ({ id: r.id, texto: r.texto, origem: r.origem, evidencia: r.evidencia })) })),

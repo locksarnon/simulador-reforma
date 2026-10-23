@@ -1,4 +1,4 @@
-// Listas finais do saneamento: lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução (tarefas e confirmações).
+// Listas finais do saneamento: lista final corrigida, desduplicações, análises, candidatos à inativação por data de uso (com o que foi aprovado) e execução (tarefas e confirmações).
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
 import { CRITERIOS, dataBr, dataDoCorte, decisoesDoTrabalho, grupoDe } from "./logica";
 import { calcularAchados, contarAchados, criteriosAprovados, naoAplicavelDe, situacaoCriterio } from "./analise";
@@ -8,6 +8,7 @@ import { fatorDaDecisao, numeroBr } from "./unidades";
 import { saldoNaEscala } from "./conjuntos";
 import { chaveDe, idItem, indexar, itemPorId, partirChave } from "./identidade";
 import { coerenciaDaDecisao } from "./aprovacao";
+import { ROT_SITUACAO as ROT_INATIVACAO, candidatosDaInativacao, inativacoesAprovadas, resumoInativacao, situacaoDoCandidato } from "./inativacao";
 import { COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, LARGURAS_FRENTE, ROT_SITUACAO_GERAL, gerarTarefas, linhasExecucao, resumoExecucao, situacaoPorLinha } from "./execucao";
 
 const ROT_STATUS = { PROP: "Encaminhado (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
@@ -55,8 +56,8 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
   const indice = indexar(itens);
   const uni = unificacoesAprovadas(estado, itens);
-  // Execução: tarefas das decisões aprovadas (e dos itens inativados) e a confirmação de cada frente, conciliadas com a evidência
-  const { tarefas } = gerarTarefas({ decisoes: estado?.decisoes, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params });
+  // Execução: tarefas das decisões e das inativações aprovadas e a confirmação de cada frente, conciliadas com a evidência
+  const { tarefas } = gerarTarefas({ decisoes: estado?.decisoes, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params, inativacao: estado?.inativacao });
   const registros = estado?.execucao?.registros || {};
   const situacaoItem = situacaoPorLinha(tarefas, registros);
   const saemPorUnificacao = linhasQueSaem(estado, itens);
@@ -107,15 +108,18 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
     }
   }
 
-  // 4) Itens inativados por data de uso (fora do escopo pelo parâmetro de saneamento)
-  const inativados = escopo.fora.map((it) => ({
-    codigo: it.codigo, descricao: it.descricao, unidade: it.unidade, grupo: grupoDe(it), ultima_mov: dataBr(it.ultima_mov), criterio: it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`,
-  }));
+  // 4) Candidatos à inativação por data de uso (fora do escopo pelo parâmetro de saneamento): o corte só seleciona; a inativação vale só com a aprovação (lote ou individual)
+  const ina = estado?.inativacao; const candInativacao = candidatosDaInativacao(escopo, indice, ina);
+  const aprovadasIna = new Map(inativacoesAprovadas(ina, escopo, indice).map((a) => [a.id, a]));
+  const candidatos = candInativacao.grupos.flatMap((g) => g.candidatos.map((c) => { const s = situacaoDoCandidato(c, g.grupo, ina); const a = aprovadasIna.get(c.id);
+    return { codigo: c.it.codigo, descricao: c.it.descricao, unidade: c.it.unidade, grupo: g.grupo, ultima_mov: dataBr(c.it.ultima_mov), saldo: c.it.saldo != null && Number.isFinite(Number(c.it.saldo)) ? saldoNaEscala(c.it.saldo, escalaSaldo) : "",
+      criterio: c.it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`, situacao: ROT_INATIVACAO[s] || s, aprovador: a?.por || "", data: a ? dataBr(a.em) : "" }; }));
+  const resumoIna = resumoInativacao(ina, escopo, indice);
 
   const execucao = linhasExecucao(tarefas, registros); const rex = resumoExecucao(tarefas, registros);
   const contagem = {
     tarefas: rex.total, concluidas: rex.CONCLUIDA, emAndamento: rex.EM_ANDAMENTO, pendentes: rex.PENDENTE, divergencias: rex.DIVERGENCIA,
-    universo: itens.length, emEscopo: escopo.emEscopo.length, inativados: inativados.length, semData: escopo.semData.length, semDataFora: escopo.resumo.semDataFora, semDataEmEscopo: escopo.semData.length - escopo.resumo.semDataFora,
+    universo: itens.length, emEscopo: escopo.emEscopo.length, candidatosInativacao: resumoIna.candidatos, inativacaoAprovada: resumoIna.aprovados, inativacaoAguardando: resumoIna.aguardando, semData: escopo.semData.length, semDataFora: escopo.resumo.semDataFora, semDataEmEscopo: escopo.semData.length - escopo.resumo.semDataFora,
     gruposFora: new Set((escopo.foraGrupos || []).map(grupoDe)).size, itensForaGrupos: (escopo.foraGrupos || []).length,
     unificacoesAprovadas: desduplicacoes.filter((x) => x.decisao === "Aprovado" && x.acao.startsWith("Unificar")).length,
     unificacoesPendentes: desduplicacoes.filter((x) => x.decisao.startsWith("Encaminhado")).length,
@@ -128,10 +132,10 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
     ["Parâmetro de saneamento", corte ? `desconsiderar itens não movimentados desde ${corte}${contagem.semDataFora ? "; itens sem data de movimentação tratados como anteriores à data" : ""}` : "sem corte"],
     ["Universo (códigos)", contagem.universo],
     ...(contagem.itensForaGrupos ? [["Grupos fora do saneamento (não marcados na triagem)", contagem.gruposFora], ["Itens dos grupos fora do saneamento", contagem.itensForaGrupos]] : []),
-    ["Em escopo", contagem.emEscopo], ["Inativados por data de uso (fora do escopo)", contagem.inativados], ["Itens sem data de movimentação legível", contagem.semData], ["  Mantidos no escopo (sinalizados)", contagem.semDataEmEscopo], ["  Tratados como anteriores à data (fora do escopo)", contagem.semDataFora],
+    ["Em escopo", contagem.emEscopo], ["Candidatos à inativação por data de uso (fora do escopo)", contagem.candidatosInativacao], ["  Com a inativação aprovada (lote ou individual)", contagem.inativacaoAprovada], ["  Aguardando aprovação", contagem.inativacaoAguardando], ["Itens sem data de movimentação legível", contagem.semData], ["  Mantidos no escopo (sinalizados)", contagem.semDataEmEscopo], ["  Tratados como anteriores à data (fora do escopo)", contagem.semDataFora],
     ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
-    ["Tarefas de execução (decisões aprovadas e itens inativados)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],
+    ["Tarefas de execução (decisões e inativações aprovadas)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],
     ["Critérios aprovados", aprovados.length ? "" : "nenhum"],
     ...aprovados.map((c) => [`  ${c.titulo}`, situacaoCriterio(estado, c, contagemCriterios) === "AUTO" ? "aprovado automaticamente (sem achados na base)" : `aprovado por ${estado.criterios[c.id]?.por || "—"} em ${dataBr(estado.criterios[c.id]?.em)}`]),
     ...(() => {
@@ -141,7 +145,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
     ["", ""],
     ["Atenção", "Estas listas refletem as decisões registradas no sistema. A execução no SAP e no físico é conferida nos passos de execução e conferência; nenhum cadastro foi alterado por esta ferramenta."],
   ];
-  return { resumo, finalCorrigida, desduplicacoes, analises, inativados, execucao, contagem };
+  return { resumo, finalCorrigida, desduplicacoes, analises, candidatos, execucao, contagem };
 }
 
 const ABAS = {
@@ -149,7 +153,7 @@ const ABAS = {
   final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade de estoque (atual)", "unidade", 16], ["Unidade de estoque (proposta)", "unidadeProposta", 18], ["Unidade de compra (proposta)", "unidadeCompra", 18], ["Itens por unidade de compra", "itensPorCompra", 16], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16], ["Execução", "execucao", 18]], fonte: "finalCorrigida" },
   dedup: { nome: "Desduplicações", colunas: [["Grupo", "grupo", 28], ["Código de origem", "codigoOrigem", 14], ["Descrição de origem", "descricaoOrigem", 44], ["Unidade", "unidadeOrigem", 10], ["Saldo de origem", "saldoOrigem", 14], ["Ação", "acao", 26], ["Código mantido", "codigoDestino", 14], ["Descrição do mantido", "descricaoDestino", 44], ["Saldo do mantido", "saldoDestino", 14], ["Indicação", "nivel", 16], ["Pontuação de similaridade", "similaridade", 14], ["Motivos", "motivos", 50], ["Decisão", "decisao", 22], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "desduplicacoes" },
   analises: { nome: "Análises", colunas: [["Critério", "criterio", 26], ["Grupo", "grupo", 28], ["Código", "codigo", 14], ["Descrição", "descricao", 44], ["Achado", "achado", 60], ["Proposta", "proposta", 44], ["Decisão", "decisao", 24], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "analises" },
-  inativados: { nome: "Inativados por data de uso", colunas: [["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["Última movimentação", "ultima_mov", 16], ["Critério de corte", "criterio", 50]], fonte: "inativados" },
+  candidatos: { nome: "Candidatos à inativação", colunas: [["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["Última movimentação", "ultima_mov", 16], ["Saldo em estoque", "saldo", 14], ["Critério de corte", "criterio", 44], ["Situação da inativação", "situacao", 44], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "candidatos" },
   execucao: { nome: "Execução", colunas: COLUNAS_EXECUCAO, fonte: "execucao" },
 };
 export const ABAS_DISPONIVEIS = Object.entries(ABAS).map(([id, a]) => ({ id, nome: a.nome }));

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aplicarEscopo } from "./logica";
+import { aprovarLote, decidirIndividual } from "./inativacao";
 import {
   COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, TIPOS_TAREFA, aplicarRespostaExecucao, gerarTarefas, interpretarRespostaExecucao, lerRespostaExecucao, linhasExecucao,
   linhasListaFrente, mapearColunasExecucao, resumoExecucao, situacaoFrente, situacaoPorLinha, situacaoTarefa, tiposEfetivos,
@@ -26,7 +27,10 @@ const decisoes = {
 };
 const params = { desde: "2025-01-01" };
 const escopo = aplicarEscopo(itens, params);
-const gerar = (tipos = {}) => gerarTarefas({ decisoes, tipos, itens, escopo, params });
+// o corte só seleciona candidatos: a inativação vira tarefa só quando aprovada (aqui, em lote por grupo, com a lista fechada)
+const lote = (grupo, lista, extra = {}) => aprovarLote(null, grupo, { lista, justificativa: "Itens sem uso, conferidos com a manutenção.", verificacoes: {}, base: { id: "v1", arquivo: "itens.xlsx" }, extraidaEm: "2026-10-21", corte: "2025-01-01", semData: "manter", por: "ana", em: "2026-10-22", saldoLidoEmTodos: true, ...extra });
+const inativacao = lote("Insumos", ["B1"]);
+const gerar = (tipos = {}) => gerarTarefas({ decisoes, tipos, itens, escopo, params, inativacao });
 const tarefa = (r, id) => r.tarefas.find((t) => t.id === id);
 
 describe("tarefas a partir das decisões aprovadas", () => {
@@ -60,19 +64,33 @@ describe("tarefas a partir das decisões aprovadas", () => {
     expect(tarefa(r, "D1|unidade").instrucao.adm).toContain("itens por unidade de compra: a informar");
     expect(tarefa(r, "C1|unidade")).toMatchObject({ tipo: "grafia", aplica: { adm: true, alm: false }, instrucao: { adm: "Trocar a grafia da unidade: KG → QUILOGRAM.", alm: "" } });
   });
-  it("item fora do escopo pelo parâmetro vira tarefa de inativação com a data do corte", () => {
+  it("item fora do escopo só vira tarefa de inativação depois de aprovado; a instrução traz a data do corte e a aprovação", () => {
     const t = tarefa(r, "B1|inativacao");
     expect(t).toMatchObject({ tipo: "inativacao", aplica: { adm: true, alm: false } });
-    expect(t.instrucao.adm).toBe("Inativar o item (não movimentado desde 01/01/2025).");
-    expect(gerarTarefas({ decisoes: {}, tipos: {}, itens, escopo: aplicarEscopo(itens, { desde: "" }), params: { desde: "" } }).tarefas).toEqual([]);
+    expect(t.instrucao.adm).toBe("Inativar o item (não movimentado desde 01/01/2025). Aprovação: lista fechada do grupo Insumos, aprovada por ana em 22/10/2026.");
+    // o corte sozinho NÃO gera tarefa: sem aprovação (ou com a aprovação vazia) não há inativação, por mais itens que estejam fora do escopo
+    expect(r.tarefas.some((x) => x.tipo === "inativacao")).toBe(true);
+    expect(gerarTarefas({ decisoes: {}, tipos: {}, itens, escopo, params }).tarefas).toEqual([]);
+    expect(gerarTarefas({ decisoes: {}, tipos: {}, itens, escopo, params, inativacao: { lotes: {}, individuais: {}, excecoes: {}, historico: [] } }).tarefas).toEqual([]);
+    expect(gerarTarefas({ decisoes: {}, tipos: {}, itens, escopo: aplicarEscopo(itens, { desde: "" }), params: { desde: "" }, inativacao }).tarefas).toEqual([]); // sem corte, ninguém é candidato: a aprovação não cobre nada
+  });
+  it("a aprovação em lote cobre só a lista aprovada; o item com saldo ou fora da lista só entra por decisão individual", () => {
+    const com = [...itens, item(7, "F1", "OUTRO PARADO", { ultima_mov: "2022-01-01", grupo_atual: "Insumos" }), item(8, "G1", "PARADO COM SALDO", { ultima_mov: "2022-01-01", grupo_atual: "Insumos", saldo: 4 })];
+    const esc = aplicarEscopo(com, params); const ids = (ina) => gerarTarefas({ decisoes: {}, tipos: {}, itens: com, escopo: esc, params, inativacao: ina }).tarefas.map((x) => x.id);
+    expect(ids(inativacao)).toEqual(["B1|inativacao"]); // o F1 é candidato, mas não estava na lista aprovada; o G1 tem saldo
+    expect(ids(decidirIndividual(inativacao, "G1", { acao: "INATIVAR", justificativa: "Saldo de 4 transferido ao F1 pela nota 99.", por: "bia", em: "2026-10-23" }))).toEqual(["B1|inativacao", "G1|inativacao"]);
+    expect(ids(lote("Insumos", ["B1", "F1"]))).toEqual(["B1|inativacao", "F1|inativacao"]);
+    const t = gerarTarefas({ decisoes: {}, tipos: {}, itens: com, escopo: esc, params, inativacao: decidirIndividual(null, "G1", { acao: "INATIVAR", justificativa: "Saldo de 4 transferido ao F1 pela nota 99.", por: "bia", em: "2026-10-23" }) }).tarefas;
+    expect(t[0].instrucao.adm).toContain("Aprovação: decisão individual de bia em 23/10/2026.");
   });
   it("item inativado por não ter data (tratado como anterior à data) leva o critério próprio na instrução", () => {
     const sem = [...itens, item(7, "F1", "SEM DATA", { ultima_mov: null })];
     const p = { desde: "2025-01-01", semData: "anterior" };
-    const t = gerarTarefas({ decisoes: {}, tipos: {}, itens: sem, escopo: aplicarEscopo(sem, p), params: p }).tarefas;
+    const ina = lote("Peças", ["F1"]); const ina2 = lote("Insumos", ["B1"], {});
+    const t = gerarTarefas({ decisoes: {}, tipos: {}, itens: sem, escopo: aplicarEscopo(sem, p), params: p, inativacao: { ...ina, lotes: { ...ina.lotes, ...ina2.lotes } } }).tarefas;
     expect(t.map((x) => x.id)).toEqual(["B1|inativacao", "F1|inativacao"]);
-    expect(t[0].instrucao.adm).toBe("Inativar o item (não movimentado desde 01/01/2025).");
-    expect(t[1].instrucao.adm).toBe("Inativar o item (sem data de movimentação, tratado como anterior a 01/01/2025).");
+    expect(t[0].instrucao.adm).toContain("Inativar o item (não movimentado desde 01/01/2025).");
+    expect(t[1].instrucao.adm).toContain("Inativar o item (sem data de movimentação, tratado como anterior a 01/01/2025).");
   });
   it("critério sem receita própria vira tarefa genérica com o nome do critério", () => {
     expect(tarefa(r, "B1|ncm")).toMatchObject({ tipo: "outro", instrucao: { adm: 'Tratar conforme o critério "NCM e classificação cadastral" (aprovado no passo De/para).', alm: "" } });
