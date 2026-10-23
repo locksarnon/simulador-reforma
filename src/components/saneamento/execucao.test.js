@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { aplicarEscopo } from "./logica";
 import { aprovarLote, decidirIndividual } from "./inativacao";
 import {
-  COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, TIPOS_TAREFA, aplicarRespostaExecucao, gerarTarefas, interpretarRespostaExecucao, lerRespostaExecucao, linhasExecucao,
-  linhasListaFrente, mapearColunasExecucao, resumoExecucao, situacaoFrente, situacaoPorLinha, situacaoTarefa, tiposEfetivos,
+  COLUNAS_EXECUCAO, COLUNAS_FRENTE, COLUNA_ALTERACAO, FRENTES, TIPOS_TAREFA, alteracaoDaTarefa, aplicarRespostaExecucao, confirmacaoObsoleta, gerarTarefas, interpretarRespostaExecucao, lerRespostaExecucao, linhasExecucao,
+  linhasListaFrente, mapearColunasExecucao, registroEfetivo, resumoExecucao, situacaoFrente, situacaoPorLinha, situacaoTarefa, tiposEfetivos,
 } from "./execucao";
 
 const item = (linha, codigo, descricao, extra = {}) => ({ linha, codigo, descricao, unidade: "UN", grupo_atual: "Peças", ultima_mov: "2026-01-10", problemas: [], ...extra });
@@ -106,6 +106,50 @@ describe("tarefas a partir das decisões aprovadas", () => {
   });
 });
 
+describe("a aprovação vale para a alteração decidida, não para o que o cadastro virou depois", () => {
+  const itensX = [item(2, "P1", "PARAFUSO  10"), item(3, "P2", "ANEL"), item(4, "P3", "PINO", { unidade: "KG" }), item(5, "P4", "BUCHA"), item(6, "P4", "BUCHA GRANDE")]; // o código P4 está em duas linhas
+  const escopoX = aplicarEscopo(itensX, {});
+  const gx = (decs) => gerarTarefas({ decisoes: decs, tipos: {}, itens: itensX, escopo: escopoX, params: {}, inativacao: null });
+  it("cadastro como na decisão executa; mudou para outra coisa ou já está como o aprovado não gera tarefa; código repetido na base também não", () => {
+    const r = gx({
+      "P1|padrao": apr({ sugerida: "PARAFUSO 10", antes: { descricao: "PARAFUSO  10" } }), // o cadastro está como na decisão: executa
+      "P2|padrao": apr({ sugerida: "ANEL 5", antes: { descricao: "ANEL 5 ZINCADO" } }), // o cadastro virou outra coisa: a aprovação não cobre
+      "P3|unidade": apr({ tipo: "grafia", de: "KGS", para: "KG", antes: { unidade: "KGS" } }), // a unidade já é a aprovada: nada a executar
+      "P4|padrao": apr({ sugerida: "BUCHA 1", antes: { descricao: "BUCHA" } }), // qual dos dois P4? não dá para saber
+    });
+    expect(r.tarefas.map((t) => t.id)).toEqual(["P1|padrao"]);
+  });
+  it("decisão sem instantâneo (migrada ou antiga) executa como antes: não há o que conferir", () => {
+    expect(gx({ "P2|padrao": apr({ sugerida: "ANEL 5" }) }).tarefas.map((t) => t.id)).toEqual(["P2|padrao"]);
+  });
+  it("o item que saiu da base gera a tarefa pelo que foi guardado na aprovação, com o aviso; sem instantâneo não há de onde tirar", () => {
+    const r = gx({ "ZZ|padrao": apr({ sugerida: "ZZ NOVO", antes: { descricao: "ZZ VELHO" } }), "YY|padrao": apr({ sugerida: "X" }) });
+    expect(r.tarefas.map((t) => t.id)).toEqual(["ZZ|padrao"]); expect(r.tarefas[0]).toMatchObject({ ausenteNaBase: true, descricao: "ZZ VELHO", codigo: "ZZ" });
+    expect(r.tarefas[0].instrucao.adm).toContain("não está na base atual");
+  });
+  it("a tarefa leva a alteração aprovada, e a confirmação de outra alteração (decisão descartada e reaprovada diferente) não conta como feita", () => {
+    const t1 = gx({ "P1|padrao": apr({ sugerida: "PARAFUSO 10", antes: { descricao: "PARAFUSO  10" } }) }).tarefas[0];
+    expect(t1.alteracao).toBe("descricao:PARAFUSO 10");
+    const reg = { adm: { status: "FEITO", evidencia: "SAP 9", alteracao: t1.alteracao } };
+    expect(situacaoTarefa(t1, reg).geral).toBe("CONCLUIDA"); expect(confirmacaoObsoleta(t1, reg, "adm")).toBe(false);
+    const t2 = { ...t1, alteracao: "descricao:PARAFUSO 10 MM" }; // outra alteração para o mesmo item e critério: o id da tarefa é o mesmo
+    expect(situacaoTarefa(t2, reg).geral).toBe("PENDENTE"); expect(registroEfetivo(t2, reg)).toBeUndefined(); expect(confirmacaoObsoleta(t2, reg, "adm")).toBe(true);
+    const antigo = { adm: { status: "FEITO", evidencia: "antigo" } }; // registro sem carimbo (anterior a esta regra) vale como está
+    expect(registroEfetivo(t2, antigo)).toEqual(antigo); expect(situacaoTarefa(t2, antigo).geral).toBe("CONCLUIDA"); expect(registroEfetivo(t2, undefined)).toBeUndefined();
+    const mista = { adm: { status: "FEITO", evidencia: "a", alteracao: "descricao:PARAFUSO 10" }, alm: { status: "FEITO", evidencia: "b", alteracao: "descricao:PARAFUSO 10 MM" } }; // só a frente carimbada com a outra alteração cai
+    expect(registroEfetivo(t2, mista)).toEqual({ adm: undefined, alm: mista.alm });
+  });
+  it("a alteração é uma linha por tipo; a inativação não muda ao refazer a aprovação (a confirmação de quem já inativou segue valendo)", () => {
+    expect(alteracaoDaTarefa("unificacao", { destinoCodigo: "A2" })).toBe("unificar:A2"); expect(alteracaoDaTarefa("descricao", { descricaoFinal: "X" })).toBe("descricao:X");
+    expect(alteracaoDaTarefa("unidade", { unidadeDe: "TON", unidadePara: "KG", itensPorCompra: 1000 })).toBe("unidade:TON>KG:1000"); expect(alteracaoDaTarefa("grafia", { unidadeDe: "KGS", unidadePara: "KG" })).toBe("grafia:KGS>KG");
+    expect(alteracaoDaTarefa("inativacao", { corte: "x" })).toBe("inativar"); expect(alteracaoDaTarefa("outro", { criterio: "NCM", proposto: { ncm: "1" } })).toBe('outro:NCM:{"ncm":"1"}');
+  });
+  it("a unificação para outro código é outra alteração (a confirmação da unificação anterior não vale)", () => {
+    const a = gx({ "P1|duplicidade": apr({ destino: "P2", antes: { descricao: "PARAFUSO  10" } }) }).tarefas[0]; const b = gx({ "P1|duplicidade": apr({ destino: "P3", antes: { descricao: "PARAFUSO  10" } }) }).tarefas[0];
+    expect(a.alteracao).toBe("unificar:P2"); expect(b.alteracao).toBe("unificar:P3"); expect(situacaoTarefa(b, { adm: { status: "FEITO", evidencia: "x", alteracao: a.alteracao } }).adm).toBe("PENDENTE");
+  });
+});
+
 describe("situação: só conta como concluída quando as duas pontas confirmam com evidência", () => {
   it("cada frente", () => {
     expect(situacaoFrente(false, { status: "FEITO", evidencia: "x" })).toBe("NA");
@@ -155,7 +199,7 @@ describe("resumo, listas e situação por item", () => {
     expect(adm.map((l) => l[0])).toEqual(["B1|unidade", "D1|unidade", "B1|inativacao", "B1|ncm", "C1|padrao", "C1|unidade"]); // a unificação já está confirmada; a com divergência volta
     expect(adm.every((l) => l.length === COLUNAS_FRENTE.adm.length)).toBe(true);
     expect(adm[0].slice(0, 5)).toEqual(["B1|unidade", FRENTES.adm, "Insumos", TIPOS_TAREFA.unidade.titulo, "B1"]);
-    expect(adm[0].slice(7)).toEqual(["", "", ""]);
+    expect(adm[0].slice(7, 10)).toEqual(["", "", ""]); expect(COLUNAS_FRENTE.adm.at(-1)).toBe(COLUNA_ALTERACAO); expect(adm[0].at(-1)).toBe(tarefas.find((t) => t.id === "B1|unidade").alteracao); // a última coluna diz qual alteração a linha pede
     const alm = linhasListaFrente("alm", tarefas, registros);
     expect(alm.map((l) => l[0])).toEqual(["B1|unidade", "D1|unidade"]); // só onde há movimento físico e falta confirmar
     expect(alm.every((l) => l.length === COLUNAS_FRENTE.alm.length)).toBe(true);
@@ -179,8 +223,8 @@ describe("resposta das equipes", () => {
     for (const x of ["", "  ", "talvez", "em andamento", undefined]) expect(interpretarRespostaExecucao(x), String(x)).toBeNull();
   });
   it("acha as colunas mesmo com ordem e títulos um pouco diferentes", () => {
-    expect(mapearColunasExecucao(COLUNAS_FRENTE.adm)).toMatchObject({ id: 0, frente: 1, resposta: 7, evidencia: 8, obs: 9, origem: -1, ok: true });
-    expect(mapearColunasExecucao(COLUNAS_FRENTE.alm)).toMatchObject({ id: 0, origem: 7, destino: 8, qtd: 9, resposta: 10, evidencia: 11, obs: 12, ok: true });
+    expect(mapearColunasExecucao(COLUNAS_FRENTE.adm)).toMatchObject({ id: 0, frente: 1, resposta: 7, evidencia: 8, obs: 9, origem: -1, alteracao: 10, ok: true });
+    expect(mapearColunasExecucao(COLUNAS_FRENTE.alm)).toMatchObject({ id: 0, origem: 7, destino: 8, qtd: 9, resposta: 10, evidencia: 11, obs: 12, alteracao: 13, ok: true });
     expect(mapearColunasExecucao(["Observação", "RESPOSTA", "Id da Tarefa", "Evidência"])).toMatchObject({ id: 2, resposta: 1, evidencia: 3, obs: 0, ok: true });
     expect(mapearColunasExecucao(["Código", "Descrição"]).ok).toBe(false);
   });
@@ -188,7 +232,7 @@ describe("resposta das equipes", () => {
     const csv = "ID da tarefa;Endereço de origem;Endereço de destino;Quantidade realocada;Resposta;Evidência;Observação\nA1|duplicidade;A-01;B-07;12;FEITO;foto 7;\nB1|unidade;;;;DIVERGÊNCIA;;SAP bloqueou\n";
     const linhas = await lerRespostaExecucao(new File([csv], "almoxarifado.csv"));
     expect(linhas).toHaveLength(2);
-    expect(linhas[0]).toEqual({ id: "A1|duplicidade", frente: "alm", resposta: "FEITO", evidencia: "foto 7", obs: "", origem: "A-01", destino: "B-07", qtd: "12" });
+    expect(linhas[0]).toEqual({ id: "A1|duplicidade", frente: "alm", resposta: "FEITO", evidencia: "foto 7", obs: "", origem: "A-01", destino: "B-07", qtd: "12", alteracao: "" });
     expect(linhas[1]).toMatchObject({ id: "B1|unidade", frente: "alm", resposta: "DIVERGÊNCIA", obs: "SAP bloqueou" });
     await expect(lerRespostaExecucao(new File(["Código;Descrição\n1;X\n"], "errada.csv"))).rejects.toThrow('"ID da tarefa" e "Resposta"');
     await expect(lerRespostaExecucao(new File([""], "vazia.csv"))).rejects.toThrow("vazia");
@@ -202,8 +246,19 @@ describe("resposta das equipes", () => {
     const buf = await wb.xlsx.writeBuffer();
     const lidas = await lerRespostaExecucao(new File([buf], "administrativo.xlsx"));
     expect(lidas).toHaveLength(2);
-    expect(lidas[0]).toMatchObject({ id: "B1|unidade", frente: "adm", resposta: "FEITO", evidencia: "SAP 55/2026" });
+    expect(lidas[0]).toMatchObject({ id: "B1|unidade", frente: "adm", resposta: "FEITO", evidencia: "SAP 55/2026", alteracao: tarefas.find((t) => t.id === "B1|unidade").alteracao }); // a alteração emitida volta na leitura
     expect(lidas[1].resposta).toBe("");
+  });
+  it("a resposta vale para a alteração para a qual a lista foi emitida: se a decisão mudou depois, a planilha antiga não confirma a nova", () => {
+    const { tarefas } = gerar(); const t = (id) => tarefas.find((x) => x.id === id);
+    const velha = { id: "C1|padrao", frente: "adm", resposta: "FEITO", evidencia: "SAP 55", alteracao: "descricao:OUTRO TEXTO QUE ERA O APROVADO ANTES" }; // emitida quando a descrição aprovada era outra
+    const certa = { id: "C1|unidade", frente: "adm", resposta: "FEITO", evidencia: "SAP 56", alteracao: t("C1|unidade").alteracao };
+    const semColuna = { id: "B1|ncm", frente: "adm", resposta: "FEITO", evidencia: "SAP 57", alteracao: "" }; // planilha emitida antes desta regra: segue como antes
+    const r = aplicarRespostaExecucao({}, tarefas, [velha, certa, semColuna], { quem: "ana", hoje: "2026-10-23" });
+    expect(r.resumo).toMatchObject({ feitas: 2, desatualizadas: ["C1|padrao"] });
+    expect(r.registros["C1|padrao"]).toBeUndefined(); expect(situacaoTarefa(t("C1|padrao"), r.registros["C1|padrao"]).geral).toBe("PENDENTE"); // a resposta da alteração antiga não conclui a nova
+    expect(r.registros["C1|unidade"].adm.alteracao).toBe(certa.alteracao); expect(r.registros["B1|ncm"].adm.alteracao).toBe(t("B1|ncm").alteracao);
+    expect(aplicarRespostaExecucao({}, tarefas, [{ ...velha, resposta: "" }], { quem: "ana", hoje: "2026-10-23" }).resumo).toMatchObject({ semResposta: 1, desatualizadas: [] }); // sem resposta nada foi confirmado: não há o que recusar
   });
   it("aplica as respostas: confirma com evidência, registra divergência, avisa o que não encaixa e não mexe no que já existia", () => {
     const { tarefas } = gerar();
@@ -220,7 +275,7 @@ describe("resposta das equipes", () => {
     ];
     const r = aplicarRespostaExecucao(antes, tarefas, linhas, { quem: "ana@x.com", hoje: "2026-10-22" });
     expect(antes).toEqual(copia);
-    expect(r.resumo).toEqual({ feitas: 2, divergencias: 1, semResposta: 1, semEvidencia: 1, naoEncontradas: ["ZZ99|padrao"], naoAplicaveis: 1 });
+    expect(r.resumo).toEqual({ feitas: 2, divergencias: 1, semResposta: 1, semEvidencia: 1, naoEncontradas: ["ZZ99|padrao"], naoAplicaveis: 1, desatualizadas: [] });
     expect(r.registros["A1|duplicidade"].adm).toMatchObject({ status: "FEITO", evidencia: "SAP 1", por: "planilha (Administrativo (SAP))", em: "2026-10-22", registradoPor: "ana@x.com", via: "planilha" });
     expect(r.registros["A1|duplicidade"].alm).toMatchObject({ status: "FEITO", evidencia: "", origem: "A-01", destino: "B-07", qtd: "12" });
     expect(r.registros["B1|unidade"].adm).toMatchObject({ status: "DIV", obs: "SAP bloqueou a troca" });

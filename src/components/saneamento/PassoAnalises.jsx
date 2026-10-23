@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { CRITERIOS, grupoDe, hojeIso } from "./logica";
-import { achadosDe, agruparAchados, criteriosAprovados, criteriosPendentesDoGrupo, criterioResolvido, grupoSaneado, grupoTratado, situacaoCriterio } from "./analise";
+import { achadosDe, agruparAchados, criteriosAprovados, criteriosPendentesDoGrupo, criterioResolvido, grupoSaneado, grupoTratado, marcaDeOutraBase, marcaValida, situacaoCriterio } from "./analise";
 import { AbasCriterios, AcaoAprovacao, AvisoCriterio, SelosCriterio } from "./CriterioUi";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { Acc, Botao, Chip, TabelaItens, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Acc, Botao, Chip, TabelaItens, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 import ExportarAnalises from "./ExportarAnalises";
 import TabelaAchados, { LegendaEncaminhar, rotuloEncaminhar } from "./TabelaAchados";
 import ConjuntosDuplicidade, { LegendaConjuntos } from "./ConjuntosDuplicidade";
-import { aplicarEscolha, desfazerEscolha, escolhaDoConjunto, montarConjuntos } from "./conjuntos";
+import { aplicarEscolha, completarEscolha, desfazerEscolha, escolhaDoConjunto, montarConjuntos } from "./conjuntos";
 import { chaveDe, idItem, identificavel } from "./identidade";
-import { instantaneoDoItem } from "./aprovacao";
+import { instantaneoDoItem, propostaNcm } from "./aprovacao";
 
 // Cada decisão guarda o que precisa para as listas finais: o código que fica (duplicidade), a descrição sugerida (padronização) ou a unidade e o fator, e como o item estava na
 // hora (`antes`): a aprovação vale para essa alteração específica e não cobre o item se o cadastro mudar para outra coisa depois.
@@ -18,11 +18,13 @@ const extraDecisao = (c, it, sugerida, extra, porLinha) => {
   if (c.id === "padrao") return { sugerida };
   if (c.id === "duplicidade") {
     const mestre = it.duplicidade?.mestre != null ? porLinha?.get(it.duplicidade.mestre) : null;
-    return { destino: mestre ? idItem(mestre) || null : null, ...(mestre ? { destinoAntes: instantaneoDoItem(mestre) } : {}) };
+    return { destino: mestre ? idItem(mestre) || null : null, ...(mestre ? { destinoAntes: instantaneoDoItem(mestre, "duplicidade") } : {}) };
   }
+  if (c.id === "ncm") { const p = propostaNcm(it); return Object.keys(p).length ? { proposto: p } : {}; } // o NCM e a classe que a tela mostra em "como seria": a aprovação vale para eles
+  if (c.id === "grupo") return String(it.grupo_sugerido ?? "").trim() ? { proposto: { grupo: String(it.grupo_sugerido).trim() } } : {}; // o grupo sugerido pela base: se o cadastro já estiver nele, a decisão é só reflexo
   return c.id === "unidade" && sugerida ? { tipo: extra?.tipo ?? "grafia", de: extra?.de ?? it.unidade, para: sugerida, fator: extra?.fator ?? null, evidencia: extra?.evidencia ?? null, grandeza: extra?.grandeza ?? null } : {};
 };
-const novaDecisao = (c, a, quem, porLinha) => ({ acao: "ENC", status: "PROP", grupo: grupoDe(a.item), por: quem, em: hojeIso(), antes: instantaneoDoItem(a.item), ...extraDecisao(c, a.item, a.sugerida, a.extra, porLinha) });
+const novaDecisao = (c, a, quem, porLinha) => { const antes = instantaneoDoItem(a.item, c.id); return { acao: "ENC", status: "PROP", grupo: grupoDe(a.item), por: quem, em: hojeIso(), ...(antes ? { antes } : {}), ...extraDecisao(c, a.item, a.sugerida, a.extra, porLinha) }; };
 // Nos critérios com sugestão pronta (padronização, unidade) dá para encaminhar tudo de uma vez; na unidade só o que tem sugestão (vazio e unidade sem regra são caso a caso).
 // A duplicidade tem a sua própria escolha, por conjunto (qual código fica).
 const EM_BLOCO = ["padrao", "unidade"];
@@ -73,13 +75,14 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
     if (restam.length === 0) return <p className="text-xs text-muted-foreground">{todas.length === 1 ? `O item ${ondeTxt} já foi encaminhado.` : `Todos os ${fmt(todas.length)} itens ${ondeTxt} já foram encaminhados.`}</p>;
     return <Botao title="Cria uma proposta para cada item, aguardando a sua aprovação no passo De/para. Nada é alterado no cadastro." onClick={() => encaminharTodas(c, restam)}>{rotuloEncaminhar(c, restam.length, restam.length < todas.length, ondeTxt)}</Botao>;
   };
-  const encGrupo = (ach) => ach.filter((a) => estado.decisoes[chaveDe(a.item, crit.id)]).length;
+  const encGrupo = (ach) => ach.filter((a) => identificavel(a.item, indice) && estado.decisoes[chaveDe(a.item, crit.id)]).length;
   // Duplicidade: conjuntos de itens parecidos, lado a lado, com a sugestão de qual código fica. Escolher quem fica encaminha os outros ao De/para.
   const ehDup = crit.id === "duplicidade";
   const conjuntos = useMemo(() => (ehDup && aprovado ? montarConjuntos(lista.map((a) => a.item), { escala: escalaSaldo }) : []), [ehDup, aprovado, lista, escalaSaldo]);
   const emConjunto = useMemo(() => new Set(conjuntos.flatMap((c) => c.membros.map((m) => m.linha))), [conjuntos]);
   const escolher = (conj, id, origem) => setEstado((e) => { const d = aplicarEscolha(e.decisoes, conj, id, { quem, hoje: hojeIso(), origem, indice }); return d === e.decisoes ? e : { ...e, decisoes: d }; });
   const desfazer = (conj) => setEstado((e) => { const d = desfazerEscolha(e.decisoes, conj); return d === e.decisoes ? e : { ...e, decisoes: d }; });
+  const completar = (conj) => setEstado((e) => { const d = completarEscolha(e.decisoes, conj, { quem, hoje: hojeIso(), origem: "analista", indice }); return d === e.decisoes ? e : { ...e, decisoes: d }; });
   const aceitarVarios = (conjs) => setEstado((e) => { let d = e.decisoes; for (const c of conjs) d = aplicarEscolha(d, c, c.sugestao.id, { quem, hoje: hojeIso(), origem: "sugestao", indice }); return d === e.decisoes ? e : { ...e, decisoes: d }; });
   // Aceitar a sugestão em bloco só nos conjuntos de indicação alta ou idênticos e ainda sem escolha; os de indicação possível o analista olha um a um.
   const botaoAceitar = (conjs, ondeTxt) => {
@@ -87,19 +90,24 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
     if (!fortes.length) return null;
     return <Botao title="Em cada conjunto, mantém o código sugerido e encaminha os outros ao De/para para aprovação. Os conjuntos de indicação possível ficam para você escolher um a um." onClick={() => aceitarVarios(fortes)}>Aceitar a sugestão {fortes.length === 1 ? "no conjunto de indicação alta ou idêntico" : `nos ${fmt(fortes.length)} conjuntos de indicação alta ou idênticos`} {ondeTxt}</Botao>;
   };
-  // A marca de tratado guarda quem conferiu e quando (marcas antigas eram só "true" e continuam valendo).
+  // A marca de tratado guarda quem conferiu, quando e sobre qual base (marcas antigas eram só "true" e continuam valendo; a feita sobre outra base não vale para esta).
+  const baseId = contagem?.baseId ?? null; const marca = () => ({ por: quem, em: hojeIso(), ...(baseId ? { base: baseId } : {}) });
   const alternarTratado = (grupo) => setEstado((e) => {
-    const k = `${grupo}|${crit.id}`; const marcado = !e.tratados?.[k];
-    return { ...e, tratados: { ...e.tratados, [k]: marcado ? { por: quem, em: hojeIso() } : false }, saneados: marcado ? e.saneados : { ...e.saneados, [grupo]: false } };
+    const k = `${grupo}|${crit.id}`; const marcado = !marcaValida(e.tratados?.[k], baseId);
+    return { ...e, tratados: { ...e.tratados, [k]: marcado ? marca() : false }, saneados: marcado ? e.saneados : { ...e.saneados, [grupo]: false } };
   });
   const alternarSaneado = (grupo) => setEstado((e) => ({ ...e, saneados: { ...e.saneados, [grupo]: !e.saneados?.[grupo] } }));
-  const botaoTratado = (grupo) => <div className="mt-2"><Botao onClick={() => alternarTratado(grupo)}>{estado.tratados?.[`${grupo}|${crit.id}`] ? "Reabrir neste grupo" : "Marcar como tratado neste grupo"}</Botao></div>;
+  const botaoTratado = (grupo) => { const m = estado.tratados?.[`${grupo}|${crit.id}`]; return (
+    <div className="mt-2 space-y-1">
+      {marcaDeOutraBase(m, baseId) && <p className="text-xs text-amber-700 dark:text-amber-300">A marca de tratado deste grupo foi feita sobre outra base{m.por ? ` (${m.por}${m.em ? `, ${dataBr(m.em)}` : ""})` : ""} e não vale para esta: confira os itens de novo.</p>}
+      <Botao onClick={() => alternarTratado(grupo)}>{marcaValida(m, baseId) ? "Reabrir neste grupo" : "Marcar como tratado neste grupo"}</Botao>
+    </div>); };
   // Conferência manual de muitos grupos de uma vez: continua uma declaração do analista, registrada em cada grupo com o seu nome e a data.
   const conferirTodos = async () => {
     const faltam = grupos.filter((g) => !grupoTratado(estado, g.nome, crit, contagem)).map((g) => g.nome);
     if (!faltam.length) return;
     if (!(await confirmar({ titulo: "Marcar todos os grupos como conferidos?", descricao: `Você declara que conferiu os itens ${faltam.length === 1 ? "do grupo que falta" : `dos ${faltam.length} grupos que faltam`} no critério “${crit.titulo}”. Cada grupo fica registrado como tratado, com o seu nome e a data. Nada é alterado no cadastro.`, rotulo: "Marcar como conferidos" }))) return;
-    setEstado((e) => { const t = { ...e.tratados }; for (const nome of faltam) t[`${nome}|${crit.id}`] = { por: quem, em: hojeIso() }; return { ...e, tratados: t }; });
+    setEstado((e) => { const t = { ...e.tratados }; for (const nome of faltam) t[`${nome}|${crit.id}`] = marca(); return { ...e, tratados: t }; });
   };
 
   const corpo = sit === "NAO_APLICAVEL" || sit === "SEM_ANALISE" ? null : !aprovado ? (
@@ -137,7 +145,7 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
             {ehDup && cards.length > 0 && (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">{botaoAceitar(cards, "do grupo")}</div>
-                <ConjuntosDuplicidade conjuntos={cards} decisoes={estado.decisoes} escala={escalaSaldo} indice={indice} onEscolher={escolher} onDesfazer={desfazer} onComparar={onComparar} />
+                <ConjuntosDuplicidade conjuntos={cards} decisoes={estado.decisoes} escala={escalaSaldo} indice={indice} onEscolher={escolher} onDesfazer={desfazer} onCompletar={completar} onComparar={onComparar} />
               </div>)}
             {resto.length > 0 && <>{ehDup && cards.length > 0 && <p className="mt-3 mb-1 text-xs text-muted-foreground">Outros achados de duplicidade deste grupo (sem conjunto para comparar)</p>}<TabelaAchados ach={resto} crit={crit} decisoes={estado.decisoes} itemPorLinha={itemPorLinha} indice={indice} escalaSaldo={escalaSaldo} onAlternar={alternarAchado} onComparar={onComparar} /></>}
             {ehDup && cards.length === 0 && resto.length === 0 && <p className="text-xs text-muted-foreground">Os itens deste grupo estão em conjuntos de outro grupo.</p>}
@@ -165,17 +173,17 @@ export default function PassoAnalises({ estado, setEstado, grupos, achados, cont
           <Botao onClick={() => setExportando((x) => !x)} aria-expanded={exportando}><Download className="w-3.5 h-3.5 inline mr-1" />Emitir Excel</Botao>
         </div>
       </div>
-      {exportando && <ExportarAnalises ativo={ativo} grupos={grupos} achados={achados} contagem={contagem} estado={estado} itemPorLinha={itemPorLinha} escalaSaldo={escalaSaldo} nomeProjeto={nomeProjeto} nomeBase={nomeBase} slug={slug} onFechar={() => setExportando(false)} />}
+      {exportando && <ExportarAnalises ativo={ativo} grupos={grupos} achados={achados} contagem={contagem} estado={estado} itemPorLinha={itemPorLinha} indice={indice} escalaSaldo={escalaSaldo} nomeProjeto={nomeProjeto} nomeBase={nomeBase} slug={slug} onFechar={() => setExportando(false)} />}
       <AbasCriterios estado={estado} contagem={contagem} ativo={ativo} onSelecionar={onSelecionar} marca={concluido} />
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-medium">{crit.titulo}</h3>
           <div className="flex flex-wrap items-center gap-2"><SelosCriterio crit={crit} situacao={sit} cEst={cEst} /></div>
         </div>
-        <AcaoAprovacao situacao={sit} onAprovar={() => onAprovar(crit)} onReabrir={() => onReabrir(crit)} onNaoAplicavel={(j) => onNaoAplicavel(crit, j)} />
+        <AcaoAprovacao key={crit.id} situacao={sit} onAprovar={() => onAprovar(crit)} onReabrir={() => onReabrir(crit)} onNaoAplicavel={(j) => onNaoAplicavel(crit, j)} />
         <AvisoCriterio estado={estado} crit={crit} situacao={sit} contagem={contagem} onIrTriagem={onIrTriagem} />
         <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Ver a regra deste critério</summary><p className="mt-1">{cEst.regra ?? crit.regra}</p></details>
-        {aprovado && crit.auto && n > 0 && (ehDup && conjuntos.length > 0 ? <LegendaConjuntos conjuntos={conjuntos} decisoes={estado.decisoes} onIrDepara={onIrDepara} /> : <LegendaEncaminhar lista={lista} decisoes={estado.decisoes} critId={crit.id} onIrDepara={onIrDepara} />)}
+        {aprovado && crit.auto && n > 0 && (ehDup && conjuntos.length > 0 ? <LegendaConjuntos conjuntos={conjuntos} decisoes={estado.decisoes} onIrDepara={onIrDepara} indice={indice} /> : <LegendaEncaminhar lista={lista} decisoes={estado.decisoes} critId={crit.id} onIrDepara={onIrDepara} indice={indice} />)}
         {corpo}
       </div>
       <Acc aberto={!!aberto.__grupos} onToggle={() => alternar("__grupos")} titulo={<><b className="font-medium">Situação por grupo</b><span className="text-xs text-muted-foreground">{nSan} de {grupos.length} saneados</span></>}>

@@ -15,6 +15,27 @@ const achados = calcularAchados(itens, criarTestes(itens, estado)); const contag
 const totaisGrupos = new Map([["Peças", 2], ["Insumos", 2]]); const itemPorLinha = new Map(itens.map((i) => [i.linha, i]));
 const monta = (criterios, grupos = null, extra = {}) => montarRelatorioAnalises({ achados, criterios, grupos, estado, contagem, itemPorLinha, totaisGrupos, ...extra });
 
+describe("Excel das análises: decisão que perdeu a validade diz isso", () => {
+  it("a decisão aprovada de um cadastro que mudou depois sai com o aviso de que não vale", () => {
+    const e2 = { ...estado, decisoes: { ...estado.decisoes, "C2|padrao": { ...estado.decisoes["C2|padrao"], sugerida: "ANEL TRAVA ZINCADA", antes: { descricao: "ANEL DE OUTRO TEMPO" } } } };
+    const r = montarRelatorioAnalises({ achados, criterios: ["padrao"], grupos: null, estado: e2, contagem, itemPorLinha, totaisGrupos });
+    expect(r.linhas.find((l) => l.linha === 2).porCriterio.padrao.decisao).toBe("Aprovado por ana em 22/10/2026 (não vale: a descrição mudou no cadastro desde a decisão)");
+    const ok = montarRelatorioAnalises({ achados, criterios: ["padrao"], grupos: null, estado, contagem, itemPorLinha, totaisGrupos });
+    expect(ok.linhas.find((l) => l.linha === 2).porCriterio.padrao.decisao).toBe("Aprovado por ana em 22/10/2026"); // sem instantâneo guardado, nada a conferir
+  });
+});
+
+describe("Excel das análises: decisão só para quem tem código que o identifica", () => {
+  it("item com código repetido na base não mostra a decisão do outro", () => {
+    const rep = [item(2, "Peças", { descricao: "ANEL  TRAVA" }), item(3, "Peças", { descricao: "ANEL  TRAVA", codigo: "C2" })]; // as duas linhas têm o código C2
+    const ach = calcularAchados(rep, criarTestes(rep, estado)); const cont = contarAchados(ach, rep.length);
+    const r = montarRelatorioAnalises({ achados: ach, criterios: ["padrao"], grupos: null, estado, contagem: cont, itemPorLinha: new Map(rep.map((i) => [i.linha, i])), totaisGrupos: new Map([["Peças", 2]]) });
+    expect(r.linhas.map((l) => l.porCriterio.padrao.decisao)).toEqual(["Não encaminhado", "Não encaminhado"]); // a decisão "C2|padrao" não é de nenhuma das duas
+    const sozinho = montarRelatorioAnalises({ achados: achados, criterios: ["padrao"], grupos: null, estado, contagem, itemPorLinha, totaisGrupos });
+    expect(sozinho.linhas.find((l) => l.linha === 2).porCriterio.padrao.decisao).toBe("Aprovado por ana em 22/10/2026"); // código único: a decisão aparece
+  });
+});
+
 describe("Excel das análises: grupos e critérios escolhidos", () => {
   it("só os critérios com teste automático podem ser escolhidos", () => {
     expect(criteriosDoRelatorio().map((c) => c.id)).toEqual(["ncm", "duplicidade", "descricao", "padrao", "grupo", "unidade", "utilizacao"]);

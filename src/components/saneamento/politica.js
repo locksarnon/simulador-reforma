@@ -3,6 +3,7 @@
 // não gera regra. Só SUGERE: é uma proposta de política que o responsável revisa e aprova; nada é alterado no cadastro nem no ERP. Funções puras.
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, dataBr, dataDoCorte, normalizarParams } from "./logica";
 import { indexar, partirChave } from "./identidade";
+import { coerenciaDaChave } from "./aprovacao";
 import { resumoInativacao } from "./inativacao";
 import { coberturaDoCriterio, criteriosPendentesDoGrupo, grupoSaneado, naoAplicavelDe, situacaoCriterio } from "./analise";
 import { GRANDEZAS, resumoUnidades } from "./unidades";
@@ -18,12 +19,15 @@ export const SECOES = [
   { id: "descontinuar", titulo: "Descontinuar (inativar)", descricao: "Quando e como um item deixa de ser usado, sem perder histórico nem saldo." },
 ];
 
-/** Decisões por critério: { [critId]: { total, PROP, APR, REJ } }. */
-export function contarDecisoes(decisoes) {
+/**
+ * Decisões por critério: { [critId]: { total, PROP, APR, REJ, SEM_VALIDADE } }. `vale(k, d)` diz se a decisão ainda vale para o cadastro de hoje: a que não vale (o cadastro mudou
+ * para outra coisa, ou o código se repete na base) entra no total e em SEM_VALIDADE, e não conta como aguardando, aprovada nem rejeitada.
+ */
+export function contarDecisoes(decisoes, vale) {
   const por = {};
   for (const [k, d] of Object.entries(decisoes || {})) {
-    const crit = partirChave(k).crit; const c = por[crit] || (por[crit] = { total: 0, PROP: 0, APR: 0, REJ: 0 });
-    c.total += 1; if (d.status in c) c[d.status] += 1;
+    const crit = partirChave(k).crit; const c = por[crit] || (por[crit] = { total: 0, PROP: 0, APR: 0, REJ: 0, SEM_VALIDADE: 0 });
+    c.total += 1; if (vale && !vale(k, d)) c.SEM_VALIDADE += 1; else if (d.status in c) c[d.status] += 1;
   }
   return por;
 }
@@ -33,7 +37,8 @@ export function contarDecisoes(decisoes) {
  * Devolve { secoes, porGrupo, pendencias, estruturada, situacao }.
  */
 export function montarPolitica({ estado, contagem, escopo, grupos, itens, nomeProjeto = "", nomeBase = "" }) {
-  const pol = estado?.politica || {}; const dec = contarDecisoes(estado?.decisoes); const params = normalizarParams(estado?.params);
+  const indiceDec = itens ? indexar(itens) : null; const valeDecisao = indiceDec ? (k, d) => coerenciaDaChave(k, d, indiceDec, estado?.decisoes).ok : undefined;
+  const pol = estado?.politica || {}; const dec = contarDecisoes(estado?.decisoes, valeDecisao); const params = normalizarParams(estado?.params);
   const sitDe = (id) => situacaoCriterio(estado, CRITERIOS.find((c) => c.id === id), contagem);
   const ativo = (id) => ["APROVADO", "AUTO"].includes(sitDe(id)); // só o critério em uso gera regra: pendente, sem a análise executada ou não aplicável ficam de fora
   const achados = (id) => contagem?.porCriterio?.[id] ?? 0;

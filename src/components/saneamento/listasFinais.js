@@ -6,16 +6,17 @@ import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 import { saldoNaEscala } from "./conjuntos";
-import { chaveDe, idItem, indexar, itemPorId, partirChave } from "./identidade";
+import { chaveDe, idItem, identificavel, indexar, itemPorId, partirChave } from "./identidade";
 import { coerenciaDaDecisao } from "./aprovacao";
 import { ROT_SITUACAO as ROT_INATIVACAO, candidatosDaInativacao, inativacoesAprovadas, resumoInativacao, situacaoDoCandidato } from "./inativacao";
 import { COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, LARGURAS_FRENTE, ROT_SITUACAO_GERAL, gerarTarefas, linhasExecucao, resumoExecucao, situacaoPorLinha } from "./execucao";
 
 const ROT_STATUS = { PROP: "Encaminhado (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
-const decisaoDe = (estado, it, critId) => estado?.decisoes?.[chaveDe(it, critId)] || null;
+/** A decisão do item no critério. Item sem código, ou com código repetido na base, não tem decisão: o mesmo código nas duas linhas daria a decisão a um item que ela não escolheu. */
+const decisaoDe = (estado, it, critId, indice) => (indice && !identificavel(it, indice) ? null : estado?.decisoes?.[chaveDe(it, critId)] || null);
 /** A decisão do item no critério, só se ainda vale para o cadastro da base atual (o item não mudou para outra coisa desde a aprovação). */
-const decisaoVale = (estado, it, critId, indice) => { const d = decisaoDe(estado, it, critId); return d && coerenciaDaDecisao(d, critId, it, indice).ok ? d : null; };
+const decisaoVale = (estado, it, critId, indice) => { const d = decisaoDe(estado, it, critId, indice); return d && coerenciaDaDecisao(d, critId, it, indice, estado?.decisoes).ok ? d : null; };
 /** Texto da proposta de um achado: a sugestão e, na conversão de unidade, a unidade de compra e o "itens por unidade de compra". */
 const propostaDoAchado = (a) => {
   if (!a.sugerida) return "";
@@ -37,7 +38,7 @@ export function unificacoesAprovadas(estado, itens) {
     if (crit !== "duplicidade") continue;
     const origem = itemPorId(indice, id); if (!origem) continue;
     const destinoId = d.destino ?? (origem.duplicidade?.mestre != null ? idItem(indice.porLinha.get(origem.duplicidade.mestre)) || null : null);
-    saida.push({ d, origem, destino: destinoId != null ? itemPorId(indice, destinoId) : null, destinoId, vale: coerenciaDaDecisao(d, crit, origem, indice).ok });
+    saida.push({ d, origem, destino: destinoId != null ? itemPorId(indice, destinoId) : null, destinoId, vale: coerenciaDaDecisao(d, crit, origem, indice, estado?.decisoes).ok });
   }
   return saida;
 }
@@ -51,7 +52,7 @@ export function linhasQueSaem(estado, itens) {
  * Monta todas as listas. `escopo` vem de aplicarEscopo (emEscopo/fora) e `testes` de criarTestes.
  * Nada aqui altera o cadastro: são relatórios do que foi proposto, aprovado ou deixado de fora.
  */
-export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes, escalaSaldo = 1, cobertura = {} }) {
+export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes, escalaSaldo = 1, cobertura = {}, baseId = null }) {
   const estado = { ...estadoBruto, decisoes: decisoesDoTrabalho(estadoBruto?.decisoes, escopo) }; // decisões de grupos fora do saneamento ficam guardadas e fora das listas
   const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
   const indice = indexar(itens);
@@ -96,11 +97,11 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   // 3) Análises: achados dos critérios aprovados, com a decisão tomada
   const analises = [];
   const achadosPorCriterio = calcularAchados(escopo.emEscopo, testes);
-  const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length, cobertura);
+  const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length, cobertura, baseId);
   const aprovados = criteriosAprovados(estado, contagemCriterios); // inclui os aprovados automaticamente (sem achados)
   for (const c of aprovados.filter((x) => x.auto)) {
     for (const a of achadosPorCriterio[c.id] || []) {
-      const d = decisaoDe(estado, a.item, c.id); const coerencia = d ? coerenciaDaDecisao(d, c.id, a.item, indice) : null;
+      const d = decisaoDe(estado, a.item, c.id, indice); const coerencia = d ? coerenciaDaDecisao(d, c.id, a.item, indice, estado?.decisoes) : null;
       analises.push({
         criterio: c.titulo, grupo: grupoDe(a.item), codigo: a.item.codigo, descricao: a.item.descricao, achado: a.motivo, proposta: propostaDoAchado(a),
         decisao: d ? `${ROT_STATUS[d.status] || d.status}${coerencia.ok ? "" : ` (não vale: ${coerencia.motivo.toLowerCase()})`}` : "Não encaminhado", aprovador: d?.decididoPor || "", data: dataBr(d?.decididoEm),
@@ -213,7 +214,8 @@ export async function gerarListaFrente(frente, linhas, nomeArquivo) {
     "Se não foi possível concluir, escreva DIVERGÊNCIA e explique na observação.",
     "FEITO sem evidência não conta como concluído: a tarefa continua pendente.",
     ...(frente === "alm" ? ["Almoxarifado: informe também o endereço de origem, o endereço de destino e a quantidade realocada."] : []),
-    "Não altere a coluna ID da tarefa. Linhas sem resposta continuam pendentes.",
+    "Não altere a coluna ID da tarefa nem a coluna Alteração aprovada. Linhas sem resposta continuam pendentes.",
+    "Se a decisão mudar depois de a lista ser emitida, a resposta desta planilha para a alteração antiga é recusada: peça a lista nova.",
     "Nenhuma alteração é feita no SAP nem no físico por esta planilha: ela só registra a confirmação.",
   ].forEach((t) => instr.addRow([t]));
   baixarXlsx(await wb.xlsx.writeBuffer(), nomeArquivo);

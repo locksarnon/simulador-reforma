@@ -10,7 +10,7 @@ const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, ""
  * Escolha do que vai no Excel das análises: os grupos e os critérios. Com mais de um critério, cada um sai em seu bloco de colunas,
  * lado a lado na linha do item. `ativo` é a aba aberta (o critério que já vem marcado).
  */
-export default function ExportarAnalises({ ativo, grupos, achados, contagem, estado, itemPorLinha, escalaSaldo = 1, nomeProjeto, nomeBase, slug, onFechar }) {
+export default function ExportarAnalises({ ativo, grupos, achados, contagem, estado, itemPorLinha, indice, escalaSaldo = 1, nomeProjeto, nomeBase, slug, onFechar }) {
   const disponiveis = useMemo(() => criteriosDoRelatorio().map((c) => ({ ...c, n: achadosDe(contagem, c) ?? 0 })), [contagem]);
   const [crit, setCrit] = useState(() => { const a = disponiveis.find((c) => c.id === ativo && c.n > 0); return a ? [a.id] : disponiveis.filter((c) => c.n > 0).map((c) => c.id); });
   const [fora, setFora] = useState({}); // grupos desmarcados
@@ -32,7 +32,7 @@ export default function ExportarAnalises({ ativo, grupos, achados, contagem, est
     setGerando(true); setMsg("");
     try {
       const nomes = marcados.map((g) => g.nome); const escolhidos = disponiveis.filter((c) => crit.includes(c.id));
-      const rel = montarRelatorioAnalises({ achados, criterios: crit, grupos: nomes, estado, contagem, itemPorLinha, escalaSaldo, totaisGrupos: new Map(grupos.map((g) => [g.nome, g.itens.length])) });
+      const rel = montarRelatorioAnalises({ achados, criterios: crit, grupos: nomes, estado, contagem, itemPorLinha, indice, escalaSaldo, totaisGrupos: new Map(grupos.map((g) => [g.nome, g.itens.length])) });
       await gerarXlsxAnalises(rel, { nomeProjeto, nomeBase }, nomeArquivoAnalises({ slug, criterios: escolhidos, grupos: nomes, totalGrupos: grupos.length }));
       setMsg(`Planilha emitida: ${plural(rel.totais.itens, "item", "itens")} com achado, ${plural(rel.criterios.length, "critério", "critérios")}, ${plural(rel.totais.grupos, "grupo", "grupos")}.`);
     } catch (e) { setMsg(`Não foi possível emitir a planilha: ${e.message}`); } finally { setGerando(false); }

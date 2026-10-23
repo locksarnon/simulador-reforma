@@ -258,6 +258,30 @@ describe("listas finais: execução (administrativo e almoxarifado)", () => {
     expect(resumo.some((x) => x.startsWith("Tarefas de execução (decisões e inativações aprovadas) | 3"))).toBe(true);
     expect(resumo.some((x) => x.startsWith("  Com divergência | 1"))).toBe(true);
   });
+  it("item com código repetido na base não recebe a decisão do outro: nem a lista final, nem as análises, nem as desduplicações a leem", () => {
+    const rep = [item(2, "R1", "ANEL  TRAVA 9", "2026-01-10"), item(3, "R1", "OUTRO PRODUTO", "2026-01-10"), item(4, "R2", "PINO  X", "2026-01-10")];
+    const e = { params: { desde: "2025-01-01" }, criterios: { padrao: { aprovado: true, por: "ana", em: "2026-10-20" } }, decisoes: {
+      "R1|padrao": { acao: "ENC", status: "APR", sugerida: "ANEL TRAVA 9", decididoPor: "ana", decididoEm: "2026-10-21" },
+      "R2|padrao": { acao: "ENC", status: "APR", sugerida: "PINO X", antes: { descricao: "PINO  X" }, decididoPor: "ana", decididoEm: "2026-10-21" } } };
+    const escopo = aplicarEscopo(rep, e.params);
+    const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens: rep, escopo, testes: criarTestes(escopo.emEscopo, e) });
+    const finais = (cod) => l.finalCorrigida.filter((x) => x.codigo === cod).map((x) => x.final);
+    expect(finais("R1")).toEqual(["ANEL  TRAVA 9", "OUTRO PRODUTO"]); // a decisão do código repetido não vale para nenhum dos dois
+    expect(finais("R2")).toEqual(["PINO X"]);
+    const padrao = l.analises.filter((x) => x.criterio === "Padronização da descrição");
+    expect(padrao.find((x) => x.codigo === "R1").decisao).toBe("Não encaminhado"); expect(padrao.find((x) => x.codigo === "R2").decisao).toBe("Aprovado");
+    expect(l.execucao.map((x) => x.codigo)).toEqual(["R2"]); // só o item identificável gera tarefa
+  });
+  it("a decisão aprovada de um cadastro que mudou depois não conta como aprovada nas listas nem gera tarefa", () => {
+    const mud = [item(2, "M1", "PARAFUSO NOVO NOME", "2026-01-10"), item(3, "M2", "ANEL  TRAVA 9", "2026-01-10")];
+    const e = { params: { desde: "2025-01-01" }, criterios: { padrao: { aprovado: true, por: "ana", em: "2026-10-20" } }, decisoes: {
+      "M1|padrao": { acao: "ENC", status: "APR", sugerida: "PARAFUSO 10", antes: { descricao: "PARAFUSO  10" }, decididoPor: "ana", decididoEm: "2026-10-21" }, // o cadastro virou outra coisa
+      "M2|padrao": { acao: "ENC", status: "APR", sugerida: "ANEL TRAVA 9", antes: { descricao: "ANEL  TRAVA 9" }, decididoPor: "ana", decididoEm: "2026-10-21" } } };
+    const escopo = aplicarEscopo(mud, e.params);
+    const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens: mud, escopo, testes: criarTestes(escopo.emEscopo, e) });
+    expect(l.finalCorrigida.find((x) => x.codigo === "M1").final).toBe("PARAFUSO NOVO NOME"); expect(l.finalCorrigida.find((x) => x.codigo === "M2").final).toBe("ANEL TRAVA 9");
+    expect(l.execucao.map((x) => x.codigo)).toEqual(["M2"]);
+  });
   it("tirar um tipo da execução tira as tarefas dele da aba e do resumo", () => {
     const e = estadoE(); e.execucao.tipos = { inativacao: { incluir: false } };
     expect(base(e).execucao.map((x) => x.codigo)).toEqual(["A1", "C1"]);

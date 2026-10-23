@@ -43,9 +43,15 @@ describe("relatório do programa de trabalho", () => {
     const a = andamentoDosPassos({ estado, itens, escopo, grupos, contagem, listas, politica });
     expect(a.map((x) => x[0])).toEqual(["1. Triagem", "2. Critérios", "3. Piloto SAP", "4. Análises", "5. De/para", "6. Execução", "7. Conferência", "8. Fiscal", "9. Política"]);
     const por = Object.fromEntries(a.map(([p, s, r]) => [p, [s, r]]));
-    expect(por["1. Triagem"]).toEqual(["Concluído", "3 itens em escopo de 4"]); expect(por["2. Critérios"][0]).toBe("Em andamento"); expect(por["3. Piloto SAP"]).toEqual(["Em andamento", "1 de 4 casos testados"]);
+    // o critério declarado não aplicável (com justificativa) conta como resolvido
+    expect(por["1. Triagem"]).toEqual(["Concluído", "3 itens em escopo de 4"]); expect(por["2. Critérios"]).toEqual(["Concluído", "9 de 10 critérios aprovados e 1 não aplicável, com justificativa"]); expect(por["3. Piloto SAP"]).toEqual(["Em andamento", "1 de 4 casos testados"]);
     expect(por["4. Análises"]).toEqual(["Em andamento", "1 de 2 grupos saneados"]); expect(por["5. De/para"]).toEqual(["Em andamento", "1 de 2 casos decididos"]);
     expect(por["8. Fiscal"]).toEqual(["Não iniciado", "0 de 1 grupos liberados com a revisão fiscal concluída"]); expect(por["9. Política"]).toEqual(["Em andamento", "política rascunho"]);
+  });
+  it("o critério \"não aplicável\" sem a justificativa escrita não conta: o passo Critérios segue em andamento", () => {
+    const sem = { ...estado, criterios: { ...estado.criterios, identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-21", justificativa: "curta" } } } };
+    const a = andamentoDosPassos({ estado: sem, itens, escopo, grupos, contagem, listas, politica });
+    expect(a.find((x) => x[0] === "2. Critérios").slice(1)).toEqual(["Em andamento", "9 de 10 critérios aprovados"]);
   });
   it("traz o escopo, o parâmetro de saneamento, os critérios com a regra registrada, o piloto e as decisões por critério", () => {
     const t = textos(relatorio).join("\n");
@@ -58,7 +64,17 @@ describe("relatório do programa de trabalho", () => {
     expect(t).toContain("Regra registrada de padronização.");
     const piloto = tabelaDe(relatorio, "Caso"); expect(piloto.linhas[0]).toEqual(["Unificar duplicados", "Testado", "doc SAP 123", "—"]); expect(piloto.linhas[1][1]).toBe("Não iniciado");
     const dec = relatorio.blocos.filter((b) => b.t === "tabela").find((b) => b.cols[1].label === "Encaminhadas");
-    expect(dec.linhas).toEqual([["Duplicidade", "1", "1", "0", "0"], ["Unidade de medida", "1", "0", "0", "1"]]);
+    expect(dec.linhas).toEqual([["Duplicidade", "1", "1", "0", "0", "0"], ["Unidade de medida", "1", "0", "0", "1", "0"]]);
+  });
+  it("a decisão que perdeu a validade não conta como aprovada nem como decidida, e o relatório explica a coluna", () => {
+    const e2 = { ...estado, decisoes: { ...estado.decisoes, "C2|duplicidade": { ...estado.decisoes["C2|duplicidade"], antes: { descricao: "ANEL TRAVA COM OUTRO NOME" } } } }; // o cadastro de C2 virou outra coisa depois da aprovação
+    const rel2 = montarRelatorioFinal({ nomeProjeto: "Projeto X", nomeBase: "itens.xlsx", quem: "ana", estado: e2, itens, escopo, contagem, listas, politica, geradoEm: new Date(2026, 9, 23, 10, 0) });
+    const dec2 = rel2.blocos.filter((b) => b.t === "tabela").find((b) => b.cols[1].label === "Encaminhadas");
+    expect(dec2.cols.at(-1).label).toBe("Sem validade"); expect(dec2.linhas[0]).toEqual(["Duplicidade", "1", "0", "0", "0", "1"]);
+    expect(textos(rel2).join("\n")).toContain("Sem validade: decisão cujo cadastro mudou para outra coisa depois da proposta");
+    expect(textos(relatorio).join("\n")).not.toContain("Sem validade: decisão cujo cadastro mudou"); // sem decisão assim, a nota não aparece
+    const a2 = andamentoDosPassos({ estado: e2, itens, escopo, grupos, contagem, listas, politica });
+    expect(a2.find((x) => x[0] === "5. De/para").slice(1)).toEqual(["Em andamento", "0 de 2 casos decididos"]); // antes (com a aprovação valendo): 1 de 2
   });
   it("mostra os resultados aprovados, a execução, a revisão fiscal por grupo liberado e a política com responsável e controle", () => {
     const kv = relatorio.blocos.filter((b) => b.t === "kv").flatMap((b) => b.linhas); const k = (r) => kv.find((l) => l[0] === r)?.[1];

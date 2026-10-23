@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CRITERIOS, criarTestes } from "./logica";
-import { achadosDe, agruparAchados, calcularAchados, contarAchados, coberturaDaBase, criterioResolvido, criteriosAprovados, criteriosPendentesDoGrupo, grupoPodeSanear, grupoSaneado, grupoTratado, naoAplicavelDe, situacaoCriterio } from "./analise";
+import { achadosDe, agruparAchados, calcularAchados, contarAchados, coberturaDaBase, criterioResolvido, criteriosAprovados, criteriosPendentesDoGrupo, grupoPodeSanear, grupoSaneado, grupoTratado, marcaDeOutraBase, marcaValida, naoAplicavelDe, situacaoCriterio } from "./analise";
 
 const item = (linha, grupo, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: `ITEM ${linha}`, unidade: "UN", grupo_atual: grupo, ultima_mov: "2026-01-10", problemas: [], ...extra });
 const ncm = [{ codigo: "NCM_FORMATO", mensagem: "NCM errado" }];
@@ -118,6 +118,19 @@ describe("tratamento por grupo e grupo saneado", () => {
     expect(grupoTratado(e, "Insumos", crit("padrao"), contagem)).toBe(false);
     expect(grupoTratado(completo({ tratados: { "Insumos|padrao": true } }), "Insumos", crit("padrao"), contagem)).toBe(true); // marca antiga (true) continua valendo
     expect(grupoTratado(completo({ tratados: marcas("Insumos", "padrao") }), "Insumos", crit("padrao"), contagem)).toBe(true);
+  });
+  it("a marca de tratado é da base em que foi feita: a antiga (true) e a sem base valem; a feita sobre outra base não vale e o grupo volta a pedir a conferência", () => {
+    expect(marcaValida(true, "v2")).toBe(true); expect(marcaValida({ por: "ana", em: "2026-10-23" }, "v2")).toBe(true); expect(marcaValida({ por: "ana", base: "v2" }, "v2")).toBe(true);
+    expect(marcaValida({ por: "ana", base: "v1" }, "v2")).toBe(false); expect(marcaDeOutraBase({ por: "ana", base: "v1" }, "v2")).toBe(true); expect(marcaDeOutraBase({ por: "ana", base: "v2" }, "v2")).toBe(false);
+    expect(marcaValida(false, "v2")).toBe(false); expect(marcaValida(undefined, "v2")).toBe(false); expect(marcaDeOutraBase(false, "v2")).toBe(false);
+    expect(marcaValida({ por: "ana", base: "v1" }, null)).toBe(true); // sem saber a base da contagem não há com o que comparar
+    const na = (baseId) => contarAchados(achados, itens.length, {}, baseId); expect(na("v2").baseId).toBe("v2"); expect(contagem.baseId).toBeNull();
+    const e = completo({ tratados: { "Peças|identidade": { por: "ana", em: "2026-10-23", base: "v1" } } });
+    expect(grupoTratado(e, "Peças", crit("identidade"), na("v1"))).toBe(true); expect(grupoTratado(e, "Peças", crit("identidade"), na("v2"))).toBe(false);
+    const todas = (grupo, base) => Object.fromEntries(["ncm", "identidade", "padrao", "utilizacao", "saldos", "cartilhas"].map((c) => [`${grupo}|${c}`, { por: "ana", em: "2026-10-23", base }]));
+    const sane = completo({ tratados: { ...todas("Peças", "v1"), ...todas("Insumos", "v1") }, saneados: { "Peças": true } });
+    expect(grupoSaneado(sane, "Peças", na("v1"))).toBe(true); expect(grupoSaneado(sane, "Peças", na("v2"))).toBe(false); // base trocada: o grupo deixa de valer como saneado
+    expect(criteriosPendentesDoGrupo(sane, "Peças", na("v2")).map((c) => c.id)).toContain("identidade");
   });
   it("critério conferido à mão sempre precisa da marca; sem contagem nada é tratado sozinho", () => {
     expect(grupoTratado(completo(), "Peças", crit("identidade"), contagem)).toBe(false);

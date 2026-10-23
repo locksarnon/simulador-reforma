@@ -116,9 +116,31 @@ export function aplicarEscolha(decisoes, conj, fica, { quem, hoje, origem = "ana
     const k = chave(m); const atual = d[k];
     if (idItem(m) === fica) { if (atual) { delete d[k]; mudou = true; } continue; }
     if (atual && atual.destino === fica && atual.escolhaPor === origem && atual.status === "PROP") continue;
-    d[k] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido) } : {}) }; mudou = true;
+    d[k] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m, "duplicidade"), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido, "duplicidade") } : {}) }; mudou = true;
   }
   return mudou ? d : decisoes;
+}
+
+/**
+ * Os membros que saem do conjunto e estão sem proposta (decisão descartada, duplicado novo), num conjunto que já tem um caso aprovado ou rejeitado (travado). O código que ficou
+ * precisa continuar no conjunto: se ele saiu (o conjunto de hoje é outro), os membros novos nunca foram comparados com ele e não há o que completar.
+ */
+export function membrosSemProposta(conj, decisoes) {
+  const esc = escolhaDoConjunto(conj, decisoes);
+  if (!esc.travada || esc.fica == null || !conj.membros.some((m) => idItem(m) === esc.fica)) return [];
+  return conj.membros.filter((m) => idItem(m) !== esc.fica && !decisoes?.[chave(m)]);
+}
+
+/**
+ * Conjunto travado (algum caso já aprovado ou rejeitado) com membros sem proposta: encaminha só os que faltam, para o MESMO código que já ficou. Nunca troca quem fica nem
+ * toca em decisão aprovada ou rejeitada.
+ */
+export function completarEscolha(decisoes, conj, { quem, hoje, origem = "analista", indice } = {}) {
+  if (!conjuntoIdentificavel(conj, indice).ok) return decisoes;
+  const faltam = membrosSemProposta(conj, decisoes); if (!faltam.length) return decisoes;
+  const fica = escolhaDoConjunto(conj, decisoes).fica; const mantido = conj.membros.find((m) => idItem(m) === fica); const d = { ...decisoes };
+  for (const m of faltam) d[chave(m)] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m, "duplicidade"), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido, "duplicidade") } : {}) };
+  return d;
 }
 
 /** Desfaz o encaminhamento do conjunto: remove só as propostas ainda não decididas (aprovadas e rejeitadas ficam). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aplicarEscolha, conjuntoIdentificavel, desfazerEscolha, detectarEscalaSaldo, escolhaDoConjunto, montarConjuntos, saldoNaEscala, sugerirSobrevivente } from "./conjuntos";
+import { aplicarEscolha, completarEscolha, conjuntoIdentificavel, desfazerEscolha, detectarEscalaSaldo, escolhaDoConjunto, membrosSemProposta, montarConjuntos, saldoNaEscala, sugerirSobrevivente } from "./conjuntos";
 import { indexar } from "./identidade";
 
 const dup = (grupo, cands, nivel = "EXATA", score = 1) => ({ nivel, score, grupo, mestre: null, candidatos: cands.map((l) => ({ linha: l, score, nivel, motivos: [] })) });
@@ -74,7 +74,7 @@ describe("escolher quem fica (a escolha é guardada pelo código do item)", () =
     const c = mk(); const d = aplicarEscolha({}, c, "B", { ...ctx, origem: "sugestao" });
     expect(Object.keys(d).sort()).toEqual(["A|duplicidade", "C|duplicidade"]);
     expect(d["A|duplicidade"]).toEqual({ acao: "ENC", status: "PROP", grupo: "Peças", por: "ana", em: "2026-10-22", destino: "B", conjunto: "c:A", escolhaPor: "sugestao",
-      antes: { descricao: "ITEM A", unidade: "UN", grupo: "Peças" }, destinoAntes: { descricao: "ITEM B", unidade: "UN", grupo: "Peças" } }); // a decisão guarda como os dois cadastros estavam
+      antes: { descricao: "ITEM A" }, destinoAntes: { descricao: "ITEM B" } }); // a decisão guarda como a descrição dos dois cadastros estava
     expect(escolhaDoConjunto(c, d)).toEqual({ fica: "B", origem: "sugestao", status: "aguardando", travada: false });
     expect(escolhaDoConjunto(c, {})).toEqual({ fica: null, origem: null, status: "nenhuma", travada: false });
   });
@@ -94,6 +94,27 @@ describe("escolher quem fica (a escolha é guardada pelo código do item)", () =
     const c = mk(); const d = { "A|duplicidade": { acao: "ENC", status: "APR", destino: "B" }, "C|duplicidade": { acao: "ENC", status: "PROP", destino: "B" } };
     expect(escolhaDoConjunto(c, d)).toMatchObject({ fica: "B", status: "decidida", travada: true });
     expect(aplicarEscolha(d, c, "C", ctx)).toBe(d); expect(desfazerEscolha(d, c)["A|duplicidade"].status).toBe("APR");
+  });
+  it("conjunto travado com membro sem proposta (decisão descartada, duplicado que entrou depois): completar encaminha só os que faltam, para o mesmo código, sem tocar no decidido", () => {
+    const c = mk(); const decidida = { acao: "ENC", status: "APR", destino: "B", antes: { descricao: "ITEM A" } };
+    const d = { "A|duplicidade": decidida }; // o C está sem proposta
+    expect(membrosSemProposta(c, d).map((m) => m.codigo)).toEqual(["C"]);
+    expect(aplicarEscolha(d, c, "C", ctx)).toBe(d); // a escolha continua travada: não troca quem fica
+    const x = completarEscolha(d, c, ctx);
+    expect(x["A|duplicidade"]).toBe(decidida); expect(x["C|duplicidade"]).toMatchObject({ acao: "ENC", status: "PROP", destino: "B", conjunto: "c:A", por: "ana", em: "2026-10-22", antes: { descricao: "ITEM C" }, destinoAntes: { descricao: "ITEM B" } });
+    expect(x["B|duplicidade"]).toBeUndefined(); expect(d["C|duplicidade"]).toBeUndefined(); // quem fica não ganha decisão; o recebido não é alterado
+    expect(completarEscolha(x, c, ctx)).toBe(x); expect(membrosSemProposta(c, x)).toEqual([]); // nada mais a completar
+  });
+  it("completar não faz nada se o código que ficou saiu do conjunto: os membros de hoje nunca foram comparados com ele", () => {
+    const c = mk(); const d = { "A|duplicidade": { acao: "ENC", status: "APR", destino: "Z" }, "B|duplicidade": { acao: "ENC", status: "APR", destino: "Z" } }; // o Z não está mais no conjunto {A, B, C}
+    expect(escolhaDoConjunto(c, d)).toMatchObject({ fica: "Z", travada: true }); expect(membrosSemProposta(c, d)).toEqual([]); expect(completarEscolha(d, c, ctx)).toBe(d);
+  });
+  it("completar não faz nada em conjunto sem escolha, em conjunto ainda não travado ou sem como identificar os itens", () => {
+    const c = mk();
+    expect(membrosSemProposta(c, {})).toEqual([]); expect(completarEscolha({}, c, ctx)).toEqual({});
+    const aguardando = aplicarEscolha({}, c, "B", ctx); expect(membrosSemProposta(c, aguardando)).toEqual([]); expect(completarEscolha(aguardando, c, ctx)).toBe(aguardando);
+    const travadoSemId = { "A|duplicidade": { acao: "ENC", status: "APR", destino: "B" } };
+    expect(completarEscolha(travadoSemId, c, { ...ctx, indice: indexar([...c.membros, item(99, "C")]) })).toBe(travadoSemId); // o código C está em outro item da base
   });
   it("desfazer remove só as propostas ainda não decididas", () => {
     const c = mk(); const d = aplicarEscolha({ "Z9|padrao": { status: "PROP" } }, c, "B", ctx); const x = desfazerEscolha(d, c);

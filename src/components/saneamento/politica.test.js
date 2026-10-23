@@ -88,7 +88,10 @@ describe("política de uso dos estoques", () => {
     expect(() => JSON.stringify(s)).not.toThrow();
   });
   it("conta as decisões por critério e emite uma linha por regra para a planilha", () => {
-    expect(contarDecisoes({ "C2|padrao": { status: "APR" }, "C3|padrao": { status: "PROP" }, "C4|unidade": { status: "REJ" } })).toEqual({ padrao: { total: 2, PROP: 1, APR: 1, REJ: 0 }, unidade: { total: 1, PROP: 0, APR: 0, REJ: 1 } });
+    const decs = { "C2|padrao": { status: "APR" }, "C3|padrao": { status: "PROP" }, "C4|unidade": { status: "REJ" } };
+    expect(contarDecisoes(decs)).toEqual({ padrao: { total: 2, PROP: 1, APR: 1, REJ: 0, SEM_VALIDADE: 0 }, unidade: { total: 1, PROP: 0, APR: 0, REJ: 1, SEM_VALIDADE: 0 } });
+    // a decisão que perdeu a validade (cadastro mudou, código repetido) entra no total e não conta como aprovada, rejeitada nem aguardando
+    expect(contarDecisoes(decs, (k) => k !== "C2|padrao")).toEqual({ padrao: { total: 2, PROP: 1, APR: 0, REJ: 0, SEM_VALIDADE: 1 }, unidade: { total: 1, PROP: 0, APR: 0, REJ: 1, SEM_VALIDADE: 0 } });
     const p = montarPolitica(base({ criterios: { padrao: aprov() }, politica: { secoes: { criar: { responsavel: "Gestor", controle: "Amostragem" } } } }));
     const linhas = linhasRegras(p);
     expect(linhas.length).toBe(p.secoes.reduce((n, s) => n + s.regras.length, 0)); expect(linhas[0]).toMatchObject({ procedimento: "Criar o cadastro", responsavel: "Gestor", controle: "Amostragem" });

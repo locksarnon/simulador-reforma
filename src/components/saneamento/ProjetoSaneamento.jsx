@@ -28,7 +28,7 @@ import MigracaoChaves, { PainelLegado } from "./MigracaoChaves";
 import { ConciliacaoBase, OrigemDosDados } from "./OrigemDosDados";
 import InativacaoLotes from "./InativacaoLotes";
 import { inativacaoVazia } from "./inativacao";
-import { coerenciaDaDecisao } from "./aprovacao";
+import { coerenciaDaChave } from "./aprovacao";
 import { detectarEscalaSaldo } from "./conjuntos";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
@@ -59,6 +59,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [critAtivo, setCritAtivo] = useState(CRITERIOS[0].id);
   const [comparativo, setComparativo] = useState(null);
   const [salvo, setSalvo] = useState(null);
+  const [erroSalvar, setErroSalvar] = useState(""); // por que o último salvamento automático falhou (o trabalho segue na tela, mas não está salvo)
   const [programaAberto, setProgramaAberto] = useState(false);
   const [importando, setImportando] = useState(false);
   const [msgResposta, setMsgResposta] = useState("");
@@ -82,7 +83,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   useEffect(() => {
     if (!carregado.current || !estado) return;
     const t = setTimeout(() => {
-      api.put(`/produtos/saneamentos/${projetoId}`, { estado, validacao_id: validacaoId, empresa_id: empresaId }).then(() => setSalvo(new Date())).catch(() => setSalvo(null));
+      api.put(`/produtos/saneamentos/${projetoId}`, { estado, validacao_id: validacaoId, empresa_id: empresaId }).then(() => { setSalvo(new Date()); setErroSalvar(""); }).catch((err) => { setSalvo(null); setErroSalvar(err?.message || "sem resposta do servidor"); });
     }, 800);
     return () => clearTimeout(t);
   }, [estado, validacaoId, projetoId, empresaId]);
@@ -110,7 +111,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao, estado?.politicaUnidade]);
   const achados = useMemo(() => (validacaoId ? calcularAchados(escopo.emEscopo, testes) : {}), [validacaoId, escopo, testes]);
   const cobertura = useMemo(() => coberturaDaBase(base.data), [base.data]); // quais análises rodaram na importação: "sem achados" só vale onde a análise rodou
-  const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length, cobertura) : null), [validacaoId, achados, escopo, cobertura]);
+  const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length, cobertura, validacaoId) : null), [validacaoId, achados, escopo, cobertura]);
   const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: decisoesTrabalho, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params, inativacao: estado?.inativacao }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, decisoesTrabalho, estado?.execucao?.tipos, estado?.params, estado?.inativacao, itens, escopo]);
   const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, vivo?.execucao?.registros), [execGerada, vivo?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
@@ -120,7 +121,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const escalaSaldo = useMemo(() => estado?.saldoEscala ?? detectarEscalaSaldo(itens), [estado?.saldoEscala, itens]); // a escolha do analista vale mais que a escala detectada
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
   const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
-  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura }) : null), [vivo, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo, cobertura]);
+  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura, baseId: validacaoId }) : null), [vivo, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo, cobertura]);
 
   // Grupo marcado como saneado que deixou de cumprir os critérios (regra mais exigente, critério reaberto ou sem a análise) é reaberto: a marca antiga não volta sozinha
   // quando as pendências forem resolvidas, o analista conclui o grupo de novo. O aviso fica registrado no projeto.
@@ -215,7 +216,11 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const crit = CRITERIOS.find((c) => c.id === critAtivo);
   const cEst = estado.criterios[crit.id] || {};
   // Alterações no critério (aprovação, regra): funcionais, para duas ações seguidas não se sobrescreverem.
-  const alterarCriterio = (id, patch) => setEstado((e) => ({ ...e, criterios: { ...e.criterios, [id]: { ...(e.criterios[id] || {}), ...patch } } }));
+  // Trocar ou tirar a declaração "não se aplica" guarda a anterior (com a justificativa) no histórico do projeto.
+  const alterarCriterio = (id, patch) => setEstado((e) => {
+    const atual = e.criterios[id] || {}; const perdeu = !!atual.naoAplicavel && "naoAplicavel" in patch && patch.naoAplicavel !== atual.naoAplicavel;
+    return { ...e, criterios: { ...e.criterios, [id]: { ...atual, ...patch } }, ...(perdeu ? { historicoCriterios: [...(e.historicoCriterios || []), { criterio: id, tipo: patch.naoAplicavel ? "NAO_APLICAVEL_SUBSTITUIDO" : "NAO_APLICAVEL_REMOVIDO", anterior: atual.naoAplicavel, por: quem, em: hojeIso() }] } : {}) };
+  });
   const aprovarCriterio = (c) => alterarCriterio(c.id, { aprovado: true, por: quem, em: hojeIso(), regra: estado.criterios[c.id]?.regra ?? c.regra, naoAplicavel: null });
   const reabrirCriterio = (c) => alterarCriterio(c.id, { aprovado: false, naoAplicavel: null }); // revisão manual
   // "Não se aplica a este projeto": só vale com a justificativa escrita, registrada com quem declarou e quando.
@@ -300,7 +305,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         <p className="text-xs text-muted-foreground"><b className="font-medium text-foreground">O que muda o teste:</b> {crit.id === "padrao" ? "as regras de padronização e as abreviações, logo abaixo." : crit.id === "unidade" ? "a política da menor unidade e a tabela de unidades, logo abaixo." : crit.id === "utilizacao" ? <>o corte por data, no <button type="button" onClick={() => irPara(0)} className="text-primary underline">Parâmetro de saneamento (passo Triagem)</button>.</> : crit.auto ? "este critério ainda não tem ajustes: o teste automático é fixo (o texto da regra só o descreve)." : "nada: é conferência manual, e o texto da regra serve de roteiro para conferir os itens de cada grupo."}</p>
         <p className="text-xs text-muted-foreground">Exemplo: {crit.exemplo}.{crit.params && <> Parâmetro: {crit.params}.</>}</p>
         {nAchCrit != null && sit !== "SEM_ANALISE" && <p className="text-xs text-muted-foreground">Na base atual: <b>{fmt(nAchCrit)}</b> itens em escopo com achado neste critério.{sit === "AUTO" ? " Sem achados, o critério abre aprovado." : ""}</p>}
-        <AcaoAprovacao situacao={sit} onAprovar={() => aprovarCriterio(crit)} onReabrir={() => reabrirCriterio(crit)} onNaoAplicavel={(j) => marcarNaoAplicavel(crit, j)} />
+        <AcaoAprovacao key={crit.id} situacao={sit} onAprovar={() => aprovarCriterio(crit)} onReabrir={() => reabrirCriterio(crit)} onNaoAplicavel={(j) => marcarNaoAplicavel(crit, j)} />
         <p className="text-xs text-muted-foreground">Critério sem achados abre aprovado, desde que a análise tenha rodado na importação da base; use “Revisar manualmente” para conferi-lo. A análise só trata critérios aprovados, e o grupo só é saneado com todos os critérios aplicáveis aprovados e tratados, os de conferência manual também.</p>
         {painelPadrao}
         {painelUnidade}
@@ -337,7 +342,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
 
   // ── Passo 5: De/para (decisões) ──
   // A decisão é do código do item: se o cadastro dele mudou para outra coisa desde a proposta, ou o item saiu da base, ela não pode ser aprovada como está.
-  const coerencia = (k, d) => { const { id, crit } = partirChave(k); return coerenciaDaDecisao(d, crit, itemPorId(indice, id), indice); };
+  const coerencia = (k, d) => coerenciaDaChave(k, d, indice, vivo.decisoes);
   const podeAprovar = (k, d) => ["OK", "REFLETIDA"].includes(coerencia(k, d).estado);
   const decidir = (ks, status) => setEstado((e) => { const d = { ...e.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP" && !(status === "APR" && (precisaFator(d[k]) || !podeAprovar(k, d[k])))) d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); return { ...e, decisoes: d }; });
   // Decisão que não vale mais para a base atual sai da lista e fica guardada no histórico do projeto; o achado pode ser encaminhado de novo.
@@ -369,7 +374,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       const linhas = await lerRespostaCliente(f);
       const res = aplicarRespostas(estado.decisoes, itens, linhas, { quem, hoje: hojeIso(), regras: regrasPad, abrev: abreviacoesAprovadas(estado) });
       mudar({ decisoes: res.decisoes }); const x = res.resumo;
-      setMsgResposta(`Resposta importada: ${fmt(x.aceitas)} aceitas, ${fmt(x.ajustadas)} ajustadas pelo cliente, ${fmt(x.rejeitadas)} mantidas, ${fmt(x.semResposta)} sem resposta${x.naoEncontradas.length ? `, ${fmt(x.naoEncontradas.length)} códigos não encontrados` : ""}.`);
+      setMsgResposta(`Resposta importada: ${fmt(x.aceitas)} aceitas, ${fmt(x.ajustadas)} ajustadas pelo cliente, ${fmt(x.rejeitadas)} mantidas, ${fmt(x.semResposta)} sem resposta${x.naoEncontradas.length ? `, ${fmt(x.naoEncontradas.length)} códigos não encontrados` : ""}${x.ambiguas.length ? `, ${fmt(x.ambiguas.length)} com código repetido na base (não aplicadas)` : ""}${x.desatualizadas.length ? `, ${fmt(x.desatualizadas.length)} desatualizadas (a descrição atual ou a sugerida mudou desde que a lista foi emitida: não aplicadas; emita a lista de novo)` : ""}.`);
     } catch (err) { setMsgResposta(err.message); }
   };
   const depara = (
@@ -394,9 +399,9 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
             <tbody>{ordenarPor(lista, ordDec, { caso: (d) => partirChave(d.k).id, criterio: (d) => CRITERIOS.find((c) => c.id === partirChave(d.k).crit)?.titulo, descricao: (d) => itemPorId(indice, partirChave(d.k).id)?.descricao ?? d.antes?.descricao, situacao: (d) => (d.status === "PROP" ? 0 : d.status === "APR" ? 1 : 2) }).slice(0, 200).map((d) => { const { id, crit: cid } = partirChave(d.k); const it = itemPorId(indice, id) ?? (d.antes ? { codigo: id, descricao: d.antes.descricao, unidade: d.antes.unidade } : null); const coer = coerencia(d.k, d);
               return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums whitespace-nowrap">{it?.codigo ?? id}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== id ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorId(indice, d.destino)?.codigo ?? d.destino}</div></div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
                 <td className="p-1.5"><div className="flex flex-col items-start gap-1">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}
-                  {coer.estado === "MUDOU" && <span title={coer.motivo}><Chip tom="r">Cadastro mudou: não vale</Chip></span>}{coer.estado === "AUSENTE" && <span title={coer.motivo}><Chip tom="a">Fora da base atual</Chip></span>}{coer.estado === "REFLETIDA" && <span title={coer.motivo}><Chip tom="b">Já está no cadastro</Chip></span>}</div></td>
+                  {coer.estado === "MUDOU" && <span title={coer.motivo}><Chip tom="r">Cadastro mudou: não vale</Chip></span>}{coer.estado === "AMBIGUA" && <span title={coer.motivo}><Chip tom="r">Código repetido: não vale</Chip></span>}{coer.estado === "AUSENTE" && <span title={coer.motivo}><Chip tom="a">Fora da base atual</Chip></span>}{coer.estado === "REFLETIDA" && <span title={coer.motivo}><Chip tom="b">Já está no cadastro</Chip></span>}</div></td>
                 <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d) || !podeAprovar(d.k, d)} title={!podeAprovar(d.k, d) ? coer.motivo : precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}
-                  {(coer.estado === "MUDOU" || (coer.estado === "AUSENTE" && d.status !== "APR")) && <Botao className="ml-1" title="Tira a decisão desta lista e guarda no histórico do projeto; o achado pode ser encaminhado de novo, com o cadastro como está agora" onClick={() => descartarDecisao(d.k, coer.motivo)}>Descartar</Botao>}</td></tr>); })}</tbody></table>
+                  {(coer.estado === "MUDOU" || coer.estado === "AMBIGUA" || (coer.estado === "AUSENTE" && d.status !== "APR")) && <Botao className="ml-1" title="Tira a decisão desta lista e guarda no histórico do projeto; o achado pode ser encaminhado de novo, com o cadastro como está agora" onClick={() => descartarDecisao(d.k, coer.motivo)}>Descartar</Botao>}</td></tr>); })}</tbody></table>
             {lista.length > 200 && <p className="text-xs text-muted-foreground p-2">Mostrando 200 de {fmt(lista.length)}.</p>}</div>
         </Acc>); })}
       <InativacaoLotes estado={estado} setEstado={setEstado} escopo={escopo} indice={indice} quem={quem} baseInfo={{ id: validacaoId, arquivo: base.data?.nome_arquivo }} escalaSaldo={escalaSaldo} onMudarExtracao={(v) => mudar({ extraidaEm: v })} />
@@ -434,7 +439,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   // O relatório reúne o que foi feito em todos os passos: as listas são montadas na hora de emitir (a base pode ser grande) e o PDF é carregado só então.
   const emitirRelatorioFinal = async () => {
     const nomeBase = base.data?.nome_arquivo;
-    const listasAgora = montarListas({ nomeProjeto: nome, nomeBase, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura });
+    const listasAgora = montarListas({ nomeProjeto: nome, nomeBase, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura, baseId: validacaoId });
     const politica = montarPolitica({ estado: vivo, contagem, escopo, grupos, itens, nomeProjeto: nome, nomeBase });
     const rel = montarRelatorioFinal({ nomeProjeto: nome, nomeBase, quem, estado: vivo, itens, escopo, contagem, listas: listasAgora, politica });
     return gerarPdfRelatorio(rel, `${slug}-relatorio-do-programa-de-trabalho.pdf`);
@@ -451,12 +456,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem)).length;
   const nFisc = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem) && estado.fiscal?.grupos?.[g.nome]).length; // grupos saneados com a revisão fiscal concluída
-  const nCrit = criteriosAprovados(estado, contagem).length;
+  const nCrit = criteriosAprovados(estado, contagem).length; const nNA = CRITERIOS.filter((c) => situacaoCriterio(estado, c, contagem) === "NAO_APLICAVEL").length;
   const nPil = CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length;
-  const nDec = decisoesLista.length; const nDecFeitas = decisoesLista.filter((d) => d.status !== "PROP").length;
+  const nDec = decisoesLista.length; const nDecFeitas = decisoesLista.filter((d) => d.status !== "PROP" && coerencia(d.k, d).ok).length; // decisão que perdeu a validade não conta como decidida
   const resumoPassos = [
     { feito: !!validacaoId, sub: importando ? "importando…" : validacaoId ? `${fmt(escopo.resumo.emEscopo)} em escopo` : "sem base" },
-    { feito: nCrit === CRITERIOS.length, sub: `${nCrit}/${CRITERIOS.length} aprovados` },
+    { feito: nCrit + nNA === CRITERIOS.length, sub: `${nCrit}/${CRITERIOS.length} aprovados${nNA ? ` · ${nNA} n/a` : ""}` },
     { feito: nPil === CASOS_PILOTO.length, sub: `${nPil}/${CASOS_PILOTO.length} testados` },
     { feito: nGrupos > 0 && nSan === nGrupos, sub: nGrupos ? `${nSan}/${nGrupos} grupos` : "sem base" },
     { feito: nDec > 0 && nDecFeitas === nDec, sub: nDec ? `${nDecFeitas}/${nDec} decididos` : "sem casos" },
@@ -469,7 +474,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <div className="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8 py-2 bg-background/95 backdrop-blur border-b border-border space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0"><button type="button" onClick={onVoltar} className="text-muted-foreground hover:text-foreground" aria-label="Voltar à lista de projetos"><ArrowLeft className="w-4 h-4" /></button><b className="font-medium truncate">{nome}</b></div>
-          {importando ? <span className="inline-flex items-center gap-1.5 text-xs text-primary"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando e processando a base… você pode trocar de aba, mas não feche esta página</span> : <span className="text-xs text-muted-foreground">{salvo ? `Salvo às ${salvo.toLocaleTimeString("pt-BR")}` : "Salvamento automático"}</span>}
+          {importando ? <span className="inline-flex items-center gap-1.5 text-xs text-primary"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando e processando a base… você pode trocar de aba, mas não feche esta página</span> : erroSalvar ? <span role="alert" className="text-xs text-destructive" title={erroSalvar}>Não foi possível salvar ({erroSalvar}). O trabalho segue na tela, mas não está salvo: não feche esta página.</span> : <span className="text-xs text-muted-foreground">{salvo ? `Salvo às ${salvo.toLocaleTimeString("pt-BR")}` : "Salvamento automático"}</span>}
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Passos do saneamento">
           {PASSOS.map((p, i) => {
@@ -495,7 +500,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       </div>
       {estado.reabertos && !estado.reabertos.visto && estado.reabertos.grupos?.length > 0 && (
         <div role="status" className="rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs space-y-1.5 dark:border-amber-700/50 dark:bg-amber-950/20">
-          <p><b className="font-medium">{plural(estado.reabertos.grupos.length, "grupo foi reaberto", "grupos foram reabertos")} em {dataBr(estado.reabertos.em)}</b> porque deixou de cumprir os critérios de saneamento (critério reaberto, análise não executada ou critério de conferência manual sem conclusão): {estado.reabertos.grupos.slice(0, 8).join("; ")}{estado.reabertos.grupos.length > 8 ? `; +${estado.reabertos.grupos.length - 8}` : ""}. Trate os critérios pendentes e conclua o grupo de novo no passo Análises.</p>
+          <p><b className="font-medium">{plural(estado.reabertos.grupos.length, "grupo foi reaberto", "grupos foram reabertos")} em {dataBr(estado.reabertos.em)}</b> porque deixou de cumprir os critérios de saneamento (critério reaberto, análise não executada, critério de conferência manual sem conclusão ou conferência feita sobre outra base): {estado.reabertos.grupos.slice(0, 8).join("; ")}{estado.reabertos.grupos.length > 8 ? `; +${estado.reabertos.grupos.length - 8}` : ""}. Trate os critérios pendentes e conclua o grupo de novo no passo Análises.</p>
           <Botao onClick={() => mudar({ reabertos: { ...estado.reabertos, visto: true } })}>Entendi</Botao>
         </div>)}
       {importador}

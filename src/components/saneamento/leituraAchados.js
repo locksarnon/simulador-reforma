@@ -2,7 +2,7 @@
 // Cada lado é uma lista de linhas { rotulo, valor, destaque }. Só SUGERE: nada é alterado no cadastro. Funções puras (sem React).
 import { GRANDEZAS, numeroBr } from "./unidades";
 import { dataBr } from "./logica";
-import { escolhaDoConjunto } from "./conjuntos";
+import { conjuntoIdentificavel, escolhaDoConjunto } from "./conjuntos";
 import { idItem } from "./identidade";
 
 export const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
@@ -48,7 +48,7 @@ const saldoTxt = (it, escala) => { const s = it.saldo != null && Number.isFinite
  * Duplicidade. Com o conjunto do item (`conjuntoDe`, de conjuntos.js) a ação é a escolha do analista ou, sem escolha, a sugestão (quem fica pelo saldo, movimentação,
  * cadastro e código); sem conjunto, vale o cadastro mestre que o teste indicou.
  */
-function leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala = 1 } = {}) {
+function leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala = 1, indice } = {}) {
   const it = a.item; const dup = it.duplicidade;
   if (!dup) return { como: [L("Indicação", "duplicidade apontada pelo teste")], seria: [L("Ação", "confirmar se é o mesmo produto")], porque: a.motivo || "" };
   const cands = dup.candidatos || [];
@@ -56,7 +56,7 @@ function leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala = 1 
   const como = [L("Parecido com", nomes.length ? nomes.join(" | ") + (cands.length > nomes.length ? ` (+${cands.length - nomes.length})` : "") : "—"), L("Indicação", `${NIVEL_ROT[dup.nivel] ?? dup.nivel} · similaridade ${num2(dup.score)}`)];
   const conj = conjuntoDe?.get(it.linha);
   if (conj) {
-    const esc = escolhaDoConjunto(conj, decisoes || {}); const fica = esc.fica ?? conj.sugestao.id; const o = conj.membros.find((m) => idItem(m) === fica);
+    const esc = conjuntoIdentificavel(conj, indice).ok ? escolhaDoConjunto(conj, decisoes || {}) : { fica: null }; const fica = esc.fica ?? conj.sugestao.id; const o = conj.membros.find((m) => idItem(m) === fica);
     const seria = fica === idItem(it) ? [L("Ação", esc.fica != null ? "fica este código (escolhido)" : "manter este código (sugerido)", true)]
       : [L("Ação", `unificar no código ${o?.codigo || fica}${esc.fica != null ? " (escolhido)" : " (sugerido)"}`, true), ...(o?.descricao ? [L("Fica", `${o.descricao}${saldoTxt(o, escala)}`)] : [])];
     const sug = conj.membros.find((m) => m.linha === conj.sugestao.linha);
@@ -85,12 +85,12 @@ function leituraNcm(a) {
  * Leitura de um achado: { como, seria, porque }. `crit` é o critério; `a` é { item, motivo, sugerida, extra } (o que o teste devolveu).
  * `itemPorLinha` (Map) resolve os itens parecidos da duplicidade; `escala` divide o saldo.
  */
-export function leituraAchado(crit, a, { itemPorLinha, escala = 1, conjuntoDe, decisoes } = {}) {
+export function leituraAchado(crit, a, { itemPorLinha, escala = 1, conjuntoDe, decisoes, indice } = {}) {
   const it = a.item;
   switch (crit.id) {
     case "unidade": return leituraUnidade(a, escala);
     case "padrao": return { como: [L("Descrição", it.descricao || "(vazia)")], seria: [L("Descrição", a.sugerida ?? "", true)], porque: a.motivo || "" };
-    case "duplicidade": return leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala });
+    case "duplicidade": return leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala, indice });
     case "grupo": return { como: [L("Grupo", it.grupo_atual || "(sem grupo)")], seria: [L("Grupo", it.grupo_sugerido || "—", true)], porque: it.grupo_evidencia || a.motivo || "" };
     case "ncm": return leituraNcm(a);
     case "utilizacao": return { como: [L("Última movimentação", "sem data legível")], seria: [L("Ação", "obter a data com o cliente (ou tratar como anterior ao corte, no parâmetro de saneamento)")], porque: a.motivo || "" };

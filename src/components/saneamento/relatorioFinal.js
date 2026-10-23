@@ -8,6 +8,7 @@ import { ORDEM_SITUACOES, SITUACOES, itensDoGrupoFiscal, leituraFiscal, resumoDe
 import { linhasQueSaem } from "./listasFinais";
 import { resumoUnidades } from "./unidades";
 import { indexar } from "./identidade";
+import { coerenciaDaChave } from "./aprovacao";
 import { candidatosDaInativacao, situacaoDoCandidato } from "./inativacao";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
@@ -27,13 +28,14 @@ export const RESSALVAS = [
 /** Andamento de cada passo: situação (Concluído, Em andamento, Não iniciado) e um resumo curto. */
 export function andamentoDosPassos({ estado, itens, escopo, grupos, contagem, listas, politica }) {
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem)).length;
-  const nCrit = criteriosAprovados(estado, contagem).length; const nPil = CASOS_PILOTO.filter((c) => estado.piloto?.[c]?.status === "Testado").length;
-  const dec = Object.values(decisoesDoTrabalho(estado.decisoes, escopo)); const feitas = dec.filter((d) => d.status !== "PROP").length;
+  const nCrit = criteriosAprovados(estado, contagem).length; const nNA = CRITERIOS.filter((c) => situacaoCriterio(estado, c, contagem) === "NAO_APLICAVEL").length; const nPil = CASOS_PILOTO.filter((c) => estado.piloto?.[c]?.status === "Testado").length;
+  const indiceDec = indexar(itens); const dec = Object.entries(decisoesDoTrabalho(estado.decisoes, escopo)); // decisão que perdeu a validade não conta como decidida
+  const feitas = dec.filter(([k, d]) => d.status !== "PROP" && coerenciaDaChave(k, d, indiceDec, estado.decisoes).ok).length;
   const c = listas.contagem; const nFisc = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem) && estado.fiscal?.grupos?.[g.nome]).length;
   const sit = (feito, algum) => (feito ? "Concluído" : algum ? "Em andamento" : "Não iniciado");
   return [
     ["1. Triagem", sit(itens.length > 0, false), itens.length ? `${fmt(escopo.emEscopo.length)} itens em escopo de ${fmt(itens.length)}` : "sem base"],
-    ["2. Critérios", sit(nCrit === CRITERIOS.length, nCrit > 0), `${nCrit} de ${CRITERIOS.length} critérios aprovados`],
+    ["2. Critérios", sit(nCrit + nNA === CRITERIOS.length, nCrit + nNA > 0), `${nCrit} de ${CRITERIOS.length} critérios aprovados${nNA ? ` e ${plural(nNA, "não aplicável", "não aplicáveis")}, com justificativa` : ""}`],
     ["3. Piloto SAP", sit(nPil === CASOS_PILOTO.length, Object.keys(estado.piloto || {}).length > 0), `${nPil} de ${CASOS_PILOTO.length} casos testados`],
     ["4. Análises", sit(nGrupos > 0 && nSan === nGrupos, nSan > 0 || Object.keys(estado.tratados || {}).length > 0), `${nSan} de ${nGrupos} grupos saneados`],
     ["5. De/para", sit(dec.length > 0 && feitas === dec.length, dec.length > 0), dec.length ? `${fmt(feitas)} de ${fmt(dec.length)} casos decididos` : "nenhum caso encaminhado"],
@@ -48,7 +50,7 @@ export function andamentoDosPassos({ estado, itens, escopo, grupos, contagem, li
 export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, itens, escopo, contagem, listas, politica, geradoEm = new Date() }) {
   const params = normalizarParams(estado.params); const corte = dataDoCorte(estado.params); const grupos = agruparPorGrupo(escopo.emEscopo);
   const universo = agruparPorGrupo(itens); const emEscopoPor = new Map(grupos.map((g) => [g.nome, g.itens.length]));
-  const dec = contarDecisoes(decisoesDoTrabalho(estado.decisoes, escopo)); const c = listas.contagem;
+  const indiceDec = indexar(itens); const dec = contarDecisoes(decisoesDoTrabalho(estado.decisoes, escopo), (k, d) => coerenciaDaChave(k, d, indiceDec, estado.decisoes).ok); const c = listas.contagem;
   const b = []; const T = (n, texto) => b.push({ t: "titulo", n, texto }); const S = (texto) => b.push({ t: "sub", texto }); const P = (texto, t = "p") => b.push({ t, texto });
 
   b.push({ t: "kv", linhas: [["Projeto", nomeProjeto || "—"], ["Base importada", nomeBase || "—"], ["Gerado em", geradoEm.toLocaleString("pt-BR")], ["Gerado por", quem || "—"], ["Política de uso", politica.aprovada ? `aprovada por ${politica.aprovada.por} em ${dataBr(politica.aprovada.em)}` : "em rascunho"]] });
@@ -86,8 +88,9 @@ export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, iten
   b.push({ t: "tabela", cols: [{ label: "Grupo", w: 44 }, { label: "Itens", w: 14, align: "right" }, { label: "Achados", w: 16, align: "right" }, { label: "Critérios pendentes", w: 22, align: "right" }, { label: "Situação", w: 24 }],
     linhas: grupos.map((g) => [g.nome, fmt(g.itens.length), fmt(CRITERIOS.reduce((n, k) => n + (contagem?.porGrupoCriterio?.[`${g.nome}|${k.id}`] ?? 0), 0)), fmt(criteriosPendentesDoGrupo(estado, g.nome, contagem).length), grupoSaneado(estado, g.nome, contagem) ? "Saneado" : "Pendente"]) });
   S("Decisões por critério");
-  b.push({ t: "tabela", cols: [{ label: "Critério", w: 52 }, { label: "Encaminhadas", w: 22, align: "right" }, { label: "Aprovadas", w: 20, align: "right" }, { label: "Rejeitadas", w: 20, align: "right" }, { label: "Aguardando", w: 20, align: "right" }],
-    linhas: CRITERIOS.filter((k) => dec[k.id]).map((k) => [k.titulo, fmt(dec[k.id].total), fmt(dec[k.id].APR), fmt(dec[k.id].REJ), fmt(dec[k.id].PROP)]) });
+  b.push({ t: "tabela", cols: [{ label: "Critério", w: 46 }, { label: "Encaminhadas", w: 22, align: "right" }, { label: "Aprovadas", w: 20, align: "right" }, { label: "Rejeitadas", w: 20, align: "right" }, { label: "Aguardando", w: 20, align: "right" }, { label: "Sem validade", w: 20, align: "right" }],
+    linhas: CRITERIOS.filter((k) => dec[k.id]).map((k) => [k.titulo, fmt(dec[k.id].total), fmt(dec[k.id].APR), fmt(dec[k.id].REJ), fmt(dec[k.id].PROP), fmt(dec[k.id].SEM_VALIDADE)]) });
+  if (CRITERIOS.some((k) => dec[k.id]?.SEM_VALIDADE)) P("Sem validade: decisão cujo cadastro mudou para outra coisa depois da proposta (ou cujo código se repete na base). Não conta como encaminhada em dia nem como aprovada: precisa de nova avaliação.", "nota");
   if (!Object.keys(dec).length) P("Nenhum caso foi encaminhado para aprovação até agora.", "nota");
 
   T(5, "Execução e conferência");

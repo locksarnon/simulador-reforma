@@ -39,14 +39,15 @@ function TabelaPendencias({ linhas }) {
  */
 export default function MigracaoChaves({ estado, setEstado, itens, baseInfo, temBase, quem, slug, nomeProjeto, onIrTriagem, onMudarOrigem }) {
   const confirmar = useConfirmar();
-  const [atesta, setAtesta] = useState(false); const [plano, setPlano] = useState(null); const [gerando, setGerando] = useState(false); const [msg, setMsg] = useState("");
+  const [atesta, setAtesta] = useState(false); const [ciente, setCiente] = useState(false); const [plano, setPlano] = useState(null); const [gerando, setGerando] = useState(false); const [msg, setMsg] = useState("");
   const origem = estado.origem || {};
   const n = { decisoes: Object.keys(estado.decisoes || {}).length, execucao: Object.keys(estado.execucao?.registros || {}).length, fiscal: Object.keys(estado.fiscal?.decisoes || {}).length };
   // a simulação vale para a origem, a base e a atestação com que foi feita
-  useEffect(() => { setPlano(null); }, [atesta, origem.erp, origem.instancia, origem.empresa, baseInfo?.id]);
+  useEffect(() => { setPlano(null); setCiente(false); }, [atesta, origem.erp, origem.instancia, origem.empresa, baseInfo?.id]);
 
-  const simular = () => { setPlano(planejarMigracao(estado, itens, { base: baseInfo, origem, por: quem, em: hojeIso() })); setMsg(""); };
+  const simular = () => { setPlano(planejarMigracao(estado, itens, { base: baseInfo, origem, por: quem, em: hojeIso() })); setCiente(false); setMsg(""); };
   const aplicar = async () => {
+    if (plano?.relatorio?.verificacao?.fraca && !ciente) return; // verificação fraca: só com o "estou ciente" do analista
     if (!(await confirmar({ titulo: "Aplicar a migração?", descricao: `O projeto passa a guardar ${plural(plano.relatorio.totais.decisoes.vinculadas, "decisão", "decisões")} pelo código do item. O que não vinculou fica guardado no legado do projeto, intacto, e pendente de revisão. Baixe o relatório antes, se quiser guardar a conferência.`, rotulo: "Aplicar a migração" }))) return;
     setEstado((e) => planejarMigracao(e, itens, { base: baseInfo, origem: e.origem, por: quem, em: hojeIso() }).estado);
   };
@@ -92,8 +93,11 @@ export default function MigracaoChaves({ estado, setEstado, itens, baseInfo, tem
               <p className={`text-sm ${r.verificacao.confere ? "" : "text-destructive"}`} role="status">{r.verificacao.mensagem}{r.verificacao.exemplos.length > 0 && <span className="block text-xs text-muted-foreground">Por exemplo: {r.verificacao.exemplos.join("; ")}.</span>}</p>
               <Totais totais={r.totais} />
               <TabelaPendencias linhas={pend} />
+              {r.verificacao.fraca && (
+                <label className="flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs dark:border-amber-700/50 dark:bg-amber-950/20"><input type="checkbox" className="mt-0.5" checked={ciente} onChange={(e) => setCiente(e.target.checked)} />
+                  <span>Estou ciente de que a conferência não achou nada que a base pudesse contrariar: a migração depende só da minha atestação de que esta é a base original. Conferi o arquivo e a data da extração.</span></label>)}
               <div className="flex flex-wrap items-center gap-2">
-                <Botao disabled={!r.verificacao.confere} onClick={aplicar} title={!r.verificacao.confere ? "Esta base não confere com as decisões: guarde como legado ou vincule a base original" : undefined}>Aplicar a migração</Botao>
+                <Botao disabled={!r.verificacao.confere || (r.verificacao.fraca && !ciente)} onClick={aplicar} title={!r.verificacao.confere ? "Esta base não confere com as decisões: guarde como legado ou vincule a base original" : r.verificacao.fraca && !ciente ? "Marque que está ciente de que a verificação depende só da sua atestação" : undefined}>Aplicar a migração</Botao>
                 <Botao disabled={gerando} onClick={baixar}>{gerando ? <Loader2 className="w-3.5 h-3.5 inline mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 inline mr-1" />}Relatório da migração (Excel)</Botao>
                 {msg && <span className="text-xs text-muted-foreground" role="status">{msg}</span>}
               </div>

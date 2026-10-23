@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { Info } from "lucide-react";
 import { Botao, Chip, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 import { SituacaoEncaminhado } from "./TabelaAchados";
-import { conjuntoIdentificavel, escolhaDoConjunto, saldoNaEscala } from "./conjuntos";
+import { conjuntoIdentificavel, escolhaDoConjunto, membrosSemProposta, saldoNaEscala } from "./conjuntos";
 import { chaveDe, idItem } from "./identidade";
 import { numeroBr } from "./unidades";
 
@@ -13,8 +13,8 @@ const palavraChave = (p) => semAcento(p).replace(/[^a-z0-9]/g, "");
 export const TXT_FICA = "Escolha qual código fica em cada conjunto: os outros itens são encaminhados ao De/para para unificar nele (você aprova ou rejeita lá). A sugestão considera, nesta ordem, o maior saldo em estoque, a movimentação mais recente, o cadastro mais completo e o menor código. Nada é alterado no cadastro: a ferramenta só sugere, e a similaridade entre descrições não é prova de que sejam o mesmo produto.";
 
 /** Explica a escolha de quem fica e conta os conjuntos por situação. */
-export function LegendaConjuntos({ conjuntos, decisoes, onIrDepara }) {
-  const st = conjuntos.map((c) => escolhaDoConjunto(c, decisoes).status);
+export function LegendaConjuntos({ conjuntos, decisoes, onIrDepara, indice }) {
+  const st = conjuntos.map((c) => (conjuntoIdentificavel(c, indice).ok ? escolhaDoConjunto(c, decisoes).status : "nenhuma")); // conjunto com código repetido não tem escolha que valha
   const aguardando = st.filter((s) => s === "aguardando").length; const decididos = st.filter((s) => s === "decidida").length; const com = aguardando + decididos;
   return (
     <div className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -33,10 +33,11 @@ function Descricao({ texto, comuns }) {
   return <>{String(texto ?? "").split(/(\s+)/).map((p, i) => { const k = palavraChave(p); return k && !comuns.has(k) ? <mark key={i} className="rounded bg-amber-100 px-0.5 text-foreground dark:bg-amber-900/40">{p}</mark> : <React.Fragment key={i}>{p}</React.Fragment>; })}</>;
 }
 
-function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer, onComparar }) {
+function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer, onComparar, onCompletar }) {
   const [ord, ordenar] = useOrdenacao();
-  const esc = escolhaDoConjunto(conj, decisoes); const sugId = conj.sugestao.id; const ident = conjuntoIdentificavel(conj, indice);
+  const ident = conjuntoIdentificavel(conj, indice); const esc = ident.ok ? escolhaDoConjunto(conj, decisoes) : { fica: null, origem: null, status: "nenhuma", travada: false }; const sugId = conj.sugestao.id;
   const bloqueado = esc.travada || !ident.ok; // já decidido no De/para, ou sem como guardar a escolha pelo código do item
+  const faltam = onCompletar && ident.ok ? membrosSemProposta(conj, decisoes) : []; // conjunto já decidido com item sem proposta (descartada, ou duplicado que entrou depois)
   const comuns = useMemo(() => {
     const conjuntos = conj.membros.map((m) => new Set(String(m.descricao ?? "").split(/\s+/).map(palavraChave).filter(Boolean)));
     return new Set([...conjuntos[0]].filter((p) => conjuntos.every((s) => s.has(p))));
@@ -54,6 +55,7 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
         <span className="flex-1" />
         <Botao disabled={bloqueado || esc.fica === sugId} title={esc.travada ? "Já decidido no De/para" : ident.motivo || undefined} onClick={() => onEscolher(conj, sugId, "sugestao")}>Aceitar a sugestão</Botao>
         <Botao disabled={bloqueado || esc.status === "nenhuma"} title={esc.travada ? "Já decidido no De/para" : ident.motivo || undefined} onClick={() => onDesfazer(conj)}>Desfazer</Botao>
+        {faltam.length > 0 && <Botao title="Encaminha ao De/para, para unificar no código que ficou, os itens deste conjunto que estão sem proposta. Não altera o que já foi aprovado ou rejeitado." onClick={() => onCompletar(conj)}>Encaminhar {faltam.length === 1 ? "o item que falta" : `os ${faltam.length} itens que faltam`}</Botao>}
         <button type="button" className="text-primary underline" onClick={() => onComparar(conj.membros[0])}>Comparar palavra a palavra</button>
       </div>
       {!ident.ok && <p className="text-xs text-amber-700 dark:text-amber-300">{ident.motivo} Corrija no ERP e traga a base de novo.</p>}
@@ -81,6 +83,6 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
 }
 
 /** Conjuntos de duplicados de um grupo, lado a lado: código, saldo em estoque e descrição, com a sugestão de qual fica e a escolha do analista. */
-export default function ConjuntosDuplicidade({ conjuntos, decisoes, escala = 1, indice, onEscolher, onDesfazer, onComparar }) {
-  return <div className="space-y-2">{conjuntos.map((c) => <CartaoConjunto key={c.id} conj={c} decisoes={decisoes} escala={escala} indice={indice} onEscolher={onEscolher} onDesfazer={onDesfazer} onComparar={onComparar} />)}</div>;
+export default function ConjuntosDuplicidade({ conjuntos, decisoes, escala = 1, indice, onEscolher, onDesfazer, onComparar, onCompletar }) {
+  return <div className="space-y-2">{conjuntos.map((c) => <CartaoConjunto key={c.id} conj={c} decisoes={decisoes} escala={escala} indice={indice} onEscolher={onEscolher} onDesfazer={onDesfazer} onComparar={onComparar} onCompletar={onCompletar} />)}</div>;
 }

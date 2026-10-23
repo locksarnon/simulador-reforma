@@ -34,10 +34,10 @@ describe("migração das decisões da linha da planilha para o código do item",
     const { estado, relatorio } = planejarMigracao(e, itens, ctx);
     expect(JSON.stringify(e)).toBe(antes); // a simulação não mexe no projeto
     expect(Object.keys(estado.decisoes).sort()).toEqual(["00123|duplicidade", "B1|unidade", "C1|padrao"]); // 00123 mantém os zeros: é texto
-    expect(estado.decisoes["00123|duplicidade"]).toMatchObject({ status: "APR", destino: "00124", migradaDe: "2|duplicidade", antes: { descricao: "ANEL  TRAVA 10", unidade: "UN", grupo: "Peças" }, destinoAntes: { descricao: "ANEL TRAVA 10" } });
-    expect(estado.decisoes["B1|unidade"].antes).toEqual({ descricao: "MILHO GRAO", unidade: "TONELADA", grupo: "Insumos" });
+    expect(estado.decisoes["00123|duplicidade"]).toMatchObject({ status: "APR", destino: "00124", migradaDe: "2|duplicidade", antes: { descricao: "ANEL  TRAVA 10" }, destinoAntes: { descricao: "ANEL TRAVA 10" } });
+    expect(estado.decisoes["B1|unidade"].antes).toEqual({ unidade: "TONELADA", descricao: "MILHO GRAO" });
     expect(estado.fiscal.decisoes).toEqual({ C1: { acao: "REVISAR", por: "ana", em: "2026-10-22" } });
-    expect(estado.execucao.registros).toEqual({ "00123|duplicidade": { adm: { status: "FEITO", evidencia: "SAP 1" } } });
+    expect(estado.execucao.registros).toEqual({ "00123|duplicidade": { adm: { status: "FEITO", evidencia: "SAP 1", alteracao: "unificar:00124" } } }); // a confirmação migrada fica presa à alteração aprovada (unificar no 00124)
     expect(estado.execucao.tipos).toEqual({ grafia: { alm: true } }); expect(estado.saneados).toEqual({ "Peças": true }); expect(estado.passo).toBe(4); // o resto do projeto segue igual
     expect(estado.versaoChaves).toBe(2); expect(precisaMigrar(estado)).toBe(false); expect(precisaMigrar(e)).toBe(true);
     expect(estado.origem).toMatchObject({ ...origem, declaradaPor: "ana@x.com", declaradaEm: "2026-10-23" });

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { hojeIso } from "./logica";
-import { FRENTES, ORDEM_TIPOS, TIPOS_TAREFA, aplicarRespostaExecucao, lerRespostaExecucao, linhasListaFrente, situacaoFrente, situacaoTarefa, tiposEfetivos } from "./execucao";
+import { FRENTES, ORDEM_TIPOS, TIPOS_TAREFA, aplicarRespostaExecucao, confirmacaoObsoleta, lerRespostaExecucao, linhasListaFrente, registroEfetivo, situacaoFrente, situacaoTarefa, tiposEfetivos } from "./execucao";
 import { gerarListaFrente } from "./listasFinais";
 import { Acc, Botao, Chip, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 
@@ -14,11 +14,12 @@ const RANQUE_GERAL = { PENDENTE: 0, EM_ANDAMENTO: 1, DIVERGENCIA: 2, CONCLUIDA: 
 const progresso = (r) => `administrativo ${fmt(r.adm.feitas)}/${fmt(r.adm.total)}${r.alm.total ? ` · almoxarifado ${fmt(r.alm.feitas)}/${fmt(r.alm.total)}` : ""}`;
 
 /** Uma frente de uma tarefa: situação, evidência (ou explicação da divergência) e, no almoxarifado, o que a equipe informou da realocação. */
-function CelulaFrente({ t, frente, reg, onStatus, onNota }) {
+function CelulaFrente({ t, frente, reg, obsoleta, onStatus, onNota }) {
   if (!t.aplica[frente]) return <span className="text-muted-foreground">—</span>;
   const s = situacaoFrente(true, reg);
   return (
     <div className="space-y-1">
+      {obsoleta && <Chip tom="a">Havia confirmação de outra alteração: não vale, confirme de novo</Chip>}
       <select value={reg?.status || ""} onChange={(e) => onStatus(t.id, frente, e.target.value)} aria-label={`${FRENTES[frente]}: situação de ${t.codigo}`} className="border rounded px-1 py-0.5 bg-background text-xs">
         {OPCOES.map(([v, rot]) => <option key={v} value={v}>{rot}</option>)}
       </select>
@@ -54,8 +55,8 @@ function Lote({ g, tarefasPorTipo, registros, mostrar, setMostrar, evidLote, set
                     <tr key={t.id} className="border-t border-border align-top">
                       <td className="p-1.5 tabular-nums">{t.codigo || "—"}</td><td className="p-1.5 max-w-[220px]">{t.descricao || "—"}</td>
                       <td className="p-1.5 max-w-[320px] text-muted-foreground"><span className="line-clamp-3" title={t.instrucao.adm}>{t.instrucao.adm}</span></td>
-                      <td className="p-1.5"><CelulaFrente t={t} frente="adm" reg={registros[t.id]?.adm} onStatus={onStatus} onNota={onNota} /></td>
-                      <td className="p-1.5"><CelulaFrente t={t} frente="alm" reg={registros[t.id]?.alm} onStatus={onStatus} onNota={onNota} /></td>
+                      <td className="p-1.5"><CelulaFrente t={t} frente="adm" reg={registroEfetivo(t, registros[t.id])?.adm} obsoleta={confirmacaoObsoleta(t, registros[t.id], "adm")} onStatus={onStatus} onNota={onNota} /></td>
+                      <td className="p-1.5"><CelulaFrente t={t} frente="alm" reg={registroEfetivo(t, registros[t.id])?.alm} obsoleta={confirmacaoObsoleta(t, registros[t.id], "alm")} onStatus={onStatus} onNota={onNota} /></td>
                       <td className="p-1.5 whitespace-nowrap">{s.geral === "CONCLUIDA" ? <Chip tom="g">Concluída</Chip> : s.geral === "DIVERGENCIA" ? <Chip tom="a">Divergência</Chip> : s.geral === "EM_ANDAMENTO" ? <Chip tom="b">Em andamento</Chip> : <Chip>Pendente</Chip>}</td>
                     </tr>);
                 })}</tbody></table>
@@ -87,7 +88,14 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
   // Atualizações funcionais: duas ações seguidas nunca sobrescrevem uma à outra.
   const editarExec = (fn) => setEstado((e) => { const ex = e.execucao || {}; return { ...e, execucao: fn({ ...ex, tipos: { ...(ex.tipos || {}) }, registros: { ...(ex.registros || {}) } }) }; });
   const setTipo = (tipo, patch) => editarExec((ex) => ({ ...ex, tipos: { ...ex.tipos, [tipo]: { ...(ex.tipos[tipo] || {}), ...patch } } }));
-  const editarReg = (id, frente, patch) => editarExec((ex) => { const atual = ex.registros[id] || {}; return { ...ex, registros: { ...ex.registros, [id]: { ...atual, [frente]: { ...(atual[frente] || {}), ...patch } } } }; });
+  // A confirmação vale só para a alteração aprovada hoje (a decisão pode ter sido descartada e outra aprovada para o mesmo item): o registro guarda a alteração, e o que foi
+  // confirmado para outra não é herdado.
+  const tarefaPorId = useMemo(() => new Map(tarefas.map((t) => [t.id, t])), [tarefas]);
+  const editarReg = (id, frente, patch) => editarExec((ex) => {
+    const alt = tarefaPorId.get(id)?.alteracao; const atual = ex.registros[id] || {}; const ant = atual[frente];
+    const base = ant && alt && ant.alteracao && ant.alteracao !== alt ? {} : ant || {};
+    return { ...ex, registros: { ...ex.registros, [id]: { ...atual, [frente]: { ...base, ...patch, ...(alt ? { alteracao: alt } : {}) } } } };
+  });
   const limparReg = (id, frente) => editarExec((ex) => {
     const atual = { ...(ex.registros[id] || {}) }; delete atual[frente];
     const regs = { ...ex.registros }; if (Object.keys(atual).length) regs[id] = atual; else delete regs[id];
@@ -99,9 +107,9 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
   const registrarLote = (ids, frente, evidencia) => editarExec((ex) => {
     const regs = { ...ex.registros };
     for (const id of ids) {
-      const atual = regs[id] || {}; const ant = atual[frente];
+      const t = tarefaPorId.get(id); const atual = regs[id] || {}; const ant = registroEfetivo(t, atual)?.[frente];
       if (situacaoFrente(true, ant) === "FEITO") continue; // já confirmada com evidência
-      regs[id] = { ...atual, [frente]: { ...(ant || {}), status: "FEITO", evidencia, por: quem, em: hojeIso(), lote: true } };
+      regs[id] = { ...atual, [frente]: { ...(ant || {}), status: "FEITO", evidencia, por: quem, em: hojeIso(), lote: true, ...(t?.alteracao ? { alteracao: t.alteracao } : {}) } };
     }
     return { ...ex, registros: regs };
   });
@@ -121,7 +129,7 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
       const res = aplicarRespostaExecucao(registros, tarefas, linhas, { quem, hoje: hojeIso() });
       editarExec((ex) => ({ ...ex, registros: res.registros }));
       const x = res.resumo;
-      setMsg(`Resposta importada: ${plural(x.feitas, "confirmada", "confirmadas")}${x.semEvidencia ? ` (${fmt(x.semEvidencia)} sem evidência: continuam pendentes)` : ""}, ${fmt(x.divergencias)} com divergência, ${fmt(x.semResposta)} sem resposta${x.naoAplicaveis ? `, ${plural(x.naoAplicaveis, "linha de frente que não se aplica", "linhas de frente que não se aplicam")}` : ""}${x.naoEncontradas.length ? `, ${plural(x.naoEncontradas.length, "tarefa não encontrada", "tarefas não encontradas")}` : ""}.`);
+      setMsg(`Resposta importada: ${plural(x.feitas, "confirmada", "confirmadas")}${x.semEvidencia ? ` (${fmt(x.semEvidencia)} sem evidência: continuam pendentes)` : ""}, ${fmt(x.divergencias)} com divergência, ${fmt(x.semResposta)} sem resposta${x.naoAplicaveis ? `, ${plural(x.naoAplicaveis, "linha de frente que não se aplica", "linhas de frente que não se aplicam")}` : ""}${x.naoEncontradas.length ? `, ${plural(x.naoEncontradas.length, "tarefa não encontrada", "tarefas não encontradas")}` : ""}${x.desatualizadas.length ? `, ${plural(x.desatualizadas.length, "linha desatualizada", "linhas desatualizadas")} (a alteração aprovada mudou depois de a lista ser emitida: não aplicada; emita a lista de novo)` : ""}.`);
     } catch (err) { setMsg(err.message); }
   };
 

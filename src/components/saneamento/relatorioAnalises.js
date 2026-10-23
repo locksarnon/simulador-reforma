@@ -5,7 +5,8 @@ import { situacaoCriterio } from "./analise";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { formatarNcm, leituraAchado, textoLinhas } from "./leituraAchados";
 import { montarConjuntos } from "./conjuntos";
-import { chaveDe } from "./identidade";
+import { chaveDe, identificavel, indexar } from "./identidade";
+import { coerenciaDaDecisao } from "./aprovacao";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -36,24 +37,31 @@ export function contarSelecao({ achados, criterios, grupos }) {
  * Monta o relatório: uma linha por item com achado em algum dos critérios escolhidos, e em cada linha o bloco de cada critério
  * ({ como, seria, porque, decisao }). `totaisGrupos` é Map(grupo -> itens em escopo); `escalaSaldo` divide o saldo lido da base.
  */
-export function montarRelatorioAnalises({ achados, criterios, grupos, estado, contagem, itemPorLinha, totaisGrupos, escalaSaldo = 1 }) {
+export function montarRelatorioAnalises({ achados, criterios, grupos, estado, contagem, itemPorLinha, totaisGrupos, escalaSaldo = 1, indice }) {
+  const ind = indice ?? indexar([...(itemPorLinha?.values?.() ?? [])]); // sem o índice da base, ele sai dos itens conhecidos (código repetido não recebe decisão)
   const sel = criteriosDoRelatorio().filter((c) => criterios.includes(c.id));
   // a duplicidade sai com a escolha de quem fica (ou a sugestão): os conjuntos são montados sobre todos os achados do critério
   const conjuntoDe = new Map();
   if (sel.some((c) => c.id === "duplicidade")) for (const c of montarConjuntos((achados?.duplicidade || []).map((a) => a.item), { escala: escalaSaldo })) for (const m of c.membros) conjuntoDe.set(m.linha, c);
   const gs = grupos ? new Set(grupos) : null; const linhas = new Map(); const colunas = []; let totalAchados = 0;
+  // a decisão só aparece para item com código que o identifica; a que perdeu a validade (cadastro mudou, código repetido) diz isso ao lado do que foi decidido
+  const textoDaDecisao = (it, critId) => {
+    const d = identificavel(it, ind) ? estado?.decisoes?.[chaveDe(it, critId)] : undefined; if (!d) return textoDecisao(undefined);
+    const coer = coerenciaDaDecisao(d, critId, it, ind, estado?.decisoes);
+    return `${textoDecisao(d)}${coer.ok ? "" : ` (não vale: ${coer.motivo.toLowerCase()})`}`;
+  };
   for (const c of sel) {
     let total = 0;
     for (const a of achados?.[c.id] || []) {
       const g = grupoDe(a.item); if (gs && !gs.has(g)) continue;
-      const it = a.item; const l = leituraAchado(c, a, { itemPorLinha, escala: escalaSaldo, conjuntoDe, decisoes: estado?.decisoes });
+      const it = a.item; const l = leituraAchado(c, a, { itemPorLinha, escala: escalaSaldo, conjuntoDe, decisoes: estado?.decisoes, indice: ind });
       let r = linhas.get(it.linha);
       if (!r) {
         const saldo = it.saldo != null && Number.isFinite(Number(it.saldo)) ? Number(it.saldo) / (escalaSaldo || 1) : null;
         r = { grupo: g, linha: it.linha, codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", ncm: formatarNcm(it.ncm || it.ncm_original || ""), ultimaMov: dataBr(it.ultima_mov), saldo, porCriterio: {} };
         linhas.set(it.linha, r);
       }
-      r.porCriterio[c.id] = { como: textoLinhas(l.como), seria: textoLinhas(l.seria), porque: l.porque, decisao: textoDecisao(estado?.decisoes?.[chaveDe(it, c.id)]) };
+      r.porCriterio[c.id] = { como: textoLinhas(l.como), seria: textoLinhas(l.seria), porque: l.porque, decisao: textoDaDecisao(it, c.id) };
       total += 1;
     }
     totalAchados += total; colunas.push({ id: c.id, titulo: c.titulo, situacao: situacaoCriterio(estado, c, contagem), total });

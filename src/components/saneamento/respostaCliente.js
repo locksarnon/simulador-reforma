@@ -3,7 +3,7 @@
 import { REGRAS_PADRAO, abreviacoesAprovadas, padronizarDescricao } from "./logica";
 import { carregarExcelJS } from "./arquivoXlsx";
 import { chaveDe, indexar, itemPorId, partirChave } from "./identidade";
-import { instantaneoDoItem } from "./aprovacao";
+import { coerenciaDaDecisao, instantaneoDoItem } from "./aprovacao";
 
 /** Texto comparável: minúsculo, sem acento e só letras e números ("Resposta (OK)" → "respostaok"). */
 export const chaveTexto = (x) => String(x ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -32,11 +32,15 @@ export function interpretarResposta(resposta, comoFica, sugerida) {
   return null; // sem resposta: continua aguardando
 }
 
-/** Aplica as respostas lidas da planilha (código, resposta, como deve ficar) sobre as decisões. Devolve as novas decisões e um resumo. */
+/**
+ * Aplica as respostas lidas da planilha (código, resposta, como deve ficar) sobre as decisões. Devolve as novas decisões e um resumo. A resposta vale para o que o cliente VIU:
+ * se a planilha traz a descrição atual e a sugerida e uma delas não é mais a de hoje (o cadastro mudou ou as regras sugerem outra coisa), a resposta não aprova a sugestão de
+ * agora e vai para `desatualizadas`; o mesmo vale para a decisão que o cadastro já deixou para trás.
+ */
 export function aplicarRespostas(decisoes, itens, linhas, { quem, hoje, regras = REGRAS_PADRAO, abrev = {} }) {
   const indice = indexar(itens);
   const novas = { ...decisoes };
-  const resumo = { aceitas: 0, ajustadas: 0, rejeitadas: 0, semResposta: 0, naoEncontradas: [], ambiguas: [] };
+  const resumo = { aceitas: 0, ajustadas: 0, rejeitadas: 0, semResposta: 0, naoEncontradas: [], ambiguas: [], desatualizadas: [] };
   for (const l of linhas) {
     const cod = String(l.codigo ?? "").trim();
     if (cod && indice.repetidos.has(cod)) { resumo.ambiguas.push(cod); continue; } // o código aparece mais de uma vez na base: não dá para saber de qual item é a resposta
@@ -46,7 +50,9 @@ export function aplicarRespostas(decisoes, itens, linhas, { quem, hoje, regras =
     const sugerida = atual?.sugerida || padronizarDescricao(it.descricao, regras, abrev).sugerida;
     const res = interpretarResposta(l.resposta, l.comoFica, sugerida);
     if (!res) { resumo.semResposta++; continue; }
-    novas[k] = { acao: "ENC", grupo: atual?.grupo || it.grupo_atual || "(sem grupo)", por: atual?.por || "planilha do cliente", em: atual?.em || hoje, antes: instantaneoDoItem(it), ...atual, sugerida, ...res, decididoPor: quem, decididoEm: hoje, viaPlanilha: true };
+    const viuSugestao = String(l.sugerida ?? "").trim() !== ""; const viuAtual = String(l.atual ?? "").trim() !== "";
+    if ((viuSugestao && chaveTexto(l.sugerida) !== chaveTexto(sugerida)) || (viuAtual && chaveTexto(l.atual) !== chaveTexto(it.descricao)) || (atual && !coerenciaDaDecisao(atual, "padrao", it, indice).ok)) { resumo.desatualizadas.push(cod); continue; }
+    novas[k] = { acao: "ENC", grupo: atual?.grupo || it.grupo_atual || "(sem grupo)", por: atual?.por || "planilha do cliente", em: atual?.em || hoje, antes: instantaneoDoItem(it, "padrao"), ...atual, sugerida, ...res, decididoPor: quem, decididoEm: hoje, viaPlanilha: true };
     if (res.status === "REJ") resumo.rejeitadas++; else if (res.origemFinal === "cliente") resumo.ajustadas++; else resumo.aceitas++;
   }
   return { decisoes: novas, resumo };
@@ -72,7 +78,8 @@ export function mapearColunasResposta(cabecalho) {
   const nomes = cabecalho.map(chaveTexto);
   const acha = (...ops) => nomes.findIndex((n) => ops.some((o) => n.includes(o)));
   const codigo = acha("codigo", "cod", "itemcode"); const resposta = acha("resposta", "ok", "aprov"); const comoFica = acha("comodeveficar", "comoficaria", "comoficar", "ficar");
-  return { codigo, resposta, comoFica, ok: codigo >= 0 && (resposta >= 0 || comoFica >= 0) };
+  const sugerida = acha("descricaosugerida", "sugerid"); const atual = acha("descricaoatual");
+  return { codigo, resposta, comoFica, sugerida, atual, ok: codigo >= 0 && (resposta >= 0 || comoFica >= 0) };
 }
 
 /** Lê a primeira aba de um xlsx (ou um csv/txt) como matriz de linhas; as células viram valores simples (fórmula, texto formatado e hiperlink incluídos). */
@@ -86,13 +93,13 @@ export async function lerMatriz(file) {
   return matriz;
 }
 
-/** Lê o arquivo devolvido (xlsx ou csv) e devolve [{ codigo, resposta, comoFica }]. */
+/** Lê o arquivo devolvido (xlsx ou csv) e devolve [{ codigo, resposta, comoFica, sugerida?, atual? }] (a descrição sugerida e a atual, quando a planilha as traz, mostram o que o cliente viu). */
 export async function lerRespostaCliente(file) {
   const matriz = await lerMatriz(file);
   if (!matriz.length) throw new Error("A planilha está vazia.");
   const cols = mapearColunasResposta(matriz[0].map(String));
   if (!cols.ok) throw new Error('Não encontrei as colunas "Código" e "Resposta"/"Como deve ficar" na primeira linha. Use a planilha emitida pelo sistema.');
-  return matriz.slice(1).map((r) => ({ codigo: r[cols.codigo], resposta: cols.resposta >= 0 ? r[cols.resposta] : "", comoFica: cols.comoFica >= 0 ? r[cols.comoFica] : "" }));
+  return matriz.slice(1).map((r) => ({ codigo: r[cols.codigo], resposta: cols.resposta >= 0 ? r[cols.resposta] : "", comoFica: cols.comoFica >= 0 ? r[cols.comoFica] : "", ...(cols.sugerida >= 0 ? { sugerida: r[cols.sugerida] } : {}), ...(cols.atual >= 0 ? { atual: r[cols.atual] } : {}) }));
 }
 
 export { abreviacoesAprovadas };

@@ -2,7 +2,8 @@ import React, { useMemo, useState } from "react";
 import { Info } from "lucide-react";
 import { Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
 import { dadosDoItem, leituraAchado } from "./leituraAchados";
-import { chaveDe, motivoSemIdentidade } from "./identidade";
+import { chaveDe, identificavel, motivoSemIdentidade } from "./identidade";
+import { sugestaoMudou } from "./aprovacao";
 
 /** O que "encaminhar" faz, dito de forma completa para quem está decidindo. */
 export const TXT_ENCAMINHAR = "Encaminhar = enviar o achado ao passo De/para como proposta, para você aprovar ou rejeitar (com aprovador e data). Só o aprovado entra nas listas finais e na execução; o que não for encaminhado fica como está. Nada é alterado no cadastro: a ferramenta só sugere.";
@@ -22,8 +23,8 @@ export function SituacaoEncaminhado({ d }) {
 }
 
 /** Explica o que é encaminhar e mostra quantos achados do critério já foram encaminhados e em que pé estão. */
-export function LegendaEncaminhar({ lista, decisoes, critId, onIrDepara }) {
-  const decs = lista.map((a) => decisoes[chaveDe(a.item, critId)]).filter(Boolean);
+export function LegendaEncaminhar({ lista, decisoes, critId, onIrDepara, indice }) {
+  const decs = lista.filter((a) => !indice || identificavel(a.item, indice)).map((a) => decisoes[chaveDe(a.item, critId)]).filter(Boolean); // item sem código, ou de código repetido, não tem decisão
   const aguardando = decs.filter((d) => d.status === "PROP").length; const aprovados = decs.filter((d) => d.status === "APR").length; const rejeitados = decs.filter((d) => d.status === "REJ").length;
   return (
     <div className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -67,14 +68,15 @@ export default function TabelaAchados({ ach, crit, decisoes, itemPorLinha, indic
           <Th chave="enc" ord={ord} onOrdenar={ordenar} title="Enviar o achado ao passo De/para, para aprovar ou rejeitar lá">Encaminhar para aprovação</Th>
         </tr></thead>
         <tbody>{ordenadas.slice(0, lim).map(({ a, l, dados }) => {
-          const it = a.item; const dec = decisoes[chaveDe(it, crit.id)]; const semId = indice ? motivoSemIdentidade(it, indice) : "";
+          const it = a.item; const semId = indice ? motivoSemIdentidade(it, indice) : ""; const dec = semId ? undefined : decisoes[chaveDe(it, crit.id)];
           return (
             <tr key={it.linha} className="border-t border-border align-top">
               <td className="p-1.5 tabular-nums">{it.linha}</td><td className="p-1.5">{it.codigo || "—"}</td>
               <td className="p-1.5 max-w-[240px]"><div className="break-words">{it.descricao || "—"}</div>{dados.length > 0 && <div className="mt-0.5 text-[11px] text-muted-foreground">{dados.map(([r, v]) => `${r} ${v}`).join(" · ")}</div>}</td>
               <td className="p-1.5 max-w-[260px]"><Linhas linhas={l.como} />{crit.id === "duplicidade" && it.duplicidade && <button type="button" className="mt-1 text-primary underline" onClick={() => onComparar(it)}>Comparar</button>}</td>
               <td className="p-1.5 max-w-[300px]"><Linhas linhas={l.seria} />{l.porque && <div className="mt-0.5 text-[11px] text-muted-foreground break-words">{l.porque}</div>}</td>
-              <td className="p-1.5 whitespace-nowrap"><label className="inline-flex items-center gap-1.5" title={semId || undefined}><input type="checkbox" aria-label={`Encaminhar o item ${it.codigo || `da linha ${it.linha}`} para aprovação`} checked={!!dec} disabled={(!!dec && dec.status !== "PROP") || !!semId} onChange={() => onAlternar(a)} />{dec && <SituacaoEncaminhado d={dec} />}</label>{semId && <p className="mt-1 max-w-[200px] whitespace-normal text-[11px] text-amber-700 dark:text-amber-300">{semId}.</p>}</td>
+              <td className="p-1.5 whitespace-nowrap"><label className="inline-flex items-center gap-1.5" title={semId || undefined}><input type="checkbox" aria-label={`Encaminhar o item ${it.codigo || `da linha ${it.linha}`} para aprovação`} checked={!!dec} disabled={(!!dec && dec.status !== "PROP") || !!semId} onChange={() => onAlternar(a)} />{dec && <SituacaoEncaminhado d={dec} />}</label>{semId && <p className="mt-1 max-w-[200px] whitespace-normal text-[11px] text-amber-700 dark:text-amber-300">{semId}.</p>}
+                {dec && sugestaoMudou(crit.id, dec, a) && <p className="mt-1 max-w-[220px] whitespace-normal text-[11px] text-amber-700 dark:text-amber-300">A sugestão de hoje é diferente da que foi decidida: a decisão vale só para a anterior.</p>}</td>
             </tr>);
         })}</tbody>
       </table>

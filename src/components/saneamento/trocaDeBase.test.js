@@ -72,6 +72,6 @@ describe("trocar a base: as decisões seguem o código do item, não a linha da 
   it("a resposta do cliente liga ao código, e o código repetido não se liga a nenhum item", () => {
     const itens = [item(2, "1001", "ANEL  TRAVA 1"), item(3, "1001", "ANEL TRAVA 1 OUTRO"), item(4, "1002", "CHAVE  16")];
     const r = aplicarRespostas({}, itens, [{ codigo: "1001", resposta: "ok" }, { codigo: "1002", resposta: "ok" }], { quem: "ana", hoje: "2026-10-22" });
-    expect(Object.keys(r.decisoes)).toEqual(["1002|padrao"]); expect(r.resumo.ambiguas).toEqual(["1001"]); expect(r.decisoes["1002|padrao"].antes).toEqual({ descricao: "CHAVE  16", unidade: "UN", grupo: "Peças" });
+    expect(Object.keys(r.decisoes)).toEqual(["1002|padrao"]); expect(r.resumo.ambiguas).toEqual(["1001"]); expect(r.decisoes["1002|padrao"].antes).toEqual({ descricao: "CHAVE  16" });
   });
 });

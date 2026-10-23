@@ -7,18 +7,14 @@
 // trabalho, para o analista decidir de novo. A simulação roda sobre uma cópia e não grava nada: o projeto só muda quando o resultado é aplicado.
 import { grupoDe } from "./logica";
 import { chaveDeId, idItem, indexar, VERSAO_CHAVES, textoOrigem } from "./identidade";
-import { instantaneoDoItem } from "./aprovacao";
+import { instantaneoDoItem, parecenca } from "./aprovacao";
+import { alteracaoDaTarefa, tarefaDaDecisao } from "./execucao";
 import { montarConjuntos } from "./conjuntos";
 import { SITUACOES, leituraFiscal } from "./fiscal";
 
 const comparavel = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
-const palavras = (v) => new Set(String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-/** Parecença entre dois textos pelas palavras (0 a 1): a sugestão de padronização reorganiza a descrição, não a troca por outra. */
-function parecenca(a, b) {
-  const x = palavras(a); const y = palavras(b); if (!x.size && !y.size) return 1;
-  let comum = 0; for (const p of x) if (y.has(p)) comum += 1;
-  return comum / (x.size + y.size - comum || 1);
-}
+/** Carimba a confirmação das equipes com a alteração aprovada, para ela não valer para outra alteração do mesmo item e critério. */
+const carimbar = (v, alteracao) => ({ ...v, ...(v?.adm ? { adm: { ...v.adm, alteracao } } : {}), ...(v?.alm ? { alm: { ...v.alm, alteracao } } : {}) });
 
 export const RESULTADO = { VINCULADA: "VINCULADA", AMBIGUA: "AMBIGUA", NAO_ENCONTRADA: "NAO_ENCONTRADA" };
 export const ROT_RESULTADO = { VINCULADA: "Vinculada ao código", AMBIGUA: "Ambígua: fica pendente para revisão", NAO_ENCONTRADA: "Não encontrada na base" };
@@ -39,7 +35,7 @@ export function planejarMigracao(estado, itens, { base = {}, origem = {}, por = 
   const itensComDup = (itens || []).filter((i) => i.duplicidade);
   const conjuntos = itensComDup.length ? montarConjuntos(itensComDup) : [];
   const conjuntoDe = new Map(); for (const c of conjuntos) for (const m of c.membros) conjuntoDe.set(m.linha, c);
-  const linhasRel = []; const checagens = { total: 0, falhas: [] };
+  const linhasRel = []; const checagens = { total: 0, fortes: 0, falhas: [] };
 
   // Recupera o item e o código de uma linha da base original; devolve o que impede o vínculo, se houver.
   const recuperar = (linha) => {
@@ -50,7 +46,8 @@ export function planejarMigracao(estado, itens, { base = {}, origem = {}, por = 
     if (indice.repetidos.has(id)) return { it, id, resultado: RESULTADO.AMBIGUA, motivo: `O código ${id} aparece mais de uma vez na base: não dá para saber de qual item é a decisão` };
     return { it, id };
   };
-  const conferir = (nome, ok) => { checagens.total += 1; if (!ok) checagens.falhas.push(nome); return ok; };
+  // conferência forte = o que a decisão guardou além do grupo (unidade de origem, código que ficava, texto da sugestão, ação fiscal); o grupo sozinho é fraco
+  const conferir = (nome, ok, forte = true) => { checagens.total += 1; if (forte) checagens.fortes += 1; if (!ok) checagens.falhas.push(nome); return ok; };
 
   const novosDecisoes = {}; const novosRegistros = {}; const novosFiscal = {};
   const legado = { decisoes: {}, execucaoRegistros: {}, fiscalDecisoes: {} }; const motivosLegado = {};
@@ -65,7 +62,7 @@ export function planejarMigracao(estado, itens, { base = {}, origem = {}, por = 
     const reg = { k, d, criterio: ca.crit, linha: ca.linha, ...r, falhas: [] };
     if (r.it) {
       // conferências: o que a decisão guardou tem que bater com o item que essa linha tem na base atestada como original
-      if (d?.grupo != null && !conferir(`${k}: grupo`, String(d.grupo).trim() === grupoDe(r.it))) reg.falhas.push(`o grupo guardado na decisão (${d.grupo}) é diferente do grupo do item nesta base (${grupoDe(r.it)})`);
+      if (d?.grupo != null && !conferir(`${k}: grupo`, String(d.grupo).trim() === grupoDe(r.it), false)) reg.falhas.push(`o grupo guardado na decisão (${d.grupo}) é diferente do grupo do item nesta base (${grupoDe(r.it)})`);
       if (ca.crit === "unidade" && d?.de && !conferir(`${k}: unidade`, comparavel(d.de) === comparavel(r.it.unidade))) reg.falhas.push(`a unidade de origem guardada (${d.de}) é diferente da unidade do item nesta base (${r.it.unidade || "vazia"})`);
       if (ca.crit === "padrao" && d?.sugerida) {
         const p = parecenca(d.sugerida, r.it.descricao);
@@ -107,10 +104,11 @@ export function planejarMigracao(estado, itens, { base = {}, origem = {}, por = 
   const confere = checagens.falhas.length === 0 && ![...pendentesDecisao, ...regsExec, ...regsFiscal].some((x) => x.resultado === RESULTADO.NAO_ENCONTRADA);
   const verificacao = {
     confere, verificacoes: checagens.total, falhas: checagens.falhas.length, exemplos: checagens.falhas.slice(0, 5),
-    // sem nenhuma conferência possível (por exemplo, só confirmações de execução) a base não é contrariada, mas também não é comprovada
-    fraca: confere && checagens.total === 0,
+    // sem nenhuma conferência forte (só o grupo, ou nada, como nas confirmações de execução) a base não é contrariada, mas também não é comprovada
+    fraca: confere && checagens.fortes === 0, fortes: checagens.fortes,
     mensagem: confere
-      ? (checagens.total === 0 ? "Não há como conferir a base com as decisões guardadas: a migração depende só da sua atestação de que esta é a base original." : `As ${checagens.total} conferências batem: esta base é compatível com as decisões.`)
+      ? (checagens.total === 0 ? "Não há como conferir a base com as decisões guardadas: a migração depende só da sua atestação de que esta é a base original."
+        : checagens.fortes === 0 ? `Só o grupo das decisões pôde ser conferido (${checagens.total} conferências batem): a migração depende da sua atestação de que esta é a base original.` : `As ${checagens.total} conferências batem: esta base é compatível com as decisões.`)
       : "Esta base NÃO confere com as decisões guardadas (o que a decisão guardou não bate com o item da mesma linha): não há fundamento para migrar de forma automática.",
   };
 
@@ -127,23 +125,24 @@ export function planejarMigracao(estado, itens, { base = {}, origem = {}, por = 
   for (const reg of pendentesDecisao) {
     const res = resolver(reg);
     if (res.resultado !== RESULTADO.VINCULADA) { legado.decisoes[reg.k] = reg.d; motivosLegado[`decisao ${reg.k}`] = res.motivo; rel("decisao", reg, res); continue; }
-    const nova = chaveDeId(reg.id, reg.criterio); const d = { ...reg.d, antes: reg.d.antes ?? instantaneoDoItem(reg.it), migradaDe: reg.k };
+    const nova = chaveDeId(reg.id, reg.criterio); const antes = reg.d.antes ?? instantaneoDoItem(reg.it, reg.criterio); const d = { ...reg.d, ...(antes ? { antes } : {}), migradaDe: reg.k };
     if (reg.criterio === "duplicidade" && d.destino != null && eNumero(d.destino)) {
       if (!reg.destino || !idItem(reg.destino) || indice.repetidos.has(idItem(reg.destino))) { const r2 = { resultado: RESULTADO.AMBIGUA, motivo: "O item que ficava não tem código que o identifique nesta base" }; legado.decisoes[reg.k] = reg.d; motivosLegado[`decisao ${reg.k}`] = r2.motivo; rel("decisao", reg, r2); continue; }
-      d.destino = idItem(reg.destino); d.destinoAntes = d.destinoAntes ?? instantaneoDoItem(reg.destino);
+      d.destino = idItem(reg.destino); d.destinoAntes = d.destinoAntes ?? instantaneoDoItem(reg.destino, "duplicidade");
     }
     if (novosDecisoes[nova]) { const r3 = { resultado: RESULTADO.AMBIGUA, motivo: "Há mais de uma decisão antiga para o mesmo código e critério" }; legado.decisoes[reg.k] = reg.d; motivosLegado[`decisao ${reg.k}`] = r3.motivo; rel("decisao", reg, r3); continue; }
-    novosDecisoes[nova] = d; migradas.set(reg.k, nova); rel("decisao", reg, res, nova);
+    novosDecisoes[nova] = d; migradas.set(reg.k, { nova, d, it: reg.it }); rel("decisao", reg, res, nova);
   }
   for (const reg of regsExec) {
     const res = resolver(reg);
     if (reg.criterio === "inativacao") { const r4 = { resultado: RESULTADO.AMBIGUA, motivo: "Confirmação de inativação por data de uso: a inativação passa a exigir a aprovação de uma lista fechada de itens, e esta confirmação não tem aprovação correspondente" }; legado.execucaoRegistros[reg.k] = reg.v; motivosLegado[`execução ${reg.k}`] = r4.motivo; rel("execucao", reg, r4); continue; }
-    const nova = migradas.get(reg.k);
+    const info = migradas.get(reg.k); const nova = info?.nova;
     if (res.resultado !== RESULTADO.VINCULADA || !nova) {
       const r5 = res.resultado !== RESULTADO.VINCULADA ? res : { resultado: RESULTADO.AMBIGUA, motivo: "Não há decisão migrada que corresponda a esta tarefa" };
       legado.execucaoRegistros[reg.k] = reg.v; motivosLegado[`execução ${reg.k}`] = r5.motivo; rel("execucao", reg, r5); continue;
     }
-    novosRegistros[nova] = reg.v; rel("execucao", reg, res, nova);
+    const t = tarefaDaDecisao(reg.criterio, info.d, info.it, indice); // a confirmação passa a valer para a alteração da decisão migrada
+    novosRegistros[nova] = t ? carimbar(reg.v, alteracaoDaTarefa(t.tipo, t.dados)) : reg.v; rel("execucao", reg, res, nova);
   }
   for (const reg of regsFiscal) {
     const res = resolver(reg);
@@ -158,7 +157,7 @@ export function planejarMigracao(estado, itens, { base = {}, origem = {}, por = 
   const novo = {
     ...estado, versaoChaves: VERSAO_CHAVES, origem: { ...(origem || {}), declaradaPor: por, declaradaEm: em },
     decisoes: novosDecisoes, execucao: { ...(estado?.execucao || {}), registros: novosRegistros }, fiscal: { ...(estado?.fiscal || {}), decisoes: novosFiscal },
-    migracao: { em, por, base, origem: textoOrigem(origem), totais, verificacao: { confere, verificacoes: checagens.total, falhas: checagens.falhas.length } },
+    migracao: { em, por, base, origem: textoOrigem(origem), totais, verificacao: { confere, verificacoes: checagens.total, falhas: checagens.falhas.length, fraca: confere && checagens.fortes === 0 } },
   };
   if (temLegado) novo.legado = { geradoEm: em, por, base, ...legado, motivos: motivosLegado, linhas: linhasRel.filter((x) => x.resultado !== RESULTADO.VINCULADA) }; // as linhas do que não vinculou ficam no projeto: a lista de pendências
   return { estado: novo, relatorio: { geradoEm: em, por, base, origem, totais, verificacao, linhas: linhasRel } };

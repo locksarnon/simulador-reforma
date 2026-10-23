@@ -36,6 +36,13 @@ export function tiposEfetivos(tipos) {
   }));
 }
 
+/** O que foi proposto e aprovado nos critérios sem receita própria (NCM e classe; grupo), em uma frase. */
+const propostaTxt = (p) => {
+  if (!p) return ""; const partes = [];
+  if (p.ncm) partes.push(`NCM ${p.ncm}`); if (p.cClassTrib) partes.push(`cClassTrib ${p.cClassTrib}`); if (p.grupo) partes.push(`grupo "${p.grupo}"`);
+  return partes.length ? ` Proposta aprovada: ${partes.join("; ")}.` : "";
+};
+
 // O que fazer em cada frente, com os dados do item.
 const INSTRUCAO = {
   unificacao: (t) => ({
@@ -47,43 +54,70 @@ const INSTRUCAO = {
     alm: `Recontar o saldo físico em ${t.dados.unidadePara} e trocar a identificação do endereço.` }),
   grafia: (t) => ({ adm: `Trocar a grafia da unidade: ${t.dados.unidadeDe} → ${t.dados.unidadePara}.`, alm: "" }),
   inativacao: (t) => ({ adm: `Inativar o item (${t.dados.corte}). Aprovação: ${t.dados.aprovacao}.`, alm: TIPOS_TAREFA.inativacao.comoAlm }),
-  outro: (t) => ({ adm: `Tratar conforme o critério "${t.dados.criterio}" (aprovado no passo De/para).`, alm: "" }),
+  outro: (t) => ({ adm: `Tratar conforme o critério "${t.dados.criterio}" (aprovado no passo De/para).${propostaTxt(t.dados.proposto)}`, alm: "" }),
 };
+
+const comparavel = (v) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * O que a tarefa manda fazer, em uma linha comparável: a confirmação das equipes (feito, evidência, divergência) vale só para essa alteração. Se a decisão for descartada e
+ * outra alteração for aprovada para o mesmo item e critério, a confirmação da anterior NÃO passa para a nova (o id da tarefa é o mesmo; a alteração, não).
+ */
+export function alteracaoDaTarefa(tipo, dados) {
+  switch (tipo) {
+    case "unificacao": return `unificar:${dados.destinoCodigo}`;
+    case "descricao": return `descricao:${dados.descricaoFinal}`;
+    case "unidade": return `unidade:${dados.unidadeDe}>${dados.unidadePara}:${dados.itensPorCompra ?? ""}`;
+    case "grafia": return `grafia:${dados.unidadeDe}>${dados.unidadePara}`;
+    case "inativacao": return "inativar"; // a alteração é inativar o item; a aprovação (lote ou individual) pode ser refeita sem perder a confirmação do que já foi executado
+    default: return `outro:${dados.criterio}:${dados.proposto ? JSON.stringify(dados.proposto) : ""}`;
+  }
+}
+
+/** O tipo e os dados da tarefa que nasce de uma decisão aprovada, ou null quando não há nada a executar (código mantido, cadastro que já está como o aprovado). */
+export function tarefaDaDecisao(crit, d, it, indice) {
+  const tituloCriterio = (id) => CRITERIOS.find((c) => c.id === id)?.titulo ?? id;
+  if (crit === "duplicidade") {
+    const destinoId = d.destino ?? (it.duplicidade?.mestre != null ? idItem(indice.porLinha.get(it.duplicidade.mestre)) : null);
+    if (!destinoId || destinoId === idItem(it)) return null; // código mantido: nada a unificar
+    const dest = itemPorId(indice, destinoId);
+    return { tipo: "unificacao", dados: { destinoCodigo: destinoId, destinoDescricao: dest?.descricao ?? d.destinoAntes?.descricao ?? "" } };
+  }
+  if (crit === "padrao") {
+    const final = d.final || d.sugerida;
+    if (!final || final === it.descricao) return null;
+    return { tipo: "descricao", dados: { descricaoFinal: final } };
+  }
+  if (crit === "unidade" && d.para) {
+    if (comparavel(it.unidade) === comparavel(d.para)) return null; // a unidade já é a aprovada
+    const conversao = d.tipo === "conversao";
+    return { tipo: conversao ? "unidade" : "grafia", dados: { unidadeDe: d.de || it.unidade, unidadePara: d.para, itensPorCompra: conversao ? fatorDaDecisao(d) : null } };
+  }
+  return { tipo: "outro", dados: { criterio: tituloCriterio(crit), proposto: d.proposto ?? null } };
+}
 
 /**
  * Tarefas de execução: uma por decisão APROVADA (ausência de resposta não é aprovação) e uma por inativação APROVADA (em lote, com lista fechada, ou individualmente): o corte
  * por data só seleciona candidatos e nunca gera tarefa sozinho.
  * Devolve { tarefas, geradasPorTipo }: `tarefas` já sem os tipos que o analista tirou da execução; `geradasPorTipo` conta tudo o que foi gerado.
  * O id da tarefa é a chave da decisão ("código|critério"); a inativação usa "código|inativacao". A tarefa nasce do que foi aprovado para o código do item: se o cadastro
- * dele mudou para outra coisa desde a aprovação, ela não cobre o que está lá e não gera tarefa; se o item não está mais na base, a tarefa sai do que foi guardado na aprovação.
+ * dele mudou para outra coisa desde a aprovação, ela não cobre o que está lá e não gera tarefa; se o cadastro já está como o aprovado, não há o que executar; se o item não
+ * está mais na base, a tarefa sai do que foi guardado na aprovação. Cada tarefa leva a `alteracao` aprovada: a confirmação só vale para ela.
  */
 export function gerarTarefas({ decisoes, tipos, itens, escopo, params, inativacao }) {
   const cfg = tiposEfetivos(tipos);
   const indice = indexar(itens);
-  const tituloCriterio = (id) => CRITERIOS.find((c) => c.id === id)?.titulo ?? id;
   const brutas = [];
-  const nova = (tipo, id, it, grupo, dados) => brutas.push({ id, linha: it.linha ?? null, item: idItem(it), tipo, grupo: grupo || grupoDe(it), codigo: it.codigo, descricao: it.descricao, dados, ...(it.ausenteNaBase ? { ausenteNaBase: true } : {}) });
+  const nova = (tipo, id, it, grupo, dados) => brutas.push({ id, linha: it.linha ?? null, item: idItem(it), tipo, grupo: grupo || grupoDe(it), codigo: it.codigo, descricao: it.descricao, dados, alteracao: alteracaoDaTarefa(tipo, dados), ...(it.ausenteNaBase ? { ausenteNaBase: true } : {}) });
   for (const [k, d] of Object.entries(decisoes || {})) {
     if (d?.status !== "APR") continue;
     const { id, crit } = partirChave(k);
     if (!id || indice.repetidos.has(id)) continue; // sem código, ou código repetido na base: não dá para saber de qual item é a decisão
     let it = indice.porId.get(id);
-    if (it) { if (!coerenciaDaDecisao(d, crit, it, indice).ok) continue; }
-    else if (d.antes) it = { codigo: id, descricao: d.antes.descricao, unidade: d.antes.unidade, grupo_atual: d.antes.grupo, ausenteNaBase: true };
+    if (it) { const coer = coerenciaDaDecisao(d, crit, it, indice, decisoes); if (!coer.ok || coer.estado === "REFLETIDA") continue; }
+    else if (d.antes) it = { codigo: id, descricao: d.antes.descricao ?? "", unidade: d.antes.unidade ?? "", grupo_atual: d.grupo, ausenteNaBase: true };
     else continue;
-    if (crit === "duplicidade") {
-      const destinoId = d.destino ?? (it.duplicidade?.mestre != null ? idItem(indice.porLinha.get(it.duplicidade.mestre)) : null);
-      if (!destinoId || destinoId === id) continue; // código mantido: nada a unificar
-      const dest = itemPorId(indice, destinoId);
-      nova("unificacao", k, it, d.grupo, { destinoCodigo: destinoId, destinoDescricao: dest?.descricao ?? d.destinoAntes?.descricao ?? "" });
-    } else if (crit === "padrao") {
-      const final = d.final || d.sugerida;
-      if (!final || final === it.descricao) continue;
-      nova("descricao", k, it, d.grupo, { descricaoFinal: final });
-    } else if (crit === "unidade" && d.para) {
-      const conversao = d.tipo === "conversao";
-      nova(conversao ? "unidade" : "grafia", k, it, d.grupo, { unidadeDe: d.de || it.unidade, unidadePara: d.para, itensPorCompra: conversao ? fatorDaDecisao(d) : null });
-    } else nova("outro", k, it, d.grupo, { criterio: tituloCriterio(crit) });
+    const t = tarefaDaDecisao(crit, d, it, indice); if (t) nova(t.tipo, k, it, d.grupo, t.dados);
   }
   const corte = dataDoCorte(params);
   for (const a of inativacoesAprovadas(inativacao, escopo, indice)) {
@@ -103,6 +137,19 @@ export function gerarTarefas({ decisoes, tipos, itens, escopo, params, inativaca
   return { tarefas, geradasPorTipo };
 }
 
+/**
+ * A confirmação das equipes que vale para a alteração de HOJE da tarefa: o registro de uma frente carimbado com outra alteração (a decisão foi descartada e outra, aprovada)
+ * é descartado da leitura. Registro sem carimbo (anterior a esta regra) vale como está.
+ */
+export function registroEfetivo(tarefa, registro) {
+  if (!registro) return undefined; const alt = tarefa?.alteracao; if (!alt) return registro;
+  const vale = (r) => (r && (!r.alteracao || r.alteracao === alt) ? r : undefined);
+  const adm = vale(registro.adm); const alm = vale(registro.alm);
+  return adm || alm ? { ...registro, adm, alm } : undefined;
+}
+/** Há confirmação guardada de OUTRA alteração (a anterior) numa frente da tarefa: é avisada na tela e nunca conta como feita. */
+export const confirmacaoObsoleta = (tarefa, registro, frente) => { const r = registro?.[frente]; return !!(r && r.alteracao && tarefa?.alteracao && r.alteracao !== tarefa.alteracao); };
+
 // ── Situação ──
 export const ROT_SITUACAO_FRENTE = { NA: "Não se aplica", PENDENTE: "Pendente", SEM_EVIDENCIA: "Feito, sem evidência (pendente)", FEITO: "Confirmado", DIVERGENCIA: "Divergência" };
 export const ROT_SITUACAO_GERAL = { CONCLUIDA: "Concluída", EM_ANDAMENTO: "Em andamento", PENDENTE: "Pendente", DIVERGENCIA: "Com divergência" };
@@ -116,7 +163,8 @@ export function situacaoFrente(aplica, reg) {
 }
 
 /** Situação da tarefa: de cada frente e a geral (concluída só com todas as frentes aplicáveis confirmadas). */
-export function situacaoTarefa(tarefa, registro) {
+export function situacaoTarefa(tarefa, registroBruto) {
+  const registro = registroEfetivo(tarefa, registroBruto); // a confirmação de outra alteração não conta
   const adm = situacaoFrente(tarefa.aplica.adm, registro?.adm); const alm = situacaoFrente(tarefa.aplica.alm, registro?.alm);
   const aplicaveis = [adm, alm].filter((s) => s !== "NA");
   const geral = aplicaveis.includes("DIVERGENCIA") ? "DIVERGENCIA"
@@ -154,17 +202,20 @@ export function situacaoPorLinha(tarefas, registros) {
 
 // ── Listas por frente (o que vai para o administrativo e para o almoxarifado) ──
 const COLUNAS_BASE = ["ID da tarefa", "Frente", "Lote (grupo)", "Tarefa", "Código", "Descrição atual", "O que fazer"];
+/** Última coluna da planilha: a alteração aprovada que a linha pede. A resposta só vale se ela ainda for a alteração aprovada da tarefa (a decisão pode ter mudado depois da emissão). */
+export const COLUNA_ALTERACAO = "Alteração aprovada (não altere)";
 export const COLUNAS_FRENTE = {
-  adm: [...COLUNAS_BASE, "Resposta (FEITO ou DIVERGÊNCIA)", "Evidência (documento no SAP, foto ou link)", "Observação"],
-  alm: [...COLUNAS_BASE, "Endereço de origem", "Endereço de destino", "Quantidade realocada", "Resposta (FEITO ou DIVERGÊNCIA)", "Evidência (foto, etiqueta, documento ou link)", "Observação"],
+  adm: [...COLUNAS_BASE, "Resposta (FEITO ou DIVERGÊNCIA)", "Evidência (documento no SAP, foto ou link)", "Observação", COLUNA_ALTERACAO],
+  alm: [...COLUNAS_BASE, "Endereço de origem", "Endereço de destino", "Quantidade realocada", "Resposta (FEITO ou DIVERGÊNCIA)", "Evidência (foto, etiqueta, documento ou link)", "Observação", COLUNA_ALTERACAO],
 };
-export const LARGURAS_FRENTE = { adm: [14, 22, 28, 28, 14, 44, 70, 18, 40, 36], alm: [14, 22, 28, 28, 14, 44, 70, 18, 18, 14, 18, 40, 36] };
+export const LARGURAS_FRENTE = { adm: [14, 22, 28, 28, 14, 44, 70, 18, 40, 36, 30], alm: [14, 22, 28, 28, 14, 44, 70, 18, 18, 14, 18, 40, 36, 30] };
 
 /** Linhas da lista de uma frente: as tarefas aplicáveis a ela que ainda não estão confirmadas com evidência (inclui as com divergência, para nova resposta). */
 export function linhasListaFrente(frente, tarefas, registros) {
-  return tarefas.filter((t) => t.aplica[frente] && situacaoFrente(true, registros?.[t.id]?.[frente]) !== "FEITO").map((t) => {
+  return tarefas.filter((t) => t.aplica[frente] && situacaoFrente(true, registroEfetivo(t, registros?.[t.id])?.[frente]) !== "FEITO").map((t) => {
     const base = [t.id, FRENTES[frente], t.grupo, TIPOS_TAREFA[t.tipo].titulo, t.codigo, t.descricao, t.instrucao[frente]];
-    return [...base, ...Array(COLUNAS_FRENTE[frente].length - base.length).fill("")];
+    const resto = Array(COLUNAS_FRENTE[frente].length - base.length).fill(""); resto[resto.length - 1] = t.alteracao || "";
+    return [...base, ...resto];
   });
 }
 
@@ -179,7 +230,7 @@ const quando = (reg) => (reg?.por || reg?.em ? [reg.por, reg.em ? String(reg.em)
 /** Linhas da aba "Execução" das listas finais: todas as tarefas, com a situação de cada frente, a evidência e a divergência. */
 export function linhasExecucao(tarefas, registros) {
   return tarefas.map((t) => {
-    const r = registros?.[t.id] || {}; const s = situacaoTarefa(t, r);
+    const r = registroEfetivo(t, registros?.[t.id]) || {}; const s = situacaoTarefa(t, registros?.[t.id]);
     return {
       grupo: t.grupo, tarefa: TIPOS_TAREFA[t.tipo].titulo, codigo: t.codigo, descricao: t.descricao, instrucaoAdm: t.instrucao.adm,
       adm: ROT_SITUACAO_FRENTE[s.adm], evidAdm: r.adm?.evidencia || "", obsAdm: r.adm?.obs || "", quemAdm: quando(r.adm),
@@ -203,10 +254,10 @@ export function mapearColunasExecucao(cabecalho) {
   const nomes = cabecalho.map(chaveTexto);
   const acha = (...ops) => nomes.findIndex((n) => ops.some((o) => n.includes(o)));
   const id = acha("iddatarefa", "idtarefa"); const resposta = acha("resposta");
-  return { id, resposta, frente: acha("frente"), evidencia: acha("evidencia"), obs: acha("observacao"), origem: acha("enderecodeorigem"), destino: acha("enderecodedestino"), qtd: acha("quantidaderealocada", "quantidade"), ok: id >= 0 && resposta >= 0 };
+  return { id, resposta, frente: acha("frente"), evidencia: acha("evidencia"), obs: acha("observacao"), origem: acha("enderecodeorigem"), destino: acha("enderecodedestino"), qtd: acha("quantidaderealocada", "quantidade"), alteracao: acha("alteracaoaprovada"), ok: id >= 0 && resposta >= 0 };
 }
 
-/** Lê a planilha devolvida (xlsx ou csv) e devolve [{ id, frente, resposta, evidencia, obs, origem, destino, qtd }]. */
+/** Lê a planilha devolvida (xlsx ou csv) e devolve [{ id, frente, resposta, evidencia, obs, origem, destino, qtd, alteracao }]. */
 export async function lerRespostaExecucao(file) {
   const matriz = await lerMatriz(file);
   if (!matriz.length) throw new Error("A planilha está vazia.");
@@ -216,25 +267,28 @@ export async function lerRespostaExecucao(file) {
   const col = (r, i) => (i >= 0 ? r[i] : "");
   return matriz.slice(1).map((r) => ({
     id: col(r, c.id), frente: frenteDe(col(r, c.frente)) ?? padrao, resposta: col(r, c.resposta), evidencia: col(r, c.evidencia), obs: col(r, c.obs),
-    origem: col(r, c.origem), destino: col(r, c.destino), qtd: col(r, c.qtd),
+    origem: col(r, c.origem), destino: col(r, c.destino), qtd: col(r, c.qtd), alteracao: String(col(r, c.alteracao) ?? "").trim(),
   }));
 }
 
 /**
  * Aplica as respostas sobre os registros de execução. Resposta em branco continua pendente; FEITO sem evidência é registrado mas não conta;
- * linha de uma frente que não se aplica à tarefa, ou de tarefa que não existe mais, é avisada e ignorada.
+ * linha de uma frente que não se aplica à tarefa, ou de tarefa que não existe mais, é avisada e ignorada. A linha traz a alteração aprovada para a qual foi emitida: se a decisão
+ * mudou depois (outro texto, outro código que fica, outro fator), a resposta é da alteração antiga e NÃO vale para a nova (vai para `desatualizadas`). Planilha sem essa coluna
+ * (emitida antes desta regra) segue como antes.
  */
 export function aplicarRespostaExecucao(registros, tarefas, linhas, { quem, hoje }) {
   const porId = new Map(tarefas.map((t) => [t.id, t]));
   const novos = { ...registros };
-  const resumo = { feitas: 0, divergencias: 0, semResposta: 0, semEvidencia: 0, naoEncontradas: [], naoAplicaveis: 0 };
+  const resumo = { feitas: 0, divergencias: 0, semResposta: 0, semEvidencia: 0, naoEncontradas: [], naoAplicaveis: 0, desatualizadas: [] };
   for (const l of linhas) {
     const id = String(l.id ?? "").trim(); if (!id) continue;
     const t = porId.get(id); if (!t) { resumo.naoEncontradas.push(id); continue; }
     if (!t.aplica[l.frente]) { resumo.naoAplicaveis += 1; continue; }
     const status = interpretarRespostaExecucao(l.resposta); if (!status) { resumo.semResposta += 1; continue; }
+    const daLinha = String(l.alteracao ?? "").trim(); if (daLinha && t.alteracao && daLinha !== t.alteracao) { resumo.desatualizadas.push(id); continue; }
     const evidencia = String(l.evidencia ?? "").trim();
-    const reg = { status, por: `planilha (${FRENTES[l.frente]})`, em: hoje, registradoPor: quem, via: "planilha", evidencia, obs: String(l.obs ?? "").trim() };
+    const reg = { status, por: `planilha (${FRENTES[l.frente]})`, em: hoje, registradoPor: quem, via: "planilha", evidencia, obs: String(l.obs ?? "").trim(), ...(t.alteracao ? { alteracao: t.alteracao } : {}) };
     if (l.frente === "alm") {
       for (const [k, v] of [["origem", l.origem], ["destino", l.destino], ["qtd", l.qtd]]) { const x = String(v ?? "").trim(); if (x) reg[k] = x; }
     }

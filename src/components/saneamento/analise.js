@@ -32,16 +32,17 @@ export function coberturaDaBase(base) {
 
 /**
  * Totais por critério e por grupo. null quando não há item em escopo: sem base (ou com tudo fora do escopo) não há como afirmar que "não há achado".
- * `cobertura` (de coberturaDaBase) segue junto da contagem: critério cuja análise não rodou não pode se dar por verificado.
+ * `cobertura` (de coberturaDaBase) segue junto da contagem: critério cuja análise não rodou não pode se dar por verificado. `baseId` (a base analisada) também segue: a marca
+ * de "tratado" feita sobre outra base não vale para esta.
  */
-export function contarAchados(achados, totalEmEscopo, cobertura = {}) {
+export function contarAchados(achados, totalEmEscopo, cobertura = {}, baseId = null) {
   if (!totalEmEscopo) return null;
   const porCriterio = {}; const porGrupoCriterio = {};
   for (const [id, lista] of Object.entries(achados)) {
     porCriterio[id] = lista.length;
     for (const a of lista) { const k = `${grupoDe(a.item)}|${id}`; porGrupoCriterio[k] = (porGrupoCriterio[k] || 0) + 1; }
   }
-  return { porCriterio, porGrupoCriterio, cobertura };
+  return { porCriterio, porGrupoCriterio, cobertura, baseId };
 }
 
 /** Achados do critério nos itens em escopo; null se o critério é conferido à mão ou ainda não há contagem. */
@@ -80,12 +81,20 @@ export const criteriosAprovados = (estado, contagem) => CRITERIOS.filter((c) => 
 export const criterioResolvido = (estado, crit, contagem) => criterioAprovado(estado, crit, contagem) || situacaoCriterio(estado, crit, contagem) === "NAO_APLICAVEL";
 
 /**
- * O grupo está tratado no critério quando o analista marcou, ou quando o teste automático rodou por inteiro e não achou nada nele. Sem a análise executada
+ * A marca de "tratado" vale para a base analisada? A marca antiga (`true`) ou sem a base registrada vale como está; a feita sobre outra base não vale: a análise daquela
+ * base não é a de hoje, e o analista confere o grupo de novo.
+ */
+export const marcaValida = (marca, baseId) => !!marca && (marca === true || !marca.base || !baseId || marca.base === baseId);
+/** Há uma marca de "tratado" que ficou para trás por ter sido feita sobre outra base? */
+export const marcaDeOutraBase = (marca, baseId) => !!marca && !marcaValida(marca, baseId);
+
+/**
+ * O grupo está tratado no critério quando o analista marcou (nesta base), ou quando o teste automático rodou por inteiro e não achou nada nele. Sem a análise executada
  * nada está tratado: a marca não substitui a análise que não houve.
  */
 export function grupoTratado(estado, grupo, crit, contagem) {
   if (!coberturaDoCriterio(contagem, crit).completa) return false;
-  if (estado?.tratados?.[`${grupo}|${crit.id}`]) return true;
+  if (marcaValida(estado?.tratados?.[`${grupo}|${crit.id}`], contagem?.baseId)) return true;
   return !!contagem && crit.auto && (contagem.porGrupoCriterio[`${grupo}|${crit.id}`] ?? 0) === 0;
 }
 
