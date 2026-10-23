@@ -13,6 +13,10 @@ import PassoExecucao from "./PassoExecucao";
 import { gerarTarefas, resumoExecucao } from "./execucao";
 import { gerarListaCliente, gerarXlsx, linhasQueSaem, montarListas } from "./listasFinais";
 import PassoFiscal from "./PassoFiscal";
+import PassoPolitica from "./PassoPolitica";
+import { montarPolitica } from "./politica";
+import { montarRelatorioFinal } from "./relatorioFinal";
+import { gerarPdfRelatorio } from "./relatorioPdf";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
 import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
@@ -31,12 +35,12 @@ const PASSOS = [
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências." },
   { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
   { t: "Fiscal", programa: "Cada grupo saneado é liberado para a revisão fiscal: o analista confere o NCM e o cClassTrib (com o CST e a redução) de cada item contra os anexos da LC 214/2025 consultados e decide o que fica; o que parece serviço segue por NBS e LC 116. O CST e o cClassTrib de cada operação seguem na validação das operações.", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências." },
-  { t: "Política", programa: "Procedimentos para criar, comprar, usar, padronizar e descontinuar itens, a partir dos critérios aprovados e das causas encontradas.", avancar: "Política aprovada, com responsáveis e controles registrados.", proxima: true },
+  { t: "Política", programa: "Procedimentos para criar, comprar, usar, padronizar e descontinuar itens, a partir dos critérios aprovados e das causas encontradas. A política é uma proposta gerada do projeto: o responsável a revisa, define o responsável e o controle de cada procedimento e aprova. Sai em Excel, em JSON estruturado para o cadastro automático do cliente e no relatório do programa de trabalho em PDF.", avancar: "Política aprovada, com responsáveis e controles registrados." },
 ];
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} } });
+const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null } });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -375,20 +379,25 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       </div>
     </div>);
 
-  const proxima = (
-    <div className="rounded-xl border border-dashed border-border p-4 text-sm space-y-1">
-      <p className="font-medium">Disponível na próxima fase</p>
-      <p className="text-muted-foreground">{PASSOS[passo].programa}</p>
-      <p className="text-muted-foreground">Até lá, o andamento dos passos anteriores fica salvo e você pode voltar quando quiser.</p>
-    </div>
-  );
-
   // ── Passo 8: Fiscal (revisão fiscal dos grupos saneados) ──
   const fiscalUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para a revisão fiscal.</p> : (
     <PassoFiscal estado={estado} setEstado={setEstado} grupos={grupos} saem={saem} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} temAnalise={temAnalise} onIrAnalises={() => irPara(3)} />
   );
 
-  const corpo = [triagem, criterios, piloto, analises, depara, execucao, conferencia, fiscalUi][passo] ?? proxima;
+  // ── Passo 9: Política de uso e relatório do programa de trabalho (PDF) ──
+  // O relatório reúne o que foi feito em todos os passos: as listas são montadas na hora de emitir (a base pode ser grande) e o PDF é carregado só então.
+  const emitirRelatorioFinal = async () => {
+    const nomeBase = base.data?.nome_arquivo;
+    const listasAgora = montarListas({ nomeProjeto: nome, nomeBase, estado, itens, escopo, testes, escalaSaldo });
+    const politica = montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto: nome, nomeBase });
+    const rel = montarRelatorioFinal({ nomeProjeto: nome, nomeBase, quem, estado, itens, escopo, contagem, listas: listasAgora, politica });
+    return gerarPdfRelatorio(rel, `${slug}-relatorio-do-programa-de-trabalho.pdf`);
+  };
+  const politicaUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para montar a política.</p> : (
+    <PassoPolitica estado={estado} setEstado={setEstado} contagem={contagem} escopo={escopo} grupos={grupos} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} onRelatorio={emitirRelatorioFinal} />
+  );
+
+  const corpo = [triagem, criterios, piloto, analises, depara, execucao, conferencia, fiscalUi, politicaUi][passo];
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => estado.saneados[g.nome]).length;
@@ -404,7 +413,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     { feito: nDec > 0 && nDecFeitas === nDec, sub: nDec ? `${nDecFeitas}/${nDec} decididos` : "sem casos" },
     { feito: resumoEx.total > 0 && resumoEx.CONCLUIDA === resumoEx.total, sub: resumoEx.total ? `${fmt(resumoEx.CONCLUIDA)}/${fmt(resumoEx.total)} concluídas` : "sem tarefas" }, { sub: "listas finais" },
     { feito: nSan > 0 && nFisc === nSan, sub: nSan ? `${nFisc}/${nSan} grupos revisados` : "aguarda saneamento", bloqueado: nSan === 0 },
-    { sub: "em breve" },
+    { feito: !!estado.politica?.aprovada, sub: estado.politica?.aprovada ? "aprovada" : "em elaboração" },
   ];
   return (
     <div className="space-y-3">
