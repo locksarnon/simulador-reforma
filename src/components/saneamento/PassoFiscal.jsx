@@ -5,7 +5,8 @@ import { base44 } from "@/api/base44Client";
 import { hojeIso } from "./logica";
 import { grupoSaneado } from "./analise";
 import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
-import { ACOES, ORDEM_SITUACOES, SITUACOES, decisaoValida, itensDoGrupoFiscal, leituraFiscal, linhasMatriz, mapaClasses, podeConcluir, resumoDeLeituras } from "./fiscal";
+import { ACOES, ORDEM_SITUACOES, SITUACOES, decisaoFiscalDe, decisaoValida, itensDoGrupoFiscal, leituraFiscal, linhasMatriz, mapaClasses, podeConcluir, resumoDeLeituras } from "./fiscal";
+import { indexar, motivoSemIdentidade } from "./identidade";
 import { gerarXlsxFiscal } from "./matrizFiscal";
 
 const slugTxt = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -14,39 +15,42 @@ const RANQUE = Object.fromEntries(ORDEM_SITUACOES.map((s, i) => [s, i]));
 const EM_LOTE = ["BENEFICIO", "SEM_CLASSE", "DIVERGENTE"]; // situações em que "adotar a classe sugerida" pode ser feito em bloco
 
 /** Decisão do analista em uma linha: escolhe a ação e, quando a ação pede, o NCM correto ou o fundamento escrito. */
-function CelulaDecisao({ l, d, travada, onMudar }) {
+function CelulaDecisao({ l, d, travada, motivoBloqueio, onMudar }) {
   const acoes = SITUACOES[l.situacao].acoes.filter((a) => a !== "ACEITAR" || l.sugerida);
   if (!acoes.length) return <span className="text-muted-foreground">—</span>;
+  if (motivoBloqueio) return <p className="text-[11px] text-amber-700 dark:text-amber-300 max-w-[220px]">{motivoBloqueio}. Corrija no ERP e traga a base de novo.</p>;
   const valida = decisaoValida(l.situacao, l, d);
   return (
     <div className="space-y-1">
-      <select value={d?.acao || ""} disabled={travada} onChange={(e) => onMudar(l.linha, e.target.value ? { acao: e.target.value } : null)} aria-label={`Decisão fiscal da linha ${l.linha}`} className="border rounded px-1 py-0.5 bg-background text-xs max-w-[220px]">
+      <select value={d?.acao || ""} disabled={travada} onChange={(e) => onMudar(l.id, e.target.value ? { acao: e.target.value } : null)} aria-label={`Decisão fiscal do código ${l.id}`} className="border rounded px-1 py-0.5 bg-background text-xs max-w-[220px]">
         <option value="">Decidir…</option>
         {acoes.map((a) => <option key={a} value={a}>{ACOES[a]}</option>)}
       </select>
-      {d?.acao === "NCM" && <input value={d.ncm || ""} disabled={travada} onChange={(e) => onMudar(l.linha, { ncm: e.target.value })} placeholder="NCM correto (8 dígitos)" aria-label={`NCM correto da linha ${l.linha}`} className="block w-40 border rounded px-1 py-0.5 bg-background text-xs tabular-nums" />}
-      {d?.acao === "MANTER" && <input value={d.obs || ""} disabled={travada} onChange={(e) => onMudar(l.linha, { obs: e.target.value })} placeholder="Fundamento (base legal ou requisito do produto)" aria-label={`Fundamento da linha ${l.linha}`} className="block w-56 border rounded px-1 py-0.5 bg-background text-xs" />}
+      {d?.acao === "NCM" && <input value={d.ncm || ""} disabled={travada} onChange={(e) => onMudar(l.id, { ncm: e.target.value })} placeholder="NCM correto (8 dígitos)" aria-label={`NCM correto do código ${l.id}`} className="block w-40 border rounded px-1 py-0.5 bg-background text-xs tabular-nums" />}
+      {d?.acao === "MANTER" && <input value={d.obs || ""} disabled={travada} onChange={(e) => onMudar(l.id, { obs: e.target.value })} placeholder="Fundamento (base legal ou requisito do produto)" aria-label={`Fundamento do código ${l.id}`} className="block w-56 border rounded px-1 py-0.5 bg-background text-xs" />}
       {d && !valida && <p className="text-[11px] text-amber-700 dark:text-amber-300">{d.acao === "NCM" ? "Informe o NCM com 8 dígitos." : d.acao === "MANTER" ? "Escreva o fundamento (ao menos 5 caracteres)." : "Decisão incompleta."}</p>}
     </div>
   );
 }
 
 /** Um grupo liberado para a revisão fiscal: resumo por situação, filtro, tabela de itens com decisão e a conclusão do grupo. */
-function GrupoFiscal({ g, saem, classes, decisoes, concl, onMudar, onLote, onConcluir, onReabrir, onEmitir }) {
+function GrupoFiscal({ g, todosItens, saem, classes, decisoes, concl, onMudar, onLote, onConcluir, onReabrir, onEmitir }) {
   const [aberto, setAberto] = useState(false);
   const [filtro, setFiltro] = useState("DECIDIR");
   const [limite, setLimite] = useState(100);
   const [ord, ordenar] = useOrdenacao();
   const itens = useMemo(() => itensDoGrupoFiscal(g.itens, g.nome, saem), [g, saem]);
-  const leituras = useMemo(() => itens.map((it) => leituraFiscal(it, classes)), [itens, classes]);
+  const indice = useMemo(() => indexar(todosItens), [todosItens]);
+  const leituras = useMemo(() => itens.map((it) => leituraFiscal(it, classes, indice)), [itens, classes, indice]);
   const resumo = useMemo(() => resumoDeLeituras(leituras, decisoes), [leituras, decisoes]);
   const filtradas = useMemo(() => leituras.filter((l) => (filtro === "TODAS" ? true : filtro === "DECIDIR" ? SITUACOES[l.situacao].decide : l.situacao === filtro)), [leituras, filtro]);
   const linhas = useMemo(() => ordenarPor(filtradas, ord, {
     codigo: (l) => l.codigo, descricao: (l) => l.descricao, ncm: (l) => l.ncm, informada: (l) => l.informada, sugerida: (l) => l.sugerida, fundamento: (l) => l.fundamento,
-    situacao: (l) => RANQUE[l.situacao], decisao: (l) => (decisoes?.[l.linha] ? ACOES[decisoes[l.linha].acao] : ""),
+    situacao: (l) => RANQUE[l.situacao], decisao: (l) => (decisaoFiscalDe(decisoes, l) ? ACOES[decisaoFiscalDe(decisoes, l).acao] : ""),
   }), [filtradas, ord, decisoes]);
-  const semDecisao = filtradas.filter((l) => SITUACOES[l.situacao].decide && !decisaoValida(l.situacao, l, decisoes?.[l.linha]));
-  const aceitaveis = semDecisao.filter((l) => EM_LOTE.includes(l.situacao) && l.sugerida); // em bloco só onde adotar a sugestão é o ajuste esperado; nos demais o analista decide item a item
+  const semDecisao = filtradas.filter((l) => SITUACOES[l.situacao].decide && !decisaoValida(l.situacao, l, decisaoFiscalDe(decisoes, l)));
+  const decidiveis = semDecisao.filter((l) => !l.semIdentidade); // item sem código (ou com código repetido) não recebe decisão: fica como pendência do grupo
+  const aceitaveis = decidiveis.filter((l) => EM_LOTE.includes(l.situacao) && l.sugerida); // em bloco só onde adotar a sugestão é o ajuste esperado; nos demais o analista decide item a item
   const travada = !!concl;
   const pode = podeConcluir(resumo);
   const diferentes = (l) => l.ncmCorrigido || (l.ncm && l.ncmOriginal && l.ncm !== l.ncmOriginal);
@@ -61,10 +65,10 @@ function GrupoFiscal({ g, saem, classes, decisoes, concl, onMudar, onLote, onCon
             <button key={id} type="button" aria-pressed={filtro === id} onClick={() => { setFiltro(id); setLimite(100); }}
               className={`px-2.5 py-1 text-xs rounded-md border ${filtro === id ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted"}`}>{rot} <span className="tabular-nums opacity-70">{fmt(n)}</span></button>))}
         </div>
-        {!travada && semDecisao.length > 0 && (
+        {!travada && decidiveis.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            {aceitaveis.length > 0 && <Botao title="Cria a decisão de adotar a classe sugerida nos itens listados que ainda não têm decisão. Nada é alterado no cadastro." onClick={() => onLote(aceitaveis.map((l) => l.linha), "ACEITAR")}>Adotar a classe sugerida {aceitaveis.length === 1 ? "no item sem decisão" : `nos ${fmt(aceitaveis.length)} itens sem decisão`}</Botao>}
-            <Botao title="Registra os itens listados como pendência para o especialista fiscal." onClick={() => onLote(semDecisao.map((l) => l.linha), "REVISAR")}>{semDecisao.length === 1 ? "Marcar o item sem decisão" : `Marcar os ${fmt(semDecisao.length)} itens sem decisão`} como a revisar com especialista</Botao>
+            {aceitaveis.length > 0 && <Botao title="Cria a decisão de adotar a classe sugerida nos itens listados que ainda não têm decisão. Nada é alterado no cadastro." onClick={() => onLote(aceitaveis.map((l) => l.id), "ACEITAR")}>Adotar a classe sugerida {aceitaveis.length === 1 ? "no item sem decisão" : `nos ${fmt(aceitaveis.length)} itens sem decisão`}</Botao>}
+            <Botao title="Registra os itens listados como pendência para o especialista fiscal." onClick={() => onLote(decidiveis.map((l) => l.id), "REVISAR")}>{decidiveis.length === 1 ? "Marcar o item sem decisão" : `Marcar os ${fmt(decidiveis.length)} itens sem decisão`} como a revisar com especialista</Botao>
           </div>)}
         {linhas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item nesta situação.</p> : (
           <div className="overflow-x-auto">
@@ -83,7 +87,7 @@ function GrupoFiscal({ g, saem, classes, decisoes, concl, onMudar, onLote, onCon
                   <td className="p-1.5 max-w-[220px]">{l.sugerida ? <><b className="font-medium">{l.sugerida}</b>{l.cstSugerida && <span className="text-[11px] text-muted-foreground"> · CST {l.cstSugerida}</span>}<div className="text-[11px] text-muted-foreground break-words">{l.reducao && `redução ${l.reducao}`}{l.descricaoClasse && ` · ${l.descricaoClasse}`}</div></> : "—"}</td>
                   <td className="p-1.5 max-w-[220px] break-words text-muted-foreground">{l.fundamento || "—"}{l.confianca && <div className="text-[11px]">{l.confianca}</div>}</td>
                   <td className="p-1.5 max-w-[280px]"><Chip tom={SITUACOES[l.situacao].tom}>{SITUACOES[l.situacao].rotulo}</Chip><div className="mt-0.5 text-[11px] text-muted-foreground break-words">{l.proposta}</div>{l.mensagem && <div className="mt-0.5 text-[11px] text-muted-foreground break-words">{l.mensagem}</div>}</td>
-                  <td className="p-1.5"><CelulaDecisao l={l} d={decisoes?.[l.linha]} travada={travada} onMudar={onMudar} /></td>
+                  <td className="p-1.5"><CelulaDecisao l={l} d={decisaoFiscalDe(decisoes, l)} travada={travada} motivoBloqueio={l.semIdentidade ? motivoSemIdentidade(l, indice) : ""} onMudar={onMudar} /></td>
                 </tr>))}</tbody>
             </table>
             {linhas.length > limite && <button type="button" onClick={() => setLimite(limite + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(linhas.length - limite)} restantes)</button>}
@@ -103,7 +107,7 @@ function GrupoFiscal({ g, saem, classes, decisoes, concl, onMudar, onLote, onCon
  * Passo Fiscal: cada grupo saneado é liberado para a revisão fiscal. O analista confere o NCM e o cClassTrib de cada item contra os anexos da LC 214/2025
  * consultados e decide o que fica; o resultado é a matriz fiscal do grupo (proposta, fundamento, validação e pendências).
  */
-export default function PassoFiscal({ estado, setEstado, grupos, contagem, saem, quem, nomeProjeto, nomeBase, slug, temAnalise, onIrAnalises }) {
+export default function PassoFiscal({ estado, setEstado, grupos, todosItens, contagem, saem, quem, nomeProjeto, nomeBase, slug, temAnalise, onIrAnalises }) {
   const catalogo = useQuery({ queryKey: ["classTrib"], queryFn: () => base44.entities.ClassTrib.list(), staleTime: 10 * 60 * 1000 });
   const classes = useMemo(() => mapaClasses(catalogo.data), [catalogo.data]);
   const fiscal = estado.fiscal || {}; const decisoes = fiscal.decisoes || {}; const concluidos = fiscal.grupos || {};
@@ -111,8 +115,9 @@ export default function PassoFiscal({ estado, setEstado, grupos, contagem, saem,
   const [gerando, setGerando] = useState(false); const [msg, setMsg] = useState("");
 
   const editar = (fn) => setEstado((e) => { const f = e.fiscal || {}; return { ...e, fiscal: fn({ ...f, decisoes: { ...(f.decisoes || {}) }, grupos: { ...(f.grupos || {}) } }) }; });
-  const mudar = (linha, patch) => editar((f) => { if (patch === null) delete f.decisoes[linha]; else f.decisoes[linha] = { ...(f.decisoes[linha] || {}), ...patch, por: quem, em: hojeIso() }; return f; });
-  const lote = (linhas, acao) => editar((f) => { for (const l of linhas) f.decisoes[l] = { ...(f.decisoes[l] || {}), acao, por: quem, em: hojeIso() }; return f; });
+  // a decisão fiscal é do código do item (texto), não da linha da planilha
+  const mudar = (id, patch) => editar((f) => { if (patch === null) delete f.decisoes[id]; else f.decisoes[id] = { ...(f.decisoes[id] || {}), ...patch, por: quem, em: hojeIso() }; return f; });
+  const lote = (ids, acao) => editar((f) => { for (const id of ids) f.decisoes[id] = { ...(f.decisoes[id] || {}), acao, por: quem, em: hojeIso() }; return f; });
   const concluir = (nome) => editar((f) => { f.grupos[nome] = { por: quem, em: hojeIso() }; return f; });
   const reabrir = (nome) => editar((f) => { delete f.grupos[nome]; return f; });
 
@@ -122,10 +127,10 @@ export default function PassoFiscal({ estado, setEstado, grupos, contagem, saem,
       const resumos = []; const todas = [];
       for (const g of gs) {
         const itens = itensDoGrupoFiscal(g.itens, g.nome, saem);
-        resumos.push({ grupo: g.nome, resumo: resumoDeLeituras(itens.map((it) => leituraFiscal(it, classes)), decisoes), concluida: concluidos[g.nome] || null });
+        resumos.push({ grupo: g.nome, resumo: resumoDeLeituras(itens.map((it) => leituraFiscal(it, classes, indexar(todosItens))), decisoes), concluida: concluidos[g.nome] || null });
         todas.push(...itens);
       }
-      const linhas = linhasMatriz(todas, classes, decisoes);
+      const linhas = linhasMatriz(todas, classes, decisoes, indexar(todosItens));
       await gerarXlsxFiscal({ linhas, resumos, nomeProjeto, nomeBase }, `${slug}-matriz-fiscal-${sufixo}.xlsx`);
       setMsg(`Matriz emitida: ${plural(linhas.length, "item", "itens")} em ${plural(gs.length, "grupo", "grupos")}.`);
     } catch (e) { setMsg(`Não foi possível emitir a matriz: ${e.message}`); } finally { setGerando(false); }
@@ -157,7 +162,7 @@ export default function PassoFiscal({ estado, setEstado, grupos, contagem, saem,
             </div>
           </div>
           {liberados.map((g) => (
-            <GrupoFiscal key={g.nome} g={g} saem={saem} classes={classes} decisoes={decisoes} concl={concluidos[g.nome]} onMudar={mudar} onLote={lote}
+            <GrupoFiscal key={g.nome} g={g} todosItens={todosItens} saem={saem} classes={classes} decisoes={decisoes} concl={concluidos[g.nome]} onMudar={mudar} onLote={lote}
               onConcluir={() => concluir(g.nome)} onReabrir={() => reabrir(g.nome)} onEmitir={() => emitir([g], slugTxt(g.nome))} />))}
         </>)}
     </div>

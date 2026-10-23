@@ -21,8 +21,8 @@ describe("listas finais do saneamento", () => {
     params: { desde: "2025-01-01" },
     criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
     decisoes: {
-      "2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: 3, decididoPor: "ana", decididoEm: "2026-10-21" },
-      "5|padrao": { acao: "ENC", status: "APR", sugerida: "CORREIA A72", final: "CORREIA A-72 TRAPEZOIDAL", origemFinal: "cliente", decididoPor: "cli", decididoEm: "2026-10-22" },
+      "A1|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: "A2", decididoPor: "ana", decididoEm: "2026-10-21" },
+      "C1|padrao": { acao: "ENC", status: "APR", sugerida: "CORREIA A72", final: "CORREIA A-72 TRAPEZOIDAL", origemFinal: "cliente", decididoPor: "cli", decididoEm: "2026-10-22" },
     },
   };
 
@@ -50,7 +50,7 @@ describe("listas finais do saneamento", () => {
     expect(c1).toMatchObject({ original: "CORREIA A-72", final: "CORREIA A-72 TRAPEZOIDAL", mudanca: "Descrição corrigida", origem: "Ajustada pelo cliente" });
   });
   it("decisão só proposta ou rejeitada não muda nada na lista final", () => {
-    const e2 = { ...estado, decisoes: { "2|duplicidade": { acao: "ENC", status: "PROP", destino: 3 }, "5|padrao": { acao: "ENC", status: "REJ", sugerida: "X" } } };
+    const e2 = { ...estado, decisoes: { "A1|duplicidade": { acao: "ENC", status: "PROP", destino: "A2" }, "C1|padrao": { acao: "ENC", status: "REJ", sugerida: "X" } } };
     const l = base(e2);
     expect(l.finalCorrigida.map((i) => i.codigo)).toEqual(["A1", "A2", "C1"]);
     expect(l.finalCorrigida.find((i) => i.codigo === "C1").mudanca).toBe("Mantido");
@@ -125,7 +125,7 @@ describe("listas finais do saneamento", () => {
     expect(l.resumo.find((x) => x[0] === "Parâmetro de saneamento")[1]).toBe("sem corte");
   });
   it("mestre da própria decisão não é baixado", () => {
-    const e3 = { ...estado, decisoes: { "3|duplicidade": { acao: "ENC", status: "APR", destino: 3 } } };
+    const e3 = { ...estado, decisoes: { "A2|duplicidade": { acao: "ENC", status: "APR", destino: "A2" } } };
     const l = base(e3);
     expect(l.finalCorrigida.map((i) => i.codigo)).toContain("A2");
     expect(l.desduplicacoes[0].acao).toContain("sem baixa");
@@ -144,7 +144,7 @@ describe("planilha das listas finais", () => {
     const { criarWorkbook } = await import("./listasFinais");
     const estado = {
       params: { desde: "2025-01-01" }, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
-      decisoes: { "2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: 3, decididoPor: "ana", decididoEm: "2026-10-21" } },
+      decisoes: { "A1|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: "A2", decididoPor: "ana", decididoEm: "2026-10-21" } },
     };
     const escopo = aplicarEscopo(itens, estado.params);
     const listas = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens, escopo, testes: criarTestes(escopo.emEscopo, estado) });
@@ -172,11 +172,11 @@ describe("listas finais: unidade de estoque (menor unidade, com a unidade maior 
     params: {}, politicaUnidade: { ativa: true, regras: {}, rotulos: { massa: "QUILOGRAM" } }, // o analista manteve o nome que o ERP do cliente usa para a massa
     criterios: { unidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
     decisoes: {
-      "2|unidade": aprovada({ tipo: "conversao", de: "TONELADA", para: "QUILOGRAM", fator: 1000, evidencia: "universal" }),
-      "5|unidade": aprovada({ tipo: "conversao", de: "BB", para: "QUILOGRAM", fator: null, fatorFinal: 25 }),
-      "6|unidade": aprovada({ tipo: "grafia", de: "KG", para: "QUILOGRAM" }),
-      "6|padrao": aprovada({ sugerida: "GRAXA MULTIUSO" }),
-      "7|unidade": { ...aprovada({ tipo: "conversao", de: "CAIXA", para: "UNIDADE", fator: null }), status: "PROP" },
+      "T1|unidade": aprovada({ tipo: "conversao", de: "TONELADA", para: "QUILOGRAM", fator: 1000, evidencia: "universal" }),
+      "B1|unidade": aprovada({ tipo: "conversao", de: "BB", para: "QUILOGRAM", fator: null, fatorFinal: 25 }),
+      "G1|unidade": aprovada({ tipo: "grafia", de: "KG", para: "QUILOGRAM" }),
+      "G1|padrao": aprovada({ sugerida: "GRAXA MULTIUSO" }),
+      "C1|unidade": { ...aprovada({ tipo: "conversao", de: "CAIXA", para: "UNIDADE", fator: null }), status: "PROP" },
     },
   };
   const listasU = (estado = estadoU) => {
@@ -201,7 +201,7 @@ describe("listas finais: unidade de estoque (menor unidade, com a unidade maior 
     expect(l.resumo.some((x) => x[0] === "Unidades de estoque ajustadas (aprovadas)" && x[1] === 3)).toBe(true);
   });
   it("conversão aprovada sem nenhum fator sai como 'a informar' (nunca um número inventado)", () => {
-    const e = { ...estadoU, decisoes: { "7|unidade": aprovada({ tipo: "conversao", de: "CAIXA", para: "UNIDADE", fator: null }) } };
+    const e = { ...estadoU, decisoes: { "C1|unidade": aprovada({ tipo: "conversao", de: "CAIXA", para: "UNIDADE", fator: null }) } };
     expect(linha(listasU(e), "C1")).toMatchObject({ unidadeProposta: "UNIDADE", unidadeCompra: "CAIXA", itensPorCompra: "a informar" });
   });
   it("a aba de análises mostra a proposta com a unidade de compra e o fator (a confirmar quando vem da descrição)", () => {
@@ -227,12 +227,12 @@ describe("listas finais: execução (administrativo e almoxarifado)", () => {
   const aprov = (extra) => ({ acao: "ENC", status: "APR", grupo: "Peças", decididoPor: "ana", decididoEm: "2026-10-21", ...extra });
   const estadoE = (registros = {}) => ({
     params: { desde: "2025-01-01" }, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } },
-    decisoes: { "2|duplicidade": aprov({ destino: 3 }), "5|padrao": aprov({ sugerida: "CORREIA A72", final: "CORREIA A-72 TRAPEZOIDAL" }) },
+    decisoes: { "A1|duplicidade": aprov({ destino: "A2" }), "C1|padrao": aprov({ sugerida: "CORREIA A72", final: "CORREIA A-72 TRAPEZOIDAL" }) },
     execucao: { tipos: {}, registros },
   });
   const ok = (e) => ({ status: "FEITO", evidencia: e, por: "ana", em: "2026-10-22" });
   it("as tarefas saem das decisões aprovadas e dos itens inativados, e a aba Execução mostra a confirmação de cada frente", () => {
-    const l = base(estadoE({ "2|duplicidade": { adm: ok("SAP 1"), alm: ok("foto 2") } }));
+    const l = base(estadoE({ "A1|duplicidade": { adm: ok("SAP 1"), alm: ok("foto 2") } }));
     expect(l.execucao.map((x) => x.tarefa)).toEqual(["Unificar códigos duplicados", "Corrigir descrição", "Inativar item sem movimento"]);
     expect(l.execucao[0]).toMatchObject({ codigo: "A1", adm: "Confirmado", evidAdm: "SAP 1", alm: "Confirmado", situacao: "Concluída" });
     expect(l.execucao[1]).toMatchObject({ codigo: "C1", adm: "Pendente", alm: "Não se aplica", situacao: "Pendente" });
@@ -240,7 +240,7 @@ describe("listas finais: execução (administrativo e almoxarifado)", () => {
     expect(l.contagem).toMatchObject({ tarefas: 3, concluidas: 1, pendentes: 2, emAndamento: 0, divergencias: 0 });
   });
   it("a lista final corrigida diz a situação da execução de cada item, e o resumo conta as tarefas", () => {
-    const l = base(estadoE({ "5|padrao": { adm: { status: "DIV", obs: "já alterada" } } }));
+    const l = base(estadoE({ "C1|padrao": { adm: { status: "DIV", obs: "já alterada" } } }));
     expect(l.finalCorrigida.find((i) => i.codigo === "C1").execucao).toBe("Com divergência");
     expect(l.finalCorrigida.find((i) => i.codigo === "A2").execucao).toBe(""); // sem tarefa
     const resumo = l.resumo.map((x) => x.join(" | "));
@@ -255,7 +255,7 @@ describe("listas finais: execução (administrativo e almoxarifado)", () => {
   it("a planilha do pacote completo tem a aba Execução e a coluna na lista final", async () => {
     const ExcelJS = (await import("exceljs")).default;
     const { criarWorkbook } = await import("./listasFinais");
-    const wb = criarWorkbook(ExcelJS, base(estadoE({ "2|duplicidade": { adm: ok("SAP 1") } })), ["final", "execucao"]);
+    const wb = criarWorkbook(ExcelJS, base(estadoE({ "A1|duplicidade": { adm: ok("SAP 1") } })), ["final", "execucao"]);
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Lista final corrigida", "Execução"]);
     expect(lido.getWorksheet("Lista final corrigida").getRow(1).values.slice(1)).toContain("Execução");

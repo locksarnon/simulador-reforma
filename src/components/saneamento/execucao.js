@@ -5,6 +5,8 @@
 import { CRITERIOS, dataDoCorte, grupoDe } from "./logica";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 import { chaveTexto, lerMatriz } from "./respostaCliente";
+import { chaveDe, idItem, indexar, itemPorId, partirChave } from "./identidade";
+import { coerenciaDaDecisao } from "./aprovacao";
 
 export const FRENTES = { adm: "Administrativo (SAP)", alm: "Almoxarifado (físico)" };
 
@@ -50,22 +52,28 @@ const INSTRUCAO = {
 /**
  * Tarefas de execução: uma por decisão APROVADA (ausência de resposta não é aprovação) e uma por item inativado pelo parâmetro de saneamento.
  * Devolve { tarefas, geradasPorTipo }: `tarefas` já sem os tipos que o analista tirou da execução; `geradasPorTipo` conta tudo o que foi gerado.
- * O id da tarefa é a chave da decisão ("linha|critério"); a inativação usa "linha|inativacao".
+ * O id da tarefa é a chave da decisão ("código|critério"); a inativação usa "código|inativacao". A tarefa nasce do que foi aprovado para o código do item: se o cadastro
+ * dele mudou para outra coisa desde a aprovação, ela não cobre o que está lá e não gera tarefa; se o item não está mais na base, a tarefa sai do que foi guardado na aprovação.
  */
 export function gerarTarefas({ decisoes, tipos, itens, escopo, params }) {
   const cfg = tiposEfetivos(tipos);
-  const porLinha = new Map(itens.map((i) => [i.linha, i]));
+  const indice = indexar(itens);
   const tituloCriterio = (id) => CRITERIOS.find((c) => c.id === id)?.titulo ?? id;
   const brutas = [];
-  const nova = (tipo, id, it, grupo, dados) => brutas.push({ id, linha: it.linha, tipo, grupo: grupo || grupoDe(it), codigo: it.codigo, descricao: it.descricao, dados });
+  const nova = (tipo, id, it, grupo, dados) => brutas.push({ id, linha: it.linha ?? null, item: idItem(it), tipo, grupo: grupo || grupoDe(it), codigo: it.codigo, descricao: it.descricao, dados, ...(it.ausenteNaBase ? { ausenteNaBase: true } : {}) });
   for (const [k, d] of Object.entries(decisoes || {})) {
     if (d?.status !== "APR") continue;
-    const [linhaTxt, crit] = k.split("|"); const it = porLinha.get(Number(linhaTxt)); if (!it) continue;
+    const { id, crit } = partirChave(k);
+    if (!id || indice.repetidos.has(id)) continue; // sem código, ou código repetido na base: não dá para saber de qual item é a decisão
+    let it = indice.porId.get(id);
+    if (it) { if (!coerenciaDaDecisao(d, crit, it, indice).ok) continue; }
+    else if (d.antes) it = { codigo: id, descricao: d.antes.descricao, unidade: d.antes.unidade, grupo_atual: d.antes.grupo, ausenteNaBase: true };
+    else continue;
     if (crit === "duplicidade") {
-      const destinoLinha = d.destino ?? it.duplicidade?.mestre ?? null;
-      if (destinoLinha == null || destinoLinha === it.linha) continue; // código mantido: nada a unificar
-      const dest = porLinha.get(destinoLinha);
-      nova("unificacao", k, it, d.grupo, { destinoCodigo: dest?.codigo ?? "", destinoDescricao: dest?.descricao ?? "" });
+      const destinoId = d.destino ?? (it.duplicidade?.mestre != null ? idItem(indice.porLinha.get(it.duplicidade.mestre)) : null);
+      if (!destinoId || destinoId === id) continue; // código mantido: nada a unificar
+      const dest = itemPorId(indice, destinoId);
+      nova("unificacao", k, it, d.grupo, { destinoCodigo: destinoId, destinoDescricao: dest?.descricao ?? d.destinoAntes?.descricao ?? "" });
     } else if (crit === "padrao") {
       const final = d.final || d.sugerida;
       if (!final || final === it.descricao) continue;
@@ -76,14 +84,15 @@ export function gerarTarefas({ decisoes, tipos, itens, escopo, params }) {
     } else nova("outro", k, it, d.grupo, { criterio: tituloCriterio(crit) });
   }
   const corte = dataDoCorte(params);
-  for (const it of escopo?.fora || []) nova("inativacao", `${it.linha}|inativacao`, it, null, { corte: it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`, ultimaMov: it.ultima_mov });
+  for (const it of escopo?.fora || []) if (idItem(it) && !indice.repetidos.has(idItem(it))) nova("inativacao", chaveDe(it, "inativacao"), it, null, { corte: it.ultima_mov ? `não movimentado desde ${corte}` : `sem data de movimentação, tratado como anterior a ${corte}`, ultimaMov: it.ultima_mov });
   const geradasPorTipo = {};
   for (const t of brutas) geradasPorTipo[t.tipo] = (geradasPorTipo[t.tipo] || 0) + 1;
   const tarefas = brutas.filter((t) => cfg[t.tipo].incluir).map((t) => {
     const i = INSTRUCAO[t.tipo](t); const alm = cfg[t.tipo].alm;
-    return { ...t, aplica: { adm: true, alm }, instrucao: { adm: i.adm, alm: alm ? i.alm : "" } };
+    const aviso = t.ausenteNaBase ? " Atenção: o item não está na base atual; confirme no ERP antes de executar." : "";
+    return { ...t, aplica: { adm: true, alm }, instrucao: { adm: i.adm + aviso, alm: alm ? i.alm : "" } };
   });
-  tarefas.sort((a, b) => a.grupo.localeCompare(b.grupo, "pt-BR") || ORDEM_TIPOS.indexOf(a.tipo) - ORDEM_TIPOS.indexOf(b.tipo) || a.linha - b.linha);
+  tarefas.sort((a, b) => a.grupo.localeCompare(b.grupo, "pt-BR") || ORDEM_TIPOS.indexOf(a.tipo) - ORDEM_TIPOS.indexOf(b.tipo) || (a.linha ?? 1e12) - (b.linha ?? 1e12) || String(a.item).localeCompare(String(b.item)));
   return { tarefas, geradasPorTipo };
 }
 
@@ -130,7 +139,7 @@ export function resumoExecucao(tarefas, registros) {
 /** Situação de cada item (linha da base) para a lista final corrigida: a pior entre as tarefas dele. */
 export function situacaoPorLinha(tarefas, registros) {
   const por = new Map();
-  for (const t of tarefas) { const s = situacaoTarefa(t, registros?.[t.id]).geral; const l = por.get(t.linha) ?? []; l.push(s); por.set(t.linha, l); }
+  for (const t of tarefas) { if (t.linha == null) continue; const s = situacaoTarefa(t, registros?.[t.id]).geral; const l = por.get(t.linha) ?? []; l.push(s); por.set(t.linha, l); }
   const saida = new Map();
   for (const [linha, lista] of por) saida.set(linha, lista.includes("DIVERGENCIA") ? "DIVERGENCIA" : lista.every((s) => s === "CONCLUIDA") ? "CONCLUIDA" : lista.some((s) => s === "CONCLUIDA" || s === "EM_ANDAMENTO") ? "EM_ANDAMENTO" : "PENDENTE");
   return saida;

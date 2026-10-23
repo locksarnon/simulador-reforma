@@ -6,7 +6,7 @@ const sug = (extra = {}) => ({ c_class_trib: "200003", descricao: "Alimentação
 const item = (linha, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "FEIJAO CARIOCA", unidade: "KG", grupo_atual: "Grãos", ncm: "07133319", ncm_original: "07133319", problemas: [], c_class_trib_informado: "200003", sugestao: sug(), ...extra });
 const classes = mapaClasses([{ c_class_trib: "200003", cst: "200", descricao_oficial: "Alimentação humana (Anexo I)", pct_reducao_ibs: 1, pct_reducao_cbs: 1, status: "Ativo" }]);
 const itens = [item(2), item(3, { c_class_trib_informado: "" }), item(4, { ncm: "123", ncm_original: "123", problemas: [{ codigo: "NCM_FORMATO", severidade: "erro", mensagem: "NCM com 3 dígitos" }] })];
-const decisoes = { 3: { acao: "ACEITAR", por: "ana", em: "2026-10-23" } };
+const decisoes = { C3: { acao: "ACEITAR", por: "ana", em: "2026-10-23" } };
 
 describe("matriz fiscal em Excel", () => {
   it("uma linha por item, das situações mais graves às mais tranquilas, com a situação colorida; resumo por grupo com pendências e como ler", async () => {

@@ -25,7 +25,7 @@ describe("política de uso dos estoques", () => {
     expect(regra(p, "criar.ncm").evidencia).toBe("nenhum achado na base analisada.");
   });
   it("a regra de descrição traz o padrão aprovado, as abreviações e a evidência do que foi encontrado e aprovado", () => {
-    const p = montarPolitica(base({ criterios: { padrao: aprov() }, decisoes: { "2|padrao": { acao: "ENC", status: "APR", sugerida: "ANEL TRAVA" }, "9|padrao": { acao: "ENC", status: "PROP" } } }));
+    const p = montarPolitica(base({ criterios: { padrao: aprov() }, decisoes: { "C2|padrao": { acao: "ENC", status: "APR", sugerida: "ANEL TRAVA" }, "ZZ9|padrao": { acao: "ENC", status: "PROP" } } }));
     const r = regra(p, "criar.descricao");
     expect(r.texto).toContain("NOME + REFERÊNCIA + COMPLEMENTO"); expect(r.texto).toContain("caixa alta"); expect(r.texto).toContain("só abreviações da lista aprovada (1 abreviação)"); expect(r.texto).not.toContain("(ex.:");
     expect(r.origem).toBe('Critério "Padronização da descrição", aprovado por ana em 20/10/2026');
@@ -83,7 +83,7 @@ describe("política de uso dos estoques", () => {
     expect(() => JSON.stringify(s)).not.toThrow();
   });
   it("conta as decisões por critério e emite uma linha por regra para a planilha", () => {
-    expect(contarDecisoes({ "2|padrao": { status: "APR" }, "3|padrao": { status: "PROP" }, "4|unidade": { status: "REJ" } })).toEqual({ padrao: { total: 2, PROP: 1, APR: 1, REJ: 0 }, unidade: { total: 1, PROP: 0, APR: 0, REJ: 1 } });
+    expect(contarDecisoes({ "C2|padrao": { status: "APR" }, "C3|padrao": { status: "PROP" }, "C4|unidade": { status: "REJ" } })).toEqual({ padrao: { total: 2, PROP: 1, APR: 1, REJ: 0 }, unidade: { total: 1, PROP: 0, APR: 0, REJ: 1 } });
     const p = montarPolitica(base({ criterios: { padrao: aprov() }, politica: { secoes: { criar: { responsavel: "Gestor", controle: "Amostragem" } } } }));
     const linhas = linhasRegras(p);
     expect(linhas.length).toBe(p.secoes.reduce((n, s) => n + s.regras.length, 0)); expect(linhas[0]).toMatchObject({ procedimento: "Criar o cadastro", responsavel: "Gestor", controle: "Amostragem" });

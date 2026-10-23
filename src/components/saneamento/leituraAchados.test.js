@@ -66,7 +66,7 @@ describe("leitura dos achados: como é, como seria e por quê", () => {
     expect(valor(l2.como, "Parecido com")).toBe("C3 · ANEL (saldo 12)");
     expect(valor(l2.seria, "Ação")).toBe("unificar no código C3 (sugerido)"); expect(valor(l2.seria, "Fica")).toBe("ANEL (saldo 12)"); expect(l2.porque).toBe("Sugestão: manter C3 (maior saldo em estoque (12 contra 3)).");
     expect(valor(le(a3, {}).seria, "Ação")).toBe("manter este código (sugerido)");
-    const escolhido = aplicarEscolha({}, conj, 2, { quem: "ana", hoje: "2026-10-22" }); // o analista prefere ficar com o de menor saldo
+    const escolhido = aplicarEscolha({}, conj, "C2", { quem: "ana", hoje: "2026-10-22" }); // o analista prefere ficar com o de menor saldo
     expect(valor(le(a2, escolhido).seria, "Ação")).toBe("fica este código (escolhido)");
     const l3 = le(a3, escolhido); expect(valor(l3.seria, "Ação")).toBe("unificar no código C2 (escolhido)"); expect(l3.porque).toContain("Escolha do analista diferente da sugestão.");
   });

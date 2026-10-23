@@ -1,6 +1,8 @@
 // Conjuntos de itens iguais ou parecidos (critério Duplicidade): o comparativo lado a lado e a escolha de qual código fica. Só SUGERE: nada é alterado
 // no cadastro; escolher quem fica encaminha os outros ao De/para (unificar no código que fica), onde cada caso é aprovado ou rejeitado. Funções puras.
 import { dataBr, grupoDe } from "./logica";
+import { chaveDeId, idItem } from "./identidade";
+import { instantaneoDoItem } from "./aprovacao";
 import { numeroBr } from "./unidades";
 
 export const NIVEL_ORDEM = { EXATA: 0, MUITO_PROVAVEL: 1, POSSIVEL: 2 };
@@ -21,7 +23,7 @@ const completude = (m) => [m.ncm || m.ncm_original, m.unidade, m.principio_ativo
 /**
  * Quem a ferramenta sugere manter e por quê. Critérios, nesta ordem, cada um só decide se separa os que ainda empatam:
  * 1) maior saldo em estoque (menos estoque a transferir); 2) movimentação mais recente; 3) cadastro mais completo; 4) menor código (o mais antigo).
- * Devolve { linha, criterio, motivo, ordem } com `ordem` = linhas da mais para a menos indicada. Determinístico.
+ * Devolve { linha, id, criterio, motivo, ordem } com `id` = código do indicado e `ordem` = linhas da mais para a menos indicada. Determinístico.
  */
 export function sugerirSobrevivente(membros, { escala = 1 } = {}) {
   const saldo = (m) => { const s = saldoNaEscala(m.saldo, escala); return s != null && s > 0 ? s : 0; };
@@ -38,7 +40,7 @@ export function sugerirSobrevivente(membros, { escala = 1 } = {}) {
     criterio = "linha"; motivo = "cadastros iguais nos critérios de escolha: sugerido o primeiro da planilha";
     for (const c of criterios) { if (c.melhor(c.v(topo), c.v(segundo)) !== 0) { criterio = c.id; motivo = c.motivo(c.v(topo), c.v(segundo)); break; } }
   }
-  return { linha: topo?.linha ?? null, criterio, motivo, ordem: ordenados.map((m) => m.linha) };
+  return { linha: topo?.linha ?? null, id: topo ? idItem(topo) : null, criterio, motivo, ordem: ordenados.map((m) => m.linha) };
 }
 
 /**
@@ -66,39 +68,55 @@ export function montarConjuntos(itens, { escala = 1 } = {}) {
     const nivel = lista.reduce((n, m) => (NIVEL_ORDEM[m.duplicidade.nivel] < NIVEL_ORDEM[n] ? m.duplicidade.nivel : n), "POSSIVEL");
     const contagem = new Map(); for (const m of lista) { const g = grupoDe(m); contagem.set(g, (contagem.get(g) || 0) + 1); }
     const grupo = [...contagem.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))[0][0];
-    conjuntos.push({ id: `c:${Math.min(...lista.map((m) => m.linha))}`, nivel, score: Math.max(...lista.map((m) => Number(m.duplicidade.score) || 0)), grupo, membros, sugestao: sug });
+    const menorCodigo = lista.map((m) => idItem(m) || `L${m.linha}`).sort((a, b) => colador.compare(a, b))[0]; // o identificador do conjunto é o menor código: não muda de uma extração para outra
+    conjuntos.push({ id: `c:${menorCodigo}`, nivel, score: Math.max(...lista.map((m) => Number(m.duplicidade.score) || 0)), grupo, membros, sugestao: sug });
   }
   return conjuntos.sort((a, b) => NIVEL_ORDEM[a.nivel] - NIVEL_ORDEM[b.nivel] || b.membros.length - a.membros.length || a.membros[0].linha - b.membros[0].linha);
 }
 
-const chave = (linha) => `${linha}|duplicidade`;
+const chave = (m) => chaveDeId(idItem(m), "duplicidade");
 
 /**
- * Escolha vigente do conjunto, lida das decisões: { fica, origem, status, travada }. Modelo atual: cada membro que NÃO fica tem a decisão com `destino` = o que fica
- * (o que fica não tem decisão). Modelo antigo: a decisão com destino igual à própria linha marca quem fica. Travada = alguém já foi aprovado ou rejeitado no De/para.
+ * Os itens do conjunto podem receber decisão: todos têm código e nenhum se repete (no conjunto nem, dado o índice da base, na base). A escolha de quem fica é guardada
+ * pelo código; sem ele, ou com código repetido, não dá para saber depois de qual item é a escolha.
+ */
+export function conjuntoIdentificavel(conj, indice) {
+  const ids = conj.membros.map(idItem);
+  if (ids.some((x) => !x)) return { ok: false, motivo: "Há item sem código no conjunto: não dá para guardar a escolha de forma estável." };
+  if (new Set(ids).size !== ids.length || (indice && ids.some((x) => indice.repetidos.has(x)))) return { ok: false, motivo: "Há código repetido na base entre os itens do conjunto: não dá para saber de qual item é a escolha." };
+  return { ok: true, motivo: "" };
+}
+
+/**
+ * Escolha vigente do conjunto, lida das decisões: { fica, origem, status, travada }, com `fica` = código do que fica. Modelo atual: cada membro que NÃO fica tem a decisão
+ * com `destino` = o código do que fica (o que fica não tem decisão). Modelo antigo: a decisão com destino igual ao próprio código marca quem fica. Travada = alguém já foi
+ * aprovado ou rejeitado no De/para.
  */
 export function escolhaDoConjunto(conj, decisoes) {
-  const ds = conj.membros.map((m) => ({ m, d: decisoes?.[chave(m.linha)] })).filter((x) => x.d);
+  const ds = conj.membros.map((m) => ({ m, d: decisoes?.[chave(m)] })).filter((x) => x.d);
   if (!ds.length) return { fica: null, origem: null, status: "nenhuma", travada: false };
   const travada = ds.some((x) => x.d.status === "APR" || x.d.status === "REJ");
-  const antigo = ds.find((x) => x.d.destino === x.m.linha);
-  const cont = new Map(); for (const x of ds) if (x.d.destino != null && x.d.destino !== x.m.linha) cont.set(x.d.destino, (cont.get(x.d.destino) || 0) + 1);
-  const fica = antigo ? antigo.m.linha : [...cont.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? null;
+  const antigo = ds.find((x) => x.d.destino === idItem(x.m));
+  const cont = new Map(); for (const x of ds) if (x.d.destino != null && x.d.destino !== idItem(x.m)) cont.set(x.d.destino, (cont.get(x.d.destino) || 0) + 1);
+  const fica = antigo ? idItem(antigo.m) : [...cont.entries()].sort((a, b) => b[1] - a[1] || colador.compare(a[0], b[0]))[0]?.[0] ?? null;
   return { fica, origem: ds.find((x) => x.d.escolhaPor)?.d.escolhaPor ?? (fica != null ? "analista" : null), status: travada ? "decidida" : "aguardando", travada };
 }
 
 /**
- * Aplica a escolha de quem fica: devolve NOVAS decisões (não altera as dadas). Cada membro que sai vira uma proposta para o De/para (unificar no `fica`); quem fica
- * não tem decisão. Decisão já aprovada ou rejeitada nunca é tocada: com o conjunto travado, devolve as mesmas decisões.
+ * Aplica a escolha de quem fica (`fica` = código): devolve NOVAS decisões (não altera as dadas). Cada membro que sai vira uma proposta para o De/para (unificar no `fica`),
+ * com como o item estava na hora (`antes`) e como estava o que fica (`destinoAntes`); quem fica não tem decisão. Decisão já aprovada ou rejeitada nunca é tocada: com o
+ * conjunto travado (ou sem como identificar todos os itens), devolve as mesmas decisões. `indice` (de identidade.indexar) confere também os códigos repetidos na base.
  */
-export function aplicarEscolha(decisoes, conj, fica, { quem, hoje, origem = "analista" }) {
+export function aplicarEscolha(decisoes, conj, fica, { quem, hoje, origem = "analista", indice } = {}) {
+  if (!conjuntoIdentificavel(conj, indice).ok) return decisoes;
   if (escolhaDoConjunto(conj, decisoes).travada) return decisoes;
   const d = { ...decisoes }; let mudou = false;
+  const mantido = conj.membros.find((m) => idItem(m) === fica);
   for (const m of conj.membros) {
-    const k = chave(m.linha); const atual = d[k];
-    if (m.linha === fica) { if (atual) { delete d[k]; mudou = true; } continue; }
+    const k = chave(m); const atual = d[k];
+    if (idItem(m) === fica) { if (atual) { delete d[k]; mudou = true; } continue; }
     if (atual && atual.destino === fica && atual.escolhaPor === origem && atual.status === "PROP") continue;
-    d[k] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem }; mudou = true;
+    d[k] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido) } : {}) }; mudou = true;
   }
   return mudou ? d : decisoes;
 }
@@ -106,6 +124,6 @@ export function aplicarEscolha(decisoes, conj, fica, { quem, hoje, origem = "ana
 /** Desfaz o encaminhamento do conjunto: remove só as propostas ainda não decididas (aprovadas e rejeitadas ficam). */
 export function desfazerEscolha(decisoes, conj) {
   let d = null;
-  for (const m of conj.membros) { const k = chave(m.linha); if (decisoes?.[k]?.status === "PROP") { d = d || { ...decisoes }; delete d[k]; } }
+  for (const m of conj.membros) { const k = chave(m); if (decisoes?.[k]?.status === "PROP") { d = d || { ...decisoes }; delete d[k]; } }
   return d || decisoes;
 }

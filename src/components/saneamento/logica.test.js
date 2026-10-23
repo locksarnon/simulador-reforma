@@ -110,7 +110,7 @@ describe("itens sem data de movimentação: manter no escopo ou tratar como ante
 });
 
 describe("grupos do saneamento: os desmarcados saem do trabalho sem serem inativados", () => {
-  const g = (linha, ultima_mov, grupo) => item(linha, ultima_mov, { grupo_atual: grupo });
+  const g = (linha, ultima_mov, grupo) => item(linha, ultima_mov, { grupo_atual: grupo, codigo: `P${linha}` });
   const itens = [g(2, "2023-05-01", "Peças"), g(3, "2026-01-10", "Peças"), g(4, "2023-05-01", "Insumos"), g(5, "2026-01-10", "Insumos"), g(6, null, "Insumos"), g(7, "2026-02-01", "")];
   const linhas = (l) => l.map((i) => i.linha);
   it("sem escolha, todos os grupos entram (e dois argumentos continuam valendo)", () => {
@@ -146,8 +146,8 @@ describe("grupos do saneamento: os desmarcados saem do trabalho sem serem inativ
   });
   it("as decisões de itens de grupos fora do saneamento ficam guardadas, mas não contam no trabalho", () => {
     const e = aplicarEscopo(itens, { desde: "" }, { Insumos: true });
-    const d = { "2|padrao": { status: "APR" }, "4|padrao": { status: "APR" }, "5|duplicidade": { status: "PROP" }, "3|unidade": { status: "PROP" } };
-    expect(Object.keys(decisoesDoTrabalho(d, e))).toEqual(["2|padrao", "3|unidade"]);
+    const d = { "P2|padrao": { status: "APR" }, "P4|padrao": { status: "APR" }, "P5|duplicidade": { status: "PROP" }, "P3|unidade": { status: "PROP" } };
+    expect(Object.keys(decisoesDoTrabalho(d, e))).toEqual(["P2|padrao", "P3|unidade"]);
     expect(decisoesDoTrabalho(d, aplicarEscopo(itens, { desde: "" }))).toBe(d); // sem grupo fora, é a mesma coisa
     expect(decisoesDoTrabalho(undefined, e)).toEqual({});
     expect(Object.keys(d)).toHaveLength(4); // nada foi apagado do projeto

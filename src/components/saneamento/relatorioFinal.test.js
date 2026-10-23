@@ -25,7 +25,7 @@ const estado = {
   // Peças é um grupo saneado de verdade: critérios aprovados (identidade, não aplicável, com justificativa) e tratados nele
   params: { desde: "2025-01-01", semData: "manter" }, criterios: { padrao: { ...ok, regra: "Regra registrada de padronização." }, duplicidade: ok, unidade: ok, saldos: ok, cartilhas: ok, identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-21", justificativa: "Um só fabricante por código neste cadastro." } } },
   tratados: { "Peças|padrao": marca, "Peças|duplicidade": marca, "Peças|saldos": marca, "Peças|cartilhas": marca },
-  decisoes: { "2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: 3, decididoPor: "ana", decididoEm: "2026-10-21" }, "4|unidade": { acao: "ENC", status: "PROP", grupo: "Insumos" } },
+  decisoes: { "C2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: "C3", decididoPor: "ana", decididoEm: "2026-10-21" }, "C4|unidade": { acao: "ENC", status: "PROP", grupo: "Insumos" } },
   saneados: { "Peças": true }, piloto: { "Unificar duplicados": { status: "Testado", evidencia: "doc SAP 123" } }, padronizacao: { regras: {}, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} },
   fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: { criar: { responsavel: "Gestor", controle: "Amostragem" } } }, gruposFora: {},
 };

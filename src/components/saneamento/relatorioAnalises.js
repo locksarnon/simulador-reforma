@@ -5,6 +5,7 @@ import { situacaoCriterio } from "./analise";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { formatarNcm, leituraAchado, textoLinhas } from "./leituraAchados";
 import { montarConjuntos } from "./conjuntos";
+import { chaveDe } from "./identidade";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -52,7 +53,7 @@ export function montarRelatorioAnalises({ achados, criterios, grupos, estado, co
         r = { grupo: g, linha: it.linha, codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", ncm: formatarNcm(it.ncm || it.ncm_original || ""), ultimaMov: dataBr(it.ultima_mov), saldo, porCriterio: {} };
         linhas.set(it.linha, r);
       }
-      r.porCriterio[c.id] = { como: textoLinhas(l.como), seria: textoLinhas(l.seria), porque: l.porque, decisao: textoDecisao(estado?.decisoes?.[`${it.linha}|${c.id}`]) };
+      r.porCriterio[c.id] = { como: textoLinhas(l.como), seria: textoLinhas(l.seria), porque: l.porque, decisao: textoDecisao(estado?.decisoes?.[chaveDe(it, c.id)]) };
       total += 1;
     }
     totalAchados += total; colunas.push({ id: c.id, titulo: c.titulo, situacao: situacaoCriterio(estado, c, contagem), total });

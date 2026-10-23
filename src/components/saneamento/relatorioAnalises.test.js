@@ -10,7 +10,7 @@ const itens = [
   item(4, "Insumos", { descricao: "CORANTE ALIMENTÍCIO LÍQ.CONFEITARIA ROSA" }), // padronização (ponto colado)
   item(5, "Insumos", { descricao: "ADUBO", unidade: "KG" }), // sem achado
 ];
-const estado = { decisoes: { "2|padrao": { acao: "ENC", status: "APR", decididoPor: "ana", decididoEm: "2026-10-22" }, "3|unidade": { acao: "ENC", status: "PROP" } }, criterios: {} };
+const estado = { decisoes: { "C2|padrao": { acao: "ENC", status: "APR", decididoPor: "ana", decididoEm: "2026-10-22" }, "C3|unidade": { acao: "ENC", status: "PROP" } }, criterios: {} };
 const achados = calcularAchados(itens, criarTestes(itens, estado)); const contagem = contarAchados(achados, itens.length);
 const totaisGrupos = new Map([["Peças", 2], ["Insumos", 2]]); const itemPorLinha = new Map(itens.map((i) => [i.linha, i]));
 const monta = (criterios, grupos = null, extra = {}) => montarRelatorioAnalises({ achados, criterios, grupos, estado, contagem, itemPorLinha, totaisGrupos, ...extra });
@@ -106,7 +106,7 @@ describe("Excel das análises: a planilha", () => {
     const r = gera({}); expect(r.temSaldo).toBe(true); expect(r.linhas.map((l) => l.saldo)).toEqual([3, 12]);
     expect(r.linhas[0].porCriterio.duplicidade.seria).toContain("Ação: unificar no código C3 (sugerido)"); expect(r.linhas[1].porCriterio.duplicidade.seria).toBe("Ação: manter este código (sugerido)");
     expect(r.linhas[1].porCriterio.duplicidade.porque).toBe("Sugestão: manter C3 (maior saldo em estoque (12 contra 3)).");
-    const escolhido = gera({ "3|duplicidade": { acao: "ENC", status: "PROP", destino: 2, escolhaPor: "analista" } }); // o analista escolheu ficar com o código C2
+    const escolhido = gera({ "C3|duplicidade": { acao: "ENC", status: "PROP", destino: "C2", escolhaPor: "analista" } }); // o analista escolheu ficar com o código C2
     expect(escolhido.linhas[0].porCriterio.duplicidade.seria).toBe("Ação: fica este código (escolhido)"); expect(escolhido.linhas[1].porCriterio.duplicidade.seria).toContain("Ação: unificar no código C2 (escolhido)");
     expect(escolhido.linhas[1].porCriterio.duplicidade.decisao).toBe("Encaminhado (aguarda decisão)");
     const ws = (await carregar(r)).getWorksheet("Análises");

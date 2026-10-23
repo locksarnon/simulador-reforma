@@ -89,14 +89,14 @@ describe("revisão do grupo", () => {
     const grupo = itensDoGrupoFiscal(itens, "Grãos");
     const r0 = resumoFiscal(grupo, classes, {});
     expect(r0).toMatchObject({ total: 4, pendentes: 3, revisar: 0, decididos: 0, precisaDecidir: 3 }); expect(r0.porSit).toMatchObject({ CONFERE: 1, SEM_CLASSE: 1, BENEFICIO: 1, NCM: 1 }); expect(podeConcluir(r0)).toBe(false);
-    const d = { 2: { acao: "ACEITAR" }, 3: { acao: "MANTER", obs: "Produtor rural" }, 5: { acao: "REVISAR" } };
+    const d = { C2: { acao: "ACEITAR" }, C3: { acao: "MANTER", obs: "Produtor rural" }, C5: { acao: "REVISAR" } };
     const r1 = resumoFiscal(grupo, classes, d);
     expect(r1).toMatchObject({ pendentes: 0, revisar: 1, decididos: 2 }); expect(podeConcluir(r1)).toBe(true);
-    expect(resumoFiscal(grupo, classes, { ...d, 3: { acao: "MANTER", obs: "x" } }).pendentes).toBe(1); // fundamento curto demais: decisão incompleta
+    expect(resumoFiscal(grupo, classes, { ...d, C3: { acao: "MANTER", obs: "x" } }).pendentes).toBe(1); // fundamento curto demais: decisão incompleta
     expect(podeConcluir(resumoFiscal([], classes, {}))).toBe(false);
   });
   it("a matriz traz uma linha por item, das situações mais graves para as mais tranquilas, com proposta, fundamento e validação", () => {
-    const linhas = linhasMatriz(itensDoGrupoFiscal(itens, "Grãos"), classes, { 2: { acao: "ACEITAR", por: "ana", em: "2026-10-23" } });
+    const linhas = linhasMatriz(itensDoGrupoFiscal(itens, "Grãos"), classes, { C2: { acao: "ACEITAR", por: "ana", em: "2026-10-23" } });
     expect(linhas.map((l) => [l.linha, l.situacao])).toEqual([[5, "NCM"], [3, "BENEFICIO"], [2, "SEM_CLASSE"], [1, "CONFERE"]]);
     expect(linhas[2]).toMatchObject({ decisao: ACOES.ACEITAR, classeFinal: "200003", validacao: "Decidido pelo analista: classe sugerida adotada", por: "ana", em: "23/10/2026", rotuloSituacao: SITUACOES.SEM_CLASSE.rotulo });
     expect(linhas[1]).toMatchObject({ decisao: "", classeFinal: "", validacao: "Pendente de decisão" });

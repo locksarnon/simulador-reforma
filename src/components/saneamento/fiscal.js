@@ -2,6 +2,7 @@
 // separa o que está certo do que pede decisão e monta a matriz do grupo (proposta, fundamento, validação e pendências). Só SUGERE: nada é alterado no cadastro nem
 // no ERP, e a sugestão é leitura dos anexos consultados, não parecer: onde o enquadramento depende dos requisitos do produto, o item vai para revisão. Funções puras.
 import { dataBr, grupoDe } from "./logica";
+import { idItem, identificavel } from "./identidade";
 
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const soDigitos = (s) => String(s ?? "").replace(/\D/g, "");
@@ -89,14 +90,17 @@ function propostaDe(sit, l) {
   }
 }
 
-/** Leitura fiscal de um item: o que está informado, o que os anexos sugerem, o fundamento e a proposta. `classes` vem de mapaClasses(). */
-export function leituraFiscal(it, classes = new Map()) {
+/**
+ * Leitura fiscal de um item: o que está informado, o que os anexos sugerem, o fundamento e a proposta. `classes` vem de mapaClasses(). A decisão fiscal é guardada pelo
+ * código do item (`id`); `indice` (de identidade.indexar) diz se o código identifica o item (sem código, ou repetido na base, o item não recebe decisão: `semIdentidade`).
+ */
+export function leituraFiscal(it, classes = new Map(), indice = null) {
   const sit = situacaoFiscal(it); const s = it.sugestao || null;
   const informada = String(it.c_class_trib_informado ?? "").trim(); const sugerida = s?.c_class_trib || "";
   const infoSug = sugerida ? classes.get(sugerida) : null; const infoInf = informada ? classes.get(informada) : null;
   const fundamento = s?.anexo ? `${s.anexo} da LC 214/2025` : s?.padrao ? "sem enquadramento nos anexos consultados da LC 214/2025 (não indica, por si só, ausência de benefício por outra base legal)" : "";
   const l = {
-    linha: it.linha, codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", grupo: grupoDe(it),
+    linha: it.linha, id: idItem(it), semIdentidade: indice ? !identificavel(it, indice) : !idItem(it), codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", grupo: grupoDe(it),
     ncmOriginal: it.ncm_original || "", ncm: it.ncm || "", ncmCorrigido: soDigitos(it.ncm).length === 8 && soDigitos(it.ncm) !== soDigitos(it.ncm_original),
     informada, sugerida, reducao: sugerida && s ? pct(s.reducao) : "", confianca: sugerida || s?.referencia ? s?.confianca || "" : "", fundamento,
     cstSugerida: infoSug?.cst || "", cstInformada: infoInf?.cst || "", descricaoClasse: infoSug?.descricao_oficial || s?.descricao || "",
@@ -107,6 +111,9 @@ export function leituraFiscal(it, classes = new Map()) {
   l.proposta = propostaDe(sit, l);
   return l;
 }
+
+/** A decisão fiscal guardada para a leitura (pelo código do item); item sem identidade estável nunca tem decisão. */
+export const decisaoFiscalDe = (decisoes, l) => (l.semIdentidade ? undefined : decisoes?.[l.id]);
 
 /** A decisão é válida para a situação? MANTER em casos de alerta exige o fundamento escrito; NCM exige 8 dígitos; ACEITAR exige classe sugerida. */
 export function decisaoValida(sit, leitura, d) {
@@ -140,12 +147,12 @@ export function resumoDeLeituras(leituras, decisoes) {
   for (const l of leituras) {
     porSit[l.situacao] += 1;
     if (!SITUACOES[l.situacao].decide) continue;
-    const d = decisoes?.[l.linha];
+    const d = decisaoFiscalDe(decisoes, l);
     if (!decisaoValida(l.situacao, l, d)) pendentes += 1; else if (d.acao === "REVISAR") revisar += 1; else decididos += 1;
   }
   return { total: leituras.length, porSit, pendentes, revisar, decididos, precisaDecidir: ORDEM_SITUACOES.filter((s) => SITUACOES[s].decide).reduce((a, s) => a + porSit[s], 0) };
 }
-export const resumoFiscal = (itens, classes, decisoes) => resumoDeLeituras(itens.map((it) => leituraFiscal(it, classes)), decisoes);
+export const resumoFiscal = (itens, classes, decisoes, indice = null) => resumoDeLeituras(itens.map((it) => leituraFiscal(it, classes, indice)), decisoes);
 
 /** O grupo pode ser concluído sem nenhum item aguardando decisão (os "a revisar com especialista" ficam como pendência registrada). */
 export const podeConcluir = (resumo) => resumo.total > 0 && resumo.pendentes === 0;
@@ -159,9 +166,9 @@ export const COLUNAS_MATRIZ = [
 ];
 
 /** Linhas da matriz fiscal de um conjunto de itens (todas as situações), na ordem de gravidade e depois pela linha da planilha. */
-export function linhasMatriz(itens, classes, decisoes) {
+export function linhasMatriz(itens, classes, decisoes, indice = null) {
   const linhas = itens.map((it) => {
-    const l = leituraFiscal(it, classes); const d = decisoes?.[it.linha]; const r = resultadoFiscal(l, d);
+    const l = leituraFiscal(it, classes, indice); const d = decisaoFiscalDe(decisoes, l); const r = resultadoFiscal(l, d);
     return { ...l, ncmFinal: r.ncm, rotuloSituacao: SITUACOES[l.situacao].rotulo, decisao: d && SITUACOES[l.situacao].decide ? ACOES[d.acao] || "" : "", classeFinal: r.classe, obs: d?.obs || "", validacao: r.validacao, por: d?.por || "", em: d?.em ? dataBr(d.em) : "" };
   });
   return linhas.sort((a, b) => ORDEM_SITUACOES.indexOf(a.situacao) - ORDEM_SITUACOES.indexOf(b.situacao) || a.grupo.localeCompare(b.grupo, "pt-BR") || a.linha - b.linha);

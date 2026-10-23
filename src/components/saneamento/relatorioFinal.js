@@ -7,6 +7,7 @@ import { contarDecisoes } from "./politica";
 import { ORDEM_SITUACOES, SITUACOES, itensDoGrupoFiscal, leituraFiscal, resumoDeLeituras } from "./fiscal";
 import { linhasQueSaem } from "./listasFinais";
 import { resumoUnidades } from "./unidades";
+import { indexar } from "./identidade";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -93,11 +94,11 @@ export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, iten
   P("As listas finais (lista final corrigida, desduplicações, análises, itens inativados por data de uso e execução) são emitidas em Excel no passo Conferência e refletem as decisões registradas.", "nota");
 
   T(6, "Revisão fiscal");
-  const saem = linhasQueSaem(estado, itens); const liberados = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem));
+  const saem = linhasQueSaem(estado, itens); const indice = indexar(itens); const liberados = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem));
   if (!liberados.length) P("Nenhum grupo foi liberado para a revisão fiscal até agora (a revisão começa em grupo saneado).");
   else b.push({ t: "tabela", cols: [{ label: "Grupo", w: 40 }, { label: "Itens", w: 12, align: "right" }, { label: "A decidir", w: 16, align: "right" }, { label: "A revisar com especialista", w: 26, align: "right" }, { label: "Decididos", w: 16, align: "right" }, { label: "Situação", w: 24 }],
-    linhas: liberados.map((g) => { const r = resumoDeLeituras(itensDoGrupoFiscal(g.itens, g.nome, saem).map((it) => leituraFiscal(it)), estado.fiscal?.decisoes); const k = estado.fiscal?.grupos?.[g.nome]; return [g.nome, fmt(r.total), fmt(r.pendentes), fmt(r.revisar), fmt(r.decididos), k ? `Concluída por ${k.por} em ${dataBr(k.em)}` : "Em revisão"]; }) });
-  const tot = liberados.reduce((a, g) => { const r = resumoDeLeituras(itensDoGrupoFiscal(g.itens, g.nome, saem).map((it) => leituraFiscal(it)), estado.fiscal?.decisoes); for (const s of ORDEM_SITUACOES) a[s] = (a[s] || 0) + r.porSit[s]; return a; }, {});
+    linhas: liberados.map((g) => { const r = resumoDeLeituras(itensDoGrupoFiscal(g.itens, g.nome, saem).map((it) => leituraFiscal(it, undefined, indice)), estado.fiscal?.decisoes); const k = estado.fiscal?.grupos?.[g.nome]; return [g.nome, fmt(r.total), fmt(r.pendentes), fmt(r.revisar), fmt(r.decididos), k ? `Concluída por ${k.por} em ${dataBr(k.em)}` : "Em revisão"]; }) });
+  const tot = liberados.reduce((a, g) => { const r = resumoDeLeituras(itensDoGrupoFiscal(g.itens, g.nome, saem).map((it) => leituraFiscal(it, undefined, indice)), estado.fiscal?.decisoes); for (const s of ORDEM_SITUACOES) a[s] = (a[s] || 0) + r.porSit[s]; return a; }, {});
   if (liberados.length) b.push({ t: "tabela", cols: [{ label: "Situação fiscal (grupos liberados)", w: 84 }, { label: "Itens", w: 20, align: "right" }], linhas: ORDEM_SITUACOES.filter((s) => tot[s]).map((s) => [SITUACOES[s].rotulo, fmt(tot[s])]) });
   P("A classe sugerida vem da correlação do NCM com os anexos da LC 214/2025 consultados; é sugestão para revisão, não parecer. A matriz fiscal de cada grupo (proposta, fundamento, validação e pendências) é emitida em Excel no passo Fiscal.", "nota");
 

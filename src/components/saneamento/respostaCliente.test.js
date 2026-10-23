@@ -31,7 +31,7 @@ describe("sugestão de padronização (só sugere)", () => {
 
 describe("resposta do cliente", () => {
   const itens = [it1(2, "1001", "ANEL  TRAVA 1"), it1(3, "1002", "CHAVE 16 MM"), it1(4, "1003", "PINO  X"), it1(5, "1004", "BUCHA  Y")];
-  const decisoes = { "2|padrao": { acao: "ENC", status: "PROP", sugerida: "ANEL TRAVA 1", grupo: "Peças" }, "3|padrao": { acao: "ENC", status: "PROP", sugerida: "CHAVE 16MM", grupo: "Peças" } };
+  const decisoes = { "1001|padrao": { acao: "ENC", status: "PROP", sugerida: "ANEL TRAVA 1", grupo: "Peças" }, "1002|padrao": { acao: "ENC", status: "PROP", sugerida: "CHAVE 16MM", grupo: "Peças" } };
   it("interpreta OK, ajuste, não e vazio", () => {
     expect(interpretarResposta("OK", "", "X")).toMatchObject({ status: "APR", final: "X", origemFinal: "sugestao" });
     expect(interpretarResposta("", "CHAVE COMBINADA 16MM", "CHAVE 16MM")).toMatchObject({ status: "APR", final: "CHAVE COMBINADA 16MM", origemFinal: "cliente" });
@@ -41,10 +41,10 @@ describe("resposta do cliente", () => {
   it("aplica as respostas por código, cria decisão quando só veio na planilha e conta o que sobrou", () => {
     const linhas = [{ codigo: "1001", resposta: "ok", comoFica: "" }, { codigo: "1002", resposta: "", comoFica: "CHAVE COMBINADA 16MM" }, { codigo: "1003", resposta: "OK", comoFica: "" }, { codigo: "1004", resposta: "", comoFica: "" }, { codigo: "9999", resposta: "ok", comoFica: "" }];
     const r = aplicarRespostas(decisoes, itens, linhas, { quem: "ana", hoje: "2026-10-22" });
-    expect(r.decisoes["2|padrao"]).toMatchObject({ status: "APR", final: "ANEL TRAVA 1", origemFinal: "sugestao", decididoPor: "ana" });
-    expect(r.decisoes["3|padrao"]).toMatchObject({ status: "APR", final: "CHAVE COMBINADA 16MM", origemFinal: "cliente" });
-    expect(r.decisoes["4|padrao"]).toMatchObject({ status: "APR", final: "PINO X" });
-    expect(r.decisoes["5|padrao"]).toBeUndefined();
+    expect(r.decisoes["1001|padrao"]).toMatchObject({ status: "APR", final: "ANEL TRAVA 1", origemFinal: "sugestao", decididoPor: "ana" });
+    expect(r.decisoes["1002|padrao"]).toMatchObject({ status: "APR", final: "CHAVE COMBINADA 16MM", origemFinal: "cliente" });
+    expect(r.decisoes["1003|padrao"]).toMatchObject({ status: "APR", final: "PINO X" });
+    expect(r.decisoes["1004|padrao"]).toBeUndefined();
     expect(r.resumo).toMatchObject({ aceitas: 2, ajustadas: 1, rejeitadas: 0, semResposta: 1, naoEncontradas: ["9999"] });
   });
   it("lista para o cliente traz código, atual e sugerida", () => {

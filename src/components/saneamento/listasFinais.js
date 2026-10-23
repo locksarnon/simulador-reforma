@@ -6,11 +6,15 @@ import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 import { saldoNaEscala } from "./conjuntos";
+import { chaveDe, idItem, indexar, itemPorId, partirChave } from "./identidade";
+import { coerenciaDaDecisao } from "./aprovacao";
 import { COLUNAS_EXECUCAO, COLUNAS_FRENTE, FRENTES, LARGURAS_FRENTE, ROT_SITUACAO_GERAL, gerarTarefas, linhasExecucao, resumoExecucao, situacaoPorLinha } from "./execucao";
 
 const ROT_STATUS = { PROP: "Encaminhado (aguarda decisão)", APR: "Aprovado", REJ: "Rejeitado" };
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
-const decisaoDe = (estado, linha, critId) => estado?.decisoes?.[`${linha}|${critId}`] || null;
+const decisaoDe = (estado, it, critId) => estado?.decisoes?.[chaveDe(it, critId)] || null;
+/** A decisão do item no critério, só se ainda vale para o cadastro da base atual (o item não mudou para outra coisa desde a aprovação). */
+const decisaoVale = (estado, it, critId, indice) => { const d = decisaoDe(estado, it, critId); return d && coerenciaDaDecisao(d, critId, it, indice).ok ? d : null; };
 /** Texto da proposta de um achado: a sugestão e, na conversão de unidade, a unidade de compra e o "itens por unidade de compra". */
 const propostaDoAchado = (a) => {
   if (!a.sugerida) return "";
@@ -20,23 +24,26 @@ const propostaDoAchado = (a) => {
   return `${a.sugerida} · unidade de compra ${String(e.de).toUpperCase()} · itens por unidade de compra: ${itens}`;
 };
 
-/** Itens que saem do cadastro ativo por duplicidade aprovada: o item encaminhado, aprovado e com destino diferente dele mesmo. */
+/**
+ * Itens que saem do cadastro ativo por duplicidade aprovada: o item encaminhado, aprovado e com destino diferente dele mesmo. A decisão é do código do item: se o cadastro
+ * dele ou o do código que fica mudou para outra coisa desde a aprovação, ela não vale para a base atual (`vale` falso) e o item não sai da lista final.
+ */
 export function unificacoesAprovadas(estado, itens) {
-  const porLinha = new Map(itens.map((i) => [i.linha, i]));
+  const indice = indexar(itens);
   const saida = [];
   for (const [k, d] of Object.entries(estado?.decisoes || {})) {
-    const [linha, crit] = k.split("|");
+    const { id, crit } = partirChave(k);
     if (crit !== "duplicidade") continue;
-    const origem = porLinha.get(Number(linha)); if (!origem) continue;
-    const destinoLinha = d.destino ?? origem.duplicidade?.mestre ?? null;
-    saida.push({ d, origem, destino: destinoLinha != null ? porLinha.get(destinoLinha) || null : null, destinoLinha });
+    const origem = itemPorId(indice, id); if (!origem) continue;
+    const destinoId = d.destino ?? (origem.duplicidade?.mestre != null ? idItem(indice.porLinha.get(origem.duplicidade.mestre)) || null : null);
+    saida.push({ d, origem, destino: destinoId != null ? itemPorId(indice, destinoId) : null, destinoId, vale: coerenciaDaDecisao(d, crit, origem, indice).ok });
   }
   return saida;
 }
 
 /** Linhas que saem da lista final porque a unificação foi aprovada (o item é unificado em outro código): não precisam de classificação fiscal própria. */
 export function linhasQueSaem(estado, itens) {
-  return new Set(unificacoesAprovadas(estado, itens).filter((u) => u.d.status === "APR" && u.destinoLinha != null && u.destinoLinha !== u.origem.linha).map((u) => u.origem.linha));
+  return new Set(unificacoesAprovadas(estado, itens).filter((u) => u.d.status === "APR" && u.vale && u.destinoId != null && u.destinoId !== idItem(u.origem)).map((u) => u.origem.linha));
 }
 
 /**
@@ -46,6 +53,7 @@ export function linhasQueSaem(estado, itens) {
 export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens, escopo, testes, escalaSaldo = 1, cobertura = {} }) {
   const estado = { ...estadoBruto, decisoes: decisoesDoTrabalho(estadoBruto?.decisoes, escopo) }; // decisões de grupos fora do saneamento ficam guardadas e fora das listas
   const corte = dataDoCorte(estado?.params); // DD/MM/AAAA do parâmetro de saneamento ("" = sem corte)
+  const indice = indexar(itens);
   const uni = unificacoesAprovadas(estado, itens);
   // Execução: tarefas das decisões aprovadas (e dos itens inativados) e a confirmação de cada frente, conciliadas com a evidência
   const { tarefas } = gerarTarefas({ decisoes: estado?.decisoes, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params });
@@ -57,9 +65,9 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   const finalCorrigida = [];
   for (const it of escopo.emEscopo) {
     if (saemPorUnificacao.has(it.linha)) continue;
-    const dp = decisaoDe(estado, it.linha, "padrao");
+    const dp = decisaoVale(estado, it, "padrao", indice);
     const aplicada = dp && dp.status === "APR" ? (dp.final || dp.sugerida) : null;
-    const du = decisaoDe(estado, it.linha, "unidade");
+    const du = decisaoVale(estado, it, "unidade", indice);
     const unidade = du && du.status === "APR" && du.para ? du : null; // unidade de estoque aprovada
     const conversao = unidade && unidade.tipo === "conversao";
     finalCorrigida.push({
@@ -72,14 +80,15 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   }
 
   // 2) Desduplicações (aprovadas, rejeitadas e ainda em decisão)
-  const desduplicacoes = uni.map(({ d, origem, destino, destinoLinha }) => {
-    const cand = origem.duplicidade?.candidatos?.find((c) => c.linha === destinoLinha) || origem.duplicidade?.candidatos?.[0];
+  const desduplicacoes = uni.map(({ d, origem, destino, destinoId, vale }) => {
+    const cand = origem.duplicidade?.candidatos?.find((c) => destino && c.linha === destino.linha) || origem.duplicidade?.candidatos?.[0];
     return {
       grupo: d.grupo || grupoDe(origem), codigoOrigem: origem.codigo, descricaoOrigem: origem.descricao, unidadeOrigem: origem.unidade, saldoOrigem: saldoNaEscala(origem.saldo, escalaSaldo) ?? "",
-      codigoDestino: destino ? destino.codigo : "", descricaoDestino: destino ? destino.descricao : "", saldoDestino: destino ? saldoNaEscala(destino.saldo, escalaSaldo) ?? "" : "",
-      acao: destinoLinha != null && destinoLinha !== origem.linha ? "Unificar no código mantido" : "Código mantido (sem baixa)",
+      codigoDestino: destino ? destino.codigo : destinoId ?? "", descricaoDestino: destino ? destino.descricao : "", saldoDestino: destino ? saldoNaEscala(destino.saldo, escalaSaldo) ?? "" : "",
+      acao: destinoId != null && destinoId !== idItem(origem) ? "Unificar no código mantido" : "Código mantido (sem baixa)",
       nivel: origem.duplicidade ? NIVEL_ROT[origem.duplicidade.nivel] : "", similaridade: cand ? cand.score : "", motivos: cand ? cand.motivos.join("; ") : "",
-      decisao: ROT_STATUS[d.status] || d.status, aprovador: d.decididoPor || "", data: dataBr(d.decididoEm),
+      // decisão que não vale mais para o cadastro atual não conta como aprovada (nem como encaminhada em dia): o analista precisa avaliar de novo
+      decisao: vale ? ROT_STATUS[d.status] || d.status : d.status === "APR" ? "Aprovado, mas o cadastro mudou desde então (não vale)" : "Encaminhado, mas o cadastro mudou desde então (revisar)", aprovador: d.decididoPor || "", data: dataBr(d.decididoEm),
     };
   }).sort((a, b) => (a.decisao > b.decisao ? 1 : -1));
 
@@ -90,10 +99,10 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   const aprovados = criteriosAprovados(estado, contagemCriterios); // inclui os aprovados automaticamente (sem achados)
   for (const c of aprovados.filter((x) => x.auto)) {
     for (const a of achadosPorCriterio[c.id] || []) {
-      const d = decisaoDe(estado, a.item.linha, c.id);
+      const d = decisaoDe(estado, a.item, c.id); const coerencia = d ? coerenciaDaDecisao(d, c.id, a.item, indice) : null;
       analises.push({
         criterio: c.titulo, grupo: grupoDe(a.item), codigo: a.item.codigo, descricao: a.item.descricao, achado: a.motivo, proposta: propostaDoAchado(a),
-        decisao: d ? ROT_STATUS[d.status] || d.status : "Não encaminhado", aprovador: d?.decididoPor || "", data: dataBr(d?.decididoEm),
+        decisao: d ? `${ROT_STATUS[d.status] || d.status}${coerencia.ok ? "" : ` (não vale: ${coerencia.motivo.toLowerCase()})`}` : "Não encaminhado", aprovador: d?.decididoPor || "", data: dataBr(d?.decididoEm),
       });
     }
   }

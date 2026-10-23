@@ -2,6 +2,8 @@
 // como deve ficar, e a resposta é importada de volta como decisões. Nada é gravado no cadastro: só ficam registradas as decisões.
 import { REGRAS_PADRAO, abreviacoesAprovadas, padronizarDescricao } from "./logica";
 import { carregarExcelJS } from "./arquivoXlsx";
+import { chaveDe, indexar, itemPorId, partirChave } from "./identidade";
+import { instantaneoDoItem } from "./aprovacao";
 
 /** Texto comparável: minúsculo, sem acento e só letras e números ("Resposta (OK)" → "respostaok"). */
 export const chaveTexto = (x) => String(x ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -9,12 +11,12 @@ const COLUNAS_LISTA = ["Código", "Descrição atual", "Descrição sugerida", "
 
 /** Linhas da lista que vai para o cliente: uma por correção sugerida (e ainda não decidida, quando só = "pendentes"). */
 export function linhasListaCliente(decisoes, itens, { somentePendentes = false } = {}) {
-  const porLinha = new Map(itens.map((i) => [i.linha, i]));
+  const indice = indexar(itens);
   const linhas = [];
   for (const [k, d] of Object.entries(decisoes || {})) {
-    const [linha, crit] = k.split("|"); if (crit !== "padrao") continue;
+    const { id, crit } = partirChave(k); if (crit !== "padrao") continue;
     if (somentePendentes && d.status !== "PROP") continue;
-    const it = porLinha.get(Number(linha)); if (!it) continue;
+    const it = itemPorId(indice, id); if (!it) continue;
     linhas.push([it.codigo, it.descricao, d.sugerida || "", "", "", ""]);
   }
   return linhas;
@@ -32,17 +34,19 @@ export function interpretarResposta(resposta, comoFica, sugerida) {
 
 /** Aplica as respostas lidas da planilha (código, resposta, como deve ficar) sobre as decisões. Devolve as novas decisões e um resumo. */
 export function aplicarRespostas(decisoes, itens, linhas, { quem, hoje, regras = REGRAS_PADRAO, abrev = {} }) {
-  const porCodigo = new Map(itens.map((i) => [String(i.codigo).trim(), i]));
+  const indice = indexar(itens);
   const novas = { ...decisoes };
-  const resumo = { aceitas: 0, ajustadas: 0, rejeitadas: 0, semResposta: 0, naoEncontradas: [] };
+  const resumo = { aceitas: 0, ajustadas: 0, rejeitadas: 0, semResposta: 0, naoEncontradas: [], ambiguas: [] };
   for (const l of linhas) {
-    const it = porCodigo.get(String(l.codigo ?? "").trim());
-    if (!it) { if (String(l.codigo ?? "").trim()) resumo.naoEncontradas.push(String(l.codigo).trim()); continue; }
-    const k = `${it.linha}|padrao`; const atual = novas[k];
+    const cod = String(l.codigo ?? "").trim();
+    if (cod && indice.repetidos.has(cod)) { resumo.ambiguas.push(cod); continue; } // o código aparece mais de uma vez na base: não dá para saber de qual item é a resposta
+    const it = cod ? itemPorId(indice, cod) : null;
+    if (!it) { if (cod) resumo.naoEncontradas.push(cod); continue; }
+    const k = chaveDe(it, "padrao"); const atual = novas[k];
     const sugerida = atual?.sugerida || padronizarDescricao(it.descricao, regras, abrev).sugerida;
     const res = interpretarResposta(l.resposta, l.comoFica, sugerida);
     if (!res) { resumo.semResposta++; continue; }
-    novas[k] = { acao: "ENC", grupo: atual?.grupo || it.grupo_atual || "(sem grupo)", por: atual?.por || "planilha do cliente", em: atual?.em || hoje, ...atual, sugerida, ...res, decididoPor: quem, decididoEm: hoje, viaPlanilha: true };
+    novas[k] = { acao: "ENC", grupo: atual?.grupo || it.grupo_atual || "(sem grupo)", por: atual?.por || "planilha do cliente", em: atual?.em || hoje, antes: instantaneoDoItem(it), ...atual, sugerida, ...res, decididoPor: quem, decididoEm: hoje, viaPlanilha: true };
     if (res.status === "REJ") resumo.rejeitadas++; else if (res.origemFinal === "cliente") resumo.ajustadas++; else resumo.aceitas++;
   }
   return { decisoes: novas, resumo };

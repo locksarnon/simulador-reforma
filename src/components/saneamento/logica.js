@@ -1,5 +1,6 @@
 // Regras puras do projeto de saneamento (sem React): escopo pelo parâmetro de saneamento, grupos e achados por critério.
 import { achadosUnidade } from "./unidades";
+import { idItem, partirChave } from "./identidade";
 
 export const SEM_GRUPO = "(sem grupo)";
 export const grupoDe = (item) => (item.grupo_atual || "").trim() || SEM_GRUPO;
@@ -61,8 +62,8 @@ export function aplicarEscopo(itens, params, gruposFora) {
 export function decisoesDoTrabalho(decisoes, escopo) {
   const lista = escopo?.foraGrupos;
   if (!lista?.length) return decisoes || {};
-  const fora = new Set(lista.map((it) => it.linha));
-  return Object.fromEntries(Object.entries(decisoes || {}).filter(([k]) => !fora.has(Number(k.split("|")[0]))));
+  const fora = new Set(lista.map(idItem));
+  return Object.fromEntries(Object.entries(decisoes || {}).filter(([k]) => !fora.has(partirChave(k).id)));
 }
 
 /** Grupos de itens (coluna do cliente) com contagem, ordenados do maior para o menor. */

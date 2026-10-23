@@ -2,6 +2,7 @@
 // padronizar e descontinuar), regras por grupo e uma versão estruturada para configurar o módulo de cadastro automático do cliente. Critério ainda não aprovado
 // não gera regra. Só SUGERE: é uma proposta de política que o responsável revisa e aprova; nada é alterado no cadastro nem no ERP. Funções puras.
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, dataBr, dataDoCorte, normalizarParams } from "./logica";
+import { partirChave } from "./identidade";
 import { coberturaDoCriterio, criteriosPendentesDoGrupo, grupoSaneado, naoAplicavelDe, situacaoCriterio } from "./analise";
 import { GRANDEZAS, resumoUnidades } from "./unidades";
 
@@ -20,7 +21,7 @@ export const SECOES = [
 export function contarDecisoes(decisoes) {
   const por = {};
   for (const [k, d] of Object.entries(decisoes || {})) {
-    const crit = k.split("|")[1]; const c = por[crit] || (por[crit] = { total: 0, PROP: 0, APR: 0, REJ: 0 });
+    const crit = partirChave(k).crit; const c = por[crit] || (por[crit] = { total: 0, PROP: 0, APR: 0, REJ: 0 });
     c.total += 1; if (d.status in c) c[d.status] += 1;
   }
   return por;

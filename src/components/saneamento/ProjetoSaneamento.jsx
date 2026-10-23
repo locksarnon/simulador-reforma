@@ -23,6 +23,10 @@ import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } f
 import RelacaoTriagem from "./RelacaoTriagem";
 import GruposDoSaneamento from "./GruposDoSaneamento";
 import { criarSituacao } from "./relacoes";
+import { indexar, itemPorId, origemCompleta, partirChave, precisaMigrar, semChavesAntigas, textoOrigem, versaoDasChaves } from "./identidade";
+import MigracaoChaves, { PainelLegado } from "./MigracaoChaves";
+import { ConciliacaoBase, OrigemDosDados } from "./OrigemDosDados";
+import { coerenciaDaDecisao } from "./aprovacao";
 import { detectarEscalaSaldo } from "./conjuntos";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
@@ -40,7 +44,7 @@ const PASSOS = [
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null } });
+const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null }, origem: {} });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -58,6 +62,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [msgResposta, setMsgResposta] = useState("");
   const [gerando, setGerando] = useState(false);
   const [relacao, setRelacao] = useState(null); // cartão da triagem cuja relação de itens está aberta
+  const [avisoTroca, setAvisoTroca] = useState(""); // por que a base ainda não pode ser trocada
   const [ordAbrev, ordenarAbrev] = useOrdenacao(); const [ordUn, ordenarUn] = useOrdenacao(); const [ordDec, ordenarDec] = useOrdenacao(); // ordem das tabelas dos passos Critérios e De/para
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
@@ -67,7 +72,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     if (!proj.data || carregado.current) return;
     carregado.current = true;
     setNome(proj.data.nome); setValidacaoId(proj.data.validacao_id || null);
-    setEstado({ ...estadoInicial(), ...(proj.data.estado || {}) });
+    const salvoNoProjeto = proj.data.estado || {};
+    setEstado({ ...estadoInicial(), ...salvoNoProjeto, versaoChaves: versaoDasChaves(salvoNoProjeto) }); // projeto antigo (decisões pela linha) fica com a versão 1 até migrar
   }, [proj.data]);
 
   // Autosave: cada ajuste é salvo sozinho.
@@ -87,27 +93,32 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   }, [importando]);
   const basesSalvas = useQuery({ queryKey: ["saneamento-bases", empresaId], enabled: !validacaoId, queryFn: () => api.get(`/produtos/validacoes?empresa_id=${empresaId}`) });
   const base = useQuery({ queryKey: ["saneamento-base", validacaoId], enabled: !!validacaoId, queryFn: () => api.get(`/produtos/validacoes/${validacaoId}?empresa_id=${empresaId}`), staleTime: 5 * 60 * 1000 });
+  // Projeto antigo: o que está guardado pelo número da linha NUNCA é lido como código de item (a linha de hoje pode ser outro produto). Enquanto não migrar, o trabalho enxerga o
+  // projeto sem essas chaves; o que está guardado continua intacto no projeto.
+  const legado = !!estado && precisaMigrar(estado);
+  const vivo = useMemo(() => (estado && legado ? semChavesAntigas(estado) : estado), [estado, legado]);
   const itens = useMemo(() => base.data?.itens || [], [base.data]);
+  const indice = useMemo(() => indexar(itens), [itens]); // o código do item identifica a decisão (a linha da planilha muda a cada extração)
   const escopo = useMemo(() => aplicarEscopo(itens, estado?.params, estado?.gruposFora), [itens, estado?.params, estado?.gruposFora]);
   const grupos = useMemo(() => agruparPorGrupo(escopo.emEscopo), [escopo]);
   const gruposTodos = useMemo(() => agruparPorGrupo(itens), [itens]); // todos os grupos da base, para escolher quais entram no saneamento
   const emEscopoPorGrupo = useMemo(() => new Map(grupos.map((g) => [g.nome, g.itens.length])), [grupos]);
   const situacaoItem = useMemo(() => criarSituacao(escopo, dataDoCorte(estado?.params)), [escopo, estado?.params]);
-  const decisoesTrabalho = useMemo(() => decisoesDoTrabalho(estado?.decisoes, escopo), [estado?.decisoes, escopo]); // sem as de grupos fora do saneamento
+  const decisoesTrabalho = useMemo(() => decisoesDoTrabalho(vivo?.decisoes, escopo), [vivo?.decisoes, escopo]); // sem as de grupos fora do saneamento
   const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao, estado?.politicaUnidade]);
   const achados = useMemo(() => (validacaoId ? calcularAchados(escopo.emEscopo, testes) : {}), [validacaoId, escopo, testes]);
   const cobertura = useMemo(() => coberturaDaBase(base.data), [base.data]); // quais análises rodaram na importação: "sem achados" só vale onde a análise rodou
   const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length, cobertura) : null), [validacaoId, achados, escopo, cobertura]);
   const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: decisoesTrabalho, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, decisoesTrabalho, estado?.execucao?.tipos, estado?.params, itens, escopo]);
-  const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, estado?.execucao?.registros), [execGerada, estado?.execucao?.registros]);
+  const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, vivo?.execucao?.registros), [execGerada, vivo?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
   const temSaldo = useMemo(() => itens.some((i) => i.saldo != null), [itens]);
   const temAnalise = useMemo(() => itens.some((i) => i.sugestao), [itens]); // a base foi processada com a análise de cClassTrib
-  const saem = useMemo(() => linhasQueSaem(estado, itens), [estado?.decisoes, itens]); // itens unificados em outro código: fora da revisão fiscal
+  const saem = useMemo(() => linhasQueSaem(vivo, itens), [vivo?.decisoes, itens]); // itens unificados em outro código: fora da revisão fiscal
   const escalaSaldo = useMemo(() => estado?.saldoEscala ?? detectarEscalaSaldo(itens), [estado?.saldoEscala, itens]); // a escolha do analista vale mais que a escala detectada
   const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
   const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
-  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado, itens, escopo, testes, escalaSaldo, cobertura }) : null), [estado, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo, cobertura]);
+  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura }) : null), [vivo, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo, cobertura]);
 
   // Grupo marcado como saneado que deixou de cumprir os critérios (regra mais exigente, critério reaberto ou sem a análise) é reaberto: a marca antiga não volta sozinha
   // quando as pendências forem resolvidas, o analista conclui o grupo de novo. O aviso fica registrado no projeto.
@@ -122,6 +133,14 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   if (proj.error) return <p role="alert" className="text-sm text-destructive">Não foi possível abrir o projeto: {proj.error.message}</p>;
 
   const mudar = (patch) => setEstado((e) => ({ ...e, ...patch }));
+  // A origem dos dados (ERP + instância + empresa) é o que dá sentido ao código do item: fica registrada com quem declarou e quando.
+  const mudarOrigem = (patch) => setEstado((e) => ({ ...e, origem: { ...(e.origem || {}), ...patch, declaradaPor: quem, declaradaEm: hojeIso() } }));
+  // Trocar a base só vale para outra extração da mesma origem; sem a origem declarada não há como saber que o código continua apontando para o mesmo produto.
+  const trocarBase = async () => {
+    if (!origemCompleta(estado.origem)) { setAvisoTroca("Declare a origem dos dados (ERP, instância e empresa) no quadro acima antes de trocar a base: é ela que garante que o código do item continua apontando para o mesmo produto na nova extração."); return; }
+    setAvisoTroca("");
+    if (await confirmar({ titulo: "Trocar a base?", descricao: `A nova base precisa ser outra extração de ${textoOrigem(estado.origem)}: o mesmo ERP, a mesma instância e a mesma empresa. As decisões ficam presas ao código do item: o que não aparecer na nova base fica guardado, e o que mudou no cadastro desde a decisão volta para nova avaliação. Para outra empresa ou instância, crie outro projeto. O arquivo da base atual continua guardado no histórico.`, rotulo: "Trocar a base" })) setValidacaoId(null);
+  };
   // Grupos do saneamento (funcionais, como as demais escolhas): `gruposFora` guarda só os desmarcados.
   const alternarGrupo = (nome) => setEstado((e) => { const fora = { ...(e.gruposFora || {}) }; if (fora[nome]) delete fora[nome]; else fora[nome] = true; return { ...e, gruposFora: fora }; });
   const marcarGrupos = (nomes, marcar) => setEstado((e) => { const fora = { ...(e.gruposFora || {}) }; for (const n of nomes) { if (marcar) delete fora[n]; else fora[n] = true; } return { ...e, gruposFora: fora }; });
@@ -129,8 +148,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const irPara = (i) => mudar({ passo: Math.max(0, Math.min(PASSOS.length - 1, i)) });
   const params = normalizarParams(estado.params); // aceita projetos salvos com os dois cortes antigos
   const decisoesLista = Object.entries(decisoesTrabalho).map(([k, d]) => ({ k, ...d }));
-  const nDecOcultas = Object.keys(estado.decisoes).length - Object.keys(decisoesTrabalho).length; // de grupos fora do saneamento
-  const itemPorLinha = (linha) => mapaLinha.get(linha);
+  const nDecOcultas = Object.keys(vivo.decisoes).length - Object.keys(decisoesTrabalho).length; // de grupos fora do saneamento
   const regrasPad = { ...REGRAS_PADRAO, ...(estado.padronizacao?.regras || {}) };
   const abrevPad = estado.padronizacao?.abreviacoes || {};
   const slug = (nome || "projeto").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -140,6 +158,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     <div className={passo === 0 ? "space-y-3" : "hidden"}>
       <div className="rounded-lg border border-dashed border-border p-4 text-sm">
         <p className="font-medium">Importe a base de itens</p>
+        {(legado || Object.keys(vivo.decisoes).length > 0) && <p className="mt-1 rounded-md bg-muted/60 p-2 text-xs">{legado ? "Este projeto guarda decisões pela linha da planilha: vincule a base ORIGINAL (a que fundamentou as decisões) para migrá-las para o código do item. Uma base de outra extração não confere com elas." : `Este projeto já tem decisões guardadas: a nova base precisa ser outra extração de ${textoOrigem(estado.origem)}.`}</p>}
         <p className="text-muted-foreground mt-1">Envie a exportação do ERP e confirme as colunas. Mapeie a <b>data da última movimentação</b> (não a de atualização do cadastro) e o <b>grupo de produto</b>: o parâmetro de saneamento e a análise por grupo dependem deles. Ao processar, a base fica vinculada a este projeto.</p>
         {(basesSalvas.data || []).length > 0 && (
           <label className="block mt-3 text-sm">Ou use uma base já processada nesta empresa (sem filtro de período)
@@ -159,6 +178,9 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <Botao onClick={() => setValidacaoId(null)}>Importar ou escolher outra base</Botao>
     </div>) : (
     <div className="space-y-4">
+      {legado && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs dark:border-amber-700/50 dark:bg-amber-950/20" role="alert"><span>Este projeto guarda decisões pela linha da planilha. Antes de seguir, migre para o código do item (nos passos seguintes).</span><Botao onClick={() => irPara(1)}>Ir para a migração</Botao></div>}
+      <OrigemDosDados origem={estado.origem} onMudar={mudarOrigem} />
+      <ConciliacaoBase decisoes={vivo.decisoes} itens={itens} onIrDepara={() => irPara(4)} />
       <div className="rounded-xl border-2 border-primary/40 bg-card p-4 space-y-3">
         <h3 className="font-medium">Parâmetro de saneamento</h3>
         <p className="text-xs text-muted-foreground">Define quem entra no trabalho: o item cuja última movimentação é anterior à data escolhida fica fora do escopo; o movimentado nela ou depois continua. O que fazer com o item sem data de movimentação legível você escolhe abaixo.</p>
@@ -183,7 +205,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       </div>
       {relacao && (relacao !== "foraGrupos" || escopo.resumo.foraGrupos > 0) && <RelacaoTriagem key={relacao} id={relacao} itens={itens} escopo={escopo} corte={dataDoCorte(estado.params)} semDataFora={escopo.resumo.semDataFora > 0} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} />}
       <GruposDoSaneamento grupos={gruposTodos} emEscopoPorGrupo={emEscopoPorGrupo} gruposFora={estado.gruposFora || {}} situacao={situacaoItem} onAlternar={alternarGrupo} onMarcar={marcarGrupos} />
-      <Botao onClick={async () => { if (await confirmar({ titulo: "Trocar a base?", descricao: "A base vinculada sai do projeto (o arquivo continua guardado no histórico). Os critérios aprovados são mantidos, mas as decisões por item podem deixar de corresponder à nova base.", rotulo: "Trocar a base" })) setValidacaoId(null); }}>Trocar a base</Botao>
+      <div className="space-y-1.5"><Botao onClick={trocarBase}>Trocar a base</Botao>{avisoTroca && <p className="text-xs text-amber-700 dark:text-amber-300" role="alert">{avisoTroca}</p>}</div>
     </div>
   );
 
@@ -302,7 +324,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const analises = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para analisar.</p> : (
     <PassoAnalises estado={estado} setEstado={setEstado} grupos={grupos} achados={achados} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} quem={quem}
       onComparar={setComparativo} onIrCriterios={() => irPara(1)} onIrDepara={() => irPara(4)} onIrTriagem={() => irPara(0)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio} onNaoAplicavel={marcarNaoAplicavel}
-      itemPorLinha={mapaLinha} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} escalaSaldo={escalaSaldo} temSaldo={temSaldo} onEscala={(v) => mudar({ saldoEscala: v })} />
+      itemPorLinha={mapaLinha} indice={indice} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} escalaSaldo={escalaSaldo} temSaldo={temSaldo} onEscala={(v) => mudar({ saldoEscala: v })} />
   );
 
   // ── Passo 6: Execução (realocações físicas) ──
@@ -312,7 +334,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   );
 
   // ── Passo 5: De/para (decisões) ──
-  const decidir = (ks, status) => setEstado((e) => { const d = { ...e.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP" && !(status === "APR" && precisaFator(d[k]))) d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); return { ...e, decisoes: d }; });
+  // A decisão é do código do item: se o cadastro dele mudou para outra coisa desde a proposta, ou o item saiu da base, ela não pode ser aprovada como está.
+  const coerencia = (k, d) => { const { id, crit } = partirChave(k); return coerenciaDaDecisao(d, crit, itemPorId(indice, id), indice); };
+  const podeAprovar = (k, d) => ["OK", "REFLETIDA"].includes(coerencia(k, d).estado);
+  const decidir = (ks, status) => setEstado((e) => { const d = { ...e.decisoes }; ks.forEach((k) => { if (d[k] && d[k].status === "PROP" && !(status === "APR" && (precisaFator(d[k]) || !podeAprovar(k, d[k])))) d[k] = { ...d[k], status, decididoPor: quem, decididoEm: hojeIso() }; }); return { ...e, decisoes: d }; });
+  // Decisão que não vale mais para a base atual sai da lista e fica guardada no histórico do projeto; o achado pode ser encaminhado de novo.
+  const descartarDecisao = (k, motivo) => setEstado((e) => { if (!e.decisoes[k]) return e; const d = { ...e.decisoes }; const antiga = d[k]; delete d[k]; return { ...e, decisoes: d, historicoDecisoes: [...(e.historicoDecisoes || []), { k, d: antiga, descartadaPor: quem, descartadaEm: hojeIso(), motivo }] }; });
   // O fator digitado vale mais que o sugerido; apagar o campo volta a "a informar" (e impede a aprovação).
   const setFatorDecisao = (k, txt) => setEstado((e) => ({ ...e, decisoes: { ...e.decisoes, [k]: { ...e.decisoes[k], fatorTxt: txt, fatorFinal: lerFator(txt) ?? "" } } }));
   const celulaUnidade = (d, it) => {
@@ -322,7 +349,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         <div className="text-[11px]"><b className="font-medium">Unidade de estoque: {d.de} → {d.para}</b>
           {d.tipo === "conversao" && (d.status === "PROP" ? (
             <label className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-muted-foreground"><span>unidade de compra {compra}: 1 =</span>
-              <span className="inline-flex items-center gap-1 whitespace-nowrap"><input inputMode="decimal" value={d.fatorTxt ?? (d.fator ?? "")} placeholder="a informar" aria-label={`Itens por unidade de compra, linha ${d.k.split("|")[0]}`} onChange={(e) => setFatorDecisao(d.k, e.target.value)} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums" /> {d.para}</span>
+              <span className="inline-flex items-center gap-1 whitespace-nowrap"><input inputMode="decimal" value={d.fatorTxt ?? (d.fator ?? "")} placeholder="a informar" aria-label={`Itens por unidade de compra, código ${partirChave(d.k).id}`} onChange={(e) => setFatorDecisao(d.k, e.target.value)} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums" /> {d.para}</span>
               {d.evidencia === "descricao" && d.fatorFinal === undefined && <span>(lido da descrição: confirme)</span>}</label>
           ) : <span className="block text-muted-foreground">unidade de compra {compra}: {f != null ? `1 = ${numeroBr(f)} ${d.para}` : "itens por unidade de compra a informar"}</span>)}
         </div></div>);
@@ -345,6 +372,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   };
   const depara = (
     <div className="space-y-3">
+      <PainelLegado estado={estado} slug={slug} nomeProjeto={nome} />
       <p className="text-sm text-muted-foreground">Aqui chegam os casos encaminhados no passo Análises. Aprove ou rejeite cada um: só o aprovado entra nas listas finais e na execução; sem resposta, o caso continua aguardando. Nada é alterado no cadastro.</p>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={estado.bloco} onChange={(e) => mudar({ bloco: e.target.checked })} /> Aprovar em bloco (opcional)</label>
       <p className="text-xs text-muted-foreground">Cada caso continua registrado individualmente, com aprovador e data. Resumo: {fmt(decisoesLista.filter((d) => d.status === "PROP").length)} aguardando decisão · {fmt(decisoesLista.filter((d) => d.status === "APR").length)} aprovados · {fmt(decisoesLista.filter((d) => d.status === "REJ").length)} rejeitados.</p>
@@ -360,11 +388,13 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       {porGrupoDec.map((gn) => { const lista = decisoesLista.filter((d) => d.grupo === gn); const pend = lista.filter((d) => d.status === "PROP");
         return (<Acc key={gn} aberto={!!aberto["d" + gn]} onToggle={() => alternar("d" + gn)} titulo={<><b className="font-medium">{gn}</b><span className="text-xs text-muted-foreground">{fmt(lista.length)} casos · {fmt(pend.length)} aguardando decisão</span></>}>
           {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.filter((d) => !precisaFator(d)).length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao>{pend.some(precisaFator) && <span className="self-center text-xs text-muted-foreground">Conversões de unidade sem fator ficam aguardando.</span>}</div>}
-          <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="caso" ord={ordDec} onOrdenar={ordenarDec}>Caso</Th><Th chave="criterio" ord={ordDec} onOrdenar={ordenarDec}>Critério</Th><Th chave="descricao" ord={ordDec} onOrdenar={ordenarDec}>Descrição</Th><Th chave="situacao" ord={ordDec} onOrdenar={ordenarDec}>Situação</Th><th className="p-1.5"></th></tr></thead>
-            <tbody>{ordenarPor(lista, ordDec, { caso: (d) => Number(d.k.split("|")[0]), criterio: (d) => CRITERIOS.find((c) => c.id === d.k.split("|")[1])?.titulo, descricao: (d) => itemPorLinha(Number(d.k.split("|")[0]))?.descricao, situacao: (d) => (d.status === "PROP" ? 0 : d.status === "APR" ? 1 : 2) }).slice(0, 200).map((d) => { const [linha, cid] = d.k.split("|"); const it = itemPorLinha(Number(linha));
-              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums">L{linha}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== Number(linha) ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorLinha(d.destino)?.codigo ?? "—"}</div></div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
-                <td className="p-1.5">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}</td>
-                <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d)} title={precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}</td></tr>); })}</tbody></table>
+          <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="caso" ord={ordDec} onOrdenar={ordenarDec}>Código</Th><Th chave="criterio" ord={ordDec} onOrdenar={ordenarDec}>Critério</Th><Th chave="descricao" ord={ordDec} onOrdenar={ordenarDec}>Descrição</Th><Th chave="situacao" ord={ordDec} onOrdenar={ordenarDec}>Situação</Th><th className="p-1.5"></th></tr></thead>
+            <tbody>{ordenarPor(lista, ordDec, { caso: (d) => partirChave(d.k).id, criterio: (d) => CRITERIOS.find((c) => c.id === partirChave(d.k).crit)?.titulo, descricao: (d) => itemPorId(indice, partirChave(d.k).id)?.descricao ?? d.antes?.descricao, situacao: (d) => (d.status === "PROP" ? 0 : d.status === "APR" ? 1 : 2) }).slice(0, 200).map((d) => { const { id, crit: cid } = partirChave(d.k); const it = itemPorId(indice, id) ?? (d.antes ? { codigo: id, descricao: d.antes.descricao, unidade: d.antes.unidade } : null); const coer = coerencia(d.k, d);
+              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums whitespace-nowrap">{it?.codigo ?? id}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== id ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorId(indice, d.destino)?.codigo ?? d.destino}</div></div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
+                <td className="p-1.5"><div className="flex flex-col items-start gap-1">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}
+                  {coer.estado === "MUDOU" && <span title={coer.motivo}><Chip tom="r">Cadastro mudou: não vale</Chip></span>}{coer.estado === "AUSENTE" && <span title={coer.motivo}><Chip tom="a">Fora da base atual</Chip></span>}{coer.estado === "REFLETIDA" && <span title={coer.motivo}><Chip tom="b">Já está no cadastro</Chip></span>}</div></td>
+                <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d) || !podeAprovar(d.k, d)} title={!podeAprovar(d.k, d) ? coer.motivo : precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}
+                  {(coer.estado === "MUDOU" || (coer.estado === "AUSENTE" && d.status !== "APR")) && <Botao className="ml-1" title="Tira a decisão desta lista e guarda no histórico do projeto; o achado pode ser encaminhado de novo, com o cadastro como está agora" onClick={() => descartarDecisao(d.k, coer.motivo)}>Descartar</Botao>}</td></tr>); })}</tbody></table>
             {lista.length > 200 && <p className="text-xs text-muted-foreground p-2">Mostrando 200 de {fmt(lista.length)}.</p>}</div>
         </Acc>); })}
     </div>
@@ -394,23 +424,26 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
 
   // ── Passo 8: Fiscal (revisão fiscal dos grupos saneados) ──
   const fiscalUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para a revisão fiscal.</p> : (
-    <PassoFiscal estado={estado} setEstado={setEstado} grupos={grupos} contagem={contagem} saem={saem} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} temAnalise={temAnalise} onIrAnalises={() => irPara(3)} />
+    <PassoFiscal estado={estado} setEstado={setEstado} grupos={grupos} todosItens={itens} contagem={contagem} saem={saem} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} temAnalise={temAnalise} onIrAnalises={() => irPara(3)} />
   );
 
   // ── Passo 9: Política de uso e relatório do programa de trabalho (PDF) ──
   // O relatório reúne o que foi feito em todos os passos: as listas são montadas na hora de emitir (a base pode ser grande) e o PDF é carregado só então.
   const emitirRelatorioFinal = async () => {
     const nomeBase = base.data?.nome_arquivo;
-    const listasAgora = montarListas({ nomeProjeto: nome, nomeBase, estado, itens, escopo, testes, escalaSaldo, cobertura });
-    const politica = montarPolitica({ estado, contagem, escopo, grupos, nomeProjeto: nome, nomeBase });
-    const rel = montarRelatorioFinal({ nomeProjeto: nome, nomeBase, quem, estado, itens, escopo, contagem, listas: listasAgora, politica });
+    const listasAgora = montarListas({ nomeProjeto: nome, nomeBase, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura });
+    const politica = montarPolitica({ estado: vivo, contagem, escopo, grupos, nomeProjeto: nome, nomeBase });
+    const rel = montarRelatorioFinal({ nomeProjeto: nome, nomeBase, quem, estado: vivo, itens, escopo, contagem, listas: listasAgora, politica });
     return gerarPdfRelatorio(rel, `${slug}-relatorio-do-programa-de-trabalho.pdf`);
   };
   const politicaUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para montar a política.</p> : (
     <PassoPolitica estado={estado} setEstado={setEstado} contagem={contagem} escopo={escopo} grupos={grupos} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} onRelatorio={emitirRelatorioFinal} />
   );
 
-  const corpo = [triagem, criterios, piloto, analises, depara, execucao, conferencia, fiscalUi, politicaUi][passo];
+  // Projeto antigo: nenhum passo que use decisões abre antes da migração (a Triagem fica livre para vincular a base original).
+  const migracao = legado && passo !== 0 ? (validacaoId && base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p>
+    : <MigracaoChaves estado={estado} setEstado={setEstado} itens={itens} baseInfo={{ id: validacaoId, arquivo: base.data?.nome_arquivo }} temBase={!!validacaoId && !!base.data && itens.length > 0} quem={quem} slug={slug} nomeProjeto={nome} onIrTriagem={() => irPara(0)} onMudarOrigem={mudarOrigem} />) : null;
+  const corpo = migracao ?? [triagem, criterios, piloto, analises, depara, execucao, conferencia, fiscalUi, politicaUi][passo];
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem)).length;

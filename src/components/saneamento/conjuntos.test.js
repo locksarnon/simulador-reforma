@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { aplicarEscolha, desfazerEscolha, detectarEscalaSaldo, escolhaDoConjunto, montarConjuntos, saldoNaEscala, sugerirSobrevivente } from "./conjuntos";
+import { aplicarEscolha, conjuntoIdentificavel, desfazerEscolha, detectarEscalaSaldo, escolhaDoConjunto, montarConjuntos, saldoNaEscala, sugerirSobrevivente } from "./conjuntos";
+import { indexar } from "./identidade";
 
 const dup = (grupo, cands, nivel = "EXATA", score = 1) => ({ nivel, score, grupo, mestre: null, candidatos: cands.map((l) => ({ linha: l, score, nivel, motivos: [] })) });
 const item = (linha, codigo, extra = {}) => ({ linha, codigo, descricao: `ITEM ${codigo}`, unidade: "UN", grupo_atual: "Peças", ...extra });
@@ -12,7 +13,7 @@ describe("conjuntos de duplicados", () => {
       item(10, "P", { duplicidade: dup(null, [11], "POSSIVEL", 0.8) }), item(11, "Q", { duplicidade: dup(null, [10], "POSSIVEL", 0.8) }),
       item(20, "S", { duplicidade: dup(null, [99], "POSSIVEL", 0.8) }), item(30, "Z")];
     const c = montarConjuntos(itens);
-    expect(c.map((x) => [x.id, linhas(x).sort((a, b) => a - b), x.nivel])).toEqual([["c:2", [2, 3, 4], "EXATA"], ["c:10", [10, 11], "POSSIVEL"]]);
+    expect(c.map((x) => [x.id, linhas(x).sort((a, b) => a - b), x.nivel])).toEqual([["c:A", [2, 3, 4], "EXATA"], ["c:P", [10, 11], "POSSIVEL"]]); // o conjunto se chama pelo menor código: não muda de uma extração para outra
   });
   it("o possível ligado a um grupo forte entra no conjunto dele; o nível do conjunto é o mais forte; o grupo de itens é o mais frequente", () => {
     const itens = [item(2, "A", { duplicidade: dup(0, [3]) }), item(3, "B", { grupo_atual: "Insumos", duplicidade: dup(0, [2]) }), item(4, "C", { grupo_atual: "Insumos", duplicidade: dup(null, [3], "POSSIVEL", 0.8) }), item(5, "D", { duplicidade: dup(null, [3], "POSSIVEL", 0.8) })];
@@ -32,7 +33,7 @@ describe("conjuntos de duplicados", () => {
 describe("qual código fica (sugestão)", () => {
   it("1º o maior saldo em estoque, na escala escolhida; saldo zero ou ausente perde", () => {
     const m = [item(2, "A", { saldo: 3 }), item(3, "B", { saldo: 12 }), item(4, "C", { saldo: null })];
-    expect(sugerirSobrevivente(m)).toMatchObject({ linha: 3, criterio: "saldo", motivo: "maior saldo em estoque (12 contra 3)", ordem: [3, 2, 4] });
+    expect(sugerirSobrevivente(m)).toMatchObject({ linha: 3, id: "B", criterio: "saldo", motivo: "maior saldo em estoque (12 contra 3)", ordem: [3, 2, 4] });
     expect(sugerirSobrevivente([item(2, "A", { saldo: 3000000 }), item(3, "B", { saldo: 12000000 })], { escala: 1e6 }).motivo).toBe("maior saldo em estoque (12 contra 3)");
     expect(sugerirSobrevivente([item(2, "A", { saldo: 0 }), item(3, "B", { saldo: 5 })])).toMatchObject({ linha: 3, motivo: "maior saldo em estoque (5 contra 0)" });
   });
@@ -66,37 +67,53 @@ describe("qual código fica (sugestão)", () => {
   });
 });
 
-describe("escolher quem fica", () => {
+describe("escolher quem fica (a escolha é guardada pelo código do item)", () => {
   const mk = () => montarConjuntos([item(2, "A", { saldo: 3, duplicidade: dup(0, [3, 4]) }), item(3, "B", { saldo: 12, duplicidade: dup(0, [2, 4]) }), item(4, "C", { saldo: 1, duplicidade: dup(0, [3]) })])[0];
 
-  it("os que saem viram proposta para o De/para (unificar no que fica); o que fica não tem decisão", () => {
-    const c = mk(); const d = aplicarEscolha({}, c, 3, { ...ctx, origem: "sugestao" });
-    expect(Object.keys(d).sort()).toEqual(["2|duplicidade", "4|duplicidade"]);
-    expect(d["2|duplicidade"]).toEqual({ acao: "ENC", status: "PROP", grupo: "Peças", por: "ana", em: "2026-10-22", destino: 3, conjunto: "c:2", escolhaPor: "sugestao" });
-    expect(escolhaDoConjunto(c, d)).toEqual({ fica: 3, origem: "sugestao", status: "aguardando", travada: false });
+  it("os que saem viram proposta para o De/para (unificar no código que fica); o que fica não tem decisão", () => {
+    const c = mk(); const d = aplicarEscolha({}, c, "B", { ...ctx, origem: "sugestao" });
+    expect(Object.keys(d).sort()).toEqual(["A|duplicidade", "C|duplicidade"]);
+    expect(d["A|duplicidade"]).toEqual({ acao: "ENC", status: "PROP", grupo: "Peças", por: "ana", em: "2026-10-22", destino: "B", conjunto: "c:A", escolhaPor: "sugestao",
+      antes: { descricao: "ITEM A", unidade: "UN", grupo: "Peças" }, destinoAntes: { descricao: "ITEM B", unidade: "UN", grupo: "Peças" } }); // a decisão guarda como os dois cadastros estavam
+    expect(escolhaDoConjunto(c, d)).toEqual({ fica: "B", origem: "sugestao", status: "aguardando", travada: false });
     expect(escolhaDoConjunto(c, {})).toEqual({ fica: null, origem: null, status: "nenhuma", travada: false });
   });
   it("não altera as decisões dadas, é idempotente e trocar de ideia reorganiza as propostas", () => {
-    const c = mk(); const base = { "9|padrao": { acao: "ENC", status: "PROP" } }; const copia = JSON.stringify(base);
-    const d1 = aplicarEscolha(base, c, 3, ctx); expect(JSON.stringify(base)).toBe(copia); expect(d1["9|padrao"]).toBe(base["9|padrao"]);
-    expect(aplicarEscolha(d1, c, 3, ctx)).toBe(d1); // mesma escolha, mesma referência
-    const d2 = aplicarEscolha(d1, c, 2, ctx);
-    expect(Object.keys(d2).filter((k) => k.endsWith("duplicidade")).sort()).toEqual(["3|duplicidade", "4|duplicidade"]); expect(d2["3|duplicidade"].destino).toBe(2); expect(d2["4|duplicidade"].destino).toBe(2);
-    expect(escolhaDoConjunto(c, d2).fica).toBe(2);
+    const c = mk(); const base = { "Z9|padrao": { acao: "ENC", status: "PROP" } }; const copia = JSON.stringify(base);
+    const d1 = aplicarEscolha(base, c, "B", ctx); expect(JSON.stringify(base)).toBe(copia); expect(d1["Z9|padrao"]).toBe(base["Z9|padrao"]);
+    expect(aplicarEscolha(d1, c, "B", ctx)).toBe(d1); // mesma escolha, mesma referência
+    const d2 = aplicarEscolha(d1, c, "A", ctx);
+    expect(Object.keys(d2).filter((k) => k.endsWith("duplicidade")).sort()).toEqual(["B|duplicidade", "C|duplicidade"]); expect(d2["B|duplicidade"].destino).toBe("A"); expect(d2["C|duplicidade"].destino).toBe("A");
+    expect(escolhaDoConjunto(c, d2).fica).toBe("A");
   });
   it("o modelo antigo (a decisão do mantido aponta para ele mesmo) é reconhecido", () => {
-    const c = mk(); const antigo = { "2|duplicidade": { status: "PROP", destino: 3 }, "3|duplicidade": { status: "PROP", destino: 3 }, "4|duplicidade": { status: "PROP", destino: 3 } };
-    expect(escolhaDoConjunto(c, antigo)).toMatchObject({ fica: 3, origem: "analista", status: "aguardando", travada: false });
+    const c = mk(); const antigo = { "A|duplicidade": { status: "PROP", destino: "B" }, "B|duplicidade": { status: "PROP", destino: "B" }, "C|duplicidade": { status: "PROP", destino: "B" } };
+    expect(escolhaDoConjunto(c, antigo)).toMatchObject({ fica: "B", origem: "analista", status: "aguardando", travada: false });
   });
   it("conjunto com caso já aprovado ou rejeitado fica travado: nada muda", () => {
-    const c = mk(); const d = { "2|duplicidade": { acao: "ENC", status: "APR", destino: 3 }, "4|duplicidade": { acao: "ENC", status: "PROP", destino: 3 } };
-    expect(escolhaDoConjunto(c, d)).toMatchObject({ fica: 3, status: "decidida", travada: true });
-    expect(aplicarEscolha(d, c, 4, ctx)).toBe(d); expect(desfazerEscolha(d, c)["2|duplicidade"].status).toBe("APR");
+    const c = mk(); const d = { "A|duplicidade": { acao: "ENC", status: "APR", destino: "B" }, "C|duplicidade": { acao: "ENC", status: "PROP", destino: "B" } };
+    expect(escolhaDoConjunto(c, d)).toMatchObject({ fica: "B", status: "decidida", travada: true });
+    expect(aplicarEscolha(d, c, "C", ctx)).toBe(d); expect(desfazerEscolha(d, c)["A|duplicidade"].status).toBe("APR");
   });
   it("desfazer remove só as propostas ainda não decididas", () => {
-    const c = mk(); const d = aplicarEscolha({ "9|padrao": { status: "PROP" } }, c, 3, ctx); const x = desfazerEscolha(d, c);
-    expect(Object.keys(x)).toEqual(["9|padrao"]); expect(desfazerEscolha(x, c)).toBe(x); // nada a desfazer: mesma referência
-    const parcial = desfazerEscolha({ "2|duplicidade": { status: "REJ", destino: 3 }, "4|duplicidade": { status: "PROP", destino: 3 } }, c);
-    expect(Object.keys(parcial)).toEqual(["2|duplicidade"]);
+    const c = mk(); const d = aplicarEscolha({ "Z9|padrao": { status: "PROP" } }, c, "B", ctx); const x = desfazerEscolha(d, c);
+    expect(Object.keys(x)).toEqual(["Z9|padrao"]); expect(desfazerEscolha(x, c)).toBe(x); // nada a desfazer: mesma referência
+    const parcial = desfazerEscolha({ "A|duplicidade": { status: "REJ", destino: "B" }, "C|duplicidade": { status: "PROP", destino: "B" } }, c);
+    expect(Object.keys(parcial)).toEqual(["A|duplicidade"]);
+  });
+  it("o código se guarda como texto: zeros à esquerda e a diferença entre 007 e 7 são preservados", () => {
+    const c = montarConjuntos([item(2, "007", { duplicidade: dup(0, [3]) }), item(3, "7", { duplicidade: dup(0, [2]) })])[0];
+    const d = aplicarEscolha({}, c, "007", ctx);
+    expect(Object.keys(d)).toEqual(["7|duplicidade"]); expect(d["7|duplicidade"].destino).toBe("007"); expect(escolhaDoConjunto(c, d).fica).toBe("007");
+  });
+  it("sem código, ou com código repetido, a escolha não é guardada: não dá para saber depois de qual item ela é", () => {
+    const semCodigo = montarConjuntos([item(2, "A", { duplicidade: dup(0, [3]) }), item(3, "", { duplicidade: dup(0, [2]) })])[0];
+    expect(conjuntoIdentificavel(semCodigo).ok).toBe(false); expect(conjuntoIdentificavel(semCodigo).motivo).toContain("sem código");
+    expect(aplicarEscolha({}, semCodigo, "A", ctx)).toEqual({});
+    const repetidoNoConjunto = montarConjuntos([item(2, "A", { duplicidade: dup(0, [3]) }), item(3, "A", { duplicidade: dup(0, [2]) })])[0];
+    expect(conjuntoIdentificavel(repetidoNoConjunto).ok).toBe(false); expect(aplicarEscolha({}, repetidoNoConjunto, "A", ctx)).toEqual({});
+    const c = mk(); const outraLinhaComOMesmoCodigo = [...c.membros, item(99, "B")]; // o código B também está em outro item da base
+    expect(conjuntoIdentificavel(c, indexar(outraLinhaComOMesmoCodigo)).ok).toBe(false); expect(aplicarEscolha({}, c, "A", { ...ctx, indice: indexar(outraLinhaComOMesmoCodigo) })).toEqual({});
+    expect(conjuntoIdentificavel(c, indexar(c.membros)).ok).toBe(true);
   });
 });

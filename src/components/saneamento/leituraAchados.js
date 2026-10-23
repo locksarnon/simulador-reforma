@@ -3,6 +3,7 @@
 import { GRANDEZAS, numeroBr } from "./unidades";
 import { dataBr } from "./logica";
 import { escolhaDoConjunto } from "./conjuntos";
+import { idItem } from "./identidade";
 
 export const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const L = (rotulo, valor, destaque = false) => ({ rotulo, valor, destaque });
@@ -55,11 +56,11 @@ function leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala = 1 
   const como = [L("Parecido com", nomes.length ? nomes.join(" | ") + (cands.length > nomes.length ? ` (+${cands.length - nomes.length})` : "") : "—"), L("Indicação", `${NIVEL_ROT[dup.nivel] ?? dup.nivel} · similaridade ${num2(dup.score)}`)];
   const conj = conjuntoDe?.get(it.linha);
   if (conj) {
-    const esc = escolhaDoConjunto(conj, decisoes || {}); const fica = esc.fica ?? conj.sugestao.linha; const o = conj.membros.find((m) => m.linha === fica);
-    const seria = fica === it.linha ? [L("Ação", esc.fica != null ? "fica este código (escolhido)" : "manter este código (sugerido)", true)]
-      : [L("Ação", `unificar no código ${o?.codigo || `da linha ${fica}`}${esc.fica != null ? " (escolhido)" : " (sugerido)"}`, true), ...(o?.descricao ? [L("Fica", `${o.descricao}${saldoTxt(o, escala)}`)] : [])];
+    const esc = escolhaDoConjunto(conj, decisoes || {}); const fica = esc.fica ?? conj.sugestao.id; const o = conj.membros.find((m) => idItem(m) === fica);
+    const seria = fica === idItem(it) ? [L("Ação", esc.fica != null ? "fica este código (escolhido)" : "manter este código (sugerido)", true)]
+      : [L("Ação", `unificar no código ${o?.codigo || fica}${esc.fica != null ? " (escolhido)" : " (sugerido)"}`, true), ...(o?.descricao ? [L("Fica", `${o.descricao}${saldoTxt(o, escala)}`)] : [])];
     const sug = conj.membros.find((m) => m.linha === conj.sugestao.linha);
-    const porque = conj.sugestao.motivo ? `Sugestão: manter ${sug?.codigo || `a linha ${conj.sugestao.linha}`} (${conj.sugestao.motivo}).${esc.fica != null && esc.fica !== conj.sugestao.linha ? " Escolha do analista diferente da sugestão." : ""}` : (cands[0]?.motivos || []).join("; ");
+    const porque = conj.sugestao.motivo ? `Sugestão: manter ${sug?.codigo || conj.sugestao.id} (${conj.sugestao.motivo}).${esc.fica != null && esc.fica !== conj.sugestao.id ? " Escolha do analista diferente da sugestão." : ""}` : (cands[0]?.motivos || []).join("; ");
     return { como, seria, porque };
   }
   const m = dup.mestre; const o = m != null ? itemPorLinha?.get(m) : null;
