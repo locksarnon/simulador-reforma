@@ -37,7 +37,7 @@ export default function FerramentasSaneamento() {
     <div className="p-6 lg:p-8 space-y-5">
       <div>
         <TituloPagina icon={ClipboardList}>Saneamento de estoques</TituloPagina>
-        <p className="text-sm text-muted-foreground">Passo a passo: triagem da base, critérios aprovados, análise por grupo, decisões e, ao final, relatório e política de uso.</p>
+        <p className="text-sm text-muted-foreground">Passo a passo: triagem da base, checagens por grupo, decisões e, ao final, relatório e política de uso.</p>
       </div>
       {projetoId ? (
         <ProjetoSaneamento empresa={empresa} empresaId={empresaId} projetoId={projetoId} onVoltar={() => setParams({})} />

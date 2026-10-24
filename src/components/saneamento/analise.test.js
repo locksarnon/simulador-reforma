@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CRITERIOS, criarTestes } from "./logica";
-import { achadosDe, agruparAchados, calcularAchados, contarAchados, coberturaDaBase, criterioResolvido, criteriosAprovados, criteriosPendentesDoGrupo, grupoPodeSanear, grupoSaneado, grupoTratado, marcaDeOutraBase, marcaValida, naoAplicavelDe, situacaoCriterio } from "./analise";
+import { achadosDe, agruparAchados, calcularAchados, contarAchados, coberturaDaBase, criterioResolvido, criteriosAprovados, criteriosPendentesDoGrupo, grupoPodeSanear, grupoSaneado, grupoTratado, marcaConclui, marcaDeOutraBase, marcaManualCompleta, marcaValida, naoAplicavelDe, resultadoDoGrupo, situacaoCriterio } from "./analise";
 
 const item = (linha, grupo, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: `ITEM ${linha}`, unidade: "UN", grupo_atual: grupo, ultima_mov: "2026-01-10", problemas: [], ...extra });
 const ncm = [{ codigo: "NCM_FORMATO", mensagem: "NCM errado" }];
@@ -111,7 +111,9 @@ describe("análise que não rodou na importação não vira \"sem achados\"", ()
 describe("tratamento por grupo e grupo saneado", () => {
   // todos os critérios com achado ou de conferência manual aprovados; sobram para o grupo tratar os que têm achado nele e os manuais
   const completo = (extra = {}) => ({ criterios: aprov("ncm", "identidade", "padrao", "utilizacao", "saldos", "cartilhas"), tratados: {}, saneados: {}, ...extra });
-  const marcas = (grupo, ...cs) => Object.fromEntries(cs.map((c) => [`${grupo}|${c}`, { por: "ana", em: "2026-10-23" }]));
+  // a conferência manual só conclui o grupo com o resultado e a evidência escrita; o teste automático, com a marca simples
+  const marca1 = (c, extra = {}) => (crit(c).auto ? { por: "ana", em: "2026-10-23", ...extra } : { por: "ana", em: "2026-10-23", resultado: "SEM_ACHADOS", nota: "conferido no ERP com o almoxarifado", ...extra });
+  const marcas = (grupo, ...cs) => Object.fromEntries(cs.map((c) => [`${grupo}|${c}`, marca1(c)]));
   it("grupo sem achado no critério automático já está tratado; com achado precisa da marca do analista", () => {
     const e = completo();
     expect(grupoTratado(e, "Peças", crit("padrao"), contagem)).toBe(true); // nada a tratar em Peças
@@ -125,12 +127,32 @@ describe("tratamento por grupo e grupo saneado", () => {
     expect(marcaValida(false, "v2")).toBe(false); expect(marcaValida(undefined, "v2")).toBe(false); expect(marcaDeOutraBase(false, "v2")).toBe(false);
     expect(marcaValida({ por: "ana", base: "v1" }, null)).toBe(true); // sem saber a base da contagem não há com o que comparar
     const na = (baseId) => contarAchados(achados, itens.length, {}, baseId); expect(na("v2").baseId).toBe("v2"); expect(contagem.baseId).toBeNull();
-    const e = completo({ tratados: { "Peças|identidade": { por: "ana", em: "2026-10-23", base: "v1" } } });
+    const e = completo({ tratados: { "Peças|identidade": marca1("identidade", { base: "v1" }) } });
     expect(grupoTratado(e, "Peças", crit("identidade"), na("v1"))).toBe(true); expect(grupoTratado(e, "Peças", crit("identidade"), na("v2"))).toBe(false);
-    const todas = (grupo, base) => Object.fromEntries(["ncm", "identidade", "padrao", "utilizacao", "saldos", "cartilhas"].map((c) => [`${grupo}|${c}`, { por: "ana", em: "2026-10-23", base }]));
+    const todas = (grupo, base) => Object.fromEntries(["ncm", "identidade", "padrao", "utilizacao", "saldos", "cartilhas"].map((c) => [`${grupo}|${c}`, marca1(c, { base })]));
     const sane = completo({ tratados: { ...todas("Peças", "v1"), ...todas("Insumos", "v1") }, saneados: { "Peças": true } });
     expect(grupoSaneado(sane, "Peças", na("v1"))).toBe(true); expect(grupoSaneado(sane, "Peças", na("v2"))).toBe(false); // base trocada: o grupo deixa de valer como saneado
     expect(criteriosPendentesDoGrupo(sane, "Peças", na("v2")).map((c) => c.id)).toContain("identidade");
+  });
+  it("a conferência manual só conclui o grupo com o resultado e a evidência escrita; marca antiga ou incompleta não conclui", () => {
+    const m = (extra) => completo({ tratados: { "Peças|identidade": { por: "ana", em: "2026-10-23", ...extra } } });
+    const g = (e) => grupoTratado(e, "Peças", crit("identidade"), contagem);
+    expect(g(m({ resultado: "SEM_ACHADOS", nota: "conferido no ERP" }))).toBe(true);
+    expect(g(m({ resultado: "COM_ACHADOS", nota: "3 itens com produtos misturados" }))).toBe(true);
+    expect(g(m({}))).toBe(false); expect(g(m({ resultado: "SEM_ACHADOS" }))).toBe(false); expect(g(m({ resultado: "SEM_ACHADOS", nota: "ok" }))).toBe(false); expect(g(m({ resultado: "TALVEZ", nota: "conferido no ERP" }))).toBe(false);
+    expect(g(completo({ tratados: { "Peças|identidade": true } }))).toBe(false); // a marca antiga (true) não traz evidência
+    expect(marcaManualCompleta({ resultado: "SEM_ACHADOS", nota: "  conferido  " })).toBe(true); expect(marcaManualCompleta(true)).toBe(false); expect(marcaManualCompleta(undefined)).toBe(false);
+    expect(marcaConclui({ por: "ana", base: "v1", resultado: "SEM_ACHADOS", nota: "conferido no ERP" }, crit("identidade"), "v2")).toBe(false); // outra base
+    expect(marcaConclui(true, crit("padrao"), "v2")).toBe(true); expect(marcaConclui({ por: "ana", em: "2026-10-23" }, crit("padrao"), "v2")).toBe(true); // o teste automático segue com a marca simples
+    expect(marcaConclui(false, crit("padrao"), "v2")).toBe(false);
+  });
+  it("o resultado do grupo: no teste automático vem dos achados dele; na conferência manual, do que o analista declarou", () => {
+    const e = completo({ tratados: { ...marcas("Insumos", "padrao"), "Peças|identidade": marca1("identidade", { resultado: "COM_ACHADOS", nota: "3 itens com produtos misturados" }) } });
+    expect(resultadoDoGrupo(e, "Peças", crit("padrao"), contagem)).toBe("SEM_ACHADOS"); // nenhum achado em Peças: concluído sozinho
+    expect(resultadoDoGrupo(e, "Insumos", crit("padrao"), contagem)).toBe("COM_ACHADOS"); // tem achado e o analista concluiu
+    expect(resultadoDoGrupo(completo(), "Insumos", crit("padrao"), contagem)).toBeNull(); // com achado e sem conclusão
+    expect(resultadoDoGrupo(e, "Peças", crit("identidade"), contagem)).toBe("COM_ACHADOS"); expect(resultadoDoGrupo(completo(), "Peças", crit("identidade"), contagem)).toBeNull();
+    expect(resultadoDoGrupo(e, "Peças", crit("padrao"), null)).toBeNull(); // sem base nada foi concluído
   });
   it("critério conferido à mão sempre precisa da marca; sem contagem nada é tratado sozinho", () => {
     expect(grupoTratado(completo(), "Peças", crit("identidade"), contagem)).toBe(false);

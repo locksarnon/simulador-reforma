@@ -1,7 +1,8 @@
 // Listas finais do saneamento: lista final corrigida, desduplicações, análises, candidatos à inativação por data de uso (com o que foi aprovado) e execução (tarefas e confirmações).
 // Funções puras (sem React nem arquivo): montam as linhas; a geração do XLSX fica em gerarXlsx().
-import { CRITERIOS, dataBr, dataDoCorte, decisoesDoTrabalho, grupoDe } from "./logica";
-import { calcularAchados, contarAchados, criteriosAprovados, naoAplicavelDe, situacaoCriterio } from "./analise";
+import { agruparPorGrupo, dataBr, dataDoCorte, decisoesDoTrabalho, grupoDe } from "./logica";
+import { calcularAchados, contarAchados, criteriosAprovados } from "./analise";
+import { checagens, linhasEvidencia, resumoChecagens, textoConclusao } from "./checagens";
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
@@ -99,6 +100,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   const achadosPorCriterio = calcularAchados(escopo.emEscopo, testes);
   const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length, cobertura, baseId);
   const aprovados = criteriosAprovados(estado, contagemCriterios); // inclui os aprovados automaticamente (sem achados)
+  const listaCh = checagens(estado, contagemCriterios, agruparPorGrupo(escopo.emEscopo)); const resumoCh = resumoChecagens(listaCh); // a conclusão de cada checagem, com a cobertura e a evidência
   for (const c of aprovados.filter((x) => x.auto)) {
     for (const a of achadosPorCriterio[c.id] || []) {
       const d = decisaoDe(estado, a.item, c.id, indice); const coerencia = d ? coerenciaDaDecisao(d, c.id, a.item, indice, estado?.decisoes) : null;
@@ -137,12 +139,8 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
     ["Lista final corrigida (códigos)", contagem.listaFinal], ["Descrições corrigidas (aprovadas)", contagem.descricoesCorrigidas], ["Unidades de estoque ajustadas (aprovadas)", contagem.unidadesAjustadas],
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
     ["Tarefas de execução (decisões e inativações aprovadas)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],
-    ["Critérios aprovados", aprovados.length ? "" : "nenhum"],
-    ...aprovados.map((c) => [`  ${c.titulo}`, situacaoCriterio(estado, c, contagemCriterios) === "AUTO" ? "aprovado automaticamente (sem achados na base)" : `aprovado por ${estado.criterios[c.id]?.por || "—"} em ${dataBr(estado.criterios[c.id]?.em)}`]),
-    ...(() => {
-      const sem = CRITERIOS.map((c) => [c, situacaoCriterio(estado, c, contagemCriterios)]).filter(([, st]) => st === "NAO_APLICAVEL" || st === "SEM_ANALISE");
-      return sem.length ? [["Critérios fora do trabalho", ""], ...sem.map(([c, st]) => [`  ${c.titulo}`, st === "NAO_APLICAVEL" ? `não se aplica ao projeto: ${naoAplicavelDe(estado, c).justificativa}` : "pendente: a análise de que o teste depende não foi executada nesta base"])] : [];
-    })(),
+    ["Checagens", `${resumoCh.concluidas} de ${resumoCh.total} concluídas (${resumoCh.SEM_ACHADOS} sem achados, ${resumoCh.COM_ACHADOS} com achados, ${resumoCh.NAO_APLICAVEL} não se aplicam); ${resumoCh.PENDENTE} pendentes`],
+    ...listaCh.map((ch) => { const ev = linhasEvidencia(ch); return [`  ${ch.titulo}`, `${textoConclusao(ch)}${ev.length ? ` · ${ev.join("; ")}` : ""}`]; }),
     ["", ""],
     ["Atenção", "Estas listas refletem as decisões registradas no sistema. A execução no SAP e no físico é conferida nos passos de execução e conferência; nenhum cadastro foi alterado por esta ferramenta."],
   ];

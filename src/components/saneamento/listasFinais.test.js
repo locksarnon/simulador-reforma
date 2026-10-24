@@ -70,12 +70,12 @@ describe("listas finais do saneamento", () => {
   it("critério sem achados abre aprovado e consta no resumo como aprovado automaticamente; o com achados só entra nas análises depois de aprovado", () => {
     const sem = base({ ...estado, criterios: {} }); // o analista não aprovou nada
     const resumo = sem.resumo.map((x) => x.join(" | "));
-    expect(resumo.some((x) => x.includes("NCM e classificação cadastral | aprovado automaticamente (sem achados na base)"))).toBe(true);
-    expect(resumo.some((x) => x.startsWith("Critérios aprovados | nenhum"))).toBe(false);
+    expect(resumo).toContain("  NCM e classificação cadastral | Verificada sem achados · Teste automático sem achados: a regra abriu aprovada");
+    expect(resumo.some((x) => x.startsWith("Checagens | ") && x.includes("pendentes"))).toBe(true); // o resumo conta as checagens por estado
     expect(sem.analises).toEqual([]); // duplicidade e padronização têm achados e ainda não foram aprovadas
     const aprovada = base({ ...estado, criterios: { duplicidade: { aprovado: true, por: "ana", em: "2026-10-20" } } });
     expect(aprovada.analises.filter((a) => a.criterio === "Duplicidade").length).toBeGreaterThan(0);
-    expect(aprovada.resumo.map((x) => x.join(" | ")).some((x) => x.includes("Duplicidade | aprovado por ana em 20/10/2026"))).toBe(true);
+    expect(aprovada.resumo.map((x) => x.join(" | ")).some((x) => x.startsWith("  Duplicidade | Pendente: ") && x.includes("Regra aprovada por ana em 20/10/2026"))).toBe(true); // regra aprovada, mas os grupos com achado ainda não foram concluídos
   });
   it("análise que não rodou na importação não vira \"aprovado automaticamente\": o resumo diz que está pendente; critério não aplicável consta com a justificativa", () => {
     const escopo = aplicarEscopo(itens, estado.params);
@@ -83,10 +83,9 @@ describe("listas finais do saneamento", () => {
     const e = { ...estado, criterios: { identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-23", justificativa: "Um só fabricante por código." } } } };
     const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado: e, itens, escopo, testes: criarTestes(escopo.emEscopo, e), cobertura });
     const resumo = l.resumo.map((x) => x.join(" | "));
-    expect(resumo.some((x) => x.includes("Grupo de itens | aprovado automaticamente"))).toBe(false);
-    expect(resumo).toContain("  Grupo de itens | pendente: a análise de que o teste depende não foi executada nesta base");
-    expect(resumo).toContain("  Identidade do produto | não se aplica ao projeto: Um só fabricante por código.");
-    expect(resumo).toContain("Critérios fora do trabalho | ");
+    expect(resumo.some((x) => x.includes("Grupo de itens | Verificada sem achados"))).toBe(false);
+    expect(resumo).toContain("  Grupo de itens | Pendente: a análise de que o teste depende não foi executada nesta base");
+    expect(resumo).toContain("  Identidade do produto | Não se aplica · Declarada não aplicável por ana em 23/10/2026: Um só fabricante por código.");
   });
   it("com os sem data tratados como anteriores à data, entram nos candidatos à inativação com o critério próprio e o resumo conta", () => {
     const sem = [...itens, item(6, "E1", "ITEM SEM DATA", null)];

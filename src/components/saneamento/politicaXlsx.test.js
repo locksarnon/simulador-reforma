@@ -7,7 +7,7 @@ import { criarWorkbookPolitica } from "./politicaXlsx";
 const item = (linha, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "PARAFUSO", unidade: "UN", grupo_atual: "Peças", ultima_mov: "2026-03-01", problemas: [], ...extra });
 const itens = [item(2), item(3, { unidade: "KG", grupo_atual: "Insumos" })];
 const aprov = { aprovado: true, por: "ana", em: "2026-10-20" };
-const estado = { params: { desde: "2025-01-01" }, criterios: { padrao: aprov, identidade: aprov, saldos: aprov, cartilhas: aprov }, tratados: Object.fromEntries(["identidade", "saldos", "cartilhas"].map((c) => [`Peças|${c}`, { por: "ana", em: "2026-10-23" }])), decisoes: {}, saneados: { "Peças": true }, piloto: {},
+const estado = { params: { desde: "2025-01-01" }, criterios: { padrao: aprov, identidade: aprov, saldos: aprov, cartilhas: aprov }, tratados: Object.fromEntries(["identidade", "saldos", "cartilhas"].map((c) => [`Peças|${c}`, { por: "ana", em: "2026-10-23", resultado: "SEM_ACHADOS", nota: "conferido no ERP" }])), decisoes: {}, saneados: { "Peças": true }, piloto: {},
   padronizacao: { regras: {}, abreviacoes: { sext: { para: "SEXTAVADO", aprovada: true } } }, politica: { secoes: Object.fromEntries(SECOES.map((s) => [s.id, { responsavel: "Gestor", controle: "Revisão semestral" }])), aprovada: { por: "ana", em: "2026-10-23" }, grupos: { "Insumos": { regra: "Adubo só em KG" } } } };
 const escopo = aplicarEscopo(itens, estado.params);
 const contagem = contarAchados(calcularAchados(escopo.emEscopo, criarTestes(escopo.emEscopo, estado)), escopo.emEscopo.length);

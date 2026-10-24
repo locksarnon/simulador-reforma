@@ -216,7 +216,7 @@ export function achadosUnidade(itens, { politica = true, regras = {}, rotulos = 
     const raw = String(it.unidade ?? "").trim();
     if (!raw) return { achado: true, motivo: "Sem unidade de medida" };
     const k = cls(raw);
-    if (!k) return { achado: true, motivo: `Unidade "${raw}" sem regra na política: classifique-a na tabela de unidades (passo Critérios)` };
+    if (!k) return { achado: true, motivo: `Unidade "${raw}" sem regra na política: classifique-a na tabela de unidades (passo Checagens, aba Unidade de medida)` };
     if (k.nivel === "mantida") return { achado: false };
     if (politica && (k.nivel === "maior" || k.nivel === "embalagem")) return conversao(it, raw, k, padroes[k.grandeza]);
     if (!k.classe) return { achado: false };

@@ -28,7 +28,7 @@ export const textoLinhas = (linhas) => linhas.map((l) => (l.rotulo ? `${l.rotulo
 function leituraUnidade(a, escala) {
   const it = a.item; const raw = String(it.unidade ?? "").trim(); const e = a.extra; const nome = raw.toUpperCase();
   const como = [L("Unidade de estoque", raw || "(sem unidade)")];
-  if (!a.sugerida) return { como, seria: [L("Unidade de estoque", raw ? "classificar a unidade na tabela de unidades (passo Critérios)" : "informar a unidade de estoque")], porque: a.motivo || "" };
+  if (!a.sugerida) return { como, seria: [L("Unidade de estoque", raw ? "classificar a unidade na tabela de unidades (passo Checagens, aba Unidade de medida)" : "informar a unidade de estoque")], porque: a.motivo || "" };
   if (e?.tipo !== "conversao") return { como, seria: [L("Unidade de estoque", a.sugerida, true)], porque: `A mesma unidade está escrita de outra forma; o padrão do projeto é ${a.sugerida}.` };
   const medida = GRANDEZAS[e.grandeza]?.rotulo.toLowerCase() ?? "medida";
   const embalagem = e.nivel === "embalagem";
@@ -38,7 +38,7 @@ function leituraUnidade(a, escala) {
   const saldo = it.saldo != null && Number.isFinite(Number(it.saldo)) ? Number(it.saldo) / (escala || 1) : null;
   if (saldo != null && e.fator != null) { como.push(L("Saldo", `${numeroBr(saldo)} ${nome}`)); seria.push(L("Saldo", `${numeroBr(saldo * e.fator)} ${a.sugerida}`)); }
   const lead = embalagem ? `Embalagem de ${medida}` : `${nome} é maior que a unidade padrão de ${medida}`;
-  const dica = e.fator == null ? " Se todos os itens em " + nome + " tiverem o mesmo conteúdo, informe-o uma vez na tabela de unidades (passo Critérios)." : "";
+  const dica = e.fator == null ? " Se todos os itens em " + nome + " tiverem o mesmo conteúdo, informe-o uma vez na tabela de unidades (passo Checagens, aba Unidade de medida)." : "";
   return { como, seria, porque: `${lead}: o estoque passa a ser controlado em ${a.sugerida} e ${embalagem ? "a embalagem" : nome} vira unidade de compra.${dica}` };
 }
 

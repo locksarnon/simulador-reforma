@@ -1,4 +1,4 @@
-// Excel das análises (passo 4): o analista escolhe os grupos e os critérios, e cada critério ocupa o seu bloco de colunas (como é, como seria, por quê e
+// Excel das análises (passo Checagens): o analista escolhe os grupos e os critérios, e cada critério ocupa o seu bloco de colunas (como é, como seria, por quê e
 // a decisão), lado a lado na linha do item, para ler juntos os problemas de um mesmo item. Funções puras (sem React); o download fica em gerarXlsxAnalises().
 import { CRITERIOS, dataBr, grupoDe } from "./logica";
 import { situacaoCriterio } from "./analise";

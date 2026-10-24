@@ -1,5 +1,6 @@
-// Análises por critério (passo 4): os achados de cada teste automático, a situação de cada critério (aprovado pelo analista, aprovado automaticamente quando
-// o teste rodou e não achou nada, sem a análise executada, não aplicável com justificativa ou pendente) e o tratamento por grupo. Funções puras (sem React).
+// Checagens (passo 2): os achados de cada teste automático, a situação da regra de cada critério (aprovada pelo analista, aprovada automaticamente quando o teste rodou e não
+// achou nada, sem a análise executada, não aplicável com justificativa ou pendente) e a conclusão por grupo. A conclusão da checagem inteira (verificada sem achados, com achados,
+// não se aplica ou pendente) está em checagens.js. Funções puras (sem React).
 import { CRITERIOS, achadosDoCriterio, grupoDe } from "./logica";
 
 /** Achados de todos os critérios com teste automático, nos itens em escopo: { [critId]: [{ item, motivo, sugerida, extra }] }. */
@@ -88,14 +89,31 @@ export const marcaValida = (marca, baseId) => !!marca && (marca === true || !mar
 /** Há uma marca de "tratado" que ficou para trás por ter sido feita sobre outra base? */
 export const marcaDeOutraBase = (marca, baseId) => !!marca && !marcaValida(marca, baseId);
 
+export const NOTA_MIN = 5;
+export const RESULTADOS_GRUPO = ["SEM_ACHADOS", "COM_ACHADOS"];
 /**
- * O grupo está tratado no critério quando o analista marcou (nesta base), ou quando o teste automático rodou por inteiro e não achou nada nele. Sem a análise executada
- * nada está tratado: a marca não substitui a análise que não houve.
+ * A marca de uma conferência manual traz o resultado (sem achados ou com achados) e a evidência escrita (o que foi conferido e onde, ou o que foi achado)? Marca antiga
+ * (`true` ou só quem e quando) não traz: a conferência manual sem evidência não conclui o grupo.
+ */
+export const marcaManualCompleta = (marca) => !!marca && marca !== true && RESULTADOS_GRUPO.includes(marca.resultado) && String(marca.nota ?? "").trim().length >= NOTA_MIN;
+/** A marca conclui a checagem no grupo: vale para a base analisada e, na conferência manual, traz o resultado e a evidência escrita. */
+export const marcaConclui = (marca, crit, baseId) => marcaValida(marca, baseId) && (!!crit.auto || marcaManualCompleta(marca));
+
+/**
+ * O grupo está concluído na checagem quando o analista concluiu (nesta base; na conferência manual, com resultado e evidência), ou quando o teste automático rodou por inteiro
+ * e não achou nada nele. Sem a análise executada nada está concluído: a marca não substitui a análise que não houve.
  */
 export function grupoTratado(estado, grupo, crit, contagem) {
   if (!coberturaDoCriterio(contagem, crit).completa) return false;
-  if (marcaValida(estado?.tratados?.[`${grupo}|${crit.id}`], contagem?.baseId)) return true;
+  if (marcaConclui(estado?.tratados?.[`${grupo}|${crit.id}`], crit, contagem?.baseId)) return true;
   return !!contagem && crit.auto && (contagem.porGrupoCriterio[`${grupo}|${crit.id}`] ?? 0) === 0;
+}
+
+/** O resultado da checagem no grupo: SEM_ACHADOS, COM_ACHADOS ou null (grupo ainda não concluído). No teste automático vem dos achados do grupo; na conferência manual, do que o analista declarou. */
+export function resultadoDoGrupo(estado, grupo, crit, contagem) {
+  if (!grupoTratado(estado, grupo, crit, contagem)) return null;
+  if (crit.auto) return (contagem?.porGrupoCriterio?.[`${grupo}|${crit.id}`] ?? 0) > 0 ? "COM_ACHADOS" : "SEM_ACHADOS";
+  return estado.tratados[`${grupo}|${crit.id}`].resultado;
 }
 
 /**

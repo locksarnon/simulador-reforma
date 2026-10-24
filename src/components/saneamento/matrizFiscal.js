@@ -1,4 +1,4 @@
-// Matriz fiscal do grupo em Excel (passo 8): uma linha por item, com a proposta, o fundamento, a validação e as pendências, e um resumo por grupo.
+// Matriz fiscal do grupo em Excel (passo 7): uma linha por item, com a proposta, o fundamento, a validação e as pendências, e um resumo por grupo.
 // Funções puras (sem React); o download fica em gerarXlsxFiscal().
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { COLUNAS_MATRIZ, ORDEM_SITUACOES, SITUACOES } from "./fiscal";

@@ -2,7 +2,8 @@
 // tudo vem do estado do projeto, dos achados e das listas já calculadas; o que ainda não foi feito aparece como pendente, nunca como concluído. Só SUGERE:
 // o relatório registra sugestões e decisões, e nada foi alterado no cadastro nem no ERP.
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparPorGrupo, dataBr, dataDoCorte, decisoesDoTrabalho, normalizarParams } from "./logica";
-import { criteriosAprovados, criteriosPendentesDoGrupo, grupoSaneado, naoAplicavelDe, situacaoCriterio } from "./analise";
+import { criteriosPendentesDoGrupo, grupoSaneado, marcaConclui, naoAplicavelDe, situacaoCriterio } from "./analise";
+import { checagens, linhasEvidencia, resumoChecagens, textoCobertura, textoConclusao } from "./checagens";
 import { contarDecisoes } from "./politica";
 import { ORDEM_SITUACOES, SITUACOES, itensDoGrupoFiscal, leituraFiscal, resumoDeLeituras } from "./fiscal";
 import { linhasQueSaem } from "./listasFinais";
@@ -14,7 +15,6 @@ import { candidatosDaInativacao, situacaoDoCandidato } from "./inativacao";
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
-const SITUACAO_CRIT = { APROVADO: "Aprovado", AUTO: "Aprovado (sem achados)", PENDENTE: "Pendente", SEM_ANALISE: "Pendente: análise não executada nesta base" };
 
 export const RESSALVAS = [
   "O saneamento só sugere: nenhum cadastro foi alterado pela ferramenta. Cada correção, unificação ou inativação passou por aprovação registrada e pela execução confirmada com evidência pelas equipes.",
@@ -28,21 +28,21 @@ export const RESSALVAS = [
 /** Andamento de cada passo: situação (Concluído, Em andamento, Não iniciado) e um resumo curto. */
 export function andamentoDosPassos({ estado, itens, escopo, grupos, contagem, listas, politica }) {
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem)).length;
-  const nCrit = criteriosAprovados(estado, contagem).length; const nNA = CRITERIOS.filter((c) => situacaoCriterio(estado, c, contagem) === "NAO_APLICAVEL").length; const nPil = CASOS_PILOTO.filter((c) => estado.piloto?.[c]?.status === "Testado").length;
+  const ch = resumoChecagens(checagens(estado, contagem, grupos)); const nPil = CASOS_PILOTO.filter((c) => estado.piloto?.[c]?.status === "Testado").length;
   const indiceDec = indexar(itens); const dec = Object.entries(decisoesDoTrabalho(estado.decisoes, escopo)); // decisão que perdeu a validade não conta como decidida
   const feitas = dec.filter(([k, d]) => d.status !== "PROP" && coerenciaDaChave(k, d, indiceDec, estado.decisoes).ok).length;
   const c = listas.contagem; const nFisc = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem) && estado.fiscal?.grupos?.[g.nome]).length;
   const sit = (feito, algum) => (feito ? "Concluído" : algum ? "Em andamento" : "Não iniciado");
   return [
     ["1. Triagem", sit(itens.length > 0, false), itens.length ? `${fmt(escopo.emEscopo.length)} itens em escopo de ${fmt(itens.length)}` : "sem base"],
-    ["2. Critérios", sit(nCrit + nNA === CRITERIOS.length, nCrit + nNA > 0), `${nCrit} de ${CRITERIOS.length} critérios aprovados${nNA ? ` e ${plural(nNA, "não aplicável", "não aplicáveis")}, com justificativa` : ""}`],
+    ["2. Checagens", sit(ch.concluidas === ch.total && nGrupos > 0 && nSan === nGrupos, ch.concluidas > 0 || nSan > 0 || Object.keys(estado.tratados || {}).length > 0),
+      `${ch.concluidas} de ${ch.total} checagens concluídas (${ch.SEM_ACHADOS} sem achados, ${ch.COM_ACHADOS} com achados${ch.NAO_APLICAVEL ? `, ${plural(ch.NAO_APLICAVEL, "não se aplica", "não se aplicam")}, com justificativa` : ""}); ${nSan} de ${nGrupos} grupos saneados`],
     ["3. Piloto SAP", sit(nPil === CASOS_PILOTO.length, Object.keys(estado.piloto || {}).length > 0), `${nPil} de ${CASOS_PILOTO.length} casos testados`],
-    ["4. Análises", sit(nGrupos > 0 && nSan === nGrupos, nSan > 0 || Object.keys(estado.tratados || {}).length > 0), `${nSan} de ${nGrupos} grupos saneados`],
-    ["5. De/para", sit(dec.length > 0 && feitas === dec.length, dec.length > 0), dec.length ? `${fmt(feitas)} de ${fmt(dec.length)} casos decididos` : "nenhum caso encaminhado"],
-    ["6. Execução", sit(c.tarefas > 0 && c.concluidas === c.tarefas, c.tarefas > 0 && (c.concluidas > 0 || c.emAndamento > 0 || c.divergencias > 0)), c.tarefas ? `${fmt(c.concluidas)} de ${fmt(c.tarefas)} tarefas concluídas` : "nenhuma tarefa gerada"],
-    ["7. Conferência", sit(false, c.tarefas > 0 || listas.analises.length > 0), "listas finais emitidas sob demanda no passo Conferência"],
-    ["8. Fiscal", sit(nSan > 0 && nFisc === nSan, nFisc > 0 || Object.keys(estado.fiscal?.decisoes || {}).length > 0), nSan ? `${nFisc} de ${nSan} grupos liberados com a revisão fiscal concluída` : "nenhum grupo liberado"],
-    ["9. Política", sit(politica.situacao === "Aprovada", Object.keys(estado.politica?.secoes || {}).length > 0), `política ${politica.situacao.toLowerCase()}`],
+    ["4. De/para", sit(dec.length > 0 && feitas === dec.length, dec.length > 0), dec.length ? `${fmt(feitas)} de ${fmt(dec.length)} casos decididos` : "nenhum caso encaminhado"],
+    ["5. Execução", sit(c.tarefas > 0 && c.concluidas === c.tarefas, c.tarefas > 0 && (c.concluidas > 0 || c.emAndamento > 0 || c.divergencias > 0)), c.tarefas ? `${fmt(c.concluidas)} de ${fmt(c.tarefas)} tarefas concluídas` : "nenhuma tarefa gerada"],
+    ["6. Conferência", sit(false, c.tarefas > 0 || listas.analises.length > 0), "listas finais emitidas sob demanda no passo Conferência"],
+    ["7. Fiscal", sit(nSan > 0 && nFisc === nSan, nFisc > 0 || Object.keys(estado.fiscal?.decisoes || {}).length > 0), nSan ? `${nFisc} de ${nSan} grupos liberados com a revisão fiscal concluída` : "nenhum grupo liberado"],
+    ["8. Política", sit(politica.situacao === "Aprovada", Object.keys(estado.politica?.secoes || {}).length > 0), `política ${politica.situacao.toLowerCase()}`],
   ];
 }
 
@@ -67,26 +67,32 @@ export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, iten
   b.push({ t: "tabela", cols: [{ label: "Grupo de itens", w: 46 }, { label: "Itens na base", w: 16, align: "right" }, { label: "Em escopo", w: 16, align: "right" }, { label: "No saneamento", w: 22 }],
     linhas: universo.map((g) => [g.nome, fmt(g.itens.length), fmt(emEscopoPor.get(g.nome) || 0), estado.gruposFora?.[g.nome] ? "Fora (não inativado)" : "Sim"]) });
 
-  T(2, "Critérios");
-  P("Cada critério tem a sua regra, registrada com a aprovação. Critério com teste automático que rodou por inteiro e não achou nada abre aprovado; os demais só foram tratados depois de aprovados. Análise que não rodou na importação deixa o critério pendente, e critério não aplicável ao projeto consta com a justificativa.");
-  b.push({ t: "tabela", cols: [{ label: "Critério", w: 40 }, { label: "Teste", w: 18 }, { label: "Situação", w: 36 }, { label: "Achados", w: 14, align: "right" }],
-    linhas: CRITERIOS.map((k) => { const s = situacaoCriterio(estado, k, contagem); const e = estado.criterios?.[k.id]; const n = naoAplicavelDe(estado, k); return [k.titulo, k.auto ? "Automático" : "Conferência manual", s === "APROVADO" ? `Aprovado por ${e?.por || "—"} em ${dataBr(e?.em) || "—"}` : s === "NAO_APLICAVEL" ? `Não se aplica ao projeto (${n.por || "—"}, ${dataBr(n.em) || "—"}): ${n.justificativa}` : SITUACAO_CRIT[s], k.auto && s !== "SEM_ANALISE" ? fmt(contagem?.porCriterio?.[k.id] ?? 0) : "—"]; }) });
+  T(2, "Checagens");
+  P("Cada problema de cadastro é uma checagem: a regra é registrada com a aprovação e cada grupo é concluído pelo analista. A checagem termina em um de quatro estados: verificada sem achados, verificada com achados, não se aplica (com justificativa escrita) ou pendente. O teste automático que rodou por inteiro e não achou nada abre com a regra aprovada; a análise que não rodou na importação deixa a checagem pendente; a conferência manual só conclui o grupo com o resultado e a evidência escrita. Verificada sem achados não prova que o cadastro está certo: diz que a checagem rodou nos itens em escopo e não achou nada.");
+  b.push({ t: "tabela", cols: [{ label: "Checagem", w: 34 }, { label: "Teste", w: 16 }, { label: "Cobertura", w: 40 }, { label: "Conclusão", w: 30 }, { label: "Evidência", w: 46 }],
+    linhas: checagens(estado, contagem, grupos).map((ch) => [ch.titulo, ch.tipo === "AUTOMATICA" ? "Automático" : "Conferência manual", textoCobertura(ch), textoConclusao(ch), linhasEvidencia(ch).join("; ") || "—"]) });
   for (const k of CRITERIOS) {
     const sk = situacaoCriterio(estado, k, contagem);
-    if (sk === "NAO_APLICAVEL") { S(k.titulo); P(`Critério declarado não aplicável a este projeto. Justificativa: ${naoAplicavelDe(estado, k).justificativa}`); continue; }
+    if (sk === "NAO_APLICAVEL") { S(k.titulo); P(`Checagem declarada não aplicável a este projeto. Justificativa: ${naoAplicavelDe(estado, k).justificativa}`); continue; }
     if (sk !== "APROVADO" && sk !== "AUTO") continue;
     S(k.titulo); P(estado.criterios?.[k.id]?.regra ?? k.regra);
+    if (!k.auto) { // conferência manual: o resultado e a evidência escrita de cada grupo concluído
+      const conclusoes = grupos.map((g) => { const m = estado.tratados?.[`${g.nome}|${k.id}`]; return m && typeof m === "object" && marcaConclui(m, k, contagem?.baseId) ? `Grupo ${g.nome}: ${m.resultado === "COM_ACHADOS" ? "com achados" : "sem achados"}, por ${m.por || "—"} em ${dataBr(m.em) || "—"}. Evidência: ${m.nota}` : null; }).filter(Boolean);
+      if (conclusoes.length) b.push({ t: "lista", itens: conclusoes });
+    }
     if (k.id === "padrao") { const lig = Object.entries(ROTULO_REGRAS).filter(([r]) => ({ ...REGRAS_PADRAO, ...(estado.padronizacao?.regras || {}) })[r]).map(([, r]) => r.replace(/ \(ex\.:.*\)$/, "")); P(`Regras de formato ligadas: ${lig.join("; ") || "nenhuma"}. Abreviações aprovadas: ${plural(Object.keys(abreviacoesAprovadas(estado)).length, "abreviação", "abreviações")}.`, "nota"); }
     if (k.id === "unidade") { const u = resumoUnidades(escopo.emEscopo, { regras: estado.politicaUnidade?.regras, rotulos: estado.politicaUnidade?.rotulos }); P(`Nome da unidade de estoque por medida: ${Object.entries(u.padroes).map(([g, n]) => `${g} ${n}`).join(", ")}. Unidades classificadas pelo analista: ${fmt(Object.keys(estado.politicaUnidade?.regras || {}).length)}.`, "nota"); }
   }
+
+  S("Grupos de itens");
+  b.push({ t: "tabela", cols: [{ label: "Grupo", w: 44 }, { label: "Itens", w: 14, align: "right" }, { label: "Achados", w: 16, align: "right" }, { label: "Checagens pendentes", w: 22, align: "right" }, { label: "Situação", w: 24 }],
+    linhas: grupos.map((g) => [g.nome, fmt(g.itens.length), fmt(CRITERIOS.reduce((n, k) => n + (contagem?.porGrupoCriterio?.[`${g.nome}|${k.id}`] ?? 0), 0)), fmt(criteriosPendentesDoGrupo(estado, g.nome, contagem).length), grupoSaneado(estado, g.nome, contagem) ? "Saneado" : "Pendente"]) });
 
   T(3, "Piloto SAP");
   P("Registro dos testes no ambiente do cliente. Nenhuma capacidade é tratada como confirmada sem teste registrado.");
   b.push({ t: "tabela", cols: [{ label: "Caso", w: 44 }, { label: "Situação", w: 18 }, { label: "Evidência", w: 40 }, { label: "Limitações", w: 40 }], linhas: CASOS_PILOTO.map((n) => { const p = estado.piloto?.[n] || {}; return [n, p.status || "Não iniciado", p.evidencia || "—", p.limitacao || "—"]; }) });
 
-  T(4, "Análises e decisões");
-  b.push({ t: "tabela", cols: [{ label: "Grupo", w: 44 }, { label: "Itens", w: 14, align: "right" }, { label: "Achados", w: 16, align: "right" }, { label: "Critérios pendentes", w: 22, align: "right" }, { label: "Situação", w: 24 }],
-    linhas: grupos.map((g) => [g.nome, fmt(g.itens.length), fmt(CRITERIOS.reduce((n, k) => n + (contagem?.porGrupoCriterio?.[`${g.nome}|${k.id}`] ?? 0), 0)), fmt(criteriosPendentesDoGrupo(estado, g.nome, contagem).length), grupoSaneado(estado, g.nome, contagem) ? "Saneado" : "Pendente"]) });
+  T(4, "Decisões (De/para)");
   S("Decisões por critério");
   b.push({ t: "tabela", cols: [{ label: "Critério", w: 46 }, { label: "Encaminhadas", w: 22, align: "right" }, { label: "Aprovadas", w: 20, align: "right" }, { label: "Rejeitadas", w: 20, align: "right" }, { label: "Aguardando", w: 20, align: "right" }, { label: "Sem validade", w: 20, align: "right" }],
     linhas: CRITERIOS.filter((k) => dec[k.id]).map((k) => [k.titulo, fmt(dec[k.id].total), fmt(dec[k.id].APR), fmt(dec[k.id].REJ), fmt(dec[k.id].PROP), fmt(dec[k.id].SEM_VALIDADE)]) });

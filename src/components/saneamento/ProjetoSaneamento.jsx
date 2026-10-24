@@ -6,9 +6,10 @@ import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
 import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, decisoesDoTrabalho, descobrirAbreviacoes, hojeIso, normalizarParams } from "./logica";
-import { achadosDe, calcularAchados, coberturaDaBase, contarAchados, criterioResolvido, criteriosAprovados, grupoPodeSanear, grupoSaneado, situacaoCriterio } from "./analise";
-import { AbasCriterios, AcaoAprovacao, AvisoCriterio, SelosCriterio } from "./CriterioUi";
-import PassoAnalises from "./PassoAnalises";
+import { achadosDe, calcularAchados, coberturaDaBase, contarAchados, grupoPodeSanear, grupoSaneado, situacaoCriterio } from "./analise";
+import PassoChecagens from "./PassoChecagens";
+import { checagens, resumoChecagens } from "./checagens";
+import { PASSO, VERSAO_PASSOS, migrarPassos } from "./passos";
 import PassoExecucao from "./PassoExecucao";
 import { gerarTarefas, resumoExecucao } from "./execucao";
 import { gerarListaCliente, gerarXlsx, linhasQueSaem, montarListas } from "./listasFinais";
@@ -34,9 +35,8 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
   { t: "Triagem", programa: "Fixar a origem e o universo; escolher os grupos que entram no saneamento; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho; os sem data seguem a regra escolhida); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
-  { t: "Critérios", programa: "Cada problema de cadastro tem sua regra, exemplo e aprovação. Critério com teste automático que rodou por inteiro e não achou nada na base abre aprovado (com a opção de revisar manualmente); os demais só são tratados depois de aprovados. A análise que não rodou na importação deixa o critério pendente, e o critério que não se aplica ao projeto é declarado com justificativa escrita.", avancar: "Critérios aplicáveis aprovados (ou declarados não aplicáveis, com justificativa) e exceções identificadas." },
+  { t: "Checagens", programa: "Cada problema de cadastro é uma checagem, com a sua regra, o exemplo e a aprovação, e uma aba onde o analista vê os achados em todos os grupos, como é hoje e como seria, encaminha o que deve mudar para aprovação no De/para e conclui cada grupo. A checagem termina em um de quatro estados: verificada sem achados, verificada com achados, não se aplica (com justificativa escrita) ou pendente. O teste automático que rodou por inteiro e não achou nada abre com a regra aprovada; a análise que não rodou na importação deixa a checagem pendente; a conferência manual só conclui o grupo com o resultado e a evidência escrita. O grupo é saneado, e liberado para a revisão fiscal, quando todas as checagens aplicáveis estão concluídas nele.", avancar: "Todas as checagens concluídas (ou declaradas não aplicáveis, com justificativa) e, nos grupos que vão adiante, o que deve mudar encaminhado ao De/para." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
-  { t: "Análises", programa: "Uma aba por critério, as mesmas do passo Critérios: em cada uma o analista vê os achados em todos os grupos, vê como é hoje e como seria, e decide se encaminha cada um para aprovação no De/para (ou deixa como está) e marca o grupo como tratado. O grupo fica saneado quando todos os critérios aplicáveis foram aprovados e tratados nele, os de conferência manual inclusive.", avancar: "Grupo com todos os critérios aplicáveis tratados e, nele, o que deve mudar encaminhado ao De/para." },
   { t: "De/para", programa: "Recebe o que foi encaminhado nas Análises. Cada caso é aprovado ou rejeitado, com aprovador e data, e só o aprovado entra nas listas finais e na execução. Ausência de resposta não é aprovação. A inativação por data de uso também é aprovada aqui: em lote por grupo, com lista fechada de itens, ou item a item; o corte só seleciona candidatos.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data; inativação aprovada por lista fechada ou individualmente." },
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências." },
   { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, candidatos à inativação por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
@@ -46,7 +46,7 @@ const PASSOS = [
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null }, origem: {}, extraidaEm: "", inativacao: inativacaoVazia() });
+const estadoInicial = () => ({ passo: 0, versaoPassos: VERSAO_PASSOS, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null }, origem: {}, extraidaEm: "", inativacao: inativacaoVazia() });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -66,7 +66,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [gerando, setGerando] = useState(false);
   const [relacao, setRelacao] = useState(null); // cartão da triagem cuja relação de itens está aberta
   const [avisoTroca, setAvisoTroca] = useState(""); // por que a base ainda não pode ser trocada
-  const [ordAbrev, ordenarAbrev] = useOrdenacao(); const [ordUn, ordenarUn] = useOrdenacao(); const [ordDec, ordenarDec] = useOrdenacao(); // ordem das tabelas dos passos Critérios e De/para
+  const [ordAbrev, ordenarAbrev] = useOrdenacao(); const [ordUn, ordenarUn] = useOrdenacao(); const [ordDec, ordenarDec] = useOrdenacao(); // ordem das tabelas dos passos Checagens e De/para
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
@@ -76,7 +76,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     carregado.current = true;
     setNome(proj.data.nome); setValidacaoId(proj.data.validacao_id || null);
     const salvoNoProjeto = proj.data.estado || {};
-    setEstado({ ...estadoInicial(), ...salvoNoProjeto, versaoChaves: versaoDasChaves(salvoNoProjeto) }); // projeto antigo (decisões pela linha) fica com a versão 1 até migrar
+    setEstado({ ...estadoInicial(), ...salvoNoProjeto, versaoChaves: versaoDasChaves(salvoNoProjeto), ...migrarPassos(salvoNoProjeto) }); // o passo salvo com a numeração antiga (Critérios e Análises separados) é convertido uma vez; // projeto antigo (decisões pela linha) fica com a versão 1 até migrar
   }, [proj.data]);
 
   // Autosave: cada ajuste é salvo sozinho.
@@ -119,9 +119,9 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const temAnalise = useMemo(() => itens.some((i) => i.sugestao), [itens]); // a base foi processada com a análise de cClassTrib
   const saem = useMemo(() => linhasQueSaem(vivo, itens), [vivo?.decisoes, itens]); // itens unificados em outro código: fora da revisão fiscal
   const escalaSaldo = useMemo(() => estado?.saldoEscala ?? detectarEscalaSaldo(itens), [estado?.saldoEscala, itens]); // a escolha do analista vale mais que a escala detectada
-  const abrevCand = useMemo(() => (estado?.passo === 1 && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
-  const resumoUn = useMemo(() => (estado?.passo === 1 && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
-  const listas = useMemo(() => (estado?.passo === 6 && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura, baseId: validacaoId }) : null), [vivo, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo, cobertura]);
+  const abrevCand = useMemo(() => (estado?.passo === PASSO.CHECAGENS && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
+  const resumoUn = useMemo(() => (estado?.passo === PASSO.CHECAGENS && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
+  const listas = useMemo(() => (estado?.passo === PASSO.CONFERENCIA && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura, baseId: validacaoId }) : null), [vivo, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo, cobertura]);
 
   // Grupo marcado como saneado que deixou de cumprir os critérios (regra mais exigente, critério reaberto ou sem a análise) é reaberto: a marca antiga não volta sozinha
   // quando as pendências forem resolvidas, o analista conclui o grupo de novo. O aviso fica registrado no projeto.
@@ -181,9 +181,9 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <Botao onClick={() => setValidacaoId(null)}>Importar ou escolher outra base</Botao>
     </div>) : (
     <div className="space-y-4">
-      {legado && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs dark:border-amber-700/50 dark:bg-amber-950/20" role="alert"><span>Este projeto guarda decisões pela linha da planilha. Antes de seguir, migre para o código do item (nos passos seguintes).</span><Botao onClick={() => irPara(1)}>Ir para a migração</Botao></div>}
+      {legado && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs dark:border-amber-700/50 dark:bg-amber-950/20" role="alert"><span>Este projeto guarda decisões pela linha da planilha. Antes de seguir, migre para o código do item (nos passos seguintes).</span><Botao onClick={() => irPara(PASSO.CHECAGENS)}>Ir para a migração</Botao></div>}
       <OrigemDosDados origem={estado.origem} onMudar={mudarOrigem} />
-      <ConciliacaoBase decisoes={vivo.decisoes} itens={itens} onIrDepara={() => irPara(4)} />
+      <ConciliacaoBase decisoes={vivo.decisoes} itens={itens} onIrDepara={() => irPara(PASSO.DEPARA)} />
       <div className="rounded-xl border-2 border-primary/40 bg-card p-4 space-y-3">
         <h3 className="font-medium">Parâmetro de saneamento</h3>
         <p className="text-xs text-muted-foreground">Define quem entra no trabalho: o item cuja última movimentação é anterior à data escolhida fica fora do escopo; o movimentado nela ou depois continua. O que fazer com o item sem data de movimentação legível você escolhe abaixo.</p>
@@ -293,23 +293,18 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     </div>) : null;
   const sit = situacaoCriterio(estado, crit, contagem);
   const nAchCrit = achadosDe(contagem, crit);
-  const criterios = (
+  // A regra, o exemplo e os ajustes da checagem aberta: ficam dentro da aba da checagem, em "Regra, exemplo e ajustes" (o passo Checagens reúne o que eram Critérios e Análises).
+  const regraUi = (
     <div className="space-y-3">
-      <AbasCriterios estado={estado} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} marca={(e, c) => criterioResolvido(e, c, contagem)} />
-      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{crit.titulo}</h3><div className="flex gap-2"><SelosCriterio crit={crit} situacao={sit} cEst={cEst} /></div></div>
-        <AvisoCriterio estado={estado} crit={crit} situacao={sit} contagem={contagem} onIrTriagem={() => irPara(0)} />
-        <div><label className="text-xs text-muted-foreground" htmlFor="regra">Regra do critério (texto de registro)</label>
-          <textarea id="regra" className="w-full border rounded-md p-2 text-sm bg-background min-h-[84px]" value={cEst.regra ?? crit.regra} onChange={(e) => setCrit({ regra: e.target.value, aprovado: false })} />
-          <p className="text-xs text-muted-foreground mt-1">O texto descreve o que o critério verifica e fica registrado com a aprovação, para orientar a conferência e a política final. Editá-lo <b className="font-medium text-foreground">não muda o teste</b> e reabre a aprovação.</p></div>
-        <p className="text-xs text-muted-foreground"><b className="font-medium text-foreground">O que muda o teste:</b> {crit.id === "padrao" ? "as regras de padronização e as abreviações, logo abaixo." : crit.id === "unidade" ? "a política da menor unidade e a tabela de unidades, logo abaixo." : crit.id === "utilizacao" ? <>o corte por data, no <button type="button" onClick={() => irPara(0)} className="text-primary underline">Parâmetro de saneamento (passo Triagem)</button>.</> : crit.auto ? "este critério ainda não tem ajustes: o teste automático é fixo (o texto da regra só o descreve)." : "nada: é conferência manual, e o texto da regra serve de roteiro para conferir os itens de cada grupo."}</p>
-        <p className="text-xs text-muted-foreground">Exemplo: {crit.exemplo}.{crit.params && <> Parâmetro: {crit.params}.</>}</p>
-        {nAchCrit != null && sit !== "SEM_ANALISE" && <p className="text-xs text-muted-foreground">Na base atual: <b>{fmt(nAchCrit)}</b> itens em escopo com achado neste critério.{sit === "AUTO" ? " Sem achados, o critério abre aprovado." : ""}</p>}
-        <AcaoAprovacao key={crit.id} situacao={sit} onAprovar={() => aprovarCriterio(crit)} onReabrir={() => reabrirCriterio(crit)} onNaoAplicavel={(j) => marcarNaoAplicavel(crit, j)} />
-        <p className="text-xs text-muted-foreground">Critério sem achados abre aprovado, desde que a análise tenha rodado na importação da base; use “Revisar manualmente” para conferi-lo. A análise só trata critérios aprovados, e o grupo só é saneado com todos os critérios aplicáveis aprovados e tratados, os de conferência manual também.</p>
-        {painelPadrao}
-        {painelUnidade}
-      </div>
+      <div><label className="text-xs text-muted-foreground" htmlFor="regra">Regra da checagem (texto de registro)</label>
+        <textarea id="regra" className="w-full border rounded-md p-2 text-sm bg-background min-h-[84px]" value={cEst.regra ?? crit.regra} onChange={(e) => setCrit({ regra: e.target.value, aprovado: false })} />
+        <p className="text-xs text-muted-foreground mt-1">O texto descreve o que a checagem verifica e fica registrado com a aprovação, para orientar a conferência e a política final. Editá-lo <b className="font-medium text-foreground">não muda o teste</b> e reabre a aprovação da regra.</p></div>
+      <p className="text-xs text-muted-foreground"><b className="font-medium text-foreground">O que muda o teste:</b> {crit.id === "padrao" ? "as regras de padronização e as abreviações, logo abaixo." : crit.id === "unidade" ? "a política da menor unidade e a tabela de unidades, logo abaixo." : crit.id === "utilizacao" ? <>o corte por data, no <button type="button" onClick={() => irPara(PASSO.TRIAGEM)} className="text-primary underline">Parâmetro de saneamento (passo Triagem)</button>.</> : crit.auto ? "esta checagem ainda não tem ajustes: o teste automático é fixo (o texto da regra só o descreve)." : "nada: é conferência manual, e o texto da regra serve de roteiro para conferir os itens de cada grupo."}</p>
+      <p className="text-xs text-muted-foreground">Exemplo: {crit.exemplo}.{crit.params && <> Parâmetro: {crit.params}.</>}</p>
+      {nAchCrit != null && sit !== "SEM_ANALISE" && <p className="text-xs text-muted-foreground">Na base atual: <b>{fmt(nAchCrit)}</b> itens em escopo com achado nesta checagem.{sit === "AUTO" ? " Sem achados, a regra abre aprovada." : ""}</p>}
+      <p className="text-xs text-muted-foreground">A checagem sem achados abre com a regra aprovada, desde que a análise tenha rodado na importação da base; use “Revisar manualmente” para conferi-la. A análise só trata checagens com a regra aprovada, e o grupo só é saneado com todas as checagens aplicáveis concluídas, as de conferência manual também.</p>
+      {painelPadrao}
+      {painelUnidade}
     </div>
   );
 
@@ -327,11 +322,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     </div>
   );
 
-  // ── Passo 4: Análises (uma aba por critério, as mesmas do passo Critérios) ──
-  const analises = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para analisar.</p> : (
-    <PassoAnalises estado={estado} setEstado={setEstado} grupos={grupos} achados={achados} contagem={contagem} ativo={critAtivo} onSelecionar={setCritAtivo} quem={quem}
-      onComparar={setComparativo} onIrCriterios={() => irPara(1)} onIrDepara={() => irPara(4)} onIrTriagem={() => irPara(0)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio} onNaoAplicavel={marcarNaoAplicavel}
-      itemPorLinha={mapaLinha} indice={indice} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} escalaSaldo={escalaSaldo} temSaldo={temSaldo} onEscala={(v) => mudar({ saldoEscala: v })} />
+  // ── Passo 2: Checagens (uma aba por problema: regra, aprovação, achados por grupo e conclusão) ──
+  const checagensUi = (
+    <PassoChecagens estado={estado} setEstado={setEstado} grupos={grupos} achados={achados} contagem={contagem} temBase={!!validacaoId && !!contagem} ativo={critAtivo} onSelecionar={setCritAtivo} quem={quem}
+      onComparar={setComparativo} onIrDepara={() => irPara(PASSO.DEPARA)} onIrTriagem={() => irPara(PASSO.TRIAGEM)} onAprovar={aprovarCriterio} onReabrir={reabrirCriterio} onNaoAplicavel={marcarNaoAplicavel}
+      itemPorLinha={mapaLinha} indice={indice} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} escalaSaldo={escalaSaldo} temSaldo={temSaldo} onEscala={(v) => mudar({ saldoEscala: v })}
+      regraUi={regraUi} escopoResumo={escopo.resumo} extraidaEm={estado.extraidaEm} />
   );
 
   // ── Passo 6: Execução (realocações físicas) ──
@@ -380,7 +376,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const depara = (
     <div className="space-y-3">
       <PainelLegado estado={estado} slug={slug} nomeProjeto={nome} />
-      <p className="text-sm text-muted-foreground">Aqui chegam os casos encaminhados no passo Análises. Aprove ou rejeite cada um: só o aprovado entra nas listas finais e na execução; sem resposta, o caso continua aguardando. Nada é alterado no cadastro.</p>
+      <p className="text-sm text-muted-foreground">Aqui chegam os casos encaminhados no passo Checagens. Aprove ou rejeite cada um: só o aprovado entra nas listas finais e na execução; sem resposta, o caso continua aguardando. Nada é alterado no cadastro.</p>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={estado.bloco} onChange={(e) => mudar({ bloco: e.target.checked })} /> Aprovar em bloco (opcional)</label>
       <p className="text-xs text-muted-foreground">Cada caso continua registrado individualmente, com aprovador e data. Resumo: {fmt(decisoesLista.filter((d) => d.status === "PROP").length)} aguardando decisão · {fmt(decisoesLista.filter((d) => d.status === "APR").length)} aprovados · {fmt(decisoesLista.filter((d) => d.status === "REJ").length)} rejeitados.</p>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
@@ -391,7 +387,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
         <span className="basis-full text-xs text-muted-foreground">O cliente responde OK ou escreve ao lado como deve ficar. Nada é alterado no cadastro: a resposta fica registrada como decisão, com a descrição original preservada.</span>
       </div>
       {nDecOcultas > 0 && <p className="text-xs text-muted-foreground">{plural(nDecOcultas, "decisão de grupo fora do saneamento fica guardada", "decisões de grupos fora do saneamento ficam guardadas")} e não {nDecOcultas === 1 ? "aparece" : "aparecem"} aqui.</p>}
-      {decisoesLista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum caso encaminhado ainda. No passo Análises, marque “Encaminhar para aprovação” nos achados que devem ser decididos (ou use o botão que encaminha o grupo todo).</p>}
+      {decisoesLista.length === 0 && <p className="text-sm text-muted-foreground">Nenhum caso encaminhado ainda. No passo Checagens, marque “Encaminhar para aprovação” nos achados que devem ser decididos (ou use o botão que encaminha o grupo todo).</p>}
       {porGrupoDec.map((gn) => { const lista = decisoesLista.filter((d) => d.grupo === gn); const pend = lista.filter((d) => d.status === "PROP");
         return (<Acc key={gn} aberto={!!aberto["d" + gn]} onToggle={() => alternar("d" + gn)} titulo={<><b className="font-medium">{gn}</b><span className="text-xs text-muted-foreground">{fmt(lista.length)} casos · {fmt(pend.length)} aguardando decisão</span></>}>
           {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.filter((d) => !precisaFator(d)).length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao>{pend.some(precisaFator) && <span className="self-center text-xs text-muted-foreground">Conversões de unidade sem fator ficam aguardando.</span>}</div>}
@@ -432,7 +428,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
 
   // ── Passo 8: Fiscal (revisão fiscal dos grupos saneados) ──
   const fiscalUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para a revisão fiscal.</p> : (
-    <PassoFiscal estado={estado} setEstado={setEstado} grupos={grupos} todosItens={itens} contagem={contagem} saem={saem} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} temAnalise={temAnalise} onIrAnalises={() => irPara(3)} />
+    <PassoFiscal estado={estado} setEstado={setEstado} grupos={grupos} todosItens={itens} contagem={contagem} saem={saem} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} temAnalise={temAnalise} onIrAnalises={() => irPara(PASSO.CHECAGENS)} />
   );
 
   // ── Passo 9: Política de uso e relatório do programa de trabalho (PDF) ──
@@ -451,19 +447,18 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   // Projeto antigo: nenhum passo que use decisões abre antes da migração (a Triagem fica livre para vincular a base original).
   const migracao = legado && passo !== 0 ? (validacaoId && base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p>
     : <MigracaoChaves estado={estado} setEstado={setEstado} itens={itens} baseInfo={{ id: validacaoId, arquivo: base.data?.nome_arquivo }} temBase={!!validacaoId && !!base.data && itens.length > 0} quem={quem} slug={slug} nomeProjeto={nome} onIrTriagem={() => irPara(0)} onMudarOrigem={mudarOrigem} />) : null;
-  const corpo = migracao ?? [triagem, criterios, piloto, analises, depara, execucao, conferencia, fiscalUi, politicaUi][passo];
+  const corpo = migracao ?? [triagem, checagensUi, piloto, depara, execucao, conferencia, fiscalUi, politicaUi][passo];
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).
   const nGrupos = grupos.length; const nSan = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem)).length;
   const nFisc = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem) && estado.fiscal?.grupos?.[g.nome]).length; // grupos saneados com a revisão fiscal concluída
-  const nCrit = criteriosAprovados(estado, contagem).length; const nNA = CRITERIOS.filter((c) => situacaoCriterio(estado, c, contagem) === "NAO_APLICAVEL").length;
+  const resumoCh = resumoChecagens(checagens(estado, contagem, grupos)); // as checagens concluídas (com ou sem achados, ou que não se aplicam) e as pendentes
   const nPil = CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length;
   const nDec = decisoesLista.length; const nDecFeitas = decisoesLista.filter((d) => d.status !== "PROP" && coerencia(d.k, d).ok).length; // decisão que perdeu a validade não conta como decidida
   const resumoPassos = [
     { feito: !!validacaoId, sub: importando ? "importando…" : validacaoId ? `${fmt(escopo.resumo.emEscopo)} em escopo` : "sem base" },
-    { feito: nCrit + nNA === CRITERIOS.length, sub: `${nCrit}/${CRITERIOS.length} aprovados${nNA ? ` · ${nNA} n/a` : ""}` },
+    { feito: resumoCh.concluidas === resumoCh.total && nGrupos > 0 && nSan === nGrupos, sub: `${resumoCh.concluidas}/${resumoCh.total} concluídas` },
     { feito: nPil === CASOS_PILOTO.length, sub: `${nPil}/${CASOS_PILOTO.length} testados` },
-    { feito: nGrupos > 0 && nSan === nGrupos, sub: nGrupos ? `${nSan}/${nGrupos} grupos` : "sem base" },
     { feito: nDec > 0 && nDecFeitas === nDec, sub: nDec ? `${nDecFeitas}/${nDec} decididos` : "sem casos" },
     { feito: resumoEx.total > 0 && resumoEx.CONCLUIDA === resumoEx.total, sub: resumoEx.total ? `${fmt(resumoEx.CONCLUIDA)}/${fmt(resumoEx.total)} concluídas` : "sem tarefas" }, { sub: "listas finais" },
     { feito: nSan > 0 && nFisc === nSan, sub: nSan ? `${nFisc}/${nSan} grupos revisados` : "aguarda saneamento", bloqueado: nSan === 0 },
@@ -500,7 +495,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       </div>
       {estado.reabertos && !estado.reabertos.visto && estado.reabertos.grupos?.length > 0 && (
         <div role="status" className="rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs space-y-1.5 dark:border-amber-700/50 dark:bg-amber-950/20">
-          <p><b className="font-medium">{plural(estado.reabertos.grupos.length, "grupo foi reaberto", "grupos foram reabertos")} em {dataBr(estado.reabertos.em)}</b> porque deixou de cumprir os critérios de saneamento (critério reaberto, análise não executada, critério de conferência manual sem conclusão ou conferência feita sobre outra base): {estado.reabertos.grupos.slice(0, 8).join("; ")}{estado.reabertos.grupos.length > 8 ? `; +${estado.reabertos.grupos.length - 8}` : ""}. Trate os critérios pendentes e conclua o grupo de novo no passo Análises.</p>
+          <p><b className="font-medium">{plural(estado.reabertos.grupos.length, "grupo foi reaberto", "grupos foram reabertos")} em {dataBr(estado.reabertos.em)}</b> porque deixou de cumprir os critérios de saneamento (regra reaberta, análise não executada, checagem de conferência manual sem resultado e evidência ou conclusão feita sobre outra base): {estado.reabertos.grupos.slice(0, 8).join("; ")}{estado.reabertos.grupos.length > 8 ? `; +${estado.reabertos.grupos.length - 8}` : ""}. Conclua as checagens pendentes e marque o grupo como saneado de novo no passo Checagens.</p>
           <Botao onClick={() => mudar({ reabertos: { ...estado.reabertos, visto: true } })}>Entendi</Botao>
         </div>)}
       {importador}

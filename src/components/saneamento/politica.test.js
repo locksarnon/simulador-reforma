@@ -13,7 +13,7 @@ const base = (estadoExtra = {}) => {
 };
 const aprov = (por = "ana") => ({ aprovado: true, por, em: "2026-10-20" });
 // Grupo saneado de verdade: os três critérios de conferência manual e os que têm achado nele aprovados e tratados no grupo (os demais abrem aprovados, sem achados).
-const saneavel = (grupo, comAchado = []) => { const ids = ["identidade", "saldos", "cartilhas", ...comAchado]; return { criterios: Object.fromEntries(ids.map((id) => [id, aprov()])), tratados: Object.fromEntries(ids.map((id) => [`${grupo}|${id}`, { por: "ana", em: "2026-10-23" }])) }; };
+const saneavel = (grupo, comAchado = []) => { const ids = ["identidade", "saldos", "cartilhas", ...comAchado]; return { criterios: Object.fromEntries(ids.map((id) => [id, aprov()])), tratados: Object.fromEntries(ids.map((id) => [`${grupo}|${id}`, ["identidade", "saldos", "cartilhas"].includes(id) ? { por: "ana", em: "2026-10-23", resultado: "SEM_ACHADOS", nota: "conferido no ERP" } : { por: "ana", em: "2026-10-23" }])) }; };
 const regra = (p, id) => p.secoes.flatMap((s) => s.regras).find((r) => r.id === id);
 
 describe("política de uso dos estoques", () => {

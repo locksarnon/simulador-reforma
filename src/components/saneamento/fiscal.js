@@ -1,4 +1,4 @@
-// Revisão fiscal do grupo saneado (passo 8): lê o que a validação da base já trouxe de cada item (NCM, cClassTrib informado e a sugestão pelos anexos da LC 214),
+// Revisão fiscal do grupo saneado (passo 7): lê o que a validação da base já trouxe de cada item (NCM, cClassTrib informado e a sugestão pelos anexos da LC 214),
 // separa o que está certo do que pede decisão e monta a matriz do grupo (proposta, fundamento, validação e pendências). Só SUGERE: nada é alterado no cadastro nem
 // no ERP, e a sugestão é leitura dos anexos consultados, não parecer: onde o enquadramento depende dos requisitos do produto, o item vai para revisão. Funções puras.
 import { dataBr, grupoDe } from "./logica";

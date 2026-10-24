@@ -149,8 +149,8 @@ export default function PassoFiscal({ estado, setEstado, grupos, todosItens, con
       {liberados.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-3 text-sm space-y-2">
           <p className="font-medium">Nenhum grupo liberado ainda</p>
-          <p className="text-muted-foreground">A revisão fiscal só começa em grupo saneado: com todos os critérios aplicáveis aprovados e tratados nele, os de conferência manual inclusive. Trate os critérios de cada grupo no passo Análises e marque o grupo como saneado.</p>
-          <Botao onClick={onIrAnalises}>Ir para as Análises</Botao>
+          <p className="text-muted-foreground">A revisão fiscal só começa em grupo saneado: com todas as checagens aplicáveis concluídas nele, as de conferência manual inclusive. Conclua as checagens de cada grupo no passo Checagens e marque o grupo como saneado.</p>
+          <Botao onClick={onIrAnalises}>Ir para as Checagens</Botao>
         </div>
       ) : (
         <>

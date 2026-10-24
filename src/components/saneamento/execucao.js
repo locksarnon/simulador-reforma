@@ -1,4 +1,4 @@
-// Execução (passo 6): as decisões aprovadas viram tarefas para o administrativo (SAP) e, quando há movimento físico, para o almoxarifado
+// Execução (passo 5): as decisões aprovadas viram tarefas para o administrativo (SAP) e, quando há movimento físico, para o almoxarifado
 // (realocações físicas). A tarefa só conta como concluída quando todas as frentes aplicáveis confirmam COM evidência; sem prova, continua
 // pendente. Nada é gravado no SAP nem no físico por esta ferramenta: ela emite as listas, recebe as confirmações e registra as divergências.
 // Funções puras (sem React); a geração do XLSX fica em listasFinais.js.

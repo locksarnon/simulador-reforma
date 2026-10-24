@@ -1,4 +1,4 @@
-// Política de uso em Excel e em JSON (passo 9): as regras por procedimento, as regras por grupo, o padrão de descrição, as unidades e o resumo da aprovação.
+// Política de uso em Excel e em JSON (passo 8): as regras por procedimento, as regras por grupo, o padrão de descrição, as unidades e o resumo da aprovação.
 // Funções puras (sem React); os downloads ficam em gerarXlsxPolitica() e baixarJsonPolitica().
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { COLUNAS_REGRAS, linhasRegras } from "./politica";

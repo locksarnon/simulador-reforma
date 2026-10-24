@@ -21,11 +21,11 @@ const item = (linha, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "P
   sugestao: { c_class_trib: "000001", descricao: "Tributação integral", reducao: 0, confianca: "Sem enquadramento nos anexos consultados (padrão)", ambiguo: false, anexo: null, padrao: true }, ...extra });
 const dup = (mestre) => ({ nivel: "EXATA", score: 1, grupo: 0, mestre, candidatos: [{ linha: mestre, score: 1, nivel: "EXATA", motivos: ["descrição idêntica"] }] });
 const itens = [item(2, { descricao: "ANEL  TRAVA 123", duplicidade: dup(3) }), item(3, { descricao: "ANEL TRAVA 123", duplicidade: dup(3) }), item(4, { grupo_atual: "Insumos", descricao: "ADUBO", unidade: "QUILOGRAM" }), item(5, { ultima_mov: "2020-01-01" })];
-const ok = { aprovado: true, por: "ana", em: "2026-10-20" }; const marca = { por: "ana", em: "2026-10-22" };
+const ok = { aprovado: true, por: "ana", em: "2026-10-20" }; const marca = { por: "ana", em: "2026-10-22" }; const marcaManual = { por: "ana", em: "2026-10-22", resultado: "SEM_ACHADOS", nota: "conferido no ERP" };
 const estado = {
   // Peças é um grupo saneado de verdade: critérios aprovados (identidade, não aplicável, com justificativa) e tratados nele
   params: { desde: "2025-01-01", semData: "manter" }, criterios: { padrao: { ...ok, regra: "Regra registrada de padronização." }, duplicidade: ok, unidade: ok, saldos: ok, cartilhas: ok, identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-21", justificativa: "Um só fabricante por código neste cadastro." } } },
-  tratados: { "Peças|padrao": marca, "Peças|duplicidade": marca, "Peças|saldos": marca, "Peças|cartilhas": marca },
+  tratados: { "Peças|padrao": marca, "Peças|duplicidade": marca, "Peças|saldos": marcaManual, "Peças|cartilhas": marcaManual },
   decisoes: { "C2|duplicidade": { acao: "ENC", status: "APR", grupo: "Peças", destino: "C3", decididoPor: "ana", decididoEm: "2026-10-21" }, "C4|unidade": { acao: "ENC", status: "PROP", grupo: "Insumos" } },
   saneados: { "Peças": true }, piloto: { "Unificar duplicados": { status: "Testado", evidencia: "doc SAP 123" } }, padronizacao: { regras: {}, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} },
   fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: { criar: { responsavel: "Gestor", controle: "Amostragem" } } }, gruposFora: {},
@@ -41,26 +41,36 @@ const textos = (rel) => rel.blocos.flatMap((b) => (b.t === "tabela" ? b.linhas.f
 describe("relatório do programa de trabalho", () => {
   it("resume o andamento de cada passo sem dar por feito o que não foi", () => {
     const a = andamentoDosPassos({ estado, itens, escopo, grupos, contagem, listas, politica });
-    expect(a.map((x) => x[0])).toEqual(["1. Triagem", "2. Critérios", "3. Piloto SAP", "4. Análises", "5. De/para", "6. Execução", "7. Conferência", "8. Fiscal", "9. Política"]);
+    expect(a.map((x) => x[0])).toEqual(["1. Triagem", "2. Checagens", "3. Piloto SAP", "4. De/para", "5. Execução", "6. Conferência", "7. Fiscal", "8. Política"]);
     const por = Object.fromEntries(a.map(([p, s, r]) => [p, [s, r]]));
-    // o critério declarado não aplicável (com justificativa) conta como resolvido
-    expect(por["1. Triagem"]).toEqual(["Concluído", "3 itens em escopo de 4"]); expect(por["2. Critérios"]).toEqual(["Concluído", "9 de 10 critérios aprovados e 1 não aplicável, com justificativa"]); expect(por["3. Piloto SAP"]).toEqual(["Em andamento", "1 de 4 casos testados"]);
-    expect(por["4. Análises"]).toEqual(["Em andamento", "1 de 2 grupos saneados"]); expect(por["5. De/para"]).toEqual(["Em andamento", "1 de 2 casos decididos"]);
-    expect(por["8. Fiscal"]).toEqual(["Não iniciado", "0 de 1 grupos liberados com a revisão fiscal concluída"]); expect(por["9. Política"]).toEqual(["Em andamento", "política rascunho"]);
+    expect(por["1. Triagem"]).toEqual(["Concluído", "3 itens em escopo de 4"]);
+    // 7 de 10 concluídas: faltam a unidade (Insumos sem conclusão) e as conferências manuais de saldos e cartilhas (Insumos sem resultado e evidência); a que não se aplica, com justificativa, conta como concluída
+    expect(por["2. Checagens"]).toEqual(["Em andamento", "7 de 10 checagens concluídas (4 sem achados, 2 com achados, 1 não se aplica, com justificativa); 1 de 2 grupos saneados"]);
+    expect(por["3. Piloto SAP"]).toEqual(["Em andamento", "1 de 4 casos testados"]);
+    expect(por["4. De/para"]).toEqual(["Em andamento", "1 de 2 casos decididos"]);
+    expect(por["7. Fiscal"]).toEqual(["Não iniciado", "0 de 1 grupos liberados com a revisão fiscal concluída"]); expect(por["8. Política"]).toEqual(["Em andamento", "política rascunho"]);
   });
-  it("o critério \"não aplicável\" sem a justificativa escrita não conta: o passo Critérios segue em andamento", () => {
+  it("a checagem declarada \"não se aplica\" sem a justificativa escrita não conta: o passo Checagens segue em andamento", () => {
     const sem = { ...estado, criterios: { ...estado.criterios, identidade: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-21", justificativa: "curta" } } } };
     const a = andamentoDosPassos({ estado: sem, itens, escopo, grupos, contagem, listas, politica });
-    expect(a.find((x) => x[0] === "2. Critérios").slice(1)).toEqual(["Em andamento", "9 de 10 critérios aprovados"]);
+    const ch = a.find((x) => x[0] === "2. Checagens").slice(1);
+    expect(ch[0]).toBe("Em andamento"); expect(ch[1]).toBe("6 de 10 checagens concluídas (4 sem achados, 2 com achados); 0 de 2 grupos saneados"); // a identidade volta a pendente e o grupo Peças deixa de poder ser saneado
+  });
+  it("a conferência manual concluída entra no relatório com o resultado e a evidência escrita de cada grupo", () => {
+    const t = textos(relatorio).join("\n");
+    expect(t).toContain("Grupo Peças: sem achados, por ana em 22/10/2026. Evidência: conferido no ERP");
+    const saldos = tabelaDe(relatorio, "Checagem").linhas.find((l) => l[0] === "Saldos e sinais de excesso");
+    expect(saldos[3]).toBe("Pendente: há grupos sem conclusão: 1 de 2 grupos concluídos"); expect(saldos[4]).toContain("1 grupo concluído com evidência escrita");
   });
   it("traz o escopo, o parâmetro de saneamento, os critérios com a regra registrada, o piloto e as decisões por critério", () => {
     const t = textos(relatorio).join("\n");
     expect(t).toContain("Parâmetro de saneamento: desconsiderar itens não movimentados desde 01/01/2025. Itens sem data de movimentação legível permaneceram no escopo, sinalizados.");
     const grp = tabelaDe(relatorio, "Grupo de itens"); expect(grp.linhas).toEqual([["Peças", "3", "2", "Sim"], ["Insumos", "1", "1", "Sim"]]);
-    const crit = tabelaDe(relatorio, "Critério"); expect(crit.linhas.find((l) => l[0] === "Padronização da descrição")).toEqual(["Padronização da descrição", "Automático", "Aprovado por ana em 20/10/2026", "1"]);
-    expect(crit.linhas.find((l) => l[0] === "Identidade do produto")[2]).toBe("Não se aplica ao projeto (ana, 21/10/2026): Um só fabricante por código neste cadastro.");
-    expect(crit.linhas.find((l) => l[0] === "Saldos e sinais de excesso")[2]).toBe("Aprovado por ana em 20/10/2026"); expect(crit.linhas).toHaveLength(CRITERIOS.length);
-    expect(t).toContain("Critério declarado não aplicável a este projeto. Justificativa: Um só fabricante por código neste cadastro.");
+    const crit = tabelaDe(relatorio, "Checagem"); expect(crit.cols.map((c) => c.label)).toEqual(["Checagem", "Teste", "Cobertura", "Conclusão", "Evidência"]);
+    const padrao = crit.linhas.find((l) => l[0] === "Padronização da descrição"); expect(padrao.slice(0, 4)).toEqual(["Padronização da descrição", "Automático", "Teste automático em 3 itens de 2 grupos", "Verificada com achados (1 achado)"]); expect(padrao[4]).toContain("Regra aprovada por ana em 20/10/2026");
+    const ident = crit.linhas.find((l) => l[0] === "Identidade do produto"); expect(ident[3]).toBe("Não se aplica"); expect(ident[4]).toBe("Declarada não aplicável por ana em 21/10/2026: Um só fabricante por código neste cadastro.");
+    expect(crit.linhas.find((l) => l[0] === "NCM e classificação cadastral")[3]).toBe("Verificada sem achados"); expect(crit.linhas).toHaveLength(CRITERIOS.length);
+    expect(t).toContain("Checagem declarada não aplicável a este projeto. Justificativa: Um só fabricante por código neste cadastro.");
     expect(t).toContain("Regra registrada de padronização.");
     const piloto = tabelaDe(relatorio, "Caso"); expect(piloto.linhas[0]).toEqual(["Unificar duplicados", "Testado", "doc SAP 123", "—"]); expect(piloto.linhas[1][1]).toBe("Não iniciado");
     const dec = relatorio.blocos.filter((b) => b.t === "tabela").find((b) => b.cols[1].label === "Encaminhadas");
@@ -74,7 +84,7 @@ describe("relatório do programa de trabalho", () => {
     expect(textos(rel2).join("\n")).toContain("Sem validade: decisão cujo cadastro mudou para outra coisa depois da proposta");
     expect(textos(relatorio).join("\n")).not.toContain("Sem validade: decisão cujo cadastro mudou"); // sem decisão assim, a nota não aparece
     const a2 = andamentoDosPassos({ estado: e2, itens, escopo, grupos, contagem, listas, politica });
-    expect(a2.find((x) => x[0] === "5. De/para").slice(1)).toEqual(["Em andamento", "0 de 2 casos decididos"]); // antes (com a aprovação valendo): 1 de 2
+    expect(a2.find((x) => x[0] === "4. De/para").slice(1)).toEqual(["Em andamento", "0 de 2 casos decididos"]); // antes (com a aprovação valendo): 1 de 2
   });
   it("mostra os resultados aprovados, a execução, a revisão fiscal por grupo liberado e a política com responsável e controle", () => {
     const kv = relatorio.blocos.filter((b) => b.t === "kv").flatMap((b) => b.linhas); const k = (r) => kv.find((l) => l[0] === r)?.[1];
