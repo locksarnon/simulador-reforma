@@ -71,12 +71,13 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
                 <td className="p-1.5"><input type="radio" name={`fica-${conj.id}`} checked={fica} disabled={bloqueado} onChange={() => onEscolher(conj, idItem(m), idItem(m) === sugId ? "sugestao" : "analista")} aria-label={`Manter o código ${m.codigo || `da linha ${m.linha}`}`} /></td>
                 <td className="p-1.5 whitespace-nowrap"><span className="tabular-nums">{m.codigo || "—"}</span>{idItem(m) === sugId && <span className="ml-1.5" title={conj.sugestao.motivo || undefined}><Chip tom="b">Sugerido</Chip></span>}</td>
                 <td className="p-1.5 text-right tabular-nums">{saldo == null ? "—" : numeroBr(saldo)}</td>
-                <td className="p-1.5 max-w-[420px] break-words"><Descricao texto={m.descricao} comuns={comuns} /></td>
+                <td className="p-1.5 max-w-[420px] break-words"><Descricao texto={m.descricao} comuns={comuns} />{m.duplicidade?.observacao?.palavras?.length > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">Observação (não é produto): <b className="font-medium text-foreground">{m.duplicidade.observacao.palavras.join(", ")}</b></span>}</td>
                 <td className="p-1.5 whitespace-nowrap">{fica ? <Chip tom="g">Fica</Chip> : esc.fica != null ? <span className="inline-flex items-center gap-1.5 text-muted-foreground">sai → {codigoDe(esc.fica)}{dec && <SituacaoEncaminhado d={dec} />}</span> : null}</td>
               </tr>);
           })}</tbody>
         </table>
       </div>
+      {conj.membros.some((m) => m.duplicidade?.porObservacao) && <p className="text-[11px] text-muted-foreground">Neste grupo a variante (cor, tipo, apresentação) é observação, não produto: ao unificar, ela é registrada no campo adicional do código que fica.</p>}
       {sugerido && conj.sugestao.motivo && <p className="text-[11px] text-muted-foreground">Sugestão: manter o código <b className="font-medium text-foreground">{sugerido.codigo || `da linha ${sugerido.linha}`}</b> ({conj.sugestao.motivo}).{esc.fica != null && esc.fica !== sugId ? ` Escolha do analista: ${codigoDe(esc.fica)}.` : ""}</p>}
     </div>
   );

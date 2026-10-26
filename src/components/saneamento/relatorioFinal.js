@@ -8,6 +8,7 @@ import { contarDecisoes } from "./politica";
 import { ORDEM_SITUACOES, SITUACOES, itensDoGrupoFiscal, leituraFiscal, resumoDeLeituras } from "./fiscal";
 import { linhasQueSaem } from "./listasFinais";
 import { resumoUnidades } from "./unidades";
+import { efeitoObservacao, gruposMarcados, palavrasEmVigor } from "./observacao";
 import { indexar } from "./identidade";
 import { coerenciaDaChave } from "./aprovacao";
 import { candidatosDaInativacao, situacaoDoCandidato } from "./inativacao";
@@ -18,7 +19,7 @@ const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produ
 
 export const RESSALVAS = [
   "O saneamento só sugere: nenhum cadastro foi alterado pela ferramenta. Cada correção, unificação ou inativação passou por aprovação registrada e pela execução confirmada com evidência pelas equipes.",
-  "A pontuação de similaridade entre descrições não é probabilidade nem prova de identidade técnica: toda indicação de duplicidade exige confirmação. Produto igual com complemento diferente (cor, tamanho, lado, material, sabor) é item diferente.",
+  "A pontuação de similaridade entre descrições não é probabilidade nem prova de identidade técnica: toda indicação de duplicidade exige confirmação. Produto igual com complemento diferente (cor, tamanho, lado, material, sabor) é item diferente, salvo nos grupos em que o analista definiu a variante como observação (campo adicional), listados na checagem de Duplicidade.",
   "A leitura fiscal compara o NCM com os anexos da LC 214/2025 consultados e não é parecer. Onde o anexo cita o capítulo ou a posição, ou o NCM abrange produtos com tratamentos diferentes, o enquadramento fica para revisão com especialista; sem enquadramento nos anexos não significa ausência de benefício por outra base legal.",
   "O CST e o cClassTrib de cada operação podem diferir do classificado para o produto e seguem na validação das operações; serviços são classificados por NBS e LC 116.",
   "Tarefas só contam como concluídas com a confirmação e a evidência de todas as frentes aplicáveis. Procedimentos de execução não comprovados no piloto SAP ficam sem liberação para execução em massa.",
@@ -81,6 +82,12 @@ export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, iten
       if (conclusoes.length) b.push({ t: "lista", itens: conclusoes });
     }
     if (k.id === "padrao") { const lig = Object.entries(ROTULO_REGRAS).filter(([r]) => ({ ...REGRAS_PADRAO, ...(estado.padronizacao?.regras || {}) })[r]).map(([, r]) => r.replace(/ \(ex\.:.*\)$/, "")); P(`Regras de formato ligadas: ${lig.join("; ") || "nenhuma"}. Abreviações aprovadas: ${plural(Object.keys(abreviacoesAprovadas(estado)).length, "abreviação", "abreviações")}.`, "nota"); }
+    if (k.id === "duplicidade") {
+      const marcados = gruposMarcados(estado.observacao, grupos.map((g) => g.nome)); const ef = efeitoObservacao(escopo.emEscopo);
+      P(marcados.length
+        ? `Regra de observação (a variante não é produto): ${plural(marcados.length, "grupo usa", "grupos usam")} a regra (${marcados.join(", ")}). Palavras de observação: ${palavrasEmVigor(estado.observacao).map((p) => p.palavra).join(", ")}. Na base, a regra ligou ${plural(ef.itens, "item", "itens")} em ${plural(ef.conjuntos, "conjunto", "conjuntos")} de duplicados; a variante de cada item que sai é registrada no campo adicional do código mantido.`
+        : "Regra de observação: nenhum grupo usa a regra; cor, tipo e apresentação separam os itens em todos os grupos.", "nota");
+    }
     if (k.id === "unidade") { const u = resumoUnidades(escopo.emEscopo, { regras: estado.politicaUnidade?.regras, rotulos: estado.politicaUnidade?.rotulos }); P(`Nome da unidade de estoque por medida: ${Object.entries(u.padroes).map(([g, n]) => `${g} ${n}`).join(", ")}. Unidades classificadas pelo analista: ${fmt(Object.keys(estado.politicaUnidade?.regras || {}).length)}.`, "nota"); }
   }
 

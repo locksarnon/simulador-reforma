@@ -105,6 +105,17 @@ describe("escolher quem fica (a escolha é guardada pelo código do item)", () =
     expect(x["B|duplicidade"]).toBeUndefined(); expect(d["C|duplicidade"]).toBeUndefined(); // quem fica não ganha decisão; o recebido não é alterado
     expect(completarEscolha(x, c, ctx)).toBe(x); expect(membrosSemProposta(c, x)).toEqual([]); // nada mais a completar
   });
+  it("a variante (observação) de quem sai segue na decisão, para o campo adicional do código que fica; sem variante, a decisão não leva o campo", () => {
+    const obs = (palavras) => ({ ...dup(0, [2, 3, 4], "MUITO_PROVAVEL", 0.95), porObservacao: true, observacao: { palavras } });
+    const c = montarConjuntos([item(2, "A", { saldo: 3, duplicidade: obs(["CLEAR"]) }), item(3, "B", { saldo: 12, duplicidade: obs(["NEUTRO", "INCOLOR"]) }), item(4, "C", { saldo: 1, duplicidade: obs([]) })])[0];
+    const d = aplicarEscolha({}, c, "B", ctx);
+    expect(d["A|duplicidade"].observacao).toEqual(["CLEAR"]); expect(d["C|duplicidade"]).not.toHaveProperty("observacao"); expect(d["B|duplicidade"]).toBeUndefined();
+    expect(aplicarEscolha({}, c, "A", ctx)["B|duplicidade"].observacao).toEqual(["NEUTRO", "INCOLOR"]); // a variante é a de quem sai, qualquer que seja o que fica
+    const decidida = { acao: "ENC", status: "APR", destino: "B", antes: { descricao: "ITEM A" } };
+    expect(completarEscolha({ "A|duplicidade": decidida }, c, ctx)["C|duplicidade"]).not.toHaveProperty("observacao");
+    const c2 = montarConjuntos([item(2, "A", { duplicidade: obs(["CLEAR"]) }), item(3, "B", { duplicidade: obs(["NEUTRO"]) }), item(4, "C", { duplicidade: obs(["AZUL"]) })])[0];
+    expect(completarEscolha({ "A|duplicidade": decidida }, c2, ctx)["C|duplicidade"].observacao).toEqual(["AZUL"]);
+  });
   it("completar não faz nada se o código que ficou saiu do conjunto: os membros de hoje nunca foram comparados com ele", () => {
     const c = mk(); const d = { "A|duplicidade": { acao: "ENC", status: "APR", destino: "Z" }, "B|duplicidade": { acao: "ENC", status: "APR", destino: "Z" } }; // o Z não está mais no conjunto {A, B, C}
     expect(escolhaDoConjunto(c, d)).toMatchObject({ fica: "Z", travada: true }); expect(membrosSemProposta(c, d)).toEqual([]); expect(completarEscolha(d, c, ctx)).toBe(d);

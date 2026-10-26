@@ -46,7 +46,7 @@ const propostaTxt = (p) => {
 // O que fazer em cada frente, com os dados do item.
 const INSTRUCAO = {
   unificacao: (t) => ({
-    adm: `Unificar no código ${t.dados.destinoCodigo || "mantido"}${t.dados.destinoDescricao ? ` (${t.dados.destinoDescricao})` : ""}: transferir saldo e histórico, atualizar os vínculos (cartilhas, planos de manutenção, documentos abertos) e inativar o código de origem ${t.codigo}.`,
+    adm: `Unificar no código ${t.dados.destinoCodigo || "mantido"}${t.dados.destinoDescricao ? ` (${t.dados.destinoDescricao})` : ""}: transferir saldo e histórico, atualizar os vínculos (cartilhas, planos de manutenção, documentos abertos) e inativar o código de origem ${t.codigo}.${t.dados.observacao?.length ? ` A variante do código de origem é observação, não produto: registrar no campo adicional do código mantido: ${t.dados.observacao.join(", ")}.` : ""}`,
     alm: `Realocar o saldo físico do código ${t.codigo} para o endereço do código ${t.dados.destinoCodigo || "mantido"} e trocar a identificação (etiqueta).` }),
   descricao: (t) => ({ adm: `Alterar a descrição para: ${t.dados.descricaoFinal}`, alm: `Atualizar a etiqueta do endereço, se ela traz a descrição: ${t.dados.descricaoFinal}` }),
   unidade: (t) => ({
@@ -81,7 +81,8 @@ export function tarefaDaDecisao(crit, d, it, indice) {
     const destinoId = d.destino ?? (it.duplicidade?.mestre != null ? idItem(indice.porLinha.get(it.duplicidade.mestre)) : null);
     if (!destinoId || destinoId === idItem(it)) return null; // código mantido: nada a unificar
     const dest = itemPorId(indice, destinoId);
-    return { tipo: "unificacao", dados: { destinoCodigo: destinoId, destinoDescricao: dest?.descricao ?? d.destinoAntes?.descricao ?? "" } };
+    const observacao = d.observacao ?? it.duplicidade?.observacao?.palavras ?? []; // a variante (cor, tipo, apresentação) do item que sai é observação: vai para o campo adicional do mantido
+    return { tipo: "unificacao", dados: { destinoCodigo: destinoId, destinoDescricao: dest?.descricao ?? d.destinoAntes?.descricao ?? "", ...(observacao.length ? { observacao } : {}) } };
   }
   if (crit === "padrao") {
     const final = d.final || d.sugerida;

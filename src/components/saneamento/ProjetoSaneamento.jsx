@@ -5,7 +5,7 @@ import { api } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import ValidadorCadastro from "@/components/ferramentas/ValidadorCadastro";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
-import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, decisoesDoTrabalho, descobrirAbreviacoes, hojeIso, normalizarParams } from "./logica";
+import { CRITERIOS, REGRAS_PADRAO, ROTULO_REGRAS, abreviacoesAprovadas, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, decisoesDoTrabalho, descobrirAbreviacoes, grupoDe, hojeIso, normalizarParams } from "./logica";
 import { achadosDe, calcularAchados, coberturaDaBase, contarAchados, grupoPodeSanear, grupoSaneado, situacaoCriterio } from "./analise";
 import PassoChecagens from "./PassoChecagens";
 import { checagens, resumoChecagens } from "./checagens";
@@ -31,6 +31,8 @@ import InativacaoLotes from "./InativacaoLotes";
 import { inativacaoVazia } from "./inativacao";
 import { coerenciaDaChave } from "./aprovacao";
 import { detectarEscalaSaldo } from "./conjuntos";
+import { aplicarObservacao, aprovarPalavras, assinaturaObservacao, definirGrupo, efeitoObservacao, gruposMarcados, gruposNoPadrao, ignorarPalavra, observacaoInicial, restaurarPalavra, sugerirPalavras } from "./observacao";
+import PainelObservacao from "./PainelObservacao";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
@@ -46,7 +48,10 @@ const PASSOS = [
 const CASOS_PILOTO = ["Unificar duplicados", "Separar cadastro que mistura produtos", "Preservar referências após renumeração de catálogo", "Descontinuar código com dependências (cartilhas)"];
 const STATUS_PILOTO = ["Não iniciado", "Em teste", "Testado", "Reprovado"];
 
-const estadoInicial = () => ({ passo: 0, versaoPassos: VERSAO_PASSOS, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null }, origem: {}, extraidaEm: "", inativacao: inativacaoVazia() });
+// Mudar o que alimenta o teste de uma checagem (regras de padronização, política de unidades, regra de observação) desfaz a aprovação: se o teste continuar sem achados, a checagem volta a abrir aprovada.
+const semAprovacao = (criterios, id) => { const { aprovado: _a, por: _p, em: _e, ...resto } = criterios[id] || {}; return { ...criterios, [id]: resto }; };
+
+const estadoInicial = () => ({ passo: 0, versaoPassos: VERSAO_PASSOS, params: { desde: "" }, criterios: {}, tratados: {}, saneados: {}, decisoes: {}, piloto: {}, bloco: false, padronizacao: { regras: { ...REGRAS_PADRAO }, abreviacoes: {} }, politicaUnidade: { ativa: true, regras: {} }, observacao: observacaoInicial(), execucao: { tipos: {}, registros: {} }, gruposFora: {}, fiscal: { decisoes: {}, grupos: {} }, politica: { secoes: {}, grupos: {}, aprovada: null }, origem: {}, extraidaEm: "", inativacao: inativacaoVazia() });
 
 export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVoltar }) {
   const confirmar = useConfirmar();
@@ -76,7 +81,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     carregado.current = true;
     setNome(proj.data.nome); setValidacaoId(proj.data.validacao_id || null);
     const salvoNoProjeto = proj.data.estado || {};
-    setEstado({ ...estadoInicial(), ...salvoNoProjeto, versaoChaves: versaoDasChaves(salvoNoProjeto), ...migrarPassos(salvoNoProjeto) }); // o passo salvo com a numeração antiga (Critérios e Análises separados) é convertido uma vez; // projeto antigo (decisões pela linha) fica com a versão 1 até migrar
+    setEstado({ ...estadoInicial(), ...salvoNoProjeto, versaoChaves: versaoDasChaves(salvoNoProjeto), ...migrarPassos(salvoNoProjeto), observacao: salvoNoProjeto.observacao ?? { ...observacaoInicial(), reaplicar: true } }); // o passo salvo com a numeração antiga (Critérios e Análises separados) é convertido uma vez; // projeto antigo (decisões pela linha) fica com a versão 1 até migrar
   }, [proj.data]);
 
   // Autosave: cada ajuste é salvo sozinho.
@@ -100,7 +105,11 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   // projeto sem essas chaves; o que está guardado continua intacto no projeto.
   const legado = !!estado && precisaMigrar(estado);
   const vivo = useMemo(() => (estado && legado ? semChavesAntigas(estado) : estado), [estado, legado]);
-  const itens = useMemo(() => base.data?.itens || [], [base.data]);
+  const itensBase = useMemo(() => base.data?.itens || [], [base.data]);
+  const escalaSaldo = useMemo(() => estado?.saldoEscala ?? detectarEscalaSaldo(itensBase), [estado?.saldoEscala, itensBase]); // a escolha do analista vale mais que a escala detectada
+  // Nos grupos em que a variante (cor, tipo, apresentação) é observação e não produto, os itens que só diferem por ela viram indicação de duplicidade (observacao.js). Os grupos e
+  // as palavras são parâmetros do projeto; a cobertura (se a análise de duplicidades rodou na importação) continua lendo a base como veio.
+  const itens = useMemo(() => aplicarObservacao(itensBase, estado?.observacao, { escala: escalaSaldo }), [itensBase, estado?.observacao, escalaSaldo]);
   const indice = useMemo(() => indexar(itens), [itens]); // o código do item identifica a decisão (a linha da planilha muda a cada extração)
   const escopo = useMemo(() => aplicarEscopo(itens, estado?.params, estado?.gruposFora), [itens, estado?.params, estado?.gruposFora]);
   const grupos = useMemo(() => agruparPorGrupo(escopo.emEscopo), [escopo]);
@@ -118,9 +127,11 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const temSaldo = useMemo(() => itens.some((i) => i.saldo != null), [itens]);
   const temAnalise = useMemo(() => itens.some((i) => i.sugestao), [itens]); // a base foi processada com a análise de cClassTrib
   const saem = useMemo(() => linhasQueSaem(vivo, itens), [vivo?.decisoes, itens]); // itens unificados em outro código: fora da revisão fiscal
-  const escalaSaldo = useMemo(() => estado?.saldoEscala ?? detectarEscalaSaldo(itens), [estado?.saldoEscala, itens]); // a escolha do analista vale mais que a escala detectada
   const abrevCand = useMemo(() => (estado?.passo === PASSO.CHECAGENS && validacaoId ? descobrirAbreviacoes(escopo.emEscopo) : []), [estado?.passo, validacaoId, escopo]);
   const resumoUn = useMemo(() => (estado?.passo === PASSO.CHECAGENS && critAtivo === "unidade" && validacaoId ? resumoUnidades(escopo.emEscopo, { regras: estado?.politicaUnidade?.regras, rotulos: estado?.politicaUnidade?.rotulos }) : null), [estado?.passo, critAtivo, validacaoId, escopo, estado?.politicaUnidade?.regras, estado?.politicaUnidade?.rotulos]);
+  const verObservacao = estado?.passo === PASSO.CHECAGENS && critAtivo === "duplicidade" && !!validacaoId; // o painel da regra de observação está na tela
+  const sugestoesObs = useMemo(() => (verObservacao ? sugerirPalavras(escopo.emEscopo, estado?.observacao) : []), [verObservacao, escopo, estado?.observacao]);
+  const efeitoObs = useMemo(() => (verObservacao ? efeitoObservacao(escopo.emEscopo) : { itens: 0, conjuntos: 0 }), [verObservacao, escopo]);
   const listas = useMemo(() => (estado?.passo === PASSO.CONFERENCIA && validacaoId && base.data ? montarListas({ nomeProjeto: nome, nomeBase: base.data.nome_arquivo, estado: vivo, itens, escopo, testes, escalaSaldo, cobertura, baseId: validacaoId }) : null), [vivo, validacaoId, base.data, itens, escopo, testes, nome, escalaSaldo, cobertura]);
 
   // Grupo marcado como saneado que deixou de cumprir os critérios (regra mais exigente, critério reaberto ou sem a análise) é reaberto: a marca antiga não volta sozinha
@@ -131,6 +142,18 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     if (!invalidos.length) return;
     setEstado((e) => ({ ...e, saneados: { ...e.saneados, ...Object.fromEntries(invalidos.map((nome) => [nome, false])) }, reabertos: { em: hojeIso(), grupos: invalidos, visto: false } }));
   }, [estado, contagem, grupos]);
+
+  // Projeto salvo antes da regra de observação: ela passa a valer nos grupos de limpeza, copa, cozinha e utensílios (padrão pelo nome). Onde ela liga itens, a aprovação da Duplicidade e a
+  // conclusão do grupo foram feitas sem ela e são reabertas, uma vez: o que a regra achou precisa ser visto.
+  useEffect(() => {
+    if (!estado?.observacao?.reaplicar || !base.data) return;
+    setEstado((e) => {
+      const { reaplicar: _r, ...obs } = e.observacao; const atingidos = new Set(itens.filter((i) => i.duplicidade?.porObservacao).map(grupoDe));
+      const tratados = { ...(e.tratados || {}) }; let mudou = false;
+      for (const g of atingidos) if (`${g}|duplicidade` in tratados) { delete tratados[`${g}|duplicidade`]; mudou = true; }
+      return { ...e, observacao: obs, ...(atingidos.size ? { criterios: semAprovacao(e.criterios, "duplicidade"), ...(mudou ? { tratados } : {}) } : {}) };
+    });
+  }, [estado?.observacao?.reaplicar, base.data, itens]);
 
   if (proj.isLoading || !estado) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o projeto…</p>;
   if (proj.error) return <p role="alert" className="text-sm text-destructive">Não foi possível abrir o projeto: {proj.error.message}</p>;
@@ -226,8 +249,6 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   // "Não se aplica a este projeto": só vale com a justificativa escrita, registrada com quem declarou e quando.
   const marcarNaoAplicavel = (c, justificativa) => alterarCriterio(c.id, { aprovado: false, naoAplicavel: { por: quem, em: hojeIso(), justificativa } });
   const setCrit = (patch) => alterarCriterio(crit.id, patch);
-  // Mudar o que alimenta o teste (regras de padronização, política de unidades) desfaz a aprovação: se o teste continuar sem achados, o critério volta a abrir aprovado.
-  const semAprovacao = (criterios, id) => { const { aprovado: _a, por: _p, em: _e, ...resto } = criterios[id] || {}; return { ...criterios, [id]: resto }; };
   const mudarPad = (patch) => mudar({ padronizacao: { regras: regrasPad, abreviacoes: abrevPad, ...patch }, criterios: semAprovacao(estado.criterios, "padrao") });
   const painelPadrao = crit.id === "padrao" ? (
     <div className="rounded-lg border border-border p-3 space-y-3">
@@ -291,6 +312,20 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
             })}</tbody></table></div>
         </div>)}
     </div>) : null;
+  // Critério "Duplicidade": em quais grupos a variante (cor, tipo, apresentação) é observação e não produto, e quais palavras são observação. Mudar o que a regra liga desfaz a aprovação
+  // da checagem e a conclusão dos grupos atingidos (a conclusão foi feita sobre outros achados); mexer sem mudar o efeito só grava a escolha.
+  const mudarObs = (fn) => setEstado((e) => {
+    const antes = e.observacao || observacaoInicial(); const depois = fn(antes); const nomes = gruposTodos.map((g) => g.nome);
+    if (assinaturaObservacao(antes, nomes) === assinaturaObservacao(depois, nomes)) return { ...e, observacao: depois };
+    const tratados = { ...(e.tratados || {}) };
+    for (const n of nomes) if (gruposMarcados(antes, [n]).length || gruposMarcados(depois, [n]).length) delete tratados[`${n}|duplicidade`];
+    return { ...e, observacao: depois, tratados, criterios: semAprovacao(e.criterios, "duplicidade") };
+  });
+  const painelObservacao = crit.id === "duplicidade" ? (
+    <PainelObservacao cfg={estado.observacao || observacaoInicial()} grupos={grupos} sugestoes={sugestoesObs} efeito={efeitoObs}
+      onGrupo={(nome, usa) => mudarObs((c) => definirGrupo(c, nome, usa))} onGruposPadrao={() => mudarObs(gruposNoPadrao)}
+      onAprovar={(ws) => mudarObs((c) => aprovarPalavras(c, ws))} onIgnorar={(ws) => mudarObs((c) => ws.reduce((x, w) => ignorarPalavra(x, w), c))} onRestaurar={(w) => mudarObs((c) => restaurarPalavra(c, w))} />
+  ) : null;
   const sit = situacaoCriterio(estado, crit, contagem);
   const nAchCrit = achadosDe(contagem, crit);
   // A regra, o exemplo e os ajustes da checagem aberta: ficam dentro da aba da checagem, em "Regra, exemplo e ajustes" (o passo Checagens reúne o que eram Critérios e Análises).
@@ -299,12 +334,13 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <div><label className="text-xs text-muted-foreground" htmlFor="regra">Regra da checagem (texto de registro)</label>
         <textarea id="regra" className="w-full border rounded-md p-2 text-sm bg-background min-h-[84px]" value={cEst.regra ?? crit.regra} onChange={(e) => setCrit({ regra: e.target.value, aprovado: false })} />
         <p className="text-xs text-muted-foreground mt-1">O texto descreve o que a checagem verifica e fica registrado com a aprovação, para orientar a conferência e a política final. Editá-lo <b className="font-medium text-foreground">não muda o teste</b> e reabre a aprovação da regra.</p></div>
-      <p className="text-xs text-muted-foreground"><b className="font-medium text-foreground">O que muda o teste:</b> {crit.id === "padrao" ? "as regras de padronização e as abreviações, logo abaixo." : crit.id === "unidade" ? "a política da menor unidade e a tabela de unidades, logo abaixo." : crit.id === "utilizacao" ? <>o corte por data, no <button type="button" onClick={() => irPara(PASSO.TRIAGEM)} className="text-primary underline">Parâmetro de saneamento (passo Triagem)</button>.</> : crit.auto ? "esta checagem ainda não tem ajustes: o teste automático é fixo (o texto da regra só o descreve)." : "nada: é conferência manual, e o texto da regra serve de roteiro para conferir os itens de cada grupo."}</p>
+      <p className="text-xs text-muted-foreground"><b className="font-medium text-foreground">O que muda o teste:</b> {crit.id === "padrao" ? "as regras de padronização e as abreviações, logo abaixo." : crit.id === "unidade" ? "a política da menor unidade e a tabela de unidades, logo abaixo." : crit.id === "duplicidade" ? "os grupos em que a variante (cor, tipo, apresentação) é observação e as palavras de observação, logo abaixo." : crit.id === "utilizacao" ? <>o corte por data, no <button type="button" onClick={() => irPara(PASSO.TRIAGEM)} className="text-primary underline">Parâmetro de saneamento (passo Triagem)</button>.</> : crit.auto ? "esta checagem ainda não tem ajustes: o teste automático é fixo (o texto da regra só o descreve)." : "nada: é conferência manual, e o texto da regra serve de roteiro para conferir os itens de cada grupo."}</p>
       <p className="text-xs text-muted-foreground">Exemplo: {crit.exemplo}.{crit.params && <> Parâmetro: {crit.params}.</>}</p>
       {nAchCrit != null && sit !== "SEM_ANALISE" && <p className="text-xs text-muted-foreground">Na base atual: <b>{fmt(nAchCrit)}</b> itens em escopo com achado nesta checagem.{sit === "AUTO" ? " Sem achados, a regra abre aprovada." : ""}</p>}
       <p className="text-xs text-muted-foreground">A checagem sem achados abre com a regra aprovada, desde que a análise tenha rodado na importação da base; use “Revisar manualmente” para conferi-la. A análise só trata checagens com a regra aprovada, e o grupo só é saneado com todas as checagens aplicáveis concluídas, as de conferência manual também.</p>
       {painelPadrao}
       {painelUnidade}
+      {painelObservacao}
     </div>
   );
 
@@ -393,7 +429,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
           {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.filter((d) => !precisaFator(d)).length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao>{pend.some(precisaFator) && <span className="self-center text-xs text-muted-foreground">Conversões de unidade sem fator ficam aguardando.</span>}</div>}
           <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="caso" ord={ordDec} onOrdenar={ordenarDec}>Código</Th><Th chave="criterio" ord={ordDec} onOrdenar={ordenarDec}>Critério</Th><Th chave="descricao" ord={ordDec} onOrdenar={ordenarDec}>Descrição</Th><Th chave="situacao" ord={ordDec} onOrdenar={ordenarDec}>Situação</Th><th className="p-1.5"></th></tr></thead>
             <tbody>{ordenarPor(lista, ordDec, { caso: (d) => partirChave(d.k).id, criterio: (d) => CRITERIOS.find((c) => c.id === partirChave(d.k).crit)?.titulo, descricao: (d) => itemPorId(indice, partirChave(d.k).id)?.descricao ?? d.antes?.descricao, situacao: (d) => (d.status === "PROP" ? 0 : d.status === "APR" ? 1 : 2) }).slice(0, 200).map((d) => { const { id, crit: cid } = partirChave(d.k); const it = itemPorId(indice, id) ?? (d.antes ? { codigo: id, descricao: d.antes.descricao, unidade: d.antes.unidade } : null); const coer = coerencia(d.k, d);
-              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums whitespace-nowrap">{it?.codigo ?? id}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== id ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorId(indice, d.destino)?.codigo ?? d.destino}</div></div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
+              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums whitespace-nowrap">{it?.codigo ?? id}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== id ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorId(indice, d.destino)?.codigo ?? d.destino}</div>{d.observacao?.length > 0 && <div className="text-[11px] text-muted-foreground">observação (não é produto) a registrar no mantido: {d.observacao.join(", ")}</div>}</div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
                 <td className="p-1.5"><div className="flex flex-col items-start gap-1">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}
                   {coer.estado === "MUDOU" && <span title={coer.motivo}><Chip tom="r">Cadastro mudou: não vale</Chip></span>}{coer.estado === "AMBIGUA" && <span title={coer.motivo}><Chip tom="r">Código repetido: não vale</Chip></span>}{coer.estado === "AUSENTE" && <span title={coer.motivo}><Chip tom="a">Fora da base atual</Chip></span>}{coer.estado === "REFLETIDA" && <span title={coer.motivo}><Chip tom="b">Já está no cadastro</Chip></span>}</div></td>
                 <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d) || !podeAprovar(d.k, d)} title={!podeAprovar(d.k, d) ? coer.motivo : precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}

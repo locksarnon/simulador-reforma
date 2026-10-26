@@ -75,6 +75,8 @@ export function montarConjuntos(itens, { escala = 1 } = {}) {
 }
 
 const chave = (m) => chaveDeId(idItem(m), "duplicidade");
+/** A variante do item que sai (cor, tipo, apresentação: observação, não produto), quando a regra de observação o ligou ao conjunto; segue na decisão para o campo adicional do item mantido. */
+const observacaoDe = (m) => { const p = m.duplicidade?.observacao?.palavras; return p?.length ? { observacao: [...p] } : {}; };
 
 /**
  * Os itens do conjunto podem receber decisão: todos têm código e nenhum se repete (no conjunto nem, dado o índice da base, na base). A escolha de quem fica é guardada
@@ -116,7 +118,7 @@ export function aplicarEscolha(decisoes, conj, fica, { quem, hoje, origem = "ana
     const k = chave(m); const atual = d[k];
     if (idItem(m) === fica) { if (atual) { delete d[k]; mudou = true; } continue; }
     if (atual && atual.destino === fica && atual.escolhaPor === origem && atual.status === "PROP") continue;
-    d[k] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m, "duplicidade"), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido, "duplicidade") } : {}) }; mudou = true;
+    d[k] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m, "duplicidade"), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido, "duplicidade") } : {}), ...observacaoDe(m) }; mudou = true;
   }
   return mudou ? d : decisoes;
 }
@@ -139,7 +141,7 @@ export function completarEscolha(decisoes, conj, { quem, hoje, origem = "analist
   if (!conjuntoIdentificavel(conj, indice).ok) return decisoes;
   const faltam = membrosSemProposta(conj, decisoes); if (!faltam.length) return decisoes;
   const fica = escolhaDoConjunto(conj, decisoes).fica; const mantido = conj.membros.find((m) => idItem(m) === fica); const d = { ...decisoes };
-  for (const m of faltam) d[chave(m)] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m, "duplicidade"), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido, "duplicidade") } : {}) };
+  for (const m of faltam) d[chave(m)] = { acao: "ENC", status: "PROP", grupo: grupoDe(m), por: quem, em: hoje, destino: fica, conjunto: conj.id, escolhaPor: origem, antes: instantaneoDoItem(m, "duplicidade"), ...(mantido ? { destinoAntes: instantaneoDoItem(mantido, "duplicidade") } : {}), ...observacaoDe(m) };
   return d;
 }
 

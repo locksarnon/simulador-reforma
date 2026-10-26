@@ -56,6 +56,18 @@ describe("relatório do programa de trabalho", () => {
     const ch = a.find((x) => x[0] === "2. Checagens").slice(1);
     expect(ch[0]).toBe("Em andamento"); expect(ch[1]).toBe("6 de 10 checagens concluídas (4 sem achados, 2 com achados); 0 de 2 grupos saneados"); // a identidade volta a pendente e o grupo Peças deixa de poder ser saneado
   });
+  it("a regra de observação entra na checagem de Duplicidade: os grupos que a usam, as palavras e o que ela ligou; sem grupos, diz que a variante separa os itens", () => {
+    expect(textos(relatorio).join("\n")).toContain("Regra de observação: nenhum grupo usa a regra; cor, tipo e apresentação separam os itens em todos os grupos.");
+    const itens2 = itens.map((i) => (i.linha <= 3 ? { ...i, duplicidade: { ...i.duplicidade, porObservacao: true, observacao: { palavras: ["CLEAR"] } } } : i));
+    const estado2 = { ...estado, observacao: { grupos: { "Peças": true }, palavras: { pasta: true } } }; const escopo2 = aplicarEscopo(itens2, estado2.params, estado2.gruposFora);
+    const contagem2 = contarAchados(calcularAchados(escopo2.emEscopo, criarTestes(escopo2.emEscopo, estado2)), escopo2.emEscopo.length);
+    const listas2 = montarListas({ nomeProjeto: "Projeto X", nomeBase: "itens.xlsx", estado: estado2, itens: itens2, escopo: escopo2, testes: criarTestes(escopo2.emEscopo, estado2) });
+    const politica2 = montarPolitica({ estado: estado2, contagem: contagem2, escopo: escopo2, grupos: agruparPorGrupo(escopo2.emEscopo), nomeProjeto: "Projeto X", nomeBase: "itens.xlsx" });
+    const t = textos(montarRelatorioFinal({ nomeProjeto: "Projeto X", nomeBase: "itens.xlsx", quem: "ana", estado: estado2, itens: itens2, escopo: escopo2, contagem: contagem2, listas: listas2, politica: politica2, geradoEm: new Date(2026, 9, 23) })).join("\n");
+    expect(t).toContain("Regra de observação (a variante não é produto): 1 grupo usa a regra (Peças). Palavras de observação: ");
+    expect(t).toContain("PASTA"); expect(t).toContain("Na base, a regra ligou 2 itens em 1 conjunto de duplicados; a variante de cada item que sai é registrada no campo adicional do código mantido.");
+    expect(RESSALVAS.join(" ")).toContain("salvo nos grupos em que o analista definiu a variante como observação (campo adicional)");
+  });
   it("a conferência manual concluída entra no relatório com o resultado e a evidência escrita de cada grupo", () => {
     const t = textos(relatorio).join("\n");
     expect(t).toContain("Grupo Peças: sem achados, por ana em 22/10/2026. Evidência: conferido no ERP");

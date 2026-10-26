@@ -56,6 +56,12 @@ describe("listas finais do saneamento", () => {
     expect(l.desduplicacoes[0]).toMatchObject({ saldoOrigem: 3, saldoDestino: 12 });
     expect(base(estado).desduplicacoes[0]).toMatchObject({ saldoOrigem: "", saldoDestino: "" }); // base sem saldo: colunas vazias, nunca zero inventado
   });
+  it("a desduplicação traz a variante (observação) de quem sai para o campo adicional do mantido; o código mantido não leva observação", () => {
+    const comObs = { ...estado, decisoes: { ...estado.decisoes, "A1|duplicidade": { ...estado.decisoes["A1|duplicidade"], observacao: ["CLEAR", "INCOLOR"] } } };
+    expect(base(comObs).desduplicacoes[0].observacao).toBe("CLEAR, INCOLOR"); expect(base(estado).desduplicacoes[0].observacao).toBe("");
+    const mantido = { ...estado, decisoes: { "A1|duplicidade": { ...estado.decisoes["A1|duplicidade"], destino: "A1", observacao: ["CLEAR"] } } }; // o próprio código fica: sem baixa
+    expect(base(mantido).desduplicacoes[0]).toMatchObject({ acao: "Código mantido (sem baixa)", observacao: "" });
+  });
   it("descrição final é a aprovada (do cliente, quando ele ajustou) e a original fica registrada", () => {
     const c1 = base(estado).finalCorrigida.find((i) => i.codigo === "C1");
     expect(c1).toMatchObject({ original: "CORREIA A-72", final: "CORREIA A-72 TRAPEZOIDAL", mudanca: "Descrição corrigida", origem: "Ajustada pelo cliente" });

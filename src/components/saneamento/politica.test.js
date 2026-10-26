@@ -31,6 +31,15 @@ describe("política de uso dos estoques", () => {
     expect(r.origem).toBe('Critério "Padronização da descrição", aprovado por ana em 20/10/2026');
     expect(r.evidencia).toBe("1 item em escopo com achado na base analisada; 1 correção aprovada de 2 encaminhadas.");
   });
+  it("a exceção por grupo da observação entra na regra de duplicidade e na política estruturada (cor, tipo e apresentação não geram código próprio)", () => {
+    const sem = montarPolitica(base({ criterios: { duplicidade: aprov() } }));
+    expect(regra(sem, "criar.duplicidade").texto).not.toContain("Exceção por grupo"); expect(sem.estruturada.duplicidade.varianteEhObservacao.grupos).toEqual([]);
+    const com = montarPolitica(base({ criterios: { duplicidade: aprov() }, observacao: { grupos: { Insumos: true }, palavras: { pasta: true } } }));
+    const texto = regra(com, "criar.duplicidade").texto;
+    expect(texto).toContain("Exceção por grupo: nos grupos Insumos a variante (cor, tipo, apresentação: "); expect(texto).toContain("PASTA"); expect(texto).toContain("não gera código próprio e é registrada no campo adicional do item");
+    expect(com.estruturada.duplicidade.varianteEhObservacao).toMatchObject({ grupos: ["Insumos"] }); expect(com.estruturada.duplicidade.varianteEhObservacao.palavras).toEqual(expect.arrayContaining(["PASTA", "AZUL", "NEUTRO"]));
+    expect(montarPolitica(base({ criterios: { duplicidade: aprov() }, observacao: { grupos: { Insumos: false }, palavras: {} } })).estruturada.duplicidade.varianteEhObservacao.grupos).toEqual([]);
+  });
   it("a regra de descontinuação diz que o corte só seleciona candidatos e que a inativação exige aprovação em lista fechada ou individual", () => {
     const p = montarPolitica(base({}));
     expect(regra(p, "descontinuar.aprovacao").texto).toContain("não autoriza a inativação"); expect(regra(p, "descontinuar.aprovacao").texto).toContain("lista fechada de códigos"); expect(regra(p, "descontinuar.aprovacao").texto).toContain("não cobre itens que entrem depois na lista");

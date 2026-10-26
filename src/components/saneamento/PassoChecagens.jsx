@@ -20,7 +20,8 @@ const extraDecisao = (c, it, sugerida, extra, porLinha) => {
   if (c.id === "padrao") return { sugerida };
   if (c.id === "duplicidade") {
     const mestre = it.duplicidade?.mestre != null ? porLinha?.get(it.duplicidade.mestre) : null;
-    return { destino: mestre ? idItem(mestre) || null : null, ...(mestre ? { destinoAntes: instantaneoDoItem(mestre, "duplicidade") } : {}) };
+    const obs = it.duplicidade?.observacao?.palavras; // a variante (observação) do item que sai segue na decisão, para o campo adicional do item mantido
+    return { destino: mestre ? idItem(mestre) || null : null, ...(mestre ? { destinoAntes: instantaneoDoItem(mestre, "duplicidade") } : {}), ...(mestre && mestre.linha !== it.linha && obs?.length ? { observacao: [...obs] } : {}) };
   }
   if (c.id === "ncm") { const p = propostaNcm(it); return Object.keys(p).length ? { proposto: p } : {}; } // o NCM e a classe que a tela mostra em "como seria": a aprovação vale para eles
   if (c.id === "grupo") return String(it.grupo_sugerido ?? "").trim() ? { proposto: { grupo: String(it.grupo_sugerido).trim() } } : {}; // o grupo sugerido pela base: se o cadastro já estiver nele, a decisão é só reflexo

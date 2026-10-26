@@ -7,6 +7,7 @@ import { coerenciaDaChave } from "./aprovacao";
 import { resumoInativacao } from "./inativacao";
 import { coberturaDoCriterio, criteriosPendentesDoGrupo, grupoSaneado, naoAplicavelDe, situacaoCriterio } from "./analise";
 import { GRANDEZAS, resumoUnidades } from "./unidades";
+import { gruposMarcados, palavrasEmVigor } from "./observacao";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -54,11 +55,13 @@ export function montarPolitica({ estado, contagem, escopo, grupos, itens, nomePr
   const ajustesUn = dec.unidade || { APR: 0, total: 0 }; const dupl = dec.duplicidade || { APR: 0, total: 0 }; const pad = dec.padrao || { APR: 0, total: 0 };
   const resInativacao = resumoInativacao(estado?.inativacao, escopo, indexar(itens ?? [...(escopo?.emEscopo || []), ...(escopo?.fora || []), ...(escopo?.foraGrupos || [])]));
   const piloto = Object.entries(estado?.piloto || {}).map(([caso, p]) => `${caso}: ${p.status || "Não iniciado"}`);
+  // Regra de observação (a variante não é produto): os grupos que a usam e as palavras de observação; nesses grupos cor, tipo e apresentação não geram código próprio
+  const observacao = { grupos: gruposMarcados(estado?.observacao, (grupos || []).map((g) => g.nome)), palavras: palavrasEmVigor(estado?.observacao).map((p) => p.palavra) };
 
   const R = (id, secao, texto, origemId, evidencia, origemTxt = "Programa de trabalho do saneamento") => ({ id, secao, texto, origem: origemId ? origem(origemId) : origemTxt, evidencia });
   const regras = [];
   if (ativo("padrao")) regras.push(R("criar.descricao", "criar", `Toda descrição nova segue NOME + REFERÊNCIA + COMPLEMENTO, no padrão aprovado: ${regrasLigadas.map((r) => r.toLowerCase()).join("; ") || "sem regras de formato ligadas"}${Object.keys(abrev).length ? `; só abreviações da lista aprovada (${plural(Object.keys(abrev).length, "abreviação", "abreviações")})` : ""}; no máximo 100 caracteres no SAP B1 (a confirmar). Padronizar o nome não funde itens.`, "padrao", evid("padrao", `${plural(pad.APR, "correção aprovada", "correções aprovadas")} de ${plural(pad.total, "encaminhada", "encaminhadas")}`)));
-  if (ativo("duplicidade")) regras.push(R("criar.duplicidade", "criar", "Antes de criar um item, pesquisar o cadastro por descrição normalizada (abreviações, grafia e ordem das palavras), unidade, medidas e NCM. Mesmo produto e mesmo complemento: usar o código existente. Mesmo produto com complemento diferente (cor, tamanho, lado ou posição, material, sabor, original ou paralelo): criar código próprio, com o complemento no fim da descrição. Indicação de duplicidade não é prova de identidade técnica: exige confirmação.", "duplicidade", evid("duplicidade", `${plural(dupl.APR, "unificação aprovada", "unificações aprovadas")} de ${plural(dupl.total, "encaminhada", "encaminhadas")}`)));
+  if (ativo("duplicidade")) regras.push(R("criar.duplicidade", "criar", `Antes de criar um item, pesquisar o cadastro por descrição normalizada (abreviações, grafia e ordem das palavras), unidade, medidas e NCM. Mesmo produto e mesmo complemento: usar o código existente. Mesmo produto com complemento diferente (cor, tamanho, lado ou posição, material, sabor, original ou paralelo): criar código próprio, com o complemento no fim da descrição. Indicação de duplicidade não é prova de identidade técnica: exige confirmação.${observacao.grupos.length ? ` Exceção por grupo: nos grupos ${observacao.grupos.join(", ")} a variante (cor, tipo, apresentação: ${observacao.palavras.join(", ")}) é observação, não produto; ela não gera código próprio e é registrada no campo adicional do item.` : ""}`, "duplicidade", evid("duplicidade", `${plural(dupl.APR, "unificação aprovada", "unificações aprovadas")} de ${plural(dupl.total, "encaminhada", "encaminhadas")}`)));
   if (ativo("identidade")) regras.push(R("criar.identidade", "criar", "Mesmo produto é o que tem a mesma referência do fabricante e a mesma medida. Original e paralelo ficam em códigos distintos, e a origem da referência é guardada: referências de fabricantes diferentes não provam equivalência técnica. Cadastro que mistura produtos é separado.", "identidade", "Checagem de conferência manual: o resultado e a evidência escrita de cada grupo constam no passo Checagens."));
   if (ativo("unidade")) regras.push(R("criar.unidade", "criar", `A unidade de estoque é a menor unidade prática da medida em que o item é controlado: ${nomesUn}. Unidade maior (tonelada, hectolitro, dúzia, metro cúbico...) e embalagem (saca, big bag, galão, caixa, pacote...) são unidade de compra, com o fator de conversão cadastrado; uma só grafia por unidade.`, "unidade", evid("unidade", `${plural(ajustesUn.APR, "ajuste aprovado", "ajustes aprovados")} de ${plural(ajustesUn.total, "encaminhado", "encaminhados")}`)));
   if (ativo("ncm")) regras.push(R("criar.ncm", "criar", "Todo item é criado com NCM de 8 dígitos vigentes na tabela oficial e com o cClassTrib conferido contra os anexos da LC 214/2025; onde o anexo cita o capítulo ou a posição, ou o NCM abrange produtos com tratamentos diferentes, o enquadramento é revisado por especialista. Serviço é classificado por NBS e LC 116, não pelos anexos de produtos.", "ncm", evid("ncm", estado?.fiscal?.grupos ? `${plural(Object.keys(estado.fiscal.grupos).length, "grupo com revisão fiscal concluída", "grupos com revisão fiscal concluída")}` : "")));
@@ -95,12 +98,12 @@ export function montarPolitica({ estado, contagem, escopo, grupos, itens, nomePr
   return {
     secoes, porGrupo, pendencias, aprovada, situacao: aprovada ? "Aprovada" : "Rascunho",
     prontaParaAprovar: secoes.every((s) => s.responsavel.trim() && s.controle.trim()) && regras.length > 0,
-    estruturada: estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis, inativacao: resInativacao }),
+    estruturada: estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis, inativacao: resInativacao, observacao }),
   };
 }
 
 /** Versão estruturada da política (JSON), para configurar o módulo de cadastro automático do cliente. */
-function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis, inativacao }) {
+function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, params, regrasLigadas, abrev, un, aprovada, naoAplicaveis, inativacao, observacao }) {
   const regras = { ...REGRAS_PADRAO, ...(estado?.padronizacao?.regras || {}) };
   return {
     versao: 1, projeto: nomeProjeto, base: nomeBase, situacao: aprovada ? "Aprovada" : "Rascunho", aprovadaPor: aprovada?.por || null, aprovadaEm: aprovada?.em || null,
@@ -113,6 +116,8 @@ function estruturar({ estado, escopo, secoes, porGrupo, nomeProjeto, nomeBase, p
     duplicidade: {
       verificarAntesDeCriar: true, comparacao: ["descricao normalizada", "unidade", "medidas", "NCM"], complementosQueFazemOutroItem: ["cor", "tom", "tamanho", "posicao", "condicao (original, paralelo, novo, usado)", "material", "sabor"],
       ordemParaEscolherQuemFica: ["maior saldo em estoque", "movimentacao mais recente", "cadastro mais completo", "menor codigo"], exigeConfirmacaoTecnica: true,
+      // exceção por grupo: nos grupos listados cor, tipo e apresentação são observação (campo adicional do item) e não geram código próprio
+      varianteEhObservacao: { grupos: observacao.grupos, palavras: observacao.palavras, regra: "cor, tipo e apresentacao nao geram codigo proprio; ficam no campo adicional do item" },
     },
     fiscal: { ncm: "8 digitos vigentes na tabela oficial", classificacao: "cClassTrib conferido contra os anexos da LC 214/2025; capitulo ou posicao citado no anexo e NCM ambiguo = revisao com especialista", servicos: "NBS e LC 116" },
     descontinuacao: { semMovimentoDesde: params.desde || null, itensSemData: params.semData, tratamentoComSaldoOuHistorico: "transferir saldo e preservar historico antes de inativar; evidencia obrigatoria", itensForaDoEscopo: escopo?.fora?.length ?? 0,
