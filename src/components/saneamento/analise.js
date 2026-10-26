@@ -34,16 +34,17 @@ export function coberturaDaBase(base) {
 /**
  * Totais por critério e por grupo. null quando não há item em escopo: sem base (ou com tudo fora do escopo) não há como afirmar que "não há achado".
  * `cobertura` (de coberturaDaBase) segue junto da contagem: critério cuja análise não rodou não pode se dar por verificado. `baseId` (a base analisada) também segue: a marca
- * de "tratado" feita sobre outra base não vale para esta.
+ * de "tratado" feita sobre outra base não vale para esta. E os `contextos` (de contextos.js: os itens do grupo em escopo e a configuração do teste de cada checagem): a marca feita com
+ * outro escopo ou outra configuração também não vale.
  */
-export function contarAchados(achados, totalEmEscopo, cobertura = {}, baseId = null) {
+export function contarAchados(achados, totalEmEscopo, cobertura = {}, baseId = null, contextos = {}) {
   if (!totalEmEscopo) return null;
   const porCriterio = {}; const porGrupoCriterio = {};
   for (const [id, lista] of Object.entries(achados)) {
     porCriterio[id] = lista.length;
     for (const a of lista) { const k = `${grupoDe(a.item)}|${id}`; porGrupoCriterio[k] = (porGrupoCriterio[k] || 0) + 1; }
   }
-  return { porCriterio, porGrupoCriterio, cobertura, baseId };
+  return { porCriterio, porGrupoCriterio, cobertura, baseId, contextos };
 }
 
 /** Achados do critério nos itens em escopo; null se o critério é conferido à mão ou ainda não há contagem. */
@@ -82,12 +83,15 @@ export const criteriosAprovados = (estado, contagem) => CRITERIOS.filter((c) => 
 export const criterioResolvido = (estado, crit, contagem) => criterioAprovado(estado, crit, contagem) || situacaoCriterio(estado, crit, contagem) === "NAO_APLICAVEL";
 
 /**
- * A marca de "tratado" vale para a base analisada? A marca antiga (`true`) ou sem a base registrada vale como está; a feita sobre outra base não vale: a análise daquela
- * base não é a de hoje, e o analista confere o grupo de novo.
+ * A marca de "tratado" vale para a base analisada e para o que a conclusão examinou? A marca antiga (`true`) ou sem a base (ou o contexto) registrada vale como está; a feita sobre
+ * outra base não vale: a análise daquela base não é a de hoje. A feita com outros itens em escopo no grupo ou com outra configuração do teste (`contexto`, de contexto.js) também não:
+ * o analista confere o grupo de novo.
  */
-export const marcaValida = (marca, baseId) => !!marca && (marca === true || !marca.base || !baseId || marca.base === baseId);
+export const marcaValida = (marca, baseId, contexto) => !!marca && (marca === true || ((!marca.base || !baseId || marca.base === baseId) && (!marca.contexto || !contexto || marca.contexto === contexto)));
 /** Há uma marca de "tratado" que ficou para trás por ter sido feita sobre outra base? */
-export const marcaDeOutraBase = (marca, baseId) => !!marca && !marcaValida(marca, baseId);
+export const marcaDeOutraBase = (marca, baseId) => !!marca && marca !== true && !!marca.base && !!baseId && marca.base !== baseId;
+/** Há uma marca de "tratado" desta base que ficou para trás porque o escopo do grupo ou a configuração do teste mudou depois dela? */
+export const marcaDeOutroContexto = (marca, baseId, contexto) => !!marca && !marcaDeOutraBase(marca, baseId) && !marcaValida(marca, baseId, contexto);
 
 export const NOTA_MIN = 5;
 export const RESULTADOS_GRUPO = ["SEM_ACHADOS", "COM_ACHADOS"];
@@ -96,8 +100,8 @@ export const RESULTADOS_GRUPO = ["SEM_ACHADOS", "COM_ACHADOS"];
  * (`true` ou só quem e quando) não traz: a conferência manual sem evidência não conclui o grupo.
  */
 export const marcaManualCompleta = (marca) => !!marca && marca !== true && RESULTADOS_GRUPO.includes(marca.resultado) && String(marca.nota ?? "").trim().length >= NOTA_MIN;
-/** A marca conclui a checagem no grupo: vale para a base analisada e, na conferência manual, traz o resultado e a evidência escrita. */
-export const marcaConclui = (marca, crit, baseId) => marcaValida(marca, baseId) && (!!crit.auto || marcaManualCompleta(marca));
+/** A marca conclui a checagem no grupo: vale para a base analisada e para o contexto de hoje e, na conferência manual, traz o resultado e a evidência escrita. */
+export const marcaConclui = (marca, crit, baseId, contexto) => marcaValida(marca, baseId, contexto) && (!!crit.auto || marcaManualCompleta(marca));
 
 /**
  * O grupo está concluído na checagem quando o analista concluiu (nesta base; na conferência manual, com resultado e evidência), ou quando o teste automático rodou por inteiro
@@ -105,7 +109,7 @@ export const marcaConclui = (marca, crit, baseId) => marcaValida(marca, baseId) 
  */
 export function grupoTratado(estado, grupo, crit, contagem) {
   if (!coberturaDoCriterio(contagem, crit).completa) return false;
-  if (marcaConclui(estado?.tratados?.[`${grupo}|${crit.id}`], crit, contagem?.baseId)) return true;
+  if (marcaConclui(estado?.tratados?.[`${grupo}|${crit.id}`], crit, contagem?.baseId, contagem?.contextos?.[`${grupo}|${crit.id}`])) return true;
   return !!contagem && crit.auto && (contagem.porGrupoCriterio[`${grupo}|${crit.id}`] ?? 0) === 0;
 }
 

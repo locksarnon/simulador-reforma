@@ -31,6 +31,17 @@ describe("política de uso dos estoques", () => {
     expect(r.origem).toBe('Critério "Padronização da descrição", aprovado por ana em 20/10/2026');
     expect(r.evidencia).toBe("1 item em escopo com achado na base analisada; 1 correção aprovada de 2 encaminhadas.");
   });
+  it("a conferência manual diz quantos grupos foram concluídos de fato, e a checagem com grupos sem conclusão entra nas pendências da política", () => {
+    const sem = montarPolitica(base({ criterios: { identidade: aprov() } }));
+    expect(regra(sem, "criar.identidade").evidencia).toBe("Checagem de conferência manual: 0 grupos concluídos de 2, com o resultado e a evidência escrita no passo Checagens.");
+    expect(sem.pendencias).toContain('A checagem "Identidade do produto" tem grupos sem conclusão (0 de 2 concluídos): a regra entra na política, mas a verificação não terminou.');
+    const um = montarPolitica(base({ criterios: { identidade: aprov() }, tratados: { "Peças|identidade": { por: "ana", em: "2026-10-23", resultado: "SEM_ACHADOS", nota: "conferido no ERP" } } }));
+    expect(regra(um, "criar.identidade").evidencia).toBe("Checagem de conferência manual: 1 grupo concluído de 2, com o resultado e a evidência escrita no passo Checagens.");
+    expect(um.pendencias).toContain('A checagem "Identidade do produto" tem grupos sem conclusão (1 de 2 concluídos): a regra entra na política, mas a verificação não terminou.');
+    const todos = montarPolitica(base({ criterios: { identidade: aprov() }, tratados: { "Peças|identidade": { por: "ana", em: "2026-10-23", resultado: "SEM_ACHADOS", nota: "conferido no ERP" }, "Insumos|identidade": { por: "ana", em: "2026-10-23", resultado: "COM_ACHADOS", nota: "2 códigos misturados" } } }));
+    expect(todos.pendencias.some((x) => x.includes("Identidade do produto") && x.includes("grupos sem conclusão"))).toBe(false);
+    expect(montarPolitica(base({ criterios: { saldos: aprov(), cartilhas: aprov() } })).secoes.flatMap((s) => s.regras).filter((r) => ["usar.saldos", "usar.cartilhas", "descontinuar.vinculos"].includes(r.id)).every((r) => r.evidencia.startsWith("Checagem de conferência manual: 0 grupos concluídos de 2"))).toBe(true);
+  });
   it("a exceção por grupo da observação entra na regra de duplicidade e na política estruturada (cor, tipo e apresentação não geram código próprio)", () => {
     const sem = montarPolitica(base({ criterios: { duplicidade: aprov() } }));
     expect(regra(sem, "criar.duplicidade").texto).not.toContain("Exceção por grupo"); expect(sem.estruturada.duplicidade.varianteEhObservacao.grupos).toEqual([]);

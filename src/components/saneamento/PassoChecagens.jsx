@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { CRITERIOS, grupoDe, hojeIso } from "./logica";
-import { NOTA_MIN, achadosDe, agruparAchados, criteriosPendentesDoGrupo, grupoSaneado, grupoTratado, marcaDeOutraBase, marcaManualCompleta, marcaValida, situacaoCriterio } from "./analise";
+import { NOTA_MIN, achadosDe, agruparAchados, criteriosPendentesDoGrupo, grupoSaneado, grupoTratado, marcaDeOutraBase, marcaDeOutroContexto, marcaManualCompleta, marcaValida, situacaoCriterio } from "./analise";
 import { checagens, linhasEvidencia, resumoChecagens, textoCobertura, textoConclusao } from "./checagens";
 import { AbasCriterios, AcaoAprovacao, AvisoCriterio, ChipConclusao, SelosCriterio } from "./CriterioUi";
 import ChecagensResumo from "./ChecagensResumo";
@@ -91,7 +91,7 @@ export default function PassoChecagens({ estado, setEstado, grupos, achados, con
   const resumo = useMemo(() => resumoChecagens(listaChecagens), [listaChecagens]);
   const conclusoes = useMemo(() => Object.fromEntries(listaChecagens.map((c) => [c.id, c.conclusao])), [listaChecagens]);
   const checagem = listaChecagens.find((c) => c.id === crit.id);
-  const evidencia = linhasEvidencia(checagem);
+  const evidencia = linhasEvidencia(checagem, nomeBase);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
   const estaAberto = (k, padrao) => (k in aberto ? aberto[k] : padrao); // o que tem padrão (a visão geral, a regra da checagem que pede ação) abre sozinho até o analista mexer
   const alternarPadrao = (k, padrao) => setAberto((a) => ({ ...a, [k]: !(k in a ? a[k] : padrao) }));
@@ -130,27 +130,34 @@ export default function PassoChecagens({ estado, setEstado, grupos, achados, con
     if (!fortes.length) return null;
     return <Botao title="Em cada conjunto, mantém o código sugerido e encaminha os outros ao De/para para aprovação. Os conjuntos de indicação possível ficam para você escolher um a um." onClick={() => aceitarVarios(fortes)}>Aceitar a sugestão {fortes.length === 1 ? "no conjunto de indicação alta ou idêntico" : `nos ${fmt(fortes.length)} conjuntos de indicação alta ou idênticos`} {ondeTxt}</Botao>;
   };
-  // A conclusão do grupo guarda quem concluiu, quando, sobre qual base e o resultado (marcas antigas eram só "true" e continuam valendo no teste automático; a feita sobre outra base não vale para esta;
-  // na conferência manual a marca precisa trazer o resultado e a evidência escrita).
-  const baseId = contagem?.baseId ?? null; const marca = (extra = {}) => ({ por: quem, em: hojeIso(), ...(baseId ? { base: baseId } : {}), ...extra });
+  // A conclusão do grupo guarda quem concluiu, quando, sobre qual base, com que itens em escopo e que configuração do teste (`contexto`) e o resultado (marcas antigas eram só "true" e continuam valendo
+  // no teste automático; a feita sobre outra base, ou com outro escopo ou outra configuração do teste, não vale para esta; na conferência manual a marca precisa trazer o resultado e a evidência escrita).
+  const baseId = contagem?.baseId ?? null; const contextoDe = (grupo) => contagem?.contextos?.[`${grupo}|${crit.id}`];
+  const marca = (grupo, extra = {}) => ({ por: quem, em: hojeIso(), ...(baseId ? { base: baseId } : {}), ...(contextoDe(grupo) ? { contexto: contextoDe(grupo) } : {}), ...extra });
+  const valida = (m, grupo) => marcaValida(m, baseId, contextoDe(grupo));
   const reabrirGrupo = (grupo) => setEstado((e) => ({ ...e, tratados: { ...e.tratados, [`${grupo}|${crit.id}`]: false }, saneados: { ...e.saneados, [grupo]: false } }));
   const concluirAuto = (grupo) => setEstado((e) => { // teste automático: o resultado vem dos achados do grupo
     const k = `${grupo}|${crit.id}`; const resultado = (contagem?.porGrupoCriterio?.[k] ?? 0) > 0 ? "COM_ACHADOS" : "SEM_ACHADOS";
-    return { ...e, tratados: { ...e.tratados, [k]: marca({ resultado }) } };
+    return { ...e, tratados: { ...e.tratados, [k]: marca(grupo, { resultado }) } };
   });
-  const concluirManual = (grupo, resultado, nota) => setEstado((e) => ({ ...e, tratados: { ...e.tratados, [`${grupo}|${crit.id}`]: marca({ resultado, nota }) } }));
+  const concluirManual = (grupo, resultado, nota) => setEstado((e) => ({ ...e, tratados: { ...e.tratados, [`${grupo}|${crit.id}`]: marca(grupo, { resultado, nota }) } }));
   const concluirTodosSemAchados = async (nota) => {
     const faltam = grupos.filter((g) => !grupoTratado(estado, g.nome, crit, contagem)).map((g) => g.nome);
     if (!faltam.length) return;
     if (!(await confirmar({ titulo: "Concluir os grupos sem achados?", descricao: `Você declara que conferiu os itens ${faltam.length === 1 ? "do grupo que falta" : `dos ${faltam.length} grupos que faltam`} na checagem “${crit.titulo}” e não achou nada. A evidência escrita (“${nota}”) fica registrada em cada grupo, com o seu nome e a data. Nada é alterado no cadastro.`, rotulo: "Concluir sem achados" }))) return;
-    setEstado((e) => { const t = { ...e.tratados }; for (const nome of faltam) t[`${nome}|${crit.id}`] = marca({ resultado: "SEM_ACHADOS", nota }); return { ...e, tratados: t }; });
+    setEstado((e) => { const t = { ...e.tratados }; for (const nome of faltam) t[`${nome}|${crit.id}`] = marca(nome, { resultado: "SEM_ACHADOS", nota }); return { ...e, tratados: t }; });
   };
   const alternarSaneado = (grupo) => setEstado((e) => ({ ...e, saneados: { ...e.saneados, [grupo]: !e.saneados?.[grupo] } }));
-  const avisoOutraBase = (m) => marcaDeOutraBase(m, baseId) && <p className="text-xs text-amber-700 dark:text-amber-300">A conclusão deste grupo foi feita sobre outra base{m.por ? ` (${m.por}${m.em ? `, ${dataBr(m.em)}` : ""})` : ""} e não vale para esta: confira os itens de novo.</p>;
+  const quemQuando = (m) => (m.por ? ` (${m.por}${m.em ? `, ${dataBr(m.em)}` : ""})` : "");
+  const avisoMarcaAntiga = (m, grupo) => {
+    if (marcaDeOutraBase(m, baseId)) return <p className="text-xs text-amber-700 dark:text-amber-300">A conclusão deste grupo foi feita sobre outra base{quemQuando(m)} e não vale para esta: confira os itens de novo.</p>;
+    if (marcaDeOutroContexto(m, baseId, contextoDe(grupo))) return <p className="text-xs text-amber-700 dark:text-amber-300">A conclusão deste grupo{quemQuando(m)} foi feita com outros itens em escopo ou com outra configuração do teste e não vale para o que está agora: confira o grupo de novo.</p>;
+    return null;
+  };
   const botaoConcluirAuto = (grupo) => { const m = estado.tratados?.[`${grupo}|${crit.id}`]; return (
     <div className="mt-2 space-y-1">
-      {avisoOutraBase(m)}
-      <Botao onClick={() => (marcaValida(m, baseId) ? reabrirGrupo(grupo) : concluirAuto(grupo))}>{marcaValida(m, baseId) ? "Reabrir neste grupo" : "Concluir a checagem neste grupo"}</Botao>
+      {avisoMarcaAntiga(m, grupo)}
+      <Botao onClick={() => (valida(m, grupo) ? reabrirGrupo(grupo) : concluirAuto(grupo))}>{valida(m, grupo) ? "Reabrir neste grupo" : "Concluir a checagem neste grupo"}</Botao>
     </div>); };
 
   const corpo = !temBase ? <p className="text-sm text-muted-foreground">Não há itens em escopo: importe a base ou revise o parâmetro de saneamento no passo Triagem. Sem itens em escopo, nada é verificado.</p>
@@ -165,7 +172,7 @@ export default function PassoChecagens({ estado, setEstado, grupos, achados, con
         {grupos.some((g) => !grupoTratado(estado, g.nome, crit, contagem)) && <ConclusaoEmBloco faltam={grupos.filter((g) => !grupoTratado(estado, g.nome, crit, contagem)).length} onConcluir={concluirTodosSemAchados} />}
         {grupos.map((g) => {
           const chave = `${crit.id}|${g.nome}`; const trat = grupoTratado(estado, g.nome, crit, contagem); const m = estado.tratados?.[`${g.nome}|${crit.id}`];
-          const marcaAntiga = marcaValida(m, baseId) && !marcaManualCompleta(m); // marca de antes da evidência escrita: não conclui o grupo
+          const marcaAntiga = valida(m, g.nome) && !marcaManualCompleta(m); // marca de antes da evidência escrita: não conclui o grupo
           return (
             <Acc key={g.nome} aberto={!!aberto[chave]} onToggle={() => alternar(chave)} titulo={<><b className="font-medium">{g.nome}</b>{trat ? <Chip tom="g">Concluído</Chip> : <Chip tom="a">A concluir</Chip>}{trat && <ResultadoChip resultado={m.resultado} />}<span className="text-xs text-muted-foreground">{plural(g.itens.length, "item", "itens")} em escopo</span></>}>
               <TabelaItens itens={g.itens} colunas={["linha", "codigo", "descricao", "unidade", "ultima_mov"]} />
@@ -175,7 +182,7 @@ export default function PassoChecagens({ estado, setEstado, grupos, achados, con
                   <Botao onClick={() => reabrirGrupo(g.nome)}>Reabrir neste grupo</Botao>
                 </div>
               ) : <ConclusaoManualGrupo grupo={g.nome} onConcluir={(resultado, nota) => concluirManual(g.nome, resultado, nota)}
-                aviso={<>{avisoOutraBase(m)}{marcaAntiga && <p className="text-xs text-amber-700 dark:text-amber-300">Havia uma marca anterior sem o resultado e a evidência escrita: ela não conclui mais o grupo. Registre a conclusão abaixo.</p>}</>} />}
+                aviso={<>{avisoMarcaAntiga(m, g.nome)}{marcaAntiga &&<p className="text-xs text-amber-700 dark:text-amber-300">Havia uma marca anterior sem o resultado e a evidência escrita: ela não conclui mais o grupo. Registre a conclusão abaixo.</p>}</>} />}
             </Acc>);
         })}
       </div>

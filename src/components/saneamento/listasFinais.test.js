@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aplicarEscopo, criarTestes } from "./logica";
-import { montarListas, unificacoesAprovadas } from "./listasFinais";
+import { linhasQueSaem, montarListas, unificacoesAprovadas } from "./listasFinais";
 import { aprovarLote } from "./inativacao";
 
 const item = (linha, codigo, descricao, ultima_mov, extra = {}) => ({ linha, codigo, descricao, ultima_mov, unidade: "UN", grupo_atual: "Peças", problemas: [], ...extra });
@@ -55,6 +55,14 @@ describe("listas finais do saneamento", () => {
     const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens: comSaldo, escopo, testes: criarTestes(escopo.emEscopo, estado), escalaSaldo: 1e6 });
     expect(l.desduplicacoes[0]).toMatchObject({ saldoOrigem: 3, saldoDestino: 12 });
     expect(base(estado).desduplicacoes[0]).toMatchObject({ saldoOrigem: "", saldoDestino: "" }); // base sem saldo: colunas vazias, nunca zero inventado
+  });
+  it("sem o código que fica na decisão, o item não sai da lista final: o mestre de hoje não decide por quem aprovou; e a pontuação da regra de observação não vira similaridade", () => {
+    const semDestino = { ...estado, decisoes: { "A1|duplicidade": { ...estado.decisoes["A1|duplicidade"], destino: null } } };
+    expect(linhasQueSaem(semDestino, itens).has(2)).toBe(false); expect(linhasQueSaem(estado, itens).has(2)).toBe(true);
+    expect(base(estado).desduplicacoes[0].similaridade).toBe(1); // do detector: a pontuação
+    const daRegra = itens.map((i) => (i.linha === 2 ? { ...i, duplicidade: { ...i.duplicidade, candidatos: [{ linha: 3, score: 0.95, nivel: "MUITO_PROVAVEL", motivos: ["mesmo produto"], origem: "observacao" }] } } : i));
+    const escopo = aplicarEscopo(daRegra, estado.params); const l = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens: daRegra, escopo, testes: criarTestes(escopo.emEscopo, estado) });
+    expect(l.desduplicacoes[0].similaridade).toBe(""); expect(l.desduplicacoes[0].motivos).toBe("mesmo produto");
   });
   it("a desduplicação traz a variante (observação) de quem sai para o campo adicional do mantido; o código mantido não leva observação", () => {
     const comObs = { ...estado, decisoes: { ...estado.decisoes, "A1|duplicidade": { ...estado.decisoes["A1|duplicidade"], observacao: ["CLEAR", "INCOLOR"] } } };

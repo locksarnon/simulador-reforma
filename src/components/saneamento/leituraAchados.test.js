@@ -71,10 +71,10 @@ describe("leitura dos achados: como é, como seria e por quê", () => {
     const l3 = le(a3, escolhido); expect(valor(l3.seria, "Ação")).toBe("unificar no código C2 (escolhido)"); expect(l3.porque).toContain("Escolha do analista diferente da sugestão.");
   });
   it("duplicidade ligada pela regra de observação: mostra a observação do item e explica por que a variante não separa", () => {
-    const d = (de, palavras) => ({ nivel: "MUITO_PROVAVEL", score: 0.95, grupo: 1, mestre: 2, porObservacao: true, observacao: { palavras }, candidatos: [{ linha: de, score: 0.95, nivel: "MUITO_PROVAVEL", motivos: ["mesmo produto (DETERGENTE YPE 5 L): a diferença é só observação, CLEAR × NEUTRO"] }] });
+    const d = (de, palavras) => ({ nivel: "MUITO_PROVAVEL", score: 0.95, grupo: 1, mestre: 2, porObservacao: true, observacao: { palavras }, candidatos: [{ linha: de, score: 0.95, nivel: "MUITO_PROVAVEL", motivos: ["mesmo produto (DETERGENTE YPE 5 L): a diferença é só observação, CLEAR × NEUTRO"], origem: "observacao" }] });
     const a2 = item(2, { descricao: "DETERGENTE YPE 5LTS CLEAR", duplicidade: d(3, ["CLEAR"]) }); const a3 = item(3, { descricao: "DETERGENTE YPE 5LTS NEUTRO", duplicidade: d(2, ["NEUTRO"]) });
     const l = leituraAchado(crit("duplicidade"), { item: a3, motivo: "x" }, { itemPorLinha: new Map([[2, a2], [3, a3]]) });
-    expect(valor(l.como, "Observação (não é produto)")).toBe("NEUTRO");
+    expect(valor(l.como, "Observação (não é produto)")).toBe("NEUTRO"); expect(valor(l.como, "Indicação")).toBe("Indicação alta · pela regra de observação"); // a pontuação da regra não é similaridade
     expect(l.porque).toContain("a diferença é só observação, CLEAR × NEUTRO"); expect(l.porque).toContain("Neste grupo a variante é observação, não produto (NEUTRO)");
     const [conj] = montarConjuntos([a2, a3]); const lc = leituraAchado(crit("duplicidade"), { item: a2, motivo: "x" }, { itemPorLinha: new Map([[2, a2], [3, a3]]), conjuntoDe: new Map([[2, conj], [3, conj]]), decisoes: {} });
     expect(lc.porque).toContain("Neste grupo a variante é observação, não produto (CLEAR)");

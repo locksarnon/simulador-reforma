@@ -3,6 +3,7 @@
 import { agruparPorGrupo, dataBr, dataDoCorte, decisoesDoTrabalho, grupoDe } from "./logica";
 import { calcularAchados, contarAchados, criteriosAprovados } from "./analise";
 import { checagens, linhasEvidencia, resumoChecagens, textoConclusao } from "./checagens";
+import { contextosDasConclusoes } from "./contexto";
 import { COLUNAS_LISTA } from "./respostaCliente";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { fatorDaDecisao, numeroBr } from "./unidades";
@@ -38,7 +39,7 @@ export function unificacoesAprovadas(estado, itens) {
     const { id, crit } = partirChave(k);
     if (crit !== "duplicidade") continue;
     const origem = itemPorId(indice, id); if (!origem) continue;
-    const destinoId = d.destino ?? (origem.duplicidade?.mestre != null ? idItem(indice.porLinha.get(origem.duplicidade.mestre)) || null : null);
+    const destinoId = d.destino ?? null; // o código que fica é o que foi decidido: a indicação de hoje (o mestre) não decide por quem aprovou
     saida.push({ d, origem, destino: destinoId != null ? itemPorId(indice, destinoId) : null, destinoId, vale: coerenciaDaDecisao(d, crit, origem, indice, estado?.decisoes).ok });
   }
   return saida;
@@ -89,7 +90,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
       grupo: d.grupo || grupoDe(origem), codigoOrigem: origem.codigo, descricaoOrigem: origem.descricao, unidadeOrigem: origem.unidade, saldoOrigem: saldoNaEscala(origem.saldo, escalaSaldo) ?? "",
       codigoDestino: destino ? destino.codigo : destinoId ?? "", descricaoDestino: destino ? destino.descricao : "", saldoDestino: destino ? saldoNaEscala(destino.saldo, escalaSaldo) ?? "" : "",
       acao: destinoId != null && destinoId !== idItem(origem) ? "Unificar no código mantido" : "Código mantido (sem baixa)",
-      nivel: origem.duplicidade ? NIVEL_ROT[origem.duplicidade.nivel] : "", similaridade: cand ? cand.score : "", motivos: cand ? cand.motivos.join("; ") : "",
+      nivel: origem.duplicidade ? NIVEL_ROT[origem.duplicidade.nivel] : "", similaridade: cand && cand.origem !== "observacao" ? cand.score : "", motivos: cand ? cand.motivos.join("; ") : "",
       observacao: destinoId != null && destinoId !== idItem(origem) ? (d.observacao ?? origem.duplicidade?.observacao?.palavras ?? []).join(", ") : "", // a variante de quem sai (observação, não produto) para o campo adicional do mantido
       // decisão que não vale mais para o cadastro atual não conta como aprovada (nem como encaminhada em dia): o analista precisa avaliar de novo
       decisao: vale ? ROT_STATUS[d.status] || d.status : d.status === "APR" ? "Aprovado, mas o cadastro mudou desde então (não vale)" : "Encaminhado, mas o cadastro mudou desde então (revisar)", aprovador: d.decididoPor || "", data: dataBr(d.decididoEm),
@@ -99,7 +100,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   // 3) Análises: achados dos critérios aprovados, com a decisão tomada
   const analises = [];
   const achadosPorCriterio = calcularAchados(escopo.emEscopo, testes);
-  const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length, cobertura, baseId);
+  const contagemCriterios = contarAchados(achadosPorCriterio, escopo.emEscopo.length, cobertura, baseId, contextosDasConclusoes(estado, agruparPorGrupo(escopo.emEscopo)));
   const aprovados = criteriosAprovados(estado, contagemCriterios); // inclui os aprovados automaticamente (sem achados)
   const listaCh = checagens(estado, contagemCriterios, agruparPorGrupo(escopo.emEscopo)); const resumoCh = resumoChecagens(listaCh); // a conclusão de cada checagem, com a cobertura e a evidência
   for (const c of aprovados.filter((x) => x.auto)) {
@@ -141,7 +142,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
     ["Unificações aprovadas", contagem.unificacoesAprovadas], ["Unificações ainda em decisão", contagem.unificacoesPendentes], ["Achados nos critérios aprovados", contagem.achados], ["", ""],
     ["Tarefas de execução (decisões e inativações aprovadas)", contagem.tarefas], ["  Concluídas (todas as frentes, com evidência)", contagem.concluidas], ["  Em andamento", contagem.emAndamento], ["  Pendentes", contagem.pendentes], ["  Com divergência", contagem.divergencias], ["", ""],
     ["Checagens", `${resumoCh.concluidas} de ${resumoCh.total} concluídas (${resumoCh.SEM_ACHADOS} sem achados, ${resumoCh.COM_ACHADOS} com achados, ${resumoCh.NAO_APLICAVEL} não se aplicam); ${resumoCh.PENDENTE} pendentes`],
-    ...listaCh.map((ch) => { const ev = linhasEvidencia(ch); return [`  ${ch.titulo}`, `${textoConclusao(ch)}${ev.length ? ` · ${ev.join("; ")}` : ""}`]; }),
+    ...listaCh.map((ch) => { const ev = linhasEvidencia(ch, nomeBase); return [`  ${ch.titulo}`, `${textoConclusao(ch)}${ev.length ? ` · ${ev.join("; ")}` : ""}`]; }),
     ["", ""],
     ["Atenção", "Estas listas refletem as decisões registradas no sistema. A execução no SAP e no físico é conferida nos passos de execução e conferência; nenhum cadastro foi alterado por esta ferramenta."],
   ];

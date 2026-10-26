@@ -71,14 +71,14 @@ export function montarRelatorioFinal({ nomeProjeto, nomeBase, quem, estado, iten
   T(2, "Checagens");
   P("Cada problema de cadastro é uma checagem: a regra é registrada com a aprovação e cada grupo é concluído pelo analista. A checagem termina em um de quatro estados: verificada sem achados, verificada com achados, não se aplica (com justificativa escrita) ou pendente. O teste automático que rodou por inteiro e não achou nada abre com a regra aprovada; a análise que não rodou na importação deixa a checagem pendente; a conferência manual só conclui o grupo com o resultado e a evidência escrita. Verificada sem achados não prova que o cadastro está certo: diz que a checagem rodou nos itens em escopo e não achou nada.");
   b.push({ t: "tabela", cols: [{ label: "Checagem", w: 34 }, { label: "Teste", w: 16 }, { label: "Cobertura", w: 40 }, { label: "Conclusão", w: 30 }, { label: "Evidência", w: 46 }],
-    linhas: checagens(estado, contagem, grupos).map((ch) => [ch.titulo, ch.tipo === "AUTOMATICA" ? "Automático" : "Conferência manual", textoCobertura(ch), textoConclusao(ch), linhasEvidencia(ch).join("; ") || "—"]) });
+    linhas: checagens(estado, contagem, grupos).map((ch) => [ch.titulo, ch.tipo === "AUTOMATICA" ? "Automático" : "Conferência manual", textoCobertura(ch), textoConclusao(ch), linhasEvidencia(ch, nomeBase).join("; ") || "—"]) });
   for (const k of CRITERIOS) {
     const sk = situacaoCriterio(estado, k, contagem);
     if (sk === "NAO_APLICAVEL") { S(k.titulo); P(`Checagem declarada não aplicável a este projeto. Justificativa: ${naoAplicavelDe(estado, k).justificativa}`); continue; }
     if (sk !== "APROVADO" && sk !== "AUTO") continue;
     S(k.titulo); P(estado.criterios?.[k.id]?.regra ?? k.regra);
     if (!k.auto) { // conferência manual: o resultado e a evidência escrita de cada grupo concluído
-      const conclusoes = grupos.map((g) => { const m = estado.tratados?.[`${g.nome}|${k.id}`]; return m && typeof m === "object" && marcaConclui(m, k, contagem?.baseId) ? `Grupo ${g.nome}: ${m.resultado === "COM_ACHADOS" ? "com achados" : "sem achados"}, por ${m.por || "—"} em ${dataBr(m.em) || "—"}. Evidência: ${m.nota}` : null; }).filter(Boolean);
+      const conclusoes = grupos.map((g) => { const m = estado.tratados?.[`${g.nome}|${k.id}`]; return m && typeof m === "object" && marcaConclui(m, k, contagem?.baseId, contagem?.contextos?.[`${g.nome}|${k.id}`]) ? `Grupo ${g.nome}: ${m.resultado === "COM_ACHADOS" ? "com achados" : "sem achados"}, por ${m.por || "—"} em ${dataBr(m.em) || "—"}. Evidência: ${m.nota}` : null; }).filter(Boolean);
       if (conclusoes.length) b.push({ t: "lista", itens: conclusoes });
     }
     if (k.id === "padrao") { const lig = Object.entries(ROTULO_REGRAS).filter(([r]) => ({ ...REGRAS_PADRAO, ...(estado.padronizacao?.regras || {}) })[r]).map(([, r]) => r.replace(/ \(ex\.:.*\)$/, "")); P(`Regras de formato ligadas: ${lig.join("; ") || "nenhuma"}. Abreviações aprovadas: ${plural(Object.keys(abreviacoesAprovadas(estado)).length, "abreviação", "abreviações")}.`, "nota"); }

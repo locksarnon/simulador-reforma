@@ -26,12 +26,13 @@ export const ROTULO_CAUSA = {
 export function checagemDe(estado, crit, contagem, grupos = []) {
   const regra = estado?.criterios?.[crit.id] || {}; const sit = situacaoCriterio(estado, crit, contagem);
   const tipo = crit.auto ? "AUTOMATICA" : "MANUAL"; const dep = crit.auto ? ANALISE_DO_CRITERIO[crit.id] : null;
-  const concluidos = []; const pendentes = []; const marcas = [];
+  const concluidos = []; const pendentes = []; const marcas = []; let semRegistro = 0;
   if (contagem) {
     for (const g of grupos) {
       if (grupoTratado(estado, g.nome, crit, contagem)) {
-        concluidos.push(g.nome); const m = estado?.tratados?.[`${g.nome}|${crit.id}`];
-        if (m && typeof m === "object" && marcaConclui(m, crit, contagem.baseId)) marcas.push(m);
+        const k = `${g.nome}|${crit.id}`; const m = estado?.tratados?.[k]; concluidos.push(g.nome);
+        if (m === true) semRegistro += 1; // marca antiga: vale, mas não diz quem concluiu nem quando
+        else if (m && typeof m === "object" && marcaConclui(m, crit, contagem.baseId, contagem.contextos?.[k])) marcas.push(m);
       } else pendentes.push(g.nome);
     }
   }
@@ -51,7 +52,7 @@ export function checagemDe(estado, crit, contagem, grupos = []) {
     evidencia: {
       regra: sit === "APROVADO" ? { por: regra.por || "", em: regra.em || "" } : sit === "AUTO" ? { automatica: true } : null,
       naoAplicavel: sit === "NAO_APLICAVEL" ? naoAplicavelDe(estado, crit) : null,
-      grupos: { concluidos: marcas.length, comEvidencia: marcas.filter((m) => String(m.nota ?? "").trim().length >= NOTA_MIN).length, ultima: ultima ? { por: ultima.por || "", em: ultima.em || "", base: ultima.base || "" } : null },
+      grupos: { concluidos: marcas.length, semRegistro, comEvidencia: marcas.filter((m) => String(m.nota ?? "").trim().length >= NOTA_MIN).length, ultima: ultima ? { por: ultima.por || "", em: ultima.em || "", base: ultima.base || "" } : null },
     },
   };
 }
@@ -95,16 +96,20 @@ export function textoCobertura(ch) {
   return c.analise.executada ? `${teste}; análise da importação executada (${c.analise.rotulo})` : `${teste}; análise da importação NÃO executada (${c.analise.rotulo}): o teste não vê o problema por inteiro`;
 }
 
-/** A evidência da checagem, em linhas: a regra (quem aprovou), a justificativa do "não se aplica" e as conclusões por grupo (quem, quando e se há evidência escrita). */
-export function linhasEvidencia(ch) {
+/**
+ * A evidência da checagem, em linhas: a regra (quem aprovou), a justificativa do "não se aplica" e as conclusões por grupo (quem, quando, sobre qual base e se há evidência escrita).
+ * `nomeBase` é a base analisada: a última conclusão registrada sobre ela diz em que base foi feita.
+ */
+export function linhasEvidencia(ch, nomeBase = "") {
   const e = ch.evidencia; const l = [];
   if (e.naoAplicavel) l.push(`Declarada não aplicável por ${e.naoAplicavel.por || "—"} em ${dataBr(e.naoAplicavel.em) || "—"}: ${e.naoAplicavel.justificativa}`);
   if (e.regra?.automatica) l.push("Teste automático sem achados: a regra abriu aprovada");
   else if (e.regra) l.push(`Regra aprovada por ${e.regra.por || "—"} em ${dataBr(e.regra.em) || "—"}`);
   const g = e.grupos;
   if (g.concluidos > 0) {
-    const quem = g.ultima ? `; última por ${g.ultima.por || "—"} em ${dataBr(g.ultima.em) || "—"}` : "";
+    const quem = g.ultima ? `; última por ${g.ultima.por || "—"} em ${dataBr(g.ultima.em) || "—"}${g.ultima.base && nomeBase ? ` (base ${nomeBase})` : ""}` : "";
     l.push(ch.tipo === "MANUAL" ? `${plural(g.concluidos, "grupo concluído", "grupos concluídos")} com ${g.comEvidencia === g.concluidos ? "evidência escrita" : `evidência escrita em ${g.comEvidencia}`}${quem}` : `${plural(g.concluidos, "grupo com achados concluído", "grupos com achados concluídos")} pelo analista${quem}`);
   }
+  if (g.semRegistro > 0) l.push(`${plural(g.semRegistro, "grupo concluído", "grupos concluídos")} com a marca antiga, sem registro de quem concluiu nem quando`);
   return l;
 }

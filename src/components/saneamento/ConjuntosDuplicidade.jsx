@@ -50,7 +50,7 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
     <div className="rounded-lg border border-border p-3 space-y-2" aria-label={`Conjunto de ${conj.membros.length} itens parecidos`}>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Chip tom={conj.nivel === "POSSIVEL" ? "a" : "b"}>{NIVEL_ROT[conj.nivel]}</Chip>
-        <span className="text-muted-foreground tabular-nums">{plural(conj.membros.length, "item", "itens")} · similaridade {conj.score.toFixed(2).replace(".", ",")}</span>
+        <span className="text-muted-foreground tabular-nums">{plural(conj.membros.length, "item", "itens")} · {conj.porRegra ? "pela regra de observação" : `similaridade ${conj.score.toFixed(2).replace(".", ",")}`}</span>
         {status}
         <span className="flex-1" />
         <Botao disabled={bloqueado || esc.fica === sugId} title={esc.travada ? "Já decidido no De/para" : ident.motivo || undefined} onClick={() => onEscolher(conj, sugId, "sugestao")}>Aceitar a sugestão</Botao>

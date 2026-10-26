@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CRITERIOS, agruparPorGrupo, criarTestes } from "./logica";
 import { calcularAchados, contarAchados } from "./analise";
 import { checagemDe, checagens, linhasEvidencia, resumoChecagens, textoCausa, textoCobertura, textoConclusao } from "./checagens";
+import { contextosDasConclusoes } from "./contexto";
 
 const item = (linha, grupo, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: `ITEM ${linha}`, unidade: "UN", grupo_atual: grupo, ultima_mov: "2026-01-10", problemas: [], ...extra });
 const ncm = [{ codigo: "NCM_FORMATO", mensagem: "NCM errado" }];
@@ -56,7 +57,7 @@ describe("quatro estados da checagem", () => {
     expect(textoCausa(parcial)).toBe("há grupos sem conclusão: 1 de 2 grupos concluídos"); expect(textoCobertura(parcial)).toContain("5 itens de 2 grupos");
     const todos = ch({ criterios: aprov("ncm"), tratados: { "Peças|ncm": { por: "ana", em: "2026-10-22", base: "v1" }, "Insumos|ncm": { por: "bia", em: "2026-10-23", base: "v1" } } }, "ncm");
     expect(todos).toMatchObject({ conclusao: "COM_ACHADOS", causa: null, achados: 3 }); expect(textoConclusao(todos)).toBe("Verificada com achados (3 achados)");
-    expect(todos.evidencia.regra).toEqual({ por: "ana", em: "2026-10-20" }); expect(todos.evidencia.grupos).toEqual({ concluidos: 2, comEvidencia: 0, ultima: { por: "bia", em: "2026-10-23", base: "v1" } });
+    expect(todos.evidencia.regra).toEqual({ por: "ana", em: "2026-10-20" }); expect(todos.evidencia.grupos).toEqual({ concluidos: 2, semRegistro: 0, comEvidencia: 0, ultima: { por: "bia", em: "2026-10-23", base: "v1" } });
     expect(linhasEvidencia(todos)).toEqual(["Regra aprovada por ana em 20/10/2026", "2 grupos com achados concluídos pelo analista; última por bia em 23/10/2026"]);
   });
 
@@ -88,6 +89,37 @@ describe("quatro estados da checagem", () => {
     expect(ch(na("curta"), "saldos")).toMatchObject({ conclusao: "PENDENTE", causa: "REGRA_REABERTA" });
   });
 
+  it("a conclusão vale para o escopo e para a configuração do teste de quando foi feita: mudar um deles a invalida, reaprovar a regra não a traz de volta, voltar ao que era sim", () => {
+    const ctx = (estado, gs = grupos, total = itens.length) => contarAchados(achados, total, {}, "v1", contextosDasConclusoes(estado, gs));
+    const assina = (c, id, grupo, extra = {}) => ({ por: "ana", em: "2026-10-22", base: "v1", contexto: c.contextos[`${grupo}|${id}`], ...extra });
+    // escopo: Peças foi concluída com 3 itens; o corte por data passa a deixar 2
+    const e0 = { criterios: aprov("ncm"), tratados: {} }; const c0 = ctx(e0);
+    const e = { ...e0, tratados: { "Peças|ncm": assina(c0, "ncm", "Peças"), "Insumos|ncm": assina(c0, "ncm", "Insumos") } };
+    expect(checagemDe(e, crit("ncm"), c0, grupos).conclusao).toBe("COM_ACHADOS");
+    const menos = agruparPorGrupo(itens.filter((i) => i.linha !== 6)); const c1 = ctx(e, menos, 4);
+    expect(checagemDe(e, crit("ncm"), c1, menos)).toMatchObject({ conclusao: "PENDENTE", causa: "GRUPOS_SEM_CONCLUSAO", cobertura: { gruposConcluidos: 1, gruposPendentes: ["Peças"] } });
+    expect(checagemDe(e, crit("ncm"), c0, grupos).conclusao).toBe("COM_ACHADOS"); // voltou ao que era
+    // configuração do teste: a conclusão da Padronização foi feita com "caixa alta" desligada
+    const eA = { criterios: aprov("padrao"), tratados: {}, padronizacao: { regras: { caixaAlta: false }, abreviacoes: {} } }; const cA = ctx(eA);
+    const e1 = { ...eA, tratados: { "Insumos|padrao": assina(cA, "padrao", "Insumos") } };
+    expect(checagemDe(e1, crit("padrao"), cA, grupos).conclusao).toBe("COM_ACHADOS");
+    const eB = { ...e1, padronizacao: { regras: { caixaAlta: false, espacos: false }, abreviacoes: {} }, criterios: aprov("padrao") }; // outra regra e a regra reaprovada
+    expect(checagemDe(eB, crit("padrao"), ctx(eB), grupos)).toMatchObject({ conclusao: "PENDENTE", causa: "GRUPOS_SEM_CONCLUSAO" });
+    // conferência manual: o roteiro foi reescrito e reaprovado por outra pessoa
+    const eM = { criterios: { identidade: { aprovado: true, por: "ana", em: "2026-10-20", regra: "Roteiro A" } }, tratados: {} }; const cM = ctx(eM);
+    const eM1 = { ...eM, tratados: { "Peças|identidade": assina(cM, "identidade", "Peças", manual()), "Insumos|identidade": assina(cM, "identidade", "Insumos", manual()) } };
+    expect(checagemDe(eM1, crit("identidade"), cM, grupos).conclusao).toBe("SEM_ACHADOS");
+    const eM2 = { ...eM1, criterios: { identidade: { aprovado: true, por: "bia", em: "2026-10-24", regra: "Roteiro B" } } };
+    expect(checagemDe(eM2, crit("identidade"), ctx(eM2), grupos)).toMatchObject({ conclusao: "PENDENTE", causa: "GRUPOS_SEM_CONCLUSAO", cobertura: { gruposConcluidos: 0 } });
+  });
+  it("a marca antiga, sem contexto registrado, continua valendo; e a marca `true` sem registro aparece na evidência", () => {
+    const c = contarAchados(achados, itens.length, {}, "v1", contextosDasConclusoes({}, grupos));
+    const e = { criterios: aprov("ncm"), tratados: { "Peças|ncm": { por: "ana", em: "2026-10-22", base: "v1" }, "Insumos|ncm": true } };
+    const r = checagemDe(e, crit("ncm"), c, grupos);
+    expect(r.conclusao).toBe("COM_ACHADOS"); expect(r.evidencia.grupos).toMatchObject({ concluidos: 1, semRegistro: 1 });
+    expect(linhasEvidencia(r)).toEqual(["Regra aprovada por ana em 20/10/2026", "1 grupo com achados concluído pelo analista; última por ana em 22/10/2026", "1 grupo concluído com a marca antiga, sem registro de quem concluiu nem quando"]);
+    expect(linhasEvidencia(checagemDe({ criterios: aprov("ncm"), tratados: { "Peças|ncm": { por: "ana", em: "2026-10-22", base: "v1" } } }, crit("ncm"), c, grupos), "qa-obs.csv")[1]).toBe("1 grupo com achados concluído pelo analista; última por ana em 22/10/2026 (base qa-obs.csv)");
+  });
   it("resumo: conta cada estado e separa as pendências, com as de conferência manual à vista", () => {
     const e = { criterios: { ...aprov("identidade", "ncm"), saldos: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-23", justificativa } } },
       tratados: { "Peças|identidade": manual(), "Insumos|identidade": manual(), "Peças|ncm": { por: "ana", em: "2026-10-22", base: "v1" } } };

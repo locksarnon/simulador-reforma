@@ -11,7 +11,7 @@ export default function ChecagensResumo({ lista, resumo, escopo, nomeBase, extra
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        {escopo ? <>As checagens valem para os <b className="font-medium text-foreground">{fmt(escopo.emEscopo)} itens em escopo</b>{nomeBase ? ` da base ${nomeBase}` : ""}{dataExtracao ? ` (extração de ${dataExtracao})` : ""}. Os {fmt(escopo.fora)} itens fora do escopo (corte por data){escopo.foraGrupos ? ` e os ${fmt(escopo.foraGrupos)} itens de grupos fora do saneamento` : ""} não são checados: ficam só como candidatos à inativação, que depende de aprovação. Nada é alterado no cadastro: a ferramenta só verifica e sugere.</>
+        {escopo ? <>As checagens valem para os <b className="font-medium text-foreground">{fmt(escopo.emEscopo)} itens em escopo</b>{nomeBase ? ` da base ${nomeBase}` : ""}{dataExtracao ? ` (extração de ${dataExtracao})` : ""}.{escopo.fora > 0 ? ` Os ${fmt(escopo.fora)} itens fora do escopo (corte por data) não são checados: ficam só como candidatos à inativação, que depende de aprovação.` : ""}{escopo.foraGrupos > 0 ? ` Os ${fmt(escopo.foraGrupos)} itens de grupos fora do saneamento não são checados nem inativados.` : ""} Nada é alterado no cadastro: a ferramenta só verifica e sugere.</>
           : "Nenhuma base com itens em escopo: nada foi verificado."}
       </p>
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -31,7 +31,7 @@ export default function ChecagensResumo({ lista, resumo, escopo, nomeBase, extra
         <table className="w-full text-xs border-collapse">
           <thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Checagem</th><th className="p-1.5">Cobertura</th><th className="p-1.5">Conclusão</th><th className="p-1.5">Evidência</th></tr></thead>
           <tbody>{lista.map((c) => {
-            const evid = linhasEvidencia(c);
+            const evid = linhasEvidencia(c, nomeBase);
             return (
               <tr key={c.id} className="border-t border-border align-top">
                 <td className="p-1.5 min-w-[150px]"><button type="button" className="text-left underline text-primary" onClick={() => onAbrir(c.id)}>{c.titulo}</button><div className="text-[11px] text-muted-foreground">{c.tipo === "AUTOMATICA" ? "Teste automático" : "Conferência manual"}</div></td>

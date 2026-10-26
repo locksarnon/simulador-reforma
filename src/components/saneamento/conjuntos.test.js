@@ -105,6 +105,13 @@ describe("escolher quem fica (a escolha é guardada pelo código do item)", () =
     expect(x["B|duplicidade"]).toBeUndefined(); expect(d["C|duplicidade"]).toBeUndefined(); // quem fica não ganha decisão; o recebido não é alterado
     expect(completarEscolha(x, c, ctx)).toBe(x); expect(membrosSemProposta(c, x)).toEqual([]); // nada mais a completar
   });
+  it("o conjunto que só existe pela regra de observação se identifica (a pontuação dele não é similaridade)", () => {
+    const regra = { ...dup(0, [3], "MUITO_PROVAVEL", 0.95), candidatos: [{ linha: 3, score: 0.95, nivel: "MUITO_PROVAVEL", motivos: [], origem: "observacao" }] };
+    const [c] = montarConjuntos([item(2, "A", { duplicidade: regra }), item(3, "B", { duplicidade: { ...regra, candidatos: [{ ...regra.candidatos[0], linha: 2 }] } })]);
+    expect(c.porRegra).toBe(true);
+    expect(montarConjuntos([item(2, "A", { duplicidade: dup(0, [3]) }), item(3, "B", { duplicidade: dup(0, [2]) })])[0].porRegra).toBe(false);
+    expect(montarConjuntos([item(2, "A", { duplicidade: regra }), item(3, "B", { duplicidade: dup(0, [2]) })])[0].porRegra).toBe(false); // se o detector também indicou, vale a similaridade
+  });
   it("a variante (observação) de quem sai segue na decisão, para o campo adicional do código que fica; sem variante, a decisão não leva o campo", () => {
     const obs = (palavras) => ({ ...dup(0, [2, 3, 4], "MUITO_PROVAVEL", 0.95), porObservacao: true, observacao: { palavras } });
     const c = montarConjuntos([item(2, "A", { saldo: 3, duplicidade: obs(["CLEAR"]) }), item(3, "B", { saldo: 12, duplicidade: obs(["NEUTRO", "INCOLOR"]) }), item(4, "C", { saldo: 1, duplicidade: obs([]) })])[0];

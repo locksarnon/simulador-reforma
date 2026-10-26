@@ -8,8 +8,8 @@ export const grupoDe = (item) => (item.grupo_atual || "").trim() || SEM_GRUPO;
 const DIA = 86400000;
 const iso = (d) => d.toISOString().slice(0, 10);
 
-/** Hoje em AAAA-MM-DD. */
-export const hojeIso = () => iso(new Date());
+/** Hoje em AAAA-MM-DD, no dia do analista: o dia em UTC já virou depois das 21h em Brasília, e a data do registro sairia um dia à frente. */
+export const hojeIso = () => { const d = new Date(); return iso(new Date(d.getTime() - d.getTimezoneOffset() * 60000)); };
 
 /** AAAA-MM-DD → DD/MM/AAAA ("" se vazio). */
 export const dataBr = (d) => (d ? String(d).split("-").reverse().join("/") : "");
@@ -171,7 +171,9 @@ export function criarTestes(itens, estado = {}) {
   return {
     padrao: (it) => { const r = padronizarDescricao(it.descricao, regras, abrev); return r.mudou ? { achado: true, motivo: r.motivos.join("; ") + (r.longa ? ` · acima de ${LIMITE_DESCRICAO} caracteres` : ""), sugerida: r.sugerida } : { achado: false }; },
     ncm: (it) => (temProblema(it, "NCM_*", "SEM_AMPARO_NO_ANEXO", "CLASSE_DIVERGENTE", "BENEFICIO_POSSIVELMENTE_PERDIDO", "REDUCAO_MAIOR_QUE_ESPERADO") ? { achado: true, motivo: mensagens(it, "NCM_*", "SEM_AMPARO_NO_ANEXO", "CLASSE_DIVERGENTE", "BENEFICIO_POSSIVELMENTE_PERDIDO", "REDUCAO_MAIOR_QUE_ESPERADO") } : { achado: false }),
-    duplicidade: (it) => (it.duplicidade || temProblema(it, "DUPLICIDADE_*", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO") ? { achado: true, motivo: mensagens(it, "DUPLICIDADE_*", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO") || "Indicação de duplicidade" } : { achado: false }),
+    duplicidade: (it) => (it.duplicidade || temProblema(it, "DUPLICIDADE_*", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO")
+      ? { achado: true, motivo: mensagens(it, "DUPLICIDADE_*", "POSSIVEL_DUPLICIDADE", "CODIGO_DUPLICADO", "PRODUTO_DUPLICADO") || (it.duplicidade?.porObservacao ? `Indicação pela regra de observação: a variante${it.duplicidade.observacao?.palavras?.length ? ` (${it.duplicidade.observacao.palavras.join(", ")})` : ""} não é produto` : "Indicação de duplicidade") }
+      : { achado: false }),
     descricao: (it) => (temProblema(it, "DESCRICAO_AUSENTE", "CODIGO_AUSENTE") ? { achado: true, motivo: mensagens(it, "DESCRICAO_AUSENTE", "CODIGO_AUSENTE") } : { achado: false }),
     grupo: (it) => (it.grupo_flag === "DIFERENTE" || (it.grupo_flag === "SEM_ATUAL" && it.grupo_sugerido) ? { achado: true, motivo: `Atual: ${it.grupo_atual || "sem grupo"}; sugerido: ${it.grupo_sugerido || "—"}${it.grupo_evidencia ? ` (${it.grupo_evidencia})` : ""}` } : { achado: false }),
     unidade,

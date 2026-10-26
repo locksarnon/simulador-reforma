@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
-import { achadosUnidade, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, decisoesDoTrabalho, grupoDe, normalizarParams, SEM_GRUPO, unidadeCanonica } from "./logica";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { achadosUnidade, agruparPorGrupo, aplicarEscopo, criarTestes, dataDoCorte, decisoesDoTrabalho, grupoDe, hojeIso, normalizarParams, SEM_GRUPO, unidadeCanonica } from "./logica";
 
 const item = (linha, ultima_mov, extra = {}) => ({ linha, ultima_mov, problemas: [], ...extra });
+
+describe("a data de hoje dos registros", () => {
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  it("é o dia do analista, não o dia em UTC: às 22h30 de 23/10 em Brasília o UTC já virou para 24/10", () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-24T01:30:00Z"));
+    const fuso = vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(180); // Brasília: 3 horas atrás de UTC
+    expect(hojeIso()).toBe("2026-10-23");
+    fuso.mockReturnValue(0); expect(hojeIso()).toBe("2026-10-24"); // em UTC o dia é o mesmo do relógio
+    fuso.mockReturnValue(-540); expect(hojeIso()).toBe("2026-10-24"); // à frente de UTC (Tóquio) também
+  });
+});
 
 describe("parâmetro de saneamento: não movimentados desde a data", () => {
   const itens = [item(2, "2023-05-01"), item(3, "2024-10-20"), item(4, "2024-10-21"), item(5, "2026-01-10"), item(6, null)];

@@ -78,7 +78,7 @@ export function alteracaoDaTarefa(tipo, dados) {
 export function tarefaDaDecisao(crit, d, it, indice) {
   const tituloCriterio = (id) => CRITERIOS.find((c) => c.id === id)?.titulo ?? id;
   if (crit === "duplicidade") {
-    const destinoId = d.destino ?? (it.duplicidade?.mestre != null ? idItem(indice.porLinha.get(it.duplicidade.mestre)) : null);
+    const destinoId = d.destino ?? null; // o código que fica é o que foi decidido: a indicação de hoje (o mestre) não decide por quem aprovou, e a regra de observação pode mudá-la
     if (!destinoId || destinoId === idItem(it)) return null; // código mantido: nada a unificar
     const dest = itemPorId(indice, destinoId);
     const observacao = d.observacao ?? it.duplicidade?.observacao?.palavras ?? []; // a variante (cor, tipo, apresentação) do item que sai é observação: vai para o campo adicional do mantido

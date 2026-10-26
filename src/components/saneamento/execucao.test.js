@@ -50,6 +50,10 @@ describe("tarefas a partir das decisões aprovadas", () => {
     expect(t.instrucao.adm).toContain("inativar o código de origem A1");
     expect(t.instrucao.alm).toBe("Realocar o saldo físico do código A1 para o endereço do código A2 e trocar a identificação (etiqueta).");
   });
+  it("decisão aprovada sem o código que fica não vira unificação: a indicação de hoje (o mestre) não decide por quem aprovou", () => {
+    const sem = (destino) => gerarTarefas({ decisoes: { "A1|duplicidade": apr({ destino }) }, tipos: {}, itens, escopo, params, inativacao }).tarefas.some((t) => t.id === "A1|duplicidade");
+    expect(sem(null)).toBe(false); expect(sem(undefined)).toBe(false); expect(sem("A2")).toBe(true); // o item A1 tem o mestre A2 na indicação
+  });
   it("unificação por observação: a variante do código de origem é observação e vai para o campo adicional do mantido, sem mudar a alteração aprovada", () => {
     const com = (extraDecisao, extraItem = {}) => tarefa(gerarTarefas({ decisoes: { "A1|duplicidade": apr({ destino: "A2", ...extraDecisao }) }, tipos: {}, itens: itens.map((i) => (i.linha === 2 ? { ...i, ...extraItem } : i)), escopo, params, inativacao }), "A1|duplicidade");
     expect(com({ observacao: ["CLEAR", "NEUTRO"] }).instrucao.adm).toContain("A variante do código de origem é observação, não produto: registrar no campo adicional do código mantido: CLEAR, NEUTRO.");

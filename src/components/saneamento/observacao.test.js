@@ -46,7 +46,18 @@ describe("a descrição em palavras e medidas", () => {
     expect(analisarDescricao("ÁLCOOL 70%").medidas).toEqual(["percentual:70"]);
     expect(analisarDescricao("FITA 20MM").medidas).toEqual(["comprimento:20"]); expect(analisarDescricao("FITA 2CM").medidas).toEqual(["comprimento:20"]);
     expect(analisarDescricao("SACO LIXO 100 UN").medidas).toEqual(["contagem:100"]);
-    expect(analisarDescricao("COPO C/50").tokens.map((t) => t.f)).toEqual(["copo", "50"]);
+    expect(analisarDescricao("COPO C/50").tokens.map((t) => t.f)).toEqual(["copo", "com", "50"]);
+  });
+  it("número no padrão brasileiro: 1.000 é mil, mas 1,000 e 0,750 são decimais (um litro e setecentos e cinquenta mililitros)", () => {
+    expect(analisarDescricao("AGUA SANITARIA 1,000 L").medidas).toEqual(["volume:1000"]); expect(analisarDescricao("AGUA SANITARIA 1 L").medidas).toEqual(["volume:1000"]);
+    expect(analisarDescricao("AZEITE 0,750L").medidas).toEqual(["volume:750"]); expect(analisarDescricao("AGUA 1.000 ML").medidas).toEqual(["volume:1000"]);
+    expect(analisarDescricao("TANQUE 1.500,5 L").medidas).toEqual(["volume:1500500"]);
+  });
+  it("COM e SEM não são conectivos descartáveis: separam o produto (COPO COM TAMPA x COPO SEM TAMPA)", () => {
+    expect(analisarDescricao("COPO COM TAMPA").tokens.map((t) => t.f)).toEqual(["copo", "com", "tampa"]); expect(analisarDescricao("LUVA S/FORRO").tokens.map((t) => t.f)).toEqual(["luva", "sem", "forro"]);
+    expect(analisarDescricao("LUVA C/FORRO").tokens.map((t) => t.f)).toEqual(analisarDescricao("LUVA COM FORRO").tokens.map((t) => t.f));
+    const itens = [item(1, "A", "COPO DESCARTAVEL COM TAMPA BRANCO"), item(2, "B", "COPO DESCARTAVEL SEM TAMPA")]; expect(aplicarObservacao(itens, undefined)).toBe(itens);
+    const iguais = [item(1, "A", "LUVA C/FORRO AZUL"), item(2, "B", "LUVA COM FORRO")]; expect(aplicarObservacao(iguais, undefined)[0].duplicidade.porObservacao).toBe(true);
   });
   it("não confunde código de modelo com medida (número colado em letras) e aceita descrição vazia", () => {
     expect(analisarDescricao("BOMBA BS2G").medidas).toEqual([]);
@@ -62,6 +73,34 @@ describe("variante é observação: itens que só diferem por ela são o mesmo p
     expect(a.observacao.palavras).toEqual(["CLEAR"]); expect(b.observacao.palavras).toEqual(["NEUTRO"]); expect(observacaoDoItem(m.get(11))).toEqual(["NEUTRO"]);
     expect(a.candidatos.map((c) => c.linha)).toEqual([11]); expect(a.candidatos[0].motivos[0]).toBe("mesmo produto (DETERGENTE YPE 5 L): a diferença é só observação, CLEAR × NEUTRO");
     expect(m.get(10).candidatos_duplicidade).toEqual([11]);
+  });
+  it("as salvaguardas do detector valem: unidade ausente ou NCM diferente nunca dão indicação alta, e o motivo diz por quê; o mesmo NCM (ou nenhum) dá", () => {
+    const par = (a, b) => { const r = aplicarObservacao([item(1, "A", "DETERGENTE YPE 5LTS CLEAR", a), item(2, "B", "DETERGENTE YPE 5LTS NEUTRO", b)], undefined); return [r[0].duplicidade, r[1].duplicidade]; };
+    const [semUn] = par({ unidade: "" }, { unidade: "" });
+    expect(semUn.nivel).toBe("POSSIVEL"); expect(semUn.grupo).toBeUndefined(); expect(semUn.candidatos[0].motivos).toContain("unidade ausente em um dos itens");
+    const [difNcm, difNcmB] = par({ ncm: "34022000" }, { ncm: "34029000" });
+    expect(difNcm.nivel).toBe("POSSIVEL"); expect(difNcm.candidatos[0].motivos).toContain("NCM diferente (34022000 × 34029000) — revisar também a classificação"); expect(difNcmB.grupo).toBeUndefined();
+    const [umNcm] = par({ ncm: "34022000" }, {}); expect(umNcm.nivel).toBe("POSSIVEL"); expect(umNcm.candidatos[0].motivos).toContain("NCM informado em só um dos itens");
+    const [mesmoNcm, mesmoNcmB] = par({ ncm: "3402.20.00" }, { ncm: "34022000" }); expect(mesmoNcm.nivel).toBe("MUITO_PROVAVEL"); expect(mesmoNcm.grupo).toBe(mesmoNcmB.grupo); // NCM com ou sem pontos é o mesmo
+    const [semNcm] = par({}, {}); expect(semNcm.nivel).toBe("MUITO_PROVAVEL");
+    expect(montarConjuntos(aplicarObservacao([item(1, "A", "DETERGENTE YPE 5LTS CLEAR", { ncm: "34022000" }), item(2, "B", "DETERGENTE YPE 5LTS NEUTRO", { ncm: "34029000" })], undefined))[0].nivel).toBe("POSSIVEL"); // fora do "aceitar em bloco"
+  });
+  it("a indicação da regra se identifica (origem) e só conta o que ela acrescentou: o par que o detector já tinha com a mesma força não é mexido", () => {
+    const r = aplicarObservacao(DETERGENTES, undefined); expect(r[0].duplicidade.candidatos[0].origem).toBe("observacao");
+    const exatos = [item(1, "A", "ESPONJA DUPLA FACE 3 UN AZUL", { duplicidade: dup(5, [2]) }), item(2, "B", "ESPONJA DUPLA FACE 3 UN AZUL", { duplicidade: dup(5, [1]) })];
+    expect(aplicarObservacao(exatos, undefined)).toBe(exatos); // o detector já tinha o par como idêntico: nada a acrescentar, nada de "ligado pela regra"
+    expect(efeitoObservacao(aplicarObservacao(exatos, undefined))).toEqual({ itens: 0, conjuntos: 0 });
+    // o detector tinha o par só como possível: a regra o promove (e passa a contar)
+    const possiveis = [item(1, "A", "ESPONJA DUPLA FACE 3 UN AZUL", { duplicidade: dup(null, [2], "POSSIVEL", 0.8) }), item(2, "B", "ESPONJA DUPLA FACE 3 UN VERDE", { duplicidade: dup(null, [1], "POSSIVEL", 0.8) })];
+    const p = aplicarObservacao(possiveis, undefined); expect(p.map((x) => [x.duplicidade.nivel, x.duplicidade.porObservacao])).toEqual([["MUITO_PROVAVEL", true], ["MUITO_PROVAVEL", true]]);
+    // num conjunto onde a regra acrescentou um item, os que o detector já tinha entram junto, com a variante de cada um
+    const misto = [item(1, "A", "ESPONJA AZUL", { duplicidade: dup(0, [2]) }), item(2, "B", "ESPONJA AZUL", { duplicidade: dup(0, [1]) }), item(3, "C", "ESPONJA VERDE")];
+    const m = porLinha(aplicarObservacao(misto, undefined)); expect([1, 2, 3].map((l) => m.get(l).duplicidade.grupo)).toEqual([0, 0, 0]); expect([1, 2, 3].map((l) => m.get(l).duplicidade.porObservacao)).toEqual([true, true, true]);
+    expect(m.get(2).duplicidade.observacao.palavras).toEqual(["AZUL"]); expect(efeitoObservacao([...m.values()])).toEqual({ itens: 3, conjuntos: 1 });
+  });
+  it("o efeito conta conjuntos de verdade: um par só possível entre grupos é um conjunto, não zero nem um grupo fantasma", () => {
+    const r = aplicarObservacao([item(1, "A", "DETERGENTE YPE 5LTS CLEAR", { grupo_atual: "LIMPEZA" }), item(2, "B", "DETERGENTE YPE 5LTS NEUTRO", { grupo_atual: "COPA E COZINHA" })], undefined);
+    expect(efeitoObservacao(r)).toEqual({ itens: 2, conjuntos: 1 });
   });
   it("a medida e a unidade continuam separando: 5 L e 500 ml, ou UN e CX, são produtos diferentes", () => {
     expect(aplicarObservacao([item(1, "A", "DETERGENTE YPE 5LTS CLEAR"), item(2, "B", "DETERGENTE YPE 500ML NEUTRO")], undefined)).toHaveLength(2);
@@ -137,9 +176,11 @@ describe("variante é observação: itens que só diferem por ela são o mesmo p
     expect(achadosDoCriterio(crit, DETERGENTES, criarTestes(DETERGENTES, {}))).toHaveLength(0);
     expect(achadosDoCriterio(crit, r, criarTestes(r, {})).map((a) => a.item.linha)).toEqual([10, 11]);
   });
-  it("uma base grande é processada de uma vez (sem custo quadrático)", () => {
+  it("uma base grande é processada de uma vez (sem custo quadrático), mesmo com milhares de itens iguais no mesmo balde", () => {
     const grandes = []; for (let i = 0; i < 12000; i++) grandes.push(item(i + 1, `K${i}`, `PRODUTO ${i % 3000} EXTRA ${i % 7} ${i % 2 ? "AZUL" : ""}`));
     const t0 = Date.now(); const r = aplicarObservacao(grandes, undefined); expect(r).toHaveLength(12000); expect(Date.now() - t0).toBeLessThan(5000);
+    const iguais = []; for (let i = 0; i < 16000; i++) iguais.push(item(i + 1, `S${i}`, "SABAO EM BARRA 200G")); iguais.push(item(16001, "S-AZUL", "SABAO EM BARRA 200G AZUL"));
+    const t1 = Date.now(); const s = aplicarObservacao(iguais, undefined); expect(s[0].duplicidade.candidatos.map((c) => c.linha)).toEqual([16001]); expect(Date.now() - t1).toBeLessThan(3000); // antes: 27 s
   });
 });
 
@@ -162,6 +203,13 @@ describe("sugestões de palavras de observação", () => {
 });
 
 describe("editar os parâmetros (sempre um objeto novo)", () => {
+  it("o que é produto ou sabor na copa e na cozinha não vem como observação (VINHO, LARANJA), mas o analista pode aprovar; a palavra digitada vira palavras, sem conectivos", () => {
+    const taca = [item(1, "T1", "TACA VINHO 300ML", { grupo_atual: "COPA E COZINHA" }), item(2, "T2", "TACA 300ML", { grupo_atual: "COPA E COZINHA" }), item(3, "S1", "SUCO DE LARANJA 1L", { grupo_atual: "COPA E COZINHA" }), item(4, "S2", "SUCO 1L", { grupo_atual: "COPA E COZINHA" })];
+    expect(aplicarObservacao(taca, undefined)).toBe(taca); expect(aplicarObservacao(taca, aprovarPalavras(observacaoInicial(), ["vinho"]))).not.toBe(taca);
+    const a = aprovarPalavras(observacaoInicial(), ["em pasta", "anti-bacteriano", "a", "5"]);
+    expect(Object.keys(a.palavras).sort()).toEqual(["anti", "bacteriano", "pasta"]); // "em" e "a" são conectivos e letra solta; "5" é número de um dígito
+    expect(Object.keys(ignorarPalavra(observacaoInicial(), "de sol").palavras)).toEqual(["sol"]);
+  });
   it("aprovar, ignorar e restaurar palavras; as grafias da mesma palavra são uma só", () => {
     const base = observacaoInicial(); const a = aprovarPalavras(base, ["LÍQUIDA", "Pastas"]);
     expect(base).toEqual({ grupos: {}, palavras: {} }); expect(a.palavras).toEqual({ liquida: true, pasta: true });

@@ -33,13 +33,15 @@ import { coerenciaDaChave } from "./aprovacao";
 import { detectarEscalaSaldo } from "./conjuntos";
 import { aplicarObservacao, aprovarPalavras, assinaturaObservacao, definirGrupo, efeitoObservacao, gruposMarcados, gruposNoPadrao, ignorarPalavra, observacaoInicial, restaurarPalavra, sugerirPalavras } from "./observacao";
 import PainelObservacao from "./PainelObservacao";
+import { contextosDasConclusoes } from "./contexto";
+import { podeCarregarEstado } from "./carregamento";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const PASSOS = [
   { t: "Triagem", programa: "Fixar a origem e o universo; escolher os grupos que entram no saneamento; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho; os sem data seguem a regra escolhida); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
   { t: "Checagens", programa: "Cada problema de cadastro é uma checagem, com a sua regra, o exemplo e a aprovação, e uma aba onde o analista vê os achados em todos os grupos, como é hoje e como seria, encaminha o que deve mudar para aprovação no De/para e conclui cada grupo. A checagem termina em um de quatro estados: verificada sem achados, verificada com achados, não se aplica (com justificativa escrita) ou pendente. O teste automático que rodou por inteiro e não achou nada abre com a regra aprovada; a análise que não rodou na importação deixa a checagem pendente; a conferência manual só conclui o grupo com o resultado e a evidência escrita. O grupo é saneado, e liberado para a revisão fiscal, quando todas as checagens aplicáveis estão concluídas nele.", avancar: "Todas as checagens concluídas (ou declaradas não aplicáveis, com justificativa) e, nos grupos que vão adiante, o que deve mudar encaminhado ao De/para." },
   { t: "Piloto SAP", programa: "Comprovar no ambiente do cliente os quatro casos: unificar, separar, preservar referências e descontinuar com dependências.", avancar: "Procedimento evidenciado e aceito pelo cliente e seu suporte SAP." },
-  { t: "De/para", programa: "Recebe o que foi encaminhado nas Análises. Cada caso é aprovado ou rejeitado, com aprovador e data, e só o aprovado entra nas listas finais e na execução. Ausência de resposta não é aprovação. A inativação por data de uso também é aprovada aqui: em lote por grupo, com lista fechada de itens, ou item a item; o corte só seleciona candidatos.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data; inativação aprovada por lista fechada ou individualmente." },
+  { t: "De/para", programa: "Recebe o que foi encaminhado nas Checagens. Cada caso é aprovado ou rejeitado, com aprovador e data, e só o aprovado entra nas listas finais e na execução. Ausência de resposta não é aprovação. A inativação por data de uso também é aprovada aqui: em lote por grupo, com lista fechada de itens, ou item a item; o corte só seleciona candidatos.", avancar: "Decisão expressa por caso (ou em bloco, se optar), com aprovador e data; inativação aprovada por lista fechada ou individualmente." },
   { t: "Execução", programa: "Decisões aprovadas viram tarefas para o administrativo e o almoxarifado; só conta como feito quando as duas pontas confirmam.", avancar: "Confirmação das frentes aplicáveis, com evidências e divergências." },
   { t: "Conferência", programa: "Emitir as listas finais (lista final corrigida, desduplicações, análises, candidatos à inativação por data de uso e execução) e conciliar o executado com as evidências; casos sem prova permanecem pendentes.", avancar: "Listas emitidas e resultados conciliados." },
   { t: "Fiscal", programa: "Cada grupo saneado é liberado para a revisão fiscal: o analista confere o NCM e o cClassTrib (com o CST e a redução) de cada item contra os anexos da LC 214/2025 consultados e decide o que fica; o que parece serviço segue por NBS e LC 116. O CST e o cClassTrib de cada operação seguem na validação das operações.", avancar: "Matriz do grupo com proposta, fundamento, validação e pendências." },
@@ -76,13 +78,15 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
   const proj = useQuery({ queryKey: ["saneamento", projetoId], queryFn: () => api.get(`/produtos/saneamentos/${projetoId}?empresa_id=${empresaId}`) });
+  // O estado só é carregado depois de uma leitura feita ao abrir a tela e sem erro: o cache do react-query pode devolver primeiro a cópia de antes do último salvamento (ou a leitura nova pode
+  // falhar), e o salvamento automático a gravaria por cima do trabalho mais novo.
   useEffect(() => {
-    if (!proj.data || carregado.current) return;
+    if (!podeCarregarEstado(proj, carregado.current)) return;
     carregado.current = true;
     setNome(proj.data.nome); setValidacaoId(proj.data.validacao_id || null);
     const salvoNoProjeto = proj.data.estado || {};
     setEstado({ ...estadoInicial(), ...salvoNoProjeto, versaoChaves: versaoDasChaves(salvoNoProjeto), ...migrarPassos(salvoNoProjeto), observacao: salvoNoProjeto.observacao ?? { ...observacaoInicial(), reaplicar: true } }); // o passo salvo com a numeração antiga (Critérios e Análises separados) é convertido uma vez; // projeto antigo (decisões pela linha) fica com a versão 1 até migrar
-  }, [proj.data]);
+  }, [proj.data, proj.isFetchedAfterMount, proj.isError]);
 
   // Autosave: cada ajuste é salvo sozinho.
   useEffect(() => {
@@ -120,7 +124,9 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const testes = useMemo(() => criarTestes(escopo.emEscopo, estado || {}), [escopo, estado?.padronizacao, estado?.politicaUnidade]);
   const achados = useMemo(() => (validacaoId ? calcularAchados(escopo.emEscopo, testes) : {}), [validacaoId, escopo, testes]);
   const cobertura = useMemo(() => coberturaDaBase(base.data), [base.data]); // quais análises rodaram na importação: "sem achados" só vale onde a análise rodou
-  const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length, cobertura, validacaoId) : null), [validacaoId, achados, escopo, cobertura]);
+  // A conclusão de um grupo vale para os itens que estavam em escopo nele e para a configuração do teste daquela hora (contexto.js): mudar o corte, os grupos do saneamento ou o que alimenta o teste a invalida.
+  const contextos = useMemo(() => (validacaoId ? contextosDasConclusoes(estado || {}, grupos) : {}), [validacaoId, grupos, estado?.padronizacao, estado?.politicaUnidade, estado?.observacao, estado?.criterios]);
+  const contagem = useMemo(() => (validacaoId ? contarAchados(achados, escopo.emEscopo.length, cobertura, validacaoId, contextos) : null), [validacaoId, achados, escopo, cobertura, contextos]);
   const execGerada = useMemo(() => (validacaoId ? gerarTarefas({ decisoes: decisoesTrabalho, tipos: estado?.execucao?.tipos, itens, escopo, params: estado?.params, inativacao: estado?.inativacao }) : { tarefas: [], geradasPorTipo: {} }), [validacaoId, decisoesTrabalho, estado?.execucao?.tipos, estado?.params, estado?.inativacao, itens, escopo]);
   const resumoEx = useMemo(() => resumoExecucao(execGerada.tarefas, vivo?.execucao?.registros), [execGerada, vivo?.execucao?.registros]);
   const mapaLinha = useMemo(() => new Map(itens.map((i) => [i.linha, i])), [itens]);
@@ -235,7 +241,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     </div>
   );
 
-  // ── Passo 2: Critérios ──
+  // ── Passo 2: Checagens (a checagem aberta, a regra e os ajustes dela) ──
   const crit = CRITERIOS.find((c) => c.id === critAtivo);
   const cEst = estado.criterios[crit.id] || {};
   // Alterações no critério (aprovação, regra): funcionais, para duas ações seguidas não se sobrescreverem.
@@ -322,7 +328,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     return { ...e, observacao: depois, tratados, criterios: semAprovacao(e.criterios, "duplicidade") };
   });
   const painelObservacao = crit.id === "duplicidade" ? (
-    <PainelObservacao cfg={estado.observacao || observacaoInicial()} grupos={grupos} sugestoes={sugestoesObs} efeito={efeitoObs}
+    <PainelObservacao cfg={estado.observacao || observacaoInicial()} grupos={grupos} sugestoes={sugestoesObs} efeito={efeitoObs} semAnalise={!cobertura.duplicidade?.completa}
       onGrupo={(nome, usa) => mudarObs((c) => definirGrupo(c, nome, usa))} onGruposPadrao={() => mudarObs(gruposNoPadrao)}
       onAprovar={(ws) => mudarObs((c) => aprovarPalavras(c, ws))} onIgnorar={(ws) => mudarObs((c) => ws.reduce((x, w) => ignorarPalavra(x, w), c))} onRestaurar={(w) => mudarObs((c) => restaurarPalavra(c, w))} />
   ) : null;
@@ -366,13 +372,13 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       regraUi={regraUi} escopoResumo={escopo.resumo} extraidaEm={estado.extraidaEm} />
   );
 
-  // ── Passo 6: Execução (realocações físicas) ──
+  // ── Passo 5: Execução (realocações físicas) ──
   const execucao = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para preparar a execução.</p> : (
     <PassoExecucao estado={estado} setEstado={setEstado} tarefas={execGerada.tarefas} geradasPorTipo={execGerada.geradasPorTipo} resumo={resumoEx} quem={quem} slug={slug}
       pilotoTestados={CASOS_PILOTO.filter((c) => estado.piloto[c]?.status === "Testado").length} pilotoTotal={CASOS_PILOTO.length} />
   );
 
-  // ── Passo 5: De/para (decisões) ──
+  // ── Passo 4: De/para (decisões) ──
   // A decisão é do código do item: se o cadastro dele mudou para outra coisa desde a proposta, ou o item saiu da base, ela não pode ser aprovada como está.
   const coerencia = (k, d) => coerenciaDaChave(k, d, indice, vivo.decisoes);
   const podeAprovar = (k, d) => ["OK", "REFLETIDA"].includes(coerencia(k, d).estado);
@@ -462,12 +468,12 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       </div>
     </div>);
 
-  // ── Passo 8: Fiscal (revisão fiscal dos grupos saneados) ──
+  // ── Passo 7: Fiscal (revisão fiscal dos grupos saneados) ──
   const fiscalUi = !validacaoId ? <p className="text-sm text-muted-foreground">Importe a base no passo Triagem para a revisão fiscal.</p> : (
     <PassoFiscal estado={estado} setEstado={setEstado} grupos={grupos} todosItens={itens} contagem={contagem} saem={saem} quem={quem} nomeProjeto={nome} nomeBase={base.data?.nome_arquivo} slug={slug} temAnalise={temAnalise} onIrAnalises={() => irPara(PASSO.CHECAGENS)} />
   );
 
-  // ── Passo 9: Política de uso e relatório do programa de trabalho (PDF) ──
+  // ── Passo 8: Política de uso e relatório do programa de trabalho (PDF) ──
   // O relatório reúne o que foi feito em todos os passos: as listas são montadas na hora de emitir (a base pode ser grande) e o PDF é carregado só então.
   const emitirRelatorioFinal = async () => {
     const nomeBase = base.data?.nome_arquivo;
@@ -482,7 +488,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
 
   // Projeto antigo: nenhum passo que use decisões abre antes da migração (a Triagem fica livre para vincular a base original).
   const migracao = legado && passo !== 0 ? (validacaoId && base.isLoading ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando a base…</p>
-    : <MigracaoChaves estado={estado} setEstado={setEstado} itens={itens} baseInfo={{ id: validacaoId, arquivo: base.data?.nome_arquivo }} temBase={!!validacaoId && !!base.data && itens.length > 0} quem={quem} slug={slug} nomeProjeto={nome} onIrTriagem={() => irPara(0)} onMudarOrigem={mudarOrigem} />) : null;
+    : <MigracaoChaves estado={estado} setEstado={setEstado} itens={itensBase} baseInfo={{ id: validacaoId, arquivo: base.data?.nome_arquivo }} temBase={!!validacaoId && !!base.data && itensBase.length > 0} quem={quem} slug={slug} nomeProjeto={nome} onIrTriagem={() => irPara(0)} onMudarOrigem={mudarOrigem} />) : null;
   const corpo = migracao ?? [triagem, checagensUi, piloto, depara, execucao, conferencia, fiscalUi, politicaUi][passo];
 
   // Situação de cada passo, para o stepper mostrar onde está o trabalho (feito, andamento, bloqueado).

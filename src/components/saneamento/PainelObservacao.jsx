@@ -8,7 +8,7 @@ import { grupoUsaObservacao, grupoUsaPorPadrao, palavrasEmVigor, palavrasIgnorad
  * `cfg` = estado.observacao; `grupos` = os grupos em escopo ({ nome, itens }); `sugestoes` = sugerirPalavras(); `efeito` = efeitoObservacao() da base. Os `on...` gravam no projeto:
  * onGrupo(nome, usa), onGruposPadrao(), onAprovar(palavras), onIgnorar(palavras), onRestaurar(palavra).
  */
-export default function PainelObservacao({ cfg, grupos, sugestoes, efeito, onGrupo, onGruposPadrao, onAprovar, onIgnorar, onRestaurar }) {
+export default function PainelObservacao({ cfg, grupos, sugestoes, efeito, semAnalise = false, onGrupo, onGruposPadrao, onAprovar, onIgnorar, onRestaurar }) {
   const [nova, setNova] = useState("");
   const [marcadas, setMarcadas] = useState(() => new Set());
   const vigor = palavrasEmVigor(cfg); const ignoradas = palavrasIgnoradas(cfg);
@@ -82,8 +82,9 @@ export default function PainelObservacao({ cfg, grupos, sugestoes, efeito, onGru
 
       <p className="text-xs text-muted-foreground" role="status">
         {nMarcados === 0 ? <Chip>Regra desligada</Chip> : efeito.itens > 0 ? <>Na base atual a regra liga <b className="font-medium text-foreground">{plural(efeito.itens, "item", "itens")}</b> em {plural(efeito.conjuntos, "conjunto", "conjuntos")} de duplicados, que aparecem nos achados da checagem.</> : "Na base atual a regra ainda não ligou nenhum item."}
-        {" "}Mudar os grupos ou as palavras reabre a regra desta checagem e a conclusão dos grupos atingidos.
+        {" "}Mudar os grupos ou as palavras reabre a regra desta checagem e a conclusão dos grupos atingidos. Os casos que você já encaminhou ou aprovou no De/para continuam valendo: revise ou rejeite lá o que não fizer mais sentido.
       </p>
+      {semAnalise && <p className="text-xs text-amber-700 dark:text-amber-300" role="alert">A investigação de duplicidades não rodou na importação desta base: a checagem segue pendente e os achados só aparecem depois que ela rodar (importe a base de novo com essa opção). A regra acima só vale para o que ela mesma acha.</p>}
     </div>
   );
 }

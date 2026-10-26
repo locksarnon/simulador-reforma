@@ -69,7 +69,8 @@ export function montarConjuntos(itens, { escala = 1 } = {}) {
     const contagem = new Map(); for (const m of lista) { const g = grupoDe(m); contagem.set(g, (contagem.get(g) || 0) + 1); }
     const grupo = [...contagem.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))[0][0];
     const menorCodigo = lista.map((m) => idItem(m) || `L${m.linha}`).sort((a, b) => colador.compare(a, b))[0]; // o identificador do conjunto é o menor código: não muda de uma extração para outra
-    conjuntos.push({ id: `c:${menorCodigo}`, nivel, score: Math.max(...lista.map((m) => Number(m.duplicidade.score) || 0)), grupo, membros, sugestao: sug });
+    const porRegra = lista.every((m) => m.duplicidade.candidatos?.[0]?.origem === "observacao"); // o conjunto só existe pela regra de observação: a pontuação não é similaridade
+    conjuntos.push({ id: `c:${menorCodigo}`, nivel, score: Math.max(...lista.map((m) => Number(m.duplicidade.score) || 0)), grupo, membros, sugestao: sug, porRegra });
   }
   return conjuntos.sort((a, b) => NIVEL_ORDEM[a.nivel] - NIVEL_ORDEM[b.nivel] || b.membros.length - a.membros.length || a.membros[0].linha - b.membros[0].linha);
 }

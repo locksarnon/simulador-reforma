@@ -41,7 +41,8 @@ export default function ComparativoDuplicidade({ item, itens, excluir, setExclui
           <SheetTitle>Comparativo de duplicidade — linha {item?.linha}</SheetTitle>
           <SheetDescription>
             Os cadastros abaixo foram comparados por descrição, unidade, medidas, NCM e código de barras. Palavras destacadas existem só neste cadastro.
-            {dup?.mestre != null && <> Sugestão de cadastro a manter: <b>linha {dup.mestre}</b> (o mais completo).</>}
+            {dup?.porObservacao && <> Neste grupo a variante (cor, tipo, apresentação) é observação, não produto: {dup.observacao?.palavras?.length ? `a deste cadastro é ${dup.observacao.palavras.join(", ")}.` : "este cadastro não traz nenhuma."}</>}
+            {dup?.mestre != null && <> Sugestão de cadastro a manter: <b>linha {dup.mestre}</b> ({dup.porObservacao ? "pelo maior saldo, a movimentação mais recente, o cadastro mais completo e o menor código" : "o mais completo"}).</>}
           </SheetDescription>
         </SheetHeader>
         <div className="mt-4 space-y-3 text-sm">
