@@ -77,7 +77,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
-  const proj = useQuery({ queryKey: ["saneamento", projetoId], queryFn: () => api.get(`/produtos/saneamentos/${projetoId}?empresa_id=${empresaId}`) });
+  // Sem cache entre aberturas (gcTime 0) e sempre uma leitura nova ao montar: o estado carregado é o do servidor de agora, não o de uma abertura anterior.
+  const proj = useQuery({ queryKey: ["saneamento", projetoId], queryFn: () => api.get(`/produtos/saneamentos/${projetoId}?empresa_id=${empresaId}`), staleTime: 0, gcTime: 0, refetchOnMount: "always" });
   // O estado só é carregado depois de uma leitura feita ao abrir a tela e sem erro: o cache do react-query pode devolver primeiro a cópia de antes do último salvamento (ou a leitura nova pode
   // falhar), e o salvamento automático a gravaria por cima do trabalho mais novo.
   useEffect(() => {
@@ -161,8 +162,9 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     });
   }, [estado?.observacao?.reaplicar, base.data, itens]);
 
+  // A leitura que falhou antes de o estado ser carregado mostra o erro (e a volta à lista), em vez de ficar em "Carregando" para sempre.
+  if (proj.error && !estado) return <div role="alert" className="space-y-2 text-sm"><p className="text-destructive">Não foi possível abrir o projeto: {proj.error.message}</p><Botao onClick={onVoltar}>Voltar para a lista de projetos</Botao></div>;
   if (proj.isLoading || !estado) return <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o projeto…</p>;
-  if (proj.error) return <p role="alert" className="text-sm text-destructive">Não foi possível abrir o projeto: {proj.error.message}</p>;
 
   const mudar = (patch) => setEstado((e) => ({ ...e, ...patch }));
   // A origem dos dados (ERP + instância + empresa) é o que dá sentido ao código do item: fica registrada com quem declarou e quando.
@@ -328,7 +330,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     return { ...e, observacao: depois, tratados, criterios: semAprovacao(e.criterios, "duplicidade") };
   });
   const painelObservacao = crit.id === "duplicidade" ? (
-    <PainelObservacao cfg={estado.observacao || observacaoInicial()} grupos={grupos} sugestoes={sugestoesObs} efeito={efeitoObs} semAnalise={!cobertura.duplicidade?.completa}
+    <PainelObservacao cfg={estado.observacao || observacaoInicial()} grupos={grupos} sugestoes={sugestoesObs} efeito={efeitoObs} semAnalise={!!base.data && !cobertura.duplicidade?.completa}
       onGrupo={(nome, usa) => mudarObs((c) => definirGrupo(c, nome, usa))} onGruposPadrao={() => mudarObs(gruposNoPadrao)}
       onAprovar={(ws) => mudarObs((c) => aprovarPalavras(c, ws))} onIgnorar={(ws) => mudarObs((c) => ws.reduce((x, w) => ignorarPalavra(x, w), c))} onRestaurar={(w) => mudarObs((c) => restaurarPalavra(c, w))} />
   ) : null;
@@ -537,7 +539,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       </div>
       {estado.reabertos && !estado.reabertos.visto && estado.reabertos.grupos?.length > 0 && (
         <div role="status" className="rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 text-xs space-y-1.5 dark:border-amber-700/50 dark:bg-amber-950/20">
-          <p><b className="font-medium">{plural(estado.reabertos.grupos.length, "grupo foi reaberto", "grupos foram reabertos")} em {dataBr(estado.reabertos.em)}</b> porque deixou de cumprir os critérios de saneamento (regra reaberta, análise não executada, checagem de conferência manual sem resultado e evidência ou conclusão feita sobre outra base): {estado.reabertos.grupos.slice(0, 8).join("; ")}{estado.reabertos.grupos.length > 8 ? `; +${estado.reabertos.grupos.length - 8}` : ""}. Conclua as checagens pendentes e marque o grupo como saneado de novo no passo Checagens.</p>
+          <p><b className="font-medium">{plural(estado.reabertos.grupos.length, "grupo foi reaberto", "grupos foram reabertos")} em {dataBr(estado.reabertos.em)}</b> porque deixou de cumprir os critérios de saneamento (regra reaberta, análise não executada, checagem de conferência manual sem resultado e evidência, ou conclusão feita sobre outra base, com outros itens em escopo ou com outra configuração do teste): {estado.reabertos.grupos.slice(0, 8).join("; ")}{estado.reabertos.grupos.length > 8 ? `; +${estado.reabertos.grupos.length - 8}` : ""}. Conclua as checagens pendentes e marque o grupo como saneado de novo no passo Checagens.</p>
           <Botao onClick={() => mudar({ reabertos: { ...estado.reabertos, visto: true } })}>Entendi</Botao>
         </div>)}
       {importador}

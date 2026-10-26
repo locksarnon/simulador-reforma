@@ -2,7 +2,7 @@
 // Funções puras (sem React); os downloads ficam em gerarXlsxPolitica() e baixarJsonPolitica().
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
 import { COLUNAS_REGRAS, linhasRegras } from "./politica";
-import { ROTULO_REGRAS } from "./logica";
+import { ROTULO_REGRAS, dataBr } from "./logica";
 
 const rotuloSemExemplo = (r) => r.replace(/ \(ex\.:.*\)$/, "");
 
@@ -19,7 +19,7 @@ export function criarWorkbookPolitica(ExcelJS, politica, { nomeProjeto = "", nom
   const e = politica.estruturada;
 
   const resumo = wb.addWorksheet("Resumo"); resumo.columns = [{ width: 34 }, { width: 100 }];
-  [["Política de uso dos estoques", ""], ["Projeto", nomeProjeto], ["Base importada", nomeBase], ["Situação", politica.situacao], ["Aprovada por", politica.aprovada ? `${politica.aprovada.por} em ${new Date(politica.aprovada.em).toLocaleDateString("pt-BR")}` : "—"], ["Gerada em", new Date().toLocaleString("pt-BR")], [],
+  [["Política de uso dos estoques", ""], ["Projeto", nomeProjeto], ["Base importada", nomeBase], ["Situação", politica.situacao], ["Aprovada por", politica.aprovada ? `${politica.aprovada.por} em ${dataBr(politica.aprovada.em)}` : "—"], ["Gerada em", new Date().toLocaleString("pt-BR")], [],
     ["Pendências", politica.pendencias.length ? "" : "nenhuma"], ...politica.pendencias.map((p) => ["", p]), [],
     ["Atenção", e.aviso]].forEach((l) => resumo.addRow(l));
   resumo.getRow(1).font = { bold: true, size: 13 }; resumo.getColumn(1).font = { bold: true }; resumo.getColumn(2).alignment = { vertical: "top", wrapText: true };

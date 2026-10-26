@@ -91,7 +91,7 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
       codigoDestino: destino ? destino.codigo : destinoId ?? "", descricaoDestino: destino ? destino.descricao : "", saldoDestino: destino ? saldoNaEscala(destino.saldo, escalaSaldo) ?? "" : "",
       acao: destinoId != null && destinoId !== idItem(origem) ? "Unificar no código mantido" : "Código mantido (sem baixa)",
       nivel: origem.duplicidade ? NIVEL_ROT[origem.duplicidade.nivel] : "", similaridade: cand && cand.origem !== "observacao" ? cand.score : "", motivos: cand ? cand.motivos.join("; ") : "",
-      observacao: destinoId != null && destinoId !== idItem(origem) ? (d.observacao ?? origem.duplicidade?.observacao?.palavras ?? []).join(", ") : "", // a variante de quem sai (observação, não produto) para o campo adicional do mantido
+      observacao: destinoId != null && destinoId !== idItem(origem) ? (d.observacao ?? []).join(", ") : "", // a variante de quem sai (observação, não produto) para o campo adicional do mantido
       // decisão que não vale mais para o cadastro atual não conta como aprovada (nem como encaminhada em dia): o analista precisa avaliar de novo
       decisao: vale ? ROT_STATUS[d.status] || d.status : d.status === "APR" ? "Aprovado, mas o cadastro mudou desde então (não vale)" : "Encaminhado, mas o cadastro mudou desde então (revisar)", aprovador: d.decididoPor || "", data: dataBr(d.decididoEm),
     };

@@ -96,7 +96,7 @@ function mesclar(atuais, novos) {
   for (const c of novos) {
     const a = por.get(c.linha);
     if (!a) { por.set(c.linha, c); continue; }
-    const mais = NIVEL_ORDEM[c.nivel] < NIVEL_ORDEM[a.nivel] || (c.nivel === a.nivel && c.score > a.score);
+    const mais = NIVEL_ORDEM[c.nivel] < NIVEL_ORDEM[a.nivel]; // só mais forte troca a indicação do detector; com a mesma força ela fica, com a pontuação dela
     if (mais) por.set(c.linha, { ...c, motivos: unicos([...c.motivos, ...(a.motivos || [])]) });
     else por.set(c.linha, { ...a, motivos: unicos([...(a.motivos || []), ...c.motivos]) });
   }
@@ -131,20 +131,26 @@ export function aplicarObservacao(itens, cfg, { escala = 1 } = {}) {
   for (const lista of baldes.values()) {
     const comPalavras = lista.filter((it) => info.get(it.linha).palavras.length);
     if (lista.length < 2 || !comPalavras.length) continue;
-    const porGrupoNcm = new Map(); for (const it of lista) { const i = info.get(it.linha); doMapa(porGrupoNcm, `${i.grupo}\u0000${i.ncm}`).push(it); }
-    for (const membros of porGrupoNcm.values()) { // no mesmo grupo de itens e NCM, com a unidade conhecida, o produto é o mesmo: formam grupo de duplicados
-      if (!info.get(membros[0].linha).unidade) continue;
-      const eixo = membros.find((it) => info.get(it.linha).palavras.length);
-      if (eixo) for (const it of membros) if (it !== eixo) uniao(it.linha, eixo.linha);
+    // Onde ficam as indicações altas: o mesmo grupo de itens e o mesmo NCM (a unidade já é a mesma no balde). Índice por essa chave, para não varrer o balde inteiro por item.
+    const chaveDe = (i) => `${i.grupo}\u0000${i.ncm}`; const porChave = new Map();
+    for (const it of lista) { const i = info.get(it.linha); let g = porChave.get(chaveDe(i)); if (!g) porChave.set(chaveDe(i), (g = { todos: [], comPalavras: [] })); g.todos.push(it); if (i.palavras.length) g.comPalavras.push(it); }
+    for (const g of porChave.values()) { // no mesmo grupo de itens e NCM, com a unidade conhecida, o produto é o mesmo: formam grupo de duplicados
+      if (!info.get(g.todos[0].linha).unidade || !g.comPalavras.length) continue;
+      const eixo = g.comPalavras[0];
+      for (const it of g.todos) if (it !== eixo) uniao(it.linha, eixo.linha);
     }
+    const candidato = (a, b, o, forte) => ({ linha: o.linha, score: forte ? 0.95 : 0.85, nivel: forte ? "MUITO_PROVAVEL" : "POSSIVEL", motivos: motivoDoPar(a, b), origem: "observacao" });
     for (const it of lista) {
       const a = info.get(it.linha); const cands = [];
       const fontes = a.palavras.length ? lista : comPalavras; // dois itens sem palavra de observação ficam por conta do detector
-      for (const forte of [true, false]) for (const o of fontes) { // primeiro os que a regra dá como indicação alta
+      if (a.unidade) { // primeiro as que a regra dá como indicação alta
+        const g = porChave.get(chaveDe(a));
+        for (const o of a.palavras.length ? g.todos : g.comPalavras) { if (cands.length >= 20) break; if (o !== it) cands.push(candidato(a, info.get(o.linha), o, true)); }
+      }
+      for (const o of fontes) { // depois as possíveis (as altas já entraram)
         if (cands.length >= 20) break;
         if (o === it) continue;
-        const b = info.get(o.linha); if (ehForte(a, b) !== forte) continue;
-        cands.push({ linha: o.linha, score: forte ? 0.95 : 0.85, nivel: forte ? "MUITO_PROVAVEL" : "POSSIVEL", motivos: motivoDoPar(a, b), origem: "observacao" });
+        const b = info.get(o.linha); if (!ehForte(a, b)) cands.push(candidato(a, b, o, false));
       }
       if (cands.length) novos.set(it.linha, cands);
     }

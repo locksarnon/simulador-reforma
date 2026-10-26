@@ -31,7 +31,7 @@ export function checagemDe(estado, crit, contagem, grupos = []) {
     for (const g of grupos) {
       if (grupoTratado(estado, g.nome, crit, contagem)) {
         const k = `${g.nome}|${crit.id}`; const m = estado?.tratados?.[k]; concluidos.push(g.nome);
-        if (m === true) semRegistro += 1; // marca antiga: vale, mas não diz quem concluiu nem quando
+        if (m === true) { if ((contagem.porGrupoCriterio?.[k] ?? 0) > 0) semRegistro += 1; } // marca antiga que conclui o grupo (com achados): vale, mas não diz quem concluiu nem quando; sem achados o grupo conclui sozinho
         else if (m && typeof m === "object" && marcaConclui(m, crit, contagem.baseId, contagem.contextos?.[k])) marcas.push(m);
       } else pendentes.push(g.nome);
     }

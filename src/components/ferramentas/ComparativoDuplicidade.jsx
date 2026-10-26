@@ -56,7 +56,7 @@ export default function ComparativoDuplicidade({ item, itens, excluir, setExclui
                   <span className="font-semibold">Linha {ln}</span>
                   {base && <span className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-primary text-primary-foreground">item analisado</span>}
                   {dup?.mestre === ln && <span className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">mestre sugerido</span>}
-                  {m && <span className={`text-[10px] uppercase font-medium px-1.5 py-0.5 rounded ${COR_NIVEL[m.nivel]}`}>{ROT_NIVEL[m.nivel]} · similaridade {m.score.toFixed(2).replace(".", ",")}</span>}
+                  {m && <span className={`text-[10px] uppercase font-medium px-1.5 py-0.5 rounded ${COR_NIVEL[m.nivel]}`}>{ROT_NIVEL[m.nivel]} · {m.origem === "observacao" ? "pela regra de observação" : `similaridade ${m.score.toFixed(2).replace(".", ",")}`}</span>}
                   {podeExcluir && !base && (
                     <label className="ml-auto inline-flex items-center gap-1.5 text-xs cursor-pointer">
                       <input type="checkbox" checked={excluir.includes(ln)} disabled={!it.candidatos_duplicidade?.length}

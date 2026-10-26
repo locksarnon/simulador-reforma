@@ -36,6 +36,26 @@ describe("contexto da conclusão de um grupo", () => {
     expect(dup({ observacao: definirGrupo(observacaoInicial(), "FERRAGENS", true) })).not.toBe(dup({})); expect(dup({ observacao: aprovarPalavras(observacaoInicial(), ["pasta"]) })).not.toBe(dup({}));
   });
 
+  it("unidade: a grafia dominante vem dos itens de TODOS os grupos em escopo, então a conclusão de um grupo perde a validade se os outros mudam", () => {
+    const g = (nome, unidades, inicio) => ({ nome, itens: unidades.map((u, i) => ({ linha: inicio + i, codigo: `C${inicio + i}`, grupo_atual: nome, unidade: u })) });
+    const A = g("A", ["UN", "UND", "UND"], 1); const B = g("B", ["UN", "UN", "UN", "UN", "UN"], 10);
+    const com = contextosDasConclusoes({}, [A, B]); const semB = contextosDasConclusoes({}, [A]);
+    expect(semB["A|unidade"]).not.toBe(com["A|unidade"]); // com B a grafia dominante é UN; sem B passa a ser UND: os achados de A mudam
+    expect(semB["A|ncm"]).toBe(com["A|ncm"]); // as demais checagens de A só leem os itens de A, que não mudaram
+    expect(assinaturaDoTeste({}, crit("unidade"), [], { dominantes: { un: "UN" } })).not.toBe(assinaturaDoTeste({}, crit("unidade"), [], { dominantes: { un: "UND" } }));
+    const mesmoA = contextosDasConclusoes({}, [A, g("C", ["UN", "UN", "UN", "UN"], 20)]); expect(mesmoA["A|unidade"]).toBe(com["A|unidade"]); // outro grupo com a mesma grafia dominante: nada muda para A
+  });
+
+  it("duplicidade: a regra de observação só muda o contexto dos grupos em que ela vale; no grupo desligado a conclusão não perde a validade", () => {
+    const gs = grupos(["PEÇAS", [1, 2]], ["FERRAGENS", [3]], ["LIMPEZA", [4, 5]]); // LIMPEZA vale por padrão; PEÇAS e FERRAGENS estão desligados
+    const antes = contextosDasConclusoes({}, gs); const depois = contextosDasConclusoes({ observacao: aprovarPalavras(observacaoInicial(), ["pasta"]) }, gs);
+    expect(depois["PEÇAS|duplicidade"]).toBe(antes["PEÇAS|duplicidade"]); expect(depois["FERRAGENS|duplicidade"]).toBe(antes["FERRAGENS|duplicidade"]);
+    expect(depois["LIMPEZA|duplicidade"]).not.toBe(antes["LIMPEZA|duplicidade"]); // onde a regra vale, aprovar uma palavra pode mudar os achados
+    const ligando = contextosDasConclusoes({ observacao: definirGrupo(observacaoInicial(), "FERRAGENS", true) }, gs);
+    expect(ligando["FERRAGENS|duplicidade"]).not.toBe(antes["FERRAGENS|duplicidade"]); // ligar a regra no grupo muda o contexto dele
+    expect(contextosDasConclusoes({}, grupos(["PEÇAS", [1, 2]], ["FERRAGENS", [3]]))["PEÇAS|duplicidade"]).toBe(antes["PEÇAS|duplicidade"]); // um grupo com a regra ligada sair do escopo não mexe nos desligados
+  });
+
   it("conferência manual: o roteiro escrito pelo analista é o que foi conferido; os testes que só leem os itens não têm configuração", () => {
     const man = (e) => assinaturaDoTeste(e, crit("identidade"));
     expect(man({ criterios: { identidade: { regra: "Roteiro A" } } })).not.toBe(man({ criterios: { identidade: { regra: "Roteiro B" } } }));

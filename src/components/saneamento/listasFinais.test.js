@@ -67,6 +67,8 @@ describe("listas finais do saneamento", () => {
   it("a desduplicação traz a variante (observação) de quem sai para o campo adicional do mantido; o código mantido não leva observação", () => {
     const comObs = { ...estado, decisoes: { ...estado.decisoes, "A1|duplicidade": { ...estado.decisoes["A1|duplicidade"], observacao: ["CLEAR", "INCOLOR"] } } };
     expect(base(comObs).desduplicacoes[0].observacao).toBe("CLEAR, INCOLOR"); expect(base(estado).desduplicacoes[0].observacao).toBe("");
+    const indicacaoDeHoje = itens.map((i) => (i.linha === 2 ? { ...i, duplicidade: { ...i.duplicidade, observacao: { palavras: ["AZUL"] } } } : i)); const esc = aplicarEscopo(indicacaoDeHoje, estado.params);
+    expect(montarListas({ nomeProjeto: "P", nomeBase: "b.xlsx", estado, itens: indicacaoDeHoje, escopo: esc, testes: criarTestes(esc.emEscopo, estado) }).desduplicacoes[0].observacao).toBe(""); // a decisão não guardou nota: a indicação de hoje não vira nota
     const mantido = { ...estado, decisoes: { "A1|duplicidade": { ...estado.decisoes["A1|duplicidade"], destino: "A1", observacao: ["CLEAR"] } } }; // o próprio código fica: sem baixa
     expect(base(mantido).desduplicacoes[0]).toMatchObject({ acao: "Código mantido (sem baixa)", observacao: "" });
   });

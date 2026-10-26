@@ -119,6 +119,9 @@ describe("quatro estados da checagem", () => {
     expect(r.conclusao).toBe("COM_ACHADOS"); expect(r.evidencia.grupos).toMatchObject({ concluidos: 1, semRegistro: 1 });
     expect(linhasEvidencia(r)).toEqual(["Regra aprovada por ana em 20/10/2026", "1 grupo com achados concluído pelo analista; última por ana em 22/10/2026", "1 grupo concluído com a marca antiga, sem registro de quem concluiu nem quando"]);
     expect(linhasEvidencia(checagemDe({ criterios: aprov("ncm"), tratados: { "Peças|ncm": { por: "ana", em: "2026-10-22", base: "v1" } } }, crit("ncm"), c, grupos), "qa-obs.csv")[1]).toBe("1 grupo com achados concluído pelo analista; última por ana em 22/10/2026 (base qa-obs.csv)");
+    // a marca antiga só entra na evidência quando é ela que conclui o grupo: sem achados no grupo ele conclui sozinho
+    const semAchados = checagemDe({ criterios: aprov("ncm"), tratados: { "Peças|ncm": { por: "ana", em: "2026-10-22", base: "v1" }, "Insumos|ncm": true } }, crit("ncm"), contarAchados({ ncm: [] }, itens.length, {}, "v1", {}), grupos);
+    expect(semAchados.evidencia.grupos.semRegistro).toBe(0); expect(linhasEvidencia(semAchados).some((x) => x.includes("marca antiga"))).toBe(false);
   });
   it("resumo: conta cada estado e separa as pendências, com as de conferência manual à vista", () => {
     const e = { criterios: { ...aprov("identidade", "ncm"), saldos: { aprovado: false, naoAplicavel: { por: "ana", em: "2026-10-23", justificativa } } },

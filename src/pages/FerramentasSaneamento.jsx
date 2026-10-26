@@ -40,7 +40,7 @@ export default function FerramentasSaneamento() {
         <p className="text-sm text-muted-foreground">Passo a passo: triagem da base, checagens por grupo, decisões e, ao final, relatório e política de uso.</p>
       </div>
       {projetoId ? (
-        <ProjetoSaneamento empresa={empresa} empresaId={empresaId} projetoId={projetoId} onVoltar={() => setParams({})} />
+        <ProjetoSaneamento key={projetoId} empresa={empresa} empresaId={empresaId} projetoId={projetoId} onVoltar={() => setParams({})} />
       ) : (
         <div className="space-y-4 max-w-3xl">
           <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (nome.trim()) criar.mutate(); }}>

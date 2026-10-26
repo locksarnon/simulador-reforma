@@ -180,6 +180,8 @@ function dominantes(itens) {
   }
   return new Map([...cont].map(([c, mm]) => [c, [...mm.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0]]));
 }
+/** A grafia dominante de cada classe de unidade nos itens dados ({ classe: grafia }). O teste de grafia de um item depende dela, e ela depende dos itens dos outros grupos. */
+export const grafiasDominantes = (itens) => Object.fromEntries(dominantes(itens));
 const rotuloTxt = (s) => String(s ?? "").trim().toUpperCase();
 /**
  * Nome da unidade padrão de cada medida. Vale o que o analista definiu no projeto (`rotulos`); sem isso, as medidas do SI usam o símbolo (KG, L, M, M2:

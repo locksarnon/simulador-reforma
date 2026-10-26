@@ -98,6 +98,21 @@ describe("variante é observação: itens que só diferem por ela são o mesmo p
     const m = porLinha(aplicarObservacao(misto, undefined)); expect([1, 2, 3].map((l) => m.get(l).duplicidade.grupo)).toEqual([0, 0, 0]); expect([1, 2, 3].map((l) => m.get(l).duplicidade.porObservacao)).toEqual([true, true, true]);
     expect(m.get(2).duplicidade.observacao.palavras).toEqual(["AZUL"]); expect(efeitoObservacao([...m.values()])).toEqual({ itens: 3, conjuntos: 1 });
   });
+  it("a indicação que o detector já tinha com a mesma força fica como estava, com a pontuação dele, mesmo num item que a regra mexeu por outro par", () => {
+    const itens = [item(1, "A", "ESPONJA AZUL", { duplicidade: { ...dup(null, [2], "MUITO_PROVAVEL", 0.91), candidatos: [{ linha: 2, score: 0.91, nivel: "MUITO_PROVAVEL", motivos: ["descrições parecidas"] }] } }), item(2, "B", "ESPONJA AZUL"), item(3, "C", "ESPONJA VERDE")];
+    const a = aplicarObservacao(itens, undefined)[0].duplicidade.candidatos;
+    expect(a.map((c) => c.linha).sort()).toEqual([2, 3]); const ab = a.find((c) => c.linha === 2);
+    expect(ab.score).toBe(0.91); expect(ab.origem).toBeUndefined(); expect(ab.motivos[0]).toBe("descrições parecidas"); // continua sendo a indicação do detector, com o motivo da regra somado
+    expect(a.find((c) => c.linha === 3).origem).toBe("observacao"); // o par novo, esse sim, é da regra
+  });
+  it("sem tempo quadrático também quando quase não há indicação alta: milhares de itens iguais, cada um com o seu NCM, ou sem unidade", () => {
+    const distintos = []; for (let i = 0; i < 8000; i++) distintos.push(item(i + 1, `N${i}`, "SABAO EM BARRA 200G", { ncm: String(34000000 + i) })); distintos.push(item(8001, "N-AZUL", "SABAO EM BARRA 200G AZUL", { ncm: "34000001" }));
+    const t0 = Date.now(); const r = aplicarObservacao(distintos, undefined); expect(Date.now() - t0).toBeLessThan(2500);
+    expect(r[1].duplicidade.candidatos.map((c) => [c.linha, c.nivel])).toEqual([[8001, "MUITO_PROVAVEL"]]); // o item de NCM 34000001 e o azul de mesmo NCM: indicação alta
+    expect(r[0].duplicidade.candidatos[0]).toMatchObject({ linha: 8001, nivel: "POSSIVEL" }); expect(r[0].duplicidade.candidatos[0].motivos).toContain("NCM diferente (34000000 × 34000001) — revisar também a classificação");
+    const semUnidade = []; for (let i = 0; i < 8000; i++) semUnidade.push(item(i + 1, `U${i}`, "SABAO EM BARRA 200G", { unidade: "" })); semUnidade.push(item(8001, "U-AZUL", "SABAO EM BARRA 200G AZUL", { unidade: "" }));
+    const t1 = Date.now(); aplicarObservacao(semUnidade, undefined); expect(Date.now() - t1).toBeLessThan(2500);
+  });
   it("o efeito conta conjuntos de verdade: um par só possível entre grupos é um conjunto, não zero nem um grupo fantasma", () => {
     const r = aplicarObservacao([item(1, "A", "DETERGENTE YPE 5LTS CLEAR", { grupo_atual: "LIMPEZA" }), item(2, "B", "DETERGENTE YPE 5LTS NEUTRO", { grupo_atual: "COPA E COZINHA" })], undefined);
     expect(efeitoObservacao(r)).toEqual({ itens: 2, conjuntos: 1 });

@@ -20,7 +20,7 @@ describe("política em Excel", () => {
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Resumo", "Procedimentos e regras", "Por grupo", "Padrão de descrição", "Unidades"]);
     const texto = (nome) => { const t = []; lido.getWorksheet(nome).eachRow((r) => t.push(r.values.slice(1).map((v) => v ?? "").join(" | "))); return t; };
     const resumo = texto("Resumo");
-    expect(resumo).toContain("Situação | Aprovada"); expect(resumo.some((t) => t.startsWith("Aprovada por | ana em"))).toBe(true); expect(resumo.some((t) => t.startsWith("Atenção | Proposta de política"))).toBe(true);
+    expect(resumo).toContain("Situação | Aprovada"); expect(resumo).toContain("Aprovada por | ana em 23/10/2026"); // a data guardada (AAAA-MM-DD) não anda um dia para trás com o fuso expect(resumo.some((t) => t.startsWith("Atenção | Proposta de política"))).toBe(true);
     expect(resumo.some((t) => t.includes("ainda não foi aprovado"))).toBe(false); // nenhum critério pendente: os manuais foram aprovados e os automáticos abriram aprovados
     const regras = lido.getWorksheet("Procedimentos e regras");
     expect(regras.getRow(1).values.slice(1)).toEqual(COLUNAS_REGRAS.map(([t]) => t)); expect(regras.rowCount).toBe(1 + politica.secoes.reduce((n, s) => n + s.regras.length, 0));

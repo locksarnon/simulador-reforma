@@ -81,7 +81,7 @@ export function tarefaDaDecisao(crit, d, it, indice) {
     const destinoId = d.destino ?? null; // o código que fica é o que foi decidido: a indicação de hoje (o mestre) não decide por quem aprovou, e a regra de observação pode mudá-la
     if (!destinoId || destinoId === idItem(it)) return null; // código mantido: nada a unificar
     const dest = itemPorId(indice, destinoId);
-    const observacao = d.observacao ?? it.duplicidade?.observacao?.palavras ?? []; // a variante (cor, tipo, apresentação) do item que sai é observação: vai para o campo adicional do mantido
+    const observacao = d.observacao ?? []; // a variante (cor, tipo, apresentação) do item que sai é observação, guardada na decisão quando foi proposta: vai para o campo adicional do mantido. Decisão sem ela não ganha nota que o aprovador nunca viu
     return { tipo: "unificacao", dados: { destinoCodigo: destinoId, destinoDescricao: dest?.descricao ?? d.destinoAntes?.descricao ?? "", ...(observacao.length ? { observacao } : {}) } };
   }
   if (crit === "padrao") {

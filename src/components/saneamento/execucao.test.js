@@ -57,7 +57,7 @@ describe("tarefas a partir das decisões aprovadas", () => {
   it("unificação por observação: a variante do código de origem é observação e vai para o campo adicional do mantido, sem mudar a alteração aprovada", () => {
     const com = (extraDecisao, extraItem = {}) => tarefa(gerarTarefas({ decisoes: { "A1|duplicidade": apr({ destino: "A2", ...extraDecisao }) }, tipos: {}, itens: itens.map((i) => (i.linha === 2 ? { ...i, ...extraItem } : i)), escopo, params, inativacao }), "A1|duplicidade");
     expect(com({ observacao: ["CLEAR", "NEUTRO"] }).instrucao.adm).toContain("A variante do código de origem é observação, não produto: registrar no campo adicional do código mantido: CLEAR, NEUTRO.");
-    expect(com({}, { duplicidade: { mestre: 3, observacao: { palavras: ["PASTA"] } } }).instrucao.adm).toContain("campo adicional do código mantido: PASTA."); // decisão sem a variante guardada: vale a que o item traz
+    expect(com({}, { duplicidade: { mestre: 3, observacao: { palavras: ["PASTA"] } } }).instrucao.adm).not.toContain("campo adicional"); // decisão sem a variante guardada não ganha uma nota que o aprovador nunca viu, mesmo que a regra de hoje indique uma
     expect(com({}).instrucao.adm).not.toContain("campo adicional");
     expect(com({ observacao: ["X"] }).alteracao).toBe(com({}).alteracao); // a confirmação das equipes não depende das palavras de observação
   });
