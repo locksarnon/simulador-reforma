@@ -1,13 +1,18 @@
 /**
- * Base de conhecimento do FAQ — Simulador FAL v0.16.
- * Organizada por seções conforme a Central de Ajuda.
+ * Base de conhecimento do FAQ do InTAX, organizada por seções conforme a Central de Ajuda.
+ * As seções novas e os complementos de 28/10/2026 ficam em faqAtualizacao.js e são compostos no fim deste arquivo.
  */
+import {
+  SECAO_NOVIDADES, SECAO_IMPORTACAO_XML, SECAO_FERRAMENTAS, SECAO_BASE_LEGAL, ITENS_EXTRAS, FAQ_ATUALIZADO_EM,
+} from "./faqAtualizacao";
 
-export const FAQ_SECOES = [
+export { FAQ_ATUALIZADO_EM };
+
+const SECOES_BASE = [
   {
     titulo: "Primeiros passos",
     itens: [
-      { p: "Para que serve o Simulador FAL?", r: "Ajuda a mensurar como a Reforma Tributária pode afetar as operações da empresa. Para cada operação cadastrada, a ferramenta calcula cinco dimensões: sistema tributário atual; IBS e CBS; transição tributária; preço e margem; caixa e split payment. O objetivo não é apenas informar se haverá aumento ou redução de tributos — também ajuda a identificar necessidade de reajuste de preço, perda de margem, acúmulo de créditos e necessidade adicional de capital de giro." },
+      { p: "Para que serve o simulador do InTAX?", r: "Ajuda a mensurar como a Reforma Tributária pode afetar as operações da empresa. Para cada operação cadastrada, a ferramenta calcula cinco dimensões: sistema tributário atual; IBS e CBS; transição tributária; preço e margem; caixa e split payment. O objetivo não é apenas informar se haverá aumento ou redução de tributos — também ajuda a identificar necessidade de reajuste de preço, perda de margem, acúmulo de créditos e necessidade adicional de capital de giro." },
       { p: "Quais decisões podem ser apoiadas pelo simulador?", r: "Os resultados podem apoiar: revisão de preços e margens; renegociação de contratos; análise de fornecedores e clientes; planejamento de capital de giro; revisão de cadastros fiscais; parametrização do ERP; análise de crédito presumido; avaliação de split payment; priorização de operações críticas; e preparação do Programa FAL de Transição Tributária." },
       { p: "Qual é a ordem recomendada de uso?", r: "A sequência é: 1) Configuração; 2) Empresas; 3) Transição 2026–2033; 4) Catálogos IBS/CBS; 5) Cenários; 6) Operações; 7) Painel Executivo; 8) revisão das informações de DF-e. Essa ordem reduz o risco de calcular operações com parâmetros incompletos." },
       { p: "Como faço minha primeira simulação?", r: "Siga este fluxo: cadastre a empresa; confira os parâmetros do ano na tela Transição; confira o cClassTrib e, quando aplicável, o cCredPres; crie ou ative um cenário; acesse Operações; clique em Nova operação; preencha os dados econômicos e tributários; salve; clique na linha da operação para abrir o detalhamento; consulte o Painel Executivo para visualizar a consolidação." },
@@ -23,7 +28,7 @@ export const FAQ_SECOES = [
     titulo: "Configuração global",
     itens: [
       { p: "Onde ficam as premissas globais do sistema?", r: "Na página Configuração são definidos: versão do simulador; data-base normativa; cenário ativo; margem-meta; prazo estimado de realização dos créditos; taxa de custo financeiro mensal; e observações gerais." },
-      { p: "Como devo preencher a versão do simulador?", r: "Informe a identificação da versão utilizada, por exemplo v0.16. Esse campo não altera as fórmulas — serve para controle, auditoria e rastreabilidade." },
+      { p: "Como devo preencher a versão do simulador?", r: "Informe a identificação da versão utilizada, por exemplo v0.18. Esse campo não altera as fórmulas — serve para controle, auditoria e rastreabilidade." },
       { p: "O que é a data-base normativa?", r: "É a data até a qual as normas, tabelas e premissas utilizadas foram revisadas. Ela não atualiza automaticamente a legislação. Serve para mostrar qual era a referência normativa da simulação." },
       { p: "Como altero o cenário ativo?", r: "A forma recomendada é acessar a página Cenários, localizar o cenário desejado e clicar em Ativar cenário. Também é possível alterar o nome na Configuração, mas o texto deve ser exatamente igual ao nome de um cenário existente." },
       { p: "O que acontece se eu informar um cenário que não existe?", r: "O sistema tentará localizar o cenário pelo nome. Quando não encontrar, poderá utilizar o primeiro cenário disponível. Por isso, prefira ativar o cenário diretamente pela página Cenários." },
@@ -42,8 +47,8 @@ export const FAQ_SECOES = [
     itens: [
       { p: "Como cadastrar uma empresa?", r: "Acesse Empresas e clique em Nova empresa. Preencha: código interno; razão social; CNPJ ou CPF; grupo empresarial; regime tributário; setor; UF; município; condição de contribuinte do IBS/CBS; condição de produtor rural; condição de cooperativa; ERP; responsável fiscal; e observações." },
       { p: "Como escolher o código da empresa?", r: "Utilize um identificador curto e único. Exemplos: EMP-001; FAL-AUD; FAZENDA-01; MATRIZ; FILIAL-MT. Esse código será utilizado para vincular as operações à empresa." },
-      { p: "Existe uma empresa ativa global no sistema?", r: "Não na versão atual. A empresa é selecionada individualmente em cada operação. Na tela Operações é possível filtrar os registros por empresa. O Painel Executivo continua apresentando a base consolidada carregada." },
-      { p: "Como analisar apenas uma empresa?", r: "Acesse Operações e utilize o filtro de empresa. O filtro permite revisar as operações daquela empresa, mas ainda não altera os totais do Painel Executivo." },
+      { p: "Existe uma empresa ativa global no sistema?", r: "A empresa é o contexto de trabalho. Em Grupos e empresas, abra a empresa para entrar no workspace dela: Operações, Importação de XML, Painel e as ferramentas (validador de cadastro, saneamento de estoques, classificação de serviços e validador de NFS-e) ficam travados nessa empresa. No Painel Executivo avulso (Cockpit), escolha o grupo e a empresa nos seletores do topo." },
+      { p: "Como analisar apenas uma empresa?", r: "Abra a empresa em Grupos e empresas: o Painel e as Operações já vêm filtrados por ela. No Cockpit, escolha o grupo e a empresa nos seletores. Na tela Operações do grupo, o filtro de empresa só filtra a lista e não altera os totais do Painel." },
       { p: "O regime tributário define automaticamente as alíquotas?", r: "Não. Selecionar Lucro Real, Lucro Presumido, Simples Nacional ou Produtor Rural PF não preenche automaticamente PIS, Cofins, ICMS, ISS ou outros tributos. As alíquotas devem ser informadas em cada operação." },
       { p: "As marcações de produtor rural ou cooperativa modificam o cálculo?", r: "Não na versão atual. Essas informações são cadastrais e ajudam na classificação e na revisão técnica, mas ainda não alteram automaticamente as fórmulas." },
       { p: "Posso cadastrar várias empresas de um mesmo grupo?", r: "Sim. Utilize o campo de grupo empresarial. O Painel Executivo, porém, soma as operações sem realizar eliminações entre empresas relacionadas." },
@@ -98,7 +103,7 @@ export const FAQ_SECOES = [
       { p: "Como localizar um cClassTrib?", r: "Acesse Catálogos, abra a seção de cClassTrib e pesquise pelo código ou pela descrição. Depois, copie o código para a operação." },
       { p: "O que acontece se eu informar um cClassTrib inexistente?", r: "O sistema não localizará reduções e a classificação aparecerá como pendente. Nessa situação, o IBS e a CBS podem ser calculados pelas alíquotas nominais integrais." },
       { p: "O que é CST IBS/CBS?", r: "É o código de situação tributária associado ao tratamento da operação. Na versão atual, o CST é armazenado para referência, mas não altera diretamente as fórmulas." },
-      { p: "O sistema verifica automaticamente se o CST combina com o cClassTrib?", r: "Ainda não de forma completa. A compatibilidade deve ser conferida com os catálogos e com a documentação técnica aplicável." },
+      { p: "O sistema verifica automaticamente se o CST combina com o cClassTrib?", r: "Parcialmente. Na Importação de XML o sistema confere se o CST e o cClassTrib existem nos catálogos e estão vigentes na data da operação, se o grupo RTC do XML bate com a classificação e se o cClassTrib informado diverge do que os anexos da LC 214 indicam para o NCM (alerta). A compatibilidade entre o CST e o cClassTrib em si ainda deve ser conferida tecnicamente nos catálogos." },
     ],
   },
   {
@@ -135,7 +140,7 @@ export const FAQ_SECOES = [
       { p: "O IBS/CBS líquido pode ficar negativo?", r: "Não. Quando os créditos superam os débitos, o IBS/CBS líquido fica em zero e o excedente é tratado como crédito acumulado no módulo de caixa." },
       { p: "O que significa classificação pendente?", r: "Significa que o cClassTrib informado não foi localizado no catálogo. O cálculo deve ser revisado antes de ser considerado válido." },
       { p: "O que significa classificação localizada?", r: "Significa que o cClassTrib foi encontrado e suas reduções foram aplicadas. Isso não substitui a confirmação técnica de que o código é adequado à operação." },
-      { p: "Como é feita a partilha do IBS entre UF e município?", r: "O motor utiliza as alíquotas de IBS UF e IBS Município cadastradas no ano da transição. Esses valores aparecem no cálculo interno." },
+      { p: "Como é feita a partilha do IBS entre UF e município?", r: "O motor utiliza as alíquotas de IBS UF e IBS Município cadastradas no ano da transição. Esses valores aparecem no cálculo interno. A divisão entre estado e município da tabela Transição é premissa cadastrada pelo InTAX (veja a coluna Observação do ano), não uma proporção oficial divulgada." },
     ],
   },
   {
@@ -161,7 +166,7 @@ export const FAQ_SECOES = [
       { p: "Para que serve a página Transição?", r: "Concentra os parâmetros anuais utilizados pelo motor. Cada ano pode possuir: fator de PIS/Cofins; fator de IPI; fator de ICMS; fator de ISS; alíquota efetiva de IBS; alíquota efetiva de CBS; alíquota do IBS estadual; alíquota do IBS municipal; efeito financeiro; caráter; fonte; e observação." },
       { p: "Como interpretar os fatores dos tributos atuais?", r: "Os fatores são multiplicadores. Exemplos: 1 mantém 100%; 0,90 mantém 90%; 0,60 mantém 60%; 0 elimina o tributo na simulação do ano." },
       { p: "Como preencher as alíquotas na página Transição?", r: "Nessa página, os valores são informados como frações decimais. Exemplos: 0,01 representa 1%; 0,09 representa 9%; 0,18 representa 18%. Essa lógica é diferente da tela de Operações." },
-      { p: "O que é efeito financeiro?", r: "É o percentual do IBS e da CBS líquidos que será considerado na carga financeira daquele ano. Exemplos: 0 representa ausência; 1 representa efeito integral; 0,50 representa efeito de 50%." },
+      { p: "O que é efeito financeiro?", r: "É o percentual do IBS e da CBS líquidos que será considerado na carga financeira daquele ano. Exemplos: 0 representa ausência; 1 representa efeito integral; 0,50 representa efeito de 50%. Em 2026, ano de teste, a lei compensa ou dispensa o IBS/CBS: use 0 (veja Novidades da Reforma)." },
       { p: "Como é calculada a carga da transição?", r: "A carga é formada por: PIS/Cofins remanescente; IPI remanescente; ICMS/FCP/ST remanescentes; ISS remanescente; e IBS/CBS com efeito financeiro." },
       { p: "O que é sistema atual remanescente?", r: "É a parcela dos tributos atuais que continua produzindo efeito no ano analisado." },
       { p: "O que é IBS/CBS financeiro?", r: "É o IBS/CBS líquido multiplicado pelo fator de efeito financeiro do ano." },
@@ -254,13 +259,13 @@ export const FAQ_SECOES = [
       { p: "O que significa Valor bruto simulado?", r: "É a soma dos valores brutos das operações de Entrada e Saída. Ele não representa necessariamente faturamento." },
       { p: "O que significa Tributos atuais líquidos?", r: "É a soma dos tributos atuais após os créditos reconhecidos." },
       { p: "O que significa Carga da transição?", r: "É a soma dos tributos atuais remanescentes e do IBS/CBS financeiro." },
-      { p: "O que significa IBS/CBS líquido?", r: "É a soma dos valores líquidos de IBS e CBS. Os créditos excedentes não tornam esse indicador negativo." },
+      { p: "O que significa IBS/CBS líquido?", r: "É o IBS/CBS a pagar depois de compensar débitos e créditos por empresa e por ano. O crédito que sobra em uma empresa ou em um ano não abate o débito de outra empresa nem de outro ano e fica como crédito acumulado no módulo de caixa; por isso o indicador nunca fica negativo." },
       { p: "O que significa Split retido?", r: "É a soma das retenções estimadas nas operações." },
       { p: "O que significa Funding tributário estimado?", r: "É a soma do funding individual das operações. O cálculo não compensa automaticamente a sobra de caixa de uma operação com a necessidade de outra — por isso a visão é conservadora." },
       { p: "O que significa Δ Margem transição?", r: "É a margem total da transição menos a margem total atual. Valor negativo: deterioração de margem. Valor positivo: melhora estimada." },
       { p: "O gráfico de margem apresenta margem em reais?", r: "Não. O gráfico apresenta margem percentual consolidada por ano." },
       { p: "Como o painel agrupa os dados?", r: "As operações são agrupadas pelo ano informado." },
-      { p: "O painel respeita o filtro da tela Operações?", r: "Não na versão atual. Os filtros da tela Operações não alteram o Painel Executivo." },
+      { p: "O painel respeita o filtro da tela Operações?", r: "Não. O filtro da lista de Operações não altera o Painel. O Painel tem os próprios seletores de grupo e empresa (no Cockpit) e, aberto dentro de uma empresa, já vem filtrado por ela." },
       { p: "Por que entradas e saídas juntas podem distorcer o painel?", r: "Porque o valor bruto consolidado inclui compras e vendas. Para analisar carga sobre faturamento ou margem comercial, é necessário interpretar separadamente as operações de saída." },
       { p: "Por que a margem consolidada pode parecer baixa?", r: "As operações de Entrada possuem margem zero, mas seus valores podem integrar o total usado na consolidação." },
       { p: "Posso comparar anos com bases diferentes?", r: "Sim, mas com cautela. Uma diferença entre anos pode decorrer de: mudança tributária; aumento de volume; mudança de preço; alteração do mix; inclusão de novas operações; ou mudança na proporção entre entradas e saídas." },
@@ -285,9 +290,9 @@ export const FAQ_SECOES = [
     itens: [
       { p: "Para que servem os campos de DF-e?", r: "Registram informações necessárias à preparação cadastral e sistêmica das operações. São exemplos: finalidade; CRT do emitente; ambiente; redução informada; diferimento informado; tributação regular; crédito presumido; compra governamental; e observações." },
       { p: "Os campos de DF-e alteram o cálculo?", r: "Na versão atual, a maioria possui função informativa. Selecionar Sim ou Não não altera automaticamente os débitos ou créditos." },
-      { p: "Existe um Validador DF-e completo?", r: "Ainda não. A versão atual permite registrar dados, localizar classificações e identificar alguns status, mas não executa uma validação completa das regras oficiais de NF-e, NFS-e, CT-e ou demais documentos." },
-      { p: "O sistema identifica CST incompatível com cClassTrib?", r: "Ainda não de forma completa e automática. A conferência deve ser realizada tecnicamente." },
-      { p: "O sistema valida NCM e NBS?", r: "Não de forma homologatória. Os códigos são armazenados, mas não há validação integral com tabelas externas oficiais." },
+      { p: "Existe um Validador DF-e completo?", r: "Não. O InTAX tem validações específicas: a Importação de XML confere o documento, o cadastro, a tributação e a operação de cada item; o Validador de NFS-e confere a estrutura de DPS e NFS-e; e o Validador de cadastro confere a planilha de produtos. Nenhuma delas substitui os validadores e os ambientes oficiais de NF-e, NFS-e, CT-e e demais documentos, que continuam sendo o teste final." },
+      { p: "O sistema identifica CST incompatível com cClassTrib?", r: "Só em parte: veja a resposta sobre CST e cClassTrib na seção Classificação fiscal. A compatibilidade entre os dois ainda deve ser conferida tecnicamente." },
+      { p: "O sistema valida NCM e NBS?", r: "O NCM é conferido contra a tabela oficial do Siscomex (mais de 10 mil códigos de 8 dígitos) na Importação de XML, na Consulta NCM e no Validador de cadastro, e o InTAX compara o cClassTrib do XML com o que os anexos da LC 214 indicam para o NCM. Na tela Operações o campo continua informativo e não escolhe alíquotas. A NBS é usada no Classificador de serviços, mas o campo da operação não é validado contra uma tabela oficial da NBS." },
       { p: "O que significa ambiente Produção ou Homologação?", r: "É a identificação do ambiente relacionado ao documento. Na versão atual, a seleção não altera as fórmulas." },
       { p: "Como utilizar a observação DF-e?", r: "Registre: pendências; justificativas; necessidade de parametrização; regra especial; fonte normativa; responsável pela revisão; e necessidade de teste no ERP." },
       { p: "O simulador substitui o validador oficial?", r: "Não. A emissão e a autorização devem continuar sendo testadas nos ambientes e validadores oficiais." },
@@ -326,7 +331,7 @@ export const FAQ_SECOES = [
       { p: "Por que alterar o regime da empresa não mudou o cálculo?", r: "Porque o regime é cadastral. Ele não seleciona automaticamente as alíquotas." },
       { p: "Por que alterar a UF não mudou o ICMS?", r: "Porque as UFs não alimentam automaticamente uma matriz de alíquotas." },
       { p: "Por que alterar o documento fiscal não mudou o cálculo?", r: "Porque o documento é um campo informativo na versão atual." },
-      { p: "Por que o painel não mostra apenas a empresa filtrada?", r: "Porque o filtro de Operações não é aplicado ao Painel Executivo." },
+      { p: "Por que o painel não mostra apenas a empresa filtrada?", r: "Porque o filtro da lista de Operações não é aplicado ao Painel. Use os seletores do próprio Painel (no Cockpit) ou abra o Painel dentro da empresa." },
       { p: "Como corrigir um resultado aparentemente incoerente?", r: "Revise nesta ordem: 1) direção; 2) valor bruto; 3) ano; 4) alíquotas atuais; 5) crédito elegível; 6) cClassTrib; 7) reduções; 8) cCredPres; 9) transição; 10) cenário; 11) custo-base; 12) margem-meta; 13) split; 14) prazo; 15) taxa financeira." },
       { p: "As alterações são salvas automaticamente?", r: "Não em todas as telas. Clique em Salvar ou Salvar operação após editar." },
       { p: "A exclusão pode ser desfeita?", r: "A interface solicita confirmação, mas não possui uma função geral de restauração. Faça backup antes de exclusões relevantes." },
@@ -345,4 +350,18 @@ export const FAQ_SECOES = [
       { p: "Qual é a interpretação mais importante do simulador?", r: "O resultado não deve ser reduzido à pergunta 'pagaremos mais ou menos imposto?'. A análise deve responder: o que muda na carga; o que muda na margem; quanto o preço precisaria mudar; quanto poderá ser retido; quanto crédito poderá se acumular; quanto capital de giro poderá ser necessário; quais contratos precisam ser revistos; quais cadastros precisam ser saneados; quais sistemas precisam ser adaptados; e quais operações devem ser priorizadas." },
     ],
   },
+];
+
+/** Seções novas entram logo depois da seção indicada. */
+const INSERCOES = [
+  { depoisDe: "Cadastro de operações", secao: SECAO_IMPORTACAO_XML },
+  { depoisDe: "Informações de DF-e", secao: SECAO_FERRAMENTAS },
+  { depoisDe: "Informações de DF-e", secao: SECAO_BASE_LEGAL },
+];
+
+const comExtras = (secao) => (ITENS_EXTRAS[secao.titulo] ? { ...secao, itens: [...secao.itens, ...ITENS_EXTRAS[secao.titulo]] } : secao);
+
+export const FAQ_SECOES = [
+  SECAO_NOVIDADES,
+  ...SECOES_BASE.flatMap((secao) => [comExtras(secao), ...INSERCOES.filter((i) => i.depoisDe === secao.titulo).map((i) => i.secao)]),
 ];
