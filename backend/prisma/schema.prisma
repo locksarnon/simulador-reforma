@@ -233,6 +233,10 @@ model Operacao {
   mva_st_pct                      Float            @default(0)
   iss_pct                         Float            @default(0)
   ipi_pct                         Float            @default(0)
+  /// Imposto Seletivo (LC 214, arts. 409 a 438): alíquota ad valorem informada, só para quem é contribuinte do IS (fabricante, importador, extrativista). 0 = não informado.
+  is_pct                          Float            @default(0)
+  /// Combustível do regime específico (LC 214, arts. 172 a 180): chave de AliquotaCombustivel.produto. Vazio = operação comum.
+  combustivel_produto             String?
   credito_elegivel_pct            Float            @default(0)
   split_pct                       Float            @default(0)
   c_cred_pres                     String?
@@ -282,6 +286,9 @@ model TransicaoAno {
   ibs_mun_aliquota   Float    @default(0)
   cbs_efetiva        Float    @default(0)
   efeito_financeiro  Float    @default(0)
+  /// Redutor das alíquotas de IBS e CBS nas compras da administração pública direta, autarquias e fundações
+  /// (LC 214, arts. 349, III, 370 e 472), como fração (0,4416 = 44,16%). Fixado pelo Senado a cada ano.
+  redutor_compra_gov Float    @default(0)
   carater            String?
   fonte              String?
   status             String?
@@ -289,6 +296,26 @@ model TransicaoAno {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  @@index([ano])
+}
+
+/// Alíquotas específicas (por unidade de medida) do IBS e da CBS sobre combustíveis (LC 214, arts. 173 a 175).
+/// Uma linha por produto e ano. Valor nulo = ainda não divulgado.
+model AliquotaCombustivel {
+  id              String   @id @default(cuid())
+  produto         String
+  descricao       String
+  unidade         String
+  ano             Int
+  cbs_por_unidade Float?
+  ibs_por_unidade Float?
+  fonte           String?
+  status          String   @default("Oficial")
+  observacao      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([produto, ano])
   @@index([ano])
 }
 

@@ -168,9 +168,11 @@ function taxasAtuais(regime, perfil, cargaInformada) {
 
 /**
  * @param entrada { perfil, regime, faturamentoAnual, comprasPct, creditoPct, exportaPct, respostas, cargaInformada }
- * @param parametros linhas de TransicaoAno (GET /public/parametros-transicao)
+ * @param parametros linhas de TransicaoAno (GET /public/parametros-transicao), já com o cenário de
+ * alíquotas 2029–2033 aplicado (src/motor/cenariosAliquota.js)
+ * @param opcoes { cenarioTexto } — frase do cenário usada nas premissas do relatório
  */
-export function estimar(entrada, parametros) {
+export function estimar(entrada, parametros, opcoes = {}) {
   const perfil = PERFIS.find((p) => p.id === entrada.perfil);
   const flags = {};
   perfil.perguntas.forEach((q) => Object.assign(flags, entrada.respostas?.[q.id] === "sim" ? q.sim : q.nao));
@@ -303,7 +305,8 @@ export function estimar(entrada, parametros) {
       : `Carga atual: PIS/Cofins do regime ${REGIMES.find((r) => r.id === regime).label} e ICMS médio de ${pct1(tx.icms)}${cargaInf != null ? " (ajustado à carga que você informou)" : " (premissa do segmento)"}.`,
     `Redução média de IBS/CBS nas vendas: ${flags.fora_ibs ? "fora do IBS/CBS (receita abaixo do teto)" : pct1(reducao)}.`,
     ...(perfil.imposto_seletivo_pct ? [`Imposto Seletivo: ${pct2(perfil.imposto_seletivo_pct)} do faturamento a partir de 2027 (alíquota máxima prevista; a definir em lei).`] : []),
-    "Alíquotas do IBS/CBS e fatores de transição: parâmetros do InTAX (as alíquotas finais do IBS ainda serão fixadas).",
+    "Alíquotas do IBS/CBS e fatores de transição: parâmetros do InTAX. 2026 é informativo; 2027 e 2028 usam a CBS de referência calculada pelo TCU menos 0,1 p.p.; de 2029 a 2033 nenhuma alíquota foi fixada ainda, então a série segue um cenário.",
+    ...(opcoes.cenarioTexto ? [opcoes.cenarioTexto] : []),
     `Premissas ${PREMISSAS_VERSAO}.`,
   ];
 

@@ -10,6 +10,8 @@ import { useRascunho } from "@/hooks/useRascunho";
 import RascunhoAviso from "@/components/RascunhoAviso";
 import { RESSALVA_CRED_PRES } from "@/lib/ressalvas";
 import { sugerirTributosAtuais } from "@/lib/tabelasLegais";
+import { PRODUTOS_COMBUSTIVEL } from "@/motor/combustiveis";
+import { TETO_IS_BENS_MINERAIS, classificarImpostoSeletivo } from "@/motor/impostoSeletivo";
 
 const DIRECOES = ["Saida", "Entrada"];
 const TIPOS = ["Mercadoria", "Servico", "Outro"];
@@ -61,6 +63,8 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
     mva_st_pct: 0,
     iss_pct: 0,
     ipi_pct: 0,
+    is_pct: 0,
+    combustivel_produto: "",
     credito_elegivel_pct: 0,
     split_pct: 0,
     c_cred_pres: "",
@@ -122,10 +126,15 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
     setExplicacaoTabela(s.explicacao);
   };
 
+  // Regimes específicos: o NCM no Anexo XVII da LC 214 avisa do Imposto Seletivo; o produto de combustível define a unidade da quantidade.
+  const enquadramentoIs = classificarImpostoSeletivo(form.ncm);
+  const produtoComb = PRODUTOS_COMBUSTIVEL.find((p) => p.id === form.combustivel_produto);
+
   const submit = (e) => {
     e.preventDefault();
     rascunho.limpar();
-    onSave(form);
+    // Select não aceita valor vazio: "nenhum" volta a ser nulo no banco.
+    onSave({ ...form, combustivel_produto: form.combustivel_produto || null });
   };
 
   return (
@@ -263,6 +272,53 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
 
       <section>
         <h3 className="text-sm font-heading font-medium mb-3 flex items-center gap-1.5">
+          Regimes específicos da Reforma <InfoTooltip pagina="operacao_form" chave="header_regimes_especificos" />
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Venda a órgão público?" pagina="operacao_form" chave="compra_governamental_informado">
+            <Select value={form.compra_governamental_informado || "Não"} onValueChange={(v) => set("compra_governamental_informado", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{SIM_NAO.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Combustível (regime específico)" pagina="operacao_form" chave="combustivel_produto">
+            <Select value={form.combustivel_produto || "nenhum"} onValueChange={(v) => set("combustivel_produto", v === "nenhum" ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nenhum">Não é combustível</SelectItem>
+                {PRODUTOS_COMBUSTIVEL.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Imposto Seletivo %" pagina="operacao_form" chave="is_pct">
+            <PctInput value={form.is_pct} onChange={(v) => set("is_pct", v)} />
+          </Field>
+        </div>
+        <div className="mt-3 space-y-2 text-xs">
+          {produtoComb && (
+            <p className="text-muted-foreground bg-muted/40 border border-border rounded-md p-2.5">
+              {produtoComb.nome}: o tributo é a <b className="text-foreground">quantidade em {produtoComb.unidade === "kg" ? "quilogramas" : "litros (volume a 20 °C)"}</b> × a alíquota por {produtoComb.unidade === "kg" ? "quilo" : "litro"} cadastrada em Catálogos &gt; Combustíveis. Informe a Quantidade acima nessa unidade. Para revenda, deixe o crédito elegível em 0% (LC 214, art. 180). Venda de distribuidor ou posto, com o tributo já cobrado antes, usa o cClassTrib 620006 (sem débito); sem ele o motor cobra de novo. As classes de mistura de etanol (620004 e 620005, art. 179) não são calculadas.
+            </p>
+          )}
+          {enquadramentoIs && (
+            <p className="text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-2.5">
+              Este NCM está no Anexo XVII da LC 214 ({enquadramentoIs.nome}): sujeito ao Imposto Seletivo, cuja alíquota depende de lei ordinária ainda não publicada.
+              {enquadramentoIs.confirmar && <> {enquadramentoIs.confirmar}</>} Só informe a alíquota se a empresa for contribuinte do IS (fabricante, importador ou extrativista); na revenda o IS já vem dentro do preço.
+              {enquadramentoIs.teto != null && (
+                <> <button type="button" className="underline font-medium" onClick={() => set("is_pct", TETO_IS_BENS_MINERAIS)}>Usar o teto legal de 0,25%</button></>
+              )}
+            </p>
+          )}
+          {enquadramentoIs?.teto != null && Number(form.is_pct) > enquadramentoIs.teto + 1e-12 && (
+            <p className="text-destructive bg-destructive/5 border border-destructive/30 rounded-md p-2.5" role="alert">
+              A alíquota informada passa do máximo legal de 0,25% para bens minerais extraídos (LC 214, art. 422, §2º).
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-heading font-medium mb-3 flex items-center gap-1.5">
           DF-e <InfoTooltip pagina="operacao_form" chave="header_dfe" />
         </h3>
         <div className="grid grid-cols-3 gap-3">
@@ -297,12 +353,6 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
           </Field>
           <Field label="Crédito presumido informado?" pagina="operacao_form" chave="credito_presumido_informado">
             <Select value={form.credito_presumido_informado} onValueChange={(v) => set("credito_presumido_informado", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{SIM_NAO.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <Field label="Compra governamental informada?" pagina="operacao_form" chave="compra_governamental_informado">
-            <Select value={form.compra_governamental_informado} onValueChange={(v) => set("compra_governamental_informado", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{SIM_NAO.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
             </Select>

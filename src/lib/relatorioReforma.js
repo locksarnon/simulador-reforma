@@ -24,8 +24,8 @@ const COMUNS = {
   cronograma: {
     tema: "Quando muda",
     era: "Sistema atual integral até 2026.",
-    fica: "2026 teste (CBS 0,9% e IBS 0,1%); 2027 CBS plena e fim do PIS/Cofins; 2029–2032 ICMS/ISS caem 10% ao ano; 2033 só IBS/CBS.",
-    base: "LC 214/2025, Título VIII · parâmetros do InTAX",
+    fica: "2026 teste só informativo (CBS 0,9% e IBS 0,1%, compensados com PIS/Cofins ou dispensados); 2027 CBS plena e fim do PIS/Cofins; 2029–2032 ICMS/ISS caem 10% ao ano; 2033 só IBS/CBS. As alíquotas de 2029 a 2033 ainda não foram fixadas: o InTAX trabalha com cenários.",
+    base: "LC 214/2025, Título VIII (arts. 343 a 349) · EC 132/2023, ADCT arts. 125 a 130",
   },
 };
 
@@ -126,7 +126,7 @@ export function pontosTratados(r) {
   const f = r.flags || {};
   const perfil = PERFIS.find((p) => p.id === r.perfil);
   const l = [
-    "Cronograma 2026–2033 com as alíquotas e fatores de transição cadastrados no InTAX, que são estimativas até a resolução do Senado (em 28/10/2026 o TCU aprovou a referência de 11,3% para a CBS de 2027; ver a tela Transição).",
+    "Cronograma 2026–2033 com os fatores de transição da Constituição e as alíquotas cadastradas no InTAX, que são estimativas até a resolução do Senado (em 28/10/2026 o TCU aprovou a referência de 11,3% para a CBS de 2027). De 2029 a 2033 nada foi fixado: a série segue o cenário de alíquotas escolhido na tela de resultado.",
     "Créditos das compras conforme o percentual informado, compensados com os débitos das vendas.",
     f.fora_ibs
       ? "Produtor abaixo do teto de R$ 3,6 milhões tratado como não contribuinte (sem IBS/CBS nas vendas e sem crédito nas compras)."
@@ -146,7 +146,8 @@ export function pontosNaoTratados(r) {
     { t: "Classificação produto a produto (NCM e cClassTrib)", p: "A estimativa usa uma redução média. Cada produto pode ter tratamento diferente; o diagnóstico com as notas calcula nota a nota." },
     { t: "Split payment e efeito no caixa", p: "Parte do tributo será retida na liquidação do pagamento (Arts. 31 a 35). Não entra na carga estimada, mas pesa no capital de giro." },
     { t: "Saldos credores de PIS/Cofins e ICMS na transição", p: "Créditos acumulados no sistema atual têm regras próprias de aproveitamento (Título VIII) e podem valer dinheiro." },
-    { t: "Estoques e contratos que atravessam 2027", p: "Mercadoria comprada no sistema antigo e vendida no novo, e contratos de preço fixo sem cláusula de revisão tributária." },
+    { t: "Estoques e contratos que atravessam 2027", p: "Mercadoria comprada no sistema antigo e vendida no novo, e contratos de preço fixo sem cláusula de revisão tributária. Em hipóteses específicas (regime cumulativo, monofásico ou ST), o estoque de 31/12/2026 gera crédito presumido de CBS (Art. 381; Decreto 12.955, arts. 605 a 609); a ferramenta Crédito presumido de estoque calcula." },
+    { t: "Vendas a órgãos públicos", p: "Nas compras da administração pública direta, autarquias e fundações, as alíquotas de IBS e CBS são reduzidas por um redutor (Arts. 349, III, e 472). O TCU calculou 44,16% para 2027, ainda sem resolução do Senado. Não entra nesta estimativa; o simulador com notas aplica o redutor à operação marcada como compra governamental." },
     { t: "Incentivos fiscais estaduais de ICMS", p: "Benefícios do ICMS terminam ao longo da transição; o efeito depende do seu estado e do incentivo. A validar com o especialista." },
   ];
   if (f.compra_de_pf || f.fora_ibs || r.perfil === "racao" || r.perfil === "etanol" || r.perfil === "sementeira") {
@@ -156,7 +157,7 @@ export function pontosNaoTratados(r) {
   if (f.icms_st) l.push({ t: "Fim gradual do ICMS-ST", p: "Substituição tributária sai aos poucos: revise preço e estoque com ST retido." });
   if (r.regime === "simples") l.push({ t: "Opção pelo regime regular dentro do Simples", p: "Prazos, regras e o efeito para o cliente empresa precisam de simulação própria (o Radar aponta 30/09/2026 como data-limite; confirmar)." });
   if (r.perfil === "restaurante") l.push({ t: "Hotelaria, transporte e demais regimes do mesmo capítulo", p: "Quem também presta esses serviços tem regras e reduções próprias (Arts. 281 a 291)." });
-  if (r.perfil === "etanol") l.push({ t: "Regras monofásicas da cadeia de combustíveis", p: "O regime específico (Arts. 172 a 180) tem sujeição passiva e créditos próprios, simplificados nesta estimativa." });
+  if (r.perfil === "etanol") l.push({ t: "Regras monofásicas da cadeia de combustíveis", p: "O regime específico (Arts. 172 a 180) cobra uma alíquota fixa por litro, uma única vez na cadeia (a CBS de 2027 está na Portaria MF nº 3.074/2026; o IBS por litro ainda não foi divulgado). Esta calculadora trabalha com média; o simulador com notas calcula a operação com a alíquota por litro." });
   if (r.perfil === "mineradora") l.push({ t: "Alíquota final do Imposto Seletivo", p: "O teto de 0,25% é o máximo; a alíquota efetiva depende de lei ordinária." });
   return l;
 }

@@ -40,7 +40,10 @@ export class PublicoController {
     return rows.map((r) => ({
       ano: r.ano, pis_cofins_fator: r.pis_cofins_fator, ipi_fator_geral: r.ipi_fator_geral, icms_fator: r.icms_fator,
       iss_fator: r.iss_fator, ibs_efetivo: r.ibs_efetivo, ibs_uf_aliquota: r.ibs_uf_aliquota, ibs_mun_aliquota: r.ibs_mun_aliquota,
-      cbs_efetiva: r.cbs_efetiva, efeito_financeiro: r.efeito_financeiro, carater: r.carater,
+      cbs_efetiva: r.cbs_efetiva, efeito_financeiro: r.efeito_financeiro, redutor_compra_gov: r.redutor_compra_gov,
+      carater: r.carater,
+      // "Oficial" (fixado por ato) nunca é alterado pelo cenário de alíquotas 2029–2033 (src/motor/cenariosAliquota.js).
+      status: r.status,
     }));
   }
 

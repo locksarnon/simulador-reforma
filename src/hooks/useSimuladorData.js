@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { calcOperacao } from "@/motor/taxEngine";
 import { agruparPorCodigo, escolherVigente } from "@/lib/vigencia";
+import { useTransicaoComCenario } from "@/lib/cenarioAliquotasStore";
+import { aliquotasCombustivelDoAno } from "@/motor/combustiveis";
 
 const PCT = (n) => n / 100;
 
@@ -68,17 +70,28 @@ export function useSimuladorData({ grupoNumero, empresaId, cenarioNome } = {}) {
     queryKey: ["credPres"],
     queryFn: () => api.entities.CredPres.list(),
   });
+  // Alíquotas por litro/quilo do regime específico de combustíveis (LC 214, arts. 172 a 180).
+  const combustivelQ = useQuery({
+    queryKey: ["aliquotaCombustivel"],
+    queryFn: () => api.entities.AliquotaCombustivel.list(),
+  });
 
   const isLoading =
     operacoesQ.isLoading || transicaoQ.isLoading || classTribQ.isLoading ||
     cenarioQ.isLoading || configQ.isLoading || empresasQ.isLoading || credPresQ.isLoading ||
-    gruposQ.isLoading;
+    gruposQ.isLoading || combustivelQ.isLoading;
 
   const config = configQ.data?.[0] || {};
   const cenarios = cenarioQ.data || [];
   const cenarioAtivo =
     cenarios.find((c) => c.nome === (cenarioNome || config.cenario_ativo || "Base")) || cenarios[0] || {};
-  const transicaoMap = new Map((transicaoQ.data || []).map((t) => [t.ano, t]));
+  // A tabela TransicaoAno passa pelo cenário de alíquotas 2029–2033 escolhido
+  // pelo usuário (src/motor/cenariosAliquota.js): daqui para frente, tudo que
+  // usa `transicao`/`transicaoMap` (Painel, Operações, PDF) já enxerga o cenário.
+  const { linhas: transicaoLinhas, resumo: cenarioAliquotas, selecao: selecaoCenarioAliquotas } = useTransicaoComCenario(transicaoQ.data);
+  // Cada ano leva junto as alíquotas de combustível dele (o motor lê anoParams.combustiveis).
+  const aliquotasCombustivel = combustivelQ.data || [];
+  const transicaoMap = new Map(transicaoLinhas.map((t) => [t.ano, { ...t, combustiveis: aliquotasCombustivelDoAno(aliquotasCombustivel, t.ano) }]));
   // Só classificações com status "Ativo" alimentam o motor — uma regra
   // desativada não deve continuar sendo aplicada às operações. Agrupadas
   // por código (não Map 1:1) porque pode haver mais de uma versão histórica
@@ -116,8 +129,11 @@ export function useSimuladorData({ grupoNumero, empresaId, cenarioNome } = {}) {
     isLoading,
     operacoes,
     operacoesCalculadas: calculadas,
-    transicao: transicaoQ.data || [],
+    transicao: transicaoLinhas,
     transicaoMap,
+    cenarioAliquotas,
+    selecaoCenarioAliquotas,
+    aliquotasCombustivel,
     classTrib: classTribQ.data || [],
     classTribGrouped,
     credPresGrouped,
@@ -137,6 +153,7 @@ export function useSimuladorData({ grupoNumero, empresaId, cenarioNome } = {}) {
         configQ.refetch(),
         empresasQ.refetch(),
         credPresQ.refetch(),
+        combustivelQ.refetch(),
       ]),
   };
 }

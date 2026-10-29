@@ -2,7 +2,7 @@
 
 Data: 28/10/2026. Pergunta: o que mudou na Reforma com efeito em cálculo e alíquotas divulgadas, e o InTAX já contempla?
 
-**Atualização de 29/10/2026:** as três correções P1 (2026 informativo, CBS de 2027 e 2028 em 11,2% e catálogo cClassTrib v1.70) foram aplicadas na produção e no banco local; ver a seção 8. As seções 1 e 2 descrevem o estado encontrado em 28/10.
+**Atualização de 29/10/2026:** as três correções P1 (2026 informativo, CBS de 2027 e 2028 em 11,2% e catálogo cClassTrib v1.70) foram aplicadas na produção e no banco local; ver a seção 8. **Também em 29/10/2026**, a modelagem do que faltava (cenário de alíquotas 2029–2033, redutor de compras governamentais, crédito presumido de estoque, combustíveis e Imposto Seletivo) foi implementada no motor 1.3.0; ver a seção 9. As seções 1 e 2 descrevem o estado encontrado em 28/10.
 
 **Método.** Textos oficiais lidos em 28/10/2026: Planalto (LC 214/2025 compilada com a LC 227/2026, LC 123, Decretos 12.955 e 13.075/2026, CF/ADCT), TCU, Agência Senado e Agência Câmara, CGIBS, Receita Federal/Portal do Simples e Portal da Conformidade Fácil (SVRS). O que não consegui confirmar em fonte oficial está marcado como **não confirmado**. Os números do InTAX foram lidos primeiro no banco de desenvolvimento e depois conferidos na produção, por consulta somente leitura autorizada pelo usuário em 29/10/2026 (seção 7): parâmetros e catálogos são idênticos nos dois.
 
@@ -11,7 +11,7 @@ Data: 28/10/2026. Pergunta: o que mudou na Reforma com efeito em cálculo e alí
 1. **Fato novo de hoje.** O TCU aprovou a alíquota de referência da CBS de 2027 em **11,3468%, arredondada para 11,3%** (LC 214, art. 349, §14), com redutor de compras governamentais de **44,16%**. Falta a resolução do Senado. O InTAX usa **9,21%** em 2027–2033, valor que não está na Resolução CGIBS 14/2026 (só sai por diferença: 27,91% − 18,7%).
 2. **Três divergências de cálculo em relação ao texto da lei**, independentes do número final da CBS: (a) 2026 é tratado com efeito financeiro, mas a lei compensa IBS/CBS com PIS/Cofins e dispensa o recolhimento de quem cumpre as obrigações acessórias; (b) a CBS de 2027–2028 não recebe a redução de 0,1 p.p. do art. 347; (c) **44 das 61 classes com redução** têm percentual errado no catálogo (41 gravadas com 0%).
 3. **O que confere com a lei:** IBS de 0,05% + 0,05% em 2027–2028, alíquotas de 2026 (0,9% e 0,1%), calendário de ICMS/ISS (9/10 a 6/10 e extinção em 2033), as 30 faixas do Simples 2027–2028 (alíquota, parcela e repartição de CBS/IBS) e as citações de artigos da calculadora pública.
-4. **Não modelado:** redutor de compras governamentais, Imposto Seletivo (fora a premissa de 0,25% da mineração), combustíveis com alíquota específica, crédito presumido sobre estoque (Decreto 12.955, arts. 605–608), Zona Franca e cashback.
+4. **Não modelado em 28/10** (modelado em 29/10, exceto Zona Franca e cashback; ver a seção 9): redutor de compras governamentais, Imposto Seletivo (fora a premissa de 0,25% da mineração), combustíveis com alíquota específica, crédito presumido sobre estoque (Decreto 12.955, arts. 605–609), Zona Franca e cashback.
 5. **Base legal e Radar:** faltam o Regulamento do IBS (Resolução CGIBS 6/2026) e os atos posteriores, e há 8 avisos de atualização aguardando aprovação do administrador em produção; o Radar roda toda semana (última execução em 26/10); a data-base normativa do sistema continua 01/09/2026.
 
 ## 2. O que mudou (fonte oficial) e a situação no InTAX
@@ -26,7 +26,7 @@ Situação: **Confere** (igual à lei), **Parcial**, **Divergente** (o sistema c
 | 4 | IBS de 2027–2028: 0,05% estadual + 0,05% municipal. | LC 214, art. 344 | **Confere.** |
 | 5 | 2026: IBS 0,1% e CBS 0,9%; o valor recolhido é compensado com PIS/Cofins (art. 348, I); fica dispensado o recolhimento de quem cumpre as obrigações acessórias (art. 348, §1º; ADCT, art. 125, §4º); não se aplica a optantes do Simples (art. 348, III, "c"). | LC 214, arts. 343, 346, 348; CF, ADCT art. 125 | **Divergente.** Alíquotas conferem, mas `efeito_financeiro` = 1 em 2026 soma IBS/CBS sobre PIS/Cofins integral. No Painel de teste, 2026 mostra R$ 11,6 mil de IBS/CBS que, cumpridas as obrigações acessórias, não são devidos. |
 | 6 | ICMS/ISS a 9/10, 8/10, 7/10 e 6/10 em 2029–2032; extinção em 2033. | CF, ADCT art. 128 | **Confere.** |
-| 7 | Alíquotas de referência do IBS (UF e município, 2029–2033) e da CBS (2028–2033): só por resolução do Senado, no ano anterior (art. 349, I, II e §1º). A Resolução CGIBS 14/2026 usa 18,7% de IBS como **premissa metodológica** para estimar a arrecadação de 2027 e o limite de 50% do CGIBS (R$ 2,58 bi); total 27,91% no quadro 2; não fala de CBS. O teto de 26,5% está no art. 475, §§ 9º a 12 (avaliação quinquenal). | [Res. CGIBS 14/2026](https://www.cgibs.gov.br/upload/arquivos/202607/31144942-resoluc-ao-cgibs-n-14-de-29-de-julho-de-2026-proposta-percentual-ibs-cgibs-2027.pdf); LC 214, arts. 349 e 475 | **Parcial.** O InTAX rotula "18,70% IBS + 9,21% CBS" como Resolução CGIBS 14 (a parte da CBS não está lá). Com a CBS do TCU, 18,7% + 11,3% = 30,0%, acima de 26,5%: **não há combinação oficial para 2029–2033**. |
+| 7 | Alíquotas de referência do IBS (UF e município, 2029–2033) e da CBS (2028–2033): só por resolução do Senado, no ano anterior (art. 349, I, II e §1º). A Resolução CGIBS 14/2026 usa 18,7% de IBS como **premissa metodológica** para estimar a arrecadação de 2027 e o limite de 50% do CGIBS (R$ 2,58 bi); total 27,91% no quadro 2; não fala de CBS. O gatilho de 26,5% está no art. 475, §§ 9º a 12 (avaliação quinquenal). | [Res. CGIBS 14/2026](https://www.cgibs.gov.br/upload/arquivos/202607/31144942-resoluc-ao-cgibs-n-14-de-29-de-julho-de-2026-proposta-percentual-ibs-cgibs-2027.pdf); LC 214, arts. 349 e 475 | **Parcial.** O InTAX rotula "18,70% IBS + 9,21% CBS" como Resolução CGIBS 14 (a parte da CBS não está lá). Com a CBS do TCU, 18,7% + 11,3% = 30,0%, acima de 26,5%: **não há combinação oficial para 2029–2033**. |
 | 8 | Imposto Seletivo: alíquotas por lei ordinária (art. 422); mineração no máximo 0,25% (art. 422, §2º). O governo deve enviar o projeto "nos próximos dias" (22/10). | LC 214, arts. 419–422; [Agência Câmara, 22/10](https://www.camara.leg.br/noticias/1313045-contribuicao-sobre-bens-e-servicos-entra-em-vigor-em-2027-e-novas-regulamentacoes-serao-enviadas-ao-congresso) | **Parcial.** Só a premissa de 0,25% do perfil "mineradora" da calculadora pública. O motor não calcula IS. |
 | 9 | Crédito presumido do produtor rural e do transportador autônomo: percentuais definidos por ato conjunto, divulgados até setembro, vigência em 1º de janeiro (arts. 168, §4º, e 169, §4º). Ato de 2027 **não localizado**; a página do TCU lista como pendência em 28/10. | LC 214, arts. 168 e 169; TCU | **Parcial.** O Painel traz a ressalva correta. Os percentuais entram por operação; o catálogo `CredPres` tem 1 linha. |
 | 10 | Crédito presumido de CBS sobre o **estoque de abertura de 1º/1/2027** (LC 214, art. 381): 9,25% sobre o estoque comprado no mercado interno, apropriado até 30/06/2027, em 12 parcelas, só compensa CBS; exige inventário em 31/12/2026 com documentação fiscal idônea. | [Decreto 12.955/2026, arts. 605–608](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2026/decreto/d12955.htm) | **Não modelado.** Tem relação direta com o projeto de saneamento de estoques. |
@@ -62,24 +62,24 @@ Trocar a alíquota exige atualizar a tabela e esses cinco textos.
 3. Reimportar a tabela cClassTrib v1.70 e gravar os percentuais oficiais (`PercRedIbs`/`PercRedCbs`); inativar 220001–220003 só depois de conferir.
 
 **P2: coerência e atualização.**
-4. Escolha de cenário de alíquotas para 2029–2033 (TCU, estimativa do CGIBS, teto de 26,5%) e alerta quando a soma passar do teto.
-5. Os cinco textos fixos passarem a ler os valores do banco.
+4. Escolha de cenário de alíquotas para 2029–2033 (TCU, estimativa do CGIBS, gatilho de 26,5%) e alerta quando a soma passar do gatilho. **Feito em 29/10 (seção 9).**
+5. Os cinco textos fixos passarem a ler os valores do banco. **Feito em parte em 29/10:** a nota da tela Transição passou a ler os valores da tabela e do cenário; os demais textos citam o fato oficial, sem repetir o número.
 6. Base legal: carregar Decreto 13.075, Resoluções CGIBS 6, 13 e 14, Portarias Conjuntas MF/CGIBS 7 e 14 e Resoluções CGSN 186 e 194; atualizar a data-base normativa.
 7. Radar: em produção roda toda semana (execuções agendadas das semanas 40 a 44, a última em 26/10) e já registrou a Resolução CGSN 194, a Portaria Conjunta 14 e o Decreto 13.140. O cálculo do TCU é de 28/10, então só pode aparecer a partir do ciclo de 02/11: conferir.
 8. Base legal: aprovar os 8 avisos pendentes (seção 7) e carregar as normas novas que o Radar já citou.
 
 **P3: modelagem nova (cada uma é um projeto).**
-9. Redutor de compras governamentais (44,16% em 2027).
-10. Crédito presumido sobre estoque (9,25%, 12 parcelas) para quem estava no Lucro Presumido.
-11. Combustíveis com alíquota específica.
-12. Imposto Seletivo, quando houver lei.
+9. Redutor de compras governamentais (44,16% em 2027). **Feito em 29/10 (seção 9).**
+10. Crédito presumido sobre estoque (9,25%, 12 parcelas) para quem estava no Lucro Presumido. **Feito em 29/10 (seção 9).**
+11. Combustíveis com alíquota específica. **Feito em 29/10 (seção 9), com a CBS de 2027 da Portaria MF 3.074/2026.**
+12. Imposto Seletivo, quando houver lei. **Estrutura feita em 29/10 (alíquota informada na operação); as alíquotas continuam dependendo da lei.**
 13. Percentuais do crédito presumido do produtor rural, quando o ato conjunto sair.
 
 ## 6. O que não consegui confirmar
 
 - Texto da Resolução CGSN 195/2026 (citada pelo Radar em 26/10; não lida).
 - Texto da Resolução CGSN 194/2026 e do Ato Conjunto RFB/CGIBS 4/2026 (só páginas de notícia oficiais).
-- Valores em R$/litro da Portaria Conjunta 14/2026 e o texto integral das Resoluções CGIBS 6 e 13.
+- ~~Valores em R$/litro dos combustíveis~~ (resolvido em 29/10: Portaria MF 3.074/2026, DOU de 09/10/2026, lida no texto do DOU; a Portaria Conjunta 14/2026 só traz a metodologia). Continua sem confirmação o texto integral das Resoluções CGIBS 6 e 13 e qualquer IBS por litro (será divulgado pelo CGIBS no ano anterior a 2029).
 - Ato conjunto com os percentuais do crédito presumido de 2027.
 - Leiaute da NF-e na versão atual da NT 2025.002: conferi só o que o importador lê (cClassTrib, cCredPres, CST e pCredPres). Grupos como tributação regular e compra governamental não são lidos.
 
@@ -196,8 +196,47 @@ Classes de não incidência, imunidade, isenção ou suspensão (CST 4xx e simil
 
 400001, 400002, 410001, 410002, 410003, 410004, 410005, 410006, 410007, 410008, 410009, 410010, 410011, 410012, 410013, 410014, 410015, 410016, 410017, 410018, 410019, 410020, 410021, 410022, 410023, 410024, 410025, 410026, 410027, 410028, 410029, 410030, 410031, 410032, 410033, 410034, 410035, 410036, 410037, 410999
 
+## 9. Modelagem do que faltava (29/10/2026)
+
+Pedido do usuário: colocar o cenário de alíquotas, aprovar os avisos da Base legal (feito pelo administrador na tela) e "modelar o que falta"; sobre o crédito presumido de estoque, o usuário perguntou se a decisão é dele ou se deve seguir a base legal, e a resposta é a segunda: elegibilidade, valor e prazos estão na LC 214 e no Decreto 12.955, e a empresa informa só fatos. Tudo abaixo foi lido no texto da lei carregado na Base legal do InTAX e, para os combustíveis, no texto do DOU. O motor foi para a versão **1.3.0**. Operação sem os novos dados dá o mesmo resultado da 1.2.0 (os 515 testes anteriores continuam passando), com duas ressalvas: (a) `compra_governamental_informado` já existia como campo informativo do DF-e e agora vale, então operação antiga marcada "Sim" recebe o redutor assim que o ano tiver redutor cadastrado (antes do deploy, conferir em produção, só leitura: `select count(*) from "Operacao" where compra_governamental_informado ilike 's%'`; o importador de XML não grava esse campo); (b) o cenário padrão novo (gatilho de 26,5%) muda a série de 2029 a 2033 em todas as telas em relação à tabela cadastrada (CBS de 9,21% para 11,3%; IBS cheio de 18,7% para 15,2%), e o cenário "Tabela cadastrada" reproduz os números anteriores.
+
+| Item | O que a lei diz (fonte) | O que o InTAX faz agora | O que continua pendente |
+|---|---|---|---|
+| Cenário de alíquotas 2029–2033 | A CBS e o IBS de referência de cada ano só saem em outubro do ano anterior (LC 214, art. 349); IBS de 2029 a 2032 na escala do ICMS/ISS (ADCT 128 e 130); soma de 26,5% é gatilho de revisão (art. 475, §11), não trava | Quatro cenários, com o **Gatilho de 26,5%** como padrão (CBS 11,3% do TCU + IBS 15,2%; não confundir com o "Teto de Referência" dos arts. 367 a 369); "estimativas somadas" (11,3% + 18,7% = 30,0%, com alerta, para estresse); tabela cadastrada; personalizado. A escolha é por usuário (navegador), vale para Painel, Calculadora, Transição e PDF, aparece no relatório e na simulação salva, e nunca altera linha gravada como Oficial | Quando o Senado fixar um ano, o administrador grava a linha como Oficial. Não aplica a eventual redução da CBS do art. 368 |
+| Redutor de compras governamentais | Reduz de modo uniforme IBS e CBS nas aquisições da administração direta, autarquias e fundações (arts. 349, III, 370 e 472); exceções: compra presencial dispensada de licitação, alíquota nacionalmente uniforme e fornecedor do Simples/MEI | Coluna `redutor_compra_gov` em `TransicaoAno`; a venda marcada como "Venda a órgão público" sai com alíquotas × (1 − redutor). 2027 = 44,16% (TCU, estimativa); anos sem valor repetem o último cadastrado, à vista na tela | O redutor de 2028 a 2033 (só sai no ano anterior). A destinação da arrecadação ao ente comprador (art. 473) não muda o valor do fornecedor |
+| Crédito presumido de estoque | Regime regular da CBS, três hipóteses, bens novos para revenda, produção ou serviços; 9,25% do estoque nacional, ou o PIS/Cofins-Importação pago; apropriar até junho/2027, 12 parcelas, só contra CBS; direito vence em 5 anos (LC 214, arts. 381 a 383; Decreto 12.955, arts. 605 a 609) | Ferramenta própria (menu Consultas e cálculos): itens do inventário, elegibilidade conferida com o artigo que exclui, cronograma de 12 parcelas, vencimento e abatimento da CBS mensal, CSV | O ato do Poder Executivo que disciplina a verificação do estoque (art. 381, §2º): conferir o texto vigente antes de apropriar |
+| Combustíveis | Incidência única, alíquota por litro ou quilo (arts. 172 a 180). **CBS de 2027 publicada:** Portaria MF 3.074/2026 (DOU 09/10/2026, edição 192-B): gasolina R$ 0,7925/l; EAC R$ 0,1922/l; diesel R$ 0,3515/l; B100 R$ 0,1480/l; GLP R$ 0,1677/kg; EHC R$ 0,1922/l; QAV R$ 0,0712/l; óleo combustível R$ 0,3403/kg; efeitos a partir de 08/01/2027. IBS 0,1% do valor em 2027–2028, dedutível da CBS (arts. 344 e 347, §2º) | Tabela nova `AliquotaCombustivel` (aba Combustíveis em Catálogos) com a carga da Portaria; operação com `combustivel_produto` = quantidade × alíquota; débito do produtor/importador, saída 620006 sem débito, crédito de quem consome (art. 47, §§4º e 5º), sem crédito na revenda (art. 180); em 2026 não se aplicam as alíquotas de teste (art. 348, III, b) | **IBS por litro de 2029 em diante** (o CGIBS divulga no ano anterior): o motor avisa e o exclui, sem inventar; CBS de 2028 em diante repete a de 2027 até haver divulgação (reajuste pelo preço médio, art. 174, §3º); gás natural processado, biometano e GNV |
+| Imposto Seletivo | Incidência única, sem crédito, a partir de 2027; Anexo XVII (veículos, aeronaves e embarcações, fumígenos, bebidas alcoólicas e açucaradas, bens minerais); base sem IBS, CBS, o próprio IS e, até 2032, ICMS e ISS (arts. 409, 410, 414, 415, 417); integra a base de IBS/CBS (art. 12, §1º, V); mineração com teto de 0,25% (art. 422, §2º); alíquotas por lei ordinária **ainda não publicada** | Campo `is_pct` na operação (alíquota que o usuário quer simular): IS = i × (valor − ICMS/ISS) ÷ (1 + i), somado à carga da transição, ao preço-alvo, ao consolidado e ao PDF; NCM do Anexo XVII reconhecido na tela da operação, com botão do teto de 0,25% para minerais | Alíquotas (lei ordinária); alíquota específica de fumígenos e bebidas alcoólicas; concursos de prognósticos |
+| Zona Franca de Manaus | Habilitação na Suframa e regras por tipo de operação (arts. 439 a 457) | **Não modelada**, de propósito: sem os dados de habilitação e da operação o resultado seria palpite | Projeto próprio, com especialista |
+| Devolução personalizada (cashback) | Repasse da CBS e do IBS a pessoas físicas de famílias de baixa renda (arts. 112 a 120); não muda o tributo que a empresa apura | Não modelada (não afeta a apuração); efeito no caixa de quem fornece energia, água, gás canalizado e telecomunicações (art. 116, §1º) depende do regulamento | Acompanhar o regulamento |
+| Crédito presumido do produtor rural | Percentuais por ato conjunto Fazenda/CGIBS até setembro do ano anterior (art. 168, §4º) | Sem mudança: segue "pendente" e estimado com os percentuais informados na operação | O ato de 2027 não foi localizado |
+
+**Dados e implantação.** A migração `20261029010000_reforma_redutor_is_combustiveis` só acrescenta colunas com valor padrão (`TransicaoAno.redutor_compra_gov`, `Operacao.is_pct` e `Operacao.combustivel_produto`) e cria a tabela `AliquotaCombustivel` com as 8 linhas da Portaria; nenhuma linha existente é alterada. O redutor de 2027 entra pelo SQL versionado `backend/scripts/sql/2026-10-29-redutor-compras-governamentais.sql` (com trava; aplicado no banco local, aguardando a produção). Os textos que diziam "não modelado" (FAQ, relatório da Calculadora, cobertura por setor, dicas dos campos, ressalvas do PDF, roteiro de testes e arquitetura) foram atualizados, e o teste do FAQ agora amarra os números citados às constantes do motor.
+
+## 10. Achado novo: base de cálculo do IBS e da CBS na transição (NÃO corrigido; depende de decisão)
+
+Ao revisar o art. 12 da LC 214 (texto da Base legal) para o Imposto Seletivo, apareceu uma diferença que **não é desta modelagem e atinge todos os cálculos**.
+
+**O que a lei diz.** O art. 12, §2º, V, manda que **não integrem a base de cálculo do IBS e da CBS** o montante, na operação, do ICMS, do ISS, da Cofins (art. 195, I, "b", e IV, da CF) e do PIS (art. 239), **de 1º/1/2026 a 31/12/2032**; o inciso II exclui o IPI e o inciso I, o próprio IBS e a CBS. Ou seja, nos anos de transição o IBS e a CBS incidem sobre o valor da operação **menos** esses tributos embutidos no preço.
+
+**O que o InTAX faz hoje.** O motor (`calcIbsCbs`) aplica as alíquotas de IBS e CBS sobre o `valor_bruto` inteiro, sem retirar ICMS, ISS, PIS e Cofins. É o que vinha da planilha original (v0.16) e das premissas validadas até aqui; nada disso foi alterado nesta entrega.
+
+**Tamanho do efeito** (venda de R$ 1.000 com ICMS de 18%, PIS 1,65% e Cofins 7,6% no sistema atual; IBS e CBS do cenário padrão):
+
+| Ano | IBS + CBS no motor | Pela lei (base sem os tributos) | Diferença |
+|---|---|---|---|
+| 2027 | R$ 113,00 | R$ 92,66 (base R$ 820,00) | −18,0% |
+| 2029 | R$ 128,20 | R$ 107,43 (base R$ 838,00) | −16,2% |
+| 2032 | R$ 173,80 | R$ 155,03 (base R$ 892,00) | −10,8% |
+| 2033 | R$ 265,00 | R$ 265,00 | 0 (a exclusão acaba em 2032) |
+
+Quanto maior o ICMS embutido, maior o excesso. O motor, portanto, **superestima** o IBS e a CBS de 2027 a 2032 (a favor da segurança, mas errado), inclusive na Calculadora pública e nas simulações salvas.
+
+**O que falta decidir (por isso não mexi).** Corrigir muda os números de todas as telas, dos PDFs e dos testes existentes, e a premissa foi validada pelo especialista tributário. Proposta: aplicar a exclusão em `calcIbsCbs` (débito e crédito), com os valores brutos de ICMS, ISS, PIS, Cofins e IPI do próprio sistema atual multiplicados pelos fatores do ano, e deixar as simulações antigas legíveis pelo número da versão do motor (já gravado em cada simulação salva). Pendente de confirmação do especialista: se `valor_bruto` das operações já vem sem esses tributos em algum ERP.
+
 ## Fontes
 
+- [Decreto 13.133/2026](https://www.planalto.gov.br/ccivil_03/_Ato2023-2026/2026/decreto/d13133.htm) (delegação ao Ministro da Fazenda das alíquotas da CBS dos combustíveis) e Portaria MF 3.074/2026 (DOU de 09/10/2026, edição 192-B, seção 1 extra B, p. 2: anexo com as alíquotas por litro e quilo)
 - [LC 214/2025, texto compilado (Planalto)](https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp214compilado.htm) e [LC 123/2006](https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp123.htm)
 - [Decreto 12.955/2026](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2026/decreto/d12955.htm) e [Decreto 13.075/2026](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2026/decreto/d13075.htm)
 - CF/1988, ADCT arts. 125 e 128 (texto compilado no Planalto, carregado na Base legal do InTAX)

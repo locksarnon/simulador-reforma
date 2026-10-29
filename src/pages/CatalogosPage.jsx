@@ -13,6 +13,7 @@ import { pct } from "@/lib/format";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import { PRODUTOS_COMBUSTIVEL } from "@/motor/combustiveis";
 
 /** <input type="date"> exige "YYYY-MM-DD" — corta o resto do ISO. */
 const toDateInput = (v) => (v ? String(v).slice(0, 10) : "");
@@ -74,12 +75,14 @@ export default function CatalogosPage() {
           <TabsTrigger value="ncm">NCM</TabsTrigger>
           <TabsTrigger value="cfop">CFOP</TabsTrigger>
           <TabsTrigger value="beneficio">Benefício Fiscal</TabsTrigger>
+          <TabsTrigger value="combustiveis">Combustíveis</TabsTrigger>
         </TabsList>
         <TabsContent value="cst"><CstTable /></TabsContent>
         <TabsContent value="classtrib"><ClassTribTable /></TabsContent>
         <TabsContent value="ncm"><NcmTable /></TabsContent>
         <TabsContent value="cfop"><CfopTable /></TabsContent>
         <TabsContent value="beneficio"><BeneficioFiscalTable /></TabsContent>
+        <TabsContent value="combustiveis"><CombustivelTable /></TabsContent>
         <TabsContent value="credpres"><CredPresTable /></TabsContent>
       </Tabs>
     </div>
@@ -578,6 +581,100 @@ function BeneficioFiscalTable() {
               <div><label className="text-xs text-muted-foreground">Fundamento legal</label><Input value={form.fundamento_legal || ""} onChange={(e) => set("fundamento_legal", e.target.value)} /></div>
             </div>
             <VigenciaFields form={form} set={set} />
+            <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
+              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+const moeda4 = (v) => (v === null || v === undefined ? null : `R$ ${Number(v).toFixed(4).replace(".", ",")}`);
+
+/**
+ * Alíquotas específicas (R$ por litro ou quilo) do regime de combustíveis — LC 214/2025, arts. 173 a 175.
+ * Uma linha por produto e ano. A CBS de 2027 vem da Portaria MF nº 3.074/2026; o IBS por unidade (de 2029 em
+ * diante) só existe quando o Comitê Gestor divulgar: vazio = pendente, e o motor avisa em vez de inventar.
+ */
+function CombustivelTable() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["aliquotaCombustivel"], queryFn: () => api.entities.AliquotaCombustivel.list() });
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({});
+  const [open, setOpen] = useState(false);
+  // Ano e, dentro do ano, a ordem do art. 172 (gasolina, EAC, diesel, B100, GLP, EHC, QAV, óleo combustível).
+  const ordemProduto = (p) => PRODUTOS_COMBUSTIVEL.findIndex((x) => x.id === p);
+  const rows = [...(data || [])].sort((a, b) => a.ano - b.ano || ordemProduto(a.produto) - ordemProduto(b.produto));
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const empty = { produto: "diesel", ano: 2028, cbs_por_unidade: "", ibs_por_unidade: "", fonte: "", status: "Oficial", observacao: "" };
+
+  const save = async (e) => {
+    e.preventDefault();
+    const meta = PRODUTOS_COMBUSTIVEL.find((p) => p.id === form.produto);
+    // Ao editar a mesma linha, mantém a descrição gravada (ela traz o "exceto..." da Portaria); em linha nova ou com outro produto, usa o nome do produto.
+    const mesmoProduto = editing !== "new" && editing?.produto === form.produto;
+    const payload = { ...form, descricao: mesmoProduto && form.descricao ? form.descricao : (meta?.nome || form.produto), unidade: meta?.unidade || form.unidade };
+    if (editing === "new") await api.entities.AliquotaCombustivel.create(payload);
+    else await api.entities.AliquotaCombustivel.update(editing.id, payload);
+    setOpen(false); qc.invalidateQueries({ queryKey: ["aliquotaCombustivel"] });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground max-w-3xl">
+          Regime específico de combustíveis (LC 214, arts. 172 a 180): IBS e CBS em reais por litro ou quilo, uma única vez na cadeia.
+          A CBS de 2027 é a da Portaria MF nº 3.074/2026 (efeitos a partir de 08/01/2027). O IBS por unidade, de 2029 em diante, ainda
+          não foi divulgado pelo Comitê Gestor: deixe em branco até lá. Anos sem linha repetem a CBS do último ano divulgado.
+        </p>
+        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 shrink-0">
+          <Plus className="w-4 h-4" /> Novo
+        </button>
+      </div>
+      <div className="rounded-lg border border-border bg-card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
+            <th className="py-2.5 px-4 font-medium">Ano</th><th className="py-2.5 px-4 font-medium">Combustível</th>
+            <th className="py-2.5 px-4 font-medium">Unidade</th><th className="py-2.5 px-4 font-medium text-right">CBS por unidade</th>
+            <th className="py-2.5 px-4 font-medium text-right">IBS por unidade</th><th className="py-2.5 px-4 font-medium">Fonte</th>
+            <th className="py-2.5 px-4 font-medium">Status</th><th className="py-2.5 px-4 font-medium w-12"></th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
+                <td className="py-2.5 px-4 font-medium">{r.ano}</td>
+                <td className="py-2.5 px-4">{r.descricao}</td>
+                <td className="py-2.5 px-4 text-muted-foreground">{r.unidade}</td>
+                <td className="py-2.5 px-4 text-right tabular-nums">{moeda4(r.cbs_por_unidade) || <span className="text-muted-foreground">pendente</span>}</td>
+                <td className="py-2.5 px-4 text-right tabular-nums">{moeda4(r.ibs_por_unidade) || <span className="text-muted-foreground">pendente</span>}</td>
+                <td className="py-2.5 px-4 text-xs text-muted-foreground max-w-[320px] truncate" title={r.fonte || ""}>{r.fonte}</td>
+                <td className="py-2.5 px-4">{r.status}</td>
+                <td className="py-2.5 px-4">
+                  <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground" aria-label={`Editar ${r.descricao} ${r.ano}`}><Pencil className="w-3.5 h-3.5" /></button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhuma alíquota cadastrada.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editing === "new" ? "Nova alíquota de combustível" : `Editar ${editing?.descricao} ${editing?.ano}`}</DialogTitle></DialogHeader>
+          <form onSubmit={save} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <FixedSelect label="Combustível" value={form.produto} fallback="diesel" onChange={(v) => set("produto", v)}
+                options={PRODUTOS_COMBUSTIVEL.map((p) => ({ value: p.id, label: `${p.nome} (${p.unidade})` }))} />
+              <div><label className="text-xs text-muted-foreground">Ano</label><Input type="number" value={form.ano ?? ""} onChange={(e) => set("ano", Number(e.target.value))} required /></div>
+              <div><label className="text-xs text-muted-foreground">CBS por unidade (R$)</label><Input type="number" step="any" min="0" value={form.cbs_por_unidade ?? ""} onChange={(e) => set("cbs_por_unidade", e.target.value === "" ? "" : Number(e.target.value))} placeholder="vazio = pendente" /></div>
+              <div><label className="text-xs text-muted-foreground">IBS por unidade (R$)</label><Input type="number" step="any" min="0" value={form.ibs_por_unidade ?? ""} onChange={(e) => set("ibs_por_unidade", e.target.value === "" ? "" : Number(e.target.value))} placeholder="vazio = pendente" /></div>
+            </div>
+            <div><label className="text-xs text-muted-foreground">Fonte (ato e dispositivo)</label><Input value={form.fonte || ""} onChange={(e) => set("fonte", e.target.value)} placeholder="Ex.: Portaria MF nº ..., Anexo" /></div>
+            <FixedSelect label="Status" value={form.status} fallback="Oficial" onChange={(v) => set("status", v)}
+              options={[{ value: "Oficial", label: "Oficial (ato publicado)" }, { value: "Estimativa", label: "Estimativa" }]} />
             <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>

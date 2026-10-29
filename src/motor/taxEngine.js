@@ -11,6 +11,8 @@
  *
  * Fórmulas reproduzem a aba "Caixa e Split" e "Preço e margem" do Excel v0.16.
  */
+import { calcCombustivel } from "./combustiveis.js";
+import { calcImpostoSeletivo } from "./impostoSeletivo.js";
 
 /** Versão do motor — bump manual sempre que uma fórmula de cálculo mudar.
  * Gravada em cada Simulacao salva, para saber depois com qual versão do
@@ -22,10 +24,24 @@
  * crédito de IBS/CBS por empresa+ano antes de truncar em zero — antes, cada
  * operação truncava seu próprio saldo isoladamente, e o Painel Executivo
  * somava esses saldos já truncados, descartando o excedente de crédito de
- * uma entrada em vez de abater o débito de uma saída no mesmo período. */
-export const VERSAO_MOTOR = "1.2.0";
+ * uma entrada em vez de abater o débito de uma saída no mesmo período.
+ * 1.3.0 (2026-10-29): três regimes da LC 214/2025 que o motor ignorava passaram
+ * a ser calculados. (a) Redutor de compras governamentais: nas SAÍDAS marcadas
+ * como compra governamental, as alíquotas de IBS e CBS saem multiplicadas por
+ * (1 − redutor do ano), arts. 349, III, e 472. (b) Combustíveis do regime
+ * específico (operação com `combustivel_produto`): CBS = quantidade × alíquota
+ * por unidade, IBS de 2027–2028 = 0,1% do valor deduzível da CBS, arts. 172 a
+ * 180 e 344/347; o IBS por unidade de 2029 em diante fica pendente. (c)
+ * Imposto Seletivo informado na operação (`is_pct`): entra na carga da transição
+ * e no preço-alvo, arts. 409 a 438. Operação sem esses dados (combustivel_produto
+ * vazio, is_pct 0 e sem a marca de venda a órgão público, ou ano sem redutor
+ * cadastrado) dá o mesmo resultado da 1.2.0. ATENÇÃO: compra_governamental_informado
+ * já existia como campo informativo do DF-e; operação antiga marcada "Sim" passa a
+ * receber o redutor assim que o ano tiver redutor cadastrado em TransicaoAno. */
+export const VERSAO_MOTOR = "1.3.0";
 
 const num = (v) => (typeof v === "number" ? v : Number(v) || 0);
+const sim = (v) => ["sim", "s", "true", "1"].includes(String(v ?? "").trim().toLowerCase());
 
 /** Módulo 1 — Sistema atual */
 export function calcSistemaAtual(op) {
@@ -64,16 +80,45 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const redCbs = num(classTrib.pct_reducao_cbs);
   const ibsNominal = num(anoParams.ibs_efetivo);
   const cbsNominal = num(anoParams.cbs_efetiva);
-  const ibsEfetiva = ibsNominal * (1 - redIbs);
-  const cbsEfetiva = cbsNominal * (1 - redCbs);
   const creditoElegivel = num(op.credito_elegivel_pct);
 
-  const debitoIbs = isEntrada ? 0 : vb * ibsEfetiva;
-  const debitoCbs = isEntrada ? 0 : vb * cbsEfetiva;
+  // Combustível do regime específico (arts. 172 a 180): alíquota por unidade em vez de percentual.
+  const comb = calcCombustivel(op, anoParams, classTrib);
+  const usaCombustivel = Boolean(comb?.aplicavel);
+
+  // Redutor de compras governamentais (arts. 349, III, 370 e 472): reduz, de modo uniforme, as alíquotas de
+  // IBS e CBS nas vendas à administração pública direta, autarquias e fundações. Vale só na SAÍDA, e não vale
+  // para combustíveis, cuja alíquota é nacionalmente uniforme (art. 472, parágrafo único, II).
+  const redutorGov = !isEntrada && !usaCombustivel && sim(op.compra_governamental_informado)
+    ? Math.min(1, Math.max(0, num(anoParams.redutor_compra_gov)))
+    : 0;
+  const fatorGov = 1 - redutorGov;
+  let ibsEfetiva = ibsNominal * (1 - redIbs) * fatorGov;
+  let cbsEfetiva = cbsNominal * (1 - redCbs) * fatorGov;
+
+  let debitoIbs = isEntrada ? 0 : vb * ibsEfetiva;
+  let debitoCbs = isEntrada ? 0 : vb * cbsEfetiva;
   // Crédito normal do Excel v0.16: vb × alíquota efetiva × crédito elegível.
   // O fator de crédito do cenário NÃO integra as fórmulas do Excel v0.16.
-  const creditoIbs = isEntrada ? vb * ibsEfetiva * creditoElegivel : 0;
-  const creditoCbs = isEntrada ? vb * cbsEfetiva * creditoElegivel : 0;
+  let creditoIbs = isEntrada ? vb * ibsEfetiva * creditoElegivel : 0;
+  let creditoCbs = isEntrada ? vb * cbsEfetiva * creditoElegivel : 0;
+
+  if (usaCombustivel) {
+    // Tributo = quantidade × alíquota específica. Em 2027–2028 o IBS recolhido (0,1% do valor) pode ser
+    // deduzido da CBS a recolher (art. 347, §2º). Crédito = valores registrados na nota (art. 47, §§ 4º e 5º);
+    // para revenda o usuário informa 0% de crédito elegível (art. 180). PREMISSA: a dedução do §2º reduz só o que o
+    // fornecedor recolhe; o adquirente credita a CBS específica cheia mais o IBS da nota, então em 2027–2028 o
+    // crédito pode exceder em até o IBS (0,1% do valor) o que o fornecedor recolheu líquido.
+    const ano = num(anoParams.ano) || num(op.ano);
+    const deducaoIbs = ano === 2027 || ano === 2028 ? comb.ibsValor : 0;
+    debitoIbs = isEntrada || comb.semDebito ? 0 : comb.ibsValor;
+    debitoCbs = isEntrada || comb.semDebito ? 0 : Math.max(0, comb.cbsAdRem - deducaoIbs);
+    creditoIbs = isEntrada ? comb.ibsValor * creditoElegivel : 0;
+    creditoCbs = isEntrada ? comb.cbsAdRem * creditoElegivel : 0;
+    // Alíquota equivalente (só para exibição): quanto o tributo específico pesa sobre o valor da operação.
+    ibsEfetiva = vb > 0 ? comb.ibsValor / vb : 0;
+    cbsEfetiva = vb > 0 ? comb.cbsAdRem / vb : 0;
+  }
 
   // Crédito presumido (cCredPres) — somente quando localizado e não pendente.
   const credPresLocalizado = Boolean(credPres?.c_cred_pres);
@@ -122,15 +167,17 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const aliqUf = num(anoParams.ibs_uf_aliquota);
   const aliqMun = num(anoParams.ibs_mun_aliquota);
   const aliqTotal = aliqUf + aliqMun;
-  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? vb * aliqUf * (1 - redIbs) : 0);
-  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? vb * aliqMun * (1 - redIbs) : 0);
+  // Combustível: o IBS já vem em reais; reparte pela proporção estado × município do ano.
+  const parteUf = aliqTotal > 0 ? aliqUf / aliqTotal : 0;
+  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * parteUf : vb * aliqUf * (1 - redIbs) * fatorGov) : 0);
+  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * (1 - parteUf) : vb * aliqMun * (1 - redIbs) * fatorGov) : 0);
 
   // Split IBS UF / Município — créditos (proporcionais à alíquota de cada ente)
   const creditoIbsUf = isEntrada && aliqTotal > 0
-    ? vb * aliqUf * (1 - redIbs) * creditoElegivel
+    ? (usaCombustivel ? creditoIbs * parteUf : vb * aliqUf * (1 - redIbs) * creditoElegivel)
     : 0;
   const creditoIbsMun = isEntrada && aliqTotal > 0
-    ? vb * aliqMun * (1 - redIbs) * creditoElegivel
+    ? (usaCombustivel ? creditoIbs * (1 - parteUf) : vb * aliqMun * (1 - redIbs) * creditoElegivel)
     : 0;
 
   // Saldos por ente (débito - crédito, nunca negativo individualmente)
@@ -147,11 +194,17 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
     saldoIbsUf, saldoIbsMun,
     statusClassificacao: classTrib?.c_class_trib ? "Localizada" : "Pendente",
     credPresPendente, statusCredPres,
+    redutorCompraGov: redutorGov,
+    // Detalhe do regime específico de combustíveis (null para operação comum). Avisos aparecem na tela.
+    combustivel: comb,
   };
 }
 
-/** Módulo 3 — Transição */
-export function calcTransicao(op, sisAtual, ibsCbs, anoParams) {
+/**
+ * Módulo 3 — Transição
+ * @param impSel resultado de calcImpostoSeletivo() — o IS é um tributo a mais na carga da transição (opcional).
+ */
+export function calcTransicao(op, sisAtual, ibsCbs, anoParams, impSel = {}) {
   const vb = num(op.valor_bruto);
   const fPisCofins = num(anoParams.pis_cofins_fator);
   const fIpi = num(anoParams.ipi_fator_geral);
@@ -177,14 +230,16 @@ export function calcTransicao(op, sisAtual, ibsCbs, anoParams) {
 
   const ibsCbsLiquidoFinal = ibsCbs.ibsCbsLiquido;
   const ibsCbsFinanceiro = ibsCbs.ibsCbsLiquido * num(anoParams.efeito_financeiro);
-  const cargaTotalTransicao = sistemaAtualRemanescente + ibsCbsFinanceiro;
+  // Imposto Seletivo: incidência única, sem crédito (art. 410) e fora do efeito financeiro/compensação de 2026.
+  const impostoSeletivo = num(impSel.valor);
+  const cargaTotalTransicao = sistemaAtualRemanescente + ibsCbsFinanceiro + impostoSeletivo;
   const cargaEfetiva = vb > 0 ? cargaTotalTransicao / vb : 0;
   const diferencaVsAtual = cargaTotalTransicao - sisAtual.tributosLiquidos;
   const diferencaPct = vb > 0 ? diferencaVsAtual / vb : 0;
 
   return {
     pisCofinsAtual, ipiAtual, icmsFcpStAtual, issAtual,
-    sistemaAtualRemanescente, ibsCbsLiquidoFinal, ibsCbsFinanceiro,
+    sistemaAtualRemanescente, ibsCbsLiquidoFinal, ibsCbsFinanceiro, impostoSeletivo,
     cargaTotalTransicao, cargaEfetiva, diferencaVsAtual, diferencaPct,
     carater: anoParams.carater || "",
   };
@@ -214,7 +269,9 @@ export function calcPrecoMargem(op, sisAtual, transicao, cenario = {}, config = 
   const margemMeta = num(config.margem_meta_pct) || num(op.margem_meta_pct) || 0.18;
   const cargaRemanescenteRate = receita > 0 ? transicao.sistemaAtualRemanescente / receita : 0;
   const ibsCbsFinRate = receita > 0 ? transicao.ibsCbsFinanceiro / receita : 0;
-  const divisor = 1 - margemMeta - cargaRemanescenteRate;
+  // O IS está dentro do preço (por dentro, art. 12, §1º, V): entra no divisor como o remanescente do sistema atual.
+  const impostoSeletivoRate = receita > 0 ? num(transicao.impostoSeletivo) / receita : 0;
+  const divisor = 1 - margemMeta - cargaRemanescenteRate - impostoSeletivoRate;
   const precoBrutoAlvo = isEntrada || divisor <= 0
     ? 0
     : (custoBase / divisor) * (1 + ibsCbsFinRate);
@@ -269,7 +326,7 @@ export function calcCaixaSplit(op, ibsCbs, transicao, sisAtual, config = {}) {
 }
 
 // Campos que são razão/percentual/prazo — não mudam de sinal quando a operação é um estorno.
-const NAO_ESPELHAR = new Set(["ibsNominal", "cbsNominal", "ibsEfetiva", "cbsEfetiva", "cargaEfetiva", "diferencaPct", "margemPctAtual", "margemPctTransicao", "prazo"]);
+const NAO_ESPELHAR = new Set(["ibsNominal", "cbsNominal", "ibsEfetiva", "cbsEfetiva", "cargaEfetiva", "diferencaPct", "margemPctAtual", "margemPctTransicao", "prazo", "redutorCompraGov", "aliquota", "teto"]);
 
 /**
  * Devolução de venda = receita NEGATIVA (valor_bruto < 0): o cálculo é o espelho exato da venda de mesmo valor.
@@ -284,6 +341,11 @@ function espelharEstorno(r) {
       out[modulo][k] = typeof v === "number" && !NAO_ESPELHAR.has(k) ? (v === 0 ? 0 : -v) : v;
     }
   }
+  // O detalhe do combustível é um objeto: espelha os valores em R$ dele também.
+  const comb = out.ibsCbs?.combustivel;
+  if (comb && typeof comb === "object") {
+    out.ibsCbs.combustivel = { ...comb, cbsAdRem: comb.cbsAdRem ? -comb.cbsAdRem : 0, ibsValor: comb.ibsValor ? -comb.ibsValor : 0 };
+  }
   out.precoMargem.alerta = null; // meta de margem não se aplica a um estorno
   out.caixa.classificacao = "Estorno (devolução de venda)";
   out.estorno = true;
@@ -293,16 +355,18 @@ function espelharEstorno(r) {
 /** Orquestra todos os módulos para uma operação */
 export function calcOperacao(op, anoParams, classTrib, cenario, config, credPresMap = {}) {
   if (num(op.valor_bruto) < 0) {
-    return espelharEstorno(calcOperacao({ ...op, valor_bruto: -num(op.valor_bruto) }, anoParams, classTrib, cenario, config, credPresMap));
+    // A quantidade também vem positiva: o regime de combustíveis (quantidade × alíquota) precisa dela para ligar.
+    return espelharEstorno(calcOperacao({ ...op, valor_bruto: -num(op.valor_bruto), quantidade: Math.abs(num(op.quantidade)) }, anoParams, classTrib, cenario, config, credPresMap));
   }
   const sisAtual = calcSistemaAtual(op);
   const credPres =
     (credPresMap && credPresMap.get && credPresMap.get(op.c_cred_pres)) || {};
   const ibsCbs = calcIbsCbs(op, anoParams || {}, classTrib || {}, cenario || {}, credPres);
-  const transicao = calcTransicao(op, sisAtual, ibsCbs, anoParams || {});
+  const impostoSeletivo = calcImpostoSeletivo(op, sisAtual, anoParams || {});
+  const transicao = calcTransicao(op, sisAtual, ibsCbs, anoParams || {}, impostoSeletivo);
   const precoMargem = calcPrecoMargem(op, sisAtual, transicao, cenario || {}, config || {});
   const caixa = calcCaixaSplit(op, ibsCbs, transicao, sisAtual, config || {});
-  return { sistemaAtual: sisAtual, ibsCbs, transicao, precoMargem, caixa };
+  return { sistemaAtual: sisAtual, ibsCbs, impostoSeletivo, transicao, precoMargem, caixa };
 }
 
 /**
@@ -331,6 +395,7 @@ export function apuracaoPorEmpresa(operacoesCalculadas, filtro = {}) {
         credPresTotal: 0,
         tributosAtuaisLiquidos: 0,
         cargaTransicao: 0,
+        impostoSeletivo: 0,
         splitRetido: 0,
         funding: 0,
       });
@@ -350,6 +415,7 @@ export function apuracaoPorEmpresa(operacoesCalculadas, filtro = {}) {
     a.credPresTotal += oc.ibsCbs.credPresTotal;
     a.tributosAtuaisLiquidos += oc.sistemaAtual.tributosLiquidos;
     a.cargaTransicao += oc.transicao.cargaTotalTransicao;
+    a.impostoSeletivo += num(oc.transicao.impostoSeletivo);
     a.splitRetido += oc.ibsCbs.splitRetido;
     a.funding += oc.caixa.fundingTributario;
   }
@@ -398,7 +464,7 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
         ano: oc.op.ano,
         valorBruto: 0, tributosAtuaisLiquidos: 0,
         debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0,
-        sistemaAtualRemanescente: 0,
+        sistemaAtualRemanescente: 0, impostoSeletivo: 0,
         margemAtual: 0, margemTransicao: 0,
         splitRetido: 0, creditoAcumulado: 0, funding: 0,
       });
@@ -412,6 +478,7 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
     e.creditoCbs += oc.ibsCbs.creditoCbs;
     e.credPresTotal += oc.ibsCbs.credPresTotal;
     e.sistemaAtualRemanescente += oc.transicao.sistemaAtualRemanescente;
+    e.impostoSeletivo += num(oc.transicao.impostoSeletivo);
     e.margemAtual += oc.precoMargem.margemAtual;
     e.margemTransicao += oc.precoMargem.margemTransicao;
     e.splitRetido += oc.ibsCbs.splitRetido;
@@ -425,7 +492,7 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
       porAno[e.ano] = {
         ano: e.ano, valorBruto: 0, tributosAtuaisLiquidos: 0, ibsCbsLiquido: 0,
         debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0,
-        cargaTransicao: 0, margemAtual: 0, margemTransicao: 0,
+        cargaTransicao: 0, impostoSeletivo: 0, margemAtual: 0, margemTransicao: 0,
         splitRetido: 0, creditoAcumulado: 0, funding: 0,
       };
     }
@@ -442,7 +509,8 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
     a.creditoCbs += e.creditoCbs;
     a.credPresTotal += e.credPresTotal;
     a.ibsCbsLiquido += ibsCbsApurado;
-    a.cargaTransicao += e.sistemaAtualRemanescente + ibsCbsApurado * efeitoFinanceiro;
+    a.cargaTransicao += e.sistemaAtualRemanescente + ibsCbsApurado * efeitoFinanceiro + e.impostoSeletivo;
+    a.impostoSeletivo += e.impostoSeletivo;
     a.margemAtual += e.margemAtual;
     a.margemTransicao += e.margemTransicao;
     a.splitRetido += e.splitRetido;

@@ -9,6 +9,8 @@ import InfoLegal from "@/components/InfoLegal";
 import ComparacaoClassificacao from "@/components/painel/ComparacaoClassificacao";
 import { RESSALVA_CRED_PRES, RESSALVA_ALIQUOTAS, LINK_CRED_PRES } from "@/lib/ressalvas";
 import { gerarRelatorioSimulacao } from "@/lib/pdfReport";
+import { alertaGatilho, descricaoCurta } from "@/motor/cenariosAliquota";
+import SeletorCenarioAliquotas from "@/components/SeletorCenarioAliquotas";
 import KpiCard from "@/components/KpiCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
@@ -61,13 +63,14 @@ function somarTotais(consolidado) {
       acc.creditoIbs += c.creditoIbs || 0;
       acc.creditoCbs += c.creditoCbs || 0;
       acc.credPres += c.credPresTotal || 0;
+      acc.impostoSeletivo += c.impostoSeletivo || 0;
       acc.split += c.splitRetido;
       acc.funding += c.funding;
       acc.margemAtual += c.margemAtual;
       acc.margemTransicao += c.margemTransicao;
       return acc;
     },
-    { valorBruto: 0, tributosAtuais: 0, cargaTransicao: 0, ibsCbs: 0, debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPres: 0, split: 0, funding: 0, margemAtual: 0, margemTransicao: 0 }
+    { valorBruto: 0, tributosAtuais: 0, cargaTransicao: 0, ibsCbs: 0, debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPres: 0, impostoSeletivo: 0, split: 0, funding: 0, margemAtual: 0, margemTransicao: 0 }
   );
 }
 
@@ -100,6 +103,7 @@ export default function PainelExecutivoView({
   const {
     operacoes, operacoesCalculadas, isLoading, cenarioAtivo, cenarios, config,
     transicao, transicaoMap, classTrib, classTribGrouped, credPresGrouped, credPres,
+    cenarioAliquotas, selecaoCenarioAliquotas, aliquotasCombustivel,
   } = useSimuladorData({
     grupoNumero: grupoNumero || undefined,
     empresaId: empresaId || undefined,
@@ -211,8 +215,16 @@ export default function PainelExecutivoView({
       const entrada = {
         operacoes: operacoesCalculadas.map((oc) => oc.op),
         cenarioAtivo, config, transicao,
+        // Qual cenário de alíquotas 2029–2033 produziu as linhas de `transicao` acima.
+        cenarioAliquotas: {
+          id: cenarioAliquotas.id, nome: cenarioAliquotas.nome, selecao: cenarioAliquotas.selecao,
+          cbsReferencia: cenarioAliquotas.cbsReferencia, ibsReferenciaCheia: cenarioAliquotas.ibsReferenciaCheia,
+          somaReferencia: cenarioAliquotas.somaReferencia,
+        },
         classTrib: classTrib.filter((c) => usadosCt.has(c.c_class_trib)),
         credPres,
+        // Alíquotas por litro/quilo dos combustíveis (o motor lê anoParams.combustiveis): sem elas a simulação não se reproduz.
+        aliquotasCombustivel,
       };
       const resultado = { consolidado, totais };
       const nomeEscopo = empresaLabel || grupoLabel || "todos os grupos";
@@ -242,10 +254,14 @@ export default function PainelExecutivoView({
         totais, consolidado,
         transicaoAnos: [...transicao].sort((a, b) => a.ano - b.ano),
         comparacaoCenarios: comparar ? comparacaoCenarios : null,
-        ressalvas: [totais.credPres > 0 ? RESSALVA_CRED_PRES : null, RESSALVA_ALIQUOTAS].filter(Boolean),
+        ressalvas: [
+          totais.credPres > 0 ? RESSALVA_CRED_PRES : null, RESSALVA_ALIQUOTAS,
+          descricaoCurta(cenarioAliquotas), alertaGatilho(cenarioAliquotas),
+        ].filter(Boolean),
         versaoMotor: VERSAO_MOTOR,
         versaoRegras: config.versao_simulador || "v0.18",
         cenarioNome: cenarioAtivo?.nome,
+        cenarioAliquotasNome: cenarioAliquotas.nome,
         grupoNome: empresaLabel || grupoLabel || "Todos os grupos",
       });
       toast({ title: "PDF gerado", description: nome });
@@ -321,6 +337,8 @@ export default function PainelExecutivoView({
         </button>
       </div>
 
+      <SeletorCenarioAliquotas resumo={cenarioAliquotas} selecao={selecaoCenarioAliquotas} />
+
       {comparar && comparacaoCenarios.length > 0 && (
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -393,6 +411,9 @@ export default function PainelExecutivoView({
         <KpiCard label={<>Crédito de IBS<InfoLegal chave="credito_ibs_cbs" /></>} value={BRL(totais.creditoIbs)} sub="das compras" accent="text-chart-2" />
         <KpiCard label={<>Crédito de CBS<InfoLegal chave="credito_ibs_cbs" /></>} value={BRL(totais.creditoCbs)} sub="das compras" accent="text-chart-2" />
         <KpiCard label={<>Crédito presumido (estimativa)<InfoLegal chave="credito_presumido" /></>} value={BRL(totais.credPres)} sub="ver ressalva abaixo" accent="text-amber-600" />
+        {totais.impostoSeletivo !== 0 && (
+          <KpiCard label={<>Imposto Seletivo (alíquota informada)<InfoLegal chave="imposto_seletivo" /></>} value={BRL(totais.impostoSeletivo)} sub="já dentro da carga da transição" accent="text-amber-600" />
+        )}
       </div>
       <p className="text-xs text-muted-foreground -mt-2">
         {RESSALVA_CRED_PRES}{" "}

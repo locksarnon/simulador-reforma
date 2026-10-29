@@ -36,6 +36,7 @@ import FerramentasValidadorNFSe from '@/pages/FerramentasValidadorNFSe';
 import FerramentasConsultaNcm from '@/pages/FerramentasConsultaNcm';
 import FerramentasValidadorCadastro from '@/pages/FerramentasValidadorCadastro';
 import FerramentasSaneamento from '@/pages/FerramentasSaneamento';
+import FerramentasCreditoEstoque from '@/pages/FerramentasCreditoEstoque';
 import LeadsPage from '@/pages/LeadsPage';
 import NewsletterPage from '@/pages/NewsletterPage';
 import BaseLegalPage from '@/pages/BaseLegalPage';
@@ -106,6 +107,7 @@ function App() {
                   <Route path="/ferramentas/radar-reforma" element={<RadarReformaPage />} />
                   <Route path="/ferramentas/validador-nfse" element={<Navigate to="/" replace />} />
                   <Route path="/ferramentas/consulta-ncm" element={<FerramentasConsultaNcm />} />
+                  <Route path="/ferramentas/credito-estoque" element={<FerramentasCreditoEstoque />} />
                   <Route path="/ferramentas/validador-cadastro" element={<Navigate to="/" replace />} />
                   <Route path="/comercial/leads" element={<LeadsPage />} />
                   <Route path="/comercial/newsletter" element={<NewsletterPage />} />

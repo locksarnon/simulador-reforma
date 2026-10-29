@@ -16,6 +16,7 @@ import {
   Users,
   ExternalLink,
   ClipboardCheck,
+  Boxes,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
@@ -28,9 +29,10 @@ const sections = [
     ],
   },
   {
-    title: "Consultas",
+    title: "Consultas e cálculos",
     items: [
       { to: "/ferramentas/consulta-ncm", label: "Consulta NCM", icon: Search },
+      { to: "/ferramentas/credito-estoque", label: "Crédito presumido de estoque", icon: Boxes },
     ],
   },
   {

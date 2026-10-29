@@ -32,6 +32,7 @@ const ALLOWED_MODELS = [
   'CorrelacaoServico',
   'CorrelacaoNcm',
   'AliquotaIssMunicipio',
+  'AliquotaCombustivel',
   'NoticiaReforma',
   'RadarReformaItem',
   'RadarReformaExecucao',

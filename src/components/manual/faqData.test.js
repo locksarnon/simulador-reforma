@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { FAQ_SECOES, FAQ_ATUALIZADO_EM } from "./faqData";
 import { SECAO_NOVIDADES } from "./faqAtualizacao";
+import { ALIQUOTA_ESTOQUE_NACIONAL, PARCELAS_ESTOQUE } from "@/motor/creditoEstoque";
+import { GATILHO_SOMA_REFERENCIA } from "@/motor/cenariosAliquota";
+import { TETO_IS_BENS_MINERAIS } from "@/motor/impostoSeletivo";
 
 describe("FAQ do InTAX", () => {
   it("abre com as novidades da Reforma e traz as seções novas nos lugares certos", () => {
@@ -44,5 +47,24 @@ describe("FAQ do InTAX", () => {
     const texto = JSON.stringify(FAQ_SECOES);
     expect(texto).not.toMatch(/Simulador FAL v0\.16/i);
     expect(texto).not.toMatch(/base44/i);
+  });
+
+  it("as respostas sobre os regimes que o motor calcula citam os mesmos números do motor", () => {
+    const resposta = (trecho) => SECAO_NOVIDADES.itens.find((i) => i.p.includes(trecho))?.r || "";
+    const virgula = (v, casas) => (v * 100).toFixed(casas).replace(".", ",");
+    // Combustíveis: a CBS de 2027 da Portaria MF nº 3.074/2026 (mesmos valores da migração que alimenta o catálogo).
+    const comb = resposta("combustíveis, inclusive o etanol");
+    for (const v of ["0,7925", "0,1922", "0,3515", "0,1480", "0,1677", "0,0712", "0,3403"]) expect(comb, v).toContain(v);
+    expect(comb).toContain("Portaria MF nº 3.074");
+    // Crédito de estoque, gatilho de 26,5% e teto do IS de mineração.
+    expect(resposta("crédito presumido de CBS sobre o estoque")).toContain(virgula(ALIQUOTA_ESTOQUE_NACIONAL, 2) + "%");
+    expect(resposta("crédito presumido de CBS sobre o estoque")).toContain(String(PARCELAS_ESTOQUE));
+    expect(resposta("alíquotas de 2029 a 2033")).toContain(virgula(GATILHO_SOMA_REFERENCIA, 1) + "%");
+    expect(resposta("Imposto Seletivo já tem")).toContain(virgula(TETO_IS_BENS_MINERAIS, 2) + "%");
+  });
+
+  it("não diz mais que o InTAX deixa de calcular o que o motor agora calcula", () => {
+    const todas = JSON.stringify(SECAO_NOVIDADES.itens.map((i) => i.r));
+    expect(todas).not.toMatch(/ainda não aplica o redutor|ainda não calcula esse crédito|ainda trata combustíveis por alíquota percentual|ainda não calcula o Imposto Seletivo/i);
   });
 });

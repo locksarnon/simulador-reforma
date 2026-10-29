@@ -29,7 +29,8 @@ function Module({ title, children, defaultOpen }) {
 }
 
 export default function OperacaoCalcDetail({ calc }) {
-  const { sistemaAtual: s, ibsCbs: ib, transicao: t, precoMargem: pm, caixa: cx } = calc;
+  const { sistemaAtual: s, ibsCbs: ib, transicao: t, precoMargem: pm, caixa: cx, impostoSeletivo: is } = calc;
+  const comb = ib.combustivel;
   return (
     <div className="space-y-2.5">
       <Module title="Sistema atual" defaultOpen>
@@ -49,8 +50,22 @@ export default function OperacaoCalcDetail({ calc }) {
       <Module title="IBS/CBS">
         <Row label="IBS nominal" value={ib.ibsNominal} isPct legal="aliquotas_transicao" />
         <Row label="CBS nominal" value={ib.cbsNominal} isPct legal="aliquotas_transicao" />
-        <Row label="IBS efetiva" value={ib.ibsEfetiva} isPct />
-        <Row label="CBS efetiva" value={ib.cbsEfetiva} isPct />
+        <Row label={comb?.aplicavel ? "IBS equivalente (tributo específico ÷ valor)" : "IBS efetiva"} value={ib.ibsEfetiva} isPct />
+        <Row label={comb?.aplicavel ? "CBS equivalente (tributo específico ÷ valor)" : "CBS efetiva"} value={ib.cbsEfetiva} isPct />
+        {ib.redutorCompraGov > 0 && (
+          <Row label="Redutor de compra governamental aplicado" value={ib.redutorCompraGov} isPct legal="compras_governamentais" />
+        )}
+        {comb?.aplicavel && (
+          <>
+            <Row label={`Combustível: ${comb.nome} (${comb.quantidade} ${comb.unidade})`} value={comb.cbsAdRem} />
+            {comb.cbsPorUnidade != null && <p className="text-xs text-muted-foreground pb-1.5">CBS = quantidade × R$ {comb.cbsPorUnidade.toFixed(4).replace(".", ",")} por {comb.unidade}</p>}
+          </>
+        )}
+        {comb?.avisos?.length > 0 && (
+          <ul className="my-1.5 space-y-1 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-2 list-disc pl-5">
+            {comb.avisos.map((a) => <li key={a}>{a}</li>)}
+          </ul>
+        )}
         <Row label="Débito IBS" value={ib.debitoIbs} />
         <Row label="Débito CBS" value={ib.debitoCbs} />
         <Row label="Crédito IBS" value={ib.creditoIbs} legal="credito_ibs_cbs" />
@@ -72,6 +87,17 @@ export default function OperacaoCalcDetail({ calc }) {
         <Row label="ISS remanescente" value={t.issAtual} legal="icms_iss_transicao" />
         <Row label="Sistema atual remanescente" value={t.sistemaAtualRemanescente} strong />
         <Row label="IBS/CBS financeiro" value={t.ibsCbsFinanceiro} />
+        {t.impostoSeletivo !== 0 && <Row label={`Imposto Seletivo (alíquota informada ${pct(is?.aliquota ?? 0)}; dentro do preço, sem crédito)`} value={t.impostoSeletivo} legal="imposto_seletivo" />}
+        {t.impostoSeletivo !== 0 && is?.aproximacaoBase && (
+          <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-2 my-1.5">
+            Base aproximada: neste caso a lei usa o valor de referência, definido por ato do Poder Executivo (LC 214, art. 414, III), e o cálculo usa o valor da operação.
+          </p>
+        )}
+        {is?.acimaDoTeto && (
+          <p className="text-xs text-destructive bg-destructive/5 border border-destructive/30 rounded-md p-2 my-1.5">
+            A alíquota informada passa do máximo legal de 0,25% para bens minerais extraídos (art. 422, §2º).
+          </p>
+        )}
         <Row label="Carga total transição" value={t.cargaTotalTransicao} strong />
         <Row label="Carga efetiva" value={t.cargaEfetiva} isPct strong />
         <Row label="Diferença vs atual" value={t.diferencaVsAtual} />

@@ -94,7 +94,7 @@ const fator = (v) => (v === undefined || v === null ? "—" : `${(Number(v) * 10
  * débitos e créditos de IBS/CBS, comparação de cenários, ressalvas e base legal.
  */
 export function gerarRelatorioSimulacao({
-  totais, consolidado, versaoMotor, versaoRegras, cenarioNome, grupoNome,
+  totais, consolidado, versaoMotor, versaoRegras, cenarioNome, cenarioAliquotasNome, grupoNome,
   transicaoAnos = [], comparacaoCenarios = null, ressalvas = [],
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -118,6 +118,7 @@ export function gerarRelatorioSimulacao({
   doc.text(`Versão das regras: ${versaoRegras}`, PAGE_W / 2, y);
   y += 5;
   doc.text(`Cenário: ${cenarioNome || "Base"}`, MARGIN, y);
+  if (cenarioAliquotasNome) doc.text(`Alíquotas 2029–2033: ${cenarioAliquotasNome}`, PAGE_W / 2, y);
   y += 7;
   doc.setTextColor(0);
   linha(doc, y);
@@ -134,6 +135,7 @@ export function gerarRelatorioSimulacao({
     ["Crédito de IBS (das compras)", BRL(totais.creditoIbs)],
     ["Crédito de CBS (das compras)", BRL(totais.creditoCbs)],
     ["Crédito presumido (estimativa — ver ressalvas)", BRL(totais.credPres)],
+    ...(totais.impostoSeletivo ? [["Imposto Seletivo (alíquota informada, dentro da carga)", BRL(totais.impostoSeletivo)]] : []),
     ["IBS/CBS líquido a recolher", BRL(totais.ibsCbs)],
     ["Split payment retido", BRL(totais.split)],
     ["Funding tributário estimado", BRL(totais.funding)],

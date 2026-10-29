@@ -8,6 +8,7 @@ import {
   calcOperacao,
   apuracaoPorEmpresa,
   consolidarPorAno,
+  VERSAO_MOTOR,
 } from "./taxEngine.js";
 
 /**
@@ -297,5 +298,82 @@ describe('devolução de venda (receita negativa)', () => {
 
   it('venda comum não é afetada (sem marca de estorno)', () => {
     expect(calc(1000).estorno).toBeUndefined();
+  });
+});
+
+/**
+ * Redutor das compras governamentais (LC 214/2025, arts. 349, III, 370 e 472). O TCU calculou 44,16% para 2027
+ * (TC 006.529/2026-7), ainda sem a resolução do Senado.
+ */
+describe('redutor de compras governamentais', () => {
+  const ano2027 = {
+    ano: 2027, pis_cofins_fator: 0, ipi_fator_geral: 0, icms_fator: 1, iss_fator: 1,
+    ibs_efetivo: 0.001, ibs_uf_aliquota: 0.0005, ibs_mun_aliquota: 0.0005, cbs_efetiva: 0.112,
+    efeito_financeiro: 1, redutor_compra_gov: 0.4416,
+  };
+  const venda = (extra = {}) => ({ direcao: 'Saida', valor_bruto: 1000, credito_elegivel_pct: 0, ...extra });
+  const rodar = (op, ano = ano2027, ct = {}) => calcOperacao(op, ano, ct, {}, {}, new Map());
+
+  it('venda comum: 11,2% de CBS e 0,1% de IBS, sem redutor', () => {
+    const r = rodar(venda());
+    expect(r.ibsCbs.debitoCbs).toBeCloseTo(112, 8);
+    expect(r.ibsCbs.debitoIbs).toBeCloseTo(1, 8);
+    expect(r.ibsCbs.redutorCompraGov).toBe(0);
+  });
+
+  it('venda a órgão público marcada como compra governamental: alíquotas × (1 − 44,16%)', () => {
+    const r = rodar(venda({ compra_governamental_informado: 'Sim' }));
+    expect(r.ibsCbs.redutorCompraGov).toBe(0.4416);
+    expect(r.ibsCbs.debitoCbs).toBeCloseTo(112 * (1 - 0.4416), 8);
+    expect(r.ibsCbs.debitoIbs).toBeCloseTo(1 * (1 - 0.4416), 8);
+    expect(r.ibsCbs.cbsEfetiva).toBeCloseTo(0.112 * (1 - 0.4416), 10);
+  });
+
+  it('o redutor soma-se à redução da classe de forma uniforme (multiplicativa): classe de 60% e redutor de 44,16%', () => {
+    const r = rodar(venda({ compra_governamental_informado: 'Sim' }), ano2027, { pct_reducao_ibs: 0.6, pct_reducao_cbs: 0.6 });
+    expect(r.ibsCbs.debitoCbs).toBeCloseTo(112 * 0.4 * (1 - 0.4416), 8);
+  });
+
+  it('a partilha estado × município também recebe o redutor', () => {
+    const r = rodar(venda({ compra_governamental_informado: 'Sim' }));
+    expect(r.ibsCbs.debitoIbsUf).toBeCloseTo(1000 * 0.0005 * (1 - 0.4416), 8);
+    expect(r.ibsCbs.debitoIbsUf + r.ibsCbs.debitoIbsMun).toBeCloseTo(r.ibsCbs.debitoIbs, 8);
+  });
+
+  it('não vale na compra (entrada): o redutor é de quem vende ao ente público', () => {
+    const r = rodar(venda({ direcao: 'Entrada', credito_elegivel_pct: 1, compra_governamental_informado: 'Sim' }));
+    expect(r.ibsCbs.redutorCompraGov).toBe(0);
+    expect(r.ibsCbs.creditoCbs).toBeCloseTo(112, 8);
+  });
+
+  it('sem redutor cadastrado no ano (0), a marca não muda o resultado — e a coluna ausente também não quebra', () => {
+    const semRedutor = { ...ano2027, redutor_compra_gov: 0 };
+    expect(rodar(venda({ compra_governamental_informado: 'Sim' }), semRedutor).ibsCbs.debitoCbs).toBeCloseTo(112, 8);
+    const { redutor_compra_gov, ...semColuna } = ano2027;
+    expect(rodar(venda({ compra_governamental_informado: 'Sim' }), semColuna).ibsCbs.debitoCbs).toBeCloseTo(112, 8);
+  });
+
+  it("'Não', vazio e valores estranhos não ativam o redutor", () => {
+    for (const v of ['Não', 'Nao', '', null, undefined, 'talvez']) {
+      expect(rodar(venda({ compra_governamental_informado: v })).ibsCbs.debitoCbs, String(v)).toBeCloseTo(112, 8);
+    }
+  });
+
+  it('redutor acima de 100% é limitado a 100% (alíquota zero) e negativo é ignorado', () => {
+    expect(rodar(venda({ compra_governamental_informado: 'Sim' }), { ...ano2027, redutor_compra_gov: 1.7 }).ibsCbs.debitoCbs).toBe(0);
+    expect(rodar(venda({ compra_governamental_informado: 'Sim' }), { ...ano2027, redutor_compra_gov: -0.3 }).ibsCbs.debitoCbs).toBeCloseTo(112, 8);
+  });
+
+  it('devolução de venda a órgão público espelha a venda e mantém o redutor positivo', () => {
+    const v = rodar(venda({ compra_governamental_informado: 'Sim' }));
+    const e = rodar(venda({ valor_bruto: -1000, compra_governamental_informado: 'Sim' }));
+    expect(e.ibsCbs.debitoCbs).toBeCloseTo(-v.ibsCbs.debitoCbs, 8);
+    expect(e.ibsCbs.redutorCompraGov).toBe(0.4416);
+  });
+});
+
+describe('versão do motor', () => {
+  it('é a 1.3.0 depois de redutor, combustíveis e Imposto Seletivo', () => {
+    expect(VERSAO_MOTOR).toBe('1.3.0');
   });
 });

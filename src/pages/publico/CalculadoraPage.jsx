@@ -5,6 +5,9 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { api } from "@/api/client";
 import { PERFIS, REGIMES, estimar, montarRelatorio, brl, CONTATO } from "@/lib/calculadoraAgro";
 import { comoEraComoFica, pontosTratados, pontosNaoTratados, secoesReforma } from "@/lib/relatorioReforma";
+import { useTransicaoComCenario } from "@/lib/cenarioAliquotasStore";
+import { descricaoCurta } from "@/motor/cenariosAliquota";
+import SeletorCenarioAliquotas from "@/components/SeletorCenarioAliquotas";
 import LeadForm from "@/components/ferramentas/LeadForm";
 
 const COR = {
@@ -77,6 +80,8 @@ export default function CalculadoraPage() {
     queryFn: () => api.get("/public/parametros-transicao"),
     staleTime: 10 * 60 * 1000,
   });
+  // 2029–2033 ainda não têm alíquota fixada: a série usa o cenário escolhido na tela de resultado.
+  const { linhas: parametrosCenario, resumo: cenarioAliquotas, selecao: selecaoCenario } = useTransicaoComCenario(parametros);
 
   const perguntaAtual = perfil ? perfil.perguntas.findIndex((q) => respostas[q.id] === undefined) : 0;
   const perguntasRespondidas = perfil && perguntaAtual === -1;
@@ -97,13 +102,13 @@ export default function CalculadoraPage() {
   const dadosValidos = dados.regime && numMoeda(dados.faturamento) > 0;
 
   const resultado = useMemo(() => {
-    if (passo < 3 || !perfil || !parametros?.length) return null;
+    if (passo < 3 || !perfil || !parametrosCenario.length) return null;
     return estimar({
       perfil: perfil.id, regime: dados.regime, faturamentoAnual: numMoeda(dados.faturamento),
       comprasPct: dados.comprasPct, creditoPct: dados.creditoPct, exportaPct: dados.exportaPct, reducao: dados.reducao,
       respostas, cargaInformada: dados.carga === "" ? null : Number(dados.carga.replace(",", ".")),
-    }, parametros);
-  }, [passo, perfil, parametros, dados, respostas]);
+    }, parametrosCenario, { cenarioTexto: descricaoCurta(cenarioAliquotas) });
+  }, [passo, perfil, parametrosCenario, cenarioAliquotas, dados, respostas]);
 
   const relatorio = useMemo(() => {
     if (!resultado) return null;
@@ -238,6 +243,8 @@ export default function CalculadoraPage() {
             Em 2033, cerca de <b className="text-foreground">{brl(Math.abs(resultado.deltaReais2033))}/ano {resultado.deltaReais2033 >= 0 ? "a mais" : "a menos"}</b> que hoje ({resultado.delta2033 >= 0 ? "+" : ""}{resultado.delta2033.toFixed(1).replace(".", ",")} p.p.). Estimativa de ordem de grandeza.
           </p>
 
+          <SeletorCenarioAliquotas resumo={cenarioAliquotas} selecao={selecaoCenario} />
+
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-sm font-medium mb-2">Carga estimada por ano (% do faturamento)</p>
             <div className="h-56 xl:h-72">
@@ -320,7 +327,7 @@ export default function CalculadoraPage() {
               origem="calculadora" titulo="Receba o relatório completo em PDF"
               subtitulo="Enviamos por e-mail e você também pode baixar na hora. Quer esse cálculo com as suas notas reais? A equipe FAL Agro entra em contato."
               botao="Receber relatório" perfil={perfil.id} segmento={perfil.label} regime={dados.regime}
-              relatorio={relatorio} dados={{ impacto_pp_2033: resultado.delta2033, atual_pct: resultado.atual, pct_2033: resultado.y2033.pctTransicao, faturamento_anual: resultado.base.fatAnual }}
+              relatorio={relatorio} dados={{ impacto_pp_2033: resultado.delta2033, atual_pct: resultado.atual, pct_2033: resultado.y2033.pctTransicao, faturamento_anual: resultado.base.fatAnual, cenario_aliquotas: cenarioAliquotas.id }}
               onSucesso={setEnviado}
             />
           ) : (

@@ -153,7 +153,7 @@ const ENTITY_NAMES = [
   'CstIbsCbs', 'CredPres', 'Configuracao', 'Diagnostico',
   'ImportacaoXMLLote', 'ImportacaoXMLArquivo', 'ImportacaoXMLItem', 'HistoricoXML',
   'Simulacao', 'Ncm', 'Cfop', 'BeneficioFiscal', 'CorrelacaoServico', 'CorrelacaoNcm',
-  'AliquotaIssMunicipio', 'NoticiaReforma', 'RadarReformaItem', 'RadarReformaExecucao',
+  'AliquotaIssMunicipio', 'AliquotaCombustivel', 'NoticiaReforma', 'RadarReformaItem', 'RadarReformaExecucao',
   'Lead', 'NewsletterInscrito', 'NewsletterEdicao',
 ];
 
