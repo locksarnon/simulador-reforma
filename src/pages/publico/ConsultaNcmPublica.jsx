@@ -4,7 +4,7 @@ import ConsultaNcm from "@/components/ferramentas/ConsultaNcm";
 
 export default function ConsultaNcmPublica() {
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-heading font-semibold">Consulta NCM na reforma tributária</h1>
         <p className="text-muted-foreground mt-2">Digite o NCM ou o nome do produto e veja como ele é tratado na LC 214/2025: alíquota zero, redução ou regra geral.</p>

@@ -62,7 +62,7 @@ function Resultado({ r }) {
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border">
-        <p className="text-[11px] text-muted-foreground max-w-xl">{r.aviso}</p>
+        <p className="text-[11px] text-muted-foreground">{r.aviso}</p>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {voto === null ? <>Ajudou? <button type="button" onClick={() => votar(true)} className="p-1.5 rounded-md border border-border hover:bg-muted" aria-label="Ajudou"><ThumbsUp className="w-3.5 h-3.5" /></button><button type="button" onClick={() => votar(false)} className="p-1.5 rounded-md border border-border hover:bg-muted" aria-label="Não ajudou"><ThumbsDown className="w-3.5 h-3.5" /></button></> : "Obrigado pelo retorno."}
         </div>
@@ -120,7 +120,7 @@ export default function AssistenteLegal({ admin, setor }) {
         <h2 className="text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4" /> Perguntas ao assistente</h2>
         <p className="text-xs text-muted-foreground mt-0.5">Pergunte com as suas palavras. A resposta vem só do texto das normas abaixo e cita o artigo.</p>
       </div>
-      <div className="flex gap-2 items-start max-w-3xl">
+      <div className="flex gap-2 items-start">
         <textarea
           value={pergunta} onChange={(e) => setPergunta(e.target.value)} rows={2} maxLength={600}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) perguntar(); }}
@@ -132,25 +132,25 @@ export default function AssistenteLegal({ admin, setor }) {
         </button>
       </div>
       {!resultado && !carregando && (
-        <div className="flex flex-wrap gap-2 max-w-3xl">
+        <div className="flex flex-wrap gap-2">
           {(setor?.perguntas || EXEMPLOS).map((e) => <button key={e} type="button" onClick={() => { setPergunta(e); perguntar(e); }} className="px-2.5 py-1 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted text-left">{e}</button>)}
         </div>
       )}
       {carregando && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Consultando as normas… pode levar até 30 segundos.</p>}
       {erro && <p className="text-sm text-red-600">{erro}</p>}
       {revisados.length > 0 && (
-        <div className="max-w-3xl space-y-2">
+        <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Respostas revisadas para perguntas parecidas</p>
           {revisados.map((c, i) => <CartaoResposta key={c.id} c={c} admin={admin} aberto={i === 0} />)}
         </div>
       )}
       {resultado && (
-        <div className="max-w-3xl space-y-2">
+        <div className="space-y-2">
           {revisados.length > 0 && <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resposta do assistente (não revisada)</p>}
           <Resultado key={resultado.id} r={resultado} />
         </div>
       )}
-      {admin && <div className="max-w-3xl pt-2"><PerguntasRecentes /></div>}
+      {admin && <div className="pt-2"><PerguntasRecentes /></div>}
     </section>
   );
 }

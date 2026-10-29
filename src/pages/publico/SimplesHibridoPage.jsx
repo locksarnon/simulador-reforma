@@ -210,7 +210,7 @@ export default function SimplesHibridoPage() {
   }, [resultado, melhorOpcao, dados.rbt12, dados.receitaMensal, dados.pctClientes, cbsEditavel, anoParams2027]);
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="w-full">
       <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-heading font-semibold">Vale a pena virar contribuinte regular do IBS/CBS?</h1>
         <p className="text-muted-foreground mt-2">Compare ficar no Simples puro com optar pelo regime regular do IBS/CBS (LC 123/2006, art. 13, §9º, c/c LC 214/2025, art. 47, §9º) — com o ponto de preço em que as duas opções empatam.</p>
@@ -219,7 +219,8 @@ export default function SimplesHibridoPage() {
 
       {/* 0 — enquadramento */}
       {passo === 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-4 lg:p-6 space-y-6">
+          <div className="grid gap-x-10 gap-y-6 lg:grid-cols-2">
           <div>
             <p className="text-sm font-medium mb-2">Qual Anexo do Simples se aplica ao seu negócio?</p>
             <div className="flex flex-wrap gap-2">
@@ -248,6 +249,7 @@ export default function SimplesHibridoPage() {
             <input type="range" min={0} max={100} value={dados.pctClientes} onChange={(e) => setDados((d) => ({ ...d, pctClientes: Number(e.target.value) }))} className="w-full mt-2" />
             <div className="flex justify-between text-[11px] text-muted-foreground mt-1"><span>0% — só consumidor final</span><span>100% — só empresas</span></div>
           </div>
+          </div>
           <div className="flex justify-end">
             <button type="button" onClick={() => setPasso(1)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium">Continuar <ArrowRight className="w-4 h-4" /></button>
           </div>
@@ -256,7 +258,8 @@ export default function SimplesHibridoPage() {
 
       {/* 1 — números */}
       {passo === 1 && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-4 lg:p-6 space-y-6">
+          <div className="grid gap-x-8 gap-y-6 lg:grid-cols-3">
           <div>
             <label className="text-sm font-medium" htmlFor="rbt12">RBT12 — receita bruta dos últimos 12 meses (R$)</label>
             <input id="rbt12" inputMode="decimal" value={dados.rbt12} onChange={(e) => setDados((d) => ({ ...d, rbt12: fmtMoeda(e.target.value), rbt12Negativo: contemSinalNegativo(e.target.value) }))} placeholder="1.200.000,00" className="w-full h-11 mt-1.5 rounded-md border border-input bg-background px-3 text-base tabular-nums" />
@@ -275,7 +278,8 @@ export default function SimplesHibridoPage() {
             <p className="text-xs text-muted-foreground mt-1">Base para o cálculo mensal do DAS e da carga híbrida.</p>
             {dados.receitaMensalNegativo && <p className="text-xs text-destructive mt-1">Não aceitamos valor negativo aqui — considerei só os dígitos, sem o sinal.</p>}
           </div>
-          {isError && <p className="text-sm text-destructive">Não foi possível carregar os parâmetros da transição. Tente novamente em instantes.</p>}
+          </div>
+          {isError &&<p className="text-sm text-destructive">Não foi possível carregar os parâmetros da transição. Tente novamente em instantes.</p>}
           <div className="flex gap-2">
             <button type="button" onClick={() => setPasso(0)} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Voltar</button>
             <button type="button" disabled={!dadosValidos || carregandoParams || isError} onClick={() => setPasso(2)} className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Simular agora <ArrowRight className="w-4 h-4" /></button>
@@ -289,7 +293,7 @@ export default function SimplesHibridoPage() {
           <p className="font-heading text-lg font-semibold max-w-md">Comparando Simples puro × Híbrido com as tabelas vigentes de 2027</p>
           <ul className="text-sm text-muted-foreground space-y-2 text-left max-w-sm">
             <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" /> Calculando Fator R e enquadrando no Anexo correto</li>
-            <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" /> Aplicando a tabela 2027 (LC 123/2006, redação da LC 227/2026)</li>
+            <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" /> Aplicando a tabela 2027 (LC 214/2025, Anexos XVIII a XXII, redação da LC 227/2026)</li>
             <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" /> Simulando o regime híbrido (LC 123/2006, art. 13, §9º, c/c LC 214/2025, art. 47, §9º)</li>
             <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" /> Calculando o ponto de equilíbrio de preço</li>
           </ul>

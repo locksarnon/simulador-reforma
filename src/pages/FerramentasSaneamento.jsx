@@ -42,7 +42,7 @@ export default function FerramentasSaneamento() {
       {projetoId ? (
         <ProjetoSaneamento key={projetoId} empresa={empresa} empresaId={empresaId} projetoId={projetoId} onVoltar={() => setParams({})} />
       ) : (
-        <div className="space-y-4 max-w-3xl">
+        <div className="space-y-4">
           <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (nome.trim()) criar.mutate(); }}>
             <label className="text-sm flex-1 min-w-[220px]">Novo projeto
               <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Saneamento de estoques 2026" className="mt-1 w-full border rounded-md p-2 bg-background" />

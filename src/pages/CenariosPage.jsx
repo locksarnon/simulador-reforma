@@ -64,7 +64,7 @@ export default function CenariosPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
         {(data || []).map((c) => {
           const active = c.nome === activeName;
           return (

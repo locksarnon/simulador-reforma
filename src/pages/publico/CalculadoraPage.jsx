@@ -120,7 +120,7 @@ export default function CalculadoraPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="w-full">
       <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-heading font-semibold">Quanto a reforma tributária muda para o seu negócio?</h1>
         <p className="text-muted-foreground mt-2">Responda em menos de 2 minutos e veja a carga estimada hoje, em 2027 e em 2033 — sem cadastro para começar.</p>
@@ -133,7 +133,7 @@ export default function CalculadoraPage() {
           {["Regimes diferenciados", "Regimes específicos", "Imposto Seletivo", "Regime regular"].map((g) => (
             <section key={g}>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{g}</h2>
-              <div className="grid sm:grid-cols-2 gap-3">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
                 {PERFIS.filter((p) => p.grupo === g).map((p) => (
                   <button key={p.id} type="button" onClick={() => escolherPerfil(p.id)} className="text-left rounded-xl border border-border bg-card p-4 hover:border-primary hover:bg-muted/30 transition-colors">
                     <div className="text-2xl mb-1" aria-hidden>{p.emoji}</div>
@@ -175,7 +175,8 @@ export default function CalculadoraPage() {
 
       {/* 2 — números */}
       {passo === 2 && perfil && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-6">
+        <div className="rounded-xl border border-border bg-card p-4 lg:p-6 space-y-6">
+          <div className="grid gap-x-10 gap-y-6 lg:grid-cols-2">
           <div>
             <p className="text-sm font-medium mb-2">Regime tributário</p>
             <div className="flex flex-wrap gap-2">
@@ -203,6 +204,7 @@ export default function CalculadoraPage() {
           <Slider label="Compras de insumos e mercadorias" ajuda="Quanto do faturamento vai para compras (valor inicial típico do seu perfil)." valor={dados.comprasPct} onChange={(v) => setDados((d) => ({ ...d, comprasPct: v }))} max={95} />
           <Slider label="Compras de fornecedores que geram crédito" ajuda="Parte das compras feita com nota fiscal de fornecedor que destaca o tributo." valor={dados.creditoPct} onChange={(v) => setDados((d) => ({ ...d, creditoPct: v }))} />
           {flagsExporta && <Slider label="Parcela do faturamento exportada" valor={dados.exportaPct} onChange={(v) => setDados((d) => ({ ...d, exportaPct: v }))} max={95} />}
+          </div>
           <details className="text-sm">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Sei a carga tributária atual (opcional, deixa a estimativa mais precisa)</summary>
             <div className="mt-2 flex items-center gap-2">
@@ -238,7 +240,7 @@ export default function CalculadoraPage() {
 
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-sm font-medium mb-2">Carga estimada por ano (% do faturamento)</p>
-            <div className="h-56">
+            <div className="h-56 xl:h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={resultado.serie.map((s) => ({ ano: s.ano, "Carga estimada": Number(s.pctTransicao.toFixed(2)), Hoje: Number(resultado.atual.toFixed(2)) }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -283,7 +285,7 @@ export default function CalculadoraPage() {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {resultado.cards.map((c, i) => (
               <div key={i} className={`rounded-xl border p-4 ${COR[c.cor]}`}>
                 <p className="font-medium text-sm flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-full ${BOLA[c.cor]}`} />{c.titulo}</p>

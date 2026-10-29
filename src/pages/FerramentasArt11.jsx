@@ -26,7 +26,7 @@ export default function FerramentasArt11() {
       <div className="p-6 lg:p-8 space-y-6">
         <div>
           <TituloPagina icon={BookOpenText} ajuda={<InfoTooltip pagina="ferramentas" chave="art11_header" />}>Guia do Art. 11 — Local da Operação</TituloPagina>
-          <p className="text-sm text-muted-foreground max-w-2xl">
+          <p className="text-sm text-muted-foreground">
             Resumo comentado do Art. 11 da LC 214/2025 — as regras de territorialidade que definem onde uma
             operação é considerada realizada para fins de IBS/CBS, e como isso se conecta ao cIndOp.
           </p>

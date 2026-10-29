@@ -45,7 +45,7 @@ export default function FerramentasCalculadora() {
       <div className="p-6 lg:p-8 space-y-5">
         <div>
           <TituloPagina icon={Calculator} ajuda={<InfoTooltip pagina="ferramentas" chave="calculadora_header" />}>Calculadora Reforma Tributária</TituloPagina>
-          <p className="text-sm text-muted-foreground max-w-2xl">
+          <p className="text-sm text-muted-foreground">
             Simulação de uma operação avulsa, sem cadastrar Empresa nem Operação — mesmo motor de cálculo
             (<code className="font-mono text-xs">taxEngine.js</code>) usado no resto do simulador. Para guardar o
             resultado ou analisar várias operações juntas, use o Cockpit dentro de uma empresa.

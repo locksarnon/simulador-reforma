@@ -211,7 +211,7 @@ function Mapa() {
   const [filtro, setFiltro] = useState("");
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground max-w-3xl">
+      <p className="text-sm text-muted-foreground">
         Todos os setores e ramos com tratamento próprio na <b className="text-foreground">LC 214/2025</b>, com os nomes e artigos da lei. A coluna de cobertura diz o que o InTAX já modela.
       </p>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

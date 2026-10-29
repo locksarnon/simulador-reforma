@@ -117,7 +117,7 @@ export default function DataHub() {
           <p className="text-sm">Nenhum grupo cadastrado. Clique em "Novo Grupo" para começar.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
           {filtered.map(g => (
             <GrupoCard key={g.id} grupo={g} onClick={() => navigate(`/workroom/${g.id}`)} onEdit={openEdit} onDelete={handleDelete} />
           ))}

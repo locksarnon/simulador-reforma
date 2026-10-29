@@ -64,10 +64,10 @@ export default function BaseLegalPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Base legal" }]} />
-      <div className="p-6 lg:p-8 space-y-6 max-w-6xl">
+      <div className="p-6 lg:p-8 space-y-6">
         <div>
           <h1 className="text-xl font-heading font-semibold flex items-center gap-2"><Scale className="w-5 h-5" /> Base legal</h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Texto integral das normas da Reforma Tributária do Consumo, capturado das fontes oficiais e organizado por artigo. Use a busca para achar o dispositivo e a base legal de uma resposta.</p>
+          <p className="text-sm text-muted-foreground mt-1">Texto integral das normas da Reforma Tributária do Consumo, capturado das fontes oficiais e organizado por artigo. Use a busca para achar o dispositivo e a base legal de uma resposta.</p>
         </div>
 
         <Link to="/base-legal/guia-art-11" className="block rounded-xl border border-border bg-card p-4 hover:border-primary"><strong>Guia do Artigo 11</strong><p className="text-sm text-muted-foreground mt-1">Consulte o local de incidência do IBS por tipo de operação.</p></Link>
@@ -115,7 +115,7 @@ export default function BaseLegalPage() {
           )}
         </section>
 
-        <p className="text-xs text-muted-foreground max-w-3xl">Os textos vêm dos sites oficiais (Planalto) e são reproduzidos sem alteração; conferimos a fonte periodicamente. Em caso de dúvida, vale o texto publicado no órgão oficial — use o link "Fonte oficial".</p>
+        <p className="text-xs text-muted-foreground">Os textos vêm dos sites oficiais (Planalto) e são reproduzidos sem alteração; conferimos a fonte periodicamente. Em caso de dúvida, vale o texto publicado no órgão oficial — use o link "Fonte oficial".</p>
       </div>
     </div>
   );

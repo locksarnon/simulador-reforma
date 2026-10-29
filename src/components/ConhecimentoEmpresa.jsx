@@ -31,7 +31,7 @@ export default function ConhecimentoEmpresa({ empresa, editar = false }) {
                   {regras.map((r) => (
                     <tr key={r.id} className="border-t border-border align-top">
                       <td className="p-2">{ADDONS.find((a) => a.id === r.addon)?.nome}<p className="text-xs text-muted-foreground">{r.linha || 'API v1'}{r.erp ? ' · ' + r.erp : ''}</p></td>
-                      <td className="p-2 max-w-xl"><p className="font-medium">{r.titulo}</p><p className="text-muted-foreground mt-1">{r.orientacao}</p>{r.campos.length > 0 && <p className="text-xs font-mono mt-2">{r.campos.join(' · ')}</p>}</td>
+                      <td className="p-2"><p className="font-medium">{r.titulo}</p><p className="text-muted-foreground mt-1">{r.orientacao}</p>{r.campos.length > 0 && <p className="text-xs font-mono mt-2">{r.campos.join(' · ')}</p>}</td>
                       <td className="p-2 max-w-xs"><a href={r.fonte} target="_blank" rel="noreferrer" className="text-primary underline">Documentação do fornecedor</a><p className="text-xs text-muted-foreground mt-1">{r.versaoFonte}</p><span className="inline-block mt-2 rounded px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 text-xs">Validar na instalação</span></td>
                     </tr>))}
                 </tbody>

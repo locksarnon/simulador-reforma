@@ -92,7 +92,7 @@ export default function FerramentasClassificacao() {
       <div className="p-6 lg:p-8 space-y-5">
         <div>
           <TituloPagina icon={Wrench} ajuda={<InfoTooltip pagina="ferramentas" chave="classificacao_header" />}>Classificação e conversão de serviços</TituloPagina>
-          <p className="text-sm text-muted-foreground max-w-2xl">
+          <p className="text-sm text-muted-foreground">
             Item da LC 116/2003, NBS, cIndOp e cClassTrib — os quatro numa base só. Base:{" "}
             {data.length ? data.length.toLocaleString("pt-BR") : "…"} linhas do <strong>Anexo VIII</strong> (Receita
             Federal / Comitê Gestor da NFS-e).

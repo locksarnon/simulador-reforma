@@ -37,7 +37,7 @@ export default function PublicLayout() {
   return (
     <div className="min-h-screen bg-canvas flex flex-col">
       <header className="border-b border-border bg-card sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-4">
           <Link to="/calculadora" className="flex items-center gap-2 shrink-0">
             <span className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground"><Logo className="w-4.5 h-4.5" /></span>
             <span className="leading-tight"><span className="block font-heading font-semibold text-sm">InTAX</span><span className="block text-[10px] text-muted-foreground -mt-0.5">por FAL Agro</span></span>
@@ -51,9 +51,9 @@ export default function PublicLayout() {
           <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground whitespace-nowrap">Entrar</Link>
         </div>
       </header>
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8"><Outlet /></main>
+      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-8"><Outlet /></main>
       <footer className="border-t border-border bg-card">
-        <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-4">
           <Inscricao />
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/60">
             <a href="https://www.falagro.com.br" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -64,7 +64,7 @@ export default function PublicLayout() {
               <a href="https://www.linkedin.com/company/fal-agro/" target="_blank" rel="noreferrer" aria-label="LinkedIn da FAL Agro" className="text-muted-foreground hover:text-foreground"><Linkedin className="w-4 h-4" /></a>
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground leading-relaxed max-w-3xl">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
             InTAX é uma ferramenta orientativa da FAL Agro, baseada na EC 132/2023 e na LC 214/2025. Os resultados são estimativas e não constituem parecer tributário; as regras e alíquotas da transição ainda estão sendo definidas. Valide com um especialista antes de decidir.
           </p>
         </div>

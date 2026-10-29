@@ -93,7 +93,7 @@ export default function BaseLegalNormaPage() {
           </nav>
         </aside>
 
-        <main className="min-w-0 max-w-4xl">
+        <main className="min-w-0">
           {!caminho ? (
             <div className="rounded-xl border border-border bg-card p-6 space-y-3">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{n.tipo}</p>
