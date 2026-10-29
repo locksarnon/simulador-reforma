@@ -1,7 +1,7 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import PainelExecutivoView from "@/components/painel/PainelExecutivoView";
 import PageHeader from "@/components/PageHeader";
 
@@ -12,13 +12,13 @@ export default function Home() {
 
   const { data: grupos = [] } = useQuery({
     queryKey: ["grupos"],
-    queryFn: () => base44.entities.Grupo.list(),
+    queryFn: () => api.entities.Grupo.list(),
   });
   // Empresas do grupo escolhido — para popular o segundo seletor. Sem grupo
   // selecionado não tem o que listar (empresa sempre pertence a um grupo).
   const { data: empresasDoGrupo = [] } = useQuery({
     queryKey: ["empresas", grupoNumero],
-    queryFn: () => base44.entities.Empresa.filter({ grupo: grupoNumero }),
+    queryFn: () => api.entities.Empresa.filter({ grupo: grupoNumero }),
     enabled: !!grupoNumero,
   });
 

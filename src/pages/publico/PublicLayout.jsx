@@ -3,7 +3,7 @@ import { NavLink, Outlet, Link } from "react-router-dom";
 import { Mail, Check, Instagram, Linkedin, Globe } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 
 const LINKS = [
   { to: "/calculadora", label: "Calculadora" },

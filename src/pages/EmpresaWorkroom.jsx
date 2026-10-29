@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams, useLocation, Outlet, NavLink, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { LayoutDashboard, FileText, FileSearch, Trash2, Lock, Layers, History } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useConfirmar } from "@/components/ConfirmProvider";
@@ -22,12 +22,12 @@ export default function EmpresaWorkroom() {
 
   const { data: grupo, isLoading: grupoLoading } = useQuery({
     queryKey: ["grupo", grupoId],
-    queryFn: () => base44.entities.Grupo.get(grupoId),
+    queryFn: () => api.entities.Grupo.get(grupoId),
     enabled: !!grupoId,
   });
   const { data: empresa, isLoading } = useQuery({
     queryKey: ["empresa", empresaId],
-    queryFn: () => base44.entities.Empresa.get(empresaId),
+    queryFn: () => api.entities.Empresa.get(empresaId),
     enabled: !!empresaId,
   });
   // Trava do Painel: só libera depois de existir pelo menos 1 operação
@@ -36,7 +36,7 @@ export default function EmpresaWorkroom() {
   // (padrão seguro: nunca libera antes de confirmar que há dados).
   const { data: operacoesDaEmpresa, isLoading: isLoadingOperacoes } = useQuery({
     queryKey: ["empresa-tem-operacoes", empresa?.id_empresa],
-    queryFn: () => base44.entities.Operacao.filter({ empresa_id: empresa.id_empresa }, undefined, 1),
+    queryFn: () => api.entities.Operacao.filter({ empresa_id: empresa.id_empresa }, undefined, 1),
     enabled: !!empresa?.id_empresa,
   });
   const painelLiberado = !isLoadingOperacoes && (operacoesDaEmpresa?.length || 0) > 0;
@@ -48,7 +48,7 @@ export default function EmpresaWorkroom() {
 
   const handleDelete = async () => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa "${empresa?.razao_social}"? Saem junto as análises salvas dela (serviços, validações de cadastro com os arquivos e projetos de saneamento). Esta ação não pode ser desfeita.`, rotulo: "Excluir" }))) return;
-    await base44.entities.Empresa.delete(empresaId);
+    await api.entities.Empresa.delete(empresaId);
     qc.invalidateQueries({ queryKey: ["empresas"] });
     window.location.assign(`/workroom/${grupoId}`);
   };

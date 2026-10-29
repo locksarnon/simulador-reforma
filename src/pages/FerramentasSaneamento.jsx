@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Trash2 } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import ConfirmarExclusao from "@/components/ConfirmarExclusao";
 import LimparDadosButton from "@/components/LimparDadosButton";

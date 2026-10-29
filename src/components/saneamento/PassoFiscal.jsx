@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Info, Loader2 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { hojeIso } from "./logica";
 import { grupoSaneado } from "./analise";
 import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
@@ -108,7 +108,7 @@ function GrupoFiscal({ g, todosItens, saem, classes, decisoes, concl, onMudar, o
  * consultados e decide o que fica; o resultado é a matriz fiscal do grupo (proposta, fundamento, validação e pendências).
  */
 export default function PassoFiscal({ estado, setEstado, grupos, todosItens, contagem, saem, quem, nomeProjeto, nomeBase, slug, temAnalise, onIrAnalises }) {
-  const catalogo = useQuery({ queryKey: ["classTrib"], queryFn: () => base44.entities.ClassTrib.list(), staleTime: 10 * 60 * 1000 });
+  const catalogo = useQuery({ queryKey: ["classTrib"], queryFn: () => api.entities.ClassTrib.list(), staleTime: 10 * 60 * 1000 });
   const classes = useMemo(() => mapaClasses(catalogo.data), [catalogo.data]);
   const fiscal = estado.fiscal || {}; const decisoes = fiscal.decisoes || {}; const concluidos = fiscal.grupos || {};
   const liberados = grupos.filter((g) => grupoSaneado(estado, g.nome, contagem));

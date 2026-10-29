@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
@@ -18,15 +18,15 @@ export default function EmpresasPage() {
   const qc = useQueryClient();
   const { data: grupo } = useQuery({
     queryKey: ["grupo", grupoId],
-    queryFn: () => base44.entities.Grupo.get(grupoId),
+    queryFn: () => api.entities.Grupo.get(grupoId),
     enabled: !!grupoId,
   });
   const grupoNumero = grupo?.numero;
   const { data, isLoading } = useQuery({
     queryKey: ["empresas", grupoNumero],
     queryFn: () => grupoNumero
-      ? base44.entities.Empresa.filter({ grupo: grupoNumero })
-      : base44.entities.Empresa.list(),
+      ? api.entities.Empresa.filter({ grupo: grupoNumero })
+      : api.entities.Empresa.list(),
     enabled: grupoNumero !== undefined,
   });
   const [editing, setEditing] = useState(null);
@@ -34,7 +34,7 @@ export default function EmpresasPage() {
 
   const del = async (em) => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa ${em.id_empresa}?`, rotulo: "Excluir" }))) return;
-    await base44.entities.Empresa.delete(em.id);
+    await api.entities.Empresa.delete(em.id);
     qc.invalidateQueries({ queryKey: ["empresas"] });
   };
 

@@ -2,7 +2,7 @@ import { buscarServicos as buscar } from "@/lib/buscaServicos";
 import { useAnaliseEmpresa } from "@/hooks/useAnaliseEmpresa";
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -46,7 +46,7 @@ function baixarCsv(nome, linhas) {
 export default function FerramentasClassificacao() {
   const { data = [], isLoading } = useQuery({
     queryKey: ["correlacaoServico"],
-    queryFn: () => base44.entities.CorrelacaoServico.list(),
+    queryFn: () => api.entities.CorrelacaoServico.list(),
   });
   const [q, setQ] = useState("");
   const [campo, setCampo] = useState("todos");

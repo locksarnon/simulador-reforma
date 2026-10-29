@@ -1,4 +1,4 @@
-import { calcSistemaAtual, calcIbsCbs } from "../../base44/shared/taxEngine";
+import { calcSistemaAtual, calcIbsCbs } from "@/motor/taxEngine";
 
 /**
  * Calculadora InTAX (ferramenta-isca) — estimativa de ordem de grandeza.

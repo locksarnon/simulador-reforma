@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Mail, Loader2, Send, CheckCheck, Save, FlaskConical, AlertTriangle } from "lucide-react";
-import { api, base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
@@ -25,7 +25,7 @@ const COR = {
 export default function NewsletterPage() {
   const confirmar = useConfirmar();
   const qc = useQueryClient();
-  const { data: edicoes = [] } = useQuery({ queryKey: ["nlEdicoes"], queryFn: () => base44.entities.NewsletterEdicao.filter({}, "-createdAt", 30) });
+  const { data: edicoes = [] } = useQuery({ queryKey: ["nlEdicoes"], queryFn: () => api.entities.NewsletterEdicao.filter({}, "-createdAt", 30) });
   const { data: resumo } = useQuery({ queryKey: ["nlResumo"], queryFn: () => api.get("/newsletter/resumo") });
   const [selId, setSelId] = useState(null);
   const [assunto, setAssunto] = useState("");

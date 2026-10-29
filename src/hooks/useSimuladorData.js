@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
-import { calcOperacao } from "../../base44/shared/taxEngine";
+import { api } from "@/api/client";
+import { calcOperacao } from "@/motor/taxEngine";
 import { agruparPorCodigo, escolherVigente } from "@/lib/vigencia";
 
 const PCT = (n) => n / 100;
@@ -38,35 +38,35 @@ export function calcularOperacoes(operacoes, transicaoMap, classTribGrouped, cre
 export function useSimuladorData({ grupoNumero, empresaId, cenarioNome } = {}) {
   const operacoesQ = useQuery({
     queryKey: ["operacoes"],
-    queryFn: () => base44.entities.Operacao.filter({}, "-ano", 500),
+    queryFn: () => api.entities.Operacao.filter({}, "-ano", 500),
   });
   const gruposQ = useQuery({
     queryKey: ["grupos"],
-    queryFn: () => base44.entities.Grupo.list(),
+    queryFn: () => api.entities.Grupo.list(),
   });
   const transicaoQ = useQuery({
     queryKey: ["transicao"],
-    queryFn: () => base44.entities.TransicaoAno.list(),
+    queryFn: () => api.entities.TransicaoAno.list(),
   });
   const classTribQ = useQuery({
     queryKey: ["classTrib"],
-    queryFn: () => base44.entities.ClassTrib.list(),
+    queryFn: () => api.entities.ClassTrib.list(),
   });
   const cenarioQ = useQuery({
     queryKey: ["cenario"],
-    queryFn: () => base44.entities.Cenario.list(),
+    queryFn: () => api.entities.Cenario.list(),
   });
   const configQ = useQuery({
     queryKey: ["config"],
-    queryFn: () => base44.entities.Configuracao.list(),
+    queryFn: () => api.entities.Configuracao.list(),
   });
   const empresasQ = useQuery({
     queryKey: ["empresas"],
-    queryFn: () => base44.entities.Empresa.list(),
+    queryFn: () => api.entities.Empresa.list(),
   });
   const credPresQ = useQuery({
     queryKey: ["credPres"],
-    queryFn: () => base44.entities.CredPres.list(),
+    queryFn: () => api.entities.CredPres.list(),
   });
 
   const isLoading =

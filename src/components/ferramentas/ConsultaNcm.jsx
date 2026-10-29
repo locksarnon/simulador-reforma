@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Search, Loader2, Copy, Check, ChevronDown } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 
 const SITUACAO = {
   ALIQUOTA_ZERO: { rotulo: "Alíquota zero", cor: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" },

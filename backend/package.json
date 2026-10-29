@@ -2,7 +2,7 @@
   "name": "@simulador-reforma/api",
   "version": "0.1.0",
   "private": true,
-  "description": "Simulador FAL — Reforma Tributária — backend próprio (NestJS + PostgreSQL, substitui o backend hospedado Base44)",
+  "description": "InTAX — Reforma Tributária — API (NestJS + PostgreSQL + MinIO)",
   "scripts": {
     "build": "nest build",
     "start": "nest start",

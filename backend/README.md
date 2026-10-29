@@ -1,13 +1,13 @@
 # Simulador Reforma — API
 
-Backend próprio (NestJS + Prisma + PostgreSQL) que substitui o backend hospedado do Base44. Porta padrão: `3003`, prefixo `api/v1`.
+Backend do InTAX (NestJS + Prisma + PostgreSQL + MinIO). Porta padrão: `3003`, prefixo `api/v1`.
 
 ## Módulos
 
 - `auth/` — registro/login/refresh/logout/me, JWT + argon2. Sem OAuth do Google e sem verificação por e-mail (sem infraestrutura de e-mail neste ambiente self-hosted — o link de redefinição de senha é logado no console do backend).
-- `entities/` — CRUD genérico (`GET/POST /entities/:model`, `GET/PUT/DELETE /entities/:model/:id`, `POST /entities/:model/query`, `/bulk-create`, `/bulk-update`) para as 14 entidades de dados do simulador (Grupo, Empresa, Operacao, Cenario, TransicaoAno, ClassTrib, CstIbsCbs, CredPres, Configuracao, Diagnostico, ImportacaoXMLLote, ImportacaoXMLArquivo, ImportacaoXMLItem, HistoricoXML). Lista de modelos permitidos em `src/entities/entities.service.ts`.
+- `entities/` — CRUD genérico (`GET/POST /entities/:model`, `GET/PUT/DELETE /entities/:model/:id`, `POST /entities/:model/query`, `/bulk-create`, `/bulk-update`) para as entidades de dados do simulador. Os modelos estão em `prisma/schema.prisma`; a lista dos que o CRUD expõe fica em `src/entities/entities.service.ts`.
 - `storage/` — upload de arquivo para MinIO (`POST /uploads`), retorna uma URL pré-assinada.
-- `importacao-xml/` — porte de `base44/functions/processarLoteXML` e `.../confirmarImportacaoXML` (raiz do projeto) para o backend próprio: parsing/validação de XML de NF-e, dedup, geração de Operações a partir dos itens confirmados.
+- `importacao-xml/` — importação de XML de NF-e (`POST /xml/processar-lote`, `/xml/confirmar-importacao`, `/xml/reprocessar-lote`): parsing e validação em camadas, dedup, geração de Operações a partir dos itens confirmados.
 
 ## Comandos
 

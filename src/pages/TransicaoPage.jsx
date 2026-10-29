@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ const empty = {
 export default function TransicaoPage() {
   const confirmar = useConfirmar();
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["transicao"], queryFn: () => base44.entities.TransicaoAno.list() });
+  const { data, isLoading } = useQuery({ queryKey: ["transicao"], queryFn: () => api.entities.TransicaoAno.list() });
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [open, setOpen] = useState(false);
@@ -32,15 +32,15 @@ export default function TransicaoPage() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.TransicaoAno.create(form);
-    else await base44.entities.TransicaoAno.update(editing.id, form);
+    if (editing === "new") await api.entities.TransicaoAno.create(form);
+    else await api.entities.TransicaoAno.update(editing.id, form);
     setOpen(false);
     qc.invalidateQueries({ queryKey: ["transicao"] });
   };
 
   const del = async (r) => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir o ano ${r.ano}?`, rotulo: "Excluir" }))) return;
-    await base44.entities.TransicaoAno.delete(r.id);
+    await api.entities.TransicaoAno.delete(r.id);
     qc.invalidateQueries({ queryKey: ["transicao"] });
   };
 

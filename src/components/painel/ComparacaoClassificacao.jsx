@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Scale } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { calcularOperacoes } from "@/hooks/useSimuladorData";
-import { consolidarPorAno } from "../../../base44/shared/taxEngine";
+import { consolidarPorAno } from "@/motor/taxEngine";
 import { Card } from "@/components/ui/card";
 import { BRL } from "@/lib/format";
 

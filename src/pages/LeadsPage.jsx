@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Users } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
 
@@ -20,7 +20,7 @@ const fmtData = (v) => new Date(v).toLocaleString("pt-BR", { day: "2-digit", mon
 /** Funil comercial: contatos captados pelas ferramentas públicas, já pontuados e encaminhados. */
 export default function LeadsPage() {
   const qc = useQueryClient();
-  const { data: leads = [], isLoading } = useQuery({ queryKey: ["leads"], queryFn: () => base44.entities.Lead.filter({}, "-createdAt", 1000) });
+  const { data: leads = [], isLoading } = useQuery({ queryKey: ["leads"], queryFn: () => api.entities.Lead.filter({}, "-createdAt", 1000) });
   const [destino, setDestino] = useState("");
   const [status, setStatus] = useState("");
   const [busca, setBusca] = useState("");
@@ -40,7 +40,7 @@ export default function LeadsPage() {
   }), [leads]);
 
   const atualizar = async (l, campos) => {
-    await base44.entities.Lead.update(l.id, campos);
+    await api.entities.Lead.update(l.id, campos);
     qc.invalidateQueries({ queryKey: ["leads"] });
   };
 

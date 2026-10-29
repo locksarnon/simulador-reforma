@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,8 +18,8 @@ const empty = { nome: "", descricao: "", fator_volume: 1, fator_preco: 1, fator_
 export default function CenariosPage() {
   const confirmar = useConfirmar();
   const qc = useQueryClient();
-  const { data: config } = useQuery({ queryKey: ["config"], queryFn: () => base44.entities.Configuracao.list() });
-  const { data, isLoading } = useQuery({ queryKey: ["cenario"], queryFn: () => base44.entities.Cenario.list() });
+  const { data: config } = useQuery({ queryKey: ["config"], queryFn: () => api.entities.Configuracao.list() });
+  const { data, isLoading } = useQuery({ queryKey: ["cenario"], queryFn: () => api.entities.Cenario.list() });
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [open, setOpen] = useState(false);
@@ -28,22 +28,22 @@ export default function CenariosPage() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.Cenario.create(form);
-    else await base44.entities.Cenario.update(editing.id, form);
+    if (editing === "new") await api.entities.Cenario.create(form);
+    else await api.entities.Cenario.update(editing.id, form);
     setOpen(false);
     qc.invalidateQueries({ queryKey: ["cenario"] });
   };
 
   const del = async (c) => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir o cenário ${c.nome}?`, rotulo: "Excluir" }))) return;
-    await base44.entities.Cenario.delete(c.id);
+    await api.entities.Cenario.delete(c.id);
     qc.invalidateQueries({ queryKey: ["cenario"] });
   };
 
   const setActive = async (nome) => {
     const cfg = config?.[0];
-    if (cfg) await base44.entities.Configuracao.update(cfg.id, { cenario_ativo: nome });
-    else await base44.entities.Configuracao.create({ cenario_ativo: nome, versao_simulador: "v0.14" });
+    if (cfg) await api.entities.Configuracao.update(cfg.id, { cenario_ativo: nome });
+    else await api.entities.Configuracao.create({ cenario_ativo: nome, versao_simulador: "v0.14" });
     qc.invalidateQueries({ queryKey: ["config"] });
   };
 

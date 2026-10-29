@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, CheckCircle2, Info, MessageCircle } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { brl, CONTATO } from "@/lib/calculadoraAgro";
-import { simularSimplesHibrido } from "../../../base44/shared/simplesHibrido";
+import { simularSimplesHibrido } from "@/motor/simplesHibrido";
 import LeadForm from "@/components/ferramentas/LeadForm";
 
 const pct2 = (v) => `${(v * 100).toFixed(2).replace(".", ",")}%`;

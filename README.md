@@ -2,7 +2,7 @@
 
 Simulador de impactos da Reforma Tributária (IBS/CBS) para grupos econômicos: cadastro de empresas, operações, cenários, transição 2026–2033, catálogos IBS/CBS e importação de XML de NF-e.
 
-Este projeto começou como um app Base44 (frontend React/Vite + backend hospedado). Agora roda com um **backend próprio** (NestJS + PostgreSQL + MinIO), totalmente Dockerizado — a integração com a plataforma Base44 (`@base44/sdk`, `@base44/vite-plugin`, publish-back para o Builder) foi removida.
+Frontend React/Vite e **backend próprio** (NestJS + PostgreSQL + MinIO), totalmente Dockerizados. O motor de cálculo fica em `src/motor/`.
 
 ## Rodar com Docker (recomendado)
 

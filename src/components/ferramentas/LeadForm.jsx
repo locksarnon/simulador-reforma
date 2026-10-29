@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { PORTES } from "@/lib/calculadoraAgro";
 
 const CHAVE = "intax_lead";

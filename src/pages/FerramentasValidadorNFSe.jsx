@@ -1,6 +1,6 @@
 import { useAnaliseEmpresa } from "@/hooks/useAnaliseEmpresa";
 import React, { useState, useRef } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Textarea } from "@/components/ui/textarea";
 import { ShieldCheck, Upload, CheckCircle2, AlertTriangle, XCircle, Info, Loader2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
@@ -50,7 +50,7 @@ export default function FerramentasValidadorNFSe() {
     setErro("");
     setResultado(null);
     try {
-      const resp = await base44.functions.invoke("validarNfse", { xml });
+      const resp = await api.functions.invoke("validarNfse", { xml });
       setResultado(resp.data);
     } catch (err) {
       setErro(err.message || "Falha ao validar.");

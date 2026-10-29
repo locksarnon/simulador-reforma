@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Search, Plus, Layers, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,11 +23,11 @@ export default function DataHub() {
 
   const { data: grupos = [], isLoading } = useQuery({
     queryKey: ["grupos"],
-    queryFn: () => base44.entities.Grupo.list(),
+    queryFn: () => api.entities.Grupo.list(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Grupo.create(data),
+    mutationFn: (data) => api.entities.Grupo.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grupos"] });
       setDialogOpen(false);
@@ -36,7 +36,7 @@ export default function DataHub() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Grupo.update(id, data),
+    mutationFn: ({ id, data }) => api.entities.Grupo.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grupos"] });
       setDialogOpen(false);
@@ -46,7 +46,7 @@ export default function DataHub() {
 
   const handleDelete = async (g) => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir o grupo "${g.nome}"? Esta ação não pode ser desfeita.`, rotulo: "Excluir" }))) return;
-    await base44.entities.Grupo.delete(g.id);
+    await api.entities.Grupo.delete(g.id);
     queryClient.invalidateQueries({ queryKey: ["grupos"] });
   };
 

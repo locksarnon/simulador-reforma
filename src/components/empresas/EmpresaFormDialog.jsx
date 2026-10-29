@@ -2,7 +2,7 @@ import { ERPS, ADDONS, LINHAS_PIMS } from "@/lib/conhecimentoSistemas";
 import { RAMOS_CADASTRO } from "@/lib/setoresReforma";
 import React, { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -83,7 +83,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
     }
     setBuscandoCnpj(true);
     try {
-      const dados = await base44.integrations.Core.ConsultarCNPJ(digits);
+      const dados = await api.integrations.Core.ConsultarCNPJ(digits);
       setForm((f) => ({
         ...f,
         razao_social: dados.razao_social || f.razao_social,
@@ -101,8 +101,8 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
   const save = async (e) => {
     e.preventDefault();
     const payload = { ...form, grupo: grupoNumero || form.grupo };
-    if (editing === "new") await base44.entities.Empresa.create(payload);
-    else await base44.entities.Empresa.update(editing.id, payload);
+    if (editing === "new") await api.entities.Empresa.create(payload);
+    else await api.entities.Empresa.update(editing.id, payload);
     rascunho.limpar();
     onOpenChange(false);
     qc.invalidateQueries({ queryKey: ["empresas"] });

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useSimuladorData } from "@/hooks/useSimuladorData";
 import { BRL } from "@/lib/format";
 import OperacaoForm from "@/components/operacoes/OperacaoForm";
@@ -27,7 +27,7 @@ export default function OperacoesPage() {
   const qc = useQueryClient();
   const { data: grupo } = useQuery({
     queryKey: ["grupo", grupoId],
-    queryFn: () => base44.entities.Grupo.get(grupoId),
+    queryFn: () => api.entities.Grupo.get(grupoId),
     enabled: !!grupoId,
   });
   const grupoNumero = grupo?.numero;
@@ -46,7 +46,7 @@ export default function OperacoesPage() {
   const transicaoMap = useMemo(() => new Map(transicao.map((t) => [t.ano, t])), [transicao]);
   const classTribMap = useMemo(() => new Map(classTrib.map((c) => [c.c_class_trib, c])), [classTrib]);
   // Catálogo de CST (descrição oficial), para explicar o código que veio no XML.
-  const { data: cstLista = [] } = useQuery({ queryKey: ["cst-ibs-cbs"], queryFn: () => base44.entities.CstIbsCbs.list(), staleTime: 10 * 60_000 });
+  const { data: cstLista = [] } = useQuery({ queryKey: ["cst-ibs-cbs"], queryFn: () => api.entities.CstIbsCbs.list(), staleTime: 10 * 60_000 });
   const cstMap = useMemo(() => new Map(cstLista.map((c) => [String(c.cst), c])), [cstLista]);
   const empresaMap = useMemo(() => new Map(empresas.map((e) => [e.id_empresa, e])), [empresas]);
 
@@ -63,9 +63,9 @@ export default function OperacoesPage() {
 
   const handleSave = async (form) => {
     if (editing === "new") {
-      await base44.entities.Operacao.create(form);
+      await api.entities.Operacao.create(form);
     } else {
-      await base44.entities.Operacao.update(editing.id, form);
+      await api.entities.Operacao.update(editing.id, form);
     }
     setOpen(false);
     setEditing(null);
@@ -74,7 +74,7 @@ export default function OperacoesPage() {
 
   const handleDelete = async (op) => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a operação ${op.id_operacao}?`, rotulo: "Excluir" }))) return;
-    await base44.entities.Operacao.delete(op.id);
+    await api.entities.Operacao.delete(op.id);
     qc.invalidateQueries({ queryKey: ["operacoes"] });
   };
 

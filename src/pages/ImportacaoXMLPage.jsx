@@ -9,12 +9,11 @@ import {
 import InfoTooltip from "@/components/InfoTooltip";
 import LimparDadosButton from "@/components/LimparDadosButton";
 import PageHeader from "@/components/PageHeader";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useImportacaoXML } from "@/hooks/useImportacaoXML";
 import DropzoneXML from "@/components/importacao/DropzoneXML";
 import ArquivosLog from "@/components/importacao/ArquivosLog";
 import StagingTable from "@/components/importacao/StagingTable";
-import { api } from "@/api/base44Client";
 import { toast } from "@/components/ui/use-toast";
 import { tratamentoDoItem, entraNoCalculo } from "@/lib/cfopTratamento";
 import ValidacaoDrawer from "@/components/importacao/ValidacaoDrawer";
@@ -27,14 +26,14 @@ export default function ImportacaoXMLPage() {
   const { grupo: grupoCtx, empresa: empresaTravada } = useOutletContext() || {};
   const { data: grupo } = useQuery({
     queryKey: ["grupo", id],
-    queryFn: () => base44.entities.Grupo.get(id),
+    queryFn: () => api.entities.Grupo.get(id),
     enabled: !!id && !grupoCtx,
   });
   const grupoNumero = grupoCtx?.numero || grupo?.numero;
   const grupoNome = grupoCtx?.nome || grupo?.nome;
   const { data: empresasDoGrupo = [] } = useQuery({
     queryKey: ["empresas", grupoNumero],
-    queryFn: () => base44.entities.Empresa.filter({ grupo: grupoNumero }),
+    queryFn: () => api.entities.Empresa.filter({ grupo: grupoNumero }),
     enabled: !!grupoNumero,
   });
   // ImportacaoXMLItem.empresa_id guarda o cuid (Empresa.id) que o backend usa

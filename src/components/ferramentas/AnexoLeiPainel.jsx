@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2 } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const CHAVE_NORMA = "lcp-214-2025";

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const MAX_FILES = 5000;
@@ -11,11 +11,11 @@ const UPLOAD_TENTATIVAS = 3;
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Envia um arquivo com até 3 tentativas (espera 1s, depois 3s). Devolve { ok, ref } ou { ok:false, erro }. */
-async function enviarComRetry(base44, f) {
+async function enviarComRetry(api, f) {
   let ultimoErro = null;
   for (let t = 1; t <= UPLOAD_TENTATIVAS; t++) {
     try {
-      const { file_url, storage_key } = await base44.integrations.Core.UploadFile({ file: f });
+      const { file_url, storage_key } = await api.integrations.Core.UploadFile({ file: f });
       return { ok: true, ref: { nome: f.name, file_url, storage_key, tamanho: f.size } };
     } catch (err) {
       ultimoErro = err;
@@ -80,7 +80,7 @@ export function useImportacaoXML(grupoId) {
       const falhas = [];
       for (let i = 0; i < selectedFiles.length; i += UPLOAD_CONCURRENCY) {
         const batch = selectedFiles.slice(i, i + UPLOAD_CONCURRENCY);
-        const results = await Promise.all(batch.map((f) => enviarComRetry(base44, f)));
+        const results = await Promise.all(batch.map((f) => enviarComRetry(api, f)));
         results.forEach((r) => (r.ok ? arquivosRefs.push(r.ref) : falhas.push(r)));
         setUploadProgress({ current: Math.min(i + UPLOAD_CONCURRENCY, selectedFiles.length), total: selectedFiles.length });
       }
@@ -105,7 +105,7 @@ export function useImportacaoXML(grupoId) {
           });
 
       // 3. Envia para processamento backend.
-      const resp = await base44.functions.invoke("processarLoteXML", {
+      const resp = await api.functions.invoke("processarLoteXML", {
         grupo_id: grupoId,
         idempotency_key,
         arquivos: arquivosRefs,
@@ -129,7 +129,7 @@ export function useImportacaoXML(grupoId) {
   // lote antigo (já totalmente confirmado ou não) nunca duplica Operação.
   const latestLoteQuery = useQuery({
     queryKey: ["latest-lote-xml", grupoId],
-    queryFn: () => base44.entities.ImportacaoXMLLote.filter({ grupo_id: grupoId }, "-createdAt", 1),
+    queryFn: () => api.entities.ImportacaoXMLLote.filter({ grupo_id: grupoId }, "-createdAt", 1),
     enabled: !!grupoId && !loteId,
   });
   useEffect(() => {
@@ -141,7 +141,7 @@ export function useImportacaoXML(grupoId) {
   // Poll do lote.
   const loteQuery = useQuery({
     queryKey: ["lote-xml", loteId],
-    queryFn: () => base44.entities.ImportacaoXMLLote.get(loteId),
+    queryFn: () => api.entities.ImportacaoXMLLote.get(loteId),
     enabled: !!loteId,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
@@ -157,18 +157,18 @@ export function useImportacaoXML(grupoId) {
 
   const arquivosQuery = useQuery({
     queryKey: ["arquivos-xml", loteId],
-    queryFn: () => base44.entities.ImportacaoXMLArquivo.filter({ lote_id: loteId }),
+    queryFn: () => api.entities.ImportacaoXMLArquivo.filter({ lote_id: loteId }),
     enabled: !!loteId && loteQuery.data?.status !== "RECEBIDO" && loteQuery.data?.status !== "PROCESSANDO",
   });
 
   const itensQuery = useQuery({
     queryKey: ["itens-xml", loteId],
-    queryFn: () => base44.entities.ImportacaoXMLItem.filter({ lote_id: loteId }),
+    queryFn: () => api.entities.ImportacaoXMLItem.filter({ lote_id: loteId }),
     enabled: !!loteId && loteQuery.data?.status !== "RECEBIDO" && loteQuery.data?.status !== "PROCESSANDO",
   });
 
   const confirmarImportacao = useCallback(async (perspectivasIds) => {
-    const resp = await base44.functions.invoke("confirmarImportacaoXML", {
+    const resp = await api.functions.invoke("confirmarImportacaoXML", {
       lote_id: loteId,
       perspectivas_ids: perspectivasIds,
     });
@@ -183,7 +183,7 @@ export function useImportacaoXML(grupoId) {
   // storage_key já salva e reprocessa só o que não deu certo.
   const reprocessarLote = useCallback(async (idDoLote) => {
     const alvo = idDoLote || loteId;
-    const resp = await base44.functions.invoke("reprocessarLoteXML", { lote_id: alvo });
+    const resp = await api.functions.invoke("reprocessarLoteXML", { lote_id: alvo });
     qc.invalidateQueries({ queryKey: ["lote-xml", alvo] });
     qc.invalidateQueries({ queryKey: ["arquivos-xml", alvo] });
     return resp.data;

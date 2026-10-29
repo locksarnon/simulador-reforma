@@ -2,16 +2,16 @@
 
 ## Project Context
 
-Simulador FAL — Reforma Tributária. React/Vite frontend + a self-hosted NestJS/Prisma/PostgreSQL backend (`backend/`), replacing what used to be a Base44-hosted app. Dockerized end-to-end (`docker-compose.yml`).
+InTAX — Reforma Tributária (repo `simulador-reforma`). React/Vite frontend + NestJS/Prisma/PostgreSQL backend (`backend/`). Dockerized end-to-end (`docker-compose.yml`).
 
 Start with `README.md` for the Docker workflow.
 
 ## Key Files
 
 - `src/` — frontend application source.
-- `src/api/base44Client.js` — thin axios client talking to the backend's REST API (kept the historical name/shape so page/hook imports didn't need to change).
-- `backend/` — NestJS API (auth, generic entity CRUD, MinIO storage, XML import). See `backend/README.md`.
-- `base44/entities/*.jsonc` and `base44/functions/*/entry.ts` — the ORIGINAL Base44 schema/function definitions this project was ported from. Kept for reference (the backend's `prisma/schema.prisma` and `src/importacao-xml/` are the ported, authoritative versions now) — do not wire the frontend back to these.
+- `src/api/client.js` — axios client for the backend's REST API. One `api` object: direct calls (`api.get/post/put/delete/upload/baixar`), `api.entities.<Name>` (CRUD), `api.auth`, `api.functions.invoke` and `api.integrations.Core`.
+- `src/motor/` — the calculation engine (`taxEngine.js`, `simplesHibrido.js`) and its tests. Pure JS, runs in the browser. Bump `VERSAO_MOTOR` in `taxEngine.js` whenever a formula changes.
+- `backend/` — NestJS API (auth, generic entity CRUD, MinIO storage, XML import). See `backend/README.md`. `backend/prisma/schema.prisma` is the data model; `backend/src/importacao-xml/` is the NF-e XML import.
 - `vite.config.js` — fixed dev port 5175, `host: true` for Docker.
 - `.env.local` / `backend/.env` — local env vars; never commit secrets.
 

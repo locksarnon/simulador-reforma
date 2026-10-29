@@ -5,8 +5,8 @@ import { StorageService } from '../storage/storage.service';
 
 /**
  * Nomes de entidade expostos via /entities/:model — espelham exatamente os
- * nomes de model em prisma/schema.prisma (por sua vez portados 1:1 de
- * base44/entities/*.jsonc) e o que o frontend chama via base44.entities.<Nome>.
+ * nomes de model em prisma/schema.prisma e o que o frontend chama via
+ * api.entities.<Nome>.
  * NUNCA inclui User/RefreshToken/PasswordResetToken — essas tabelas só são
  * acessíveis via /auth/*.
  */
@@ -192,8 +192,7 @@ export class EntitiesService {
     const delegate = this.delegate(model);
     // Prisma createMany não retorna as linhas criadas — cria uma a uma numa
     // transação para poder devolver os registros completos (com id), que é
-    // o contrato que o SDK base44 original (e o código que consome a
-    // resposta) espera.
+    // o contrato que o código que consome a resposta espera.
     return this.prisma.$transaction(rows.map((row) => delegate.create({ data: this.sanitize(model, row) })));
   }
 

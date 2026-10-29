@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate, useOutletContext, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { ChevronRight, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMarked, UploadCloud, Plus } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import EmpresaCard from "@/components/EmpresaCard";
@@ -19,7 +19,7 @@ export default function WorkroomOverview() {
 
   const { data: empresas = [], isLoading } = useQuery({
     queryKey: ["empresas", grupoNumero],
-    queryFn: () => base44.entities.Empresa.filter({ grupo: grupoNumero }),
+    queryFn: () => api.entities.Empresa.filter({ grupo: grupoNumero }),
     enabled: !!grupoNumero,
   });
 
@@ -30,7 +30,7 @@ export default function WorkroomOverview() {
   const startEdit = (em) => { setEditing(em); setOpen(true); };
   const del = async (em) => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa ${em.id_empresa}?`, rotulo: "Excluir" }))) return;
-    await base44.entities.Empresa.delete(em.id);
+    await api.entities.Empresa.delete(em.id);
     qc.invalidateQueries({ queryKey: ["empresas"] });
   };
 

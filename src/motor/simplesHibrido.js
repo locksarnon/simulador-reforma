@@ -7,10 +7,11 @@
  * IBS/CBS mantendo o DAS (LC 214/2025, art. 47, §9º) — mais os pontos de
  * equilíbrio de preço.
  *
- * Base legal (conferida linha a linha contra LC 123/2006, LC 214/2025 e
- * LC 227/2026 já carregadas no NormaLegal; ver notas inline por função):
- *   - Faixas/alíquotas/deduções dos Anexos I-V: LC 123/2006, Anexos
- *     XVIII-XXII, na redação dada pela LC 227/2026 para 2027/2028.
+ * Base legal (ver notas inline por função):
+ *   - Faixas, alíquotas, deduções e repartição de CBS/IBS dos Anexos I-V para
+ *     2027/2028: LC 214/2025, Anexos XVIII a XXII (nova redação dos Anexos I a
+ *     V da LC 123/2006), na redação dada pela LC 227/2026. Conferidas contra o
+ *     texto compilado do Planalto em 28/10/2026 (30 faixas, sem divergência).
  *   - Fator R (corte de 28%, Anexo III se ≥28%, V se <28%): LC 123/2006,
  *     art. 18, §§5º-J e 5º-M (texto conferido contra o NormaLegal do app —
  *     citação mais forte que a Resolução CGSN 140/2018, que é só a norma
@@ -19,15 +20,19 @@
  *     limitado ao valor que efetivamente entrou no DAS: LC 214/2025,
  *     art. 47, §9º, II (texto conferido contra o NormaLegal do app).
  *
+ * ATUALIZAÇÃO 28/10/2026: o TCU aprovou a alíquota de referência da CBS de
+ * 2027 em 11,3468% (11,3% arredondada, LC 214, art. 349, §14), pendente da
+ * resolução do Senado. O padrão de 9,21% descrito abaixo está desatualizado
+ * até a decisão sobre o novo valor (ver docs/auditoria-reforma-2026-10-28.md).
+ * A regra de fixação pelo Senado está no art. 349 da LC 214, não no art. 14.
+ *
  * As duas pendências de QA abaixo (CBS do Anexo III 3ª/4ª faixa; cbs_efetiva
  * do regime regular) foram revisadas e fechadas em 2026-10-01 — ver notas
  * inline em ANEXOS_2027["Anexo III"] e em calcularHibrido():
- *   1. CBS do Anexo III (3ª/4ª faixa) = 16,41%: confirmado por duas fontes
- *      secundárias independentes que convergem no mesmo número (ver nota na
- *      tabela abaixo) — as leituras de 16,42%/16,60% da tentativa anterior
- *      eram ruído de um fetch automatizado mal-sucedido numa única página,
- *      não um valor concorrente real (não reapareceram em nenhuma outra
- *      fonte pesquisada).
+ *   1. CBS do Anexo III (3ª/4ª faixa) = 16,41%: é o valor da redação da LC
+ *      227/2026 para o Anexo XX da LC 214 (a tabela original trazia 16,42%,
+ *      que não fecha 100% da repartição). Conferido contra o texto compilado
+ *      do Planalto em 28/10/2026.
  *   2. cbs_efetiva do regime regular: a alíquota de referência OFICIAL ainda
  *      não existe — por lei (LC 214/2025, art. 14), o Senado só a fixa até
  *      15/12/2026. Até lá, 9,21% (já no TransicaoAno) é a melhor estimativa
@@ -46,7 +51,7 @@ export const FATOR_R_CORTE = 0.28;
 export const RBT12_LIMITE_SIMPLES = 4_800_000;
 
 /**
- * Tabelas 2027/2028 dos Anexos I a V (LC 123/2006, redação da LC 227/2026).
+ * Tabelas 2027/2028 dos Anexos I a V (LC 214/2025, Anexos XVIII a XXII, redação da LC 227/2026).
  * cbsPct/ibsPct = repartição do CBS/IBS dentro do DAS pago (não é a alíquota
  * do regime regular — é quanto do DAS já corresponde a IBS/CBS, usado pra
  * calcular o crédito que o cliente recebe no Simples puro).
@@ -68,11 +73,9 @@ export const ANEXOS_2027 = {
     { faixa: 5, min: 1_800_000.01, max: 3_600_000, aliquotaNominal: 0.147, parcelaDeduzir: 85_500, cbsPct: 0.1385, ibsPct: 0.0015 },
     { faixa: 6, min: 3_600_000.01, max: 4_800_000, aliquotaNominal: 0.299, parcelaDeduzir: 720_000, cbsPct: 0.2522, ibsPct: 0 },
   ],
-  // CBS 16,41% nas faixas 3/4: confirmado em 2026-10-01 por duas fontes
-  // secundárias independentes (mentorfiscal.com.br — tabela própria do
-  // Anexo III 2027/2028 — e valorfinal.com.br, que usa 16,41%+0,19% num
-  // exemplo de cálculo independente) — ambas convergem no mesmo número que
-  // a planilha do usuário. Pendência de QA fechada (ver header do arquivo).
+  // CBS 16,41% nas faixas 3/4: redação da LC 227/2026 do Anexo XX da LC 214
+  // (a tabela original trazia 16,42%, que não fecha 100%). Conferido contra o
+  // texto compilado do Planalto em 28/10/2026 (ver header do arquivo).
   "Anexo III": [
     { faixa: 1, min: 0, max: 180_000, aliquotaNominal: 0.06, parcelaDeduzir: 0, cbsPct: 0.1543, ibsPct: 0.0017 },
     { faixa: 2, min: 180_000.01, max: 360_000, aliquotaNominal: 0.112, parcelaDeduzir: 9_360, cbsPct: 0.1691, ibsPct: 0.0019 },

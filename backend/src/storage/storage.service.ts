@@ -4,8 +4,9 @@ import { Client } from 'minio';
 
 /**
  * Wrapper fino sobre o MinIO (S3-compatible), provisionado no docker-compose
- * (serviço `minio`). Substitui base44.integrations.Core.UploadFile — o
- * Base44 original guardava o arquivo na própria plataforma via `file_url`.
+ * (serviço `minio`). Atende ao upload do front (api.integrations.Core.UploadFile
+ * → POST /uploads) e devolve o `file_url` (URL pré-assinada) usado pela
+ * importação de XML.
  */
 @Injectable()
 export class StorageService implements OnModuleInit {

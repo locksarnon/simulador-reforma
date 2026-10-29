@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ClipboardCopy, ExternalLink, AlertTriangle, RotateCcw, ListChecks, Map as MapIcon } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import PageHeader from "@/components/PageHeader";
 import { toast } from "@/components/ui/use-toast";

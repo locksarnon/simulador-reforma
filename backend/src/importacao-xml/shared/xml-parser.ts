@@ -2,10 +2,6 @@
  * Parser XML seguro para NF-e/NFC-e — usa @xmldom/xmldom.
  * Localização SEMPRE por element.localName (nunca indexOf/substring/regex).
  * Bloqueia DTD e entidades externas.
- *
- * Porte direto de base44/shared/xmlParser.js — única mudança é o import do
- * xmldom (era `npm:@xmldom/xmldom@0.9.3`, especificador estilo Deno, usado
- * pelo runtime de edge functions do Base44; aqui é um import Node normal).
  */
 import { DOMParser } from '@xmldom/xmldom';
 

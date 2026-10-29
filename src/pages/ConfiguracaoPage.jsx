@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save, Settings } from "lucide-react";
@@ -20,7 +20,7 @@ const empty = {
 
 export default function ConfiguracaoPage() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["config"], queryFn: () => base44.entities.Configuracao.list() });
+  const { data } = useQuery({ queryKey: ["config"], queryFn: () => api.entities.Configuracao.list() });
   const existing = data?.[0];
   const [form, setForm] = useState(() => ({ ...empty, ...existing }));
   const [saving, setSaving] = useState(false);
@@ -38,8 +38,8 @@ export default function ConfiguracaoPage() {
   const save = async (e) => {
     e.preventDefault();
     setSaving(true);
-    if (existing?.id) await base44.entities.Configuracao.update(existing.id, form);
-    else await base44.entities.Configuracao.create(form);
+    if (existing?.id) await api.entities.Configuracao.update(existing.id, form);
+    else await api.entities.Configuracao.create(form);
     setSaving(false);
     setSaved(true);
     qc.invalidateQueries({ queryKey: ["config"] });

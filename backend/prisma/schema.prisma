@@ -58,7 +58,7 @@ model PasswordResetToken {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Enums (portados de base44/entities/*.jsonc)
+// Enums
 // ─────────────────────────────────────────────────────────────────────────
 
 enum Direcao {
@@ -156,7 +156,7 @@ enum ResultadoFinalXML {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Entidades de dados (portadas de base44/entities/*.jsonc)
+// Entidades de dados
 // ─────────────────────────────────────────────────────────────────────────
 
 model Grupo {
@@ -536,7 +536,7 @@ model HistoricoXML {
 // ─────────────────────────────────────────────────────────────────────────
 // Simulacao — snapshot imutável de uma rodada de cálculo do simulador.
 //
-// O motor (taxEngine.js) roda hoje inteiramente ao vivo no navegador: nada
+// O motor (src/motor/taxEngine.js) roda hoje inteiramente ao vivo no navegador: nada
 // do que ele calcula fica gravado em lugar nenhum, então não há como provar
 // depois com que regras/premissas um número foi produzido. Este model é o
 // registro de auditoria que faltava — "Salvar simulação" grava aqui uma

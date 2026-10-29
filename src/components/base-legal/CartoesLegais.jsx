@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BadgeCheck, ChevronDown, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 

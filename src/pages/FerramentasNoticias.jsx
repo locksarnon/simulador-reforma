@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,7 +26,7 @@ export default function FerramentasNoticias() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["noticiasReforma"],
-    queryFn: () => base44.entities.NoticiaReforma.filter({}, "-publicado_em", 200),
+    queryFn: () => api.entities.NoticiaReforma.filter({}, "-publicado_em", 200),
   });
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
@@ -37,7 +37,7 @@ export default function FerramentasNoticias() {
   const buscarAtualizacoes = async () => {
     setBuscando(true);
     try {
-      const resp = await base44.functions.invoke("buscarAtualizacoesNoticias");
+      const resp = await api.functions.invoke("buscarAtualizacoesNoticias");
       const r = resp.data;
       toast({
         title: "Busca concluída",
@@ -52,22 +52,22 @@ export default function FerramentasNoticias() {
   };
 
   const publicar = async (n) => {
-    await base44.entities.NoticiaReforma.update(n.id, { status: "Publicada" });
+    await api.entities.NoticiaReforma.update(n.id, { status: "Publicada" });
     qc.invalidateQueries({ queryKey: ["noticiasReforma"] });
   };
 
   const save = async (e) => {
     e.preventDefault();
     const payload = { ...form, publicado_em: form.publicado_em ? `${form.publicado_em}T00:00:00.000Z` : null };
-    if (editing === "new") await base44.entities.NoticiaReforma.create(payload);
-    else await base44.entities.NoticiaReforma.update(editing.id, payload);
+    if (editing === "new") await api.entities.NoticiaReforma.create(payload);
+    else await api.entities.NoticiaReforma.update(editing.id, payload);
     setOpen(false);
     qc.invalidateQueries({ queryKey: ["noticiasReforma"] });
   };
 
   const del = async (n) => {
     if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir "${n.titulo}"?`, rotulo: "Excluir" }))) return;
-    await base44.entities.NoticiaReforma.delete(n.id);
+    await api.entities.NoticiaReforma.delete(n.id);
     qc.invalidateQueries({ queryKey: ["noticiasReforma"] });
   };
 

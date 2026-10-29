@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, ClipboardCopy, ExternalLink, History, Loader2, Search } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import { fmtData } from "@/pages/BaseLegalPage";

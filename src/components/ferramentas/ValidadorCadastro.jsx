@@ -3,7 +3,7 @@ import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SlidersHorizontal, UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import LeadForm from "@/components/ferramentas/LeadForm";
 import AnexoLeiPainel from "@/components/ferramentas/AnexoLeiPainel";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";

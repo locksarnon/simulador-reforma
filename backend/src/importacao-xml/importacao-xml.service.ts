@@ -72,10 +72,11 @@ type ProcessarLoteBody = { grupo_id: string; idempotency_key: string; arquivos: 
 type ConfirmarBody = { lote_id: string; perspectivas_ids: string[] };
 
 /**
- * Porte de base44/functions/processarLoteXML/entry.ts e
- * base44/functions/confirmarImportacaoXML/entry.ts. `base44.asServiceRole
- * .entities.X.method()` → `this.prisma.x.method()` mecanicamente; a lógica
- * de parsing/validação/dedup é mantida como estava.
+ * Importação de XML de NF-e/NFC-e: receberLote (POST /xml/processar-lote),
+ * confirmarImportacao (POST /xml/confirmar-importacao) e reprocessarLote
+ * (POST /xml/reprocessar-lote). Parsing, validação em quatro camadas
+ * (documental, cadastral, tributária, operacional) e dedup por hash, chave e
+ * perspectiva.
  */
 @Injectable()
 export class ImportacaoXmlService {
@@ -139,7 +140,7 @@ export class ImportacaoXmlService {
       file_url: arquivos[idx].file_url,
     }));
 
-    // Processamento assíncrono (fire-and-forget — equivalente ao waitUntil do Base44).
+    // Processamento assíncrono (fire-and-forget): a resposta volta com o lote em RECEBIDO.
     void this.processarLote(lote.id, grupo_id, arquivosReg).catch((err) => {
       this.logger.error(`Falha ao processar lote ${lote.id}: ${(err as Error)?.stack || err}`);
     });

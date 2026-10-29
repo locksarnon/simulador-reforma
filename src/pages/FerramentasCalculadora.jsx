@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
-import { calcOperacao } from "../../base44/shared/taxEngine";
+import { api } from "@/api/client";
+import { calcOperacao } from "@/motor/taxEngine";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -28,7 +28,7 @@ export default function FerramentasCalculadora() {
 
   const { data: transicao = [] } = useQuery({
     queryKey: ["transicao"],
-    queryFn: () => base44.entities.TransicaoAno.list(),
+    queryFn: () => api.entities.TransicaoAno.list(),
   });
   const anos = [...transicao].sort((a, b) => a.ano - b.ano);
   const anoParams = anos.find((t) => String(t.ano) === ano) || {};

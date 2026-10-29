@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Scale } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { FUNDAMENTOS } from "@/lib/fundamentosLegais";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 

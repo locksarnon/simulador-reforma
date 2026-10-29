@@ -1,10 +1,11 @@
 import axios from 'axios';
 
 /**
- * Cliente do backend próprio (self-hosted), substitui o SDK hospedado do
- * Base44 (@base44/sdk). Mantém o mesmo formato `export const base44 = {...}`
- * e a mesma superfície de métodos (entities/auth/functions/integrations)
- * usada em todo o app, para que nenhuma página/hook precise mudar.
+ * Cliente do backend do InTAX (NestJS). Um único objeto `api` reúne:
+ *  - chamadas diretas por rota: get, post, put, delete, upload, baixar;
+ *  - entities.<Nome>: list, filter, get, create, update, delete, bulkCreate, bulkUpdate;
+ *  - auth, functions.invoke e integrations.Core.
+ * Renova o access token sozinho em caso de 401 (refresh token no localStorage).
  */
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3003/api/v1';
@@ -168,10 +169,10 @@ const FUNCTION_ROUTES = {
 };
 
 /**
- * Chamadas diretas às rotas novas do InTAX (públicas e autenticadas) que não
+ * Chamadas diretas às rotas do InTAX (públicas e autenticadas) que não
  * seguem o padrão de entidade. Erros saem no mesmo formato do resto do app.
  */
-export const api = {
+const chamadas = {
   async get(url, params) {
     try { return (await http.get(url, { params })).data; } catch (err) { throw unwrapError(err); }
   },
@@ -214,7 +215,9 @@ export const api = {
   },
 };
 
-export const base44 = {
+export const api = {
+  ...chamadas,
+
   entities,
 
   auth: {

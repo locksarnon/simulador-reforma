@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { CartaoResposta } from "@/components/base-legal/CartoesLegais";
 
 const EXEMPLOS = [

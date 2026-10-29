@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 export function useAnaliseEmpresa(servico, restaurar) {
   const { empresaId } = useParams();
   const [params] = useSearchParams();

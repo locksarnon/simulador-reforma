@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -98,7 +98,7 @@ function SearchBar({ value, onChange }) {
 
 function CstTable() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["cstIbs"], queryFn: () => base44.entities.CstIbsCbs.list() });
+  const { data } = useQuery({ queryKey: ["cstIbs"], queryFn: () => api.entities.CstIbsCbs.list() });
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
@@ -109,8 +109,8 @@ function CstTable() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.CstIbsCbs.create(form);
-    else await base44.entities.CstIbsCbs.update(editing.id, form);
+    if (editing === "new") await api.entities.CstIbsCbs.create(form);
+    else await api.entities.CstIbsCbs.update(editing.id, form);
     setOpen(false); qc.invalidateQueries({ queryKey: ["cstIbs"] });
   };
 
@@ -175,7 +175,7 @@ function CstTable() {
 
 function ClassTribTable() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["classTrib"], queryFn: () => base44.entities.ClassTrib.list() });
+  const { data } = useQuery({ queryKey: ["classTrib"], queryFn: () => api.entities.ClassTrib.list() });
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
@@ -186,8 +186,8 @@ function ClassTribTable() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.ClassTrib.create(form);
-    else await base44.entities.ClassTrib.update(editing.id, form);
+    if (editing === "new") await api.entities.ClassTrib.create(form);
+    else await api.entities.ClassTrib.update(editing.id, form);
     setOpen(false); qc.invalidateQueries({ queryKey: ["classTrib"] });
   };
 
@@ -251,7 +251,7 @@ function ClassTribTable() {
 
 function CredPresTable() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["credPres"], queryFn: () => base44.entities.CredPres.list() });
+  const { data } = useQuery({ queryKey: ["credPres"], queryFn: () => api.entities.CredPres.list() });
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
@@ -268,8 +268,8 @@ function CredPresTable() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.CredPres.create(form);
-    else await base44.entities.CredPres.update(editing.id, form);
+    if (editing === "new") await api.entities.CredPres.create(form);
+    else await api.entities.CredPres.update(editing.id, form);
     setOpen(false); qc.invalidateQueries({ queryKey: ["credPres"] });
   };
 
@@ -377,7 +377,7 @@ function CredPresTable() {
 
 function NcmTable() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["ncm"], queryFn: () => base44.entities.Ncm.list() });
+  const { data } = useQuery({ queryKey: ["ncm"], queryFn: () => api.entities.Ncm.list() });
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
@@ -388,8 +388,8 @@ function NcmTable() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.Ncm.create(form);
-    else await base44.entities.Ncm.update(editing.id, form);
+    if (editing === "new") await api.entities.Ncm.create(form);
+    else await api.entities.Ncm.update(editing.id, form);
     setOpen(false); qc.invalidateQueries({ queryKey: ["ncm"] });
   };
 
@@ -445,7 +445,7 @@ function NcmTable() {
 
 function CfopTable() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["cfop"], queryFn: () => base44.entities.Cfop.list() });
+  const { data } = useQuery({ queryKey: ["cfop"], queryFn: () => api.entities.Cfop.list() });
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
@@ -456,8 +456,8 @@ function CfopTable() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.Cfop.create(form);
-    else await base44.entities.Cfop.update(editing.id, form);
+    if (editing === "new") await api.entities.Cfop.create(form);
+    else await api.entities.Cfop.update(editing.id, form);
     setOpen(false); qc.invalidateQueries({ queryKey: ["cfop"] });
   };
 
@@ -519,7 +519,7 @@ function CfopTable() {
 
 function BeneficioFiscalTable() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["beneficioFiscal"], queryFn: () => base44.entities.BeneficioFiscal.list() });
+  const { data } = useQuery({ queryKey: ["beneficioFiscal"], queryFn: () => api.entities.BeneficioFiscal.list() });
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
@@ -530,8 +530,8 @@ function BeneficioFiscalTable() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (editing === "new") await base44.entities.BeneficioFiscal.create(form);
-    else await base44.entities.BeneficioFiscal.update(editing.id, form);
+    if (editing === "new") await api.entities.BeneficioFiscal.create(form);
+    else await api.entities.BeneficioFiscal.update(editing.id, form);
     setOpen(false); qc.invalidateQueries({ queryKey: ["beneficioFiscal"] });
   };
 

@@ -5,7 +5,7 @@ import LimparDadosButton from "@/components/LimparDadosButton";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, History, LayoutGrid, Trash2 } from "lucide-react";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import TituloPagina from "@/components/TituloPagina";
 

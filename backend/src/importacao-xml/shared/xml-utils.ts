@@ -1,8 +1,7 @@
 /**
- * Utilidades compartilhadas de importação XML — Simulador FAL v0.18.
- * Porte direto de base44/shared/xmlUtils.js — usado por processarLoteXML e
- * confirmarImportacaoXML. Única mudança: sha256 usa o módulo `crypto` do
- * Node em vez do Web Crypto do runtime de edge functions do Base44.
+ * Utilidades compartilhadas de importação XML — InTAX (VERSAO_REGRAS abaixo).
+ * Usadas pelo processamento do lote e pela confirmação da importação.
+ * O sha256 usa o módulo `crypto` do Node.
  */
 import { createHash } from 'crypto';
 

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Radar, RefreshCw, ExternalLink, AlertCircle, ArrowRight } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
@@ -39,11 +39,11 @@ export default function RadarReformaPage() {
 
   const { data: itens, isLoading } = useQuery({
     queryKey: ["radarReformaItens"],
-    queryFn: () => base44.entities.RadarReformaItem.filter({}, "-createdAt", 300),
+    queryFn: () => api.entities.RadarReformaItem.filter({}, "-createdAt", 300),
   });
   const { data: execucoes } = useQuery({
     queryKey: ["radarReformaExecucoes"],
-    queryFn: () => base44.entities.RadarReformaExecucao.filter({}, "-executado_em", 12),
+    queryFn: () => api.entities.RadarReformaExecucao.filter({}, "-executado_em", 12),
   });
 
   const ultimaExecucao = execucoes?.[0] || null;
@@ -62,7 +62,7 @@ export default function RadarReformaPage() {
   const gerarAgora = async () => {
     setGerando(true);
     try {
-      const resp = await base44.functions.invoke("gerarRadarReforma");
+      const resp = await api.functions.invoke("gerarRadarReforma");
       const r = resp.data;
       toast({
         title: "Radar atualizado",

@@ -2,10 +2,9 @@
 # Backup do Postgres (pg_dump) e dos arquivos do MinIO.
 # Rode a partir da raiz do projeto: bash scripts/backup.sh
 #
-# Não há mais nenhum backup automático da Base44 por trás deste app — desde
-# que o backend passou a ser self-hosted, este script é a única rede de
-# segurança dos dados. Rode com frequência (ideal: agendado via cron/Task
-# Scheduler) e guarde os arquivos gerados fora desta máquina também.
+# Como o backend é self-hosted, este script é a rede de segurança dos dados.
+# Rode com frequência (ideal: agendado via cron/Task Scheduler) e guarde os
+# arquivos gerados fora desta máquina também.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

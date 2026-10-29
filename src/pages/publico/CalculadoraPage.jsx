@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { api } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { PERFIS, REGIMES, estimar, montarRelatorio, brl, CONTATO } from "@/lib/calculadoraAgro";
 import { comoEraComoFica, pontosTratados, pontosNaoTratados, secoesReforma } from "@/lib/relatorioReforma";
 import LeadForm from "@/components/ferramentas/LeadForm";

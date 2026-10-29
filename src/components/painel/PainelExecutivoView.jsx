@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSimuladorData, calcularOperacoes } from "@/hooks/useSimuladorData";
-import { consolidarPorAno, VERSAO_MOTOR } from "../../../base44/shared/taxEngine";
-import { base44 } from "@/api/base44Client";
+import { consolidarPorAno, VERSAO_MOTOR } from "@/motor/taxEngine";
+import { api } from "@/api/client";
 import { hashSnapshot } from "@/lib/snapshotHash";
 import { Link } from "react-router-dom";
 import InfoLegal from "@/components/InfoLegal";
@@ -114,7 +114,7 @@ export default function PainelExecutivoView({
   const simulacoesFiltro = empresaDbId ? { empresa_id: empresaDbId } : (grupoId ? { grupo_id: grupoId } : {});
   const simulacoesQ = useQuery({
     queryKey: ["simulacoes", grupoId, empresaDbId],
-    queryFn: () => base44.entities.Simulacao.filter(simulacoesFiltro, "-createdAt", 20),
+    queryFn: () => api.entities.Simulacao.filter(simulacoesFiltro, "-createdAt", 20),
   });
 
   const transicaoPorAno = useMemo(
@@ -216,7 +216,7 @@ export default function PainelExecutivoView({
       };
       const resultado = { consolidado, totais };
       const nomeEscopo = empresaLabel || grupoLabel || "todos os grupos";
-      await base44.entities.Simulacao.create({
+      await api.entities.Simulacao.create({
         escopo,
         grupo_id: grupoId,
         empresa_id: empresaDbId,
