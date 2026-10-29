@@ -14,8 +14,12 @@
 --
 -- ANTES: backup das três tabelas (dentro do container reforma-postgres):
 --   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t '"TransicaoAno"' -t '"ClassTrib"' -t '"Configuracao"' --clean --if-exists > /tmp/pre-aplica.sql
--- RODAR (Git Bash, na raiz do projeto):
+-- RODAR no PowerShell (de qualquer pasta; lê o arquivo que está no servidor, depois do git pull). O "<" precisa ficar
+-- DENTRO das aspas, porque o PowerShell 5.1 não aceita redirecionamento de entrada:
+--   ssh -i "$HOME/.ssh/fal_hostinger" -o IdentitiesOnly=yes root@148.230.78.251 'cd /var/www/html/simulador-reforma && docker exec -i reforma-postgres sh -c ''psql -U $POSTGRES_USER -d $POSTGRES_DB -v ON_ERROR_STOP=1'' < backend/scripts/sql/2026-10-29-reforma-parametros-e-classes.sql'
+-- RODAR no Git Bash (na raiz do projeto):
 --   ssh -i ~/.ssh/fal_hostinger -o IdentitiesOnly=yes root@148.230.78.251 'docker exec -i reforma-postgres sh -c "psql -U \$POSTGRES_USER -d \$POSTGRES_DB -v ON_ERROR_STOP=1"' < backend/scripts/sql/2026-10-29-reforma-parametros-e-classes.sql
+-- STATUS: aplicado em produção e no banco local em 29/10/2026 (transação confirmada; conferência: 173 classes, 0 ausentes, 0 divergentes).
 -- CONFERIR (somente leitura): 2026-10-29-reforma-parametros-e-classes-verificar.sql, com PGOPTIONS="-c default_transaction_read_only=on".
 -- REVERTER: restaurar o dump feito antes (psql < dump).
 -- =============================================================================

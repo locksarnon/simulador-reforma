@@ -2,6 +2,8 @@
 
 Data: 28/10/2026. Pergunta: o que mudou na Reforma com efeito em cálculo e alíquotas divulgadas, e o InTAX já contempla?
 
+**Atualização de 29/10/2026:** as três correções P1 (2026 informativo, CBS de 2027 e 2028 em 11,2% e catálogo cClassTrib v1.70) foram aplicadas na produção e no banco local; ver a seção 8. As seções 1 e 2 descrevem o estado encontrado em 28/10.
+
 **Método.** Textos oficiais lidos em 28/10/2026: Planalto (LC 214/2025 compilada com a LC 227/2026, LC 123, Decretos 12.955 e 13.075/2026, CF/ADCT), TCU, Agência Senado e Agência Câmara, CGIBS, Receita Federal/Portal do Simples e Portal da Conformidade Fácil (SVRS). O que não consegui confirmar em fonte oficial está marcado como **não confirmado**. Os números do InTAX foram lidos primeiro no banco de desenvolvimento e depois conferidos na produção, por consulta somente leitura autorizada pelo usuário em 29/10/2026 (seção 7): parâmetros e catálogos são idênticos nos dois.
 
 ## 1. Resumo
@@ -102,7 +104,7 @@ As três correções P1 da seção 5 foram escritas como SQL versionado em `back
 | Ambiente | Situação |
 |---|---|
 | Banco local | **Aplicado e conferido.** 173 classes, 0 ausentes, 0 divergentes em relação à tabela oficial; 2026 informativo (efeito financeiro 0); CBS de 2027 e 2028 em 11,2%; 2029 a 2033 sem mudança de valor; data-base normativa em 28/10/2026. |
-| Produção | **Backup feito e aplicação pendente.** Dump das três tabelas em `/var/backups/simulador-reforma/pre-aplica-reforma-20261029.sql` (102 KB). O estado de produção era idêntico ao do local antes do ensaio (164 classes, 9 ausentes, 44 divergentes). A escrita no banco de produção ainda não foi executada; ver o cabeçalho do SQL para o comando. |
+| Produção | **Aplicado e conferido em 29/10/2026** (executado pelo usuário em PowerShell; transação confirmada). O estado anterior era idêntico ao do local antes do ensaio (164 classes, 9 ausentes, 44 divergentes) e o backup das três tabelas está em `/var/backups/simulador-reforma/pre-aplica-reforma-20261029.sql` (102 KB). Verificação somente leitura depois: 173 classes, 0 ausentes, 0 divergentes; 2026 informativo; CBS de 2027 e 2028 em 11,2%; 2029 a 2033 inalterados; data-base normativa em 28/10/2026; a API pública já serve os valores novos. |
 
 Regra usada no catálogo: percentuais oficiais em todas as classes, mantendo a convenção do InTAX de gravar isenção e imunidade (CST 400 e 410) com 100%, que é o que faz o motor zerar o tributo. As classes de suspensão (CST 550) e de diferimento seguem a tabela oficial, em 0%. As classes 220001 a 220003 não foram inativadas, só ganharam um aviso na observação.
 

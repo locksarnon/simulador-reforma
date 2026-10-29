@@ -6,10 +6,10 @@
  * em fonte oficial. O que não foi confirmado aparece como "não localizamos". Ao mudar um número, atualize também
  * FAQ_ATUALIZADO_EM e a seção de novidades.
  */
-export const FAQ_ATUALIZADO_EM = "28/10/2026";
+export const FAQ_ATUALIZADO_EM = "29/10/2026";
 
 export const SECAO_NOVIDADES = {
-  titulo: "Novidades da Reforma (atualizado em 28/10/2026)",
+  titulo: "Novidades da Reforma (atualizado em 29/10/2026)",
   rotulo: "Novidades da Reforma",
   nota: "O que mudou com efeito em cálculo e alíquotas, com a fonte oficial de cada ponto. As alíquotas de 2027 em diante seguem como estimativa até a resolução do Senado. Confira sempre a data desta seção.",
   itens: [
@@ -100,12 +100,12 @@ export const SECAO_NOVIDADES = {
     },
     {
       p: "O que mudou na tabela oficial de cClassTrib?",
-      r: "Em 01/10/2026 a tabela oficial (Informe Técnico 2025.002, versão 1.70) passou a ter 173 classes, 170 vigentes em 28/10/2026, cada uma com o percentual de redução de IBS e de CBS. Entre as novas estão códigos para operações realizadas por autônomos (000006, 200055 e 200056), bagagens de viajantes e remessas internacionais (400003 e 400004) e regimes aduaneiros (550026 a 550029). Os catálogos do InTAX são parametrizáveis: compare-os com o Portal da Conformidade Fácil e atualize códigos e percentuais antes de confiar na redução de cada classe.",
+      r: "Em 01/10/2026 a tabela oficial (Informe Técnico 2025.002, versão 1.70) passou a ter 173 classes, 170 vigentes em 28/10/2026, cada uma com o percentual de redução de IBS e de CBS. Entre as novas estão códigos para operações realizadas por autônomos (000006, 200055 e 200056), bagagens de viajantes e remessas internacionais (400003 e 400004) e regimes aduaneiros (550026 a 550029). O catálogo do InTAX foi alinhado a essa versão em 29/10/2026 (percentuais corrigidos e 9 classes novas). Os catálogos são parametrizáveis: compare-os com o Portal da Conformidade Fácil a cada atualização oficial e confira códigos e percentuais antes de confiar na redução de cada classe.",
       f: "Portal da Conformidade Fácil (SVRS), tabela de Classificação Tributária, consulta de 28/10/2026.",
     },
     {
       p: "O InTAX já reflete todas essas atualizações?",
-      r: "Parcialmente. As alíquotas por ano e as reduções vêm da tela Transição e dos catálogos, que a equipe precisa manter atualizados: os campos Fonte, Observação e Status mostram a origem de cada número, e o InTAX não busca valores sozinho. Ainda não estão modelados o redutor de compras governamentais, o Imposto Seletivo, o regime específico dos combustíveis, o crédito presumido de estoque e a Zona Franca de Manaus. A Base legal guarda o texto das normas e o Radar da Reforma lista as novidades da semana, mas nenhum dos dois altera o cálculo sozinho.",
+      r: "Parcialmente. As alíquotas por ano e as reduções vêm da tela Transição e dos catálogos, que a equipe precisa manter atualizados: os campos Fonte, Observação e Status mostram a origem de cada número, e o InTAX não busca valores sozinho. Em 29/10/2026 a tela Transição (2026 informativo e CBS de 2027 e 2028 pelo cálculo do TCU) e o catálogo de cClassTrib (tabela v1.70) foram atualizados. Ainda não estão modelados o redutor de compras governamentais, o Imposto Seletivo, o regime específico dos combustíveis, o crédito presumido de estoque e a Zona Franca de Manaus. A Base legal guarda o texto das normas e o Radar da Reforma lista as novidades da semana, mas nenhum dos dois altera o cálculo sozinho.",
     },
     {
       p: "Onde acompanhar os atos oficiais?",
@@ -226,12 +226,12 @@ export const ITENS_EXTRAS = {
   "Transição 2026–2033": [
     {
       p: "Como preencher o ano de 2026?",
-      r: "Como ano de teste: IBS 0,1% e CBS 0,9%, com Caráter Informativo e Efeito financeiro 0, porque a lei compensa o valor com PIS e Cofins ou dispensa o recolhimento de quem cumpre as obrigações acessórias. Os fatores de PIS/Cofins, IPI, ICMS e ISS ficam em 1.",
+      r: "Como ano de teste: IBS 0,1% e CBS 0,9%, com Caráter Informativo e Efeito financeiro 0, porque a lei compensa o valor com PIS e Cofins ou dispensa o recolhimento de quem cumpre as obrigações acessórias. Os fatores de PIS/Cofins, IPI, ICMS e ISS ficam em 1. Desde 29/10/2026 o InTAX já traz 2026 assim.",
       f: "LC 214/2025, arts. 343, 346 e 348; Constituição, ADCT, art. 125.",
     },
     {
       p: "Como preencher a CBS de 2027 e 2028?",
-      r: "A CBS efetiva do ano é a alíquota fixada menos 0,1 ponto percentual. Informe o valor já descontado, registre na coluna Fonte a origem (por exemplo, “TCU em 28/10/2026: 11,3% menos 0,1 p.p.”) e deixe o Status como Estimativa até a resolução do Senado. O IBS desses dois anos é de 0,05% estadual mais 0,05% municipal.",
+      r: "A CBS efetiva do ano é a alíquota fixada menos 0,1 ponto percentual. Informe o valor já descontado, registre na coluna Fonte a origem (por exemplo, “TCU em 28/10/2026: 11,3% menos 0,1 p.p.”) e deixe o Status como Estimativa até a resolução do Senado. O IBS desses dois anos é de 0,05% estadual mais 0,05% municipal. Desde 29/10/2026 o InTAX já traz 11,2% de CBS nesses dois anos, como estimativa do TCU.",
       f: "LC 214/2025, arts. 344 e 347.",
     },
     {
