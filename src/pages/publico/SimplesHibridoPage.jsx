@@ -193,7 +193,7 @@ export default function SimplesHibridoPage() {
           },
         },
         { titulo: "Premissas desta estimativa", itens: [
-          `Alíquota de CBS do regime regular usada: ${pct2(cbsEditavel ?? anoParams2027?.cbs_efetiva ?? 0)} — estimativa (Resolução CGIBS nº 14/2026); a alíquota definitiva só é fixada pelo Senado até 15/12/2026. Editável na tela.`,
+          `Alíquota de CBS do regime regular usada: ${pct2(cbsEditavel ?? anoParams2027?.cbs_efetiva ?? 0)} — estimativa; em 28/10/2026 o TCU aprovou a referência de 11,3% para a CBS de 2027 (LC 214, art. 349), menos 0,1 p.p. em 2027 e 2028 (art. 347), e a alíquota definitiva só é fixada pelo Senado. Editável na tela.`,
           "Não considera créditos das compras (insumos) — simula só a saída (venda).",
           "Resultado sujeito a ajuste quando a alíquota de referência for fixada; valide com um especialista antes de decidir.",
         ] },
@@ -408,7 +408,7 @@ export default function SimplesHibridoPage() {
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="font-medium text-sm">Premissas do híbrido (conferíveis e editáveis)</p>
             <div className="mt-3 flex items-center justify-between gap-3">
-              <label htmlFor="cbsEditavel" className="text-xs text-muted-foreground max-w-[60%]">Alíquota de CBS do regime regular usada no cálculo — estimativa oficial (Resolução CGIBS nº 14/2026); o Senado fixa o valor definitivo até 15/12/2026</label>
+              <label htmlFor="cbsEditavel" className="text-xs text-muted-foreground max-w-[60%]">Alíquota de CBS do regime regular usada no cálculo — estimativa (referência de 11,3% do TCU em 28/10/2026, menos 0,1 p.p. em 2027 e 2028); o Senado fixa o valor definitivo</label>
               <div className="flex items-center gap-1.5">
                 <input id="cbsEditavel" type="number" step="0.01" min="0" max="100"
                   value={cbsEditavel !== null ? (cbsEditavel * 100).toFixed(2) : ""}

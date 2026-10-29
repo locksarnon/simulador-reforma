@@ -140,7 +140,7 @@ export const ROTEIRO = [
       p("Abra \"Transição 2026–2033\".", "Uma linha por ano de 2026 a 2033."),
       p("Confira PIS/Cofins fator: 2026 = 1 e de 2027 em diante = 0.", "Valores conforme o cronograma."),
       p("Confira ICMS fator: 1 até 2028, 0,9 / 0,8 / 0,7 / 0,6 de 2029 a 2032 e 0 em 2033.", "Cronograma de redução do ICMS."),
-      p("Confira IBS efetivo: 0,1% até 2028 e 18,7% em 2033 (provisório); CBS efetiva 9,21% de 2027 em diante.", "Coluna Fonte cita a Resolução CGIBS nº 14/2026 como estimativa provisória."),
+      p("Confira 2026 como Informativo (Efeito financeiro Não), IBS efetivo de 0,1% até 2028 e 18,7% em 2033 (estimativa), CBS efetiva de 11,2% em 2027 e 2028 (referência do TCU de 11,3% menos 0,1 p.p.) e de 9,21% de 2029 em diante (estimativa derivada do CGIBS).", "A coluna Fonte de cada ano cita o ato e o dispositivo, e o Status marca Oficial ou Estimativa."),
       p("Abra um ano em edição (só para ver os campos) e cancele.", "Campos: PIS/Cofins fator, IPI fator geral, ICMS fator, ISS fator, IBS UF/Município, Efeito financeiro (0/1), Fonte, Observação."),
     ],
     cuidados: ["NÃO altere valores: a tabela é compartilhada e reflete no simulador e na calculadora pública.", "Alíquotas finais do IBS ainda serão fixadas: a página deve deixar claro que são parâmetros editáveis."],

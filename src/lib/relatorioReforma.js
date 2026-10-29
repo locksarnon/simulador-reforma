@@ -126,7 +126,7 @@ export function pontosTratados(r) {
   const f = r.flags || {};
   const perfil = PERFIS.find((p) => p.id === r.perfil);
   const l = [
-    "Cronograma 2026–2033 com as alíquotas e fatores de transição cadastrados no InTAX (IBS 18,7% e CBS 9,21% de referência, provisórios).",
+    "Cronograma 2026–2033 com as alíquotas e fatores de transição cadastrados no InTAX, que são estimativas até a resolução do Senado (em 28/10/2026 o TCU aprovou a referência de 11,3% para a CBS de 2027; ver a tela Transição).",
     "Créditos das compras conforme o percentual informado, compensados com os débitos das vendas.",
     f.fora_ibs
       ? "Produtor abaixo do teto de R$ 3,6 milhões tratado como não contribuinte (sem IBS/CBS nas vendas e sem crédito nas compras)."

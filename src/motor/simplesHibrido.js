@@ -20,11 +20,12 @@
  *     limitado ao valor que efetivamente entrou no DAS: LC 214/2025,
  *     art. 47, §9º, II (texto conferido contra o NormaLegal do app).
  *
- * ATUALIZAÇÃO 28/10/2026: o TCU aprovou a alíquota de referência da CBS de
- * 2027 em 11,3468% (11,3% arredondada, LC 214, art. 349, §14), pendente da
- * resolução do Senado. O padrão de 9,21% descrito abaixo está desatualizado
- * até a decisão sobre o novo valor (ver docs/auditoria-reforma-2026-10-28.md).
- * A regra de fixação pelo Senado está no art. 349 da LC 214, não no art. 14.
+ * ATUALIZAÇÃO 29/10/2026: o TCU aprovou em 28/10 a alíquota de referência da
+ * CBS de 2027 em 11,3468% (11,3% arredondada, LC 214, art. 349, §14), pendente
+ * da resolução do Senado. O padrão do TransicaoAno para 2027 e 2028 passa a ser
+ * 11,2% (11,3% menos 0,1 p.p., art. 347); o que está abaixo sobre o padrão de
+ * 9,21% é histórico (ver docs/auditoria-reforma-2026-10-28.md). A regra de
+ * fixação pelo Senado está no art. 349 da LC 214, não no art. 14.
  *
  * As duas pendências de QA abaixo (CBS do Anexo III 3ª/4ª faixa; cbs_efetiva
  * do regime regular) foram revisadas e fechadas em 2026-10-01 — ver notas

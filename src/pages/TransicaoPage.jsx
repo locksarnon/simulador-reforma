@@ -100,13 +100,16 @@ export default function TransicaoPage() {
       </div>
 
       <p className="text-xs text-muted-foreground leading-relaxed border-l-2 border-border pl-3">
-        * O calendário de fatores (extinção de PIS/Cofins e IPI em 2027; redução de ICMS/ISS em 10/20/30/40%
-        entre 2029 e 2032, com extinção total em 2033) é o que a LC 214/2025 determina em lei — isso está fixado.
-        Já as alíquotas de IBS/CBS de 2027 em diante usam a estimativa <strong>provisória</strong> do Comitê
-        Gestor do IBS (Resolução CGIBS nº 14, de 29/07/2026: 18,70% IBS + 9,21% CBS = 27,91% plena), que o
-        próprio CGIBS classifica como sujeita a revisão conforme dados reais de arrecadação. A alíquota
-        definitiva ainda será fixada pelo Senado Federal — só o valor de 2026 (IBS 0,1% / CBS 0,9%, arts. 343
-        e 346) é oficial e confirmado. Confira o campo "Fonte" de cada linha para o detalhe.
+        * O calendário de fatores (extinção de PIS/Cofins e IPI zerado em 2027, exceto produtos da Zona Franca de
+        Manaus; ICMS e ISS a 9/10, 8/10, 7/10 e 6/10 entre 2029 e 2032, com extinção total em 2033) é o que a
+        Constituição (ADCT, arts. 126, 128 e 129) determina — isso está fixado. Já as alíquotas de IBS e CBS são{" "}
+        <strong>estimativas</strong> até a resolução do Senado (LC 214, art. 349): em 28/10/2026 o TCU aprovou a
+        referência de 11,3% para a CBS de 2027 (11,3468%, arredondada) e, em 2027 e 2028, a CBS cobrada é a
+        referência menos 0,1 p.p. (art. 347). Para 2029 a 2033 ainda não há alíquota de referência oficial: a
+        tabela usa a estimativa do Comitê Gestor do IBS (Resolução CGIBS nº 14/2026: premissa metodológica de
+        18,7% de IBS e 27,91% de alíquota total, que não fixa a CBS). Só 2026 (IBS 0,1% / CBS 0,9%, arts. 343 e
+        346) é oficial e, por lei, informativo: o valor é compensado com PIS/Cofins ou dispensado (art. 348).
+        Confira o campo "Fonte" de cada linha para o detalhe.
       </p>
 
       <Dialog open={open} onOpenChange={setOpen}>

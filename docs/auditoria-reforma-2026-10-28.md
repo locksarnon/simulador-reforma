@@ -95,6 +95,21 @@ Consulta somente leitura (sessão do banco aberta em modo leitura), agregada, a 
 | Avisos da Base legal | 8 pendentes de aprovação: nova norma citada pelo Radar (Ato Técnico Conjunto RFB/CGIBS 5/2026 e 7/2026, Portaria Conjunta MF/CGIBS 14/2026 e Decreto 13.140/2026) e texto oficial atualizado (LC 214, Decreto 12.955 e CF, avisos de 12/10; LC 123, aviso de 26/10) | Aguardam o administrador. Enquanto não forem aprovados, a Base legal e o assistente usam o texto anterior desses dispositivos |
 | Configuração | Versão v0.18 e data-base normativa 01/09/2026 | Desatualizada em relação às novidades de setembro e outubro |
 
+## 8. Aplicação das correções P1 (29/10/2026)
+
+As três correções P1 da seção 5 foram escritas como SQL versionado em `backend/scripts/sql/2026-10-29-reforma-parametros-e-classes.sql` (com a conferência somente leitura `...-verificar.sql`). O script roda numa transação, aborta sem gravar nada se o estado atual não for o esperado e confere ao final se o catálogo ficou igual à tabela oficial.
+
+| Ambiente | Situação |
+|---|---|
+| Banco local | **Aplicado e conferido.** 173 classes, 0 ausentes, 0 divergentes em relação à tabela oficial; 2026 informativo (efeito financeiro 0); CBS de 2027 e 2028 em 11,2%; 2029 a 2033 sem mudança de valor; data-base normativa em 28/10/2026. |
+| Produção | **Backup feito e aplicação pendente.** Dump das três tabelas em `/var/backups/simulador-reforma/pre-aplica-reforma-20261029.sql` (102 KB). O estado de produção era idêntico ao do local antes do ensaio (164 classes, 9 ausentes, 44 divergentes). A escrita no banco de produção ainda não foi executada; ver o cabeçalho do SQL para o comando. |
+
+Regra usada no catálogo: percentuais oficiais em todas as classes, mantendo a convenção do InTAX de gravar isenção e imunidade (CST 400 e 410) com 100%, que é o que faz o motor zerar o tributo. As classes de suspensão (CST 550) e de diferimento seguem a tabela oficial, em 0%. As classes 220001 a 220003 não foram inativadas, só ganharam um aviso na observação.
+
+Efeito medido no Painel Executivo do banco local (66 operações de teste): em 2026 a carga da transição passou de R$ 99.259,82 para R$ 87.652,78, igual aos tributos atuais, porque o IBS/CBS de teste deixou de somar; em 2027 o IBS/CBS líquido foi de R$ 69.415,36 para R$ 84.252,80 e a carga efetiva de 10,86% para 12,24%, por causa da CBS de 11,2%.
+
+Os textos que repetiam o 9,21% (nota da tela Transição, relatório em PDF, roteiro de testes e página do Simples × Híbrido) foram reescritos para citar o fato oficial (cálculo do TCU e arts. 347 e 349) em vez de repetir o número da tabela, e valem com os dois estados dos dados.
+
 ## Anexo A: classes cClassTrib, tabela oficial v1.70 × catálogo do InTAX
 
 Contagem: 173 classes na tabela oficial (170 vigentes em 28/10/2026) e 164 no InTAX. Das 61 classes vigentes com redução, 44 estão erradas no InTAX.
