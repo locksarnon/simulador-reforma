@@ -72,6 +72,11 @@ export default function ArquivosLog({ arquivos }) {
                       <Icon className="w-3 h-3" />
                       {cfg.label}
                     </span>
+                    {a.erro_processamento && (
+                      <p className="mt-1 max-w-[260px] whitespace-normal text-[10px] text-muted-foreground line-clamp-3" title={a.erro_processamento}>
+                        {a.erro_processamento}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground font-mono">{a.cstat || "—"}</td>
                   <td className="px-4 py-2.5 text-muted-foreground max-w-[160px] truncate" title={a.xmotivo}>

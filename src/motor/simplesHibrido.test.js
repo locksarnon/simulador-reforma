@@ -221,3 +221,96 @@ describe("prova real — Anexo V, RBT12 R$970k (paridade com 'Meu Cenário 970k'
     expect(Math.abs(resultadoHibrido - resultadoPuro)).toBeLessThanOrEqual(0.01);
   });
 });
+
+/**
+ * Crédito das compras da própria empresa no regime regular (LC 214/2025, art. 47): o híbrido deixa de cobrar o IBS/CBS
+ * sobre a receita inteira e abate o IBS/CBS das compras de fornecedores do regime regular.
+ */
+describe("crédito das compras no híbrido", () => {
+  const anoParams = { ibs_efetivo: 0.001, cbs_efetiva: 0.112 }; // regular: 11,3%
+  const base = { receitaMensal: 100_000, aliquotaEfetivaSimples: 0.12, ibsCbsSimplesPct: 0.02 };
+
+  it("sem compras informadas, o resultado é o de antes (carga = DAS residual + IBS/CBS sobre toda a receita)", () => {
+    const h = calcularHibrido({ ...base, anoParams });
+    expect(h.creditoCompras).toBe(0);
+    expect(h.saldoCredor).toBe(0);
+    expect(h.cargaHibridaMensal).toBeCloseTo(100_000 * 0.10 + 100_000 * 0.113, 6);
+    expect(h.cargaHibridaPct).toBeCloseTo(0.10 + 0.113, 12);
+  });
+
+  it("compras de R$ 30.000 abatem 11,3% delas (R$ 3.390) do IBS/CBS a pagar", () => {
+    const h = calcularHibrido({ ...base, anoParams, comprasCreditaveisMensais: 30_000 });
+    expect(h.ibsCbsRegular).toBeCloseTo(11_300, 6);
+    expect(h.creditoCompras).toBeCloseTo(3_390, 6);
+    expect(h.ibsCbsAPagar).toBeCloseTo(7_910, 6);
+    expect(h.cargaHibridaMensal).toBeCloseTo(10_000 + 7_910, 6);
+    expect(h.cargaHibridaPct).toBeCloseTo(0.17910, 8);
+    expect(h.saldoCredor).toBe(0);
+  });
+
+  it("crédito maior que o débito vira saldo credor e não reduz o DAS residual", () => {
+    const h = calcularHibrido({ ...base, anoParams, comprasCreditaveisMensais: 120_000 });
+    expect(h.creditoCompras).toBeCloseTo(13_560, 6);
+    expect(h.ibsCbsAPagar).toBe(0);
+    expect(h.saldoCredor).toBeCloseTo(2_260, 6);
+    expect(h.cargaHibridaMensal).toBeCloseTo(10_000, 6);
+  });
+
+  it("compras negativas ou texto estranho não geram crédito", () => {
+    expect(calcularHibrido({ ...base, anoParams, comprasCreditaveisMensais: -500 }).creditoCompras).toBe(0);
+    expect(calcularHibrido({ ...base, anoParams, comprasCreditaveisMensais: "abc" }).creditoCompras).toBe(0);
+  });
+
+  it("o crédito dos clientes (lado do comprador) não muda com as compras do vendedor", () => {
+    const sem = calcularHibrido({ ...base, anoParams, pctClientesRegimeRegular: 0.7 });
+    const com = calcularHibrido({ ...base, anoParams, pctClientesRegimeRegular: 0.7, comprasCreditaveisMensais: 30_000 });
+    expect(com.creditoClienteHibrido).toBeCloseTo(sem.creditoClienteHibrido, 8);
+  });
+
+  it("o ponto de equilíbrio cai com as compras creditáveis (menos repasse de preço para empatar com o Simples puro)", () => {
+    const entrada = { receitaMensal: 100_000, rbt12: 1_200_000, folha12: 360_000, modo: "Anexo III", pctClientesRegimeRegular: 0.7 };
+    const sem = simularSimplesHibrido(entrada, anoParams);
+    const com = simularSimplesHibrido({ ...entrada, comprasCreditaveisMensais: 40_000 }, anoParams);
+    expect(com.pontos.markupEquilibrio).toBeLessThan(sem.pontos.markupEquilibrio);
+    expect(com.hibrido.cargaHibridaMensal).toBeLessThan(sem.hibrido.cargaHibridaMensal);
+    expect(com.pontos.markupNeutroCliente).toBeCloseTo(sem.pontos.markupNeutroCliente, 10); // lado do cliente
+    // o Simples puro não depende das compras
+    expect(com.puro.dasMensal).toBeCloseTo(sem.puro.dasMensal, 8);
+  });
+
+  // O crédito das compras é um valor fixo em R$: não sobe junto com o preço. O equilíbrio tem que fechar na conta exata.
+  const liquidoDoVendedor = (r, precoNovo) => {
+    const { dasResidualPct, ibsCbsRegularPct, creditoCompras } = r.hibrido;
+    return precoNovo - dasResidualPct * precoNovo - Math.max(0, ibsCbsRegularPct * precoNovo - creditoCompras);
+  };
+
+  it.each([
+    ["sem compras", 0],
+    ["compras que reduzem o IBS/CBS a pagar", 40_000],
+    ["compras maiores (R$ 60 mil)", 60_000],
+    ["compras tão grandes que sobra saldo credor mesmo no preço novo", 400_000],
+  ])("no ponto de equilíbrio o líquido do vendedor é o do Simples puro (%s)", (_rotulo, compras) => {
+    const receita = 100_000;
+    const r = simularSimplesHibrido(
+      { receitaMensal: receita, rbt12: 1_200_000, folha12: 360_000, modo: "Anexo III", pctClientesRegimeRegular: 0.7, comprasCreditaveisMensais: compras },
+      anoParams,
+    );
+    const precoNovo = receita * (1 + r.pontos.markupEquilibrio);
+    const liquidoSimples = receita * (1 - r.puro.aliquotaEfetiva);
+    expect(liquidoDoVendedor(r, precoNovo)).toBeCloseTo(liquidoSimples, 6);
+    // a carga exibida "no preço novo" é a da conta exata (DAS residual + IBS/CBS a pagar), não a carga de hoje esticada
+    expect(r.pontos.cargaNoPrecoNovo).toBeCloseTo(precoNovo - liquidoSimples, 6);
+  });
+
+  it("caso conferido à mão: compras de R$ 40 mil, equilíbrio de 5,93% (a conta antiga dava 5,61%)", () => {
+    const r = simularSimplesHibrido(
+      { receitaMensal: 100_000, rbt12: 1_200_000, folha12: 360_000, modo: "Anexo III", pctClientesRegimeRegular: 0.7, comprasCreditaveisMensais: 40_000 },
+      anoParams,
+    );
+    // Simples puro: líquido de R$ 86.970,00 (alíquota efetiva de 13,03%). Preço novo = 100.000 × 1,05932 = 105.932;
+    // carga no preço novo = 105.932 − 86.970 = 18.962.
+    expect(r.puro.aliquotaEfetiva).toBeCloseTo(0.1303, 4);
+    expect(r.pontos.markupEquilibrio).toBeCloseTo(0.05932, 4);
+    expect(r.pontos.cargaNoPrecoNovo).toBeCloseTo(18_962, -1);
+  });
+});

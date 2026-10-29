@@ -99,9 +99,9 @@ export function getAttr(el: any, attrName: string): string {
 }
 
 /**
- * Identifica o tipo de XML pela raiz. CT-e/MDF-e/NFS-e são reconhecidos
- * (não caem em XML_DESCONHECIDO) mas não têm extração de item/tributo —
- * ver comentário do enum TipoXml no schema.prisma sobre por quê.
+ * Identifica o tipo de XML pela raiz. CT-e (modelo 57) e CT-e OS (modelo 67) são lidos por shared/cte-parser.ts
+ * (tipo CTE). MDF-e e NFS-e são reconhecidos (não caem em XML_DESCONHECIDO) mas não têm extração de
+ * item/tributo — ver comentário do enum TipoXml no schema.prisma sobre por quê.
  */
 export function identificarTipoXml(doc: any): string {
   const root = doc.documentElement;
@@ -109,13 +109,15 @@ export function identificarTipoXml(doc: any): string {
   const name = (root.localName || root.nodeName || '').toLowerCase();
   if (name === 'nfeproc') return 'NFE_PROC';
   if (name === 'nfe') return 'NFE';
-  if (name === 'proceventonfe' || name === 'evento') {
+  // Eventos de NF-e (procEventoNFe/evento) e de CT-e (procEventoCTe/eventoCTe): cancelamento e carta de correção
+  // têm o mesmo tpEvento (110111 e 110110) nos dois documentos; qualquer outro é EVENTO_OUTRO.
+  if (name === 'proceventonfe' || name === 'evento' || name === 'proceventocte' || name === 'eventocte') {
     const tp = buscarRecursivo(root, 'tpEvento');
     if (tp === '110111') return 'EVENTO_CANCELAMENTO';
     if (tp === '110110') return 'EVENTO_CARTA_CORRECAO';
     return 'EVENTO_OUTRO';
   }
-  if (name === 'cteproc' || name === 'cte') return 'CTE';
+  if (name === 'cteproc' || name === 'cte' || name === 'cteosproc' || name === 'cteos') return 'CTE';
   if (name === 'mdfeproc' || name === 'mdfe') return 'MDFE';
   // NFS-e nacional (padrão mais recente, unificado); layouts municipais
   // legados (ABRASF e variações próprias de cada prefeitura) não têm um

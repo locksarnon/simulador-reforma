@@ -18,6 +18,7 @@ import Workroom from '@/pages/Workroom';
 import WorkroomOverview from '@/pages/WorkroomOverview';
 import OperacoesPage from '@/pages/OperacoesPage';
 import ImportacaoXMLPage from '@/pages/ImportacaoXMLPage';
+import ImportacaoPlanilhaPage from '@/pages/ImportacaoPlanilhaPage';
 import EmpresasPage from '@/pages/EmpresasPage';
 import EmpresaWorkroom from '@/pages/EmpresaWorkroom';
 import EmpresaPainel from '@/pages/EmpresaPainel';
@@ -82,6 +83,7 @@ function App() {
                     <Route path="empresas" element={<EmpresasPage />} />
                     <Route path="operacoes" element={<OperacoesPage />} />
                     <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
+                    <Route path="importacao-planilha" element={<ImportacaoPlanilhaPage />} />
                     <Route path="empresas/:empresaId" element={<EmpresaWorkroom />}>
                       <Route index element={<EmpresaServicos />} />
                       <Route path="servicos" element={<EmpresaServicos />} />
@@ -91,6 +93,7 @@ function App() {
                       <Route path="classificacao-servicos" element={<FerramentasClassificacao />} />
                       <Route path="validador-nfse" element={<FerramentasValidadorNFSe />} />
                       <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
+                      <Route path="importacao-planilha" element={<ImportacaoPlanilhaPage />} />
                       <Route path="operacoes" element={<OperacoesPage />} />
                       <Route path="painel" element={<EmpresaPainel />} />
                     </Route>

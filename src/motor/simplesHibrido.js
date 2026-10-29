@@ -44,7 +44,13 @@
  *      editável na tela pra quando o Senado publicar o valor definitivo.
  */
 
-export const VERSAO_MOTOR_SIMPLES_HIBRIDO = "0.1.0";
+/**
+ * 0.2.0 (2026-10-29): o cenário híbrido passou a abater o crédito das compras da própria empresa
+ * (`comprasCreditaveisMensais`, LC 214/2025, art. 47); sem esse dado o resultado é o da 0.1.0. NÃO modela ainda o
+ * transporte intermunicipal e interestadual de cargas, que o art. 18, §5º-E da LC 123/2006 manda tributar pelo Anexo III
+ * sem a parcela do ISS e com a do ICMS do Anexo I: faltam as repartições por tributo dentro do DAS nas tabelas de 2027.
+ */
+export const VERSAO_MOTOR_SIMPLES_HIBRIDO = "0.2.0";
 
 const num = (v) => (typeof v === "number" ? v : Number(v) || 0);
 
@@ -209,21 +215,32 @@ export function calcularSimplesPuro({ receitaMensal, rbt12, folha12, modo, pctCl
  * exatamente para não depender de código quando o Senado publicar o valor
  * definitivo.
  */
-export function calcularHibrido({ receitaMensal, aliquotaEfetivaSimples, ibsCbsSimplesPct, anoParams, pctClientesRegimeRegular = 1 }) {
+export function calcularHibrido({ receitaMensal, aliquotaEfetivaSimples, ibsCbsSimplesPct, anoParams, pctClientesRegimeRegular = 1, comprasCreditaveisMensais = 0 }) {
   const ibsCbsRegularPct = num(anoParams.ibs_efetivo) + num(anoParams.cbs_efetiva);
   const dasResidualPct = aliquotaEfetivaSimples - ibsCbsSimplesPct;
-  const cargaHibridaPct = dasResidualPct + ibsCbsRegularPct;
 
   // Carga híbrida (o que a empresa PAGA) incide sobre 100% da receita,
   // independente de quem é o cliente — isso não muda com o mix de clientes.
   const dasResidual = receitaMensal * dasResidualPct;
   const ibsCbsRegular = receitaMensal * ibsCbsRegularPct;
-  const cargaHibridaMensal = dasResidual + ibsCbsRegular;
+  // Crédito das compras da própria empresa (LC 214/2025, art. 47): no regime regular o IBS/CBS é não cumulativo. Entram
+  // só as compras de fornecedores do regime regular (crédito do IBS/CBS cobrado na nota, aqui a alíquota regular sobre
+  // o valor); a compra de fornecedor do Simples dá o crédito limitado ao que entrou no DAS dele (art. 47, §9º, II) e não
+  // entra neste cálculo. Crédito maior que o débito vira saldo credor (não reduz o DAS residual).
+  const creditoCompras = Math.max(0, num(comprasCreditaveisMensais)) * ibsCbsRegularPct;
+  const ibsCbsLiquido = ibsCbsRegular - creditoCompras;
+  const ibsCbsAPagar = Math.max(0, ibsCbsLiquido);
+  const saldoCredor = Math.max(0, -ibsCbsLiquido);
+  const cargaHibridaMensal = dasResidual + ibsCbsAPagar;
+  const cargaHibridaPct = receitaMensal > 0 ? cargaHibridaMensal / receitaMensal : dasResidualPct + ibsCbsRegularPct;
   // Crédito ao cliente, por outro lado, só existe pra quem é contribuinte do
   // regime regular — mesma ponderação de calcularSimplesPuro.
   const creditoClienteHibrido = ibsCbsRegular * num(pctClientesRegimeRegular);
 
-  return { ibsCbsRegularPct, dasResidualPct, cargaHibridaPct, cargaHibridaMensal, creditoClienteHibrido };
+  return {
+    ibsCbsRegularPct, dasResidualPct, cargaHibridaPct, cargaHibridaMensal, creditoClienteHibrido,
+    ibsCbsRegular, creditoCompras, ibsCbsAPagar, saldoCredor,
+  };
 }
 
 /**
@@ -241,16 +258,40 @@ export function calcularHibrido({ receitaMensal, aliquotaEfetivaSimples, ibsCbsS
  *    Dedução: custoHoje = 1 - p·ibsCbsSimplesPct; custoNovo = (1+m)·(1 - p·ibsCbsRegularPct);
  *    igualando custoHoje = custoNovo e isolando m. Com p=1, reduz à fórmula
  *    "só empresas" original; com p=0, dá m=0 (nenhuma margem de repasse).
+ *
+ * Crédito das compras: é um valor fixo em R$ (compras × alíquota regular), não acompanha o preço. Por isso, com
+ * crédito, o equilíbrio sai da conta exata e não de "carga % × preço": resultado do vendedor no preço novo P1 =
+ * P1 − DAS residual% · P1 − (IBS/CBS% · P1 − crédito) = receita · (1 − aliquotaEfetivaSimples). Se o crédito passa
+ * do débito mesmo no preço novo, o IBS/CBS a pagar é zero e o saldo credor não entra no resultado.
+ * Sem crédito (ou sem receita informada) vale a fórmula percentual de sempre.
  */
-export function calcularPontosEquilibrio({ aliquotaEfetivaSimples, ibsCbsSimplesPct, cargaHibridaPct, ibsCbsRegularPct, pctClientesRegimeRegular = 1 }) {
+export function calcularPontosEquilibrio({
+  aliquotaEfetivaSimples, ibsCbsSimplesPct, cargaHibridaPct, ibsCbsRegularPct, pctClientesRegimeRegular = 1,
+  dasResidualPct, receitaMensal, creditoCompras = 0,
+}) {
   const p = num(pctClientesRegimeRegular);
-  const markupEquilibrio = (1 - aliquotaEfetivaSimples) / (1 - cargaHibridaPct) - 1;
+  const credito = Math.max(0, num(creditoCompras));
+  const receita = num(receitaMensal);
+  let markupEquilibrio;
+  let cargaNoPrecoNovo;
+  if (credito > 0 && receita > 0 && dasResidualPct !== undefined) {
+    const liquidoHoje = receita * (1 - aliquotaEfetivaSimples);
+    const semSaldoCredor = (liquidoHoje - credito) / (1 - dasResidualPct - ibsCbsRegularPct);
+    const precoNovo = ibsCbsRegularPct * semSaldoCredor - credito >= 0
+      ? semSaldoCredor
+      : liquidoHoje / (1 - dasResidualPct);
+    markupEquilibrio = precoNovo / receita - 1;
+    cargaNoPrecoNovo = dasResidualPct * precoNovo + Math.max(0, ibsCbsRegularPct * precoNovo - credito);
+  } else {
+    markupEquilibrio = (1 - aliquotaEfetivaSimples) / (1 - cargaHibridaPct) - 1;
+    if (receita > 0) cargaNoPrecoNovo = cargaHibridaPct * receita * (1 + markupEquilibrio);
+  }
   const markupNeutroCliente = (1 - p * ibsCbsSimplesPct) / (1 - p * ibsCbsRegularPct) - 1;
-  return { markupEquilibrio, markupNeutroCliente, gapComercial: markupEquilibrio - markupNeutroCliente };
+  return { markupEquilibrio, markupNeutroCliente, gapComercial: markupEquilibrio - markupNeutroCliente, cargaNoPrecoNovo };
 }
 
 /** Orquestra os dois cenários + pontos de equilíbrio a partir dos inputs das telas 1 e 2. */
-export function simularSimplesHibrido({ receitaMensal, rbt12, folha12, modo, pctClientesRegimeRegular = 1 }, anoParams) {
+export function simularSimplesHibrido({ receitaMensal, rbt12, folha12, modo, pctClientesRegimeRegular = 1, comprasCreditaveisMensais = 0 }, anoParams) {
   const puro = calcularSimplesPuro({ receitaMensal, rbt12, folha12, modo, pctClientesRegimeRegular });
   if (puro.acimaDoLimite) return { puro };
 
@@ -260,6 +301,7 @@ export function simularSimplesHibrido({ receitaMensal, rbt12, folha12, modo, pct
     ibsCbsSimplesPct: puro.ibsCbsSimplesPct,
     anoParams,
     pctClientesRegimeRegular,
+    comprasCreditaveisMensais,
   });
 
   const pontos = calcularPontosEquilibrio({
@@ -268,6 +310,9 @@ export function simularSimplesHibrido({ receitaMensal, rbt12, folha12, modo, pct
     cargaHibridaPct: hibrido.cargaHibridaPct,
     ibsCbsRegularPct: hibrido.ibsCbsRegularPct,
     pctClientesRegimeRegular,
+    dasResidualPct: hibrido.dasResidualPct,
+    receitaMensal,
+    creditoCompras: hibrido.creditoCompras,
   });
 
   return { puro, hibrido, pontos };

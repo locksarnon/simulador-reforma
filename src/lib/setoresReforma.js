@@ -59,7 +59,7 @@ export const SETORES_REFORMA = [
       i("Produtos hortícolas, frutas e ovos", "Título IV, Cap. IV, Seção VI · Anexo XV (NCM)", "Alíquota zero", "coberto", "Base de NCM."),
       i("Automóveis de passageiros adquiridos por pessoas com deficiência ou com TEA", "Título IV, Cap. IV, Seção VII", "Alíquota zero", "pendente"),
       i("Serviços prestados por Instituição Científica, Tecnológica e de Inovação (ICT)", "Título IV, Cap. IV, Seção VIII", "Alíquota zero", "pendente"),
-      i("Transporte público coletivo de passageiros rodoviário e metroviário", "Título IV, Cap. V (Art. 157)", "Alíquota zero", "pendente"),
+      i("Transporte público coletivo de passageiros rodoviário e metroviário", "Título IV, Cap. V (Art. 157)", "Alíquota zero", "coberto", "Classes 400001 e 400002 do catálogo (alíquota zero): escolha o cClassTrib na operação."),
     ],
   },
   {
@@ -67,10 +67,10 @@ export const SETORES_REFORMA = [
     fonte: "LC 214/2025, Livro I, Título IV, Caps. VI a X",
     itens: [
       i("Reabilitação urbana de zonas históricas e de áreas críticas", "Título IV, Cap. VI", "Tratamento específico", "pendente"),
-      i("Produtor rural e produtor rural integrado não contribuinte", "Título IV, Cap. VII (Arts. 164–168)", "Receita anual inferior a R$ 3,6 milhões: não contribuinte; adquirente contribuinte usa crédito presumido", "parcial", "Perfis de produtor rural; regra do teto e crédito presumido ainda simplificadas."),
-      i("Transportador autônomo de carga pessoa física não contribuinte", "Título IV, Cap. VIII (Art. 169)", "Crédito presumido para o contratante", "pendente"),
-      i("Resíduos e materiais destinados à reciclagem, reutilização ou logística reversa", "Título IV, Cap. IX", "Tratamento específico (crédito presumido)", "pendente"),
-      i("Bens móveis usados adquiridos de pessoa física não contribuinte para revenda", "Título IV, Cap. X", "Tratamento específico", "pendente"),
+      i("Produtor rural e produtor rural integrado não contribuinte", "Título IV, Cap. VII (Arts. 164–168)", "Receita anual inferior a R$ 3,6 milhões: não contribuinte; adquirente contribuinte usa crédito presumido", "parcial", "Perfis de produtor rural; regra do teto simplificada. O crédito presumido do adquirente (código 01) é calculado \"por fora\" (Decreto 12.955, art. 247) com o percentual informado na operação, porque o ato conjunto de 2027 não foi localizado."),
+      i("Transportador autônomo de carga pessoa física não contribuinte", "Título IV, Cap. VIII (Art. 169)", "Crédito presumido para o contratante", "parcial", "Crédito calculado \"por fora\" (Decreto 12.955, art. 253), sem ressarcimento (art. 254). O percentual depende do ato conjunto do Ministro da Fazenda e do CGIBS, que não foi localizado para 2027: informe-o na operação (o resultado fica marcado como estimativa). O evento de apropriação do CT-e (211110) é lido pelo importador de XML."),
+      i("Resíduos e materiais destinados à reciclagem, reutilização ou logística reversa", "Título IV, Cap. IX", "Tratamento específico (crédito presumido)", "coberto", "Crédito presumido (código 03) com os percentuais da lei: CBS de 7% e IBS de 1,3% (2029) a 13% (2033). A lista de bens excluídos (pneus, pilhas, medicamentos...) é conferida pelo usuário."),
+      i("Bens móveis usados adquiridos de pessoa física não contribuinte para revenda", "Título IV, Cap. X", "Tratamento específico", "coberto", "Crédito presumido (código 04) com a alíquota de IBS e de CBS do ano sobre o valor da aquisição; só compensa o tributo devido."),
     ],
   },
   {
@@ -85,7 +85,8 @@ export const SETORES_REFORMA = [
       i("Sociedades cooperativas", "Título V, Cap. VI (Arts. 271–272)", "Opção pelo regime: alíquota zero nas operações associado↔cooperativa", "pendente"),
       i("Bares e restaurantes", "Título V, Cap. VII, Seção I (Arts. 273–280)", "Redução de 40% (Art. 275); adquirente não apropria crédito (Art. 276); exclui bebidas alcoólicas", "coberto", "Perfil próprio na calculadora."),
       i("Hotelaria, parques de diversão e parques temáticos", "Título V, Cap. VII, Seção II (Art. 281 e seguintes)", "Redução de 40%; crédito permitido ao fornecedor (Art. 282)", "pendente"),
-      i("Transporte coletivo de passageiros (rodoviário, ferroviário e hidroviário intermunicipal/interestadual; aéreo regional)", "Título V, Cap. VII, Seção III (Arts. 285–287)", "Redução de 40%; ferroviário/hidroviário urbano com alíquota zero (Art. 285)", "pendente"),
+      i("Transporte coletivo de passageiros (rodoviário, ferroviário e hidroviário intermunicipal/interestadual; aéreo regional)", "Título V, Cap. VII, Seção III (Arts. 285–287)", "Redução de 40%; ferroviário/hidroviário urbano com alíquota zero (Art. 285)", "parcial", "O motor aplica a redução da classe escolhida na operação: 200049 (40%, rodoviário, ferroviário e hidroviário intermunicipal e interestadual), 200050 (40%, aéreo regional) e 200021 (alíquota zero, urbano ferroviário e hidroviário). A vedação de crédito do art. 285, II e III não é aplicada."),
+      i("Transporte de carga (rodoviário, ferroviário, aquaviário)", "Título I (Arts. 10 e 11, VII) e Título V, Cap. VII, Seção III", "Regime geral: o capítulo do transporte só reduz passageiros e o aéreo regional (arts. 285 a 287); o local da operação é o da entrega", "coberto", "CT-e e CT-e OS lidos pelo importador de XML e planilha de operações para o que não tem XML; crédito presumido do transportador autônomo (estimativa, sem o ato de 2027); diesel pela Portaria MF 3.074/2026; classe 200001 para transporte de bens a zonas de exportação. No Simples a lei tem regra própria (LC 123, art. 18, §5º-E), que o comparador Simples × Híbrido ainda não faz."),
       i("Agências de turismo", "Título V, Cap. VII, Seção IV", "Regime específico", "pendente"),
       i("Sociedade Anônima do Futebol (SAF)", "Título V, Cap. VIII (Arts. 292–296)", "Regime específico", "pendente"),
       i("Missões diplomáticas e repartições consulares", "Título V, Cap. IX", "Regime específico", "pendente"),

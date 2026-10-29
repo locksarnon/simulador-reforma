@@ -67,12 +67,25 @@ describe('identificarTipoXml', () => {
     expect(tipoDe('<procEventoNFe><evento><infEvento><tpEvento>999999</tpEvento></infEvento></evento></procEventoNFe>')).toBe('EVENTO_OUTRO');
   });
 
-  it('reconhece CT-e, MDF-e e NFS-e nacional pela raiz (sem extrair itens)', () => {
+  it('reconhece CT-e, MDF-e e NFS-e nacional pela raiz (só o CT-e tem itens extraídos)', () => {
     expect(tipoDe('<cteProc><CTe/></cteProc>')).toBe('CTE');
     expect(tipoDe('<CTe><infCte/></CTe>')).toBe('CTE');
     expect(tipoDe('<mdfeProc><MDFe/></mdfeProc>')).toBe('MDFE');
     expect(tipoDe('<MDFe><infMDFe/></MDFe>')).toBe('MDFE');
     expect(tipoDe('<NFSe><infNFSe/></NFSe>')).toBe('NFSE');
+  });
+
+  it('reconhece o CT-e OS (modelo 67) como CTE', () => {
+    expect(tipoDe('<cteOSProc><CTeOS/></cteOSProc>')).toBe('CTE');
+    expect(tipoDe('<CTeOS><infCte/></CTeOS>')).toBe('CTE');
+  });
+
+  it('reconhece o evento de CT-e e o classifica pelo tpEvento, como no NF-e', () => {
+    const evento = (tp: string) => `<procEventoCTe><eventoCTe><infEvento><tpEvento>${tp}</tpEvento></infEvento></eventoCTe></procEventoCTe>`;
+    expect(tipoDe(evento('110111'))).toBe('EVENTO_CANCELAMENTO');
+    expect(tipoDe(evento('110110'))).toBe('EVENTO_CARTA_CORRECAO');
+    expect(tipoDe(evento('211110'))).toBe('EVENTO_OUTRO'); // apropriação do crédito presumido
+    expect(tipoDe('<eventoCTe><infEvento><tpEvento>110111</tpEvento></infEvento></eventoCTe>')).toBe('EVENTO_CANCELAMENTO');
   });
 
   it('classifica qualquer outra raiz como desconhecida', () => {

@@ -55,6 +55,14 @@ export default function OperacaoCalcDetail({ calc }) {
         {ib.redutorCompraGov > 0 && (
           <Row label="Redutor de compra governamental aplicado" value={ib.redutorCompraGov} isPct legal="compras_governamentais" />
         )}
+        {!comb?.aplicavel && ib.baseExcluida !== 0 && (
+          <>
+            <Row label="Base de cálculo do IBS/CBS" value={ib.baseCalculo} legal="base_calculo_ibs_cbs" />
+            <p className="text-xs text-muted-foreground pb-1.5">
+              Valor da operação menos {BRL(Math.abs(ib.baseExcluida))} de ICMS, ISS, PIS e Cofins ainda cobrados neste ano, que ficam fora da base (LC 214, art. 12, §2º, V).
+            </p>
+          </>
+        )}
         {comb?.aplicavel && (
           <>
             <Row label={`Combustível: ${comb.nome} (${comb.quantidade} ${comb.unidade})`} value={comb.cbsAdRem} />
@@ -73,8 +81,24 @@ export default function OperacaoCalcDetail({ calc }) {
         <Row label="Crédito presumido total (estimativa)" value={ib.credPresTotal} legal="credito_presumido" />
         <div className="flex justify-between py-1.5 text-sm border-b border-border/40 last:border-0">
           <span className="text-muted-foreground">Status crédito presumido</span>
-          <span className={`font-medium ${ib.statusCredPres === "Localizado" ? "text-chart-2" : ib.statusCredPres === "Pendente" || ib.statusCredPres === "Não localizado" ? "text-destructive" : "text-muted-foreground"}`}>{ib.statusCredPres}</span>
+          <span className={`font-medium ${ib.statusCredPres === "Localizado" ? "text-chart-2" : ib.statusCredPres === "Pendente" || ib.statusCredPres === "Não localizado" ? "text-destructive" : ib.statusCredPres === "Estimativa" ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>{ib.statusCredPres}</span>
         </div>
+        {ib.creditoNormalSubstituidoPorCredPres && (
+          <p className="text-xs text-muted-foreground pb-1.5">
+            O crédito normal de IBS/CBS ficou zerado: o fornecedor deste código de crédito presumido não é contribuinte e não cobrou IBS/CBS na nota, então o crédito desta compra é só o presumido.
+            {ib.credPresTotal === 0 && " Como o percentual do ato oficial ainda não foi informado, o presumido também não foi calculado: informe os percentuais de crédito presumido na operação."}
+          </p>
+        )}
+        {ib.credPresEstimativa && (
+          <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-2 my-1.5">
+            Estimativa: o ato conjunto com o percentual oficial ainda está pendente, e o cálculo usa o percentual informado nesta operação.
+          </p>
+        )}
+        {ib.credPresTotal !== 0 && ib.credPresRessarcivel === false && (
+          <p className="text-xs text-muted-foreground pb-1.5">
+            Este crédito presumido só compensa o tributo devido; a lei não admite o ressarcimento em dinheiro (LC 214, arts. 169, §7º, 170, §2º e 171, §2º; Decreto 12.955, art. 254).
+          </p>
+        )}
         <Row label="IBS/CBS líquido" value={ib.ibsCbsLiquido} strong />
         <Row label="Carga efetiva" value={ib.cargaEfetiva} isPct strong />
         <Row label="Split retido" value={ib.splitRetido} legal="split_payment" />
@@ -124,6 +148,9 @@ export default function OperacaoCalcDetail({ calc }) {
         <Row label="Split retido" value={cx.splitRetido} legal="split_payment" />
         <Row label="Caixa imediato" value={cx.caixaImediato} />
         <Row label="Crédito acumulado" value={cx.creditoAcumulado} />
+        {cx.credPresNaoRessarcivel !== 0 && cx.credPresNaoRessarcivel != null && (
+          <Row label="Crédito presumido sem ressarcimento (fora do acumulado a realizar)" value={cx.credPresNaoRessarcivel} />
+        )}
         <Row label="Custo financeiro do crédito" value={cx.custoFinanceiro} />
         <Row label="Caixa após realização" value={cx.caixaAposRealizacao} strong />
         <Row label="Diferença caixa vs atual" value={cx.diferencaCaixaVsAtual} />

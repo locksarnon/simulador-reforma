@@ -91,9 +91,9 @@ export const ORIENTACOES = {
 
     header_ibs_cbs: "Parâmetros de IBS/CBS, crédito presumido e margem. As alíquotas de IBS/CBS vêm da tabela de Transição conforme o ano.",
     split_pct: "Percentual de retenção pelo split payment sobre os débitos de IBS/CBS (ex: 100 para retenção integral). Calculado apenas em saídas.",
-    c_cred_pres: "Código de crédito presumido. Consulte o catálogo em Catálogos → cCredPres. Se inexistente ou pendente, o crédito presumido não será calculado.",
-    credito_presumido_ibs_pct: "Percentual de crédito presumido de IBS em pontos percentuais. Calculado apenas em entradas.",
-    credito_presumido_cbs_pct: "Percentual de crédito presumido de CBS em pontos percentuais. Calculado apenas em entradas.",
+    c_cred_pres: "Crédito presumido da compra de quem não é contribuinte (catálogo oficial): 1 produtor rural (art. 168), 2 frete de transportador autônomo (art. 169), 3 resíduos (art. 170), 4 bem usado de pessoa física (art. 171). Vale só em compra (Entrada) e a mesma compra não gera também o crédito normal. Nos códigos 1 e 2 o percentual depende de ato conjunto anual: sem ele informado, nada é calculado; com ele, o resultado é estimativa.",
+    credito_presumido_ibs_pct: "Percentual de crédito presumido de IBS em pontos percentuais (o do ato conjunto, nos códigos 1 e 2). Em branco, os códigos 3 e 4 usam o percentual da lei. Calculado apenas em entradas.",
+    credito_presumido_cbs_pct: "Percentual de crédito presumido de CBS em pontos percentuais (o do ato conjunto, nos códigos 1 e 2). Em branco, os códigos 3 e 4 usam o percentual da lei. Calculado apenas em entradas.",
     grupo_rtc: "Grupo de regime tributário complementar. Informativo.",
     custo_base_pct: "Percentual do valor bruto que representa o custo econômico (ex: 65 para 65%). Utilizado no cálculo de margem.",
     margem_meta_pct: "Margem-alvo da operação em pontos percentuais. Na versão atual, a margem global da Configuração prevalece sobre este valor.",
@@ -158,6 +158,6 @@ export const ORIENTACOES = {
   },
 
   importacao: {
-    header: "Importação de NF-e/NFC-e com processamento backend seguro. Nenhuma extração tributária ocorre no navegador — todo o parse, validação e cruzamento de empresas é feito no backend com rastreabilidade auditável por lote, arquivo e item.",
+    header: "Importação de NF-e, NFC-e, CT-e e CT-e OS com processamento backend seguro (MDF-e e NFS-e são reconhecidos, mas ainda não têm extração; para eles use a importação por planilha). Nenhuma extração tributária ocorre no navegador — todo o parse, validação e cruzamento de empresas é feito no backend com rastreabilidade auditável por lote, arquivo e item.",
   },
 };

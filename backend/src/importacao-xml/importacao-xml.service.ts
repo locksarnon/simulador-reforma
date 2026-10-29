@@ -11,12 +11,30 @@ import {
   validateCnpj,
   validateDocumento,
   sha256,
+  anoNoBrasil,
+  icmsEfetivoNfe,
+  parseDataEmissao,
   VERSAO_REGRAS,
   check,
   STATUS,
   Check,
 } from './shared/xml-utils';
-import { parseXml, getFirst, getAll, getText, getTextDeep, getAttr, identificarTipoXml, MAX_ITENS } from './shared/xml-parser';
+import { parseXml, getFirst, getFirstDeep, getAll, getText, getTextDeep, getAttr, identificarTipoXml, MAX_ITENS } from './shared/xml-parser';
+import {
+  lerCte,
+  lerEventoCte,
+  ehEventoCte,
+  ehChaveCte,
+  dataEmissaoCte,
+  documentoDaChave,
+  resolverPerspectivas,
+  situacaoFiscalCte,
+  montarDadosCte,
+  checksExtrasCte,
+  documentosNormalizadosCte,
+  EventoCteLido,
+  ChecksExtrasCte,
+} from './shared/cte-parser';
 import { agruparPorCodigo, escolherVigente } from './shared/vigencia';
 import { avaliarNcm, compararComDeclarado, prepararLista, ClasseInfo, CorrelacaoNcmRow } from '../classificacao/ncm-classe';
 
@@ -61,6 +79,18 @@ function escolherItemLc116PorNbs(
   return candidatos[0].item_lc116;
 }
 
+/** Evento lido do arquivo (cancelamento, carta de correção, apropriação do crédito presumido), à espera de ser aplicado. */
+type EventoPendente = {
+  arq: { id: string; grupo_id: string };
+  tipoXml: string;
+  evData: { update: Record<string, unknown>; chNFe: string; cte: EventoCteLido | null };
+};
+
+/** De que situação saíram os itens que um cancelamento tirou do caminho da importação. */
+type CanceladosDe = { IMPORTAVEL: number; IMPORTAVEL_COM_ALERTA: number; BLOQUEADO: number; DUPLICADO: number };
+/** Quantas chaves cada consulta "chave in (...)" leva. */
+const CHAVES_POR_CONSULTA = 5000;
+
 const MAX_ARQUIVOS = 5000;
 const DOWNLOAD_BATCH = 50;
 const ITEM_BULK_BATCH = 500;
@@ -72,11 +102,11 @@ type ProcessarLoteBody = { grupo_id: string; idempotency_key: string; arquivos: 
 type ConfirmarBody = { lote_id: string; perspectivas_ids: string[] };
 
 /**
- * Importação de XML de NF-e/NFC-e: receberLote (POST /xml/processar-lote),
+ * Importação de XML de NF-e/NFC-e e CT-e/CT-e OS: receberLote (POST /xml/processar-lote),
  * confirmarImportacao (POST /xml/confirmar-importacao) e reprocessarLote
  * (POST /xml/reprocessar-lote). Parsing, validação em quatro camadas
  * (documental, cadastral, tributária, operacional) e dedup por hash, chave e
- * perspectiva.
+ * perspectiva. MDF-e e NFS-e são reconhecidos, mas ignorados.
  */
 @Injectable()
 export class ImportacaoXmlService {
@@ -333,6 +363,8 @@ export class ImportacaoXmlService {
 
       let allItems: Record<string, unknown>[] = [];
       let arqUpdates: Record<string, unknown>[] = [];
+      const eventosPendentes: EventoPendente[] = [];
+      const chavesCriadas = new Set<string>();
 
       for (let i = 0; i < arquivosReg.length; i += DOWNLOAD_BATCH) {
         const batch = arquivosReg.slice(i, i + DOWNLOAD_BATCH);
@@ -383,42 +415,19 @@ export class ImportacaoXmlService {
           hashesVistos.set(hash, arq.id);
 
           if (tipoXml === 'EVENTO_CANCELAMENTO' || tipoXml === 'EVENTO_CARTA_CORRECAO' || tipoXml === 'EVENTO_OUTRO') {
-            const evData = this.prepararEvento(arq, doc, tipoXml, hash);
-            arqUpdates.push(evData.update);
-            if (tipoXml === 'EVENTO_CANCELAMENTO' && evData.chNFe) {
-              const itens = await this.prisma.importacaoXMLItem.findMany({
-                where: { grupo_id: arq.grupo_id, chave_nfe: evData.chNFe },
-              });
-              const cancelUpdates = itens.filter((it) => it.resultado_final !== 'CONFIRMADO').map((it) => ({ id: it.id }));
-              for (let cu = 0; cu < cancelUpdates.length; cu += ARQ_BULK_BATCH) {
-                const slice = cancelUpdates.slice(cu, cu + ARQ_BULK_BATCH);
-                await this.prisma.$transaction(
-                  slice.map((u) =>
-                    this.prisma.importacaoXMLItem.update({ where: { id: u.id }, data: { resultado_final: 'CANCELADO' } }),
-                  ),
-                );
-              }
-              const estornoItems = itens.filter((it) => it.resultado_final === 'CONFIRMADO');
-              for (const it of estornoItems) {
-                await this.prisma.importacaoXMLItem
-                  .update({ where: { id: it.id }, data: { resultado_final: 'ESTORNADO' } })
-                  .catch(() => {});
-                if (it.operacao_id) {
-                  await this.prisma.operacao
-                    .update({ where: { id: it.operacao_id }, data: { situacao: 'CANCELADA' } })
-                    .catch(() => {});
-                }
-              }
-            }
+            // O evento só age depois que os documentos deste envio estiverem gravados: quem baixa o mês inteiro e sobe junto
+            // manda o CT-e/NF-e e o cancelamento no mesmo lote, em qualquer ordem (ver aplicarEventos).
+            eventosPendentes.push({ arq, tipoXml, evData: this.prepararEvento(arq, doc, tipoXml, hash) });
             arquivosValidos++;
             continue;
           }
 
-          if (tipoXml === 'CTE' || tipoXml === 'MDFE' || tipoXml === 'NFSE') {
+          if (tipoXml === 'MDFE' || tipoXml === 'NFSE') {
             // Reconhecido corretamente pela raiz, mas sem extração de
             // item/tributo — schema totalmente diferente da NF-e (ver
             // comentário do enum TipoXml). Marcado como IGNORADO, não
             // FALHOU/INVALIDO: o arquivo está correto, só não é suportado.
+            // (O CT-e deixou de ser ignorado: é lido por prepararCte.)
             arqUpdates.push({
               id: arq.id,
               hash_sha256: hash,
@@ -446,29 +455,36 @@ export class ImportacaoXmlService {
             continue;
           }
 
-          const result = await this.prepararNfe(
-            arq,
-            doc,
-            tipoXml,
-            hash,
-            grupoId,
-            empresasByCnpj,
-            cstGrouped,
-            classTribGrouped,
-            credPresGrouped,
-            ncmSet,
-            cfopSet,
-            histKeys,
-            chavesVistas,
-            correlacaoNcmList,
-            correlacaoServicoList,
-            issCache,
-            listaNcm,
-            classesInfo,
-          );
+          const result =
+            tipoXml === 'CTE'
+              ? this.prepararCte(
+                  arq, doc, tipoXml, hash, grupoId, empresasByCnpj,
+                  cstGrouped, classTribGrouped, credPresGrouped, ncmSet, cfopSet, histKeys, chavesVistas,
+                )
+              : await this.prepararNfe(
+                  arq,
+                  doc,
+                  tipoXml,
+                  hash,
+                  grupoId,
+                  empresasByCnpj,
+                  cstGrouped,
+                  classTribGrouped,
+                  credPresGrouped,
+                  ncmSet,
+                  cfopSet,
+                  histKeys,
+                  chavesVistas,
+                  correlacaoNcmList,
+                  correlacaoServicoList,
+                  issCache,
+                  listaNcm,
+                  classesInfo,
+                );
 
           arqUpdates.push(result.arquivoUpdate);
           if (result.items.length > 0) allItems.push(...result.items);
+          for (const it of result.items) if (it.chave_nfe) chavesCriadas.add(String(it.chave_nfe));
 
           if (result.sucesso) {
             arquivosValidos++;
@@ -497,6 +513,30 @@ export class ImportacaoXmlService {
       if (arqUpdates.length > 0) await this.flushArquivoUpdates(arqUpdates);
       if (allItems.length > 0) {
         await this.prisma.$transaction(allItems.map((row) => this.prisma.importacaoXMLItem.create({ data: row as any })));
+        allItems = [];
+      }
+
+      // O que mudou de situação por cancelamento sai dos contadores da situação de origem e entra em cancelados.
+      const baixarCancelados = (c: CanceladosDe) => {
+        itensImportaveis -= c.IMPORTAVEL;
+        itensAlerta -= c.IMPORTAVEL_COM_ALERTA;
+        itensBloqueados -= c.BLOQUEADO;
+        itensDuplicados -= c.DUPLICADO;
+        itensCancelados += c.IMPORTAVEL + c.IMPORTAVEL_COM_ALERTA + c.BLOQUEADO + c.DUPLICADO;
+      };
+      const arquivosDoEnvio = new Set(arquivosReg.map((a) => a.id));
+      const lotesDoEnvio = new Set(arquivosReg.map((a) => a.lote_id));
+
+      // Cancelamento que já constava de um envio anterior (o evento pode chegar antes do documento ou de um novo lote).
+      if (chavesCriadas.size > 0) baixarCancelados(await this.aplicarCancelamentosAnteriores(grupoId, [...chavesCriadas], arquivosDoEnvio));
+
+      // Eventos (cancelamento, apropriação do crédito presumido): com todos os documentos deste envio já gravados.
+      if (eventosPendentes.length > 0) {
+        const efeito = await this.aplicarEventos(eventosPendentes, lotesDoEnvio);
+        baixarCancelados(efeito.cancelouDe);
+        arquivosValidos -= efeito.falhas;
+        arquivosInvalidos += efeito.falhas;
+        await this.flushArquivoUpdates(eventosPendentes.map((e) => e.evData.update));
       }
 
       return {
@@ -515,15 +555,177 @@ export class ImportacaoXmlService {
     );
   }
 
-  private prepararEvento(arq: { id: string }, doc: any, tipoXml: string, hash: string) {
-    const infEvento = getFirst(doc.documentElement, 'infEvento');
-    const chNFe = getText(infEvento, 'chNFe');
-    const xMotivo = getText(infEvento, 'xMotivo');
-    const cStat = getText(infEvento, 'cStat');
-    let situacao = 'EVENTO_PROCESSADO';
-    if (cStat !== '135' && cStat !== '136') situacao = 'EVENTO_PENDENTE';
+  /**
+   * Aplica os eventos lidos neste envio, com os documentos do mesmo envio já gravados (o evento pode vir antes ou depois
+   * do documento no lote: quem baixa o mês inteiro sobe tudo junto). Só age o evento que a SEFAZ registrou (retorno com
+   * cStat 135, 136 ou 155); pedido sem retorno ou rejeitado fica pendente e não mexe em item nem em operação.
+   *  - Cancelamento: o item ainda não confirmado vira CANCELADO; o já confirmado vira ESTORNADO e a operação, CANCELADA.
+   *  - Apropriação do crédito presumido do CT-e (211110): aplica o cCredPres aos itens de entrada ainda abertos.
+   * Devolve de que situação saíram os itens dos lotes DESTE processamento que foram cancelados (o resumo do lote não pode contar
+   * como importável o que acabou cancelado). Os itens de outros lotes do grupo têm o contador do próprio lote ajustado aqui
+   * mesmo, e o estorno de um item confirmado baixa os itens confirmados do lote dele. Um evento que falha (erro de banco) fica
+   * FALHOU, para o reprocessamento retomar, e não derruba os demais nem o envio.
+   */
+  private async aplicarEventos(eventos: EventoPendente[], lotesDoEnvio: Set<string>) {
+    const zerado = (): CanceladosDe => ({ IMPORTAVEL: 0, IMPORTAVEL_COM_ALERTA: 0, BLOQUEADO: 0, DUPLICADO: 0 });
+    const cancelouDe = zerado();
+    const outrosLotes = new Map<string, CanceladosDe>();
+    const estornosPorLote = new Map<string, number>();
+    let falhas = 0;
 
-    const update = {
+    for (const { arq, tipoXml, evData } of eventos) {
+      if (evData.update.situacao_fiscal !== 'EVENTO_PROCESSADO') continue;
+      try {
+        if (evData.cte?.apropriacao) {
+          const aplicado = await this.aplicarApropriacaoCredPres(arq.grupo_id, evData.cte, []);
+          evData.update.erro_processamento = aplicado.mensagem;
+          if (!aplicado.itens) evData.update.situacao_fiscal = 'EVENTO_PENDENTE';
+        }
+
+        if (tipoXml === 'EVENTO_CANCELAMENTO' && evData.chNFe) {
+          const itens = await this.prisma.importacaoXMLItem.findMany({
+            where: { grupo_id: arq.grupo_id, chave_nfe: evData.chNFe },
+          });
+          if (itens.length === 0) {
+            evData.update.erro_processamento = `Nenhum item da chave ${evData.chNFe} neste grupo ainda: o cancelamento vale quando o documento for importado.`;
+          }
+          // Só sai do estado de origem o item que ainda não foi confirmado, cancelado ou estornado (lido antes de atualizar).
+          const abertos = itens.filter((it) => !['CONFIRMADO', 'CANCELADO', 'ESTORNADO'].includes(String(it.resultado_final)));
+          for (const it of abertos) {
+            const de = String(it.resultado_final) as keyof CanceladosDe;
+            if (!(de in cancelouDe)) continue;
+            if (lotesDoEnvio.has(String(it.lote_id))) cancelouDe[de]++;
+            else {
+              const lote = outrosLotes.get(String(it.lote_id)) ?? zerado();
+              lote[de]++;
+              outrosLotes.set(String(it.lote_id), lote);
+            }
+          }
+          for (let cu = 0; cu < abertos.length; cu += ARQ_BULK_BATCH) {
+            const slice = abertos.slice(cu, cu + ARQ_BULK_BATCH);
+            await this.prisma.$transaction(
+              slice.map((u) =>
+                this.prisma.importacaoXMLItem.update({ where: { id: u.id }, data: { resultado_final: 'CANCELADO' } }),
+              ),
+            );
+          }
+          // Item confirmado vira ESTORNADO e a operação, CANCELADA; o que já estava cancelado ou estornado não muda de novo.
+          for (const it of itens.filter((x) => x.resultado_final === 'CONFIRMADO')) {
+            await this.prisma.importacaoXMLItem.update({ where: { id: it.id }, data: { resultado_final: 'ESTORNADO' } });
+            if (it.operacao_id) await this.prisma.operacao.update({ where: { id: it.operacao_id }, data: { situacao: 'CANCELADA' } }).catch(() => {});
+            estornosPorLote.set(String(it.lote_id), (estornosPorLote.get(String(it.lote_id)) ?? 0) + 1);
+          }
+        }
+      } catch (err) {
+        falhas++;
+        this.logger.error(`Falha ao aplicar o evento do arquivo ${arq.id}: ${(err as Error)?.stack || err}`);
+        Object.assign(evData.update, {
+          status_tecnico: 'FALHOU',
+          situacao_fiscal: 'ERRO_PROCESSAMENTO',
+          erro_processamento: `Falha ao aplicar o evento: ${String((err as Error)?.message || err).slice(0, 300)}. Reprocese o lote para tentar de novo.`,
+        });
+      }
+    }
+
+    for (const [loteId, c] of outrosLotes) {
+      const total = c.IMPORTAVEL + c.IMPORTAVEL_COM_ALERTA + c.BLOQUEADO + c.DUPLICADO;
+      await this.prisma.importacaoXMLLote
+        .update({
+          where: { id: loteId },
+          data: {
+            itens_importaveis: { decrement: c.IMPORTAVEL },
+            itens_importaveis_com_alerta: { decrement: c.IMPORTAVEL_COM_ALERTA },
+            itens_bloqueados: { decrement: c.BLOQUEADO },
+            itens_duplicados: { decrement: c.DUPLICADO },
+            itens_cancelados: { increment: total },
+          },
+        })
+        .catch((err) => this.logger.warn(`Não consegui ajustar os contadores do lote ${loteId}: ${err}`));
+    }
+    for (const [loteId, n] of estornosPorLote) {
+      await this.prisma.importacaoXMLLote
+        .update({ where: { id: loteId }, data: { itens_confirmados: { decrement: n } } })
+        .catch((err) => this.logger.warn(`Não consegui ajustar os itens confirmados do lote ${loteId}: ${err}`));
+    }
+    return { cancelouDe, falhas };
+  }
+
+  /**
+   * Cancelamento que já consta de um envio anterior do grupo (evento processado pela SEFAZ): o documento que chega depois, no
+   * mesmo lote reprocessado ou em outro, entra já CANCELADO em vez de importável. Só mexe nos itens criados neste processamento.
+   */
+  private async aplicarCancelamentosAnteriores(grupoId: string, chaves: string[], arquivosDoEnvio: Set<string>): Promise<CanceladosDe> {
+    const cancelouDe: CanceladosDe = { IMPORTAVEL: 0, IMPORTAVEL_COM_ALERTA: 0, BLOQUEADO: 0, DUPLICADO: 0 };
+    const canceladas = new Set<string>();
+    for (let i = 0; i < chaves.length; i += CHAVES_POR_CONSULTA) {
+      const eventos = await this.prisma.importacaoXMLArquivo.findMany({
+        where: {
+          grupo_id: grupoId,
+          tipo_xml: 'EVENTO_CANCELAMENTO',
+          situacao_fiscal: 'EVENTO_PROCESSADO',
+          chave_nfe: { in: chaves.slice(i, i + CHAVES_POR_CONSULTA) },
+        },
+        select: { chave_nfe: true },
+      });
+      for (const e of eventos) if (e.chave_nfe) canceladas.add(e.chave_nfe);
+    }
+    if (canceladas.size === 0) return cancelouDe;
+
+    const itens = await this.prisma.importacaoXMLItem.findMany({
+      where: { grupo_id: grupoId, chave_nfe: { in: [...canceladas] }, arquivo_id: { in: [...arquivosDoEnvio] } },
+    });
+    const abertos = itens.filter((it) => !['CONFIRMADO', 'CANCELADO', 'ESTORNADO'].includes(String(it.resultado_final)));
+    for (const it of abertos) {
+      const de = String(it.resultado_final) as keyof CanceladosDe;
+      if (de in cancelouDe) cancelouDe[de]++;
+    }
+    for (let cu = 0; cu < abertos.length; cu += ARQ_BULK_BATCH) {
+      const slice = abertos.slice(cu, cu + ARQ_BULK_BATCH);
+      await this.prisma.$transaction(
+        slice.map((u) => this.prisma.importacaoXMLItem.update({ where: { id: u.id }, data: { resultado_final: 'CANCELADO' } })),
+      );
+    }
+    return cancelouDe;
+  }
+
+  private prepararEvento(
+    arq: { id: string },
+    doc: any,
+    tipoXml: string,
+    hash: string,
+  ): { update: Record<string, unknown>; chNFe: string; cte: EventoCteLido | null } {
+    // Evento de CT-e: leitura própria (busca profunda; a chave vem em chCTe e o retorno em retEventoCTe).
+    if (ehEventoCte(doc)) {
+      const cte = lerEventoCte(doc);
+      const update: Record<string, unknown> = {
+        id: arq.id,
+        hash_sha256: hash,
+        tipo_xml: tipoXml,
+        situacao_fiscal: cte.processado ? 'EVENTO_PROCESSADO' : 'EVENTO_PENDENTE',
+        status_tecnico: 'CONCLUIDO',
+        chave_nfe: cte.chave,
+        cstat: cte.cStat,
+        xmotivo: cte.xMotivo,
+        // Limpa o texto de uma tentativa anterior que falhou (o arquivo reprocessado não deve continuar com o erro antigo).
+        erro_processamento: null,
+        processado_em: new Date(),
+      };
+      return { update, chNFe: cte.chave, cte };
+    }
+
+    // O arquivo padrão é procEventoNFe > evento > infEvento (o pedido, com a chave) + retEvento > infEvento (o retorno da
+    // SEFAZ, com cStat e xMotivo). Procurar só entre os filhos diretos da raiz não achava nada nesse formato, e o
+    // cancelamento nunca era aplicado. Aceita também a raiz `evento` (só o pedido).
+    const raiz = doc.documentElement;
+    const infPedido = getFirstDeep(getFirst(raiz, 'evento'), 'infEvento') || getFirst(raiz, 'infEvento') || getFirstDeep(raiz, 'infEvento');
+    const infRetorno = getFirstDeep(getFirst(raiz, 'retEvento'), 'infEvento') || infPedido;
+    const chNFe = getText(infPedido, 'chNFe') || getText(infRetorno, 'chNFe');
+    const xMotivo = getText(infRetorno, 'xMotivo');
+    const cStat = getText(infRetorno, 'cStat');
+    // 135 e 136: evento registrado (com e sem vínculo à NF-e); 155: cancelamento homologado fora do prazo.
+    const situacao = ['135', '136', '155'].includes(cStat) ? 'EVENTO_PROCESSADO' : 'EVENTO_PENDENTE';
+
+    const update: Record<string, unknown> = {
       id: arq.id,
       hash_sha256: hash,
       tipo_xml: tipoXml,
@@ -532,9 +734,62 @@ export class ImportacaoXmlService {
       chave_nfe: chNFe,
       cstat: cStat,
       xmotivo: xMotivo,
+      erro_processamento: null,
       processado_em: new Date(),
     };
-    return { update, chNFe };
+    return { update, chNFe, cte: null };
+  }
+
+  /**
+   * Evento 211110 (Apropriação do Crédito Presumido, NT 2026.004 do CT-e): o tomador do serviço de um TAC/MEI informa o
+   * cCredPres e os percentuais de IBS/CBS. Aplica aos itens da perspectiva de ENTRADA do mesmo CT-e que ainda não foram
+   * confirmados — tanto os já gravados quanto os deste processamento (ainda na memória). Item confirmado, cancelado ou
+   * estornado não é tocado; se o CT-e não foi importado antes, o evento fica pendente para ser reenviado depois.
+   */
+  private async aplicarApropriacaoCredPres(
+    grupoId: string,
+    evento: EventoCteLido,
+    itensEmMemoria: Record<string, unknown>[],
+  ): Promise<{ itens: number; mensagem: string }> {
+    const apro = evento.apropriacao;
+    if (!apro) return { itens: 0, mensagem: 'Evento sem dados de apropriação.' };
+    const pct = (g: { pct: string } | null) => (g ? parsePercentage(g.pct) : null);
+    const ajuste = {
+      c_cred_pres_original: apro.cCredPres,
+      c_cred_pres_normalizado: apro.cCredPres || null,
+      credito_presumido_ibs_pct_original: apro.ibs ? apro.ibs.pct : null,
+      credito_presumido_ibs_pct_normalizado: pct(apro.ibs),
+      credito_presumido_cbs_pct_original: apro.cbs ? apro.cbs.pct : null,
+      credito_presumido_cbs_pct_normalizado: pct(apro.cbs),
+    };
+
+    let itens = 0;
+    for (const it of itensEmMemoria) {
+      if (it.chave_nfe === evento.chave && it.direcao === 'Entrada') {
+        Object.assign(it, ajuste);
+        itens++;
+      }
+    }
+    let travados = 0;
+    const gravados = await this.prisma.importacaoXMLItem.findMany({
+      where: { grupo_id: grupoId, chave_nfe: evento.chave, direcao: 'Entrada' },
+    });
+    for (const it of gravados) {
+      if (['CONFIRMADO', 'CANCELADO', 'ESTORNADO'].includes(String(it.resultado_final))) {
+        travados++;
+        continue;
+      }
+      await this.prisma.importacaoXMLItem.update({ where: { id: it.id }, data: ajuste as any });
+      itens++;
+    }
+
+    if (itens > 0) {
+      return { itens, mensagem: `Crédito presumido (cCredPres ${apro.cCredPres}) aplicado a ${itens} item(ns) de entrada do CT-e ${evento.chave}.` };
+    }
+    if (travados > 0) {
+      return { itens: 0, mensagem: `O CT-e ${evento.chave} já foi confirmado, cancelado ou estornado: informe o crédito presumido (cCredPres ${apro.cCredPres}) direto na operação.` };
+    }
+    return { itens: 0, mensagem: `CT-e ${evento.chave} ainda não foi importado como entrada: importe o CT-e e reenvie este evento.` };
   }
 
   /**
@@ -569,6 +824,145 @@ export class ImportacaoXmlService {
       resultado = { aliquota: [...valores][0] as number, itemLc116 };
     }
     cache.set(cacheKey, resultado);
+    return resultado;
+  }
+
+  /**
+   * CT-e (modelo 57) e CT-e OS (modelo 67): um documento = um item (numero_item 1) por perspectiva. A leitura e o
+   * mapeamento ficam em shared/cte-parser.ts (funções puras, testadas); aqui só a orquestração — duplicidade, situação
+   * fiscal pelo protocolo, perspectivas e as quatro camadas de validação reaproveitadas do NF-e.
+   */
+  private prepararCte(
+    arq: { id: string; lote_id: string },
+    doc: any,
+    tipoXml: string,
+    hash: string,
+    grupoId: string,
+    empresasByCnpj: Map<string, any>,
+    cstGrouped: Map<string, any[]>,
+    classTribGrouped: Map<string, any[]>,
+    credPresGrouped: Map<string, any[]>,
+    ncmSet: Set<string>,
+    cfopSet: Set<string>,
+    histKeys: Set<string>,
+    chavesVistas: Map<string, string>,
+  ) {
+    const resultado: {
+      sucesso: boolean;
+      arquivoUpdate: Record<string, unknown>;
+      items: Record<string, unknown>[];
+      itensCriados: number;
+      contadores: { importaveis: number; alerta: number; bloqueados: number; duplicados: number; cancelados: number };
+    } = {
+      sucesso: true,
+      arquivoUpdate: {},
+      items: [],
+      itensCriados: 0,
+      contadores: { importaveis: 0, alerta: 0, bloqueados: 0, duplicados: 0, cancelados: 0 },
+    };
+
+    const leitura = lerCte(doc);
+    if (!leitura.ok) {
+      resultado.arquivoUpdate = {
+        id: arq.id,
+        hash_sha256: hash,
+        tipo_xml: tipoXml,
+        situacao_fiscal: 'INVALIDO',
+        status_tecnico: 'FALHOU',
+        erro_processamento: leitura.motivo,
+        processado_em: new Date(),
+      };
+      resultado.sucesso = false;
+      return resultado;
+    }
+    const c = leitura.cte;
+    const dataEmi = dataEmissaoCte(c);
+
+    if (c.chave && chavesVistas.has(c.chave)) {
+      resultado.arquivoUpdate = {
+        id: arq.id,
+        hash_sha256: hash,
+        tipo_xml: tipoXml,
+        situacao_fiscal: 'DUPLICADO_CHAVE',
+        status_tecnico: 'CONCLUIDO',
+        chave_nfe: c.chave,
+        numero_nf: c.numero,
+        serie: c.serie,
+        data_emissao: dataEmi,
+        cstat: c.cStat,
+        xmotivo: c.xMotivo,
+        ambiente: c.ambiente,
+        motivo_duplicidade: 'DUPLICADO_CHAVE',
+        processado_em: new Date(),
+      };
+      resultado.contadores.duplicados++;
+      return resultado;
+    }
+    if (c.chave) chavesVistas.set(c.chave, arq.id);
+
+    const situacaoFiscal = situacaoFiscalCte(c.cStat, c.ambiente);
+    resultado.arquivoUpdate = {
+      id: arq.id,
+      hash_sha256: hash,
+      tipo_xml: tipoXml,
+      situacao_fiscal: situacaoFiscal,
+      status_tecnico: 'CONCLUIDO',
+      erro_processamento: null,
+      chave_nfe: c.chave,
+      numero_nf: c.numero,
+      serie: c.serie,
+      data_emissao: dataEmi,
+      cstat: c.cStat,
+      xmotivo: c.xMotivo,
+      ambiente: c.ambiente,
+      qtd_itens: 1,
+      processado_em: new Date(),
+    };
+
+    if (situacaoFiscal === 'CANCELADO') {
+      resultado.contadores.cancelados = 1;
+      return resultado;
+    }
+    if (situacaoFiscal !== 'AUTORIZADO') return resultado;
+
+    const docs = documentosNormalizadosCte(c);
+    const { statusMapeamento, perspectivas } = resolverPerspectivas(docs.emitente, docs.tomador, empresasByCnpj);
+    const chaveValida = validateAccessKey(c.chave, {
+      cnpjEmitente: c.emitente.doc,
+      modelo: c.modelo,
+      serie: c.serie,
+      numero: c.numero,
+    });
+
+    for (const p of perspectivas) {
+      const dados = montarDadosCte(c, p, { loteId: arq.lote_id, arquivoId: arq.id, grupoId, statusMapeamento });
+      const ctx = {
+        cstGrouped, classTribGrouped, credPresGrouped, ncmSet, cfopSet,
+        dataEmiDate: dataEmi ?? new Date(),
+        issItemLc116Usado: null,
+        ncmComparacao: null,
+        histKeys, cStat: c.cStat, ambiente: c.ambiente, situacaoFiscal, chaveValida,
+        cnpjEmit: c.emitente.doc,
+        cnpjDest: c.tomador.doc,
+        ehCte: true,
+        rotuloTipo: c.modelo === '67' ? 'CT-e OS' : 'CT-e',
+        campoProtocolo: 'protCTe',
+        rotuloDest: 'Tomador',
+        checksExtras: checksExtrasCte(c, p),
+      };
+
+      const itemPreparado = this.prepararItem(dados, ctx);
+      resultado.items.push(itemPreparado.data);
+      resultado.itensCriados++;
+
+      const rf = itemPreparado.resultado;
+      if (rf === 'IMPORTAVEL') resultado.contadores.importaveis++;
+      else if (rf === 'IMPORTAVEL_COM_ALERTA') resultado.contadores.alerta++;
+      else if (rf === 'BLOQUEADO') resultado.contadores.bloqueados++;
+      else if (rf === 'DUPLICADO') resultado.contadores.duplicados++;
+      else if (rf === 'CANCELADO') resultado.contadores.cancelados++;
+    }
+
     return resultado;
   }
 
@@ -658,7 +1052,7 @@ export class ImportacaoXmlService {
         chave_nfe: chaveNfe,
         numero_nf: numero,
         serie,
-        data_emissao: dataEmi ? new Date(dataEmi) : null,
+        data_emissao: parseDataEmissao(dataEmi),
         cstat: cStat,
         xmotivo: xMotivo,
         ambiente,
@@ -691,7 +1085,7 @@ export class ImportacaoXmlService {
       chave_nfe: chaveNfe,
       numero_nf: numero,
       serie,
-      data_emissao: dataEmi ? new Date(dataEmi) : null,
+      data_emissao: parseDataEmissao(dataEmi),
       cstat: cStat,
       xmotivo: xMotivo,
       ambiente,
@@ -765,7 +1159,15 @@ export class ImportacaoXmlService {
       const cofinsPct = getTextDeep(getFirst(imposto, 'COFINS'), 'pCOFINS');
       const icmsGrupo = getFirst(imposto, 'ICMS');
       const icmsPct = icmsGrupo ? getTextDeep(icmsGrupo, 'pICMS') : '';
+      // O percentual gravado é o ICMS efetivo da linha (vICMS ÷ valor): a alíquota nominal ignora redução de base e diferimento.
+      const icmsEfetivo = icmsGrupo
+        ? icmsEfetivoNfe(icmsPct, getTextDeep(icmsGrupo, 'vICMS'), getTextDeep(icmsGrupo, 'pRedBC'), valorBruto)
+        : null;
       const fcpPct = icmsGrupo ? getTextDeep(icmsGrupo, 'pFCP') : '';
+      // O FCP acompanha o ICMS: com redução de base, vFCP ÷ valor é o que pesa (e o que sai da base do IBS/CBS).
+      const fcpEfetivo = icmsGrupo
+        ? icmsEfetivoNfe(fcpPct, getTextDeep(icmsGrupo, 'vFCP'), getTextDeep(icmsGrupo, 'pRedBC'), valorBruto)
+        : null;
       const ipiPct = getTextDeep(getFirst(imposto, 'IPI'), 'pIPI');
       const issPct = getTextDeep(getFirst(imposto, 'ISSQN'), 'vAliq');
 
@@ -860,9 +1262,9 @@ export class ImportacaoXmlService {
           cofins_pct_original: originalValue(cofinsPct),
           cofins_pct_normalizado: parsePercentage(cofinsPct),
           icms_pct_original: originalValue(icmsPct),
-          icms_pct_normalizado: parsePercentage(icmsPct),
+          icms_pct_normalizado: icmsEfetivo,
           fcp_pct_original: originalValue(fcpPct),
-          fcp_pct_normalizado: parsePercentage(fcpPct),
+          fcp_pct_normalizado: fcpEfetivo,
           ipi_pct_original: originalValue(ipiPct),
           ipi_pct_normalizado: parsePercentage(ipiPct),
           iss_pct_original: originalValue(issPct),
@@ -876,12 +1278,12 @@ export class ImportacaoXmlService {
           documentos_referenciados_json: nfRefs.length > 0 ? JSON.stringify(nfRefs) : null,
           crt_emitente: null,
           ambiente,
-          data_emissao: dataEmi ? new Date(dataEmi) : null,
+          data_emissao: parseDataEmissao(dataEmi),
         };
 
         const ctx = {
           cstGrouped, classTribGrouped, credPresGrouped, ncmSet, cfopSet,
-          dataEmiDate: dataEmi ? new Date(dataEmi) : new Date(),
+          dataEmiDate: parseDataEmissao(dataEmi) ?? new Date(),
           issItemLc116Usado,
           ncmComparacao,
           histKeys, cStat, ambiente, situacaoFiscal, chaveValida,
@@ -922,12 +1324,18 @@ export class ImportacaoXmlService {
       chaveValida: ReturnType<typeof validateAccessKey>;
       cnpjEmit: string;
       cnpjDest: string;
+      /** Só CT-e (shared/cte-parser.ts): rótulos/regras próprios e checks adicionais. Ausentes no NF-e. */
+      ehCte?: boolean;
+      rotuloTipo?: string;
+      campoProtocolo?: string;
+      rotuloDest?: string;
+      checksExtras?: ChecksExtrasCte;
     },
   ) {
     const docChecks = this.validarDocumental(dados, ctx);
     const cadChecks = this.validarCadastral(dados, ctx);
-    const tribChecks = this.validarTributaria(dados, ctx);
-    const operChecks = this.validarOperacional(dados, ctx);
+    const tribChecks = [...this.validarTributaria(dados, ctx), ...(ctx.checksExtras?.tributarias ?? [])];
+    const operChecks = [...this.validarOperacional(dados, ctx), ...(ctx.checksExtras?.operacionais ?? [])];
 
     const snapshot = {
       versao_regras: VERSAO_REGRAS,
@@ -971,11 +1379,22 @@ export class ImportacaoXmlService {
 
   private validarDocumental(
     dados: Record<string, unknown>,
-    ctx: { cStat: string; ambiente: string; situacaoFiscal: string; chaveValida: ReturnType<typeof validateAccessKey>; cnpjEmit: string; cnpjDest: string },
+    ctx: {
+      cStat: string;
+      ambiente: string;
+      situacaoFiscal: string;
+      chaveValida: ReturnType<typeof validateAccessKey>;
+      cnpjEmit: string;
+      cnpjDest: string;
+      rotuloTipo?: string;
+      campoProtocolo?: string;
+      rotuloDest?: string;
+    },
   ): Check[] {
     const checks: Check[] = [];
+    const rotuloDest = ctx.rotuloDest ?? 'Destinatário'; // CT-e: Tomador
     checks.push(check('DOC_XML_BEM_FORMADO', STATUS.CONFORME, 'XML bem-formado e parseado com sucesso.'));
-    checks.push(check('DOC_TIPO_RECONHECIDO', STATUS.CONFORME, 'Tipo de documento reconhecido (NF-e/NFC-e).'));
+    checks.push(check('DOC_TIPO_RECONHECIDO', STATUS.CONFORME, `Tipo de documento reconhecido (${ctx.rotuloTipo ?? 'NF-e/NFC-e'}).`));
     if (!ctx.chaveValida.valido) {
       checks.push(check(ctx.chaveValida.codigo || 'DOC_CHAVE_INVALIDA', STATUS.NAO_CONFORME, ctx.chaveValida.mensagem, true, 'chave_nfe'));
     } else {
@@ -995,13 +1414,13 @@ export class ImportacaoXmlService {
     if (ctx.cnpjDest) {
       const destCheck = validateDocumento(ctx.cnpjDest);
       if (!destCheck.valido) {
-        checks.push(check(destCheck.codigo || 'DOC_CNPJ_DESTINATARIO_INVALIDO', STATUS.NAO_CONFORME, `Destinatário: ${destCheck.mensagem}`, true, 'cnpj_destinatario'));
+        checks.push(check(destCheck.codigo || 'DOC_CNPJ_DESTINATARIO_INVALIDO', STATUS.NAO_CONFORME, `${rotuloDest}: ${destCheck.mensagem}`, true, 'cnpj_destinatario'));
       } else {
-        checks.push(check('DOC_CNPJ_DESTINATARIO_VALIDO', STATUS.CONFORME, `${destCheck.tipo} do destinatário válido (dígito verificador confere).`));
+        checks.push(check('DOC_CNPJ_DESTINATARIO_VALIDO', STATUS.CONFORME, `${destCheck.tipo} do ${rotuloDest.toLowerCase()} válido (dígito verificador confere).`));
       }
     }
     if (!ctx.cStat) {
-      checks.push(check('DOC_PROTOCOLO_AUSENTE', STATUS.NAO_CONFORME, 'Protocolo de autorização ausente.', true, 'protNFe'));
+      checks.push(check('DOC_PROTOCOLO_AUSENTE', STATUS.NAO_CONFORME, 'Protocolo de autorização ausente.', true, ctx.campoProtocolo ?? 'protNFe'));
     } else if (ctx.cStat !== '100' && ctx.cStat !== '150') {
       checks.push(check('DOC_CSTAT_INVALIDO', STATUS.NAO_CONFORME, `cStat ${ctx.cStat} não indica autorização.`, true, 'cStat'));
     }
@@ -1017,7 +1436,7 @@ export class ImportacaoXmlService {
     return checks;
   }
 
-  private validarCadastral(dados: Record<string, unknown>, ctx: { ncmSet: Set<string>; cfopSet: Set<string> }): Check[] {
+  private validarCadastral(dados: Record<string, unknown>, ctx: { ncmSet: Set<string>; cfopSet: Set<string>; ehCte?: boolean }): Check[] {
     const checks: Check[] = [];
     if (!dados.empresa_id) {
       checks.push(check('CAD_EMPRESA_NAO_LOCALIZADA', STATUS.NAO_CONFORME, 'Nenhum CNPJ (emitente/destinatário) localizado no grupo.', true, 'empresa_id'));
@@ -1029,7 +1448,8 @@ export class ImportacaoXmlService {
       checks.push(check('CAD_PERSPECTIVA_INDEFINIDA', STATUS.NAO_CONFORME, 'Emitente e destinatário com mesmo CNPJ — revisão manual necessária.', true, 'perspectiva'));
     }
     if (!dados.ncm && !dados.nbs) {
-      checks.push(check('CAD_NCM_AUSENTE', STATUS.ALERTA, 'NCM e NBS ausentes — verifique se aplicável.', false, 'ncm'));
+      // CT-e é serviço de transporte: o leiaute não traz NCM nem NBS, então a ausência não é motivo de alerta.
+      if (!ctx.ehCte) checks.push(check('CAD_NCM_AUSENTE', STATUS.ALERTA, 'NCM e NBS ausentes — verifique se aplicável.', false, 'ncm'));
     } else if (dados.ncm && ctx.ncmSet.size > 0 && !ctx.ncmSet.has(dados.ncm as string)) {
       // Só valida contra o catálogo se ele já tiver alguma linha cadastrada
       // — senão bloquearia todo mundo que ainda não populou a base de NCM.
@@ -1064,6 +1484,7 @@ export class ImportacaoXmlService {
       dataEmiDate: Date;
       issItemLc116Usado: string | null;
       ncmComparacao: ReturnType<typeof compararComDeclarado> | null;
+      ehCte?: boolean;
     },
   ): Check[] {
     const checks: Check[] = [];
@@ -1094,7 +1515,9 @@ export class ImportacaoXmlService {
       checks.push(check(
         'TRIB_CLASS_TRIB_INFERIDO',
         STATUS.ALERTA,
-        `cClassTrib ${dados.c_class_trib_normalizado} não veio no XML — inferido a partir do NCM ${dados.ncm || '—'} cruzado com os Anexos da LC 214/2025 (ou assumido como regime padrão, se nenhuma exceção bateu). Confira antes de confiar no resultado tributário.`,
+        ctx.ehCte
+          ? `cClassTrib ${dados.c_class_trib_normalizado} não veio no XML (grupo imp/IBSCBS ausente) — assumido o regime padrão de tributação integral para o serviço de transporte. Confira antes de confiar no resultado tributário.`
+          : `cClassTrib ${dados.c_class_trib_normalizado} não veio no XML — inferido a partir do NCM ${dados.ncm || '—'} cruzado com os Anexos da LC 214/2025 (ou assumido como regime padrão, se nenhuma exceção bateu). Confira antes de confiar no resultado tributário.`,
         false,
         'c_class_trib',
       ));
@@ -1136,7 +1559,7 @@ export class ImportacaoXmlService {
     return checks;
   }
 
-  private validarOperacional(dados: Record<string, unknown>, ctx: { histKeys: Set<string> }): Check[] {
+  private validarOperacional(dados: Record<string, unknown>, ctx: { histKeys: Set<string>; ehCte?: boolean }): Check[] {
     const checks: Check[] = [];
     const histKey = `${dados.chave_nfe}|${dados.numero_item}|${dados.perspectiva}`;
     if (ctx.histKeys.has(histKey)) {
@@ -1151,7 +1574,9 @@ export class ImportacaoXmlService {
     // isso não recalcula nada, só avisa pra revisão humana antes de
     // confirmar, e mostra a que documento original o XML se refere quando
     // a nota trouxer NFref.
-    const finalidade = dados.finalidade_dfe as string | null;
+    // No CT-e, finalidade_dfe guarda o tpCTe (0 normal, 1 complemento, 2 anulação, 3 substituto): tem regra própria em
+    // checksExtrasCte e não pode cair nas mensagens de finNFe abaixo.
+    const finalidade = ctx.ehCte ? null : (dados.finalidade_dfe as string | null);
     if (finalidade === '4') {
       const refs = dados.documentos_referenciados_json ? JSON.parse(dados.documentos_referenciados_json as string) : [];
       checks.push(check(
@@ -1235,17 +1660,20 @@ export class ImportacaoXmlService {
 
       histKeys.add(histKey);
 
-      const idOp = `IMP-${item.chave_nfe.substring(25, 34)}-${item.numero_item}-${(item.perspectiva || '').substring(0, 3)}`;
+      // CT-e leva "CT-" no rótulo para não se confundir com NF-e de mesmo número (id_operacao não é único no banco).
+      const ehCte = ehChaveCte(item.chave_nfe);
+      const idOp = `IMP-${ehCte ? 'CT-' : ''}${item.chave_nfe.substring(25, 34)}-${item.numero_item}-${(item.perspectiva || '').substring(0, 3)}`;
       const trat = tratamentoEfetivo(item.cfop_servico, item.direcao, ajustesCfop.get(item.empresa_id as string));
       const sinal = trat === 'DEVOLUCAO_VENDA' ? -1 : 1;
       operacoesToCreate.push({
         id_operacao: idOp,
         empresa_id: empresa.id_empresa,
         data: item.data_emissao || new Date(),
-        ano: (item.data_emissao ? new Date(item.data_emissao) : new Date()).getFullYear(),
+        // Ano civil no fuso de Brasília: o servidor roda em UTC e uma nota das 22h de 31/12 já seria do ano seguinte.
+        ano: anoNoBrasil(item.data_emissao ? new Date(item.data_emissao) : new Date()),
         direcao: item.direcao,
-        tipo: item.nbs ? 'Servico' : 'Mercadoria',
-        descricao: item.descricao || `Importado de NF-e ${item.chave_nfe.substring(25, 34)}`,
+        tipo: ehCte || item.nbs ? 'Servico' : 'Mercadoria',
+        descricao: item.descricao || `Importado de ${documentoDaChave(item.chave_nfe)} ${item.chave_nfe.substring(25, 34)}`,
         quantidade: item.quantidade,
         preco_unitario: item.preco_unitario,
         desconto_incondicional: item.desconto_incondicional,
@@ -1259,7 +1687,7 @@ export class ImportacaoXmlService {
         uf_origem: item.uf_origem,
         uf_destino: item.uf_destino,
         municipio_destino: item.municipio_destino,
-        documento: 'NF-e',
+        documento: documentoDaChave(item.chave_nfe),
         regime_atual: empresa.regime_atual,
         c_class_trib: item.c_class_trib_normalizado,
         cst_ibs_cbs: item.cst_normalizado,

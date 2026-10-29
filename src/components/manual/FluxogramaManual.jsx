@@ -59,7 +59,7 @@ const SECOES = [
   },
   {
     titulo: "5. Crédito presumido (cCredPres)",
-    corpo: "O crédito presumido só é calculado quando o código é localizado no catálogo e o percentual oficial não está pendente. Status possível: Localizado (calcula), Pendente (não calcula — aguarda ato conjunto), Não localizado (código inexistente — não gera crédito) e Não informado (sem cCredPres). O método 'Por Fora' usa CP = VO×C/(1+C); o método 'Direto' usa CP = VO×C.",
+    corpo: "O crédito presumido só é calculado em compra (Entrada) com o código localizado no catálogo. Os percentuais dos códigos 3 (resíduos) e 4 (bem usado) vêm da lei; nos códigos 1 (produtor rural) e 2 (frete de autônomo) o ato conjunto anual ainda é pendente e o crédito só é calculado, como estimativa, quando a operação traz o percentual. Status possível: Localizado (calcula), Estimativa (calcula com o percentual informado), Pendente (não calcula: falta o percentual do ato), Não localizado (código inexistente: não gera crédito) e Não informado (sem cCredPres). O método 'Por Fora' usa CP = VO×C/(1+C), com C a soma dos percentuais de IBS e CBS quando os dois são informados; o método 'Direto' usa CP = VO×C. A compra com crédito presumido não gera também o crédito normal de IBS/CBS.",
   },
   {
     titulo: "6. Carga de dados",

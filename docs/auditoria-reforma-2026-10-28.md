@@ -213,26 +213,83 @@ Pedido do usuário: colocar o cenário de alíquotas, aprovar os avisos da Base 
 
 **Dados e implantação.** A migração `20261029010000_reforma_redutor_is_combustiveis` só acrescenta colunas com valor padrão (`TransicaoAno.redutor_compra_gov`, `Operacao.is_pct` e `Operacao.combustivel_produto`) e cria a tabela `AliquotaCombustivel` com as 8 linhas da Portaria; nenhuma linha existente é alterada. O redutor de 2027 entra pelo SQL versionado `backend/scripts/sql/2026-10-29-redutor-compras-governamentais.sql` (com trava; aplicado no banco local, aguardando a produção). Os textos que diziam "não modelado" (FAQ, relatório da Calculadora, cobertura por setor, dicas dos campos, ressalvas do PDF, roteiro de testes e arquitetura) foram atualizados, e o teste do FAQ agora amarra os números citados às constantes do motor.
 
-## 10. Achado novo: base de cálculo do IBS e da CBS na transição (NÃO corrigido; depende de decisão)
+## 10. Base de cálculo do IBS e da CBS na transição (achado de 29/10/2026, corrigido na versão 1.4.0 do motor)
 
 Ao revisar o art. 12 da LC 214 (texto da Base legal) para o Imposto Seletivo, apareceu uma diferença que **não é desta modelagem e atinge todos os cálculos**.
 
 **O que a lei diz.** O art. 12, §2º, V, manda que **não integrem a base de cálculo do IBS e da CBS** o montante, na operação, do ICMS, do ISS, da Cofins (art. 195, I, "b", e IV, da CF) e do PIS (art. 239), **de 1º/1/2026 a 31/12/2032**; o inciso II exclui o IPI e o inciso I, o próprio IBS e a CBS. Ou seja, nos anos de transição o IBS e a CBS incidem sobre o valor da operação **menos** esses tributos embutidos no preço.
 
-**O que o InTAX faz hoje.** O motor (`calcIbsCbs`) aplica as alíquotas de IBS e CBS sobre o `valor_bruto` inteiro, sem retirar ICMS, ISS, PIS e Cofins. É o que vinha da planilha original (v0.16) e das premissas validadas até aqui; nada disso foi alterado nesta entrega.
+**O que o InTAX fazia até a versão 1.3.0.** O motor (`calcIbsCbs`) aplicava as alíquotas de IBS e CBS sobre o `valor_bruto` inteiro, sem retirar ICMS, ISS, PIS e Cofins. Era o que vinha da planilha original (v0.16) e das premissas validadas até então.
 
 **Tamanho do efeito** (venda de R$ 1.000 com ICMS de 18%, PIS 1,65% e Cofins 7,6% no sistema atual; IBS e CBS do cenário padrão):
 
-| Ano | IBS + CBS no motor | Pela lei (base sem os tributos) | Diferença |
+| Ano | IBS + CBS no motor até a 1.3.0 | Pela lei, agora no motor 1.4.0 (base sem os tributos) | Diferença |
 |---|---|---|---|
 | 2027 | R$ 113,00 | R$ 92,66 (base R$ 820,00) | −18,0% |
 | 2029 | R$ 128,20 | R$ 107,43 (base R$ 838,00) | −16,2% |
 | 2032 | R$ 173,80 | R$ 155,03 (base R$ 892,00) | −10,8% |
 | 2033 | R$ 265,00 | R$ 265,00 | 0 (a exclusão acaba em 2032) |
 
-Quanto maior o ICMS embutido, maior o excesso. O motor, portanto, **superestima** o IBS e a CBS de 2027 a 2032 (a favor da segurança, mas errado), inclusive na Calculadora pública e nas simulações salvas.
+Quanto maior o ICMS embutido, maior o excesso. Até a 1.3.0 o motor **superestimava** o IBS e a CBS de 2027 a 2032 (a favor da segurança, mas errado), inclusive na Calculadora pública e nas simulações salvas.
 
-**O que falta decidir (por isso não mexi).** Corrigir muda os números de todas as telas, dos PDFs e dos testes existentes, e a premissa foi validada pelo especialista tributário. Proposta: aplicar a exclusão em `calcIbsCbs` (débito e crédito), com os valores brutos de ICMS, ISS, PIS, Cofins e IPI do próprio sistema atual multiplicados pelos fatores do ano, e deixar as simulações antigas legíveis pelo número da versão do motor (já gravado em cada simulação salva). Pendente de confirmação do especialista: se `valor_bruto` das operações já vem sem esses tributos em algum ERP.
+**O que foi feito (motor 1.4.0, 29/10/2026).** A exclusão está em `baseIbsCbs` (`src/motor/taxEngine.js`): de 2026 a 2032 a base é o valor da operação menos o ICMS (com o FCP), o ISS, o PIS e a Cofins ainda cobrados no ano, isto é, o valor de cada tributo vezes o fator de transição do ano. Vale para o débito, o crédito e a partilha entre estados e municípios, e chega à Calculadora pública porque ela usa as mesmas funções. A partir de 2033 não há exclusão. IPI e ICMS-ST ficam fora da conta porque não estão dentro do valor da operação, e o combustível (alíquota por unidade) não usa base percentual. Linha de transição sem o ano não exclui nada (só acontece em testes). As simulações salvas guardam a versão do motor e o resultado da época.
+
+**Para o especialista confirmar.** (a) Se o `valor_bruto` das operações de algum ERP já vem sem esses tributos; nesse caso a exclusão seria dupla. (b) O tratamento do ICMS-ST retido e do FCP. (c) Se, no Simples com IBS/CBS fora do DAS, o ICMS e o ISS pagos dentro do DAS também saem da base; o comparador Simples × Híbrido não aplica a exclusão.
+
+## 11. Transporte, crédito presumido e importações (29/10/2026)
+
+Pergunta de origem: o InTAX tem condições de analisar uma transportadora e apoiar o planejamento de 2027? O que entrou, e o que ficou de fora:
+
+| # | Item | Situação | Fonte |
+|---|---|---|---|
+| 1 | Base de cálculo do IBS/CBS sem ICMS, ISS, PIS e Cofins (2026 a 2032) | Aplicado no motor 1.4.0 (seção 10) | LC 214, art. 12, §2º, V |
+| 2 | Crédito presumido "por fora" (CP = VO×C/(1+C)) do produtor rural e do transportador autônomo | Aplicado; o código antigo `CP-RURAL` estava como "Direto" e foi corrigido | Decreto 12.955, arts. 247 e 253 |
+| 3 | Percentual informado na operação vale mesmo com o ato oficial pendente (resultado "Estimativa") | Aplicado | LC 214, arts. 168 e 169, §4º |
+| 4 | Crédito do transportador autônomo, de resíduos e de bem usado sem ressarcimento (só compensa tributo devido) | Aplicado (não entra no crédito acumulado a realizar) | LC 214, arts. 169, §7º, 170, §2º e 171, §2º; Decreto 12.955, art. 254 |
+| 5 | Resíduos (CBS 7%; IBS 1,3% em 2029 a 13% em 2033) e bem usado (alíquota do bem) com o percentual da lei | Aplicado | LC 214, arts. 170 e 171 |
+| 6 | Apuração por empresa e ano: o crédito presumido de CBS abate a CBS (antes todo o crédito presumido abatia só o IBS e o de CBS se perdia) | Corrigido | — |
+| 7 | Catálogo oficial de cCredPres (quatro códigos, gravados com dois dígitos como no XML) | Migração `20261030010000_credpres_catalogo_oficial` | Portal da Conformidade Fácil (SVRS), tabela conferida em 29/10/2026 |
+| 8 | CT-e e CT-e OS no importador de XML, com o evento de apropriação do crédito presumido (211110) | Aplicado | Portal Nacional do CT-e: schemas PL_CTe_400_NT2026.004 RTC_1.00 e NTs 2025.001, 2026.002 e 2026.004 |
+| 9 | Importação de operações por planilha XLSX/CSV | Aplicado | — |
+| 10 | Simples × Híbrido com o crédito das compras da própria empresa (versão 0.2.0) | Aplicado | LC 214, art. 47 |
+| 11 | Classes do transporte de passageiros e de bens a zonas de exportação (200001, 200021, 200049, 200050, 400001, 400002) | Já existiam no catálogo; agora há orientação no formulário | LC 214, arts. 157 e 285 a 287 |
+| 12 | Simples: transporte intermunicipal e interestadual de cargas (Anexo III sem ISS e com o ICMS do Anexo I) | **Não feito**: faltam as repartições de ISS (Anexo III) e de ICMS (Anexo I) nas tabelas de 2027 e a leitura do art. 18, §5º-E depois da LC 214 | LC 123, art. 18, §5º-E |
+| 13 | Percentuais de 2027 do crédito presumido do produtor rural e do transportador autônomo | **Não localizados** em fonte oficial (o ato conjunto devia sair até setembro) | LC 214, arts. 168 e 169, §4º |
+| 14 | Elegibilidade do crédito por tipo de compra e por regime: o percentual de crédito elegível é um só, por operação, e vale para o crédito do sistema atual e para o do IBS/CBS; as importações de NF-e e de CT-e o deixam em 0 | **Não feito**; proposta à parte (separar o crédito de PIS/Cofins, que só o Lucro Real tem, do crédito de ICMS e de IBS/CBS) | — |
+| 15 | Cancelamento de NF-e por evento: o `prepararEvento` buscava `infEvento` só entre os filhos diretos da raiz e, no arquivo padrão `procEventoNFe`, não achava a chave (o cancelamento nunca era aplicado) | **Corrigido** (achado ao ler o CT-e, confirmado por teste): a busca agora lê o pedido e o retorno da SEFAZ; vale para as próximas importações, e eventos já enviados precisam ser reenviados | — |
+
+
+### 11.1 Revisão independente do lote (29/10/2026)
+
+Duas revisões independentes (motor e telas; backend e importações) leram o lote antes do commit. Nada de severidade alta no motor; no backend, dois achados altos. O que foi feito:
+
+| # | Achado | Tratamento |
+|---|---|---|
+| 16 | Simples × Híbrido: com crédito de compras (valor fixo em R$), o ponto de equilíbrio tratava o crédito como proporcional ao preço e subestimava o repasse (R$ 40 mil de compras: 5,61% no lugar de 5,93%) | Corrigido: o equilíbrio sai da conta exata (líquido do vendedor no preço novo = líquido no Simples puro), com teste de propriedade; a carga "no preço novo" vem do motor |
+| 17 | Crédito presumido "por fora" com IBS e CBS juntos: divisores separados davam mais do que a lei permite (IBS 4% + CBS 4% sobre R$ 1.000: R$ 76,92 contra R$ 74,07) | Corrigido: a LC 214 (arts. 168, §§1º a 3º, e 169, §§2º e 3º) tem um só valor líquido; o divisor leva a soma dos percentuais. Com um percentual só, nada muda (é a fórmula do Decreto 12.955) |
+| 18 | NF-e importada gravava a alíquota nominal do ICMS (CST 20 com redução de base: 17% em vez de 6,8%), o que agora também contamina a base do IBS/CBS | Corrigido: grava o ICMS efetivo (vICMS ÷ valor da linha; sem vICMS, a alíquota com a redução de base); o original do XML continua guardado |
+| 19 | Evento de cancelamento enviado junto com o documento (o caso comum de baixar o mês inteiro) não cancelava nada: só olhava o banco, e os itens do envio ainda estavam na memória | Corrigido: os eventos são aplicados depois que os documentos do envio estão gravados, em qualquer ordem dos arquivos; o resumo do lote desconta os itens que viraram cancelados |
+| 20 | Cancelamento de NF-e era aplicado sem conferir o retorno da SEFAZ (pedido sem retorno ou rejeitado cancelava item e estornava operação confirmada) | Corrigido: só age evento com cStat 135, 136 ou 155 (NF-e) e 135 ou 136 (CT-e) |
+| 21 | Planilha: o ID vinha do hash do arquivo inteiro; "corrija e reenvie" duplicava tudo o que já tinha entrado, e a tela dizia o contrário | Corrigido: o ID nasce do conteúdo da linha (empresa, data, direção, valor, descrição, documento, CFOP, NCM/NBS, UFs e quantidade) e da ordem entre linhas idênticas; a linha igual é ignorada e só a corrigida entra. Textos da tela, FAQ e roteiro revisados |
+| 22 | Planilha: dois envios ao mesmo tempo gravavam duas vezes; falha no meio deixava lotes gravados; a consulta de duplicadas varria a tabela inteira | Corrigido: transação única com trava (pg_advisory_xact_lock) e consulta por empresa e ID; testado contra o Postgres local, com dois envios simultâneos |
+| 23 | Planilha: célula formatada como % (1,65% guardado como 0,0165) era lida como 0,0165 ponto (imposto 100 vezes menor, sem aviso); texto "12.500" valia 12,5 no XLSX e 12.500 no CSV | Corrigido: o leitor entrega os números em texto brasileiro nos dois formatos e reconhece o formato de percentual; o alerta de fração lida como pontos vale para PIS, Cofins, ICMS, ISS e IPI e sai também na importação |
+| 24 | Planilha: a coluna "Empresa" (alias CNPJ, que numa planilha de vendas é o do cliente) mandava a linha para outra empresa do grupo; o servidor aceitava empresa de qualquer grupo | Corrigido: com a empresa escolhida na tela a coluna não é lida; o alias "CNPJ" sozinho saiu; a tela manda o grupo e o servidor só aceita as empresas dele |
+| 25 | Planilha: nota que já entrou pelo XML contava em dobro; código desfigurado pelo Excel (cClassTrib 1, CST 10, NCM sem o zero); ICMS interestadual sugerido para exportação, UF inválida e serviço de ISS; regime desconhecido calava | Corrigido: nota já importada por XML (mesma chave e empresa) fica de fora; zeros devolvidos; tabela de ICMS só entre UFs do país e fora de serviço de ISS; aviso de regime e de cClassTrib inexistente |
+| 26 | Planilha: leitura de moeda ("-R$ 1.234,56", "R$ (100,00)", "100,00 D"); "0.500" lido como 500; linha citada no erro era a linha lógica, não a do arquivo; nome do arquivo com acento chegava em latin1 | Corrigido |
+| 27 | Ano da operação pelo fuso do servidor (UTC): CT-e ou NF-e das 22h30 de 31/12/2026 caía em 2027 | Corrigido: ano no fuso de Brasília (NF-e e CT-e) |
+| 28 | CT-e OS de passageiros: o local da operação é o início do transporte (LC 214, art. 11, VI), não o fim | Corrigido para tpServ 6 (pessoas) e 8 (excesso de bagagem); a carga e os valores seguem o fim (art. 11, VII) |
+| 29 | FAQ antigo ainda dizia que o IBS/CBS incide sobre o valor bruto inteiro e que o crédito presumido pendente "não será calculado" | Oito respostas reescritas, com teste que impede a volta |
+| 30 | Apuração por empresa (`creditoAcumuladoApurado`) incluía o crédito presumido sem ressarcimento; crédito normal zerado por cCredPres sem explicação na tela; dica de transporte aparecia em todo serviço; textos "campos abaixo" | Corrigidos |
+| 31 | Comparador Simples × Híbrido não aplica a base do art. 12 ao crédito das compras | Texto da tela pede o valor das compras sem o ICMS e o ISS embutidos |
+| 32 | Segunda rodada: o cancelamento só valia para item já gravado. O CT-e que chegasse depois (lote reprocessado ou outro lote) entrava como importável e podia ser confirmado | Corrigido: o cancelamento já processado pela SEFAZ num envio anterior é aplicado ao documento novo; cancelamento de documento que ainda não existe fica processado, com o aviso na tela do log |
+| 33 | Contadores do lote fora do envio atual; falha de banco ao aplicar um evento derrubava o envio; cancelamento repetido rebaixava ESTORNADO para CANCELADO; erro antigo ficava no evento reprocessado | Corrigido: item de outro lote tem o contador do próprio lote ajustado, o estorno baixa os itens confirmados do lote, o evento que falha vira FALHOU (reprocessável) sem derrubar os demais, ESTORNADO e CANCELADO não são refeitos e o erro antigo é limpo |
+| 34 | Planilha: a trava da nota já importada por XML dependia da ordem do cadastro quando matriz e filial dividem o id_empresa, e descartava todas as linhas de uma nota importada só em parte | Corrigido: vale qualquer cadastro com o id; com tantos itens no XML quantas são as linhas a nota fica de fora, com menos as linhas entram com aviso |
+| 35 | Planilha: formato "0,00""%""" (o % é só texto) era lido como percentual e multiplicava por 100 em silêncio | Corrigido: só o % fora de aspas, de barra invertida e de colchetes conta como percentual |
+| 36 | Planilha: linha já importada com PIS, ICMS ou cClassTrib corrigidos era ignorada sem aviso; o campo ID aconselhava o número da nota, que se repete entre fornecedores | Corrigido: a conferência e o resultado contam e avisam as linhas já importadas que diferem do gravado (nada é alterado); o texto do ID manda usar a chave de acesso ou emitente + série + número + item |
+| 37 | Data de emissão sem fuso (leiaute antigo, "2027-01-01") era lida como 21h de 31/12 em Brasília e mudava o ano da operação; o FCP não acompanhava o ICMS efetivo; o centavo do vICMS dava 18,18% em linha pequena | Corrigido: data sem fuso vale a hora de Brasília; vFCP ÷ valor como no ICMS; tolerância de um centavo |
+| 38 | Planilha de 50 mil linhas com milhares de empresas varria a lista de empresas a cada linha (17 s de CPU) | Corrigido: empresas indexadas por ID e por CNPJ uma vez por planilha |
+
+Registrado e não tratado neste lote: (a) o leitor de planilha não limita a descompressão de um XLSX malicioso (herdado do módulo de produtos; exige usuário autenticado e arquivo de até 60 MB); (b) o importador de XML baixa a URL que o cliente manda em `file_url` sem validar a origem (SSRF autenticado, já existia antes; tarefa aberta à parte); (c) o catálogo de CFOP local tem uma linha só, então todo CFOP fora dela gera o alerta "não localizado" (comportamento antigo, vale para NF-e e CT-e). (d) o ano da operação vale pela hora de Brasília: uma nota emitida entre 23h e 24h locais de 31/12 em Manaus ou Rio Branco (UTC−4 e UTC−5) cai no ano seguinte; (e) a planilha não atualiza operação já importada (só avisa quando o percentual ou a classificação mudou).
 
 ## Fontes
 

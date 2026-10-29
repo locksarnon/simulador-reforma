@@ -27,7 +27,7 @@ export default function DropzoneXML({ files, onAddFiles, onRemoveFile, onClear, 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-4">
       <div className="flex items-center gap-2">
-        <h3 className="font-heading font-medium text-sm">Upload de XML (NF-e / NFC-e)</h3>
+        <h3 className="font-heading font-medium text-sm">Upload de XML (NF-e, NFC-e, CT-e)</h3>
         <InfoTooltip pagina="importacao" chave="header" />
       </div>
 

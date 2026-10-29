@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { calcOperacao } from "@/motor/taxEngine";
+import { calcOperacao, chaveCredPres } from "@/motor/taxEngine";
 import { agruparPorCodigo, escolherVigente } from "@/lib/vigencia";
 import { useTransicaoComCenario } from "@/lib/cenarioAliquotasStore";
 import { aliquotasCombustivelDoAno } from "@/motor/combustiveis";
@@ -19,7 +19,8 @@ export function calcularOperacoes(operacoes, transicaoMap, classTribGrouped, cre
     const anoParams = transicaoMap.get(Number(op.ano)) || {};
     const dataOp = op.data ? new Date(op.data) : new Date(Number(op.ano) || new Date().getFullYear(), 0, 1);
     const classTrib = escolherVigente(classTribGrouped.get(op.c_class_trib) || [], dataOp) || {};
-    const credPresResolvida = escolherVigente(credPresGrouped.get(op.c_cred_pres) || [], dataOp);
+    // O XML traz o cCredPres com dois dígitos ("02") e a tabela oficial lista "2": a busca ignora o zero à esquerda.
+    const credPresResolvida = escolherVigente(credPresGrouped.get(chaveCredPres(op.c_cred_pres)) || [], dataOp);
     const credPresMap = new Map(credPresResolvida ? [[op.c_cred_pres, credPresResolvida]] : []);
     return {
       op: opNorm,
@@ -99,7 +100,7 @@ export function useSimuladorData({ grupoNumero, empresaId, cenarioNome } = {}) {
   const classTribAtivos = (classTribQ.data || []).filter((c) => c.status === "Ativo");
   const credPresAtivos = (credPresQ.data || []).filter((c) => c.status === "Ativo");
   const classTribGrouped = agruparPorCodigo(classTribAtivos, (c) => c.c_class_trib);
-  const credPresGrouped = agruparPorCodigo(credPresAtivos, (c) => c.c_cred_pres);
+  const credPresGrouped = agruparPorCodigo(credPresAtivos, (c) => chaveCredPres(c.c_cred_pres));
 
   const todasEmpresas = empresasQ.data || [];
   // Filtro por grupo: restringe às empresas daquele grupo antes de calcular.

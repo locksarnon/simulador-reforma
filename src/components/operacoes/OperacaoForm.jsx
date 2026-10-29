@@ -12,6 +12,8 @@ import { RESSALVA_CRED_PRES } from "@/lib/ressalvas";
 import { sugerirTributosAtuais } from "@/lib/tabelasLegais";
 import { PRODUTOS_COMBUSTIVEL } from "@/motor/combustiveis";
 import { TETO_IS_BENS_MINERAIS, classificarImpostoSeletivo } from "@/motor/impostoSeletivo";
+import { CREDITOS_PRESUMIDOS, codigoParaTela, creditoPresumidoPorCodigo } from "@/lib/creditoPresumido";
+import { chaveCredPres } from "@/motor/taxEngine";
 
 const DIRECOES = ["Saida", "Entrada"];
 const TIPOS = ["Mercadoria", "Servico", "Outro"];
@@ -29,6 +31,12 @@ function Field({ label, children, full, pagina, chave }) {
     </div>
   );
 }
+
+// Serviço de transporte: CFOPs de prestação (x351 a x360) ou descrição de frete. A dica do transporte só aparece para eles.
+const ehServicoDeTransporte = (f) =>
+  f.tipo === "Servico" &&
+  (/^[1-35-7]35[1-9]$|^[1-35-7]360$/.test(String(f.cfop_servico || "").trim()) ||
+    /frete|transport|\bct-?e\b|carga/i.test(String(f.descricao || "")));
 
 export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
   const [form, setForm] = useState(() => ({
@@ -129,6 +137,12 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
   // Regimes específicos: o NCM no Anexo XVII da LC 214 avisa do Imposto Seletivo; o produto de combustível define a unidade da quantidade.
   const enquadramentoIs = classificarImpostoSeletivo(form.ncm);
   const produtoComb = PRODUTOS_COMBUSTIVEL.find((p) => p.id === form.combustivel_produto);
+  // Crédito presumido: a orientação muda com o código escolhido (frete de autônomo, produtor rural, resíduos, bem usado).
+  const credPresSel = creditoPresumidoPorCodigo(form.c_cred_pres);
+  // "2" e "02" são o mesmo código: a lista mostra a opção oficial (dois dígitos, como no XML) para as duas formas.
+  const opcaoOficial = CREDITOS_PRESUMIDOS.find((c) => chaveCredPres(c.codigo) === chaveCredPres(form.c_cred_pres));
+  const codigoCredPresSelect = opcaoOficial ? opcaoOficial.codigo : form.c_cred_pres;
+  const codigoForaDaTabela = Boolean(form.c_cred_pres) && !opcaoOficial;
 
   const submit = (e) => {
     e.preventDefault();
@@ -228,6 +242,13 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
           </Field>
           <Field label="cClassTrib" pagina="operacao_form" chave="c_class_trib"><Input value={form.c_class_trib} onChange={(e) => set("c_class_trib", e.target.value)} /></Field>
           <Field label="CST IBS/CBS" pagina="operacao_form" chave="cst_ibs_cbs"><Input value={form.cst_ibs_cbs} onChange={(e) => set("cst_ibs_cbs", e.target.value)} /></Field>
+          {ehServicoDeTransporte(form) && (
+            <p className="col-span-3 text-xs text-muted-foreground bg-muted/40 border border-border rounded-md p-2.5">
+              Serviço de transporte: o frete de carga usa a tributação integral (cClassTrib 000001) e o local da operação é o da entrega (LC 214, art. 11, VII), então informe a UF e o município de destino.
+              Passageiros: 200049 (coletivo rodoviário, ferroviário e hidroviário intermunicipal e interestadual, redução de 40%), 200050 (aéreo regional de passageiros ou de carga, 40%) e 200021 (urbano ferroviário e hidroviário, alíquota zero).
+              Transporte de bens a zonas de exportação: 200001.
+            </p>
+          )}
         </div>
       </section>
 
@@ -260,13 +281,35 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
         </h3>
         <div className="grid grid-cols-4 gap-3">
           <Field label="Split %" pagina="operacao_form" chave="split_pct"><PctInput value={form.split_pct} onChange={(v) => set("split_pct", v)} /></Field>
-          <Field label="cCredPres" pagina="operacao_form" chave="c_cred_pres"><Input value={form.c_cred_pres} onChange={(e) => set("c_cred_pres", e.target.value)} /></Field>
+          <Field label="Crédito presumido (cCredPres)" pagina="operacao_form" chave="c_cred_pres">
+            <Select value={codigoCredPresSelect || "nenhum"} onValueChange={(v) => set("c_cred_pres", v === "nenhum" ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nenhum">Nenhum</SelectItem>
+                {CREDITOS_PRESUMIDOS.map((c) => <SelectItem key={c.codigo} value={c.codigo}>{codigoParaTela(c.codigo)} — {c.nome}</SelectItem>)}
+                {codigoForaDaTabela && <SelectItem value={form.c_cred_pres}>{form.c_cred_pres} ({credPresSel ? "código antigo" : "fora da tabela oficial"})</SelectItem>}
+              </SelectContent>
+            </Select>
+          </Field>
           <Field label="Crédito presumido IBS %" pagina="operacao_form" chave="credito_presumido_ibs_pct"><PctInput value={form.credito_presumido_ibs_pct} onChange={(v) => set("credito_presumido_ibs_pct", v)} /></Field>
           <Field label="Crédito presumido CBS %" pagina="operacao_form" chave="credito_presumido_cbs_pct"><PctInput value={form.credito_presumido_cbs_pct} onChange={(v) => set("credito_presumido_cbs_pct", v)} /></Field>
           <Field label="Grupo RTC" pagina="operacao_form" chave="grupo_rtc"><Input value={form.grupo_rtc} onChange={(e) => set("grupo_rtc", e.target.value)} /></Field>
           <Field label="Custo base % (p/ margem)" pagina="operacao_form" chave="custo_base_pct"><PctInput value={form.custo_base_pct} onChange={(v) => set("custo_base_pct", v)} /></Field>
           <Field label="Margem meta %" pagina="operacao_form" chave="margem_meta_pct"><PctInput value={form.margem_meta_pct} onChange={(v) => set("margem_meta_pct", v)} /></Field>
         </div>
+        {credPresSel && (
+          <div className="mt-3 space-y-2 text-xs">
+            <p className="text-muted-foreground bg-muted/40 border border-border rounded-md p-2.5">
+              <b className="text-foreground">{credPresSel.nome}.</b> {credPresSel.orientacao}
+              {" "}A compra com crédito presumido não gera também o crédito normal de IBS/CBS ({credPresSel.baseLegal}).
+            </p>
+            {form.direcao === "Saida" && (
+              <p className="text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-2.5" role="status">
+                O crédito presumido vale só em compra (Entrada). Esta operação está como Saída, então o crédito não será calculado.
+              </p>
+            )}
+          </div>
+        )}
         <p className="mt-3 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-2.5">{RESSALVA_CRED_PRES}</p>
       </section>
 

@@ -218,7 +218,7 @@ export default function ImportacaoXMLPage() {
             <p className="text-sm text-muted-foreground">
               {empresaTravada
                 ? `Notas em que ${empresaTravada.razao_social} aparece como emitente ou destinatária. O lote continua sendo do grupo — se houver transferência interna com outra empresa, ela fica escondida por padrão.`
-                : "Upload de NF-e/NFC-e com processamento backend, 4 camadas de validação e staging auditável."}
+                : "Upload de NF-e, NFC-e e CT-e com processamento backend, 4 camadas de validação e staging auditável."}
             </p>
           </div>
           <LimparDadosButton

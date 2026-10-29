@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast";
 import TituloPagina from "@/components/TituloPagina";
 
 const SERVICOS = [
-  ["importacao-xml", "Diagnóstico tributário", "Importe XML, revise as operações e consulte o painel."],
+  ["importacao-xml", "Diagnóstico tributário", "Importe XML (NF-e, CT-e) ou uma planilha de operações, revise e consulte o painel."],
   ["validador-cadastro", "Validação de cadastro", "Conferência rápida de uma planilha: NCM, cClassTrib e duplicidades."],
   ["saneamento-estoque", "Saneamento de estoques", "Projeto completo, passo a passo, até a política de uso."],
   ["classificacao-servicos", "Classificação de serviços", "Correlação entre LC 116, NBS, cIndOp e cClassTrib."],

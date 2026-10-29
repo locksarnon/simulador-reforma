@@ -54,9 +54,19 @@ export const FUNDAMENTOS = {
     revisado: false,
   },
   credito_presumido: {
-    titulo: "Crédito presumido (compras de produtor rural não contribuinte)",
-    nota: "Os percentuais são definidos e divulgados anualmente, até setembro, por ato conjunto do Ministro da Fazenda e do Comitê Gestor do IBS, com vigência a partir de 1º de janeiro seguinte. Enquanto não confirmados, o valor é estimativa e pode não ser o real.",
-    refs: [{ norma: "lcp-214-2025", caminho: "art-168" }],
+    titulo: "Crédito presumido (compras de quem não é contribuinte)",
+    nota: "Vale para a compra de produtor rural não contribuinte (art. 168), de frete de transportador autônomo (art. 169), de resíduos para reciclagem (art. 170) e de bem usado de pessoa física para revenda (art. 171). No produtor rural e no transportador autônomo o crédito é valor × C ÷ (1 + C) (com IBS e CBS juntos, C é a soma dos dois percentuais), e os percentuais são definidos e divulgados até setembro, por ato conjunto do Ministro da Fazenda e do Comitê Gestor do IBS, para valer em 1º de janeiro seguinte; enquanto não confirmados, o valor é estimativa. Nos resíduos e no bem usado o percentual está na lei. O do transportador autônomo, o dos resíduos e o do bem usado só compensam o tributo devido (sem ressarcimento). A mesma compra não gera também o crédito normal.",
+    refs: [
+      { norma: "lcp-214-2025", caminho: "art-168" }, { norma: "lcp-214-2025", caminho: "art-169" },
+      { norma: "lcp-214-2025", caminho: "art-170" }, { norma: "lcp-214-2025", caminho: "art-171" },
+      { norma: "dec-12955-2026", caminho: "art-247" }, { norma: "dec-12955-2026", caminho: "art-253" }, { norma: "dec-12955-2026", caminho: "art-254" },
+    ],
+    revisado: false,
+  },
+  base_calculo_ibs_cbs: {
+    titulo: "Base de cálculo do IBS e da CBS",
+    nota: "De 2026 a 2032 o ICMS, o ISS, o PIS e a Cofins ainda cobrados na operação não integram a base de cálculo do IBS e da CBS. O valor da operação já os traz embutidos, então o cálculo tira da base a parte que ainda é cobrada no ano: o PIS/Cofins some em 2027 e o ICMS e o ISS caem de 2029 a 2032. Também ficam fora da base o IBS e a CBS da própria operação, o IPI e os descontos incondicionais. A partir de 2033 a base é o valor da operação.",
+    refs: [{ norma: "lcp-214-2025", caminho: "art-12" }],
     revisado: false,
   },
   split_payment: {

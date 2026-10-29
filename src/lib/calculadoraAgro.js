@@ -304,6 +304,7 @@ export function estimar(entrada, parametros, opcoes = {}) {
       ? `Carga atual: DAS médio de ${pct1(dasPct)} sobre o faturamento${cargaInf != null ? " (informado por você)" : " (premissa padrão)"}. O regime regular é mostrado só como comparação.`
       : `Carga atual: PIS/Cofins do regime ${REGIMES.find((r) => r.id === regime).label} e ICMS médio de ${pct1(tx.icms)}${cargaInf != null ? " (ajustado à carga que você informou)" : " (premissa do segmento)"}.`,
     `Redução média de IBS/CBS nas vendas: ${flags.fora_ibs ? "fora do IBS/CBS (receita abaixo do teto)" : pct1(reducao)}.`,
+    "Base do IBS/CBS: o faturamento menos o ICMS, o PIS e a Cofins ainda cobrados em cada ano, até 2032 (LC 214, art. 12, §2º, V); a partir de 2033 vale o valor inteiro da operação.",
     ...(perfil.imposto_seletivo_pct ? [`Imposto Seletivo: ${pct2(perfil.imposto_seletivo_pct)} do faturamento a partir de 2027 (alíquota máxima prevista; a definir em lei).`] : []),
     "Alíquotas do IBS/CBS e fatores de transição: parâmetros do InTAX. 2026 é informativo; 2027 e 2028 usam a CBS de referência calculada pelo TCU menos 0,1 p.p.; de 2029 a 2033 nenhuma alíquota foi fixada ainda, então a série segue um cenário.",
     ...(opcoes.cenarioTexto ? [opcoes.cenarioTexto] : []),

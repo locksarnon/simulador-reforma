@@ -24,7 +24,7 @@ const numMoeda = (s) => {
 const contemSinalNegativo = (s) => /-/.test(String(s));
 
 const CHAVE_SESSAO = "intax_simples_hibrido_v1";
-const DADOS_INICIAIS = { modo: "automatico", pctClientes: 70, rbt12: "", folha12: "", receitaMensal: "" };
+const DADOS_INICIAIS = { modo: "automatico", pctClientes: 70, rbt12: "", folha12: "", receitaMensal: "", comprasMensal: "" };
 
 function lerSessao() {
   try { const s = JSON.parse(sessionStorage.getItem(CHAVE_SESSAO) || "null"); return s || null; } catch { return null; }
@@ -73,7 +73,8 @@ const ANEXOS_FATOR_R = [
 export default function SimplesHibridoPage() {
   const sessao = useMemo(lerSessao, []);
   const [passo, setPasso] = useState(sessao?.passo ?? 0);
-  const [dados, setDados] = useState(sessao?.dados ?? DADOS_INICIAIS);
+  // Sessão salva por uma versão anterior não tem os campos novos (ex.: comprasMensal): completa com os iniciais.
+  const [dados, setDados] = useState(sessao?.dados ? { ...DADOS_INICIAIS, ...sessao.dados } : DADOS_INICIAIS);
   const [enviado, setEnviado] = useState(null);
   // CBS do regime regular é premissa editável (ver aviso no rodapé do
   // resultado) — carregamos o valor oficial do TransicaoAno como ponto de
@@ -111,6 +112,7 @@ export default function SimplesHibridoPage() {
         folha12: numMoeda(dados.folha12),
         modo: dados.modo,
         pctClientesRegimeRegular: dados.pctClientes / 100,
+        comprasCreditaveisMensais: numMoeda(dados.comprasMensal),
       },
       anoParamsUsado,
     );
@@ -140,7 +142,8 @@ export default function SimplesHibridoPage() {
   const relatorioPdf = useMemo(() => {
     if (!resultado?.pontos) return null;
     const p = resultado.puro, h = resultado.hibrido, pt = resultado.pontos;
-    const ibsCbsRegular = h.cargaHibridaMensal - h.dasResidualPct * numMoeda(dados.receitaMensal);
+    const ibsCbsRegular = h.ibsCbsRegular;
+    const comprasInformadas = numMoeda(dados.comprasMensal);
     const avisos = [];
     if (p.avisoIcmsIssForaDas) avisos.push("Na 6ª faixa, ICMS e ISS saem do DAS e são recolhidos à parte, pelo regime normal (LC 123/2006, art. 18, §20).");
     if (p.avisoCppForaDas) avisos.push("No Anexo IV, a CPP (contribuição patronal) é sempre recolhida fora do DAS, pelo regime normal (LC 123/2006, art. 18, §5º-C).");
@@ -176,7 +179,7 @@ export default function SimplesHibridoPage() {
             tituloB: "Híbrido, no equilíbrio", selosB: melhorOpcao === "hibrido" ? "Melhor opção" : "Simulado", destacarB: true,
             linhasB: [
               { rotulo: "Preço repassado ao cliente", valor: `+${pct2(pt.markupEquilibrio)}` },
-              { rotulo: "Carga híbrida mensal", valor: brl(h.cargaHibridaMensal * (1 + pt.markupEquilibrio)) },
+              { rotulo: "Carga híbrida mensal", valor: brl(pt.cargaNoPrecoNovo ?? h.cargaHibridaMensal * (1 + pt.markupEquilibrio)) },
               { rotulo: "Crédito que a carteira recupera", valor: brl(h.creditoClienteHibrido) },
             ],
           },
@@ -194,20 +197,23 @@ export default function SimplesHibridoPage() {
         },
         { titulo: "Premissas desta estimativa", itens: [
           `Alíquota de CBS do regime regular usada: ${pct2(cbsEditavel ?? anoParams2027?.cbs_efetiva ?? 0)} — estimativa; em 28/10/2026 o TCU aprovou a referência de 11,3% para a CBS de 2027 (LC 214, art. 349), menos 0,1 p.p. em 2027 e 2028 (art. 347), e a alíquota definitiva só é fixada pelo Senado. Editável na tela.`,
-          "Não considera créditos das compras (insumos) — simula só a saída (venda).",
+          comprasInformadas > 0
+            ? `Considera o crédito de IBS/CBS sobre ${brl(comprasInformadas)} por mês de compras de fornecedores do regime regular (alíquota regular × valor das compras, LC 214/2025, art. 47). Compras de fornecedor do Simples dão crédito menor (só o que entrou no DAS dele, art. 47, §9º, II) e não entram na conta.`
+            : "Não considera créditos das compras (insumos) — simula só a saída (venda). Informe as compras mensais de fornecedores do regime regular para ver o efeito do crédito.",
+          "Transporte intermunicipal e interestadual de cargas é tributado pelo Anexo III sem a parcela do ISS e com a do ICMS do Anexo I (LC 123/2006, art. 18, §5º-E); esta ferramenta não faz essa composição, então para transportadora o resultado é só uma ordem de grandeza.",
           "Resultado sujeito a ajuste quando a alíquota de referência for fixada; valide com um especialista antes de decidir.",
         ] },
         ...(avisos.length ? [{ titulo: "Avisos específicos do seu Anexo", itens: avisos }] : []),
       ],
       cta: {
         titulo: "Quer decidir isso com quem entende da reforma e da sua operação?",
-        texto: "Esta simulação usa só a sua média informada, sem os créditos das suas compras. A equipe da FAL Agro avalia se compensa migrar pro regime regular no seu caso, com as suas notas fiscais reais.",
+        texto: "Esta simulação usa só a sua média informada, com uma estimativa simples do crédito das compras (se você a informou). A equipe da FAL Agro avalia se compensa migrar pro regime regular no seu caso, com as suas notas fiscais reais.",
         whatsapp: CONTATO.whatsappLink,
         whatsappTexto: "Olá! Simulei Simples puro × Híbrido no InTAX e quero entender se vale migrar para o regime regular do IBS/CBS.",
         email: CONTATO.email,
       },
     };
-  }, [resultado, melhorOpcao, dados.rbt12, dados.receitaMensal, dados.pctClientes, cbsEditavel, anoParams2027]);
+  }, [resultado, melhorOpcao, dados.rbt12, dados.receitaMensal, dados.pctClientes, dados.comprasMensal, cbsEditavel, anoParams2027]);
 
   return (
     <div className="w-full">
@@ -235,6 +241,10 @@ export default function SimplesHibridoPage() {
                 <button key={a.id} type="button" onClick={() => setDados((d) => ({ ...d, modo: a.id }))} className={`px-4 py-2 rounded-md border text-sm ${dados.modo === a.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{a.label}</button>
               ))}
               <button type="button" onClick={() => setDados((d) => ({ ...d, modo: "automatico" }))} className={`px-4 py-2 rounded-md border text-sm font-medium ${dados.modo === "automatico" ? "bg-primary text-primary-foreground border-primary" : "border-primary/50 text-primary hover:bg-primary/5"}`}>Não sei — calcular automaticamente</button>
+            </div>
+            <div className="flex gap-2 items-start text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-3 mt-3" role="note">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span><b>Transportadora de cargas</b> (intermunicipal ou interestadual)? A lei manda tributar pelo Anexo III, sem a parcela do ISS e com a do ICMS do Anexo I (LC 123/2006, art. 18, §5º-E). Esta ferramenta ainda não faz essa composição: use o resultado só como ordem de grandeza e confirme com o especialista.</span>
             </div>
             {dados.modo === "automatico" && (
               <div className="flex gap-2 items-start text-xs text-muted-foreground bg-muted/40 border border-border rounded-md p-3 mt-3">
@@ -277,6 +287,12 @@ export default function SimplesHibridoPage() {
             <input id="receita" inputMode="decimal" value={dados.receitaMensal} onChange={(e) => setDados((d) => ({ ...d, receitaMensal: fmtMoeda(e.target.value), receitaMensalNegativo: contemSinalNegativo(e.target.value) }))} placeholder="100.000,00" className="w-full h-11 mt-1.5 rounded-md border border-input bg-background px-3 text-base tabular-nums" />
             <p className="text-xs text-muted-foreground mt-1">Base para o cálculo mensal do DAS e da carga híbrida.</p>
             {dados.receitaMensalNegativo && <p className="text-xs text-destructive mt-1">Não aceitamos valor negativo aqui — considerei só os dígitos, sem o sinal.</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium" htmlFor="compras">Compras mensais que dão crédito (R$) — opcional</label>
+            <input id="compras" inputMode="decimal" value={dados.comprasMensal} onChange={(e) => setDados((d) => ({ ...d, comprasMensal: fmtMoeda(e.target.value), comprasMensalNegativo: contemSinalNegativo(e.target.value) }))} placeholder="40.000,00" className="w-full h-11 mt-1.5 rounded-md border border-input bg-background px-3 text-base tabular-nums" />
+            <p className="text-xs text-muted-foreground mt-1">Quanto você compra por mês de fornecedores do regime regular (combustível, peças, pneus, mercadoria para revenda...), sem o ICMS e o ISS embutidos no preço: até 2032 eles não entram na base do IBS/CBS (LC 214/2025, art. 12, §2º, V). No regime regular você abate o IBS/CBS dessas compras; no Simples puro não. Em branco, o crédito não entra na conta.</p>
+            {dados.comprasMensalNegativo && <p className="text-xs text-destructive mt-1">Não aceitamos valor negativo aqui — considerei só os dígitos, sem o sinal.</p>}
           </div>
           </div>
           {isError &&<p className="text-sm text-destructive">Não foi possível carregar os parâmetros da transição. Tente novamente em instantes.</p>}
@@ -337,7 +353,7 @@ export default function SimplesHibridoPage() {
               <p className="text-xs text-muted-foreground mt-3">Preço repassado ao cliente</p>
               <p className="text-2xl font-semibold tabular-nums mt-0.5 text-primary">+{pct2(resultado.pontos.markupEquilibrio)}</p>
               <p className="text-xs text-muted-foreground mt-3">Carga híbrida mensal (no preço novo)</p>
-              <p className="text-lg font-semibold tabular-nums mt-0.5 text-primary">{brl(resultado.hibrido.cargaHibridaMensal * (1 + resultado.pontos.markupEquilibrio))}</p>
+              <p className="text-lg font-semibold tabular-nums mt-0.5 text-primary">{brl(resultado.pontos.cargaNoPrecoNovo ?? resultado.hibrido.cargaHibridaMensal * (1 + resultado.pontos.markupEquilibrio))}</p>
               {melhorOpcao === "hibrido" && <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-2">Mesmo sem repassar nada ao preço, o híbrido já custaria {brl(resultado.hibrido.cargaHibridaMensal)}/mês — menos que o Simples puro hoje.</p>}
             </div>
           </div>
@@ -397,7 +413,7 @@ export default function SimplesHibridoPage() {
               </div>
               <div className="rounded-lg border border-primary/40 bg-primary/5 p-3.5">
                 <p className="text-xs font-semibold text-primary">Se você virar contribuinte do regime regular (híbrido)</p>
-                <p className="text-lg font-semibold tabular-nums mt-1 text-primary">{brl(resultado.hibrido.cargaHibridaMensal - resultado.hibrido.dasResidualPct * numMoeda(dados.receitaMensal))}<span className="text-xs font-normal text-muted-foreground">/mês</span></p>
+                <p className="text-lg font-semibold tabular-nums mt-1 text-primary">{brl(resultado.hibrido.ibsCbsRegular)}<span className="text-xs font-normal text-muted-foreground">/mês</span></p>
                 <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">Ele credita o valor integral do IBS/CBS cobrado na nota — crédito pleno, sem o limite do DAS. É esse o principal argumento comercial pra justificar o repasse de preço.</p>
                 <p className="text-[10px] text-muted-foreground/80 mt-2">LC 214/2025, art. 47, caput</p>
               </div>
@@ -430,12 +446,18 @@ export default function SimplesHibridoPage() {
                 <p className="text-muted-foreground">Híbrido — composição da carga ({brl(resultado.hibrido.cargaHibridaMensal)}/mês, preço de hoje)</p>
                 <ul className="mt-1 space-y-0.5 tabular-nums">
                   <li>DAS residual (sem IBS/CBS): {brl(resultado.hibrido.dasResidualPct * numMoeda(dados.receitaMensal))} ({pct2(resultado.hibrido.dasResidualPct)})</li>
-                  <li>IBS/CBS regime regular: {brl(resultado.hibrido.cargaHibridaMensal - resultado.hibrido.dasResidualPct * numMoeda(dados.receitaMensal))} ({pct2(resultado.hibrido.ibsCbsRegularPct)})</li>
+                  <li>IBS/CBS sobre a receita (regime regular): {brl(resultado.hibrido.ibsCbsRegular)} ({pct2(resultado.hibrido.ibsCbsRegularPct)})</li>
+                  {resultado.hibrido.creditoCompras > 0 && <li>Crédito das suas compras: −{brl(resultado.hibrido.creditoCompras)}</li>}
+                  {resultado.hibrido.creditoCompras > 0 && <li>IBS/CBS a pagar: {brl(resultado.hibrido.ibsCbsAPagar)}{resultado.hibrido.saldoCredor > 0 ? ` (sobra um saldo credor de ${brl(resultado.hibrido.saldoCredor)}, que fica acumulado)` : ""}</li>}
                   <li>Crédito que a carteira de clientes recupera: {brl(resultado.hibrido.creditoClienteHibrido)} ({dados.pctClientes}% da carteira credita)</li>
                 </ul>
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-3">Esta ferramenta não recebe créditos das compras (insumos) — ela simula só a saída (venda). Pra ver o efeito líquido com seus créditos reais de compra, fale com a equipe FAL Agro.</p>
+            <p className="text-[11px] text-muted-foreground mt-3">
+              {numMoeda(dados.comprasMensal) > 0
+                ? `Inclui o crédito de IBS/CBS sobre ${brl(numMoeda(dados.comprasMensal))} por mês de compras de fornecedores do regime regular (alíquota regular × valor, que deve estar sem o ICMS e o ISS embutidos: com o valor da nota inteira o crédito sai maior que o real). Compras de fornecedor do Simples dão crédito menor (só o que entrou no DAS dele, LC 214/2025, art. 47, §9º, II) e não entram na conta. Pra ver o efeito líquido com os seus créditos reais, fale com a equipe FAL Agro.`
+                : "Sem compras informadas, esta simulação considera só a saída (venda). Volte um passo e informe as compras mensais de fornecedores do regime regular para ver o crédito delas. Pra ver o efeito líquido com os seus créditos reais, fale com a equipe FAL Agro."}
+            </p>
           </div>
 
           <div className="rounded-xl border border-border bg-muted/30 p-4 flex gap-2 text-xs text-muted-foreground">

@@ -17,6 +17,7 @@ import { CfopModule } from './cfop/cfop.module';
 import { BaseLegalModule } from './base-legal/base-legal.module';
 import { CnpjModule } from './cnpj/cnpj.module';
 import { LimpezaModule } from './limpeza/limpeza.module';
+import { OperacoesPlanilhaModule } from './operacoes-planilha/operacoes-planilha.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -38,6 +39,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     BaseLegalModule,
     CfopModule,
     LimpezaModule,
+    OperacoesPlanilhaModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

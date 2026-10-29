@@ -85,7 +85,7 @@ export const SECAO_NOVIDADES = {
     },
     {
       p: "O que muda para quem está no Simples Nacional?",
-      r: "Em 2026 as alíquotas de teste de IBS e CBS não se aplicam às operações de optantes do Simples. A partir de 2027 o optante pode escolher recolher IBS e CBS pelo regime regular, mantendo o DAS sem a parcela correspondente a esses tributos; quem compra dele no regime regular só credita o que efetivamente entrou no DAS. Segundo a Receita Federal, a Resolução CGSN nº 194/2026 (DOU de 28/09/2026) fixou a opção pelo regime regular para o primeiro semestre de 2027 entre 1º/09 e 30/10/2026, com cancelamento irretratável entre 03/11 e 20/12/2026; o pedido de ingresso no Simples para 2027 podia ser feito até 15/10/2026. Confira o texto da resolução no portal do Simples Nacional e use a ferramenta Simples × Híbrido para comparar os dois caminhos.",
+      r: "Em 2026 as alíquotas de teste de IBS e CBS não se aplicam às operações de optantes do Simples. A partir de 2027 o optante pode escolher recolher IBS e CBS pelo regime regular, mantendo o DAS sem a parcela correspondente a esses tributos; quem compra dele no regime regular só credita o que efetivamente entrou no DAS. Segundo a Receita Federal, a Resolução CGSN nº 194/2026 (DOU de 28/09/2026) fixou a opção pelo regime regular para o primeiro semestre de 2027 entre 1º/09 e 30/10/2026, com possibilidade de cancelamento entre 03/11 e 20/12/2026; o pedido de ingresso no Simples para 2027 podia ser feito até 15/10/2026. Confira o texto da resolução no portal do Simples Nacional e use a ferramenta Simples × Híbrido para comparar os dois caminhos.",
       f: "LC 214/2025, arts. 47 (§9º) e 348 (III, “c”); LC 123/2006, art. 13, §9º; Receita Federal, notícia “Simples Nacional 2027” (Resolução CGSN nº 194/2026).",
     },
     {
@@ -119,8 +119,33 @@ export const SECAO_NOVIDADES = {
       f: "Portal da Conformidade Fácil (SVRS), tabela de Classificação Tributária, consulta de 28/10/2026.",
     },
     {
+      p: "Como fica a base de cálculo do IBS e da CBS até 2032?",
+      r: "De 1º/1/2026 a 31/12/2032 o ICMS, o ISS, o PIS e a Cofins incidentes na operação não integram a base de cálculo do IBS e da CBS (também ficam de fora o IBS e a CBS da própria operação, o IPI e os descontos incondicionais). O valor da operação já traz esses tributos embutidos, então o motor (versão 1.4.0) tira da base a parte que ainda é cobrada no ano: o PIS/Cofins some em 2027, e o ICMS e o ISS caem de 2029 a 2032. Exemplo: uma venda de R$ 1.000 com ICMS de 18% tem base de R$ 820 em 2027, e o IBS/CBS de 2027 (CBS de 11,2% e IBS de 0,1%) é R$ 92,66, não R$ 113,00. A partir de 2033 a base é o valor da operação. Antes da versão 1.4.0 o InTAX aplicava as alíquotas sobre o valor inteiro e superestimava o IBS/CBS desses anos; simulações salvas antes disso guardam o resultado da época.",
+      f: "LC 214/2025, art. 12, §2º, I a V.",
+    },
+    {
+      p: "Como funciona o crédito presumido do transportador autônomo de carga?",
+      r: "Quem contrata frete de transportador autônomo pessoa física que não é contribuinte (ou MEI) e está no regime regular apropria um crédito presumido de IBS e de CBS, desde que suporte a cobrança do frete: se o frete está embutido no preço da mercadoria comprada, ainda que destacado na nota, não há crédito. O crédito é o valor pago ao autônomo × C ÷ (1 + C), em que C é o percentual definido todo ano, até setembro, em ato conjunto do Ministro da Fazenda e do CGIBS, para valer em 1º de janeiro seguinte (com IBS e CBS juntos, o divisor leva a soma dos dois percentuais, porque a lei tem um só valor líquido). Não localizamos em fonte oficial o ato com o percentual de 2027: no InTAX você informa o percentual na operação (crédito presumido código 02) e o resultado fica marcado como estimativa. O crédito só compensa o tributo devido, não pode ser ressarcido, e é apropriado à medida que os pagamentos ao autônomo são confirmados. No CT-e, o tomador informa a apropriação por evento (tipo 211110).",
+      f: "LC 214/2025, art. 169; Decreto 12.955/2026, arts. 250 a 255; Portal Nacional do CT-e, NT 2026.004 (evento 211110).",
+    },
+    {
+      p: "Quais são os créditos presumidos do catálogo oficial e como o InTAX os calcula?",
+      r: "O catálogo oficial de cCredPres (Portal da Conformidade Fácil) tem quatro códigos: 1, produtor rural não contribuinte (art. 168); 2, frete de transportador autônomo (art. 169); 3, resíduos para reciclagem (art. 170); 4, bem móvel usado de pessoa física para revenda (art. 171). Nos códigos 1 e 2 o crédito é valor × C ÷ (1 + C), com C do ato conjunto anual (ainda pendente para 2027); com IBS e CBS juntos, C é a soma dos dois percentuais. No 3 o percentual está na lei (CBS de 7%; IBS de 1,3% em 2029, 2,6% em 2030, 3,9% em 2031, 5,2% em 2032 e 13% de 2033 em diante) e no 4 é a alíquota de IBS e de CBS do próprio bem. Só o do produtor rural admite ressarcimento. A compra com crédito presumido não gera também o crédito normal de IBS/CBS, e o XML traz o código com dois dígitos (02).",
+      f: "LC 214/2025, arts. 168 a 171; Decreto 12.955/2026, arts. 247, 253 e 254; Portal da Conformidade Fácil (SVRS), Tabela Crédito Presumido, conferida em 29/10/2026.",
+    },
+    {
+      p: "O frete de carga tem alíquota reduzida? Qual é o local da operação?",
+      r: "Não encontramos redução específica para o frete de carga: o capítulo do transporte (arts. 285 a 287) reduz em 40% o transporte coletivo de passageiros rodoviário, ferroviário e hidroviário intermunicipal e interestadual e o aéreo regional de passageiros ou de carga, e zera o urbano ferroviário e hidroviário. O fato gerador do transporte é o início da prestação (art. 10, §1º, I), e o local da operação do frete de carga é o da entrega ao destinatário que consta do documento fiscal (art. 11, VII). Para o transporte de bens a zonas de processamento de exportação há a classe 200001 no catálogo de cClassTrib. No InTAX o CT-e é lido pelo importador de XML, e o que não tem XML entra por planilha.",
+      f: "LC 214/2025, arts. 10 (§1º, I), 11 (VII) e 285 a 287; Portal da Conformidade Fácil (SVRS), tabela de Classificação Tributária.",
+    },
+    {
+      p: "Como a transportadora do Simples é tributada?",
+      r: "Pela LC 123, art. 18, §5º-E, o transporte interestadual e intermunicipal de cargas no Simples é tributado pelo Anexo III, sem a parcela correspondente ao ISS e com a parcela do ICMS prevista no Anexo I. O comparador Simples × Híbrido do InTAX ainda não faz essa composição (as tabelas de 2027 que ele usa trazem só a repartição de IBS e CBS de cada Anexo): para transportadora, use-o só como ordem de grandeza e confirme com o especialista. A opção pelo regime regular do IBS/CBS para o primeiro semestre de 2027 vai até 30/10/2026.",
+      f: "LC 123/2006, art. 18, §5º-E; Receita Federal, notícia “Simples Nacional 2027” (Resolução CGSN nº 194/2026).",
+    },
+    {
       p: "O InTAX já reflete todas essas atualizações?",
-      r: "Parcialmente. As alíquotas por ano e as reduções vêm da tela Transição e dos catálogos, que a equipe precisa manter atualizados: os campos Fonte, Observação e Status mostram a origem de cada número, e o InTAX não busca valores sozinho. Em 29/10/2026 a tela Transição (2026 informativo e CBS de 2027 e 2028 pelo cálculo do TCU) e o catálogo de cClassTrib (tabela v1.70) foram atualizados, e o motor (versão 1.3.0) passou a calcular o redutor de compras governamentais, o regime específico dos combustíveis (alíquota por litro), o Imposto Seletivo pela alíquota informada na operação e o crédito presumido de estoque (ferramenta própria); de 2029 a 2033 o InTAX trabalha com cenários de alíquotas. Continuam fora do cálculo a Zona Franca de Manaus, a devolução personalizada, as alíquotas específicas do IS, o IBS por litro dos combustíveis de 2029 em diante (ainda não divulgado) e os percentuais do crédito presumido do produtor rural (ainda pendentes de ato). A Base legal guarda o texto das normas e o Radar da Reforma lista as novidades da semana, mas nenhum dos dois altera o cálculo sozinho.",
+      r: "Parcialmente. As alíquotas por ano e as reduções vêm da tela Transição e dos catálogos, que a equipe precisa manter atualizados: os campos Fonte, Observação e Status mostram a origem de cada número, e o InTAX não busca valores sozinho. Em 29/10/2026 a tela Transição (2026 informativo e CBS de 2027 e 2028 pelo cálculo do TCU) e o catálogo de cClassTrib (tabela v1.70) foram atualizados, e o motor (versão 1.4.0) calcula a base do IBS/CBS sem o ICMS, o ISS, o PIS e a Cofins de 2026 a 2032, o redutor de compras governamentais, o regime específico dos combustíveis (alíquota por litro), o Imposto Seletivo pela alíquota informada na operação, os quatro créditos presumidos do catálogo oficial (produtor rural, transportador autônomo, resíduos e bem usado) e o crédito presumido de estoque (ferramenta própria); de 2029 a 2033 o InTAX trabalha com cenários de alíquotas. O importador de XML lê NF-e, NFC-e e CT-e, e a importação por planilha cobre o que não tem XML. Continuam fora do cálculo a Zona Franca de Manaus, a devolução personalizada, as alíquotas específicas do IS, o IBS por litro dos combustíveis de 2029 em diante (ainda não divulgado), os percentuais do crédito presumido do produtor rural e do transportador autônomo (o ato conjunto de 2027 não foi localizado), o transporte de cargas no comparador do Simples e a regra de elegibilidade do crédito por tipo de compra (hoje o percentual de crédito elegível é informado na operação). A Base legal guarda o texto das normas e o Radar da Reforma lista as novidades da semana, mas nenhum dos dois altera o cálculo sozinho.",
     },
     {
       p: "Onde acompanhar os atos oficiais?",
@@ -130,12 +155,21 @@ export const SECAO_NOVIDADES = {
 };
 
 export const SECAO_IMPORTACAO_XML = {
-  titulo: "Importação de XML de NF-e",
-  nota: "Transforma notas fiscais eletrônicas em operações do simulador, com validação item a item e confirmação sua antes de gravar.",
+  titulo: "Importação de XML (NF-e, CT-e) e de planilhas",
+  nota: "Transforma notas fiscais eletrônicas (NF-e, NFC-e e CT-e) e planilhas em operações do simulador, com validação item a item e confirmação sua antes de gravar.",
   itens: [
     {
       p: "Para que serve a Importação de XML?",
       r: "Lê as notas fiscais eletrônicas da empresa, valida cada item e, depois da sua confirmação, transforma os itens aprovados em operações do simulador, trazendo do XML valores, NCM, CFOP, cClassTrib, CST, cCredPres e os percentuais de IBS e CBS informados na nota.",
+    },
+    {
+      p: "O InTAX lê CT-e?",
+      r: "Sim: o CT-e (modelo 57) e o CT-e OS (modelo 67) são lidos como um item de serviço por documento. A empresa emitente (a transportadora) entra como saída e a empresa tomadora do serviço, como entrada, se as duas estiverem cadastradas no grupo. O sistema lê o valor da prestação, o ICMS (percentual efetivo = ICMS ÷ valor), as UFs de início e de fim (a de fim é o local da entrega), o CFOP e, quando o documento traz, o grupo de IBS e CBS (CST e cClassTrib; sem ele, assume a tributação integral 000001, com alerta). O CT-e não traz PIS e Cofins: o InTAX os presume pelo regime da empresa (Presumido 0,65% e 3%; Real 1,65% e 7,6%; Simples zero), com alerta, e você ajusta na operação. O crédito presumido do transportador autônomo não vem no CT-e: o tomador o informa por evento (tipo 211110), que o InTAX aplica aos itens de entrada do mesmo CT-e ainda não confirmados. O cancelamento por evento também é reconhecido. MDF-e e NFS-e são reconhecidos, mas não têm extração: para eles use a importação por planilha.",
+      f: "Portal Nacional do CT-e: pacote de schemas PL_CTe_400_NT2026.004 RTC_1.00 e Notas Técnicas 2025.001, 2026.002 e 2026.004.",
+    },
+    {
+      p: "Como importo operações por planilha?",
+      r: "Na empresa, abra Importar planilha (no grupo, a mesma tela aceita a coluna Empresa). Baixe o modelo ou envie a sua planilha em .xlsx ou .csv, com até 50 mil linhas e o cabeçalho na primeira linha. Você indica qual coluna é cada campo (o InTAX sugere pelo nome), escolhe as opções (empresa e direção para todas as linhas, unidade dos percentuais, preenchimento pela tabela da legislação do PIS e da Cofins das vendas e do ICMS interestadual, e crédito elegível das compras) e confere o resultado: o sistema mostra as linhas com erro e como as primeiras foram lidas, e só grava depois do seu clique. Enviar a mesma planilha de novo não duplica nada: a linha igual à já importada é ignorada, e a linha em que você corrigiu valor, data, descrição, documento, CFOP, NCM/NBS, UF ou quantidade entra como nova (apague a antiga em Operações). Percentual ou classificação corrigidos numa linha já importada não alteram a operação gravada, e a conferência avisa: edite a operação ou apague a antiga e importe de novo. Com uma empresa escolhida para todas as linhas, a coluna Empresa da planilha não é lida. Os percentuais vão em pontos (18 é 18%); célula formatada como percentual no Excel (1,65%) é lida certa nas duas unidades. O ICMS interno e o ISS você informa, porque dependem da UF e do município.",
     },
     {
       p: "Quais são os limites de um lote?",
@@ -183,8 +217,8 @@ export const SECAO_FERRAMENTAS = {
     },
     {
       p: "O que compara o Simples × Híbrido?",
-      r: "Compara ficar no Simples puro com optar pelo regime regular de IBS e CBS mantendo o DAS, e mostra o preço em que as duas opções empatam. As tabelas de 2027 e 2028 (alíquotas, parcelas a deduzir e repartição de CBS e IBS dos Anexos I a V) vêm dos Anexos XVIII a XXII da LC 214, na redação da LC 227/2026. A alíquota de CBS do regime regular é editável na tela, porque ainda depende da resolução do Senado.",
-      f: "LC 214/2025, Anexos XVIII a XXII e art. 47 (§9º); LC 123/2006, art. 13 (§9º).",
+      r: "Compara ficar no Simples puro com optar pelo regime regular de IBS e CBS mantendo o DAS, e mostra o preço em que as duas opções empatam. Se você informar as compras mensais de fornecedores do regime regular, o híbrido abate o IBS e a CBS dessas compras (alíquota regular × valor; a compra de fornecedor do Simples dá um crédito menor, só o que entrou no DAS dele, e não entra na conta). As tabelas de 2027 e 2028 (alíquotas, parcelas a deduzir e repartição de CBS e IBS dos Anexos I a V) vêm dos Anexos XVIII a XXII da LC 214, na redação da LC 227/2026. Ainda não faz a composição do transporte intermunicipal e interestadual de cargas (Anexo III sem o ISS e com o ICMS do Anexo I, LC 123, art. 18, §5º-E). A alíquota de CBS do regime regular é editável na tela, porque ainda depende da resolução do Senado.",
+      f: "LC 214/2025, Anexos XVIII a XXII e art. 47; LC 123/2006, arts. 13 (§9º) e 18 (§5º-E).",
     },
     {
       p: "Como a Consulta NCM mostra o tratamento de um produto?",

@@ -37,11 +37,78 @@ import { calcImpostoSeletivo } from "./impostoSeletivo.js";
  * vazio, is_pct 0 e sem a marca de venda a órgão público, ou ano sem redutor
  * cadastrado) dá o mesmo resultado da 1.2.0. ATENÇÃO: compra_governamental_informado
  * já existia como campo informativo do DF-e; operação antiga marcada "Sim" passa a
- * receber o redutor assim que o ano tiver redutor cadastrado em TransicaoAno. */
-export const VERSAO_MOTOR = "1.3.0";
+ * receber o redutor assim que o ano tiver redutor cadastrado em TransicaoAno.
+ * 1.4.0 (2026-10-29): (a) BASE DE CÁLCULO DO IBS/CBS: de 2026 a 2032 o ICMS, o ISS, o PIS e a Cofins ainda cobrados na
+ * operação não integram a base (LC 214, art. 12, §2º, V). Até a 1.3.0 o motor aplicava as alíquotas sobre o valor bruto
+ * inteiro e superestimava o IBS/CBS (cerca de 18% em 2027, numa venda com ICMS de 18%). O resultado muda em toda
+ * operação com ICMS/ISS/PIS/Cofins nos anos de 2026 a 2032; de 2033 em diante não há mudança. Linha de transição sem
+ * `ano` não aplica a exclusão (só acontece em chamadas de teste). (b) CRÉDITO PRESUMIDO: o método "por fora" vale
+ * para o produtor rural e para o transportador autônomo (Decreto 12.955, arts. 247 e 253: CP = VO×C/(1+C)); o
+ * percentual informado na operação é aplicado mesmo com o ato oficial pendente (o resultado fica marcado como
+ * estimativa); o fornecedor desses créditos não é contribuinte, então a mesma compra não gera também o crédito normal;
+ * o crédito do transportador autônomo, de resíduos e de bem usado só compensa o tributo devido, sem ressarcimento
+ * (LC 214, arts. 169, §7º, 170, §2º e 171, §2º; Decreto 12.955, art. 254). (c) APURAÇÃO: por empresa e por ano, o
+ * crédito presumido de IBS abate o IBS e o de CBS abate a CBS (antes tudo ia contra o IBS e o crédito de CBS se perdia).
+ * (d) Resíduos (cCredPres 3, art. 170, §2º) e bem usado de pessoa física (cCredPres 4, art. 171, §1º) passam a ser
+ * calculados com os percentuais da lei quando a operação não informa o seu. */
+export const VERSAO_MOTOR = "1.4.0";
 
 const num = (v) => (typeof v === "number" ? v : Number(v) || 0);
 const sim = (v) => ["sim", "s", "true", "1"].includes(String(v ?? "").trim().toLowerCase());
+
+/**
+ * Chave de comparação do cCredPres. O XML do DF-e traz dois dígitos ("02") e a tabela da Conformidade Fácil lista "2": as
+ * duas formas são o mesmo código. Códigos que não são só números (o antigo "CP-RURAL") ficam como estão.
+ */
+export function chaveCredPres(codigo) {
+  const c = String(codigo ?? "").trim().toUpperCase();
+  return /^\d+$/.test(c) ? String(Number(c)) : c;
+}
+
+/**
+ * Códigos oficiais de cCredPres (já sem zero à esquerda) cujo crédito só compensa o tributo devido (não pode ser ressarcido em dinheiro):
+ * 2 = transportador autônomo de carga (LC 214, art. 169, §7º; Decreto 12.955, art. 254, "vedado o ressarcimento");
+ * 3 = resíduos (art. 170, §2º) e 4 = bem móvel usado de pessoa física (art. 171, §2º), que só admitem a dedução.
+ * O código 1 (produtor rural, art. 168, §8º) admite o ressarcimento.
+ */
+const CRED_PRES_SEM_RESSARCIMENTO = new Set(["2", "3", "4"]);
+
+/**
+ * Percentuais do crédito presumido que a própria lei fixa, por código oficial de cCredPres (quando a operação não traz o
+ * seu): 3 = resíduos (LC 214, art. 170, §2º): CBS de 7% e IBS de 1,3% em 2029, 2,6% em 2030, 3,9% em 2031, 5,2% em 2032
+ * e 13% de 2033 em diante; 4 = bem móvel usado de pessoa física para revenda (art. 171, §1º): as alíquotas de IBS e de
+ * CBS do próprio bem (aqui, as do ano). Os códigos 1 (produtor rural) e 2 (transportador autônomo) dependem de ato
+ * conjunto anual do Ministério da Fazenda e do CGIBS e não têm percentual na lei.
+ */
+function percentuaisLegaisCredPres(codigo, ano, ibsDoAno, cbsDoAno) {
+  if (codigo === "3") {
+    const ibs = ano >= 2033 ? 0.13 : ({ 2029: 0.013, 2030: 0.026, 2031: 0.039, 2032: 0.052 })[ano] || 0;
+    return { ibs, cbs: ano >= 2027 ? 0.07 : 0 };
+  }
+  if (codigo === "4") return { ibs: ano >= 2027 ? ibsDoAno : 0, cbs: ano >= 2027 ? cbsDoAno : 0 };
+  return null;
+}
+
+/**
+ * Base de cálculo do IBS e da CBS (LC 214, art. 12, §2º, V): de 1º/1/2026 a 31/12/2032 NÃO integram a base o ICMS, o
+ * ISS, o PIS e a Cofins incidentes na operação. O valor da operação (`valor_bruto`) já os traz embutidos, "por dentro";
+ * o que sai da base é o que ainda é cobrado no ano, isto é, o valor de cada tributo vezes o fator de transição do ano
+ * (o PIS/Cofins some em 2027 e o ICMS e o ISS caem de 2029 a 2032). IPI e ICMS-ST ficam fora da conta porque não estão
+ * dentro do valor da operação. O FCP é parte do ICMS. Descontos incondicionais já estão fora do `valor_bruto`.
+ * @returns {{ base: number, excluido: number }} base de cálculo e o montante que saiu dela
+ */
+export function baseIbsCbs(op, anoParams = {}) {
+  const vb = num(op.valor_bruto);
+  const ano = num(anoParams.ano) || num(op.ano);
+  if (ano < 2026 || ano > 2032 || vb <= 0) return { base: vb, excluido: 0 };
+  const excluido = vb * (
+    (num(op.pis_pct) + num(op.cofins_pct)) * num(anoParams.pis_cofins_fator)
+    + (num(op.icms_pct) + num(op.fcp_pct)) * num(anoParams.icms_fator)
+    + num(op.iss_pct) * num(anoParams.iss_fator)
+  );
+  const excluidoLimitado = Math.min(vb, Math.max(0, excluido));
+  return { base: vb - excluidoLimitado, excluido: excluidoLimitado };
+}
 
 /** Módulo 1 — Sistema atual */
 export function calcSistemaAtual(op) {
@@ -80,7 +147,12 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const redCbs = num(classTrib.pct_reducao_cbs);
   const ibsNominal = num(anoParams.ibs_efetivo);
   const cbsNominal = num(anoParams.cbs_efetiva);
-  const creditoElegivel = num(op.credito_elegivel_pct);
+  // Fornecedor que dá direito a crédito presumido (cCredPres localizado no catálogo) não cobra IBS/CBS na nota: a compra
+  // gera o crédito presumido, e não também o crédito normal.
+  const credPresLocalizado = Boolean(credPres?.c_cred_pres);
+  const creditoElegivel = isEntrada && credPresLocalizado ? 0 : num(op.credito_elegivel_pct);
+  // Base do IBS/CBS: valor da operação menos o ICMS, o ISS, o PIS e a Cofins ainda cobrados (LC 214, art. 12, §2º, V).
+  const { base: baseCalc, excluido: baseExcluida } = baseIbsCbs(op, anoParams);
 
   // Combustível do regime específico (arts. 172 a 180): alíquota por unidade em vez de percentual.
   const comb = calcCombustivel(op, anoParams, classTrib);
@@ -96,12 +168,12 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   let ibsEfetiva = ibsNominal * (1 - redIbs) * fatorGov;
   let cbsEfetiva = cbsNominal * (1 - redCbs) * fatorGov;
 
-  let debitoIbs = isEntrada ? 0 : vb * ibsEfetiva;
-  let debitoCbs = isEntrada ? 0 : vb * cbsEfetiva;
-  // Crédito normal do Excel v0.16: vb × alíquota efetiva × crédito elegível.
-  // O fator de crédito do cenário NÃO integra as fórmulas do Excel v0.16.
-  let creditoIbs = isEntrada ? vb * ibsEfetiva * creditoElegivel : 0;
-  let creditoCbs = isEntrada ? vb * cbsEfetiva * creditoElegivel : 0;
+  let debitoIbs = isEntrada ? 0 : baseCalc * ibsEfetiva;
+  let debitoCbs = isEntrada ? 0 : baseCalc * cbsEfetiva;
+  // Crédito normal: base × alíquota efetiva × crédito elegível (o fator de crédito do cenário não integra as
+  // fórmulas do Excel v0.16).
+  let creditoIbs = isEntrada ? baseCalc * ibsEfetiva * creditoElegivel : 0;
+  let creditoCbs = isEntrada ? baseCalc * cbsEfetiva * creditoElegivel : 0;
 
   if (usaCombustivel) {
     // Tributo = quantidade × alíquota específica. Em 2027–2028 o IBS recolhido (0,1% do valor) pode ser
@@ -120,39 +192,50 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
     cbsEfetiva = vb > 0 ? comb.cbsAdRem / vb : 0;
   }
 
-  // Crédito presumido (cCredPres) — somente quando localizado e não pendente.
-  const credPresLocalizado = Boolean(credPres?.c_cred_pres);
+  // Crédito presumido (cCredPres), só para compra (Entrada) com o código localizado no catálogo. Se o ato oficial dos
+  // percentuais ainda está pendente, só calcula quando a operação traz o percentual (do documento fiscal ou do usuário),
+  // e então o resultado é uma estimativa.
   const credPresPendente =
     credPresLocalizado &&
     String(credPres.percentual_oficial || "").toLowerCase().includes("pendente");
-  const podeCalcularCredPres = isEntrada && credPresLocalizado && !credPresPendente;
+  const cpIbsInformado = num(op.credito_presumido_ibs_pct);
+  const cpCbsInformado = num(op.credito_presumido_cbs_pct);
+  const credPresPctInformado = cpIbsInformado > 0 || cpCbsInformado > 0;
+  const pctLei = isEntrada && credPresLocalizado
+    ? percentuaisLegaisCredPres(chaveCredPres(op.c_cred_pres), num(anoParams.ano) || num(op.ano), ibsNominal, cbsNominal)
+    : null;
+  const cpIbsPct = cpIbsInformado > 0 ? cpIbsInformado : (pctLei?.ibs ?? 0);
+  const cpCbsPct = cpCbsInformado > 0 ? cpCbsInformado : (pctLei?.cbs ?? 0);
+  const podeCalcularCredPres = isEntrada && credPresLocalizado && (!credPresPendente || credPresPctInformado);
+  const credPresEstimativa = podeCalcularCredPres && credPresPendente;
   const ibsAplicavel =
     credPresLocalizado &&
     String(credPres.ibs_aplicavel || "").toLowerCase() === "sim";
   const cbsAplicavel =
     credPresLocalizado &&
     String(credPres.cbs_aplicavel || "").toLowerCase() === "sim";
-  // Método "Por Fora" (circular: CP = VO×C/(1+C)) ou "Direto" (CP = VO×C).
+  // Método "Por Fora" (circular: CP = VO×C/(1+C), Decreto 12.955, arts. 247 e 253) ou "Direto" (CP = VO×C). A lei (LC 214,
+  // arts. 168, §§1º a 3º, e 169, §§2º e 3º) tem um só "valor líquido" (VO − CP) e aplica os percentuais do IBS e da CBS
+  // sobre ele; a fórmula do Decreto é a da CBS isolada, o mesmo cálculo com um percentual só. Com IBS e CBS juntos, o
+  // divisor leva a soma dos dois percentuais, senão o crédito somado passaria do que a lei permite.
   const metodoPorFora = String(credPres.metodo_calculo || "").includes("Fora");
-  const cpIbsPct = num(op.credito_presumido_ibs_pct);
-  const cpCbsPct = num(op.credito_presumido_cbs_pct);
-  const credPresIbs =
-    podeCalcularCredPres && ibsAplicavel
-      ? (metodoPorFora ? (vb * cpIbsPct) / (1 + cpIbsPct) : vb * cpIbsPct)
-      : 0;
-  const credPresCbs =
-    podeCalcularCredPres && cbsAplicavel
-      ? (metodoPorFora ? (vb * cpCbsPct) / (1 + cpCbsPct) : vb * cpCbsPct)
-      : 0;
+  const credPresRessarcivel = !CRED_PRES_SEM_RESSARCIMENTO.has(chaveCredPres(op.c_cred_pres));
+  const calculaCpIbs = podeCalcularCredPres && ibsAplicavel;
+  const calculaCpCbs = podeCalcularCredPres && cbsAplicavel;
+  const divisorPorFora = 1 + (calculaCpIbs ? cpIbsPct : 0) + (calculaCpCbs ? cpCbsPct : 0);
+  const credPresIbs = calculaCpIbs ? (metodoPorFora ? (vb * cpIbsPct) / divisorPorFora : vb * cpIbsPct) : 0;
+  const credPresCbs = calculaCpCbs ? (metodoPorFora ? (vb * cpCbsPct) / divisorPorFora : vb * cpCbsPct) : 0;
   const credPresTotal = credPresIbs + credPresCbs;
   // Status do crédito presumido para o detalhe da operação.
   const statusCredPres = !op.c_cred_pres
     ? "Não informado"
     : !credPresLocalizado
       ? "Não localizado"
-      : credPresPendente
-        ? "Pendente"
-        : "Localizado";
+      : credPresEstimativa
+        ? "Estimativa"
+        : credPresPendente
+          ? "Pendente"
+          : "Localizado";
 
   // Líquido nunca fica negativo — o excedente vira crédito acumulado (caixa).
   const ibsCbsLiquido = Math.max(
@@ -169,15 +252,15 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const aliqTotal = aliqUf + aliqMun;
   // Combustível: o IBS já vem em reais; reparte pela proporção estado × município do ano.
   const parteUf = aliqTotal > 0 ? aliqUf / aliqTotal : 0;
-  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * parteUf : vb * aliqUf * (1 - redIbs) * fatorGov) : 0);
-  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * (1 - parteUf) : vb * aliqMun * (1 - redIbs) * fatorGov) : 0);
+  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * fatorGov) : 0);
+  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * fatorGov) : 0);
 
   // Split IBS UF / Município — créditos (proporcionais à alíquota de cada ente)
   const creditoIbsUf = isEntrada && aliqTotal > 0
-    ? (usaCombustivel ? creditoIbs * parteUf : vb * aliqUf * (1 - redIbs) * creditoElegivel)
+    ? (usaCombustivel ? creditoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * creditoElegivel)
     : 0;
   const creditoIbsMun = isEntrada && aliqTotal > 0
-    ? (usaCombustivel ? creditoIbs * (1 - parteUf) : vb * aliqMun * (1 - redIbs) * creditoElegivel)
+    ? (usaCombustivel ? creditoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * creditoElegivel)
     : 0;
 
   // Saldos por ente (débito - crédito, nunca negativo individualmente)
@@ -193,8 +276,13 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
     creditoIbsUf, creditoIbsMun,
     saldoIbsUf, saldoIbsMun,
     statusClassificacao: classTrib?.c_class_trib ? "Localizada" : "Pendente",
-    credPresPendente, statusCredPres,
+    credPresPendente, credPresEstimativa, credPresRessarcivel, statusCredPres,
+    // Compra com cCredPres localizado: o crédito normal do IBS/CBS foi zerado (o fornecedor não cobrou tributo na nota).
+    creditoNormalSubstituidoPorCredPres: isEntrada && credPresLocalizado && num(op.credito_elegivel_pct) > 0,
     redutorCompraGov: redutorGov,
+    // Base de cálculo do IBS/CBS (art. 12, §2º, V) e o que saiu dela; o combustível não usa base (alíquota por unidade).
+    baseCalculo: usaCombustivel ? vb : baseCalc,
+    baseExcluida: usaCombustivel ? 0 : baseExcluida,
     // Detalhe do regime específico de combustíveis (null para operação comum). Avisos aparecem na tela.
     combustivel: comb,
   };
@@ -294,8 +382,11 @@ export function calcCaixaSplit(op, ibsCbs, transicao, sisAtual, config = {}) {
     ibsCbs.creditoIbs + ibsCbs.creditoCbs + ibsCbs.credPresTotal;
   const splitRetido = ibsCbs.splitRetido;
 
-  // Crédito acumulado = excedente de créditos sobre débitos (nunca negativo).
-  const creditoAcumulado = Math.max(0, creditoIbsCbsTotal - debitoIbsCbs);
+  // O crédito presumido que a lei não deixa ressarcir (transportador autônomo, resíduos, bem usado) só compensa tributo
+  // devido: não vira dinheiro, então fica fora do crédito acumulado a realizar.
+  const credPresNaoRessarcivel = ibsCbs.credPresRessarcivel === false ? num(ibsCbs.credPresTotal) : 0;
+  // Crédito acumulado = excedente de créditos (ressarcíveis) sobre débitos (nunca negativo).
+  const creditoAcumulado = Math.max(0, creditoIbsCbsTotal - credPresNaoRessarcivel - debitoIbsCbs);
 
   const caixaImediato = isEntrada ? -vb : vb - splitRetido;
   const prazo = num(config.prazo_realizacao_credito_dias) || 60;
@@ -318,7 +409,7 @@ export function calcCaixaSplit(op, ibsCbs, transicao, sisAtual, config = {}) {
   else if (fundingTributario > 0) classificacao = "Moderada";
 
   return {
-    debitoIbsCbs, creditoIbsCbsTotal, splitRetido,
+    debitoIbsCbs, creditoIbsCbsTotal, splitRetido, credPresNaoRessarcivel,
     caixaImediato, creditoAcumulado, prazo, custoFinanceiro,
     caixaAposRealizacao, diferencaCaixaVsAtual: diferencaCaixa,
     fundingTributario, classificacao,
@@ -369,6 +460,14 @@ export function calcOperacao(op, anoParams, classTrib, cenario, config, credPres
   return { sistemaAtual: sisAtual, ibsCbs, impostoSeletivo, transicao, precoMargem, caixa };
 }
 
+/** Crédito presumido de IBS e de CBS de uma operação calculada. Objeto sem a divisão (formato antigo): tudo conta como IBS, como antes. */
+function repartirCredPres(ibsCbs) {
+  const temDivisao = ibsCbs.credPresIbs !== undefined || ibsCbs.credPresCbs !== undefined;
+  return temDivisao
+    ? { ibs: num(ibsCbs.credPresIbs), cbs: num(ibsCbs.credPresCbs) }
+    : { ibs: num(ibsCbs.credPresTotal), cbs: 0 };
+}
+
 /**
  * Apuração consolidada por empresa e período (competência).
  * Diferente da soma de operações isoladas, compensa débitos e créditos
@@ -392,7 +491,7 @@ export function apuracaoPorEmpresa(operacoesCalculadas, filtro = {}) {
         totalSaidas: 0, totalEntradas: 0,
         debitoIbsTotal: 0, debitoCbsTotal: 0,
         creditoIbsTotal: 0, creditoCbsTotal: 0,
-        credPresTotal: 0,
+        credPresTotal: 0, credPresIbsTotal: 0, credPresCbsTotal: 0, credPresNaoRessarcivelTotal: 0,
         tributosAtuaisLiquidos: 0,
         cargaTransicao: 0,
         impostoSeletivo: 0,
@@ -413,6 +512,10 @@ export function apuracaoPorEmpresa(operacoesCalculadas, filtro = {}) {
       a.debitoCbsTotal += oc.ibsCbs.debitoCbs;
     }
     a.credPresTotal += oc.ibsCbs.credPresTotal;
+    const cp = repartirCredPres(oc.ibsCbs);
+    a.credPresIbsTotal += cp.ibs;
+    a.credPresCbsTotal += cp.cbs;
+    if (oc.ibsCbs.credPresRessarcivel === false) a.credPresNaoRessarcivelTotal += num(oc.ibsCbs.credPresTotal);
     a.tributosAtuaisLiquidos += oc.sistemaAtual.tributosLiquidos;
     a.cargaTransicao += oc.transicao.cargaTotalTransicao;
     a.impostoSeletivo += num(oc.transicao.impostoSeletivo);
@@ -422,12 +525,13 @@ export function apuracaoPorEmpresa(operacoesCalculadas, filtro = {}) {
 
   const resultado = [];
   for (const a of map.values()) {
-    // Compensa débitos e créditos no nível da empresa/competência
-    const saldoIbs = Math.max(0, a.debitoIbsTotal - a.creditoIbsTotal - a.credPresTotal);
-    const saldoCbs = Math.max(0, a.debitoCbsTotal - a.creditoCbsTotal);
+    // Compensa débitos e créditos no nível da empresa/competência; o crédito presumido de cada tributo abate o próprio tributo
+    const saldoIbs = Math.max(0, a.debitoIbsTotal - a.creditoIbsTotal - a.credPresIbsTotal);
+    const saldoCbs = Math.max(0, a.debitoCbsTotal - a.creditoCbsTotal - a.credPresCbsTotal);
     const ibsCbsApurado = saldoIbs + saldoCbs;
+    // O crédito presumido que a lei não deixa ressarcir só compensa tributo devido: fora do crédito acumulado a realizar.
     const creditoAcumuladoApurado = Math.max(0,
-      (a.creditoIbsTotal + a.creditoCbsTotal + a.credPresTotal) - (a.debitoIbsTotal + a.debitoCbsTotal)
+      (a.creditoIbsTotal + a.creditoCbsTotal + a.credPresTotal - a.credPresNaoRessarcivelTotal) - (a.debitoIbsTotal + a.debitoCbsTotal)
     );
     resultado.push({
       ...a,
@@ -463,7 +567,7 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
       porEmpresaAno.set(key, {
         ano: oc.op.ano,
         valorBruto: 0, tributosAtuaisLiquidos: 0,
-        debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0,
+        debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0, credPresIbs: 0, credPresCbs: 0,
         sistemaAtualRemanescente: 0, impostoSeletivo: 0,
         margemAtual: 0, margemTransicao: 0,
         splitRetido: 0, creditoAcumulado: 0, funding: 0,
@@ -477,6 +581,9 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
     e.creditoIbs += oc.ibsCbs.creditoIbs;
     e.creditoCbs += oc.ibsCbs.creditoCbs;
     e.credPresTotal += oc.ibsCbs.credPresTotal;
+    const cpe = repartirCredPres(oc.ibsCbs);
+    e.credPresIbs += cpe.ibs;
+    e.credPresCbs += cpe.cbs;
     e.sistemaAtualRemanescente += oc.transicao.sistemaAtualRemanescente;
     e.impostoSeletivo += num(oc.transicao.impostoSeletivo);
     e.margemAtual += oc.precoMargem.margemAtual;
@@ -491,15 +598,16 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
     if (!porAno[e.ano]) {
       porAno[e.ano] = {
         ano: e.ano, valorBruto: 0, tributosAtuaisLiquidos: 0, ibsCbsLiquido: 0,
-        debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0,
+        debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, credPresTotal: 0, credPresIbs: 0, credPresCbs: 0,
         cargaTransicao: 0, impostoSeletivo: 0, margemAtual: 0, margemTransicao: 0,
         splitRetido: 0, creditoAcumulado: 0, funding: 0,
       };
     }
     const a = porAno[e.ano];
+    // O crédito presumido de cada tributo abate o próprio tributo (o de CBS não se perde contra o IBS).
     const ibsCbsApurado =
-      Math.max(0, e.debitoIbs - e.creditoIbs - e.credPresTotal) +
-      Math.max(0, e.debitoCbs - e.creditoCbs);
+      Math.max(0, e.debitoIbs - e.creditoIbs - e.credPresIbs) +
+      Math.max(0, e.debitoCbs - e.creditoCbs - e.credPresCbs);
     const efeitoFinanceiro = num(transicaoPorAno.get?.(e.ano)?.efeito_financeiro);
     a.valorBruto += e.valorBruto;
     a.tributosAtuaisLiquidos += e.tributosAtuaisLiquidos;
@@ -508,6 +616,8 @@ export function consolidarPorAno(operacoesCalculadas, transicaoPorAno = new Map(
     a.creditoIbs += e.creditoIbs;
     a.creditoCbs += e.creditoCbs;
     a.credPresTotal += e.credPresTotal;
+    a.credPresIbs += e.credPresIbs;
+    a.credPresCbs += e.credPresCbs;
     a.ibsCbsLiquido += ibsCbsApurado;
     a.cargaTransicao += e.sistemaAtualRemanescente + ibsCbsApurado * efeitoFinanceiro + e.impostoSeletivo;
     a.impostoSeletivo += e.impostoSeletivo;

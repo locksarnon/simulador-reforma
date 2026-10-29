@@ -246,3 +246,46 @@ export const STATUS = {
   PENDENTE: 'PENDENTE',
   NAO_APLICAVEL: 'NAO_APLICAVEL',
 };
+
+/**
+ * Ano civil da data no fuso de Brasília. O servidor roda em UTC: um documento emitido às 22h30 de 31/12/2026 (-03:00) já é
+ * 1º/1/2027 em UTC, e o ano da operação decide as alíquotas e os fatores de transição aplicados.
+ */
+export function anoNoBrasil(data: Date): number {
+  return Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(data));
+}
+
+/**
+ * ICMS próprio da linha da NF-e como fração do valor da linha (o `icms_pct` do InTAX, aplicado sobre `valor_bruto`). A
+ * alíquota nominal (pICMS) só vale com a base cheia: com redução de base (CST 20, 70, 90), diferimento (CST 51) ou base
+ * diferente do valor do produto, pesa o ICMS destacado. Usa vICMS ÷ valor da linha quando o XML traz vICMS; sem ele, aplica a
+ * redução de base à alíquota nominal. Sem pICMS devolve null (nada a calcular), como antes. Esse percentual também define quanto
+ * de ICMS sai da base do IBS/CBS até 2032 (LC 214, art. 12, §2º, V).
+ */
+export function icmsEfetivoNfe(pICMS: unknown, vICMS: unknown, pRedBC: unknown, valorLinha: number): number | null {
+  const nominal = parsePercentage(pICMS);
+  if (nominal === null) return null;
+  const v = vICMS === null || vICMS === undefined || vICMS === '' ? NaN : Number(String(vICMS).replace(',', '.'));
+  const comReducao = nominal * (1 - (parsePercentage(pRedBC) ?? 0));
+  // O valor do imposto vem arredondado em centavos: numa linha pequena (R$ 0,99 com ICMS de R$ 0,18) vICMS ÷ valor daria 18,18%.
+  // Dentro de um centavo do esperado, vale o percentual esperado.
+  const pct = Number.isFinite(v) && v >= 0 && valorLinha > 0
+    ? (Math.abs(v - comReducao * valorLinha) <= 0.011 ? comReducao : v / valorLinha)
+    : comReducao;
+  return Number.isFinite(pct) && pct >= 0 && pct <= 1 ? pct : nominal;
+}
+
+/**
+ * Data de emissão do documento como instante. O dhEmi traz o fuso do emitente ("2026-12-31T22:30:00-03:00") e vale como está. Sem fuso
+ * (a data sozinha, do leiaute antigo, ou data e hora sem deslocamento) vale a hora de Brasília: o servidor roda em UTC e leria
+ * "2027-01-01" como 21h de 31/12 em Brasília, o que mudaria o ano da operação.
+ */
+export function parseDataEmissao(texto: unknown): Date | null {
+  const t = String(texto ?? '').trim();
+  if (!t) return null;
+  let iso = t;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) iso = `${t}T00:00:00-03:00`;
+  else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(t)) iso = `${t}-03:00`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}

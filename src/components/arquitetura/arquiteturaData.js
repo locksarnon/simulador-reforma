@@ -217,9 +217,9 @@ export const BACKEND_FUNCTIONS = [
       "B. Load: Empresas (filter por grupo), CstIbsCbs, ClassTrib, CredPres, HistoricoXML (filter por grupo)",
       "C. Loop em batches de 50 arquivos:",
       "  C1. Promise.all: fetch + sha256 + parseXml + identificarTipoXml (paralelo)",
-      "  C2. Sequencial: dedup hash → dedup chave → eventos → NFE → preparar itens em memória",
+      "  C2. Sequencial: dedup hash → dedup chave → documentos (NF-e, CT-e) → preparar itens em memória; os eventos só são lidos e guardados",
       "  C3. Flush: bulkUpdate arquivos (500) + bulkCreate itens (500)",
-      "D. Flush remainder",
+      "D. Flush remainder; depois aplica os eventos (cancelamento só com retorno 135, 136 ou 155 da SEFAZ; apropriação 211110), já com os documentos do envio gravados, em qualquer ordem dos arquivos",
       "E. Update lote → status final + contadores",
     ],
     validacoes: [
@@ -291,6 +291,7 @@ export const FRONTEND_PAGES = [
   { rota: "/transicao", componente: "TransicaoPage", arquivo: "src/pages/TransicaoPage.jsx", entidades: ["TransicaoAno (CRUD)"], descricao: "CRUD do cronograma de transição 2026–2033, com o seletor do cenário de alíquotas de 2029 a 2033 e a tabela das alíquotas que os cálculos usam." },
   { rota: "/catalogos", componente: "CatalogosPage", arquivo: "src/pages/CatalogosPage.jsx", entidades: ["CstIbsCbs (CRUD)", "ClassTrib (CRUD)", "CredPres (CRUD)", "AliquotaCombustivel (CRUD)"], descricao: "Catálogos fiscais com tabs e busca (inclui a aba Combustíveis, com as alíquotas por litro ou quilo)." },
   { rota: "/ferramentas/credito-estoque", componente: "FerramentasCreditoEstoque", arquivo: "src/pages/FerramentasCreditoEstoque.jsx", shared: ["motor/creditoEstoque"], descricao: "Crédito presumido de CBS sobre o estoque de 31/12/2026: itens do inventário, elegibilidade conferida contra a LC 214, cronograma das 12 parcelas e CSV. Sem gravação no servidor (rascunho no navegador)." },
+  { rota: "/workroom/:id/importacao-planilha e /workroom/:id/empresas/:empresaId/importacao-planilha", componente: "ImportacaoPlanilhaPage", arquivo: "src/pages/ImportacaoPlanilhaPage.jsx", shared: ["lib/planilhaOperacoes"], entidades: ["Operacao (criação em lote pelo backend)"], descricao: "Importa operações de uma planilha XLSX ou CSV: envio, escolha da coluna de cada campo, opções (empresa e direção para todas as linhas, unidade dos percentuais, tributos pela tabela da legislação, crédito elegível das compras), conferência sem gravar e importação sem duplicar. Fala com /operacoes-planilha (ler, validar, importar, modelo)." },
   { rota: "/configuracao", componente: "ConfiguracaoPage", arquivo: "src/pages/ConfiguracaoPage.jsx", entidades: ["Configuracao (CRUD singleton)"], descricao: "Premissas globais do motor." },
   { rota: "/manual", componente: "ManualPage", arquivo: "src/pages/ManualPage.jsx", descricao: "FAQ + fluxograma manual. Conteúdo estático em faqData.js." },
 ];
@@ -345,10 +346,12 @@ export const SHARED_MODULES = [
   {
     nome: "taxEngine.js",
     arquivo: "src/motor/taxEngine.js",
-    descricao: "Motor de cálculo tributário. 5 módulos: sistema atual, IBS/CBS, transição, preço/margem, caixa/split.",
+    descricao: "Motor de cálculo tributário (versão 1.4.0). 5 módulos: sistema atual, IBS/CBS, transição, preço/margem, caixa/split. A base do IBS/CBS exclui o ICMS, o ISS, o PIS e a Cofins ainda cobrados de 2026 a 2032 (LC 214, art. 12, §2º, V); o crédito presumido dos códigos 01 a 04 do catálogo oficial é calculado por fora (Decreto 12.955, arts. 247 e 253), o do transportador autônomo não é ressarcível, e a apuração por empresa e ano abate o crédito presumido de cada tributo do próprio tributo.",
     funcoes: [
       { nome: "calcOperacao(op, anoParams, classTrib, cenarioAtivo, config, credPresMap)", retorna: "{ sistemaAtual, ibsCbs, transicao, precoMargem, caixa }", descricao: "Calcula uma operação completa." },
       { nome: "consolidarPorAno(operacoesCalculadas)", retorna: "Array<{ ano, valorBruto, tributosAtuaisLiquidos, cargaTransicao, ibsCbsLiquido, splitRetido, funding, margemAtual, margemTransicao }>", descricao: "Agrega operações por ano para o painel executivo." },
+      { nome: "baseIbsCbs(op, anoParams)", retorna: "{ base, excluido }", descricao: "Base de cálculo do IBS/CBS: o valor da operação menos o ICMS, o ISS, o PIS e a Cofins ainda cobrados no ano (fator de transição), de 2026 a 2032; sem o ano da linha de transição, não exclui nada." },
+      { nome: "chaveCredPres(codigo)", retorna: "string", descricao: "Compara o cCredPres sem o zero à esquerda: o XML traz \"02\" e a tabela oficial lista \"2\"." },
     ],
     usadoPor: ["useSimuladorData", "PainelExecutivoView", "ComparacaoClassificacao", "FerramentasCalculadora", "calculadoraAgro"],
   },
@@ -400,12 +403,12 @@ export const SHARED_MODULES = [
     arquivo: "src/motor/simplesHibrido.js",
     descricao: "Motor do simulador público 'Simples puro × híbrido': compara ficar só no DAS com optar pelo regime regular de IBS/CBS mantendo o DAS (LC 214/2025, art. 47, §9º). Usa os parâmetros do ano de TransicaoAno (ibs_efetivo, cbs_efetiva).",
     funcoes: [
-      { nome: "simularSimplesHibrido({ receitaMensal, rbt12, folha12, modo, pctClientesRegimeRegular }, anoParams)", retorna: "{ puro, hibrido, pontos } (ou { puro } se RBT12 > R$ 4,8 milhões)", descricao: "Orquestra os dois cenários e os pontos de equilíbrio de preço." },
+      { nome: "simularSimplesHibrido({ receitaMensal, rbt12, folha12, modo, pctClientesRegimeRegular, comprasCreditaveisMensais }, anoParams)", retorna: "{ puro, hibrido, pontos } (ou { puro } se RBT12 > R$ 4,8 milhões)", descricao: "Orquestra os dois cenários e os pontos de equilíbrio de preço. As compras creditáveis (de fornecedores do regime regular) abatem o IBS/CBS do híbrido; sem elas o resultado é o da versão anterior." },
       { nome: "calcularFatorR(folha12, receita12)", retorna: "number", descricao: "Fator R = folha / receita dos últimos 12 meses; o corte de 28% separa o Anexo III do V." },
       { nome: "determinarAnexoEFaixa({ modo, rbt12, fatorR })", retorna: "{ anexo, faixa, acimaDoLimite, linha }", descricao: "Escolhe o Anexo (automático pelo Fator R ou fixo) e a faixa pela RBT12." },
       { nome: "calcularSimplesPuro(...) / calcularHibrido(...) / calcularPontosEquilibrio(...)", retorna: "objetos de resultado", descricao: "Cenário só no Simples, cenário híbrido e pontos de preço (equilíbrio do vendedor e neutro do cliente)." },
     ],
-    constantes: ["VERSAO_MOTOR_SIMPLES_HIBRIDO = '0.1.0'", "FATOR_R_CORTE = 0.28", "RBT12_LIMITE_SIMPLES = 4.800.000", "ANEXOS_2027 (Anexos I a V do Simples, tabelas 2027/2028: LC 214/2025, Anexos XVIII a XXII, redação da LC 227/2026)"],
+    constantes: ["VERSAO_MOTOR_SIMPLES_HIBRIDO = '0.2.0'", "FATOR_R_CORTE = 0.28", "RBT12_LIMITE_SIMPLES = 4.800.000", "ANEXOS_2027 (Anexos I a V do Simples, tabelas 2027/2028: LC 214/2025, Anexos XVIII a XXII, redação da LC 227/2026)"],
     usadoPor: ["SimplesHibridoPage"],
   },
   {
@@ -435,10 +438,33 @@ export const SHARED_MODULES = [
       { nome: "getText(parent, tagName)", retorna: "string", descricao: "Extrai texto de um filho." },
       { nome: "getFirstDeep(parent, tagName) / getTextDeep(parent, tagName)", retorna: "Element | null / string", descricao: "Mesma busca, descendo até a profundidade máxima (MAX_DEPTH)." },
       { nome: "getAttr(el, attrName)", retorna: "string", descricao: "Extrai atributo de um elemento." },
-      { nome: "identificarTipoXml(doc)", retorna: "'NFE_PROC'|'NFE'|'EVENTO_CANCELAMENTO'|'EVENTO_CARTA_CORRECAO'|'EVENTO_OUTRO'|'XML_DESCONHECIDO'", descricao: "Classifica o tipo de documento XML." },
+      { nome: "identificarTipoXml(doc)", retorna: "'NFE_PROC'|'NFE'|'EVENTO_CANCELAMENTO'|'EVENTO_CARTA_CORRECAO'|'EVENTO_OUTRO'|'CTE'|'MDFE'|'NFSE'|'XML_DESCONHECIDO'", descricao: "Classifica o tipo de documento XML. CT-e e CT-e OS são lidos (cte-parser.ts); MDF-e e NFS-e são reconhecidos e ignorados; os eventos de NF-e e de CT-e (procEventoCTe) são reconhecidos." },
     ],
     constantes: ["MAX_TAMANHO_XML = 2MB", "MAX_ITENS = 500 (por NF-e)", "MAX_DEPTH = 50"],
     usadoPor: ["processarLoteXML"],
+  },
+  {
+    nome: "cte-parser.ts",
+    arquivo: "backend/src/importacao-xml/shared/cte-parser.ts",
+    descricao: "Leitura de CT-e (modelo 57) e CT-e OS (modelo 67), funções puras. Leiaute conferido nos schemas PL_CTe_400_NT2026.004 RTC_1.00 e nas Notas Técnicas 2025.001, 2026.002 e 2026.004 do Portal Nacional do CT-e. Um CT-e é um item de serviço por perspectiva (emitente = saída, tomador = entrada); ICMS efetivo = vICMS ÷ vTPrest; PIS/Cofins presumidos pelo regime com alerta; o crédito presumido do transportador autônomo vem por evento 211110.",
+    funcoes: [
+      { nome: "lerCte(doc)", retorna: "{ ok, cte } | { ok: false, motivo }", descricao: "Extrai do XML os dados do CT-e (partes, valores, ICMS, grupo IBSCBS, protocolo)." },
+      { nome: "montarDadosCte(cte, perspectiva, ctx)", retorna: "dados do ImportacaoXMLItem", descricao: "Mapeia o CT-e para o item de importação (valor da prestação, UFs, ICMS efetivo, classes)." },
+      { nome: "lerEventoCte(doc)", retorna: "EventoCteLido", descricao: "Lê cancelamento (110111) e apropriação de crédito presumido (211110) de CT-e." },
+    ],
+    usadoPor: ["processarLoteXML"],
+  },
+  {
+    nome: "operacoes-planilha (campos.ts, conversao.ts, tributos-padrao.ts)",
+    arquivo: "backend/src/operacoes-planilha/",
+    descricao: "Importação de operações por planilha XLSX/CSV, usando o leitor em fluxo de produtos/leitura-planilha.ts. campos.ts guarda os campos, os nomes de coluna reconhecidos e o modelo; conversao.ts lê número, data e percentual no formato brasileiro, resolve a empresa e preenche PIS, Cofins e ICMS interestadual pela tabela da legislação; o serviço valida sem gravar e importa dentro de uma transação com trava (pg_advisory_xact_lock). Linha sem ID na planilha recebe um ID gerado do conteúdo (empresa, data, direção, valor, descrição, documento, CFOP, NCM/NBS, UFs e quantidade, mais a ordem entre linhas idênticas): a mesma linha reenviada é ignorada, e a corrigida entra como nova. A nota que já entrou pelo XML (mesma chave, mesma empresa) também fica de fora. O leitor entrega os números em texto brasileiro nos dois formatos e reconhece a célula formatada como percentual.",
+    funcoes: [
+      { nome: "POST /operacoes-planilha/ler", retorna: "{ cabecalho, total, amostra, mapeamentoSugerido, campos }", descricao: "Prévia do arquivo e sugestão de colunas." },
+      { nome: "POST /operacoes-planilha/validar", retorna: "{ novas, comErro, duplicadas, padroes, alertas, amostraErros, amostraValidas }", descricao: "Confere todas as linhas sem gravar." },
+      { nome: "POST /operacoes-planilha/importar", retorna: "{ importadas, jaExistiam, comErro }", descricao: "Grava as linhas válidas que ainda não existem." },
+      { nome: "GET /operacoes-planilha/modelo", retorna: "arquivo .xlsx", descricao: "Modelo de planilha com os títulos reconhecidos e a aba Como preencher." },
+    ],
+    usadoPor: ["ImportacaoPlanilhaPage"],
   },
 ];
 

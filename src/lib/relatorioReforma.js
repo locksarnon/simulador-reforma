@@ -47,7 +47,7 @@ const POR_REGIME = {
     era: "DAS unificado; o cliente empresa aproveita pouco ou nenhum crédito de quem está no Simples.",
     fica: "Mantém o DAS, com possibilidade de recolher IBS/CBS pelo regime regular (fora do DAS) para o cliente empresa aproveitar crédito integral.",
     base: "LC 123/2006 · LC 214/2025",
-    confirmar: "Prazos e regras da opção precisam de confirmação (o Radar apontou 30/09/2026 como data-limite).",
+    confirmar: "A opção pelo regime regular para o primeiro semestre de 2027 vai até 30/10/2026 (Resolução CGSN nº 194/2026, Receita Federal); confirme no Portal do Simples Nacional.",
   },
   produtor_pf: {
     tema: "Produtor rural pessoa física",
@@ -153,9 +153,9 @@ export function pontosNaoTratados(r) {
   if (f.compra_de_pf || f.fora_ibs || r.perfil === "racao" || r.perfil === "etanol" || r.perfil === "sementeira") {
     l.push({ t: "Crédito presumido nas compras de produtor rural", p: "Compras de produtor não contribuinte geram crédito presumido, cujos percentuais são definidos e divulgados a cada ano, até setembro, por ato conjunto do Ministro da Fazenda e do Comitê Gestor do IBS, valendo a partir de 1º de janeiro seguinte (Art. 168, §4º). Ainda não modelado aqui: qualquer valor de crédito presumido é estimativa e pode não ser o real." });
   }
-  if (f.logistica_propria) l.push({ t: "Crédito presumido de transportador autônomo", p: "Contratação de autônomo pessoa física gera crédito presumido (Art. 169), não modelado." });
+  if (f.logistica_propria) l.push({ t: "Crédito presumido de transportador autônomo", p: "Contratação de autônomo pessoa física gera crédito presumido (Art. 169; Decreto 12.955, art. 253: valor × C ÷ (1 + C)), usado só contra o tributo devido, sem ressarcimento. O percentual C sai em ato conjunto do Ministro da Fazenda e do CGIBS, que não foi localizado para 2027: esta estimativa não o inclui, e o simulador completo o calcula na operação com o percentual informado." });
   if (f.icms_st) l.push({ t: "Fim gradual do ICMS-ST", p: "Substituição tributária sai aos poucos: revise preço e estoque com ST retido." });
-  if (r.regime === "simples") l.push({ t: "Opção pelo regime regular dentro do Simples", p: "Prazos, regras e o efeito para o cliente empresa precisam de simulação própria (o Radar aponta 30/09/2026 como data-limite; confirmar)." });
+  if (r.regime === "simples") l.push({ t: "Opção pelo regime regular dentro do Simples", p: "A opção para o primeiro semestre de 2027 vai até 30/10/2026 (Resolução CGSN nº 194/2026, Receita Federal; confirme no Portal do Simples Nacional). O efeito para o cliente empresa precisa de simulação própria." });
   if (r.perfil === "restaurante") l.push({ t: "Hotelaria, transporte e demais regimes do mesmo capítulo", p: "Quem também presta esses serviços tem regras e reduções próprias (Arts. 281 a 291)." });
   if (r.perfil === "etanol") l.push({ t: "Regras monofásicas da cadeia de combustíveis", p: "O regime específico (Arts. 172 a 180) cobra uma alíquota fixa por litro, uma única vez na cadeia (a CBS de 2027 está na Portaria MF nº 3.074/2026; o IBS por litro ainda não foi divulgado). Esta calculadora trabalha com média; o simulador com notas calcula a operação com a alíquota por litro." });
   if (r.perfil === "mineradora") l.push({ t: "Alíquota final do Imposto Seletivo", p: "O teto de 0,25% é o máximo; a alíquota efetiva depende de lei ordinária." });

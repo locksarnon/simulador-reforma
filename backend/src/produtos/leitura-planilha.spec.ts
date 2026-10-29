@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
 import { BadRequestException } from '@nestjs/common';
-import { lerPlanilha, lerPrevia, MAX_LINHAS, textoCelula } from './leitura-planilha';
+import { formatoEhPercentual, lerPlanilha, lerPrevia, MAX_LINHAS, textoCelula } from './leitura-planilha';
 
 const arquivo = (buffer: Buffer, originalname: string) => ({ buffer, originalname });
 async function xlsx(montar: (wb: ExcelJS.Workbook) => void): Promise<Buffer> {
@@ -81,5 +81,22 @@ describe('leitura de planilhas em fluxo', () => {
     expect(textoCelula(new Date(Date.UTC(2026, 9, 22)))).toBe('2026-10-22');
     expect(textoCelula(null)).toBe('');
     expect(textoCelula(12.5)).toBe('12.5');
+  });
+});
+
+describe('formatoEhPercentual: só o "%" que multiplica por 100 conta', () => {
+  it('percentual de verdade', () => {
+    for (const f of ['0%', '0.00%', '0,00%', '#,##0.0%', '[Red]0.00%']) expect(formatoEhPercentual(f), f).toBe(true);
+  });
+  it('"%" como texto (entre aspas, depois de barra invertida) e formatos sem % não contam', () => {
+    for (const f of ['0.00"%"', '0.00 "%"', '0.00\\%', '#,##0.00', 'General', '0.00"%" ;[Red]-0.00"%"']) expect(formatoEhPercentual(f), f).toBe(false);
+    expect(formatoEhPercentual(undefined)).toBe(false);
+    expect(formatoEhPercentual('')).toBe(false);
+  });
+  it('a célula numérica entrega o texto brasileiro: percentual real vira 1,65%; "%" literal fica 0,65', () => {
+    expect(textoCelula(0.0165, '0.00%', { numerosBR: true })).toBe('1,65%');
+    expect(textoCelula(0.65, '0.00"%"', { numerosBR: true })).toBe('0,65');
+    expect(textoCelula(12500.5, undefined, { numerosBR: true })).toBe('12500,5');
+    expect(textoCelula(12.5)).toBe('12.5'); // sem a opção, como sempre
   });
 });
