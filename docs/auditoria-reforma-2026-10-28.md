@@ -2,7 +2,7 @@
 
 Data: 28/10/2026. Pergunta: o que mudou na Reforma com efeito em cálculo e alíquotas divulgadas, e o InTAX já contempla?
 
-**Método.** Textos oficiais lidos em 28/10/2026: Planalto (LC 214/2025 compilada com a LC 227/2026, LC 123, Decretos 12.955 e 13.075/2026, CF/ADCT), TCU, Agência Senado e Agência Câmara, CGIBS, Receita Federal/Portal do Simples e Portal da Conformidade Fácil (SVRS). O que não consegui confirmar em fonte oficial está marcado como **não confirmado**. O banco consultado é o de desenvolvimento (local); a leitura do banco de produção foi negada pelo classificador do Claude Code, então os dados de produção podem diferir.
+**Método.** Textos oficiais lidos em 28/10/2026: Planalto (LC 214/2025 compilada com a LC 227/2026, LC 123, Decretos 12.955 e 13.075/2026, CF/ADCT), TCU, Agência Senado e Agência Câmara, CGIBS, Receita Federal/Portal do Simples e Portal da Conformidade Fácil (SVRS). O que não consegui confirmar em fonte oficial está marcado como **não confirmado**. Os números do InTAX foram lidos primeiro no banco de desenvolvimento e depois conferidos na produção, por consulta somente leitura autorizada pelo usuário em 29/10/2026 (seção 7): parâmetros e catálogos são idênticos nos dois.
 
 ## 1. Resumo
 
@@ -10,7 +10,7 @@ Data: 28/10/2026. Pergunta: o que mudou na Reforma com efeito em cálculo e alí
 2. **Três divergências de cálculo em relação ao texto da lei**, independentes do número final da CBS: (a) 2026 é tratado com efeito financeiro, mas a lei compensa IBS/CBS com PIS/Cofins e dispensa o recolhimento de quem cumpre as obrigações acessórias; (b) a CBS de 2027–2028 não recebe a redução de 0,1 p.p. do art. 347; (c) **44 das 61 classes com redução** têm percentual errado no catálogo (41 gravadas com 0%).
 3. **O que confere com a lei:** IBS de 0,05% + 0,05% em 2027–2028, alíquotas de 2026 (0,9% e 0,1%), calendário de ICMS/ISS (9/10 a 6/10 e extinção em 2033), as 30 faixas do Simples 2027–2028 (alíquota, parcela e repartição de CBS/IBS) e as citações de artigos da calculadora pública.
 4. **Não modelado:** redutor de compras governamentais, Imposto Seletivo (fora a premissa de 0,25% da mineração), combustíveis com alíquota específica, crédito presumido sobre estoque (Decreto 12.955, arts. 605–608), Zona Franca e cashback.
-5. **Base legal e Radar:** faltam o Regulamento do IBS (Resolução CGIBS 6/2026) e os atos posteriores; a data-base normativa do sistema continua 01/09/2026.
+5. **Base legal e Radar:** faltam o Regulamento do IBS (Resolução CGIBS 6/2026) e os atos posteriores, e há 8 avisos de atualização aguardando aprovação do administrador em produção; o Radar roda toda semana (última execução em 26/10); a data-base normativa do sistema continua 01/09/2026.
 
 ## 2. O que mudou (fonte oficial) e a situação no InTAX
 
@@ -31,10 +31,10 @@ Situação: **Confere** (igual à lei), **Parcial**, **Divergente** (o sistema c
 | 11 | Decreto 13.075/2026 (21/07, DOU 22/07): CNPJ e documento fiscal de pessoa física e de produtor rural PF só a partir de 1º/1/2027 (art. 105, §4º-A, e art. 115, §3º, do Decreto 12.955). | [Decreto 13.075/2026](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2026/decreto/d13075.htm) | **Fora da Base legal** (carregada em 25/09 só com o Decreto 12.955 original). |
 | 12 | Regulamento do IBS (Resolução CGIBS 6/2026, de 30/04) e resoluções seguintes (13, 14, 15, 16, 17 e 18, até 15/09). | [CGIBS, resoluções](https://www.cgibs.gov.br/resolucoes) | **Fora da Base legal** (pendência já conhecida: fonte não é o Planalto). |
 | 13 | Portaria Conjunta MF/CGIBS 14/2026 (2/10, DOU 5/10): combustíveis têm alíquota específica por unidade, uniforme no país; CBS a partir de 2027, IBS a partir de 2029; etanol anidro e biodiesel de mistura com IBS a 90% da gasolina A e do diesel A. Os valores em R$/litro **não constam** do texto lido. | [CGIBS, Portaria Conjunta](https://www.cgibs.gov.br/combustiveis-portaria-conjunta-define-como-serao-calculadas-as-aliquotas-do-ibs-e-da-cbs) | **Não modelado.** O perfil "etanol" calcula ad valorem, sem redução. |
-| 14 | Simples: Resolução CGSN 194/2026 (DOU 28/09) fixa a opção pelo regime regular de IBS/CBS de 01/09 a 30/10/2026 (efeitos em 1º/1/2027), ingresso no Simples até 15/10 e cancelamento de 03/11 a 20/12. | [Receita Federal](https://www.gov.br/receitafederal/pt-br/assuntos/noticias/2026/setembro/simples-nacional-2027-entenda-os-novos-prazos-e-faca-sua-escolha-com-consciencia-e-tranquilidade) (texto da resolução **não conferido**) | **Tabelas conferem** (ver seção 3). A tela não cita os prazos, e um item do Radar (semana 39) ainda traz o prazo antigo de 30/09. |
+| 14 | Simples: Resolução CGSN 194/2026 (DOU 28/09) fixa a opção pelo regime regular de IBS/CBS de 01/09 a 30/10/2026 (efeitos em 1º/1/2027), ingresso no Simples até 15/10 e cancelamento de 03/11 a 20/12. | [Receita Federal](https://www.gov.br/receitafederal/pt-br/assuntos/noticias/2026/setembro/simples-nacional-2027-entenda-os-novos-prazos-e-faca-sua-escolha-com-consciencia-e-tranquilidade) (texto da resolução **não conferido**) | **Tabelas conferem** (ver seção 3). A tela não cita os prazos. O Radar de produção registrou a Resolução 194 nas semanas 41 e 42; o item da semana 40 ainda trazia o prazo antigo de 30/09. |
 | 15 | Tabela cClassTrib: Informe Técnico 2025.002 v1.70 (01/10/2026) com 173 classes, 170 vigentes. | [Portal da Conformidade Fácil](https://dfe-portal.svrs.rs.gov.br/CFF/ClassificacaoTributaria) | **Divergente.** O InTAX tem 164 classes. Ver anexo A. |
 
-Sem efeito direto no cálculo de IBS/CBS: a LC 238/2026 (mexe no MEI, conforme a LC 123 compilada) e a LC 237/2026 (Radar; texto não lido).
+Sem efeito direto no cálculo de IBS/CBS: a LC 238/2026 (mexe no MEI, conforme a LC 123 compilada), a LC 237/2026 (Radar; texto não lido) e o [Decreto 13.140/2026](https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2026/decreto/d13140.htm) (21/10), que dispensa o nanoempreendedor de CNPJ e de documento fiscal (arts. 105 e 115 do Decreto 12.955; no IBS só a partir de 1º/1/2029 e com manifestação do CGIBS) e permite ao MEI usar a DASN-SIMEI como documento fiscal nas vendas a consumidor final. Ele não altera o que consta na linha 11 sobre pessoa física e produtor rural PF.
 
 ## 3. Conferências que deram certo
 
@@ -63,22 +63,37 @@ Trocar a alíquota exige atualizar a tabela e esses cinco textos.
 4. Escolha de cenário de alíquotas para 2029–2033 (TCU, estimativa do CGIBS, teto de 26,5%) e alerta quando a soma passar do teto.
 5. Os cinco textos fixos passarem a ler os valores do banco.
 6. Base legal: carregar Decreto 13.075, Resoluções CGIBS 6, 13 e 14, Portarias Conjuntas MF/CGIBS 7 e 14 e Resoluções CGSN 186 e 194; atualizar a data-base normativa.
-7. Radar: o último ciclo registrado no banco local é de 21/09 (semanas 38 e 39). Confirmar em produção se o agendamento semanal está rodando e incluir TCU, Agência Senado, Agência Câmara e CGSN como fontes.
+7. Radar: em produção roda toda semana (execuções agendadas das semanas 40 a 44, a última em 26/10) e já registrou a Resolução CGSN 194, a Portaria Conjunta 14 e o Decreto 13.140. O cálculo do TCU é de 28/10, então só pode aparecer a partir do ciclo de 02/11: conferir.
+8. Base legal: aprovar os 8 avisos pendentes (seção 7) e carregar as normas novas que o Radar já citou.
 
 **P3: modelagem nova (cada uma é um projeto).**
-8. Redutor de compras governamentais (44,16% em 2027).
-9. Crédito presumido sobre estoque (9,25%, 12 parcelas) para quem estava no Lucro Presumido.
-10. Combustíveis com alíquota específica.
-11. Imposto Seletivo, quando houver lei.
-12. Percentuais do crédito presumido do produtor rural, quando o ato conjunto sair.
+9. Redutor de compras governamentais (44,16% em 2027).
+10. Crédito presumido sobre estoque (9,25%, 12 parcelas) para quem estava no Lucro Presumido.
+11. Combustíveis com alíquota específica.
+12. Imposto Seletivo, quando houver lei.
+13. Percentuais do crédito presumido do produtor rural, quando o ato conjunto sair.
 
 ## 6. O que não consegui confirmar
 
-- Dados de **produção** (leitura negada pelo classificador). Conferir lá: `TransicaoAno`, contagem de `ClassTrib`, execuções do Radar.
+- Texto da Resolução CGSN 195/2026 (citada pelo Radar em 26/10; não lida).
 - Texto da Resolução CGSN 194/2026 e do Ato Conjunto RFB/CGIBS 4/2026 (só páginas de notícia oficiais).
 - Valores em R$/litro da Portaria Conjunta 14/2026 e o texto integral das Resoluções CGIBS 6 e 13.
 - Ato conjunto com os percentuais do crédito presumido de 2027.
 - Leiaute da NF-e na versão atual da NT 2025.002: conferi só o que o importador lê (cClassTrib, cCredPres, CST e pCredPres). Grupos como tributação regular e compra governamental não são lidos.
+
+## 7. Verificação em produção (29/10/2026)
+
+Consulta somente leitura (sessão do banco aberta em modo leitura), agregada, a parâmetros e catálogos oficiais, sem dados de clientes, autorizada pelo usuário.
+
+| Item | Produção | Conclusão |
+|---|---|---|
+| `TransicaoAno` | 8 linhas idênticas às do banco local: CBS 9,21% de 2027 a 2033, IBS de 18,7% em 2033, 2026 com `efeito_financeiro` 1 e status Oficial (atualizadas em 29/08 e 01/09) | Os achados 1, 3, 5 e 7 da seção 2 valem para a produção |
+| `ClassTrib` | 164 classes, todas ativas (atualizado em 03/09); nenhuma das 9 classes novas da v1.70. Reduções gravadas: 200002, 200009, 200032, 200036 e 200047 em 0%; 200005, 200008 e 200011 em 60% (oficial: 100%, 100%, 60%, 60%, 40%, 100%, 100% e 100%) | O achado 15 e o anexo A valem para a produção |
+| Outros catálogos | 18 CST, 1 `CredPres`, 10.515 NCM e 556 correlações NCM × anexos | Iguais ao banco local |
+| Radar | Execuções semanais agendadas de 28/09 a 26/10 (semanas 40 a 44), todas OK, com 4 a 5 itens cada; semanas 38 e 39 manuais | Está rodando. Quem ficou parado em 21/09 foi o banco local |
+| Base legal | 13 normas, capturadas entre 05/10 e 26/10 (LC 214, Decreto 12.955 e CF em 05/10) | Texto de 05/10 para os três dispositivos mais importantes |
+| Avisos da Base legal | 8 pendentes de aprovação: nova norma citada pelo Radar (Ato Técnico Conjunto RFB/CGIBS 5/2026 e 7/2026, Portaria Conjunta MF/CGIBS 14/2026 e Decreto 13.140/2026) e texto oficial atualizado (LC 214, Decreto 12.955 e CF, avisos de 12/10; LC 123, aviso de 26/10) | Aguardam o administrador. Enquanto não forem aprovados, a Base legal e o assistente usam o texto anterior desses dispositivos |
+| Configuração | Versão v0.18 e data-base normativa 01/09/2026 | Desatualizada em relação às novidades de setembro e outubro |
 
 ## Anexo A: classes cClassTrib, tabela oficial v1.70 × catálogo do InTAX
 
