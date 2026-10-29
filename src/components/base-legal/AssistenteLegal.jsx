@@ -10,6 +10,9 @@ const EXEMPLOS = [
   "Se o produtor rural passar do limite no meio do ano, quando ele vira contribuinte?",
   "Quando o crédito de IBS e CBS pode ser apropriado?",
   "Como funciona o split payment?",
+  "Como descubro quem é contribuinte regular?",
+  "Ouro paga IBS e CBS?",
+  "Crédito de IBS e CBS é sobre tudo ou depende do uso na operação, como no PIS/Cofins?",
 ];
 
 function Fundamentos({ itens }) {
@@ -45,8 +48,8 @@ function Resultado({ r }) {
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm">
           <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium">{semIa ? "O assistente não está disponível agora." : "Não encontrei base suficiente nas normas carregadas."}</p>
-            {r.resposta && !semIa && <p className="text-muted-foreground whitespace-pre-wrap">{r.resposta}</p>}
+            <p className="font-medium">{semIa ? "O assistente não está disponível agora." : "A resposta precisa de uma verificação complementar."}</p>
+            {r.resposta && <p className="text-muted-foreground whitespace-pre-wrap">{r.resposta}</p>}
             {r.motivo === "sem_base" && <p className="text-muted-foreground">Tente outras palavras ou o número do artigo na busca abaixo.</p>}
           </div>
         </div>
@@ -136,7 +139,7 @@ export default function AssistenteLegal({ admin, setor }) {
           {(setor?.perguntas || EXEMPLOS).map((e) => <button key={e} type="button" onClick={() => { setPergunta(e); perguntar(e); }} className="px-2.5 py-1 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted text-left">{e}</button>)}
         </div>
       )}
-      {carregando && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Consultando as normas… pode levar até 30 segundos.</p>}
+      {carregando && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Consultando as normas… aguarde a análise dos dispositivos.</p>}
       {erro && <p className="text-sm text-red-600">{erro}</p>}
       {revisados.length > 0 && (
         <div className="space-y-2">

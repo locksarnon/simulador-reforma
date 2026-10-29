@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { chaveDe, normasCitadas, referenciaDe, urlOficialValida } from './base-legal.deteccao';
 import { PrismaService } from '../prisma/prisma.service';
-import { AVISO_ASSISTENTE, Candidato, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
+import { AVISO_ASSISTENTE, Candidato, consultasDaPergunta, respostaDeApoio, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
 import { decodificar, extrairDispositivos, htmlParaTexto, sha256 } from './base-legal.parser';
 import { FONTES_NORMAS } from './fontes';
 
@@ -355,21 +355,20 @@ export class BaseLegalService {
 
   /** Dispositivos mais prováveis para a pergunta (artigo citado, termos jurídicos e a própria pergunta). */
   private async candidatos(pergunta: string, termos: string[]): Promise<Candidato[]> {
-    const [porTermos, porPergunta] = await Promise.all([
-      termos.length ? this.buscar(termos.join(' ')) : Promise.resolve(null),
+    const consultas = consultasDaPergunta(pergunta, termos);
+    const [porPergunta, ...porConceito] = await Promise.all([
       this.buscar(pergunta),
+      ...consultas.map((consulta) => this.buscar(consulta)),
     ]);
     const ordem: { chave: string; caminho: string }[] = [];
     const add = (chave: string, caminho: string) => {
       if (!ordem.some((o) => o.chave === chave && o.caminho === caminho)) ordem.push({ chave, caminho });
     };
     porPergunta.exatos.forEach((e) => add(e.norma.chave, e.caminho));
-    // Alterna as duas listas para não depender de uma única estratégia de busca.
-    const a = porTermos?.resultados ?? [];
-    const b = porPergunta.resultados;
-    for (let i = 0; i < Math.max(a.length, b.length) && ordem.length < 16; i++) {
-      if (a[i]) add(a[i].chave, a[i].caminho);
-      if (b[i]) add(b[i].chave, b[i].caminho);
+    // Distribui o contexto entre conceitos, sem deixar uma busca genérica ocupar tudo.
+    const listas = [...porConceito.map((r) => r.resultados), porPergunta.resultados];
+    for (let i = 0; i < 4 && ordem.length < 32; i++) {
+      for (const lista of listas) if (lista[i]) add(lista[i].chave, lista[i].caminho);
     }
     if (!ordem.length) return [];
     const rows = await this.prisma.dispositivoLegal.findMany({
@@ -377,11 +376,17 @@ export class BaseLegalService {
       select: { rotulo: true, caminho: true, secao: true, texto: true, norma: { select: { chave: true, numero: true } } },
     });
     const pos = new Map(ordem.map((o, i) => [`${o.chave}/${o.caminho}`, i]));
+    let caracteres = 0;
     return rows
       .filter((r) => r.texto.length <= 20_000) // artigos-alteradores gigantes e anexos enormes não cabem no contexto
       .sort((x, y) => (pos.get(`${x.norma.chave}/${x.caminho}`) ?? 99) - (pos.get(`${y.norma.chave}/${y.caminho}`) ?? 99))
-      .slice(0, 8)
-      .map((r) => ({ chave: r.norma.chave, numero: r.norma.numero, rotulo: r.rotulo, caminho: r.caminho, secao: r.secao, texto: r.texto.slice(0, 6000) }));
+      .filter((r) => {
+        if (caracteres + r.texto.length > 60_000) return false;
+        caracteres += r.texto.length;
+        return true;
+      })
+      .slice(0, 12)
+      .map((r) => ({ chave: r.norma.chave, numero: r.norma.numero, rotulo: r.rotulo, caminho: r.caminho, secao: r.secao, texto: r.texto }));
   }
 
   /** Pergunta livre: recupera dispositivos, pede a resposta ao Gemini só com esse material e valida as citações. */
@@ -416,6 +421,8 @@ export class BaseLegalService {
         this.log.warn(`Resposta via IA falhou: ${(e as Error).message}`);
       }
     }
+
+    if (!saida.resposta) saida = respostaDeApoio(cands, motivo === 'sem_ia' || motivo === 'erro_ia');
 
     const modelo = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
     const reg = await this.prisma.perguntaLegal.create({
