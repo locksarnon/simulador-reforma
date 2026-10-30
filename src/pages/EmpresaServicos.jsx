@@ -8,14 +8,8 @@ import { ArrowRight, History, LayoutGrid, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import TituloPagina from "@/components/TituloPagina";
-
-const SERVICOS = [
-  ["importacao-xml", "Diagnóstico tributário", "Importe XML (NF-e, CT-e) ou uma planilha de operações, revise e consulte o painel."],
-  ["validador-cadastro", "Validação de cadastro", "Conferência rápida de uma planilha: NCM, cClassTrib e duplicidades."],
-  ["saneamento-estoque", "Saneamento de estoques", "Projeto completo, passo a passo, até a política de uso."],
-  ["classificacao-servicos", "Classificação de serviços", "Correlação entre LC 116, NBS, cIndOp e cClassTrib."],
-  ["validador-nfse", "Validação de NFS-e", "Confira os documentos de serviço desta empresa."],
-];
+import ListaSolicitacoesButton from "@/components/ListaSolicitacoesButton";
+import { SERVICOS } from "@/lib/servicosEmpresa";
 
 export default function EmpresaServicos({ historico = false }) {
   const { empresa } = useOutletContext();
@@ -58,13 +52,16 @@ export default function EmpresaServicos({ historico = false }) {
       {!historico && (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {SERVICOS.map(([to, titulo, desc]) => (
-            <Link key={to} to={base + "/" + to} className="group flex items-start justify-between gap-3 px-4 py-3 rounded-lg border border-border bg-card hover:border-primary hover:bg-muted/30">
-              <div className="min-w-0">
-                <h2 className="font-medium text-sm">{titulo}</h2>
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{desc}</p>
-              </div>
-              <ArrowRight className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
-            </Link>))}
+            <div key={to} className="flex flex-col rounded-lg border border-border bg-card hover:border-primary">
+              <Link to={base + "/" + to} className="group flex flex-1 items-start justify-between gap-3 px-4 py-3 rounded-t-lg hover:bg-muted/30">
+                <div className="min-w-0">
+                  <h2 className="font-medium text-sm">{titulo}</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{desc}</p>
+                </div>
+                <ArrowRight className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
+              </Link>
+              <div className="px-4 pb-2.5"><ListaSolicitacoesButton servico={to} empresa={empresa} /></div>
+            </div>))}
         </div>)}
       {!historico && <ConhecimentoEmpresa empresa={empresa} editar />}
       <section>

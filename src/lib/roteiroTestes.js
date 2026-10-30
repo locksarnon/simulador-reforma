@@ -111,6 +111,26 @@ export const ROTEIRO = [
     criterio: "Cada linha vira operação ou erro com motivo legível; os tributos preenchidos pela tabela aparecem no resumo; reenviar o mesmo arquivo não duplica.",
   },
   {
+    id: "lista-solicitacoes", grupo: "Diagnóstico com notas", titulo: "Lista de solicitações ao cliente (Excel)", rota: "/",
+    objetivo: "Baixar, para cada serviço da empresa, o Excel com a logo da FAL Agro e os documentos que o cliente precisa enviar.",
+    preparo: ["Empresa de teste cadastrada, com regime, ERP e versão preenchidos (quanto mais completo o cadastro, mais completa a Capa).", "Excel instalado para abrir o arquivo."],
+    passos: [
+      p("Abra a empresa e vá em \"Serviços e análises\".", "Os cinco cartões (Diagnóstico tributário, Validação de cadastro, Saneamento de estoques, Classificação de serviços e Validação de NFS-e) trazem, cada um, o botão \"Lista de solicitações (Excel)\"."),
+      p("Clique no botão do Diagnóstico tributário.", "Abre a janela \"Lista de solicitações: Diagnóstico tributário\" com Data-base (31/12 do ano), Data de envio (hoje), Responsável FAL e Contato FAL."),
+      p("Preencha o responsável e o contato da FAL e clique em \"Baixar Excel\".", "O arquivo \"Lista de Solicitações - Diagnóstico tributário - nome da empresa.xlsx\" é baixado e aparece o aviso \"Lista baixada\". Ao abrir o botão de outro serviço, o responsável e o contato já vêm preenchidos."),
+      p("Abra o arquivo no Excel (aba Capa).", "A Capa traz a logo da FAL Agro, o cliente, o CNPJ, o regime, o ERP e a versão, a data-base, o período analisado (12 meses até a data-base), a data de envio e os contatos."),
+      p("Na aba Solicitações, confira a coluna \"Documento solicitado\".", "Cada linha é um documento (arquivo, relatório, extração, contrato ou comprovante); as colunas de uma planilha, como NCM e código do produto, aparecem no detalhe do documento e não como linhas. Todos os itens começam como \"Pendente\", com prazo de 7, 14 ou 21 dias após a data de envio conforme a prioridade."),
+      p("Troque a situação de um item para \"Entregue\" e preencha \"Entregue em\".", "O painel de Andamento da Capa atualiza sozinho (itens entregues e percentual concluído)."),
+      p("Na Capa, mude a data-base.", "O período analisado e os textos com ano e período, na aba Solicitações, mudam junto."),
+    ],
+    cuidados: [
+      "Os dados da Capa vêm do cadastro da empresa; o que estiver em branco no cadastro fica em branco na Capa (célula amarela, para preencher no Excel).",
+      "Visualizadores de celular e Excel antigo podem não recalcular as fórmulas: abra no Excel.",
+      "O arquivo é gerado no navegador; nada é gravado no sistema.",
+    ],
+    criterio: "O botão existe nos cinco serviços; o arquivo abre sem erro de fórmula, com logo, dados da empresa e uma linha por documento; mudar a data-base ou a data de envio atualiza textos e prazos.",
+  },
+  {
     id: "operacoes", grupo: "Diagnóstico com notas", titulo: "Operações — cadastro manual e detalhe do cálculo", rota: "/",
     objetivo: "Conferir que o cálculo de uma operação está coerente e explicável.",
     preparo: ["Empresa de teste cadastrada."],

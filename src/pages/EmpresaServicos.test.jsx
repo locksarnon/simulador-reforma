@@ -16,5 +16,7 @@ describe('navegação por empresa', () => {
   qc.setQueryData(['validacoes-cadastro','empresa-a'],[]);
   const html = renderToString(<QueryClientProvider client={qc}><MemoryRouter initialEntries={['/workroom/grupo-a/empresas/empresa-a']}><Routes><Route path="/workroom/:id/empresas/:empresaId" element={<Outlet context={{empresa:{razao_social:'Empresa A'}}}/>}><Route index element={<EmpresaServicos/>}/></Route></Routes></MemoryRouter></QueryClientProvider>);
   expect(html).toContain('/workroom/grupo-a/empresas/empresa-a/classificacao-servicos'); expect(html).toContain('/workroom/grupo-a/empresas/empresa-a/validador-nfse?analise=salva'); expect(html).toContain('Empresa A');
+  // cada um dos cinco serviços tem o seu botão da lista de solicitações
+  expect(html.split('Lista de solicitações (Excel)').length - 1).toBe(5);
  });
 });

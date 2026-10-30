@@ -11,7 +11,8 @@
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "listas": "node scripts/gerar-listas-solicitacoes.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
