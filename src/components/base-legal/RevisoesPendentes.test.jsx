@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MemoryRouter } from "react-router-dom";
+import { StaticRouter } from "react-router-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import RevisoesPendentes from "./RevisoesPendentes";
@@ -14,7 +14,7 @@ const linha = (extra) => ({
 function desenhar(linhas) {
   const qc = new QueryClient();
   qc.setQueryData(["base-legal-revisoes", "todas"], linhas);
-  return renderToStaticMarkup(<QueryClientProvider client={qc}><MemoryRouter><RevisoesPendentes /></MemoryRouter></QueryClientProvider>);
+  return renderToStaticMarkup(<QueryClientProvider client={qc}><StaticRouter location="/"><RevisoesPendentes /></StaticRouter></QueryClientProvider>);
 }
 
 describe("Itens para revisar porque a lei mudou", () => {
@@ -48,7 +48,7 @@ describe("cartão que voltou para revisão", () => {
     fundamentos: [{ norma: "lcp-214-2025", caminho: "art-164", trecho: "receita inferior", numero: "LC 214/2025", rotulo: "Art. 164" }],
     revisoes_pendentes: [{ id: "r1", norma: "lcp-214-2025", numero: "LC 214/2025", caminho: "art-164", rotulo: "Art. 164", mudanca: "alterado", detalhe: "O texto do dispositivo mudou.", mudou_em: "2026-11-12T15:00:00.000Z" }],
   };
-  const desenharCartao = (c, admin) => renderToStaticMarkup(<MemoryRouter><CartaoResposta c={c} admin={admin} aberto /></MemoryRouter>);
+  const desenharCartao = (c, admin) => renderToStaticMarkup(<StaticRouter location="/"><CartaoResposta c={c} admin={admin} aberto /></StaticRouter>);
 
   it("o administrador vê o motivo e o rótulo Revisar", () => {
     const html = desenharCartao(cartao, true);

@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MemoryRouter } from "react-router-dom";
+import { StaticRouter } from "react-router-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import AgendaReforma from "./AgendaReforma";
@@ -28,7 +28,7 @@ function desenhar({ resposta, filtros = FILTROS_VAZIOS, props = {}, empresas = [
   const qc = new QueryClient();
   qc.setQueryData(["agenda-reforma", filtros], resposta);
   qc.setQueryData(["agenda-empresas"], empresas);
-  return renderToStaticMarkup(<QueryClientProvider client={qc}><MemoryRouter><AgendaReforma {...props} /></MemoryRouter></QueryClientProvider>);
+  return renderToStaticMarkup(<QueryClientProvider client={qc}><StaticRouter location="/"><AgendaReforma {...props} /></StaticRouter></QueryClientProvider>);
 }
 
 describe("Agenda da Reforma: tela", () => {
