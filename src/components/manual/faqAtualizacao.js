@@ -291,6 +291,44 @@ export const SECAO_BASE_LEGAL = {
   ],
 };
 
+export const SECAO_AGENDA = {
+  titulo: "Agenda da Reforma",
+  nota: "Marcos e prazos da Reforma Tributária do consumo, cada um com a fonte oficial da data. Fica em Inteligência de mercado > Agenda da Reforma e na aba Agenda da Reforma de cada empresa.",
+  itens: [
+    {
+      p: "O que é a Agenda da Reforma?",
+      r: "É a lista de marcos (a partir de quando uma regra vale) e de prazos (data-limite para o contribuinte agir) da Reforma, ordenada por data. Cada item traz a fonte oficial: o instrumento, o dispositivo, a data do ato, o endereço do texto oficial e o trecho de onde a data foi lida. Entre as datas estão o ano de teste de 2026, o início da CBS em 2027, a redução do ICMS e do ISS de 2029 a 2033, o ciclo anual do TCU e do Senado para as alíquotas de referência, o inventário de 31/12/2026 e o prazo de 30/06/2027 do crédito presumido do estoque, os prazos do Simples Nacional, o cronograma dos documentos fiscais eletrônicos e as datas do produtor rural e da Zona Franca de Manaus.",
+      f: "LC 214/2025, arts. 343 a 349, 381 e 544; Constituição, ADCT, arts. 126, 128 e 129; Decreto nº 12.955/2026, arts. 105, 115, 243 e 608; Resolução CGSN nº 194/2026; Ato Conjunto RFB/CGIBS nº 4/2026.",
+    },
+    {
+      p: "Como filtro a agenda por regime, UF ou empresa?",
+      r: "Na tela geral escolha o regime tributário (Lucro Real, Lucro Presumido, Simples Nacional ou Produtor rural PF), a UF e o assunto; ou escolha uma empresa, e o InTAX usa o regime e a UF do cadastro dela. Uma data sem restrição vale para todos os regimes e para todas as UFs. Empresa sem regime ou sem UF no cadastro vê só as datas gerais, e a tela avisa. Na aba Agenda da Reforma da empresa o filtro já vem do cadastro. Por padrão a agenda mostra o que ainda não passou; marque Mostrar datas já passadas para ver o resto.",
+    },
+    {
+      p: "O que quer dizer “não confirmado em fonte oficial” na agenda?",
+      r: "Só aparece como confirmada a data lida em texto oficial vigente. Os trechos ligados à Base legal são conferidos palavra por palavra contra o texto carregado; os de atos da Receita Federal, do CGSN e do CGIBS foram lidos no texto oficial indicado. Quando a lei fixa só o mês (como os percentuais do crédito presumido do produtor rural e do transportador autônomo, “até o mês de setembro”, ou a opção do Simples em março e setembro) ou quando o ato esperado não foi localizado, a data vem marcada como não confirmada em fonte oficial e não gera lembrete por e-mail.",
+      f: "LC 214/2025, arts. 168 e 169 (§ 4º) e 517 (que dá nova redação ao art. 13, § 10, da LC 123/2006).",
+    },
+    {
+      p: "E se o texto da lei citado como fonte de uma data mudar?",
+      r: "A data continua na agenda, mas com o aviso “Fonte em revisão”, o artigo que mudou e a data da mudança, até o administrador conferir (botão Marcar como conferido). Nesse período o calendário .ics leva o evento como provisório e o e-mail de lembrete repete o aviso. A conferência é sempre humana: a agenda não troca uma data sozinha.",
+    },
+    {
+      p: "Como levo as datas para o meu calendário (.ics)?",
+      r: "O botão Baixar calendário (.ics) gera um arquivo com um evento de dia inteiro para cada data do filtro atual; a descrição de cada evento traz a fonte oficial. Abra o arquivo no Outlook, no Google Agenda ou no Calendário da Apple. Importar de novo atualiza os eventos em vez de duplicá-los. Datas não confirmadas ou com a fonte em revisão entram como provisórias.",
+    },
+    {
+      p: "Como funcionam os lembretes por e-mail da agenda?",
+      r: "Em Lembretes por e-mail escolha as antecedências (60, 30, 15, 7, 3 ou 1 dia antes, ou no próprio dia) e se quer acompanhar todas as empresas ou uma só. Todo dia às 7h (horário de Brasília) o sistema manda um e-mail único com as datas que estão a essa distância (para um prazo, conta o último dia), com a fonte oficial e as empresas cadastradas a que a data se aplica; cada aviso sai uma vez só. Só datas confirmadas em fonte oficial geram aviso. O botão Enviar e-mail de teste para mim manda ao seu endereço as datas dos próximos 60 dias. Se o envio de e-mail não estiver configurado no servidor, os lembretes ficam salvos, mas nenhuma mensagem sai.",
+    },
+    {
+      p: "A agenda já tem todas as datas da Reforma?",
+      r: "Não. Ela reúne as datas lidas em texto oficial até 10/11/2026 e cresce à medida que novos atos saem. Em 10/11/2026 não localizamos em fonte oficial o ato conjunto com os percentuais do crédito presumido do produtor rural e do transportador autônomo para 2027 (a lei manda divulgá-los até setembro), nem os dias exatos das janelas de março e setembro de opção pelo regime regular do IBS e da CBS no Simples a partir de 2027 (a lei indica só os meses); esses itens ficam marcados como não confirmados.",
+      f: "LC 214/2025, arts. 168 e 169 (§ 4º) e 517; Resolução CGSN nº 194/2026.",
+    },
+  ],
+};
+
 /** Itens que entram no fim de seções que já existiam (chave = título da seção). */
 export const ITENS_EXTRAS = {
   "Transição 2026–2033": [

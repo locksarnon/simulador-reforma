@@ -92,10 +92,20 @@ describe('revisão pela lei: notas do cálculo', () => {
 
 describe('revisão pela lei: marcos da agenda', () => {
   const marcos = [
-    { id: 'm1', titulo: 'Inventário do estoque', norma_chave: 'dec-12955-2026', caminho: 'art-608', fonte_trecho: 'inventário em 31 de dezembro de 2026' },
-    { id: 'm2', titulo: 'Prazo do Simples', norma_chave: null, caminho: null, fonte_trecho: null },
-    { id: 'm3', titulo: 'Estoque até junho', norma_chave: 'lcp-214-2025', caminho: 'art-381', fonte_trecho: 'último dia de junho de 2027' },
+    { id: 'm1', titulo: 'Inventário do estoque', fontes: [{ instrumento: 'Decreto nº 12.955/2026', dispositivo: 'art. 608', norma_chave: 'dec-12955-2026', caminho: 'art-608', trecho: 'inventário em 31 de dezembro de 2026' }] },
+    { id: 'm2', titulo: 'Prazo do Simples', fontes: [{ instrumento: 'Resolução CGSN nº 194/2026', dispositivo: 'art. 1º', url: 'https://normas.receita.fazenda.gov.br/' }] },
+    { id: 'm3', titulo: 'Estoque até junho', fontes: [
+      { norma_chave: 'lcp-214-2025', caminho: 'art-381', trecho: 'último dia de junho de 2027' },
+      { norma_chave: 'lcp-214-2025', caminho: 'art-383', trecho: 'prazo de 5 (cinco) anos' },
+    ] },
+    { id: 'm4', titulo: 'Fontes mal formadas', fontes: 'não é lista' },
   ];
+
+  it('uma mudança em qualquer das fontes do marco que estão na Base legal o devolve para revisão', () => {
+    const r = revisoesDeMarcos(marcos, LC214, [{ caminho: 'art-383', rotulo: 'Art. 383', mudanca: 'alterado', texto: 'O direito se extingue após 5 anos.' }]);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ alvo_id: 'm3', caminho: 'art-383', detalhe: 'O trecho de onde a data foi lida não consta mais no texto do dispositivo.' });
+  });
 
   it('só marcos que têm a fonte na Base legal e na mesma norma', () => {
     const r = revisoesDeMarcos(marcos, LC214, [{ caminho: 'art-381', rotulo: 'Art. 381', mudanca: 'alterado', texto: 'apropriado até o último dia de junho de 2027' }]);
@@ -111,7 +121,7 @@ describe('revisão pela lei: marcos da agenda', () => {
 });
 
 describe('impacto antes da atualização', () => {
-  const marcos = [{ id: 'm3', titulo: 'Estoque até junho', norma_chave: 'lcp-214-2025', caminho: 'art-381', fonte_trecho: null }];
+  const marcos = [{ id: 'm3', titulo: 'Estoque até junho', fontes: [{ norma_chave: 'lcp-214-2025', caminho: 'art-381' }] }];
 
   it('conta cartões (e quantos estão publicados), notas e marcos sem contar duas vezes o mesmo item', () => {
     const i = impactoDe(cartoes, marcos, LC214, [

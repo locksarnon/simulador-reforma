@@ -380,6 +380,33 @@ export const ROTEIRO = [
     criterio: "Cartão, nota e marco que citam o artigo alterado entram na lista com o motivo; o cartão some para o consultor até ser revisado; conferir tira o item da lista.",
   },
   {
+    id: "agenda-reforma", grupo: "Inteligência de mercado", titulo: "Agenda da Reforma (marcos e prazos com fonte oficial)", rota: "/agenda-reforma",
+    objetivo: "Conferir as datas da Reforma com a fonte oficial de cada uma, os filtros por regime, UF e empresa, o calendário (.ics) e os lembretes por e-mail.",
+    preparo: [
+      "Entrar como administrador (só ele vê o botão \"Atualizar datas oficiais\").",
+      "Ter ao menos uma empresa com regime e UF preenchidos e outra sem regime e sem UF, para ver o aviso do cadastro incompleto.",
+      "Para o e-mail: SMTP configurado no servidor. Sem ele, os lembretes ficam salvos e o teste avisa que nenhuma mensagem sai.",
+    ],
+    passos: [
+      p("Abra \"Agenda da Reforma\" no menu.", "Lista de datas por mês, a partir de hoje. Cada data mostra o assunto, se é marco ou prazo, o período, quanto falta e a fonte oficial: instrumento, dispositivo, data do ato, links e o trecho de onde a data foi lida."),
+      p("Se a lista estiver vazia, clique em \"Atualizar datas oficiais\".", "A mensagem diz quantas datas foram criadas ou atualizadas e quantas foram confirmadas; nenhuma deve divergir da Base legal."),
+      p("Em \"Regime tributário\" escolha Simples Nacional.", "Ficam as datas do Simples (prazos do CGSN, documentos fiscais a partir de 01/01/2027) e as gerais; somem as de outros regimes."),
+      p("Em \"UF\" escolha AM e depois SP.", "Com AM aparecem as datas da Zona Franca de Manaus; com SP elas somem."),
+      p("Escolha uma empresa em \"Empresa\".", "Regime e UF passam a ser os do cadastro dela (campos travados). A empresa sem regime ou sem UF mostra o aviso e só as datas gerais."),
+      p("Marque \"Mostrar datas já passadas\".", "Entram as datas anteriores a hoje, mais apagadas."),
+      p("Procure uma data marcada \"Não confirmado em fonte oficial\".", "A observação diz por quê (por exemplo, a lei indica o mês, não o dia). Essas datas não geram lembrete."),
+      p("Clique em \"Baixar calendário (.ics)\" e abra o arquivo no Outlook ou no Google Agenda.", "Um evento de dia inteiro para cada data do filtro, com a fonte oficial na descrição. Importar de novo não duplica."),
+      p("Abra \"Lembretes por e-mail\", deixe 30, 7 e 1 dia marcados e clique em \"Salvar lembrete\".", "O lembrete aparece na lista, e dá para pausar, reativar e remover."),
+      p("Clique em \"Enviar e-mail de teste para mim\".", "Chega um e-mail com [TESTE] no assunto, com as datas confirmadas dos próximos 60 dias, a fonte oficial e as empresas cadastradas a que cada data se aplica."),
+      p("Abra uma empresa e use a aba \"Agenda da Reforma\".", "A mesma lista, já filtrada pelo cadastro da empresa; nos lembretes dá para escolher \"Todas as empresas\" ou só essa."),
+    ],
+    cuidados: [
+      "As datas vêm de texto oficial vigente; se uma data parecer errada, abra o link da fonte oficial e compare antes de anotar o problema.",
+      "O lembrete automático sai todo dia às 7h (Brasília), uma vez por data e antecedência; para conferir sem esperar, use o e-mail de teste.",
+    ],
+    criterio: "Cada data traz a fonte oficial completa; os filtros por regime, UF e empresa mudam a lista como descrito; o .ics baixa e importa; o lembrete salva e o e-mail de teste chega; o que não está confirmado vem marcado.",
+  },
+  {
     id: "radar", grupo: "Inteligência de mercado", titulo: "Radar de Novidades", rota: "/ferramentas/radar-reforma",
     objetivo: "Conferir o radar semanal gerado por IA (fontes reais, prazos, prioridade).",
     preparo: [],

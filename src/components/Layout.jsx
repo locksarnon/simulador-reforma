@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import {
   CalendarClock,
+  CalendarDays,
   BookMarked,
   Settings,
   HelpCircle,
@@ -39,6 +40,7 @@ const sections = [
     title: "Inteligência de mercado",
     items: [
       { to: "/base-legal", label: "Base legal", icon: Scale },
+      { to: "/agenda-reforma", label: "Agenda da Reforma", icon: CalendarDays },
       { to: "/ferramentas/radar-reforma", label: "Radar de Novidades", icon: Radar },
       { to: "/ferramentas/noticias", label: "Acervo de Notícias", icon: Newspaper },
       { to: "/comercial/newsletter", label: "Newsletter", icon: Mail },

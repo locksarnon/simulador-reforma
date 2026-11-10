@@ -15,6 +15,7 @@ import { ComercialModule } from './comercial/comercial.module';
 import { ValidadorNfseModule } from './validador-nfse/validador-nfse.module';
 import { CfopModule } from './cfop/cfop.module';
 import { BaseLegalModule } from './base-legal/base-legal.module';
+import { AgendaReformaModule } from './agenda-reforma/agenda-reforma.module';
 import { CnpjModule } from './cnpj/cnpj.module';
 import { LimpezaModule } from './limpeza/limpeza.module';
 import { OperacoesPlanilhaModule } from './operacoes-planilha/operacoes-planilha.module';
@@ -37,6 +38,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     ValidadorNfseModule,
     CnpjModule,
     BaseLegalModule,
+    AgendaReformaModule,
     CfopModule,
     LimpezaModule,
     OperacoesPlanilhaModule,

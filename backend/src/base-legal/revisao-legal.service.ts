@@ -34,17 +34,14 @@ export class RevisaoLegalService {
     return this.prisma.cartaoLegal.findMany({ select: { id: true, pergunta: true, status: true, fundamentos: true } });
   }
 
-  private marcosQueCitam(norma: NormaMudada, mudancas: MudancaDispositivo[]) {
-    return this.prisma.agendaMarco.findMany({
-      where: { ativo: true, norma_chave: norma.chave, caminho: { in: mudancas.map((m) => m.caminho) } },
-      select: { id: true, titulo: true, norma_chave: true, caminho: true, fonte_trecho: true },
-    });
+  private marcosDaAgenda() {
+    return this.prisma.agendaMarco.findMany({ where: { ativo: true }, select: { id: true, titulo: true, fontes: true } });
   }
 
   /** Quantos itens citam os dispositivos que vão mudar (só leitura; usado no aviso de atualização pendente). */
   async impacto(norma: NormaMudada, mudancas: MudancaDispositivo[]): Promise<Impacto> {
     if (!mudancas.length) return { cartoes: 0, publicados: 0, fundamentos: 0, marcos: 0 };
-    const [cartoes, marcos] = await Promise.all([this.cartoesParaConferir(), this.marcosQueCitam(norma, mudancas)]);
+    const [cartoes, marcos] = await Promise.all([this.cartoesParaConferir(), this.marcosDaAgenda()]);
     return impactoDe(cartoes, marcos, norma, mudancas);
   }
 
@@ -56,7 +53,7 @@ export class RevisaoLegalService {
     const vazio: ResumoRevisao = { cartoes: 0, cartoes_despublicados: 0, fundamentos: 0, marcos: 0, itens: 0 };
     if (!mudancas.length) return vazio;
 
-    const [cartoes, marcos] = await Promise.all([this.cartoesParaConferir(), this.marcosQueCitam(norma, mudancas)]);
+    const [cartoes, marcos] = await Promise.all([this.cartoesParaConferir(), this.marcosDaAgenda()]);
     const dosCartoes = revisoesDeCartoes(cartoes, norma, mudancas);
     const dosFundamentos = revisoesDeFundamentos(norma, mudancas);
     const dosMarcos = revisoesDeMarcos(marcos, norma, mudancas);

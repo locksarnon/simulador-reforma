@@ -5,6 +5,7 @@
 import {
   SECAO_NOVIDADES, SECAO_IMPORTACAO_XML, SECAO_FERRAMENTAS, SECAO_BASE_LEGAL, ITENS_EXTRAS, FAQ_ATUALIZADO_EM,
 } from "./faqAtualizacao";
+import { SECAO_AGENDA } from "./faqAtualizacao";
 
 export { FAQ_ATUALIZADO_EM };
 
@@ -357,6 +358,7 @@ const INSERCOES = [
   { depoisDe: "Cadastro de operações", secao: SECAO_IMPORTACAO_XML },
   { depoisDe: "Informações de DF-e", secao: SECAO_FERRAMENTAS },
   { depoisDe: "Informações de DF-e", secao: SECAO_BASE_LEGAL },
+  { depoisDe: "Informações de DF-e", secao: SECAO_AGENDA },
 ];
 
 const comExtras = (secao) => (ITENS_EXTRAS[secao.titulo] ? { ...secao, itens: [...secao.itens, ...ITENS_EXTRAS[secao.titulo]] } : secao);

@@ -76,15 +76,21 @@ export function revisoesDeFundamentos(norma: NormaMudada, mudancas: MudancaDispo
   return revisoesDe('fundamento', fundamentos.map((f) => ({ id: f.chave, titulo: f.titulo, citacoes: f.refs })), norma, mudancas);
 }
 
+/** Fonte de um marco da agenda; as que trazem norma_chave e caminho estão ligadas a um dispositivo da Base legal. */
+export type FonteDoMarco = { instrumento?: string; dispositivo?: string; url?: string; trecho?: string | null; norma_chave?: string | null; caminho?: string | null };
+export type MarcoCitante = { id: string; titulo: string; fontes: unknown };
+
+const comoFontes = (v: unknown): FonteDoMarco[] => (Array.isArray(v) ? v.filter((f): f is FonteDoMarco => Boolean(f) && typeof f === 'object') : []);
+
 /** Marcos da agenda cuja fonte é um dos dispositivos alterados. */
-export function revisoesDeMarcos(
-  marcos: { id: string; titulo: string; norma_chave: string | null; caminho: string | null; fonte_trecho: string | null }[],
-  norma: NormaMudada,
-  mudancas: MudancaDispositivo[],
-): NovaRevisao[] {
-  const alvos = marcos
-    .filter((m) => m.norma_chave && m.caminho)
-    .map((m) => ({ id: m.id, titulo: m.titulo, citacoes: [{ norma: m.norma_chave as string, caminho: m.caminho as string, trecho: m.fonte_trecho }] }));
+export function revisoesDeMarcos(marcos: MarcoCitante[], norma: NormaMudada, mudancas: MudancaDispositivo[]): NovaRevisao[] {
+  const alvos = marcos.map((m) => ({
+    id: m.id,
+    titulo: m.titulo,
+    citacoes: comoFontes(m.fontes)
+      .filter((f) => f.norma_chave && f.caminho)
+      .map((f) => ({ norma: f.norma_chave as string, caminho: f.caminho as string, trecho: f.trecho })),
+  }));
   return revisoesDe('marco', alvos, norma, mudancas);
 }
 
@@ -93,7 +99,7 @@ export type Impacto = { cartoes: number; publicados: number; fundamentos: number
 
 export function impactoDe(
   cartoes: { id: string; pergunta: string; status: string; fundamentos: unknown }[],
-  marcos: { id: string; titulo: string; norma_chave: string | null; caminho: string | null; fonte_trecho: string | null }[],
+  marcos: MarcoCitante[],
   norma: NormaMudada,
   mudancas: MudancaDispositivo[],
 ): Impacto {

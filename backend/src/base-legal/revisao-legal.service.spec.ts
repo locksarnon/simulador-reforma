@@ -58,10 +58,10 @@ describe('fila de revisão pela lei', () => {
   });
 
   it('marcos da agenda cuja fonte mudou entram na fila', async () => {
-    const marco = { id: 'm1', titulo: 'Inventário do estoque', norma_chave: 'lcp-214-2025', caminho: 'art-381', fonte_trecho: 'último dia de junho de 2027' };
+    const marco = { id: 'm1', titulo: 'Inventário do estoque', fontes: [{ norma_chave: 'lcp-214-2025', caminho: 'art-381', trecho: 'último dia de junho de 2027' }] };
     const { service, prisma } = montar({ marcos: [marco] });
     const r = await service.registrarMudancas(LC214, [{ caminho: 'art-381', rotulo: 'Art. 381', mudanca: 'alterado', texto: 'até o último dia de junho de 2027' }]);
-    expect(prisma.agendaMarco.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ativo: true, norma_chave: 'lcp-214-2025', caminho: { in: ['art-381'] } } }));
+    expect(prisma.agendaMarco.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ativo: true } }));
     expect(r.marcos).toBe(1);
     expect(prisma.revisaoLegal.createMany.mock.calls[0][0].data).toEqual(expect.arrayContaining([expect.objectContaining({ tipo: 'marco', alvo_id: 'm1' })]));
   });

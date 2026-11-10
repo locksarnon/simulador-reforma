@@ -1077,32 +1077,27 @@ model RevisaoLegal {
   @@index([status, mudou_em])
 }
 
-/// Marco ou obrigação da Reforma com data e fonte oficial (instrumento, dispositivo e data do ato).
-/// regimes e ufs vazios = vale para todos. confirmado = a data foi lida em texto oficial vigente.
+/// Marco ou obrigação da Reforma com data e fonte oficial. regimes e ufs vazios = vale para todos.
+/// fontes: [{ instrumento, dispositivo, data, url, trecho?, norma_chave?, caminho? }]; norma_chave e caminho ligam a fonte à Base legal.
+/// confirmado = a data foi lida em texto oficial vigente.
 model AgendaMarco {
-  id                String    @id @default(cuid())
-  chave             String    @unique
-  titulo            String
-  descricao         String
-  categoria         String
-  tipo              String    @default("marco") // marco (vigência) | prazo (data-limite)
-  data              DateTime  @db.Date
-  data_fim          DateTime? @db.Date
-  regimes           String[]  @default([])
-  ufs               String[]  @default([])
-  fonte_instrumento String
-  fonte_dispositivo String
-  fonte_data        DateTime? @db.Date
-  fonte_url         String
-  fonte_trecho      String?
-  norma_chave       String?
-  caminho           String?
-  confirmado        Boolean   @default(false)
-  lida_em           DateTime? @db.Date
-  observacao        String?
-  ativo             Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  chave      String    @unique
+  titulo     String
+  descricao  String
+  categoria  String
+  tipo       String    @default("marco") // marco (vigência) | prazo (data-limite)
+  data       DateTime  @db.Date
+  data_fim   DateTime? @db.Date
+  regimes    String[]  @default([])
+  ufs        String[]  @default([])
+  fontes     Json      @default("[]")
+  confirmado Boolean   @default(false)
+  lida_em    DateTime? @db.Date
+  observacao String?
+  ativo      Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   envios AgendaLembreteEnvio[]
 

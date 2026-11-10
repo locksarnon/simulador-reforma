@@ -3,6 +3,7 @@ import { useParams, useLocation, Outlet, NavLink, Navigate } from "react-router-
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { LayoutDashboard, FileText, FileSearch, FileSpreadsheet, Trash2, Lock, Layers, History } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
@@ -12,6 +13,7 @@ const tabs = [
   { label: "Importação XML", to: "importacao-xml", icon: FileSearch },
   { label: "Importar planilha", to: "importacao-planilha", icon: FileSpreadsheet },
   { label: "Operações", to: "operacoes", icon: FileText },
+  { label: "Agenda da Reforma", to: "agenda", icon: CalendarDays },
   { label: "Painel", to: "painel", icon: LayoutDashboard },
 ];
 

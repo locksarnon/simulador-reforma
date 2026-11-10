@@ -42,6 +42,8 @@ import LeadsPage from '@/pages/LeadsPage';
 import NewsletterPage from '@/pages/NewsletterPage';
 import BaseLegalPage from '@/pages/BaseLegalPage';
 import BaseLegalNormaPage from '@/pages/BaseLegalNormaPage';
+import AgendaReformaPage from '@/pages/AgendaReformaPage';
+import EmpresaAgenda from '@/pages/EmpresaAgenda';
 import RoteiroTestesPage from '@/pages/RoteiroTestesPage';
 import PublicLayout from '@/pages/publico/PublicLayout';
 import CalculadoraPage from '@/pages/publico/CalculadoraPage';
@@ -95,6 +97,7 @@ function App() {
                       <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
                       <Route path="importacao-planilha" element={<ImportacaoPlanilhaPage />} />
                       <Route path="operacoes" element={<OperacoesPage />} />
+                      <Route path="agenda" element={<EmpresaAgenda />} />
                       <Route path="painel" element={<EmpresaPainel />} />
                     </Route>
                   </Route>
@@ -117,6 +120,7 @@ function App() {
                   <Route path="/base-legal" element={<BaseLegalPage />} />
                   <Route path="/base-legal/:chave" element={<BaseLegalNormaPage />} />
                   <Route path="/base-legal/:chave/:caminho" element={<BaseLegalNormaPage />} />
+                  <Route path="/agenda-reforma" element={<AgendaReformaPage />} />
                   <Route path="/roteiro-testes" element={<RoteiroTestesPage />} />
                   <Route path="/manual" element={<ManualPage />} />
                   <Route path="/arquitetura" element={<ArquiteturaPage />} />
