@@ -1,4 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { EntitiesService } from './entities.service';
 
 @Controller('entities/:model')
@@ -34,8 +36,8 @@ export class EntitiesController {
   }
 
   @Delete(':id')
-  remove(@Param('model') model: string, @Param('id') id: string) {
-    return this.entities.remove(model, id);
+  remove(@Param('model') model: string, @Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.entities.remove(model, id, user);
   }
 
   @Post('bulk-create')

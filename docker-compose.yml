@@ -80,6 +80,9 @@ services:
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      CERT_VAULT_KEY: ${CERT_VAULT_KEY:-}
+      CERT_VAULT_KEYS: ${CERT_VAULT_KEYS:-}
+      CAPTURA_XML_AGENDADOR: ${CAPTURA_XML_AGENDADOR:-}
     ports:
       - "3003:3003"
     volumes:

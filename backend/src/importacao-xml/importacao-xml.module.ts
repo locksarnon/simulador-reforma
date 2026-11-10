@@ -8,5 +8,6 @@ import { ImportacaoXmlService } from './importacao-xml.service';
   imports: [StorageModule, CfopModule],
   controllers: [ImportacaoXmlController],
   providers: [ImportacaoXmlService],
+  exports: [ImportacaoXmlService],
 })
 export class ImportacaoXmlModule {}

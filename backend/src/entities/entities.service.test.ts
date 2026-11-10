@@ -69,11 +69,15 @@ describe('EntitiesService.assertAllowed', () => {
 });
 
 describe('EntitiesService.remove', () => {
-  const montar = () => {
+  const montar = (custodia: string[] = ['E1']) => {
+    const grupos = vi.fn().mockResolvedValue(custodia.map((empresa_id) => ({ empresa_id })));
     const prisma = {
       empresa: { delete: vi.fn() }, grupo: { delete: vi.fn() },
       validacaoCadastro: { findMany: vi.fn().mockResolvedValue([{ storage_key: 'validacoes/a.xlsx' }, { storage_key: 'https://externo/x.xlsx' }]), deleteMany: vi.fn() },
       saneamentoProjeto: { deleteMany: vi.fn() }, analiseEmpresa: { deleteMany: vi.fn() },
+      documentoXml: { findMany: vi.fn().mockResolvedValue([{ storage_key: 'repositorio/E1/importacao/2026/11/a.xml' }]), deleteMany: vi.fn(), groupBy: grupos },
+      certificadoDigital: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, capturaXmlConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) },
+      capturaXmlExecucao: { deleteMany: vi.fn() }, xmlEmpresaConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, auditoriaCertificado: { create: vi.fn() },
       $transaction: vi.fn(async (ops: unknown[]) => ops),
     };
     const storage = { removeObject: vi.fn().mockResolvedValue(undefined) };
@@ -86,9 +90,40 @@ describe('EntitiesService.remove', () => {
     expect(prisma.saneamentoProjeto.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.analiseEmpresa.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.validacaoCadastro.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
-    expect(storage.removeObject).toHaveBeenCalledTimes(1); // o endereço externo não é apagado
+    expect(storage.removeObject).toHaveBeenCalledTimes(2); // o endereço externo não é apagado
     expect(storage.removeObject).toHaveBeenCalledWith('validacoes/a.xlsx');
     expect(prisma.empresa.delete).toHaveBeenCalledWith({ where: { id: 'E1' } });
+  });
+
+  it('excluir empresa apaga o certificado (chave cifrada), os XML do repositório e as configurações da captura', async () => {
+    const { prisma, storage, service } = montar();
+    await service.remove('Empresa', 'E1');
+    expect(prisma.certificadoDigital.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.documentoXml.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.capturaXmlConfig.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.xmlEmpresaConfig.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.auditoriaCertificado.create).toHaveBeenCalledWith({ data: expect.objectContaining({ empresa_id: 'E1', acao: 'EMPRESA_EXCLUIDA' }) });
+    expect(storage.removeObject).toHaveBeenCalledWith('repositorio/E1/importacao/2026/11/a.xml');
+  });
+
+  it('empresa com certificado, XML ou captura guardados só é excluída por administrador, e a auditoria diz quem apagou', async () => {
+    const t = montar();
+    await expect(t.service.remove('Empresa', 'E1', { email: 'ana@fal', role: 'user' })).rejects.toThrow(/apenas administradores podem excluí-la/);
+    expect(t.prisma.empresa.delete).not.toHaveBeenCalled();
+    expect(t.prisma.certificadoDigital.deleteMany).not.toHaveBeenCalled();
+    expect(t.storage.removeObject).not.toHaveBeenCalled();
+
+    const a = montar();
+    await a.service.remove('Empresa', 'E1', { email: 'adm@fal', role: 'admin' });
+    expect(a.prisma.empresa.delete).toHaveBeenCalledWith({ where: { id: 'E1' } });
+    expect(a.prisma.auditoriaCertificado.create).toHaveBeenCalledWith({ data: expect.objectContaining({ empresa_id: 'E1', acao: 'EMPRESA_EXCLUIDA', usuario: 'adm@fal' }) });
+  });
+
+  it('empresa sem nada guardado no repositório continua podendo ser excluída por qualquer usuário, sem linha de auditoria', async () => {
+    const t = montar([]);
+    await t.service.remove('Empresa', 'E2', { email: 'ana@fal', role: 'user' });
+    expect(t.prisma.empresa.delete).toHaveBeenCalledWith({ where: { id: 'E2' } });
+    expect(t.prisma.auditoriaCertificado.create).not.toHaveBeenCalled();
   });
 
   it('outras entidades seguem sendo excluídas sem cascata', async () => {

@@ -6,6 +6,8 @@
  * Os textos de botões/campos são os reais das telas. Onde há "esperado" numérico
  * ele foi conferido no ambiente; onde é comparação entre telas, o tester confere.
  */
+import { ROTEIRO_REPOSITORIO_XML } from "./roteiroRepositorioXml";
+
 const p = (f, e) => ({ f, e });
 
 export const CSV_TESTE_CADASTRO = [
@@ -89,6 +91,7 @@ export const ROTEIRO = [
     ],
     criterio: "Totais batem com a quantidade de arquivos; cada bloqueio tem motivo legível; alertas de inferência aparecem onde esperado; após confirmar, as operações existem.",
   },
+  ...ROTEIRO_REPOSITORIO_XML,
   {
     id: "planilha", grupo: "Diagnóstico com notas", titulo: "Importar operações por planilha", rota: "/",
     objetivo: "Carregar operações de uma planilha (XLSX ou CSV) sem XML, conferir a leitura e importar sem duplicar.",

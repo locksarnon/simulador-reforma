@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AVISO_CUSTODIA_SO_ADMIN, empresasComCustodiaXml } from '../common/custodia-xml';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -164,9 +165,10 @@ export class EntitiesService {
     return this.delegate(model).update({ where: { id }, data: this.sanitize(model, rest) });
   }
 
-  async remove(modelName: string, id: string) {
+  /** `user` é quem pediu a exclusão pela API (a regra de custódia usa o papel dele); chamadas internas não o passam. */
+  async remove(modelName: string, id: string, user?: { email?: string; role?: string }) {
     const model = this.assertAllowed(modelName);
-    if (model === 'Empresa') await this.apagarAnalisesDaEmpresa(id);
+    if (model === 'Empresa') await this.apagarAnalisesDaEmpresa(id, user);
     await this.delegate(model).delete({ where: { id } });
     return { ok: true };
   }
@@ -175,14 +177,30 @@ export class EntitiesService {
    * Ao excluir uma empresa, saem junto os itens da lista "Análises salvas" dela (análises de serviços, validações de cadastro com o arquivo guardado e
    * projetos de saneamento). Sem isso ficavam registros órfãos, sem empresa para abri-los nem como excluí-los.
    */
-  private async apagarAnalisesDaEmpresa(empresa_id: string) {
+  private async apagarAnalisesDaEmpresa(empresa_id: string, user?: { email?: string; role?: string }) {
+    // O certificado do cliente e os XML dele são custódia da FAL: só administrador exclui a empresa que os guarda.
+    const comCustodia = (await empresasComCustodiaXml(this.prisma, [empresa_id])).length > 0;
+    if (comCustodia && user && user.role !== 'admin') throw new ForbiddenException(AVISO_CUSTODIA_SO_ADMIN);
     const validacoes = await this.prisma.validacaoCadastro.findMany({ where: { empresa_id }, select: { storage_key: true } });
+    const xmls = await this.prisma.documentoXml.findMany({ where: { empresa_id }, select: { storage_key: true } });
     await this.prisma.$transaction([
       this.prisma.saneamentoProjeto.deleteMany({ where: { empresa_id } }),
       this.prisma.analiseEmpresa.deleteMany({ where: { empresa_id } }),
       this.prisma.validacaoCadastro.deleteMany({ where: { empresa_id } }),
+      // Repositório de XML: o certificado do cliente (chave cifrada) e os XML não podem sobrar sem a empresa. A trilha de auditoria fica.
+      this.prisma.documentoXml.deleteMany({ where: { empresa_id } }),
+      this.prisma.certificadoDigital.deleteMany({ where: { empresa_id } }),
+      this.prisma.capturaXmlConfig.deleteMany({ where: { empresa_id } }),
+      this.prisma.capturaXmlExecucao.deleteMany({ where: { empresa_id } }),
+      this.prisma.xmlEmpresaConfig.deleteMany({ where: { empresa_id } }),
+      // A trilha de auditoria fica e diz quem apagou; só se registra quando havia algo guardado.
+      ...(comCustodia
+        ? [this.prisma.auditoriaCertificado.create({
+          data: { empresa_id, acao: 'EMPRESA_EXCLUIDA', usuario: user?.email || 'sistema', detalhe: 'Certificado, XML e configurações da captura apagados junto com a empresa.' },
+        })]
+        : []),
     ]);
-    for (const v of validacoes) {
+    for (const v of [...validacoes, ...xmls]) {
       if (!this.storage || !v.storage_key || /^https?:\/\//i.test(v.storage_key)) continue;
       await this.storage.removeObject(v.storage_key).catch((e) => this.log.warn(`Arquivo ${v.storage_key} não removido do armazenamento: ${(e as Error).message}`));
     }

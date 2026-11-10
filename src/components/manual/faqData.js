@@ -9,6 +9,8 @@ import { SECAO_AGENDA } from "./faqAtualizacao";
 
 export { FAQ_ATUALIZADO_EM };
 
+import { SECAO_REPOSITORIO_XML } from "./faqRepositorioXml";
+
 const SECOES_BASE = [
   {
     titulo: "Primeiros passos",
@@ -356,6 +358,7 @@ const SECOES_BASE = [
 /** Seções novas entram logo depois da seção indicada. */
 const INSERCOES = [
   { depoisDe: "Cadastro de operações", secao: SECAO_IMPORTACAO_XML },
+  { depoisDe: "Cadastro de operações", secao: SECAO_REPOSITORIO_XML },
   { depoisDe: "Informações de DF-e", secao: SECAO_FERRAMENTAS },
   { depoisDe: "Informações de DF-e", secao: SECAO_BASE_LEGAL },
   { depoisDe: "Informações de DF-e", secao: SECAO_AGENDA },

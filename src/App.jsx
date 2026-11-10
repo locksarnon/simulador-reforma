@@ -22,6 +22,7 @@ import ImportacaoPlanilhaPage from '@/pages/ImportacaoPlanilhaPage';
 import EmpresasPage from '@/pages/EmpresasPage';
 import EmpresaWorkroom from '@/pages/EmpresaWorkroom';
 import EmpresaPainel from '@/pages/EmpresaPainel';
+import EmpresaRepositorioXml from '@/pages/EmpresaRepositorioXml';
 import CenariosPage from '@/pages/CenariosPage';
 import TransicaoPage from '@/pages/TransicaoPage';
 import CatalogosPage from '@/pages/CatalogosPage';
@@ -94,6 +95,7 @@ function App() {
                       <Route path="saneamento-estoque" element={<FerramentasSaneamento />} />
                       <Route path="classificacao-servicos" element={<FerramentasClassificacao />} />
                       <Route path="validador-nfse" element={<FerramentasValidadorNFSe />} />
+                      <Route path="repositorio-xml" element={<EmpresaRepositorioXml />} />
                       <Route path="importacao-xml" element={<ImportacaoXMLPage />} />
                       <Route path="importacao-planilha" element={<ImportacaoPlanilhaPage />} />
                       <Route path="operacoes" element={<OperacoesPage />} />

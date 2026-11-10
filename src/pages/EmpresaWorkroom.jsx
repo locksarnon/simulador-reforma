@@ -2,14 +2,14 @@ import React from "react";
 import { useParams, useLocation, Outlet, NavLink, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { LayoutDashboard, FileText, FileSearch, FileSpreadsheet, Trash2, Lock, Layers, History } from "lucide-react";
-import { CalendarDays } from "lucide-react";
+import { LayoutDashboard, FileText, FileSearch, FileSpreadsheet, Trash2, Lock, Layers, History, Archive, CalendarDays } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const tabs = [
   { label: "Serviços e análises", to: "servicos", icon: Layers },
   { label: "Histórico", to: "historico", icon: History },
+  { label: "Repositório de XML", to: "repositorio-xml", icon: Archive },
   { label: "Importação XML", to: "importacao-xml", icon: FileSearch },
   { label: "Importar planilha", to: "importacao-planilha", icon: FileSpreadsheet },
   { label: "Operações", to: "operacoes", icon: FileText },

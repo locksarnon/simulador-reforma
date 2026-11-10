@@ -1135,3 +1135,144 @@ model AgendaLembreteEnvio {
   @@unique([user_email, marco_id, dias_antes, data_alvo])
 }
 // ═════════════════════════ fim do bloco de consultoria ═════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────
+// Repositório e captura de XML por cliente (empresa) e cofre de certificados A1
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Opções do repositório de XML de uma empresa: termo de autorização do cliente para usar o certificado, ambiente e
+/// consentimento da Ciência da Operação. Uma linha por empresa.
+model XmlEmpresaConfig {
+  id                          String    @id @default(cuid())
+  empresa_id                  String    @unique
+  consentimento_em            DateTime?
+  consentimento_por           String?
+  consentimento_ref           String?
+  ambiente                    String    @default("PRODUCAO")
+  uf_autor                    String?
+  periodo_busca               String    @default("NOTURNO") // NOTURNO (18:00 às 05:59) ou DIURNO (06:00 às 17:59): quando a busca automática pode consultar a empresa
+  manifestar_ciencia          Boolean   @default(false)
+  manifestacao_consentida_em  DateTime?
+  manifestacao_consentida_por String?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+}
+
+/// Certificado digital A1 do cliente. O material sensível (chave privada e cadeia, em PEM) fica CIFRADO (AES-256-GCM, chave-mestra
+/// fora do banco) e a senha do .pfx NÃO é guardada. Um certificado ATIVO por empresa; ao revogar, o segredo é apagado e os metadados ficam.
+model CertificadoDigital {
+  id                    String    @id @default(cuid())
+  empresa_id            String
+  titular               String
+  emissor               String?
+  documento             String
+  serie_hex             String?
+  impressao_sha256      String
+  valido_de             DateTime
+  valido_ate            DateTime
+  segredo_cifrado       Bytes?
+  segredo_iv            Bytes?
+  segredo_tag           Bytes?
+  chave_id              String?
+  status                String    @default("ATIVO")
+  enviado_por           String
+  revogado_em           DateTime?
+  revogado_por          String?
+  aviso_vencimento_dias Int?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([empresa_id, status])
+}
+
+/// Trilha de auditoria do cofre: envio, consentimento, cada uso do certificado, revogação e falhas.
+model AuditoriaCertificado {
+  id             String   @id @default(cuid())
+  empresa_id     String
+  certificado_id String?
+  acao           String
+  usuario        String
+  detalhe        String?
+  createdAt      DateTime @default(now())
+
+  @@index([empresa_id, createdAt])
+}
+
+/// Estado da captura por empresa e tipo de documento (NFE, CTE, MDFE, NFSE): último NSU e janelas de espera da SEFAZ.
+model CapturaXmlConfig {
+  id                  String    @id @default(cuid())
+  empresa_id          String
+  tipo                String
+  ativo               Boolean   @default(false)
+  ultimo_nsu          String    @default("000000000000000")
+  max_nsu             String?
+  proxima_consulta_em DateTime?
+  bloqueado_ate       DateTime?
+  ultima_consulta_em  DateTime?
+  ultimo_cstat        String?
+  ultimo_motivo       String?
+  em_execucao_ate     DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([empresa_id, tipo])
+}
+
+/// Histórico das execuções da captura.
+model CapturaXmlExecucao {
+  id             String    @id @default(cuid())
+  empresa_id     String
+  tipo           String
+  origem         String
+  usuario        String?
+  iniciado_em    DateTime  @default(now())
+  finalizado_em  DateTime?
+  consultas      Int       @default(0)
+  docs_recebidos Int       @default(0)
+  docs_novos     Int       @default(0)
+  ultimo_cstat   String?
+  mensagem       String?
+
+  @@index([empresa_id, iniciado_em])
+}
+
+/// Índice do repositório de XML de cada empresa (importação por envio de arquivos e captura). O arquivo fica no MinIO (storage_key).
+model DocumentoXml {
+  id                 String    @id @default(cuid())
+  empresa_id         String
+  tipo               String
+  chave              String
+  evento_tipo        String    @default("")
+  sequencia          Int       @default(0)
+  modelo             String?
+  numero             String?
+  serie              String?
+  data_emissao       DateTime?
+  emitente_doc       String?
+  emitente_nome      String?
+  destinatario_doc   String?
+  valor_total        Float?
+  conteudo           String    @default("COMPLETO")
+  situacao           String?
+  origem             String
+  nsu                String?
+  storage_key        String?
+  sha256             String?
+  tamanho_bytes      Int       @default(0)
+  nome_original      String?
+  enviado_por        String?
+  lote_importacao_id String?
+  importado_em       DateTime?
+  autorizada_em      DateTime?
+  ciencia_status     String?
+  ciencia_em         DateTime?
+  ciencia_protocolo  String?
+  recebido_em        DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([empresa_id, tipo, chave, evento_tipo, sequencia])
+  @@index([empresa_id, data_emissao])
+  @@index([empresa_id, origem])
+  @@index([empresa_id, conteudo, ciencia_status])
+}

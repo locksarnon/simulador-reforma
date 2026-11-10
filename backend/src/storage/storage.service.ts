@@ -75,6 +75,14 @@ export class StorageService implements OnModuleInit {
     return { storageKey: objectKey, url };
   }
 
+  /** Grava um arquivo sem gerar URL (repositório de XML). */
+  async guardar(objectKey: string, buffer: Buffer, contentType?: string): Promise<void> {
+    this.assertReady();
+    await this.client.putObject(this.bucket, objectKey, buffer, buffer.length, {
+      ...(contentType ? { 'Content-Type': contentType } : {}),
+    });
+  }
+
   /** Lê o conteúdo de um objeto guardado. */
   async getObjectBuffer(objectKey: string): Promise<Buffer> {
     this.assertReady();

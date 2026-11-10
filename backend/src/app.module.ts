@@ -19,6 +19,9 @@ import { AgendaReformaModule } from './agenda-reforma/agenda-reforma.module';
 import { CnpjModule } from './cnpj/cnpj.module';
 import { LimpezaModule } from './limpeza/limpeza.module';
 import { OperacoesPlanilhaModule } from './operacoes-planilha/operacoes-planilha.module';
+import { CertificadosModule } from './certificados/certificados.module';
+import { RepositorioXmlModule } from './repositorio-xml/repositorio-xml.module';
+import { CapturaXmlModule } from './captura-xml/captura-xml.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -42,6 +45,9 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     CfopModule,
     LimpezaModule,
     OperacoesPlanilhaModule,
+    CertificadosModule,
+    RepositorioXmlModule,
+    CapturaXmlModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

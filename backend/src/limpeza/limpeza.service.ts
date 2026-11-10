@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { empresasComCustodiaXml } from '../common/custodia-xml';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { AuthUser } from '../auth/auth.types';
@@ -47,7 +48,7 @@ export class LimpezaService {
 
   /** IDs de tudo que será apagado + chaves de arquivos no armazenamento. */
   private async levantar(p: PedidoLimpeza, user: AuthUser) {
-    const ids = { itens: [] as string[], historico: [] as string[], arquivos: [] as string[], lotes: [] as string[], operacoes: [] as string[], empresas: [] as string[], regrasCfop: [] as string[], simulacoes: [] as string[], diagnosticos: [] as string[], validacoes: [] as string[], analises: [] as string[], projetos: [] as string[] };
+    const ids = { itens: [] as string[], historico: [] as string[], arquivos: [] as string[], lotes: [] as string[], operacoes: [] as string[], empresas: [] as string[], regrasCfop: [] as string[], simulacoes: [] as string[], diagnosticos: [] as string[], validacoes: [] as string[], analises: [] as string[], projetos: [] as string[], custodia: [] as string[] };
     const chaves: string[] = [];
     let desvincularOperacoes: string[] = [];
     let desvincularEmpresas: string[] = [];
@@ -116,6 +117,15 @@ export class LimpezaService {
       await levantarAnalises(false); // a empresa some, então o que está na lista dela também (senão ficam registros órfãos)
       ids.empresas = esc.empresaIds;
       desvincularEmpresas = esc.empresaIds;
+      // Empresa que guarda o certificado do cliente ou XML do repositório: só administrador apaga, e os registros e arquivos saem junto.
+      ids.custodia = await empresasComCustodiaXml(this.prisma, esc.empresaIds);
+      if (ids.custodia.length) {
+        if (user.role !== 'admin') {
+          throw new ForbiddenException('Há empresas com certificado do cliente, XML ou captura de XML guardados no Repositório de XML: apenas administradores podem apagá-las.');
+        }
+        const xmls = await this.prisma.documentoXml.findMany({ where: { empresa_id: { in: ids.custodia } }, select: { storage_key: true } });
+        chaves.push(...xmls.map((x) => x.storage_key).filter(ehChaveDeObjeto));
+      }
       const regras = await this.prisma.cfopEmpresaRegra.findMany({ where: { empresa_id: { in: esc.empresaIds } }, select: { id: true } });
       ids.regrasCfop = regras.map((r) => r.id);
       const sims = await this.prisma.simulacao.findMany({
@@ -141,6 +151,7 @@ export class LimpezaService {
       'Histórico de importação': ids.historico.length,
       'Operações': ids.operacoes.length,
       'Empresas': ids.empresas.length,
+      'Empresas com certificado, XML ou captura guardados': ids.custodia.length,
       'Regras de CFOP por empresa': ids.regrasCfop.length,
       'Simulações salvas': ids.simulacoes.length,
       'Diagnósticos': ids.diagnosticos.length,
@@ -182,6 +193,18 @@ export class LimpezaService {
       await tx.cfopEmpresaRegra.deleteMany({ where: { id: { in: ids.regrasCfop } } });
       await tx.simulacao.deleteMany({ where: { id: { in: ids.simulacoes } } });
       await tx.diagnostico.deleteMany({ where: { id: { in: ids.diagnosticos } } });
+      if (ids.custodia.length) {
+        const onde = { empresa_id: { in: ids.custodia } };
+        await tx.documentoXml.deleteMany({ where: onde });
+        await tx.certificadoDigital.deleteMany({ where: onde });
+        await tx.capturaXmlConfig.deleteMany({ where: onde });
+        await tx.capturaXmlExecucao.deleteMany({ where: onde });
+        await tx.xmlEmpresaConfig.deleteMany({ where: onde });
+        // A trilha de auditoria fica e diz quem apagou.
+        await tx.auditoriaCertificado.createMany({
+          data: ids.custodia.map((empresa_id) => ({ empresa_id, acao: 'EMPRESA_EXCLUIDA', usuario: user.email, detalhe: 'Certificado, XML e configurações da captura apagados pela Limpeza.' })),
+        });
+      }
       await tx.empresa.deleteMany({ where: { id: { in: ids.empresas } } });
       await tx.saneamentoProjeto.deleteMany({ where: { id: { in: ids.projetos } } });
       await tx.analiseEmpresa.deleteMany({ where: { id: { in: ids.analises } } });
