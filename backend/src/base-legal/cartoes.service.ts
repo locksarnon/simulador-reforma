@@ -59,7 +59,7 @@ export class CartoesService {
     return cartoes.map((c) => ({
       ...c,
       revisoes_pendentes: (pendentes.get(c.id) ?? []).map((r) => ({
-        id: r.id, norma: r.norma_chave, numero: r.norma_numero, caminho: r.caminho, rotulo: r.rotulo, mudanca: r.mudanca, detalhe: r.detalhe, mudou_em: r.mudou_em,
+        id: r.id, norma: r.norma_chave, numero: r.norma_numero, caminho: r.caminho, rotulo: r.rotulo, mudanca: r.mudanca, detalhe: r.detalhe, critica: r.critica, mudou_em: r.mudou_em,
       })),
     }));
   }
@@ -114,6 +114,11 @@ export class CartoesService {
   async definirStatus(id: string, status: 'revisado' | 'rascunho', email: string) {
     const c = await this.prisma.cartaoLegal.findUnique({ where: { id } });
     if (!c) throw new NotFoundException('Cartão não encontrado');
+    if (status === 'revisado') {
+      // Só se publica o que ainda bate com a lei: o texto pode ter mudado depois de o trecho ter sido copiado.
+      const problemas = await this.validarFundamentos((c.fundamentos as FundamentoCartao[]) ?? []);
+      if (problemas.length) throw new BadRequestException(`Não é possível publicar: ${problemas.join(' | ')}. Edite o cartão e confira o trecho citado.`);
+    }
     const atualizado = await this.prisma.cartaoLegal.update({ where: { id }, data: status === 'revisado' ? { status, revisado_por: email, revisado_em: new Date() } : { status, revisado_por: null, revisado_em: null } });
     // Revisar e publicar é a conferência do administrador: o motivo pendente (dispositivo que mudou) sai da fila.
     if (status === 'revisado') await this.revisao.resolver('cartao', id, email);

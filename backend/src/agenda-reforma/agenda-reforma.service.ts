@@ -16,7 +16,10 @@ export type ConsultaAgenda = { regime?: string; uf?: string; empresa_id?: string
 
 type FonteApi = { instrumento: string; dispositivo: string; data: string | null; url: string; trecho: string | null; norma_chave: string | null; caminho: string | null };
 
-type RevisaoDoMarco = { id: string; norma_chave: string; norma_numero: string; caminho: string; rotulo: string; mudanca: string; detalhe: string | null; mudou_em: Date };
+type RevisaoDoMarco = { id: string; norma_chave: string; norma_numero: string; caminho: string; rotulo: string; mudanca: string; detalhe: string | null; critica: boolean; mudou_em: Date };
+
+/** Marco com a fonte revogada ou com o trecho de onde a data foi lida fora do texto: a data deixou de estar confirmada até o administrador conferir. */
+const suspenso = (revisoes: RevisaoDoMarco[] | undefined) => (revisoes ?? []).some((r) => r.critica);
 
 type EmpresaResumo = { id: string; razao_social: string; regime_atual: string | null; uf: string | null };
 
@@ -87,7 +90,7 @@ export class AgendaReformaService {
       data: paraIso(m.data), data_fim: paraIso(m.data_fim), regimes: m.regimes, ufs: m.ufs,
       fontes: fontesDoMarco(m.fontes), confirmado: m.confirmado, lida_em: paraIso(m.lida_em), observacao: m.observacao,
       situacao: situacaoDoMarco(m, hoje), dias_para: diasEntre(hoje, dataAlvo(m)),
-      em_revisao: revisoes.map((r) => ({ id: r.id, norma: r.norma_chave, numero: r.norma_numero, caminho: r.caminho, rotulo: r.rotulo, mudanca: r.mudanca, detalhe: r.detalhe, mudou_em: r.mudou_em })),
+      em_revisao: revisoes.map((r) => ({ id: r.id, norma: r.norma_chave, numero: r.norma_numero, caminho: r.caminho, rotulo: r.rotulo, mudanca: r.mudanca, detalhe: r.detalhe, critica: r.critica, mudou_em: r.mudou_em })),
     };
   }
 
@@ -159,12 +162,15 @@ export class AgendaReformaService {
     const hoje = hojeBrasilia(agora);
     const resultado = { criados: 0, atualizados: 0, confirmados: 0, divergentes: [] as string[] };
     for (const m of MARCOS_INICIAIS) {
+      const data = lerDataIso(m.data);
+      const dataFim = m.data_fim ? lerDataIso(m.data_fim) : null;
+      if (!data || (m.data_fim && (!dataFim || dataFim.getTime() < data.getTime()))) throw new Error(`Semente da agenda com data inválida em "${m.chave}"`);
       const problemas = await this.conferirFontes(m);
       const confirmado = m.confirmado && problemas.length === 0;
       const observacao = [m.observacao, problemas.length ? `Conferência com a Base legal: ${problemas.join('; ')}. Não confirmado em fonte oficial.` : ''].filter(Boolean).join(' ') || null;
       const dados = {
         titulo: m.titulo, descricao: m.descricao, categoria: m.categoria, tipo: m.tipo,
-        data: lerDataIso(m.data) as Date, data_fim: m.data_fim ? (lerDataIso(m.data_fim) as Date) : null,
+        data, data_fim: dataFim,
         regimes: m.regimes ?? [], ufs: m.ufs ?? [],
         fontes: m.fontes.map(({ instrumento, dispositivo, data, url, trecho, norma_chave, caminho }) => ({ instrumento, dispositivo, data, url, trecho, ...(norma_chave ? { norma_chave, caminho } : {}) })),
         confirmado, lida_em: confirmado ? (m.lida_em ? lerDataIso(m.lida_em) : hoje) : null, observacao, ativo: true,
@@ -197,8 +203,9 @@ export class AgendaReformaService {
     const user_email = email.toLowerCase();
     const escopo = (dados.escopo ?? 'todas').trim() || 'todas';
     if (escopo !== 'todas') {
-      const e = await this.prisma.empresa.findUnique({ where: { id: escopo }, select: { id: true } });
+      const e = await this.prisma.empresa.findUnique({ where: { id: escopo }, select: { id: true, status: true } });
       if (!e) throw new NotFoundException('Empresa não encontrada');
+      if (e.status === 'Inativa') throw new BadRequestException('A empresa está inativa: não há lembretes para ela.');
     }
     const dias_antes = normalizarDias(dados.dias_antes);
     const ativo = dados.ativo !== false;
@@ -216,7 +223,7 @@ export class AgendaReformaService {
     return { ok: true };
   }
 
-  /** Marcos confirmados que valem para o escopo do lembrete (todas as empresas ou uma só). Null se a empresa deixou de existir. */
+  /** Marcos confirmados que valem para o escopo do lembrete (todas as empresas ou uma só). Null se a empresa deixou de existir ou foi inativada. */
   private marcosDoEscopo(escopo: string, confirmados: MarcoDoBanco[], empresas: EmpresaResumo[]): MarcoDoBanco[] | null {
     if (escopo === 'todas') return confirmados;
     const e = empresas.find((x) => x.id === escopo);
@@ -235,87 +242,111 @@ export class AgendaReformaService {
     return mapa;
   }
 
-  private async paraEmail(itens: ItemLembrete<MarcoDoBanco>[]): Promise<ItemLembrete<MarcoParaEmail>[]> {
-    const pendentes = await this.revisao.pendentesPorAlvo('marco', itens.map((i) => i.marco.id));
+  private paraEmail(itens: ItemLembrete<MarcoDoBanco>[], pendentes: Map<string, RevisaoDoMarco[]>): ItemLembrete<MarcoParaEmail>[] {
     return itens.map((i) => ({
       diasAntes: i.diasAntes,
-      marco: {
-        ...i.marco,
-        fontes: fontesDoMarco(i.marco.fontes).map(linhaDaFonte),
-        aviso: avisoDeRevisao((pendentes.get(i.marco.id) ?? []) as RevisaoDoMarco[]),
-      },
+      marco: { ...i.marco, fontes: fontesDoMarco(i.marco.fontes).map(linhaDaFonte), aviso: avisoDeRevisao(pendentes.get(i.marco.id) ?? []) },
     }));
   }
 
-  /** Envia a mensagem de teste ao próprio usuário, com as datas confirmadas dos próximos 60 dias. */
+  private async empresasAtivas(): Promise<EmpresaResumo[]> {
+    return this.prisma.empresa.findMany({ where: { status: { not: 'Inativa' } }, select: { id: true, razao_social: true, regime_atual: true, uf: true } });
+  }
+
+  /** Envia a mensagem de teste ao próprio usuário, com as datas confirmadas dos próximos 60 dias (as mesmas que o envio diário mandaria). */
   async enviarTeste(email: string, escopo = 'todas', agora: Date = new Date()) {
     if (!this.mail.configurado) throw new BadRequestException('O envio de e-mail ainda não está configurado no servidor (SMTP).');
     const hoje = hojeBrasilia(agora);
-    const [marcos, empresas] = await Promise.all([
-      this.prisma.agendaMarco.findMany({ where: { ativo: true, confirmado: true } }),
-      this.prisma.empresa.findMany({ where: { status: { not: 'Inativa' } }, select: { id: true, razao_social: true, regime_atual: true, uf: true } }),
-    ]);
+    const [marcos, empresas] = await Promise.all([this.prisma.agendaMarco.findMany({ where: { ativo: true, confirmado: true } }), this.empresasAtivas()]);
     const doEscopo = this.marcosDoEscopo(escopo, marcos, empresas);
     if (!doEscopo) throw new NotFoundException('Empresa não encontrada');
+    const pendentes = (await this.revisao.pendentesPorAlvo('marco', doEscopo.map((m) => m.id))) as Map<string, RevisaoDoMarco[]>;
     const itens = doEscopo
+      .filter((m) => !suspenso(pendentes.get(m.id)))
       .map((m) => ({ marco: m, diasAntes: diasEntre(hoje, dataAlvo(m)) }))
       .filter((i) => i.diasAntes >= 0 && i.diasAntes <= 60)
       .sort((a, b) => a.diasAntes - b.diasAntes);
     if (!itens.length) throw new BadRequestException('Não há datas confirmadas nos próximos 60 dias para este escopo.');
     const nomeEscopo = escopo === 'todas' ? 'todas as empresas' : empresas.find((e) => e.id === escopo)?.razao_social;
-    const e = montarEmailLembrete(await this.paraEmail(itens), hoje, { urlPublica: this.mail.urlPublica, teste: true, escopo: nomeEscopo, empresas: this.empresasPorMarco(doEscopo, empresas) });
+    const e = montarEmailLembrete(this.paraEmail(itens, pendentes), hoje, { urlPublica: this.mail.urlPublica, teste: true, escopo: nomeEscopo, empresas: this.empresasPorMarco(doEscopo, empresas) });
     const r = await this.mail.enviar({ to: email, subject: e.assunto, html: e.html, text: e.texto });
     if (!r.enviado) throw new BadRequestException(`Não foi possível enviar: ${r.motivo}`);
     return { enviado: true, datas: itens.length };
   }
 
-  /** Todo dia às 7h (Brasília): avisa quem ativou o lembrete dos marcos que estão a 30, 7 ou 1 dia (ou como cada pessoa escolheu). */
-  @Cron('0 7 * * *', { timeZone: 'America/Sao_Paulo' })
+  /**
+   * Todo dia às 7h (Brasília), com mais duas tentativas no mesmo dia (12h e 18h) para o caso de o servidor estar fora do ar: avisa quem
+   * ativou o lembrete dos marcos que estão a 30, 7 ou 1 dia (ou como cada pessoa escolheu). O registro de envios impede repetição.
+   */
+  @Cron('0 7,12,18 * * *', { timeZone: 'America/Sao_Paulo' })
   async lembretesDiarios() {
     try {
       const r = await this.enviarLembretes();
-      this.log.log(`Lembretes da agenda: ${r.avisos} aviso(s) enviado(s), ${r.falhas} falha(s), ${r.desativados} desativado(s)`);
+      if (r.avisos || r.falhas || r.desativados) this.log.log(`Lembretes da agenda: ${r.avisos} aviso(s) enviado(s), ${r.falhas} falha(s), ${r.desativados} lembrete(s) desativado(s)`);
     } catch (e) {
       this.log.error(`Lembretes da agenda falharam: ${(e as Error).message}`);
     }
   }
 
-  /** Cada combinação (pessoa, marco, antecedência) sai uma vez só: o registro de envios impede repetição se o serviço rodar duas vezes no dia. */
+  /**
+   * Um e-mail por pessoa, juntando os lembretes dela (todas as empresas e/ou empresas específicas). Cada aviso (pessoa, marco, antecedência
+   * e data) é reservado no registro de envios ANTES de ser enviado: outra execução ao mesmo tempo, outra réplica ou um lembrete apagado e
+   * recriado não repetem o aviso, e uma data que mudou gera um aviso novo. Se o envio falhar, a reserva é desfeita e a próxima tentativa
+   * do dia refaz o aviso. Marco com a fonte revogada ou com o trecho da data fora do texto da lei fica de fora até a conferência.
+   */
   async enviarLembretes(agora: Date = new Date()) {
     const resultado = { avisos: 0, falhas: 0, desativados: 0 };
     if (!this.mail.configurado) return resultado;
     const hoje = hojeBrasilia(agora);
-    const assinaturas = await this.prisma.agendaLembrete.findMany({ where: { ativo: true } });
+    const assinaturas = await this.prisma.agendaLembrete.findMany({ where: { ativo: true }, orderBy: { createdAt: 'asc' } });
     if (!assinaturas.length) return resultado;
-    const [marcos, empresas] = await Promise.all([
-      this.prisma.agendaMarco.findMany({ where: { ativo: true, confirmado: true } }),
-      this.prisma.empresa.findMany({ where: { status: { not: 'Inativa' } }, select: { id: true, razao_social: true, regime_atual: true, uf: true } }),
-    ]);
+    const [marcos, empresas] = await Promise.all([this.prisma.agendaMarco.findMany({ where: { ativo: true, confirmado: true } }), this.empresasAtivas()]);
 
-    for (const a of assinaturas) {
-      const doEscopo = this.marcosDoEscopo(a.escopo, marcos, empresas);
-      if (!doEscopo) { // a empresa foi excluída ou inativada: o lembrete deixa de fazer sentido
-        await this.prisma.agendaLembrete.update({ where: { id: a.id }, data: { ativo: false } });
-        resultado.desativados += 1;
-        continue;
+    const porPessoa = new Map<string, typeof assinaturas>();
+    for (const a of assinaturas) porPessoa.set(a.user_email, [...(porPessoa.get(a.user_email) ?? []), a]);
+
+    for (const [destino, lembretes] of porPessoa) {
+      const candidatos = new Map<string, ItemLembrete<MarcoDoBanco>>();
+      const escopos: string[] = [];
+      for (const a of lembretes) {
+        const doEscopo = this.marcosDoEscopo(a.escopo, marcos, empresas);
+        if (!doEscopo) { // a empresa foi excluída ou inativada: o lembrete deixa de fazer sentido
+          await this.prisma.agendaLembrete.update({ where: { id: a.id }, data: { ativo: false } });
+          this.log.warn(`Lembrete ${a.id} desativado: a empresa ${a.escopo} não existe mais ou está inativa`);
+          resultado.desativados += 1;
+          continue;
+        }
+        escopos.push(a.escopo);
+        for (const c of lembretesDoDia(doEscopo, hoje, a.dias_antes)) candidatos.set(`${c.marco.id}|${c.diasAntes}`, c);
       }
-      const candidatos = lembretesDoDia(doEscopo, hoje, a.dias_antes);
-      if (!candidatos.length) continue;
-      const jaEnviados = await this.prisma.agendaLembreteEnvio.findMany({
-        where: { lembrete_id: a.id, marco_id: { in: candidatos.map((c) => c.marco.id) } },
-        select: { marco_id: true, dias_antes: true },
-      });
-      const novos = candidatos.filter((c) => !jaEnviados.some((e) => e.marco_id === c.marco.id && e.dias_antes === c.diasAntes));
-      if (!novos.length) continue;
+      if (!candidatos.size) continue;
 
-      const nomeEscopo = a.escopo === 'todas' ? 'todas as empresas' : empresas.find((e) => e.id === a.escopo)?.razao_social;
-      const e = montarEmailLembrete(await this.paraEmail(novos), hoje, { urlPublica: this.mail.urlPublica, escopo: nomeEscopo, empresas: this.empresasPorMarco(novos.map((n) => n.marco), empresas) });
-      const r = await this.mail.enviar({ to: a.user_email, subject: e.assunto, html: e.html, text: e.texto });
-      if (!r.enviado) { resultado.falhas += 1; continue; }
-      await this.prisma.agendaLembreteEnvio.createMany({ data: novos.map((n) => ({ lembrete_id: a.id, marco_id: n.marco.id, dias_antes: n.diasAntes })), skipDuplicates: true });
-      resultado.avisos += 1;
+      const pendentes = (await this.revisao.pendentesPorAlvo('marco', [...new Set([...candidatos.values()].map((c) => c.marco.id))])) as Map<string, RevisaoDoMarco[]>;
+      const liberados = [...candidatos.values()].filter((c) => !suspenso(pendentes.get(c.marco.id)));
+      if (!liberados.length) continue;
+
+      const reservados = await this.prisma.agendaLembreteEnvio.createManyAndReturn({
+        data: liberados.map((c) => ({ user_email: destino, marco_id: c.marco.id, dias_antes: c.diasAntes, data_alvo: dataAlvo(c.marco) })),
+        skipDuplicates: true,
+      });
+      if (!reservados.length) continue;
+      const meus = new Set(reservados.map((r) => `${r.marco_id}|${r.dias_antes}`));
+      const paraEnviar = liberados.filter((c) => meus.has(`${c.marco.id}|${c.diasAntes}`)).sort((a, b) => a.diasAntes - b.diasAntes || a.marco.titulo.localeCompare(b.marco.titulo, 'pt-BR'));
+
+      const todas = escopos.includes('todas');
+      const consideradas = todas ? empresas : empresas.filter((e) => escopos.includes(e.id));
+      const nomeEscopo = todas ? 'todas as empresas' : consideradas.map((e) => e.razao_social).join(', ');
+      try {
+        const e = montarEmailLembrete(this.paraEmail(paraEnviar, pendentes), hoje, { urlPublica: this.mail.urlPublica, escopo: nomeEscopo, empresas: this.empresasPorMarco(paraEnviar.map((n) => n.marco), consideradas) });
+        const r = await this.mail.enviar({ to: destino, subject: e.assunto, html: e.html, text: e.texto });
+        if (!r.enviado) throw new Error(r.motivo || 'envio recusado');
+        resultado.avisos += 1;
+      } catch (erro) {
+        await this.prisma.agendaLembreteEnvio.deleteMany({ where: { id: { in: reservados.map((r) => r.id) } } });
+        this.log.warn(`Lembrete para ${destino} não enviado: ${(erro as Error).message}`);
+        resultado.falhas += 1;
+      }
     }
     return resultado;
   }
 }
-

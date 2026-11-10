@@ -53,6 +53,14 @@ describe('revisão pela lei: cartões', () => {
     expect(r[0].detalhe).toBe('O texto do dispositivo mudou.');
   });
 
+  it('é crítico quando o trecho citado sumiu ou o dispositivo saiu do texto; não quando o trecho continua lá', () => {
+    const base = { caminho: 'art-164', rotulo: 'Art. 164' };
+    expect(revisoesDeCartoes(cartoes, LC214, [{ ...base, mudanca: 'alterado', texto: 'Receita inferior a R$ 3.600.000,00' }])[0].critica).toBe(false);
+    expect(revisoesDeCartoes(cartoes, LC214, [{ ...base, mudanca: 'alterado', texto: 'Receita inferior a R$ 4.800.000,00' }])[0].critica).toBe(true);
+    expect(revisoesDeCartoes(cartoes, LC214, [{ ...base, mudanca: 'revogado' }])[0].critica).toBe(true);
+    expect(revisoesDeCartoes(cartoes, LC214, [{ ...base, mudanca: 'alterado' }])[0].critica).toBe(false); // aviso antes da atualização: ainda não se sabe
+  });
+
   it('cada dispositivo alterado gera uma linha por cartão', () => {
     const r = revisoesDeCartoes(cartoes, LC214, [
       { caminho: 'art-164', rotulo: 'Art. 164', mudanca: 'alterado', texto: 'x' },
@@ -114,9 +122,11 @@ describe('revisão pela lei: marcos da agenda', () => {
     expect(revisoesDeMarcos(marcos, { chave: 'dec-12955-2026', numero: 'Decreto 12.955/2026' }, [{ caminho: 'art-381', rotulo: 'Art. 381', mudanca: 'alterado' }])).toEqual([]);
   });
 
-  it('se o trecho de onde a data foi lida some, o aviso diz isso', () => {
+  it('se o trecho de onde a data foi lida some, o aviso diz isso e a revisão é crítica', () => {
     const r = revisoesDeMarcos(marcos, LC214, [{ caminho: 'art-381', rotulo: 'Art. 381', mudanca: 'alterado', texto: 'apropriado até o último dia de dezembro de 2027' }]);
     expect(r[0].detalhe).toBe('O trecho de onde a data foi lida não consta mais no texto do dispositivo.');
+    expect(r[0].critica).toBe(true);
+    expect(revisoesDeMarcos(marcos, LC214, [{ caminho: 'art-381', rotulo: 'Art. 381', mudanca: 'alterado', texto: 'apropriado até o último dia de junho de 2027' }])[0].critica).toBe(false);
   });
 });
 

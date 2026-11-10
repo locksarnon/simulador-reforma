@@ -63,8 +63,22 @@ export class RevisaoLegalService {
     const idsCartoes = new Set(dosCartoes.map((r) => r.alvo_id));
     const publicados = cartoes.filter((c) => idsCartoes.has(c.id) && c.status === 'revisado').map((c) => c.id);
 
+    // O mesmo dispositivo mudando de novo antes da conferência (ou a mesma atualização repetida) atualiza a linha pendente em vez de duplicá-la.
+    const chave = (r: { tipo: string; alvo_id: string; caminho: string }) => `${r.tipo}|${r.alvo_id}|${r.caminho}`;
+    const pendentes = await this.prisma.revisaoLegal.findMany({
+      where: { status: 'pendente', norma_chave: norma.chave, caminho: { in: [...new Set(novas.map((r) => r.caminho))] } },
+      select: { id: true, tipo: true, alvo_id: true, caminho: true },
+    });
+    const idPendente = new Map(pendentes.map((p) => [chave(p), p.id]));
+    const criar = novas.filter((r) => !idPendente.has(chave(r)));
+    const atualizar = novas.filter((r) => idPendente.has(chave(r)));
+
     await this.prisma.$transaction([
-      this.prisma.revisaoLegal.createMany({ data: novas }),
+      ...(criar.length ? [this.prisma.revisaoLegal.createMany({ data: criar })] : []),
+      ...atualizar.map((r) => this.prisma.revisaoLegal.update({
+        where: { id: idPendente.get(chave(r)) as string },
+        data: { alvo_titulo: r.alvo_titulo, rotulo: r.rotulo, mudanca: r.mudanca, detalhe: r.detalhe, critica: r.critica },
+      })),
       ...(publicados.length
         ? [this.prisma.cartaoLegal.updateMany({ where: { id: { in: publicados }, status: 'revisado' }, data: { status: 'rascunho', revisado_por: null, revisado_em: null } })]
         : []),

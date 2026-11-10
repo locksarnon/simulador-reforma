@@ -10,6 +10,8 @@ const NORMA = { id: 'n1', chave: 'lcp-214-2025', numero: 'LC 214/2025', url_ofic
 /** Dispositivos como estavam gravados antes da atualização. */
 const gravados = () => extrairDispositivos(htmlParaTexto(HTML_ANTIGO)).map((d, i) => ({ id: `d${i + 1}`, caminho: d.caminho, rotulo: d.rotulo, texto: d.texto, hash: sha256(d.texto), revogado: d.revogado }));
 
+const RESUMO = { cartoes: 1, cartoes_despublicados: 1, fundamentos: 0, marcos: 0, itens: 1 };
+
 function montar(opcoes: { revisao?: Record<string, unknown>; texto?: string } = {}) {
   const prisma = {
     normaLegal: { upsert: vi.fn(), findUnique: vi.fn().mockResolvedValue(NORMA), findMany: vi.fn().mockResolvedValue([NORMA]), update: vi.fn() },
@@ -19,7 +21,7 @@ function montar(opcoes: { revisao?: Record<string, unknown>; texto?: string } = 
     $transaction: vi.fn().mockResolvedValue([]),
   };
   const revisao = {
-    registrarMudancas: vi.fn().mockResolvedValue({ cartoes: 1, cartoes_despublicados: 1, fundamentos: 0, marcos: 0, itens: 1 }),
+    registrarMudancas: vi.fn().mockResolvedValue(RESUMO),
     impacto: vi.fn().mockResolvedValue({ cartoes: 0, publicados: 0, fundamentos: 0, marcos: 0 }),
     ...opcoes.revisao,
   };
@@ -41,7 +43,28 @@ describe('atualização da Base legal devolve para revisão o que cita o texto a
       expect.objectContaining({ caminho: 'art-3', mudanca: 'revogado' }),
       { caminho: 'art-4', rotulo: 'Art. 4º', mudanca: 'revogado' },
     ]);
-    expect(r).toMatchObject({ alterada: true, novos: 1, alterados: 2, removidos: 1, revisao: { cartoes: 1, cartoes_despublicados: 1 } });
+    expect(r).toMatchObject({ alterada: true, novos: 1, alterados: 2, removidos: 1, revisao: RESUMO });
+  });
+
+  it('a fila é registrada ANTES de o texto novo ser gravado', async () => {
+    const { service, revisao, prisma } = montar();
+    await service.importar('lcp-214-2025');
+    const registro = revisao.registrarMudancas.mock.invocationCallOrder[0];
+    const primeiraGravacao = Math.min(
+      ...[prisma.$transaction, prisma.dispositivoLegal.update, prisma.dispositivoLegal.createMany, prisma.dispositivoLegal.updateMany, prisma.normaLegal.update]
+        .flatMap((fn) => fn.mock.invocationCallOrder),
+    );
+    expect(registro).toBeLessThan(primeiraGravacao);
+  });
+
+  it('se a fila não puder ser gravada, nada do texto é gravado e a atualização pode ser repetida', async () => {
+    const { service, prisma } = montar({ revisao: { registrarMudancas: vi.fn().mockRejectedValue(new Error('banco indisponível')) } });
+    await expect(service.importar('lcp-214-2025')).rejects.toThrow('banco indisponível');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.dispositivoLegal.update).not.toHaveBeenCalled();
+    expect(prisma.dispositivoLegal.createMany).not.toHaveBeenCalled();
+    expect(prisma.dispositivoLegal.updateMany).not.toHaveBeenCalled();
+    expect(prisma.normaLegal.update).not.toHaveBeenCalled();
   });
 
   it('um dispositivo que já estava revogado e continua fora do texto não volta à fila', async () => {
@@ -52,20 +75,23 @@ describe('atualização da Base legal devolve para revisão o que cita o texto a
     expect(mudancas.map((m: { caminho: string }) => m.caminho)).toEqual(['art-2', 'art-3']);
   });
 
+  it('um dispositivo que tinha saído do texto e voltou igual deixa de constar como revogado, sem ir para a fila', async () => {
+    const { service, prisma, revisao } = montar({ texto: HTML_ANTIGO });
+    prisma.dispositivoLegal.findMany.mockResolvedValue(gravados().map((g) => (g.caminho === 'art-4' ? { ...g, revogado: true } : g)));
+    await service.importar('lcp-214-2025');
+    expect(revisao.registrarMudancas.mock.calls[0][1]).toEqual([]);
+    expect(prisma.dispositivoLegal.update).toHaveBeenCalledWith({ where: { id: 'd4' }, data: expect.objectContaining({ revogado: false }) });
+    // os que não mudaram de situação não recebem o campo
+    const doPrimeiro = prisma.dispositivoLegal.update.mock.calls.find((c: { where: { id: string } }[]) => c[0].where.id === 'd1')![0];
+    expect(doPrimeiro.data).not.toHaveProperty('revogado');
+  });
+
   it('texto oficial igual ao carregado não mexe na fila', async () => {
     const { service, prisma, revisao } = montar();
     prisma.normaLegal.findUnique.mockResolvedValue({ ...NORMA, hash_atual: sha256(htmlParaTexto(HTML_NOVO)) });
     const r = await service.importar('lcp-214-2025');
     expect(r.alterada).toBe(false);
     expect(revisao.registrarMudancas).not.toHaveBeenCalled();
-  });
-
-  it('falha ao registrar a revisão não desfaz a atualização do texto', async () => {
-    const { service, prisma } = montar({ revisao: { registrarMudancas: vi.fn().mockRejectedValue(new Error('banco indisponível')) } });
-    const r = await service.importar('lcp-214-2025');
-    expect(r.alterada).toBe(true);
-    expect(r.revisao).toBeUndefined();
-    expect(prisma.normaLegal.update).toHaveBeenCalled();
   });
 
   it('o aviso de texto alterado diz quantos cartões, notas e marcos citam o que vai mudar', async () => {

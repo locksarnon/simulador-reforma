@@ -15,7 +15,7 @@ function montar(cenario: { cartoes?: unknown[]; marcos?: unknown[]; para?: strin
     cartaoLegal: { findMany: vi.fn().mockResolvedValue(cenario.cartoes ?? []), updateMany: vi.fn().mockReturnValue('atualiza-cartoes') },
     agendaMarco: { findMany: vi.fn().mockResolvedValue(cenario.marcos ?? []) },
     revisaoLegal: {
-      createMany: vi.fn().mockReturnValue('grava-fila'), findMany: vi.fn().mockResolvedValue([]),
+      createMany: vi.fn().mockReturnValue('grava-fila'), update: vi.fn().mockImplementation(({ where }: { where: { id: string } }) => `atualiza-${where.id}`), findMany: vi.fn().mockResolvedValue([]),
       updateMany: vi.fn().mockResolvedValue({ count: 2 }), deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     $transaction: vi.fn().mockResolvedValue([]),
@@ -46,6 +46,31 @@ describe('fila de revisão pela lei', () => {
     expect(email.to).toBe('admin@falagro.com.br');
     expect(email.subject).toContain('para revisar: LC 214/2025 mudou na Base legal');
     expect(email.text).toContain('Qual o limite do produtor rural?');
+  });
+
+  it('o mesmo dispositivo mudando de novo antes da conferência atualiza a linha pendente em vez de duplicá-la', async () => {
+    const { service, prisma } = montar({ cartoes: [CARTAO_PUBLICADO] });
+    prisma.revisaoLegal.findMany.mockResolvedValue([{ id: 'P1', tipo: 'cartao', alvo_id: 'c1', caminho: 'art-164' }]);
+    const r = await service.registrarMudancas(LC214, [{ caminho: 'art-164', rotulo: 'Art. 164', mudanca: 'alterado', texto: 'Receita inferior a R$ 4.800.000,00' }]);
+    // só a linha do cartão existia; a da nota do cálculo (produtor_rural) é nova
+    expect(prisma.revisaoLegal.createMany.mock.calls[0][0].data.map((x: { tipo: string }) => x.tipo)).toEqual(['fundamento']);
+    expect(prisma.revisaoLegal.update).toHaveBeenCalledWith({
+      where: { id: 'P1' },
+      data: expect.objectContaining({ mudanca: 'alterado', critica: true, detalhe: 'O trecho citado no cartão não consta mais no texto do dispositivo.' }),
+    });
+    expect(prisma.$transaction).toHaveBeenCalledWith(['grava-fila', 'atualiza-P1', 'atualiza-cartoes']);
+    expect(r.itens).toBe(2);
+  });
+
+  it('a revisão grava se é crítica (trecho sumiu ou dispositivo revogado)', async () => {
+    const { service, prisma } = montar({ cartoes: [CARTAO_PUBLICADO, CARTAO_RASCUNHO] });
+    await service.registrarMudancas(LC214, [
+      { caminho: 'art-164', rotulo: 'Art. 164', mudanca: 'alterado', texto: 'Receita inferior a R$ 3.600.000,00' },
+      { caminho: 'art-31', rotulo: 'Art. 31', mudanca: 'revogado' },
+    ]);
+    const linhas = prisma.revisaoLegal.createMany.mock.calls[0][0].data as { tipo: string; caminho: string; critica: boolean }[];
+    expect(linhas.find((x) => x.tipo === 'cartao' && x.caminho === 'art-164')?.critica).toBe(false);
+    expect(linhas.find((x) => x.tipo === 'cartao' && x.caminho === 'art-31')?.critica).toBe(true);
   });
 
   it('cartão que já era rascunho entra na fila mas não é "despublicado" de novo', async () => {

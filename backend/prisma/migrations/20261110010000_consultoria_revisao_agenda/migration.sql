@@ -13,6 +13,7 @@ CREATE TABLE "RevisaoLegal" (
     "rotulo" TEXT NOT NULL,
     "mudanca" TEXT NOT NULL,
     "detalhe" TEXT,
+    "critica" BOOLEAN NOT NULL DEFAULT false,
     "mudou_em" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "status" TEXT NOT NULL DEFAULT 'pendente',
     "resolvida_por" TEXT,
@@ -61,9 +62,10 @@ CREATE TABLE "AgendaLembrete" (
 -- CreateTable
 CREATE TABLE "AgendaLembreteEnvio" (
     "id" TEXT NOT NULL,
-    "lembrete_id" TEXT NOT NULL,
+    "user_email" TEXT NOT NULL,
     "marco_id" TEXT NOT NULL,
     "dias_antes" INTEGER NOT NULL,
+    "data_alvo" DATE NOT NULL,
     "enviado_em" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "AgendaLembreteEnvio_pkey" PRIMARY KEY ("id")
@@ -88,10 +90,7 @@ CREATE INDEX "AgendaMarco_categoria_idx" ON "AgendaMarco"("categoria");
 CREATE UNIQUE INDEX "AgendaLembrete_user_email_escopo_key" ON "AgendaLembrete"("user_email", "escopo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AgendaLembreteEnvio_lembrete_id_marco_id_dias_antes_key" ON "AgendaLembreteEnvio"("lembrete_id", "marco_id", "dias_antes");
-
--- AddForeignKey
-ALTER TABLE "AgendaLembreteEnvio" ADD CONSTRAINT "AgendaLembreteEnvio_lembrete_id_fkey" FOREIGN KEY ("lembrete_id") REFERENCES "AgendaLembrete"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+CREATE UNIQUE INDEX "AgendaLembreteEnvio_user_email_marco_id_dias_antes_data_alv_key" ON "AgendaLembreteEnvio"("user_email", "marco_id", "dias_antes", "data_alvo");
 
 -- AddForeignKey
 ALTER TABLE "AgendaLembreteEnvio" ADD CONSTRAINT "AgendaLembreteEnvio_marco_id_fkey" FOREIGN KEY ("marco_id") REFERENCES "AgendaMarco"("id") ON DELETE CASCADE ON UPDATE CASCADE;

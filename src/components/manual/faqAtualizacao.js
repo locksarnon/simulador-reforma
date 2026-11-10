@@ -278,7 +278,7 @@ export const SECAO_BASE_LEGAL = {
     },
     {
       p: "O que acontece com os cartões de pergunta frequente quando o texto da lei muda?",
-      r: "Cada cartão guarda os dispositivos que cita (norma e artigo, com um trecho copiado da lei). Quando o administrador aprova a atualização de uma norma e o texto de um desses dispositivos muda, o cartão que o cita volta para rascunho: deixa de aparecer para os consultores e entra na lista “Itens para revisar porque o texto da lei mudou”, com o dispositivo, a data da mudança e a informação de que o trecho citado ainda consta (ou não consta mais) no texto novo. Dispositivo revogado ou que saiu do texto oficial também devolve o cartão para revisão. O cartão só reaparece depois de revisado e publicado de novo pelo administrador (botão Revisar e publicar); nada é republicado sozinho.",
+      r: "Cada cartão guarda os dispositivos que cita (norma e artigo, com um trecho copiado da lei). Quando o administrador aprova a atualização de uma norma e o texto de um desses dispositivos muda, o cartão que o cita volta para rascunho: deixa de aparecer para os consultores e entra na lista “Itens para revisar porque o texto da lei mudou”, com o dispositivo, a data da mudança e a informação de que o trecho citado ainda consta (ou não consta mais) no texto novo. Dispositivo revogado ou que saiu do texto oficial também devolve o cartão para revisão. O cartão só reaparece depois de revisado e publicado de novo pelo administrador (botão Revisar e publicar); nada é republicado sozinho. Se o trecho citado já não consta no texto novo, o Revisar e publicar recusa: é preciso editar o cartão e conferir o trecho antes.",
     },
     {
       p: "E as notas “i” do cálculo e as datas da Agenda da Reforma?",
@@ -311,7 +311,7 @@ export const SECAO_AGENDA = {
     },
     {
       p: "E se o texto da lei citado como fonte de uma data mudar?",
-      r: "A data continua na agenda, mas com o aviso “Fonte em revisão”, o artigo que mudou e a data da mudança, até o administrador conferir (botão Marcar como conferido). Nesse período o calendário .ics leva o evento como provisório e o e-mail de lembrete repete o aviso. A conferência é sempre humana: a agenda não troca uma data sozinha.",
+      r: "A data continua na agenda, mas com o aviso “Fonte em revisão”, o artigo que mudou e a data da mudança, até o administrador conferir (botão Marcar como conferido). Nesse período o calendário .ics leva o evento como provisório e o e-mail de lembrete repete o aviso. Se o dispositivo foi revogado ou o trecho de onde a data foi lida saiu do texto, a data pode ter deixado de valer: o aviso fica em vermelho e ela não gera lembrete por e-mail até a conferência. A conferência é sempre humana: a agenda não troca uma data sozinha.",
     },
     {
       p: "Como levo as datas para o meu calendário (.ics)?",
@@ -319,7 +319,7 @@ export const SECAO_AGENDA = {
     },
     {
       p: "Como funcionam os lembretes por e-mail da agenda?",
-      r: "Em Lembretes por e-mail escolha as antecedências (60, 30, 15, 7, 3 ou 1 dia antes, ou no próprio dia) e se quer acompanhar todas as empresas ou uma só. Todo dia às 7h (horário de Brasília) o sistema manda um e-mail único com as datas que estão a essa distância (para um prazo, conta o último dia), com a fonte oficial e as empresas cadastradas a que a data se aplica; cada aviso sai uma vez só. Só datas confirmadas em fonte oficial geram aviso. O botão Enviar e-mail de teste para mim manda ao seu endereço as datas dos próximos 60 dias. Se o envio de e-mail não estiver configurado no servidor, os lembretes ficam salvos, mas nenhuma mensagem sai.",
+      r: "Em Lembretes por e-mail escolha as antecedências (60, 30, 15, 7, 3 ou 1 dia antes, ou no próprio dia) e se quer acompanhar todas as empresas ou uma só. Todo dia às 7h (horário de Brasília; se o servidor estiver fora do ar, o aviso sai nas tentativas de 12h e de 18h do mesmo dia) o sistema manda um e-mail único com as datas que estão a essa distância (para um prazo, conta o último dia), com a fonte oficial e as empresas cadastradas a que a data se aplica; cada aviso sai uma vez só por pessoa, mesmo que ela tenha mais de um lembrete, e uma data que mudou gera aviso novo. Só datas confirmadas em fonte oficial geram aviso. O botão Enviar e-mail de teste para mim manda ao seu endereço as datas dos próximos 60 dias. Se o envio de e-mail não estiver configurado no servidor, os lembretes ficam salvos, mas nenhuma mensagem sai.",
     },
     {
       p: "A agenda já tem todas as datas da Reforma?",

@@ -16,17 +16,18 @@ const linha = (extra: Record<string, unknown> & { chave: string }) => ({
 });
 
 const EMPRESAS = [
-  { id: 'e1', razao_social: 'Alfa Simples Ltda', regime_atual: 'Simples Nacional', uf: 'SP' },
-  { id: 'e2', razao_social: 'Beta Real S.A.', regime_atual: 'Lucro Real', uf: 'AM' },
-  { id: 'e3', razao_social: 'Gama sem regime', regime_atual: null, uf: null },
+  { id: 'e1', razao_social: 'Alfa Simples Ltda', regime_atual: 'Simples Nacional', uf: 'SP', status: 'Ativa' },
+  { id: 'e2', razao_social: 'Beta Real S.A.', regime_atual: 'Lucro Real', uf: 'AM', status: 'Ativa' },
+  { id: 'e3', razao_social: 'Gama sem regime', regime_atual: null, uf: null, status: 'Ativa' },
+  { id: 'e4', razao_social: 'Delta Encerrada', regime_atual: 'Lucro Real', uf: 'SP', status: 'Inativa' },
 ];
 
-function montar(cenario: { marcos?: ReturnType<typeof linha>[]; configurado?: boolean; envia?: boolean; assinaturas?: unknown[]; envios?: unknown[]; pendentes?: Map<string, unknown[]> } = {}) {
+function montar(cenario: { marcos?: ReturnType<typeof linha>[]; configurado?: boolean; envia?: boolean; assinaturas?: unknown[]; reservaJaFeita?: boolean; pendentes?: Map<string, unknown[]> } = {}) {
   const marcos = cenario.marcos ?? [];
   const prisma = {
     empresa: {
       findUnique: vi.fn().mockImplementation(async ({ where }: { where: { id: string } }) => EMPRESAS.find((e) => e.id === where.id) ?? null),
-      findMany: vi.fn().mockResolvedValue(EMPRESAS),
+      findMany: vi.fn().mockImplementation(async ({ where }: { where?: { status?: { not: string } } } = {}) => EMPRESAS.filter((e) => !where?.status?.not || e.status !== where.status.not)),
     },
     agendaMarco: {
       findMany: vi.fn().mockImplementation(async ({ where }: { where?: { confirmado?: boolean } } = {}) => marcos.filter((m) => where?.confirmado === undefined || m.confirmado === where.confirmado)),
@@ -37,7 +38,11 @@ function montar(cenario: { marcos?: ReturnType<typeof linha>[]; configurado?: bo
       findMany: vi.fn().mockResolvedValue(cenario.assinaturas ?? []), upsert: vi.fn().mockImplementation(async ({ create }: { create: Record<string, unknown> }) => ({ id: 'L1', ...create })),
       deleteMany: vi.fn().mockResolvedValue({ count: 1 }), update: vi.fn().mockResolvedValue({}),
     },
-    agendaLembreteEnvio: { findMany: vi.fn().mockResolvedValue(cenario.envios ?? []), createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    agendaLembreteEnvio: {
+      // devolve as linhas que ESTA execução conseguiu reservar (a chave única barra o que outra execução já reservou)
+      createManyAndReturn: vi.fn().mockImplementation(async ({ data }: { data: Record<string, unknown>[] }) => (cenario.reservaJaFeita ? [] : data.map((d, i) => ({ id: `env${i}`, ...d })))),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   };
   const mail = {
     configurado: cenario.configurado ?? true, urlPublica: 'https://simulador.clarityib.com.br',
@@ -99,11 +104,11 @@ describe('Agenda da Reforma: consulta', () => {
   });
 
   it('marco com a fonte em revisão chega com o motivo', async () => {
-    const pendentes = new Map([['todos', [{ id: 'r1', norma_chave: 'lcp-214-2025', norma_numero: 'LC 214/2025', caminho: 'art-381', rotulo: 'Art. 381', mudanca: 'alterado', detalhe: 'O texto do dispositivo mudou.', mudou_em: new Date('2026-11-12T15:00:00Z') }]]]);
+    const pendentes = new Map([['todos', [{ id: 'r1', norma_chave: 'lcp-214-2025', norma_numero: 'LC 214/2025', caminho: 'art-381', rotulo: 'Art. 381', mudanca: 'alterado', detalhe: 'O texto do dispositivo mudou.', critica: false, mudou_em: new Date('2026-11-12T15:00:00Z') }]]]);
     const { service, revisao } = montar({ marcos, pendentes });
     const r = await service.listar({}, AGORA);
     expect(revisao.pendentesPorAlvo).toHaveBeenCalledWith('marco', expect.arrayContaining(['todos']));
-    expect(r.marcos.find((m) => m.chave === 'todos')?.em_revisao).toEqual([expect.objectContaining({ rotulo: 'Art. 381', numero: 'LC 214/2025', mudanca: 'alterado' })]);
+    expect(r.marcos.find((m) => m.chave === 'todos')?.em_revisao).toEqual([expect.objectContaining({ rotulo: 'Art. 381', numero: 'LC 214/2025', mudanca: 'alterado', critica: false })]);
     expect(r.marcos.find((m) => m.chave === 'zfm')?.em_revisao).toEqual([]);
   });
 
@@ -207,6 +212,7 @@ describe('Agenda da Reforma: cadastro de lembretes', () => {
   it('lembrete por empresa exige que a empresa exista; sem escopo vale para todas', async () => {
     const { service, prisma } = montar();
     await expect(service.salvarLembrete('a@x.com', { escopo: 'nao-existe' })).rejects.toThrow('Empresa não encontrada');
+    await expect(service.salvarLembrete('a@x.com', { escopo: 'e4' })).rejects.toThrow('A empresa está inativa');
     await service.salvarLembrete('a@x.com', { escopo: 'e1', ativo: false });
     expect(prisma.agendaLembrete.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ escopo: 'e1', ativo: false, dias_antes: [30, 7, 1] }) }));
     await service.salvarLembrete('a@x.com', {});
@@ -239,8 +245,9 @@ describe('Agenda da Reforma: envio diário dos lembretes', () => {
   const longe = linha({ chave: 'longe', data: d('2027-06-30') });
   const semConfirmar = linha({ chave: 'duvida', data: d('2026-11-17'), confirmado: false });
   const assinatura = (extra: Record<string, unknown> = {}) => ({ id: 'L1', user_email: 'ana@falagro.com.br', escopo: 'todas', dias_antes: [30, 7, 1], ativo: true, ...extra });
+  const revisao = (id: string, critica: boolean) => new Map([[id, [{ id: 'r1', norma_chave: 'lcp-214-2025', norma_numero: 'LC 214/2025', caminho: 'art-381', rotulo: 'Art. 381', mudanca: critica ? 'revogado' : 'alterado', detalhe: 'x', critica, mudou_em: new Date('2026-11-09T15:00:00Z') }]]]);
 
-  it('manda um só e-mail com as datas do dia e registra cada envio', async () => {
+  it('manda um só e-mail com as datas do dia e reserva cada envio com a data-alvo', async () => {
     const { service, prisma, mail } = montar({ marcos: [emSete, emUm, longe, semConfirmar], assinaturas: [assinatura()] });
     const r = await service.enviarLembretes(AGORA);
     expect(r).toEqual({ avisos: 1, falhas: 0, desativados: 0 });
@@ -252,22 +259,48 @@ describe('Agenda da Reforma: envio diário dos lembretes', () => {
     expect(email.text).toContain('Prazo em sete dias');
     expect(email.text).not.toContain('longe');
     expect(email.text).toContain('Empresas cadastradas a que se aplica: Alfa Simples Ltda'); // o prazo é só do Simples
-    expect(prisma.agendaLembreteEnvio.createMany).toHaveBeenCalledWith({
-      data: [{ lembrete_id: 'L1', marco_id: 'em-1', dias_antes: 1 }, { lembrete_id: 'L1', marco_id: 'em-7', dias_antes: 7 }],
+    expect(prisma.agendaLembreteEnvio.createManyAndReturn).toHaveBeenCalledWith({
+      data: [
+        { user_email: 'ana@falagro.com.br', marco_id: 'em-1', dias_antes: 1, data_alvo: d('2026-11-11') },
+        { user_email: 'ana@falagro.com.br', marco_id: 'em-7', dias_antes: 7, data_alvo: d('2026-11-17') },
+      ],
       skipDuplicates: true,
     });
   });
 
-  it('não repete o que já foi enviado', async () => {
-    const { service, mail } = montar({ marcos: [emSete, emUm], assinaturas: [assinatura()], envios: [{ marco_id: 'em-7', dias_antes: 7 }, { marco_id: 'em-1', dias_antes: 1 }] });
+  it('a reserva vem ANTES do envio: o que outra execução já reservou não é enviado de novo', async () => {
+    const { service, prisma, mail } = montar({ marcos: [emSete, emUm], assinaturas: [assinatura()], reservaJaFeita: true });
     expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 0, falhas: 0, desativados: 0 });
     expect(mail.enviar).not.toHaveBeenCalled();
+    expect(prisma.agendaLembreteEnvio.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('se o envio falhar, nada é registrado (a falha é contada)', async () => {
+  it('se o envio falhar, a reserva é desfeita (a próxima tentativa do dia refaz o aviso) e a falha é contada', async () => {
     const { service, prisma } = montar({ marcos: [emUm], assinaturas: [assinatura()], envia: false });
     expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 0, falhas: 1, desativados: 0 });
-    expect(prisma.agendaLembreteEnvio.createMany).not.toHaveBeenCalled();
+    expect(prisma.agendaLembreteEnvio.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['env0'] } } });
+  });
+
+  it('se o servidor de e-mail lançar erro, também desfaz a reserva e segue com as outras pessoas', async () => {
+    const { service, prisma, mail } = montar({ marcos: [emUm], assinaturas: [assinatura(), assinatura({ id: 'L2', user_email: 'bia@falagro.com.br' })] });
+    mail.enviar.mockRejectedValueOnce(new Error('conexão recusada')).mockResolvedValue({ enviado: true });
+    expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 1, falhas: 1, desativados: 0 });
+    expect(prisma.agendaLembreteEnvio.deleteMany).toHaveBeenCalledTimes(1);
+    expect(mail.enviar.mock.calls.map((c) => c[0].to)).toEqual(['ana@falagro.com.br', 'bia@falagro.com.br']);
+  });
+
+  it('quem tem mais de um lembrete (todas as empresas e uma empresa) recebe um só e-mail, sem repetir a mesma data', async () => {
+    const { service, prisma, mail } = montar({
+      marcos: [emSete, emUm],
+      assinaturas: [assinatura({ id: 'L1', escopo: 'todas' }), assinatura({ id: 'L2', escopo: 'e1' }), assinatura({ id: 'L3', user_email: 'bia@falagro.com.br' })],
+    });
+    expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 2, falhas: 0, desativados: 0 });
+    expect(mail.enviar).toHaveBeenCalledTimes(2); // uma por pessoa
+    const paraAna = mail.enviar.mock.calls.find((c) => c[0].to === 'ana@falagro.com.br')![0];
+    expect(paraAna.text.split('Prazo em sete dias [').length - 1).toBe(1);
+    expect(paraAna.text.split('Marco amanhã [').length - 1).toBe(1);
+    const reservaAna = prisma.agendaLembreteEnvio.createManyAndReturn.mock.calls.find((c) => c[0].data[0].user_email === 'ana@falagro.com.br')![0].data;
+    expect(reservaAna).toHaveLength(2);
   });
 
   it('respeita as antecedências escolhidas por cada pessoa', async () => {
@@ -287,11 +320,26 @@ describe('Agenda da Reforma: envio diário dos lembretes', () => {
     expect(mail.enviar.mock.calls[0][0].html).toContain('(Beta Real S.A.)');
   });
 
-  it('empresa que deixou de existir desativa o lembrete, sem enviar nada', async () => {
-    const { service, prisma, mail } = montar({ marcos: [emUm], assinaturas: [assinatura({ escopo: 'excluida' })] });
-    expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 0, falhas: 0, desativados: 1 });
-    expect(prisma.agendaLembrete.update).toHaveBeenCalledWith({ where: { id: 'L1' }, data: { ativo: false } });
+  it('empresa que deixou de existir ou foi inativada desativa o lembrete, sem enviar nada', async () => {
+    for (const escopo of ['excluida', 'e4']) {
+      const { service, prisma, mail } = montar({ marcos: [emUm], assinaturas: [assinatura({ escopo })] });
+      expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 0, falhas: 0, desativados: 1 });
+      expect(prisma.agendaLembrete.update).toHaveBeenCalledWith({ where: { id: 'L1' }, data: { ativo: false } });
+      expect(mail.enviar).not.toHaveBeenCalled();
+    }
+  });
+
+  it('data com a fonte revogada ou com o trecho fora do texto da lei fica sem lembrete até a conferência', async () => {
+    const { service, prisma, mail } = montar({ marcos: [emUm], assinaturas: [assinatura()], pendentes: revisao('em-1', true) });
+    expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 0, falhas: 0, desativados: 0 });
     expect(mail.enviar).not.toHaveBeenCalled();
+    expect(prisma.agendaLembreteEnvio.createManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it('data cuja fonte só mudou (o trecho continua lá) segue com lembrete, e o e-mail leva o aviso de revisão', async () => {
+    const { service, mail } = montar({ marcos: [emUm], assinaturas: [assinatura()], pendentes: revisao('em-1', false) });
+    expect(await service.enviarLembretes(AGORA)).toEqual({ avisos: 1, falhas: 0, desativados: 0 });
+    expect(mail.enviar.mock.calls[0][0].text).toContain('Fonte em revisão: Art. 381 (LC 214/2025) alterado em 09/11/2026');
   });
 
   it('sem e-mail configurado ou sem ninguém inscrito, não faz nada', async () => {
@@ -311,6 +359,11 @@ describe('Agenda da Reforma: envio diário dos lembretes', () => {
     expect(email.to).toBe('ana@falagro.com.br');
     expect(email.subject.startsWith('[TESTE] ')).toBe(true);
     expect(email.text).not.toContain('duvida');
+  });
+
+  it('a mensagem de teste também deixa de fora a data suspensa pela revisão', async () => {
+    const { service } = montar({ marcos: [emUm], pendentes: revisao('em-1', true) });
+    await expect(service.enviarTeste('ana@falagro.com.br', 'todas', AGORA)).rejects.toThrow('Não há datas confirmadas nos próximos 60 dias');
   });
 
   it('teste: avisa quando o e-mail não está configurado ou quando não há datas no período', async () => {

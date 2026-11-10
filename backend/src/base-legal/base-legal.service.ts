@@ -92,25 +92,38 @@ export class BaseLegalService {
 
     const existentes = await this.prisma.dispositivoLegal.findMany({ where: { norma_id: norma.id }, select: { id: true, caminho: true, rotulo: true, hash: true, texto: true, revogado: true } });
     const porCaminho = new Map(existentes.map((e) => [e.caminho, e]));
-    const vistos = new Set<string>();
-    const novos: typeof extraidos = [];
-    const mudancas: MudancaDispositivo[] = [];
-    let alterados = 0;
+    const vistos = new Set(extraidos.map((d) => d.caminho));
+    const removidos = existentes.filter((e) => !vistos.has(e.caminho));
 
+    // 1) O que mudou (texto alterado, revogado ou fora do texto oficial), sem gravar nada ainda.
+    const mudancas: MudancaDispositivo[] = [];
     for (const d of extraidos) {
-      vistos.add(d.caminho);
+      const ex = porCaminho.get(d.caminho);
+      if (ex && ex.hash !== sha256(d.texto)) mudancas.push({ caminho: d.caminho, rotulo: d.rotulo, mudanca: d.revogado && !ex.revogado ? 'revogado' : 'alterado', texto: d.texto });
+    }
+    for (const r of removidos) if (!r.revogado) mudancas.push({ caminho: r.caminho, rotulo: r.rotulo, mudanca: 'revogado' });
+
+    // 2) Cartões, notas do cálculo e marcos que citam o que mudou entram na fila de revisão ANTES de o texto novo ser gravado: se a
+    //    fila não puder ser gravada, nada do texto muda e a atualização pode ser repetida (depois de gravado, a mudança não seria
+    //    detectada de novo e o item ficaria publicado sobre uma lei alterada).
+    const revisao = await this.revisao.registrarMudancas({ chave, numero: norma.numero }, mudancas);
+
+    // 3) Grava o texto novo, guardando a versão anterior de cada dispositivo alterado.
+    const novos: typeof extraidos = [];
+    let alterados = 0;
+    for (const d of extraidos) {
       const h = sha256(d.texto);
       const ex = porCaminho.get(d.caminho);
       if (!ex) { novos.push(d); continue; }
       if (ex.hash !== h) {
         alterados += 1;
-        mudancas.push({ caminho: d.caminho, rotulo: d.rotulo, mudanca: d.revogado && !ex.revogado ? 'revogado' : 'alterado', texto: d.texto });
         await this.prisma.$transaction([
           this.prisma.dispositivoLegalVersao.create({ data: { dispositivo_id: ex.id, texto: ex.texto, hash: ex.hash } }),
           this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: { texto: d.texto, hash: h, rotulo: d.rotulo, ordem: d.ordem, secao: d.secao, revogado: d.revogado } }),
         ]);
       } else {
-        await this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: { ordem: d.ordem, secao: d.secao } });
+        // Dispositivo que tinha saído do texto e voltou igual deixa de constar como revogado.
+        await this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: { ordem: d.ordem, secao: d.secao, ...(ex.revogado !== d.revogado ? { revogado: d.revogado } : {}) } });
       }
     }
     for (let i = 0; i < novos.length; i += 100) {
@@ -118,9 +131,7 @@ export class BaseLegalService {
         data: novos.slice(i, i + 100).map((d) => ({ norma_id: norma.id, tipo: d.tipo, rotulo: d.rotulo, caminho: d.caminho, ordem: d.ordem, secao: d.secao, texto: d.texto, hash: sha256(d.texto), revogado: d.revogado })),
       });
     }
-    const removidos = existentes.filter((e) => !vistos.has(e.caminho));
     if (removidos.length) await this.prisma.dispositivoLegal.updateMany({ where: { id: { in: removidos.map((r) => r.id) } }, data: { revogado: true } });
-    for (const r of removidos) if (!r.revogado) mudancas.push({ caminho: r.caminho, rotulo: r.rotulo, mudanca: 'revogado' });
 
     const cab = lerCabecalho(texto);
     await this.prisma.normaLegal.update({
@@ -131,15 +142,7 @@ export class BaseLegalService {
       },
     });
     this.log.log(`${chave}: ${extraidos.length} dispositivos (${novos.length} novos, ${alterados} alterados, ${removidos.length} removidos)`);
-
-    // Cartões, notas do cálculo e marcos que citam o que mudou voltam para revisão. Falha aqui nunca desfaz a atualização do texto.
-    let revisao: ResumoRevisao | undefined;
-    try {
-      revisao = await this.revisao.registrarMudancas({ chave, numero: norma.numero }, mudancas);
-    } catch (e) {
-      this.log.warn(`${chave}: não foi possível registrar os itens para revisar: ${(e as Error).message}`);
-    }
-    return { chave, alterada: true, dispositivos: extraidos.length, novos: novos.length, alterados, removidos: removidos.length, hash, ...(revisao ? { revisao } : {}) };
+    return { chave, alterada: true, dispositivos: extraidos.length, novos: novos.length, alterados, removidos: removidos.length, hash, revisao };
   }
 
   /** Baixa e normaliza o texto de uma fonte oficial (só https em sites oficiais; PDF ainda não é suportado). */

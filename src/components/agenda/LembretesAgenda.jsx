@@ -20,9 +20,11 @@ export default function LembretesAgenda({ empresa = null }) {
   const [ocupado, setOcupado] = useState("");
 
   const permitidos = data?.dias_permitidos ?? [60, 30, 15, 7, 3, 1, 0];
-  const escolhidos = dias ?? data?.dias_padrao ?? [30, 7, 1];
-  const alternar = (n) => setDias((escolhidos.includes(n) ? escolhidos.filter((x) => x !== n) : [...escolhidos, n]).sort((a, b) => b - a));
   const escopoValido = escopo === "todas" || (empresa && escopo === empresa.id) ? escopo : "todas";
+  // Quem já tem lembrete para este escopo vê as antecedências que escolheu, não o padrão.
+  const existente = data?.lembretes?.find((l) => l.escopo === escopoValido);
+  const escolhidos = dias ?? existente?.dias_antes ?? data?.dias_padrao ?? [30, 7, 1];
+  const alternar = (n) => setDias((escolhidos.includes(n) ? escolhidos.filter((x) => x !== n) : [...escolhidos, n]).sort((a, b) => b - a));
   const recarregar = () => qc.invalidateQueries({ queryKey: ["agenda-lembretes"] });
 
   const executar = async (nome, fn, sucesso) => {
@@ -67,7 +69,7 @@ export default function LembretesAgenda({ empresa = null }) {
           <div className="flex flex-wrap items-end gap-3">
             {empresa && (
               <label className="text-xs">Avisar sobre
-                <select className={`${campo} block mt-1`} value={escopoValido} onChange={(e) => setEscopo(e.target.value)}>
+                <select className={`${campo} block mt-1`} value={escopoValido} onChange={(e) => { setEscopo(e.target.value); setDias(null); }}>
                   <option value="todas">Todas as empresas</option>
                   <option value={empresa.id}>{empresa.razao_social}</option>
                 </select>

@@ -376,7 +376,11 @@ export const ROTEIRO = [
       p("Como administrador, abra a nota com o ícone da balança de um ponto do cálculo que cite o artigo e clique em \"Marcar como conferida\".", "Antes de conferir, a nota mostra \"O texto da lei mudou depois desta nota\"; depois, o aviso some."),
       p("No cartão, use \"Revisar e publicar\".", "O cartão volta a aparecer para os consultores e some do painel de itens para revisar."),
     ],
-    cuidados: ["Nada é republicado sozinho: o cartão só reaparece depois do seu clique.", "Se o envio de e-mail estiver configurado, o endereço interno recebe um e-mail com a lista dos itens."],
+    cuidados: [
+      "Nada é republicado sozinho: o cartão só reaparece depois do seu clique.",
+      "Se o trecho citado pelo cartão sumiu do texto novo, \"Revisar e publicar\" recusa e diz qual trecho: edite o cartão e confira o trecho antes.",
+      "Se o envio de e-mail estiver configurado, o endereço interno recebe um e-mail com a lista dos itens.",
+    ],
     criterio: "Cartão, nota e marco que citam o artigo alterado entram na lista com o motivo; o cartão some para o consultor até ser revisado; conferir tira o item da lista.",
   },
   {
@@ -402,7 +406,8 @@ export const ROTEIRO = [
     ],
     cuidados: [
       "As datas vêm de texto oficial vigente; se uma data parecer errada, abra o link da fonte oficial e compare antes de anotar o problema.",
-      "O lembrete automático sai todo dia às 7h (Brasília), uma vez por data e antecedência; para conferir sem esperar, use o e-mail de teste.",
+      "O lembrete automático sai todo dia às 7h (Brasília), uma vez por data e antecedência (com tentativas às 12h e às 18h se o servidor estiver fora do ar); para conferir sem esperar, use o e-mail de teste.",
+      "Data com a fonte revogada ou com o trecho de onde foi lida fora do texto da lei aparece em vermelho e não gera lembrete até o administrador conferir.",
     ],
     criterio: "Cada data traz a fonte oficial completa; os filtros por regime, UF e empresa mudam a lista como descrito; o .ics baixa e importa; o lembrete salva e o e-mail de teste chega; o que não está confirmado vem marcado.",
   },

@@ -1067,6 +1067,8 @@ model RevisaoLegal {
   rotulo        String
   mudanca       String // alterado | revogado
   detalhe       String?
+  /// true quando o dispositivo foi revogado ou o trecho citado não consta mais no texto novo: o conteúdo pode ter deixado de valer.
+  critica       Boolean   @default(false)
   mudou_em      DateTime  @default(now())
   status        String    @default("pendente") // pendente | resolvida
   resolvida_por String?
@@ -1115,22 +1117,21 @@ model AgendaLembrete {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  envios AgendaLembreteEnvio[]
-
   @@unique([user_email, escopo])
 }
 
-/// Registro de cada lembrete enviado: garante que o mesmo aviso não saia duas vezes.
+/// Registro de cada lembrete enviado a uma pessoa: o mesmo aviso (marco, antecedência e data-alvo) não sai duas vezes,
+/// mesmo que a pessoa tenha mais de um lembrete, apague e recrie um deles ou o serviço rode duas vezes.
 model AgendaLembreteEnvio {
-  id          String   @id @default(cuid())
-  lembrete_id String
-  marco_id    String
-  dias_antes  Int
-  enviado_em  DateTime @default(now())
+  id         String   @id @default(cuid())
+  user_email String
+  marco_id   String
+  dias_antes Int
+  data_alvo  DateTime @db.Date
+  enviado_em DateTime @default(now())
 
-  lembrete AgendaLembrete @relation(fields: [lembrete_id], references: [id], onDelete: Cascade)
-  marco    AgendaMarco    @relation(fields: [marco_id], references: [id], onDelete: Cascade)
+  marco AgendaMarco @relation(fields: [marco_id], references: [id], onDelete: Cascade)
 
-  @@unique([lembrete_id, marco_id, dias_antes])
+  @@unique([user_email, marco_id, dias_antes, data_alvo])
 }
 // ═════════════════════════ fim do bloco de consultoria ═════════════════════════

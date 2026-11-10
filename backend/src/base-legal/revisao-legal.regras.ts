@@ -23,6 +23,8 @@ export type NovaRevisao = {
   rotulo: string;
   mudanca: 'alterado' | 'revogado';
   detalhe: string | null;
+  /** Dispositivo revogado ou trecho citado que sumiu do texto: o que o item afirma pode ter deixado de valer. */
+  critica: boolean;
 };
 
 type Citacao = { norma: string; caminho: string; trecho?: string | null };
@@ -30,19 +32,20 @@ type Alvo = { id: string; titulo: string; citacoes: Citacao[] };
 
 export const normalizarTexto = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
 
-/** O que mudou, em palavras: se havia um trecho citado, diz se ele ainda consta no texto novo. */
-function detalheDa(m: MudancaDispositivo, trechos: string[], tipo: TipoRevisao): string {
-  if (m.mudanca === 'revogado') return 'O dispositivo foi revogado ou saiu do texto oficial.';
-  if (!trechos.length || m.texto === undefined) return 'O texto do dispositivo mudou.';
+/** O que mudou, em palavras: se havia um trecho citado, diz se ele ainda consta no texto novo. É crítico se o dispositivo saiu ou o trecho sumiu. */
+function detalheDa(m: MudancaDispositivo, trechos: string[], tipo: TipoRevisao): { detalhe: string; critica: boolean } {
+  if (m.mudanca === 'revogado') return { detalhe: 'O dispositivo foi revogado ou saiu do texto oficial.', critica: true };
+  if (!trechos.length || m.texto === undefined) return { detalhe: 'O texto do dispositivo mudou.', critica: false };
   const novo = normalizarTexto(m.texto);
   const ausentes = trechos.filter((t) => !novo.includes(normalizarTexto(t)));
   const varios = trechos.length > 1;
+  const critica = ausentes.length > 0;
   if (tipo === 'marco') {
-    return ausentes.length ? 'O trecho de onde a data foi lida não consta mais no texto do dispositivo.' : 'O texto do dispositivo mudou; o trecho de onde a data foi lida ainda consta nele.';
+    return { detalhe: critica ? 'O trecho de onde a data foi lida não consta mais no texto do dispositivo.' : 'O texto do dispositivo mudou; o trecho de onde a data foi lida ainda consta nele.', critica };
   }
-  if (!ausentes.length) return `O texto do dispositivo mudou; ${varios ? 'os trechos citados no cartão ainda constam' : 'o trecho citado no cartão ainda consta'} nele.`;
-  if (!varios) return 'O trecho citado no cartão não consta mais no texto do dispositivo.';
-  return `${ausentes.length} dos ${trechos.length} trechos citados no cartão não constam mais no texto do dispositivo.`;
+  if (!critica) return { detalhe: `O texto do dispositivo mudou; ${varios ? 'os trechos citados no cartão ainda constam' : 'o trecho citado no cartão ainda consta'} nele.`, critica };
+  if (!varios) return { detalhe: 'O trecho citado no cartão não consta mais no texto do dispositivo.', critica };
+  return { detalhe: `${ausentes.length} dos ${trechos.length} trechos citados no cartão não constam mais no texto do dispositivo.`, critica };
 }
 
 function revisoesDe(tipo: TipoRevisao, alvos: Alvo[], norma: NormaMudada, mudancas: MudancaDispositivo[]): NovaRevisao[] {
@@ -55,9 +58,10 @@ function revisoesDe(tipo: TipoRevisao, alvos: Alvo[], norma: NormaMudada, mudanc
       const m = porCaminho.get(caminho);
       if (!m) continue;
       const trechos = daNorma.filter((c) => c.caminho === caminho && c.trecho && c.trecho.trim()).map((c) => c.trecho as string);
+      const { detalhe, critica } = detalheDa(m, trechos, tipo);
       saida.push({
         tipo, alvo_id: alvo.id, alvo_titulo: alvo.titulo, norma_chave: norma.chave, norma_numero: norma.numero,
-        caminho, rotulo: m.rotulo, mudanca: m.mudanca, detalhe: detalheDa(m, trechos, tipo),
+        caminho, rotulo: m.rotulo, mudanca: m.mudanca, detalhe, critica,
       });
     }
   }

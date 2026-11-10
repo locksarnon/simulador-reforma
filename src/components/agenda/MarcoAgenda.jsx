@@ -38,13 +38,14 @@ function FonteEmRevisao({ m, admin, onConferido }) {
       toast({ title: "Não foi possível concluir", description: e.message, variant: "destructive" });
     } finally { setOcupado(false); }
   };
+  const critica = m.em_revisao.some((r) => r.critica);
   return (
-    <div role="status" className="mt-2 rounded-lg border border-amber-500/50 bg-amber-50/60 dark:bg-amber-950/10 p-2.5 space-y-1">
-      <p className="text-xs font-medium flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> O texto da lei citado como fonte mudou depois da última conferência desta data</p>
+    <div role="status" className={`mt-2 rounded-lg border p-2.5 space-y-1 ${critica ? "border-red-500/50 bg-red-50/60 dark:bg-red-950/10" : "border-amber-500/50 bg-amber-50/60 dark:bg-amber-950/10"}`}>
+      <p className="text-xs font-medium flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {critica ? "A data pode ter deixado de valer: o dispositivo citado como fonte foi revogado ou o trecho de onde a data foi lida saiu do texto da lei" : "O texto da lei citado como fonte mudou depois da última conferência desta data"}</p>
       <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-0.5">
         {m.em_revisao.map((r) => <li key={r.id}><Link to={`/base-legal/${r.norma}/${r.caminho}`} className="underline">{r.rotulo}</Link> {oQueMudou(r)}</li>)}
       </ul>
-      <p className="text-xs">Confirme a data no texto oficial antes de agir.</p>
+      <p className="text-xs">{critica ? "Enquanto não for conferida, esta data não gera lembrete por e-mail. " : ""}Confirme a data no texto oficial antes de agir.</p>
       {admin && (
         <button type="button" onClick={conferir} disabled={ocupado} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs disabled:opacity-50">
           {ocupado ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />} Marcar como conferido

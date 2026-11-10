@@ -103,6 +103,15 @@ describe("Agenda da Reforma: tela", () => {
     expect(comum).toContain("Confirme a data no texto oficial antes de agir.");
     expect(comum).not.toContain("Marcar como conferido");
     expect(desenhar({ resposta: RESPOSTA([emRevisao]), props: { admin: true } })).toContain("Marcar como conferido");
+    expect(comum).not.toContain("não gera lembrete por e-mail");
+  });
+
+  it("fonte revogada ou trecho fora do texto da lei: a data pode ter deixado de valer e não gera lembrete", () => {
+    const critica = marco({ chave: "estoque", titulo: "Prazo do estoque", em_revisao: [{ id: "r1", norma: "lcp-214-2025", numero: "LC 214/2025", caminho: "art-381", rotulo: "Art. 381", mudanca: "alterado", detalhe: "O trecho de onde a data foi lida não consta mais no texto do dispositivo.", critica: true, mudou_em: "2026-11-12T15:00:00.000Z" }] });
+    const html = desenhar({ resposta: RESPOSTA([critica]) });
+    expect(html).toContain("A data pode ter deixado de valer");
+    expect(html).toContain("Enquanto não for conferida, esta data não gera lembrete por e-mail.");
+    expect(html).toContain("border-red-500/50");
   });
 });
 
@@ -137,6 +146,12 @@ describe("Agenda da Reforma: lembretes por e-mail", () => {
     expect(html).not.toContain("ainda não está configurado");
     for (const t of ["60 dias antes", "15 dias antes", "3 dias antes", "no dia", "Salvar lembrete", "Enviar e-mail de teste para mim"]) expect(html, t).toContain(t);
     expect(html.match(/checked=""/g)?.length).toBe(3);
+  });
+
+  it("quem já tem lembrete para o escopo vê as antecedências que escolheu, não o padrão", () => {
+    const html = painel({ ...DADOS, lembretes: [{ id: "L1", escopo: "todas", empresa: null, dias_antes: [7], ativo: true }] }, null);
+    expect(html.match(/checked=""/g)?.length).toBe(1);
+    expect(html).toContain('<input type="checkbox" checked=""/> 7 dias antes');
   });
 
   it("com uma empresa em foco, deixa escolher entre todas as empresas e ela", () => {
