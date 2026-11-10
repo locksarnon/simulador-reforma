@@ -1047,3 +1047,95 @@ model SaneamentoProjeto {
 
   @@index([empresa_id])
 }
+
+
+// ═════════════════════════════════════════════════════════════════════════
+// CONSULTORIA: revisão pela lei e Agenda da Reforma
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Item que voltou para revisão porque um dispositivo da Base legal que ele cita mudou.
+/// tipo: cartao (pergunta frequente) | fundamento (nota "i" do cálculo) | marco (Agenda da Reforma).
+/// Uma linha por dispositivo alterado; some da lista (status resolvida) quando o administrador conferir o item.
+model RevisaoLegal {
+  id            String    @id @default(cuid())
+  tipo          String // cartao | fundamento | marco
+  alvo_id       String // id do cartão, chave do fundamento ou id do marco
+  alvo_titulo   String
+  norma_chave   String
+  norma_numero  String
+  caminho       String
+  rotulo        String
+  mudanca       String // alterado | revogado
+  detalhe       String?
+  mudou_em      DateTime  @default(now())
+  status        String    @default("pendente") // pendente | resolvida
+  resolvida_por String?
+  resolvida_em  DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([tipo, alvo_id, status])
+  @@index([status, mudou_em])
+}
+
+/// Marco ou obrigação da Reforma com data e fonte oficial (instrumento, dispositivo e data do ato).
+/// regimes e ufs vazios = vale para todos. confirmado = a data foi lida em texto oficial vigente.
+model AgendaMarco {
+  id                String    @id @default(cuid())
+  chave             String    @unique
+  titulo            String
+  descricao         String
+  categoria         String
+  tipo              String    @default("marco") // marco (vigência) | prazo (data-limite)
+  data              DateTime  @db.Date
+  data_fim          DateTime? @db.Date
+  regimes           String[]  @default([])
+  ufs               String[]  @default([])
+  fonte_instrumento String
+  fonte_dispositivo String
+  fonte_data        DateTime? @db.Date
+  fonte_url         String
+  fonte_trecho      String?
+  norma_chave       String?
+  caminho           String?
+  confirmado        Boolean   @default(false)
+  lida_em           DateTime? @db.Date
+  observacao        String?
+  ativo             Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  envios AgendaLembreteEnvio[]
+
+  @@index([data])
+  @@index([categoria])
+}
+
+/// Quem quer receber lembretes por e-mail dos marcos da agenda. escopo = "todas" ou o id da Empresa.
+model AgendaLembrete {
+  id         String   @id @default(cuid())
+  user_email String
+  escopo     String   @default("todas")
+  dias_antes Int[]    @default([30, 7, 1])
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  envios AgendaLembreteEnvio[]
+
+  @@unique([user_email, escopo])
+}
+
+/// Registro de cada lembrete enviado: garante que o mesmo aviso não saia duas vezes.
+model AgendaLembreteEnvio {
+  id          String   @id @default(cuid())
+  lembrete_id String
+  marco_id    String
+  dias_antes  Int
+  enviado_em  DateTime @default(now())
+
+  lembrete AgendaLembrete @relation(fields: [lembrete_id], references: [id], onDelete: Cascade)
+  marco    AgendaMarco    @relation(fields: [marco_id], references: [id], onDelete: Cascade)
+
+  @@unique([lembrete_id, marco_id, dias_antes])
+}
+// ═════════════════════════ fim do bloco de consultoria ═════════════════════════

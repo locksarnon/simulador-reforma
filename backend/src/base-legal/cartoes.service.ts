@@ -2,15 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { buscarCartoes } from './cartoes.busca';
 import { CARTOES_INICIAIS } from './cartoes-iniciais';
+import { normalizarTexto } from './revisao-legal.regras';
+import { RevisaoLegalService } from './revisao-legal.service';
 
 export type FundamentoCartao = { norma: string; caminho: string; trecho: string };
 export type DadosCartao = { tema?: string; pergunta?: string; sinonimos?: string; resposta?: string; ressalvas?: string; fundamentos?: FundamentoCartao[] };
 
-const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
-
 @Injectable()
 export class CartoesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly revisao: RevisaoLegalService) {}
 
   /** Cada fundamento precisa existir na Base legal e o trecho precisa estar, literalmente, no dispositivo. */
   async validarFundamentos(fundamentos: FundamentoCartao[]): Promise<string[]> {
@@ -18,7 +18,7 @@ export class CartoesService {
     for (const f of fundamentos) {
       const d = await this.prisma.dispositivoLegal.findFirst({ where: { caminho: f.caminho, norma: { chave: f.norma } }, select: { texto: true } });
       if (!d) problemas.push(`${f.norma}/${f.caminho}: dispositivo não encontrado`);
-      else if (f.trecho && !norm(d.texto).includes(norm(f.trecho))) problemas.push(`${f.norma}/${f.caminho}: o trecho não consta no texto — "${f.trecho.slice(0, 50)}…"`);
+      else if (f.trecho && !normalizarTexto(d.texto).includes(normalizarTexto(f.trecho))) problemas.push(`${f.norma}/${f.caminho}: o trecho não consta no texto — "${f.trecho.slice(0, 50)}…"`);
     }
     return problemas;
   }
@@ -40,16 +40,28 @@ export class CartoesService {
     return { criados, existentes, erros };
   }
 
-  /** Consultores veem só os revisados; o administrador vê tudo. */
+  /** Consultores veem só os revisados; o administrador vê tudo, com o motivo de cada cartão que voltou para revisão. */
   async listar(admin: boolean) {
     const cartoes = await this.prisma.cartaoLegal.findMany({ where: admin ? {} : { status: 'revisado' }, orderBy: [{ tema: 'asc' }, { createdAt: 'asc' }] });
-    return Promise.all(cartoes.map((c) => this.comNumeros(c)));
+    return this.comRevisoes(await Promise.all(cartoes.map((c) => this.comNumeros(c))), admin);
   }
 
   async buscar(consulta: string, admin: boolean) {
     const base = await this.prisma.cartaoLegal.findMany({ where: admin ? {} : { status: 'revisado' } });
     const achados = buscarCartoes(consulta, base);
-    return Promise.all(achados.map(({ pontos: _p, ...c }) => this.comNumeros(c)));
+    return this.comRevisoes(await Promise.all(achados.map(({ pontos: _p, ...c }) => this.comNumeros(c))), admin);
+  }
+
+  /** Para o administrador: quais dispositivos citados pelo cartão mudaram e quando (fila de revisão pela lei). */
+  private async comRevisoes<T extends { id: string }>(cartoes: T[], admin: boolean) {
+    if (!admin) return cartoes;
+    const pendentes = await this.revisao.pendentesPorAlvo('cartao', cartoes.map((c) => c.id));
+    return cartoes.map((c) => ({
+      ...c,
+      revisoes_pendentes: (pendentes.get(c.id) ?? []).map((r) => ({
+        id: r.id, norma: r.norma_chave, numero: r.norma_numero, caminho: r.caminho, rotulo: r.rotulo, mudanca: r.mudanca, detalhe: r.detalhe, mudou_em: r.mudou_em,
+      })),
+    }));
   }
 
   /** Acrescenta o nome da norma (LC 214/2025…) aos fundamentos para exibição. */
@@ -102,11 +114,15 @@ export class CartoesService {
   async definirStatus(id: string, status: 'revisado' | 'rascunho', email: string) {
     const c = await this.prisma.cartaoLegal.findUnique({ where: { id } });
     if (!c) throw new NotFoundException('Cartão não encontrado');
-    return this.prisma.cartaoLegal.update({ where: { id }, data: status === 'revisado' ? { status, revisado_por: email, revisado_em: new Date() } : { status, revisado_por: null, revisado_em: null } });
+    const atualizado = await this.prisma.cartaoLegal.update({ where: { id }, data: status === 'revisado' ? { status, revisado_por: email, revisado_em: new Date() } : { status, revisado_por: null, revisado_em: null } });
+    // Revisar e publicar é a conferência do administrador: o motivo pendente (dispositivo que mudou) sai da fila.
+    if (status === 'revisado') await this.revisao.resolver('cartao', id, email);
+    return atualizado;
   }
 
   async remover(id: string) {
     await this.prisma.cartaoLegal.delete({ where: { id } }).catch(() => { throw new NotFoundException('Cartão não encontrado'); });
+    await this.revisao.descartar('cartao', id);
     return { ok: true };
   }
 }

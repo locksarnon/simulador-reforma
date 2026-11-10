@@ -276,6 +276,18 @@ export const SECAO_BASE_LEGAL = {
       r: "Quem pretende apropriar o crédito presumido de CBS sobre o estoque precisa de inventário em 31 de dezembro de 2026, com documentação fiscal idônea para todos os itens. Um cadastro saneado, com NCM, descrição e unidade corretos, facilita comprovar o estoque.",
       f: "Decreto nº 12.955/2026, arts. 606 e 608.",
     },
+    {
+      p: "O que acontece com os cartões de pergunta frequente quando o texto da lei muda?",
+      r: "Cada cartão guarda os dispositivos que cita (norma e artigo, com um trecho copiado da lei). Quando o administrador aprova a atualização de uma norma e o texto de um desses dispositivos muda, o cartão que o cita volta para rascunho: deixa de aparecer para os consultores e entra na lista “Itens para revisar porque o texto da lei mudou”, com o dispositivo, a data da mudança e a informação de que o trecho citado ainda consta (ou não consta mais) no texto novo. Dispositivo revogado ou que saiu do texto oficial também devolve o cartão para revisão. O cartão só reaparece depois de revisado e publicado de novo pelo administrador (botão Revisar e publicar); nada é republicado sozinho.",
+    },
+    {
+      p: "E as notas “i” do cálculo e as datas da Agenda da Reforma?",
+      r: "As notas com o ícone da balança (a base legal de cada ponto do cálculo) e os marcos da Agenda da Reforma também guardam os dispositivos em que se apoiam. Se um deles muda, a nota ou o marco continua visível, mas com o aviso de que o texto da lei mudou depois dele, com o dispositivo e a data, até o administrador conferir (botão Marcar como conferida ou conferido). A fórmula do cálculo não muda sozinha: ajustar a nota ou o cálculo depende da revisão do especialista tributário.",
+    },
+    {
+      p: "Como o administrador é avisado quando um item volta para revisão?",
+      r: "Antes de aprovar uma atualização, o aviso da Base legal (“texto oficial atualizado”) diz quantos cartões, notas do cálculo e marcos citam os dispositivos alterados. Ao aprovar, a mensagem na tela diz quantos itens voltaram para revisão. Se o envio de e-mail e o endereço interno de avisos estiverem configurados no servidor, o sistema também manda um e-mail com a lista de itens e dispositivos. A lista completa fica sempre na Base legal, no painel “Itens para revisar porque o texto da lei mudou”, visível só para administradores.",
+    },
   ],
 };
 

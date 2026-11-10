@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellRing, CheckCircle2, ExternalLink, Loader2, RefreshCw, X } from "lucide-react";
 import { api } from "@/api/client";
+import { resumoRevisao } from "@/lib/revisaoLegal";
 import { toast } from "@/components/ui/use-toast";
 
 const HOSTS = ["planalto.gov.br", "cgibs.gov.br", "gov.br"];
@@ -18,7 +19,7 @@ function Alerta({ a, onFeito }) {
       const r = await api.post(`/base-legal/alertas/${a.id}/${acao}`, acao === "aprovar" && nova ? { url } : {});
       toast({
         title: acao === "aprovar" ? (nova ? "Norma incluída na Base legal" : "Texto atualizado") : "Alerta descartado",
-        description: acao === "aprovar" && r?.resultado ? `${r.resultado.dispositivos} dispositivos · ${r.resultado.novos} novos · ${r.resultado.alterados} alterados.` : undefined,
+        description: acao === "aprovar" && r?.resultado ? `${r.resultado.dispositivos} dispositivos · ${r.resultado.novos} novos · ${r.resultado.alterados} alterados. ${resumoRevisao(r.resultado.revisao)}`.trim() : undefined,
       });
       onFeito();
     } catch (e) {
@@ -57,7 +58,12 @@ export default function AlertasBaseLegal() {
   const qc = useQueryClient();
   const [verificando, setVerificando] = useState(false);
   const { data: alertas = [] } = useQuery({ queryKey: ["base-legal-alertas"], queryFn: () => api.get("/base-legal/alertas") });
-  const recarregar = () => { qc.invalidateQueries({ queryKey: ["base-legal-alertas"] }); qc.invalidateQueries({ queryKey: ["base-legal-normas"] }); };
+  const recarregar = () => {
+    qc.invalidateQueries({ queryKey: ["base-legal-alertas"] });
+    qc.invalidateQueries({ queryKey: ["base-legal-normas"] });
+    qc.invalidateQueries({ queryKey: ["base-legal-cartoes"] });
+    qc.invalidateQueries({ queryKey: ["base-legal-revisoes"] });
+  };
 
   const verificar = async () => {
     setVerificando(true);

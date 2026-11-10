@@ -2,12 +2,19 @@ import { afinidadeSetor } from "@/lib/setoresBaseLegal";
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, ChevronDown, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ChevronDown, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
+import { oQueMudou } from "@/lib/revisaoLegal";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString("pt-BR") : "");
+
+const COR_REVISADO = "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300";
+const COR_PENDENTE = "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
+
+/** Rótulo do estado do cartão: "Revisar" quando voltou do publicado porque a lei mudou, "Rascunho" quando nunca foi revisado. */
+const estadoDoCartao = (c) => (c.status === "revisado" ? "Revisado" : c.revisoes_pendentes?.length ? "Revisar" : "Rascunho");
 
 /** Um cartão: pergunta, resposta e a base legal com link para o artigo. */
 export function CartaoResposta({ c, admin, onMudou, onEditar, aberto = false }) {
@@ -30,9 +37,20 @@ export function CartaoResposta({ c, admin, onMudou, onEditar, aberto = false }) 
       <summary className="cursor-pointer list-none p-3 flex items-start gap-2">
         <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 transition-transform group-open:rotate-180 text-muted-foreground" />
         <span className="text-sm font-medium flex-1">{c.pergunta}</span>
-        {admin && <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded shrink-0 ${c.status === "revisado" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"}`}>{c.status === "revisado" ? "Revisado" : "Rascunho"}</span>}
+        {admin && <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded shrink-0 ${c.status === "revisado" ? COR_REVISADO : COR_PENDENTE}`}>{estadoDoCartao(c)}</span>}
       </summary>
       <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border">
+        {admin && c.revisoes_pendentes?.length > 0 && (
+          <div role="status" className="rounded-lg border border-amber-500/50 bg-amber-50/60 dark:bg-amber-950/10 p-3 mt-3 space-y-1">
+            <p className="text-sm font-medium flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0" /> Voltou para revisão porque o texto da lei mudou</p>
+            <ul className="list-disc pl-5 text-xs space-y-0.5">
+              {c.revisoes_pendentes.map((r) => (
+                <li key={r.id}><Link to={`/base-legal/${r.norma}/${r.caminho}`} className="underline">{r.rotulo}</Link> {oQueMudou(r)}</li>
+              ))}
+            </ul>
+            <p className="text-xs">Confira o texto atual, ajuste a resposta e a base legal se for o caso e use Revisar e publicar. Enquanto isso, o cartão não aparece para os consultores.</p>
+          </div>
+        )}
         <p className="text-[15px] leading-relaxed whitespace-pre-wrap mt-3">{c.resposta}</p>
         {c.ressalvas && <p className="text-sm rounded-lg bg-muted/60 p-3"><b>Atenção:</b> {c.ressalvas}</p>}
         <div className="space-y-2">
@@ -48,7 +66,7 @@ export function CartaoResposta({ c, admin, onMudou, onEditar, aberto = false }) 
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
           <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-            {c.status === "revisado" ? <><BadgeCheck className="w-3.5 h-3.5 text-emerald-600" /> Revisado{admin && c.revisado_por ? ` por ${c.revisado_por}` : ""} em {fmt(c.revisado_em)}</> : "Ainda não revisado — só o administrador vê este cartão."}
+            {c.status === "revisado" ? <><BadgeCheck className="w-3.5 h-3.5 text-emerald-600" /> Revisado{admin && c.revisado_por ? ` por ${c.revisado_por}` : ""} em {fmt(c.revisado_em)}</> : `${c.revisoes_pendentes?.length ? "Voltou para revisão" : "Ainda não revisado"} — só o administrador vê este cartão.`}
           </p>
           {admin && (
             <div className="flex flex-wrap gap-2">
@@ -111,7 +129,7 @@ export default function CartoesLegais({ admin, setor }) {
   const [editando, setEditando] = useState(null); // null | "novo" | cartão
   const [carregando, setCarregando] = useState(false);
   const { data: cartoes = [], isLoading } = useQuery({ queryKey: ["base-legal-cartoes"], queryFn: () => api.get("/base-legal/cartoes") });
-  const recarregar = () => qc.invalidateQueries({ queryKey: ["base-legal-cartoes"] });
+  const recarregar = () => { qc.invalidateQueries({ queryKey: ["base-legal-cartoes"] }); qc.invalidateQueries({ queryKey: ["base-legal-revisoes"] }); };
 
   const carregarLote = async () => {
     setCarregando(true);
@@ -125,15 +143,16 @@ export default function CartoesLegais({ admin, setor }) {
 
   const ordenados = [...cartoes].sort((a,b) => Number(afinidadeSetor(b, setor)) - Number(afinidadeSetor(a, setor)));
   const pendentes = cartoes.filter((c) => c.status !== "revisado").length;
+  const porMudancaNaLei = cartoes.filter((c) => c.revisoes_pendentes?.length).length;
 
   if (!admin && !isLoading && cartoes.length === 0) return null;
 
   return (
-    <section className="space-y-3">
+    <section id="cartoes-legais" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-medium flex items-center gap-2"><BadgeCheck className="w-4 h-4" /> Perguntas frequentes revisadas</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Respostas conferidas pela equipe, sempre com o artigo. {admin && pendentes > 0 && <b>{pendentes} aguardando revisão.</b>}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Respostas conferidas pela equipe, sempre com o artigo. {admin && pendentes > 0 && <b>{pendentes} aguardando revisão{porMudancaNaLei > 0 ? ` (${porMudancaNaLei} por mudança no texto da lei)` : ""}.</b>}</p>
         </div>
         {admin && (
           <div className="flex gap-2">
@@ -145,7 +164,7 @@ export default function CartoesLegais({ admin, setor }) {
       {editando && <Editor inicial={editando === "novo" ? null : editando} onFechar={() => setEditando(null)} onSalvo={() => { setEditando(null); recarregar(); }} />}
       {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : (
         <div className="space-y-4">
-          <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-3">Tema</th><th className="p-3">Pergunta, resposta e fundamento</th><th className="p-3">Revisão</th></tr></thead><tbody>{ordenados.map(c => <tr key={c.id} className="border-t border-border align-top"><td className="p-3">{c.tema}{setor && afinidadeSetor(c,setor) && <span className="block text-xs text-primary mt-1">Relacionado ao setor</span>}</td><td className="p-3"><CartaoResposta c={c} admin={admin} onMudou={recarregar} onEditar={setEditando} /></td><td className="p-3"><span className={c.status === 'revisado' ? 'text-xs rounded px-2 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'text-xs rounded px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'}>{c.status === 'revisado' ? 'Revisado' : 'Rascunho'}</span></td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-3">Tema</th><th className="p-3">Pergunta, resposta e fundamento</th><th className="p-3">Revisão</th></tr></thead><tbody>{ordenados.map(c => <tr key={c.id} className="border-t border-border align-top"><td className="p-3">{c.tema}{setor && afinidadeSetor(c,setor) && <span className="block text-xs text-primary mt-1">Relacionado ao setor</span>}</td><td className="p-3"><CartaoResposta c={c} admin={admin} onMudou={recarregar} onEditar={setEditando} /></td><td className="p-3"><span className={`text-xs rounded px-2 py-1 ${c.status === 'revisado' ? COR_REVISADO : COR_PENDENTE}`}>{estadoDoCartao(c)}</span></td></tr>)}</tbody></table></div>
           {cartoes.length === 0 && admin && <p className="text-sm text-muted-foreground">Nenhum cartão ainda. Carregue o lote inicial (rascunhos com a base legal já conferida) e revise um a um.</p>}
         </div>
       )}

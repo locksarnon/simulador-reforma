@@ -6,10 +6,13 @@
  */
 const { PrismaClient } = require('@prisma/client');
 const { BaseLegalService } = require('../dist/base-legal/base-legal.service');
+const { RevisaoLegalService } = require('../dist/base-legal/revisao-legal.service');
+const { MailService } = require('../dist/mail/mail.service');
 
 (async () => {
   const prisma = new PrismaClient();
-  const servico = new BaseLegalService(prisma, { get: (k) => process.env[k] });
+  const config = { get: (k) => process.env[k] };
+  const servico = new BaseLegalService(prisma, config, new RevisaoLegalService(prisma, new MailService(config)));
   try {
     const args = process.argv.slice(2);
     const forcar = args.includes('--forcar');

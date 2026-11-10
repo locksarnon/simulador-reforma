@@ -1,12 +1,14 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { BaseLegalService } from './base-legal.service';
 import { CartoesService, DadosCartao } from './cartoes.service';
+import { TipoRevisao } from './revisao-legal.regras';
+import { RevisaoLegalService, TIPOS_REVISAO } from './revisao-legal.service';
 
 @Controller('base-legal')
 export class BaseLegalController {
-  constructor(private readonly service: BaseLegalService, private readonly cartoes: CartoesService) {}
+  constructor(private readonly service: BaseLegalService, private readonly cartoes: CartoesService, private readonly revisao: RevisaoLegalService) {}
 
   @Get('normas')
   normas() {
@@ -74,6 +76,27 @@ export class BaseLegalController {
   removerCartao(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     this.exigirAdmin(user);
     return this.cartoes.remover(id);
+  }
+
+  // ───── Itens que voltaram para revisão porque o texto da lei mudou ─────
+
+  /** Fila de revisão pela lei. O administrador vê tudo; os demais veem só as notas do cálculo e os marcos da agenda. */
+  @Get('revisoes')
+  revisoes(@CurrentUser() user: AuthUser, @Query('tipo') tipo?: string) {
+    const permitidos: TipoRevisao[] = user.role === 'admin' ? TIPOS_REVISAO : ['fundamento', 'marco'];
+    if (!tipo) return this.revisao.listarPendentes(permitidos);
+    const pedido = TIPOS_REVISAO.find((t) => t === tipo);
+    if (!pedido) throw new BadRequestException('Tipo de revisão inválido');
+    return permitidos.includes(pedido) ? this.revisao.listarPendentes([pedido]) : [];
+  }
+
+  /** O administrador conferiu a nota do cálculo ou o marco da agenda depois da mudança no texto da lei. */
+  @Post('revisoes/:tipo/:alvo/conferir')
+  conferirRevisao(@CurrentUser() user: AuthUser, @Param('tipo') tipo: string, @Param('alvo') alvo: string) {
+    this.exigirAdmin(user);
+    if (tipo === 'cartao') throw new BadRequestException('Para o cartão, use Revisar e publicar.');
+    if (tipo !== 'fundamento' && tipo !== 'marco') throw new BadRequestException('Tipo de revisão inválido');
+    return this.revisao.resolver(tipo, alvo, user.email);
   }
 
   /** Pergunta livre ao assistente (responde só com o texto das normas carregadas). */

@@ -6,6 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AVISO_ASSISTENTE, Candidato, consultasDaPergunta, respostaDeApoio, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
 import { decodificar, extrairDispositivos, htmlParaTexto, sha256 } from './base-legal.parser';
 import { FONTES_NORMAS } from './fontes';
+import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
+import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
 
 const MESES: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
@@ -22,6 +24,8 @@ export type ResultadoImportacao = {
   removidos: number;
   hash: string;
   motivo?: string;
+  /** O que a atualização devolveu para revisão (cartões, notas do cálculo e marcos da agenda que citam o texto alterado). */
+  revisao?: ResumoRevisao;
 };
 
 /** Cabeçalho da norma → data e ementa (a data do texto oficial prevalece sobre o cadastro). */
@@ -53,7 +57,7 @@ export class BaseLegalService {
 
   private readonly usoPorUsuario = new Map<string, number[]>();
 
-  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
+  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService, private readonly revisao: RevisaoLegalService) {}
 
   /** Garante o cadastro das normas do manifesto (idempotente). */
   async garantirNormas() {
@@ -86,10 +90,11 @@ export class BaseLegalService {
     const extraidos = extrairDispositivos(texto);
     if (extraidos.length < 3) throw new BadRequestException('Não foi possível identificar os dispositivos — nada foi gravado (precisa de revisão)');
 
-    const existentes = await this.prisma.dispositivoLegal.findMany({ where: { norma_id: norma.id }, select: { id: true, caminho: true, hash: true, texto: true } });
+    const existentes = await this.prisma.dispositivoLegal.findMany({ where: { norma_id: norma.id }, select: { id: true, caminho: true, rotulo: true, hash: true, texto: true, revogado: true } });
     const porCaminho = new Map(existentes.map((e) => [e.caminho, e]));
     const vistos = new Set<string>();
     const novos: typeof extraidos = [];
+    const mudancas: MudancaDispositivo[] = [];
     let alterados = 0;
 
     for (const d of extraidos) {
@@ -99,6 +104,7 @@ export class BaseLegalService {
       if (!ex) { novos.push(d); continue; }
       if (ex.hash !== h) {
         alterados += 1;
+        mudancas.push({ caminho: d.caminho, rotulo: d.rotulo, mudanca: d.revogado && !ex.revogado ? 'revogado' : 'alterado', texto: d.texto });
         await this.prisma.$transaction([
           this.prisma.dispositivoLegalVersao.create({ data: { dispositivo_id: ex.id, texto: ex.texto, hash: ex.hash } }),
           this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: { texto: d.texto, hash: h, rotulo: d.rotulo, ordem: d.ordem, secao: d.secao, revogado: d.revogado } }),
@@ -114,6 +120,7 @@ export class BaseLegalService {
     }
     const removidos = existentes.filter((e) => !vistos.has(e.caminho));
     if (removidos.length) await this.prisma.dispositivoLegal.updateMany({ where: { id: { in: removidos.map((r) => r.id) } }, data: { revogado: true } });
+    for (const r of removidos) if (!r.revogado) mudancas.push({ caminho: r.caminho, rotulo: r.rotulo, mudanca: 'revogado' });
 
     const cab = lerCabecalho(texto);
     await this.prisma.normaLegal.update({
@@ -124,7 +131,15 @@ export class BaseLegalService {
       },
     });
     this.log.log(`${chave}: ${extraidos.length} dispositivos (${novos.length} novos, ${alterados} alterados, ${removidos.length} removidos)`);
-    return { chave, alterada: true, dispositivos: extraidos.length, novos: novos.length, alterados, removidos: removidos.length, hash };
+
+    // Cartões, notas do cálculo e marcos que citam o que mudou voltam para revisão. Falha aqui nunca desfaz a atualização do texto.
+    let revisao: ResumoRevisao | undefined;
+    try {
+      revisao = await this.revisao.registrarMudancas({ chave, numero: norma.numero }, mudancas);
+    } catch (e) {
+      this.log.warn(`${chave}: não foi possível registrar os itens para revisar: ${(e as Error).message}`);
+    }
+    return { chave, alterada: true, dispositivos: extraidos.length, novos: novos.length, alterados, removidos: removidos.length, hash, ...(revisao ? { revisao } : {}) };
   }
 
   /** Baixa e normaliza o texto de uma fonte oficial (só https em sites oficiais; PDF ainda não é suportado). */
@@ -172,18 +187,24 @@ export class BaseLegalService {
           continue;
         }
         const extraidos = extrairDispositivos(texto);
-        const atuais = new Map((await this.prisma.dispositivoLegal.findMany({ where: { norma_id: n.id }, select: { caminho: true, hash: true, rotulo: true } })).map((d) => [d.caminho, d]));
+        const atuais = new Map((await this.prisma.dispositivoLegal.findMany({ where: { norma_id: n.id }, select: { caminho: true, hash: true, rotulo: true, revogado: true } })).map((d) => [d.caminho, d]));
         const alterados = extraidos.filter((d) => atuais.has(d.caminho) && atuais.get(d.caminho)!.hash !== sha256(d.texto));
         const novos = extraidos.filter((d) => !atuais.has(d.caminho));
         const vistos = new Set(extraidos.map((d) => d.caminho));
         const removidos = [...atuais.keys()].filter((c) => !vistos.has(c));
         const lista = (xs: { rotulo: string }[]) => xs.slice(0, 8).map((x) => x.rotulo).join(', ') + (xs.length > 8 ? '…' : '');
+        const citados: MudancaDispositivo[] = [
+          ...alterados.map((d) => ({ caminho: d.caminho, rotulo: d.rotulo, mudanca: 'alterado' as const })),
+          ...removidos.filter((c) => !atuais.get(c)!.revogado).map((c) => ({ caminho: c, rotulo: atuais.get(c)!.rotulo, mudanca: 'revogado' as const })),
+        ];
+        const impacto = await this.revisao.impacto({ chave: n.chave, numero: n.numero }, citados).then(frasePorImpacto).catch(() => '');
         const detalhe = [
           alterados.length ? `${alterados.length} dispositivo(s) alterado(s): ${lista(alterados)}` : null,
           novos.length ? `${novos.length} novo(s): ${lista(novos)}` : null,
           removidos.length ? `${removidos.length} removido(s)` : null,
         ].filter(Boolean).join(' · ') || 'O texto oficial mudou (sem alteração de artigo identificada — pode ser só formatação).';
-        const criado = await this.criarAlertaSeNovo({ tipo: 'texto_alterado', chave: n.chave, referencia: n.chave, titulo: `${n.numero}: texto oficial atualizado`, detalhe, url: n.url_oficial, origem }, true);
+        const detalheComImpacto = impacto ? `${detalhe} · ${impacto}` : detalhe;
+        const criado = await this.criarAlertaSeNovo({ tipo: 'texto_alterado', chave: n.chave, referencia: n.chave, titulo: `${n.numero}: texto oficial atualizado`, detalhe: detalheComImpacto, url: n.url_oficial, origem }, true);
         if (criado) alertas += 1;
       } catch (e) {
         erros.push(`${n.chave}: ${(e as Error).message}`);

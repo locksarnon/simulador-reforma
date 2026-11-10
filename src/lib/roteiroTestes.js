@@ -360,6 +360,26 @@ export const ROTEIRO = [
     criterio: "Busca acha o artigo; assistente cita a fonte e recusa o que não está na lei; cartão revisado fica visível.",
   },
   {
+    id: "base-legal-revisao", grupo: "Inteligência de mercado", titulo: "Base legal: itens que voltam para revisão quando a lei muda", rota: "/base-legal",
+    objetivo: "Conferir que cartões, notas do cálculo e marcos da agenda que citam um artigo alterado voltam para revisão, com o motivo, e que nada é republicado sem a aprovação do administrador.",
+    preparo: [
+      "Entrar como administrador.",
+      "Ter ao menos um cartão revisado que cite um artigo da LC 214 (por exemplo o do limite do produtor rural, art. 164).",
+      "Ter uma atualização pendente em \"Atualizações da Base legal\" que altere esse artigo; em ambiente de teste, peça a quem mantém o banco que altere o texto do artigo antes de clicar em Atualizar.",
+    ],
+    passos: [
+      p("Em \"Atualizações da Base legal\", leia o aviso de texto oficial atualizado da norma.", "Além dos artigos alterados, o aviso traz a frase \"Citam estes dispositivos: … Depois da atualização, voltam para revisão.\"."),
+      p("Clique em \"Atualizar texto\".", "Mensagem \"Para revisar: …\" com quantos cartões, notas do cálculo e marcos foram atingidos."),
+      p("Veja o painel \"Itens para revisar porque o texto da lei mudou\".", "Cada item aparece uma vez, com o tipo (Pergunta frequente, Nota do cálculo ou Marco da agenda), o artigo, a norma, a data e o motivo."),
+      p("Abra o cartão atingido em \"Perguntas frequentes revisadas\".", "Rótulo \"Revisar\" e a caixa \"Voltou para revisão porque o texto da lei mudou\"; o texto diz se o trecho citado ainda consta no artigo."),
+      p("Entre como consultor (usuário comum) e procure o mesmo cartão.", "O cartão não aparece enquanto não for revisado."),
+      p("Como administrador, abra a nota com o ícone da balança de um ponto do cálculo que cite o artigo e clique em \"Marcar como conferida\".", "Antes de conferir, a nota mostra \"O texto da lei mudou depois desta nota\"; depois, o aviso some."),
+      p("No cartão, use \"Revisar e publicar\".", "O cartão volta a aparecer para os consultores e some do painel de itens para revisar."),
+    ],
+    cuidados: ["Nada é republicado sozinho: o cartão só reaparece depois do seu clique.", "Se o envio de e-mail estiver configurado, o endereço interno recebe um e-mail com a lista dos itens."],
+    criterio: "Cartão, nota e marco que citam o artigo alterado entram na lista com o motivo; o cartão some para o consultor até ser revisado; conferir tira o item da lista.",
+  },
+  {
     id: "radar", grupo: "Inteligência de mercado", titulo: "Radar de Novidades", rota: "/ferramentas/radar-reforma",
     objetivo: "Conferir o radar semanal gerado por IA (fontes reais, prazos, prioridade).",
     preparo: [],
