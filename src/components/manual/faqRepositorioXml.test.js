@@ -7,8 +7,11 @@ import { MAX_PDF_NO_ZIP } from "@/components/repositorio-xml/formatos";
 import documentosFonte from "@/components/repositorio-xml/DocumentosXml.jsx?raw";
 import certificadoFonte from "@/components/repositorio-xml/CertificadoXml.jsx?raw";
 import capturaFonte from "@/components/repositorio-xml/CapturaXml.jsx?raw";
+import cartoesFonte from "@/components/repositorio-xml/CartoesDoRepositorio.jsx?raw";
+import relatoriosFonte from "@/components/repositorio-xml/RelatoriosXml.jsx?raw";
+import paginaFonte from "@/pages/bpo/RepositorioXmlEmpresa.jsx?raw";
 
-const TELAS = `${documentosFonte}\n${certificadoFonte}\n${capturaFonte}`;
+const TELAS = [documentosFonte, certificadoFonte, capturaFonte, cartoesFonte, relatoriosFonte, paginaFonte].join(" ");
 
 describe("FAQ do Repositório de XML", () => {
   it("entra logo depois da Importação de XML", () => {
@@ -42,10 +45,25 @@ describe("FAQ do Repositório de XML", () => {
     expect(pdf.f).toContain("Não confirmado");
   });
 
-  it("a pergunta do resumo manda para a aba Só o resumo", () => {
+  it("a pergunta do resumo manda para o item Resumos e eventos SEFAZ e diz que os eventos ficam nele", () => {
     const resumo = SECAO_REPOSITORIO_XML.itens.find((i) => i.p.includes("Só resumo"));
-    expect(resumo.r).toContain("aba Só o resumo");
-    expect(resumo.r).toContain("passa para a aba Documentos");
+    expect(resumo.r).toContain("item Resumos e eventos SEFAZ");
+    expect(resumo.r).toContain("junto com os eventos");
+    expect(resumo.r).toContain("passa para o item do tipo dele");
+  });
+
+  it("a resposta dos relatórios diz os dois relatórios, os limites e os formatos", () => {
+    const rel = SECAO_REPOSITORIO_XML.itens.find((i) => i.p.includes("relatórios"));
+    expect(rel, "falta a pergunta dos relatórios").toBeTruthy();
+    for (const termo of ["Geral", "Produtos", "2.000 notas", "500 linhas", "20.000 linhas", "Baixar Excel", "Baixar CSV", "Gerar relatório"]) expect(rel.r, termo).toContain(termo);
+  });
+
+  it("o menu da empresa é descrito com os itens na ordem em que aparecem", () => {
+    const menu = SECAO_REPOSITORIO_XML.itens.find((i) => i.p.startsWith("O que é o Repositório de XML"));
+    expect(menu.r).toContain("NF-e | NFC-e, CT-e, NFS-e e MDF-e");
+    expect(menu.r).toContain("Resumos e eventos SEFAZ");
+    expect(menu.r).toContain("Relatórios");
+    expect(SECAO_REPOSITORIO_XML.nota).toContain("Certificado, Captura, um item por tipo de documento");
   });
 
   it("os limites citados são os do envio por arquivo", () => {
@@ -75,12 +93,12 @@ describe("Roteiro do Repositório de XML", () => {
   it("os botões e avisos citados existem nas telas", () => {
     const rotulos = [
       "Enviar certificado A1", "Substituir certificado", "Guardar no cofre", "Remover do cofre",
-      "Auditoria do cofre (últimos 20 registros)", "Escolher arquivos", "Baixar ZIP dos filtros", "Incluir os PDF dos documentos", "Visualizar o PDF", "Baixar o PDF", "Ciência da Operação", "Abrir Importação XML", "Buscar (chave, número, emitente)",
+      "Auditoria do cofre (últimos 20 registros)", "Escolher arquivos", "Baixar ZIP dos filtros", "Incluir os PDF dos documentos", "Visualizar o PDF", "Baixar o PDF", "Ciência da Operação", "Abrir Importação XML", "Menu do repositório", "NF-e | NFC-e", "Relatórios", "Gerar relatório", "Baixar Excel", "Baixar CSV", "Contar também os que só têm o resumo", "Buscar nos itens", "Somar por", "Buscar (chave, número, emitente)",
       "Capturar agora", "Ativar captura", "Ativar Ciência automática", "Cumpra os requisitos acima", "Últimas execuções", "Antes de ativar",
       "Ciência da Operação (libera o XML completo das compras)", "Certificado guardado no cofre", "Envio concluído", "Enviado ao importador",
       "Ambiente da SEFAZ", "UF do interessado", "Estados atendidos", "Captura ativada", "Captura desativada", "Ambiente atualizado", "Período da busca automática", "Período da busca automática atualizado", "Período da busca alterado", "Próxima busca automática",
       "Como baixar nas SEFAZ as notas que o cliente emitiu (MT, MS, GO, MA e PA)", "Só os que faltam enviar ao importador",
-      "Documentos no repositório", "Enviados por arquivo", "Captura automática", "Só o resumo (sem XML)", "Aguardando o importador",
+      "Documentos no repositório", "Enviados por arquivo", "Captura automática", "Resumos e eventos SEFAZ", "Aguardando o importador",
     ];
     for (const r of rotulos) expect(TELAS, r).toContain(r);
   });

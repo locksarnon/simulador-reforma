@@ -3,6 +3,18 @@ export const base = (empresaId) => `/repositorio-xml/empresas/${empresaId}`;
 export const TIPOS = { NFE: "NF-e", CTE: "CT-e", MDFE: "MDF-e", NFSE: "NFS-e", EVENTO: "Evento" };
 
 /**
+ * As abas de documentos da empresa, uma por tipo de documento (como no menu do Notalize): só os documentos dele, com o XML completo;
+ * os eventos e os resumos ficam na aba Resumos e eventos SEFAZ. `tipo` é o tipo do documento no repositório; `vazio` é o texto da tabela
+ * quando não há nenhum.
+ */
+export const ABAS_DE_DOCUMENTOS = [
+  { valor: "nfe", grupo: "NFE", tipo: "NFE", rotulo: "NF-e | NFC-e", vazio: "Nenhuma NF-e ou NFC-e neste repositório ainda. Envie os XML do cliente acima." },
+  { valor: "cte", grupo: "CTE", tipo: "CTE", rotulo: "CT-e", vazio: "Nenhum CT-e neste repositório ainda. Envie os XML do cliente acima." },
+  { valor: "nfse", grupo: "NFSE", tipo: "NFSE", rotulo: "NFS-e", vazio: "Nenhuma NFS-e neste repositório ainda. Envie os XML do cliente acima." },
+  { valor: "mdfe", grupo: "MDFE", tipo: "MDFE", rotulo: "MDF-e", vazio: "Nenhum MDF-e neste repositório ainda. Envie os XML do cliente acima." },
+];
+
+/**
  * Onde baixar nos portais das SEFAZ as notas que o próprio cliente emitiu (a Distribuição de DF-e não as entrega). Levantamento em
  * páginas das próprias SEFAZ em 10/11/2026; os portais mudam, por isso a tela manda conferir. Só há link onde a fonte é oficial.
  */
@@ -77,6 +89,15 @@ export function rotuloTipo(d) {
   if (d?.tipo === "NFE" && d.modelo === "65") return "NFC-e";
   if (d?.tipo === "CTE" && d.modelo === "67") return "CT-e OS";
   return TIPOS[d?.tipo] || d?.tipo || "—";
+}
+
+/**
+ * O documento a que o evento se refere, pelo modelo que o evento carrega (vem da chave de acesso): 55 NF-e, 65 NFC-e, 57 CT-e,
+ * 67 CT-e OS, 58 MDF-e; o evento da NFS-e não tem modelo. Modelo desconhecido: texto vazio.
+ */
+export function documentoDoEvento(d) {
+  if (d?.modelo == null || d.modelo === "") return "NFS-e";
+  return { 55: "NF-e", 65: "NFC-e", 57: "CT-e", 67: "CT-e OS", 58: "MDF-e" }[d.modelo] || "";
 }
 
 /**

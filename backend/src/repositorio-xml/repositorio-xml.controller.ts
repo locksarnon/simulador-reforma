@@ -5,6 +5,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { FiltrosRelatorio, RelatoriosXmlService } from './relatorios-xml.service';
 import { FiltrosDocumentos, RepositorioXmlService } from './repositorio-xml.service';
 
 const LIMITE_ARQUIVO = 30 * 1024 * 1024;
@@ -31,19 +32,34 @@ export const nomeDeDownload = (nome: string): string => nome.replace(/[^A-Za-z0-
 function filtros(q: Record<string, string | undefined>): FiltrosDocumentos {
   return {
     tipo: q.tipo || undefined, origem: q.origem || undefined, conteudo: q.conteudo || undefined, situacao: q.situacao || undefined,
-    de: q.de || undefined, ate: q.ate || undefined, q: q.q || undefined, pendentes: q.pendentes === 'true' || q.pendentes === '1',
+    grupo: q.grupo || undefined, modelo: q.modelo || undefined, de: q.de || undefined, ate: q.ate || undefined, q: q.q || undefined, pendentes: q.pendentes === 'true' || q.pendentes === '1',
     limit: q.limit ? Number(q.limit) : undefined, offset: q.offset ? Number(q.offset) : undefined,
   };
+}
+
+/** Filtros dos relatórios: os da lista, mais os que só eles usam (resumos, busca nos itens e agrupamento). */
+function filtrosDoRelatorio(q: Record<string, string | undefined>): FiltrosRelatorio {
+  return { ...filtros(q), pendentes: false, limit: undefined, offset: undefined, incluirResumos: q.incluir_resumos === 'true', busca: q.busca || undefined, agrupar: q.agrupar || undefined };
 }
 
 /** Repositório de XML por cliente: envio, consulta, download e entrega ao importador. */
 @Controller('repositorio-xml/empresas/:empresaId')
 export class RepositorioXmlController {
-  constructor(private readonly service: RepositorioXmlService) {}
+  constructor(private readonly service: RepositorioXmlService, private readonly relatorios: RelatoriosXmlService) {}
 
   @Get('resumo')
   resumo(@Param('empresaId') empresaId: string) {
     return this.service.resumo(empresaId);
+  }
+
+  @Get('relatorios/geral')
+  relatorioGeral(@Param('empresaId') empresaId: string, @Query() query: Record<string, string>) {
+    return this.relatorios.geral(empresaId, filtrosDoRelatorio(query));
+  }
+
+  @Get('relatorios/produtos')
+  relatorioProdutos(@Param('empresaId') empresaId: string, @Query() query: Record<string, string>) {
+    return this.relatorios.produtos(empresaId, filtrosDoRelatorio(query));
   }
 
   @Get('documentos')

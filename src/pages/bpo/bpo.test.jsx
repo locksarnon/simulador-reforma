@@ -114,7 +114,8 @@ describe("RepositorioXmlLista", () => {
 });
 
 describe("RepositorioXmlEmpresa", () => {
-  const PARAMETROS = { tipo: "", origem: "", conteudo: "COMPLETO", de: "", ate: "", pendentes: undefined, q: undefined };
+  // A aba que abre primeiro é a NF-e | NFC-e: a lista pede o grupo NFE.
+  const PARAMETROS = { tipo: "", origem: "", conteudo: "COMPLETO", grupo: "NFE", de: "", ate: "", pendentes: undefined, q: undefined };
   const empresa = EMPRESAS[1];
   const cacheDocs = [[["repo-xml-resumo", "E1"], { total: 0 }], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { itens: [], total: 0 }]];
   const tela = (cache) => renderizar(
@@ -122,14 +123,14 @@ describe("RepositorioXmlEmpresa", () => {
     { local: caminhoDoRepositorio("E1"), cache },
   );
 
-  it("mostra a empresa, as quatro abas e a Importação XML do grupo dela, fora do workroom do diagnóstico", () => {
+  it("mostra a empresa, o menu por tipo de documento e a Importação XML do grupo dela, fora do workroom do diagnóstico", () => {
     const html = tela([[["empresa", "E1"], empresa], [["grupos"], GRUPOS], ...cacheDocs]);
     expect(html).toContain("Álvares Agropecuária Ltda");
     expect(html).toContain("CNPJ 12.345.678/0001-95");
     expect(html).toContain("Grupo #001 xyz");
     // O caminho de volta é a lista do BPO, não o grupo.
     expect(html).toContain(`href="${CAMINHO_REPOSITORIO_XML}"`);
-    for (const aba of ["Documentos", "Só o resumo", "Captura", "Certificado"]) expect(html).toContain(aba);
+    for (const aba of ["Certificado", "Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Relatórios"]) expect(html).toContain(aba);
     expect(html).not.toContain("Certificado e autorização");
     // A Importação XML é do diagnóstico: o link leva ao grupo e à empresa certos.
     expect(html).toContain('href="/workroom/G1/empresas/E1/importacao-xml"');
@@ -138,12 +139,27 @@ describe("RepositorioXmlEmpresa", () => {
     expect(html).not.toContain("Excluir empresa");
   });
 
-  it("a aba dos resumos mostra quantos documentos estão só em resumo (a mesma contagem do cartão da aba Documentos)", () => {
+  it("o menu é uma barra com um item por tipo de documento, na ordem do Notalize, e o item aberto vem em destaque verde", () => {
+    const html = tela([[["empresa", "E1"], empresa], [["grupos"], GRUPOS], ...cacheDocs]);
+    const itens = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
+    expect(itens).toEqual(["Certificado", "Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Relatórios"]);
+    const aberto = [...html.matchAll(/<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
+    expect(aberto).toEqual(["NF-e | NFC-e"]);
+    expect(html).toContain("data-[state=active]:bg-primary");
+    expect(html).toContain("data-[state=active]:text-primary-foreground");
+    expect(html).toContain('aria-label="Menu do repositório"');
+    // a aba aberta mostra os cartões e a lista do grupo; as outras abas ainda não foram desenhadas
+    expect(html).toContain("Aguardando o importador");
+    expect(html).toContain("Arraste aqui os XML ou ZIP do cliente");
+    expect(html).not.toContain("Gerar relatório");
+  });
+
+  it("a aba dos resumos e eventos mostra quantas linhas a tabela tem (o mesmo número do cartão acima das abas)", () => {
     const grupos = [[["empresa", "E1"], empresa], [["grupos"], GRUPOS]];
-    const com = tela([...grupos, [["repo-xml-resumo", "E1"], { total: 9, so_resumo: 3 }], cacheDocs[1]]);
-    expect(com).toContain("Só o resumo (3)");
+    const com = tela([...grupos, [["repo-xml-resumo", "E1"], { total: 9, so_resumo: 3, resumos_e_eventos: 5 }], cacheDocs[1]]);
+    expect(com).toContain("Resumos e eventos SEFAZ (5)");
     const sem = tela([...grupos, ...cacheDocs]);
-    expect(sem).not.toMatch(/Só o resumo \(\d+\)/); // o cartão "Só o resumo (sem XML)" não conta: o que não aparece é o número entre parênteses
+    expect(sem).not.toMatch(/Resumos e eventos SEFAZ \(\d+\)/); // sem linhas, o nome da aba vem sem o número entre parênteses
   });
 
   it("sem grupo conhecido, não mostra um link de importação que levaria a lugar nenhum", () => {

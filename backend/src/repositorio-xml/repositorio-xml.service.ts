@@ -16,6 +16,10 @@ export type ResultadoRegistro = { resultado: 'NOVO' | 'ATUALIZADO' | 'DUPLICADO'
 
 export type FiltrosDocumentos = {
   tipo?: string; origem?: string; conteudo?: string; situacao?: string; de?: string; ate?: string; q?: string; pendentes?: boolean;
+  /** Grupo da aba: NFE, CTE, MDFE ou NFSE (só os documentos daquele tipo) ou RESUMOS_EVENTOS (os resumos e os eventos, de qualquer tipo). */
+  grupo?: string;
+  /** Modelo do documento (55, 65, 57, 58...): na aba NF-e | NFC-e separa uma da outra. */
+  modelo?: string;
   limit?: number; offset?: number;
 };
 
@@ -37,6 +41,57 @@ const MAX_PDF_NO_ZIP = 300;
 export const IMPORTAVEL: Prisma.DocumentoXmlWhereInput = {
   OR: [{ tipo: { in: ['NFE', 'CTE'] } }, { tipo: 'EVENTO', modelo: { in: ['55', '65', '57', '67'] } }],
 };
+
+/**
+ * O que a tabela "Resumos e eventos SEFAZ" da tela mostra: os documentos que a SEFAZ entregou só em resumo (sem o XML completo) e os
+ * eventos (cancelamento, carta de correção, manifestação etc.), de qualquer tipo de documento.
+ */
+export const RESUMOS_E_EVENTOS: Prisma.DocumentoXmlWhereInput = { OR: [{ conteudo: 'RESUMO' }, { tipo: 'EVENTO' }] };
+
+/**
+ * Os grupos das abas da tela: uma aba por tipo de documento, só com os documentos dele (o evento carrega o modelo do documento a que
+ * se refere, mas vai para a aba Resumos e eventos SEFAZ), e a aba dos resumos e eventos.
+ */
+export const GRUPOS_DE_DOCUMENTOS: Record<string, Prisma.DocumentoXmlWhereInput> = {
+  NFE: { tipo: 'NFE' },
+  CTE: { tipo: 'CTE' },
+  MDFE: { tipo: 'MDFE' },
+  NFSE: { tipo: 'NFSE' },
+  RESUMOS_EVENTOS: RESUMOS_E_EVENTOS,
+};
+
+/** Filtros da lista, do ZIP e dos relatórios do repositório (todos pedem os documentos de uma empresa). */
+export function construirWhere(empresaId: string, f: FiltrosDocumentos): Prisma.DocumentoXmlWhereInput {
+  const w: Prisma.DocumentoXmlWhereInput = { empresa_id: empresaId };
+  if (f.tipo) w.tipo = f.tipo;
+  if (f.modelo) w.modelo = f.modelo;
+  if (f.origem) w.origem = f.origem;
+  if (f.conteudo) w.conteudo = f.conteudo;
+  if (f.situacao) w.situacao = f.situacao;
+  const e: Prisma.DocumentoXmlWhereInput[] = [];
+  if (f.pendentes) { w.lote_importacao_id = null; w.conteudo = 'COMPLETO'; e.push(IMPORTAVEL); }
+  if (f.grupo) {
+    const grupo = GRUPOS_DE_DOCUMENTOS[f.grupo];
+    if (!grupo) throw new BadRequestException('Grupo de documentos desconhecido.');
+    e.push(grupo);
+  }
+  if (e.length) w.AND = e;
+  const de = f.de ? new Date(`${f.de}T00:00:00-03:00`) : null;
+  const ate = f.ate ? new Date(`${f.ate}T23:59:59.999-03:00`) : null;
+  if ((de && !Number.isNaN(de.getTime())) || (ate && !Number.isNaN(ate.getTime()))) {
+    w.data_emissao = { ...(de && !Number.isNaN(de.getTime()) ? { gte: de } : {}), ...(ate && !Number.isNaN(ate.getTime()) ? { lte: ate } : {}) };
+  }
+  const q = (f.q ?? '').trim();
+  if (q) {
+    const digitos = q.replace(/\D/g, '');
+    w.OR = [
+      { chave: { contains: q.toUpperCase() } },
+      { emitente_nome: { contains: q, mode: 'insensitive' } },
+      ...(digitos ? [{ numero: digitos }, { emitente_doc: { contains: digitos } }] : []),
+    ];
+  }
+  return w;
+}
 
 /** Resumo substitui-se pelo XML completo; qualquer outro repetido é duplicado. */
 export function decidirRegistro(existente: { conteudo: string } | null, novo: { conteudo: string }): 'CRIAR' | 'ATUALIZAR' | 'DUPLICADO' {
@@ -73,7 +128,8 @@ const ehZip = (b: Buffer) => b.length > 4 && b[0] === 0x50 && b[1] === 0x4b;
 /** Devolve o controle ao laço de eventos: o processamento de um envio grande não pode deixar a API (e o healthcheck) parada. */
 const ceder = () => new Promise<void>((resolver) => setImmediate(resolver));
 
-async function emLotes<T, R>(itens: T[], tamanho: number, fn: (i: T) => Promise<R>): Promise<R[]> {
+/** Processa `itens` de `tamanho` em `tamanho` ao mesmo tempo, mantendo a ordem dos resultados. */
+export async function emLotes<T, R>(itens: T[], tamanho: number, fn: (i: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
   for (let i = 0; i < itens.length; i += tamanho) out.push(...(await Promise.all(itens.slice(i, i + tamanho).map(fn))));
   return out;
@@ -245,27 +301,7 @@ export class RepositorioXmlService {
   // ── Consulta ────────────────────────────────────────────────────────
 
   private where(empresaId: string, f: FiltrosDocumentos): Prisma.DocumentoXmlWhereInput {
-    const w: Prisma.DocumentoXmlWhereInput = { empresa_id: empresaId };
-    if (f.tipo) w.tipo = f.tipo;
-    if (f.origem) w.origem = f.origem;
-    if (f.conteudo) w.conteudo = f.conteudo;
-    if (f.situacao) w.situacao = f.situacao;
-    if (f.pendentes) { w.lote_importacao_id = null; w.conteudo = 'COMPLETO'; w.AND = [IMPORTAVEL]; }
-    const de = f.de ? new Date(`${f.de}T00:00:00-03:00`) : null;
-    const ate = f.ate ? new Date(`${f.ate}T23:59:59.999-03:00`) : null;
-    if ((de && !Number.isNaN(de.getTime())) || (ate && !Number.isNaN(ate.getTime()))) {
-      w.data_emissao = { ...(de && !Number.isNaN(de.getTime()) ? { gte: de } : {}), ...(ate && !Number.isNaN(ate.getTime()) ? { lte: ate } : {}) };
-    }
-    const q = (f.q ?? '').trim();
-    if (q) {
-      const digitos = q.replace(/\D/g, '');
-      w.OR = [
-        { chave: { contains: q.toUpperCase() } },
-        { emitente_nome: { contains: q, mode: 'insensitive' } },
-        ...(digitos ? [{ numero: digitos }, { emitente_doc: { contains: digitos } }] : []),
-      ];
-    }
-    return w;
+    return construirWhere(empresaId, f);
   }
 
   async listar(empresaId: string, f: FiltrosDocumentos) {
@@ -291,11 +327,12 @@ export class RepositorioXmlService {
   async resumo(empresaId: string) {
     await this.empresa(empresaId);
     const base = { empresa_id: empresaId };
-    const [total, porOrigem, porTipo, resumos, naoImportados, ultimo] = await Promise.all([
+    const [total, porOrigem, porTipo, resumos, resumosEEventos, naoImportados, ultimo] = await Promise.all([
       this.prisma.documentoXml.count({ where: base }),
       this.prisma.documentoXml.groupBy({ by: ['origem'], where: base, _count: { _all: true } }),
       this.prisma.documentoXml.groupBy({ by: ['tipo'], where: base, _count: { _all: true } }),
       this.prisma.documentoXml.count({ where: { ...base, conteudo: 'RESUMO' } }),
+      this.prisma.documentoXml.count({ where: { ...base, AND: [RESUMOS_E_EVENTOS] } }),
       this.prisma.documentoXml.count({ where: { ...base, conteudo: 'COMPLETO', lote_importacao_id: null, AND: [IMPORTAVEL] } }),
       this.prisma.documentoXml.findFirst({ where: base, orderBy: { recebido_em: 'desc' }, select: { recebido_em: true } }),
     ]);
@@ -305,6 +342,7 @@ export class RepositorioXmlService {
       por_origem: conta(porOrigem as never, 'origem'),
       por_tipo: conta(porTipo as never, 'tipo'),
       so_resumo: resumos,
+      resumos_e_eventos: resumosEEventos,
       nao_enviados_ao_importador: naoImportados,
       ultimo_recebimento: ultimo?.recebido_em ?? null,
     };

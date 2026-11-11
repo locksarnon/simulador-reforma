@@ -60,3 +60,28 @@ describe('nomeDeDownload', () => {
     expect(nomeDeDownload('x'.repeat(400)).length).toBe(150);
   });
 });
+
+describe('filtros por grupo e relatórios', () => {
+  const servico = { listar: vi.fn(async () => ({ total: 0, itens: [] })) };
+  const relatorios = { geral: vi.fn(async () => ({ ok: 'geral' })), produtos: vi.fn(async () => ({ ok: 'produtos' })) };
+  const controlador = new RepositorioXmlController(servico as never, relatorios as never);
+
+  it('a lista aceita o grupo da aba e o modelo', async () => {
+    await controlador.listar('E1', { grupo: 'NFE', modelo: '65', tipo: 'EVENTO', conteudo: 'COMPLETO', limit: '50' });
+    expect(servico.listar).toHaveBeenCalledWith('E1', expect.objectContaining({ grupo: 'NFE', modelo: '65', tipo: 'EVENTO', conteudo: 'COMPLETO', limit: 50 }));
+  });
+
+  it('o relatório Geral recebe os filtros da tela, sem paginação nem "só os pendentes"', async () => {
+    const r = await controlador.relatorioGeral('E1', { grupo: 'CTE', de: '2026-11-01', ate: '2026-11-30', situacao: 'CANCELADA', origem: 'CAPTURA', incluir_resumos: 'true', limit: '10', offset: '20', pendentes: 'true' });
+    expect(r).toEqual({ ok: 'geral' });
+    expect(relatorios.geral).toHaveBeenCalledWith('E1', expect.objectContaining({
+      grupo: 'CTE', de: '2026-11-01', ate: '2026-11-30', situacao: 'CANCELADA', origem: 'CAPTURA', incluirResumos: true, pendentes: false, limit: undefined, offset: undefined,
+    }));
+  });
+
+  it('o relatório de Produtos recebe o agrupamento, a busca nos itens e o modelo', async () => {
+    const r = await controlador.relatorioProdutos('E1', { agrupar: 'ncm', busca: 'soja', modelo: '65', situacao: 'TODAS' });
+    expect(r).toEqual({ ok: 'produtos' });
+    expect(relatorios.produtos).toHaveBeenCalledWith('E1', expect.objectContaining({ agrupar: 'ncm', busca: 'soja', modelo: '65', situacao: 'TODAS', incluirResumos: false }));
+  });
+});

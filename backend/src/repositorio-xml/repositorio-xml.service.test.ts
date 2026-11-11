@@ -259,7 +259,10 @@ describe('o que vai ao importador de XML', () => {
 
   it('o envio sem ids leva só o que o importador lê, e o que sobra não conta como pendente', async () => {
     const t = montarImportacao([pendente('a', 'NFE', '55'), pendente('b', 'NFSE', null), pendente('c', 'MDFE', '58'), pendente('d', 'EVENTO', '57'), pendente('e', 'EVENTO', null)]);
-    expect((await t.service.resumo('E1')).nao_enviados_ao_importador).toBe(2);
+    const numeros = await t.service.resumo('E1');
+    expect(numeros.nao_enviados_ao_importador).toBe(2);
+    expect(numeros.resumos_e_eventos).toBe(2); // os dois eventos (o do CT-e e o da NFS-e)
+    expect(numeros.so_resumo).toBe(0); // nenhum documento está só em resumo
     const r = await t.service.enviarParaImportacao('E1');
     expect(r.arquivos).toBe(2);
     expect(t.importacao.receberLote).toHaveBeenCalledWith(expect.objectContaining({ arquivos: [expect.objectContaining({ nome: 'a.xml' }), expect.objectContaining({ nome: 'd.xml' })] }));
