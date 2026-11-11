@@ -71,6 +71,7 @@ import ArquivosPagina from '@/pages/bpo/ArquivosPagina';
 import PessoasFisicasPagina from '@/pages/clientes/PessoasFisicasPagina';
 import ComunicadosPagina from '@/pages/comercial/ComunicadosPagina';
 import ComunicacoesPagina from '@/pages/admin/ComunicacoesPagina';
+import IntegracoesPagina from '@/pages/admin/IntegracoesPagina';
 import UsuariosPagina from '@/pages/admin/UsuariosPagina';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
@@ -120,6 +121,7 @@ function App() {
                   <Route path="/clientes/pessoas-fisicas" element={<PessoasFisicasPagina />} />
                   <Route path="/comercial/comunicados" element={<ComunicadosPagina />} />
                   <Route path="/admin/comunicacoes" element={<ComunicacoesPagina />} />
+                  <Route path="/admin/integracoes" element={<IntegracoesPagina />} />
                   <Route path="/admin/usuarios" element={<UsuariosPagina />} />
                   <Route path="/admin/acessos" element={<AcessosPagina />} />
                   <Route path="/perfil" element={<PerfilPagina />} />
