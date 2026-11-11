@@ -175,117 +175,117 @@ model Grupo {
 }
 
 model Empresa {
-  id                   String    @id @default(cuid())
-  id_empresa           String
-  grupo                String?
-  razao_social         String
-  cnpj_cpf             String?
-  regime_atual         String?
-  setor                String?
-  uf                   String?
-  municipio            String?
-  contribuinte_ibs_cbs String?
-  produtor_rural       String?
-  cooperativa          String?
-  inscricao_estadual   String?
-  erp                  String?
-  erp_versao           String?
-  addons               String[] @default([])
-  addons_versoes       Json?
-  responsavel_fiscal   String?
-  status               String    @default("Ativa")
-  data_inicio          DateTime?
-  observacao           String?
+  id                    String    @id @default(cuid())
+  id_empresa            String
+  grupo                 String?
+  razao_social          String
+  cnpj_cpf              String?
+  regime_atual          String?
+  setor                 String?
+  uf                    String?
+  municipio             String?
+  contribuinte_ibs_cbs  String?
+  produtor_rural        String?
+  cooperativa           String?
+  inscricao_estadual    String?
+  erp                   String?
+  erp_versao            String?
+  addons                String[]  @default([])
+  addons_versoes        Json?
+  responsavel_fiscal    String?
+  status                String    @default("Ativa")
+  data_inicio           DateTime?
+  observacao            String?
   /// Contato da empresa (e-mail e WhatsApp) para avisos e comunicados.
-  email_contato        String?
-  whatsapp_contato     String?
+  email_contato         String?
+  whatsapp_contato      String?
   /// Dados públicos do CNPJ (Receita Federal, pela consulta pública), para o Painel da carteira e a pré-análise.
-  cnae_principal       String?
-  cnae_descricao       String?
-  porte                String?
-  natureza_juridica    String?
+  cnae_principal        String?
+  cnae_descricao        String?
+  porte                 String?
+  natureza_juridica     String?
   codigo_municipio_ibge String?
-  latitude             Float?
-  longitude            Float?
-  dados_publicos_em    DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  latitude              Float?
+  longitude             Float?
+  dados_publicos_em     DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([grupo])
 }
 
 model Operacao {
-  id                              String           @id @default(cuid())
-  id_operacao                     String
-  empresa_id                      String
-  data                            DateTime?
-  ano                             Int?
-  direcao                         Direcao
-  tipo                            TipoOperacao?
-  descricao                       String?
-  quantidade                      Float?
-  preco_unitario                  Float?
-  desconto_incondicional          Float            @default(0)
-  frete                           Float            @default(0)
-  seguro                          Float            @default(0)
-  outras_despesas                 Float            @default(0)
-  valor_bruto                     Float
-  ncm                             String?
-  nbs                             String?
-  cfop_servico                    String?
-  uf_origem                       String?
-  uf_destino                      String?
-  municipio_destino               String?
-  documento                       String?
-  regime_atual                    String?
-  c_class_trib                    String?
-  cst_ibs_cbs                     String?
-  pis_pct                         Float            @default(0)
-  cofins_pct                      Float            @default(0)
-  icms_pct                        Float            @default(0)
-  fcp_pct                         Float            @default(0)
-  mva_st_pct                      Float            @default(0)
-  iss_pct                         Float            @default(0)
-  ipi_pct                         Float            @default(0)
+  id                             String           @id @default(cuid())
+  id_operacao                    String
+  empresa_id                     String
+  data                           DateTime?
+  ano                            Int?
+  direcao                        Direcao
+  tipo                           TipoOperacao?
+  descricao                      String?
+  quantidade                     Float?
+  preco_unitario                 Float?
+  desconto_incondicional         Float            @default(0)
+  frete                          Float            @default(0)
+  seguro                         Float            @default(0)
+  outras_despesas                Float            @default(0)
+  valor_bruto                    Float
+  ncm                            String?
+  nbs                            String?
+  cfop_servico                   String?
+  uf_origem                      String?
+  uf_destino                     String?
+  municipio_destino              String?
+  documento                      String?
+  regime_atual                   String?
+  c_class_trib                   String?
+  cst_ibs_cbs                    String?
+  pis_pct                        Float            @default(0)
+  cofins_pct                     Float            @default(0)
+  icms_pct                       Float            @default(0)
+  fcp_pct                        Float            @default(0)
+  mva_st_pct                     Float            @default(0)
+  iss_pct                        Float            @default(0)
+  ipi_pct                        Float            @default(0)
   /// Imposto Seletivo (LC 214, arts. 409 a 438): alíquota ad valorem informada, só para quem é contribuinte do IS (fabricante, importador, extrativista). 0 = não informado.
-  is_pct                          Float            @default(0)
+  is_pct                         Float            @default(0)
   /// Combustível do regime específico (LC 214, arts. 172 a 180): chave de AliquotaCombustivel.produto. Vazio = operação comum.
-  combustivel_produto             String?
-  credito_elegivel_pct            Float            @default(0)
-  split_pct                       Float            @default(0)
-  c_cred_pres                     String?
-  credito_presumido_ibs_pct       Float            @default(0)
-  credito_presumido_cbs_pct       Float            @default(0)
-  grupo_rtc                       String?
-  reducao_informada               String?
-  diferimento_informado           String?
-  tributacao_regular_informada    String?
-  credito_presumido_informado     String?
-  compra_governamental_informado  String?
-  finalidade_dfe                  String?
-  crt_emitente                    String?
-  ambiente                        String?
-  custo_base_pct                  Float            @default(0.65)
-  margem_meta_pct                 Float            @default(0.18)
-  observacao_dfe                  String?
-  situacao                        SituacaoOperacao @default(ATIVA)
-  createdAt                       DateTime         @default(now())
-  updatedAt                       DateTime         @updatedAt
+  combustivel_produto            String?
+  credito_elegivel_pct           Float            @default(0)
+  split_pct                      Float            @default(0)
+  c_cred_pres                    String?
+  credito_presumido_ibs_pct      Float            @default(0)
+  credito_presumido_cbs_pct      Float            @default(0)
+  grupo_rtc                      String?
+  reducao_informada              String?
+  diferimento_informado          String?
+  tributacao_regular_informada   String?
+  credito_presumido_informado    String?
+  compra_governamental_informado String?
+  finalidade_dfe                 String?
+  crt_emitente                   String?
+  ambiente                       String?
+  custo_base_pct                 Float            @default(0.65)
+  margem_meta_pct                Float            @default(0.18)
+  observacao_dfe                 String?
+  situacao                       SituacaoOperacao @default(ATIVA)
+  createdAt                      DateTime         @default(now())
+  updatedAt                      DateTime         @updatedAt
 
   @@index([empresa_id])
   @@index([ano])
 }
 
 model Cenario {
-  id                          String   @id @default(cuid())
-  nome                        String
-  descricao                   String?
-  fator_volume                Float    @default(1)
-  fator_preco                 Float    @default(1)
-  fator_custo                 Float    @default(1)
-  fator_credito_aproveitado   Float    @default(1)
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  nome                      String
+  descricao                 String?
+  fator_volume              Float    @default(1)
+  fator_preco               Float    @default(1)
+  fator_custo               Float    @default(1)
+  fator_credito_aproveitado Float    @default(1)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 }
 
 model TransicaoAno {
@@ -334,241 +334,241 @@ model AliquotaCombustivel {
 }
 
 model ClassTrib {
-  id                  String    @id @default(cuid())
-  c_class_trib        String
-  cst                 String?
-  descricao_oficial   String?
-  grupo_operacional   String?
-  pct_reducao_ibs     Float     @default(0)
-  pct_reducao_cbs     Float     @default(0)
-  tributacao_regular  String?
-  credito_presumido   String?
-  estorno_credito     String?
-  receita_bruta       String?
-  dfe_relacionados    String?
-  fonte               String?
-  publicacao          DateTime?
-  vigencia_inicio     DateTime?
-  vigencia_fim        DateTime?
-  status              String    @default("Ativo")
-  observacao          String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  c_class_trib       String
+  cst                String?
+  descricao_oficial  String?
+  grupo_operacional  String?
+  pct_reducao_ibs    Float     @default(0)
+  pct_reducao_cbs    Float     @default(0)
+  tributacao_regular String?
+  credito_presumido  String?
+  estorno_credito    String?
+  receita_bruta      String?
+  dfe_relacionados   String?
+  fonte              String?
+  publicacao         DateTime?
+  vigencia_inicio    DateTime?
+  vigencia_fim       DateTime?
+  status             String    @default("Ativo")
+  observacao         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([c_class_trib])
 }
 
 model CstIbsCbs {
-  id                          String    @id @default(cuid())
-  cst                         String
-  descricao_oficial           String?
-  exige_tributacao            String?
-  reducao_bc                  String?
-  reducao_aliquota             String?
-  transferencia_credito       String?
-  diferimento                 String?
-  monofasica                  String?
-  credito_presumido_ibs_zfm   String?
-  ajuste_competencia          String?
-  origem                      String?
-  publicacao_referencia       DateTime?
-  vigencia_inicio             DateTime?
-  vigencia_fim                DateTime?
-  status                      String    @default("Ativo")
-  observacao                  String?
-  createdAt                   DateTime  @default(now())
-  updatedAt                   DateTime  @updatedAt
+  id                        String    @id @default(cuid())
+  cst                       String
+  descricao_oficial         String?
+  exige_tributacao          String?
+  reducao_bc                String?
+  reducao_aliquota          String?
+  transferencia_credito     String?
+  diferimento               String?
+  monofasica                String?
+  credito_presumido_ibs_zfm String?
+  ajuste_competencia        String?
+  origem                    String?
+  publicacao_referencia     DateTime?
+  vigencia_inicio           DateTime?
+  vigencia_fim              DateTime?
+  status                    String    @default("Ativo")
+  observacao                String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   @@index([cst])
 }
 
 model CredPres {
-  id                     String    @id @default(cuid())
-  c_cred_pres            String
-  descricao_oficial      String?
-  apropria_dfe           String?
-  apropria_evento        String?
+  id                      String    @id @default(cuid())
+  c_cred_pres             String
+  descricao_oficial       String?
+  apropria_dfe            String?
+  apropria_evento         String?
   deduz_credito_presumido String?
-  ibs_aplicavel          String?
-  inicio_ibs             DateTime?
-  fim_ibs                DateTime?
-  cbs_aplicavel          String?
-  inicio_cbs             DateTime?
-  fim_cbs                DateTime?
-  percentual_oficial     String?
-  metodo_calculo         String?
-  base_legal_metodo      String?
-  fonte                  String?
-  publicacao             DateTime?
-  status                 String    @default("Ativo")
-  observacao             String?
-  createdAt              DateTime  @default(now())
+  ibs_aplicavel           String?
+  inicio_ibs              DateTime?
+  fim_ibs                 DateTime?
+  cbs_aplicavel           String?
+  inicio_cbs              DateTime?
+  fim_cbs                 DateTime?
+  percentual_oficial      String?
+  metodo_calculo          String?
+  base_legal_metodo       String?
+  fonte                   String?
+  publicacao              DateTime?
+  status                  String    @default("Ativo")
+  observacao              String?
+  createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
   @@index([c_cred_pres])
 }
 
 model Configuracao {
-  id                             String    @id @default(cuid())
-  versao_simulador               String    @default("v0.18")
-  data_base_normativa            DateTime?
-  cenario_ativo                  String    @default("Base")
-  margem_meta_pct                Float     @default(0.18)
-  prazo_realizacao_credito_dias  Float     @default(60)
-  taxa_custo_financeiro_pct      Float     @default(0.015)
-  observacao                     String?
-  createdAt                      DateTime  @default(now())
-  updatedAt                      DateTime  @updatedAt
+  id                            String    @id @default(cuid())
+  versao_simulador              String    @default("v0.18")
+  data_base_normativa           DateTime?
+  cenario_ativo                 String    @default("Base")
+  margem_meta_pct               Float     @default(0.18)
+  prazo_realizacao_credito_dias Float     @default(60)
+  taxa_custo_financeiro_pct     Float     @default(0.015)
+  observacao                    String?
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 }
 
 model Diagnostico {
-  id            String            @id @default(cuid())
-  grupo_id      String
-  nome          String?
-  etapa_atual   Float             @default(1)
-  status        StatusDiagnostico @default(rascunho)
-  data_criacao  DateTime?
-  observacao    String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id           String            @id @default(cuid())
+  grupo_id     String
+  nome         String?
+  etapa_atual  Float             @default(1)
+  status       StatusDiagnostico @default(rascunho)
+  data_criacao DateTime?
+  observacao   String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@index([grupo_id])
 }
 
 model ImportacaoXMLLote {
-  id                            String        @id @default(cuid())
-  grupo_id                      String
-  idempotency_key                String
-  status                        StatusLoteXML @default(RECEBIDO)
-  total_arquivos                Int           @default(0)
-  arquivos_validos              Int           @default(0)
-  arquivos_invalidos            Int           @default(0)
-  total_itens                   Int           @default(0)
-  itens_importaveis             Int           @default(0)
-  itens_importaveis_com_alerta  Int           @default(0)
-  itens_bloqueados              Int           @default(0)
-  itens_duplicados              Int           @default(0)
-  itens_cancelados              Int           @default(0)
-  itens_confirmados             Int           @default(0)
-  versao_regras                 String        @default("v0.18")
-  processado_em                 DateTime?
-  observacao                    String?
-  createdAt                     DateTime      @default(now())
-  updatedAt                     DateTime      @updatedAt
+  id                           String        @id @default(cuid())
+  grupo_id                     String
+  idempotency_key              String
+  status                       StatusLoteXML @default(RECEBIDO)
+  total_arquivos               Int           @default(0)
+  arquivos_validos             Int           @default(0)
+  arquivos_invalidos           Int           @default(0)
+  total_itens                  Int           @default(0)
+  itens_importaveis            Int           @default(0)
+  itens_importaveis_com_alerta Int           @default(0)
+  itens_bloqueados             Int           @default(0)
+  itens_duplicados             Int           @default(0)
+  itens_cancelados             Int           @default(0)
+  itens_confirmados            Int           @default(0)
+  versao_regras                String        @default("v0.18")
+  processado_em                DateTime?
+  observacao                   String?
+  createdAt                    DateTime      @default(now())
+  updatedAt                    DateTime      @updatedAt
 
   @@unique([grupo_id, idempotency_key])
 }
 
 model ImportacaoXMLArquivo {
-  id                       String              @id @default(cuid())
-  lote_id                  String
-  grupo_id                 String
-  nome_original            String
-  storage_key              String?
-  hash_sha256              String?
-  tamanho_bytes            Int                 @default(0)
-  tipo_xml                 TipoXml?
-  situacao_fiscal          SituacaoFiscalXML?
-  status_tecnico           StatusTecnico       @default(PENDENTE)
-  chave_nfe                String?
-  numero_nf                String?
-  serie                    String?
-  data_emissao             DateTime?
-  cstat                    String?
-  xmotivo                  String?
-  ambiente                 String?
-  qtd_itens                Int                 @default(0)
-  motivo_duplicidade       String?
-  conteudo_extraido_json   String?
-  erro_processamento       String?
-  processado_em            DateTime?
-  createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
+  id                     String             @id @default(cuid())
+  lote_id                String
+  grupo_id               String
+  nome_original          String
+  storage_key            String?
+  hash_sha256            String?
+  tamanho_bytes          Int                @default(0)
+  tipo_xml               TipoXml?
+  situacao_fiscal        SituacaoFiscalXML?
+  status_tecnico         StatusTecnico      @default(PENDENTE)
+  chave_nfe              String?
+  numero_nf              String?
+  serie                  String?
+  data_emissao           DateTime?
+  cstat                  String?
+  xmotivo                String?
+  ambiente               String?
+  qtd_itens              Int                @default(0)
+  motivo_duplicidade     String?
+  conteudo_extraido_json String?
+  erro_processamento     String?
+  processado_em          DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   @@index([lote_id])
 }
 
 model ImportacaoXMLItem {
-  id                                          String              @id @default(cuid())
-  lote_id                                     String
-  arquivo_id                                  String?
-  grupo_id                                    String
-  chave_nfe                                   String
-  numero_item                                 Int
-  empresa_id                                  String?
-  perspectiva                                 Perspectiva?
-  direcao                                     Direcao?
-  tipo_relacionamento                         TipoRelacionamento?
-  status_mapeamento                           String?
-  resultado_final                             ResultadoFinalXML?
-  validacao_documental_json                   String?
-  validacao_cadastral_json                    String?
-  validacao_tributaria_json                   String?
-  validacao_operacional_json                  String?
-  snapshot_versoes_json                       String?
-  vinculo_item_id                             String?
-  confirmado_em                               DateTime?
-  operacao_id                                 String?
-  descricao                                   String?
-  ncm                                         String?
-  nbs                                         String?
-  cfop_servico                                String?
-  uf_origem                                   String?
-  uf_destino                                  String?
-  municipio_destino                           String?
-  quantidade                                  Float               @default(0)
-  preco_unitario                              Float               @default(0)
-  desconto_incondicional                      Float               @default(0)
-  frete                                       Float               @default(0)
-  seguro                                      Float               @default(0)
-  outras_despesas                             Float               @default(0)
-  valor_bruto                                 Float               @default(0)
-  cst_original                                String?
-  cst_normalizado                             String?
-  c_class_trib_original                       String?
-  c_class_trib_normalizado                    String?
-  c_cred_pres_original                        String?
-  c_cred_pres_normalizado                     String?
-  pis_pct_original                            String?
-  pis_pct_normalizado                         Float?
-  cofins_pct_original                         String?
-  cofins_pct_normalizado                      Float?
-  icms_pct_original                           String?
-  icms_pct_normalizado                        Float?
-  fcp_pct_original                            String?
-  fcp_pct_normalizado                         Float?
-  ipi_pct_original                            String?
-  ipi_pct_normalizado                         Float?
-  iss_pct_original                            String?
-  iss_pct_normalizado                         Float?
-  credito_presumido_ibs_pct_original          String?
-  credito_presumido_ibs_pct_normalizado       Float?
-  credito_presumido_cbs_pct_original          String?
-  credito_presumido_cbs_pct_normalizado       Float?
-  grupo_rtc                                   String?
-  finalidade_dfe                              String?
-  documentos_referenciados_json                String?
-  crt_emitente                                String?
-  ambiente                                    String?
-  data_emissao                                DateTime?
-  createdAt                                   DateTime            @default(now())
-  updatedAt                                   DateTime            @updatedAt
+  id                                    String              @id @default(cuid())
+  lote_id                               String
+  arquivo_id                            String?
+  grupo_id                              String
+  chave_nfe                             String
+  numero_item                           Int
+  empresa_id                            String?
+  perspectiva                           Perspectiva?
+  direcao                               Direcao?
+  tipo_relacionamento                   TipoRelacionamento?
+  status_mapeamento                     String?
+  resultado_final                       ResultadoFinalXML?
+  validacao_documental_json             String?
+  validacao_cadastral_json              String?
+  validacao_tributaria_json             String?
+  validacao_operacional_json            String?
+  snapshot_versoes_json                 String?
+  vinculo_item_id                       String?
+  confirmado_em                         DateTime?
+  operacao_id                           String?
+  descricao                             String?
+  ncm                                   String?
+  nbs                                   String?
+  cfop_servico                          String?
+  uf_origem                             String?
+  uf_destino                            String?
+  municipio_destino                     String?
+  quantidade                            Float               @default(0)
+  preco_unitario                        Float               @default(0)
+  desconto_incondicional                Float               @default(0)
+  frete                                 Float               @default(0)
+  seguro                                Float               @default(0)
+  outras_despesas                       Float               @default(0)
+  valor_bruto                           Float               @default(0)
+  cst_original                          String?
+  cst_normalizado                       String?
+  c_class_trib_original                 String?
+  c_class_trib_normalizado              String?
+  c_cred_pres_original                  String?
+  c_cred_pres_normalizado               String?
+  pis_pct_original                      String?
+  pis_pct_normalizado                   Float?
+  cofins_pct_original                   String?
+  cofins_pct_normalizado                Float?
+  icms_pct_original                     String?
+  icms_pct_normalizado                  Float?
+  fcp_pct_original                      String?
+  fcp_pct_normalizado                   Float?
+  ipi_pct_original                      String?
+  ipi_pct_normalizado                   Float?
+  iss_pct_original                      String?
+  iss_pct_normalizado                   Float?
+  credito_presumido_ibs_pct_original    String?
+  credito_presumido_ibs_pct_normalizado Float?
+  credito_presumido_cbs_pct_original    String?
+  credito_presumido_cbs_pct_normalizado Float?
+  grupo_rtc                             String?
+  finalidade_dfe                        String?
+  documentos_referenciados_json         String?
+  crt_emitente                          String?
+  ambiente                              String?
+  data_emissao                          DateTime?
+  createdAt                             DateTime            @default(now())
+  updatedAt                             DateTime            @updatedAt
 
   @@index([lote_id])
   @@index([grupo_id, chave_nfe])
 }
 
 model HistoricoXML {
-  id            String       @id @default(cuid())
-  grupo_id      String
-  empresa_id    String?
-  chave_nfe     String
-  numero_item   Int
-  perspectiva   Perspectiva
-  operacao_id   String?
-  lote_id       String?
-  importado_em  DateTime?
-  createdAt     DateTime     @default(now())
+  id           String      @id @default(cuid())
+  grupo_id     String
+  empresa_id   String?
+  chave_nfe    String
+  numero_item  Int
+  perspectiva  Perspectiva
+  operacao_id  String?
+  lote_id      String?
+  importado_em DateTime?
+  createdAt    DateTime    @default(now())
 
   @@index([grupo_id])
   @@index([chave_nfe, numero_item, perspectiva])
@@ -613,43 +613,43 @@ model Simulacao {
 // ─────────────────────────────────────────────────────────────────────────
 
 model Ncm {
-  id          String    @id @default(cuid())
-  codigo      String
-  descricao   String?
-  status      String    @default("Ativo")
-  observacao  String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String   @id @default(cuid())
+  codigo     String
+  descricao  String?
+  status     String   @default("Ativo")
+  observacao String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([codigo])
 }
 
 model Cfop {
-  id               String    @id @default(cuid())
-  codigo           String
-  descricao        String?
-  tipo_operacao    String?
-  aplicavel_a      String?
-  status           String    @default("Ativo")
-  observacao       String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id            String   @id @default(cuid())
+  codigo        String
+  descricao     String?
+  tipo_operacao String?
+  aplicavel_a   String?
+  status        String   @default("Ativo")
+  observacao    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([codigo])
 }
 
 model BeneficioFiscal {
-  id                String    @id @default(cuid())
-  codigo            String
-  descricao         String?
-  uf                String?
-  fundamento_legal  String?
-  vigencia_inicio   DateTime?
-  vigencia_fim      DateTime?
-  status            String    @default("Ativo")
-  observacao        String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  codigo           String
+  descricao        String?
+  uf               String?
+  fundamento_legal String?
+  vigencia_inicio  DateTime?
+  vigencia_fim     DateTime?
+  status           String    @default("Ativo")
+  observacao       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([codigo])
 }
@@ -665,20 +665,20 @@ model BeneficioFiscal {
  * e o Conversor 4-em-1 — são recortes diferentes da mesma tabela oficial.
  */
 model CorrelacaoServico {
-  id                    String   @id @default(cuid())
-  item_lc116            String?
-  descricao_item        String?
-  nbs                   String?
-  descricao_nbs         String?
-  ps_onerosa            String?
-  adq_exterior          String?
-  ind_op                String?
-  local_incidencia_ibs  String?
-  c_class_trib          String?
-  nome_class_trib       String?
-  fonte                 String   @default("Anexo VIII RTC")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  item_lc116           String?
+  descricao_item       String?
+  nbs                  String?
+  descricao_nbs        String?
+  ps_onerosa           String?
+  adq_exterior         String?
+  ind_op               String?
+  local_incidencia_ibs String?
+  c_class_trib         String?
+  nome_class_trib      String?
+  fonte                String   @default("Anexo VIII RTC")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([item_lc116])
   @@index([nbs])
@@ -739,7 +739,9 @@ model AliquotaIssMunicipio {
   @@index([uf])
 }
 
-/** Acervo de notícias sobre a Reforma Tributária — lista curada manualmente. */
+/**
+ * Acervo de notícias sobre a Reforma Tributária — lista curada manualmente.
+ */
 model NoticiaReforma {
   id           String    @id @default(cuid())
   titulo       String
@@ -784,7 +786,9 @@ model RadarReformaItem {
   @@index([prioridade])
 }
 
-/** Log de cada execução (manual ou semanal automática) do Radar de Novidades. */
+/**
+ * Log de cada execução (manual ou semanal automática) do Radar de Novidades.
+ */
 model RadarReformaExecucao {
   id                String   @id @default(cuid())
   semana_referencia String   @unique
@@ -792,7 +796,7 @@ model RadarReformaExecucao {
   status            String   @default("OK")
   erro              String?
   itens_gerados     Int      @default(0)
-  disparo            String  @default("MANUAL")
+  disparo           String   @default("MANUAL")
   executado_em      DateTime @default(now())
 }
 
@@ -802,32 +806,34 @@ model RadarReformaExecucao {
  * porte + impacto + regime decidem consultoria, BPO, parceria ou nutrição.
  */
 model Lead {
-  id                 String    @id @default(cuid())
-  nome               String
-  email              String
-  empresa            String?
-  cargo              String?
-  telefone           String?
-  porte              String?
-  segmento           String?
-  perfil             String?
-  origem             String
-  consentimento_email Boolean  @default(false)
-  consentimento_em   DateTime?
-  score              Int       @default(0)
-  destino            String?
-  dados_json         String?
-  status             String    @default("Novo")
-  notas              String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  nome                String
+  email               String
+  empresa             String?
+  cargo               String?
+  telefone            String?
+  porte               String?
+  segmento            String?
+  perfil              String?
+  origem              String
+  consentimento_email Boolean   @default(false)
+  consentimento_em    DateTime?
+  score               Int       @default(0)
+  destino             String?
+  dados_json          String?
+  status              String    @default("Novo")
+  notas               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([email])
   @@index([status])
   @@index([createdAt])
 }
 
-/** Inscritos na newsletter — só entra quem deu consentimento explícito. */
+/**
+ * Inscritos na newsletter — só entra quem deu consentimento explícito.
+ */
 model NewsletterInscrito {
   id               String    @id @default(cuid())
   email            String    @unique
@@ -865,8 +871,9 @@ model NewsletterEdicao {
   @@index([status])
 }
 
-
-/** Progresso do "Roteiro de testes" (provisório) por tester — autosave no servidor. */
+/**
+ * Progresso do "Roteiro de testes" (provisório) por tester — autosave no servidor.
+ */
 model RoteiroTesteProgresso {
   id         String   @id @default(cuid())
   user_email String   @unique
@@ -875,7 +882,6 @@ model RoteiroTesteProgresso {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
-
 
 /// Base legal: texto integral das normas, capturado da fonte oficial (Planalto etc.),
 /// dividido por dispositivo (artigo/anexo) e versionado por hash.
@@ -935,7 +941,6 @@ model DispositivoLegalVersao {
   @@index([dispositivo_id])
 }
 
-
 /// Perguntas feitas ao assistente da Base legal (para revisão e para achar lacunas na base).
 model PerguntaLegal {
   id          String   @id @default(cuid())
@@ -951,7 +956,6 @@ model PerguntaLegal {
   @@index([createdAt])
   @@index([user_email])
 }
-
 
 /// Avisos para o administrador da Base legal: texto oficial que mudou ou norma nova citada pelo Radar.
 /// Nada entra na base sem aprovação humana.
@@ -973,7 +977,6 @@ model AlertaBaseLegal {
   @@index([tipo, referencia])
 }
 
-
 /// Pergunta frequente com resposta e base legal. Nasce como rascunho; só aparece para os consultores depois de revisada.
 model CartaoLegal {
   id           String    @id @default(cuid())
@@ -993,7 +996,6 @@ model CartaoLegal {
   @@index([tema])
 }
 
-
 /// Ajuste, por empresa, do tratamento de um CFOP no cálculo (a lista-padrão mora em src/cfop/cfop.regras.ts).
 /// tratamento: RECEITA | NAO_RECEITA | DEVOLUCAO_VENDA | COMPRA
 model CfopEmpresaRegra {
@@ -1008,13 +1010,11 @@ model CfopEmpresaRegra {
   @@unique([empresa_id, cfop])
 }
 
-
 /// Validações de cadastro de produtos salvas (o arquivo fica no armazenamento; reabrir refaz a validação).
 model ValidacaoCadastro {
-  @@index([empresa_id])
-  empresa_id String?
-  opcoes_json String?
-  resultado_json String?
+  empresa_id      String?
+  opcoes_json     String?
+  resultado_json  String?
   id              String   @id @default(cuid())
   criado_por      String
   nome_arquivo    String
@@ -1030,38 +1030,39 @@ model ValidacaoCadastro {
   status          String   @default("PROCESSADA")
   updatedAt       DateTime @default(now()) @updatedAt
 
+  @@index([empresa_id])
   @@index([createdAt])
   @@index([criado_por])
 }
 
 model AnaliseEmpresa {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   empresa_id String
-  servico String
-  titulo String
-  dados Json
+  servico    String
+  titulo     String
+  dados      Json
   criado_por String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
   @@index([empresa_id, createdAt])
 }
 
 /// Projeto de saneamento de estoques (modo completo, passo a passo). O estado (parâmetro de saneamento, critérios aprovados,
 /// grupos saneados, decisões por caso) mora em JSON para evoluir sem migração a cada ajuste; a base de itens é a ValidacaoCadastro.
 model SaneamentoProjeto {
-  id            String   @id @default(cuid())
-  empresa_id    String
-  nome          String
-  criado_por    String
-  validacao_id  String?
-  status        String   @default("ANDAMENTO")
-  estado_json   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
+  id           String   @id @default(cuid())
+  empresa_id   String
+  nome         String
+  criado_por   String
+  validacao_id String?
+  status       String   @default("ANDAMENTO")
+  estado_json  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 
   @@index([empresa_id])
 }
-
 
 // ═════════════════════════════════════════════════════════════════════════
 // CONSULTORIA: revisão pela lei e Agenda da Reforma
@@ -1148,6 +1149,7 @@ model AgendaLembreteEnvio {
 
   @@unique([user_email, marco_id, dias_antes, data_alvo])
 }
+
 // ═════════════════════════ fim do bloco de consultoria ═════════════════════════
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1313,6 +1315,7 @@ model ServicoContratado {
   @@index([empresa_id])
   @@index([tipo, situacao])
 }
+
 // ── [/servicos-contratados] ──
 
 // ── [nucleo-operacional] ──
@@ -1379,14 +1382,14 @@ model EmpresaTag {
 
 /// Listas salvas de empresas: os critérios de filtro de cada pessoa (ou compartilhados com a equipe).
 model FiltroSalvo {
-  id             String   @id @default(cuid())
-  dono           String
-  nome           String
-  escopo         String   @default("empresas")
-  criterios      Json
-  compartilhado  Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String   @id @default(cuid())
+  dono          String
+  nome          String
+  escopo        String   @default("empresas")
+  criterios     Json
+  compartilhado Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([dono])
 }
@@ -1473,6 +1476,7 @@ model EventoAgenda {
 
   @@index([inicio])
 }
+
 // ── [/nucleo-operacional] ──
 
 // ── [nucleo-fase2] ──
@@ -1639,4 +1643,56 @@ model BloqueioEnvio {
   criado_por String?
   createdAt  DateTime @default(now())
 }
+
 // ── [/nucleo-fase2] ──
+
+// ── [monitoramento] ──
+/// Cada consulta ao Integra Contador (Serpro) de uma empresa ou pessoa física: o serviço, o resultado resumido e os arquivos (PDF) guardados.
+/// `simulado` marca as consultas feitas no ambiente de demonstração do Serpro (dados fictícios oficiais), que nunca se misturam com as reais.
+model ConsultaFiscal {
+  id               String   @id @default(cuid())
+  empresa_id       String?
+  pessoa_fisica_id String?
+  chave            String
+  sistema          String
+  servico          String
+  parametros       Json?
+  sucesso          Boolean
+  status           Int?
+  nivel            String   @default("INFO")
+  resumo           Json?
+  dados            Json?
+  mensagens        Json?
+  arquivos         Json?
+  simulado         Boolean  @default(false)
+  origem           String   @default("MANUAL")
+  solicitado_por   String?
+  duracao_ms       Int?
+  createdAt        DateTime @default(now())
+
+  @@index([empresa_id, chave, createdAt])
+  @@index([pessoa_fisica_id, chave, createdAt])
+  @@index([createdAt])
+}
+
+/// Obrigação que a empresa não tem (ex.: sem DCTFWeb por não ter folha): o monitoramento não a conta como ausente.
+model ObrigacaoDispensada {
+  id         String   @id @default(cuid())
+  empresa_id String
+  obrigacao  String
+  motivo     String?
+  criado_por String?
+  createdAt  DateTime @default(now())
+
+  @@unique([empresa_id, obrigacao])
+}
+
+/// Token do Autentica Procurador (termo de autorização assinado com o certificado do cliente); vale até a meia-noite do dia seguinte.
+model TokenIntegraContador {
+  documento String   @id
+  token     String
+  expira_em DateTime
+  createdAt DateTime @default(now())
+}
+
+// ── [/monitoramento] ──

@@ -35,6 +35,7 @@ import { DocumentosModule } from './documentos/documentos.module';
 import { PessoasModule } from './pessoas/pessoas.module';
 import { ComunicadosModule } from './comunicados/comunicados.module';
 import { IntegracoesModule } from './integracoes/integracoes.module';
+import { MonitoramentoModule } from './monitoramento/monitoramento.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -74,6 +75,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     PessoasModule,
     ComunicadosModule,
     IntegracoesModule,
+    MonitoramentoModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

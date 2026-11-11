@@ -1,6 +1,6 @@
-import { AlertTriangle, CalendarDays, FileBadge, FolderOpen, Info, ListChecks, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CalendarDays, FileBadge, FolderOpen, Info, Landmark, ListChecks, ShieldAlert } from "lucide-react";
 
-/** As 7 categorias do sino, na ordem dos filtros da central. As chaves espelham o servidor (backend/src/notificacoes). */
+/** As 8 categorias do sino, na ordem dos filtros da central. As chaves espelham o servidor (backend/src/notificacoes). */
 export const CATEGORIAS = {
   TAREFA: { rotulo: "Tarefas", icone: ListChecks },
   AGENDA: { rotulo: "Agenda e obrigações", icone: CalendarDays },
@@ -8,6 +8,7 @@ export const CATEGORIAS = {
   DOCUMENTO: { rotulo: "Documentos", icone: FolderOpen },
   CAPTURA: { rotulo: "Captura de XML", icone: AlertTriangle },
   ACESSO: { rotulo: "Acessos", icone: ShieldAlert },
+  FISCAL: { rotulo: "Monitoramento fiscal", icone: Landmark },
   SISTEMA: { rotulo: "Sistema", icone: Info },
 };
 

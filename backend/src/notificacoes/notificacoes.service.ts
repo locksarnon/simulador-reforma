@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { hojeEmBrasilia, STATUS_ABERTOS, utcDe } from '../tarefas/tarefas.regras';
 
 /** As categorias do sino (o filtro da central usa as mesmas). */
-export const CATEGORIAS = ['TAREFA', 'AGENDA', 'CERTIFICADO', 'DOCUMENTO', 'CAPTURA', 'ACESSO', 'SISTEMA'] as const;
+export const CATEGORIAS = ['TAREFA', 'AGENDA', 'CERTIFICADO', 'DOCUMENTO', 'CAPTURA', 'ACESSO', 'FISCAL', 'SISTEMA'] as const;
 export type Categoria = (typeof CATEGORIAS)[number];
 export type NovaNotificacao = { destinatario: string; tipo: Categoria; titulo: string; mensagem?: string | null; link?: string | null; chave?: string | null };
 
