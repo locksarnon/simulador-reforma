@@ -11,6 +11,7 @@ import PageHeader from "@/components/PageHeader";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import DialogoEvento from "@/components/agenda/DialogoEvento";
 import { useColaboradores } from "@/lib/useTags";
+import { useEmpresaEmFoco } from "@/lib/EmpresaEmFoco";
 import { CORES_DAS_TAGS } from "@/lib/tags";
 import { hojeBR, competenciaAtual, nomeDaCompetencia } from "@/lib/tarefas";
 import { andar, CAMADAS, DIAS_DA_SEMANA, gradeDoMes, normalizarCamadas, periodoDaVisao, porDia, semanaDe, tituloDaVisao } from "@/lib/agenda";
@@ -59,7 +60,8 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
   const hoje = hojeBR();
   const [visao, setVisao] = useState("mes");
   const [dia, setDia] = useState(hoje);
-  const [empresa, setEmpresa] = useState("");
+  const { empresaId: emFoco } = useEmpresaEmFoco();
+  const [empresa, setEmpresa] = useState(emFoco || "");
   const [ligadas, setLigadas] = useState(Object.keys(CAMADAS));
   const [dialogo, setDialogo] = useState(null);
   const periodo = periodoDaVisao(visao, dia);
@@ -147,7 +149,8 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
 
 function AbaObrigacoes({ empresas }) {
   const [mes, setMes] = useState(competenciaAtual());
-  const [empresa, setEmpresa] = useState("");
+  const { empresaId: emFoco } = useEmpresaEmFoco();
+  const [empresa, setEmpresa] = useState(emFoco || "");
   const { data, isLoading, error } = useQuery({ queryKey: ["agenda", "obrigacoes", mes, empresa], queryFn: () => api.get("/agenda-geral/obrigacoes", { mes, ...(empresa ? { empresa_id: empresa } : {}) }), enabled: /^\d{4}-\d{2}$/.test(mes) });
   const nomeDe = useMemo(() => new Map((data?.vencimentos || []).map((v) => [v.obrigacao, v.nome])), [data]);
   return (

@@ -42,6 +42,34 @@ export class CnpjService {
       municipio: data.municipio || '',
       cnae_descricao: data.cnae_fiscal_descricao || '',
       situacao: data.descricao_situacao_cadastral || '',
+      // Campos a mais (Painel da carteira e Pré-análise por CNPJ); os de cima continuam iguais para quem já usa.
+      cnpj: digits,
+      cnae_codigo: data.cnae_fiscal ? String(data.cnae_fiscal).padStart(7, '0') : '',
+      cnaes_secundarios: Array.isArray(data.cnaes_secundarios)
+        ? data.cnaes_secundarios.filter((c: { codigo?: number }) => c?.codigo).map((c: { codigo: number; descricao?: string }) => ({ codigo: String(c.codigo).padStart(7, '0'), descricao: c.descricao || '' }))
+        : [],
+      porte: data.porte || '',
+      natureza_juridica: data.natureza_juridica || '',
+      codigo_municipio_ibge: data.codigo_municipio_ibge ? String(data.codigo_municipio_ibge) : '',
+      opcao_pelo_simples: data.opcao_pelo_simples ?? null,
+      opcao_pelo_mei: data.opcao_pelo_mei ?? null,
+      data_inicio_atividade: data.data_inicio_atividade || '',
+      capital_social: typeof data.capital_social === 'number' ? data.capital_social : null,
+      matriz_filial: data.descricao_identificador_matriz_filial || '',
+      socios: Array.isArray(data.qsa) ? data.qsa.map((s: { nome_socio?: string; qualificacao_socio?: string }) => ({ nome: s.nome_socio || '', qualificacao: s.qualificacao_socio || '' })) : [],
     };
+  }
+
+  /** Centro geográfico do município (malha do IBGE), para o mapa da carteira; null se o IBGE não responder. */
+  async centroideDoMunicipio(codigoIbge: string): Promise<{ latitude: number; longitude: number } | null> {
+    if (!/^\d{7}$/.test(codigoIbge)) return null;
+    try {
+      const resp = await fetch(`https://servicodados.ibge.gov.br/api/v3/malhas/municipios/${codigoIbge}/metadados`);
+      if (!resp.ok) return null;
+      const [m] = (await resp.json()) as { centroide?: { latitude: number; longitude: number } }[];
+      return m?.centroide ? { latitude: m.centroide.latitude, longitude: m.centroide.longitude } : null;
+    } catch {
+      return null;
+    }
   }
 }

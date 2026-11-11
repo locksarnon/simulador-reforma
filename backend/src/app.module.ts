@@ -29,6 +29,7 @@ import { TagsModule } from './tags/tags.module';
 import { TarefasModule } from './tarefas/tarefas.module';
 import { NotificacoesModule } from './notificacoes/notificacoes.module';
 import { AgendaGeralModule } from './agenda-geral/agenda-geral.module';
+import { PainelModule } from './painel/painel.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -62,6 +63,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     TarefasModule,
     NotificacoesModule,
     AgendaGeralModule,
+    PainelModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

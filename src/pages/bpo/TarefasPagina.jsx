@@ -12,6 +12,7 @@ import DialogoProcesso from "@/components/tarefas/DialogoProcesso";
 import DialogoGerar from "@/components/tarefas/DialogoGerar";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import { useColaboradores } from "@/lib/useTags";
+import { useEmpresaEmFoco } from "@/lib/EmpresaEmFoco";
 import {
   descreverRecorrencia, ESCOPOS, filtrarTarefas, PRIORIDADES, situacaoDoPrazo, STATUS_ABERTOS, TOM_DA_PRIORIDADE, TOM_DO_PRAZO,
 } from "@/lib/tarefas";
@@ -32,7 +33,8 @@ function AbaTarefas({ user, empresas, colaboradores }) {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const [grupo, setGrupo] = useState("abertas");
-  const [filtros, setFiltros] = useState({ busca: "", responsavel: "", empresa: "", atalho: "" });
+  const { empresaId: emFoco } = useEmpresaEmFoco();
+  const [filtros, setFiltros] = useState({ busca: "", responsavel: "", empresa: emFoco || "", atalho: "" });
   const [dialogo, setDialogo] = useState(null);
   const lista = useQuery({ queryKey: ["tarefas", grupo], queryFn: () => api.get("/tarefas", { status: grupo, limite: 1000 }) });
   const resumo = useQuery({ queryKey: ["tarefas", "resumo"], queryFn: () => api.get("/tarefas/resumo") });

@@ -5,6 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import { useAuth } from "@/lib/AuthContext";
 import { areasDoMenu, caminhoDaArea, MODULOS, SITUACAO, situacaoDoModulo } from "@/lib/navegacao";
 import { CartaoDoModulo } from "@/pages/AreaPagina";
+import ResumoDoDia from "@/components/inicio/ResumoDoDia";
 
 const CHAVE_RECENTES = "intax-modulos-recentes";
 const ATALHOS = ["grupos-empresas", "captura-xml", "tarefas", "agenda-geral", "propostas", "base-legal"];
@@ -45,6 +46,8 @@ export default function InicioPagina({ agora = new Date() }) {
         actions={<Link to="/cockpit" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><LayoutDashboard className="h-4 w-4" aria-hidden="true" /> Painel executivo</Link>}
       />
       <div className="px-6 lg:px-8 py-6 space-y-8">
+        <ResumoDoDia />
+
         {recentes.length > 0 && (
           <section aria-labelledby="titulo-recentes">
             <h2 id="titulo-recentes" className="mb-3 font-heading text-sm font-semibold">Continue de onde parou</h2>

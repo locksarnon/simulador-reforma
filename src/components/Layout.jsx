@@ -4,6 +4,8 @@ import { Menu, Search } from "lucide-react";
 import MenuLateral from "@/components/MenuLateral";
 import BuscaRapida from "@/components/BuscaRapida";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
+import SeletorEmpresaEmFoco from "@/components/SeletorEmpresaEmFoco";
+import { EmpresaEmFocoProvider } from "@/lib/EmpresaEmFoco";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { moduloDoCaminho } from "@/lib/navegacao";
 
@@ -54,6 +56,7 @@ export default function Layout() {
   const fecharGaveta = useCallback(() => setGaveta(false), []);
 
   return (
+    <EmpresaEmFocoProvider>
     <div className="min-h-screen bg-canvas flex">
       <a href="#conteudo" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground">
         Pular para o conteúdo
@@ -85,6 +88,7 @@ export default function Layout() {
             <kbd className="ml-auto hidden rounded border border-border bg-muted px-1.5 text-[10px] font-medium sm:inline">Ctrl K</kbd>
           </button>
           <div id="barra-superior-acoes" className="ml-auto flex items-center gap-1">
+            <SeletorEmpresaEmFoco />
             <SinoNotificacoes />
           </div>
         </header>
@@ -94,5 +98,6 @@ export default function Layout() {
       </div>
       <BuscaRapida aberta={busca} aoMudar={setBusca} recentes={recentes} />
     </div>
+    </EmpresaEmFocoProvider>
   );
 }

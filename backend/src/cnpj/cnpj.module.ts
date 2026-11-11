@@ -5,5 +5,6 @@ import { CnpjService } from './cnpj.service';
 @Module({
   controllers: [CnpjController],
   providers: [CnpjService],
+  exports: [CnpjService],
 })
 export class CnpjModule {}

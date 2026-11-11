@@ -85,12 +85,15 @@ export default function MenuLateral({ aoNavegar }) {
           const aberta = abertas.includes(area.id);
           const areaAtiva = area.id === ativo?.area;
           if (area.id === "inicio") {
-            const m = area.modulos[0];
             return (
-              <Link key={area.id} to={m.to} onClick={aoNavegar} aria-current={ativo?.id === m.id ? "page" : undefined} className={`${itemBase} ${ativo?.id === m.id ? itemAtivo : itemInativo}`}>
-                <area.icone className="w-4 h-4 shrink-0" aria-hidden="true" />
-                {m.titulo}
-              </Link>
+              <div key={area.id} className="space-y-0.5">
+                {area.modulos.map((m) => (
+                  <Link key={m.id} to={m.to} onClick={aoNavegar} aria-current={ativo?.id === m.id ? "page" : undefined} className={`${itemBase} ${ativo?.id === m.id ? itemAtivo : itemInativo}`}>
+                    <m.icone className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    {m.titulo}
+                  </Link>
+                ))}
+              </div>
             );
           }
           return (

@@ -196,6 +196,18 @@ model Empresa {
   status               String    @default("Ativa")
   data_inicio          DateTime?
   observacao           String?
+  /// Contato da empresa (e-mail e WhatsApp) para avisos e comunicados.
+  email_contato        String?
+  whatsapp_contato     String?
+  /// Dados públicos do CNPJ (Receita Federal, pela consulta pública), para o Painel da carteira e a pré-análise.
+  cnae_principal       String?
+  cnae_descricao       String?
+  porte                String?
+  natureza_juridica    String?
+  codigo_municipio_ibge String?
+  latitude             Float?
+  longitude            Float?
+  dados_publicos_em    DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

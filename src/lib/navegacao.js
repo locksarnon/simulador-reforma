@@ -1,7 +1,7 @@
 import {
   Activity, Archive, BadgeDollarSign, Bell, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange, CircleUser,
   ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FolderOpen, HeartPulse, HelpCircle, Home, KeyRound, Landmark, Layers,
-  LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
+  LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, PieChart, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
   ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users, Wallet,
 } from "lucide-react";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
@@ -36,6 +36,7 @@ export const AREAS = [
 export const MODULOS = [
   // Início
   { id: "inicio", area: "inicio", titulo: "Início", descricao: "Atalhos, tarefas, avisos e a visão da carteira.", icone: Home, to: "/inicio", palavras: ["home", "painel", "começo"] },
+  { id: "painel-carteira", area: "inicio", titulo: "Painel da carteira", descricao: "O retrato da carteira pelo cadastro: carteiras, regime, porte, mapa por município, CNAE e o que falta preencher.", icone: PieChart, to: "/inicio/carteira", palavras: ["bi", "carteira", "mapa", "cnae", "porte", "regime", "município", "indicadores"] },
   // Fora do menu (o sino e o bloco da conta levam até eles), mas no catálogo: a busca acha e a tela sabe a que área pertence.
   { id: "notificacoes", area: "inicio", titulo: "Notificações", descricao: "Central dos avisos do sino: tarefas, agenda, certificados, documentos, captura de XML e acessos.", icone: Bell, to: "/notificacoes", oculto: true, palavras: ["sino", "aviso", "alerta", "notificação"] },
   { id: "perfil", area: "inicio", titulo: "Meu perfil", descricao: "Seu nome no sistema e a troca da sua senha.", icone: CircleUser, to: "/perfil", oculto: true, palavras: ["senha", "conta", "nome", "perfil"] },
