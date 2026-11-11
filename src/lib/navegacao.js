@@ -62,6 +62,7 @@ export const MODULOS = [
   { id: "carteira-diagnostico", area: "diagnostico", titulo: "Carteira de diagnósticos", descricao: "As empresas com diagnóstico pontual e o caminho até o trabalho de cada uma.", icone: Stethoscope, to: "/diagnostico", prefixos: ["/workroom"], palavras: ["diagnóstico", "projeto", "serviço", "saneamento", "operações", "workroom"] },
 
   // Reforma Tributária
+  { id: "regimes", area: "reforma", titulo: "Onde cada regime vence", descricao: "A mesma empresa no Simples, no Presumido e no Real, ano a ano até 2033, e o mapa de quem vence.", icone: Scale, to: "/reforma/regimes", palavras: ["simulador", "regime", "simples", "presumido", "lucro real", "comparar", "vence"] },
   { id: "cenarios", area: "reforma", titulo: "Cenários", descricao: "Cenários de alíquotas da Reforma.", icone: SlidersHorizontal, to: "/cenarios", palavras: ["alíquota", "cbs", "ibs"] },
   { id: "transicao", area: "reforma", titulo: "Transição 2026–2033", descricao: "Como a carga muda ano a ano durante a transição.", icone: CalendarClock, to: "/transicao", palavras: ["2026", "2033", "transição"] },
   { id: "catalogos", area: "reforma", titulo: "Catálogos IBS/CBS", descricao: "Classificações tributárias, CST e créditos presumidos.", icone: BookMarked, to: "/catalogos", palavras: ["cclasstrib", "cst", "crédito presumido", "ibs", "cbs"] },
