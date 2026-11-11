@@ -23,6 +23,8 @@ import { CertificadosModule } from './certificados/certificados.module';
 import { RepositorioXmlModule } from './repositorio-xml/repositorio-xml.module';
 import { CapturaXmlModule } from './captura-xml/captura-xml.module';
 import { ServicosContratadosModule } from './servicos-contratados/servicos-contratados.module';
+import { AcessosModule } from './acessos/acessos.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -50,6 +52,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     RepositorioXmlModule,
     CapturaXmlModule,
     ServicosContratadosModule,
+    AcessosModule,
+    UsuariosModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

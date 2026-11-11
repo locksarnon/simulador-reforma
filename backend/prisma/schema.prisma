@@ -22,6 +22,8 @@ model User {
   passwordHash String
   name         String?
   role         Role      @default(user)
+  ativo        Boolean   @default(true)
+  lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -1300,3 +1302,163 @@ model ServicoContratado {
   @@index([tipo, situacao])
 }
 // ── [/servicos-contratados] ──
+
+// ── [nucleo-operacional] ──
+/// Parâmetros do sistema (chave e valor): flags e ajustes que o administrador muda pela tela, como a restrição por IP.
+model ParametroSistema {
+  chave     String   @id
+  valor     String
+  descricao String?
+  updatedAt DateTime @updatedAt
+}
+
+/// Cada tentativa de entrar no sistema: quem, de onde e com que resultado (OK, FALHA, INATIVO ou BLOQUEADO_IP).
+model AcessoLog {
+  id         String   @id @default(cuid())
+  user_id    String?
+  email      String
+  ip         String?
+  user_agent String?
+  resultado  String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email])
+}
+
+/// Endereços (ou faixas IPv4 em CIDR) autorizados a entrar quando a restrição por IP está ligada.
+model IpPermitido {
+  id         String   @id @default(cuid())
+  faixa      String   @unique
+  descricao  String?
+  criado_por String?
+  createdAt  DateTime @default(now())
+}
+
+/// Quais empresas cada colaborador atende (a carteira da pessoa).
+model VinculoColaborador {
+  id         String   @id @default(cuid())
+  user_id    String
+  empresa_id String
+  createdAt  DateTime @default(now())
+
+  @@unique([user_id, empresa_id])
+  @@index([empresa_id])
+}
+
+/// Etiquetas das empresas (segmentos, perfis, o que a equipe quiser).
+model Tag {
+  id        String       @id @default(cuid())
+  nome      String       @unique
+  cor       String       @default("#1E764D")
+  createdAt DateTime     @default(now())
+  empresas  EmpresaTag[]
+}
+
+model EmpresaTag {
+  tag_id     String
+  empresa_id String
+  createdAt  DateTime @default(now())
+  tag        Tag      @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([tag_id, empresa_id])
+  @@index([empresa_id])
+}
+
+/// Listas salvas de empresas: os critérios de filtro de cada pessoa (ou compartilhados com a equipe).
+model FiltroSalvo {
+  id             String   @id @default(cuid())
+  dono           String
+  nome           String
+  escopo         String   @default("empresas")
+  criterios      Json
+  compartilhado  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([dono])
+}
+
+/// Modelo de processo recorrente: gera a tarefa a cada período (e, se o escopo for por empresa, uma para cada empresa do BPO).
+model ProcessoModelo {
+  id          String   @id @default(cuid())
+  nome        String
+  descricao   String?
+  recorrencia String   @default("MENSAL")
+  dia         Int      @default(10)
+  mes         Int?
+  escopo      String   @default("POR_EMPRESA_BPO")
+  responsavel String?
+  prioridade  String   @default("NORMAL")
+  ativo       Boolean  @default(true)
+  criado_por  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Tarefa do escritório: avulsa ou gerada por um modelo (competência no formato AAAA-MM para o mensal).
+model Tarefa {
+  id           String    @id @default(cuid())
+  titulo       String
+  descricao    String?
+  empresa_id   String?
+  responsavel  String?
+  prazo        DateTime?
+  status       String    @default("ABERTA")
+  prioridade   String    @default("NORMAL")
+  modelo_id    String?
+  competencia  String?
+  concluida_em DateTime?
+  criado_por   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, prazo])
+  @@index([empresa_id])
+  @@index([responsavel])
+  @@index([modelo_id, competencia])
+}
+
+/// Aviso para uma pessoa (o sino do topo). A chave evita repetir o mesmo aviso no mesmo dia.
+model Notificacao {
+  id           String    @id @default(cuid())
+  destinatario String
+  tipo         String
+  titulo       String
+  mensagem     String?
+  link         String?
+  chave        String?
+  lida_em      DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([destinatario, chave])
+  @@index([destinatario, lida_em])
+}
+
+/// Tipos de evento do calendário geral (reunião, prazo, visita…), cada um com a sua cor.
+model TipoEvento {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  cor       String   @default("#2563EB")
+  createdAt DateTime @default(now())
+}
+
+/// Evento do calendário geral do escritório (os prazos de tarefas e da Reforma aparecem como camadas, sem ser eventos).
+model EventoAgenda {
+  id          String    @id @default(cuid())
+  titulo      String
+  descricao   String?
+  inicio      DateTime
+  fim         DateTime?
+  dia_inteiro Boolean   @default(false)
+  tipo_id     String?
+  empresa_id  String?
+  responsavel String?
+  local       String?
+  criado_por  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([inicio])
+}
+// ── [/nucleo-operacional] ──

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
+import { AcessosService } from '../acessos/acessos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser, JwtPayload } from './auth.types';
 import { LoginDto, RegisterDto, ResetPasswordDto, ResetPasswordRequestDto } from './dto/auth.dto';
@@ -15,6 +16,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly acessos: AcessosService,
   ) {}
 
   /** Cadastro fechado: com INVITE_CODE definido no servidor, só entra quem tem o código. */
@@ -44,18 +46,34 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
+    const email = dto.email.toLowerCase();
+    const registro = (resultado: 'OK' | 'FALHA' | 'INATIVO' | 'BLOQUEADO_IP', user_id?: string) =>
+      this.acessos.registrar({ user_id, email, ip: meta?.ip, user_agent: meta?.userAgent, resultado });
+    const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
+      await registro('FALHA');
       throw new UnauthorizedException('E-mail ou senha inválidos.');
     }
 
     const valid = await argon2.verify(user.passwordHash, dto.password);
     if (!valid) {
+      await registro('FALHA', user.id);
       throw new UnauthorizedException('E-mail ou senha inválidos.');
+    }
+    // Só depois de acertar a senha se diz que a conta está desativada (quem erra a senha não descobre quais contas existem).
+    if (!user.ativo) {
+      await registro('INATIVO', user.id);
+      throw new UnauthorizedException('Esta conta está desativada. Fale com um administrador.');
+    }
+    if (!(await this.acessos.ipPermitido(meta?.ip))) {
+      await registro('BLOQUEADO_IP', user.id);
+      throw new ForbiddenException('Entrada não permitida a partir deste endereço IP.');
     }
 
     const authUser: AuthUser = { id: user.id, email: user.email, name: user.name, role: user.role };
     const tokens = await this.issueTokens(authUser, meta);
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await registro('OK', user.id);
     return { user: authUser, ...tokens };
   }
 

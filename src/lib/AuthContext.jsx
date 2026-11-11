@@ -33,6 +33,9 @@ export const AuthProvider = ({ children }) => {
     checkUserAuth();
   }, [checkUserAuth]);
 
+  // Muda campos da conta já carregada (ex.: o nome, em Meu perfil) sem refazer a verificação nem piscar a tela.
+  const atualizarUsuario = useCallback((parcial) => setUser((u) => (u ? { ...u, ...parcial } : u)), []);
+
   // Espera o servidor revogar a sessão antes de limpar o estado; com redirecionamento a página recarrega no login,
   // o que também descarta o cache de dados da conta que saiu.
   const logout = async (shouldRedirect = true) => {
@@ -50,6 +53,7 @@ export const AuthProvider = ({ children }) => {
         authChecked,
         logout,
         checkUserAuth,
+        atualizarUsuario,
       }}
     >
       {children}

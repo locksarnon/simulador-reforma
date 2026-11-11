@@ -127,10 +127,10 @@ export default function MenuLateral({ aoNavegar }) {
 
       <div className="p-3 border-t border-rail-border space-y-2">
         {user && (
-          <div className="px-1 leading-tight">
-            <p className="truncate text-xs font-medium text-rail-strong" title={user.name || user.email}>{user.name || user.email}</p>
-            <p className="truncate text-[11px] text-rail-muted" title={user.email}>{user.name ? `${rotuloPapel(user.role)} · ${user.email}` : rotuloPapel(user.role)}</p>
-          </div>
+          <Link to="/perfil" onClick={aoNavegar} title="Meu perfil e troca de senha" className="block rounded-md px-1 py-1 leading-tight hover:bg-rail-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary">
+            <p className="truncate text-xs font-medium text-rail-strong">{user.name || user.email}</p>
+            <p className="truncate text-[11px] text-rail-muted">{user.name ? `${rotuloPapel(user.role)} · ${user.email}` : rotuloPapel(user.role)}</p>
+          </Link>
         )}
         <button
           type="button"

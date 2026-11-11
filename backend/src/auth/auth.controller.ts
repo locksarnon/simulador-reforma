@@ -3,6 +3,7 @@ import { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthService } from './auth.service';
+import { ipDoCliente } from '../acessos/ip';
 import {
   LoginDto,
   RefreshDto,
@@ -31,7 +32,7 @@ export class AuthController {
   @Public()
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.auth.login(dto, { ip: req.ip, userAgent: req.headers['user-agent'] });
+    return this.auth.login(dto, { ip: ipDoCliente(req), userAgent: req.headers['user-agent'] });
   }
 
   @Public()
