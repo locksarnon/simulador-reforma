@@ -1,6 +1,6 @@
 import {
   Activity, Archive, BadgeDollarSign, Bell, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange, CircleUser,
-  ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FolderOpen, HeartPulse, HelpCircle, Home, KeyRound, Landmark, Layers,
+  ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FolderOpen, HeartPulse, HelpCircle, Home, Inbox, KeyRound, Landmark, Layers,
   LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, PieChart, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
   ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users, Wallet,
 } from "lucide-react";
@@ -88,6 +88,7 @@ export const MODULOS = [
   // Administração
   { id: "usuarios", area: "admin", titulo: "Usuários e acessos", descricao: "Quem usa o InTAX, com papel e situação de cada conta.", icone: UserCog, to: "/admin/usuarios", papeis: ["admin"], palavras: ["usuário", "papel", "acesso", "senha", "conta"] },
   { id: "acessos", area: "admin", titulo: "Registro de acesso e IPs", descricao: "Quem entrou e quando, e a lista de endereços IP permitidos.", icone: ScrollText, to: "/admin/acessos", papeis: ["admin"], palavras: ["login", "ip", "auditoria", "último acesso"] },
+  { id: "comunicacoes", area: "admin", titulo: "Comunicações e envios", descricao: "E-mails enviados (comunicados e avisos), lista de bloqueio e para quem vão os avisos por e-mail.", icone: Inbox, to: "/admin/comunicacoes", papeis: ["admin"], palavras: ["log", "e-mail enviado", "bloqueio", "descadastro", "aviso por e-mail", "destinatário"] },
   { id: "integracoes", area: "admin", titulo: "Integrações", descricao: "Estado das conexões com Serpro, e-mail, WhatsApp, Asaas e assinatura.", icone: Plug, to: "/admin/integracoes", papeis: ["admin"], palavras: ["serpro", "integra contador", "whatsapp", "smtp", "asaas"] },
   { id: "configuracao", area: "admin", titulo: "Configuração", descricao: "Parâmetros gerais do sistema.", icone: Settings, to: "/configuracao", palavras: ["parâmetro", "ajuste"] },
 

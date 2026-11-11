@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { hojeEmBrasilia, STATUS_ABERTOS, utcDe } from '../tarefas/tarefas.regras';
 
@@ -20,6 +21,10 @@ export function faixaDeVencimento(diasRestantes: number): number | null {
 }
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+const CHAVE_AVISOS_EMAIL = 'avisos.email';
+export type ConfigAvisosEmail = { ativo: boolean; destinatarios: string[]; categorias: Categoria[] };
+const PADRAO_AVISOS_EMAIL: ConfigAvisosEmail = { ativo: false, destinatarios: [], categorias: ['CERTIFICADO', 'DOCUMENTO', 'CAPTURA', 'ACESSO'] };
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 const fmtData = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
 /**
@@ -31,7 +36,43 @@ const fmtData = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 export class NotificacoesService {
   private readonly logger = new Logger(NotificacoesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly mail?: MailService,
+  ) {}
+
+  // ── Cópia por e-mail dos avisos (destinatários escolhidos pelo administrador) ──
+  async configAvisosEmail(): Promise<ConfigAvisosEmail> {
+    const p = await this.prisma.parametroSistema.findUnique({ where: { chave: CHAVE_AVISOS_EMAIL } });
+    if (!p) return PADRAO_AVISOS_EMAIL;
+    try { return { ...PADRAO_AVISOS_EMAIL, ...JSON.parse(p.valor) }; } catch { return PADRAO_AVISOS_EMAIL; }
+  }
+
+  async salvarAvisosEmail(e: { ativo?: boolean; destinatarios?: string[]; categorias?: string[] }) {
+    const destinatarios = [...new Set((e.destinatarios ?? []).map((x) => String(x).trim().toLowerCase()).filter(Boolean))];
+    for (const d of destinatarios) if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d)) throw new BadRequestException(`E-mail inválido: ${d}`);
+    if (destinatarios.length > 20) throw new BadRequestException('Até 20 destinatários.');
+    const c: ConfigAvisosEmail = { ativo: Boolean(e.ativo), destinatarios, categorias: (e.categorias ?? []).filter((x): x is Categoria => CATEGORIAS.includes(x as Categoria)) };
+    if (c.ativo && !c.destinatarios.length) throw new BadRequestException('Informe pelo menos um destinatário para ligar a cópia por e-mail.');
+    await this.prisma.parametroSistema.upsert({ where: { chave: CHAVE_AVISOS_EMAIL }, create: { chave: CHAVE_AVISOS_EMAIL, valor: JSON.stringify(c), descricao: 'Cópia por e-mail dos avisos do sistema' }, update: { valor: JSON.stringify(c) } });
+    return c;
+  }
+
+  /** Manda a cópia do aviso por e-mail, se ligada para a categoria; cada envio fica no registro de e-mails. */
+  private async copiaPorEmail(n: Omit<NovaNotificacao, 'destinatario'>) {
+    if (!this.mail?.configurado) return 0;
+    const c = await this.configAvisosEmail();
+    if (!c.ativo || !c.categorias.includes(n.tipo)) return 0;
+    const bloqueados = new Set((await this.prisma.bloqueioEnvio.findMany({ select: { email: true } })).map((b) => b.email.toLowerCase()));
+    let enviados = 0;
+    for (const para of c.destinatarios.filter((d) => !bloqueados.has(d))) {
+      const link = n.link ? `${this.mail.urlPublica}${n.link}` : this.mail.urlPublica;
+      const r = await this.mail.enviar({ to: para, subject: `[InTAX] ${n.titulo}`, html: `<p>${esc(n.titulo)}</p>${n.mensagem ? `<p>${esc(n.mensagem)}</p>` : ''}<p><a href="${esc(link)}">Abrir no InTAX</a></p>`, text: `${n.titulo}\n${n.mensagem ?? ''}\n${link}` });
+      await this.prisma.envioEmail.create({ data: { origem: 'AVISO', destinatario: para, assunto: `[InTAX] ${n.titulo}`.slice(0, 250), status: r.enviado ? 'ENVIADO' : 'FALHA', erro: r.enviado ? null : (r.motivo ?? '').slice(0, 300) } });
+      if (r.enviado) enviados++;
+    }
+    return enviados;
+  }
 
   /** Cria o aviso; devolve false se a pessoa já recebeu um com a mesma chave. */
   async criar(n: NovaNotificacao): Promise<boolean> {
@@ -50,6 +91,8 @@ export class NotificacoesService {
     const admins = await this.prisma.user.findMany({ where: { role: 'admin', ativo: true }, select: { id: true } });
     let criadas = 0;
     for (const a of admins) if (await this.criar({ ...n, destinatario: a.id })) criadas++;
+    // Aviso novo (não repetido): vai também por e-mail para os destinatários configurados.
+    if (criadas) await this.copiaPorEmail(n).catch((e) => this.logger.warn(`Cópia do aviso por e-mail não enviada: ${(e as Error).message}`));
     return criadas;
   }
 
