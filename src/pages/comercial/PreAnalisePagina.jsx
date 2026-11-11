@@ -56,7 +56,7 @@ export default function PreAnalisePagina() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial e relacionamento", to: "/area/comercial" }, { label: "Pré-análise por CNPJ" }]} title="Pré-análise por CNPJ" subtitle="A ficha pública de um prospect (CNAE, porte, Simples, sócios) e os temas da Reforma para a primeira conversa. Só dados públicos." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Pré-análise por CNPJ" }]} title="Pré-análise por CNPJ" subtitle="A ficha pública de um prospect (CNAE, porte, Simples, sócios) e os temas da Reforma para a primeira conversa. Só dados públicos." />
       <div className="px-6 lg:px-8 py-6 max-w-4xl space-y-4">
         <form onSubmit={buscar} className="flex flex-wrap items-end gap-2 text-sm">
           <label className="space-y-1 flex-1 min-w-[220px]"><span className="block text-xs text-muted-foreground">CNPJ do prospect</span><input className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="00.000.000/0000-00" inputMode="numeric" /></label>

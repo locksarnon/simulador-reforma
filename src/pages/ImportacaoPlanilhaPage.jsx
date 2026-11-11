@@ -148,7 +148,7 @@ export default function ImportacaoPlanilhaPage() {
   return (
     <div>
       {!empresaTravada && (
-        <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: grupoNome || "Grupo", to: `/workroom/${id}` }, { label: "Importar planilha" }]} />
+        <PageHeader crumbs={[{ label: "Clientes", to: "/" }, { label: grupoNome || "Grupo", to: `/workroom/${id}` }, { label: "Planilha de operações" }]} />
       )}
       <div className="px-6 lg:px-8 py-6 pb-12">
         <div className="space-y-5 max-w-5xl">

@@ -1,5 +1,6 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { areaPorId, caminhoDaArea, moduloDoCaminho } from "@/lib/navegacao";
 import { ArrowLeft } from "lucide-react";
 import {
   Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator,
@@ -10,10 +11,24 @@ import {
  * (histórico do navegador). As duas formas de voltar pedidas pelo usuário:
  * "seja por link, seja por botão de voltar a tela anterior".
  *
- * @param crumbs [{ label, to? }] — o último item sem `to` vira a página atual.
+* @param crumbs [{ label, to? }] — o último item sem `to` vira a página atual.
  */
-export default function PageHeader({ crumbs = [], title, subtitle, actions }) {
+
+/**
+ * A raiz antiga "DataHub" (nome técnico) vira "Início > área da tela", tirada do catálogo do menu pelo endereço aberto.
+ * Assim toda tela mostra o mesmo caminho do menu, mesmo as que ainda montam o breadcrumb à moda antiga.
+ */
+export function normalizarCrumbs(crumbs, pathname) {
+  if (!crumbs.length || crumbs[0].label !== "DataHub") return crumbs;
+  const area = areaPorId(moduloDoCaminho(pathname)?.area);
+  const raiz = [{ label: "Início", to: "/inicio" }];
+  if (area && area.id !== "inicio") raiz.push({ label: area.titulo, to: caminhoDaArea(area.id) });
+  return [...raiz, ...crumbs.slice(1)];
+}
+export default function PageHeader({ crumbs: crumbsBrutos = [], title, subtitle, actions }) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const crumbs = normalizarCrumbs(crumbsBrutos, pathname);
 
   return (
     <div className="border-b border-border bg-card px-6 lg:px-8 py-4">

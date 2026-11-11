@@ -32,9 +32,10 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0rem; /* sem cantos arredondados — ver tailwind.config.js (borderRadius) */
-    --font-heading: 'Fraunces', ui-serif, Georgia, serif;
-    --font-body: 'Manrope', ui-sans-serif, system-ui, sans-serif;
-    --font-display: 'Fraunces', ui-serif, Georgia, serif;
+    /* Open Sans: do mesmo desenhista da Segoe UI (Steve Matteson), carregada pelo próprio InTAX para ficar igual em qualquer aparelho. */
+    --font-heading: 'Open Sans', 'Segoe UI', system-ui, sans-serif;
+    --font-body: 'Open Sans', 'Segoe UI', system-ui, sans-serif;
+    --font-display: 'Open Sans', 'Segoe UI', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     --sidebar-background: 210 20% 97%;
     --sidebar-foreground: 215 20% 30%;
@@ -105,5 +106,11 @@
 
   body {
     @apply bg-background text-foreground font-body;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
+  /* Títulos sem quebra feia; números alinhados nas tabelas (CNPJ, valores, datas). */
+  h1, h2, h3 { text-wrap: balance; letter-spacing: -0.01em; }
+  table, .tabular-nums { font-variant-numeric: tabular-nums; }
 }

@@ -21,12 +21,12 @@ export const AREAS = [
   { id: "inicio", titulo: "Início", icone: Home, descricao: "Seu ponto de partida: atalhos, avisos, tarefas e a visão da carteira." },
   { id: "clientes", titulo: "Clientes", icone: Building2, descricao: "A lista de clientes e o que cada um contratou, as pessoas físicas, as etiquetas e quem atende cada cliente." },
   { id: "bpo", titulo: "BPO Fiscal", icone: Briefcase, descricao: "A rotina do escritório sobre a carteira: XML, obrigações, tarefas, monitoramento e arquivos." },
-  { id: "diagnostico", titulo: "Diagnóstico e Serviços", icone: Stethoscope, descricao: "Projetos pontuais por cliente, com início, fim e entregável." },
-  { id: "reforma", titulo: "Reforma Tributária", icone: Landmark, descricao: "Cenários, transição, catálogos e ferramentas para planejar e calcular." },
-  { id: "conhecimento", titulo: "Conhecimento", icone: BookOpen, descricao: "Lei, agenda e notícias da Reforma, sempre com fonte oficial." },
-  { id: "comercial", titulo: "Comercial e relacionamento", icone: Megaphone, descricao: "Prospecção, propostas, comunicação e relacionamento com o cliente." },
+  { id: "diagnostico", titulo: "Diagnósticos", icone: Stethoscope, descricao: "Trabalhos pontuais por cliente ou grupo: escopo, XML e operações, análises e entregáveis." },
+  { id: "reforma", titulo: "Planejamento tributário", icone: Landmark, descricao: "Painel executivo, comparação de regimes, cenários, transição e crédito de estoque, por empresa ou grupo." },
+  { id: "conhecimento", titulo: "Consultas fiscais", icone: BookOpen, descricao: "Base legal, NCM, catálogos IBS/CBS, guia do art. 11, agenda, radar e notícias, sempre com fonte oficial." },
+  { id: "comercial", titulo: "Comercial", icone: Megaphone, descricao: "Leads, pré-análise por CNPJ, propostas, comunicados, newsletter e ferramentas públicas." },
   { id: "admin", titulo: "Administração", icone: Settings, descricao: "Usuários, acessos, integrações e configurações do sistema." },
-  { id: "suporte", titulo: "Suporte", icone: HelpCircle, descricao: "Manual, FAQ, roteiro de testes e a arquitetura do sistema." },
+  { id: "suporte", titulo: "Ajuda", icone: HelpCircle, descricao: "Manual e perguntas frequentes; roteiro de testes e arquitetura para a equipe técnica." },
 ];
 
 /**
@@ -46,7 +46,7 @@ export const MODULOS = [
   { id: "grupos-economicos", area: "clientes", titulo: "Grupos econômicos", descricao: "A visão por grupo econômico (a tela de antes, com os grupos e as empresas de cada um).", icone: Layers, to: "/clientes/grupos", oculto: true, palavras: ["grupo", "grupo econômico", "grupo familiar", "holding"] },
   { id: "carteira", area: "clientes", titulo: "Carteira e colaboradores", descricao: "Quais empresas cada colaborador atende, e as empresas sem responsável.", icone: Contact, to: "/clientes/carteira", palavras: ["colaborador", "responsável", "vínculo", "empresa por colaborador"] },
   { id: "tags", area: "clientes", titulo: "Tags e filtros", descricao: "Etiquetas nas empresas e listas salvas para achar clientes rápido.", icone: Tags, to: "/clientes/tags", palavras: ["etiqueta", "filtro", "segmento", "lista"] },
-  { id: "importacao-cadastro", area: "clientes", titulo: "Importação e exportação", descricao: "O cadastro de empresas e a carteira por colaborador por planilha, com conferência antes de gravar.", icone: FileSpreadsheet, to: "/clientes/importacao", palavras: ["importar", "exportar", "planilha", "excel", "csv", "cadastro em lote"] },
+  { id: "importacao-cadastro", area: "clientes", titulo: "Planilha cadastral", descricao: "Importar e exportar o cadastro de clientes e a carteira por colaborador por planilha, com conferência antes de gravar.", icone: FileSpreadsheet, to: "/clientes/importacao", palavras: ["importar", "exportar", "planilha", "excel", "csv", "cadastro em lote"] },
   { id: "pessoas-fisicas", area: "clientes", titulo: "Pessoas físicas", descricao: "CPFs da carteira (sócios, produtores rurais), a empresa ligada e o vencimento do certificado digital.", icone: Users, to: "/clientes/pessoas-fisicas", prefixos: ["/em-breve/pessoas-fisicas"], palavras: ["cpf", "pf", "sócio", "produtor rural", "e-cpf"] },
   { id: "procuracoes", area: "clientes", titulo: "Procurações e certificados", descricao: "Como o InTAX consulta a Receita de cada cliente: pelo A1 do cliente ou pela procuração eletrônica, e o que falta.", icone: KeyRound, to: "/clientes/procuracoes", prefixos: ["/em-breve/procuracoes"], palavras: ["procuração", "e-cac", "a1", "certificado", "termo de autorização"] },
 
@@ -60,22 +60,24 @@ export const MODULOS = [
   { id: "arquivos", area: "bpo", titulo: "Arquivos e documentos", descricao: "Arquivos por empresa e documentos com data de validade e alerta de vencimento.", icone: FolderOpen, to: "/bpo/arquivos", palavras: ["arquivo", "documento", "validade", "alvará", "licença", "download"] },
 
   // Diagnóstico e Serviços
-  { id: "carteira-diagnostico", area: "diagnostico", titulo: "Carteira de diagnósticos", descricao: "As empresas com diagnóstico pontual e o caminho até o trabalho de cada uma.", icone: Stethoscope, to: "/diagnostico", prefixos: ["/workroom"], palavras: ["diagnóstico", "projeto", "serviço", "saneamento", "operações", "workroom"] },
+  { id: "carteira-diagnostico", area: "diagnostico", titulo: "Projetos de diagnóstico", descricao: "Cada diagnóstico com o seu escopo (uma empresa, parte de um grupo ou o grupo inteiro), prazo e as ferramentas de cada empresa.", icone: Stethoscope, to: "/diagnostico", prefixos: ["/workroom", "/diagnostico/projetos"], palavras: ["diagnóstico", "projeto", "novo diagnóstico", "escopo", "saneamento", "operações", "workroom"] },
+  { id: "clientes-diagnostico", area: "diagnostico", titulo: "Clientes com diagnóstico", descricao: "As empresas com diagnóstico pontual ativo e o caminho até o trabalho de cada uma.", icone: Contact, to: "/diagnostico/carteira", palavras: ["carteira", "diagnóstico pontual", "clientes"] },
 
   // Reforma Tributária
-  { id: "regimes", area: "reforma", titulo: "Onde cada regime vence", descricao: "A mesma empresa no Simples, no Presumido e no Real, ano a ano até 2033, e o mapa de quem vence.", icone: Scale, to: "/reforma/regimes", palavras: ["simulador", "regime", "simples", "presumido", "lucro real", "comparar", "vence"] },
-  { id: "cenarios", area: "reforma", titulo: "Cenários", descricao: "Cenários de alíquotas da Reforma.", icone: SlidersHorizontal, to: "/cenarios", palavras: ["alíquota", "cbs", "ibs"] },
+  { id: "painel-executivo", area: "reforma", titulo: "Painel executivo", descricao: "Carga, margem e caixa da carteira, de um grupo ou de uma empresa, com os cenários da Reforma.", icone: LayoutDashboard, to: "/cockpit", palavras: ["cockpit", "painel", "executivo", "carga", "margem", "simulação", "grupo"] },
+  { id: "regimes", area: "reforma", titulo: "Comparação de regimes", descricao: "A mesma empresa no Simples, no Presumido e no Real, ano a ano até 2033: onde cada regime vence.", icone: Scale, to: "/reforma/regimes", palavras: ["simulador", "regime", "simples", "presumido", "lucro real", "comparar", "vence"] },
+  { id: "cenarios", area: "reforma", titulo: "Cenários e alíquotas", descricao: "Os cenários de alíquotas da Reforma usados nas simulações.", icone: SlidersHorizontal, to: "/cenarios", palavras: ["alíquota", "cbs", "ibs"] },
   { id: "transicao", area: "reforma", titulo: "Transição 2026–2033", descricao: "Como a carga muda ano a ano durante a transição.", icone: CalendarClock, to: "/transicao", palavras: ["2026", "2033", "transição"] },
-  { id: "catalogos", area: "reforma", titulo: "Catálogos IBS/CBS", descricao: "Classificações tributárias, CST e créditos presumidos.", icone: BookMarked, to: "/catalogos", palavras: ["cclasstrib", "cst", "crédito presumido", "ibs", "cbs"] },
+  { id: "catalogos", area: "conhecimento", titulo: "Catálogos IBS/CBS", descricao: "Classificações tributárias, CST e créditos presumidos.", icone: BookMarked, to: "/catalogos", palavras: ["cclasstrib", "cst", "crédito presumido", "ibs", "cbs"] },
   { id: "credito-estoque", area: "reforma", titulo: "Crédito presumido de estoque", descricao: "Cálculo do crédito presumido do estoque na virada da Reforma.", icone: Boxes, to: "/ferramentas/credito-estoque", palavras: ["estoque", "crédito", "lc 214"] },
-  { id: "consulta-ncm", area: "reforma", titulo: "Consulta NCM", descricao: "Consulta de NCM com a classificação tributária da Reforma.", icone: Search, to: "/ferramentas/consulta-ncm", palavras: ["ncm", "classificação", "mercadoria"] },
-  { id: "guia-art-11", area: "reforma", titulo: "Guia do art. 11", descricao: "Guia da base de cálculo do IBS/CBS pelo art. 12 e art. 11 da LC 214.", icone: Scale, to: "/base-legal/guia-art-11", palavras: ["art. 11", "base de cálculo", "lc 214"] },
+  { id: "consulta-ncm", area: "conhecimento", titulo: "Consulta NCM", descricao: "Consulta de NCM com a classificação tributária da Reforma.", icone: Search, to: "/ferramentas/consulta-ncm", palavras: ["ncm", "classificação", "mercadoria"] },
+  { id: "guia-art-11", area: "conhecimento", titulo: "Guia do art. 11", descricao: "Guia da base de cálculo do IBS/CBS pelo art. 12 e art. 11 da LC 214.", icone: Scale, to: "/base-legal/guia-art-11", palavras: ["art. 11", "base de cálculo", "lc 214"] },
 
   // Conhecimento
-  { id: "base-legal", area: "conhecimento", titulo: "Base legal", descricao: "Leis, decretos e dispositivos, com fonte oficial e revisão.", icone: Scale, to: "/base-legal", prefixos: ["/base-legal/"], palavras: ["lei", "lc 214", "decreto", "norma", "dispositivo"] },
+  { id: "base-legal", area: "conhecimento", titulo: "Base legal e assistente", descricao: "Leis, decretos e dispositivos com fonte oficial, e o assistente que responde com o artigo.", icone: Scale, to: "/base-legal", prefixos: ["/base-legal/"], palavras: ["lei", "lc 214", "decreto", "norma", "dispositivo"] },
   { id: "agenda-reforma", area: "conhecimento", titulo: "Agenda da Reforma", descricao: "Datas e marcos oficiais da Reforma Tributária.", icone: CalendarDays, to: "/agenda-reforma", palavras: ["prazo", "marco", "data", "lembrete"] },
-  { id: "radar", area: "conhecimento", titulo: "Radar de Novidades", descricao: "O que mudou na legislação, filtrado por setor.", icone: Radar, to: "/ferramentas/radar-reforma", palavras: ["novidade", "radar", "setor"] },
-  { id: "noticias", area: "conhecimento", titulo: "Acervo de Notícias", descricao: "Notícias da Reforma guardadas e organizadas.", icone: Newspaper, to: "/ferramentas/noticias", palavras: ["notícia", "acervo"] },
+  { id: "radar", area: "conhecimento", titulo: "Radar de novidades", descricao: "O que mudou na legislação, filtrado por setor.", icone: Radar, to: "/ferramentas/radar-reforma", palavras: ["novidade", "radar", "setor"] },
+  { id: "noticias", area: "conhecimento", titulo: "Acervo de notícias", descricao: "Notícias da Reforma guardadas e organizadas.", icone: Newspaper, to: "/ferramentas/noticias", palavras: ["notícia", "acervo"] },
 
   // Comercial e relacionamento
   { id: "leads", area: "comercial", titulo: "Leads", descricao: "Contatos que chegaram pelas ferramentas públicas.", icone: Users, to: "/comercial/leads", palavras: ["lead", "contato", "prospecção"] },
@@ -83,20 +85,20 @@ export const MODULOS = [
   { id: "propostas", area: "comercial", titulo: "Propostas e honorários", descricao: "Calculadora de honorários e proposta em PDF com a logo do escritório.", icone: BadgeDollarSign, to: "/comercial/propostas", palavras: ["orçamento", "honorário", "proposta", "pdf", "precificação"] },
   { id: "comunicados", area: "comercial", titulo: "Comunicados", descricao: "E-mails para grupos de clientes, com anexos e registro de envio.", icone: Mail, to: "/comercial/comunicados", palavras: ["e-mail", "comunicado", "aviso", "tags"] },
   { id: "newsletter", area: "comercial", titulo: "Newsletter", descricao: "Edições da newsletter e inscritos.", icone: Mail, to: "/comercial/newsletter", palavras: ["newsletter", "inscritos", "edição"] },
-  { id: "calculadora-publica", area: "comercial", titulo: "Calculadora pública", descricao: "A calculadora aberta, sem login, que traz os leads.", icone: ExternalLink, to: "/calculadora", externo: true, palavras: ["calculadora", "pública", "isca"] },
+  { id: "calculadora-publica", area: "comercial", titulo: "Ferramentas públicas", descricao: "A calculadora aberta, sem login, que traz os leads (e as outras ferramentas públicas a partir dela).", icone: ExternalLink, to: "/calculadora", externo: true, palavras: ["calculadora", "pública", "isca"] },
 
   // Administração
   { id: "usuarios", area: "admin", titulo: "Usuários e acessos", descricao: "Quem usa o InTAX, com papel e situação de cada conta.", icone: UserCog, to: "/admin/usuarios", papeis: ["admin"], palavras: ["usuário", "papel", "acesso", "senha", "conta"] },
   { id: "acessos", area: "admin", titulo: "Registro de acesso e IPs", descricao: "Quem entrou e quando, e a lista de endereços IP permitidos.", icone: ScrollText, to: "/admin/acessos", papeis: ["admin"], palavras: ["login", "ip", "auditoria", "último acesso"] },
   { id: "comunicacoes", area: "admin", titulo: "Comunicações e envios", descricao: "E-mails enviados (comunicados e avisos), lista de bloqueio e para quem vão os avisos por e-mail.", icone: Inbox, to: "/admin/comunicacoes", papeis: ["admin"], palavras: ["log", "e-mail enviado", "bloqueio", "descadastro", "aviso por e-mail", "destinatário"] },
   { id: "integracoes", area: "admin", titulo: "Integrações", descricao: "Estado das conexões com Serpro, e-mail e WhatsApp.", icone: Plug, to: "/admin/integracoes", papeis: ["admin"], palavras: ["serpro", "integra contador", "whatsapp", "smtp", "agente"] },
-  { id: "configuracao", area: "admin", titulo: "Configuração", descricao: "Parâmetros gerais do sistema.", icone: Settings, to: "/configuracao", palavras: ["parâmetro", "ajuste"] },
+  { id: "configuracao", area: "admin", titulo: "Configuração do motor", descricao: "Parâmetros gerais do motor de cálculo e do sistema.", icone: Settings, to: "/configuracao", palavras: ["parâmetro", "ajuste"] },
   { id: "parametros-rotinas", area: "admin", titulo: "Parâmetros e rotinas", descricao: "Dia da consulta automática de cada assunto do monitoramento e o envio das guias no dia escolhido.", icone: SlidersHorizontal, to: "/admin/parametros-rotinas", prefixos: ["/em-breve/parametros-rotinas"], papeis: ["admin"], palavras: ["rotina", "agendamento", "envio de guias", "consulta automática"] },
 
   // Suporte
-  { id: "roteiro-testes", area: "suporte", titulo: "Roteiro de testes (provisório)", descricao: "Passo a passo para testar cada funcionalidade.", icone: ClipboardCheck, to: "/roteiro-testes", palavras: ["teste", "roteiro", "qa"] },
-  { id: "manual", area: "suporte", titulo: "FAQ & Manual", descricao: "Perguntas frequentes e manual de uso, com a fonte de cada resposta.", icone: HelpCircle, to: "/manual", palavras: ["ajuda", "faq", "manual", "dúvida"] },
-  { id: "arquitetura", area: "suporte", titulo: "Arquitetura & Correlações", descricao: "Como o sistema é organizado por dentro.", icone: Code2, to: "/arquitetura", palavras: ["arquitetura", "correlação", "técnico"] },
+  { id: "roteiro-testes", area: "suporte", titulo: "Técnico: roteiro de testes", descricao: "Passo a passo para testar cada funcionalidade.", icone: ClipboardCheck, to: "/roteiro-testes", palavras: ["teste", "roteiro", "qa"] },
+  { id: "manual", area: "suporte", titulo: "Manual e perguntas frequentes", descricao: "Perguntas frequentes e manual de uso, com a fonte de cada resposta.", icone: HelpCircle, to: "/manual", palavras: ["ajuda", "faq", "manual", "dúvida"] },
+  { id: "arquitetura", area: "suporte", titulo: "Técnico: arquitetura", descricao: "Como o sistema é organizado por dentro.", icone: Code2, to: "/arquitetura", palavras: ["arquitetura", "correlação", "técnico"] },
 ];
 
 const emBreve = (m) => m.situacao === SITUACAO.EM_BREVE;

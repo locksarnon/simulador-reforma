@@ -54,7 +54,7 @@ describe("Layout: botão Sair e conta logada", () => {
 describe("Layout: menu em áreas, busca e acessibilidade", () => {
   it("mostra as áreas na ordem do plano, cada uma ligada à sua página", () => {
     const html = renderizar(ADMIN);
-    const ordem = ["Clientes", "BPO Fiscal", "Diagnóstico e Serviços", "Reforma Tributária", "Conhecimento", "Comercial e relacionamento", "Administração", "Suporte"];
+    const ordem = ["Clientes", "BPO Fiscal", "Diagnósticos", "Planejamento tributário", "Consultas fiscais", "Comercial", "Administração", "Ajuda"];
     const posicoes = ordem.map((a) => html.indexOf(`${a}</a>`));
     expect(posicoes.every((p) => p > 0)).toBe(true);
     expect([...posicoes].sort((a, b) => a - b)).toEqual(posicoes);
@@ -66,7 +66,7 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
     const html = renderizar(ADMIN, "/bpo/repositorio-xml/E1");
     expect(html).toContain("Captura de XML");
     expect(html).not.toContain(">Cenários<");
-    expect(html).toContain('aria-label="Abrir Reforma Tributária"');
+    expect(html).toContain('aria-label="Abrir Planejamento tributário"');
     expect(html).toContain('aria-label="Recolher BPO Fiscal"');
   });
 

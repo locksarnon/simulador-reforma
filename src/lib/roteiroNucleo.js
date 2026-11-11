@@ -118,4 +118,19 @@ export const ROTEIRO_NUCLEO = [
     cuidados: ["No modo demonstração os dados são fictícios do Serpro, iguais para todos os clientes. Pagamentos e e-Processo não respondem no ambiente de demonstração do próprio Serpro."],
     criterio: "Consulta, PDF, histórico, lote, rotina, guias e painel de risco funcionam; nada de demonstração aparece como dado real.",
   },
+  {
+    id: "nucleo-diagnosticos", grupo: "Organização e núcleo", titulo: "Diagnóstico como projeto (parte de um grupo)", rota: "/diagnostico",
+    objetivo: "Abrir um diagnóstico com o escopo certo e chegar às ferramentas de cada empresa.",
+    preparo: ["Um grupo de teste com três empresas."],
+    passos: [
+      p("Abra Diagnósticos e clique em \"Novo diagnóstico\".", "Abre a janela com a busca de empresa ou grupo."),
+      p("Busque o grupo e clique nele; tire uma das empresas.", "Ficam só as empresas escolhidas; o nome sugerido traz o grupo e o mês."),
+      p("Preencha o objetivo e o prazo e clique em \"Criar diagnóstico\".", "Abre o projeto com \"(parte)\" no subtítulo e um quadro por empresa com as ferramentas."),
+      p("Clique em \"XML das notas\" de uma empresa e depois em \"Usar XML do repositório\".", "Abre a Captura de XML da empresa, de onde as notas vão ao importador."),
+      p("Volte ao projeto, clique em \"Editar escopo\" e inclua a empresa que faltava.", "O subtítulo muda para \"(inteiro)\" e aparece o \"Painel executivo do grupo inteiro\"."),
+      p("Abra Planejamento tributário > Painel executivo.", "O título diz \"Analisando: …\" e o seletor Analisar oferece toda a carteira, os grupos e as empresas."),
+    ],
+    cuidados: ["Excluir o projeto não apaga o trabalho das empresas."],
+    criterio: "Escopo por CNPJ guardado, ferramentas a um clique e o contexto sempre visível.",
+  },
 ];

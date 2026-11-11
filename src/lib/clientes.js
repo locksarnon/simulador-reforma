@@ -76,3 +76,12 @@ export function mascararDocumento(v) {
   if (d.length === 11) return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
   return v || "";
 }
+
+/** Os grupos de verdade (não os "Cliente individual") e todas as empresas, para o seletor único do painel. */
+export function opcoesDoSeletor(grupos, empresas) {
+  const reais = grupos.filter((g) => g.tipo !== "Cliente individual" || empresas.filter((e) => e.grupo === g.numero).length > 1);
+  return {
+    grupos: [...reais].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+    empresas: [...empresas].filter((e) => e.grupo).sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR")),
+  };
+}

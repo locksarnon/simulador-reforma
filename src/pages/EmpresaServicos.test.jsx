@@ -12,7 +12,7 @@ describe('navegação por empresa', () => {
   const qc = new QueryClient();
   const html = renderToString(<QueryClientProvider client={qc}><MemoryRouter><Layout /></MemoryRouter></QueryClientProvider>);
   // a área da tela aberta vem aberta (Clientes, em "/"); as demais aparecem recolhidas, cada uma com a sua página
-  expect(html).toContain('Clientes'); expect(html).toContain('Reforma Tributária'); expect(html).toContain('href="/area/reforma"');
+  expect(html).toContain('Clientes'); expect(html).toContain('Planejamento tributário'); expect(html).toContain('href="/area/reforma"');
   expect(html).not.toContain('Novo Diagnóstico'); expect(html).not.toContain('Calculadora Rápida'); expect(html).not.toContain('Validador de cadastro');
   const reforma = renderToString(<QueryClientProvider client={qc}><MemoryRouter initialEntries={['/ferramentas/consulta-ncm']}><Layout /></MemoryRouter></QueryClientProvider>);
   expect(reforma).toContain('Consulta NCM'); expect(reforma).not.toContain('Novo Diagnóstico');

@@ -80,6 +80,8 @@ describe('EntitiesService.remove', () => {
       capturaXmlExecucao: { deleteMany: vi.fn() }, xmlEmpresaConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, auditoriaCertificado: { create: vi.fn() }, servicoContratado: { deleteMany: vi.fn() },
       vinculoColaborador: { deleteMany: vi.fn() }, empresaTag: { deleteMany: vi.fn() }, tarefa: { deleteMany: vi.fn() }, eventoAgenda: { updateMany: vi.fn() },
       documentoEmpresa: { deleteMany: vi.fn() }, arquivoEmpresa: { findMany: vi.fn().mockResolvedValue([{ storage_key: 'arquivos/empresa/E1/x-contrato.pdf' }]), deleteMany: vi.fn() },
+      consultaFiscal: { findMany: vi.fn().mockResolvedValue([{ arquivos: [{ key: 'monitoramento/empresa/E1/C1-1.pdf' }] }, { arquivos: null }]), deleteMany: vi.fn() },
+      obrigacaoDispensada: { deleteMany: vi.fn() }, $executeRaw: vi.fn(),
       $transaction: vi.fn(async (ops: unknown[]) => ops),
     };
     const storage = { removeObject: vi.fn().mockResolvedValue(undefined) };
@@ -92,7 +94,10 @@ describe('EntitiesService.remove', () => {
     expect(prisma.saneamentoProjeto.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.analiseEmpresa.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.validacaoCadastro.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
-    expect(storage.removeObject).toHaveBeenCalledTimes(3); // validação + arquivo da empresa; o endereço externo não é apagado
+    expect(storage.removeObject).toHaveBeenCalledTimes(4); // validação, XML, arquivo da empresa e PDF do monitoramento; o endereço externo não é apagado
+    expect(storage.removeObject).toHaveBeenCalledWith('monitoramento/empresa/E1/C1-1.pdf');
+    expect(prisma.consultaFiscal.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.$executeRaw).toHaveBeenCalled();
     expect(storage.removeObject).toHaveBeenCalledWith('validacoes/a.xlsx');
     expect(prisma.empresa.delete).toHaveBeenCalledWith({ where: { id: 'E1' } });
   });

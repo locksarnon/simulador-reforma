@@ -173,7 +173,7 @@ export default function PropostasPagina() {
   const ehAdmin = user?.role === "admin";
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial e relacionamento", to: "/area/comercial" }, { label: "Propostas e honorários" }]} title="Propostas e honorários" subtitle="Calculadora de honorários, propostas com PDF e a situação de cada uma. Proposta aceita liga o serviço contratado da empresa." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Propostas e honorários" }]} title="Propostas e honorários" subtitle="Calculadora de honorários, propostas com PDF e a situação de cada uma. Proposta aceita liga o serviço contratado da empresa." />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue="propostas" className="space-y-4">
           <TabsList><TabsTrigger value="propostas">Propostas</TabsTrigger><TabsTrigger value="modelos">Modelos</TabsTrigger><TabsTrigger value="tabela">Tabela de honorários</TabsTrigger></TabsList>

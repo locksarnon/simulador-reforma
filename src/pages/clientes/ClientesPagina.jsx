@@ -152,7 +152,7 @@ export default function ClientesPagina() {
         subtitle="Todos os clientes do escritório numa lista só. Marque os serviços de cada um na própria linha."
         actions={(
           <div className="flex flex-wrap gap-2">
-            <Link to="/clientes/importacao" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Upload className="h-4 w-4" aria-hidden="true" /> Importar planilha</Link>
+            <Link to="/clientes/importacao" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Upload className="h-4 w-4" aria-hidden="true" /> Planilha cadastral</Link>
             <button type="button" onClick={() => setNovo(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo cliente</button>
           </div>
         )}

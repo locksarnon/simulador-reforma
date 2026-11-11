@@ -66,6 +66,8 @@ import MonitoramentoPagina from '@/pages/bpo/MonitoramentoPagina';
 import MonitoramentoEmpresaPagina from '@/pages/bpo/MonitoramentoEmpresaPagina';
 import ParametrosRotinasPagina from '@/pages/admin/ParametrosRotinasPagina';
 import { CarteiraBpo, CarteiraDiagnostico } from '@/pages/clientes/Carteiras';
+import DiagnosticosPagina from '@/pages/diagnostico/DiagnosticosPagina';
+import ProjetoDiagnosticoPagina from '@/pages/diagnostico/ProjetoDiagnosticoPagina';
 import CarteiraColaboradoresPagina from '@/pages/clientes/CarteiraColaboradoresPagina';
 import TagsPagina from '@/pages/clientes/TagsPagina';
 import TarefasPagina from '@/pages/bpo/TarefasPagina';
@@ -126,7 +128,9 @@ function App() {
                   <Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} />
                   <Route path="/clientes/servicos-contratados" element={<ServicosContratadosPagina />} />
                   <Route path="/bpo/carteira" element={<CarteiraBpo />} />
-                  <Route path="/diagnostico" element={<CarteiraDiagnostico />} />
+                  <Route path="/diagnostico" element={<DiagnosticosPagina />} />
+                  <Route path="/diagnostico/carteira" element={<CarteiraDiagnostico />} />
+                  <Route path="/diagnostico/projetos/:id" element={<ProjetoDiagnosticoPagina />} />
                   <Route path="/clientes/carteira" element={<CarteiraColaboradoresPagina />} />
                   <Route path="/clientes/tags" element={<TagsPagina />} />
                   <Route path="/bpo/tarefas" element={<TarefasPagina />} />

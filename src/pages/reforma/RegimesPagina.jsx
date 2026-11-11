@@ -16,7 +16,7 @@ const CORES = { simples: "#2563EB", presumido: "#B45309", real: "#1E764D", empat
 const PERFIS_COMPARAVEIS = PERFIS.filter((p) => p.regimes.filter((r) => r !== "produtor_pf").length >= 2);
 const pct = (v) => (v === null || v === undefined ? "—" : `${v.toFixed(2).replace(".", ",")}%`);
 
-/** Reforma Tributária > Onde cada regime vence: a carga sobre o consumo de cada regime, ano a ano, e o mapa de quem vence. */
+/** Planejamento tributário > Comparação de regimes: a carga sobre o consumo de cada regime, ano a ano, e o mapa de quem vence. */
 export default function RegimesPagina() {
   const [perfilId, setPerfilId] = useState(PERFIS_COMPARAVEIS[0]?.id);
   const perfil = PERFIS.find((p) => p.id === perfilId);
@@ -32,8 +32,8 @@ export default function RegimesPagina() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: "Início", to: "/inicio" }, { label: "Reforma Tributária", to: "/area/reforma" }, { label: "Onde cada regime vence" }]}
-        title="Onde cada regime vence"
+        crumbs={[{ label: "Início", to: "/inicio" }, { label: "Planejamento tributário", to: "/area/reforma" }, { label: "Comparação de regimes" }]}
+        title="Comparação de regimes"
         subtitle="A mesma empresa simulada no Simples, no Lucro Presumido e no Lucro Real, ano a ano até 2033, com o motor da calculadora."
       />
       <div className="px-6 lg:px-8 py-6 grid gap-4 xl:grid-cols-[320px_1fr]">
@@ -120,7 +120,7 @@ export default function RegimesPagina() {
               <section className="rounded-xl border border-amber-400/60 bg-card p-4 text-xs text-muted-foreground space-y-1" aria-label="O que a comparação considera">
                 <p><strong className="text-foreground">Compara só os tributos sobre o consumo</strong>: PIS/Cofins, ICMS, IBS/CBS na transição e o DAS do Simples. IRPJ, CSLL, contribuições sobre a folha e o efeito do crédito no preço do cliente não entram; a escolha do regime precisa olhar o lucro e a folha também.</p>
                 <p><strong className="text-foreground">Crédito acumulado</strong> aparece quando os créditos das compras passam do tributo das vendas: não é economia, fica parado até ser compensado ou ressarcido e pesa no caixa. Carga zero com crédito acumulado conta como empate.</p>
-                <p>As premissas (ICMS médio do perfil, DAS informado, redução do perfil) são as mesmas da calculadora; de 2029 a 2033 a série segue o cenário escolhido. Para a empresa de verdade, use o diagnóstico com as notas fiscais em <Link to="/diagnostico" className="text-primary hover:underline">Diagnóstico e Serviços</Link>.</p>
+                <p>As premissas (ICMS médio do perfil, DAS informado, redução do perfil) são as mesmas da calculadora; de 2029 a 2033 a série segue o cenário escolhido. Para a empresa de verdade, use o diagnóstico com as notas fiscais em <Link to="/diagnostico" className="text-primary hover:underline">Diagnósticos</Link>.</p>
                 {comp.resultados[0]?.r.premissas?.slice(-2).map((p) => <p key={p}>{p}</p>)}
               </section>
             </>

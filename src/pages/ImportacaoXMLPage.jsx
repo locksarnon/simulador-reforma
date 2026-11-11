@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { useParams, useOutletContext } from "react-router-dom";
+import { Link, useParams, useOutletContext } from "react-router-dom";
+import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, CheckCircle2, AlertTriangle, Download, FileSearch, RefreshCw, Users, CheckSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -199,9 +200,9 @@ export default function ImportacaoXMLPage() {
       {!empresaTravada && (
         <PageHeader
           crumbs={[
-            { label: "DataHub", to: "/" },
+            { label: "Clientes", to: "/" },
             { label: grupoNome || "Grupo", to: `/workroom/${id}` },
-            { label: "Importação XML" },
+            { label: "XML das notas" },
           ]}
         />
       )}
@@ -211,7 +212,7 @@ export default function ImportacaoXMLPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h2 className="font-heading font-semibold text-base">
-                Importação XML {empresaTravada ? `· ${empresaTravada.id_empresa}` : ""}
+                XML das notas {empresaTravada ? `· ${empresaTravada.razao_social}` : ""}
               </h2>
               <InfoTooltip pagina="importacao" chave="header" />
             </div>
@@ -220,6 +221,11 @@ export default function ImportacaoXMLPage() {
                 ? `Notas em que ${empresaTravada.razao_social} aparece como emitente ou destinatária. O lote continua sendo do grupo — se houver transferência interna com outra empresa, ela fica escondida por padrão.`
                 : "Upload de NF-e, NFC-e e CT-e com processamento backend, 4 camadas de validação e staging auditável."}
             </p>
+            {empresaTravada && (
+              <p className="mt-1 text-sm">
+                Já tem os XML deste cliente na Captura de XML? <Link to={`${CAMINHO_REPOSITORIO_XML}/${empresaTravada.id}`} className="font-medium text-primary hover:underline">Usar XML do repositório</Link>: marque as notas lá e clique em "Enviar ao importador"; elas chegam aqui sem novo upload.
+              </p>
+            )}
           </div>
           <LimparDadosButton
             tela="importacao-xml" grupoId={id} empresaId={empresaTravada?.id}

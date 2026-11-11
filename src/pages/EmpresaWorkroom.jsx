@@ -9,8 +9,8 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 const tabs = [
   { label: "Serviços e análises", to: "servicos", icon: Layers },
   { label: "Histórico", to: "historico", icon: History },
-  { label: "Importação XML", to: "importacao-xml", icon: FileSearch },
-  { label: "Importar planilha", to: "importacao-planilha", icon: FileSpreadsheet },
+  { label: "XML das notas", to: "importacao-xml", icon: FileSearch },
+  { label: "Planilha de operações", to: "importacao-planilha", icon: FileSpreadsheet },
   { label: "Operações", to: "operacoes", icon: FileText },
   { label: "Agenda da Reforma", to: "agenda", icon: CalendarDays },
   { label: "Painel", to: "painel", icon: LayoutDashboard },

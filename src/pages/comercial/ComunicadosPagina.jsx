@@ -94,7 +94,7 @@ export default function ComunicadosPagina() {
   };
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial e relacionamento", to: "/area/comercial" }, { label: "Comunicados" }]} title="Comunicados" subtitle="E-mails para grupos de clientes (por carteira, etiquetas ou empresas escolhidas), com anexos. Os envios ficam em Administração > Comunicações e envios." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Comunicados" }]} title="Comunicados" subtitle="E-mails para grupos de clientes (por carteira, etiquetas ou empresas escolhidas), com anexos. Os envios ficam em Administração > Comunicações e envios." />
       <div className="px-6 lg:px-8 py-6 space-y-3">
         <div className="flex justify-end"><button type="button" onClick={() => setEditor({ comunicado: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo comunicado</button></div>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">

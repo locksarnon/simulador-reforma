@@ -121,7 +121,7 @@ export default function ImportacaoCadastroPagina() {
   const ehAdmin = user?.role === "admin";
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Importação e exportação" }]} title="Importação e exportação" subtitle="O cadastro de empresas e a carteira de cada colaborador por planilha, com conferência antes de gravar." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Planilha cadastral" }]} title="Planilha cadastral" subtitle="O cadastro de empresas e a carteira de cada colaborador por planilha, com conferência antes de gravar." />
       <div className="px-6 lg:px-8 py-6 max-w-4xl">
         {(emp.isLoading || grp.isLoading) ? <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <Tabs defaultValue="empresas" className="space-y-4">

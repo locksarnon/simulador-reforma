@@ -1696,3 +1696,27 @@ model TokenIntegraContador {
 }
 
 // ── [/monitoramento] ──
+
+// ── [projetos-diagnostico] ──
+/// Projeto de diagnóstico: um trabalho pontual com escopo próprio. Guarda os CNPJs escolhidos (uma empresa, parte de um grupo ou o grupo
+/// todo); se o grupo mudar depois, o projeto continua com a seleção confirmada. O trabalho de cada empresa (XML, operações, análises)
+/// continua onde sempre esteve, ligado à empresa.
+model ProjetoDiagnostico {
+  id           String    @id @default(cuid())
+  nome         String
+  grupo_numero String?
+  empresa_ids  String[]  @default([])
+  escopo       String?
+  situacao     String    @default("EM_ANDAMENTO")
+  inicio       DateTime?
+  prazo        DateTime?
+  responsavel  String?
+  observacao   String?
+  criado_por   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([situacao])
+}
+
+// ── [/projetos-diagnostico] ──

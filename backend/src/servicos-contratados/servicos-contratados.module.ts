@@ -3,10 +3,12 @@ import { ServicosContratadosController } from './servicos-contratados.controller
 import { ServicosContratadosService } from './servicos-contratados.service';
 import { ClientesController } from './clientes.controller';
 import { ClientesService } from './clientes.service';
+import { ProjetosDiagnosticoController } from './projetos.controller';
+import { ProjetosDiagnosticoService } from './projetos.service';
 
 @Module({
-  controllers: [ServicosContratadosController, ClientesController],
-  providers: [ServicosContratadosService, ClientesService],
+  controllers: [ServicosContratadosController, ClientesController, ProjetosDiagnosticoController],
+  providers: [ServicosContratadosService, ClientesService, ProjetosDiagnosticoService],
   exports: [ServicosContratadosService],
 })
 export class ServicosContratadosModule {}

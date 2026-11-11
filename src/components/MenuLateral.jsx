@@ -75,7 +75,7 @@ export default function MenuLateral({ aoNavegar }) {
           </div>
           <div className="leading-tight">
             <p className="font-heading font-semibold text-sm text-rail-strong">InTAX</p>
-            <p className="text-[11px] text-rail-muted">por FAL Agro · Reforma Tributária</p>
+            <p className="text-[11px] text-rail-muted">por FAL Agro</p>
           </div>
         </Link>
       </div>
