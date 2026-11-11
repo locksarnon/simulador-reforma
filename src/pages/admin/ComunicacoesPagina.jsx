@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import { CATEGORIAS } from "@/lib/notificacoes";
+import ListaDePrevistas from "@/components/ListaDePrevistas";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const ORIGENS = { COMUNICADO: "Comunicado", AVISO: "Aviso do sistema" };
@@ -113,6 +114,7 @@ export default function ComunicacoesPagina() {
           <TabsContent value="bloqueios"><AbaBloqueios /></TabsContent>
           <TabsContent value="avisos"><AbaAvisos /></TabsContent>
         </Tabs>
+        <div className="mt-6"><ListaDePrevistas moduloId="comunicacoes" /></div>
       </div>
     </div>
   );

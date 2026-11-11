@@ -10,6 +10,7 @@ import BotaoExportar from "@/components/BotaoExportar";
 import { exportarLista } from "@/lib/exportarLista";
 import { analisarImportacao, analisarVinculos, CAMPOS, lerPlanilha } from "@/lib/importacaoCadastro";
 import { useColaboradores } from "@/lib/useTags";
+import ListaDePrevistas from "@/components/ListaDePrevistas";
 
 function EscolherArquivo({ rotulo, aoLer }) {
   const [lendo, setLendo] = useState(false);
@@ -129,6 +130,7 @@ export default function ImportacaoCadastroPagina() {
             <TabsContent value="vinculos"><AbaVinculos empresas={empresas} ehAdmin={ehAdmin} /></TabsContent>
           </Tabs>
         )}
+        <div className="mt-6"><ListaDePrevistas moduloId="grupos-empresas" /></div>
       </div>
     </div>
   );

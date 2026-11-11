@@ -1,0 +1,88 @@
+/**
+ * Roteiro de testes da organização em 9 áreas e do núcleo do escritório (11/11/2026). Os textos de botões são os reais das telas.
+ * Use uma empresa de teste (grupo "TESTE-") e um segundo usuário consultor para os testes de papel.
+ */
+const p = (f, e) => ({ f, e });
+
+export const ROTEIRO_NUCLEO = [
+  {
+    id: "nucleo-navegacao", grupo: "Organização e núcleo", titulo: "Menu em 9 áreas, Início e busca", rota: "/inicio",
+    objetivo: "Achar cada módulo pelo menu, pela página da área e pela busca, sem perder nada do que existia.",
+    preparo: ["Entrar como administrador."],
+    passos: [
+      p("Abra o InTAX.", "Cai no Início com o resumo do dia (Suas tarefas, Próximos 7 dias, Avisos e Carteira) e os Primeiros passos."),
+      p("Clique no título de uma área no menu (ex.: BPO Fiscal).", "Abre a página da área com os módulos dela; módulos em breve aparecem com o selo."),
+      p("Aperte Ctrl K e digite \"xml\", depois o nome de uma empresa.", "A busca acha a Captura de XML e a empresa; Enter abre."),
+      p("Abra os endereços antigos /cockpit, /agenda-reforma e /comercial/leads.", "Todos abrem como antes."),
+    ],
+    cuidados: ["Consultor não vê módulos em breve nem os de administrador."],
+    criterio: "Todo módulo se acha por menu, área e busca; nenhum endereço antigo quebrou.",
+  },
+  {
+    id: "nucleo-carteira", grupo: "Organização e núcleo", titulo: "Serviços contratados, carteira, etiquetas e listas", rota: "/clientes/servicos-contratados",
+    objetivo: "Separar BPO e diagnóstico pelo serviço contratado e organizar a carteira da equipe.",
+    preparo: ["Duas empresas de teste e um consultor cadastrado."],
+    passos: [
+      p("Em Serviços contratados, marque as duas empresas e clique em \"Definir BPO fiscal\" como Ativo.", "As duas aparecem na Carteira do BPO."),
+      p("Em Clientes > Etiquetas, crie \"Agro\" e marque uma das empresas.", "A etiqueta aparece na linha da empresa nas listas."),
+      p("Em Serviços contratados, filtre pela etiqueta Agro e clique em \"Salvar lista\".", "A lista aparece em Listas salvas e reaplica o filtro."),
+      p("Em Carteira e colaboradores, escolha o consultor, marque uma empresa e salve.", "O contador do consultor sobe e a aba Empresas sem colaborador perde essa empresa."),
+      p("Clique em \"Exportar\" e baixe em Excel.", "O arquivo traz uma linha por empresa com os colaboradores (ou \"Sem colaborador\")."),
+    ],
+    cuidados: ["Proposta e encerrado não entram na carteira."],
+    criterio: "Carteiras, etiquetas, listas e vínculos refletem o que foi marcado.",
+  },
+  {
+    id: "nucleo-tarefas", grupo: "Organização e núcleo", titulo: "Processos, tarefas e notificações", rota: "/bpo/tarefas",
+    objetivo: "Criar tarefas avulsas e por processo recorrente e receber o aviso no sino.",
+    preparo: ["Uma empresa com BPO ativo e um consultor."],
+    passos: [
+      p("Clique em \"Nova tarefa\", escolha a empresa, o consultor como responsável e um prazo; salve.", "A tarefa aparece na lista; entrando como o consultor, o sino mostra \"Nova tarefa para você\"."),
+      p("Na aba Processos recorrentes, crie \"Conferir apuração\", todo mês, dia 20; clique em \"Gerar tarefas agora\" e em \"Ver o que será criado\".", "A prévia diz quantas tarefas serão criadas; Gerar cria uma por empresa do BPO."),
+      p("Gere de novo para o mesmo mês.", "Nada a criar: as que já existem não se repetem."),
+      p("Tente excluir uma tarefa gerada.", "O botão é Cancelar (a tarefa sai da lista sem voltar no dia seguinte)."),
+    ],
+    cuidados: ["A rodada automática roda às 05:30; para testar na hora, use Gerar tarefas agora."],
+    criterio: "Tarefas criadas sem duplicar; aviso no sino para quem recebeu.",
+  },
+  {
+    id: "nucleo-agenda", grupo: "Organização e núcleo", titulo: "Calendário geral e obrigações do mês", rota: "/bpo/agenda",
+    objetivo: "Ver eventos, tarefas, obrigações federais, datas da Reforma e certificados no mesmo calendário.",
+    preparo: ["Uma empresa com regime no cadastro."],
+    passos: [
+      p("Clique em \"Novo evento\", dia de amanhã, 14:00; salve.", "O fim é sugerido para 15:00 e o evento aparece no mês."),
+      p("Desligue e ligue as camadas (Eventos, Tarefas, Obrigações federais…).", "Os itens somem e voltam."),
+      p("Na aba Obrigações do mês, escolha novembro de 2026.", "EFD-Reinf em 16/11 (data legal 15/11, prorrogada), contribuições previdenciárias e IRRF em 19/11 (antecipadas do dia 20, feriado), com a fonte de cada uma."),
+    ],
+    cuidados: ["Feriados estaduais e municipais não entram."],
+    criterio: "Datas batem com a regra e a fonte de cada obrigação.",
+  },
+  {
+    id: "nucleo-comercial", grupo: "Organização e núcleo", titulo: "Propostas, comunicados, pré-análise e multas", rota: "/comercial/propostas",
+    objetivo: "Fazer uma proposta com a calculadora, enviar um comunicado, consultar um CNPJ e calcular uma multa.",
+    preparo: ["E-mail configurado no servidor (SMTP) para o envio de comunicados; empresa de teste com e-mail de contato."],
+    passos: [
+      p("Em Propostas e honorários, \"Nova proposta\" para a empresa de teste, serviço BPO fiscal; use \"Calcular\" e \"Usar como honorário mensal\"; salve.", "A proposta aparece com o honorário mensal; o ícone de PDF baixa a proposta com a logo."),
+      p("Marque a proposta como aceita.", "O serviço contratado BPO fiscal da empresa fica Ativo."),
+      p("Em Comunicados, crie um para a empresa de teste e envie.", "A lista mostra os enviados; Administração > Comunicações e envios registra o e-mail."),
+      p("Em Pré-análise por CNPJ, consulte um CNPJ real.", "A ficha traz CNAE, porte, Simples, sócios e a leitura para a conversa; exporta em Excel ou PDF."),
+      p("Em Análise de risco, calcule a DCTFWeb com R$ 100.000 de tributos, prazo 30/01/2026 e entrega 05/04/2026.", "Multa de R$ 6.000,00 (3 meses × 2%), com a fonte."),
+    ],
+    cuidados: ["Sem SMTP o envio de comunicado é recusado com a explicação."],
+    criterio: "Cada tela produz o resultado esperado e cita a fonte quando é regra legal.",
+  },
+  {
+    id: "nucleo-admin", grupo: "Organização e núcleo", titulo: "Usuários, acessos, IPs, integrações e PIN do cofre", rota: "/admin/usuarios",
+    objetivo: "Administrar contas e acesso com segurança.",
+    preparo: ["Entrar como administrador."],
+    passos: [
+      p("Em Usuários e acessos, \"Nova conta\" sem senha.", "A senha provisória aparece uma vez, com Copiar."),
+      p("Desative a conta criada e tente entrar com ela.", "A entrada é recusada; o Registro de acesso mostra \"Conta desativada\"."),
+      p("Em Registro de acesso e IPs, aba IPs permitidos, use \"Usar o meu IP\", adicione e ligue a restrição; depois desligue.", "Ligar exige o seu IP na lista; desligar volta ao normal."),
+      p("Em Integrações, confira o estado de cada conexão.", "Mostra ligada, não configurada ou prevista, sem nenhum segredo."),
+      p("Na Captura de XML, aba Certificado, ligue o PIN do cofre e tente remover um certificado com PIN errado.", "A remoção é recusada (PIN incorreto)."),
+    ],
+    cuidados: ["Não ligue a restrição por IP sem o seu IP na lista (o sistema não deixa)."],
+    criterio: "Conta desativada não entra; restrição e PIN funcionam; nada secreto aparece na tela.",
+  },
+];

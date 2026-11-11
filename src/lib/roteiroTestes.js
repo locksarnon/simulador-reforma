@@ -7,6 +7,7 @@
  * ele foi conferido no ambiente; onde é comparação entre telas, o tester confere.
  */
 import { ROTEIRO_REPOSITORIO_XML } from "./roteiroRepositorioXml";
+import { ROTEIRO_NUCLEO } from "./roteiroNucleo";
 
 const p = (f, e) => ({ f, e });
 
@@ -505,6 +506,7 @@ export const ROTEIRO = [
     criterio: "Resumo sem login, detalhe só após contato, erros claros e limite de uso funcionando.",
     csvTeste: true,
   },
+  ...ROTEIRO_NUCLEO,
 ];
 
 export const GRUPOS_ROTEIRO = [...new Set(ROTEIRO.map((r) => r.grupo))];

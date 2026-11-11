@@ -10,6 +10,7 @@ import { SECAO_AGENDA } from "./faqAtualizacao";
 export { FAQ_ATUALIZADO_EM };
 
 import { SECAO_REPOSITORIO_XML } from "./faqRepositorioXml";
+import { SECAO_NUCLEO } from "./faqNucleo";
 
 const SECOES_BASE = [
   {
@@ -369,4 +370,5 @@ const comExtras = (secao) => (ITENS_EXTRAS[secao.titulo] ? { ...secao, itens: [.
 export const FAQ_SECOES = [
   SECAO_NOVIDADES,
   ...SECOES_BASE.flatMap((secao) => [comExtras(secao), ...INSERCOES.filter((i) => i.depoisDe === secao.titulo).map((i) => i.secao)]),
+  SECAO_NUCLEO,
 ];

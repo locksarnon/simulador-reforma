@@ -11,6 +11,7 @@ import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import FiltroPorTags from "@/components/clientes/FiltroPorTags";
 import { useTags } from "@/lib/useTags";
 import { tamanhoLegivel } from "@/lib/documentos";
+import ListaDePrevistas from "@/components/ListaDePrevistas";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 export const STATUS_COMUNICADO = { RASCUNHO: "Rascunho", ENVIANDO: "Enviando", ENVIADO: "Enviado", ERRO: "Não enviado" };
@@ -121,6 +122,7 @@ export default function ComunicadosPagina() {
         </div>
         {user?.role !== "admin" && <p className="text-xs text-muted-foreground">Você pode escrever e salvar rascunhos; o envio é feito por um administrador.</p>}
         <p className="text-xs text-muted-foreground">Comunicados por WhatsApp dependem da conta oficial da Meta (Administração &gt; Integrações).</p>
+        <ListaDePrevistas moduloId="comunicados" />
       </div>
       {editor && <Editor key={editor.comunicado?.id || "novo"} comunicado={editor.comunicado} empresas={empresas} aoFechar={() => setEditor(null)} />}
     </div>
