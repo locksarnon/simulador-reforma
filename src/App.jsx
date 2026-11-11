@@ -63,6 +63,7 @@ import { CarteiraBpo, CarteiraDiagnostico } from '@/pages/clientes/Carteiras';
 import CarteiraColaboradoresPagina from '@/pages/clientes/CarteiraColaboradoresPagina';
 import TagsPagina from '@/pages/clientes/TagsPagina';
 import TarefasPagina from '@/pages/bpo/TarefasPagina';
+import AgendaPagina from '@/pages/bpo/AgendaPagina';
 import UsuariosPagina from '@/pages/admin/UsuariosPagina';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
@@ -104,6 +105,7 @@ function App() {
                   <Route path="/clientes/carteira" element={<CarteiraColaboradoresPagina />} />
                   <Route path="/clientes/tags" element={<TagsPagina />} />
                   <Route path="/bpo/tarefas" element={<TarefasPagina />} />
+                  <Route path="/bpo/agenda" element={<AgendaPagina />} />
                   <Route path="/admin/usuarios" element={<UsuariosPagina />} />
                   <Route path="/admin/acessos" element={<AcessosPagina />} />
                   <Route path="/perfil" element={<PerfilPagina />} />
