@@ -37,17 +37,18 @@ describe("caminhos do BPO fiscal", () => {
   });
 });
 
-describe("menu lateral: seção BPO fiscal", () => {
-  it("fica separada de Trabalho (diagnóstico e serviços) e leva à lista do Repositório de XML", () => {
+describe("menu lateral: área BPO Fiscal", () => {
+  it("fica separada de Clientes e do Diagnóstico e Serviços, e leva à Captura de XML", () => {
     const html = renderizar(<Layout />, { local: "/bpo/repositorio-xml/E1" });
-    expect(html).toContain("BPO fiscal");
-    expect(html).toContain("Repositório de XML");
-    expect(html.indexOf("Trabalho")).toBeLessThan(html.indexOf("BPO fiscal"));
-    expect(html.indexOf("BPO fiscal")).toBeLessThan(html.indexOf("Consultas e cálculos"));
-    // Só o Repositório de XML está sob BPO fiscal: nada dele aparece na seção Trabalho.
-    const trabalho = html.slice(html.indexOf("Trabalho"), html.indexOf("BPO fiscal"));
-    expect(trabalho).toContain("Grupos e empresas");
-    expect(trabalho).not.toContain("Repositório de XML");
+    expect(html).toContain("BPO Fiscal");
+    expect(html).toContain("Captura de XML");
+    expect(html.indexOf("Clientes")).toBeLessThan(html.indexOf("BPO Fiscal"));
+    expect(html.indexOf("BPO Fiscal")).toBeLessThan(html.indexOf("Diagnóstico e Serviços"));
+    // A Captura de XML está sob BPO Fiscal: nada dela aparece na área Clientes.
+    const clientes = html.slice(html.indexOf("Clientes"), html.indexOf("BPO Fiscal"));
+    expect(clientes).not.toContain("Captura de XML");
+    // Na tela de Grupos e empresas é a área Clientes que vem aberta, com o item dela.
+    expect(renderizar(<Layout />, { local: "/" })).toContain("Grupos e empresas");
     // Dentro da tela de uma empresa o item continua marcado como o lugar atual.
     const link = html.match(/<a[^>]*href="\/bpo\/repositorio-xml"[^>]*>/)?.[0] || "";
     expect(link).toContain('aria-current="page"');

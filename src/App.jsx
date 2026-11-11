@@ -55,6 +55,9 @@ import SimplesHibridoPage from '@/pages/publico/SimplesHibridoPage';
 import ConsultaNcmPublica from '@/pages/publico/ConsultaNcmPublica';
 import ValidadorPublico from '@/pages/publico/ValidadorPublico';
 import { ConfirmProvider } from "@/components/ConfirmProvider";
+import InicioPagina from '@/pages/InicioPagina';
+import AreaPagina from '@/pages/AreaPagina';
+import ModuloEmBreve from '@/pages/ModuloEmBreve';
 // Add page imports here
 
 function App() {
@@ -83,6 +86,9 @@ function App() {
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
                   <Route path="/" element={<DataHub />} />
+                  <Route path="/inicio" element={<InicioPagina />} />
+                  <Route path="/area/:areaId" element={<AreaPagina />} />
+                  <Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} />
                   <Route path="/cockpit" element={<Home />} />
                   <Route path="/workroom/:id" element={<Workroom />}>
                     <Route index element={<WorkroomOverview />} />

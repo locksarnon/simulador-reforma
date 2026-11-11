@@ -1,186 +1,95 @@
-import { useState } from "react";
-import { NavLink } from "react-router-dom";
-import { Outlet } from "react-router-dom";
-import {
-  CalendarClock,
-  CalendarDays,
-  BookMarked,
-  Settings,
-  HelpCircle,
-  Layers,
-  Code2,
-  SlidersHorizontal,
-  Newspaper,
-  Radar,
-  Scale,
-  Search,
-  Mail,
-  Users,
-  ExternalLink,
-  ClipboardCheck,
-  Boxes,
-  Archive,
-  LogOut,
-} from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
-import Logo from "@/components/Logo";
-import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
-import { useAuth } from "@/lib/AuthContext";
+import { useCallback, useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { Menu, Search } from "lucide-react";
+import MenuLateral from "@/components/MenuLateral";
+import BuscaRapida from "@/components/BuscaRapida";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { moduloDoCaminho } from "@/lib/navegacao";
+
+const CHAVE_RECENTES = "intax-modulos-recentes";
+
+function lerRecentes() {
+  try {
+    const lista = JSON.parse(localStorage.getItem(CHAVE_RECENTES) || "[]");
+    return Array.isArray(lista) ? lista : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
- * BPO fiscal: guarda e captura dos XML dos clientes e o certificado digital deles.
- * Seção independente do diagnóstico e dos serviços (Grupos e empresas). Para mudar o menu de lugar, mova a linha
- * `secaoBpo` dentro de `sections`; para renomear a seção ou acrescentar itens, mexa só aqui.
+ * Casca das telas internas: menu lateral (no celular, uma gaveta), barra superior com a busca rápida (Ctrl+K) e o conteúdo.
+ * Os módulos abertos há pouco ficam guardados neste navegador e aparecem na busca e no Início.
  */
-const secaoBpo = {
-  title: "BPO fiscal",
-  items: [
-    { to: CAMINHO_REPOSITORIO_XML, label: "Repositório de XML", icon: Archive },
-  ],
-};
-
-const sections = [
-  {
-    title: "Trabalho",
-    items: [
-      { to: "/", label: "Grupos e empresas", icon: Layers, end: true },
-    ],
-  },
-  secaoBpo,
-  {
-    title: "Consultas e cálculos",
-    items: [
-      { to: "/ferramentas/consulta-ncm", label: "Consulta NCM", icon: Search },
-      { to: "/ferramentas/credito-estoque", label: "Crédito presumido de estoque", icon: Boxes },
-    ],
-  },
-  {
-    title: "Inteligência de mercado",
-    items: [
-      { to: "/base-legal", label: "Base legal", icon: Scale },
-      { to: "/agenda-reforma", label: "Agenda da Reforma", icon: CalendarDays },
-      { to: "/ferramentas/radar-reforma", label: "Radar de Novidades", icon: Radar },
-      { to: "/ferramentas/noticias", label: "Acervo de Notícias", icon: Newspaper },
-      { to: "/comercial/newsletter", label: "Newsletter", icon: Mail },
-    ],
-  },
-  {
-    title: "Comercial",
-    items: [
-      { to: "/comercial/leads", label: "Leads", icon: Users },
-      { to: "/calculadora", label: "Calculadora pública", icon: ExternalLink, externo: true },
-    ],
-  },
-  {
-    title: "Bases Técnicas",
-    items: [
-      { to: "/cenarios", label: "Cenários", icon: SlidersHorizontal },
-      { to: "/transicao", label: "Transição 2026–2033", icon: CalendarClock },
-      { to: "/catalogos", label: "Catálogos IBS/CBS", icon: BookMarked },
-      { to: "/configuracao", label: "Configuração", icon: Settings },
-    ],
-  },
-  {
-    title: "Suporte",
-    items: [
-      { to: "/roteiro-testes", label: "Roteiro de testes (provisório)", icon: ClipboardCheck },
-      { to: "/manual", label: "FAQ & Manual", icon: HelpCircle },
-      { to: "/arquitetura", label: "Arquitetura & Correlações", icon: Code2 },
-    ],
-  },
-];
-
-/** "Administrador" ou "Consultor": o papel decide quem envia certificado, ativa a captura e exclui. */
-const rotuloPapel = (role) => (role === "admin" ? "Administrador" : "Consultor");
-
 export default function Layout() {
-  const { user, logout } = useAuth();
-  const [saindo, setSaindo] = useState(false);
-  const sair = async () => {
-    setSaindo(true);
-    try { await logout(); } finally { setSaindo(false); }
-  };
+  const { pathname } = useLocation();
+  const [gaveta, setGaveta] = useState(false);
+  const [busca, setBusca] = useState(false);
+  const [recentes, setRecentes] = useState(lerRecentes);
+
+  // Ctrl+K ou ⌘K abre a busca em qualquer tela.
+  useEffect(() => {
+    const aoTeclar = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setBusca((aberta) => !aberta);
+      }
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
+
+  // Guarda os últimos módulos abertos (sem repetir, no máximo 8).
+  useEffect(() => {
+    const m = moduloDoCaminho(pathname);
+    if (!m || m.id === "inicio") return;
+    setRecentes((atuais) => {
+      const novos = [m.id, ...atuais.filter((id) => id !== m.id)].slice(0, 8);
+      try { localStorage.setItem(CHAVE_RECENTES, JSON.stringify(novos)); } catch { /* sem armazenamento */ }
+      return novos;
+    });
+  }, [pathname]);
+
+  const fecharGaveta = useCallback(() => setGaveta(false), []);
 
   return (
     <div className="min-h-screen bg-canvas flex">
-      <aside className="w-64 shrink-0 border-r border-rail-border bg-rail h-screen sticky top-0 flex flex-col">
-        <div className="p-5 border-b border-rail-border">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
-              <Logo className="w-5 h-5" />
-            </div>
-            <div className="leading-tight">
-              <p className="font-heading font-semibold text-sm text-rail-strong">InTAX</p>
-              <p className="text-[11px] text-rail-muted">por FAL Agro · Reforma Tributária</p>
-            </div>
-          </div>
-        </div>
+      <a href="#conteudo" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground">
+        Pular para o conteúdo
+      </a>
+      <aside className="hidden lg:block w-64 shrink-0 border-r border-rail-border h-screen sticky top-0">
+        <MenuLateral />
+      </aside>
+      <Sheet open={gaveta} onOpenChange={setGaveta}>
+        <SheetContent side="left" className="w-72 border-rail-border bg-rail p-0 text-rail-foreground [&>button]:text-rail-strong">
+          <SheetTitle className="sr-only">Menu principal</SheetTitle>
+          <SheetDescription className="sr-only">Áreas e módulos do InTAX</SheetDescription>
+          <MenuLateral aoNavegar={fecharGaveta} />
+        </SheetContent>
+      </Sheet>
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
-          {sections.map((section) => (
-            <div key={section.title}>
-              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-rail-muted">
-                {section.title}
-              </p>
-              <div className="space-y-0.5">
-                {section.items.map((item) => item.externo ? (
-                  <a
-                    key={item.to}
-                    href={item.to}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-rail-foreground hover:bg-rail-accent/60 hover:text-rail-strong"
-                  >
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    {item.label}
-                  </a>
-                ) : (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        isActive
-                          ? "bg-rail-accent text-rail-strong shadow-[inset_3px_0_0_hsl(var(--rail-primary))]"
-                          : "text-rail-foreground hover:bg-rail-accent/60 hover:text-rail-strong"
-                      }`
-                    }
-                  >
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        <div className="p-3 border-t border-rail-border space-y-2">
-          {user && (
-            <div className="px-1 leading-tight">
-              <p className="truncate text-xs font-medium text-rail-strong" title={user.name || user.email}>{user.name || user.email}</p>
-              <p className="truncate text-[11px] text-rail-muted" title={user.email}>{user.name ? `${rotuloPapel(user.role)} · ${user.email}` : rotuloPapel(user.role)}</p>
-            </div>
-          )}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-card/95 px-3 backdrop-blur lg:px-6">
+          <button type="button" onClick={() => setGaveta(true)} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" aria-label="Abrir o menu">
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
           <button
             type="button"
-            onClick={sair}
-            disabled={saindo}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-rail-foreground hover:bg-rail-accent/60 hover:text-rail-strong disabled:opacity-60"
+            onClick={() => setBusca(true)}
+            className="flex h-8 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Buscar módulo ou empresa (Ctrl K)"
           >
-            <LogOut className="w-4 h-4 shrink-0" />
-            {saindo ? "Saindo…" : "Sair"}
+            <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">Buscar módulo ou empresa</span>
+            <kbd className="ml-auto hidden rounded border border-border bg-muted px-1.5 text-[10px] font-medium sm:inline">Ctrl K</kbd>
           </button>
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] text-rail-muted">InTAX v1.0 · 23/09/2026</span>
-            <ThemeToggle />
-          </div>
-        </div>
-      </aside>
-      <main className="flex-1 min-w-0">
-        <Outlet />
-      </main>
+          <div id="barra-superior-acoes" className="ml-auto flex items-center gap-1" />
+        </header>
+        <main id="conteudo" tabIndex={-1} className="flex-1 min-w-0 focus:outline-none">
+          <Outlet />
+        </main>
+      </div>
+      <BuscaRapida aberta={busca} aoMudar={setBusca} recentes={recentes} />
     </div>
   );
 }
