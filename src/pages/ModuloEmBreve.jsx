@@ -1,6 +1,7 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import { Clock } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import ListaDePrevistas from "@/components/ListaDePrevistas";
 import { areaPorId, caminhoDaArea, MODULOS, SITUACAO } from "@/lib/navegacao";
 
 /** O que já existe hoje e cobre parte de cada módulo "em breve" (para ninguém achar que não há nada). */
@@ -45,6 +46,7 @@ export default function ModuloEmBreve() {
             {JA_EXISTE[modulo.id] && <p className="text-muted-foreground">O que já existe: {JA_EXISTE[modulo.id]}</p>}
           </div>
         </div>
+        <ListaDePrevistas moduloId={modulo.id} />
         <p className="text-xs text-muted-foreground">
           Quando for liberado, ele aparece no menu de {area.titulo} para todos os usuários. A lista completa do que está previsto fica em <code>docs/mapa-completo-veri-intax.md</code>.
         </p>

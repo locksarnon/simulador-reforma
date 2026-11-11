@@ -73,6 +73,8 @@ import ComunicadosPagina from '@/pages/comercial/ComunicadosPagina';
 import ComunicacoesPagina from '@/pages/admin/ComunicacoesPagina';
 import IntegracoesPagina from '@/pages/admin/IntegracoesPagina';
 import ImportacaoCadastroPagina from '@/pages/clientes/ImportacaoCadastroPagina';
+import AnaliseRiscoPagina from '@/pages/bpo/AnaliseRiscoPagina';
+import PreAnalisePagina from '@/pages/comercial/PreAnalisePagina';
 import UsuariosPagina from '@/pages/admin/UsuariosPagina';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
@@ -124,6 +126,8 @@ function App() {
                   <Route path="/admin/comunicacoes" element={<ComunicacoesPagina />} />
                   <Route path="/admin/integracoes" element={<IntegracoesPagina />} />
                   <Route path="/clientes/importacao" element={<ImportacaoCadastroPagina />} />
+                  <Route path="/bpo/analise-risco" element={<AnaliseRiscoPagina />} />
+                  <Route path="/comercial/pre-analise" element={<PreAnalisePagina />} />
                   <Route path="/admin/usuarios" element={<UsuariosPagina />} />
                   <Route path="/admin/acessos" element={<AcessosPagina />} />
                   <Route path="/perfil" element={<PerfilPagina />} />
