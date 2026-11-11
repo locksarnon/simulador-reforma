@@ -45,7 +45,7 @@ export default function RepositorioXmlEmpresa() {
               <TabsList>
                 <TabsTrigger value="documentos">Documentos</TabsTrigger>
                 <TabsTrigger value="captura">Captura</TabsTrigger>
-                <TabsTrigger value="certificado">Certificado e autorização</TabsTrigger>
+                <TabsTrigger value="certificado">Certificado</TabsTrigger>
               </TabsList>
               <TabsContent value="documentos" className="mt-4"><DocumentosXml empresaId={empresaId} empresa={empresa} linkImportacao={linkImportacao} /></TabsContent>
               <TabsContent value="captura" className="mt-4"><CapturaXml empresaId={empresaId} /></TabsContent>

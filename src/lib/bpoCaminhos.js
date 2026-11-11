@@ -5,5 +5,5 @@
  */
 export const CAMINHO_REPOSITORIO_XML = "/bpo/repositorio-xml";
 
-/** Tela de uma empresa dentro do Repositório de XML (abas Documentos, Captura e Certificado e autorização). */
+/** Tela de uma empresa dentro do Repositório de XML (abas Documentos, Captura e Certificado). */
 export const caminhoDoRepositorio = (empresaId) => `${CAMINHO_REPOSITORIO_XML}/${empresaId}`;

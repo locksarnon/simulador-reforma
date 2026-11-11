@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Header, Param, Post, Put, Query, UploadedFile, UseInterceptors,
+  BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Header, Param, Post, Query, UploadedFile, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
@@ -8,7 +8,7 @@ import { CertificadosService } from './certificados.service';
 
 const LIMITE_PFX = 1024 * 1024;
 
-/** Certificado A1 do cliente (cofre) e termo de autorização. Leitura para qualquer usuário; mudanças só para administradores. */
+/** Certificado A1 do cliente (cofre). Leitura para qualquer usuário; mudanças só para administradores. */
 @Controller('repositorio-xml/empresas/:empresaId')
 export class CertificadosController {
   constructor(private readonly service: CertificadosService) {}
@@ -41,18 +41,6 @@ export class CertificadosController {
   revogar(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string) {
     this.exigirAdmin(user);
     return this.service.revogar(empresaId, user.email);
-  }
-
-  @Put('consentimento')
-  consentir(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string, @Body() body: { referencia?: string }) {
-    this.exigirAdmin(user);
-    return this.service.registrarConsentimento(empresaId, body?.referencia ?? '', user.email);
-  }
-
-  @Delete('consentimento')
-  revogarConsentimento(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string) {
-    this.exigirAdmin(user);
-    return this.service.revogarConsentimento(empresaId, user.email);
   }
 
   @Get('auditoria-certificado')

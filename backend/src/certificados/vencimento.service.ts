@@ -44,16 +44,15 @@ export class VencimentoCertificadosService {
       const dias = Math.floor((c.valido_ate.getTime() - agora) / DIA);
       const limiar = limiarDoAviso(dias, c.aviso_vencimento_dias);
       if (limiar === null) continue;
-      const empresa = await this.prisma.empresa.findUnique({ where: { id: c.empresa_id }, select: { razao_social: true, grupo: true } });
-      const grupo = empresa?.grupo ? await this.prisma.grupo.findFirst({ where: { numero: empresa.grupo }, select: { id: true } }) : null;
-      const link = grupo ? `${this.mail.urlPublica}/workroom/${grupo.id}/empresas/${c.empresa_id}/repositorio-xml` : this.mail.urlPublica;
+      const empresa = await this.prisma.empresa.findUnique({ where: { id: c.empresa_id }, select: { razao_social: true } });
+      const link = `${this.mail.urlPublica}/bpo/repositorio-xml/${c.empresa_id}`;
       const quando = dias < 0 ? `venceu há ${-dias} dia(s)` : dias === 0 ? 'vence hoje' : `vence em ${dias} dia(s)`;
       const nome = empresa?.razao_social ?? c.titular;
       const r = await this.mail.enviar({
         to: this.mail.emailInterno,
         subject: `[InTAX] Certificado digital de ${nome} ${quando}`,
         text: `O certificado A1 de ${nome} (${formatarDocumento(c.documento)}) ${quando} (validade até ${c.valido_ate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}). Quando vence, a captura de XML do cliente para. Envie o certificado renovado em ${link}`,
-        html: `<p>O certificado A1 de <strong>${escapar(nome)}</strong> (${escapar(formatarDocumento(c.documento))}) <strong>${quando}</strong> (validade até ${c.valido_ate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}).</p><p>Quando vence, a captura de XML do cliente para. Envie o certificado renovado em <a href="${escapar(link)}">Repositório de XML &gt; Certificado e autorização</a>.</p>`,
+        html: `<p>O certificado A1 de <strong>${escapar(nome)}</strong> (${escapar(formatarDocumento(c.documento))}) <strong>${quando}</strong> (validade até ${c.valido_ate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}).</p><p>Quando vence, a captura de XML do cliente para. Envie o certificado renovado em <a href="${escapar(link)}">BPO fiscal &gt; Repositório de XML &gt; Certificado</a>.</p>`,
       });
       if (r.enviado) {
         await this.prisma.certificadoDigital.update({ where: { id: c.id }, data: { aviso_vencimento_dias: limiar } });

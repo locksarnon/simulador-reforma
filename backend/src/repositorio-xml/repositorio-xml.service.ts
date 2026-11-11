@@ -21,6 +21,8 @@ const MAX_ENTRADAS_ZIP = 5000;
 const MAX_ZIP_DESCOMPRIMIDO = 200 * 1024 * 1024;
 const MAX_ZIP_DOWNLOAD = 5000;
 const MAX_IMPORTACAO = 1000;
+/** Linhas por pedido na lista de documentos: a tela mostra 10, 50, 100 ou 500 por página e, em "todas", busca em partes de 500. */
+const MAX_POR_PAGINA = 500;
 const PARALELISMO = 8;
 
 /**
@@ -265,7 +267,7 @@ export class RepositorioXmlService {
   async listar(empresaId: string, f: FiltrosDocumentos) {
     await this.empresa(empresaId);
     const where = this.where(empresaId, f);
-    const take = Math.min(Math.max(Number(f.limit) || 50, 1), 200);
+    const take = Math.min(Math.max(Number(f.limit) || 50, 1), MAX_POR_PAGINA);
     const skip = Math.max(Number(f.offset) || 0, 0);
     const [total, itens] = await Promise.all([
       this.prisma.documentoXml.count({ where }),

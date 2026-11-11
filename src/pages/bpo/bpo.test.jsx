@@ -116,7 +116,7 @@ describe("RepositorioXmlLista", () => {
 describe("RepositorioXmlEmpresa", () => {
   const PARAMETROS = { tipo: "", origem: "", conteudo: "", de: "", ate: "", pendentes: undefined, q: undefined };
   const empresa = EMPRESAS[1];
-  const cacheDocs = [[["repo-xml-resumo", "E1"], { total: 0 }], [["repo-xml-docs", "E1", PARAMETROS, 0], { itens: [], total: 0 }]];
+  const cacheDocs = [[["repo-xml-resumo", "E1"], { total: 0 }], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { itens: [], total: 0 }]];
   const tela = (cache) => renderizar(
     <Routes><Route path={`${CAMINHO_REPOSITORIO_XML}/:empresaId`} element={<RepositorioXmlEmpresa />} /></Routes>,
     { local: caminhoDoRepositorio("E1"), cache },
@@ -129,7 +129,8 @@ describe("RepositorioXmlEmpresa", () => {
     expect(html).toContain("Grupo #001 xyz");
     // O caminho de volta é a lista do BPO, não o grupo.
     expect(html).toContain(`href="${CAMINHO_REPOSITORIO_XML}"`);
-    for (const aba of ["Documentos", "Captura", "Certificado e autorização"]) expect(html).toContain(aba);
+    for (const aba of ["Documentos", "Captura", "Certificado"]) expect(html).toContain(aba);
+    expect(html).not.toContain("Certificado e autorização");
     // A Importação XML é do diagnóstico: o link leva ao grupo e à empresa certos.
     expect(html).toContain('href="/workroom/G1/empresas/E1/importacao-xml"');
     expect(html).toContain("Abrir Importação XML");

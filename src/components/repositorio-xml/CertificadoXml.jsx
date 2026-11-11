@@ -15,7 +15,7 @@ const SITUACAO = {
   REVOGADO: ["Removido do cofre", "bg-muted text-muted-foreground"],
 };
 const ACAO = {
-  ENVIO: "Envio do certificado", REVOGACAO: "Remoção do certificado", CONSENTIMENTO: "Termo registrado", CONSENTIMENTO_REVOGADO: "Termo revogado",
+  ENVIO: "Envio do certificado", REVOGACAO: "Remoção do certificado",
   USO_CAPTURA: "Uso na captura", USO_MANIFESTACAO: "Uso na manifestação",
   CAPTURA_ATIVADA: "Captura ativada", CAPTURA_DESATIVADA: "Captura desativada", CAPTURA_AMBIENTE: "Ambiente da SEFAZ alterado", CAPTURA_PERIODO: "Período da busca alterado",
   CIENCIA_ATIVADA: "Ciência automática ativada", CIENCIA_DESATIVADA: "Ciência automática desativada", EMPRESA_EXCLUIDA: "Empresa excluída",
@@ -30,7 +30,7 @@ function Bloco({ titulo, children, acao }) {
   );
 }
 
-/** Certificado digital A1 do cliente (cofre) e termo de autorização. Mudanças só para administradores. */
+/** Certificado digital A1 do cliente (cofre). Mudanças só para administradores. */
 export default function CertificadoXml({ empresaId }) {
   const { user } = useAuth();
   const admin = user?.role === "admin";
@@ -40,7 +40,6 @@ export default function CertificadoXml({ empresaId }) {
   const [arquivo, setArquivo] = useState(null);
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
-  const [referencia, setReferencia] = useState("");
 
   const { data, isLoading } = useQuery({ queryKey: ["repo-xml-cert", empresaId], queryFn: () => api.get(`${base(empresaId)}/certificado`) });
   const { data: auditoria } = useQuery({
@@ -61,23 +60,10 @@ export default function CertificadoXml({ empresaId }) {
     onSuccess: () => { atualizar(); toast({ title: "Certificado removido do cofre", description: "A chave foi apagada e a captura desta empresa foi desativada." }); },
     onError: (e) => toast({ title: "Não foi possível remover", description: e.message, variant: "destructive" }),
   });
-  const consentir = useMutation({
-    mutationFn: () => api.put(`${base(empresaId)}/consentimento`, { referencia }),
-    onSuccess: () => { setReferencia(""); atualizar(); toast({ title: "Termo de autorização registrado" }); },
-    onError: (e) => toast({ title: "Não foi possível registrar", description: e.message, variant: "destructive" }),
-  });
-  const revogarTermo = useMutation({
-    mutationFn: () => api.delete(`${base(empresaId)}/consentimento`),
-    onSuccess: () => { atualizar(); toast({ title: "Termo revogado", description: "A captura e a Ciência da Operação desta empresa foram desativadas." }); },
-    onError: (e) => toast({ title: "Não foi possível revogar", description: e.message, variant: "destructive" }),
-  });
 
   const abrirEnvio = () => { setArquivo(null); setSenha(""); setErro(""); setEnvioAberto(true); };
   const confirmarRemocao = async () => {
     if (await confirmar({ titulo: "Remover o certificado do cofre?", descricao: "A chave privada guardada será apagada e a captura automática desta empresa será desativada. Para voltar a usar, será preciso enviar o certificado de novo.", rotulo: "Remover" })) remover.mutate();
-  };
-  const confirmarRevogacaoTermo = async () => {
-    if (await confirmar({ titulo: "Revogar o termo de autorização?", descricao: "O certificado deixa de poder ser usado: a captura e a Ciência da Operação desta empresa serão desativadas.", rotulo: "Revogar" })) revogarTermo.mutate();
   };
 
   if (isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline" /> Carregando…</p>;
@@ -116,27 +102,6 @@ export default function CertificadoXml({ empresaId }) {
           </div>
         )}
         <p className="text-xs text-muted-foreground">A chave privada fica cifrada (AES-256-GCM) com uma chave que não está no banco de dados. A senha do arquivo é usada só no envio e não é guardada. Cada uso do certificado fica registrado na auditoria.</p>
-      </Bloco>
-
-      <Bloco titulo="Termo de autorização do cliente" acao={admin && data?.consentimento && (
-        <button type="button" onClick={confirmarRevogacaoTermo} className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted">Revogar termo</button>
-      )}>
-        {data?.consentimento ? (
-          <div className="text-sm space-y-1">
-            <p><span className="text-muted-foreground">Registrado por</span> {data.consentimento.por} <span className="text-muted-foreground">em</span> {fmtDataHora(data.consentimento.em)}</p>
-            <p><span className="text-muted-foreground">Referência:</span> {data.consentimento.referencia}</p>
-          </div>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">Antes de usar o certificado, registre que o cliente autorizou por escrito a FAL a usá-lo para consultar e guardar os XML das notas fiscais. Sem esse registro, o InTAX recusa abrir o certificado.</p>
-            {admin ? (
-              <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); consentir.mutate(); }}>
-                <input className={`${campo} flex-1 min-w-[260px]`} value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="Ex.: Termo de uso de certificado assinado em 05/11/2026 (arquivo na pasta do cliente)" aria-label="Referência do termo assinado" maxLength={500} />
-                <button type="submit" disabled={consentir.isPending || referencia.trim().length < 5} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Registrar termo</button>
-              </form>
-            ) : <p className="text-xs text-muted-foreground">Apenas administradores registram o termo.</p>}
-          </>
-        )}
       </Bloco>
 
       {admin && (

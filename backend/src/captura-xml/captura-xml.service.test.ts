@@ -32,13 +32,13 @@ function casa(row: Linha, where: Linha): boolean {
   });
 }
 
-function montar(opts: { cfg?: Linha; termo?: boolean; certificadoAtivo?: boolean; documentoCert?: string; ciencia?: boolean; docs?: Linha[]; cnpjEmpresa?: string; semUf?: boolean; cfgsEmpresa?: Linha[]; periodo?: string } = {}) {
+function montar(opts: { cfg?: Linha; certificadoAtivo?: boolean; documentoCert?: string; ciencia?: boolean; docs?: Linha[]; cnpjEmpresa?: string; semUf?: boolean; cfgsEmpresa?: Linha[]; periodo?: string } = {}) {
   const configs: Linha[] = [];
   const execucoes: Linha[] = [];
   const auditoria: Linha[] = [];
   const docs: Linha[] = (opts.docs ?? []).map((d, i) => ({ id: `d${i + 1}`, empresa_id: 'E1', tipo: 'NFE', conteudo: 'RESUMO', situacao: 'AUTORIZADA', origem: 'CAPTURA', ciencia_status: null, ciencia_em: null, ...d }));
-  let cfgEmpresa: Linha | null = opts.termo === false ? null : {
-    empresa_id: 'E1', ambiente: 'PRODUCAO', uf_autor: opts.semUf ? null : '51', consentimento_em: new Date(), ...(opts.periodo ? { periodo_busca: opts.periodo } : {}),
+  let cfgEmpresa: Linha | null = {
+    empresa_id: 'E1', ambiente: 'PRODUCAO', uf_autor: opts.semUf ? null : '51', ...(opts.periodo ? { periodo_busca: opts.periodo } : {}),
     manifestar_ciencia: !!opts.ciencia, manifestacao_consentida_em: opts.ciencia ? new Date() : null, manifestacao_consentida_por: opts.ciencia ? 'adm' : null,
   };
   if (opts.cfg !== undefined) configs.push({ id: 'c1', empresa_id: 'E1', tipo: 'NFE', ativo: true, ultimo_nsu: ZEROS, max_nsu: null, proxima_consulta_em: null, bloqueado_ate: null, ultima_consulta_em: null, ultimo_cstat: null, ultimo_motivo: null, em_execucao_ate: null, ...opts.cfg });
@@ -243,11 +243,11 @@ describe('CapturaXmlService.executar', () => {
     expect(t.configs[0]).toMatchObject({ ultimo_nsu: nsu(10), em_execucao_ate: null });
   });
 
-  it('sem termo do cliente ou sem certificado: a captura não abre o certificado nem consulta', async () => {
+  it('sem certificado utilizável: a captura não consulta e guarda o motivo', async () => {
     const t = montar({ cfg: {} });
-    t.certificados.material.mockRejectedValueOnce(new Error('Registre o termo de autorização do cliente antes de usar o certificado.'));
+    t.certificados.material.mockRejectedValueOnce(new Error('A empresa não tem certificado ativo no cofre.'));
     const r = await t.service.executar('E1', 'NFE', 'AGENDADOR');
-    expect(r.mensagem).toMatch(/termo de autorização/);
+    expect(r.mensagem).toMatch(/certificado ativo/);
     expect(t.cliente.consultar).not.toHaveBeenCalled();
     expect(t.configs[0].em_execucao_ate).toBeNull();
   });
@@ -349,12 +349,12 @@ describe('CapturaXmlService.executar', () => {
 });
 
 describe('CapturaXmlService.configurarTipo e ambiente', () => {
-  it('ativar exige certificado, termo, UF e a confirmação de que não há outro consumidor', async () => {
+  it('ativar exige certificado, UF e a confirmação de que não há outro consumidor', async () => {
     const semCert = montar({ certificadoAtivo: false });
     await expect(semCert.service.configurarTipo('E1', 'NFE', true, true, 'adm')).rejects.toThrow(/certificado válido/);
-    const semTermo = montar({ termo: false });
-    await expect(semTermo.service.configurarTipo('E1', 'NFE', true, true, 'adm')).rejects.toThrow(/termo de autorização/);
     const t = montar();
+    // os requisitos do estado são só o certificado: não existe mais termo de autorização
+    expect((await t.service.status('E1')).requisitos).toEqual({ certificado_ativo: true });
     await expect(t.service.configurarTipo('E1', 'NFE', true, false, 'adm')).rejects.toThrow(/nenhum outro sistema/i);
     await expect(t.service.configurarTipo('E1', 'MDFE' as never, true, true, 'adm')).rejects.toThrow(/ainda não está disponível/);
     const alfa = montar({ documentoCert: '12ABC34501DE35' });
@@ -486,9 +486,7 @@ describe('Ciência da Operação e CNPJ consultado', () => {
     expect(t.pedidos[0].documentoDestinatario).toBe('12345678000276');
   });
 
-  it('ativar a Ciência exige o termo do cliente e a confirmação expressa; desativar é livre; o estado mostra os números', async () => {
-    const semTermo = montar({ termo: false });
-    await expect(semTermo.service.configurarCiencia('E1', true, true, 'adm')).rejects.toThrow(/termo de autorização/);
+  it('ativar a Ciência exige a confirmação expressa; desativar é livre; o estado mostra os números', async () => {
     const t = montar({ docs: [{ chave: 'K1', autorizada_em: ha(1) }, { chave: 'K2', autorizada_em: ha(1), ciencia_status: 'REGISTRADA' }, { chave: 'K3', autorizada_em: ha(1), ciencia_status: 'NAO_APLICAVEL' }] });
     await expect(t.service.configurarCiencia('E1', true, false, 'adm')).rejects.toThrow(/Confirme que o cliente autorizou/);
     const st = await t.service.configurarCiencia('E1', true, true, 'adm');
@@ -710,9 +708,8 @@ describe('CapturaXmlService com NFS-e Nacional (ADN)', () => {
     expect(t.auditoria[0].detalhe).toContain('NFSE');
   });
 
-  it('ativar: valem as mesmas exigências de certificado, termo e confirmação de que nenhum outro sistema consulta o CNPJ', async () => {
+  it('ativar: valem as mesmas exigências de certificado e confirmação de que nenhum outro sistema consulta o CNPJ', async () => {
     await expect(montar({ certificadoAtivo: false }).service.configurarTipo('E1', 'NFSE', true, true, 'adm')).rejects.toThrow(/certificado válido/);
-    await expect(montar({ termo: false }).service.configurarTipo('E1', 'NFSE', true, true, 'adm')).rejects.toThrow(/termo de autorização/);
     const t = montar();
     await expect(t.service.configurarTipo('E1', 'NFSE', true, false, 'adm')).rejects.toThrow(/nenhum outro sistema/i);
     await t.service.configurarTipo('E1', 'NFSE', true, true, 'adm');

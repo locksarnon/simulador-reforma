@@ -66,7 +66,7 @@ export default function CapturaXml({ empresaId }) {
   });
 
   if (isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline" /> Carregando…</p>;
-  const documentosOk = data?.requisitos?.certificado_ativo && data?.requisitos?.termo_registrado;
+  const documentosOk = !!data?.requisitos?.certificado_ativo;
   // A NFS-e Nacional (ADN) não usa a UF do interessado; a NF-e e o CT-e usam.
   const prontoPara = (tipo) => !!documentosOk && (tipo === "NFSE" || !!data?.uf_autor);
 
@@ -81,8 +81,7 @@ export default function CapturaXml({ empresaId }) {
       <section className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h3 className="font-semibold text-sm">Antes de ativar</h3>
         <ul className="space-y-1.5">
-          <Requisito ok={data?.requisitos?.certificado_ativo} texto="Certificado digital A1 do cliente guardado e dentro da validade (aba Certificado e autorização)" />
-          <Requisito ok={data?.requisitos?.termo_registrado} texto="Termo de autorização do cliente registrado" />
+          <Requisito ok={data?.requisitos?.certificado_ativo} texto="Certificado digital A1 do cliente guardado e dentro da validade (aba Certificado)" />
           <Requisito ok={!!data?.uf_autor} texto={data?.uf_autor ? `UF do interessado: ${UFS[data.uf_autor] || data.uf_autor} (${data.uf_autor})` : "UF do interessado definida (cadastro da empresa ou campo abaixo); necessária para NF-e e CT-e, não para NFS-e"} />
         </ul>
         <div className="flex flex-wrap items-end gap-3 text-sm">
@@ -147,7 +146,7 @@ export default function CapturaXml({ empresaId }) {
           {admin && (data?.ciencia?.ativa ? (
             <button type="button" disabled={ciencia.isPending} onClick={() => ciencia.mutate({ ativo: false })} className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted">Desativar</button>
           ) : (
-            <button type="button" disabled={!data?.requisitos?.termo_registrado} title={data?.requisitos?.termo_registrado ? undefined : "Registre antes o termo de autorização do cliente"} onClick={() => { setConfirmoCiencia(false); setAtivandoCiencia(true); }} className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Ativar Ciência automática</button>
+            <button type="button" onClick={() => { setConfirmoCiencia(false); setAtivandoCiencia(true); }} className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Ativar Ciência automática</button>
           ))}
         </div>
         <p className="text-sm text-muted-foreground">A SEFAZ entrega a NF-e recebida só em resumo até o destinatário se manifestar. A Ciência da Operação libera o XML completo, mas é um ato do cliente, assinado com o certificado dele, e gera o dever de uma manifestação conclusiva depois. O InTAX registra apenas a Ciência, nunca a Confirmação, o Desconhecimento nem a Operação não Realizada.</p>

@@ -55,7 +55,7 @@ describe("Roteiro do Repositório de XML", () => {
 
   it("os botões e avisos citados existem nas telas", () => {
     const rotulos = [
-      "Enviar certificado A1", "Substituir certificado", "Guardar no cofre", "Registrar termo", "Revogar termo", "Remover do cofre",
+      "Enviar certificado A1", "Substituir certificado", "Guardar no cofre", "Remover do cofre",
       "Auditoria do cofre (últimos 20 registros)", "Escolher arquivos", "Baixar ZIP dos filtros", "Abrir Importação XML", "Buscar (chave, número, emitente)",
       "Capturar agora", "Ativar captura", "Ativar Ciência automática", "Cumpra os requisitos acima", "Últimas execuções", "Antes de ativar",
       "Ciência da Operação (libera o XML completo das compras)", "Certificado guardado no cofre", "Envio concluído", "Enviado ao importador",

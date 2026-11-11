@@ -7,11 +7,11 @@
  */
 export const SECAO_REPOSITORIO_XML = {
   titulo: "Repositório de XML, certificado do cliente e captura automática",
-  nota: "Guarda os XML das notas fiscais de cada empresa, enviados em arquivo ou capturados na SEFAZ com o certificado digital A1 do cliente. Fica no menu BPO fiscal, em Repositório de XML: escolha a empresa e use as abas Documentos, Captura e Certificado e autorização.",
+  nota: "Guarda os XML das notas fiscais de cada empresa, enviados em arquivo ou capturados na SEFAZ com o certificado digital A1 do cliente. Fica no menu BPO fiscal, em Repositório de XML: escolha a empresa e use as abas Documentos, Captura e Certificado.",
   itens: [
     {
       p: "O que é o Repositório de XML e onde fica?",
-      r: "É o arquivo de XML de cada empresa, no menu BPO fiscal, em Repositório de XML (a lista traz as empresas de todos os grupos; escolha uma). A aba Documentos mostra os XML guardados, com busca, filtros, download e envio ao importador; a aba Captura configura a consulta automática à SEFAZ; a aba Certificado e autorização guarda o certificado A1 do cliente e o termo de autorização. Cada XML é identificado pela chave de acesso, então o mesmo documento nunca fica duplicado, venha ele de arquivo enviado (origem Importação) ou da SEFAZ (origem Captura). Guarda NF-e, CT-e, MDF-e, NFS-e Nacional e os eventos (cancelamento, carta de correção, manifestação).",
+      r: "É o arquivo de XML de cada empresa, no menu BPO fiscal, em Repositório de XML (a lista traz as empresas de todos os grupos; escolha uma). A aba Documentos mostra os XML guardados, com busca, filtros, download e envio ao importador; a aba Captura configura a consulta automática à SEFAZ; a aba Certificado guarda o certificado A1 do cliente. Cada XML é identificado pela chave de acesso, então o mesmo documento nunca fica duplicado, venha ele de arquivo enviado (origem Importação) ou da SEFAZ (origem Captura). Guarda NF-e, CT-e, MDF-e, NFS-e Nacional e os eventos (cancelamento, carta de correção, manifestação).",
     },
     {
       p: "Como envio os XML de um cliente para o repositório?",
@@ -27,11 +27,7 @@ export const SECAO_REPOSITORIO_XML = {
     },
     {
       p: "O que é o certificado A1 e como o InTAX o guarda?",
-      r: "O certificado A1 é o arquivo (.pfx ou .p12) do certificado digital do próprio cliente. É com ele que o InTAX consulta a SEFAZ em nome do cliente. Só administradores enviam: o InTAX confere a senha e a validade e exige que o titular seja a empresa (o CNPJ-base do certificado tem de ser o do cadastro da empresa) e só então guarda a chave privada, cifrada com AES-256-GCM, com uma chave-mestra que fica fora do banco de dados. A senha do arquivo é usada só no envio e não é guardada. Cada uso do certificado fica registrado na auditoria do cofre, na própria aba. Se o servidor ainda não tem a chave-mestra configurada, a aba avisa e não aceita o envio.",
-    },
-    {
-      p: "Por que preciso registrar o termo de autorização do cliente?",
-      r: "O certificado é do cliente, e o InTAX o usa para agir em nome dele junto à SEFAZ. Por isso, antes de qualquer uso, um administrador registra que o cliente autorizou por escrito a FAL a usá-lo para consultar e guardar os XML das notas (o campo Referência diz onde está o termo assinado). Sem esse registro o InTAX recusa abrir o certificado. Revogar o termo desativa na hora a captura e a Ciência da Operação da empresa; remover o certificado do cofre apaga a chave guardada e também desativa a captura.",
+      r: "O certificado A1 é o arquivo (.pfx ou .p12) do certificado digital do próprio cliente. É com ele que o InTAX consulta a SEFAZ em nome do cliente. Só administradores enviam: o InTAX confere a senha e a validade e exige que o titular seja a empresa (o CNPJ-base do certificado tem de ser o do cadastro da empresa) e só então guarda a chave privada, cifrada com AES-256-GCM, com uma chave-mestra que fica fora do banco de dados. A senha do arquivo é usada só no envio e não é guardada. Cada uso do certificado fica registrado na auditoria do cofre, na própria aba. Se o servidor ainda não tem a chave-mestra configurada, a aba avisa e não aceita o envio. Remover o certificado do cofre apaga a chave guardada e desativa a captura da empresa.",
     },
     {
       p: "Serei avisado antes de o certificado vencer?",
@@ -39,7 +35,7 @@ export const SECAO_REPOSITORIO_XML = {
     },
     {
       p: "Como funciona a captura automática de NF-e e CT-e?",
-      r: "Na aba Captura, depois de guardar o certificado, registrar o termo e definir a UF do interessado, o administrador clica em Ativar captura (NF-e e CT-e são ativados separadamente). O InTAX consulta o serviço de Distribuição de DF-e da SEFAZ com o certificado do cliente, dentro do período da empresa (Noturno ou Diurno, veja a próxima pergunta), respeitando a espera de 1 hora que o serviço impõe quando não há documento novo: consultar antes disso gera o erro de consumo indevido e a SEFAZ bloqueia o CNPJ por 1 hora. Os XML recebidos entram no repositório com origem Captura. O botão Capturar agora faz uma consulta imediata, quando a SEFAZ permite; a tabela Últimas execuções mostra o resultado de cada rodada.",
+      r: "Na aba Captura, depois de guardar o certificado e definir a UF do interessado, o administrador clica em Ativar captura (NF-e e CT-e são ativados separadamente). O InTAX consulta o serviço de Distribuição de DF-e da SEFAZ com o certificado do cliente, dentro do período da empresa (Noturno ou Diurno, veja a próxima pergunta), respeitando a espera de 1 hora que o serviço impõe quando não há documento novo: consultar antes disso gera o erro de consumo indevido e a SEFAZ bloqueia o CNPJ por 1 hora. Os XML recebidos entram no repositório com origem Captura. O botão Capturar agora faz uma consulta imediata, quando a SEFAZ permite; a tabela Últimas execuções mostra o resultado de cada rodada.",
       f: "NT 2014.002 v1.40 (Distribuição de DF-e da NF-e, Portal Nacional da NF-e); NT 2015.002 v1.05 (Distribuição de DF-e do CT-e, Portal do CT-e).",
     },
     {

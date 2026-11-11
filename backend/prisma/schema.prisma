@@ -1140,8 +1140,9 @@ model AgendaLembreteEnvio {
 // Repositório e captura de XML por cliente (empresa) e cofre de certificados A1
 // ─────────────────────────────────────────────────────────────────────────
 
-/// Opções do repositório de XML de uma empresa: termo de autorização do cliente para usar o certificado, ambiente e
-/// consentimento da Ciência da Operação. Uma linha por empresa.
+/// Opções do repositório de XML de uma empresa: ambiente, UF do interessado, período da busca e consentimento da Ciência da
+/// Operação. Uma linha por empresa. As colunas consentimento_* eram do termo de autorização do cliente, removido em 11/2026:
+/// ficam no banco, mas não são mais lidas nem gravadas.
 model XmlEmpresaConfig {
   id                          String    @id @default(cuid())
   empresa_id                  String    @unique
@@ -1185,7 +1186,7 @@ model CertificadoDigital {
   @@index([empresa_id, status])
 }
 
-/// Trilha de auditoria do cofre: envio, consentimento, cada uso do certificado, revogação e falhas.
+/// Trilha de auditoria do cofre: envio, cada uso do certificado, revogação e falhas.
 model AuditoriaCertificado {
   id             String   @id @default(cuid())
   empresa_id     String

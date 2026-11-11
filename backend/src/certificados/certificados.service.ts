@@ -53,7 +53,7 @@ function metadados(c: Registro) {
 
 /**
  * Cofre de certificados A1 por empresa. O arquivo .pfx é aberto na hora do envio; guardam-se apenas a chave privada e a cadeia,
- * cifradas no cofre (a senha do arquivo não é guardada). Todo envio, consentimento, uso e revogação entra na trilha de auditoria.
+ * cifradas no cofre (a senha do arquivo não é guardada). Todo envio, uso e revogação entra na trilha de auditoria.
  */
 @Injectable()
 export class CertificadosService {
@@ -70,17 +70,11 @@ export class CertificadosService {
 
   async obter(empresaId: string) {
     const empresa = await this.empresa(empresaId);
-    const [cert, cfg] = await Promise.all([
-      this.prisma.certificadoDigital.findFirst({ where: { empresa_id: empresaId }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.xmlEmpresaConfig.findUnique({ where: { empresa_id: empresaId } }),
-    ]);
+    const cert = await this.prisma.certificadoDigital.findFirst({ where: { empresa_id: empresaId }, orderBy: { createdAt: 'desc' } });
     return {
       cofre_configurado: this.cofre.disponivel(),
       empresa: { id: empresa.id, razao_social: empresa.razao_social, cnpj_cpf: empresa.cnpj_cpf, cnpj_formatado: empresa.cnpj_cpf ? formatarDocumento(empresa.cnpj_cpf) : null },
       certificado: cert ? metadados(cert) : null,
-      consentimento: cfg?.consentimento_em
-        ? { em: cfg.consentimento_em, por: cfg.consentimento_por, referencia: cfg.consentimento_ref }
-        : null,
     };
   }
 
@@ -168,37 +162,6 @@ export class CertificadosService {
     return { ok: true };
   }
 
-  async registrarConsentimento(empresaId: string, referencia: string, usuario: string) {
-    await this.empresa(empresaId);
-    const ref = String(referencia ?? '').trim();
-    if (ref.length < 5 || ref.length > 500) {
-      throw new BadRequestException('Informe a referência do termo de autorização assinado pelo cliente (de 5 a 500 caracteres).');
-    }
-    const agora = new Date();
-    await this.prisma.$transaction([
-      this.prisma.xmlEmpresaConfig.upsert({
-        where: { empresa_id: empresaId },
-        create: { empresa_id: empresaId, consentimento_em: agora, consentimento_por: usuario, consentimento_ref: ref },
-        update: { consentimento_em: agora, consentimento_por: usuario, consentimento_ref: ref },
-      }),
-      this.prisma.auditoriaCertificado.create({ data: { empresa_id: empresaId, acao: 'CONSENTIMENTO', usuario, detalhe: ref } }),
-    ]);
-    return { ok: true };
-  }
-
-  async revogarConsentimento(empresaId: string, usuario: string) {
-    await this.empresa(empresaId);
-    await this.prisma.$transaction([
-      this.prisma.xmlEmpresaConfig.updateMany({
-        where: { empresa_id: empresaId },
-        data: { consentimento_em: null, consentimento_por: null, consentimento_ref: null, manifestar_ciencia: false, manifestacao_consentida_em: null, manifestacao_consentida_por: null },
-      }),
-      this.prisma.capturaXmlConfig.updateMany({ where: { empresa_id: empresaId }, data: { ativo: false } }),
-      this.prisma.auditoriaCertificado.create({ data: { empresa_id: empresaId, acao: 'CONSENTIMENTO_REVOGADO', usuario, detalhe: 'Captura e Ciência da Operação desativadas.' } }),
-    ]);
-    return { ok: true };
-  }
-
   async auditoria(empresaId: string, limite = 100) {
     await this.empresa(empresaId);
     return this.prisma.auditoriaCertificado.findMany({
@@ -209,8 +172,8 @@ export class CertificadosService {
   }
 
   /**
-   * USO INTERNO (captura e manifestação): abre o material do certificado ativo. Exige certificado dentro da validade e o termo de
-   * autorização do cliente registrado, e grava a trilha de auditoria. O resultado nunca deve ser logado nem devolvido pela API.
+   * USO INTERNO (captura e manifestação): abre o material do certificado ativo. Exige certificado dentro da validade e titular igual
+   * ao CNPJ/CPF cadastrado da empresa, e grava a trilha de auditoria. O resultado nunca deve ser logado nem devolvido pela API.
    */
   async material(empresaId: string, acao: AcaoUso, usuario = 'sistema', detalhe?: string): Promise<MaterialCertificado> {
     const cert = await this.prisma.certificadoDigital.findFirst({ where: { empresa_id: empresaId, status: 'ATIVO' }, orderBy: { createdAt: 'desc' } });
@@ -224,10 +187,6 @@ export class CertificadosService {
     const empresa = await this.empresa(empresaId);
     if (!empresa.cnpj_cpf || !documentoCompativel(cert.documento, empresa.cnpj_cpf)) {
       throw new ForbiddenException(`O CNPJ/CPF cadastrado da empresa não confere com o titular do certificado guardado (${formatarDocumento(cert.documento)}). Corrija o cadastro ou envie o certificado do titular correto.`);
-    }
-    const cfg = await this.prisma.xmlEmpresaConfig.findUnique({ where: { empresa_id: empresaId } });
-    if (!cfg?.consentimento_em) {
-      throw new ForbiddenException('Registre o termo de autorização do cliente antes de usar o certificado.');
     }
     const bruto = this.cofre.decifrar(
       { cifrado: Buffer.from(cert.segredo_cifrado), iv: Buffer.from(cert.segredo_iv), tag: Buffer.from(cert.segredo_tag), chaveId: cert.chave_id },

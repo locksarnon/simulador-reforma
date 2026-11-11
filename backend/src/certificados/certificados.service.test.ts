@@ -27,7 +27,6 @@ function montar(empresa: { cnpj_cpf: string | null } = { cnpj_cpf: '12.345.678/0
   const emp = { ...empresa };
   const certs: Record<string, unknown>[] = [];
   const auditoria: Record<string, unknown>[] = [];
-  let cfg: Record<string, unknown> | null = null;
   const casa = (l: Record<string, unknown>, w: Record<string, unknown>) => Object.entries(w).every(([k, v]) => l[k] === v);
   const prisma = {
     empresa: { findUnique: async ({ where }: { where: { id: string } }) => ({ id: where.id, razao_social: 'EMPRESA TESTE', ...emp }) },
@@ -36,11 +35,6 @@ function montar(empresa: { cnpj_cpf: string | null } = { cnpj_cpf: '12.345.678/0
       updateMany: ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => { certs.filter((c) => casa(c, where)).forEach((c) => Object.assign(c, data)); return { op: 'u' }; },
       update: ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => { Object.assign(certs.find((c) => c.id === where.id)!, data); return { op: 'u' }; },
       create: ({ data }: { data: Record<string, unknown> }) => { const r = { status: 'ATIVO', createdAt: new Date(), revogado_em: null, revogado_por: null, ...data }; certs.push(r); return { op: 'c', r }; },
-    },
-    xmlEmpresaConfig: {
-      findUnique: async () => cfg,
-      upsert: ({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) => { cfg = cfg ? Object.assign(cfg, update) : { ...create }; return { op: 'x' }; },
-      updateMany: ({ data }: { data: Record<string, unknown> }) => { if (cfg) Object.assign(cfg, data); return { op: 'x' }; },
     },
     capturaXmlConfig: { updateMany: () => ({ op: 'x' }) },
     auditoriaCertificado: { create: ({ data }: { data: Record<string, unknown> }) => { auditoria.push(data); return { op: 'a' }; } },
@@ -52,7 +46,7 @@ function montar(empresa: { cnpj_cpf: string | null } = { cnpj_cpf: '12.345.678/0
 }
 
 describe('CertificadosService', () => {
-  it('guarda cifrado, devolve só metadados e abre o material para uso depois do termo', async () => {
+  it('guarda cifrado, devolve só metadados e abre o material para uso, sem pedir termo nenhum', async () => {
     const { service, certs, auditoria } = montar();
     const meta = await service.enviar('E1', pfx('EMPRESA TESTE:12345678000195', 'segredo-123'), 'segredo-123', 'admin@fal');
     expect(meta).toMatchObject({ titular: 'EMPRESA TESTE:12345678000195', documento: '12345678000195', documento_formatado: '12.345.678/0001-95', situacao: 'ATIVO' });
@@ -62,9 +56,10 @@ describe('CertificadosService', () => {
     expect(Buffer.from(guardado.segredo_cifrado).toString('utf8')).not.toContain('PRIVATE KEY');
     expect(JSON.stringify(certs)).not.toContain('segredo-123');
 
-    // sem o termo do cliente, o material não abre
-    await expect(service.material('E1', 'USO_CAPTURA')).rejects.toThrow(/termo de autorização/);
-    await service.registrarConsentimento('E1', 'Termo assinado em 05/11/2026', 'admin@fal');
+    // o estado do cofre traz só o certificado: não existe mais termo de autorização
+    const visto = await service.obter('E1');
+    expect(visto).not.toHaveProperty('consentimento');
+    expect(visto.certificado).toMatchObject({ situacao: 'ATIVO' });
 
     const m = await service.material('E1', 'USO_CAPTURA', 'sistema', 'teste');
     // o PEM devolvido é utilizável: a chave assina e o certificado verifica
@@ -74,7 +69,7 @@ describe('CertificadosService', () => {
     expect(certPem.subject.getField('CN').value).toBe('EMPRESA TESTE:12345678000195');
     expect(verify('sha256', Buffer.from('mensagem'), createPublicKey(chave), assinatura)).toBe(true);
 
-    expect(auditoria.map((a) => a.acao)).toEqual(['ENVIO', 'CONSENTIMENTO', 'USO_CAPTURA']);
+    expect(auditoria.map((a) => a.acao)).toEqual(['ENVIO', 'USO_CAPTURA']);
     expect(JSON.stringify(auditoria)).not.toMatch(/PRIVATE KEY|segredo-123/);
   });
 
@@ -99,24 +94,12 @@ describe('CertificadosService', () => {
     expect(certs[1]).toMatchObject({ status: 'ATIVO' });
     await service.revogar('E1', 'admin@fal');
     expect(certs[1]).toMatchObject({ status: 'REVOGADO', segredo_cifrado: null });
-    await service.registrarConsentimento('E1', 'Termo assinado em 05/11/2026', 'admin@fal');
     await expect(service.material('E1', 'USO_CAPTURA')).rejects.toThrow(/não tem certificado ativo/);
-  });
-
-  it('exige referência do termo e consentimento revogado volta a bloquear o uso', async () => {
-    const { service } = montar();
-    await service.enviar('E1', pfx('EMPRESA:12345678000195', 'a'), 'a', 'admin@fal');
-    await expect(service.registrarConsentimento('E1', 'x', 'admin@fal')).rejects.toThrow(/referência do termo/);
-    await service.registrarConsentimento('E1', 'Termo assinado em 05/11/2026', 'admin@fal');
-    await service.material('E1', 'USO_CAPTURA');
-    await service.revogarConsentimento('E1', 'admin@fal');
-    await expect(service.material('E1', 'USO_CAPTURA')).rejects.toThrow(/termo de autorização/);
   });
 
   it('se o CNPJ da empresa mudar depois do envio, o certificado deixa de abrir (nada é consultado com o titular errado)', async () => {
     const { service, auditoria, emp } = montar();
     await service.enviar('E1', pfx('EMPRESA:12345678000195', 'a'), 'a', 'admin@fal');
-    await service.registrarConsentimento('E1', 'Termo assinado em 05/11/2026', 'admin@fal');
     await service.material('E1', 'USO_CAPTURA'); // a filial da mesma raiz continua valendo
     emp.cnpj_cpf = '12.345.678/0002-76';
     await service.material('E1', 'USO_CAPTURA');

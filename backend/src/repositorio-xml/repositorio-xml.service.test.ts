@@ -236,12 +236,13 @@ describe('o que vai ao importador de XML', () => {
 
   function montarImportacao(docs: Linha[]) {
     const wheres: Linha[] = [];
+    const takes: (number | undefined)[] = [];
     const prisma = {
       empresa: { findUnique: async ({ where }: { where: { id: string } }) => ({ id: where.id, cnpj_cpf: '12.345.678/0001-95', grupo: '001' }) },
       grupo: { findFirst: async () => ({ id: 'G1' }) },
       documentoXml: {
         count: async ({ where }: { where: Linha }) => { wheres.push(where); return docs.filter((d) => casa(d, where)).length; },
-        findMany: async ({ where }: { where: Linha }) => { wheres.push(where); return docs.filter((d) => casa(d, where)); },
+        findMany: async ({ where, take }: { where: Linha; take?: number }) => { wheres.push(where); takes.push(take); return docs.filter((d) => casa(d, where)); },
         updateMany: async () => ({ count: 0 }),
         groupBy: async () => [],
         findFirst: async () => null,
@@ -250,7 +251,7 @@ describe('o que vai ao importador de XML', () => {
     const importacao = { receberLote: vi.fn(async () => ({ lote_id: 'L1', status: 'ok' })) };
     const storage = { getPresignedUrl: vi.fn(async (k: string) => `https://armazenamento/${k}`) };
     const service = new RepositorioXmlService(prisma as never, storage as never, importacao as never);
-    return { service, wheres, importacao };
+    return { service, wheres, takes, importacao };
   }
   const pendente = (id: string, tipo: string, modelo: string | null): Linha => ({
     id, empresa_id: 'E1', tipo, modelo, conteudo: 'COMPLETO', storage_key: `k/${id}.xml`, lote_importacao_id: null, nome_original: `${id}.xml`, tamanho_bytes: 10, sha256: id,
@@ -276,6 +277,15 @@ describe('o que vai ao importador de XML', () => {
     const r = await t.service.listar('E1', { pendentes: true });
     expect(t.wheres.some((w) => (w.AND as Linha[] | undefined)?.includes(IMPORTAVEL as Linha))).toBe(true);
     expect(r.total).toBe(1);
+  });
+
+  it('a lista entrega até 500 linhas por pedido (a tela mostra 10, 50, 100, 500 ou todas, e "todas" vem em partes de 500)', async () => {
+    const t = montarImportacao([]);
+    const casos: [number | undefined, number][] = [[undefined, 50], [0, 50], [10, 10], [100, 100], [500, 500], [9999, 500], [-5, 1]];
+    for (const [pedido, esperado] of casos) {
+      await t.service.listar('E1', { limit: pedido });
+      expect(t.takes.at(-1), `limit ${pedido}`).toBe(esperado);
+    }
   });
 });
 

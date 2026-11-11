@@ -46,7 +46,7 @@ const hhmm = (d: Date) => d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Pau
 /**
  * Coletor da Distribuição de DF-e: consulta a SEFAZ com o certificado A1 de cada cliente, respeita as janelas de espera do serviço,
  * guarda os XML no repositório da empresa e controla o último NSU de cada empresa e tipo de documento.
- * Só roda com certificado ativo, termo de autorização do cliente registrado e captura ativada por um administrador.
+ * Só roda com certificado ativo e captura ativada por um administrador.
  */
 @Injectable()
 export class CapturaXmlService {
@@ -99,7 +99,7 @@ export class CapturaXmlService {
       },
       ambiente: cfgEmpresa?.ambiente ?? 'PRODUCAO',
       uf_autor: cfgEmpresa?.uf_autor ?? (empresa.uf ? UF_POR_SIGLA[empresa.uf.toUpperCase()] ?? null : null),
-      requisitos: { certificado_ativo: !!cert && cert.valido_ate.getTime() > agora.getTime(), termo_registrado: !!cfgEmpresa?.consentimento_em },
+      requisitos: { certificado_ativo: !!cert && cert.valido_ate.getTime() > agora.getTime() },
       documento_certificado: cert?.documento ?? null,
       agendador_ativo: CapturaXmlService.agendadorLigado(),
       // Quando a busca automática pode consultar esta empresa. O botão "Capturar agora" não depende disso.
@@ -175,7 +175,6 @@ export class CapturaXmlService {
     if (ativo) {
       const st = await this.status(empresaId);
       if (!st.requisitos.certificado_ativo) throw new BadRequestException('Envie um certificado válido do cliente antes de ativar a captura.');
-      if (!st.requisitos.termo_registrado) throw new BadRequestException('Registre o termo de autorização do cliente antes de ativar a captura.');
       // O ADN (NFS-e) não usa a UF do interessado.
       if (tipo !== 'NFSE' && !st.uf_autor) throw new BadRequestException('Informe a UF do cliente (cadastro da empresa ou configuração da captura).');
       if (tipo === 'CTE' && /[A-Z]/.test(st.documento_certificado ?? '')) {
@@ -209,8 +208,6 @@ export class CapturaXmlService {
   async configurarCiencia(empresaId: string, ativo: boolean, confirmou: boolean, usuario: string) {
     await this.empresa(empresaId);
     if (ativo) {
-      const cfg = await this.prisma.xmlEmpresaConfig.findUnique({ where: { empresa_id: empresaId } });
-      if (!cfg?.consentimento_em) throw new BadRequestException('Registre o termo de autorização do cliente antes de ativar a Ciência da Operação.');
       if (!confirmou) {
         throw new BadRequestException('Confirme que o cliente autorizou o registro automático da Ciência da Operação em nome do CNPJ dele e que a manifestação conclusiva continua sendo dele.');
       }

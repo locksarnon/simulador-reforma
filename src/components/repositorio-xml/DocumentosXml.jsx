@@ -8,7 +8,22 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { base, dividirEmLotes, fmtData, fmtDoc, fmtMoeda, importavelNoImportador, ORIGENS, PORTAIS_NOTAS_EMITIDAS, TIPOS } from "./formatos";
 
-const POR_PAGINA = 50;
+/** Linhas por página: 10, 50, 100, 500 ou todas (0). "Todas" busca em partes de 500 até o teto abaixo. */
+const OPCOES_POR_PAGINA = [10, 50, 100, 500, 0];
+const POR_PAGINA_PADRAO = 50;
+const PARTE = 500; // o servidor entrega no máximo 500 linhas por pedido
+const TETO_TODAS = 5000; // acima disso a tabela fica pesada: a tela avisa e pede para filtrar
+const CHAVE_POR_PAGINA = "repo-xml-por-pagina";
+
+function lerPorPagina() {
+  try {
+    const guardado = localStorage.getItem(CHAVE_POR_PAGINA);
+    const n = guardado === null ? NaN : Number(guardado);
+    return OPCOES_POR_PAGINA.includes(n) ? n : POR_PAGINA_PADRAO;
+  } catch {
+    return POR_PAGINA_PADRAO;
+  }
+}
 
 const SITUACAO = {
   AUTORIZADA: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
@@ -41,6 +56,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   const [busca, setBusca] = useState("");
   const [q, setQ] = useState("");
   const [pagina, setPagina] = useState(0);
+  const [porPagina, setPorPagina] = useState(lerPorPagina);
   const [selecionados, setSelecionados] = useState(new Set());
   const [progresso, setProgresso] = useState(null);
   const [arrastando, setArrastando] = useState(false);
@@ -52,9 +68,23 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
 
   const parametros = { ...filtros, pendentes: filtros.pendentes ? "true" : undefined, q: q || undefined };
   const { data: resumo } = useQuery({ queryKey: ["repo-xml-resumo", empresaId], queryFn: () => api.get(`${base(empresaId)}/resumo`) });
+  const todas = porPagina === 0;
   const { data: lista, isLoading, isFetching } = useQuery({
-    queryKey: ["repo-xml-docs", empresaId, parametros, pagina],
-    queryFn: () => api.get(`${base(empresaId)}/documentos`, { ...parametros, limit: POR_PAGINA, offset: pagina * POR_PAGINA }),
+    queryKey: ["repo-xml-docs", empresaId, parametros, pagina, porPagina],
+    queryFn: async () => {
+      const buscar = (limit, offset) => api.get(`${base(empresaId)}/documentos`, { ...parametros, limit, offset });
+      if (!todas) return buscar(porPagina, pagina * porPagina);
+      // "Todas": busca em partes de 500 até acabar ou chegar ao teto.
+      const itens = [];
+      let total = 0;
+      while (itens.length < TETO_TODAS) {
+        const parte = await buscar(PARTE, itens.length);
+        total = parte.total;
+        itens.push(...parte.itens);
+        if (!parte.itens.length || itens.length >= total) break;
+      }
+      return { total, itens: itens.slice(0, TETO_TODAS) };
+    },
     placeholderData: (anterior) => anterior,
   });
   const itens = lista?.itens || [];
@@ -62,6 +92,11 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   const atualizar = () => { qc.invalidateQueries({ queryKey: ["repo-xml-docs", empresaId] }); qc.invalidateQueries({ queryKey: ["repo-xml-resumo", empresaId] }); };
 
   const mudarFiltro = (chave, valor) => { setFiltros((f) => ({ ...f, [chave]: valor })); setPagina(0); setSelecionados(new Set()); };
+  const mudarPorPagina = (valor) => {
+    setPorPagina(valor);
+    setPagina(0);
+    try { localStorage.setItem(CHAVE_POR_PAGINA, String(valor)); } catch { /* sem storage: vale só nesta visita */ }
+  };
 
   const enviarArquivos = async (arquivos) => {
     const lista = [...arquivos].filter((f) => /\.(xml|zip)$/i.test(f.name));
@@ -195,17 +230,22 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
           {admin && selecionados.size > 0 && (
             <button type="button" onClick={excluirSelecionados} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /> Excluir {selecionados.size}</button>
           )}
-          <span className="ml-auto text-xs text-muted-foreground">{isFetching ? "Atualizando…" : `${total} documento(s)`}</span>
+          <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">Mostrar
+            <select className={`${campo} py-0.5 text-xs`} value={porPagina} onChange={(e) => mudarPorPagina(Number(e.target.value))} aria-label="Documentos por página">
+              {OPCOES_POR_PAGINA.map((n) => <option key={n} value={n}>{n === 0 ? "Todos" : n}</option>)}
+            </select>
+          </label>
+          <span className="text-xs text-muted-foreground">{isFetching ? "Atualizando…" : `${total} documento(s)`}</span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-[13px] leading-5">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                <th className="py-2 pr-2 w-8"><input type="checkbox" aria-label="Selecionar todos da página" checked={todosMarcados} onChange={alternarTodos} /></th>
-                <th className="py-2 pr-3">Tipo</th><th className="py-2 pr-3">Nº / série</th><th className="py-2 pr-3">Emissão</th>
-                <th className="py-2 pr-3">Emitente</th><th className="py-2 pr-3 text-right">Valor</th><th className="py-2 pr-3">Situação</th>
-                <th className="py-2 pr-3">Origem</th><th className="py-2 pr-3">Importador</th><th className="py-2 w-8"></th>
+                <th className="py-1.5 pr-2 w-8"><input type="checkbox" aria-label={todas ? "Selecionar todos os exibidos" : "Selecionar todos da página"} checked={todosMarcados} onChange={alternarTodos} /></th>
+                <th className="py-1.5 pr-3">Tipo</th><th className="py-1.5 pr-3">Nº / série</th><th className="py-1.5 pr-3">Emissão</th>
+                <th className="py-1.5 pr-3">Emitente</th><th className="py-1.5 pr-3 text-right">Valor</th><th className="py-1.5 pr-3">Situação</th>
+                <th className="py-1.5 pr-3">Origem</th><th className="py-1.5 pr-3">Importador</th><th className="py-1.5 w-8"></th>
               </tr>
             </thead>
             <tbody>
@@ -213,31 +253,37 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
               {!isLoading && itens.length === 0 && <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Nenhum documento neste repositório ainda. Envie os XML do cliente acima.</td></tr>}
               {itens.map((d) => (
                 <tr key={d.id} className="border-b border-border/60 hover:bg-muted/40">
-                  <td className="py-2 pr-2"><input type="checkbox" aria-label={`Selecionar ${d.chave}`} checked={selecionados.has(d.id)} onChange={() => alternar(d.id)} /></td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{TIPOS[d.tipo] || d.tipo}{d.tipo === "EVENTO" && <span className="text-xs text-muted-foreground"> {d.evento_tipo}</span>}</td>
-                  <td className="py-2 pr-3 whitespace-nowrap tabular-nums" title={d.chave}>{d.numero ?? "—"}{d.serie ? ` / ${d.serie}` : ""}</td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{fmtData(d.data_emissao)}</td>
-                  <td className="py-2 pr-3 max-w-[260px]"><span className="block truncate">{d.emitente_nome || "—"}</span><span className="block text-xs text-muted-foreground tabular-nums">{fmtDoc(d.emitente_doc)}</span></td>
-                  <td className="py-2 pr-3 text-right tabular-nums whitespace-nowrap">{fmtMoeda(d.valor_total)}</td>
-                  <td className="py-2 pr-3 whitespace-nowrap">
-                    {d.conteudo === "RESUMO" && <span className="inline-block rounded px-1.5 py-0.5 text-xs bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 mr-1">Só resumo</span>}
-                    {d.situacao && <span className={`inline-block rounded px-1.5 py-0.5 text-xs ${SITUACAO[d.situacao] || "bg-muted"}`}>{d.situacao.charAt(0) + d.situacao.slice(1).toLowerCase()}</span>}
+                  <td className="py-1 pr-2"><input type="checkbox" aria-label={`Selecionar ${d.chave}`} checked={selecionados.has(d.id)} onChange={() => alternar(d.id)} /></td>
+                  <td className="py-1 pr-3 whitespace-nowrap">{TIPOS[d.tipo] || d.tipo}{d.tipo === "EVENTO" && <span className="text-xs text-muted-foreground"> {d.evento_tipo}</span>}</td>
+                  <td className="py-1 pr-3 whitespace-nowrap tabular-nums" title={d.chave}>{d.numero ?? "—"}{d.serie ? ` / ${d.serie}` : ""}</td>
+                  <td className="py-1 pr-3 whitespace-nowrap">{fmtData(d.data_emissao)}</td>
+                  <td className="py-1 pr-3 max-w-[340px]" title={[d.emitente_nome, fmtDoc(d.emitente_doc)].filter(Boolean).join(" · ")}><span className="block truncate">{d.emitente_nome ? <>{d.emitente_nome} <span className="text-xs text-muted-foreground tabular-nums">{fmtDoc(d.emitente_doc)}</span></> : <span className="tabular-nums">{fmtDoc(d.emitente_doc)}</span>}</span></td>
+                  <td className="py-1 pr-3 text-right tabular-nums whitespace-nowrap">{fmtMoeda(d.valor_total)}</td>
+                  <td className="py-1 pr-3 whitespace-nowrap">
+                    {d.conteudo === "RESUMO" && <span className="inline-block rounded px-1.5 text-[11px] leading-4 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 mr-1">Só resumo</span>}
+                    {d.situacao && <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${SITUACAO[d.situacao] || "bg-muted"}`}>{d.situacao.charAt(0) + d.situacao.slice(1).toLowerCase()}</span>}
                   </td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{ORIGENS[d.origem] || d.origem}</td>
-                  <td className="py-2 pr-3 whitespace-nowrap">{d.conteudo === "RESUMO" ? <span className="text-muted-foreground" title="Só o resumo: falta o XML completo para ir ao importador">—</span> : !importavelNoImportador(d) ? <span className="text-muted-foreground" title="O importador ainda não lê este tipo de documento (NFS-e e MDF-e); ele fica guardado aqui">—</span> : d.lote_importacao_id ? <span className="text-emerald-700 dark:text-emerald-400">Enviado {fmtData(d.importado_em)}</span> : <span className="text-amber-700 dark:text-amber-400">Pendente</span>}</td>
-                  <td className="py-2"><button type="button" onClick={() => baixarUm(d)} title="Baixar o XML" aria-label={`Baixar ${d.chave}`} className="p-1 rounded hover:bg-muted"><Download className="w-4 h-4" /></button></td>
+                  <td className="py-1 pr-3 whitespace-nowrap">{ORIGENS[d.origem] || d.origem}</td>
+                  <td className="py-1 pr-3 whitespace-nowrap">{d.conteudo === "RESUMO" ? <span className="text-muted-foreground" title="Só o resumo: falta o XML completo para ir ao importador">—</span> : !importavelNoImportador(d) ? <span className="text-muted-foreground" title="O importador ainda não lê este tipo de documento (NFS-e e MDF-e); ele fica guardado aqui">—</span> : d.lote_importacao_id ? <span className="text-emerald-700 dark:text-emerald-400">Enviado {fmtData(d.importado_em)}</span> : <span className="text-amber-700 dark:text-amber-400">Pendente</span>}</td>
+                  <td className="py-1"><button type="button" onClick={() => baixarUm(d)} title="Baixar o XML" aria-label={`Baixar ${d.chave}`} className="p-0.5 rounded hover:bg-muted"><Download className="w-3.5 h-3.5" /></button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {total > POR_PAGINA && (
+        {todas ? (
+          total > TETO_TODAS && (
+            <p role="status" className="text-xs rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 p-2">
+              Mostrando os primeiros {TETO_TODAS.toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")} documentos. Refine os filtros (período, tipo ou busca) para ver o resto.
+            </p>
+          )
+        ) : total > porPagina && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">{pagina * POR_PAGINA + 1}–{Math.min((pagina + 1) * POR_PAGINA, total)} de {total}</span>
+            <span className="text-muted-foreground">{pagina * porPagina + 1}–{Math.min((pagina + 1) * porPagina, total)} de {total}</span>
             <div className="flex gap-2">
               <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} className="px-3 py-1.5 rounded-md border border-border hover:bg-muted disabled:opacity-50">Anterior</button>
-              <button type="button" disabled={(pagina + 1) * POR_PAGINA >= total} onClick={() => setPagina((p) => p + 1)} className="px-3 py-1.5 rounded-md border border-border hover:bg-muted disabled:opacity-50">Próxima</button>
+              <button type="button" disabled={(pagina + 1) * porPagina >= total} onClick={() => setPagina((p) => p + 1)} className="px-3 py-1.5 rounded-md border border-border hover:bg-muted disabled:opacity-50">Próxima</button>
             </div>
           </div>
         )}

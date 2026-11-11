@@ -27,8 +27,7 @@ describe('VencimentoCertificadosService', () => {
     const atualizacoes: unknown[] = [];
     const prisma = {
       certificadoDigital: { findMany: vi.fn(async () => [cert]), update: vi.fn(async (a: unknown) => { atualizacoes.push(a); }) },
-      empresa: { findUnique: vi.fn(async () => ({ razao_social: 'Empresa <Teste> Ltda', grupo: '001' })) },
-      grupo: { findFirst: vi.fn(async () => ({ id: 'G1' })) },
+      empresa: { findUnique: vi.fn(async () => ({ razao_social: 'Empresa <Teste> Ltda' })) },
     };
     const mail = {
       configurado: opts.mailOk !== false, emailInterno: opts.mailOk === false ? '' : 'fiscal@fal.test', urlPublica: 'https://simulador.exemplo',
@@ -43,7 +42,7 @@ describe('VencimentoCertificadosService', () => {
     const msg = t.mail.enviar.mock.calls[0][0] as { to: string; subject: string; html: string; text: string };
     expect(msg.to).toBe('fiscal@fal.test');
     expect(msg.subject).toContain('vence em 20 dia(s)');
-    expect(msg.text).toContain('https://simulador.exemplo/workroom/G1/empresas/E1/repositorio-xml');
+    expect(msg.text).toContain('https://simulador.exemplo/bpo/repositorio-xml/E1');
     expect(msg.html).toContain('Empresa &lt;Teste&gt; Ltda');
     expect(t.atualizacoes).toEqual([{ where: { id: 'c1' }, data: { aviso_vencimento_dias: 30 } }]);
   });

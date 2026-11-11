@@ -19,7 +19,7 @@ const certificado = (extra = {}) => ({
   valido_de: "2026-01-01T00:00:00Z", valido_ate: "2027-01-01T00:00:00Z", dias_para_vencer: 200, situacao: "ATIVO", enviado_por: "admin@fal", enviado_em: "2026-11-01T10:00:00Z",
   ...extra,
 });
-const dadosCofre = (extra = {}) => ({ cofre_configurado: true, empresa: { id: "E1", razao_social: "EMPRESA TESTE", cnpj_formatado: "12.345.678/0001-95" }, certificado: null, consentimento: null, ...extra });
+const dadosCofre = (extra = {}) => ({ cofre_configurado: true, empresa: { id: "E1", razao_social: "EMPRESA TESTE", cnpj_formatado: "12.345.678/0001-95" }, certificado: null, ...extra });
 
 function renderizar(elemento, { cache = [] } = {}) {
   // staleTime infinito: com o cache já preenchido, a renderização no servidor não marca a lista como "Atualizando…".
@@ -56,14 +56,14 @@ describe("formatos do repositório de XML", () => {
 });
 
 describe("CertificadoXml", () => {
-  it("administrador sem certificado: vê o envio, o termo e a auditoria", () => {
+  it("administrador sem certificado: vê o envio e a auditoria, e nenhum pedido de termo", () => {
     auth.role = "admin";
     const html = renderizar(<CertificadoXml empresaId="E1" />, { cache: [[["repo-xml-cert", "E1"], dadosCofre()], [["repo-xml-auditoria", "E1"], []]] });
     expect(html).toContain("Enviar certificado A1");
     expect(html).toContain("Nenhum certificado guardado para");
     expect(html).toContain("EMPRESA TESTE");
-    expect(html).toContain("Termo de autorização do cliente");
-    expect(html).toContain("Registrar termo");
+    expect(html).not.toContain("Termo de autorização");
+    expect(html).not.toContain("Registrar termo");
     expect(html).toContain("Auditoria do cofre");
     expect(html).toContain("A senha do arquivo é usada só no envio e não é guardada");
   });
@@ -78,28 +78,26 @@ describe("CertificadoXml", () => {
   it("usuário comum vê o estado, sem enviar, remover nem auditoria", () => {
     auth.role = "user";
     const html = renderizar(<CertificadoXml empresaId="E1" />, {
-      cache: [[["repo-xml-cert", "E1"], dadosCofre({ certificado: certificado(), consentimento: { em: "2026-11-02T12:00:00Z", por: "admin@fal", referencia: "Termo assinado em 02/11/2026" } })]],
+      cache: [[["repo-xml-cert", "E1"], dadosCofre({ certificado: certificado() })]],
     });
     expect(html).toContain("EMPRESA TESTE LTDA:12345678000195");
     expect(html).toContain("Ativo");
-    expect(html).toContain("Termo assinado em 02/11/2026");
     expect(html).not.toContain("Substituir certificado");
     expect(html).not.toContain("Enviar certificado A1");
     expect(html).not.toContain("Remover do cofre");
-    expect(html).not.toContain("Revogar termo");
     expect(html).not.toContain("Auditoria do cofre");
   });
 
   it("a auditoria mostra cada ação com palavras, nunca o código interno", () => {
     auth.role = "admin";
     const codigos = [
-      "ENVIO", "REVOGACAO", "CONSENTIMENTO", "CONSENTIMENTO_REVOGADO", "USO_CAPTURA", "USO_MANIFESTACAO",
+      "ENVIO", "REVOGACAO", "USO_CAPTURA", "USO_MANIFESTACAO",
       "CAPTURA_ATIVADA", "CAPTURA_DESATIVADA", "CAPTURA_AMBIENTE", "CAPTURA_PERIODO", "CIENCIA_ATIVADA", "CIENCIA_DESATIVADA", "EMPRESA_EXCLUIDA",
     ];
     const linhas = codigos.map((acao, i) => ({ id: `a${i}`, createdAt: "2026-11-10T12:00:00Z", acao, usuario: "admin@fal", detalhe: "detalhe" }));
     const html = renderizar(<CertificadoXml empresaId="E1" />, { cache: [[["repo-xml-cert", "E1"], dadosCofre()], [["repo-xml-auditoria", "E1"], linhas]] });
     for (const codigo of codigos) expect(html, codigo).not.toContain(`>${codigo}<`);
-    for (const rotulo of ["Captura ativada", "Captura desativada", "Ambiente da SEFAZ alterado", "Período da busca alterado", "Ciência automática ativada", "Ciência automática desativada", "Empresa excluída", "Uso na captura", "Termo revogado"]) {
+    for (const rotulo of ["Captura ativada", "Captura desativada", "Ambiente da SEFAZ alterado", "Período da busca alterado", "Ciência automática ativada", "Ciência automática desativada", "Empresa excluída", "Uso na captura"]) {
       expect(html, rotulo).toContain(`>${rotulo}<`);
     }
   });
@@ -121,7 +119,7 @@ describe("CapturaXml", () => {
     tipo: "NFE", ativo: false, ultimo_nsu: "000000000000000", max_nsu: null, proxima_consulta_em: null, bloqueado_ate: null, ultima_consulta_em: null,
     ultimo_cstat: null, ultimo_motivo: null, em_execucao: false, liberado_em: null, ...extra,
   });
-  const captura = (extra = {}) => ({ ambiente: "PRODUCAO", uf_autor: "51", requisitos: { certificado_ativo: true, termo_registrado: true }, tipos: [tipo()], execucoes: [], ...extra });
+  const captura = (extra = {}) => ({ ambiente: "PRODUCAO", uf_autor: "51", requisitos: { certificado_ativo: true }, tipos: [tipo()], execucoes: [], ...extra });
   const montar = (dados) => renderizar(<CapturaXml empresaId="E1" />, { cache: [[["repo-xml-captura", "E1"], dados]] });
   const botaoAtivar = (html) => html.match(/<button[^>]*>(?:(?!<\/button>).)*Ativar captura<\/button>/)?.[0] ?? "";
 
@@ -136,7 +134,7 @@ describe("CapturaXml", () => {
     expect(html.slice(html.indexOf("Outros estados"))).toContain("SP (35)");
   });
 
-  it("Ciência da Operação: explica o que é, mostra os números e só deixa ativar com o termo do cliente", () => {
+  it("Ciência da Operação: explica o que é, mostra os números e oferece ativar (a confirmação expressa vem na janela)", () => {
     auth.role = "admin";
     const ciencia = { ativa: false, consentida_em: null, consentida_por: null, resumos_sem_ciencia: 12, registradas: 40, nao_aplicaveis: 3 };
     const html = montar(captura({ ciencia }));
@@ -148,8 +146,6 @@ describe("CapturaXml", () => {
     for (const [rotulo, numero] of [["Resumos aguardando", "12"], ["Ciência registrada", "40"], ["Fora do prazo ou não aplicável", "3"]]) {
       expect(html).toContain(`${rotulo}</dt><dd class="tabular-nums">${numero}</dd>`);
     }
-    const semTermo = montar(captura({ ciencia, requisitos: { certificado_ativo: true, termo_registrado: false } }));
-    expect(semTermo.match(/<button[^>]*>Ativar Ciência automática<\/button>/)?.[0]).toContain('disabled=""');
   });
 
   it("Ciência ativa mostra quem autorizou e oferece desativar; usuário comum só acompanha", () => {
@@ -174,7 +170,7 @@ describe("CapturaXml", () => {
   it("administrador com requisitos cumpridos pode ativar; sem certificado, não", () => {
     auth.role = "admin";
     expect(botaoAtivar(montar(captura()))).not.toContain('disabled=""');
-    const sem = montar(captura({ requisitos: { certificado_ativo: false, termo_registrado: true } }));
+    const sem = montar(captura({ requisitos: { certificado_ativo: false } }));
     expect(botaoAtivar(sem)).toContain('disabled=""');
     expect(sem).toContain("Certificado digital A1 do cliente guardado e dentro da validade");
   });
@@ -250,8 +246,8 @@ describe("CapturaXml", () => {
     expect(botoes[1]).toContain('disabled=""'); // CT-e
     expect(botoes[2]).not.toContain('disabled=""'); // NFS-e
     expect(html).toContain("necessária para NF-e e CT-e, não para NFS-e");
-    // sem certificado ou termo, nenhuma é liberada
-    const sem = montar(captura({ uf_autor: "51", requisitos: { certificado_ativo: false, termo_registrado: true }, tipos: [tipo({ tipo: "NFSE" })] }));
+    // sem certificado, nenhuma é liberada
+    const sem = montar(captura({ uf_autor: "51", requisitos: { certificado_ativo: false }, tipos: [tipo({ tipo: "NFSE" })] }));
     expect(botaoAtivar(sem)).toContain('disabled=""');
   });
 });
@@ -267,7 +263,7 @@ describe("DocumentosXml", () => {
   it("mostra a área de envio, os filtros, os totais e a lista", () => {
     auth.role = "admin";
     const html = renderizar(<DocumentosXml empresaId="E1" empresa={{ id_empresa: "EMP-1" }} />, {
-      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0], { total: 1, itens: [doc] }]],
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 1, itens: [doc] }]],
     });
     expect(html).toContain("Arraste aqui os XML ou ZIP do cliente");
     expect(html).toContain("Documentos que não citam o CNPJ desta empresa são recusados");
@@ -284,10 +280,54 @@ describe("DocumentosXml", () => {
     expect(html).toContain("1 documento(s)");
   });
 
+  it("tabela compacta: o emitente cabe numa linha só (nome e CNPJ juntos, ou só o CNPJ quando a captura não traz o nome)", () => {
+    auth.role = "admin";
+    const evento = { ...doc, id: "d2", tipo: "EVENTO", evento_tipo: "610514", numero: "33874", serie: "1", emitente_nome: null, emitente_doc: "33683111000107", valor_total: null, conteudo: "RESUMO", situacao: null, origem: "CAPTURA" };
+    const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 2, itens: [doc, evento] }]],
+    });
+    expect(html).toContain('FORNECEDOR AGRO LTDA <span class="text-xs text-muted-foreground tabular-nums">12.345.678/0001-95</span>');
+    expect(html).toContain('<span class="block truncate"><span class="tabular-nums">33.683.111/0001-07</span></span>');
+    // linhas baixas: pouco espaço vertical nas células e letra um pouco menor
+    const corpo = html.slice(html.indexOf("<tbody"), html.indexOf("</tbody>"));
+    expect(corpo).not.toContain("py-2");
+    expect(corpo).toContain('<td class="py-1 pr-3 whitespace-nowrap">');
+    expect(html).toContain('<table class="w-full text-[13px] leading-5">');
+  });
+
+  it("deixa escolher quantos documentos mostrar: 10, 50, 100, 500 ou todos (50 por padrão, com paginação)", () => {
+    auth.role = "user";
+    const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 120, itens: [doc] }]],
+    });
+    const seletor = html.match(/<select[^>]*aria-label="Documentos por página"[^>]*>([\s\S]*?)<\/select>/)?.[1] ?? "";
+    expect([...seletor.matchAll(/<option value="(\d+)"[^>]*>([^<]*)<\/option>/g)].map((m) => [m[1], m[2]])).toEqual([["10", "10"], ["50", "50"], ["100", "100"], ["500", "500"], ["0", "Todos"]]);
+    expect(seletor).toMatch(/<option value="50" selected="">/);
+    expect(html).toContain("1–50 de 120");
+    expect(html).toContain("Próxima");
+  });
+
+  it("em Todos não há paginação, e acima do teto de 5.000 a tela avisa para filtrar", () => {
+    auth.role = "user";
+    const antes = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: () => "0", setItem: () => {} } });
+    try {
+      const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
+        cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 0], { total: 6000, itens: [doc] }]],
+      });
+      expect(html).toMatch(/<option value="0" selected="">Todos<\/option>/);
+      expect(html).toContain("Mostrando os primeiros 5.000 de 6.000 documentos");
+      expect(html).not.toContain("Próxima");
+      expect(html).toContain("Selecionar todos os exibidos");
+    } finally {
+      if (antes) Object.defineProperty(globalThis, "localStorage", antes); else delete globalThis.localStorage;
+    }
+  });
+
   it("orienta onde baixar nas SEFAZ as notas emitidas pelo cliente nos cinco estados, com link só onde há fonte oficial", () => {
     auth.role = "user";
     const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
-      cache: [[["repo-xml-resumo", "E1"], { total: 0 }], [["repo-xml-docs", "E1", PARAMETROS, 0], { total: 0, itens: [] }]],
+      cache: [[["repo-xml-resumo", "E1"], { total: 0 }], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 0, itens: [] }]],
     });
     expect(html).toContain("Como baixar nas SEFAZ as notas que o cliente emitiu (MT, MS, GO, MA e PA)");
     expect(html).toContain("autXML");
@@ -299,7 +339,7 @@ describe("DocumentosXml", () => {
   it("repositório vazio orienta o envio", () => {
     auth.role = "user";
     const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
-      cache: [[["repo-xml-resumo", "E1"], { ...resumo, total: 0 }], [["repo-xml-docs", "E1", PARAMETROS, 0], { total: 0, itens: [] }]],
+      cache: [[["repo-xml-resumo", "E1"], { ...resumo, total: 0 }], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 0, itens: [] }]],
     });
     expect(html).toContain("Nenhum documento neste repositório ainda");
   });
@@ -308,7 +348,7 @@ describe("DocumentosXml", () => {
     auth.role = "admin";
     const nfse = { ...doc, id: "d2", tipo: "NFSE", chave: "51034032212345678000195000000000012326119999999990", modelo: null, situacao: "AUTORIZADA", origem: "CAPTURA" };
     const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
-      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0], { total: 1, itens: [nfse] }]],
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 1, itens: [nfse] }]],
     });
     expect(html).toContain("NFS-e Nacional");
     expect(html).toContain("O importador ainda não lê este tipo de documento (NFS-e e MDF-e); ele fica guardado aqui");
