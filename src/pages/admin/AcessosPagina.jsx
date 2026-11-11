@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -42,6 +43,11 @@ export function RegistroDeAcesso() {
         <label className="space-y-1 flex-1 min-w-[180px]"><span className="block text-xs text-muted-foreground">E-mail</span>
           <input type="search" className={`${campo} w-full`} value={filtros.email} onChange={(e) => setFiltros((f) => ({ ...f, email: e.target.value }))} /></label>
         <button type="button" onClick={() => refetch()} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">{isFetching ? "Atualizando…" : "Atualizar"}</button>
+        <BotaoExportar titulo="Registro de acesso" linhas={data || []} colunas={[
+          { chave: "quando", rotulo: "Quando", valor: (l) => quando(l.createdAt) }, { chave: "email", rotulo: "E-mail" },
+          { chave: "resultado", rotulo: "Resultado", valor: (l) => RESULTADOS[l.resultado] || l.resultado }, { chave: "ip", rotulo: "IP" },
+          { chave: "navegador", rotulo: "Navegador", valor: (l) => navegadorDe(l.user_agent) },
+        ]} />
       </div>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-[13px] leading-5" aria-label="Registro de acesso">

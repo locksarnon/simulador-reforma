@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Loader2, Pencil, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -92,6 +93,14 @@ function AbaTarefas({ user, empresas, colaboradores }) {
             </select></label>
           <div className="w-60"><SeletorDeEmpresa empresas={empresas} valor={filtros.empresa} aoMudar={(v) => mudar("empresa", v)} rotulo="Empresa" opcional={false} placeholder="Todas as empresas" /></div>
           <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
+          <BotaoExportar titulo="Tarefas" linhas={tarefas} colunas={[
+            { chave: "titulo", rotulo: "Tarefa" }, { chave: "empresa", rotulo: "Empresa", valor: (t) => nomeDaEmpresa(t.empresa_id) },
+            { chave: "responsavel", rotulo: "Responsável", valor: (t) => (t.responsavel ? pessoaPorId.get(t.responsavel) || "" : "Sem responsável") },
+            { chave: "prazo", rotulo: "Prazo", valor: (t) => (t.prazo ? new Date(t.prazo).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "") },
+            { chave: "status", rotulo: "Situação", valor: (t) => ({ ABERTA: "A fazer", EM_ANDAMENTO: "Em andamento", CONCLUIDA: "Concluída", CANCELADA: "Cancelada" })[t.status] || t.status },
+            { chave: "prioridade", rotulo: "Prioridade", valor: (t) => PRIORIDADES[t.prioridade] || t.prioridade },
+            { chave: "competencia", rotulo: "Competência" },
+          ]} />
           <button type="button" onClick={() => setDialogo({ tarefa: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova tarefa</button>
         </div>
 
@@ -164,6 +173,12 @@ function AbaProcessos({ ehAdmin, colaboradores }) {
   const recarregar = () => qc.invalidateQueries({ queryKey: ["processos"] });
   const falha = (titulo) => (e) => toast({ title: titulo, description: e.message, variant: "destructive" });
   const alternar = useMutation({ mutationFn: (p) => api.put(`/processos/${p.id}`, { ativo: !p.ativo }), onSuccess: recarregar, onError: falha("Não foi possível mudar o processo") });
+  // Replicar: a cópia nasce desativada, para não gerar tarefas em dobro antes de ser ajustada.
+  const replicar = useMutation({
+    mutationFn: (p) => api.post("/processos", { nome: `${p.nome} (cópia)`.slice(0, 120), descricao: p.descricao, recorrencia: p.recorrencia, dia: p.dia, mes: p.mes, escopo: p.escopo, responsavel: p.responsavel, prioridade: p.prioridade, ativo: false }),
+    onSuccess: () => { recarregar(); toast({ title: "Processo replicado", description: "A cópia está desativada: ajuste e ative quando quiser." }); },
+    onError: falha("Não foi possível replicar"),
+  });
   const apagar = useMutation({ mutationFn: (id) => api.delete(`/processos/${id}`), onSuccess: () => { toast({ title: "Processo apagado" }); recarregar(); }, onError: falha("Não foi possível apagar") });
   const confirmarApagar = async (p) => {
     if (await confirmar({ titulo: `Apagar o processo "${p.nome}"?`, descricao: "As tarefas que ele já criou continuam na lista. Só deixa de criar novas. Para pausar sem apagar, desative.", rotulo: "Apagar" })) apagar.mutate(p.id);
@@ -199,6 +214,7 @@ function AbaProcessos({ ehAdmin, colaboradores }) {
                     <div className="flex items-center justify-end gap-1">
                       {p.ativo && <button type="button" onClick={() => setGerar({ modelo: p.id })} className="rounded px-2 py-1 text-xs hover:bg-muted">Gerar</button>}
                       <button type="button" onClick={() => alternar.mutate(p)} className="rounded px-2 py-1 text-xs hover:bg-muted">{p.ativo ? "Desativar" : "Ativar"}</button>
+                      <button type="button" onClick={() => replicar.mutate(p)} className="rounded px-2 py-1 text-xs hover:bg-muted" aria-label={`Replicar ${p.nome}`}>Replicar</button>
                       <button type="button" onClick={() => setDialogo({ processo: p })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar ${p.nome}`} title="Editar"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
                       <button type="button" onClick={() => confirmarApagar(p)} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Apagar ${p.nome}`} title="Apagar"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
                     </div>

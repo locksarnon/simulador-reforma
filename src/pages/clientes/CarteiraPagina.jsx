@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
@@ -76,6 +77,14 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
               <select className={campo} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
                 <option value="">Todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
               </select></label>
+            <BotaoExportar titulo={titulo} linhas={lista} colunas={[
+              { chave: "razao_social", rotulo: "Empresa" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" },
+              { chave: "grupo", rotulo: "Grupo", valor: (e) => { const g = grupoDe(e); return g ? `${g.numero} ${g.nome}` : e.grupo || ""; } },
+              { chave: "situacao", rotulo: "Situação", valor: (e) => SITUACOES[mapa.get(e.id)?.[tipo]?.situacao] || "Sem serviço" },
+              { chave: "responsavel", rotulo: "Responsável", valor: (e) => mapa.get(e.id)?.[tipo]?.responsavel || "" },
+              { chave: "inicio", rotulo: "Desde", valor: (e) => fmtDataCurta(mapa.get(e.id)?.[tipo]?.inicio) },
+              { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", ") },
+            ]} />
             <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
               <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
                 <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -24,6 +25,11 @@ export function AbaEnvios({ empresas }) {
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Origem</span><select className={campo} value={f.origem} onChange={(e) => mudar("origem", e.target.value)}><option value="">Todas</option>{Object.entries(ORIGENS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">De</span><input type="date" className={campo} value={f.de} onChange={(e) => mudar("de", e.target.value)} /></label>
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Até</span><input type="date" className={campo} value={f.ate} onChange={(e) => mudar("ate", e.target.value)} /></label>
+        <BotaoExportar titulo="E-mails enviados" linhas={data} colunas={[
+          { chave: "quando", rotulo: "Quando", valor: (e) => new Date(e.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) }, { chave: "destinatario", rotulo: "Para" },
+          { chave: "empresa", rotulo: "Empresa", valor: (e) => nome.get(e.empresa_id) || "" }, { chave: "assunto", rotulo: "Assunto" },
+          { chave: "origem", rotulo: "Origem", valor: (e) => ORIGENS[e.origem] || e.origem }, { chave: "status", rotulo: "Situação" }, { chave: "erro", rotulo: "Erro" },
+        ]} />
       </div>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-[13px] leading-5" aria-label="E-mails enviados">

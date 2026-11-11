@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Download, FileArchive, Folder, FolderPlus, Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { api } from "@/api/client";
@@ -184,7 +185,11 @@ function AbaDocumentos({ empresas, pessoas, tipos }) {
           </button>
         ))}
       </div>
-      <div className="flex justify-end"><button type="button" onClick={() => setDialogo({ doc: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo documento</button></div>
+      <div className="flex justify-end gap-2"><BotaoExportar titulo="Documentos com validade" linhas={lista} colunas={[
+        { chave: "documento", rotulo: "Documento", valor: (d) => d.tipo?.nome || d.descricao }, { chave: "numero", rotulo: "Número" },
+        { chave: "dono", rotulo: "De quem", valor: (d) => (d.empresa_id ? nomeEmpresa.get(d.empresa_id) : nomePf.get(d.pessoa_fisica_id)) || "" },
+        { chave: "validade", rotulo: "Validade", valor: (d) => fmtData(d.validade) }, { chave: "situacao", rotulo: "Situação", valor: (d) => SITUACOES_DOC[d.situacao].rotulo },
+      ]} /><button type="button" onClick={() => setDialogo({ doc: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo documento</button></div>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-[13px] leading-5" aria-label="Documentos com validade">
           <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Documento</th><th className="px-3 py-2">De quem</th><th className="px-3 py-2">Validade</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2"><span className="sr-only">Ações</span></th></tr></thead>

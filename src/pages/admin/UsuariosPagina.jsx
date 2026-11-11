@@ -1,4 +1,5 @@
 import { useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, KeyRound, Loader2, Pencil, Plus, UserCheck, UserX } from "lucide-react";
 import { api } from "@/api/client";
@@ -114,7 +115,11 @@ export default function UsuariosPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Usuários e acessos" }]}
         title="Usuários e acessos"
         subtitle="Quem usa o InTAX, com o papel e a situação de cada conta. O histórico de entradas fica em Registro de acesso e IPs."
-        actions={<button type="button" onClick={() => setDialogo({ tipo: "novo" })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova conta</button>}
+        actions={<><BotaoExportar titulo="Usuários" linhas={usuarios || []} colunas={[
+          { chave: "name", rotulo: "Nome" }, { chave: "email", rotulo: "E-mail" }, { chave: "role", rotulo: "Papel", valor: (u) => PAPEIS[u.role] || u.role },
+          { chave: "ativo", rotulo: "Situação", valor: (u) => (u.ativo ? "Ativa" : "Desativada") }, { chave: "ultimo", rotulo: "Último acesso", valor: (u) => quando(u.lastLoginAt) },
+          { chave: "empresas", rotulo: "Empresas na carteira" },
+        ]} /><button type="button" onClick={() => setDialogo({ tipo: "novo" })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova conta</button></>}
       />
       <div className="px-6 lg:px-8 py-6">
         <div className="overflow-x-auto rounded-xl border border-border bg-card">

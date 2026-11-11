@@ -1,6 +1,6 @@
 import {
   Activity, Archive, BadgeDollarSign, Bell, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange, CircleUser,
-  ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FolderOpen, HeartPulse, HelpCircle, Home, Inbox, KeyRound, Landmark, Layers,
+  ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FileSpreadsheet, FolderOpen, HeartPulse, HelpCircle, Home, Inbox, KeyRound, Landmark, Layers,
   LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, PieChart, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
   ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users, Wallet,
 } from "lucide-react";
@@ -46,6 +46,7 @@ export const MODULOS = [
   { id: "servicos-contratados", area: "clientes", titulo: "Serviços contratados", descricao: "Quem é do BPO e quem tem diagnóstico pontual: o que cada empresa contratou.", icone: Wallet, to: "/clientes/servicos-contratados", palavras: ["carteira", "bpo", "contrato", "diagnóstico pontual"] },
   { id: "carteira", area: "clientes", titulo: "Carteira e colaboradores", descricao: "Quais empresas cada colaborador atende, e as empresas sem responsável.", icone: Contact, to: "/clientes/carteira", palavras: ["colaborador", "responsável", "vínculo", "empresa por colaborador"] },
   { id: "tags", area: "clientes", titulo: "Tags e filtros", descricao: "Etiquetas nas empresas e listas salvas para achar clientes rápido.", icone: Tags, to: "/clientes/tags", palavras: ["etiqueta", "filtro", "segmento", "lista"] },
+  { id: "importacao-cadastro", area: "clientes", titulo: "Importação e exportação", descricao: "O cadastro de empresas e a carteira por colaborador por planilha, com conferência antes de gravar.", icone: FileSpreadsheet, to: "/clientes/importacao", palavras: ["importar", "exportar", "planilha", "excel", "csv", "cadastro em lote"] },
   { id: "pessoas-fisicas", area: "clientes", titulo: "Pessoas físicas", descricao: "CPFs da carteira (sócios, produtores rurais), a empresa ligada e o vencimento do certificado digital.", icone: Users, to: "/clientes/pessoas-fisicas", prefixos: ["/em-breve/pessoas-fisicas"], palavras: ["cpf", "pf", "sócio", "produtor rural", "e-cpf"] },
   { id: "procuracoes", area: "clientes", titulo: "Procurações e certificados", descricao: "Situação das procurações e vencimento dos certificados A1 de cada cliente.", icone: KeyRound, to: "/em-breve/procuracoes", situacao: SITUACAO.EM_BREVE, quando: "Depende do contrato do Integra Contador (Serpro) e da procuração eletrônica dos clientes (fase 3). O cofre de certificado A1 já existe na Captura de XML.", palavras: ["procuração", "e-cac", "a1", "certificado"] },
 

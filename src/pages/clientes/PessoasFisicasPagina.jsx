@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
@@ -76,6 +77,11 @@ export default function PessoasFisicasPagina() {
       <div className="px-6 lg:px-8 py-6 space-y-3">
         <div className="flex flex-wrap items-end gap-2 text-sm">
           <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (nome ou CPF)</span><input type="search" className={campo} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
+          <BotaoExportar titulo="Pessoas físicas" linhas={lista} colunas={[
+            { chave: "nome", rotulo: "Nome" }, { chave: "cpf", rotulo: "CPF" }, { chave: "email", rotulo: "E-mail" }, { chave: "telefone", rotulo: "Telefone" },
+            { chave: "empresa", rotulo: "Empresa ligada", valor: (p) => nomeEmpresa.get(p.empresa_id) || "" },
+            { chave: "certificado", rotulo: "Certificado", valor: (p) => `${p.certificado_tipo ? `${p.certificado_tipo} · ` : ""}${situacaoDoCertificado(p.certificado_validade).rotulo}` },
+          ]} />
           <button type="button" onClick={() => setDialogo({ pessoa: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova pessoa física</button>
         </div>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">

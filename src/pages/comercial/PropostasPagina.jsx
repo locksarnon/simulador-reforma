@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, FileDown, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -41,6 +42,11 @@ export function AbaPropostas({ usuario, empresas }) {
       <div className="flex flex-wrap items-end gap-2 text-sm">
         <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (cliente ou número)</span><input type="search" className={`${campo} w-full`} value={filtro.busca} onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))} /></label>
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span><select className={campo} value={filtro.status} onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value }))}><option value="">Todas</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <BotaoExportar titulo="Propostas" linhas={lista} colunas={[
+          { chave: "numero", rotulo: "Nº" }, { chave: "cliente_nome", rotulo: "Cliente" }, { chave: "servico", rotulo: "Serviço", valor: (p) => SERVICOS[p.servico] || p.servico },
+          { chave: "honorario_mensal", rotulo: "Honorário mensal (R$)" }, { chave: "valor_total", rotulo: "Valor único (R$)" },
+          { chave: "status", rotulo: "Situação", valor: (p) => STATUS[p.status] }, { chave: "criada", rotulo: "Criada em", valor: (p) => new Date(p.createdAt).toLocaleDateString("pt-BR") },
+        ]} />
         <button type="button" onClick={() => setEditor({ proposta: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova proposta</button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">

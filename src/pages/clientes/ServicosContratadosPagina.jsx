@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { Link } from "react-router-dom";
 import { Loader2, Pencil, RefreshCw } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
@@ -95,6 +96,14 @@ export default function ServicosContratadosPagina() {
                 <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
               </select></label>
             <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
+            <BotaoExportar titulo="Serviços contratados" linhas={lista} colunas={[
+              { chave: "razao_social", rotulo: "Empresa" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" },
+              { chave: "grupo", rotulo: "Grupo", valor: (e) => { const g = grupoDe(e); return g ? `${g.numero} ${g.nome}` : e.grupo || ""; } },
+              { chave: "bpo", rotulo: "BPO fiscal", valor: (e) => SITUACOES[mapa.get(e.id)?.BPO_FISCAL?.situacao] || "" },
+              { chave: "bpo_resp", rotulo: "Responsável do BPO", valor: (e) => mapa.get(e.id)?.BPO_FISCAL?.responsavel || "" },
+              { chave: "diag", rotulo: "Diagnóstico pontual", valor: (e) => SITUACOES[mapa.get(e.id)?.DIAGNOSTICO_PONTUAL?.situacao] || "" },
+              { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", ") },
+            ]} />
           </div>
 
           <div className="flex flex-wrap items-end justify-between gap-3">

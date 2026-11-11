@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import BotaoExportar from "@/components/BotaoExportar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -120,6 +121,14 @@ export function SemColaborador({ colaboradores, ehAdmin }) {
   );
 }
 
+/** Relatório "empresa por colaborador": uma linha por empresa, com quem atende (ou "Sem colaborador"). */
+export function linhasDaCarteira(colaboradores, empresas) {
+  return (empresas || []).map((e) => {
+    const quem = (colaboradores || []).filter((c) => c.empresa_ids.includes(e.id)).map((c) => c.name || c.email);
+    return { razao_social: e.razao_social, cnpj_cpf: e.cnpj_cpf || e.id_empresa, colaboradores: quem.length ? quem.join(", ") : "Sem colaborador", total: quem.length };
+  });
+}
+
 /** Clientes > Carteira e colaboradores: quais empresas cada colaborador atende, e as que ninguém atende. */
 export default function CarteiraColaboradoresPagina() {
   const { user } = useAuth();
@@ -132,6 +141,7 @@ export default function CarteiraColaboradoresPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Carteira e colaboradores" }]}
         title="Carteira e colaboradores"
+        actions={<BotaoExportar titulo="Empresas por colaborador" linhas={linhasDaCarteira(colab.data, ordenadas)} colunas={[{ chave: "razao_social", rotulo: "Empresa" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" }, { chave: "colaboradores", rotulo: "Colaboradores" }, { chave: "total", rotulo: "Quantos atendem" }]} />}
         subtitle={ehAdmin ? "Escolha um colaborador e marque as empresas que ele atende. As empresas sem ninguém aparecem na outra aba." : "Quais empresas cada colaborador atende. Só administradores alteram."}
       />
       <div className="px-6 lg:px-8 py-6">
