@@ -40,28 +40,30 @@ export default function PainelDeRisco({ ehAdmin }) {
   const docsQ = useQuery({ queryKey: ["documentos", "todos"], queryFn: () => api.get("/documentos") });
   const { empresas, mapa, carregando } = useCarteiras();
   const grupos = (estado.data?.grupos || []).filter((g) => g.id !== "processos");
-  const painel = useMemo(() => new Map((painelQ.data || []).map((p) => [p.empresa_id, p])), [painelQ.data]);
   const bpo = useMemo(() => new Set(empresas.filter((e) => naCarteira(mapa.get(e.id)?.BPO_FISCAL)).map((e) => e.id)), [empresas, mapa]);
+  // Só os clientes do BPO fiscal: quem é só de diagnóstico não entra no risco da carteira.
+  const dadosBpo = useMemo(() => (painelQ.data || []).filter((p) => bpo.has(p.empresa_id)), [painelQ.data, bpo]);
+  const painel = useMemo(() => new Map(dadosBpo.map((p) => [p.empresa_id, p])), [dadosBpo]);
   const nomeDe = useMemo(() => new Map(empresas.map((e) => [e.id, e.razao_social])), [empresas]);
 
   const resumo = useMemo(() => {
-    const ps = painelQ.data || [];
+    const ps = dadosBpo;
     const c = { CRITICO: 0, ATENCAO: 0, OK: 0 };
     for (const p of ps) { const v = Object.values(p.grupos); if (v.includes("CRITICO")) c.CRITICO += 1; else if (v.includes("ATENCAO")) c.ATENCAO += 1; else c.OK += 1; }
     const media = ps.length ? Math.round(ps.reduce((s, p) => s + p.score, 0) / ps.length) : null;
     const porGrupo = grupos.map((g) => ({ ...g, CRITICO: ps.filter((p) => p.grupos[g.id] === "CRITICO").length, ATENCAO: ps.filter((p) => p.grupos[g.id] === "ATENCAO").length, OK: ps.filter((p) => p.grupos[g.id] === "OK" || p.grupos[g.id] === "INFO").length }));
     return { c, media, total: ps.length, porGrupo, top: [...ps].sort((a, b) => a.score - b.score).slice(0, 5) };
-  }, [painelQ.data, grupos]);
+  }, [dadosBpo, grupos]);
 
-  const fila = useMemo(() => (painelQ.data || []).flatMap((p) => p.alertas.map((a) => ({ ...a, empresa_id: p.empresa_id }))).sort((a, b) => (NIVEIS[b.nivel]?.peso ?? 0) - (NIVEIS[a.nivel]?.peso ?? 0)).slice(0, 50), [painelQ.data]);
-  const certidoes = useMemo(() => (docsQ.data || []).filter((d) => EH_CERTIDAO.test(d.tipo?.nome || d.descricao || "")), [docsQ.data]);
+  const fila = useMemo(() => dadosBpo.flatMap((p) => p.alertas.map((a) => ({ ...a, empresa_id: p.empresa_id }))).sort((a, b) => (NIVEIS[b.nivel]?.peso ?? 0) - (NIVEIS[a.nivel]?.peso ?? 0)).slice(0, 50), [dadosBpo]);
+  const certidoes = useMemo(() => (docsQ.data || []).filter((d) => (!d.empresa_id || bpo.has(d.empresa_id)) && EH_CERTIDAO.test(d.tipo?.nome || d.descricao || "")), [docsQ.data, bpo]);
   const radar = useMemo(() => ({
     vencidas: certidoes.filter((d) => d.situacao === "VENCIDO"),
     aVencer: certidoes.filter((d) => d.situacao === "A_VENCER"),
     validas: certidoes.filter((d) => d.situacao === "VALIDO"),
     semCertidao: [...bpo].filter((id) => !certidoes.some((d) => d.empresa_id === id)),
   }), [certidoes, bpo]);
-  const achados = useMemo(() => cruzarDados({ empresas, bpo, painel }), [empresas, bpo, painel]);
+  const achados = useMemo(() => cruzarDados({ empresas: empresas.filter((e) => bpo.has(e.id)), bpo, painel }), [empresas, bpo, painel]);
 
   if (painelQ.isLoading || carregando) return <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>;
   return (

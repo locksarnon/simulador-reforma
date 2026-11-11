@@ -12,6 +12,8 @@ import { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 import { quandoConsultou, useEstadoMonitoramento } from "@/lib/monitoramento";
+import { useCarteiras } from "@/lib/useCarteiras";
+import { naCarteira } from "@/lib/servicos";
 
 const CAMINHOS = {
   TERMO_A1: { rotulo: "Pelo A1 do cliente", tom: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300", ajuda: "O InTAX assina o termo de autorização com o certificado do cliente: não precisa de procuração." },
@@ -27,8 +29,11 @@ export default function ProcuracoesPagina() {
   const estado = useEstadoMonitoramento();
   const dados = useQuery({ queryKey: ["monitoramento", "procuracoes"], queryFn: () => api.get("/monitoramento/procuracoes") });
   const [filtro, setFiltro] = useState("");
-  const lista = useMemo(() => (dados.data || []).filter((l) => !filtro || l.caminho === filtro), [dados.data, filtro]);
-  const conta = useMemo(() => Object.fromEntries(Object.keys(CAMINHOS).map((k) => [k, (dados.data || []).filter((l) => l.caminho === k).length])), [dados.data]);
+  const { mapa } = useCarteiras();
+  // Só os clientes do BPO fiscal: o acesso à Receita serve ao monitoramento.
+  const doBpo = useMemo(() => (dados.data || []).filter((l) => naCarteira(mapa.get(l.empresa_id)?.BPO_FISCAL)), [dados.data, mapa]);
+  const lista = useMemo(() => doBpo.filter((l) => !filtro || l.caminho === filtro), [doBpo, filtro]);
+  const conta = useMemo(() => Object.fromEntries(Object.keys(CAMINHOS).map((k) => [k, doBpo.filter((l) => l.caminho === k).length])), [doBpo]);
   const consultar = useMutation({
     mutationFn: () => api.post("/monitoramento/lote", { empresa_ids: lista.map((l) => l.empresa_id), chaves: ["procuracao"] }),
     onSuccess: (l) => { toast({ title: "Consultando as procurações", description: `${lista.length} cliente(s). A lista atualiza sozinha.` }); const fim = async () => { const s = await api.get(`/monitoramento/lote/${l.id}`).catch(() => null); qc.invalidateQueries({ queryKey: ["monitoramento", "procuracoes"] }); if (s && !s.fim) setTimeout(fim, 3000); }; setTimeout(fim, 2000); },
@@ -39,7 +44,7 @@ export default function ProcuracoesPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Procurações e certificados" }]}
         title="Procurações e certificados"
-        subtitle="Como o InTAX consulta a Receita de cada cliente: pelo A1 do próprio cliente (termo de autorização assinado) ou pela procuração eletrônica dada ao escritório."
+        subtitle="Clientes do BPO fiscal: como o InTAX consulta a Receita de cada um, pelo A1 do próprio cliente (termo de autorização assinado) ou pela procuração eletrônica dada ao escritório."
         actions={<button type="button" disabled={consultar.isPending || estado.data?.modo === "DESLIGADO" || !lista.length} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">{consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} Consultar as procurações da lista</button>}
       />
       <div className="px-6 lg:px-8 py-5 space-y-4">

@@ -31,22 +31,21 @@ export default function MonitoramentoPagina() {
   const estado = useEstadoMonitoramento();
   const { empresas, mapa, carregando } = useCarteiras();
   const painel = useQuery({ queryKey: ["monitoramento", "painel"], queryFn: () => api.get("/monitoramento/painel") });
-  const [filtro, setFiltro] = useState({ busca: "", so: "bpo", nivel: "" });
+  const [filtro, setFiltro] = useState({ busca: "", nivel: "" });
   const [marcadas, setMarcadas] = useState(new Set());
   const [lote, setLote] = useState(null);
   const grupos = (estado.data?.grupos || []).filter((g) => g.id !== "processos");
   const porEmpresa = useMemo(() => new Map((painel.data || []).map((p) => [p.empresa_id, p])), [painel.data]);
-  const temBpo = empresas.some((e) => naCarteira(mapa.get(e.id)?.BPO_FISCAL));
 
   const lista = useMemo(() => {
     const q = filtro.busca.trim().toLowerCase();
     return empresas
-      .filter((e) => filtro.so !== "bpo" || !temBpo || naCarteira(mapa.get(e.id)?.BPO_FISCAL))
+      .filter((e) => naCarteira(mapa.get(e.id)?.BPO_FISCAL))
       .filter((e) => !q || e.razao_social.toLowerCase().includes(q) || String(e.cnpj_cpf || "").replace(/\D/g, "").includes(q.replace(/\D/g, "") || "§"))
       .map((e) => ({ e, p: porEmpresa.get(e.id) }))
       .filter(({ p }) => !filtro.nivel || (filtro.nivel === "SEM" ? !p : Object.values(p?.grupos || {}).includes(filtro.nivel)))
       .sort((a, b) => (a.p?.score ?? 101) - (b.p?.score ?? 101) || a.e.razao_social.localeCompare(b.e.razao_social, "pt-BR"));
-  }, [empresas, mapa, porEmpresa, filtro, temBpo]);
+  }, [empresas, mapa, porEmpresa, filtro]);
 
   const contagem = useMemo(() => {
     const c = { CRITICO: 0, ATENCAO: 0, OK: 0, SEM: 0 };
@@ -101,7 +100,6 @@ export default function MonitoramentoPagina() {
         </div>
         <div className="flex flex-wrap items-end gap-2 text-sm">
           <label className="flex-1 min-w-[200px] space-y-1"><span className="block text-xs text-muted-foreground">Buscar</span><input type="search" className={`${campo} w-full`} placeholder="Nome ou CNPJ" value={filtro.busca} onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))} /></label>
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">Clientes</span><select className={campo} value={filtro.so} onChange={(e) => setFiltro((f) => ({ ...f, so: e.target.value }))}><option value="bpo">Só os do BPO fiscal</option><option value="todos">Todos</option></select></label>
           <BotaoExportar titulo="Monitoramento fiscal" linhas={lista} colunas={[
             { chave: "cliente", rotulo: "Cliente", valor: ({ e }) => e.razao_social }, { chave: "doc", rotulo: "CNPJ/CPF", valor: ({ e }) => e.cnpj_cpf || "" },
             { chave: "nota", rotulo: "Saúde fiscal", valor: ({ p }) => (p ? p.score : "") },
@@ -110,7 +108,7 @@ export default function MonitoramentoPagina() {
             { chave: "quando", rotulo: "Atualizado em", valor: ({ p }) => (p ? quandoConsultou(p.atualizado) : "") },
           ]} />
         </div>
-        {filtro.so === "bpo" && !temBpo && !carregando && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Nenhum cliente marcado com BPO fiscal: aparecem todos. Marque o BPO em <Link to="/" className="underline">Clientes</Link>.</p>}
+        <p className="text-xs text-muted-foreground">Aparecem só os clientes com BPO fiscal ativo. Para incluir um cliente, ligue o BPO fiscal dele em <Link to="/" className="text-primary underline">Clientes</Link>.</p>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full text-[13px]" aria-label="Monitoramento da carteira">
             <thead>
@@ -123,7 +121,7 @@ export default function MonitoramentoPagina() {
             </thead>
             <tbody>
               {(carregando || painel.isLoading) && <tr><td colSpan={grupos.length + 4} className="py-10 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-              {!carregando && lista.length === 0 && <tr><td colSpan={grupos.length + 4} className="py-10 text-center text-muted-foreground">Nenhum cliente com esses filtros.</td></tr>}
+              {!carregando && lista.length === 0 && <tr><td colSpan={grupos.length + 4} className="py-10 text-center text-muted-foreground">{filtro.busca || filtro.nivel ? "Nenhum cliente do BPO com esses filtros." : <>Nenhum cliente com BPO fiscal ativo. Ligue o BPO fiscal em <Link to="/" className="text-primary underline">Clientes</Link>.</>}</td></tr>}
               {lista.map(({ e, p }) => (
                 <tr key={e.id} className="border-b border-border/60 last:border-0 hover:bg-muted/40">
                   <td className="px-3 py-2"><input type="checkbox" aria-label={`Marcar ${e.razao_social}`} checked={marcadas.has(e.id)} onChange={() => setMarcadas((s) => { const n = new Set(s); if (n.has(e.id)) n.delete(e.id); else n.add(e.id); return n; })} /></td>

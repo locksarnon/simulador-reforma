@@ -26,8 +26,12 @@ const ESTADO = { modo: "DEMONSTRACAO", contrato: false, consultas_24h: 3, grupos
 const EMPRESAS = [
   { id: "E1", razao_social: "EXTRA AGRO LTDA", cnpj_cpf: "58509112000152", regime_atual: "Lucro Presumido", grupo: "#001" },
   { id: "E2", razao_social: "Beta Comércio", cnpj_cpf: "12345678000195", regime_atual: "Simples Nacional", grupo: "#002" },
+  { id: "E3", razao_social: "Só Diagnóstico Ltda", cnpj_cpf: "11222333000181", regime_atual: "Lucro Real", grupo: "#003" },
 ];
-const SERVICOS_CONTRATADOS = [{ id: "S1", empresa_id: "E1", tipo: "BPO_FISCAL", situacao: "ATIVO" }, { id: "S2", empresa_id: "E2", tipo: "BPO_FISCAL", situacao: "ATIVO" }];
+const SERVICOS_CONTRATADOS = [
+  { id: "S1", empresa_id: "E1", tipo: "BPO_FISCAL", situacao: "ATIVO" }, { id: "S1b", empresa_id: "E1", tipo: "DIAGNOSTICO_PONTUAL", situacao: "ATIVO" },
+  { id: "S2", empresa_id: "E2", tipo: "BPO_FISCAL", situacao: "ATIVO" }, { id: "S3", empresa_id: "E3", tipo: "DIAGNOSTICO_PONTUAL", situacao: "ATIVO" },
+];
 const PAINEL = [{ empresa_id: "E1", grupos: { situacao: "OK", mensagens: "CRITICO" }, atualizado: "2026-11-11T12:00:00Z", simulado: true, score: 75, alertas: [{ chave: "caixa-postal", nivel: "CRITICO", titulo: "50 mensagem(ns); 10 não lida(s), 2 relevante(s)." }] }];
 const ULTIMA_CAIXA = { id: "C1", chave: "caixa-postal", nivel: "CRITICO", sucesso: true, simulado: true, createdAt: "2026-11-11T12:00:00Z", solicitado_por: "qa@fal", arquivos: [], resumo: { titulo: "50 mensagem(ns); 10 não lida(s), 2 relevante(s).", destaques: [{ rotulo: "Dados", valor: "Exemplo oficial do Serpro (ambiente de demonstração)" }], tabela: { colunas: [{ chave: "data", rotulo: "Data", tipo: "data" }, { chave: "assunto", rotulo: "Assunto" }], linhas: [{ data: "20220802", assunto: "Termo de intimação" }] } } };
 const ULTIMA_SITFIS = { id: "C2", chave: "sitfis", nivel: "OK", sucesso: true, simulado: true, createdAt: "2026-11-11T12:00:00Z", arquivos: [{ indice: 0, nome: "sitfis-documento.pdf", tamanho: 1000 }], resumo: { titulo: "Relatório de situação fiscal emitido.", destaques: [] } };
@@ -61,6 +65,12 @@ describe("Monitoramento fiscal: a carteira", () => {
     expect(html).toContain(">75<");
     expect(html).toContain("50 mensagem(ns)");
     expect(html).toContain("Atualizar os 2 da lista");
+  });
+  it("o gatilho é o BPO fiscal: quem é BPO e diagnóstico aparece; quem é só diagnóstico, não", () => {
+    const html = renderizar(<MonitoramentoPagina />);
+    expect(html).toContain("EXTRA AGRO LTDA");
+    expect(html).not.toContain("Só Diagnóstico Ltda");
+    expect(renderizar(<ProcuracoesPagina />)).not.toContain("Só Diagnóstico Ltda");
   });
 });
 
