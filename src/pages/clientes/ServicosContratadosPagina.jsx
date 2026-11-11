@@ -5,9 +5,16 @@ import PageHeader from "@/components/PageHeader";
 import DialogoServico from "@/components/clientes/DialogoServico";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { carteiraDaEmpresa, filtrarEmpresas, fmtDataCurta, naCarteira, SITUACOES, TIPOS, TOM_DA_SITUACAO } from "@/lib/servicos";
+import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa } from "@/lib/tags";
+import { useColaboradores, useTags } from "@/lib/useTags";
+import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
+import FiltroPorTags from "@/components/clientes/FiltroPorTags";
+import ListasSalvas from "@/components/clientes/ListasSalvas";
+import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const CARTEIRAS = [["", "Todas as carteiras"], ["bpo", "Só BPO fiscal"], ["diagnostico", "Só diagnóstico pontual"], ["ambas", "Nas duas"], ["nenhuma", "Sem carteira"]];
+const FILTROS_VAZIOS = { busca: "", grupo: "", carteira: "", tags: [], tagModo: "qualquer", colaborador: "" };
 
 function Cartao({ rotulo, valor, destaque, aoClicar, ativo }) {
   const classe = `rounded-xl border bg-card px-4 py-3 text-left ${destaque ? "border-amber-400/60" : "border-border"} ${ativo ? "ring-2 ring-primary" : ""}`;
@@ -37,11 +44,18 @@ export function SeloDoServico({ servico, aoEditar, rotuloVazio = "Definir" }) {
  */
 export default function ServicosContratadosPagina() {
   const { empresas, grupos, servicos, resumo, mapa, carregando, erro, recarregar } = useCarteiras();
-  const [filtros, setFiltros] = useState({ busca: "", grupo: "", carteira: "" });
+  const { tags, porEmpresa, mapa: mapaTags } = useTags();
+  const { data: colaboradores = [] } = useColaboradores();
+  const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
   const [marcadas, setMarcadas] = useState(new Set());
   const [dialogo, setDialogo] = useState(null); // { empresas, servico, tipoInicial }
+  const [dialogoTags, setDialogoTags] = useState(null); // empresas a etiquetar
 
-  const lista = useMemo(() => filtrarEmpresas(empresas, mapa, filtros).sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR")), [empresas, mapa, filtros]);
+  const lista = useMemo(() => {
+    const base = filtrarEmpresas(empresas, mapa, filtros);
+    const comTags = filtrarPorTags(base, porEmpresa, filtros.tags, filtros.tagModo);
+    return filtrarPorColaborador(comTags, colaboradores, filtros.colaborador).sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR"));
+  }, [empresas, mapa, filtros, porEmpresa, colaboradores]);
   const sugestoes = useMemo(() => [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort(), [servicos]);
   const grupoDe = (e) => grupos.find((g) => g.numero === e.grupo);
   const todasMarcadas = lista.length > 0 && lista.every((e) => marcadas.has(e.id));
@@ -76,7 +90,16 @@ export default function ServicosContratadosPagina() {
               <select className={campo} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
                 <option value="">Todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
               </select></label>
+            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
+              <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
+                <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
+              </select></label>
             <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
+          </div>
+
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <FiltroPorTags tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
+            <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
           </div>
 
           {selecionadas.length > 0 && (
@@ -84,6 +107,7 @@ export default function ServicosContratadosPagina() {
               <span className="font-medium">{selecionadas.length} empresa(s) marcada(s)</span>
               <button type="button" onClick={() => abrir(selecionadas, null, "BPO_FISCAL")} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Definir BPO fiscal</button>
               <button type="button" onClick={() => abrir(selecionadas, null, "DIAGNOSTICO_PONTUAL")} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir diagnóstico pontual</button>
+              <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
               <button type="button" onClick={() => setMarcadas(new Set())} className="ml-auto text-xs text-muted-foreground hover:underline">Limpar seleção</button>
             </div>
           )}
@@ -107,7 +131,7 @@ export default function ServicosContratadosPagina() {
                   return (
                     <tr key={e.id} className="border-b border-border/60 hover:bg-muted/40 align-top">
                       <td className="py-1.5 pr-2"><input type="checkbox" aria-label={`Marcar ${e.razao_social}`} checked={marcadas.has(e.id)} onChange={() => alternar(e.id)} /></td>
-                      <td className="py-1.5 pr-3"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p></td>
+                      <td className="py-1.5 pr-3"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p><EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} aoEditar={() => setDialogoTags([e])} /></td>
                       <td className="py-1.5 pr-3 whitespace-nowrap text-muted-foreground">{g ? `${g.numero} ${g.nome}` : e.grupo || "—"}</td>
                       <td className="py-1.5 pr-3"><SeloDoServico servico={porTipo.BPO_FISCAL} aoEditar={() => abrir([e], porTipo.BPO_FISCAL || null, "BPO_FISCAL")} /></td>
                       <td className="py-1.5 pr-3"><SeloDoServico servico={porTipo.DIAGNOSTICO_PONTUAL} aoEditar={() => abrir([e], porTipo.DIAGNOSTICO_PONTUAL || null, "DIAGNOSTICO_PONTUAL")} /></td>
@@ -121,6 +145,7 @@ export default function ServicosContratadosPagina() {
         </div>
       </div>
       {dialogo && <DialogoServico aberto empresas={dialogo.empresas} servico={dialogo.servico} tipoInicial={dialogo.tipoInicial} sugestoes={sugestoes} aoFechar={() => { setDialogo(null); setMarcadas(new Set()); }} />}
+      {dialogoTags && <DialogoEtiquetas empresas={dialogoTags} tags={tags} porEmpresa={porEmpresa} aoSalvar={() => setMarcadas(new Set())} aoFechar={() => setDialogoTags(null)} />}
     </div>
   );
 }

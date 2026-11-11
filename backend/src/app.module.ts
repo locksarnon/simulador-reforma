@@ -25,6 +25,7 @@ import { CapturaXmlModule } from './captura-xml/captura-xml.module';
 import { ServicosContratadosModule } from './servicos-contratados/servicos-contratados.module';
 import { AcessosModule } from './acessos/acessos.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
+import { TagsModule } from './tags/tags.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -54,6 +55,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     ServicosContratadosModule,
     AcessosModule,
     UsuariosModule,
+    TagsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

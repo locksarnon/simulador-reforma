@@ -195,6 +195,11 @@ export class EntitiesService {
       this.prisma.xmlEmpresaConfig.deleteMany({ where: { empresa_id } }),
       // Serviços contratados (carteira do BPO e do diagnóstico): não ficam sem a empresa.
       this.prisma.servicoContratado.deleteMany({ where: { empresa_id } }),
+      // Núcleo operacional: a carteira por colaborador, as etiquetas e as tarefas da empresa saem junto; os eventos do calendário só perdem o vínculo.
+      this.prisma.vinculoColaborador.deleteMany({ where: { empresa_id } }),
+      this.prisma.empresaTag.deleteMany({ where: { empresa_id } }),
+      this.prisma.tarefa.deleteMany({ where: { empresa_id } }),
+      this.prisma.eventoAgenda.updateMany({ where: { empresa_id }, data: { empresa_id: null } }),
       // A trilha de auditoria fica e diz quem apagou; só se registra quando havia algo guardado.
       ...(comCustodia
         ? [this.prisma.auditoriaCertificado.create({

@@ -5,10 +5,17 @@ import PageHeader from "@/components/PageHeader";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta, MODULOS_BPO, naCarteira, SITUACOES, TIPOS, TOM_DA_SITUACAO } from "@/lib/servicos";
 import { caminhoDoRepositorio } from "@/lib/bpoCaminhos";
+import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa } from "@/lib/tags";
+import { useColaboradores, useTags } from "@/lib/useTags";
+import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
+import FiltroPorTags from "@/components/clientes/FiltroPorTags";
+import ListasSalvas from "@/components/clientes/ListasSalvas";
+import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const digitos = (s) => String(s || "").replace(/\D/g, "");
+const FILTROS_VAZIOS = { busca: "", situacao: "", grupo: "", tags: [], tagModo: "qualquer", colaborador: "" };
 
 /** Caminhos que a carteira oferece para entrar numa empresa. */
 const ACOES = {
@@ -22,8 +29,11 @@ const ACOES = {
  */
 export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
   const { empresas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
-  const [filtros, setFiltros] = useState({ busca: "", situacao: "", grupo: "" });
+  const { tags, porEmpresa, mapa: mapaTags } = useTags();
+  const { data: colaboradores = [] } = useColaboradores();
+  const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
   const [todas, setTodas] = useState(false);
+  const [dialogoTags, setDialogoTags] = useState(null); // empresa a etiquetar
 
   const daCarteira = useMemo(() => empresas.filter((e) => naCarteira(mapa.get(e.id)?.[tipo])), [empresas, mapa, tipo]);
   const ninguemMarcado = !carregando && !erro && servicos.length > 0 && daCarteira.length === 0;
@@ -31,12 +41,12 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
   const lista = useMemo(() => {
     const t = semAcento(filtros.busca).trim();
     const d = digitos(filtros.busca);
-    return base
-      .filter((e) => (!filtros.grupo || e.grupo === filtros.grupo)
-        && (!filtros.situacao || mapa.get(e.id)?.[tipo]?.situacao === filtros.situacao)
-        && (!t || semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t) || (d.length >= 3 && digitos(e.cnpj_cpf).includes(d))))
+    const buscadas = base.filter((e) => (!filtros.grupo || e.grupo === filtros.grupo)
+      && (!filtros.situacao || mapa.get(e.id)?.[tipo]?.situacao === filtros.situacao)
+      && (!t || semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t) || (d.length >= 3 && digitos(e.cnpj_cpf).includes(d))));
+    return filtrarPorColaborador(filtrarPorTags(buscadas, porEmpresa, filtros.tags, filtros.tagModo), colaboradores, filtros.colaborador)
       .sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR"));
-  }, [base, filtros, mapa, tipo]);
+  }, [base, filtros, mapa, tipo, porEmpresa, colaboradores]);
   const mudar = (chave, valor) => setFiltros((f) => ({ ...f, [chave]: valor }));
   const grupoDe = (e) => grupos.find((g) => g.numero === e.grupo);
 
@@ -66,9 +76,17 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
               <select className={campo} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
                 <option value="">Todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
               </select></label>
+            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
+              <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
+                <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
+              </select></label>
             {(todas || daCarteira.length > 0) && (
               <label className="flex items-center gap-2 pb-1.5"><input type="checkbox" checked={todas} onChange={(e) => setTodas(e.target.checked)} /> <span>Mostrar todas as empresas</span></label>
             )}
+          </div>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <FiltroPorTags tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
+            <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[13px] leading-5" aria-label={`Empresas da carteira: ${titulo}`}>
@@ -88,7 +106,7 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
                   const g = grupoDe(e);
                   return (
                     <tr key={e.id} className="border-b border-border/60 hover:bg-muted/40 align-top">
-                      <td className="py-1.5 pr-3"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p></td>
+                      <td className="py-1.5 pr-3"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p><EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} aoEditar={() => setDialogoTags([e])} /></td>
                       <td className="py-1.5 pr-3 whitespace-nowrap text-muted-foreground">{g ? `${g.numero} ${g.nome}` : e.grupo || "—"}</td>
                       <td className="py-1.5 pr-3">{s ? <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_DA_SITUACAO[s.situacao] || "bg-muted"}`}>{SITUACOES[s.situacao] || s.situacao}</span> : <span className="text-muted-foreground">Sem serviço</span>}</td>
                       <td className="py-1.5 pr-3">{s?.responsavel || "—"}</td>
@@ -106,6 +124,7 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
           <p className="text-xs text-muted-foreground">{lista.length} empresa(s) {todas ? "(todas)" : "na carteira"}. Para mudar quem é de cada carteira: <Link to="/clientes/servicos-contratados" className="text-primary hover:underline">Serviços contratados</Link>.</p>
         </div>
       </div>
+      {dialogoTags && <DialogoEtiquetas empresas={dialogoTags} tags={tags} porEmpresa={porEmpresa} aoFechar={() => setDialogoTags(null)} />}
     </div>
   );
 }
