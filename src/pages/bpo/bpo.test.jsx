@@ -53,7 +53,7 @@ describe("menu lateral: seção BPO fiscal", () => {
     expect(link).toContain('aria-current="page"');
   });
 
-  it("a aba Repositório de XML saiu do workroom da empresa e a rota antiga não existe mais", () => {
+  it("a aba Repositório de XML saiu do workroom da empresa (o endereço antigo só redireciona)", () => {
     expect(workroomFonte).not.toContain("repositorio-xml");
     expect(appFonte).not.toContain("EmpresaRepositorioXml");
     expect(appFonte).toContain("RepositorioXmlLista");

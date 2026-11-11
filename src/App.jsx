@@ -24,6 +24,7 @@ import EmpresaWorkroom from '@/pages/EmpresaWorkroom';
 import EmpresaPainel from '@/pages/EmpresaPainel';
 import RepositorioXmlLista from '@/pages/bpo/RepositorioXmlLista';
 import RepositorioXmlEmpresa from '@/pages/bpo/RepositorioXmlEmpresa';
+import RedirecionaRepositorioXml from '@/pages/bpo/RedirecionaRepositorioXml';
 import { CAMINHO_REPOSITORIO_XML } from '@/lib/bpoCaminhos';
 import CenariosPage from '@/pages/CenariosPage';
 import TransicaoPage from '@/pages/TransicaoPage';
@@ -126,6 +127,8 @@ function App() {
                   <Route path="/agenda-reforma" element={<AgendaReformaPage />} />
                   <Route path={CAMINHO_REPOSITORIO_XML} element={<RepositorioXmlLista />} />
                   <Route path={`${CAMINHO_REPOSITORIO_XML}/:empresaId`} element={<RepositorioXmlEmpresa />} />
+                  {/* Endereço antigo: o Repositório de XML já foi uma aba da empresa; favoritos e e-mails de vencimento do certificado caem no lugar novo. */}
+                  <Route path="/workroom/:id/empresas/:empresaId/repositorio-xml" element={<RedirecionaRepositorioXml />} />
                   <Route path="/roteiro-testes" element={<RoteiroTestesPage />} />
                   <Route path="/manual" element={<ManualPage />} />
                   <Route path="/arquitetura" element={<ArquiteturaPage />} />
