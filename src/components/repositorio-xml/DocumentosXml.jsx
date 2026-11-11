@@ -26,8 +26,11 @@ function Cartao({ rotulo, valor, destaque }) {
   );
 }
 
-/** Repositório de XML da empresa: arquivos enviados (importação) e capturados, com envio ao importador. */
-export default function DocumentosXml({ empresaId, empresa }) {
+/**
+ * Repositório de XML da empresa: arquivos enviados (importação) e capturados, com envio ao importador.
+ * `linkImportacao` é o caminho da Importação XML da empresa (que fica no diagnóstico, dentro do grupo); `null` esconde o link.
+ */
+export default function DocumentosXml({ empresaId, empresa, linkImportacao = "../importacao-xml" }) {
   const { user } = useAuth();
   const admin = user?.role === "admin";
   const confirmar = useConfirmar();
@@ -187,7 +190,7 @@ export default function DocumentosXml({ empresaId, empresa }) {
           <button type="button" onClick={enviarAoImportador} disabled={importar.isPending} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
             {importar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {selecionados.size ? `Enviar ${selecionados.size} ao importador` : "Enviar pendentes ao importador"}
           </button>
-          <Link to="../importacao-xml" className="text-sm text-primary hover:underline">Abrir Importação XML</Link>
+          {linkImportacao && <Link to={linkImportacao} className="text-sm text-primary hover:underline">Abrir Importação XML</Link>}
           <button type="button" onClick={baixarZip} disabled={!total} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"><Download className="w-4 h-4" /> Baixar ZIP dos filtros</button>
           {admin && selecionados.size > 0 && (
             <button type="button" onClick={excluirSelecionados} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /> Excluir {selecionados.size}</button>

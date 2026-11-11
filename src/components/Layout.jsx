@@ -18,9 +18,23 @@ import {
   ExternalLink,
   ClipboardCheck,
   Boxes,
+  Archive,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
+import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
+
+/**
+ * BPO fiscal: guarda e captura dos XML dos clientes e o certificado digital deles.
+ * Seção independente do diagnóstico e dos serviços (Grupos e empresas). Para mudar o menu de lugar, mova a linha
+ * `secaoBpo` dentro de `sections`; para renomear a seção ou acrescentar itens, mexa só aqui.
+ */
+const secaoBpo = {
+  title: "BPO fiscal",
+  items: [
+    { to: CAMINHO_REPOSITORIO_XML, label: "Repositório de XML", icon: Archive },
+  ],
+};
 
 const sections = [
   {
@@ -29,6 +43,7 @@ const sections = [
       { to: "/", label: "Grupos e empresas", icon: Layers, end: true },
     ],
   },
+  secaoBpo,
   {
     title: "Consultas e cálculos",
     items: [

@@ -7,11 +7,11 @@
  */
 export const SECAO_REPOSITORIO_XML = {
   titulo: "Repositório de XML, certificado do cliente e captura automática",
-  nota: "Guarda os XML das notas fiscais de cada empresa, enviados em arquivo ou capturados na SEFAZ com o certificado digital A1 do cliente. Fica na aba Repositório de XML de cada empresa, com as abas Documentos, Captura e Certificado e autorização.",
+  nota: "Guarda os XML das notas fiscais de cada empresa, enviados em arquivo ou capturados na SEFAZ com o certificado digital A1 do cliente. Fica no menu BPO fiscal, em Repositório de XML: escolha a empresa e use as abas Documentos, Captura e Certificado e autorização.",
   itens: [
     {
       p: "O que é o Repositório de XML e onde fica?",
-      r: "É o arquivo de XML de cada empresa, na aba Repositório de XML dentro da empresa. A aba Documentos mostra os XML guardados, com busca, filtros, download e envio ao importador; a aba Captura configura a consulta automática à SEFAZ; a aba Certificado e autorização guarda o certificado A1 do cliente e o termo de autorização. Cada XML é identificado pela chave de acesso, então o mesmo documento nunca fica duplicado, venha ele de arquivo enviado (origem Importação) ou da SEFAZ (origem Captura). Guarda NF-e, CT-e, MDF-e, NFS-e Nacional e os eventos (cancelamento, carta de correção, manifestação).",
+      r: "É o arquivo de XML de cada empresa, no menu BPO fiscal, em Repositório de XML (a lista traz as empresas de todos os grupos; escolha uma). A aba Documentos mostra os XML guardados, com busca, filtros, download e envio ao importador; a aba Captura configura a consulta automática à SEFAZ; a aba Certificado e autorização guarda o certificado A1 do cliente e o termo de autorização. Cada XML é identificado pela chave de acesso, então o mesmo documento nunca fica duplicado, venha ele de arquivo enviado (origem Importação) ou da SEFAZ (origem Captura). Guarda NF-e, CT-e, MDF-e, NFS-e Nacional e os eventos (cancelamento, carta de correção, manifestação).",
     },
     {
       p: "Como envio os XML de um cliente para o repositório?",
