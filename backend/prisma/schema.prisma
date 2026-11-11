@@ -1277,3 +1277,26 @@ model DocumentoXml {
   @@index([empresa_id, origem])
   @@index([empresa_id, conteudo, ciencia_status])
 }
+
+// ── [servicos-contratados] ──
+/// O que cada empresa contratou: BPO fiscal (rotina mensal) ou diagnóstico pontual (projeto com início e fim). O cadastro da empresa é um só;
+/// a carteira de cada área é definida por estas linhas (situação ATIVO ou PAUSADO). Tipo e situação são texto validado pelo servidor.
+model ServicoContratado {
+  id             String    @id @default(cuid())
+  empresa_id     String
+  tipo           String
+  situacao       String    @default("ATIVO")
+  nome           String?
+  inicio         DateTime?
+  fim            DateTime?
+  responsavel    String?
+  modulos        String[]  @default([])
+  observacao     String?
+  atualizado_por String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([empresa_id])
+  @@index([tipo, situacao])
+}
+// ── [/servicos-contratados] ──

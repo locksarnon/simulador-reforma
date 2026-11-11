@@ -193,6 +193,8 @@ export class EntitiesService {
       this.prisma.capturaXmlConfig.deleteMany({ where: { empresa_id } }),
       this.prisma.capturaXmlExecucao.deleteMany({ where: { empresa_id } }),
       this.prisma.xmlEmpresaConfig.deleteMany({ where: { empresa_id } }),
+      // Serviços contratados (carteira do BPO e do diagnóstico): não ficam sem a empresa.
+      this.prisma.servicoContratado.deleteMany({ where: { empresa_id } }),
       // A trilha de auditoria fica e diz quem apagou; só se registra quando havia algo guardado.
       ...(comCustodia
         ? [this.prisma.auditoriaCertificado.create({

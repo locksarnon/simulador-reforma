@@ -58,6 +58,8 @@ import { ConfirmProvider } from "@/components/ConfirmProvider";
 import InicioPagina from '@/pages/InicioPagina';
 import AreaPagina from '@/pages/AreaPagina';
 import ModuloEmBreve from '@/pages/ModuloEmBreve';
+import ServicosContratadosPagina from '@/pages/clientes/ServicosContratadosPagina';
+import { CarteiraBpo, CarteiraDiagnostico } from '@/pages/clientes/Carteiras';
 // Add page imports here
 
 function App() {
@@ -89,6 +91,9 @@ function App() {
                   <Route path="/inicio" element={<InicioPagina />} />
                   <Route path="/area/:areaId" element={<AreaPagina />} />
                   <Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} />
+                  <Route path="/clientes/servicos-contratados" element={<ServicosContratadosPagina />} />
+                  <Route path="/bpo/carteira" element={<CarteiraBpo />} />
+                  <Route path="/diagnostico" element={<CarteiraDiagnostico />} />
                   <Route path="/cockpit" element={<Home />} />
                   <Route path="/workroom/:id" element={<Workroom />}>
                     <Route index element={<WorkroomOverview />} />

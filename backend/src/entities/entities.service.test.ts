@@ -77,7 +77,7 @@ describe('EntitiesService.remove', () => {
       saneamentoProjeto: { deleteMany: vi.fn() }, analiseEmpresa: { deleteMany: vi.fn() },
       documentoXml: { findMany: vi.fn().mockResolvedValue([{ storage_key: 'repositorio/E1/importacao/2026/11/a.xml' }]), deleteMany: vi.fn(), groupBy: grupos },
       certificadoDigital: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, capturaXmlConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) },
-      capturaXmlExecucao: { deleteMany: vi.fn() }, xmlEmpresaConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, auditoriaCertificado: { create: vi.fn() },
+      capturaXmlExecucao: { deleteMany: vi.fn() }, xmlEmpresaConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, auditoriaCertificado: { create: vi.fn() }, servicoContratado: { deleteMany: vi.fn() },
       $transaction: vi.fn(async (ops: unknown[]) => ops),
     };
     const storage = { removeObject: vi.fn().mockResolvedValue(undefined) };
@@ -102,6 +102,7 @@ describe('EntitiesService.remove', () => {
     expect(prisma.documentoXml.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.capturaXmlConfig.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.xmlEmpresaConfig.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(prisma.servicoContratado.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } }); // a carteira também sai junto
     expect(prisma.auditoriaCertificado.create).toHaveBeenCalledWith({ data: expect.objectContaining({ empresa_id: 'E1', acao: 'EMPRESA_EXCLUIDA' }) });
     expect(storage.removeObject).toHaveBeenCalledWith('repositorio/E1/importacao/2026/11/a.xml');
   });
