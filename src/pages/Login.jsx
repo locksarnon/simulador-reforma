@@ -26,7 +26,7 @@ export default function Login() {
       // Sem destino pedido, a pessoa entra pelo Início.
       window.location.href = returnTo === "/" ? "/inicio" : returnTo;
     } catch (err) {
-      setError(err.message || "Invalid email or password");
+      setError(err.message || "E-mail ou senha inválidos.");
     } finally {
       setLoading(false);
     }
@@ -35,16 +35,16 @@ export default function Login() {
   return (
     <AuthLayout
       icon={LogIn}
-      title="Welcome back"
-      subtitle="Log in to your account"
+      title="Bem-vindo de volta"
+      subtitle="Entre na sua conta do InTAX"
       footer={
         <>
-          Don't have an account?{" "}
+          Ainda não tem conta?{" "}
           <Link
             to={"/register" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
             className="text-primary font-medium hover:underline"
           >
-            Create one
+            Criar conta
           </Link>
         </>
       }
@@ -57,7 +57,7 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">E-mail</Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
@@ -65,7 +65,7 @@ export default function Login() {
               type="email"
               autoComplete="email"
               autoFocus
-              placeholder="you@example.com"
+              placeholder="voce@escritorio.com.br"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="pl-10 h-12"
@@ -75,9 +75,9 @@ export default function Login() {
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Senha</Label>
             <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-              Forgot password?
+              Esqueceu a senha?
             </Link>
           </div>
           <div className="relative">
@@ -98,10 +98,10 @@ export default function Login() {
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Logging in...
+              Entrando…
             </>
           ) : (
-            "Log in"
+            "Entrar"
           )}
         </Button>
       </form>

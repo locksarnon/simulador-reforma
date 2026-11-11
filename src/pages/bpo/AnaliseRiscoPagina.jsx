@@ -3,6 +3,8 @@ import { ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import ListaDePrevistas from "@/components/ListaDePrevistas";
+import PainelDeRisco from "@/components/monitoramento/PainelDeRisco";
+import { useAuth } from "@/lib/AuthContext";
 import { brl, multaDeDeclaracao, multaDePagamento, multaEcfReal, multaPorReceita, REGRAS } from "@/lib/multas";
 import { hojeBR } from "@/lib/tarefas";
 
@@ -74,16 +76,18 @@ export function CalculadoraDeMultas() {
   );
 }
 
-/** BPO Fiscal > Análise de risco: hoje, a calculadora de multas; o resto depende dos dados do Monitoramento fiscal (fase 3). */
-export default function AnaliseRiscoPagina() {
+/** BPO Fiscal > Análise de risco: o painel da carteira (saúde fiscal, top 5, fila, radar de certidões, conferência) e a calculadora de multas. */
+export default function AnaliseRiscoPagina({ abaInicial = "painel" }) {
+  const { user } = useAuth();
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Análise de risco" }]} title="Análise de risco" subtitle="A calculadora de multas por atraso já funciona. Os painéis de risco (score, radar de CND, fila de prioridade) dependem dos dados do Monitoramento fiscal." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Análise de risco" }]} title="Análise de risco" subtitle="A carteira pelos dados do Monitoramento fiscal e das certidões guardadas, e a calculadora de multas por atraso." />
       <div className="px-6 lg:px-8 py-6">
-        <Tabs defaultValue="multas" className="space-y-4">
-          <TabsList><TabsTrigger value="multas">Calculadora de multas</TabsTrigger><TabsTrigger value="previsto">Previsto</TabsTrigger></TabsList>
+        <Tabs defaultValue={abaInicial} className="space-y-4">
+          <TabsList><TabsTrigger value="painel">Painel de risco</TabsTrigger><TabsTrigger value="multas">Calculadora de multas</TabsTrigger><TabsTrigger value="previsto">Previsto</TabsTrigger></TabsList>
+          <TabsContent value="painel"><PainelDeRisco ehAdmin={user?.role === "admin"} /></TabsContent>
           <TabsContent value="multas"><CalculadoraDeMultas /></TabsContent>
-          <TabsContent value="previsto"><ListaDePrevistas moduloId="analise-risco" titulo="Painéis de risco previstos" /></TabsContent>
+          <TabsContent value="previsto"><ListaDePrevistas moduloId="analise-risco" titulo="O que ainda vem" /></TabsContent>
         </Tabs>
       </div>
     </div>

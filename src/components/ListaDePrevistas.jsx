@@ -14,7 +14,7 @@ export default function ListaDePrevistas({ moduloId, titulo = "O que está previ
           <li key={f.id} className="flex flex-wrap items-baseline gap-2 py-1.5">
             <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">{f.id}</span>
             <span className="flex-1 min-w-[220px]">{f.funcao}</span>
-            <span className="text-[11px] text-muted-foreground">fase {f.fase} · depende de {depende(f.depende)}</span>
+            <span className="text-[11px] text-muted-foreground">fase {f.fase} · {/^depende/.test(f.depende) ? f.depende : `depende de ${depende(f.depende)}`}</span>
           </li>
         ))}
       </ul>

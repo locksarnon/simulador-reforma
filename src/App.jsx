@@ -61,6 +61,10 @@ import ModuloEmBreve from '@/pages/ModuloEmBreve';
 import ServicosContratadosPagina from '@/pages/clientes/ServicosContratadosPagina';
 import ClientesPagina from '@/pages/clientes/ClientesPagina';
 import FichaClientePagina from '@/pages/clientes/FichaClientePagina';
+import ProcuracoesPagina from '@/pages/clientes/ProcuracoesPagina';
+import MonitoramentoPagina from '@/pages/bpo/MonitoramentoPagina';
+import MonitoramentoEmpresaPagina from '@/pages/bpo/MonitoramentoEmpresaPagina';
+import ParametrosRotinasPagina from '@/pages/admin/ParametrosRotinasPagina';
 import { CarteiraBpo, CarteiraDiagnostico } from '@/pages/clientes/Carteiras';
 import CarteiraColaboradoresPagina from '@/pages/clientes/CarteiraColaboradoresPagina';
 import TagsPagina from '@/pages/clientes/TagsPagina';
@@ -111,7 +115,12 @@ function App() {
                   <Route path="/" element={<ClientesPagina />} />
                   <Route path="/clientes" element={<Navigate to="/" replace />} />
                   <Route path="/clientes/grupos" element={<DataHub />} />
+                  <Route path="/clientes/procuracoes" element={<ProcuracoesPagina />} />
                   <Route path="/clientes/:empresaId" element={<FichaClientePagina />} />
+                  <Route path="/bpo/monitoramento" element={<MonitoramentoPagina />} />
+                  <Route path="/bpo/monitoramento/pf/:empresaId" element={<MonitoramentoEmpresaPagina pessoaFisica />} />
+                  <Route path="/bpo/monitoramento/:empresaId" element={<MonitoramentoEmpresaPagina />} />
+                  <Route path="/admin/parametros-rotinas" element={<ParametrosRotinasPagina />} />
                   <Route path="/inicio" element={<InicioPagina />} />
                   <Route path="/area/:areaId" element={<AreaPagina />} />
                   <Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} />

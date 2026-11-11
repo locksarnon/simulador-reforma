@@ -77,11 +77,11 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
   });
 
   it("consultor não vê módulo em breve nem os de administrador; administrador vê com o selo", () => {
-    const consultor = renderizar(CONSULTOR, "/bpo/repositorio-xml");
-    expect(consultor).not.toContain("Monitoramento fiscal");
+    const consultor = renderizar(CONSULTOR, "/comercial/propostas");
+    expect(consultor).not.toContain("Portal do cliente");
     expect(renderizar(CONSULTOR, "/configuracao")).not.toContain("Usuários e acessos");
-    const admin = renderizar(ADMIN, "/bpo/repositorio-xml");
-    expect(admin).toContain("Monitoramento fiscal");
+    const admin = renderizar(ADMIN, "/comercial/propostas");
+    expect(admin).toContain("Portal do cliente");
     expect(admin).toContain("Em breve");
   });
 

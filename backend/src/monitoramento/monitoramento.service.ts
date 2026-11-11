@@ -286,10 +286,14 @@ export class MonitoramentoService {
   /** Painel da carteira: por empresa, o pior nível de cada grupo nas últimas consultas e a data da mais recente. */
   async painel(empresaIds?: string[]) {
     const consultas = await this.prisma.consultaFiscal.findMany({
-      where: { empresa_id: empresaIds?.length ? { in: empresaIds } : { not: null } },
+      // Consulta que falhou (o Serpro não respondeu) não entra na nota: vale a última que trouxe resultado.
+      where: { empresa_id: empresaIds?.length ? { in: empresaIds } : { not: null }, sucesso: true },
       orderBy: { createdAt: 'desc' }, take: 20000,
       select: { empresa_id: true, chave: true, nivel: true, createdAt: true, simulado: true, resumo: true },
     });
+    // Só contam os serviços que valem para o regime do cadastro (um Presumido não é avaliado pelo DAS do MEI).
+    const empresas = await this.prisma.empresa.findMany({ where: { id: { in: [...new Set(consultas.map((c) => c.empresa_id!))] } }, select: { id: true, regime_atual: true, cnpj_cpf: true } });
+    const valem = new Map(empresas.map((e) => [e.id, new Set(servicosParaEmpresa(e.regime_atual, so(e.cnpj_cpf).length === 11).map((s) => s.chave))]));
     const visto = new Set<string>();
     const porEmpresa = new Map<string, { empresa_id: string; grupos: Record<string, Nivel>; atualizado: Date; simulado: boolean; alertas: { chave: string; nivel: Nivel; titulo: string }[] }>();
     for (const c of consultas) {
@@ -297,7 +301,7 @@ export class MonitoramentoService {
       if (visto.has(k)) continue;
       visto.add(k);
       const s = SERVICO_POR_CHAVE.get(c.chave);
-      if (!s) continue;
+      if (!s || !valem.get(c.empresa_id!)?.has(c.chave)) continue;
       const e = porEmpresa.get(c.empresa_id!) ?? { empresa_id: c.empresa_id!, grupos: {}, atualizado: c.createdAt, simulado: c.simulado, alertas: [] };
       e.grupos[s.grupo] = pior(e.grupos[s.grupo], c.nivel as Nivel);
       if (c.createdAt > e.atualizado) e.atualizado = c.createdAt;
@@ -305,6 +309,30 @@ export class MonitoramentoService {
       porEmpresa.set(c.empresa_id!, e);
     }
     return [...porEmpresa.values()].map((e) => ({ ...e, score: pontuacao(e.grupos) }));
+  }
+
+  /** Clientes > Procurações e certificados: para cada empresa, o A1 no cofre (com a validade) e a última consulta da procuração. */
+  async procuracoes() {
+    const [empresas, certs, consultas] = await Promise.all([
+      this.prisma.empresa.findMany({ select: { id: true, razao_social: true, cnpj_cpf: true, regime_atual: true }, orderBy: { razao_social: 'asc' } }),
+      this.prisma.certificadoDigital.findMany({ where: { status: 'ATIVO' }, select: { empresa_id: true, valido_ate: true, titular: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.consultaFiscal.findMany({ where: { chave: 'procuracao', empresa_id: { not: null } }, orderBy: { createdAt: 'desc' }, select: { empresa_id: true, nivel: true, resumo: true, createdAt: true, simulado: true } }),
+    ]);
+    const cert = new Map<string, { valido_ate: Date; titular: string }>();
+    for (const c of certs) if (!cert.has(c.empresa_id)) cert.set(c.empresa_id, c);
+    const proc = new Map<string, (typeof consultas)[number]>();
+    for (const c of consultas) if (!proc.has(c.empresa_id!)) proc.set(c.empresa_id!, c);
+    return empresas.map((e) => {
+      const c = cert.get(e.id);
+      const p = proc.get(e.id);
+      const dias = c ? Math.ceil((c.valido_ate.getTime() - Date.now()) / 86_400_000) : null;
+      return {
+        empresa_id: e.id, razao_social: e.razao_social, cnpj_cpf: e.cnpj_cpf, regime_atual: e.regime_atual,
+        certificado: c ? { valido_ate: c.valido_ate, dias, situacao: dias! < 0 ? 'VENCIDO' : dias! <= 30 ? 'VENCENDO' : 'VALIDO' } : null,
+        procuracao: p ? { nivel: p.nivel, titulo: (p.resumo as { titulo?: string })?.titulo ?? '', consultado_em: p.createdAt, simulado: p.simulado } : null,
+        caminho: c && dias! >= 0 ? 'TERMO_A1' : p?.nivel === 'OK' ? 'PROCURACAO' : 'SEM_ACESSO',
+      };
+    });
   }
 
   // ── Lote e rotina ─────────────────────────────────────────────────────────

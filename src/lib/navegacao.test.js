@@ -83,7 +83,8 @@ describe("catálogo de navegação: estrutura", () => {
 describe("catálogo de navegação: quem vê o quê", () => {
   it("consultor não vê módulo em breve nem os exclusivos de administrador", () => {
     const ids = areasDoMenu(consultor).flatMap((a) => a.modulos.map((m) => m.id));
-    expect(ids).not.toContain("monitoramento");
+    expect(ids).not.toContain("portal-contratos");
+    expect(ids).toContain("monitoramento");
     expect(ids).not.toContain("usuarios");
     expect(ids).not.toContain("integracoes");
     expect(ids).toContain("captura-xml");
@@ -93,7 +94,7 @@ describe("catálogo de navegação: quem vê o quê", () => {
   it("administrador vê tudo, inclusive os em breve", () => {
     const ids = areasDoMenu(admin).flatMap((a) => a.modulos.map((m) => m.id));
     expect(ids).toHaveLength(MODULOS.filter((m) => !m.oculto).length);
-    expect(modulosDaArea("bpo", admin).some((m) => m.situacao === SITUACAO.EM_BREVE)).toBe(true);
+    expect(modulosDaArea("comercial", admin).some((m) => m.situacao === SITUACAO.EM_BREVE)).toBe(true);
   });
 
   it("notificações e perfil ficam fora do menu, mas a busca acha e a tela sabe a que área pertence", () => {

@@ -74,7 +74,7 @@ describe("aderência ao mapa Veri × InTAX (docs/mapa-completo-veri-intax.csv)",
     const previstas = FUNCOES.filter(ehPrevista);
     expect(previstas.filter((f) => !porId.has(f.ID)).map((f) => f.ID)).toEqual([]);
     for (const f of previstas) {
-      expect(f["Situação"], f.ID).toMatch(/^em breve: depende de /);
+      expect(f["Situação"], f.ID).toMatch(/^em breve: depende d/);
       const modulo = MODULOS.find((m) => m.id === porId.get(f.ID).modulo);
       expect(modulo, f.ID).toBeTruthy();
       expect(f.Tela, f.ID).toBe(modulo.to);

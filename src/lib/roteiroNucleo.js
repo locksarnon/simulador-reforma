@@ -101,4 +101,21 @@ export const ROTEIRO_NUCLEO = [
     cuidados: ["Não ligue a restrição por IP sem o seu IP na lista (o sistema não deixa)."],
     criterio: "Conta desativada não entra; restrição e PIN funcionam; nada secreto aparece na tela.",
   },
+  {
+    id: "nucleo-monitoramento", grupo: "Organização e núcleo", titulo: "Monitoramento fiscal, procurações, rotinas e painel de risco", rota: "/bpo/monitoramento",
+    objetivo: "Consultar a Receita de um cliente por assunto, guardar os PDF, atualizar em lote, agendar a rotina e ver o risco da carteira.",
+    preparo: ["Entrar como administrador.", "Em Administração > Integrações, no quadro do monitoramento, escolher Demonstração (sem contrato) ou Produção (com contrato)."],
+    passos: [
+      p("Abra BPO Fiscal > Monitoramento fiscal.", "Aparece a faixa \"Demonstração\" (se for o caso), os quatro números (crítico, atenção, em dia, sem consulta) e a tabela com uma bolinha por assunto."),
+      p("Clique no nome de um cliente e, na aba Situação fiscal, em \"Consultar\" no Relatório de situação fiscal.", "O resultado aparece com o selo, a data e o PDF; \"Ver\" abre numa aba e \"Baixar\" salva."),
+      p("Na aba Guias e pagamentos, gere o DAS (ou o DARF da DCTFWeb) com a competência sugerida.", "Mostra valor, vencimento, a composição por tributo e o PDF da guia."),
+      p("Na aba Declarações, marque \"Não tem MIT\".", "A rotina deixa de consultar o MIT deste cliente."),
+      p("Volte à lista, marque dois clientes e clique em \"Atualizar 2 marcado(s)\".", "O botão mostra o progresso e, no fim, as bolinhas e a nota de saúde fiscal mudam."),
+      p("Abra Clientes > Procurações e certificados e clique em \"Consultar as procurações da lista\".", "Cada cliente mostra o caminho de acesso (pelo A1 do cliente, pela procuração ou sem acesso) e a situação da procuração."),
+      p("Em Administração > Parâmetros e rotinas, ligue a consulta automática, escolha os dias e salve; depois clique em \"Gerar as guias agora\".", "Aparece quantas guias foram geradas (e enviadas, se o e-mail estiver marcado e configurado)."),
+      p("Abra BPO Fiscal > Análise de risco.", "O painel mostra a saúde média, o top 5 em risco, a fila de prioridade, o radar de certidões e a conferência do cadastro."),
+    ],
+    cuidados: ["No modo demonstração os dados são fictícios do Serpro, iguais para todos os clientes. Pagamentos e e-Processo não respondem no ambiente de demonstração do próprio Serpro."],
+    criterio: "Consulta, PDF, histórico, lote, rotina, guias e painel de risco funcionam; nada de demonstração aparece como dado real.",
+  },
 ];

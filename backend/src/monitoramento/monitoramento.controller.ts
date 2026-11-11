@@ -26,6 +26,11 @@ export class MonitoramentoController {
     return this.m.painel(ids ? ids.split(',').filter(Boolean) : undefined);
   }
 
+  @Get('procuracoes')
+  procuracoes() {
+    return this.m.procuracoes();
+  }
+
   @Get('empresas/:id')
   daEmpresa(@Param('id') id: string) {
     return this.m.daEmpresa({ empresaId: id });

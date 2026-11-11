@@ -100,7 +100,7 @@ export default function PessoasFisicasPagina() {
                     <td className="px-3 py-2">{nomeEmpresa.get(p.empresa_id) || <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-3 py-2"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${s.tom}`}>{p.certificado_tipo ? `${p.certificado_tipo} · ` : ""}{s.rotulo}</span></td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <Link to="/bpo/arquivos" className="mr-2 text-xs text-primary hover:underline">Arquivos</Link>
+                      <Link to={`/bpo/monitoramento/pf/${p.id}`} className="mr-2 text-xs text-primary hover:underline">Monitoramento</Link><Link to="/bpo/arquivos" className="mr-2 text-xs text-primary hover:underline">Arquivos</Link>
                       <button type="button" onClick={() => setDialogo({ pessoa: p })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar ${p.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
                       {user?.role === "admin" && <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir ${p.nome}?`, descricao: "Os documentos e os arquivos dela saem junto.", rotulo: "Excluir" })) excluir.mutate(p.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${p.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                     </td>

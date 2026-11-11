@@ -27,6 +27,14 @@ export class IntegracoesService {
     try { await this.storage.getPresignedUrl('teste-de-conexao', 60); } catch { armazenamento = 'COM_PROBLEMA'; }
     const smtp = this.mail.configurado;
     const msToken = tem(env.MS_TENANT_ID) && tem(env.MS_CLIENT_ID) && tem(env.MS_CLIENT_SECRET);
+    let modoSerpro: string | null = null;
+    try { modoSerpro = (await this.prisma.parametroSistema.findUnique({ where: { chave: 'integra_contador_modo' } }))?.valor ?? null; } catch { modoSerpro = null; }
+    const contratoSerpro = tem(env.SERPRO_CONSUMER_KEY) && tem(env.SERPRO_CONSUMER_SECRET) && (tem(env.SERPRO_CERT_PFX_BASE64) || tem(env.SERPRO_CERT_PFX_ARQUIVO)) && tem(env.SERPRO_CONTRATANTE_CNPJ);
+    const serpro: Integracao = modoSerpro === 'PRODUCAO'
+      ? { id: 'serpro', nome: 'Serpro Integra Contador', para_que: 'Monitoramento fiscal: situação no e-CAC, declarações, guias, caixa postal, parcelamentos, MEI e procuração.', estado: 'ATIVO', detalhe: 'Em produção, com o contrato do escritório.' }
+      : modoSerpro === 'DEMONSTRACAO'
+        ? { id: 'serpro', nome: 'Serpro Integra Contador', para_que: 'Monitoramento fiscal: situação no e-CAC, declarações, guias, caixa postal, parcelamentos, MEI e procuração.', estado: 'NAO_CONFIGURADO', detalhe: `Modo demonstração (dados fictícios oficiais do Serpro).${contratoSerpro ? ' O contrato já está no servidor: pode passar para produção.' : ' Para dados reais, falta o contrato.'}` }
+        : { id: 'serpro', nome: 'Serpro Integra Contador', para_que: 'Monitoramento fiscal: situação no e-CAC, declarações, guias, caixa postal, parcelamentos, MEI e procuração.', estado: modoSerpro === 'DESLIGADO' ? 'DESLIGADO' : 'PREVISTO', fase: '3', detalhe: contratoSerpro ? 'Contrato no servidor; ligue no quadro do monitoramento abaixo.' : 'Pode ser ligado em modo demonstração agora; para dados reais, depende do contrato do Integra Contador.' };
     return [
       { id: 'banco', nome: 'Banco de dados', para_que: 'Todos os dados do InTAX.', estado: banco, detalhe: banco === 'ATIVO' ? 'Respondendo.' : 'Não respondeu agora.' },
       { id: 'armazenamento', nome: 'Armazenamento de arquivos', para_que: 'XML, arquivos das empresas, anexos e downloads.', estado: armazenamento, detalhe: armazenamento === 'ATIVO' ? 'Respondendo.' : 'Não respondeu agora.' },
@@ -36,7 +44,7 @@ export class IntegracoesService {
       { id: 'processos', nome: 'Processos recorrentes', para_que: 'Cria as tarefas dos processos todo dia às 05:30.', estado: String(env.TAREFAS_AGENDADOR ?? '').toLowerCase() === 'off' ? 'DESLIGADO' : 'ATIVO', detalhe: String(env.TAREFAS_AGENDADOR ?? '').toLowerCase() === 'off' ? 'Desligado por TAREFAS_AGENDADOR=off.' : 'Ligado.' },
       { id: 'ia', nome: 'Inteligência artificial (Gemini)', para_que: 'Resumo executivo por IA no painel.', estado: tem(env.GEMINI_API_KEY) ? 'ATIVO' : 'NAO_CONFIGURADO', detalhe: tem(env.GEMINI_API_KEY) ? 'Chave configurada.' : 'Sem chave: o resumo usa o texto padrão.' },
       { id: 'cnpj', nome: 'Consulta pública de CNPJ e malha do IBGE', para_que: 'Dados do CNPJ (CNAE, porte, município) e o ponto do município no mapa.', estado: 'ATIVO', detalhe: 'Serviços públicos, sem chave (BrasilAPI e IBGE).' },
-      { id: 'serpro', nome: 'Serpro Integra Contador', para_que: 'Monitoramento fiscal: situação no e-CAC, declarações, guias, mensagens, certidões, parcelamentos e procurações.', estado: 'PREVISTO', fase: '3', detalhe: 'Depende do contrato do Integra Contador, do certificado do escritório e da procuração eletrônica de cada cliente.' },
+      serpro,
       { id: 'whatsapp', nome: 'WhatsApp (agente do escritório)', para_que: 'Comunicados, guias e avisos por WhatsApp, pelo mesmo agente que o escritório já usa.', estado: 'PREVISTO', fase: '4', detalhe: 'Depende do endereço de envio do agente de WhatsApp.' },
     ];
   }

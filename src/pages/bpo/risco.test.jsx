@@ -1,10 +1,11 @@
 import React from "react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { StaticRouter } from "react-router-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Routes } from "react-router-dom";
+vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "qa@fal" } }) }));
 import AnaliseRiscoPagina from "./AnaliseRiscoPagina";
 import PreAnalisePagina, { leituraDoCnae, linhasDaPreAnalise } from "@/pages/comercial/PreAnalisePagina";
 import PrimeirosPassos, { PASSOS } from "@/components/inicio/PrimeirosPassos";
@@ -14,21 +15,21 @@ import { FUNCOES_PREVISTAS, funcoesDoModulo } from "@/lib/funcoesPlanejadas";
 const r = (el, location = "/") => renderToString(<QueryClientProvider client={new QueryClient()}><StaticRouter location={location}>{el}</StaticRouter></QueryClientProvider>).replace(/<!-- -->/g, "");
 
 describe("Análise de risco", () => {
-  it("abre na calculadora de multas com os tipos, a fonte e o aviso de estimativa", () => {
-    const html = r(<AnaliseRiscoPagina />);
+  it("abre no painel de risco; a calculadora de multas tem os tipos, a fonte e o aviso de estimativa", () => {
+    expect(r(<AnaliseRiscoPagina />)).toContain("Painel de risco");
+    const html = r(<AnaliseRiscoPagina abaInicial="multas" />);
     for (const t of ["Calculadora de multas", "Previsto", "Pagamento de tributo federal em atraso", "DCTFWeb entregue em atraso", "ECF do Lucro Real em atraso", "Lei nº 9.430/1996, art. 61", "Estimativa"]) expect(html).toContain(t);
   });
 });
 
 describe("Funções previstas (fases 3 e 4 do mapa)", () => {
-  it("todas têm módulo e as do monitoramento aparecem na página em breve dele", () => {
-    expect(FUNCOES_PREVISTAS.length).toBeGreaterThan(70);
+  it("todas têm módulo e as do portal aparecem na página em breve dele", () => {
+    expect(FUNCOES_PREVISTAS.length).toBeGreaterThan(10);
     expect(FUNCOES_PREVISTAS.every((f) => f.modulo && f.id.startsWith("V"))).toBe(true);
-    expect(funcoesDoModulo("monitoramento").length).toBeGreaterThan(40);
-    const html = renderToString(<MemoryRouter initialEntries={["/em-breve/monitoramento"]}><Routes><Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} /></Routes></MemoryRouter>).replace(/<!-- -->/g, "");
+    expect(funcoesDoModulo("portal-contratos").length).toBeGreaterThan(5);
+    const html = renderToString(<MemoryRouter initialEntries={["/em-breve/portal-contratos"]}><Routes><Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} /></Routes></MemoryRouter>).replace(/<!-- -->/g, "");
     expect(html).toContain("O que está previsto");
-    expect(html).toContain("V001");
-    expect(html).toContain("Receita Federal (Integra Contador)");
+    expect(html).toContain("V083");
   });
 });
 

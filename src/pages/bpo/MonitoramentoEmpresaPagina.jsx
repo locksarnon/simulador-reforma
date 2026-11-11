@@ -1,0 +1,143 @@
+import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { api } from "@/api/client";
+import { useAuth } from "@/lib/AuthContext";
+import { toast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PageHeader from "@/components/PageHeader";
+import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
+import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
+import { mascararDocumento } from "@/lib/clientes";
+import { piorNivel, servicosDoGrupo, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
+
+/** Onde emitir as certidões que não vêm pela API (os portais exigem captcha); a validade fica em Arquivos e documentos. */
+export const PORTAIS_DE_CERTIDAO = [
+  { nome: "CND federal (Receita e PGFN)", url: "https://servicos.receitafederal.gov.br/servico/certidoes/" },
+  { nome: "CNDT (débitos trabalhistas, TST)", url: "https://cndt-certidao.tst.jus.br/inicio.faces" },
+  { nome: "CRF do FGTS (Caixa)", url: "https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf" },
+];
+
+function Dispensas({ empresaId, obrigacoes, dispensas }) {
+  const qc = useQueryClient();
+  const alternar = useMutation({
+    mutationFn: ({ id, ativa }) => ativa ? api.delete(`/monitoramento/empresas/${empresaId}/dispensas/${id}`) : api.post(`/monitoramento/empresas/${empresaId}/dispensas`, { obrigacao: id }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] }),
+    onError: (e) => toast({ title: "Não foi possível mudar", description: e.message, variant: "destructive" }),
+  });
+  const dispensadas = new Set((dispensas || []).map((d) => d.obrigacao));
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 space-y-2">
+      <h3 className="text-sm font-semibold">Obrigações que este cliente não tem</h3>
+      <p className="text-xs text-muted-foreground">Marque para a rotina não consultar e o painel não contar como ausente (ex.: sem empregados, sem DCTFWeb).</p>
+      <div className="flex flex-wrap gap-4">
+        {(obrigacoes || []).map((o) => (
+          <label key={o.id} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={dispensadas.has(o.id)} onChange={() => alternar.mutate({ id: o.id, ativa: dispensadas.has(o.id) })} /> Não tem {o.rotulo}</label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** BPO Fiscal > Monitoramento > um cliente (empresa ou pessoa física): as consultas ao e-CAC por assunto, com o resultado e os PDF. */
+export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
+  const { empresaId } = useParams();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const ehAdmin = user?.role === "admin";
+  const base = pessoaFisica ? `/monitoramento/pessoas/${empresaId}` : `/monitoramento/empresas/${empresaId}`;
+  const estado = useEstadoMonitoramento();
+  const dono = useQuery({
+    queryKey: [pessoaFisica ? "pessoa" : "empresa", empresaId],
+    queryFn: () => pessoaFisica ? api.get("/pessoas-fisicas").then((l) => l.find((p) => p.id === empresaId)) : api.entities.Empresa.get(empresaId),
+  });
+  const dados = useQuery({ queryKey: ["monitoramento", "empresa", empresaId], queryFn: () => api.get(base) });
+  const [lote, setLote] = useState(null);
+  const ultimas = dados.data?.ultimas || {};
+  const indicados = dados.data?.servicos_indicados || [];
+  const servicos = estado.data?.servicos || [];
+  const grupos = useMemo(() => (estado.data?.grupos || []).filter((g) => servicos.some((s) => s.grupo === g.id && indicados.includes(s.chave))), [estado.data, servicos, indicados]);
+  const desligado = estado.data?.modo === "DESLIGADO";
+  const nome = pessoaFisica ? dono.data?.nome : dono.data?.razao_social;
+  const doc = pessoaFisica ? dono.data?.cpf : dono.data?.cnpj_cpf;
+  const nivelDoGrupo = (g) => piorNivel(servicos.filter((s) => s.grupo === g && indicados.includes(s.chave)).map((s) => (ultimas[s.chave]?.sucesso ? ultimas[s.chave].nivel : undefined)));
+
+  const atualizarTudo = useMutation({
+    mutationFn: () => api.post("/monitoramento/lote", { empresa_ids: [empresaId] }),
+    onSuccess: (l) => {
+      setLote(l);
+      const passo = async () => {
+        const s = await api.get(`/monitoramento/lote/${l.id}`).catch(() => null);
+        if (!s) return;
+        setLote(s);
+        qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] });
+        if (!s.fim) setTimeout(passo, 2500); else toast({ title: "Atualização concluída", description: `${s.feitas - s.erros} consulta(s) feitas${s.erros ? `, ${s.erros} com erro` : ""}.` });
+      };
+      setTimeout(passo, 1500);
+    },
+    onError: (e) => toast({ title: "Não foi possível atualizar", description: e.message, variant: "destructive" }),
+  });
+
+  const crumbs = [{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Monitoramento fiscal", to: "/bpo/monitoramento" }, { label: nome || "Cliente" }];
+  if (dono.isLoading || estado.isLoading) return <div><PageHeader crumbs={crumbs} title="Monitoramento" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
+  if (!dono.data) return <div><PageHeader crumbs={crumbs} title="Cliente não encontrado" /><p role="alert" className="p-8 text-sm">Este cliente não existe mais. <Link to="/bpo/monitoramento" className="text-primary hover:underline">Voltar</Link></p></div>;
+  const pontos = (estado.data?.grupos || []).map((g) => nivelDoGrupo(g.id)).filter(Boolean);
+  const nota = Math.max(0, 100 - pontos.filter((n) => n === "CRITICO").length * 25 - pontos.filter((n) => n === "ATENCAO").length * 8);
+
+  return (
+    <div>
+      <PageHeader
+        crumbs={crumbs}
+        title={nome}
+        subtitle={[mascararDocumento(doc), pessoaFisica ? "Pessoa física" : dono.data.regime_atual || "Regime não informado"].filter(Boolean).join(" · ")}
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            {pontos.length > 0 && <span className={`text-sm font-semibold tabular-nums ${tomDaNota(nota)}`} title="Saúde fiscal: 100 menos 25 por assunto crítico e 8 por assunto em atenção">Saúde fiscal {nota}</span>}
+            {!pessoaFisica && <button type="button" disabled={desligado || atualizarTudo.isPending || (lote && !lote.fim)} onClick={() => atualizarTudo.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+              {lote && !lote.fim ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Atualizar tudo</>}
+            </button>}
+            {!pessoaFisica && <Link to={`/clientes/${empresaId}`} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Ficha do cliente</Link>}
+          </div>
+        )}
+      />
+      <div className="px-6 lg:px-8 py-5 space-y-4">
+        <AvisoDoModo modo={estado.data?.modo} ehAdmin={ehAdmin} />
+        {!pessoaFisica && !dono.data.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Sem regime no cadastro: aparecem todos os serviços. Preencha o regime na <Link to={`/clientes/${empresaId}`} className="underline">ficha do cliente</Link> para ver só os que se aplicam.</p>}
+        <Tabs defaultValue={grupos[0]?.id || "situacao"} className="space-y-4">
+          <TabsList className="flex h-auto flex-wrap justify-start">
+            {grupos.map((g) => <TabsTrigger key={g.id} value={g.id} className="gap-1.5">{g.rotulo}{nivelDoGrupo(g.id) && <span className={`h-2 w-2 rounded-full ${nivelDoGrupo(g.id) === "CRITICO" ? "bg-red-500" : nivelDoGrupo(g.id) === "ATENCAO" ? "bg-amber-500" : nivelDoGrupo(g.id) === "OK" ? "bg-emerald-500" : "bg-sky-500"}`} aria-label={nivelDoGrupo(g.id)} />}</TabsTrigger>)}
+            {!pessoaFisica && <TabsTrigger value="certidoes">Certidões</TabsTrigger>}
+          </TabsList>
+          {grupos.map((g) => {
+            const { indicados: lista, outros } = servicosDoGrupo(servicos, g.id, indicados);
+            return (
+              <TabsContent key={g.id} value={g.id} className="space-y-3">
+                {g.id === "declaracoes" && !pessoaFisica && <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} />}
+                <div className="grid gap-3 xl:grid-cols-2">{lista.map((s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />)}</div>
+                {outros.length > 0 && (
+                  <details className="rounded-lg border border-dashed border-border p-3">
+                    <summary className="cursor-pointer text-sm text-muted-foreground">Outros serviços deste assunto ({outros.length}), que não costumam valer para o regime do cliente</summary>
+                    <div className="mt-3 grid gap-3 xl:grid-cols-2">{outros.map((s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />)}</div>
+                  </details>
+                )}
+              </TabsContent>
+            );
+          })}
+          {!pessoaFisica && (
+            <TabsContent value="certidoes" className="space-y-3">
+              <section className="rounded-xl border border-border bg-card p-4 space-y-2 text-sm">
+                <h3 className="font-semibold">Certidões</h3>
+                <p className="text-muted-foreground">Os portais de certidão exigem a verificação "não sou robô", então o InTAX não as emite sozinho. Emita no portal oficial e guarde o PDF com a validade em <Link to="/bpo/arquivos" className="text-primary underline">Arquivos e documentos</Link> (tipos CND federal, estadual, municipal, CNDT e CRF do FGTS): o sino avisa antes de vencer e o painel de risco mostra o radar de certidões.</p>
+                <ul className="space-y-1">{PORTAIS_DE_CERTIDAO.map((p) => <li key={p.url}><a href={p.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">{p.nome} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a></li>)}</ul>
+                <p className="text-xs text-muted-foreground">A CND estadual e a municipal são emitidas no portal da Secretaria da Fazenda do estado e da prefeitura do cliente.</p>
+              </section>
+            </TabsContent>
+          )}
+        </Tabs>
+        {dados.data && Object.keys(ultimas).length === 0 && <p className="text-xs text-muted-foreground">Nenhuma consulta feita ainda. Use "Atualizar tudo" ou consulte cada assunto.</p>}
+        <p className="text-xs text-muted-foreground"><SeloNivel nivel="CRITICO" /> pede ação agora · <SeloNivel nivel="ATENCAO" /> vale olhar · <SeloNivel nivel="OK" /> em dia · <SeloNivel nivel="INFO" /> informativo.</p>
+      </div>
+    </div>
+  );
+}
