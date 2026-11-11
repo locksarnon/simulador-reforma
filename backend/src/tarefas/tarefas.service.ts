@@ -1,5 +1,6 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { hojeEmBrasilia, lerData, PRIORIDADES, STATUS_ABERTOS, STATUS_TAREFA, utcDe } from './tarefas.regras';
 
@@ -30,7 +31,18 @@ function texto(valor: unknown, campo: string, max: number): string | null | unde
  */
 @Injectable()
 export class TarefasService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(TarefasService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notificacoes?: NotificacoesService,
+  ) {}
+
+  /** Avisa o novo responsável no sino; falha no aviso nunca impede salvar a tarefa. */
+  private async avisarResponsavel(t: { id: string; titulo: string; responsavel: string | null; prazo: Date | null }, atorId?: string) {
+    if (!this.notificacoes) return;
+    try { await this.notificacoes.tarefaAtribuida(t, atorId); } catch (e) { this.logger.warn(`Aviso de tarefa não criado: ${(e as Error).message}`); }
+  }
 
   private async conferirResponsavel(id: string) {
     const u = await this.prisma.user.findUnique({ where: { id }, select: { id: true, ativo: true } });
@@ -128,16 +140,20 @@ export class TarefasService {
 
   async criar(user: Ator & { email?: string }, entrada: EntradaTarefa) {
     const dados = await this.normalizar(entrada, false);
-    return this.prisma.tarefa.create({ data: { ...(dados as Prisma.TarefaUncheckedCreateInput), criado_por: user.id } });
+    const t = await this.prisma.tarefa.create({ data: { ...(dados as Prisma.TarefaUncheckedCreateInput), criado_por: user.id } });
+    await this.avisarResponsavel(t, user.id);
+    return t;
   }
 
-  async atualizar(id: string, entrada: EntradaTarefa) {
+  async atualizar(id: string, entrada: EntradaTarefa, ator?: Ator) {
     const atual = await this.prisma.tarefa.findUnique({ where: { id } });
     if (!atual) throw new NotFoundException('Tarefa não encontrada.');
     const dados = await this.normalizar(entrada, true);
     // Concluir carimba a data; reabrir (ou cancelar) tira o carimbo.
     if (dados.status !== undefined) dados.concluida_em = dados.status === 'CONCLUIDA' ? (atual.concluida_em ?? new Date()) : null;
-    return this.prisma.tarefa.update({ where: { id }, data: dados });
+    const t = await this.prisma.tarefa.update({ where: { id }, data: dados });
+    if (dados.responsavel !== undefined && dados.responsavel !== atual.responsavel) await this.avisarResponsavel(t, ator?.id);
+    return t;
   }
 
   async excluir(user: Ator, id: string) {

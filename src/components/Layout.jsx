@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Menu, Search } from "lucide-react";
 import MenuLateral from "@/components/MenuLateral";
 import BuscaRapida from "@/components/BuscaRapida";
+import SinoNotificacoes from "@/components/SinoNotificacoes";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { moduloDoCaminho } from "@/lib/navegacao";
 
@@ -83,7 +84,9 @@ export default function Layout() {
             <span className="truncate">Buscar módulo ou empresa</span>
             <kbd className="ml-auto hidden rounded border border-border bg-muted px-1.5 text-[10px] font-medium sm:inline">Ctrl K</kbd>
           </button>
-          <div id="barra-superior-acoes" className="ml-auto flex items-center gap-1" />
+          <div id="barra-superior-acoes" className="ml-auto flex items-center gap-1">
+            <SinoNotificacoes />
+          </div>
         </header>
         <main id="conteudo" tabIndex={-1} className="flex-1 min-w-0 focus:outline-none">
           <Outlet />

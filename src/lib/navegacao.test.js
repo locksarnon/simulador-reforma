@@ -92,8 +92,18 @@ describe("catálogo de navegação: quem vê o quê", () => {
 
   it("administrador vê tudo, inclusive os em breve", () => {
     const ids = areasDoMenu(admin).flatMap((a) => a.modulos.map((m) => m.id));
-    expect(ids).toHaveLength(MODULOS.length);
+    expect(ids).toHaveLength(MODULOS.filter((m) => !m.oculto).length);
     expect(modulosDaArea("bpo", admin).some((m) => m.situacao === SITUACAO.EM_BREVE)).toBe(true);
+  });
+
+  it("notificações e perfil ficam fora do menu, mas a busca acha e a tela sabe a que área pertence", () => {
+    const ids = areasDoMenu(admin).flatMap((a) => a.modulos.map((m) => m.id));
+    expect(ids).not.toContain("notificacoes");
+    expect(ids).not.toContain("perfil");
+    expect(buscarModulos("notificacoes", consultor)[0].id).toBe("notificacoes");
+    expect(buscarModulos("senha", consultor).map((m) => m.id)).toContain("perfil");
+    expect(moduloDoCaminho("/notificacoes")?.area).toBe("inicio");
+    expect(moduloDoCaminho("/perfil")?.id).toBe("perfil");
   });
 });
 

@@ -66,6 +66,7 @@ import TarefasPagina from '@/pages/bpo/TarefasPagina';
 import UsuariosPagina from '@/pages/admin/UsuariosPagina';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
+import NotificacoesPagina from '@/pages/NotificacoesPagina';
 // Add page imports here
 
 function App() {
@@ -106,6 +107,7 @@ function App() {
                   <Route path="/admin/usuarios" element={<UsuariosPagina />} />
                   <Route path="/admin/acessos" element={<AcessosPagina />} />
                   <Route path="/perfil" element={<PerfilPagina />} />
+                  <Route path="/notificacoes" element={<NotificacoesPagina />} />
                   <Route path="/cockpit" element={<Home />} />
                   <Route path="/workroom/:id" element={<Workroom />}>
                     <Route index element={<WorkroomOverview />} />

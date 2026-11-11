@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, BadgeDollarSign, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange,
+  Activity, Archive, BadgeDollarSign, Bell, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange, CircleUser,
   ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FolderOpen, HeartPulse, HelpCircle, Home, KeyRound, Landmark, Layers,
   LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
   ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users, Wallet,
@@ -36,6 +36,9 @@ export const AREAS = [
 export const MODULOS = [
   // Início
   { id: "inicio", area: "inicio", titulo: "Início", descricao: "Atalhos, tarefas, avisos e a visão da carteira.", icone: Home, to: "/inicio", palavras: ["home", "painel", "começo"] },
+  // Fora do menu (o sino e o bloco da conta levam até eles), mas no catálogo: a busca acha e a tela sabe a que área pertence.
+  { id: "notificacoes", area: "inicio", titulo: "Notificações", descricao: "Central dos avisos do sino: tarefas, agenda, certificados, documentos, captura de XML e acessos.", icone: Bell, to: "/notificacoes", oculto: true, palavras: ["sino", "aviso", "alerta", "notificação"] },
+  { id: "perfil", area: "inicio", titulo: "Meu perfil", descricao: "Seu nome no sistema e a troca da sua senha.", icone: CircleUser, to: "/perfil", oculto: true, palavras: ["senha", "conta", "nome", "perfil"] },
 
   // Clientes
   { id: "grupos-empresas", area: "clientes", titulo: "Grupos e empresas", descricao: "Grupos econômicos e empresas, com acesso ao diagnóstico de cada uma.", icone: Layers, to: "/", fim: true, prefixos: [], palavras: ["cadastro", "cliente", "datahub", "cnpj"] },
@@ -103,9 +106,9 @@ export const areaPorId = (id) => AREAS.find((a) => a.id === id) || null;
 export const moduloPorId = (id) => MODULOS.find((m) => m.id === id) || null;
 export const situacaoDoModulo = (m) => m.situacao || SITUACAO.ATIVO;
 
-/** Módulos de uma área que a pessoa pode ver (administrador vê também os "em breve"). */
+/** Módulos de uma área que a pessoa pode ver (administrador vê também os "em breve"). Os módulos `oculto` não entram no menu. */
 export function modulosDaArea(areaId, user) {
-  return MODULOS.filter((m) => m.area === areaId && podeVer(m, user));
+  return MODULOS.filter((m) => m.area === areaId && !m.oculto && podeVer(m, user));
 }
 
 /** As áreas do menu, só com módulos visíveis para a pessoa; área vazia some. */

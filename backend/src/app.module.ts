@@ -27,6 +27,7 @@ import { AcessosModule } from './acessos/acessos.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { TagsModule } from './tags/tags.module';
 import { TarefasModule } from './tarefas/tarefas.module';
+import { NotificacoesModule } from './notificacoes/notificacoes.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -58,6 +59,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     UsuariosModule,
     TagsModule,
     TarefasModule,
+    NotificacoesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

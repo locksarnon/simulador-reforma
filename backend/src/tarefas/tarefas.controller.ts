@@ -33,8 +33,8 @@ export class TarefasController {
   }
 
   @Put('tarefas/:id')
-  atualizar(@Param('id') id: string, @Body() body: EntradaTarefa) {
-    return this.tarefas.atualizar(id, body ?? {});
+  atualizar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: EntradaTarefa) {
+    return this.tarefas.atualizar(id, body ?? {}, user);
   }
 
   @Delete('tarefas/:id')
