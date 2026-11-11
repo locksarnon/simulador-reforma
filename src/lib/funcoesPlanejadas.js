@@ -532,27 +532,11 @@ export const FUNCOES_PREVISTAS = [
   "modulo": "portal-contratos"
  },
  {
-  "id": "V092",
-  "funcao": "Contratos: assinatura eletrônica",
-  "destino": "Comercial > Contratos",
-  "fase": "4",
-  "depende": "Ext (provedor)",
-  "modulo": "portal-contratos"
- },
- {
-  "id": "V093",
-  "funcao": "Cobrança de honorários (boleto, PIX, cartão)",
-  "destino": "Comercial > Cobrança",
-  "fase": "4",
-  "depende": "Ext (Asaas)",
-  "modulo": "portal-contratos"
- },
- {
   "id": "V095",
   "funcao": "Comunicados por WhatsApp",
   "destino": "Comercial > Comunicação",
   "fase": "4",
-  "depende": "Ext (Meta)",
+  "depende": "Ext (agente de WhatsApp)",
   "modulo": "comunicados"
  },
  {
@@ -576,7 +560,7 @@ export const FUNCOES_PREVISTAS = [
   "funcao": "WhatsApps enviados e lista de bloqueio",
   "destino": "Administração > Logs de envio",
   "fase": "4",
-  "depende": "Ext (Meta)",
+  "depende": "Ext (agente de WhatsApp)",
   "modulo": "comunicacoes"
  },
  {

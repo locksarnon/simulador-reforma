@@ -51,7 +51,7 @@ export function AbaEnvios({ empresas }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">Mostra os 1.000 envios mais recentes do filtro. WhatsApps enviados entram aqui quando a conta oficial da Meta estiver ligada.</p>
+      <p className="text-xs text-muted-foreground">Mostra os 1.000 envios mais recentes do filtro. WhatsApps enviados entram aqui quando o agente de WhatsApp do escritório estiver ligado.</p>
     </div>
   );
 }

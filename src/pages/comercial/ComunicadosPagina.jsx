@@ -121,7 +121,7 @@ export default function ComunicadosPagina() {
           </table>
         </div>
         {user?.role !== "admin" && <p className="text-xs text-muted-foreground">Você pode escrever e salvar rascunhos; o envio é feito por um administrador.</p>}
-        <p className="text-xs text-muted-foreground">Comunicados por WhatsApp dependem da conta oficial da Meta (Administração &gt; Integrações).</p>
+        <p className="text-xs text-muted-foreground">Comunicados por WhatsApp vão pelo agente de WhatsApp do escritório, quando ele for ligado em Administração &gt; Integrações.</p>
         <ListaDePrevistas moduloId="comunicados" />
       </div>
       {editor && <Editor key={editor.comunicado?.id || "novo"} comunicado={editor.comunicado} empresas={empresas} aoFechar={() => setEditor(null)} />}

@@ -108,7 +108,7 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
         ))}
         {(camadas.isFetching || reforma.isFetching) && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Carregando" />}
       </div>
-      {regimeSemCadastro && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Esta empresa não tem regime no cadastro: aparecem todas as obrigações federais. Preencha o regime em Grupos e empresas.</p>}
+      {regimeSemCadastro && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Esta empresa não tem regime no cadastro: aparecem todas as obrigações federais. Preencha o regime em Cadastro de clientes.</p>}
       {camadas.error && <p role="alert" className="text-sm">Não foi possível carregar o calendário. <button type="button" onClick={() => camadas.refetch()} className="text-primary hover:underline">Tentar de novo</button></p>}
 
       {visao === "mes" && (
@@ -159,7 +159,7 @@ function AbaObrigacoes({ empresas }) {
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Mês do vencimento</span><input type="month" className={campo} value={mes} onChange={(e) => setMes(e.target.value)} /></label>
         <div className="w-72"><SeletorDeEmpresa empresas={empresas} valor={empresa} aoMudar={setEmpresa} rotulo="Empresa (filtra pelo regime)" opcional={false} placeholder="Todas as obrigações" /></div>
       </div>
-      {data?.empresa && !data.empresa.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{data.empresa.razao_social} não tem regime no cadastro: aparecem todas as obrigações. Preencha o regime em Grupos e empresas.</p>}
+      {data?.empresa && !data.empresa.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{data.empresa.razao_social} não tem regime no cadastro: aparecem todas as obrigações. Preencha o regime em Cadastro de clientes.</p>}
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-[13px] leading-5" aria-label="Obrigações federais do mês">
           <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Data</th><th className="px-3 py-2">Obrigação</th><th className="px-3 py-2">Competência</th><th className="px-3 py-2">Vale para</th><th className="px-3 py-2">Fonte oficial</th></tr></thead>

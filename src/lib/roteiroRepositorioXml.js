@@ -90,7 +90,7 @@ export const ROTEIRO_REPOSITORIO_XML = [
       p("Clique em \"Substituir certificado\" e envie outro certificado válido.", "O novo fica ativo; a auditoria registra o envio."),
       p("Clique em \"Remover do cofre\" e confirme.", "A chave é apagada, a captura da empresa é desativada e a auditoria registra \"Remoção do certificado\"."),
       p("Entre como consultor e abra a aba.", "Vê o certificado, mas sem os botões de enviar e remover, e sem a auditoria."),
-      p("Ainda como consultor, tente excluir a empresa (em Grupos e empresas, abra o grupo e a empresa; botão \"Excluir empresa\") enquanto o certificado está guardado.", "Recusado: apenas administradores excluem empresa que guarda certificado, XML ou captura. Como administrador, a exclusão funciona e leva junto o certificado, os XML e a configuração; a auditoria registra quem excluiu."),
+      p("Ainda como consultor, tente excluir a empresa (em Cadastro de clientes, abra o grupo e a empresa; botão \"Excluir empresa\") enquanto o certificado está guardado.", "Recusado: apenas administradores excluem empresa que guarda certificado, XML ou captura. Como administrador, a exclusão funciona e leva junto o certificado, os XML e a configuração; a auditoria registra quem excluiu."),
     ],
     cuidados: [
       "O arquivo e a senha do certificado do cliente são sigilosos: use só certificados de teste.",

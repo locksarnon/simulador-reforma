@@ -86,7 +86,7 @@ export default function DataHub() {
     <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <TituloPagina icon={LayoutGrid} ajuda={<InfoTooltip pagina="datahub" chave="header" />}>Grupos e empresas</TituloPagina>
+          <TituloPagina icon={LayoutGrid} ajuda={<InfoTooltip pagina="datahub" chave="header" />}>Cadastro de clientes</TituloPagina>
           <p className="text-sm text-muted-foreground mt-1">
             Organize suas empresas e acesse os serviços e análises de cada uma
           </p>

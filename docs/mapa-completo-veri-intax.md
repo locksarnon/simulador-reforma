@@ -13,8 +13,8 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 
 ## 1-A. Situação em 11/11/2026
 
-- **Feitas: 41** (fases 0, 1 e 2, com tela, teste, FAQ e roteiro; a calculadora de multas está em beta). **Já existiam: 5** (duas delas evoluídas). **Fora por ora: 3**, com o motivo.
-- **Em breve: 76** (fases 3 e 4). Cada uma aparece na tela do módulo, na lista "O que vem a seguir", com a dependência: Integra Contador do Serpro e procuração eletrônica, conta da Meta, Asaas, provedor de assinatura ou lojas de aplicativo.
+- **Feitas: 41** (fases 0, 1 e 2, com tela, teste, FAQ e roteiro; a calculadora de multas está em beta). **Já existiam: 5** (duas delas evoluídas). **Fora por ora: 5** (com Asaas e assinatura eletrônica, retirados por decisão de 11/11/2026), com o motivo.
+- **Em breve: 74** (fases 3 e 4). Cada uma aparece na tela do módulo, na lista "O que vem a seguir", com a dependência: Integra Contador do Serpro e procuração eletrônica, agente de WhatsApp do escritório ou lojas de aplicativo.
 - O teste `src/lib/mapaAderencia.test.js` lê este mapa e falha se uma função das fases 0 a 2 ficar sem tela, teste, FAQ ou roteiro, se um arquivo de teste citado não existir ou se uma função das fases 3 e 4 sumir das listas de previstas.
 
 ## 2. Regra para nada se perder
@@ -172,10 +172,10 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 | V089 | Orçamento comercial / calculadora de honorários | — | Comercial > Propostas | 1 | #21 | feito | /comercial/propostas |
 | V090 | Propostas: lista, modelos (templates), PDF com logo | — | Comercial > Propostas | 1 | #21 | feito | /comercial/propostas |
 | V091 | Contratos: modelos | — | Comercial > Contratos | 4 | #26 | em breve: depende de vem junto com o portal do cliente e os contratos (fase 4) | /em-breve/portal-contratos |
-| V092 | Contratos: assinatura eletrônica | Ext (provedor) | Comercial > Contratos | 4 | #26 | em breve: depende de provedor de assinatura eletrônica | /em-breve/portal-contratos |
-| V093 | Cobrança de honorários (boleto, PIX, cartão) | Ext (Asaas) | Comercial > Cobrança | 4 | #27 | em breve: depende de conta do Asaas | /em-breve/portal-contratos |
+| V092 | Contratos: assinatura eletrônica | Ext (provedor) | Comercial > Contratos | fora | #26 | fora (decisão de 11/11/2026: sem Asaas e sem assinatura eletrônica) | — |
+| V093 | Cobrança de honorários (boleto, PIX, cartão) | Ext (Asaas) | Comercial > Cobrança | fora | #27 | fora (decisão de 11/11/2026: sem Asaas e sem assinatura eletrônica) | — |
 | V094 | Comunicados por e-mail para grupos de clientes (tags, anexos) | — (SMTP) | Comercial > Comunicação | 2 | #22 | feito | /comercial/comunicados |
-| V095 | Comunicados por WhatsApp | Ext (Meta) | Comercial > Comunicação | 4 | #22 | em breve: depende de conta da Meta (WhatsApp) | /comercial/comunicados |
+| V095 | Comunicados por WhatsApp | Ext (agente de WhatsApp) | Comercial > Comunicação | 4 | #22 | em breve: depende de agente de WhatsApp do escritório | /comercial/comunicados |
 | V096 | Tags de empresas e vínculo em lote | Cad | Clientes > Tags e filtros | 1 | #29 | feito | /clientes/tags |
 
 ### 10. Administração
@@ -193,7 +193,7 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 | V105 | Destinatários dos avisos por e-mail (habilitar e desabilitar) | — | Administração > Comunicações | 1 | novo | feito | /admin/comunicacoes |
 | V106 | Controle de notificações por tipo (federais, certidões) | Rec | Administração > Comunicações | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /admin/comunicacoes |
 | V107 | E-mails enviados (por empresa e período) e lista de bloqueio | — | Administração > Logs de envio | 2 | #22 | feito | /admin/comunicacoes |
-| V108 | WhatsApps enviados e lista de bloqueio | Ext (Meta) | Administração > Logs de envio | 4 | #22 | em breve: depende de conta da Meta (WhatsApp) | /admin/comunicacoes |
+| V108 | WhatsApps enviados e lista de bloqueio | Ext (agente de WhatsApp) | Administração > Logs de envio | 4 | #22 | em breve: depende de agente de WhatsApp do escritório | /admin/comunicacoes |
 | V109 | Parâmetros da consulta automática (dia por módulo) | Rec | Administração > Parâmetros e rotinas | 3 | #20 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/parametros-rotinas |
 | V110 | Rotinas automáticas: envio de guias no dia escolhido | Rec + e-mail | Administração > Parâmetros e rotinas | 3 | #19 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/parametros-rotinas |
 | V111 | Lista de IPs permitidos | — | Administração > Acessos | 1 | #31 | feito | /admin/acessos |
@@ -212,7 +212,7 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 | V119 | Atualizar em lote ou sob demanda, com histórico por empresa | Rec | Núcleo do Monitoramento | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
 | V120 | Exportar Excel, PDF e CSV com escolha de colunas em toda lista | — | Núcleo (molde Lista) | 1 | #30 | feito | todas as listas novas (botão Exportar) |
 | V121 | Baixar em lote (ZIP, pasta única) | — | BPO > Arquivos e documentos | 1 | novo | feito | /bpo/arquivos |
-| V122 | Envio em lote por e-mail e WhatsApp (guias, avisos) | Ext | Comercial > Comunicação | 2 e 4 | #19 | feito por e-mail; WhatsApp em breve (conta da Meta) | /comercial/comunicados |
+| V122 | Envio em lote por e-mail e WhatsApp (guias, avisos) | Ext | Comercial > Comunicação | 2 e 4 | #19 | feito por e-mail; WhatsApp em breve (agente do escritório) | /comercial/comunicados |
 | V123 | Proteger o uso do certificado com PIN | — | BPO > Monitoramento > Procurações e certificados | 1 | novo | feito | /bpo/repositorio-xml |
 | V124 | Filtro, busca e paginação padrão (10, 50, 100, 500, todos) | — | Núcleo (molde Lista) | existe no Repositório de XML | plano | existe | /bpo/repositorio-xml |
 | V125 | Estados de vazio, erro e carregando; selo beta | — | Núcleo | 0 | plano | feito | todas as telas novas |

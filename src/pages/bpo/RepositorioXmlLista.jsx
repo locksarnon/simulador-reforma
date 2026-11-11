@@ -82,7 +82,7 @@ export default function RepositorioXmlLista() {
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-muted-foreground">
                         {(empresas || []).length === 0
-                          ? <>Nenhuma empresa cadastrada. Cadastre as empresas em <Link to="/" className="text-primary hover:underline">Grupos e empresas</Link>.</>
+                          ? <>Nenhuma empresa cadastrada. Cadastre as empresas em <Link to="/" className="text-primary hover:underline">Cadastro de clientes</Link>.</>
                           : "Nenhuma empresa encontrada para essa busca."}
                       </td>
                     </tr>

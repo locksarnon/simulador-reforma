@@ -5,7 +5,7 @@ import { Entrada, ServicosContratadosService } from './servicos-contratados.serv
 
 /**
  * Serviços contratados por empresa (BPO fiscal ou diagnóstico pontual). Qualquer pessoa logada lê e grava; cada gravação
- * guarda o e-mail de quem fez. Mudar o cadastro da empresa continua em Grupos e empresas.
+ * guarda o e-mail de quem fez. Mudar o cadastro da empresa continua em Cadastro de clientes.
  */
 @Controller('servicos-contratados')
 export class ServicosContratadosController {

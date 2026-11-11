@@ -10,7 +10,7 @@ const tem = (v: string | undefined) => !!v && v.trim().length > 0;
 
 /**
  * Estado das conexões do InTAX. Mostra só se está ligada e o que falta; nunca o valor de chave, senha ou token.
- * As integrações das fases 3 e 4 (Serpro, WhatsApp, Asaas, assinatura) aparecem como "previstas" com o que depende.
+ * As integrações das fases 3 e 4 (Serpro e WhatsApp) aparecem como "previstas" com o que depende.
  */
 @Injectable()
 export class IntegracoesService {
@@ -37,9 +37,7 @@ export class IntegracoesService {
       { id: 'ia', nome: 'Inteligência artificial (Gemini)', para_que: 'Resumo executivo por IA no painel.', estado: tem(env.GEMINI_API_KEY) ? 'ATIVO' : 'NAO_CONFIGURADO', detalhe: tem(env.GEMINI_API_KEY) ? 'Chave configurada.' : 'Sem chave: o resumo usa o texto padrão.' },
       { id: 'cnpj', nome: 'Consulta pública de CNPJ e malha do IBGE', para_que: 'Dados do CNPJ (CNAE, porte, município) e o ponto do município no mapa.', estado: 'ATIVO', detalhe: 'Serviços públicos, sem chave (BrasilAPI e IBGE).' },
       { id: 'serpro', nome: 'Serpro Integra Contador', para_que: 'Monitoramento fiscal: situação no e-CAC, declarações, guias, mensagens, certidões, parcelamentos e procurações.', estado: 'PREVISTO', fase: '3', detalhe: 'Depende do contrato do Integra Contador, do certificado do escritório e da procuração eletrônica de cada cliente.' },
-      { id: 'whatsapp', nome: 'WhatsApp (API oficial da Meta)', para_que: 'Comunicados e newsletter por WhatsApp.', estado: 'PREVISTO', fase: '4', detalhe: 'Depende da conta Meta (número, token e modelo de mensagem aprovado).' },
-      { id: 'asaas', nome: 'Cobrança (Asaas)', para_que: 'Boleto, PIX e cartão dos honorários.', estado: 'PREVISTO', fase: '4', detalhe: 'Depende da conta no Asaas.' },
-      { id: 'assinatura', nome: 'Assinatura eletrônica', para_que: 'Contratos assinados pelo cliente.', estado: 'PREVISTO', fase: '4', detalhe: 'Depende da escolha do provedor de assinatura.' },
+      { id: 'whatsapp', nome: 'WhatsApp (agente do escritório)', para_que: 'Comunicados, guias e avisos por WhatsApp, pelo mesmo agente que o escritório já usa.', estado: 'PREVISTO', fase: '4', detalhe: 'Depende do endereço de envio do agente de WhatsApp.' },
     ];
   }
 }

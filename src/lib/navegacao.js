@@ -42,7 +42,7 @@ export const MODULOS = [
   { id: "perfil", area: "inicio", titulo: "Meu perfil", descricao: "Seu nome no sistema e a troca da sua senha.", icone: CircleUser, to: "/perfil", oculto: true, palavras: ["senha", "conta", "nome", "perfil"] },
 
   // Clientes
-  { id: "grupos-empresas", area: "clientes", titulo: "Grupos e empresas", descricao: "Grupos econômicos e empresas, com acesso ao diagnóstico de cada uma.", icone: Layers, to: "/", fim: true, prefixos: [], palavras: ["cadastro", "cliente", "datahub", "cnpj"] },
+  { id: "grupos-empresas", area: "clientes", titulo: "Cadastro de clientes", descricao: "Grupos econômicos e empresas: criar, editar e abrir cada cliente.", icone: Layers, to: "/", fim: true, prefixos: [], palavras: ["cadastro", "cliente", "clientes", "grupos e empresas", "grupo", "empresa", "datahub", "cnpj"] },
   { id: "servicos-contratados", area: "clientes", titulo: "Serviços contratados", descricao: "Quem é do BPO e quem tem diagnóstico pontual: o que cada empresa contratou.", icone: Wallet, to: "/clientes/servicos-contratados", palavras: ["carteira", "bpo", "contrato", "diagnóstico pontual"] },
   { id: "carteira", area: "clientes", titulo: "Carteira e colaboradores", descricao: "Quais empresas cada colaborador atende, e as empresas sem responsável.", icone: Contact, to: "/clientes/carteira", palavras: ["colaborador", "responsável", "vínculo", "empresa por colaborador"] },
   { id: "tags", area: "clientes", titulo: "Tags e filtros", descricao: "Etiquetas nas empresas e listas salvas para achar clientes rápido.", icone: Tags, to: "/clientes/tags", palavras: ["etiqueta", "filtro", "segmento", "lista"] },
@@ -84,13 +84,13 @@ export const MODULOS = [
   { id: "comunicados", area: "comercial", titulo: "Comunicados", descricao: "E-mails para grupos de clientes, com anexos e registro de envio.", icone: Mail, to: "/comercial/comunicados", palavras: ["e-mail", "comunicado", "aviso", "tags"] },
   { id: "newsletter", area: "comercial", titulo: "Newsletter", descricao: "Edições da newsletter e inscritos.", icone: Mail, to: "/comercial/newsletter", palavras: ["newsletter", "inscritos", "edição"] },
   { id: "calculadora-publica", area: "comercial", titulo: "Calculadora pública", descricao: "A calculadora aberta, sem login, que traz os leads.", icone: ExternalLink, to: "/calculadora", externo: true, palavras: ["calculadora", "pública", "isca"] },
-  { id: "portal-contratos", area: "comercial", titulo: "Portal, contratos e cobrança", descricao: "Portal do cliente, app, contratos com assinatura eletrônica e cobrança de honorários.", icone: FileSignature, to: "/em-breve/portal-contratos", situacao: SITUACAO.EM_BREVE, quando: "Depende de contas externas: provedor de assinatura eletrônica, Asaas (cobrança) e lojas de aplicativo (fase 4).", palavras: ["portal", "app", "contrato", "assinatura", "cobrança", "asaas", "boleto"] },
+  { id: "portal-contratos", area: "comercial", titulo: "Portal do cliente", descricao: "Portal e app do cliente, solicitações, rastreio por CNPJ e modelos de contrato.", icone: FileSignature, to: "/em-breve/portal-contratos", situacao: SITUACAO.EM_BREVE, quando: "Fase 4, depois do BPO fiscal.", palavras: ["portal", "app", "contrato", "solicitação", "rastreio"] },
 
   // Administração
   { id: "usuarios", area: "admin", titulo: "Usuários e acessos", descricao: "Quem usa o InTAX, com papel e situação de cada conta.", icone: UserCog, to: "/admin/usuarios", papeis: ["admin"], palavras: ["usuário", "papel", "acesso", "senha", "conta"] },
   { id: "acessos", area: "admin", titulo: "Registro de acesso e IPs", descricao: "Quem entrou e quando, e a lista de endereços IP permitidos.", icone: ScrollText, to: "/admin/acessos", papeis: ["admin"], palavras: ["login", "ip", "auditoria", "último acesso"] },
   { id: "comunicacoes", area: "admin", titulo: "Comunicações e envios", descricao: "E-mails enviados (comunicados e avisos), lista de bloqueio e para quem vão os avisos por e-mail.", icone: Inbox, to: "/admin/comunicacoes", papeis: ["admin"], palavras: ["log", "e-mail enviado", "bloqueio", "descadastro", "aviso por e-mail", "destinatário"] },
-  { id: "integracoes", area: "admin", titulo: "Integrações", descricao: "Estado das conexões com Serpro, e-mail, WhatsApp, Asaas e assinatura.", icone: Plug, to: "/admin/integracoes", papeis: ["admin"], palavras: ["serpro", "integra contador", "whatsapp", "smtp", "asaas"] },
+  { id: "integracoes", area: "admin", titulo: "Integrações", descricao: "Estado das conexões com Serpro, e-mail e WhatsApp.", icone: Plug, to: "/admin/integracoes", papeis: ["admin"], palavras: ["serpro", "integra contador", "whatsapp", "smtp", "agente"] },
   { id: "configuracao", area: "admin", titulo: "Configuração", descricao: "Parâmetros gerais do sistema.", icone: Settings, to: "/configuracao", palavras: ["parâmetro", "ajuste"] },
   { id: "parametros-rotinas", area: "admin", titulo: "Parâmetros e rotinas", descricao: "Dia da consulta automática de cada módulo do monitoramento e o envio de guias no dia escolhido.", icone: SlidersHorizontal, to: "/em-breve/parametros-rotinas", papeis: ["admin"], situacao: SITUACAO.EM_BREVE, quando: "Depende do Monitoramento fiscal pelo Integra Contador (fase 3).", palavras: ["rotina", "agendamento", "envio de guias"] },
 
@@ -128,7 +128,7 @@ export const todosOsDestinos = () => MODULOS.map((m) => m.to);
 export const caminhoDaArea = (areaId) => (areaId === "inicio" ? "/inicio" : `/area/${areaId}`);
 
 /**
- * Módulo a que um caminho pertence: o `to` ou um prefixo mais específico vence. "/" só vale exato (Grupos e empresas);
+ * Módulo a que um caminho pertence: o `to` ou um prefixo mais específico vence. "/" só vale exato (Cadastro de clientes);
  * as telas do diagnóstico (/workroom/...) pertencem à Carteira de diagnósticos.
  */
 export function moduloDoCaminho(pathname) {
