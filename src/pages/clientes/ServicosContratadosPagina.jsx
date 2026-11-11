@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import BotaoExportar from "@/components/BotaoExportar";
 import { Link } from "react-router-dom";
-import { Loader2, Pencil, RefreshCw } from "lucide-react";
+import { Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "@/api/client";
+import { useAuth } from "@/lib/AuthContext";
+import { useConfirmar } from "@/components/ConfirmProvider";
+import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import DialogoServico from "@/components/clientes/DialogoServico";
 import { useCarteiras } from "@/lib/useCarteiras";
@@ -65,6 +70,29 @@ export default function ServicosContratadosPagina() {
   const alternarTodas = () => setMarcadas(todasMarcadas ? new Set() : new Set(lista.map((e) => e.id)));
   const abrir = (empresasAlvo, servico = null, tipoInicial) => setDialogo({ empresas: empresasAlvo, servico, tipoInicial });
   const selecionadas = empresas.filter((e) => marcadas.has(e.id));
+  const { user } = useAuth();
+  const confirmar = useConfirmar();
+  const qc = useQueryClient();
+  const [excluindo, setExcluindo] = useState(null); // { feitas, total }
+  const excluirEmLote = async () => {
+    const alvo = [...selecionadas];
+    const nomes = alvo.slice(0, 5).map((e) => e.razao_social).join("; ") + (alvo.length > 5 ? ` e mais ${alvo.length - 5}` : "");
+    if (!(await confirmar({ titulo: `Excluir ${alvo.length} empresa(s)?`, descricao: `${nomes}. Saem junto os serviços, vínculos, etiquetas, tarefas, documentos e arquivos de cada uma. Não dá para desfazer.`, rotulo: `Excluir ${alvo.length}` }))) return;
+    const falhas = [];
+    setExcluindo({ feitas: 0, total: alvo.length });
+    for (const [i, e] of alvo.entries()) {
+      try { await api.entities.Empresa.delete(e.id); } catch { falhas.push(e.razao_social); }
+      setExcluindo({ feitas: i + 1, total: alvo.length });
+    }
+    setExcluindo(null);
+    setMarcadas(new Set());
+    qc.invalidateQueries({ queryKey: ["empresas"] });
+    recarregar();
+    const ok = alvo.length - falhas.length;
+    toast(falhas.length
+      ? { title: `${ok} excluída(s); ${falhas.length} não`, description: `Não saíram: ${falhas.join("; ")}. Tente de novo.`, variant: "destructive" }
+      : { title: `${ok} empresa(s) excluída(s)` });
+  };
 
   return (
     <div>
@@ -117,6 +145,12 @@ export default function ServicosContratadosPagina() {
               <button type="button" onClick={() => abrir(selecionadas, null, "BPO_FISCAL")} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Definir BPO fiscal</button>
               <button type="button" onClick={() => abrir(selecionadas, null, "DIAGNOSTICO_PONTUAL")} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir diagnóstico pontual</button>
               <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
+              {user?.role === "admin" && (
+                <button type="button" onClick={excluirEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
+                  {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {excluindo ? `Excluindo ${excluindo.feitas} de ${excluindo.total}…` : "Excluir"}
+                </button>
+              )}
               <button type="button" onClick={() => setMarcadas(new Set())} className="ml-auto text-xs text-muted-foreground hover:underline">Limpar seleção</button>
             </div>
           )}

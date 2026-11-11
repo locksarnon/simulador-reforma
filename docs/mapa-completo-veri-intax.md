@@ -11,6 +11,12 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 - Por fase: fase 0 = 2; fase 1 = 30; fase 2 = 10; fase 3 = 65; fase 4 = 11; fases 2 e 4 juntas = 1; já existem = 3; fora por ora = 3. (Duas funções "existem e evoluem na fase 1" e entram na contagem da fase 1.)
 - **20 grupos de rotas do InTAX de hoje**, todas com destino (parte B).
 
+## 1-A. Situação em 11/11/2026
+
+- **Feitas: 41** (fases 0, 1 e 2, com tela, teste, FAQ e roteiro; a calculadora de multas está em beta). **Já existiam: 5** (duas delas evoluídas). **Fora por ora: 3**, com o motivo.
+- **Em breve: 76** (fases 3 e 4). Cada uma aparece na tela do módulo, na lista "O que vem a seguir", com a dependência: Integra Contador do Serpro e procuração eletrônica, conta da Meta, Asaas, provedor de assinatura ou lojas de aplicativo.
+- O teste `src/lib/mapaAderencia.test.js` lê este mapa e falha se uma função das fases 0 a 2 ficar sem tela, teste, FAQ ou roteiro, se um arquivo de teste citado não existir ou se uma função das fases 3 e 4 sumir das listas de previstas.
+
 ## 2. Regra para nada se perder
 
 1. Nenhuma função entra ou sai da lista sem mudar este documento (e o `.csv`, que abre no Excel).
@@ -33,183 +39,183 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 
 ### 1. Monitoramento da empresa (Dashboard Federal do Veri: 17 telas)
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V001 | Diagnóstico fiscal PJ (situação fiscal e-CAC, histórico, baixar todos) | Rec | BPO > Monitoramento > Situação | 3 | #1 |
-| V002 | Sublimite do Simples (receita acumulada, % do limite, sócios) | Rec | BPO > Monitoramento > Situação | 3 | #1 |
-| V003 | Ausência de declarações (por regime, obrigações em falta) | Rec | BPO > Monitoramento > Situação | 3 | #1 |
-| V004 | Exclusão MEI/Simples (períodos e status) | Rec | BPO > Monitoramento > Situação | 3 | novo |
-| V005 | Aviso de exclusão do Simples (previsão e dias restantes) | Rec | BPO > Monitoramento > Situação | 3 | novo |
-| V006 | Dívida ativa (situação e detalhes) | Rec | BPO > Monitoramento > Situação | 3 | #1 |
-| V007 | E-processos (processo mais recente, situação, histórico) | Rec | BPO > Monitoramento > Situação | 3 | novo |
-| V008 | PGDAS-D (transmissões, status, documentos) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 |
-| V009 | DEFIS (por ano-calendário, status, recibo) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 |
-| V010 | DCTFWeb (transmissão, débito apurado, saldo a pagar) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 |
-| V011 | MIT (apuração mensal, situação, valor) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 |
-| V012 | DAS: gerar, baixar, pago, duplicidade, extrato | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo |
-| V013 | DARF da DCTFWeb: gerar e baixar em lote | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo |
-| V014 | Comprovantes de pagamento (DARF, DAS, DAE, DJE por mês; baixar em lote) | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo |
-| V015 | Relatório de faturamento (Simples e regime normal; exige configuração) | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo |
-| V016 | Fator R (relatório por empresa) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 |
-| V017 | Procurações (situação; consulta em lote) | Rec | BPO > Monitoramento > Procurações e certificados | 3 | #7 |
-| V018 | Vencimento dos certificados A1 dos clientes | — | BPO > Monitoramento > Procurações e certificados | existe | novo |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V001 | Diagnóstico fiscal PJ (situação fiscal e-CAC, histórico, baixar todos) | Rec | BPO > Monitoramento > Situação | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V002 | Sublimite do Simples (receita acumulada, % do limite, sócios) | Rec | BPO > Monitoramento > Situação | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V003 | Ausência de declarações (por regime, obrigações em falta) | Rec | BPO > Monitoramento > Situação | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V004 | Exclusão MEI/Simples (períodos e status) | Rec | BPO > Monitoramento > Situação | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V005 | Aviso de exclusão do Simples (previsão e dias restantes) | Rec | BPO > Monitoramento > Situação | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V006 | Dívida ativa (situação e detalhes) | Rec | BPO > Monitoramento > Situação | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V007 | E-processos (processo mais recente, situação, histórico) | Rec | BPO > Monitoramento > Situação | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V008 | PGDAS-D (transmissões, status, documentos) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V009 | DEFIS (por ano-calendário, status, recibo) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V010 | DCTFWeb (transmissão, débito apurado, saldo a pagar) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V011 | MIT (apuração mensal, situação, valor) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V012 | DAS: gerar, baixar, pago, duplicidade, extrato | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V013 | DARF da DCTFWeb: gerar e baixar em lote | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V014 | Comprovantes de pagamento (DARF, DAS, DAE, DJE por mês; baixar em lote) | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V015 | Relatório de faturamento (Simples e regime normal; exige configuração) | Rec | BPO > Monitoramento > Declarações e guias | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V016 | Fator R (relatório por empresa) | Rec | BPO > Monitoramento > Declarações e guias | 3 | #1 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V017 | Procurações (situação; consulta em lote) | Rec | BPO > Monitoramento > Procurações e certificados | 3 | #7 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/procuracoes |
+| V018 | Vencimento dos certificados A1 dos clientes | — | BPO > Monitoramento > Procurações e certificados | existe | novo | existe | /bpo/repositorio-xml |
 
 ### 2. Mensagens da Receita
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V019 | Mensagens e-CAC (consultar novas, leitura, classificar, pontuais) | Rec | BPO > Monitoramento > Mensagens | 3 | #2 |
-| V020 | Malha fiscal | Rec | BPO > Monitoramento > Mensagens | 3 | #2 |
-| V021 | Termos da Receita (intimações) | Rec | BPO > Monitoramento > Mensagens | 3 | #2 |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V019 | Mensagens e-CAC (consultar novas, leitura, classificar, pontuais) | Rec | BPO > Monitoramento > Mensagens | 3 | #2 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V020 | Malha fiscal | Rec | BPO > Monitoramento > Mensagens | 3 | #2 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V021 | Termos da Receita (intimações) | Rec | BPO > Monitoramento > Mensagens | 3 | #2 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
 
 ### 3. Certidões
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V022 | CND federal (RFB/PGFN) | Rec | BPO > Monitoramento > Certidões | 3 | #3 |
-| V023 | CND estadual (por UF, validade, baixar todas) | Rec (portal com captcha) | BPO > Monitoramento > Certidões | 3 | #3 |
-| V024 | CND trabalhista | Rec (portal com captcha) | BPO > Monitoramento > Certidões | 3 | #3 |
-| V025 | CND FGTS | Rec (portal com captcha) | BPO > Monitoramento > Certidões | 3 | #3 |
-| V026 | CND municipal | Rec (portal por município) | BPO > Monitoramento > Certidões | 3 | #3 |
-| V027 | Relatório unificado de certidões | Rec | BPO > Monitoramento > Certidões | 3 | #3 |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V022 | CND federal (RFB/PGFN) | Rec | BPO > Monitoramento > Certidões | 3 | #3 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V023 | CND estadual (por UF, validade, baixar todas) | Rec (portal com captcha) | BPO > Monitoramento > Certidões | 3 | #3 | em breve: depende de Integra Contador (Serpro) e procuração; portal com captcha | /em-breve/monitoramento |
+| V024 | CND trabalhista | Rec (portal com captcha) | BPO > Monitoramento > Certidões | 3 | #3 | em breve: depende de Integra Contador (Serpro) e procuração; portal com captcha | /em-breve/monitoramento |
+| V025 | CND FGTS | Rec (portal com captcha) | BPO > Monitoramento > Certidões | 3 | #3 | em breve: depende de Integra Contador (Serpro) e procuração; portal com captcha | /em-breve/monitoramento |
+| V026 | CND municipal | Rec (portal por município) | BPO > Monitoramento > Certidões | 3 | #3 | em breve: depende de Integra Contador (Serpro) e procuração; portal por município | /em-breve/monitoramento |
+| V027 | Relatório unificado de certidões | Rec | BPO > Monitoramento > Certidões | 3 | #3 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
 
 ### 4. Parcelamentos
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V028 | Parcelamento do Simples (SN) | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V029 | Parcelamento especial SN | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V030 | PERT SN | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V031 | RELP SN | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V032 | Parcelamento MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V033 | Parcelamento especial MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V034 | PERT MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V035 | RELP MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V036 | Parcelamento PGFN (Sispar) | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 |
-| V037 | Ações em lote nos parcelamentos (atualizar, gerar DAS, enviar e-mails, baixar DAS) | Rec + e-mail | BPO > Monitoramento > Parcelamentos | 3 | novo |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V028 | Parcelamento do Simples (SN) | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V029 | Parcelamento especial SN | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V030 | PERT SN | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V031 | RELP SN | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V032 | Parcelamento MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V033 | Parcelamento especial MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V034 | PERT MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V035 | RELP MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V036 | Parcelamento PGFN (Sispar) | Rec | BPO > Monitoramento > Parcelamentos | 3 | #4 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V037 | Ações em lote nos parcelamentos (atualizar, gerar DAS, enviar e-mails, baixar DAS) | Rec + e-mail | BPO > Monitoramento > Parcelamentos | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
 
 ### 5. MEI
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V038 | CCMEI (status, atualizar em lote) | Rec | BPO > Monitoramento > MEI | 3 | #5 |
-| V039 | Diagnóstico fiscal MEI | Rec | BPO > Monitoramento > MEI | 3 | #5 |
-| V040 | DAS MEI (por competência, gerar em lote, recalcular) | Rec | BPO > Monitoramento > MEI | 3 | novo |
-| V041 | DASN-SIMEI (ausência e irregularidade) | Rec | BPO > Monitoramento > MEI | 3 | #5 |
-| V042 | Optantes e excluídas do MEI | Rec | BPO > Monitoramento > MEI | 3 | #5 |
-| V043 | Dívida ativa MEI | Rec | BPO > Monitoramento > MEI | 3 | #5 |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V038 | CCMEI (status, atualizar em lote) | Rec | BPO > Monitoramento > MEI | 3 | #5 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V039 | Diagnóstico fiscal MEI | Rec | BPO > Monitoramento > MEI | 3 | #5 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V040 | DAS MEI (por competência, gerar em lote, recalcular) | Rec | BPO > Monitoramento > MEI | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V041 | DASN-SIMEI (ausência e irregularidade) | Rec | BPO > Monitoramento > MEI | 3 | #5 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V042 | Optantes e excluídas do MEI | Rec | BPO > Monitoramento > MEI | 3 | #5 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V043 | Dívida ativa MEI | Rec | BPO > Monitoramento > MEI | 3 | #5 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
 
 ### 6. Pessoa física
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V044 | Painel da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 |
-| V045 | Cadastro de pessoas físicas (CPF; vincular a procuração) | Cad | Clientes > Pessoas físicas | 1 | #6 |
-| V046 | Mensagens e-CAC da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 |
-| V047 | Situação fiscal da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 |
-| V048 | CND federal da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 |
-| V049 | CND trabalhista da pessoa física | Rec (portal com captcha) | BPO > Monitoramento > Pessoa física | 3 | #6 |
-| V050 | Procurações da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 |
-| V051 | Certificados da pessoa física (vencimento) | — | BPO > Monitoramento > Pessoa física | 1 | #6 |
-| V052 | Arquivos da pessoa física | — | BPO > Arquivos e documentos | 2 | #23 |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V044 | Painel da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V045 | Cadastro de pessoas físicas (CPF; vincular a procuração) | Cad | Clientes > Pessoas físicas | 1 | #6 | feito | /clientes/pessoas-fisicas |
+| V046 | Mensagens e-CAC da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V047 | Situação fiscal da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V048 | CND federal da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V049 | CND trabalhista da pessoa física | Rec (portal com captcha) | BPO > Monitoramento > Pessoa física | 3 | #6 | em breve: depende de Integra Contador (Serpro) e procuração; portal com captcha | /em-breve/monitoramento |
+| V050 | Procurações da pessoa física | Rec | BPO > Monitoramento > Pessoa física | 3 | #6 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V051 | Certificados da pessoa física (vencimento) | — | BPO > Monitoramento > Pessoa física | 1 | #6 | feito | /clientes/pessoas-fisicas |
+| V052 | Arquivos da pessoa física | — | BPO > Arquivos e documentos | 2 | #23 | feito | /bpo/arquivos |
 
 ### 7. Análise e indicadores
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V053 | Gestão à Vista 360° (resumo executivo e gráficos: entregas, ausências por obrigação e regime, diagnóstico, CNDs, evolução mensal) | Rec | BPO > Análise de risco | 3 | #8 |
-| V054 | Top 5 empresas em risco, com score e nível | Rec | BPO > Análise de risco | 3 | #8 |
-| V055 | Calculadora de multas por atraso de obrigação | — (regras legais) | BPO > Análise de risco | 2 | novo |
-| V056 | Radar de CND (vencimentos das certidões) | Rec | BPO > Análise de risco | 3 | novo |
-| V057 | Fila de prioridade e ações rápidas | Rec | BPO > Análise de risco | 3 | novo |
-| V058 | Auditoria e cross-check dos dados | Rec | BPO > Análise de risco | 3 | novo |
-| V059 | BI da carteira: saúde, regime tributário, porte | Cad | Início > Painel da carteira | 1 | novo |
-| V060 | Geolocalização da carteira (mapa por município) | Cad | Início > Painel da carteira | 1 | novo |
-| V061 | Distribuição da carteira por CNAE | Cad | Início > Painel da carteira | 1 | novo |
-| V062 | Indicadores por módulo (diagnóstico, caixa postal, PGDAS, CNDs, DCTFWeb, ausências, sublimite; PJ, PF, parcelamentos, cobrança) | Rec | BPO > Análise de risco | 3 | #9 |
-| V063 | Raio-X Fiscal / Diagnóstico (relatório por fonte e por empresa) | Rec | BPO > Análise de risco | 3 | #10 |
-| V064 | Health Score Fiscal | Rec | BPO > Análise de risco | 3 | #11 |
-| V065 | Pré-análise por CNPJ de prospect, com exportação | Cad + dados públicos | Comercial > Prospecção | 2 | #12 |
-| V066 | Pós-análise por IA (análises mensais) | Rec | BPO > Análise de risco | 3 | #13 |
-| V067 | Assistente de IA para análise fiscal (chat) | Rec | BPO > Análise de risco | 3 | novo |
-| V068 | Simulador da Reforma Tributária | — | Reforma > Simulador | existe; evoluir na 1 | #14 e #15 |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V053 | Gestão à Vista 360° (resumo executivo e gráficos: entregas, ausências por obrigação e regime, diagnóstico, CNDs, evolução mensal) | Rec | BPO > Análise de risco | 3 | #8 | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V054 | Top 5 empresas em risco, com score e nível | Rec | BPO > Análise de risco | 3 | #8 | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V055 | Calculadora de multas por atraso de obrigação | — (regras legais) | BPO > Análise de risco | 2 | novo | feito (beta) | /bpo/analise-risco |
+| V056 | Radar de CND (vencimentos das certidões) | Rec | BPO > Análise de risco | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V057 | Fila de prioridade e ações rápidas | Rec | BPO > Análise de risco | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V058 | Auditoria e cross-check dos dados | Rec | BPO > Análise de risco | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V059 | BI da carteira: saúde, regime tributário, porte | Cad | Início > Painel da carteira | 1 | novo | feito | /inicio/carteira |
+| V060 | Geolocalização da carteira (mapa por município) | Cad | Início > Painel da carteira | 1 | novo | feito | /inicio/carteira |
+| V061 | Distribuição da carteira por CNAE | Cad | Início > Painel da carteira | 1 | novo | feito | /inicio/carteira |
+| V062 | Indicadores por módulo (diagnóstico, caixa postal, PGDAS, CNDs, DCTFWeb, ausências, sublimite; PJ, PF, parcelamentos, cobrança) | Rec | BPO > Análise de risco | 3 | #9 | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V063 | Raio-X Fiscal / Diagnóstico (relatório por fonte e por empresa) | Rec | BPO > Análise de risco | 3 | #10 | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V064 | Health Score Fiscal | Rec | BPO > Análise de risco | 3 | #11 | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V065 | Pré-análise por CNPJ de prospect, com exportação | Cad + dados públicos | Comercial > Prospecção | 2 | #12 | feito | /comercial/pre-analise |
+| V066 | Pós-análise por IA (análises mensais) | Rec | BPO > Análise de risco | 3 | #13 | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V067 | Assistente de IA para análise fiscal (chat) | Rec | BPO > Análise de risco | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /bpo/analise-risco |
+| V068 | Simulador da Reforma Tributária | — | Reforma > Simulador | existe; evoluir na 1 | #14 e #15 | existe; evoluído | /reforma/regimes |
 
 ### 8. Rotina do escritório
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V069 | Agenda de obrigações fiscais por empresa | — (datas oficiais) | BPO > Obrigações e agenda | 2 | #16 |
-| V070 | Calendário geral: eventos próprios, tipos de evento, mês, semana, dia, arrastar | — | BPO > Obrigações e agenda | 1 | novo |
-| V071 | Processos e tarefas (modelos, recorrência, atrasos) | — | BPO > Processos e tarefas | 1 | #17 |
-| V072 | Replicar processos recorrentes | — | BPO > Processos e tarefas | 1 | novo |
-| V073 | Tour de uso (guia na primeira visita) | — | Núcleo | 2 | novo |
-| V074 | Tipos de documento (nome, órgão expedidor) | Cad | BPO > Arquivos e documentos | 2 | novo |
-| V075 | Documentos por empresa com data de validade e alerta de vencimento | Cad | BPO > Arquivos e documentos | 2 | novo |
-| V076 | Gerenciador de arquivos por empresa | — | BPO > Arquivos e documentos | 2 | #23 |
-| V077 | Meus downloads (fila de downloads em lote, com validade) | — | BPO > Arquivos e documentos | 1 | #32 |
-| V078 | Central de notificações (sino com 7 categorias) | — | Início (sino do topo) | 1 | #18 |
-| V079 | Cadastro automático de novas empresas a partir das procurações | Rec | Clientes > Grupos e empresas | 3 | novo |
-| V080 | Busca rápida de módulo | — | Núcleo | 0 | plano |
-| V081 | Seletor global de empresa no topo | — | Núcleo | 1 | plano |
-| V082 | Início com atalhos do dia | — | Início | 1 | plano |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V069 | Agenda de obrigações fiscais por empresa | — (datas oficiais) | BPO > Obrigações e agenda | 2 | #16 | feito | /bpo/agenda |
+| V070 | Calendário geral: eventos próprios, tipos de evento, mês, semana, dia, arrastar | — | BPO > Obrigações e agenda | 1 | novo | feito | /bpo/agenda |
+| V071 | Processos e tarefas (modelos, recorrência, atrasos) | — | BPO > Processos e tarefas | 1 | #17 | feito | /bpo/tarefas |
+| V072 | Replicar processos recorrentes | — | BPO > Processos e tarefas | 1 | novo | feito | /bpo/tarefas |
+| V073 | Tour de uso (guia na primeira visita) | — | Núcleo | 2 | novo | feito | /inicio |
+| V074 | Tipos de documento (nome, órgão expedidor) | Cad | BPO > Arquivos e documentos | 2 | novo | feito | /bpo/arquivos |
+| V075 | Documentos por empresa com data de validade e alerta de vencimento | Cad | BPO > Arquivos e documentos | 2 | novo | feito | /bpo/arquivos |
+| V076 | Gerenciador de arquivos por empresa | — | BPO > Arquivos e documentos | 2 | #23 | feito | /bpo/arquivos |
+| V077 | Meus downloads (fila de downloads em lote, com validade) | — | BPO > Arquivos e documentos | 1 | #32 | feito | /bpo/arquivos |
+| V078 | Central de notificações (sino com 7 categorias) | — | Início (sino do topo) | 1 | #18 | feito | /notificacoes |
+| V079 | Cadastro automático de novas empresas a partir das procurações | Rec | Clientes > Grupos e empresas | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | / |
+| V080 | Busca rápida de módulo | — | Núcleo | 0 | plano | feito | Ctrl K (topo) |
+| V081 | Seletor global de empresa no topo | — | Núcleo | 1 | plano | feito | topo (empresa em foco) |
+| V082 | Início com atalhos do dia | — | Início | 1 | plano | feito | /inicio |
 
 ### 9. Relacionamento e comercial
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V083 | Portal do cliente (login personalizável, forma de acesso, funções) | Ext | Comercial > Portal do cliente | 4 | #24 |
-| V084 | Rastreio público por CNPJ | — | Comercial > Portal do cliente | 4 | novo |
-| V085 | App móvel com a marca do escritório (baixar, personalizar) | Ext (lojas de app) | Comercial > App | 4 | #25 |
-| V086 | Usuários do app (clientes) e permissões | Ext | Comercial > App | 4 | #25 |
-| V087 | Envio de guias ao app | Rec + Ext | Comercial > App | 4 | novo |
-| V088 | Solicitações dos clientes pelo app (lista e status) | — | Comercial > Solicitações | 4 | novo |
-| V089 | Orçamento comercial / calculadora de honorários | — | Comercial > Propostas | 1 | #21 |
-| V090 | Propostas: lista, modelos (templates), PDF com logo | — | Comercial > Propostas | 1 | #21 |
-| V091 | Contratos: modelos | — | Comercial > Contratos | 4 | #26 |
-| V092 | Contratos: assinatura eletrônica | Ext (provedor) | Comercial > Contratos | 4 | #26 |
-| V093 | Cobrança de honorários (boleto, PIX, cartão) | Ext (Asaas) | Comercial > Cobrança | 4 | #27 |
-| V094 | Comunicados por e-mail para grupos de clientes (tags, anexos) | — (SMTP) | Comercial > Comunicação | 2 | #22 |
-| V095 | Comunicados por WhatsApp | Ext (Meta) | Comercial > Comunicação | 4 | #22 |
-| V096 | Tags de empresas e vínculo em lote | Cad | Clientes > Tags e filtros | 1 | #29 |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V083 | Portal do cliente (login personalizável, forma de acesso, funções) | Ext | Comercial > Portal do cliente | 4 | #24 | em breve: depende de conta ou contrato externo | /em-breve/portal-contratos |
+| V084 | Rastreio público por CNPJ | — | Comercial > Portal do cliente | 4 | novo | em breve: depende de vem junto com o portal do cliente e os contratos (fase 4) | /em-breve/portal-contratos |
+| V085 | App móvel com a marca do escritório (baixar, personalizar) | Ext (lojas de app) | Comercial > App | 4 | #25 | em breve: depende de lojas de aplicativo | /em-breve/portal-contratos |
+| V086 | Usuários do app (clientes) e permissões | Ext | Comercial > App | 4 | #25 | em breve: depende de conta ou contrato externo | /em-breve/portal-contratos |
+| V087 | Envio de guias ao app | Rec + Ext | Comercial > App | 4 | novo | em breve: depende de Integra Contador (Serpro) e procuração + conta externa | /em-breve/portal-contratos |
+| V088 | Solicitações dos clientes pelo app (lista e status) | — | Comercial > Solicitações | 4 | novo | em breve: depende de vem junto com o portal do cliente e os contratos (fase 4) | /em-breve/portal-contratos |
+| V089 | Orçamento comercial / calculadora de honorários | — | Comercial > Propostas | 1 | #21 | feito | /comercial/propostas |
+| V090 | Propostas: lista, modelos (templates), PDF com logo | — | Comercial > Propostas | 1 | #21 | feito | /comercial/propostas |
+| V091 | Contratos: modelos | — | Comercial > Contratos | 4 | #26 | em breve: depende de vem junto com o portal do cliente e os contratos (fase 4) | /em-breve/portal-contratos |
+| V092 | Contratos: assinatura eletrônica | Ext (provedor) | Comercial > Contratos | 4 | #26 | em breve: depende de provedor de assinatura eletrônica | /em-breve/portal-contratos |
+| V093 | Cobrança de honorários (boleto, PIX, cartão) | Ext (Asaas) | Comercial > Cobrança | 4 | #27 | em breve: depende de conta do Asaas | /em-breve/portal-contratos |
+| V094 | Comunicados por e-mail para grupos de clientes (tags, anexos) | — (SMTP) | Comercial > Comunicação | 2 | #22 | feito | /comercial/comunicados |
+| V095 | Comunicados por WhatsApp | Ext (Meta) | Comercial > Comunicação | 4 | #22 | em breve: depende de conta da Meta (WhatsApp) | /comercial/comunicados |
+| V096 | Tags de empresas e vínculo em lote | Cad | Clientes > Tags e filtros | 1 | #29 | feito | /clientes/tags |
 
 ### 10. Administração
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V097 | Cadastro de empresas (e exclusão em lote) | — | Clientes > Grupos e empresas | existe; evoluir na 1 | #30 |
-| V098 | Importador de dados de empresas e exportação | — | Clientes > Importação e exportação | 1 | #30 |
-| V099 | E-mail e WhatsApp de contato por empresa | — | Clientes > Grupos e empresas | 1 | novo |
-| V100 | Procuradores (certificado do escritório) | Rec + Ext | Administração > Integrações | 3 | #7 |
-| V101 | Usuários e níveis de acesso | — | Administração > Usuários e acessos | 1 | #28 |
-| V102 | Vincular empresas por colaborador (em lote e por importação) | — | Clientes > Carteira e colaboradores | 1 | #28 |
-| V103 | Relatórios empresa por colaborador (com e sem) | — | Clientes > Carteira e colaboradores | 1 | #28 |
-| V104 | Filtros personalizados (listas salvas de empresas; importar empresas) | — | Clientes > Tags e filtros | 1 | #29 |
-| V105 | Destinatários dos avisos por e-mail (habilitar e desabilitar) | — | Administração > Comunicações | 1 | novo |
-| V106 | Controle de notificações por tipo (federais, certidões) | Rec | Administração > Comunicações | 3 | novo |
-| V107 | E-mails enviados (por empresa e período) e lista de bloqueio | — | Administração > Logs de envio | 2 | #22 |
-| V108 | WhatsApps enviados e lista de bloqueio | Ext (Meta) | Administração > Logs de envio | 4 | #22 |
-| V109 | Parâmetros da consulta automática (dia por módulo) | Rec | Administração > Parâmetros e rotinas | 3 | #20 |
-| V110 | Rotinas automáticas: envio de guias no dia escolhido | Rec + e-mail | Administração > Parâmetros e rotinas | 3 | #19 |
-| V111 | Lista de IPs permitidos | — | Administração > Acessos | 1 | #31 |
-| V112 | Registro de acesso (último acesso por usuário) | — | Administração > Acessos | 1 | #31 |
-| V113 | Plano contratado e limites de CNPJ e usuários | — | Administração | fora (só se o InTAX for oferecido a terceiros) | #33 |
-| V114 | Perfil do usuário (dados e troca de senha) | — | Menu do usuário | 1 | novo |
-| V115 | FAQ e suporte | — | Suporte | existe | — |
-| V116 | Chat de suporte dentro do sistema | Ext | Suporte | fora | #33 |
-| V117 | Termos de uso do sistema | — | Suporte | fora (só se o InTAX for oferecido a terceiros) | — |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V097 | Cadastro de empresas (e exclusão em lote) | — | Clientes > Grupos e empresas | existe; evoluir na 1 | #30 | existe; evoluído (exclusão em lote) | /clientes/servicos-contratados |
+| V098 | Importador de dados de empresas e exportação | — | Clientes > Importação e exportação | 1 | #30 | feito | /clientes/importacao |
+| V099 | E-mail e WhatsApp de contato por empresa | — | Clientes > Grupos e empresas | 1 | novo | feito | / (cadastro da empresa) |
+| V100 | Procuradores (certificado do escritório) | Rec + Ext | Administração > Integrações | 3 | #7 | em breve: depende de Integra Contador (Serpro) e procuração + conta externa | /admin/integracoes |
+| V101 | Usuários e níveis de acesso | — | Administração > Usuários e acessos | 1 | #28 | feito | /admin/usuarios |
+| V102 | Vincular empresas por colaborador (em lote e por importação) | — | Clientes > Carteira e colaboradores | 1 | #28 | feito | /clientes/carteira |
+| V103 | Relatórios empresa por colaborador (com e sem) | — | Clientes > Carteira e colaboradores | 1 | #28 | feito | /clientes/carteira |
+| V104 | Filtros personalizados (listas salvas de empresas; importar empresas) | — | Clientes > Tags e filtros | 1 | #29 | feito | /clientes/tags |
+| V105 | Destinatários dos avisos por e-mail (habilitar e desabilitar) | — | Administração > Comunicações | 1 | novo | feito | /admin/comunicacoes |
+| V106 | Controle de notificações por tipo (federais, certidões) | Rec | Administração > Comunicações | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /admin/comunicacoes |
+| V107 | E-mails enviados (por empresa e período) e lista de bloqueio | — | Administração > Logs de envio | 2 | #22 | feito | /admin/comunicacoes |
+| V108 | WhatsApps enviados e lista de bloqueio | Ext (Meta) | Administração > Logs de envio | 4 | #22 | em breve: depende de conta da Meta (WhatsApp) | /admin/comunicacoes |
+| V109 | Parâmetros da consulta automática (dia por módulo) | Rec | Administração > Parâmetros e rotinas | 3 | #20 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/parametros-rotinas |
+| V110 | Rotinas automáticas: envio de guias no dia escolhido | Rec + e-mail | Administração > Parâmetros e rotinas | 3 | #19 | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/parametros-rotinas |
+| V111 | Lista de IPs permitidos | — | Administração > Acessos | 1 | #31 | feito | /admin/acessos |
+| V112 | Registro de acesso (último acesso por usuário) | — | Administração > Acessos | 1 | #31 | feito | /admin/acessos |
+| V113 | Plano contratado e limites de CNPJ e usuários | — | Administração | fora (só se o InTAX for oferecido a terceiros) | #33 | fora (só se o InTAX for oferecido a terceiros) | — |
+| V114 | Perfil do usuário (dados e troca de senha) | — | Menu do usuário | 1 | novo | feito | /perfil |
+| V115 | FAQ e suporte | — | Suporte | existe | — | existe | /manual |
+| V116 | Chat de suporte dentro do sistema | Ext | Suporte | fora | #33 | fora (o suporte segue pelos canais do escritório) | — |
+| V117 | Termos de uso do sistema | — | Suporte | fora (só se o InTAX for oferecido a terceiros) | — | fora (só se o InTAX for oferecido a terceiros) | — |
 
 ### 11. Funções transversais (valem para várias telas)
 
-| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento |
-|---|---|---|---|---|---|
-| V118 | Marcar empresa como "sem obrigação" por obrigação (DCTFWeb, PGDAS, DEFIS, MIT) | Rec | Núcleo do Monitoramento | 3 | novo |
-| V119 | Atualizar em lote ou sob demanda, com histórico por empresa | Rec | Núcleo do Monitoramento | 3 | novo |
-| V120 | Exportar Excel, PDF e CSV com escolha de colunas em toda lista | — | Núcleo (molde Lista) | 1 | #30 |
-| V121 | Baixar em lote (ZIP, pasta única) | — | BPO > Arquivos e documentos | 1 | novo |
-| V122 | Envio em lote por e-mail e WhatsApp (guias, avisos) | Ext | Comercial > Comunicação | 2 e 4 | #19 |
-| V123 | Proteger o uso do certificado com PIN | — | BPO > Monitoramento > Procurações e certificados | 1 | novo |
-| V124 | Filtro, busca e paginação padrão (10, 50, 100, 500, todos) | — | Núcleo (molde Lista) | existe no Repositório de XML | plano |
-| V125 | Estados de vazio, erro e carregando; selo beta | — | Núcleo | 0 | plano |
+| ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
+|---|---|---|---|---|---|---|---|
+| V118 | Marcar empresa como "sem obrigação" por obrigação (DCTFWeb, PGDAS, DEFIS, MIT) | Rec | Núcleo do Monitoramento | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V119 | Atualizar em lote ou sob demanda, com histórico por empresa | Rec | Núcleo do Monitoramento | 3 | novo | em breve: depende de Integra Contador (Serpro) e procuração | /em-breve/monitoramento |
+| V120 | Exportar Excel, PDF e CSV com escolha de colunas em toda lista | — | Núcleo (molde Lista) | 1 | #30 | feito | todas as listas novas (botão Exportar) |
+| V121 | Baixar em lote (ZIP, pasta única) | — | BPO > Arquivos e documentos | 1 | novo | feito | /bpo/arquivos |
+| V122 | Envio em lote por e-mail e WhatsApp (guias, avisos) | Ext | Comercial > Comunicação | 2 e 4 | #19 | feito por e-mail; WhatsApp em breve (conta da Meta) | /comercial/comunicados |
+| V123 | Proteger o uso do certificado com PIN | — | BPO > Monitoramento > Procurações e certificados | 1 | novo | feito | /bpo/repositorio-xml |
+| V124 | Filtro, busca e paginação padrão (10, 50, 100, 500, todos) | — | Núcleo (molde Lista) | existe no Repositório de XML | plano | existe | /bpo/repositorio-xml |
+| V125 | Estados de vazio, erro e carregando; selo beta | — | Núcleo | 0 | plano | feito | todas as telas novas |
 
 ## 5. Parte B: tudo o que o InTAX tem hoje e para onde vai
 

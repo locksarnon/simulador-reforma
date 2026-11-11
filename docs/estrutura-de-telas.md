@@ -1,6 +1,6 @@
 # Estrutura de telas e separação de conteúdo do InTAX
 
-Proposta de 11/11/2026, aguardando aprovação. Serve de regra para todo módulo novo: antes de criar uma tela, ela precisa caber aqui. O controle de que nada se perde está em `docs/mapa-completo-veri-intax.md` (e no `.csv`): cada função do Veri tem número, destino e fase, e cada rota do InTAX de hoje tem destino.
+Aprovada e implantada em 11/11/2026: as fases 0, 1 e 2 estão no ar, e as fases 3 e 4 aparecem como "Em breve", com a dependência de cada uma (situação função a função em `docs/mapa-completo-veri-intax.md`, seção 1-A). O Início abre em /inicio e o endereço / continua sendo Grupos e empresas. Serve de regra para todo módulo novo: antes de criar uma tela, ela precisa caber aqui. O controle de que nada se perde está em `docs/mapa-completo-veri-intax.md` (e no `.csv`): cada função do Veri tem número, destino e fase, e cada rota do InTAX de hoje tem destino.
 
 ## 1. Por que
 
