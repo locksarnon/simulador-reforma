@@ -23,13 +23,13 @@ describe("Análise de risco", () => {
 });
 
 describe("Funções previstas (fases 3 e 4 do mapa)", () => {
-  it("todas têm módulo e as do portal aparecem na página em breve dele", () => {
-    expect(FUNCOES_PREVISTAS.length).toBeGreaterThan(10);
+  it("todas têm módulo do menu e aparecem na página do módulo", () => {
+    expect(FUNCOES_PREVISTAS.length).toBeGreaterThan(5);
     expect(FUNCOES_PREVISTAS.every((f) => f.modulo && f.id.startsWith("V"))).toBe(true);
-    expect(funcoesDoModulo("portal-contratos").length).toBeGreaterThan(5);
+    expect(funcoesDoModulo("monitoramento").length).toBeGreaterThan(2);
+    expect(funcoesDoModulo("portal-contratos")).toHaveLength(0);
     const html = renderToString(<MemoryRouter initialEntries={["/em-breve/portal-contratos"]}><Routes><Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} /></Routes></MemoryRouter>).replace(/<!-- -->/g, "");
-    expect(html).toContain("O que está previsto");
-    expect(html).toContain("V083");
+    expect(html).toContain("Módulo não encontrado");
   });
 });
 

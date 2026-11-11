@@ -9,7 +9,6 @@ const JA_EXISTE = {
   monitoramento: "A Captura de XML já guarda os XML dos clientes, captura NF-e, CT-e e NFS-e da SEFAZ e cuida do certificado A1 de cada empresa.",
   procuracoes: "O cofre de certificado A1 já existe na Captura de XML, com aviso de vencimento por e-mail.",
   "analise-risco": "O Painel executivo e o resumo executivo por IA já existem no Início.",
-  "portal-contratos": "A Newsletter e os Leads já cobrem parte do relacionamento com o cliente.",
   "pessoas-fisicas": "Produtor rural pessoa física já pode ser cadastrado como empresa em Clientes.",
 };
 

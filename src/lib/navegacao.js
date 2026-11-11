@@ -1,6 +1,6 @@
 import {
   Activity, Archive, BadgeDollarSign, Bell, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange, CircleUser,
-  ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FileSpreadsheet, FolderOpen, HeartPulse, HelpCircle, Home, Inbox, KeyRound, Landmark, Layers,
+  ClipboardCheck, Code2, Contact, ExternalLink, FileSpreadsheet, FolderOpen, HeartPulse, HelpCircle, Home, Inbox, KeyRound, Landmark, Layers,
   LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, PieChart, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
   ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users,
 } from "lucide-react";
@@ -84,7 +84,6 @@ export const MODULOS = [
   { id: "comunicados", area: "comercial", titulo: "Comunicados", descricao: "E-mails para grupos de clientes, com anexos e registro de envio.", icone: Mail, to: "/comercial/comunicados", palavras: ["e-mail", "comunicado", "aviso", "tags"] },
   { id: "newsletter", area: "comercial", titulo: "Newsletter", descricao: "Edições da newsletter e inscritos.", icone: Mail, to: "/comercial/newsletter", palavras: ["newsletter", "inscritos", "edição"] },
   { id: "calculadora-publica", area: "comercial", titulo: "Calculadora pública", descricao: "A calculadora aberta, sem login, que traz os leads.", icone: ExternalLink, to: "/calculadora", externo: true, palavras: ["calculadora", "pública", "isca"] },
-  { id: "portal-contratos", area: "comercial", titulo: "Portal do cliente", descricao: "Portal e app do cliente, solicitações, rastreio por CNPJ e modelos de contrato.", icone: FileSignature, to: "/em-breve/portal-contratos", situacao: SITUACAO.EM_BREVE, quando: "Fase 4, depois do BPO fiscal.", palavras: ["portal", "app", "contrato", "solicitação", "rastreio"] },
 
   // Administração
   { id: "usuarios", area: "admin", titulo: "Usuários e acessos", descricao: "Quem usa o InTAX, com papel e situação de cada conta.", icone: UserCog, to: "/admin/usuarios", papeis: ["admin"], palavras: ["usuário", "papel", "acesso", "senha", "conta"] },

@@ -83,7 +83,6 @@ describe("aderência ao mapa Veri × InTAX (docs/mapa-completo-veri-intax.csv)",
 
   it("os módulos em breve dizem do que dependem", () => {
     const emBreve = MODULOS.filter((m) => m.situacao === SITUACAO.EM_BREVE);
-    expect(emBreve.length).toBeGreaterThan(0);
     expect(emBreve.filter((m) => !m.quando).map((m) => m.id)).toEqual([]);
   });
 });

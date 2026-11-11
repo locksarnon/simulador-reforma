@@ -60,62 +60,6 @@ export const FUNCOES_PREVISTAS = [
   "modulo": "grupos-empresas"
  },
  {
-  "id": "V083",
-  "funcao": "Portal do cliente (login personalizável, forma de acesso, funções)",
-  "destino": "Comercial > Portal do cliente",
-  "fase": "4",
-  "depende": "Ext",
-  "modulo": "portal-contratos"
- },
- {
-  "id": "V084",
-  "funcao": "Rastreio público por CNPJ",
-  "destino": "Comercial > Portal do cliente",
-  "fase": "4",
-  "depende": "—",
-  "modulo": "portal-contratos"
- },
- {
-  "id": "V085",
-  "funcao": "App móvel com a marca do escritório (baixar, personalizar)",
-  "destino": "Comercial > App",
-  "fase": "4",
-  "depende": "Ext (lojas de app)",
-  "modulo": "portal-contratos"
- },
- {
-  "id": "V086",
-  "funcao": "Usuários do app (clientes) e permissões",
-  "destino": "Comercial > App",
-  "fase": "4",
-  "depende": "Ext",
-  "modulo": "portal-contratos"
- },
- {
-  "id": "V087",
-  "funcao": "Envio de guias ao app",
-  "destino": "Comercial > App",
-  "fase": "4",
-  "depende": "Rec + Ext",
-  "modulo": "portal-contratos"
- },
- {
-  "id": "V088",
-  "funcao": "Solicitações dos clientes pelo app (lista e status)",
-  "destino": "Comercial > Solicitações",
-  "fase": "4",
-  "depende": "—",
-  "modulo": "portal-contratos"
- },
- {
-  "id": "V091",
-  "funcao": "Contratos: modelos",
-  "destino": "Comercial > Contratos",
-  "fase": "4",
-  "depende": "—",
-  "modulo": "portal-contratos"
- },
- {
   "id": "V095",
   "funcao": "Comunicados por WhatsApp",
   "destino": "Comercial > Comunicação",

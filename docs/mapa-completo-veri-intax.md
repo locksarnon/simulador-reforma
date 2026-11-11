@@ -13,8 +13,8 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 
 ## 1-A. Situação em 11/11/2026
 
-- **Feitas: 98** (fases 0, 1 e 2, com tela, teste, FAQ e roteiro; a calculadora de multas está em beta). **Já existiam: 5** (duas delas evoluídas). **Fora por ora: 6** (com Asaas e assinatura eletrônica, retirados por decisão de 11/11/2026), com o motivo.
-- **Em breve: 16** (fases 3 e 4). Cada uma aparece na tela do módulo, na lista "O que vem a seguir", com a dependência: Integra Contador do Serpro e procuração eletrônica, agente de WhatsApp do escritório ou lojas de aplicativo.
+- **Feitas: 98** (fases 0, 1 e 2, com tela, teste, FAQ e roteiro; a calculadora de multas está em beta). **Já existiam: 5** (duas delas evoluídas). **Fora por ora: 13** (inclui Asaas e assinatura eletrônica, retirados em 11/11/2026, e o portal do cliente, que não teremos por ora), com o motivo.
+- **Em breve: 9** (fases 3 e 4). Cada uma aparece na tela do módulo, na lista "O que vem a seguir", com a dependência: Integra Contador do Serpro e procuração eletrônica, agente de WhatsApp do escritório ou lojas de aplicativo.
 - O teste `src/lib/mapaAderencia.test.js` lê este mapa e falha se uma função das fases 0 a 2 ficar sem tela, teste, FAQ ou roteiro, se um arquivo de teste citado não existir ou se uma função das fases 3 e 4 sumir das listas de previstas.
 
 - **Monitoramento fiscal entregue (11/11/2026):** situação fiscal, declarações, guias, caixa postal, parcelamentos, MEI, procurações, pessoa física, painel de risco, rotinas e envio de guias, pelo Integra Contador. Hoje roda no ambiente de demonstração oficial do Serpro (dados fictícios); com o contrato, passa a dados reais sem mudar as telas.
@@ -165,15 +165,15 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 
 | ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
 |---|---|---|---|---|---|---|---|
-| V083 | Portal do cliente (login personalizável, forma de acesso, funções) | Ext | Comercial > Portal do cliente | 4 | #24 | em breve: depende de conta ou contrato externo | /em-breve/portal-contratos |
-| V084 | Rastreio público por CNPJ | — | Comercial > Portal do cliente | 4 | novo | em breve: depende de vem junto com o portal do cliente e os contratos (fase 4) | /em-breve/portal-contratos |
-| V085 | App móvel com a marca do escritório (baixar, personalizar) | Ext (lojas de app) | Comercial > App | 4 | #25 | em breve: depende de lojas de aplicativo | /em-breve/portal-contratos |
-| V086 | Usuários do app (clientes) e permissões | Ext | Comercial > App | 4 | #25 | em breve: depende de conta ou contrato externo | /em-breve/portal-contratos |
-| V087 | Envio de guias ao app | Rec + Ext | Comercial > App | 4 | novo | em breve: depende de Integra Contador (Serpro) e procuração + conta externa | /em-breve/portal-contratos |
-| V088 | Solicitações dos clientes pelo app (lista e status) | — | Comercial > Solicitações | 4 | novo | em breve: depende de vem junto com o portal do cliente e os contratos (fase 4) | /em-breve/portal-contratos |
+| V083 | Portal do cliente (login personalizável, forma de acesso, funções) | Ext | Comercial > Portal do cliente | fora | #24 | fora (decisão de 11/11/2026: sem portal do cliente por ora) | — |
+| V084 | Rastreio público por CNPJ | — | Comercial > Portal do cliente | fora | novo | fora (decisão de 11/11/2026: sem portal do cliente por ora) | — |
+| V085 | App móvel com a marca do escritório (baixar, personalizar) | Ext (lojas de app) | Comercial > App | fora | #25 | fora (decisão de 11/11/2026: sem portal do cliente por ora) | — |
+| V086 | Usuários do app (clientes) e permissões | Ext | Comercial > App | fora | #25 | fora (decisão de 11/11/2026: sem portal do cliente por ora) | — |
+| V087 | Envio de guias ao app | Rec + Ext | Comercial > App | fora | novo | fora (decisão de 11/11/2026: sem portal do cliente por ora) | — |
+| V088 | Solicitações dos clientes pelo app (lista e status) | — | Comercial > Solicitações | fora | novo | fora (decisão de 11/11/2026: sem portal do cliente por ora) | — |
 | V089 | Orçamento comercial / calculadora de honorários | — | Comercial > Propostas | 1 | #21 | feito | /comercial/propostas |
 | V090 | Propostas: lista, modelos (templates), PDF com logo | — | Comercial > Propostas | 1 | #21 | feito | /comercial/propostas |
-| V091 | Contratos: modelos | — | Comercial > Contratos | 4 | #26 | em breve: depende de vem junto com o portal do cliente e os contratos (fase 4) | /em-breve/portal-contratos |
+| V091 | Contratos: modelos | — | Comercial > Contratos | fora | #26 | fora (decisão de 11/11/2026: sem portal do cliente por ora) | — |
 | V092 | Contratos: assinatura eletrônica | Ext (provedor) | Comercial > Contratos | fora | #26 | fora (decisão de 11/11/2026: sem Asaas e sem assinatura eletrônica) | — |
 | V093 | Cobrança de honorários (boleto, PIX, cartão) | Ext (Asaas) | Comercial > Cobrança | fora | #27 | fora (decisão de 11/11/2026: sem Asaas e sem assinatura eletrônica) | — |
 | V094 | Comunicados por e-mail para grupos de clientes (tags, anexos) | — (SMTP) | Comercial > Comunicação | 2 | #22 | feito | /comercial/comunicados |

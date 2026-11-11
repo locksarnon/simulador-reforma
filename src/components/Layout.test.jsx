@@ -77,12 +77,9 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
   });
 
   it("consultor não vê módulo em breve nem os de administrador; administrador vê com o selo", () => {
-    const consultor = renderizar(CONSULTOR, "/comercial/propostas");
-    expect(consultor).not.toContain("Portal do cliente");
+    expect(renderizar(CONSULTOR, "/bpo/repositorio-xml")).toContain("Monitoramento fiscal");
     expect(renderizar(CONSULTOR, "/configuracao")).not.toContain("Usuários e acessos");
-    const admin = renderizar(ADMIN, "/comercial/propostas");
-    expect(admin).toContain("Portal do cliente");
-    expect(admin).toContain("Em breve");
+    expect(renderizar(ADMIN, "/configuracao")).toContain("Usuários e acessos");
   });
 
   it("a barra superior tem a busca rápida (Ctrl K) e o link para pular ao conteúdo", () => {
