@@ -26,6 +26,7 @@ import { ServicosContratadosModule } from './servicos-contratados/servicos-contr
 import { AcessosModule } from './acessos/acessos.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { TagsModule } from './tags/tags.module';
+import { TarefasModule } from './tarefas/tarefas.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -56,6 +57,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AcessosModule,
     UsuariosModule,
     TagsModule,
+    TarefasModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })
