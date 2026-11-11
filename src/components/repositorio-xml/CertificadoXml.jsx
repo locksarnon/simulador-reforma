@@ -30,6 +30,30 @@ function Bloco({ titulo, children, acao }) {
   );
 }
 
+/** PIN do cofre: quando ligado, enviar, substituir ou remover certificado pede o PIN. Só o hash fica guardado. */
+export function PinDoCofre({ ativo }) {
+  const qc = useQueryClient();
+  const [atual, setAtual] = useState("");
+  const [novo, setNovo] = useState("");
+  const salvar = useMutation({
+    mutationFn: (valor) => api.put("/certificados/pin", { atual, novo: valor }),
+    onSuccess: (r) => { setAtual(""); setNovo(""); qc.invalidateQueries({ queryKey: ["cert-pin"] }); toast({ title: r.ativo ? "PIN do cofre salvo" : "PIN do cofre tirado" }); },
+    onError: (e) => toast({ title: "Não foi possível mudar o PIN", description: e.message, variant: "destructive" }),
+  });
+  const so = (v) => v.replace(/\D/g, "").slice(0, 8);
+  return (
+    <Bloco titulo={`PIN do cofre: ${ativo ? "ligado" : "desligado"}`}>
+      <p className="text-xs text-muted-foreground">Com o PIN ligado, enviar, substituir ou remover um certificado exige o PIN, além de ser administrador. O PIN tem de 4 a 8 números; vale para todas as empresas.</p>
+      <form className="flex flex-wrap items-end gap-2 text-sm" onSubmit={(e) => { e.preventDefault(); salvar.mutate(novo); }}>
+        {ativo && <label className="space-y-1"><span className="block text-xs text-muted-foreground">PIN atual</span><input type="password" inputMode="numeric" autoComplete="off" className={campo} value={atual} onChange={(e) => setAtual(so(e.target.value))} /></label>}
+        <label className="space-y-1"><span className="block text-xs text-muted-foreground">{ativo ? "PIN novo" : "PIN"}</span><input type="password" inputMode="numeric" autoComplete="off" className={campo} value={novo} onChange={(e) => setNovo(so(e.target.value))} /></label>
+        <button type="submit" disabled={novo.length < 4 || (ativo && atual.length < 4) || salvar.isPending} className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-60">{ativo ? "Trocar o PIN" : "Ligar o PIN"}</button>
+        {ativo && <button type="button" onClick={() => salvar.mutate("")} disabled={atual.length < 4 || salvar.isPending} className="px-3 py-2 rounded-md border border-border text-sm disabled:opacity-60">Tirar o PIN</button>}
+      </form>
+    </Bloco>
+  );
+}
+
 /** Certificado digital A1 do cliente (cofre). Mudanças só para administradores. */
 export default function CertificadoXml({ empresaId }) {
   const { user } = useAuth();
@@ -40,30 +64,36 @@ export default function CertificadoXml({ empresaId }) {
   const [arquivo, setArquivo] = useState(null);
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
+  const [pin, setPin] = useState("");
+  const [pedirPin, setPedirPin] = useState(false);
 
   const { data, isLoading } = useQuery({ queryKey: ["repo-xml-cert", empresaId], queryFn: () => api.get(`${base(empresaId)}/certificado`) });
+  const { data: pinEstado } = useQuery({ queryKey: ["cert-pin"], queryFn: () => api.get("/certificados/pin") });
+  const comPin = !!pinEstado?.ativo;
   const { data: auditoria } = useQuery({
     queryKey: ["repo-xml-auditoria", empresaId], queryFn: () => api.get(`${base(empresaId)}/auditoria-certificado`, { limite: 20 }), enabled: admin,
   });
   const atualizar = () => { qc.invalidateQueries({ queryKey: ["repo-xml-cert", empresaId] }); qc.invalidateQueries({ queryKey: ["repo-xml-auditoria", empresaId] }); };
 
   const enviar = useMutation({
-    mutationFn: () => api.upload(`${base(empresaId)}/certificado`, arquivo, { senha }),
+    mutationFn: () => api.upload(`${base(empresaId)}/certificado`, arquivo, { senha, ...(comPin ? { pin } : {}) }),
     onSuccess: (c) => {
-      setSenha(""); setArquivo(null); setErro(""); setEnvioAberto(false); atualizar();
+      setSenha(""); setPin(""); setArquivo(null); setErro(""); setEnvioAberto(false); atualizar();
       toast({ title: "Certificado guardado no cofre", description: `${c.titular}, válido até ${fmtData(c.valido_ate)}. A senha do arquivo não foi guardada.` });
     },
-    onError: (e) => { setSenha(""); setErro(e.message); },
+    onError: (e) => { setSenha(""); setPin(""); setErro(e.message); },
   });
   const remover = useMutation({
-    mutationFn: () => api.delete(`${base(empresaId)}/certificado`),
-    onSuccess: () => { atualizar(); toast({ title: "Certificado removido do cofre", description: "A chave foi apagada e a captura desta empresa foi desativada." }); },
+    mutationFn: () => (comPin ? api.post(`${base(empresaId)}/certificado/remover`, { pin }) : api.delete(`${base(empresaId)}/certificado`)),
+    onSuccess: () => { setPin(""); setPedirPin(false); atualizar(); toast({ title: "Certificado removido do cofre", description: "A chave foi apagada e a captura desta empresa foi desativada." }); },
     onError: (e) => toast({ title: "Não foi possível remover", description: e.message, variant: "destructive" }),
   });
 
   const abrirEnvio = () => { setArquivo(null); setSenha(""); setErro(""); setEnvioAberto(true); };
   const confirmarRemocao = async () => {
-    if (await confirmar({ titulo: "Remover o certificado do cofre?", descricao: "A chave privada guardada será apagada e a captura automática desta empresa será desativada. Para voltar a usar, será preciso enviar o certificado de novo.", rotulo: "Remover" })) remover.mutate();
+    if (await confirmar({ titulo: "Remover o certificado do cofre?", descricao: "A chave privada guardada será apagada e a captura automática desta empresa será desativada. Para voltar a usar, será preciso enviar o certificado de novo.", rotulo: "Remover" })) {
+      if (comPin) { setPin(""); setPedirPin(true); } else remover.mutate();
+    }
   };
 
   if (isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline" /> Carregando…</p>;
@@ -104,6 +134,18 @@ export default function CertificadoXml({ empresaId }) {
         <p className="text-xs text-muted-foreground">A chave privada fica cifrada (AES-256-GCM) com uma chave que não está no banco de dados. A senha do arquivo é usada só no envio e não é guardada. Cada uso do certificado fica registrado na auditoria.</p>
       </Bloco>
 
+      {admin && <PinDoCofre ativo={comPin} />}
+
+      <Dialog open={pedirPin} onOpenChange={(v) => { if (!remover.isPending) { setPedirPin(v); if (!v) setPin(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>PIN do cofre</DialogTitle><DialogDescription>Para remover o certificado, digite o PIN do cofre.</DialogDescription></DialogHeader>
+          <form className="space-y-3 text-sm" onSubmit={(e) => { e.preventDefault(); remover.mutate(); }}>
+            <input type="password" inputMode="numeric" autoComplete="off" autoFocus aria-label="PIN do cofre" className={campo} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} />
+            <DialogFooter><button type="button" onClick={() => setPedirPin(false)} className="px-3 py-1.5 rounded-md border border-border">Cancelar</button><button type="submit" disabled={pin.length < 4 || remover.isPending} className="px-4 py-1.5 rounded-md bg-destructive text-destructive-foreground disabled:opacity-60">Remover</button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {admin && (
         <Bloco titulo="Auditoria do cofre (últimos 20 registros)">
           {!auditoria?.length ? <p className="text-sm text-muted-foreground">Nenhum registro ainda.</p> : (
@@ -128,6 +170,8 @@ export default function CertificadoXml({ empresaId }) {
               <input type="file" accept=".pfx,.p12" className={campo} onChange={(e) => setArquivo(e.target.files?.[0] || null)} /></label>
             <label className="block space-y-1"><span className="font-medium">Senha do certificado</span>
               <input type="password" autoComplete="new-password" className={campo} value={senha} onChange={(e) => setSenha(e.target.value)} /></label>
+            {comPin && <label className="block space-y-1"><span className="font-medium">PIN do cofre</span>
+              <input type="password" inputMode="numeric" autoComplete="off" className={campo} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} /></label>}
             {erro && <p role="alert" className="text-destructive">{erro}</p>}
             <DialogFooter>
               <button type="button" disabled={enviar.isPending} onClick={() => setEnvioAberto(false)} className="px-4 py-2 rounded-md border border-border hover:bg-muted disabled:opacity-50">Cancelar</button>
