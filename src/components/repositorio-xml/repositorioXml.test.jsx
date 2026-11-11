@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { dividirEmLotes, fmtData, fmtDoc, fmtMoeda, importavelNoImportador } from "./formatos";
+import { dividirEmLotes, fmtData, fmtDoc, fmtMoeda, importavelNoImportador, MAX_PDF_NO_ZIP, nomeDoPdf, rotuloTipo, situacaoCiencia, temPdf } from "./formatos";
 
 const auth = vi.hoisted(() => ({ role: "admin" }));
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: auth.role, email: "fulano@fal" } }) }));
@@ -13,7 +13,9 @@ const DocumentosXml = (await import("./DocumentosXml")).default;
 const CertificadoXml = (await import("./CertificadoXml")).default;
 const CapturaXml = (await import("./CapturaXml")).default;
 
-const PARAMETROS = { tipo: "", origem: "", conteudo: "", de: "", ate: "", pendentes: undefined, q: undefined };
+// Cada aba pede um só tipo de conteúdo: a dos documentos, o XML completo; a dos resumos, só o resumo.
+const PARAMETROS = { tipo: "", origem: "", conteudo: "COMPLETO", de: "", ate: "", pendentes: undefined, q: undefined };
+const PARAMETROS_RESUMOS = { ...PARAMETROS, conteudo: "RESUMO" };
 const certificado = (extra = {}) => ({
   id: "c1", titular: "EMPRESA TESTE LTDA:12345678000195", emissor: "AC TESTE", documento: "12345678000195", documento_formatado: "12.345.678/0001-95",
   valido_de: "2026-01-01T00:00:00Z", valido_ate: "2027-01-01T00:00:00Z", dias_para_vencer: 200, situacao: "ATIVO", enviado_por: "admin@fal", enviado_em: "2026-11-01T10:00:00Z",
@@ -40,6 +42,51 @@ describe("formatos do repositório de XML", () => {
     // nenhum arquivo se perde nem se repete
     const todos = Array.from({ length: 37 }, (_, i) => ({ size: (i % 7 + 1) * 5 * MB, id: i }));
     expect(dividirEmLotes(todos).flat().map((f) => f.id)).toEqual(todos.map((f) => f.id));
+  });
+
+  it("o PDF existe para NF-e, NFC-e, CT-e, MDF-e e NFS-e com o XML completo; evento, CT-e OS e resumo ficam só em XML", () => {
+    expect(temPdf({ tipo: "NFE", modelo: "55", conteudo: "COMPLETO" })).toBe(true);
+    expect(temPdf({ tipo: "NFE", modelo: "65", conteudo: "COMPLETO" })).toBe(true);
+    expect(temPdf({ tipo: "CTE", modelo: "57", conteudo: "COMPLETO" })).toBe(true);
+    expect(temPdf({ tipo: "MDFE", modelo: "58", conteudo: "COMPLETO" })).toBe(true);
+    expect(temPdf({ tipo: "NFSE", modelo: null, conteudo: "COMPLETO" })).toBe(true);
+    expect(temPdf({ tipo: "NFE", modelo: "55", conteudo: "RESUMO" })).toBe(false);
+    expect(temPdf({ tipo: "CTE", modelo: "57", conteudo: "RESUMO" })).toBe(false);
+    expect(temPdf({ tipo: "CTE", modelo: "67", conteudo: "COMPLETO" })).toBe(false);
+    expect(temPdf({ tipo: "EVENTO", modelo: "55", conteudo: "COMPLETO" })).toBe(false);
+    expect(temPdf(null)).toBe(false);
+    expect(MAX_PDF_NO_ZIP).toBe(300);
+  });
+
+  it("o PDF baixado tem o nome do documento auxiliar do tipo e a chave (o mesmo nome que o servidor usa)", () => {
+    const chave = "5".repeat(44);
+    expect(nomeDoPdf({ tipo: "NFE", modelo: "55", chave })).toBe(`DANFE-${chave}.pdf`);
+    expect(nomeDoPdf({ tipo: "NFE", modelo: "65", chave })).toBe(`DANFE-NFCE-${chave}.pdf`);
+    expect(nomeDoPdf({ tipo: "CTE", modelo: "57", chave })).toBe(`DACTE-${chave}.pdf`);
+    expect(nomeDoPdf({ tipo: "MDFE", modelo: "58", chave })).toBe(`DAMDFE-${chave}.pdf`);
+    expect(nomeDoPdf({ tipo: "NFSE", modelo: null, chave })).toBe(`DANFSE-${chave}.pdf`);
+  });
+
+  it("a tabela distingue NFC-e e CT-e OS, que no repositório são do tipo NF-e e CT-e", () => {
+    expect(rotuloTipo({ tipo: "NFE", modelo: "55" })).toBe("NF-e");
+    expect(rotuloTipo({ tipo: "NFE", modelo: "65" })).toBe("NFC-e");
+    expect(rotuloTipo({ tipo: "CTE", modelo: "57" })).toBe("CT-e");
+    expect(rotuloTipo({ tipo: "CTE", modelo: "67" })).toBe("CT-e OS");
+    expect(rotuloTipo({ tipo: "MDFE", modelo: "58" })).toBe("MDF-e");
+    expect(rotuloTipo({ tipo: "NFSE", modelo: null })).toBe("NFS-e");
+    expect(rotuloTipo({ tipo: "EVENTO", modelo: "55" })).toBe("Evento");
+  });
+
+  it("a Ciência da Operação de um resumo: registrada, já registrada, rejeitada, não se aplica, ainda não e, nos demais, um traço", () => {
+    const nfeDaCaptura = { tipo: "NFE", origem: "CAPTURA" };
+    expect(situacaoCiencia({ ...nfeDaCaptura, ciencia_status: "REGISTRADA" })).toMatchObject({ rotulo: "Registrada", tom: "ok" });
+    expect(situacaoCiencia({ ...nfeDaCaptura, ciencia_status: "JA_REGISTRADA" })).toMatchObject({ rotulo: "Já registrada", tom: "ok" });
+    expect(situacaoCiencia({ ...nfeDaCaptura, ciencia_status: "REJEITADA" })).toMatchObject({ rotulo: "Rejeitada", tom: "erro" });
+    expect(situacaoCiencia({ ...nfeDaCaptura, ciencia_status: "NAO_APLICAVEL" })).toMatchObject({ rotulo: "Não se aplica", tom: "neutro" });
+    expect(situacaoCiencia({ ...nfeDaCaptura, ciencia_status: null })).toMatchObject({ rotulo: "Ainda não", tom: "aviso" });
+    // Só o resumo de NF-e que veio da captura é candidato à Ciência: evento e resumo enviado por arquivo não ganham "Ainda não".
+    expect(situacaoCiencia({ tipo: "EVENTO", origem: "CAPTURA", ciencia_status: null }).rotulo).toBe("—");
+    expect(situacaoCiencia({ tipo: "NFE", origem: "UPLOAD", ciencia_status: null }).rotulo).toBe("—");
   });
 
   it("CNPJ, CNPJ alfanumérico e CPF com a pontuação de costume", () => {
@@ -280,9 +327,120 @@ describe("DocumentosXml", () => {
     expect(html).toContain("1 documento(s)");
   });
 
+  it("ao lado do XML, cada documento com PDF tem os botões de visualizar e de baixar o PDF; evento, CT-e OS e a lista de completos não têm", () => {
+    auth.role = "admin";
+    const base = { ...doc, situacao: "AUTORIZADA" };
+    const nfce = { ...base, id: "d2", modelo: "65", chave: "51261112345678000195650010000001251000000012" };
+    const cte = { ...base, id: "d3", tipo: "CTE", modelo: "57", chave: "51261112345678000195570010000004561000000019" };
+    const cteOs = { ...base, id: "d4", tipo: "CTE", modelo: "67", chave: "51261112345678000195670010000004571000000010" };
+    const mdfe = { ...base, id: "d5", tipo: "MDFE", modelo: "58", chave: "51261112345678000195580010000007891000000014" };
+    const nfse = { ...base, id: "d6", tipo: "NFSE", modelo: null, chave: "5107602220000000000001000000000001234567890123456" };
+    const evento = { ...base, id: "d7", tipo: "EVENTO", evento_tipo: "110111", chave: "51261112345678000195550010000001231000000010", sequencia: 1 };
+    const itens = [base, nfce, cte, cteOs, mdfe, nfse, evento];
+    const html = renderizar(<DocumentosXml empresaId="E1" empresa={{ id_empresa: "EMP-1" }} />, {
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: itens.length, itens }]],
+    });
+    expect(html.match(/title="Baixar o XML"/g)).toHaveLength(7); // o XML continua em todas as linhas
+    expect(html.match(/title="Visualizar o PDF"/g)).toHaveLength(5); // NF-e, NFC-e, CT-e, MDF-e e NFS-e
+    expect(html.match(/title="Baixar o PDF"/g)).toHaveLength(5);
+    for (const d of [base, nfce, cte, mdfe, nfse]) {
+      expect(html).toContain(`aria-label="Visualizar o PDF de ${d.chave}"`);
+      expect(html).toContain(`aria-label="Baixar o PDF de ${d.chave}"`);
+    }
+    // o CT-e OS e o evento ficam só com o XML (o evento tem a mesma chave da NF-e: conta o aria-label do evento pelos botões de PDF, que são 5)
+    expect(html).not.toContain(`aria-label="Visualizar o PDF de ${cteOs.chave}"`);
+    // ordem na linha: XML, visualizar, baixar o PDF
+    const linha = html.slice(html.indexOf(`aria-label="Baixar ${base.chave}"`));
+    expect(linha.indexOf('title="Visualizar o PDF"')).toBeGreaterThan(0);
+    expect(linha.indexOf('title="Baixar o PDF"')).toBeGreaterThan(linha.indexOf('title="Visualizar o PDF"'));
+    // os tipos aparecem com o nome certo (a NFC-e e o CT-e OS não se confundem com NF-e e CT-e)
+    for (const nome of ["NFC-e", "CT-e OS", "MDF-e", "NFS-e"]) expect(html).toContain(`>${nome}<`);
+  });
+
+  it("o ZIP tem a opção de incluir os PDF dos documentos, com o limite por ZIP no texto de ajuda", () => {
+    auth.role = "admin";
+    const html = renderizar(<DocumentosXml empresaId="E1" empresa={{ id_empresa: "EMP-1" }} />, {
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 1, itens: [doc] }]],
+    });
+    expect(html).toContain("Incluir os PDF dos documentos");
+    expect(html).toContain(`até ${MAX_PDF_NO_ZIP} documentos por ZIP`);
+    expect(html).toContain("Baixar ZIP dos filtros");
+    expect(html).not.toContain("Preparando o ZIP");
+  });
+
+  it("a aba Documentos mostra só XML completo: sem o filtro \"Conteúdo\", e o cartão \"Só o resumo\" leva à aba dos resumos", () => {
+    auth.role = "user";
+    const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} aoAbrirResumos={() => {}} />, {
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 1, itens: [doc] }]],
+    });
+    expect(html).not.toContain("XML completo</option>");
+    expect(html).not.toContain('<option value="RESUMO"');
+    expect(html).not.toContain("Só resumo</span>");
+    expect(html).toMatch(/<button type="button" title="Abrir a aba Só o resumo"[^>]*>\s*<p[^>]*>Só o resumo \(sem XML\)<\/p><p[^>]*>1<\/p>/);
+    // sem o atalho (por exemplo, fora da página da empresa), o cartão é só informação
+    const semAtalho = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
+      cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 1, itens: [doc] }]],
+    });
+    expect(semAtalho).not.toContain('title="Abrir a aba Só o resumo"');
+  });
+
+  describe("aba Só o resumo (tabela separada)", () => {
+    const resumoDaCaptura = {
+      id: "r1", tipo: "NFE", chave: "51261112345678000195550010000009001000000010", evento_tipo: "", sequencia: 0, modelo: "55", numero: "900", serie: "1",
+      data_emissao: "2026-11-05T13:15:00Z", emitente_doc: "33683111000107", emitente_nome: "FORNECEDOR AGRO LTDA", valor_total: 8000, conteudo: "RESUMO",
+      situacao: "AUTORIZADA", origem: "CAPTURA", ciencia_status: "REGISTRADA", ciencia_em: "2026-11-06T15:00:00Z", lote_importacao_id: null, importado_em: null,
+    };
+    const semCiencia = { ...resumoDaCaptura, id: "r2", numero: "901", chave: "51261112345678000195550010000009011000000015", ciencia_status: null, ciencia_em: null };
+    const rejeitado = { ...resumoDaCaptura, id: "r3", numero: "902", chave: "51261112345678000195550010000009021000000010", ciencia_status: "REJEITADA", ciencia_em: "2026-11-07T15:00:00Z" };
+    const eventoResumo = { ...resumoDaCaptura, id: "r4", tipo: "EVENTO", evento_tipo: "610514", modelo: "55", numero: "33874", emitente_nome: null, valor_total: null, situacao: null, ciencia_status: null, chave: "51261112345678000195550010000009001000000011" };
+    const tela = (itens) => renderizar(<DocumentosXml modo="resumos" empresaId="E1" empresa={{ id_empresa: "EMP-1" }} linkImportacao={null} />, {
+      cache: [[["repo-xml-docs", "E1", PARAMETROS_RESUMOS, 0, 50], { total: itens.length, itens }]],
+    });
+
+    it("lista os documentos que só têm o resumo, explica por quê e mostra a Ciência da Operação de cada um", () => {
+      auth.role = "user";
+      const html = tela([resumoDaCaptura, semCiencia, rejeitado, eventoResumo]);
+      expect(html).toContain("Documentos que a SEFAZ entregou só em resumo");
+      expect(html).toContain("passa para a aba Documentos");
+      expect(html).toContain("Se o XML completo nunca chegar, ele continua aqui.");
+      expect(html).toContain("Ciência da Operação</th>");
+      expect(html).toContain("Registrada");
+      expect(html).toContain("06/11/2026"); // data da Ciência registrada
+      expect(html).toContain("Ainda não");
+      expect(html).toContain("Rejeitada");
+      expect(html).toContain("07/11/2026");
+      expect(html).toContain("4 documento(s)");
+      expect(html).toContain("FORNECEDOR AGRO LTDA");
+      expect(html).toContain("Evento"); // o resumo do evento (610514) também fica aqui
+      expect(html).toContain("610514");
+      expect(html).toContain("Baixar ZIP dos filtros");
+    });
+
+    it("não tem o que só vale para XML completo: envio de arquivos, importador, cartões, PDF e a opção de PDF no ZIP", () => {
+      auth.role = "admin";
+      const html = tela([resumoDaCaptura]);
+      for (const ausente of [
+        "Arraste aqui os XML ou ZIP do cliente", "Enviar pendentes ao importador", "Abrir Importação XML", "Só os que faltam enviar ao importador",
+        "Incluir os PDF dos documentos", "Visualizar o PDF", "Baixar o PDF", "Como baixar nas SEFAZ", "Aguardando o importador", "Documentos no repositório",
+      ]) expect(html, ausente).not.toContain(ausente);
+      expect(html).not.toContain('<th class="py-1.5 pr-3">Importador</th>');
+      // o XML do resumo continua baixável
+      expect(html.match(/title="Baixar o XML"/g)).toHaveLength(1);
+      // administrador pode selecionar para excluir, como na outra aba
+      expect(html).toContain(`aria-label="Selecionar ${resumoDaCaptura.chave}"`);
+    });
+
+    it("sem resumos, diz que a lista está vazia e quando um documento aparece aqui", () => {
+      auth.role = "user";
+      const html = tela([]);
+      expect(html).toContain("Nenhum documento só em resumo.");
+      expect(html).toContain("0 documento(s)");
+    });
+  });
+
   it("tabela compacta: o emitente cabe numa linha só (nome e CNPJ juntos, ou só o CNPJ quando a captura não traz o nome)", () => {
     auth.role = "admin";
-    const evento = { ...doc, id: "d2", tipo: "EVENTO", evento_tipo: "610514", numero: "33874", serie: "1", emitente_nome: null, emitente_doc: "33683111000107", valor_total: null, conteudo: "RESUMO", situacao: null, origem: "CAPTURA" };
+    const evento = { ...doc, id: "d2", tipo: "EVENTO", evento_tipo: "610514", numero: "33874", serie: "1", emitente_nome: null, emitente_doc: "33683111000107", valor_total: null, conteudo: "COMPLETO", situacao: null, origem: "CAPTURA" };
     const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
       cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 2, itens: [doc, evento] }]],
     });

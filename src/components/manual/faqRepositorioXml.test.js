@@ -3,6 +3,7 @@ import { FAQ_SECOES } from "./faqData";
 import { SECAO_REPOSITORIO_XML } from "./faqRepositorioXml";
 import { ROTEIRO } from "@/lib/roteiroTestes";
 import { ROTEIRO_REPOSITORIO_XML } from "@/lib/roteiroRepositorioXml";
+import { MAX_PDF_NO_ZIP } from "@/components/repositorio-xml/formatos";
 import documentosFonte from "@/components/repositorio-xml/DocumentosXml.jsx?raw";
 import certificadoFonte from "@/components/repositorio-xml/CertificadoXml.jsx?raw";
 import capturaFonte from "@/components/repositorio-xml/CapturaXml.jsx?raw";
@@ -27,6 +28,24 @@ describe("FAQ do Repositório de XML", () => {
     expect(tudo).not.toMatch(/registra a confirma|registra o desconhecimento|calcula o fethab|raspa(gem)? os portais/);
     // O que a tela diz sobre a Ciência: só a Ciência é automática.
     expect(tudo).toContain("registra apenas a ciência");
+  });
+
+  it("a resposta do PDF cita os cinco documentos, o limite do ZIP, o que não tem PDF e que o XML é o documento fiscal", () => {
+    const pdf = SECAO_REPOSITORIO_XML.itens.find((i) => i.p.includes("PDF dos documentos"));
+    expect(pdf, "falta a pergunta do PDF").toBeTruthy();
+    expect(pdf.r).toContain(`até ${MAX_PDF_NO_ZIP} documentos por ZIP`);
+    for (const doc of ["DANFE", "DANFE NFC-e", "DACTE", "DAMDFE", "DANFSe"]) expect(pdf.r, doc).toContain(doc);
+    for (const sem of ["Eventos", "CT-e OS", "só resumo"]) expect(pdf.r, sem).toContain(sem);
+    expect(pdf.r).toContain("O que vale como documento fiscal é o XML");
+    expect(pdf.f).toContain("Ajuste SINIEF 07/05");
+    expect(pdf.f).toContain("Nota Técnica nº 008/2026");
+    expect(pdf.f).toContain("Não confirmado");
+  });
+
+  it("a pergunta do resumo manda para a aba Só o resumo", () => {
+    const resumo = SECAO_REPOSITORIO_XML.itens.find((i) => i.p.includes("Só resumo"));
+    expect(resumo.r).toContain("aba Só o resumo");
+    expect(resumo.r).toContain("passa para a aba Documentos");
   });
 
   it("os limites citados são os do envio por arquivo", () => {
@@ -56,7 +75,7 @@ describe("Roteiro do Repositório de XML", () => {
   it("os botões e avisos citados existem nas telas", () => {
     const rotulos = [
       "Enviar certificado A1", "Substituir certificado", "Guardar no cofre", "Remover do cofre",
-      "Auditoria do cofre (últimos 20 registros)", "Escolher arquivos", "Baixar ZIP dos filtros", "Abrir Importação XML", "Buscar (chave, número, emitente)",
+      "Auditoria do cofre (últimos 20 registros)", "Escolher arquivos", "Baixar ZIP dos filtros", "Incluir os PDF dos documentos", "Visualizar o PDF", "Baixar o PDF", "Ciência da Operação", "Abrir Importação XML", "Buscar (chave, número, emitente)",
       "Capturar agora", "Ativar captura", "Ativar Ciência automática", "Cumpra os requisitos acima", "Últimas execuções", "Antes de ativar",
       "Ciência da Operação (libera o XML completo das compras)", "Certificado guardado no cofre", "Envio concluído", "Enviado ao importador",
       "Ambiente da SEFAZ", "UF do interessado", "Estados atendidos", "Captura ativada", "Captura desativada", "Ambiente atualizado", "Período da busca automática", "Período da busca automática atualizado", "Período da busca alterado", "Próxima busca automática",

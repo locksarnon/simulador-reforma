@@ -70,10 +70,17 @@ export class RepositorioXmlController {
     return new StreamableFile(buffer, { type: 'application/xml', disposition: `attachment; filename="${nomeDeDownload(nome)}"` });
   }
 
+  @Get('documentos/:id/pdf')
+  async pdf(@Param('empresaId') empresaId: string, @Param('id') id: string) {
+    const { buffer, nome } = await this.service.baixarPdf(empresaId, id);
+    return new StreamableFile(buffer, { type: 'application/pdf', disposition: `attachment; filename="${nomeDeDownload(nome)}"` });
+  }
+
   @Post('documentos/zip')
   async zip(@Param('empresaId') empresaId: string, @Body() body: Record<string, string>) {
-    const buffer = await this.service.baixarZip(empresaId, filtros(body ?? {}));
-    return new StreamableFile(buffer, { type: 'application/zip', disposition: 'attachment; filename="xml.zip"' });
+    const incluirPdf = String(body?.incluir_pdf) === 'true';
+    const buffer = await this.service.baixarZip(empresaId, filtros(body ?? {}), { incluirPdf });
+    return new StreamableFile(buffer, { type: 'application/zip', disposition: `attachment; filename="${incluirPdf ? 'xml-e-pdf' : 'xml'}.zip"` });
   }
 
   @Post('documentos/enviar-importacao')

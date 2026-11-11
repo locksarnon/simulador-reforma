@@ -51,6 +51,51 @@ export function dividirEmLotes(arquivos, maxArquivos = ARQUIVOS_POR_ENVIO, maxBy
  */
 export const importavelNoImportador = (d) => ["NFE", "CTE"].includes(d?.tipo) || (d?.tipo === "EVENTO" && ["55", "65", "57", "67"].includes(d?.modelo));
 
+/**
+ * O PDF existe para NF-e (DANFE, modelo 55), NFC-e (DANFE NFC-e, 65), CT-e (DACTE, 57), MDF-e (DAMDFE, 58) e NFS-e Nacional
+ * (DANFSe), desde que o XML completo esteja guardado. Evento, CT-e OS (67) e documento que é só resumo ficam apenas em XML.
+ */
+export const temPdf = (d) => {
+  if (d?.conteudo !== "COMPLETO") return false;
+  if (d.tipo === "NFE") return d.modelo === "55" || d.modelo === "65";
+  if (d.tipo === "CTE") return d.modelo === "57";
+  if (d.tipo === "MDFE") return d.modelo === "58";
+  return d.tipo === "NFSE";
+};
+
+/** Nome do arquivo do PDF baixado: o do documento auxiliar do tipo + a chave de acesso (o servidor usa o mesmo nome). */
+export function nomeDoPdf(d) {
+  const prefixo = d?.tipo === "NFE" && d.modelo === "65" ? "DANFE-NFCE" : { NFE: "DANFE", CTE: "DACTE", MDFE: "DAMDFE", NFSE: "DANFSE" }[d?.tipo] || "DOCUMENTO";
+  return `${prefixo}-${d?.chave}.pdf`;
+}
+
+/** O ZIP com PDF aceita até este número de documentos (gerar o PDF é trabalho de processamento); o servidor confere o mesmo limite. */
+export const MAX_PDF_NO_ZIP = 300;
+
+/** Nome do tipo na tabela: NFC-e e CT-e OS são tipo NF-e e CT-e no repositório, mas o modelo (que vem da chave de acesso) os distingue. */
+export function rotuloTipo(d) {
+  if (d?.tipo === "NFE" && d.modelo === "65") return "NFC-e";
+  if (d?.tipo === "CTE" && d.modelo === "67") return "CT-e OS";
+  return TIPOS[d?.tipo] || d?.tipo || "—";
+}
+
+/**
+ * Situação da Ciência da Operação de um resumo (a SEFAZ só libera o XML completo da NF-e destinada ao cliente depois dela).
+ * Só o resumo de NF-e que veio da captura é candidato à Ciência automática; os demais mostram um traço.
+ */
+export function situacaoCiencia(d) {
+  switch (d?.ciencia_status) {
+    case "REGISTRADA": return { rotulo: "Registrada", tom: "ok", dica: "Ciência registrada: depois dela a SEFAZ libera o XML completo nas consultas seguintes da captura." };
+    case "JA_REGISTRADA": return { rotulo: "Já registrada", tom: "ok", dica: "A SEFAZ informou que a Ciência desta nota já estava registrada." };
+    case "REJEITADA": return { rotulo: "Rejeitada", tom: "erro", dica: "A SEFAZ recusou o pedido de Ciência desta nota; a captura tenta de novo depois de um tempo, enquanto a nota estiver no prazo." };
+    case "NAO_APLICAVEL": return { rotulo: "Não se aplica", tom: "neutro", dica: "A Ciência não se aplica a este resumo." };
+    default:
+      return d?.tipo === "NFE" && d?.origem === "CAPTURA"
+        ? { rotulo: "Ainda não", tom: "aviso", dica: "A Ciência ainda não foi registrada para esta nota: a Ciência automática está desligada ou ainda não rodou." }
+        : { rotulo: "—", tom: "neutro", dica: "" };
+  }
+}
+
 /** Estados em que estão os clientes da FAL: aparecem primeiro na escolha da UF (MT, MS, GO, MA e PA). */
 export const UFS_FOCO = ["51", "50", "52", "21", "15"];
 

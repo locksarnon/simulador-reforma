@@ -79,6 +79,15 @@ function unwrapError(err) {
   return wrapped;
 }
 
+/** Nos downloads (resposta em blob) o corpo do erro também chega como arquivo: lê o JSON para a mensagem do servidor chegar à tela. */
+async function lerErroDeBlob(err) {
+  const corpo = err?.response?.data;
+  if (typeof Blob !== 'undefined' && corpo instanceof Blob && typeof corpo.text === 'function') {
+    try { err.response.data = JSON.parse(await corpo.text()); } catch { /* corpo que não é JSON: fica a mensagem genérica */ }
+  }
+  return err;
+}
+
 function makeEntityClient(name) {
   return {
     async list() {
@@ -211,7 +220,25 @@ const chamadas = {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    } catch (err) { throw unwrapError(err); }
+    } catch (err) { throw unwrapError(await lerErroDeBlob(err)); }
+  },
+  /**
+   * Abre numa aba nova um arquivo gerado no servidor (o PDF de um documento). A aba é aberta já no clique, antes da espera da
+   * resposta, porque o navegador bloqueia a aba que só abre depois de uma chamada demorada; o endereço do arquivo entra nela quando chega.
+   */
+  async visualizar(method, url, { body } = {}) {
+    const aba = window.open('', '_blank');
+    if (aba) aba.document.write('<title>Gerando o PDF…</title><p style="font:14px sans-serif;padding:24px">Gerando o PDF…</p>');
+    try {
+      const res = await http.request({ method, url, data: body, responseType: 'blob' });
+      // O endereço do arquivo vale enquanto a página que o criou estiver aberta: não é liberado antes, para a aba poder ser recarregada.
+      const endereco = URL.createObjectURL(res.data);
+      if (aba) aba.location.href = endereco;
+      else if (!window.open(endereco, '_blank')) throw new Error('O navegador bloqueou a nova aba. Permita pop-ups deste site ou use "Baixar o PDF".');
+    } catch (err) {
+      if (aba) aba.close();
+      throw unwrapError(await lerErroDeBlob(err));
+    }
   },
 };
 

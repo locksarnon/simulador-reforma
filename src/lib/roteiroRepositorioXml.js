@@ -8,7 +8,7 @@ const p = (f, e) => ({ f, e });
 export const ROTEIRO_REPOSITORIO_XML = [
   {
     id: "repositorio-xml", grupo: "BPO fiscal", titulo: "Repositório de XML: envio, filtros, download e importador", rota: "/bpo/repositorio-xml",
-    objetivo: "Guardar os XML de uma empresa por arquivo ou ZIP, conferir que não duplicam, achar o que precisa, baixar e mandar ao importador.",
+    objetivo: "Guardar os XML de uma empresa por arquivo ou ZIP, conferir que não duplicam, achar o que precisa, baixar (XML e PDF) e mandar ao importador.",
     preparo: [
       "Empresa de teste cadastrada com CNPJ, dentro de um grupo \"TESTE-\".",
       "Dois XML de NF-e autorizadas em que o CNPJ da empresa aparece (como emitente ou destinatário), o XML de cancelamento (evento 110111) de uma delas e um ZIP com alguns XML da mesma empresa. Use dados de teste ou anonimizados.",
@@ -26,19 +26,25 @@ export const ROTEIRO_REPOSITORIO_XML = [
       p("Use os filtros Tipo, Origem, Conteúdo, Emissão de e até, e o campo \"Buscar (chave, número, emitente)\".", "A lista e o contador (\"N documento(s)\") mudam a cada filtro. A busca espera um instante depois que você para de digitar."),
       p("Clique no ícone de download de uma linha.", "Baixa o XML com a chave de acesso no nome do arquivo."),
       p("Clique em \"Baixar ZIP dos filtros\".", "Baixa um ZIP com os XML do filtro atual; dentro dele há um arquivo por documento."),
+      p("Na linha de uma NF-e com XML completo, clique no ícone com o olho (\"Visualizar o PDF\"), ao lado do ícone do XML.", "Abre numa aba nova o PDF do documento (DANFE): emitente, destinatário, chave de acesso em código de barras, itens e totais iguais aos do XML."),
+      p("Clique no ícone seguinte (\"Baixar o PDF\").", "Baixa o arquivo DANFE-<chave>.pdf."),
+      p("Faça o mesmo numa NFC-e, num CT-e, num MDF-e e numa NFS-e (se tiver os XML).", "Cada um abre o seu documento auxiliar (DANFE NFC-e, DACTE, DAMDFE e DANFSe) e baixa com o nome do tipo (DANFE-NFCE, DACTE, DAMDFE, DANFSE)."),
+      p("Visualize o PDF da nota que está Cancelada.", "O PDF sai com a marca d'água CANCELADA. No evento (por exemplo, o cancelamento) e no CT-e OS os ícones de PDF não aparecem."),
+      p("Marque \"Incluir os PDF dos documentos\" e clique em \"Baixar ZIP dos filtros\".", "O arquivo se chama xml-e-pdf-... e traz os XML e, na pasta PDF, um PDF por documento com XML completo, separado por tipo (NFE, NFCE, CTE, MDFE, NFSE)."),
       p("Marque duas notas e clique em \"Enviar 2 ao importador\"; confirme em \"Enviar\".", "Aviso \"Enviado ao importador\" com \"2 arquivo(s) no lote\". A coluna Importador passa a \"Enviado\" com a data."),
       p("Clique em \"Abrir Importação XML\".", "O lote aparece para conferir e confirmar, como em qualquer importação (siga o teste de Importação de XML)."),
+      p("Abra a aba \"Só o resumo\".", "Lista só os documentos que estão só em resumo (o número ao lado do nome da aba é a quantidade), com a coluna \"Ciência da Operação\"; eles não aparecem na aba Documentos, não vão ao importador e não têm ícone de PDF. Ao enviar o XML completo de um deles na aba Documentos, ele passa para a aba Documentos."),
       p("Abra \"Como baixar nas SEFAZ as notas que o cliente emitiu (MT, MS, GO, MA e PA)\".", "Cinco estados, cada um com a orientação do portal; MT, MS e GO têm o link \"Página oficial\". O texto avisa que os portais mudam."),
       p("Entre como consultor (usuário comum) e abra a mesma aba.", "Vê, filtra e baixa; não vê o botão de excluir."),
       p("Como administrador, marque um documento e clique em \"Excluir 1\"; confirme.", "A linha some e o contador diminui."),
     ],
     cuidados: [
       "O repositório guarda os arquivos do cliente: use só XML de teste ou anonimizados.",
-      "Documento marcado \"Só resumo\" não vai ao importador, porque falta o XML completo.",
+      "Documento que está só em resumo fica na aba Só o resumo: não vai ao importador nem tem PDF, porque falta o XML completo.",
       "Excluir apaga também o arquivo guardado; o que veio da captura não volta sozinho.",
       "Excluir a empresa apaga o repositório inteiro, o certificado e a configuração da captura dela.",
     ],
-    criterio: "Envio por arquivo e por ZIP funciona sem duplicar; o cancelamento marca a nota; XML de outro CNPJ é recusado; filtros, download e ZIP funcionam; o envio ao importador cria o lote e marca os documentos; só o administrador exclui.",
+    criterio: "Envio por arquivo e por ZIP funciona sem duplicar; o cancelamento marca a nota; XML de outro CNPJ é recusado; filtros, download (XML e PDF) e ZIP funcionam; o envio ao importador cria o lote e marca os documentos; só o administrador exclui.",
   },
   {
     id: "certificado-cliente", grupo: "BPO fiscal", titulo: "Certificado digital A1 do cliente", rota: "/bpo/repositorio-xml",

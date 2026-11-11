@@ -7,6 +7,8 @@ import { MAX_TAMANHO_XML } from '../importacao-xml/shared/xml-parser';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { IndiceXml, ehChaveNfse, indexarXml, tipoDaChave } from './xml-indice';
+import { ErroLeituraDocumento } from './pdf/erros';
+import { geraPdf, tipoDePdf } from './pdf/tipos-de-pdf';
 import { lerXmlsDoZip } from './zip-seguro';
 
 export type Origem = 'UPLOAD' | 'CAPTURA';
@@ -24,6 +26,8 @@ const MAX_IMPORTACAO = 1000;
 /** Linhas por pedido na lista de documentos: a tela mostra 10, 50, 100 ou 500 por página e, em "todas", busca em partes de 500. */
 const MAX_POR_PAGINA = 500;
 const PARALELISMO = 8;
+/** Gerar o PDF é trabalho de CPU: o ZIP com PDF aceita menos documentos que o ZIP só com XML. */
+const MAX_PDF_NO_ZIP = 300;
 
 /**
  * O importador de XML lê NF-e, NFC-e e CT-e (com os eventos deles). A NFS-e e o MDF-e ele reconhece, mas ignora, e o evento da NFS-e
@@ -277,6 +281,7 @@ export class RepositorioXmlService {
           id: true, tipo: true, chave: true, evento_tipo: true, sequencia: true, modelo: true, numero: true, serie: true, data_emissao: true,
           emitente_doc: true, emitente_nome: true, destinatario_doc: true, valor_total: true, conteudo: true, situacao: true, origem: true,
           tamanho_bytes: true, nome_original: true, enviado_por: true, lote_importacao_id: true, importado_em: true, recebido_em: true,
+          ciencia_status: true, ciencia_em: true,
         },
       }),
     ]);
@@ -314,22 +319,68 @@ export class RepositorioXmlService {
     return { buffer, nome: nomeBase(d.storage_key) };
   }
 
-  async baixarZip(empresaId: string, f: FiltrosDocumentos) {
+  /**
+   * PDF do documento guardado (DANFE, DANFE NFC-e, DACTE, DAMDFE ou DANFSe), gerado na hora a partir do XML completo;
+   * cancelado ou denegado ganha a marca d'água. Evento e documento que é só resumo não têm PDF.
+   */
+  async baixarPdf(empresaId: string, id: string) {
+    const d = await this.prisma.documentoXml.findFirst({ where: { id, empresa_id: empresaId } });
+    if (!d?.storage_key) throw new NotFoundException('Documento não localizado.');
+    if (d.conteudo !== 'COMPLETO') throw new BadRequestException('Só o resumo está guardado: falta o XML completo para gerar o PDF.');
+    const tipo = tipoDePdf(d);
+    if (!tipo) {
+      throw new BadRequestException(d.tipo === 'EVENTO' ? 'Evento não tem PDF: ele fica só em XML.' : 'O PDF deste tipo de documento ainda não está disponível. Ele fica só em XML.');
+    }
+    const buffer = await this.storage.getObjectBuffer(d.storage_key);
+    try {
+      const pdf = await tipo.gerar(buffer.toString('utf8').replace(/^\uFEFF/, ''), { cancelada: d.situacao === 'CANCELADA', denegada: d.situacao === 'DENEGADA' });
+      return { buffer: pdf, nome: `${tipo.prefixo}-${d.chave}.pdf` };
+    } catch (e) {
+      if (e instanceof ErroLeituraDocumento) throw new BadRequestException(`Não foi possível gerar o PDF: ${e.message}`);
+      throw e;
+    }
+  }
+
+  /**
+   * ZIP dos documentos que os filtros mostram. Com `incluirPdf`, cada documento que tem PDF leva também o seu, na pasta
+   * PDF/<tipo>/<ano>-<mês>/ (a mesma organização do XML); o que não pôde ser desenhado vai listado em PDF/LEIAME-falhas.txt.
+   */
+  async baixarZip(empresaId: string, f: FiltrosDocumentos, opcoes: { incluirPdf?: boolean } = {}) {
     await this.empresa(empresaId);
     const docs = await this.prisma.documentoXml.findMany({
       where: { ...this.where(empresaId, f), storage_key: { not: null } },
       orderBy: [{ data_emissao: 'asc' }],
       take: MAX_ZIP_DOWNLOAD + 1,
-      select: { storage_key: true, tipo: true, chave: true },
+      select: { storage_key: true, tipo: true, chave: true, modelo: true, conteudo: true, situacao: true },
     });
     if (!docs.length) throw new BadRequestException('Nenhum documento nos filtros escolhidos.');
     if (docs.length > MAX_ZIP_DOWNLOAD) throw new BadRequestException(`Há mais de ${MAX_ZIP_DOWNLOAD} documentos nos filtros. Reduza o período e baixe em partes.`);
+    const comPdf = opcoes.incluirPdf ? docs.filter(geraPdf) : [];
+    if (comPdf.length > MAX_PDF_NO_ZIP) {
+      throw new BadRequestException(`Há ${comPdf.length} documentos com PDF nos filtros, e o ZIP com PDF aceita até ${MAX_PDF_NO_ZIP}. Reduza o período ou baixe o ZIP só com os XML.`);
+    }
     const arquivos: Record<string, Uint8Array> = {};
+    const xmlsParaPdf = new Map<string, Buffer>();
     await emLotes(docs, PARALELISMO, async (d) => {
       const b = await this.storage.getObjectBuffer(d.storage_key!);
       const partes = d.storage_key!.split('/');
       arquivos[`${d.tipo}/${partes[partes.length - 3]}-${partes[partes.length - 2]}/${nomeBase(d.storage_key!)}`] = new Uint8Array(b);
+      if (opcoes.incluirPdf && geraPdf(d)) xmlsParaPdf.set(d.storage_key!, b);
     });
+    if (opcoes.incluirPdf) {
+      const falhas: string[] = [];
+      for (const d of comPdf) {
+        const tipo = tipoDePdf(d)!;
+        const partes = d.storage_key!.split('/');
+        try {
+          const pdf = await tipo.gerar(xmlsParaPdf.get(d.storage_key!)!.toString('utf8').replace(/^\uFEFF/, ''), { cancelada: d.situacao === 'CANCELADA', denegada: d.situacao === 'DENEGADA' });
+          arquivos[`PDF/${tipo.pasta}/${partes[partes.length - 3]}-${partes[partes.length - 2]}/${tipo.prefixo}-${d.chave}.pdf`] = new Uint8Array(pdf);
+        } catch (e) {
+          falhas.push(`${d.chave} (${tipo.nome}): ${(e as Error).message}`);
+        }
+      }
+      if (falhas.length) arquivos['PDF/LEIAME-falhas.txt'] = new TextEncoder().encode(`Não foi possível gerar o PDF destes documentos (o XML deles está na pasta do tipo, fora de PDF):\n${falhas.join('\n')}\n`);
+    }
     // Nível 1: o ZIP de milhares de notas é montado de uma vez só, em CPU síncrona; o nível alto custaria segundos de API parada.
     return Buffer.from(zipSync(arquivos, { level: 1 }));
   }

@@ -16,6 +16,9 @@ export default function RepositorioXmlEmpresa() {
   const [aba, setAba] = useState("documentos");
   const { data: empresa, isLoading, isError } = useQuery({ queryKey: ["empresa", empresaId], queryFn: () => api.entities.Empresa.get(empresaId), enabled: !!empresaId });
   const { data: grupos } = useQuery({ queryKey: ["grupos"], queryFn: () => api.entities.Grupo.list() });
+  // Mesma consulta do resumo da aba Documentos (o cache é um só): a aba "Só o resumo" mostra quantos há.
+  const { data: contagem } = useQuery({ queryKey: ["repo-xml-resumo", empresaId], queryFn: () => api.get(`/repositorio-xml/empresas/${empresaId}/resumo`), enabled: !!empresaId });
+  const soResumo = contagem?.so_resumo ?? 0;
 
   const grupo = empresa ? (grupos || []).find((g) => g.numero === empresa.grupo) : null;
   // A Importação XML é do diagnóstico, dentro do grupo e da empresa: o caminho só existe quando o grupo da empresa é conhecido.
@@ -44,10 +47,12 @@ export default function RepositorioXmlEmpresa() {
             <Tabs value={aba} onValueChange={setAba}>
               <TabsList>
                 <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                <TabsTrigger value="resumos">{soResumo > 0 ? `Só o resumo (${soResumo})` : "Só o resumo"}</TabsTrigger>
                 <TabsTrigger value="captura">Captura</TabsTrigger>
                 <TabsTrigger value="certificado">Certificado</TabsTrigger>
               </TabsList>
-              <TabsContent value="documentos" className="mt-4"><DocumentosXml empresaId={empresaId} empresa={empresa} linkImportacao={linkImportacao} /></TabsContent>
+              <TabsContent value="documentos" className="mt-4"><DocumentosXml empresaId={empresaId} empresa={empresa} linkImportacao={linkImportacao} aoAbrirResumos={() => setAba("resumos")} /></TabsContent>
+              <TabsContent value="resumos" className="mt-4"><DocumentosXml modo="resumos" empresaId={empresaId} empresa={empresa} linkImportacao={null} /></TabsContent>
               <TabsContent value="captura" className="mt-4"><CapturaXml empresaId={empresaId} /></TabsContent>
               <TabsContent value="certificado" className="mt-4"><CertificadoXml empresaId={empresaId} /></TabsContent>
             </Tabs>
