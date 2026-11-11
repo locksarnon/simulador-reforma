@@ -267,12 +267,21 @@ export const api = {
     setToken(accessToken) {
       storeTokens({ accessToken });
     },
-    logout(redirectUrl) {
+    /**
+     * Encerra a sessão. O servidor só aceita /auth/logout com o access token ainda válido, então a revogação do refresh
+     * token vai ANTES de limpar o armazenamento. Sem rede ou com o token vencido, ele expira sozinho e a sessão deste
+     * navegador acaba do mesmo jeito.
+     */
+    async logout(redirectUrl) {
       const refreshToken = getRefreshToken();
-      clearTokens();
       if (refreshToken) {
-        http.post('/auth/logout', { refreshToken }).catch(() => {});
+        try {
+          await http.post('/auth/logout', { refreshToken }, { timeout: 4000 });
+        } catch {
+          /* segue: a sessão deste navegador é encerrada de qualquer jeito */
+        }
       }
+      clearTokens();
       if (redirectUrl) window.location.href = redirectUrl;
     },
   },

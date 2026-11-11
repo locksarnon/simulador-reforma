@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import {
@@ -19,10 +20,12 @@ import {
   ClipboardCheck,
   Boxes,
   Archive,
+  LogOut,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
+import { useAuth } from "@/lib/AuthContext";
 
 /**
  * BPO fiscal: guarda e captura dos XML dos clientes e o certificado digital deles.
@@ -87,7 +90,16 @@ const sections = [
   },
 ];
 
+/** "Administrador" ou "Consultor": o papel decide quem envia certificado, ativa a captura e exclui. */
+const rotuloPapel = (role) => (role === "admin" ? "Administrador" : "Consultor");
+
 export default function Layout() {
+  const { user, logout } = useAuth();
+  const [saindo, setSaindo] = useState(false);
+  const sair = async () => {
+    setSaindo(true);
+    try { await logout(); } finally { setSaindo(false); }
+  };
 
   return (
     <div className="min-h-screen bg-canvas flex">
@@ -144,9 +156,26 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-rail-border flex items-center justify-between">
-          <span className="text-[11px] text-rail-muted">InTAX v1.0 · 23/09/2026</span>
-          <ThemeToggle />
+        <div className="p-3 border-t border-rail-border space-y-2">
+          {user && (
+            <div className="px-1 leading-tight">
+              <p className="truncate text-xs font-medium text-rail-strong" title={user.name || user.email}>{user.name || user.email}</p>
+              <p className="truncate text-[11px] text-rail-muted" title={user.email}>{user.name ? `${rotuloPapel(user.role)} · ${user.email}` : rotuloPapel(user.role)}</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={sair}
+            disabled={saindo}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-rail-foreground hover:bg-rail-accent/60 hover:text-rail-strong disabled:opacity-60"
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {saindo ? "Saindo…" : "Sair"}
+          </button>
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] text-rail-muted">InTAX v1.0 · 23/09/2026</span>
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
       <main className="flex-1 min-w-0">

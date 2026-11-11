@@ -33,10 +33,12 @@ export const AuthProvider = ({ children }) => {
     checkUserAuth();
   }, [checkUserAuth]);
 
-  const logout = (shouldRedirect = true) => {
+  // Espera o servidor revogar a sessão antes de limpar o estado; com redirecionamento a página recarrega no login,
+  // o que também descarta o cache de dados da conta que saiu.
+  const logout = async (shouldRedirect = true) => {
+    await api.auth.logout(shouldRedirect ? '/login' : undefined);
     setUser(null);
     setIsAuthenticated(false);
-    api.auth.logout(shouldRedirect ? '/login' : undefined);
   };
 
   return (

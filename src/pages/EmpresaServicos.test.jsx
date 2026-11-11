@@ -1,10 +1,12 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EmpresaServicos from './EmpresaServicos';
 import Layout from '../components/Layout';
+// O menu lateral mostra a conta logada e o botão Sair, então o Layout precisa do contexto de autenticação.
+vi.mock('@/lib/AuthContext', () => ({ useAuth: () => ({ user: { name: 'Maria Souza', email: 'maria@exemplo.test', role: 'user' }, logout: () => {} }) }));
 describe('navegação por empresa', () => {
  it('mantém somente os recursos globais na sidebar', () => {
   const html = renderToString(<MemoryRouter><Layout /></MemoryRouter>);
