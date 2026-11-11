@@ -167,7 +167,7 @@ export default function ServicosContratadosPagina() {
               <tbody>
                 {carregando && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
                 {!carregando && erro && <tr><td colSpan={5} className="py-8 text-center" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></td></tr>}
-                {!carregando && !erro && lista.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">{empresas.length === 0 ? <>Nenhuma empresa cadastrada. <Link to="/" className="text-primary hover:underline">Cadastre em Cadastro de clientes</Link>.</> : "Nenhuma empresa com esses filtros."}</td></tr>}
+                {!carregando && !erro && lista.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">{empresas.length === 0 ? <>Nenhuma empresa cadastrada. <Link to="/" className="text-primary hover:underline">Cadastre o cliente em Clientes</Link>.</> : "Nenhuma empresa com esses filtros."}</td></tr>}
                 {lista.map((e) => {
                   const porTipo = mapa.get(e.id) || {};
                   const g = grupoDe(e);

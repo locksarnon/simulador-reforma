@@ -59,9 +59,9 @@ export default function EmpresaWorkroom() {
     <div className="min-h-screen">
       <PageHeader
         crumbs={[
-          { label: "Cadastro de clientes", to: "/" },
-          { label: grupo?.nome || "Grupo", to: `/workroom/${grupoId}` },
-          { label: isLoading ? "Carregando..." : (empresa?.razao_social || "Empresa") },
+          { label: "Clientes", to: "/" },
+          ...(grupo?.tipo === "Cliente individual" ? [] : [{ label: grupo?.nome || "Grupo", to: `/workroom/${grupoId}` }]),
+          { label: isLoading ? "Carregando..." : (empresa?.razao_social || "Empresa"), to: empresaId ? `/clientes/${empresaId}` : undefined },
         ]}
         title={isLoading ? "Carregando..." : empresa?.razao_social}
         subtitle={empresa ? `${empresa.id_empresa} · ${empresa.regime_atual || "Regime não informado"}` : ""}

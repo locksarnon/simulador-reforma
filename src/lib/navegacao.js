@@ -2,7 +2,7 @@ import {
   Activity, Archive, BadgeDollarSign, Bell, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange, CircleUser,
   ClipboardCheck, Code2, Contact, ExternalLink, FileSignature, FileSpreadsheet, FolderOpen, HeartPulse, HelpCircle, Home, Inbox, KeyRound, Landmark, Layers,
   LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, PieChart, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
-  ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users, Wallet,
+  ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users,
 } from "lucide-react";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 
@@ -19,7 +19,7 @@ export const SITUACAO = { ATIVO: "ativo", BETA: "beta", EM_BREVE: "em-breve" };
 
 export const AREAS = [
   { id: "inicio", titulo: "Início", icone: Home, descricao: "Seu ponto de partida: atalhos, avisos, tarefas e a visão da carteira." },
-  { id: "clientes", titulo: "Clientes", icone: Building2, descricao: "O cadastro único de grupos, empresas e pessoas, e o que cada cliente contratou." },
+  { id: "clientes", titulo: "Clientes", icone: Building2, descricao: "A lista de clientes e o que cada um contratou, as pessoas físicas, as etiquetas e quem atende cada cliente." },
   { id: "bpo", titulo: "BPO Fiscal", icone: Briefcase, descricao: "A rotina do escritório sobre a carteira: XML, obrigações, tarefas, monitoramento e arquivos." },
   { id: "diagnostico", titulo: "Diagnóstico e Serviços", icone: Stethoscope, descricao: "Projetos pontuais por cliente, com início, fim e entregável." },
   { id: "reforma", titulo: "Reforma Tributária", icone: Landmark, descricao: "Cenários, transição, catálogos e ferramentas para planejar e calcular." },
@@ -42,8 +42,8 @@ export const MODULOS = [
   { id: "perfil", area: "inicio", titulo: "Meu perfil", descricao: "Seu nome no sistema e a troca da sua senha.", icone: CircleUser, to: "/perfil", oculto: true, palavras: ["senha", "conta", "nome", "perfil"] },
 
   // Clientes
-  { id: "grupos-empresas", area: "clientes", titulo: "Cadastro de clientes", descricao: "Grupos econômicos e empresas: criar, editar e abrir cada cliente.", icone: Layers, to: "/", fim: true, prefixos: [], palavras: ["cadastro", "cliente", "clientes", "grupos e empresas", "grupo", "empresa", "datahub", "cnpj"] },
-  { id: "servicos-contratados", area: "clientes", titulo: "Serviços contratados", descricao: "Quem é do BPO e quem tem diagnóstico pontual: o que cada empresa contratou.", icone: Wallet, to: "/clientes/servicos-contratados", palavras: ["carteira", "bpo", "contrato", "diagnóstico pontual"] },
+  { id: "grupos-empresas", area: "clientes", titulo: "Clientes", descricao: "A lista de todos os clientes: busca, filtros, os serviços de cada um (BPO, diagnóstico) e a ficha do cliente.", icone: Building2, to: "/", fim: true, prefixos: ["/clientes"], palavras: ["cadastro", "cliente", "clientes", "cadastro de clientes", "grupos e empresas", "empresa", "serviços contratados", "bpo", "datahub", "cnpj"] },
+  { id: "grupos-economicos", area: "clientes", titulo: "Grupos econômicos", descricao: "A visão por grupo econômico (a tela de antes, com os grupos e as empresas de cada um).", icone: Layers, to: "/clientes/grupos", oculto: true, palavras: ["grupo", "grupo econômico", "grupo familiar", "holding"] },
   { id: "carteira", area: "clientes", titulo: "Carteira e colaboradores", descricao: "Quais empresas cada colaborador atende, e as empresas sem responsável.", icone: Contact, to: "/clientes/carteira", palavras: ["colaborador", "responsável", "vínculo", "empresa por colaborador"] },
   { id: "tags", area: "clientes", titulo: "Tags e filtros", descricao: "Etiquetas nas empresas e listas salvas para achar clientes rápido.", icone: Tags, to: "/clientes/tags", palavras: ["etiqueta", "filtro", "segmento", "lista"] },
   { id: "importacao-cadastro", area: "clientes", titulo: "Importação e exportação", descricao: "O cadastro de empresas e a carteira por colaborador por planilha, com conferência antes de gravar.", icone: FileSpreadsheet, to: "/clientes/importacao", palavras: ["importar", "exportar", "planilha", "excel", "csv", "cadastro em lote"] },
@@ -128,7 +128,7 @@ export const todosOsDestinos = () => MODULOS.map((m) => m.to);
 export const caminhoDaArea = (areaId) => (areaId === "inicio" ? "/inicio" : `/area/${areaId}`);
 
 /**
- * Módulo a que um caminho pertence: o `to` ou um prefixo mais específico vence. "/" só vale exato (Cadastro de clientes);
+ * Módulo a que um caminho pertence: o `to` ou um prefixo mais específico vence. "/" só vale exato (Clientes; a ficha do cliente fica em /clientes/:id);
  * as telas do diagnóstico (/workroom/...) pertencem à Carteira de diagnósticos.
  */
 export function moduloDoCaminho(pathname) {

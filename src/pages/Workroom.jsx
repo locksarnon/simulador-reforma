@@ -37,7 +37,7 @@ export default function Workroom() {
       {isOverview && (
         <PageHeader
           crumbs={[
-            { label: "DataHub", to: "/" },
+            { label: "Clientes", to: "/" }, { label: "Grupos econômicos", to: "/clientes/grupos" },
             { label: isLoading ? "Carregando..." : (grupo?.nome || "Grupo") },
           ]}
           title={isLoading ? "Carregando..." : grupo?.nome || "Grupo"}

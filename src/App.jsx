@@ -59,6 +59,8 @@ import InicioPagina from '@/pages/InicioPagina';
 import AreaPagina from '@/pages/AreaPagina';
 import ModuloEmBreve from '@/pages/ModuloEmBreve';
 import ServicosContratadosPagina from '@/pages/clientes/ServicosContratadosPagina';
+import ClientesPagina from '@/pages/clientes/ClientesPagina';
+import FichaClientePagina from '@/pages/clientes/FichaClientePagina';
 import { CarteiraBpo, CarteiraDiagnostico } from '@/pages/clientes/Carteiras';
 import CarteiraColaboradoresPagina from '@/pages/clientes/CarteiraColaboradoresPagina';
 import TagsPagina from '@/pages/clientes/TagsPagina';
@@ -106,7 +108,10 @@ function App() {
 
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
-                  <Route path="/" element={<DataHub />} />
+                  <Route path="/" element={<ClientesPagina />} />
+                  <Route path="/clientes" element={<Navigate to="/" replace />} />
+                  <Route path="/clientes/grupos" element={<DataHub />} />
+                  <Route path="/clientes/:empresaId" element={<FichaClientePagina />} />
                   <Route path="/inicio" element={<InicioPagina />} />
                   <Route path="/area/:areaId" element={<AreaPagina />} />
                   <Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} />

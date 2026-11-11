@@ -182,9 +182,9 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 
 | ID | Função | Depende de | Destino no InTAX | Fase | 1º levantamento | Situação em 11/11/2026 | Tela |
 |---|---|---|---|---|---|---|---|
-| V097 | Cadastro de empresas (e exclusão em lote) | — | Clientes > Grupos e empresas | existe; evoluir na 1 | #30 | existe; evoluído (exclusão em lote) | /clientes/servicos-contratados |
+| V097 | Cadastro de empresas (e exclusão em lote) | — | Clientes (lista única) | existe; evoluir na 1 | #30 | existe; refeito como lista única de clientes, com exclusão em lote | / |
 | V098 | Importador de dados de empresas e exportação | — | Clientes > Importação e exportação | 1 | #30 | feito | /clientes/importacao |
-| V099 | E-mail e WhatsApp de contato por empresa | — | Clientes > Grupos e empresas | 1 | novo | feito | / (cadastro da empresa) |
+| V099 | E-mail e WhatsApp de contato por empresa | — | Clientes > Grupos e empresas | 1 | novo | feito | /clientes/:empresaId (ficha do cliente) |
 | V100 | Procuradores (certificado do escritório) | Rec + Ext | Administração > Integrações | 3 | #7 | em breve: depende de Integra Contador (Serpro) e procuração + conta externa | /admin/integracoes |
 | V101 | Usuários e níveis de acesso | — | Administração > Usuários e acessos | 1 | #28 | feito | /admin/usuarios |
 | V102 | Vincular empresas por colaborador (em lote e por importação) | — | Clientes > Carteira e colaboradores | 1 | #28 | feito | /clientes/carteira |

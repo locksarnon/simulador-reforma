@@ -74,7 +74,7 @@ export function analisarImportacao(linhas, empresas, grupos) {
     if (v.regime_atual) { const r = REGIMES_VALIDOS.find((x) => norm(x) === norm(v.regime_atual)); if (!r) return erros.push({ linha: n, motivo: `Regime não reconhecido: ${v.regime_atual} (use ${REGIMES_VALIDOS.join(", ")})` }); v.regime_atual = r; }
     if (v.email_contato && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email_contato)) return erros.push({ linha: n, motivo: `E-mail inválido: ${v.email_contato}` });
     if (v.cnpj_cpf && ![11, 14].includes(digitos(v.cnpj_cpf).length)) return erros.push({ linha: n, motivo: `CNPJ/CPF com número de dígitos errado: ${v.cnpj_cpf}` });
-    if (v.grupo && !numerosDeGrupo.has(v.grupo)) return erros.push({ linha: n, motivo: `Grupo ${v.grupo} não existe. Crie o grupo antes em Cadastro de clientes.` });
+    if (v.grupo && !numerosDeGrupo.has(v.grupo)) return erros.push({ linha: n, motivo: `Grupo ${v.grupo} não existe. Crie o grupo antes em Clientes > Grupos econômicos.` });
     const existente = (v.cnpj_cpf && porDoc.get(digitos(v.cnpj_cpf))) || (v.id_empresa && porId.get(norm(v.id_empresa)));
     if (existente) {
       const mudancas = Object.fromEntries(Object.entries(v).filter(([c, x]) => c !== "cnpj_cpf" && String(existente[c] ?? "") !== x));

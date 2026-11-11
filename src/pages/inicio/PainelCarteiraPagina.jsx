@@ -85,7 +85,7 @@ export default function PainelCarteiraPagina() {
       <div className="px-6 lg:px-8 py-6 space-y-4">
         {isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
         {error && <p role="alert" className="text-sm">Não foi possível carregar o painel. <button type="button" onClick={() => refetch()} className="text-primary hover:underline">Tentar de novo</button></p>}
-        {r && r.total === 0 && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nenhuma empresa cadastrada ainda. <Link to="/" className="text-primary hover:underline">Cadastre em Cadastro de clientes</Link>.</p>}
+        {r && r.total === 0 && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nenhuma empresa cadastrada ainda. <Link to="/" className="text-primary hover:underline">Cadastre o cliente em Clientes</Link>.</p>}
         {r && r.total > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -135,7 +135,7 @@ export default function PainelCarteiraPagina() {
                     <ul className="max-h-[180px] overflow-y-auto text-xs divide-y divide-border/50">
                       {r.saude.empresas_com_faltas.map((e) => <li key={e.id} className="py-1"><span className="font-medium">{e.razao_social}</span> <span className="text-muted-foreground">· falta {e.faltas.join(", ")}</span></li>)}
                     </ul>
-                    <Link to="/" className="text-xs text-primary hover:underline">Preencher em Cadastro de clientes</Link>
+                    <Link to="/" className="text-xs text-primary hover:underline">Preencher na ficha do cliente</Link>
                   </>
                 )}
                 {user?.role === "admin" && r.saude.pendentes_de_cnpj > 0 && (

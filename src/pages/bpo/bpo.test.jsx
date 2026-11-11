@@ -47,8 +47,8 @@ describe("menu lateral: área BPO Fiscal", () => {
     // A Captura de XML está sob BPO Fiscal: nada dela aparece na área Clientes.
     const clientes = html.slice(html.indexOf("Clientes"), html.indexOf("BPO Fiscal"));
     expect(clientes).not.toContain("Captura de XML");
-    // Na tela de Cadastro de clientes é a área Clientes que vem aberta, com o item dela.
-    expect(renderizar(<Layout />, { local: "/" })).toContain("Cadastro de clientes");
+    // Na lista de Clientes é a área Clientes que vem aberta, com o item dela.
+    expect(renderizar(<Layout />, { local: "/" })).toContain("Clientes");
     // Dentro da tela de uma empresa o item continua marcado como o lugar atual.
     const link = html.match(/<a[^>]*href="\/bpo\/repositorio-xml"[^>]*>/)?.[0] || "";
     expect(link).toContain('aria-current="page"');
@@ -106,11 +106,11 @@ describe("RepositorioXmlLista", () => {
     expect(html).toContain("Buscar por empresa, CNPJ ou grupo");
   });
 
-  it("sem empresas, manda cadastrar em Cadastro de clientes", () => {
+  it("sem empresas, manda cadastrar em Clientes", () => {
     const html = renderizar(<RepositorioXmlLista />, { local: CAMINHO_REPOSITORIO_XML, cache: [[["empresas", "bpo-lista"], []], [["grupos"], GRUPOS]] });
     expect(html).toContain("Nenhuma empresa cadastrada.");
     expect(html).toContain('href="/"');
-    expect(html).toContain("Cadastro de clientes");
+    expect(html).toContain("Clientes");
   });
 });
 
