@@ -79,6 +79,7 @@ describe('EntitiesService.remove', () => {
       certificadoDigital: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, capturaXmlConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) },
       capturaXmlExecucao: { deleteMany: vi.fn() }, xmlEmpresaConfig: { deleteMany: vi.fn(), groupBy: vi.fn().mockResolvedValue([]) }, auditoriaCertificado: { create: vi.fn() }, servicoContratado: { deleteMany: vi.fn() },
       vinculoColaborador: { deleteMany: vi.fn() }, empresaTag: { deleteMany: vi.fn() }, tarefa: { deleteMany: vi.fn() }, eventoAgenda: { updateMany: vi.fn() },
+      documentoEmpresa: { deleteMany: vi.fn() }, arquivoEmpresa: { findMany: vi.fn().mockResolvedValue([{ storage_key: 'arquivos/empresa/E1/x-contrato.pdf' }]), deleteMany: vi.fn() },
       $transaction: vi.fn(async (ops: unknown[]) => ops),
     };
     const storage = { removeObject: vi.fn().mockResolvedValue(undefined) };
@@ -91,7 +92,7 @@ describe('EntitiesService.remove', () => {
     expect(prisma.saneamentoProjeto.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.analiseEmpresa.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
     expect(prisma.validacaoCadastro.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
-    expect(storage.removeObject).toHaveBeenCalledTimes(2); // o endereço externo não é apagado
+    expect(storage.removeObject).toHaveBeenCalledTimes(3); // validação + arquivo da empresa; o endereço externo não é apagado
     expect(storage.removeObject).toHaveBeenCalledWith('validacoes/a.xlsx');
     expect(prisma.empresa.delete).toHaveBeenCalledWith({ where: { id: 'E1' } });
   });
@@ -110,6 +111,8 @@ describe('EntitiesService.remove', () => {
     expect(prisma.eventoAgenda.updateMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' }, data: { empresa_id: null } }); // o evento fica, sem a empresa
     expect(prisma.auditoriaCertificado.create).toHaveBeenCalledWith({ data: expect.objectContaining({ empresa_id: 'E1', acao: 'EMPRESA_EXCLUIDA' }) });
     expect(storage.removeObject).toHaveBeenCalledWith('repositorio/E1/importacao/2026/11/a.xml');
+    expect(prisma.documentoEmpresa.deleteMany).toHaveBeenCalledWith({ where: { empresa_id: 'E1' } });
+    expect(storage.removeObject).toHaveBeenCalledWith('arquivos/empresa/E1/x-contrato.pdf'); // o arquivo sai do armazenamento
   });
 
   it('empresa com certificado, XML ou captura guardados só é excluída por administrador, e a auditoria diz quem apagou', async () => {

@@ -183,6 +183,7 @@ export class EntitiesService {
     if (comCustodia && user && user.role !== 'admin') throw new ForbiddenException(AVISO_CUSTODIA_SO_ADMIN);
     const validacoes = await this.prisma.validacaoCadastro.findMany({ where: { empresa_id }, select: { storage_key: true } });
     const xmls = await this.prisma.documentoXml.findMany({ where: { empresa_id }, select: { storage_key: true } });
+    const arquivos = await this.prisma.arquivoEmpresa.findMany({ where: { empresa_id }, select: { storage_key: true } });
     await this.prisma.$transaction([
       this.prisma.saneamentoProjeto.deleteMany({ where: { empresa_id } }),
       this.prisma.analiseEmpresa.deleteMany({ where: { empresa_id } }),
@@ -200,6 +201,9 @@ export class EntitiesService {
       this.prisma.empresaTag.deleteMany({ where: { empresa_id } }),
       this.prisma.tarefa.deleteMany({ where: { empresa_id } }),
       this.prisma.eventoAgenda.updateMany({ where: { empresa_id }, data: { empresa_id: null } }),
+      // Arquivos e documentos da empresa saem junto (os arquivos também do armazenamento, logo abaixo).
+      this.prisma.documentoEmpresa.deleteMany({ where: { empresa_id } }),
+      this.prisma.arquivoEmpresa.deleteMany({ where: { empresa_id } }),
       // A trilha de auditoria fica e diz quem apagou; só se registra quando havia algo guardado.
       ...(comCustodia
         ? [this.prisma.auditoriaCertificado.create({
@@ -207,7 +211,7 @@ export class EntitiesService {
         })]
         : []),
     ]);
-    for (const v of [...validacoes, ...xmls]) {
+    for (const v of [...validacoes, ...xmls, ...arquivos]) {
       if (!this.storage || !v.storage_key || /^https?:\/\//i.test(v.storage_key)) continue;
       await this.storage.removeObject(v.storage_key).catch((e) => this.log.warn(`Arquivo ${v.storage_key} não removido do armazenamento: ${(e as Error).message}`));
     }

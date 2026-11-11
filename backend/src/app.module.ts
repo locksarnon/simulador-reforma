@@ -31,6 +31,8 @@ import { NotificacoesModule } from './notificacoes/notificacoes.module';
 import { AgendaGeralModule } from './agenda-geral/agenda-geral.module';
 import { PainelModule } from './painel/painel.module';
 import { PropostasModule } from './propostas/propostas.module';
+import { DocumentosModule } from './documentos/documentos.module';
+import { PessoasModule } from './pessoas/pessoas.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -66,6 +68,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AgendaGeralModule,
     PainelModule,
     PropostasModule,
+    DocumentosModule,
+    PessoasModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

@@ -1,7 +1,7 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { Clock } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import { areaPorId, caminhoDaArea, MODULOS } from "@/lib/navegacao";
+import { areaPorId, caminhoDaArea, MODULOS, SITUACAO } from "@/lib/navegacao";
 
 /** O que já existe hoje e cobre parte de cada módulo "em breve" (para ninguém achar que não há nada). */
 const JA_EXISTE = {
@@ -26,6 +26,8 @@ export default function ModuloEmBreve() {
       </div>
     );
   }
+  // Módulo que ficou pronto: o endereço antigo de "em breve" leva direto à tela dele.
+  if (modulo.situacao !== SITUACAO.EM_BREVE && !modulo.to.startsWith("/em-breve/")) return <Navigate to={modulo.to} replace />;
   const area = areaPorId(modulo.area);
   return (
     <div>
