@@ -1474,3 +1474,169 @@ model EventoAgenda {
   @@index([inicio])
 }
 // ── [/nucleo-operacional] ──
+
+// ── [nucleo-fase2] ──
+/// Pessoa física da carteira (sócio, produtor rural PF): cadastro com CPF e o vencimento do certificado digital dela.
+model PessoaFisica {
+  id                   String    @id @default(cuid())
+  nome                 String
+  cpf                  String    @unique
+  email                String?
+  telefone             String?
+  empresa_id           String?
+  grupo                String?
+  observacao           String?
+  certificado_tipo     String?
+  certificado_validade DateTime?
+  criado_por           String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([empresa_id])
+}
+
+/// Tipos de documento (alvará, licença ambiental, CAR…), com o órgão expedidor e quantos dias antes avisar do vencimento.
+model TipoDocumento {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  orgao       String?
+  alerta_dias Int      @default(30)
+  createdAt   DateTime @default(now())
+}
+
+/// Documento com data de validade, de uma empresa ou de uma pessoa física (o arquivo, se houver, fica em ArquivoEmpresa).
+model DocumentoEmpresa {
+  id               String    @id @default(cuid())
+  empresa_id       String?
+  pessoa_fisica_id String?
+  tipo_id          String?
+  descricao        String?
+  numero           String?
+  emissao          DateTime?
+  validade         DateTime?
+  arquivo_id       String?
+  criado_por       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([empresa_id])
+  @@index([pessoa_fisica_id])
+  @@index([validade])
+}
+
+/// Arquivo guardado no InTAX (pastas por empresa ou por pessoa física).
+model ArquivoEmpresa {
+  id               String   @id @default(cuid())
+  empresa_id       String?
+  pessoa_fisica_id String?
+  pasta            String   @default("")
+  nome             String
+  tamanho          Int
+  tipo_mime        String?
+  storage_key      String
+  enviado_por      String?
+  createdAt        DateTime @default(now())
+
+  @@index([empresa_id, pasta])
+  @@index([pessoa_fisica_id])
+}
+
+/// "Meus downloads": o ZIP montado para a pessoa baixar, com prazo para sumir.
+model DownloadLote {
+  id          String   @id @default(cuid())
+  dono        String
+  nome        String
+  status      String   @default("PRONTO")
+  storage_key String?
+  tamanho     Int?
+  arquivos    Int      @default(0)
+  erro        String?
+  expira_em   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([dono])
+}
+
+/// Modelo de proposta comercial (escopo, itens e condições de cada serviço).
+model ModeloProposta {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  servico   String
+  escopo    String?
+  itens     Json
+  condicoes String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Proposta comercial com o cálculo de honorários e a situação (rascunho, enviada, aceita, recusada).
+model Proposta {
+  id                String    @id @default(cuid())
+  numero            Int       @unique @default(autoincrement())
+  empresa_id        String?
+  lead_id           String?
+  cliente_nome      String
+  cliente_documento String?
+  cliente_email     String?
+  servico           String
+  modelo_id         String?
+  escopo            String?
+  itens             Json
+  honorario_mensal  Float?
+  valor_total       Float
+  validade          DateTime?
+  condicoes         String?
+  observacoes       String?
+  status            String    @default("RASCUNHO")
+  calculo           Json?
+  criado_por        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+  @@index([empresa_id])
+}
+
+/// Comunicado por e-mail para um grupo de clientes (por etiqueta, carteira ou lista de empresas).
+model Comunicado {
+  id         String    @id @default(cuid())
+  assunto    String
+  corpo      String
+  filtro     Json
+  anexos     Json?
+  status     String    @default("RASCUNHO")
+  total      Int       @default(0)
+  enviados   Int       @default(0)
+  falhas     Int       @default(0)
+  criado_por String?
+  enviado_em DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+/// Registro de cada e-mail enviado pelo InTAX (comunicados, avisos, propostas).
+model EnvioEmail {
+  id           String   @id @default(cuid())
+  origem       String
+  origem_id    String?
+  empresa_id   String?
+  destinatario String
+  assunto      String
+  status       String
+  erro         String?
+  createdAt    DateTime @default(now())
+
+  @@index([empresa_id, createdAt])
+  @@index([createdAt])
+}
+
+/// Endereços que não recebem e-mail do InTAX (pediram para sair ou voltam com erro).
+model BloqueioEnvio {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  motivo     String?
+  criado_por String?
+  createdAt  DateTime @default(now())
+}
+// ── [/nucleo-fase2] ──

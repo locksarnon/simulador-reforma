@@ -66,6 +66,7 @@ import TarefasPagina from '@/pages/bpo/TarefasPagina';
 import AgendaPagina from '@/pages/bpo/AgendaPagina';
 import PainelCarteiraPagina from '@/pages/inicio/PainelCarteiraPagina';
 import RegimesPagina from '@/pages/reforma/RegimesPagina';
+import PropostasPagina from '@/pages/comercial/PropostasPagina';
 import UsuariosPagina from '@/pages/admin/UsuariosPagina';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
@@ -110,6 +111,7 @@ function App() {
                   <Route path="/bpo/agenda" element={<AgendaPagina />} />
                   <Route path="/inicio/carteira" element={<PainelCarteiraPagina />} />
                   <Route path="/reforma/regimes" element={<RegimesPagina />} />
+                  <Route path="/comercial/propostas" element={<PropostasPagina />} />
                   <Route path="/admin/usuarios" element={<UsuariosPagina />} />
                   <Route path="/admin/acessos" element={<AcessosPagina />} />
                   <Route path="/perfil" element={<PerfilPagina />} />
