@@ -16,7 +16,25 @@ services:
       - ${RECEITANETBX_CERTIFICADO:-/etc/intax/segredos/serpro.pfx}:/certificado/escritorio.pfx:ro
     mem_limit: 1g
 
+  # Segundo certificado (A1 do sócio, procurador de clientes). O InTAX consulta os dois e junta o resultado.
+  # Só suba depois de o arquivo existir no servidor (senão o Docker cria uma pasta no lugar):
+  #   ... up -d --build --no-deps receitanetbx-socio      (tela remota: túnel para a porta 6081)
+  receitanetbx-socio:
+    build: ./receitanetbx
+    container_name: reforma-receitanetbx-socio
+    hostname: receitanetbx-socio
+    restart: unless-stopped
+    profiles: ["socio"]
+    ports:
+      - "127.0.0.1:6081:6080"
+    volumes:
+      - receitanetbx_socio_programa:/opt/bx
+      - receitanetbx_socio_dados:/dados
+      - ${RECEITANETBX_CERTIFICADO_SOCIO:-/etc/intax/segredos/socio.pfx}:/certificado/escritorio.pfx:ro
+    mem_limit: 1g
 
 volumes:
   receitanetbx_programa:
   receitanetbx_dados:
+  receitanetbx_socio_programa:
+  receitanetbx_socio_dados:

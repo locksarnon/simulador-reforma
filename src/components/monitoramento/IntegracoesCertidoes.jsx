@@ -54,6 +54,7 @@ export default function IntegracoesCertidoes() {
           <span className={`rounded-full px-2 py-0.5 text-xs ${bx.data?.configurado ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : bx.data?.disponivel ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>{bx.isLoading ? "Verificando…" : bx.data?.configurado ? "Configurado" : bx.data?.disponivel ? "Aguardando o certificado" : "Fora do ar"}</span>
         </div>
         <p className="text-xs text-muted-foreground">{bx.data?.mensagem} O InTAX usa o ReceitanetBX-Serviço, programa oficial da Receita, que roda no servidor com o certificado do escritório (procurador dos clientes) para saber o que foi transmitido e baixar o arquivo com o recibo. A senha do certificado é digitada só uma vez, na tela do próprio programa, aberta por túnel SSH.</p>
+        {(bx.data?.secundarios || []).map((s) => <p key={s.id} className="text-xs"><span className="font-medium">{s.rotulo}:</span> {s.configurado ? "configurado" : s.disponivel ? "no ar, aguardando o certificado" : "não instalado"}. O InTAX consulta os dois certificados e junta o resultado (vale a procuração que existir).</p>)}
       </div>
     </section>
   );

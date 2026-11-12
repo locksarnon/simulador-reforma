@@ -48,8 +48,8 @@ export function lerArquivo(x: ArquivoSped) {
 }
 
 /** Pesquisa o ano inteiro de uma escrituração e devolve os arquivos encontrados (vazio = nada transmitido no período). */
-export async function pesquisarAno(e: Escrituracao, cnpj: string, ano: number, proprio: boolean) {
-  const r = await chamarBx('PesquisarArquivos', entradaPesquisa(e, cnpj, ano, proprio));
+export async function pesquisarAno(e: Escrituracao, cnpj: string, ano: number, proprio: boolean, url?: string) {
+  const r = await chamarBx('PesquisarArquivos', entradaPesquisa(e, cnpj, ano, proprio), url);
   const lido = lerPesquisa(r.saida);
   const mensagem = lido.mensagem ?? r.saida.match(/<mensagem>([\s\S]*?)<\/mensagem>/)?.[1]?.trim() ?? null;
   const nada = /n[aã]o encontrado nenhum arquivo/i.test(mensagem ?? '');

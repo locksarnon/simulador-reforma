@@ -5,7 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PreAnaliseService } from './pre-analise.service';
 import { CertidoesService } from './certidoes.service';
 import { InfosimplesService } from '../infosimples/infosimples.service';
-import { estadoBx } from '../receitanetbx/receitanetbx.cliente';
+import { estadoBx, servicosBx } from '../receitanetbx/receitanetbx.cliente';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 
@@ -97,8 +97,9 @@ export class IntegracoesExternasController {
 
   /** ReceitanetBX-Serviço (escriturações do SPED transmitidas): no ar? com o certificado do escritório? */
   @Get('receitanetbx')
-  receitanetbx() {
-    return estadoBx();
+  async receitanetbx() {
+    const [principal, ...outros] = await Promise.all(servicosBx().map(async (s) => ({ ...s, url: undefined, ...(await estadoBx(s.url)) })));
+    return { ...principal, secundarios: outros };
   }
 
   @Delete('infosimples')

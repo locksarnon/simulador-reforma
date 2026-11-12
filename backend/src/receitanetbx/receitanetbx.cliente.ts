@@ -8,6 +8,15 @@ export type Operacao = 'PesquisarArquivos' | 'SolicitarArquivos' | 'VerificarSit
 export type RespostaBx = { retorno: number; saida: string };
 
 export const URL_PADRAO_BX = 'http://reforma-receitanetbx:2444/services/ReceitanetBX';
+export const URL_SECUNDARIO_BX = 'http://reforma-receitanetbx-socio:2444/services/ReceitanetBX';
+
+/** Os serviços do ReceitanetBX: o do escritório e o secundário (certificado do sócio, procurador de clientes). */
+export function servicosBx() {
+  return [
+    { id: 'escritorio', rotulo: 'Certificado do escritório', url: process.env.RECEITANETBX_URL || URL_PADRAO_BX },
+    { id: 'socio', rotulo: 'Certificado do sócio', url: process.env.RECEITANETBX_URL_SECUNDARIO || URL_SECUNDARIO_BX },
+  ];
+}
 
 export const escaparXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const desescapar = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, '&');

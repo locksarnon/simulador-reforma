@@ -50,7 +50,7 @@ export default function SpedTransmitido({ empresaId }) {
         <button type="button" disabled={q.isFetching} onClick={() => q.refetch()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60">{q.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Fonte: Receita Federal, pelo ReceitanetBX (programa oficial), com o certificado do escritório{q.data ? ` como ${q.data.perfil}` : ""}. Para clientes, é preciso procuração eletrônica no e-CAC para o escritório.
+        Fonte: Receita Federal, pelo ReceitanetBX (programa oficial), com o certificado do escritório e o do sócio (o que tiver procuração eletrônica do cliente no e-CAC){q.data?.certificados?.length ? `; encontrado com: ${q.data.certificados.join(" e ")}` : ""}.
         {q.data ? ` Consultado em ${quandoConsultou(q.data.consultado_em)}.` : ""}
       </p>
       {q.isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Consultando a Receita…</p>}

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MonitoramentoService } from './monitoramento.service';
 import { extrairArquivos } from './interpretar';
 import { ESCRITURACOES, pesquisarAno, porMes } from '../receitanetbx/sped';
+import { servicosBx } from '../receitanetbx/receitanetbx.cliente';
 
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
 const PJ100 = { numero: '00000000000100', tipo: 2 as const };
@@ -140,16 +141,29 @@ export class EscritorioService {
     const cnpj = so(e?.cnpj_cpf);
     if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
     const proprio = cnpj === (await this.m.cnpjDoEscritorio());
+    // Pergunta aos dois serviços (escritório e sócio) e junta: vale a procuração que existir. Serviço fora do ar é ignorado.
     const escrituracoes = [];
+    const usados = new Set<string>();
     for (const esc of ESCRITURACOES) {
-      try {
-        const arquivos = await pesquisarAno(esc, cnpj, ano, proprio);
-        escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, erro: null, meses: porMes(ano, arquivos), arquivos });
-      } catch (err) {
-        escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, erro: (err as Error).message, meses: [], arquivos: [] });
+      const arquivos = new Map<string, Awaited<ReturnType<typeof pesquisarAno>>[number]>();
+      const erros: string[] = [];
+      let respondeu = false;
+      for (const s of servicosBx()) {
+        try {
+          const achados = await pesquisarAno(esc, cnpj, ano, proprio && s.id === 'escritorio', s.url);
+          respondeu = true;
+          if (achados.length) usados.add(s.rotulo);
+          for (const a of achados) arquivos.set(a.id || `${s.id}-${arquivos.size}`, a);
+        } catch (err) {
+          const m = (err as Error).message;
+          if (!/fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(m)) { respondeu = true; erros.push(`${s.rotulo}: ${m}`); }
+        }
       }
+      const lista = [...arquivos.values()];
+      const erro = !respondeu ? 'O serviço do ReceitanetBX não respondeu.' : lista.length ? null : erros.join(' · ') || null;
+      escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, erro, meses: respondeu ? porMes(ano, lista) : [], arquivos: lista });
     }
-    return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', escrituracoes };
+    return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', certificados: [...usados], escrituracoes };
   }
 
   // ── Eventos de atualização ───────────────────────────────────────────
