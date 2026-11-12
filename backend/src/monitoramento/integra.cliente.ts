@@ -63,12 +63,15 @@ export function lerResposta(http: number, texto: string): Resposta {
 
 /** Token do SAPI: POST com Basic (key:secret), role-type TERCEIROS e o e-CNPJ do contratante no TLS. */
 export function pedirTokenSapi(c: Credenciais): Promise<TokenSapi> {
+  // O SAPI não aceita corpo "em pedaços" (Transfer-Encoding: chunked): fica parado ~30 s e não responde. Conferido em 12/11/2026
+  // de dentro do servidor: com Content-Length responde em 0,07 s. Por isso o tamanho vai sempre informado.
+  const corpoPedido = 'grant_type=client_credentials';
   return new Promise((resolve, reject) => {
     const req = request(URL_AUTENTICACAO, {
       method: 'POST', pfx: c.pfx, passphrase: c.senha, timeout: 30_000,
       headers: {
         Authorization: `Basic ${Buffer.from(`${c.consumerKey}:${c.consumerSecret}`).toString('base64')}`,
-        'Role-Type': 'TERCEIROS', 'Content-Type': 'application/x-www-form-urlencoded',
+        'Role-Type': 'TERCEIROS', 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(corpoPedido),
       },
     }, (res) => {
       let corpo = '';
@@ -85,7 +88,7 @@ export function pedirTokenSapi(c: Credenciais): Promise<TokenSapi> {
     });
     req.on('timeout', () => req.destroy(new ErroIntegra('A autenticação do Serpro não respondeu a tempo.', 'TEMPO')));
     req.on('error', (e) => reject(e instanceof ErroIntegra ? e : new ErroIntegra(`Falha de comunicação com a autenticação do Serpro: ${e.message}`, 'COMUNICACAO')));
-    req.end('grant_type=client_credentials');
+    req.end(corpoPedido);
   });
 }
 
