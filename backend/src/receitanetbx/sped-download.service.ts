@@ -13,7 +13,7 @@ const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 const PENDENTES = ['SOLICITADO', 'PROCESSANDO', 'DISPONIVEL'];
 /** O serviço grava em /dados (volume dele); o backend lê o mesmo volume em /bxdados/<serviço>. */
 const caminhoNoBackend = (servico: string, local: string) => local.replace(/^\/dados\b/, `${process.env.RECEITANETBX_DADOS_DIR || '/bxdados'}/${servico}`);
-const MIME: Record<string, string> = { '.txt': 'text/plain', '.zip': 'application/zip', '.pdf': 'application/pdf', '.xml': 'application/xml' };
+const MIME: Record<string, string> = { '.rec': 'text/plain', '.txt': 'text/plain', '.zip': 'application/zip', '.pdf': 'application/pdf', '.xml': 'application/xml' };
 
 /** Lê a resposta do SolicitarArquivos ou do VerificarSituacaoPedidos: pedidos, com a situação e os arquivos de cada um. */
 export function lerPedidos(saida: string) {
@@ -84,11 +84,13 @@ export class SpedDownloadService {
         for (const d of meus) {
           const p = pedidos.find((x) => x.id === d.id_pedido);
           if (!p) continue;
-          const arq = p.arquivos.find((a) => a.id === d.arquivo_receita) ?? p.arquivos[0];
-          const local = arq ? Object.entries(arq).find(([k]) => /local|caminho|path/i.test(k))?.[1] : undefined;
-          const sit = (arq?.situacao || p.situacao || '').toLowerCase();
-          if (sit === 'baixado' && local) {
-            try { await this.guardar(d, caminhoNoBackend(s.id, local)); guardados++; } catch (e) {
+          // O pedido pode trazer mais de um arquivo (a escrituração e o recibo): guarda todos quando todos chegarem.
+          const localDe = (a: Record<string, string>) => Object.entries(a).find(([k]) => /local|caminho|path/i.test(k))?.[1];
+          const baixados = p.arquivos.filter((a) => (a.situacao ?? '').toLowerCase() === 'baixado' && localDe(a));
+          const todos = p.arquivos.length > 0 && baixados.length === p.arquivos.length;
+          const sit = todos ? 'baixado' : (p.arquivos[0]?.situacao || p.situacao || '').toLowerCase();
+          if (sit === 'baixado') {
+            try { await this.guardar(d, baixados.map((a) => caminhoNoBackend(s.id, localDe(a)!))); guardados++; } catch (e) {
               await this.prisma.spedDownload.update({ where: { id: d.id }, data: { situacao: 'ERRO', mensagem: `Arquivo baixado, mas não foi possível guardar: ${(e as Error).message}`.slice(0, 500) } });
             }
           } else if (sit === 'erro' || sit === 'inativo' || sit === 'cancelado') {
@@ -103,16 +105,26 @@ export class SpedDownloadService {
     return { guardados };
   }
 
-  /** Guarda o arquivo nos Arquivos do cliente, pasta SPED/<escrituração>. */
-  private async guardar(d: { id: string; empresa_id: string; escrituracao: string; competencia: string; retificadora: boolean; solicitado_por: string | null }, caminho: string) {
-    const buf = await readFile(caminho);
+  /**
+   * Guarda os arquivos nos Arquivos do cliente, pasta SPED/<escrituração>/<competência>: a escrituração transmitida (o próprio
+   * arquivo da Receita, sem alteração, para levantamentos de crédito) e o recibo, quando vier. O principal é a escrituração.
+   */
+  private async guardar(d: { id: string; empresa_id: string; escrituracao: string; competencia: string; retificadora: boolean; solicitado_por: string | null }, caminhos: string[]) {
     const e = ESCRITURACAO_POR_ID.get(d.escrituracao)!;
-    const ext = extname(caminho) || '.txt';
-    const nome = `${e.rotulo.replace(/[\\/:*?"<>|]/g, '-')} ${d.competencia}${d.retificadora ? ' retificadora' : ''}${ext}`;
-    const chave = `arquivos/empresa/${d.empresa_id}/${randomUUID()}-${basename(nome)}`;
-    const mime = MIME[ext.toLowerCase()] ?? 'application/octet-stream';
-    await this.storage.guardar(chave, buf, mime);
-    const a = await this.prisma.arquivoEmpresa.create({ data: { empresa_id: d.empresa_id, pasta: `SPED/${e.rotulo.split(' (')[0]}`, nome, tamanho: buf.length, tipo_mime: mime, storage_key: chave, enviado_por: d.solicitado_por ?? 'ReceitanetBX' } });
-    await this.prisma.spedDownload.update({ where: { id: d.id }, data: { situacao: 'GUARDADO', arquivo_id: a.id, mensagem: null } });
+    const curto = e.rotulo.split(' (')[0];
+    const salvos: { id: string; nome: string; tipo: 'ESCRITURACAO' | 'RECIBO' }[] = [];
+    for (const caminho of caminhos) {
+      const buf = await readFile(caminho);
+      const ext = extname(caminho) || '.txt';
+      const recibo = /\.rec$/i.test(caminho) || /recibo/i.test(basename(caminho));
+      const nome = `${curto.replace(/[\\/:*?"<>|]/g, '-')} ${d.competencia}${d.retificadora ? ' retificadora' : ''}${recibo ? ' - recibo' : ''}${ext}`;
+      const chave = `arquivos/empresa/${d.empresa_id}/${randomUUID()}-${basename(nome)}`;
+      const mime = MIME[ext.toLowerCase()] ?? 'application/octet-stream';
+      await this.storage.guardar(chave, buf, mime);
+      const a = await this.prisma.arquivoEmpresa.create({ data: { empresa_id: d.empresa_id, pasta: `SPED/${curto}/${d.competencia}`, nome, tamanho: buf.length, tipo_mime: mime, storage_key: chave, enviado_por: d.solicitado_por ?? 'ReceitanetBX' } });
+      salvos.push({ id: a.id, nome, tipo: recibo ? 'RECIBO' : 'ESCRITURACAO' });
+    }
+    const principal = salvos.find((x) => x.tipo === 'ESCRITURACAO') ?? salvos[0];
+    await this.prisma.spedDownload.update({ where: { id: d.id }, data: { situacao: 'GUARDADO', arquivo_id: principal?.id ?? null, arquivos: salvos as never, mensagem: null } });
   }
 }

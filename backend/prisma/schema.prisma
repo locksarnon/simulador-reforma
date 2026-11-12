@@ -1846,6 +1846,7 @@ model SpedDownload {
   situacao       String   @default("SOLICITADO")
   mensagem       String?
   arquivo_id     String?
+  arquivos       Json?
   solicitado_por String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
