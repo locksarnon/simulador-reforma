@@ -11,6 +11,7 @@ import { completarParametros, GRUPOS, OBRIGACOES, SERVICO_POR_CHAVE, SERVICOS, S
 import { Credenciais, ErroIntegra, Identificacao, IntegraCliente, Modo, MODOS, Resposta } from './integra.cliente';
 import { extrairArquivos, interpretar, Nivel, Resumo } from './interpretar';
 import { termoAssinado, vigenciaPadrao } from './termo-autorizacao';
+import { ContratoIntegraService, CredenciaisContrato } from './contrato.service';
 
 type Usuario = { email?: string; role?: string; sub?: string; id?: string } | undefined;
 type Alvo = { empresaId?: string; pessoaFisicaId?: string };
@@ -36,24 +37,15 @@ function reserva() {
   return RESERVA!;
 }
 
-/** Credenciais do contrato do escritório, só do .env do servidor (nunca do banco nem da tela). */
-export function credenciaisDoAmbiente(env: NodeJS.ProcessEnv = process.env): (Credenciais & { contratante: string; nome: string }) | null {
-  const key = env.SERPRO_CONSUMER_KEY?.trim();
-  const secret = env.SERPRO_CONSUMER_SECRET?.trim();
-  const pfx64 = env.SERPRO_CERT_PFX_BASE64?.trim();
-  const arquivo = env.SERPRO_CERT_PFX_ARQUIVO?.trim();
-  const cnpj = so(env.SERPRO_CONTRATANTE_CNPJ);
-  if (!key || !secret || (!pfx64 && !arquivo) || cnpj.length !== 14) return null;
-  let pfx: Buffer;
-  try { pfx = pfx64 ? Buffer.from(pfx64, 'base64') : readFileSync(arquivo!); } catch { return null; }
-  return { consumerKey: key, consumerSecret: secret, pfx, senha: env.SERPRO_CERT_SENHA ?? '', contratante: cnpj, nome: env.SERPRO_CONTRATANTE_NOME?.trim() || 'CONTRATANTE' };
-}
+export { credenciaisDoAmbiente } from './contrato.service';
 
 @Injectable()
 export class MonitoramentoService {
   private readonly log = new Logger(MonitoramentoService.name);
   private modoAtual: Modo | null = null;
   private readonly cliente: IntegraCliente;
+  /** Contrato em uso, relido a cada consulta (cache de 1 minuto no ContratoIntegraService). */
+  private cred: CredenciaisContrato | null = null;
   private readonly lotes = new Map<string, { id: string; total: number; feitas: number; erros: number; iniciado: Date; fim?: Date; por?: string }>();
 
   constructor(
@@ -62,23 +54,25 @@ export class MonitoramentoService {
     private readonly certificados: CertificadosService,
     private readonly notificacoes: NotificacoesService,
     private readonly mail: MailService,
+    private readonly contrato: ContratoIntegraService,
   ) {
-    this.cliente = new IntegraCliente(() => this.modoAtual ?? 'DESLIGADO', () => credenciaisDoAmbiente());
+    this.cliente = new IntegraCliente(() => this.modoAtual ?? 'DESLIGADO', () => this.cred);
   }
 
   // ── Modo e estado ──────────────────────────────────────────────────────────
   async modo(): Promise<Modo> {
     const p = await this.prisma.parametroSistema.findUnique({ where: { chave: CHAVE_MODO } });
     const salvo = p?.valor as Modo | undefined;
-    const padrao: Modo = (process.env.INTEGRA_CONTADOR_MODO as Modo) || (credenciaisDoAmbiente() ? 'PRODUCAO' : 'DESLIGADO');
+    this.cred = await this.contrato.credenciais();
+    const padrao: Modo = (process.env.INTEGRA_CONTADOR_MODO as Modo) || (this.cred ? 'PRODUCAO' : 'DESLIGADO');
     this.modoAtual = salvo && MODOS.includes(salvo) ? salvo : MODOS.includes(padrao) ? padrao : 'DESLIGADO';
-    if (this.modoAtual === 'PRODUCAO' && !credenciaisDoAmbiente()) this.modoAtual = 'DESLIGADO';
+    if (this.modoAtual === 'PRODUCAO' && !this.cred) this.modoAtual = 'DESLIGADO';
     return this.modoAtual;
   }
 
   async estado() {
     const modo = await this.modo();
-    const c = credenciaisDoAmbiente();
+    const c = this.cred;
     const desde = new Date(Date.now() - 86_400_000);
     const [hoje, ultima] = await Promise.all([
       this.prisma.consultaFiscal.count({ where: { createdAt: { gte: desde } } }),
@@ -95,7 +89,7 @@ export class MonitoramentoService {
   async definirModo(modo: string, usuario: Usuario) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores mudam o modo do monitoramento.');
     if (!MODOS.includes(modo as Modo)) throw new BadRequestException('Modo inválido.');
-    if (modo === 'PRODUCAO' && !credenciaisDoAmbiente()) throw new BadRequestException('Falta o contrato do Integra Contador no servidor (Consumer Key/Secret, certificado e CNPJ do escritório).');
+    if (modo === 'PRODUCAO' && !(await this.contrato.credenciais())) throw new BadRequestException('Falta o contrato do Integra Contador: configure o certificado e as chaves em Administração > Integrações.');
     await this.prisma.parametroSistema.upsert({ where: { chave: CHAVE_MODO }, update: { valor: modo }, create: { chave: CHAVE_MODO, valor: modo, descricao: 'Modo do monitoramento fiscal (Integra Contador)' } });
     this.modoAtual = modo as Modo;
     return this.estado();
@@ -158,8 +152,8 @@ export class MonitoramentoService {
       if (!f) throw new ErroIntegra('O ambiente de demonstração do Serpro não respondeu a este serviço agora. Tente em alguns minutos.', 'COMUNICACAO');
       return { r: { http: 200, status: f.status, dados: (() => { try { return JSON.parse(f.dados); } catch { return f.dados; } })(), mensagens: f.mensagens, bruto: '' }, reserva: true };
     }
-    const c = credenciaisDoAmbiente();
-    if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador no servidor.', 'SEM_CONTRATO');
+    const c = (this.cred = await this.contrato.credenciais());
+    if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador: configure em Administração > Integrações.', 'SEM_CONTRATO');
     const contratante: Identificacao = { numero: c.contratante, tipo: 2 };
     const token = ctx.empresaId ? await this.tokenDoCliente(ctx.empresaId, contribuinte, ctx.nome, { cnpj: c.contratante, nome: c.nome }, ctx.usuario) : null;
     const autor = token ? contribuinte : contratante;

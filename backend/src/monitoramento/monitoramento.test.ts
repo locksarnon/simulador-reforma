@@ -148,7 +148,7 @@ describe('MonitoramentoService.consultar (demonstração)', () => {
     };
     const storage = { guardar: async (k: string) => { guardados.push(k); } };
     const notif = { criarParaAdmins: vi.fn(async () => undefined) };
-    const s = new MonitoramentoService(prisma as never, storage as never, {} as never, notif as never, {} as never);
+    const s = new MonitoramentoService(prisma as never, storage as never, {} as never, notif as never, {} as never, { credenciais: async () => null } as never);
     return { s, consultas, guardados };
   }
   it('chama o trial oficial, guarda o PDF e marca a consulta como simulada', async () => {

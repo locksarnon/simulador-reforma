@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ContratoIntegraService } from './contrato.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ConfigRotina, MonitoramentoService } from './monitoramento.service';
@@ -9,7 +11,34 @@ const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new Forbid
 /** BPO Fiscal > Monitoramento fiscal: consultas ao Integra Contador (Serpro), histórico, PDF, lote, rotina e obrigações dispensadas. */
 @Controller('monitoramento')
 export class MonitoramentoController {
-  constructor(private readonly m: MonitoramentoService) {}
+  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService) {}
+
+  // ── Contrato do escritório (Administração > Integrações) ──────────────────
+  @Get('contrato')
+  verContrato(@CurrentUser() user: AuthUser) {
+    exigirAdmin(user);
+    return this.contrato.estado();
+  }
+
+  @Post('contrato')
+  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: 1024 * 1024, files: 1 } }))
+  salvarContrato(
+    @CurrentUser() user: AuthUser,
+    @UploadedFile() arquivo: { buffer: Buffer } | undefined,
+    @Body() body: { senha?: string; consumer_key?: string; consumer_secret?: string },
+  ) {
+    return this.contrato.salvar({ pfx: arquivo?.buffer, senha: body?.senha, consumerKey: body?.consumer_key, consumerSecret: body?.consumer_secret }, user);
+  }
+
+  @Post('contrato/testar')
+  testarContrato(@CurrentUser() user: AuthUser) {
+    return this.contrato.testar(user);
+  }
+
+  @Delete('contrato')
+  removerContrato(@CurrentUser() user: AuthUser) {
+    return this.contrato.remover(user);
+  }
 
   @Get('estado')
   estado() {

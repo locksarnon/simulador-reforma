@@ -1747,3 +1747,22 @@ model ParcelamentoPgfn {
 }
 
 // ── [/pgfn] ──
+
+// ── [contrato-integra-contador] ──
+/// O contrato do escritório com o Integra Contador (Serpro), configurado pela tela de Integrações: Consumer Key/Secret e o e-CNPJ A1
+/// (arquivo e senha), tudo cifrado no cofre (AES-256-GCM). Um só registro (id "unico"). Nunca é devolvido para a tela.
+model ContratoIntegraContador {
+  id              String   @id
+  titular         String
+  documento       String
+  valido_ate      DateTime
+  segredo_cifrado Bytes
+  segredo_iv      Bytes
+  segredo_tag     Bytes
+  chave_id        String
+  atualizado_por  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ── [/contrato-integra-contador] ──

@@ -4,11 +4,12 @@ import { CertificadosModule } from '../certificados/certificados.module';
 import { NotificacoesModule } from '../notificacoes/notificacoes.module';
 import { MonitoramentoController } from './monitoramento.controller';
 import { MonitoramentoService } from './monitoramento.service';
+import { ContratoIntegraService } from './contrato.service';
 
 @Module({
   imports: [StorageModule, CertificadosModule, NotificacoesModule],
   controllers: [MonitoramentoController],
-  providers: [MonitoramentoService],
+  providers: [MonitoramentoService, ContratoIntegraService],
   exports: [MonitoramentoService],
 })
 export class MonitoramentoModule {}
