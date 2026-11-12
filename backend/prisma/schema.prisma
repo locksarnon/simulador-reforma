@@ -1870,3 +1870,16 @@ model SpedDownload {
   @@index([empresa_id])
   @@index([situacao])
 }
+
+// ── [custos-externos] Cada chamada paga a ferramenta externa (Serpro, Infosimples), com quem pediu ──
+model UsoExterno {
+  id         String   @id @default(cuid())
+  servico    String
+  usuario    String?
+  empresa_id String?
+  referencia String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([usuario, createdAt])
+}

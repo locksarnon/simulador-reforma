@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api/client";
 import { ChevronDown, ChevronRight, LogOut, Pin, PinOff } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
@@ -26,6 +28,8 @@ const sumir = (compacto) => `whitespace-nowrap transition-opacity duration-150 m
 const itemModulo = "group/linha relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-[background-color,color,transform] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary";
 const itemModuloInativo = "text-rail-foreground hover:translate-x-0.5 hover:bg-rail-hover hover:text-rail-strong";
 const itemModuloAtivo = "bg-rail-primary/20 font-medium text-rail-strong before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary";
+
+const brlMenu = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function Selo({ situacao }) {
   if (situacao === SITUACAO.BETA) return <span className="ml-auto rounded bg-rail-primary/25 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-rail-strong">Beta</span>;
@@ -80,6 +84,7 @@ function PainelLateral({ area, posicao, ativoId, aoNavegar, aoEntrar, aoSair }) 
  */
 export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = false, fixa = false, aoFixar, aoEntrarZona, aoSairZona }) {
   const { user, logout } = useAuth();
+  const custo = useQuery({ queryKey: ["custos", "meu"], queryFn: () => api.get("/custos/meu"), enabled: !!user, staleTime: 5 * 60_000, refetchInterval: 10 * 60_000, retry: false });
   const { pathname } = useLocation();
   const [saindo, setSaindo] = useState(false);
   const ativo = moduloDoCaminho(pathname);
@@ -224,6 +229,11 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
               <span className="block truncate text-[12.5px] font-medium text-rail-strong">{user.name || user.email}</span>
               <span className="block truncate text-[11px] text-rail-muted">{user.name ? `${rotuloPapel(user.role)} · ${user.email}` : rotuloPapel(user.role)}</span>
             </span>
+          </Link>
+        )}
+        {user && custo.data && (
+          <Link to={user.role === "admin" ? "/admin/custos" : "/perfil"} onClick={navegar} title={custo.data.itens.filter((i) => i.quantidade).map((i) => `${i.rotulo}: ${i.quantidade} × ${brlMenu(i.preco)} = ${brlMenu(i.subtotal)}`).join(" · ") || "Nenhuma chamada paga neste mês"} className={`block rounded-md px-[14px] py-1 text-[11px] text-rail-muted hover:bg-rail-hover hover:text-rail-strong ${compacto ? "hidden" : ""}`}>
+            Ferramentas externas no mês: <span className="font-medium tabular-nums text-rail-strong">{brlMenu(custo.data.total)}</span>{custo.data.chamadas ? ` · ${custo.data.chamadas} chamada(s)` : ""}
           </Link>
         )}
         <button type="button" onClick={sair} disabled={saindo} title={compacto ? "Sair" : undefined} className={`${linha} text-[13.5px] font-medium ${linhaInativa} disabled:opacity-60`}>

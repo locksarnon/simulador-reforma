@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { registrarUso } from '../custos/custos.service';
 import { StorageService } from '../storage/storage.service';
 import { CnpjService } from '../cnpj/cnpj.service';
 import { PdfService, SecaoPdf } from '../pdf/pdf.service';
@@ -173,14 +174,16 @@ export class PreAnaliseService {
       await passo('PGFN', async () => {
         const r = await this.serpro.certidaoFederal(cnpj, modo);
         if (!r) return this.aguardando('PGFN');
+        if (!r.demonstracao) await registrarUso(this.prisma, 'SERPRO_CND', reg.criado_por, reg.empresa_id, cnpj);
         let arquivo: Processo['arquivo'] = null;
         if (r.pdf) { const key = `pre-analise/${id}/pgfn.pdf`; await this.storage.guardar(key, r.pdf, 'application/pdf'); arquivo = { key, nome: `Certidão federal ${fmtCnpj(cnpj)}.pdf` }; }
         return { status: r.status, resumo: r.resumo, detalhes: r.detalhes, demonstracao: r.demonstracao, arquivo };
       });
-      await passo('TRABALHISTA', async () => this.daInfosimples(id, 'TRABALHISTA', cnpj, await this.infosimples.cndt(cnpj)));
-      await passo('FGTS', async () => this.daInfosimples(id, 'FGTS', cnpj, await this.infosimples.crf(cnpj)));
+      await passo('TRABALHISTA', async () => { const r = await this.infosimples.cndt(cnpj); if (r) await registrarUso(this.prisma, 'INFOSIMPLES_CNDT', reg.criado_por, reg.empresa_id, cnpj); return this.daInfosimples(id, 'TRABALHISTA', cnpj, r); });
+      await passo('FGTS', async () => { const r = await this.infosimples.crf(cnpj); if (r) await registrarUso(this.prisma, 'INFOSIMPLES_CRF', reg.criado_por, reg.empresa_id, cnpj); return this.daInfosimples(id, 'FGTS', cnpj, r); });
       await passo('DIVIDA_ATIVA', async () => {
         const r = await this.serpro.dividaAtiva(cnpj, modo);
+        if (r && !r.demonstracao) await registrarUso(this.prisma, 'SERPRO_DIVIDA', reg.criado_por, reg.empresa_id, cnpj);
         if (r) return { status: r.status, resumo: r.resumo, detalhes: r.detalhes, demonstracao: r.demonstracao };
         return this.daPgfnDoCliente(reg.empresa_id, reg.criado_por);
       });

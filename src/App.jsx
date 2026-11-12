@@ -81,6 +81,7 @@ import PessoasFisicasPagina from '@/pages/clientes/PessoasFisicasPagina';
 import ComunicadosPagina from '@/pages/comercial/ComunicadosPagina';
 import ComunicacoesPagina from '@/pages/admin/ComunicacoesPagina';
 import IntegracoesPagina from '@/pages/admin/IntegracoesPagina';
+import CustosPagina from '@/pages/admin/CustosPagina';
 import ImportacaoCadastroPagina from '@/pages/clientes/ImportacaoCadastroPagina';
 import AnaliseRiscoPagina from '@/pages/bpo/AnaliseRiscoPagina';
 import PreAnalisePagina from '@/pages/comercial/PreAnalisePagina';
@@ -145,6 +146,7 @@ function App() {
                   <Route path="/comercial/comunicados" element={<ComunicadosPagina />} />
                   <Route path="/admin/comunicacoes" element={<ComunicacoesPagina />} />
                   <Route path="/admin/integracoes" element={<IntegracoesPagina />} />
+                  <Route path="/admin/custos" element={<CustosPagina />} />
                   <Route path="/clientes/importacao" element={<ImportacaoCadastroPagina />} />
                   <Route path="/bpo/analise-risco" element={<AnaliseRiscoPagina />} />
                   <Route path="/comercial/pre-analise" element={<PreAnalisePagina />} />

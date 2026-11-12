@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { lerPfx } from '../certificados/certificado-pfx';
 import { CertificadosService } from '../certificados/certificados.service';
+import { ItemCusto, registrarUso } from '../custos/custos.service';
 import { assinarDeclaracaoDctfweb } from './dctfweb-assinatura';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { MailService } from '../mail/mail.service';
@@ -156,6 +157,7 @@ export class MonitoramentoService {
     if (!c) throw new BadRequestException('Falta o contrato do Integra Contador: configure em Administração > Integrações.');
     const escritorio: Identificacao = { numero: c.contratante, tipo: 2 };
     const r = await this.cliente.chamar({ endpoint: p.endpoint, contratante: escritorio, autorPedidoDados: escritorio, contribuinte: p.contribuinte ?? escritorio, idSistema: p.sistema, idServico: p.servico, versaoSistema: p.versao, dados: p.dados });
+    await registrarUso(this.prisma, `INTEGRA_${String(p.endpoint).toUpperCase()}` as ItemCusto, null, null, p.servico);
     return { ...r, demonstracao: false };
   }
 

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { registrarUso } from '../custos/custos.service';
 import { StorageService } from '../storage/storage.service';
 import { MonitoramentoService } from '../monitoramento/monitoramento.service';
 import { hojeEmBrasilia, utcDe } from '../tarefas/tarefas.regras';
@@ -177,6 +178,7 @@ export class CertidoesService {
     const cnpj = so(e.cnpj_cpf);
     if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
     const r: ResultadoCertidao | null = tipo === 'TRABALHISTA' ? await this.infosimples.cndt(cnpj) : await this.infosimples.crf(cnpj);
+    if (r) await registrarUso(this.prisma, tipo === 'TRABALHISTA' ? 'INFOSIMPLES_CNDT' : 'INFOSIMPLES_CRF', usuario?.email ?? null, empresaId, cnpj);
     if (!r) throw new BadRequestException('A Infosimples não está configurada. Informe o token em Administração > Integrações, ou anexe o PDF emitido no portal.');
     if (r.status === 'INDISPONIVEL' || !r.comprovante) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
     const def = DEF.get(tipo)!;
@@ -192,6 +194,7 @@ export class CertidoesService {
     const modo = await this.monitoramento.modo();
     if (modo !== 'PRODUCAO') throw new BadRequestException('A emissão automática da CND federal só funciona em produção (no modo demonstração o Serpro devolve uma certidão fictícia).');
     const r = await this.serpro.certidaoFederal(cnpj, modo);
+    if (r && !r.demonstracao) await registrarUso(this.prisma, 'SERPRO_CND', usuario?.email ?? null, empresaId, cnpj);
     if (!r) throw new BadRequestException('A API Consulta CND do Serpro não está configurada. Informe as chaves em Administração > Integrações > Contrato do escritório, ou anexe o PDF emitido no portal.');
     if (r.status !== 'CONCLUIDO' || !r.pdf) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
     const det = (rot: string) => r.detalhes.find((d) => d.rotulo === rot)?.valor ?? null;
