@@ -94,7 +94,7 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
   const timer = useRef();
   const navRef = useRef(null);
   const fecharPainel = useCallback(() => { clearTimeout(timer.current); setPainel(null); }, []);
-  const abrirPainel = (area, el, atraso = 120) => {
+  const abrirPainel = (area, el, atraso = 70) => {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       const r = el.getBoundingClientRect();
@@ -105,7 +105,7 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
       setPainel({ id: area.id, posicao: { top, left: borda + 6 } });
     }, atraso);
   };
-  const agendarFechar = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setPainel(null), 220); };
+  const agendarFechar = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setPainel(null), 140); };
   const manterPainel = () => { clearTimeout(timer.current); aoEntrarZona?.(); };
   useEffect(() => fecharPainel(), [pathname, fecharPainel]);
   useEffect(() => { if (compacto) fecharPainel(); }, [compacto, fecharPainel]);
@@ -125,7 +125,8 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
   const areaDoPainel = painel ? areas.find((a) => a.id === painel.id) : null;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-rail text-rail-foreground">
+    // No trilho o conteúdo tem largura fixa (256 px): ao abrir e fechar, o menu só é recortado, sem recalcular o layout a cada quadro.
+    <div className={`flex h-full flex-col overflow-hidden bg-rail text-rail-foreground ${trilho ? "w-64" : ""}`}>
       <div className="flex h-16 shrink-0 items-center gap-2 border-b border-rail-border pl-[18px] pr-2">
         <Link to="/inicio" onClick={navegar} className="flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary" aria-label="InTAX: ir para o Início">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_4px_12px_-4px_hsl(var(--rail-primary)/0.6)]">

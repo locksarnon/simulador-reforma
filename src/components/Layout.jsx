@@ -65,8 +65,8 @@ export default function Layout() {
   const [fixa, setFixa] = useState(lerFixa);
   const [sobre, setSobre] = useState(false);
   const timerZona = useRef();
-  const entrarZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(true), 90); }, []);
-  const sairZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(false), 280); }, []);
+  const entrarZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(true), 50); }, []);
+  const sairZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(false), 100); }, []);
   useEffect(() => () => clearTimeout(timerZona.current), []);
   const alternarFixa = () => setFixa((v) => { try { localStorage.setItem(CHAVE_FIXA, v ? "0" : "1"); } catch { /* sem armazenamento */ } return !v; });
   const expandida = fixa || sobre;
@@ -78,13 +78,13 @@ export default function Layout() {
         Pular para o conteúdo
       </a>
       {/* Espaço do menu no fluxo da página: a faixa de ícones, ou o menu inteiro quando fixado. */}
-      <div aria-hidden="true" className={`hidden shrink-0 transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block ${fixa ? "w-64" : "w-[72px]"}`} />
+      <div aria-hidden="true" className={`hidden shrink-0 transition-[width] duration-150 ease-out motion-reduce:transition-none lg:block ${fixa ? "w-64" : "w-[72px]"}`} />
       <aside
         onMouseEnter={entrarZona}
         onMouseLeave={sairZona}
         onFocus={entrarZona}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) sairZona(); }}
-        className={`fixed inset-y-0 left-0 z-40 hidden border-r border-rail-border transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none lg:block ${expandida ? "w-64" : "w-[72px]"} ${expandida && !fixa ? "shadow-[12px_0_40px_-12px_rgba(0,0,0,0.45)]" : ""}`}
+        className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-rail-border transition-[width,box-shadow] duration-150 ease-[cubic-bezier(0.2,0,0,1)] will-change-[width] [contain:layout_paint] motion-reduce:transition-none lg:block ${expandida ? "w-64" : "w-[72px]"} ${expandida && !fixa ? "shadow-[12px_0_40px_-12px_rgba(0,0,0,0.45)]" : ""}`}
       >
         <MenuLateral modo="trilho" compacto={!expandida} fixa={fixa} aoFixar={alternarFixa} aoEntrarZona={entrarZona} aoSairZona={sairZona} />
       </aside>
