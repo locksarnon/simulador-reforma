@@ -65,9 +65,29 @@ export default function Layout() {
   const [fixa, setFixa] = useState(lerFixa);
   const [sobre, setSobre] = useState(false);
   const timerZona = useRef();
-  const entrarZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(true), 50); }, []);
-  const sairZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(false), 100); }, []);
+  const dentroRef = useRef(false);
+  const entrarZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(true), 40); }, []);
+  const sairZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(false), 90); }, []);
   useEffect(() => () => clearTimeout(timerZona.current), []);
+  // A posição do ponteiro decide abrir e fechar (menu ou painel lateral de módulos = dentro; qualquer outro lugar = fora).
+  // Não depende do foco nem do mouseleave, que falham quando o menu encolhe debaixo do cursor ou o foco fica num link clicado.
+  useEffect(() => {
+    if (fixa) return undefined;
+    const aoMover = (e) => {
+      const alvo = e.target instanceof Element ? e.target : null;
+      const dentro = !!alvo?.closest("[data-menu-lateral],[data-painel-menu]");
+      if (dentro === dentroRef.current) return;
+      dentroRef.current = dentro;
+      if (dentro) entrarZona(); else sairZona();
+    };
+    const aoSairDaJanela = (e) => { if (!e.relatedTarget) { dentroRef.current = false; sairZona(); } };
+    document.addEventListener("pointermove", aoMover, { passive: true });
+    document.addEventListener("pointerout", aoSairDaJanela);
+    return () => { document.removeEventListener("pointermove", aoMover); document.removeEventListener("pointerout", aoSairDaJanela); };
+  }, [fixa, entrarZona, sairZona]);
+  // Teclado: o menu abre quando o foco chega por Tab e fecha quando sai (clique de mouse não conta).
+  const aoFocar = (e) => { if (e.target.matches?.(":focus-visible")) entrarZona(); };
+  const aoDesfocar = (e) => { if (!e.currentTarget.contains(e.relatedTarget) && !dentroRef.current) sairZona(); };
   const alternarFixa = () => setFixa((v) => { try { localStorage.setItem(CHAVE_FIXA, v ? "0" : "1"); } catch { /* sem armazenamento */ } return !v; });
   const expandida = fixa || sobre;
 
@@ -80,13 +100,12 @@ export default function Layout() {
       {/* Espaço do menu no fluxo da página: a faixa de ícones, ou o menu inteiro quando fixado. */}
       <div aria-hidden="true" className={`hidden shrink-0 transition-[width] duration-150 ease-out motion-reduce:transition-none lg:block ${fixa ? "w-64" : "w-[72px]"}`} />
       <aside
-        onMouseEnter={entrarZona}
-        onMouseLeave={sairZona}
-        onFocus={entrarZona}
-        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) sairZona(); }}
+        data-menu-lateral=""
+        onFocus={aoFocar}
+        onBlur={aoDesfocar}
         className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-rail-border transition-[width,box-shadow] duration-150 ease-[cubic-bezier(0.2,0,0,1)] will-change-[width] [contain:layout_paint] motion-reduce:transition-none lg:block ${expandida ? "w-64" : "w-[72px]"} ${expandida && !fixa ? "shadow-[12px_0_40px_-12px_rgba(0,0,0,0.45)]" : ""}`}
       >
-        <MenuLateral modo="trilho" compacto={!expandida} fixa={fixa} aoFixar={alternarFixa} aoEntrarZona={entrarZona} aoSairZona={sairZona} />
+        <MenuLateral modo="trilho" compacto={!expandida} fixa={fixa} aoFixar={alternarFixa} />
       </aside>
       <Sheet open={gaveta} onOpenChange={setGaveta}>
         <SheetContent side="left" className="w-72 border-rail-border bg-rail p-0 text-rail-foreground [&>button]:text-rail-strong">

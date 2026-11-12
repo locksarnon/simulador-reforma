@@ -53,6 +53,7 @@ function PainelLateral({ area, posicao, ativoId, aoNavegar, aoEntrar, aoSair }) 
   return createPortal(
     <div
       role="group"
+      data-painel-menu=""
       aria-label={`Módulos de ${area.titulo}`}
       onMouseEnter={aoEntrar}
       onMouseLeave={aoSair}
