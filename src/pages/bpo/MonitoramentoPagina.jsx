@@ -12,6 +12,7 @@ import ListaDePrevistas from "@/components/ListaDePrevistas";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { naCarteira } from "@/lib/servicos";
 import { mascararDocumento } from "@/lib/clientes";
+import { plural } from "@/lib/plural";
 import { NIVEIS, quandoConsultou, SEM_CONSULTA, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -66,7 +67,7 @@ export default function MonitoramentoPagina() {
         if (!s) return;
         setLote(s);
         qc.invalidateQueries({ queryKey: ["monitoramento", "painel"] });
-        if (!s.fim) setTimeout(passo, 3000); else { setMarcadas(new Set()); toast({ title: "Atualização concluída", description: `${s.feitas - s.erros} consulta(s)${s.erros ? `; ${s.erros} com erro` : ""}.` }); }
+        if (!s.fim) setTimeout(passo, 3000); else { setMarcadas(new Set()); toast({ title: "Atualização concluída", description: `${plural(s.feitas - s.erros, "consulta", "consultas")}${s.erros ? `; ${s.erros} com erro` : ""}.` }); }
       };
       setTimeout(passo, 2000);
     },
@@ -82,10 +83,9 @@ export default function MonitoramentoPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Monitoramento fiscal" }]}
         title="Monitoramento fiscal"
-        subtitle="A situação de cada cliente na Receita pelo Integra Contador do Serpro: situação fiscal, declarações, guias, caixa postal, parcelamentos, MEI e procuração."
         actions={(
           <button type="button" disabled={desligado || rodando || !alvos.length} onClick={() => atualizar.mutate(alvos)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
-            {rodando ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Atualizar {marcadas.size ? `${marcadas.size} marcado(s)` : `os ${alvos.length} da lista`}</>}
+            {rodando ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Atualizar {marcadas.size ? `${plural(marcadas.size, "marcado", "marcados")}` : `os ${alvos.length} da lista`}</>}
           </button>
         )}
       />
@@ -108,7 +108,7 @@ export default function MonitoramentoPagina() {
             { chave: "quando", rotulo: "Atualizado em", valor: ({ p }) => (p ? quandoConsultou(p.atualizado) : "") },
           ]} />
         </div>
-        <p className="text-xs text-muted-foreground">Aparecem só os clientes com BPO fiscal ativo. Para incluir um cliente, ligue o BPO fiscal dele em <Link to="/" className="text-primary underline">Clientes</Link>.</p>
+        <p className="text-xs text-muted-foreground">Clientes com BPO fiscal ativo (<Link to="/" className="text-primary underline">Clientes</Link>).</p>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full text-[13px]" aria-label="Monitoramento da carteira">
             <thead>
@@ -134,7 +134,6 @@ export default function MonitoramentoPagina() {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground">Ordenado da menor para a maior saúde fiscal. Bolinha: vermelha crítico, amarela atenção, verde em dia, azul informativo, cinza sem consulta. A rotina automática e o envio de guias ficam em Administração &gt; Parâmetros e rotinas.</p>
         <ListaDePrevistas moduloId="monitoramento" titulo="O que ainda vem no monitoramento" />
       </div>
     </div>

@@ -6,6 +6,7 @@ import { calcularOperacoes } from "@/hooks/useSimuladorData";
 import { consolidarPorAno } from "@/motor/taxEngine";
 import { Card } from "@/components/ui/card";
 import { BRL } from "@/lib/format";
+import { plural } from "@/lib/plural";
 
 const soDigitos = (v) => String(v ?? "").replace(/\D/g, "");
 
@@ -59,7 +60,7 @@ export default function ComparacaoClassificacao({ operacoes, transicaoMap, trans
           <p className="text-xs text-muted-foreground">
             {r.trocadas === 0
               ? "Os cClassTrib do XML já batem com o que os anexos da LC 214 indicam para os NCMs — não há diferença de cálculo."
-              : `${r.trocadas} de ${r.total} operação(ões) têm cClassTrib no XML diferente do que os anexos da LC 214 indicam para o NCM. Abaixo, o efeito no resultado se a lei fosse aplicada.`}
+              : `${r.trocadas} de ${plural(r.total, "operação", "operações")} com cClassTrib diferente do indicado nos anexos da LC 214.`}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -80,7 +81,7 @@ export default function ComparacaoClassificacao({ operacoes, transicaoMap, trans
             <div className="text-xs">
               <p className="font-medium mb-1">Principais diferenças (NCM: XML → LC 214)</p>
               <ul className="space-y-0.5 text-muted-foreground">
-                {r.lista.map((d) => <li key={`${d.ncm}${d.xml}${d.lei}`}>{d.ncm}: {d.xml} → {d.lei}{d.reducao ? ` (redução de ${Math.round(d.reducao * 100)}%)` : ""} · {d.qtd} operação(ões){d.anexos?.length ? ` · Anexo ${d.anexos.join(", ")}` : ""}</li>)}
+                {r.lista.map((d) => <li key={`${d.ncm}${d.xml}${d.lei}`}>{d.ncm}: {d.xml} → {d.lei}{d.reducao ? ` (redução de ${Math.round(d.reducao * 100)}%)` : ""} · {plural(d.qtd, "operação", "operações")}{d.anexos?.length ? ` · Anexo ${d.anexos.join(", ")}` : ""}</li>)}
               </ul>
             </div>
           )}

@@ -52,7 +52,7 @@ describe("Diagnósticos: o projeto", () => {
   const pagina = () => renderizar(<Routes><Route path="/diagnostico/projetos/:id" element={<ProjetoDiagnosticoPagina />} /></Routes>, "/diagnostico/projetos/P1");
   it("mostra o escopo (parte do grupo), as empresas escolhidas e as ferramentas de cada uma", () => {
     const html = pagina();
-    expect(html).toContain("2 empresa(s) · Grupo Família Extra (parte)");
+    expect(html).toContain("2 empresas · Grupo Família Extra (parte)");
     expect(html).toContain("Crédito de estoque e saneamento");
     expect(html).toContain("EXTRA AGRO LTDA");
     expect(html).toContain("EXTRA TRANSPORTES LTDA");

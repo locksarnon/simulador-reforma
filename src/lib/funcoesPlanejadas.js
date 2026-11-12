@@ -52,14 +52,6 @@ export const FUNCOES_PREVISTAS = [
   "modulo": "analise-risco"
  },
  {
-  "id": "V079",
-  "funcao": "Cadastro automático de novas empresas a partir das procurações",
-  "destino": "Clientes > Grupos e empresas",
-  "fase": "3",
-  "depende": "depende do contrato do Integra Contador (vínculos do contador no PNRCONTADOR)",
-  "modulo": "grupos-empresas"
- },
- {
   "id": "V095",
   "funcao": "Comunicados por WhatsApp",
   "destino": "Comercial > Comunicação",

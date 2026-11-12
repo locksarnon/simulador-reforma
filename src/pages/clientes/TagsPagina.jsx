@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import TagChip from "@/components/clientes/TagChip";
 import { CORES_DAS_TAGS } from "@/lib/tags";
 import { useTags } from "@/lib/useTags";
+import { plural } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -47,7 +48,7 @@ export function PainelDaEtiqueta({ tag, empresas, porEmpresa, ehAdmin, aoApagada
   });
   const salvarEmpresas = useMutation({
     mutationFn: () => api.post("/tags/aplicar", { tag_id: tag.id, empresa_ids: selecionadas, modo: "definir" }),
-    onSuccess: (r) => { toast({ title: "Empresas salvas", description: `${r.total} empresa(s) com a etiqueta ${tag.nome}.` }); setMarcadas(null); recarregar(); },
+    onSuccess: (r) => { toast({ title: "Empresas salvas", description: `${plural(r.total, "empresa", "empresas")} com a etiqueta ${tag.nome}.` }); setMarcadas(null); recarregar(); },
     onError: falha("Não foi possível salvar as empresas"),
   });
   const apagar = useMutation({
@@ -60,7 +61,7 @@ export function PainelDaEtiqueta({ tag, empresas, porEmpresa, ehAdmin, aoApagada
   const entram = selecionadas.filter((id) => !salvasIds.includes(id)).length;
   const saem = salvasIds.filter((id) => !selecionadas.includes(id)).length;
   const confirmarApagar = async () => {
-    if (await confirmar({ titulo: `Apagar a etiqueta "${tag.nome}"?`, descricao: `Ela sai de ${tag.empresas} empresa(s). As empresas em si não são apagadas.`, rotulo: "Apagar" })) apagar.mutate();
+    if (await confirmar({ titulo: `Apagar a etiqueta "${tag.nome}"?`, descricao: `Ela sai de ${plural(tag.empresas, "empresa", "empresas")}. As empresas não são apagadas.`, rotulo: "Apagar" })) apagar.mutate();
   };
 
   return (
@@ -121,7 +122,6 @@ export default function TagsPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Etiquetas" }]}
         title="Etiquetas"
-        subtitle="Segmentos e perfis das empresas (Agro, Lucro presumido, Prioridade…). Servem para filtrar as listas de Clientes e das carteiras."
       />
       <div className="px-6 lg:px-8 py-6 grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="space-y-3">
@@ -133,13 +133,13 @@ export default function TagsPagina() {
           </form>
           {carregando && <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
           {erro && <p role="alert" className="text-sm">Não foi possível carregar as etiquetas.</p>}
-          {!carregando && !erro && tags.length === 0 && <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">Nenhuma etiqueta ainda. Crie a primeira acima.</p>}
+          {!carregando && !erro && tags.length === 0 && <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">Nenhuma etiqueta.</p>}
           <ul className="space-y-1" aria-label="Etiquetas">
             {tags.map((t) => (
               <li key={t.id}>
                 <button type="button" onClick={() => setEscolhida(t.id)} aria-pressed={escolhida === t.id} className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm ${escolhida === t.id ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-muted/50"}`}>
                   <TagChip tag={t} />
-                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">{t.empresas} empresa(s)</span>
+                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">{plural(t.empresas, "empresa", "empresas")}</span>
                 </button>
               </li>
             ))}
@@ -148,7 +148,7 @@ export default function TagsPagina() {
         <div>
           {atual
             ? <PainelDaEtiqueta key={atual.id} tag={atual} empresas={empresas} porEmpresa={porEmpresa} ehAdmin={ehAdmin} aoApagada={() => setEscolhida("")} />
-            : <p className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Escolha uma etiqueta para mudar o nome, a cor e as empresas que a têm.</p>}
+            : <p className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Escolha uma etiqueta.</p>}
         </div>
       </div>
     </div>

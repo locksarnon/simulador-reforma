@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { UploadCloud, FileText, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import InfoTooltip from "@/components/InfoTooltip";
+import { plural } from "@/lib/plural";
 
 const MAX_FILES = 5000;
 
@@ -75,7 +76,7 @@ export default function DropzoneXML({ files, onAddFiles, onRemoveFile, onClear, 
       {files.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">{files.length} arquivo(s) selecionado(s)</p>
+            <p className="text-xs text-muted-foreground">{plural(files.length, "arquivo selecionado", "arquivos selecionados")}</p>
             <button onClick={onClear} className="text-xs text-muted-foreground hover:text-destructive">
               Limpar todos
             </button>

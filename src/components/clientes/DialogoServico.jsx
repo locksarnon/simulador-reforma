@@ -45,7 +45,7 @@ export default function DialogoServico({ aberto, aoFechar, empresas = [], servic
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["servicos-contratados"] });
-      toast({ title: "Serviço salvo", description: servico ? "As alterações foram gravadas." : `${r.criados} empresa(s) com serviço novo e ${r.atualizados} atualizada(s).` });
+      toast({ title: "Serviço salvo", description: servico ? "As alterações foram gravadas." : `Novos: ${r.criados}. Atualizados: ${r.atualizados}.` });
       aoFechar();
     },
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),

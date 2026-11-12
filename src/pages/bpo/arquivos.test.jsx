@@ -38,7 +38,7 @@ describe("Arquivos e documentos", () => {
     expect(html).toContain('aria-label="Baixar o arquivo do documento"');
   });
   it("meus downloads mostra tamanho e quando expira; tipos só o administrador muda", () => {
-    expect(renderizar(<AbaDownloads />)).toMatch(/notas\.zip[\s\S]*3 arquivo\(s\) · 2,4 MB · Expira em 3 dias/);
+    expect(renderizar(<AbaDownloads />)).toMatch(/notas\.zip[\s\S]*3 arquivos · 2,4 MB · Expira em 3 dias/);
     expect(renderizar(<AbaTipos ehAdmin tipos={TIPOS} />)).toContain("Avisar (dias antes)");
     expect(renderizar(<AbaTipos ehAdmin={false} tipos={TIPOS} />)).toContain("Só administradores mudam os tipos de documento.");
   });
@@ -65,8 +65,8 @@ describe("Pessoas físicas", () => {
   });
   it("situação do certificado", () => {
     expect(situacaoDoCertificado(null).rotulo).toBe("Sem certificado informado");
-    expect(situacaoDoCertificado("2026-11-01", "2026-11-11").rotulo).toBe("Vencido há 10 dia(s)");
-    expect(situacaoDoCertificado("2026-11-21", "2026-11-11").rotulo).toBe("Vence em 10 dia(s)");
+    expect(situacaoDoCertificado("2026-11-01", "2026-11-11").rotulo).toBe("Vencido há 10 dias");
+    expect(situacaoDoCertificado("2026-11-21", "2026-11-11").rotulo).toBe("Vence em 10 dias");
     expect(situacaoDoCertificado("2027-11-21", "2026-11-11").rotulo).toBe("Válido até 21/11/2027");
   });
 });

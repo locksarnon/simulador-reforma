@@ -71,7 +71,7 @@ export default function DialogoEvento({ evento, diaInicial, tipos, empresas, col
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{editando ? "Editar evento" : "Novo evento"}</DialogTitle>
-          <DialogDescription>O horário é o de Brasília. Quem for o responsável recebe um aviso no sino na véspera e no dia.</DialogDescription>
+          <DialogDescription>Horário de Brasília.</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); if (f.titulo.trim() && !problema) salvar.mutate(); }} className="space-y-3 text-sm">
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Título</span>

@@ -5,6 +5,7 @@ import { Bell, CheckCheck } from "lucide-react";
 import { api } from "@/api/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CATEGORIAS, quandoFoi, seloDoSino } from "@/lib/notificacoes";
+import { plural } from "@/lib/plural";
 
 /** Uma linha de aviso (no sino e na central): ícone da categoria, título, mensagem e quando chegou; não lida fica em destaque. */
 export function LinhaDeAviso({ n, aoAbrir }) {
@@ -44,7 +45,7 @@ export default function SinoNotificacoes() {
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
       <PopoverTrigger asChild>
-        <button type="button" className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={naoLidas ? `Notificações: ${naoLidas} não lida(s)` : "Notificações"}>
+        <button type="button" className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={naoLidas ? `Notificações: ${plural(naoLidas, "não lida", "não lidas")}` : "Notificações"}>
           <Bell className="h-5 w-5" aria-hidden="true" />
           {naoLidas > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-[18px] rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-[18px] text-destructive-foreground">{seloDoSino(naoLidas)}</span>}
         </button>

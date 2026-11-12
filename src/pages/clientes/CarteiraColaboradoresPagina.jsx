@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
+import { plural } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -34,7 +35,7 @@ export function PorColaborador({ colaboradores, empresas, ehAdmin }) {
   const alternar = (id) => setMarcadas((m) => { const base = new Set(m ?? salvas); if (base.has(id)) base.delete(id); else base.add(id); return [...base]; });
   const salvar = useMutation({
     mutationFn: () => api.post("/carteira/vinculos", { user_id: escolhido, empresa_ids: selecionadas, modo: "definir" }),
-    onSuccess: (r) => { toast({ title: "Carteira salva", description: `${r.total} empresa(s) para ${atual?.name || atual?.email}.` }); setMarcadas(null); qc.invalidateQueries({ queryKey: ["carteira"] }); },
+    onSuccess: (r) => { toast({ title: "Carteira salva", description: `${plural(r.total, "empresa", "empresas")} para ${atual?.name || atual?.email}.` }); setMarcadas(null); qc.invalidateQueries({ queryKey: ["carteira"] }); },
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
   });
 
@@ -46,13 +47,13 @@ export function PorColaborador({ colaboradores, empresas, ehAdmin }) {
             <button type="button" onClick={() => { setEscolhido(c.id); setMarcadas(null); }} aria-pressed={escolhido === c.id}
               className={`w-full rounded-md border px-3 py-2 text-left text-sm ${escolhido === c.id ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-muted/50"}`}>
               <p className="font-medium">{c.name || c.email}</p>
-              <p className="text-xs text-muted-foreground">{c.empresa_ids.length} empresa(s)</p>
+              <p className="text-xs text-muted-foreground">{plural(c.empresa_ids.length, "empresa", "empresas")}</p>
             </button>
           </li>
         ))}
       </ul>
       <div className="rounded-xl border border-border bg-card p-3 space-y-3">
-        {!atual ? <p className="py-8 text-center text-sm text-muted-foreground">Escolha um colaborador para ver e mudar as empresas dele.</p> : (
+        {!atual ? <p className="py-8 text-center text-sm text-muted-foreground">Escolha um colaborador.</p> : (
           <>
             <div className="flex flex-wrap items-end gap-2 text-sm">
               <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar empresa</span><input type="search" className={`${campo} w-full`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
@@ -90,7 +91,7 @@ export function SemColaborador({ colaboradores, ehAdmin }) {
   const alternar = (id) => setMarcadas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const atribuir = useMutation({
     mutationFn: () => api.post("/carteira/vinculos", { user_id: destino, empresa_ids: [...marcadas], modo: "adicionar" }),
-    onSuccess: (r) => { toast({ title: "Empresas atribuídas", description: `${r.adicionadas} empresa(s) entraram na carteira.` }); setMarcadas(new Set()); qc.invalidateQueries({ queryKey: ["carteira"] }); },
+    onSuccess: (r) => { toast({ title: "Empresas atribuídas", description: `${plural(r.adicionadas, "empresa entrou", "empresas entraram")} na carteira.` }); setMarcadas(new Set()); qc.invalidateQueries({ queryKey: ["carteira"] }); },
     onError: (e) => toast({ title: "Não foi possível atribuir", description: e.message, variant: "destructive" }),
   });
   if (isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>;
@@ -116,7 +117,7 @@ export function SemColaborador({ colaboradores, ehAdmin }) {
           </ul>
         </>
       )}
-      <p className="text-xs text-muted-foreground">{data.length} empresa(s) sem colaborador.</p>
+      <p className="text-xs text-muted-foreground">{plural(data.length, "empresa", "empresas")} sem colaborador.</p>
     </div>
   );
 }
@@ -142,7 +143,7 @@ export default function CarteiraColaboradoresPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Carteira e colaboradores" }]}
         title="Carteira e colaboradores"
         actions={<BotaoExportar titulo="Empresas por colaborador" linhas={linhasDaCarteira(colab.data, ordenadas)} colunas={[{ chave: "razao_social", rotulo: "Empresa" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" }, { chave: "colaboradores", rotulo: "Colaboradores" }, { chave: "total", rotulo: "Quantos atendem" }]} />}
-        subtitle={ehAdmin ? "Escolha um colaborador e marque as empresas que ele atende. As empresas sem ninguém aparecem na outra aba." : "Quais empresas cada colaborador atende. Só administradores alteram."}
+        subtitle={ehAdmin ? undefined : "Só administradores alteram."}
       />
       <div className="px-6 lg:px-8 py-6">
         {(colab.isLoading || emp.isLoading) && <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}

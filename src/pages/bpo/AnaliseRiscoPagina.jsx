@@ -70,7 +70,7 @@ export function CalculadoraDeMultas() {
           </>
         )}
         <p className="text-xs"><a href={regra.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">{regra.fonte} <ExternalLink className="h-3 w-3" aria-hidden="true" /></a></p>
-        <p className="text-xs text-muted-foreground">Estimativa: a multa de declaração é lançada pela Receita, e o valor oficial é o da notificação. Meses-calendário ou fração contados do dia seguinte ao prazo até a entrega. Regras conferidas no texto oficial em 11/11/2026.</p>
+        <p className="text-xs text-muted-foreground">Estimativa: o valor oficial é o da notificação da Receita.</p>
       </section>
     </div>
   );
@@ -81,7 +81,7 @@ export default function AnaliseRiscoPagina({ abaInicial = "painel" }) {
   const { user } = useAuth();
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Análise de risco" }]} title="Análise de risco" subtitle="A carteira pelos dados do Monitoramento fiscal e das certidões guardadas, e a calculadora de multas por atraso." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Análise de risco" }]} title="Análise de risco" />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue={abaInicial} className="space-y-4">
           <TabsList><TabsTrigger value="painel">Painel de risco</TabsTrigger><TabsTrigger value="multas">Calculadora de multas</TabsTrigger><TabsTrigger value="previsto">Previsto</TabsTrigger></TabsList>

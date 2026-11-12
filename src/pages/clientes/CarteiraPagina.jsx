@@ -12,6 +12,7 @@ import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
 import FiltroPorTags from "@/components/clientes/FiltroPorTags";
 import ListasSalvas from "@/components/clientes/ListasSalvas";
 import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
+import { plural } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -58,7 +59,7 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
         {ninguemMarcado && !todas && (
           <div role="status" className="rounded-xl border border-amber-400/60 bg-card p-4 text-sm space-y-2">
             <p className="font-medium">Nenhuma empresa está na carteira de {TIPOS[tipo].toLowerCase()} ainda.</p>
-            <p className="text-muted-foreground">Marque quem é desta carteira em Clientes &gt; Serviços contratados. Enquanto isso, você pode ver todas as empresas.</p>
+            
             <div className="flex gap-2">
               <Link to="/clientes/servicos-contratados" className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground">Definir a carteira</Link>
               <button type="button" onClick={() => setTodas(true)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Ver todas as empresas</button>
@@ -130,7 +131,7 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted-foreground">{lista.length} empresa(s) {todas ? "(todas)" : "na carteira"}. Para mudar quem é de cada carteira: <Link to="/clientes/servicos-contratados" className="text-primary hover:underline">Serviços contratados</Link>.</p>
+          <p className="text-xs text-muted-foreground">{plural(lista.length, "empresa", "empresas")} {todas ? "(todas)" : "na carteira"}.</p>
         </div>
       </div>
       {dialogoTags && <DialogoEtiquetas empresas={dialogoTags} tags={tags} porEmpresa={porEmpresa} aoFechar={() => setDialogoTags(null)} />}

@@ -113,7 +113,7 @@ describe("CertificadoXml", () => {
     expect(html).not.toContain("Termo de autorização");
     expect(html).not.toContain("Registrar termo");
     expect(html).toContain("Auditoria do cofre");
-    expect(html).toContain("A senha do arquivo é usada só no envio e não é guardada");
+    expect(html).not.toContain("AES-256-GCM");
   });
 
   it("cofre sem chave no servidor: avisa e não oferece o envio", () => {
@@ -187,7 +187,7 @@ describe("CapturaXml", () => {
     const ciencia = { ativa: false, consentida_em: null, consentida_por: null, resumos_sem_ciencia: 12, registradas: 40, nao_aplicaveis: 3 };
     const html = montar(captura({ ciencia }));
     expect(html).toContain("Ciência da Operação (libera o XML completo das compras)");
-    expect(html).toContain("O InTAX registra apenas a Ciência, nunca a Confirmação, o Desconhecimento nem a Operação não Realizada");
+    expect(html).toContain("Desativada: as NF-e recebidas ficam só com o resumo.");
     expect(html).toContain("Ativar Ciência automática");
     const botao = html.match(/<button[^>]*>Ativar Ciência automática<\/button>/)?.[0] ?? "";
     expect(botao).not.toContain('disabled=""');
@@ -267,7 +267,6 @@ describe("CapturaXml", () => {
     expect(html).toContain("Noturno, das 18:00 às 05:59 (horário de Brasília)");
     expect(html).toContain("Diurno, das 06:00 às 17:59 (horário de Brasília)");
     expect(html).toContain("Captura ativa: a rotina automática consulta a SEFAZ no período Noturno, das 18:00 às 05:59 (horário de Brasília)");
-    expect(html).toContain("funciona a qualquer hora");
     expect(html).toContain("Próxima busca automática");
     expect(html).toMatch(/<option value="NOTURNO" selected="">/);
     // usuário comum vê o período, mas não troca
@@ -314,7 +313,7 @@ describe("DocumentosXml", () => {
       cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 1, itens: [doc] }]],
     });
     expect(html).toContain("Arraste aqui os XML ou ZIP do cliente");
-    expect(html).toContain("Documentos que não citam o CNPJ desta empresa são recusados");
+    expect(html).toContain("NF-e, CT-e, MDF-e, NFS-e Nacional e eventos deste CNPJ.");
     expect(html).toContain("Enviar pendentes ao importador");
     expect(html).toContain("Baixar ZIP dos filtros");
     expect(html).toContain("Só os que faltam enviar ao importador");
@@ -323,7 +322,7 @@ describe("DocumentosXml", () => {
     expect(html).toContain("R$");
     expect(html).toContain("Cancelada");
     expect(html).toContain("Pendente");
-    expect(html).toContain("1 documento(s)");
+    expect(html).toContain("1 documento<");
   });
 
   it("ao lado do XML, cada documento com PDF tem os botões de visualizar e de baixar o PDF; evento, CT-e OS e a lista de completos não têm", () => {
@@ -462,7 +461,7 @@ describe("DocumentosXml", () => {
       expect(html).toContain("Ainda não");
       expect(html).toContain("Rejeitada");
       expect(html).toContain("07/11/2026");
-      expect(html).toContain("4 documento(s)");
+      expect(html).toContain("4 documentos");
       expect(html).toContain("FORNECEDOR AGRO LTDA");
       expect(html).toContain("Evento"); // o resumo do evento (610514) também fica aqui
       expect(html).toContain("610514");
@@ -506,7 +505,7 @@ describe("DocumentosXml", () => {
       auth.role = "user";
       const html = tela([]);
       expect(html).toContain("Nenhum resumo nem evento neste repositório ainda.");
-      expect(html).toContain("0 documento(s)");
+      expect(html).toContain("0 documentos");
     });
   });
 

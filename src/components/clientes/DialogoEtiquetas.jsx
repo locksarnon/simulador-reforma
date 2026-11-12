@@ -62,11 +62,11 @@ export default function DialogoEtiquetas({ empresas, tags, porEmpresa, aoFechar,
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{varias ? `Etiquetar ${empresas.length} empresas` : `Etiquetas de ${empresas[0].razao_social}`}</DialogTitle>
-          <DialogDescription>{varias ? "Para cada etiqueta, escolha manter, adicionar ou remover nas empresas marcadas." : "Marque as etiquetas que esta empresa deve ter."}</DialogDescription>
+          <DialogDescription>{varias ? "Manter, adicionar ou remover nas empresas marcadas." : "Etiquetas desta empresa."}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[320px] overflow-y-auto divide-y divide-border/60">
-          {tags.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nenhuma etiqueta ainda. Crie a primeira logo abaixo.</p>}
+          {tags.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nenhuma etiqueta.</p>}
           {tags.map((t) => {
             const n = quantasTem(porEmpresa, t.id, empresas);
             return varias ? (

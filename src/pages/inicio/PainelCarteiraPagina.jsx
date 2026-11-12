@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import { plural } from "@/lib/plural";
 
 const MapaDaCarteira = lazy(() => import("@/components/inicio/MapaDaCarteira"));
 
@@ -66,7 +67,7 @@ export default function PainelCarteiraPagina() {
         setCompletando({ feitas, falhas, restantes });
         if (x.atualizadas === 0 && x.falhas.length === 0) break;
       }
-      toast({ title: "Cadastro completado pelo CNPJ", description: `${feitas} empresa(s) atualizada(s)${falhas.length ? `; ${falhas.length} sem resposta da consulta` : ""}.` });
+      toast({ title: "Cadastro completado pelo CNPJ", description: `${plural(feitas, "empresa atualizada", "empresas atualizadas")}${falhas.length ? `; ${falhas.length} sem resposta` : ""}.` });
     } catch (e) {
       toast({ title: "A consulta parou no meio", description: e.message, variant: "destructive" });
     } finally {
@@ -79,7 +80,6 @@ export default function PainelCarteiraPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Painel da carteira" }]}
         title="Painel da carteira"
-        subtitle="O retrato das empresas feito só com o cadastro: carteiras, regime, porte, onde ficam, atividade (CNAE) e o que falta preencher."
         actions={<button type="button" onClick={() => refetch()} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" /> Atualizar</button>}
       />
       <div className="px-6 lg:px-8 py-6 space-y-4">
@@ -89,7 +89,7 @@ export default function PainelCarteiraPagina() {
         {r && r.total > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <Cartao rotulo="Empresas" valor={r.total} detalhe={`${r.ativas} ativa(s)`} />
+              <Cartao rotulo="Empresas" valor={r.total} detalhe={plural(r.ativas, "ativa", "ativas")} />
               <Cartao rotulo="No BPO fiscal" valor={r.carteiras.bpo} />
               <Cartao rotulo="Com diagnóstico pontual" valor={r.carteiras.diagnostico} detalhe={r.carteiras.ambas ? `${r.carteiras.ambas} nas duas` : null} />
               <Cartao rotulo="Sem carteira" valor={r.carteiras.sem} destaque={r.carteiras.sem > 0} />
@@ -115,13 +115,13 @@ export default function PainelCarteiraPagina() {
                   </table>
                 </div>
               </div>
-              {r.saude.sem_ponto_no_mapa > 0 && <p className="text-xs text-muted-foreground">{r.saude.sem_ponto_no_mapa} empresa(s) com município digitado mas sem ponto no mapa: o ponto vem do código IBGE da consulta do CNPJ.</p>}
+              {r.saude.sem_ponto_no_mapa > 0 && <p className="text-xs text-muted-foreground">{plural(r.saude.sem_ponto_no_mapa, "empresa", "empresas")} sem ponto no mapa.</p>}
             </section>
 
             <div className="grid gap-3 lg:grid-cols-2">
               <section className="rounded-xl border border-border bg-card p-4" aria-labelledby="titulo-cnae">
                 <h2 id="titulo-cnae" className="mb-2 font-heading text-sm font-semibold">Atividade principal (CNAE)</h2>
-                {r.por_cnae.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum CNAE ainda. {user?.role === "admin" ? "Use \"Completar pelo CNPJ\" abaixo." : "Peça a um administrador para completar o cadastro pelo CNPJ."}</p> : (
+                {r.por_cnae.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum CNAE ainda.</p> : (
                   <table className="w-full text-[13px]" aria-label="Empresas por CNAE">
                     <tbody>{r.por_cnae.slice(0, 15).map((c) => <tr key={c.codigo} className="border-b border-border/50"><td className="py-1 pr-2 tabular-nums">{c.codigo.replace(/^(\d{4})(\d)(\d{2})$/, "$1-$2/$3")}</td><td className="py-1 pr-2">{c.descricao}</td><td className="py-1 text-right tabular-nums">{c.total}</td></tr>)}</tbody>
                   </table>
@@ -131,7 +131,7 @@ export default function PainelCarteiraPagina() {
                 <h2 id="titulo-saude" className="font-heading text-sm font-semibold">Saúde do cadastro</h2>
                 {r.saude.com_faltas === 0 ? <p className="text-sm text-muted-foreground">Todas as empresas estão com o cadastro completo.</p> : (
                   <>
-                    <p className="text-sm">{r.saude.com_faltas} empresa(s) com algo a preencher: {r.saude.faltas.map((f) => `${f.nome} (${f.total})`).join(", ")}.</p>
+                    <p className="text-sm">{plural(r.saude.com_faltas, "empresa", "empresas")} com algo a preencher: {r.saude.faltas.map((f) => `${f.nome} (${f.total})`).join(", ")}.</p>
                     <ul className="max-h-[180px] overflow-y-auto text-xs divide-y divide-border/50">
                       {r.saude.empresas_com_faltas.map((e) => <li key={e.id} className="py-1"><span className="font-medium">{e.razao_social}</span> <span className="text-muted-foreground">· falta {e.faltas.join(", ")}</span></li>)}
                     </ul>
@@ -140,9 +140,9 @@ export default function PainelCarteiraPagina() {
                 )}
                 {user?.role === "admin" && r.saude.pendentes_de_cnpj > 0 && (
                   <div className="rounded-md bg-muted/40 p-3 text-sm space-y-2">
-                    <p>{r.saude.pendentes_de_cnpj} empresa(s) com CNPJ ainda não consultadas. A consulta pública (dados da Receita) traz CNAE, porte, natureza jurídica e município; UF e município digitados não são trocados.</p>
+                    <p>{plural(r.saude.pendentes_de_cnpj, "empresa", "empresas")} com CNPJ não consultado.</p>
                     <button type="button" onClick={completar} disabled={!!completando && completando.restantes > 0} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60"><Wand2 className="h-4 w-4" aria-hidden="true" /> Completar pelo CNPJ</button>
-                    {completando && <p role="status" className="text-xs text-muted-foreground">{completando.feitas} atualizada(s){completando.restantes > 0 ? `, faltam ${completando.restantes}…` : "."}{completando.falhas.length ? ` ${completando.falhas.length} sem resposta: ${completando.falhas.slice(0, 3).map((f) => f.razao_social).join(", ")}${completando.falhas.length > 3 ? "…" : ""}` : ""}</p>}
+                    {completando && <p role="status" className="text-xs text-muted-foreground">{plural(completando.feitas, "atualizada", "atualizadas")}{completando.restantes > 0 ? `, faltam ${completando.restantes}…` : "."}{completando.falhas.length ? ` ${completando.falhas.length} sem resposta: ${completando.falhas.slice(0, 3).map((f) => f.razao_social).join(", ")}${completando.falhas.length > 3 ? "…" : ""}` : ""}</p>}
                   </div>
                 )}
               </section>

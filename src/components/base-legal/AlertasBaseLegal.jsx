@@ -4,6 +4,7 @@ import { BellRing, CheckCircle2, ExternalLink, Loader2, RefreshCw, X } from "luc
 import { api } from "@/api/client";
 import { resumoRevisao } from "@/lib/revisaoLegal";
 import { toast } from "@/components/ui/use-toast";
+import { plural } from "@/lib/plural";
 
 const HOSTS = ["planalto.gov.br", "cgibs.gov.br", "gov.br"];
 const urlOficial = (u) => { try { const x = new URL(u); return x.protocol === "https:" && HOSTS.some((h) => x.hostname === h || x.hostname === `www.${h}`); } catch { return false; } };
@@ -69,7 +70,7 @@ export default function AlertasBaseLegal() {
     setVerificando(true);
     try {
       const r = await api.post("/base-legal/alertas/verificar", {});
-      toast({ title: r.alertas ? `${r.alertas} atualização(ões) encontrada(s)` : "Tudo em dia", description: `${r.verificadas} normas conferidas nas fontes oficiais${r.erros?.length ? ` · ${r.erros.length} com erro` : ""}.` });
+      toast({ title: r.alertas ? plural(r.alertas, "atualização encontrada", "atualizações encontradas") : "Tudo em dia", description: `${plural(r.verificadas, "norma conferida", "normas conferidas")}${r.erros?.length ? ` · ${r.erros.length} com erro` : ""}.` });
       recarregar();
     } catch (e) { toast({ title: "Não foi possível verificar", description: e.message, variant: "destructive" }); }
     finally { setVerificando(false); }
@@ -83,7 +84,6 @@ export default function AlertasBaseLegal() {
           {verificando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Verificar agora
         </button>
       </div>
-      <p className="text-xs text-muted-foreground">A cada geração do Radar (segunda, 6h) e toda segunda às 6h30 conferimos as fontes oficiais. Mudanças de texto e normas novas citadas aparecem aqui e só entram na base depois da sua aprovação.</p>
       {alertas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma pendência.</p> : <ul className="divide-y divide-border">{alertas.map((a) => <Alerta key={a.id} a={a} onFeito={recarregar} />)}</ul>}
     </section>
   );

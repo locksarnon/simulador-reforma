@@ -182,7 +182,7 @@ export class ComunicadosService {
   /** Começa o envio (em segundo plano) e devolve na hora quantos vão receber; a tela acompanha pelos contadores. */
   async enviar(user: Ator, id: string, espera = ESPERA_ENTRE_ENVIOS_MS) {
     const c = await this.rascunho(id);
-    if (!this.mail.configurado) throw new BadRequestException('O e-mail do sistema não está configurado (SMTP). Veja em Administração > Integrações.');
+    if (!this.mail.configurado) throw new BadRequestException('E-mail (SMTP) não configurado (Administração > Integrações).');
     const { incluidos } = await this.destinatarios(c.filtro);
     if (!incluidos.length) throw new BadRequestException('Nenhum destinatário com e-mail de contato para esse filtro.');
     await this.prisma.comunicado.update({ where: { id }, data: { status: 'ENVIANDO', total: incluidos.length, enviados: 0, falhas: 0, enviado_em: new Date() } });

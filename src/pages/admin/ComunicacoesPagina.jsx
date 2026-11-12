@@ -51,7 +51,7 @@ export function AbaEnvios({ empresas }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">Mostra os 1.000 envios mais recentes do filtro. WhatsApps enviados entram aqui quando o agente de WhatsApp do escritório estiver ligado.</p>
+      <p className="text-xs text-muted-foreground">Últimos 1.000 envios do filtro.</p>
     </div>
   );
 }
@@ -65,7 +65,7 @@ export function AbaBloqueios() {
   const tirar = useMutation({ mutationFn: (id) => api.delete(`/comunicacoes/bloqueios/${id}`), onSuccess: () => { recarregar(); toast({ title: "E-mail tirado da lista" }); } });
   return (
     <div className="max-w-2xl space-y-3">
-      <p className="text-sm text-muted-foreground">Quem está aqui não recebe comunicados nem avisos por e-mail. Quem clica em "não receber mais" no e-mail entra sozinho.</p>
+      <p className="text-sm text-muted-foreground">Não recebem comunicados nem avisos por e-mail.</p>
       <form onSubmit={(e) => { e.preventDefault(); add.mutate(); }} className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3 text-sm">
         <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">E-mail</span><input type="email" required className={`${campo} w-full`} value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} /></label>
         <label className="space-y-1 flex-1 min-w-[160px]"><span className="block text-xs text-muted-foreground">Motivo (opcional)</span><input className={`${campo} w-full`} value={novo.motivo} maxLength={200} onChange={(e) => setNovo({ ...novo, motivo: e.target.value })} /></label>
@@ -89,7 +89,6 @@ export function AbaAvisos() {
   const alternar = (k) => setC({ ...atual, categorias: atual.categorias.includes(k) ? atual.categorias.filter((x) => x !== k) : [...atual.categorias, k] });
   return (
     <div className="max-w-2xl space-y-3 text-sm">
-      <p className="text-muted-foreground">Os avisos do sino que vão para os administradores (certificado vencendo, documento vencendo, falha na captura, acessos recusados…) podem ir também por e-mail para os endereços abaixo.</p>
       <label className="flex items-center gap-2"><input type="checkbox" checked={atual.ativo} onChange={(e) => setC({ ...atual, ativo: e.target.checked })} /> Mandar cópia dos avisos por e-mail</label>
       <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Destinatários (um por linha, até 20)</span><textarea className={`${campo} w-full min-h-[90px]`} value={(atual.destinatarios || []).join("\n")} onChange={(e) => setC({ ...atual, destinatarios: e.target.value.split(/\s*[\n,;]\s*/).filter(Boolean) })} /></label>
       <fieldset className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3"><legend className="px-1 text-xs font-medium">Quais avisos</legend>{Object.entries(CATEGORIAS).filter(([k]) => k !== "TAREFA").map(([k, v]) => <label key={k} className="flex items-center gap-1.5"><input type="checkbox" checked={atual.categorias.includes(k)} onChange={() => alternar(k)} /> {v.rotulo}</label>)}</fieldset>
@@ -106,7 +105,7 @@ export default function ComunicacoesPagina() {
   if (user?.role !== "admin") return <div><PageHeader crumbs={crumbs} title="Comunicações e envios" /><p role="alert" className="p-8 text-sm">Somente administradores veem os envios.</p></div>;
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Comunicações e envios" subtitle="Os e-mails que o InTAX mandou (comunicados e avisos), a lista de quem não recebe e para quem vão os avisos por e-mail." />
+      <PageHeader crumbs={crumbs} title="Comunicações e envios" />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue="envios" className="space-y-4">
           <TabsList><TabsTrigger value="envios">E-mails enviados</TabsTrigger><TabsTrigger value="bloqueios">Lista de bloqueio</TabsTrigger><TabsTrigger value="avisos">Avisos por e-mail</TabsTrigger></TabsList>

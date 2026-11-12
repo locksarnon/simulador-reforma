@@ -136,7 +136,7 @@ export class MonitoramentoService {
   async definirModo(modo: string, usuario: Usuario) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores mudam o modo do monitoramento.');
     if (!MODOS.includes(modo as Modo)) throw new BadRequestException('Modo inválido.');
-    if (modo === 'PRODUCAO' && !(await this.contrato.credenciais())) throw new BadRequestException('Falta o contrato do Integra Contador: configure o certificado e as chaves em Administração > Integrações.');
+    if (modo === 'PRODUCAO' && !(await this.contrato.credenciais())) throw new BadRequestException('Falta o contrato do Integra Contador (Administração > Integrações).');
     await this.prisma.parametroSistema.upsert({ where: { chave: CHAVE_MODO }, update: { valor: modo }, create: { chave: CHAVE_MODO, valor: modo, descricao: 'Modo do monitoramento fiscal (Integra Contador)' } });
     this.modoAtual = modo as Modo;
     return this.estado();
@@ -148,13 +148,13 @@ export class MonitoramentoService {
    */
   async chamarDoEscritorio(p: { sistema: string; servico: string; versao: string; endpoint: Servico['endpoint']; dados: string; contribuinte?: Identificacao; demo: { contratante: Identificacao; contribuinte: Identificacao; dados: string } }): Promise<Resposta & { demonstracao: boolean }> {
     const modo = await this.modo();
-    if (modo === 'DESLIGADO') throw new BadRequestException('O monitoramento está desligado. Um administrador liga em Administração > Integrações.');
+    if (modo === 'DESLIGADO') throw new BadRequestException('Monitoramento desligado (Administração > Integrações).');
     if (modo === 'DEMONSTRACAO') {
       const r = await this.cliente.chamar({ endpoint: p.endpoint, contratante: p.demo.contratante, autorPedidoDados: p.demo.contratante, contribuinte: p.demo.contribuinte, idSistema: p.sistema, idServico: p.servico, versaoSistema: p.versao, dados: p.demo.dados });
       return { ...r, demonstracao: true };
     }
     const c = (this.cred = await this.contrato.credenciais());
-    if (!c) throw new BadRequestException('Falta o contrato do Integra Contador: configure em Administração > Integrações.');
+    if (!c) throw new BadRequestException('Falta o contrato do Integra Contador (Administração > Integrações).');
     const escritorio: Identificacao = { numero: c.contratante, tipo: 2 };
     const r = await this.cliente.chamar({ endpoint: p.endpoint, contratante: escritorio, autorPedidoDados: escritorio, contribuinte: p.contribuinte ?? escritorio, idSistema: p.sistema, idServico: p.servico, versaoSistema: p.versao, dados: p.dados });
     await registrarUso(this.prisma, `INTEGRA_${String(p.endpoint).toUpperCase()}` as ItemCusto, null, null, p.servico);
@@ -233,7 +233,7 @@ export class MonitoramentoService {
       return { r: { http: 200, status: f.status, dados: (() => { try { return JSON.parse(f.dados); } catch { return f.dados; } })(), mensagens: f.mensagens, bruto: '' }, reserva: true };
     }
     const c = (this.cred = await this.contrato.credenciais());
-    if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador: configure em Administração > Integrações.', 'SEM_CONTRATO');
+    if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador (Administração > Integrações).', 'SEM_CONTRATO');
     const contratante: Identificacao = { numero: c.contratante, tipo: 2 };
     const token = ctx.empresaId ? await this.tokenDoCliente(ctx.empresaId, contribuinte, ctx.nome, { cnpj: c.contratante, nome: c.nome }, ctx.usuario) : null;
     const autor = token ? contribuinte : contratante;
@@ -259,7 +259,7 @@ export class MonitoramentoService {
       chave = await this.certificados.material(ctx.empresaId, 'USO_INTEGRA_CONTADOR', ctx.usuario, 'Assinatura da DCTFWeb para transmissão');
     } else {
       const c = await this.contrato.credenciais();
-      if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador: configure em Administração > Integrações.', 'SEM_CONTRATO');
+      if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador (Administração > Integrações).', 'SEM_CONTRATO');
       chave = lerPfx(c.pfx, c.senha);
     }
     const assinado = assinarDeclaracaoDctfweb(Buffer.from(b64, 'base64').toString('utf8'), chave.keyPem, chave.certPem);
@@ -271,7 +271,7 @@ export class MonitoramentoService {
     const s = SERVICO_POR_CHAVE.get(chave);
     if (!s) throw new BadRequestException('Serviço de monitoramento desconhecido.');
     const modo = await this.modo();
-    if (modo === 'DESLIGADO') throw new BadRequestException('O monitoramento está desligado. Um administrador liga em Administração > Integrações (modo demonstração ou produção).');
+    if (modo === 'DESLIGADO') throw new BadRequestException('Monitoramento desligado (Administração > Integrações).');
     const quem = await this.contribuinte(alvo);
     if (s.alvo === 'PJ' && quem.pf) throw new BadRequestException('Este serviço é só para empresas (CNPJ).');
     let params: Record<string, string>;

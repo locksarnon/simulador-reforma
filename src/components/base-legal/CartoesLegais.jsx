@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { oQueMudou } from "@/lib/revisaoLegal";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import { plural } from "@/lib/plural";
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString("pt-BR") : "");
 
@@ -135,7 +136,7 @@ export default function CartoesLegais({ admin, setor }) {
     setCarregando(true);
     try {
       const r = await api.post("/base-legal/cartoes/semear", {});
-      toast({ title: `${r.criados} cartão(ões) criado(s) como rascunho`, description: r.erros?.length ? `${r.erros.length} com problema no trecho.` : "Cada trecho foi conferido contra o texto da lei." });
+      toast({ title: `${plural(r.criados, "cartão criado", "cartões criados")} como rascunho`, description: r.erros?.length ? `${r.erros.length} com problema no trecho.` : undefined });
       recarregar();
     } catch (e) { toast({ title: "Não foi possível carregar", description: e.message, variant: "destructive" }); }
     finally { setCarregando(false); }

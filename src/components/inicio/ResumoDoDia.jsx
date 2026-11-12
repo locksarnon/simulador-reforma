@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { hojeBR } from "@/lib/tarefas";
 import { normalizarCamadas, somarDias } from "@/lib/agenda";
 import { quandoFoi } from "@/lib/notificacoes";
+import { plural } from "@/lib/plural";
 
 function Cartao({ titulo, icone: Icone, to, rotuloLink, carregando, erro, children }) {
   return (
@@ -46,7 +47,7 @@ export default function ResumoDoDia() {
           <Numero valor={t?.minhas_atrasadas} rotulo="atrasadas" alerta={(t?.minhas_atrasadas ?? 0) > 0} />
           <Numero valor={t?.hoje} rotulo="vencem hoje (todas)" />
         </div>
-        {(t?.sem_responsavel ?? 0) > 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{t.sem_responsavel} tarefa(s) sem responsável na equipe.</p>}
+        {(t?.sem_responsavel ?? 0) > 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{plural(t.sem_responsavel, "tarefa", "tarefas")} sem responsável.</p>}
       </Cartao>
 
       <Cartao titulo="Próximos 7 dias" icone={CalendarDays} to="/bpo/agenda" rotuloLink="Abrir a agenda" carregando={semana.isLoading} erro={semana.error}>
@@ -78,7 +79,7 @@ export default function ResumoDoDia() {
           <Numero valor={c?.carteiras?.bpo} rotulo="no BPO" />
           <Numero valor={c?.carteiras?.diagnostico} rotulo="com diagnóstico" />
         </div>
-        {c && c.saude.com_faltas > 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{c.saude.com_faltas} empresa(s) com cadastro incompleto.</p>}
+        {c && c.saude.com_faltas > 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{plural(c.saude.com_faltas, "empresa", "empresas")} com cadastro incompleto.</p>}
       </Cartao>
     </div>
   );

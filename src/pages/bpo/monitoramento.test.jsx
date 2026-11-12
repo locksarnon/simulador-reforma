@@ -33,8 +33,8 @@ const SERVICOS_CONTRATADOS = [
   { id: "S1", empresa_id: "E1", tipo: "BPO_FISCAL", situacao: "ATIVO" }, { id: "S1b", empresa_id: "E1", tipo: "DIAGNOSTICO_PONTUAL", situacao: "ATIVO" },
   { id: "S2", empresa_id: "E2", tipo: "BPO_FISCAL", situacao: "ATIVO" }, { id: "S3", empresa_id: "E3", tipo: "DIAGNOSTICO_PONTUAL", situacao: "ATIVO" },
 ];
-const PAINEL = [{ empresa_id: "E1", grupos: { situacao: "OK", mensagens: "CRITICO" }, atualizado: "2026-11-11T12:00:00Z", simulado: true, score: 75, alertas: [{ chave: "caixa-postal", nivel: "CRITICO", titulo: "50 mensagem(ns); 10 não lida(s), 2 relevante(s)." }] }];
-const ULTIMA_CAIXA = { id: "C1", chave: "caixa-postal", nivel: "CRITICO", sucesso: true, simulado: true, createdAt: "2026-11-11T12:00:00Z", solicitado_por: "qa@fal", arquivos: [], resumo: { titulo: "50 mensagem(ns); 10 não lida(s), 2 relevante(s).", destaques: [{ rotulo: "Dados", valor: "Exemplo oficial do Serpro (ambiente de demonstração)" }], tabela: { colunas: [{ chave: "data", rotulo: "Data", tipo: "data" }, { chave: "assunto", rotulo: "Assunto" }], linhas: [{ data: "20220802", assunto: "Termo de intimação" }] } } };
+const PAINEL = [{ empresa_id: "E1", grupos: { situacao: "OK", mensagens: "CRITICO" }, atualizado: "2026-11-11T12:00:00Z", simulado: true, score: 75, alertas: [{ chave: "caixa-postal", nivel: "CRITICO", titulo: "50 mensagens; 10 não lida(s), 2 relevante(s)." }] }];
+const ULTIMA_CAIXA = { id: "C1", chave: "caixa-postal", nivel: "CRITICO", sucesso: true, simulado: true, createdAt: "2026-11-11T12:00:00Z", solicitado_por: "qa@fal", arquivos: [], resumo: { titulo: "50 mensagens; 10 não lida(s), 2 relevante(s).", destaques: [{ rotulo: "Dados", valor: "Exemplo oficial do Serpro (ambiente de demonstração)" }], tabela: { colunas: [{ chave: "data", rotulo: "Data", tipo: "data" }, { chave: "assunto", rotulo: "Assunto" }], linhas: [{ data: "20220802", assunto: "Termo de intimação" }] } } };
 const ULTIMA_SITFIS = { id: "C2", chave: "sitfis", nivel: "OK", sucesso: true, simulado: true, createdAt: "2026-11-11T12:00:00Z", arquivos: [{ indice: 0, nome: "sitfis-documento.pdf", tamanho: 1000 }], resumo: { titulo: "Relatório de situação fiscal emitido.", destaques: [] } };
 
 function renderizar(elemento, local = "/") {
@@ -59,12 +59,12 @@ function renderizar(elemento, local = "/") {
 describe("Monitoramento fiscal: a carteira", () => {
   it("mostra a faixa de demonstração, os números, uma linha por cliente com a nota e o alerta", () => {
     const html = renderizar(<MonitoramentoPagina />);
-    expect(html).toContain("Modo demonstração");
+    expect(html).toContain("Dados fictícios do Serpro");
     expect(html).toContain("Com algo crítico");
     expect(html).toContain("EXTRA AGRO LTDA");
     expect(html).toContain("Beta Comércio");
     expect(html).toContain(">75<");
-    expect(html).toContain("50 mensagem(ns)");
+    expect(html).toContain("50 mensagens");
     expect(html).toContain("Atualizar os 2 da lista");
   });
   it("o gatilho é o BPO fiscal: quem é BPO e diagnóstico aparece; quem é só diagnóstico, não", () => {
@@ -116,7 +116,7 @@ describe("Parâmetros e rotinas", () => {
     const html = renderizar(<ParametrosRotinasPagina />);
     expect(html).toContain("Consulta automática ligada");
     expect(html).toContain("Gerar as guias todo mês");
-    expect(html).toContain("Gerar as guias agora (2 cliente(s) do BPO)");
+    expect(html).toContain("Gerar as guias agora (2 clientes)");
   });
 });
 

@@ -111,10 +111,7 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label={servico.rotulo}>
       <div className="flex flex-wrap items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{servico.rotulo}</h3>
-          <p className="text-xs text-muted-foreground">{servico.descricao}</p>
-        </div>
+        <h3 className="min-w-0 flex-1 text-sm font-semibold">{servico.rotulo}</h3>
         <SeloNivel nivel={mostrada?.nivel} />
       </div>
       <div className="flex flex-wrap items-end gap-2">
@@ -132,11 +129,11 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
           </label>
         ))}
         {servico.acao ? (
-          <button type="button" disabled={desligado || consultar.isPending} onClick={() => setConfirmando(true)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60" title={desligado ? "O monitoramento está desligado" : "Executa na Receita, depois da sua confirmação"}>
+          <button type="button" disabled={desligado || consultar.isPending} onClick={() => setConfirmando(true)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60" title={desligado ? "Monitoramento desligado" : "Pede confirmação"}>
             {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />} Executar na Receita
           </button>
         ) : (
-          <button type="button" disabled={desligado || consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "O monitoramento está desligado" : undefined}>
+          <button type="button" disabled={desligado || consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "Monitoramento desligado" : undefined}>
             {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} {mostrada ? "Consultar de novo" : "Consultar"}
           </button>
         )}

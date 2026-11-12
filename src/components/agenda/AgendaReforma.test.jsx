@@ -132,7 +132,7 @@ describe("Agenda da Reforma: lembretes por e-mail", () => {
   it("lista os lembretes da pessoa, com o escopo e as antecedências, e avisa quando o e-mail não está configurado", () => {
     const html = painel(DADOS, null);
     expect(html).toContain("Lembretes por e-mail");
-    expect(html).toContain("O envio de e-mail ainda não está configurado no servidor");
+    expect(html).toContain("E-mail não configurado no servidor");
     expect(html).toContain("Todas as empresas");
     expect(html).toContain("30 dias antes, 7 dias antes, 1 dia antes");
     expect(html).toContain("Alfa Simples Ltda");

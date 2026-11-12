@@ -63,7 +63,6 @@ export default function LeadsPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <TituloPagina icon={Users}>Leads</TituloPagina>
-            <p className="text-sm text-muted-foreground">Contatos das ferramentas públicas, pontuados por porte, impacto, regime e cargo — o destino sugere o próximo passo.</p>
           </div>
           <button onClick={exportar} disabled={filtrados.length === 0} className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"><Download className="w-4 h-4" /> Exportar CSV</button>
         </div>

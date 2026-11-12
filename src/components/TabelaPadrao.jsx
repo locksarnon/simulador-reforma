@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Columns3, Filter, GripVertical, RotateCcw, Search, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import BotaoExportar from "@/components/BotaoExportar";
+import { plural } from "@/lib/plural";
 
 const TAMANHOS = [10, 25, 50, 100, 0];
 const colador = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
@@ -198,7 +199,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">{total === linhas.length ? `${total} linha(s)` : `${total} de ${linhas.length} linha(s)`}</span>
+        <span className="tabular-nums">{total === linhas.length ? plural(total, "linha", "linhas") : `${total} de ${plural(linhas.length, "linha", "linhas")}`}</span>
         <label className="ml-auto inline-flex items-center gap-1">Linhas por página
           <select value={tamanho} onChange={(e) => setTamanho(Number(e.target.value))} className="rounded border border-border bg-background px-1 py-0.5">{TAMANHOS.map((t) => <option key={t} value={t}>{t || "Todas"}</option>)}</select>
         </label>

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { formatoDoArquivo, lerPlanilha, lerPrevia } from '../produtos/leitura-planilha';
 import { CAMPOS, CAMPOS_PCT, IDS_CAMPOS, Mapeamento, sugerirMapeamento } from './campos';
 import { Contexto, EmpresaRef, LinhaConvertida, OPCOES_PADRAO, OpcoesImportacao, converterLinha, indexarEmpresas } from './conversao';
+import { plural } from '../common/plural';
 
 type Arquivo = { buffer: Buffer; originalname?: string };
 
@@ -258,7 +259,7 @@ export class OperacoesPlanilhaService {
         else {
           for (const l of grupo) {
             l.parcialXml = true;
-            l.avisos.push(`A nota já tem ${jaNoXml} item(ns) importado(s) por XML e a planilha traz ${grupo.length} linha(s) dela: confira para não contar em dobro.`);
+            l.avisos.push(`A nota já tem ${plural(jaNoXml, 'item importado', 'itens importados')} por XML e a planilha traz ${plural(grupo.length, 'linha', 'linhas')} dela: confira para não contar em dobro.`);
           }
         }
       }
@@ -277,11 +278,11 @@ export class OperacoesPlanilhaService {
     const jaExistiamDiferentes = linhas.filter((l) => l.ok && l.duplicada && !l.duplicadaXml && l.diferente).length;
     const notasParciaisXml = new Set(linhas.filter((l) => l.ok && l.parcialXml).map((l) => `${l.dados!.empresa_id}|${l.chaveDocumento}`)).size;
     const alertas: string[] = [];
-    if (comprasSemPisCofins > 0) alertas.push(`${comprasSemPisCofins} compra(s) entram sem PIS/Cofins: a tabela da legislação só preenche as vendas, porque o PIS/Cofins de uma compra é o do fornecedor. Informe as colunas PIS e Cofins se quiser o crédito desses tributos no sistema atual (só quem está no Lucro Real tem).`);
-    if (comprasSemCredito > 0) alertas.push(`${comprasSemCredito} compra(s) entram sem crédito elegível (0%): o IBS/CBS delas não gera crédito. Informe a coluna “Crédito elegível” ou escolha o percentual para compras.`);
-    if (duplicadasPorXml > 0) alertas.push(`${duplicadasPorXml} linha(s) trazem a chave de uma nota que já entrou pelo XML e ficam de fora, para a nota não contar duas vezes.`);
-    if (notasParciaisXml > 0) alertas.push(`${notasParciaisXml} nota(s) já têm itens importados por XML, mas menos que as linhas da planilha: as linhas entram, mas confira para não contar em dobro.`);
-    if (jaExistiamDiferentes > 0) alertas.push(`${jaExistiamDiferentes} linha(s) já importada(s) trazem percentual ou classificação diferente do que está gravado (PIS, Cofins, ICMS, ISS, IPI, crédito, cClassTrib, CST ou cCredPres). Elas NÃO foram alteradas: para corrigir, edite a operação ou apague a antiga em Operações e importe de novo.`);
+    if (comprasSemPisCofins > 0) alertas.push(`${plural(comprasSemPisCofins, 'compra entra', 'compras entram')} sem PIS/Cofins: informe as colunas PIS e Cofins para ter o crédito.`);
+    if (comprasSemCredito > 0) alertas.push(`${plural(comprasSemCredito, 'compra entra', 'compras entram')} sem crédito elegível (0%): informe a coluna “Crédito elegível” ou o percentual para compras.`);
+    if (duplicadasPorXml > 0) alertas.push(`${plural(duplicadasPorXml, 'linha ficou', 'linhas ficaram')} de fora: a nota já entrou pelo XML.`);
+    if (notasParciaisXml > 0) alertas.push(`${plural(notasParciaisXml, 'nota já tem', 'notas já têm')} itens importados por XML: confira para não contar em dobro.`);
+    if (jaExistiamDiferentes > 0) alertas.push(`${plural(jaExistiamDiferentes, 'linha já importada difere', 'linhas já importadas diferem')} do que está gravado e não ${jaExistiamDiferentes === 1 ? 'foi alterada' : 'foram alteradas'}: edite a operação ou apague a antiga e importe de novo.`);
     return {
       formato: planilhaFormato,
       total: linhas.length,

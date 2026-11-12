@@ -5,6 +5,7 @@ import { Radar, RefreshCw, ExternalLink, AlertCircle, ArrowRight } from "lucide-
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import { plural } from "@/lib/plural";
 
 const PRIORIDADE_ORDEM = { Alta: 0, Média: 1, Baixa: 2 };
 
@@ -66,7 +67,7 @@ export default function RadarReformaPage() {
       const r = resp.data;
       toast({
         title: "Radar atualizado",
-        description: `${r.itens_gerados} novidade(s) para a semana ${r.semana_referencia}.`,
+        description: `${plural(r.itens_gerados, "novidade", "novidades")} para a semana ${r.semana_referencia}.`,
       });
       qc.invalidateQueries({ queryKey: ["radarReformaItens"] });
       qc.invalidateQueries({ queryKey: ["radarReformaExecucoes"] });

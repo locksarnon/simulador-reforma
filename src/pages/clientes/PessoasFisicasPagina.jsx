@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import PageHeader from "@/components/PageHeader";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import { hojeBR } from "@/lib/tarefas";
+import { plural } from "@/lib/plural";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -19,8 +20,8 @@ const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, ""
 export function situacaoDoCertificado(validade, hoje = hojeBR()) {
   if (!validade) return { rotulo: "Sem certificado informado", tom: "bg-muted text-muted-foreground" };
   const dias = Math.round((Date.parse(String(validade).slice(0, 10)) - Date.parse(hoje)) / 86_400_000);
-  if (dias < 0) return { rotulo: `Vencido há ${-dias} dia(s)`, tom: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" };
-  if (dias <= 30) return { rotulo: `Vence em ${dias} dia(s)`, tom: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" };
+  if (dias < 0) return { rotulo: `Vencido há ${plural(-dias, "dia", "dias")}`, tom: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" };
+  if (dias <= 30) return { rotulo: `Vence em ${plural(dias, "dia", "dias")}`, tom: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" };
   return { rotulo: `Válido até ${String(validade).slice(8, 10)}/${String(validade).slice(5, 7)}/${String(validade).slice(0, 4)}`, tom: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" };
 }
 
@@ -36,7 +37,7 @@ function DialogoPessoa({ pessoa, empresas, aoFechar }) {
   return (
     <Dialog open onOpenChange={(v) => { if (!v) aoFechar(); }}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>{pessoa ? "Editar pessoa física" : "Nova pessoa física"}</DialogTitle><DialogDescription>O CPF é conferido. O certificado guarda só o tipo e a validade, para o aviso de vencimento.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{pessoa ? "Editar pessoa física" : "Nova pessoa física"}</DialogTitle><DialogDescription className="sr-only">Dados da pessoa física</DialogDescription></DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-3">
             <label className="col-span-2 block space-y-1"><span className="block text-xs text-muted-foreground">Nome</span><input className={campo} value={f.nome} maxLength={200} onChange={(e) => mudar("nome", e.target.value)} required /></label>
@@ -73,7 +74,7 @@ export default function PessoasFisicasPagina() {
   const excluir = useMutation({ mutationFn: (id) => api.delete(`/pessoas-fisicas/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pessoas-fisicas"] }); toast({ title: "Pessoa física excluída" }); }, onError: (e) => toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }) });
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Pessoas físicas" }]} title="Pessoas físicas" subtitle="Sócios e produtores rurais pessoa física, com CPF, a empresa ligada e o vencimento do certificado digital. Os arquivos de cada pessoa ficam em Arquivos e documentos." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Pessoas físicas" }]} title="Pessoas físicas" />
       <div className="px-6 lg:px-8 py-6 space-y-3">
         <div className="flex flex-wrap items-end gap-2 text-sm">
           <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (nome ou CPF)</span><input type="search" className={campo} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
@@ -110,7 +111,6 @@ export default function PessoasFisicasPagina() {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground">Procurações eletrônicas e o monitoramento da pessoa física (e-CAC, CND, mensagens) dependem do Integra Contador e entram com o Monitoramento fiscal.</p>
       </div>
       {dialogo && <DialogoPessoa key={dialogo.pessoa?.id || "nova"} pessoa={dialogo.pessoa} empresas={empresas} aoFechar={() => setDialogo(null)} />}
     </div>

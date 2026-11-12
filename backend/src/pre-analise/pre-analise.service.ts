@@ -13,6 +13,7 @@ import { ChaveProcesso, DEFINICAO, Processo, PROCESSOS, processoInicial, ROTULO_
 import { ConsultaCccHttp, ResultadoCcc } from './ccc.http';
 import { SerproCertidoes } from './serpro-certidoes';
 import { InfosimplesService, ResultadoCertidao } from '../infosimples/infosimples.service';
+import { plural } from '../common/plural';
 
 type Usuario = { email?: string; role?: string } | undefined;
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
@@ -146,7 +147,7 @@ export class PreAnaliseService {
         if (reg.empresa_id) tentativas.push({ de: 'certificado do cliente', m: () => this.certificados.material(reg.empresa_id!, 'USO_CONSULTA_CADASTRO', reg.criado_por ?? 'pré-análise', 'Consulta ao cadastro do ICMS (pré-análise)') });
         const cred = await this.contrato.credenciais();
         if (cred) tentativas.push({ de: 'certificado do escritório', m: async () => lerPfx(cred.pfx, cred.senha) });
-        if (!tentativas.length) return { status: 'INDISPONIVEL', resumo: 'Sem certificado para consultar a SEFAZ: guarde o A1 do cliente no cofre (Captura de XML) ou configure o do escritório em Administração > Integrações.', detalhes: [] };
+        if (!tentativas.length) return { status: 'INDISPONIVEL', resumo: 'Sem certificado A1 para consultar a SEFAZ.', detalhes: [] };
         let ultimo: ResultadoCcc | null = null;
         for (const t of tentativas) {
           let material;
@@ -154,7 +155,7 @@ export class PreAnaliseService {
           ultimo = await this.ccc.consultar({ cnpj, uf, keyPem: material.keyPem, certPem: material.certPem, cadeiaPem: material.cadeiaPem, certificadoDe: t.de });
           if (ultimo.consultado || ultimo.cStat !== '257') break;
         }
-        if (!ultimo) return { status: 'INDISPONIVEL', resumo: 'O certificado do cliente não pôde ser usado e não há certificado do escritório configurado.', detalhes: [] };
+        if (!ultimo) return { status: 'INDISPONIVEL', resumo: 'Certificado do cliente inválido e sem certificado do escritório.', detalhes: [] };
         ccc = ultimo;
         const p = this.processoDoCcc(ultimo);
         return { ...p, detalhes: [...(p.detalhes ?? []), { rotulo: 'Consultado com', valor: ultimo.certificadoDe ?? '' }] };
@@ -212,7 +213,7 @@ export class PreAnaliseService {
    */
   private async daPgfnDoCliente(empresaId: string | null, usuario: string | null): Promise<Partial<Processo>> {
     if (!empresaId) {
-      return { status: 'MANUAL', resumo: 'Ainda não é cliente: a dívida ativa sai do relatório de situação fiscal depois do cadastro e da procuração (ou do A1 no cofre). Para quem ainda não é cliente, só com a API Consulta Dívida Ativa do Serpro.', detalhes: [{ rotulo: 'Portal oficial', valor: DEFINICAO.get('DIVIDA_ATIVA')!.portal ?? '' }] };
+      return { status: 'MANUAL', resumo: 'Disponível depois do cadastro do cliente.', detalhes: [{ rotulo: 'Portal oficial', valor: DEFINICAO.get('DIVIDA_ATIVA')!.portal ?? '' }] };
     }
     const SETE_DIAS = 7 * 86_400_000;
     let l = await this.monitoramento.leituraSitfis(empresaId).catch(() => null);
@@ -222,7 +223,7 @@ export class PreAnaliseService {
         l = await this.monitoramento.leituraSitfis(empresaId).catch(() => l);
       } catch (e) { this.log.warn(`Relatório de situação fiscal na pré-análise: ${(e as Error).message}`); }
     }
-    if (!l?.leitura) return { status: 'INDISPONIVEL', resumo: 'O relatório de situação fiscal do cliente não veio (confira a procuração ou o A1 no cofre e o monitoramento em Administração > Integrações).', detalhes: [] };
+    if (!l?.leitura) return { status: 'INDISPONIVEL', resumo: 'Relatório de situação fiscal indisponível.', detalhes: [] };
     const quando = dataBr(l.consultado_em);
     const pgfn = l.leitura.secoes.filter((s) => s.orgao === 'PGFN');
     const fonte = { rotulo: 'Fonte', valor: `Relatório de situação fiscal (Receita e PGFN) de ${quando}${l.simulado ? ', demonstração' : ''}` };
@@ -231,7 +232,7 @@ export class PreAnaliseService {
     return {
       status: pendente ? 'DEBITOS' : 'CONCLUIDO',
       resumo: pendente ? `Inscrições em dívida ativa na PGFN (relatório de ${quando}): ${pgfn.filter((s) => s.tipo === 'PENDENCIA').map((s) => s.titulo).join('; ')}.` : `Na PGFN, só itens com exigibilidade suspensa ou parcelados (relatório de ${quando}).`,
-      detalhes: [fonte, ...pgfn.flatMap((s) => [{ rotulo: s.titulo, valor: `${Math.max(0, s.linhas.length - 1)} linha(s)` }, ...s.linhas.slice(1, 60).map((x) => ({ rotulo: '', valor: x }))])],
+      detalhes: [fonte, ...pgfn.flatMap((s) => [{ rotulo: s.titulo, valor: plural(Math.max(0, s.linhas.length - 1), 'linha', 'linhas') }, ...s.linhas.slice(1, 60).map((x) => ({ rotulo: '', valor: x }))])],
       demonstracao: l.simulado,
     };
   }
@@ -260,7 +261,7 @@ export class PreAnaliseService {
     ]);
     return {
       status: habilitadas.length ? 'CONCLUIDO' : 'IRREGULAR',
-      resumo: `${r.inscricoes.length} inscrição(ões) na SEFAZ ${r.uf}; ${habilitadas.length} habilitada(s).`,
+      resumo: `${plural(r.inscricoes.length, 'inscrição', 'inscrições')} na SEFAZ ${r.uf}; ${plural(habilitadas.length, 'habilitada', 'habilitadas')}.`,
       detalhes,
     };
   }

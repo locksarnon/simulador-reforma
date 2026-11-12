@@ -37,6 +37,7 @@ import {
 } from './shared/cte-parser';
 import { agruparPorCodigo, escolherVigente } from './shared/vigencia';
 import { avaliarNcm, compararComDeclarado, prepararLista, ClasseInfo, CorrelacaoNcmRow } from '../classificacao/ncm-classe';
+import { plural } from '../common/plural';
 
 /**
  * NCM da nota comparado por PREFIXO contra a tabela CorrelacaoNcm (que às
@@ -784,7 +785,7 @@ export class ImportacaoXmlService {
     }
 
     if (itens > 0) {
-      return { itens, mensagem: `Crédito presumido (cCredPres ${apro.cCredPres}) aplicado a ${itens} item(ns) de entrada do CT-e ${evento.chave}.` };
+      return { itens, mensagem: `Crédito presumido (cCredPres ${apro.cCredPres}) aplicado a ${plural(itens, 'item', 'itens')} de entrada do CT-e ${evento.chave}.` };
     }
     if (travados > 0) {
       return { itens: 0, mensagem: `O CT-e ${evento.chave} já foi confirmado, cancelado ou estornado: informe o crédito presumido (cCredPres ${apro.cCredPres}) direto na operação.` };
@@ -1583,7 +1584,7 @@ export class ImportacaoXmlService {
         'OPER_DEVOLUCAO_REVISAR',
         STATUS.ALERTA,
         refs.length > 0
-          ? `Documento de devolução/retorno (finNFe=4), referencia ${refs.length} NF-e original(is) — confira o vínculo antes de confirmar.`
+          ? `Documento de devolução/retorno (finNFe=4), referencia ${plural(refs.length, 'NF-e original', 'NF-e originais')} — confira o vínculo antes de confirmar.`
           : 'Documento de devolução/retorno (finNFe=4) sem NF-e de referência informada — confira manualmente.',
         false,
         'finalidade_dfe',

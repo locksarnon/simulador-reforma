@@ -37,7 +37,7 @@ export default function DialogoProcesso({ processo, colaboradores, aoFechar }) {
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{editando ? "Editar processo" : "Novo processo recorrente"}</DialogTitle>
-          <DialogDescription>A rotina que se repete. O sistema cria a tarefa de cada período 10 dias antes do prazo, sem repetir as que já existem.</DialogDescription>
+          <DialogDescription>Tarefa criada 10 dias antes de cada prazo.</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); if (f.nome.trim()) salvar.mutate(); }} className="space-y-3 text-sm">
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nome (vira o título das tarefas)</span>
@@ -62,7 +62,7 @@ export default function DialogoProcesso({ processo, colaboradores, aoFechar }) {
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Prioridade</span>
               <select className={campo} value={f.prioridade} onChange={(e) => mudar("prioridade", e.target.value)}>{Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
           </div>
-          <p className="text-[11px] text-muted-foreground">Sem responsável fixo, a tarefa de cada empresa vai para o colaborador dela, quando há um só; senão, fica sem responsável para a equipe distribuir.</p>
+          <p className="text-[11px] text-muted-foreground">Vazio: vai para o colaborador da empresa.</p>
           <DialogFooter>
             <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
             <button type="submit" disabled={!f.nome.trim() || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">

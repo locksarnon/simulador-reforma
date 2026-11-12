@@ -40,7 +40,7 @@ describe("Central de notificações", () => {
 describe("Sino", () => {
   it("mostra o número de não lidas no selo e no nome acessível", () => {
     const html = renderizar(<SinoNotificacoes />, { naoLidas: 3 });
-    expect(html).toContain('aria-label="Notificações: 3 não lida(s)"');
+    expect(html).toContain('aria-label="Notificações: 3 não lidas"');
     expect(html).toContain(">3<");
     const zero = renderizar(<SinoNotificacoes />, { naoLidas: 0 });
     expect(zero).toContain('aria-label="Notificações"');

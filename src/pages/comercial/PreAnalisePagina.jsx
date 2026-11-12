@@ -159,7 +159,7 @@ export default function PreAnalisePagina() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Pré-análise por CNPJ" }]} title="Pré-análise por CNPJ" subtitle="Sete consultas com status (empresa, CCC, certificado CCC, PGFN, trabalhista, FGTS e dívida ativa) e o relatório detalhado em PDF." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Pré-análise por CNPJ" }]} title="Pré-análise por CNPJ" />
       <div className="px-6 lg:px-8 py-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4 min-w-0">
           <form onSubmit={iniciar} className="flex flex-wrap items-end gap-2 text-sm">
@@ -214,14 +214,14 @@ export default function PreAnalisePagina() {
                 <section className="rounded-xl border border-border bg-card p-4 space-y-2" aria-label="Leitura para a Reforma">
                   <h2 className="font-heading text-sm font-semibold">Para a primeira conversa: {leitura.setor}</h2>
                   <ul className="list-disc pl-5 text-sm">{leitura.temas.map((t) => <li key={t}>{t}</li>)}</ul>
-                  <p className="text-xs text-muted-foreground">Sugestão do InTAX a partir do CNAE, para orientar a reunião. O enquadramento e os benefícios só se confirmam com as notas e o cadastro de produtos da empresa.</p>
+                  <p className="text-xs text-muted-foreground">Sugestão pelo CNAE; confirme com as notas e os produtos.</p>
                   <div className="flex flex-wrap gap-3 text-sm"><Link to="/reforma/regimes" className="text-primary hover:underline">Comparar os regimes</Link><Link to="/comercial/propostas" className="text-primary hover:underline">Fazer uma proposta</Link></div>
                 </section>
               )}
             </>
           )}
 
-          {!id && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Digite o CNPJ e inicie. O InTAX roda as sete consultas e mostra o status de cada uma; as certidões vêm com situação, validade e o documento oficial.</p>}
+          {!id && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Digite o CNPJ e inicie.</p>}
         </div>
 
         <aside className="space-y-2" aria-label="Pré-análises feitas">

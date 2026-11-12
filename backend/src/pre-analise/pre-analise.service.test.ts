@@ -80,7 +80,7 @@ describe('APIs do Serpro (Consulta CND e Dívida Ativa)', () => {
     ])) as never;
     const r = await s.dividaAtiva('12345678000195', 'PRODUCAO');
     expect(r!.status).toBe('DEBITOS');
-    expect(r!.resumo).toMatch(/1 inscrição\(ões\) ativa\(s\).*13\.676,34/);
+    expect(r!.resumo).toMatch(/1 inscrição ativa.*13\.676,34/);
     s.fetchImpl = vi.fn().mockResolvedValueOnce(resposta([{ numeroInscricao: 'X', situacaoDescricao: 'EXTINTA POR CANCELAMENTO DEVOLVIDA OU ARQUIVADA', valorTotalConsolidadoMoeda: '' }])) as never;
     expect((await s.dividaAtiva('12345678000195', 'PRODUCAO'))!.status).toBe('CONCLUIDO');
   });
@@ -156,7 +156,7 @@ describe('pré-análise: as sete consultas', () => {
     expect(t.monitoramento.consultar).toHaveBeenCalledWith({ empresaId: 'E1' }, 'sitfis', {}, { email: 'qa@fal' });
     expect(p.processos.find((x) => x.chave === 'DIVIDA_ATIVA')!.status).toBe('CONCLUIDO');
     const prospect = await montar().s.criar('12345678000195', { email: 'qa@fal' }, true);
-    expect(prospect.processos.find((x) => x.chave === 'DIVIDA_ATIVA')!.resumo).toMatch(/Ainda não é cliente/);
+    expect(prospect.processos.find((x) => x.chave === 'DIVIDA_ATIVA')!.resumo).toMatch(/depois do cadastro do cliente/);
   });
 
   it('a certidão anexada fica de pé ao consultar de novo, e o relatório sai em PDF com cada consulta', async () => {
@@ -180,7 +180,7 @@ describe('pré-análise: as sete consultas', () => {
   it('situação geral: processando, débitos, pendências e tudo concluído', () => {
     const p = (status: string) => ({ chave: 'EMPRESA', status, resumo: '', detalhes: [], fonte: '', consultado_em: null }) as never;
     expect(situacaoGeral([p('PROCESSANDO'), p('CONCLUIDO')]).status).toBe('PROCESSANDO');
-    expect(situacaoGeral([p('DEBITOS'), p('MANUAL')]).texto).toMatch(/1 ponto\(s\) de atenção e 1 consulta/);
+    expect(situacaoGeral([p('DEBITOS'), p('MANUAL')]).texto).toMatch(/1 ponto de atenção e 1 consulta pendente\./);
     expect(situacaoGeral([p('CONCLUIDO'), p('MANUAL')]).status).toBe('MANUAL');
     expect(situacaoGeral([p('CONCLUIDO')]).status).toBe('CONCLUIDO');
   });

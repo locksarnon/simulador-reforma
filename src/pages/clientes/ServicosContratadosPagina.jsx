@@ -17,6 +17,7 @@ import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
 import FiltroPorTags from "@/components/clientes/FiltroPorTags";
 import ListasSalvas from "@/components/clientes/ListasSalvas";
 import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
+import { plural } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const CARTEIRAS = [["", "Todas as carteiras"], ["bpo", "Só BPO fiscal"], ["diagnostico", "Só diagnóstico pontual"], ["ambas", "Nas duas"], ["nenhuma", "Sem carteira"]];
@@ -77,7 +78,7 @@ export default function ServicosContratadosPagina() {
   const excluirEmLote = async () => {
     const alvo = [...selecionadas];
     const nomes = alvo.slice(0, 5).map((e) => e.razao_social).join("; ") + (alvo.length > 5 ? ` e mais ${alvo.length - 5}` : "");
-    if (!(await confirmar({ titulo: `Arquivar ${alvo.length} cliente(s)?`, descricao: `${nomes}. Saem das listas e das rotinas; o histórico fica guardado.`, rotulo: `Arquivar ${alvo.length}` }))) return;
+    if (!(await confirmar({ titulo: `Arquivar ${plural(alvo.length, "cliente", "clientes")}?`, descricao: `${nomes}. Saem das listas e das rotinas; o histórico fica guardado.`, rotulo: `Arquivar ${alvo.length}` }))) return;
     const falhas = [];
     setExcluindo({ feitas: 0, total: alvo.length });
     for (const [i, e] of alvo.entries()) {
@@ -90,8 +91,8 @@ export default function ServicosContratadosPagina() {
     recarregar();
     const ok = alvo.length - falhas.length;
     toast(falhas.length
-      ? { title: `${ok} arquivada(s); ${falhas.length} não`, description: `Não saíram: ${falhas.join("; ")}. Tente de novo.`, variant: "destructive" }
-      : { title: `${ok} cliente(s) arquivado(s)` });
+      ? { title: `${ok} de ${alvo.length} arquivados`, description: `Não saíram: ${falhas.join("; ")}. Tente de novo.`, variant: "destructive" }
+      : { title: `${plural(ok, "cliente arquivado", "clientes arquivados")}` });
   };
 
   return (
@@ -99,7 +100,6 @@ export default function ServicosContratadosPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Serviços contratados" }]}
         title="Serviços contratados"
-        subtitle="O cadastro da empresa é um só. Aqui você marca quem é do BPO fiscal e quem tem diagnóstico pontual; cada área abre com a sua carteira."
       />
       <div className="px-6 lg:px-8 py-6 space-y-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -141,7 +141,7 @@ export default function ServicosContratadosPagina() {
 
           {selecionadas.length > 0 && (
             <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-primary/5 px-3 py-2 text-sm">
-              <span className="font-medium">{selecionadas.length} empresa(s) marcada(s)</span>
+              <span className="font-medium">{plural(selecionadas.length, "empresa marcada", "empresas marcadas")}</span>
               <button type="button" onClick={() => abrir(selecionadas, null, "BPO_FISCAL")} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Definir BPO fiscal</button>
               <button type="button" onClick={() => abrir(selecionadas, null, "DIAGNOSTICO_PONTUAL")} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir diagnóstico pontual</button>
               <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
@@ -184,7 +184,7 @@ export default function ServicosContratadosPagina() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted-foreground">{lista.length} de {empresas.length} empresa(s). Proposta e encerrado não entram na carteira: só serviço ativo ou pausado.</p>
+          <p className="text-xs text-muted-foreground">{lista.length} de {plural(empresas.length, "empresa", "empresas")}</p>
         </div>
       </div>
       {dialogo && <DialogoServico aberto empresas={dialogo.empresas} servico={dialogo.servico} tipoInicial={dialogo.tipoInicial} sugestoes={sugestoes} aoFechar={() => { setDialogo(null); setMarcadas(new Set()); }} />}

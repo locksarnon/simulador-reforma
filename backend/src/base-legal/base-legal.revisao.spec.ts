@@ -100,7 +100,7 @@ describe('atualização da Base legal devolve para revisão o que cita o texto a
     const r = await service.verificarAtualizacoes('manual');
     expect(r).toMatchObject({ verificadas: 1, alertas: 1 });
     const alerta = prisma.alertaBaseLegal.create.mock.calls[0][0].data;
-    expect(alerta.detalhe).toContain('2 dispositivo(s) alterado(s): Art. 2º, Art. 3º');
+    expect(alerta.detalhe).toContain('2 dispositivos alterados: Art. 2º, Art. 3º');
     expect(alerta.detalhe).toContain('Citam estes dispositivos: 2 cartões de pergunta frequente (1 publicado), 1 nota do cálculo.');
     // o impacto foi calculado sobre os dispositivos alterados e o que saiu do texto
     const citados = revisao.impacto.mock.calls[0][1].map((m: { caminho: string; mudanca: string }) => `${m.caminho}:${m.mudanca}`);

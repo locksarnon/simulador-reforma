@@ -218,7 +218,7 @@ describe('aplicarApropriacaoCredPres — evento 211110 sobre os itens do CT-e', 
     ];
     const r = await (servico(prismaCom(gravados, atualizados)) as any).aplicarApropriacaoCredPres('grp-1', evento(), memoria);
     expect(r.itens).toBe(2);
-    expect(r.mensagem).toContain('aplicado a 2 item(ns)');
+    expect(r.mensagem).toContain('aplicado a 2 itens');
     expect(atualizados.map((a) => a.id)).toEqual(['g1']);
     expect(atualizados[0].data).toMatchObject({
       c_cred_pres_original: '02', c_cred_pres_normalizado: '02',
@@ -567,7 +567,7 @@ describe('processarArquivos — CT-e no laço de processamento do lote', () => {
     expect(amb.itensAtualizados).toHaveLength(1);
     expect(amb.itensAtualizados[0].data).toMatchObject({ c_cred_pres_normalizado: '02' });
     expect(amb.arquivosAtualizados[0]).toMatchObject({ tipo_xml: 'EVENTO_OUTRO', situacao_fiscal: 'EVENTO_PROCESSADO' });
-    expect(amb.arquivosAtualizados[0].erro_processamento).toContain('aplicado a 1 item(ns)');
+    expect(amb.arquivosAtualizados[0].erro_processamento).toContain('aplicado a 1 item');
   });
 
   it('evento 211110 de CT-e que ainda não foi importado fica pendente com a orientação', async () => {

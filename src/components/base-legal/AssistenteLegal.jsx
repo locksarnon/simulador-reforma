@@ -79,7 +79,6 @@ function PerguntasRecentes() {
   return (
     <details className="text-sm rounded-xl border border-border bg-card p-4">
       <summary className="cursor-pointer font-medium">Perguntas recentes dos consultores ({data.length})</summary>
-      <p className="text-xs text-muted-foreground mt-1">Visível só para administradores. Perguntas sem resposta suficiente ou com voto negativo mostram onde falta norma ou cartão revisado.</p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead><tr className="bg-muted/60 text-left"><th className="p-2 border border-border">Quando</th><th className="p-2 border border-border">Quem</th><th className="p-2 border border-border">Pergunta</th><th className="p-2 border border-border">Respondeu?</th><th className="p-2 border border-border">Útil?</th></tr></thead>

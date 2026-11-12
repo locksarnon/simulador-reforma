@@ -35,7 +35,7 @@ function renderizar(elemento, dados = {}) {
 describe("Início: resumo do dia", () => {
   it("mostra tarefas, os próximos 7 dias, os avisos e a carteira, cada um com o atalho", () => {
     const html = renderizar(<ResumoDoDia />);
-    for (const t of ["Suas tarefas", "Próximos 7 dias", "Avisos", "Carteira", "PIS/Pasep e Cofins", "Suas tarefas: 1 atrasada", "3 tarefa(s) sem responsável na equipe.", "2 empresa(s) com cadastro incompleto."]) expect(html).toContain(t);
+    for (const t of ["Suas tarefas", "Próximos 7 dias", "Avisos", "Carteira", "PIS/Pasep e Cofins", "Suas tarefas: 1 atrasada", "3 tarefas sem responsável.", "2 empresas com cadastro incompleto."]) expect(html).toContain(t);
     for (const href of ["/bpo/tarefas", "/bpo/agenda", "/notificacoes", "/inicio/carteira"]) expect(html).toContain(`href="${href}"`);
   });
 });

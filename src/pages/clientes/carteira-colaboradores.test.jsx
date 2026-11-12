@@ -34,9 +34,9 @@ describe("Carteira e colaboradores", () => {
     const html = renderizar(<CarteiraColaboradoresPagina />);
     expect(html).toContain('aria-label="Colaboradores"');
     expect(html).toContain("Maria");
-    expect(html).toContain("2 empresa(s)");
-    expect(html).toContain("0 empresa(s)");
-    expect(html).toContain("Escolha um colaborador para ver e mudar as empresas dele.");
+    expect(html).toContain("2 empresas");
+    expect(html).toContain("0 empresas");
+    expect(html).toContain("Escolha um colaborador.");
     expect(html).toContain("Por colaborador");
     expect(html).toContain("Empresas sem colaborador");
   });
@@ -66,7 +66,7 @@ describe("Empresas sem colaborador", () => {
   it("lista as empresas que ninguém atende e deixa atribuir em lote (só administrador)", () => {
     const html = renderizar(<SemColaborador colaboradores={COLABORADORES} ehAdmin />, { sem: [EMPRESAS[2]] });
     expect(html).toContain("Gama Serviços Ltda");
-    expect(html).toContain("1 empresa(s) sem colaborador.");
+    expect(html).toContain("1 empresa sem colaborador.");
     expect(html).toContain("Atribuir as marcadas a");
     expect(html).toContain('aria-label="Marcar Gama Serviços Ltda"');
     const leitura = renderizar(<SemColaborador colaboradores={COLABORADORES} ehAdmin={false} />, { sem: [EMPRESAS[2]] });

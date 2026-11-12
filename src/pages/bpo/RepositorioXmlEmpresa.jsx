@@ -53,7 +53,6 @@ export default function RepositorioXmlEmpresa() {
           <div className="px-6 lg:px-8 py-6 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Repositório de XML</h2>
-              <p className="text-sm text-muted-foreground">Todos os XML de {empresa.razao_social} num lugar só: o que você envia por arquivo e o que é capturado da SEFAZ com o certificado do cliente. Daqui eles seguem para a Importação XML.</p>
             </div>
             <Tabs value={aba} onValueChange={setAba} className="space-y-4">
               <div className="border border-border bg-card">

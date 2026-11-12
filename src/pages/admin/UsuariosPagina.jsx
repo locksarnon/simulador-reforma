@@ -34,7 +34,7 @@ function SenhaProvisoria({ dados, aoFechar }) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Senha provisória de {dados?.email}</DialogTitle>
-          <DialogDescription>Ela só aparece agora. Passe para a pessoa por um canal seguro; ela pode trocar em Meu perfil.</DialogDescription>
+          <DialogDescription>Ela só aparece agora.</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
           <code className="flex-1 select-all text-base tracking-wide" aria-label="Senha provisória">{dados?.senha}</code>
@@ -56,8 +56,8 @@ function LinkEnviado({ dados, aoFechar }) {
           <DialogTitle>{dados?.enviado ? (convite ? `Convite enviado para ${dados.email}` : `Link de redefinição enviado para ${dados?.email}`) : "O e-mail não saiu"}</DialogTitle>
           <DialogDescription>
             {dados?.enviado
-              ? `A pessoa recebe um e-mail com o botão para ${convite ? "criar a senha" : "criar uma senha nova"}. O link vale até ${quando(dados.expira_em)} e só pode ser usado uma vez.`
-              : `O servidor não conseguiu enviar o e-mail${dados?.motivo ? ` (${dados.motivo})` : ""}. Copie o link e mande por outro canal; ele vale até ${quando(dados?.expira_em)} e só pode ser usado uma vez.`}
+              ? `Link válido até ${quando(dados.expira_em)}, uso único.`
+              : `Copie o link e mande por outro canal${dados?.motivo ? ` (${dados.motivo})` : ""}. Válido até ${quando(dados?.expira_em)}, uso único.`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
@@ -88,18 +88,18 @@ function DialogoUsuario({ alvo, aoFechar, aoSalvar }) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{novo ? "Convidar pessoa" : `Editar ${u?.email}`}</DialogTitle>
-          <DialogDescription>{novo ? "A pessoa recebe um e-mail com o link para criar a própria senha. Ninguém mais vê a senha." : "O e-mail não muda. Para a senha, use os botões da linha."}</DialogDescription>
+          <DialogDescription>{novo ? "Ela recebe o link para criar a senha." : "O e-mail não muda."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-3 text-sm">
           {novo && <label className="block space-y-1"><span className="block text-xs text-muted-foreground">E-mail</span><input type="email" required autoFocus className={campo} value={f.email} onChange={(e) => mudar("email", e.target.value)} /></label>}
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nome</span><input className={campo} value={f.name} maxLength={120} onChange={(e) => mudar("name", e.target.value)} /></label>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Papel</span>
             <select className={campo} value={f.role} onChange={(e) => mudar("role", e.target.value)}>{Object.entries(PAPEIS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-            <span className="block text-[11px] text-muted-foreground">Administrador envia certificado, ativa a captura, exclui e gerencia usuários. Consultor trabalha nas empresas.</span></label>
+</label>
           {novo && (
             <fieldset className="space-y-1.5">
               <legend className="text-xs text-muted-foreground">Como a pessoa vai entrar</legend>
-              <label className="flex items-start gap-2"><input type="radio" name="modo" className="mt-1" checked={f.modo === "convite"} onChange={() => mudar("modo", "convite")} /><span><span className="font-medium">Enviar convite por e-mail</span> <span className="text-xs text-muted-foreground">(recomendado; o link vale 7 dias)</span></span></label>
+              <label className="flex items-start gap-2"><input type="radio" name="modo" className="mt-1" checked={f.modo === "convite"} onChange={() => mudar("modo", "convite")} /><span><span className="font-medium">Enviar convite por e-mail</span></span></label>
               <label className="flex items-start gap-2"><input type="radio" name="modo" className="mt-1" checked={f.modo === "senha"} onChange={() => mudar("modo", "senha")} /><span><span className="font-medium">Definir a senha agora</span> <span className="text-xs text-muted-foreground">(em branco, o InTAX gera uma provisória)</span></span></label>
               {f.modo === "senha" && <input type="password" autoComplete="new-password" aria-label="Senha (mínimo 10 caracteres)" placeholder="Mínimo 10 caracteres" className={campo} value={f.senha} onChange={(e) => mudar("senha", e.target.value)} />}
             </fieldset>
@@ -154,14 +154,14 @@ export default function UsuariosPagina() {
     else toast({ title: novo ? "Conta criada" : "Alterações salvas" });
   };
   const alternar = async (u) => {
-    if (u.ativo && !(await confirmar({ titulo: `Desativar ${u.email}?`, descricao: "A pessoa perde o acesso agora e as sessões abertas dela são encerradas. Você pode reativar depois.", rotulo: "Desativar" }))) return;
+    if (u.ativo && !(await confirmar({ titulo: `Desativar ${u.email}?`, descricao: "Perde o acesso agora. Pode ser reativada depois.", rotulo: "Desativar" }))) return;
     situacao.mutate({ id: u.id, ativo: !u.ativo });
   };
   const pedirRedefinicao = async (u) => {
-    if (await confirmar({ titulo: `Enviar link para ${u.email} criar uma senha nova?`, descricao: "A pessoa recebe um e-mail com um link que vale 24 horas. A senha atual continua valendo até ela criar a nova.", rotulo: "Enviar link", perigoso: false })) redefinicao.mutate(u);
+    if (await confirmar({ titulo: `Enviar link para ${u.email} criar uma senha nova?`, descricao: "Link por e-mail, válido por 24 horas.", rotulo: "Enviar link", perigoso: false })) redefinicao.mutate(u);
   };
   const pedirProvisoria = async (u) => {
-    if (await confirmar({ titulo: `Gerar senha provisória para ${u.email}?`, descricao: "A senha atual deixa de valer agora, as sessões abertas são encerradas e a provisória aparece uma única vez para você passar à pessoa.", rotulo: "Gerar senha", perigoso: false })) provisoria.mutate(u);
+    if (await confirmar({ titulo: `Gerar senha provisória para ${u.email}?`, descricao: "A senha atual deixa de valer agora. A provisória aparece uma única vez.", rotulo: "Gerar senha", perigoso: false })) provisoria.mutate(u);
   };
   const ocupado = reenviar.isPending || redefinicao.isPending || provisoria.isPending;
 
@@ -224,7 +224,7 @@ export default function UsuariosPagina() {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Conta desativada perde o acesso na hora. O sistema sempre mantém pelo menos um administrador ativo. O convite vale 7 dias; o link de senha nova, 24 horas. Cada link só funciona uma vez.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Convite vale 7 dias; senha nova, 24 horas.</p>
       </div>
       {dialogo && <DialogoUsuario key={dialogo.usuario?.id || "novo"} alvo={dialogo} aoFechar={() => setDialogo(null)} aoSalvar={aoSalvar} />}
       <SenhaProvisoria dados={senha} aoFechar={() => setSenha(null)} />

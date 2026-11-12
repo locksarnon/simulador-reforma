@@ -68,7 +68,7 @@ export function RegistroDeAcesso() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">Mostra as 200 tentativas mais recentes. O último acesso de cada pessoa também aparece em Usuários e acessos.</p>
+      <p className="text-xs text-muted-foreground">Últimas 200 tentativas.</p>
     </div>
   );
 }
@@ -85,7 +85,7 @@ export function IpsPermitidos() {
   const restricao = useMutation({ mutationFn: (ativo) => api.put("/acessos/restricao", { ativo }), onSuccess: (_r, ativo) => { recarregar(); toast({ title: ativo ? "Restrição ligada" : "Restrição desligada" }); }, onError: falha("Não foi possível mudar a restrição") });
 
   const ligar = async () => {
-    if (await confirmar({ titulo: "Ligar a restrição por IP?", descricao: "Depois disso, só os endereços da lista conseguem entrar no InTAX. Confira que o seu está na lista. Se alguém ficar sem acesso, o servidor pode desligar a restrição com IP_ALLOWLIST_OFF=1.", rotulo: "Ligar", perigoso: false })) restricao.mutate(true);
+    if (await confirmar({ titulo: "Ligar a restrição por IP?", descricao: "Só os endereços da lista vão entrar. Confira que o seu está na lista.", rotulo: "Ligar", perigoso: false })) restricao.mutate(true);
   };
   if (isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>;
   if (error || !data) return <p role="alert" className="text-sm">Não foi possível carregar a lista de IPs.</p>;
@@ -95,8 +95,8 @@ export function IpsPermitidos() {
         {data.ativo ? <ShieldCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /> : <ShieldAlert className="h-5 w-5 text-muted-foreground" aria-hidden="true" />}
         <div className="flex-1 min-w-[220px] text-sm">
           <p className="font-medium">{data.ativo ? "Restrição por IP ligada" : "Restrição por IP desligada"}</p>
-          <p className="text-xs text-muted-foreground">{data.ativo ? "Só os endereços da lista entram." : "Qualquer endereço entra. Ligue só depois de cadastrar os IPs do escritório."} Seu IP agora: <strong className="tabular-nums">{data.ip_atual || "não identificado"}</strong></p>
-          {data.desligada_pelo_servidor && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">O servidor está com IP_ALLOWLIST_OFF=1: a restrição não vale, mesmo ligada aqui.</p>}
+          <p className="text-xs text-muted-foreground">{data.ativo ? "Só os endereços da lista entram." : "Qualquer endereço entra."} Seu IP agora: <strong className="tabular-nums">{data.ip_atual || "não identificado"}</strong></p>
+          {data.desligada_pelo_servidor && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Desligada no servidor (IP_ALLOWLIST_OFF=1).</p>}
         </div>
         {data.ativo
           ? <button type="button" onClick={() => restricao.mutate(false)} disabled={restricao.isPending} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-60">Desligar</button>
@@ -132,7 +132,7 @@ export default function AcessosPagina() {
   if (user?.role !== "admin") return <div><PageHeader crumbs={crumbs} title="Registro de acesso e IPs" /><p role="alert" className="p-8 text-sm">Somente administradores veem o registro de acesso.</p></div>;
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Registro de acesso e IPs" subtitle="Cada tentativa de entrar no InTAX e, se quiser, a lista de endereços IP que podem entrar." />
+      <PageHeader crumbs={crumbs} title="Registro de acesso e IPs" />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue="registro" className="space-y-4">
           <TabsList><TabsTrigger value="registro">Registro de acesso</TabsTrigger><TabsTrigger value="ips">IPs permitidos</TabsTrigger></TabsList>

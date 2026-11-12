@@ -2,6 +2,7 @@
  * Exportação padrão das listas (molde Lista de docs/estrutura-de-telas.md): Excel, PDF ou CSV, só com as colunas escolhidas.
  * colunas: [{ chave, rotulo, valor?: (linha) => texto|número }]. O arquivo é montado no navegador.
  */
+import { plural } from "./plural";
 const valorDa = (c, l) => {
   const v = c.valor ? c.valor(l) : l[c.chave];
   return v === null || v === undefined ? "" : v;
@@ -47,7 +48,7 @@ export async function montarPdf(titulo, colunas, linhas) {
   let y = 16;
   doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(titulo, M, y);
   doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(110);
-  doc.text(`${linhas.length} linha(s) · gerado em ${new Date().toLocaleString("pt-BR")}`, M, y + 5);
+  doc.text(`${plural(linhas.length, "linha", "linhas")} · gerado em ${new Date().toLocaleString("pt-BR")}`, M, y + 5);
   y += 12;
   const cabecalho = () => { doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(0); colunas.forEach((c, i) => doc.text(doc.splitTextToSize(c.rotulo, w - 2)[0], M + i * w, y)); y += 2; doc.setDrawColor(200); doc.line(M, y, larguraPagina - M, y); y += 4; doc.setFont("helvetica", "normal"); };
   cabecalho();

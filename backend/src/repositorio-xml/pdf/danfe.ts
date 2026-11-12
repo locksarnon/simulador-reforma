@@ -9,6 +9,7 @@ import {
 } from './formatos-danfe';
 import { ErroLeituraNfe, ItemNfe, NfeLida, ParteNfe, lerNfe } from './nfe-leitor';
 import { A4, Alinhamento, NEGRITO, NORMAL, OpcoesPdf, Pintor, marcaDagua, montarPdf, prefixoQueCabe } from './pintor';
+import { plural } from '../../common/plural';
 
 /** Opções do DANFE: as comuns a todos os PDF (cancelada, denegada e semCompressao). */
 export type OpcoesDanfe = OpcoesPdf;
@@ -156,7 +157,7 @@ function fatura(p: Pintor, n: NfeLida, y0: number): number {
     y += 24;
   }
   if (n.duplicatas.length > mostradas.length) {
-    p.texto(`(mais ${n.duplicatas.length - mostradas.length} duplicata(s) no XML)`, MX, y + 1, LARGURA, { tam: 5.5, cor: '#555' });
+    p.texto(`(mais ${plural(n.duplicatas.length - mostradas.length, 'duplicata', 'duplicatas')} no XML)`, MX, y + 1, LARGURA, { tam: 5.5, cor: '#555' });
     y += 7;
   }
   return y;

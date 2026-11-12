@@ -13,6 +13,7 @@ import { mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 import { fmtDataCurta } from "@/lib/servicos";
 import { caminhoDaFerramenta, cobreGrupoInteiro, FERRAMENTAS, SITUACOES_PROJETO } from "@/lib/projetos";
+import { plural } from "@/lib/plural";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const dia = (v) => (v ? String(v).slice(0, 10) : "");
@@ -37,7 +38,7 @@ export default function ProjetoDiagnosticoPagina() {
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
   });
   const excluir = async () => {
-    if (!(await confirmar({ titulo: `Excluir o projeto ${p.nome}?`, descricao: "Só o projeto sai. O trabalho de cada empresa (XML, operações, análises) continua no lugar.", rotulo: "Excluir projeto" }))) return;
+    if (!(await confirmar({ titulo: `Excluir o projeto ${p.nome}?`, descricao: "O trabalho das empresas continua no lugar.", rotulo: "Excluir projeto" }))) return;
     try { await api.delete(`/projetos-diagnostico/${id}`); qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] }); navigate("/diagnostico"); } catch (e) { toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }); }
   };
 
@@ -53,7 +54,7 @@ export default function ProjetoDiagnosticoPagina() {
       <PageHeader
         crumbs={crumbs}
         title={p.nome}
-        subtitle={`${daLista.length} empresa(s)${grupo ? ` · ${rotuloDoGrupo(grupo)}${inteiro ? " (inteiro)" : " (parte)"}` : ""} · desde ${fmtDataCurta(p.inicio)}${p.prazo ? ` · prazo ${fmtDataCurta(p.prazo)}` : ""}`}
+        subtitle={`${plural(daLista.length, "empresa", "empresas")}${grupo ? ` · ${rotuloDoGrupo(grupo)}${inteiro ? " (inteiro)" : " (parte)"}` : ""} · desde ${fmtDataCurta(p.inicio)}${p.prazo ? ` · prazo ${fmtDataCurta(p.prazo)}` : ""}`}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <select aria-label="Situação do diagnóstico" value={p.situacao} onChange={(e) => salvar.mutate({ situacao: e.target.value })} className="rounded-md border border-border bg-background px-2 py-1.5 text-sm">
@@ -105,7 +106,7 @@ export default function ProjetoDiagnosticoPagina() {
             </section>
           ))}
         </div>
-        {daLista.length < p.empresa_ids.length && <p className="text-xs text-muted-foreground">{p.empresa_ids.length - daLista.length} empresa(s) do escopo foram excluídas do cadastro.</p>}
+        {daLista.length < p.empresa_ids.length && <p className="text-xs text-muted-foreground">{plural(p.empresa_ids.length - daLista.length, "empresa do escopo foi excluída", "empresas do escopo foram excluídas")} do cadastro.</p>}
       </div>
     </div>
   );

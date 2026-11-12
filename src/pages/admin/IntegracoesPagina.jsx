@@ -23,7 +23,7 @@ export default function IntegracoesPagina() {
   if (user?.role !== "admin") return <div><PageHeader crumbs={crumbs} title="Integrações" /><p role="alert" className="p-8 text-sm">Somente administradores veem as integrações.</p></div>;
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Integrações" subtitle="Se cada conexão está ligada e o que falta. Chaves, senhas e tokens ficam só no servidor e nunca aparecem aqui." actions={<button type="button" onClick={() => refetch()} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">{isFetching ? "Conferindo…" : "Conferir de novo"}</button>} />
+      <PageHeader crumbs={crumbs} title="Integrações" actions={<button type="button" onClick={() => refetch()} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">{isFetching ? "Conferindo…" : "Conferir de novo"}</button>} />
       <div className="px-6 lg:px-8 py-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Conferindo…</p>}
         {error && <p role="alert" className="text-sm">Não foi possível conferir as integrações.</p>}

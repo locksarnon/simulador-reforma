@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { ABAS_DE_DOCUMENTOS, base, dividirEmLotes, documentoDoEvento, fmtData, fmtDoc, fmtMoeda, importavelNoImportador, MAX_PDF_NO_ZIP, nomeDoPdf, ORIGENS, PORTAIS_NOTAS_EMITIDAS, rotuloTipo, situacaoCiencia, temPdf, TIPOS } from "./formatos";
+import { plural } from "@/lib/plural";
 
 /** Linhas por página: 10, 50, 100, 500 ou todas (0). "Todas" busca em partes de 500 até o teto abaixo. */
 const OPCOES_POR_PAGINA = [10, 50, 100, 500, 0];
@@ -128,10 +129,10 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
         enviados += lote.length;
         soma.novos += r.novos; soma.atualizados += r.atualizados; soma.duplicados += r.duplicados; soma.ignorados.push(...r.ignorados);
       }
-      const partes = [`${soma.novos} novo(s)`];
-      if (soma.atualizados) partes.push(`${soma.atualizados} completado(s)`);
+      const partes = [plural(soma.novos, "novo", "novos")];
+      if (soma.atualizados) partes.push(plural(soma.atualizados, "completado", "completados"));
       if (soma.duplicados) partes.push(`${soma.duplicados} já existiam`);
-      if (soma.ignorados.length) partes.push(`${soma.ignorados.length} ignorado(s): ${soma.ignorados.slice(0, 3).map((x) => `${x.nome} (${x.motivo})`).join("; ")}${soma.ignorados.length > 3 ? "…" : ""}`);
+      if (soma.ignorados.length) partes.push(`${plural(soma.ignorados.length, "ignorado", "ignorados")}: ${soma.ignorados.slice(0, 3).map((x) => `${x.nome} (${x.motivo})`).join("; ")}${soma.ignorados.length > 3 ? "…" : ""}`);
       toast({ title: "Envio concluído", description: partes.join(" · "), variant: soma.ignorados.length && !soma.novos && !soma.atualizados ? "destructive" : undefined });
     } catch (e) {
       toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" });
@@ -144,12 +145,12 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
 
   const importar = useMutation({
     mutationFn: (ids) => api.post(`${base(empresaId)}/documentos/enviar-importacao`, { ids }),
-    onSuccess: (r) => { toast({ title: "Enviado ao importador", description: `${r.arquivos} arquivo(s) no lote. Abra "Importação XML" para conferir e confirmar.` }); setSelecionados(new Set()); atualizar(); },
+    onSuccess: (r) => { toast({ title: "Enviado ao importador", description: `${plural(r.arquivos, "arquivo", "arquivos")} no lote.` }); setSelecionados(new Set()); atualizar(); },
     onError: (e) => toast({ title: "Não foi possível enviar ao importador", description: e.message, variant: "destructive" }),
   });
   const excluir = useMutation({
     mutationFn: (ids) => api.post(`${base(empresaId)}/documentos/excluir`, { ids }),
-    onSuccess: (r) => { toast({ title: "Excluído", description: `${r.excluidos} documento(s) removido(s) do repositório.` }); setSelecionados(new Set()); atualizar(); },
+    onSuccess: (r) => { toast({ title: "Excluído", description: `${plural(r.excluidos, "documento removido", "documentos removidos")}.` }); setSelecionados(new Set()); atualizar(); },
     onError: (e) => toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }),
   });
 
@@ -159,14 +160,14 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
     if (!ids.length && !pendentes) { toast({ title: "Nada pendente", description: "Todos os XML completos já foram enviados ao importador." }); return; }
     const ok = await confirmar({
       titulo: "Enviar ao importador?",
-      descricao: ids.length ? `Enviar ${ids.length} documento(s) selecionado(s) (somente XML completo) ao importador de XML.` : `Enviar os ${pendentes} XML completo(s) que ainda não foram ao importador.`,
+      descricao: ids.length ? `Enviar ${plural(ids.length, "documento selecionado", "documentos selecionados")} (só XML completo).` : `Enviar ${plural(pendentes, "XML completo pendente", "XML completos pendentes")}.`,
       rotulo: "Enviar", perigoso: false,
     });
     if (ok) importar.mutate(ids.length ? ids : undefined);
   };
   const excluirSelecionados = async () => {
     const ids = [...selecionados];
-    if (ids.length && await confirmar({ titulo: "Excluir do repositório?", descricao: `${ids.length} documento(s) serão apagados do repositório e do armazenamento. Se vieram da captura, o que já foi baixado da SEFAZ não volta sozinho.`, rotulo: "Excluir" })) excluir.mutate(ids);
+    if (ids.length && await confirmar({ titulo: "Excluir do repositório?", descricao: `${plural(ids.length, "documento será apagado", "documentos serão apagados")} do repositório. O que já veio da SEFAZ não volta sozinho.`, rotulo: "Excluir" })) excluir.mutate(ids);
   };
   const baixarZip = async () => {
     const incluirPdf = comPdf && !soResumos;
@@ -215,7 +216,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
           <FileUp className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
           <div className="flex-1 min-w-[220px] text-sm">
             <p className="font-medium">Arraste aqui os XML ou ZIP do cliente, ou escolha os arquivos</p>
-            <p className="text-xs text-muted-foreground">NF-e, CT-e, MDF-e, NFS-e Nacional e eventos. O que já existe não duplica, e um resumo é trocado pelo XML completo quando ele chega. Documentos que não citam o CNPJ desta empresa são recusados. O importador lê NF-e, NFC-e e CT-e; a NFS-e e o MDF-e ficam só guardados aqui.</p>
+            <p className="text-xs text-muted-foreground">NF-e, CT-e, MDF-e, NFS-e Nacional e eventos deste CNPJ.</p>
           </div>
           <input ref={seletor} type="file" multiple accept=".xml,.zip" className="hidden" onChange={(e) => enviarArquivos(e.target.files)} />
           <button type="button" disabled={progresso !== null} onClick={() => seletor.current?.click()} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
@@ -227,7 +228,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
       {!soResumos && grupo !== "NFSE" && (
         <details className="rounded-xl border border-border bg-card px-4 py-3 text-sm">
           <summary className="cursor-pointer font-medium">Como baixar nas SEFAZ as notas que o cliente emitiu (MT, MS, GO, MA e PA)</summary>
-          <p className="mt-2 text-xs text-muted-foreground">A captura automática não traz o que o próprio cliente emitiu. Alternativas: pedir que o ERP dele inclua o CNPJ da FAL no campo autXML das notas, ou baixar o lote no portal da SEFAZ e enviar aqui em ZIP. Orientação conferida em 10/11/2026 nas páginas das SEFAZ; os portais mudam, confirme no portal.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Peça ao ERP do cliente o CNPJ da FAL no campo autXML, ou envie aqui o ZIP baixado no portal.</p>
           <ul className="mt-2 space-y-1.5">
             {PORTAIS_NOTAS_EMITIDAS.map((p) => (
               <li key={p.uf} className="flex gap-2"><span className="font-semibold w-7 shrink-0">{p.uf}</span><span>{p.texto}{p.link && <> <a href={p.link} target="_blank" rel="noreferrer" className="text-primary hover:underline">Página oficial</a></>}</span></li>
@@ -287,7 +288,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
               {OPCOES_POR_PAGINA.map((n) => <option key={n} value={n}>{n === 0 ? "Todos" : n}</option>)}
             </select>
           </label>
-          <span className="text-xs text-muted-foreground">{isFetching ? "Atualizando…" : `${total} documento(s)`}</span>
+          <span className="text-xs text-muted-foreground">{isFetching ? "Atualizando…" : plural(total, "documento", "documentos")}</span>
         </div>
 
         <div className="overflow-x-auto">

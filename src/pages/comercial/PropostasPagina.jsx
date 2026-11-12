@@ -106,7 +106,7 @@ export function AbaModelos({ ehAdmin }) {
   const apagar = useMutation({ mutationFn: (id) => api.delete(`/propostas/modelos/${id}`), onSuccess: () => { recarregar(); toast({ title: "Modelo apagado" }); } });
   return (
     <div className="max-w-3xl space-y-3">
-      {!ehAdmin && <p className="text-sm text-muted-foreground">Só administradores criam e mudam modelos. Use-os ao criar uma proposta.</p>}
+      {!ehAdmin && <p className="text-sm text-muted-foreground">Só administradores mudam modelos.</p>}
       {ehAdmin && !f && <button type="button" onClick={() => setF(vazio)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo modelo</button>}
       {f && (
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-2 rounded-xl border border-border bg-card p-3 text-sm">
@@ -152,7 +152,7 @@ export function AbaTabela({ ehAdmin }) {
   const mudar = (grupo, chave, v) => setT({ ...atual, ...(chave ? { [grupo]: { ...atual[grupo], [chave]: Number(v) } } : { [grupo]: Number(v) }) });
   return (
     <div className="max-w-3xl space-y-3 text-sm">
-      {atual.exemplo && <p role="status" className="rounded-md border border-amber-400/60 bg-card p-3 text-xs">Estes são valores de exemplo, para a calculadora funcionar. Ajuste à tabela do escritório e salve.</p>}
+      {atual.exemplo && <p role="status" className="rounded-md border border-amber-400/60 bg-card p-3 text-xs">Valores de exemplo: ajuste e salve.</p>}
       {!ehAdmin && <p className="text-xs text-muted-foreground">Só administradores mudam a tabela.</p>}
       <fieldset className="grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-4"><legend className="px-1 text-xs font-medium">Base mensal por regime (R$)</legend>{REGIMES_HONORARIO.map((r) => <CampoDaTabela atual={atual} mudar={mudar} ehAdmin={ehAdmin} key={r} rotulo={r} grupo="base" chave={r} passo={50} />)}</fieldset>
       <fieldset className="grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-4"><legend className="px-1 text-xs font-medium">Volume e estrutura</legend>
@@ -173,7 +173,7 @@ export default function PropostasPagina() {
   const ehAdmin = user?.role === "admin";
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Propostas e honorários" }]} title="Propostas e honorários" subtitle="Calculadora de honorários, propostas com PDF e a situação de cada uma. Proposta aceita liga o serviço contratado da empresa." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Propostas e honorários" }]} title="Propostas e honorários" />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue="propostas" className="space-y-4">
           <TabsList><TabsTrigger value="propostas">Propostas</TabsTrigger><TabsTrigger value="modelos">Modelos</TabsTrigger><TabsTrigger value="tabela">Tabela de honorários</TabsTrigger></TabsList>

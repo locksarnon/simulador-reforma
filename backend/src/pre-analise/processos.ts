@@ -1,4 +1,5 @@
 import type { StatusProcesso } from './leitor-certidoes';
+import { plural } from '../common/plural';
 
 export type ChaveProcesso = 'EMPRESA' | 'CCC' | 'CERTIFICADO_CCC' | 'PGFN' | 'TRABALHISTA' | 'FGTS' | 'DIVIDA_ATIVA';
 
@@ -21,12 +22,12 @@ export type DefinicaoProcesso = { chave: ChaveProcesso; rotulo: string; fonte: s
 /** As sete consultas da pré-análise, na ordem do relatório. */
 export const PROCESSOS: DefinicaoProcesso[] = [
   { chave: 'EMPRESA', rotulo: 'Consulta Empresa', fonte: 'Cadastro do CNPJ na Receita Federal (dados públicos)', portal: 'https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp', aceitaCertidao: false, como: 'Automática.' },
-  { chave: 'CCC', rotulo: 'Consulta CCC', fonte: 'Cadastro Centralizado de Contribuintes do ICMS (web service da SEFAZ)', portal: 'https://dfe-portal.svrs.rs.gov.br/NFE/CCC', aceitaCertidao: false, como: 'Automática, com o certificado do escritório (Administração > Integrações).' },
-  { chave: 'CERTIFICADO_CCC', rotulo: 'Certificado CCC', fonte: 'Comprovante da consulta ao CCC, emitido pelo InTAX com o retorno da SEFAZ', portal: null, aceitaCertidao: false, como: 'Gerado a partir da Consulta CCC.' },
-  { chave: 'PGFN', rotulo: 'PGFN', fonte: 'Certidão de débitos relativos a tributos federais e à Dívida Ativa da União (Receita Federal e PGFN)', portal: 'https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj', aceitaCertidao: true, como: 'Automática pela API Consulta CND do Serpro, quando contratada; senão, emita no portal e anexe o PDF.' },
-  { chave: 'TRABALHISTA', rotulo: 'Trabalhista', fonte: 'Certidão Negativa de Débitos Trabalhistas (CNDT, Tribunal Superior do Trabalho)', portal: 'https://cndt-certidao.tst.jus.br/inicio.faces', aceitaCertidao: true, como: 'Automática pela Infosimples, quando configurada (Administração > Integrações); senão, emita no portal do TST e anexe o PDF.' },
-  { chave: 'FGTS', rotulo: 'FGTS', fonte: 'Certificado de Regularidade do FGTS (CRF, Caixa)', portal: 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf', aceitaCertidao: true, como: 'Automática pela Infosimples, quando configurada (Administração > Integrações); senão, emita no portal da Caixa e anexe o PDF.' },
-  { chave: 'DIVIDA_ATIVA', rotulo: 'Dívida Ativa', fonte: 'Inscrições em Dívida Ativa da União na PGFN (relatório de situação fiscal ou API Consulta Dívida Ativa)', portal: 'https://www.listadevedores.pgfn.gov.br/', aceitaCertidao: false, como: 'Do cliente: pelo relatório de situação fiscal (parte da PGFN), com procuração ou o A1 no cofre. De quem ainda não é cliente: pela API Consulta Dívida Ativa do Serpro, quando contratada.' },
+  { chave: 'CCC', rotulo: 'Consulta CCC', fonte: 'Cadastro Centralizado de Contribuintes do ICMS (web service da SEFAZ)', portal: 'https://dfe-portal.svrs.rs.gov.br/NFE/CCC', aceitaCertidao: false, como: 'Automática.' },
+  { chave: 'CERTIFICADO_CCC', rotulo: 'Certificado CCC', fonte: 'Comprovante da consulta ao CCC, emitido pelo InTAX com o retorno da SEFAZ', portal: null, aceitaCertidao: false, como: 'Gerado pela Consulta CCC.' },
+  { chave: 'PGFN', rotulo: 'PGFN', fonte: 'Certidão de débitos relativos a tributos federais e à Dívida Ativa da União (Receita Federal e PGFN)', portal: 'https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj', aceitaCertidao: true, como: 'Anexe o PDF do portal.' },
+  { chave: 'TRABALHISTA', rotulo: 'Trabalhista', fonte: 'Certidão Negativa de Débitos Trabalhistas (CNDT, Tribunal Superior do Trabalho)', portal: 'https://cndt-certidao.tst.jus.br/inicio.faces', aceitaCertidao: true, como: 'Anexe o PDF do portal.' },
+  { chave: 'FGTS', rotulo: 'FGTS', fonte: 'Certificado de Regularidade do FGTS (CRF, Caixa)', portal: 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf', aceitaCertidao: true, como: 'Anexe o PDF do portal.' },
+  { chave: 'DIVIDA_ATIVA', rotulo: 'Dívida Ativa', fonte: 'Inscrições em Dívida Ativa da União na PGFN (relatório de situação fiscal ou API Consulta Dívida Ativa)', portal: 'https://www.listadevedores.pgfn.gov.br/', aceitaCertidao: false, como: 'Aguardando o relatório de situação fiscal.' },
 ];
 
 export const DEFINICAO = new Map(PROCESSOS.map((p) => [p.chave, p]));
@@ -50,7 +51,7 @@ export function situacaoGeral(processos: Processo[]): { status: StatusProcesso; 
   if (n('PROCESSANDO')) return { status: 'PROCESSANDO', texto: `Processando ${n('PROCESSANDO')} de ${processos.length} consultas.` };
   const problemas = n('IRREGULAR') + n('DEBITOS');
   const pendentes = n('MANUAL') + n('INDISPONIVEL');
-  if (problemas) return { status: n('DEBITOS') ? 'DEBITOS' : 'IRREGULAR', texto: `${problemas} ponto(s) de atenção${pendentes ? ` e ${pendentes} consulta(s) pendente(s)` : ''}.` };
-  if (pendentes) return { status: 'MANUAL', texto: `Nada irregular nas consultas feitas; ${pendentes} consulta(s) pendente(s).` };
+  if (problemas) return { status: n('DEBITOS') ? 'DEBITOS' : 'IRREGULAR', texto: `${plural(problemas, 'ponto', 'pontos')} de atenção${pendentes ? ` e ${plural(pendentes, 'consulta pendente', 'consultas pendentes')}` : ''}.` };
+  if (pendentes) return { status: 'MANUAL', texto: `Nada irregular; ${plural(pendentes, 'consulta pendente', 'consultas pendentes')}.` };
   return { status: 'CONCLUIDO', texto: 'Todas as consultas concluídas sem pendências.' };
 }

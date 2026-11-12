@@ -341,7 +341,6 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
               {copiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiado ? "Cabeçalho copiado — cole no Excel" : "Copiar cabeçalho"}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">Exportou direto do ERP (Protheus, SAP, Sankhya…)? Envie como está: na próxima tela você indica qual coluna é qual, e o sistema tenta reconhecer sozinho.</p>
         </div>
       </div>
     );

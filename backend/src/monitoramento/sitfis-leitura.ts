@@ -1,3 +1,4 @@
+import { plural } from '../common/plural';
 /**
  * Leitura do Relatório de Situação Fiscal (Receita Federal e PGFN, "Informações de apoio para emissão de certidão"), o PDF que o
  * Integra Contador devolve no SITFIS. As seções têm títulos fixos seguidos de traços, ex.: "Pendência - Débito (SIEF) ______",
@@ -60,9 +61,9 @@ export function resumoDoSitfis(l: LeituraSitfis) {
   const omis = l.secoes.filter((s) => s.tipo === 'OMISSAO');
   const susp = l.secoes.filter((s) => s.tipo === 'SUSPENSO');
   const partes = [
-    pend.length ? `${pend.length} pendência(s): ${pend.map((s) => s.titulo).join('; ')}` : 'Sem pendências',
-    omis.length ? `${omis.length} omissão(ões) de declaração` : '',
-    susp.length ? `${susp.length} item(ns) com exigibilidade suspensa` : '',
+    pend.length ? `${plural(pend.length, 'pendência', 'pendências')}: ${pend.map((s) => s.titulo.replace(/^Pend[êe]ncia\s*-\s*/i, '')).join('; ')}` : 'Sem pendências',
+    omis.length ? `${plural(omis.length, 'omissão', 'omissões')} de declaração` : '',
+    susp.length ? `${plural(susp.length, 'item', 'itens')} com exigibilidade suspensa` : '',
   ].filter(Boolean);
-  return { nivel: pend.length || omis.length ? 'CRITICO' : susp.length ? 'ATENCAO' : 'OK', titulo: `${partes.join('; ')}.` } as const;
+  return { nivel: pend.length || omis.length ? 'CRITICO' : susp.length ? 'ATENCAO' : 'OK', titulo: `${partes.join('; ').replace(/\.+$/, '')}.` } as const;
 }

@@ -34,7 +34,7 @@ export function linhasDaEsfera(c, sitfis) {
   if (c.tipo === "FEDERAL" && sitfis?.leitura?.certidao) {
     const ct = sitfis.leitura.certidao;
     const validadeIso = brParaIso(ct.validade);
-    linhas.push({ id: "sitfis", situacao: situacaoPelaValidade(validadeIso), regularidade: ct.tipo, emissao: brParaIso(ct.emissao), validade: validadeIso, numero: ct.codigo, origem: "Relatório de situação fiscal (Receita e PGFN)", criado_por: "InTAX (leitura automática)", doSitfis: true });
+    linhas.push({ id: "sitfis", situacao: situacaoPelaValidade(validadeIso), regularidade: ct.tipo, emissao: brParaIso(ct.emissao), validade: validadeIso, numero: ct.codigo, origem: "Relatório de situação fiscal", criado_por: "InTAX", doSitfis: true });
   }
   return linhas;
 }
@@ -55,8 +55,7 @@ function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
   });
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="mr-auto min-w-[240px] flex-1 text-xs text-muted-foreground">{c.como}</p>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {automatica && (
           <button type="button" disabled={emitir.isPending} onClick={() => emitir.mutate()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60">
             {emitir.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}Emitir agora
@@ -64,12 +63,12 @@ function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
         )}
         {c.portal && <a href={c.portal} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Portal oficial</a>}
         <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-label={`Anexar PDF: ${c.rotulo}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) anexar.mutate(f); }} />
-        <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">Validade (PDF escaneado)<input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} className="rounded border border-border bg-background px-1.5 py-1 text-xs" /></label>
+        <label className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">Validade<input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} className="rounded border border-border bg-background px-1.5 py-1 text-xs" /></label>
         <button type="button" disabled={anexar.isPending} onClick={() => input.current?.click()} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-60">
           {anexar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />}Anexar PDF
         </button>
       </div>
-      <TabelaPadrao id="monit:certidoes" colunas={COLUNAS} linhas={linhasDaEsfera(c, sitfis)} ariaLabel={`Certidões: ${c.rotulo}`} vazio="Nenhuma certidão desta esfera guardada." tamanhoInicial={10}
+      <TabelaPadrao id="monit:certidoes" colunas={COLUNAS} linhas={linhasDaEsfera(c, sitfis)} ariaLabel={`Certidões: ${c.rotulo}`} vazio="Nenhuma certidão." tamanhoInicial={10}
         documentos={(l) => (l.doSitfis ? <PdfDoRelatorio dados={sitfis} /> : l.arquivo ? <BotoesDocumento url={`/documentos/arquivos/${l.arquivo.id}/download`} nome={l.arquivo.nome} rotulo={`${c.rotulo} ${l.validade ? String(l.validade).slice(0, 10) : ""}`} /> : <span className="text-[11px] text-muted-foreground">sem PDF</span>)} />
     </div>
   );
@@ -103,11 +102,6 @@ export default function CertidoesCliente({ empresaId }) {
           </TabsContent>
         ))}
       </Tabs>
-      <p className="text-xs text-muted-foreground">
-        {data.emissao_automatica_federal ? "A CND federal é emitida sozinha pela API Consulta CND do Serpro (toda manhã, quando falta ou vence em 15 dias). " : "A CND federal aparece pelo relatório de situação fiscal; para o PDF da própria certidão sair sozinho, contrate a API Consulta CND e informe as chaves em Administração > Integrações. "}
-        {data.emissao_automatica?.TRABALHISTA ? "A CNDT e o CRF do FGTS saem sozinhos pela Infosimples (toda manhã, quando faltam ou vencem). " : "A CNDT e o CRF do FGTS saem sozinhos quando a Infosimples estiver configurada em Administração > Integrações. "}As certidões estaduais e municipais entram pelo PDF baixado no portal, que o InTAX lê (situação, validade e CNPJ) e guarda em Arquivos e documentos, com aviso antes de vencer.
-        {data.empresa.uf ? ` Cliente de ${data.empresa.municipio ? `${data.empresa.municipio}/` : ""}${data.empresa.uf}.` : ""}
-      </p>
     </section>
   );
 }

@@ -41,7 +41,7 @@ describe('VencimentoCertificadosService', () => {
     expect(await t.service.avisarVencimentos()).toEqual({ avisados: 1 });
     const msg = t.mail.enviar.mock.calls[0][0] as { to: string; subject: string; html: string; text: string };
     expect(msg.to).toBe('fiscal@fal.test');
-    expect(msg.subject).toContain('vence em 20 dia(s)');
+    expect(msg.subject).toContain('vence em 20 dias');
     expect(msg.text).toContain('https://simulador.exemplo/bpo/repositorio-xml/E1');
     expect(msg.html).toContain('Empresa &lt;Teste&gt; Ltda');
     expect(t.atualizacoes).toEqual([{ where: { id: 'c1' }, data: { aviso_vencimento_dias: 30 } }]);

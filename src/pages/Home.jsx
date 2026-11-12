@@ -55,7 +55,7 @@ export default function Home() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Planejamento tributário", to: "/area/reforma" }, { label: "Painel executivo" }]}
         title="Painel executivo"
-        subtitle={`Analisando: ${contexto}. Para trocar, use o seletor "Analisar" no painel.`}
+        subtitle={`Analisando: ${contexto}`}
       />
       <PainelExecutivoView
         grupoNumero={grupoNumero || undefined}

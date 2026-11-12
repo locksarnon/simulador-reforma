@@ -14,6 +14,7 @@ import LeituraSitfis, { ResumoSitfis } from "@/components/monitoramento/LeituraS
 import SpedTransmitido from "@/components/monitoramento/SpedTransmitido";
 import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
+import { plural } from "@/lib/plural";
 import { piorNivel, servicosDoGrupo, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
 
 /** Onde emitir as certidões que não vêm pela API (os portais exigem captcha); a validade fica em Arquivos e documentos. */
@@ -34,7 +35,6 @@ function Dispensas({ empresaId, obrigacoes, dispensas }) {
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-2">
       <h3 className="text-sm font-semibold">Obrigações que este cliente não tem</h3>
-      <p className="text-xs text-muted-foreground">Marque para a rotina não consultar e o painel não contar como ausente (ex.: sem empregados, sem DCTFWeb).</p>
       <div className="flex flex-wrap gap-4">
         {(obrigacoes || []).map((o) => (
           <label key={o.id} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={dispensadas.has(o.id)} onChange={() => alternar.mutate({ id: o.id, ativa: dispensadas.has(o.id) })} /> Não tem {o.rotulo}</label>
@@ -81,7 +81,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
         if (!s) return;
         setLote(s);
         qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] });
-        if (!s.fim) setTimeout(passo, 2500); else toast({ title: "Atualização concluída", description: `${s.feitas - s.erros} consulta(s) feitas${s.erros ? `, ${s.erros} com erro` : ""}.` });
+        if (!s.fim) setTimeout(passo, 2500); else toast({ title: "Atualização concluída", description: `${plural(s.feitas - s.erros, "consulta feita", "consultas feitas")}${s.erros ? `, ${s.erros} com erro` : ""}.` });
       };
       setTimeout(passo, 1500);
     },
@@ -102,7 +102,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
         subtitle={[mascararDocumento(doc), pessoaFisica ? "Pessoa física" : dono.data.regime_atual || "Regime não informado"].filter(Boolean).join(" · ")}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            {pontos.length > 0 && <span className={`text-sm font-semibold tabular-nums ${tomDaNota(nota)}`} title="Saúde fiscal: 100 menos 25 por assunto crítico e 8 por assunto em atenção">Saúde fiscal {nota}</span>}
+            {pontos.length > 0 && <span className={`text-sm font-semibold tabular-nums ${tomDaNota(nota)}`} title="Saúde fiscal">Saúde fiscal {nota}</span>}
             {!pessoaFisica && <button type="button" disabled={desligado || atualizarTudo.isPending || (lote && !lote.fim)} onClick={() => atualizarTudo.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
               {lote && !lote.fim ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Atualizar tudo</>}
             </button>}
@@ -118,7 +118,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
             {novidades.data.map((n) => <span key={n.id} className="rounded-full border border-border bg-background px-2 py-0.5">{n.rotulo} em {new Date(n.data_evento).toLocaleDateString("pt-BR", { timeZone: "UTC" })}{n.atendido_em ? " · consultado" : ""}</span>)}
           </div>
         )}
-        {!pessoaFisica && !dono.data.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Sem regime no cadastro: aparecem todos os serviços. Preencha o regime na <Link to={`/clientes/${empresaId}`} className="underline">ficha do cliente</Link> para ver só os que se aplicam.</p>}
+        {!pessoaFisica && !dono.data.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Sem regime no cadastro: aparecem todos os serviços. <Link to={`/clientes/${empresaId}`} className="underline">Ficha do cliente</Link></p>}
         <Tabs value={abaAtiva} onValueChange={setAba} className="space-y-4">
           <TabsList className="flex h-auto flex-wrap justify-start">
             {grupos.map((g) => <TabsTrigger key={g.id} value={g.id} className="gap-1.5">{g.rotulo}{nivelDoGrupo(g.id) && <span className={`h-2 w-2 rounded-full ${nivelDoGrupo(g.id) === "CRITICO" ? "bg-red-500" : nivelDoGrupo(g.id) === "ATENCAO" ? "bg-amber-500" : nivelDoGrupo(g.id) === "OK" ? "bg-emerald-500" : "bg-sky-500"}`} aria-label={nivelDoGrupo(g.id)} />}</TabsTrigger>)}
@@ -130,12 +130,12 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
             // Subabas: o que é lido sozinho do relatório de situação fiscal, cada serviço do assunto e os demais.
             const subabas = [
               ...(g.id === "situacao" && !pessoaFisica ? [{ id: "lido", rotulo: "Situação fiscal", conteudo: <ResumoSitfis empresaId={empresaId} /> }] : []),
-              ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "lido", rotulo: "Receita Federal e PGFN", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Parcelamentos na Receita Federal e na PGFN" filtro={(s) => s.assunto === "PARCELAMENTO"} descricao="Todos os parcelamentos que a Receita e a PGFN listam no relatório (SIPADE, SIEFPAR, SICOB, SISPAR, transações), em dia ou em atraso." vazio="O relatório não traz nenhum parcelamento na Receita Federal nem na PGFN." /> }] : []),
-              ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "lido", rotulo: "Omissões apontadas pela Receita", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} descricao="A Receita aponta no relatório de situação fiscal as declarações federais em falta, por competência." vazio="Nenhuma omissão de declaração: a Receita não aponta declaração federal em falta para este cliente." /> }, { id: "sped", rotulo: "SPED e EFD", conteudo: <SpedTransmitido empresaId={empresaId} /> }] : []),
+              ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "lido", rotulo: "Receita Federal e PGFN", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Parcelamentos na Receita Federal e na PGFN" filtro={(s) => s.assunto === "PARCELAMENTO"} vazio="Nenhum parcelamento na Receita Federal nem na PGFN." /> }] : []),
+              ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "lido", rotulo: "Omissões apontadas pela Receita", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} vazio="Nenhuma omissão de declaração." /> }, { id: "sped", rotulo: "SPED e EFD", conteudo: <SpedTransmitido empresaId={empresaId} /> }] : []),
               ...lista.map((s) => ({ id: s.chave, rotulo: s.rotulo, nivel: ultimas[s.chave]?.sucesso ? ultimas[s.chave].nivel : undefined, conteudo: cartao(s) })),
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "estado-municipio", rotulo: "Estado e município", conteudo: <ParcelamentosPgfn empresaId={empresaId} /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "dispensas", rotulo: "Obrigações que não tem", conteudo: <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} /> }] : []),
-              ...(outros.length ? [{ id: "outros", rotulo: `Outros serviços (${outros.length})`, conteudo: <div className="space-y-3"><p className="text-xs text-muted-foreground">Serviços deste assunto que não costumam valer para o regime do cliente.</p>{outros.map(cartao)}</div> }] : []),
+              ...(outros.length ? [{ id: "outros", rotulo: `Outros serviços (${outros.length})`, conteudo: <div className="space-y-3">{outros.map(cartao)}</div> }] : []),
             ];
             return (
               <TabsContent key={g.id} value={g.id} className="space-y-3">
@@ -158,7 +158,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
             </TabsContent>
           )}
         </Tabs>
-        {dados.data && Object.keys(ultimas).length === 0 && <p className="text-xs text-muted-foreground">Nenhuma consulta feita ainda. Use "Atualizar tudo" ou consulte cada assunto.</p>}
+        {dados.data && Object.keys(ultimas).length === 0 && <p className="text-xs text-muted-foreground">Nenhuma consulta.</p>}
         <p className="text-xs text-muted-foreground"><SeloNivel nivel="CRITICO" /> pede ação agora · <SeloNivel nivel="ATENCAO" /> vale olhar · <SeloNivel nivel="OK" /> em dia · <SeloNivel nivel="INFO" /> informativo.</p>
       </div>
     </div>

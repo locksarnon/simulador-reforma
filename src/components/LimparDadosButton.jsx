@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
+import { plural } from "@/lib/plural";
 import {
   AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -42,7 +43,7 @@ export default function LimparDadosButton({ tela, grupoId, empresaId, rotulo = "
     try {
       const r = await api.post("/limpeza/executar", { ...corpo, confirmacao: frase });
       qc.invalidateQueries();
-      toast({ title: "Dados apagados", description: r.arquivos_com_falha ? `${r.arquivos_com_falha} arquivo(s) não saíram do armazenamento.` : undefined });
+      toast({ title: "Dados apagados", description: r.arquivos_com_falha ? `${plural(r.arquivos_com_falha, "arquivo não saiu", "arquivos não saíram")} do armazenamento.` : undefined });
       setAberto(false);
     } catch (e) {
       toast({ title: "Não foi possível apagar", description: e.message, variant: "destructive" });

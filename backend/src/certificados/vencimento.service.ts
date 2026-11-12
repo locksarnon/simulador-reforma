@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatarDocumento } from './certificados.service';
+import { plural } from '../common/plural';
 
 /** Dias que faltam para o vencimento em que o aviso é enviado (0 = vence hoje ou já venceu). */
 export const LIMIARES_AVISO = [30, 15, 7, 1, 0];
@@ -46,7 +47,7 @@ export class VencimentoCertificadosService {
       if (limiar === null) continue;
       const empresa = await this.prisma.empresa.findUnique({ where: { id: c.empresa_id }, select: { razao_social: true } });
       const link = `${this.mail.urlPublica}/bpo/repositorio-xml/${c.empresa_id}`;
-      const quando = dias < 0 ? `venceu há ${-dias} dia(s)` : dias === 0 ? 'vence hoje' : `vence em ${dias} dia(s)`;
+      const quando = dias < 0 ? `venceu há ${plural(-dias, 'dia', 'dias')}` : dias === 0 ? 'vence hoje' : `vence em ${plural(dias, 'dia', 'dias')}`;
       const nome = empresa?.razao_social ?? c.titular;
       const r = await this.mail.enviar({
         to: this.mail.emailInterno,

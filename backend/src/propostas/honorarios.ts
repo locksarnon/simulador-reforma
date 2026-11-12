@@ -1,3 +1,4 @@
+import { plural } from '../common/plural';
 /**
  * Calculadora de honorários do BPO fiscal. A tabela (valores) é do escritório: fica em ParametroSistema e o administrador muda
  * pela tela. Os valores iniciais são de EXEMPLO, para a tela funcionar; a tela avisa enquanto ninguém salvou a tabela.
@@ -47,8 +48,8 @@ export function calcularHonorarioMensal(t: TabelaHonorarios, e: EntradaHonorario
   return {
     parcelas: [
       { descricao: `Base do regime (${e.regime || 'não informado'})`, valor: centavos(base) },
-      ...(volume ? [{ descricao: `${notasExtras} nota(s) acima da franquia de ${t.franquia_notas}`, valor: centavos(volume) }] : []),
-      ...(estabelecimentos ? [{ descricao: `${n(e.estabelecimentos) - 1} estabelecimento(s) a mais`, valor: centavos(estabelecimentos) }] : []),
+      ...(volume ? [{ descricao: `${plural(notasExtras, 'nota', 'notas')} acima da franquia de ${t.franquia_notas}`, valor: centavos(volume) }] : []),
+      ...(estabelecimentos ? [{ descricao: `${plural(n(e.estabelecimentos) - 1, 'estabelecimento', 'estabelecimentos')} a mais`, valor: centavos(estabelecimentos) }] : []),
       ...(modulos ? [{ descricao: `Módulos do BPO (${(e.modulos ?? []).join(', ')})`, valor: centavos(modulos) }] : []),
     ],
     fator,

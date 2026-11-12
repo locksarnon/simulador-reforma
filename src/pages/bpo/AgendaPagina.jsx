@@ -108,7 +108,7 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
         ))}
         {(camadas.isFetching || reforma.isFetching) && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Carregando" />}
       </div>
-      {regimeSemCadastro && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Esta empresa não tem regime no cadastro: aparecem todas as obrigações (federais e da UF do cliente). Preencha o regime na ficha do cliente (Clientes).</p>}
+      {regimeSemCadastro && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">Sem regime no cadastro: aparecem todas as obrigações.</p>}
       {camadas.error && <p role="alert" className="text-sm">Não foi possível carregar o calendário. <button type="button" onClick={() => camadas.refetch()} className="text-primary hover:underline">Tentar de novo</button></p>}
 
       {visao === "mes" && (
@@ -141,7 +141,6 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
       )}
       {visao === "dia" && <ListaDoDia dia={dia} itens={mapa.get(dia) || []} aoAbrir={abrir} aoNovo={(x) => setDialogo({ evento: null, dia: x })} />}
 
-      <p className="text-xs text-muted-foreground">Tarefas, obrigações, datas da Reforma e certificados vêm dos seus módulos; para mudar, use o módulo. Clique num evento para editar.</p>
       {dialogo && <DialogoEvento key={dialogo.evento?.id || dialogo.dia} evento={dialogo.evento} diaInicial={dialogo.dia} tipos={tipos} empresas={empresas} colaboradores={colaboradores} usuario={usuario} empresaInicial={empresa} aoFechar={() => setDialogo(null)} />}
     </div>
   );
@@ -159,7 +158,7 @@ function AbaObrigacoes({ empresas }) {
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Mês do vencimento</span><input type="month" className={campo} value={mes} onChange={(e) => setMes(e.target.value)} /></label>
         <div className="w-72"><SeletorDeEmpresa empresas={empresas} valor={empresa} aoMudar={setEmpresa} rotulo="Empresa (filtra pelo regime)" opcional={false} placeholder="Todas as obrigações" /></div>
       </div>
-      {data?.empresa && !data.empresa.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{data.empresa.razao_social} não tem regime no cadastro: aparecem todas as obrigações. Preencha o regime na ficha do cliente (Clientes).</p>}
+      {data?.empresa && !data.empresa.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{data.empresa.razao_social}: sem regime no cadastro, aparecem todas as obrigações.</p>}
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-[13px] leading-5" aria-label="Obrigações do mês">
           <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Data</th><th className="px-3 py-2">Obrigação</th><th className="px-3 py-2">Competência</th><th className="px-3 py-2">Vale para</th><th className="px-3 py-2">Fonte oficial</th></tr></thead>
@@ -191,7 +190,7 @@ function AbaObrigacoes({ empresas }) {
       {data?.empresas && (
         <div className="rounded-xl border border-border bg-card p-3 space-y-2">
           <h2 className="font-heading text-sm font-semibold">Empresas do BPO fiscal neste mês</h2>
-          {data.empresas.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma empresa no BPO fiscal ainda. <Link to="/clientes/servicos-contratados" className="text-primary hover:underline">Defina a carteira</Link>.</p>}
+          {data.empresas.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma empresa no BPO fiscal. <Link to="/clientes/servicos-contratados" className="text-primary hover:underline">Defina a carteira</Link>.</p>}
           <ul className="divide-y divide-border/60">
             {data.empresas.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
@@ -204,8 +203,7 @@ function AbaObrigacoes({ empresas }) {
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        Datas calculadas pela regra de cada norma. Sábado, domingo, feriados nacionais fixos (Lei nº 662/1949, Lei nº 6.802/1980 e Lei nº 14.759/2023), segunda e terça de carnaval e Corpus Christi (Resolução CMN nº 4.880/2020, sem expediente bancário) movem a data conforme a norma manda (antecipar ou prorrogar).
-        Feriados estaduais e municipais e os pontos facultativos não entram: confira a data na sua praça. Regra sem fonte oficial confirmada aparece como "não confirmado".
+        Feriados estaduais e municipais não entram: confira a data na sua praça.
       </p>
     </div>
   );
@@ -260,7 +258,6 @@ export default function AgendaPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Obrigações e agenda" }]}
         title="Obrigações e agenda"
-        subtitle="O calendário do escritório: eventos próprios, tarefas com prazo, obrigações federais e estaduais (pela UF dos clientes), datas da Reforma e certificados vencendo."
       />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue="calendario" className="space-y-4">

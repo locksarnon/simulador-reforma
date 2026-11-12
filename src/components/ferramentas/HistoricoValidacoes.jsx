@@ -53,9 +53,7 @@ export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div>
-        <h3 className="font-heading font-semibold text-sm">Análises realizadas</h3>
-        <p className="text-xs text-muted-foreground">Cada planilha enviada é salva automaticamente desde o upload. Retome um rascunho de onde parou, reabra o resultado ou ajuste os parâmetros e refaça.</p>
-      </div>
+        <h3 className="font-heading font-semibold text-sm">Análises realizadas</h3>      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead><tr className="text-left text-muted-foreground border-b border-border"><Th chave="atualizada" ord={ord} onOrdenar={ordenar} className="py-1.5 pr-3">Atualizada</Th><Th chave="situacao" ord={ord} onOrdenar={ordenar} className="pr-3">Situação</Th><Th chave="arquivo" ord={ord} onOrdenar={ordenar} className="pr-3">Arquivo</Th><Th chave="parametros" ord={ord} onOrdenar={ordenar} className="pr-3">Parâmetros</Th><Th chave="enviado" ord={ord} onOrdenar={ordenar} className="pr-3">Enviado por</Th><Th chave="total" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Itens</Th><Th chave="ok" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">OK</Th><Th chave="alerta" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Atenção</Th><Th chave="erro" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Corrigir</Th><th /></tr></thead>

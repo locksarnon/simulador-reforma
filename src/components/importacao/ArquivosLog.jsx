@@ -1,6 +1,7 @@
 import React from "react";
 import { FileText, AlertTriangle, CheckCircle2, XCircle, Minus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/plural";
 
 const SITUACAO_CONFIG = {
   AUTORIZADO: { label: "Autorizado", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
@@ -24,7 +25,7 @@ export default function ArquivosLog({ arquivos }) {
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-5 py-3 border-b border-border">
         <h3 className="font-heading font-medium text-sm">Log de Arquivos</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">{arquivos.length} arquivo(s) processado(s)</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{plural(arquivos.length, "arquivo processado", "arquivos processados")}</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">

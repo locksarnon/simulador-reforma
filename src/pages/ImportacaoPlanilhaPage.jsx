@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { BRL, pct } from "@/lib/format";
+import { plural } from "@/lib/plural";
 import {
   CAMPOS_ESSENCIAIS, OPCOES_INICIAIS, colunasRepetidas, faltaIndicar, mapeamentoParaEnvio, opcoesParaEnvio, podeConferir, rotuloDoCampo,
 } from "@/lib/planilhaOperacoes";
@@ -123,7 +124,7 @@ export default function ImportacaoPlanilhaPage() {
       const r = await api.upload("/operacoes-planilha/importar", arquivo, campos());
       setResultado(r); setConferencia(null);
       qc.invalidateQueries();
-      toast({ title: "Planilha importada", description: `${r.importadas} operação(ões) criada(s).` });
+      toast({ title: "Planilha importada", description: `${plural(r.importadas, "operação criada", "operações criadas")}.` });
     } catch (e) {
       setErro(e.message || "Não consegui importar a planilha.");
     } finally { setOcupado(null); }
@@ -177,7 +178,7 @@ export default function ImportacaoPlanilhaPage() {
               </Button>
               {arquivo && previa && (
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <FileSpreadsheet className="w-4 h-4" /> {arquivo.name} · {previa.total.toLocaleString("pt-BR")} linha(s) · {previa.cabecalho.length} coluna(s)
+                  <FileSpreadsheet className="w-4 h-4" /> {arquivo.name} · {plural(previa.total, "linha", "linhas")} · {plural(previa.cabecalho.length, "coluna", "colunas")}
                 </p>
               )}
             </div>
@@ -304,7 +305,7 @@ export default function ImportacaoPlanilhaPage() {
               )}
               {Object.keys(conferencia.padroes || {}).length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Preenchido pela tabela da legislação: {Object.entries(conferencia.padroes).map(([k, n]) => `${k} em ${n} linha(s)`).join(" · ")}. Confira na operação o que for diferente do real.
+                  Preenchido pela tabela da legislação: {Object.entries(conferencia.padroes).map(([k, n]) => `${k} em ${plural(n, "linha", "linhas")}`).join(" · ")}. Confira na operação o que for diferente do real.
                 </p>
               )}
               {(conferencia.alertas || []).map((a) => (
@@ -360,9 +361,9 @@ export default function ImportacaoPlanilhaPage() {
               <div className="flex items-center gap-3 flex-wrap">
                 <Button onClick={importar} disabled={conferencia.novas === 0 || !!ocupado} className="gap-2">
                   {ocupado === "importando" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  Importar {conferencia.novas.toLocaleString("pt-BR")} operação(ões)
+                  Importar {plural(conferencia.novas, "operação", "operações")}
                 </Button>
-                {conferencia.comErro > 0 && <p className="text-xs text-muted-foreground">As {conferencia.comErro.toLocaleString("pt-BR")} linha(s) com erro não serão importadas. Corrija na planilha e envie de novo: as linhas iguais às já importadas são ignoradas e só as corrigidas entram.</p>}
+                {conferencia.comErro > 0 && <p className="text-xs text-muted-foreground">{plural(conferencia.comErro, "linha com erro não será importada", "linhas com erro não serão importadas")}. Corrija e envie de novo.</p>}
               </div>
             </section>
           )}
@@ -370,10 +371,10 @@ export default function ImportacaoPlanilhaPage() {
           {/* 5. Resultado */}
           {resultado && (
             <section className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/20 p-4 space-y-2" role="status">
-              <p className="text-sm font-medium flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600" /> {resultado.importadas.toLocaleString("pt-BR")} operação(ões) importada(s).</p>
+              <p className="text-sm font-medium flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600" /> {plural(resultado.importadas, "operação importada", "operações importadas")}.</p>
               <p className="text-xs text-muted-foreground">
                 {resultado.jaExistiam > 0 && `${resultado.jaExistiam} já existiam e foram mantidas${resultado.jaExistiamPorXml > 0 ? ` (${resultado.jaExistiamPorXml} são notas que já entraram pelo XML)` : ""}. `}
-                {resultado.comErro > 0 && `${resultado.comErro} linha(s) com erro ficaram de fora. `}
+                {resultado.comErro > 0 && `${plural(resultado.comErro, "linha com erro ficou", "linhas com erro ficaram")} de fora. `}
               </p>
               <p className="text-xs text-muted-foreground">
                 Importou com a coluna errada? Apague as operações importadas em Operações (cada uma traz “Importado da planilha” e o código do arquivo na observação) e envie de novo.

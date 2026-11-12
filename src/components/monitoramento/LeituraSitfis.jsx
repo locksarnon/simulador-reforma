@@ -47,7 +47,7 @@ export function resumoPorOrgao(leitura) {
 export function ResumoSitfis({ empresaId }) {
   const { data, isLoading } = useLeituraSitfis(empresaId);
   if (isLoading) return <p className="text-xs text-muted-foreground">Lendo o relatório de situação fiscal…</p>;
-  if (!data) return <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Ainda não há relatório de situação fiscal deste cliente: consulte na subaba "Relatório de situação fiscal" ou use Atualizar tudo.</p>;
+  if (!data) return <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Sem relatório de situação fiscal.</p>;
   const linhas = resumoPorOrgao(data.leitura);
   const colunas = [
     { chave: "orgao", rotulo: "Órgão", quebrar: false },
@@ -58,7 +58,7 @@ export function ResumoSitfis({ empresaId }) {
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="Situação fiscal">
       {data.leitura?.certidao && <p className="text-sm">Certidão no relatório: <strong>{data.leitura.certidao.tipo}</strong>{data.leitura.certidao.validade ? `, válida até ${data.leitura.certidao.validade}` : ""}.</p>}
-      {!data.leitura && <p className="text-xs text-muted-foreground">O relatório guardado não pôde ser lido automaticamente. Abra o PDF oficial.</p>}
+      {!data.leitura && <p className="text-xs text-muted-foreground">Leitura indisponível: veja o PDF.</p>}
       <TabelaPadrao id="monit:sitfis-resumo" colunas={colunas} linhas={linhas} ariaLabel="Situação fiscal por órgão" tamanhoInicial={10} documentos={() => <PdfDoRelatorio dados={data} />} />
     </section>
   );
@@ -68,7 +68,7 @@ export function ResumoSitfis({ empresaId }) {
  * Itens lidos do Relatório de Situação Fiscal (Receita Federal e PGFN), em tabela, sem nada digitado à mão.
  * `filtro` escolhe as seções (ex.: só parcelamentos, só omissões); `vazio` é o texto quando o relatório não traz nada daquilo.
  */
-export default function LeituraSitfis({ empresaId, titulo, filtro = () => true, vazio, descricao }) {
+export default function LeituraSitfis({ empresaId, titulo, filtro = () => true, vazio }) {
   const { data, isLoading } = useLeituraSitfis(empresaId);
   const linhas = useMemo(() => linhasDaLeitura(data?.leitura, filtro), [data, filtro]);
   if (isLoading) return <p className="text-xs text-muted-foreground">Lendo o relatório de situação fiscal…</p>;
@@ -84,13 +84,12 @@ export default function LeituraSitfis({ empresaId, titulo, filtro = () => true, 
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold"><FileText className="h-4 w-4 text-primary" aria-hidden="true" />{titulo}</h3>
           <p className="text-xs text-muted-foreground">
-            {descricao}{" "}
-            {data ? `Fonte: relatório de situação fiscal da Receita e da PGFN (Integra Contador), consultado em ${quandoConsultou(data.consultado_em)}${data.simulado ? " (demonstração)" : ""}.` : "Ainda não há relatório de situação fiscal deste cliente: consulte na aba Situação fiscal (ou use Atualizar tudo)."}
+            {data ? `Relatório de situação fiscal de ${quandoConsultou(data.consultado_em)}${data.simulado ? " (demonstração)" : ""}` : "Sem relatório de situação fiscal."}
           </p>
           {data?.leitura?.certidao && <p className="mt-1 text-xs">Certidão no relatório: <strong>{data.leitura.certidao.tipo}</strong>{data.leitura.certidao.validade ? `, válida até ${data.leitura.certidao.validade}` : ""}.</p>}
         </div>
       </div>
-      {data && !data.leitura && <p className="text-xs text-muted-foreground">O relatório guardado não pôde ser lido automaticamente. Abra o PDF oficial.</p>}
+      {data && !data.leitura && <p className="text-xs text-muted-foreground">Leitura indisponível: veja o PDF.</p>}
       {data?.leitura && linhas.length === 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"><span className="flex-1">{vazio}</span><PdfDoRelatorio dados={data} /></div>
       ) : data?.leitura ? (

@@ -33,7 +33,7 @@ export default function IntegracoesCertidoes() {
   const botao = "inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60";
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-4 md:col-span-2 xl:col-span-3" aria-label="Certidões sem API oficial">
-      <h2 className="font-heading text-sm font-semibold">Certidões sem API oficial (pré-análise e certidões dos clientes)</h2>
+      <h2 className="font-heading text-sm font-semibold">Certidões sem API oficial</h2>
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -41,11 +41,11 @@ export default function IntegracoesCertidoes() {
           <h3 className="text-sm font-medium">CNDT (TST) e CRF do FGTS (Caixa): Infosimples</h3>
           <span className={`rounded-full px-2 py-0.5 text-xs ${i?.configurado ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>{i?.configurado ? "Configurada" : "Não configurada"}</span>
         </div>
-        <p className="text-xs text-muted-foreground">O TST e a Caixa não oferecem API. A Infosimples emite a certidão no portal oficial e devolve a situação, a validade e o documento. Cada consulta é cobrada por ela. Crie a conta em infosimples.com e cole aqui o token (Área do cliente). O token fica cifrado no cofre.{i?.atualizado_em ? ` Último ajuste em ${quando(i.atualizado_em)}${i.atualizado_por ? ` por ${i.atualizado_por}` : ""}.` : ""}</p>
+        {i?.atualizado_em && <p className="text-xs text-muted-foreground">Último ajuste em {quando(i.atualizado_em)}{i.atualizado_por ? ` por ${i.atualizado_por}` : ""}.</p>}
         <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (token.trim()) salvar.mutate(); }}>
           <input type="password" autoComplete="off" className={campo} value={token} onChange={(e) => setToken(e.target.value)} placeholder={i?.configurado ? "Colar um token novo para trocar" : "Token da Infosimples"} aria-label="Token da Infosimples" />
           <button type="submit" disabled={!token.trim() || salvar.isPending} className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Guardar</button>
-          {i?.configurado && <button type="button" disabled={remover.isPending} onClick={() => { if (window.confirm("Remover o token da Infosimples? A CNDT e o CRF voltam a depender do anexo do PDF.")) remover.mutate(); }} className={botao}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Remover</button>}
+          {i?.configurado && <button type="button" disabled={remover.isPending} onClick={() => { if (window.confirm("Remover o token da Infosimples?")) remover.mutate(); }} className={botao}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Remover</button>}
         </form>
       </div>
 
@@ -54,7 +54,6 @@ export default function IntegracoesCertidoes() {
           <FileSearch className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <h3 className="text-sm font-medium">SPED transmitido (EFD-Contribuições e EFD ICMS/IPI): ReceitanetBX</h3>
         </div>
-        <p className="text-xs text-muted-foreground">O InTAX usa o ReceitanetBX-Serviço, programa oficial da Receita, para saber o que foi transmitido. São dois certificados A1: o primário (a empresa) e o secundário (o sócio). O InTAX consulta os dois e junta o resultado, então vale a procuração eletrônica que cada cliente deu a um deles. Envie o arquivo e a senha: o serviço se configura sozinho em cerca de um minuto.</p>
         <div className="grid gap-3 md:grid-cols-2">
           {(bx.data || []).map((s) => <CertificadoBx key={s.id} s={s} aoMudar={() => bx.refetch()} />)}
         </div>
@@ -69,7 +68,7 @@ function CertificadoBx({ s, aoMudar }) {
   const [senha, setSenha] = useState("");
   const enviar = useMutation({
     mutationFn: () => api.upload(`/integracoes/receitanetbx/${s.id}`, arquivo, { senha }),
-    onSuccess: () => { setArquivo(null); setSenha(""); aoMudar(); toast({ title: `${s.rotulo}: certificado enviado`, description: "O ReceitanetBX está se configurando; a situação muda sozinha em cerca de um minuto." }); },
+    onSuccess: () => { setArquivo(null); setSenha(""); aoMudar(); toast({ title: `${s.rotulo}: certificado enviado`, description: "Configurando (cerca de 1 minuto)." }); },
     onError: falhar("Não foi possível enviar o certificado"),
   });
   const ultima = s.ultima_configuracao;
@@ -86,7 +85,7 @@ function CertificadoBx({ s, aoMudar }) {
         <span className={`rounded-full px-2 py-0.5 text-xs ${situacao[1]}`}>{situacao[0]}</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        {t ? <>Certificado de <strong className="text-foreground">{t.titular}</strong>, válido até {new Date(t.valido_ate).toLocaleDateString("pt-BR")}; enviado em {quando(t.enviado_em)}{t.enviado_por ? ` por ${t.enviado_por}` : ""}.</> : "Nenhum certificado enviado por aqui."}
+        {t ? <>Certificado de <strong className="text-foreground">{t.titular}</strong>, válido até {new Date(t.valido_ate).toLocaleDateString("pt-BR")}; enviado em {quando(t.enviado_em)}{t.enviado_por ? ` por ${t.enviado_por}` : ""}.</> : "Nenhum certificado."}
         {ultima && !ultima.ok ? ` ${ultima.mensagem}` : ""}
       </p>
       <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (arquivo && senha) enviar.mutate(); }}>

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { api } from "@/api/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { plural } from "@/lib/plural";
 
 const MAX_FILES = 5000;
 const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -90,7 +91,7 @@ export function useImportacaoXML(grupoId) {
         setSelectedFiles(falhas.map((x) => x.arquivo));
         const nomes = falhas.slice(0, 5).map((x) => x.arquivo.name).join(", ");
         setError(
-          `${falhas.length} arquivo(s) não foram enviados (${nomes}${falhas.length > 5 ? "…" : ""}). ` +
+          `${plural(falhas.length, "arquivo não foi enviado", "arquivos não foram enviados")} (${nomes}${falhas.length > 5 ? "…" : ""}). ` +
           (arquivosRefs.length > 0 ? `Os outros ${arquivosRefs.length} seguem em processamento — clique em enviar de novo para reenviar só estes.` : "Confira a conexão e clique em enviar de novo: só estes serão reenviados.")
         );
         if (arquivosRefs.length === 0) return;

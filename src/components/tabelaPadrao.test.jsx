@@ -43,7 +43,7 @@ describe("tabela padrão do InTAX", () => {
     expect(html).toContain("Colunas");
     const cab = html.match(/<thead[\s\S]*?<\/tr>/)[0];
     expect(cab.lastIndexOf("Documentos")).toBeGreaterThan(cab.lastIndexOf("Competência"));
-    expect(html).toContain("3 linha(s)");
+    expect(html).toContain("3 linhas");
   });
 });
 
@@ -67,7 +67,7 @@ describe("relatório de situação fiscal e certidões em tabela", () => {
   it("a esfera federal junta as certidões guardadas e a do relatório de situação fiscal, com a vigência pela validade", () => {
     const c = { tipo: "FEDERAL", historico: [{ id: "D1", descricao: "CND federal (Receita e PGFN): Negativa (API Consulta CND)", validade: "2027-01-10T12:00:00Z", situacao: "VALIDO" }] };
     const l = linhasDaEsfera(c, { leitura });
-    expect(l.map((x) => [x.regularidade, x.origem ?? ""])).toEqual([["Negativa", ""], ["Certidão Negativa", "Relatório de situação fiscal (Receita e PGFN)"]]);
+    expect(l.map((x) => [x.regularidade, x.origem ?? ""])).toEqual([["Negativa", ""], ["Certidão Negativa", "Relatório de situação fiscal"]]);
     expect(l[1].validade).toBe("2026-12-22");
     expect(situacaoPelaValidade("2026-12-22", Date.parse("2026-11-12T12:00:00-03:00"))).toBe("VALIDO");
     expect(situacaoPelaValidade("2026-11-20", Date.parse("2026-11-12T12:00:00-03:00"))).toBe("A_VENCER");

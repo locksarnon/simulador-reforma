@@ -23,6 +23,7 @@ import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa 
 import { contarRapidos, filtrarClientes, FILTROS_RAPIDOS, grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
 import { SITUACOES, TIPOS } from "@/lib/servicos";
 import { arquivarCliente, CHAVES_APOS_ARQUIVAR, desarquivarCliente, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
+import { plural, palavra } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const FILTROS_VAZIOS = { busca: "", rapido: "todos", regime: "", uf: "", tags: [], tagModo: "qualquer", colaborador: "" };
@@ -124,7 +125,7 @@ export default function ClientesPagina() {
     const alvo = [...selecionadas];
     const desarquivar = vendoArquivados;
     const nomes = alvo.slice(0, 5).map((e) => e.razao_social).join("; ") + (alvo.length > 5 ? ` e mais ${alvo.length - 5}` : "");
-    if (!(await confirmar({ titulo: `${desarquivar ? "Desarquivar" : "Arquivar"} ${alvo.length} cliente(s)?`, descricao: `${nomes}. ${desarquivar ? "Eles voltam às listas; os serviços continuam pausados até você ligar de novo." : TEXTO_ARQUIVAR}`, rotulo: desarquivar ? "Desarquivar" : "Arquivar" }))) return;
+    if (!(await confirmar({ titulo: `${desarquivar ? "Desarquivar" : "Arquivar"} ${plural(alvo.length, "cliente", "clientes")}?`, descricao: `${nomes}. ${desarquivar ? "Eles voltam às listas; os serviços continuam pausados até você ligar de novo." : TEXTO_ARQUIVAR}`, rotulo: desarquivar ? "Desarquivar" : "Arquivar" }))) return;
     const falhas = [];
     setExcluindo({ feitas: 0, total: alvo.length });
     for (const [i, e] of alvo.entries()) {
@@ -133,7 +134,7 @@ export default function ClientesPagina() {
     }
     setExcluindo(null); setMarcadas(new Set());
     CHAVES_APOS_ARQUIVAR.forEach((k) => qc.invalidateQueries({ queryKey: k })); recarregar();
-    toast(falhas.length ? { title: `${alvo.length - falhas.length} feito(s); ${falhas.length} não`, description: `Não mudaram: ${falhas.join("; ")}.`, variant: "destructive" } : { title: `${alvo.length} cliente(s) ${desarquivar ? "desarquivado(s)" : "arquivado(s)"}` });
+    toast(falhas.length ? { title: `${alvo.length - falhas.length} de ${alvo.length} feitos`, description: `Não mudaram: ${falhas.join("; ")}.`, variant: "destructive" } : { title: `${plural(alvo.length, "cliente", "clientes")} ${desarquivar ? palavra(alvo.length, "desarquivado", "desarquivados") : palavra(alvo.length, "arquivado", "arquivados")}` });
   };
 
   const colunasExport = [
@@ -152,7 +153,6 @@ export default function ClientesPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes" }]}
         title={`Clientes${empresas.length ? ` · ${empresas.length}` : ""}`}
-        subtitle="Todos os clientes do escritório numa lista só. Marque os serviços de cada um na própria linha."
         actions={(
           <div className="flex flex-wrap gap-2">
             <Link to="/clientes/importacao" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Upload className="h-4 w-4" aria-hidden="true" /> Planilha cadastral</Link>
@@ -189,7 +189,7 @@ export default function ClientesPagina() {
 
         {selecionadas.length > 0 && (
           <div role="status" className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm">
-            <span className="font-medium">{selecionadas.length} marcado(s)</span>
+            <span className="font-medium">{plural(selecionadas.length, "marcado", "marcados")}</span>
             <button type="button" onClick={() => setDialogo({ empresas: selecionadas, servico: null, tipoInicial: "BPO_FISCAL" })} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Ligar BPO fiscal</button>
             <button type="button" onClick={() => setDialogo({ empresas: selecionadas, servico: null, tipoInicial: "DIAGNOSTICO_PONTUAL" })} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Ligar diagnóstico</button>
             <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
@@ -241,7 +241,7 @@ export default function ClientesPagina() {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground">{lista.length} de {empresas.length} cliente(s). Clique no nome para ver a ficha; no "+" para ligar um serviço.</p>
+        <p className="text-xs text-muted-foreground">{lista.length} de {plural(empresas.length, "cliente", "clientes")}</p>
       </div>
 
       <FichaRapida

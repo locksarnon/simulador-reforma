@@ -71,7 +71,6 @@ export default function BaseLegalPage() {
       <div className="p-6 lg:p-8 space-y-6">
         <div>
           <h1 className="text-xl font-heading font-semibold flex items-center gap-2"><Scale className="w-5 h-5" /> Base legal</h1>
-          <p className="text-sm text-muted-foreground mt-1">Texto integral das normas da Reforma Tributária do Consumo, capturado das fontes oficiais e organizado por artigo. Use a busca para achar o dispositivo e a base legal de uma resposta.</p>
         </div>
 
         <Link to="/base-legal/guia-art-11" className="block rounded-xl border border-border bg-card p-4 hover:border-primary"><strong>Guia do Artigo 11</strong><p className="text-sm text-muted-foreground mt-1">Consulte o local de incidência do IBS por tipo de operação.</p></Link>
@@ -80,7 +79,7 @@ export default function BaseLegalPage() {
 
         {admin && <RevisoesPendentes />}
 
-        <section className="space-y-3"><h2 className="text-sm font-medium">Explorar por setor</h2><div className="flex flex-wrap gap-2"><button type="button" aria-pressed={!setorId} onClick={() => setSetorId('')} className={!setorId ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm'}>Todos</button>{SETORES_BASE_LEGAL.map(s => <button key={s.id} type="button" aria-pressed={setorId === s.id} onClick={() => setSetorId(s.id)} className={setorId === s.id ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm hover:bg-muted'}>{s.nome}</button>)}</div><p className="text-xs text-muted-foreground">O setor prioriza perguntas e respostas revisadas por palavras-chave, sem usar IA. As normas permanecem acessíveis para todos os setores.</p>{setor && <button type="button" onClick={() => setQ(setor.busca)} className="text-primary text-sm underline">Buscar dispositivos sobre {setor.nome}</button>}</section>
+        <section className="space-y-3"><h2 className="text-sm font-medium">Explorar por setor</h2><div className="flex flex-wrap gap-2"><button type="button" aria-pressed={!setorId} onClick={() => setSetorId('')} className={!setorId ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm'}>Todos</button>{SETORES_BASE_LEGAL.map(s => <button key={s.id} type="button" aria-pressed={setorId === s.id} onClick={() => setSetorId(s.id)} className={setorId === s.id ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm hover:bg-muted'}>{s.nome}</button>)}</div>{setor && <button type="button" onClick={() => setQ(setor.busca)} className="text-primary text-sm underline">Buscar dispositivos sobre {setor.nome}</button>}</section>
         <AssistenteLegal key={setorId} admin={admin} setor={setor} />
 
         <CartoesLegais admin={admin} setor={setor} />

@@ -46,19 +46,19 @@ describe('leitura das respostas oficiais de demonstração', () => {
   it('PGDAS-D: competências, DAS não pago e declaração', () => {
     const r = ler('CONSDECLARACAO13');
     expect(r.tabela?.linhas.length).toBe(12);
-    expect(r.titulo).toMatch(/12 competência\(s\) em 2018/);
+    expect(r.titulo).toMatch(/12 competências em 2018/);
     expect(['ATENCAO', 'OK', 'CRITICO']).toContain(r.nivel);
   });
   it('caixa postal: conta não lidas e relevantes e troca a variável do assunto', () => {
     const r = ler('MSGCONTRIBUINTE61');
-    expect(r.titulo).toMatch(/50 mensagem\(ns\)/);
+    expect(r.titulo).toMatch(/50 mensagens; 10 não lidas/);
     expect(JSON.stringify(r.tabela?.linhas)).not.toContain('++VARIAVEL++');
     expect(['CRITICO', 'ATENCAO']).toContain(r.nivel);
   });
   it('dívida ativa do MEI é crítica, com o total', () => {
     const r = ler('DIVIDAATIVA24');
     expect(r.nivel).toBe('CRITICO');
-    expect(r.titulo).toMatch(/débito\(s\) em dívida ativa, total R\$/);
+    expect(r.titulo).toMatch(/débitos em dívida ativa, total R\$/);
   });
   it('guias e relatórios: o PDF sai da resposta e vira arquivo', () => {
     for (const s of ['GERARDAS12', 'RELATORIOSITFIS92', 'GERARGUIA31', 'CONSULTIMADECREC14', 'EMITIRCCMEI121', 'GERARDASPDF21', 'GERARDAS161']) {
@@ -74,7 +74,7 @@ describe('leitura das respostas oficiais de demonstração', () => {
     expect(ler('PEDIDOSPARC163').tabela?.linhas.length).toBe(6);
     const p = ler('PARCELASPARAGERAR162');
     expect(p.nivel).toBe('ATENCAO');
-    expect(p.titulo).toMatch(/7 parcela\(s\) para emitir/);
+    expect(p.titulo).toMatch(/7 parcelas para emitir/);
   });
   it('procuração vencida é crítica; datas no formato brasileiro', () => {
     expect(ler('OBTERPROCURACAO41').nivel).toBe('CRITICO');

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AVISO_CUSTODIA_SO_ADMIN, empresasComCustodiaXml } from '../common/custodia-xml';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { plural } from '../common/plural';
 
 /**
  * Nomes de entidade expostos via /entities/:model — espelham exatamente os
@@ -171,7 +172,7 @@ export class EntitiesService {
     const g = await this.prisma.grupo.findUnique({ where: { id } });
     if (!g) return;
     const n = await this.prisma.empresa.count({ where: { grupo: g.numero } });
-    if (n > 0) throw new ForbiddenException(`O grupo tem ${n} empresa(s). Clientes não são excluídos: mova as empresas para outro grupo ou arquive-as.`);
+    if (n > 0) throw new ForbiddenException(`O grupo tem ${plural(n, 'empresa', 'empresas')}: mova-as para outro grupo ou arquive-as.`);
   }
 
   async remove(modelName: string, id: string, user?: { email?: string; role?: string }) {

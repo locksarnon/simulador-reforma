@@ -193,7 +193,7 @@ export class NotificacoesService {
       const faixa = faixaDeVencimento(dias);
       if (faixa === null) continue;
       const empresa = await this.prisma.empresa.findUnique({ where: { id: c.empresa_id }, select: { razao_social: true } });
-      const quando = dias < 0 ? `venceu há ${-dias} dia(s)` : dias === 0 ? 'vence hoje' : `vence em ${dias} dia(s)`;
+      const quando = dias < 0 ? `venceu há ${plural(-dias, 'dia', 'dias')}` : dias === 0 ? 'vence hoje' : `vence em ${plural(dias, 'dia', 'dias')}`;
       criadas += await this.criarParaAdmins({
         tipo: 'CERTIFICADO', titulo: `Certificado A1 de ${empresa?.razao_social ?? c.titular} ${quando}`,
         mensagem: 'Quando vence, a captura de XML do cliente para. Envie o certificado renovado.', link: `/bpo/repositorio-xml/${c.empresa_id}`, chave: `certificado:${c.id}:${faixa}`,

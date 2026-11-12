@@ -8,6 +8,7 @@ import { decodificar, extrairDispositivos, htmlParaTexto, sha256 } from './base-
 import { FONTES_NORMAS } from './fontes';
 import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
 import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
+import { plural } from '../common/plural';
 
 const MESES: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
@@ -202,9 +203,9 @@ export class BaseLegalService {
         ];
         const impacto = await this.revisao.impacto({ chave: n.chave, numero: n.numero }, citados).then(frasePorImpacto).catch(() => '');
         const detalhe = [
-          alterados.length ? `${alterados.length} dispositivo(s) alterado(s): ${lista(alterados)}` : null,
-          novos.length ? `${novos.length} novo(s): ${lista(novos)}` : null,
-          removidos.length ? `${removidos.length} removido(s)` : null,
+          alterados.length ? `${plural(alterados.length, 'dispositivo alterado', 'dispositivos alterados')}: ${lista(alterados)}` : null,
+          novos.length ? `${plural(novos.length, 'novo', 'novos')}: ${lista(novos)}` : null,
+          removidos.length ? plural(removidos.length, 'removido', 'removidos') : null,
         ].filter(Boolean).join(' · ') || 'O texto oficial mudou (sem alteração de artigo identificada — pode ser só formatação).';
         const detalheComImpacto = impacto ? `${detalhe} · ${impacto}` : detalhe;
         const criado = await this.criarAlertaSeNovo({ tipo: 'texto_alterado', chave: n.chave, referencia: n.chave, titulo: `${n.numero}: texto oficial atualizado`, detalhe: detalheComImpacto, url: n.url_oficial, origem }, true);

@@ -12,7 +12,7 @@ export default function FerramentasValidadorCadastro() {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <TituloPagina icon={ListChecks}>Validador de cadastro de produtos</TituloPagina>
-            <p className="text-sm text-muted-foreground">Confere NCM e classificação (cClassTrib) de uma planilha de produtos do ERP — Excel ou CSV, até 50 mil itens — e devolve a planilha corrigida. Para o projeto completo, passo a passo, use o <Link className="text-primary underline" to="../saneamento-estoque">Saneamento de estoques</Link>.</p>
+            <p className="text-sm text-muted-foreground">Excel ou CSV, até 50 mil itens. Projeto completo: <Link className="text-primary underline" to="../saneamento-estoque">Saneamento de estoques</Link>.</p>
           </div>
         </div>
         <ValidadorCadastro modo="interno" empresa={empresa} />

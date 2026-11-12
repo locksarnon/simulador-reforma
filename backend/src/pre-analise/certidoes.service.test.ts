@@ -67,7 +67,7 @@ describe('certidões do cliente', () => {
     const demo = montar({ modo: 'DEMONSTRACAO' });
     await expect(demo.s.emitirFederal('E1', {})).rejects.toThrow(/só funciona em produção/);
     const sem = montar({ modo: 'PRODUCAO' });
-    await expect(sem.s.emitirFederal('E1', {})).rejects.toThrow(/não está configurada/);
+    await expect(sem.s.emitirFederal('E1', {})).rejects.toThrow(/não configurada/);
     const t = montar({ modo: 'PRODUCAO', chaves: true, cnd: { status: 'CONCLUIDO', resumo: 'Certidão negativa', demonstracao: false, pdf: Buffer.from('%PDF-1.4'), detalhes: [{ rotulo: 'Situação', valor: 'Negativa' }, { rotulo: 'Emissão', valor: '12/11/2026' }, { rotulo: 'Validade', valor: '11/05/2027' }, { rotulo: 'Código de controle', valor: 'ABCD1234' }] } });
     const r = await t.s.emitirFederal('E1', { email: 'qa@fal' });
     expect(r.emitida).toBe(true);
@@ -77,8 +77,8 @@ describe('certidões do cliente', () => {
   });
   it('emite a CNDT pela Infosimples e guarda com validade e origem; sem Infosimples pede o token', async () => {
     const semToken = montar();
-    await expect(semToken.s.emitir('E1', 'TRABALHISTA', { email: 'qa@fal' })).rejects.toThrow(/Infosimples não está configurada/);
-    await expect(semToken.s.emitir('E1', 'ESTADUAL', { email: 'qa@fal' })).rejects.toThrow(/não tem emissão automática/);
+    await expect(semToken.s.emitir('E1', 'TRABALHISTA', { email: 'qa@fal' })).rejects.toThrow(/Infosimples não configurada/);
+    await expect(semToken.s.emitir('E1', 'ESTADUAL', { email: 'qa@fal' })).rejects.toThrow(/Sem emissão automática/);
     const t = montar({ cndt: { status: 'CONCLUIDO', situacao: 'Certidão Negativa de Débitos Trabalhistas', resumo: 'ok', emissao: '12/11/2026', validade: '11/05/2027', numero: 'C-1', detalhes: [], comprovante: { buffer: Buffer.from('%PDF-'), tipo: 'application/pdf', extensao: 'pdf' } } });
     expect((await t.s.emitir('E1', 'TRABALHISTA', { email: 'qa@fal' })).emitida).toBe(true);
     expect(t.docs[0]).toMatchObject({ tipo_id: 'T3', numero: 'C-1' });

@@ -51,7 +51,7 @@ export default function AgendaReforma({ empresa = null, admin = false }) {
     try {
       const r = await api.post("/agenda-reforma/semear", {});
       toast({
-        title: `${r.criados} data(s) nova(s), ${r.atualizados} atualizada(s)`,
+        title: `Novas: ${r.criados}. Atualizadas: ${r.atualizados}.`,
         description: r.divergentes?.length ? `${r.divergentes.length} com trecho que não bate com a Base legal ficaram como não confirmadas.` : `${r.confirmados} confirmadas em fonte oficial; cada trecho foi conferido contra a Base legal.`,
       });
       recarregar();

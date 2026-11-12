@@ -103,7 +103,6 @@ export default function PassoPolitica({ estado, setEstado, contagem, escopo, gru
           <Botao disabled={gerandoRelatorio} onClick={emitirRelatorio} title="Relatório do programa de trabalho: escopo, checagens, piloto, decisões, execução, revisão fiscal e política">{gerandoRelatorio ? <Loader2 className="w-3.5 h-3.5 inline mr-1 animate-spin" /> : <FileText className="w-3.5 h-3.5 inline mr-1" />}Relatório do programa de trabalho (PDF)</Botao>
           {msg && <span className="text-xs text-muted-foreground" role="status">{msg}</span>}
         </div>
-        <p className="text-xs text-muted-foreground">O relatório em PDF reúne o que foi feito em todos os passos e a política; pode ser emitido a qualquer momento, e o que ainda não foi feito aparece como pendente.</p>
       </div>
     </div>
   );

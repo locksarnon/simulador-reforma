@@ -18,6 +18,7 @@ import StagingTable from "@/components/importacao/StagingTable";
 import { toast } from "@/components/ui/use-toast";
 import { tratamentoDoItem, entraNoCalculo } from "@/lib/cfopTratamento";
 import ValidacaoDrawer from "@/components/importacao/ValidacaoDrawer";
+import { plural } from "@/lib/plural";
 
 export default function ImportacaoXMLPage() {
   const { id } = useParams();
@@ -243,7 +244,7 @@ export default function ImportacaoXMLPage() {
           >
             <Users className="w-3.5 h-3.5" />
             {mostrarOutras ? "Ocultar" : "Mostrar também"} {[
-              outrasEmpresasCount > 0 && `${outrasEmpresasCount} de outra(s) empresa(s) já cadastrada(s) do grupo`,
+              outrasEmpresasCount > 0 && `${outrasEmpresasCount} de ${outrasEmpresasCount === 1 ? "outra empresa do grupo" : "outras empresas do grupo"}`,
               cnpjNaoCadastradoCount > 0 && `${cnpjNaoCadastradoCount} de CNPJ não cadastrado em nenhuma empresa`,
             ].filter(Boolean).join(" + ")}
           </button>
@@ -295,10 +296,10 @@ export default function ImportacaoXMLPage() {
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm text-foreground font-medium">
-                  Os {imp.lote.arquivos_validos || 0} arquivo(s) foram lidos sem erro, mas {totalBloqueados} item(ns) ficaram bloqueados — nenhum pôde ser importado.
+                  {plural(imp.lote.arquivos_validos || 0, "arquivo lido", "arquivos lidos")} sem erro, mas {plural(totalBloqueados, "item bloqueado", "itens bloqueados")}: nada importado.
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Isso não é um problema no XML — é uma regra de validação que impediu a importação. Motivo(s) encontrado(s):
+                  Motivos:
                 </p>
                 <ul className="text-xs text-muted-foreground mt-1.5 space-y-0.5 list-disc list-inside">
                   {motivosBloqueio.map(([mensagem, qtd]) => (
@@ -378,7 +379,7 @@ export default function ImportacaoXMLPage() {
             <DialogHeader>
               <DialogTitle>Confirmar importação com alertas</DialogTitle>
               <DialogDescription>
-                Existem {selecionadosItens.filter((i) => i.resultado_final === "IMPORTAVEL_COM_ALERTA").length} item(ns) com alertas não bloqueantes.
+                {plural(selecionadosItens.filter((i) => i.resultado_final === "IMPORTAVEL_COM_ALERTA").length, "item", "itens")} com alertas não bloqueantes.
                 Deseja continuar a importação?
               </DialogDescription>
             </DialogHeader>

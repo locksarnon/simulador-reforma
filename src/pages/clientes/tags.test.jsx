@@ -47,15 +47,15 @@ describe("Etiquetas (página)", () => {
     expect(html).toContain('aria-label="Etiquetas"');
     expect(html).toContain("Agro");
     expect(html).toContain("Prioridade");
-    expect(html).toContain("1 empresa(s)");
-    expect(html).toContain("0 empresa(s)");
-    expect(html).toContain("Escolha uma etiqueta para mudar o nome, a cor e as empresas que a têm.");
+    expect(html).toContain("1 empresa<");
+    expect(html).toContain("0 empresas");
+    expect(html).toContain("Escolha uma etiqueta.");
     expect(html).toContain("Criar etiqueta");
   });
 
   it("sem nenhuma etiqueta, explica e mantém o formulário de criação", () => {
     const html = renderizar(<TagsPagina />, { tags: [], porEmpresa: {} });
-    expect(html).toContain("Nenhuma etiqueta ainda. Crie a primeira acima.");
+    expect(html).toContain("Nenhuma etiqueta.");
     expect(html).toContain('aria-label="Nome da nova etiqueta"');
   });
 

@@ -37,7 +37,7 @@ export default function ContratoSerpro() {
       const campos = { senha, consumer_key: key.trim(), consumer_secret: secret.trim(), ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v)) };
       return arquivo ? api.upload("/monitoramento/contrato", arquivo, campos) : api.post("/monitoramento/contrato", campos);
     },
-    onSuccess: (e) => { atualizar(e); limpar(); setTeste(null); toast({ title: "Contrato guardado no cofre", description: "Agora clique em Testar conexão com o Serpro." }); },
+    onSuccess: (e) => { atualizar(e); limpar(); setTeste(null); toast({ title: "Contrato guardado no cofre", description: "Teste a conexão." }); },
     onError: (e) => toast({ title: "Não foi possível guardar", description: e.message, variant: "destructive" }),
   });
   const testar = useMutation({
@@ -99,8 +99,7 @@ export default function ContratoSerpro() {
       {mostrarForm && (
         <form className="grid gap-3 sm:grid-cols-2" onSubmit={(ev) => { ev.preventDefault(); salvar.mutate(); }} autoComplete="off">
           <p className="sm:col-span-2 text-xs text-muted-foreground">
-            Use o e-CNPJ A1 com que o escritório contratou o Integra Contador e as chaves da Área do Cliente Serpro. Tudo fica cifrado no cofre do InTAX; ninguém vê a senha nem as chaves de volta.
-            {temTela ? " Para trocar só as chaves, deixe o certificado em branco." : ""}
+            {temTela ? "Para trocar só as chaves, deixe o certificado em branco." : "e-CNPJ A1 do contrato do Integra Contador e chaves da Área do Cliente Serpro."}
           </p>
           <div className="space-y-1">
             <Label htmlFor="serpro-pfx">Certificado A1 do escritório (.pfx ou .p12)</Label>
@@ -120,7 +119,7 @@ export default function ContratoSerpro() {
           </div>
           <details className="sm:col-span-2 rounded-md border border-border p-3 text-xs" open={temExtra}>
             <summary className="cursor-pointer font-medium">Outras APIs do Serpro para a pré-análise (opcional)</summary>
-            <p className="mt-2 text-muted-foreground">Consulta CND (certidão federal conjunta) e Consulta Dívida Ativa são contratos à parte na Loja Serpro, com chaves próprias. Sem elas, a pré-análise pede para anexar a certidão e mostra o link da PGFN.{temTela ? " Em branco = manter as atuais." : ""}</p>
+            <p className="mt-2 text-muted-foreground">Contratos à parte na Loja Serpro.{temTela ? " Em branco = manter as atuais." : ""}</p>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               {[["cnd_key", "Consulta CND: Consumer Key"], ["cnd_secret", "Consulta CND: Consumer Secret"], ["divida_key", "Dívida Ativa: Consumer Key"], ["divida_secret", "Dívida Ativa: Consumer Secret"]].map(([k, rot]) => (
                 <div key={k} className="space-y-1">

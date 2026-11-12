@@ -112,7 +112,7 @@ describe('NotificacoesService: rotina diária', () => {
     const t = montar({ certificados: [{ id: 'C1', empresa_id: 'E1', titular: 'X', valido_ate: new Date(AGORA.getTime() + 10 * 86_400_000) }] });
     expect(await t.service.avisarCertificados(AGORA)).toBe(2); // dois administradores
     expect(await t.service.avisarCertificados(AGORA)).toBe(0);
-    expect(t.notificacoes[0]).toMatchObject({ tipo: 'CERTIFICADO', titulo: 'Certificado A1 de Empresa E1 vence em 10 dia(s)', link: '/bpo/repositorio-xml/E1', chave: 'certificado:C1:15' });
+    expect(t.notificacoes[0]).toMatchObject({ tipo: 'CERTIFICADO', titulo: 'Certificado A1 de Empresa E1 vence em 10 dias', link: '/bpo/repositorio-xml/E1', chave: 'certificado:C1:15' });
   });
 
   it('captura: só conta o que o serviço de captura grava como erro, e o bloqueio 656', async () => {

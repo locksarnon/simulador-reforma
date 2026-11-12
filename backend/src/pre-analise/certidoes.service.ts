@@ -16,11 +16,11 @@ export type TipoCertidaoCliente = 'FEDERAL' | 'ESTADUAL' | 'MUNICIPAL' | 'TRABAL
 
 /** As cinco certidões do cliente, com o tipo de documento já cadastrado em Arquivos e documentos (migração 20261111150000). */
 export const CERTIDOES: { tipo: TipoCertidaoCliente; rotulo: string; tipoDocumento: string; portal: string | null; como: string }[] = [
-  { tipo: 'FEDERAL', rotulo: 'CND federal (Receita e PGFN)', tipoDocumento: 'CND federal (Receita e PGFN)', portal: 'https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj', como: 'Emitida pela API Consulta CND do Serpro quando contratada (Administração > Integrações); senão, emita no portal e anexe o PDF.' },
-  { tipo: 'ESTADUAL', rotulo: 'CND estadual', tipoDocumento: 'CND estadual', portal: null, como: 'Emitida no portal da Secretaria da Fazenda do estado do cliente, que exige verificação humana: anexe o PDF.' },
-  { tipo: 'MUNICIPAL', rotulo: 'CND municipal', tipoDocumento: 'CND municipal', portal: null, como: 'Emitida no portal da prefeitura do cliente (cada município tem o seu): anexe o PDF.' },
-  { tipo: 'TRABALHISTA', rotulo: 'CNDT (débitos trabalhistas)', tipoDocumento: 'CNDT (débitos trabalhistas)', portal: 'https://cndt-certidao.tst.jus.br/inicio.faces', como: 'Emitida pela Infosimples quando configurada (Administração > Integrações); senão, emita no portal do TST e anexe o PDF.' },
-  { tipo: 'FGTS', rotulo: 'CRF do FGTS', tipoDocumento: 'CRF do FGTS', portal: 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf', como: 'Emitido pela Infosimples quando configurada (Administração > Integrações); senão, emita no portal da Caixa e anexe o PDF.' },
+  { tipo: 'FEDERAL', rotulo: 'CND federal (Receita e PGFN)', tipoDocumento: 'CND federal (Receita e PGFN)', portal: 'https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj', como: '' },
+  { tipo: 'ESTADUAL', rotulo: 'CND estadual', tipoDocumento: 'CND estadual', portal: null, como: '' },
+  { tipo: 'MUNICIPAL', rotulo: 'CND municipal', tipoDocumento: 'CND municipal', portal: null, como: '' },
+  { tipo: 'TRABALHISTA', rotulo: 'CNDT (débitos trabalhistas)', tipoDocumento: 'CNDT (débitos trabalhistas)', portal: 'https://cndt-certidao.tst.jus.br/inicio.faces', como: '' },
+  { tipo: 'FGTS', rotulo: 'CRF do FGTS', tipoDocumento: 'CRF do FGTS', portal: 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf', como: '' },
 ];
 const DEF = new Map(CERTIDOES.map((c) => [c.tipo, c]));
 const PASTA = 'Certidões';
@@ -173,13 +173,13 @@ export class CertidoesService {
   /** Emite pela fonte automática do tipo: federal pela API Consulta CND; CNDT e CRF pela Infosimples. */
   async emitir(empresaId: string, tipo: string, usuario: Usuario) {
     if (tipo === 'FEDERAL') return this.emitirFederal(empresaId, usuario);
-    if (tipo !== 'TRABALHISTA' && tipo !== 'FGTS') throw new BadRequestException('Esta certidão não tem emissão automática: anexe o PDF do portal.');
+    if (tipo !== 'TRABALHISTA' && tipo !== 'FGTS') throw new BadRequestException('Sem emissão automática: anexe o PDF do portal.');
     const e = await this.empresa(empresaId);
     const cnpj = so(e.cnpj_cpf);
     if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
     const r: ResultadoCertidao | null = tipo === 'TRABALHISTA' ? await this.infosimples.cndt(cnpj) : await this.infosimples.crf(cnpj);
     if (r) await registrarUso(this.prisma, tipo === 'TRABALHISTA' ? 'INFOSIMPLES_CNDT' : 'INFOSIMPLES_CRF', usuario?.email ?? null, empresaId, cnpj);
-    if (!r) throw new BadRequestException('A Infosimples não está configurada. Informe o token em Administração > Integrações, ou anexe o PDF emitido no portal.');
+    if (!r) throw new BadRequestException('Infosimples não configurada: anexe o PDF do portal.');
     if (r.status === 'INDISPONIVEL' || !r.comprovante) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
     const def = DEF.get(tipo)!;
     await this.guardar(empresaId, tipo, r.comprovante.buffer, `${def.rotulo} ${new Date().toISOString().slice(0, 10)}.${r.comprovante.extensao}`, { emissao: r.emissao, validade: r.validade, numero: r.numero, situacao: `${r.situacao} (Infosimples)` }, usuario, r.comprovante.tipo);
@@ -195,7 +195,7 @@ export class CertidoesService {
     if (modo !== 'PRODUCAO') throw new BadRequestException('A emissão automática da CND federal só funciona em produção (no modo demonstração o Serpro devolve uma certidão fictícia).');
     const r = await this.serpro.certidaoFederal(cnpj, modo);
     if (r && !r.demonstracao) await registrarUso(this.prisma, 'SERPRO_CND', usuario?.email ?? null, empresaId, cnpj);
-    if (!r) throw new BadRequestException('A API Consulta CND do Serpro não está configurada. Informe as chaves em Administração > Integrações > Contrato do escritório, ou anexe o PDF emitido no portal.');
+    if (!r) throw new BadRequestException('API Consulta CND não configurada: anexe o PDF do portal.');
     if (r.status !== 'CONCLUIDO' || !r.pdf) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
     const det = (rot: string) => r.detalhes.find((d) => d.rotulo === rot)?.valor ?? null;
     await this.guardar(empresaId, 'FEDERAL', r.pdf, `CND federal ${new Date().toISOString().slice(0, 10)}.pdf`, { emissao: det('Emissão'), validade: det('Validade'), numero: det('Código de controle'), situacao: `${det('Situação') ?? 'emitida'} (API Consulta CND)` }, usuario);

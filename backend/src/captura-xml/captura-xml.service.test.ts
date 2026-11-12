@@ -276,7 +276,7 @@ describe('CapturaXmlService.executar', () => {
     t.repositorio.registrar.mockResolvedValueOnce({ resultado: 'NOVO' as const }).mockResolvedValueOnce({ resultado: 'ATUALIZADO' as never });
     const r = await t.service.executar('E1', 'NFE', 'AGENDADOR');
     expect(r).toMatchObject({ docs_recebidos: 2, docs_novos: 1, docs_completados: 1 });
-    expect(r.mensagem).toBe('1 novo(s), 1 completado(s) com o XML.');
+    expect(r.mensagem).toBe('1 novo, 1 completado com o XML.');
   });
 
   it('desativar e ativar de novo não apaga a janela de espera da SEFAZ: a captura segue recusada até o horário liberado', async () => {
@@ -341,7 +341,7 @@ describe('CapturaXmlService.executar', () => {
       .mockResolvedValueOnce({ resultado: 'IGNORADO' as never, motivo: 'maior que 2 MB' } as never);
     const r = await t.service.executar('E1', 'NFE', 'AGENDADOR');
     expect(r).toMatchObject({ docs_recebidos: 4, docs_novos: 1 });
-    expect(r.mensagem).toBe('1 novo(s), 1 já existiam, 2 ignorado(s) (não reconhecido como NF-e, CT-e, MDF-e, NFS-e ou evento).');
+    expect(r.mensagem).toBe('1 novo, 1 já existiam, 2 ignorados (não reconhecido como NF-e, CT-e, MDF-e, NFS-e ou evento).');
     expect(t.execucoes[0].mensagem).toBe(r.mensagem);
     // o NSU do lote avança (o documento segue na SEFAZ por 90 dias), mas a pessoa vê o que ficou de fora
     expect(t.configs[0].ultimo_nsu).toBe(nsu(4));
@@ -419,7 +419,7 @@ describe('Ciência da Operação e CNPJ consultado', () => {
     expect(t.docs.find((d) => d.chave === 'K1')).toMatchObject({ ciencia_status: 'REGISTRADA', ciencia_protocolo: '351260000000001' });
     expect(t.docs.find((d) => d.chave === 'K5')?.ciencia_status).toBe('REGISTRADA');
     for (const k of ['K2', 'K6', 'K7']) expect(t.docs.find((d) => d.chave === k)?.ciencia_status ?? null).toBeNull();
-    expect(r.mensagem).toContain('Ciência da Operação registrada em 2 nota(s).');
+    expect(r.mensagem).toContain('Ciência da Operação registrada em 2 notas.');
     expect(t.auditoria.map((a) => a.acao)).toContain('USO_MANIFESTACAO');
   });
 
@@ -475,7 +475,7 @@ describe('Ciência da Operação e CNPJ consultado', () => {
     const r = await t.service.executar('E1', 'NFE', 'AGENDADOR');
     expect(t.docs.map((d) => d.ciencia_status).sort()).toEqual(['NAO_APLICAVEL', 'REJEITADA']);
     expect(r.mensagem).not.toContain('Ciência da Operação registrada');
-    expect(r.mensagem).toContain('1 nota(s) recusada(s) pela SEFAZ na Ciência (999: erro).');
+    expect(r.mensagem).toContain('1 nota recusada pela SEFAZ na Ciência (999: erro).');
   });
 
   it('consulta o CNPJ da empresa (filial), não o do titular do certificado (matriz)', async () => {

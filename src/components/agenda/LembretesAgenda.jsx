@@ -4,6 +4,7 @@ import { BellRing, Loader2, Send, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { ROTULO_ANTECEDENCIA } from "@/lib/agendaReforma";
+import { plural } from "@/lib/plural";
 
 const campo = "h-9 rounded-md border border-input bg-background px-2 text-sm";
 
@@ -35,7 +36,7 @@ export default function LembretesAgenda({ empresa = null }) {
   };
 
   const salvar = () => executar("salvar", () => api.put("/agenda-reforma/lembretes", { escopo: escopoValido, dias_antes: escolhidos, ativo: true }), "Lembrete salvo");
-  const testar = () => executar("teste", () => api.post("/agenda-reforma/lembretes/teste", { escopo: escopoValido }), (r) => ({ title: "E-mail de teste enviado", description: `${r.datas} data(s) dos próximos 60 dias.` }));
+  const testar = () => executar("teste", () => api.post("/agenda-reforma/lembretes/teste", { escopo: escopoValido }), (r) => ({ title: "E-mail de teste enviado", description: `${plural(r.datas, "data", "datas")} nos próximos 60 dias.` }));
   const alternarAtivo = (l) => executar(`ativo-${l.id}`, () => api.put("/agenda-reforma/lembretes", { escopo: l.escopo, dias_antes: l.dias_antes, ativo: !l.ativo }), l.ativo ? "Lembrete pausado" : "Lembrete reativado");
   const remover = (l) => executar(`remover-${l.id}`, () => api.delete(`/agenda-reforma/lembretes/${l.id}`), "Lembrete removido");
 
@@ -43,9 +44,9 @@ export default function LembretesAgenda({ empresa = null }) {
     <section aria-label="Lembretes por e-mail" className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div>
         <h2 className="text-sm font-medium flex items-center gap-2"><BellRing className="w-4 h-4" /> Lembretes por e-mail</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">Você recebe um e-mail às 7h quando faltam os dias escolhidos para uma data confirmada em fonte oficial (para um prazo, conta o último dia). Cada aviso sai uma vez só.</p>
+        <p className="text-xs text-muted-foreground mt-0.5">E-mail às 7h, uma vez por data.</p>
       </div>
-      {data && !data.email_configurado && <p role="status" className="text-xs rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 p-2">O envio de e-mail ainda não está configurado no servidor: os lembretes ficam salvos, mas nenhuma mensagem sai até a configuração.</p>}
+      {data && !data.email_configurado && <p role="status" className="text-xs rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 p-2">E-mail não configurado no servidor: nada é enviado.</p>}
 
       {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : (
         <>

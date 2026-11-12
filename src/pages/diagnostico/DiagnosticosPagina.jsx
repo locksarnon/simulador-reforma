@@ -33,7 +33,6 @@ export default function DiagnosticosPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Diagnósticos" }]}
         title="Diagnósticos"
-        subtitle="Cada diagnóstico é um projeto com escopo próprio: uma empresa, parte de um grupo ou o grupo inteiro."
         actions={<button type="button" onClick={() => setNovo(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
       />
       <div className="px-6 lg:px-8 py-5 space-y-3">
@@ -73,7 +72,6 @@ export default function DiagnosticosPagina() {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground">Os diagnósticos anteriores aos projetos continuam no trabalho de cada empresa: abra em "Clientes com diagnóstico" ou pela ficha do cliente.</p>
       </div>
       <NovoDiagnosticoDialog aberto={novo} aoFechar={() => setNovo(false)} empresas={empresas} grupos={grupos} />
     </div>

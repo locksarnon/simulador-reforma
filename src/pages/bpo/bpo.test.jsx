@@ -94,7 +94,6 @@ describe("RepositorioXmlLista", () => {
   it("lista as empresas de todos os grupos, com CNPJ, grupo e o caminho do repositório de cada uma", () => {
     const html = renderizar(<RepositorioXmlLista />, { local: CAMINHO_REPOSITORIO_XML, cache });
     expect(html).toContain("Repositório de XML");
-    expect(html).toContain("BPO fiscal");
     expect(html).toContain("Álvares Agropecuária Ltda");
     expect(html).toContain("12.345.678/0001-95");
     expect(html).toContain("#001 xyz");

@@ -12,6 +12,7 @@ import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import { plural } from "@/lib/plural";
 
 const empty = { titulo: "", resumo: "", url: "", fonte: "", publicado_em: "", tags: "", status: "Publicada" };
 
@@ -41,7 +42,7 @@ export default function FerramentasNoticias() {
       const r = resp.data;
       toast({
         title: "Busca concluída",
-        description: `${r.novos_rascunhos} novo(s) rascunho(s) de ${r.itens_relevantes_encontrados} item(ns) relevante(s) encontrado(s) em ${r.fontes_consultadas} fonte(s).`,
+        description: `${plural(r.novos_rascunhos, "novo rascunho", "novos rascunhos")} · ${plural(r.itens_relevantes_encontrados, "item relevante", "itens relevantes")} · ${plural(r.fontes_consultadas, "fonte", "fontes")}.`,
       });
       qc.invalidateQueries({ queryKey: ["noticiasReforma"] });
     } catch (err) {

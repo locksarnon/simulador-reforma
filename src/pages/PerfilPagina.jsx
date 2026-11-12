@@ -42,7 +42,7 @@ export default function PerfilPagina() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Meu perfil" }]} title="Meu perfil" subtitle="Seu nome no sistema e a troca da sua senha." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Meu perfil" }]} title="Meu perfil" />
       <div className="px-6 lg:px-8 py-6 max-w-xl space-y-6">
         {isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
         {error && <p role="alert" className="text-sm">Não foi possível carregar o perfil.</p>}

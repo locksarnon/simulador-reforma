@@ -39,12 +39,12 @@ describe("Propostas e honorários", () => {
   });
 
   it("tabela de honorários avisa quando é exemplo; só administrador edita", () => {
-    expect(renderizar(<AbaTabela ehAdmin />)).toContain("valores de exemplo");
+    expect(renderizar(<AbaTabela ehAdmin />)).toContain("Valores de exemplo");
     expect(renderizar(<AbaTabela ehAdmin />)).toContain("Salvar a tabela");
     const consultor = renderizar(<AbaTabela ehAdmin={false} />);
     expect(consultor).not.toContain("Salvar a tabela");
     expect(consultor).toContain("disabled");
-    expect(renderizar(<AbaModelos ehAdmin={false} />)).toContain("Só administradores criam e mudam modelos.");
+    expect(renderizar(<AbaModelos ehAdmin={false} />)).toContain("Só administradores mudam modelos.");
   });
 
   it("totais e validade padrão", () => {

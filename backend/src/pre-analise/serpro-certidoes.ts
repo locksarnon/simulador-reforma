@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ContratoIntegraService } from '../monitoramento/contrato.service';
 import type { Modo } from '../monitoramento/integra.cliente';
 import type { StatusProcesso } from './leitor-certidoes';
+import { plural } from '../common/plural';
 
 /**
  * APIs do Serpro para a pré-análise (documentação em apicenter.estaleiro.serpro.gov.br, conferida em 12/11/2026):
@@ -110,7 +111,7 @@ export class SerproCertidoes {
       ...lista.map((x) => ({ rotulo: `Inscrição ${x.numeroInscricao}`, valor: `${x.situacaoDescricao ?? ''}${x.valorTotalConsolidadoMoeda ? `; ${moeda(valor(x.valorTotalConsolidadoMoeda))}` : ''}${x.tipoDevedor ? `; devedor ${String(x.tipoDevedor).toLowerCase()}` : ''}${x.nomeUnidade ? `; ${x.nomeUnidade}` : ''}` })),
       ...marca,
     ];
-    if (ativas.length) return { status: 'DEBITOS', resumo: `${ativas.length} inscrição(ões) ativa(s) em Dívida Ativa da União, total consolidado ${moeda(total)}.`, detalhes, demonstracao };
-    return { status: 'CONCLUIDO', resumo: lista.length ? `Nenhuma inscrição ativa; ${lista.length} inscrição(ões) extinta(s) ou encerrada(s).` : 'Nenhuma inscrição em Dívida Ativa da União.', detalhes, demonstracao };
+    if (ativas.length) return { status: 'DEBITOS', resumo: `${plural(ativas.length, 'inscrição ativa', 'inscrições ativas')} em Dívida Ativa da União, total consolidado ${moeda(total)}.`, detalhes, demonstracao };
+    return { status: 'CONCLUIDO', resumo: lista.length ? `Nenhuma inscrição ativa; ${plural(lista.length, 'inscrição extinta ou encerrada', 'inscrições extintas ou encerradas')}.` : 'Nenhuma inscrição em Dívida Ativa da União.', detalhes, demonstracao };
   }
 }

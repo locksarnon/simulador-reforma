@@ -43,13 +43,12 @@ describe("Serviços contratados", () => {
     expect(html).toContain("Encerrado");
     expect(html).toContain("Maria"); // responsável do BPO
     expect(html).toContain("090 Extra Agro (teste)");
-    expect(html).toContain("3 de 3 empresa(s)");
+    expect(html).toContain("3 de 3 empresas");
   });
 
-  it("empresa sem serviço mostra o atalho Definir, e a explicação diz que só ativo e pausado entram na carteira", () => {
+  it("empresa sem serviço mostra o atalho Definir", () => {
     const html = renderizar(<ServicosContratadosPagina />);
     expect(html).toContain(">Definir<");
-    expect(html).toContain("só serviço ativo ou pausado");
   });
 
   it("tem busca, filtro de carteira e de grupo, e a marcação para definir vários de uma vez", () => {
@@ -76,7 +75,7 @@ describe("Carteira do BPO", () => {
     expect(html).not.toContain("Gama Serviços Ltda"); // sem serviço: fora da carteira
     expect(html).toContain("Captura de XML, Processos e tarefas"); // módulos ligados
     expect(html).toContain('href="/bpo/repositorio-xml/E1"');
-    expect(html).toContain("2 empresa(s) na carteira");
+    expect(html).toContain("2 empresas na carteira");
   });
 
   it("se ninguém foi marcado ainda, explica como marcar e oferece ver todas as empresas", () => {

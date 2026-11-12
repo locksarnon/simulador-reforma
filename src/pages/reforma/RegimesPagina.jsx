@@ -34,7 +34,7 @@ export default function RegimesPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Planejamento tributário", to: "/area/reforma" }, { label: "Comparação de regimes" }]}
         title="Comparação de regimes"
-        subtitle="A mesma empresa simulada no Simples, no Lucro Presumido e no Lucro Real, ano a ano até 2033, com o motor da calculadora."
+        subtitle="Simples, Lucro Presumido e Lucro Real até 2033"
       />
       <div className="px-6 lg:px-8 py-6 grid gap-4 xl:grid-cols-[320px_1fr]">
         <form className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm" onSubmit={(e) => e.preventDefault()} aria-label="Dados da empresa simulada">

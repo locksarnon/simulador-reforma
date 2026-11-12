@@ -110,7 +110,7 @@ export const ROTEIRO_NUCLEO = [
       p("Clique no nome de um cliente e, na aba Situação fiscal, em \"Consultar\" no Relatório de situação fiscal.", "O resultado aparece com o selo, a data e o PDF; \"Ver\" abre numa aba e \"Baixar\" salva."),
       p("Na aba Guias e pagamentos, gere o DAS (ou o DARF da DCTFWeb) com a competência sugerida.", "Mostra valor, vencimento, a composição por tributo e o PDF da guia."),
       p("Na aba Declarações, marque \"Não tem MIT\".", "A rotina deixa de consultar o MIT deste cliente."),
-      p("Volte à lista, marque dois clientes e clique em \"Atualizar 2 marcado(s)\".", "O botão mostra o progresso e, no fim, as bolinhas e a nota de saúde fiscal mudam."),
+      p("Volte à lista, marque dois clientes e clique em \"Atualizar 2 marcados\".", "O botão mostra o progresso e, no fim, as bolinhas e a nota de saúde fiscal mudam."),
       p("Abra Clientes > Procurações e certificados e clique em \"Consultar as procurações da lista\".", "Cada cliente mostra o caminho de acesso (pelo A1 do cliente, pela procuração ou sem acesso) e a situação da procuração."),
       p("Em Administração > Parâmetros e rotinas, ligue a consulta automática, escolha os dias e salve; depois clique em \"Gerar as guias agora\".", "Aparece quantas guias foram geradas (e enviadas, se o e-mail estiver marcado e configurado)."),
       p("Abra BPO Fiscal > Análise de risco.", "O painel mostra a saúde média, o top 5 em risco, a fila de prioridade, o radar de certidões e a conferência do cadastro."),

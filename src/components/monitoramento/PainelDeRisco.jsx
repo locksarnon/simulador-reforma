@@ -76,7 +76,7 @@ export default function PainelDeRisco({ ehAdmin }) {
         <div className="rounded-xl border border-border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Em dia</p><p className="text-2xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{resumo.c.OK}</p></div>
         <div className="rounded-xl border border-border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Certidões vencidas</p><p className="text-2xl font-semibold tabular-nums">{radar.vencidas.length}</p></div>
       </div>
-      {resumo.total === 0 && <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Ainda não há consultas. Rode o <Link to="/bpo/monitoramento" className="text-primary underline">Monitoramento fiscal</Link> para a carteira e o painel se preenche.</p>}
+      {resumo.total === 0 && <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Sem consultas. Abra o <Link to="/bpo/monitoramento" className="text-primary underline">Monitoramento fiscal</Link>.</p>}
       <div className="grid gap-4 lg:grid-cols-2">
         <Cartao titulo="Top 5 em risco">
           {resumo.top.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados.</p> : (
@@ -102,7 +102,6 @@ export default function PainelDeRisco({ ehAdmin }) {
             <div><dt className="text-xs text-muted-foreground">BPO sem nenhuma</dt><dd className="font-semibold tabular-nums">{radar.semCertidao.length}</dd></div>
           </dl>
           {[...radar.vencidas, ...radar.aVencer].length > 0 && <ul className="max-h-48 space-y-1 overflow-y-auto text-xs">{[...radar.vencidas, ...radar.aVencer].map((d) => <li key={d.id}><span className={d.situacao === "VENCIDO" ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}>{d.situacao === "VENCIDO" ? "Vencida" : "Vence"} {d.validade ? new Date(d.validade).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : ""}</span> · {d.tipo?.nome || d.descricao} · {nomeDe.get(d.empresa_id) || "pessoa física"}</li>)}</ul>}
-          <p className="text-[11px] text-muted-foreground">Conta os documentos de tipo certidão (CND federal, estadual, municipal, CNDT, CRF do FGTS) guardados com validade.</p>
         </Cartao>
       </div>
       <Cartao titulo={`Conferência do cadastro com a Receita (${achados.length})`}>
@@ -110,7 +109,6 @@ export default function PainelDeRisco({ ehAdmin }) {
           <ul className="space-y-1.5 text-xs">{achados.map((a, i) => <li key={i} className="flex items-start gap-2"><SeloNivel nivel={a.nivel} /><span><Link to={`/clientes/${a.empresa.id}`} className="font-medium hover:text-primary hover:underline">{a.empresa.razao_social}</Link>: {a.texto}</span></li>)}</ul>
         )}
       </Cartao>
-      <p className="text-xs text-muted-foreground">Saúde fiscal: começa em 100 e perde 25 por assunto crítico e 8 por assunto em atenção, na última consulta de cada serviço. O raio-X de cada cliente é a página dele no Monitoramento fiscal.</p>
     </div>
   );
 }

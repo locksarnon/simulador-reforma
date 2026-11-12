@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { competenciaAtual, nomeDaCompetencia } from "@/lib/tarefas";
+import { plural } from "@/lib/plural";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -23,7 +24,7 @@ export default function DialogoGerar({ processos, processoInicial, aoFechar }) {
   const gerar = useMutation({
     mutationFn: () => api.post("/processos/gerar", corpo(false)),
     onSuccess: (r) => {
-      toast({ title: r.criadas ? "Tarefas criadas" : "Nada a criar", description: `${r.criadas} nova(s); ${r.existentes} já existia(m) para ${nomeDaCompetencia(competencia)}.` });
+      toast({ title: r.criadas ? "Tarefas criadas" : "Nada a criar", description: `Novas: ${r.criadas}. Já existiam: ${r.existentes} (${nomeDaCompetencia(competencia)}).` });
       qc.invalidateQueries({ queryKey: ["tarefas"] });
       aoFechar();
     },
@@ -37,7 +38,7 @@ export default function DialogoGerar({ processos, processoInicial, aoFechar }) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Gerar tarefas agora</DialogTitle>
-          <DialogDescription>Cria as tarefas dos processos ativos para o mês escolhido. O que já existe não é criado de novo.</DialogDescription>
+          <DialogDescription>Tarefas dos processos ativos no mês.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Mês do prazo</span>
@@ -48,7 +49,7 @@ export default function DialogoGerar({ processos, processoInicial, aoFechar }) {
             </select></label>
           {previa && (
             <p role="status" className="rounded-md bg-muted/50 px-3 py-2">
-              {previa.criadas === 0 ? "Nada a criar" : `Vai criar ${previa.criadas} tarefa(s)`}{previa.existentes ? `; ${previa.existentes} já existe(m)` : ""} em {nomeDaCompetencia(competencia)}.
+              {previa.criadas === 0 ? "Nada a criar" : `Vai criar ${plural(previa.criadas, "tarefa", "tarefas")}`}{previa.existentes ? `; ${plural(previa.existentes, "já existe", "já existem")}` : ""} em {nomeDaCompetencia(competencia)}.
             </p>
           )}
         </div>

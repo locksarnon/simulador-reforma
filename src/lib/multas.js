@@ -3,6 +3,7 @@
  * A multa de declaração é lançada pela Receita: o valor daqui é estimativa e não substitui a notificação.
  * Datas "AAAA-MM-DD" (sem fuso).
  */
+import { plural } from "./plural";
 const DIA = 86_400_000;
 const d = (s) => { const [a, m, dd] = String(s).split("-").map(Number); return { a, m, d: dd, t: Date.UTC(a, m - 1, dd) }; };
 
@@ -44,7 +45,7 @@ export function multaDePagamento({ valor, vencimento, pagamento, selicAcumuladaP
   const mesesDepois = (d(pagamento).a - d(vencimento).a) * 12 + (d(pagamento).m - d(vencimento).m);
   const jurosPct = !dias ? 0 : mesesDepois <= 0 ? 0 : (selicAcumuladaPct === "" || selicAcumuladaPct == null ? null : Number(selicAcumuladaPct) + 1);
   const juros = jurosPct === null ? null : R(valor * jurosPct / 100);
-  return { dias, pct, multa, jurosPct, juros, total: juros === null ? null : R(valor + multa + juros), passos: [`${dias} dia(s) de atraso × 0,33% = ${(Math.min(0.0033 * dias, 99) * 100).toFixed(2).replace(".", ",")}%${pct === 0.2 ? " (limitado a 20%)" : ""}`, jurosPct === null ? "Juros: informe a Selic acumulada do mês seguinte ao vencimento até o mês anterior ao pagamento (tabela da Receita Federal)." : `Juros: ${jurosPct.toFixed(2).replace(".", ",")}% (Selic acumulada + 1% no mês do pagamento)`] };
+  return { dias, pct, multa, jurosPct, juros, total: juros === null ? null : R(valor + multa + juros), passos: [`${plural(dias, "dia", "dias")} de atraso × 0,33% = ${(Math.min(0.0033 * dias, 99) * 100).toFixed(2).replace(".", ",")}%${pct === 0.2 ? " (limitado a 20%)" : ""}`, jurosPct === null ? "Juros: informe a Selic acumulada do mês seguinte ao vencimento até o mês anterior ao pagamento (tabela da Receita Federal)." : `Juros: ${jurosPct.toFixed(2).replace(".", ",")}% (Selic acumulada + 1% no mês do pagamento)`] };
 }
 
 /** Declarações de 2% ao mês-calendário (DCTFWeb, EFD-Reinf, PGDAS-D, DEFIS, DASN-SIMEI). */
@@ -55,7 +56,7 @@ export function multaDeDeclaracao({ tipo, tributos, prazo, entrega, reducao = "n
   const bruta = R(Number(tributos || 0) * pct);
   const reduzida = R(bruta * FATOR_REDUCAO[reducao]);
   let minimo = semMovimento && r.minimoSemMovimento ? r.minimoSemMovimento : r.minimo;
-  const passos = [`${meses} mês(es)-calendário ou fração × 2% = ${(pct * 100).toFixed(0)}%${pct === 0.2 ? " (limite de 20%)" : ""} sobre os tributos declarados = ${brl(bruta)}`];
+  const passos = [`${plural(meses, "mês-calendário", "meses-calendário")} ou fração × 2% = ${(pct * 100).toFixed(0)}%${pct === 0.2 ? " (limite de 20%)" : ""} sobre os tributos declarados = ${brl(bruta)}`];
   if (reducao !== "nenhuma") passos.push(`Redução ${reducao === "espontanea" ? "pela metade (entrega antes de procedimento de ofício)" : "para 75% (entrega no prazo da intimação)"}: ${brl(reduzida)}`);
   if (r.reducaoPorte && porte !== "DEMAIS") { minimo = minimo * (porte === "MEI" ? 0.1 : 0.5); passos.push(`Mínimo reduzido em ${porte === "MEI" ? "90% (MEI)" : "50% (ME/EPP do Simples)"} (LC nº 123/2006, art. 38-B), se paga em 30 dias da notificação`); }
   const multa = meses ? Math.max(reduzida, minimo) : 0;
@@ -69,7 +70,7 @@ export function multaPorReceita({ receita, prazo, entrega, reducao = "nenhuma" }
   const pct = Math.min(0.0002 * dias, 0.01);
   const bruta = R(Number(receita || 0) * pct);
   const multa = R(bruta * FATOR_REDUCAO[reducao]);
-  return { dias, pct, multa, passos: [`${dias} dia(s) × 0,02% = ${(pct * 100).toFixed(2).replace(".", ",")}%${pct === 0.01 ? " (limite de 1%)" : ""} da receita bruta = ${brl(bruta)}`, ...(reducao !== "nenhuma" ? [`Com a redução: ${brl(multa)}`] : [])] };
+  return { dias, pct, multa, passos: [`${plural(dias, "dia", "dias")} × 0,02% = ${(pct * 100).toFixed(2).replace(".", ",")}%${pct === 0.01 ? " (limite de 1%)" : ""} da receita bruta = ${brl(bruta)}`, ...(reducao !== "nenhuma" ? [`Com a redução: ${brl(multa)}`] : [])] };
 }
 
 /** ECF do Lucro Real: 0,25% ao mês sobre o lucro antes de IRPJ/CSLL, até 10% e até R$ 100 mil ou R$ 5 milhões; vale a maior redução. */
@@ -81,7 +82,7 @@ export function multaEcfReal({ lucro, receitaAnoAnterior, prazo, entrega, reduca
   const bruta = Math.min(R(Number(lucro || 0) * pct), teto);
   const fatores = [FATOR_REDUCAO[reducao] ?? 1, dias && dias <= 30 ? 0.1 : 1, dias && dias <= 60 ? 0.25 : 1];
   const fator = Math.min(...fatores);
-  return { meses, pct, teto, multa: R(bruta * fator), passos: [`${meses} mês(es) × 0,25% = ${(pct * 100).toFixed(2).replace(".", ",")}% do lucro líquido antes do IRPJ e da CSLL${bruta === teto ? `, limitado a ${brl(teto)}` : ""} = ${brl(bruta)}`, ...(fator < 1 ? [`Maior redução cabível: paga-se ${(fator * 100).toFixed(0)}% (as reduções não se somam: não confirmado na lei, o InTAX aplica só a maior)`] : [])] };
+  return { meses, pct, teto, multa: R(bruta * fator), passos: [`${plural(meses, "mês", "meses")} × 0,25% = ${(pct * 100).toFixed(2).replace(".", ",")}% do lucro líquido antes do IRPJ e da CSLL${bruta === teto ? `, limitado a ${brl(teto)}` : ""} = ${brl(bruta)}`, ...(fator < 1 ? [`Maior redução cabível: paga-se ${(fator * 100).toFixed(0)}% (as reduções não se somam: não confirmado na lei, o InTAX aplica só a maior)`] : [])] };
 }
 
 export const brl = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

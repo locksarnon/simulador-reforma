@@ -22,7 +22,6 @@ export default function ConhecimentoEmpresa({ empresa, editar = false }) {
       </div>
       {detalhe && (
         <div className="border-t border-border p-3 space-y-3">
-          <p className="text-xs text-muted-foreground">Referências documentadas para orientar o saneamento. Confirme linha, versão e customizações da empresa antes de transformar uma orientação em regra automática. A seleção de sistemas não conecta o banco de dados.</p>
           {regras.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -37,7 +36,7 @@ export default function ConhecimentoEmpresa({ empresa, editar = false }) {
                 </tbody>
               </table>
             </div>
-          ) : <p className="text-sm text-muted-foreground">Vincule PIMS ou FARMBOX para consultar as referências disponíveis. Para os demais sistemas, a base será ampliada conforme as fontes forem revisadas.</p>}
+          ) : <p className="text-sm text-muted-foreground">Vincule PIMS ou FARMBOX para ver as referências.</p>}
         </div>)}
       {editar && <EmpresaFormDialog open={aberto} onOpenChange={setAberto} editing={empresa} grupoNumero={empresa?.grupo} />}
     </section>

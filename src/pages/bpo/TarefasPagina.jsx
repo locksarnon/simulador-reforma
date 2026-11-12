@@ -14,6 +14,7 @@ import DialogoGerar from "@/components/tarefas/DialogoGerar";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import { useColaboradores } from "@/lib/useTags";
 import { useEmpresaEmFoco } from "@/lib/EmpresaEmFoco";
+import { plural } from "@/lib/plural";
 import {
   descreverRecorrencia, ESCOPOS, filtrarTarefas, PRIORIDADES, situacaoDoPrazo, STATUS_ABERTOS, TOM_DA_PRIORIDADE, TOM_DO_PRAZO,
 } from "@/lib/tarefas";
@@ -156,7 +157,7 @@ function AbaTarefas({ user, empresas, colaboradores }) {
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground">{tarefas.length} de {(lista.data || []).length} tarefa(s). Tarefas de processos recorrentes são canceladas, não excluídas, para não serem criadas de novo.</p>
+        <p className="text-xs text-muted-foreground">{tarefas.length} de {plural((lista.data || []).length, "tarefa", "tarefas")}.</p>
       </div>
       {dialogo && <DialogoTarefa key={dialogo.tarefa?.id || "nova"} tarefa={dialogo.tarefa} empresas={empresas} colaboradores={colaboradores} usuarioId={user?.id} aoFechar={() => setDialogo(null)} />}
     </div>
@@ -176,7 +177,7 @@ function AbaProcessos({ ehAdmin, colaboradores }) {
   // Replicar: a cópia nasce desativada, para não gerar tarefas em dobro antes de ser ajustada.
   const replicar = useMutation({
     mutationFn: (p) => api.post("/processos", { nome: `${p.nome} (cópia)`.slice(0, 120), descricao: p.descricao, recorrencia: p.recorrencia, dia: p.dia, mes: p.mes, escopo: p.escopo, responsavel: p.responsavel, prioridade: p.prioridade, ativo: false }),
-    onSuccess: () => { recarregar(); toast({ title: "Processo replicado", description: "A cópia está desativada: ajuste e ative quando quiser." }); },
+    onSuccess: () => { recarregar(); toast({ title: "Processo replicado", description: "A cópia está desativada." }); },
     onError: falha("Não foi possível replicar"),
   });
   const apagar = useMutation({ mutationFn: (id) => api.delete(`/processos/${id}`), onSuccess: () => { toast({ title: "Processo apagado" }); recarregar(); }, onError: falha("Não foi possível apagar") });
@@ -187,7 +188,7 @@ function AbaProcessos({ ehAdmin, colaboradores }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="flex-1 min-w-[260px] text-sm text-muted-foreground">Rotinas que se repetem (mensal, trimestral, anual). O InTAX cria a tarefa de cada período 10 dias antes do prazo, todo dia às 05:30, sem repetir as que já existem.</p>
+        <p className="flex-1 min-w-[260px] text-sm text-muted-foreground">A tarefa de cada período é criada 10 dias antes do prazo.</p>
         {ehAdmin ? (
           <>
             <button type="button" onClick={() => setGerar({ modelo: "" })} disabled={!processos.some((p) => p.ativo)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50">Gerar tarefas agora</button>
@@ -244,7 +245,6 @@ export default function TarefasPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Processos e tarefas" }]}
         title="Processos e tarefas"
-        subtitle="O que a equipe precisa fazer, com responsável e prazo. As rotinas que se repetem viram tarefas sozinhas."
       />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue="tarefas" className="space-y-4">

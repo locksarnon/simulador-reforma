@@ -29,14 +29,14 @@ function renderizar(elemento) {
 describe("Comunicados", () => {
   it("lista rascunho e enviado com contadores; só o rascunho edita e envia (administrador)", () => {
     const html = renderizar(<ComunicadosPagina />);
-    for (const t of ["Agenda de novembro", "1 anexo(s)", "Rascunho", "Enviado", "9 de 10 · 1 falha(s)", "Novo comunicado"]) expect(html).toContain(t);
+    for (const t of ["Agenda de novembro", "1 anexo", "Rascunho", "Enviado", "9 de 10 · 1 falha", "Novo comunicado"]) expect(html).toContain(t);
     expect(html).toContain('aria-label="Enviar Agenda de novembro"');
     expect(html).not.toContain('aria-label="Enviar Reforma: o que muda em 2027"');
     expect(html).not.toContain('aria-label="Editar Reforma: o que muda em 2027"');
     papel.atual = "user";
     const consultor = renderizar(<ComunicadosPagina />);
     expect(consultor).not.toContain('aria-label="Enviar Agenda de novembro"');
-    expect(consultor).toContain("o envio é feito por um administrador");
+    expect(consultor).toContain("O envio é feito por um administrador");
     papel.atual = "admin";
   });
 });

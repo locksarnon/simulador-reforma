@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import { fmtData } from "@/pages/BaseLegalPage";
+import { plural } from "@/lib/plural";
 
 /** Recuo por tipo de linha do texto legal: parágrafo, inciso, alínea. */
 function recuo(l) {
@@ -125,7 +126,7 @@ export default function BaseLegalNormaPage() {
               <div className="p-5"><TextoLegal texto={d.texto} /></div>
               {d.versoes?.length > 0 && (
                 <details className="px-5 pb-4 text-sm">
-                  <summary className="cursor-pointer text-muted-foreground inline-flex items-center gap-1.5"><History className="w-3.5 h-3.5" /> {d.versoes.length} versão(ões) anterior(es)</summary>
+                  <summary className="cursor-pointer text-muted-foreground inline-flex items-center gap-1.5"><History className="w-3.5 h-3.5" /> {plural(d.versoes.length, "versão anterior", "versões anteriores")}</summary>
                   <div className="mt-2 space-y-3">{d.versoes.map((v) => (
                     <div key={v.id} className="rounded-lg border border-border p-3"><p className="text-xs text-muted-foreground mb-1">Capturada em {new Date(v.capturada_em).toLocaleString("pt-BR")}</p><TextoLegal texto={v.texto} /></div>
                   ))}</div>

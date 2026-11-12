@@ -101,7 +101,6 @@ export default function FerramentasClassificacao() {
 
         <div className="flex flex-wrap gap-3 items-center"><label className="text-sm">Pesquisar em <select aria-label="Campo de pesquisa de serviços" value={campo} onChange={e => { setCampo(e.target.value); setSnapshot(null); }} className="ml-2 border rounded-md p-2 bg-background">{[['todos','Todos os códigos e descrições'],['descricao_nbs','Descrição NBS'],['descricao_item','Descrição LC 116'],['item_lc116','Item LC 116'],['nbs','NBS'],['ind_op','cIndOp'],['c_class_trib','cClassTrib'],['local_incidencia_ibs','Local de incidência IBS']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label><button type="button" disabled={analise.ocupado || (!q.trim() && !resultadosLote)} onClick={() => analise.salvar({ q, campo, lote, resultadosLote, resultados }, q.trim() || 'Consulta de serviços em lote')} className="border border-border rounded-md px-3 py-2 text-sm disabled:opacity-50">Salvar análise na empresa</button></div>
         {analise.mensagem && <p role="status" className="text-sm">{analise.mensagem}</p>}
-        <p className="text-xs text-muted-foreground">A busca exige os termos relevantes e prioriza correspondências exatas. Campos sem correspondência na tabela não são preenchidos por inferência.</p>
         <a href="https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc" target="_blank" rel="noreferrer" className="text-xs text-primary underline">Conferir versões na documentação oficial da NFS-e</a>
         <Tabs defaultValue="busca">
           <TabsList>

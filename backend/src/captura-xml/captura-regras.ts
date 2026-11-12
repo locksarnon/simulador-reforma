@@ -1,4 +1,5 @@
 import { RespostaDistribuicao, TipoCaptura } from './distribuicao-dfe.cliente';
+import { plural } from '../common/plural';
 
 const MINUTO = 60_000;
 export const HORA = 60 * MINUTO;
@@ -47,7 +48,7 @@ export function decidirPasso(tipo: TipoCaptura, r: RespostaDistribuicao, agora: 
   }
   if (r.cStat === '138') {
     const maisParaBuscar = r.maisDocumentos ?? nsuMaior(r.maxNSU, r.ultNSU);
-    return { ...base, continuarAgora: maisParaBuscar, proximaConsultaEm: maisParaBuscar ? null : em(ESPERA_SEFAZ), situacao: 'COM_DOCUMENTOS', mensagem: `${r.documentos.length} documento(s) recebido(s).` };
+    return { ...base, continuarAgora: maisParaBuscar, proximaConsultaEm: maisParaBuscar ? null : em(ESPERA_SEFAZ), situacao: 'COM_DOCUMENTOS', mensagem: `${plural(r.documentos.length, 'documento recebido', 'documentos recebidos')}.` };
   }
   if (r.cStat === '137') {
     return { ...base, proximaConsultaEm: em(ESPERA_SEFAZ), situacao: 'SEM_NOVIDADE', mensagem: 'Nenhum documento novo.' };

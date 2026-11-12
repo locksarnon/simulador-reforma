@@ -10,6 +10,7 @@ import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
 import { useEstadoMonitoramento } from "@/lib/monitoramento";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { naCarteira } from "@/lib/servicos";
+import { plural } from "@/lib/plural";
 
 const campo = "w-20 rounded-md border border-border bg-background px-2 py-1 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -31,7 +32,7 @@ export default function ParametrosRotinasPagina() {
   const bpo = empresas.filter((e) => naCarteira(mapa.get(e.id)?.BPO_FISCAL));
   const guiasAgora = useMutation({
     mutationFn: () => api.post("/monitoramento/guias", { empresa_ids: bpo.map((e) => e.id), enviar_email: !!cfg?.guias?.enviar_email }),
-    onSuccess: (r) => toast({ title: `${r.geradas} guia(s) gerada(s)${r.enviadas ? `, ${r.enviadas} enviada(s) por e-mail` : ""}`, description: r.falhas.length ? `Sem guia: ${r.falhas.slice(0, 5).join("; ")}${r.falhas.length > 5 ? "…" : ""}` : undefined }),
+    onSuccess: (r) => toast({ title: `${plural(r.geradas, "guia gerada", "guias geradas")}${r.enviadas ? `, ${plural(r.enviadas, "enviada", "enviadas")} por e-mail` : ""}`, description: r.falhas.length ? `Sem guia: ${r.falhas.slice(0, 5).join("; ")}${r.falhas.length > 5 ? "…" : ""}` : undefined }),
     onError: (e) => toast({ title: "Não foi possível gerar", description: e.message, variant: "destructive" }),
   });
   const crumbs = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Parâmetros e rotinas" }];
@@ -41,27 +42,25 @@ export default function ParametrosRotinasPagina() {
 
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Parâmetros e rotinas" subtitle="Quando o InTAX consulta sozinho cada assunto dos clientes do BPO e quando gera e envia as guias." />
+      <PageHeader crumbs={crumbs} title="Parâmetros e rotinas" />
       <div className="px-6 lg:px-8 py-5 space-y-4 max-w-3xl">
         <AvisoDoModo modo={estado.data?.modo} ehAdmin />
         {!cfg ? <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <>
             <section className="rounded-xl border border-border bg-card p-4 space-y-3 text-sm">
               <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={cfg.ativa} onChange={(e) => setCfg((c) => ({ ...c, ativa: e.target.checked }))} /> Consulta automática ligada</label>
-              <p className="text-xs text-muted-foreground">Às 06:30 (Brasília) do dia escolhido, o InTAX consulta o assunto para todos os clientes com BPO fiscal ativo ({bpo.length} hoje) e avisa no sino o que estiver crítico. 0 desliga o assunto; vale de 1 a 28.</p>
+              <p className="text-xs text-muted-foreground">Às 06:30, no dia do mês (1 a 28; 0 desliga).</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {grupos.map((g) => <label key={g.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"><span>{g.rotulo}</span><span className="flex items-center gap-1 text-xs text-muted-foreground">dia <input type="number" min={0} max={28} className={campo} value={cfg.dias?.[g.id] ?? 0} onChange={(e) => mudarDia(g.id, e.target.value)} aria-label={`Dia da consulta de ${g.rotulo}`} /></span></label>)}
               </div>
             </section>
             <section className="rounded-xl border border-border bg-card p-4 space-y-3 text-sm">
               <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={cfg.guias.ativa} onChange={(e) => setCfg((c) => ({ ...c, guias: { ...c.guias, ativa: e.target.checked } }))} /> Gerar as guias todo mês</label>
-              <p className="text-xs text-muted-foreground">No dia escolhido, gera a guia da competência anterior de cada cliente do BPO pelo regime do cadastro: DAS (Simples), DAS do MEI ou DARF da DCTFWeb (Presumido e Real). Os PDF ficam no monitoramento de cada cliente.</p>
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-1">Dia <input type="number" min={1} max={28} className={campo} value={cfg.guias.dia} onChange={(e) => setCfg((c) => ({ ...c, guias: { ...c.guias, dia: Math.max(1, Math.min(28, Number(e.target.value) || 1)) } }))} /></label>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.guias.enviar_email} onChange={(e) => setCfg((c) => ({ ...c, guias: { ...c.guias, enviar_email: e.target.checked } }))} /> Enviar ao e-mail de contato do cliente</label>
               </div>
-              <p className="text-xs text-muted-foreground">O e-mail sai pelo servidor de e-mail do InTAX e fica registrado em Administração &gt; Comunicações. Cliente sem e-mail de contato só tem a guia gerada.</p>
-              <button type="button" onClick={() => guiasAgora.mutate()} disabled={guiasAgora.isPending || !bpo.length || estado.data?.modo === "DESLIGADO"} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-60">{guiasAgora.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Gerar as guias agora ({bpo.length} cliente(s) do BPO)</button>
+              <button type="button" onClick={() => guiasAgora.mutate()} disabled={guiasAgora.isPending || !bpo.length || estado.data?.modo === "DESLIGADO"} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-60">{guiasAgora.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Gerar as guias agora ({plural(bpo.length, "cliente", "clientes")})</button>
             </section>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>

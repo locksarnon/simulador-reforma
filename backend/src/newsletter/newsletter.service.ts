@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService, emailLayout, esc } from '../mail/mail.service';
+import { plural } from '../common/plural';
 
 const LINK = '{{LINK_DESCADASTRO}}';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -87,7 +88,7 @@ export class NewsletterService {
     const corpo = `${exec.resumo_executivo ? `<p style="font-size:14px;line-height:1.6;margin:0 0 16px"><b>Resumo da semana:</b> ${esc(exec.resumo_executivo)}</p>` : ''}${blocos}`;
     return this.prisma.newsletterEdicao.create({
       data: {
-        assunto: `Radar InTAX — ${itens.length} novidade(s) da reforma tributária para você acompanhar`,
+        assunto: `Radar InTAX — ${plural(itens.length, 'novidade', 'novidades')} da reforma tributária para você acompanhar`,
         semana_referencia: exec.semana_referencia,
         corpo_html: corpo,
       },

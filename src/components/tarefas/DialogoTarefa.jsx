@@ -37,7 +37,7 @@ export default function DialogoTarefa({ tarefa, empresas, colaboradores, usuario
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{editando ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
-          <DialogDescription>{tarefa?.modelo_id ? `Gerada pelo processo recorrente (${tarefa.competencia}).` : "Quem for o responsável recebe um aviso no sino."}</DialogDescription>
+          <DialogDescription>{tarefa?.modelo_id ? `Processo recorrente (${tarefa.competencia}).` : "Tarefa avulsa."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); if (f.titulo.trim()) salvar.mutate(); }} className="space-y-3 text-sm">
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Título</span>

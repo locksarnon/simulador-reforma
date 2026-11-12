@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CofreService } from '../certificados/cofre.service';
+import { plural } from '../common/plural';
 
 type Usuario = { email?: string; role?: string } | undefined;
 const ID = 'infosimples';
@@ -35,7 +36,7 @@ export function lerCndt(d: Record<string, unknown>): Omit<ResultadoCertidao, 'co
   const processos = txt(d.total_de_processos);
   return {
     status, situacao: certidao, emissao, validade, numero: txt(d.certidao_codigo) || null,
-    resumo: status === 'DEBITOS' ? `Constam débitos trabalhistas no Banco Nacional de Devedores Trabalhistas${processos ? ` (${processos} processo(s))` : ''}.` : `${certidao}${validade ? `, válida até ${validade}` : ''}.`,
+    resumo: status === 'DEBITOS' ? `Constam débitos trabalhistas no Banco Nacional de Devedores Trabalhistas${processos ? ` (${plural(Number(processos), 'processo', 'processos')})` : ''}.` : `${certidao}${validade ? `, válida até ${validade}` : ''}.`,
     detalhes: [
       { rotulo: 'Situação', valor: certidao }, { rotulo: 'Emissão', valor: emissao ?? '' }, { rotulo: 'Validade', valor: validade ?? '' },
       { rotulo: 'Código da certidão', valor: txt(d.certidao_codigo) }, { rotulo: 'Processos', valor: processos },

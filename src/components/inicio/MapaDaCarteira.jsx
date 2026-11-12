@@ -1,5 +1,6 @@
 import "leaflet/dist/leaflet.css";
 import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
+import { plural } from "@/lib/plural";
 
 /** Raio do círculo pelo número de empresas (cresce devagar, para uma cidade grande não cobrir o mapa). */
 export const raio = (total) => Math.min(6 + Math.sqrt(total) * 4, 28);
@@ -13,7 +14,7 @@ export default function MapaDaCarteira({ municipios }) {
       {comPonto.map((m) => (
         <CircleMarker key={`${m.uf}-${m.municipio}`} center={[m.latitude, m.longitude]} radius={raio(m.total)} pathOptions={{ color: "#1E764D", fillColor: "#1E764D", fillOpacity: 0.45, weight: 1.5 }}>
           <Tooltip>{m.municipio}/{m.uf}: {m.total}</Tooltip>
-          <Popup>{m.municipio}/{m.uf}<br />{m.total} empresa(s)</Popup>
+          <Popup>{m.municipio}/{m.uf}<br />{plural(m.total, "empresa", "empresas")}</Popup>
         </CircleMarker>
       ))}
     </MapContainer>

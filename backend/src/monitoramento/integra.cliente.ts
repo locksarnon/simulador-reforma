@@ -118,7 +118,7 @@ export class IntegraCliente {
 
   async chamar(p: Pedido): Promise<Resposta> {
     const modo = this.modo();
-    if (modo === 'DESLIGADO') throw new ErroIntegra('O monitoramento está desligado. Ligue em Administração > Integrações.', 'DESLIGADO');
+    if (modo === 'DESLIGADO') throw new ErroIntegra('Monitoramento desligado (Administração > Integrações).', 'DESLIGADO');
     const base = modo === 'PRODUCAO' ? URL_PRODUCAO : URL_DEMONSTRACAO;
     const corpo = JSON.stringify({
       contratante: p.contratante, autorPedidoDados: p.autorPedidoDados, contribuinte: p.contribuinte,

@@ -8,6 +8,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
 import { useAuth } from "@/lib/AuthContext";
 import { areasDoMenu, caminhoDaArea, moduloDoCaminho, SITUACAO, situacaoDoModulo } from "@/lib/navegacao";
+import { plural } from "@/lib/plural";
 
 /** "Administrador" ou "Consultor": o papel decide quem envia certificado, ativa a captura e exclui. */
 const LARGURA_ABERTA = 256;
@@ -233,7 +234,7 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
         )}
         {user && custo.data && (
           <Link to={user.role === "admin" ? "/admin/custos" : "/perfil"} onClick={navegar} title={custo.data.itens.filter((i) => i.quantidade).map((i) => `${i.rotulo}: ${i.quantidade} × ${brlMenu(i.preco)} = ${brlMenu(i.subtotal)}`).join(" · ") || "Nenhuma chamada paga neste mês"} className={`block rounded-md px-[14px] py-1 text-[11px] text-rail-muted hover:bg-rail-hover hover:text-rail-strong ${compacto ? "hidden" : ""}`}>
-            Ferramentas externas no mês: <span className="font-medium tabular-nums text-rail-strong">{brlMenu(custo.data.total)}</span>{custo.data.chamadas ? ` · ${custo.data.chamadas} chamada(s)` : ""}
+            Ferramentas externas no mês: <span className="font-medium tabular-nums text-rail-strong">{brlMenu(custo.data.total)}</span>{custo.data.chamadas ? ` · ${plural(custo.data.chamadas, "chamada", "chamadas")}` : ""}
           </Link>
         )}
         <button type="button" onClick={sair} disabled={saindo} title={compacto ? "Sair" : undefined} className={`${linha} text-[13.5px] font-medium ${linhaInativa} disabled:opacity-60`}>

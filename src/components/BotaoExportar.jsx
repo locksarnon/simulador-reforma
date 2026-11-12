@@ -3,6 +3,7 @@ import { Download, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/components/ui/use-toast";
 import { exportarLista } from "@/lib/exportarLista";
+import { plural } from "@/lib/plural";
 
 const FORMATOS = [["xlsx", "Excel"], ["pdf", "PDF"], ["csv", "CSV"]];
 
@@ -30,7 +31,7 @@ export default function BotaoExportar({ titulo, colunas, linhas }) {
         <button type="button" disabled={!linhas.length} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50" aria-label={`Exportar ${titulo}`}><Download className="h-4 w-4" aria-hidden="true" /> Exportar</button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-3 text-sm">
-        <p className="text-xs text-muted-foreground">Exporta as {linhas.length} linha(s) que estão na tela, com os filtros aplicados.</p>
+        <p className="text-xs text-muted-foreground">{plural(linhas.length, "linha", "linhas")} com os filtros da tela.</p>
         <fieldset className="space-y-1"><legend className="text-xs font-medium">Colunas</legend>
           {colunas.map((c) => <label key={c.chave} className="flex items-center gap-2"><input type="checkbox" checked={escolhidas.includes(c.chave)} onChange={() => alternar(c.chave)} /> {c.rotulo}</label>)}
         </fieldset>

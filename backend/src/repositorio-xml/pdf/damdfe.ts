@@ -23,6 +23,7 @@ import {
   A4, Alinhamento, NEGRITO, NORMAL, OpcoesPdf, Pintor, marcaDagua, montarPdf, prefixoQueCabe,
 } from './pintor';
 import { matrizQr } from './qr';
+import { plural } from '../../common/plural';
 
 /** Opções do DAMDFE: as comuns a todos os PDF (cancelada, denegada e semCompressao); denegada não se aplica ao MDF-e. */
 export type OpcoesDamdfe = OpcoesPdf;
@@ -222,7 +223,7 @@ function tabelasLadoALado(c: Ctx, lados: Lado[]): void {
 
 /** Nota que fecha uma lista cortada em `LIMITE_LINHAS`. */
 const linhaOmitidas = (omitidas: number, colunas: number): Linha[] => (omitidas
-  ? [{ celulas: [`… demais ${omitidas.toLocaleString('pt-BR')} registro(s) no XML`, ...Array(colunas - 1).fill('')] }]
+  ? [{ celulas: [`… demais ${plural(omitidas, 'registro', 'registros')} no XML`, ...Array(colunas - 1).fill('')] }]
   : []);
 
 // ── Campos e textos ──────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Search, Loader2, Copy, Check, ChevronDown } from "lucide-react";
 import { api } from "@/api/client";
+import { plural } from "@/lib/plural";
 
 const SITUACAO = {
   ALIQUOTA_ZERO: { rotulo: "Alíquota zero", cor: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" },
@@ -125,7 +126,7 @@ export default function ConsultaNcm({ aoConsultar }) {
       {dados && (
         <>
           <p className="text-xs text-muted-foreground">
-            {dados.total === 0 ? "Nenhum NCM encontrado. Tente outro termo ou apenas os primeiros dígitos." : `${dados.total.toLocaleString("pt-BR")} resultado(s)${dados.truncado ? " — mostrando os 25 primeiros; refine a busca" : ""}`}
+            {dados.total === 0 ? "Nenhum NCM encontrado." : `${plural(dados.total, "resultado", "resultados")}${dados.truncado ? " — os 25 primeiros" : ""}`}
           </p>
           <div className="space-y-2">
             {dados.itens.map((it) => <Item key={it.codigo} it={it} aberto={dados.itens.length <= 2} />)}

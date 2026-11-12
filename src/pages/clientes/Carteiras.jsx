@@ -8,7 +8,6 @@ export function CarteiraBpo() {
       tipo="BPO_FISCAL"
       area={areaPorId("bpo")}
       titulo="Carteira do BPO"
-      subtitulo="As empresas com BPO fiscal ativo, com o responsável, os módulos ligados e o caminho para trabalhar em cada uma."
     />
   );
 }
@@ -20,7 +19,6 @@ export function CarteiraDiagnostico() {
       tipo="DIAGNOSTICO_PONTUAL"
       area={areaPorId("diagnostico")}
       titulo="Carteira de diagnósticos"
-      subtitulo="As empresas com diagnóstico pontual em andamento. O trabalho de cada uma fica no diagnóstico dela."
     />
   );
 }

@@ -54,7 +54,7 @@ export default function NewsletterPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <TituloPagina icon={Mail}>Newsletter</TituloPagina>
-            <p className="text-sm text-muted-foreground">Radar de novidades por e-mail: o rascunho nasce do Radar toda segunda às 7h30 e é enviado sozinho às 8h. Pra revisar antes, edite/aprove/envie aqui nessa janela.</p>
+            <p className="text-sm text-muted-foreground">Envio às segundas, 8h.</p>
           </div>
           <button onClick={() => acao("rascunho", async () => { const n = await api.post("/newsletter/rascunho"); setSelId(n.id); }, "Rascunho pronto")} disabled={ocupado === "rascunho"} className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">
             {ocupado === "rascunho" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Gerar rascunho do Radar

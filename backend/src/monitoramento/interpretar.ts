@@ -1,3 +1,4 @@
+import { plural } from '../common/plural';
 /**
  * Lê a resposta de cada serviço do Integra Contador e devolve o resumo da tela: nível (OK, ATENCAO, CRITICO ou INFO), uma frase, destaques
  * e, quando há lista, uma tabela. Os PDF (guias, recibos, relatórios) saem da resposta e vão para o armazenamento.
@@ -98,7 +99,7 @@ export function interpretar(sistema: string, servico: string, dados: unknown, ar
     return {
       nivel: emMalha ? 'CRITICO' : semDecl || naoPagos ? 'ATENCAO' : 'OK',
       titulo: [
-        `${linhas.length} competência(s) em ${d.anocalendario ?? ''}`,
+        `${plural(linhas.length, 'competência', 'competências')} em ${d.anocalendario ?? ''}`,
         semDecl ? `${semDecl} sem declaração` : '',
         naoPagos ? `${naoPagos} com DAS não pago` : '',
         emMalha ? `${emMalha} em malha` : '',
@@ -136,21 +137,21 @@ export function interpretar(sistema: string, servico: string, dados: unknown, ar
     const debitos = lista(dados);
     const total = debitos.reduce((s, x) => s + (Number(x.valor) || 0), 0);
     return {
-      nivel: debitos.length ? 'CRITICO' : 'OK', titulo: debitos.length ? `${debitos.length} débito(s) em dívida ativa, total ${moeda(total)}.` : 'Nenhum débito em dívida ativa no ano.',
+      nivel: debitos.length ? 'CRITICO' : 'OK', titulo: debitos.length ? `${plural(debitos.length, 'débito', 'débitos')} em dívida ativa, total ${moeda(total)}.` : 'Nenhum débito em dívida ativa no ano.',
       destaques: [{ rotulo: 'Débitos', valor: String(debitos.length) }, { rotulo: 'Total', valor: moeda(total) }],
       tabela: { colunas: [{ chave: 'periodoApuracao', rotulo: 'Competência', tipo: 'periodo' }, { chave: 'tributo', rotulo: 'Tributo' }, { chave: 'valor', rotulo: 'Valor', tipo: 'moeda' }, { chave: 'situacaoDebito', rotulo: 'Situação' }], linhas: debitos },
     };
   }
   if (sistema === 'DEFIS' && servico === 'CONSDECLARACAO142') {
     const decl = lista(dados);
-    return { nivel: decl.length ? 'OK' : 'ATENCAO', titulo: decl.length ? `${decl.length} DEFIS entregue(s); a mais recente é de ${Math.max(...decl.map((x) => Number(x.anoCalendario) || 0))}.` : 'Nenhuma DEFIS entregue.', destaques: [], tabela: { colunas: [{ chave: 'anoCalendario', rotulo: 'Ano' }, { chave: 'idDefis', rotulo: 'Número' }, { chave: 'dataHora', rotulo: 'Entregue em', tipo: 'data' }], linhas: decl } };
+    return { nivel: decl.length ? 'OK' : 'ATENCAO', titulo: decl.length ? `${plural(decl.length, 'DEFIS entregue', 'DEFIS entregues')}; a mais recente é de ${Math.max(...decl.map((x) => Number(x.anoCalendario) || 0))}.` : 'Nenhuma DEFIS entregue.', destaques: [], tabela: { colunas: [{ chave: 'anoCalendario', rotulo: 'Ano' }, { chave: 'idDefis', rotulo: 'Número' }, { chave: 'dataHora', rotulo: 'Entregue em', tipo: 'data' }], linhas: decl } };
   }
   if (sistema === 'MIT' && servico === 'LISTAAPURACOES317') {
     const ap = lista(d.Apuracoes ?? dados);
     const SIT: Record<string, string> = { 1: 'Em edição', 2: 'Em encerramento', 3: 'Encerrada', 4: 'Erro no encerramento' };
     const linhas = ap.map((a) => ({ ...a, situacaoTexto: SIT[String(a.situacao)] ?? String(a.situacao ?? '—') }));
     const abertas = ap.filter((a) => Number(a.situacao) !== 3);
-    return { nivel: abertas.length ? 'ATENCAO' : 'OK', titulo: `${linhas.length} apuração(ões); ${abertas.length} não encerrada(s).`, destaques: [], tabela: { colunas: [{ chave: 'periodoApuracao', rotulo: 'Competência', tipo: 'periodo' }, { chave: 'situacaoTexto', rotulo: 'Situação' }, { chave: 'dataEncerramento', rotulo: 'Encerrada em', tipo: 'data' }, { chave: 'valorTotalApurado', rotulo: 'Valor apurado', tipo: 'moeda' }], linhas } };
+    return { nivel: abertas.length ? 'ATENCAO' : 'OK', titulo: `${plural(linhas.length, 'apuração', 'apurações')}; ${plural(abertas.length, 'não encerrada', 'não encerradas')}.`, destaques: [], tabela: { colunas: [{ chave: 'periodoApuracao', rotulo: 'Competência', tipo: 'periodo' }, { chave: 'situacaoTexto', rotulo: 'Situação' }, { chave: 'dataEncerramento', rotulo: 'Encerrada em', tipo: 'data' }, { chave: 'valorTotalApurado', rotulo: 'Valor apurado', tipo: 'moeda' }], linhas } };
   }
   if (sistema === 'CAIXAPOSTAL' && servico === 'MSGCONTRIBUINTE61') {
     const c = lista(d.conteudo)[0] ?? {};
@@ -160,7 +161,7 @@ export function interpretar(sistema: string, servico: string, dados: unknown, ar
     const linhas = msgs.map((m) => ({ data: m.dataEnvio, assunto: String(m.assuntoModelo ?? '').replace(/\+\+VARIAVEL\+\+/g, String(m.valorParametroAssunto ?? '')), origem: m.descricaoOrigem, lida: String(m.indicadorLeitura) === '0' ? 'Não lida' : 'Lida', relevante: String(m.relevancia) === '1' ? 'Sim' : 'Não', isn: m.isn }));
     return {
       nivel: relevantes.length ? 'CRITICO' : naoLidas.length ? 'ATENCAO' : 'OK',
-      titulo: `${msgs.length} mensagem(ns); ${naoLidas.length} não lida(s)${relevantes.length ? `, ${relevantes.length} relevante(s)` : ''}.`,
+      titulo: `${plural(msgs.length, 'mensagem', 'mensagens')}; ${plural(naoLidas.length, 'não lida', 'não lidas')}${relevantes.length ? `, ${plural(relevantes.length, 'relevante', 'relevantes')}` : ''}.`,
       destaques: [{ rotulo: 'Mensagens', valor: String(c.quantidadeMensagens ?? msgs.length) }, { rotulo: 'Não lidas', valor: String(naoLidas.length) }, { rotulo: 'Relevantes não lidas', valor: String(relevantes.length) }],
       tabela: { colunas: [{ chave: 'data', rotulo: 'Data', tipo: 'data' }, { chave: 'assunto', rotulo: 'Assunto' }, { chave: 'origem', rotulo: 'Origem' }, { chave: 'lida', rotulo: 'Leitura' }, { chave: 'relevante', rotulo: 'Relevante' }], linhas },
     };
@@ -184,27 +185,27 @@ export function interpretar(sistema: string, servico: string, dados: unknown, ar
     const hoje = Number(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
     const vigentes = procs.filter((p) => Number(p.dtexpiracao) >= hoje);
     const linhas = procs.map((p) => ({ expira: p.dtexpiracao, sistemas: lista(p.sistemas).join(', '), situacao: Number(p.dtexpiracao) >= hoje ? 'Vigente' : 'Vencida' }));
-    return { nivel: vigentes.length ? 'OK' : 'CRITICO', titulo: vigentes.length ? `${vigentes.length} procuração(ões) vigente(s).` : procs.length ? 'Procuração vencida: peça ao cliente que renove no e-CAC.' : 'Sem procuração para o escritório.', destaques: [], tabela: { colunas: [{ chave: 'expira', rotulo: 'Vale até', tipo: 'data' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'sistemas', rotulo: 'Serviços' }], linhas } };
+    return { nivel: vigentes.length ? 'OK' : 'CRITICO', titulo: vigentes.length ? `${plural(vigentes.length, 'procuração vigente', 'procurações vigentes')}.` : procs.length ? 'Procuração vencida: peça ao cliente que renove no e-CAC.' : 'Sem procuração para o escritório.', destaques: [], tabela: { colunas: [{ chave: 'expira', rotulo: 'Vale até', tipo: 'data' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'sistemas', rotulo: 'Serviços' }], linhas } };
   }
   if (servico.startsWith('PEDIDOSPARC')) {
     const ps = lista(d.parcelamentos);
     const ativos = ps.filter((p) => !/encerrad|rescindid|cancelad|liquidad/i.test(String(p.situacao)));
-    return { nivel: ativos.length ? 'ATENCAO' : 'OK', titulo: ps.length ? `${ps.length} pedido(s); ${ativos.length} em andamento.` : 'Nenhum parcelamento.', destaques: [], tabela: { colunas: [{ chave: 'numero', rotulo: 'Número' }, { chave: 'dataDoPedido', rotulo: 'Pedido em', tipo: 'data' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'dataDaSituacao', rotulo: 'Desde', tipo: 'data' }], linhas: ps } };
+    return { nivel: ativos.length ? 'ATENCAO' : 'OK', titulo: ps.length ? `${plural(ps.length, 'pedido', 'pedidos')}; ${ativos.length} em andamento.` : 'Nenhum parcelamento.', destaques: [], tabela: { colunas: [{ chave: 'numero', rotulo: 'Número' }, { chave: 'dataDoPedido', rotulo: 'Pedido em', tipo: 'data' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'dataDaSituacao', rotulo: 'Desde', tipo: 'data' }], linhas: ps } };
   }
   if (servico.startsWith('PARCELASPARAGERAR')) {
     const ps = lista(d.listaParcelas);
     const total = ps.reduce((s, p) => s + (Number(p.valor) || 0), 0);
-    return { nivel: ps.length ? 'ATENCAO' : 'OK', titulo: ps.length ? `${ps.length} parcela(s) para emitir, total ${moeda(total)}.` : 'Nenhuma parcela para emitir.', destaques: [], tabela: { colunas: [{ chave: 'parcela', rotulo: 'Parcela', tipo: 'periodo' }, { chave: 'valor', rotulo: 'Valor', tipo: 'moeda' }], linhas: ps } };
+    return { nivel: ps.length ? 'ATENCAO' : 'OK', titulo: ps.length ? `${plural(ps.length, 'parcela', 'parcelas')} para emitir, total ${moeda(total)}.` : 'Nenhuma parcela para emitir.', destaques: [], tabela: { colunas: [{ chave: 'parcela', rotulo: 'Parcela', tipo: 'periodo' }, { chave: 'valor', rotulo: 'Valor', tipo: 'moeda' }], linhas: ps } };
   }
   if (servico === 'CONSVINCULOS261') {
     const cs = lista(d.cnpjs).map((c) => ({ cnpj: c.cnpj, tipo: c.tipoEstabelecimento, situacao: (c.situacaoCadastral as Record<string, unknown>)?.descricao, uf: c.uf }));
-    return { nivel: 'INFO', titulo: `${d.totalInTheDatabase ?? cs.length} CNPJ(s) com o escritório como responsável.`, destaques: [], tabela: { colunas: [{ chave: 'cnpj', rotulo: 'CNPJ' }, { chave: 'tipo', rotulo: 'Tipo' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'uf', rotulo: 'UF' }], linhas: cs } };
+    return { nivel: 'INFO', titulo: `${plural(Number(d.totalInTheDatabase ?? cs.length), 'CNPJ', 'CNPJs')} com o escritório como responsável.`, destaques: [], tabela: { colunas: [{ chave: 'cnpj', rotulo: 'CNPJ' }, { chave: 'tipo', rotulo: 'Tipo' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'uf', rotulo: 'UF' }], linhas: cs } };
   }
   if (temPdf) return { ...comPdf(''), titulo: `${rotulo ? `${rotulo}: ` : ''}${arquivos.length === 1 ? 'PDF pronto' : `${arquivos.length} PDF prontos`} para abrir ou baixar.`, destaques: arquivos.map((a, n) => ({ rotulo: `Arquivo ${n + 1}`, valor: a.nome })) };
   // Genérico: a maior lista de objetos (em qualquer nível) vira tabela, com os campos aninhados achatados ("a.b").
   const t = tabelaGenerica(dados);
   const soltos = Object.entries(d).filter(([, v]) => v !== null && typeof v !== 'object').slice(0, 8).map(([k, v]) => ({ rotulo: rotuloDoCampo(k), valor: String(v) }));
-  if (t) return { nivel: 'INFO', titulo: t.linhas.length ? `${t.linhas.length} registro(s) encontrado(s).` : 'Nenhum registro encontrado.', destaques: soltos, tabela: t };
+  if (t) return { nivel: 'INFO', titulo: t.linhas.length ? `${plural(t.linhas.length, 'registro encontrado', 'registros encontrados')}.` : 'Nenhum registro encontrado.', destaques: soltos, tabela: t };
   const vazio = dados === null || dados === undefined || dados === '' || (Array.isArray(dados) && !dados.length) || (typeof dados === 'object' && !Object.keys(d).length);
   return { nivel: 'INFO', titulo: vazio ? 'Nenhum registro encontrado.' : 'Consulta feita.', destaques: soltos };
 }
@@ -219,7 +220,7 @@ function achatar(o: Record<string, unknown>, prefixo = '', saida: Record<string,
   for (const [k, v] of Object.entries(o)) {
     const chave = prefixo ? `${prefixo}.${k}` : k;
     if (v && typeof v === 'object' && !Array.isArray(v) && nivel < 2) achatar(v as Record<string, unknown>, chave, saida, nivel + 1);
-    else if (Array.isArray(v)) saida[chave] = v.every((x) => x === null || typeof x !== 'object') ? v.join(', ') : `${v.length} item(ns)`;
+    else if (Array.isArray(v)) saida[chave] = v.every((x) => x === null || typeof x !== 'object') ? v.join(', ') : plural(v.length, 'item', 'itens');
     else saida[chave] = v;
   }
   return saida;

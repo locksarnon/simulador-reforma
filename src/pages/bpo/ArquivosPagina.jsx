@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import PageHeader from "@/components/PageHeader";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import { useEmpresaEmFoco } from "@/lib/EmpresaEmFoco";
+import { plural } from "@/lib/plural";
 import { contarSituacoes, expiraEm, SITUACOES_DOC, tamanhoLegivel, trilhaDaPasta } from "@/lib/documentos";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -49,14 +50,14 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
   const falha = (t) => (e) => toast({ title: t, description: e.message, variant: "destructive" });
   const enviar = useMutation({
     mutationFn: async (arquivos) => { for (const f of arquivos) await api.upload("/documentos/arquivos", f, { ...donoParams(dono), pasta }); return arquivos.length; },
-    onSuccess: (n) => { recarregar(); toast({ title: `${n} arquivo(s) enviado(s)` }); },
+    onSuccess: (n) => { recarregar(); toast({ title: plural(n, "arquivo enviado", "arquivos enviados") }); },
     onError: falha("Não foi possível enviar"),
   });
   const excluir = useMutation({ mutationFn: (id) => api.delete(`/documentos/arquivos/${id}`), onSuccess: () => { recarregar(); toast({ title: "Arquivo excluído" }); }, onError: falha("Não foi possível excluir") });
   const mover = useMutation({ mutationFn: ({ id, ...c }) => api.put(`/documentos/arquivos/${id}`, c), onSuccess: () => { setEditar(null); recarregar(); toast({ title: "Arquivo salvo" }); }, onError: falha("Não foi possível salvar") });
   const zip = useMutation({
     mutationFn: () => api.post("/downloads", { arquivo_ids: [...marcados], nome: `arquivos ${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}` }),
-    onSuccess: async (l) => { setMarcados(new Set()); qc.invalidateQueries({ queryKey: ["downloads"] }); toast({ title: "ZIP pronto", description: "Ele fica em Meus downloads por 7 dias." }); await api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }); },
+    onSuccess: async (l) => { setMarcados(new Set()); qc.invalidateQueries({ queryKey: ["downloads"] }); toast({ title: "ZIP pronto", description: "Em Meus downloads por 7 dias." }); await api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }); },
     onError: falha("Não foi possível montar o ZIP"),
   });
   const [nomePasta, setNomePasta] = useState(null); // campo da nova pasta aberto
@@ -66,7 +67,7 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
   return (
     <div className="space-y-3">
       <SeletorDeDono empresas={empresas} pessoas={pessoas} dono={dono} aoMudar={(d) => { setDono(d); setPasta(""); setMarcados(new Set()); }} />
-      {!ativo ? <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Escolha uma empresa ou uma pessoa física para ver as pastas e os arquivos.</p> : (
+      {!ativo ? <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Escolha uma empresa ou pessoa física.</p> : (
         <div className="rounded-xl border border-border bg-card p-3 space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <nav aria-label="Pasta atual" className="flex flex-wrap items-center gap-1">
@@ -222,14 +223,14 @@ function AbaDownloads() {
   const { data = [], isLoading } = useQuery({ queryKey: ["downloads"], queryFn: () => api.get("/downloads") });
   return (
     <div className="max-w-2xl space-y-2">
-      <p className="text-sm text-muted-foreground">Os ZIP que você montou ficam aqui por 7 dias. Para montar um, marque os arquivos na aba Arquivos e use "Baixar marcados".</p>
+      <p className="text-sm text-muted-foreground">ZIP guardados por 7 dias.</p>
       <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Meus downloads">
         {isLoading && <li className="p-4 text-center text-sm text-muted-foreground">Carregando…</li>}
         {!isLoading && data.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">Nenhum download guardado.</li>}
         {data.map((l) => (
           <li key={l.id} className="flex items-center gap-3 px-3 py-2 text-sm">
             <FileArchive className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span className="flex-1"><span className="font-medium">{l.nome}</span> <span className="text-xs text-muted-foreground">· {l.arquivos} arquivo(s) · {tamanhoLegivel(l.tamanho)} · {expiraEm(l.expira_em)}</span></span>
+            <span className="flex-1"><span className="font-medium">{l.nome}</span> <span className="text-xs text-muted-foreground">· {plural(l.arquivos, "arquivo", "arquivos")} · {tamanhoLegivel(l.tamanho)} · {expiraEm(l.expira_em)}</span></span>
             <button type="button" onClick={() => api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }).catch((e) => toast({ title: "Não foi possível baixar", description: e.message, variant: "destructive" }))} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" /> Baixar</button>
           </li>
         ))}
@@ -258,7 +259,7 @@ function AbaTipos({ ehAdmin, tipos }) {
       <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Tipos de documento">
         {tipos.map((t) => (
           <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <span className="flex-1"><span className="font-medium">{t.nome}</span> <span className="text-xs text-muted-foreground">{[t.orgao, `aviso ${t.alerta_dias} dia(s) antes`].filter(Boolean).join(" · ")}</span></span>
+            <span className="flex-1"><span className="font-medium">{t.nome}</span> <span className="text-xs text-muted-foreground">{[t.orgao, `aviso ${plural(t.alerta_dias, "dia", "dias")} antes`].filter(Boolean).join(" · ")}</span></span>
             {ehAdmin && <button type="button" onClick={async () => { if (await confirmar({ titulo: `Apagar o tipo "${t.nome}"?`, descricao: "Os documentos desse tipo continuam, sem tipo.", rotulo: "Apagar" })) apagar.mutate(t.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Apagar o tipo ${t.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
           </li>
         ))}
@@ -277,7 +278,7 @@ export default function ArquivosPagina() {
   const empresas = useMemo(() => [...(emp.data || [])].sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR")), [emp.data]);
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Arquivos e documentos" }]} title="Arquivos e documentos" subtitle="Documentos com validade e aviso de vencimento, as pastas de arquivos de cada empresa e pessoa física, e os seus downloads em ZIP." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Arquivos e documentos" }]} title="Arquivos e documentos" />
       <div className="px-6 lg:px-8 py-6">
         <Tabs defaultValue="documentos" className="space-y-4">
           <TabsList><TabsTrigger value="documentos">Documentos com validade</TabsTrigger><TabsTrigger value="arquivos">Arquivos</TabsTrigger><TabsTrigger value="downloads">Meus downloads</TabsTrigger><TabsTrigger value="tipos">Tipos de documento</TabsTrigger></TabsList>

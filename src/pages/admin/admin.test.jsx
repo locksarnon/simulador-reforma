@@ -61,7 +61,7 @@ describe("Usuários e acessos", () => {
     expect(html).toContain('aria-label="Gerar senha provisória para maria@fal"');
     expect(html).toContain('aria-label="Editar maria@fal"');
     expect(html).toContain('aria-label="Redefinir a senha de maria@fal"');
-    expect(html).toContain("pelo menos um administrador ativo");
+    expect(html).toContain("Convite vale 7 dias");
   });
 
   it("quem não é administrador vê o aviso e nenhuma lista", () => {
@@ -77,7 +77,7 @@ describe("Registro de acesso", () => {
   it("mostra cada tentativa com o resultado em palavras, o IP e o navegador resumido", () => {
     const html = renderizar(<RegistroDeAcesso />, { log: LOG });
     for (const t of ["Entrou", "Senha errada", "IP não permitido", "200.10.20.30", "Chrome · Windows", "curl"]) expect(html).toContain(t);
-    expect(html).toContain("Mostra as 200 tentativas mais recentes");
+    expect(html).toContain("Últimas 200 tentativas");
   });
 
   it("lista vazia explica que não há tentativas com aqueles filtros", () => {

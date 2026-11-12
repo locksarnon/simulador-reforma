@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Building2, Layers, Search, X } from "lucide-react";
 import { mascararDocumento, opcoesDoSeletor, rotuloDoGrupo } from "@/lib/clientes";
+import { plural } from "@/lib/plural";
 
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -33,7 +34,7 @@ export default function EscolhaDeEmpresas({ empresas, grupos, valor, aoMudar, ao
       {(achadosGrupos.length > 0 || achadas.length > 0) && (
         <ul className="max-h-56 overflow-y-auto rounded-md border border-border bg-card text-sm" role="listbox" aria-label="Resultados">
           {achadosGrupos.map((g) => (
-            <li key={g.id}><button type="button" role="option" aria-selected="false" onClick={() => addGrupo(g)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"><Layers className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {rotuloDoGrupo(g)} <span className="ml-auto text-xs text-muted-foreground">{empresas.filter((e) => e.grupo === g.numero).length} empresa(s)</span></button></li>
+            <li key={g.id}><button type="button" role="option" aria-selected="false" onClick={() => addGrupo(g)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"><Layers className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {rotuloDoGrupo(g)} <span className="ml-auto text-xs text-muted-foreground">{plural(empresas.filter((e) => e.grupo === g.numero).length, "empresa", "empresas")}</span></button></li>
           ))}
           {achadas.map((e) => (
             <li key={e.id}><button type="button" role="option" aria-selected="false" onClick={() => addEmpresa(e)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"><Building2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {e.razao_social} <span className="ml-auto text-xs tabular-nums text-muted-foreground">{mascararDocumento(e.cnpj_cpf)}</span></button></li>
@@ -52,7 +53,7 @@ export default function EscolhaDeEmpresas({ empresas, grupos, valor, aoMudar, ao
             );
           })}
         </ul>
-      ) : <p className="text-xs text-muted-foreground">Nenhuma empresa escolhida. Busque por uma empresa ou por um grupo (o grupo traz todas as empresas dele; tire as que não entram).</p>}
+      ) : <p className="text-xs text-muted-foreground">Nenhuma empresa escolhida.</p>}
     </div>
   );
 }

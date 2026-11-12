@@ -9,6 +9,7 @@ import { dentroDaJanela, descreverPeriodo, janelaDoPeriodo, PeriodoBusca, period
 import { decidirPasso, ESPERA_SEFAZ, esperaAposFalha, HORA, liberadoEm, normalizarNsu, nsuMaior, nsuValido, Passo } from './captura-regras';
 import { Ambiente, DistribuicaoDfeCliente, ErroDeComunicacao, TipoCaptura } from './distribuicao-dfe.cliente';
 import { ErroCienciaParcial, ManifestacaoCliente, ResultadoCiencia } from './manifestacao.cliente';
+import { plural } from '../common/plural';
 
 /** Documentos que o coletor já sabe buscar. O MDF-e entra depois. */
 export const TIPOS_DISPONIVEIS: TipoCaptura[] = ['NFE', 'CTE', 'NFSE'];
@@ -26,12 +27,12 @@ const UF_POR_SIGLA: Record<string, string> = Object.fromEntries(Object.entries(U
 
 const resumoDocs = (novos: number, completados: number, recebidos: number, ignorados = 0, motivoIgnorado?: string) => {
   const partes: string[] = [];
-  if (novos || !completados) partes.push(`${novos} novo(s)`);
-  if (completados) partes.push(`${completados} completado(s) com o XML`);
+  if (novos || !completados) partes.push(plural(novos, 'novo', 'novos'));
+  if (completados) partes.push(`${plural(completados, 'completado', 'completados')} com o XML`);
   const repetidos = recebidos - novos - completados - ignorados;
   if (repetidos > 0) partes.push(`${repetidos} já existiam`);
   // Documento que o repositório não reconhece não pode passar por "já existia": a pessoa precisa ver que ficou de fora.
-  if (ignorados > 0) partes.push(`${ignorados} ignorado(s) (${motivoIgnorado || 'não reconhecido'})`);
+  if (ignorados > 0) partes.push(`${plural(ignorados, 'ignorado', 'ignorados')} (${motivoIgnorado || 'não reconhecido'})`);
   return `${partes.join(', ')}.`;
 };
 
@@ -259,14 +260,14 @@ export class CapturaXmlService {
     }
     const registradas = resultados.filter((r) => r.status === 'REGISTRADA' || r.status === 'JA_REGISTRADA').length;
     await this.prisma.auditoriaCertificado.create({
-      data: { empresa_id: empresaId, acao: 'USO_MANIFESTACAO', usuario, detalhe: `Ciência da Operação (${ambiente}): ${registradas} registrada(s) de ${candidatos.length} nota(s).` },
+      data: { empresa_id: empresaId, acao: 'USO_MANIFESTACAO', usuario, detalhe: `Ciência da Operação (${ambiente}): ${plural(registradas, 'registrada', 'registradas')} de ${plural(candidatos.length, 'nota', 'notas')}.` },
     });
     // A recusa que não é de prazo ou de situação da nota (por exemplo, certificado ou autor) precisa aparecer, senão a Ciência falha em silêncio.
     const recusadas = resultados.filter((r) => r.status === 'REJEITADA');
     return {
       registradas,
       falha,
-      recusadas: recusadas.length ? `${recusadas.length} nota(s) recusada(s) pela SEFAZ na Ciência (${recusadas[0].cStat}: ${recusadas[0].xMotivo}).` : undefined,
+      recusadas: recusadas.length ? `${plural(recusadas.length, 'nota recusada', 'notas recusadas')} pela SEFAZ na Ciência (${recusadas[0].cStat}: ${recusadas[0].xMotivo}).` : undefined,
     };
   }
 
@@ -371,7 +372,7 @@ export class CapturaXmlService {
       if (tipo === 'NFE' && !desativar) {
         await this.prisma.capturaXmlConfig.update({ where: { id: cfg.id }, data: { em_execucao_ate: new Date(Date.now() + TRAVA_MS) } }); // a Ciência pode demorar
         const c = await this.registrarCiencias(empresaId, st.ambiente as Ambiente, consultado, material, usuario ?? 'agendador');
-        if (c.registradas) mensagem += ` Ciência da Operação registrada em ${c.registradas} nota(s).`;
+        if (c.registradas) mensagem += ` Ciência da Operação registrada em ${plural(c.registradas, 'nota', 'notas')}.`;
         if (c.recusadas) mensagem += ` ${c.recusadas}`;
         if (c.falha) mensagem += ` ${c.falha}`;
       }

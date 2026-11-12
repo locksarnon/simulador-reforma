@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { base, fmtData, fmtDataHora } from "./formatos";
+import { plural } from "@/lib/plural";
 
 const campo = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm";
 const SITUACAO = {
@@ -43,7 +44,7 @@ export function PinDoCofre({ ativo }) {
   const so = (v) => v.replace(/\D/g, "").slice(0, 8);
   return (
     <Bloco titulo={`PIN do cofre: ${ativo ? "ligado" : "desligado"}`}>
-      <p className="text-xs text-muted-foreground">Com o PIN ligado, enviar, substituir ou remover um certificado exige o PIN, além de ser administrador. O PIN tem de 4 a 8 números; vale para todas as empresas.</p>
+      <p className="text-xs text-muted-foreground">De 4 a 8 números; vale para todas as empresas.</p>
       <form className="flex flex-wrap items-end gap-2 text-sm" onSubmit={(e) => { e.preventDefault(); salvar.mutate(novo); }}>
         {ativo && <label className="space-y-1"><span className="block text-xs text-muted-foreground">PIN atual</span><input type="password" inputMode="numeric" autoComplete="off" className={campo} value={atual} onChange={(e) => setAtual(so(e.target.value))} /></label>}
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">{ativo ? "PIN novo" : "PIN"}</span><input type="password" inputMode="numeric" autoComplete="off" className={campo} value={novo} onChange={(e) => setNovo(so(e.target.value))} /></label>
@@ -122,7 +123,7 @@ export default function CertificadoXml({ empresaId }) {
               <div className="flex gap-2"><dt className="text-muted-foreground">CNPJ/CPF do titular</dt><dd className="tabular-nums">{cert.documento_formatado}</dd></div>
               <div className="flex gap-2"><dt className="text-muted-foreground">Emitido por</dt><dd>{cert.emissor || "—"}</dd></div>
               <div className="flex gap-2"><dt className="text-muted-foreground">Válido de</dt><dd>{fmtData(cert.valido_de)} até {fmtData(cert.valido_ate)}</dd></div>
-              <div className="flex gap-2"><dt className="text-muted-foreground">Vence em</dt><dd className={cert.dias_para_vencer < 30 ? "text-amber-700 dark:text-amber-400 font-medium" : ""}>{cert.situacao === "REVOGADO" ? "—" : cert.dias_para_vencer < 0 ? "vencido" : `${cert.dias_para_vencer} dia(s)`}</dd></div>
+              <div className="flex gap-2"><dt className="text-muted-foreground">Vence em</dt><dd className={cert.dias_para_vencer < 30 ? "text-amber-700 dark:text-amber-400 font-medium" : ""}>{cert.situacao === "REVOGADO" ? "—" : cert.dias_para_vencer < 0 ? "vencido" : plural(cert.dias_para_vencer, "dia", "dias")}</dd></div>
               <div className="flex gap-2"><dt className="text-muted-foreground">Enviado por</dt><dd>{cert.enviado_por} em {fmtDataHora(cert.enviado_em)}</dd></div>
               {cert.revogado_em && <div className="flex gap-2"><dt className="text-muted-foreground">Removido</dt><dd>{cert.revogado_por} em {fmtDataHora(cert.revogado_em)}</dd></div>}
             </dl>
@@ -131,7 +132,6 @@ export default function CertificadoXml({ empresaId }) {
             )}
           </div>
         )}
-        <p className="text-xs text-muted-foreground">A chave privada fica cifrada (AES-256-GCM) com uma chave que não está no banco de dados. A senha do arquivo é usada só no envio e não é guardada. Cada uso do certificado fica registrado na auditoria.</p>
       </Bloco>
 
       {admin && <PinDoCofre ativo={comPin} />}

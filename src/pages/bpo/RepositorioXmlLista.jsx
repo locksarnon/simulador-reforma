@@ -40,7 +40,6 @@ export default function RepositorioXmlLista() {
       <div className="p-6 lg:p-8 space-y-5">
         <div>
           <TituloPagina icon={Archive}>Repositório de XML</TituloPagina>
-          <p className="text-sm text-muted-foreground mt-1">BPO fiscal: os XML de cada cliente, enviados em arquivo ou capturados da SEFAZ, e o certificado digital dele. Escolha a empresa.</p>
         </div>
 
         <label className="relative block">

@@ -53,7 +53,7 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Novo diagnóstico</DialogTitle>
-          <DialogDescription>Escolha as empresas: uma só, parte de um grupo ou o grupo inteiro. O diagnóstico guarda essa seleção mesmo que o grupo mude depois.</DialogDescription>
+          <DialogDescription>Uma empresa, parte de um grupo ou o grupo inteiro.</DialogDescription>
         </DialogHeader>
         <form onSubmit={enviar} className="space-y-3 text-sm" noValidate>
           <div className="space-y-1">

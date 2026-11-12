@@ -25,7 +25,7 @@ export default function NotificacoesPagina() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Notificações" }]} title="Notificações" subtitle="Os avisos do sistema para você: tarefas, agenda, certificados, documentos, captura de XML e acessos. Os lidos há mais de 90 dias saem sozinhos." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Notificações" }]} title="Notificações" />
       <div className="px-6 lg:px-8 py-6 max-w-3xl space-y-3">
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Categoria">
           <button type="button" aria-pressed={!categoria} onClick={() => setCategoria("")} className={`rounded-full border px-3 py-1 text-xs ${!categoria ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}>Todas</button>

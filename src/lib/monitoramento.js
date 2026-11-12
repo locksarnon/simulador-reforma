@@ -11,9 +11,9 @@ export const NIVEIS = {
 export const SEM_CONSULTA = { rotulo: "Sem consulta", tom: "bg-muted text-muted-foreground", ponto: "bg-muted-foreground/30" };
 
 export const MODOS = {
-  DESLIGADO: { rotulo: "Desligado", texto: "O monitoramento está desligado. Um administrador liga em Administração > Integrações." },
-  DEMONSTRACAO: { rotulo: "Demonstração", texto: "Modo demonstração: as consultas vão ao ambiente de demonstração oficial do Serpro e trazem dados fictícios, iguais para todos os clientes. Servem para conhecer as telas; nada aqui é do seu cliente." },
-  PRODUCAO: { rotulo: "Produção", texto: "Consultas reais ao Integra Contador do Serpro, com o contrato do escritório." },
+  DESLIGADO: { rotulo: "Desligado", texto: "Consultas desligadas." },
+  DEMONSTRACAO: { rotulo: "Demonstração", texto: "Dados fictícios do Serpro." },
+  PRODUCAO: { rotulo: "Produção", texto: "Consultas reais ao Integra Contador." },
 };
 
 /** Estado do monitoramento (modo, contrato, grupos e catálogo de serviços). */

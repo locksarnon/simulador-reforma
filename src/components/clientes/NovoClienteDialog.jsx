@@ -84,7 +84,7 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Novo cliente</DialogTitle>
-          <DialogDescription>Comece pelo CNPJ: o nome, a cidade, o CNAE e o porte vêm da Receita. Os demais dados você completa depois na ficha.</DialogDescription>
+          <DialogDescription>Comece pelo CNPJ.</DialogDescription>
         </DialogHeader>
         <form onSubmit={enviar} className="space-y-3 text-sm" noValidate>
           <Campo rotulo="CNPJ ou CPF">
@@ -113,7 +113,6 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
                 <label key={tipo} className="inline-flex items-center gap-2"><input type="checkbox" checked={f.servicos.includes(tipo)} onChange={() => alternarServico(tipo)} /> {rotulo}</label>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">Pode deixar em branco e marcar depois, na lista ou na ficha.</p>
           </fieldset>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {user?.role === "admin" ? (

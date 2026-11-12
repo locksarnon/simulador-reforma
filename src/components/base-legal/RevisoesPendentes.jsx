@@ -62,7 +62,6 @@ export default function RevisoesPendentes() {
         <AlertTriangle className="w-4 h-4" /> Itens para revisar porque o texto da lei mudou
         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{grupos.length}</span>
       </h2>
-      <p className="text-xs text-muted-foreground">Estes itens citam dispositivos da Base legal que foram atualizados. Os cartões voltaram para rascunho e só reaparecem para os consultores depois de revisados; as notas do cálculo e os marcos da agenda seguem visíveis, com o aviso, até você conferir.</p>
       <ul className="divide-y divide-border">{grupos.map((g) => <Item key={`${g.tipo}:${g.alvo_id}`} grupo={g} onFeito={recarregar} />)}</ul>
     </section>
   );

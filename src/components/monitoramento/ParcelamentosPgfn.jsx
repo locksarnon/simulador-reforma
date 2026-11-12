@@ -76,7 +76,6 @@ export default function ParcelamentosPgfn({ empresaId }) {
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">Parcelamentos na Receita Federal, PGFN, estado e município</h3>
-          <p className="text-xs text-muted-foreground">O Integra Contador só traz os parcelamentos do Simples e do MEI (abaixo, quando o cliente é do Simples ou MEI). Os demais (Receita Federal, PGFN, estado e município) não têm consulta automática para escritórios: o registro é feito aqui, e o sino avisa quando a parcela vence em até 5 dias ou atrasa. O relatório de situação fiscal mostra os parcelamentos federais ativos.</p>
         </div>
         <a href={ECAC} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted">Abrir o e-CAC <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a>
         <a href={REGULARIZE} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted">Abrir o Regularize <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a>

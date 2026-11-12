@@ -33,8 +33,7 @@ export default function CustosPagina() {
   ];
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Custos das ferramentas" }]} title="Custos das ferramentas externas"
-        subtitle="Quanto cada usuário gastou no mês com o Integra Contador, a Consulta CND, a Dívida Ativa e a Infosimples, pelos preços do seu contrato." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Custos das ferramentas" }]} title="Custos das ferramentas externas" />
       <div className="px-6 lg:px-8 py-6 space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="space-y-1 text-sm"><span className="block text-xs text-muted-foreground">Mês</span><input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className={campo} /></label>
@@ -52,7 +51,7 @@ export default function CustosPagina() {
 
         <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="Preços">
           <h2 className="font-heading text-sm font-semibold">Preços do contrato (por chamada)</h2>
-          <p className="text-xs text-muted-foreground">Informe o preço unitário de cada item conforme o seu contrato com o Serpro e com a Infosimples (a tabela do Serpro muda por faixa de volume; use o preço da sua faixa). Só entram chamadas feitas em produção; as de demonstração não custam.</p>
+          <p className="text-xs text-muted-foreground">Preço unitário da sua faixa de contrato. Demonstração não custa.</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {itens.map((i) => (
               <label key={i.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
@@ -62,7 +61,6 @@ export default function CustosPagina() {
             ))}
           </div>
           <h3 className="pt-2 text-sm font-medium">Custos fixos do mês</h3>
-          <p className="text-xs text-muted-foreground">Mensalidades e assinaturas (por exemplo, o servidor ou a mensalidade de um plano). Entram no total do escritório.</p>
           <div className="space-y-2">
             {fixos.map((f, k) => (
               <div key={k} className="flex flex-wrap items-center gap-2">

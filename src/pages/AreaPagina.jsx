@@ -50,7 +50,6 @@ export default function AreaPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: area.titulo }]}
         title={area.titulo}
-        subtitle={area.descricao}
       />
       <div className="px-6 lg:px-8 py-6">
         {modulos.length === 0 ? (

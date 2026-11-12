@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { BotoesDocumento } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
+import { plural } from "@/lib/plural";
 
 const COLUNAS_VINCULOS = [
   { chave: "cnpj", rotulo: "CNPJ", render: (l) => <span className="tabular-nums">{mascararDocumento(l.cnpj)}</span>, quebrar: false },
@@ -47,7 +48,7 @@ export default function VinculosReceitaPagina() {
       }
       return { feitos, erros };
     },
-    onSuccess: (r) => { setMarcados([]); qc.invalidateQueries({ queryKey: ["redesim"] }); qc.invalidateQueries({ queryKey: ["empresas"] }); toast({ title: `${r.feitos} cliente(s) cadastrado(s) no BPO fiscal`, description: r.erros.join(" · ") || undefined, variant: r.erros.length ? "destructive" : undefined }); },
+    onSuccess: (r) => { setMarcados([]); qc.invalidateQueries({ queryKey: ["redesim"] }); qc.invalidateQueries({ queryKey: ["empresas"] }); toast({ title: `${plural(r.feitos, "cliente cadastrado", "clientes cadastrados")} no BPO fiscal`, description: r.erros.join(" · ") || undefined, variant: r.erros.length ? "destructive" : undefined }); },
   });
   const demo = vinculos.data?.demonstracao || renuncias.data?.demonstracao;
   const [renunciar, setRenunciar] = useState(null);
@@ -58,10 +59,9 @@ export default function VinculosReceitaPagina() {
   ];
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Vínculos na Receita" }]} title="Vínculos na Receita (Redesim)"
-        subtitle="Os CNPJs em que o escritório é o contador responsável na Receita Federal, pelo Integra Contador. Cadastre os que ainda não são clientes em um clique." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Vínculos na Receita" }]} title="Vínculos na Receita (Redesim)" />
       <div className="px-6 lg:px-8 py-6 space-y-3">
-        {demo && <p role="status" className="rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">Modo demonstração: dados fictícios do Serpro. Não cadastre clientes a partir deles.</p>}
+        {demo && <p role="status" className="rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">Demonstração: dados fictícios.</p>}
         <Tabs defaultValue="vinculos">
           <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
             <TabsTrigger value="vinculos" className="rounded-md border border-border px-2.5 py-1 text-xs data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none">Vínculos{vinculos.data ? ` (${vinculos.data.vinculos.length})` : ""}</TabsTrigger>

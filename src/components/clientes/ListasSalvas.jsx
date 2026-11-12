@@ -18,7 +18,7 @@ function DialogoSalvar({ nomeInicial, aoSalvar, aoFechar, salvando }) {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Salvar esta lista</DialogTitle>
-          <DialogDescription>A lista guarda os filtros que estão na tela. Com o mesmo nome, a sua lista anterior é atualizada.</DialogDescription>
+          <DialogDescription>Guarda os filtros da tela.</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); if (nome.trim()) aoSalvar({ nome: nome.trim(), compartilhado: compartilhar }); }} className="space-y-3 text-sm">
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nome da lista</span>

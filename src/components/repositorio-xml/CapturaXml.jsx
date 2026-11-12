@@ -100,7 +100,6 @@ export default function CapturaXml({ empresaId }) {
               {(data?.periodo?.opcoes || [{ valor: "NOTURNO", texto: "Noturno, das 18:00 às 05:59 (horário de Brasília)" }, { valor: "DIURNO", texto: "Diurno, das 06:00 às 17:59 (horário de Brasília)" }]).map((o) => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
             </select></label>
         </div>
-        <p className="text-xs text-muted-foreground">A busca automática só consulta esta empresa dentro do período escolhido (a cada 10 minutos, respeitando a espera de 1 hora da SEFAZ). O botão "Capturar agora" funciona a qualquer hora.</p>
       </section>
 
       {(data?.tipos || []).map((t) => {
@@ -109,7 +108,7 @@ export default function CapturaXml({ empresaId }) {
           <section key={t.tipo} className="rounded-xl border border-border bg-card p-4 space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><h3 className="font-semibold text-sm">{TIPOS[t.tipo] || t.tipo}</h3>
-                <p className="text-xs text-muted-foreground">{!t.ativo ? "Captura desativada." : data?.agendador_ativo === false ? `Captura ativa, mas o agendador está desligado neste servidor: só roda pelo botão "Capturar agora".` : `Captura ativa: a rotina automática consulta ${t.tipo === "NFSE" ? "o ADN" : "a SEFAZ"} no período ${data?.periodo?.texto || "Noturno, das 18:00 às 05:59 (horário de Brasília)"}, respeitando a espera de 1 hora do serviço.`}</p></div>
+                <p className="text-xs text-muted-foreground">{!t.ativo ? "Captura desativada." : data?.agendador_ativo === false ? "Captura ativa, mas o agendador está desligado neste servidor." : `Captura ativa: a rotina automática consulta ${t.tipo === "NFSE" ? "o ADN" : "a SEFAZ"} no período ${data?.periodo?.texto || "Noturno, das 18:00 às 05:59 (horário de Brasília)"}.`}</p></div>
               {admin && (
                 <div className="flex flex-wrap gap-2">
                   {t.ativo ? (
@@ -149,7 +148,6 @@ export default function CapturaXml({ empresaId }) {
             <button type="button" onClick={() => { setConfirmoCiencia(false); setAtivandoCiencia(true); }} className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Ativar Ciência automática</button>
           ))}
         </div>
-        <p className="text-sm text-muted-foreground">A SEFAZ entrega a NF-e recebida só em resumo até o destinatário se manifestar. A Ciência da Operação libera o XML completo, mas é um ato do cliente, assinado com o certificado dele, e gera o dever de uma manifestação conclusiva depois. O InTAX registra apenas a Ciência, nunca a Confirmação, o Desconhecimento nem a Operação não Realizada.</p>
         <dl className="grid sm:grid-cols-3 gap-x-6 gap-y-1 text-sm">
           <div className="flex gap-2"><dt className="text-muted-foreground">Resumos aguardando</dt><dd className="tabular-nums">{data?.ciencia?.resumos_sem_ciencia ?? 0}</dd></div>
           <div className="flex gap-2"><dt className="text-muted-foreground">Ciência registrada</dt><dd className="tabular-nums">{data?.ciencia?.registradas ?? 0}</dd></div>
@@ -158,8 +156,8 @@ export default function CapturaXml({ empresaId }) {
         {data?.ciencia?.ativa && data.ciencia.consentida_por && <p className="text-xs text-muted-foreground">Autorizada por {data.ciencia.consentida_por} em {fmtDataHora(data.ciencia.consentida_em)}.</p>}
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-4 space-y-2">
-        <h3 className="font-semibold text-sm">O que a captura traz, e o que não traz</h3>
+      <details className="rounded-xl border border-border bg-card p-4 space-y-2">
+        <summary className="cursor-pointer font-semibold text-sm">O que a captura traz, e o que não traz</summary>
         <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
           <li>NF-e e CT-e: só o que o CNPJ do cliente recebe. Na NF-e, as notas em que ele é destinatário; no CT-e, aquelas em que ele é remetente, destinatário, expedidor, recebedor ou tomador. As notas que o próprio cliente emitiu não vêm por este serviço: envie os XML dela pela aba Documentos (ou peça para o ERP do cliente incluir o CNPJ da FAL no campo autXML).</li>
           <li>NFS-e: a captura usa o Ambiente de Dados Nacional (ADN) da NFS-e Nacional e traz as notas em que o CNPJ do cliente é prestador, tomador ou intermediário. Se o ADN entrega também as que o próprio cliente emitiu é ponto a confirmar no primeiro cliente: a documentação do ADN não é conclusiva. Só vêm as notas dos municípios que compartilham as suas NFS-e com o ambiente nacional: confirme com o primeiro cliente de cada município, principalmente nos que usam sistema próprio de emissão (Campo Grande, Sidrolândia, Rio Verde, Mineiros e Belém). O que não vier entra por envio de arquivos. O importador de XML ainda não lê NFS-e: elas ficam guardadas aqui.</li>
@@ -168,7 +166,7 @@ export default function CapturaXml({ empresaId }) {
           <li>Para a nota recebida, a SEFAZ entrega primeiro só o resumo. O XML completo depende de o destinatário registrar uma manifestação, ato do próprio cliente (veja a Ciência da Operação acima). Enquanto isso, o resumo aparece na aba Resumos e eventos SEFAZ, e o XML completo chega na consulta seguinte à manifestação.</li>
           <li>Se o ERP do cliente (ou outro captador) também consulta a Distribuição de DF-e do mesmo CNPJ, as consultas se atrapalham e a SEFAZ bloqueia os dois por 1 hora.</li>
         </ul>
-      </section>
+      </details>
 
       <section className="rounded-xl border border-border bg-card p-4 space-y-2">
         <h3 className="font-semibold text-sm">Últimas execuções</h3>

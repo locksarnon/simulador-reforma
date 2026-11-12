@@ -60,7 +60,7 @@ describe('leitura do relatório de situação fiscal', () => {
 
   it('resume: pendência ou omissão é crítico; só suspensos é atenção; nada é em dia', () => {
     expect(resumoDoSitfis(l).nivel).toBe('CRITICO');
-    expect(resumoDoSitfis(l).titulo).toMatch(/2 pendência\(s\).*1 omissão/);
+    expect(resumoDoSitfis(l).titulo).toMatch(/^2 pendências: Parcelamento \(SIPADE\); Débito \(SIEF\); 1 omissão de declaração; 2 itens com exigibilidade suspensa\.$/);
     expect(resumoDoSitfis({ ...l, secoes: l.secoes.filter((s) => s.tipo === 'SUSPENSO') }).nivel).toBe('ATENCAO');
     expect(resumoDoSitfis({ ...l, secoes: [] })).toEqual({ nivel: 'OK', titulo: 'Sem pendências.' });
   });

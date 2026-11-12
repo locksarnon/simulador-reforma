@@ -264,8 +264,8 @@ describe('OperacoesPlanilhaService', () => {
     const umItem = criar([], { xml: [{ empresa_id: 'db-t1', chave_nfe: CHAVE_NFE, numero_item: 1 }] });
     const r = await umItem.service.validar(arquivo, mapa, undefined);
     expect(r).toMatchObject({ novas: 2, duplicadas: 0, duplicadasPorXml: 0, comAviso: 2 });
-    expect(r.alertas.join(' ')).toMatch(/1 nota\(s\) já têm itens importados por XML, mas menos que as linhas/);
-    expect(r.amostraValidas[0].avisos.join(' ')).toMatch(/já tem 1 item\(ns\) importado\(s\) por XML e a planilha traz 2 linha\(s\)/);
+    expect(r.alertas.join(' ')).toMatch(/1 nota já tem itens importados por XML/);
+    expect(r.amostraValidas[0].avisos.join(' ')).toMatch(/já tem 1 item importado por XML e a planilha traz 2 linhas/);
   });
 
   it('linha já importada com percentual ou classificação diferente: não é alterada, e o resumo conta e avisa', async () => {
@@ -280,7 +280,7 @@ describe('OperacoesPlanilhaService', () => {
     const corrigido = criar(jaGravadas(gravadas));
     const r = await corrigido.service.importar(csv(['TRANSP-01;15/01/2027;Saída;12.500,00;MT;PR;7;CT-e']), MAPA, undefined);
     expect(r).toMatchObject({ importadas: 0, jaExistiam: 1, jaExistiamDiferentes: 1 });
-    expect(r.alertas.join(' ')).toMatch(/1 linha\(s\) já importada\(s\) trazem percentual ou classificação diferente.*NÃO foram alteradas/);
+    expect(r.alertas.join(' ')).toMatch(/1 linha já importada difere do que está gravado e não foi alterada/);
     expect(corrigido.prisma.operacao.createMany).not.toHaveBeenCalled();
     // só mudou a opção de preencher os tributos (PIS/Cofins pela tabela viram 0): também é diferença
     const semTabela = criar(jaGravadas(gravadas));
@@ -312,8 +312,8 @@ describe('OperacoesPlanilhaService', () => {
     const { service } = criar();
     const r = await service.validar(csv(['TRANSP-01;15/01/2027;Entrada;1.000,00;MT;MT;12;NF-e', 'TRANSP-01;16/01/2027;Entrada;2.000,00;MT;MT;12;NF-e']), MAPA, undefined);
     expect(r.comprasSemCredito).toBe(2);
-    expect(r.alertas.join(' ')).toMatch(/2 compra\(s\) entram sem crédito elegível/);
-    expect(r.alertas.join(' ')).toMatch(/2 compra\(s\) entram sem PIS\/Cofins/);
+    expect(r.alertas.join(' ')).toMatch(/2 compras entram sem crédito elegível/);
+    expect(r.alertas.join(' ')).toMatch(/2 compras entram sem PIS\/Cofins/);
     const comCredito = await service.validar(csv(['TRANSP-01;15/01/2027;Entrada;1.000,00;MT;MT;12;NF-e']), MAPA, '{"creditoElegivelCompras":1}');
     expect(comCredito.comprasSemCredito).toBe(0);
   });

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRATAMENTO_COR, TRATAMENTO_ROTULO, tratamentoDoItem } from "@/lib/cfopTratamento";
+import { plural } from "@/lib/plural";
 
 /** Coluna "Cálculo": mostra se o CFOP entra no cálculo e deixa trocar (vale para a empresa; dá para voltar ao padrão). */
 function CfopCelula({ it, regras, onCfopChange }) {
@@ -109,7 +110,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
         <div>
           <h3 className="font-heading font-medium text-sm">Staging de Itens</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {itensFiltrados.length} de {itens.length} perspectiva(s) · Clique nos ícones de validação para detalhar
+            {itensFiltrados.length} de {plural(itens.length, "perspectiva", "perspectivas")}
           </p>
         </div>
         <div className="flex items-center gap-1 flex-wrap">
@@ -231,7 +232,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
       </div>
       {totalPaginas > 1 && (
         <div className="px-5 py-2.5 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-          <span>Página {paginaAtual + 1} de {totalPaginas} · {grupos.length} item(ns) filtrado(s)</span>
+          <span>Página {paginaAtual + 1} de {totalPaginas} · {plural(grupos.length, "item filtrado", "itens filtrados")}</span>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPagina((p) => Math.max(0, p - 1))}

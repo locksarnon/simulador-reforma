@@ -115,7 +115,7 @@ export default function FichaClientePagina() {
                         <div><dt className="text-muted-foreground">Responsável</dt><dd>{s.responsavel || "—"}</dd></div>
                         {tipo === "BPO_FISCAL" && <div><dt className="text-muted-foreground">Módulos</dt><dd>{s.modulos?.length ? s.modulos.map((m) => MODULOS_BPO[m] || m).join(", ") : "Todos"}</dd></div>}
                       </dl>
-                    ) : <p className="text-xs text-muted-foreground">Não contratado. Clique no “+” para ligar.</p>}
+                    ) : <p className="text-xs text-muted-foreground">Não contratado.</p>}
                     {s && <button type="button" onClick={() => setDialogo({ servico: s, tipo })} className="text-xs text-primary hover:underline">Mudar situação, datas ou responsável</button>}
                   </div>
                 );

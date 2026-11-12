@@ -12,6 +12,7 @@ import FiltroPorTags from "@/components/clientes/FiltroPorTags";
 import { useTags } from "@/lib/useTags";
 import { tamanhoLegivel } from "@/lib/documentos";
 import ListaDePrevistas from "@/components/ListaDePrevistas";
+import { palavra, plural } from "@/lib/plural";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 export const STATUS_COMUNICADO = { RASCUNHO: "Rascunho", ENVIANDO: "Enviando", ENVIADO: "Enviado", ERRO: "Não enviado" };
@@ -43,7 +44,7 @@ function Editor({ comunicado, empresas, aoFechar }) {
   return (
     <Dialog open onOpenChange={(v) => { if (!v) aoFechar(); }}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{id ? "Editar comunicado" : "Novo comunicado"}</DialogTitle><DialogDescription>Escolha quem recebe; o e-mail de cada empresa é o "e-mail de contato" do cadastro. Todo e-mail sai com o link para a pessoa parar de receber.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{id ? "Editar comunicado" : "Novo comunicado"}</DialogTitle><DialogDescription>Vai para o e-mail de contato do cadastro.</DialogDescription></DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-3 text-sm">
           <fieldset className="space-y-2 rounded-md border border-border p-3"><legend className="px-1 text-xs font-medium">Para quem</legend>
             <div className="flex flex-wrap items-end gap-3">
@@ -55,7 +56,7 @@ function Editor({ comunicado, empresas, aoFechar }) {
             <div role="status" className="text-xs">
               {previa.isLoading ? "Calculando os destinatários…" : r?.aviso ? <span className="text-muted-foreground">{r.aviso}</span> : r ? (
                 <>
-                  <span className="font-medium">{r.incluidos.length} recebe(m)</span>{r.fora.length ? <span className="text-muted-foreground"> · {r.fora.length} fora: {r.fora.slice(0, 4).map((x) => `${x.razao_social} (${x.motivo})`).join("; ")}{r.fora.length > 4 ? "…" : ""}</span> : null}
+                  <span className="font-medium">{r.incluidos.length} {palavra(r.incluidos.length, "recebe", "recebem")}</span>{r.fora.length ? <span className="text-muted-foreground"> · {r.fora.length} fora: {r.fora.slice(0, 4).map((x) => `${x.razao_social} (${x.motivo})`).join("; ")}{r.fora.length > 4 ? "…" : ""}</span> : null}
                 </>
               ) : null}
             </div>
@@ -84,17 +85,17 @@ export default function ComunicadosPagina() {
   const empresas = useMemo(() => [...(emp.data || [])].sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR")), [emp.data]);
   const recarregar = () => qc.invalidateQueries({ queryKey: ["comunicados"] });
   const falha = (t) => (e) => toast({ title: t, description: e.message, variant: "destructive" });
-  const enviar = useMutation({ mutationFn: (id) => api.post(`/comunicados/${id}/enviar`, {}), onSuccess: (r) => { recarregar(); toast({ title: "Envio começou", description: `${r.total} e-mail(s). A lista mostra o andamento.` }); }, onError: falha("Não foi possível enviar") });
+  const enviar = useMutation({ mutationFn: (id) => api.post(`/comunicados/${id}/enviar`, {}), onSuccess: (r) => { recarregar(); toast({ title: "Envio começou", description: plural(r.total, "e-mail", "e-mails") }); }, onError: falha("Não foi possível enviar") });
   const duplicar = useMutation({ mutationFn: (id) => api.post(`/comunicados/${id}/duplicar`, {}), onSuccess: () => { recarregar(); toast({ title: "Comunicado duplicado como rascunho" }); } });
   const excluir = useMutation({ mutationFn: (id) => api.delete(`/comunicados/${id}`), onSuccess: () => { recarregar(); toast({ title: "Rascunho excluído" }); }, onError: falha("Não foi possível excluir") });
   const confirmarEnvio = async (c) => {
     let total = 0;
     try { total = (await api.post("/comunicados/destinatarios", { filtro: c.filtro })).incluidos.length; } catch { /* a confirmação diz "os destinatários" */ }
-    if (await confirmar({ titulo: `Enviar "${c.assunto}"?`, descricao: `${total ? `${total} e-mail(s) vão sair agora` : "Os e-mails vão sair agora"}. Depois de enviado, o comunicado não muda (dá para duplicar).`, rotulo: "Enviar", perigoso: false })) enviar.mutate(c.id);
+    if (await confirmar({ titulo: `Enviar "${c.assunto}"?`, descricao: `${total ? `${plural(total, "e-mail sai", "e-mails saem")} agora` : "Os e-mails saem agora"}. Depois de enviado, não muda.`, rotulo: "Enviar", perigoso: false })) enviar.mutate(c.id);
   };
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Comunicados" }]} title="Comunicados" subtitle="E-mails para grupos de clientes (por carteira, etiquetas ou empresas escolhidas), com anexos. Os envios ficam em Administração > Comunicações e envios." />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Comunicados" }]} title="Comunicados" />
       <div className="px-6 lg:px-8 py-6 space-y-3">
         <div className="flex justify-end"><button type="button" onClick={() => setEditor({ comunicado: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo comunicado</button></div>
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
@@ -103,12 +104,12 @@ export default function ComunicadosPagina() {
             <tbody>
               {isLoading && <tr><td colSpan={4} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
               {error && <tr><td colSpan={4} className="py-8 text-center" role="alert">Não foi possível carregar.</td></tr>}
-              {!isLoading && !error && data.length === 0 && <tr><td colSpan={4} className="py-10 text-center text-muted-foreground">Nenhum comunicado ainda. Preencha o e-mail de contato das empresas no cadastro para elas receberem.</td></tr>}
+              {!isLoading && !error && data.length === 0 && <tr><td colSpan={4} className="py-10 text-center text-muted-foreground">Nenhum comunicado.</td></tr>}
               {data.map((c) => (
                 <tr key={c.id} className="border-b border-border/60 hover:bg-muted/40">
-                  <td className="px-3 py-2"><p className="font-medium">{c.assunto}</p><p className="text-[11px] text-muted-foreground">{(c.anexos || []).length ? `${c.anexos.length} anexo(s) · ` : ""}{c.enviado_em ? `enviado em ${new Date(c.enviado_em).toLocaleString("pt-BR")}` : `criado em ${new Date(c.createdAt).toLocaleDateString("pt-BR")}`}</p></td>
+                  <td className="px-3 py-2"><p className="font-medium">{c.assunto}</p><p className="text-[11px] text-muted-foreground">{(c.anexos || []).length ? `${plural(c.anexos.length, "anexo", "anexos")} · ` : ""}{c.enviado_em ? `enviado em ${new Date(c.enviado_em).toLocaleString("pt-BR")}` : `criado em ${new Date(c.createdAt).toLocaleDateString("pt-BR")}`}</p></td>
                   <td className="px-3 py-2"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM[c.status]}`}>{STATUS_COMUNICADO[c.status]}</span></td>
-                  <td className="px-3 py-2 tabular-nums">{c.status === "RASCUNHO" ? "—" : `${c.enviados} de ${c.total}${c.falhas ? ` · ${c.falhas} falha(s)` : ""}`}</td>
+                  <td className="px-3 py-2 tabular-nums">{c.status === "RASCUNHO" ? "—" : `${c.enviados} de ${c.total}${c.falhas ? ` · ${plural(c.falhas, "falha", "falhas")}` : ""}`}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     {c.status === "RASCUNHO" && <button type="button" onClick={() => setEditor({ comunicado: c })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar ${c.assunto}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                     {c.status === "RASCUNHO" && user?.role === "admin" && <button type="button" onClick={() => confirmarEnvio(c)} className="rounded p-1.5 text-primary hover:bg-muted" aria-label={`Enviar ${c.assunto}`}><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
@@ -120,8 +121,7 @@ export default function ComunicadosPagina() {
             </tbody>
           </table>
         </div>
-        {user?.role !== "admin" && <p className="text-xs text-muted-foreground">Você pode escrever e salvar rascunhos; o envio é feito por um administrador.</p>}
-        <p className="text-xs text-muted-foreground">Comunicados por WhatsApp vão pelo agente de WhatsApp do escritório, quando ele for ligado em Administração &gt; Integrações.</p>
+        {user?.role !== "admin" && <p className="text-xs text-muted-foreground">O envio é feito por um administrador.</p>}
         <ListaDePrevistas moduloId="comunicados" />
       </div>
       {editor && <Editor key={editor.comunicado?.id || "novo"} comunicado={editor.comunicado} empresas={empresas} aoFechar={() => setEditor(null)} />}
