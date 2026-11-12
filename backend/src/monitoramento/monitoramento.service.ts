@@ -308,6 +308,16 @@ export class MonitoramentoService {
       if (c.nivel === 'CRITICO' || c.nivel === 'ATENCAO') e.alertas.push({ chave: c.chave, nivel: c.nivel as Nivel, titulo: String((c.resumo as { titulo?: string })?.titulo ?? '') });
       porEmpresa.set(c.empresa_id!, e);
     }
+    // Parcelamentos da PGFN (registrados à mão, sem API oficial): entram no assunto Parcelamentos.
+    const pgfn = await this.prisma.parcelamentoPgfn.findMany({ where: empresaIds?.length ? { empresa_id: { in: empresaIds } } : {} });
+    for (const pp of pgfn) {
+      const nivel = nivelPgfn(pp);
+      if (nivel === 'INFO') continue;
+      const e = porEmpresa.get(pp.empresa_id) ?? { empresa_id: pp.empresa_id, grupos: {}, atualizado: pp.updatedAt, simulado: false, alertas: [] };
+      e.grupos.parcelamentos = pior(e.grupos.parcelamentos, nivel);
+      if (nivel !== 'OK') e.alertas.push({ chave: 'pgfn', nivel, titulo: tituloPgfn(pp) });
+      porEmpresa.set(pp.empresa_id, e);
+    }
     return [...porEmpresa.values()].map((e) => ({ ...e, score: pontuacao(e.grupos) }));
   }
 
@@ -444,6 +454,61 @@ export class MonitoramentoService {
     return { geradas, enviadas, falhas };
   }
 
+  // ── Parcelamentos da PGFN (Sispar) ────────────────────────────────────────
+  async pgfnDaEmpresa(empresaId: string) {
+    const l = await this.prisma.parcelamentoPgfn.findMany({ where: { empresa_id: empresaId }, orderBy: [{ situacao: 'asc' }, { proximo_vencimento: 'asc' }] });
+    return l.map((p) => ({ ...p, nivel: nivelPgfn(p), resumo: tituloPgfn(p) }));
+  }
+
+  async salvarPgfn(empresaId: string, id: string | null, b: Record<string, unknown>, usuario: Usuario) {
+    const numero = String(b.numero ?? '').trim();
+    if (!numero) throw new BadRequestException('Informe o número da negociação (conta) no Sispar.');
+    if (b.situacao !== undefined && !SITUACOES_PGFN.includes(String(b.situacao))) throw new BadRequestException('Situação inválida.');
+    const num = (v: unknown) => (v === '' || v === null || v === undefined ? null : Number(String(v).replace(',', '.')));
+    const inteiro = (v: unknown) => (v === '' || v === null || v === undefined ? null : Math.trunc(Number(v)));
+    const textoOuNulo = (v: unknown, max: number) => { const s = String(v ?? '').trim(); return s ? s.slice(0, max) : null; };
+    const venc = b.proximo_vencimento ? new Date(String(b.proximo_vencimento)) : null;
+    if (venc && Number.isNaN(venc.getTime())) throw new BadRequestException('Data de vencimento inválida.');
+    const dados = {
+      numero: numero.slice(0, 40), modalidade: textoOuNulo(b.modalidade, 160), situacao: String(b.situacao ?? 'EM_DIA'),
+      valor_consolidado: num(b.valor_consolidado), parcelas_total: inteiro(b.parcelas_total), parcelas_pagas: inteiro(b.parcelas_pagas),
+      valor_parcela: num(b.valor_parcela), proximo_vencimento: venc, debito_automatico: !!b.debito_automatico,
+      observacao: textoOuNulo(b.observacao, 2000), atualizado_por: usuario?.email ?? null,
+    };
+    if (id) {
+      const atual = await this.prisma.parcelamentoPgfn.findUnique({ where: { id } });
+      if (!atual || atual.empresa_id !== empresaId) throw new NotFoundException('Parcelamento não encontrado.');
+      return this.prisma.parcelamentoPgfn.update({ where: { id }, data: dados });
+    }
+    return this.prisma.parcelamentoPgfn.create({ data: { empresa_id: empresaId, ...dados } });
+  }
+
+  async excluirPgfn(id: string, usuario: Usuario) {
+    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores apagam um registro de parcelamento.');
+    const atual = await this.prisma.parcelamentoPgfn.findUnique({ where: { id } });
+    if (!atual) throw new NotFoundException('Parcelamento não encontrado.');
+    await this.prisma.parcelamentoPgfn.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  /** Todo dia às 07:15 (Brasília): avisa no sino a parcela da PGFN que vence em até 5 dias ou que atrasou. */
+  @Cron('15 7 * * *', { timeZone: 'America/Sao_Paulo' })
+  async avisarPgfn(hoje = new Date()) {
+    if (String(process.env.MONITORAMENTO_AGENDADOR ?? '').toLowerCase() === 'off') return 0;
+    const lista = await this.prisma.parcelamentoPgfn.findMany({ where: { situacao: { in: ['EM_DIA', 'EM_ATRASO', 'RESCINDIDO'] } } });
+    const empresas = new Map((await this.prisma.empresa.findMany({ where: { id: { in: lista.map((p) => p.empresa_id) } }, select: { id: true, razao_social: true, arquivado_em: true } })).map((e) => [e.id, e]));
+    let n = 0;
+    for (const p of lista) {
+      const e = empresas.get(p.empresa_id);
+      if (!e || e.arquivado_em) continue;
+      const nivel = nivelPgfn(p, hoje);
+      if (nivel !== 'CRITICO' && nivel !== 'ATENCAO') continue;
+      await this.notificacoes.criarParaAdmins({ tipo: 'FISCAL', titulo: `${e.razao_social}: PGFN ${p.numero}`, mensagem: tituloPgfn(p, hoje), link: `/bpo/monitoramento/${e.id}`, chave: `pgfn:${p.id}:${hoje.toISOString().slice(0, 10)}` }).catch(() => undefined);
+      n += 1;
+    }
+    return n;
+  }
+
   // ── Obrigações dispensadas ────────────────────────────────────────────────
   async dispensar(empresaId: string, obrigacao: string, motivo: string | undefined, usuario: Usuario) {
     if (!OBRIGACOES.some((o) => o.id === obrigacao)) throw new BadRequestException('Obrigação desconhecida.');
@@ -454,6 +519,35 @@ export class MonitoramentoService {
     await this.prisma.obrigacaoDispensada.deleteMany({ where: { empresa_id: empresaId, obrigacao } });
     return { ok: true };
   }
+}
+
+export const SITUACOES_PGFN = ['EM_DIA', 'EM_ATRASO', 'LIQUIDADO', 'RESCINDIDO'];
+const SIT_PGFN: Record<string, string> = { EM_DIA: 'em dia', EM_ATRASO: 'em atraso', LIQUIDADO: 'liquidado', RESCINDIDO: 'rescindido' };
+type Pgfn = { numero: string; situacao: string; proximo_vencimento: Date | null; valor_parcela: number | null; modalidade?: string | null };
+
+/** Dias até a data (negativo = já passou), contados pelo dia civil. */
+function diasAte(d: Date, hoje: Date): number {
+  return Math.floor((new Date(new Date(d).toISOString().slice(0, 10)).getTime() - new Date(hoje.toISOString().slice(0, 10)).getTime()) / 86_400_000);
+}
+
+/** Nível do parcelamento da PGFN: rescindido, em atraso ou parcela vencida é crítico; parcela vencendo em até 5 dias pede atenção; liquidado é informativo. */
+export function nivelPgfn(p: Pgfn, hoje = new Date()): Nivel {
+  if (p.situacao === 'LIQUIDADO') return 'INFO';
+  if (p.situacao === 'RESCINDIDO' || p.situacao === 'EM_ATRASO') return 'CRITICO';
+  if (!p.proximo_vencimento) return 'OK';
+  const dias = diasAte(p.proximo_vencimento, hoje);
+  if (dias < 0) return 'CRITICO';
+  return dias <= 5 ? 'ATENCAO' : 'OK';
+}
+
+/** Frase do parcelamento para o painel e o sino. */
+export function tituloPgfn(p: Pgfn, hoje = new Date()): string {
+  const venc = p.proximo_vencimento ? new Date(p.proximo_vencimento).toISOString().slice(0, 10).split('-').reverse().join('/') : null;
+  const valor = typeof p.valor_parcela === 'number' ? p.valor_parcela.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : null;
+  const vencida = p.proximo_vencimento ? diasAte(p.proximo_vencimento, hoje) < 0 : false;
+  const partes = [`PGFN ${p.numero}${p.modalidade ? ` (${p.modalidade})` : ''}: ${SIT_PGFN[p.situacao] ?? p.situacao}`];
+  if (venc) partes.push(`${vencida ? 'parcela vencida em' : 'próxima parcela em'} ${venc}${valor ? ` (${valor})` : ''}`);
+  return partes.join('; ') + '.';
 }
 
 /** Nota de 0 a 100 da saúde fiscal: começa em 100 e perde 25 por grupo crítico e 8 por grupo em atenção. */

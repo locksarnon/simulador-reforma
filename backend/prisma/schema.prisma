@@ -208,6 +208,9 @@ model Empresa {
   latitude              Float?
   longitude             Float?
   dados_publicos_em     DateTime?
+  /// Cliente arquivado (clientes não são excluídos): sai das listas e das rotinas, mas o histórico fica.
+  arquivado_em          DateTime?
+  arquivado_por         String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -1720,3 +1723,27 @@ model ProjetoDiagnostico {
 }
 
 // ── [/projetos-diagnostico] ──
+
+// ── [pgfn] ──
+/// Parcelamento ou transação na PGFN (Sispar), acompanhado à mão: a PGFN não tem API para escritórios; a consulta oficial é no Regularize.
+model ParcelamentoPgfn {
+  id                 String    @id @default(cuid())
+  empresa_id         String
+  numero             String
+  modalidade         String?
+  situacao           String    @default("EM_DIA")
+  valor_consolidado  Float?
+  parcelas_total     Int?
+  parcelas_pagas     Int?
+  valor_parcela      Float?
+  proximo_vencimento DateTime?
+  debito_automatico  Boolean   @default(false)
+  observacao         String?
+  atualizado_por     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([empresa_id])
+}
+
+// ── [/pgfn] ──

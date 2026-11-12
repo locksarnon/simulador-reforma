@@ -166,6 +166,14 @@ export class EntitiesService {
   }
 
   /** `user` é quem pediu a exclusão pela API (a regra de custódia usa o papel dele); chamadas internas não o passam. */
+  /** Grupo só sai sem empresas (as empresas não podem ficar sem grupo, e cliente não é excluído). */
+  async exigirGrupoVazio(id: string) {
+    const g = await this.prisma.grupo.findUnique({ where: { id } });
+    if (!g) return;
+    const n = await this.prisma.empresa.count({ where: { grupo: g.numero } });
+    if (n > 0) throw new ForbiddenException(`O grupo tem ${n} empresa(s). Clientes não são excluídos: mova as empresas para outro grupo ou arquive-as.`);
+  }
+
   async remove(modelName: string, id: string, user?: { email?: string; role?: string }) {
     const model = this.assertAllowed(modelName);
     if (model === 'Empresa') await this.apagarAnalisesDaEmpresa(id, user);

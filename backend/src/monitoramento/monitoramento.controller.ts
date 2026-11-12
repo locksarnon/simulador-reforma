@@ -93,6 +93,26 @@ export class MonitoramentoController {
     return this.m.enviarGuias(body?.empresa_ids ?? [], !!body?.enviar_email, user);
   }
 
+  @Get('empresas/:id/pgfn')
+  pgfn(@Param('id') id: string) {
+    return this.m.pgfnDaEmpresa(id);
+  }
+
+  @Post('empresas/:id/pgfn')
+  criarPgfn(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: Record<string, unknown>) {
+    return this.m.salvarPgfn(id, null, body ?? {}, user);
+  }
+
+  @Put('empresas/:id/pgfn/:pid')
+  editarPgfn(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('pid') pid: string, @Body() body: Record<string, unknown>) {
+    return this.m.salvarPgfn(id, pid, body ?? {}, user);
+  }
+
+  @Delete('pgfn/:pid')
+  excluirPgfn(@CurrentUser() user: AuthUser, @Param('pid') pid: string) {
+    return this.m.excluirPgfn(pid, user);
+  }
+
   @Post('empresas/:id/dispensas')
   dispensar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { obrigacao?: string; motivo?: string }) {
     return this.m.dispensar(id, String(body?.obrigacao ?? ''), body?.motivo, user);

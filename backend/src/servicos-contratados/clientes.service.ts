@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TIPOS_DE_SERVICO } from './servicos-contratados.service';
 
@@ -48,9 +48,9 @@ export class ClientesService {
     if (servicos.some((s) => !TIPOS_DE_SERVICO.includes(s as never))) throw new BadRequestException(`Serviço inválido. Use ${TIPOS_DE_SERVICO.join(' ou ')}.`);
 
     if (doc) {
-      const todas = await this.prisma.empresa.findMany({ where: { cnpj_cpf: { not: null } }, select: { id: true, razao_social: true, cnpj_cpf: true } });
+      const todas = await this.prisma.empresa.findMany({ where: { cnpj_cpf: { not: null } }, select: { id: true, razao_social: true, cnpj_cpf: true, arquivado_em: true } });
       const igual = todas.find((e) => digitos(e.cnpj_cpf) === digitos(doc));
-      if (igual) throw new ConflictException({ message: `Já existe um cliente com esse documento: ${igual.razao_social}.`, empresa_id: igual.id });
+      if (igual) throw new ConflictException({ message: igual.arquivado_em ? `Esse documento é de um cliente arquivado: ${igual.razao_social}. Desarquive em Clientes (filtro Arquivados).` : `Já existe um cliente com esse documento: ${igual.razao_social}.`, empresa_id: igual.id });
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -99,5 +99,30 @@ export class ClientesService {
       }
       return empresa;
     });
+  }
+
+  /**
+   * Arquiva o cliente (clientes não são excluídos): sai das listas, da carteira e das rotinas; os serviços em aberto ficam pausados e a
+   * captura automática de XML é desligada. Todo o histórico (XML, análises, consultas, documentos) continua guardado.
+   */
+  async arquivar(id: string, usuario?: Usuario) {
+    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores arquivam clientes.');
+    const e = await this.prisma.empresa.findUnique({ where: { id } });
+    if (!e) throw new NotFoundException('Cliente não encontrado.');
+    if (e.arquivado_em) return e;
+    const [arquivada] = await this.prisma.$transaction([
+      this.prisma.empresa.update({ where: { id }, data: { arquivado_em: new Date(), arquivado_por: usuario?.email ?? null, status: 'Arquivada' } }),
+      this.prisma.servicoContratado.updateMany({ where: { empresa_id: id, situacao: { in: ['PROPOSTA', 'ATIVO'] } }, data: { situacao: 'PAUSADO', atualizado_por: usuario?.email ?? null } }),
+      this.prisma.capturaXmlConfig.updateMany({ where: { empresa_id: id }, data: { ativo: false } }),
+    ]);
+    return arquivada;
+  }
+
+  /** Desarquiva: o cliente volta às listas; os serviços continuam pausados até alguém ligar de novo (um clique na lista). */
+  async desarquivar(id: string, usuario?: Usuario) {
+    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores desarquivam clientes.');
+    const e = await this.prisma.empresa.findUnique({ where: { id } });
+    if (!e) throw new NotFoundException('Cliente não encontrado.');
+    return this.prisma.empresa.update({ where: { id }, data: { arquivado_em: null, arquivado_por: null, status: 'Ativa' } });
   }
 }

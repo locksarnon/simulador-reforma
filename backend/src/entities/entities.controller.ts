@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { EntitiesService } from './entities.service';
@@ -36,7 +36,10 @@ export class EntitiesController {
   }
 
   @Delete(':id')
-  remove(@Param('model') model: string, @Param('id') id: string, @CurrentUser() user: AuthUser) {
+  async remove(@Param('model') model: string, @Param('id') id: string, @CurrentUser() user: AuthUser) {
+    // Clientes não são excluídos: só arquivados (POST /clientes/:id/arquivar). Grupo com empresas também não sai.
+    if (model === 'Empresa') throw new ForbiddenException('Clientes não são excluídos. Use Arquivar: o cliente sai das listas e o histórico fica guardado.');
+    if (model === 'Grupo') await this.entities.exigirGrupoVazio(id);
     return this.entities.remove(model, id, user);
   }
 

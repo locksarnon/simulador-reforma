@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientesService, NovoCliente } from './clientes.service';
@@ -7,6 +7,16 @@ import { ClientesService, NovoCliente } from './clientes.service';
 @Controller('clientes')
 export class ClientesController {
   constructor(private readonly clientes: ClientesService) {}
+
+  @Post(':id/arquivar')
+  arquivar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clientes.arquivar(id, user);
+  }
+
+  @Post(':id/desarquivar')
+  desarquivar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clientes.desarquivar(id, user);
+  }
 
   @Post()
   criar(@CurrentUser() user: AuthUser, @Body() body: NovoCliente) {
