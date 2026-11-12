@@ -27,6 +27,43 @@ export function linhasDaLeitura(leitura, filtro = () => true) {
   return out;
 }
 
+const SITUACAO = {
+  REGULAR: { rotulo: "Regular", tom: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
+  SUSPENSO: { rotulo: "Só itens suspensos", tom: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" },
+  PENDENTE: { rotulo: "Com pendências", tom: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
+};
+
+/** Uma linha por órgão (Receita Federal e PGFN): situação, quantas pendências, omissões e itens suspensos. */
+export function resumoPorOrgao(leitura) {
+  return [["RFB", "Receita Federal"], ["PGFN", "PGFN"]].map(([id, orgao]) => {
+    const s = (leitura?.secoes || []).filter((x) => x.orgao === id);
+    const n = (t) => s.filter((x) => x.tipo === t).length;
+    const situacao = n("PENDENCIA") + n("OMISSAO") ? "PENDENTE" : n("SUSPENSO") ? "SUSPENSO" : "REGULAR";
+    return { id, orgao, situacao, pendencias: n("PENDENCIA"), omissoes: n("OMISSAO"), suspensos: n("SUSPENSO"), secoes: s.filter((x) => x.tipo !== "OUTRO").map((x) => x.titulo).join("; ") };
+  });
+}
+
+/** Situação fiscal resumida: a situação de cada órgão e o PDF oficial do relatório (ver e baixar). */
+export function ResumoSitfis({ empresaId }) {
+  const { data, isLoading } = useLeituraSitfis(empresaId);
+  if (isLoading) return <p className="text-xs text-muted-foreground">Lendo o relatório de situação fiscal…</p>;
+  if (!data) return <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Ainda não há relatório de situação fiscal deste cliente: consulte na subaba "Relatório de situação fiscal" ou use Atualizar tudo.</p>;
+  const linhas = resumoPorOrgao(data.leitura);
+  const colunas = [
+    { chave: "orgao", rotulo: "Órgão", quebrar: false },
+    { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACAO[l.situacao].rotulo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SITUACAO[l.situacao].tom}`}>{SITUACAO[l.situacao].rotulo}</span>, quebrar: false },
+    { chave: "secoes", rotulo: "O que aparece", valor: (l) => l.secoes || "Nada pendente" },
+    { chave: "consultado", rotulo: "Relatório de", valor: () => quandoConsultou(data.consultado_em) + (data.simulado ? " (demonstração)" : ""), quebrar: false },
+  ];
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="Situação fiscal">
+      {data.leitura?.certidao && <p className="text-sm">Certidão no relatório: <strong>{data.leitura.certidao.tipo}</strong>{data.leitura.certidao.validade ? `, válida até ${data.leitura.certidao.validade}` : ""}.</p>}
+      {!data.leitura && <p className="text-xs text-muted-foreground">O relatório guardado não pôde ser lido automaticamente. Abra o PDF oficial.</p>}
+      <TabelaPadrao id="monit:sitfis-resumo" colunas={colunas} linhas={linhas} ariaLabel="Situação fiscal por órgão" tamanhoInicial={10} documentos={() => <PdfDoRelatorio dados={data} />} />
+    </section>
+  );
+}
+
 /**
  * Itens lidos do Relatório de Situação Fiscal (Receita Federal e PGFN), em tabela, sem nada digitado à mão.
  * `filtro` escolhe as seções (ex.: só parcelamentos, só omissões); `vazio` é o texto quando o relatório não traz nada daquilo.

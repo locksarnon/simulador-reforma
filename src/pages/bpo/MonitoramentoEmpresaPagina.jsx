@@ -10,7 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
 import ParcelamentosPgfn from "@/components/monitoramento/ParcelamentosPgfn";
 import CertidoesCliente from "@/components/monitoramento/CertidoesCliente";
-import LeituraSitfis from "@/components/monitoramento/LeituraSitfis";
+import LeituraSitfis, { ResumoSitfis } from "@/components/monitoramento/LeituraSitfis";
 import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
 import { piorNivel, servicosDoGrupo, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
@@ -128,7 +128,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
             const cartao = (s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />;
             // Subabas: o que é lido sozinho do relatório de situação fiscal, cada serviço do assunto e os demais.
             const subabas = [
-              ...(g.id === "situacao" && !pessoaFisica ? [{ id: "lido", rotulo: "Relatório de situação fiscal (lido)", conteudo: <LeituraSitfis empresaId={empresaId} titulo="O que o relatório de situação fiscal aponta" descricao="Pendências, débitos, parcelamentos, inscrições em dívida ativa e omissões, lidos do relatório oficial." vazio="O relatório não aponta pendência nem omissão." /> }] : []),
+              ...(g.id === "situacao" && !pessoaFisica ? [{ id: "lido", rotulo: "Situação fiscal", conteudo: <ResumoSitfis empresaId={empresaId} /> }] : []),
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "lido", rotulo: "Receita Federal e PGFN", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Parcelamentos na Receita Federal e na PGFN" filtro={(s) => s.assunto === "PARCELAMENTO"} descricao="Todos os parcelamentos que a Receita e a PGFN listam no relatório (SIPADE, SIEFPAR, SICOB, SISPAR, transações), em dia ou em atraso." vazio="O relatório não traz nenhum parcelamento na Receita Federal nem na PGFN." /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "lido", rotulo: "Omissões apontadas pela Receita", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} descricao="A Receita aponta no relatório de situação fiscal as declarações federais em falta, por competência." vazio="Nenhuma omissão de declaração: a Receita não aponta declaração federal em falta para este cliente." /> }] : []),
               ...lista.map((s) => ({ id: s.chave, rotulo: s.rotulo, nivel: ultimas[s.chave]?.sucesso ? ultimas[s.chave].nivel : undefined, conteudo: cartao(s) })),

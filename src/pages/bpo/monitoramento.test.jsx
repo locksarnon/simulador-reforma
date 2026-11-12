@@ -80,7 +80,7 @@ describe("Monitoramento fiscal: o cliente", () => {
   it("abas dos assuntos indicados, com subabas: a leitura do relatório e um serviço por subaba; e a saúde fiscal", () => {
     const html = pagina();
     for (const t of ["Situação fiscal", "Declarações", "Caixa postal", "Certidões"]) expect(html).toContain(t);
-    expect(html).toContain("Relatório de situação fiscal (lido)");
+    expect(html).toMatch(/role="tab"[^>]*>Situação fiscal</);
     expect(html).toMatch(/role="tab"[^>]*>Relatório de situação fiscal</);
     expect(html).toContain("Saúde fiscal");
     expect(html).toContain("Atualizar tudo");

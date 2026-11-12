@@ -325,7 +325,6 @@ export class MonitoramentoService {
                 { rotulo: 'Exigibilidade suspensa', valor: String(leitura.secoes.filter((x) => x.tipo === 'SUSPENSO').length) },
                 { rotulo: 'Omissões de declaração', valor: String(leitura.secoes.filter((x) => x.tipo === 'OMISSAO').length) },
               ],
-              tabela: { colunas: [{ chave: 'orgao', rotulo: 'Órgão' }, { chave: 'titulo', rotulo: 'Seção do relatório' }, { chave: 'itens', rotulo: 'Linhas' }], linhas: leitura.secoes.map((x) => ({ orgao: x.orgao === 'PGFN' ? 'PGFN' : 'Receita Federal', titulo: x.titulo, itens: Math.max(0, x.linhas.length - 1) })) },
             };
           } catch (e) { this.log.warn(`Leitura do relatório de situação fiscal: ${(e as Error).message}`); }
         }
