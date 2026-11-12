@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, RefreshCw, UserPlus } from "lucide-react";
+import { Loader2, LogOut, RefreshCw, UserPlus } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -49,9 +50,11 @@ export default function VinculosReceitaPagina() {
     onSuccess: (r) => { setMarcados([]); qc.invalidateQueries({ queryKey: ["redesim"] }); qc.invalidateQueries({ queryKey: ["empresas"] }); toast({ title: `${r.feitos} cliente(s) cadastrado(s) no BPO fiscal`, description: r.erros.join(" · ") || undefined, variant: r.erros.length ? "destructive" : undefined }); },
   });
   const demo = vinculos.data?.demonstracao || renuncias.data?.demonstracao;
+  const [renunciar, setRenunciar] = useState(null);
   const colunas = [
     { chave: "marcar", rotulo: "Cadastrar", valor: (l) => (l.cliente ? "" : "sim"), render: (l) => (l.cliente ? null : <input type="checkbox" aria-label={`Cadastrar ${l.cnpj}`} checked={marcados.includes(l.cnpj)} onChange={() => setMarcados((m) => (m.includes(l.cnpj) ? m.filter((x) => x !== l.cnpj) : [...m, l.cnpj]))} />) },
     ...COLUNAS_VINCULOS,
+    { chave: "renunciar", rotulo: "Renúncia", valor: () => "", ordenavel: false, render: (l) => <button type="button" onClick={() => setRenunciar(l)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted"><LogOut className="h-3.5 w-3.5" aria-hidden="true" /> Renunciar</button> },
   ];
   return (
     <div>
@@ -84,6 +87,73 @@ export default function VinculosReceitaPagina() {
           </TabsContent>
         </Tabs>
       </div>
+      {renunciar && <DialogoRenuncia vinculo={renunciar} aoFechar={() => setRenunciar(null)} aoEnviar={() => qc.invalidateQueries({ queryKey: ["redesim"] })} />}
     </div>
+  );
+}
+
+const ROTULOS_SITUACAO = { resultado: "Renúncia efetuada", mensagemRetorno: "Mensagem da Receita", situacao: "Situação", idSolicitacao: "Solicitação" };
+const so = (v) => String(v || "").replace(/\D/g, "");
+const cpfMascara = (v) => so(v).slice(0, 11).replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+
+/** Pedido de renúncia do escritório como contador responsável (Redesim, SOLICRENUNCIA262) e a situação do pedido (SITSOLICRENUNCIA265). */
+function DialogoRenuncia({ vinculo, aoFechar, aoEnviar }) {
+  const [cpfContador, setCpfContador] = useState("");
+  const [cpfPreenchedor, setCpfPreenchedor] = useState("");
+  const [ciencia, setCiencia] = useState(false);
+  const [pedido, setPedido] = useState(null);
+  const enviar = useMutation({
+    mutationFn: () => api.post("/monitoramento/escritorio/renuncias", { empresaId: vinculo.cliente?.id, cnpj: vinculo.cnpj, cpfContador, cpfPreenchedor, ciencia }),
+    onSuccess: (r) => { setPedido(r); aoEnviar?.(); toast({ title: "Renúncia pedida na Receita", description: r.idSolicitacao ? `Solicitação ${r.idSolicitacao}` : undefined }); },
+    onError: (e) => toast({ title: "A renúncia não foi enviada", description: e.message, variant: "destructive" }),
+  });
+  const situacao = useMutation({
+    mutationFn: () => api.get(`/monitoramento/escritorio/solicitacoes/${encodeURIComponent(pedido.idSolicitacao)}`),
+    onError: (e) => toast({ title: "Não foi possível consultar a solicitação", description: e.message, variant: "destructive" }),
+  });
+  const pronto = so(cpfContador).length === 11 && so(cpfPreenchedor).length === 11 && ciencia;
+  const campo = "h-9 w-full rounded-md border border-input bg-background px-2 text-sm tabular-nums";
+  return (
+    <Dialog open onOpenChange={(v) => !v && aoFechar()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Renunciar como contador</DialogTitle>
+          <DialogDescription>
+            {vinculo.cliente?.razao_social || "CNPJ"} · <span className="tabular-nums">{mascararDocumento(vinculo.cnpj)}</span>. O pedido vai à Receita pela Redesim e o escritório deixa de ser o contador responsável deste CNPJ.
+          </DialogDescription>
+        </DialogHeader>
+        {pedido ? (
+          <div className="space-y-2 text-sm">
+            <p>Solicitação enviada{pedido.demonstracao ? " (demonstração)" : ""}: <span className="font-medium tabular-nums">{pedido.idSolicitacao || "sem número"}</span></p>
+            {pedido.idSolicitacao && (
+              <button type="button" disabled={situacao.isPending} onClick={() => situacao.mutate()} className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60">
+                {situacao.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Consultar a situação
+              </button>
+            )}
+            {situacao.data && (
+              <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 text-xs">
+                {Object.entries(situacao.data).filter(([k, v]) => k !== "demonstracao" && v !== null && typeof v !== "object").flatMap(([k, v]) => [
+                  <dt key={`${k}-r`} className="text-muted-foreground">{ROTULOS_SITUACAO[k] || k}</dt>, <dd key={`${k}-v`}>{v === true ? "Sim" : v === false ? "Não" : String(v)}</dd>,
+                ])}
+              </dl>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <label className="block space-y-1 text-sm"><span className="text-xs text-muted-foreground">CPF do contador responsável</span><input className={campo} inputMode="numeric" value={cpfMascara(cpfContador)} onChange={(e) => setCpfContador(e.target.value)} placeholder="000.000.000-00" /></label>
+            <label className="block space-y-1 text-sm"><span className="text-xs text-muted-foreground">CPF de quem preenche o pedido</span><input className={campo} inputMode="numeric" value={cpfMascara(cpfPreenchedor)} onChange={(e) => setCpfPreenchedor(e.target.value)} placeholder="000.000.000-00" /></label>
+            <label className="flex items-start gap-2 text-xs"><input type="checkbox" className="mt-0.5" checked={ciencia} onChange={(e) => setCiencia(e.target.checked)} /> <span>Estou ciente e de acordo com as declarações exigidas pela Receita para o pedido de renúncia do contador responsável.</span></label>
+          </div>
+        )}
+        <DialogFooter>
+          <button type="button" onClick={aoFechar} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm hover:bg-muted">{pedido ? "Fechar" : "Cancelar"}</button>
+          {!pedido && (
+            <button type="button" disabled={!pronto || enviar.isPending} onClick={() => enviar.mutate()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-amber-600 px-3 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60">
+              {enviar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogOut className="h-4 w-4" aria-hidden="true" />} Enviar a renúncia
+            </button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

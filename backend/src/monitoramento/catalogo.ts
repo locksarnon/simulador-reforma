@@ -6,7 +6,7 @@
 export type Grupo = 'situacao' | 'declaracoes' | 'guias' | 'mensagens' | 'parcelamentos' | 'mei' | 'procuracoes' | 'processos';
 export type Alvo = 'PJ' | 'PF' | 'TODOS';
 export type TipoParametro = 'ano' | 'periodo' | 'texto' | 'numero' | 'data';
-export type Parametro = { nome: string; rotulo: string; tipo: TipoParametro; padrao?: (hoje: Date) => string; obrigatorio?: boolean };
+export type Parametro = { nome: string; rotulo: string; tipo: TipoParametro; padrao?: (hoje: Date) => string; obrigatorio?: boolean; opcoes?: { valor: string; rotulo: string }[] };
 export type Servico = {
   chave: string;
   rotulo: string;
@@ -28,6 +28,8 @@ export type Servico = {
   /** Obrigação que esta consulta acompanha (para "sem obrigação" e para a ausência). */
   obrigacao?: string;
   descricao: string;
+  /** Ação que muda dados na Receita: exige confirmação explícita (texto mostrado antes de executar) e nunca roda em lote nem na rotina. */
+  acao?: string;
 };
 
 const PJ0 = { numero: '00000000000000', tipo: 2 as const };
@@ -35,6 +37,7 @@ const PJ100 = { numero: '00000000000100', tipo: 2 as const };
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
 const PF9 = { numero: '99999999999', tipo: 1 as const };
 const PF0 = { numero: '00000000000', tipo: 1 as const };
+const PJ101 = { numero: '00000000000101', tipo: 2 as const };
 const aaaammdd = (iso: string) => iso.replace(/-/g, '');
 /** Data de pagamento opcional: em branco, a guia sai com a data que o Serpro calcular. */
 const P_PAGAMENTO: Parametro = { nome: 'pagamento', rotulo: 'Data de pagamento (opcional)', tipo: 'data' };
@@ -47,6 +50,23 @@ const mesAnterior = (h: Date) => { const d = new Date(h.getFullYear(), h.getMont
 const P_ANO: Parametro = { nome: 'ano', rotulo: 'Ano', tipo: 'ano', padrao: ano(0), obrigatorio: true };
 const P_ANO_ANTERIOR: Parametro = { nome: 'ano', rotulo: 'Ano-calendário', tipo: 'ano', padrao: ano(-1), obrigatorio: true };
 const P_PERIODO: Parametro = { nome: 'periodo', rotulo: 'Competência (AAAAMM)', tipo: 'periodo', padrao: mesAnterior, obrigatorio: true };
+
+/** Campos do Sicalc (DARF em atraso ou avulso), iguais nos serviços 51, 53 e 54. */
+const P_SICALC: Parametro[] = [
+      { nome: 'receita', rotulo: 'Código da receita com extensão (ex.: 2089-01)', tipo: 'texto', obrigatorio: true },
+      { nome: 'apuracao', rotulo: 'Período de apuração (MM/AAAA)', tipo: 'texto', padrao: (h) => { const d = new Date(h.getFullYear(), h.getMonth() - 1, 1); return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; }, obrigatorio: true },
+      { nome: 'vencimento', rotulo: 'Vencimento original', tipo: 'data', obrigatorio: true },
+      { nome: 'valor', rotulo: 'Valor principal (R$)', tipo: 'numero', obrigatorio: true },
+      { nome: 'pagamento', rotulo: 'Data de pagamento', tipo: 'data', padrao: (h) => h.toISOString().slice(0, 10), obrigatorio: true },
+    ];
+const dadosSicalc = (p: Record<string, string>) => {
+      const [codigo, extensao] = String(p.receita).replace(/\s/g, '').split('-');
+      if (!/^\d{4}$/.test(codigo ?? '') || !/^\d{2}$/.test(extensao ?? '')) throw new Error('Código da receita: use 4 dígitos, hífen e a extensão de 2 dígitos (ex.: 2089-01).');
+      if (!/^(0[1-9]|1[0-2])\/\d{4}$/.test(String(p.apuracao))) throw new Error('Período de apuração: use MM/AAAA (ex.: 09/2026).');
+      const valor = Number(String(p.valor).replace(/\./g, '').replace(',', '.'));
+      if (!(valor > 0)) throw new Error('Valor principal: informe um valor maior que zero.');
+      return j({ codigoReceita: codigo, codigoReceitaExtensao: extensao, tipoPA: 'ME', dataPA: p.apuracao, vencimento: `${p.vencimento}T00:00:00`, valorImposto: valor.toFixed(2), dataConsolidacao: `${p.pagamento}T00:00:00`, observacao: 'Emitido pelo InTAX' });
+};
 
 /** Os 8 parcelamentos do Simples e do MEI têm os mesmos serviços, com códigos diferentes. */
 const PARCELAMENTOS: { sistema: string; nome: string; base: number; para: 'SIMPLES' | 'MEI'; demo: { pedidos: string; parcela: string; numero: number; mes: number; numeroPagamento?: number } }[] = [
@@ -198,6 +218,76 @@ export const SERVICOS: Servico[] = [
     parametros: [{ nome: 'isn', rotulo: 'Número da mensagem (ISN)', tipo: 'texto', obrigatorio: true }], dados: (p) => j({ isn: p.isn }), demo: { contribuinte: PJ0, dados: j({ isn: '0000082838' }) },
     descricao: 'O texto completo de uma mensagem da caixa postal (o número vem na lista de mensagens).',
   },
+
+  // Incluídos em 12/11/2026 (grupos 1 e 2 do catálogo oficial). Consultas e cálculos:
+  {
+    chave: 'darf-sicalc-codbarra', rotulo: 'DARF em atraso (Sicalc): código de barras', grupo: 'guias', sistema: 'SICALC', servico: 'GERARDARFCODBARRA53', versao: '2.9', endpoint: 'Emitir', alvo: 'TODOS',
+    parametros: P_SICALC, dados: dadosSicalc,
+    demo: { contribuinte: PJ9, dados: j({ uf: 'SP', municipio: '7107', codigoReceita: '1162', codigoReceitaExtensao: '01', tipoPA: 'ME', dataPA: '01/2022', vencimento: '2022-02-18T00:00:00', valorImposto: '1000.00', dataConsolidacao: '2022-08-08T00:00:00', observacao: 'Darf calculado' }), contratante: PJ9, autor: PJ9 },
+    descricao: 'O mesmo cálculo do DARF em atraso, devolvendo o código de barras para pagar no banco.',
+  },
+  {
+    chave: 'darf-sicalc-calculo', rotulo: 'DARF em atraso (Sicalc): só o cálculo', grupo: 'guias', sistema: 'SICALC', servico: 'CONSOLIDAR54', versao: '2.9', endpoint: 'Emitir', alvo: 'TODOS',
+    parametros: P_SICALC, dados: dadosSicalc,
+    demo: { contribuinte: PF9, dados: j({ uf: 'SP', municipio: '7107', codigoReceita: '0190', codigoReceitaExtensao: '01', tipoPA: 'ME', dataPA: '12/2017', vencimento: '2018-01-31T00:00:00', valorImposto: '1000.00', dataConsolidacao: '2022-08-08T00:00:00', observacao: 'Darf calculado' }), contratante: PJ9, autor: PF9 },
+    descricao: 'Calcula principal, multa e juros até a data de pagamento, sem emitir guia (para conferir ou orçar).',
+  },
+  {
+    chave: 'sicalc-receita', rotulo: 'Sicalc: códigos e extensões de uma receita', grupo: 'guias', sistema: 'SICALC', servico: 'CONSULTAAPOIORECEITAS52', versao: '2.9', endpoint: 'Apoiar', alvo: 'TODOS',
+    parametros: [{ nome: 'codigo', rotulo: 'Código da receita (4 dígitos)', tipo: 'texto', obrigatorio: true }],
+    dados: (p) => { if (!/^\d{4}$/.test(String(p.codigo).trim())) throw new Error('Código da receita: use 4 dígitos (ex.: 2089).'); return j({ codigoReceita: String(p.codigo).trim() }); },
+    demo: { contribuinte: PF0, dados: j({ codigoReceita: '6106' }), contratante: PJ0, autor: PF0 },
+    descricao: 'As extensões de um código de receita e os campos que cada uma exige, para preencher o DARF em atraso.',
+  },
+  {
+    chave: 'pagamentos-contagem', rotulo: 'Pagamentos: quantos no período', grupo: 'guias', sistema: 'PAGTOWEB', servico: 'CONTACONSDOCARRPG73', versao: '1.0', endpoint: 'Consultar', alvo: 'TODOS',
+    parametros: [
+      { nome: 'de', rotulo: 'De', tipo: 'data', padrao: (h) => new Date(h.getFullYear(), h.getMonth() - 3, 1).toISOString().slice(0, 10), obrigatorio: true },
+      { nome: 'ate', rotulo: 'Até', tipo: 'data', padrao: (h) => h.toISOString().slice(0, 10), obrigatorio: true },
+    ],
+    dados: (p) => j({ intervaloDataArrecadacao: { dataInicial: p.de, dataFinal: p.ate } }),
+    demo: { contribuinte: PF9, dados: j({ intervaloDataArrecadacao: { dataInicial: '2019-09-01', dataFinal: '2019-11-30' } }), contratante: PF9, autor: PF9 },
+    descricao: 'Quantos documentos de arrecadação foram pagos no período (sem listar).',
+  },
+  {
+    chave: 'mit-situacao-encerramento', rotulo: 'MIT: situação do encerramento', grupo: 'declaracoes', sistema: 'MIT', servico: 'SITUACAOENC315', versao: '1.0', endpoint: 'Apoiar', alvo: 'PJ', para: 'NORMAL',
+    parametros: [{ nome: 'protocolo', rotulo: 'Protocolo do encerramento', tipo: 'texto', obrigatorio: true }], dados: (p) => j({ protocoloEncerramento: p.protocolo }),
+    demo: { contribuinte: PJ0, dados: j({ protocoloEncerramento: '2fc4NTscrGXWTl4xbCX9rw==' }) }, obrigacao: 'MIT',
+    descricao: 'Se o encerramento de uma apuração do MIT já chegou à DCTFWeb (situação e data).',
+  },
+  // Ações (mudam dados na Receita; só com confirmação):
+  {
+    chave: 'regime-opcao-efetuar', rotulo: 'Regime de apuração: registrar a opção do ano', grupo: 'situacao', sistema: 'REGIMEAPURACAO', servico: 'EFETUAROPCAOREGIME101', versao: '1.0', endpoint: 'Declarar', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [P_ANO, { nome: 'regime', rotulo: 'Regime', tipo: 'texto', obrigatorio: true, opcoes: [{ valor: 'CAIXA', rotulo: 'Caixa' }, { valor: 'COMPETENCIA', rotulo: 'Competência' }] }],
+    dados: (p) => {
+      const r = String(p.regime).toUpperCase();
+      if (r !== 'CAIXA' && r !== 'COMPETENCIA') throw new Error('Regime: escolha Caixa ou Competência.');
+      // tipoRegime: 1 = CAIXA (exemplo oficial); 0 = COMPETÊNCIA (não confirmado na documentação; o descritivo reforça a escolha).
+      return j({ anoOpcao: Number(p.ano), tipoRegime: r === 'CAIXA' ? 1 : 0, descritivoRegime: r, deAcordoResolucao: true });
+    },
+    demo: { contribuinte: PJ0, dados: j({ anoOpcao: 2023, tipoRegime: 1, descritivoRegime: 'CAIXA', deAcordoResolucao: true }) },
+    descricao: 'Registra na Receita a opção pelo regime de caixa ou de competência do ano (Simples Nacional), com o demonstrativo em PDF.',
+    acao: 'Registrar na Receita a opção pelo regime de apuração deste cliente? A opção vale para o ano inteiro e, no regime de caixa, implica concordar com a resolução do CGSN.',
+  },
+  {
+    chave: 'mei-beneficio', rotulo: 'MEI: informar benefício previdenciário', grupo: 'mei', sistema: 'PGMEI', servico: 'ATUBENEFICIO23', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'MEI',
+    parametros: [P_ANO, { nome: 'periodos', rotulo: 'Competências (AAAAMM, separadas por vírgula)', tipo: 'texto', obrigatorio: true }, { nome: 'beneficio', rotulo: 'Houve benefício?', tipo: 'texto', obrigatorio: true, opcoes: [{ valor: 'sim', rotulo: 'Sim' }, { valor: 'nao', rotulo: 'Não' }] }],
+    dados: (p) => {
+      const lista = String(p.periodos).split(/[,;\s]+/).filter(Boolean);
+      if (!lista.length || lista.some((x) => !/^\d{4}(0[1-9]|1[0-2])$/.test(x) || x.slice(0, 4) !== String(p.ano))) throw new Error('Competências: use AAAAMM do mesmo ano, separadas por vírgula (ex.: 202601, 202602).');
+      return j({ anoCalendario: Number(p.ano), infoBeneficio: lista.map((x) => ({ periodoApuracao: x, indicadorBeneficio: p.beneficio === 'sim' })) });
+    },
+    demo: { contribuinte: PJ101, dados: j({ anoCalendario: 2026, infoBeneficio: [{ periodoApuracao: '202601', indicadorBeneficio: true }, { periodoApuracao: '202602', indicadorBeneficio: true }] }), contratante: PJ101, autor: PJ101 },
+    descricao: 'Registra no PGMEI se houve benefício previdenciário nas competências (muda o DAS do MEI).',
+    acao: 'Registrar no PGMEI a informação de benefício previdenciário para estas competências? Isso muda o valor do DAS do MEI.',
+  },
+  {
+    chave: 'dctfweb-transmitir', rotulo: 'DCTFWeb: transmitir a declaração em andamento', grupo: 'declaracoes', sistema: 'DCTFWEB', servico: 'TRANSDECLARACAO310', versao: '1.0', endpoint: 'Declarar', alvo: 'PJ', para: 'NORMAL',
+    parametros: [P_PERIODO], dados: (p) => j({ categoria: 'GERAL_MENSAL', anoPA: p.periodo.slice(0, 4), mesPA: p.periodo.slice(4, 6), xmlAssinadoBase64: p.xmlAssinadoBase64 ?? '' }),
+    demo: { contribuinte: PJ0, dados: j({ categoria: 'GERAL_MENSAL', anoPA: '2022', mesPA: '04', xmlAssinadoBase64: 'AQUI_VAI_TEXTOBASE64ASSINADO' }) }, obrigacao: 'DCTFWEB',
+    descricao: 'Baixa o XML da DCTFWeb em andamento (montada pelo eSocial e pela Reinf), assina com o certificado do autor do pedido (A1 do cliente ou do escritório) e transmite. Devolve o recibo.',
+    acao: 'Transmitir à Receita a DCTFWeb desta competência, assinada digitalmente? A transmissão é uma entrega oficial da declaração.',
+  },
   // Guias e pagamentos
   {
     chave: 'das', rotulo: 'DAS do Simples: gerar a guia', grupo: 'guias', sistema: 'PGDASD', servico: 'GERARDAS12', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'SIMPLES',
@@ -246,21 +336,8 @@ export const SERVICOS: Servico[] = [
   },
   {
     chave: 'darf-sicalc', rotulo: 'DARF avulso ou em atraso (Sicalc)', grupo: 'guias', sistema: 'SICALC', servico: 'CONSOLIDARGERARDARF51', versao: '2.9', endpoint: 'Emitir', alvo: 'TODOS',
-    parametros: [
-      { nome: 'receita', rotulo: 'Código da receita com extensão (ex.: 2089-01)', tipo: 'texto', obrigatorio: true },
-      { nome: 'apuracao', rotulo: 'Período de apuração (MM/AAAA)', tipo: 'texto', padrao: (h) => { const d = new Date(h.getFullYear(), h.getMonth() - 1, 1); return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; }, obrigatorio: true },
-      { nome: 'vencimento', rotulo: 'Vencimento original', tipo: 'data', obrigatorio: true },
-      { nome: 'valor', rotulo: 'Valor principal (R$)', tipo: 'numero', obrigatorio: true },
-      { nome: 'pagamento', rotulo: 'Data de pagamento', tipo: 'data', padrao: (h) => h.toISOString().slice(0, 10), obrigatorio: true },
-    ],
-    dados: (p) => {
-      const [codigo, extensao] = String(p.receita).replace(/\s/g, '').split('-');
-      if (!/^\d{4}$/.test(codigo ?? '') || !/^\d{2}$/.test(extensao ?? '')) throw new Error('Código da receita: use 4 dígitos, hífen e a extensão de 2 dígitos (ex.: 2089-01).');
-      if (!/^(0[1-9]|1[0-2])\/\d{4}$/.test(String(p.apuracao))) throw new Error('Período de apuração: use MM/AAAA (ex.: 09/2026).');
-      const valor = Number(String(p.valor).replace(/\./g, '').replace(',', '.'));
-      if (!(valor > 0)) throw new Error('Valor principal: informe um valor maior que zero.');
-      return j({ codigoReceita: codigo, codigoReceitaExtensao: extensao, tipoPA: 'ME', dataPA: p.apuracao, vencimento: `${p.vencimento}T00:00:00`, valorImposto: valor.toFixed(2), dataConsolidacao: `${p.pagamento}T00:00:00`, observacao: 'Emitido pelo InTAX' });
-    },
+    parametros: P_SICALC,
+    dados: dadosSicalc,
     demo: { contribuinte: PF9, dados: j({ uf: 'SP', municipio: '7107', codigoReceita: '0190', codigoReceitaExtensao: '01', tipoPA: 'ME', dataPA: '12/2017', vencimento: '2018-01-31T00:00:00', valorImposto: '1000.00', dataConsolidacao: '2022-08-08T00:00:00', observacao: 'Darf calculado' }), contratante: PJ9, autor: PF9 },
     descricao: 'Calcula multa e juros até a data de pagamento e emite o DARF (PDF, com Pix) de um tributo federal em atraso ou avulso, pelo Sicalc da Receita.',
   },

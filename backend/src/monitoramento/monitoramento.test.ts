@@ -12,7 +12,8 @@ const ler = (s: string) => { const svc = SERVICOS.find((x) => x.servico === s)!;
 
 describe('catálogo', () => {
   it('todo serviço tem código, versão, endpoint, exemplo de demonstração com resposta oficial guardada', () => {
-    const semExemplo = SERVICOS.filter((s) => !FIX[s.servico] && !['CONSPROCPORINTER271', 'PAGAMENTOS71'].includes(s.servico));
+    const semExemplo = SERVICOS.filter((s) => !FIX[s.servico] && !['CONSPROCPORINTER271', 'PAGAMENTOS71', // o trial recusa os exemplos oficiais destes:
+      'CONSOLIDAR54', 'CONTACONSDOCARRPG73', 'ATUBENEFICIO23', 'TRANSDECLARACAO310'].includes(s.servico));
     expect(semExemplo.map((s) => s.chave)).toEqual([]);
     expect(new Set(SERVICOS.map((s) => s.chave)).size).toBe(SERVICOS.length);
     for (const s of SERVICOS) { expect(s.versao).toBeTruthy(); expect(['Apoiar', 'Consultar', 'Declarar', 'Emitir', 'Monitorar']).toContain(s.endpoint); }
@@ -133,6 +134,29 @@ describe('ambiente e nota', () => {
   });
 });
 
+describe('grupos 1 e 2 do catálogo', () => {
+  const svc = (k: string) => SERVICO_POR_CHAVE.get(k)!;
+  it('os três serviços do Sicalc usam os mesmos campos e a mesma montagem', () => {
+    const p = { receita: '2089-01', apuracao: '09/2026', vencimento: '2026-10-31', valor: '1.234,56', pagamento: '2026-11-12' };
+    const d = svc('darf-sicalc').dados(p);
+    expect(svc('darf-sicalc-codbarra').dados(p)).toBe(d);
+    expect(svc('darf-sicalc-calculo').dados(p)).toBe(d);
+    expect(JSON.parse(d)).toMatchObject({ codigoReceita: '2089', codigoReceitaExtensao: '01', valorImposto: '1234.56' });
+    expect(() => svc('sicalc-receita').dados({ codigo: '20' })).toThrow(/4 dígitos/);
+  });
+  it('ações têm texto de confirmação e nunca entram em lote nem na rotina', () => {
+    for (const k of ['regime-opcao-efetuar', 'mei-beneficio', 'dctfweb-transmitir']) { expect(svc(k).acao).toBeTruthy(); expect(svc(k).rotina).toBeFalsy(); }
+    expect(SERVICOS.filter((s) => s.acao).map((s) => s.chave).sort()).toEqual(['dctfweb-transmitir', 'mei-beneficio', 'regime-opcao-efetuar']);
+  });
+  it('regime: caixa = 1, competência pelo descritivo; MEI: competências do mesmo ano', () => {
+    expect(JSON.parse(svc('regime-opcao-efetuar').dados({ ano: '2027', regime: 'caixa' }))).toEqual({ anoOpcao: 2027, tipoRegime: 1, descritivoRegime: 'CAIXA', deAcordoResolucao: true });
+    expect(JSON.parse(svc('regime-opcao-efetuar').dados({ ano: '2027', regime: 'COMPETENCIA' })).descritivoRegime).toBe('COMPETENCIA');
+    expect(() => svc('regime-opcao-efetuar').dados({ ano: '2027', regime: 'X' })).toThrow(/Caixa ou Competência/);
+    expect(JSON.parse(svc('mei-beneficio').dados({ ano: '2026', periodos: '202601, 202602', beneficio: 'nao' })).infoBeneficio).toEqual([{ periodoApuracao: '202601', indicadorBeneficio: false }, { periodoApuracao: '202602', indicadorBeneficio: false }]);
+    expect(() => svc('mei-beneficio').dados({ ano: '2026', periodos: '202513', beneficio: 'sim' })).toThrow(/AAAAMM/);
+  });
+});
+
 describe('MonitoramentoService.consultar (demonstração)', () => {
   afterEach(() => vi.unstubAllGlobals());
   function montar() {
@@ -170,6 +194,17 @@ describe('MonitoramentoService.consultar (demonstração)', () => {
     const r = await s.consultar({ empresaId: 'E1' }, 'caixa-postal', {}, { email: 'qa@fal' });
     expect(r).toMatchObject({ sucesso: true, simulado: true });
     expect(JSON.stringify((r as { resumo: unknown }).resumo)).toContain('guardado no InTAX');
+  });
+  it('ações na Receita só rodam pela tela, com confirmação explícita', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ status: 200, mensagens: FIX.EFETUAROPCAOREGIME101.mensagens, dados: FIX.EFETUAROPCAOREGIME101.dados }), { status: 200 }));
+    vi.stubGlobal('fetch', f);
+    const { s } = montar();
+    await expect(s.consultar({ empresaId: 'E1' }, 'regime-opcao-efetuar', { ano: '2026', regime: 'CAIXA' }, { email: 'qa@fal' })).rejects.toThrow(/Confirme a ação/);
+    await expect(s.consultar({ empresaId: 'E1' }, 'regime-opcao-efetuar', { ano: '2026', regime: 'CAIXA', confirmar: 'sim' }, { email: 'qa@fal' }, 'LOTE')).rejects.toThrow(/lote/);
+    expect(f).not.toHaveBeenCalled();
+    const r = await s.consultar({ empresaId: 'E1' }, 'regime-opcao-efetuar', { ano: '2026', regime: 'CAIXA', confirmar: 'sim' }, { email: 'qa@fal' });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ sucesso: true });
   });
   it('recusa serviço de empresa para quem não tem CNPJ válido e serviço desconhecido', async () => {
     const { s } = montar();

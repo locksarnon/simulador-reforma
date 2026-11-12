@@ -4,7 +4,9 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { lerPfx } from '../certificados/certificado-pfx';
 import { CertificadosService } from '../certificados/certificados.service';
+import { assinarDeclaracaoDctfweb } from './dctfweb-assinatura';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { MailService } from '../mail/mail.service';
 import { completarParametros, GRUPOS, OBRIGACOES, SERVICO_POR_CHAVE, SERVICOS, Servico, servicosParaEmpresa } from './catalogo';
@@ -126,7 +128,7 @@ export class MonitoramentoService {
       modo, contrato: !!c, contratante: c ? { cnpj: c.contratante, nome: c.nome } : null,
       consultas_24h: hoje, ultima_consulta: ultima?.createdAt ?? null,
       grupos: GRUPOS, obrigacoes: OBRIGACOES,
-      servicos: SERVICOS.map((s) => ({ chave: s.chave, rotulo: s.rotulo, grupo: s.grupo, alvo: s.alvo, para: s.para ?? null, rotina: !!s.rotina, descricao: s.descricao, parametros: s.parametros.map((p) => ({ nome: p.nome, rotulo: p.rotulo, tipo: p.tipo, padrao: p.padrao ? p.padrao(new Date()) : '', obrigatorio: !!p.obrigatorio })) })),
+      servicos: SERVICOS.map((s) => ({ chave: s.chave, rotulo: s.rotulo, grupo: s.grupo, alvo: s.alvo, para: s.para ?? null, rotina: !!s.rotina, acao: s.acao ?? null, descricao: s.descricao, parametros: s.parametros.map((p) => ({ nome: p.nome, rotulo: p.rotulo, tipo: p.tipo, padrao: p.padrao ? p.padrao(new Date()) : '', obrigatorio: !!p.obrigatorio, opcoes: p.opcoes ?? null })) })),
     };
   }
 
@@ -155,6 +157,11 @@ export class MonitoramentoService {
     const escritorio: Identificacao = { numero: c.contratante, tipo: 2 };
     const r = await this.cliente.chamar({ endpoint: p.endpoint, contratante: escritorio, autorPedidoDados: escritorio, contribuinte: p.contribuinte ?? escritorio, idSistema: p.sistema, idServico: p.servico, versaoSistema: p.versao, dados: p.dados });
     return { ...r, demonstracao: false };
+  }
+
+  /** CNPJ do escritório (contratante do Integra Contador), ou null sem contrato. */
+  async cnpjDoEscritorio(): Promise<string | null> {
+    return (await this.contrato.credenciais())?.contratante ?? null;
   }
 
   /** Executa uma consulta do catálogo para o cliente, como a rotina (usado pelos eventos de atualização). */
@@ -208,7 +215,7 @@ export class MonitoramentoService {
   }
 
   /** Uma chamada ao Integra Contador para o serviço, no modo atual. Na demonstração, usa os exemplos oficiais e a reserva quando o trial falha. */
-  private async chamarServico(s: Servico, contribuinte: Identificacao, params: Record<string, string>, ctx: { empresaId?: string; nome: string; usuario: string }): Promise<{ r: Resposta; reserva: boolean }> {
+  private async chamarServico(s: Servico, contribuinte: Identificacao, params: Record<string, string>, ctx: { empresaId?: string; nome: string; usuario: string }): Promise<{ r: Resposta; reserva: boolean; autorCliente?: boolean }> {
     const modo = this.modoAtual ?? (await this.modo());
     if (modo === 'DEMONSTRACAO') {
       const id = s.demo.contribuinte;
@@ -231,7 +238,31 @@ export class MonitoramentoService {
     const dados = s.chave === 'procuracao'
       ? JSON.stringify({ outorgante: contribuinte.numero, tipoOutorgante: String(contribuinte.tipo), outorgado: c.contratante, tipoOutorgado: '2' })
       : s.dados(params);
-    return { r: await this.cliente.chamar({ endpoint: s.endpoint, contratante, autorPedidoDados: autor, contribuinte, idSistema: s.sistema, idServico: s.servico, versaoSistema: s.versao, dados, tokenProcurador: token }), reserva: false };
+    return { r: await this.cliente.chamar({ endpoint: s.endpoint, contratante, autorPedidoDados: autor, contribuinte, idSistema: s.sistema, idServico: s.servico, versaoSistema: s.versao, dados, tokenProcurador: token }), reserva: false, autorCliente: !!token };
+  }
+
+  /**
+   * Transmissão da DCTFWeb (TRANSDECLARACAO310): baixa o XML em andamento (CONSXMLDECLARACAO38), assina com o certificado do autor do
+   * pedido (o A1 do cliente quando o pedido sai em nome dele; senão o e-CNPJ do escritório, do contrato) e transmite.
+   */
+  private async transmitirDctfweb(s: Servico, contribuinte: Identificacao, params: Record<string, string>, ctx: { empresaId?: string; nome: string; usuario: string }): Promise<Resposta> {
+    const consulta = SERVICO_POR_CHAVE.get('dctfweb-xml')!;
+    const x = await this.chamarServico(consulta, contribuinte, params, ctx);
+    if (x.r.status !== 200) return x.r;
+    const bruto = x.r.dados as { XMLStringBase64?: string } | string;
+    const b64 = typeof bruto === 'string' ? (() => { try { return JSON.parse(bruto).XMLStringBase64; } catch { return undefined; } })() : bruto?.XMLStringBase64;
+    if (!b64) throw new ErroIntegra('A Receita não devolveu o XML da DCTFWeb desta competência (não há declaração em andamento?).', 'COMUNICACAO');
+    let chave: { keyPem: string; certPem: string };
+    if (x.autorCliente && ctx.empresaId) {
+      chave = await this.certificados.material(ctx.empresaId, 'USO_INTEGRA_CONTADOR', ctx.usuario, 'Assinatura da DCTFWeb para transmissão');
+    } else {
+      const c = await this.contrato.credenciais();
+      if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador: configure em Administração > Integrações.', 'SEM_CONTRATO');
+      chave = lerPfx(c.pfx, c.senha);
+    }
+    const assinado = assinarDeclaracaoDctfweb(Buffer.from(b64, 'base64').toString('utf8'), chave.keyPem, chave.certPem);
+    const dados = s.dados({ ...params, xmlAssinadoBase64: Buffer.from(assinado, 'utf8').toString('base64') });
+    return (await this.chamarServico({ ...s, dados: () => dados }, contribuinte, params, ctx)).r;
   }
 
   async consultar(alvo: Alvo, chave: string, parametros: Record<string, unknown> | undefined, usuario: Usuario, origem: 'MANUAL' | 'ROTINA' | 'LOTE' = 'MANUAL') {
@@ -244,6 +275,11 @@ export class MonitoramentoService {
     let params: Record<string, string>;
     // Confere os parâmetros e monta os dados antes de chamar o Serpro: entrada errada vira mensagem clara, não consulta cobrada.
     try { params = completarParametros(s, parametros ?? {}); s.dados(params); } catch (e) { throw new BadRequestException((e as Error).message); }
+    // Ações mudam dados na Receita: só pela tela, uma a uma, com a confirmação do usuário.
+    if (s.acao) {
+      if (origem !== 'MANUAL') throw new BadRequestException('Esta ação não roda em lote nem na rotina.');
+      if (params.confirmar !== 'sim') throw new BadRequestException(`Confirme a ação: ${s.acao}`);
+    }
     const inicio = Date.now();
     const usuarioEmail = usuario?.email ?? 'rotina';
     let sucesso = false;
@@ -257,7 +293,9 @@ export class MonitoramentoService {
       const ctx = { empresaId: alvo.empresaId, nome: quem.nome, usuario: usuarioEmail };
       let r: Resposta;
       let rsv = false;
-      if (s.sistema === 'SITFIS' && modo === 'PRODUCAO') {
+      if (s.servico === 'TRANSDECLARACAO310' && modo === 'PRODUCAO') {
+        r = await this.transmitirDctfweb(s, quem.id, params, ctx);
+      } else if (s.sistema === 'SITFIS' && modo === 'PRODUCAO') {
         r = await relatorioSitfis(
           async (servico, endpoint, dados) => (await this.chamarServico({ ...s, servico, endpoint, dados: () => dados }, quem.id, params, ctx)).r,
         );
@@ -468,7 +506,7 @@ export class MonitoramentoService {
       const tarefas: { empresaId: string; chave: string }[] = [];
       for (const e of empresas) {
         const pf = so(e.cnpj_cpf).length === 11;
-        const indicados = servicosParaEmpresa(e.regime_atual, pf).filter((s) => (chaves?.length ? chaves.includes(s.chave) : s.rotina));
+        const indicados = servicosParaEmpresa(e.regime_atual, pf).filter((s) => !s.acao && (chaves?.length ? chaves.includes(s.chave) : s.rotina));
         for (const s of indicados) {
           if (s.obrigacao && dispensas.some((d) => d.empresa_id === e.id && d.obrigacao === s.obrigacao)) continue;
           tarefas.push({ empresaId: e.id, chave: s.chave });

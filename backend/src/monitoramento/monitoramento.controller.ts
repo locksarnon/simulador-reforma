@@ -31,6 +31,12 @@ export class MonitoramentoController {
     return new StreamableFile(a.buffer, { type: 'application/pdf', disposition: disposicao(a.nome, ver === '1') });
   }
 
+  @Post('escritorio/renuncias')
+  solicitarRenuncia(@CurrentUser() user: AuthUser, @Body() body: { empresaId?: string; cnpj?: string; cpfContador?: string; cpfPreenchedor?: string; ciencia?: boolean }) {
+    exigirAdmin(user);
+    return this.escritorio.solicitarRenuncia(body ?? {});
+  }
+
   @Get('escritorio/solicitacoes/:sid')
   solicitacao(@Param('sid') sid: string) {
     return this.escritorio.situacaoSolicitacao(sid);

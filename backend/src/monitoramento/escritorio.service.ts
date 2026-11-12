@@ -7,6 +7,7 @@ import { extrairArquivos } from './interpretar';
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
 const PJ100 = { numero: '00000000000100', tipo: 2 as const };
 const PJ101 = { numero: '00000000000101', tipo: 2 as const };
+const PF11 = { numero: '00000000011', tipo: 1 as const };
 const j = JSON.stringify;
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -101,6 +102,30 @@ export class EscritorioService {
     const r = await this.m.chamarDoEscritorio({ sistema: 'PNRCONTADOR', servico: 'SITSOLICRENUNCIA265', versao: '1.0', endpoint: 'Consultar', dados: j({ idSolicitacao: id }), demo: { contratante: PJ100, contribuinte: PJ100, dados: j({ idSolicitacao: 'PNRCONTADOR-20250212-af81730aeb29c9fdac15' }) } });
     if (r.status !== 200) throw new BadRequestException(r.mensagens.map((x) => x.texto).join(' ') || `O Serpro respondeu ${r.status ?? r.http}.`);
     return { demonstracao: r.demonstracao, ...((lerDados(r.dados) ?? {}) as Record<string, unknown>) };
+  }
+
+  /**
+   * Redesim: pede a renúncia do escritório como contador responsável por um cliente (SOLICRENUNCIA262). Só com as declarações
+   * aceitas pelo usuário (cienciaDeclaracoes). Devolve o número da solicitação, acompanhado depois em SITSOLICRENUNCIA265.
+   */
+  async solicitarRenuncia(e: { empresaId?: string; cnpj?: string; cpfContador?: string; cpfPreenchedor?: string; ciencia?: boolean }) {
+    if (e.ciencia !== true) throw new BadRequestException('Leia e aceite as declarações da renúncia antes de enviar.');
+    const cpfContador = so(e.cpfContador), cpfPreenchedor = so(e.cpfPreenchedor);
+    if (cpfContador.length !== 11) throw new BadRequestException('Informe o CPF do contador responsável (11 dígitos).');
+    if (cpfPreenchedor.length !== 11) throw new BadRequestException('Informe o CPF de quem preenche o pedido (11 dígitos).');
+    const empresa = e.empresaId ? await this.prisma.empresa.findUnique({ where: { id: e.empresaId }, select: { cnpj_cpf: true, razao_social: true } }) : null;
+    const cnpj = so(empresa?.cnpj_cpf ?? e.cnpj);
+    if (cnpj.length !== 14) throw new BadRequestException('Escolha a empresa (com CNPJ) da qual o escritório vai renunciar.');
+    const escritorio = (await this.m.cnpjDoEscritorio()) ?? '';
+    const r = await this.m.chamarDoEscritorio({
+      sistema: 'PNRCONTADOR', servico: 'SOLICRENUNCIA262', versao: '1.0', endpoint: 'Declarar', contribuinte: { numero: cpfContador, tipo: 1 },
+      dados: j({ solicitacaoRenunciaContador: { cnpj, cpfContador, cnpjEmpresaContabil: escritorio, cpfPreenchedor }, cienciaDeclaracoes: true }),
+      demo: { contratante: PJ100, contribuinte: PF11, dados: j({ solicitacaoRenunciaContador: { cnpj: '99999999999999', cpfContador: '00000000011', cnpjEmpresaContabil: '00000000000100', cpfPreenchedor: '00000000011' }, cienciaDeclaracoes: false }) },
+    });
+    if (r.status !== 200) throw new BadRequestException(r.mensagens.map((x) => x.texto).join(' ') || `O Serpro respondeu ${r.status ?? r.http}.`);
+    const d = (lerDados(r.dados) ?? {}) as { idSolicitacao?: string };
+    this.log.log(`Renúncia pedida na Redesim para ${empresa?.razao_social ?? cnpj}: ${d.idSolicitacao ?? '(sem número)'}`);
+    return { demonstracao: r.demonstracao, idSolicitacao: d.idSolicitacao ?? null, mensagens: r.mensagens };
   }
 
   // ── Eventos de atualização ───────────────────────────────────────────

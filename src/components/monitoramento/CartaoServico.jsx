@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Eye, Loader2, RefreshCw } from "lucide-react";
+import { Download, Eye, Loader2, RefreshCw, Send } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -81,10 +82,11 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
   const [params, setParams] = useState(() => Object.fromEntries(servico.parametros.map((p) => [p.nome, p.padrao || ""])));
   const [atual, setAtual] = useState(null);
   const [aba, setAba] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
   const empresa = base.includes("/empresas/");
   const historico = useQuery({ queryKey: ["monitoramento", "historico", base, servico.chave], queryFn: () => api.get(`${base}/historico/${servico.chave}`), enabled: empresa && aba === "historico" });
   const consultar = useMutation({
-    mutationFn: () => api.post(`${base}/consultar`, { chave: servico.chave, parametros: params }),
+    mutationFn: (extra) => api.post(`${base}/consultar`, { chave: servico.chave, parametros: { ...params, ...(extra || {}) } }),
     onSuccess: (c) => {
       setAtual(c);
       qc.invalidateQueries({ queryKey: ["monitoramento"] });
@@ -119,12 +121,44 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
         {servico.parametros.map((p) => (
           <label key={p.nome} className="space-y-0.5">
             <span className="block text-[11px] text-muted-foreground">{p.rotulo}</span>
-            <input className={`${campo} w-40`} type={p.tipo === "data" ? "date" : "text"} inputMode={p.tipo === "texto" ? "text" : "numeric"} value={params[p.nome] ?? ""} onChange={(e) => setParams((x) => ({ ...x, [p.nome]: e.target.value }))} placeholder={p.tipo === "periodo" ? "AAAAMM" : p.tipo === "ano" ? "AAAA" : ""} />
+            {p.opcoes?.length ? (
+              <select className={`${campo} w-40`} value={params[p.nome] ?? ""} onChange={(e) => setParams((x) => ({ ...x, [p.nome]: e.target.value }))}>
+                <option value="">Escolha…</option>
+                {p.opcoes.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+              </select>
+            ) : (
+              <input className={`${campo} w-40`} type={p.tipo === "data" ? "date" : "text"} inputMode={p.tipo === "texto" ? "text" : "numeric"} value={params[p.nome] ?? ""} onChange={(e) => setParams((x) => ({ ...x, [p.nome]: e.target.value }))} placeholder={p.tipo === "periodo" ? "AAAAMM" : p.tipo === "ano" ? "AAAA" : ""} />
+            )}
           </label>
         ))}
-        <button type="button" disabled={desligado || consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "O monitoramento está desligado" : undefined}>
-          {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} {mostrada ? "Consultar de novo" : "Consultar"}
-        </button>
+        {servico.acao ? (
+          <button type="button" disabled={desligado || consultar.isPending} onClick={() => setConfirmando(true)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60" title={desligado ? "O monitoramento está desligado" : "Executa na Receita, depois da sua confirmação"}>
+            {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />} Executar na Receita
+          </button>
+        ) : (
+          <button type="button" disabled={desligado || consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "O monitoramento está desligado" : undefined}>
+            {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} {mostrada ? "Consultar de novo" : "Consultar"}
+          </button>
+        )}
+        {servico.acao && (
+          <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{servico.rotulo}</AlertDialogTitle>
+                <AlertDialogDescription>{servico.acao}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <ul className="space-y-0.5 text-sm">
+                {servico.parametros.map((p) => (
+                  <li key={p.nome}><span className="text-muted-foreground">{p.rotulo}:</span> {p.opcoes?.find((o) => o.valor === params[p.nome])?.rotulo || params[p.nome] || "—"}</li>
+                ))}
+              </ul>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => consultar.mutate({ confirmar: "sim" })}>Confirmar e executar</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         <span className="text-[11px] text-muted-foreground">{mostrada ? `Consultado em ${quandoConsultou(mostrada.createdAt)}${mostrada.solicitado_por ? ` por ${mostrada.solicitado_por}` : ""}${mostrada.simulado ? " · demonstração" : ""}` : "Ainda não consultado."}</span>
       </div>
       {(mostrada || empresa) && (
