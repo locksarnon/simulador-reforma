@@ -5,7 +5,7 @@ FROM debian:bookworm-slim
 
 ARG BX_VERSAO=1.10.0
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl procps socat xvfb x11vnc fluxbox novnc python3-websockify \
+  && apt-get install -y --no-install-recommends ca-certificates curl procps socat xvfb x11vnc fluxbox novnc python3-websockify xdotool \
        libfontconfig1 libxrender1 libxtst6 libxi6 fonts-dejavu-core \
   && rm -rf /var/lib/apt/lists/*
 
@@ -17,9 +17,11 @@ RUN curl -fsSL -o /tmp/bx.bin "https://servicos.receita.fazenda.gov.br/publico/p
 COPY ws.properties /opt/bx/ws.properties
 COPY recnetbx-service.properties.modelo /opt/bx/recnetbx-service.properties.modelo
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/$//' /entrypoint.sh /opt/bx/ws.properties /opt/bx/recnetbx-service.properties.modelo && chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh
 
 # /opt/bx inteiro fica num volume: configuração (senha cifrada pelo próprio programa), banco Derby, logs e downloads.
-VOLUME ["/opt/bx", "/dados"]
+# /entrada: o InTAX entrega aqui o certificado e a senha (volume compartilhado com o backend).
+VOLUME ["/opt/bx", "/dados", "/entrada"]
 EXPOSE 2444 6080
 ENTRYPOINT ["/entrypoint.sh"]

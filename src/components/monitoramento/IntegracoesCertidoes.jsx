@@ -25,7 +25,7 @@ export default function IntegracoesCertidoes() {
     onSuccess: (r) => { qc.setQueryData(["integracoes", "infosimples"], r); toast({ title: "Token removido" }); },
     onError: falhar("Não foi possível remover"),
   });
-  const bx = useQuery({ queryKey: ["integracoes", "receitanetbx"], queryFn: () => api.get("/integracoes/receitanetbx"), refetchInterval: 60_000 });
+  const bx = useQuery({ queryKey: ["integracoes", "receitanetbx"], queryFn: () => api.get("/integracoes/receitanetbx"), refetchInterval: (q) => ((q.state.data || []).some((x) => x.configurando) ? 5000 : 60_000) });
   const i = info.data;
   const campo = "h-8 min-w-[260px] flex-1 rounded-md border border-input bg-background px-2 text-sm";
   const botao = "inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60";
@@ -51,11 +51,47 @@ export default function IntegracoesCertidoes() {
         <div className="flex flex-wrap items-center gap-2">
           <FileSearch className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <h3 className="text-sm font-medium">SPED transmitido (EFD-Contribuições e EFD ICMS/IPI): ReceitanetBX</h3>
-          <span className={`rounded-full px-2 py-0.5 text-xs ${bx.data?.configurado ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : bx.data?.disponivel ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>{bx.isLoading ? "Verificando…" : bx.data?.configurado ? "Configurado" : bx.data?.disponivel ? "Aguardando o certificado" : "Fora do ar"}</span>
         </div>
-        <p className="text-xs text-muted-foreground">{bx.data?.mensagem} O InTAX usa o ReceitanetBX-Serviço, programa oficial da Receita, que roda no servidor com o certificado do escritório (procurador dos clientes) para saber o que foi transmitido e baixar o arquivo com o recibo. A senha do certificado é digitada só uma vez, na tela do próprio programa, aberta por túnel SSH.</p>
-        {(bx.data?.secundarios || []).map((s) => <p key={s.id} className="text-xs"><span className="font-medium">{s.rotulo}:</span> {s.configurado ? "configurado" : s.disponivel ? "no ar, aguardando o certificado" : "não instalado"}. O InTAX consulta os dois certificados e junta o resultado (vale a procuração que existir).</p>)}
+        <p className="text-xs text-muted-foreground">O InTAX usa o ReceitanetBX-Serviço, programa oficial da Receita, para saber o que foi transmitido. São dois certificados A1: o primário (a empresa) e o secundário (o sócio). O InTAX consulta os dois e junta o resultado, então vale a procuração eletrônica que cada cliente deu a um deles. Envie o arquivo e a senha: o serviço se configura sozinho em cerca de um minuto.</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          {(bx.data || []).map((s) => <CertificadoBx key={s.id} s={s} aoMudar={() => bx.refetch()} />)}
+        </div>
       </div>
     </section>
+  );
+}
+
+/** Um certificado do ReceitanetBX (primário ou secundário): situação, titular e o envio do arquivo com a senha. */
+function CertificadoBx({ s, aoMudar }) {
+  const [arquivo, setArquivo] = useState(null);
+  const [senha, setSenha] = useState("");
+  const enviar = useMutation({
+    mutationFn: () => api.upload(`/integracoes/receitanetbx/${s.id}`, arquivo, { senha }),
+    onSuccess: () => { setArquivo(null); setSenha(""); aoMudar(); toast({ title: `${s.rotulo}: certificado enviado`, description: "O ReceitanetBX está se configurando; a situação muda sozinha em cerca de um minuto." }); },
+    onError: falhar("Não foi possível enviar o certificado"),
+  });
+  const ultima = s.ultima_configuracao;
+  const situacao = s.configurando ? ["Configurando…", "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"]
+    : ultima && !ultima.ok ? ["Falhou", "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"]
+    : s.configurado ? ["Configurado", "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"]
+    : s.disponivel ? ["Aguardando o certificado", "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300"]
+    : ["Fora do ar", "bg-muted text-muted-foreground"];
+  const t = s.titular;
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h4 className="flex-1 text-sm font-medium">{s.rotulo}</h4>
+        <span className={`rounded-full px-2 py-0.5 text-xs ${situacao[1]}`}>{situacao[0]}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {t ? <>Certificado de <strong className="text-foreground">{t.titular}</strong>, válido até {new Date(t.valido_ate).toLocaleDateString("pt-BR")}; enviado em {quando(t.enviado_em)}{t.enviado_por ? ` por ${t.enviado_por}` : ""}.</> : "Nenhum certificado enviado por aqui."}
+        {ultima && !ultima.ok ? ` ${ultima.mensagem}` : ""}
+      </p>
+      <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (arquivo && senha) enviar.mutate(); }}>
+        <input type="file" accept=".pfx,.p12,application/x-pkcs12" onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} className="max-w-[220px] text-xs" aria-label={`Certificado A1: ${s.rotulo}`} />
+        <input type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Senha do certificado" className="h-8 min-w-[160px] flex-1 rounded-md border border-input bg-background px-2 text-sm" aria-label={`Senha do certificado: ${s.rotulo}`} />
+        <button type="submit" disabled={!arquivo || !senha || enviar.isPending || s.configurando} className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{t ? "Trocar certificado" : "Enviar"}</button>
+      </form>
+    </div>
   );
 }

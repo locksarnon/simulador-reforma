@@ -5,7 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PreAnaliseService } from './pre-analise.service';
 import { CertidoesService } from './certidoes.service';
 import { InfosimplesService } from '../infosimples/infosimples.service';
-import { estadoBx, servicosBx } from '../receitanetbx/receitanetbx.cliente';
+import { ReceitanetbxConfigService } from '../receitanetbx/receitanetbx-config.service';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 
@@ -83,7 +83,7 @@ export class CertidoesController {
 /** Administração > Integrações: token da Infosimples (CNDT e CRF). */
 @Controller('integracoes')
 export class IntegracoesExternasController {
-  constructor(private readonly infosimples: InfosimplesService) {}
+  constructor(private readonly infosimples: InfosimplesService, private readonly bx: ReceitanetbxConfigService) {}
 
   @Get('infosimples')
   infosimplesEstado() {
@@ -97,9 +97,15 @@ export class IntegracoesExternasController {
 
   /** ReceitanetBX-Serviço (escriturações do SPED transmitidas): no ar? com o certificado do escritório? */
   @Get('receitanetbx')
-  async receitanetbx() {
-    const [principal, ...outros] = await Promise.all(servicosBx().map(async (s) => ({ ...s, url: undefined, ...(await estadoBx(s.url)) })));
-    return { ...principal, secundarios: outros };
+  receitanetbx() {
+    return this.bx.estado();
+  }
+
+  /** Envia o certificado A1 e a senha do primário (empresa) ou do secundário (sócio); o serviço se configura sozinho. */
+  @Post('receitanetbx/:id')
+  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: 1024 * 1024, files: 1 } }))
+  receitanetbxSalvar(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() arquivo: { buffer: Buffer } | undefined, @Body() body: { senha?: string }) {
+    return this.bx.salvar(id, arquivo?.buffer, body?.senha, user);
   }
 
   @Delete('infosimples')

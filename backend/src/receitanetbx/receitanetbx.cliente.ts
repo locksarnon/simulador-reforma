@@ -10,11 +10,11 @@ export type RespostaBx = { retorno: number; saida: string };
 export const URL_PADRAO_BX = 'http://reforma-receitanetbx:2444/services/ReceitanetBX';
 export const URL_SECUNDARIO_BX = 'http://reforma-receitanetbx-socio:2444/services/ReceitanetBX';
 
-/** Os serviços do ReceitanetBX: o do escritório e o secundário (certificado do sócio, procurador de clientes). */
+/** Os serviços do ReceitanetBX: primário (certificado da empresa) e secundário (certificado do sócio, procurador de clientes). */
 export function servicosBx() {
   return [
-    { id: 'escritorio', rotulo: 'Certificado do escritório', url: process.env.RECEITANETBX_URL || URL_PADRAO_BX },
-    { id: 'socio', rotulo: 'Certificado do sócio', url: process.env.RECEITANETBX_URL_SECUNDARIO || URL_SECUNDARIO_BX },
+    { id: 'primario', rotulo: 'Primário (empresa)', url: process.env.RECEITANETBX_URL || URL_PADRAO_BX },
+    { id: 'secundario', rotulo: 'Secundário (sócio)', url: process.env.RECEITANETBX_URL_SECUNDARIO || URL_SECUNDARIO_BX },
   ];
 }
 

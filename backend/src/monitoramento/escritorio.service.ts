@@ -150,7 +150,7 @@ export class EscritorioService {
       let respondeu = false;
       for (const s of servicosBx()) {
         try {
-          const achados = await pesquisarAno(esc, cnpj, ano, proprio && s.id === 'escritorio', s.url);
+          const achados = await pesquisarAno(esc, cnpj, ano, proprio && s.id === 'primario', s.url);
           respondeu = true;
           if (achados.length) usados.add(s.rotulo);
           for (const a of achados) arquivos.set(a.id || `${s.id}-${arquivos.size}`, a);
