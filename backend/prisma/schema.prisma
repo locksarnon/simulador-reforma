@@ -1831,3 +1831,25 @@ model IntegracaoSegredo {
   atualizado_por  String?
   updatedAt       DateTime @updatedAt
 }
+
+// ── [sped-download] Escriturações do SPED baixadas da Receita pelo ReceitanetBX e guardadas nos arquivos do cliente ──
+model SpedDownload {
+  id             String   @id @default(cuid())
+  empresa_id     String
+  escrituracao   String
+  competencia    String
+  servico        String
+  arquivo_receita String
+  recibo         String?
+  retificadora   Boolean  @default(false)
+  id_pedido      String?
+  situacao       String   @default("SOLICITADO")
+  mensagem       String?
+  arquivo_id     String?
+  solicitado_por String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([empresa_id])
+  @@index([situacao])
+}

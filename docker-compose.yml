@@ -103,6 +103,9 @@ services:
       # Entrega do certificado ao ReceitanetBX (primário: empresa; secundário: sócio). Ver docker-compose.receitanetbx.yml.
       - receitanetbx_entrada_primario:/bx/primario
       - receitanetbx_entrada_secundario:/bx/secundario
+      # Arquivos que o ReceitanetBX baixa da Receita (só leitura): o InTAX guarda nos Arquivos do cliente.
+      - receitanetbx_dados:/bxdados/primario:ro
+      - receitanetbx_socio_dados:/bxdados/secundario:ro
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3003/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 10s
@@ -173,3 +176,5 @@ volumes:
   reforma_minio_data:
   receitanetbx_entrada_primario:
   receitanetbx_entrada_secundario:
+  receitanetbx_dados:
+  receitanetbx_socio_dados:

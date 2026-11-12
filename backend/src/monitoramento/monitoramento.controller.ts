@@ -2,6 +2,7 @@ import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe,
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ContratoIntegraService } from './contrato.service';
 import { EscritorioService } from './escritorio.service';
+import { SpedDownloadService } from '../receitanetbx/sped-download.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ConfigRotina, MonitoramentoService } from './monitoramento.service';
@@ -12,7 +13,7 @@ const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new Forbid
 /** BPO Fiscal > Monitoramento fiscal: consultas ao Integra Contador (Serpro), histórico, PDF, lote, rotina e obrigações dispensadas. */
 @Controller('monitoramento')
 export class MonitoramentoController {
-  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly escritorio: EscritorioService) {}
+  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly escritorio: EscritorioService, private readonly downloads: SpedDownloadService) {}
 
   // ── Escritório: Redesim (vínculos e renúncias) e eventos de atualização da Receita ──
   @Get('escritorio/vinculos')
@@ -40,6 +41,17 @@ export class MonitoramentoController {
   @Get('escritorio/solicitacoes/:sid')
   solicitacao(@Param('sid') sid: string) {
     return this.escritorio.situacaoSolicitacao(sid);
+  }
+
+  @Get('empresas/:id/sped/downloads')
+  spedDownloads(@Param('id') id: string) {
+    return this.downloads.listar(id);
+  }
+
+  /** Pede à Receita (ReceitanetBX) o arquivo de uma escrituração; o InTAX guarda nos Arquivos do cliente quando chegar. */
+  @Post('empresas/:id/sped/baixar')
+  spedBaixar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { escrituracao?: string; competencia?: string; arquivoId?: string; servico?: string; recibo?: string; retificadora?: boolean; proprio?: boolean }) {
+    return this.downloads.solicitar(id, body ?? {}, user);
   }
 
   @Get('empresas/:id/sped')

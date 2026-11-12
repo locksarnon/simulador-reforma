@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MonitoramentoService } from './monitoramento.service';
 import { extrairArquivos } from './interpretar';
-import { ESCRITURACOES, pesquisarAno, porMes } from '../receitanetbx/sped';
+import { ESCRITURACOES, pesquisarAno, porCompetencia } from '../receitanetbx/sped';
 import { servicosBx } from '../receitanetbx/receitanetbx.cliente';
 
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
@@ -155,7 +155,7 @@ export class EscritorioService {
           respondeu = true;
           algumOk = true;
           if (achados.length) usados.add(s.rotulo);
-          for (const a of achados) arquivos.set(a.id || `${s.id}-${arquivos.size}`, a);
+          for (const a of achados) arquivos.set(a.id || `${s.id}-${arquivos.size}`, { ...a, servico: s.id });
         } catch (err) {
           const m = (err as Error).message;
           if (!/fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(m)) { respondeu = true; erros.push(`${s.rotulo}: ${m}`); }
@@ -164,9 +164,9 @@ export class EscritorioService {
       const lista = [...arquivos.values()];
       // Basta um certificado responder sem erro (achou ou não achou nada): o erro de procuração do outro não interessa.
       const erro = !respondeu ? 'O serviço do ReceitanetBX não respondeu.' : lista.length || algumOk ? null : erros.join(' · ') || null;
-      escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, erro, meses: respondeu ? porMes(ano, lista) : [], arquivos: lista });
+      escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, anual: esc.anual, erro, meses: respondeu ? porCompetencia(esc, ano, lista) : [], arquivos: lista });
     }
-    return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', certificados: [...usados], escrituracoes };
+    return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', proprio, certificados: [...usados], escrituracoes };
   }
 
   // ── Eventos de atualização ───────────────────────────────────────────

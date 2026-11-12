@@ -5,31 +5,47 @@ const log = new Logger('SpedReceitanetBX');
 const brDe = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
 /**
- * Escriturações do SPED transmitidas, pelo ReceitanetBX-Serviço (catálogo da Receita lido em 12/11/2026 no próprio serviço):
- * - EFD ICMS/IPI: sistema 2, tipo 1602, pesquisa "porCNPJIEPeriodoContribuinte" (papéis repr, proc, contr), por período da EFD;
- * - EFD-Contribuições: sistema 7, tipo EFD, pesquisa "exercicio" (Período da Escrituração; papéis contr, proc, repr).
- * O escritório pesquisa como procurador (procuração eletrônica no e-CAC) ou como contribuinte, quando é o próprio CNPJ.
+ * Escriturações do SPED transmitidas, pelo ReceitanetBX-Serviço (catálogo da Receita lido no próprio serviço em 12/11/2026;
+ * papéis contr, proc e repr em todas):
+ * - EFD ICMS/IPI: sistema 2, tipo 1602, pesquisa "porCNPJIEPeriodoContribuinte" (todos os estabelecimentos);
+ * - EFD-Contribuições: sistema 7, tipo EFD, pesquisa "exercicio";
+ * - ECD: sistema 1 (SPED Contábil), tipo 1601, pesquisa "porPeriodo";
+ * - ECF: sistema 20 (SPED ECF), tipo ECF, pesquisa "exercicio".
+ * `prazo`: quando a competência passa a ser cobrada (até lá, "no prazo"). Aproximação para a tela: a data legal de cada
+ * obrigação fica no calendário (Agenda), com a norma.
  */
 export const ESCRITURACOES = [
-  { id: 'EFD_ICMS_IPI', rotulo: 'EFD ICMS/IPI', sistema: '2', tipoarquivo: '1602', tipopesquisa: 'porCNPJIEPeriodoContribuinte', extras: [['opcaoTodosEstabelecimentos', 'V'], ['somenteAtivas', 'F']] },
-  { id: 'EFD_CONTRIBUICOES', rotulo: 'EFD-Contribuições', sistema: '7', tipoarquivo: 'EFD', tipopesquisa: 'exercicio', extras: [] as string[][] },
+  { id: 'ECD', rotulo: 'SPED ECD (Escrituração Contábil Digital)', sistema: '1', tipoarquivo: '1601', tipopesquisa: 'porPeriodo', anual: true, prazo: { meses: 6, dia: 30 }, extras: [] as string[][] },
+  { id: 'ECF', rotulo: 'SPED ECF (Escrituração Contábil Fiscal)', sistema: '20', tipoarquivo: 'ECF', tipopesquisa: 'exercicio', anual: true, prazo: { meses: 7, dia: 31 }, extras: [] as string[][] },
+  { id: 'EFD_ICMS_IPI', rotulo: 'SPED EFD ICMS/IPI (Escrituração Fiscal Digital e Notas Fiscais Eletrônicas)', sistema: '2', tipoarquivo: '1602', tipopesquisa: 'porCNPJIEPeriodoContribuinte', anual: false, prazo: { meses: 1, dia: 25 }, extras: [['opcaoTodosEstabelecimentos', 'V'], ['somenteAtivas', 'F']] },
+  { id: 'EFD_CONTRIBUICOES', rotulo: 'SPED EFD Contribuições (Escrituração Fiscal Digital das Contribuições para PIS/Pasep e Cofins)', sistema: '7', tipoarquivo: 'EFD', tipopesquisa: 'exercicio', anual: false, prazo: { meses: 2, dia: 15 }, extras: [] as string[][] },
 ] as const;
 
 export type ArquivoSped = { id: string; atributos: Record<string, string> };
 export type Escrituracao = (typeof ESCRITURACOES)[number];
+export const ESCRITURACAO_POR_ID = new Map<string, Escrituracao>(ESCRITURACOES.map((e) => [e.id, e]));
+
+/** Identificação no ReceitanetBX: o próprio contribuinte (certificado do mesmo CNPJ) ou procurador do cliente. */
+export function identificacao(e: Escrituracao, cnpj: string, proprio: boolean) {
+  return proprio
+    ? `<identificacao perfil="contr" sistema="${e.sistema}" tipoarquivo="${e.tipoarquivo}" tipopesquisa="${e.tipopesquisa}"/>`
+    : `<identificacao perfil="proc" sistema="${e.sistema}" tipoarquivo="${e.tipoarquivo}" tipopesquisa="${e.tipopesquisa}" nirepresentado="${escaparXml(cnpj)}" tiponirepresentado="cnpj"/>`;
+}
 
 /** Entrada da pesquisa (XML do ReceitanetBX). Datas em dd/mm/aaaa. */
 export function entradaPesquisa(e: Escrituracao, cnpj: string, ano: number, proprio: boolean, hoje = new Date()): string {
-  const ident = proprio
-    ? `<identificacao perfil="contr" sistema="${e.sistema}" tipoarquivo="${e.tipoarquivo}" tipopesquisa="${e.tipopesquisa}"/>`
-    : `<identificacao perfil="proc" sistema="${e.sistema}" tipoarquivo="${e.tipoarquivo}" tipopesquisa="${e.tipopesquisa}" nirepresentado="${escaparXml(cnpj)}" tiponirepresentado="cnpj"/>`;
   // A Receita recusa data final no futuro: no ano corrente, a busca vai até hoje.
   const fim = ano >= hoje.getFullYear() ? brDe(hoje) : `31/12/${ano}`;
   const campos = [['dataInicio', `01/01/${ano}`], ['dataFim', fim], ...e.extras].map(([n, v]) => `<campo nome="${n}" valor="${escaparXml(v)}"/>`).join('');
-  return `<pesquisa>${ident}${campos}</pesquisa>`;
+  return `<pesquisa>${identificacao(e, cnpj, proprio)}${campos}</pesquisa>`;
 }
 
-const dataDe = (v: string): Date | null => {
+/** Pedido de download de arquivos já listados (SolicitarArquivos), pelos ids devolvidos na pesquisa. */
+export function entradaPedido(e: Escrituracao, cnpj: string, proprio: boolean, ids: string[]): string {
+  return `<pedido>${identificacao(e, cnpj, proprio)}<arquivos>${ids.map((id) => `<arquivo id="${escaparXml(id)}"/>`).join('')}</arquivos></pedido>`;
+}
+
+export const dataDe = (v: string): Date | null => {
   const br = v.match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (br) return new Date(`${br[3]}-${br[2]}-${br[1]}T12:00:00Z`);
   const iso = v.match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -50,7 +66,7 @@ export function lerArquivo(x: ArquivoSped) {
   const recibo = achar(a, /recibo|hash/i);
   const tipo = achar(a, /finalidade|retific|tipo.*escrit|original/i);
   const retificadora = /retific|^1$/i.test(tipo);
-  return { id: x.id, inicio, fim, transmissao, recibo, retificadora, tipo, nome: achar(a, /^nome|arquivo/i), atributos: a };
+  return { id: x.id, inicio, fim, transmissao, recibo, retificadora, tipo, nome: achar(a, /^nome|arquivo/i), atributos: a, servico: '' };
 }
 
 /** Pesquisa o ano inteiro de uma escrituração e devolve os arquivos encontrados (vazio = nada transmitido no período). */
@@ -65,14 +81,27 @@ export async function pesquisarAno(e: Escrituracao, cnpj: string, ano: number, p
   return lido.arquivos.map(lerArquivo);
 }
 
-/** Mês a mês do ano: a última transmissão que cobre o mês (a mais recente vale), e quantas houve. */
-export function porMes(ano: number, arquivos: ReturnType<typeof lerArquivo>[], hoje = new Date()) {
-  return Array.from({ length: 12 }, (_, i) => {
-    const comp = `${ano}-${String(i + 1).padStart(2, '0')}`;
-    const ini = new Date(Date.UTC(ano, i, 1, 12));
-    const fim = new Date(Date.UTC(ano, i + 1, 0, 12));
-    const doMes = arquivos.filter((x) => x.inicio && x.fim && x.inicio <= fim && x.fim >= ini).sort((a, b) => (dataDe(b.transmissao)?.getTime() ?? 0) - (dataDe(a.transmissao)?.getTime() ?? 0));
-    const futuro = ini > hoje;
-    return { competencia: comp, situacao: doMes.length ? 'TRANSMITIDA' : futuro ? 'FUTURA' : 'NAO_ENCONTRADA', transmissoes: doMes.length, ultima: doMes[0] ?? null };
+const vencido = (e: Escrituracao, anoComp: number, mesComp: number, hoje: Date) => {
+  const venc = new Date(Date.UTC(anoComp, mesComp - 1 + e.prazo.meses, e.prazo.dia, 23));
+  return hoje > venc;
+};
+
+/**
+ * Situação por competência: mensal (EFD) mês a mês; anual (ECD, ECF) o ano. A última transmissão que cobre o período vale.
+ * TRANSMITIDA; NO_PRAZO (ainda não venceu); NAO_ENCONTRADA (venceu e a Receita não tem a escrituração).
+ */
+export function porCompetencia(e: Escrituracao, ano: number, arquivos: ReturnType<typeof lerArquivo>[], hoje = new Date()) {
+  const periodos = e.anual
+    ? [{ comp: String(ano), ini: new Date(Date.UTC(ano, 0, 1, 12)), fim: new Date(Date.UTC(ano, 11, 31, 12)), mes: 12 }]
+    : Array.from({ length: 12 }, (_, i) => ({ comp: `${ano}-${String(i + 1).padStart(2, '0')}`, ini: new Date(Date.UTC(ano, i, 1, 12)), fim: new Date(Date.UTC(ano, i + 1, 0, 12)), mes: i + 1 }));
+  return periodos.map((p) => {
+    const doPeriodo = arquivos.filter((x) => x.inicio && x.fim && x.inicio <= p.fim && x.fim >= p.ini).sort((a, b) => (dataDe(b.transmissao)?.getTime() ?? 0) - (dataDe(a.transmissao)?.getTime() ?? 0));
+    const situacao = doPeriodo.length ? 'TRANSMITIDA' : vencido(e, ano, p.mes, hoje) ? 'NAO_ENCONTRADA' : 'NO_PRAZO';
+    return { competencia: p.comp, situacao, transmissoes: doPeriodo.length, ultima: doPeriodo[0] ?? null, todas: doPeriodo };
   });
+}
+
+/** Compatibilidade: mês a mês de uma escrituração mensal. */
+export function porMes(ano: number, arquivos: ReturnType<typeof lerArquivo>[], hoje = new Date()) {
+  return porCompetencia(ESCRITURACAO_POR_ID.get('EFD_ICMS_IPI')!, ano, arquivos, hoje);
 }
