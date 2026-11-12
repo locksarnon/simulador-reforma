@@ -1,40 +1,46 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Eye, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { api } from "@/api/client";
-import { toast } from "@/components/ui/use-toast";
+import TabelaPadrao from "@/components/TabelaPadrao";
+import { BotoesDocumento } from "@/components/monitoramento/CartaoServico";
 import { quandoConsultou } from "@/lib/monitoramento";
 
 export const useLeituraSitfis = (empresaId) => useQuery({ queryKey: ["monitoramento", "sitfis-leitura", empresaId], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/situacao-fiscal`), enabled: !!empresaId });
 
-const TOM = {
-  PENDENCIA: "border-red-300 bg-red-50/60 dark:border-red-900 dark:bg-red-950/30",
-  OMISSAO: "border-red-300 bg-red-50/60 dark:border-red-900 dark:bg-red-950/30",
-  SUSPENSO: "border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30",
-  OUTRO: "border-border bg-muted/30",
-};
-const ROTULO = { PENDENCIA: "Pendência", OMISSAO: "Omissão", SUSPENSO: "Exigibilidade suspensa", OUTRO: "Informação" };
+const TIPO = { PENDENCIA: "Pendência", OMISSAO: "Omissão", SUSPENSO: "Exigibilidade suspensa", OUTRO: "Informação" };
+const TOM = { PENDENCIA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", OMISSAO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", SUSPENSO: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300", OUTRO: "bg-muted text-muted-foreground" };
 
 /** O PDF oficial do relatório (Receita e PGFN), para ver ou baixar. */
 export function PdfDoRelatorio({ dados }) {
   if (!dados?.arquivo) return null;
-  const url = `/monitoramento/consultas/${dados.consulta_id}/arquivos/${dados.arquivo.indice}`;
-  const falhar = (e) => toast({ title: "Não foi possível abrir", description: e.message, variant: "destructive" });
-  return (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <button type="button" onClick={() => api.visualizar("GET", `${url}?ver=1`).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Eye className="h-3.5 w-3.5" aria-hidden="true" /> Ver o relatório (PDF oficial)</button>
-      <button type="button" onClick={() => api.baixar("GET", url, { nome: dados.arquivo.nome }).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" /> Baixar</button>
-    </span>
-  );
+  return <BotoesDocumento url={`/monitoramento/consultas/${dados.consulta_id}/arquivos/${dados.arquivo.indice}`} nome={dados.arquivo.nome} rotulo="relatório de situação fiscal" />;
+}
+
+/** Uma linha por item do relatório (a primeira linha de cada seção é o cabeçalho das colunas do próprio relatório). */
+export function linhasDaLeitura(leitura, filtro = () => true) {
+  const out = [];
+  for (const s of (leitura?.secoes || []).filter(filtro)) {
+    const [cabecalho, ...itens] = s.linhas.length > 1 ? s.linhas : ["", ...s.linhas];
+    (itens.length ? itens : ["(sem linhas)"]).forEach((item, i) => out.push({ id: `${s.titulo}-${i}`, orgao: s.orgao === "PGFN" ? "PGFN" : "Receita Federal", secao: s.titulo, tipo: s.tipo, item, cabecalho }));
+  }
+  return out;
 }
 
 /**
- * Seções lidas do Relatório de Situação Fiscal (Receita Federal e PGFN), sem nada digitado à mão.
- * `filtro` escolhe o que mostrar (ex.: só parcelamentos, só omissões); `vazio` é o texto quando o relatório não traz nada daquilo.
+ * Itens lidos do Relatório de Situação Fiscal (Receita Federal e PGFN), em tabela, sem nada digitado à mão.
+ * `filtro` escolhe as seções (ex.: só parcelamentos, só omissões); `vazio` é o texto quando o relatório não traz nada daquilo.
  */
 export default function LeituraSitfis({ empresaId, titulo, filtro = () => true, vazio, descricao }) {
   const { data, isLoading } = useLeituraSitfis(empresaId);
+  const linhas = useMemo(() => linhasDaLeitura(data?.leitura, filtro), [data, filtro]);
   if (isLoading) return <p className="text-xs text-muted-foreground">Lendo o relatório de situação fiscal…</p>;
-  const secoes = (data?.leitura?.secoes || []).filter(filtro);
+  const colunas = [
+    { chave: "orgao", rotulo: "Órgão", quebrar: false },
+    { chave: "tipo", rotulo: "Tipo", valor: (l) => TIPO[l.tipo] ?? l.tipo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] ${TOM[l.tipo] ?? TOM.OUTRO}`}>{TIPO[l.tipo] ?? l.tipo}</span> },
+    { chave: "secao", rotulo: "Seção do relatório" },
+    { chave: "item", rotulo: "Item (como no relatório)", render: (l) => <span title={l.cabecalho ? `Colunas: ${l.cabecalho}` : undefined} className="font-mono text-xs tabular-nums">{l.item}</span> },
+  ];
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label={titulo}>
       <div className="flex flex-wrap items-start gap-2">
@@ -44,26 +50,15 @@ export default function LeituraSitfis({ empresaId, titulo, filtro = () => true, 
             {descricao}{" "}
             {data ? `Fonte: relatório de situação fiscal da Receita e da PGFN (Integra Contador), consultado em ${quandoConsultou(data.consultado_em)}${data.simulado ? " (demonstração)" : ""}.` : "Ainda não há relatório de situação fiscal deste cliente: consulte na aba Situação fiscal (ou use Atualizar tudo)."}
           </p>
+          {data?.leitura?.certidao && <p className="mt-1 text-xs">Certidão no relatório: <strong>{data.leitura.certidao.tipo}</strong>{data.leitura.certidao.validade ? `, válida até ${data.leitura.certidao.validade}` : ""}.</p>}
         </div>
-        <PdfDoRelatorio dados={data} />
       </div>
       {data && !data.leitura && <p className="text-xs text-muted-foreground">O relatório guardado não pôde ser lido automaticamente. Abra o PDF oficial.</p>}
-      {data?.leitura && secoes.length === 0 && <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">{vazio}</p>}
-      {secoes.map((s, i) => (
-        <details key={`${s.titulo}-${i}`} className={`rounded-lg border p-3 ${TOM[s.tipo] ?? TOM.OUTRO}`} open={secoes.length <= 3}>
-          <summary className="cursor-pointer text-sm">
-            <span className="font-medium">{s.titulo}</span>
-            <span className="ml-2 text-xs text-muted-foreground">{s.orgao === "PGFN" ? "PGFN" : "Receita Federal"} · {ROTULO[s.tipo] ?? s.tipo} · {Math.max(0, s.linhas.length - 1)} linha(s)</span>
-          </summary>
-          <div className="mt-2 overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <tbody>
-                {s.linhas.map((l, n) => <tr key={n} className={n === 0 ? "font-medium text-muted-foreground" : "border-t border-border/50"}><td className="whitespace-pre-wrap py-1 pr-2 font-mono tabular-nums">{l}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      ))}
+      {data?.leitura && linhas.length === 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"><span className="flex-1">{vazio}</span><PdfDoRelatorio dados={data} /></div>
+      ) : data?.leitura ? (
+        <TabelaPadrao id="monit:sitfis" colunas={colunas} linhas={linhas} ariaLabel={titulo} documentos={() => <PdfDoRelatorio dados={data} />} />
+      ) : null}
     </section>
   );
 }

@@ -2,8 +2,7 @@ import {
   Activity, Archive, BadgeDollarSign, Bell, BookMarked, BookOpen, Boxes, Briefcase, Building2, CalendarClock, CalendarDays, CalendarRange, CircleUser,
   ClipboardCheck, Code2, Contact, ExternalLink, FileSpreadsheet, FolderOpen, HeartPulse, HelpCircle, Home, Inbox, KeyRound, Landmark, Layers,
   LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, PieChart, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
-  ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users,
-} from "lucide-react";
+  ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users } from "lucide-react";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 
 /**
@@ -48,7 +47,7 @@ export const MODULOS = [
   { id: "tags", area: "clientes", titulo: "Tags e filtros", descricao: "Etiquetas nas empresas e listas salvas para achar clientes rápido.", icone: Tags, to: "/clientes/tags", palavras: ["etiqueta", "filtro", "segmento", "lista"] },
   { id: "importacao-cadastro", area: "clientes", titulo: "Planilha cadastral", descricao: "Importar e exportar o cadastro de clientes e a carteira por colaborador por planilha, com conferência antes de gravar.", icone: FileSpreadsheet, to: "/clientes/importacao", palavras: ["importar", "exportar", "planilha", "excel", "csv", "cadastro em lote"] },
   { id: "pessoas-fisicas", area: "clientes", titulo: "Pessoas físicas", descricao: "CPFs da carteira (sócios, produtores rurais), a empresa ligada e o vencimento do certificado digital.", icone: Users, to: "/clientes/pessoas-fisicas", prefixos: ["/em-breve/pessoas-fisicas"], palavras: ["cpf", "pf", "sócio", "produtor rural", "e-cpf"] },
-  { id: "procuracoes", area: "clientes", titulo: "Procurações e certificados", descricao: "Como o InTAX consulta a Receita de cada cliente: pelo A1 do cliente ou pela procuração eletrônica, e o que falta.", icone: KeyRound, to: "/clientes/procuracoes", prefixos: ["/em-breve/procuracoes"], palavras: ["procuração", "e-cac", "a1", "certificado", "termo de autorização"] },
+  { id: "procuracoes", area: "clientes", titulo: "Procurações e certificados", descricao: "Como o InTAX consulta a Receita de cada cliente: pelo A1 do cliente ou pela procuração eletrônica, e o que falta.", icone: KeyRound, to: "/clientes/procuracoes", prefixos: ["/em-breve/procuracoes", "/clientes/vinculos-receita"], palavras: ["procuração", "e-cac", "a1", "certificado", "termo de autorização"] },
 
   // BPO Fiscal
   { id: "carteira-bpo", area: "bpo", titulo: "Carteira do BPO", descricao: "As empresas com BPO ativo e o estado da rotina de cada uma.", icone: LayoutDashboard, to: "/bpo/carteira", palavras: ["bpo", "carteira", "clientes bpo", "rotina"] },

@@ -1807,3 +1807,16 @@ model EntregaDeclaracao {
   @@unique([empresa_id, obrigacao, competencia])
   @@index([empresa_id])
 }
+
+/// Último evento de atualização da Receita por cliente (Integra Contador, EVENTOSATUALIZACAO): DCTFWeb (E0301), caixa postal (E0601), pagamentos (E0701).
+model EventoReceita {
+  id            String    @id @default(cuid())
+  empresa_id    String
+  evento        String
+  data_evento   DateTime
+  consultado_em DateTime  @default(now())
+  atendido_em   DateTime?
+
+  @@unique([empresa_id, evento])
+  @@index([empresa_id])
+}

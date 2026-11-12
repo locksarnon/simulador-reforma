@@ -14,6 +14,11 @@ export default function ControleSerpro() {
     onSuccess: (e) => { qc.setQueryData(["monitoramento", "estado"], e); qc.invalidateQueries({ queryKey: ["integracoes"] }); toast({ title: `Monitoramento: ${MODOS[e.modo].rotulo}` }); },
     onError: (e) => toast({ title: "Não foi possível mudar", description: e.message, variant: "destructive" }),
   });
+  const eventos = useMutation({
+    mutationFn: () => api.post("/monitoramento/eventos/atualizar", {}),
+    onSuccess: (r) => toast({ title: r.demonstracao ? "Eventos: teste na demonstração" : "Novidades da Receita buscadas", description: r.demonstracao ? `O Serpro devolveu o exemplo oficial (${r.linhas.length} CNPJ fictícios). Em produção, a busca vale para os clientes do BPO.` : `${r.clientes} cliente(s), ${r.novidades} novidade(s), ${r.consultas} consulta(s) feitas.` }),
+    onError: (er) => toast({ title: "Não foi possível buscar os eventos", description: er.message, variant: "destructive" }),
+  });
   const e = estado.data;
   if (!e) return null;
   return (
@@ -30,6 +35,10 @@ export default function ControleSerpro() {
       <p className="text-sm">{MODOS[e.modo].texto}</p>
       <p className="text-xs text-muted-foreground">{e.consultas_24h} consulta(s) nas últimas 24 horas{e.ultima_consulta ? `; a última em ${new Date(e.ultima_consulta).toLocaleString("pt-BR")}` : ""}.</p>
       <ContratoSerpro />
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted-foreground">Eventos de atualização da Receita (DCTFWeb, caixa postal e pagamentos): a rotina das 06:10 consulta sozinha os clientes com novidade.</span>
+        <button type="button" disabled={eventos.isPending || e.modo === "DESLIGADO"} onClick={() => eventos.mutate()} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 hover:bg-muted disabled:opacity-60">{eventos.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Buscar novidades agora</button>
+      </div>
       <details className="text-xs">
         <summary className="cursor-pointer text-primary">Como funciona para cada cliente</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">

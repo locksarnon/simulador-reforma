@@ -205,6 +205,24 @@ export const SERVICOS: Servico[] = [
     descricao: 'O DAS da competência (PDF), com valor, vencimento e composição por tributo. Com a data de pagamento, sai consolidado para aquela data (multa e juros, se em atraso).',
   },
   {
+    chave: 'das-avulso', rotulo: 'DAS do Simples: DAS avulso', grupo: 'guias', sistema: 'PGDASD', servico: 'GERARDASAVULSO19', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [
+      P_PERIODO,
+      { nome: 'tributo', rotulo: 'Código do tributo no Simples (ex.: 1001)', tipo: 'numero', obrigatorio: true },
+      { nome: 'valor', rotulo: 'Valor (R$)', tipo: 'numero', obrigatorio: true },
+      { nome: 'uf', rotulo: 'UF (só ICMS)', tipo: 'texto' },
+      { nome: 'municipio', rotulo: 'Código do município (só ISS)', tipo: 'texto' },
+    ],
+    dados: (p) => {
+      const valor = Number(String(p.valor).replace(/\./g, '').replace(',', '.'));
+      if (!(valor > 0)) throw new Error('Valor: informe um valor maior que zero.');
+      if (p.uf && !/^[A-Za-z]{2}$/.test(p.uf)) throw new Error('UF: use a sigla com 2 letras.');
+      return j({ PeriodoApuracao: Number(p.periodo), ListaTributos: [{ Codigo: Number(p.tributo), Valor: valor, ...(p.municipio ? { CodMunicipio: Number(p.municipio) } : {}), ...(p.uf ? { uf: p.uf.toUpperCase() } : {}) }] });
+    },
+    demo: { contribuinte: PJ0, dados: j({ PeriodoApuracao: 202401, ListaTributos: [{ Codigo: 1, Valor: 111.22, CodMunicipio: 375, uf: 'PA' }, { Codigo: 1, Valor: 20.5, uf: 'RJ' }, { Codigo: 1001, Valor: 100 }] }) },
+    descricao: 'O DAS (PDF) de um tributo do Simples avulso na competência, com o valor informado.',
+  },
+  {
     chave: 'das-cobranca', rotulo: 'DAS do Simples: débito em cobrança', grupo: 'guias', sistema: 'PGDASD', servico: 'GERARDASCOBRANCA17', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'SIMPLES',
     parametros: [P_PERIODO], dados: (p) => j({ periodoApuracao: p.periodo }), demo: { contribuinte: PJ0, dados: j({ periodoApuracao: '202301' }) },
     descricao: 'O DAS de uma competência que já foi para cobrança (débito em atraso enviado à Receita), em PDF.',

@@ -139,6 +139,33 @@ export class MonitoramentoService {
     return this.estado();
   }
 
+  /**
+   * Chamada em nome do próprio escritório (Redesim, eventos de atualização): contratante e autor são o escritório; o contribuinte é o
+   * escritório ou o lote informado. Na demonstração, usa o pedido oficial de exemplo (o trial só responde a ele) e marca `demonstracao`.
+   */
+  async chamarDoEscritorio(p: { sistema: string; servico: string; versao: string; endpoint: Servico['endpoint']; dados: string; contribuinte?: Identificacao; demo: { contratante: Identificacao; contribuinte: Identificacao; dados: string } }): Promise<Resposta & { demonstracao: boolean }> {
+    const modo = await this.modo();
+    if (modo === 'DESLIGADO') throw new BadRequestException('O monitoramento está desligado. Um administrador liga em Administração > Integrações.');
+    if (modo === 'DEMONSTRACAO') {
+      const r = await this.cliente.chamar({ endpoint: p.endpoint, contratante: p.demo.contratante, autorPedidoDados: p.demo.contratante, contribuinte: p.demo.contribuinte, idSistema: p.sistema, idServico: p.servico, versaoSistema: p.versao, dados: p.demo.dados });
+      return { ...r, demonstracao: true };
+    }
+    const c = (this.cred = await this.contrato.credenciais());
+    if (!c) throw new BadRequestException('Falta o contrato do Integra Contador: configure em Administração > Integrações.');
+    const escritorio: Identificacao = { numero: c.contratante, tipo: 2 };
+    const r = await this.cliente.chamar({ endpoint: p.endpoint, contratante: escritorio, autorPedidoDados: escritorio, contribuinte: p.contribuinte ?? escritorio, idSistema: p.sistema, idServico: p.servico, versaoSistema: p.versao, dados: p.dados });
+    return { ...r, demonstracao: false };
+  }
+
+  /** Executa uma consulta do catálogo para o cliente, como a rotina (usado pelos eventos de atualização). */
+  consultarPelaRotina(empresaId: string, chave: string) {
+    return this.consultar({ empresaId }, chave, {}, { email: 'rotina (evento da Receita)' }, 'ROTINA');
+  }
+
+  async empresasDoBpoPublico() {
+    return this.empresasDoBpo();
+  }
+
   // ── Consulta ──────────────────────────────────────────────────────────────
   private async contribuinte(alvo: Alvo): Promise<{ id: Identificacao; nome: string; regime: string | null; pf: boolean }> {
     if (alvo.empresaId) {

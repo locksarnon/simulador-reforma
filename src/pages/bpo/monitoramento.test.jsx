@@ -12,6 +12,7 @@ const MonitoramentoEmpresaPagina = (await import("./MonitoramentoEmpresaPagina")
 const ProcuracoesPagina = (await import("../clientes/ProcuracoesPagina")).default;
 const ParametrosRotinasPagina = (await import("../admin/ParametrosRotinasPagina")).default;
 const PainelDeRisco = (await import("@/components/monitoramento/PainelDeRisco")).default;
+const CartaoServico = (await import("@/components/monitoramento/CartaoServico")).default;
 const { cruzarDados } = await import("@/components/monitoramento/PainelDeRisco");
 const { formatarCelula, piorNivel, servicosDoGrupo } = await import("@/lib/monitoramento");
 
@@ -76,13 +77,22 @@ describe("Monitoramento fiscal: a carteira", () => {
 
 describe("Monitoramento fiscal: o cliente", () => {
   const pagina = () => renderizar(<Routes><Route path="/bpo/monitoramento/:empresaId" element={<MonitoramentoEmpresaPagina />} /></Routes>, "/bpo/monitoramento/E1");
-  it("abas dos assuntos indicados, resultado com selo, tabela, PDF e a saúde fiscal", () => {
+  it("abas dos assuntos indicados, com subabas: a leitura do relatório e um serviço por subaba; e a saúde fiscal", () => {
     const html = pagina();
     for (const t of ["Situação fiscal", "Declarações", "Caixa postal", "Certidões"]) expect(html).toContain(t);
-    expect(html).toContain("Relatório de situação fiscal emitido.");
-    expect(html).toContain("sitfis-documento.pdf");
+    expect(html).toContain("Relatório de situação fiscal (lido)");
+    expect(html).toMatch(/role="tab"[^>]*>Relatório de situação fiscal</);
     expect(html).toContain("Saúde fiscal");
     expect(html).toContain("Atualizar tudo");
+  });
+  it("o painel de cada serviço: resultado, documentos em tabela com Ver e Baixar no fim, e demonstração marcada", () => {
+    const html = renderizar(<CartaoServico servico={SERVICOS[0]} ultima={ULTIMA_SITFIS} base="/monitoramento/empresas/E1" desligado={false} />);
+    expect(html).toContain("Relatório de situação fiscal emitido.");
+    expect(html).toContain("sitfis-documento.pdf");
+    expect(html).toContain('aria-label="Ver sitfis-documento.pdf"');
+    expect(html).toContain('aria-label="Baixar sitfis-documento.pdf"');
+    expect(html).toContain(">Documentos<");
+    expect(html).toContain("Filtrar");
     expect(html).toContain("· demonstração");
   });
   it("lê só o que o regime pede: Presumido não tem DAS na lista principal", () => {

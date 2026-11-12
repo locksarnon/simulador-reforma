@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ContratoIntegraService } from './contrato.service';
+import { EscritorioService } from './escritorio.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ConfigRotina, MonitoramentoService } from './monitoramento.service';
@@ -11,7 +12,41 @@ const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new Forbid
 /** BPO Fiscal > Monitoramento fiscal: consultas ao Integra Contador (Serpro), histórico, PDF, lote, rotina e obrigações dispensadas. */
 @Controller('monitoramento')
 export class MonitoramentoController {
-  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService) {}
+  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly escritorio: EscritorioService) {}
+
+  // ── Escritório: Redesim (vínculos e renúncias) e eventos de atualização da Receita ──
+  @Get('escritorio/vinculos')
+  vinculos() {
+    return this.escritorio.vinculos();
+  }
+
+  @Get('escritorio/renuncias')
+  renuncias(@Query('de') de?: string, @Query('ate') ate?: string) {
+    return this.escritorio.renuncias(de, ate);
+  }
+
+  @Get('escritorio/renuncias/:rid/comprovante')
+  async comprovanteRenuncia(@Param('rid') rid: string, @Query('ver') ver?: string) {
+    const a = await this.escritorio.comprovanteRenuncia(rid);
+    return new StreamableFile(a.buffer, { type: 'application/pdf', disposition: disposicao(a.nome, ver === '1') });
+  }
+
+  @Get('escritorio/solicitacoes/:sid')
+  solicitacao(@Param('sid') sid: string) {
+    return this.escritorio.situacaoSolicitacao(sid);
+  }
+
+  @Get('empresas/:id/novidades')
+  novidades(@Param('id') id: string) {
+    return this.escritorio.novidades(id);
+  }
+
+  @Post('eventos/atualizar')
+  async atualizarEventos(@CurrentUser() user: AuthUser) {
+    exigirAdmin(user);
+    if ((await this.m.modo()) !== 'PRODUCAO') return this.escritorio.testarEventos();
+    return this.escritorio.atualizarEventos(true);
+  }
 
   // ── Contrato do escritório (Administração > Integrações) ──────────────────
   @Get('contrato')

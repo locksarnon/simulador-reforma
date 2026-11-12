@@ -62,6 +62,7 @@ import ServicosContratadosPagina from '@/pages/clientes/ServicosContratadosPagin
 import ClientesPagina from '@/pages/clientes/ClientesPagina';
 import FichaClientePagina from '@/pages/clientes/FichaClientePagina';
 import ProcuracoesPagina from '@/pages/clientes/ProcuracoesPagina';
+import VinculosReceitaPagina from '@/pages/clientes/VinculosReceitaPagina';
 import MonitoramentoPagina from '@/pages/bpo/MonitoramentoPagina';
 import MonitoramentoEmpresaPagina from '@/pages/bpo/MonitoramentoEmpresaPagina';
 import ParametrosRotinasPagina from '@/pages/admin/ParametrosRotinasPagina';
@@ -118,6 +119,7 @@ function App() {
                   <Route path="/clientes" element={<Navigate to="/" replace />} />
                   <Route path="/clientes/grupos" element={<DataHub />} />
                   <Route path="/clientes/procuracoes" element={<ProcuracoesPagina />} />
+                  <Route path="/clientes/vinculos-receita" element={<VinculosReceitaPagina />} />
                   <Route path="/clientes/:empresaId" element={<FichaClientePagina />} />
                   <Route path="/bpo/monitoramento" element={<MonitoramentoPagina />} />
                   <Route path="/bpo/monitoramento/pf/:empresaId" element={<MonitoramentoEmpresaPagina pessoaFisica />} />

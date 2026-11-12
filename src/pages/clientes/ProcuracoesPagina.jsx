@@ -45,7 +45,7 @@ export default function ProcuracoesPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Procurações e certificados" }]}
         title="Procurações e certificados"
         subtitle="Clientes do BPO fiscal: como o InTAX consulta a Receita de cada um, pelo A1 do próprio cliente (termo de autorização assinado) ou pela procuração eletrônica dada ao escritório."
-        actions={<button type="button" disabled={consultar.isPending || estado.data?.modo === "DESLIGADO" || !lista.length} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">{consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} Consultar as procurações da lista</button>}
+        actions={<><button type="button" disabled={consultar.isPending || estado.data?.modo === "DESLIGADO" || !lista.length} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">{consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} Consultar as procurações da lista</button><Link to="/clientes/vinculos-receita" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Vínculos na Receita (Redesim)</Link></>}
       />
       <div className="px-6 lg:px-8 py-5 space-y-4">
         <AvisoDoModo modo={estado.data?.modo} ehAdmin={user?.role === "admin"} />

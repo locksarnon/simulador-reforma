@@ -6,11 +6,12 @@ import { MonitoramentoController } from './monitoramento.controller';
 import { MonitoramentoService } from './monitoramento.service';
 import { ContratoIntegraService } from './contrato.service';
 import { PdfService } from '../pdf/pdf.service';
+import { EscritorioService } from './escritorio.service';
 
 @Module({
   imports: [StorageModule, CertificadosModule, NotificacoesModule],
   controllers: [MonitoramentoController],
-  providers: [MonitoramentoService, ContratoIntegraService, PdfService],
+  providers: [MonitoramentoService, ContratoIntegraService, PdfService, EscritorioService],
   exports: [MonitoramentoService, ContratoIntegraService],
 })
 export class MonitoramentoModule {}

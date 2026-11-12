@@ -16,7 +16,8 @@ export const URL_AUTENTICACAO = 'https://autenticacao.sapi.serpro.gov.br/authent
 /** Chave pública do ambiente de demonstração, publicada na documentação oficial (api-integra-contador-trial-sp.yaml). */
 export const CHAVE_DEMONSTRACAO = '06aef429-a981-3ec5-a1f8-71d38d86481e';
 
-export type Identificacao = { numero: string; tipo: 1 | 2 };
+/** tipo: 1 CPF, 2 CNPJ, 3 lista de CPFs e 4 lista de CNPJs (eventos de atualização, em lote). */
+export type Identificacao = { numero: string; tipo: 1 | 2 | 3 | 4 };
 export type Pedido = {
   endpoint: 'Apoiar' | 'Consultar' | 'Declarar' | 'Emitir' | 'Monitorar';
   contratante: Identificacao;

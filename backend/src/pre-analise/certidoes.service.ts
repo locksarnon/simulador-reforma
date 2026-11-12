@@ -80,6 +80,16 @@ export class CertidoesService {
             arquivo: a ? { id: a.id, nome: a.nome } : null,
           } : null,
           anteriores: lista.length - (atual ? 1 : 0),
+          // Todas as certidões guardadas da esfera, da mais nova para a mais antiga (tabela da subaba).
+          historico: lista.map((d) => {
+            const x = d.arquivo_id ? arq.get(d.arquivo_id) : null;
+            return {
+              id: d.id, emissao: d.emissao, validade: d.validade, numero: d.numero, descricao: d.descricao, criado_por: d.criado_por, createdAt: d.createdAt,
+              situacao: situacaoDoDocumento(d.validade, t?.alerta_dias ?? 15, hoje),
+              origem: /(API Consulta CND)/.test(d.descricao ?? '') ? 'API Consulta CND (Serpro)' : 'PDF do portal oficial',
+              arquivo: x ? { id: x.id, nome: x.nome } : null,
+            };
+          }),
         };
       }),
     };
@@ -159,7 +169,7 @@ export class CertidoesService {
     if (!r) throw new BadRequestException('A API Consulta CND do Serpro não está configurada. Informe as chaves em Administração > Integrações > Contrato do escritório, ou anexe o PDF emitido no portal.');
     if (r.status !== 'CONCLUIDO' || !r.pdf) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
     const det = (rot: string) => r.detalhes.find((d) => d.rotulo === rot)?.valor ?? null;
-    await this.guardar(empresaId, 'FEDERAL', r.pdf, `CND federal ${new Date().toISOString().slice(0, 10)}.pdf`, { emissao: det('Emissão'), validade: det('Validade'), numero: det('Código de controle'), situacao: det('Situação') ?? 'emitida' }, usuario);
+    await this.guardar(empresaId, 'FEDERAL', r.pdf, `CND federal ${new Date().toISOString().slice(0, 10)}.pdf`, { emissao: det('Emissão'), validade: det('Validade'), numero: det('Código de controle'), situacao: `${det('Situação') ?? 'emitida'} (API Consulta CND)` }, usuario);
     return { emitida: true, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
   }
 }
