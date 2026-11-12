@@ -1821,38 +1821,6 @@ model EventoReceita {
   @@index([empresa_id])
 }
 
-// ── [divida-ativa-aberta] Base aberta da PGFN (Dívida Ativa da União, publicada a cada trimestre) ──
-model DividaAtivaCarga {
-  id           String    @id @default(cuid())
-  trimestre    String
-  status       String    @default("PROCESSANDO")
-  linhas       Int       @default(0)
-  mensagem     String?
-  iniciado_por String?
-  iniciado_em  DateTime  @default(now())
-  concluido_em DateTime?
-}
-
-model DividaAtivaInscricao {
-  id               BigInt   @id @default(autoincrement())
-  carga_id         String
-  raiz             String   @db.Char(8)
-  cnpj             String   @db.Char(14)
-  origem           String
-  tipo_devedor     String?
-  nome             String?
-  uf               String?
-  numero_inscricao String
-  tipo_situacao    String?
-  situacao         String?
-  receita          String?
-  data_inscricao   String?
-  ajuizado         Boolean  @default(false)
-  valor            Decimal? @db.Decimal(16, 2)
-
-  @@index([raiz, carga_id])
-}
-
 // ── [integracao-segredo] Segredos de integrações (ex.: token da Infosimples), cifrados no cofre ──
 model IntegracaoSegredo {
   id              String   @id

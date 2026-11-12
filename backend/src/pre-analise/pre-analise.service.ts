@@ -12,7 +12,6 @@ import { ChaveProcesso, DEFINICAO, Processo, PROCESSOS, processoInicial, ROTULO_
 import { ConsultaCccHttp, ResultadoCcc } from './ccc.http';
 import { SerproCertidoes } from './serpro-certidoes';
 import { InfosimplesService, ResultadoCertidao } from '../infosimples/infosimples.service';
-import { DividaAtivaService } from '../divida-ativa/divida-ativa.service';
 
 type Usuario = { email?: string; role?: string } | undefined;
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
@@ -41,7 +40,6 @@ export class PreAnaliseService {
     private readonly serpro: SerproCertidoes,
     private readonly certificados: CertificadosService,
     private readonly infosimples: InfosimplesService,
-    private readonly dividaAtiva: DividaAtivaService,
   ) {}
 
   listar(cnpj?: string) {
@@ -184,7 +182,7 @@ export class PreAnaliseService {
       await passo('DIVIDA_ATIVA', async () => {
         const r = await this.serpro.dividaAtiva(cnpj, modo);
         if (r) return { status: r.status, resumo: r.resumo, detalhes: r.detalhes, demonstracao: r.demonstracao };
-        return this.daBaseAberta(cnpj);
+        return this.daPgfnDoCliente(reg.empresa_id, reg.criado_por);
       });
       await this.prisma.preAnalise.update({ where: { id }, data: { concluida_em: new Date() } });
     } finally {
@@ -204,18 +202,34 @@ export class PreAnaliseService {
     return { status: r.status, resumo: r.resumo, detalhes: [...r.detalhes, { rotulo: 'Emitida por', valor: 'Infosimples, no portal oficial' }], arquivo };
   }
 
-  /** Dívida Ativa pela base aberta da PGFN (fim do trimestre publicado), por raiz do CNPJ. */
-  private async daBaseAberta(cnpj: string): Promise<Partial<Processo>> {
-    const r = await this.dividaAtiva.consultar(cnpj);
-    if (!r) return this.aguardando('DIVIDA_ATIVA');
-    const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const tri = r.trimestre.replace(/^(\d{4})_trimestre_0?(\d)$/, '$2º trimestre de $1');
-    const fonte = { rotulo: 'Fonte', valor: `Base aberta da PGFN, posição do ${tri}` };
-    if (!r.inscricoes.length) return { status: 'CONCLUIDO', resumo: `Nenhuma inscrição em Dívida Ativa da União para a raiz do CNPJ (base da PGFN do ${tri}).`, detalhes: [fonte] };
+  /**
+   * Dívida Ativa do próprio cliente na PGFN, pelo relatório de situação fiscal (Integra Contador, com procuração ou o A1 do cliente):
+   * a parte "Procuradoria-Geral da Fazenda Nacional" do relatório traz as inscrições em dívida ativa, os parcelamentos e os processos.
+   * Usa o relatório dos últimos 7 dias; se não houver, pede um novo. Prospect (sem cadastro) só pela API Consulta Dívida Ativa.
+   */
+  private async daPgfnDoCliente(empresaId: string | null, usuario: string | null): Promise<Partial<Processo>> {
+    if (!empresaId) {
+      return { status: 'MANUAL', resumo: 'Ainda não é cliente: a dívida ativa sai do relatório de situação fiscal depois do cadastro e da procuração (ou do A1 no cofre). Para quem ainda não é cliente, só com a API Consulta Dívida Ativa do Serpro.', detalhes: [{ rotulo: 'Portal oficial', valor: DEFINICAO.get('DIVIDA_ATIVA')!.portal ?? '' }] };
+    }
+    const SETE_DIAS = 7 * 86_400_000;
+    let l = await this.monitoramento.leituraSitfis(empresaId).catch(() => null);
+    if (!l?.leitura || Date.now() - new Date(l.consultado_em).getTime() > SETE_DIAS) {
+      try {
+        await this.monitoramento.consultar({ empresaId }, 'sitfis', {}, { email: usuario ?? 'pré-análise' });
+        l = await this.monitoramento.leituraSitfis(empresaId).catch(() => l);
+      } catch (e) { this.log.warn(`Relatório de situação fiscal na pré-análise: ${(e as Error).message}`); }
+    }
+    if (!l?.leitura) return { status: 'INDISPONIVEL', resumo: 'O relatório de situação fiscal do cliente não veio (confira a procuração ou o A1 no cofre e o monitoramento em Administração > Integrações).', detalhes: [] };
+    const quando = dataBr(l.consultado_em);
+    const pgfn = l.leitura.secoes.filter((s) => s.orgao === 'PGFN');
+    const fonte = { rotulo: 'Fonte', valor: `Relatório de situação fiscal (Receita e PGFN) de ${quando}${l.simulado ? ', demonstração' : ''}` };
+    if (!pgfn.length) return { status: 'CONCLUIDO', resumo: `Nenhuma pendência na PGFN no relatório de situação fiscal de ${quando}.`, detalhes: [fonte], demonstracao: l.simulado };
+    const pendente = pgfn.some((s) => s.tipo === 'PENDENCIA');
     return {
-      status: 'DEBITOS',
-      resumo: `${r.inscricoes.length} inscrição(ões) em Dívida Ativa da União, total de ${brl(r.total)}${r.ajuizadas ? `, ${r.ajuizadas} ajuizada(s)` : ''} (base da PGFN do ${tri}).`,
-      detalhes: [fonte, ...r.inscricoes.slice(0, 200).map((x) => ({ rotulo: `${x.numero} (${x.origem})`, valor: `${brl(x.valor)} · ${x.receita} · ${x.situacao}${x.ajuizado ? ' · ajuizada' : ''} · inscrita em ${x.data}${x.cnpj !== cnpj ? ` · CNPJ ${fmtCnpj(x.cnpj)}` : ''}${x.tipo_devedor && x.tipo_devedor !== 'Principal' ? ` · ${x.tipo_devedor}` : ''}` }))],
+      status: pendente ? 'DEBITOS' : 'CONCLUIDO',
+      resumo: pendente ? `Inscrições em dívida ativa na PGFN (relatório de ${quando}): ${pgfn.filter((s) => s.tipo === 'PENDENCIA').map((s) => s.titulo).join('; ')}.` : `Na PGFN, só itens com exigibilidade suspensa ou parcelados (relatório de ${quando}).`,
+      detalhes: [fonte, ...pgfn.flatMap((s) => [{ rotulo: s.titulo, valor: `${Math.max(0, s.linhas.length - 1)} linha(s)` }, ...s.linhas.slice(1, 60).map((x) => ({ rotulo: '', valor: x }))])],
+      demonstracao: l.simulado,
     };
   }
 

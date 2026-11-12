@@ -5,7 +5,6 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PreAnaliseService } from './pre-analise.service';
 import { CertidoesService } from './certidoes.service';
 import { InfosimplesService } from '../infosimples/infosimples.service';
-import { DividaAtivaService } from '../divida-ativa/divida-ativa.service';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 
@@ -80,10 +79,10 @@ export class CertidoesController {
   }
 }
 
-/** Administração > Integrações: token da Infosimples (CNDT e CRF) e base aberta da Dívida Ativa da PGFN. */
+/** Administração > Integrações: token da Infosimples (CNDT e CRF). */
 @Controller('integracoes')
 export class IntegracoesExternasController {
-  constructor(private readonly infosimples: InfosimplesService, private readonly divida: DividaAtivaService) {}
+  constructor(private readonly infosimples: InfosimplesService) {}
 
   @Get('infosimples')
   infosimplesEstado() {
@@ -98,15 +97,5 @@ export class IntegracoesExternasController {
   @Delete('infosimples')
   infosimplesRemover(@CurrentUser() user: AuthUser) {
     return this.infosimples.remover(user);
-  }
-
-  @Get('divida-ativa')
-  dividaEstado() {
-    return this.divida.estado();
-  }
-
-  @Post('divida-ativa/atualizar')
-  dividaAtualizar(@CurrentUser() user: AuthUser) {
-    return this.divida.atualizarAgora(user);
   }
 }

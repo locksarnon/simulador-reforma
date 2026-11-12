@@ -87,7 +87,7 @@ describe('APIs do Serpro (Consulta CND e Dívida Ativa)', () => {
 });
 
 describe('pré-análise: as sete consultas', () => {
-  function montar(o: { modo?: string; ccc?: unknown; cnd?: unknown; divida?: unknown; certCliente?: boolean; cndt?: unknown; crf?: unknown; base?: unknown } = {}) {
+  function montar(o: { modo?: string; ccc?: unknown; cnd?: unknown; divida?: unknown; certCliente?: boolean; cndt?: unknown; crf?: unknown; sitfis?: unknown } = {}) {
     const registros = new Map<string, Record<string, unknown>>();
     const prisma = {
       empresa: { findFirst: async () => (o.certCliente ? { id: 'E1', razao_social: 'CLIENTE LTDA' } : null) },
@@ -103,12 +103,12 @@ describe('pré-análise: as sete consultas', () => {
     const cnpj = { consultar: async () => ({ razao_social: 'EMPRESA TESTE LTDA', nome_fantasia: '', uf: 'MT', municipio: 'CUIABA', situacao: 'ATIVA', cnpj: '12345678000195', cnae_codigo: '4623108', cnae_descricao: 'Comércio atacadista de grãos', cnaes_secundarios: [], porte: 'DEMAIS', natureza_juridica: 'LTDA', opcao_pelo_simples: false, opcao_pelo_mei: false, data_inicio_atividade: '2010-03-01', capital_social: 100000, matriz_filial: 'MATRIZ', socios: [{ nome: 'FULANO', qualificacao: 'Sócio-Administrador' }] }) };
     const pdf = { gerar: vi.fn(async () => Buffer.from('%PDF-1.4 relatorio')) };
     const contrato = { credenciais: async () => null };
-    const monitoramento = { modo: async () => o.modo ?? 'DESLIGADO' };
+    const monitoramento = { modo: async () => o.modo ?? 'DESLIGADO', leituraSitfis: vi.fn(async () => o.sitfis ?? null), consultar: vi.fn(async () => ({})) };
     const ccc = { consultar: vi.fn(async () => o.ccc) };
     const serpro = { certidaoFederal: async () => o.cnd ?? null, dividaAtiva: async () => o.divida ?? null };
     const certificados = { material: vi.fn(async () => ({ keyPem: 'K', certPem: 'C', cadeiaPem: [] })) };
-    const s = new PreAnaliseService(prisma as never, storage as never, cnpj as never, pdf as never, contrato as never, monitoramento as never, ccc as never, serpro as never, certificados as never, { cndt: async () => o.cndt ?? null, crf: async () => o.crf ?? null } as never, { consultar: async () => o.base ?? null } as never);
-    return { s, registros, guardados, pdf, ccc, certificados };
+    const s = new PreAnaliseService(prisma as never, storage as never, cnpj as never, pdf as never, contrato as never, monitoramento as never, ccc as never, serpro as never, certificados as never, { cndt: async () => o.cndt ?? null, crf: async () => o.crf ?? null } as never);
+    return { s, registros, guardados, pdf, ccc, certificados, monitoramento };
   }
 
   it('sem certificado nem APIs: empresa concluída, CCC indisponível, certidões aguardando com o portal oficial', async () => {
@@ -132,22 +132,31 @@ describe('pré-análise: as sete consultas', () => {
     expect(p.geral).toMatchObject({ status: 'DEBITOS' });
   });
 
-  it('CNDT e CRF pela Infosimples guardam o comprovante; dívida ativa pela base aberta da PGFN lista as inscrições da raiz', async () => {
+  it('CNDT e CRF pela Infosimples guardam o comprovante; dívida ativa do cliente pela parte da PGFN do relatório de situação fiscal', async () => {
     const cndt = { status: 'CONCLUIDO', situacao: 'Certidão Negativa de Débitos Trabalhistas', resumo: 'Negativa', emissao: '12/11/2026', validade: '11/05/2027', numero: '123', detalhes: [], comprovante: { buffer: Buffer.from('%PDF-'), tipo: 'application/pdf', extensao: 'pdf' } };
     const crf = { status: 'IRREGULAR', situacao: 'IRREGULAR', resumo: 'Situação no FGTS: IRREGULAR.', emissao: null, validade: null, numero: null, detalhes: [], comprovante: { buffer: Buffer.from('<html>'), tipo: 'text/html', extensao: 'html' } };
-    const base = { trimestre: '2026_trimestre_03', carregada_em: new Date(), total: 1500.5, ajuizadas: 1, inscricoes: [{ cnpj: '12345678000276', origem: 'Dívida do FGTS', numero: 'FGMT202300001', tipo_devedor: 'Principal', situacao: 'Em cobrança: AJUIZADA', receita: 'Contribuições FGTS', data: '01/02/2023', ajuizado: true, valor: 1500.5 }] };
-    const { s, guardados } = montar({ cndt, crf, base });
+    const sitfis = { consultado_em: new Date(), simulado: false, leitura: { secoes: [{ titulo: 'Inscrição com exigibilidade não suspensa (PGFN)', orgao: 'PGFN', tipo: 'PENDENCIA', assunto: 'INSCRICAO', linhas: ['cabeçalho', '11.1.11.111111-11 IRPJ ATIVA AJUIZADA'] }, { titulo: 'Débito (RFB)', orgao: 'RFB', tipo: 'PENDENCIA', assunto: 'DEBITO', linhas: ['x', 'y'] }] } };
+    const { s, guardados, monitoramento } = montar({ cndt, crf, sitfis, certCliente: true });
     const p = await s.criar('12345678000195', { email: 'qa@fal' }, true);
     const st = Object.fromEntries(p.processos.map((x) => [x.chave, x.status]));
     expect(st).toMatchObject({ TRABALHISTA: 'CONCLUIDO', FGTS: 'IRREGULAR', DIVIDA_ATIVA: 'DEBITOS' });
     expect(guardados).toEqual(['pre-analise/P1/trabalhista.pdf', 'pre-analise/P1/fgts.html']);
+    expect(monitoramento.consultar).not.toHaveBeenCalled();
     const da = p.processos.find((x) => x.chave === 'DIVIDA_ATIVA')!;
-    expect(da.resumo).toContain('1 inscrição(ões)');
-    expect(da.resumo).toContain('1.500,50');
-    expect(da.resumo).toContain('1 ajuizada');
-    expect(da.resumo).toContain('3º trimestre de 2026');
-    expect(da.detalhes[1].valor).toContain('CNPJ 12.345.678/0002-76');
+    expect(da.resumo).toContain('Inscrição com exigibilidade não suspensa (PGFN)');
+    expect(da.detalhes.map((d) => d.valor)).toContain('11.1.11.111111-11 IRPJ ATIVA AJUIZADA');
+    expect(da.detalhes.some((d) => d.rotulo === 'Débito (RFB)')).toBe(false);
     expect((await s.arquivo('P1', 'FGTS')).tipo).toContain('text/html');
+  });
+
+  it('dívida ativa: relatório velho ou ausente pede um novo; sem pendência na PGFN = concluído; prospect fica aguardando', async () => {
+    const t = montar({ certCliente: true });
+    t.monitoramento.leituraSitfis.mockResolvedValueOnce(null).mockResolvedValueOnce({ consultado_em: new Date(), simulado: false, leitura: { secoes: [] } } as never);
+    const p = await t.s.criar('12345678000195', { email: 'qa@fal' }, true);
+    expect(t.monitoramento.consultar).toHaveBeenCalledWith({ empresaId: 'E1' }, 'sitfis', {}, { email: 'qa@fal' });
+    expect(p.processos.find((x) => x.chave === 'DIVIDA_ATIVA')!.status).toBe('CONCLUIDO');
+    const prospect = await montar().s.criar('12345678000195', { email: 'qa@fal' }, true);
+    expect(prospect.processos.find((x) => x.chave === 'DIVIDA_ATIVA')!.resumo).toMatch(/Ainda não é cliente/);
   });
 
   it('a certidão anexada fica de pé ao consultar de novo, e o relatório sai em PDF com cada consulta', async () => {
