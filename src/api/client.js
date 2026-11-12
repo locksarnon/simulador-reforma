@@ -88,9 +88,21 @@ async function lerErroDeBlob(err) {
   return err;
 }
 
+/** Cliente arquivado não aparece nas listas nem nos seletores (clientes não são excluídos, só arquivados). */
+const semArquivados = (name, data) => (name === 'Empresa' && Array.isArray(data) ? data.filter((e) => !e?.arquivado_em) : data);
+
 function makeEntityClient(name) {
   return {
     async list() {
+      try {
+        const { data } = await http.get(`/entities/${name}`);
+        return semArquivados(name, data);
+      } catch (err) {
+        throw unwrapError(err);
+      }
+    },
+    /** Todos, inclusive os arquivados (Clientes > Arquivados e a ficha do cliente). */
+    async listTodas() {
       try {
         const { data } = await http.get(`/entities/${name}`);
         return data;
@@ -101,7 +113,7 @@ function makeEntityClient(name) {
     async filter(query = {}, sort, limit) {
       try {
         const { data } = await http.post(`/entities/${name}/query`, { filter: query, sort, limit });
-        return data;
+        return semArquivados(name, data);
       } catch (err) {
         throw unwrapError(err);
       }

@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Loader2, Pencil, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
-import { api } from "@/api/client";
+import { Archive, ArrowRight, Loader2, Pencil, Plus, RefreshCw, Upload } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
@@ -23,6 +22,7 @@ import { useColaboradores, useTags } from "@/lib/useTags";
 import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa } from "@/lib/tags";
 import { contarRapidos, filtrarClientes, FILTROS_RAPIDOS, grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
 import { SITUACOES, TIPOS } from "@/lib/servicos";
+import { arquivarCliente, CHAVES_APOS_ARQUIVAR, desarquivarCliente, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const FILTROS_VAZIOS = { busca: "", rapido: "todos", regime: "", uf: "", tags: [], tagModo: "qualquer", colaborador: "" };
@@ -89,7 +89,7 @@ export default function ClientesPagina() {
   const ehAdmin = user?.role === "admin";
   const qc = useQueryClient();
   const confirmar = useConfirmar();
-  const { empresas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
+  const { empresas: ativas, arquivadas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
   const { tags, porEmpresa, mapa: mapaTags } = useTags();
   const { data: colaboradores = [] } = useColaboradores();
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
@@ -100,17 +100,19 @@ export default function ClientesPagina() {
   const [dialogo, setDialogo] = useState(null);
   const [dialogoTags, setDialogoTags] = useState(null);
   const [excluindo, setExcluindo] = useState(null);
+  const vendoArquivados = filtros.rapido === "arquivados";
+  const empresas = vendoArquivados ? arquivadas : ativas;
 
   const atendidas = useMemo(() => new Set(colaboradores.flatMap((c) => c.empresa_ids || [])), [colaboradores]);
   const equipeDe = (id) => colaboradores.filter((c) => (c.empresa_ids || []).includes(id)).map((c) => c.name || c.email);
   const grupoDe = (e) => grupoVisivel(grupos.find((g) => g.numero === e.grupo), empresas);
-  const contagem = useMemo(() => contarRapidos(empresas, mapa, atendidas), [empresas, mapa, atendidas]);
+  const contagem = useMemo(() => ({ ...contarRapidos(ativas, mapa, atendidas), arquivados: arquivadas.length }), [ativas, arquivadas, mapa, atendidas]);
   const regimes = useMemo(() => [...new Set(empresas.map((e) => e.regime_atual).filter(Boolean))].sort(), [empresas]);
   const ufs = useMemo(() => [...new Set(empresas.map((e) => e.uf).filter(Boolean))].sort(), [empresas]);
   const lista = useMemo(() => {
-    const base = filtrarClientes(empresas, filtros, mapa, grupos, atendidas);
+    const base = filtrarClientes(empresas, vendoArquivados ? { ...filtros, rapido: "todos" } : filtros, mapa, grupos, atendidas);
     return filtrarPorColaborador(filtrarPorTags(base, porEmpresa, filtros.tags, filtros.tagModo), colaboradores, filtros.colaborador);
-  }, [empresas, filtros, mapa, grupos, atendidas, porEmpresa, colaboradores]);
+  }, [empresas, filtros, mapa, grupos, atendidas, porEmpresa, colaboradores, vendoArquivados]);
   const sugestoes = useMemo(() => [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort(), [servicos]);
   const mudar = (k, v) => setFiltros((f) => ({ ...f, [k]: v }));
   const todasMarcadas = lista.length > 0 && lista.every((e) => marcadas.has(e.id));
@@ -118,19 +120,20 @@ export default function ClientesPagina() {
   const selecionadas = empresas.filter((e) => marcadas.has(e.id));
   const abertaAgora = aberta ? empresas.find((e) => e.id === aberta) : null;
 
-  const excluirEmLote = async () => {
+  const arquivarEmLote = async () => {
     const alvo = [...selecionadas];
+    const desarquivar = vendoArquivados;
     const nomes = alvo.slice(0, 5).map((e) => e.razao_social).join("; ") + (alvo.length > 5 ? ` e mais ${alvo.length - 5}` : "");
-    if (!(await confirmar({ titulo: `Excluir ${alvo.length} cliente(s)?`, descricao: `${nomes}. Saem junto os serviços, vínculos, etiquetas, tarefas, documentos e arquivos de cada um. Não dá para desfazer.`, rotulo: `Excluir ${alvo.length}` }))) return;
+    if (!(await confirmar({ titulo: `${desarquivar ? "Desarquivar" : "Arquivar"} ${alvo.length} cliente(s)?`, descricao: `${nomes}. ${desarquivar ? "Eles voltam às listas; os serviços continuam pausados até você ligar de novo." : TEXTO_ARQUIVAR}`, rotulo: desarquivar ? "Desarquivar" : "Arquivar" }))) return;
     const falhas = [];
     setExcluindo({ feitas: 0, total: alvo.length });
     for (const [i, e] of alvo.entries()) {
-      try { await api.entities.Empresa.delete(e.id); } catch { falhas.push(e.razao_social); }
+      try { await (desarquivar ? desarquivarCliente(e.id) : arquivarCliente(e.id)); } catch { falhas.push(e.razao_social); }
       setExcluindo({ feitas: i + 1, total: alvo.length });
     }
     setExcluindo(null); setMarcadas(new Set());
-    qc.invalidateQueries({ queryKey: ["empresas"] }); recarregar();
-    toast(falhas.length ? { title: `${alvo.length - falhas.length} excluído(s); ${falhas.length} não`, description: `Não saíram: ${falhas.join("; ")}.`, variant: "destructive" } : { title: `${alvo.length} cliente(s) excluído(s)` });
+    CHAVES_APOS_ARQUIVAR.forEach((k) => qc.invalidateQueries({ queryKey: k })); recarregar();
+    toast(falhas.length ? { title: `${alvo.length - falhas.length} feito(s); ${falhas.length} não`, description: `Não mudaram: ${falhas.join("; ")}.`, variant: "destructive" } : { title: `${alvo.length} cliente(s) ${desarquivar ? "desarquivado(s)" : "arquivado(s)"}` });
   };
 
   const colunasExport = [
@@ -159,7 +162,7 @@ export default function ClientesPagina() {
       />
       <div className="px-6 lg:px-8 py-5 space-y-3">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtros rápidos">
-          {FILTROS_RAPIDOS.map((f) => (
+          {[...FILTROS_RAPIDOS, { id: "arquivados", rotulo: "Arquivados" }].map((f) => (
             <button key={f.id} type="button" aria-pressed={filtros.rapido === f.id} onClick={() => mudar("rapido", f.id)} className={`rounded-full px-3 py-1 text-sm ${filtros.rapido === f.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>
               {f.rotulo} <span className="tabular-nums opacity-80">{contagem[f.id] ?? 0}</span>
             </button>
@@ -191,9 +194,9 @@ export default function ClientesPagina() {
             <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
             {ehAdmin && <Link to="/clientes/carteira" className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir colaborador</Link>}
             {ehAdmin && (
-              <button type="button" onClick={excluirEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
-                {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
-                {excluindo ? `Excluindo ${excluindo.feitas} de ${excluindo.total}…` : "Excluir"}
+              <button type="button" onClick={arquivarEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
+                {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Archive className="h-3.5 w-3.5" aria-hidden="true" />}
+                {excluindo ? `${excluindo.feitas} de ${excluindo.total}…` : vendoArquivados ? "Desarquivar" : "Arquivar"}
               </button>
             )}
             <button type="button" onClick={() => setMarcadas(new Set())} className="ml-auto text-xs text-muted-foreground hover:underline">Limpar seleção</button>

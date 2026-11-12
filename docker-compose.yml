@@ -83,11 +83,23 @@ services:
       CERT_VAULT_KEY: ${CERT_VAULT_KEY:-}
       CERT_VAULT_KEYS: ${CERT_VAULT_KEYS:-}
       CAPTURA_XML_AGENDADOR: ${CAPTURA_XML_AGENDADOR:-}
+      TAREFAS_AGENDADOR: ${TAREFAS_AGENDADOR:-}
+      # Monitoramento fiscal (Integra Contador do Serpro): as chaves ficam só no .env do servidor; o certificado do escritório (.pfx) fica em /etc/intax/segredos, fora do repositório.
+      INTEGRA_CONTADOR_MODO: ${INTEGRA_CONTADOR_MODO:-}
+      MONITORAMENTO_AGENDADOR: ${MONITORAMENTO_AGENDADOR:-}
+      SERPRO_CONSUMER_KEY: ${SERPRO_CONSUMER_KEY:-}
+      SERPRO_CONSUMER_SECRET: ${SERPRO_CONSUMER_SECRET:-}
+      SERPRO_CONTRATANTE_CNPJ: ${SERPRO_CONTRATANTE_CNPJ:-}
+      SERPRO_CONTRATANTE_NOME: ${SERPRO_CONTRATANTE_NOME:-}
+      SERPRO_CERT_PFX_ARQUIVO: ${SERPRO_CERT_PFX_ARQUIVO:-}
+      SERPRO_CERT_PFX_BASE64: ${SERPRO_CERT_PFX_BASE64:-}
+      SERPRO_CERT_SENHA: ${SERPRO_CERT_SENHA:-}
     ports:
       - "3003:3003"
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - /etc/intax/segredos:/segredos:ro
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3003/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 10s

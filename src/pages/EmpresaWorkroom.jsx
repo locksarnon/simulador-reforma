@@ -2,8 +2,10 @@ import React from "react";
 import { useParams, useLocation, Outlet, NavLink, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { LayoutDashboard, FileText, FileSearch, FileSpreadsheet, Trash2, Lock, Layers, History, CalendarDays } from "lucide-react";
+import { LayoutDashboard, FileText, FileSearch, FileSpreadsheet, Archive, Lock, Layers, History, CalendarDays } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { toast } from "@/components/ui/use-toast";
+import { arquivarCliente, CHAVES_APOS_ARQUIVAR, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 const tabs = [
@@ -49,10 +51,10 @@ export default function EmpresaWorkroom() {
   const deveRedirecionarDoPainel = estaNoPainel && !isLoadingOperacoes && !painelLiberado && !!empresa;
 
   const handleDelete = async () => {
-    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa "${empresa?.razao_social}"? Saem junto as análises salvas dela (serviços, validações de cadastro com os arquivos e projetos de saneamento). Esta ação não pode ser desfeita.`, rotulo: "Excluir" }))) return;
-    await api.entities.Empresa.delete(empresaId);
-    qc.invalidateQueries({ queryKey: ["empresas"] });
-    window.location.assign(`/workroom/${grupoId}`);
+    if (!(await confirmar({ titulo: `Arquivar ${empresa?.razao_social}?`, descricao: TEXTO_ARQUIVAR, rotulo: "Arquivar" }))) return;
+    try { await arquivarCliente(empresaId); } catch (e) { return toast({ title: "Não foi possível arquivar", description: e.message, variant: "destructive" }); }
+    CHAVES_APOS_ARQUIVAR.forEach((k) => qc.invalidateQueries({ queryKey: k }));
+    window.location.assign(`/clientes/${empresaId}`);
   };
 
   return (
@@ -70,8 +72,8 @@ export default function EmpresaWorkroom() {
             onClick={handleDelete}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            Excluir empresa
+            <Archive className="w-3.5 h-3.5" />
+            Arquivar cliente
           </button>
         }
       />

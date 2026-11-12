@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useParams, useNavigate, useOutletContext, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { arquivarCliente, CHAVES_APOS_ARQUIVAR, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 import { ChevronRight, SlidersHorizontal, LayoutDashboard, CalendarClock, BookMarked, UploadCloud, Plus } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import EmpresaCard from "@/components/EmpresaCard";
@@ -29,9 +30,9 @@ export default function WorkroomOverview() {
   const startNew = () => { setEditing("new"); setOpen(true); };
   const startEdit = (em) => { setEditing(em); setOpen(true); };
   const del = async (em) => {
-    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa ${em.id_empresa}?`, rotulo: "Excluir" }))) return;
-    await api.entities.Empresa.delete(em.id);
-    qc.invalidateQueries({ queryKey: ["empresas"] });
+    if (!(await confirmar({ titulo: `Arquivar ${em.razao_social}?`, descricao: TEXTO_ARQUIVAR, rotulo: "Arquivar" }))) return;
+    await arquivarCliente(em.id);
+    CHAVES_APOS_ARQUIVAR.forEach((k) => qc.invalidateQueries({ queryKey: k }));
   };
 
   // Compartilhados entre todos os grupos — não são exclusivos deste

@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { arquivarCliente, CHAVES_APOS_ARQUIVAR, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Pencil, Archive, Building2 } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import LimparDadosButton from "@/components/LimparDadosButton";
@@ -33,9 +34,9 @@ export default function EmpresasPage() {
   const [open, setOpen] = useState(false);
 
   const del = async (em) => {
-    if (!(await confirmar({ titulo: "Confirmar exclusão", descricao: `Excluir a empresa ${em.id_empresa}?`, rotulo: "Excluir" }))) return;
-    await api.entities.Empresa.delete(em.id);
-    qc.invalidateQueries({ queryKey: ["empresas"] });
+    if (!(await confirmar({ titulo: `Arquivar ${em.razao_social}?`, descricao: TEXTO_ARQUIVAR, rotulo: "Arquivar" }))) return;
+    await arquivarCliente(em.id);
+    CHAVES_APOS_ARQUIVAR.forEach((k) => qc.invalidateQueries({ queryKey: k }));
   };
 
   const start = (em) => { setEditing(em); setOpen(true); };
@@ -105,7 +106,7 @@ export default function EmpresasPage() {
                 <td className="py-2.5 px-4" onClick={(e) => e.stopPropagation()}>
                   <div className="flex gap-1">
                     <button onClick={() => start(em)} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => del(em)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => del(em)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Archive className="w-3.5 h-3.5" /></button>
                   </div>
                 </td>
               </tr>

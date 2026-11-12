@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { hojeBR } from "@/lib/tarefas";
 
 const papel = vi.hoisted(() => ({ atual: "admin" }));
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { id: "U1", role: papel.atual, email: "maria@fal" } }) }));
@@ -11,7 +12,7 @@ const TarefasPagina = (await import("./TarefasPagina")).default;
 const { AbaProcessos, AbaTarefas } = await import("./TarefasPagina");
 const { buscarEmpresasPorTexto } = await import("@/components/SeletorDeEmpresa");
 
-const hoje = new Date().toISOString().slice(0, 10);
+const hoje = hojeBR(); // a data de Brasília, como a tela (perto da meia-noite UTC as duas diferem)
 const EMPRESAS = [
   { id: "E1", id_empresa: "EXTRA-AGRO", razao_social: "EXTRA AGRO LTDA", cnpj_cpf: "58.509.112/0001-52" },
   { id: "E2", id_empresa: "EMP-2", razao_social: "Beta Comércio SA", cnpj_cpf: null },

@@ -3,7 +3,7 @@ import BotaoExportar from "@/components/BotaoExportar";
 import { Link } from "react-router-dom";
 import { Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { arquivarCliente } from "@/lib/arquivamento";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
@@ -77,11 +77,11 @@ export default function ServicosContratadosPagina() {
   const excluirEmLote = async () => {
     const alvo = [...selecionadas];
     const nomes = alvo.slice(0, 5).map((e) => e.razao_social).join("; ") + (alvo.length > 5 ? ` e mais ${alvo.length - 5}` : "");
-    if (!(await confirmar({ titulo: `Excluir ${alvo.length} empresa(s)?`, descricao: `${nomes}. Saem junto os serviços, vínculos, etiquetas, tarefas, documentos e arquivos de cada uma. Não dá para desfazer.`, rotulo: `Excluir ${alvo.length}` }))) return;
+    if (!(await confirmar({ titulo: `Arquivar ${alvo.length} cliente(s)?`, descricao: `${nomes}. Saem das listas e das rotinas; o histórico fica guardado.`, rotulo: `Arquivar ${alvo.length}` }))) return;
     const falhas = [];
     setExcluindo({ feitas: 0, total: alvo.length });
     for (const [i, e] of alvo.entries()) {
-      try { await api.entities.Empresa.delete(e.id); } catch { falhas.push(e.razao_social); }
+      try { await arquivarCliente(e.id); } catch { falhas.push(e.razao_social); }
       setExcluindo({ feitas: i + 1, total: alvo.length });
     }
     setExcluindo(null);
@@ -90,8 +90,8 @@ export default function ServicosContratadosPagina() {
     recarregar();
     const ok = alvo.length - falhas.length;
     toast(falhas.length
-      ? { title: `${ok} excluída(s); ${falhas.length} não`, description: `Não saíram: ${falhas.join("; ")}. Tente de novo.`, variant: "destructive" }
-      : { title: `${ok} empresa(s) excluída(s)` });
+      ? { title: `${ok} arquivada(s); ${falhas.length} não`, description: `Não saíram: ${falhas.join("; ")}. Tente de novo.`, variant: "destructive" }
+      : { title: `${ok} cliente(s) arquivado(s)` });
   };
 
   return (
@@ -148,7 +148,7 @@ export default function ServicosContratadosPagina() {
               {user?.role === "admin" && (
                 <button type="button" onClick={excluirEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
                   {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
-                  {excluindo ? `Excluindo ${excluindo.feitas} de ${excluindo.total}…` : "Excluir"}
+                  {excluindo ? `${excluindo.feitas} de ${excluindo.total}…` : "Arquivar"}
                 </button>
               )}
               <button type="button" onClick={() => setMarcadas(new Set())} className="ml-auto text-xs text-muted-foreground hover:underline">Limpar seleção</button>

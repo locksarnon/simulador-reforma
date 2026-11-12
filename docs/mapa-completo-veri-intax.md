@@ -93,7 +93,7 @@ Legenda de **Depende de**: `Rec` dado da Receita ou de fonte oficial equivalente
 | V033 | Parcelamento especial MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 (entregue) | #4 | feito (demonstração oficial do Serpro hoje; dados reais com o contrato do Integra Contador) | /bpo/monitoramento/:empresaId |
 | V034 | PERT MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 (entregue) | #4 | feito (demonstração oficial do Serpro hoje; dados reais com o contrato do Integra Contador) | /bpo/monitoramento/:empresaId |
 | V035 | RELP MEI | Rec | BPO > Monitoramento > Parcelamentos | 3 (entregue) | #4 | feito (demonstração oficial do Serpro hoje; dados reais com o contrato do Integra Contador) | /bpo/monitoramento/:empresaId |
-| V036 | Parcelamento PGFN (Sispar) | Rec | BPO > Monitoramento > Parcelamentos | fora | #4 | fora (o Integra Contador não tem o parcelamento da PGFN; acompanhar no Regularize) | — |
+| V036 | Parcelamento PGFN (Sispar) | Rec | BPO > Monitoramento > Parcelamentos | 3 (entregue) | #4 | feito (registro com alerta de vencimento e atalho para o Regularize; a PGFN não tem consulta automática para escritórios) | /bpo/monitoramento/:empresaId |
 | V037 | Ações em lote nos parcelamentos (atualizar, gerar DAS, enviar e-mails, baixar DAS) | Rec + e-mail | BPO > Monitoramento > Parcelamentos | 3 (entregue) | novo | feito (demonstração oficial do Serpro hoje; dados reais com o contrato do Integra Contador); atualizar em lote e emitir o DAS de cada parcela | /bpo/monitoramento |
 
 ### 5. MEI

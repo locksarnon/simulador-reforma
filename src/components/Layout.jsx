@@ -5,6 +5,7 @@ import MenuLateral from "@/components/MenuLateral";
 import BuscaRapida from "@/components/BuscaRapida";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
 import SeletorEmpresaEmFoco from "@/components/SeletorEmpresaEmFoco";
+import AvisoVersaoNova from "@/components/AvisoVersaoNova";
 import { EmpresaEmFocoProvider } from "@/lib/EmpresaEmFoco";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { moduloDoCaminho } from "@/lib/navegacao";
@@ -92,6 +93,7 @@ export default function Layout() {
             <SinoNotificacoes />
           </div>
         </header>
+        <AvisoVersaoNova />
         <main id="conteudo" tabIndex={-1} className="flex-1 min-w-0 focus:outline-none">
           <Outlet />
         </main>

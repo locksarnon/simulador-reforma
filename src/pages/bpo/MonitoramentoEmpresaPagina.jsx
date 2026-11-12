@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
+import ParcelamentosPgfn from "@/components/monitoramento/ParcelamentosPgfn";
 import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
 import { piorNivel, servicosDoGrupo, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
@@ -57,7 +58,8 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
   const ultimas = dados.data?.ultimas || {};
   const indicados = dados.data?.servicos_indicados || [];
   const servicos = estado.data?.servicos || [];
-  const grupos = useMemo(() => (estado.data?.grupos || []).filter((g) => servicos.some((s) => s.grupo === g.id && indicados.includes(s.chave))), [estado.data, servicos, indicados]);
+  // Parcelamentos aparece para toda empresa: a PGFN (Sispar) vale para qualquer regime.
+  const grupos = useMemo(() => (estado.data?.grupos || []).filter((g) => (g.id === "parcelamentos" && !pessoaFisica) || servicos.some((s) => s.grupo === g.id && indicados.includes(s.chave))), [estado.data, servicos, indicados, pessoaFisica]);
   const desligado = estado.data?.modo === "DESLIGADO";
   const nome = pessoaFisica ? dono.data?.nome : dono.data?.razao_social;
   const doc = pessoaFisica ? dono.data?.cpf : dono.data?.cnpj_cpf;
@@ -113,6 +115,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
             const { indicados: lista, outros } = servicosDoGrupo(servicos, g.id, indicados);
             return (
               <TabsContent key={g.id} value={g.id} className="space-y-3">
+                {g.id === "parcelamentos" && !pessoaFisica && <ParcelamentosPgfn empresaId={empresaId} />}
                 {g.id === "declaracoes" && !pessoaFisica && <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} />}
                 <div className="grid gap-3 xl:grid-cols-2">{lista.map((s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />)}</div>
                 {outros.length > 0 && (

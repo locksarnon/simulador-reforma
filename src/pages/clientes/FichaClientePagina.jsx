@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Pencil, Tags, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2, Pencil, Tags } from "lucide-react";
+import { arquivarCliente, CHAVES_APOS_ARQUIVAR, desarquivarCliente, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
@@ -41,7 +42,7 @@ export default function FichaClientePagina() {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const { user } = useAuth();
-  const { empresas, grupos, servicos, mapa, carregando } = useCarteiras();
+  const { todas: empresas, grupos, servicos, mapa, carregando } = useCarteiras();
   const { tags, porEmpresa, mapa: mapaTags } = useTags();
   const { data: colaboradores = [] } = useColaboradores();
   const [editando, setEditando] = useState(false);
@@ -64,14 +65,14 @@ export default function FichaClientePagina() {
   const pfs = (pessoas.data || []).filter((p) => p.empresa_id === empresa.id);
   const sugestoes = [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort();
 
-  const excluir = async () => {
-    if (!(await confirmar({ titulo: `Excluir ${empresa.razao_social}?`, descricao: "Saem junto os serviços, vínculos, etiquetas, tarefas, documentos, arquivos, XML e certificado deste cliente. Não dá para desfazer.", rotulo: "Excluir cliente" }))) return;
+  const arquivada = !!empresa.arquivado_em;
+  const alternarArquivo = async () => {
+    if (!(await confirmar({ titulo: `${arquivada ? "Desarquivar" : "Arquivar"} ${empresa.razao_social}?`, descricao: arquivada ? "O cliente volta às listas; os serviços continuam pausados até você ligar de novo." : TEXTO_ARQUIVAR, rotulo: arquivada ? "Desarquivar" : "Arquivar" }))) return;
     try {
-      await api.entities.Empresa.delete(empresa.id);
-      qc.invalidateQueries({ queryKey: ["empresas"] });
-      toast({ title: "Cliente excluído", description: empresa.razao_social });
-      navigate("/");
-    } catch (e) { toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }); }
+      await (arquivada ? desarquivarCliente(empresa.id) : arquivarCliente(empresa.id));
+      CHAVES_APOS_ARQUIVAR.forEach((k) => qc.invalidateQueries({ queryKey: k }));
+      toast({ title: arquivada ? "Cliente desarquivado" : "Cliente arquivado", description: empresa.razao_social });
+    } catch (e) { toast({ title: "Não foi possível mudar", description: e.message, variant: "destructive" }); }
   };
 
   return (
@@ -83,10 +84,11 @@ export default function FichaClientePagina() {
         actions={(
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => setEditando(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar dados</button>
-            {user?.role === "admin" && <button type="button" onClick={excluir} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" aria-hidden="true" /> Excluir</button>}
+            {user?.role === "admin" && <button type="button" onClick={alternarArquivo} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">{arquivada ? <><ArchiveRestore className="h-4 w-4" aria-hidden="true" /> Desarquivar</> : <><Archive className="h-4 w-4" aria-hidden="true" /> Arquivar</>}</button>}
           </div>
         )}
       />
+      {arquivada && <p role="status" className="mx-6 mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 lg:mx-8">Cliente arquivado em {new Date(empresa.arquivado_em).toLocaleDateString("pt-BR")}{empresa.arquivado_por ? ` por ${empresa.arquivado_por}` : ""}. Ele não aparece nas listas nem nas rotinas; o histórico está todo aqui.</p>}
       <div className="px-6 lg:px-8 py-5 grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <Cartao titulo="Serviços contratados">
