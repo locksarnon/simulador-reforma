@@ -5,6 +5,8 @@ import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 
 const quando = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "");
+/** Logo depois de configurar, o serviço reinicia por alguns segundos para ler a senha nova: não é "fora do ar". */
+const reiniciando = (s) => !s.disponivel && s.ultima_configuracao?.ok && Date.now() - new Date(s.ultima_configuracao.em).getTime() < 3 * 60_000;
 const falhar = (titulo) => (e) => toast({ title: titulo, description: e.message, variant: "destructive" });
 
 /**
@@ -25,7 +27,7 @@ export default function IntegracoesCertidoes() {
     onSuccess: (r) => { qc.setQueryData(["integracoes", "infosimples"], r); toast({ title: "Token removido" }); },
     onError: falhar("Não foi possível remover"),
   });
-  const bx = useQuery({ queryKey: ["integracoes", "receitanetbx"], queryFn: () => api.get("/integracoes/receitanetbx"), refetchInterval: (q) => ((q.state.data || []).some((x) => x.configurando) ? 5000 : 60_000) });
+  const bx = useQuery({ queryKey: ["integracoes", "receitanetbx"], queryFn: () => api.get("/integracoes/receitanetbx"), refetchInterval: (q) => ((q.state.data || []).some((x) => x.configurando || reiniciando(x)) ? 5000 : 60_000) });
   const i = info.data;
   const campo = "h-8 min-w-[260px] flex-1 rounded-md border border-input bg-background px-2 text-sm";
   const botao = "inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60";
@@ -71,7 +73,7 @@ function CertificadoBx({ s, aoMudar }) {
     onError: falhar("Não foi possível enviar o certificado"),
   });
   const ultima = s.ultima_configuracao;
-  const situacao = s.configurando ? ["Configurando…", "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"]
+  const situacao = s.configurando || reiniciando(s) ? [s.configurando ? "Configurando…" : "Reiniciando…", "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"]
     : ultima && !ultima.ok ? ["Falhou", "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"]
     : s.configurado ? ["Configurado", "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"]
     : s.disponivel ? ["Aguardando o certificado", "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300"]
