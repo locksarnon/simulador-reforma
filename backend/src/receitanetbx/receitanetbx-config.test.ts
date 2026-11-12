@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, statSync } from 'fs';
 import * as forge from 'node-forge';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ReceitanetbxConfigService } from './receitanetbx-config.service';
 
 function pfx(senha: string) {
@@ -35,5 +35,21 @@ describe('certificados do ReceitanetBX (primário e secundário)', () => {
     expect(statSync(join(pasta, 'certificado.pfx')).size).toBe(arq.length);
     const sec = r.find((x) => x.id === 'secundario')!;
     expect(sec).toMatchObject({ configurando: true, disponivel: false, titular: { documento: '11222333000181', enviado_por: 'adm@fal' } });
+  });
+  it('serviço voltou sem configuração (novo deploy): reentrega do cofre, uma vez a cada 30 minutos', async () => {
+    process.env.RECEITANETBX_ENTREGA_DIR = mkdtempSync(join(tmpdir(), 'bx-'));
+    const guardado: Record<string, unknown> = {};
+    const prisma = { integracaoSegredo: { upsert: async ({ create }: { create: Record<string, unknown> }) => { guardado[create.id as string] = create; }, findUnique: async ({ where }: { where: { id: string } }) => guardado[where.id] ?? null } };
+    const cofre = { cifrar: (t: string) => ({ cifrado: Buffer.from(t), iv: Buffer.alloc(12), tag: Buffer.alloc(16), chaveId: 'v1' }), decifrar: (x: { cifrado: Buffer }) => x.cifrado };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<r><retorno>0</retorno><saida>&lt;retornoconsulta&gt;&lt;mensagem&gt;java.lang.NullPointerException&lt;/mensagem&gt;&lt;/retornoconsulta&gt;</saida></r>')));
+    const s = new ReceitanetbxConfigService(prisma as never, cofre as never);
+    await s.salvar('primario', pfx('certa'), 'certa', { role: 'admin' });
+    const pasta = join(process.env.RECEITANETBX_ENTREGA_DIR, 'primario');
+    require('fs').rmSync(join(pasta, 'senha'));
+    expect((await s.reentregar()).reentregues).toBe(1);
+    expect(readFileSync(join(pasta, 'senha'), 'utf8')).toBe('certa');
+    require('fs').rmSync(join(pasta, 'senha'));
+    expect((await s.reentregar()).reentregues).toBe(0);
+    vi.unstubAllGlobals();
   });
 });
