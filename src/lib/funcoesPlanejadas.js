@@ -4,35 +4,11 @@
  */
 export const FUNCOES_PREVISTAS = [
  {
-  "id": "V002",
-  "funcao": "Sublimite do Simples (receita acumulada, % do limite, sócios)",
-  "destino": "BPO > Monitoramento > Situação",
-  "fase": "3",
-  "depende": "depende da leitura da receita bruta (RBT12) da declaração do PGDAS-D",
-  "modulo": "monitoramento"
- },
- {
-  "id": "V015",
-  "funcao": "Relatório de faturamento (Simples e regime normal; exige configuração)",
-  "destino": "BPO > Monitoramento > Declarações e guias",
-  "fase": "3",
-  "depende": "depende da leitura da receita das declarações",
-  "modulo": "monitoramento"
- },
- {
-  "id": "V016",
-  "funcao": "Fator R (relatório por empresa)",
-  "destino": "BPO > Monitoramento > Declarações e guias",
-  "fase": "3",
-  "depende": "depende da leitura da folha e da receita das declarações",
-  "modulo": "monitoramento"
- },
- {
   "id": "V041",
   "funcao": "DASN-SIMEI (ausência e irregularidade)",
   "destino": "BPO > Monitoramento > MEI",
   "fase": "3",
-  "depende": "depende do contrato do Integra Contador (a DASN-SIMEI não está no ambiente de demonstração do Serpro)",
+  "depende": "o Serpro ainda não liberou a DASN-SIMEI no Integra Contador (\"Em construção\" no catálogo oficial); até lá, a omissão aparece no relatório de situação fiscal",
   "modulo": "monitoramento"
  },
  {

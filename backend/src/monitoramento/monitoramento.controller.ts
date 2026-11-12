@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ContratoIntegraService } from './contrato.service';
 import { EscritorioService } from './escritorio.service';
 import { SpedDownloadService } from '../receitanetbx/sped-download.service';
+import { SimplesService } from './simples.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ConfigRotina, MonitoramentoService } from './monitoramento.service';
@@ -13,7 +14,7 @@ const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new Forbid
 /** BPO Fiscal > Monitoramento fiscal: consultas ao Integra Contador (Serpro), histórico, PDF, lote, rotina e obrigações dispensadas. */
 @Controller('monitoramento')
 export class MonitoramentoController {
-  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly escritorio: EscritorioService, private readonly downloads: SpedDownloadService) {}
+  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly escritorio: EscritorioService, private readonly downloads: SpedDownloadService, private readonly simples: SimplesService) {}
 
   // ── Escritório: Redesim (vínculos e renúncias) e eventos de atualização da Receita ──
   @Get('escritorio/vinculos')
@@ -41,6 +42,17 @@ export class MonitoramentoController {
   @Get('escritorio/solicitacoes/:sid')
   solicitacao(@Param('sid') sid: string) {
     return this.escritorio.situacaoSolicitacao(sid);
+  }
+
+  /** Simples Nacional: sublimite, faturamento e Fator R pela última declaração do PGDAS-D. */
+  @Get('empresas/:id/simples')
+  simplesDados(@Param('id') id: string) {
+    return this.simples.dados(id);
+  }
+
+  @Post('empresas/:id/simples/atualizar')
+  simplesAtualizar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.simples.atualizar(id, user);
   }
 
   @Get('empresas/:id/sped/downloads')

@@ -8,11 +8,12 @@ import { ContratoIntegraService } from './contrato.service';
 import { PdfService } from '../pdf/pdf.service';
 import { EscritorioService } from './escritorio.service';
 import { SpedDownloadService } from '../receitanetbx/sped-download.service';
+import { SimplesService } from './simples.service';
 
 @Module({
   imports: [StorageModule, CertificadosModule, NotificacoesModule],
   controllers: [MonitoramentoController],
-  providers: [MonitoramentoService, ContratoIntegraService, PdfService, EscritorioService, SpedDownloadService],
+  providers: [MonitoramentoService, ContratoIntegraService, PdfService, EscritorioService, SpedDownloadService, SimplesService],
   exports: [MonitoramentoService, ContratoIntegraService],
 })
 export class MonitoramentoModule {}

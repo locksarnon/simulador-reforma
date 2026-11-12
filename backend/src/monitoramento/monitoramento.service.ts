@@ -18,6 +18,7 @@ import { PdfService } from '../pdf/pdf.service';
 import { ConsultaParaRelatorio, excelDaConsulta, pdfDaConsulta } from './relatorio-consulta';
 import { LeituraSitfis, lerRelatorioSitfis, resumoDoSitfis } from './sitfis-leitura';
 import { textoDoPdf } from '../pre-analise/leitor-certidoes';
+import { lerDeclaracaoPgdasd } from './pgdasd-leitura';
 import { ContratoIntegraService, CredenciaisContrato } from './contrato.service';
 
 type Usuario = { email?: string; role?: string; sub?: string; id?: string } | undefined;
@@ -314,6 +315,13 @@ export class MonitoramentoService {
         dadosGuardados = ex.dados;
         resumo = interpretar(s.sistema, s.servico, ex.dados, ex.arquivos, s.rotulo);
         // Relatório de situação fiscal: lê o PDF e guarda pendências, parcelamentos, inscrições, omissões e a certidão emitida.
+        // Declaração do PGDAS-D: lê receitas, RBT12, folha e fator r (sublimite, faturamento e Fator R saem daqui).
+        if (s.sistema === 'PGDASD' && ['CONSULTIMADECREC14', 'CONSDECREC15'].includes(s.servico)) {
+          const decl = ex.arquivos.find((a) => /declaracao/i.test(a.campo) || /DECLARACAO/i.test(a.nome)) ?? ex.arquivos.find((a) => !/recibo|maed/i.test(a.nome));
+          if (decl) {
+            try { dadosGuardados = { ...(ex.dados as object), leitura_pgdasd: lerDeclaracaoPgdasd(await textoDoPdf(Buffer.from(decl.base64, 'base64'))) }; } catch (e) { this.log.warn(`Leitura do PGDAS-D: ${(e as Error).message}`); }
+          }
+        }
         if (s.sistema === 'SITFIS' && ex.arquivos.length) {
           try {
             const leitura = lerRelatorioSitfis(await textoDoPdf(Buffer.from(ex.arquivos[0].base64, 'base64')));

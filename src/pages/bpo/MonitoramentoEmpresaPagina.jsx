@@ -12,6 +12,7 @@ import ParcelamentosPgfn from "@/components/monitoramento/ParcelamentosPgfn";
 import CertidoesCliente from "@/components/monitoramento/CertidoesCliente";
 import LeituraSitfis, { ResumoSitfis } from "@/components/monitoramento/LeituraSitfis";
 import SpedTransmitido from "@/components/monitoramento/SpedTransmitido";
+import SimplesNacional from "@/components/monitoramento/SimplesNacional";
 import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
 import { plural } from "@/lib/plural";
@@ -132,6 +133,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
               ...(g.id === "situacao" && !pessoaFisica ? [{ id: "lido", rotulo: "Situação fiscal", conteudo: <ResumoSitfis empresaId={empresaId} /> }] : []),
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "lido", rotulo: "Receita Federal e PGFN", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Parcelamentos na Receita Federal e na PGFN" filtro={(s) => s.assunto === "PARCELAMENTO"} vazio="Nenhum parcelamento na Receita Federal nem na PGFN." /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "lido", rotulo: "Omissões apontadas pela Receita", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} vazio="Nenhuma omissão de declaração." /> }, { id: "sped", rotulo: "SPED e EFD", conteudo: <SpedTransmitido empresaId={empresaId} /> }] : []),
+              ...(g.id === "declaracoes" && !pessoaFisica && /simples/i.test(dono.data.regime_atual || "") ? [{ id: "simples", rotulo: "Simples: sublimite, faturamento e Fator R", conteudo: <SimplesNacional empresaId={empresaId} /> }] : []),
               ...lista.map((s) => ({ id: s.chave, rotulo: s.rotulo, nivel: ultimas[s.chave]?.sucesso ? ultimas[s.chave].nivel : undefined, conteudo: cartao(s) })),
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "estado-municipio", rotulo: "Estado e município", conteudo: <ParcelamentosPgfn empresaId={empresaId} /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "dispensas", rotulo: "Obrigações que não tem", conteudo: <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} /> }] : []),
