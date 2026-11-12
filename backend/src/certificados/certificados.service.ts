@@ -12,7 +12,7 @@ export type MaterialCertificado = {
   cadeiaPem: string[];
 };
 
-export type AcaoUso = 'USO_CAPTURA' | 'USO_MANIFESTACAO' | 'USO_INTEGRA_CONTADOR';
+export type AcaoUso = 'USO_CAPTURA' | 'USO_MANIFESTACAO' | 'USO_INTEGRA_CONTADOR' | 'USO_CONSULTA_CADASTRO';
 
 const DIA = 86_400_000;
 const contexto = (empresaId: string, certId: string) => `empresa:${empresaId}|certificado:${certId}`;

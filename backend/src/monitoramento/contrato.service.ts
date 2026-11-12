@@ -6,7 +6,9 @@ import { Credenciais, ErroIntegra, pedirTokenSapi } from './integra.cliente';
 
 export type CredenciaisContrato = Credenciais & { contratante: string; nome: string };
 type Usuario = { email?: string; role?: string } | undefined;
-type Segredo = { consumerKey: string; consumerSecret: string; pfx: string; senha: string };
+type Chaves = { key: string; secret: string };
+type Segredo = { consumerKey: string; consumerSecret: string; pfx: string; senha: string; cnd?: Chaves | null; dividaAtiva?: Chaves | null };
+export type ProdutoSerpro = 'cnd' | 'dividaAtiva';
 
 const ID = 'unico';
 const CONTEXTO = 'integra-contador:contrato';
@@ -31,7 +33,7 @@ export function credenciaisDoAmbiente(env: NodeJS.ProcessEnv = process.env): Cre
  */
 @Injectable()
 export class ContratoIntegraService {
-  private cache: { valor: CredenciaisContrato | null; em: number } | null = null;
+  private cache: { valor: CredenciaisContrato | null; em: number; produtos: Partial<Record<ProdutoSerpro, Chaves | null>> } | null = null;
 
   constructor(private readonly prisma: PrismaService, private readonly cofre: CofreService) {}
 
@@ -39,16 +41,24 @@ export class ContratoIntegraService {
   async credenciais(): Promise<CredenciaisContrato | null> {
     if (this.cache && Date.now() - this.cache.em < 60_000) return this.cache.valor;
     let valor: CredenciaisContrato | null = null;
+    let produtos: Partial<Record<ProdutoSerpro, Chaves | null>> = {};
     const r = await this.prisma.contratoIntegraContador.findUnique({ where: { id: ID } }).catch(() => null);
     if (r && this.cofre.disponivel()) {
       try {
         const s = JSON.parse(this.cofre.decifrar({ cifrado: Buffer.from(r.segredo_cifrado), iv: Buffer.from(r.segredo_iv), tag: Buffer.from(r.segredo_tag), chaveId: r.chave_id }, ID, CONTEXTO).toString('utf8')) as Segredo;
         valor = { consumerKey: s.consumerKey, consumerSecret: s.consumerSecret, pfx: Buffer.from(s.pfx, 'base64'), senha: s.senha, contratante: r.documento, nome: r.titular };
+        produtos = { cnd: s.cnd ?? null, dividaAtiva: s.dividaAtiva ?? null };
       } catch { valor = null; }
     }
     if (!valor) valor = credenciaisDoAmbiente();
-    this.cache = { valor, em: Date.now() };
+    this.cache = { valor, em: Date.now(), produtos };
     return valor;
+  }
+
+  /** Chaves das outras APIs do Serpro usadas na pré-análise (Consulta CND e Consulta Dívida Ativa), quando informadas. */
+  async chavesDoProduto(p: ProdutoSerpro): Promise<Chaves | null> {
+    await this.credenciais();
+    return this.cache?.produtos[p] ?? null;
   }
 
   /** O que a tela pode ver: nunca as chaves nem a senha. */
@@ -64,10 +74,12 @@ export class ContratoIntegraService {
       atualizado_por: r?.atualizado_por ?? null,
       atualizado_em: r?.updatedAt ?? null,
       cofre: this.cofre.disponivel(),
+      cnd: !!(await this.chavesDoProduto('cnd')),
+      divida_ativa: !!(await this.chavesDoProduto('dividaAtiva')),
     };
   }
 
-  async salvar(e: { pfx?: Buffer; senha?: string; consumerKey?: string; consumerSecret?: string }, usuario: Usuario) {
+  async salvar(e: { pfx?: Buffer; senha?: string; consumerKey?: string; consumerSecret?: string; cnd?: Partial<Chaves> | null; dividaAtiva?: Partial<Chaves> | null }, usuario: Usuario) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores configuram o contrato do Integra Contador.');
     if (!this.cofre.disponivel()) throw new BadRequestException('O cofre de certificados não está configurado no servidor (CERT_VAULT_KEY).');
     const atual = await this.credenciais();
@@ -84,7 +96,15 @@ export class ContratoIntegraService {
     }
     if (lido.tipoDocumento !== 'CNPJ') throw new BadRequestException('O certificado precisa ser e-CNPJ (o mesmo usado na contratação do Integra Contador).');
     if (lido.validoAte.getTime() <= Date.now()) throw new BadRequestException(`O certificado venceu em ${lido.validoAte.toLocaleDateString('pt-BR')}.`);
-    const segredo: Segredo = { consumerKey, consumerSecret, pfx: pfx.toString('base64'), senha };
+    const produto = (p: ProdutoSerpro) => {
+      const vindo = e[p];
+      if (vindo === null) return null; // remover
+      const k = vindo?.key?.trim(); const sec = vindo?.secret?.trim();
+      if (k && sec) return { key: k, secret: sec };
+      if (k || sec) throw new BadRequestException(`Informe as duas chaves (Key e Secret) da ${p === 'cnd' ? 'Consulta CND' : 'Consulta Dívida Ativa'}.`);
+      return this.cache?.produtos[p] ?? null;
+    };
+    const segredo: Segredo = { consumerKey, consumerSecret, pfx: pfx.toString('base64'), senha, cnd: produto('cnd'), dividaAtiva: produto('dividaAtiva') };
     const c = this.cofre.cifrar(JSON.stringify(segredo), ID, CONTEXTO);
     const dados = {
       titular: lido.titular.replace(/:\d{11,14}$/, '').trim(), documento: lido.documento, valido_ate: lido.validoAte,

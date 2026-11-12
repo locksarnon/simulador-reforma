@@ -1766,3 +1766,21 @@ model ContratoIntegraContador {
 }
 
 // ── [/contrato-integra-contador] ──
+
+/// Pré-análise por CNPJ (Comercial e BPO): sete consultas com status próprio e relatório em PDF.
+model PreAnalise {
+  id            String    @id @default(cuid())
+  cnpj          String
+  razao_social  String?
+  uf            String?
+  empresa_id    String?
+  /// Lista de processos: { chave, status, resumo, detalhes, fonte, consultado_em, arquivo?, demonstracao? }
+  processos     Json
+  criado_por    String?
+  concluida_em  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([cnpj])
+  @@index([createdAt])
+}

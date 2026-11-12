@@ -139,7 +139,7 @@ describe("CertificadoXml", () => {
   it("a auditoria mostra cada ação com palavras, nunca o código interno", () => {
     auth.role = "admin";
     const codigos = [
-      "ENVIO", "REVOGACAO", "USO_CAPTURA", "USO_MANIFESTACAO",
+      "ENVIO", "REVOGACAO", "USO_CAPTURA", "USO_MANIFESTACAO", "USO_INTEGRA_CONTADOR", "USO_CONSULTA_CADASTRO",
       "CAPTURA_ATIVADA", "CAPTURA_DESATIVADA", "CAPTURA_AMBIENTE", "CAPTURA_PERIODO", "CIENCIA_ATIVADA", "CIENCIA_DESATIVADA", "EMPRESA_EXCLUIDA",
     ];
     const linhas = codigos.map((acao, i) => ({ id: `a${i}`, createdAt: "2026-11-10T12:00:00Z", acao, usuario: "admin@fal", detalhe: "detalhe" }));

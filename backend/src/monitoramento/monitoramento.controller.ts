@@ -25,9 +25,14 @@ export class MonitoramentoController {
   salvarContrato(
     @CurrentUser() user: AuthUser,
     @UploadedFile() arquivo: { buffer: Buffer } | undefined,
-    @Body() body: { senha?: string; consumer_key?: string; consumer_secret?: string },
+    @Body() body: { senha?: string; consumer_key?: string; consumer_secret?: string; cnd_key?: string; cnd_secret?: string; divida_key?: string; divida_secret?: string; remover?: string },
   ) {
-    return this.contrato.salvar({ pfx: arquivo?.buffer, senha: body?.senha, consumerKey: body?.consumer_key, consumerSecret: body?.consumer_secret }, user);
+    const rem = String(body?.remover ?? '').split(',');
+    return this.contrato.salvar({
+      pfx: arquivo?.buffer, senha: body?.senha, consumerKey: body?.consumer_key, consumerSecret: body?.consumer_secret,
+      cnd: rem.includes('cnd') ? null : { key: body?.cnd_key, secret: body?.cnd_secret },
+      dividaAtiva: rem.includes('divida') ? null : { key: body?.divida_key, secret: body?.divida_secret },
+    }, user);
   }
 
   @Post('contrato/testar')

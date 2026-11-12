@@ -10,6 +10,6 @@ import { ContratoIntegraService } from './contrato.service';
   imports: [StorageModule, CertificadosModule, NotificacoesModule],
   controllers: [MonitoramentoController],
   providers: [MonitoramentoService, ContratoIntegraService],
-  exports: [MonitoramentoService],
+  exports: [MonitoramentoService, ContratoIntegraService],
 })
 export class MonitoramentoModule {}

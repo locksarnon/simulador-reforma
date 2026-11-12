@@ -16,7 +16,7 @@ const SITUACAO = {
 };
 const ACAO = {
   ENVIO: "Envio do certificado", REVOGACAO: "Remoção do certificado",
-  USO_CAPTURA: "Uso na captura", USO_MANIFESTACAO: "Uso na manifestação",
+  USO_CAPTURA: "Uso na captura", USO_MANIFESTACAO: "Uso na manifestação", USO_INTEGRA_CONTADOR: "Uso no Integra Contador (termo de autorização)", USO_CONSULTA_CADASTRO: "Uso na consulta ao cadastro do ICMS (pré-análise)",
   CAPTURA_ATIVADA: "Captura ativada", CAPTURA_DESATIVADA: "Captura desativada", CAPTURA_AMBIENTE: "Ambiente da SEFAZ alterado", CAPTURA_PERIODO: "Período da busca alterado",
   CIENCIA_ATIVADA: "Ciência automática ativada", CIENCIA_DESATIVADA: "Ciência automática desativada", EMPRESA_EXCLUIDA: "Empresa excluída",
 };

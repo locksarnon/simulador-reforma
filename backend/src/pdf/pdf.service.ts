@@ -11,7 +11,8 @@ export type SecaoPdf = {
   titulo: string;
   paragrafos?: string[];
   itens?: string[];
-  tabela?: { cabecalho: string[]; linhas: string[][] };
+  /** Tabela com quebra de linha nas células; `larguras` são frações da largura útil (somam 1). */
+  tabela?: { cabecalho: string[]; linhas: string[][]; larguras?: number[] };
   /** Comparativo com texto longo (quebra de linha): tema, como era, como fica, base legal. */
   blocos?: { tema: string; era: string; fica: string; base?: string; confirmar?: string }[];
   /** Números-chave em destaque, lado a lado (até 3) — mesmo papel dos cartões de métrica da tela. */
@@ -26,6 +27,8 @@ export type SecaoPdf = {
 
 export type DocumentoPdf = {
   titulo: string;
+  /** Texto à direita da faixa verde do cabeçalho (padrão: Simulador da Reforma Tributária). */
+  marca?: string;
   subtitulo?: string;
   secoes: SecaoPdf[];
   aviso?: string;
@@ -83,7 +86,7 @@ export class PdfService {
         pdf.text('FAL Agro', xLogo, 33, { lineBreak: false });
       }
       pdf.font('Helvetica').fontSize(9).fillColor('#cfe3d6')
-        .text('Simulador da Reforma Tributária', MARGEM, 22, { width: largura, align: 'right', lineBreak: false });
+        .text(cortar(doc.marca ?? 'Simulador da Reforma Tributária', 60), MARGEM, 22, { width: largura, align: 'right', lineBreak: false });
 
       pdf.y = 92;
       pdf.font('Helvetica-Bold').fontSize(18).fillColor(VERDE_ESCURO).text(cortar(doc.titulo, 140), MARGEM, pdf.y, { width: largura });
@@ -117,7 +120,11 @@ export class PdfService {
             const x = MARGEM + i * (w + gap);
             pdf.roundedRect(x, y0, w, h, 6).fillAndStroke(FUNDO_CARD, BORDA);
             pdf.fillColor(CINZA).font('Helvetica-Bold').fontSize(7.5).text(cortar(d.rotulo, 60).toUpperCase(), x + 10, y0 + 10, { width: w - 20 });
-            pdf.fillColor(VERDE_ESCURO).font('Helvetica-Bold').fontSize(17).text(cortar(d.valor, 24), x + 10, y0 + 23, { width: w - 20, lineBreak: false });
+            const valorD = cortar(d.valor, 24);
+            let corpo = 17;
+            pdf.font('Helvetica-Bold');
+            while (corpo > 10 && pdf.fontSize(corpo).widthOfString(valorD) > w - 20) corpo -= 1;
+            pdf.fillColor(VERDE_ESCURO).fontSize(corpo).text(valorD, x + 10, y0 + 23 + (17 - corpo) / 2, { width: w - 20, lineBreak: false });
             if (d.detalhe) pdf.fillColor(CINZA).font('Helvetica').fontSize(7).text(cortar(d.detalhe, 70), x + 10, y0 + 44, { width: w - 20, lineBreak: false });
           });
           pdf.x = MARGEM;
@@ -188,20 +195,24 @@ export class PdfService {
 
         if (s.tabela) {
           const cab = s.tabela.cabecalho.slice(0, 8);
-          const w = largura / cab.length;
+          const fracoes = s.tabela.larguras?.length === cab.length ? s.tabela.larguras : cab.map(() => 1 / cab.length);
+          const ws = fracoes.map((fr) => largura * fr);
+          const xs = ws.map((_, i) => MARGEM + ws.slice(0, i).reduce((a, b) => a + b, 0));
           const linha = (cels: string[], negrito: boolean, fundo?: string) => {
-            const h = 20;
+            pdf.font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+            const textos = cab.map((_, i) => cortar(cels[i] ?? '', 600));
+            const h = Math.max(20, ...textos.map((t, i) => pdf.heightOfString(t, { width: ws[i] - 10 }) + 12));
             novaPaginaSeNecessario(h);
             const yy = pdf.y;
             if (fundo) pdf.rect(MARGEM, yy, largura, h).fill(fundo);
             pdf.fillColor(negrito ? BRANCO : TEXTO).font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
-            cels.slice(0, cab.length).forEach((c, i) => pdf.text(cortar(c, 40), MARGEM + 6 + i * w, yy + 6, { width: w - 10, lineBreak: false }));
+            textos.forEach((t, i) => pdf.text(t, xs[i] + 6, yy + 6, { width: ws[i] - 10 }));
             pdf.x = MARGEM;
             pdf.y = yy + h;
           };
           pdf.moveDown(0.25);
           linha(cab, true, VERDE);
-          s.tabela.linhas.slice(0, 40).forEach((l, i) => linha(l, false, i % 2 ? FUNDO_CARD : undefined));
+          s.tabela.linhas.slice(0, 200).forEach((l, i) => linha(l, false, i % 2 ? FUNDO_CARD : undefined));
         }
         pdf.moveDown(0.9);
       }

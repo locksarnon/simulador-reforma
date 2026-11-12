@@ -1,15 +1,33 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Download, Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Ban, CheckCircle2, Clock, Download, ExternalLink, Eye, FileText, Loader2, Paperclip, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
-import { exportarLista } from "@/lib/exportarLista";
+import { toast } from "@/components/ui/use-toast";
+import { useAuth } from "@/lib/AuthContext";
 
 const digitos = (s) => String(s || "").replace(/\D/g, "");
 const fmtCnpj = (d) => d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 const fmtCnae = (c) => String(c || "").replace(/^(\d{4})(\d)(\d{2})$/, "$1-$2/$3");
 const brl = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+const quando = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "");
+
+/** Status de cada consulta: rótulo, cor e ícone (a forma acompanha a cor, para quem não distingue cores). */
+export const STATUS = {
+  PROCESSANDO: { rotulo: "Processando", tom: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300", ponto: "bg-sky-500 animate-pulse", Icone: Loader2, girar: true },
+  CONCLUIDO: { rotulo: "Concluído", tom: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300", ponto: "bg-emerald-500", Icone: CheckCircle2 },
+  IRREGULAR: { rotulo: "Irregular", tom: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", ponto: "bg-red-500", Icone: XCircle },
+  DEBITOS: { rotulo: "Débitos", tom: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300", ponto: "bg-amber-500", Icone: AlertTriangle },
+  INDISPONIVEL: { rotulo: "Indisponível", tom: "bg-muted text-muted-foreground", ponto: "bg-muted-foreground/40", Icone: Ban },
+  MANUAL: { rotulo: "Aguardando certidão", tom: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300", ponto: "bg-violet-500", Icone: Clock },
+};
+
+export function SeloStatus({ status, className = "" }) {
+  const s = STATUS[status] ?? STATUS.INDISPONIVEL;
+  const { Icone } = s;
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${s.tom} ${className}`}><Icone className={`h-3.5 w-3.5 ${s.girar ? "animate-spin" : ""}`} aria-hidden="true" />{s.rotulo}</span>;
+}
 
 /**
  * Leitura inicial para a conversa comercial, a partir da divisão do CNAE (dois primeiros dígitos). É uma sugestão do InTAX para
@@ -30,7 +48,7 @@ export function leituraDoCnae(cnae) {
   return { setor: "Outras atividades", temas: ["Mapear a cadeia de fornecedores e o crédito de cada um", "Simular a carga na transição"] };
 }
 
-/** Linhas chave/valor para a exportação da pré-análise. */
+/** Linhas chave/valor da ficha pública do CNPJ (dados da BrasilAPI). */
 export function linhasDaPreAnalise(d) {
   const l = [
     ["CNPJ", fmtCnpj(d.cnpj)], ["Razão social", d.razao_social], ["Nome fantasia", d.nome_fantasia], ["Situação cadastral", d.situacao],
@@ -43,49 +61,170 @@ export function linhasDaPreAnalise(d) {
   return l.map(([campo, valor]) => ({ campo, valor: valor ?? "" }));
 }
 
-/** Comercial > Pré-análise por CNPJ: a ficha pública de um prospect e os temas da Reforma para a primeira conversa. */
+/** CNAE principal tirado da Consulta Empresa (para a leitura da Reforma). */
+export function cnaeDaPreAnalise(p) {
+  const e = p?.processos?.find((x) => x.chave === "EMPRESA");
+  const l = e?.detalhes?.find((d) => d.rotulo === "CNAE principal");
+  return l ? digitos(String(l.valor).split(" ")[0]) : "";
+}
+
+function CartaoProcesso({ p, def, preAnaliseId, onAnexado }) {
+  const input = useRef(null);
+  const url = `/pre-analises/${preAnaliseId}/arquivos/${p.chave}`;
+  const falhar = (e) => toast({ title: "Não foi possível abrir", description: e.message, variant: "destructive" });
+  const anexar = useMutation({
+    mutationFn: (f) => api.upload(`/pre-analises/${preAnaliseId}/certidoes/${p.chave}`, f),
+    onSuccess: (r) => { onAnexado(r); toast({ title: "Certidão anexada", description: r.processos.find((x) => x.chave === p.chave)?.resumo }); },
+    onError: (e) => toast({ title: "Não foi possível anexar", description: e.message, variant: "destructive" }),
+  });
+  const detalhes = p.detalhes.filter((d) => d.rotulo !== "Portal oficial");
+  const atencao = p.status === "IRREGULAR" || p.status === "DEBITOS";
+  const mostrarPortal = def.portal && p.status !== "PROCESSANDO" && (p.status === "MANUAL" || p.status === "INDISPONIVEL" || def.aceitaCertidao);
+  return (
+    <article className="flex flex-col rounded-xl border border-border bg-card p-4" aria-label={def.rotulo}>
+      <div className="flex items-start gap-2">
+        <h3 className="flex-1 font-heading text-sm font-semibold">{def.rotulo}</h3>
+        <SeloStatus status={p.status} />
+      </div>
+      <p className="mt-2 text-sm">{p.resumo}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{def.fonte}{p.consultado_em ? ` · ${quando(p.consultado_em)}` : ""}{p.demonstracao ? " · demonstração (dados fictícios)" : ""}</p>
+      {detalhes.length > 0 && (
+        <details className="mt-2 text-xs" open={atencao}>
+          <summary className="cursor-pointer text-primary">Detalhes</summary>
+          <dl className="mt-1.5 space-y-0.5">
+            {detalhes.map((d, i) => <div key={i} className="flex gap-2"><dt className="w-36 shrink-0 text-muted-foreground">{d.rotulo}</dt><dd className="min-w-0 break-words">{d.valor}</dd></div>)}
+          </dl>
+        </details>
+      )}
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
+        {p.arquivo && (
+          <>
+            <button type="button" onClick={() => api.visualizar("GET", `${url}?ver=1`).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Eye className="h-3.5 w-3.5" aria-hidden="true" />Ver</button>
+            <button type="button" onClick={() => api.baixar("GET", url, { nome: p.arquivo.nome }).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" />Baixar</button>
+          </>
+        )}
+        {mostrarPortal && <a href={def.portal} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Portal oficial</a>}
+        {def.aceitaCertidao && p.status !== "PROCESSANDO" && (
+          <>
+            <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-label={`Anexar PDF: ${def.rotulo}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) anexar.mutate(f); }} />
+            <button type="button" disabled={anexar.isPending} onClick={() => input.current?.click()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
+              {anexar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />}{p.arquivo?.enviado_por ? "Trocar certidão" : "Anexar certidão (PDF)"}
+            </button>
+          </>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/** Comercial > Pré-análise por CNPJ: sete consultas com status (empresa, CCC, certificado CCC, PGFN, trabalhista, FGTS e dívida ativa) e relatório em PDF. */
 export default function PreAnalisePagina() {
-  const [texto, setTexto] = useState("");
-  const [cnpj, setCnpj] = useState("");
-  const { data: d, isFetching, error } = useQuery({ queryKey: ["pre-analise", cnpj], queryFn: () => api.get(`/cnpj/${cnpj}`), enabled: cnpj.length === 14, retry: false, staleTime: 30 * 60_000 });
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const [texto, setTexto] = useState(params.get("cnpj") ? fmtCnpj(digitos(params.get("cnpj"))) : "");
+  const id = params.get("id") || "";
+  const historico = useQuery({ queryKey: ["pre-analises"], queryFn: () => api.get("/pre-analises") });
+  const atual = useQuery({
+    queryKey: ["pre-analises", id],
+    queryFn: () => api.get(`/pre-analises/${id}`),
+    enabled: !!id,
+    refetchInterval: (q) => (q.state.data?.geral?.status === "PROCESSANDO" ? 2000 : false),
+  });
+  const p = atual.data;
   const emp = useQuery({ queryKey: ["empresas", "carteiras"], queryFn: () => api.entities.Empresa.list() });
-  const jaCliente = useMemo(() => (emp.data || []).find((e) => digitos(e.cnpj_cpf) === cnpj), [emp.data, cnpj]);
-  const leitura = d ? leituraDoCnae(d.cnae_codigo) : null;
-  const buscar = (e) => { e.preventDefault(); const dg = digitos(texto); if (dg.length === 14) setCnpj(dg); };
-  const exportar = (formato) => exportarLista({ titulo: `Pré-análise ${d.razao_social}`, colunas: [{ chave: "campo", rotulo: "Campo" }, { chave: "valor", rotulo: "Informação" }], linhas: [...linhasDaPreAnalise(d), { campo: "Leitura para a Reforma", valor: `${leitura.setor}: ${leitura.temas.join("; ")}` }, { campo: "Fonte", valor: "Dados públicos do CNPJ (Receita Federal, pela BrasilAPI), consultados pelo InTAX." }], formato });
+  const jaCliente = useMemo(() => (p ? (emp.data || []).find((e) => digitos(e.cnpj_cpf) === p.cnpj) : null), [emp.data, p]);
+  const definicoes = useMemo(() => new Map((p?.definicoes || []).map((d) => [d.chave, d])), [p]);
+  const cnae = cnaeDaPreAnalise(p);
+  const leitura = cnae ? leituraDoCnae(cnae) : null;
+  const processando = p?.geral?.status === "PROCESSANDO";
+
+  useEffect(() => { if (p && !processando) qc.invalidateQueries({ queryKey: ["pre-analises"], exact: true }); }, [p?.id, processando]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const abrir = (novoId) => setParams(novoId ? { id: novoId } : {});
+  const falhar = (titulo) => (e) => toast({ title: titulo, description: e.message, variant: "destructive" });
+  const criar = useMutation({
+    mutationFn: (cnpj) => api.post("/pre-analises", { cnpj }),
+    onSuccess: (r) => { qc.setQueryData(["pre-analises", r.id], r); qc.invalidateQueries({ queryKey: ["pre-analises"], exact: true }); abrir(r.id); },
+    onError: falhar("Não foi possível iniciar"),
+  });
+  const reprocessar = useMutation({ mutationFn: () => api.post(`/pre-analises/${id}/reprocessar`, {}), onSuccess: (r) => qc.setQueryData(["pre-analises", id], r), onError: falhar("Não foi possível consultar de novo") });
+  const excluir = useMutation({ mutationFn: () => api.delete(`/pre-analises/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pre-analises"] }); abrir(null); toast({ title: "Pré-análise excluída" }); }, onError: falhar("Não foi possível excluir") });
+  const iniciar = (e) => { e.preventDefault(); const d = digitos(texto); if (d.length === 14) criar.mutate(d); };
+  const nomeRelatorio = p ? `Pré-análise ${fmtCnpj(p.cnpj).replace(/\//g, "-")}.pdf` : "";
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Pré-análise por CNPJ" }]} title="Pré-análise por CNPJ" subtitle="A ficha pública de um prospect (CNAE, porte, Simples, sócios) e os temas da Reforma para a primeira conversa. Só dados públicos." />
-      <div className="px-6 lg:px-8 py-6 max-w-4xl space-y-4">
-        <form onSubmit={buscar} className="flex flex-wrap items-end gap-2 text-sm">
-          <label className="space-y-1 flex-1 min-w-[220px]"><span className="block text-xs text-muted-foreground">CNPJ do prospect</span><input className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="00.000.000/0000-00" inputMode="numeric" /></label>
-          <button type="submit" disabled={digitos(texto).length !== 14} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{isFetching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />} Consultar</button>
-        </form>
-        {error && <p role="alert" className="rounded-md border border-red-400/60 p-3 text-sm">{error.message}</p>}
-        {d && (
-          <>
-            {jaCliente && <p role="status" className="rounded-md border border-emerald-400/60 bg-card p-3 text-sm">Esta empresa já está no cadastro: <strong>{jaCliente.razao_social}</strong>.</p>}
-            <section className="rounded-xl border border-border bg-card p-4" aria-label="Ficha do CNPJ">
-              <div className="flex flex-wrap items-start gap-2">
-                <div className="flex-1 min-w-[220px]"><h2 className="font-heading text-base font-semibold">{d.razao_social}</h2><p className="text-xs text-muted-foreground">{fmtCnpj(d.cnpj)} · {d.situacao} · {d.municipio}/{d.uf}</p></div>
-                <div className="flex gap-2">{[["xlsx", "Excel"], ["pdf", "PDF"]].map(([f, r]) => <button key={f} type="button" onClick={() => exportar(f)} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" /> {r}</button>)}</div>
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Pré-análise por CNPJ" }]} title="Pré-análise por CNPJ" subtitle="Sete consultas com status (empresa, CCC, certificado CCC, PGFN, trabalhista, FGTS e dívida ativa) e o relatório detalhado em PDF." />
+      <div className="px-6 lg:px-8 py-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-4 min-w-0">
+          <form onSubmit={iniciar} className="flex flex-wrap items-end gap-2 text-sm">
+            <label className="space-y-1 flex-1 min-w-[220px]"><span className="block text-xs text-muted-foreground">CNPJ do prospect ou cliente</span><input className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="00.000.000/0000-00" inputMode="numeric" /></label>
+            <button type="submit" disabled={digitos(texto).length !== 14 || criar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{criar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />} Iniciar pré-análise</button>
+          </form>
+
+          {atual.isError && <p role="alert" className="rounded-md border border-red-400/60 p-3 text-sm">{atual.error.message}</p>}
+          {id && atual.isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Carregando…</p>}
+
+          {p && (
+            <>
+              <section className="rounded-xl border border-border bg-card p-4" aria-label="Situação geral">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="min-w-[220px] flex-1">
+                    <h2 className="font-heading text-base font-semibold">{p.razao_social || fmtCnpj(p.cnpj)}</h2>
+                    <p className="text-xs text-muted-foreground tabular-nums">{fmtCnpj(p.cnpj)}{p.uf ? ` · ${p.uf}` : ""} · {quando(p.createdAt)}{p.criado_por ? ` · ${p.criado_por}` : ""}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={processando} onClick={() => api.visualizar("GET", `/pre-analises/${p.id}/relatorio?ver=1`).catch(falhar("Não foi possível abrir"))} className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60"><FileText className="h-3.5 w-3.5" aria-hidden="true" />Relatório em PDF</button>
+                    <button type="button" disabled={processando} onClick={() => api.baixar("GET", `/pre-analises/${p.id}/relatorio`, { nome: nomeRelatorio }).catch(falhar("Não foi possível baixar"))} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"><Download className="h-3.5 w-3.5" aria-hidden="true" />Baixar</button>
+                    <button type="button" disabled={processando || reprocessar.isPending} onClick={() => reprocessar.mutate()} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-60"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Consultar de novo</button>
+                    {user?.role === "admin" && <button type="button" disabled={processando || excluir.isPending} onClick={() => { if (window.confirm("Excluir esta pré-análise e as certidões anexadas?")) excluir.mutate(); }} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-destructive hover:bg-muted disabled:opacity-60" aria-label="Excluir pré-análise"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="status" aria-live="polite"><SeloStatus status={p.geral.status} /><span>{p.geral.texto}</span></div>
+                <ol className="mt-3 flex flex-wrap gap-1.5" aria-label="Andamento das consultas">
+                  {p.processos.map((x) => <li key={x.chave} className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs"><span aria-hidden="true" className={`h-2 w-2 rounded-full ${(STATUS[x.status] ?? STATUS.INDISPONIVEL).ponto}`} /><span>{definicoes.get(x.chave)?.rotulo}</span><span className="sr-only">: {STATUS[x.status]?.rotulo}</span></li>)}
+                </ol>
+                {jaCliente ? (
+                  <p className="mt-3 text-xs">Já é cliente: <Link className="text-primary hover:underline" to={`/clientes/${jaCliente.id}`}>{jaCliente.razao_social}</Link>.</p>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">Ainda não é cliente. <Link className="text-primary hover:underline" to="/">Cadastrar em Clientes</Link> ou <Link className="text-primary hover:underline" to="/comercial/propostas">fazer uma proposta</Link>.</p>
+                )}
+              </section>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {p.processos.map((x) => definicoes.get(x.chave) && <CartaoProcesso key={x.chave} p={x} def={definicoes.get(x.chave)} preAnaliseId={p.id} onAnexado={(r) => qc.setQueryData(["pre-analises", p.id], r)} />)}
               </div>
-              <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
-                {linhasDaPreAnalise(d).filter((l) => l.campo && !["CNPJ", "Razão social"].includes(l.campo)).map((l) => <div key={l.campo} className="flex gap-2"><dt className="w-40 shrink-0 text-xs text-muted-foreground">{l.campo}</dt><dd>{l.valor || "—"}</dd></div>)}
-              </dl>
-              {d.cnaes_secundarios.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-xs text-primary">{d.cnaes_secundarios.length} CNAE(s) secundário(s)</summary><ul className="mt-1 text-xs">{d.cnaes_secundarios.map((c) => <li key={c.codigo}>{fmtCnae(c.codigo)} {c.descricao}</li>)}</ul></details>}
-              {d.socios.length > 0 && <details className="mt-1 text-sm"><summary className="cursor-pointer text-xs text-primary">{d.socios.length} sócio(s)</summary><ul className="mt-1 text-xs">{d.socios.map((s) => <li key={s.nome}>{s.nome} · {s.qualificacao}</li>)}</ul></details>}
-            </section>
-            <section className="rounded-xl border border-border bg-card p-4 space-y-2" aria-label="Leitura para a Reforma">
-              <h2 className="font-heading text-sm font-semibold">Para a primeira conversa: {leitura.setor}</h2>
-              <ul className="list-disc pl-5 text-sm">{leitura.temas.map((t) => <li key={t}>{t}</li>)}</ul>
-              <p className="text-xs text-muted-foreground">Sugestão do InTAX a partir do CNAE, para orientar a reunião. O enquadramento e os benefícios só se confirmam com as notas e o cadastro de produtos da empresa.</p>
-              <div className="flex flex-wrap gap-3 text-sm"><Link to="/reforma/regimes" className="text-primary hover:underline">Comparar os regimes</Link><Link to="/comercial/propostas" className="text-primary hover:underline">Fazer uma proposta</Link></div>
-            </section>
-          </>
-        )}
-        {!d && !error && !isFetching && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Digite o CNPJ e consulte. A ficha vem dos dados públicos da Receita Federal.</p>}
+
+              {leitura && (
+                <section className="rounded-xl border border-border bg-card p-4 space-y-2" aria-label="Leitura para a Reforma">
+                  <h2 className="font-heading text-sm font-semibold">Para a primeira conversa: {leitura.setor}</h2>
+                  <ul className="list-disc pl-5 text-sm">{leitura.temas.map((t) => <li key={t}>{t}</li>)}</ul>
+                  <p className="text-xs text-muted-foreground">Sugestão do InTAX a partir do CNAE, para orientar a reunião. O enquadramento e os benefícios só se confirmam com as notas e o cadastro de produtos da empresa.</p>
+                  <div className="flex flex-wrap gap-3 text-sm"><Link to="/reforma/regimes" className="text-primary hover:underline">Comparar os regimes</Link><Link to="/comercial/propostas" className="text-primary hover:underline">Fazer uma proposta</Link></div>
+                </section>
+              )}
+            </>
+          )}
+
+          {!id && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Digite o CNPJ e inicie. O InTAX roda as sete consultas e mostra o status de cada uma; as certidões que só saem pelo portal oficial ficam para você anexar o PDF, e o InTAX lê a situação e a validade.</p>}
+        </div>
+
+        <aside className="space-y-2" aria-label="Pré-análises feitas">
+          <h2 className="font-heading text-sm font-semibold">Pré-análises feitas</h2>
+          {historico.isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
+          {historico.data?.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma ainda.</p>}
+          <ul className="space-y-1.5">
+            {(historico.data || []).map((h) => (
+              <li key={h.id}>
+                <button type="button" onClick={() => abrir(h.id)} aria-current={h.id === id ? "true" : undefined} className={`w-full rounded-lg border px-3 py-2 text-left text-xs hover:bg-muted ${h.id === id ? "border-primary bg-primary/5" : "border-border bg-card"}`}>
+                  <span className="block truncate font-medium">{h.razao_social || fmtCnpj(h.cnpj)}</span>
+                  <span className="mt-0.5 flex items-center justify-between gap-2 text-muted-foreground"><span className="tabular-nums">{quando(h.createdAt)}</span><SeloStatus status={h.geral.status} /></span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
       </div>
     </div>
   );
