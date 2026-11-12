@@ -1,0 +1,15 @@
+#Valores para a propriedade agrupamentosCaminhoDownload, que devem ser separados por /, sao: tipo-arquivo, ni, ano, mes, dia, ano-mes, ano-mes-dia
+agrupamentoPorDataPedido=false
+salvarLog=false
+tamanhoCacheBancoDados=200
+agruparPorNI=true
+certificadoDigital=/certificado/escritorio.pfx
+downloadsSimultaneos=2
+caminhoGravacaoArquivos=/dados/downloads/
+agruparPorTipoArquivo=true
+intervaloAtualizacaoPedidos=10
+agrupamentosCaminhoDownload=
+exportarPedidos=false
+armazenamentoCertificado=C
+portaPublicacao=8999
+arquivoLog=

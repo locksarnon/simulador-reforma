@@ -5,6 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PreAnaliseService } from './pre-analise.service';
 import { CertidoesService } from './certidoes.service';
 import { InfosimplesService } from '../infosimples/infosimples.service';
+import { estadoBx } from '../receitanetbx/receitanetbx.cliente';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 
@@ -92,6 +93,12 @@ export class IntegracoesExternasController {
   @Put('infosimples')
   infosimplesSalvar(@CurrentUser() user: AuthUser, @Body() body: { token?: string }) {
     return this.infosimples.salvar(body?.token, user);
+  }
+
+  /** ReceitanetBX-Serviço (escriturações do SPED transmitidas): no ar? com o certificado do escritório? */
+  @Get('receitanetbx')
+  receitanetbx() {
+    return estadoBx();
   }
 
   @Delete('infosimples')

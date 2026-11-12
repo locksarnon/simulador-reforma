@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Loader2, Trash2 } from "lucide-react";
+import { FileSearch, KeyRound, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 
@@ -25,6 +25,7 @@ export default function IntegracoesCertidoes() {
     onSuccess: (r) => { qc.setQueryData(["integracoes", "infosimples"], r); toast({ title: "Token removido" }); },
     onError: falhar("Não foi possível remover"),
   });
+  const bx = useQuery({ queryKey: ["integracoes", "receitanetbx"], queryFn: () => api.get("/integracoes/receitanetbx"), refetchInterval: 60_000 });
   const i = info.data;
   const campo = "h-8 min-w-[260px] flex-1 rounded-md border border-input bg-background px-2 text-sm";
   const botao = "inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60";
@@ -46,6 +47,14 @@ export default function IntegracoesCertidoes() {
         </form>
       </div>
 
+      <div className="space-y-2 border-t border-border pt-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <FileSearch className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <h3 className="text-sm font-medium">SPED transmitido (EFD-Contribuições e EFD ICMS/IPI): ReceitanetBX</h3>
+          <span className={`rounded-full px-2 py-0.5 text-xs ${bx.data?.configurado ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : bx.data?.disponivel ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>{bx.isLoading ? "Verificando…" : bx.data?.configurado ? "Configurado" : bx.data?.disponivel ? "Aguardando o certificado" : "Fora do ar"}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">{bx.data?.mensagem} O InTAX usa o ReceitanetBX-Serviço, programa oficial da Receita, que roda no servidor com o certificado do escritório (procurador dos clientes) para saber o que foi transmitido e baixar o arquivo com o recibo. A senha do certificado é digitada só uma vez, na tela do próprio programa, aberta por túnel SSH.</p>
+      </div>
     </section>
   );
 }

@@ -1,0 +1,3 @@
+receitanetbx/*.sh text eol=lf
+receitanetbx/*.properties text eol=lf
+receitanetbx/*.modelo text eol=lf

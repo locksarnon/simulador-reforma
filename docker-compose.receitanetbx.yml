@@ -1,0 +1,22 @@
+# ReceitanetBX-Serviço (Receita Federal) ao lado do backend, só no servidor. Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml -f docker-compose.receitanetbx.yml --env-file .env up -d --build --no-deps receitanetbx
+# Configuração inicial (uma vez): túnel SSH para a porta 6080 do servidor e abrir http://localhost:6080/vnc.html
+# O certificado do escritório entra só como leitura; a senha é digitada pelo usuário na tela oficial do programa.
+services:
+  receitanetbx:
+    build: ./receitanetbx
+    container_name: reforma-receitanetbx
+    hostname: receitanetbx
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6080:6080"
+    volumes:
+      - receitanetbx_programa:/opt/bx
+      - receitanetbx_dados:/dados
+      - ${RECEITANETBX_CERTIFICADO:-/etc/intax/segredos/serpro.pfx}:/certificado/escritorio.pfx:ro
+    mem_limit: 1g
+
+
+volumes:
+  receitanetbx_programa:
+  receitanetbx_dados:
