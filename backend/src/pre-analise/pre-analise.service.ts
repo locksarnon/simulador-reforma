@@ -11,6 +11,8 @@ import { interpretarCertidao, textoDoPdf, TipoCertidao } from './leitor-certidoe
 import { ChaveProcesso, DEFINICAO, Processo, PROCESSOS, processoInicial, ROTULO_STATUS, situacaoGeral } from './processos';
 import { ConsultaCccHttp, ResultadoCcc } from './ccc.http';
 import { SerproCertidoes } from './serpro-certidoes';
+import { InfosimplesService, ResultadoCertidao } from '../infosimples/infosimples.service';
+import { DividaAtivaService } from '../divida-ativa/divida-ativa.service';
 
 type Usuario = { email?: string; role?: string } | undefined;
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
@@ -38,6 +40,8 @@ export class PreAnaliseService {
     private readonly ccc: ConsultaCccHttp,
     private readonly serpro: SerproCertidoes,
     private readonly certificados: CertificadosService,
+    private readonly infosimples: InfosimplesService,
+    private readonly dividaAtiva: DividaAtivaService,
   ) {}
 
   listar(cnpj?: string) {
@@ -175,17 +179,44 @@ export class PreAnaliseService {
         if (r.pdf) { const key = `pre-analise/${id}/pgfn.pdf`; await this.storage.guardar(key, r.pdf, 'application/pdf'); arquivo = { key, nome: `Certidão federal ${fmtCnpj(cnpj)}.pdf` }; }
         return { status: r.status, resumo: r.resumo, detalhes: r.detalhes, demonstracao: r.demonstracao, arquivo };
       });
-      await passo('TRABALHISTA', async () => this.aguardando('TRABALHISTA'));
-      await passo('FGTS', async () => this.aguardando('FGTS'));
+      await passo('TRABALHISTA', async () => this.daInfosimples(id, 'TRABALHISTA', cnpj, await this.infosimples.cndt(cnpj)));
+      await passo('FGTS', async () => this.daInfosimples(id, 'FGTS', cnpj, await this.infosimples.crf(cnpj)));
       await passo('DIVIDA_ATIVA', async () => {
         const r = await this.serpro.dividaAtiva(cnpj, modo);
-        if (!r) return this.aguardando('DIVIDA_ATIVA');
-        return { status: r.status, resumo: r.resumo, detalhes: r.detalhes, demonstracao: r.demonstracao };
+        if (r) return { status: r.status, resumo: r.resumo, detalhes: r.detalhes, demonstracao: r.demonstracao };
+        return this.daBaseAberta(cnpj);
       });
       await this.prisma.preAnalise.update({ where: { id }, data: { concluida_em: new Date() } });
     } finally {
       this.emAndamento.delete(id);
     }
+  }
+
+  /** CNDT ou CRF pela Infosimples (null = não configurada: fica aguardando o PDF). */
+  private async daInfosimples(id: string, chave: 'TRABALHISTA' | 'FGTS', cnpj: string, r: ResultadoCertidao | null): Promise<Partial<Processo>> {
+    if (!r) return this.aguardando(chave);
+    let arquivo: Processo['arquivo'] = null;
+    if (r.comprovante) {
+      const key = `pre-analise/${id}/${chave.toLowerCase()}.${r.comprovante.extensao}`;
+      await this.storage.guardar(key, r.comprovante.buffer, r.comprovante.tipo);
+      arquivo = { key, nome: `${DEFINICAO.get(chave)!.rotulo} ${fmtCnpj(cnpj)}.${r.comprovante.extensao}` };
+    }
+    return { status: r.status, resumo: r.resumo, detalhes: [...r.detalhes, { rotulo: 'Emitida por', valor: 'Infosimples, no portal oficial' }], arquivo };
+  }
+
+  /** Dívida Ativa pela base aberta da PGFN (fim do trimestre publicado), por raiz do CNPJ. */
+  private async daBaseAberta(cnpj: string): Promise<Partial<Processo>> {
+    const r = await this.dividaAtiva.consultar(cnpj);
+    if (!r) return this.aguardando('DIVIDA_ATIVA');
+    const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const tri = r.trimestre.replace(/^(\d{4})_trimestre_0?(\d)$/, '$2º trimestre de $1');
+    const fonte = { rotulo: 'Fonte', valor: `Base aberta da PGFN, posição do ${tri}` };
+    if (!r.inscricoes.length) return { status: 'CONCLUIDO', resumo: `Nenhuma inscrição em Dívida Ativa da União para a raiz do CNPJ (base da PGFN do ${tri}).`, detalhes: [fonte] };
+    return {
+      status: 'DEBITOS',
+      resumo: `${r.inscricoes.length} inscrição(ões) em Dívida Ativa da União, total de ${brl(r.total)}${r.ajuizadas ? `, ${r.ajuizadas} ajuizada(s)` : ''} (base da PGFN do ${tri}).`,
+      detalhes: [fonte, ...r.inscricoes.slice(0, 200).map((x) => ({ rotulo: `${x.numero} (${x.origem})`, valor: `${brl(x.valor)} · ${x.receita} · ${x.situacao}${x.ajuizado ? ' · ajuizada' : ''} · inscrita em ${x.data}${x.cnpj !== cnpj ? ` · CNPJ ${fmtCnpj(x.cnpj)}` : ''}${x.tipo_devedor && x.tipo_devedor !== 'Principal' ? ` · ${x.tipo_devedor}` : ''}` }))],
+    };
   }
 
   private aguardando(chave: ChaveProcesso): Partial<Processo> {
@@ -260,7 +291,7 @@ export class PreAnaliseService {
     const p = await this.obter(id);
     const x = p.processos.find((y) => y.chave === chave);
     if (!x?.arquivo) throw new NotFoundException('Esta consulta não tem arquivo.');
-    return { nome: x.arquivo.nome, buffer: await this.storage.getObjectBuffer(x.arquivo.key) };
+    return { nome: x.arquivo.nome, tipo: /\.html$/i.test(x.arquivo.nome) ? 'text/html; charset=utf-8' : 'application/pdf', buffer: await this.storage.getObjectBuffer(x.arquivo.key) };
   }
 
   async excluir(id: string, usuario: Usuario) {

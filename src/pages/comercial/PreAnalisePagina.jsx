@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Ban, CheckCircle2, Clock, Download, ExternalLink, Eye, FileText, Loader2, Paperclip, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, Clock, Download, ExternalLink, Eye, FileText, Info, Loader2, Paperclip, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
+import TabelaPadrao from "@/components/TabelaPadrao";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import { toast } from "@/components/ui/use-toast";
@@ -68,7 +70,14 @@ export function cnaeDaPreAnalise(p) {
   return l ? digitos(String(l.valor).split(" ")[0]) : "";
 }
 
-function CartaoProcesso({ p, def, preAnaliseId, onAnexado }) {
+/** Validade da certidão, quando a consulta traz (lida do PDF, da API ou da Infosimples). */
+export function validadeDoProcesso(p) {
+  const l = (p.detalhes || []).find((d) => /^(validade|válido até)$/i.test(d.rotulo));
+  return l?.valor || "";
+}
+
+/** Ações da linha: detalhes, ver e baixar o documento, portal oficial e anexo do PDF. */
+function AcoesProcesso({ p, def, preAnaliseId, onAnexado, onDetalhes }) {
   const input = useRef(null);
   const url = `/pre-analises/${preAnaliseId}/arquivos/${p.chave}`;
   const falhar = (e) => toast({ title: "Não foi possível abrir", description: e.message, variant: "destructive" });
@@ -77,43 +86,28 @@ function CartaoProcesso({ p, def, preAnaliseId, onAnexado }) {
     onSuccess: (r) => { onAnexado(r); toast({ title: "Certidão anexada", description: r.processos.find((x) => x.chave === p.chave)?.resumo }); },
     onError: (e) => toast({ title: "Não foi possível anexar", description: e.message, variant: "destructive" }),
   });
-  const detalhes = p.detalhes.filter((d) => d.rotulo !== "Portal oficial");
-  const atencao = p.status === "IRREGULAR" || p.status === "DEBITOS";
-  const mostrarPortal = def.portal && p.status !== "PROCESSANDO" && (p.status === "MANUAL" || p.status === "INDISPONIVEL" || def.aceitaCertidao);
+  const temDetalhes = p.detalhes.some((d) => d.rotulo !== "Portal oficial");
+  const mostrarPortal = def.portal && p.status !== "PROCESSANDO" && (p.status === "MANUAL" || p.status === "INDISPONIVEL");
+  const botao = "inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60";
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-card p-4" aria-label={def.rotulo}>
-      <div className="flex items-start gap-2">
-        <h3 className="flex-1 font-heading text-sm font-semibold">{def.rotulo}</h3>
-        <SeloStatus status={p.status} />
-      </div>
-      <p className="mt-2 text-sm">{p.resumo}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{def.fonte}{p.consultado_em ? ` · ${quando(p.consultado_em)}` : ""}{p.demonstracao ? " · demonstração (dados fictícios)" : ""}</p>
-      {detalhes.length > 0 && (
-        <details className="mt-2 text-xs" open={atencao}>
-          <summary className="cursor-pointer text-primary">Detalhes</summary>
-          <dl className="mt-1.5 space-y-0.5">
-            {detalhes.map((d, i) => <div key={i} className="flex gap-2"><dt className="w-36 shrink-0 text-muted-foreground">{d.rotulo}</dt><dd className="min-w-0 break-words">{d.valor}</dd></div>)}
-          </dl>
-        </details>
+    <div className="flex flex-nowrap items-center gap-1">
+      {temDetalhes && <button type="button" onClick={onDetalhes} className={botao}><Info className="h-3.5 w-3.5" aria-hidden="true" />Detalhes</button>}
+      {p.arquivo && (
+        <>
+          <button type="button" onClick={() => api.visualizar("GET", `${url}?ver=1`).catch(falhar)} className={botao} aria-label={`Ver ${p.arquivo.nome}`}><Eye className="h-3.5 w-3.5" aria-hidden="true" />Ver</button>
+          <button type="button" onClick={() => api.baixar("GET", url, { nome: p.arquivo.nome }).catch(falhar)} className={botao} aria-label={`Baixar ${p.arquivo.nome}`}><Download className="h-3.5 w-3.5" aria-hidden="true" />Baixar</button>
+        </>
       )}
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
-        {p.arquivo && (
-          <>
-            <button type="button" onClick={() => api.visualizar("GET", `${url}?ver=1`).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Eye className="h-3.5 w-3.5" aria-hidden="true" />Ver</button>
-            <button type="button" onClick={() => api.baixar("GET", url, { nome: p.arquivo.nome }).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" />Baixar</button>
-          </>
-        )}
-        {mostrarPortal && <a href={def.portal} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Portal oficial</a>}
-        {def.aceitaCertidao && p.status !== "PROCESSANDO" && (
-          <>
-            <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-label={`Anexar PDF: ${def.rotulo}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) anexar.mutate(f); }} />
-            <button type="button" disabled={anexar.isPending} onClick={() => input.current?.click()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-60">
-              {anexar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />}{p.arquivo?.enviado_por ? "Trocar certidão" : "Anexar certidão (PDF)"}
-            </button>
-          </>
-        )}
-      </div>
-    </article>
+      {mostrarPortal && <a href={def.portal} target="_blank" rel="noreferrer" className={botao}><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Portal</a>}
+      {def.aceitaCertidao && p.status !== "PROCESSANDO" && !(p.arquivo && !p.arquivo.enviado_por) && (
+        <>
+          <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-label={`Anexar PDF: ${def.rotulo}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) anexar.mutate(f); }} />
+          <button type="button" disabled={anexar.isPending} onClick={() => input.current?.click()} className={botao} title="Anexar o PDF emitido no portal oficial">
+            {anexar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />}{p.arquivo?.enviado_por ? "Trocar" : "Anexar"}
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -138,6 +132,16 @@ export default function PreAnalisePagina() {
   const cnae = cnaeDaPreAnalise(p);
   const leitura = cnae ? leituraDoCnae(cnae) : null;
   const processando = p?.geral?.status === "PROCESSANDO";
+  const [detalhe, setDetalhe] = useState(null);
+  const aberto = detalhe ? p?.processos?.find((x) => x.chave === detalhe) : null;
+  const colunas = [
+    { chave: "consulta", rotulo: "Consulta", valor: (x) => definicoes.get(x.chave)?.rotulo || x.chave, render: (x) => <span className="font-medium">{definicoes.get(x.chave)?.rotulo}</span>, quebrar: false },
+    { chave: "status", rotulo: "Status", valor: (x) => STATUS[x.status]?.rotulo || x.status, render: (x) => <SeloStatus status={x.status} />, quebrar: false },
+    { chave: "resumo", rotulo: "Resultado", valor: (x) => x.resumo + (x.demonstracao ? " (demonstração)" : "") },
+    { chave: "validade", rotulo: "Validade", valor: (x) => validadeDoProcesso(x), tipo: "data", quebrar: false },
+    { chave: "consultado_em", rotulo: "Consultado em", valor: (x) => quando(x.consultado_em), tipo: "data", quebrar: false },
+    { chave: "fonte", rotulo: "Fonte", valor: (x) => definicoes.get(x.chave)?.fonte || "" },
+  ];
 
   useEffect(() => { if (p && !processando) qc.invalidateQueries({ queryKey: ["pre-analises"], exact: true }); }, [p?.id, processando]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -182,9 +186,6 @@ export default function PreAnalisePagina() {
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="status" aria-live="polite"><SeloStatus status={p.geral.status} /><span>{p.geral.texto}</span></div>
-                <ol className="mt-3 flex flex-wrap gap-1.5" aria-label="Andamento das consultas">
-                  {p.processos.map((x) => <li key={x.chave} className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs"><span aria-hidden="true" className={`h-2 w-2 rounded-full ${(STATUS[x.status] ?? STATUS.INDISPONIVEL).ponto}`} /><span>{definicoes.get(x.chave)?.rotulo}</span><span className="sr-only">: {STATUS[x.status]?.rotulo}</span></li>)}
-                </ol>
                 {jaCliente ? (
                   <p className="mt-3 text-xs">Já é cliente: <Link className="text-primary hover:underline" to={`/clientes/${jaCliente.id}`}>{jaCliente.razao_social}</Link>.</p>
                 ) : (
@@ -192,9 +193,22 @@ export default function PreAnalisePagina() {
                 )}
               </section>
 
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {p.processos.map((x) => definicoes.get(x.chave) && <CartaoProcesso key={x.chave} p={x} def={definicoes.get(x.chave)} preAnaliseId={p.id} onAnexado={(r) => qc.setQueryData(["pre-analises", p.id], r)} />)}
-              </div>
+              <TabelaPadrao id="pre-analise:consultas" ariaLabel="Consultas da pré-análise" colunas={colunas} linhas={p.processos.filter((x) => definicoes.get(x.chave))} chaveLinha={(l) => l.chave} tamanhoInicial={10}
+                documentos={(x) => <AcoesProcesso p={x} def={definicoes.get(x.chave)} preAnaliseId={p.id} onAnexado={(r) => qc.setQueryData(["pre-analises", p.id], r)} onDetalhes={() => setDetalhe(x.chave)} />} />
+              {aberto && (
+                <Dialog open onOpenChange={(v) => !v && setDetalhe(null)}>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">{definicoes.get(aberto.chave)?.rotulo} <SeloStatus status={aberto.status} /></DialogTitle>
+                      <DialogDescription>{aberto.resumo}</DialogDescription>
+                    </DialogHeader>
+                    <dl className="max-h-[60vh] overflow-y-auto text-sm">
+                      {aberto.detalhes.filter((d) => d.rotulo !== "Portal oficial").map((d, i) => <div key={i} className="grid grid-cols-[minmax(0,12rem)_1fr] gap-3 border-b border-border/50 py-1 last:border-0"><dt className="break-words text-muted-foreground">{d.rotulo}</dt><dd className="min-w-0 break-words">{d.valor}</dd></div>)}
+                    </dl>
+                    <p className="text-xs text-muted-foreground">{definicoes.get(aberto.chave)?.fonte}{aberto.consultado_em ? ` · ${quando(aberto.consultado_em)}` : ""}</p>
+                  </DialogContent>
+                </Dialog>
+              )}
 
               {leitura && (
                 <section className="rounded-xl border border-border bg-card p-4 space-y-2" aria-label="Leitura para a Reforma">
@@ -207,7 +221,7 @@ export default function PreAnalisePagina() {
             </>
           )}
 
-          {!id && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Digite o CNPJ e inicie. O InTAX roda as sete consultas e mostra o status de cada uma; as certidões que só saem pelo portal oficial ficam para você anexar o PDF, e o InTAX lê a situação e a validade.</p>}
+          {!id && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Digite o CNPJ e inicie. O InTAX roda as sete consultas e mostra o status de cada uma; as certidões vêm com situação, validade e o documento oficial.</p>}
         </div>
 
         <aside className="space-y-2" aria-label="Pré-análises feitas">

@@ -23,7 +23,7 @@ describe('certidão estadual e municipal (leitura genérica)', () => {
 });
 
 describe('certidões do cliente', () => {
-  function montar(o: { modo?: string; cnd?: unknown; chaves?: boolean } = {}) {
+  function montar(o: { modo?: string; cnd?: unknown; chaves?: boolean; cndt?: unknown } = {}) {
     const tipos = ['CND federal (Receita e PGFN)', 'CND estadual', 'CND municipal', 'CNDT (débitos trabalhistas)', 'CRF do FGTS'].map((nome, i) => ({ id: `T${i}`, nome, alerta_dias: 15 }));
     const docs: Record<string, unknown>[] = [];
     const arquivos: Record<string, unknown>[] = [];
@@ -37,7 +37,7 @@ describe('certidões do cliente', () => {
     const storage = { guardar: async (k: string) => { guardados.push(k); } };
     const serpro = { certidaoFederal: vi.fn(async () => o.cnd ?? null), disponivelEmProducao: async () => !!o.chaves };
     const monitoramento = { modo: async () => o.modo ?? 'PRODUCAO' };
-    return { s: new CertidoesService(prisma as never, storage as never, serpro as never, monitoramento as never), docs, arquivos, guardados, serpro };
+    return { s: new CertidoesService(prisma as never, storage as never, serpro as never, monitoramento as never, { estado: async () => ({ configurado: !!o.cndt }), cndt: async () => o.cndt ?? null, crf: async () => null } as never), docs, arquivos, guardados, serpro };
   }
 
   it('anexa a CNDT: lê o PDF, guarda na pasta Certidões com validade e a lista mostra a atual com o arquivo', async () => {
@@ -74,5 +74,16 @@ describe('certidões do cliente', () => {
     expect(t.serpro.certidaoFederal).toHaveBeenCalledWith('58509112000152', 'PRODUCAO');
     expect(t.docs[0]).toMatchObject({ tipo_id: 'T0', numero: 'ABCD1234' });
     expect((await t.s.listar('E1')).emissao_automatica_federal).toBe(true);
+  });
+  it('emite a CNDT pela Infosimples e guarda com validade e origem; sem Infosimples pede o token', async () => {
+    const semToken = montar();
+    await expect(semToken.s.emitir('E1', 'TRABALHISTA', { email: 'qa@fal' })).rejects.toThrow(/Infosimples não está configurada/);
+    await expect(semToken.s.emitir('E1', 'ESTADUAL', { email: 'qa@fal' })).rejects.toThrow(/não tem emissão automática/);
+    const t = montar({ cndt: { status: 'CONCLUIDO', situacao: 'Certidão Negativa de Débitos Trabalhistas', resumo: 'ok', emissao: '12/11/2026', validade: '11/05/2027', numero: 'C-1', detalhes: [], comprovante: { buffer: Buffer.from('%PDF-'), tipo: 'application/pdf', extensao: 'pdf' } } });
+    expect((await t.s.emitir('E1', 'TRABALHISTA', { email: 'qa@fal' })).emitida).toBe(true);
+    expect(t.docs[0]).toMatchObject({ tipo_id: 'T3', numero: 'C-1' });
+    const l = await t.s.listar('E1');
+    expect(l.emissao_automatica).toMatchObject({ TRABALHISTA: true, FGTS: true });
+    expect(l.certidoes.find((c) => c.tipo === 'TRABALHISTA')!.historico[0].origem).toBe('Portal oficial, pela Infosimples');
   });
 });

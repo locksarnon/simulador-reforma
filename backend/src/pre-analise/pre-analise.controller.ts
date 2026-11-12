@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PreAnaliseService } from './pre-analise.service';
 import { CertidoesService } from './certidoes.service';
+import { InfosimplesService } from '../infosimples/infosimples.service';
+import { DividaAtivaService } from '../divida-ativa/divida-ativa.service';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 
@@ -41,7 +43,7 @@ export class PreAnaliseController {
   @Get(':id/arquivos/:chave')
   async arquivo(@Param('id') id: string, @Param('chave') chave: string, @Query('ver') ver?: string) {
     const a = await this.s.arquivo(id, chave);
-    return new StreamableFile(a.buffer, { type: 'application/pdf', disposition: disposicao(a.nome, ver === '1') });
+    return new StreamableFile(a.buffer, { type: a.tipo, disposition: disposicao(a.nome, ver === '1') });
   }
 
   @Get(':id/relatorio')
@@ -66,14 +68,45 @@ export class CertidoesController {
     return this.s.listar(id);
   }
 
-  @Post('empresas/:id/FEDERAL/emitir')
-  emitir(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.s.emitirFederal(id, user);
+  @Post('empresas/:id/:tipo/emitir')
+  emitir(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('tipo') tipo: string) {
+    return this.s.emitir(id, tipo, user);
   }
 
   @Post('empresas/:id/:tipo/anexar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: 10 * 1024 * 1024, files: 1 } }))
   anexar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('tipo') tipo: string, @UploadedFile() arquivo: { buffer: Buffer } | undefined, @Body() body: { validade?: string }) {
     return this.s.anexar(id, tipo, arquivo?.buffer, body?.validade || undefined, user);
+  }
+}
+
+/** Administração > Integrações: token da Infosimples (CNDT e CRF) e base aberta da Dívida Ativa da PGFN. */
+@Controller('integracoes')
+export class IntegracoesExternasController {
+  constructor(private readonly infosimples: InfosimplesService, private readonly divida: DividaAtivaService) {}
+
+  @Get('infosimples')
+  infosimplesEstado() {
+    return this.infosimples.estado();
+  }
+
+  @Put('infosimples')
+  infosimplesSalvar(@CurrentUser() user: AuthUser, @Body() body: { token?: string }) {
+    return this.infosimples.salvar(body?.token, user);
+  }
+
+  @Delete('infosimples')
+  infosimplesRemover(@CurrentUser() user: AuthUser) {
+    return this.infosimples.remover(user);
+  }
+
+  @Get('divida-ativa')
+  dividaEstado() {
+    return this.divida.estado();
+  }
+
+  @Post('divida-ativa/atualizar')
+  dividaAtualizar(@CurrentUser() user: AuthUser) {
+    return this.divida.atualizarAgora(user);
   }
 }

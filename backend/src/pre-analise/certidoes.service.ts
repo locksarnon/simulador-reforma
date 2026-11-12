@@ -8,6 +8,7 @@ import { hojeEmBrasilia, utcDe } from '../tarefas/tarefas.regras';
 import { situacaoDoDocumento } from '../documentos/documentos.service';
 import { interpretarCertidao, interpretarCertidaoGenerica, LeituraCertidao, textoDoPdf } from './leitor-certidoes';
 import { SerproCertidoes } from './serpro-certidoes';
+import { InfosimplesService, ResultadoCertidao } from '../infosimples/infosimples.service';
 
 type Usuario = { email?: string; id?: string } | undefined;
 export type TipoCertidaoCliente = 'FEDERAL' | 'ESTADUAL' | 'MUNICIPAL' | 'TRABALHISTA' | 'FGTS';
@@ -17,8 +18,8 @@ export const CERTIDOES: { tipo: TipoCertidaoCliente; rotulo: string; tipoDocumen
   { tipo: 'FEDERAL', rotulo: 'CND federal (Receita e PGFN)', tipoDocumento: 'CND federal (Receita e PGFN)', portal: 'https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj', como: 'Emitida pela API Consulta CND do Serpro quando contratada (Administração > Integrações); senão, emita no portal e anexe o PDF.' },
   { tipo: 'ESTADUAL', rotulo: 'CND estadual', tipoDocumento: 'CND estadual', portal: null, como: 'Emitida no portal da Secretaria da Fazenda do estado do cliente, que exige verificação humana: anexe o PDF.' },
   { tipo: 'MUNICIPAL', rotulo: 'CND municipal', tipoDocumento: 'CND municipal', portal: null, como: 'Emitida no portal da prefeitura do cliente (cada município tem o seu): anexe o PDF.' },
-  { tipo: 'TRABALHISTA', rotulo: 'CNDT (débitos trabalhistas)', tipoDocumento: 'CNDT (débitos trabalhistas)', portal: 'https://cndt-certidao.tst.jus.br/inicio.faces', como: 'O portal do TST exige verificação humana e não tem API: emita e anexe o PDF.' },
-  { tipo: 'FGTS', rotulo: 'CRF do FGTS', tipoDocumento: 'CRF do FGTS', portal: 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf', como: 'O portal da Caixa não tem API: emita e anexe o PDF.' },
+  { tipo: 'TRABALHISTA', rotulo: 'CNDT (débitos trabalhistas)', tipoDocumento: 'CNDT (débitos trabalhistas)', portal: 'https://cndt-certidao.tst.jus.br/inicio.faces', como: 'Emitida pela Infosimples quando configurada (Administração > Integrações); senão, emita no portal do TST e anexe o PDF.' },
+  { tipo: 'FGTS', rotulo: 'CRF do FGTS', tipoDocumento: 'CRF do FGTS', portal: 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf', como: 'Emitido pela Infosimples quando configurada (Administração > Integrações); senão, emita no portal da Caixa e anexe o PDF.' },
 ];
 const DEF = new Map(CERTIDOES.map((c) => [c.tipo, c]));
 const PASTA = 'Certidões';
@@ -40,6 +41,7 @@ export class CertidoesService {
     private readonly storage: StorageService,
     private readonly serpro: SerproCertidoes,
     private readonly monitoramento: MonitoramentoService,
+    private readonly infosimples: InfosimplesService,
   ) {}
 
   private async empresa(id: string) {
@@ -63,9 +65,11 @@ export class CertidoesService {
     const hoje = utcDe(hojeEmBrasilia());
     const modo = await this.monitoramento.modo();
     const cndApi = modo === 'PRODUCAO' && !!(await this.serpro.disponivelEmProducao('cnd'));
+    const infosimples = (await this.infosimples.estado()).configurado;
     return {
       empresa: { id: e.id, razao_social: e.razao_social, cnpj: so(e.cnpj_cpf), uf: e.uf ?? null, municipio: e.municipio ?? null },
       emissao_automatica_federal: cndApi,
+      emissao_automatica: { FEDERAL: cndApi, TRABALHISTA: infosimples, FGTS: infosimples },
       modo,
       certidoes: CERTIDOES.map((c) => {
         const t = tipos.get(c.tipoDocumento);
@@ -86,7 +90,7 @@ export class CertidoesService {
             return {
               id: d.id, emissao: d.emissao, validade: d.validade, numero: d.numero, descricao: d.descricao, criado_por: d.criado_por, createdAt: d.createdAt,
               situacao: situacaoDoDocumento(d.validade, t?.alerta_dias ?? 15, hoje),
-              origem: /(API Consulta CND)/.test(d.descricao ?? '') ? 'API Consulta CND (Serpro)' : 'PDF do portal oficial',
+              origem: /(API Consulta CND)/.test(d.descricao ?? '') ? 'API Consulta CND (Serpro)' : /(Infosimples)/.test(d.descricao ?? '') ? 'Portal oficial, pela Infosimples' : 'PDF do portal oficial',
               arquivo: x ? { id: x.id, nome: x.nome } : null,
             };
           }),
@@ -96,13 +100,13 @@ export class CertidoesService {
   }
 
   /** Guarda o PDF na pasta Certidões do cliente e cria o documento com validade (o sino avisa antes de vencer). */
-  private async guardar(empresaId: string, tipo: TipoCertidaoCliente, pdf: Buffer, nome: string, l: { emissao: string | null; validade: string | null; numero: string | null; situacao: string }, usuario: Usuario) {
+  private async guardar(empresaId: string, tipo: TipoCertidaoCliente, pdf: Buffer, nome: string, l: { emissao: string | null; validade: string | null; numero: string | null; situacao: string }, usuario: Usuario, mime = 'application/pdf') {
     const tipos = await this.tiposPorNome();
     const t = tipos.get(DEF.get(tipo)!.tipoDocumento);
     const chave = `arquivos/empresa/${empresaId}/${randomUUID()}-${nome}`;
-    await this.storage.guardar(chave, pdf, 'application/pdf');
+    await this.storage.guardar(chave, pdf, mime);
     const quem = usuario?.email ?? usuario?.id ?? 'InTAX';
-    const arquivo = await this.prisma.arquivoEmpresa.create({ data: { empresa_id: empresaId, pasta: PASTA, nome, tamanho: pdf.length, tipo_mime: 'application/pdf', storage_key: chave, enviado_por: quem } });
+    const arquivo = await this.prisma.arquivoEmpresa.create({ data: { empresa_id: empresaId, pasta: PASTA, nome, tamanho: pdf.length, tipo_mime: mime, storage_key: chave, enviado_por: quem } });
     return this.prisma.documentoEmpresa.create({
       data: {
         empresa_id: empresaId, tipo_id: t?.id ?? null, descricao: `${DEF.get(tipo)!.rotulo}: ${l.situacao}`.slice(0, 300), numero: l.numero?.slice(0, 80) ?? null,
@@ -144,18 +148,40 @@ export class CertidoesService {
   @Cron('45 6 * * *', { timeZone: 'America/Sao_Paulo' })
   async rotinaFederal(agora = new Date()) {
     if (String(process.env.MONITORAMENTO_AGENDADOR ?? '').toLowerCase() === 'off') return { emitidas: 0, motivo: 'desligado no servidor' };
-    if ((await this.monitoramento.modo()) !== 'PRODUCAO' || !(await this.serpro.disponivelEmProducao('cnd'))) return { emitidas: 0, motivo: 'sem a API Consulta CND em produção' };
+    const fontes: TipoCertidaoCliente[] = [];
+    if ((await this.monitoramento.modo()) === 'PRODUCAO' && (await this.serpro.disponivelEmProducao('cnd'))) fontes.push('FEDERAL');
+    if (process.env.NODE_ENV === 'production' && (await this.infosimples.estado()).configurado) fontes.push('TRABALHISTA', 'FGTS');
+    if (!fontes.length) return { emitidas: 0, motivo: 'sem fonte automática configurada' };
     const bpo = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: 'ATIVO' }, select: { empresa_id: true } });
     const tipos = await this.tiposPorNome();
-    const federal = tipos.get(DEF.get('FEDERAL')!.tipoDocumento);
-    const limite = new Date(agora.getTime() + 15 * 86_400_000);
+    // O CRF do FGTS vale 30 dias: renova com 5 dias de folga; as outras com 15.
+    const folga = (t: TipoCertidaoCliente) => (t === 'FGTS' ? 5 : 15);
     let emitidas = 0;
     for (const empresaId of [...new Set(bpo.map((b) => b.empresa_id))]) {
-      const vigente = federal ? await this.prisma.documentoEmpresa.findFirst({ where: { empresa_id: empresaId, tipo_id: federal.id, validade: { gt: limite } } }) : null;
-      if (vigente) continue;
-      try { if ((await this.emitirFederal(empresaId, { email: 'rotina diária' })).emitida) emitidas++; } catch (e) { this.log.warn(`CND federal de ${empresaId}: ${(e as Error).message}`); }
+      for (const tipo of fontes) {
+        const t = tipos.get(DEF.get(tipo)!.tipoDocumento);
+        const limite = new Date(agora.getTime() + folga(tipo) * 86_400_000);
+        const vigente = t ? await this.prisma.documentoEmpresa.findFirst({ where: { empresa_id: empresaId, tipo_id: t.id, validade: { gt: limite } } }) : null;
+        if (vigente) continue;
+        try { if ((await this.emitir(empresaId, tipo, { email: 'rotina diária' })).emitida) emitidas++; } catch (e) { this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`); }
+      }
     }
     return { emitidas };
+  }
+
+  /** Emite pela fonte automática do tipo: federal pela API Consulta CND; CNDT e CRF pela Infosimples. */
+  async emitir(empresaId: string, tipo: string, usuario: Usuario) {
+    if (tipo === 'FEDERAL') return this.emitirFederal(empresaId, usuario);
+    if (tipo !== 'TRABALHISTA' && tipo !== 'FGTS') throw new BadRequestException('Esta certidão não tem emissão automática: anexe o PDF do portal.');
+    const e = await this.empresa(empresaId);
+    const cnpj = so(e.cnpj_cpf);
+    if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
+    const r: ResultadoCertidao | null = tipo === 'TRABALHISTA' ? await this.infosimples.cndt(cnpj) : await this.infosimples.crf(cnpj);
+    if (!r) throw new BadRequestException('A Infosimples não está configurada. Informe o token em Administração > Integrações, ou anexe o PDF emitido no portal.');
+    if (r.status === 'INDISPONIVEL' || !r.comprovante) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
+    const def = DEF.get(tipo)!;
+    await this.guardar(empresaId, tipo, r.comprovante.buffer, `${def.rotulo} ${new Date().toISOString().slice(0, 10)}.${r.comprovante.extensao}`, { emissao: r.emissao, validade: r.validade, numero: r.numero, situacao: `${r.situacao} (Infosimples)` }, usuario, r.comprovante.tipo);
+    return { emitida: true, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
   }
 
   /** Emite a CND federal pela API Consulta CND (só em produção, com as chaves do produto) e guarda o PDF. */

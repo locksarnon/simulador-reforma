@@ -49,17 +49,17 @@ function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
     onError: falhar("Não foi possível anexar"),
   });
   const emitir = useMutation({
-    mutationFn: () => api.post(`/certidoes/empresas/${empresaId}/FEDERAL/emitir`, {}),
-    onSuccess: (r) => { aoMudar(); toast({ title: r.emitida ? "CND federal emitida e guardada" : "A certidão não foi emitida", description: r.resumo, variant: r.emitida ? undefined : "destructive" }); },
+    mutationFn: () => api.post(`/certidoes/empresas/${empresaId}/${c.tipo}/emitir`, {}),
+    onSuccess: (r) => { aoMudar(); toast({ title: r.emitida ? `${c.rotulo}: emitida e guardada` : "A certidão não foi emitida", description: r.resumo, variant: r.emitida ? undefined : "destructive" }); },
     onError: falhar("Não foi possível emitir"),
   });
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="mr-auto min-w-[240px] flex-1 text-xs text-muted-foreground">{c.como}</p>
-        {c.tipo === "FEDERAL" && automatica && (
+        {automatica && (
           <button type="button" disabled={emitir.isPending} onClick={() => emitir.mutate()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60">
-            {emitir.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}Emitir agora pela API
+            {emitir.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}Emitir agora
           </button>
         )}
         {c.portal && <a href={c.portal} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Portal oficial</a>}
@@ -99,13 +99,13 @@ export default function CertidoesCliente({ empresaId }) {
         </TabsList>
         {data.certidoes.map((c) => (
           <TabsContent key={c.tipo} value={c.tipo} className="mt-3">
-            <Esfera c={c} empresaId={empresaId} automatica={data.emissao_automatica_federal} aoMudar={aoMudar} sitfis={sitfis} />
+            <Esfera c={c} empresaId={empresaId} automatica={!!(data.emissao_automatica?.[c.tipo] ?? (c.tipo === "FEDERAL" && data.emissao_automatica_federal))} aoMudar={aoMudar} sitfis={sitfis} />
           </TabsContent>
         ))}
       </Tabs>
       <p className="text-xs text-muted-foreground">
         {data.emissao_automatica_federal ? "A CND federal é emitida sozinha pela API Consulta CND do Serpro (toda manhã, quando falta ou vence em 15 dias). " : "A CND federal aparece pelo relatório de situação fiscal; para o PDF da própria certidão sair sozinho, contrate a API Consulta CND e informe as chaves em Administração > Integrações. "}
-        Os portais estaduais, municipais, do TST e da Caixa exigem verificação humana e não oferecem API: essas certidões entram pelo PDF baixado no portal, que o InTAX lê (situação, validade e CNPJ) e guarda em Arquivos e documentos, com aviso antes de vencer.
+        {data.emissao_automatica?.TRABALHISTA ? "A CNDT e o CRF do FGTS saem sozinhos pela Infosimples (toda manhã, quando faltam ou vencem). " : "A CNDT e o CRF do FGTS saem sozinhos quando a Infosimples estiver configurada em Administração > Integrações. "}As certidões estaduais e municipais entram pelo PDF baixado no portal, que o InTAX lê (situação, validade e CNPJ) e guarda em Arquivos e documentos, com aviso antes de vencer.
         {data.empresa.uf ? ` Cliente de ${data.empresa.municipio ? `${data.empresa.municipio}/` : ""}${data.empresa.uf}.` : ""}
       </p>
     </section>

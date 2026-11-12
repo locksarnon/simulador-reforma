@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import PageHeader from "@/components/PageHeader";
 import ListaDePrevistas from "@/components/ListaDePrevistas";
 import ControleSerpro from "@/components/monitoramento/ControleSerpro";
+import IntegracoesCertidoes from "@/components/monitoramento/IntegracoesCertidoes";
 
 export const ESTADOS = {
   ATIVO: { rotulo: "Ligada", icone: CheckCircle2, tom: "text-emerald-700 dark:text-emerald-400" },
@@ -41,6 +42,7 @@ export default function IntegracoesPagina() {
           );
         })}
         <ControleSerpro />
+        <IntegracoesCertidoes />
         <div className="md:col-span-2 xl:col-span-3"><ListaDePrevistas moduloId="integracoes" /></div>
       </div>
     </div>

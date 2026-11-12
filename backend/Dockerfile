@@ -5,7 +5,7 @@ WORKDIR /app
 # openssl é exigido pelo engine do Prisma; build-essential/python3 cobrem
 # qualquer dependência nativa que precise compilar no install.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl python3 build-essential \
+  && apt-get install -y --no-install-recommends openssl python3 build-essential unzip \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
