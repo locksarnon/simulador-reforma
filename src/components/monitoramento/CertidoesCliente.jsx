@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, Eye, FileCheck2, Loader2, Paperclip } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
+import { PdfDoRelatorio, useLeituraSitfis } from "@/components/monitoramento/LeituraSitfis";
 
 const dia = (v) => (v ? new Date(v).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "");
 const SITUACAO = {
@@ -13,7 +14,7 @@ const SITUACAO = {
   SEM_VALIDADE: { rotulo: "Sem validade informada", tom: "bg-muted text-muted-foreground" },
 };
 
-function Cartao({ c, empresaId, automatica, aoMudar }) {
+function Cartao({ c, empresaId, automatica, aoMudar, sitfis }) {
   const input = useRef(null);
   const [validade, setValidade] = useState("");
   const falhar = (t) => (e) => toast({ title: t, description: e.message, variant: "destructive" });
@@ -36,7 +37,16 @@ function Cartao({ c, empresaId, automatica, aoMudar }) {
         <h4 className="flex-1 text-sm font-semibold">{c.rotulo}</h4>
         {s ? <span className={`rounded px-1.5 text-[11px] leading-5 ${s.tom}`}>{s.rotulo}</span> : <span className="rounded bg-muted px-1.5 text-[11px] leading-5 text-muted-foreground">Nenhuma guardada</span>}
       </div>
-      {a ? (
+      {!a && c.tipo === "FEDERAL" && sitfis?.leitura?.certidao ? (
+        <dl className="mt-2 space-y-0.5 text-xs">
+          <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Situação</dt><dd className="font-medium">{sitfis.leitura.certidao.tipo}</dd></div>
+          {sitfis.leitura.certidao.validade && <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Validade</dt><dd className="tabular-nums">{sitfis.leitura.certidao.validade}</dd></div>}
+          {sitfis.leitura.certidao.emissao && <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Emissão</dt><dd className="tabular-nums">{sitfis.leitura.certidao.emissao}</dd></div>}
+          {sitfis.leitura.certidao.codigo && <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Código</dt><dd className="break-all">{sitfis.leitura.certidao.codigo}</dd></div>}
+          <p className="pt-1 text-muted-foreground">Lida do relatório de situação fiscal da Receita e da PGFN.</p>
+          <div className="pt-1"><PdfDoRelatorio dados={sitfis} /></div>
+        </dl>
+      ) : a ? (
         <dl className="mt-2 space-y-0.5 text-xs">
           {a.descricao && <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Situação</dt><dd>{a.descricao.split(": ").slice(1).join(": ") || a.descricao}</dd></div>}
           <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Validade</dt><dd className="tabular-nums">{a.validade ? dia(a.validade) : "não informada"}</dd></div>
@@ -77,13 +87,14 @@ function Cartao({ c, empresaId, automatica, aoMudar }) {
 export default function CertidoesCliente({ empresaId }) {
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({ queryKey: ["certidoes", empresaId], queryFn: () => api.get(`/certidoes/empresas/${empresaId}`) });
+  const sitfis = useLeituraSitfis(empresaId).data;
   const aoMudar = () => { qc.invalidateQueries({ queryKey: ["certidoes", empresaId] }); qc.invalidateQueries({ queryKey: ["documentos"] }); };
   if (isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Carregando as certidões…</p>;
   if (error) return <p role="alert" className="text-sm">Não foi possível carregar as certidões: {error.message}</p>;
   return (
     <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {data.certidoes.map((c) => <Cartao key={c.tipo} c={c} empresaId={empresaId} automatica={data.emissao_automatica_federal} aoMudar={aoMudar} />)}
+        {data.certidoes.map((c) => <Cartao key={c.tipo} c={c} empresaId={empresaId} automatica={data.emissao_automatica_federal} aoMudar={aoMudar} sitfis={sitfis} />)}
       </div>
       <p className="text-xs text-muted-foreground">
         {data.emissao_automatica_federal

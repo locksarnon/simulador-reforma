@@ -34,6 +34,7 @@ const PJ0 = { numero: '00000000000000', tipo: 2 as const };
 const PJ100 = { numero: '00000000000100', tipo: 2 as const };
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
 const PF9 = { numero: '99999999999', tipo: 1 as const };
+const PF0 = { numero: '00000000000', tipo: 1 as const };
 const aaaammdd = (iso: string) => iso.replace(/-/g, '');
 /** Data de pagamento opcional: em branco, a guia sai com a data que o Serpro calcular. */
 const P_PAGAMENTO: Parametro = { nome: 'pagamento', rotulo: 'Data de pagamento (opcional)', tipo: 'data' };
@@ -48,15 +49,15 @@ const P_ANO_ANTERIOR: Parametro = { nome: 'ano', rotulo: 'Ano-calendário', tipo
 const P_PERIODO: Parametro = { nome: 'periodo', rotulo: 'Competência (AAAAMM)', tipo: 'periodo', padrao: mesAnterior, obrigatorio: true };
 
 /** Os 8 parcelamentos do Simples e do MEI têm os mesmos serviços, com códigos diferentes. */
-const PARCELAMENTOS: { sistema: string; nome: string; base: number; para: 'SIMPLES' | 'MEI'; demo: { pedidos: string; parcela: string } }[] = [
-  { sistema: 'PARCSN', nome: 'Parcelamento do Simples', base: 160, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202306 }) } },
-  { sistema: 'PARCSN-ESP', nome: 'Parcelamento especial do Simples', base: 170, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202306 }) } },
-  { sistema: 'PERTSN', nome: 'PERT do Simples', base: 180, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202301 }) } },
-  { sistema: 'RELPSN', nome: 'RELP do Simples', base: 190, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202308 }) } },
-  { sistema: 'PARCMEI', nome: 'Parcelamento do MEI', base: 200, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202107 }) } },
-  { sistema: 'PARCMEI-ESP', nome: 'Parcelamento especial do MEI', base: 210, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202107 }) } },
-  { sistema: 'PERTMEI', nome: 'PERT do MEI', base: 220, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202306 }) } },
-  { sistema: 'RELPMEI', nome: 'RELP do MEI', base: 230, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202304 }) } },
+const PARCELAMENTOS: { sistema: string; nome: string; base: number; para: 'SIMPLES' | 'MEI'; demo: { pedidos: string; parcela: string; numero: number; mes: number; numeroPagamento?: number } }[] = [
+  { sistema: 'PARCSN', nome: 'Parcelamento do Simples', base: 160, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202306 }), numero: 1, mes: 201612 } },
+  { sistema: 'PARCSN-ESP', nome: 'Parcelamento especial do Simples', base: 170, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202306 }), numero: 9001, mes: 201612 } },
+  { sistema: 'PERTSN', nome: 'PERT do Simples', base: 180, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202301 }), numero: 9102, mes: 201806 } },
+  { sistema: 'RELPSN', nome: 'RELP do Simples', base: 190, para: 'SIMPLES', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202308 }), numero: 9131, mes: 201806 } },
+  { sistema: 'PARCMEI', nome: 'Parcelamento do MEI', base: 200, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202107 }), numero: 1, mes: 202107 } },
+  { sistema: 'PARCMEI-ESP', nome: 'Parcelamento especial do MEI', base: 210, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202107 }), numero: 9001, mes: 202111 } },
+  { sistema: 'PERTMEI', nome: 'PERT do MEI', base: 220, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202306 }), numero: 9001, mes: 201907, numeroPagamento: 9101 } },
+  { sistema: 'RELPMEI', nome: 'RELP do MEI', base: 230, para: 'MEI', demo: { pedidos: '', parcela: j({ parcelaParaEmitir: 202304 }), numero: 9131, mes: 202303 } },
 ];
 
 const servicosDeParcelamento: Servico[] = PARCELAMENTOS.flatMap((p) => {
@@ -77,6 +78,19 @@ const servicosDeParcelamento: Servico[] = PARCELAMENTOS.flatMap((p) => {
       endpoint: 'Emitir', alvo: 'PJ', para: p.para, parametros: [{ nome: 'parcela', rotulo: 'Parcela (AAAAMM)', tipo: 'periodo', padrao: (h) => `${h.getFullYear()}${String(h.getMonth() + 1).padStart(2, '0')}`, obrigatorio: true }],
       dados: (x) => j({ parcelaParaEmitir: Number(x.parcela) }), demo: { contribuinte: PJ0, dados: p.demo.parcela },
       descricao: 'O DAS (PDF) da parcela escolhida.',
+    },
+    {
+      chave: `${id}-detalhe`, rotulo: `${p.nome}: detalhe do parcelamento`, grupo: 'parcelamentos', sistema: p.sistema, servico: `OBTERPARC${p.base + 4}`, versao: '1.0',
+      endpoint: 'Consultar', alvo: 'PJ', para: p.para, parametros: [{ nome: 'numero', rotulo: 'Número do parcelamento', tipo: 'numero', obrigatorio: true }],
+      dados: (x) => j({ numeroParcelamento: Number(x.numero) }), demo: { contribuinte: PJ0, dados: j({ numeroParcelamento: p.demo.numero }) },
+      descricao: 'Situação, valores consolidados, parcelas pagas e a pagar de um parcelamento (o número vem em "pedidos e situação").',
+    },
+    {
+      chave: `${id}-pagamento`, rotulo: `${p.nome}: pagamento de uma parcela`, grupo: 'parcelamentos', sistema: p.sistema, servico: `DETPAGTOPARC${p.base + 5}`, versao: '1.0',
+      endpoint: 'Consultar', alvo: 'PJ', para: p.para,
+      parametros: [{ nome: 'numero', rotulo: 'Número do parcelamento', tipo: 'numero', obrigatorio: true }, { nome: 'parcela', rotulo: 'Parcela (AAAAMM)', tipo: 'periodo', obrigatorio: true }],
+      dados: (x) => j({ numeroParcelamento: Number(x.numero), anoMesParcela: Number(x.parcela) }), demo: { contribuinte: PJ0, dados: j({ numeroParcelamento: p.demo.numeroPagamento ?? p.demo.numero, anoMesParcela: p.demo.mes }) },
+      descricao: 'O pagamento de uma parcela: data, valor pago e DAS usado.',
     },
   ] as Servico[];
 });
@@ -131,6 +145,58 @@ export const SERVICOS: Servico[] = [
     chave: 'mit', rotulo: 'MIT: apurações', grupo: 'declaracoes', sistema: 'MIT', servico: 'LISTAAPURACOES317', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'NORMAL',
     parametros: [P_ANO], dados: (p) => j({ anoApuracao: Number(p.ano) }), demo: { contribuinte: PJ0, dados: j({ mesApuracao: 1, anoApuracao: 2025, situacaoApuracao: 3 }) }, rotina: true, obrigacao: 'MIT',
     descricao: 'As apurações do MIT (Módulo de Inclusão de Tributos da DCTFWeb) no ano, com a situação e o valor.',
+  },
+
+  // Consultas e emissões incluídas em 12/11/2026 (catálogo oficial de 15/10/2026; exemplos conferidos no ambiente de demonstração).
+  {
+    chave: 'pgdasd-declaracao', rotulo: 'PGDAS-D: uma declaração com recibo', grupo: 'declaracoes', sistema: 'PGDASD', servico: 'CONSDECREC15', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [{ nome: 'numero', rotulo: 'Número da declaração', tipo: 'texto', obrigatorio: true }], dados: (p) => j({ numeroDeclaracao: p.numero }), demo: { contribuinte: PJ0, dados: j({ numeroDeclaracao: '00000000201801001' }) }, obrigacao: 'PGDASD',
+    descricao: 'A declaração do PGDAS-D e o recibo (PDF) pelo número da declaração (o número vem em "declarações do ano").',
+  },
+  {
+    chave: 'das-processo', rotulo: 'DAS do Simples: débito de processo em cobrança', grupo: 'guias', sistema: 'PGDASD', servico: 'GERARDASPROCESSO18', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [{ nome: 'processo', rotulo: 'Número do processo', tipo: 'texto', obrigatorio: true }], dados: (p) => j({ numeroProcesso: p.processo }), demo: { contribuinte: PJ0, dados: j({ numeroProcesso: '00000000000000000' }) },
+    descricao: 'O DAS (PDF) de um débito do Simples que está em processo de cobrança.',
+  },
+  {
+    chave: 'regime-opcao', rotulo: 'Regime de apuração: opção do ano', grupo: 'situacao', sistema: 'REGIMEAPURACAO', servico: 'CONSULTAROPCAOREGIME103', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [P_ANO], dados: (p) => j({ anoCalendario: Number(p.ano) }), demo: { contribuinte: PJ0, dados: j({ anoCalendario: 2023 }) },
+    descricao: 'A opção pelo regime de caixa ou de competência no ano, com o demonstrativo (PDF).',
+  },
+  {
+    chave: 'regime-resolucao', rotulo: 'Regime de apuração: resolução do regime de caixa', grupo: 'situacao', sistema: 'REGIMEAPURACAO', servico: 'CONSULTARRESOLUCAO104', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [P_ANO], dados: (p) => j({ anoCalendario: Number(p.ano) }), demo: { contribuinte: PJ0, dados: j({ anoCalendario: 2021 }) },
+    descricao: 'O texto da resolução do regime de caixa do ano.',
+  },
+  {
+    chave: 'defis-declaracao', rotulo: 'DEFIS: uma declaração com recibo', grupo: 'declaracoes', sistema: 'DEFIS', servico: 'CONSDECREC144', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [{ nome: 'id', rotulo: 'Número da DEFIS (idDefis)', tipo: 'texto', obrigatorio: true }], dados: (p) => j({ idDefis: p.id }), demo: { contribuinte: PJ0, dados: j({ idDefis: '000000002021002' }) }, obrigacao: 'DEFIS',
+    descricao: 'Uma DEFIS e o recibo (PDF) pelo número (o número vem em "DEFIS: declarações entregues").',
+  },
+  {
+    chave: 'das-mei-codbarra', rotulo: 'DAS do MEI: código de barras', grupo: 'mei', sistema: 'PGMEI', servico: 'GERARDASCODBARRA22', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'MEI',
+    parametros: [P_PERIODO], dados: (p) => j({ periodoApuracao: p.periodo }), demo: { contribuinte: PJ100, dados: j({ periodoApuracao: '201901' }), contratante: PJ100, autor: PJ100 },
+    descricao: 'O código de barras do DAS do MEI da competência, para pagar sem o PDF.',
+  },
+  {
+    chave: 'ccmei-situacao', rotulo: 'CCMEI: situação dos MEI do CPF', grupo: 'mei', sistema: 'CCMEI', servico: 'CCMEISITCADASTRAL123', versao: '1.0', endpoint: 'Consultar', alvo: 'PF',
+    parametros: [], dados: () => '', demo: { contribuinte: PF0, dados: '' }, descricao: 'A situação cadastral de todos os CNPJs de MEI ligados ao CPF.',
+  },
+  {
+    chave: 'dctfweb-xml', rotulo: 'DCTFWeb: XML da declaração', grupo: 'declaracoes', sistema: 'DCTFWEB', servico: 'CONSXMLDECLARACAO38', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'NORMAL',
+    parametros: [P_PERIODO], dados: (p) => j({ categoria: 'GERAL_MENSAL', anoPA: p.periodo.slice(0, 4), mesPA: p.periodo.slice(4, 6) }),
+    demo: { contribuinte: PF0, dados: j({ categoria: 'PF_MENSAL', anoPA: '2022', mesPA: '06' }), contratante: PF0, autor: PF0 }, obrigacao: 'DCTFWEB',
+    descricao: 'O arquivo XML da DCTFWeb da competência, como transmitido.',
+  },
+  {
+    chave: 'mit-apuracao', rotulo: 'MIT: uma apuração', grupo: 'declaracoes', sistema: 'MIT', servico: 'CONSAPURACAO316', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'NORMAL',
+    parametros: [{ nome: 'id', rotulo: 'Número da apuração (idApuracao)', tipo: 'numero', obrigatorio: true }], dados: (p) => j({ idApuracao: Number(p.id) }), demo: { contribuinte: PJ0, dados: j({ idApuracao: 0 }) }, obrigacao: 'MIT',
+    descricao: 'Os débitos e a situação de uma apuração do MIT (o número vem em "MIT: apurações").',
+  },
+  {
+    chave: 'caixa-postal-mensagem', rotulo: 'Caixa postal: ler uma mensagem', grupo: 'mensagens', sistema: 'CAIXAPOSTAL', servico: 'MSGDETALHAMENTO62', versao: '1.0', endpoint: 'Consultar', alvo: 'TODOS',
+    parametros: [{ nome: 'isn', rotulo: 'Número da mensagem (ISN)', tipo: 'texto', obrigatorio: true }], dados: (p) => j({ isn: p.isn }), demo: { contribuinte: PJ0, dados: j({ isn: '0000082838' }) },
+    descricao: 'O texto completo de uma mensagem da caixa postal (o número vem na lista de mensagens).',
   },
   // Guias e pagamentos
   {
@@ -258,11 +324,6 @@ export const OBRIGACOES = [
   { id: 'DEFIS', rotulo: 'DEFIS (Simples)' },
   { id: 'DCTFWEB', rotulo: 'DCTFWeb' },
   { id: 'MIT', rotulo: 'MIT (DCTFWeb)' },
-  // Sem serviço no Integra Contador: entrega registrada à mão (com o recibo) na aba Declarações.
-  { id: 'EFD_ICMS_IPI', rotulo: 'SPED Fiscal (EFD ICMS/IPI)' },
-  { id: 'EFD_CONTRIBUICOES', rotulo: 'SPED Contribuições' },
-  { id: 'DIRBI', rotulo: 'DIRBI' },
-  { id: 'EFD_REINF', rotulo: 'EFD-Reinf' },
 ] as const;
 
 /** Que serviços servem à empresa pelo regime do cadastro (Simples, MEI, normal) e pelo tipo (PJ ou PF). */

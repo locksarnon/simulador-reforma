@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -32,6 +33,8 @@ const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
  */
 @Injectable()
 export class CertidoesService {
+  private readonly log = new Logger(CertidoesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -122,6 +125,27 @@ export class CertidoesService {
     if (l.situacao === 'documento não reconhecido') throw new BadRequestException(l.resumo);
     const doc = await this.guardar(empresaId, def.tipo, pdf, `${def.rotulo} ${new Date().toISOString().slice(0, 10)}.pdf`.replace(/[\\/:*?"<>|]/g, '-'), l, usuario);
     return { leitura: l, documento_id: doc.id, avisos: [!l.confere && texto.trim() ? 'O CNPJ da certidão não é o deste cliente (ou não foi lido). Confira o PDF.' : '', !l.validade ? 'A validade não foi lida: edite o documento em Arquivos e documentos ou anexe de novo informando a data.' : ''].filter(Boolean) };
+  }
+
+  /**
+   * Todo dia às 06:45 (Brasília), em produção e com a API Consulta CND contratada: para cada cliente do BPO fiscal sem CND federal
+   * válida, ou com ela vencendo em até 15 dias, emite e guarda a certidão. Ninguém precisa anexar nada.
+   */
+  @Cron('45 6 * * *', { timeZone: 'America/Sao_Paulo' })
+  async rotinaFederal(agora = new Date()) {
+    if (String(process.env.MONITORAMENTO_AGENDADOR ?? '').toLowerCase() === 'off') return { emitidas: 0, motivo: 'desligado no servidor' };
+    if ((await this.monitoramento.modo()) !== 'PRODUCAO' || !(await this.serpro.disponivelEmProducao('cnd'))) return { emitidas: 0, motivo: 'sem a API Consulta CND em produção' };
+    const bpo = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: 'ATIVO' }, select: { empresa_id: true } });
+    const tipos = await this.tiposPorNome();
+    const federal = tipos.get(DEF.get('FEDERAL')!.tipoDocumento);
+    const limite = new Date(agora.getTime() + 15 * 86_400_000);
+    let emitidas = 0;
+    for (const empresaId of [...new Set(bpo.map((b) => b.empresa_id))]) {
+      const vigente = federal ? await this.prisma.documentoEmpresa.findFirst({ where: { empresa_id: empresaId, tipo_id: federal.id, validade: { gt: limite } } }) : null;
+      if (vigente) continue;
+      try { if ((await this.emitirFederal(empresaId, { email: 'rotina diária' })).emitida) emitidas++; } catch (e) { this.log.warn(`CND federal de ${empresaId}: ${(e as Error).message}`); }
+    }
+    return { emitidas };
   }
 
   /** Emite a CND federal pela API Consulta CND (só em produção, com as chaves do produto) e guarda o PDF. */

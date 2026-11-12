@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Eye, History, Loader2, RefreshCw } from "lucide-react";
+import { Download, Eye, FileSpreadsheet, FileText, History, Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { formatarCelula, NIVEIS, quandoConsultou, SEM_CONSULTA } from "@/lib/monitoramento";
@@ -23,6 +23,20 @@ function TabelaResultado({ tabela }) {
         <tbody>{linhas.map((l, i) => <tr key={i} className="border-t border-border/60">{tabela.colunas.map((c) => <td key={c.chave} className="px-2 py-1 align-top tabular-nums">{formatarCelula(l[c.chave], c.tipo)}</td>)}</tr>)}</tbody>
       </table>
       {tabela.linhas.length > 200 && <p className="px-2 py-1 text-[11px] text-muted-foreground">Mostrando 200 de {tabela.linhas.length}.</p>}
+    </div>
+  );
+}
+
+/** Relatório do InTAX de toda consulta: PDF com o resultado e o detalhe, e Excel com a tabela completa. */
+function Relatorios({ consulta, rotulo }) {
+  if (!consulta?.id) return null;
+  const base = `/monitoramento/consultas/${consulta.id}/relatorio`;
+  const falhar = (e) => toast({ title: "Não foi possível gerar o relatório", description: e.message, variant: "destructive" });
+  const tem = !!consulta.resumo?.tabela?.colunas?.length || consulta.resumo?.titulo?.includes("registro");
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" onClick={() => api.visualizar("GET", `${base}?ver=1`).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" title="Relatório da consulta (PDF do InTAX)"><FileText className="h-3.5 w-3.5" aria-hidden="true" /> Relatório PDF</button>
+      {tem && <button type="button" onClick={() => api.baixar("GET", `${base}?formato=xlsx`, { nome: `${(rotulo || "Consulta").replace(/[\/:*?"<>|]/g, "-")} ${String(consulta.createdAt).slice(0, 10)}.xlsx` }).catch(falhar)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" title="Tabela completa em Excel"><FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" /> Excel</button>}
     </div>
   );
 }
@@ -108,6 +122,7 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
         <div className="space-y-1">
           <p className="text-[11px] text-muted-foreground">Consultado em {quandoConsultou(mostrada.createdAt)}{mostrada.solicitado_por ? ` por ${mostrada.solicitado_por}` : ""}{mostrada.simulado ? " · demonstração" : ""}</p>
           <Resultado consulta={mostrada} />
+          <Relatorios consulta={mostrada} rotulo={servico.rotulo} />
         </div>
       ) : <p className="text-xs text-muted-foreground">Ainda não consultado.</p>}
       {verHistorico && (

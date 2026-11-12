@@ -1,7 +1,6 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ContratoIntegraService } from './contrato.service';
-import { EntregasService } from './entregas.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ConfigRotina, MonitoramentoService } from './monitoramento.service';
@@ -12,24 +11,7 @@ const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new Forbid
 /** BPO Fiscal > Monitoramento fiscal: consultas ao Integra Contador (Serpro), histórico, PDF, lote, rotina e obrigações dispensadas. */
 @Controller('monitoramento')
 export class MonitoramentoController {
-  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly entregas: EntregasService) {}
-
-  // ── Declarações sem API (SPED Fiscal, SPED Contribuições, DIRBI, EFD-Reinf): registro de entrega ──
-  @Get('empresas/:id/entregas')
-  entregasDoAno(@Param('id') id: string, @Query('ano') ano?: string) {
-    return this.entregas.doAno(id, String(ano || new Date().getFullYear()));
-  }
-
-  @Post('empresas/:id/entregas')
-  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: 10 * 1024 * 1024, files: 1 } }))
-  registrarEntrega(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() arquivo: { buffer: Buffer; originalname?: string } | undefined, @Body() body: Record<string, unknown>) {
-    return this.entregas.registrar(id, body ?? {}, arquivo, user);
-  }
-
-  @Delete('entregas/:eid')
-  excluirEntrega(@CurrentUser() user: AuthUser, @Param('eid') eid: string) {
-    return this.entregas.excluir(eid, user);
-  }
+  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService) {}
 
   // ── Contrato do escritório (Administração > Integrações) ──────────────────
   @Get('contrato')
@@ -111,6 +93,17 @@ export class MonitoramentoController {
   @Get('consultas/:id')
   consulta(@Param('id') id: string) {
     return this.m.consulta(id);
+  }
+
+  @Get('empresas/:id/situacao-fiscal')
+  situacaoFiscal(@Param('id') id: string) {
+    return this.m.leituraSitfis(id);
+  }
+
+  @Get('consultas/:id/relatorio')
+  async relatorioDaConsulta(@Param('id') id: string, @Query('formato') formato?: string, @Query('ver') ver?: string) {
+    const a = await this.m.relatorio(id, formato === 'xlsx' ? 'xlsx' : 'pdf');
+    return new StreamableFile(a.buffer, { type: a.tipo, disposition: disposicao(a.nome, ver === '1' && formato !== 'xlsx') });
   }
 
   @Get('consultas/:id/arquivos/:indice')

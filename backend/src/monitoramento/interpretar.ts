@@ -201,11 +201,48 @@ export function interpretar(sistema: string, servico: string, dados: unknown, ar
     return { nivel: 'INFO', titulo: `${d.totalInTheDatabase ?? cs.length} CNPJ(s) com o escritório como responsável.`, destaques: [], tabela: { colunas: [{ chave: 'cnpj', rotulo: 'CNPJ' }, { chave: 'tipo', rotulo: 'Tipo' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'uf', rotulo: 'UF' }], linhas: cs } };
   }
   if (temPdf) return { ...comPdf(''), titulo: `${rotulo ? `${rotulo}: ` : ''}${arquivos.length === 1 ? 'PDF pronto' : `${arquivos.length} PDF prontos`} para abrir ou baixar.`, destaques: arquivos.map((a, n) => ({ rotulo: `Arquivo ${n + 1}`, valor: a.nome })) };
-  // Genérico: a primeira lista de objetos vira tabela.
-  const arr = Array.isArray(dados) ? lista(dados) : Object.values(d).find((v) => Array.isArray(v) && v.length && typeof v[0] === 'object') as Record<string, unknown>[] | undefined;
-  if (arr?.length) {
-    const colunas = Object.keys(arr[0]).filter((k) => typeof arr[0][k] !== 'object').slice(0, 6).map((k) => ({ chave: k, rotulo: k }));
-    return { nivel: 'INFO', titulo: `${arr.length} registro(s).`, destaques: [], tabela: { colunas, linhas: arr } };
+  // Genérico: a maior lista de objetos (em qualquer nível) vira tabela, com os campos aninhados achatados ("a.b").
+  const t = tabelaGenerica(dados);
+  const soltos = Object.entries(d).filter(([, v]) => v !== null && typeof v !== 'object').slice(0, 8).map(([k, v]) => ({ rotulo: rotuloDoCampo(k), valor: String(v) }));
+  if (t) return { nivel: 'INFO', titulo: t.linhas.length ? `${t.linhas.length} registro(s) encontrado(s).` : 'Nenhum registro encontrado.', destaques: soltos, tabela: t };
+  const vazio = dados === null || dados === undefined || dados === '' || (Array.isArray(dados) && !dados.length) || (typeof dados === 'object' && !Object.keys(d).length);
+  return { nivel: 'INFO', titulo: vazio ? 'Nenhum registro encontrado.' : 'Consulta feita.', destaques: soltos };
+}
+
+/** "dataProtocolo" → "Data protocolo"; "numero_processo" → "Numero processo". */
+export const rotuloDoCampo = (k: string) => {
+  const s = k.split('.').pop()!.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+function achatar(o: Record<string, unknown>, prefixo = '', saida: Record<string, unknown> = {}, nivel = 0) {
+  for (const [k, v] of Object.entries(o)) {
+    const chave = prefixo ? `${prefixo}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v) && nivel < 2) achatar(v as Record<string, unknown>, chave, saida, nivel + 1);
+    else if (Array.isArray(v)) saida[chave] = v.every((x) => x === null || typeof x !== 'object') ? v.join(', ') : `${v.length} item(ns)`;
+    else saida[chave] = v;
   }
-  return { nivel: 'INFO', titulo: 'Consulta feita.', destaques: Object.entries(d).filter(([, v]) => typeof v !== 'object').slice(0, 6).map(([k, v]) => ({ rotulo: k, valor: String(v) })) };
+  return saida;
+}
+
+/** Procura a maior lista de objetos nos dados (até 4 níveis) e devolve colunas e linhas achatadas; null se não houver lista. */
+export function tabelaGenerica(dados: unknown): { colunas: Coluna[]; linhas: Record<string, unknown>[] } | null {
+  let melhor: Record<string, unknown>[] | null = null;
+  const visitar = (v: unknown, nivel: number) => {
+    if (nivel > 4 || v === null || typeof v !== 'object') return;
+    if (Array.isArray(v)) {
+      if ((!melhor || v.length > melhor.length) && v.some((x) => x && typeof x === 'object' && !Array.isArray(x))) melhor = v.filter((x) => x && typeof x === 'object') as Record<string, unknown>[];
+      v.slice(0, 3).forEach((x) => visitar(x, nivel + 1));
+      return;
+    }
+    Object.values(v as Record<string, unknown>).forEach((x) => visitar(x, nivel + 1));
+  };
+  visitar(dados, 0);
+  const lista: Record<string, unknown>[] | null = melhor;
+  if (!lista) return Array.isArray(dados) ? { colunas: [], linhas: [] } : null;
+  const linhas = (lista as Record<string, unknown>[]).map((x) => achatar(x));
+  const chaves: string[] = [];
+  for (const l of linhas.slice(0, 50)) for (const k of Object.keys(l)) if (!chaves.includes(k)) chaves.push(k);
+  const tipo = (k: string): Coluna['tipo'] => (/valor|saldo|montante/i.test(k) ? 'moeda' : /^data|data[A-Z_]|dt[A-Z_]/.test(k.split('.').pop()!) ? 'data' : undefined);
+  return { colunas: chaves.slice(0, 12).map((k) => ({ chave: k, rotulo: rotuloDoCampo(k), tipo: tipo(k) })), linhas };
 }

@@ -10,7 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
 import ParcelamentosPgfn from "@/components/monitoramento/ParcelamentosPgfn";
 import CertidoesCliente from "@/components/monitoramento/CertidoesCliente";
-import EntregasDeclaracoes from "@/components/monitoramento/EntregasDeclaracoes";
+import LeituraSitfis from "@/components/monitoramento/LeituraSitfis";
 import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
 import { piorNivel, servicosDoGrupo, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
@@ -26,7 +26,7 @@ function Dispensas({ empresaId, obrigacoes, dispensas }) {
   const qc = useQueryClient();
   const alternar = useMutation({
     mutationFn: ({ id, ativa }) => ativa ? api.delete(`/monitoramento/empresas/${empresaId}/dispensas/${id}`) : api.post(`/monitoramento/empresas/${empresaId}/dispensas`, { obrigacao: id }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] }); qc.invalidateQueries({ queryKey: ["entregas", empresaId] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] }); },
     onError: (e) => toast({ title: "Não foi possível mudar", description: e.message, variant: "destructive" }),
   });
   const dispensadas = new Set((dispensas || []).map((d) => d.obrigacao));
@@ -117,9 +117,16 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
             const { indicados: lista, outros } = servicosDoGrupo(servicos, g.id, indicados);
             return (
               <TabsContent key={g.id} value={g.id} className="space-y-3">
-                {g.id === "parcelamentos" && !pessoaFisica && <ParcelamentosPgfn empresaId={empresaId} />}
+                {g.id === "situacao" && !pessoaFisica && <LeituraSitfis empresaId={empresaId} titulo="O que o relatório de situação fiscal aponta" descricao="Pendências, débitos, parcelamentos, inscrições em dívida ativa e omissões, lidos do relatório oficial." vazio="O relatório não aponta pendência nem omissão." />}
+                {g.id === "parcelamentos" && !pessoaFisica && <LeituraSitfis empresaId={empresaId} titulo="Parcelamentos na Receita Federal e na PGFN" filtro={(s) => s.assunto === "PARCELAMENTO"} descricao="Todos os parcelamentos que a Receita e a PGFN listam no relatório (SIPADE, SIEFPAR, SICOB, SISPAR, transações), em dia ou em atraso." vazio="O relatório não traz nenhum parcelamento na Receita Federal nem na PGFN." />}
+                {g.id === "parcelamentos" && !pessoaFisica && (
+                  <details className="rounded-lg border border-dashed border-border p-3">
+                    <summary className="cursor-pointer text-sm text-muted-foreground">Parcelamentos no estado ou no município (registro opcional: não há API desses órgãos)</summary>
+                    <div className="mt-3"><ParcelamentosPgfn empresaId={empresaId} /></div>
+                  </details>
+                )}
                 {g.id === "declaracoes" && !pessoaFisica && <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} />}
-                {g.id === "declaracoes" && !pessoaFisica && <EntregasDeclaracoes empresaId={empresaId} />}
+                {g.id === "declaracoes" && !pessoaFisica && <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} descricao="A Receita aponta no relatório de situação fiscal as declarações federais em falta, por competência." vazio="Nenhuma omissão de declaração: a Receita não aponta declaração federal em falta para este cliente." />}
                 <div className="grid gap-3 xl:grid-cols-2">{lista.map((s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />)}</div>
                 {outros.length > 0 && (
                   <details className="rounded-lg border border-dashed border-border p-3">

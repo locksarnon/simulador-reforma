@@ -22,7 +22,7 @@ const DATA = '(\\d{2}\\/\\d{2}\\/\\d{4})';
 
 /** O pdfjs-dist é módulo ES: em produção o import() vira require(), que o Node 22 aceita para módulos ES sem await no topo. */
 const PDFJS = 'pdfjs-dist/legacy/build/pdf.mjs';
-type PdfJs = { getDocument: (o: Record<string, unknown>) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getTextContent: () => Promise<{ items: { str?: string }[] }> }>; destroy: () => Promise<void> }> } };
+type PdfJs = { getDocument: (o: Record<string, unknown>) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getTextContent: () => Promise<{ items: { str?: string; hasEOL?: boolean }[] }> }>; destroy: () => Promise<void> }> } };
 
 /** Extrai o texto do PDF com o pdfjs-dist (sem rodar scripts do PDF), até 10 páginas. */
 export async function textoDoPdf(pdf: Buffer): Promise<string> {
@@ -33,7 +33,8 @@ export async function textoDoPdf(pdf: Buffer): Promise<string> {
     const partes: string[] = [];
     for (let i = 1; i <= Math.min(doc.numPages, 10); i++) {
       const c = await (await doc.getPage(i)).getTextContent();
-      partes.push(c.items.map((x) => x.str ?? '').join(' '));
+      // Mantém as quebras de linha do PDF (hasEOL): o relatório de situação fiscal é lido linha a linha.
+      partes.push(c.items.map((x) => `${x.str ?? ''}${x.hasEOL ? '\n' : ' '}`).join(''));
     }
     return partes.join('\n');
   } finally {

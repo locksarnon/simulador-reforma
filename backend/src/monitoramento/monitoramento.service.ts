@@ -11,6 +11,10 @@ import { completarParametros, GRUPOS, OBRIGACOES, SERVICO_POR_CHAVE, SERVICOS, S
 import { Credenciais, ErroIntegra, Identificacao, IntegraCliente, Modo, MODOS, Resposta } from './integra.cliente';
 import { extrairArquivos, interpretar, Nivel, Resumo } from './interpretar';
 import { termoAssinado, vigenciaPadrao } from './termo-autorizacao';
+import { PdfService } from '../pdf/pdf.service';
+import { ConsultaParaRelatorio, excelDaConsulta, pdfDaConsulta } from './relatorio-consulta';
+import { LeituraSitfis, lerRelatorioSitfis, resumoDoSitfis } from './sitfis-leitura';
+import { textoDoPdf } from '../pre-analise/leitor-certidoes';
 import { ContratoIntegraService, CredenciaisContrato } from './contrato.service';
 
 type Usuario = { email?: string; role?: string; sub?: string; id?: string } | undefined;
@@ -94,6 +98,7 @@ export class MonitoramentoService {
     private readonly notificacoes: NotificacoesService,
     private readonly mail: MailService,
     private readonly contrato: ContratoIntegraService,
+    private readonly pdf: PdfService,
   ) {
     this.cliente = new IntegraCliente(() => this.modoAtual ?? 'DESLIGADO', () => this.cred);
   }
@@ -241,6 +246,24 @@ export class MonitoramentoService {
         arquivosBrutos = ex.arquivos;
         dadosGuardados = ex.dados;
         resumo = interpretar(s.sistema, s.servico, ex.dados, ex.arquivos, s.rotulo);
+        // Relatório de situação fiscal: lê o PDF e guarda pendências, parcelamentos, inscrições, omissões e a certidão emitida.
+        if (s.sistema === 'SITFIS' && ex.arquivos.length) {
+          try {
+            const leitura = lerRelatorioSitfis(await textoDoPdf(Buffer.from(ex.arquivos[0].base64, 'base64')));
+            const r2 = resumoDoSitfis(leitura);
+            dadosGuardados = { leitura };
+            resumo = {
+              nivel: r2.nivel, titulo: r2.titulo,
+              destaques: [
+                ...(leitura.certidao ? [{ rotulo: 'Certidão', valor: `${leitura.certidao.tipo}${leitura.certidao.validade ? `, válida até ${leitura.certidao.validade}` : ''}` }] : []),
+                { rotulo: 'Pendências', valor: String(leitura.secoes.filter((x) => x.tipo === 'PENDENCIA').length) },
+                { rotulo: 'Exigibilidade suspensa', valor: String(leitura.secoes.filter((x) => x.tipo === 'SUSPENSO').length) },
+                { rotulo: 'Omissões de declaração', valor: String(leitura.secoes.filter((x) => x.tipo === 'OMISSAO').length) },
+              ],
+              tabela: { colunas: [{ chave: 'orgao', rotulo: 'Órgão' }, { chave: 'titulo', rotulo: 'Seção do relatório' }, { chave: 'itens', rotulo: 'Linhas' }], linhas: leitura.secoes.map((x) => ({ orgao: x.orgao === 'PGFN' ? 'PGFN' : 'Receita Federal', titulo: x.titulo, itens: Math.max(0, x.linhas.length - 1) })) },
+            };
+          } catch (e) { this.log.warn(`Leitura do relatório de situação fiscal: ${(e as Error).message}`); }
+        }
       } else {
         resumo = { nivel: 'ATENCAO', titulo: r.mensagens.map((m) => m.texto).filter(Boolean).join(' ') || `O Serpro respondeu ${r.status ?? r.http}.`, destaques: [] };
       }
@@ -285,6 +308,38 @@ export class MonitoramentoService {
     const c = await this.prisma.consultaFiscal.findUnique({ where: { id } });
     if (!c) throw new NotFoundException('Consulta não encontrada.');
     return this.publico(c as never, true);
+  }
+
+  /** Relatório da consulta em PDF ou Excel (toda consulta, com ou sem PDF oficial do Serpro). */
+  async relatorio(id: string, formato: 'pdf' | 'xlsx') {
+    const c = await this.prisma.consultaFiscal.findUnique({ where: { id } });
+    if (!c) throw new NotFoundException('Consulta não encontrada.');
+    const s = SERVICO_POR_CHAVE.get(c.chave);
+    const rotulo = s?.rotulo ?? c.chave;
+    let cliente = { nome: '', documento: '' };
+    if (c.empresa_id) { const e = await this.prisma.empresa.findUnique({ where: { id: c.empresa_id }, select: { razao_social: true, cnpj_cpf: true } }); cliente = { nome: e?.razao_social ?? '', documento: so(e?.cnpj_cpf) }; }
+    else if (c.pessoa_fisica_id) { const p = await this.prisma.pessoaFisica.findUnique({ where: { id: c.pessoa_fisica_id }, select: { nome: true, cpf: true } }); cliente = { nome: p?.nome ?? '', documento: so(p?.cpf) }; }
+    const base = `${rotulo} ${cliente.nome} ${c.createdAt.toISOString().slice(0, 10)}`.replace(/[\\/:*?"<>|]/g, '-').trim();
+    if (formato === 'xlsx') return { nome: `${base}.xlsx`, tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await excelDaConsulta(c as unknown as ConsultaParaRelatorio, rotulo, cliente) };
+    return { nome: `${base}.pdf`, tipo: 'application/pdf', buffer: await pdfDaConsulta(this.pdf, c as unknown as ConsultaParaRelatorio, rotulo, cliente) };
+  }
+
+  /**
+   * Leitura do relatório de situação fiscal mais recente do cliente (pendências, parcelamentos, inscrições, omissões e certidão).
+   * Relatório antigo, ainda sem leitura, é lido do PDF guardado e a leitura passa a ficar na consulta.
+   */
+  async leituraSitfis(empresaId: string) {
+    const c = await this.prisma.consultaFiscal.findFirst({ where: { empresa_id: empresaId, chave: 'sitfis', sucesso: true }, orderBy: { createdAt: 'desc' } });
+    if (!c) return null;
+    let leitura = (c.dados as { leitura?: LeituraSitfis } | null)?.leitura ?? null;
+    const arquivos = Array.isArray(c.arquivos) ? (c.arquivos as { nome: string; key: string }[]) : [];
+    if (!leitura && arquivos[0]) {
+      try {
+        leitura = lerRelatorioSitfis(await textoDoPdf(await this.storage.getObjectBuffer(arquivos[0].key)));
+        await this.prisma.consultaFiscal.update({ where: { id: c.id }, data: { dados: { leitura } as never } });
+      } catch (e) { this.log.warn(`Leitura do relatório ${c.id}: ${(e as Error).message}`); }
+    }
+    return { consulta_id: c.id, consultado_em: c.createdAt, simulado: c.simulado, arquivo: arquivos[0] ? { indice: 0, nome: arquivos[0].nome } : null, leitura };
   }
 
   async arquivo(id: string, indice: number) {
