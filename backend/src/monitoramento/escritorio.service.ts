@@ -148,10 +148,12 @@ export class EscritorioService {
       const arquivos = new Map<string, Awaited<ReturnType<typeof pesquisarAno>>[number]>();
       const erros: string[] = [];
       let respondeu = false;
+      let algumOk = false;
       for (const s of servicosBx()) {
         try {
           const achados = await pesquisarAno(esc, cnpj, ano, proprio && s.id === 'primario', s.url);
           respondeu = true;
+          algumOk = true;
           if (achados.length) usados.add(s.rotulo);
           for (const a of achados) arquivos.set(a.id || `${s.id}-${arquivos.size}`, a);
         } catch (err) {
@@ -160,7 +162,8 @@ export class EscritorioService {
         }
       }
       const lista = [...arquivos.values()];
-      const erro = !respondeu ? 'O serviço do ReceitanetBX não respondeu.' : lista.length ? null : erros.join(' · ') || null;
+      // Basta um certificado responder sem erro (achou ou não achou nada): o erro de procuração do outro não interessa.
+      const erro = !respondeu ? 'O serviço do ReceitanetBX não respondeu.' : lista.length || algumOk ? null : erros.join(' · ') || null;
       escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, erro, meses: respondeu ? porMes(ano, lista) : [], arquivos: lista });
     }
     return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', certificados: [...usados], escrituracoes };

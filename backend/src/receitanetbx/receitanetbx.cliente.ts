@@ -56,10 +56,13 @@ export function atributos(tag: string): Record<string, string> {
 
 /** Arquivos de uma pesquisa (retornopesquisa): id e os atributos (nome → valor) de cada um, e a mensagem ao usuário. */
 export function lerPesquisa(saida: string): { arquivos: { id: string; atributos: Record<string, string> }[]; mensagem: string | null } {
-  const arquivos = [...saida.matchAll(/<arquivo\b([^>]*)>([\s\S]*?)<\/arquivo>/g)].map((m) => ({
-    id: atributos(m[1]).id ?? '',
-    atributos: Object.fromEntries([...m[2].matchAll(/<atributo\b([^>]*?)\/?>/g)].map((a) => { const x = atributos(a[1]); return [x.nome, x.valor ?? '']; })),
-  }));
+  // Cada arquivo: <arquivo id ...>...<atributo nome valor/>...</arquivo>, ou <arquivo id ... /> com os dados nos próprios atributos.
+  const arquivos = [...saida.matchAll(/<arquivo\b([^>]*?)(?:\/>|>([\s\S]*?)<\/arquivo>)/g)].map((m) => {
+    const proprios = atributos(m[1]);
+    const filhos = Object.fromEntries([...(m[2] ?? '').matchAll(/<atributo\b([^>]*?)\/?>/g)].map((a) => { const x = atributos(a[1]); return [x.nome, x.valor ?? '']; }));
+    const { id = '', ...resto } = proprios;
+    return { id, atributos: { ...resto, ...filhos } };
+  });
   const msg = saida.match(/<mensagemusuario\b[^>]*>([\s\S]*?)<\/mensagemusuario>/)?.[1] ?? saida.match(/<mensagemusuario\b([^>]*)\/>/)?.[1] ?? null;
   return { arquivos, mensagem: msg ? desescapar(msg).trim() || null : null };
 }

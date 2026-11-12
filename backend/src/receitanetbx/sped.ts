@@ -1,4 +1,8 @@
+import { Logger } from '@nestjs/common';
 import { chamarBx, escaparXml, lerPesquisa } from './receitanetbx.cliente';
+
+const log = new Logger('SpedReceitanetBX');
+const brDe = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
 /**
  * Escriturações do SPED transmitidas, pelo ReceitanetBX-Serviço (catálogo da Receita lido em 12/11/2026 no próprio serviço):
@@ -15,11 +19,13 @@ export type ArquivoSped = { id: string; atributos: Record<string, string> };
 export type Escrituracao = (typeof ESCRITURACOES)[number];
 
 /** Entrada da pesquisa (XML do ReceitanetBX). Datas em dd/mm/aaaa. */
-export function entradaPesquisa(e: Escrituracao, cnpj: string, ano: number, proprio: boolean): string {
+export function entradaPesquisa(e: Escrituracao, cnpj: string, ano: number, proprio: boolean, hoje = new Date()): string {
   const ident = proprio
     ? `<identificacao perfil="contr" sistema="${e.sistema}" tipoarquivo="${e.tipoarquivo}" tipopesquisa="${e.tipopesquisa}"/>`
     : `<identificacao perfil="proc" sistema="${e.sistema}" tipoarquivo="${e.tipoarquivo}" tipopesquisa="${e.tipopesquisa}" nirepresentado="${escaparXml(cnpj)}" tiponirepresentado="cnpj"/>`;
-  const campos = [['dataInicio', `01/01/${ano}`], ['dataFim', `31/12/${ano}`], ...e.extras].map(([n, v]) => `<campo nome="${n}" valor="${escaparXml(v)}"/>`).join('');
+  // A Receita recusa data final no futuro: no ano corrente, a busca vai até hoje.
+  const fim = ano >= hoje.getFullYear() ? brDe(hoje) : `31/12/${ano}`;
+  const campos = [['dataInicio', `01/01/${ano}`], ['dataFim', fim], ...e.extras].map(([n, v]) => `<campo nome="${n}" valor="${escaparXml(v)}"/>`).join('');
   return `<pesquisa>${ident}${campos}</pesquisa>`;
 }
 
@@ -52,8 +58,10 @@ export async function pesquisarAno(e: Escrituracao, cnpj: string, ano: number, p
   const r = await chamarBx('PesquisarArquivos', entradaPesquisa(e, cnpj, ano, proprio), url);
   const lido = lerPesquisa(r.saida);
   const mensagem = lido.mensagem ?? r.saida.match(/<mensagem>([\s\S]*?)<\/mensagem>/)?.[1]?.trim() ?? null;
-  const nada = /n[aã]o encontrado nenhum arquivo/i.test(mensagem ?? '');
+  const nada = /n[aã]o encontrado nenhum arquivo|processada com sucesso/i.test(mensagem ?? '');
   if (!lido.arquivos.length && mensagem && !nada) throw new Error(mensagem);
+  // Enquanto os nomes dos campos da Receita não estão confirmados, registra a resposta (sem dados de acesso) para conferência.
+  if (lido.arquivos.length || /processada com sucesso/i.test(mensagem ?? '')) log.log(`${e.rotulo} ${cnpj.slice(0, 8)} ${ano}: ${lido.arquivos.length} arquivo(s); resposta: ${r.saida.slice(0, 3000)}`);
   return lido.arquivos.map(lerArquivo);
 }
 
