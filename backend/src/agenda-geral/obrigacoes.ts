@@ -1,5 +1,6 @@
 import { data, diaUtilAnterior, enesimoDiaUtil, iso, proximoDiaUtil, somarMeses, ultimoDiaDoMes, ultimoDiaUtilAte, ultimoDiaUtilDoMes } from './dias-uteis';
 import { OBRIGACOES_FEDERAIS } from './obrigacoes.tabela';
+import { OBRIGACOES_ESTADUAIS } from './obrigacoes.estaduais';
 
 /**
  * Agenda de obrigações federais: a regra de prazo de cada obrigação vem de `obrigacoes.tabela.ts`, com a fonte oficial e o trecho
@@ -12,10 +13,14 @@ export type Regra =
   | { tipo: 'DIA_FIXO'; dia: number; ajuste: Ajuste }
   | { tipo: 'ULTIMO_DIA_UTIL' }
   | { tipo: 'ENESIMO_DIA_UTIL'; n: number }
-  | { tipo: 'ULTIMO_DIA_UTIL_ATE'; dia: number };
+  | { tipo: 'ULTIMO_DIA_UTIL_ATE'; dia: number }
+  /** Sem dia fixo: a data de cada competência (AAAA-MM) vem de ato periódico da SEFAZ (ex.: MS). */
+  | { tipo: 'DATAS'; porCompetencia: Record<string, string> };
 export type Fonte = { norma: string; dispositivo: string; url: string; trecho: string };
 export type Obrigacao = {
   id: string;
+  /** Obrigação estadual: vale só para clientes desta UF. Sem UF = federal. */
+  uf?: string;
   nome: string;
   tipo: 'PAGAMENTO' | 'DECLARACAO';
   /** Mensal: competência = mês de `mesesDepois` antes do vencimento. Trimestral: trimestre encerrado. Anual: ano-calendário anterior. */
@@ -37,6 +42,8 @@ export type Obrigacao = {
 
 export type Vencimento = {
   obrigacao: string;
+  /** UF da obrigação estadual; null nas federais. */
+  uf: string | null;
   nome: string;
   tipo: Obrigacao['tipo'];
   competencia: string;
@@ -66,6 +73,8 @@ export function calcularData(regra: Regra, ano: number, mes: number): { legal: D
       return { legal: enesimoDiaUtil(ano, mes, regra.n), efetiva: enesimoDiaUtil(ano, mes, regra.n) };
     case 'ULTIMO_DIA_UTIL_ATE':
       return { legal: data(ano, mes, regra.dia), efetiva: ultimoDiaUtilAte(ano, mes, regra.dia) };
+    case 'DATAS':
+      throw new Error('Regra por datas é tratada em vencimentosDoMes.');
   }
 }
 
@@ -82,37 +91,49 @@ export function competenciaQueVence(o: Obrigacao, ano: number, mes: number): str
   return mes === o.mesAnual ? String(ano - 1) : null;
 }
 
-/** A obrigação vale para o regime? Sem regime (empresa sem cadastro de regime), vale tudo, e a tela avisa. */
-export function seAplica(o: Obrigacao, regime?: string | null): boolean {
+/** Todas as obrigações: federais e estaduais. */
+export const OBRIGACOES: Obrigacao[] = [...OBRIGACOES_FEDERAIS, ...OBRIGACOES_ESTADUAIS];
+
+/**
+ * A obrigação vale para o regime e para a UF? Sem regime (empresa sem cadastro de regime), vale tudo, e a tela avisa.
+ * Estadual: só para as UFs informadas (a do cliente, ou as dos clientes do BPO na visão geral); sem UFs, nenhuma estadual.
+ */
+export function seAplica(o: Obrigacao, regime?: string | null, ufs?: string[] | null): boolean {
+  if (o.uf && !(ufs ?? []).includes(o.uf)) return false;
   if (!regime || o.regimes === 'TODOS') return true;
   return (o.regimes as string[]).includes(regime);
 }
 
 /** Os vencimentos de um mês, em ordem de data. `regime` filtra pelo regime da empresa. */
-export function vencimentosDoMes(ano: number, mes: number, regime?: string | null, tabela: Obrigacao[] = OBRIGACOES_FEDERAIS): Vencimento[] {
+export function vencimentosDoMes(ano: number, mes: number, regime?: string | null, tabela: Obrigacao[] = OBRIGACOES, ufs?: string[] | null): Vencimento[] {
   const lista: Vencimento[] = [];
+  const base = (o: Obrigacao) => ({ obrigacao: o.id, uf: o.uf ?? null, nome: o.nome, tipo: o.tipo, regimes: o.regimes, condicao: o.condicao ?? null, fonte: o.fonte, confirmado: o.confirmado, observacao: o.observacao ?? null });
+  const prefixo = `${ano}-${String(mes).padStart(2, '0')}`;
   for (const o of tabela) {
-    if (!seAplica(o, regime)) continue;
+    if (!seAplica(o, regime, ufs)) continue;
+    if (o.regra.tipo === 'DATAS') {
+      for (const [competencia, dia] of Object.entries(o.regra.porCompetencia)) {
+        if (dia.startsWith(prefixo)) lista.push({ ...base(o), competencia, data_legal: dia, data: dia, movida: false });
+      }
+      continue;
+    }
     const competencia = competenciaQueVence(o, ano, mes);
     if (!competencia) continue;
     const { legal, efetiva } = calcularData(o.regra, ano, mes);
     if ((o.vigenteDesde && iso(legal) < o.vigenteDesde) || (o.vigenteAte && iso(legal) > o.vigenteAte)) continue;
-    lista.push({
-      obrigacao: o.id, nome: o.nome, tipo: o.tipo, competencia, data_legal: iso(legal), data: iso(efetiva), movida: iso(legal) !== iso(efetiva),
-      regimes: o.regimes, condicao: o.condicao ?? null, fonte: o.fonte, confirmado: o.confirmado, observacao: o.observacao ?? null,
-    });
+    lista.push({ ...base(o), competencia, data_legal: iso(legal), data: iso(efetiva), movida: iso(legal) !== iso(efetiva) });
   }
   return lista.sort((a, b) => a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome));
 }
 
 /** Os vencimentos entre duas datas (AAAA-MM-DD, inclusive). */
-export function vencimentosNoPeriodo(de: string, ate: string, regime?: string | null, tabela: Obrigacao[] = OBRIGACOES_FEDERAIS): Vencimento[] {
+export function vencimentosNoPeriodo(de: string, ate: string, regime?: string | null, tabela: Obrigacao[] = OBRIGACOES, ufs?: string[] | null): Vencimento[] {
   const [a1, m1] = de.split('-').map(Number);
   const [a2, m2] = ate.split('-').map(Number);
   const lista: Vencimento[] = [];
   // Um mês antes e um depois: o ajuste por feriado pode cruzar a virada do mês.
   for (let c = somarMeses(a1, m1, -1); c.ano * 12 + c.mes <= a2 * 12 + m2 + 1; c = somarMeses(c.ano, c.mes, 1)) {
-    lista.push(...vencimentosDoMes(c.ano, c.mes, regime, tabela));
+    lista.push(...vencimentosDoMes(c.ano, c.mes, regime, tabela, ufs));
   }
   return lista.filter((v) => v.data >= de && v.data <= ate);
 }

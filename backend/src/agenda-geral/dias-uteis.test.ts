@@ -109,3 +109,18 @@ describe('motor de vencimentos', () => {
     expect(vencimentosNoPeriodo('2026-04-01', '2026-04-30', 'Lucro Real', T).map((x) => x.obrigacao)).toContain('c');
   });
 });
+
+describe('obrigações estaduais', () => {
+  it('só aparecem para a UF do cliente e pelo regime; MS usa as datas da resolução trimestral', async () => {
+    const { vencimentosDoMes } = await import('./obrigacoes');
+    const nov = (regime: string | null, ufs: string[]) => vencimentosDoMes(2026, 11, regime, undefined, ufs).map((v) => v.obrigacao);
+    expect(nov('Lucro Presumido', []).some((id) => /^(mt|ms|go|ma|pa)-/.test(id))).toBe(false);
+    expect(nov('Lucro Presumido', ['MT'])).toEqual(expect.arrayContaining(['mt-icms', 'mt-icms-comercio', 'mt-efd']));
+    expect(nov('Lucro Presumido', ['MT'])).not.toContain('mt-destda');
+    expect(nov('Simples Nacional', ['MT'])).toContain('mt-destda');
+    const ms = vencimentosDoMes(2026, 11, 'Lucro Real', undefined, ['MS']).find((v) => v.obrigacao === 'ms-icms')!;
+    expect(ms).toMatchObject({ competencia: '2026-10', data: '2026-11-16', uf: 'MS' });
+    const ma = vencimentosDoMes(2026, 11, 'Lucro Real', undefined, ['MA']).find((v) => v.obrigacao === 'ma-efd')!;
+    expect(ma.data).toBe('2026-11-30');
+  });
+});

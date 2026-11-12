@@ -7,7 +7,7 @@ import { MESES } from "@/lib/tarefas";
 export const CAMADAS = {
   evento: { rotulo: "Eventos", cor: "#2563EB" },
   tarefa: { rotulo: "Tarefas", cor: "#0891B2" },
-  obrigacao: { rotulo: "Obrigações federais", cor: "#DC2626" },
+  obrigacao: { rotulo: "Obrigações federais e estaduais", cor: "#DC2626" },
   reforma: { rotulo: "Agenda da Reforma", cor: "#7C3AED" },
   certificado: { rotulo: "Certificados A1", cor: "#B45309" },
 };

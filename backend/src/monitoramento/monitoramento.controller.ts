@@ -42,6 +42,11 @@ export class MonitoramentoController {
     return this.escritorio.situacaoSolicitacao(sid);
   }
 
+  @Get('empresas/:id/sped')
+  sped(@Param('id') id: string, @Query('ano') ano?: string) {
+    return this.escritorio.sped(id, ano);
+  }
+
   @Get('empresas/:id/novidades')
   novidades(@Param('id') id: string) {
     return this.escritorio.novidades(id);

@@ -4,8 +4,7 @@ import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { hojeEmBrasilia, STATUS_ABERTOS, utcDe } from '../tarefas/tarefas.regras';
 import { FERIADOS_NACIONAIS_FIXOS } from './dias-uteis';
-import { seAplica, vencimentosNoPeriodo, vencimentosDoMes } from './obrigacoes';
-import { OBRIGACOES_FEDERAIS } from './obrigacoes.tabela';
+import { OBRIGACOES, seAplica, vencimentosNoPeriodo, vencimentosDoMes } from './obrigacoes';
 
 type Ator = { id: string; role?: string };
 export type EntradaEvento = {
@@ -195,7 +194,7 @@ export class AgendaGeralService {
     const de = lerDia(f.de, 'A data inicial');
     const ate = lerDia(f.ate, 'A data final');
     if (Date.parse(ate) - Date.parse(de) > 120 * DIA_MS) throw new BadRequestException('Escolha um período de até 4 meses.');
-    const empresa = f.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: f.empresa_id }, select: { id: true, regime_atual: true } }) : null;
+    const empresa = f.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: f.empresa_id }, select: { id: true, regime_atual: true, uf: true } }) : null;
     if (f.empresa_id && !empresa) throw new NotFoundException('Empresa não encontrada.');
     const [eventos, tarefas, certificados] = await Promise.all([
       this.listarEventos({ de, ate, empresa_id: f.empresa_id }),
@@ -211,15 +210,23 @@ export class AgendaGeralService {
     return {
       eventos,
       tarefas,
-      obrigacoes: vencimentosNoPeriodo(de, ate, empresa?.regime_atual ?? null),
+      obrigacoes: vencimentosNoPeriodo(de, ate, empresa?.regime_atual ?? null, OBRIGACOES, empresa ? (empresa.uf ? [empresa.uf] : []) : await this.ufsDoBpo()),
       certificados: certificados.map((c) => ({ ...c, dia: new Date(c.valido_ate.getTime() - FUSO_BR_MS).toISOString().slice(0, 10) })),
       regime: empresa ? empresa.regime_atual ?? null : undefined,
     };
   }
 
+  /** UFs dos clientes do BPO fiscal (ativos ou pausados): as obrigações estaduais da visão geral são só dessas UFs. */
+  private async ufsDoBpo(): Promise<string[]> {
+    const bpo = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: { in: ['ATIVO', 'PAUSADO'] } }, select: { empresa_id: true } }).catch(() => []);
+    if (!bpo.length) return [];
+    const e = await this.prisma.empresa.findMany({ where: { id: { in: [...new Set(bpo.map((b) => b.empresa_id))] } }, select: { uf: true } }).catch(() => []);
+    return [...new Set(e.map((x) => x.uf).filter(Boolean) as string[])];
+  }
+
   // ── Agenda de obrigações ─────────────────────────────────────────
   /**
-   * Obrigações federais que vencem no mês (AAAA-MM). Com empresa, filtra pelo regime dela. Sem empresa, devolve também as empresas
+   * Obrigações federais e estaduais (pela UF do cliente) que vencem no mês (AAAA-MM). Com empresa, filtra pelo regime dela. Sem empresa, devolve também as empresas
    * do BPO fiscal ativo e quais obrigações valem para cada uma (pelo regime do cadastro).
    */
   async obrigacoes(f: { mes?: string; empresa_id?: string }) {
@@ -228,20 +235,20 @@ export class AgendaGeralService {
     const ano = Number(m[1]);
     const mes = Number(m[2]);
     if (f.empresa_id) {
-      const e = await this.prisma.empresa.findUnique({ where: { id: f.empresa_id }, select: { id: true, razao_social: true, regime_atual: true } });
+      const e = await this.prisma.empresa.findUnique({ where: { id: f.empresa_id }, select: { id: true, razao_social: true, regime_atual: true, uf: true } });
       if (!e) throw new NotFoundException('Empresa não encontrada.');
-      return { mes: f.mes, empresa: e, vencimentos: vencimentosDoMes(ano, mes, e.regime_atual), feriados: FERIADOS_NACIONAIS_FIXOS };
+      return { mes: f.mes, empresa: e, vencimentos: vencimentosDoMes(ano, mes, e.regime_atual, OBRIGACOES, e.uf ? [e.uf] : []), feriados: FERIADOS_NACIONAIS_FIXOS };
     }
-    const vencimentos = vencimentosDoMes(ano, mes);
     const bpo = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: { in: ['ATIVO', 'PAUSADO'] } }, select: { empresa_id: true } });
     const empresas = bpo.length
-      ? await this.prisma.empresa.findMany({ where: { id: { in: [...new Set(bpo.map((s) => s.empresa_id))] } }, select: { id: true, razao_social: true, regime_atual: true }, orderBy: { razao_social: 'asc' } })
+      ? await this.prisma.empresa.findMany({ where: { id: { in: [...new Set(bpo.map((s) => s.empresa_id))] } }, select: { id: true, razao_social: true, regime_atual: true, uf: true }, orderBy: { razao_social: 'asc' } })
       : [];
+    const vencimentos = vencimentosDoMes(ano, mes, null, OBRIGACOES, [...new Set(empresas.map((e) => e.uf).filter(Boolean) as string[])]);
     return {
       mes: f.mes,
       vencimentos,
       feriados: FERIADOS_NACIONAIS_FIXOS,
-      empresas: empresas.map((e) => ({ ...e, obrigacoes: OBRIGACOES_FEDERAIS.filter((o) => seAplica(o, e.regime_atual) && vencimentos.some((v) => v.obrigacao === o.id)).map((o) => o.id) })),
+      empresas: empresas.map((e) => ({ ...e, obrigacoes: OBRIGACOES.filter((o) => seAplica(o, e.regime_atual, e.uf ? [e.uf] : []) && vencimentos.some((v) => v.obrigacao === o.id)).map((o) => o.id) })),
     };
   }
 
@@ -262,10 +269,10 @@ export class AgendaGeralService {
         if (await this.notificacoes.criar({ destinatario: pessoa, tipo: 'AGENDA', titulo: `${dia === hoje ? 'Hoje' : 'Amanhã'}: ${e.titulo}${hora}`, mensagem: e.local ? `Local: ${e.local}.` : null, link: '/bpo/agenda', chave: `evento:${e.id}:${dia}` })) eventos++;
       }
       const ate = new Date(Date.parse(hoje) + 3 * DIA_MS).toISOString().slice(0, 10);
-      const proximas = vencimentosNoPeriodo(hoje, ate);
+      const proximas = vencimentosNoPeriodo(hoje, ate, null, OBRIGACOES, await this.ufsDoBpo());
       if (proximas.length) {
         const lista = proximas.map((v) => `${v.nome} (${v.data.slice(8, 10)}/${v.data.slice(5, 7)})`).join(', ');
-        obrigacoes = await this.notificacoes.criarParaAdmins({ tipo: 'AGENDA', titulo: `Obrigações federais nos próximos 3 dias: ${proximas.length}`, mensagem: lista, link: '/bpo/agenda', chave: `obrigacoes:${hoje}` });
+        obrigacoes = await this.notificacoes.criarParaAdmins({ tipo: 'AGENDA', titulo: `Obrigações nos próximos 3 dias: ${proximas.length}`, mensagem: lista, link: '/bpo/agenda', chave: `obrigacoes:${hoje}` });
       }
     } catch (err) {
       this.logger.error(`Avisos da agenda falharam: ${(err as Error).message}`);

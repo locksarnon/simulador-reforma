@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MonitoramentoService } from './monitoramento.service';
 import { extrairArquivos } from './interpretar';
+import { ESCRITURACOES, pesquisarAno, porMes } from '../receitanetbx/sped';
 
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
 const PJ100 = { numero: '00000000000100', tipo: 2 as const };
@@ -126,6 +127,29 @@ export class EscritorioService {
     const d = (lerDados(r.dados) ?? {}) as { idSolicitacao?: string };
     this.log.log(`Renúncia pedida na Redesim para ${empresa?.razao_social ?? cnpj}: ${d.idSolicitacao ?? '(sem número)'}`);
     return { demonstracao: r.demonstracao, idSolicitacao: d.idSolicitacao ?? null, mensagens: r.mensagens };
+  }
+
+  /**
+   * SPED transmitido no ano (EFD ICMS/IPI e EFD-Contribuições), pelo ReceitanetBX-Serviço com o certificado do escritório:
+   * como procurador do cliente (procuração eletrônica no e-CAC) ou como contribuinte, quando é o CNPJ do próprio escritório.
+   */
+  async sped(empresaId: string, anoInformado?: string) {
+    const ano = Number(anoInformado) || new Date().getFullYear();
+    if (ano < 2009 || ano > new Date().getFullYear()) throw new BadRequestException('Ano inválido.');
+    const e = await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { cnpj_cpf: true } });
+    const cnpj = so(e?.cnpj_cpf);
+    if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
+    const proprio = cnpj === (await this.m.cnpjDoEscritorio());
+    const escrituracoes = [];
+    for (const esc of ESCRITURACOES) {
+      try {
+        const arquivos = await pesquisarAno(esc, cnpj, ano, proprio);
+        escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, erro: null, meses: porMes(ano, arquivos), arquivos });
+      } catch (err) {
+        escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, erro: (err as Error).message, meses: [], arquivos: [] });
+      }
+    }
+    return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', escrituracoes };
   }
 
   // ── Eventos de atualização ───────────────────────────────────────────
