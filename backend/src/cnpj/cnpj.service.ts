@@ -56,6 +56,13 @@ export class CnpjService {
       data_inicio_atividade: data.data_inicio_atividade || '',
       capital_social: typeof data.capital_social === 'number' ? data.capital_social : null,
       matriz_filial: data.descricao_identificador_matriz_filial || '',
+      logradouro: [data.descricao_tipo_de_logradouro, data.logradouro].filter(Boolean).join(' ').trim(),
+      numero: data.numero || '',
+      complemento: data.complemento || '',
+      bairro: data.bairro || '',
+      cep: data.cep ? String(data.cep).replace(/^(\d{5})(\d{3})$/, '$1-$2') : '',
+      telefone: data.ddd_telefone_1 ? String(data.ddd_telefone_1).trim() : '',
+      email: data.email || '',
       socios: Array.isArray(data.qsa) ? data.qsa.map((s: { nome_socio?: string; qualificacao_socio?: string }) => ({ nome: s.nome_socio || '', qualificacao: s.qualificacao_socio || '' })) : [],
     };
   }

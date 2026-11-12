@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { camposDoCnpj } from '../cnpj/dados-publicos';
 import { CnpjService } from '../cnpj/cnpj.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type EmpresaPainel = {
   id: string; razao_social: string; cnpj_cpf: string | null; regime_atual: string | null; setor: string | null; uf: string | null; municipio: string | null;
   status: string; produtor_rural: string | null; cnae_principal: string | null; cnae_descricao: string | null; porte: string | null;
-  latitude: number | null; longitude: number | null; email_contato: string | null; whatsapp_contato: string | null; dados_publicos_em: Date | null;
+  latitude: number | null; longitude: number | null; email_contato: string | null; whatsapp_contato: string | null; dados_publicos_em: Date | null; situacao_cadastral?: string | null;
 };
 
 const MAX_POR_RODADA = 20;
@@ -54,7 +55,7 @@ export class PainelCarteiraService {
     return this.prisma.empresa.findMany({
       select: {
         id: true, razao_social: true, cnpj_cpf: true, regime_atual: true, setor: true, uf: true, municipio: true, status: true, produtor_rural: true,
-        cnae_principal: true, cnae_descricao: true, porte: true, latitude: true, longitude: true, email_contato: true, whatsapp_contato: true, dados_publicos_em: true,
+        cnae_principal: true, cnae_descricao: true, porte: true, latitude: true, longitude: true, email_contato: true, whatsapp_contato: true, dados_publicos_em: true, situacao_cadastral: true,
       },
       orderBy: { razao_social: 'asc' },
     });
@@ -115,7 +116,7 @@ export class PainelCarteiraService {
    */
   async completarPeloCnpj(espera = ESPERA_MS) {
     const todas = await this.empresas();
-    const fila = todas.filter((e) => digitos(e.cnpj_cpf).length === 14 && !e.dados_publicos_em);
+    const fila = todas.filter((e) => digitos(e.cnpj_cpf).length === 14 && (!e.dados_publicos_em || !e.situacao_cadastral));
     let atualizadas = 0;
     const falhas: { razao_social: string; motivo: string }[] = [];
     for (const e of fila.slice(0, MAX_POR_RODADA)) {
@@ -124,17 +125,12 @@ export class PainelCarteiraService {
         const ponto = d.codigo_municipio_ibge ? await this.cnpj.centroideDoMunicipio(d.codigo_municipio_ibge) : null;
         await this.prisma.empresa.update({
           where: { id: e.id },
-          data: {
-            cnae_principal: d.cnae_codigo || null, cnae_descricao: d.cnae_descricao || null, porte: d.porte || null, natureza_juridica: d.natureza_juridica || null,
-            codigo_municipio_ibge: d.codigo_municipio_ibge || null, latitude: ponto?.latitude ?? null, longitude: ponto?.longitude ?? null,
-            ...(e.uf ? {} : { uf: d.uf || null }), ...(e.municipio ? {} : { municipio: d.municipio || null }),
-            dados_publicos_em: new Date(),
-          },
+          data: { ...camposDoCnpj(d, e), latitude: ponto?.latitude ?? null, longitude: ponto?.longitude ?? null },
         });
         atualizadas++;
       } catch (err) {
         // Marca como consultada para não repetir o erro a cada rodada; o motivo vai para a tela.
-        await this.prisma.empresa.update({ where: { id: e.id }, data: { dados_publicos_em: new Date() } });
+        await this.prisma.empresa.update({ where: { id: e.id }, data: { dados_publicos_em: new Date(), situacao_cadastral: 'não consultado' } });
         falhas.push({ razao_social: e.razao_social, motivo: (err as Error).message });
       }
       if (espera) await new Promise((r) => setTimeout(r, espera));

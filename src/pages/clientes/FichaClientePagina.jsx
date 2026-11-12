@@ -20,6 +20,7 @@ import { tagsDaEmpresa } from "@/lib/tags";
 import { grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
 import { fmtDataCurta, MODULOS_BPO, SITUACOES, TIPOS } from "@/lib/servicos";
 
+const digitosDoc = (v) => String(v || "").replace(/\D/g, "");
 const SITUACAO_DOC = { VENCIDO: "Vencido", A_VENCER: "Vence em breve", VALIDO: "Válido", SEM_VALIDADE: "Sem validade" };
 
 function Cartao({ titulo, acao, children }) {
@@ -48,7 +49,16 @@ export default function FichaClientePagina() {
   const [editando, setEditando] = useState(false);
   const [dialogo, setDialogo] = useState(null);
   const [etiquetando, setEtiquetando] = useState(false);
+  const [atualizandoCnpj, setAtualizandoCnpj] = useState(false);
   const empresa = empresas.find((e) => e.id === empresaId);
+  const atualizarCnpj = async () => {
+    setAtualizandoCnpj(true);
+    try {
+      await api.post(`/clientes/${empresaId}/atualizar-cnpj`, {});
+      await qc.invalidateQueries({ queryKey: ["empresas"] });
+      toast({ title: "Dados da Receita atualizados" });
+    } catch (e) { toast({ title: "Não foi possível atualizar pela Receita", description: e.message, variant: "destructive" }); } finally { setAtualizandoCnpj(false); }
+  };
   const docs = useQuery({ queryKey: ["documentos", "empresa", empresaId], queryFn: () => api.get(`/documentos?empresa_id=${encodeURIComponent(empresaId)}`), enabled: !!empresa });
   const pessoas = useQuery({ queryKey: ["pessoas-fisicas"], queryFn: () => api.get("/pessoas-fisicas"), enabled: !!empresa });
   const crumbs = [{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/" }, { label: empresa?.razao_social || "Cliente" }];
@@ -132,6 +142,32 @@ export default function FichaClientePagina() {
             </dl>
             {empresa.observacao && <p className="text-sm whitespace-pre-line">{empresa.observacao}</p>}
           </Cartao>
+
+          {digitosDoc(empresa.cnpj_cpf).length === 14 && (
+            <Cartao titulo="Dados da Receita Federal (CNPJ)" acao={<button type="button" disabled={atualizandoCnpj} onClick={atualizarCnpj} className="inline-flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-60">{atualizandoCnpj && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Atualizar pela Receita</button>}>
+              <dl className="grid gap-3 sm:grid-cols-3">
+                <Dado rotulo="Nome fantasia" valor={empresa.nome_fantasia} />
+                <Dado rotulo="Situação cadastral" valor={empresa.situacao_cadastral} />
+                <Dado rotulo="Abertura" valor={empresa.data_abertura ? empresa.data_abertura.split("-").reverse().join("/") : ""} />
+                <Dado rotulo="Matriz ou filial" valor={empresa.matriz_filial} />
+                <Dado rotulo="Natureza jurídica" valor={empresa.natureza_juridica} />
+                <Dado rotulo="Capital social" valor={empresa.capital_social != null ? Number(empresa.capital_social).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : ""} />
+                <Dado rotulo="Simples Nacional" valor={empresa.opcao_simples == null ? "" : empresa.opcao_simples ? "Optante" : "Não optante"} />
+                <Dado rotulo="MEI" valor={empresa.opcao_mei == null ? "" : empresa.opcao_mei ? "Sim" : "Não"} />
+                <Dado rotulo="Endereço" valor={[empresa.logradouro, empresa.numero, empresa.complemento, empresa.bairro, empresa.cep].filter(Boolean).join(", ")} />
+                <Dado rotulo="Telefone (Receita)" valor={empresa.telefone_receita} />
+                <Dado rotulo="E-mail (Receita)" valor={empresa.email_receita} />
+                <Dado rotulo="Código IBGE do município" valor={empresa.codigo_municipio_ibge} />
+              </dl>
+              {Array.isArray(empresa.cnaes_secundarios) && empresa.cnaes_secundarios.length > 0 && (
+                <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">CNAEs secundários ({empresa.cnaes_secundarios.length})</summary><ul className="mt-1 space-y-0.5">{empresa.cnaes_secundarios.map((c) => <li key={c.codigo}>{c.codigo} {c.descricao}</li>)}</ul></details>
+              )}
+              {Array.isArray(empresa.socios) && empresa.socios.length > 0 && (
+                <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Quadro societário ({empresa.socios.length})</summary><ul className="mt-1 space-y-0.5">{empresa.socios.map((s, i) => <li key={i}>{s.nome}{s.qualificacao ? ` (${s.qualificacao})` : ""}</li>)}</ul></details>
+              )}
+              <p className="text-[11px] text-muted-foreground">Fonte: consulta pública do CNPJ (Receita Federal){empresa.dados_publicos_em ? `, atualizada em ${new Date(empresa.dados_publicos_em).toLocaleDateString("pt-BR")}` : ""}.</p>
+            </Cartao>
+          )}
         </div>
 
         <div className="space-y-4">

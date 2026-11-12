@@ -38,3 +38,19 @@ describe("importação do cadastro", () => {
     expect(r.erros.map((e) => e.linha)).toEqual([4, 5]);
   });
 });
+
+describe("campos da Receita na planilha", () => {
+  it("modelo com todas as colunas; importação lê Sim/Não, valor, data e listas, e só aponta o que mudou", async () => {
+    const { CAMPOS, EXEMPLO_MODELO, valorParaPlanilha } = await import("./importacaoCadastro");
+    expect(CAMPOS.every((c) => c.campo in EXEMPLO_MODELO)).toBe(true);
+    const cab = ["CNPJ/CPF", "Optante do Simples", "Capital social", "Data de abertura", "CNAEs secundários", "Sócios", "Regime"];
+    const linha = ["11.222.333/0001-81", "Sim", "1.234,50", "01/03/2010", "0115600 - Cultivo de soja | 0111302 - Cultivo de milho", "FULANO (Sócio-Administrador)", "MEI"];
+    const existente = { id: "E1", razao_social: "X", cnpj_cpf: "11222333000181", opcao_simples: true, capital_social: 1234.5, data_abertura: "2010-03-01", cnaes_secundarios: [{ codigo: "0115600", descricao: "Cultivo de soja" }], socios: [], regime_atual: "MEI" };
+    const r = analisarImportacao([cab, linha], [existente], []);
+    expect(r.erros).toEqual([]);
+    expect(Object.keys(r.atualizar[0].mudancas).sort()).toEqual(["cnaes_secundarios", "socios"]);
+    expect(r.atualizar[0].mudancas.socios).toEqual([{ nome: "FULANO", qualificacao: "Sócio-Administrador" }]);
+    expect(analisarImportacao([cab, [...linha.slice(0, 1), "talvez"]], [existente], []).erros[0].motivo).toMatch(/Sim ou Não/);
+    expect(valorParaPlanilha("opcao_mei", false)).toBe("Não");
+  });
+});

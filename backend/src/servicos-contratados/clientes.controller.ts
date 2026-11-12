@@ -18,6 +18,12 @@ export class ClientesController {
     return this.clientes.desarquivar(id, user);
   }
 
+  /** Atualiza o cadastro com os dados públicos do CNPJ (Receita Federal). */
+  @Post(':id/atualizar-cnpj')
+  atualizarCnpj(@Param('id') id: string) {
+    return this.clientes.atualizarPeloCnpj(id);
+  }
+
   @Post()
   criar(@CurrentUser() user: AuthUser, @Body() body: NovoCliente) {
     return this.clientes.criar(body ?? {}, user);

@@ -210,6 +210,22 @@ model Empresa {
   codigo_municipio_ibge String?
   latitude              Float?
   longitude             Float?
+  nome_fantasia         String?
+  situacao_cadastral    String?
+  data_abertura         String?
+  matriz_filial         String?
+  capital_social        Float?
+  opcao_simples         Boolean?
+  opcao_mei             Boolean?
+  cnaes_secundarios     Json?
+  socios                Json?
+  logradouro            String?
+  numero                String?
+  complemento           String?
+  bairro                String?
+  cep                   String?
+  telefone_receita      String?
+  email_receita         String?
   dados_publicos_em     DateTime?
   /// Cliente arquivado (clientes não são excluídos): sai das listas e das rotinas, mas o histórico fica.
   arquivado_em          DateTime?

@@ -18,8 +18,62 @@ export const CAMPOS = [
   { campo: "email_contato", rotulo: "E-mail de contato", nomes: ["e-mail de contato", "email de contato", "e-mail", "email"] },
   { campo: "whatsapp_contato", rotulo: "WhatsApp de contato", nomes: ["whatsapp de contato", "whatsapp", "telefone", "celular"] },
   { campo: "observacao", rotulo: "Observação", nomes: ["observacao", "obs"] },
+  // Dados públicos do CNPJ (Receita Federal): vêm sozinhos pelo CNPJ, mas também podem ir e voltar pela planilha.
+  { campo: "nome_fantasia", rotulo: "Nome fantasia", nomes: ["nome fantasia", "fantasia"] },
+  { campo: "situacao_cadastral", rotulo: "Situação cadastral", nomes: ["situacao cadastral", "situacao"] },
+  { campo: "data_abertura", rotulo: "Data de abertura", nomes: ["data de abertura", "abertura", "inicio de atividade"], tipo: "data" },
+  { campo: "matriz_filial", rotulo: "Matriz ou filial", nomes: ["matriz ou filial", "matriz/filial"] },
+  { campo: "natureza_juridica", rotulo: "Natureza jurídica", nomes: ["natureza juridica"] },
+  { campo: "porte", rotulo: "Porte", nomes: ["porte"] },
+  { campo: "capital_social", rotulo: "Capital social", nomes: ["capital social", "capital"], tipo: "numero" },
+  { campo: "opcao_simples", rotulo: "Optante do Simples", nomes: ["optante do simples", "simples"], tipo: "booleano" },
+  { campo: "opcao_mei", rotulo: "MEI", nomes: ["mei", "optante do mei"], tipo: "booleano" },
+  { campo: "cnae_principal", rotulo: "CNAE principal", nomes: ["cnae principal", "cnae"] },
+  { campo: "cnae_descricao", rotulo: "Descrição do CNAE", nomes: ["descricao do cnae", "atividade principal"] },
+  { campo: "cnaes_secundarios", rotulo: "CNAEs secundários", nomes: ["cnaes secundarios", "atividades secundarias"], tipo: "cnaes" },
+  { campo: "logradouro", rotulo: "Logradouro", nomes: ["logradouro", "endereco", "rua"] },
+  { campo: "numero", rotulo: "Número", nomes: ["numero", "nº"] },
+  { campo: "complemento", rotulo: "Complemento", nomes: ["complemento"] },
+  { campo: "bairro", rotulo: "Bairro", nomes: ["bairro"] },
+  { campo: "cep", rotulo: "CEP", nomes: ["cep"] },
+  { campo: "codigo_municipio_ibge", rotulo: "Código IBGE do município", nomes: ["codigo ibge do municipio", "codigo ibge", "ibge"] },
+  { campo: "telefone_receita", rotulo: "Telefone (Receita)", nomes: ["telefone (receita)", "telefone receita"] },
+  { campo: "email_receita", rotulo: "E-mail (Receita)", nomes: ["e-mail (receita)", "email (receita)", "email receita"] },
+  { campo: "socios", rotulo: "Sócios", nomes: ["socios", "quadro societario", "qsa"], tipo: "socios" },
 ];
-export const REGIMES_VALIDOS = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "Produtor rural PF"];
+
+/** Exemplo do modelo: uma linha com o formato esperado de cada coluna. */
+export const EXEMPLO_MODELO = {
+  razao_social: "EXEMPLO AGRO LTDA", cnpj_cpf: "00.000.000/0001-00", id_empresa: "00000000", grupo: "001", regime_atual: "Lucro Presumido", uf: "MT", municipio: "Sorriso",
+  setor: "Agronegócio", inscricao_estadual: "131234567", produtor_rural: "Não", responsavel_fiscal: "Nome do responsável", email_contato: "fiscal@exemplo.com.br",
+  whatsapp_contato: "(66) 99999-0000", observacao: "", nome_fantasia: "EXEMPLO AGRO", situacao_cadastral: "ATIVA", data_abertura: "2010-03-01", matriz_filial: "MATRIZ",
+  natureza_juridica: "Sociedade Empresária Limitada", porte: "DEMAIS", capital_social: "100000.00", opcao_simples: "Não", opcao_mei: "Não", cnae_principal: "4623108",
+  cnae_descricao: "Comércio atacadista de matérias-primas agrícolas", cnaes_secundarios: "0115600 - Cultivo de soja | 0111302 - Cultivo de milho", logradouro: "AVENIDA DAS ÁRVORES",
+  numero: "100", complemento: "SALA 1", bairro: "CENTRO", cep: "78890-000", codigo_municipio_ibge: "5107925", telefone_receita: "6635440000", email_receita: "contato@exemplo.com.br",
+  socios: "FULANO DE TAL (Sócio-Administrador) | BELTRANA (Sócio)",
+};
+
+/** Valor do cadastro → texto da planilha (listas e sim/não legíveis). */
+export function valorParaPlanilha(campo, v) {
+  const c = CAMPOS.find((x) => x.campo === campo);
+  if (v === null || v === undefined) return "";
+  if (c?.tipo === "booleano") return v === true ? "Sim" : v === false ? "Não" : String(v);
+  if (c?.tipo === "cnaes" && Array.isArray(v)) return v.map((x) => `${x.codigo} - ${x.descricao}`).join(" | ");
+  if (c?.tipo === "socios" && Array.isArray(v)) return v.map((x) => `${x.nome}${x.qualificacao ? ` (${x.qualificacao})` : ""}`).join(" | ");
+  return typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
+/** Texto da planilha → valor do cadastro (com o motivo, quando não dá para ler). */
+export function valorDaPlanilha(campo, x) {
+  const c = CAMPOS.find((y) => y.campo === campo);
+  if (c?.tipo === "booleano") { const n = norm(x); if (["sim", "s", "true", "1", "x"].includes(n)) return { valor: true }; if (["nao", "n", "false", "0"].includes(n)) return { valor: false }; return { erro: `${c.rotulo}: use Sim ou Não (veio "${x}")` }; }
+  if (c?.tipo === "numero") { const t = String(x).replace(/[R$\s]/g, ""); const num = Number(/,\d{1,2}$/.test(t) ? t.replace(/\./g, "").replace(",", ".") : t.replace(/,/g, "")); return Number.isFinite(num) ? { valor: num } : { erro: `${c.rotulo}: número inválido (${x})` }; }
+  if (c?.tipo === "data") { const m = String(x).match(/^(\d{2})\/(\d{2})\/(\d{4})$/); const iso = m ? `${m[3]}-${m[2]}-${m[1]}` : String(x).slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? { valor: iso } : { erro: `${c.rotulo}: use AAAA-MM-DD ou DD/MM/AAAA (${x})` }; }
+  if (c?.tipo === "cnaes") return { valor: String(x).split("|").map((p) => p.trim()).filter(Boolean).map((p) => { const m = p.match(/^([\d./-]+)\s*-?\s*(.*)$/); return { codigo: (m?.[1] ?? p).replace(/\D/g, ""), descricao: (m?.[2] ?? "").trim() }; }) };
+  if (c?.tipo === "socios") return { valor: String(x).split("|").map((p) => p.trim()).filter(Boolean).map((p) => { const m = p.match(/^(.*?)\s*\(([^)]*)\)\s*$/); return { nome: (m?.[1] ?? p).trim(), qualificacao: (m?.[2] ?? "").trim() }; }) };
+  return { valor: x };
+}
+export const REGIMES_VALIDOS = ["Lucro Real", "Lucro Presumido", "Simples Nacional", "MEI", "Produtor rural PF"];
 const UFS = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
 
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -75,9 +129,14 @@ export function analisarImportacao(linhas, empresas, grupos) {
     if (v.email_contato && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email_contato)) return erros.push({ linha: n, motivo: `E-mail inválido: ${v.email_contato}` });
     if (v.cnpj_cpf && ![11, 14].includes(digitos(v.cnpj_cpf).length)) return erros.push({ linha: n, motivo: `CNPJ/CPF com número de dígitos errado: ${v.cnpj_cpf}` });
     if (v.grupo && !numerosDeGrupo.has(v.grupo)) return erros.push({ linha: n, motivo: `Grupo ${v.grupo} não existe. Crie o grupo antes em Clientes > Grupos econômicos.` });
+    for (const [campo, x] of Object.entries(v)) {
+      const r = valorDaPlanilha(campo, x);
+      if (r.erro) return erros.push({ linha: n, motivo: r.erro });
+      v[campo] = r.valor;
+    }
     const existente = (v.cnpj_cpf && porDoc.get(digitos(v.cnpj_cpf))) || (v.id_empresa && porId.get(norm(v.id_empresa)));
     if (existente) {
-      const mudancas = Object.fromEntries(Object.entries(v).filter(([c, x]) => c !== "cnpj_cpf" && String(existente[c] ?? "") !== x));
+      const mudancas = Object.fromEntries(Object.entries(v).filter(([c, x]) => c !== "cnpj_cpf" && valorParaPlanilha(c, existente[c]) !== valorParaPlanilha(c, x)));
       if (Object.keys(mudancas).length) atualizar.push({ linha: n, id: existente.id, razao_social: existente.razao_social, mudancas });
       else semMudanca++;
       return undefined;

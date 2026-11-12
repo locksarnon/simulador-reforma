@@ -1,5 +1,7 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CnpjService } from '../cnpj/cnpj.service';
+import { camposDoCnpj } from '../cnpj/dados-publicos';
 import { TIPOS_DE_SERVICO } from './servicos-contratados.service';
 
 /** O que a tela "Novo cliente" manda. Só a razão social é obrigatória; o grupo econômico é opcional. */
@@ -38,9 +40,29 @@ export function proximoNumeroDeGrupo(numeros: string[]): string {
  */
 @Injectable()
 export class ClientesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly cnpj?: CnpjService) {}
+
+  /** Completa o cadastro com os dados públicos do CNPJ (Receita Federal); sem CNPJ válido ou se a consulta falhar, segue sem eles. */
+  async atualizarPeloCnpj(id: string, exigir = true) {
+    const e = await this.prisma.empresa.findUnique({ where: { id } });
+    if (!e) throw new NotFoundException('Cliente não encontrado.');
+    const doc = digitos(e.cnpj_cpf);
+    if (doc.length !== 14) { if (exigir) throw new BadRequestException('O cliente não tem CNPJ: os dados da Receita só valem para empresas.'); return e; }
+    if (!this.cnpj) return e;
+    try {
+      return await this.prisma.empresa.update({ where: { id }, data: camposDoCnpj(await this.cnpj.consultar(doc), e) });
+    } catch (err) {
+      if (exigir) throw new BadRequestException(`Não foi possível consultar o CNPJ agora: ${(err as Error).message}`);
+      return e;
+    }
+  }
 
   async criar(entrada: NovoCliente, usuario?: Usuario) {
+    const nova = await this.criarSemReceita(entrada, usuario);
+    return this.atualizarPeloCnpj(nova.id, false);
+  }
+
+  private async criarSemReceita(entrada: NovoCliente, usuario?: Usuario) {
     const razao = limpo(entrada.razao_social, 200);
     if (!razao) throw new BadRequestException('Informe o nome ou a razão social do cliente.');
     const doc = formatarDocumento(entrada.cnpj_cpf);

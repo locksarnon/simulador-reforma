@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import BotaoExportar from "@/components/BotaoExportar";
 import { exportarLista } from "@/lib/exportarLista";
-import { analisarImportacao, analisarVinculos, CAMPOS, lerPlanilha } from "@/lib/importacaoCadastro";
+import { analisarImportacao, analisarVinculos, CAMPOS, EXEMPLO_MODELO, lerPlanilha, valorParaPlanilha } from "@/lib/importacaoCadastro";
 import { useColaboradores } from "@/lib/useTags";
 import ListaDePrevistas from "@/components/ListaDePrevistas";
 
@@ -49,7 +49,7 @@ function AbaEmpresas({ empresas, grupos, ehAdmin }) {
     onSuccess: (r) => { toast({ title: "Cadastro importado", description: `${r.novas} empresa(s) nova(s) e ${r.atualizadas} atualizada(s).` }); setAnalise(null); qc.invalidateQueries({ queryKey: ["empresas"] }); },
     onError: (e) => toast({ title: "A importação parou", description: e.message, variant: "destructive" }),
   });
-  const colunasExport = CAMPOS.map((c) => ({ chave: c.campo, rotulo: c.rotulo }));
+  const colunasExport = CAMPOS.map((c) => ({ chave: c.campo, rotulo: c.rotulo, valor: (l) => valorParaPlanilha(c.campo, l[c.campo]) }));
   return (
     <div className="space-y-4 text-sm">
       <section className="rounded-xl border border-border bg-card p-4 space-y-2">
@@ -59,15 +59,15 @@ function AbaEmpresas({ empresas, grupos, ehAdmin }) {
       </section>
       <section className="rounded-xl border border-border bg-card p-4 space-y-3">
         <h2 className="font-heading text-sm font-semibold">Importar empresas de uma planilha</h2>
-        <p className="text-muted-foreground">Excel (.xlsx) ou CSV com cabeçalho. A empresa que já existe é achada pelo CNPJ/CPF (ou pelo ID); célula vazia não apaga o que já está no cadastro. Empresa nova precisa de razão social e do número de um grupo que já existe.</p>
+        <p className="text-muted-foreground">Excel (.xlsx) ou CSV com cabeçalho. A empresa que já existe é achada pelo CNPJ/CPF (ou pelo ID); célula vazia não apaga o que já está no cadastro. Empresa nova precisa de razão social e do número de um grupo que já existe. Regime: Lucro Real, Lucro Presumido, Simples Nacional, MEI ou Produtor rural PF. Os dados da Receita (endereço, CNAEs, sócios, situação) vêm sozinhos pelo CNPJ; na planilha, use Sim/Não e separe listas com " | ".</p>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => exportarLista({ titulo: "Modelo de importação de empresas", colunas: colunasExport, linhas: [{ razao_social: "EXEMPLO AGRO LTDA", cnpj_cpf: "00.000.000/0001-00", grupo: grupos[0]?.numero || "001", regime_atual: "Lucro Presumido", uf: "MT", municipio: "Sorriso", email_contato: "fiscal@exemplo.com.br" }], formato: "xlsx" })} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
+          <button type="button" onClick={() => exportarLista({ titulo: "Modelo de importação de empresas", colunas: colunasExport, linhas: [{ ...EXEMPLO_MODELO, grupo: grupos[0]?.numero || "001" }], formato: "xlsx" })} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
           {ehAdmin ? <EscolherArquivo rotulo="Escolher a planilha" aoLer={(linhas) => setAnalise(analisarImportacao(linhas, empresas, grupos))} /> : <p className="text-xs text-muted-foreground">Só administradores importam.</p>}
         </div>
         {analise && (
           <div className="space-y-3">
             <p role="status"><strong>{analise.novas.length}</strong> nova(s), <strong>{analise.atualizar.length}</strong> a atualizar, {analise.sem_mudanca} sem mudança, <strong>{analise.erros.length}</strong> com erro.</p>
-            {analise.atualizar.length > 0 && <ul className="max-h-40 overflow-y-auto text-xs divide-y divide-border/50">{analise.atualizar.map((a) => <li key={a.linha} className="py-1"><span className="font-medium">{a.razao_social}</span>: {Object.entries(a.mudancas).map(([k, v]) => `${CAMPOS.find((c) => c.campo === k)?.rotulo || k} → ${v}`).join("; ")}</li>)}</ul>}
+            {analise.atualizar.length > 0 && <ul className="max-h-40 overflow-y-auto text-xs divide-y divide-border/50">{analise.atualizar.map((a) => <li key={a.linha} className="py-1"><span className="font-medium">{a.razao_social}</span>: {Object.entries(a.mudancas).map(([k, v]) => `${CAMPOS.find((c) => c.campo === k)?.rotulo || k} → ${valorParaPlanilha(k, v)}`).join("; ")}</li>)}</ul>}
             {analise.novas.length > 0 && <ul className="max-h-32 overflow-y-auto text-xs">{analise.novas.map((n) => <li key={n.linha}>Nova: {n.dados.razao_social} (grupo {n.dados.grupo})</li>)}</ul>}
             <Erros erros={analise.erros} />
             <div className="flex gap-2">
