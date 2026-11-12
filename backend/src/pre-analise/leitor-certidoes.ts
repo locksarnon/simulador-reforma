@@ -105,6 +105,39 @@ export function interpretarCertidao(tipo: TipoCertidao, textoOriginal: string, c
   return { status, resumo: partes.join('; '), situacao, validade, emissao, numero, documento, confere };
 }
 
+/**
+ * Certidão estadual ou municipal: cada estado e cada prefeitura tem o seu modelo, então a leitura é pelos termos comuns
+ * (negativa, positiva com efeito de negativa, positiva; "válida até", "validade", "emitida em") e pelo CNPJ. O que não for lido
+ * fica para a pessoa informar na tela.
+ */
+export function interpretarCertidaoGenerica(textoOriginal: string, cnpj: string, agora = new Date()): LeituraCertidao {
+  const t = semAcento(textoOriginal).replace(/\s+/g, ' ').toUpperCase();
+  const docs = (t.match(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g) ?? []).map(so);
+  const confere = docs.some((d) => d.slice(0, 8) === so(cnpj).slice(0, 8));
+  const documento = docs[0] ?? null;
+  let situacao = '';
+  let regular: boolean | null = null;
+  if (/POSITIVA,? COM EFEITOS? DE NEGATIVA/.test(t)) { situacao = 'Positiva com efeito de negativa'; regular = true; }
+  else if (/CERTIDAO (DE DEBITOS[A-Z ]*)?POSITIVA|CERTIDAO POSITIVA/.test(t)) { situacao = 'Positiva (há débitos)'; regular = false; }
+  else if (/CERTIDAO (DE DEBITOS[A-Z ]*)?NEGATIVA|CERTIDAO NEGATIVA|NADA CONSTA|NAO CONSTAM DEBITOS|INEXISTEM DEBITOS/.test(t)) { situacao = 'Negativa'; regular = true; }
+  let validade = primeiro(t, [new RegExp(`VALIDA ATE:? ?${DATA}`), new RegExp(`VALIDADE:? ?(?:ATE )?${DATA}`), new RegExp(`VALIDO ATE:? ?${DATA}`), new RegExp(`DATA DE VALIDADE:? ?${DATA}`)]);
+  const emissao = primeiro(t, [new RegExp(`EMITIDA (?:EM|NO DIA):? ?${DATA}`), new RegExp(`DATA DA EMISSAO:? ?${DATA}`), new RegExp(`DATA DE EMISSAO:? ?${DATA}`), new RegExp(`EXPEDIDA EM:? ?${DATA}`), new RegExp(`EMISSAO:? ?${DATA}`)]);
+  const dias = t.match(/VALIDA POR (\d{1,3}) ?\(?[A-Z ]*\)? DIAS/);
+  if (!validade && dias && emissao) {
+    const e = fimDoDia(emissao)!;
+    const v = new Date(e.getTime() + Number(dias[1]) * 86_400_000);
+    validade = v.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  }
+  const numero = primeiro(t, [/CERTIDAO (?:N[º°O]\.?|NUMERO|NR\.?)(?=[\s:])\s*:?\s*([\w./-]*\d[\w./-]*)/,/CODIGO DE (?:AUTENTICIDADE|CONTROLE|VERIFICACAO):? ?([\w.-]{4,})/]);
+  if (regular === null) return { status: 'MANUAL', resumo: 'Não consegui ler a situação no PDF. Confira o documento e informe a validade.', situacao: 'não lida', validade, emissao, numero, documento, confere };
+  const venceu = (() => { const v = fimDoDia(validade); return v ? v.getTime() < agora.getTime() : false; })();
+  const status: StatusProcesso = !confere ? 'IRREGULAR' : venceu ? 'IRREGULAR' : regular ? 'CONCLUIDO' : 'DEBITOS';
+  const partes = [situacao];
+  partes.push(validade ? `válida até ${validade}${venceu ? ' (vencida)' : ''}` : 'validade não lida: informe na tela');
+  if (!confere) partes.push('o CNPJ da certidão não é o deste cliente');
+  return { status, resumo: partes.join('; '), situacao, validade, emissao, numero, documento, confere };
+}
+
 function naoReconhecido(esperado: string): LeituraCertidao {
   return { status: 'MANUAL', resumo: `O PDF enviado não parece ser a ${esperado}.`, situacao: 'documento não reconhecido', validade: null, emissao: null, numero: null, documento: null, confere: false };
 }

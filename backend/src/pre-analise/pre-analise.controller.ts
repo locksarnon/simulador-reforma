@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PreAnaliseService } from './pre-analise.service';
+import { CertidoesService } from './certidoes.service';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 
@@ -52,5 +53,27 @@ export class PreAnaliseController {
   @Delete(':id')
   excluir(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.s.excluir(id, user);
+  }
+}
+
+/** BPO Fiscal > Monitoramento > Certidões do cliente: as já emitidas (PDF), a emissão da federal pela API e o anexo das demais. */
+@Controller('certidoes')
+export class CertidoesController {
+  constructor(private readonly s: CertidoesService) {}
+
+  @Get('empresas/:id')
+  listar(@Param('id') id: string) {
+    return this.s.listar(id);
+  }
+
+  @Post('empresas/:id/FEDERAL/emitir')
+  emitir(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.s.emitirFederal(id, user);
+  }
+
+  @Post('empresas/:id/:tipo/anexar')
+  @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: 10 * 1024 * 1024, files: 1 } }))
+  anexar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('tipo') tipo: string, @UploadedFile() arquivo: { buffer: Buffer } | undefined, @Body() body: { validade?: string }) {
+    return this.s.anexar(id, tipo, arquivo?.buffer, body?.validade || undefined, user);
   }
 }

@@ -107,6 +107,21 @@ export function interpretar(sistema: string, servico: string, dados: unknown, ar
       tabela: { colunas: [{ chave: 'periodo', rotulo: 'Competência', tipo: 'periodo' }, { chave: 'declaracoes', rotulo: 'Declarações' }, { chave: 'ultima', rotulo: 'Última declaração' }, { chave: 'transmissao', rotulo: 'Transmitida em', tipo: 'data' }, { chave: 'das', rotulo: 'DAS gerados' }, { chave: 'dasPago', rotulo: 'DAS pago' }, { chave: 'malha', rotulo: 'Malha' }], linhas },
     };
   }
+  if (sistema === 'SICALC' && servico === 'CONSOLIDARGERARDARF51') {
+    const c = (d.consolidado ?? {}) as Record<string, unknown>;
+    return {
+      nivel: temPdf ? 'OK' : 'ATENCAO',
+      titulo: temPdf ? `DARF de ${moeda(c.valorTotalConsolidado)} calculado para ${dataBr(String(c.dataArrecadacaoConsolidacao ?? '').slice(0, 10).replace(/-/g, ''))}.` : 'O DARF não foi gerado.',
+      destaques: [
+        { rotulo: 'Principal', valor: moeda(c.valorPrincipalMoedaCorrente) },
+        { rotulo: 'Multa', valor: `${moeda(c.valorMultaMora)}${c.percentualMultaMora !== undefined ? ` (${c.percentualMultaMora}%)` : ''}` },
+        { rotulo: 'Juros', valor: `${moeda(c.valorJuros)}${c.percentualJuros !== undefined ? ` (${c.percentualJuros}%)` : ''}` },
+        { rotulo: 'Total', valor: moeda(c.valorTotalConsolidado) },
+        ...(d.numeroDocumento ? [{ rotulo: 'Número do documento', valor: String(d.numeroDocumento) }] : []),
+        ...(c.dataValidadeCalculo ? [{ rotulo: 'Cálculo válido até', valor: dataBr(String(c.dataValidadeCalculo).slice(0, 10).replace(/-/g, '')) }] : []),
+      ],
+    };
+  }
   if (sistema === 'PGDASD' && servico === 'GERARDAS12') {
     const g = lista(dados)[0] ?? {};
     const det = (g.detalhamentoDas ?? {}) as Record<string, unknown>;

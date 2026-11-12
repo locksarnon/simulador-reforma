@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
 import ParcelamentosPgfn from "@/components/monitoramento/ParcelamentosPgfn";
+import CertidoesCliente from "@/components/monitoramento/CertidoesCliente";
+import EntregasDeclaracoes from "@/components/monitoramento/EntregasDeclaracoes";
 import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
 import { piorNivel, servicosDoGrupo, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
@@ -24,7 +26,7 @@ function Dispensas({ empresaId, obrigacoes, dispensas }) {
   const qc = useQueryClient();
   const alternar = useMutation({
     mutationFn: ({ id, ativa }) => ativa ? api.delete(`/monitoramento/empresas/${empresaId}/dispensas/${id}`) : api.post(`/monitoramento/empresas/${empresaId}/dispensas`, { obrigacao: id }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] }); qc.invalidateQueries({ queryKey: ["entregas", empresaId] }); },
     onError: (e) => toast({ title: "Não foi possível mudar", description: e.message, variant: "destructive" }),
   });
   const dispensadas = new Set((dispensas || []).map((d) => d.obrigacao));
@@ -117,6 +119,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
               <TabsContent key={g.id} value={g.id} className="space-y-3">
                 {g.id === "parcelamentos" && !pessoaFisica && <ParcelamentosPgfn empresaId={empresaId} />}
                 {g.id === "declaracoes" && !pessoaFisica && <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} />}
+                {g.id === "declaracoes" && !pessoaFisica && <EntregasDeclaracoes empresaId={empresaId} />}
                 <div className="grid gap-3 xl:grid-cols-2">{lista.map((s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />)}</div>
                 {outros.length > 0 && (
                   <details className="rounded-lg border border-dashed border-border p-3">
@@ -129,12 +132,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
           })}
           {!pessoaFisica && (
             <TabsContent value="certidoes" className="space-y-3">
-              <section className="rounded-xl border border-border bg-card p-4 space-y-2 text-sm">
-                <h3 className="font-semibold">Certidões</h3>
-                <p className="text-muted-foreground">Os portais de certidão exigem a verificação "não sou robô", então o InTAX não as emite sozinho. Emita no portal oficial e guarde o PDF com a validade em <Link to="/bpo/arquivos" className="text-primary underline">Arquivos e documentos</Link> (tipos CND federal, estadual, municipal, CNDT e CRF do FGTS): o sino avisa antes de vencer e o painel de risco mostra o radar de certidões.</p>
-                <ul className="space-y-1">{PORTAIS_DE_CERTIDAO.map((p) => <li key={p.url}><a href={p.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">{p.nome} <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a></li>)}</ul>
-                <p className="text-xs text-muted-foreground">A CND estadual e a municipal são emitidas no portal da Secretaria da Fazenda do estado e da prefeitura do cliente.</p>
-              </section>
+              <CertidoesCliente empresaId={empresaId} />
             </TabsContent>
           )}
         </Tabs>

@@ -29,8 +29,8 @@ describe('catálogo', () => {
   });
   it('completa os parâmetros com o padrão e recusa formato errado', () => {
     const das = SERVICO_POR_CHAVE.get('das')!;
-    expect(completarParametros(das, {}, new Date(2026, 10, 11))).toEqual({ periodo: '202610' });
-    expect(completarParametros(das, {}, new Date(2026, 0, 5))).toEqual({ periodo: '202512' });
+    expect(completarParametros(das, {}, new Date(2026, 10, 11))).toEqual({ periodo: '202610', pagamento: '' });
+    expect(completarParametros(das, {}, new Date(2026, 0, 5))).toEqual({ periodo: '202512', pagamento: '' });
     expect(() => completarParametros(das, { periodo: '2026-10' })).toThrow(/AAAAMM/);
     expect(() => completarParametros(SERVICO_POR_CHAVE.get('das-extrato')!, {})).toThrow(/número do das/i);
     expect(das.dados({ periodo: '202610' })).toBe('{"periodoApuracao":"202610"}');

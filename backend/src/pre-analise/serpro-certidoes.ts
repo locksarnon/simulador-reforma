@@ -50,6 +50,11 @@ export class SerproCertidoes {
     return { token: j.access_token, demo: false };
   }
 
+  /** Se há chaves do produto para usar em produção. */
+  async disponivelEmProducao(produto: Produto) {
+    return !!(await this.contrato.chavesDoProduto(produto));
+  }
+
   /** Certidão federal conjunta (RFB/PGFN) pela API Consulta CND; null quando o produto não está disponível no modo atual. */
   async certidaoFederal(cnpj: string, modo: Modo): Promise<ResultadoSerpro | null> {
     const b = await this.bearer('cnd', modo);

@@ -1732,6 +1732,8 @@ model ProjetoDiagnostico {
 model ParcelamentoPgfn {
   id                 String    @id @default(cuid())
   empresa_id         String
+  /// Quem concedeu: PGFN (dívida ativa da União), RFB (Receita Federal, e-CAC), ESTADO (SEFAZ) ou MUNICIPIO (prefeitura).
+  orgao              String    @default("PGFN")
   numero             String
   modalidade         String?
   situacao           String    @default("EM_DIA")
@@ -1786,4 +1788,22 @@ model PreAnalise {
 
   @@index([cnpj])
   @@index([createdAt])
+}
+
+/// Entrega de declaração sem API oficial para escritório (SPED ICMS/IPI, SPED Contribuições, DIRBI, EFD-Reinf): registro por competência, com o recibo.
+model EntregaDeclaracao {
+  id            String    @id @default(cuid())
+  empresa_id    String
+  obrigacao     String
+  competencia   String
+  recibo        String?
+  transmitida_em DateTime?
+  arquivo_id    String?
+  observacao    String?
+  criado_por    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([empresa_id, obrigacao, competencia])
+  @@index([empresa_id])
 }

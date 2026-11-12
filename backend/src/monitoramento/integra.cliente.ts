@@ -28,7 +28,8 @@ export type Pedido = {
   dados: string;
   tokenProcurador?: string | null;
 };
-export type Resposta = { http: number; status: number | null; dados: unknown; mensagens: { codigo: string; texto: string }[]; bruto: string };
+/** `etag`: o SITFIS 2.0 manda o protocolo (304) e o tempo de espera (204) no cabeçalho ETag. */
+export type Resposta = { http: number; status: number | null; dados: unknown; mensagens: { codigo: string; texto: string }[]; bruto: string; etag?: string };
 
 export class ErroIntegra extends Error {
   constructor(message: string, readonly codigo: 'DESLIGADO' | 'SEM_CONTRATO' | 'AUTENTICACAO' | 'LIMITE' | 'COMUNICACAO' | 'TEMPO') {
@@ -133,7 +134,8 @@ export class IntegraCliente {
       const texto = await res.text();
       if (res.status === 429) { await this.pausa(2000 * 2 ** tentativa); continue; }
       if (res.status === 401 && modo === 'PRODUCAO' && !renovado) { renovado = true; await this.cabecalhos(true); continue; }
-      return lerResposta(res.status, texto);
+      const etag = res.headers?.get?.('etag') ?? undefined;
+      return { ...lerResposta(res.status, texto), ...(etag ? { etag } : {}) };
     }
     throw new ErroIntegra('O Serpro limitou as consultas agora (muitas em pouco tempo). Tente de novo em alguns minutos.', 'LIMITE');
   }

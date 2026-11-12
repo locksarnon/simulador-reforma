@@ -39,6 +39,45 @@ function reserva() {
 
 export { credenciaisDoAmbiente } from './contrato.service';
 
+const lerEtag = (etag: string | undefined, campo: string) => {
+  const m = String(etag ?? '').replace(/^W\//, '').replace(/^"|"$/g, '').match(new RegExp(`^${campo}:(.+)$`));
+  return m ? m[1] : undefined;
+};
+
+/**
+ * Relatório de situação fiscal, SITFIS versão 2.0 (a 1.0 foi descontinuada em 01/04/2024):
+ * 1. Apoiar SOLICITARPROTOCOLO91 → 200 com protocoloRelatorio (e tempoEspera em ms), ou 304 com o protocolo no ETag
+ *    (pedido repetido no mesmo dia), ou 503 com tempoEspera;
+ * 2. Emitir RELATORIOSITFIS92 com o protocolo → 200 com o PDF, 202 (ainda processando, tempoEspera no corpo) ou 204 (sem corpo,
+ *    ETag "tempoEspera:4000"). Espera o tempo indicado e tenta de novo.
+ */
+export async function relatorioSitfis(chamar: (servico: string, endpoint: Servico['endpoint'], dados: string) => Promise<Resposta>, esperar = (ms: number) => new Promise((r) => setTimeout(r, ms)), tentativas = 8): Promise<Resposta> {
+  let prot = await chamar('SOLICITARPROTOCOLO91', 'Apoiar', '');
+  let d = (prot.dados ?? {}) as { protocoloRelatorio?: string; tempoEspera?: number };
+  let protocolo = d.protocoloRelatorio || lerEtag(prot.etag, 'protocoloRelatorio');
+  for (let i = 0; !protocolo && (prot.http === 503 || prot.status === 503) && i < 3; i += 1) {
+    await esperar(Math.min(Number(d.tempoEspera) || 3000, 20_000));
+    prot = await chamar('SOLICITARPROTOCOLO91', 'Apoiar', '');
+    d = (prot.dados ?? {}) as typeof d;
+    protocolo = d.protocoloRelatorio || lerEtag(prot.etag, 'protocoloRelatorio');
+  }
+  if (!protocolo) return prot;
+  let espera = Number(d.tempoEspera) || 3000;
+  let r: Resposta = prot;
+  for (let i = 0; i < tentativas; i += 1) {
+    await esperar(Math.min(Math.max(espera, 1000), 20_000));
+    r = await chamar('RELATORIOSITFIS92', 'Emitir', JSON.stringify({ protocoloRelatorio: protocolo }));
+    const corpo = (r.dados ?? {}) as { pdf?: string; tempoEspera?: number };
+    if ((r.status === 200 || r.http === 200) && corpo.pdf) return { ...r, status: 200 };
+    if (r.http === 202 || r.status === 202 || r.http === 204 || r.status === 204) {
+      espera = Number(corpo.tempoEspera) || Number(lerEtag(r.etag, 'tempoEspera')) || 4000;
+      continue;
+    }
+    return r;
+  }
+  return { ...r, mensagens: r.mensagens.length ? r.mensagens : [{ codigo: 'TEMPO', texto: 'O relatório ainda está sendo gerado pela Receita. Consulte de novo em alguns minutos (o protocolo vale até o fim do dia).' }] };
+}
+
 @Injectable()
 export class MonitoramentoService {
   private readonly log = new Logger(MonitoramentoService.name);
@@ -171,7 +210,8 @@ export class MonitoramentoService {
     const quem = await this.contribuinte(alvo);
     if (s.alvo === 'PJ' && quem.pf) throw new BadRequestException('Este serviço é só para empresas (CNPJ).');
     let params: Record<string, string>;
-    try { params = completarParametros(s, parametros ?? {}); } catch (e) { throw new BadRequestException((e as Error).message); }
+    // Confere os parâmetros e monta os dados antes de chamar o Serpro: entrada errada vira mensagem clara, não consulta cobrada.
+    try { params = completarParametros(s, parametros ?? {}); s.dados(params); } catch (e) { throw new BadRequestException((e as Error).message); }
     const inicio = Date.now();
     const usuarioEmail = usuario?.email ?? 'rotina';
     let sucesso = false;
@@ -186,15 +226,9 @@ export class MonitoramentoService {
       let r: Resposta;
       let rsv = false;
       if (s.sistema === 'SITFIS' && modo === 'PRODUCAO') {
-        // SITFIS: primeiro o protocolo (Apoiar), depois o relatório (Emitir) com ele, esperando o tempoEspera que o Serpro indica.
-        const prot = await this.chamarServico({ ...s, servico: 'SOLICITARPROTOCOLO91', endpoint: 'Apoiar', dados: () => '' }, quem.id, params, ctx);
-        const p = (prot.r.dados ?? {}) as { protocoloRelatorio?: string; tempoEspera?: number };
-        r = prot.r;
-        for (let i = 0; p.protocoloRelatorio && i < 4; i += 1) {
-          await new Promise((res) => setTimeout(res, Math.min(Number(p.tempoEspera) || 3000, 15_000)));
-          r = (await this.chamarServico({ ...s, dados: () => JSON.stringify({ protocoloRelatorio: p.protocoloRelatorio }) }, quem.id, params, ctx)).r;
-          if (r.status === 200 && r.dados) break;
-        }
+        r = await relatorioSitfis(
+          async (servico, endpoint, dados) => (await this.chamarServico({ ...s, servico, endpoint, dados: () => dados }, quem.id, params, ctx)).r,
+        );
       } else {
         ({ r, reserva: rsv } = await this.chamarServico(s, quem.id, params, ctx));
       }
@@ -456,7 +490,8 @@ export class MonitoramentoService {
 
   async salvarPgfn(empresaId: string, id: string | null, b: Record<string, unknown>, usuario: Usuario) {
     const numero = String(b.numero ?? '').trim();
-    if (!numero) throw new BadRequestException('Informe o número da negociação (conta) no Sispar.');
+    if (!numero) throw new BadRequestException('Informe o número do parcelamento (ou da negociação).');
+    if (b.orgao !== undefined && !ORGAOS_PARCELAMENTO.includes(String(b.orgao))) throw new BadRequestException('Órgão inválido.');
     if (b.situacao !== undefined && !SITUACOES_PGFN.includes(String(b.situacao))) throw new BadRequestException('Situação inválida.');
     const num = (v: unknown) => (v === '' || v === null || v === undefined ? null : Number(String(v).replace(',', '.')));
     const inteiro = (v: unknown) => (v === '' || v === null || v === undefined ? null : Math.trunc(Number(v)));
@@ -464,7 +499,7 @@ export class MonitoramentoService {
     const venc = b.proximo_vencimento ? new Date(String(b.proximo_vencimento)) : null;
     if (venc && Number.isNaN(venc.getTime())) throw new BadRequestException('Data de vencimento inválida.');
     const dados = {
-      numero: numero.slice(0, 40), modalidade: textoOuNulo(b.modalidade, 160), situacao: String(b.situacao ?? 'EM_DIA'),
+      orgao: String(b.orgao ?? 'PGFN'), numero: numero.slice(0, 40), modalidade: textoOuNulo(b.modalidade, 160), situacao: String(b.situacao ?? 'EM_DIA'),
       valor_consolidado: num(b.valor_consolidado), parcelas_total: inteiro(b.parcelas_total), parcelas_pagas: inteiro(b.parcelas_pagas),
       valor_parcela: num(b.valor_parcela), proximo_vencimento: venc, debito_automatico: !!b.debito_automatico,
       observacao: textoOuNulo(b.observacao, 2000), atualizado_por: usuario?.email ?? null,
@@ -497,7 +532,7 @@ export class MonitoramentoService {
       if (!e || e.arquivado_em) continue;
       const nivel = nivelPgfn(p, hoje);
       if (nivel !== 'CRITICO' && nivel !== 'ATENCAO') continue;
-      await this.notificacoes.criarParaAdmins({ tipo: 'FISCAL', titulo: `${e.razao_social}: PGFN ${p.numero}`, mensagem: tituloPgfn(p, hoje), link: `/bpo/monitoramento/${e.id}`, chave: `pgfn:${p.id}:${hoje.toISOString().slice(0, 10)}` }).catch(() => undefined);
+      await this.notificacoes.criarParaAdmins({ tipo: 'FISCAL', titulo: `${e.razao_social}: parcelamento ${ORGAO_ROTULO[p.orgao ?? 'PGFN'] ?? ''} ${p.numero}`, mensagem: tituloPgfn(p, hoje), link: `/bpo/monitoramento/${e.id}`, chave: `pgfn:${p.id}:${hoje.toISOString().slice(0, 10)}` }).catch(() => undefined);
       n += 1;
     }
     return n;
@@ -516,8 +551,11 @@ export class MonitoramentoService {
 }
 
 export const SITUACOES_PGFN = ['EM_DIA', 'EM_ATRASO', 'LIQUIDADO', 'RESCINDIDO'];
+/** Parcelamentos fora do Simples e do MEI não têm API oficial (o Integra Contador só cobre Simples e MEI): o registro é manual, por órgão. */
+export const ORGAOS_PARCELAMENTO = ['PGFN', 'RFB', 'ESTADO', 'MUNICIPIO'];
+const ORGAO_ROTULO: Record<string, string> = { PGFN: 'PGFN', RFB: 'Receita Federal', ESTADO: 'Estado', MUNICIPIO: 'Município' };
 const SIT_PGFN: Record<string, string> = { EM_DIA: 'em dia', EM_ATRASO: 'em atraso', LIQUIDADO: 'liquidado', RESCINDIDO: 'rescindido' };
-type Pgfn = { numero: string; situacao: string; proximo_vencimento: Date | null; valor_parcela: number | null; modalidade?: string | null };
+type Pgfn = { numero: string; situacao: string; proximo_vencimento: Date | null; valor_parcela: number | null; modalidade?: string | null; orgao?: string | null };
 
 /** Dias até a data (negativo = já passou), contados pelo dia civil. */
 function diasAte(d: Date, hoje: Date): number {
@@ -539,7 +577,7 @@ export function tituloPgfn(p: Pgfn, hoje = new Date()): string {
   const venc = p.proximo_vencimento ? new Date(p.proximo_vencimento).toISOString().slice(0, 10).split('-').reverse().join('/') : null;
   const valor = typeof p.valor_parcela === 'number' ? p.valor_parcela.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : null;
   const vencida = p.proximo_vencimento ? diasAte(p.proximo_vencimento, hoje) < 0 : false;
-  const partes = [`PGFN ${p.numero}${p.modalidade ? ` (${p.modalidade})` : ''}: ${SIT_PGFN[p.situacao] ?? p.situacao}`];
+  const partes = [`${ORGAO_ROTULO[p.orgao ?? 'PGFN'] ?? p.orgao} ${p.numero}${p.modalidade ? ` (${p.modalidade})` : ''}: ${SIT_PGFN[p.situacao] ?? p.situacao}`];
   if (venc) partes.push(`${vencida ? 'parcela vencida em' : 'próxima parcela em'} ${venc}${valor ? ` (${valor})` : ''}`);
   return partes.join('; ') + '.';
 }

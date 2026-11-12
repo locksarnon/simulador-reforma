@@ -34,6 +34,9 @@ const PJ0 = { numero: '00000000000000', tipo: 2 as const };
 const PJ100 = { numero: '00000000000100', tipo: 2 as const };
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
 const PF9 = { numero: '99999999999', tipo: 1 as const };
+const aaaammdd = (iso: string) => iso.replace(/-/g, '');
+/** Data de pagamento opcional: em branco, a guia sai com a data que o Serpro calcular. */
+const P_PAGAMENTO: Parametro = { nome: 'pagamento', rotulo: 'Data de pagamento (opcional)', tipo: 'data' };
 const PJ1 = { numero: '11111111111111', tipo: 2 as const };
 const j = (o: unknown) => JSON.stringify(o);
 
@@ -81,7 +84,7 @@ const servicosDeParcelamento: Servico[] = PARCELAMENTOS.flatMap((p) => {
 export const SERVICOS: Servico[] = [
   // Situação
   {
-    chave: 'sitfis', rotulo: 'Relatório de situação fiscal', grupo: 'situacao', sistema: 'SITFIS', servico: 'RELATORIOSITFIS92', versao: '1.0', endpoint: 'Emitir', alvo: 'TODOS',
+    chave: 'sitfis', rotulo: 'Relatório de situação fiscal', grupo: 'situacao', sistema: 'SITFIS', servico: 'RELATORIOSITFIS92', versao: '2.0', endpoint: 'Emitir', alvo: 'TODOS',
     parametros: [], dados: () => '', demo: { contribuinte: PF9, dados: j({ protocoloRelatorio: '+S7N6c04XNZUVzmxWT7SzpkZA4xeDQC9Z2T2GBJ5usn8LyouyWXbsy6mKsLy7/EImRkDjF4NAL25KiSXOLjnzAaZu/FC+G1pYOtTMYqokKYYr/yZ6aqUiCuWPfujDQ2/udwgU+Dyh56GSe28B5Ev25jDnzpvVJPhiebO5hpy1YESP5gnEhaP3bocCiZZrYG26F8avRRBJhRTsfv3Rvop+bxvYJZsVym270eO8oZTDIr3OJj==' }), contratante: PJ0, autor: PJ0 }, rotina: true,
     descricao: 'O relatório de situação fiscal da Receita e da PGFN (pendências, débitos, dívida ativa, omissões), em PDF. Pede o protocolo e espera o relatório.',
   },
@@ -132,8 +135,13 @@ export const SERVICOS: Servico[] = [
   // Guias e pagamentos
   {
     chave: 'das', rotulo: 'DAS do Simples: gerar a guia', grupo: 'guias', sistema: 'PGDASD', servico: 'GERARDAS12', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'SIMPLES',
-    parametros: [P_PERIODO], dados: (p) => j({ periodoApuracao: p.periodo }), demo: { contribuinte: PJ100, dados: j({ periodoApuracao: '201801' }) },
-    descricao: 'O DAS da competência (PDF), com valor, vencimento e composição por tributo.',
+    parametros: [P_PERIODO, P_PAGAMENTO], dados: (p) => j({ periodoApuracao: p.periodo, ...(p.pagamento ? { dataConsolidacao: aaaammdd(p.pagamento) } : {}) }), demo: { contribuinte: PJ100, dados: j({ periodoApuracao: '201801' }) },
+    descricao: 'O DAS da competência (PDF), com valor, vencimento e composição por tributo. Com a data de pagamento, sai consolidado para aquela data (multa e juros, se em atraso).',
+  },
+  {
+    chave: 'das-cobranca', rotulo: 'DAS do Simples: débito em cobrança', grupo: 'guias', sistema: 'PGDASD', servico: 'GERARDASCOBRANCA17', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'SIMPLES',
+    parametros: [P_PERIODO], dados: (p) => j({ periodoApuracao: p.periodo }), demo: { contribuinte: PJ0, dados: j({ periodoApuracao: '202301' }) },
+    descricao: 'O DAS de uma competência que já foi para cobrança (débito em atraso enviado à Receita), em PDF.',
   },
   {
     chave: 'das-extrato', rotulo: 'DAS do Simples: extrato', grupo: 'guias', sistema: 'PGDASD', servico: 'CONSEXTRATO16', versao: '1.0', endpoint: 'Consultar', alvo: 'PJ', para: 'SIMPLES',
@@ -142,13 +150,35 @@ export const SERVICOS: Servico[] = [
   },
   {
     chave: 'dctfweb-guia', rotulo: 'DCTFWeb: DARF da competência', grupo: 'guias', sistema: 'DCTFWEB', servico: 'GERARGUIA31', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'NORMAL',
-    parametros: [P_PERIODO], dados: (p) => j({ categoria: 'GERAL_MENSAL', anoPA: p.periodo.slice(0, 4), mesPA: p.periodo.slice(4, 6) }),
-    demo: { contribuinte: PJ0, dados: j({ categoria: 'GERAL_MENSAL', anoPA: '2027', mesPA: '11', numeroReciboEntrega: 24573 }) }, descricao: 'O DARF da DCTFWeb transmitida (PDF).',
+    parametros: [P_PERIODO, { nome: 'pagamento', rotulo: 'Data de pagamento (opcional; dia útil deste mês)', tipo: 'data' }],
+    dados: (p) => j({ categoria: 'GERAL_MENSAL', anoPA: p.periodo.slice(0, 4), mesPA: p.periodo.slice(4, 6), ...(p.pagamento ? { DataAcolhimentoProposta: Number(aaaammdd(p.pagamento)) } : {}) }),
+    demo: { contribuinte: PJ0, dados: j({ categoria: 'GERAL_MENSAL', anoPA: '2027', mesPA: '11', numeroReciboEntrega: 24573 }) },
+    descricao: 'O DARF de todos os débitos da DCTFWeb transmitida (PDF). Em atraso, informe a data de pagamento (dia útil do mês corrente, a partir de hoje) e o DARF sai com multa e juros.',
   },
   {
     chave: 'dctfweb-guia-andamento', rotulo: 'DCTFWeb: DARF da declaração em andamento', grupo: 'guias', sistema: 'DCTFWEB', servico: 'GERARGUIAANDAMENTO313', versao: '1.0', endpoint: 'Emitir', alvo: 'PJ', para: 'NORMAL',
     parametros: [P_PERIODO], dados: (p) => j({ categoria: 'GERAL_MENSAL', anoPA: p.periodo.slice(0, 4), mesPA: p.periodo.slice(4, 6) }),
     demo: { contribuinte: PJ0, dados: j({ categoria: 'GERAL_MENSAL', anoPA: '2025', mesPA: '01' }) }, descricao: 'O DARF da DCTFWeb ainda não transmitida (PDF).',
+  },
+  {
+    chave: 'darf-sicalc', rotulo: 'DARF avulso ou em atraso (Sicalc)', grupo: 'guias', sistema: 'SICALC', servico: 'CONSOLIDARGERARDARF51', versao: '2.9', endpoint: 'Emitir', alvo: 'TODOS',
+    parametros: [
+      { nome: 'receita', rotulo: 'Código da receita com extensão (ex.: 2089-01)', tipo: 'texto', obrigatorio: true },
+      { nome: 'apuracao', rotulo: 'Período de apuração (MM/AAAA)', tipo: 'texto', padrao: (h) => { const d = new Date(h.getFullYear(), h.getMonth() - 1, 1); return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; }, obrigatorio: true },
+      { nome: 'vencimento', rotulo: 'Vencimento original', tipo: 'data', obrigatorio: true },
+      { nome: 'valor', rotulo: 'Valor principal (R$)', tipo: 'numero', obrigatorio: true },
+      { nome: 'pagamento', rotulo: 'Data de pagamento', tipo: 'data', padrao: (h) => h.toISOString().slice(0, 10), obrigatorio: true },
+    ],
+    dados: (p) => {
+      const [codigo, extensao] = String(p.receita).replace(/\s/g, '').split('-');
+      if (!/^\d{4}$/.test(codigo ?? '') || !/^\d{2}$/.test(extensao ?? '')) throw new Error('Código da receita: use 4 dígitos, hífen e a extensão de 2 dígitos (ex.: 2089-01).');
+      if (!/^(0[1-9]|1[0-2])\/\d{4}$/.test(String(p.apuracao))) throw new Error('Período de apuração: use MM/AAAA (ex.: 09/2026).');
+      const valor = Number(String(p.valor).replace(/\./g, '').replace(',', '.'));
+      if (!(valor > 0)) throw new Error('Valor principal: informe um valor maior que zero.');
+      return j({ codigoReceita: codigo, codigoReceitaExtensao: extensao, tipoPA: 'ME', dataPA: p.apuracao, vencimento: `${p.vencimento}T00:00:00`, valorImposto: valor.toFixed(2), dataConsolidacao: `${p.pagamento}T00:00:00`, observacao: 'Emitido pelo InTAX' });
+    },
+    demo: { contribuinte: PF9, dados: j({ uf: 'SP', municipio: '7107', codigoReceita: '0190', codigoReceitaExtensao: '01', tipoPA: 'ME', dataPA: '12/2017', vencimento: '2018-01-31T00:00:00', valorImposto: '1000.00', dataConsolidacao: '2022-08-08T00:00:00', observacao: 'Darf calculado' }), contratante: PJ9, autor: PF9 },
+    descricao: 'Calcula multa e juros até a data de pagamento e emite o DARF (PDF, com Pix) de um tributo federal em atraso ou avulso, pelo Sicalc da Receita.',
   },
   {
     chave: 'pagamentos', rotulo: 'Pagamentos (DARF, DAS, DAE)', grupo: 'guias', sistema: 'PAGTOWEB', servico: 'PAGAMENTOS71', versao: '1.0', endpoint: 'Consultar', alvo: 'TODOS',
@@ -228,6 +258,11 @@ export const OBRIGACOES = [
   { id: 'DEFIS', rotulo: 'DEFIS (Simples)' },
   { id: 'DCTFWEB', rotulo: 'DCTFWeb' },
   { id: 'MIT', rotulo: 'MIT (DCTFWeb)' },
+  // Sem serviço no Integra Contador: entrega registrada à mão (com o recibo) na aba Declarações.
+  { id: 'EFD_ICMS_IPI', rotulo: 'SPED Fiscal (EFD ICMS/IPI)' },
+  { id: 'EFD_CONTRIBUICOES', rotulo: 'SPED Contribuições' },
+  { id: 'DIRBI', rotulo: 'DIRBI' },
+  { id: 'EFD_REINF', rotulo: 'EFD-Reinf' },
 ] as const;
 
 /** Que serviços servem à empresa pelo regime do cadastro (Simples, MEI, normal) e pelo tipo (PJ ou PF). */
