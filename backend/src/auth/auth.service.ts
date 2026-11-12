@@ -1,10 +1,11 @@
-import { ConflictException, ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { AcessosService } from '../acessos/acessos.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsuariosService, validarSenha } from '../usuarios/usuarios.service';
 import { AuthUser, JwtPayload } from './auth.types';
 import { LoginDto, RegisterDto, ResetPasswordDto, ResetPasswordRequestDto } from './dto/auth.dto';
 
@@ -17,6 +18,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly acessos: AcessosService,
+    @Optional() private readonly usuarios?: UsuariosService,
   ) {}
 
   /** Cadastro fechado: com INVITE_CODE definido no servidor, só entra quem tem o código. */
@@ -127,26 +129,8 @@ export class AuthService {
   }
 
   async resetPasswordRequest(dto: ResetPasswordRequestDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
-    // Não revela se o e-mail existe ou não (evita enumeração de contas).
-    if (!user) {
-      return { ok: true };
-    }
-
-    const resetToken = randomBytes(32).toString('base64url');
-    await this.prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash: this.hashToken(resetToken),
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      },
-    });
-
-    // Não há infraestrutura de e-mail neste ambiente self-hosted — o link é
-    // registrado no log do backend para uso manual em dev/local.
-    this.logger.warn(
-      `Reset de senha solicitado para ${user.email}. Token (válido por 1h): ${resetToken}`,
-    );
+    // Não revela se o e-mail existe (evita enumeração de contas). O link vai por e-mail e vale 1 hora.
+    if (this.usuarios) await this.usuarios.esqueciSenha(dto.email).catch((e) => this.logger.warn(`Falha no pedido de redefinição: ${(e as Error).message}`));
     return { ok: true };
   }
 
@@ -157,6 +141,8 @@ export class AuthService {
       throw new UnauthorizedException('Token de redefinição inválido ou expirado.');
     }
 
+    const dono = await this.prisma.user.findUnique({ where: { id: stored.userId }, select: { email: true } });
+    validarSenha(dto.newPassword, dono?.email);
     const passwordHash = await argon2.hash(dto.newPassword);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: stored.userId }, data: { passwordHash } }),

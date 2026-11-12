@@ -15,6 +15,9 @@ async function montar(extra: Partial<U>[] = []) {
   const vinculos: { user_id: string; empresa_id: string }[] = [];
   const empresas = ['E1', 'E2', 'E3'].map((id) => ({ id, id_empresa: id, razao_social: `Empresa ${id}`, cnpj_cpf: null, grupo: null }));
   const tokensRevogados: string[] = [];
+  const links: Link[] = [];
+  const emails: { to: string; subject: string; html: string; text: string }[] = [];
+  const mail = { urlPublica: 'https://intax.teste', enviar: async (m: { to: string; subject: string; html: string; text: string }) => { emails.push(m); return { enviado: true }; } };
   const casa = (u: U, w: Record<string, unknown>) => Object.entries(w).every(([k, v]) => {
     if (v && typeof v === 'object' && 'not' in (v as object)) return (u as never)[k] !== (v as { not: unknown }).not;
     return (u as never)[k] === v;
@@ -28,6 +31,11 @@ async function montar(extra: Partial<U>[] = []) {
       update: async ({ where, data }: { where: { id: string }; data: Partial<U> }) => { const u = users.find((x) => x.id === where.id)!; Object.assign(u, data); return u; },
     },
     refreshToken: { updateMany: async ({ where }: { where: { userId: string } }) => { tokensRevogados.push(where.userId); return { count: 1 }; } },
+    passwordResetToken: {
+      findMany: async () => [...links].reverse(),
+      updateMany: async ({ where, data }: { where: { userId: string; tipo: string }; data: { usedAt: Date } }) => { for (const l of links) if (l.userId === where.userId && l.tipo === where.tipo && !l.usedAt) l.usedAt = data.usedAt; return { count: 1 }; },
+      create: async ({ data }: { data: Link }) => { links.push({ ...data, usedAt: null, createdAt: new Date() }); return data; },
+    },
     vinculoColaborador: {
       groupBy: async () => [],
       findMany: async ({ where }: { where?: { user_id?: string } } = {}) => vinculos.filter((v) => !where?.user_id || v.user_id === where.user_id),
@@ -41,8 +49,9 @@ async function montar(extra: Partial<U>[] = []) {
       count: async ({ where }: { where: { id: { in: string[] } } }) => empresas.filter((e) => where.id.in.includes(e.id)).length,
     },
   };
-  return { service: new UsuariosService(prisma as never), users, vinculos, tokensRevogados };
+  return { service: new UsuariosService(prisma as never, mail as never), users, vinculos, tokensRevogados, links, emails };
 }
+type Link = { userId: string; tokenHash: string; expiresAt: Date; tipo: string; enviadoPor: string | null; usedAt?: Date | null; createdAt?: Date };
 
 describe('senhas', () => {
   it('exige 10 caracteres e não aceita o e-mail como senha', () => {
@@ -59,7 +68,7 @@ describe('senhas', () => {
 describe('UsuariosService: administração', () => {
   it('cria conta com senha provisória devolvida uma vez, e recusa e-mail repetido ou inválido', async () => {
     const t = await montar();
-    const r = await t.service.criar({ email: ' NOVO@Fal.com ', name: 'Novo', role: 'user' });
+    const r = await t.service.criar({ email: ' NOVO@Fal.com ', name: 'Novo', role: 'user', convite: false });
     expect(r.usuario.email).toBe('novo@fal.com');
     expect(r.senha_provisoria).toHaveLength(12);
     expect(await argon2.verify(t.users.find((u) => u.email === 'novo@fal.com')!.passwordHash, r.senha_provisoria!)).toBe(true);
@@ -68,6 +77,55 @@ describe('UsuariosService: administração', () => {
     await expect(t.service.criar({ email: 'x@fal.com', role: 'dono' })).rejects.toThrow(/Papel inválido/);
     const com = await t.service.criar({ email: 'c@fal.com', senha: 'senha-escolhida-1' });
     expect(com.senha_provisoria).toBeNull();
+    expect(com.convite).toBeNull();
+  });
+
+  it('sem senha, convida por e-mail: link de uso único por 7 dias, situação "convite pendente" e reenvio invalida o anterior', async () => {
+    const t = await montar();
+    const r = await t.service.criar({ email: 'novo@fal.com', name: 'Joana Silva' }, { email: 'admin@fal' });
+    expect(r.senha_provisoria).toBeNull();
+    expect(r.convite).toMatchObject({ enviado: true });
+    expect(r.convite!.link).toMatch(/^https:\/\/intax\.teste\/reset-password\?token=[\w-]{40,}&convite=1$/);
+    const dias = (new Date(r.convite!.expira_em).getTime() - Date.now()) / 86_400_000;
+    expect(dias).toBeGreaterThan(6.9);
+    expect(t.emails[0]).toMatchObject({ to: 'novo@fal.com', subject: 'Você foi convidado para o InTAX' });
+    expect(t.emails[0].html).toContain('Olá, Joana.');
+    expect(t.emails[0].html).toContain('admin@fal convidou você');
+    expect(t.emails[0].text).toContain(r.convite!.link);
+    expect(t.links[0].tokenHash).not.toContain(r.convite!.link.split('token=')[1].split('&')[0]);
+    let lista = await t.service.listar();
+    expect(lista.find((u) => u.email === 'novo@fal.com')).toMatchObject({ situacao: 'CONVITE_PENDENTE', convite: { enviado_por: 'admin@fal' } });
+    const id = r.usuario.id;
+    const de_novo = await t.service.reenviarConvite(id, { email: 'admin@fal' });
+    expect(de_novo.link).not.toBe(r.convite!.link);
+    expect(t.links.filter((l) => l.userId === id && !l.usedAt)).toHaveLength(1);
+    expect(t.emails).toHaveLength(2);
+    t.links.forEach((l) => { l.expiresAt = new Date(Date.now() - 1000); });
+    lista = await t.service.listar();
+    expect(lista.find((u) => u.email === 'novo@fal.com')!.situacao).toBe('CONVITE_VENCIDO');
+  });
+
+  it('quem já entrou não recebe convite: recebe link de redefinição (24 h); conta desativada não recebe nada', async () => {
+    const t = await montar([{ email: 'entrou@fal', lastLoginAt: new Date() }, { email: 'fora@fal', ativo: false }]);
+    await expect(t.service.reenviarConvite('X0')).rejects.toThrow(/já entrou/);
+    const r = await t.service.enviarRedefinicao('X0', { email: 'admin@fal' });
+    expect(r.link).toMatch(/reset-password\?token=[\w-]+$/);
+    expect((new Date(r.expira_em).getTime() - Date.now()) / 3_600_000).toBeGreaterThan(23.9);
+    expect(t.emails.at(-1)).toMatchObject({ to: 'entrou@fal', subject: 'Redefinição de senha do InTAX' });
+    expect(t.emails.at(-1)!.html).toContain('Um administrador do InTAX pediu');
+    await expect(t.service.enviarRedefinicao('X1')).rejects.toThrow(/desativada/);
+    await expect(t.service.reenviarConvite('X1')).rejects.toThrow(/desativada/);
+  });
+
+  it('"Esqueci minha senha" manda link de 1 hora sem revelar se a conta existe', async () => {
+    const t = await montar();
+    expect(await t.service.esqueciSenha('nao-existe@fal')).toEqual({ ok: true });
+    expect(t.emails).toHaveLength(0);
+    expect(await t.service.esqueciSenha(' MARIA@fal ')).toEqual({ ok: true });
+    expect(t.emails[0]).toMatchObject({ to: 'maria@fal' });
+    expect(t.emails[0].html).toContain('Recebemos um pedido para redefinir a senha');
+    expect((t.links[0].expiresAt.getTime() - Date.now()) / 60_000).toBeLessThanOrEqual(60);
+    expect(t.links[0].tipo).toBe('RESET');
   });
 
   it('muda papel e situação, mas não deixa o sistema sem administrador nem o admin se desativar', async () => {

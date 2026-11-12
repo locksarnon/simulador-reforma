@@ -10,6 +10,7 @@ import AuthLayout from "@/components/AuthLayout";
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const resetToken = searchParams.get("token");
+  const convite = searchParams.get("convite") === "1";
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,6 +20,10 @@ export default function ResetPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (newPassword.length < 10) {
+      setError("A senha precisa ter pelo menos 10 caracteres.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("As senhas não conferem.");
       return;
@@ -28,7 +33,7 @@ export default function ResetPassword() {
       await api.auth.resetPassword({ resetToken, newPassword });
       window.location.href = "/login";
     } catch (err) {
-      setError(err.message || "Failed to reset password");
+      setError(err.message || "Não foi possível salvar a senha.");
     } finally {
       setLoading(false);
     }
@@ -47,7 +52,7 @@ export default function ResetPassword() {
         }
       >
         <p className="text-sm text-foreground text-center">
-          The link you used appears to be incomplete. Please request a new password reset email.
+          O link parece incompleto. Peça um link novo ao administrador do InTAX ou use Esqueci minha senha na tela de entrada.
         </p>
       </AuthLayout>
     );
@@ -56,8 +61,8 @@ export default function ResetPassword() {
   return (
     <AuthLayout
       icon={Lock}
-      title="Nova senha"
-      subtitle="Digite a nova senha abaixo"
+      title={convite ? "Crie sua senha" : "Nova senha"}
+      subtitle={convite ? "Bem-vindo ao InTAX. Crie a senha que você vai usar para entrar." : "Digite a nova senha abaixo"}
     >
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -66,7 +71,7 @@ export default function ResetPassword() {
       )}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="password">New Password</Label>
+          <Label htmlFor="password">{convite ? "Senha" : "Nova senha"} <span className="font-normal text-muted-foreground">(mínimo 10 caracteres)</span></Label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
@@ -105,7 +110,7 @@ export default function ResetPassword() {
               Salvando…
             </>
           ) : (
-            "Redefinir a senha"
+            convite ? "Criar senha e entrar" : "Redefinir a senha"
           )}
         </Button>
       </form>

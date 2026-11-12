@@ -13,7 +13,8 @@ const { RegistroDeAcesso, IpsPermitidos, navegadorDe } = await import("./Acessos
 
 const USUARIOS = [
   { id: "A1", email: "admin@fal", name: "Admin", role: "admin", ativo: true, lastLoginAt: "2026-11-11T15:00:00Z", empresas: 0 },
-  { id: "U1", email: "maria@fal", name: "Maria", role: "user", ativo: true, lastLoginAt: null, empresas: 4 },
+  { id: "U1", email: "maria@fal", name: "Maria", role: "user", ativo: true, lastLoginAt: null, empresas: 4, situacao: "CONVITE_PENDENTE", convite: { expira_em: "2026-11-19T15:00:00Z" } },
+  { id: "U3", email: "ana@fal", name: "Ana", role: "user", ativo: true, lastLoginAt: null, empresas: 0, situacao: "CONVITE_VENCIDO", convite: { expira_em: "2026-11-01T15:00:00Z" } },
   { id: "U2", email: "joao@fal", name: null, role: "user", ativo: false, lastLoginAt: "2026-10-01T12:00:00Z", empresas: 0 },
 ];
 const LOG = [
@@ -48,9 +49,16 @@ describe("Usuários e acessos", () => {
     expect(html).toContain('aria-label="Reativar joao@fal"'); // conta desativada pode voltar
   });
 
-  it("tem Nova conta, editar e redefinir senha em cada linha", () => {
+  it("convida por e-mail e mostra convite enviado, vencido, reenviar e link de senha nova", () => {
     const html = renderizar(<UsuariosPagina />, { usuarios: USUARIOS });
-    expect(html).toContain("Nova conta");
+    expect(html).toContain("Convidar pessoa");
+    expect(html).toContain("Convite enviado, vale até 19/11/2026");
+    expect(html).toContain("Convite vencido");
+    expect(html).toContain('aria-label="Reenviar convite para maria@fal"');
+    expect(html).toContain('aria-label="Reenviar convite para ana@fal"');
+    expect(html).not.toContain('aria-label="Reenviar convite para admin@fal"'); // já entrou
+    expect(html).not.toContain('aria-label="Redefinir a senha de joao@fal"'); // desativada
+    expect(html).toContain('aria-label="Gerar senha provisória para maria@fal"');
     expect(html).toContain('aria-label="Editar maria@fal"');
     expect(html).toContain('aria-label="Redefinir a senha de maria@fal"');
     expect(html).toContain("pelo menos um administrador ativo");

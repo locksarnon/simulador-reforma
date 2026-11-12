@@ -5,9 +5,10 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AcessosModule } from '../acessos/acessos.module';
+import { UsuariosModule } from '../usuarios/usuarios.module';
 
 @Module({
-  imports: [PassportModule.register({ defaultStrategy: 'jwt' }), JwtModule.register({}), AcessosModule],
+  imports: [PassportModule.register({ defaultStrategy: 'jwt' }), JwtModule.register({}), AcessosModule, UsuariosModule],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService],

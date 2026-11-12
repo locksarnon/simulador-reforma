@@ -52,6 +52,9 @@ model PasswordResetToken {
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
+  /// CONVITE (primeiro acesso, enviado pelo administrador) ou RESET (redefinição de senha).
+  tipo      String    @default("RESET")
+  enviadoPor String?
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -20,9 +20,21 @@ export class UsuariosController {
   }
 
   @Post('usuarios')
-  criar(@CurrentUser() user: AuthUser, @Body() body: { email?: string; name?: string; role?: string; senha?: string }) {
+  criar(@CurrentUser() user: AuthUser, @Body() body: { email?: string; name?: string; role?: string; senha?: string; convite?: boolean }) {
     exigirAdmin(user);
-    return this.usuarios.criar(body ?? {});
+    return this.usuarios.criar(body ?? {}, user);
+  }
+
+  @Post('usuarios/:id/reenviar-convite')
+  reenviarConvite(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    exigirAdmin(user);
+    return this.usuarios.reenviarConvite(id, user);
+  }
+
+  @Post('usuarios/:id/enviar-redefinicao')
+  enviarRedefinicao(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    exigirAdmin(user);
+    return this.usuarios.enviarRedefinicao(id, user);
   }
 
   @Put('usuarios/:id')

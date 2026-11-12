@@ -1,7 +1,22 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { emailLayout, esc, MailService } from '../mail/mail.service';
+
+export const DIAS_CONVITE = 7;
+export const HORAS_REDEFINICAO = 24;
+type TipoLink = 'CONVITE' | 'RESET' | 'ESQUECI';
+export type SituacaoUsuario = 'ATIVO' | 'CONVITE_PENDENTE' | 'CONVITE_VENCIDO' | 'INATIVO';
+const hash = (t: string) => createHash('sha256').update(t).digest('hex');
+const dataHora = (d: Date) => d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+
+/** Situação da conta para a lista: convite pendente ou vencido enquanto a pessoa não entrou. */
+export function situacaoDoUsuario(u: { ativo: boolean; lastLoginAt: Date | null }, convite?: { expiresAt: Date; usedAt: Date | null } | null, agora = new Date()): SituacaoUsuario {
+  if (!u.ativo) return 'INATIVO';
+  if (u.lastLoginAt || !convite || convite.usedAt) return 'ATIVO';
+  return convite.expiresAt.getTime() > agora.getTime() ? 'CONVITE_PENDENTE' : 'CONVITE_VENCIDO';
+}
 
 export const PAPEIS = ['admin', 'user'] as const;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,30 +43,104 @@ const publico = { id: true, email: true, name: true, role: true, ativo: true, la
  */
 @Injectable()
 export class UsuariosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly mail?: MailService) {}
 
   async listar() {
-    const [usuarios, vinculos] = await Promise.all([
+    const [usuarios, vinculos, convites] = await Promise.all([
       this.prisma.user.findMany({ select: publico, orderBy: [{ ativo: 'desc' }, { email: 'asc' }] }),
       this.prisma.vinculoColaborador.groupBy({ by: ['user_id'], _count: { _all: true } }),
+      this.prisma.passwordResetToken.findMany({ where: { tipo: 'CONVITE' }, orderBy: { createdAt: 'desc' }, select: { userId: true, expiresAt: true, usedAt: true, createdAt: true, enviadoPor: true } }),
     ]);
     const n = new Map(vinculos.map((v) => [v.user_id, v._count._all]));
-    return usuarios.map((u) => ({ ...u, empresas: n.get(u.id) ?? 0 }));
+    const ultimo = new Map<string, (typeof convites)[number]>();
+    for (const c of convites) if (!ultimo.has(c.userId)) ultimo.set(c.userId, c);
+    return usuarios.map((u) => {
+      const c = ultimo.get(u.id);
+      return { ...u, empresas: n.get(u.id) ?? 0, situacao: situacaoDoUsuario(u, c), convite: c ? { enviado_em: c.createdAt, expira_em: c.expiresAt, enviado_por: c.enviadoPor } : null };
+    });
   }
 
-  async criar(entrada: { email?: string; name?: string; role?: string; senha?: string }) {
+  /** Cria um link de uso único (convite ou redefinição), invalidando os anteriores do mesmo tipo. */
+  private async novoLink(userId: string, tipo: TipoLink, porQuem?: string) {
+    const agora = new Date();
+    const tipoBanco = tipo === 'ESQUECI' ? 'RESET' : tipo;
+    await this.prisma.passwordResetToken.updateMany({ where: { userId, tipo: tipoBanco, usedAt: null }, data: { usedAt: agora } });
+    const token = randomBytes(32).toString('base64url');
+    const expira = new Date(agora.getTime() + (tipo === 'CONVITE' ? DIAS_CONVITE * 86_400_000 : tipo === 'ESQUECI' ? 3_600_000 : HORAS_REDEFINICAO * 3_600_000));
+    await this.prisma.passwordResetToken.create({ data: { userId, tokenHash: hash(token), expiresAt: expira, tipo: tipoBanco, enviadoPor: porQuem ?? null } });
+    const base = this.mail?.urlPublica ?? (process.env.APP_PUBLIC_URL || 'https://simulador.clarityib.com.br').replace(/\/$/, '');
+    return { link: `${base}/reset-password?token=${token}${tipo === 'CONVITE' ? '&convite=1' : ''}`, expira };
+  }
+
+  /** E-mail do convite ou da redefinição. Sem e-mail configurado, devolve o motivo e a tela mostra o link para copiar. */
+  private async enviarLink(u: { email: string; name: string | null }, tipo: TipoLink, link: string, expira: Date, porQuem?: string) {
+    if (!this.mail) return { enviado: false, motivo: 'e-mail não configurado no servidor' };
+    const nome = u.name?.split(' ')[0] || '';
+    const convite = tipo === 'CONVITE';
+    const titulo = convite ? 'Você foi convidado para o InTAX' : 'Redefinição de senha do InTAX';
+    const proprio = tipo === 'ESQUECI';
+    const ola = nome ? `Olá, ${nome}.` : 'Olá.';
+    const texto = convite
+      ? `${ola} ${porQuem ? `${porQuem} convidou você` : 'Você foi convidado'} para acessar o InTAX, da FAL Agro, com o e-mail ${u.email}. Para entrar, crie a sua senha no link abaixo.`
+      : `${ola} ${proprio ? 'Recebemos um pedido para redefinir a senha' : 'Um administrador do InTAX pediu a redefinição da senha'} da sua conta no InTAX (${u.email}). Crie uma senha nova no link abaixo.`;
+    const html = emailLayout(titulo, `<p style="margin:0 0 16px;line-height:1.5">${esc(texto)}</p>
+<p style="margin:0 0 20px"><a href="${esc(link)}" style="display:inline-block;background:#197148;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:6px">${convite ? 'Criar minha senha' : 'Criar senha nova'}</a></p>
+<p style="margin:0 0 8px;font-size:13px;color:#5b6b63;line-height:1.5">O link vale até ${esc(dataHora(expira))} e só pode ser usado uma vez. Se o botão não abrir, copie este endereço no navegador:<br><span style="word-break:break-all">${esc(link)}</span></p>
+<p style="margin:0;font-size:13px;color:#5b6b63">${convite ? 'A senha precisa ter pelo menos 10 caracteres.' : 'Se você não esperava esta mensagem, ignore-a: a senha atual continua valendo até você criar outra.'}</p>`);
+    const t = `${titulo}\n\n${texto}\n\n${link}\n\nO link vale até ${dataHora(expira)} e só pode ser usado uma vez.`;
+    return this.mail.enviar({ to: u.email, subject: titulo, html, text: t });
+  }
+
+  /** Reenvia o convite de quem ainda não entrou (link novo; o anterior deixa de valer). */
+  async reenviarConvite(id: string, ator?: { email?: string }) {
+    const u = await this.prisma.user.findUnique({ where: { id } });
+    if (!u) throw new NotFoundException('Usuário não encontrado.');
+    if (!u.ativo) throw new BadRequestException('A conta está desativada. Reative antes de reenviar o convite.');
+    if (u.lastLoginAt) throw new BadRequestException(`${u.email} já entrou no InTAX. Use "Enviar link para redefinir a senha".`);
+    const { link, expira } = await this.novoLink(u.id, 'CONVITE', ator?.email);
+    const envio = await this.enviarLink(u, 'CONVITE', link, expira, ator?.email);
+    return { ...envio, link, expira_em: expira };
+  }
+
+  /** "Esqueci minha senha" da tela de login: link de 1 hora por e-mail. Não diz se a conta existe. */
+  async esqueciSenha(email: string) {
+    const u = await this.prisma.user.findUnique({ where: { email: String(email ?? '').trim().toLowerCase() } });
+    if (!u || !u.ativo) return { ok: true };
+    const { link, expira } = await this.novoLink(u.id, 'ESQUECI', 'próprio usuário');
+    await this.enviarLink(u, 'ESQUECI', link, expira);
+    return { ok: true };
+  }
+
+  /** Manda por e-mail um link para a pessoa criar uma senha nova (vale 24 horas). */
+  async enviarRedefinicao(id: string, ator?: { email?: string }) {
+    const u = await this.prisma.user.findUnique({ where: { id } });
+    if (!u) throw new NotFoundException('Usuário não encontrado.');
+    if (!u.ativo) throw new BadRequestException('A conta está desativada. Reative antes de redefinir a senha.');
+    const { link, expira } = await this.novoLink(u.id, 'RESET', ator?.email);
+    const envio = await this.enviarLink(u, 'RESET', link, expira, ator?.email);
+    return { ...envio, link, expira_em: expira };
+  }
+
+  async criar(entrada: { email?: string; name?: string; role?: string; senha?: string; convite?: boolean }, ator?: { email?: string }) {
     const email = String(entrada.email ?? '').trim().toLowerCase();
     if (!EMAIL.test(email)) throw new BadRequestException('Informe um e-mail válido.');
     const role = entrada.role ?? 'user';
     if (!PAPEIS.includes(role as never)) throw new BadRequestException('Papel inválido. Use admin ou user.');
-    const provisoria = !entrada.senha;
-    const senha = provisoria ? senhaProvisoria() : validarSenha(entrada.senha, email);
+    // Sem senha informada, o padrão é o convite por e-mail: a pessoa cria a própria senha pelo link.
+    const convite = entrada.convite ?? !entrada.senha;
+    const provisoria = !convite && !entrada.senha;
+    const senha = convite || provisoria ? senhaProvisoria() + (convite ? senhaProvisoria() : '') : validarSenha(entrada.senha, email);
     if (await this.prisma.user.findUnique({ where: { email } })) throw new ConflictException('Já existe uma conta com esse e-mail.');
     const user = await this.prisma.user.create({
       data: { email, name: entrada.name?.trim().slice(0, 120) || null, role: role as never, passwordHash: await argon2.hash(senha) },
       select: publico,
     });
-    return { usuario: user, senha_provisoria: provisoria ? senha : null };
+    if (convite) {
+      const { link, expira } = await this.novoLink(user.id, 'CONVITE', ator?.email);
+      const envio = await this.enviarLink(user, 'CONVITE', link, expira, ator?.email);
+      return { usuario: user, senha_provisoria: null, convite: { ...envio, link, expira_em: expira } };
+    }
+    return { usuario: user, senha_provisoria: provisoria ? senha : null, convite: null };
   }
 
   private async administradoresAtivos(exceto?: string) {
