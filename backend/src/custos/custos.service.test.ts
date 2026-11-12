@@ -27,8 +27,16 @@ describe('custos das ferramentas externas', () => {
     const g = await s.geral('2026-11', { role: 'admin' });
     expect(g.usuarios.map((u) => u.usuario)).toEqual(['ana@fal.com', ROTINA]);
     expect(g.variavel).toBe(3.8);
-    expect(g.total).toBe(103.8);
+    // 100 de fixo + 99,70 de complemento da franquia mínima da Infosimples (consumo de 0,30).
+    expect(g.total).toBe(203.5);
     await expect(s.geral('2026-11', { role: 'user' })).rejects.toThrow(/administradores/);
+  });
+
+  it('sem preço digitado, usa a tabela oficial pela faixa do volume do mês', async () => {
+    const s = montar();
+    const meu = await s.meu('ana@fal.com', '2026-11');
+    const p = Object.fromEntries(meu.itens.map((i) => [i.id, i.preco]));
+    expect(p).toMatchObject({ INTEGRA_CONSULTAR: 0.24, INTEGRA_APOIAR: 0.24, INTEGRA_EMITIR: 0.32, INTEGRA_DECLARAR: 0.4, SERPRO_CND: 0.8788, SERPRO_DIVIDA: 0.6591, INFOSIMPLES_CNDT: 0.26, INFOSIMPLES_CRF: 0.28 });
   });
 
   it('preços: só administrador, sem negativo, fixos sem nome caem', async () => {

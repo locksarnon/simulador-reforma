@@ -40,7 +40,7 @@ export default function CustosPagina() {
           {d && (
             <div className="flex flex-wrap gap-4 text-sm">
               <span>Variável: <strong className="tabular-nums">{brl(d.variavel)}</strong></span>
-              <span>Fixos: <strong className="tabular-nums">{brl(d.fixo)}</strong></span>
+              <span title={(d.fixos_do_mes || []).map((f) => `${f.rotulo}: ${brl(f.valor)}`).join(" · ")}>Fixos: <strong className="tabular-nums">{brl(d.fixo)}</strong></span>
               <span>Total do escritório: <strong className="tabular-nums">{brl(d.total)}</strong></span>
             </div>
           )}
@@ -51,12 +51,12 @@ export default function CustosPagina() {
 
         <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="Preços">
           <h2 className="font-heading text-sm font-semibold">Preços do contrato (por chamada)</h2>
-          <p className="text-xs text-muted-foreground">Preço unitário da sua faixa de contrato. Demonstração não custa.</p>
+          <p className="text-xs text-muted-foreground">Em branco vale a tabela oficial ({d?.fontes ? <><a className="text-primary hover:underline" href={d.fontes.serpro_integra} target="_blank" rel="noreferrer">Integra Contador</a>, <a className="text-primary hover:underline" href={d.fontes.serpro_cnd} target="_blank" rel="noreferrer">Consulta CND</a>, <a className="text-primary hover:underline" href={d.fontes.serpro_divida} target="_blank" rel="noreferrer">Dívida Ativa</a>, <a className="text-primary hover:underline" href={d.fontes.infosimples} target="_blank" rel="noreferrer">Infosimples</a></> : "Serpro e Infosimples"}).</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {itens.map((i) => (
               <label key={i.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                <span className="min-w-0"><span className="block truncate">{i.rotulo}</span><span className="text-[11px] text-muted-foreground">{i.fornecedor}</span></span>
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">R$<input type="number" min="0" step="0.0001" value={precos[i.id] ?? 0} onChange={(e) => setPrecos((p) => ({ ...p, [i.id]: e.target.value }))} className={`${campo} w-24 text-right`} aria-label={`Preço: ${i.rotulo}`} /></span>
+                <span className="min-w-0"><span className="block truncate">{i.rotulo}</span><span className="text-[11px] text-muted-foreground">{i.fornecedor}{!(Number(precos[i.id]) > 0) ? " · tabela oficial" : " · preço do contrato"}</span></span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">R$<input type="number" min="0" step="0.0001" value={precos[i.id] || ""} placeholder={d?.oficiais?.[i.id] != null ? String(d.oficiais[i.id]).replace(".", ",") : ""} onChange={(e) => setPrecos((p) => ({ ...p, [i.id]: e.target.value }))} className={`${campo} w-24 text-right`} aria-label={`Preço: ${i.rotulo}`} /></span>
               </label>
             ))}
           </div>

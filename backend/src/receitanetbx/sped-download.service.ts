@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { atributos, chamarBx, servicosBx } from './receitanetbx.cliente';
 import { entradaPedido, ESCRITURACAO_POR_ID } from './sped';
+import { competenciaDe, lerCabecalho, textoDoSped } from './sped-cabecalho';
 
 type Usuario = { email?: string } | undefined;
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
@@ -45,13 +46,13 @@ export class SpedDownloadService {
     if (!e) throw new BadRequestException('Escrituração desconhecida.');
     const s = servicosBx().find((x) => x.id === b.servico);
     if (!s) throw new BadRequestException('Certificado (primário ou secundário) desconhecido.');
-    if (!b.arquivoId || !b.competencia) throw new BadRequestException('Informe o arquivo e a competência.');
+    if (!b.arquivoId) throw new BadRequestException('Informe o arquivo.');
     const emp = await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { cnpj_cpf: true } });
     const cnpj = so(emp?.cnpj_cpf);
     if (cnpj.length !== 14) throw new NotFoundException('Cliente sem CNPJ válido.');
     const ja = await this.prisma.spedDownload.findFirst({ where: { empresa_id: empresaId, arquivo_receita: b.arquivoId, situacao: { notIn: ['ERRO'] } } });
     if (ja) return ja;
-    const base = { empresa_id: empresaId, escrituracao: e.id, competencia: b.competencia, servico: s.id, arquivo_receita: b.arquivoId, recibo: b.recibo ?? null, retificadora: !!b.retificadora, solicitado_por: usuario?.email ?? null };
+    const base = { empresa_id: empresaId, escrituracao: e.id, competencia: b.competencia || '?', servico: s.id, arquivo_receita: b.arquivoId, recibo: b.recibo ?? null, retificadora: !!b.retificadora, solicitado_por: usuario?.email ?? null };
     let saida = '';
     try {
       saida = (await chamarBx('SolicitarArquivos', entradaPedido(e, cnpj, !!b.proprio && s.id === 'primario', [b.arquivoId]), s.url)).saida;
@@ -63,6 +64,20 @@ export class SpedDownloadService {
     const msg = saida.match(/<mensagem(?:usuario)?\b[^>]*>([\s\S]*?)<\/mensagem(?:usuario)?>/)?.[1]?.trim();
     if (!pedido?.id) return this.prisma.spedDownload.create({ data: { ...base, situacao: 'ERRO', mensagem: (msg || 'A Receita não devolveu o número do pedido.').slice(0, 500) } });
     return this.prisma.spedDownload.create({ data: { ...base, id_pedido: pedido.id, situacao: 'SOLICITADO', mensagem: msg ?? null } });
+  }
+
+  /**
+   * Pede à Receita todos os arquivos achados na pesquisa que ainda não foram pedidos (a pesquisa só devolve o id; período,
+   * retificadora e recibo saem do próprio arquivo quando ele chega).
+   */
+  async pedirTodos(empresaId: string, escrituracao: string, achados: { id: string; servico: string }[], proprio: boolean, usuario: Usuario) {
+    const ja = new Set((await this.prisma.spedDownload.findMany({ where: { empresa_id: empresaId, escrituracao, situacao: { notIn: ['ERRO'] } }, select: { arquivo_receita: true } })).map((x) => x.arquivo_receita));
+    let pedidos = 0;
+    for (const a of achados.filter((x) => x.id && !ja.has(x.id)).slice(0, 60)) {
+      await this.solicitar(empresaId, { escrituracao, arquivoId: a.id, servico: a.servico, proprio }, usuario);
+      pedidos++;
+    }
+    return pedidos;
   }
 
   /** A cada 2 minutos: confere os pedidos em aberto e guarda os arquivos que o serviço já baixou. */
@@ -109,10 +124,22 @@ export class SpedDownloadService {
    * Guarda os arquivos nos Arquivos do cliente, pasta SPED/<escrituração>/<competência>: a escrituração transmitida (o próprio
    * arquivo da Receita, sem alteração, para levantamentos de crédito) e o recibo, quando vier. O principal é a escrituração.
    */
-  private async guardar(d: { id: string; empresa_id: string; escrituracao: string; competencia: string; retificadora: boolean; solicitado_por: string | null }, caminhos: string[]) {
+  private async guardar(entrada: { id: string; empresa_id: string; escrituracao: string; competencia: string; retificadora: boolean; solicitado_por: string | null }, caminhos: string[]) {
+    let d = entrada;
     const e = ESCRITURACAO_POR_ID.get(d.escrituracao)!;
     const curto = e.rotulo.split(' (')[0];
     const salvos: { id: string; nome: string; tipo: 'ESCRITURACAO' | 'RECIBO' }[] = [];
+    // Período e original/retificadora vêm do registro 0000 da própria escrituração.
+    let cab = null as ReturnType<typeof lerCabecalho>;
+    for (const caminho of caminhos) {
+      if (/\.rec$/i.test(caminho) || /recibo/i.test(basename(caminho))) continue;
+      cab = lerCabecalho(textoDoSped(await readFile(caminho)), d.escrituracao);
+      if (cab) break;
+    }
+    if (cab) {
+      d = { ...d, competencia: competenciaDe(cab, e.anual), retificadora: cab.retificadora ?? d.retificadora };
+      await this.prisma.spedDownload.update({ where: { id: d.id }, data: { competencia: d.competencia, retificadora: d.retificadora, periodo_inicio: cab.inicio, periodo_fim: cab.fim } });
+    }
     for (const caminho of caminhos) {
       const buf = await readFile(caminho);
       const ext = extname(caminho) || '.txt';

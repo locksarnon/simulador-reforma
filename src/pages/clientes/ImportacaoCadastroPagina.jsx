@@ -43,7 +43,15 @@ function AbaEmpresas({ empresas, grupos, ehAdmin }) {
   const [analise, setAnalise] = useState(null);
   const aplicar = useMutation({
     mutationFn: async () => {
-      if (analise.novas.length) await api.entities.Empresa.bulkCreate(analise.novas.map((n) => n.dados));
+      // Empresa nova vai pelo mesmo caminho do "Novo cliente": sem grupo, ela vira o próprio grupo; os dados do CNPJ vêm da Receita.
+      const BASICOS = ["razao_social", "cnpj_cpf", "regime_atual", "uf", "municipio", "email_contato", "whatsapp_contato", "inscricao_estadual", "produtor_rural", "observacao", "grupo"];
+      for (const n of analise.novas) {
+        const { status: _s, id_empresa: _i, ...dados } = n.dados;
+        const base = Object.fromEntries(BASICOS.filter((k) => dados[k] !== undefined).map((k) => [k, dados[k]]));
+        const empresa = await api.post("/clientes", { ...base, grupo: base.grupo || null, servicos: [] });
+        const resto = Object.fromEntries(Object.entries(dados).filter(([k]) => !BASICOS.includes(k)));
+        if (Object.keys(resto).length) await api.entities.Empresa.update(empresa.id, resto);
+      }
       if (analise.atualizar.length) await api.entities.Empresa.bulkUpdate(analise.atualizar.map((a) => ({ id: a.id, ...a.mudancas })));
       return { novas: analise.novas.length, atualizadas: analise.atualizar.length };
     },
@@ -69,7 +77,7 @@ function AbaEmpresas({ empresas, grupos, ehAdmin }) {
           <div className="space-y-3">
             <p role="status"><strong>{analise.novas.length}</strong> {palavra(analise.novas.length, "nova", "novas")}, <strong>{analise.atualizar.length}</strong> a atualizar, {analise.sem_mudanca} sem mudança, <strong>{analise.erros.length}</strong> com erro.</p>
             {analise.atualizar.length > 0 && <ul className="max-h-40 overflow-y-auto text-xs divide-y divide-border/50">{analise.atualizar.map((a) => <li key={a.linha} className="py-1"><span className="font-medium">{a.razao_social}</span>: {Object.entries(a.mudancas).map(([k, v]) => `${CAMPOS.find((c) => c.campo === k)?.rotulo || k} → ${valorParaPlanilha(k, v)}`).join("; ")}</li>)}</ul>}
-            {analise.novas.length > 0 && <ul className="max-h-32 overflow-y-auto text-xs">{analise.novas.map((n) => <li key={n.linha}>Nova: {n.dados.razao_social} (grupo {n.dados.grupo})</li>)}</ul>}
+            {analise.novas.length > 0 && <ul className="max-h-32 overflow-y-auto text-xs">{analise.novas.map((n) => <li key={n.linha}>Nova: {n.dados.razao_social}{n.dados.grupo ? ` (grupo ${n.dados.grupo})` : ""}</li>)}</ul>}
             <Erros erros={analise.erros} />
             <div className="flex gap-2">
               <button type="button" onClick={() => aplicar.mutate()} disabled={(!analise.novas.length && !analise.atualizar.length) || aplicar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{aplicar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Importar</button>

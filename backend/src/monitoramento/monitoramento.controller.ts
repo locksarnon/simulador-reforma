@@ -67,8 +67,8 @@ export class MonitoramentoController {
   }
 
   @Get('empresas/:id/sped')
-  sped(@Param('id') id: string, @Query('ano') ano?: string) {
-    return this.escritorio.sped(id, ano);
+  sped(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('ano') ano?: string) {
+    return this.escritorio.sped(id, ano, user);
   }
 
   @Get('empresas/:id/novidades')

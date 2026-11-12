@@ -23,11 +23,11 @@ describe("importação do cadastro", () => {
       ["W", "11.444.777/0001-63", "090", "", "XX", ""],
     ], EMPRESAS, GRUPOS);
     expect(r.atualizar).toEqual([{ linha: 2, id: "E1", razao_social: "EXTRA AGRO LTDA", mudancas: { email_contato: "fiscal@extra.agro" } }]);
-    expect(r.novas.map((n) => n.dados.razao_social)).toEqual(["Nova Agro"]);
+    // Empresa nova sem grupo é aceita: vira o próprio grupo ao gravar.
+    expect(r.novas.map((n) => n.dados.razao_social)).toEqual(["Nova Agro", "Sem Grupo"]);
     expect(r.novas[0].dados).toMatchObject({ grupo: "090", regime_atual: "Simples Nacional", uf: "GO", status: "Ativa" });
-    expect(r.erros.map((e) => e.linha)).toEqual([4, 5, 6, 7, 8]);
-    expect(r.erros[0].motivo).toMatch(/sem grupo/);
-    expect(r.erros[2].motivo).toMatch(/Grupo 999 não existe/);
+    expect(r.erros.map((e) => e.linha)).toEqual([5, 6, 7, 8]);
+    expect(r.erros[1].motivo).toMatch(/Grupo 999 não existe/);
   });
   it("recusa cabeçalho sem razão social nem CNPJ", () => {
     expect(analisarImportacao([["a", "b"], ["1", "2"]], EMPRESAS, GRUPOS).erros[0].motivo).toMatch(/cabeçalho/);

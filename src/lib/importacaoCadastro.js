@@ -142,7 +142,6 @@ export function analisarImportacao(linhas, empresas, grupos) {
       return undefined;
     }
     if (!v.razao_social) return erros.push({ linha: n, motivo: "Empresa nova sem razão social." });
-    if (!v.grupo) return erros.push({ linha: n, motivo: "Empresa nova sem grupo (informe o número do grupo)." });
     novas.push({ linha: n, dados: { status: "Ativa", id_empresa: v.id_empresa || (digitos(v.cnpj_cpf) || v.razao_social).slice(0, 20), ...v } });
     return undefined;
   });

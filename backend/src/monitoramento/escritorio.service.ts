@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MonitoramentoService } from './monitoramento.service';
 import { extrairArquivos } from './interpretar';
-import { ESCRITURACOES, pesquisarAno, porCompetencia } from '../receitanetbx/sped';
+import { ESCRITURACOES, pesquisarAno, porCompetenciaBaixados } from '../receitanetbx/sped';
+import { SpedDownloadService } from '../receitanetbx/sped-download.service';
 import { servicosBx } from '../receitanetbx/receitanetbx.cliente';
 
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
@@ -46,7 +47,7 @@ export class EscritorioService {
   private readonly log = new Logger(EscritorioService.name);
   pausaMs = 1;
 
-  constructor(private readonly prisma: PrismaService, private readonly m: MonitoramentoService) {}
+  constructor(private readonly prisma: PrismaService, private readonly m: MonitoramentoService, @Optional() private readonly downloads?: SpedDownloadService) {}
 
   // ── Redesim (vínculos do escritório como contador) ──────────────────
   /** CNPJs em que o escritório é o contador responsável na Receita (todas as páginas), marcando os que já são clientes. */
@@ -134,7 +135,7 @@ export class EscritorioService {
    * SPED transmitido no ano (EFD ICMS/IPI e EFD-Contribuições), pelo ReceitanetBX-Serviço com o certificado do escritório:
    * como procurador do cliente (procuração eletrônica no e-CAC) ou como contribuinte, quando é o CNPJ do próprio escritório.
    */
-  async sped(empresaId: string, anoInformado?: string) {
+  async sped(empresaId: string, anoInformado?: string, usuario?: { email?: string }) {
     const ano = Number(anoInformado) || new Date().getFullYear();
     if (ano < 2009 || ano > new Date().getFullYear()) throw new BadRequestException('Ano inválido.');
     const e = await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { cnpj_cpf: true } });
@@ -164,7 +165,16 @@ export class EscritorioService {
       const lista = [...arquivos.values()];
       // Basta um certificado responder sem erro (achou ou não achou nada): o erro de procuração do outro não interessa.
       const erro = !respondeu ? 'O serviço do ReceitanetBX não respondeu.' : lista.length || algumOk ? null : erros.join(' · ') || null;
-      escrituracoes.push({ id: esc.id, rotulo: esc.rotulo, anual: esc.anual, erro, meses: respondeu ? porCompetencia(esc, ano, lista) : [], arquivos: lista });
+      // A pesquisa só devolve o id de cada arquivo: o InTAX pede todos e lê o período de dentro de cada um quando chega.
+      if (this.downloads && lista.length) await this.downloads.pedirTodos(empresaId, esc.id, lista.map((a) => ({ id: a.id, servico: a.servico })), proprio, usuario).catch((e) => this.log.warn(`Pedido dos arquivos: ${(e as Error).message}`));
+      const baixados = await this.prisma.spedDownload.findMany({ where: { empresa_id: empresaId, escrituracao: esc.id } });
+      const ids = new Set(lista.map((a) => a.id));
+      const naFila = baixados.filter((b) => ['SOLICITADO', 'PROCESSANDO', 'DISPONIVEL'].includes(b.situacao) && (ids.has(b.arquivo_receita) || !lista.length)).length;
+      escrituracoes.push({
+        id: esc.id, rotulo: esc.rotulo, anual: esc.anual, erro, encontrados: lista.length, na_fila: naFila,
+        baixados: baixados.filter((b) => b.situacao === 'GUARDADO' && ids.has(b.arquivo_receita)).length,
+        meses: respondeu ? porCompetenciaBaixados(esc, ano, baixados, naFila) : [],
+      });
     }
     return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', proprio, certificados: [...usados], escrituracoes };
   }

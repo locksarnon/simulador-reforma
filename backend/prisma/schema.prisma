@@ -1863,6 +1863,8 @@ model SpedDownload {
   mensagem       String?
   arquivo_id     String?
   arquivos       Json?
+  periodo_inicio String?
+  periodo_fim    String?
   solicitado_por String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

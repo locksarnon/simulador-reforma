@@ -101,6 +101,22 @@ export function porCompetencia(e: Escrituracao, ano: number, arquivos: ReturnTyp
   });
 }
 
+/**
+ * Situação por competência a partir dos arquivos baixados (o 0000 de cada um diz o período): TRANSMITIDA (há arquivo),
+ * NA_FILA (a Receita tem arquivos ainda chegando), NO_PRAZO (não venceu) ou NAO_ENCONTRADA.
+ */
+export function porCompetenciaBaixados<T extends { competencia: string; periodo_inicio: string | null; periodo_fim: string | null; situacao: string; createdAt: Date }>(e: Escrituracao, ano: number, baixados: T[], naFila: number, hoje = new Date()) {
+  const periodos = e.anual
+    ? [{ comp: String(ano), ini: `${ano}-01-01`, fim: `${ano}-12-31`, mes: 12 }]
+    : Array.from({ length: 12 }, (_, i) => { const m = String(i + 1).padStart(2, '0'); return { comp: `${ano}-${m}`, ini: `${ano}-${m}-01`, fim: new Date(Date.UTC(ano, i + 1, 0)).toISOString().slice(0, 10), mes: i + 1 }; });
+  const guardados = baixados.filter((b) => b.situacao === 'GUARDADO' && b.periodo_inicio && b.periodo_fim);
+  return periodos.map((p) => {
+    const doPeriodo = guardados.filter((b) => b.periodo_inicio! <= p.fim && b.periodo_fim! >= p.ini).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const situacao = doPeriodo.length ? 'TRANSMITIDA' : naFila > 0 ? 'NA_FILA' : vencido(e, ano, p.mes, hoje) ? 'NAO_ENCONTRADA' : 'NO_PRAZO';
+    return { competencia: p.comp, situacao, transmissoes: doPeriodo.length, ultima: doPeriodo[0] ?? null, todas: doPeriodo };
+  });
+}
+
 /** Compatibilidade: mês a mês de uma escrituração mensal. */
 export function porMes(ano: number, arquivos: ReturnType<typeof lerArquivo>[], hoje = new Date()) {
   return porCompetencia(ESCRITURACAO_POR_ID.get('EFD_ICMS_IPI')!, ano, arquivos, hoje);
