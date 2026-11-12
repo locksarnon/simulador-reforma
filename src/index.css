@@ -46,13 +46,14 @@
     --sidebar-border: 212 18% 90%;
     --sidebar-ring: 152 60% 34%;
     /* Barra lateral de navegação (marinho) */
-    --rail: 215 49% 16%;
-    --rail-foreground: 213 30% 82%;
+    --rail: 215 52% 14%;
+    --rail-foreground: 213 38% 90%;
     --rail-strong: 0 0% 100%;
-    --rail-muted: 213 20% 62%;
-    --rail-accent: 215 40% 25%;
-    --rail-border: 215 40% 22%;
-    --rail-primary: 152 55% 46%;
+    --rail-muted: 213 26% 72%;
+    --rail-accent: 215 42% 24%;
+    --rail-hover: 215 46% 20%;
+    --rail-border: 215 40% 21%;
+    --rail-primary: 152 58% 50%;
   }
 
   .dark {
@@ -90,12 +91,13 @@
     --sidebar-border: 214 24% 20%;
     --sidebar-ring: 152 55% 46%;
     --rail: 213 40% 8%;
-    --rail-foreground: 213 20% 76%;
-    --rail-strong: 213 25% 94%;
-    --rail-muted: 213 14% 55%;
+    --rail-foreground: 213 26% 86%;
+    --rail-strong: 213 30% 97%;
+    --rail-muted: 213 18% 66%;
     --rail-accent: 214 30% 17%;
-    --rail-border: 214 30% 14%;
-    --rail-primary: 152 55% 46%;
+    --rail-hover: 214 32% 13%;
+    --rail-border: 214 30% 15%;
+    --rail-primary: 152 58% 50%;
   }
 }
 
@@ -113,4 +115,10 @@
   /* Títulos sem quebra feia; números alinhados nas tabelas (CNPJ, valores, datas). */
   h1, h2, h3 { text-wrap: balance; letter-spacing: -0.01em; }
   table, .tabular-nums { font-variant-numeric: tabular-nums; }
+}
+
+/* Rolagem sem barra aparente (menu lateral e painéis): continua rolando com a roda, o toque e o teclado. */
+@layer utilities {
+  .sem-barra { scrollbar-width: none; -ms-overflow-style: none; }
+  .sem-barra::-webkit-scrollbar { display: none; width: 0; height: 0; }
 }

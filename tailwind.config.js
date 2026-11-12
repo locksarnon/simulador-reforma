@@ -65,6 +65,7 @@ module.exports = {
   				strong: 'hsl(var(--rail-strong))',
   				muted: 'hsl(var(--rail-muted))',
   				accent: 'hsl(var(--rail-accent))',
+  				hover: 'hsl(var(--rail-hover))',
   				border: 'hsl(var(--rail-border))',
   				primary: 'hsl(var(--rail-primary))'
   			},

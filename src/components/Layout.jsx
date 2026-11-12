@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Menu, Search } from "lucide-react";
 import MenuLateral from "@/components/MenuLateral";
@@ -11,6 +11,11 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { moduloDoCaminho } from "@/lib/navegacao";
 
 const CHAVE_RECENTES = "intax-modulos-recentes";
+const CHAVE_FIXA = "intax-menu-fixo";
+
+function lerFixa() {
+  try { return localStorage.getItem(CHAVE_FIXA) === "1"; } catch { return false; }
+}
 
 function lerRecentes() {
   try {
@@ -56,20 +61,38 @@ export default function Layout() {
 
   const fecharGaveta = useCallback(() => setGaveta(false), []);
 
+  // Menu do computador: recolhido em ícones, abre por cima do conteúdo ao passar o mouse e recolhe ao sair; o alfinete deixa fixo.
+  const [fixa, setFixa] = useState(lerFixa);
+  const [sobre, setSobre] = useState(false);
+  const timerZona = useRef();
+  const entrarZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(true), 90); }, []);
+  const sairZona = useCallback(() => { clearTimeout(timerZona.current); timerZona.current = setTimeout(() => setSobre(false), 280); }, []);
+  useEffect(() => () => clearTimeout(timerZona.current), []);
+  const alternarFixa = () => setFixa((v) => { try { localStorage.setItem(CHAVE_FIXA, v ? "0" : "1"); } catch { /* sem armazenamento */ } return !v; });
+  const expandida = fixa || sobre;
+
   return (
     <EmpresaEmFocoProvider>
     <div className="min-h-screen bg-canvas flex">
       <a href="#conteudo" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground">
         Pular para o conteúdo
       </a>
-      <aside className="hidden lg:block w-64 shrink-0 border-r border-rail-border h-screen sticky top-0">
-        <MenuLateral />
+      {/* Espaço do menu no fluxo da página: a faixa de ícones, ou o menu inteiro quando fixado. */}
+      <div aria-hidden="true" className={`hidden shrink-0 transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block ${fixa ? "w-64" : "w-[72px]"}`} />
+      <aside
+        onMouseEnter={entrarZona}
+        onMouseLeave={sairZona}
+        onFocus={entrarZona}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) sairZona(); }}
+        className={`fixed inset-y-0 left-0 z-40 hidden border-r border-rail-border transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none lg:block ${expandida ? "w-64" : "w-[72px]"} ${expandida && !fixa ? "shadow-[12px_0_40px_-12px_rgba(0,0,0,0.45)]" : ""}`}
+      >
+        <MenuLateral modo="trilho" compacto={!expandida} fixa={fixa} aoFixar={alternarFixa} aoEntrarZona={entrarZona} aoSairZona={sairZona} />
       </aside>
       <Sheet open={gaveta} onOpenChange={setGaveta}>
         <SheetContent side="left" className="w-72 border-rail-border bg-rail p-0 text-rail-foreground [&>button]:text-rail-strong">
           <SheetTitle className="sr-only">Menu principal</SheetTitle>
           <SheetDescription className="sr-only">Áreas e módulos do InTAX</SheetDescription>
-          <MenuLateral aoNavegar={fecharGaveta} />
+          <MenuLateral modo="gaveta" aoNavegar={fecharGaveta} />
         </SheetContent>
       </Sheet>
 
