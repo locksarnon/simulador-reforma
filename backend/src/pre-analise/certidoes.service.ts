@@ -22,6 +22,11 @@ export const CERTIDOES: { tipo: TipoCertidaoCliente; rotulo: string; tipoDocumen
   { tipo: 'TRABALHISTA', rotulo: 'CNDT (débitos trabalhistas)', tipoDocumento: 'CNDT (débitos trabalhistas)', portal: 'https://cndt-certidao.tst.jus.br/inicio.faces', como: '' },
   { tipo: 'FGTS', rotulo: 'CRF do FGTS', tipoDocumento: 'CRF do FGTS', portal: 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf', como: '' },
 ];
+/** Mensagem quando a Infosimples não tem consulta para o município (ou a UF) do cliente. */
+export const semCoberturaTexto = (tipo: string) => (tipo === 'MUNICIPAL'
+  ? 'Município sem emissão automática pela Infosimples: emita no portal da prefeitura e anexe o PDF. Nova tentativa automática em 30 dias.'
+  : 'Estado sem emissão automática pela Infosimples: emita no portal da SEFAZ e anexe o PDF. Nova tentativa automática em 30 dias.');
+
 const DEF = new Map(CERTIDOES.map((c) => [c.tipo, c]));
 const PASTA = 'Certidões';
 /** dd/mm/aaaa → meio-dia UTC do mesmo dia (a data não muda com o fuso). */
@@ -38,21 +43,32 @@ export class CertidoesService {
   private readonly log = new Logger(CertidoesService.name);
   /** Última tentativa automática por cliente e tipo (para não chamar a Infosimples a cada abertura da tela). */
   private readonly tentativas = new Map<string, number>();
+  /** Emissões automáticas em andamento ("empresa:tipo"), para a tela mostrar "Emitindo…" e se atualizar. */
+  private readonly emitindo = new Set<string>();
 
   /**
    * CNDT e CRF saem sozinhos, como a federal: ao abrir as certidões do cliente, se faltar a certidão ou ela estiver vencida, o InTAX
    * emite pela Infosimples em segundo plano (no máximo uma tentativa a cada 6 horas por cliente e tipo).
    */
-  private emitirQueFaltam(empresaId: string, docs: { tipo_id: string | null; validade: Date | null }[], tipos: Map<string, { id: string }>, hoje: Date) {
+  private emitirQueFaltam(empresaId: string, docs: { tipo_id: string | null; validade: Date | null }[], tipos: Map<string, { id: string }>, hoje: Date, ultimas: Map<string, { quando: string; resultado: string }> = new Map()) {
     for (const tipo of ['ESTADUAL', 'MUNICIPAL', 'TRABALHISTA', 'FGTS'] as const) {
       const t = tipos.get(DEF.get(tipo)!.tipoDocumento);
       const vigente = t && docs.some((d) => d.tipo_id === t.id && d.validade && d.validade.getTime() >= hoje.getTime());
       const chave = `${empresaId}:${tipo}`;
       if (vigente || Date.now() - (this.tentativas.get(chave) ?? 0) < 6 * 3_600_000) continue;
+      // Município (ou UF) sem consulta na fonte: não tenta de novo sozinho por 30 dias (cada consulta pode ser cobrada).
+      const u = ultimas.get(tipo);
+      if (u?.resultado === 'SEM_COBERTURA' && Date.now() - Date.parse(u.quando) < 30 * 86_400_000) continue;
       this.tentativas.set(chave, Date.now());
+      this.emitindo.add(chave);
       this.emitir(empresaId, tipo, { email: 'InTAX (automático)' })
-        .then((r) => this.registrarTentativa(empresaId, tipo, r.emitida ? 'EMITIDA' : 'INDISPONIVEL', r.emitida ? null : r.resumo ?? 'Fonte indisponível no momento.'))
-        .catch((e) => { this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`); return this.registrarTentativa(empresaId, tipo, 'ERRO', (e as Error).message); });
+        .then((r) => {
+          if (r.emitida) return this.registrarTentativa(empresaId, tipo, 'EMITIDA', null);
+          const semCobertura = /n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(r.resumo ?? '');
+          return this.registrarTentativa(empresaId, tipo, semCobertura ? 'SEM_COBERTURA' : 'INDISPONIVEL', semCobertura ? semCoberturaTexto(tipo) : r.resumo ?? 'Fonte indisponível no momento.');
+        })
+        .catch((e) => { this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`); return this.registrarTentativa(empresaId, tipo, 'ERRO', (e as Error).message); })
+        .finally(() => this.emitindo.delete(chave));
     }
   }
 
@@ -101,8 +117,8 @@ export class CertidoesService {
     const modo = await this.monitoramento.modo();
     const cndApi = modo === 'PRODUCAO' && !!(await this.serpro.disponivelEmProducao('cnd'));
     const infosimples = (await this.infosimples.estado()).configurado;
-    if (infosimples) this.emitirQueFaltam(empresaId, docs, tipos, hoje);
     const ultimas = await this.ultimasTentativas(empresaId);
+    if (infosimples) this.emitirQueFaltam(empresaId, docs, tipos, hoje, ultimas);
     return {
       empresa: { id: e.id, razao_social: e.razao_social, cnpj: so(e.cnpj_cpf), uf: e.uf ?? null, municipio: e.municipio ?? null },
       emissao_automatica_federal: cndApi,
@@ -122,6 +138,7 @@ export class CertidoesService {
           } : null,
           anteriores: lista.length - (atual ? 1 : 0),
           ultima_tentativa: ultimas.get(c.tipo) ?? null,
+          emitindo: this.emitindo.has(`${empresaId}:${c.tipo}`),
           // Todas as certidões guardadas da esfera, da mais nova para a mais antiga (tabela da subaba).
           historico: lista.map((d) => {
             const x = d.arquivo_id ? arq.get(d.arquivo_id) : null;
@@ -223,7 +240,10 @@ export class CertidoesService {
     const item = { TRABALHISTA: 'INFOSIMPLES_CNDT', FGTS: 'INFOSIMPLES_CRF', ESTADUAL: 'INFOSIMPLES_ESTADUAL', MUNICIPAL: 'INFOSIMPLES_MUNICIPAL' }[tipo] as 'INFOSIMPLES_CNDT';
     if (r) await registrarUso(this.prisma, item, usuario?.email ?? null, empresaId, cnpj);
     if (!r) throw new BadRequestException('Infosimples não configurada: anexe o PDF do portal.');
-    if (r.status === 'INDISPONIVEL' || !r.comprovante) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
+    if (r.status === 'INDISPONIVEL' || !r.comprovante) {
+      const semCobertura = /n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(r.resumo ?? '');
+      return { emitida: false, resumo: semCobertura ? semCoberturaTexto(tipo).replace(' Nova tentativa automática em 30 dias.', '') : r.resumo, status: r.status, detalhes: r.detalhes };
+    }
     const def = DEF.get(tipo as TipoCertidaoCliente)!;
     await this.guardar(empresaId, tipo as TipoCertidaoCliente, r.comprovante.buffer, `${def.rotulo} ${new Date().toISOString().slice(0, 10)}.${r.comprovante.extensao}`, { emissao: r.emissao, validade: r.validade, numero: r.numero, situacao: `${r.situacao} (Infosimples)` }, usuario, r.comprovante.tipo);
     return { emitida: true, resumo: r.resumo, status: r.status, detalhes: r.detalhes };

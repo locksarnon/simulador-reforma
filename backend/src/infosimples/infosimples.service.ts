@@ -158,9 +158,10 @@ export class InfosimplesService {
     return this.certidao(`sefaz/${u}/certidao-debitos`, cnpj, lerCertidaoGenerica);
   }
   /** Certidão municipal pela CND unificada de prefeituras (pref/cnd), com a UF e o município do cliente. */
-  async municipal(cnpj: string, uf: string, municipio: string, ibge?: string | null) {
+  // Parâmetros oficiais da pref/cnd: uf, municipio, cnpj, inscricao_municipal e extra_parameters.
+  async municipal(cnpj: string, uf: string, municipio: string, _ibge?: string | null) {
     if (!uf || !municipio) throw new BadRequestException('O cliente não tem município ou UF no cadastro.');
-    return this.certidao('pref/cnd', cnpj, lerCertidaoGenerica, { uf: uf.toUpperCase(), municipio, ...(ibge ? { codigo_ibge: ibge } : {}) });
+    return this.certidao('pref/cnd', cnpj, lerCertidaoGenerica, { uf: uf.toUpperCase(), municipio });
   }
 
   private async certidao(rota: string, cnpjInformado: string, ler: (d: Record<string, unknown>) => Omit<ResultadoCertidao, 'comprovante'>, extras: Record<string, string> = {}): Promise<ResultadoCertidao | null> {

@@ -56,7 +56,8 @@ function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {c.ultima_tentativa && c.ultima_tentativa.resultado !== "EMITIDA" && <span role="status" className="mr-auto text-xs text-amber-700 dark:text-amber-400">Emissão automática em {new Date(c.ultima_tentativa.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}: {c.ultima_tentativa.mensagem || "não emitida"}</span>}
+        {c.emitindo && <span role="status" className="mr-auto inline-flex items-center gap-1 text-xs text-sky-700 dark:text-sky-400"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Emitindo no portal oficial pela Infosimples…</span>}
+        {!c.emitindo && c.ultima_tentativa && c.ultima_tentativa.resultado !== "EMITIDA" && <span role="status" className="mr-auto text-xs text-amber-700 dark:text-amber-400">Emissão automática em {new Date(c.ultima_tentativa.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}: {c.ultima_tentativa.mensagem || "não emitida"}</span>}
         {automatica && (
           <button type="button" disabled={emitir.isPending} onClick={() => emitir.mutate()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60">
             {emitir.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}Emitir agora
@@ -78,7 +79,8 @@ function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
 /** Aba Certidões do cliente: uma subaba por esfera (Federal, Estadual, Municipal, Trabalhista, FGTS), cada uma em tabela. */
 export default function CertidoesCliente({ empresaId }) {
   const qc = useQueryClient();
-  const { data, isLoading, error } = useQuery({ queryKey: ["certidoes", empresaId], queryFn: () => api.get(`/certidoes/empresas/${empresaId}`) });
+  // Enquanto o InTAX emite certidões em segundo plano, confere de novo a cada 10 segundos.
+  const { data, isLoading, error } = useQuery({ queryKey: ["certidoes", empresaId], queryFn: () => api.get(`/certidoes/empresas/${empresaId}`), refetchInterval: (q) => ((q.state.data?.certidoes || []).some((c) => c.emitindo) ? 10_000 : false) });
   const sitfis = useLeituraSitfis(empresaId).data;
   const aoMudar = () => { qc.invalidateQueries({ queryKey: ["certidoes", empresaId] }); qc.invalidateQueries({ queryKey: ["documentos"] }); };
   if (isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Carregando as certidões…</p>;
