@@ -116,6 +116,33 @@ export class SpedDownloadService {
     return pedidos;
   }
 
+  /**
+   * Cópias do mesmo arquivo da Receita (pedidos repetidos antes da correção do número do pedido): mantém a mais antiga, apaga as
+   * outras do armazenamento e dos Arquivos do cliente, e aponta os pedidos para a que ficou.
+   */
+  async removerCopias() {
+    const guardados = await this.prisma.spedDownload.findMany({ where: { situacao: 'GUARDADO' }, orderBy: { createdAt: 'asc' } });
+    const primeiro = new Map<string, (typeof guardados)[number]>();
+    let removidas = 0;
+    for (const g of guardados) {
+      const k = `${g.empresa_id}|${g.arquivo_receita}`;
+      const p = primeiro.get(k);
+      if (!p) { primeiro.set(k, g); continue; }
+      const meus = (Array.isArray(g.arquivos) ? (g.arquivos as { id: string }[]) : []).map((a) => a.id);
+      const deles = new Set((Array.isArray(p.arquivos) ? (p.arquivos as { id: string }[]) : []).map((a) => a.id));
+      for (const id of meus.filter((x) => !deles.has(x))) {
+        const a = await this.prisma.arquivoEmpresa.findUnique({ where: { id } });
+        if (!a) continue;
+        await this.storage.removeObject(a.storage_key).catch(() => undefined);
+        await this.prisma.arquivoEmpresa.delete({ where: { id } });
+        removidas++;
+      }
+      await this.prisma.spedDownload.update({ where: { id: g.id }, data: { arquivo_id: p.arquivo_id, arquivos: p.arquivos as never, mensagem: 'Mesmo arquivo de outro pedido.' } });
+    }
+    if (removidas) this.log.log(`SPED: ${removidas} cópia(s) repetida(s) removida(s).`);
+    return removidas;
+  }
+
   /** A cada 2 minutos: confere os pedidos em aberto e guarda os arquivos que o serviço já baixou. */
   @Cron('*/2 * * * *')
   async acompanhar() {
@@ -173,6 +200,7 @@ export class SpedDownloadService {
           }
         }
       }
+      await this.removerCopias();
     } finally { this.acompanhando = false; }
     return { guardados };
   }
@@ -181,8 +209,13 @@ export class SpedDownloadService {
    * Guarda os arquivos nos Arquivos do cliente, pasta SPED/<escrituração>/<competência>: a escrituração transmitida (o próprio
    * arquivo da Receita, sem alteração, para levantamentos de crédito) e o recibo, quando vier. O principal é a escrituração.
    */
-  private async guardar(entrada: { id: string; empresa_id: string; escrituracao: string; competencia: string; retificadora: boolean; solicitado_por: string | null }, caminhos: string[]) {
+  private async guardar(entrada: { id: string; empresa_id: string; escrituracao: string; competencia: string; retificadora: boolean; solicitado_por: string | null; arquivo_receita?: string }, caminhos: string[]) {
     let d = entrada;
+    const igual = await this.prisma.spedDownload.findFirst({ where: { empresa_id: d.empresa_id, arquivo_receita: (entrada as { arquivo_receita?: string }).arquivo_receita, situacao: 'GUARDADO', id: { not: d.id } } });
+    if (igual) {
+      await this.prisma.spedDownload.update({ where: { id: d.id }, data: { situacao: 'GUARDADO', arquivo_id: igual.arquivo_id, arquivos: igual.arquivos as never, competencia: igual.competencia, retificadora: igual.retificadora, periodo_inicio: igual.periodo_inicio, periodo_fim: igual.periodo_fim, mensagem: 'Mesmo arquivo de outro pedido.' } });
+      return;
+    }
     const e = ESCRITURACAO_POR_ID.get(d.escrituracao)!;
     const curto = e.rotulo.split(' (')[0];
     const salvos: { id: string; nome: string; tipo: 'ESCRITURACAO' | 'RECIBO'; tamanho: number }[] = [];

@@ -109,7 +109,15 @@ export function porCompetenciaBaixados<T extends { competencia: string; periodo_
   const periodos = e.anual
     ? [{ comp: String(ano), ini: `${ano}-01-01`, fim: `${ano}-12-31`, mes: 12 }]
     : Array.from({ length: 12 }, (_, i) => { const m = String(i + 1).padStart(2, '0'); return { comp: `${ano}-${m}`, ini: `${ano}-${m}-01`, fim: new Date(Date.UTC(ano, i + 1, 0)).toISOString().slice(0, 10), mes: i + 1 }; });
-  const guardados = baixados.filter((b) => b.situacao === 'GUARDADO' && b.periodo_inicio && b.periodo_fim);
+  // Um arquivo da Receita conta uma vez, mesmo pedido mais de uma vez.
+  const vistos = new Set<string>();
+  const guardados = baixados.filter((b) => b.situacao === 'GUARDADO' && b.periodo_inicio && b.periodo_fim).filter((b) => {
+    const k = (b as { arquivo_receita?: string }).arquivo_receita;
+    if (!k) return true;
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
   return periodos.map((p) => {
     const doPeriodo = guardados.filter((b) => b.periodo_inicio! <= p.fim && b.periodo_fim! >= p.ini).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const situacao = doPeriodo.length ? 'TRANSMITIDA' : naFila > 0 ? 'NA_FILA' : vencido(e, ano, p.mes, hoje) ? 'NAO_ENCONTRADA' : 'NO_PRAZO';

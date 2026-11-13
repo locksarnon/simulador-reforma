@@ -208,7 +208,7 @@ export class EscritorioService {
       const meses = porCompetenciaBaixados(esc, ano, baixados, naFila).map((x) => (!memoria && x.situacao === 'NAO_ENCONTRADA' ? { ...x, situacao: 'SEM_CONSULTA' } : x));
       escrituracoes.push({
         id: esc.id, rotulo: esc.rotulo, anual: esc.anual, erro: m?.erro ?? null, encontrados: m?.encontrados ?? 0, na_fila: naFila,
-        baixados: doAno.filter((b) => b.situacao === 'GUARDADO').length, meses,
+        baixados: new Set(doAno.filter((b) => b.situacao === 'GUARDADO').map((b) => b.arquivo_receita)).size, meses,
       });
     }
     // Arquivos guardados antes de o tamanho ser anotado: lê do cadastro de arquivos.
