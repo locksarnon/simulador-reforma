@@ -84,6 +84,31 @@ export function lerCrf(d: Record<string, unknown>): Omit<ResultadoCertidao, 'com
   };
 }
 
+/** Links (https) dentro dos dados devolvidos: site_receipt, url do PDF da certidão etc. */
+export function linksDosDados(d: Record<string, unknown>): string[] {
+  const l: string[] = [];
+  const andar = (v: unknown) => {
+    if (typeof v === 'string') { if (/^https:\/\//.test(v)) l.push(v); return; }
+    if (Array.isArray(v)) { v.forEach(andar); return; }
+    if (v && typeof v === 'object') Object.values(v).forEach(andar);
+  };
+  andar(d);
+  // PDF primeiro.
+  return [...new Set(l)].sort((a, b) => Number(/pdf/i.test(b)) - Number(/pdf/i.test(a)));
+}
+
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+
+/**
+ * Quando o portal não gera arquivo: comprovante em HTML com o que a Infosimples devolveu do portal oficial (situação, emissão,
+ * validade, código), para a certidão não se perder e a validade ser acompanhada.
+ */
+export function comprovanteDosDados(rota: string, cnpj: string, l: Omit<ResultadoCertidao, 'comprovante'>): NonNullable<ResultadoCertidao['comprovante']> {
+  const linhas = l.detalhes.map((d) => `<tr><th>${esc(d.rotulo)}</th><td>${esc(d.valor)}</td></tr>`).join('');
+  const html = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${esc(l.situacao)}</title><body style="font-family:sans-serif;padding:24px"><h1 style="font-size:18px">${esc(l.situacao)}</h1><p>CNPJ ${esc(cnpj)} · consulta ${esc(rota)} pela Infosimples em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.</p><table cellpadding="6" style="border-collapse:collapse">${linhas}</table><p style="color:#555;font-size:12px">O portal não devolveu o arquivo da certidão; estes são os dados oficiais lidos no portal. Para o PDF, use o portal oficial.</p></body></html>`;
+  return { buffer: Buffer.from(html, 'utf8'), tipo: 'text/html', extensao: 'html' };
+}
+
 /**
  * Infosimples: a CNDT (TST) e o CRF do FGTS (Caixa) não têm API oficial; a Infosimples emite a certidão no portal oficial e devolve a
  * situação, a validade e o comprovante. O administrador guarda o token em Administração > Integrações (cifrado no cofre).
@@ -152,7 +177,10 @@ export class InfosimplesService {
       return { status: 'INDISPONIVEL', situacao: 'não emitida', resumo: `A Infosimples não trouxe a certidão (código ${j.code ?? r.status}): ${msg || 'sem mensagem'}.`, emissao: null, validade: null, numero: null, detalhes: [], comprovante: null };
     }
     const lido = ler(j.data[0]);
-    return { ...lido, comprovante: await this.comprovante(j.site_receipts ?? []) };
+    // O link do comprovante vem em site_receipts e, em algumas consultas, também dentro dos dados (site_receipt, url do PDF).
+    const links = [...(j.site_receipts ?? []), ...linksDosDados(j.data[0])];
+    const comprovante = (await this.comprovante(links)) ?? comprovanteDosDados(rota, cnpj, lido);
+    return { ...lido, comprovante };
   }
 
   /** Baixa o comprovante (o PDF da certidão, quando o portal o gera; senão a página oficial em HTML). */
