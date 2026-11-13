@@ -69,6 +69,18 @@ export default function SpedTransmitido({ empresaId }) {
     onError: (e) => toast({ title: "Não foi possível consultar a Receita", description: e.message, variant: "destructive" }),
   });
   const [marcadas, setMarcadas] = useState(new Set());
+  const pedidos = useQuery({ queryKey: ["monitoramento", "sped-pedidos", empresaId], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped/downloads`), refetchInterval: 60_000 });
+  const ROTULO_ESC = Object.fromEntries((q.data?.escrituracoes || []).map((e) => [e.id, e.rotulo.split(" (")[0]]));
+  const SIT_PEDIDO = { SOLICITADO: "Pedido à Receita", PROCESSANDO: "Baixando", DISPONIVEL: "Baixando", GUARDADO: "Guardado no InTAX", ERRO: "Com erro" };
+  const colunasPedidos = [
+    { chave: "escrituracao", rotulo: "Escrituração", valor: (l) => ROTULO_ESC[l.escrituracao] || l.escrituracao },
+    { chave: "competencia", rotulo: "Competência", valor: (l) => l.competencia, render: (l) => (/^\d{4}(-\d{2})?$/.test(l.competencia) ? comp(l.competencia) : "—") },
+    { chave: "situacao", rotulo: "Situação", valor: (l) => SIT_PEDIDO[l.situacao] || l.situacao },
+    { chave: "servico", rotulo: "Certificado", valor: (l) => (l.servico === "primario" ? "Primário (empresa)" : "Secundário (sócio)") },
+    { chave: "id_pedido", rotulo: "Pedido" },
+    { chave: "createdAt", rotulo: "Pedido em", tipo: "data", render: (l) => quandoConsultou(l.createdAt) },
+    { chave: "mensagem", rotulo: "Mensagem", quebrar: true },
+  ];
   const colunas = [
     { chave: "competencia", rotulo: "Competência", valor: (l) => l.competencia, render: (l) => comp(l.competencia) },
     { chave: "situacao", rotulo: "Situação", valor: (l) => (SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).rotulo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${(SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).tom}`}>{(SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).rotulo}</span> },
@@ -99,7 +111,7 @@ export default function SpedTransmitido({ empresaId }) {
       {escrituracoes.length > 0 && (
         <Tabs defaultValue={escrituracoes[0].id}>
           <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-            {[...escrituracoes, { id: "REINF", rotulo: "EFD-Reinf", meses: [] }].map((e) => {
+            {[...escrituracoes, { id: "REINF", rotulo: "EFD-Reinf", meses: [] }, { id: "PEDIDOS", rotulo: `Pedidos à Receita (${(pedidos.data || []).length})`, meses: [] }].map((e) => {
               const falta = e.meses.filter((m) => m.situacao === "NAO_ENCONTRADA").length;
               return <TabsTrigger key={e.id} value={e.id} className="gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none">{e.rotulo.split(" (")[0]}{(falta > 0 || e.erro) && <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-label="com pendência" />}</TabsTrigger>;
             })}
@@ -116,6 +128,9 @@ export default function SpedTransmitido({ empresaId }) {
                 documentos={(l) => <ArquivosSped linha={l} />} />
             </TabsContent>
           ))}
+          <TabsContent value="PEDIDOS" className="mt-3 space-y-2">
+            <TabelaPadrao id="monit:sped:pedidos" colunas={colunasPedidos} linhas={pedidos.data || []} ariaLabel="Pedidos de arquivos à Receita" ordemInicial={{ chave: "createdAt", dir: -1 }} vazio="Nenhum pedido." tamanhoInicial={25} />
+          </TabsContent>
           <TabsContent value="REINF" className="mt-3 space-y-2">
             <p className="text-xs font-medium">EFD-Reinf (Escrituração Fiscal Digital de Retenções e Outras Informações Fiscais)</p>
             <p className="rounded-md bg-muted/60 px-3 py-2 text-xs">Entrega da Reinf: veja a DCTFWeb (aba Declarações).</p>
