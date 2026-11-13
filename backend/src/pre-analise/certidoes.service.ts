@@ -47,11 +47,11 @@ export class CertidoesService {
   private readonly emitindo = new Set<string>();
 
   /**
-   * CNDT e CRF saem sozinhos, como a federal: ao abrir as certidões do cliente, se faltar a certidão ou ela estiver vencida, o InTAX
-   * emite pela Infosimples em segundo plano (no máximo uma tentativa a cada 6 horas por cliente e tipo).
+   * Ao abrir as certidões do cliente, se faltar a certidão ou ela estiver vencida, o InTAX emite em segundo plano: a federal pela
+   * API Consulta CND (Serpro) e as demais pela Infosimples (no máximo uma tentativa a cada 6 horas por cliente e tipo).
    */
-  private emitirQueFaltam(empresaId: string, docs: { tipo_id: string | null; validade: Date | null }[], tipos: Map<string, { id: string }>, hoje: Date, ultimas: Map<string, { quando: string; resultado: string }> = new Map()) {
-    for (const tipo of ['ESTADUAL', 'MUNICIPAL', 'TRABALHISTA', 'FGTS'] as const) {
+  private emitirQueFaltam(empresaId: string, docs: { tipo_id: string | null; validade: Date | null }[], tipos: Map<string, { id: string }>, hoje: Date, ultimas: Map<string, { quando: string; resultado: string }> = new Map(), fontes: TipoCertidaoCliente[] = ['ESTADUAL', 'MUNICIPAL', 'TRABALHISTA', 'FGTS']) {
+    for (const tipo of fontes) {
       const t = tipos.get(DEF.get(tipo)!.tipoDocumento);
       const vigente = t && docs.some((d) => d.tipo_id === t.id && d.validade && d.validade.getTime() >= hoje.getTime());
       const chave = `${empresaId}:${tipo}`;
@@ -63,6 +63,7 @@ export class CertidoesService {
       this.emitindo.add(chave);
       this.emitir(empresaId, tipo, { email: 'InTAX (automático)' })
         .then((r) => {
+          this.log.log(`Certidão ${tipo} (automática) de ${empresaId}: ${r.emitida ? 'emitida' : `não emitida: ${r.resumo ?? ''}`}`);
           if (r.emitida) return this.registrarTentativa(empresaId, tipo, 'EMITIDA', null);
           const semCobertura = /n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(r.resumo ?? '');
           return this.registrarTentativa(empresaId, tipo, semCobertura ? 'SEM_COBERTURA' : 'INDISPONIVEL', semCobertura ? semCoberturaTexto(tipo) : r.resumo ?? 'Fonte indisponível no momento.');
@@ -118,7 +119,8 @@ export class CertidoesService {
     const cndApi = modo === 'PRODUCAO' && !!(await this.serpro.disponivelEmProducao('cnd'));
     const infosimples = (await this.infosimples.estado()).configurado;
     const ultimas = await this.ultimasTentativas(empresaId);
-    if (infosimples) this.emitirQueFaltam(empresaId, docs, tipos, hoje, ultimas);
+    const fontes: TipoCertidaoCliente[] = [...(cndApi ? ['FEDERAL' as const] : []), ...(infosimples ? (['ESTADUAL', 'MUNICIPAL', 'TRABALHISTA', 'FGTS'] as const) : [])];
+    if (fontes.length) this.emitirQueFaltam(empresaId, docs, tipos, hoje, ultimas, fontes);
     return {
       empresa: { id: e.id, razao_social: e.razao_social, cnpj: so(e.cnpj_cpf), uf: e.uf ?? null, municipio: e.municipio ?? null },
       emissao_automatica_federal: cndApi,
