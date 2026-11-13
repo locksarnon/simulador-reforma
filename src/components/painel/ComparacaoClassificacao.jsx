@@ -7,6 +7,7 @@ import { consolidarPorAno } from "@/motor/taxEngine";
 import { Card } from "@/components/ui/card";
 import { BRL } from "@/lib/format";
 import { plural } from "@/lib/plural";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const soDigitos = (v) => String(v ?? "").replace(/\D/g, "");
 
@@ -62,28 +63,27 @@ export default function ComparacaoClassificacao({ operacoes, transicaoMap, trans
               ? "Os cClassTrib do XML já batem com o que os anexos da LC 214 indicam para os NCMs — não há diferença de cálculo."
               : `${r.trocadas} de ${plural(r.total, "operação", "operações")} com cClassTrib diferente do indicado nos anexos da LC 214.`}
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-muted-foreground border-b border-border"><th className="py-1.5 pr-4">Resultado</th><th className="pr-4 text-right">Como no XML</th><th className="pr-4 text-right">Conforme a LC 214</th><th className="text-right">Diferença</th></tr></thead>
-              <tbody>
-                {[["IBS/CBS líquido", xml.ibsCbs, r.lei.ibsCbs], ["Carga da transição", xml.carga, r.lei.carga]].map(([nome, a, b]) => (
-                  <tr key={nome} className="border-b border-border/50 last:border-0">
-                    <td className="py-1.5 pr-4">{nome}</td>
-                    <td className="pr-4 text-right tabular-nums">{BRL(a)}</td>
-                    <td className="pr-4 text-right tabular-nums">{BRL(b)}</td>
-                    <td className={`text-right tabular-nums font-medium ${b - a < 0 ? "text-chart-2" : b - a > 0 ? "text-destructive" : ""}`}>{BRL(b - a)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TabelaPadrao simples id="painel-classificacao-resultado" ariaLabel="Resultado como no XML e conforme a LC 214" chaveLinha={(l) => l.nome} ordemInicial={null}
+            linhas={[{ nome: "IBS/CBS líquido", xml: xml.ibsCbs, lei: r.lei.ibsCbs }, { nome: "Carga da transição", xml: xml.carga, lei: r.lei.carga }]}
+            colunas={[
+              { chave: "nome", rotulo: "Resultado" },
+              { chave: "xml", rotulo: "Como no XML", alinhar: "direita", render: (l) => BRL(l.xml) },
+              { chave: "lei", rotulo: "Conforme a LC 214", alinhar: "direita", render: (l) => BRL(l.lei) },
+              { chave: "diferenca", rotulo: "Diferença", alinhar: "direita", valor: (l) => l.lei - l.xml, render: (l) => <span className={`font-medium ${l.lei - l.xml < 0 ? "text-chart-2" : l.lei - l.xml > 0 ? "text-destructive" : ""}`}>{BRL(l.lei - l.xml)}</span> },
+            ]}
+          />
           {r.lista.length > 0 && (
-            <div className="text-xs">
-              <p className="font-medium mb-1">Principais diferenças (NCM: XML → LC 214)</p>
-              <ul className="space-y-0.5 text-muted-foreground">
-                {r.lista.map((d) => <li key={`${d.ncm}${d.xml}${d.lei}`}>{d.ncm}: {d.xml} → {d.lei}{d.reducao ? ` (redução de ${Math.round(d.reducao * 100)}%)` : ""} · {plural(d.qtd, "operação", "operações")}{d.anexos?.length ? ` · Anexo ${d.anexos.join(", ")}` : ""}</li>)}
-              </ul>
-            </div>
+            <TabelaPadrao simples titulo="Principais diferenças" id="painel-classificacao-diferencas" ariaLabel="Principais diferenças de cClassTrib" chaveLinha={(d) => `${d.ncm}${d.xml}${d.lei}`} ordemInicial={{ chave: "qtd", dir: -1 }}
+              linhas={r.lista}
+              colunas={[
+                { chave: "ncm", rotulo: "NCM" },
+                { chave: "xml", rotulo: "cClassTrib no XML" },
+                { chave: "lei", rotulo: "cClassTrib pela LC 214" },
+                { chave: "reducao", rotulo: "Redução", alinhar: "direita", valor: (d) => d.reducao || null, render: (d) => (d.reducao ? `${Math.round(d.reducao * 100)}%` : "") },
+                { chave: "qtd", rotulo: "Operações", tipo: "numero", alinhar: "direita" },
+                { chave: "anexos", rotulo: "Anexo", valor: (d) => (d.anexos?.length ? d.anexos.join(", ") : "") },
+              ]}
+            />
           )}
           <p className="text-[11px] text-muted-foreground">Orientativo: só considera NCMs que apontam uma única classe nos anexos mapeados. Não substitui a classificação fiscal do contribuinte.</p>
         </>

@@ -1,11 +1,11 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FolderOpen, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { Th, ordenarPor, useOrdenacao } from "@/components/saneamento/ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const dataBr = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
 /** Resumo curto dos parâmetros usados na análise, para distinguir uma da outra na lista. */
@@ -29,12 +29,6 @@ export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
   const qc = useQueryClient();
   const { data: lista = [], isLoading } = useQuery({ queryKey: ["validacoes-cadastro", empresaId], queryFn: () => api.get("/produtos/validacoes", { empresa_id: empresaId }) });
 
-  const [ord, ordenar] = useOrdenacao();
-  const ordenada = useMemo(() => ordenarPor(lista, ord, {
-    atualizada: (v) => v.updatedAt || v.createdAt, situacao: (v) => (v.status === "RASCUNHO" ? 0 : 1), arquivo: (v) => v.nome_arquivo, parametros: (v) => resumoParametros(v.parametros), enviado: (v) => v.criado_por,
-    total: (v) => v.total, ok: (v) => v.itens_ok, alerta: (v) => v.itens_alerta, erro: (v) => v.itens_erro,
-  }), [lista, ord]);
-
   const excluir = async (v) => {
     if (!(await confirmar({ titulo: "Excluir a validação?", descricao: `Excluir a validação de "${v.nome_arquivo}"? O arquivo guardado também será apagado, e projetos de saneamento que usam esta base ficam sem base vinculada.`, rotulo: "Excluir" }))) return;
     try {
@@ -54,29 +48,29 @@ export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div>
         <h3 className="font-heading font-semibold text-sm">Análises realizadas</h3>      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead><tr className="text-left text-muted-foreground border-b border-border"><Th chave="atualizada" ord={ord} onOrdenar={ordenar} className="py-1.5 pr-3">Atualizada</Th><Th chave="situacao" ord={ord} onOrdenar={ordenar} className="pr-3">Situação</Th><Th chave="arquivo" ord={ord} onOrdenar={ordenar} className="pr-3">Arquivo</Th><Th chave="parametros" ord={ord} onOrdenar={ordenar} className="pr-3">Parâmetros</Th><Th chave="enviado" ord={ord} onOrdenar={ordenar} className="pr-3">Enviado por</Th><Th chave="total" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Itens</Th><Th chave="ok" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">OK</Th><Th chave="alerta" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Atenção</Th><Th chave="erro" ord={ord} onOrdenar={ordenar} className="pr-3 text-right">Corrigir</Th><th /></tr></thead>
-          <tbody>{ordenada.map((v) => (
-            <tr key={v.id} className="border-b border-border/50 last:border-0">
-              <td className="py-2 pr-3 whitespace-nowrap">{new Date(v.updatedAt || v.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
-              <td className="pr-3 whitespace-nowrap"><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${v.status === "RASCUNHO" ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"}`}>{v.status === "RASCUNHO" ? "Rascunho" : "Processada"}</span></td>
-              <td className="pr-3" title={fmtTamanho(v.tamanho)}>{v.nome_arquivo}</td>
-              <td className="pr-3 text-muted-foreground max-w-[220px] truncate" title={resumoParametros(v.parametros)}>{resumoParametros(v.parametros)}</td>
-              <td className="pr-3 text-muted-foreground">{v.criado_por}</td>
-              <td className="pr-3 text-right tabular-nums">{v.total.toLocaleString("pt-BR")}</td>
-              <td className="pr-3 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{v.itens_ok.toLocaleString("pt-BR")}</td>
-              <td className="pr-3 text-right tabular-nums text-amber-700 dark:text-amber-400">{v.itens_alerta.toLocaleString("pt-BR")}</td>
-              <td className="pr-3 text-right tabular-nums text-red-700 dark:text-red-400">{v.itens_erro.toLocaleString("pt-BR")}</td>
-              <td className="py-2 whitespace-nowrap text-right">
-                <button type="button" onClick={() => onAbrir(v)} disabled={abrindo === v.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border hover:bg-muted mr-1">{abrindo === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderOpen className="w-3 h-3" />} {v.status === "RASCUNHO" ? "Retomar" : "Abrir"}</button>
-                {v.status !== "RASCUNHO" && <button type="button" onClick={() => baixar(v)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border hover:bg-muted mr-1" title="Planilha corrigida"><Download className="w-3 h-3" /></button>}
-                {(user?.role === "admin" || user?.email === v.criado_por) && <button type="button" onClick={() => excluir(v)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border hover:bg-muted text-red-600" title="Excluir"><Trash2 className="w-3 h-3" /></button>}
-              </td>
-            </tr>
-          ))}</tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="validador:historico" ariaLabel="Análises realizadas" linhas={lista} ordemInicial={{ chave: "atualizada", dir: -1 }} tamanhoInicial={10}
+        colunas={[
+          { chave: "atualizada", rotulo: "Atualizada", tipo: "data", valor: (v) => v.updatedAt || v.createdAt, render: (v) => new Date(v.updatedAt || v.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) },
+          { chave: "situacao", rotulo: "Situação", valor: (v) => (v.status === "RASCUNHO" ? "Rascunho" : "Processada"), render: (v) => <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${v.status === "RASCUNHO" ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"}`}>{v.status === "RASCUNHO" ? "Rascunho" : "Processada"}</span> },
+          { chave: "nome_arquivo", rotulo: "Arquivo" },
+          { chave: "tamanho", rotulo: "Tamanho", alinhar: "direita", valor: (v) => v.tamanho ?? null, render: (v) => (v.tamanho ? fmtTamanho(v.tamanho) : "") },
+          { chave: "parametros", rotulo: "Parâmetros", valor: (v) => resumoParametros(v.parametros) },
+          { chave: "criado_por", rotulo: "Enviado por" },
+          { chave: "total", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
+          { chave: "itens_ok", rotulo: "OK", tipo: "numero", alinhar: "direita", render: (v) => <span className="text-emerald-700 dark:text-emerald-400">{v.itens_ok.toLocaleString("pt-BR")}</span> },
+          { chave: "itens_alerta", rotulo: "Atenção", tipo: "numero", alinhar: "direita", render: (v) => <span className="text-amber-700 dark:text-amber-400">{v.itens_alerta.toLocaleString("pt-BR")}</span> },
+          { chave: "itens_erro", rotulo: "Corrigir", tipo: "numero", alinhar: "direita", render: (v) => <span className="text-red-700 dark:text-red-400">{v.itens_erro.toLocaleString("pt-BR")}</span> },
+          {
+            chave: "acoes", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false,
+            render: (v) => (
+              <span className="inline-flex items-center gap-1">
+                <button type="button" onClick={() => onAbrir(v)} disabled={abrindo === v.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border hover:bg-muted text-xs">{abrindo === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderOpen className="w-3 h-3" />} {v.status === "RASCUNHO" ? "Retomar" : "Abrir"}</button>
+                {v.status !== "RASCUNHO" && <button type="button" onClick={() => baixar(v)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border hover:bg-muted" title="Planilha corrigida" aria-label="Baixar a planilha corrigida"><Download className="w-3 h-3" /></button>}
+                {(user?.role === "admin" || user?.email === v.criado_por) && <button type="button" onClick={() => excluir(v)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border hover:bg-muted text-red-600" title="Excluir" aria-label="Excluir"><Trash2 className="w-3 h-3" /></button>}
+              </span>
+            ),
+          },
+        ]} />
     </div>
   );
 }

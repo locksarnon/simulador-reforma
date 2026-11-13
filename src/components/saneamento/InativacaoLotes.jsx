@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Info } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { hojeIso, normalizarParams } from "./logica";
 import { textoOrigem } from "./identidade";
 import { saldoNaEscala } from "./conjuntos";
@@ -20,6 +21,15 @@ const ROT_HISTORICO = {
 };
 const TOM_SITUACAO = { LOTE: "g", INATIVAR: "g", MANTER: "n", AGUARDA_LISTA: "a", SALDO: "a", EXCECAO: "a", SEM_IDENTIDADE: "r" };
 
+/** Aviso da decisão individual: justificativa que falta e decisão antiga que não vale mais (o item mudou). */
+function avisoIndividual(c, escalaSaldo) {
+  const d = c.individual; const antiga = c.individualAntiga;
+  return [
+    d?.acao === "INATIVAR" && !individualValida(d) ? `Escreva a justificativa (ao menos ${MIN_JUSTIFICATIVA} caracteres): sem ela a inativação não gera tarefa.` : "",
+    antiga ? `Havia a decisão “${antiga.acao === "INATIVAR" ? "inativar" : "manter ativo"}”, de ${antiga.por || "—"} em ${dataBr(antiga.em)}, tomada com saldo ${antiga.antes?.saldo != null ? numeroBr(saldoNaEscala(antiga.antes.saldo, escalaSaldo)) : "—"} e última movimentação ${dataBr(antiga.antes?.ultima_mov)}: o item mudou desde então e a decisão não vale. Decida de novo.` : "",
+  ].filter(Boolean).join(" ");
+}
+
 /** Uma atestação (documentos abertos, vínculos, saldo): marcar que foi conferido e escrever o que foi conferido e onde. */
 function Atestacao({ titulo, valor, onMudar, ajuda }) {
   const v = valor || {};
@@ -34,10 +44,10 @@ function Atestacao({ titulo, valor, onMudar, ajuda }) {
 /** Um grupo com candidatos: a lista fechada a aprovar (ou já aprovada), as verificações, as exceções e as decisões individuais. */
 function GrupoInativacao({ g, ina, editar, estado, quem, baseInfo, escalaSaldo }) {
   const confirmar = useConfirmar();
-  const [aberto, setAberto] = useState(false); const [novo, setNovo] = useState(false); const [lim, setLim] = useState(50);
+  const [aberto, setAberto] = useState(false); const [novo, setNovo] = useState(false);
   const [verifs, setVerifs] = useState({}); const [just, setJust] = useState("");
   const [codigos, setCodigos] = useState(""); const [motivo, setMotivo] = useState("DOCUMENTO"); const [nota, setNota] = useState(""); const [msg, setMsg] = useState("");
-  const [ord, ordenar] = useOrdenacao(); const refCodigos = useRef(null);
+  const refCodigos = useRef(null);
   const lote = ina.lotes[g.grupo]; const cob = coberturaDoLote(g, ina);
   const lista = g.elegiveis.map((c) => c.id); const itensDaLista = g.elegiveis.map((c) => c.it); const saldoAuto = saldoLidoEmTodos(itensDaLista); const semDataN = semDataNaLista(itensDaLista);
   const p = normalizarParams(estado.params);
@@ -47,7 +57,6 @@ function GrupoInativacao({ g, ina, editar, estado, quem, baseInfo, escalaSaldo }
   const historico = useMemo(() => (ina.historico || []).filter((h) => h.grupo === g.grupo || idsDoGrupo.has(h.id)).slice(-6).reverse(), [ina.historico, g.grupo, idsDoGrupo]);
   const situ = (c) => situacaoDoCandidato(c, g.grupo, ina);
   const n = (s) => g.candidatos.filter((c) => situ(c) === s).length;
-  const linhas = useMemo(() => ordenarPor(g.candidatos, ord, { codigo: (c) => c.id, descricao: (c) => c.it.descricao, mov: (c) => c.it.ultima_mov, saldo: (c) => (c.it.saldo != null ? Number(c.it.saldo) : null), situacao: (c) => ROT_SITUACAO[situacaoDoCandidato(c, g.grupo, ina)] }), [g, ord, ina]);
 
   const aprovar = async () => {
     if (!(await confirmar({ titulo: "Aprovar a inativação desta lista?", descricao: `Você aprova a inativação dos ${plural(lista.length, "item", "itens")} listados do grupo “${g.grupo}” (lista fechada). Itens que entrarem na lista depois não ficam cobertos e pedem nova aprovação. A ferramenta não altera o cadastro: gera as tarefas para as equipes executarem e confirmarem com evidência.`, rotulo: "Aprovar a lista" }))) return;
@@ -83,15 +92,14 @@ function GrupoInativacao({ g, ina, editar, estado, quem, baseInfo, escalaSaldo }
             <div className="flex flex-wrap gap-2 pt-1"><Botao onClick={() => setNovo((v) => !v)} aria-expanded={novo}>{novo ? "Fechar a nova aprovação" : "Aprovar a lista atual"}</Botao><Botao onClick={revogar}>Revogar a aprovação…</Botao></div>
           </div>)}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground">
-            <Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><Th chave="mov" ord={ord} onOrdenar={ordenar}>Última mov.</Th><Th chave="saldo" ord={ord} onOrdenar={ordenar}>Saldo</Th><Th chave="situacao" ord={ord} onOrdenar={ordenar}>Situação</Th><th className="p-1.5"></th></tr></thead>
-            <tbody>{linhas.slice(0, lim).map((c) => { const s = situ(c); const saldo = saldoNaEscala(c.it.saldo, escalaSaldo);
-              return (<tr key={c.it.linha} className="border-t border-border align-top"><td className="p-1.5 whitespace-nowrap">{c.id || "—"}</td><td className="p-1.5 max-w-[300px] break-words">{c.it.descricao || "—"}</td><td className="p-1.5 tabular-nums">{dataBr(c.it.ultima_mov)}</td><td className="p-1.5 tabular-nums text-right">{saldo == null ? "—" : numeroBr(saldo)}</td>
-                <td className="p-1.5"><Chip tom={TOM_SITUACAO[s]}>{ROT_SITUACAO[s]}</Chip></td>
-                <td className="p-1.5 whitespace-nowrap">{c.situacao === "ELEGIVEL" && !c.individual && <button type="button" className="text-primary underline" onClick={() => { setCodigos((t) => (t.trim() ? `${t.trim()}\n${c.id}` : c.id)); setTimeout(() => refCodigos.current?.focus(), 0); }}>Retirar da lista…</button>}</td></tr>); })}</tbody></table>
-          {linhas.length > lim && <button type="button" onClick={() => setLim(lim + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(linhas.length - lim)} restantes)</button>}
-        </div>
+        <TabelaPadrao id="saneamento-inativacao-candidatos" ariaLabel={`Candidatos à inativação do grupo ${g.grupo}`} linhas={g.candidatos} chaveLinha={(c) => c.it.linha} tamanhoInicial={50} vazio="Nenhum candidato." colunas={[
+          { chave: "codigo", rotulo: "Código", valor: (c) => c.id || "—" },
+          { chave: "descricao", rotulo: "Descrição", valor: (c) => c.it.descricao || "—" },
+          { chave: "mov", rotulo: "Última mov.", tipo: "data", valor: (c) => c.it.ultima_mov },
+          { chave: "saldo", rotulo: "Saldo", alinhar: "direita", valor: (c) => saldoNaEscala(c.it.saldo, escalaSaldo), render: (c) => { const s = saldoNaEscala(c.it.saldo, escalaSaldo); return s == null ? "—" : numeroBr(s); } },
+          { chave: "situacao", rotulo: "Situação", valor: (c) => ROT_SITUACAO[situ(c)], render: (c) => { const s = situ(c); return <Chip tom={TOM_SITUACAO[s]}>{ROT_SITUACAO[s]}</Chip>; } },
+          { chave: "acao", rotulo: "Ação", ordenavel: false, filtravel: false, valor: () => "", render: (c) => (c.situacao === "ELEGIVEL" && !c.individual ? <button type="button" className="text-primary underline" onClick={() => { setCodigos((t) => (t.trim() ? `${t.trim()}\n${c.id}` : c.id)); setTimeout(() => refCodigos.current?.focus(), 0); }}>Retirar da lista…</button> : null) },
+        ]} />
 
         {g.elegiveis.length > 0 && (
           <div className="border-t border-border pt-3">
@@ -130,17 +138,16 @@ function GrupoInativacao({ g, ina, editar, estado, quem, baseInfo, escalaSaldo }
           <div className="space-y-2 border-t border-border pt-3">
             <p className="text-sm font-medium">Decisão individual ({fmt(individuais.length)})</p>
             <p className="text-xs text-muted-foreground">Itens com saldo ou retirados da lista não entram na aprovação em lote. Para inativar, escreva a justificativa (e, havendo saldo, como ele foi tratado: transferido, baixado ou segregado).</p>
-            <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Código</th><th className="p-1.5">Descrição</th><th className="p-1.5 text-right">Saldo</th><th className="p-1.5">Motivo</th><th className="p-1.5">Decisão</th></tr></thead>
-              <tbody>{individuais.map((c) => { const d = c.individual; const exc = ina.excecoes[c.id]; const saldo = saldoNaEscala(c.it.saldo, escalaSaldo);
-                const antiga = c.individualAntiga; const motivoTxt = c.situacao === "SALDO" ? "Saldo em estoque" : c.situacao === "EXCECAO" ? MOTIVOS_EXCECAO[exc?.motivo] || "Retirado da lista" : "Decidido individualmente";
-                return (<tr key={c.it.linha} className="border-t border-border align-top"><td className="p-1.5 whitespace-nowrap">{c.id}</td><td className="p-1.5 max-w-[240px] break-words">{c.it.descricao}</td><td className="p-1.5 tabular-nums text-right">{saldo == null ? "—" : numeroBr(saldo)}</td>
-                  <td className="p-1.5 max-w-[200px] break-words">{motivoTxt}{exc?.nota ? `: ${exc.nota}` : ""}{c.situacao === "EXCECAO" && <div><button type="button" className="text-primary underline" title="Devolve o item à lista elegível. Ele não volta à lista fechada já aprovada: aparece como novo elegível e pede nova aprovação." onClick={() => editar((x) => devolverALista(x, [c.id], { por: quem, em: hojeIso() }))}>Devolver à lista</button></div>}</td>
-                  <td className="p-1.5"><div className="space-y-1">
-                    <select value={d?.acao || ""} aria-label={`Decisão sobre ${c.id}`} onChange={(e) => editar((x) => decidirIndividual(x, c.id, { acao: e.target.value || null, justificativa: d?.justificativa || "", por: quem, em: hojeIso(), item: c.it }))} className="border rounded px-1 py-0.5 bg-background"><option value="">Aguardando decisão</option><option value="INATIVAR">Inativar</option><option value="MANTER">Manter ativo</option></select>
-                    {d?.acao === "INATIVAR" && <input value={d.justificativa || ""} onChange={(e) => editar((x) => decidirIndividual(x, c.id, { acao: "INATIVAR", justificativa: e.target.value, por: quem, em: hojeIso(), item: c.it }))} placeholder="Justificativa (e como o saldo foi tratado)" aria-label={`Justificativa para inativar ${c.id}`} className="block w-64 border rounded px-1.5 py-0.5 bg-background" />}
-                    {d?.acao === "INATIVAR" && !individualValida(d) && <p className="text-[11px] text-amber-700 dark:text-amber-300">Escreva a justificativa (ao menos {MIN_JUSTIFICATIVA} caracteres): sem ela a inativação não gera tarefa.</p>}
-                    {antiga && <p className="max-w-[260px] text-[11px] text-amber-700 dark:text-amber-300">Havia a decisão “{antiga.acao === "INATIVAR" ? "inativar" : "manter ativo"}”, de {antiga.por || "—"} em {dataBr(antiga.em)}, tomada com saldo {antiga.antes?.saldo != null ? numeroBr(saldoNaEscala(antiga.antes.saldo, escalaSaldo)) : "—"} e última movimentação {dataBr(antiga.antes?.ultima_mov)}: o item mudou desde então e a decisão não vale. Decida de novo.</p>}
-                  </div></td></tr>); })}</tbody></table></div>
+            <TabelaPadrao id="saneamento-inativacao-individual" ariaLabel={`Decisão individual do grupo ${g.grupo}`} linhas={individuais} chaveLinha={(c) => c.it.linha} vazio="Nenhum item para decisão individual." colunas={[
+              { chave: "codigo", rotulo: "Código", valor: (c) => c.id },
+              { chave: "descricao", rotulo: "Descrição", valor: (c) => c.it.descricao },
+              { chave: "saldo", rotulo: "Saldo", alinhar: "direita", valor: (c) => saldoNaEscala(c.it.saldo, escalaSaldo), render: (c) => { const s = saldoNaEscala(c.it.saldo, escalaSaldo); return s == null ? "—" : numeroBr(s); } },
+              { chave: "motivo", rotulo: "Motivo", valor: (c) => { const exc = ina.excecoes[c.id]; const t = c.situacao === "SALDO" ? "Saldo em estoque" : c.situacao === "EXCECAO" ? MOTIVOS_EXCECAO[exc?.motivo] || "Retirado da lista" : "Decidido individualmente"; return `${t}${exc?.nota ? `: ${exc.nota}` : ""}`; } },
+              { chave: "devolver", rotulo: "Lista", ordenavel: false, filtravel: false, valor: () => "", render: (c) => (c.situacao === "EXCECAO" ? <button type="button" className="text-primary underline" title="Devolve o item à lista elegível. Ele não volta à lista fechada já aprovada: aparece como novo elegível e pede nova aprovação." onClick={() => editar((x) => devolverALista(x, [c.id], { por: quem, em: hojeIso() }))}>Devolver à lista</button> : null) },
+              { chave: "decisao", rotulo: "Decisão", valor: (c) => ({ INATIVAR: "Inativar", MANTER: "Manter ativo" })[c.individual?.acao] || "Aguardando decisão", render: (c) => { const d = c.individual; return <select value={d?.acao || ""} aria-label={`Decisão sobre ${c.id}`} onChange={(e) => editar((x) => decidirIndividual(x, c.id, { acao: e.target.value || null, justificativa: d?.justificativa || "", por: quem, em: hojeIso(), item: c.it }))} className="border rounded px-1 py-0.5 bg-background"><option value="">Aguardando decisão</option><option value="INATIVAR">Inativar</option><option value="MANTER">Manter ativo</option></select>; } },
+              { chave: "justificativa", rotulo: "Justificativa", valor: (c) => (c.individual?.acao === "INATIVAR" ? c.individual.justificativa || "" : ""), render: (c) => { const d = c.individual; return d?.acao === "INATIVAR" ? <input value={d.justificativa || ""} onChange={(e) => editar((x) => decidirIndividual(x, c.id, { acao: "INATIVAR", justificativa: e.target.value, por: quem, em: hojeIso(), item: c.it }))} placeholder="Justificativa (e como o saldo foi tratado)" aria-label={`Justificativa para inativar ${c.id}`} className="w-64 border rounded px-1.5 py-0.5 bg-background" /> : null; } },
+              { chave: "aviso", rotulo: "Aviso", quebrar: true, valor: (c) => avisoIndividual(c, escalaSaldo), render: (c) => { const t = avisoIndividual(c, escalaSaldo); return t ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{t}</span> : null; } },
+            ]} />
           </div>)}
         {historico.length > 0 && (
           <div className="space-y-1 border-t border-border pt-3">

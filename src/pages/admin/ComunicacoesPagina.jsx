@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -12,6 +12,7 @@ import ListaDePrevistas from "@/components/ListaDePrevistas";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const ORIGENS = { COMUNICADO: "Comunicado", AVISO: "Aviso do sistema" };
+const SITUACOES_ENVIO = { ENVIADO: "Enviado", FALHA: "Falha" };
 const TOM = { ENVIADO: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300", FALHA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", BLOQUEADO: "bg-muted text-muted-foreground" };
 
 export function AbaEnvios({ empresas }) {
@@ -26,31 +27,23 @@ export function AbaEnvios({ empresas }) {
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Origem</span><select className={campo} value={f.origem} onChange={(e) => mudar("origem", e.target.value)}><option value="">Todas</option>{Object.entries(ORIGENS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">De</span><input type="date" className={campo} value={f.de} onChange={(e) => mudar("de", e.target.value)} /></label>
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Até</span><input type="date" className={campo} value={f.ate} onChange={(e) => mudar("ate", e.target.value)} /></label>
-        <BotaoExportar titulo="E-mails enviados" linhas={data} colunas={[
-          { chave: "quando", rotulo: "Quando", valor: (e) => new Date(e.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) }, { chave: "destinatario", rotulo: "Para" },
-          { chave: "empresa", rotulo: "Empresa", valor: (e) => nome.get(e.empresa_id) || "" }, { chave: "assunto", rotulo: "Assunto" },
-          { chave: "origem", rotulo: "Origem", valor: (e) => ORIGENS[e.origem] || e.origem }, { chave: "status", rotulo: "Situação" }, { chave: "erro", rotulo: "Erro" },
-        ]} />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-[13px] leading-5" aria-label="E-mails enviados">
-          <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Quando</th><th className="px-3 py-2">Para</th><th className="px-3 py-2">Assunto</th><th className="px-3 py-2">Origem</th><th className="px-3 py-2">Situação</th></tr></thead>
-          <tbody>
-            {isLoading && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-            {error && <tr><td colSpan={5} className="py-8 text-center" role="alert">Não foi possível carregar.</td></tr>}
-            {!isLoading && !error && data.length === 0 && <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">Nenhum e-mail com esses filtros.</td></tr>}
-            {data.map((e) => (
-              <tr key={e.id} className="border-b border-border/60">
-                <td className="px-3 py-1.5 whitespace-nowrap tabular-nums">{new Date(e.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}</td>
-                <td className="px-3 py-1.5"><p>{e.destinatario}</p>{e.empresa_id && <p className="text-[11px] text-muted-foreground">{nome.get(e.empresa_id)}</p>}</td>
-                <td className="px-3 py-1.5">{e.assunto}</td>
-                <td className="px-3 py-1.5">{ORIGENS[e.origem] || e.origem}</td>
-                <td className="px-3 py-1.5"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM[e.status] || "bg-muted"}`}>{e.status === "ENVIADO" ? "Enviado" : e.status === "FALHA" ? "Falha" : e.status}</span>{e.erro && <p className="text-[11px] text-muted-foreground">{e.erro}</p>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+      {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar.</p>}
+      {!isLoading && !error && (
+        <TabelaPadrao
+          id="admin-envios" ariaLabel="E-mails enviados" titulo="E-mails enviados" linhas={data} vazio="Nenhum e-mail com esses filtros." ordemInicial={{ chave: "createdAt", dir: -1 }}
+          colunas={[
+            { chave: "createdAt", rotulo: "Quando", tipo: "data", render: (e) => <span className="tabular-nums">{new Date(e.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}</span> },
+            { chave: "destinatario", rotulo: "Para" },
+            { chave: "empresa", rotulo: "Empresa", valor: (e) => nome.get(e.empresa_id) || "", render: (e) => nome.get(e.empresa_id) || <span className="text-muted-foreground">—</span> },
+            { chave: "assunto", rotulo: "Assunto" },
+            { chave: "origem", rotulo: "Origem", valor: (e) => ORIGENS[e.origem] || e.origem },
+            { chave: "status", rotulo: "Situação", valor: (e) => SITUACOES_ENVIO[e.status] || e.status, render: (e) => <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM[e.status] || "bg-muted"}`}>{SITUACOES_ENVIO[e.status] || e.status}</span> },
+            { chave: "erro", rotulo: "Erro", quebrar: true, render: (e) => (e.erro ? <span className="text-[11px] text-muted-foreground">{e.erro}</span> : <span className="text-muted-foreground">—</span>) },
+          ]}
+        />
+      )}
       <p className="text-xs text-muted-foreground">Últimos 1.000 envios do filtro.</p>
     </div>
   );
@@ -71,10 +64,16 @@ export function AbaBloqueios() {
         <label className="space-y-1 flex-1 min-w-[160px]"><span className="block text-xs text-muted-foreground">Motivo (opcional)</span><input className={`${campo} w-full`} value={novo.motivo} maxLength={200} onChange={(e) => setNovo({ ...novo, motivo: e.target.value })} /></label>
         <button type="submit" className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Bloquear</button>
       </form>
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Lista de bloqueio">
-        {data.length === 0 && <li className="p-4 text-center text-sm text-muted-foreground">Ninguém na lista.</li>}
-        {data.map((b) => <li key={b.id} className="flex items-center gap-3 px-3 py-2 text-sm"><span className="flex-1">{b.email} <span className="text-xs text-muted-foreground">{b.motivo ? `· ${b.motivo}` : ""} · {new Date(b.createdAt).toLocaleDateString("pt-BR")}</span></span><button type="button" onClick={() => tirar.mutate(b.id)} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Tirar ${b.email} da lista`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button></li>)}
-      </ul>
+      <TabelaPadrao
+        id="admin-bloqueios" ariaLabel="Lista de bloqueio" titulo="Lista de bloqueio" linhas={data} vazio="Ninguém na lista."
+        colunas={[
+          { chave: "email", rotulo: "E-mail" },
+          { chave: "motivo", rotulo: "Motivo", quebrar: true, render: (b) => b.motivo || <span className="text-muted-foreground">—</span> },
+          { chave: "createdAt", rotulo: "Bloqueado em", tipo: "data" },
+          { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+            render: (b) => <button type="button" onClick={() => tirar.mutate(b.id)} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Tirar ${b.email} da lista`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button> },
+        ]}
+      />
     </div>
   );
 }

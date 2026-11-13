@@ -9,7 +9,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import PageHeader from "@/components/PageHeader";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import DialogoServico from "@/components/clientes/DialogoServico";
 import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
@@ -126,8 +126,6 @@ export default function ClientesPagina() {
   }, [empresas, filtros, mapa, grupos, atendidas, porEmpresa, colaboradores, vendoArquivados]);
   const sugestoes = useMemo(() => [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort(), [servicos]);
   const mudar = (k, v) => setFiltros((f) => ({ ...f, [k]: v }));
-  const todasMarcadas = lista.length > 0 && lista.every((e) => marcadas.has(e.id));
-  const alternar = (id) => setMarcadas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const selecionadas = empresas.filter((e) => marcadas.has(e.id));
   const abertaAgora = aberta ? empresas.find((e) => e.id === aberta) : null;
 
@@ -147,15 +145,24 @@ export default function ClientesPagina() {
     toast(falhas.length ? { title: `${alvo.length - falhas.length} de ${alvo.length} feitos`, description: `Não mudaram: ${falhas.join("; ")}.`, variant: "destructive" } : { title: `${plural(alvo.length, "cliente", "clientes")} ${desarquivar ? palavra(alvo.length, "desarquivado", "desarquivados") : palavra(alvo.length, "arquivado", "arquivados")}` });
   };
 
-  const colunasExport = [
-    { chave: "razao_social", rotulo: "Cliente" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" }, { chave: "regime_atual", rotulo: "Regime" },
-    { chave: "municipio", rotulo: "Município" }, { chave: "uf", rotulo: "UF" },
-    { chave: "bpo", rotulo: "BPO fiscal", valor: (e) => SITUACOES[mapa.get(e.id)?.BPO_FISCAL?.situacao] || "" },
-    { chave: "diag", rotulo: "Diagnóstico pontual", valor: (e) => SITUACOES[mapa.get(e.id)?.DIAGNOSTICO_PONTUAL?.situacao] || "" },
-    { chave: "equipe", rotulo: "Equipe", valor: (e) => equipeDe(e.id).join(", ") },
-    { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", ") },
-    { chave: "grupo", rotulo: "Grupo econômico", valor: (e) => grupoDe(e)?.nome || "" },
-    { chave: "email_contato", rotulo: "E-mail" }, { chave: "whatsapp_contato", rotulo: "WhatsApp" },
+  const ver = (texto) => texto || <span className="text-muted-foreground">—</span>;
+  const colunas = [
+    { chave: "razao_social", rotulo: "Cliente", render: (e) => <button type="button" onClick={(ev) => { ev.stopPropagation(); setAberta(e.id); }} className="text-left font-medium hover:text-primary hover:underline">{e.razao_social}</button> },
+    { chave: "cnpj_cpf", rotulo: "CNPJ/CPF", valor: (e) => mascararDocumento(e.cnpj_cpf), render: (e) => <span className="tabular-nums">{ver(mascararDocumento(e.cnpj_cpf))}</span> },
+    { chave: "regime_atual", rotulo: "Regime", render: (e) => ver(e.regime_atual) },
+    { chave: "municipio", rotulo: "Município", render: (e) => ver(e.municipio) },
+    { chave: "uf", rotulo: "UF", render: (e) => ver(e.uf) },
+    { chave: "grupo", rotulo: "Grupo econômico", valor: (e) => rotuloDoGrupo(grupoDe(e)) || "", render: (e) => ver(rotuloDoGrupo(grupoDe(e))) },
+    { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", "), render: (e) => <EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} /> },
+    ...TIPOS_DE_SERVICO.map((tipo) => ({
+      chave: `servico_${tipo}`, rotulo: TIPOS[tipo], valor: (e) => SITUACOES[mapa.get(e.id)?.[tipo]?.situacao] || "",
+      render: (e) => { const porTipo = mapa.get(e.id) || {}; return <ChipDeServico empresa={e} tipo={tipo} servico={porTipo[tipo]} aoEditar={() => setDialogo({ empresas: [e], servico: porTipo[tipo], tipoInicial: tipo })} />; },
+    })),
+    { chave: "equipe", rotulo: "Equipe", valor: (e) => equipeDe(e.id).join(", "), render: (e) => <span className="text-muted-foreground">{equipeDe(e.id).join(", ") || "—"}</span> },
+    { chave: "certificado", rotulo: "Certificado", tipo: "data", valor: (e) => captura.data?.[e.id]?.certificado?.valido_ate || "", render: (e) => <SeloCertificado certificado={captura.data?.[e.id]?.certificado} /> },
+    { chave: "captura", rotulo: "Captura de XML", valor: (e) => (captura.data?.[e.id]?.ligada ? "Ligada" : "Desligada"), render: (e) => <InterruptorCaptura compacto empresaId={e.id} ligada={!!captura.data?.[e.id]?.ligada} certificadoOk={["VALIDO", "A_VENCER"].includes(captura.data?.[e.id]?.certificado?.situacao)} /> },
+    { chave: "email_contato", rotulo: "E-mail", render: (e) => ver(e.email_contato) },
+    { chave: "whatsapp_contato", rotulo: "WhatsApp", render: (e) => ver(e.whatsapp_contato) },
   ];
 
   return (
@@ -189,7 +196,6 @@ export default function ClientesPagina() {
           <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
             <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}><option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}</select></label>
           <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
-          <BotaoExportar titulo="Clientes" linhas={lista} colunas={colunasExport} />
           <Link to="/clientes/importacao" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted" title="Importar ou atualizar o cadastro por planilha"><Upload className="h-3.5 w-3.5" aria-hidden="true" /> Importar planilha</Link>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -214,45 +220,17 @@ export default function ClientesPagina() {
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-[13px] leading-5" aria-label="Clientes">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="w-8 px-3 py-2"><input type="checkbox" aria-label="Marcar todos os clientes da lista" checked={todasMarcadas} onChange={() => setMarcadas(todasMarcadas ? new Set() : new Set(lista.map((e) => e.id)))} /></th>
-                <th className="px-2 py-2">Cliente</th><th className="px-2 py-2">Regime</th><th className="px-2 py-2">Serviços</th><th className="px-2 py-2">Equipe</th><th className="px-2 py-2">Certificado</th><th className="px-2 py-2">Captura de XML</th>
-              </tr>
-            </thead>
-            <tbody>
-              {carregando && <tr><td colSpan={7} className="py-10 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-              {!carregando && erro && <tr><td colSpan={7} className="py-10 text-center" role="alert">Não foi possível carregar os clientes. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></td></tr>}
-              {!carregando && !erro && lista.length === 0 && (
-                <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">
-                  {empresas.length === 0 ? <>Cadastre o primeiro cliente. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Novo cliente</button></> : <>Nenhum cliente com esses filtros. <button type="button" onClick={() => setFiltros(FILTROS_VAZIOS)} className="text-primary hover:underline">Limpar filtros</button></>}
-                </td></tr>
-              )}
-              {!carregando && lista.map((e) => {
-                const porTipo = mapa.get(e.id) || {};
-                const grupo = grupoDe(e);
-                const equipe = equipeDe(e.id);
-                return (
-                  <tr key={e.id} onClick={() => setAberta(e.id)} className={`cursor-pointer border-b border-border/60 align-top last:border-0 hover:bg-muted/40 ${aberta === e.id ? "bg-muted/60" : ""}`}>
-                    <td className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}><input type="checkbox" aria-label={`Marcar ${e.razao_social}`} checked={marcadas.has(e.id)} onChange={() => alternar(e.id)} /></td>
-                    <td className="px-2 py-2">
-                      <button type="button" onClick={(ev) => { ev.stopPropagation(); setAberta(e.id); }} className="text-left font-medium hover:text-primary hover:underline">{e.razao_social}</button>
-                      <p className="text-[11px] text-muted-foreground tabular-nums">{[mascararDocumento(e.cnpj_cpf), [e.municipio, e.uf].filter(Boolean).join("/"), rotuloDoGrupo(grupo)].filter(Boolean).join(" · ") || "—"}</p>
-                      <EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} />
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">{e.regime_atual || <span className="text-muted-foreground">—</span>}</td>
-                    <td className="px-2 py-2"><div className="flex flex-wrap gap-1">{TIPOS_DE_SERVICO.map((tipo) => <ChipDeServico key={tipo} empresa={e} tipo={tipo} servico={porTipo[tipo]} aoEditar={() => setDialogo({ empresas: [e], servico: porTipo[tipo], tipoInicial: tipo })} />)}</div></td>
-                    <td className="px-2 py-2 text-muted-foreground">{equipe.length ? equipe.join(", ") : "—"}</td>
-                    <td className="px-2 py-2 whitespace-nowrap"><SeloCertificado certificado={captura.data?.[e.id]?.certificado} /></td>
-                    <td className="px-2 py-2"><InterruptorCaptura compacto empresaId={e.id} ligada={!!captura.data?.[e.id]?.ligada} certificadoOk={["VALIDO", "A_VENCER"].includes(captura.data?.[e.id]?.certificado?.situacao)} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {carregando && <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+        {!carregando && erro && <p className="py-10 text-center text-sm" role="alert">Não foi possível carregar os clientes. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
+        {!carregando && !erro && (
+          <TabelaPadrao
+            id="clientes-lista" ariaLabel="Clientes" colunas={colunas} linhas={lista}
+            selecao={{ marcadas, aoMudar: setMarcadas }}
+            aoClicarLinha={(e) => setAberta(e.id)}
+            destaqueLinha={(e) => (aberta === e.id ? "bg-muted/60" : "")}
+            vazio={empresas.length === 0 ? <>Cadastre o primeiro cliente. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Novo cliente</button></> : <>Nenhum cliente com esses filtros. <button type="button" onClick={() => setFiltros(FILTROS_VAZIOS)} className="text-primary hover:underline">Limpar filtros</button></>}
+          />
+        )}
         <p className="text-xs text-muted-foreground">{lista.length} de {plural(empresas.length, "cliente", "clientes")}</p>
       </div>
 

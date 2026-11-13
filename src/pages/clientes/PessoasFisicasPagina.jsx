@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
@@ -14,7 +14,6 @@ import { hojeBR } from "@/lib/tarefas";
 import { plural } from "@/lib/plural";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Situação do certificado da pessoa: vencido, vence em até 30 dias, válido ou sem informação. */
 export function situacaoDoCertificado(validade, hoje = hojeBR()) {
@@ -63,54 +62,42 @@ export default function PessoasFisicasPagina() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const confirmar = useConfirmar();
-  const [busca, setBusca] = useState("");
   const [dialogo, setDialogo] = useState(null);
   const { data = [], isLoading, error } = useQuery({ queryKey: ["pessoas-fisicas"], queryFn: () => api.get("/pessoas-fisicas") });
   const emp = useQuery({ queryKey: ["empresas", "carteiras"], queryFn: () => api.entities.Empresa.list() });
   const empresas = useMemo(() => [...(emp.data || [])].sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR")), [emp.data]);
   const nomeEmpresa = useMemo(() => new Map(empresas.map((e) => [e.id, e.razao_social])), [empresas]);
-  const t = semAcento(busca).trim();
-  const lista = data.filter((p) => !t || semAcento(p.nome).includes(t) || p.cpf.replace(/\D/g, "").includes(t.replace(/\D/g, "") || "§"));
   const excluir = useMutation({ mutationFn: (id) => api.delete(`/pessoas-fisicas/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pessoas-fisicas"] }); toast({ title: "Pessoa física excluída" }); }, onError: (e) => toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }) });
   return (
     <div>
       <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes", to: "/area/clientes" }, { label: "Pessoas físicas" }]} title="Pessoas físicas" />
       <div className="px-6 lg:px-8 py-6 space-y-3">
-        <div className="flex flex-wrap items-end gap-2 text-sm">
-          <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (nome ou CPF)</span><input type="search" className={campo} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
-          <BotaoExportar titulo="Pessoas físicas" linhas={lista} colunas={[
-            { chave: "nome", rotulo: "Nome" }, { chave: "cpf", rotulo: "CPF" }, { chave: "email", rotulo: "E-mail" }, { chave: "telefone", rotulo: "Telefone" },
-            { chave: "empresa", rotulo: "Empresa ligada", valor: (p) => nomeEmpresa.get(p.empresa_id) || "" },
-            { chave: "certificado", rotulo: "Certificado", valor: (p) => `${p.certificado_tipo ? `${p.certificado_tipo} · ` : ""}${situacaoDoCertificado(p.certificado_validade).rotulo}` },
-          ]} />
-          <button type="button" onClick={() => setDialogo({ pessoa: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova pessoa física</button>
-        </div>
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-[13px] leading-5" aria-label="Pessoas físicas">
-            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Nome</th><th className="px-3 py-2">CPF</th><th className="px-3 py-2">Empresa ligada</th><th className="px-3 py-2">Certificado</th><th className="px-3 py-2"><span className="sr-only">Ações</span></th></tr></thead>
-            <tbody>
-              {isLoading && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-              {error && <tr><td colSpan={5} className="py-8 text-center" role="alert">Não foi possível carregar.</td></tr>}
-              {!isLoading && !error && lista.length === 0 && <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">{data.length ? "Ninguém com essa busca." : "Nenhuma pessoa física ainda."}</td></tr>}
-              {lista.map((p) => {
-                const s = situacaoDoCertificado(p.certificado_validade);
-                return (
-                  <tr key={p.id} className="border-b border-border/60 hover:bg-muted/40">
-                    <td className="px-3 py-2"><p className="font-medium">{p.nome}</p><p className="text-[11px] text-muted-foreground">{[p.email, p.telefone].filter(Boolean).join(" · ")}</p></td>
-                    <td className="px-3 py-2 tabular-nums">{p.cpf}</td>
-                    <td className="px-3 py-2">{nomeEmpresa.get(p.empresa_id) || <span className="text-muted-foreground">—</span>}</td>
-                    <td className="px-3 py-2"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${s.tom}`}>{p.certificado_tipo ? `${p.certificado_tipo} · ` : ""}{s.rotulo}</span></td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <Link to={`/bpo/monitoramento/pf/${p.id}`} className="mr-2 text-xs text-primary hover:underline">Monitoramento</Link><Link to="/bpo/arquivos" className="mr-2 text-xs text-primary hover:underline">Arquivos</Link>
-                      <button type="button" onClick={() => setDialogo({ pessoa: p })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar ${p.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                      {user?.role === "admin" && <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir ${p.nome}?`, descricao: "Os documentos e os arquivos dela saem junto.", rotulo: "Excluir" })) excluir.mutate(p.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${p.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+        {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar.</p>}
+        {!isLoading && !error && (
+          <TabelaPadrao
+            id="pessoas-fisicas" ariaLabel="Pessoas físicas" titulo="Pessoas físicas" linhas={data} vazio="Nenhuma pessoa física ainda."
+            acoes={<button type="button" onClick={() => setDialogo({ pessoa: null })} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova pessoa física</button>}
+            colunas={[
+              { chave: "nome", rotulo: "Nome", render: (p) => <span className="font-medium">{p.nome}</span> },
+              { chave: "cpf", rotulo: "CPF", render: (p) => <span className="tabular-nums">{p.cpf}</span> },
+              { chave: "email", rotulo: "E-mail", render: (p) => p.email || <span className="text-muted-foreground">—</span> },
+              { chave: "telefone", rotulo: "Telefone", render: (p) => p.telefone || <span className="text-muted-foreground">—</span> },
+              { chave: "empresa", rotulo: "Empresa ligada", valor: (p) => nomeEmpresa.get(p.empresa_id) || "", render: (p) => nomeEmpresa.get(p.empresa_id) || <span className="text-muted-foreground">—</span> },
+              { chave: "certificado", rotulo: "Certificado", valor: (p) => `${p.certificado_tipo ? `${p.certificado_tipo} · ` : ""}${situacaoDoCertificado(p.certificado_validade).rotulo}`,
+                render: (p) => { const s = situacaoDoCertificado(p.certificado_validade); return <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${s.tom}`}>{p.certificado_tipo ? `${p.certificado_tipo} · ` : ""}{s.rotulo}</span>; } },
+              { chave: "validade", rotulo: "Validade", tipo: "data", valor: (p) => p.certificado_validade?.slice(0, 10) || "" },
+              { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+                render: (p) => (
+                  <>
+                    <Link to={`/bpo/monitoramento/pf/${p.id}`} className="mr-2 text-xs text-primary hover:underline">Monitoramento</Link><Link to="/bpo/arquivos" className="mr-2 text-xs text-primary hover:underline">Arquivos</Link>
+                    <button type="button" onClick={() => setDialogo({ pessoa: p })} className="rounded p-1 hover:bg-muted" aria-label={`Editar ${p.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                    {user?.role === "admin" && <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir ${p.nome}?`, descricao: "Os documentos e os arquivos dela saem junto.", rotulo: "Excluir" })) excluir.mutate(p.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${p.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                  </>
+                ) },
+            ]}
+          />
+        )}
       </div>
       {dialogo && <DialogoPessoa key={dialogo.pessoa?.id || "nova"} pessoa={dialogo.pessoa} empresas={empresas} aoFechar={() => setDialogo(null)} />}
     </div>

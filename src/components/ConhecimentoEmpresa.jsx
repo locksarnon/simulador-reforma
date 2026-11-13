@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ADDONS, conhecimentoDaEmpresa } from '@/lib/conhecimentoSistemas';
 import EmpresaFormDialog from '@/components/empresas/EmpresaFormDialog';
+import TabelaPadrao from '@/components/TabelaPadrao';
 
 /** Barra compacta com o ERP e os add-ons da empresa; as orientações documentadas ficam recolhidas até serem pedidas. */
 export default function ConhecimentoEmpresa({ empresa, editar = false }) {
@@ -23,19 +24,19 @@ export default function ConhecimentoEmpresa({ empresa, editar = false }) {
       {detalhe && (
         <div className="border-t border-border p-3 space-y-3">
           {regras.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left bg-muted"><tr><th className="p-2">Sistema e escopo</th><th className="p-2">Orientação</th><th className="p-2">Fonte e revisão</th></tr></thead>
-                <tbody>
-                  {regras.map((r) => (
-                    <tr key={r.id} className="border-t border-border align-top">
-                      <td className="p-2">{ADDONS.find((a) => a.id === r.addon)?.nome}<p className="text-xs text-muted-foreground">{r.linha || 'API v1'}{r.erp ? ' · ' + r.erp : ''}</p></td>
-                      <td className="p-2"><p className="font-medium">{r.titulo}</p><p className="text-muted-foreground mt-1">{r.orientacao}</p>{r.campos.length > 0 && <p className="text-xs font-mono mt-2">{r.campos.join(' · ')}</p>}</td>
-                      <td className="p-2 max-w-xs"><a href={r.fonte} target="_blank" rel="noreferrer" className="text-primary underline">Documentação do fornecedor</a><p className="text-xs text-muted-foreground mt-1">{r.versaoFonte}</p><span className="inline-block mt-2 rounded px-2 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 text-xs">Validar na instalação</span></td>
-                    </tr>))}
-                </tbody>
-              </table>
-            </div>
+            <TabelaPadrao simples id="conhecimento-sistemas" ariaLabel="Orientações dos sistemas da empresa" linhas={regras}
+              colunas={[
+                { chave: 'sistema', rotulo: 'Sistema', valor: (r) => ADDONS.find((a) => a.id === r.addon)?.nome || r.addon },
+                { chave: 'linha', rotulo: 'Escopo', valor: (r) => r.linha || 'API v1' },
+                { chave: 'erp', rotulo: 'ERP', valor: (r) => r.erp || '' },
+                { chave: 'titulo', rotulo: 'Título', render: (r) => <span className="font-medium">{r.titulo}</span> },
+                { chave: 'orientacao', rotulo: 'Orientação', quebrar: true, render: (r) => <span className="text-muted-foreground">{r.orientacao}</span> },
+                { chave: 'campos', rotulo: 'Campos', valor: (r) => r.campos.join(' · '), render: (r) => <span className="text-xs font-mono">{r.campos.join(' · ')}</span> },
+                { chave: 'versaoFonte', rotulo: 'Revisão da fonte', render: (r) => <span className="text-xs text-muted-foreground">{r.versaoFonte}</span> },
+                { chave: 'fonte', rotulo: 'Fonte', ordenavel: false, filtravel: false, render: (r) => <a href={r.fonte} target="_blank" rel="noreferrer" className="text-primary underline">Documentação do fornecedor</a> },
+                { chave: 'situacao', rotulo: 'Situação', valor: () => 'Validar na instalação', render: () => <span className="inline-block rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 text-xs">Validar na instalação</span> },
+              ]}
+            />
           ) : <p className="text-sm text-muted-foreground">Vincule PIMS ou FARMBOX para ver as referências.</p>}
         </div>)}
       {editar && <EmpresaFormDialog open={aberto} onOpenChange={setAberto} editing={empresa} grupoNumero={empresa?.grupo} />}

@@ -2,13 +2,13 @@ import { ERPS } from "@/lib/conhecimentoSistemas";
 import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { SlidersHorizontal, UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Search, Lock } from "lucide-react";
+import { SlidersHorizontal, UploadCloud, FileSpreadsheet, Copy, Check, Download, Loader2, RotateCcw, Lock } from "lucide-react";
 import { api } from "@/api/client";
 import LeadForm from "@/components/ferramentas/LeadForm";
 import AnexoLeiPainel from "@/components/ferramentas/AnexoLeiPainel";
 import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicidade";
 import HistoricoValidacoes from "@/components/ferramentas/HistoricoValidacoes";
-import { Th, ordenarPor, useOrdenacao } from "@/components/saneamento/ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useQueryClient } from "@tanstack/react-query";
 
 const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cClassTrib"];
@@ -28,8 +28,6 @@ const COR_SIT = {
   ERRO: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300",
 };
 const ROT_SIT = { OK: "OK", ALERTA: "Atenção", ERRO: "Corrigir" };
-// 0 = todos os itens da aba numa página só.
-const OPCOES_POR_PAGINA = [50, 100, 250, 500, 0];
 const tem = (...codigos) => (i) => i.problemas.some((p) => codigos.includes(p.codigo));
 // Abas de análise: cada item aparece em todas as abas a que pertence (um duplicado com NCM errado entra nas duas).
 const ABAS = [
@@ -55,52 +53,100 @@ const mesesAtras = (n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 const dataBr = (iso) => (iso ? iso.split("-").reverse().join("/") : "…");
-const COLUNAS_GRUPOS = [
-  { chave: "grupo_atual", titulo: "Grupo atual" }, { chave: "grupo_sugerido", titulo: "Grupo sugerido (uso do cliente)" }, { chave: "grupo_flag", titulo: "Flag grupo" },
-];
-const COLUNAS_CONTA = [
-  { chave: "conta_atual", titulo: "Conta contábil atual" }, { chave: "conta_sugerida", titulo: "Conta contábil sugerida" }, { chave: "conta_flag", titulo: "Flag conta" },
-];
 const ROT_FLAG = { IGUAL: "Igual", DIFERENTE: "Diferente", SEM_ATUAL: "Sem valor atual", SEM_SUGESTAO: "Sem sugestão", SEM_REGRA: "Sem regra no de-para", SEM_PLANO: "Sem de-para" };
 const COR_FLAG = {
   IGUAL: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
   DIFERENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
 };
-const COLUNAS_PERIODO = [
-  { chave: "ultima_mov", titulo: "Última movimentação" },
-  { chave: "periodo", titulo: "No período" },
-];
 const ROT_PERIODO = { DENTRO: "Dentro", SEM_DATA: "Sem data", DATA_INVALIDA: "Data inválida" };
 const COR_PERIODO = {
   DENTRO: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
   SEM_DATA: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
   DATA_INVALIDA: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300",
 };
-const COLUNAS = [
-  { chave: "linha", titulo: "Linha", alinhar: "text-right" },
-  { chave: "codigo", titulo: "Código" },
-  { chave: "descricao", titulo: "Descrição" },
-  { chave: "unidade", titulo: "Unidade" },
-  { chave: "principio_ativo", titulo: "Princípio ativo" },
-  { chave: "grupo_contabil", titulo: "Grupo contábil atual" },
-  { chave: "ncm_original", titulo: "NCM informado" },
-  { chave: "ncm", titulo: "NCM corrigido" },
-  { chave: "situacao", titulo: "Situação" },
-  { chave: "problemas", titulo: "Problemas encontrados" },
-  { chave: "informado", titulo: "cClassTrib informado" },
-  { chave: "sugerido", titulo: "cClassTrib sugerido" },
-  { chave: "reducao", titulo: "Redução sugerida", alinhar: "text-right" },
-  { chave: "confianca", titulo: "Confiança" },
-  { chave: "anexo", titulo: "Base na lei" },
+const traco = (v) => v || "—";
+const selo = (cor, texto) => <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${cor}`}>{texto}</span>;
+const problemasDoItem = (i) => i.problemas.filter((p) => p.codigo !== "CLASSE_SUGERIDA");
+const sugestaoDoItem = (i) => (i.sugestao?.c_class_trib ? i.sugestao : null);
+
+/** Colunas da tabela de resultado: a mesma ordem e os mesmos títulos da planilha corrigida (ProdutosService.exportarXlsx). */
+function colunasDosItens({ opRes, periodo, podeExcluir, excluir, setExcluir, aoComparar, aoAbrirAnexo }) {
+  return [
+    ...(podeExcluir ? [{
+      chave: "excluir", rotulo: "Excluir da cópia saneada", valor: () => "", ordenavel: false, filtravel: false, alinhar: "centro",
+      render: (i) => <input type="checkbox" aria-label={`Excluir linha ${i.linha} da cópia saneada`} disabled={!i.candidatos_duplicidade?.length} checked={excluir.includes(i.linha)} onChange={(e) => setExcluir((xs) => (e.target.checked ? [...xs, i.linha] : xs.filter((n) => n !== i.linha)))} />,
+    }] : []),
+    { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", render: (i) => <span className="text-muted-foreground">{i.linha}</span> },
+    { chave: "codigo", rotulo: "Código", render: (i) => <span className="font-medium">{traco(i.codigo)}</span> },
+    { chave: "descricao", rotulo: "Descrição", render: (i) => traco(i.descricao) },
+    { chave: "unidade", rotulo: "Unidade", render: (i) => traco(i.unidade) },
+    { chave: "principio_ativo", rotulo: "Princípio ativo", render: (i) => traco(i.principio_ativo) },
+    { chave: "grupo_contabil", rotulo: "Grupo contábil atual", render: (i) => traco(i.grupo_contabil) },
+    { chave: "ncm_original", rotulo: "NCM informado", render: (i) => <span className="font-mono">{traco(i.ncm_original)}</span> },
+    {
+      chave: "ncm", rotulo: "NCM corrigido",
+      render: (i) => { const mudou = i.ncm && i.ncm !== (i.ncm_original || "").replace(/\D/g, ""); return <span className={`font-mono ${mudou ? "text-emerald-700 dark:text-emerald-400 font-semibold" : ""}`}>{traco(i.ncm)}</span>; },
+    },
+    { chave: "situacao", rotulo: "Situação", valor: (i) => ROT_SIT[i.situacao], render: (i) => selo(COR_SIT[i.situacao], ROT_SIT[i.situacao]) },
+    {
+      chave: "problemas", rotulo: "Problemas encontrados", quebrar: true, valor: (i) => problemasDoItem(i).map((p) => p.mensagem).join(" | "),
+      render: (i) => {
+        const ps = problemasDoItem(i);
+        return (
+          <span className={ps.some((p) => p.severidade === "erro") ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}>
+            {ps.length ? ps.map((p) => p.mensagem).join(" | ") : "—"}
+            {i.duplicidade && <button type="button" onClick={() => aoComparar(i)} className="ml-2 text-primary underline underline-offset-2 hover:opacity-80 whitespace-nowrap">Comparar</button>}
+          </span>
+        );
+      },
+    },
+    { chave: "informado", rotulo: "cClassTrib informado", valor: (i) => i.c_class_trib_informado, render: (i) => <span className="font-mono">{traco(i.c_class_trib_informado)}</span> },
+    {
+      chave: "sugerido", rotulo: "cClassTrib sugerido",
+      valor: (i) => sugestaoDoItem(i)?.c_class_trib || (i.sugestao?.referencia ? "Revisar" : i.sugestao?.ambiguo ? "Depende do produto" : ""),
+      render: (i) => (sugestaoDoItem(i) ? <span className="font-mono font-semibold">{i.sugestao.c_class_trib}</span>
+        : i.sugestao?.referencia ? <span className="text-amber-700" title="NCM em capítulo/posição citado por anexo: o enquadramento depende dos requisitos do item. Nenhuma classe foi sugerida.">Revisar</span>
+          : i.sugestao?.ambiguo ? <span className="text-amber-700">Depende do produto</span> : "—"),
+    },
+    {
+      chave: "reducao", rotulo: "Redução sugerida", alinhar: "direita",
+      valor: (i) => (sugestaoDoItem(i) ? Math.round(i.sugestao.reducao * 100) : null), render: (i) => (sugestaoDoItem(i) ? `${Math.round(i.sugestao.reducao * 100)}%` : "—"),
+    },
+    { chave: "confianca", rotulo: "Confiança", valor: (i) => (i.sugestao?.confianca && (sugestaoDoItem(i) || i.sugestao.referencia) ? i.sugestao.confianca : ""), render: (i) => (i.sugestao?.confianca && (sugestaoDoItem(i) || i.sugestao.referencia) ? i.sugestao.confianca : "—") },
+    {
+      chave: "anexo", rotulo: "Base na lei", valor: (i) => i.sugestao?.anexo,
+      render: (i) => (i.sugestao?.anexo ? <button type="button" onClick={() => aoAbrirAnexo(i.sugestao.anexo)} className="text-primary underline underline-offset-2 hover:opacity-80" title="Abrir o anexo da LC 214/2025 sem sair desta tela">{i.sugestao.anexo}</button> : "—"),
+    },
+    ...(opRes.grupos ? [
+      { chave: "grupo_atual", rotulo: "Grupo atual", render: (i) => traco(i.grupo_atual) },
+      { chave: "grupo_sugerido", rotulo: "Grupo sugerido (uso do cliente)", render: (i) => <span title={i.grupo_evidencia || i.grupo_sugerido || ""}>{traco(i.grupo_sugerido)}</span> },
+      { chave: "grupo_flag", rotulo: "Flag grupo", valor: (i) => ROT_FLAG[i.grupo_flag], render: (i) => selo(COR_FLAG[i.grupo_flag] || "bg-muted text-muted-foreground", ROT_FLAG[i.grupo_flag] || "—") },
+    ] : []),
+    ...(opRes.gruposContabeis ? [
+      { chave: "conta_atual", rotulo: "Conta contábil atual", valor: (i) => i.grupo_contabil, render: (i) => traco(i.grupo_contabil) },
+      { chave: "conta_sugerida", rotulo: "Conta contábil sugerida", render: (i) => traco(i.conta_sugerida) },
+      { chave: "conta_flag", rotulo: "Flag conta", valor: (i) => ROT_FLAG[i.conta_flag], render: (i) => selo(COR_FLAG[i.conta_flag] || "bg-muted text-muted-foreground", ROT_FLAG[i.conta_flag] || "—") },
+    ] : []),
+    ...(periodo ? [
+      { chave: "ultima_mov", rotulo: "Última movimentação", tipo: "data", render: (i) => (i.ultima_mov ? i.ultima_mov.split("-").reverse().join("/") : "—") },
+      { chave: "periodo", rotulo: "No período", valor: (i) => ROT_PERIODO[i.periodo], render: (i) => selo(COR_PERIODO[i.periodo] || "", ROT_PERIODO[i.periodo] || "—") },
+    ] : []),
+  ];
+}
+
+const COLUNAS_FORA = [
+  { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", render: (f) => <span className="text-muted-foreground">{f.linha}</span> },
+  { chave: "codigo", rotulo: "Código", render: (f) => <span className="font-medium">{traco(f.codigo)}</span> },
+  { chave: "descricao", rotulo: "Descrição", render: (f) => traco(f.descricao) },
+  { chave: "ncm_original", rotulo: "NCM informado", render: (f) => <span className="font-mono">{traco(f.ncm_original)}</span> },
+  { chave: "ultima_mov", rotulo: "Última movimentação", tipo: "data", render: (f) => dataBr(f.ultima_mov) },
 ];
-/** Valor de cada coluna da tabela de resultado, para ordenar ao clicar no cabeçalho (situação por gravidade; vazio sempre por último). */
-const ACESSORES_ITEM = {
-  linha: (i) => i.linha, codigo: (i) => i.codigo, descricao: (i) => i.descricao, unidade: (i) => i.unidade, principio_ativo: (i) => i.principio_ativo, grupo_contabil: (i) => i.grupo_contabil,
-  ncm_original: (i) => i.ncm_original, ncm: (i) => i.ncm, situacao: (i) => ({ OK: 0, ALERTA: 1, ERRO: 2 })[i.situacao], problemas: (i) => i.problemas.filter((p) => p.codigo !== "CLASSE_SUGERIDA").length,
-  informado: (i) => i.c_class_trib_informado, sugerido: (i) => i.sugestao?.c_class_trib, reducao: (i) => (i.sugestao?.c_class_trib ? i.sugestao.reducao : null), confianca: (i) => i.sugestao?.confianca, anexo: (i) => i.sugestao?.anexo,
-  grupo_atual: (i) => i.grupo_atual, grupo_sugerido: (i) => i.grupo_sugerido, grupo_flag: (i) => i.grupo_flag, conta_atual: (i) => i.grupo_contabil, conta_sugerida: (i) => i.conta_sugerida, conta_flag: (i) => i.conta_flag,
-  ultima_mov: (i) => i.ultima_mov, periodo: (i) => i.periodo,
-};
+
+const COLUNAS_GRUPOS_SUGERIDOS = [
+  { chave: "grupo", rotulo: "Grupo sugerido (uso do cliente)", render: (g) => <span className="font-medium">{g.grupo}</span> },
+  { chave: "qtd", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
+  { chave: "atuais", rotulo: "Hoje estão em", quebrar: true, valor: (g) => g.atuais.map((a) => `${a.grupo} (${a.qtd})`).join(" · ") },
+];
 
 function Cartao({ titulo, valor, cor, ativo, onClick }) {
   return (
@@ -148,11 +194,6 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
   const idAuto = !publico ? (resultado?.validacao_id || rascunhoId) : null;
   // Dentro de um projeto de saneamento: avisa quando a base foi processada e salva, para vinculá-la ao projeto.
   useEffect(() => { if (aoProcessar && resultado?.validacao_id) aoProcessar(resultado); }, [resultado?.validacao_id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [porPagina, setPorPagina] = useState(100);
-  const [busca, setBusca] = useState("");
-  const [pagina, setPagina] = useState(0);
-  const [ordItens, ordenarItensBase] = useOrdenacao(); const [ordFora, ordenarFora] = useOrdenacao(); const [ordGrupos, ordenarGrupos] = useOrdenacao();
-  const ordenarItens = (k) => { ordenarItensBase(k); setPagina(0); };
   const [emailLiberado, setEmailLiberado] = useState("");
   const inputRef = useRef(null);
   const qc = useQueryClient();
@@ -164,7 +205,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
   const reiniciar = () => {
     setExcluir([]); setProblemasSelecionados([]); setPeriodoFiltro("ANALISE"); setRascunhoId(null); setAutosave(null); setPlano(null);
     setEtapa("enviar"); setArquivo(null); setPrevia(null); setMapa({}); setResultado(null); setErro("");
-    setFiltro("TODOS"); setAba("TODOS"); setBusca(""); setPagina(0); setEmailLiberado("");
+    setFiltro("TODOS"); setAba("TODOS"); setEmailLiberado("");
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -191,8 +232,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
       const r = idSalvo
         ? await api.post(`/produtos/validacoes/${idSalvo}/refazer`, { mapeamento: mapa, opcoes, empresa_id: empresaId })
         : await api.upload(rotaValidar, arquivo, { mapeamento: mapa, ...(!publico ? { empresa_id: empresaId, opcoes } : {}), ...(publico && (email || emailLiberado) ? { email: email || emailLiberado } : {}) });
-      setExcluir([]); setPeriodoFiltro("ANALISE"); setResultado(r); setRascunhoId(null); setEtapa("resultado"); setPagina(0);
-      if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
+      setExcluir([]); setPeriodoFiltro("ANALISE"); setResultado(r); setRascunhoId(null); setEtapa("resultado");      if (!publico) qc.invalidateQueries({ queryKey: ["validacoes-cadastro"] });
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -235,7 +275,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
       const r = await api.get(`/produtos/validacoes/${v.id}`, { empresa_id: empresaId });
       if (r.opcoes) setOpcoes(r.opcoes);
       setExcluir(r.excluir || []); setRascunhoId(null); setAutosave(null);
-      setArquivo(null); setResultado(r); setMapa(r.mapeamento || {}); setEtapa("resultado"); setPagina(0); setFiltro("TODOS"); setAba("TODOS"); setBusca(""); setPeriodoFiltro("ANALISE");
+      setArquivo(null); setResultado(r); setMapa(r.mapeamento || {}); setEtapa("resultado"); setFiltro("TODOS"); setAba("TODOS"); setPeriodoFiltro("ANALISE");
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -289,24 +329,16 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
 
   const itensFiltrados = useMemo(() => {
     if (!resultado) return [];
-    const t = busca.trim().toLowerCase();
     const abaAtual = ABAS.find((a) => a.id === aba) || ABAS[0];
     return resultado.itens.filter((i) => {
       if (periodoFiltro === "FORA") return false;
       if (!abaAtual.testa(i)) return false;
       if (problemasSelecionados.length && !i.problemas.some(p => problemasSelecionados.includes(p.codigo))) return false;
-      if (filtro === "PROBLEMAS" ? i.situacao === "OK" : filtro !== "TODOS" && i.situacao !== filtro) return false;
-      if (!t) return true;
-      return `${i.codigo} ${i.descricao} ${i.ncm_original}`.toLowerCase().includes(t);
+      return !(filtro === "PROBLEMAS" ? i.situacao === "OK" : filtro !== "TODOS" && i.situacao !== filtro);
     });
-  }, [resultado, filtro, busca, problemasSelecionados, periodoFiltro, aba]);
+  }, [resultado, filtro, problemasSelecionados, periodoFiltro, aba]);
 
   const contagemAbas = useMemo(() => Object.fromEntries(ABAS.map((a) => [a.id, resultado ? resultado.itens.filter(a.testa).length : 0])), [resultado]);
-
-  const tamanhoPagina = porPagina === 0 ? Math.max(1, itensFiltrados.length) : porPagina;
-  const totalPaginas = Math.max(1, Math.ceil(itensFiltrados.length / tamanhoPagina));
-  const itensOrdenados = useMemo(() => ordenarPor(itensFiltrados, ordItens, ACESSORES_ITEM), [itensFiltrados, ordItens]);
-  const visiveis = itensOrdenados.slice(pagina * tamanhoPagina, (pagina + 1) * tamanhoPagina);
 
   // ── Etapa 1: enviar ──
   if (etapa === "enviar") {
@@ -382,12 +414,12 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         <div className="rounded-xl border border-border bg-card overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="border-b border-border text-left text-muted-foreground">
-              {previa.colunas.map((c) => <th key={c.indice} className={`px-3 py-2 font-medium whitespace-nowrap ${indicesMapeados.has(c.indice) ? "bg-primary/10 text-foreground" : ""}`}>{c.nome}</th>)}
+              {previa.colunas.map((c) => <th key={c.indice} className={`px-2 py-1.5 font-medium whitespace-nowrap ${indicesMapeados.has(c.indice) ? "bg-primary/10 text-foreground" : ""}`}>{c.nome}</th>)}
             </tr></thead>
             <tbody>
               {previa.previa.slice(0, 6).map((l, i) => (
-                <tr key={i} className="border-b border-border last:border-0">
-                  {l.map((v, j) => <td key={j} className={`px-3 py-1.5 whitespace-nowrap max-w-[220px] truncate ${indicesMapeados.has(j) ? "bg-primary/5" : ""}`}>{v}</td>)}
+                <tr key={i} className="border-b border-border last:border-0 align-middle">
+                  {l.map((v, j) => <td key={j} className={`px-2 py-1 whitespace-nowrap ${indicesMapeados.has(j) ? "bg-primary/5" : ""}`}>{v}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -425,7 +457,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
             </p>
             <div className="flex flex-wrap gap-2 text-xs">
               {[["ANALISE", "No saneamento"], ["FORA", "Sem movimento no período"]].map(([v, rot]) => (
-                <button key={v} type="button" onClick={() => { setPeriodoFiltro(v); setAba(v === "FORA" ? "FORA" : "TODOS"); setPagina(0); }} className={`px-3 py-1.5 rounded-full border ${periodoFiltro === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{rot}</button>
+                <button key={v} type="button" onClick={() => { setPeriodoFiltro(v); setAba(v === "FORA" ? "FORA" : "TODOS"); }} className={`px-3 py-1.5 rounded-full border ${periodoFiltro === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{rot}</button>
               ))}
             </div>
             {periodoFiltro === "FORA" && <p className="text-xs text-muted-foreground">Estes produtos não entram no saneamento: são candidatos a inativar no ERP. A lista completa vai numa aba própria da planilha baixada.</p>}
@@ -435,16 +467,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
           <details className="rounded-xl border border-border bg-card p-4">
             <summary className="cursor-pointer text-sm font-medium">Grupos sugeridos pelo uso do cliente ({r.grupos.length})</summary>
             <div className="mt-3 overflow-auto max-h-[50vh]">
-              <table className="w-full text-xs border-collapse">
-                <thead className="bg-muted"><tr className="text-left text-muted-foreground"><Th chave="grupo" ord={ordGrupos} onOrdenar={ordenarGrupos} className="px-3 py-2">Grupo sugerido (uso do cliente)</Th><Th chave="qtd" ord={ordGrupos} onOrdenar={ordenarGrupos} className="px-3 py-2 text-right">Itens</Th><Th chave="atuais" ord={ordGrupos} onOrdenar={ordenarGrupos} className="px-3 py-2">Hoje estão em</Th></tr></thead>
-                <tbody>{ordenarPor(r.grupos, ordGrupos, { grupo: (g) => g.grupo, qtd: (g) => g.qtd, atuais: (g) => g.atuais.map((a) => a.grupo).join(" ") }).map((g) => (
-                  <tr key={g.grupo} className="border-t border-border align-top">
-                    <td className="px-3 py-1.5 font-medium">{g.grupo}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{g.qtd.toLocaleString("pt-BR")}</td>
-                    <td className="px-3 py-1.5 text-muted-foreground">{g.atuais.map((a) => `${a.grupo} (${a.qtd})`).join(" · ")}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+              <TabelaPadrao id="validador:grupos-sugeridos" ariaLabel="Grupos sugeridos pelo uso do cliente" simples colunas={COLUNAS_GRUPOS_SUGERIDOS} linhas={r.grupos} chaveLinha={(g) => g.grupo} />
             </div>
           </details>
         )}
@@ -453,7 +476,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
             const n = a.id === "FORA" ? r.periodo?.fora ?? 0 : contagemAbas[a.id];
             const ativa = aba === a.id;
             return (
-              <button key={a.id} type="button" role="tab" aria-selected={ativa} onClick={() => { setAba(a.id); setPeriodoFiltro(a.id === "FORA" ? "FORA" : "ANALISE"); if (a.id === "TODOS") { setFiltro("TODOS"); setProblemasSelecionados([]); } setPagina(0); }}
+              <button key={a.id} type="button" role="tab" aria-selected={ativa} onClick={() => { setAba(a.id); setPeriodoFiltro(a.id === "FORA" ? "FORA" : "ANALISE"); if (a.id === "TODOS") { setFiltro("TODOS"); setProblemasSelecionados([]); } }}
                 className={`px-3 py-1.5 rounded-full border text-xs whitespace-nowrap ${ativa ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>
                 {a.titulo} <b className="tabular-nums">({n.toLocaleString("pt-BR")})</b>
               </button>
@@ -462,10 +485,10 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Cartao titulo="Produtos analisados" valor={r.total} ativo={filtro === "TODOS"} onClick={() => { setFiltro("TODOS"); setPagina(0); }} />
-          <Cartao titulo="Sem problemas" valor={r.ok} cor="text-emerald-600" ativo={filtro === "OK"} onClick={() => { setFiltro("OK"); setPagina(0); }} />
-          <Cartao titulo="Atenção" valor={r.alerta} cor="text-amber-600" ativo={filtro === "ALERTA"} onClick={() => { setFiltro("ALERTA"); setPagina(0); }} />
-          <Cartao titulo="Corrigir" valor={r.erro} cor="text-red-600" ativo={filtro === "ERRO"} onClick={() => { setFiltro("ERRO"); setPagina(0); }} />
+          <Cartao titulo="Produtos analisados" valor={r.total} ativo={filtro === "TODOS"} onClick={() => setFiltro("TODOS")} />
+          <Cartao titulo="Sem problemas" valor={r.ok} cor="text-emerald-600" ativo={filtro === "OK"} onClick={() => setFiltro("OK")} />
+          <Cartao titulo="Atenção" valor={r.alerta} cor="text-amber-600" ativo={filtro === "ALERTA"} onClick={() => setFiltro("ALERTA")} />
+          <Cartao titulo="Corrigir" valor={r.erro} cor="text-red-600" ativo={filtro === "ERRO"} onClick={() => setFiltro("ERRO")} />
         </div>
 
         {r.referencias_anexo > 0 && (
@@ -480,16 +503,12 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         {r.por_problema.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {r.por_problema.filter((p) => p.codigo !== "CLASSE_SUGERIDA" && p.codigo !== "NCM_ZERO_RESTAURADO").slice(0, 8).map((p) => (
-              <label key={p.codigo} className="text-xs px-2 py-1 rounded-full bg-muted flex gap-2"><input type="checkbox" checked={problemasSelecionados.includes(p.codigo)} onChange={e => { setProblemasSelecionados(s => e.target.checked ? [...s, p.codigo] : s.filter(x => x !== p.codigo)); setFiltro("TODOS"); setPagina(0); }} />{ROTULO_PROBLEMA[p.codigo] || p.codigo}: <b>{p.qtd}</b></label>
+              <label key={p.codigo} className="text-xs px-2 py-1 rounded-full bg-muted flex gap-2"><input type="checkbox" checked={problemasSelecionados.includes(p.codigo)} onChange={e => { setProblemasSelecionados(s => e.target.checked ? [...s, p.codigo] : s.filter(x => x !== p.codigo)); setFiltro("TODOS"); }} />{ROTULO_PROBLEMA[p.codigo] || p.codigo}: <b>{p.qtd}</b></label>
             ))}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 justify-between">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input value={busca} onChange={(e) => { setBusca(e.target.value); setPagina(0); }} placeholder="Buscar código, descrição ou NCM" className="h-9 w-64 rounded-md border border-input bg-background pl-8 pr-2 text-sm" />
-          </div>
+        <div className="flex flex-wrap items-center gap-2 justify-end">
           <div className="flex flex-wrap items-center gap-2">
             {indicadorAutosave}
             {!publico && resultado.validacao_id && <button type="button" onClick={ajustar} disabled={carregando} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-primary text-primary text-sm hover:bg-primary/5 disabled:opacity-50">{carregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SlidersHorizontal className="w-4 h-4" />} Ajustar parâmetros e refazer</button>}
@@ -502,97 +521,10 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         {!publico && arquivo && <p className="text-xs text-muted-foreground">Selecione as linhas duplicadas que deseja retirar da cópia saneada ({excluir.length} selecionadas). A exportação mantém o relatório completo e registra as exclusões em aba separada. O cadastro do ERP não é alterado.</p>}
         {/* Mesma estrutura da planilha corrigida (ver ProdutosService.exportarXlsx): uma linha por produto, um dado por coluna, nada empilhado dentro da célula. */}
         {r.periodo && periodoFiltro === "FORA" ? (
-          <div className="rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
-            <table className="w-full text-xs border-collapse">
-              <thead className="sticky top-0 z-10 bg-muted"><tr className="text-left text-muted-foreground">
-                {[["linha", "Linha"], ["codigo", "Código"], ["descricao", "Descrição"], ["ncm_original", "NCM informado"], ["ultima_mov", "Última movimentação"]].map(([k, t]) => <Th key={k} chave={k} ord={ordFora} onOrdenar={ordenarFora} className="px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0">{t}</Th>)}
-              </tr></thead>
-              <tbody>
-                {ordenarPor(resultado.fora_periodo || [], ordFora, ACESSORES_ITEM).slice(0, 500).map((f) => (
-                  <tr key={f.linha}>
-                    <td className="px-3 py-1.5 border-b border-r border-border text-right tabular-nums text-muted-foreground">{f.linha}</td>
-                    <td className="px-3 py-1.5 border-b border-r border-border font-medium">{f.codigo || "—"}</td>
-                    <td className="px-3 py-1.5 border-b border-r border-border max-w-[320px] truncate" title={f.descricao}>{f.descricao || "—"}</td>
-                    <td className="px-3 py-1.5 border-b border-r border-border font-mono">{f.ncm_original || "—"}</td>
-                    <td className="px-3 py-1.5 border-b border-border tabular-nums">{dataBr(f.ultima_mov)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {(resultado.fora_periodo || []).length > 500 && <p className="p-3 text-xs text-muted-foreground">Mostrando 500 de {resultado.fora_periodo.length.toLocaleString("pt-BR")}. A lista completa está na planilha baixada.</p>}
-          </div>
+          <TabelaPadrao id="validador:fora-periodo" ariaLabel="Sem movimento no período" colunas={COLUNAS_FORA} linhas={resultado.fora_periodo || []} chaveLinha={(f) => f.linha} tamanhoInicial={100} vazio="Nenhum item sem movimento no período." />
         ) : (
-        <div className="rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
-          <table className="w-full text-xs border-collapse">
-            <thead className="sticky top-0 z-10 bg-muted">
-              <tr className="text-left text-muted-foreground">
-                {!publico && arquivo && <th className="p-2 border border-border">Excluir da cópia saneada</th>}
-                {[...COLUNAS, ...(opRes.grupos ? COLUNAS_GRUPOS : []), ...(opRes.gruposContabeis ? COLUNAS_CONTA : []), ...(r.periodo ? COLUNAS_PERIODO : [])].map((c) => <Th key={c.chave} chave={c.chave} ord={ordItens} onOrdenar={ordenarItens} className={`px-3 py-2 font-medium whitespace-nowrap border-b border-r border-border last:border-r-0 ${c.alinhar || ""}`}>{c.titulo}</Th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {visiveis.map((i, idx) => {
-                const problemas = i.problemas.filter((p) => p.codigo !== "CLASSE_SUGERIDA");
-                const temErro = problemas.some((p) => p.severidade === "erro");
-                const sug = i.sugestao?.c_class_trib ? i.sugestao : null;
-                const ncmMudou = i.ncm && i.ncm !== (i.ncm_original || "").replace(/\D/g, "");
-                const cel = "px-3 py-1.5 whitespace-nowrap border-b border-r border-border last:border-r-0";
-                return (
-                  <tr key={i.linha} className={idx % 2 ? "bg-muted/15" : ""}>
-                    {!publico && arquivo && <td className={cel}><input type="checkbox" aria-label={`Excluir linha ${i.linha} da cópia saneada`} disabled={!i.candidatos_duplicidade?.length} checked={excluir.includes(i.linha)} onChange={e => setExcluir(xs => e.target.checked ? [...xs, i.linha] : xs.filter(n => n !== i.linha))} /></td>}
-                    <td className={`${cel} tabular-nums text-muted-foreground text-right`}>{i.linha}</td>
-                    <td className={`${cel} font-medium`}>{i.codigo || "—"}</td>
-                    <td className={`${cel} max-w-[320px] truncate`} title={i.descricao}>{i.descricao || "—"}</td>
-                    <td className={cel}>{i.unidade || "—"}</td>
-                    <td className={cel}>{i.principio_ativo || "—"}</td>
-                    <td className={cel}>{i.grupo_contabil || "—"}</td>
-                    <td className={`${cel} font-mono`}>{i.ncm_original || "—"}</td>
-                    <td className={`${cel} font-mono ${ncmMudou ? "text-emerald-700 dark:text-emerald-400 font-semibold" : ""}`}>{i.ncm || "—"}</td>
-                    <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_SIT[i.situacao]}`}>{ROT_SIT[i.situacao]}</span></td>
-                    <td className={`${cel} ${temErro ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}`}>{problemas.length ? problemas.map((p) => p.mensagem).join(" | ") : "—"}{i.duplicidade && <button type="button" onClick={() => setComparativo(i)} className="ml-2 text-primary underline underline-offset-2 hover:opacity-80 whitespace-nowrap">Comparar</button>}</td>
-                    <td className={`${cel} font-mono`}>{i.c_class_trib_informado || "—"}</td>
-                    <td className={`${cel} font-mono font-semibold`}>{sug ? sug.c_class_trib : i.sugestao?.referencia ? <span className="font-sans font-normal text-amber-700" title="NCM em capítulo/posição citado por anexo: o enquadramento depende dos requisitos do item. Nenhuma classe foi sugerida.">Revisar</span> : i.sugestao?.ambiguo ? <span className="font-sans font-normal text-amber-700">Depende do produto</span> : "—"}</td>
-                    <td className={`${cel} text-right tabular-nums`}>{sug ? `${Math.round(sug.reducao * 100)}%` : "—"}</td>
-                    <td className={cel}>{i.sugestao?.confianca && (sug || i.sugestao.referencia) ? i.sugestao.confianca : "—"}</td>
-                    <td className={cel}>{i.sugestao?.anexo ? <button type="button" onClick={() => setBaseLeiAberta(i.sugestao.anexo)} className="text-primary underline underline-offset-2 hover:opacity-80" title="Abrir o anexo da LC 214/2025 sem sair desta tela">{i.sugestao.anexo}</button> : "—"}</td>
-                    {opRes.grupos && (
-                      <>
-                        <td className={cel}>{i.grupo_atual || "—"}</td>
-                        <td className={`${cel} max-w-[320px] truncate`} title={i.grupo_evidencia || i.grupo_sugerido || ""}>{i.grupo_sugerido || "—"}</td>
-                        <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_FLAG[i.grupo_flag] || "bg-muted text-muted-foreground"}`}>{ROT_FLAG[i.grupo_flag] || "—"}</span></td>
-                      </>
-                    )}
-                    {opRes.gruposContabeis && (
-                      <>
-                        <td className={cel}>{i.grupo_contabil || "—"}</td>
-                        <td className={`${cel} max-w-[260px] truncate`} title={i.conta_sugerida || ""}>{i.conta_sugerida || "—"}</td>
-                        <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_FLAG[i.conta_flag] || "bg-muted text-muted-foreground"}`}>{ROT_FLAG[i.conta_flag] || "—"}</span></td>
-                      </>
-                    )}
-                    {r.periodo && (
-                      <>
-                        <td className={`${cel} tabular-nums`}>{i.ultima_mov ? i.ultima_mov.split("-").reverse().join("/") : "—"}</td>
-                        <td className={cel}><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_PERIODO[i.periodo] || ""}`}>{ROT_PERIODO[i.periodo] || "—"}</span></td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {visiveis.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Nenhum item neste filtro.</p>}
-        </div>
-        )}
-
-        {periodoFiltro !== "FORA" && (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-            <span>{itensFiltrados.length.toLocaleString("pt-BR")} itens nesta aba · página {pagina + 1} de {totalPaginas}</span>
-            <div className="flex items-center gap-2">
-              <label className="text-xs flex items-center gap-1">Itens por página <select value={porPagina} onChange={(e) => { setPorPagina(Number(e.target.value)); setPagina(0); }} className="h-8 rounded-md border border-input bg-background px-1">{OPCOES_POR_PAGINA.map((n) => <option key={n} value={n}>{n === 0 ? "Todos" : n}</option>)}</select></label>
-              <button disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} className="px-3 py-1.5 rounded-md border border-border disabled:opacity-40">Anterior</button>
-              <button disabled={pagina + 1 >= totalPaginas} onClick={() => setPagina((p) => p + 1)} className="px-3 py-1.5 rounded-md border border-border disabled:opacity-40">Próxima</button>
-            </div>
-          </div>
+          <TabelaPadrao id="validador:itens" ariaLabel="Itens validados" tamanhoInicial={100} vazio="Nenhum item neste filtro." linhas={itensFiltrados} chaveLinha={(i) => i.linha}
+            colunas={colunasDosItens({ opRes, periodo: !!r.periodo, podeExcluir: !publico && !!arquivo, excluir, setExcluir, aoComparar: setComparativo, aoAbrirAnexo: setBaseLeiAberta })} />
         )}
 
         <ComparativoDuplicidade item={comparativo} itens={resultado.itens} excluir={excluir} setExcluir={setExcluir} podeExcluir={!publico && !!arquivo} onFechar={() => setComparativo(null)} />

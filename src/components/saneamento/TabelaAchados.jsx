@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Info } from "lucide-react";
-import { Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
+import { Chip, dataBr, fmt, plural } from "./ui";
 import { dadosDoItem, leituraAchado } from "./leituraAchados";
 import { chaveDe, identificavel, motivoSemIdentidade } from "./identidade";
 import { sugestaoMudou } from "./aprovacao";
@@ -38,49 +39,50 @@ export function LegendaEncaminhar({ lista, decisoes, critId, onIrDepara, indice 
   );
 }
 
-/** Um lado da leitura (como é ou como seria): linhas "rótulo: valor", com o que muda em destaque. */
-function Linhas({ linhas }) {
-  return <div className="space-y-0.5">{linhas.map((l, i) => <div key={i} className="break-words"><span className="text-muted-foreground">{l.rotulo}: </span><span className={l.destaque ? "font-medium" : ""}>{l.valor}</span></div>)}</div>;
-}
-
-const ranqueDecisao = (d) => (!d ? 0 : d.status === "PROP" ? 1 : d.status === "APR" ? 2 : 3);
-const textoLado = (ls) => ls.map((x) => `${x.rotulo} ${x.valor}`).join(" ");
+const ROT_DECISAO = { PROP: "Aguardando aprovação", APR: "Aprovado", REJ: "Rejeitado" };
+const LONGOS = ["Parecido com", "Ação", "Fica"]; // rótulos com texto longo (lista de itens parecidos, instrução): só estes quebram linha
+/** Rótulos de um lado da leitura (como é ou como seria), na ordem em que aparecem nos achados: cada rótulo vira uma coluna. */
+const rotulosDe = (linhas, lado) => { const r = []; for (const x of linhas) for (const l of x.l[lado]) if (!r.includes(l.rotulo)) r.push(l.rotulo); return r; };
+/** Valor de um rótulo num lado (o rótulo repetido, como duas ações, junta os valores). */
+const valorDe = (ls, rotulo) => ls.filter((l) => l.rotulo === rotulo);
 
 /**
- * Tabela dos achados de um critério num grupo: o item, como é hoje, como seria (a sugestão) e por quê, e a caixa de encaminhar.
- * Todas as colunas ordenam ao clicar no cabeçalho. `onAlternar(achado)` marca ou desmarca o encaminhamento.
+ * Tabela dos achados de um critério num grupo: o item, os dados de apoio, como é hoje, como seria (a sugestão) e por quê, e a caixa de encaminhar. Cada informação na sua
+ * coluna (cada rótulo de "como é" e de "como seria" vira uma coluna). `onAlternar(achado)` marca ou desmarca o encaminhamento.
  */
 export default function TabelaAchados({ ach, crit, decisoes, itemPorLinha, indice, escalaSaldo = 1, onAlternar, onComparar }) {
-  const [ord, ordenar] = useOrdenacao();
-  const [lim, setLim] = useState(100);
-  const linhas = useMemo(() => ach.map((a) => ({ a, l: leituraAchado(crit, a, { itemPorLinha, escala: escalaSaldo }), dados: dadosDoItem(a.item, escalaSaldo) })), [ach, crit, itemPorLinha, escalaSaldo]);
-  const ordenadas = useMemo(() => ordenarPor(linhas, ord, {
-    linha: (x) => x.a.item.linha, codigo: (x) => x.a.item.codigo, descricao: (x) => x.a.item.descricao,
-    como: (x) => textoLado(x.l.como), seria: (x) => textoLado(x.l.seria), enc: (x) => ranqueDecisao(decisoes[chaveDe(x.a.item, crit.id)]),
-  }), [linhas, ord, decisoes, crit.id]);
-  const rotSeria = crit.id === "padrao" ? "Como seria (descrição sugerida)" : crit.id === "unidade" ? "Como seria (unidade sugerida)" : "Como seria";
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs border-collapse">
-        <thead><tr className="text-left text-muted-foreground">
-          <Th chave="linha" ord={ord} onOrdenar={ordenar}>Linha</Th><Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th>
-          <Th chave="como" ord={ord} onOrdenar={ordenar}>Como é</Th><Th chave="seria" ord={ord} onOrdenar={ordenar}>{rotSeria}</Th>
-          <Th chave="enc" ord={ord} onOrdenar={ordenar} title="Enviar o achado ao passo De/para, para aprovar ou rejeitar lá">Encaminhar para aprovação</Th>
-        </tr></thead>
-        <tbody>{ordenadas.slice(0, lim).map(({ a, l, dados }) => {
-          const it = a.item; const semId = indice ? motivoSemIdentidade(it, indice) : ""; const dec = semId ? undefined : decisoes[chaveDe(it, crit.id)];
-          return (
-            <tr key={it.linha} className="border-t border-border align-top">
-              <td className="p-1.5 tabular-nums">{it.linha}</td><td className="p-1.5">{it.codigo || "—"}</td>
-              <td className="p-1.5 max-w-[240px]"><div className="break-words">{it.descricao || "—"}</div>{dados.length > 0 && <div className="mt-0.5 text-[11px] text-muted-foreground">{dados.map(([r, v]) => `${r} ${v}`).join(" · ")}</div>}</td>
-              <td className="p-1.5 max-w-[260px]"><Linhas linhas={l.como} />{crit.id === "duplicidade" && it.duplicidade && <button type="button" className="mt-1 text-primary underline" onClick={() => onComparar(it)}>Comparar</button>}</td>
-              <td className="p-1.5 max-w-[300px]"><Linhas linhas={l.seria} />{l.porque && <div className="mt-0.5 text-[11px] text-muted-foreground break-words">{l.porque}</div>}</td>
-              <td className="p-1.5 whitespace-nowrap"><label className="inline-flex items-center gap-1.5" title={semId || undefined}><input type="checkbox" aria-label={`Encaminhar o item ${it.codigo || `da linha ${it.linha}`} para aprovação`} checked={!!dec} disabled={(!!dec && dec.status !== "PROP") || !!semId} onChange={() => onAlternar(a)} />{dec && <SituacaoEncaminhado d={dec} />}</label>{semId && <p className="mt-1 max-w-[200px] whitespace-normal text-[11px] text-amber-700 dark:text-amber-300">{semId}.</p>}
-                {dec && sugestaoMudou(crit.id, dec, a) && <p className="mt-1 max-w-[220px] whitespace-normal text-[11px] text-amber-700 dark:text-amber-300">A sugestão de hoje é diferente da que foi decidida: a decisão vale só para a anterior.</p>}</td>
-            </tr>);
-        })}</tbody>
-      </table>
-      {ordenadas.length > lim && <button type="button" onClick={() => setLim(lim + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(ordenadas.length - lim)} restantes)</button>}
-    </div>
-  );
+  const linhas = useMemo(() => ach.map((a) => ({ a, l: leituraAchado(crit, a, { itemPorLinha, escala: escalaSaldo }), dados: Object.fromEntries(dadosDoItem(a.item, escalaSaldo)) })), [ach, crit, itemPorLinha, escalaSaldo]);
+  const semId = (x) => (indice ? motivoSemIdentidade(x.a.item, indice) : "");
+  const decDe = (x) => (semId(x) ? undefined : decisoes[chaveDe(x.a.item, crit.id)]);
+  const colunas = (() => {
+    const lado = (nome, chave) => rotulosDe(linhas, chave).map((r) => ({
+      chave: `${chave}:${r}`, rotulo: `${nome}: ${r}`, quebrar: LONGOS.includes(r) || undefined, valor: (x) => valorDe(x.l[chave], r).map((l) => l.valor).join("; "),
+      render: (x) => { const ls = valorDe(x.l[chave], r); return ls.length ? <span className={ls.some((l) => l.destaque) ? "font-medium" : ""}>{ls.map((l) => l.valor).join("; ")}</span> : null; },
+    }));
+    const dados = ["Unidade", "NCM", "Últ. mov.", "Saldo"].filter((r) => linhas.some((x) => x.dados[r] != null)).map((r) => ({
+      chave: `dado:${r}`, rotulo: r === "Últ. mov." ? "Última mov." : r, alinhar: r === "Saldo" ? "direita" : undefined,
+      valor: (x) => x.dados[r] ?? "", render: (x) => <span className="text-muted-foreground">{x.dados[r] ?? ""}</span>,
+    }));
+    return [
+      { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", valor: (x) => x.a.item.linha },
+      { chave: "codigo", rotulo: "Código", valor: (x) => x.a.item.codigo || "—" },
+      { chave: "descricao", rotulo: "Descrição", valor: (x) => x.a.item.descricao || "—" },
+      ...dados,
+      ...lado("Como é", "como"),
+      ...(crit.id === "duplicidade" ? [{ chave: "comparar", rotulo: "Comparar", ordenavel: false, filtravel: false, valor: () => "", render: (x) => (x.a.item.duplicidade ? <button type="button" className="text-primary underline" onClick={() => onComparar(x.a.item)}>Comparar</button> : null) }] : []),
+      ...lado("Como seria", "seria"),
+      { chave: "porque", rotulo: "Por quê", quebrar: true, valor: (x) => x.l.porque || "", render: (x) => <span className="text-muted-foreground">{x.l.porque}</span> },
+      { chave: "enc", rotulo: "Encaminhar para aprovação", dica: "Enviar o achado ao passo De/para, para aprovar ou rejeitar lá", valor: (x) => ROT_DECISAO[decDe(x)?.status] || "", render: (x) => {
+        const it = x.a.item; const s = semId(x); const dec = decDe(x);
+        return <label className="inline-flex items-center gap-1.5" title={s || undefined}><input type="checkbox" aria-label={`Encaminhar o item ${it.codigo || `da linha ${it.linha}`} para aprovação`} checked={!!dec} disabled={(!!dec && dec.status !== "PROP") || !!s} onChange={() => onAlternar(x.a)} />{dec && <SituacaoEncaminhado d={dec} />}</label>;
+      } },
+      { chave: "aviso", rotulo: "Aviso", quebrar: true, valor: (x) => avisoAchado(x, semId(x), decDe(x), crit.id), render: (x) => { const t = avisoAchado(x, semId(x), decDe(x), crit.id); return t ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{t}</span> : null; } },
+    ];
+  })();
+  return <TabelaPadrao id={`saneamento-achados-${crit.id}`} ariaLabel={`Achados: ${crit.titulo}`} linhas={linhas} chaveLinha={(x) => x.a.item.linha} colunas={colunas} tamanhoInicial={100} vazio="Nenhum achado." />;
+}
+
+/** Aviso de um achado: item sem código que o identifique, ou decisão tomada sobre uma sugestão que mudou. */
+function avisoAchado(x, semId, dec, critId) {
+  return [semId ? `${semId}.` : "", dec && sugestaoMudou(critId, dec, x.a) ? "A sugestão de hoje é diferente da que foi decidida: a decisão vale só para a anterior." : ""].filter(Boolean).join(" ");
 }

@@ -3,6 +3,7 @@ import { BookOpenText, ExternalLink } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const REGRAS = [
   { inciso: "I", titulo: "Bem móvel material", regra: "Local de entrega ou disponibilização do bem ao destinatário. Em vendas não presenciais (e-commerce), vale o destino final indicado pelo adquirente." },
@@ -51,56 +52,23 @@ export default function FerramentasArt11() {
 
         <section className="space-y-3">
           <h2 className="font-heading font-medium text-base">As regras, por tipo de operação</h2>
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40">
-                  <tr className="text-left text-xs text-muted-foreground">
-                    <th className="py-2.5 px-4 font-medium w-20">Inciso</th>
-                    <th className="py-2.5 px-4 font-medium">Situação</th>
-                    <th className="py-2.5 px-4 font-medium">Onde fica o local da operação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {REGRAS.map((r) => (
-                    <tr key={r.inciso} className="border-t border-border/50">
-                      <td className="py-2.5 px-4 font-mono text-xs">{r.inciso}</td>
-                      <td className="py-2.5 px-4 font-medium">{r.titulo}</td>
-                      <td className="py-2.5 px-4 text-muted-foreground">{r.regra}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <TabelaPadrao id="art11:regras" ariaLabel="Regras do Art. 11 por tipo de operação" simples ordemInicial={null} linhas={REGRAS} chaveLinha={(r) => r.inciso}
+            colunas={[
+              { chave: "inciso", rotulo: "Inciso", render: (r) => <span className="font-mono text-xs">{r.inciso}</span> },
+              { chave: "titulo", rotulo: "Situação", render: (r) => <span className="font-medium">{r.titulo}</span> },
+              { chave: "regra", rotulo: "Onde fica o local da operação", quebrar: true },
+            ]} />
         </section>
 
         <section className="space-y-3">
           <h2 className="font-heading font-medium text-base">Exemplos práticos</h2>
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40">
-                  <tr className="text-left text-xs text-muted-foreground">
-                    <th className="py-2.5 px-4 font-medium">Natureza do serviço</th>
-                    <th className="py-2.5 px-4 font-medium">Regra do Art. 11</th>
-                    <th className="py-2.5 px-4 font-medium">Como o cIndOp atua</th>
-                    <th className="py-2.5 px-4 font-medium">Local de incidência do IBS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {EXEMPLOS.map((e) => (
-                    <tr key={e.servico} className="border-t border-border/50">
-                      <td className="py-2.5 px-4 font-medium">{e.servico}</td>
-                      <td className="py-2.5 px-4 text-muted-foreground font-mono text-xs">{e.inciso}</td>
-                      <td className="py-2.5 px-4 text-muted-foreground">{e.cindop}</td>
-                      <td className="py-2.5 px-4 text-muted-foreground">{e.local}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <TabelaPadrao id="art11:exemplos" ariaLabel="Exemplos práticos do Art. 11" simples linhas={EXEMPLOS} chaveLinha={(e) => e.servico}
+            colunas={[
+              { chave: "servico", rotulo: "Natureza do serviço", render: (e) => <span className="font-medium">{e.servico}</span> },
+              { chave: "inciso", rotulo: "Regra do Art. 11", render: (e) => <span className="font-mono text-xs">{e.inciso}</span> },
+              { chave: "cindop", rotulo: "Como o cIndOp atua" },
+              { chave: "local", rotulo: "Local de incidência do IBS" },
+            ]} />
         </section>
 
         <section className="space-y-3">

@@ -34,11 +34,11 @@ function renderizar(elemento) {
 describe("Arquivos e documentos", () => {
   it("abre nos documentos: cartões por situação, de quem é cada documento e o atalho do arquivo", () => {
     const html = renderizar(<ArquivosPagina />);
-    for (const t of ["Documentos com validade", "Arquivos", "Meus downloads", "Tipos de documento", "Vencido", "Vence em breve", "Válido", "Alvará de funcionamento", "nº 123 · Prefeitura", "EXTRA AGRO LTDA", "Jose Carlos Bianchi", "CNH", "Novo documento"]) expect(html).toContain(t);
+    for (const t of ["Documentos com validade", "Arquivos", "Meus downloads", "Tipos de documento", "Vencido", "Vence em breve", "Válido", "Alvará de funcionamento", ">123<", ">Prefeitura<", "EXTRA AGRO LTDA", "Jose Carlos Bianchi", "CNH", "Novo documento"]) expect(html).toContain(t);
     expect(html).toContain('aria-label="Baixar o arquivo do documento"');
   });
   it("meus downloads mostra tamanho e quando expira; tipos só o administrador muda", () => {
-    expect(renderizar(<AbaDownloads />)).toMatch(/notas\.zip[\s\S]*3 arquivos · 2,4 MB · Expira em 3 dias/);
+    expect(renderizar(<AbaDownloads />)).toMatch(/notas\.zip[\s\S]*>3 arquivos<[\s\S]*>2,4 MB<[\s\S]*>Expira em 3 dias</);
     expect(renderizar(<AbaTipos ehAdmin tipos={TIPOS} />)).toContain("Avisar (dias antes)");
     expect(renderizar(<AbaTipos ehAdmin={false} tipos={TIPOS} />)).toContain("Só administradores mudam os tipos de documento.");
   });

@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import SeletorCenarioAliquotas from "@/components/SeletorCenarioAliquotas";
 import { brl, PERFIS } from "@/lib/calculadoraAgro";
 import { useTransicaoComCenario } from "@/lib/cenarioAliquotasStore";
@@ -15,6 +16,30 @@ const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.
 const CORES = { simples: "#2563EB", presumido: "#B45309", real: "#1E764D", empate: "#6B7280" };
 const PERFIS_COMPARAVEIS = PERFIS.filter((p) => p.regimes.filter((r) => r !== "produtor_pf").length >= 2);
 const pct = (v) => (v === null || v === undefined ? "—" : `${v.toFixed(2).replace(".", ",")}%`);
+
+/** Uma coluna por dado: carga (%), valor (R$) e, quando houver, crédito acumulado de cada regime. */
+function colunasDaCarga(comp) {
+  return [
+    { chave: "ano", rotulo: "Ano" },
+    ...comp.regimes.flatMap((r) => {
+      const vence = (l) => comp.vencedorPorAno[l.ano] === r.id;
+      const cols = [
+        {
+          chave: r.id, rotulo: `${r.label} (%)`, alinhar: "direita", valor: (l) => l[r.id] ?? null,
+          render: (l) => <span className={vence(l) ? "font-semibold text-emerald-700 dark:text-emerald-400" : ""}>{pct(l[r.id])}{vence(l) && <span className="sr-only"> (menor carga)</span>}</span>,
+        },
+        { chave: `${r.id}_reais`, rotulo: `${r.label} (R$)`, alinhar: "direita", valor: (l) => l[`${r.id}_reais`] ?? null, render: (l) => (l[`${r.id}_reais`] !== null && l[`${r.id}_reais`] !== undefined ? brl(l[`${r.id}_reais`]) : "") },
+      ];
+      if (comp.linhas.some((l) => l[`${r.id}_credor`] > 0)) {
+        cols.push({
+          chave: `${r.id}_credor`, rotulo: `${r.label}: crédito acumulado`, alinhar: "direita", valor: (l) => (l[`${r.id}_credor`] > 0 ? l[`${r.id}_credor`] : null),
+          render: (l) => (l[`${r.id}_credor`] > 0 ? <span className="text-amber-700 dark:text-amber-400">{brl(l[`${r.id}_credor`])}</span> : ""),
+        });
+      }
+      return cols;
+    }),
+  ];
+}
 
 /** Planejamento tributário > Comparação de regimes: a carga sobre o consumo de cada regime, ano a ano, e o mapa de quem vence. */
 export default function RegimesPagina() {
@@ -81,22 +106,10 @@ export default function RegimesPagina() {
                 </div>
               </section>
 
-              <section className="overflow-x-auto rounded-xl border border-border bg-card" aria-labelledby="titulo-tabela">
-                <h2 id="titulo-tabela" className="px-4 pt-3 font-heading text-sm font-semibold">Carga sobre o consumo, ano a ano</h2>
-                <table className="mt-2 w-full text-[13px]" aria-label="Carga por regime e ano">
-                  <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-4 py-2">Ano</th>{comp.regimes.map((r) => <th key={r.id} className="px-4 py-2 text-right">{r.label}</th>)}</tr></thead>
-                  <tbody>
-                    {comp.linhas.map((l) => (
-                      <tr key={l.ano} className="border-b border-border/60">
-                        <td className="px-4 py-1.5 tabular-nums">{l.ano}</td>
-                        {comp.regimes.map((r) => {
-                          const vence = comp.vencedorPorAno[l.ano] === r.id;
-                          return <td key={r.id} className={`px-4 py-1.5 text-right tabular-nums ${vence ? "font-semibold text-emerald-700 dark:text-emerald-400" : ""}`}>{pct(l[r.id])}<span className="block text-[11px] font-normal text-muted-foreground">{l[`${r.id}_reais`] !== null ? brl(l[`${r.id}_reais`]) : ""}</span>{l[`${r.id}_credor`] > 0 && <span className="block text-[11px] font-normal text-amber-700 dark:text-amber-400">crédito acumulado {brl(l[`${r.id}_credor`])}</span>}{vence && <span className="sr-only"> (menor carga)</span>}</td>;
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <section className="space-y-2 rounded-xl border border-border bg-card p-4" aria-labelledby="titulo-tabela">
+                <h2 id="titulo-tabela" className="font-heading text-sm font-semibold">Carga sobre o consumo, ano a ano</h2>
+                <TabelaPadrao id="regimes:carga-ano-a-ano" ariaLabel="Carga por regime e ano" simples ordemInicial={null} linhas={comp.linhas} chaveLinha={(l) => l.ano}
+                  colunas={colunasDaCarga(comp)} />
               </section>
 
               {mapa && (
@@ -105,11 +118,11 @@ export default function RegimesPagina() {
                   <p className="text-xs text-muted-foreground">Mesmo faturamento e perfil; muda só o peso das compras e quanto delas gera crédito.</p>
                   <div className="mt-2 overflow-x-auto">
                     <table className="text-xs" aria-label="Regime vencedor em 2033 por compras e crédito">
-                      <thead><tr><th className="px-2 py-1 text-left text-muted-foreground">Compras ↓ / crédito →</th>{mapa[0].celulas.map((c) => <th key={c.credito} className="px-2 py-1 text-muted-foreground">{c.credito}%</th>)}</tr></thead>
+                      <thead><tr><th className="whitespace-nowrap px-2 py-1 text-left text-muted-foreground">Compras ↓ / crédito →</th>{mapa[0].celulas.map((c) => <th key={c.credito} className="whitespace-nowrap px-2 py-1 text-muted-foreground">{c.credito}%</th>)}</tr></thead>
                       <tbody>{mapa.map((linha) => (
-                        <tr key={linha.compras}>
-                          <th className="px-2 py-1 text-left font-normal text-muted-foreground">{linha.compras}%</th>
-                          {linha.celulas.map((c) => <td key={c.credito} className="px-1 py-1"><span className="block min-w-[92px] rounded px-2 py-1 text-center text-white" style={{ backgroundColor: CORES[c.vencedor] || "#6B7280" }}>{c.vencedor ? rotuloDoRegime(c.vencedor).replace("Lucro ", "") : "—"}</span></td>)}
+                        <tr key={linha.compras} className="align-middle">
+                          <th className="whitespace-nowrap px-2 py-1 text-left font-normal text-muted-foreground">{linha.compras}%</th>
+                          {linha.celulas.map((c) => <td key={c.credito} className="whitespace-nowrap px-1 py-0.5"><span className="block min-w-[92px] rounded px-2 py-0.5 text-center text-white" style={{ backgroundColor: CORES[c.vencedor] || "#6B7280" }}>{c.vencedor ? rotuloDoRegime(c.vencedor).replace("Lucro ", "") : "—"}</span></td>)}
                         </tr>
                       ))}</tbody>
                     </table>

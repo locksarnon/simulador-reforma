@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, FileDown, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -42,50 +42,43 @@ export function AbaPropostas({ usuario, empresas }) {
       <div className="flex flex-wrap items-end gap-2 text-sm">
         <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (cliente ou número)</span><input type="search" className={`${campo} w-full`} value={filtro.busca} onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))} /></label>
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span><select className={campo} value={filtro.status} onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value }))}><option value="">Todas</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-        <BotaoExportar titulo="Propostas" linhas={lista} colunas={[
-          { chave: "numero", rotulo: "Nº" }, { chave: "cliente_nome", rotulo: "Cliente" }, { chave: "servico", rotulo: "Serviço", valor: (p) => SERVICOS[p.servico] || p.servico },
-          { chave: "honorario_mensal", rotulo: "Honorário mensal (R$)" }, { chave: "valor_total", rotulo: "Valor único (R$)" },
-          { chave: "status", rotulo: "Situação", valor: (p) => STATUS[p.status] }, { chave: "criada", rotulo: "Criada em", valor: (p) => new Date(p.createdAt).toLocaleDateString("pt-BR") },
-        ]} />
         <button type="button" onClick={() => setEditor({ proposta: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova proposta</button>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-[13px] leading-5" aria-label="Propostas">
-          <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Nº</th><th className="px-3 py-2">Cliente</th><th className="px-3 py-2">Serviço</th><th className="px-3 py-2 text-right">Mensal</th><th className="px-3 py-2 text-right">Único</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2"><span className="sr-only">Ações</span></th></tr></thead>
-          <tbody>
-            {isLoading && <tr><td colSpan={7} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-            {error && <tr><td colSpan={7} className="py-8 text-center" role="alert">Não foi possível carregar as propostas.</td></tr>}
-            {!isLoading && !error && lista.length === 0 && <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">{data.length ? "Nenhuma proposta com esses filtros." : "Nenhuma proposta ainda. Crie a primeira; a calculadora sugere o honorário do BPO."}</td></tr>}
-            {lista.map((p) => (
-              <tr key={p.id} className="border-b border-border/60 align-top hover:bg-muted/40">
-                <td className="px-3 py-2 tabular-nums">{p.numero}</td>
-                <td className="px-3 py-2"><p className="font-medium">{p.cliente_nome}</p><p className="text-[11px] text-muted-foreground">{new Date(p.createdAt).toLocaleDateString("pt-BR")}{p.validade ? ` · válida até ${new Date(p.validade).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</p></td>
-                <td className="px-3 py-2">{SERVICOS[p.servico] || p.servico}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{p.honorario_mensal ? brl(p.honorario_mensal) : "—"}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{p.valor_total ? brl(p.valor_total) : "—"}</td>
-                <td className="px-3 py-2">
-                  <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_DO_STATUS[p.status]}`}>{STATUS[p.status]}</span>
-                  {p.status !== "ACEITA" && (
-                    <div className="mt-1 flex gap-1 text-[11px]">
-                      {p.status === "RASCUNHO" && <button type="button" onClick={() => status.mutate({ id: p.id, s: "ENVIADA" })} className="text-primary hover:underline">enviada</button>}
-                      <button type="button" onClick={() => aceitar(p)} className="text-emerald-700 hover:underline dark:text-emerald-400">aceita</button>
-                      {p.status !== "RECUSADA" && <button type="button" onClick={() => status.mutate({ id: p.id, s: "RECUSADA" })} className="text-red-700 hover:underline dark:text-red-400">recusada</button>}
-                    </div>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center justify-end gap-0.5">
-                    <button type="button" onClick={() => pdf(p)} className="rounded p-1.5 hover:bg-muted" aria-label={`Baixar o PDF da proposta ${p.numero}`} title="PDF"><FileDown className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                    {p.status !== "ACEITA" && <button type="button" onClick={() => setEditor({ proposta: p })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar a proposta ${p.numero}`} title="Editar"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                    <button type="button" onClick={() => duplicar.mutate(p.id)} className="rounded p-1.5 hover:bg-muted" aria-label={`Duplicar a proposta ${p.numero}`} title="Duplicar"><Copy className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                    {p.status !== "ACEITA" && (p.criado_por === usuario?.id || usuario?.role === "admin") && <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir a proposta nº ${p.numero}?`, descricao: p.cliente_nome, rotulo: "Excluir" })) excluir.mutate(p.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Excluir a proposta ${p.numero}`} title="Excluir"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+      {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar as propostas.</p>}
+      {!isLoading && !error && (
+        <TabelaPadrao
+          id="propostas-lista" ariaLabel="Propostas" titulo="Propostas" linhas={lista} ordemInicial={{ chave: "numero", dir: -1 }}
+          vazio={data.length ? "Nenhuma proposta com esses filtros." : "Nenhuma proposta ainda. Crie a primeira; a calculadora sugere o honorário do BPO."}
+          colunas={[
+            { chave: "numero", rotulo: "Nº", tipo: "numero", alinhar: "direita" },
+            { chave: "cliente_nome", rotulo: "Cliente", render: (p) => <span className="font-medium">{p.cliente_nome}</span> },
+            { chave: "createdAt", rotulo: "Criada em", tipo: "data" },
+            { chave: "validade", rotulo: "Válida até", tipo: "data", valor: (p) => (p.validade ? String(p.validade).slice(0, 10) : ""), render: (p) => (p.validade ? new Date(p.validade).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : <span className="text-muted-foreground">—</span>) },
+            { chave: "servico", rotulo: "Serviço", valor: (p) => SERVICOS[p.servico] || p.servico },
+            { chave: "honorario_mensal", rotulo: "Mensal", tipo: "moeda", alinhar: "direita", valor: (p) => p.honorario_mensal || "", render: (p) => (p.honorario_mensal ? brl(p.honorario_mensal) : "—") },
+            { chave: "valor_total", rotulo: "Único", tipo: "moeda", alinhar: "direita", valor: (p) => p.valor_total || "", render: (p) => (p.valor_total ? brl(p.valor_total) : "—") },
+            { chave: "status", rotulo: "Situação", valor: (p) => STATUS[p.status], render: (p) => <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_DO_STATUS[p.status]}`}>{STATUS[p.status]}</span> },
+            { chave: "mudar", rotulo: "Marcar como", ordenavel: false, filtravel: false, valor: () => "",
+              render: (p) => (p.status === "ACEITA" ? <span className="text-muted-foreground">—</span> : (
+                <span className="inline-flex gap-1.5 text-[11px]">
+                  {p.status === "RASCUNHO" && <button type="button" onClick={() => status.mutate({ id: p.id, s: "ENVIADA" })} className="text-primary hover:underline">enviada</button>}
+                  <button type="button" onClick={() => aceitar(p)} className="text-emerald-700 hover:underline dark:text-emerald-400">aceita</button>
+                  {p.status !== "RECUSADA" && <button type="button" onClick={() => status.mutate({ id: p.id, s: "RECUSADA" })} className="text-red-700 hover:underline dark:text-red-400">recusada</button>}
+                </span>
+              )) },
+            { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+              render: (p) => (
+                <div className="flex items-center justify-end gap-0.5">
+                  <button type="button" onClick={() => pdf(p)} className="rounded p-1 hover:bg-muted" aria-label={`Baixar o PDF da proposta ${p.numero}`} title="PDF"><FileDown className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                  {p.status !== "ACEITA" && <button type="button" onClick={() => setEditor({ proposta: p })} className="rounded p-1 hover:bg-muted" aria-label={`Editar a proposta ${p.numero}`} title="Editar"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                  <button type="button" onClick={() => duplicar.mutate(p.id)} className="rounded p-1 hover:bg-muted" aria-label={`Duplicar a proposta ${p.numero}`} title="Duplicar"><Copy className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                  {p.status !== "ACEITA" && (p.criado_por === usuario?.id || usuario?.role === "admin") && <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir a proposta nº ${p.numero}?`, descricao: p.cliente_nome, rotulo: "Excluir" })) excluir.mutate(p.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir a proposta ${p.numero}`} title="Excluir"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                </div>
+              ) },
+          ]}
+        />
+      )}
       {editor && <EditorProposta key={editor.proposta?.id || "nova"} proposta={editor.proposta} empresas={empresas} aoFechar={() => setEditor(null)} />}
     </div>
   );
@@ -120,18 +113,20 @@ export function AbaModelos({ ehAdmin }) {
           <div className="flex gap-2"><button type="submit" disabled={salvar.isPending} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground">Salvar</button><button type="button" onClick={() => setF(null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button></div>
         </form>
       )}
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Modelos de proposta">
-        {modelos.length === 0 && <li className="p-4 text-center text-sm text-muted-foreground">Nenhum modelo ainda.</li>}
-        {modelos.map((m) => (
-          <li key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <span className="flex-1"><span className="font-medium">{m.nome}</span> <span className="text-xs text-muted-foreground">· {SERVICOS[m.servico]}</span></span>
-            {ehAdmin && <>
-              <button type="button" onClick={() => setF({ ...m })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar o modelo ${m.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
-              <button type="button" onClick={async () => { if (await confirmar({ titulo: `Apagar o modelo "${m.nome}"?`, descricao: "As propostas feitas com ele continuam.", rotulo: "Apagar" })) apagar.mutate(m.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Apagar o modelo ${m.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
-            </>}
-          </li>
-        ))}
-      </ul>
+      <TabelaPadrao
+        id="propostas-modelos" ariaLabel="Modelos de proposta" linhas={modelos} vazio="Nenhum modelo ainda." simples
+        colunas={[
+          { chave: "nome", rotulo: "Modelo", render: (m) => <span className="font-medium">{m.nome}</span> },
+          { chave: "servico", rotulo: "Serviço", valor: (m) => SERVICOS[m.servico] || m.servico },
+          ...(ehAdmin ? [{ chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+            render: (m) => (
+              <>
+                <button type="button" onClick={() => setF({ ...m })} className="rounded p-1 hover:bg-muted" aria-label={`Editar o modelo ${m.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                <button type="button" onClick={async () => { if (await confirmar({ titulo: `Apagar o modelo "${m.nome}"?`, descricao: "As propostas feitas com ele continuam.", rotulo: "Apagar" })) apagar.mutate(m.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Apagar o modelo ${m.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
+              </>
+            ) }] : []),
+        ]}
+      />
     </div>
   );
 }

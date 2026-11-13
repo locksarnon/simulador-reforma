@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api } from "@/api/client";
 import { CartaoResposta } from "@/components/base-legal/CartoesLegais";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const EXEMPLOS = [
   "Qual o limite de receita para o produtor rural não ser contribuinte do IBS e da CBS?",
@@ -79,19 +80,15 @@ function PerguntasRecentes() {
   return (
     <details className="text-sm rounded-xl border border-border bg-card p-4">
       <summary className="cursor-pointer font-medium">Perguntas recentes dos consultores ({data.length})</summary>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead><tr className="bg-muted/60 text-left"><th className="p-2 border border-border">Quando</th><th className="p-2 border border-border">Quem</th><th className="p-2 border border-border">Pergunta</th><th className="p-2 border border-border">Respondeu?</th><th className="p-2 border border-border">Útil?</th></tr></thead>
-          <tbody>{data.map((p) => (
-            <tr key={p.id} className="align-top">
-              <td className="p-2 border border-border whitespace-nowrap">{new Date(p.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
-              <td className="p-2 border border-border">{p.user_email}</td>
-              <td className="p-2 border border-border">{p.pergunta}</td>
-              <td className="p-2 border border-border">{p.suficiente ? "Sim" : "Não"}</td>
-              <td className="p-2 border border-border">{p.util === true ? "👍" : p.util === false ? "👎" : "—"}</td>
-            </tr>
-          ))}</tbody>
-        </table>
+      <div className="mt-3">
+        <TabelaPadrao id="base-legal:perguntas-recentes" ariaLabel="Perguntas recentes dos consultores" linhas={data} ordemInicial={{ chave: "createdAt", dir: -1 }}
+          colunas={[
+            { chave: "createdAt", rotulo: "Quando", tipo: "data", render: (p) => new Date(p.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) },
+            { chave: "user_email", rotulo: "Quem" },
+            { chave: "pergunta", rotulo: "Pergunta", quebrar: true },
+            { chave: "suficiente", rotulo: "Respondeu?", valor: (p) => (p.suficiente ? "Sim" : "Não") },
+            { chave: "util", rotulo: "Útil?", valor: (p) => (p.util === true ? "Sim" : p.util === false ? "Não" : ""), render: (p) => (p.util === true ? "👍" : p.util === false ? "👎" : "—") },
+          ]} />
       </div>
     </details>
   );

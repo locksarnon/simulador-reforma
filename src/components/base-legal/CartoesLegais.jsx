@@ -8,6 +8,7 @@ import { oQueMudou } from "@/lib/revisaoLegal";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { plural } from "@/lib/plural";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString("pt-BR") : "");
 
@@ -142,7 +143,6 @@ export default function CartoesLegais({ admin, setor }) {
     finally { setCarregando(false); }
   };
 
-  const ordenados = [...cartoes].sort((a,b) => Number(afinidadeSetor(b, setor)) - Number(afinidadeSetor(a, setor)));
   const pendentes = cartoes.filter((c) => c.status !== "revisado").length;
   const porMudancaNaLei = cartoes.filter((c) => c.revisoes_pendentes?.length).length;
 
@@ -165,7 +165,13 @@ export default function CartoesLegais({ admin, setor }) {
       {editando && <Editor inicial={editando === "novo" ? null : editando} onFechar={() => setEditando(null)} onSalvo={() => { setEditando(null); recarregar(); }} />}
       {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : (
         <div className="space-y-4">
-          <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-3">Tema</th><th className="p-3">Pergunta, resposta e fundamento</th><th className="p-3">Revisão</th></tr></thead><tbody>{ordenados.map(c => <tr key={c.id} className="border-t border-border align-top"><td className="p-3">{c.tema}{setor && afinidadeSetor(c,setor) && <span className="block text-xs text-primary mt-1">Relacionado ao setor</span>}</td><td className="p-3"><CartaoResposta c={c} admin={admin} onMudou={recarregar} onEditar={setEditando} /></td><td className="p-3"><span className={`text-xs rounded px-2 py-1 ${c.status === 'revisado' ? COR_REVISADO : COR_PENDENTE}`}>{estadoDoCartao(c)}</span></td></tr>)}</tbody></table></div>
+          <TabelaPadrao id="base-legal:cartoes" ariaLabel="Perguntas frequentes revisadas" linhas={cartoes} ordemInicial={setor ? { chave: "setor", dir: 1 } : undefined}
+            colunas={[
+              { chave: "tema", rotulo: "Tema" },
+              ...(setor ? [{ chave: "setor", rotulo: "Setor", valor: (c) => (afinidadeSetor(c, setor) ? "Relacionado ao setor" : ""), render: (c) => (afinidadeSetor(c, setor) ? <span className="text-xs text-primary">Relacionado ao setor</span> : "") }] : []),
+              { chave: "pergunta", rotulo: "Pergunta, resposta e fundamento", quebrar: true, render: (c) => <CartaoResposta c={c} admin={admin} onMudou={recarregar} onEditar={setEditando} /> },
+              { chave: "revisao", rotulo: "Revisão", valor: estadoDoCartao, render: (c) => <span className={`text-xs rounded px-2 py-0.5 ${c.status === "revisado" ? COR_REVISADO : COR_PENDENTE}`}>{estadoDoCartao(c)}</span> },
+            ]} />
           {cartoes.length === 0 && admin && <p className="text-sm text-muted-foreground">Nenhum cartão ainda. Carregue o lote inicial (rascunhos com a base legal já conferida) e revise um a um.</p>}
         </div>
       )}

@@ -12,6 +12,7 @@ import {
 import { Plus, Pencil, Trash2, ChevronRight, ArrowLeftRight } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import LimparDadosButton from "@/components/LimparDadosButton";
 import TituloPagina from "@/components/TituloPagina";
 import { useConfirmar } from "@/components/ConfirmProvider";
@@ -149,68 +150,42 @@ export default function OperacoesPage() {
         </select>
       </div>
 
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40">
-              <tr className="text-left text-xs text-muted-foreground">
-                <th className="py-2.5 pl-4 pr-3 font-medium w-8"></th>
-                <th className="py-2.5 pr-4 font-medium">ID</th>
-                <th className="py-2.5 pr-4 font-medium">Empresa</th>
-                <th className="py-2.5 pr-4 font-medium">Ano</th>
-                <th className="py-2.5 pr-4 font-medium">Dir.</th>
-                <th className="py-2.5 pr-4 font-medium">Descrição</th>
-                <th className="py-2.5 pr-4 font-medium text-right">Valor bruto</th>
-                <th className="py-2.5 pr-4 font-medium text-right">Trib. atuais</th>
-                <th className="py-2.5 pr-4 font-medium text-right">IBS/CBS</th>
-                <th className="py-2.5 pr-4 font-medium text-right">Carga trans.</th>
-                <th className="py-2.5 pr-4 font-medium text-right">Funding</th>
-                <th className="py-2.5 pr-4 font-medium w-20"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((oc) => {
-                const op = oc.op;
-                const isOpen = expanded === op.id;
-                return (
-                  <React.Fragment key={op.id}>
-                    <tr
-                      className="border-t border-border/50 hover:bg-muted/20 cursor-pointer"
-                      onClick={() => setExpanded(isOpen ? null : op.id)}
-                    >
-                      <td className="py-2.5 pl-4 pr-3 text-muted-foreground">
-                        <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
-                      </td>
-                      <td className="py-2.5 pr-4 font-medium">{op.id_operacao}</td>
-                      <td className="py-2.5 pr-4 text-muted-foreground">
-                        {empresaMap.get(op.empresa_id)?.id_empresa || op.empresa_id}
-                      </td>
-                      <td className="py-2.5 pr-4">{op.ano}</td>
-                      <td className="py-2.5 pr-4">
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${op.direcao === "Entrada" ? "bg-chart-2/15 text-chart-2" : "bg-chart-1/15 text-chart-1"}`}>
-                          {op.direcao}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-4 max-w-[220px] truncate text-muted-foreground">{op.descricao}</td>
-                      <td className="py-2.5 pr-4 text-right">{BRL(op.valor_bruto)}</td>
-                      <td className="py-2.5 pr-4 text-right">{BRL(oc.sistemaAtual.tributosLiquidos)}</td>
-                      <td className="py-2.5 pr-4 text-right">{BRL(oc.ibsCbs.ibsCbsLiquido)}</td>
-                      <td className="py-2.5 pr-4 text-right">{BRL(oc.transicao.cargaTotalTransicao)}</td>
-                      <td className="py-2.5 pr-4 text-right text-destructive">{BRL(oc.caixa.fundingTributario)}</td>
-                      <td className="py-2.5 pr-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-1">
-                          <button onClick={() => { setEditing(op); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDelete(op)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {isOpen && (
-                      <tr className="border-t border-border/50">
-                        <td colSpan={12} className="p-4 bg-muted/20">
+      <TabelaPadrao id="operacoes" ariaLabel="Operações" linhas={filtered} chaveLinha={(oc) => oc.op.id}
+        vazio="Nenhuma operação encontrada. Clique em “Nova operação”."
+        aoClicarLinha={(oc) => setExpanded(expanded === oc.op.id ? null : oc.op.id)}
+        destaqueLinha={(oc) => (expanded === oc.op.id ? "bg-primary/5" : "")}
+        colunas={[
+          { chave: "id_operacao", rotulo: "ID", valor: (oc) => oc.op.id_operacao, render: (oc) => <span className="inline-flex items-center gap-1 font-medium"><ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expanded === oc.op.id ? "rotate-90" : ""}`} />{oc.op.id_operacao}</span> },
+          { chave: "empresa", rotulo: "Empresa", valor: (oc) => empresaMap.get(oc.op.empresa_id)?.id_empresa || oc.op.empresa_id, render: (oc) => <span className="text-muted-foreground">{empresaMap.get(oc.op.empresa_id)?.id_empresa || oc.op.empresa_id}</span> },
+          { chave: "ano", rotulo: "Ano", alinhar: "direita", valor: (oc) => Number(oc.op.ano) || null, render: (oc) => oc.op.ano },
+          { chave: "direcao", rotulo: "Dir.", valor: (oc) => oc.op.direcao, render: (oc) => <span className={`text-xs px-1.5 py-0.5 rounded ${oc.op.direcao === "Entrada" ? "bg-chart-2/15 text-chart-2" : "bg-chart-1/15 text-chart-1"}`}>{oc.op.direcao}</span> },
+          { chave: "descricao", rotulo: "Descrição", valor: (oc) => oc.op.descricao || "", render: (oc) => <span className="text-muted-foreground">{oc.op.descricao}</span> },
+          { chave: "valor_bruto", rotulo: "Valor bruto", alinhar: "direita", valor: (oc) => oc.op.valor_bruto, render: (oc) => BRL(oc.op.valor_bruto) },
+          { chave: "tributos", rotulo: "Trib. atuais", alinhar: "direita", valor: (oc) => oc.sistemaAtual.tributosLiquidos, render: (oc) => BRL(oc.sistemaAtual.tributosLiquidos) },
+          { chave: "ibs_cbs", rotulo: "IBS/CBS", alinhar: "direita", valor: (oc) => oc.ibsCbs.ibsCbsLiquido, render: (oc) => BRL(oc.ibsCbs.ibsCbsLiquido) },
+          { chave: "carga", rotulo: "Carga trans.", alinhar: "direita", valor: (oc) => oc.transicao.cargaTotalTransicao, render: (oc) => BRL(oc.transicao.cargaTotalTransicao) },
+          { chave: "funding", rotulo: "Funding", alinhar: "direita", valor: (oc) => oc.caixa.fundingTributario, render: (oc) => <span className="text-destructive">{BRL(oc.caixa.fundingTributario)}</span> },
+        ]}
+        documentos={(oc) => (
+          <div className="flex justify-end gap-1">
+            <button type="button" onClick={() => { setEditing(oc.op); setOpen(true); }} aria-label={`Editar ${oc.op.id_operacao}`} title="Editar" className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" onClick={() => handleDelete(oc.op)} aria-label={`Excluir ${oc.op.id_operacao}`} title="Excluir" className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      />
+      {/* Detalhe da operação clicada, logo abaixo da tabela. */}
+      {filtered.filter((oc) => oc.op.id === expanded).map((oc) => {
+                        const op = oc.op;
+                        return (
+                      <section key={op.id} aria-label={`Detalhe da operação ${op.id_operacao}`} className="rounded-lg border border-border bg-muted/20 p-4">
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <h3 className="text-sm font-semibold">Operação {op.id_operacao}</h3>
+                            <button type="button" onClick={() => setExpanded(null)} className="text-xs text-muted-foreground hover:text-foreground">Fechar</button>
+                          </div>
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <OperacaoCalcDetail calc={oc} />
                             <div className="space-y-2 text-sm">
@@ -231,23 +206,9 @@ export default function OperacoesPage() {
                               {op.observacao_dfe && <div className="text-muted-foreground text-xs pt-2 border-t border-border/40">{op.observacao_dfe}</div>}
                             </div>
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={12} className="py-12 text-center text-muted-foreground">
-                    Nenhuma operação encontrada. Clique em “Nova operação”.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                      </section>
+                        );
+      })}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

@@ -53,6 +53,36 @@ const FILTROS = [
 ];
 
 const PAGE_SIZE = 50;
+const colador = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
+const rotuloRelacionamento = (it) => (it.tipo_relacionamento === "INTERCOMPANY" ? "Interco" : it.tipo_relacionamento === "TRANSFERENCIA_INTERNA" ? "Transf." : "Terceiro");
+
+/** Valor de cada coluna ordenável (a ordenação é por grupo, pela primeira linha, para não separar o par intercompany). */
+function valoresDasColunas(empresaMap, regras) {
+  return {
+    numero_item: (it) => Number(it.numero_item) || 0,
+    descricao: (it) => it.descricao || "",
+    empresa: (it) => (it.empresa_id ? empresaMap?.get(it.empresa_id)?.razao_social || it.empresa_id : ""),
+    perspectiva: (it) => (it.perspectiva === "EMITENTE" ? "Emit." : "Dest."),
+    direcao: (it) => (it.direcao === "Saida" ? "Saída" : "Entrada"),
+    relacionamento: rotuloRelacionamento,
+    ncm: (it) => it.ncm || it.nbs || "",
+    cfop: (it) => it.cfop_servico || "",
+    calculo: (it) => TRATAMENTO_ROTULO[tratamentoDoItem(regras, it.empresa_id, it.cfop_servico, it.direcao).tratamento] || "",
+    valor: (it) => Number(it.valor_bruto) || 0,
+    resultado: (it) => (RESULTADO_CONFIG[it.resultado_final] || RESULTADO_CONFIG.BLOQUEADO).label,
+  };
+}
+
+function Cabecalho({ chave, rotulo, ordem, aoOrdenar, direita = false, dica }) {
+  const ativa = ordem.chave === chave;
+  return (
+    <th scope="col" aria-sort={ativa ? (ordem.dir === 1 ? "ascending" : "descending") : "none"} className={cn("font-medium px-2 py-1.5 whitespace-nowrap", direita ? "text-right" : "text-left")}>
+      <button type="button" onClick={() => aoOrdenar(chave)} title={dica || "Ordenar"} className={cn("inline-flex items-center gap-1 hover:text-foreground", ativa && "text-foreground")}>
+        {rotulo}{ativa ? (ordem.dir === 1 ? " ↑" : " ↓") : ""}
+      </button>
+    </th>
+  );
+}
 
 function StatusIcon({ checks }) {
   if (!checks || checks.length === 0) return <Minus className="w-4 h-4 text-muted-foreground/40" />;
@@ -75,6 +105,8 @@ function StatusIcon({ checks }) {
 export default function StagingTable({ itens, empresaMap, selectedIds, onToggleSelect, onOpenDrawer, regras, onCfopChange }) {
   const [filtro, setFiltro] = useState("TODOS");
   const [pagina, setPagina] = useState(0);
+  const [ordem, setOrdem] = useState({ chave: "descricao", dir: 1 });
+  const ordenar = (chave) => { setOrdem((o) => (o.chave === chave ? { chave, dir: -o.dir } : { chave, dir: 1 })); setPagina(0); };
 
   const itensFiltrados = useMemo(
     () => {
@@ -93,8 +125,14 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
       if (!map[key]) map[key] = [];
       map[key].push(it);
     }
-    return Object.entries(map);
-  }, [itensFiltrados]);
+    const valor = valoresDasColunas(empresaMap, regras)[ordem.chave];
+    const lista = Object.entries(map);
+    if (!valor) return lista;
+    return lista.sort(([, a], [, b]) => {
+      const va = valor(a[0]), vb = valor(b[0]);
+      return (typeof va === "number" && typeof vb === "number" ? va - vb : colador.compare(String(va), String(vb))) * ordem.dir;
+    });
+  }, [itensFiltrados, ordem, empresaMap, regras]);
 
   const totalPaginas = Math.max(1, Math.ceil(grupos.length / PAGE_SIZE));
   const paginaAtual = Math.min(pagina, totalPaginas - 1);
@@ -129,29 +167,25 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
         </div>
       </div>
       <div className="overflow-x-auto max-h-[600px]">
-        <table className="w-full text-xs min-w-[900px]">
+        <table className="w-full text-xs [&_td]:whitespace-nowrap [&_td]:align-middle">
           <thead className="bg-muted/50 text-muted-foreground sticky top-0">
             <tr>
-              <th className="px-3 py-2.5 w-8"></th>
-              <th className="text-left font-medium px-3 py-2.5 w-8"></th>
-              <th className="text-left font-medium px-3 py-2.5">Item</th>
-              <th className="text-left font-medium px-3 py-2.5">Empresa</th>
-              <th className="text-left font-medium px-3 py-2.5">Persp.</th>
-              <th className="text-left font-medium px-3 py-2.5">Direção</th>
-              <th className="text-left font-medium px-3 py-2.5">Rel.</th>
-              <th className="text-left font-medium px-3 py-2.5">NCM/NBS</th>
-              <th className="text-left font-medium px-3 py-2.5">CFOP</th>
-              <th className="text-left font-medium px-3 py-2.5" title="Se a operação entra no cálculo como receita">Cálculo</th>
-              <th className="text-right font-medium px-3 py-2.5">Valor</th>
-              <th className="text-center font-medium px-2 py-2.5" title="Documental">DOC</th>
-              <th className="text-center font-medium px-2 py-2.5" title="Cadastral">CAD</th>
-              <th className="text-center font-medium px-2 py-2.5" title="Tributária">TRIB</th>
-              <th className="text-center font-medium px-2 py-2.5" title="Operacional">OPER</th>
-              <th className="text-left font-medium px-3 py-2.5">Resultado</th>
+              <th className="px-2 py-1.5 w-8"></th>
+              <th className="text-left font-medium px-2 py-1.5 w-8"></th>
+              {[["numero_item", "Item", true], ["descricao", "Descrição"], ["empresa", "Empresa"], ["perspectiva", "Persp."], ["direcao", "Direção"], ["relacionamento", "Rel."], ["ncm", "NCM/NBS"], ["cfop", "CFOP"]].map(([chave, rotulo, direita]) => (
+                <Cabecalho key={chave} chave={chave} rotulo={rotulo} direita={direita} ordem={ordem} aoOrdenar={ordenar} />
+              ))}
+              <Cabecalho chave="calculo" rotulo="Cálculo" dica="Se a operação entra no cálculo como receita" ordem={ordem} aoOrdenar={ordenar} />
+              <Cabecalho chave="valor" rotulo="Valor" direita ordem={ordem} aoOrdenar={ordenar} />
+              <th className="text-center font-medium px-2 py-1.5" title="Documental">DOC</th>
+              <th className="text-center font-medium px-2 py-1.5" title="Cadastral">CAD</th>
+              <th className="text-center font-medium px-2 py-1.5" title="Tributária">TRIB</th>
+              <th className="text-center font-medium px-2 py-1.5" title="Operacional">OPER</th>
+              <Cabecalho chave="resultado" rotulo="Resultado" ordem={ordem} aoOrdenar={ordenar} />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {gruposPagina.map(([key, group]) => {
+            {gruposPagina.map(([, group]) => {
               const isIntercompany = group.length === 2;
               return group.map((it, idx) => {
                 const cfg = RESULTADO_CONFIG[it.resultado_final] || RESULTADO_CONFIG.BLOQUEADO;
@@ -163,7 +197,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
                 const checked = selectedIds.includes(it.id);
                 return (
                   <tr key={it.id} className={cn("hover:bg-muted/30", isIntercompany && idx === 1 && "border-t-0")}>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-2 py-1 text-center">
                       <input
                         type="checkbox"
                         checked={checked}
@@ -172,46 +206,41 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
                         className="w-3.5 h-3.5 rounded cursor-pointer"
                       />
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-2 py-1 text-center">
                       {isIntercompany && <Link2 className="w-3.5 h-3.5 text-primary mx-auto" />}
                     </td>
-                    <td className="px-3 py-2.5">
-                      <span className="font-mono text-[10px] text-muted-foreground">#{it.numero_item}</span>
-                      <span className="block truncate max-w-[160px]" title={it.descricao}>{it.descricao || "—"}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[160px]" title={empresaMap?.get(it.empresa_id)?.razao_social || it.empresa_id}>
+                    <td className="px-2 py-1 text-right font-mono text-[10px] text-muted-foreground tabular-nums">#{it.numero_item}</td>
+                    <td className="px-2 py-1">{it.descricao || "—"}</td>
+                    <td className="px-2 py-1 text-muted-foreground">
                       {it.empresa_id ? (empresaMap?.get(it.empresa_id)?.razao_social || it.empresa_id) : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{it.perspectiva === "EMITENTE" ? "Emit." : "Dest."}</td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-1 text-muted-foreground">{it.perspectiva === "EMITENTE" ? "Emit." : "Dest."}</td>
+                    <td className="px-2 py-1">
                       <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium",
                         it.direcao === "Saida" ? "bg-violet-100 text-violet-700" : "bg-cyan-100 text-cyan-700")}>
                         {it.direcao === "Saida" ? "Saída" : "Entrada"}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground text-[10px]">
-                      {it.tipo_relacionamento === "INTERCOMPANY" ? "Interco" :
-                       it.tipo_relacionamento === "TRANSFERENCIA_INTERNA" ? "Transf." : "Terceiro"}
-                    </td>
-                    <td className="px-3 py-2.5 font-mono text-[10px] text-muted-foreground">{it.ncm || it.nbs || "—"}</td>
-                    <td className="px-3 py-2.5 font-mono text-[10px] text-muted-foreground">{it.cfop_servico || "—"}</td>
-                    <td className="px-3 py-2.5"><CfopCelula it={it} regras={regras} onCfopChange={onCfopChange} /></td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">
+                    <td className="px-2 py-1 text-muted-foreground text-[10px]">{rotuloRelacionamento(it)}</td>
+                    <td className="px-2 py-1 font-mono text-[10px] text-muted-foreground">{it.ncm || it.nbs || "—"}</td>
+                    <td className="px-2 py-1 font-mono text-[10px] text-muted-foreground">{it.cfop_servico || "—"}</td>
+                    <td className="px-2 py-1"><CfopCelula it={it} regras={regras} onCfopChange={onCfopChange} /></td>
+                    <td className="px-2 py-1 text-right tabular-nums">
                       {(it.valor_bruto || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-2 py-2.5 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "documental")}>
+                    <td className="px-2 py-1 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "documental")}>
                       <StatusIcon checks={docChecks} />
                     </td>
-                    <td className="px-2 py-2.5 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "cadastral")}>
+                    <td className="px-2 py-1 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "cadastral")}>
                       <StatusIcon checks={cadChecks} />
                     </td>
-                    <td className="px-2 py-2.5 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "tributaria")}>
+                    <td className="px-2 py-1 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "tributaria")}>
                       <StatusIcon checks={tribChecks} />
                     </td>
-                    <td className="px-2 py-2.5 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "operacional")}>
+                    <td className="px-2 py-1 text-center cursor-pointer hover:bg-muted/50" onClick={() => onOpenDrawer(it, "operacional")}>
                       <StatusIcon checks={operChecks} />
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-1">
                       <span className={cn("inline-block px-2 py-0.5 rounded-full border text-[10px] font-medium", cfg.color)}>
                         {cfg.label}
                       </span>
@@ -222,7 +251,7 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
             })}
             {gruposPagina.length === 0 && (
               <tr>
-                <td colSpan={16} className="py-8 text-center text-muted-foreground">
+                <td colSpan={17} className="py-8 text-center text-muted-foreground">
                   Nenhum item com esse status.
                 </td>
               </tr>

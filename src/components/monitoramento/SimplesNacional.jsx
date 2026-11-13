@@ -55,10 +55,10 @@ export default function SimplesNacional({ empresaId }) {
           <TabsContent value="faturamento" className="mt-3">
             <TabelaPadrao id="monit:simples:faturamento" ariaLabel="Faturamento mês a mês" tamanhoInicial={25}
               colunas={[
-                { chave: "competencia", rotulo: "Competência", valor: (l) => comp(l.competencia), quebrar: false },
-                { chave: "interno", rotulo: "Mercado interno", valor: (l) => brl(l.interno) },
-                { chave: "externo", rotulo: "Mercado externo", valor: (l) => brl(l.externo) },
-                { chave: "total", rotulo: "Total", valor: (l) => brl(l.total), render: (l) => <span className="font-medium tabular-nums">{brl(l.total)}</span> },
+                { chave: "competencia", rotulo: "Competência", render: (l) => comp(l.competencia) },
+                { chave: "interno", rotulo: "Mercado interno", alinhar: "direita", render: (l) => brl(l.interno) },
+                { chave: "externo", rotulo: "Mercado externo", alinhar: "direita", render: (l) => brl(l.externo) },
+                { chave: "total", rotulo: "Total", alinhar: "direita", render: (l) => <span className="font-medium tabular-nums">{brl(l.total)}</span> },
               ]}
               linhas={a.faturamento.map((f) => ({ ...f, id: f.competencia }))} />
           </TabsContent>
@@ -71,7 +71,7 @@ export default function SimplesNacional({ empresaId }) {
             </div>
             {a.fator_r.folha.length > 0 && (
               <TabelaPadrao id="monit:simples:folha" ariaLabel="Folha de salários" tamanhoInicial={25}
-                colunas={[{ chave: "competencia", rotulo: "Competência", valor: (l) => comp(l.competencia) }, { chave: "valor", rotulo: "Folha de salários", valor: (l) => brl(l.valor) }]}
+                colunas={[{ chave: "competencia", rotulo: "Competência", render: (l) => comp(l.competencia) }, { chave: "valor", rotulo: "Folha de salários", alinhar: "direita", render: (l) => brl(l.valor) }]}
                 linhas={a.fator_r.folha.map((f) => ({ ...f, id: f.competencia }))} />
             )}
           </TabsContent>

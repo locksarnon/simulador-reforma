@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Download, Info, Loader2 } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Botao, Chip, dataBr, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { hojeIso } from "./logica";
 import { origemCompleta } from "./identidade";
 import { ROT_RESULTADO, ROT_TIPO, guardarComoLegado, planejarMigracao, totalLegado } from "./migracao";
@@ -13,23 +14,26 @@ const TXT_MIGRACAO = "Este projeto foi criado quando as decisões eram guardadas
 /** Linhas do quadro de totais: decisões, confirmações de execução e decisões fiscais. */
 function Totais({ totais }) {
   const linhas = [["Decisões", totais.decisoes], ["Confirmações de execução", totais.execucao], ["Decisões fiscais", totais.fiscal]];
+  const num = (chave, rotulo) => ({ chave, rotulo, tipo: "numero", alinhar: "direita", valor: (l) => l[1][chave] });
   return (
-    <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><th className="p-1.5">O que estava guardado</th><th className="p-1.5 text-right">Total</th><th className="p-1.5 text-right">Vinculadas ao código</th><th className="p-1.5 text-right">Ambíguas</th><th className="p-1.5 text-right">Não encontradas</th></tr></thead>
-      <tbody>{linhas.map(([rot, t]) => (<tr key={rot} className="border-t border-border"><td className="p-1.5">{rot}</td><td className="p-1.5 text-right tabular-nums">{fmt(t.total)}</td><td className="p-1.5 text-right tabular-nums">{fmt(t.vinculadas)}</td><td className="p-1.5 text-right tabular-nums">{fmt(t.ambiguas)}</td><td className="p-1.5 text-right tabular-nums">{fmt(t.naoEncontradas)}</td></tr>))}</tbody></table>
+    <TabelaPadrao id="saneamento-migracao-totais" ariaLabel="Totais da migração" simples ordemInicial={null} linhas={linhas} chaveLinha={(l) => l[0]} colunas={[
+      { chave: "rotulo", rotulo: "O que estava guardado", valor: (l) => l[0] },
+      num("total", "Total"), num("vinculadas", "Vinculadas ao código"), num("ambiguas", "Ambíguas"), num("naoEncontradas", "Não encontradas"),
+    ]} />
   );
 }
 
-/** Pendências (ambíguas e não encontradas) da simulação ou do legado, ordenáveis; só as primeiras são mostradas, e o Excel traz tudo. */
+/** Pendências (ambíguas e não encontradas) da simulação ou do legado, na tabela padrão; o Excel traz tudo. */
 function TabelaPendencias({ linhas }) {
-  const [ord, ordenar] = useOrdenacao();
-  const lista = ordenarPor(linhas, ord, { tipo: (l) => ROT_TIPO[l.tipo], chave: (l) => l.chaveAntiga, codigo: (l) => l.codigo, resultado: (l) => ROT_RESULTADO[l.resultado], motivo: (l) => l.motivo });
   if (!linhas.length) return null;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="tipo" ord={ord} onOrdenar={ordenar}>Tipo</Th><Th chave="chave" ord={ord} onOrdenar={ordenar}>Chave antiga</Th><Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="resultado" ord={ord} onOrdenar={ordenar}>Resultado</Th><Th chave="motivo" ord={ord} onOrdenar={ordenar}>Motivo</Th></tr></thead>
-        <tbody>{lista.slice(0, 25).map((l, i) => (<tr key={`${l.tipo}${l.chaveAntiga}${i}`} className="border-t border-border align-top"><td className="p-1.5 whitespace-nowrap">{ROT_TIPO[l.tipo]}</td><td className="p-1.5 tabular-nums">{l.chaveAntiga}</td><td className="p-1.5">{l.codigo || "—"}</td><td className="p-1.5 whitespace-nowrap">{ROT_RESULTADO[l.resultado]}</td><td className="p-1.5 max-w-[420px] break-words text-muted-foreground">{l.motivo}</td></tr>))}</tbody></table>
-      {lista.length > 25 && <p className="p-2 text-xs text-muted-foreground">Mostrando 25 de {fmt(lista.length)}; o relatório em Excel traz todas.</p>}
-    </div>
+    <TabelaPadrao id="saneamento-migracao-pendencias" ariaLabel="Pendências da migração" linhas={linhas} chaveLinha={(l, i) => `${l.tipo}${l.chaveAntiga}${i}`} colunas={[
+      { chave: "tipo", rotulo: "Tipo", valor: (l) => ROT_TIPO[l.tipo] },
+      { chave: "chaveAntiga", rotulo: "Chave antiga", alinhar: "direita" },
+      { chave: "codigo", rotulo: "Código", valor: (l) => l.codigo || "—" },
+      { chave: "resultado", rotulo: "Resultado", valor: (l) => ROT_RESULTADO[l.resultado] },
+      { chave: "motivo", rotulo: "Motivo", quebrar: true, render: (l) => <span className="text-muted-foreground">{l.motivo}</span> },
+    ]} />
   );
 }
 

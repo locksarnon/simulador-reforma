@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PageHeader from "@/components/PageHeader";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import FiltroPorTags from "@/components/clientes/FiltroPorTags";
 import { useTags } from "@/lib/useTags";
@@ -98,29 +99,30 @@ export default function ComunicadosPagina() {
       <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Comunicados" }]} title="Comunicados" />
       <div className="px-6 lg:px-8 py-6 space-y-3">
         <div className="flex justify-end"><button type="button" onClick={() => setEditor({ comunicado: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo comunicado</button></div>
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-[13px] leading-5" aria-label="Comunicados">
-            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Assunto</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2">Enviados</th><th className="px-3 py-2"><span className="sr-only">Ações</span></th></tr></thead>
-            <tbody>
-              {isLoading && <tr><td colSpan={4} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-              {error && <tr><td colSpan={4} className="py-8 text-center" role="alert">Não foi possível carregar.</td></tr>}
-              {!isLoading && !error && data.length === 0 && <tr><td colSpan={4} className="py-10 text-center text-muted-foreground">Nenhum comunicado.</td></tr>}
-              {data.map((c) => (
-                <tr key={c.id} className="border-b border-border/60 hover:bg-muted/40">
-                  <td className="px-3 py-2"><p className="font-medium">{c.assunto}</p><p className="text-[11px] text-muted-foreground">{(c.anexos || []).length ? `${plural(c.anexos.length, "anexo", "anexos")} · ` : ""}{c.enviado_em ? `enviado em ${new Date(c.enviado_em).toLocaleString("pt-BR")}` : `criado em ${new Date(c.createdAt).toLocaleDateString("pt-BR")}`}</p></td>
-                  <td className="px-3 py-2"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM[c.status]}`}>{STATUS_COMUNICADO[c.status]}</span></td>
-                  <td className="px-3 py-2 tabular-nums">{c.status === "RASCUNHO" ? "—" : `${c.enviados} de ${c.total}${c.falhas ? ` · ${plural(c.falhas, "falha", "falhas")}` : ""}`}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    {c.status === "RASCUNHO" && <button type="button" onClick={() => setEditor({ comunicado: c })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar ${c.assunto}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                    {c.status === "RASCUNHO" && user?.role === "admin" && <button type="button" onClick={() => confirmarEnvio(c)} className="rounded p-1.5 text-primary hover:bg-muted" aria-label={`Enviar ${c.assunto}`}><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                    <button type="button" onClick={() => duplicar.mutate(c.id)} className="rounded p-1.5 hover:bg-muted" aria-label={`Duplicar ${c.assunto}`}><Copy className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                    {c.status === "RASCUNHO" && <button type="button" onClick={async () => { if (await confirmar({ titulo: "Excluir este rascunho?", descricao: c.assunto, rotulo: "Excluir" })) excluir.mutate(c.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${c.assunto}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+        {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar.</p>}
+        {!isLoading && !error && (
+          <TabelaPadrao
+            id="comunicados-lista" ariaLabel="Comunicados" titulo="Comunicados" linhas={data} vazio="Nenhum comunicado." ordemInicial={{ chave: "createdAt", dir: -1 }}
+            colunas={[
+              { chave: "assunto", rotulo: "Assunto", render: (c) => <span className="font-medium">{c.assunto}</span> },
+              { chave: "anexos", rotulo: "Anexos", valor: (c) => (c.anexos || []).length, alinhar: "direita", render: (c) => ((c.anexos || []).length ? plural(c.anexos.length, "anexo", "anexos") : <span className="text-muted-foreground">—</span>) },
+              { chave: "createdAt", rotulo: "Criado em", tipo: "data" },
+              { chave: "enviado_em", rotulo: "Enviado em", tipo: "data", render: (c) => (c.enviado_em ? new Date(c.enviado_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }) : <span className="text-muted-foreground">—</span>) },
+              { chave: "status", rotulo: "Situação", valor: (c) => STATUS_COMUNICADO[c.status], render: (c) => <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM[c.status]}`}>{STATUS_COMUNICADO[c.status]}</span> },
+              { chave: "enviados", rotulo: "Enviados", valor: (c) => (c.status === "RASCUNHO" ? "" : c.enviados), render: (c) => <span className="tabular-nums">{c.status === "RASCUNHO" ? "—" : `${c.enviados} de ${c.total}${c.falhas ? ` · ${plural(c.falhas, "falha", "falhas")}` : ""}`}</span> },
+              { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+                render: (c) => (
+                  <>
+                    {c.status === "RASCUNHO" && <button type="button" onClick={() => setEditor({ comunicado: c })} className="rounded p-1 hover:bg-muted" aria-label={`Editar ${c.assunto}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                    {c.status === "RASCUNHO" && user?.role === "admin" && <button type="button" onClick={() => confirmarEnvio(c)} className="rounded p-1 text-primary hover:bg-muted" aria-label={`Enviar ${c.assunto}`}><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                    <button type="button" onClick={() => duplicar.mutate(c.id)} className="rounded p-1 hover:bg-muted" aria-label={`Duplicar ${c.assunto}`}><Copy className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                    {c.status === "RASCUNHO" && <button type="button" onClick={async () => { if (await confirmar({ titulo: "Excluir este rascunho?", descricao: c.assunto, rotulo: "Excluir" })) excluir.mutate(c.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${c.assunto}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                  </>
+                ) },
+            ]}
+          />
+        )}
         {user?.role !== "admin" && <p className="text-xs text-muted-foreground">O envio é feito por um administrador.</p>}
         <ListaDePrevistas moduloId="comunicados" />
       </div>

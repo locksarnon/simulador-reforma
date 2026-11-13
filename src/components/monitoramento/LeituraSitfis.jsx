@@ -50,10 +50,10 @@ export function ResumoSitfis({ empresaId }) {
   if (!data) return <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Sem relatório de situação fiscal.</p>;
   const linhas = resumoPorOrgao(data.leitura);
   const colunas = [
-    { chave: "orgao", rotulo: "Órgão", quebrar: false },
-    { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACAO[l.situacao].rotulo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SITUACAO[l.situacao].tom}`}>{SITUACAO[l.situacao].rotulo}</span>, quebrar: false },
-    { chave: "secoes", rotulo: "O que aparece", valor: (l) => l.secoes || "Nada pendente" },
-    { chave: "consultado", rotulo: "Relatório de", valor: () => quandoConsultou(data.consultado_em) + (data.simulado ? " (demonstração)" : ""), quebrar: false },
+    { chave: "orgao", rotulo: "Órgão" },
+    { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACAO[l.situacao].rotulo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SITUACAO[l.situacao].tom}`}>{SITUACAO[l.situacao].rotulo}</span> },
+    { chave: "secoes", rotulo: "O que aparece", quebrar: true, valor: (l) => l.secoes || "Nada pendente" },
+    { chave: "consultado", rotulo: "Relatório de", valor: () => quandoConsultou(data.consultado_em) + (data.simulado ? " (demonstração)" : "") },
   ];
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="Situação fiscal">
@@ -73,7 +73,7 @@ export default function LeituraSitfis({ empresaId, titulo, filtro = () => true, 
   const linhas = useMemo(() => linhasDaLeitura(data?.leitura, filtro), [data, filtro]);
   if (isLoading) return <p className="text-xs text-muted-foreground">Lendo o relatório de situação fiscal…</p>;
   const colunas = [
-    { chave: "orgao", rotulo: "Órgão", quebrar: false },
+    { chave: "orgao", rotulo: "Órgão" },
     { chave: "tipo", rotulo: "Tipo", valor: (l) => TIPO[l.tipo] ?? l.tipo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] ${TOM[l.tipo] ?? TOM.OUTRO}`}>{TIPO[l.tipo] ?? l.tipo}</span> },
     { chave: "secao", rotulo: "Seção do relatório" },
     { chave: "item", rotulo: "Item (como no relatório)", render: (l) => <span title={l.cabecalho ? `Colunas: ${l.cabecalho}` : undefined} className="font-mono text-xs tabular-nums">{l.item}</span> },

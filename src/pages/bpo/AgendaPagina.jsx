@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import DialogoEvento from "@/components/agenda/DialogoEvento";
 import { useColaboradores } from "@/lib/useTags";
@@ -159,47 +160,43 @@ function AbaObrigacoes({ empresas }) {
         <div className="w-72"><SeletorDeEmpresa empresas={empresas} valor={empresa} aoMudar={setEmpresa} rotulo="Empresa (filtra pelo regime)" opcional={false} placeholder="Todas as obrigações" /></div>
       </div>
       {data?.empresa && !data.empresa.regime_atual && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{data.empresa.razao_social}: sem regime no cadastro, aparecem todas as obrigações.</p>}
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-[13px] leading-5" aria-label="Obrigações do mês">
-          <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Data</th><th className="px-3 py-2">Obrigação</th><th className="px-3 py-2">Competência</th><th className="px-3 py-2">Vale para</th><th className="px-3 py-2">Fonte oficial</th></tr></thead>
-          <tbody>
-            {isLoading && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-            {error && <tr><td colSpan={5} className="py-8 text-center" role="alert">Não foi possível carregar as obrigações.</td></tr>}
-            {data && data.vencimentos.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">Nenhuma obrigação da tabela vence em {nomeDaCompetencia(mes)}.</td></tr>}
-            {(data?.vencimentos || []).map((v) => (
-              <tr key={`${v.obrigacao}-${v.competencia}`} className="border-b border-border/60 align-top">
-                <td className="px-3 py-2 whitespace-nowrap"><p className="font-medium tabular-nums">{fmtDia(v.data)}</p>{v.movida && <p className="text-[11px] text-muted-foreground">data legal {fmtDia(v.data_legal)}</p>}</td>
-                <td className="px-3 py-2"><p className="font-medium">{v.nome}</p><p className="text-[11px] text-muted-foreground">{v.tipo === "PAGAMENTO" ? "Pagamento" : "Declaração"}{v.condicao ? ` · ${v.condicao}` : ""}</p></td>
-                <td className="px-3 py-2 tabular-nums">{v.competencia}</td>
-                <td className="px-3 py-2">{v.regimes === "TODOS" ? "Todos os regimes" : v.regimes.join(", ")}</td>
-                <td className="px-3 py-2 max-w-[340px]">
-                  {v.fonte ? (
-                    <>
-                      <a href={v.fonte.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">{v.fonte.norma}, {v.fonte.dispositivo} <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
-                      {v.fonte.trecho && <p className="text-[11px] text-muted-foreground">“{v.fonte.trecho}”</p>}
-                    </>
-                  ) : null}
-                  {!v.confirmado && <span className="mt-0.5 inline-block rounded bg-amber-100 px-1.5 text-[11px] text-amber-800 dark:bg-amber-950 dark:text-amber-300">não confirmado</span>}
-                  {v.observacao && <p className="text-[11px] text-muted-foreground">{v.observacao}</p>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+      {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar as obrigações.</p>}
+      {data && (
+        <TabelaPadrao
+          id="agenda-obrigacoes-mes" ariaLabel="Obrigações do mês" titulo="Obrigações do mês" linhas={data.vencimentos} chaveLinha={(v) => `${v.obrigacao}-${v.competencia}`} ordemInicial={{ chave: "data", dir: 1 }}
+          vazio={`Nenhuma obrigação da tabela vence em ${nomeDaCompetencia(mes)}.`}
+          colunas={[
+            { chave: "data", rotulo: "Data", tipo: "data", render: (v) => <span className="font-medium tabular-nums">{fmtDia(v.data)}</span> },
+            { chave: "data_legal", rotulo: "Data legal", tipo: "data", valor: (v) => (v.movida ? v.data_legal : ""), render: (v) => (v.movida ? <span className="tabular-nums text-muted-foreground">{fmtDia(v.data_legal)}</span> : <span className="text-muted-foreground">—</span>) },
+            { chave: "nome", rotulo: "Obrigação", render: (v) => <span className="font-medium">{v.nome}</span> },
+            { chave: "tipo", rotulo: "Tipo", valor: (v) => (v.tipo === "PAGAMENTO" ? "Pagamento" : "Declaração") },
+            { chave: "condicao", rotulo: "Condição", render: (v) => v.condicao || <span className="text-muted-foreground">—</span> },
+            { chave: "competencia", rotulo: "Competência", render: (v) => <span className="tabular-nums">{v.competencia}</span> },
+            { chave: "regimes", rotulo: "Vale para", valor: (v) => (v.regimes === "TODOS" ? "Todos os regimes" : v.regimes.join(", ")) },
+            { chave: "fonte", rotulo: "Fonte oficial", valor: (v) => (v.fonte ? `${v.fonte.norma}, ${v.fonte.dispositivo}` : ""),
+              render: (v) => (v.fonte ? <a href={v.fonte.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">{v.fonte.norma}, {v.fonte.dispositivo} <ExternalLink className="h-3 w-3" aria-hidden="true" /></a> : <span className="text-muted-foreground">—</span>) },
+            { chave: "confirmado", rotulo: "Conferência", valor: (v) => (v.confirmado ? "Confirmado" : "Não confirmado"),
+              render: (v) => (v.confirmado ? <span className="text-muted-foreground">Confirmado</span> : <span className="inline-block rounded bg-amber-100 px-1.5 text-[11px] text-amber-800 dark:bg-amber-950 dark:text-amber-300">não confirmado</span>) },
+            { chave: "trecho", rotulo: "Trecho da norma", quebrar: true, valor: (v) => v.fonte?.trecho || "", render: (v) => (v.fonte?.trecho ? <span className="text-[11px] text-muted-foreground">“{v.fonte.trecho}”</span> : <span className="text-muted-foreground">—</span>) },
+            { chave: "observacao", rotulo: "Observação", quebrar: true, render: (v) => (v.observacao ? <span className="text-[11px] text-muted-foreground">{v.observacao}</span> : <span className="text-muted-foreground">—</span>) },
+          ]}
+        />
+      )}
       {data?.empresas && (
         <div className="rounded-xl border border-border bg-card p-3 space-y-2">
           <h2 className="font-heading text-sm font-semibold">Empresas do BPO fiscal neste mês</h2>
-          {data.empresas.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma empresa no BPO fiscal. <Link to="/clientes/servicos-contratados" className="text-primary hover:underline">Defina a carteira</Link>.</p>}
-          <ul className="divide-y divide-border/60">
-            {data.empresas.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
-                <span className="font-medium">{e.razao_social}</span>
-                <span className="text-xs text-muted-foreground">{e.regime_atual || "sem regime no cadastro"}</span>
-                <span className="ml-auto flex flex-wrap gap-1">{e.obrigacoes.map((id) => <span key={id} className="rounded bg-muted px-1.5 text-[11px]">{nomeDe.get(id) || id}</span>)}</span>
-              </li>
-            ))}
-          </ul>
+          {data.empresas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma empresa no BPO fiscal. <Link to="/clientes/servicos-contratados" className="text-primary hover:underline">Defina a carteira</Link>.</p> : (
+            <TabelaPadrao
+              id="agenda-empresas-bpo-mes" ariaLabel="Empresas do BPO fiscal neste mês" linhas={data.empresas} simples
+              colunas={[
+                { chave: "razao_social", rotulo: "Empresa", render: (e) => <span className="font-medium">{e.razao_social}</span> },
+                { chave: "regime_atual", rotulo: "Regime", valor: (e) => e.regime_atual || "sem regime no cadastro", render: (e) => <span className="text-muted-foreground">{e.regime_atual || "sem regime no cadastro"}</span> },
+                { chave: "obrigacoes", rotulo: "Obrigações", valor: (e) => e.obrigacoes.map((id) => nomeDe.get(id) || id).join(", "),
+                  render: (e) => <span className="inline-flex gap-1">{e.obrigacoes.map((id) => <span key={id} className="rounded bg-muted px-1.5 text-[11px]">{nomeDe.get(id) || id}</span>)}</span> },
+              ]}
+            />
+          )}
         </div>
       )}
       <p className="text-xs text-muted-foreground">
@@ -228,20 +225,18 @@ function AbaTipos({ ehAdmin }) {
           <button type="submit" disabled={!novo.nome.trim() || criar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Criar</button>
         </form>
       ) : <p className="text-sm text-muted-foreground">Só administradores criam e mudam os tipos de evento.</p>}
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Tipos de evento">
-        {tipos.map((t) => (
-          <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.cor }} aria-hidden="true" />
-            <span className="flex-1 font-medium">{t.nome}</span>
-            {ehAdmin && (
-              <>
-                <div className="flex gap-1" role="group" aria-label={`Cor de ${t.nome}`}>{CORES_DAS_TAGS.slice(0, 6).map((c) => <button key={c} type="button" aria-label={`Mudar a cor de ${t.nome} para ${c}`} onClick={() => mudarCor.mutate({ id: t.id, cor: c })} className={`h-4 w-4 rounded-full border ${t.cor.toUpperCase() === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} />)}</div>
-                <button type="button" onClick={async () => { if (await confirmar({ titulo: `Apagar o tipo "${t.nome}"?`, descricao: "Os eventos desse tipo continuam, sem tipo.", rotulo: "Apagar" })) apagar.mutate(t.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Apagar ${t.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
+      <TabelaPadrao
+        id="agenda-tipos-evento" ariaLabel="Tipos de evento" linhas={tipos} simples vazio="Nenhum tipo de evento."
+        colunas={[
+          { chave: "nome", rotulo: "Tipo de evento", render: (t) => <span className="inline-flex items-center gap-2 font-medium"><span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.cor }} aria-hidden="true" />{t.nome}</span> },
+          ...(ehAdmin ? [
+            { chave: "cor", rotulo: "Cor", ordenavel: false, filtravel: false, valor: () => "",
+              render: (t) => <div className="flex gap-1" role="group" aria-label={`Cor de ${t.nome}`}>{CORES_DAS_TAGS.slice(0, 6).map((c) => <button key={c} type="button" aria-label={`Mudar a cor de ${t.nome} para ${c}`} onClick={() => mudarCor.mutate({ id: t.id, cor: c })} className={`h-4 w-4 rounded-full border ${t.cor.toUpperCase() === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} />)}</div> },
+            { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+              render: (t) => <button type="button" onClick={async () => { if (await confirmar({ titulo: `Apagar o tipo "${t.nome}"?`, descricao: "Os eventos desse tipo continuam, sem tipo.", rotulo: "Apagar" })) apagar.mutate(t.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Apagar ${t.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button> },
+          ] : []),
+        ]}
+      />
     </div>
   );
 }

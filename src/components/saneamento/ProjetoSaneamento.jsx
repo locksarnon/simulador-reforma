@@ -20,7 +20,8 @@ import { montarRelatorioFinal } from "./relatorioFinal";
 import { gerarPdfRelatorio } from "./relatorioPdf";
 import { aplicarRespostas, lerRespostaCliente, linhasListaCliente } from "./respostaCliente";
 import { GRANDEZAS, fatorDaDecisao, lerFator, numeroBr, precisaFator, resumoUnidades } from "./unidades";
-import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import RelacaoTriagem from "./RelacaoTriagem";
 import GruposDoSaneamento from "./GruposDoSaneamento";
 import { criarSituacao } from "./relacoes";
@@ -73,7 +74,6 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const [gerando, setGerando] = useState(false);
   const [relacao, setRelacao] = useState(null); // cartão da triagem cuja relação de itens está aberta
   const [avisoTroca, setAvisoTroca] = useState(""); // por que a base ainda não pode ser trocada
-  const [ordAbrev, ordenarAbrev] = useOrdenacao(); const [ordUn, ordenarUn] = useOrdenacao(); const [ordDec, ordenarDec] = useOrdenacao(); // ordem das tabelas dos passos Checagens e De/para
   const carregado = useRef(false);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
 
@@ -265,14 +265,15 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <p className="text-sm font-medium">Abreviações encontradas na base</p>
       <p className="text-xs text-muted-foreground">Só valem as que você aprovar. A palavra completa pode ser editada. O sistema nunca troca nada sozinho: as trocas viram sugestões para aprovação.</p>
       {abrevCand.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma abreviação frequente identificada.</p> : (
-        <div className="max-h-64 overflow-auto">
-          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="abrev" ord={ordAbrev} onOrdenar={ordenarAbrev}>Abreviação</Th><Th chave="palavra" ord={ordAbrev} onOrdenar={ordenarAbrev}>Palavra completa</Th><Th chave="usos" ord={ordAbrev} onOrdenar={ordenarAbrev}>Usos (abrev. / completa)</Th><Th chave="aprovar" ord={ordAbrev} onOrdenar={ordenarAbrev}>Aprovar</Th></tr></thead>
-            <tbody>{ordenarPor(abrevCand.slice(0, 60), ordAbrev, { abrev: (a) => a.de, palavra: (a) => a.para, usos: (a) => a.nDe, aprovar: (a) => (abrevPad[a.de.toLowerCase()]?.aprovada ? 1 : 0) }).map((a) => { const k = a.de.toLowerCase(); const cur = abrevPad[k]; const para = (cur?.para ?? a.para).toUpperCase();
-              return (<tr key={k} className="border-t border-border"><td className="p-1.5 font-mono">{a.de}</td>
-                <td className="p-1.5"><input value={para} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para: e.target.value.toUpperCase(), aprovada: !!cur?.aprovada } } })} className="border rounded px-1.5 py-0.5 w-40 bg-background font-mono" aria-label={`Palavra completa para ${a.de}`} /></td>
-                <td className="p-1.5 tabular-nums">{fmt(a.nDe)} / {fmt(a.nPara)}</td>
-                <td className="p-1.5"><input type="checkbox" aria-label={`Aprovar ${a.de} → ${para}`} checked={!!cur?.aprovada} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para, aprovada: e.target.checked } } })} /></td></tr>); })}</tbody></table>
-        </div>)}
+        <TabelaPadrao id="saneamento-abreviacoes" ariaLabel="Abreviações encontradas na base" linhas={abrevCand.slice(0, 60)} chaveLinha={(a) => a.de.toLowerCase()} ordemInicial={{ chave: "usosAbrev", dir: -1 }} colunas={[
+          { chave: "de", rotulo: "Abreviação", render: (a) => <span className="font-mono">{a.de}</span> },
+          { chave: "para", rotulo: "Palavra completa", valor: (a) => (abrevPad[a.de.toLowerCase()]?.para ?? a.para).toUpperCase(), render: (a) => { const k = a.de.toLowerCase(); const cur = abrevPad[k]; const para = (cur?.para ?? a.para).toUpperCase();
+            return <input value={para} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para: e.target.value.toUpperCase(), aprovada: !!cur?.aprovada } } })} className="border rounded px-1.5 py-0.5 w-40 bg-background font-mono" aria-label={`Palavra completa para ${a.de}`} />; } },
+          { chave: "usosAbrev", rotulo: "Usos da abreviação", tipo: "numero", alinhar: "direita", valor: (a) => a.nDe },
+          { chave: "usosPalavra", rotulo: "Usos da palavra completa", tipo: "numero", alinhar: "direita", valor: (a) => a.nPara },
+          { chave: "aprovar", rotulo: "Aprovar", alinhar: "centro", valor: (a) => (abrevPad[a.de.toLowerCase()]?.aprovada ? "Sim" : "Não"), render: (a) => { const k = a.de.toLowerCase(); const cur = abrevPad[k]; const para = (cur?.para ?? a.para).toUpperCase();
+            return <input type="checkbox" aria-label={`Aprovar ${a.de} → ${para}`} checked={!!cur?.aprovada} onChange={(e) => mudarPad({ abreviacoes: { ...abrevPad, [k]: { para, aprovada: e.target.checked } } })} />; } },
+        ]} />)}
     </div>) : null;
   // Critério "Unidade de medida": liga/desliga a política da menor unidade e deixa o analista classificar as unidades que a tabela não conhece.
   const polUn = estado.politicaUnidade || { ativa: true, regras: {} };
@@ -299,25 +300,28 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
           </div>
           <p className="text-sm font-medium">Unidades encontradas na base ({fmt(resumoUn.linhas.length)}{resumoUn.semUnidade ? ` · ${plural(resumoUn.semUnidade, "item sem unidade", "itens sem unidade")}` : ""})</p>
           <p className="text-xs text-muted-foreground">O sistema reconhece as unidades de medida usuais e as embalagens mais comuns. As que ele não conhece aparecem como “Sem regra”: diga de que medida a unidade é (e, se souber, quantas unidades padrão ela tem) ou marque “Manter como está”. A escolha vale para todos os itens com a unidade e nada é alterado no cadastro.</p>
-          <div className="max-h-80 overflow-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="unidade" ord={ordUn} onOrdenar={ordenarUn}>Unidade</Th><Th chave="itens" ord={ordUn} onOrdenar={ordenarUn}>Itens</Th><Th chave="trata" ord={ordUn} onOrdenar={ordenarUn}>Como a política trata</Th><th className="p-1.5">Seu ajuste</th></tr></thead>
-            <tbody>{ordenarPor(resumoUn.linhas, ordUn, { unidade: (l) => l.rotulo, itens: (l) => l.n, trata: (l) => l.texto }).map((l) => {
+          <TabelaPadrao id="saneamento-unidades" ariaLabel="Unidades encontradas na base" linhas={resumoUn.linhas} chaveLinha={(l) => l.chave} colunas={[
+            { chave: "rotulo", rotulo: "Unidade", render: (l) => <span className="font-mono">{l.rotulo}</span> },
+            { chave: "grafias", rotulo: "Outras grafias", valor: (l) => l.grafias.slice(1, 4).join(", "), render: (l) => <span className="font-mono text-muted-foreground">{l.grafias.slice(1, 4).join(", ")}</span> },
+            { chave: "n", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
+            { chave: "texto", rotulo: "Como a política trata", render: (l) => <span className={l.k ? "" : "text-amber-700 dark:text-amber-300"}>{l.texto}</span> },
+            { chave: "ajuste", rotulo: "Seu ajuste", valor: (l) => (l.regra?.manter ? "Manter como está" : l.regra?.grandeza ? `É medida de ${GRANDEZAS[l.regra.grandeza]?.rotulo.toLowerCase()}` : l.conhecida ? "Seguir a tabela" : "Sem regra"), render: (l) => {
+              const sel = l.regra?.manter ? "manter" : (l.regra?.grandeza || "");
+              return (
+                <select aria-label={`Como tratar a unidade ${l.rotulo}`} value={sel} className="border rounded px-1 py-0.5 bg-background"
+                  onChange={(e) => { const v = e.target.value; setRegraUn(l.chave, v === "" ? null : v === "manter" ? { manter: true } : { grandeza: v, fator: null, fatorTxt: "" }); }}>
+                  <option value="">{l.conhecida ? "Seguir a tabela" : "Sem regra"}</option>
+                  <option value="manter">Manter como está</option>
+                  {Object.entries(GRANDEZAS).map(([id, v]) => <option key={id} value={id}>É medida de {v.rotulo.toLowerCase()}</option>)}
+                </select>);
+            } },
+            { chave: "fator", rotulo: "Fator", valor: (l) => (l.regra?.grandeza ? String(l.regra.fatorTxt ?? (l.regra.fator ?? "")) : ""), render: (l) => {
               const sel = l.regra?.manter ? "manter" : (l.regra?.grandeza || ""); const alvo = sel && sel !== "manter" ? resumoUn.padroes[sel] : null;
-              return (<tr key={l.chave} className="border-t border-border align-top">
-                <td className="p-1.5 font-mono">{l.rotulo}{l.grafias.length > 1 && <span className="block text-[10px] text-muted-foreground font-sans">também: {l.grafias.slice(1, 4).join(", ")}</span>}</td>
-                <td className="p-1.5 tabular-nums">{fmt(l.n)}</td>
-                <td className={`p-1.5 ${l.k ? "" : "text-amber-700 dark:text-amber-300"}`}>{l.texto}</td>
-                <td className="p-1.5">
-                  <select aria-label={`Como tratar a unidade ${l.rotulo}`} value={sel} className="border rounded px-1 py-0.5 bg-background"
-                    onChange={(e) => { const v = e.target.value; setRegraUn(l.chave, v === "" ? null : v === "manter" ? { manter: true } : { grandeza: v, fator: null, fatorTxt: "" }); }}>
-                    <option value="">{l.conhecida ? "Seguir a tabela" : "Sem regra"}</option>
-                    <option value="manter">Manter como está</option>
-                    {Object.entries(GRANDEZAS).map(([id, v]) => <option key={id} value={id}>É medida de {v.rotulo.toLowerCase()}</option>)}
-                  </select>
-                  {alvo && <span className="mt-1 flex items-center gap-1 whitespace-nowrap">1 {l.rotulo.toUpperCase()} =
-                    <input inputMode="decimal" value={l.regra.fatorTxt ?? (l.regra.fator ?? "")} placeholder="a informar" aria-label={`Quantos ${alvo} há em 1 ${l.rotulo}`} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums"
-                      onChange={(e) => setRegraUn(l.chave, { grandeza: sel, fatorTxt: e.target.value, fator: lerFator(e.target.value) })} /> {alvo}</span>}
-                </td></tr>);
-            })}</tbody></table></div>
+              return alvo ? <span className="inline-flex items-center gap-1">1 {l.rotulo.toUpperCase()} =
+                <input inputMode="decimal" value={l.regra.fatorTxt ?? (l.regra.fator ?? "")} placeholder="a informar" aria-label={`Quantos ${alvo} há em 1 ${l.rotulo}`} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums"
+                  onChange={(e) => setRegraUn(l.chave, { grandeza: sel, fatorTxt: e.target.value, fator: lerFator(e.target.value) })} /> {alvo}</span> : null;
+            } },
+          ]} />
         </div>)}
     </div>) : null;
   // Critério "Duplicidade": em quais grupos a variante (cor, tipo, apresentação) é observação e não produto, e quais palavras são observação. Mudar o que a regra liga desfaz a aprovação
@@ -389,18 +393,39 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
   const descartarDecisao = (k, motivo) => setEstado((e) => { if (!e.decisoes[k]) return e; const d = { ...e.decisoes }; const antiga = d[k]; delete d[k]; return { ...e, decisoes: d, historicoDecisoes: [...(e.historicoDecisoes || []), { k, d: antiga, descartadaPor: quem, descartadaEm: hojeIso(), motivo }] }; });
   // O fator digitado vale mais que o sugerido; apagar o campo volta a "a informar" (e impede a aprovação).
   const setFatorDecisao = (k, txt) => setEstado((e) => ({ ...e, decisoes: { ...e.decisoes, [k]: { ...e.decisoes[k], fatorTxt: txt, fatorFinal: lerFator(txt) ?? "" } } }));
-  const celulaUnidade = (d, it) => {
-    const f = fatorDaDecisao(d); const compra = String(d.de).toUpperCase();
+  // Unidade de compra de uma conversão de unidade: o fator (editável enquanto aguarda decisão), numa linha só.
+  const textoCompra = (d) => { if (d.tipo !== "conversao") return ""; const f = fatorDaDecisao(d); return `unidade de compra ${String(d.de).toUpperCase()}: ${f != null ? `1 = ${numeroBr(f)} ${d.para}` : "itens por unidade de compra a informar"}`; };
+  const celulaCompra = (d) => {
+    if (d.tipo !== "conversao") return null;
+    if (d.status !== "PROP") return <span className="text-muted-foreground">{textoCompra(d)}</span>;
     return (
-      <div>{it?.descricao || "—"}
-        <div className="text-[11px]"><b className="font-medium">Unidade de estoque: {d.de} → {d.para}</b>
-          {d.tipo === "conversao" && (d.status === "PROP" ? (
-            <label className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-muted-foreground"><span>unidade de compra {compra}: 1 =</span>
-              <span className="inline-flex items-center gap-1 whitespace-nowrap"><input inputMode="decimal" value={d.fatorTxt ?? (d.fator ?? "")} placeholder="a informar" aria-label={`Itens por unidade de compra, código ${partirChave(d.k).id}`} onChange={(e) => setFatorDecisao(d.k, e.target.value)} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums" /> {d.para}</span>
-              {d.evidencia === "descricao" && d.fatorFinal === undefined && <span>(lido da descrição: confirme)</span>}</label>
-          ) : <span className="block text-muted-foreground">unidade de compra {compra}: {f != null ? `1 = ${numeroBr(f)} ${d.para}` : "itens por unidade de compra a informar"}</span>)}
-        </div></div>);
+      <label className="inline-flex items-center gap-1 text-muted-foreground"><span>unidade de compra {String(d.de).toUpperCase()}: 1 =</span>
+        <input inputMode="decimal" value={d.fatorTxt ?? (d.fator ?? "")} placeholder="a informar" aria-label={`Itens por unidade de compra, código ${partirChave(d.k).id}`} onChange={(e) => setFatorDecisao(d.k, e.target.value)} className="border rounded px-1 py-0.5 w-20 bg-background tabular-nums" /> {d.para}
+        {d.evidencia === "descricao" && d.fatorFinal === undefined && <span>(lido da descrição: confirme)</span>}</label>);
   };
+  const ROT_COER = { MUDOU: ["r", "Cadastro mudou: não vale"], AMBIGUA: ["r", "Código repetido: não vale"], AUSENTE: ["a", "Fora da base atual"], REFLETIDA: ["b", "Já está no cadastro"] };
+  const itemDaDecisao = (d) => { const { id } = partirChave(d.k); return itemPorId(indice, id) ?? (d.antes ? { codigo: id, descricao: d.antes.descricao, unidade: d.antes.unidade } : null); };
+  const textoProposta = (d) => {
+    const { id, crit: cid } = partirChave(d.k);
+    if (d.sugerida) return d.final || d.sugerida;
+    if (cid === "duplicidade" && d.destino != null && d.destino !== id) return `unificar no código ${itemPorId(indice, d.destino)?.codigo ?? d.destino}`;
+    if (cid === "unidade" && d.para) return `Unidade de estoque: ${d.de} → ${d.para}`;
+    return "";
+  };
+  const textoSituacaoDec = (d) => (d.status === "APR" ? `Aprovado por ${d.decididoPor} em ${dataBr(d.decididoEm)}` : d.status === "REJ" ? "Rejeitado" : "Aguardando");
+  const colunasDecisoes = [
+    { chave: "codigo", rotulo: "Código", valor: (d) => itemDaDecisao(d)?.codigo ?? partirChave(d.k).id },
+    { chave: "criterio", rotulo: "Critério", valor: (d) => CRITERIOS.find((c) => c.id === partirChave(d.k).crit)?.titulo },
+    { chave: "descricao", rotulo: "Descrição", valor: (d) => itemDaDecisao(d)?.descricao || "—", render: (d) => <span className={d.sugerida ? "text-muted-foreground line-through" : ""}>{itemDaDecisao(d)?.descricao || "—"}</span> },
+    { chave: "proposta", rotulo: "Proposta", valor: textoProposta, render: (d) => { const t = textoProposta(d); return t ? <span className="inline-flex items-center gap-1"><b className="font-medium">{t}</b>{d.sugerida && d.origemFinal === "cliente" && <span className="text-[10px] text-primary">ajustada pelo cliente</span>}</span> : null; } },
+    { chave: "compra", rotulo: "Unidade de compra", valor: (d) => (partirChave(d.k).crit === "unidade" && d.para ? textoCompra(d) : ""), render: (d) => (partirChave(d.k).crit === "unidade" && d.para ? celulaCompra(d) : null) },
+    { chave: "observacao", rotulo: "Observação a registrar no mantido", valor: (d) => (partirChave(d.k).crit === "duplicidade" && d.destino != null && d.destino !== partirChave(d.k).id && d.observacao?.length ? d.observacao.join(", ") : "") },
+    { chave: "situacao", rotulo: "Situação", valor: textoSituacaoDec, render: (d) => <Chip tom={d.status === "APR" ? "g" : d.status === "REJ" ? "n" : "a"}>{textoSituacaoDec(d)}</Chip> },
+    { chave: "conferencia", rotulo: "Conferência", valor: (d) => ROT_COER[coerencia(d.k, d).estado]?.[1] || "", render: (d) => { const c = coerencia(d.k, d); const r = ROT_COER[c.estado]; return r ? <span title={c.motivo}><Chip tom={r[0]}>{r[1]}</Chip></span> : null; } },
+    { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, valor: () => "", render: (d) => { const coer = coerencia(d.k, d); return <>
+      {!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d) || !podeAprovar(d.k, d)} title={!podeAprovar(d.k, d) ? coer.motivo : precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}
+      {(coer.estado === "MUDOU" || coer.estado === "AMBIGUA" || (coer.estado === "AUSENTE" && d.status !== "APR")) && <Botao className="ml-1" title="Tira a decisão desta lista e guarda no histórico do projeto; o achado pode ser encaminhado de novo, com o cadastro como está agora" onClick={() => descartarDecisao(d.k, coer.motivo)}>Descartar</Botao>}</>; } },
+  ];
   const porGrupoDec = [...new Set(decisoesLista.map((d) => d.grupo))];
   const temPadrao = decisoesLista.some((d) => d.k.endsWith("|padrao"));
   const emitirListaCliente = async () => {
@@ -435,14 +460,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       {porGrupoDec.map((gn) => { const lista = decisoesLista.filter((d) => d.grupo === gn); const pend = lista.filter((d) => d.status === "PROP");
         return (<Acc key={gn} aberto={!!aberto["d" + gn]} onToggle={() => alternar("d" + gn)} titulo={<><b className="font-medium">{gn}</b><span className="text-xs text-muted-foreground">{fmt(lista.length)} casos · {fmt(pend.length)} aguardando decisão</span></>}>
           {estado.bloco && pend.length > 0 && <div className="flex flex-wrap gap-2 mb-2"><Botao onClick={() => decidir(pend.map((d) => d.k), "APR")}>Aprovar os {fmt(pend.filter((d) => !precisaFator(d)).length)} pendentes</Botao><Botao onClick={() => decidir(pend.map((d) => d.k), "REJ")}>Rejeitar os pendentes</Botao>{pend.some(precisaFator) && <span className="self-center text-xs text-muted-foreground">Conversões de unidade sem fator ficam aguardando.</span>}</div>}
-          <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="caso" ord={ordDec} onOrdenar={ordenarDec}>Código</Th><Th chave="criterio" ord={ordDec} onOrdenar={ordenarDec}>Critério</Th><Th chave="descricao" ord={ordDec} onOrdenar={ordenarDec}>Descrição</Th><Th chave="situacao" ord={ordDec} onOrdenar={ordenarDec}>Situação</Th><th className="p-1.5"></th></tr></thead>
-            <tbody>{ordenarPor(lista, ordDec, { caso: (d) => partirChave(d.k).id, criterio: (d) => CRITERIOS.find((c) => c.id === partirChave(d.k).crit)?.titulo, descricao: (d) => itemPorId(indice, partirChave(d.k).id)?.descricao ?? d.antes?.descricao, situacao: (d) => (d.status === "PROP" ? 0 : d.status === "APR" ? 1 : 2) }).slice(0, 200).map((d) => { const { id, crit: cid } = partirChave(d.k); const it = itemPorId(indice, id) ?? (d.antes ? { codigo: id, descricao: d.antes.descricao, unidade: d.antes.unidade } : null); const coer = coerencia(d.k, d);
-              return (<tr key={d.k} className="border-t border-border"><td className="p-1.5 tabular-nums whitespace-nowrap">{it?.codigo ?? id}</td><td className="p-1.5">{CRITERIOS.find((c) => c.id === cid)?.titulo}</td><td className="p-1.5 max-w-[280px]">{d.sugerida ? <div><span className="text-muted-foreground line-through break-words">{it?.descricao || "—"}</span><div><b className="font-medium break-words">{d.final || d.sugerida}</b>{d.origemFinal === "cliente" && <span className="ml-1 text-[10px] text-primary">ajustada pelo cliente</span>}</div></div> : cid === "duplicidade" && d.destino != null && d.destino !== id ? <div>{it?.descricao || "—"}<div className="text-[11px] text-muted-foreground">unificar no código {itemPorId(indice, d.destino)?.codigo ?? d.destino}</div>{d.observacao?.length > 0 && <div className="text-[11px] text-muted-foreground">observação (não é produto) a registrar no mantido: {d.observacao.join(", ")}</div>}</div> : cid === "unidade" && d.para ? celulaUnidade(d, it) : (it?.descricao || "—")}</td>
-                <td className="p-1.5"><div className="flex flex-col items-start gap-1">{d.status === "APR" ? <Chip tom="g">Aprovado por {d.decididoPor} em {dataBr(d.decididoEm)}</Chip> : d.status === "REJ" ? <Chip>Rejeitado</Chip> : <Chip tom="a">Aguardando</Chip>}
-                  {coer.estado === "MUDOU" && <span title={coer.motivo}><Chip tom="r">Cadastro mudou: não vale</Chip></span>}{coer.estado === "AMBIGUA" && <span title={coer.motivo}><Chip tom="r">Código repetido: não vale</Chip></span>}{coer.estado === "AUSENTE" && <span title={coer.motivo}><Chip tom="a">Fora da base atual</Chip></span>}{coer.estado === "REFLETIDA" && <span title={coer.motivo}><Chip tom="b">Já está no cadastro</Chip></span>}</div></td>
-                <td className="p-1.5 whitespace-nowrap">{!estado.bloco && d.status === "PROP" && <><Botao className="mr-1" disabled={precisaFator(d) || !podeAprovar(d.k, d)} title={!podeAprovar(d.k, d) ? coer.motivo : precisaFator(d) ? "Informe o fator de conversão para aprovar" : undefined} onClick={() => decidir([d.k], "APR")}>Aprovar</Botao><Botao onClick={() => decidir([d.k], "REJ")}>Rejeitar</Botao></>}
-                  {(coer.estado === "MUDOU" || coer.estado === "AMBIGUA" || (coer.estado === "AUSENTE" && d.status !== "APR")) && <Botao className="ml-1" title="Tira a decisão desta lista e guarda no histórico do projeto; o achado pode ser encaminhado de novo, com o cadastro como está agora" onClick={() => descartarDecisao(d.k, coer.motivo)}>Descartar</Botao>}</td></tr>); })}</tbody></table>
-            {lista.length > 200 && <p className="text-xs text-muted-foreground p-2">Mostrando 200 de {fmt(lista.length)}.</p>}</div>
+          <TabelaPadrao id="saneamento-depara-decisoes" ariaLabel={`Casos do grupo ${gn}`} linhas={lista} chaveLinha={(d) => d.k} colunas={colunasDecisoes} />
         </Acc>); })}
       <InativacaoLotes estado={estado} setEstado={setEstado} escopo={escopo} indice={indice} quem={quem} baseInfo={{ id: validacaoId, arquivo: base.data?.nome_arquivo }} escalaSaldo={escalaSaldo} onMudarExtracao={(v) => mudar({ extraidaEm: v })} />
     </div>

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Download, FileArchive, Folder, FolderPlus, Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { api } from "@/api/client";
@@ -90,26 +90,32 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
           </div>
           {isLoading && <p className="py-6 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
           {error && <p role="alert" className="py-6 text-center text-sm">Não foi possível carregar os arquivos.</p>}
+          {data && data.subpastas.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5" aria-label="Subpastas">
+              {[...data.subpastas].sort((a, b) => a.localeCompare(b, "pt-BR")).map((s) => <li key={s}><button type="button" onClick={() => setPasta([pasta, s].filter(Boolean).join("/"))} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm font-medium hover:bg-muted hover:text-primary"><Folder className="h-4 w-4 text-amber-600" aria-hidden="true" /> {s}</button></li>)}
+            </ul>
+          )}
           {data && (
-            <table className="w-full text-[13px] leading-5" aria-label="Arquivos da pasta">
-              <tbody>
-                {data.subpastas.map((s) => <tr key={s} className="border-b border-border/60"><td className="w-8" /><td className="py-1.5" colSpan={4}><button type="button" onClick={() => setPasta([pasta, s].filter(Boolean).join("/"))} className="inline-flex items-center gap-2 font-medium hover:text-primary"><Folder className="h-4 w-4 text-amber-600" aria-hidden="true" /> {s}</button></td></tr>)}
-                {data.arquivos.map((a) => (
-                  <tr key={a.id} className="border-b border-border/60 hover:bg-muted/40">
-                    <td className="w-8 py-1.5"><input type="checkbox" checked={marcados.has(a.id)} onChange={() => alternar(a.id)} aria-label={`Marcar ${a.nome}`} /></td>
-                    <td className="py-1.5 pr-3 font-medium">{a.nome}</td>
-                    <td className="py-1.5 pr-3 text-muted-foreground tabular-nums">{tamanhoLegivel(a.tamanho)}</td>
-                    <td className="py-1.5 pr-3 text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("pt-BR")} · {a.enviado_por}</td>
-                    <td className="py-1.5 text-right whitespace-nowrap">
-                      <button type="button" onClick={() => api.baixar("get", `/documentos/arquivos/${a.id}/download`, { nome: a.nome }).catch(falha("Não foi possível baixar"))} className="rounded p-1.5 hover:bg-muted" aria-label={`Baixar ${a.nome}`}><Download className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                      <button type="button" onClick={() => setEditar({ id: a.id, nome: a.nome, pasta: a.pasta })} className="rounded p-1.5 hover:bg-muted" aria-label={`Renomear ou mover ${a.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                      <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir "${a.nome}"?`, descricao: "O arquivo sai do InTAX e não volta.", rotulo: "Excluir" })) excluir.mutate(a.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${a.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                    </td>
-                  </tr>
-                ))}
-                {!data.subpastas.length && !data.arquivos.length && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">{pasta ? "Pasta nova: envie os arquivos para ela aparecer." : "Nenhum arquivo ainda. Use \"Enviar arquivos\" (até 25 MB cada)."}</td></tr>}
-              </tbody>
-            </table>
+            <TabelaPadrao
+              id="bpo-arquivos-pasta" ariaLabel="Arquivos da pasta" linhas={data.arquivos}
+              vazio={data.subpastas.length ? "Nenhum arquivo nesta pasta." : pasta ? "Pasta nova: envie os arquivos para ela aparecer." : "Nenhum arquivo ainda. Use \"Enviar arquivos\" (até 25 MB cada)."}
+              colunas={[
+                { chave: "marcar", rotulo: "Marcar", ordenavel: false, filtravel: false, valor: () => "",
+                  render: (a) => <input type="checkbox" checked={marcados.has(a.id)} onChange={() => alternar(a.id)} aria-label={`Marcar ${a.nome}`} /> },
+                { chave: "nome", rotulo: "Arquivo", render: (a) => <span className="font-medium">{a.nome}</span> },
+                { chave: "tamanho", rotulo: "Tamanho", alinhar: "direita", render: (a) => <span className="text-muted-foreground">{tamanhoLegivel(a.tamanho)}</span> },
+                { chave: "createdAt", rotulo: "Enviado em", tipo: "data" },
+                { chave: "enviado_por", rotulo: "Enviado por", render: (a) => <span className="text-muted-foreground">{a.enviado_por || "—"}</span> },
+                { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+                  render: (a) => (
+                    <>
+                      <button type="button" onClick={() => api.baixar("get", `/documentos/arquivos/${a.id}/download`, { nome: a.nome }).catch(falha("Não foi possível baixar"))} className="rounded p-1 hover:bg-muted" aria-label={`Baixar ${a.nome}`}><Download className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                      <button type="button" onClick={() => setEditar({ id: a.id, nome: a.nome, pasta: a.pasta })} className="rounded p-1 hover:bg-muted" aria-label={`Renomear ou mover ${a.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                      <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir "${a.nome}"?`, descricao: "O arquivo sai do InTAX e não volta.", rotulo: "Excluir" })) excluir.mutate(a.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${a.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                    </>
+                  ) },
+              ]}
+            />
           )}
         </div>
       )}
@@ -186,34 +192,32 @@ function AbaDocumentos({ empresas, pessoas, tipos }) {
           </button>
         ))}
       </div>
-      <div className="flex justify-end gap-2"><BotaoExportar titulo="Documentos com validade" linhas={lista} colunas={[
-        { chave: "documento", rotulo: "Documento", valor: (d) => d.tipo?.nome || d.descricao }, { chave: "numero", rotulo: "Número" },
-        { chave: "dono", rotulo: "De quem", valor: (d) => (d.empresa_id ? nomeEmpresa.get(d.empresa_id) : nomePf.get(d.pessoa_fisica_id)) || "" },
-        { chave: "validade", rotulo: "Validade", valor: (d) => fmtData(d.validade) }, { chave: "situacao", rotulo: "Situação", valor: (d) => SITUACOES_DOC[d.situacao].rotulo },
-      ]} /><button type="button" onClick={() => setDialogo({ doc: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo documento</button></div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-[13px] leading-5" aria-label="Documentos com validade">
-          <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Documento</th><th className="px-3 py-2">De quem</th><th className="px-3 py-2">Validade</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2"><span className="sr-only">Ações</span></th></tr></thead>
-          <tbody>
-            {isLoading && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-            {error && <tr><td colSpan={5} className="py-8 text-center" role="alert">Não foi possível carregar os documentos.</td></tr>}
-            {!isLoading && !error && lista.length === 0 && <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">{docs.length ? "Nenhum documento nessa situação." : "Nenhum documento ainda. Cadastre alvarás, licenças e certidões com a validade para receber o aviso antes de vencer."}</td></tr>}
-            {lista.map((d) => (
-              <tr key={d.id} className="border-b border-border/60 hover:bg-muted/40">
-                <td className="px-3 py-2"><p className="font-medium">{d.tipo?.nome || d.descricao}</p><p className="text-[11px] text-muted-foreground">{[d.tipo ? d.descricao : null, d.numero ? `nº ${d.numero}` : null, d.tipo?.orgao].filter(Boolean).join(" · ")}</p></td>
-                <td className="px-3 py-2">{d.empresa_id ? nomeEmpresa.get(d.empresa_id) : nomePf.get(d.pessoa_fisica_id)}</td>
-                <td className="px-3 py-2 tabular-nums">{fmtData(d.validade)}</td>
-                <td className="px-3 py-2"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${SITUACOES_DOC[d.situacao].tom}`}>{SITUACOES_DOC[d.situacao].rotulo}</span></td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">
-                  {d.arquivo_id && <button type="button" onClick={() => api.baixar("get", `/documentos/arquivos/${d.arquivo_id}/download`, { nome: `${d.tipo?.nome || "documento"}` }).catch(() => toast({ title: "Não foi possível baixar", variant: "destructive" }))} className="rounded p-1.5 hover:bg-muted" aria-label="Baixar o arquivo do documento"><Download className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                  <button type="button" onClick={() => setDialogo({ doc: d })} className="rounded p-1.5 hover:bg-muted" aria-label={`Editar ${d.tipo?.nome || d.descricao}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                  <button type="button" onClick={async () => { if (await confirmar({ titulo: "Excluir este documento?", descricao: "O arquivo ligado a ele continua na pasta.", rotulo: "Excluir" })) excluir.mutate(d.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${d.tipo?.nome || d.descricao}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+      {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar os documentos.</p>}
+      {!isLoading && !error && (
+        <TabelaPadrao
+          id="bpo-documentos-validade" ariaLabel="Documentos com validade" titulo="Documentos com validade" linhas={lista} ordemInicial={{ chave: "validade", dir: 1 }}
+          vazio={docs.length ? "Nenhum documento nessa situação." : "Nenhum documento ainda. Cadastre alvarás, licenças e certidões com a validade para receber o aviso antes de vencer."}
+          acoes={<button type="button" onClick={() => setDialogo({ doc: null })} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo documento</button>}
+          colunas={[
+            { chave: "documento", rotulo: "Documento", valor: (d) => d.tipo?.nome || d.descricao || "", render: (d) => <span className="font-medium">{d.tipo?.nome || d.descricao}</span> },
+            { chave: "descricao", rotulo: "Descrição", valor: (d) => (d.tipo ? d.descricao || "" : ""), render: (d) => (d.tipo && d.descricao ? <span className="block max-w-[24rem] truncate" title={d.descricao}>{d.descricao}</span> : <span className="text-muted-foreground">—</span>) },
+            { chave: "numero", rotulo: "Número", render: (d) => d.numero || <span className="text-muted-foreground">—</span> },
+            { chave: "orgao", rotulo: "Órgão", valor: (d) => d.tipo?.orgao || "", render: (d) => d.tipo?.orgao || <span className="text-muted-foreground">—</span> },
+            { chave: "dono", rotulo: "De quem", valor: (d) => (d.empresa_id ? nomeEmpresa.get(d.empresa_id) : nomePf.get(d.pessoa_fisica_id)) || "" },
+            { chave: "validade", rotulo: "Validade", tipo: "data", valor: (d) => (d.validade ? String(d.validade).slice(0, 10) : ""), render: (d) => <span className="tabular-nums">{fmtData(d.validade)}</span> },
+            { chave: "situacao", rotulo: "Situação", valor: (d) => SITUACOES_DOC[d.situacao].rotulo, render: (d) => <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${SITUACOES_DOC[d.situacao].tom}`}>{SITUACOES_DOC[d.situacao].rotulo}</span> },
+            { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+              render: (d) => (
+                <>
+                  {d.arquivo_id && <button type="button" onClick={() => api.baixar("get", `/documentos/arquivos/${d.arquivo_id}/download`, { nome: `${d.tipo?.nome || "documento"}` }).catch(() => toast({ title: "Não foi possível baixar", variant: "destructive" }))} className="rounded p-1 hover:bg-muted" aria-label="Baixar o arquivo do documento"><Download className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                  <button type="button" onClick={() => setDialogo({ doc: d })} className="rounded p-1 hover:bg-muted" aria-label={`Editar ${d.tipo?.nome || d.descricao}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                  <button type="button" onClick={async () => { if (await confirmar({ titulo: "Excluir este documento?", descricao: "O arquivo ligado a ele continua na pasta.", rotulo: "Excluir" })) excluir.mutate(d.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${d.tipo?.nome || d.descricao}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                </>
+              ) },
+          ]}
+        />
+      )}
       {dialogo && <DialogoDocumento doc={dialogo.doc} empresas={empresas} pessoas={pessoas} tipos={tipos} aoFechar={() => setDialogo(null)} />}
     </div>
   );
@@ -224,17 +228,19 @@ function AbaDownloads() {
   return (
     <div className="max-w-2xl space-y-2">
       <p className="text-sm text-muted-foreground">ZIP guardados por 7 dias.</p>
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Meus downloads">
-        {isLoading && <li className="p-4 text-center text-sm text-muted-foreground">Carregando…</li>}
-        {!isLoading && data.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">Nenhum download guardado.</li>}
-        {data.map((l) => (
-          <li key={l.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <FileArchive className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <span className="flex-1"><span className="font-medium">{l.nome}</span> <span className="text-xs text-muted-foreground">· {plural(l.arquivos, "arquivo", "arquivos")} · {tamanhoLegivel(l.tamanho)} · {expiraEm(l.expira_em)}</span></span>
-            <button type="button" onClick={() => api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }).catch((e) => toast({ title: "Não foi possível baixar", description: e.message, variant: "destructive" }))} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" /> Baixar</button>
-          </li>
-        ))}
-      </ul>
+      {isLoading ? <p className="p-4 text-center text-sm text-muted-foreground">Carregando…</p> : (
+        <TabelaPadrao
+          id="bpo-meus-downloads" ariaLabel="Meus downloads" linhas={data} simples vazio="Nenhum download guardado." ordemInicial={{ chave: "expira_em", dir: -1 }}
+          colunas={[
+            { chave: "nome", rotulo: "ZIP", render: (l) => <span className="inline-flex items-center gap-1.5 font-medium"><FileArchive className="h-4 w-4 text-muted-foreground" aria-hidden="true" />{l.nome}</span> },
+            { chave: "arquivos", rotulo: "Arquivos", alinhar: "direita", render: (l) => plural(l.arquivos, "arquivo", "arquivos") },
+            { chave: "tamanho", rotulo: "Tamanho", alinhar: "direita", render: (l) => tamanhoLegivel(l.tamanho) },
+            { chave: "expira_em", rotulo: "Validade", tipo: "data", render: (l) => <span className="text-muted-foreground">{expiraEm(l.expira_em)}</span> },
+            { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+              render: (l) => <button type="button" onClick={() => api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }).catch((e) => toast({ title: "Não foi possível baixar", description: e.message, variant: "destructive" }))} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" /> Baixar</button> },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -256,14 +262,16 @@ function AbaTipos({ ehAdmin, tipos }) {
           <button type="submit" className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground">Criar</button>
         </form>
       ) : <p className="text-sm text-muted-foreground">Só administradores mudam os tipos de documento.</p>}
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card" aria-label="Tipos de documento">
-        {tipos.map((t) => (
-          <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-            <span className="flex-1"><span className="font-medium">{t.nome}</span> <span className="text-xs text-muted-foreground">{[t.orgao, `aviso ${plural(t.alerta_dias, "dia", "dias")} antes`].filter(Boolean).join(" · ")}</span></span>
-            {ehAdmin && <button type="button" onClick={async () => { if (await confirmar({ titulo: `Apagar o tipo "${t.nome}"?`, descricao: "Os documentos desse tipo continuam, sem tipo.", rotulo: "Apagar" })) apagar.mutate(t.id); }} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Apagar o tipo ${t.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-          </li>
-        ))}
-      </ul>
+      <TabelaPadrao
+        id="bpo-tipos-documento" ariaLabel="Tipos de documento" linhas={tipos} simples vazio="Nenhum tipo de documento."
+        colunas={[
+          { chave: "nome", rotulo: "Tipo de documento", render: (t) => <span className="font-medium">{t.nome}</span> },
+          { chave: "orgao", rotulo: "Órgão expedidor", render: (t) => t.orgao || <span className="text-muted-foreground">—</span> },
+          { chave: "alerta_dias", rotulo: "Aviso antes", tipo: "numero", alinhar: "direita", render: (t) => plural(t.alerta_dias, "dia", "dias") },
+          ...(ehAdmin ? [{ chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+            render: (t) => <button type="button" onClick={async () => { if (await confirmar({ titulo: `Apagar o tipo "${t.nome}"?`, descricao: "Os documentos desse tipo continuam, sem tipo.", rotulo: "Apagar" })) apagar.mutate(t.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Apagar o tipo ${t.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button> }] : []),
+        ]}
+      />
     </div>
   );
 }

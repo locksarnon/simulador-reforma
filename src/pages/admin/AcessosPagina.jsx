@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -43,31 +43,21 @@ export function RegistroDeAcesso() {
         <label className="space-y-1 flex-1 min-w-[180px]"><span className="block text-xs text-muted-foreground">E-mail</span>
           <input type="search" className={`${campo} w-full`} value={filtros.email} onChange={(e) => setFiltros((f) => ({ ...f, email: e.target.value }))} /></label>
         <button type="button" onClick={() => refetch()} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">{isFetching ? "Atualizando…" : "Atualizar"}</button>
-        <BotaoExportar titulo="Registro de acesso" linhas={data || []} colunas={[
-          { chave: "quando", rotulo: "Quando", valor: (l) => quando(l.createdAt) }, { chave: "email", rotulo: "E-mail" },
-          { chave: "resultado", rotulo: "Resultado", valor: (l) => RESULTADOS[l.resultado] || l.resultado }, { chave: "ip", rotulo: "IP" },
-          { chave: "navegador", rotulo: "Navegador", valor: (l) => navegadorDe(l.user_agent) },
-        ]} />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-[13px] leading-5" aria-label="Registro de acesso">
-          <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Quando</th><th className="px-3 py-2">E-mail</th><th className="px-3 py-2">Resultado</th><th className="px-3 py-2">IP</th><th className="px-3 py-2">Navegador</th></tr></thead>
-          <tbody>
-            {isLoading && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-            {error && <tr><td colSpan={5} className="py-8 text-center" role="alert">Não foi possível carregar o registro.</td></tr>}
-            {data && data.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">Nenhuma tentativa de entrada com esses filtros.</td></tr>}
-            {(data || []).map((l) => (
-              <tr key={l.id} className="border-b border-border/60 hover:bg-muted/40">
-                <td className="px-3 py-1.5 whitespace-nowrap tabular-nums">{quando(l.createdAt)}</td>
-                <td className="px-3 py-1.5">{l.email}</td>
-                <td className="px-3 py-1.5"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM[l.resultado] || "bg-muted"}`}>{RESULTADOS[l.resultado] || l.resultado}</span></td>
-                <td className="px-3 py-1.5 tabular-nums">{l.ip || "—"}</td>
-                <td className="px-3 py-1.5 text-muted-foreground" title={l.user_agent || undefined}>{navegadorDe(l.user_agent)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+      {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar o registro.</p>}
+      {data && (
+        <TabelaPadrao
+          id="admin-registro-acesso" ariaLabel="Registro de acesso" titulo="Registro de acesso" linhas={data} vazio="Nenhuma tentativa de entrada com esses filtros." ordemInicial={{ chave: "createdAt", dir: -1 }}
+          colunas={[
+            { chave: "createdAt", rotulo: "Quando", tipo: "data", render: (l) => <span className="tabular-nums">{quando(l.createdAt)}</span> },
+            { chave: "email", rotulo: "E-mail" },
+            { chave: "resultado", rotulo: "Resultado", valor: (l) => RESULTADOS[l.resultado] || l.resultado, render: (l) => <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM[l.resultado] || "bg-muted"}`}>{RESULTADOS[l.resultado] || l.resultado}</span> },
+            { chave: "ip", rotulo: "IP", render: (l) => <span className="tabular-nums">{l.ip || "—"}</span> },
+            { chave: "navegador", rotulo: "Navegador", valor: (l) => navegadorDe(l.user_agent), render: (l) => <span className="text-muted-foreground" title={l.user_agent || undefined}>{navegadorDe(l.user_agent)}</span> },
+          ]}
+        />
+      )}
       <p className="text-xs text-muted-foreground">Últimas 200 tentativas.</p>
     </div>
   );
@@ -110,17 +100,16 @@ export function IpsPermitidos() {
         <button type="submit" disabled={adicionar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Adicionar</button>
       </form>
 
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-        {data.ips.length === 0 && <li className="p-4 text-center text-sm text-muted-foreground">Nenhum endereço cadastrado.</li>}
-        {data.ips.map((i) => (
-          <li key={i.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-            <code className="tabular-nums">{i.faixa}</code>
-            <span className="flex-1 text-muted-foreground">{i.descricao || ""}</span>
-            <span className="text-xs text-muted-foreground">{i.criado_por ? `por ${i.criado_por}` : ""}</span>
-            <button type="button" onClick={() => remover.mutate(i.id)} className="rounded p-1.5 text-destructive hover:bg-destructive/10" aria-label={`Remover ${i.faixa}`} title="Remover"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
-          </li>
-        ))}
-      </ul>
+      <TabelaPadrao
+        id="admin-ips" ariaLabel="IPs permitidos" titulo="IPs permitidos" linhas={data.ips} vazio="Nenhum endereço cadastrado."
+        colunas={[
+          { chave: "faixa", rotulo: "IP ou faixa", render: (i) => <code className="tabular-nums">{i.faixa}</code> },
+          { chave: "descricao", rotulo: "Descrição", render: (i) => i.descricao || <span className="text-muted-foreground">—</span> },
+          { chave: "criado_por", rotulo: "Cadastrado por", render: (i) => i.criado_por || <span className="text-muted-foreground">—</span> },
+          { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+            render: (i) => <button type="button" onClick={() => remover.mutate(i.id)} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Remover ${i.faixa}`} title="Remover"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button> },
+        ]}
+      />
     </div>
   );
 }

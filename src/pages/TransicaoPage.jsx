@@ -16,6 +16,10 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import SeletorCenarioAliquotas from "@/components/SeletorCenarioAliquotas";
 import { useTransicaoComCenario } from "@/lib/cenarioAliquotasStore";
 import { pctRef, referenciasDaTabela } from "@/motor/cenariosAliquota";
+import TabelaPadrao from "@/components/TabelaPadrao";
+
+/** Coluna de percentual: ordena pelo número e mostra no formato da tela. */
+const colunaPct = (chave, rotulo, casas) => ({ chave, rotulo, alinhar: "direita", valor: (r) => Number(r[chave]), render: (r) => pct(r[chave], casas) });
 
 const empty = {
   ano: new Date().getFullYear(), pis_cofins_fator: 1, ipi_fator_geral: 1, icms_fator: 1,
@@ -68,80 +72,42 @@ export default function TransicaoPage() {
       <SeletorCenarioAliquotas resumo={cenario} selecao={selecao} />
 
       <h2 className="font-heading font-medium text-sm -mb-2">Tabela cadastrada <span className="text-muted-foreground font-normal">(base de todos os cenários; é a que você edita aqui)</span></h2>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm whitespace-nowrap">
-          <thead className="bg-muted/40">
-            <tr className="text-left text-xs text-muted-foreground">
-              <th className="py-2.5 px-4 font-medium">Ano</th>
-              <th className="py-2.5 px-4 font-medium">PIS/Cofins</th>
-              <th className="py-2.5 px-4 font-medium">IPI</th>
-              <th className="py-2.5 px-4 font-medium">ICMS</th>
-              <th className="py-2.5 px-4 font-medium">ISS</th>
-              <th className="py-2.5 px-4 font-medium">IBS efetivo</th>
-              <th className="py-2.5 px-4 font-medium">CBS efetiva</th>
-              <th className="py-2.5 px-4 font-medium">Efeito financeiro</th>
-              <th className="py-2.5 px-4 font-medium">Redutor gov.</th>
-              <th className="py-2.5 px-4 font-medium">Caráter*</th>
-              <th className="py-2.5 px-4 font-medium w-20"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.ano}</td>
-                <td className="py-2.5 px-4">{pct(r.pis_cofins_fator, 0)}</td>
-                <td className="py-2.5 px-4">{pct(r.ipi_fator_geral, 0)}</td>
-                <td className="py-2.5 px-4">{pct(r.icms_fator, 0)}</td>
-                <td className="py-2.5 px-4">{pct(r.iss_fator, 0)}</td>
-                <td className="py-2.5 px-4">{pct(r.ibs_efetivo, 2)}</td>
-                <td className="py-2.5 px-4">{pct(r.cbs_efetiva, 2)}</td>
-                <td className="py-2.5 px-4">{r.efeito_financeiro ? "Sim" : "Não"}</td>
-                <td className="py-2.5 px-4 tabular-nums">{r.redutor_compra_gov ? pct(r.redutor_compra_gov, 2) : <span className="text-muted-foreground">—</span>}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{r.carater}</td>
-                <td className="py-2.5 px-4">
-                  <div className="flex gap-1">
-                    <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => del(r)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={11} className="py-12 text-center text-muted-foreground">Nenhum ano cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="transicao:cadastrada" ariaLabel="Tabela cadastrada" simples ordemInicial={null} linhas={rows} vazio="Nenhum ano cadastrado."
+        colunas={[
+          { chave: "ano", rotulo: "Ano", render: (r) => <span className="font-medium">{r.ano}</span> },
+          colunaPct("pis_cofins_fator", "PIS/Cofins", 0),
+          colunaPct("ipi_fator_geral", "IPI", 0),
+          colunaPct("icms_fator", "ICMS", 0),
+          colunaPct("iss_fator", "ISS", 0),
+          colunaPct("ibs_efetivo", "IBS efetivo", 2),
+          colunaPct("cbs_efetiva", "CBS efetiva", 2),
+          { chave: "efeito_financeiro", rotulo: "Efeito financeiro", valor: (r) => (r.efeito_financeiro ? "Sim" : "Não") },
+          { ...colunaPct("redutor_compra_gov", "Redutor gov.", 2), valor: (r) => (r.redutor_compra_gov ? Number(r.redutor_compra_gov) : null), render: (r) => (r.redutor_compra_gov ? pct(r.redutor_compra_gov, 2) : <span className="text-muted-foreground">—</span>) },
+          { chave: "carater", rotulo: "Caráter*" },
+          {
+            chave: "acoes", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false,
+            render: (r) => (
+              <span className="inline-flex gap-1">
+                <button type="button" onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1 rounded hover:bg-muted text-muted-foreground" aria-label={`Editar ${r.ano}`}><Pencil className="w-3.5 h-3.5" /></button>
+                <button type="button" onClick={() => del(r)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" aria-label={`Excluir ${r.ano}`}><Trash2 className="w-3.5 h-3.5" /></button>
+              </span>
+            ),
+          },
+        ]} />
 
       {(cenario.id !== "cadastrada" || cenario.redutorCompraGov) && (
         <>
           <h2 className="font-heading font-medium text-sm -mb-2">Alíquotas que os cálculos usam agora <span className="text-muted-foreground font-normal">(tabela cadastrada + cenário escolhido)</span></h2>
-          <div className="rounded-lg border border-border bg-card overflow-x-auto">
-            <table className="w-full text-sm whitespace-nowrap">
-              <thead className="bg-muted/40">
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="py-2.5 px-4 font-medium">Ano</th>
-                  <th className="py-2.5 px-4 font-medium">IBS efetivo</th>
-                  <th className="py-2.5 px-4 font-medium">CBS efetiva</th>
-                  <th className="py-2.5 px-4 font-medium">IBS + CBS</th>
-                  <th className="py-2.5 px-4 font-medium">Redutor gov.</th>
-                  <th className="py-2.5 px-4 font-medium">Origem</th>
-                </tr>
-              </thead>
-              <tbody>
-                {linhasUsadas.map((r) => (
-                  <tr key={r.ano} className="border-t border-border/50">
-                    <td className="py-2.5 px-4 font-medium">{r.ano}</td>
-                    <td className="py-2.5 px-4 tabular-nums">{pct(r.ibs_efetivo, 2)}</td>
-                    <td className="py-2.5 px-4 tabular-nums">{pct(r.cbs_efetiva, 2)}</td>
-                    <td className="py-2.5 px-4 tabular-nums">{pct(Number(r.ibs_efetivo) + Number(r.cbs_efetiva), 2)}</td>
-                    <td className="py-2.5 px-4 tabular-nums">
-                      {r.redutor_compra_gov ? <>{pct(r.redutor_compra_gov, 2)}{r.redutor_repetido_de && <span className="text-muted-foreground text-xs"> (repete {r.redutor_repetido_de})</span>}</> : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{r.status === "Cenário" ? `Cenário: ${cenario.curto}` : (r.status || "Cadastro")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TabelaPadrao id="transicao:usadas" ariaLabel="Alíquotas que os cálculos usam agora" simples ordemInicial={null} linhas={linhasUsadas} chaveLinha={(r) => r.ano}
+            colunas={[
+              { chave: "ano", rotulo: "Ano", render: (r) => <span className="font-medium">{r.ano}</span> },
+              colunaPct("ibs_efetivo", "IBS efetivo", 2),
+              colunaPct("cbs_efetiva", "CBS efetiva", 2),
+              { chave: "ibs_cbs", rotulo: "IBS + CBS", alinhar: "direita", valor: (r) => Number(r.ibs_efetivo) + Number(r.cbs_efetiva), render: (r) => pct(Number(r.ibs_efetivo) + Number(r.cbs_efetiva), 2) },
+              { ...colunaPct("redutor_compra_gov", "Redutor gov.", 2), valor: (r) => (r.redutor_compra_gov ? Number(r.redutor_compra_gov) : null), render: (r) => (r.redutor_compra_gov ? pct(r.redutor_compra_gov, 2) : <span className="text-muted-foreground">—</span>) },
+              { chave: "redutor_repetido_de", rotulo: "Redutor repetido de", valor: (r) => (r.redutor_compra_gov && r.redutor_repetido_de ? r.redutor_repetido_de : "") },
+              { chave: "origem", rotulo: "Origem", valor: (r) => (r.status === "Cenário" ? `Cenário: ${cenario.curto}` : (r.status || "Cadastro")) },
+            ]} />
         </>
       )}
 

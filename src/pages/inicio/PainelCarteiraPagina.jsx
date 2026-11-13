@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { plural } from "@/lib/plural";
 
 const MapaDaCarteira = lazy(() => import("@/components/inicio/MapaDaCarteira"));
@@ -109,10 +110,12 @@ export default function PainelCarteiraPagina() {
                   <MapaDaCarteira municipios={r.por_municipio} />
                 </Suspense>
                 <div className="max-h-[380px] overflow-y-auto">
-                  <table className="w-full text-[13px]" aria-label="Empresas por município">
-                    <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-1">Município</th><th className="py-1 text-right">Empresas</th></tr></thead>
-                    <tbody>{r.por_municipio.map((m) => <tr key={`${m.uf}-${m.municipio}`} className="border-b border-border/50"><td className="py-1">{m.municipio}/{m.uf}{m.latitude === null && <span className="ml-1 text-[10px] text-muted-foreground">(sem ponto)</span>}</td><td className="py-1 text-right tabular-nums">{m.total}</td></tr>)}</tbody>
-                  </table>
+                  <TabelaPadrao simples id="carteira-municipios" ariaLabel="Empresas por município" linhas={r.por_municipio} chaveLinha={(m) => `${m.uf}-${m.municipio}`} ordemInicial={{ chave: "total", dir: -1 }}
+                    colunas={[
+                      { chave: "municipio", rotulo: "Município", valor: (m) => `${m.municipio}/${m.uf}`, render: (m) => <>{m.municipio}/{m.uf}{m.latitude === null && <span className="ml-1 text-[10px] text-muted-foreground">(sem ponto)</span>}</> },
+                      { chave: "total", rotulo: "Empresas", tipo: "numero", alinhar: "direita" },
+                    ]}
+                  />
                 </div>
               </div>
               {r.saude.sem_ponto_no_mapa > 0 && <p className="text-xs text-muted-foreground">{plural(r.saude.sem_ponto_no_mapa, "empresa", "empresas")} sem ponto no mapa.</p>}
@@ -122,9 +125,13 @@ export default function PainelCarteiraPagina() {
               <section className="rounded-xl border border-border bg-card p-4" aria-labelledby="titulo-cnae">
                 <h2 id="titulo-cnae" className="mb-2 font-heading text-sm font-semibold">Atividade principal (CNAE)</h2>
                 {r.por_cnae.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum CNAE ainda.</p> : (
-                  <table className="w-full text-[13px]" aria-label="Empresas por CNAE">
-                    <tbody>{r.por_cnae.slice(0, 15).map((c) => <tr key={c.codigo} className="border-b border-border/50"><td className="py-1 pr-2 tabular-nums">{c.codigo.replace(/^(\d{4})(\d)(\d{2})$/, "$1-$2/$3")}</td><td className="py-1 pr-2">{c.descricao}</td><td className="py-1 text-right tabular-nums">{c.total}</td></tr>)}</tbody>
-                  </table>
+                  <TabelaPadrao simples id="carteira-cnae" ariaLabel="Empresas por CNAE" linhas={r.por_cnae.slice(0, 15)} chaveLinha={(c) => c.codigo} ordemInicial={{ chave: "total", dir: -1 }}
+                    colunas={[
+                      { chave: "codigo", rotulo: "CNAE", valor: (c) => c.codigo.replace(/^(\d{4})(\d)(\d{2})$/, "$1-$2/$3"), render: (c) => <span className="tabular-nums">{c.codigo.replace(/^(\d{4})(\d)(\d{2})$/, "$1-$2/$3")}</span> },
+                      { chave: "descricao", rotulo: "Descrição", quebrar: true },
+                      { chave: "total", rotulo: "Empresas", tipo: "numero", alinhar: "direita" },
+                    ]}
+                  />
                 )}
               </section>
               <section className="rounded-xl border border-border bg-card p-4 space-y-2" aria-labelledby="titulo-saude">

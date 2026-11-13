@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { Link } from "react-router-dom";
 import { Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,19 +29,16 @@ function Cartao({ rotulo, valor, destaque, aoClicar, ativo }) {
   return aoClicar ? <button type="button" onClick={aoClicar} className={`${classe} hover:bg-muted/50`}>{conteudo}</button> : <div className={classe}>{conteudo}</div>;
 }
 
-/** Selo do serviço de uma empresa num tipo: situação, responsável e a data de início; "—" quando não há. */
+/** Selo do serviço de uma empresa num tipo (situação e o botão de editar); "Definir" quando não há. */
 export function SeloDoServico({ servico, aoEditar, rotuloVazio = "Definir" }) {
   if (!servico) {
     return <button type="button" onClick={aoEditar} className="text-xs text-muted-foreground underline-offset-2 hover:text-primary hover:underline">{rotuloVazio}</button>;
   }
   return (
-    <div className="flex items-start gap-1.5">
-      <div className="min-w-0">
-        <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_DA_SITUACAO[servico.situacao] || "bg-muted"}`}>{SITUACOES[servico.situacao] || servico.situacao}</span>
-        {(servico.responsavel || servico.inicio) && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{[servico.responsavel, servico.inicio ? `desde ${fmtDataCurta(servico.inicio)}` : null].filter(Boolean).join(" · ")}</p>}
-      </div>
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_DA_SITUACAO[servico.situacao] || "bg-muted"}`}>{SITUACOES[servico.situacao] || servico.situacao}</span>
       <button type="button" onClick={aoEditar} className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Editar serviço" title="Editar"><Pencil className="h-3 w-3" aria-hidden="true" /></button>
-    </div>
+    </span>
   );
 }
 
@@ -65,11 +62,23 @@ export default function ServicosContratadosPagina() {
   }, [empresas, mapa, filtros, porEmpresa, colaboradores]);
   const sugestoes = useMemo(() => [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort(), [servicos]);
   const grupoDe = (e) => grupos.find((g) => g.numero === e.grupo);
-  const todasMarcadas = lista.length > 0 && lista.every((e) => marcadas.has(e.id));
   const mudar = (chave, valor) => setFiltros((f) => ({ ...f, [chave]: valor }));
-  const alternar = (id) => setMarcadas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const alternarTodas = () => setMarcadas(todasMarcadas ? new Set() : new Set(lista.map((e) => e.id)));
   const abrir = (empresasAlvo, servico = null, tipoInicial) => setDialogo({ empresas: empresasAlvo, servico, tipoInicial });
+  const nomeDoGrupo = (e) => { const g = grupoDe(e); return g ? `${g.numero} ${g.nome}` : e.grupo || ""; };
+  const servicoDe = (e, tipo) => mapa.get(e.id)?.[tipo];
+  const CURTO = { BPO_FISCAL: "do BPO", DIAGNOSTICO_PONTUAL: "do diagnóstico" };
+  const colunas = [
+    { chave: "razao_social", rotulo: "Empresa", render: (e) => <span className="font-medium">{e.razao_social}</span> },
+    { chave: "documento", rotulo: "CNPJ/CPF", valor: (e) => e.cnpj_cpf || e.id_empresa || "", render: (e) => <span className="tabular-nums text-muted-foreground">{e.cnpj_cpf || e.id_empresa || "—"}</span> },
+    { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", "), render: (e) => <EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} aoEditar={() => setDialogoTags([e])} /> },
+    { chave: "grupo", rotulo: "Grupo", valor: nomeDoGrupo, render: (e) => <span className="text-muted-foreground">{nomeDoGrupo(e) || "—"}</span> },
+    ...Object.keys(TIPOS).flatMap((tipo) => [
+      { chave: `situacao_${tipo}`, rotulo: TIPOS[tipo], valor: (e) => SITUACOES[servicoDe(e, tipo)?.situacao] || "",
+        render: (e) => <SeloDoServico servico={servicoDe(e, tipo)} aoEditar={() => abrir([e], servicoDe(e, tipo) || null, tipo)} /> },
+      { chave: `responsavel_${tipo}`, rotulo: `Responsável ${CURTO[tipo]}`, valor: (e) => servicoDe(e, tipo)?.responsavel || "", render: (e) => servicoDe(e, tipo)?.responsavel || <span className="text-muted-foreground">—</span> },
+      { chave: `inicio_${tipo}`, rotulo: `Início ${CURTO[tipo]}`, tipo: "data", valor: (e) => servicoDe(e, tipo)?.inicio || "", render: (e) => fmtDataCurta(servicoDe(e, tipo)?.inicio) },
+    ]),
+  ];
   const selecionadas = empresas.filter((e) => marcadas.has(e.id));
   const { user } = useAuth();
   const confirmar = useConfirmar();
@@ -124,14 +133,6 @@ export default function ServicosContratadosPagina() {
                 <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
               </select></label>
             <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
-            <BotaoExportar titulo="Serviços contratados" linhas={lista} colunas={[
-              { chave: "razao_social", rotulo: "Empresa" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" },
-              { chave: "grupo", rotulo: "Grupo", valor: (e) => { const g = grupoDe(e); return g ? `${g.numero} ${g.nome}` : e.grupo || ""; } },
-              { chave: "bpo", rotulo: "BPO fiscal", valor: (e) => SITUACOES[mapa.get(e.id)?.BPO_FISCAL?.situacao] || "" },
-              { chave: "bpo_resp", rotulo: "Responsável do BPO", valor: (e) => mapa.get(e.id)?.BPO_FISCAL?.responsavel || "" },
-              { chave: "diag", rotulo: "Diagnóstico pontual", valor: (e) => SITUACOES[mapa.get(e.id)?.DIAGNOSTICO_PONTUAL?.situacao] || "" },
-              { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", ") },
-            ]} />
           </div>
 
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -155,35 +156,15 @@ export default function ServicosContratadosPagina() {
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px] leading-5" aria-label="Serviços contratados por empresa">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-2 w-8"><input type="checkbox" aria-label="Marcar todas as empresas da lista" checked={todasMarcadas} onChange={alternarTodas} /></th>
-                  <th className="py-1.5 pr-3">Empresa</th><th className="py-1.5 pr-3">Grupo</th>
-                  <th className="py-1.5 pr-3">{TIPOS.BPO_FISCAL}</th><th className="py-1.5 pr-3">{TIPOS.DIAGNOSTICO_PONTUAL}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {carregando && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-                {!carregando && erro && <tr><td colSpan={5} className="py-8 text-center" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></td></tr>}
-                {!carregando && !erro && lista.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">{empresas.length === 0 ? <>Nenhuma empresa cadastrada. <Link to="/" className="text-primary hover:underline">Cadastre o cliente em Clientes</Link>.</> : "Nenhuma empresa com esses filtros."}</td></tr>}
-                {lista.map((e) => {
-                  const porTipo = mapa.get(e.id) || {};
-                  const g = grupoDe(e);
-                  return (
-                    <tr key={e.id} className="border-b border-border/60 hover:bg-muted/40 align-top">
-                      <td className="py-1.5 pr-2"><input type="checkbox" aria-label={`Marcar ${e.razao_social}`} checked={marcadas.has(e.id)} onChange={() => alternar(e.id)} /></td>
-                      <td className="py-1.5 pr-3"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p><EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} aoEditar={() => setDialogoTags([e])} /></td>
-                      <td className="py-1.5 pr-3 whitespace-nowrap text-muted-foreground">{g ? `${g.numero} ${g.nome}` : e.grupo || "—"}</td>
-                      <td className="py-1.5 pr-3"><SeloDoServico servico={porTipo.BPO_FISCAL} aoEditar={() => abrir([e], porTipo.BPO_FISCAL || null, "BPO_FISCAL")} /></td>
-                      <td className="py-1.5 pr-3"><SeloDoServico servico={porTipo.DIAGNOSTICO_PONTUAL} aoEditar={() => abrir([e], porTipo.DIAGNOSTICO_PONTUAL || null, "DIAGNOSTICO_PONTUAL")} /></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {carregando && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+          {!carregando && erro && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
+          {!carregando && !erro && (
+            <TabelaPadrao
+              id="servicos-contratados" ariaLabel="Serviços contratados por empresa" titulo="Serviços contratados" colunas={colunas} linhas={lista}
+              selecao={{ marcadas, aoMudar: setMarcadas }}
+              vazio={empresas.length === 0 ? <>Nenhuma empresa cadastrada. <Link to="/" className="text-primary hover:underline">Cadastre o cliente em Clientes</Link>.</> : "Nenhuma empresa com esses filtros."}
+            />
+          )}
           <p className="text-xs text-muted-foreground">{lista.length} de {plural(empresas.length, "empresa", "empresas")}</p>
         </div>
       </div>

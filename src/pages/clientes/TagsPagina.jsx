@@ -7,12 +7,12 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import PageHeader from "@/components/PageHeader";
 import TagChip from "@/components/clientes/TagChip";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { CORES_DAS_TAGS } from "@/lib/tags";
 import { useTags } from "@/lib/useTags";
 import { plural } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 function Cores({ valor, aoMudar, rotulo }) {
   return (
@@ -32,14 +32,9 @@ export function PainelDaEtiqueta({ tag, empresas, porEmpresa, ehAdmin, aoApagada
   const [cor, setCor] = useState(tag.cor);
   const salvasIds = useMemo(() => empresas.filter((e) => (porEmpresa?.[e.id] || []).includes(tag.id)).map((e) => e.id), [empresas, porEmpresa, tag.id]);
   const [marcadas, setMarcadas] = useState(null);
-  const [busca, setBusca] = useState("");
   const selecionadas = marcadas ?? salvasIds;
   const recarregar = () => qc.invalidateQueries({ queryKey: ["tags"] });
   const falha = (titulo) => (e) => toast({ title: titulo, description: e.message, variant: "destructive" });
-  const lista = useMemo(() => {
-    const t = semAcento(busca).trim();
-    return empresas.filter((e) => !t || semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t));
-  }, [empresas, busca]);
 
   const salvarDados = useMutation({
     mutationFn: () => api.put(`/tags/${tag.id}`, { nome, cor }),
@@ -76,25 +71,20 @@ export function PainelDaEtiqueta({ tag, empresas, porEmpresa, ehAdmin, aoApagada
       <div className="space-y-2">
         <div className="flex flex-wrap items-end gap-2 text-sm">
           <h2 className="font-heading text-sm font-semibold">Empresas com esta etiqueta</h2>
-          <label className="ml-auto space-y-1 min-w-[200px]"><span className="sr-only">Buscar empresa</span><input type="search" placeholder="Buscar empresa" className={`${campo} w-full`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
-          <button type="button" disabled={(entram === 0 && saem === 0) || salvarEmpresas.isPending} onClick={() => salvarEmpresas.mutate()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+          <button type="button" disabled={(entram === 0 && saem === 0) || salvarEmpresas.isPending} onClick={() => salvarEmpresas.mutate()} className="ml-auto inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
             {salvarEmpresas.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar empresas
           </button>
         </div>
         {(entram > 0 || saem > 0) && <p role="status" className="text-xs text-muted-foreground">Ainda não salvo: {entram} recebem a etiqueta e {saem} perdem.</p>}
-        <div className="max-h-[420px] overflow-y-auto">
-          <table className="w-full text-[13px] leading-5" aria-label={`Empresas da etiqueta ${tag.nome}`}>
-            <tbody>
-              {lista.map((e) => (
-                <tr key={e.id} className="border-b border-border/60">
-                  <td className="w-8 py-1.5 pr-2"><input type="checkbox" checked={selecionadas.includes(e.id)} onChange={() => alternar(e.id)} aria-label={`${e.razao_social} com a etiqueta ${tag.nome}`} /></td>
-                  <td className="py-1.5"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p></td>
-                </tr>
-              ))}
-              {lista.length === 0 && <tr><td className="py-6 text-center text-muted-foreground">Nenhuma empresa encontrada.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <TabelaPadrao
+          id="etiqueta-empresas" ariaLabel={`Empresas da etiqueta ${tag.nome}`} linhas={empresas} vazio="Nenhuma empresa encontrada." ordemInicial={{ chave: "razao_social", dir: 1 }}
+          colunas={[
+            { chave: "com_etiqueta", rotulo: "Com a etiqueta", filtravel: false, valor: (e) => (selecionadas.includes(e.id) ? "Sim" : "Não"),
+              render: (e) => <input type="checkbox" checked={selecionadas.includes(e.id)} onChange={() => alternar(e.id)} aria-label={`${e.razao_social} com a etiqueta ${tag.nome}`} /> },
+            { chave: "razao_social", rotulo: "Empresa", render: (e) => <span className="font-medium">{e.razao_social}</span> },
+            { chave: "documento", rotulo: "CNPJ/CPF", valor: (e) => e.cnpj_cpf || e.id_empresa || "", render: (e) => <span className="tabular-nums text-muted-foreground">{e.cnpj_cpf || e.id_empresa || "—"}</span> },
+          ]}
+        />
       </div>
     </div>
   );

@@ -44,7 +44,8 @@ describe("Obrigações e agenda", () => {
   it("obrigações do mês: data, data legal quando movida, competência, regimes e fonte; sem fonte aparece 'não confirmado'", () => {
     const html = renderizar(<AbaObrigacoes empresas={EMPRESAS} />);
     expect(html).toContain("13/11/2026");
-    expect(html).toContain("data legal 15/11/2026");
+    expect(html).toContain("Data legal");
+    expect(html).toMatch(/>15\/11\/2026</);
     expect(html).toContain("IN RFB nº 2.005/2021, art. 19");
     expect(html).toContain("“até o dia 15”");
     expect(html).toContain("Todos os regimes");

@@ -13,7 +13,7 @@ import { mascararDocumento } from "@/lib/clientes";
 import { plural } from "@/lib/plural";
 
 const COLUNAS_VINCULOS = [
-  { chave: "cnpj", rotulo: "CNPJ", render: (l) => <span className="tabular-nums">{mascararDocumento(l.cnpj)}</span>, quebrar: false },
+  { chave: "cnpj", rotulo: "CNPJ", render: (l) => <span className="tabular-nums">{mascararDocumento(l.cnpj)}</span> },
   { chave: "tipo", rotulo: "Estabelecimento" },
   { chave: "situacao", rotulo: "Situação cadastral" },
   { chave: "uf", rotulo: "UF" },
@@ -21,7 +21,7 @@ const COLUNAS_VINCULOS = [
   { chave: "cliente", rotulo: "No InTAX", valor: (l) => (l.cliente ? `${l.cliente.razao_social}${l.cliente.arquivado ? " (arquivado)" : ""}` : "Não é cliente"), render: (l) => (l.cliente ? <Link to={`/clientes/${l.cliente.id}`} className="text-primary hover:underline">{l.cliente.razao_social}{l.cliente.arquivado ? " (arquivado)" : ""}</Link> : <span className="text-amber-700 dark:text-amber-400">Não é cliente</span>) },
 ];
 const COLUNAS_RENUNCIAS = [
-  { chave: "id", rotulo: "Renúncia", quebrar: false },
+  { chave: "id", rotulo: "Renúncia" },
   { chave: "cnpj", rotulo: "CNPJ", render: (l) => <span className="tabular-nums">{mascararDocumento(l.cnpj)}</span> },
   { chave: "data", rotulo: "Data", tipo: "data" },
   { chave: "situacao", rotulo: "Situação" },

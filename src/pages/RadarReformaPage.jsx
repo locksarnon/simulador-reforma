@@ -5,6 +5,7 @@ import { Radar, RefreshCw, ExternalLink, AlertCircle, ArrowRight } from "lucide-
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { plural } from "@/lib/plural";
 
 const PRIORIDADE_ORDEM = { Alta: 0, Média: 1, Baixa: 2 };
@@ -176,29 +177,15 @@ export default function RadarReformaPage() {
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
               Histórico de execuções ({execucoes.length})
             </summary>
-            <div className="mt-2 rounded-lg border border-border bg-card overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase tracking-wide">
-                    <th className="px-3 py-2 font-medium">Semana</th>
-                    <th className="px-3 py-2 font-medium">Disparo</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
-                    <th className="px-3 py-2 font-medium">Itens</th>
-                    <th className="px-3 py-2 font-medium">Executado em</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {execucoes.map((e, idx) => (
-                    <tr key={e.id} className={`border-b border-border last:border-0 ${idx % 2 === 1 ? "bg-muted/15" : ""}`}>
-                      <td className="px-3 py-2">{e.semana_referencia}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{e.disparo}</td>
-                      <td className="px-3 py-2">{e.status}</td>
-                      <td className="px-3 py-2">{e.itens_gerados}</td>
-                      <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{fmtData(e.executado_em)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-2">
+              <TabelaPadrao id="radar:execucoes" ariaLabel="Histórico de execuções" simples linhas={execucoes} ordemInicial={{ chave: "executado_em", dir: -1 }}
+                colunas={[
+                  { chave: "semana_referencia", rotulo: "Semana" },
+                  { chave: "disparo", rotulo: "Disparo" },
+                  { chave: "status", rotulo: "Status" },
+                  { chave: "itens_gerados", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
+                  { chave: "executado_em", rotulo: "Executado em", tipo: "data", render: (e) => fmtData(e.executado_em) },
+                ]} />
             </div>
           </details>
         )}

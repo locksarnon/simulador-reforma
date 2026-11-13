@@ -4,50 +4,59 @@ import { Download, Info, Loader2 } from "lucide-react";
 import { api } from "@/api/client";
 import { hojeIso } from "./logica";
 import { grupoSaneado } from "./analise";
-import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { ACOES, ORDEM_SITUACOES, SITUACOES, decisaoFiscalDe, decisaoValida, itensDoGrupoFiscal, leituraFiscal, linhasMatriz, mapaClasses, podeConcluir, resumoDeLeituras } from "./fiscal";
 import { indexar, motivoSemIdentidade } from "./identidade";
 import { gerarXlsxFiscal } from "./matrizFiscal";
 
 const slugTxt = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 const formatarNcm = (v) => { const s = String(v ?? "").replace(/\D/g, ""); return s.length === 8 ? `${s.slice(0, 4)}.${s.slice(4, 6)}.${s.slice(6)}` : String(v ?? ""); };
-const RANQUE = Object.fromEntries(ORDEM_SITUACOES.map((s, i) => [s, i]));
 const EM_LOTE = ["BENEFICIO", "SEM_CLASSE", "DIVERGENTE"]; // situações em que "adotar a classe sugerida" pode ser feito em bloco
 
-/** Decisão do analista em uma linha: escolhe a ação e, quando a ação pede, o NCM correto ou o fundamento escrito. */
-function CelulaDecisao({ l, d, travada, motivoBloqueio, onMudar }) {
-  const acoes = SITUACOES[l.situacao].acoes.filter((a) => a !== "ACEITAR" || l.sugerida);
-  if (!acoes.length) return <span className="text-muted-foreground">—</span>;
-  if (motivoBloqueio) return <p className="text-[11px] text-amber-700 dark:text-amber-300 max-w-[220px]">{motivoBloqueio}. Corrija no ERP e traga a base de novo.</p>;
-  const valida = decisaoValida(l.situacao, l, d);
-  return (
-    <div className="space-y-1">
-      <select value={d?.acao || ""} disabled={travada} onChange={(e) => onMudar(l.id, e.target.value ? { acao: e.target.value } : null)} aria-label={`Decisão fiscal do código ${l.id}`} className="border rounded px-1 py-0.5 bg-background text-xs max-w-[220px]">
-        <option value="">Decidir…</option>
-        {acoes.map((a) => <option key={a} value={a}>{ACOES[a]}</option>)}
-      </select>
-      {d?.acao === "NCM" && <input value={d.ncm || ""} disabled={travada} onChange={(e) => onMudar(l.id, { ncm: e.target.value })} placeholder="NCM correto (8 dígitos)" aria-label={`NCM correto do código ${l.id}`} className="block w-40 border rounded px-1 py-0.5 bg-background text-xs tabular-nums" />}
-      {d?.acao === "MANTER" && <input value={d.obs || ""} disabled={travada} onChange={(e) => onMudar(l.id, { obs: e.target.value })} placeholder="Fundamento (base legal ou requisito do produto)" aria-label={`Fundamento do código ${l.id}`} className="block w-56 border rounded px-1 py-0.5 bg-background text-xs" />}
-      {d && !valida && <p className="text-[11px] text-amber-700 dark:text-amber-300">{d.acao === "NCM" ? "Informe o NCM com 8 dígitos." : d.acao === "MANTER" ? "Escreva o fundamento (ao menos 5 caracteres)." : "Decisão incompleta."}</p>}
-    </div>
-  );
+const acoesDe = (l) => SITUACOES[l.situacao].acoes.filter((a) => a !== "ACEITAR" || l.sugerida);
+/** Aviso da decisão de uma linha: item sem código que o identifique, ou decisão incompleta. */
+function avisoDecisao(l, d, motivoBloqueio) {
+  if (!acoesDe(l).length) return "";
+  if (motivoBloqueio) return `${motivoBloqueio}. Corrija no ERP e traga a base de novo.`;
+  if (!d || decisaoValida(l.situacao, l, d)) return "";
+  return d.acao === "NCM" ? "Informe o NCM com 8 dígitos." : d.acao === "MANTER" ? "Escreva o fundamento (ao menos 5 caracteres)." : "Decisão incompleta.";
+}
+
+/**
+ * Colunas da decisão do analista em uma linha: a ação, o complemento que a ação pede (o NCM correto ou o fundamento escrito) e o aviso. Cada informação na sua coluna.
+ */
+function colunasDecisao({ decisoes, travada, bloqueio, onMudar }) {
+  return [
+    { chave: "decisao", rotulo: "Decisão", valor: (l) => { const d = decisaoFiscalDe(decisoes, l); return d ? ACOES[d.acao] : ""; }, render: (l) => {
+      const acoes = acoesDe(l); if (!acoes.length || bloqueio(l)) return <span className="text-muted-foreground">—</span>;
+      const d = decisaoFiscalDe(decisoes, l);
+      return (
+        <select value={d?.acao || ""} disabled={travada} onChange={(e) => onMudar(l.id, e.target.value ? { acao: e.target.value } : null)} aria-label={`Decisão fiscal do código ${l.id}`} className="border rounded px-1 py-0.5 bg-background text-xs">
+          <option value="">Decidir…</option>
+          {acoes.map((a) => <option key={a} value={a}>{ACOES[a]}</option>)}
+        </select>);
+    } },
+    { chave: "complemento", rotulo: "NCM correto ou fundamento", valor: (l) => { const d = decisaoFiscalDe(decisoes, l); return d?.acao === "NCM" ? d.ncm || "" : d?.acao === "MANTER" ? d.obs || "" : ""; }, render: (l) => {
+      if (!acoesDe(l).length || bloqueio(l)) return null;
+      const d = decisaoFiscalDe(decisoes, l);
+      if (d?.acao === "NCM") return <input value={d.ncm || ""} disabled={travada} onChange={(e) => onMudar(l.id, { ncm: e.target.value })} placeholder="NCM correto (8 dígitos)" aria-label={`NCM correto do código ${l.id}`} className="w-40 border rounded px-1 py-0.5 bg-background text-xs tabular-nums" />;
+      if (d?.acao === "MANTER") return <input value={d.obs || ""} disabled={travada} onChange={(e) => onMudar(l.id, { obs: e.target.value })} placeholder="Fundamento (base legal ou requisito do produto)" aria-label={`Fundamento do código ${l.id}`} className="w-56 border rounded px-1 py-0.5 bg-background text-xs" />;
+      return null;
+    } },
+    { chave: "aviso", rotulo: "Aviso", quebrar: true, valor: (l) => avisoDecisao(l, decisaoFiscalDe(decisoes, l), bloqueio(l)), render: (l) => { const t = avisoDecisao(l, decisaoFiscalDe(decisoes, l), bloqueio(l)); return t ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{t}</span> : null; } },
+  ];
 }
 
 /** Um grupo liberado para a revisão fiscal: resumo por situação, filtro, tabela de itens com decisão e a conclusão do grupo. */
 function GrupoFiscal({ g, todosItens, saem, classes, decisoes, concl, onMudar, onLote, onConcluir, onReabrir, onEmitir }) {
   const [aberto, setAberto] = useState(false);
   const [filtro, setFiltro] = useState("DECIDIR");
-  const [limite, setLimite] = useState(100);
-  const [ord, ordenar] = useOrdenacao();
   const itens = useMemo(() => itensDoGrupoFiscal(g.itens, g.nome, saem), [g, saem]);
   const indice = useMemo(() => indexar(todosItens), [todosItens]);
   const leituras = useMemo(() => itens.map((it) => leituraFiscal(it, classes, indice)), [itens, classes, indice]);
   const resumo = useMemo(() => resumoDeLeituras(leituras, decisoes), [leituras, decisoes]);
   const filtradas = useMemo(() => leituras.filter((l) => (filtro === "TODAS" ? true : filtro === "DECIDIR" ? SITUACOES[l.situacao].decide : l.situacao === filtro)), [leituras, filtro]);
-  const linhas = useMemo(() => ordenarPor(filtradas, ord, {
-    codigo: (l) => l.codigo, descricao: (l) => l.descricao, ncm: (l) => l.ncm, informada: (l) => l.informada, sugerida: (l) => l.sugerida, fundamento: (l) => l.fundamento,
-    situacao: (l) => RANQUE[l.situacao], decisao: (l) => (decisaoFiscalDe(decisoes, l) ? ACOES[decisaoFiscalDe(decisoes, l).acao] : ""),
-  }), [filtradas, ord, decisoes]);
   const semDecisao = filtradas.filter((l) => SITUACOES[l.situacao].decide && !decisaoValida(l.situacao, l, decisaoFiscalDe(decisoes, l)));
   const decidiveis = semDecisao.filter((l) => !l.semIdentidade); // item sem código (ou com código repetido) não recebe decisão: fica como pendência do grupo
   const aceitaveis = decidiveis.filter((l) => EM_LOTE.includes(l.situacao) && l.sugerida); // em bloco só onde adotar a sugestão é o ajuste esperado; nos demais o analista decide item a item
@@ -62,7 +71,7 @@ function GrupoFiscal({ g, todosItens, saem, classes, decisoes, concl, onMudar, o
       <div className="space-y-3">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Situação fiscal dos itens">
           {[["DECIDIR", "Pedem decisão", resumo.precisaDecidir], ...ORDEM_SITUACOES.filter((s) => resumo.porSit[s] > 0).map((s) => [s, SITUACOES[s].rotulo, resumo.porSit[s]]), ["TODAS", "Todas", resumo.total]].map(([id, rot, n]) => (
-            <button key={id} type="button" aria-pressed={filtro === id} onClick={() => { setFiltro(id); setLimite(100); }}
+            <button key={id} type="button" aria-pressed={filtro === id} onClick={() => setFiltro(id)}
               className={`px-2.5 py-1 text-xs rounded-md border ${filtro === id ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted"}`}>{rot} <span className="tabular-nums opacity-70">{fmt(n)}</span></button>))}
         </div>
         {!travada && decidiveis.length > 0 && (
@@ -70,28 +79,24 @@ function GrupoFiscal({ g, todosItens, saem, classes, decisoes, concl, onMudar, o
             {aceitaveis.length > 0 && <Botao title="Cria a decisão de adotar a classe sugerida nos itens listados que ainda não têm decisão. Nada é alterado no cadastro." onClick={() => onLote(aceitaveis.map((l) => l.id), "ACEITAR")}>Adotar a classe sugerida {aceitaveis.length === 1 ? "no item sem decisão" : `nos ${fmt(aceitaveis.length)} itens sem decisão`}</Botao>}
             <Botao title="Registra os itens listados como pendência para o especialista fiscal." onClick={() => onLote(decidiveis.map((l) => l.id), "REVISAR")}>{decidiveis.length === 1 ? "Marcar o item sem decisão" : `Marcar os ${fmt(decidiveis.length)} itens sem decisão`} como a revisar com especialista</Botao>
           </div>)}
-        {linhas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item nesta situação.</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead><tr className="text-left text-muted-foreground">
-                <Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><Th chave="ncm" ord={ord} onOrdenar={ordenar}>NCM</Th>
-                <Th chave="informada" ord={ord} onOrdenar={ordenar}>cClassTrib informado</Th><Th chave="sugerida" ord={ord} onOrdenar={ordenar}>cClassTrib sugerido</Th><Th chave="fundamento" ord={ord} onOrdenar={ordenar}>Fundamento</Th>
-                <Th chave="situacao" ord={ord} onOrdenar={ordenar}>Situação e proposta</Th><Th chave="decisao" ord={ord} onOrdenar={ordenar}>Decisão</Th>
-              </tr></thead>
-              <tbody>{linhas.slice(0, limite).map((l) => (
-                <tr key={l.linha} className="border-t border-border align-top">
-                  <td className="p-1.5 whitespace-nowrap tabular-nums">{l.codigo || "—"}</td>
-                  <td className="p-1.5 max-w-[240px] break-words">{l.descricao || "—"}</td>
-                  <td className="p-1.5 whitespace-nowrap tabular-nums">{diferentes(l) ? <><span className="text-muted-foreground line-through">{formatarNcm(l.ncmOriginal)}</span><div className="font-medium">{formatarNcm(l.ncm)}</div></> : formatarNcm(l.ncm || l.ncmOriginal) || "—"}</td>
-                  <td className="p-1.5 whitespace-nowrap">{l.informada || "—"}{l.cstInformada && <div className="text-[11px] text-muted-foreground">CST {l.cstInformada}</div>}</td>
-                  <td className="p-1.5 max-w-[220px]">{l.sugerida ? <><b className="font-medium">{l.sugerida}</b>{l.cstSugerida && <span className="text-[11px] text-muted-foreground"> · CST {l.cstSugerida}</span>}<div className="text-[11px] text-muted-foreground break-words">{l.reducao && `redução ${l.reducao}`}{l.descricaoClasse && ` · ${l.descricaoClasse}`}</div></> : "—"}</td>
-                  <td className="p-1.5 max-w-[220px] break-words text-muted-foreground">{l.fundamento || "—"}{l.confianca && <div className="text-[11px]">{l.confianca}</div>}</td>
-                  <td className="p-1.5 max-w-[280px]"><Chip tom={SITUACOES[l.situacao].tom}>{SITUACOES[l.situacao].rotulo}</Chip><div className="mt-0.5 text-[11px] text-muted-foreground break-words">{l.proposta}</div>{l.mensagem && <div className="mt-0.5 text-[11px] text-muted-foreground break-words">{l.mensagem}</div>}</td>
-                  <td className="p-1.5"><CelulaDecisao l={l} d={decisaoFiscalDe(decisoes, l)} travada={travada} motivoBloqueio={l.semIdentidade ? motivoSemIdentidade(l, indice) : ""} onMudar={onMudar} /></td>
-                </tr>))}</tbody>
-            </table>
-            {linhas.length > limite && <button type="button" onClick={() => setLimite(limite + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(linhas.length - limite)} restantes)</button>}
-          </div>)}
+        <TabelaPadrao id="saneamento-fiscal-itens" ariaLabel={`Revisão fiscal do grupo ${g.nome}`} linhas={filtradas} chaveLinha={(l) => l.linha} tamanhoInicial={100} vazio="Nenhum item nesta situação." colunas={[
+          { chave: "codigo", rotulo: "Código", valor: (l) => l.codigo || "—" },
+          { chave: "descricao", rotulo: "Descrição", valor: (l) => l.descricao || "—" },
+          { chave: "ncm", rotulo: "NCM", valor: (l) => formatarNcm(l.ncm || l.ncmOriginal) || "—", render: (l) => <span className={`tabular-nums ${diferentes(l) ? "font-medium" : ""}`}>{formatarNcm(l.ncm || l.ncmOriginal) || "—"}</span> },
+          { chave: "ncmOriginal", rotulo: "NCM original", valor: (l) => (diferentes(l) ? formatarNcm(l.ncmOriginal) : ""), render: (l) => (diferentes(l) ? <span className="tabular-nums text-muted-foreground line-through">{formatarNcm(l.ncmOriginal)}</span> : null) },
+          { chave: "informada", rotulo: "cClassTrib informado", valor: (l) => l.informada || "—" },
+          { chave: "cstInformada", rotulo: "CST informado", valor: (l) => l.cstInformada || "" },
+          { chave: "sugerida", rotulo: "cClassTrib sugerido", valor: (l) => l.sugerida || "—", render: (l) => (l.sugerida ? <b className="font-medium">{l.sugerida}</b> : "—") },
+          { chave: "cstSugerida", rotulo: "CST sugerido", valor: (l) => (l.sugerida ? l.cstSugerida || "" : "") },
+          { chave: "reducao", rotulo: "Redução", valor: (l) => (l.sugerida ? l.reducao || "" : "") },
+          { chave: "descricaoClasse", rotulo: "Descrição da classe", quebrar: true, valor: (l) => (l.sugerida ? l.descricaoClasse || "" : "") },
+          { chave: "fundamento", rotulo: "Fundamento", quebrar: true, valor: (l) => l.fundamento || "—", render: (l) => <span className="text-muted-foreground">{l.fundamento || "—"}</span> },
+          { chave: "confianca", rotulo: "Confiança", valor: (l) => l.confianca || "" },
+          { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACOES[l.situacao].rotulo, render: (l) => <Chip tom={SITUACOES[l.situacao].tom}>{SITUACOES[l.situacao].rotulo}</Chip> },
+          { chave: "proposta", rotulo: "Proposta", quebrar: true, valor: (l) => l.proposta || "", render: (l) => <span className="text-muted-foreground">{l.proposta}</span> },
+          { chave: "mensagem", rotulo: "Mensagem", quebrar: true, valor: (l) => l.mensagem || "", render: (l) => <span className="text-muted-foreground">{l.mensagem}</span> },
+          ...colunasDecisao({ decisoes, travada, bloqueio: (l) => (l.semIdentidade ? motivoSemIdentidade(l, indice) : ""), onMudar }),
+        ]} />
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
           <Botao disabled={!concl && !pode} onClick={concl ? onReabrir : onConcluir} title={!concl && !pode ? "Decida ou marque como a revisar todos os itens que pedem decisão" : undefined}>{concl ? "Reabrir a revisão do grupo" : "Concluir a revisão fiscal do grupo"}</Botao>
           <Botao onClick={onEmitir}><Download className="w-3.5 h-3.5 inline mr-1" />Matriz fiscal do grupo (Excel)</Botao>

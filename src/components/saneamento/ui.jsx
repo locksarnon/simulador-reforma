@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { dataBr as dataBrBase } from "./logica";
 import { ordenarPor, proximaOrdem } from "./ordenacao";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 export { ordenarPor };
 export const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
@@ -26,9 +27,9 @@ export function Acc({ aberto, onToggle, titulo, children }) {
   );
 }
 
-/** Ordenação de uma tabela: [ordem, ordenar(chave)]. Cada clique na mesma coluna alterna crescente, decrescente e a ordem original. */
-export function useOrdenacao() {
-  const [ord, setOrd] = useState(null);
+/** Ordenação de uma tabela: [ordem, ordenar(chave)]. Cada clique na mesma coluna alterna crescente, decrescente e a ordem original. `inicial` = ordem de partida ({ chave, dir }). */
+export function useOrdenacao(inicial = null) {
+  const [ord, setOrd] = useState(inicial);
   return [ord, (chave) => setOrd((o) => proximaOrdem(o, chave))];
 }
 
@@ -44,19 +45,18 @@ export function Th({ chave, ord, onOrdenar, className = "p-1.5", title, children
   );
 }
 
-const ROT_ITENS = { linha: "Linha", codigo: "Código", descricao: "Descrição", unidade: "Unidade", ultima_mov: "Última mov.", situacao: "Situação" };
-/** Tabela de itens (linha, código, descrição, unidade, última movimentação) ordenável por qualquer coluna, com "Mostrar mais". */
-export function TabelaItens({ itens, colunas }) {
-  const [n, setN] = useState(50);
-  const [ord, ordenar] = useOrdenacao();
-  const lista = useMemo(() => ordenarPor(itens, ord, Object.fromEntries(colunas.map((c) => [c, (i) => i[c]]))), [itens, ord, colunas]);
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground">{colunas.map((c) => <Th key={c} chave={c} ord={ord} onOrdenar={ordenar}>{ROT_ITENS[c]}</Th>)}</tr></thead>
-        <tbody>{lista.slice(0, n).map((i) => <tr key={i.linha} className="border-t border-border">{colunas.map((c) => <td key={c} className={`p-1.5 ${c === "descricao" ? "max-w-[320px]" : ""}`}>{c === "ultima_mov" ? dataBr(i[c]) : (i[c] ?? "") || "—"}</td>)}</tr>)}</tbody></table>
-      {lista.length > n && <button type="button" onClick={() => setN(n + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(lista.length - n)} restantes)</button>}
-    </div>
-  );
+const COL_ITENS = {
+  linha: { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita" },
+  codigo: { chave: "codigo", rotulo: "Código" },
+  descricao: { chave: "descricao", rotulo: "Descrição" },
+  unidade: { chave: "unidade", rotulo: "Unidade" },
+  ultima_mov: { chave: "ultima_mov", rotulo: "Última mov.", tipo: "data" },
+  situacao: { chave: "situacao", rotulo: "Situação" },
+};
+/** Tabela de itens (linha, código, descrição, unidade, última movimentação) na tabela padrão: busca, filtros, ordenação e paginação. */
+export function TabelaItens({ itens, colunas, id = "saneamento-itens" }) {
+  const cols = useMemo(() => colunas.map((c) => COL_ITENS[c] || { chave: c, rotulo: c }), [colunas]);
+  return <TabelaPadrao id={id} ariaLabel="Itens" colunas={cols} linhas={itens} chaveLinha={(i) => i.linha} tamanhoInicial={50} vazio="Nenhum item." />;
 }
 
 export const Botao = ({ className = "", ...p }) => <button type="button" {...p} className={`px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:border-dashed ${className}`} />;

@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { ABAS_DE_DOCUMENTOS, base, dividirEmLotes, documentoDoEvento, fmtData, fmtDoc, fmtMoeda, importavelNoImportador, MAX_PDF_NO_ZIP, nomeDoPdf, ORIGENS, PORTAIS_NOTAS_EMITIDAS, rotuloTipo, situacaoCiencia, temPdf, TIPOS } from "./formatos";
 import { plural } from "@/lib/plural";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 /** Linhas por página: 10, 50, 100, 500 ou todas (0). "Todas" busca em partes de 500 até o teto abaixo. */
 const OPCOES_POR_PAGINA = [10, 50, 100, 500, 0];
@@ -193,9 +194,6 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
     catch (e) { toast({ title: "Não foi possível abrir o PDF", description: e.message, variant: "destructive" }); }
   };
 
-  const todosMarcados = itens.length > 0 && itens.every((d) => selecionados.has(d.id));
-  const alternarTodos = () => setSelecionados(todosMarcados ? new Set() : new Set(itens.map((d) => d.id)));
-  const alternar = (id) => setSelecionados((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
     <div className="space-y-4">
@@ -291,61 +289,43 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
           <span className="text-xs text-muted-foreground">{isFetching ? "Atualizando…" : plural(total, "documento", "documentos")}</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px] leading-5">
-            <thead>
-              <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                <th className="py-1.5 pr-2 w-8"><input type="checkbox" aria-label={todas ? "Selecionar todos os exibidos" : "Selecionar todos da página"} checked={todosMarcados} onChange={alternarTodos} /></th>
-                <th className="py-1.5 pr-3">Tipo</th><th className="py-1.5 pr-3">Nº / série</th><th className="py-1.5 pr-3">Emissão</th>
-                <th className="py-1.5 pr-3">Emitente</th><th className="py-1.5 pr-3 text-right">Valor</th><th className="py-1.5 pr-3">Situação</th>
-                <th className="py-1.5 pr-3">Origem</th>{soResumos && <th className="py-1.5 pr-3">Ciência da Operação</th>}<th className="py-1.5 pr-3">Importador</th><th className="py-1.5 w-20"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <tr><td colSpan={soResumos ? 11 : 10} className="py-8 text-center text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline" /> Carregando…</td></tr>}
-              {!isLoading && itens.length === 0 && (
-                <tr><td colSpan={soResumos ? 11 : 10} className="py-8 text-center text-muted-foreground">
-                  {soResumos ? "Nenhum resumo nem evento neste repositório ainda. Quando a captura trouxer um resumo sem o XML completo ou um evento (como um cancelamento), ele aparece aqui." : ABAS_DE_DOCUMENTOS.find((a) => a.grupo === grupo)?.vazio || "Nenhum documento neste repositório ainda. Envie os XML do cliente acima."}
-                </td></tr>
+        <TabelaPadrao simples id={soResumos ? "repo-xml-resumos" : "repo-xml-documentos"} ariaLabel={soResumos ? "Resumos e eventos" : "Documentos do repositório"}
+          linhas={itens} chaveLinha={(d) => d.id}
+          selecao={{ marcadas: selecionados, aoMudar: setSelecionados }}
+          vazio={isLoading ? <><Loader2 className="w-4 h-4 animate-spin inline" /> Carregando…</> : soResumos ? "Nenhum resumo nem evento neste repositório ainda. Quando a captura trouxer um resumo sem o XML completo ou um evento (como um cancelamento), ele aparece aqui." : ABAS_DE_DOCUMENTOS.find((a) => a.grupo === grupo)?.vazio || "Nenhum documento neste repositório ainda. Envie os XML do cliente acima."}
+          colunas={[
+            { chave: "tipo", rotulo: "Tipo", valor: (d) => rotuloTipo(d) },
+            ...(soResumos ? [
+              { chave: "evento_tipo", rotulo: "Evento", valor: (d) => (d.tipo === "EVENTO" ? d.evento_tipo || "" : "") },
+              { chave: "evento_documento", rotulo: "Documento do evento", valor: (d) => (d.tipo === "EVENTO" ? documentoDoEvento(d) : "") },
+            ] : []),
+            { chave: "numero", rotulo: "Número", alinhar: "direita", valor: (d) => (d.numero == null || d.numero === "" ? null : Number(d.numero) || String(d.numero)), render: (d) => <span title={d.chave}>{d.numero ?? "—"}</span> },
+            { chave: "serie", rotulo: "Série", alinhar: "direita", valor: (d) => (d.serie == null || d.serie === "" ? null : Number(d.serie) || String(d.serie)), render: (d) => d.serie ?? "" },
+            { chave: "data_emissao", rotulo: "Emissão", tipo: "data", render: (d) => fmtData(d.data_emissao) },
+            { chave: "emitente_nome", rotulo: "Emitente", valor: (d) => d.emitente_nome || "" },
+            { chave: "emitente_doc", rotulo: "CNPJ/CPF do emitente", valor: (d) => (d.emitente_doc ? fmtDoc(d.emitente_doc) : ""), render: (d) => <span className="tabular-nums">{d.emitente_doc ? fmtDoc(d.emitente_doc) : ""}</span> },
+            { chave: "valor_total", rotulo: "Valor", alinhar: "direita", valor: (d) => (d.valor_total == null || d.valor_total === "" ? null : Number(d.valor_total)), render: (d) => fmtMoeda(d.valor_total) },
+            { chave: "situacao", rotulo: "Situação", valor: (d) => (d.situacao ? d.situacao.charAt(0) + d.situacao.slice(1).toLowerCase() : ""), render: (d) => d.situacao && <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${SITUACAO[d.situacao] || "bg-muted"}`}>{d.situacao.charAt(0) + d.situacao.slice(1).toLowerCase()}</span> },
+            { chave: "origem", rotulo: "Origem", valor: (d) => ORIGENS[d.origem] || d.origem || "" },
+            ...(soResumos ? [
+              { chave: "ciencia", rotulo: "Ciência da Operação", valor: (d) => situacaoCiencia(d).rotulo, render: (d) => { const c = situacaoCiencia(d); return <span title={c.dica || undefined} className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_CIENCIA[c.tom]}`}>{c.rotulo}</span>; } },
+              { chave: "ciencia_em", rotulo: "Data da Ciência", tipo: "data", valor: (d) => (d.ciencia_em && ["REGISTRADA", "REJEITADA"].includes(d.ciencia_status) ? d.ciencia_em : null), render: (d) => (d.ciencia_em && ["REGISTRADA", "REJEITADA"].includes(d.ciencia_status) ? fmtData(d.ciencia_em) : "") },
+            ] : []),
+            { chave: "importador", rotulo: "Importador", valor: (d) => (!noImportador(d) ? "" : d.lote_importacao_id ? "Enviado" : "Pendente"), render: (d) => (!noImportador(d) ? <span className="text-muted-foreground" title={d.conteudo === "COMPLETO" ? "O importador ainda não lê este tipo de documento (NFS-e e MDF-e); ele fica guardado aqui" : "Só o resumo está guardado: o importador lê só o XML completo"}>—</span> : d.lote_importacao_id ? <span className="text-emerald-700 dark:text-emerald-400">Enviado</span> : <span className="text-amber-700 dark:text-amber-400">Pendente</span>) },
+            { chave: "importado_em", rotulo: "Enviado em", tipo: "data", valor: (d) => (noImportador(d) && d.lote_importacao_id ? d.importado_em || null : null), render: (d) => (noImportador(d) && d.lote_importacao_id ? fmtData(d.importado_em) : "") },
+          ]}
+          documentos={(d) => (
+            <div className="flex items-center justify-end gap-1">
+              <button type="button" onClick={() => baixarUm(d)} title="Baixar o XML" aria-label={`Baixar ${d.chave}`} className={botaoIcone}><Download className="w-3.5 h-3.5" /></button>
+              {temPdf(d) && (
+                <>
+                  <button type="button" onClick={() => visualizarPdf(d)} title="Visualizar o PDF" aria-label={`Visualizar o PDF de ${d.chave}`} className={botaoIcone}><Eye className="w-3.5 h-3.5" /></button>
+                  <button type="button" onClick={() => baixarPdf(d)} title="Baixar o PDF" aria-label={`Baixar o PDF de ${d.chave}`} className={botaoIcone}><FileDown className="w-3.5 h-3.5" /></button>
+                </>
               )}
-              {itens.map((d) => {
-                const ciencia = soResumos ? situacaoCiencia(d) : null;
-                return (
-                  <tr key={d.id} className="border-b border-border/60 hover:bg-muted/40">
-                    <td className="py-1 pr-2"><input type="checkbox" aria-label={`Selecionar ${d.chave}`} checked={selecionados.has(d.id)} onChange={() => alternar(d.id)} /></td>
-                    <td className="py-1 pr-3 whitespace-nowrap">{rotuloTipo(d)}{d.tipo === "EVENTO" && <span className="text-xs text-muted-foreground"> {[d.evento_tipo, documentoDoEvento(d)].filter(Boolean).join(" · ")}</span>}</td>
-                    <td className="py-1 pr-3 whitespace-nowrap tabular-nums" title={d.chave}>{d.numero ?? "—"}{d.serie ? ` / ${d.serie}` : ""}</td>
-                    <td className="py-1 pr-3 whitespace-nowrap">{fmtData(d.data_emissao)}</td>
-                    <td className="py-1 pr-3 max-w-[340px]" title={[d.emitente_nome, fmtDoc(d.emitente_doc)].filter(Boolean).join(" · ")}><span className="block truncate">{d.emitente_nome ? <>{d.emitente_nome} <span className="text-xs text-muted-foreground tabular-nums">{fmtDoc(d.emitente_doc)}</span></> : <span className="tabular-nums">{fmtDoc(d.emitente_doc)}</span>}</span></td>
-                    <td className="py-1 pr-3 text-right tabular-nums whitespace-nowrap">{fmtMoeda(d.valor_total)}</td>
-                    <td className="py-1 pr-3 whitespace-nowrap">
-                      {d.situacao && <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${SITUACAO[d.situacao] || "bg-muted"}`}>{d.situacao.charAt(0) + d.situacao.slice(1).toLowerCase()}</span>}
-                    </td>
-                    <td className="py-1 pr-3 whitespace-nowrap">{ORIGENS[d.origem] || d.origem}</td>
-                    {soResumos && (
-                      <td className="py-1 pr-3 whitespace-nowrap" title={ciencia.dica || undefined}>
-                        <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_CIENCIA[ciencia.tom]}`}>{ciencia.rotulo}</span>
-                        {d.ciencia_em && ["REGISTRADA", "REJEITADA"].includes(d.ciencia_status) && <span className="text-xs text-muted-foreground"> {fmtData(d.ciencia_em)}</span>}
-                      </td>
-                    )}
-                    <td className="py-1 pr-3 whitespace-nowrap">{!noImportador(d) ? <span className="text-muted-foreground" title={d.conteudo === "COMPLETO" ? "O importador ainda não lê este tipo de documento (NFS-e e MDF-e); ele fica guardado aqui" : "Só o resumo está guardado: o importador lê só o XML completo"}>—</span> : d.lote_importacao_id ? <span className="text-emerald-700 dark:text-emerald-400">Enviado {fmtData(d.importado_em)}</span> : <span className="text-amber-700 dark:text-amber-400">Pendente</span>}</td>
-                    <td className="py-1">
-                      <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => baixarUm(d)} title="Baixar o XML" aria-label={`Baixar ${d.chave}`} className={botaoIcone}><Download className="w-3.5 h-3.5" /></button>
-                        {temPdf(d) && (
-                          <>
-                            <button type="button" onClick={() => visualizarPdf(d)} title="Visualizar o PDF" aria-label={`Visualizar o PDF de ${d.chave}`} className={botaoIcone}><Eye className="w-3.5 h-3.5" /></button>
-                            <button type="button" onClick={() => baixarPdf(d)} title="Baixar o PDF" aria-label={`Baixar o PDF de ${d.chave}`} className={botaoIcone}><FileDown className="w-3.5 h-3.5" /></button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          )}
+        />
 
         {todas ? (
           total > TETO_TODAS && (

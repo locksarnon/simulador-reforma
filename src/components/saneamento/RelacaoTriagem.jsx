@@ -20,7 +20,7 @@ export default function RelacaoTriagem({ id, itens, escopo, corte, semDataFora, 
     return q ? base.filter((it) => semAcento(`${it.codigo} ${it.descricao} ${grupoDe(it)} ${it.unidade}`).includes(q)) : base;
   }, [base, filtro]);
   const comSituacao = id === "universo";
-  const [ord, ordenar] = useOrdenacao();
+  const [ord, ordenar] = useOrdenacao({ chave: "codigo", dir: 1 });
   // o Excel sai com o que está na tela: o filtro e também a ordem escolhida
   const ordenada = useMemo(() => ordenarPor(lista, ord, { codigo: (it) => it.codigo, descricao: (it) => it.descricao, unidade: (it) => it.unidade, grupo: (it) => grupoDe(it), ultima: (it) => it.ultima_mov, situacao: (it) => situacao(it) }), [lista, ord, situacao]);
 
@@ -49,12 +49,12 @@ export default function RelacaoTriagem({ id, itens, escopo, corte, semDataFora, 
       {msg && <p className="text-xs text-muted-foreground" role="status">{msg}</p>}
       {base.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item nesta relação.</p> : lista.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum item corresponde ao filtro.</p> : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead><tr className="text-left text-muted-foreground"><Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><Th chave="unidade" ord={ord} onOrdenar={ordenar}>Unidade</Th><Th chave="grupo" ord={ord} onOrdenar={ordenar}>Grupo</Th><Th chave="ultima" ord={ord} onOrdenar={ordenar}>Última mov.</Th>{comSituacao && <Th chave="situacao" ord={ord} onOrdenar={ordenar}>Situação</Th>}</tr></thead>
+          <table className="w-full text-[13px] leading-5 border-collapse">
+            <thead><tr className="text-left text-xs text-muted-foreground whitespace-nowrap"><Th className="px-2 py-1.5" chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th className="px-2 py-1.5" chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><Th className="px-2 py-1.5" chave="unidade" ord={ord} onOrdenar={ordenar}>Unidade</Th><Th className="px-2 py-1.5" chave="grupo" ord={ord} onOrdenar={ordenar}>Grupo</Th><Th className="px-2 py-1.5" chave="ultima" ord={ord} onOrdenar={ordenar}>Última mov.</Th>{comSituacao && <Th className="px-2 py-1.5" chave="situacao" ord={ord} onOrdenar={ordenar}>Situação</Th>}</tr></thead>
             <tbody>{ordenada.slice(0, mostrar).map((it) => (
-              <tr key={it.linha} className="border-t border-border">
-                <td className="p-1.5">{it.codigo || "—"}</td><td className="p-1.5 max-w-[320px]">{it.descricao || "—"}</td><td className="p-1.5">{it.unidade || "—"}</td>
-                <td className="p-1.5">{grupoDe(it)}</td><td className="p-1.5 tabular-nums">{dataBr(it.ultima_mov)}</td>{comSituacao && <td className="p-1.5">{situacao(it)}</td>}
+              <tr key={it.linha} className="border-t border-border align-middle [&>td]:whitespace-nowrap [&>td]:px-2 [&>td]:py-1">
+                <td>{it.codigo || "—"}</td><td>{it.descricao || "—"}</td><td>{it.unidade || "—"}</td>
+                <td>{grupoDe(it)}</td><td className="tabular-nums">{dataBr(it.ultima_mov)}</td>{comSituacao && <td>{situacao(it)}</td>}
               </tr>))}</tbody>
           </table>
           {lista.length > mostrar && <button type="button" onClick={() => setMostrar(mostrar + 200)} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(lista.length - mostrar)} restantes)</button>}

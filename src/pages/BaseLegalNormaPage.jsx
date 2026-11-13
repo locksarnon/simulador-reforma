@@ -22,7 +22,7 @@ function TextoLegal({ texto }) {
   const tabela = linhas.filter((l) => l.includes(" | ")).length > linhas.length / 2;
   if (tabela) {
     return <div className="overflow-x-auto"><table className="text-xs border-collapse w-full"><tbody>{linhas.map((l, i) => (
-      <tr key={i} className={i % 2 ? "bg-muted/40" : ""}>{l.split(" | ").map((c, k) => <td key={k} className="border border-border px-2 py-1 align-top">{c}</td>)}</tr>
+      <tr key={i} className={`align-middle ${i % 2 ? "bg-muted/40" : ""}`}>{l.split(" | ").map((c, k) => <td key={k} className={`border border-border px-2 py-1 ${c.length > 60 ? "min-w-[16rem]" : "whitespace-nowrap"}`}>{c}</td>)}</tr>
     ))}</tbody></table></div>;
   }
   return <div className="space-y-2 text-[15px] leading-relaxed">{linhas.map((l, i) => <p key={i} className={recuo(l)}>{l}</p>)}</div>;

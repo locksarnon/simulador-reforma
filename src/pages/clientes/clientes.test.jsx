@@ -56,8 +56,8 @@ describe("Serviços contratados", () => {
     expect(html).toContain("Buscar (nome, código ou CNPJ)");
     expect(html).toContain("Só BPO fiscal");
     expect(html).toContain("Sem carteira");
-    expect(html).toContain('aria-label="Marcar todas as empresas da lista"');
-    expect(html).toContain('aria-label="Marcar EXTRA AGRO LTDA"');
+    expect(html).toContain('aria-label="Marcar todas"');
+    expect((html.match(/aria-label="Marcar a linha"/g) || []).length).toBe(3);
   });
 
   it("o cartão Sem carteira fica em destaque quando há empresa sem carteira", () => {

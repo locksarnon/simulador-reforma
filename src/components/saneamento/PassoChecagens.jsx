@@ -6,7 +6,8 @@ import { checagens, linhasEvidencia, resumoChecagens, textoCobertura, textoConcl
 import { AbasCriterios, AcaoAprovacao, AvisoCriterio, ChipConclusao, SelosCriterio } from "./CriterioUi";
 import ChecagensResumo from "./ChecagensResumo";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { Acc, Botao, Chip, TabelaItens, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Acc, Botao, Chip, TabelaItens, dataBr, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import ExportarAnalises from "./ExportarAnalises";
 import TabelaAchados, { LegendaEncaminhar, rotuloEncaminhar } from "./TabelaAchados";
 import ConjuntosDuplicidade, { LegendaConjuntos } from "./ConjuntosDuplicidade";
@@ -77,7 +78,6 @@ export default function PassoChecagens({ estado, setEstado, grupos, achados, con
   const confirmar = useConfirmar();
   const [aberto, setAberto] = useState({});
   const [exportando, setExportando] = useState(false);
-  const [ordGrupos, ordenarGrupos] = useOrdenacao();
   const crit = CRITERIOS.find((c) => c.id === ativo);
   const cEst = estado.criterios[crit.id] || {};
   const sit = situacaoCriterio(estado, crit, contagem);
@@ -217,7 +217,6 @@ export default function PassoChecagens({ estado, setEstado, grupos, achados, con
     const falta = criteriosPendentesDoGrupo(estado, g.nome, contagem); const pode = falta.length === 0; const san = !!estado.saneados[g.nome] && pode;
     return { g, san, falta, pode, rank: san ? 2 : pode ? 1 : 0 };
   }), [grupos, estado, contagem]);
-  const gruposOrdenados = useMemo(() => ordenarPor(linhasGrupos, ordGrupos, { grupo: (x) => x.g.nome, itens: (x) => x.g.itens.length, situacao: (x) => x.rank }), [linhasGrupos, ordGrupos]);
   const regraAberta = estaAberto(`regra|${crit.id}`, sit === "PENDENTE" || sit === "SEM_ANALISE"); // a regra que pede aprovação abre sozinha
 
   return (
@@ -257,13 +256,14 @@ export default function PassoChecagens({ estado, setEstado, grupos, achados, con
       {temBase && (
         <Acc aberto={!!aberto.__grupos} onToggle={() => alternar("__grupos")} titulo={<><b className="font-medium">Situação por grupo</b><span className="text-xs text-muted-foreground">{nSan} de {grupos.length} saneados</span></>}>
           {grupos.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum grupo em escopo.</p> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="grupo" ord={ordGrupos} onOrdenar={ordenarGrupos}>Grupo</Th><Th chave="itens" ord={ordGrupos} onOrdenar={ordenarGrupos}>Itens</Th><Th chave="situacao" ord={ordGrupos} onOrdenar={ordenarGrupos}>Situação</Th><th className="p-1.5"></th></tr></thead>
-                <tbody>{gruposOrdenados.map(({ g, san, falta, pode }) => (
-                  <tr key={g.nome} className="border-t border-border align-top">
-                    <td className="p-1.5">{g.nome}</td><td className="p-1.5 tabular-nums">{fmt(g.itens.length)}</td>
-                    <td className="p-1.5">{san ? <Chip tom="g">Saneado</Chip> : falta.length === 0 ? <Chip tom="b">Pronto para sanear</Chip> : <span className="text-muted-foreground">faltam{" "}{falta.slice(0, 3).map((c, i) => <React.Fragment key={c.id}>{i > 0 && ", "}<button type="button" className="underline text-primary" onClick={() => onSelecionar(c.id)}>{c.titulo}{{ PENDENTE: " (regra a aprovar)", SEM_ANALISE: " (análise não executada)" }[situacaoCriterio(estado, c, contagem)] ?? ""}</button></React.Fragment>)}{falta.length > 3 ? `+${falta.length - 3}` : ""}</span>}</td>
-                    <td className="p-1.5 whitespace-nowrap"><Botao disabled={!san && !pode} onClick={() => alternarSaneado(g.nome)}>{san ? "Reabrir grupo" : "Marcar como saneado"}</Botao></td></tr>))}</tbody></table>
+            <div>
+              <TabelaPadrao id="saneamento-situacao-grupos" ariaLabel="Situação por grupo" linhas={linhasGrupos} chaveLinha={(x) => x.g.nome} colunas={[
+                { chave: "grupo", rotulo: "Grupo", valor: (x) => x.g.nome },
+                { chave: "itens", rotulo: "Itens", tipo: "numero", alinhar: "direita", valor: (x) => x.g.itens.length },
+                { chave: "situacao", rotulo: "Situação", valor: (x) => (x.san ? "Saneado" : x.falta.length === 0 ? "Pronto para sanear" : `faltam ${x.falta.map((c) => c.titulo).join(", ")}`),
+                  render: ({ san, falta }) => (san ? <Chip tom="g">Saneado</Chip> : falta.length === 0 ? <Chip tom="b">Pronto para sanear</Chip> : <span className="text-muted-foreground">faltam{" "}{falta.slice(0, 3).map((c, i) => <React.Fragment key={c.id}>{i > 0 && ", "}<button type="button" className="underline text-primary" onClick={() => onSelecionar(c.id)}>{c.titulo}{{ PENDENTE: " (regra a aprovar)", SEM_ANALISE: " (análise não executada)" }[situacaoCriterio(estado, c, contagem)] ?? ""}</button></React.Fragment>)}{falta.length > 3 ? ` +${falta.length - 3}` : ""}</span>) },
+                { chave: "acao", rotulo: "Ação", ordenavel: false, filtravel: false, valor: () => "", render: ({ g, san, pode }) => <Botao disabled={!san && !pode} onClick={() => alternarSaneado(g.nome)}>{san ? "Reabrir grupo" : "Marcar como saneado"}</Botao> },
+              ]} />
               <p className="text-xs text-muted-foreground pt-2">O grupo só encerra com todas as checagens aplicáveis concluídas nele, as de conferência manual inclusive (resultado e evidência escrita). A checagem que não se aplica ao projeto precisa de justificativa escrita.</p>
             </div>)}
         </Acc>)}

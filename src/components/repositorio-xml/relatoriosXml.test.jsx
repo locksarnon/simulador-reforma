@@ -207,7 +207,8 @@ describe("tela do relatório Geral", () => {
     const muitas = geral({ linhas: Array.from({ length: 600 }, (_, i) => linhaGeral({ id: `d${i}`, numero: String(i + 1) })), truncado: true });
     const html = renderizar(<ResultadoGeral dados={muitas} aoBaixar={() => {}} baixando={null} />);
     const tabelaDeDocumentos = html.slice(html.indexOf('aria-label="Documentos do período"'));
-    expect(tabelaDeDocumentos.match(/<tr /g)).toHaveLength(501); // o cabeçalho e 500 linhas
+    expect(tabelaDeDocumentos.match(/<tr /g)).toHaveLength(51); // o cabeçalho e a primeira página (50 linhas)
+    expect(tabelaDeDocumentos).toContain("500 linhas"); // a tabela recebe só as 500 primeiras
     expect(html).toContain("Mostrando as primeiras 500 de 600 linhas. O Excel e o CSV trazem todas.");
     expect(html).toContain("A lista foi cortada no limite de 600 linhas");
   });

@@ -8,11 +8,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Plus, Pencil, Library } from "lucide-react";
+import { Plus, Pencil, Library } from "lucide-react";
 import { pct } from "@/lib/format";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao, { textoDaColuna } from "@/components/TabelaPadrao";
 import { PRODUTOS_COMBUSTIVEL } from "@/motor/combustiveis";
 
 /** <input type="date"> exige "YYYY-MM-DD" — corta o resto do ISO. */
@@ -52,10 +53,31 @@ function FixedSelect({ label, value, fallback, options, onChange }) {
   );
 }
 
-function VigenciaBadge({ inicio, fim }) {
-  if (!inicio && !fim) return <span className="text-muted-foreground">—</span>;
-  const fmt = (d) => new Date(d).toLocaleDateString("pt-BR");
-  return <span>{inicio ? fmt(inicio) : "sempre"} → {fim ? fmt(fim) : "sem fim"}</span>;
+/** Data da vigência numa coluna própria; vazio mostra o texto indicado. */
+function colunaData(chave, rotulo, vazio) {
+  const col = { chave, rotulo, tipo: "data" };
+  return { ...col, render: (r) => (r[chave] ? textoDaColuna(col, r) : <span className="text-muted-foreground">{vazio}</span>) };
+}
+
+/** Início e fim da vigência em duas colunas. */
+function colunasVigencia(inicioKey = "vigencia_inicio", fimKey = "vigencia_fim", rotulo = "Vigência") {
+  return [colunaData(inicioKey, `${rotulo}: início`, "sempre"), colunaData(fimKey, `${rotulo}: fim`, "sem fim")];
+}
+
+/** Botão de editar da linha. */
+function colunaEditar(aoEditar, nome = (r) => r.codigo) {
+  return {
+    chave: "editar", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false,
+    render: (r) => <button type="button" onClick={() => aoEditar(r)} className="p-1 rounded hover:bg-muted text-muted-foreground" aria-label={`Editar ${nome(r)}`}><Pencil className="w-3.5 h-3.5" /></button>,
+  };
+}
+
+function BotaoNovo({ onClick }) {
+  return (
+    <button type="button" onClick={onClick} className="inline-flex h-8 items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-xs hover:bg-primary/90">
+      <Plus className="w-3.5 h-3.5" /> Novo
+    </button>
+  );
 }
 
 export default function CatalogosPage() {
@@ -90,25 +112,24 @@ export default function CatalogosPage() {
   );
 }
 
-function SearchBar({ value, onChange }) {
-  return (
-    <div className="relative max-w-xs">
-      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Buscar..." className="pl-8" />
-    </div>
-  );
-}
-
 function CstTable() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["cstIbs"], queryFn: () => api.entities.CstIbsCbs.list() });
-  const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [open, setOpen] = useState(false);
-  const rows = (data || []).filter((r) => !q || (r.cst + " " + (r.descricao_oficial || "")).toLowerCase().includes(q.toLowerCase()));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const empty = { cst: "", descricao_oficial: "", exige_tributacao: "Sim", observacao: "", status: "Ativo", vigencia_inicio: "", vigencia_fim: "" };
+  const editar = (r) => { setForm(r); setEditing(r); setOpen(true); };
+  const colunas = [
+    { chave: "cst", rotulo: "CST", render: (r) => <span className="font-medium">{r.cst}</span> },
+    { chave: "descricao_oficial", rotulo: "Descrição oficial", quebrar: true },
+    { chave: "exige_tributacao", rotulo: "Tributação" },
+    { chave: "diferimento", rotulo: "Diferimento" },
+    ...colunasVigencia(),
+    { chave: "status", rotulo: "Status" },
+    colunaEditar(editar, (r) => r.cst),
+  ];
 
   const save = async (e) => {
     e.preventDefault();
@@ -119,40 +140,8 @@ function CstTable() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SearchBar value={q} onChange={setQ} />
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Novo
-        </button>
-      </div>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2.5 px-4 font-medium">CST</th><th className="py-2.5 px-4 font-medium">Descrição oficial</th>
-            <th className="py-2.5 px-4 font-medium">Tributação</th><th className="py-2.5 px-4 font-medium">Diferimento</th>
-            <th className="py-2.5 px-4 font-medium">Vigência</th>
-            <th className="py-2.5 px-4 font-medium">Status</th><th className="py-2.5 px-4 font-medium w-20"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.cst}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{r.descricao_oficial}</td>
-                <td className="py-2.5 px-4">{r.exige_tributacao}</td>
-                <td className="py-2.5 px-4">{r.diferimento}</td>
-                <td className="py-2.5 px-4 text-xs"><VigenciaBadge inicio={r.vigencia_inicio} fim={r.vigencia_fim} /></td>
-                <td className="py-2.5 px-4">{r.status}</td>
-                <td className="py-2.5 px-4">
-                  <div className="flex gap-1">
-                    <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">Nenhum CST cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="catalogos:cst" ariaLabel="CST IBS/CBS" colunas={colunas} linhas={data || []} vazio="Nenhum CST cadastrado."
+        acoes={<BotaoNovo onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} />} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing === "new" ? "Novo CST" : `Editar ${editing?.cst}`}</DialogTitle></DialogHeader>
@@ -179,13 +168,21 @@ function CstTable() {
 function ClassTribTable() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["classTrib"], queryFn: () => api.entities.ClassTrib.list() });
-  const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [open, setOpen] = useState(false);
-  const rows = (data || []).filter((r) => !q || (r.c_class_trib + " " + (r.descricao_oficial || "")).toLowerCase().includes(q.toLowerCase()));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const empty = { c_class_trib: "", cst: "000", descricao_oficial: "", pct_reducao_ibs: 0, pct_reducao_cbs: 0, status: "Ativo", vigencia_inicio: "", vigencia_fim: "" };
+  const editar = (r) => { setForm(r); setEditing(r); setOpen(true); };
+  const colunas = [
+    { chave: "c_class_trib", rotulo: "cClassTrib", render: (r) => <span className="font-medium">{r.c_class_trib}</span> },
+    { chave: "cst", rotulo: "CST" },
+    { chave: "descricao_oficial", rotulo: "Descrição", quebrar: true },
+    { chave: "pct_reducao_ibs", rotulo: "Red. IBS", alinhar: "direita", valor: (r) => Number(r.pct_reducao_ibs) || 0, render: (r) => pct(r.pct_reducao_ibs) },
+    { chave: "pct_reducao_cbs", rotulo: "Red. CBS", alinhar: "direita", valor: (r) => Number(r.pct_reducao_cbs) || 0, render: (r) => pct(r.pct_reducao_cbs) },
+    ...colunasVigencia(),
+    colunaEditar(editar, (r) => r.c_class_trib),
+  ];
 
   const save = async (e) => {
     e.preventDefault();
@@ -196,39 +193,8 @@ function ClassTribTable() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SearchBar value={q} onChange={setQ} />
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Novo
-        </button>
-      </div>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2.5 px-4 font-medium">cClassTrib</th><th className="py-2.5 px-4 font-medium">CST</th>
-            <th className="py-2.5 px-4 font-medium">Descrição</th><th className="py-2.5 px-4 font-medium">Red. IBS</th>
-            <th className="py-2.5 px-4 font-medium">Red. CBS</th>
-            <th className="py-2.5 px-4 font-medium">Vigência</th>
-            <th className="py-2.5 px-4 font-medium w-20"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.c_class_trib}</td>
-                <td className="py-2.5 px-4">{r.cst}</td>
-                <td className="py-2.5 px-4 text-muted-foreground max-w-[420px] truncate">{r.descricao_oficial}</td>
-                <td className="py-2.5 px-4">{pct(r.pct_reducao_ibs)}</td>
-                <td className="py-2.5 px-4">{pct(r.pct_reducao_cbs)}</td>
-                <td className="py-2.5 px-4 text-xs"><VigenciaBadge inicio={r.vigencia_inicio} fim={r.vigencia_fim} /></td>
-                <td className="py-2.5 px-4">
-                  <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">Nenhum código cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="catalogos:classtrib" ariaLabel="cClassTrib" colunas={colunas} linhas={data || []} vazio="Nenhum código cadastrado."
+        acoes={<BotaoNovo onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} />} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing === "new" ? "Novo cClassTrib" : `Editar ${editing?.c_class_trib}`}</DialogTitle></DialogHeader>
@@ -255,12 +221,21 @@ function ClassTribTable() {
 function CredPresTable() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["credPres"], queryFn: () => api.entities.CredPres.list() });
-  const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [open, setOpen] = useState(false);
-  const rows = (data || []).filter((r) => !q || (r.c_cred_pres + " " + (r.descricao_oficial || "")).toLowerCase().includes(q.toLowerCase()));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const editar = (r) => { setForm(r); setEditing(r); setOpen(true); };
+  const colunas = [
+    { chave: "c_cred_pres", rotulo: "cCredPres", render: (r) => <span className="font-medium">{r.c_cred_pres}</span> },
+    { chave: "descricao_oficial", rotulo: "Descrição oficial", quebrar: true },
+    { chave: "ibs_aplicavel", rotulo: "IBS" },
+    { chave: "cbs_aplicavel", rotulo: "CBS" },
+    { chave: "percentual_oficial", rotulo: "% oficial" },
+    ...colunasVigencia("inicio_ibs", "fim_ibs", "Vigência IBS"),
+    ...colunasVigencia("inicio_cbs", "fim_cbs", "Vigência CBS"),
+    colunaEditar(editar, (r) => r.c_cred_pres),
+  ];
   const empty = {
     c_cred_pres: "", descricao_oficial: "",
     ibs_aplicavel: "Não", cbs_aplicavel: "Não", metodo_calculo: "Direto",
@@ -278,41 +253,8 @@ function CredPresTable() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SearchBar value={q} onChange={setQ} />
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Novo
-        </button>
-      </div>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2.5 px-4 font-medium">cCredPres</th><th className="py-2.5 px-4 font-medium">Descrição oficial</th>
-            <th className="py-2.5 px-4 font-medium">IBS</th><th className="py-2.5 px-4 font-medium">CBS</th>
-            <th className="py-2.5 px-4 font-medium">% oficial</th>
-            <th className="py-2.5 px-4 font-medium">Vigência IBS</th>
-            <th className="py-2.5 px-4 font-medium">Vigência CBS</th>
-            <th className="py-2.5 px-4 font-medium w-20"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.c_cred_pres}</td>
-                <td className="py-2.5 px-4 text-muted-foreground max-w-[480px] truncate">{r.descricao_oficial}</td>
-                <td className="py-2.5 px-4">{r.ibs_aplicavel}</td>
-                <td className="py-2.5 px-4">{r.cbs_aplicavel}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{r.percentual_oficial}</td>
-                <td className="py-2.5 px-4 text-xs"><VigenciaBadge inicio={r.inicio_ibs} fim={r.fim_ibs} /></td>
-                <td className="py-2.5 px-4 text-xs"><VigenciaBadge inicio={r.inicio_cbs} fim={r.fim_cbs} /></td>
-                <td className="py-2.5 px-4">
-                  <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhum código cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="catalogos:credpres" ariaLabel="cCredPres" colunas={colunas} linhas={data || []} vazio="Nenhum código cadastrado."
+        acoes={<BotaoNovo onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} />} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing === "new" ? "Novo cCredPres" : `Editar ${editing?.c_cred_pres}`}</DialogTitle></DialogHeader>
@@ -381,13 +323,18 @@ function CredPresTable() {
 function NcmTable() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["ncm"], queryFn: () => api.entities.Ncm.list() });
-  const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [open, setOpen] = useState(false);
-  const rows = (data || []).filter((r) => !q || (r.codigo + " " + (r.descricao || "")).toLowerCase().includes(q.toLowerCase()));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const empty = { codigo: "", descricao: "", observacao: "", status: "Ativo" };
+  const editar = (r) => { setForm(r); setEditing(r); setOpen(true); };
+  const colunas = [
+    { chave: "codigo", rotulo: "NCM", render: (r) => <span className="font-medium">{r.codigo}</span> },
+    { chave: "descricao", rotulo: "Descrição", quebrar: true },
+    { chave: "status", rotulo: "Status" },
+    colunaEditar(editar),
+  ];
 
   const save = async (e) => {
     e.preventDefault();
@@ -398,36 +345,11 @@ function NcmTable() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SearchBar value={q} onChange={setQ} />
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Novo
-        </button>
-      </div>
       <p className="text-xs text-muted-foreground">
         Catálogo opcional: enquanto estiver vazio, a importação de XML não bloqueia nenhum NCM. Assim que houver ao menos um código aqui, códigos fora da lista viram alerta.
       </p>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2.5 px-4 font-medium">NCM</th><th className="py-2.5 px-4 font-medium">Descrição</th>
-            <th className="py-2.5 px-4 font-medium">Status</th><th className="py-2.5 px-4 font-medium w-20"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.codigo}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{r.descricao}</td>
-                <td className="py-2.5 px-4">{r.status}</td>
-                <td className="py-2.5 px-4">
-                  <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-muted-foreground">Nenhum NCM cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="catalogos:ncm" ariaLabel="NCM" colunas={colunas} linhas={data || []} vazio="Nenhum NCM cadastrado."
+        acoes={<BotaoNovo onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} />} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing === "new" ? "Novo NCM" : `Editar ${editing?.codigo}`}</DialogTitle></DialogHeader>
@@ -449,13 +371,19 @@ function NcmTable() {
 function CfopTable() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["cfop"], queryFn: () => api.entities.Cfop.list() });
-  const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [open, setOpen] = useState(false);
-  const rows = (data || []).filter((r) => !q || (r.codigo + " " + (r.descricao || "")).toLowerCase().includes(q.toLowerCase()));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const empty = { codigo: "", descricao: "", tipo_operacao: "Saida", aplicavel_a: "", observacao: "", status: "Ativo" };
+  const editar = (r) => { setForm(r); setEditing(r); setOpen(true); };
+  const colunas = [
+    { chave: "codigo", rotulo: "CFOP", render: (r) => <span className="font-medium">{r.codigo}</span> },
+    { chave: "descricao", rotulo: "Descrição", quebrar: true },
+    { chave: "tipo_operacao", rotulo: "Direção" },
+    { chave: "status", rotulo: "Status" },
+    colunaEditar(editar),
+  ];
 
   const save = async (e) => {
     e.preventDefault();
@@ -466,38 +394,11 @@ function CfopTable() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SearchBar value={q} onChange={setQ} />
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Novo
-        </button>
-      </div>
       <p className="text-xs text-muted-foreground">
         Catálogo opcional: mesma regra do NCM — vazio não bloqueia nada, populado passa a alertar CFOP fora da lista.
       </p>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2.5 px-4 font-medium">CFOP</th><th className="py-2.5 px-4 font-medium">Descrição</th>
-            <th className="py-2.5 px-4 font-medium">Direção</th>
-            <th className="py-2.5 px-4 font-medium">Status</th><th className="py-2.5 px-4 font-medium w-20"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.codigo}</td>
-                <td className="py-2.5 px-4 text-muted-foreground max-w-[420px] truncate">{r.descricao}</td>
-                <td className="py-2.5 px-4">{r.tipo_operacao}</td>
-                <td className="py-2.5 px-4">{r.status}</td>
-                <td className="py-2.5 px-4">
-                  <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground">Nenhum CFOP cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="catalogos:cfop" ariaLabel="CFOP" colunas={colunas} linhas={data || []} vazio="Nenhum CFOP cadastrado."
+        acoes={<BotaoNovo onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} />} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing === "new" ? "Novo CFOP" : `Editar ${editing?.codigo}`}</DialogTitle></DialogHeader>
@@ -523,13 +424,20 @@ function CfopTable() {
 function BeneficioFiscalTable() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["beneficioFiscal"], queryFn: () => api.entities.BeneficioFiscal.list() });
-  const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [open, setOpen] = useState(false);
-  const rows = (data || []).filter((r) => !q || (r.codigo + " " + (r.descricao || "")).toLowerCase().includes(q.toLowerCase()));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const empty = { codigo: "", descricao: "", uf: "", fundamento_legal: "", observacao: "", status: "Ativo" };
+  const editar = (r) => { setForm(r); setEditing(r); setOpen(true); };
+  const colunas = [
+    { chave: "codigo", rotulo: "Código", render: (r) => <span className="font-medium">{r.codigo}</span> },
+    { chave: "descricao", rotulo: "Descrição", quebrar: true },
+    { chave: "uf", rotulo: "UF" },
+    ...colunasVigencia(),
+    { chave: "status", rotulo: "Status" },
+    colunaEditar(editar),
+  ];
 
   const save = async (e) => {
     e.preventDefault();
@@ -540,36 +448,8 @@ function BeneficioFiscalTable() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <SearchBar value={q} onChange={setQ} />
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Novo
-        </button>
-      </div>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2.5 px-4 font-medium">Código</th><th className="py-2.5 px-4 font-medium">Descrição</th>
-            <th className="py-2.5 px-4 font-medium">UF</th><th className="py-2.5 px-4 font-medium">Vigência</th>
-            <th className="py-2.5 px-4 font-medium">Status</th><th className="py-2.5 px-4 font-medium w-20"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.codigo}</td>
-                <td className="py-2.5 px-4 text-muted-foreground max-w-[420px] truncate">{r.descricao}</td>
-                <td className="py-2.5 px-4">{r.uf}</td>
-                <td className="py-2.5 px-4 text-xs"><VigenciaBadge inicio={r.vigencia_inicio} fim={r.vigencia_fim} /></td>
-                <td className="py-2.5 px-4">{r.status}</td>
-                <td className="py-2.5 px-4">
-                  <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Nenhum benefício cadastrado.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="catalogos:beneficio" ariaLabel="Benefício fiscal" colunas={colunas} linhas={data || []} vazio="Nenhum benefício cadastrado."
+        acoes={<BotaoNovo onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} />} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing === "new" ? "Novo Benefício Fiscal" : `Editar ${editing?.codigo}`}</DialogTitle></DialogHeader>
@@ -610,6 +490,24 @@ function CombustivelTable() {
   const rows = [...(data || [])].sort((a, b) => a.ano - b.ano || ordemProduto(a.produto) - ordemProduto(b.produto));
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const empty = { produto: "diesel", ano: 2028, cbs_por_unidade: "", ibs_por_unidade: "", fonte: "", status: "Oficial", observacao: "" };
+  const porUnidade = (k) => ({
+    chave: k, rotulo: k === "cbs_por_unidade" ? "CBS por unidade" : "IBS por unidade", alinhar: "direita",
+    valor: (r) => (r[k] === null || r[k] === undefined ? null : Number(r[k])),
+    render: (r) => moeda4(r[k]) || <span className="text-muted-foreground">pendente</span>,
+  });
+  const colunas = [
+    { chave: "ano", rotulo: "Ano", render: (r) => <span className="font-medium">{r.ano}</span> },
+    { chave: "descricao", rotulo: "Combustível" },
+    { chave: "unidade", rotulo: "Unidade" },
+    porUnidade("cbs_por_unidade"),
+    porUnidade("ibs_por_unidade"),
+    { chave: "fonte", rotulo: "Fonte", quebrar: true },
+    { chave: "status", rotulo: "Status" },
+    {
+      chave: "editar", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false,
+      render: (r) => <button type="button" onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1 rounded hover:bg-muted text-muted-foreground" aria-label={`Editar ${r.descricao} ${r.ano}`}><Pencil className="w-3.5 h-3.5" /></button>,
+    },
+  ];
 
   const save = async (e) => {
     e.preventDefault();
@@ -634,33 +532,7 @@ function CombustivelTable() {
           <Plus className="w-4 h-4" /> Novo
         </button>
       </div>
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40"><tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2.5 px-4 font-medium">Ano</th><th className="py-2.5 px-4 font-medium">Combustível</th>
-            <th className="py-2.5 px-4 font-medium">Unidade</th><th className="py-2.5 px-4 font-medium text-right">CBS por unidade</th>
-            <th className="py-2.5 px-4 font-medium text-right">IBS por unidade</th><th className="py-2.5 px-4 font-medium">Fonte</th>
-            <th className="py-2.5 px-4 font-medium">Status</th><th className="py-2.5 px-4 font-medium w-12"></th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-medium">{r.ano}</td>
-                <td className="py-2.5 px-4">{r.descricao}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{r.unidade}</td>
-                <td className="py-2.5 px-4 text-right tabular-nums">{moeda4(r.cbs_por_unidade) || <span className="text-muted-foreground">pendente</span>}</td>
-                <td className="py-2.5 px-4 text-right tabular-nums">{moeda4(r.ibs_por_unidade) || <span className="text-muted-foreground">pendente</span>}</td>
-                <td className="py-2.5 px-4 text-xs text-muted-foreground max-w-[320px] truncate" title={r.fonte || ""}>{r.fonte}</td>
-                <td className="py-2.5 px-4">{r.status}</td>
-                <td className="py-2.5 px-4">
-                  <button onClick={() => { setForm(r); setEditing(r); setOpen(true); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground" aria-label={`Editar ${r.descricao} ${r.ano}`}><Pencil className="w-3.5 h-3.5" /></button>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhuma alíquota cadastrada.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="catalogos:combustiveis" ariaLabel="Alíquotas de combustíveis" colunas={colunas} linhas={rows} ordemInicial={null} vazio="Nenhuma alíquota cadastrada." />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing === "new" ? "Nova alíquota de combustível" : `Editar ${editing?.descricao} ${editing?.ano}`}</DialogTitle></DialogHeader>

@@ -188,7 +188,8 @@ describe("CapturaXml", () => {
     expect(html).toContain("Ligada");
     expect(html).toContain("Período: Noturno, das 18:00 às 05:59");
     expect(html).toContain("000000000000070 de 000000000000070");
-    expect(html).toContain("137 · Nenhum documento novo.");
+    expect(html).toContain(">137</span>");
+    expect(html).toContain(">Nenhum documento novo.</span>");
     expect(html).toContain("Capturar agora");
     expect(html).toContain("NFS-e");
     expect(html).toContain("Ciência automática</dt><dd>ligada");
@@ -366,7 +367,7 @@ describe("DocumentosXml", () => {
       expect(html).toContain("Resumos e eventos da SEFAZ");
       expect(html).toContain("passa para a aba do tipo dele");
       expect(html).toContain("Se o XML completo nunca chegar, ele continua aqui.");
-      expect(html).toContain("Ciência da Operação</th>");
+      expect(html).toContain(">Ciência da Operação<");
       expect(html).toContain("Registrada");
       expect(html).toContain("06/11/2026"); // data da Ciência registrada
       expect(html).toContain("Ainda não");
@@ -385,12 +386,13 @@ describe("DocumentosXml", () => {
       const cartaEnviada = { ...cancelamentoCte, id: "e2", evento_tipo: "110110", modelo: "55", chave: "51261112345678000195550010000009001000000010", lote_importacao_id: "L1", importado_em: "2026-11-08T12:00:00Z" };
       const eventoNfse = { ...cancelamentoCte, id: "e3", evento_tipo: "101101", modelo: null, chave: "5107602220000000000001000000000001234567890123456" };
       const html = tela([cancelamentoCte, cartaEnviada, eventoNfse, resumoDaCaptura]);
-      expect(html).toContain("110111 · CT-e");
-      expect(html).toContain("110110 · NF-e");
-      expect(html).toContain("101101 · NFS-e");
+      // o evento e o documento a que ele se refere ficam em colunas próprias, lado a lado
+      expect(html).toMatch(/>110111<\/td><td[^>]*>CT-e<\/td>/);
+      expect(html).toMatch(/>110110<\/td><td[^>]*>NF-e<\/td>/);
+      expect(html).toMatch(/>101101<\/td><td[^>]*>NFS-e<\/td>/);
       expect(html).toContain("Pendente"); // o cancelamento do CT-e ainda não foi ao importador
-      expect(html).toContain("Enviado 08/11/2026"); // a carta de correção da NF-e já foi
-      expect(html).toContain('<th class="py-1.5 pr-3">Importador</th>');
+      expect(html).toMatch(/>Enviado<\/span><\/td><td[^>]*>08\/11\/2026<\/td>/); // a carta de correção da NF-e já foi
+      expect(html).toContain(">Importador<");
       // o evento não pede Ciência da Operação; o resumo da captura continua mostrando a dele
       expect(html).toContain("Registrada");
       expect(html.match(/title="Baixar o XML"/g)).toHaveLength(4);
@@ -404,12 +406,12 @@ describe("DocumentosXml", () => {
         "Arraste aqui os XML ou ZIP do cliente", "Enviar pendentes ao importador", "Abrir Importação XML", "Só os que faltam enviar ao importador",
         "Incluir os PDF dos documentos", "Visualizar o PDF", "Baixar o PDF", "Como baixar nas SEFAZ", "Aguardando o importador", "Documentos no repositório",
       ]) expect(html, ausente).not.toContain(ausente);
-      expect(html).toContain('<th class="py-1.5 pr-3">Importador</th>'); // a coluna existe para os eventos; o resumo mostra um traço
+      expect(html).toContain(">Importador<"); // a coluna existe para os eventos; o resumo mostra um traço
       expect(html).toContain('title="Só o resumo está guardado: o importador lê só o XML completo"');
       // o XML do resumo continua baixável
       expect(html.match(/title="Baixar o XML"/g)).toHaveLength(1);
       // administrador pode selecionar para excluir, como na outra aba
-      expect(html).toContain(`aria-label="Selecionar ${resumoDaCaptura.chave}"`);
+      expect(html).toContain('aria-label="Marcar a linha"');
     });
 
     it("sem resumos, diz que a lista está vazia e quando um documento aparece aqui", () => {
@@ -420,19 +422,19 @@ describe("DocumentosXml", () => {
     });
   });
 
-  it("tabela compacta: o emitente cabe numa linha só (nome e CNPJ juntos, ou só o CNPJ quando a captura não traz o nome)", () => {
+  it("tabela compacta: nome do emitente e CNPJ em colunas próprias (só o CNPJ quando a captura não traz o nome)", () => {
     auth.role = "admin";
     const evento = { ...doc, id: "d2", tipo: "EVENTO", evento_tipo: "610514", numero: "33874", serie: "1", emitente_nome: null, emitente_doc: "33683111000107", valor_total: null, conteudo: "COMPLETO", situacao: null, origem: "CAPTURA" };
     const html = renderizar(<DocumentosXml empresaId="E1" empresa={null} />, {
       cache: [[["repo-xml-resumo", "E1"], resumo], [["repo-xml-docs", "E1", PARAMETROS, 0, 50], { total: 2, itens: [doc, evento] }]],
     });
-    expect(html).toContain('FORNECEDOR AGRO LTDA <span class="text-xs text-muted-foreground tabular-nums">12.345.678/0001-95</span>');
-    expect(html).toContain('<span class="block truncate"><span class="tabular-nums">33.683.111/0001-07</span></span>');
-    // linhas baixas: pouco espaço vertical nas células e letra um pouco menor
+    expect(html).toMatch(/>FORNECEDOR AGRO LTDA<\/td><td[^>]*><span class="tabular-nums">12\.345\.678\/0001-95<\/span><\/td>/);
+    expect(html).toMatch(/<td[^>]*><\/td><td[^>]*><span class="tabular-nums">33\.683\.111\/0001-07<\/span><\/td>/);
+    // linhas baixas: pouco espaço vertical nas células, sem quebra de texto e letra um pouco menor
     const corpo = html.slice(html.indexOf("<tbody"), html.indexOf("</tbody>"));
     expect(corpo).not.toContain("py-2");
-    expect(corpo).toContain('<td class="py-1 pr-3 whitespace-nowrap">');
-    expect(html).toContain('<table class="w-full text-[13px] leading-5">');
+    expect(corpo).toMatch(/<td class="px-2 py-1 [^"]*whitespace-nowrap/);
+    expect(html).toContain('<table class="w-full text-[13px] leading-5');
   });
 
   it("deixa escolher quantos documentos mostrar: 10, 50, 100, 500 ou todos (50 por padrão, com paginação)", () => {
@@ -458,7 +460,7 @@ describe("DocumentosXml", () => {
       expect(html).toMatch(/<option value="0" selected="">Todos<\/option>/);
       expect(html).toContain("Mostrando os primeiros 5.000 de 6.000 documentos");
       expect(html).not.toContain("Próxima");
-      expect(html).toContain("Selecionar todos os exibidos");
+      expect(html).toContain('aria-label="Marcar todas"');
     } finally {
       if (antes) Object.defineProperty(globalThis, "localStorage", antes); else delete globalThis.localStorage;
     }

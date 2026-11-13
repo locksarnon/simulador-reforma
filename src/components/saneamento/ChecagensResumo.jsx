@@ -3,7 +3,8 @@
 import React from "react";
 import { fmt, plural } from "./ui";
 import { ChipConclusao } from "./CriterioUi";
-import { linhasEvidencia, textoCausa, textoCobertura } from "./checagens";
+import { ROTULO_CONCLUSAO, linhasEvidencia, textoCausa, textoCobertura } from "./checagens";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 /** `lista` vem de checagens() e `resumo` de resumoChecagens(); `escopo` é o escopo.resumo do projeto (null sem base); `onAbrir(id)` abre a aba da checagem. */
 export default function ChecagensResumo({ lista, resumo, escopo, nomeBase, extraidaEm, onAbrir }) {
@@ -27,21 +28,14 @@ export default function ChecagensResumo({ lista, resumo, escopo, nomeBase, extra
             {resumo.manuaisPendentes.map((c) => <li key={c.id}><button type="button" className="underline text-primary" onClick={() => onAbrir(c.id)}>{c.titulo}</button>: {textoCausa(c)}</li>)}
           </ul>
         </div>)}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead><tr className="text-left text-muted-foreground"><th className="p-1.5">Checagem</th><th className="p-1.5">Cobertura</th><th className="p-1.5">Conclusão</th><th className="p-1.5">Evidência</th></tr></thead>
-          <tbody>{lista.map((c) => {
-            const evid = linhasEvidencia(c, nomeBase);
-            return (
-              <tr key={c.id} className="border-t border-border align-top">
-                <td className="p-1.5 min-w-[150px]"><button type="button" className="text-left underline text-primary" onClick={() => onAbrir(c.id)}>{c.titulo}</button><div className="text-[11px] text-muted-foreground">{c.tipo === "AUTOMATICA" ? "Teste automático" : "Conferência manual"}</div></td>
-                <td className="p-1.5 min-w-[200px]">{textoCobertura(c)}</td>
-                <td className="p-1.5 min-w-[150px]"><ChipConclusao conclusao={c.conclusao} />{c.conclusao === "COM_ACHADOS" && c.achados > 0 && <div className="mt-0.5 text-[11px] text-muted-foreground">{plural(c.achados, "achado", "achados")}</div>}{c.conclusao === "PENDENTE" && <div className="mt-0.5 text-[11px] text-muted-foreground">{textoCausa(c)}</div>}</td>
-                <td className="p-1.5 min-w-[200px]">{evid.length ? evid.map((l) => <div key={l}>{l}</div>) : <span className="text-muted-foreground">—</span>}</td>
-              </tr>);
-          })}</tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="saneamento-checagens-resumo" ariaLabel="Checagens" simples linhas={lista} chaveLinha={(c) => c.id} vazio="Nenhuma checagem." colunas={[
+        { chave: "titulo", rotulo: "Checagem", render: (c) => <button type="button" className="text-left underline text-primary" onClick={() => onAbrir(c.id)}>{c.titulo}</button> },
+        { chave: "tipo", rotulo: "Tipo", valor: (c) => (c.tipo === "AUTOMATICA" ? "Teste automático" : "Conferência manual") },
+        { chave: "cobertura", rotulo: "Cobertura", valor: (c) => textoCobertura(c), quebrar: true },
+        { chave: "conclusao", rotulo: "Conclusão", valor: (c) => ROTULO_CONCLUSAO[c.conclusao] || c.conclusao, render: (c) => <ChipConclusao conclusao={c.conclusao} /> },
+        { chave: "detalhe", rotulo: "Detalhe", valor: (c) => (c.conclusao === "COM_ACHADOS" && c.achados > 0 ? plural(c.achados, "achado", "achados") : c.conclusao === "PENDENTE" ? textoCausa(c) : "") },
+        { chave: "evidencia", rotulo: "Evidência", valor: (c) => linhasEvidencia(c, nomeBase).join("; "), quebrar: true },
+      ]} />
       <p className="text-[11px] text-muted-foreground">Verificada sem achados não é prova de que o cadastro está certo: diz apenas que a checagem rodou nos itens acima e não achou nada. A pendente fica assim até ser feita: nada se conclui sobre o que não foi verificado.</p>
     </div>
   );

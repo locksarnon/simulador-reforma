@@ -135,11 +135,11 @@ export default function PreAnalisePagina() {
   const [detalhe, setDetalhe] = useState(null);
   const aberto = detalhe ? p?.processos?.find((x) => x.chave === detalhe) : null;
   const colunas = [
-    { chave: "consulta", rotulo: "Consulta", valor: (x) => definicoes.get(x.chave)?.rotulo || x.chave, render: (x) => <span className="font-medium">{definicoes.get(x.chave)?.rotulo}</span>, quebrar: false },
-    { chave: "status", rotulo: "Status", valor: (x) => STATUS[x.status]?.rotulo || x.status, render: (x) => <SeloStatus status={x.status} />, quebrar: false },
-    { chave: "resumo", rotulo: "Resultado", valor: (x) => x.resumo + (x.demonstracao ? " (demonstração)" : "") },
-    { chave: "validade", rotulo: "Validade", valor: (x) => validadeDoProcesso(x), tipo: "data", quebrar: false },
-    { chave: "consultado_em", rotulo: "Consultado em", valor: (x) => quando(x.consultado_em), tipo: "data", quebrar: false },
+    { chave: "consulta", rotulo: "Consulta", valor: (x) => definicoes.get(x.chave)?.rotulo || x.chave, render: (x) => <span className="font-medium">{definicoes.get(x.chave)?.rotulo}</span> },
+    { chave: "status", rotulo: "Status", valor: (x) => STATUS[x.status]?.rotulo || x.status, render: (x) => <SeloStatus status={x.status} /> },
+    { chave: "resumo", rotulo: "Resultado", quebrar: true, valor: (x) => x.resumo + (x.demonstracao ? " (demonstração)" : "") },
+    { chave: "validade", rotulo: "Validade", valor: (x) => validadeDoProcesso(x), tipo: "data" },
+    { chave: "consultado_em", rotulo: "Consultado em", valor: (x) => quando(x.consultado_em), tipo: "data" },
     { chave: "fonte", rotulo: "Fonte", valor: (x) => definicoes.get(x.chave)?.fonte || "" },
   ];
 

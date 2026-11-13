@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Download, FileText, Info, Loader2 } from "lucide-react";
 import { hojeIso } from "./logica";
-import { Acc, Botao, Chip, Th, dataBr, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Acc, Botao, Chip, dataBr, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { montarPolitica } from "./politica";
 import { baixarJsonPolitica, gerarXlsxPolitica } from "./politicaXlsx";
 
@@ -20,7 +21,6 @@ const SUGESTOES = {
 export default function PassoPolitica({ estado, setEstado, contagem, escopo, grupos, itens, quem, nomeProjeto, nomeBase, slug, onRelatorio }) {
   const [aberto, setAberto] = useState({});
   const [gerando, setGerando] = useState(false); const [gerandoRelatorio, setGerandoRelatorio] = useState(false); const [msg, setMsg] = useState("");
-  const [ord, ordenar] = useOrdenacao();
   const politica = useMemo(() => montarPolitica({ estado, contagem, escopo, grupos, itens, nomeProjeto, nomeBase }), [estado, contagem, escopo, grupos, itens, nomeProjeto, nomeBase]);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
   const aprovada = politica.aprovada;
@@ -32,7 +32,6 @@ export default function PassoPolitica({ estado, setEstado, contagem, escopo, gru
   const aprovar = () => setEstado((e) => ({ ...e, politica: { ...(e.politica || {}), aprovada: { por: quem, em: hojeIso() } } }));
   const reabrir = () => setEstado((e) => ({ ...e, politica: { ...(e.politica || {}), aprovada: null } }));
 
-  const linhasGrupos = useMemo(() => ordenarPor(politica.porGrupo, ord, { grupo: (g) => g.grupo, itens: (g) => g.itens, saneado: (g) => (g.saneado ? 1 : 0), fiscal: (g) => g.fiscal, regra: (g) => g.regra }), [politica.porGrupo, ord]);
   const emitirExcel = async () => {
     setGerando(true); setMsg("");
     try { await gerarXlsxPolitica(politica, { nomeProjeto, nomeBase }, `${slug}-politica-de-uso.xlsx`); setMsg("Planilha da política emitida."); }
@@ -79,18 +78,13 @@ export default function PassoPolitica({ estado, setEstado, contagem, escopo, gru
         </Acc>))}
       <Acc aberto={!!aberto.__grupos} onToggle={() => alternar("__grupos")} titulo={<><b className="font-medium">Regras por grupo</b><span className="text-xs text-muted-foreground">{plural(politica.porGrupo.length, "grupo", "grupos")} · escreva o que é específico de cada grupo (opcional)</span></>}>
         {politica.porGrupo.length === 0 ? <p className="text-sm text-muted-foreground">Importe a base e trate os grupos para escrever regras por grupo.</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground">
-              <Th chave="grupo" ord={ord} onOrdenar={ordenar}>Grupo</Th><Th chave="itens" ord={ord} onOrdenar={ordenar}>Itens</Th><Th chave="saneado" ord={ord} onOrdenar={ordenar}>Saneado</Th><Th chave="fiscal" ord={ord} onOrdenar={ordenar}>Revisão fiscal</Th><Th chave="regra" ord={ord} onOrdenar={ordenar}>Regra do grupo</Th>
-            </tr></thead>
-              <tbody>{linhasGrupos.map((g) => (
-                <tr key={g.grupo} className="border-t border-border align-top">
-                  <td className="p-1.5">{g.grupo}</td><td className="p-1.5 tabular-nums">{fmt(g.itens)}</td>
-                  <td className="p-1.5">{g.saneado ? <Chip tom="g">Saneado</Chip> : <Chip>Não</Chip>}</td>
-                  <td className="p-1.5">{g.fiscal === "Revisão concluída" ? <Chip tom="g">{g.fiscal}</Chip> : <span className="text-muted-foreground">{g.fiscal}</span>}</td>
-                  <td className="p-1.5"><input value={g.regra} onChange={(e) => setGrupo(g.grupo, e.target.value)} aria-label={`Regra do grupo ${g.grupo}`} placeholder="Ex.: unidade, atributos obrigatórios ou cuidado deste grupo" className="w-full min-w-[260px] border rounded px-1.5 py-1 bg-background" /></td>
-                </tr>))}</tbody></table>
-          </div>)}
+          <TabelaPadrao id="saneamento-politica-grupos" ariaLabel="Regras por grupo" linhas={politica.porGrupo} chaveLinha={(g) => g.grupo} colunas={[
+            { chave: "grupo", rotulo: "Grupo" },
+            { chave: "itens", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
+            { chave: "saneado", rotulo: "Saneado", valor: (g) => (g.saneado ? "Saneado" : "Não"), render: (g) => (g.saneado ? <Chip tom="g">Saneado</Chip> : <Chip>Não</Chip>) },
+            { chave: "fiscal", rotulo: "Revisão fiscal", render: (g) => (g.fiscal === "Revisão concluída" ? <Chip tom="g">{g.fiscal}</Chip> : <span className="text-muted-foreground">{g.fiscal}</span>) },
+            { chave: "regra", rotulo: "Regra do grupo", render: (g) => <input value={g.regra} onChange={(e) => setGrupo(g.grupo, e.target.value)} aria-label={`Regra do grupo ${g.grupo}`} placeholder="Ex.: unidade, atributos obrigatórios ou cuidado deste grupo" className="w-full min-w-[260px] border rounded px-1.5 py-0.5 bg-background" /> },
+          ]} />)}
       </Acc>
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">

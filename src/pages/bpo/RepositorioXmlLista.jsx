@@ -5,6 +5,7 @@ import { Archive, Search } from "lucide-react";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { fmtDoc } from "@/components/repositorio-xml/formatos";
 import { caminhoDoRepositorio } from "@/lib/bpoCaminhos";
 import InterruptorCaptura from "@/components/repositorio-xml/InterruptorCaptura";
@@ -54,48 +55,23 @@ export default function RepositorioXmlLista() {
         {isLoading ? <p className="text-sm text-muted-foreground">Carregando as empresas…</p>
           : isError ? <p role="alert" className="text-sm text-red-600">Não foi possível carregar as empresas.</p>
           : (
-            <div className="rounded-lg border border-border bg-card overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40">
-                  <tr className="text-left text-xs text-muted-foreground">
-                    <th className="py-2.5 px-4 font-medium">Empresa</th>
-                    <th className="py-2.5 px-4 font-medium">CNPJ</th>
-                    <th className="py-2.5 px-4 font-medium">Grupo</th>
-                    <th className="py-2.5 px-4 font-medium">UF</th>
-                    <th className="py-2.5 px-4 font-medium">Certificado</th>
-                    <th className="py-2.5 px-4 font-medium">Captura</th>
-                    <th className="py-2.5 px-4 font-medium w-24"><span className="sr-only">Abrir</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {linhas.map(({ empresa: e, grupo: g }) => (
-                    <tr key={e.id} onClick={() => navigate(caminhoDoRepositorio(e.id))} className="border-t border-border/50 hover:bg-muted/20 cursor-pointer">
-                      <td className="py-2.5 px-4">
-                        <Link to={caminhoDoRepositorio(e.id)} onClick={(ev) => ev.stopPropagation()} className="font-medium hover:underline">{e.razao_social}</Link>
-                        <span className="block text-xs text-muted-foreground">{e.id_empresa}</span>
-                      </td>
-                      <td className="py-2.5 px-4 tabular-nums text-muted-foreground">{fmtDoc(e.cnpj_cpf)}</td>
-                      <td className="py-2.5 px-4 text-muted-foreground">{g ? `${g.numero} ${g.nome}` : (e.grupo || "—")}</td>
-                      <td className="py-2.5 px-4">{e.uf || "—"}</td>
-                      <td className="py-2.5 px-4"><SeloCertificado certificado={captura?.[e.id]?.certificado} /></td>
-                      <td className="py-2.5 px-4"><InterruptorCaptura compacto empresaId={e.id} ligada={!!captura?.[e.id]?.ligada} certificadoOk={["VALIDO", "A_VENCER"].includes(captura?.[e.id]?.certificado?.situacao)} /></td>
-                      <td className="py-2.5 px-4 text-right">
-                        <Link to={caminhoDoRepositorio(e.id)} onClick={(ev) => ev.stopPropagation()} className="text-primary hover:underline">Abrir ›</Link>
-                      </td>
-                    </tr>
-                  ))}
-                  {linhas.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
-                        {(empresas || []).length === 0
-                          ? <>Nenhuma empresa cadastrada. Cadastre as empresas em <Link to="/" className="text-primary hover:underline">Clientes</Link>.</>
-                          : "Nenhuma empresa encontrada para essa busca."}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <TabelaPadrao
+              id="repositorio-xml-empresas" ariaLabel="Empresas do Repositório de XML" linhas={linhas} chaveLinha={(l) => l.empresa.id}
+              aoClicarLinha={(l) => navigate(caminhoDoRepositorio(l.empresa.id))}
+              vazio={(empresas || []).length === 0
+                ? <>Nenhuma empresa cadastrada. Cadastre as empresas em <Link to="/" className="text-primary hover:underline">Clientes</Link>.</>
+                : "Nenhuma empresa encontrada para essa busca."}
+              colunas={[
+                { chave: "empresa", rotulo: "Empresa", valor: (l) => l.empresa.razao_social, render: ({ empresa: e }) => <Link to={caminhoDoRepositorio(e.id)} onClick={(ev) => ev.stopPropagation()} className="font-medium hover:underline">{e.razao_social}</Link> },
+                { chave: "codigo", rotulo: "Código", valor: (l) => l.empresa.id_empresa || "", render: (l) => <span className="text-muted-foreground">{l.empresa.id_empresa || "—"}</span> },
+                { chave: "cnpj", rotulo: "CNPJ", valor: (l) => fmtDoc(l.empresa.cnpj_cpf), render: (l) => <span className="tabular-nums text-muted-foreground">{fmtDoc(l.empresa.cnpj_cpf)}</span> },
+                { chave: "grupo", rotulo: "Grupo", valor: ({ empresa: e, grupo: g }) => (g ? `${g.numero} ${g.nome}` : (e.grupo || "")), render: ({ empresa: e, grupo: g }) => <span className="text-muted-foreground">{g ? `${g.numero} ${g.nome}` : (e.grupo || "—")}</span> },
+                { chave: "uf", rotulo: "UF", valor: (l) => l.empresa.uf || "", render: (l) => l.empresa.uf || "—" },
+                { chave: "certificado", rotulo: "Certificado", tipo: "data", valor: (l) => captura?.[l.empresa.id]?.certificado?.valido_ate || "", render: (l) => <SeloCertificado certificado={captura?.[l.empresa.id]?.certificado} /> },
+                { chave: "captura", rotulo: "Captura", valor: (l) => (captura?.[l.empresa.id]?.ligada ? "Ligada" : "Desligada"), render: ({ empresa: e }) => <InterruptorCaptura compacto empresaId={e.id} ligada={!!captura?.[e.id]?.ligada} certificadoOk={["VALIDO", "A_VENCER"].includes(captura?.[e.id]?.certificado?.situacao)} /> },
+                { chave: "abrir", rotulo: "Abrir", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "", render: ({ empresa: e }) => <Link to={caminhoDoRepositorio(e.id)} onClick={(ev) => ev.stopPropagation()} className="text-primary hover:underline">Abrir ›</Link> },
+              ]}
+            />
           )}
       </div>
     </div>

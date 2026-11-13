@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { base, fmtDoc, fmtMoeda, ORIGENS } from "./formatos";
 import {
   baixarCsv, baixarPlanilha, CHAVES_GERAL_NA_TELA, CHAVES_ITENS_NA_TELA, COLUNAS_GERAL, COLUNAS_RESUMO_GERAL, colunasProdutos, linhasParaCsv, nomeDoArquivo,
@@ -30,29 +31,29 @@ function Indicador({ rotulo, valor, destaque }) {
   );
 }
 
-/** Tabela simples: as colunas dizem o título, o tipo (que decide o alinhamento) e como mostrar cada célula. */
-export function Tabela({ colunas, linhas, rotuloDaTabela }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px] leading-5" aria-label={rotuloDaTabela}>
-        <thead>
-          <tr className="text-left text-xs text-muted-foreground border-b border-border">
-            {colunas.map((c) => <th key={c.chave} className={`py-1.5 pr-3 whitespace-nowrap ${NUMERICOS.includes(c.tipo) ? "text-right" : ""}`}>{c.titulo}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {linhas.map((l, i) => (
-            <tr key={i} className="border-b border-border/60 hover:bg-muted/40">
-              {colunas.map((c) => {
-                const txt = textoDaCelula(c, l);
-                return <td key={c.chave} title={txt.length > 40 ? txt : undefined} className={`py-1 pr-3 ${NUMERICOS.includes(c.tipo) ? "text-right tabular-nums whitespace-nowrap" : c.chave === "descricao" || c.chave === "emitente_nome" ? "max-w-[320px] truncate" : "whitespace-nowrap"}`}>{txt || "—"}</td>;
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+/** Colunas do relatório no formato da tabela padrão: números ordenam como número, datas como data, o resto pelo texto da célula. */
+function colunasDaTabela(colunas) {
+  return colunas.map((c) => {
+    const numerico = NUMERICOS.includes(c.tipo);
+    return {
+      chave: c.chave,
+      rotulo: c.titulo,
+      alinhar: numerico ? "direita" : undefined,
+      tipo: c.tipo === "data" ? "data" : undefined,
+      quebrar: c.chave === "descricao" ? true : undefined,
+      valor: (l) => {
+        if (numerico) { const v = l[c.chave]; return v == null || v === "" ? null : Number(v); }
+        if (c.tipo === "data") return l[c.chave] || null;
+        return textoDaCelula(c, l);
+      },
+      render: (l) => textoDaCelula(c, l) || "—",
+    };
+  });
+}
+
+/** Tabela do relatório: as colunas dizem o título, o tipo (que decide o alinhamento e a ordenação) e como mostrar cada célula. */
+export function Tabela({ colunas, linhas, rotuloDaTabela, simples = false, id }) {
+  return <TabelaPadrao id={id} simples={simples} ariaLabel={rotuloDaTabela} colunas={colunasDaTabela(colunas)} linhas={linhas} tamanhoInicial={50} />;
 }
 
 function BotoesDeArquivo({ aoBaixar, baixando }) {
@@ -83,13 +84,13 @@ export function ResultadoGeral({ dados, aoBaixar, baixando }) {
         <>
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Por documento</p>
-            <Tabela colunas={COLUNAS_RESUMO_GERAL} linhas={dados.resumo.por_documento} rotuloDaTabela="Resumo por documento" />
+            <Tabela colunas={COLUNAS_RESUMO_GERAL} linhas={dados.resumo.por_documento} rotuloDaTabela="Resumo por documento" simples />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">Documentos</p>
             <BotoesDeArquivo aoBaixar={aoBaixar} baixando={baixando} />
           </div>
-          <Tabela colunas={colunasDaTela} linhas={visiveis} rotuloDaTabela="Documentos do período" />
+          <Tabela colunas={colunasDaTela} linhas={visiveis} rotuloDaTabela="Documentos do período" id="repo-xml-relatorio-geral" />
           {dados.linhas.length > LINHAS_NA_TELA && <p role="status" className="text-xs rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 p-2">Mostrando as primeiras {LINHAS_NA_TELA} de {dados.linhas.length.toLocaleString("pt-BR")} linhas. O Excel e o CSV trazem todas.</p>}
           {dados.truncado && <p role="status" className="text-xs rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 p-2">A lista foi cortada no limite de {dados.linhas.length.toLocaleString("pt-BR")} linhas; os totais acima contam todos os documentos. Reduza o período para ver o resto.</p>}
         </>
@@ -125,7 +126,7 @@ export function ResultadoProdutos({ dados, aoBaixar, baixando }) {
             <p className="text-xs font-medium text-muted-foreground">{dados.modo === "itens" ? "Itens das notas" : `Somados por ${dados.modo === "produto" ? "produto" : dados.modo.toUpperCase()}`}</p>
             <BotoesDeArquivo aoBaixar={aoBaixar} baixando={baixando} />
           </div>
-          <Tabela colunas={colunasDaTela} linhas={todas.slice(0, LINHAS_NA_TELA)} rotuloDaTabela="Produtos do período" />
+          <Tabela colunas={colunasDaTela} linhas={todas.slice(0, LINHAS_NA_TELA)} rotuloDaTabela="Produtos do período" id={`repo-xml-relatorio-produtos-${dados.modo}`} />
           {todas.length > LINHAS_NA_TELA && <p role="status" className="text-xs rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 p-2">Mostrando as primeiras {LINHAS_NA_TELA} de {todas.length.toLocaleString("pt-BR")} linhas. O Excel e o CSV trazem todas.</p>}
           {dados.truncado && <p role="status" className="text-xs rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 p-2">O relatório foi cortado no limite de linhas do servidor; reduza o período ou use um agrupamento.</p>}
         </>

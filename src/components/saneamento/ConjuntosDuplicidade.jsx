@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Info } from "lucide-react";
-import { Botao, Chip, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Botao, Chip, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { SituacaoEncaminhado } from "./TabelaAchados";
 import { conjuntoIdentificavel, escolhaDoConjunto, membrosSemProposta, saldoNaEscala } from "./conjuntos";
 import { chaveDe, idItem } from "./identidade";
@@ -34,7 +35,6 @@ function Descricao({ texto, comuns }) {
 }
 
 function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer, onComparar, onCompletar }) {
-  const [ord, ordenar] = useOrdenacao();
   const ident = conjuntoIdentificavel(conj, indice); const esc = ident.ok ? escolhaDoConjunto(conj, decisoes) : { fica: null, origem: null, status: "nenhuma", travada: false }; const sugId = conj.sugestao.id;
   const bloqueado = esc.travada || !ident.ok; // já decidido no De/para, ou sem como guardar a escolha pelo código do item
   const faltam = onCompletar && ident.ok ? membrosSemProposta(conj, decisoes) : []; // conjunto já decidido com item sem proposta (descartada, ou duplicado que entrou depois)
@@ -42,7 +42,6 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
     const conjuntos = conj.membros.map((m) => new Set(String(m.descricao ?? "").split(/\s+/).map(palavraChave).filter(Boolean)));
     return new Set([...conjuntos[0]].filter((p) => conjuntos.every((s) => s.has(p))));
   }, [conj]);
-  const membros = useMemo(() => ordenarPor(conj.membros, ord, { codigo: (m) => m.codigo, saldo: (m) => saldoNaEscala(m.saldo, escala), descricao: (m) => m.descricao }), [conj, ord, escala]);
   const codigoDe = (id) => conj.membros.find((m) => idItem(m) === id)?.codigo ?? id ?? "—";
   const sugerido = conj.membros.find((m) => idItem(m) === sugId);
   const status = esc.status === "decidida" ? <Chip tom="g">Decidido no De/para</Chip> : esc.status === "aguardando" ? <Chip tom="a">Aguardando aprovação</Chip> : <Chip>Sem escolha</Chip>;
@@ -59,24 +58,15 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
         <button type="button" className="text-primary underline" onClick={() => onComparar(conj.membros[0])}>Comparar palavra a palavra</button>
       </div>
       {!ident.ok && <p className="text-xs text-amber-700 dark:text-amber-300">{ident.motivo} Corrija no ERP e traga a base de novo.</p>}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead><tr className="text-left text-muted-foreground">
-            <th className="p-1.5">Fica</th><Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="saldo" ord={ord} onOrdenar={ordenar} className="p-1.5 text-right">Saldo em estoque</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><th className="p-1.5">Situação</th>
-          </tr></thead>
-          <tbody>{membros.map((m) => {
-            const saldo = saldoNaEscala(m.saldo, escala); const dec = decisoes[chaveDe(m, "duplicidade")]; const fica = esc.fica === idItem(m);
-            return (
-              <tr key={m.linha} className={`border-t border-border align-top ${fica ? "bg-emerald-50/60 dark:bg-emerald-950/20" : ""}`}>
-                <td className="p-1.5"><input type="radio" name={`fica-${conj.id}`} checked={fica} disabled={bloqueado} onChange={() => onEscolher(conj, idItem(m), idItem(m) === sugId ? "sugestao" : "analista")} aria-label={`Manter o código ${m.codigo || `da linha ${m.linha}`}`} /></td>
-                <td className="p-1.5 whitespace-nowrap"><span className="tabular-nums">{m.codigo || "—"}</span>{idItem(m) === sugId && <span className="ml-1.5" title={conj.sugestao.motivo || undefined}><Chip tom="b">Sugerido</Chip></span>}</td>
-                <td className="p-1.5 text-right tabular-nums">{saldo == null ? "—" : numeroBr(saldo)}</td>
-                <td className="p-1.5 max-w-[420px] break-words"><Descricao texto={m.descricao} comuns={comuns} />{m.duplicidade?.observacao?.palavras?.length > 0 && <span className="mt-0.5 block text-[11px] text-muted-foreground">Observação (não é produto): <b className="font-medium text-foreground">{m.duplicidade.observacao.palavras.join(", ")}</b></span>}</td>
-                <td className="p-1.5 whitespace-nowrap">{fica ? <Chip tom="g">Fica</Chip> : esc.fica != null ? <span className="inline-flex items-center gap-1.5 text-muted-foreground">sai → {codigoDe(esc.fica)}{dec && <SituacaoEncaminhado d={dec} />}</span> : null}</td>
-              </tr>);
-          })}</tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="saneamento-conjunto-duplicidade" ariaLabel="Itens do conjunto" simples linhas={conj.membros} chaveLinha={(m) => m.linha}
+        destaqueLinha={(m) => (esc.fica === idItem(m) ? "bg-emerald-50/60 dark:bg-emerald-950/20" : "")} colunas={[
+          { chave: "fica", rotulo: "Fica", ordenavel: false, filtravel: false, render: (m) => <input type="radio" name={`fica-${conj.id}`} checked={esc.fica === idItem(m)} disabled={bloqueado} onChange={() => onEscolher(conj, idItem(m), idItem(m) === sugId ? "sugestao" : "analista")} aria-label={`Manter o código ${m.codigo || `da linha ${m.linha}`}`} /> },
+          { chave: "codigo", rotulo: "Código", render: (m) => <><span className="tabular-nums">{m.codigo || "—"}</span>{idItem(m) === sugId && <span className="ml-1.5" title={conj.sugestao.motivo || undefined}><Chip tom="b">Sugerido</Chip></span>}</> },
+          { chave: "saldo", rotulo: "Saldo em estoque", alinhar: "direita", valor: (m) => saldoNaEscala(m.saldo, escala), render: (m) => { const s = saldoNaEscala(m.saldo, escala); return s == null ? "—" : numeroBr(s); } },
+          { chave: "descricao", rotulo: "Descrição", render: (m) => <Descricao texto={m.descricao} comuns={comuns} /> },
+          ...(conj.membros.some((m) => m.duplicidade?.observacao?.palavras?.length > 0) ? [{ chave: "observacao", rotulo: "Observação (não é produto)", valor: (m) => (m.duplicidade?.observacao?.palavras || []).join(", ") }] : []),
+          { chave: "situacao", rotulo: "Situação", valor: (m) => (esc.fica === idItem(m) ? "Fica" : esc.fica != null ? `sai → ${codigoDe(esc.fica)}` : ""), render: (m) => { const dec = decisoes[chaveDe(m, "duplicidade")]; return esc.fica === idItem(m) ? <Chip tom="g">Fica</Chip> : esc.fica != null ? <span className="inline-flex items-center gap-1.5 text-muted-foreground">sai → {codigoDe(esc.fica)}{dec && <SituacaoEncaminhado d={dec} />}</span> : null; } },
+        ]} />
       {conj.membros.some((m) => m.duplicidade?.porObservacao) && <p className="text-[11px] text-muted-foreground">Neste grupo a variante (cor, tipo, apresentação) é observação, não produto: ao unificar, ela é registrada no campo adicional do código que fica.</p>}
       {sugerido && conj.sugestao.motivo && <p className="text-[11px] text-muted-foreground">Sugestão: manter o código <b className="font-medium text-foreground">{sugerido.codigo || `da linha ${sugerido.linha}`}</b> ({conj.sugestao.motivo}).{esc.fica != null && esc.fica !== sugId ? ` Escolha do analista: ${codigoDe(esc.fica)}.` : ""}</p>}
     </div>

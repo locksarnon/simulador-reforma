@@ -9,6 +9,7 @@ import { ROTEIRO, GRUPOS_ROTEIRO, CSV_TESTE_CADASTRO } from "@/lib/roteiroTestes
 import { SETORES_REFORMA, COBERTURA, resumoCobertura } from "@/lib/setoresReforma";
 import TituloPagina from "@/components/TituloPagina";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const CHAVE = "intax_roteiro_testes_v1";
 const STATUS = [
@@ -77,6 +78,8 @@ function IndicadorSalvo({ salvo, onSalvar }) {
   );
 }
 
+const statusDe = (est, f) => STATUS.find((s) => s.id === (est[f.id]?.status || "")) || STATUS[0];
+
 /** Visão do administrador: progresso de cada tester, somente leitura. */
 function EquipeTestes() {
   const [lista, setLista] = useState(null);
@@ -96,24 +99,13 @@ function EquipeTestes() {
         </select>
         <span className="text-sm text-muted-foreground">{t.email} · {feitos}/{total} passos · atualizado em {new Date(t.atualizado_em).toLocaleString("pt-BR")}</span>
       </div>
-      <div className="rounded-xl border border-border overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead><tr className="bg-muted/60 text-left text-xs"><th className="p-2 border border-border">Funcionalidade</th><th className="p-2 border border-border">Status</th><th className="p-2 border border-border">Passos</th><th className="p-2 border border-border">Observações</th></tr></thead>
-          <tbody>{ROTEIRO.map((f) => {
-            const e = est[f.id] || { passos: {}, status: "", obs: "" };
-            const st = STATUS.find((s) => s.id === e.status) || STATUS[0];
-            const n = f.passos.filter((_, i) => e.passos?.[i]).length;
-            return (
-              <tr key={f.id} className="align-top">
-                <td className="p-2 border border-border font-medium">{f.titulo}</td>
-                <td className="p-2 border border-border"><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${st.cor}`}>{st.rotulo}</span></td>
-                <td className="p-2 border border-border tabular-nums">{n}/{f.passos.length}</td>
-                <td className="p-2 border border-border whitespace-pre-wrap">{e.obs || "—"}</td>
-              </tr>
-            );
-          })}</tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="roteiro:equipe" ariaLabel="Progresso do tester" simples ordemInicial={null} linhas={ROTEIRO} chaveLinha={(f) => f.id}
+        colunas={[
+          { chave: "titulo", rotulo: "Funcionalidade", render: (f) => <span className="font-medium">{f.titulo}</span> },
+          { chave: "status", rotulo: "Status", valor: (f) => statusDe(est, f).rotulo, render: (f) => { const st = statusDe(est, f); return <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${st.cor}`}>{st.rotulo}</span>; } },
+          { chave: "passos", rotulo: "Passos", alinhar: "direita", valor: (f) => f.passos.filter((_, i) => est[f.id]?.passos?.[i]).length, render: (f) => `${f.passos.filter((_, i) => est[f.id]?.passos?.[i]).length}/${f.passos.length}` },
+          { chave: "obs", rotulo: "Observações", quebrar: true, valor: (f) => est[f.id]?.obs || "", render: (f) => <span className="whitespace-pre-wrap">{est[f.id]?.obs || "—"}</span> },
+        ]} />
     </div>
   );
 }
@@ -206,6 +198,14 @@ function Funcao({ f, indice, estado, setEstado }) {
   );
 }
 
+const COLUNAS_SETORES = [
+  { chave: "nome", rotulo: "Setor / ramo (nome da lei)", render: (x) => <span className="font-medium">{x.nome}</span> },
+  { chave: "baseLegal", rotulo: "Base legal" },
+  { chave: "tratamento", rotulo: "Tratamento", quebrar: true },
+  { chave: "cobertura", rotulo: "No InTAX", valor: (x) => COBERTURA[x.cobertura].rotulo, render: (x) => <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COBERTURA[x.cobertura].cor}`}>{COBERTURA[x.cobertura].rotulo}</span> },
+  { chave: "obs", rotulo: "Observação", quebrar: true },
+];
+
 function Mapa() {
   const r = resumoCobertura();
   const [filtro, setFiltro] = useState("");
@@ -233,22 +233,8 @@ function Mapa() {
               <h2 className="font-heading font-semibold text-sm">{g.grupo}</h2>
               <p className="text-xs text-muted-foreground">{g.fonte}</p>
             </header>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
-                  <th className="px-4 py-2 font-medium">Setor / ramo (nome da lei)</th><th className="px-4 py-2 font-medium">Base legal</th><th className="px-4 py-2 font-medium">Tratamento</th><th className="px-4 py-2 font-medium">No InTAX</th>
-                </tr></thead>
-                <tbody>
-                  {itens.map((x, i) => (
-                    <tr key={x.nome} className={`align-top border-b border-border last:border-0 ${i % 2 ? "bg-muted/15" : ""}`}>
-                      <td className="px-4 py-2.5 font-medium max-w-[280px]">{x.nome}</td>
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{x.baseLegal}</td>
-                      <td className="px-4 py-2.5 text-xs max-w-[360px]">{x.tratamento}</td>
-                      <td className="px-4 py-2.5 max-w-[260px]"><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COBERTURA[x.cobertura].cor}`}>{COBERTURA[x.cobertura].rotulo}</span>{x.obs && <p className="text-xs text-muted-foreground mt-1">{x.obs}</p>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="p-3">
+              <TabelaPadrao id="roteiro:setores" ariaLabel={g.grupo} simples linhas={itens} chaveLinha={(x) => x.nome} colunas={COLUNAS_SETORES} />
             </div>
           </section>
         );

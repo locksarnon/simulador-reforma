@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Users } from "lucide-react";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const STATUS = ["Novo", "Contatado", "Qualificado", "Reunião", "Fechado", "Perdido"];
 const DESTINOS = { consultoria: "Consultoria", bpo: "BPO fiscal", parceria: "Parceria", nutricao: "Nutrição" };
@@ -79,45 +80,40 @@ export default function LeadsPage() {
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm"><option value="">Todos os status</option>{STATUS.map((s) => <option key={s}>{s}</option>)}</select>
         </div>
 
-        <div className="rounded-lg border border-border bg-card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground uppercase tracking-wide">
-              <th className="px-3 py-2 font-medium">Data</th><th className="px-3 py-2 font-medium">Contato</th><th className="px-3 py-2 font-medium">Perfil</th>
-              <th className="px-3 py-2 font-medium">Origem</th><th className="px-3 py-2 font-medium">Score</th><th className="px-3 py-2 font-medium">Destino</th><th className="px-3 py-2 font-medium">Status</th>
-            </tr></thead>
-            <tbody>
-              {filtrados.map((l, i) => {
-                let extra = null;
-                try { extra = l.dados_json ? JSON.parse(l.dados_json) : null; } catch { /* dado antigo */ }
-                return (
-                  <React.Fragment key={l.id}>
-                    <tr onClick={() => setAberto(aberto === l.id ? null : l.id)} className={`border-b border-border align-top cursor-pointer hover:bg-muted/30 ${i % 2 ? "bg-muted/15" : ""}`}>
-                      <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">{fmtData(l.createdAt)}</td>
-                      <td className="px-3 py-2"><div className="font-medium">{l.nome}</div><div className="text-xs text-muted-foreground">{l.email}{l.telefone ? ` · ${l.telefone}` : ""}</div>{l.empresa && <div className="text-xs text-muted-foreground">{l.empresa}{l.cargo ? ` — ${l.cargo}` : ""}</div>}</td>
-                      <td className="px-3 py-2 text-xs">{l.segmento || "—"}<div className="text-muted-foreground">{l.porte || ""}</div></td>
-                      <td className="px-3 py-2 text-xs">{ORIGEM[l.origem] || l.origem}</td>
-                      <td className="px-3 py-2 tabular-nums font-medium">{l.score}</td>
-                      <td className="px-3 py-2"><span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_DEST[l.destino] || COR_DEST.nutricao}`}>{DESTINOS[l.destino] || "—"}</span></td>
-                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        <select value={l.status} onChange={(e) => atualizar(l, { status: e.target.value })} className="h-8 rounded-md border border-input bg-background px-1.5 text-xs">{STATUS.map((s) => <option key={s}>{s}</option>)}</select>
-                      </td>
-                    </tr>
-                    {aberto === l.id && (
-                      <tr className="border-b border-border bg-muted/20">
-                        <td colSpan={7} className="px-4 py-3 space-y-2 text-xs">
-                          {extra && <p className="text-muted-foreground">Resultado da ferramenta: {extra.atual_pct != null ? `carga hoje ${Number(extra.atual_pct).toFixed(1)}% → 2033 ${Number(extra.pct_2033).toFixed(1)}% (${Number(extra.impacto_pp_2033) >= 0 ? "+" : ""}${Number(extra.impacto_pp_2033).toFixed(1)} p.p.)` : JSON.stringify(extra)}{extra.faturamento_anual ? ` · faturamento anual estimado R$ ${Math.round(extra.faturamento_anual).toLocaleString("pt-BR")}` : ""}</p>}
-                          <p className="text-muted-foreground">Newsletter: {l.consentimento_email ? "consentiu" : "não consentiu"}</p>
-                          <textarea defaultValue={l.notas || ""} onBlur={(e) => e.target.value !== (l.notas || "") && atualizar(l, { notas: e.target.value })} placeholder="Notas do contato (salva ao sair do campo)" rows={2} className="w-full rounded-md border border-input bg-background p-2 text-sm" />
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-          {!isLoading && filtrados.length === 0 && <p className="py-12 text-center text-sm text-muted-foreground">{leads.length === 0 ? "Nenhum lead ainda. Divulgue a Calculadora, a Consulta NCM e o Validador de cadastro." : "Nenhum lead neste filtro."}</p>}
-        </div>
+        <TabelaPadrao id="leads" ariaLabel="Leads" linhas={filtrados} ordemInicial={{ chave: "createdAt", dir: -1 }}
+          vazio={isLoading ? "Carregando…" : leads.length === 0 ? "Nenhum lead ainda. Divulgue a Calculadora, a Consulta NCM e o Validador de cadastro." : "Nenhum lead neste filtro."}
+          aoClicarLinha={(l) => setAberto(aberto === l.id ? null : l.id)}
+          destaqueLinha={(l) => (aberto === l.id ? "bg-primary/5" : "")}
+          colunas={[
+            { chave: "createdAt", rotulo: "Data", tipo: "data", render: (l) => <span className="text-xs text-muted-foreground">{fmtData(l.createdAt)}</span> },
+            { chave: "nome", rotulo: "Nome", render: (l) => <span className="font-medium">{l.nome}</span> },
+            { chave: "email", rotulo: "E-mail" },
+            { chave: "telefone", rotulo: "Telefone" },
+            { chave: "empresa", rotulo: "Empresa" },
+            { chave: "cargo", rotulo: "Cargo" },
+            { chave: "segmento", rotulo: "Segmento", valor: (l) => l.segmento || "—" },
+            { chave: "porte", rotulo: "Porte" },
+            { chave: "origem", rotulo: "Origem", valor: (l) => ORIGEM[l.origem] || l.origem },
+            { chave: "score", rotulo: "Score", tipo: "numero", alinhar: "direita", render: (l) => <span className="font-medium">{l.score}</span> },
+            { chave: "destino", rotulo: "Destino", valor: (l) => DESTINOS[l.destino] || "—", render: (l) => <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${COR_DEST[l.destino] || COR_DEST.nutricao}`}>{DESTINOS[l.destino] || "—"}</span> },
+            { chave: "status", rotulo: "Status", render: (l) => <select value={l.status} onClick={(e) => e.stopPropagation()} onChange={(e) => atualizar(l, { status: e.target.value })} aria-label={`Status de ${l.nome}`} className="h-7 rounded-md border border-input bg-background px-1.5 text-xs">{STATUS.map((s) => <option key={s}>{s}</option>)}</select> },
+          ]}
+        />
+        {filtrados.filter((l) => l.id === aberto).map((l) => {
+          let extra = null;
+          try { extra = l.dados_json ? JSON.parse(l.dados_json) : null; } catch { /* dado antigo */ }
+          return (
+            <section key={l.id} aria-label={`Detalhe de ${l.nome}`} className="rounded-lg border border-border bg-muted/20 px-4 py-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">{l.nome}</h3>
+                <button type="button" onClick={() => setAberto(null)} className="text-xs text-muted-foreground hover:text-foreground">Fechar</button>
+              </div>
+              {extra && <p className="text-muted-foreground">Resultado da ferramenta: {extra.atual_pct != null ? `carga hoje ${Number(extra.atual_pct).toFixed(1)}% → 2033 ${Number(extra.pct_2033).toFixed(1)}% (${Number(extra.impacto_pp_2033) >= 0 ? "+" : ""}${Number(extra.impacto_pp_2033).toFixed(1)} p.p.)` : JSON.stringify(extra)}{extra.faturamento_anual ? ` · faturamento anual estimado R$ ${Math.round(extra.faturamento_anual).toLocaleString("pt-BR")}` : ""}</p>}
+              <p className="text-muted-foreground">Newsletter: {l.consentimento_email ? "consentiu" : "não consentiu"}</p>
+              <textarea defaultValue={l.notas || ""} onBlur={(e) => e.target.value !== (l.notas || "") && atualizar(l, { notas: e.target.value })} placeholder="Notas do contato (salva ao sair do campo)" rows={2} className="w-full rounded-md border border-input bg-background p-2 text-sm" />
+            </section>
+          );
+        })}
       </div>
     </div>
   );

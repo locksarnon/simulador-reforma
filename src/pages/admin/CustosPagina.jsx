@@ -26,10 +26,10 @@ export default function CustosPagina() {
   const d = q.data;
   const itens = d?.itens || [];
   const colunas = [
-    { chave: "usuario", rotulo: "Usuário", quebrar: false },
-    { chave: "chamadas", rotulo: "Chamadas", valor: (l) => String(l.chamadas) },
-    ...itens.map((i) => ({ chave: i.id, rotulo: i.rotulo, valor: (l) => { const x = l.itens.find((y) => y.id === i.id); return x?.quantidade ? `${x.quantidade} · ${brl(x.subtotal)}` : ""; } })),
-    { chave: "total", rotulo: "Total", valor: (l) => brl(l.total), render: (l) => <span className="font-medium tabular-nums">{brl(l.total)}</span> },
+    { chave: "usuario", rotulo: "Usuário" },
+    { chave: "chamadas", rotulo: "Chamadas", tipo: "numero", alinhar: "direita" },
+    ...itens.map((i) => ({ chave: i.id, rotulo: i.rotulo, alinhar: "direita", valor: (l) => l.itens.find((y) => y.id === i.id)?.subtotal ?? null, render: (l) => { const x = l.itens.find((y) => y.id === i.id); return x?.quantidade ? `${x.quantidade} · ${brl(x.subtotal)}` : ""; } })),
+    { chave: "total", rotulo: "Total", alinhar: "direita", render: (l) => <span className="font-medium tabular-nums">{brl(l.total)}</span> },
   ];
   return (
     <div>

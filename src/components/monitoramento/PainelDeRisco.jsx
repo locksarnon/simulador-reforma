@@ -8,6 +8,7 @@ import { naCarteira } from "@/lib/servicos";
 import { NIVEIS, quandoConsultou, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
 import { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const EH_CERTIDAO = /certid|cnd|crf|fgts/i;
 const DIAS = 86_400_000;
@@ -86,8 +87,14 @@ export default function PainelDeRisco({ ehAdmin }) {
           )}
         </Cartao>
         <Cartao titulo="Indicadores por assunto">
-          <table className="w-full text-xs"><thead><tr className="text-left text-muted-foreground"><th className="py-1">Assunto</th><th className="py-1 text-right">Crítico</th><th className="py-1 text-right">Atenção</th><th className="py-1 text-right">Em dia</th></tr></thead>
-            <tbody>{resumo.porGrupo.map((g) => <tr key={g.id} className="border-t border-border/60"><td className="py-1">{g.rotulo}</td><td className="py-1 text-right tabular-nums text-red-700 dark:text-red-400">{g.CRITICO}</td><td className="py-1 text-right tabular-nums text-amber-700 dark:text-amber-400">{g.ATENCAO}</td><td className="py-1 text-right tabular-nums">{g.OK}</td></tr>)}</tbody></table>
+          <TabelaPadrao simples id="risco-indicadores-assunto" ariaLabel="Indicadores por assunto" linhas={resumo.porGrupo} vazio="Sem dados."
+            colunas={[
+              { chave: "rotulo", rotulo: "Assunto" },
+              { chave: "CRITICO", rotulo: "Crítico", tipo: "numero", alinhar: "direita", render: (g) => <span className="text-red-700 dark:text-red-400">{g.CRITICO}</span> },
+              { chave: "ATENCAO", rotulo: "Atenção", tipo: "numero", alinhar: "direita", render: (g) => <span className="text-amber-700 dark:text-amber-400">{g.ATENCAO}</span> },
+              { chave: "OK", rotulo: "Em dia", tipo: "numero", alinhar: "direita" },
+            ]}
+          />
         </Cartao>
         <Cartao titulo={`Fila de prioridade (${fila.length})`} acao={<Link to="/bpo/monitoramento" className="text-xs text-primary hover:underline">Monitoramento</Link>}>
           {fila.length === 0 ? <p className="text-xs text-muted-foreground">Nada pedindo ação.</p> : (

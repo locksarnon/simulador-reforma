@@ -9,6 +9,7 @@ import { useTransicaoComCenario } from "@/lib/cenarioAliquotasStore";
 import { descricaoCurta } from "@/motor/cenariosAliquota";
 import SeletorCenarioAliquotas from "@/components/SeletorCenarioAliquotas";
 import LeadForm from "@/components/ferramentas/LeadForm";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const COR = {
   verde: "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/20",
@@ -17,6 +18,13 @@ const COR = {
 };
 const BOLA = { verde: "bg-emerald-500", amarelo: "bg-amber-500", vermelho: "bg-red-500" };
 const pct = (v) => `${v.toFixed(1).replace(".", ",")}%`;
+const COLUNAS_COMPARATIVO = [
+  { chave: "tema", rotulo: "Tema", render: (l) => <span className="font-medium">{l.tema}</span> },
+  { chave: "base", rotulo: "Base legal" },
+  { chave: "era", rotulo: "Como era", quebrar: true },
+  { chave: "fica", rotulo: "Como fica", quebrar: true },
+  { chave: "confirmar", rotulo: "A confirmar", quebrar: true, render: (l) => (l.confirmar ? <span className="text-amber-700 dark:text-amber-400">{l.confirmar}</span> : "") },
+];
 
 function Passos({ atual }) {
   const nomes = ["Perfil", "Perguntas", "Números", "Resultado"];
@@ -267,16 +275,8 @@ export default function CalculadoraPage() {
           {comparativo && (
             <div className="rounded-xl border border-border bg-card p-4">
               <p className="font-medium text-sm">Como era × como fica ({comparativo.regimeRot})</p>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead><tr className="bg-muted/60 text-left text-xs"><th className="p-2 border border-border w-1/5">Tema</th><th className="p-2 border border-border">Como era</th><th className="p-2 border border-border">Como fica</th></tr></thead>
-                  <tbody>{comparativo.linhas.map((l) => (
-                    <tr key={l.tema} className="align-top">
-                      <td className="p-2 border border-border font-medium">{l.tema}{l.base && <div className="text-[11px] font-normal text-muted-foreground">{l.base}</div>}</td>
-                      <td className="p-2 border border-border text-muted-foreground">{l.era}</td>
-                      <td className="p-2 border border-border">{l.fica}{l.confirmar && <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">A confirmar: {l.confirmar}</div>}</td>
-                    </tr>))}</tbody>
-                </table>
+              <div className="mt-3">
+                <TabelaPadrao id="calculadora:como-era-como-fica" ariaLabel="Como era e como fica" simples ordemInicial={null} linhas={comparativo.linhas} chaveLinha={(l) => l.tema} colunas={COLUNAS_COMPARATIVO} />
               </div>
             </div>
           )}

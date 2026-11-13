@@ -6,12 +6,12 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
 import { SeloNivel } from "@/components/monitoramento/CartaoServico";
 import { mascararDocumento } from "@/lib/clientes";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
-import { quandoConsultou, useEstadoMonitoramento } from "@/lib/monitoramento";
+import { NIVEIS, quandoConsultou, SEM_CONSULTA, useEstadoMonitoramento } from "@/lib/monitoramento";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { naCarteira } from "@/lib/servicos";
 import { plural } from "@/lib/plural";
@@ -56,29 +56,23 @@ export default function ProcuracoesPagina() {
             </button>
           ))}
         </div>
-        <div className="flex justify-end"><BotaoExportar titulo="Procurações e certificados" linhas={lista} colunas={[
-          { chave: "razao_social", rotulo: "Cliente" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" },
-          { chave: "caminho", rotulo: "Acesso", valor: (l) => CAMINHOS[l.caminho]?.rotulo },
-          { chave: "cert", rotulo: "Certificado A1", valor: (l) => (l.certificado ? `${SIT_CERT[l.certificado.situacao]} (até ${new Date(l.certificado.valido_ate).toLocaleDateString("pt-BR")})` : "Não guardado") },
-          { chave: "proc", rotulo: "Procuração", valor: (l) => l.procuracao?.titulo || "Não consultada" },
-        ]} /></div>
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-[13px]" aria-label="Procurações e certificados por cliente">
-            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="px-3 py-2">Cliente</th><th className="px-2 py-2">Acesso à Receita</th><th className="px-2 py-2">Certificado A1</th><th className="px-2 py-2">Procuração eletrônica</th></tr></thead>
-            <tbody>
-              {dados.isLoading && <tr><td colSpan={4} className="py-10 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-              {!dados.isLoading && lista.length === 0 && <tr><td colSpan={4} className="py-10 text-center text-muted-foreground">Nenhum cliente neste filtro.</td></tr>}
-              {lista.map((l) => (
-                <tr key={l.empresa_id} className="border-b border-border/60 last:border-0 align-top">
-                  <td className="px-3 py-2"><Link to={`/clientes/${l.empresa_id}`} className="font-medium hover:text-primary hover:underline">{l.razao_social}</Link><p className="text-[11px] text-muted-foreground tabular-nums">{mascararDocumento(l.cnpj_cpf) || "sem CNPJ"}</p></td>
-                  <td className="px-2 py-2"><span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${CAMINHOS[l.caminho].tom}`}>{CAMINHOS[l.caminho].rotulo}</span></td>
-                  <td className="px-2 py-2">{l.certificado ? <span className={l.certificado.situacao === "VALIDO" ? "" : "text-amber-700 dark:text-amber-400"}>{SIT_CERT[l.certificado.situacao]} · até {new Date(l.certificado.valido_ate).toLocaleDateString("pt-BR")}</span> : <Link to={`${CAMINHO_REPOSITORIO_XML}/${l.empresa_id}`} className="text-xs text-primary hover:underline">Guardar o A1</Link>}</td>
-                  <td className="px-2 py-2">{l.procuracao ? <div className="space-y-0.5"><SeloNivel nivel={l.procuracao.nivel} /><p className="text-xs">{l.procuracao.titulo}</p><p className="text-[11px] text-muted-foreground">{quandoConsultou(l.procuracao.consultado_em)}{l.procuracao.simulado ? " · demonstração" : ""}</p></div> : <span className="text-xs text-muted-foreground">Não consultada</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {dados.isLoading ? <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
+          <TabelaPadrao
+            id="procuracoes-certificados" ariaLabel="Procurações e certificados por cliente" titulo="Procurações e certificados" linhas={lista} chaveLinha={(l) => l.empresa_id} vazio="Nenhum cliente neste filtro."
+            colunas={[
+              { chave: "razao_social", rotulo: "Cliente", render: (l) => <Link to={`/clientes/${l.empresa_id}`} className="font-medium hover:text-primary hover:underline">{l.razao_social}</Link> },
+              { chave: "cnpj_cpf", rotulo: "CNPJ/CPF", valor: (l) => mascararDocumento(l.cnpj_cpf) || "", render: (l) => <span className="tabular-nums text-muted-foreground">{mascararDocumento(l.cnpj_cpf) || "sem CNPJ"}</span> },
+              { chave: "caminho", rotulo: "Acesso à Receita", valor: (l) => CAMINHOS[l.caminho]?.rotulo || "", render: (l) => <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${CAMINHOS[l.caminho].tom}`}>{CAMINHOS[l.caminho].rotulo}</span> },
+              { chave: "cert", rotulo: "Certificado A1", valor: (l) => (l.certificado ? SIT_CERT[l.certificado.situacao] : "Não guardado"),
+                render: (l) => (l.certificado ? <span className={l.certificado.situacao === "VALIDO" ? "" : "text-amber-700 dark:text-amber-400"}>{SIT_CERT[l.certificado.situacao]}</span> : <Link to={`${CAMINHO_REPOSITORIO_XML}/${l.empresa_id}`} className="text-xs text-primary hover:underline">Guardar o A1</Link>) },
+              { chave: "cert_validade", rotulo: "A1 válido até", tipo: "data", valor: (l) => l.certificado?.valido_ate || "" },
+              { chave: "proc_nivel", rotulo: "Nível da procuração", valor: (l) => (l.procuracao ? (NIVEIS[l.procuracao.nivel] || SEM_CONSULTA).rotulo : "Não consultada"), render: (l) => (l.procuracao ? <SeloNivel nivel={l.procuracao.nivel} /> : <span className="text-xs text-muted-foreground">Não consultada</span>) },
+              { chave: "proc", rotulo: "Procuração eletrônica", valor: (l) => l.procuracao?.titulo || "", render: (l) => l.procuracao?.titulo || <span className="text-muted-foreground">—</span>, quebrar: true },
+              { chave: "proc_consulta", rotulo: "Consultada", tipo: "data", valor: (l) => l.procuracao?.consultado_em || "",
+                render: (l) => (l.procuracao ? <span className="text-muted-foreground">{quandoConsultou(l.procuracao.consultado_em)}{l.procuracao.simulado ? " · demonstração" : ""}</span> : <span className="text-muted-foreground">—</span>) },
+            ]}
+          />
+        )}
       </div>
     </div>
   );

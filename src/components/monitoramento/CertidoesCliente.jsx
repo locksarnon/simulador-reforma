@@ -21,8 +21,8 @@ export const situacaoPelaValidade = (iso, agora = Date.now()) => { if (!iso) ret
 const COLUNAS = [
   { chave: "situacao", rotulo: "Vigência", valor: (l) => SITUACAO[l.situacao]?.rotulo ?? l.situacao, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SITUACAO[l.situacao]?.tom ?? SITUACAO.SEM_VALIDADE.tom}`}>{SITUACAO[l.situacao]?.rotulo ?? l.situacao}</span> },
   { chave: "regularidade", rotulo: "Regularidade" },
-  { chave: "emissao", rotulo: "Emissão", tipo: "data", quebrar: false },
-  { chave: "validade", rotulo: "Validade", tipo: "data", quebrar: false },
+  { chave: "emissao", rotulo: "Emissão", tipo: "data" },
+  { chave: "validade", rotulo: "Validade", tipo: "data" },
   { chave: "numero", rotulo: "Número / código" },
   { chave: "origem", rotulo: "Origem" },
   { chave: "guardada", rotulo: "Guardada por", valor: (l) => l.criado_por || "" },

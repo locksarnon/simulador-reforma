@@ -8,6 +8,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { base, fmtData, fmtDataHora } from "./formatos";
 import { plural } from "@/lib/plural";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const campo = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm";
 const SITUACAO = {
@@ -149,12 +150,14 @@ export default function CertificadoXml({ empresaId }) {
       {admin && (
         <Bloco titulo="Auditoria do cofre (últimos 20 registros)">
           {!auditoria?.length ? <p className="text-sm text-muted-foreground">Nenhum registro ainda.</p> : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-muted-foreground border-b border-border"><th className="py-2 pr-3">Quando</th><th className="py-2 pr-3">Ação</th><th className="py-2 pr-3">Quem</th><th className="py-2">Detalhe</th></tr></thead>
-              <tbody>{auditoria.map((a) => (
-                <tr key={a.id} className="border-b border-border/60"><td className="py-1.5 pr-3 whitespace-nowrap">{fmtDataHora(a.createdAt)}</td><td className="py-1.5 pr-3 whitespace-nowrap">{ACAO[a.acao] || a.acao}</td><td className="py-1.5 pr-3">{a.usuario}</td><td className="py-1.5 text-muted-foreground">{a.detalhe}</td></tr>
-              ))}</tbody>
-            </table></div>
+            <TabelaPadrao simples id="repo-xml-cofre-auditoria" ariaLabel="Auditoria do cofre" linhas={auditoria} ordemInicial={{ chave: "createdAt", dir: -1 }}
+              colunas={[
+                { chave: "createdAt", rotulo: "Quando", tipo: "data", render: (a) => fmtDataHora(a.createdAt) },
+                { chave: "acao", rotulo: "Ação", valor: (a) => ACAO[a.acao] || a.acao },
+                { chave: "usuario", rotulo: "Quem" },
+                { chave: "detalhe", rotulo: "Detalhe", quebrar: true, render: (a) => <span className="text-muted-foreground">{a.detalhe}</span> },
+              ]}
+            />
           )}
         </Bloco>
       )}

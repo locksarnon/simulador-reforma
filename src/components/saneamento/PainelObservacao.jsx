@@ -2,6 +2,7 @@
 // aprova as palavras (as cores já vêm aprovadas) e vê o que a regra liga na base. Só SUGERE: nada é alterado no cadastro. A lógica está em observacao.js.
 import React, { useState } from "react";
 import { Botao, Chip, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { grupoUsaObservacao, grupoUsaPorPadrao, palavrasEmVigor, palavrasIgnoradas } from "./observacao";
 
 /**
@@ -15,7 +16,6 @@ export default function PainelObservacao({ cfg, grupos, sugestoes, efeito, semAn
   const nMarcados = grupos.filter((g) => grupoUsaObservacao(cfg, g.nome)).length;
   const escolhidas = sugestoes.filter((s) => marcadas.has(s.forma));
   const adicionar = () => { const ws = nova.split(/[\s,;]+/).filter(Boolean); if (ws.length) { onAprovar(ws); setNova(""); } };
-  const alternar = (forma) => setMarcadas((m) => { const n = new Set(m); if (n.has(forma)) n.delete(forma); else n.add(forma); return n; });
   const resolver = (fn) => { fn(escolhidas.map((s) => s.palavra)); setMarcadas(new Set()); };
   return (
     <div className="rounded-lg border border-border p-3 space-y-3">
@@ -64,19 +64,13 @@ export default function PainelObservacao({ cfg, grupos, sugestoes, efeito, semAn
               <Botao disabled={escolhidas.length === 0} onClick={() => resolver(onIgnorar)}>Não é observação{escolhidas.length ? ` (${escolhidas.length})` : ""}</Botao>
               <button type="button" className="text-xs text-primary underline" onClick={() => setMarcadas(new Set(marcadas.size === sugestoes.length ? [] : sugestoes.map((s) => s.forma)))}>{marcadas.size === sugestoes.length ? "Desmarcar todas" : "Marcar todas"}</button>
             </div>
-            <div className="max-h-72 overflow-auto">
-              <table className="w-full border-collapse text-xs">
-                <thead><tr className="text-left text-muted-foreground"><th className="p-1.5 w-8"><span className="sr-only">Marcar</span></th><th className="p-1.5">Palavra</th><th className="p-1.5 text-right">Itens</th><th className="p-1.5 text-right">Conjuntos</th><th className="p-1.5">Exemplo</th></tr></thead>
-                <tbody>{sugestoes.map((s) => (
-                  <tr key={s.forma} className="border-t border-border align-top">
-                    <td className="p-1.5"><input type="checkbox" checked={marcadas.has(s.forma)} onChange={() => alternar(s.forma)} aria-label={`Marcar ${s.palavra}`} /></td>
-                    <td className="p-1.5 font-mono">{s.palavra}</td>
-                    <td className="p-1.5 text-right tabular-nums">{fmt(s.itens)}</td>
-                    <td className="p-1.5 text-right tabular-nums">{fmt(s.conjuntos)}</td>
-                    <td className="p-1.5 max-w-[360px] break-words text-muted-foreground">{s.exemplos.join(" | ")}</td>
-                  </tr>))}</tbody>
-              </table>
-            </div>
+            <TabelaPadrao id="saneamento-observacao-sugestoes" ariaLabel="Sugestões de palavras de observação" linhas={sugestoes} chaveLinha={(s) => s.forma} ordemInicial={null}
+              selecao={{ marcadas, aoMudar: setMarcadas }} colunas={[
+                { chave: "palavra", rotulo: "Palavra", render: (s) => <span className="font-mono">{s.palavra}</span> },
+                { chave: "itens", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
+                { chave: "conjuntos", rotulo: "Conjuntos", tipo: "numero", alinhar: "direita" },
+                { chave: "exemplos", rotulo: "Exemplo", quebrar: true, valor: (s) => s.exemplos.join(" | "), render: (s) => <span className="text-muted-foreground">{s.exemplos.join(" | ")}</span> },
+              ]} />
           </>)}
       </div>
 

@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import AssistenteLegal from "@/components/base-legal/AssistenteLegal";
 import CartoesLegais from "@/components/base-legal/CartoesLegais";
 import AlertasBaseLegal from "@/components/base-legal/AlertasBaseLegal";
@@ -116,7 +117,28 @@ export default function BaseLegalPage() {
           {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : normas.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma norma cadastrada ainda. {admin ? "Use o botão Atualizar de cada norma depois que ela aparecer aqui." : "Peça a um administrador para carregar a base."}</p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-3">Norma</th><th className="p-3">Assunto</th><th className="p-3">Publicação</th><th className="p-3">Situação</th><th className="p-3">Dispositivos</th><th className="p-3">Ações</th></tr></thead><tbody>{normas.map(n => <tr key={n.chave} className="border-t border-border hover:bg-muted/20"><td className="p-3 font-medium">{n.numero}<span className="block text-xs text-muted-foreground">{n.tipo}</span></td><td className="p-3 max-w-lg"><p>{n.titulo}</p><p className="text-xs text-muted-foreground">{n.ementa}</p>{n.observacao && <p className="text-xs text-muted-foreground">{n.observacao}</p>}</td><td className="p-3 whitespace-nowrap">{fmtData(n.data_publicacao)}</td><td className="p-3"><span className={n.total_dispositivos ? 'text-xs rounded px-2 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'text-xs rounded px-2 py-1 bg-muted text-muted-foreground'}>{n.total_dispositivos ? 'Texto carregado' : 'Não carregada'}</span></td><td className="p-3">{n.total_dispositivos || '—'}</td><td className="p-3"><div className="flex flex-wrap gap-2"><Link to={'/base-legal/' + n.chave} className="text-primary underline">Ler texto integral</Link><a href={n.url_oficial} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary underline"><ExternalLink className="w-3 h-3" />Fonte oficial</a>{admin && <button type="button" disabled={atualizando === n.chave} onClick={() => atualizar(n.chave)} className="inline-flex gap-1 items-center border border-border rounded px-2 py-1 disabled:opacity-50">{atualizando === n.chave ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}Atualizar</button>}</div><p className="text-xs text-muted-foreground mt-2">Conferida: {n.capturada_em ? new Date(n.capturada_em).toLocaleDateString('pt-BR') : '—'}</p></td></tr>)}</tbody></table></div>
+            <TabelaPadrao id="base-legal:normas" ariaLabel="Normas carregadas" linhas={normas} chaveLinha={(n) => n.chave}
+              colunas={[
+                { chave: "numero", rotulo: "Norma", render: (n) => <span className="font-medium">{n.numero}</span> },
+                { chave: "tipo", rotulo: "Tipo" },
+                { chave: "titulo", rotulo: "Assunto", quebrar: true },
+                { chave: "ementa", rotulo: "Ementa", quebrar: true },
+                { chave: "observacao", rotulo: "Observação", quebrar: true },
+                { chave: "data_publicacao", rotulo: "Publicação", tipo: "data", render: (n) => fmtData(n.data_publicacao) },
+                { chave: "situacao", rotulo: "Situação", valor: (n) => (n.total_dispositivos ? "Texto carregado" : "Não carregada"), render: (n) => <span className={n.total_dispositivos ? "text-xs rounded px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" : "text-xs rounded px-2 py-0.5 bg-muted text-muted-foreground"}>{n.total_dispositivos ? "Texto carregado" : "Não carregada"}</span> },
+                { chave: "total_dispositivos", rotulo: "Dispositivos", tipo: "numero", alinhar: "direita", render: (n) => n.total_dispositivos || "—" },
+                { chave: "capturada_em", rotulo: "Conferida em", tipo: "data", render: (n) => (n.capturada_em ? new Date(n.capturada_em).toLocaleDateString("pt-BR") : "—") },
+                {
+                  chave: "acoes", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false,
+                  render: (n) => (
+                    <span className="inline-flex items-center gap-2">
+                      <Link to={"/base-legal/" + n.chave} className="text-primary underline">Ler texto integral</Link>
+                      <a href={n.url_oficial} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary underline"><ExternalLink className="w-3 h-3" />Fonte oficial</a>
+                      {admin && <button type="button" disabled={atualizando === n.chave} onClick={() => atualizar(n.chave)} className="inline-flex gap-1 items-center border border-border rounded px-2 py-0.5 disabled:opacity-50">{atualizando === n.chave ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}Atualizar</button>}
+                    </span>
+                  ),
+                },
+              ]} />
           )}
         </section>
 

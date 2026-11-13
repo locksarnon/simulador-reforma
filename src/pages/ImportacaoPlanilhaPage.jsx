@@ -11,6 +11,7 @@ import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { BRL, pct } from "@/lib/format";
 import { plural } from "@/lib/plural";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import {
   CAMPOS_ESSENCIAIS, OPCOES_INICIAIS, colunasRepetidas, faltaIndicar, mapeamentoParaEnvio, opcoesParaEnvio, podeConferir, rotuloDoCampo,
 } from "@/lib/planilhaOperacoes";
@@ -315,46 +316,31 @@ export default function ImportacaoPlanilhaPage() {
               {conferencia.amostraErros?.length > 0 && (
                 <div>
                   <p className="text-sm font-medium mb-1">Linhas com erro {conferencia.comErro > conferencia.amostraErros.length ? `(as primeiras ${conferencia.amostraErros.length} de ${conferencia.comErro})` : ""}</p>
-                  <div className="overflow-x-auto rounded-md border border-border">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted/40 text-left"><tr><th className="p-2 w-16">Linha</th><th className="p-2">O que corrigir</th></tr></thead>
-                      <tbody>
-                        {conferencia.amostraErros.map((l) => (
-                          <tr key={l.linha} className="border-t border-border"><td className="p-2 tabular-nums">{l.linha}</td><td className="p-2">{l.erros.join(" ")}</td></tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <TabelaPadrao simples id="planilha-linhas-com-erro" ariaLabel="Linhas com erro" linhas={conferencia.amostraErros} chaveLinha={(l) => l.linha} ordemInicial={{ chave: "linha", dir: 1 }}
+                    colunas={[
+                      { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita" },
+                      { chave: "erros", rotulo: "O que corrigir", quebrar: true, valor: (l) => l.erros.join(" ") },
+                    ]}
+                  />
                 </div>
               )}
 
               {conferencia.amostraValidas?.length > 0 && (
                 <div>
                   <p className="text-sm font-medium mb-1">Como as primeiras linhas válidas foram lidas</p>
-                  <div className="overflow-x-auto rounded-md border border-border">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted/40 text-left">
-                        <tr>
-                          <th className="p-2">Linha</th><th className="p-2">Empresa</th><th className="p-2">Data</th><th className="p-2">Direção</th><th className="p-2">Tipo</th>
-                          <th className="p-2 text-right">Valor</th><th className="p-2 text-right">ICMS</th><th className="p-2 text-right">PIS</th><th className="p-2 text-right">Cofins</th><th className="p-2 text-right">Crédito</th><th className="p-2">Avisos</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {conferencia.amostraValidas.map((l) => (
-                          <tr key={l.linha} className="border-t border-border align-top">
-                            <td className="p-2 tabular-nums">{l.linha}</td><td className="p-2">{l.previa.empresa}</td><td className="p-2">{l.previa.data}</td>
-                            <td className="p-2">{l.previa.direcao === "Saida" ? "Saída" : l.previa.direcao}</td><td className="p-2">{l.previa.tipo}</td>
-                            <td className="p-2 text-right tabular-nums">{BRL(l.previa.valor ?? 0)}</td>
-                            <td className="p-2 text-right tabular-nums">{l.previa.icms == null ? "—" : pct(l.previa.icms)}</td>
-                            <td className="p-2 text-right tabular-nums">{l.previa.pis == null ? "—" : pct(l.previa.pis)}</td>
-                            <td className="p-2 text-right tabular-nums">{l.previa.cofins == null ? "—" : pct(l.previa.cofins)}</td>
-                            <td className="p-2 text-right tabular-nums">{l.previa.credito == null ? "—" : pct(l.previa.credito)}</td>
-                            <td className="p-2 text-muted-foreground">{l.duplicada ? "Já importada. " : ""}{l.avisos.join(" ")}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <TabelaPadrao simples id="planilha-linhas-validas" ariaLabel="Primeiras linhas válidas" linhas={conferencia.amostraValidas} chaveLinha={(l) => l.linha} ordemInicial={{ chave: "linha", dir: 1 }}
+                    colunas={[
+                      { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita" },
+                      { chave: "empresa", rotulo: "Empresa", valor: (l) => l.previa.empresa },
+                      { chave: "data", rotulo: "Data", tipo: "data", valor: (l) => l.previa.data },
+                      { chave: "direcao", rotulo: "Direção", valor: (l) => (l.previa.direcao === "Saida" ? "Saída" : l.previa.direcao) },
+                      { chave: "tipo", rotulo: "Tipo", valor: (l) => l.previa.tipo },
+                      { chave: "valor", rotulo: "Valor", alinhar: "direita", valor: (l) => l.previa.valor ?? 0, render: (l) => BRL(l.previa.valor ?? 0) },
+                      ...["icms", "pis", "cofins", "credito"].map((k) => ({ chave: k, rotulo: { icms: "ICMS", pis: "PIS", cofins: "Cofins", credito: "Crédito" }[k], alinhar: "direita", valor: (l) => l.previa[k] ?? null, render: (l) => (l.previa[k] == null ? "—" : pct(l.previa[k])) })),
+                      { chave: "duplicada", rotulo: "Situação", valor: (l) => (l.duplicada ? "Já importada" : "Nova") },
+                      { chave: "avisos", rotulo: "Avisos", quebrar: true, valor: (l) => l.avisos.join(" "), render: (l) => <span className="text-muted-foreground">{l.avisos.join(" ")}</span> },
+                    ]}
+                  />
                 </div>
               )}
 

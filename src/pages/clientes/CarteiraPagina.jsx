@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
@@ -51,6 +51,21 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
   }, [base, filtros, mapa, tipo, porEmpresa, colaboradores]);
   const mudar = (chave, valor) => setFiltros((f) => ({ ...f, [chave]: valor }));
   const grupoDe = (e) => grupos.find((g) => g.numero === e.grupo);
+  const servicoDe = (e) => mapa.get(e.id)?.[tipo];
+  const nomeDoGrupo = (e) => { const g = grupoDe(e); return g ? `${g.numero} ${g.nome}` : e.grupo || ""; };
+  const colunas = [
+    { chave: "razao_social", rotulo: "Empresa", render: (e) => <span className="font-medium">{e.razao_social}</span> },
+    { chave: "documento", rotulo: "CNPJ/CPF", valor: (e) => e.cnpj_cpf || e.id_empresa || "", render: (e) => <span className="tabular-nums text-muted-foreground">{e.cnpj_cpf || e.id_empresa || "—"}</span> },
+    { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", "), render: (e) => <EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} aoEditar={() => setDialogoTags([e])} /> },
+    { chave: "grupo", rotulo: "Grupo", valor: nomeDoGrupo, render: (e) => <span className="text-muted-foreground">{nomeDoGrupo(e) || "—"}</span> },
+    { chave: "situacao", rotulo: "Situação", valor: (e) => { const s = servicoDe(e); return s ? SITUACOES[s.situacao] || s.situacao : "Sem serviço"; },
+      render: (e) => { const s = servicoDe(e); return s ? <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_DA_SITUACAO[s.situacao] || "bg-muted"}`}>{SITUACOES[s.situacao] || s.situacao}</span> : <span className="text-muted-foreground">Sem serviço</span>; } },
+    { chave: "responsavel", rotulo: "Responsável", valor: (e) => servicoDe(e)?.responsavel || "", render: (e) => servicoDe(e)?.responsavel || "—" },
+    { chave: "inicio", rotulo: "Desde", tipo: "data", valor: (e) => servicoDe(e)?.inicio || "", render: (e) => fmtDataCurta(servicoDe(e)?.inicio) },
+    ...(tipo === "BPO_FISCAL" ? [{ chave: "modulos", rotulo: "Módulos ligados", valor: (e) => (servicoDe(e)?.modulos || []).map((m) => MODULOS_BPO[m] || m).join(", "), render: (e) => <span className="text-[11px] text-muted-foreground">{(servicoDe(e)?.modulos || []).map((m) => MODULOS_BPO[m] || m).join(", ") || "—"}</span> }] : []),
+    { chave: "acesso", rotulo: "Ir para", ordenavel: false, filtravel: false, valor: () => "",
+      render: (e) => <div className="flex gap-3">{ACOES[tipo](e, grupoDe(e)).map((a) => <Link key={a.to} to={a.to} className="text-primary hover:underline">{a.rotulo}</Link>)}</div> },
+  ];
 
   return (
     <div>
@@ -78,14 +93,6 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
               <select className={campo} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
                 <option value="">Todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
               </select></label>
-            <BotaoExportar titulo={titulo} linhas={lista} colunas={[
-              { chave: "razao_social", rotulo: "Empresa" }, { chave: "cnpj_cpf", rotulo: "CNPJ/CPF" },
-              { chave: "grupo", rotulo: "Grupo", valor: (e) => { const g = grupoDe(e); return g ? `${g.numero} ${g.nome}` : e.grupo || ""; } },
-              { chave: "situacao", rotulo: "Situação", valor: (e) => SITUACOES[mapa.get(e.id)?.[tipo]?.situacao] || "Sem serviço" },
-              { chave: "responsavel", rotulo: "Responsável", valor: (e) => mapa.get(e.id)?.[tipo]?.responsavel || "" },
-              { chave: "inicio", rotulo: "Desde", valor: (e) => fmtDataCurta(mapa.get(e.id)?.[tipo]?.inicio) },
-              { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", ") },
-            ]} />
             <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
               <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
                 <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
@@ -98,39 +105,14 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
             <FiltroPorTags tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
             <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px] leading-5" aria-label={`Empresas da carteira: ${titulo}`}>
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pr-3">Empresa</th><th className="py-1.5 pr-3">Grupo</th><th className="py-1.5 pr-3">Situação</th>
-                  <th className="py-1.5 pr-3">Responsável</th><th className="py-1.5 pr-3">Desde</th>
-                  {tipo === "BPO_FISCAL" && <th className="py-1.5 pr-3">Módulos ligados</th>}<th className="py-1.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {carregando && <tr><td colSpan={7} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-                {!carregando && erro && <tr><td colSpan={7} className="py-8 text-center" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></td></tr>}
-                {!carregando && !erro && lista.length === 0 && !ninguemMarcado && <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">{servicos.length === 0 && empresas.length === 0 ? "Nenhuma empresa cadastrada." : "Nenhuma empresa com esses filtros."}</td></tr>}
-                {lista.map((e) => {
-                  const s = mapa.get(e.id)?.[tipo];
-                  const g = grupoDe(e);
-                  return (
-                    <tr key={e.id} className="border-b border-border/60 hover:bg-muted/40 align-top">
-                      <td className="py-1.5 pr-3"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p><EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} aoEditar={() => setDialogoTags([e])} /></td>
-                      <td className="py-1.5 pr-3 whitespace-nowrap text-muted-foreground">{g ? `${g.numero} ${g.nome}` : e.grupo || "—"}</td>
-                      <td className="py-1.5 pr-3">{s ? <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${TOM_DA_SITUACAO[s.situacao] || "bg-muted"}`}>{SITUACOES[s.situacao] || s.situacao}</span> : <span className="text-muted-foreground">Sem serviço</span>}</td>
-                      <td className="py-1.5 pr-3">{s?.responsavel || "—"}</td>
-                      <td className="py-1.5 pr-3 whitespace-nowrap">{fmtDataCurta(s?.inicio)}</td>
-                      {tipo === "BPO_FISCAL" && <td className="py-1.5 pr-3 text-[11px] text-muted-foreground">{s?.modulos?.length ? s.modulos.map((m) => MODULOS_BPO[m] || m).join(", ") : "—"}</td>}
-                      <td className="py-1.5 whitespace-nowrap">
-                        <div className="flex gap-3">{ACOES[tipo](e, g).map((a) => <Link key={a.to} to={a.to} className="text-primary hover:underline">{a.rotulo}</Link>)}</div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {carregando && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+          {!carregando && erro && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
+          {!carregando && !erro && (
+            <TabelaPadrao
+              id={`carteira-${tipo}`} ariaLabel={`Empresas da carteira: ${titulo}`} titulo={titulo} colunas={colunas} linhas={lista}
+              vazio={ninguemMarcado ? "Nenhuma empresa na carteira." : servicos.length === 0 && empresas.length === 0 ? "Nenhuma empresa cadastrada." : "Nenhuma empresa com esses filtros."}
+            />
+          )}
           <p className="text-xs text-muted-foreground">{plural(lista.length, "empresa", "empresas")} {todas ? "(todas)" : "na carteira"}.</p>
         </div>
       </div>

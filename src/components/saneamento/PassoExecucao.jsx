@@ -3,41 +3,55 @@ import { Download, Loader2 } from "lucide-react";
 import { hojeIso } from "./logica";
 import { FRENTES, ORDEM_TIPOS, TIPOS_TAREFA, aplicarRespostaExecucao, confirmacaoObsoleta, lerRespostaExecucao, linhasListaFrente, registroEfetivo, situacaoFrente, situacaoTarefa, tiposEfetivos } from "./execucao";
 import { gerarListaFrente } from "./listasFinais";
-import { Acc, Botao, Chip, Th, fmt, ordenarPor, plural, useOrdenacao } from "./ui";
+import { Acc, Botao, Chip, fmt, plural } from "./ui";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const OPCOES = [["", "Pendente"], ["FEITO", "Feito"], ["DIV", "Divergência"]];
-// Ordem das situações nas colunas ordenáveis (o que não se aplica fica por último)
-const RANQUE_FRENTE = { NA: null, PENDENTE: 0, SEM_EVIDENCIA: 1, DIVERGENCIA: 2, FEITO: 3 };
-const RANQUE_GERAL = { PENDENTE: 0, EM_ANDAMENTO: 1, DIVERGENCIA: 2, CONCLUIDA: 3 };
 
 /** Resumo curto de uma frente (para o título do lote e do tipo). */
 const progresso = (r) => `administrativo ${fmt(r.adm.feitas)}/${fmt(r.adm.total)}${r.alm.total ? ` · almoxarifado ${fmt(r.alm.feitas)}/${fmt(r.alm.total)}` : ""}`;
 
-/** Uma frente de uma tarefa: situação, evidência (ou explicação da divergência) e, no almoxarifado, o que a equipe informou da realocação. */
-function CelulaFrente({ t, frente, reg, obsoleta, onStatus, onNota }) {
-  if (!t.aplica[frente]) return <span className="text-muted-foreground">—</span>;
-  const s = situacaoFrente(true, reg);
-  return (
-    <div className="space-y-1">
-      {obsoleta && <Chip tom="a">Havia confirmação de outra alteração: não vale, confirme de novo</Chip>}
-      <select value={reg?.status || ""} onChange={(e) => onStatus(t.id, frente, e.target.value)} aria-label={`${FRENTES[frente]}: situação de ${t.codigo}`} className="border rounded px-1 py-0.5 bg-background text-xs">
-        {OPCOES.map(([v, rot]) => <option key={v} value={v}>{rot}</option>)}
-      </select>
-      <input value={(reg?.status === "DIV" ? reg.obs : reg?.evidencia) || ""} onChange={(e) => onNota(t.id, frente, reg, e.target.value)} placeholder={reg?.status === "DIV" ? "Explique a divergência" : "Evidência (documento, foto, link)"}
-        aria-label={`${FRENTES[frente]}: evidência de ${t.codigo}`} className="block w-44 border rounded px-1 py-0.5 bg-background text-xs" />
-      {s === "SEM_EVIDENCIA" && <Chip tom="a">Sem evidência: pendente</Chip>}
-      {frente === "alm" && (reg?.origem || reg?.destino || reg?.qtd) && <div className="text-[11px] text-muted-foreground">{reg.origem || "—"} → {reg.destino || "—"}{reg.qtd ? ` · ${reg.qtd}` : ""}</div>}
-    </div>
-  );
+const ROT_OPCAO = Object.fromEntries(OPCOES);
+const ROT_GERAL = { CONCLUIDA: "Concluída", DIVERGENCIA: "Divergência", EM_ANDAMENTO: "Em andamento", PENDENTE: "Pendente" };
+const TOM_GERAL = { CONCLUIDA: "g", DIVERGENCIA: "a", EM_ANDAMENTO: "b", PENDENTE: "n" };
+
+/**
+ * Colunas de uma frente de uma tarefa: situação (com os avisos de confirmação de outra alteração e de falta de evidência), evidência (ou explicação da divergência) e,
+ * no almoxarifado, o que a equipe informou da realocação. Cada informação na sua coluna.
+ */
+function colunasFrente(frente, registros, onStatus, onNota) {
+  const reg = (t) => registroEfetivo(t, registros[t.id])?.[frente];
+  const nome = FRENTES[frente];
+  const cols = [
+    { chave: `${frente}Situacao`, rotulo: `${nome}: situação`, valor: (t) => (t.aplica[frente] ? ROT_OPCAO[reg(t)?.status || ""] : "—"), render: (t) => {
+      if (!t.aplica[frente]) return <span className="text-muted-foreground">—</span>;
+      const r = reg(t); const s = situacaoFrente(true, r);
+      return (
+        <span className="inline-flex items-center gap-1.5">
+          <select value={r?.status || ""} onChange={(e) => onStatus(t.id, frente, e.target.value)} aria-label={`${nome}: situação de ${t.codigo}`} className="border rounded px-1 py-0.5 bg-background text-xs">
+            {OPCOES.map(([v, rot]) => <option key={v} value={v}>{rot}</option>)}
+          </select>
+          {confirmacaoObsoleta(t, registros[t.id], frente) && <Chip tom="a">Havia confirmação de outra alteração: não vale, confirme de novo</Chip>}
+          {s === "SEM_EVIDENCIA" && <Chip tom="a">Sem evidência: pendente</Chip>}
+        </span>);
+    } },
+    { chave: `${frente}Evidencia`, rotulo: `${nome}: evidência`, valor: (t) => { const r = reg(t); return t.aplica[frente] ? (r?.status === "DIV" ? r.obs : r?.evidencia) || "" : "—"; }, render: (t) => {
+      if (!t.aplica[frente]) return <span className="text-muted-foreground">—</span>;
+      const r = reg(t);
+      return <input value={(r?.status === "DIV" ? r.obs : r?.evidencia) || ""} onChange={(e) => onNota(t.id, frente, r, e.target.value)} placeholder={r?.status === "DIV" ? "Explique a divergência" : "Evidência (documento, foto, link)"}
+        aria-label={`${nome}: evidência de ${t.codigo}`} className="w-44 border rounded px-1 py-0.5 bg-background text-xs" />;
+    } },
+  ];
+  if (frente === "alm") cols.push({ chave: "almRealocacao", rotulo: "Realocação", valor: (t) => { const r = reg(t); return t.aplica.alm && (r?.origem || r?.destino || r?.qtd) ? `${r.origem || "—"} → ${r.destino || "—"}${r.qtd ? ` · ${r.qtd}` : ""}` : ""; } });
+  return cols;
 }
 
 /** Conteúdo de um lote (grupo): por tipo de tarefa, o registro em lote e a tabela das tarefas. Só é montado com o lote aberto. */
-function Lote({ g, tarefasPorTipo, registros, mostrar, setMostrar, evidLote, setEvidLote, onStatus, onNota, onLote }) {
-  const [ord, ordenar] = useOrdenacao(); // a mesma ordem vale para as tabelas de todos os tipos do lote
+function Lote({ g, tarefasPorTipo, registros, evidLote, setEvidLote, onStatus, onNota, onLote }) {
   return (
     <div className="space-y-3">
       {g.tipos.map((tp) => {
-        const chave = `${g.grupo}|${tp.tipo}`; const doTipo = tarefasPorTipo.get(chave) || []; const lim = mostrar[chave] || 50;
+        const chave = `${g.grupo}|${tp.tipo}`; const doTipo = tarefasPorTipo.get(chave) || [];
         const comAlm = doTipo.some((t) => t.aplica.alm); const evid = (evidLote[chave] || "").trim();
         return (
           <div key={tp.tipo} className="space-y-2">
@@ -47,21 +61,14 @@ function Lote({ g, tarefasPorTipo, registros, mostrar, setMostrar, evidLote, set
               <Botao disabled={!evid} title={evid ? undefined : "Informe a evidência para registrar"} onClick={() => onLote(doTipo.map((t) => t.id), "adm", evid)}>Administrativo: marcar como feito</Botao>
               {comAlm && <Botao disabled={!evid} title={evid ? undefined : "Informe a evidência para registrar"} onClick={() => onLote(doTipo.filter((t) => t.aplica.alm).map((t) => t.id), "alm", evid)}>Almoxarifado: marcar como feito</Botao>}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="codigo" ord={ord} onOrdenar={ordenar}>Código</Th><Th chave="descricao" ord={ord} onOrdenar={ordenar}>Descrição</Th><Th chave="fazer" ord={ord} onOrdenar={ordenar}>O que fazer</Th><Th chave="adm" ord={ord} onOrdenar={ordenar}>Administrativo</Th><Th chave="alm" ord={ord} onOrdenar={ordenar}>Almoxarifado</Th><Th chave="situacao" ord={ord} onOrdenar={ordenar}>Situação</Th></tr></thead>
-                <tbody>{ordenarPor(doTipo, ord, { codigo: (t) => t.codigo, descricao: (t) => t.descricao, fazer: (t) => t.instrucao.adm, adm: (t) => RANQUE_FRENTE[situacaoTarefa(t, registros[t.id]).adm], alm: (t) => RANQUE_FRENTE[situacaoTarefa(t, registros[t.id]).alm], situacao: (t) => RANQUE_GERAL[situacaoTarefa(t, registros[t.id]).geral] }).slice(0, lim).map((t) => {
-                  const s = situacaoTarefa(t, registros[t.id]);
-                  return (
-                    <tr key={t.id} className="border-t border-border align-top">
-                      <td className="p-1.5 tabular-nums">{t.codigo || "—"}</td><td className="p-1.5 max-w-[220px]">{t.descricao || "—"}</td>
-                      <td className="p-1.5 max-w-[320px] text-muted-foreground"><span className="line-clamp-3" title={t.instrucao.adm}>{t.instrucao.adm}</span></td>
-                      <td className="p-1.5"><CelulaFrente t={t} frente="adm" reg={registroEfetivo(t, registros[t.id])?.adm} obsoleta={confirmacaoObsoleta(t, registros[t.id], "adm")} onStatus={onStatus} onNota={onNota} /></td>
-                      <td className="p-1.5"><CelulaFrente t={t} frente="alm" reg={registroEfetivo(t, registros[t.id])?.alm} obsoleta={confirmacaoObsoleta(t, registros[t.id], "alm")} onStatus={onStatus} onNota={onNota} /></td>
-                      <td className="p-1.5 whitespace-nowrap">{s.geral === "CONCLUIDA" ? <Chip tom="g">Concluída</Chip> : s.geral === "DIVERGENCIA" ? <Chip tom="a">Divergência</Chip> : s.geral === "EM_ANDAMENTO" ? <Chip tom="b">Em andamento</Chip> : <Chip>Pendente</Chip>}</td>
-                    </tr>);
-                })}</tbody></table>
-              {doTipo.length > lim && <button type="button" onClick={() => setMostrar((m) => ({ ...m, [chave]: lim + 200 }))} className="text-xs text-primary underline p-2">Mostrar mais ({fmt(doTipo.length - lim)} restantes)</button>}
-            </div>
+            <TabelaPadrao id="saneamento-execucao-tarefas" ariaLabel={`Tarefas: ${TIPOS_TAREFA[tp.tipo].titulo} em ${g.grupo}`} linhas={doTipo} chaveLinha={(t) => t.id} tamanhoInicial={50} vazio="Nenhuma tarefa." colunas={[
+              { chave: "codigo", rotulo: "Código", valor: (t) => t.codigo || "—" },
+              { chave: "descricao", rotulo: "Descrição", valor: (t) => t.descricao || "—" },
+              { chave: "fazer", rotulo: "O que fazer", quebrar: true, valor: (t) => t.instrucao.adm, render: (t) => <span className="text-muted-foreground">{t.instrucao.adm}</span> },
+              ...colunasFrente("adm", registros, onStatus, onNota),
+              ...(comAlm ? colunasFrente("alm", registros, onStatus, onNota) : []),
+              { chave: "situacao", rotulo: "Situação", valor: (t) => ROT_GERAL[situacaoTarefa(t, registros[t.id]).geral], render: (t) => { const s = situacaoTarefa(t, registros[t.id]).geral; return <Chip tom={TOM_GERAL[s] || "n"}>{ROT_GERAL[s]}</Chip>; } },
+            ]} />
           </div>);
       })}
     </div>
@@ -74,11 +81,9 @@ function Lote({ g, tarefasPorTipo, registros, mostrar, setMostrar, evidLote, set
  */
 export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTipo, resumo, quem, slug, pilotoTestados, pilotoTotal }) {
   const [aberto, setAberto] = useState({});
-  const [mostrar, setMostrar] = useState({});
   const [evidLote, setEvidLote] = useState({});
   const [msg, setMsg] = useState("");
   const [gerando, setGerando] = useState("");
-  const [ordTipos, ordenarTipos] = useOrdenacao();
   const registros = estado.execucao?.registros || {};
   const cfg = tiposEfetivos(estado.execucao?.tipos);
   const alternar = (k) => setAberto((a) => ({ ...a, [k]: !a[k] }));
@@ -145,19 +150,14 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
       {resumo.semEvidencia > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">{plural(resumo.semEvidencia, "confirmação está", "confirmações estão")} sem evidência e não {resumo.semEvidencia === 1 ? "conta" : "contam"} como feita{resumo.semEvidencia === 1 ? "" : "s"}.</p>}
 
       <Acc aberto={!!aberto.__tipos} onToggle={() => alternar("__tipos")} titulo={<><b className="font-medium">Tipos de tarefa e frentes aplicáveis</b><span className="text-xs text-muted-foreground">escolha o que entra na execução e onde há movimento físico</span></>}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse"><thead><tr className="text-left text-muted-foreground"><Th chave="tipo" ord={ordTipos} onOrdenar={ordenarTipos}>Tipo</Th><Th chave="geradas" ord={ordTipos} onOrdenar={ordenarTipos}>Geradas</Th><Th chave="entra" ord={ordTipos} onOrdenar={ordenarTipos}>Entra na execução</Th><Th chave="alm" ord={ordTipos} onOrdenar={ordenarTipos}>Almoxarifado participa</Th><th className="p-1.5">O que se faz</th></tr></thead>
-            <tbody>{ordenarPor(ORDEM_TIPOS, ordTipos, { tipo: (t) => TIPOS_TAREFA[t].titulo, geradas: (t) => geradasPorTipo[t] || 0, entra: (t) => (cfg[t].incluir ? 1 : 0), alm: (t) => (TIPOS_TAREFA[t].comoAlm ? (cfg[t].alm ? 1 : 0) : null) }).map((t) => {
-              const base = TIPOS_TAREFA[t]; const c = cfg[t];
-              return (
-                <tr key={t} className="border-t border-border align-top">
-                  <td className="p-1.5 font-medium">{base.titulo}</td><td className="p-1.5 tabular-nums">{fmt(geradasPorTipo[t] || 0)}</td>
-                  <td className="p-1.5"><input type="checkbox" aria-label={`Incluir na execução: ${base.titulo}`} checked={c.incluir} onChange={(e) => setTipo(t, { incluir: e.target.checked })} /></td>
-                  <td className="p-1.5">{base.comoAlm ? <input type="checkbox" aria-label={`Almoxarifado participa: ${base.titulo}`} checked={c.alm} disabled={!c.incluir} onChange={(e) => setTipo(t, { alm: e.target.checked })} /> : <span className="text-muted-foreground">sem etapa física</span>}</td>
-                  <td className="p-1.5 text-muted-foreground max-w-[460px]"><b className="font-medium text-foreground">Administrativo:</b> {base.comoAdm}{base.comoAlm && <><br /><b className="font-medium text-foreground">Almoxarifado:</b> {base.comoAlm}</>}</td>
-                </tr>);
-            })}</tbody></table>
-        </div>
+        <TabelaPadrao id="saneamento-execucao-tipos" ariaLabel="Tipos de tarefa e frentes aplicáveis" simples ordemInicial={null} linhas={ORDEM_TIPOS} chaveLinha={(t) => t} colunas={[
+          { chave: "tipo", rotulo: "Tipo", valor: (t) => TIPOS_TAREFA[t].titulo, render: (t) => <span className="font-medium">{TIPOS_TAREFA[t].titulo}</span> },
+          { chave: "geradas", rotulo: "Geradas", tipo: "numero", alinhar: "direita", valor: (t) => geradasPorTipo[t] || 0 },
+          { chave: "entra", rotulo: "Entra na execução", alinhar: "centro", valor: (t) => (cfg[t].incluir ? "Sim" : "Não"), render: (t) => <input type="checkbox" aria-label={`Incluir na execução: ${TIPOS_TAREFA[t].titulo}`} checked={cfg[t].incluir} onChange={(e) => setTipo(t, { incluir: e.target.checked })} /> },
+          { chave: "alm", rotulo: "Almoxarifado participa", alinhar: "centro", valor: (t) => (TIPOS_TAREFA[t].comoAlm ? (cfg[t].alm ? "Sim" : "Não") : "sem etapa física"), render: (t) => (TIPOS_TAREFA[t].comoAlm ? <input type="checkbox" aria-label={`Almoxarifado participa: ${TIPOS_TAREFA[t].titulo}`} checked={cfg[t].alm} disabled={!cfg[t].incluir} onChange={(e) => setTipo(t, { alm: e.target.checked })} /> : <span className="text-muted-foreground">sem etapa física</span>) },
+          { chave: "comoAdm", rotulo: "Administrativo: o que se faz", quebrar: true, valor: (t) => TIPOS_TAREFA[t].comoAdm, render: (t) => <span className="text-muted-foreground">{TIPOS_TAREFA[t].comoAdm}</span> },
+          { chave: "comoAlm", rotulo: "Almoxarifado: o que se faz", quebrar: true, valor: (t) => TIPOS_TAREFA[t].comoAlm || "", render: (t) => <span className="text-muted-foreground">{TIPOS_TAREFA[t].comoAlm || "—"}</span> },
+        ]} />
       </Acc>
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
@@ -172,7 +172,7 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
       {tarefas.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma tarefa ainda: elas nascem das decisões e das inativações aprovadas no passo De/para (o corte por data sozinho não gera tarefa).</p> : resumo.grupos.map((g) => (
         <Acc key={g.grupo} aberto={!!aberto["g" + g.grupo]} onToggle={() => alternar("g" + g.grupo)}
           titulo={<><b className="font-medium">{g.grupo}</b>{g.CONCLUIDA === g.total ? <Chip tom="g">Concluído</Chip> : <Chip tom="a">Em execução</Chip>}{g.DIVERGENCIA > 0 && <Chip tom="a">{plural(g.DIVERGENCIA, "divergência", "divergências")}</Chip>}<span className="text-xs text-muted-foreground">{plural(g.total, "tarefa", "tarefas")} · {progresso(g)}</span></>}>
-          <Lote g={g} tarefasPorTipo={tarefasPorTipo} registros={registros} mostrar={mostrar} setMostrar={setMostrar} evidLote={evidLote} setEvidLote={setEvidLote} onStatus={mudarStatus} onNota={escreverNota} onLote={registrarLote} />
+          <Lote g={g} tarefasPorTipo={tarefasPorTipo} registros={registros} evidLote={evidLote} setEvidLote={setEvidLote} onStatus={mudarStatus} onNota={escreverNota} onLote={registrarLote} />
         </Acc>))}
     </div>
   );

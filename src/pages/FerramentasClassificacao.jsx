@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Search, Wrench, Download, HelpCircle } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 // Valores reais de "Local incidência IBS" encontrados no Anexo VIII — não é
 // uma categoria inventada, é o próprio agrupamento que a tabela oficial usa.
@@ -184,42 +185,7 @@ export default function FerramentasClassificacao() {
             </div>
 
             {resultadosLote && (
-              <div className="rounded-lg border border-border bg-card overflow-hidden">
-                <div className="overflow-x-auto max-h-[500px]">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/40 sticky top-0">
-                      <tr className="text-left text-xs text-muted-foreground">
-                        <th className="py-2.5 px-4 font-medium">Termo</th>
-                        <th className="py-2.5 px-4 font-medium">Status</th>
-                        <th className="py-2.5 px-4 font-medium">cClassTrib</th>
-                        <th className="py-2.5 px-4 font-medium">Descrição</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resultadosLote.map((r, i) => (
-                        <tr key={i} className="border-t border-border/50">
-                          <td className="py-2.5 px-4 font-mono text-xs">{r.termo}</td>
-                          <td className="py-2.5 px-4">
-                            {r.achados.length === 0 ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">Não encontrado</span>
-                            ) : r.achados.length > 1 ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-                                {r.achados.length} candidatos
-                              </span>
-                            ) : (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-chart-2/15 text-chart-2">Encontrado</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-4 font-mono text-xs">{r.achados.length > 1 ? "Revisar candidatos" : r.achados[0]?.c_class_trib || "Não informado na base"}</td>
-                          <td className="py-2.5 px-4 text-muted-foreground max-w-[360px] truncate">
-                            {r.achados[0]?.descricao_nbs || r.achados[0]?.descricao_item || "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <TabelaPadrao id="classificacao:lote" ariaLabel="Resultado da consulta em lote" ordemInicial={null} tamanhoInicial={100} colunas={COLUNAS_LOTE} linhas={resultadosLote} chaveLinha={(r, i) => `${i}-${r.termo}`} />
             )}
           </TabsContent>
         </Tabs>
@@ -228,41 +194,31 @@ export default function FerramentasClassificacao() {
   );
 }
 
+const COLUNAS_RESULTADOS = [
+  { chave: "item_lc116", rotulo: "Item LC 116", render: (r) => <span className="font-mono text-xs">{r.item_lc116 || "—"}</span> },
+  { chave: "nbs", rotulo: "NBS", render: (r) => <span className="font-mono text-xs">{r.nbs || "—"}</span> },
+  { chave: "descricao", rotulo: "Descrição", quebrar: true, valor: (r) => r.descricao_nbs || r.descricao_item || "" },
+  { chave: "ind_op", rotulo: "cIndOp", render: (r) => <span className="font-mono text-xs">{r.ind_op || "Não informado na base"}</span> },
+  { chave: "local_incidencia_ibs", rotulo: "Local incidência IBS", render: (r) => r.local_incidencia_ibs || "—" },
+  { chave: "c_class_trib", rotulo: "cClassTrib", render: (r) => <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-accent/15" title={r.nome_class_trib}>{r.c_class_trib || "Não informado na base"}</span> },
+];
+
+/** Resultados da busca, na ordem de relevância (cabeçalhos ordenáveis). */
 function TabelaResultados({ resultados }) {
-  return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40">
-            <tr className="text-left text-xs text-muted-foreground">
-              <th className="py-2.5 px-4 font-medium">Item LC 116</th>
-              <th className="py-2.5 px-4 font-medium">NBS</th>
-              <th className="py-2.5 px-4 font-medium">Descrição</th>
-              <th className="py-2.5 px-4 font-medium">cIndOp</th>
-              <th className="py-2.5 px-4 font-medium">Local incidência IBS</th>
-              <th className="py-2.5 px-4 font-medium">cClassTrib</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resultados.map((r) => (
-              <tr key={r.id} className="border-t border-border/50 hover:bg-muted/20">
-                <td className="py-2.5 px-4 font-mono text-xs">{r.item_lc116 || "—"}</td>
-                <td className="py-2.5 px-4 font-mono text-xs">{r.nbs || "—"}</td>
-                <td className="py-2.5 px-4 text-muted-foreground max-w-[320px] truncate" title={r.descricao_nbs || r.descricao_item}>
-                  {r.descricao_nbs || r.descricao_item || "—"}
-                </td>
-                <td className="py-2.5 px-4 font-mono text-xs">{r.ind_op || "Não informado na base"}</td>
-                <td className="py-2.5 px-4 text-xs text-muted-foreground">{r.local_incidencia_ibs || "—"}</td>
-                <td className="py-2.5 px-4">
-                  <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-accent/15" title={r.nome_class_trib}>
-                    {r.c_class_trib || "Não informado na base"}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  return <TabelaPadrao id="classificacao:resultados" ariaLabel="Serviços encontrados" simples ordemInicial={null} colunas={COLUNAS_RESULTADOS} linhas={resultados} />;
 }
+
+const statusDoLote = (r) => (r.achados.length === 0 ? "Não encontrado" : r.achados.length > 1 ? `${r.achados.length} candidatos` : "Encontrado");
+const COLUNAS_LOTE = [
+  { chave: "termo", rotulo: "Termo", render: (r) => <span className="font-mono text-xs">{r.termo}</span> },
+  {
+    chave: "status", rotulo: "Status", valor: statusDoLote,
+    render: (r) => (r.achados.length === 0
+      ? <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">Não encontrado</span>
+      : r.achados.length > 1
+        ? <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">{r.achados.length} candidatos</span>
+        : <span className="text-xs px-1.5 py-0.5 rounded bg-chart-2/15 text-chart-2">Encontrado</span>),
+  },
+  { chave: "c_class_trib", rotulo: "cClassTrib", valor: (r) => (r.achados.length > 1 ? "Revisar candidatos" : r.achados[0]?.c_class_trib || "Não informado na base"), render: (r) => <span className="font-mono text-xs">{r.achados.length > 1 ? "Revisar candidatos" : r.achados[0]?.c_class_trib || "Não informado na base"}</span> },
+  { chave: "descricao", rotulo: "Descrição", quebrar: true, valor: (r) => r.achados[0]?.descricao_nbs || r.achados[0]?.descricao_item || "—" },
+];

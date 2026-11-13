@@ -8,6 +8,7 @@ import { ArrowRight, History, LayoutGrid, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import ListaSolicitacoesButton from "@/components/ListaSolicitacoesButton";
 import { SERVICOS } from "@/lib/servicosEmpresa";
 
@@ -77,23 +78,19 @@ export default function EmpresaServicos({ historico = false }) {
           : isError || erroValidacoes || erroProjetos ? <p role="alert" className="text-sm">Não foi possível carregar todo o histórico. Tente novamente.</p>
           : lista.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma análise salva nesta empresa. O diagnóstico tributário permanece disponível nas abas de importação, operações e painel.</p>
           : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Análise</th><th className="px-3 py-2 font-medium">Serviço</th><th className="px-3 py-2 font-medium">Data</th><th className="px-3 py-2"></th></tr></thead>
-                <tbody>
-                  {lista.map((a) => (
-                    <tr key={a.servico + a.id} className="border-t border-border hover:bg-muted/30">
-                      <td className="px-3 py-1.5">{a.titulo}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground">{nomeServico(a.servico)}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{new Date(a.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
-                      <td className="px-3 py-1.5 text-right whitespace-nowrap">
-                        <Link to={a.to} className="text-primary underline">Abrir</Link>
-                        <button type="button" onClick={() => { setApagarBase(true); setAlvo(a); }} aria-label={`Excluir ${a.titulo}`} title="Excluir" className="ml-3 p-1 align-middle text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
-                      </td>
-                    </tr>))}
-                </tbody>
-              </table>
-            </div>)}
+            <TabelaPadrao id="empresa-analises-salvas" ariaLabel="Análises salvas" linhas={lista} chaveLinha={(a) => a.servico + a.id} ordemInicial={{ chave: "createdAt", dir: -1 }}
+              colunas={[
+                { chave: "titulo", rotulo: "Análise" },
+                { chave: "servico", rotulo: "Serviço", valor: (a) => nomeServico(a.servico), render: (a) => <span className="text-muted-foreground">{nomeServico(a.servico)}</span> },
+                { chave: "createdAt", rotulo: "Data", tipo: "data", render: (a) => <span className="text-muted-foreground tabular-nums">{new Date(a.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span> },
+              ]}
+              documentos={(a) => (
+                <>
+                  <Link to={a.to} className="text-primary underline">Abrir</Link>
+                  <button type="button" onClick={() => { setApagarBase(true); setAlvo(a); }} aria-label={`Excluir ${a.titulo}`} title="Excluir" className="ml-3 p-0.5 align-middle text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
+                </>
+              )}
+            />)}
       </section>
 
       <ConfirmarExclusao aberto={!!alvo} titulo={alvo?.tipo === "projeto" ? "Excluir o projeto de saneamento?" : alvo?.tipo === "validacao" ? "Excluir a validação de cadastro?" : "Excluir a análise salva?"} onFechar={() => setAlvo(null)} onConfirmar={excluirAlvo}>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, KeyRound, Loader2, Mail, Pencil, Send, UserCheck, UserPlus, UserX } from "lucide-react";
 import { api } from "@/api/client";
@@ -178,52 +178,41 @@ export default function UsuariosPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Usuários e acessos" }]}
         title="Usuários e acessos"
         subtitle="Quem usa o InTAX, com o papel e a situação de cada conta. Convide por e-mail, reenvie o convite ou mande o link para a pessoa criar uma senha nova. O histórico de entradas fica em Registro de acesso e IPs."
-        actions={<><BotaoExportar titulo="Usuários" linhas={usuarios || []} colunas={[
-          { chave: "name", rotulo: "Nome" }, { chave: "email", rotulo: "E-mail" }, { chave: "role", rotulo: "Papel", valor: (u) => PAPEIS[u.role] || u.role },
-          { chave: "situacao", rotulo: "Situação", valor: (u) => situacaoDaConta(u).rotulo }, { chave: "ultimo", rotulo: "Último acesso", valor: (u) => quando(u.lastLoginAt) },
-          { chave: "empresas", rotulo: "Empresas na carteira" },
-        ]} /><button type="button" onClick={() => setDialogo({ tipo: "novo" })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><UserPlus className="h-4 w-4" aria-hidden="true" /> Convidar pessoa</button></>}
+        actions={<button type="button" onClick={() => setDialogo({ tipo: "novo" })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><UserPlus className="h-4 w-4" aria-hidden="true" /> Convidar pessoa</button>}
       />
       <div className="px-6 lg:px-8 py-6">
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-[13px] leading-5" aria-label="Usuários do sistema">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="px-3 py-2">Pessoa</th><th className="px-3 py-2">Papel</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2">Último acesso</th><th className="px-3 py-2 text-right">Empresas</th><th className="px-3 py-2"><span className="sr-only">Ações</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-              {error && <tr><td colSpan={6} className="py-8 text-center" role="alert">Não foi possível carregar. <button type="button" onClick={() => refetch()} className="text-primary hover:underline">Tentar de novo</button></td></tr>}
-              {(usuarios || []).map((u) => {
-                const s = situacaoDaConta(u);
-                const semEntrar = u.ativo && !u.lastLoginAt;
-                return (
-                  <tr key={u.id} className="border-b border-border/60 hover:bg-muted/40">
-                    <td className="px-3 py-2"><p className="font-medium">{u.name || u.email}{u.id === user.id && <span className="ml-2 rounded bg-primary/10 px-1.5 text-[10px] font-semibold uppercase text-primary">você</span>}</p>{u.name && <p className="text-[11px] text-muted-foreground">{u.email}</p>}</td>
-                    <td className="px-3 py-2">{PAPEIS[u.role] || u.role}</td>
-                    <td className="px-3 py-2"><span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${s.tom}`}>{s.rotulo}</span></td>
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{quando(u.lastLoginAt)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{u.empresas}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={() => setDialogo({ tipo: "editar", usuario: u })} className={icone} aria-label={`Editar ${u.email}`} title="Editar"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                        {semEntrar && <button type="button" disabled={ocupado} onClick={() => reenviar.mutate(u)} className={icone} aria-label={`Reenviar convite para ${u.email}`} title="Reenviar convite por e-mail"><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                        {u.ativo && <button type="button" disabled={ocupado} onClick={() => pedirRedefinicao(u)} className={icone} aria-label={`Redefinir a senha de ${u.email}`} title="Enviar link por e-mail para criar senha nova"><Mail className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                        {u.ativo && <button type="button" disabled={ocupado} onClick={() => pedirProvisoria(u)} className={icone} aria-label={`Gerar senha provisória para ${u.email}`} title="Gerar senha provisória (sem e-mail)"><KeyRound className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                        {u.id !== user.id && (
-                          <button type="button" onClick={() => alternar(u)} className={icone} aria-label={`${u.ativo ? "Desativar" : "Reativar"} ${u.email}`} title={u.ativo ? "Desativar" : "Reativar"}>
-                            {u.ativo ? <UserX className="h-3.5 w-3.5 text-destructive" aria-hidden="true" /> : <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
+        {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={() => refetch()} className="text-primary hover:underline">Tentar de novo</button></p>}
+        {!isLoading && !error && (
+          <TabelaPadrao
+            id="admin-usuarios" ariaLabel="Usuários do sistema" titulo="Usuários" linhas={usuarios || []} vazio="Nenhum usuário."
+            colunas={[
+              { chave: "name", rotulo: "Nome", render: (u) => <span className="font-medium">{u.name || <span className="font-normal text-muted-foreground">—</span>}{u.id === user.id && <span className="ml-2 rounded bg-primary/10 px-1.5 text-[10px] font-semibold uppercase text-primary">você</span>}</span> },
+              { chave: "email", rotulo: "E-mail" },
+              { chave: "role", rotulo: "Papel", valor: (u) => PAPEIS[u.role] || u.role },
+              { chave: "situacao", rotulo: "Situação", valor: (u) => situacaoDaConta(u).rotulo, render: (u) => { const s = situacaoDaConta(u); return <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${s.tom}`}>{s.rotulo}</span>; } },
+              { chave: "lastLoginAt", rotulo: "Último acesso", tipo: "data", render: (u) => <span className="text-muted-foreground">{quando(u.lastLoginAt)}</span> },
+              { chave: "empresas", rotulo: "Empresas", tipo: "numero", alinhar: "direita" },
+              { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
+                render: (u) => {
+                  const semEntrar = u.ativo && !u.lastLoginAt;
+                  return (
+                    <div className="flex items-center justify-end gap-1">
+                      <button type="button" onClick={() => setDialogo({ tipo: "editar", usuario: u })} className={icone} aria-label={`Editar ${u.email}`} title="Editar"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                      {semEntrar && <button type="button" disabled={ocupado} onClick={() => reenviar.mutate(u)} className={icone} aria-label={`Reenviar convite para ${u.email}`} title="Reenviar convite por e-mail"><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                      {u.ativo && <button type="button" disabled={ocupado} onClick={() => pedirRedefinicao(u)} className={icone} aria-label={`Redefinir a senha de ${u.email}`} title="Enviar link por e-mail para criar senha nova"><Mail className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                      {u.ativo && <button type="button" disabled={ocupado} onClick={() => pedirProvisoria(u)} className={icone} aria-label={`Gerar senha provisória para ${u.email}`} title="Gerar senha provisória (sem e-mail)"><KeyRound className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                      {u.id !== user.id && (
+                        <button type="button" onClick={() => alternar(u)} className={icone} aria-label={`${u.ativo ? "Desativar" : "Reativar"} ${u.email}`} title={u.ativo ? "Desativar" : "Reativar"}>
+                          {u.ativo ? <UserX className="h-3.5 w-3.5 text-destructive" aria-hidden="true" /> : <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />}
+                        </button>
+                      )}
+                    </div>
+                  );
+                } },
+            ]}
+          />
+        )}
         <p className="mt-2 text-xs text-muted-foreground">Convite vale 7 dias; senha nova, 24 horas.</p>
       </div>
       {dialogo && <DialogoUsuario key={dialogo.usuario?.id || "novo"} alvo={dialogo} aoFechar={() => setDialogo(null)} aoSalvar={aoSalvar} />}

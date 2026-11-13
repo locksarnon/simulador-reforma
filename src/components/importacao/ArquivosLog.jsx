@@ -2,6 +2,7 @@ import React from "react";
 import { FileText, AlertTriangle, CheckCircle2, XCircle, Minus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { plural } from "@/lib/plural";
+import TabelaPadrao from "@/components/TabelaPadrao";
 
 const SITUACAO_CONFIG = {
   AUTORIZADO: { label: "Autorizado", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
@@ -27,72 +28,24 @@ export default function ArquivosLog({ arquivos }) {
         <h3 className="font-heading font-medium text-sm">Log de Arquivos</h3>
         <p className="text-xs text-muted-foreground mt-0.5">{plural(arquivos.length, "arquivo processado", "arquivos processados")}</p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/50 text-muted-foreground">
-            <tr>
-              <th className="text-left font-medium px-4 py-2.5">Arquivo</th>
-              <th className="text-left font-medium px-4 py-2.5">Tipo</th>
-              <th className="text-left font-medium px-4 py-2.5">Chave</th>
-              <th className="text-left font-medium px-4 py-2.5">Nº/Série</th>
-              <th className="text-left font-medium px-4 py-2.5">Data</th>
-              <th className="text-left font-medium px-4 py-2.5">Situação</th>
-              <th className="text-left font-medium px-4 py-2.5">cStat</th>
-              <th className="text-left font-medium px-4 py-2.5">xMotivo</th>
-              <th className="text-left font-medium px-4 py-2.5">Amb.</th>
-              <th className="text-right font-medium px-4 py-2.5">Itens</th>
-              <th className="text-left font-medium px-4 py-2.5">Duplicidade</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {arquivos.map((a) => {
-              const cfg = SITUACAO_CONFIG[a.situacao_fiscal] || SITUACAO_CONFIG.IGNORADO;
-              const Icon = cfg.icon;
-              return (
-                <tr key={a.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      <span className="truncate max-w-[180px] font-medium" title={a.nome_original}>
-                        {a.nome_original}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{a.tipo_xml || "—"}</td>
-                  <td className="px-4 py-2.5 font-mono text-[10px] text-muted-foreground" title={a.chave_nfe}>
-                    {a.chave_nfe ? `${a.chave_nfe.substring(0, 22)}...` : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {a.numero_nf || "—"}<span className="text-muted-foreground/60">/{a.serie || "—"}</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {a.data_emissao ? new Date(a.data_emissao).toLocaleDateString("pt-BR") : "—"}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium", cfg.color)}>
-                      <Icon className="w-3 h-3" />
-                      {cfg.label}
-                    </span>
-                    {a.erro_processamento && (
-                      <p className="mt-1 max-w-[260px] whitespace-normal text-[10px] text-muted-foreground line-clamp-3" title={a.erro_processamento}>
-                        {a.erro_processamento}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground font-mono">{a.cstat || "—"}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground max-w-[160px] truncate" title={a.xmotivo}>
-                    {a.xmotivo || "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {a.ambiente === "1" ? "Prod" : a.ambiente === "2" ? "Homol" : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-muted-foreground">{a.qtd_itens || 0}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground text-[10px]">{a.motivo_duplicidade || "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="p-3">
+        <TabelaPadrao id="importacao-xml-arquivos" ariaLabel="Log de arquivos" linhas={arquivos}
+          colunas={[
+            { chave: "nome_original", rotulo: "Arquivo", render: (a) => <span className="inline-flex items-center gap-1.5 font-medium"><FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />{a.nome_original}</span> },
+            { chave: "tipo_xml", rotulo: "Tipo", valor: (a) => a.tipo_xml || "—" },
+            { chave: "chave_nfe", rotulo: "Chave", valor: (a) => a.chave_nfe || "—", render: (a) => <span className="font-mono text-[11px] text-muted-foreground">{a.chave_nfe || "—"}</span> },
+            { chave: "numero_nf", rotulo: "Número", alinhar: "direita", valor: (a) => (a.numero_nf ? Number(a.numero_nf) || a.numero_nf : null), render: (a) => a.numero_nf || "—" },
+            { chave: "serie", rotulo: "Série", alinhar: "direita", valor: (a) => (a.serie ? Number(a.serie) || a.serie : null), render: (a) => a.serie || "—" },
+            { chave: "data_emissao", rotulo: "Data", tipo: "data", render: (a) => (a.data_emissao ? new Date(a.data_emissao).toLocaleDateString("pt-BR") : "—") },
+            { chave: "situacao_fiscal", rotulo: "Situação", valor: (a) => (SITUACAO_CONFIG[a.situacao_fiscal] || SITUACAO_CONFIG.IGNORADO).label, render: (a) => { const cfg = SITUACAO_CONFIG[a.situacao_fiscal] || SITUACAO_CONFIG.IGNORADO; const Icon = cfg.icon; return <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium", cfg.color)}><Icon className="w-3 h-3" />{cfg.label}</span>; } },
+            { chave: "erro_processamento", rotulo: "Erro", quebrar: true, render: (a) => <span className="text-[11px] text-muted-foreground">{a.erro_processamento || ""}</span> },
+            { chave: "cstat", rotulo: "cStat", valor: (a) => a.cstat || "—", render: (a) => <span className="font-mono text-muted-foreground">{a.cstat || "—"}</span> },
+            { chave: "xmotivo", rotulo: "xMotivo", valor: (a) => a.xmotivo || "—" },
+            { chave: "ambiente", rotulo: "Amb.", valor: (a) => (a.ambiente === "1" ? "Prod" : a.ambiente === "2" ? "Homol" : "—") },
+            { chave: "qtd_itens", rotulo: "Itens", tipo: "numero", alinhar: "direita", valor: (a) => a.qtd_itens || 0 },
+            { chave: "motivo_duplicidade", rotulo: "Duplicidade", valor: (a) => a.motivo_duplicidade || "—" },
+          ]}
+        />
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import LimparDadosButton from "@/components/LimparDadosButton";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useConfirmar } from "@/components/ConfirmProvider";
 
 export default function EmpresasPage() {
@@ -69,54 +70,25 @@ export default function EmpresasPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40">
-            <tr className="text-left text-xs text-muted-foreground">
-              <th className="py-2.5 px-4 font-medium">ID</th>
-              <th className="py-2.5 px-4 font-medium">Razão social</th>
-              <th className="py-2.5 px-4 font-medium">Grupo</th>
-              <th className="py-2.5 px-4 font-medium">Regime</th>
-              <th className="py-2.5 px-4 font-medium">Setor</th>
-              <th className="py-2.5 px-4 font-medium">UF</th>
-              <th className="py-2.5 px-4 font-medium">IBS/CBS</th>
-              <th className="py-2.5 px-4 font-medium">Status</th>
-              <th className="py-2.5 px-4 font-medium w-20"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data || []).map((em) => (
-              <tr
-                key={em.id}
-                onClick={() => grupoId && navigate(`/workroom/${grupoId}/empresas/${em.id}`)}
-                className={`border-t border-border/50 hover:bg-muted/20 ${grupoId ? "cursor-pointer" : ""}`}
-              >
-                <td className="py-2.5 px-4 font-medium">{em.id_empresa}</td>
-                <td className="py-2.5 px-4">{em.razao_social}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{em.grupo}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{em.regime_atual}</td>
-                <td className="py-2.5 px-4 text-muted-foreground">{em.setor}</td>
-                <td className="py-2.5 px-4">{em.uf}</td>
-                <td className="py-2.5 px-4">
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${em.contribuinte_ibs_cbs === "Sim" ? "bg-chart-2/15 text-chart-2" : "bg-muted text-muted-foreground"}`}>
-                    {em.contribuinte_ibs_cbs}
-                  </span>
-                </td>
-                <td className="py-2.5 px-4 text-muted-foreground">{em.status}</td>
-                <td className="py-2.5 px-4" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex gap-1">
-                    <button onClick={() => start(em)} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => del(em)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Archive className="w-3.5 h-3.5" /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {(!data || data.length === 0) && (
-              <tr><td colSpan={9} className="py-12 text-center text-muted-foreground">Nenhuma empresa cadastrada.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPadrao id="empresas-do-grupo" ariaLabel="Empresas" linhas={data || []} vazio="Nenhuma empresa cadastrada."
+        aoClicarLinha={grupoId ? (em) => navigate(`/workroom/${grupoId}/empresas/${em.id}`) : undefined}
+        colunas={[
+          { chave: "id_empresa", rotulo: "ID", render: (em) => <span className="font-medium">{em.id_empresa}</span> },
+          { chave: "razao_social", rotulo: "Razão social" },
+          { chave: "grupo", rotulo: "Grupo", render: (em) => <span className="text-muted-foreground">{em.grupo}</span> },
+          { chave: "regime_atual", rotulo: "Regime", render: (em) => <span className="text-muted-foreground">{em.regime_atual}</span> },
+          { chave: "setor", rotulo: "Setor", render: (em) => <span className="text-muted-foreground">{em.setor}</span> },
+          { chave: "uf", rotulo: "UF" },
+          { chave: "contribuinte_ibs_cbs", rotulo: "IBS/CBS", render: (em) => <span className={`text-xs px-1.5 py-0.5 rounded ${em.contribuinte_ibs_cbs === "Sim" ? "bg-chart-2/15 text-chart-2" : "bg-muted text-muted-foreground"}`}>{em.contribuinte_ibs_cbs}</span> },
+          { chave: "status", rotulo: "Status", render: (em) => <span className="text-muted-foreground">{em.status}</span> },
+        ]}
+        documentos={(em) => (
+          <div className="flex justify-end gap-1">
+            <button type="button" onClick={() => start(em)} aria-label={`Editar ${em.razao_social}`} title="Editar" className="p-1 rounded hover:bg-muted text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
+            <button type="button" onClick={() => del(em)} aria-label={`Arquivar ${em.razao_social}`} title="Arquivar" className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Archive className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
+      />
 
       <EmpresaFormDialog open={open} onOpenChange={setOpen} editing={editing} grupoNumero={grupoNumero} />
     </div>

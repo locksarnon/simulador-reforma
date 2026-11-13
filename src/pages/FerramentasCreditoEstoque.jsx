@@ -7,6 +7,7 @@ import InfoTooltip from "@/components/InfoTooltip";
 import InfoLegal from "@/components/InfoLegal";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import RascunhoAviso from "@/components/RascunhoAviso";
 import { useRascunho } from "@/hooks/useRascunho";
 import { BRL } from "@/lib/format";
@@ -39,6 +40,16 @@ const mesRotulo = (aaaamm) => {
   return `${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][Number(m) - 1]}/${a}`;
 };
 const dataRotulo = (iso) => iso.split("-").reverse().join("/");
+
+const colunaBrl = (chave, rotulo) => ({ chave, rotulo, alinhar: "direita", render: (p) => BRL(p[chave]) });
+
+/** Exceções do item: uma coluna de marcar para cada (campo, cabeçalho, texto completo). */
+const EXCECOES = [
+  ["bemUsado", "Bem usado", "Bem usado"],
+  ["bemDeTerceiros", "Bem de terceiros", "Bem de terceiros"],
+  ["compradoDePessoaFisica", "Comprado de PF", "Comprado de pessoa física (ex.: produtor rural PF)"],
+  ["aquisicaoSemPisCofins", "Compra sem PIS/Cofins", "Compra com alíquota zero, isenção, suspensão ou não incidência de PIS/Cofins"],
+];
 
 function baixarCsv(nome, linhas) {
   const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\r\n");
@@ -156,17 +167,19 @@ export default function FerramentasCreditoEstoque() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[64rem]">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                  <th className="py-2 pr-2 font-medium w-48">Descrição</th>
-                  <th className="py-2 pr-2 font-medium w-32">Origem</th>
-                  <th className="py-2 pr-2 font-medium w-36">Custo de aquisição (R$)</th>
-                  <th className="py-2 pr-2 font-medium w-60">Hipótese do art. 381</th>
-                  <th className="py-2 pr-2 font-medium w-44">Destino do bem</th>
-                  <th className="py-2 pr-2 font-medium">Exceções</th>
-                  <th className="py-2 pr-2 font-medium text-right w-32">Crédito</th>
-                  <th className="py-2 w-8"><span className="sr-only">Remover</span></th>
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium">Descrição</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium">Origem</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium">Custo de aquisição (R$)</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium" title="PIS/Cofins-Importação efetivamente pago, sem o adicional de alíquota (Lei 10.865, art. 8º, §21)">PIS/Cofins-Imp. pago (R$)</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium">Hipótese do art. 381</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium">Detalhe da hipótese</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium">Destino do bem</th>
+                  {EXCECOES.map(([k, curto, longo]) => <th key={k} className="whitespace-nowrap px-2 py-1.5 font-medium text-center" title={longo}>{curto}</th>)}
+                  <th className="whitespace-nowrap px-2 py-1.5 font-medium text-right">Crédito</th>
+                  <th className="px-2 py-1.5"><span className="sr-only">Remover</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -174,58 +187,51 @@ export default function FerramentasCreditoEstoque() {
                   const linha = resultado.linhas[idx];
                   const importado = item.origem === "importado";
                   return (
-                    <tr key={item.id} className="border-b border-border/50 align-top">
-                      <td className="py-2 pr-2"><Input aria-label={`Descrição do item ${idx + 1}`} value={item.descricao} onChange={(e) => setItem(item.id, "descricao", e.target.value)} placeholder="Ex.: Defensivos" /></td>
-                      <td className="py-2 pr-2">
+                    <tr key={item.id} className="border-b border-border/50 align-middle">
+                      <td className="whitespace-nowrap px-2 py-1"><Input className="h-8 min-w-[12rem]" aria-label={`Descrição do item ${idx + 1}`} value={item.descricao} onChange={(e) => setItem(item.id, "descricao", e.target.value)} placeholder="Ex.: Defensivos" /></td>
+                      <td className="whitespace-nowrap px-2 py-1">
                         <Select value={item.origem} onValueChange={(v) => setItem(item.id, "origem", v)}>
-                          <SelectTrigger aria-label={`Origem do item ${idx + 1}`}><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-8 min-w-[8rem]" aria-label={`Origem do item ${idx + 1}`}><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="nacional">Nacional</SelectItem>
                             <SelectItem value="importado">Importado</SelectItem>
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="py-2 pr-2">
-                        <Input aria-label={`Custo de aquisição do item ${idx + 1}`} inputMode="decimal" value={item.valor} onChange={(e) => setItem(item.id, "valor", e.target.value.replace(/[^\d.,]/g, ""))} placeholder="0,00" />
-                        {importado && (
-                          <Input className="mt-1.5" aria-label={`PIS/Cofins-Importação pago do item ${idx + 1}`} inputMode="decimal" value={item.pisCofinsImportacaoPago} onChange={(e) => setItem(item.id, "pisCofinsImportacaoPago", e.target.value.replace(/[^\d.,]/g, ""))} placeholder="PIS/Cofins-Imp. pago" title="PIS/Cofins-Importação efetivamente pago, sem o adicional de alíquota (Lei 10.865, art. 8º, §21)" />
-                        )}
+                      <td className="whitespace-nowrap px-2 py-1">
+                        <Input className="h-8 min-w-[8rem]" aria-label={`Custo de aquisição do item ${idx + 1}`} inputMode="decimal" value={item.valor} onChange={(e) => setItem(item.id, "valor", e.target.value.replace(/[^\d.,]/g, ""))} placeholder="0,00" />
                       </td>
-                      <td className="py-2 pr-2">
+                      <td className="whitespace-nowrap px-2 py-1">
+                        {importado
+                          ? <Input className="h-8 min-w-[8rem]" aria-label={`PIS/Cofins-Importação pago do item ${idx + 1}`} inputMode="decimal" value={item.pisCofinsImportacaoPago} onChange={(e) => setItem(item.id, "pisCofinsImportacaoPago", e.target.value.replace(/[^\d.,]/g, ""))} placeholder="0,00" title="PIS/Cofins-Importação efetivamente pago, sem o adicional de alíquota (Lei 10.865, art. 8º, §21)" />
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1">
                         <Select value={item.hipotese} onValueChange={(v) => setItem(item.id, "hipotese", v)}>
-                          <SelectTrigger aria-label={`Hipótese do item ${idx + 1}`}><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-8 min-w-[14rem]" aria-label={`Hipótese do item ${idx + 1}`}><SelectValue /></SelectTrigger>
                           <SelectContent>{HIPOTESES_ESTOQUE.map((h) => <SelectItem key={h.id} value={h.id}>{h.nome}</SelectItem>)}</SelectContent>
                         </Select>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{HIPOTESES_ESTOQUE.find((h) => h.id === item.hipotese)?.detalhe}</p>
                       </td>
-                      <td className="py-2 pr-2">
+                      <td className="min-w-[16rem] max-w-[28rem] px-2 py-1 text-xs text-muted-foreground">{HIPOTESES_ESTOQUE.find((h) => h.id === item.hipotese)?.detalhe}</td>
+                      <td className="whitespace-nowrap px-2 py-1">
                         <Select value={item.destino} onValueChange={(v) => setItem(item.id, "destino", v)}>
-                          <SelectTrigger aria-label={`Destino do item ${idx + 1}`}><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-8 min-w-[11rem]" aria-label={`Destino do item ${idx + 1}`}><SelectValue /></SelectTrigger>
                           <SelectContent>{DESTINOS_ESTOQUE.map((d) => <SelectItem key={d.id} value={d.id}>{d.nome}</SelectItem>)}</SelectContent>
                         </Select>
                       </td>
-                      <td className="py-2 pr-2">
-                        <div className="space-y-1 text-xs">
-                          {[
-                            ["bemUsado", "Bem usado"],
-                            ["bemDeTerceiros", "Bem de terceiros"],
-                            ["compradoDePessoaFisica", "Comprado de pessoa física (ex.: produtor rural PF)"],
-                            ["aquisicaoSemPisCofins", "Compra com alíquota zero, isenção, suspensão ou não incidência de PIS/Cofins"],
-                          ].map(([k, r]) => (
-                            <label key={k} className="flex items-start gap-1.5 cursor-pointer">
-                              <input type="checkbox" className="mt-0.5" checked={item[k]} onChange={(e) => setItem(item.id, k, e.target.checked)} />
-                              <span>{r}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="py-2 pr-2 text-right">
+                      {EXCECOES.map(([k, curto, longo]) => (
+                        <td key={k} className="whitespace-nowrap px-2 py-1 text-center">
+                          <input type="checkbox" aria-label={`${longo}: item ${idx + 1}`} title={longo} checked={item[k]} onChange={(e) => setItem(item.id, k, e.target.checked)} />
+                          <span className="sr-only">{curto}</span>
+                        </td>
+                      ))}
+                      <td className="px-2 py-1 text-right">
                         {linha?.elegivel
-                          ? <span className="font-medium tabular-nums">{BRL(linha.credito)}</span>
-                          : <span className="text-xs text-amber-700 dark:text-amber-400 leading-snug block">{linha?.motivo}</span>}
+                          ? <span className="whitespace-nowrap font-medium tabular-nums">{BRL(linha.credito)}</span>
+                          : <span className="block min-w-[14rem] text-xs text-amber-700 dark:text-amber-400">{linha?.motivo}</span>}
                       </td>
-                      <td className="py-2">
-                        <button type="button" onClick={() => removerItem(item.id)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" aria-label={`Remover item ${idx + 1}`}><Trash2 className="w-3.5 h-3.5" /></button>
+                      <td className="whitespace-nowrap px-2 py-1">
+                        <button type="button" onClick={() => removerItem(item.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" aria-label={`Remover item ${idx + 1}`}><Trash2 className="w-3.5 h-3.5" /></button>
                       </td>
                     </tr>
                   );
@@ -256,31 +262,12 @@ export default function FerramentasCreditoEstoque() {
                 <Download className="w-4 h-4" /> Baixar CSV
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                    <th className="py-2 pr-4 font-medium">Mês</th>
-                    <th className="py-2 pr-4 font-medium text-right">Parcela do crédito</th>
-                    {comCbs && <><th className="py-2 pr-4 font-medium text-right">CBS a pagar</th><th className="py-2 pr-4 font-medium text-right">Compensado</th><th className="py-2 pr-4 font-medium text-right">CBS líquida</th><th className="py-2 font-medium text-right">Saldo do crédito</th></>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultado.cronograma.map((p) => (
-                    <tr key={p.mes} className="border-b border-border/40 last:border-0">
-                      <td className="py-2 pr-4">{mesRotulo(p.mes)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{BRL(p.parcela)}</td>
-                      {comCbs && <>
-                        <td className="py-2 pr-4 text-right tabular-nums">{BRL(p.cbsAPagar)}</td>
-                        <td className="py-2 pr-4 text-right tabular-nums">{BRL(p.compensado)}</td>
-                        <td className="py-2 pr-4 text-right tabular-nums">{BRL(p.cbsLiquida)}</td>
-                        <td className="py-2 text-right tabular-nums">{BRL(p.saldoAposCompensar)}</td>
-                      </>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TabelaPadrao id="credito-estoque:cronograma" ariaLabel="Cronograma de uso do crédito" simples ordemInicial={null} linhas={resultado.cronograma} chaveLinha={(p) => p.mes}
+              colunas={[
+                { chave: "mes", rotulo: "Mês", render: (p) => mesRotulo(p.mes) },
+                colunaBrl("parcela", "Parcela do crédito"),
+                ...(comCbs ? [colunaBrl("cbsAPagar", "CBS a pagar"), colunaBrl("compensado", "Compensado"), colunaBrl("cbsLiquida", "CBS líquida"), colunaBrl("saldoAposCompensar", "Saldo do crédito")] : []),
+              ]} />
             <p className="text-xs text-muted-foreground mt-3">
               O direito de usar o crédito vence em {dataRotulo(resultado.venceEm)}, cinco anos depois do último dia do período de apuração em que foi apropriado (LC 214, art. 383). A utilização do crédito de CBS para compensação tem preferência sobre os demais créditos de CBS (art. 382).
             </p>

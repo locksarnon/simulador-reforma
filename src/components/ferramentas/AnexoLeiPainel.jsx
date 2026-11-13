@@ -56,13 +56,13 @@ export default function AnexoLeiPainel({ baseLei, onFechar }) {
           {itens.length > 0 && (
             <div className="overflow-x-auto">
               <table className="text-xs border-collapse w-full">
-                {cabecalho && <thead><tr className="bg-muted">{cabecalho.map((c, k) => <th key={k} className="border border-border px-2 py-1 text-left">{c}</th>)}</tr></thead>}
+                {cabecalho && <thead><tr className="bg-muted">{cabecalho.map((c, k) => <th key={k} className="whitespace-nowrap border border-border px-2 py-1 text-left">{c}</th>)}</tr></thead>}
                 <tbody>
                   {itens.map((celulas, i) => {
                     const destaque = alvo?.item && celulas[0].trim() === alvo.item;
                     return (
-                      <tr key={i} ref={destaque ? (el) => el?.scrollIntoView({ block: "center" }) : undefined} className={destaque ? "bg-amber-100 dark:bg-amber-950/40 font-medium" : i % 2 ? "bg-muted/40" : ""}>
-                        {celulas.map((c, k) => <td key={k} className="border border-border px-2 py-1 align-top whitespace-pre-line">{c}</td>)}
+                      <tr key={i} ref={destaque ? (el) => el?.scrollIntoView({ block: "center" }) : undefined} className={`align-middle ${destaque ? "bg-amber-100 dark:bg-amber-950/40 font-medium" : i % 2 ? "bg-muted/40" : ""}`}>
+                        {celulas.map((c, k) => <td key={k} className={`border border-border px-2 py-1 ${c.length > 60 || c.includes("\n") ? "min-w-[14rem] whitespace-pre-line" : "whitespace-nowrap"}`}>{c}</td>)}
                       </tr>
                     );
                   })}

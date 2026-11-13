@@ -12,6 +12,7 @@ import { gerarRelatorioSimulacao } from "@/lib/pdfReport";
 import { alertaGatilho, descricaoCurta } from "@/motor/cenariosAliquota";
 import SeletorCenarioAliquotas from "@/components/SeletorCenarioAliquotas";
 import KpiCard from "@/components/KpiCard";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { BRL, pct } from "@/lib/format";
@@ -345,39 +346,17 @@ export default function PainelExecutivoView({
             <GitCompare className="w-4 h-4 text-muted-foreground" />
             <h2 className="font-heading font-medium text-sm">Comparação entre cenários</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="py-2 pr-4 font-medium">Cenário</th>
-                  <th className="py-2 pr-4 font-medium">Fatores (vol · preço · custo)</th>
-                  <th className="py-2 pr-4 font-medium">Margem atual</th>
-                  <th className="py-2 pr-4 font-medium">Margem transição</th>
-                  <th className="py-2 pr-4 font-medium">Margem % transição</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comparacaoCenarios.map(({ cenario: cen, totais: t }) => (
-                  <tr key={cen.id} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-2.5 pr-4 font-medium">
-                      {cen.nome}
-                      {cen.nome === config.cenario_ativo && (
-                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground align-middle">padrão</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 pr-4 text-xs text-muted-foreground font-mono">
-                      {cen.fator_volume}x · {cen.fator_preco}x · {cen.fator_custo}x
-                    </td>
-                    <td className="py-2.5 pr-4">{BRL(t.margemAtual)}</td>
-                    <td className={`py-2.5 pr-4 font-medium ${t.margemTransicao < t.margemAtual ? "text-destructive" : "text-chart-2"}`}>
-                      {BRL(t.margemTransicao)}
-                    </td>
-                    <td className="py-2.5 pr-4">{t.valorBruto > 0 ? pct(t.margemTransicao / t.valorBruto) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TabelaPadrao simples id="painel-comparacao-cenarios" ariaLabel="Comparação entre cenários" linhas={comparacaoCenarios} chaveLinha={(x) => x.cenario.id} ordemInicial={null}
+            colunas={[
+              { chave: "cenario", rotulo: "Cenário", valor: (x) => x.cenario.nome, render: ({ cenario: cen }) => <span className="font-medium">{cen.nome}{cen.nome === config.cenario_ativo && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground align-middle">padrão</span>}</span> },
+              { chave: "fator_volume", rotulo: "Fator volume", alinhar: "direita", valor: (x) => Number(x.cenario.fator_volume), render: (x) => <span className="font-mono text-xs text-muted-foreground">{x.cenario.fator_volume}x</span> },
+              { chave: "fator_preco", rotulo: "Fator preço", alinhar: "direita", valor: (x) => Number(x.cenario.fator_preco), render: (x) => <span className="font-mono text-xs text-muted-foreground">{x.cenario.fator_preco}x</span> },
+              { chave: "fator_custo", rotulo: "Fator custo", alinhar: "direita", valor: (x) => Number(x.cenario.fator_custo), render: (x) => <span className="font-mono text-xs text-muted-foreground">{x.cenario.fator_custo}x</span> },
+              { chave: "margemAtual", rotulo: "Margem atual", alinhar: "direita", valor: (x) => x.totais.margemAtual, render: (x) => BRL(x.totais.margemAtual) },
+              { chave: "margemTransicao", rotulo: "Margem transição", alinhar: "direita", valor: (x) => x.totais.margemTransicao, render: ({ totais: t }) => <span className={`font-medium ${t.margemTransicao < t.margemAtual ? "text-destructive" : "text-chart-2"}`}>{BRL(t.margemTransicao)}</span> },
+              { chave: "margemPct", rotulo: "Margem % transição", alinhar: "direita", valor: (x) => (x.totais.valorBruto > 0 ? x.totais.margemTransicao / x.totais.valorBruto : null), render: ({ totais: t }) => (t.valorBruto > 0 ? pct(t.margemTransicao / t.valorBruto) : "—") },
+            ]}
+          />
           <p className="text-xs text-muted-foreground mt-3">
             Cada linha recalcula o mesmo conjunto de operações sob os fatores de volume/preço/custo daquele cenário (aba Cenários).
             Valor bruto, tributos, IBS/CBS e funding não mudam entre cenários — só a margem, porque só ela usa esses fatores hoje.
@@ -470,43 +449,18 @@ export default function PainelExecutivoView({
           <FileText className="w-4 h-4 text-muted-foreground" />
           <h2 className="font-heading font-medium text-sm">Consolidado por ano</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="py-2 pr-4 font-medium">Ano</th>
-                <th className="py-2 pr-4 font-medium">Valor bruto</th>
-                <th className="py-2 pr-4 font-medium">Tributos atuais</th>
-                <th className="py-2 pr-4 font-medium">Carga transição</th>
-                <th className="py-2 pr-4 font-medium">IBS/CBS</th>
-                <th className="py-2 pr-4 font-medium">Split retido</th>
-                <th className="py-2 pr-4 font-medium">Funding</th>
-                <th className="py-2 pr-4 font-medium">Carga efetiva</th>
-              </tr>
-            </thead>
-            <tbody>
-              {consolidado.map((c) => (
-                <tr key={c.ano} className="border-b border-border/50 hover:bg-muted/30">
-                  <td className="py-2.5 pr-4 font-medium">{c.ano}</td>
-                  <td className="py-2.5 pr-4">{BRL(c.valorBruto)}</td>
-                  <td className="py-2.5 pr-4">{BRL(c.tributosAtuaisLiquidos)}</td>
-                  <td className="py-2.5 pr-4">{BRL(c.cargaTransicao)}</td>
-                  <td className="py-2.5 pr-4">{BRL(c.ibsCbsLiquido)}</td>
-                  <td className="py-2.5 pr-4">{BRL(c.splitRetido)}</td>
-                  <td className="py-2.5 pr-4 text-destructive">{BRL(c.funding)}</td>
-                  <td className="py-2.5 pr-4">{c.valorBruto > 0 ? pct(c.cargaTransicao / c.valorBruto) : "—"}</td>
-                </tr>
-              ))}
-              {consolidado.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                    Nenhuma operação cadastrada ainda.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <TabelaPadrao simples id="painel-consolidado-ano" ariaLabel="Consolidado por ano" linhas={consolidado} chaveLinha={(c) => c.ano} ordemInicial={null} vazio="Nenhuma operação cadastrada ainda."
+          colunas={[
+            { chave: "ano", rotulo: "Ano", alinhar: "direita", render: (c) => <span className="font-medium">{c.ano}</span> },
+            { chave: "valorBruto", rotulo: "Valor bruto", alinhar: "direita", render: (c) => BRL(c.valorBruto) },
+            { chave: "tributosAtuaisLiquidos", rotulo: "Tributos atuais", alinhar: "direita", render: (c) => BRL(c.tributosAtuaisLiquidos) },
+            { chave: "cargaTransicao", rotulo: "Carga transição", alinhar: "direita", render: (c) => BRL(c.cargaTransicao) },
+            { chave: "ibsCbsLiquido", rotulo: "IBS/CBS", alinhar: "direita", render: (c) => BRL(c.ibsCbsLiquido) },
+            { chave: "splitRetido", rotulo: "Split retido", alinhar: "direita", render: (c) => BRL(c.splitRetido) },
+            { chave: "funding", rotulo: "Funding", alinhar: "direita", render: (c) => <span className="text-destructive">{BRL(c.funding)}</span> },
+            { chave: "cargaEfetiva", rotulo: "Carga efetiva", alinhar: "direita", valor: (c) => (c.valorBruto > 0 ? c.cargaTransicao / c.valorBruto : null), render: (c) => (c.valorBruto > 0 ? pct(c.cargaTransicao / c.valorBruto) : "—") },
+          ]}
+        />
       </Card>
 
       <Card className="p-5">
@@ -542,31 +496,17 @@ export default function PainelExecutivoView({
                   <Line type="monotone" dataKey="Carga efetiva %" stroke="hsl(var(--chart-2))" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
-              <div className="overflow-x-auto mt-4">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">Ano</th>
-                      <th className="py-2 pr-4 font-medium">Valor bruto (mesmo volume)</th>
-                      <th className="py-2 pr-4 font-medium">Tributos atuais</th>
-                      <th className="py-2 pr-4 font-medium">IBS/CBS</th>
-                      <th className="py-2 pr-4 font-medium">Carga transição</th>
-                      <th className="py-2 pr-4 font-medium">Carga efetiva</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projecaoTransicao.map((p) => (
-                      <tr key={p.ano} className="border-b border-border/50 hover:bg-muted/30">
-                        <td className="py-2.5 pr-4 font-medium">{p.ano}</td>
-                        <td className="py-2.5 pr-4">{BRL(p.valorBruto)}</td>
-                        <td className="py-2.5 pr-4">{BRL(p.tributosAtuais)}</td>
-                        <td className="py-2.5 pr-4">{BRL(p.ibsCbs)}</td>
-                        <td className="py-2.5 pr-4">{BRL(p.cargaTransicao)}</td>
-                        <td className="py-2.5 pr-4">{p.valorBruto > 0 ? pct(p.cargaTransicao / p.valorBruto) : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="mt-4">
+                <TabelaPadrao simples id="painel-projecao-transicao" ariaLabel="Projeção da transição por ano" linhas={projecaoTransicao} chaveLinha={(p) => p.ano} ordemInicial={null}
+                  colunas={[
+                    { chave: "ano", rotulo: "Ano", alinhar: "direita", render: (p) => <span className="font-medium">{p.ano}</span> },
+                    { chave: "valorBruto", rotulo: "Valor bruto (mesmo volume)", alinhar: "direita", render: (p) => BRL(p.valorBruto) },
+                    { chave: "tributosAtuais", rotulo: "Tributos atuais", alinhar: "direita", render: (p) => BRL(p.tributosAtuais) },
+                    { chave: "ibsCbs", rotulo: "IBS/CBS", alinhar: "direita", render: (p) => BRL(p.ibsCbs) },
+                    { chave: "cargaTransicao", rotulo: "Carga transição", alinhar: "direita", render: (p) => BRL(p.cargaTransicao) },
+                    { chave: "cargaEfetiva", rotulo: "Carga efetiva", alinhar: "direita", valor: (p) => (p.valorBruto > 0 ? p.cargaTransicao / p.valorBruto : null), render: (p) => (p.valorBruto > 0 ? pct(p.cargaTransicao / p.valorBruto) : "—") },
+                  ]}
+                />
               </div>
 
               <div className="mt-4 border-t border-border pt-3">
@@ -582,7 +522,7 @@ export default function PainelExecutivoView({
                           {p.ano} — {par.carater || par.status || "parâmetros"}
                         </summary>
                         <div className="px-3 pb-3 pt-1 overflow-x-auto">
-                          <table className="w-full border border-border border-collapse">
+                          <table className="w-full border border-border border-collapse [&_td]:whitespace-nowrap [&_td]:align-middle [&_th]:whitespace-nowrap">
                             <thead>
                               <tr className="bg-muted/40">
                                 <th className="border border-border px-2 py-1 text-left font-medium">Componente</th>
@@ -627,37 +567,16 @@ export default function PainelExecutivoView({
           <Save className="w-4 h-4 text-muted-foreground" />
           <h2 className="font-heading font-medium text-sm">Simulações salvas</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="py-2 pr-4 font-medium">Data</th>
-                <th className="py-2 pr-4 font-medium">Nome</th>
-                <th className="py-2 pr-4 font-medium">Versão motor</th>
-                <th className="py-2 pr-4 font-medium">Versão regras</th>
-                <th className="py-2 pr-4 font-medium">Hash da entrada</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(simulacoesQ.data || []).map((s) => (
-                <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30">
-                  <td className="py-2.5 pr-4 whitespace-nowrap">{new Date(s.createdAt).toLocaleString("pt-BR")}</td>
-                  <td className="py-2.5 pr-4">{s.nome}</td>
-                  <td className="py-2.5 pr-4 font-mono text-xs">{s.versao_motor}</td>
-                  <td className="py-2.5 pr-4 font-mono text-xs">{s.versao_regras}</td>
-                  <td className="py-2.5 pr-4 font-mono text-xs text-muted-foreground">{s.input_hash}</td>
-                </tr>
-              ))}
-              {(simulacoesQ.data || []).length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                    Nenhuma simulação salva ainda — clique em "Salvar simulação" acima.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <TabelaPadrao id="painel-simulacoes-salvas" ariaLabel="Simulações salvas" linhas={simulacoesQ.data || []} ordemInicial={{ chave: "createdAt", dir: -1 }}
+          vazio={'Nenhuma simulação salva ainda — clique em "Salvar simulação" acima.'}
+          colunas={[
+            { chave: "createdAt", rotulo: "Data", tipo: "data", render: (s) => new Date(s.createdAt).toLocaleString("pt-BR") },
+            { chave: "nome", rotulo: "Nome" },
+            { chave: "versao_motor", rotulo: "Versão motor", render: (s) => <span className="font-mono text-xs">{s.versao_motor}</span> },
+            { chave: "versao_regras", rotulo: "Versão regras", render: (s) => <span className="font-mono text-xs">{s.versao_regras}</span> },
+            { chave: "input_hash", rotulo: "Hash da entrada", render: (s) => <span className="font-mono text-xs text-muted-foreground">{s.input_hash}</span> },
+          ]}
+        />
       </Card>
 
       <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50 border border-border">

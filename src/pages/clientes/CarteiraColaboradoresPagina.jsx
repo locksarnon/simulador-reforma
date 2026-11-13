@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import BotaoExportar from "@/components/BotaoExportar";
+import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -10,7 +11,6 @@ import PageHeader from "@/components/PageHeader";
 import { plural } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Diferença entre a carteira que está salva e a marcada na tela: quantas empresas entram e quantas saem. */
 export function diferenca(salvas, marcadas) {
@@ -23,14 +23,9 @@ export function PorColaborador({ colaboradores, empresas, ehAdmin }) {
   const qc = useQueryClient();
   const [escolhido, setEscolhido] = useState("");
   const [marcadas, setMarcadas] = useState(null);
-  const [busca, setBusca] = useState("");
   const atual = colaboradores.find((c) => c.id === escolhido);
   const salvas = atual?.empresa_ids || [];
   const selecionadas = marcadas ?? salvas;
-  const lista = useMemo(() => {
-    const t = semAcento(busca).trim();
-    return empresas.filter((e) => !t || semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t));
-  }, [empresas, busca]);
   const dif = diferenca(salvas, selecionadas);
   const alternar = (id) => setMarcadas((m) => { const base = new Set(m ?? salvas); if (base.has(id)) base.delete(id); else base.add(id); return [...base]; });
   const salvar = useMutation({
@@ -55,27 +50,22 @@ export function PorColaborador({ colaboradores, empresas, ehAdmin }) {
       <div className="rounded-xl border border-border bg-card p-3 space-y-3">
         {!atual ? <p className="py-8 text-center text-sm text-muted-foreground">Escolha um colaborador.</p> : (
           <>
-            <div className="flex flex-wrap items-end gap-2 text-sm">
-              <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar empresa</span><input type="search" className={`${campo} w-full`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
-              {ehAdmin && (
-                <button type="button" disabled={salvar.isPending || (dif.entram === 0 && dif.saem === 0)} onClick={() => salvar.mutate()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+            {(dif.entram > 0 || dif.saem > 0) && <p role="status" className="text-xs text-muted-foreground">Ainda não salvo: {dif.entram} entram e {dif.saem} saem da carteira.</p>}
+            <TabelaPadrao
+              id="carteira-por-colaborador" ariaLabel={`Empresas de ${atual.name || atual.email}`} linhas={empresas} tamanhoInicial={50} vazio="Nenhuma empresa cadastrada."
+              colunas={[
+                { chave: "na_carteira", rotulo: "Na carteira", filtravel: false, valor: (e) => (selecionadas.includes(e.id) ? "Sim" : "Não"),
+                  render: (e) => <input type="checkbox" disabled={!ehAdmin} checked={selecionadas.includes(e.id)} onChange={() => alternar(e.id)} aria-label={`${e.razao_social} na carteira de ${atual.name || atual.email}`} /> },
+                { chave: "razao_social", rotulo: "Empresa", render: (e) => <span className="font-medium">{e.razao_social}</span> },
+                { chave: "documento", rotulo: "CNPJ/CPF", valor: (e) => e.cnpj_cpf || e.id_empresa || "", render: (e) => <span className="tabular-nums text-muted-foreground">{e.cnpj_cpf || e.id_empresa || "—"}</span> },
+              ]}
+              ordemInicial={{ chave: "razao_social", dir: 1 }}
+              acoes={ehAdmin && (
+                <button type="button" disabled={salvar.isPending || (dif.entram === 0 && dif.saem === 0)} onClick={() => salvar.mutate()} className="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground disabled:opacity-60">
                   {salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar carteira
                 </button>
               )}
-            </div>
-            {(dif.entram > 0 || dif.saem > 0) && <p role="status" className="text-xs text-muted-foreground">Ainda não salvo: {dif.entram} entram e {dif.saem} saem da carteira.</p>}
-            <div className="max-h-[480px] overflow-y-auto">
-              <table className="w-full text-[13px] leading-5" aria-label={`Empresas de ${atual.name || atual.email}`}>
-                <tbody>
-                  {lista.map((e) => (
-                    <tr key={e.id} className="border-b border-border/60">
-                      <td className="w-8 py-1.5 pr-2"><input type="checkbox" disabled={!ehAdmin} checked={selecionadas.includes(e.id)} onChange={() => alternar(e.id)} aria-label={`${e.razao_social} na carteira de ${atual.name || atual.email}`} /></td>
-                      <td className="py-1.5"><p className="font-medium">{e.razao_social}</p><p className="text-[11px] text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</p></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            />
           </>
         )}
       </div>
@@ -107,14 +97,15 @@ export function SemColaborador({ colaboradores, ehAdmin }) {
               <button type="button" disabled={!destino || marcadas.size === 0 || atribuir.isPending} onClick={() => atribuir.mutate()} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">Atribuir {marcadas.size || ""}</button>
             </div>
           )}
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {data.map((e) => (
-              <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                {ehAdmin && <input type="checkbox" checked={marcadas.has(e.id)} onChange={() => alternar(e.id)} aria-label={`Marcar ${e.razao_social}`} />}
-                <span className="font-medium">{e.razao_social}</span><span className="text-xs text-muted-foreground tabular-nums">{e.cnpj_cpf || e.id_empresa}</span>
-              </li>
-            ))}
-          </ul>
+          <TabelaPadrao
+            id="carteira-sem-colaborador" ariaLabel="Empresas sem colaborador" linhas={data} ordemInicial={{ chave: "razao_social", dir: 1 }}
+            colunas={[
+              ...(ehAdmin ? [{ chave: "marcada", rotulo: "Marcar", filtravel: false, valor: (e) => (marcadas.has(e.id) ? "Sim" : "Não"),
+                render: (e) => <input type="checkbox" checked={marcadas.has(e.id)} onChange={() => alternar(e.id)} aria-label={`Marcar ${e.razao_social}`} /> }] : []),
+              { chave: "razao_social", rotulo: "Empresa", render: (e) => <span className="font-medium">{e.razao_social}</span> },
+              { chave: "documento", rotulo: "CNPJ/CPF", valor: (e) => e.cnpj_cpf || e.id_empresa || "", render: (e) => <span className="tabular-nums text-muted-foreground">{e.cnpj_cpf || e.id_empresa || "—"}</span> },
+            ]}
+          />
         </>
       )}
       <p className="text-xs text-muted-foreground">{plural(data.length, "empresa", "empresas")} sem colaborador.</p>
