@@ -128,7 +128,7 @@ export class SpedDownloadService {
     let d = entrada;
     const e = ESCRITURACAO_POR_ID.get(d.escrituracao)!;
     const curto = e.rotulo.split(' (')[0];
-    const salvos: { id: string; nome: string; tipo: 'ESCRITURACAO' | 'RECIBO' }[] = [];
+    const salvos: { id: string; nome: string; tipo: 'ESCRITURACAO' | 'RECIBO'; tamanho: number }[] = [];
     // Período e original/retificadora vêm do registro 0000 da própria escrituração.
     let cab = null as ReturnType<typeof lerCabecalho>;
     for (const caminho of caminhos) {
@@ -149,7 +149,7 @@ export class SpedDownloadService {
       const mime = MIME[ext.toLowerCase()] ?? 'application/octet-stream';
       await this.storage.guardar(chave, buf, mime);
       const a = await this.prisma.arquivoEmpresa.create({ data: { empresa_id: d.empresa_id, pasta: `SPED/${curto}/${d.competencia}`, nome, tamanho: buf.length, tipo_mime: mime, storage_key: chave, enviado_por: d.solicitado_por ?? 'ReceitanetBX' } });
-      salvos.push({ id: a.id, nome, tipo: recibo ? 'RECIBO' : 'ESCRITURACAO' });
+      salvos.push({ id: a.id, nome, tipo: recibo ? 'RECIBO' : 'ESCRITURACAO', tamanho: buf.length });
     }
     const principal = salvos.find((x) => x.tipo === 'ESCRITURACAO') ?? salvos[0];
     await this.prisma.spedDownload.update({ where: { id: d.id }, data: { situacao: 'GUARDADO', arquivo_id: principal?.id ?? null, arquivos: salvos as never, mensagem: null } });

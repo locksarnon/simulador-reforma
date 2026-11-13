@@ -4,6 +4,7 @@ import { ContratoIntegraService } from './contrato.service';
 import { EscritorioService } from './escritorio.service';
 import { SpedDownloadService } from '../receitanetbx/sped-download.service';
 import { SimplesService } from './simples.service';
+import { EnvioDocumentosService, ItemDocumento, LIMITE_EMAIL_BYTES } from './envio-documentos.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ConfigRotina, MonitoramentoService } from './monitoramento.service';
@@ -14,7 +15,24 @@ const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new Forbid
 /** BPO Fiscal > Monitoramento fiscal: consultas ao Integra Contador (Serpro), histórico, PDF, lote, rotina e obrigações dispensadas. */
 @Controller('monitoramento')
 export class MonitoramentoController {
-  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly escritorio: EscritorioService, private readonly downloads: SpedDownloadService, private readonly simples: SimplesService) {}
+  constructor(private readonly m: MonitoramentoService, private readonly contrato: ContratoIntegraService, private readonly escritorio: EscritorioService, private readonly downloads: SpedDownloadService, private readonly simples: SimplesService, private readonly envio: EnvioDocumentosService) {}
+
+  // ── Documentos do cliente: baixar em ZIP e enviar por e-mail os marcados (fica registrado) ──
+  @Get('documentos/limite-email')
+  limiteEmail() {
+    return { bytes: LIMITE_EMAIL_BYTES };
+  }
+
+  @Post('empresas/:id/documentos/zip')
+  async documentosZip(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { itens?: ItemDocumento[] }) {
+    const z = await this.envio.zip(id, body?.itens ?? [], user);
+    return new StreamableFile(z.buffer, { type: 'application/zip', disposition: disposicao(z.nome) });
+  }
+
+  @Post('empresas/:id/documentos/email')
+  documentosEmail(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { para?: string[] | string; assunto?: string; mensagem?: string; itens?: ItemDocumento[] }) {
+    return this.envio.enviar(id, body ?? {}, user);
+  }
 
   // ── Escritório: Redesim (vínculos e renúncias) e eventos de atualização da Receita ──
   @Get('escritorio/vinculos')
@@ -67,8 +85,8 @@ export class MonitoramentoController {
   }
 
   @Get('empresas/:id/sped')
-  sped(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('ano') ano?: string) {
-    return this.escritorio.sped(id, ano, user);
+  sped(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('ano') ano?: string, @Query('consultar') consultar?: string) {
+    return this.escritorio.sped(id, ano, user, consultar === '1');
   }
 
   @Get('empresas/:id/novidades')
@@ -141,8 +159,10 @@ export class MonitoramentoController {
   }
 
   @Get('empresas/:id/historico/:chave')
-  historico(@Param('id') id: string, @Param('chave') chave: string) {
-    return this.m.daEmpresa({ empresaId: id }, chave);
+  async historico(@Param('id') id: string, @Param('chave') chave: string) {
+    const h = (await this.m.daEmpresa({ empresaId: id }, chave)) as unknown as { id: string }[];
+    const reg = await this.envio.registros(h.map((x) => x.id));
+    return h.map((x) => ({ ...x, registros: reg.get(x.id) ?? [] }));
   }
 
   @Post('empresas/:id/consultar')
@@ -194,7 +214,7 @@ export class MonitoramentoController {
 
   @Get('rotina')
   rotina() {
-    return this.m.configRotina();
+    return this.m.rotinaParaTela();
   }
 
   @Put('rotina')

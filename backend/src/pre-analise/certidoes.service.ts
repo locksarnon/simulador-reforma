@@ -170,11 +170,13 @@ export class CertidoesService {
     const fontes: TipoCertidaoCliente[] = [];
     if ((await this.monitoramento.modo()) === 'PRODUCAO' && (await this.serpro.disponivelEmProducao('cnd'))) fontes.push('FEDERAL');
     if (process.env.NODE_ENV === 'production' && (await this.infosimples.estado()).configurado) fontes.push('ESTADUAL', 'MUNICIPAL', 'TRABALHISTA', 'FGTS');
+    const agenda = (await this.monitoramento.configRotina()).documentos.certidoes;
+    for (let i = fontes.length - 1; i >= 0; i--) if (!agenda[fontes[i]]?.ativa) fontes.splice(i, 1);
     if (!fontes.length) return { emitidas: 0, motivo: 'sem fonte automática configurada' };
     const bpo = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: 'ATIVO' }, select: { empresa_id: true } });
     const tipos = await this.tiposPorNome();
-    // O CRF do FGTS vale 30 dias: renova com 5 dias de folga; as outras com 15.
-    const folga = (t: TipoCertidaoCliente) => (t === 'FGTS' ? 5 : 15);
+    // Antecedência de cada certidão (Administração > Parâmetros e rotinas); o CRF do FGTS vale 30 dias, por isso o padrão é 5.
+    const folga = (t: TipoCertidaoCliente) => agenda[t as keyof typeof agenda]?.dias_antes ?? (t === 'FGTS' ? 5 : 15);
     let emitidas = 0;
     for (const empresaId of [...new Set(bpo.map((b) => b.empresa_id))]) {
       for (const tipo of fontes) {

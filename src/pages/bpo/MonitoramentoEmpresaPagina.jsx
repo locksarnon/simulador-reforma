@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
+import { useConfirmar } from "@/components/ConfirmProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
@@ -13,7 +14,8 @@ import CertidoesCliente from "@/components/monitoramento/CertidoesCliente";
 import LeituraSitfis, { ResumoSitfis } from "@/components/monitoramento/LeituraSitfis";
 import SpedTransmitido from "@/components/monitoramento/SpedTransmitido";
 import SimplesNacional from "@/components/monitoramento/SimplesNacional";
-import CartaoServico, { SeloNivel } from "@/components/monitoramento/CartaoServico";
+import CartaoServico from "@/components/monitoramento/CartaoServico";
+import LegendaNiveis from "@/components/monitoramento/LegendaNiveis";
 import { mascararDocumento } from "@/lib/clientes";
 import { plural } from "@/lib/plural";
 import { piorNivel, servicosDoGrupo, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
@@ -61,7 +63,9 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
   const novidades = useQuery({ queryKey: ["monitoramento", "novidades", empresaId], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/novidades`), enabled: !pessoaFisica });
   const [lote, setLote] = useState(null);
   // Aba escolhida; até a pessoa escolher, a primeira do cliente (só depois de carregar os serviços indicados).
-  const [aba, setAba] = useState(null);
+  const [params] = useSearchParams();
+  const confirmar = useConfirmar();
+  const [aba, setAba] = useState(() => params.get("aba"));
   const ultimas = dados.data?.ultimas || {};
   const indicados = dados.data?.servicos_indicados || [];
   const servicos = estado.data?.servicos || [];
@@ -104,7 +108,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             {pontos.length > 0 && <span className={`text-sm font-semibold tabular-nums ${tomDaNota(nota)}`} title="Saúde fiscal">Saúde fiscal {nota}</span>}
-            {!pessoaFisica && <button type="button" disabled={desligado || atualizarTudo.isPending || (lote && !lote.fim)} onClick={() => atualizarTudo.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            {!pessoaFisica && <button type="button" disabled={desligado || atualizarTudo.isPending || (lote && !lote.fim)} onClick={async () => { if (await confirmar({ titulo: "Este serviço tem custo. Confirma o avanço mesmo assim?", descricao: "Serão feitas todas as consultas deste cliente, e cada consulta é cobrada. Avalie atualizar só o serviço necessário.", rotulo: "Atualizar mesmo assim", perigoso: false })) atualizarTudo.mutate(); }} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
               {lote && !lote.fim ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Atualizar tudo</>}
             </button>}
             {!pessoaFisica && <Link to={`/clientes/${empresaId}`} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Ficha do cliente</Link>}
@@ -161,7 +165,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
           )}
         </Tabs>
         {dados.data && Object.keys(ultimas).length === 0 && <p className="text-xs text-muted-foreground">Nenhuma consulta.</p>}
-        <p className="text-xs text-muted-foreground"><SeloNivel nivel="CRITICO" /> pede ação agora · <SeloNivel nivel="ATENCAO" /> vale olhar · <SeloNivel nivel="OK" /> em dia · <SeloNivel nivel="INFO" /> informativo.</p>
+        <LegendaNiveis />
       </div>
     </div>
   );

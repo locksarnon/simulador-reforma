@@ -6,7 +6,8 @@ import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TabelaPadrao from "@/components/TabelaPadrao";
-import { formatarCelula, NIVEIS, quandoConsultou, SEM_CONSULTA } from "@/lib/monitoramento";
+import EnvioDocumentos, { tamanhoTexto } from "@/components/monitoramento/EnvioDocumentos";
+import { NIVEIS, quandoConsultou, SEM_CONSULTA } from "@/lib/monitoramento";
 
 const campo = "rounded-md border border-border bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const falhar = (t) => (e) => toast({ title: t, description: e.message, variant: "destructive" });
@@ -34,10 +35,11 @@ export function documentosDaConsulta(consulta, rotulo) {
   const oficiais = (consulta.arquivos || []).map((a) => ({
     id: `${consulta.id}-${a.indice}`, documento: a.nome, tipo: /retific/i.test(a.nome) ? "Oficial (retificadora)" : /original/i.test(a.nome) ? "Oficial (original)" : "Oficial (Receita/Serpro)", formato: "PDF",
     data: consulta.createdAt, url: `/monitoramento/consultas/${consulta.id}/arquivos/${a.indice}`, nome: a.nome, ver: true,
+    tamanho: a.tamanho, item: { tipo: "consulta", consulta_id: consulta.id, indice: a.indice },
   }));
   const relatorios = consulta.sucesso === false && !consulta.resumo ? [] : [
-    { id: `${consulta.id}-pdf`, documento: `Relatório da consulta: ${rotulo}`, tipo: "Relatório do InTAX", formato: "PDF", data: consulta.createdAt, url: `/monitoramento/consultas/${consulta.id}/relatorio`, nome: `${nomeSeguro(rotulo)} ${data}.pdf`, ver: true },
-    ...(consulta.resumo?.tabela?.linhas?.length ? [{ id: `${consulta.id}-xlsx`, documento: `Tabela completa: ${rotulo}`, tipo: "Relatório do InTAX", formato: "Excel", data: consulta.createdAt, url: `/monitoramento/consultas/${consulta.id}/relatorio?formato=xlsx`, nome: `${nomeSeguro(rotulo)} ${data}.xlsx`, ver: false }] : []),
+    { id: `${consulta.id}-pdf`, documento: `Relatório da consulta: ${rotulo}`, tipo: "Relatório do InTAX", formato: "PDF", data: consulta.createdAt, url: `/monitoramento/consultas/${consulta.id}/relatorio`, nome: `${nomeSeguro(rotulo)} ${data}.pdf`, ver: true, item: { tipo: "consulta", consulta_id: consulta.id } },
+    ...(consulta.resumo?.tabela?.linhas?.length ? [{ id: `${consulta.id}-xlsx`, documento: `Tabela completa: ${rotulo}`, tipo: "Relatório do InTAX", formato: "Excel", data: consulta.createdAt, url: `/monitoramento/consultas/${consulta.id}/relatorio?formato=xlsx`, nome: `${nomeSeguro(rotulo)} ${data}.xlsx`, ver: false, item: { tipo: "consulta", consulta_id: consulta.id, formato: "xlsx" } }] : []),
   ];
   return [...oficiais, ...relatorios];
 }
@@ -45,9 +47,13 @@ export function documentosDaConsulta(consulta, rotulo) {
 const COLUNAS_DOCUMENTOS = [
   { chave: "documento", rotulo: "Documento" },
   { chave: "tipo", rotulo: "Origem" },
-  { chave: "formato", rotulo: "Formato", quebrar: false },
-  { chave: "data", rotulo: "Consultado em", tipo: "data", render: (l) => quandoConsultou(l.data), quebrar: false },
+  { chave: "formato", rotulo: "Formato" },
+  { chave: "tamanho", rotulo: "Tamanho", tipo: "numero", alinhar: "direita", render: (l) => (l.tamanho != null ? tamanhoTexto(l.tamanho) : "—") },
+  { chave: "data", rotulo: "Consultado em", tipo: "data", render: (l) => quandoConsultou(l.data) },
 ];
+
+/** Último envio ou download registrado de uma consulta (para a coluna do histórico). */
+const ultimoRegistro = (h) => { const r = h.registros?.[0]; return r ? `${r.tipo} ${quandoConsultou(r.quando)}${r.tipo === "E-mail" ? ` para ${r.destinatario}${r.status === "FALHA" ? " (falhou)" : ""}` : ""}` : ""; };
 
 function Destaques({ resumo }) {
   if (!resumo?.destaques?.length) return null;
@@ -58,30 +64,19 @@ function Destaques({ resumo }) {
   );
 }
 
-/** O resultado de uma consulta: frase, destaques e a tabela (padrão do InTAX). */
-export function Resultado({ consulta, id }) {
-  const r = consulta?.resumo;
-  if (!r) return null;
-  const colunas = (r.tabela?.colunas || []).map((c) => ({ chave: c.chave, rotulo: c.rotulo, tipo: c.tipo === "moeda" ? "moeda" : undefined, alinhar: c.tipo === "moeda" ? "direita" : undefined, valor: (l) => l[c.chave], render: (l) => formatarCelula(l[c.chave], c.tipo) }));
-  return (
-    <div className="space-y-2">
-      <p className="text-sm">{r.titulo}</p>
-      <Destaques resumo={r} />
-      {colunas.length > 0 && <TabelaPadrao id={id} colunas={colunas} linhas={r.tabela.linhas} chaveLinha={(_, i) => i} ariaLabel={`Resultado: ${r.titulo}`} vazio="A consulta não trouxe registros." />}
-    </div>
-  );
-}
-
 /**
- * Um serviço do monitoramento para um cliente, no padrão de tabelas: consulta na hora (com os parâmetros), e as subabas
- * Resultado, Documentos (PDF oficial, relatório e Excel, com Ver e Baixar no fim da linha) e Histórico.
+ * Um serviço do monitoramento para um cliente, no padrão de tabelas: consulta na hora (com os parâmetros), o resultado em uma
+ * frase e as subabas Documentos (PDF oficial, relatório e Excel) e Histórico, com Ver e Baixar no fim da linha e, para os
+ * marcados, Baixar (ZIP) e Enviar por e-mail; cada envio e download fica registrado no histórico.
  * `base` é "/monitoramento/empresas/ID" ou "/monitoramento/pessoas/ID".
  */
 export default function CartaoServico({ servico, ultima, base, desligado, aoConsultar }) {
   const qc = useQueryClient();
   const [params, setParams] = useState(() => Object.fromEntries(servico.parametros.map((p) => [p.nome, p.padrao || ""])));
   const [atual, setAtual] = useState(null);
-  const [aba, setAba] = useState(null);
+  const [aba, setAba] = useState("documentos");
+  const [marcadosDocs, setMarcadosDocs] = useState(new Set());
+  const [marcadosHist, setMarcadosHist] = useState(new Set());
   const [confirmando, setConfirmando] = useState(false);
   const empresa = base.includes("/empresas/");
   const historico = useQuery({ queryKey: ["monitoramento", "historico", base, servico.chave], queryFn: () => api.get(`${base}/historico/${servico.chave}`), enabled: empresa && aba === "historico" });
@@ -97,15 +92,18 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
   });
   const mostrada = atual || ultima;
   const docs = documentosDaConsulta(mostrada, servico.rotulo);
-  const temTabela = !!mostrada?.resumo?.tabela?.linhas?.length;
-  const abaAtiva = aba || "resultado";
+  const chaveHistorico = ["monitoramento", "historico", base, servico.chave];
+  const linhasHistorico = historico.data || [];
+  const empresaId = base.split("/").pop();
+  const docsDoHistorico = (h) => documentosDaConsulta(h, servico.rotulo).filter((d) => d.formato === "PDF");
   const colunasHistorico = [
-    { chave: "createdAt", rotulo: "Consultado em", tipo: "data", render: (l) => quandoConsultou(l.createdAt), quebrar: false },
+    { chave: "createdAt", rotulo: "Consultado em", tipo: "data", render: (l) => quandoConsultou(l.createdAt) },
     { chave: "nivel", rotulo: "Situação", valor: (l) => (NIVEIS[l.nivel] || SEM_CONSULTA).rotulo, render: (l) => <SeloNivel nivel={l.nivel} /> },
     { chave: "titulo", rotulo: "Resultado", valor: (l) => l.resumo?.titulo || "" },
     { chave: "parametros", rotulo: "Parâmetros", valor: (l) => Object.entries(l.parametros || {}).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(", ") },
     { chave: "solicitado_por", rotulo: "Feita por" },
     { chave: "origem", rotulo: "Origem", valor: (l) => ({ MANUAL: "Na tela", ROTINA: "Rotina automática", LOTE: "Atualizar tudo" }[l.origem] || l.origem || "") },
+    { chave: "registro", rotulo: "Último envio ou download", valor: ultimoRegistro, render: (l) => <span title={(l.registros || []).map((r) => `${r.tipo} ${quandoConsultou(r.quando)} ${r.destinatario}`).join("\n")}>{ultimoRegistro(l) || "—"}</span> },
   ];
 
   return (
@@ -114,6 +112,8 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
         <h3 className="min-w-0 flex-1 text-sm font-semibold">{servico.rotulo}</h3>
         <SeloNivel nivel={mostrada?.nivel} />
       </div>
+      {mostrada?.resumo?.titulo && <p className="text-sm">{mostrada.resumo.titulo}</p>}
+      <Destaques resumo={mostrada?.resumo} />
       <div className="flex flex-wrap items-end gap-2">
         {servico.parametros.map((p) => (
           <label key={p.nome} className="space-y-0.5">
@@ -159,31 +159,29 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
         <span className="text-[11px] text-muted-foreground">{mostrada ? `Consultado em ${quandoConsultou(mostrada.createdAt)}${mostrada.solicitado_por ? ` por ${mostrada.solicitado_por}` : ""}${mostrada.simulado ? " · demonstração" : ""}` : "Ainda não consultado."}</span>
       </div>
       {(mostrada || empresa) && (
-        <Tabs value={abaAtiva} onValueChange={setAba}>
+        <Tabs value={empresa ? aba : "documentos"} onValueChange={setAba}>
           <TabsList className="h-8">
-            <TabsTrigger value="resultado" className="text-xs">Resultado</TabsTrigger>
             <TabsTrigger value="documentos" className="text-xs">Documentos{docs.length ? ` (${docs.length})` : ""}</TabsTrigger>
             {empresa && <TabsTrigger value="historico" className="text-xs">Histórico</TabsTrigger>}
           </TabsList>
-          <TabsContent value="resultado" className="mt-2">
-            {mostrada ? <Resultado consulta={mostrada} id={`monit:${servico.chave}`} /> : <p className="text-xs text-muted-foreground">Ainda não consultado.</p>}
-            {mostrada && !temTabela && docs.length > 0 && (
-              <div className="mt-2"><TabelaPadrao id="monit:documentos" colunas={COLUNAS_DOCUMENTOS} linhas={docs} ariaLabel={`Documentos: ${servico.rotulo}`} tamanhoInicial={10} documentos={(l) => <BotoesDocumento url={l.url} nome={l.nome} ver={l.ver} rotulo={l.documento} />} /></div>
-            )}
-          </TabsContent>
           <TabsContent value="documentos" className="mt-2">
             <TabelaPadrao id="monit:documentos" colunas={COLUNAS_DOCUMENTOS} linhas={docs} ariaLabel={`Documentos: ${servico.rotulo}`} vazio="Nenhum documento: consulte primeiro." tamanhoInicial={10}
+              ordemInicial={null}
+              selecao={empresa ? { marcadas: marcadosDocs, aoMudar: setMarcadosDocs } : undefined}
+              acoes={empresa ? <EnvioDocumentos empresaId={empresaId} marcados={docs.filter((d) => marcadosDocs.has(d.id))} aoConcluir={() => setMarcadosDocs(new Set())} invalidar={[chaveHistorico]} /> : null}
               documentos={(l) => <BotoesDocumento url={l.url} nome={l.nome} ver={l.ver} rotulo={l.documento} />} />
           </TabsContent>
           {empresa && (
             <TabsContent value="historico" className="mt-2">
               {historico.isLoading ? <p className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" aria-hidden="true" />Carregando…</p> : (
-                <TabelaPadrao id="monit:historico" colunas={colunasHistorico} linhas={historico.data || []} ariaLabel={`Histórico: ${servico.rotulo}`} vazio="Sem histórico." tamanhoInicial={10}
+                <TabelaPadrao id="monit:historico" colunas={colunasHistorico} linhas={linhasHistorico} ariaLabel={`Histórico: ${servico.rotulo}`} vazio="Sem histórico." tamanhoInicial={10}
+                  ordemInicial={{ chave: "createdAt", dir: -1 }}
+                  selecao={{ marcadas: marcadosHist, aoMudar: setMarcadosHist }}
+                  acoes={<EnvioDocumentos empresaId={empresaId} marcados={linhasHistorico.filter((h) => marcadosHist.has(h.id)).flatMap(docsDoHistorico)} aoConcluir={() => setMarcadosHist(new Set())} invalidar={[chaveHistorico]} />}
                   documentos={(h) => (
-                    <span className="inline-flex flex-wrap justify-end gap-1">
+                    <span className="inline-flex justify-end gap-1">
                       {(h.arquivos || []).map((a) => <BotoesDocumento key={a.indice} url={`/monitoramento/consultas/${h.id}/arquivos/${a.indice}`} nome={a.nome} rotulo={a.nome} />)}
                       <BotoesDocumento url={`/monitoramento/consultas/${h.id}/relatorio`} nome={`${nomeSeguro(servico.rotulo)} ${String(h.createdAt).slice(0, 10)}.pdf`} rotulo="relatório do InTAX" />
-                      <button type="button" onClick={() => { setAtual(h); setAba("resultado"); }} className="rounded px-1.5 py-0.5 text-[11px] text-primary hover:underline">Abrir</button>
                     </span>
                   )} />
               )}

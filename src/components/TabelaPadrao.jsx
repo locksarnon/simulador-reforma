@@ -82,8 +82,21 @@ function gravarPreferencia(id, v) {
  * Tabela padrão do InTAX: busca geral, filtro digitável em cada coluna, ordenação em qualquer coluna (clique no cabeçalho),
  * colunas reordenáveis (arrastar o cabeçalho) e ocultáveis, com a escolha guardada neste navegador; paginação e exportação
  * do que está filtrado. `documentos(linha)` vira a última coluna, fixa (ver, baixar, original, retificadora).
+ * Padrão: começa em ordem alfabética, linha de uma altura só (texto sem quebra; `quebrar: true` só para textos longos),
+ * `aoClicarLinha` torna a linha clicável e `coluna.aoClicar` leva a um destino próprio; `selecao` põe caixas de marcar.
+ * `simples`: tabela curta de quadro (sem barra, sem paginação), com os cabeçalhos ainda ordenando. `totais(linhasFiltradas)`
+ * devolve a(s) linha(s) <tr> do rodapé.
  */
-export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel }) {
+/** Ordem de partida: a indicada, senão a primeira coluna de texto em ordem alfabética. */
+export function ordemPadrao(colunas, ordemInicial) {
+  if (ordemInicial !== undefined) return ordemInicial;
+  const c = colunas.find((x) => x.ordenavel !== false && !["moeda", "numero", "data", "periodo"].includes(x.tipo)) || colunas.find((x) => x.ordenavel !== false);
+  return c ? { chave: c.chave, dir: 1 } : null;
+}
+
+const ALINHAR = { direita: "text-right tabular-nums", centro: "text-center" };
+
+export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel, ordemInicial, aoClicarLinha, selecao, filtrosVisiveis = true, rodape, simples = false, totais, classeTabela = "" }) {
   const pref = useMemo(() => lerPreferencia(id), [id]);
   const todas = colunas.map((c) => c.chave);
   const [ordemColunas, setOrdemColunas] = useState(() => {
@@ -93,9 +106,9 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
   const [ocultas, setOcultas] = useState(() => (pref?.ocultas || []).filter((k) => todas.includes(k)));
   const [busca, setBusca] = useState("");
   const [filtros, setFiltros] = useState({});
-  const [verFiltros, setVerFiltros] = useState(true);
-  const [ordem, setOrdem] = useState(null);
-  const [tamanho, setTamanho] = useState(pref?.tamanho ?? tamanhoInicial);
+  const [verFiltros, setVerFiltros] = useState(filtrosVisiveis && !simples);
+  const [ordem, setOrdem] = useState(() => ordemPadrao(colunas, ordemInicial));
+  const [tamanho, setTamanho] = useState(simples ? 0 : pref?.tamanho ?? tamanhoInicial);
   const [pagina, setPagina] = useState(0);
   const [arrastando, setArrastando] = useState(null);
 
@@ -111,7 +124,11 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
   const exibidas = tamanho ? filtradas.slice(pagina * tamanho, pagina * tamanho + tamanho) : filtradas;
   const temFiltro = !!busca || Object.values(filtros).some((f) => String(f ?? "").trim());
 
-  const ordenar = (k) => setOrdem((o) => (!o || o.chave !== k ? { chave: k, dir: 1 } : o.dir === 1 ? { chave: k, dir: -1 } : null));
+  const ordenar = (k) => setOrdem((o) => (!o || o.chave !== k ? { chave: k, dir: 1 } : { chave: k, dir: -o.dir }));
+  const chaves = selecao ? filtradas.map((l, i) => chaveLinha(l, i)) : [];
+  const todasMarcadas = !!selecao && chaves.length > 0 && chaves.every((k) => selecao.marcadas.has(k));
+  const marcar = (k) => { const n = new Set(selecao.marcadas); if (n.has(k)) n.delete(k); else n.add(k); selecao.aoMudar(n); };
+  const extras = (selecao ? 1 : 0) + (documentos ? 1 : 0);
   const soltar = (alvo) => {
     if (!arrastando || arrastando === alvo) return;
     setOrdemColunas((o) => { const s = o.filter((k) => k !== arrastando); s.splice(s.indexOf(alvo), 0, arrastando); return s; });
@@ -122,7 +139,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
+      {!simples && <div className="flex flex-wrap items-center gap-2">
         {titulo && <h4 className="mr-auto text-sm font-semibold">{titulo}</h4>}
         <label className="relative min-w-[200px] flex-1 sm:max-w-xs">
           <span className="sr-only">Buscar em todas as colunas</span>
@@ -151,24 +168,28 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
         </Popover>
         <BotaoExportar titulo={titulo || ariaLabel || "Tabela"} linhas={filtradas.map((l) => Object.fromEntries(visiveis.map((c) => [c.chave, textoDaColuna(c, l)])))} colunas={visiveis.map((c) => ({ chave: c.chave, rotulo: c.rotulo }))} />
         {acoes}
-      </div>
+      </div>}
+      {simples && (titulo || acoes) && <div className="flex flex-wrap items-center gap-2">{titulo && <h4 className="mr-auto text-sm font-semibold">{titulo}</h4>}{acoes}</div>}
 
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
-        <table className="w-full text-[13px] leading-5" aria-label={ariaLabel || titulo}>
+        <table className={`w-full text-[13px] leading-5 ${classeTabela}`} aria-label={ariaLabel || titulo}>
           <thead className="bg-muted/50">
             <tr className="text-left text-xs text-muted-foreground">
+              {selecao && <th scope="col" className="w-8 px-2 py-1.5"><input type="checkbox" aria-label="Marcar todas" checked={todasMarcadas} onChange={() => selecao.aoMudar(todasMarcadas ? new Set() : new Set(chaves))} /></th>}
               {visiveis.map((c) => {
                 const ativa = ordem?.chave === c.chave;
                 const Icone = !ativa ? ArrowUpDown : ordem.dir === 1 ? ArrowUp : ArrowDown;
                 return (
                   <th key={c.chave} scope="col" draggable onDragStart={() => setArrastando(c.chave)} onDragOver={(e) => e.preventDefault()} onDrop={() => soltar(c.chave)} onDragEnd={() => setArrastando(null)}
                     aria-sort={ativa ? (ordem.dir === 1 ? "ascending" : "descending") : "none"}
-                    className={`select-none whitespace-nowrap px-2 py-1.5 font-medium ${c.alinhar === "direita" ? "text-right" : ""} ${arrastando === c.chave ? "opacity-50" : ""}`}>
+                    title={c.dica} className={`select-none whitespace-nowrap px-2 py-1.5 font-medium ${c.alinhar === "direita" ? "text-right" : c.alinhar === "centro" ? "text-center" : ""} ${c.largura || ""} ${arrastando === c.chave ? "opacity-50" : ""}`}>
                     <span className="inline-flex items-center gap-1">
                       <GripVertical className="h-3 w-3 cursor-grab text-muted-foreground/50" aria-hidden="true" />
-                      <button type="button" onClick={() => ordenar(c.chave)} className={`inline-flex items-center gap-1 rounded hover:text-foreground ${ativa ? "text-foreground" : ""}`} title="Ordenar">
-                        {c.rotulo}<Icone className={`h-3 w-3 ${ativa ? "" : "opacity-40"}`} aria-hidden="true" />
-                      </button>
+                      {c.ordenavel === false ? <span>{c.rotulo}</span> : (
+                        <button type="button" onClick={() => ordenar(c.chave)} className={`inline-flex items-center gap-1 rounded hover:text-foreground ${ativa ? "text-foreground" : ""}`} title={c.dica || "Ordenar"}>
+                          {c.rotulo}<Icone className={`h-3 w-3 ${ativa ? "" : "opacity-40"}`} aria-hidden="true" />
+                        </button>
+                      )}
                     </span>
                   </th>
                 );
@@ -177,9 +198,10 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
             </tr>
             {verFiltros && (
               <tr>
+                {selecao && <th />}
                 {visiveis.map((c) => (
                   <th key={c.chave} className="px-2 pb-1.5 font-normal">
-                    <input value={filtros[c.chave] ?? ""} onChange={(e) => setFiltros((f) => ({ ...f, [c.chave]: e.target.value }))} placeholder="Filtrar" aria-label={`Filtrar ${c.rotulo}`} className="h-7 w-full min-w-[70px] rounded border border-border bg-background px-1.5 text-xs font-normal text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                    {c.filtravel === false ? null : <input value={filtros[c.chave] ?? ""} onChange={(e) => setFiltros((f) => ({ ...f, [c.chave]: e.target.value }))} placeholder="Filtrar" aria-label={`Filtrar ${c.rotulo}`} className="h-6 w-full min-w-[56px] rounded border border-border bg-background px-1.5 text-xs font-normal text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />}
                   </th>
                 ))}
                 {documentos && <th />}
@@ -187,18 +209,29 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
             )}
           </thead>
           <tbody>
-            {exibidas.length === 0 && <tr><td colSpan={visiveis.length + (documentos ? 1 : 0)} className="px-3 py-6 text-center text-sm text-muted-foreground">{temFiltro ? "Nenhuma linha com esses filtros." : vazio}</td></tr>}
-            {exibidas.map((l, i) => (
-              <tr key={chaveLinha(l, i)} className={`border-t border-border/60 align-top transition-colors hover:bg-muted/40 ${i % 2 ? "bg-muted/15" : ""} ${destaqueLinha?.(l) ?? ""}`}>
-                {visiveis.map((c) => <td key={c.chave} className={`px-2 py-1.5 ${c.alinhar === "direita" ? "text-right tabular-nums" : ""} ${c.quebrar === false ? "whitespace-nowrap" : ""}`}>{c.render ? c.render(l) : textoDaColuna(c, l)}</td>)}
-                {documentos && <td className="whitespace-nowrap px-2 py-1 text-right">{documentos(l)}</td>}
-              </tr>
-            ))}
+            {exibidas.length === 0 && <tr><td colSpan={visiveis.length + extras} className="px-3 py-6 text-center text-sm text-muted-foreground">{temFiltro ? "Nenhuma linha com esses filtros." : vazio}</td></tr>}
+            {exibidas.map((l, i) => {
+              const k = chaveLinha(l, i);
+              return (
+                <tr key={k} onClick={aoClicarLinha ? () => aoClicarLinha(l) : undefined} className={`border-t border-border/60 align-middle transition-colors hover:bg-muted/40 ${aoClicarLinha ? "cursor-pointer" : ""} ${i % 2 ? "bg-muted/15" : ""} ${destaqueLinha?.(l) ?? ""}`}>
+                  {selecao && <td className="px-2 py-1" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label="Marcar a linha" checked={selecao.marcadas.has(k)} onChange={() => marcar(k)} /></td>}
+                  {visiveis.map((c) => (
+                    <td key={c.chave} onClick={c.aoClicar ? (e) => { e.stopPropagation(); c.aoClicar(l); } : undefined}
+                      className={`px-2 py-1 ${ALINHAR[c.alinhar] || ""} ${c.quebrar === true ? "min-w-[16rem] max-w-[32rem]" : "whitespace-nowrap"} ${c.aoClicar ? "cursor-pointer" : ""}`}>
+                      {c.render ? c.render(l) : textoDaColuna(c, l)}
+                    </td>
+                  ))}
+                  {documentos && <td className="whitespace-nowrap px-2 py-0.5 text-right" onClick={(e) => e.stopPropagation()}>{documentos(l)}</td>}
+                </tr>
+              );
+            })}
           </tbody>
+          {totais && <tfoot className="border-t border-border bg-muted/40 font-medium">{totais(filtradas, { selecao: !!selecao, documentos: !!documentos, visiveis })}</tfoot>}
         </table>
       </div>
+      {rodape}
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      {!simples && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">{total === linhas.length ? plural(total, "linha", "linhas") : `${total} de ${plural(linhas.length, "linha", "linhas")}`}</span>
         <label className="ml-auto inline-flex items-center gap-1">Linhas por página
           <select value={tamanho} onChange={(e) => setTamanho(Number(e.target.value))} className="rounded border border-border bg-background px-1 py-0.5">{TAMANHOS.map((t) => <option key={t} value={t}>{t || "Todas"}</option>)}</select>
@@ -210,7 +243,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
             <button type="button" disabled={pagina >= paginas - 1} onClick={() => setPagina((p) => p + 1)} className="rounded border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-40">Próxima</button>
           </span>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -6,6 +6,10 @@ import { extrairArquivos } from './interpretar';
 import { ESCRITURACOES, pesquisarAno, porCompetenciaBaixados } from '../receitanetbx/sped';
 import { SpedDownloadService } from '../receitanetbx/sped-download.service';
 import { servicosBx } from '../receitanetbx/receitanetbx.cliente';
+import { caiHoje } from './agenda';
+
+/** Mês de Brasília (1 a 12). */
+const mesDeBrasilia = (d: Date) => Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: 'America/Sao_Paulo' }).format(d));
 
 const PJ9 = { numero: '99999999999999', tipo: 2 as const };
 const PJ100 = { numero: '00000000000100', tipo: 2 as const };
@@ -41,6 +45,9 @@ export function dataDoEvento(s: unknown): Date | null {
   const m = String(s ?? '').match(/^(\d{2})(\d{2})(\d{2})$/);
   return m ? new Date(`20${m[1]}-${m[2]}-${m[3]}T12:00:00Z`) : null;
 }
+
+type MemoriaSped = { consultado_em: string; certificados: string[]; escrituracoes: Record<string, { encontrados: number; erro: string | null }> };
+const chaveSped = (empresaId: string, ano: number) => `sped_consulta:${empresaId}:${ano}`;
 
 @Injectable()
 export class EscritorioService {
@@ -135,9 +142,14 @@ export class EscritorioService {
    * SPED transmitido no ano (EFD ICMS/IPI e EFD-Contribuições), pelo ReceitanetBX-Serviço com o certificado do escritório:
    * como procurador do cliente (procuração eletrônica no e-CAC) ou como contribuinte, quando é o CNPJ do próprio escritório.
    */
-  async sped(empresaId: string, anoInformado?: string, usuario?: { email?: string }) {
+  /**
+   * SPED e EFD do cliente no ano. Sem `consultar`, mostra o que já está guardado no InTAX (sem ir à Receita); com `consultar`,
+   * pergunta ao ReceitanetBX, pede os arquivos novos e guarda o resultado da consulta.
+   */
+  async sped(empresaId: string, anoInformado?: string, usuario?: { email?: string }, consultar = false) {
     const ano = Number(anoInformado) || new Date().getFullYear();
     if (ano < 2009 || ano > new Date().getFullYear()) throw new BadRequestException('Ano inválido.');
+    if (!consultar) return this.spedGuardado(empresaId, ano);
     const e = await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { cnpj_cpf: true } });
     const cnpj = so(e?.cnpj_cpf);
     if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
@@ -176,7 +188,58 @@ export class EscritorioService {
         meses: respondeu ? porCompetenciaBaixados(esc, ano, baixados, naFila) : [],
       });
     }
-    return { ano, consultado_em: new Date(), perfil: proprio ? 'contribuinte' : 'procurador', proprio, certificados: [...usados], escrituracoes };
+    const consultado_em = new Date();
+    const memoria: MemoriaSped = { consultado_em: consultado_em.toISOString(), certificados: [...usados], escrituracoes: Object.fromEntries(escrituracoes.map((x) => [x.id, { encontrados: x.encontrados, erro: x.erro }])) };
+    await this.prisma.parametroSistema.upsert({ where: { chave: chaveSped(empresaId, ano) }, update: { valor: JSON.stringify(memoria) }, create: { chave: chaveSped(empresaId, ano), valor: JSON.stringify(memoria), descricao: 'SPED e EFD: última consulta à Receita' } }).catch(() => undefined);
+    return { ...(await this.spedGuardado(empresaId, ano)), perfil: proprio ? 'contribuinte' : 'procurador', proprio, escrituracoes_consultadas: escrituracoes.length };
+  }
+
+  /** O que já está no InTAX: arquivos guardados e a última consulta à Receita daquele ano (sem chamar a Receita). */
+  async spedGuardado(empresaId: string, ano: number) {
+    const p = await this.prisma.parametroSistema.findUnique({ where: { chave: chaveSped(empresaId, ano) } }).catch(() => null);
+    let memoria: MemoriaSped | null = null;
+    try { memoria = p ? (JSON.parse(p.valor) as MemoriaSped) : null; } catch { memoria = null; }
+    const escrituracoes = [];
+    for (const esc of ESCRITURACOES) {
+      const baixados = await this.prisma.spedDownload.findMany({ where: { empresa_id: empresaId, escrituracao: esc.id } });
+      const doAno = baixados.filter((b) => !b.periodo_inicio || b.periodo_inicio.slice(0, 4) <= String(ano) && (b.periodo_fim ?? '').slice(0, 4) >= String(ano));
+      const naFila = doAno.filter((b) => ['SOLICITADO', 'PROCESSANDO', 'DISPONIVEL'].includes(b.situacao)).length;
+      const m = memoria?.escrituracoes?.[esc.id];
+      const meses = porCompetenciaBaixados(esc, ano, baixados, naFila).map((x) => (!memoria && x.situacao === 'NAO_ENCONTRADA' ? { ...x, situacao: 'SEM_CONSULTA' } : x));
+      escrituracoes.push({
+        id: esc.id, rotulo: esc.rotulo, anual: esc.anual, erro: m?.erro ?? null, encontrados: m?.encontrados ?? 0, na_fila: naFila,
+        baixados: doAno.filter((b) => b.situacao === 'GUARDADO').length, meses,
+      });
+    }
+    // Arquivos guardados antes de o tamanho ser anotado: lê do cadastro de arquivos.
+    type Arq = { id: string; nome: string; tipo: string; tamanho?: number };
+    const semTamanho = escrituracoes.flatMap((x) => x.meses.flatMap((mm) => (Array.isArray(mm.ultima?.arquivos) ? (mm.ultima!.arquivos as Arq[]) : []))).filter((a) => a.tamanho === undefined);
+    if (semTamanho.length) {
+      const t = new Map((await this.prisma.arquivoEmpresa.findMany({ where: { id: { in: semTamanho.map((a) => a.id) } }, select: { id: true, tamanho: true } })).map((a) => [a.id, a.tamanho]));
+      for (const a of semTamanho) a.tamanho = t.get(a.id);
+    }
+    return { ano, consultado_em: memoria?.consultado_em ?? null, certificados: memoria?.certificados ?? [], escrituracoes, guardado: true };
+  }
+
+  /**
+   * Todo dia às 05:40 (Brasília), em produção: se a agenda do SPED cai hoje, consulta na Receita o ano corrente (e o anterior até
+   * julho, quando ainda chegam ECD e ECF) de cada cliente do BPO e pede os arquivos novos.
+   */
+  @Cron('40 5 * * *', { timeZone: 'America/Sao_Paulo' })
+  async rotinaSped(hoje = new Date()) {
+    if (String(process.env.MONITORAMENTO_AGENDADOR ?? '').toLowerCase() === 'off' || process.env.NODE_ENV !== 'production') return { rodou: false };
+    const cfg = await this.m.configRotina();
+    if (!cfg.ativa || !caiHoje(cfg.documentos.sped, hoje)) return { rodou: false };
+    const bpo = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: 'ATIVO' }, select: { empresa_id: true } });
+    const anoAtual = Number(new Intl.DateTimeFormat('en-US', { year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(hoje));
+    const anos = mesDeBrasilia(hoje) <= 7 ? [anoAtual, anoAtual - 1] : [anoAtual];
+    let feitas = 0;
+    for (const empresaId of [...new Set(bpo.map((b) => b.empresa_id))]) {
+      for (const ano of anos) {
+        try { await this.sped(empresaId, String(ano), { email: 'rotina' }, true); feitas++; } catch (err) { this.log.warn(`SPED ${ano} de ${empresaId}: ${(err as Error).message}`); }
+      }
+    }
+    return { rodou: true, feitas };
   }
 
   // ── Eventos de atualização ───────────────────────────────────────────

@@ -20,14 +20,15 @@ import { LeituraSitfis, lerRelatorioSitfis, resumoDoSitfis } from './sitfis-leit
 import { textoDoPdf } from '../pre-analise/leitor-certidoes';
 import { lerDeclaracaoPgdasd } from './pgdasd-leitura';
 import { ContratoIntegraService, CredenciaisContrato } from './contrato.service';
+import { Agenda, AgendaDocumentos, agendaDocumentos, agendasDosServicos, caiHoje, diaDeBrasilia, servicosAgendaveis, TIPOS_CERTIDAO, textoDaAgenda, validarAgenda } from './agenda';
 
 type Usuario = { email?: string; role?: string; sub?: string; id?: string } | undefined;
 type Alvo = { empresaId?: string; pessoaFisicaId?: string };
-export type ConfigRotina = { ativa: boolean; dias: Record<string, number>; guias: { ativa: boolean; dia: number; enviar_email: boolean } };
+export type ConfigRotina = { ativa: boolean; dias: Record<string, number>; guias: { ativa: boolean; dia: number; enviar_email: boolean }; servicos: Record<string, Agenda>; documentos: AgendaDocumentos };
 
 const CHAVE_MODO = 'integra_contador_modo';
 const CHAVE_ROTINA = 'monitoramento_rotina';
-const ROTINA_PADRAO: ConfigRotina = { ativa: false, dias: { situacao: 1, declaracoes: 21, guias: 0, mensagens: 1, parcelamentos: 5, mei: 5, procuracoes: 1, processos: 0 }, guias: { ativa: false, dia: 10, enviar_email: false } };
+const ROTINA_PADRAO: ConfigRotina = { ativa: false, dias: { situacao: 1, declaracoes: 21, guias: 0, mensagens: 1, parcelamentos: 5, mei: 5, procuracoes: 1, processos: 0 }, guias: { ativa: false, dia: 10, enviar_email: false }, servicos: {}, documentos: agendaDocumentos(undefined) };
 const PESO: Record<Nivel, number> = { CRITICO: 3, ATENCAO: 2, OK: 1, INFO: 0 };
 const MAX_LOTE = 2000;
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
@@ -539,7 +540,20 @@ export class MonitoramentoService {
 
   async configRotina(): Promise<ConfigRotina> {
     const p = await this.prisma.parametroSistema.findUnique({ where: { chave: CHAVE_ROTINA } });
-    try { const v = JSON.parse(p?.valor ?? '{}'); return { ...ROTINA_PADRAO, ...v, dias: { ...ROTINA_PADRAO.dias, ...(v.dias ?? {}) }, guias: { ...ROTINA_PADRAO.guias, ...(v.guias ?? {}) } }; } catch { return ROTINA_PADRAO; }
+    let v: Partial<ConfigRotina> = {};
+    try { v = JSON.parse(p?.valor ?? '{}'); } catch { v = {}; }
+    const dias = { ...ROTINA_PADRAO.dias, ...(v.dias ?? {}) };
+    return { ...ROTINA_PADRAO, ...v, dias, guias: { ...ROTINA_PADRAO.guias, ...(v.guias ?? {}) }, servicos: agendasDosServicos(v.servicos, dias), documentos: agendaDocumentos(v.documentos) };
+  }
+
+  /** A configuração com a lista do que pode ser agendado (para a tela). */
+  async rotinaParaTela() {
+    const cfg = await this.configRotina();
+    return {
+      ...cfg,
+      agendaveis: servicosAgendaveis().map((s) => ({ chave: s.chave, rotulo: s.rotulo, grupo: s.grupo, para: s.para ?? null, quando: textoDaAgenda(cfg.servicos[s.chave]) })),
+      certidoes: TIPOS_CERTIDAO,
+    };
   }
 
   async salvarRotina(c: Partial<ConfigRotina>, usuario: Usuario) {
@@ -554,7 +568,18 @@ export class MonitoramentoService {
     }
     const guias = { ...atual.guias, ...(c.guias ?? {}) };
     if (!Number.isInteger(Number(guias.dia)) || guias.dia < 1 || guias.dia > 28) throw new BadRequestException('O dia do envio de guias vai de 1 a 28.');
-    const nova: ConfigRotina = { ativa: c.ativa ?? atual.ativa, dias, guias: { ativa: !!guias.ativa, dia: Number(guias.dia), enviar_email: !!guias.enviar_email } };
+    const servicos = { ...atual.servicos };
+    const agendaveis = new Map(servicosAgendaveis().map((s) => [s.chave, s]));
+    try {
+      for (const [k, a] of Object.entries(c.servicos ?? {})) { const s = agendaveis.get(k); if (s) servicos[k] = validarAgenda(a, s.rotulo); }
+    } catch (e) { throw new BadRequestException((e as Error).message); }
+    const documentos = agendaDocumentos({ ...atual.documentos, ...(c.documentos ?? {}), certidoes: { ...atual.documentos.certidoes, ...(c.documentos?.certidoes ?? {}) } });
+    try { documentos.sped = validarAgenda(documentos.sped, 'SPED e EFD'); } catch (e) { throw new BadRequestException((e as Error).message); }
+    for (const t of TIPOS_CERTIDAO) {
+      const d = documentos.certidoes[t].dias_antes;
+      if (!Number.isInteger(d) || d < 0 || d > 60) throw new BadRequestException('A antecedência das certidões vai de 0 a 60 dias.');
+    }
+    const nova: ConfigRotina = { ativa: c.ativa ?? atual.ativa, dias, guias: { ativa: !!guias.ativa, dia: Number(guias.dia), enviar_email: !!guias.enviar_email }, servicos, documentos };
     await this.prisma.parametroSistema.upsert({ where: { chave: CHAVE_ROTINA }, update: { valor: JSON.stringify(nova) }, create: { chave: CHAVE_ROTINA, valor: JSON.stringify(nova), descricao: 'Rotina automática do monitoramento fiscal' } });
     return nova;
   }
@@ -565,21 +590,19 @@ export class MonitoramentoService {
     return [...new Set(s.filter((x) => !x.modulos?.length || x.modulos.includes('MONITORAMENTO')).map((x) => x.empresa_id))];
   }
 
-  /** Todo dia às 06:30 (Brasília): roda os grupos cujo dia do mês é hoje e, no dia das guias, gera e envia as guias. */
+  /** Todo dia às 06:30 (Brasília): roda os serviços cuja agenda cai hoje e, no dia das guias, gera e envia as guias. */
   @Cron('30 6 * * *', { timeZone: 'America/Sao_Paulo' })
   async rotinaDiaria(hoje = new Date()) {
     if (String(process.env.MONITORAMENTO_AGENDADOR ?? '').toLowerCase() === 'off') return { rodou: false, motivo: 'desligado no servidor' };
     const cfg = await this.configRotina();
     const modo = await this.modo();
     if (!cfg.ativa || modo === 'DESLIGADO') return { rodou: false, motivo: 'rotina ou monitoramento desligado' };
-    const dia = Number(new Intl.DateTimeFormat('pt-BR', { day: 'numeric', timeZone: 'America/Sao_Paulo' }).format(hoje));
-    const grupos = Object.entries(cfg.dias).filter(([, d]) => d === dia).map(([g]) => g);
+    const dia = diaDeBrasilia(hoje).mes;
+    const chaves = Object.entries(cfg.servicos).filter(([, a]) => caiHoje(a, hoje)).map(([k]) => k);
+    const grupos = [...new Set(chaves.map((k) => SERVICO_POR_CHAVE.get(k)?.grupo).filter(Boolean))];
     const empresas = await this.empresasDoBpo();
     let lote = null;
-    if (grupos.length && empresas.length) {
-      const chaves = SERVICOS.filter((s) => s.rotina && grupos.includes(s.grupo)).map((s) => s.chave);
-      lote = this.iniciarLote(empresas, chaves, { email: 'rotina' }, 'ROTINA');
-    }
+    if (chaves.length && empresas.length) lote = this.iniciarLote(empresas, chaves, { email: 'rotina' }, 'ROTINA');
     let guias = null;
     if (cfg.guias.ativa && cfg.guias.dia === dia && empresas.length) guias = await this.enviarGuias(empresas, cfg.guias.enviar_email);
     return { rodou: true, grupos, lote, guias };

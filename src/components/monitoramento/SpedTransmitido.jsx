@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileCheck2, Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/api/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { BotoesDocumento } from "@/components/monitoramento/CartaoServico";
+import EnvioDocumentos, { tamanhoTexto } from "@/components/monitoramento/EnvioDocumentos";
+import { toast } from "@/components/ui/use-toast";
 import { quandoConsultou } from "@/lib/monitoramento";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -14,6 +16,7 @@ const SITUACAO = {
   NO_PRAZO: { rotulo: "No prazo", tom: "bg-muted text-muted-foreground" },
   NA_FILA: { rotulo: "Chegando", tom: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300" },
   FUTURA: { rotulo: "No prazo", tom: "bg-muted text-muted-foreground" },
+  SEM_CONSULTA: { rotulo: "Sem consulta", tom: "bg-muted text-muted-foreground" },
 };
 const comp = (c) => (c.length === 4 ? `Ano ${c}` : `${MESES[Number(c.slice(5, 7)) - 1]}/${c.slice(0, 4)}`);
 
@@ -23,43 +26,59 @@ export function linhasDaEscrituracao(e) {
     id: `${e.id}-${m.competencia}`, escrituracao: e.id, competencia: m.competencia, situacao: m.situacao, transmissoes: m.transmissoes,
     periodo: m.ultima?.periodo_inicio ? `${dataBr(m.ultima.periodo_inicio)} a ${dataBr(m.ultima.periodo_fim)}` : "",
     tipo: m.ultima ? (m.ultima.retificadora ? "Retificadora" : "Original") : "",
-    ultima: m.ultima,
+    ultima: m.ultima, arquivos: arquivosDa(e.id, m),
   }));
+}
+/** Arquivos guardados da competência (escrituração e recibo), com o tamanho, prontos para baixar ou enviar. */
+function arquivosDa(esc, m) {
+  const u = m.ultima;
+  const l = Array.isArray(u?.arquivos) ? u.arquivos : u?.arquivo_id ? [{ id: u.arquivo_id, nome: `${esc} ${m.competencia}`, tipo: "ESCRITURACAO" }] : [];
+  return l.map((a) => ({ ...a, item: { tipo: "arquivo", arquivo_id: a.id } }));
 }
 const dataBr = (d) => (d ? d.split("-").reverse().join("/") : "");
 
 /** Os arquivos guardados da competência: a escrituração transmitida e o recibo (Ver e Baixar). */
 function ArquivosSped({ linha }) {
-  const arquivos = Array.isArray(linha.ultima?.arquivos) ? linha.ultima.arquivos : linha.ultima?.arquivo_id ? [{ id: linha.ultima.arquivo_id, nome: `${linha.escrituracao} ${linha.competencia}`, tipo: "ESCRITURACAO" }] : [];
-  if (!arquivos.length) return <span className="text-[11px] text-muted-foreground">—</span>;
+  if (!linha.arquivos.length) return <span className="text-[11px] text-muted-foreground">—</span>;
   return (
-    <div className="flex flex-col gap-1">
-      {arquivos.map((a) => (
-        <div key={a.id} className="flex items-center gap-1">
-          <span className="w-16 text-[11px] text-muted-foreground">{a.tipo === "RECIBO" ? "Recibo" : "Arquivo"}</span>
+    <span className="inline-flex items-center gap-2">
+      {linha.arquivos.map((a) => (
+        <span key={a.id} className="inline-flex items-center gap-1">
+          <span className="text-[11px] text-muted-foreground">{a.tipo === "RECIBO" ? "Recibo" : "Arquivo"}</span>
           <BotoesDocumento url={`/documentos/arquivos/${a.id}/download`} nome={a.nome} rotulo={a.nome} />
-        </div>
+        </span>
       ))}
-    </div>
+    </span>
   );
 }
 
 /**
- * Monitoramento > Declarações > SPED transmitido: a Receita diz, pelo ReceitanetBX, o que foi transmitido de EFD ICMS/IPI,
- * EFD-Contribuições, ECD e ECF, e o arquivo é baixado para os Arquivos do cliente. Nada é digitado à mão.
+ * Monitoramento > Declarações > SPED e EFD: abre com o que já está guardado no InTAX (arquivo transmitido e recibo, prontos para
+ * ver, baixar e enviar por e-mail). "Consultar na Receita" pergunta ao ReceitanetBX e pede os arquivos novos.
  */
 export default function SpedTransmitido({ empresaId }) {
   const [ano, setAno] = useState(new Date().getFullYear());
-  const q = useQuery({ queryKey: ["monitoramento", "sped", empresaId, ano], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped`, { ano }), retry: false, staleTime: 10 * 60_000,
-    // Enquanto há arquivos chegando, confere de novo a cada minuto.
+  const qc = useQueryClient();
+  const chave = ["monitoramento", "sped", empresaId, ano];
+  const q = useQuery({ queryKey: chave, queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped`, { ano }), retry: false,
+    // Enquanto há arquivos chegando, relê o que está guardado a cada minuto (sem ir à Receita).
     refetchInterval: (x) => ((x.state.data?.escrituracoes || []).some((e) => e.na_fila > 0) ? 60_000 : false) });
+  const consultar = useMutation({
+    mutationFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped`, { ano, consultar: 1 }),
+    onSuccess: (r) => qc.setQueryData(chave, r),
+    onError: (e) => toast({ title: "Não foi possível consultar a Receita", description: e.message, variant: "destructive" }),
+  });
+  const [marcadas, setMarcadas] = useState(new Set());
   const colunas = [
-    { chave: "competencia", rotulo: "Competência", valor: (l) => comp(l.competencia), quebrar: false },
-    { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACAO[l.situacao].rotulo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SITUACAO[l.situacao].tom}`}>{SITUACAO[l.situacao].rotulo}</span>, quebrar: false },
-    { chave: "periodo", rotulo: "Período", quebrar: false },
+    { chave: "competencia", rotulo: "Competência", valor: (l) => l.competencia, render: (l) => comp(l.competencia) },
+    { chave: "situacao", rotulo: "Situação", valor: (l) => (SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).rotulo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${(SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).tom}`}>{(SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).rotulo}</span> },
+    { chave: "periodo", rotulo: "Período" },
     { chave: "tipo", rotulo: "Original ou retificadora" },
-    { chave: "transmissoes", rotulo: "Transmissões", valor: (l) => (l.transmissoes ? String(l.transmissoes) : "") },
+    { chave: "transmissoes", rotulo: "Transmissões", tipo: "numero", alinhar: "direita", valor: (l) => l.transmissoes || null },
+    { chave: "tamanho", rotulo: "Tamanho", tipo: "numero", alinhar: "direita", valor: (l) => l.arquivos.reduce((s2, a) => s2 + (a.tamanho || 0), 0) || null, render: (l) => { const b = l.arquivos.reduce((s2, a) => s2 + (a.tamanho || 0), 0); return b ? tamanhoTexto(b) : "—"; } },
   ];
+  const todasLinhas = (q.data?.escrituracoes || []).flatMap(linhasDaEscrituracao);
+  const marcados = todasLinhas.filter((l) => marcadas.has(l.id)).flatMap((l) => l.arquivos.map((a) => ({ item: a.item, nome: a.nome, tamanho: a.tamanho })));
   const escrituracoes = q.data?.escrituracoes || [];
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="SPED transmitido">
@@ -70,12 +89,12 @@ export default function SpedTransmitido({ empresaId }) {
             {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </label>
-        <button type="button" disabled={q.isFetching} onClick={() => q.refetch()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60">{q.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
+        <button type="button" disabled={consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60">{consultar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
       </div>
       <p className="text-xs text-muted-foreground">
-        {q.data ? `Consultado em ${quandoConsultou(q.data.consultado_em)}${q.data.certificados?.length ? ` com ${q.data.certificados.join(" e ")}` : ""}.` : ""}
+        {q.data ? (q.data.consultado_em ? `Última consulta à Receita em ${quandoConsultou(q.data.consultado_em)}${q.data.certificados?.length ? ` com ${q.data.certificados.join(" e ")}` : ""}.` : `Ano ${ano} ainda não consultado na Receita.`) : ""}
       </p>
-      {q.isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Consultando a Receita…</p>}
+      {(q.isLoading || consultar.isPending) && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />{consultar.isPending ? "Consultando a Receita…" : "Carregando…"}</p>}
       {q.error && <p role="alert" className="text-sm">{q.error.message}</p>}
       {escrituracoes.length > 0 && (
         <Tabs defaultValue={escrituracoes[0].id}>
@@ -91,6 +110,9 @@ export default function SpedTransmitido({ empresaId }) {
               {e.encontrados > 0 && <p className="text-xs text-muted-foreground">{e.encontrados} na Receita · {e.baixados} no InTAX{e.na_fila ? ` · ${e.na_fila} chegando` : ""}</p>}
               {e.erro && <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{e.erro}</p>}
               <TabelaPadrao id={`monit:sped:${e.id}`} colunas={colunas} linhas={linhasDaEscrituracao(e)} ariaLabel={`${e.rotulo} por competência`} tamanhoInicial={25} vazio="Nada para mostrar."
+                ordemInicial={{ chave: "competencia", dir: 1 }}
+                selecao={{ marcadas, aoMudar: setMarcadas }}
+                acoes={<EnvioDocumentos empresaId={empresaId} marcados={marcados} aoConcluir={() => setMarcadas(new Set())} />}
                 documentos={(l) => <ArquivosSped linha={l} />} />
             </TabsContent>
           ))}

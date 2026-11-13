@@ -51,7 +51,11 @@ function renderizar(elemento, local = "/") {
     { empresa_id: "E1", razao_social: "EXTRA AGRO LTDA", cnpj_cpf: "58509112000152", certificado: { valido_ate: "2027-05-01T00:00:00Z", dias: 170, situacao: "VALIDO" }, procuracao: null, caminho: "TERMO_A1" },
     { empresa_id: "E2", razao_social: "Beta Comércio", cnpj_cpf: "12345678000195", certificado: null, procuracao: { nivel: "CRITICO", titulo: "Procuração vencida: peça ao cliente que renove no e-CAC.", consultado_em: "2026-11-11T12:00:00Z", simulado: true }, caminho: "SEM_ACESSO" },
   ]);
-  qc.setQueryData(["monitoramento", "rotina"], { ativa: true, dias: { situacao: 1, declaracoes: 21, guias: 0, mensagens: 1 }, guias: { ativa: true, dia: 10, enviar_email: false } });
+  qc.setQueryData(["monitoramento", "rotina"], { ativa: true, dias: { situacao: 1, declaracoes: 21, guias: 0, mensagens: 1 }, guias: { ativa: true, dia: 10, enviar_email: false },
+    servicos: { sitfis: { frequencia: "MENSAL", dia: 1 }, "caixa-postal": { frequencia: "SEMANAL", dia: 1 } },
+    documentos: { sped: { frequencia: "MENSAL", dia: 20 }, certidoes: { FEDERAL: { ativa: true, dias_antes: 15 }, FGTS: { ativa: false, dias_antes: 5 } } },
+    agendaveis: [{ chave: "sitfis", rotulo: "Relatório de situação fiscal", grupo: "situacao", para: null }, { chave: "caixa-postal", rotulo: "Caixa postal do e-CAC", grupo: "mensagens", para: null }],
+    certidoes: ["FEDERAL", "FGTS"] });
   qc.setQueryData(["documentos", "todos"], [{ id: "D1", empresa_id: "E2", tipo: { nome: "CND federal (Receita e PGFN)" }, situacao: "VENCIDO", validade: "2026-10-01T00:00:00Z" }]);
   return renderToString(<QueryClientProvider client={qc}><StaticRouter location={local}>{elemento}</StaticRouter></QueryClientProvider>).replace(/<!-- -->/g, "");
 }
@@ -66,6 +70,10 @@ describe("Monitoramento fiscal: a carteira", () => {
     expect(html).toContain(">75<");
     expect(html).toContain("50 mensagens");
     expect(html).toContain("Atualizar os 2 da lista");
+    expect(html).toContain(">CNPJ<");
+    expect(html).toContain(">Regime<");
+    expect(html).toContain("Legenda das cores");
+    expect(html.indexOf("Beta Comércio")).toBeLessThan(html.indexOf("EXTRA AGRO LTDA"));
   });
   it("o gatilho é o BPO fiscal: quem é BPO e diagnóstico aparece; quem é só diagnóstico, não", () => {
     const html = renderizar(<MonitoramentoPagina />);
@@ -94,6 +102,9 @@ describe("Monitoramento fiscal: o cliente", () => {
     expect(html).toContain(">Documentos<");
     expect(html).toContain("Filtrar");
     expect(html).toContain("· demonstração");
+    expect(html).toMatch(/role="tab"[^>]*>Histórico</);
+    expect(html).not.toMatch(/role="tab"[^>]*>Resultado</);
+    expect(html).toContain("Marque os documentos para baixar ou enviar por e-mail.");
   });
   it("lê só o que o regime pede: Presumido não tem DAS na lista principal", () => {
     expect(servicosDoGrupo(SERVICOS, "guias", ["sitfis"]).indicados).toHaveLength(0);
@@ -112,9 +123,14 @@ describe("Procurações e certificados", () => {
 });
 
 describe("Parâmetros e rotinas", () => {
-  it("dia por assunto, guias e o botão de gerar agora", () => {
+  it("agenda por serviço e por documento, guias e o botão de gerar agora", () => {
     const html = renderizar(<ParametrosRotinasPagina />);
-    expect(html).toContain("Consulta automática ligada");
+    expect(html).toContain("Atualização automática ligada");
+    expect(html).toContain("Atualização por serviço");
+    expect(html).toContain("Caixa postal do e-CAC");
+    expect(html).toContain('aria-label="Dia da semana: Caixa postal do e-CAC"');
+    expect(html).toContain("SPED e EFD (ECD, ECF, EFD ICMS/IPI, EFD Contribuições)");
+    expect(html).toContain("dias antes do vencimento");
     expect(html).toContain("Gerar as guias todo mês");
     expect(html).toContain("Gerar as guias agora (2 clientes)");
   });
