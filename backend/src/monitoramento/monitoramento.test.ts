@@ -12,11 +12,14 @@ const ler = (s: string) => { const svc = SERVICOS.find((x) => x.servico === s)!;
 
 describe('catálogo', () => {
   it('todo serviço tem código, versão, endpoint, exemplo de demonstração com resposta oficial guardada', () => {
-    const semExemplo = SERVICOS.filter((s) => !FIX[s.servico] && !['CONSPROCPORINTER271', 'PAGAMENTOS71', // o trial recusa os exemplos oficiais destes:
+    // Serviços da Infosimples não têm ambiente de demonstração nem versão de serviço do Serpro: são testados em infosimples/*.test.ts.
+    const doSerpro = SERVICOS.filter((s) => s.fonte !== 'INFOSIMPLES');
+    const semExemplo = doSerpro.filter((s) => !FIX[s.servico] && !['CONSPROCPORINTER271', 'PAGAMENTOS71', // o trial recusa os exemplos oficiais destes:
       'CONSOLIDAR54', 'CONTACONSDOCARRPG73', 'ATUBENEFICIO23', 'TRANSDECLARACAO310'].includes(s.servico));
     expect(semExemplo.map((s) => s.chave)).toEqual([]);
     expect(new Set(SERVICOS.map((s) => s.chave)).size).toBe(SERVICOS.length);
-    for (const s of SERVICOS) { expect(s.versao).toBeTruthy(); expect(['Apoiar', 'Consultar', 'Declarar', 'Emitir', 'Monitorar']).toContain(s.endpoint); }
+    for (const s of SERVICOS.filter((x) => x.infosimples)) expect(s.infosimples!.rota).toBeTypeOf('function');
+    for (const s of doSerpro) { expect(s.versao).toBeTruthy(); expect(['Apoiar', 'Consultar', 'Declarar', 'Emitir', 'Monitorar']).toContain(s.endpoint); }
   });
   it('indica os serviços pelo regime: Simples não vê DCTFWeb, MEI vê o CCMEI, pessoa física só o que serve a CPF', () => {
     const simples = servicosParaEmpresa('Simples Nacional').map((s) => s.chave);

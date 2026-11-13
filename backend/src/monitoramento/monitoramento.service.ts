@@ -295,6 +295,10 @@ export class MonitoramentoService {
     if (!r) throw new BadRequestException('Infosimples não configurada (Administração > Integrações).');
     await registrarUso(this.prisma, 'INFOSIMPLES_MONITORAMENTO', usuario, alvo.empresaId, `${s.chave} ${ctx.cnpj}`);
     const mensagens = [{ codigo: String(r.resposta.code ?? r.http), texto: r.resposta.code_message ?? '' }];
+    // 612 = a consulta não retornou dados na origem: para quem declara "nada consta" (dívidas, devedores), é o resultado bom.
+    if (consulta.semDados && (r.resposta.code === 612 || (r.resposta.code === 200 && !r.resposta.data?.length))) {
+      return { sucesso: true, http: r.http, resumo: consulta.semDados(r.resposta), dados: { infosimples: { code: r.resposta.code, code_message: r.resposta.code_message } }, arquivos: [], mensagens };
+    }
     if (r.resposta.code !== 200 || !r.resposta.data?.length) return { sucesso: false, http: r.http, resumo: resumoDeFalha(r.resposta, r.http), dados: { infosimples: { code: r.resposta.code, code_message: r.resposta.code_message, errors: r.resposta.errors } }, arquivos: [], mensagens };
     const resumo = consulta.ler(r.resposta.data, r.resposta);
     const pdfs = await this.infosimples.comprovantesPdf(r.resposta.site_receipts ?? []);

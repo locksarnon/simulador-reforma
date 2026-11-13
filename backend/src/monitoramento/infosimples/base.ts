@@ -24,6 +24,11 @@ export type ConsultaInfosimples = {
   ler: (data: Record<string, unknown>[], r: RespostaInfosimples) => Resumo;
   /** Adicional por consulta da tabela da Infosimples, além do preço base (R$). */
   adicional?: number;
+  /**
+   * Quando a Infosimples responde que a consulta não retornou dados (código 612): em dívida ou lista de devedores, "nada consta"
+   * é o resultado bom. Sem este gancho, a falta de dados vira alerta.
+   */
+  semDados?: (r: RespostaInfosimples) => Resumo;
 };
 
 /**
