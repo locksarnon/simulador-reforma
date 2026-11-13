@@ -3,6 +3,9 @@
  * dados de entrada conferidos na documentação oficial do Serpro e no ambiente de demonstração em 11/11/2026:
  * https://apicenter.estaleiro.serpro.gov.br/documentacao/api-integra-contador/pt/catalogo_de_servicos/
  */
+import { SERVICOS_INFOSIMPLES } from './infosimples';
+import type { ConsultaInfosimples } from './infosimples/base';
+
 export type Grupo = 'situacao' | 'declaracoes' | 'guias' | 'mensagens' | 'parcelamentos' | 'mei' | 'procuracoes' | 'processos';
 export type Alvo = 'PJ' | 'PF' | 'TODOS';
 export type TipoParametro = 'ano' | 'periodo' | 'texto' | 'numero' | 'data';
@@ -30,6 +33,11 @@ export type Servico = {
   descricao: string;
   /** Ação que muda dados na Receita: exige confirmação explícita (texto mostrado antes de executar) e nunca roda em lote nem na rotina. */
   acao?: string;
+  /** Fonte da consulta: Integra Contador (padrão) ou Infosimples (portais oficiais estaduais, municipais e federais sem API). */
+  fonte?: 'INFOSIMPLES';
+  /** UFs atendidas (só Infosimples; vazio = todas). */
+  ufs?: string[];
+  infosimples?: ConsultaInfosimples;
 };
 
 const PJ0 = { numero: '00000000000000', tipo: 2 as const };
@@ -397,6 +405,7 @@ export const SERVICOS: Servico[] = [
     parametros: [], dados: () => '{}', demo: { contribuinte: PJ0, dados: '{}' }, descricao: 'Os processos digitais em que a empresa é interessada, com a situação.',
   },
   ...servicosDeParcelamento,
+  ...SERVICOS_INFOSIMPLES,
 ];
 
 export const SERVICO_POR_CHAVE = new Map(SERVICOS.map((s) => [s.chave, s]));
@@ -422,7 +431,7 @@ export const OBRIGACOES = [
 ] as const;
 
 /** Que serviços servem à empresa pelo regime do cadastro (Simples, MEI, normal) e pelo tipo (PJ ou PF). */
-export function servicosParaEmpresa(regime: string | null | undefined, pessoaFisica = false): Servico[] {
+export function servicosParaEmpresa(regime: string | null | undefined, pessoaFisica = false, uf?: string | null): Servico[] {
   const r = String(regime || '').toLowerCase();
   const mei = r.includes('mei');
   const simples = !mei && r.includes('simples');
@@ -430,6 +439,7 @@ export function servicosParaEmpresa(regime: string | null | undefined, pessoaFis
   return SERVICOS.filter((s) => {
     if (pessoaFisica) return s.alvo !== 'PJ';
     if (s.alvo === 'PF') return false;
+    if (s.ufs?.length && uf && !s.ufs.includes(uf.toUpperCase())) return false;
     if (!r || !s.para) return true;
     return (s.para === 'MEI' && mei) || (s.para === 'SIMPLES' && simples) || (s.para === 'NORMAL' && normal);
   });

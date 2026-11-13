@@ -184,6 +184,36 @@ export class InfosimplesService {
     return { ...lido, comprovante };
   }
 
+  /**
+   * Consulta genérica (serviços do monitoramento): POST na rota com os parâmetros oficiais. null = Infosimples não configurada.
+   * Não lança por resposta sem sucesso: quem chama lê o código e a mensagem.
+   */
+  async consulta(rota: string, parametros: Record<string, string>): Promise<{ http: number; resposta: RespostaInfosimples } | null> {
+    const token = await this.token();
+    if (!token) return null;
+    if (!/^[a-z0-9][a-z0-9/_-]*$/i.test(rota)) throw new BadRequestException('Rota da Infosimples inválida.');
+    const corpo = new URLSearchParams({ token, timeout: '300', ...parametros });
+    const r = await fetch(`${URL_INFOSIMPLES}/${rota}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: corpo, signal: AbortSignal.timeout(330_000) });
+    let resposta: RespostaInfosimples;
+    try { resposta = (await r.json()) as RespostaInfosimples; } catch { resposta = { code: r.status, code_message: `A Infosimples respondeu HTTP ${r.status} sem JSON.` }; }
+    return { http: r.status, resposta };
+  }
+
+  /** Os comprovantes em PDF (site_receipts) de uma consulta; HTML e falhas de download são ignorados. */
+  async comprovantesPdf(urls: string[]): Promise<Buffer[]> {
+    const out: Buffer[] = [];
+    for (const u of urls.slice(0, 5)) {
+      if (!/^https:\/\//.test(u)) continue;
+      try {
+        const r = await fetch(u, { signal: AbortSignal.timeout(60_000) });
+        if (!r.ok) continue;
+        const b = Buffer.from(await r.arrayBuffer());
+        if (/pdf/i.test(r.headers.get('content-type') ?? '') || b.subarray(0, 4).toString() === '%PDF') out.push(b);
+      } catch (e) { this.log.warn(`Comprovante da Infosimples: ${(e as Error).message}`); }
+    }
+    return out;
+  }
+
   /** Baixa o comprovante (o PDF da certidão, quando o portal o gera; senão a página oficial em HTML). */
   private async comprovante(urls: string[]): Promise<ResultadoCertidao['comprovante']> {
     let html: ResultadoCertidao['comprovante'] = null;

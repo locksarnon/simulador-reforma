@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -20,6 +20,8 @@ import { LeituraSitfis, lerRelatorioSitfis, resumoDoSitfis } from './sitfis-leit
 import { textoDoPdf } from '../pre-analise/leitor-certidoes';
 import { lerDeclaracaoPgdasd } from './pgdasd-leitura';
 import { ContratoIntegraService, CredenciaisContrato } from './contrato.service';
+import { InfosimplesService } from '../infosimples/infosimples.service';
+import { resumoDeFalha } from './infosimples/base';
 import { Agenda, AgendaDocumentos, agendaDocumentos, agendasDosServicos, caiHoje, diaDeBrasilia, servicosAgendaveis, TIPOS_CERTIDAO, textoDaAgenda, validarAgenda } from './agenda';
 
 type Usuario = { email?: string; role?: string; sub?: string; id?: string } | undefined;
@@ -104,6 +106,7 @@ export class MonitoramentoService {
     private readonly mail: MailService,
     private readonly contrato: ContratoIntegraService,
     private readonly pdf: PdfService,
+    @Optional() private readonly infosimples?: InfosimplesService,
   ) {
     this.cliente = new IntegraCliente(() => this.modoAtual ?? 'DESLIGADO', () => this.cred);
   }
@@ -178,13 +181,13 @@ export class MonitoramentoService {
   }
 
   // ── Consulta ──────────────────────────────────────────────────────────────
-  private async contribuinte(alvo: Alvo): Promise<{ id: Identificacao; nome: string; regime: string | null; pf: boolean }> {
+  private async contribuinte(alvo: Alvo): Promise<{ id: Identificacao; nome: string; regime: string | null; pf: boolean; uf?: string | null }> {
     if (alvo.empresaId) {
       const e = await this.prisma.empresa.findUnique({ where: { id: alvo.empresaId } });
       if (!e) throw new NotFoundException('Cliente não encontrado.');
       const d = so(e.cnpj_cpf);
       if (d.length !== 14 && d.length !== 11) throw new BadRequestException(`${e.razao_social} não tem CNPJ/CPF válido no cadastro. Corrija na ficha do cliente.`);
-      return { id: { numero: d, tipo: d.length === 14 ? 2 : 1 }, nome: e.razao_social, regime: e.regime_atual, pf: d.length === 11 };
+      return { id: { numero: d, tipo: d.length === 14 ? 2 : 1 }, nome: e.razao_social, regime: e.regime_atual, pf: d.length === 11, uf: e.uf ?? null };
     }
     if (alvo.pessoaFisicaId) {
       const p = await this.prisma.pessoaFisica.findUnique({ where: { id: alvo.pessoaFisicaId } });
@@ -269,6 +272,38 @@ export class MonitoramentoService {
     return (await this.chamarServico({ ...s, dados: () => dados }, contribuinte, params, ctx)).r;
   }
 
+  /**
+   * Consulta da Infosimples (portal oficial sem API pública): monta os parâmetros com o cadastro do cliente, chama, lê o resultado e
+   * baixa os comprovantes em PDF. Cada chamada é cobrada pela Infosimples e entra nos custos.
+   */
+  private async consultarInfosimples(s: Servico, alvo: Alvo, params: Record<string, string>, usuario: string) {
+    if (!this.infosimples) throw new BadRequestException('Infosimples indisponível neste servidor.');
+    if (!alvo.empresaId) throw new BadRequestException('Este serviço é só para empresas (CNPJ).');
+    const e = await this.prisma.empresa.findUnique({ where: { id: alvo.empresaId } });
+    if (!e) throw new NotFoundException('Cliente não encontrado.');
+    const ex = e as unknown as Record<string, string | null>;
+    const ctx = {
+      cnpj: so(e.cnpj_cpf), uf: e.uf ? String(e.uf).toUpperCase() : null, municipio: e.municipio ?? null,
+      codigoIbge: ex.codigo_municipio_ibge ?? null, inscricaoEstadual: ex.inscricao_estadual ?? null, inscricaoMunicipal: ex.inscricao_municipal ?? null, params,
+    };
+    const consulta = s.infosimples!;
+    const rota = consulta.rota(ctx);
+    if (!rota) return { sucesso: false, http: 0, resumo: { nivel: 'INFO' as Nivel, titulo: 'Sem consulta automática para o estado ou município do cliente.', destaques: [] }, dados: null, arquivos: [], mensagens: [] };
+    let p: Record<string, string>;
+    try { p = consulta.parametros(ctx); } catch (err) { throw new BadRequestException((err as Error).message); }
+    const r = await this.infosimples.consulta(rota, p);
+    if (!r) throw new BadRequestException('Infosimples não configurada (Administração > Integrações).');
+    await registrarUso(this.prisma, 'INFOSIMPLES_MONITORAMENTO', usuario, alvo.empresaId, `${s.chave} ${ctx.cnpj}`);
+    const mensagens = [{ codigo: String(r.resposta.code ?? r.http), texto: r.resposta.code_message ?? '' }];
+    if (r.resposta.code !== 200 || !r.resposta.data?.length) return { sucesso: false, http: r.http, resumo: resumoDeFalha(r.resposta, r.http), dados: { infosimples: { code: r.resposta.code, code_message: r.resposta.code_message, errors: r.resposta.errors } }, arquivos: [], mensagens };
+    const resumo = consulta.ler(r.resposta.data, r.resposta);
+    const pdfs = await this.infosimples.comprovantesPdf(r.resposta.site_receipts ?? []);
+    return {
+      sucesso: true, http: r.http, resumo, dados: { infosimples: r.resposta.data }, mensagens,
+      arquivos: pdfs.map((b, i) => ({ campo: 'site_receipt', nome: `${s.rotulo.replace(/[\\/:*?"<>|]/g, '-')}${pdfs.length > 1 ? ` ${i + 1}` : ''}.pdf`, base64: b.toString('base64') })),
+    };
+  }
+
   async consultar(alvo: Alvo, chave: string, parametros: Record<string, unknown> | undefined, usuario: Usuario, origem: 'MANUAL' | 'ROTINA' | 'LOTE' = 'MANUAL') {
     const s = SERVICO_POR_CHAVE.get(chave);
     if (!s) throw new BadRequestException('Serviço de monitoramento desconhecido.');
@@ -293,11 +328,16 @@ export class MonitoramentoService {
     let mensagens: { codigo: string; texto: string }[] = [];
     let arquivosBrutos: { campo: string; nome: string; base64: string }[] = [];
     let usouReserva = false;
+    let infos: Awaited<ReturnType<MonitoramentoService['consultarInfosimples']>> | null = null;
     try {
       const ctx = { empresaId: alvo.empresaId, nome: quem.nome, usuario: usuarioEmail };
       let r: Resposta;
       let rsv = false;
-      if (s.servico === 'TRANSDECLARACAO310' && modo === 'PRODUCAO') {
+      if (s.fonte === 'INFOSIMPLES') {
+        const x = await this.consultarInfosimples(s, alvo, params, usuarioEmail);
+        r = { http: x.http, status: x.sucesso ? 200 : x.http, dados: null, mensagens: x.mensagens, bruto: '', demonstracao: false } as unknown as Resposta;
+        infos = x;
+      } else if (s.servico === 'TRANSDECLARACAO310' && modo === 'PRODUCAO') {
         r = await this.transmitirDctfweb(s, quem.id, params, ctx);
       } else if (s.sistema === 'SITFIS' && modo === 'PRODUCAO') {
         r = await relatorioSitfis(
@@ -310,7 +350,11 @@ export class MonitoramentoService {
       status = r.status;
       mensagens = r.mensagens;
       sucesso = r.status === 200;
-      if (sucesso) {
+      if (infos) {
+        resumo = infos.resumo;
+        dadosGuardados = infos.dados;
+        arquivosBrutos = infos.arquivos;
+      } else if (sucesso) {
         const ex = extrairArquivos(r.dados, s.chave);
         arquivosBrutos = ex.arquivos;
         dadosGuardados = ex.dados;
@@ -346,13 +390,13 @@ export class MonitoramentoService {
       if (e instanceof ErroIntegra) resumo = { nivel: 'ATENCAO', titulo: e.message, destaques: [] };
       else throw e;
     }
-    if (modo === 'DEMONSTRACAO') resumo.destaques.unshift({ rotulo: 'Dados', valor: usouReserva ? 'Exemplo oficial do Serpro (guardado no InTAX)' : 'Exemplo oficial do Serpro (ambiente de demonstração)' });
+    if (modo === 'DEMONSTRACAO' && !infos) resumo.destaques.unshift({ rotulo: 'Dados', valor: usouReserva ? 'Exemplo oficial do Serpro (guardado no InTAX)' : 'Exemplo oficial do Serpro (ambiente de demonstração)' });
 
     const registro = await this.prisma.consultaFiscal.create({
       data: {
         empresa_id: alvo.empresaId ?? null, pessoa_fisica_id: alvo.pessoaFisicaId ?? null, chave: s.chave, sistema: s.sistema, servico: s.servico,
         parametros: params as never, sucesso, status, nivel: resumo.nivel, resumo: resumo as never, dados: (dadosGuardados ?? null) as never, mensagens: mensagens as never,
-        simulado: modo === 'DEMONSTRACAO', origem, solicitado_por: usuario?.email ?? null, duracao_ms: Date.now() - inicio,
+        simulado: modo === 'DEMONSTRACAO' && !infos, origem, solicitado_por: usuario?.email ?? null, duracao_ms: Date.now() - inicio,
       },
     });
     if (arquivosBrutos.length) {
@@ -437,7 +481,7 @@ export class MonitoramentoService {
     const dispensas = alvo.empresaId ? await this.prisma.obrigacaoDispensada.findMany({ where: { empresa_id: alvo.empresaId } }) : [];
     let quem = null;
     try { quem = await this.contribuinte(alvo); } catch { /* sem documento: a tela avisa */ }
-    const servicos = quem ? servicosParaEmpresa(quem.regime, quem.pf).map((s) => s.chave) : SERVICOS.map((s) => s.chave);
+    const servicos = quem ? servicosParaEmpresa(quem.regime, quem.pf, quem.uf).map((s) => s.chave) : SERVICOS.map((s) => s.chave);
     return { ultimas: Object.fromEntries(ultima), dispensas, servicos_indicados: servicos };
   }
 
@@ -450,8 +494,8 @@ export class MonitoramentoService {
       select: { empresa_id: true, chave: true, nivel: true, createdAt: true, simulado: true, resumo: true },
     });
     // Só contam os serviços que valem para o regime do cadastro (um Presumido não é avaliado pelo DAS do MEI).
-    const empresas = await this.prisma.empresa.findMany({ where: { id: { in: [...new Set(consultas.map((c) => c.empresa_id!))] } }, select: { id: true, regime_atual: true, cnpj_cpf: true } });
-    const valem = new Map(empresas.map((e) => [e.id, new Set(servicosParaEmpresa(e.regime_atual, so(e.cnpj_cpf).length === 11).map((s) => s.chave))]));
+    const empresas = await this.prisma.empresa.findMany({ where: { id: { in: [...new Set(consultas.map((c) => c.empresa_id!))] } }, select: { id: true, regime_atual: true, cnpj_cpf: true, uf: true } });
+    const valem = new Map(empresas.map((e) => [e.id, new Set(servicosParaEmpresa(e.regime_atual, so(e.cnpj_cpf).length === 11, e.uf).map((s) => s.chave))]));
     const visto = new Set<string>();
     const porEmpresa = new Map<string, { empresa_id: string; grupos: Record<string, Nivel>; atualizado: Date; simulado: boolean; alertas: { chave: string; nivel: Nivel; titulo: string }[] }>();
     for (const c of consultas) {
@@ -511,12 +555,12 @@ export class MonitoramentoService {
     const estado = { id, total: 0, feitas: 0, erros: 0, iniciado: new Date(), por: usuario?.email };
     this.lotes.set(id, estado);
     void (async () => {
-      const empresas = await this.prisma.empresa.findMany({ where: { id: { in: ids } }, select: { id: true, regime_atual: true, cnpj_cpf: true } });
+      const empresas = await this.prisma.empresa.findMany({ where: { id: { in: ids } }, select: { id: true, regime_atual: true, cnpj_cpf: true, uf: true } });
       const dispensas = await this.prisma.obrigacaoDispensada.findMany({ where: { empresa_id: { in: ids } } });
       const tarefas: { empresaId: string; chave: string }[] = [];
       for (const e of empresas) {
         const pf = so(e.cnpj_cpf).length === 11;
-        const indicados = servicosParaEmpresa(e.regime_atual, pf).filter((s) => !s.acao && (chaves?.length ? chaves.includes(s.chave) : s.rotina));
+        const indicados = servicosParaEmpresa(e.regime_atual, pf, e.uf).filter((s) => !s.acao && (chaves?.length ? chaves.includes(s.chave) : s.rotina));
         for (const s of indicados) {
           if (s.obrigacao && dispensas.some((d) => d.empresa_id === e.id && d.obrigacao === s.obrigacao)) continue;
           tarefas.push({ empresaId: e.id, chave: s.chave });

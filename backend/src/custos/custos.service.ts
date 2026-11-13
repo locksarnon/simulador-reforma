@@ -19,6 +19,7 @@ export const ITENS = [
   { id: 'INFOSIMPLES_CRF', rotulo: 'CRF do FGTS pela Infosimples', fornecedor: 'Infosimples' },
   { id: 'INFOSIMPLES_ESTADUAL', rotulo: 'Certidão estadual pela Infosimples', fornecedor: 'Infosimples' },
   { id: 'INFOSIMPLES_MUNICIPAL', rotulo: 'Certidão municipal pela Infosimples', fornecedor: 'Infosimples' },
+  { id: 'INFOSIMPLES_MONITORAMENTO', rotulo: 'Monitoramento pela Infosimples (SEFAZ, prefeituras, e-CAC)', fornecedor: 'Infosimples' },
 ] as const;
 export type ItemCusto = (typeof ITENS)[number]['id'];
 type Precos = { precos: Record<string, number>; fixos: { rotulo: string; valor: number }[] };
@@ -37,7 +38,8 @@ const SERPRO_DIVIDA: Faixa[] = [[999, 0.6591], [9999, 0.5649], [49999, 0.3557], 
 // Tabela da conta do escritório (Área do cliente da Infosimples, 13/11/2026): menor que a do site público.
 const INFOSIMPLES_BASE: Faixa[] = [[500, 0.2], [2000, 0.16], [5000, 0.14], [10000, 0.13], [30000, 0.11], [50000, 0.1], [80000, 0.09], [100000, 0.07], [Infinity, 0.05]];
 // CRF +0,06 (tabela da conta); CNDT +0,04 (site); SEFAZ: MS +0,04, demais sem adicional; prefeituras variam (0 a 0,06): usado 0.
-const INFOSIMPLES_ADICIONAL: Record<string, number> = { INFOSIMPLES_CNDT: 0.04, INFOSIMPLES_CRF: 0.06, INFOSIMPLES_ESTADUAL: 0, INFOSIMPLES_MUNICIPAL: 0 };
+// Monitoramento: o adicional varia por consulta (0 a 0,06): usado 0, não confirmado por consulta.
+const INFOSIMPLES_ADICIONAL: Record<string, number> = { INFOSIMPLES_CNDT: 0.04, INFOSIMPLES_CRF: 0.06, INFOSIMPLES_ESTADUAL: 0, INFOSIMPLES_MUNICIPAL: 0, INFOSIMPLES_MONITORAMENTO: 0 };
 export const INFOSIMPLES_MINIMO = 100;
 export const FONTES_PRECO = {
   serpro_integra: 'https://loja.serpro.gov.br/integracontador',
@@ -58,7 +60,7 @@ function custoCascata(t: Faixa[], volume: number) {
 export function precosOficiais(volumes: Map<string, number>) {
   const v = (ids: string[]) => ids.reduce((s, id) => s + (volumes.get(id) ?? 0), 0);
   const consulta = v(['INTEGRA_CONSULTAR', 'INTEGRA_APOIAR', 'INTEGRA_MONITORAR']);
-  const infos = v(['INFOSIMPLES_CNDT', 'INFOSIMPLES_CRF', 'INFOSIMPLES_ESTADUAL', 'INFOSIMPLES_MUNICIPAL']);
+  const infos = v(['INFOSIMPLES_CNDT', 'INFOSIMPLES_CRF', 'INFOSIMPLES_ESTADUAL', 'INFOSIMPLES_MUNICIPAL', 'INFOSIMPLES_MONITORAMENTO']);
   const baseInfos = infos ? custoCascata(INFOSIMPLES_BASE, infos) / infos : INFOSIMPLES_BASE[0][1];
   const p: Record<string, number> = {};
   for (const [id, g] of Object.entries(GRUPO_INTEGRA)) p[id] = g === 'CONSULTA' ? precoDaFaixa(SERPRO_CONSULTA, consulta) : g === 'EMISSAO' ? precoDaFaixa(SERPRO_EMISSAO, v(['INTEGRA_EMITIR'])) : precoDaFaixa(SERPRO_DECLARACAO, v(['INTEGRA_DECLARAR']));
@@ -120,7 +122,7 @@ export class CustosService {
       m.set(item, (m.get(item) ?? 0) + n);
       mapa.set(quem, m);
     };
-    const consultas = await this.prisma.consultaFiscal.findMany({ where: { createdAt: { gte: de, lt: ate }, simulado: false }, select: { chave: true, sistema: true, solicitado_por: true, status: true } });
+    const consultas = await this.prisma.consultaFiscal.findMany({ where: { createdAt: { gte: de, lt: ate }, simulado: false, NOT: { sistema: 'INFOSIMPLES' } }, select: { chave: true, sistema: true, solicitado_por: true, status: true } });
     for (const c of consultas) {
       if (c.status === null) continue; // não chegou ao Serpro
       const s = SERVICO_POR_CHAVE.get(c.chave);
