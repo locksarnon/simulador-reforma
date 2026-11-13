@@ -56,6 +56,7 @@ function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {c.ultima_tentativa && c.ultima_tentativa.resultado !== "EMITIDA" && <span role="status" className="mr-auto text-xs text-amber-700 dark:text-amber-400">Emissão automática em {new Date(c.ultima_tentativa.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}: {c.ultima_tentativa.mensagem || "não emitida"}</span>}
         {automatica && (
           <button type="button" disabled={emitir.isPending} onClick={() => emitir.mutate()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60">
             {emitir.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}Emitir agora

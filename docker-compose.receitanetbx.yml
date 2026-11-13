@@ -6,6 +6,11 @@ services:
   receitanetbx:
     build: ./receitanetbx
     container_name: reforma-receitanetbx
+    # Sem idioma, o Java grava "?" no lugar das letras acentuadas nos nomes das pastas (ex.: Escrituração Fiscal Digital).
+    environment:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8"
     hostname: receitanetbx
     restart: unless-stopped
     ports:
@@ -22,6 +27,11 @@ services:
   receitanetbx-socio:
     build: ./receitanetbx
     container_name: reforma-receitanetbx-socio
+    # Sem idioma, o Java grava "?" no lugar das letras acentuadas nos nomes das pastas (ex.: Escrituração Fiscal Digital).
+    environment:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8"
     hostname: receitanetbx-socio
     restart: unless-stopped
     ports:

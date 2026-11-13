@@ -50,7 +50,9 @@ export class CertidoesService {
       const chave = `${empresaId}:${tipo}`;
       if (vigente || Date.now() - (this.tentativas.get(chave) ?? 0) < 6 * 3_600_000) continue;
       this.tentativas.set(chave, Date.now());
-      this.emitir(empresaId, tipo, { email: 'InTAX (automático)' }).catch((e) => this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`));
+      this.emitir(empresaId, tipo, { email: 'InTAX (automático)' })
+        .then((r) => this.registrarTentativa(empresaId, tipo, r.emitida ? 'EMITIDA' : 'INDISPONIVEL', r.emitida ? null : r.resumo ?? 'Fonte indisponível no momento.'))
+        .catch((e) => { this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`); return this.registrarTentativa(empresaId, tipo, 'ERRO', (e as Error).message); });
     }
   }
 
@@ -61,6 +63,21 @@ export class CertidoesService {
     private readonly monitoramento: MonitoramentoService,
     private readonly infosimples: InfosimplesService,
   ) {}
+
+  /** Guarda o resultado da última emissão automática (para a tela dizer por que a certidão não veio). */
+  private async registrarTentativa(empresaId: string, tipo: string, resultado: string, mensagem: string | null) {
+    const chave = `certidao_tentativa:${empresaId}:${tipo}`;
+    const valor = JSON.stringify({ quando: new Date().toISOString(), resultado, mensagem: mensagem?.slice(0, 400) ?? null });
+    try { await this.prisma.parametroSistema.upsert({ where: { chave }, update: { valor }, create: { chave, valor, descricao: 'Certidão: última emissão automática' } }); } catch { /* sem registro: a tela só não mostra o motivo */ }
+  }
+
+  private async ultimasTentativas(empresaId: string) {
+    let l: { chave: string; valor: string }[] = [];
+    try { l = await this.prisma.parametroSistema.findMany({ where: { chave: { startsWith: `certidao_tentativa:${empresaId}:` } } }); } catch { l = []; }
+    const m = new Map<string, { quando: string; resultado: string; mensagem: string | null }>();
+    for (const p of l) { try { m.set(p.chave.split(':').pop()!, JSON.parse(p.valor)); } catch { /* registro ilegível: ignora */ } }
+    return m;
+  }
 
   private async empresa(id: string) {
     const e = await this.prisma.empresa.findUnique({ where: { id }, select: { id: true, razao_social: true, cnpj_cpf: true, uf: true, municipio: true, codigo_municipio_ibge: true } });
@@ -85,6 +102,7 @@ export class CertidoesService {
     const cndApi = modo === 'PRODUCAO' && !!(await this.serpro.disponivelEmProducao('cnd'));
     const infosimples = (await this.infosimples.estado()).configurado;
     if (infosimples) this.emitirQueFaltam(empresaId, docs, tipos, hoje);
+    const ultimas = await this.ultimasTentativas(empresaId);
     return {
       empresa: { id: e.id, razao_social: e.razao_social, cnpj: so(e.cnpj_cpf), uf: e.uf ?? null, municipio: e.municipio ?? null },
       emissao_automatica_federal: cndApi,
@@ -103,6 +121,7 @@ export class CertidoesService {
             arquivo: a ? { id: a.id, nome: a.nome } : null,
           } : null,
           anteriores: lista.length - (atual ? 1 : 0),
+          ultima_tentativa: ultimas.get(c.tipo) ?? null,
           // Todas as certidões guardadas da esfera, da mais nova para a mais antiga (tabela da subaba).
           historico: lista.map((d) => {
             const x = d.arquivo_id ? arq.get(d.arquivo_id) : null;
