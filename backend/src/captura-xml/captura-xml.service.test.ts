@@ -42,7 +42,13 @@ function montar(opts: { cfg?: Linha; certificadoAtivo?: boolean; documentoCert?:
     manifestar_ciencia: !!opts.ciencia, manifestacao_consentida_em: opts.ciencia ? new Date() : null, manifestacao_consentida_por: opts.ciencia ? 'adm' : null,
   };
   if (opts.cfg !== undefined) configs.push({ id: 'c1', empresa_id: 'E1', tipo: 'NFE', ativo: true, ultimo_nsu: ZEROS, max_nsu: null, proxima_consulta_em: null, bloqueado_ate: null, ultima_consulta_em: null, ultimo_cstat: null, ultimo_motivo: null, em_execucao_ate: null, ...opts.cfg });
+  // Configuração global da captura (período e Ciência valem para todos os clientes).
+  let global = JSON.stringify({ periodo: opts.periodo ?? 'NOTURNO', ciencia: !!opts.ciencia, ciencia_consentida_em: opts.ciencia ? new Date().toISOString() : null, ciencia_consentida_por: opts.ciencia ? 'adm' : null, sem_concorrente_em: new Date().toISOString() });
   const prisma = {
+    parametroSistema: {
+      findUnique: async () => ({ valor: global }),
+      upsert: async ({ create }: Linha) => { global = create.valor; return create; },
+    },
     empresa: { findUnique: async ({ where }: Linha) => ({ id: where.id, uf: opts.semUf ? null : 'MT', cnpj_cpf: opts.cnpjEmpresa ?? '12.345.678/0001-95' }) },
     documentoXml: {
       count: async ({ where }: Linha) => docs.filter((d) => casa(d, where)).length,
@@ -367,14 +373,25 @@ describe('CapturaXmlService.configurarTipo e ambiente', () => {
     expect(t.auditoria.map((a) => a.acao)).toEqual(['CAPTURA_ATIVADA', 'CAPTURA_DESATIVADA']);
   });
 
-  it('o período da busca automática é gravado na empresa, vai para a auditoria e só aceita NOTURNO ou DIURNO', async () => {
+  it('período, documentos e Ciência são da configuração global (Administração), com validação', async () => {
     const t = montar({ cfg: {} });
-    let st = await t.service.configurarPeriodo('E1', 'DIURNO', 'admin@fal');
-    expect(st.periodo.atual).toBe('DIURNO');
-    expect(t.auditoria.at(-1)).toMatchObject({ acao: 'CAPTURA_PERIODO', usuario: 'admin@fal', detalhe: 'Diurno, das 06:00 às 17:59 (horário de Brasília)' });
-    for (const ruim of ['', 'noturno', 'MADRUGADA', 'DIA']) await expect(t.service.configurarPeriodo('E1', ruim, 'admin@fal'), ruim).rejects.toThrow(/Período inválido/);
-    st = await t.service.configurarPeriodo('E1', 'NOTURNO', 'admin@fal');
-    expect(st.periodo.atual).toBe('NOTURNO');
+    let c = await t.service.salvarConfiguracao({ periodo: 'DIURNO' }, 'admin@fal');
+    expect(c.periodo).toBe('DIURNO');
+    expect((await t.service.status('E1')).periodo.atual).toBe('DIURNO');
+    for (const ruim of ['noturno', 'MADRUGADA']) await expect(t.service.salvarConfiguracao({ periodo: ruim }, 'admin@fal'), ruim).rejects.toThrow(/Período inválido/);
+    await expect(t.service.salvarConfiguracao({ ciencia: true }, 'admin@fal')).rejects.toThrow(/Confirme que os clientes autorizaram/);
+    c = await t.service.salvarConfiguracao({ ciencia: true, confirmo_ciencia: true }, 'admin@fal');
+    expect(c).toMatchObject({ ciencia: true, ciencia_consentida_por: 'admin@fal' });
+    expect((await t.service.status('E1')).ciencia.ativa).toBe(true);
+  });
+
+  it('o interruptor do cliente liga os tipos da configuração global e desliga todos', async () => {
+    const t = montar();
+    await t.service.salvarConfiguracao({ tipos: ['NFE'] }, 'admin@fal');
+    expect(await t.service.ligar('E1', true, 'admin@fal')).toMatchObject({ ligada: true });
+    expect(t.configs.filter((c) => c.ativo).map((c) => c.tipo)).toEqual(['NFE']);
+    await t.service.ligar('E1', false, 'admin@fal');
+    expect(t.configs.some((c) => c.ativo)).toBe(false);
   });
 
   it('a UF do interessado só aceita o código IBGE de uma UF de verdade (nada de nomes herdados do objeto)', async () => {
@@ -486,13 +503,10 @@ describe('Ciência da Operação e CNPJ consultado', () => {
     expect(t.pedidos[0].documentoDestinatario).toBe('12345678000276');
   });
 
-  it('ativar a Ciência exige a confirmação expressa; desativar é livre; o estado mostra os números', async () => {
-    const t = montar({ docs: [{ chave: 'K1', autorizada_em: ha(1) }, { chave: 'K2', autorizada_em: ha(1), ciencia_status: 'REGISTRADA' }, { chave: 'K3', autorizada_em: ha(1), ciencia_status: 'NAO_APLICAVEL' }] });
-    await expect(t.service.configurarCiencia('E1', true, false, 'adm')).rejects.toThrow(/Confirme que o cliente autorizou/);
-    const st = await t.service.configurarCiencia('E1', true, true, 'adm');
+  it('o estado mostra os números da Ciência, que segue a regra global', async () => {
+    const t = montar({ ciencia: true, docs: [{ chave: 'K1', autorizada_em: ha(1) }, { chave: 'K2', autorizada_em: ha(1), ciencia_status: 'REGISTRADA' }, { chave: 'K3', autorizada_em: ha(1), ciencia_status: 'NAO_APLICAVEL' }] });
+    const st = await t.service.status('E1');
     expect(st.ciencia).toMatchObject({ ativa: true, consentida_por: 'adm', resumos_sem_ciencia: 1, registradas: 1, nao_aplicaveis: 1 });
-    expect((await t.service.configurarCiencia('E1', false, false, 'adm')).ciencia.ativa).toBe(false);
-    expect(t.auditoria.map((a) => a.acao)).toEqual(['CIENCIA_ATIVADA', 'CIENCIA_DESATIVADA']);
   });
 });
 
@@ -582,17 +596,11 @@ describe('CapturaXmlService.rodarPendentes', () => {
     expect(estranho.cliente.consultar).toHaveBeenCalledTimes(1);
   });
 
-  it('quem está fora do período não ocupa vaga de quem está dentro (o limite da rodada vem depois do filtro)', async () => {
-    const diurnas = Array.from({ length: 45 }, (_, i) => `D${i}`);
-    const t = montar({ cfg: {}, cfgsEmpresa: diurnas.map((empresa_id) => ({ empresa_id, periodo_busca: 'DIURNO' })) });
-    for (const empresa_id of diurnas) {
-      t.configs.unshift({ id: `c-${empresa_id}`, empresa_id, tipo: 'NFE', ativo: true, ultimo_nsu: ZEROS, proxima_consulta_em: null, bloqueado_ate: null, em_execucao_ate: null, ultima_consulta_em: null });
-    }
+  it('fora do período global, o agendador não consulta ninguém', async () => {
+    const t = montar({ cfg: {}, periodo: 'DIURNO' });
     t.respostas.push(resp('137', 0, 0));
-    await comAgendador('on', () => t.service.rodarPendentes()); // 02:00: só a E1, que é noturna
-    expect(t.cliente.consultar).toHaveBeenCalledTimes(1);
-    expect(t.execucoes).toHaveLength(1);
-    expect(t.execucoes[0].empresa_id).toBe('E1');
+    await comAgendador('on', () => t.service.rodarPendentes()); // 02:00 com o período diurno
+    expect(t.cliente.consultar).not.toHaveBeenCalled();
   });
 
   it('o estado mostra o período da empresa e quando a rotina automática volta a consultar', async () => {

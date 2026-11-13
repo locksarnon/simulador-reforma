@@ -5,7 +5,6 @@ import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocumentosXml from "@/components/repositorio-xml/DocumentosXml";
-import CertificadoXml from "@/components/repositorio-xml/CertificadoXml";
 import CapturaXml from "@/components/repositorio-xml/CapturaXml";
 import CartoesDoRepositorio from "@/components/repositorio-xml/CartoesDoRepositorio";
 import RelatoriosXml from "@/components/repositorio-xml/RelatoriosXml";
@@ -57,7 +56,6 @@ export default function RepositorioXmlEmpresa() {
             <Tabs value={aba} onValueChange={setAba} className="space-y-4">
               <div className="border border-border bg-card">
                 <TabsList aria-label="Menu do repositório" className="h-auto w-full flex-wrap justify-start gap-1 rounded-none bg-transparent p-1.5">
-                  <TabsTrigger value="certificado" className={ITEM_DO_MENU}>Certificado</TabsTrigger>
                   <TabsTrigger value="captura" className={ITEM_DO_MENU}>Captura</TabsTrigger>
                   {ABAS_DE_DOCUMENTOS.map((a) => <TabsTrigger key={a.valor} value={a.valor} className={ITEM_DO_MENU}>{a.rotulo}</TabsTrigger>)}
                   <TabsTrigger value="resumos" className={ITEM_DO_MENU}>{resumosEEventos > 0 ? `Resumos e eventos SEFAZ (${resumosEEventos})` : "Resumos e eventos SEFAZ"}</TabsTrigger>
@@ -65,7 +63,6 @@ export default function RepositorioXmlEmpresa() {
                 </TabsList>
               </div>
               {ABAS_COM_CARTOES.includes(aba) && <CartoesDoRepositorio empresaId={empresaId} aoAbrirResumos={() => setAba("resumos")} />}
-              <TabsContent value="certificado" className="mt-0"><CertificadoXml empresaId={empresaId} /></TabsContent>
               <TabsContent value="captura" className="mt-0"><CapturaXml empresaId={empresaId} /></TabsContent>
               {ABAS_DE_DOCUMENTOS.map((a) => (
                 <TabsContent key={a.valor} value={a.valor} className="mt-0"><DocumentosXml empresaId={empresaId} empresa={empresa} linkImportacao={linkImportacao} grupo={a.grupo} /></TabsContent>

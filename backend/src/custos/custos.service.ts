@@ -17,6 +17,8 @@ export const ITENS = [
   { id: 'SERPRO_DIVIDA', rotulo: 'Consulta Dívida Ativa', fornecedor: 'Serpro' },
   { id: 'INFOSIMPLES_CNDT', rotulo: 'CNDT (TST) pela Infosimples', fornecedor: 'Infosimples' },
   { id: 'INFOSIMPLES_CRF', rotulo: 'CRF do FGTS pela Infosimples', fornecedor: 'Infosimples' },
+  { id: 'INFOSIMPLES_ESTADUAL', rotulo: 'Certidão estadual pela Infosimples', fornecedor: 'Infosimples' },
+  { id: 'INFOSIMPLES_MUNICIPAL', rotulo: 'Certidão municipal pela Infosimples', fornecedor: 'Infosimples' },
 ] as const;
 export type ItemCusto = (typeof ITENS)[number]['id'];
 type Precos = { precos: Record<string, number>; fixos: { rotulo: string; valor: number }[] };
@@ -32,8 +34,10 @@ const SERPRO_EMISSAO: Faixa[] = [[500, 0.32], [5000, 0.29], [10000, 0.26], [1500
 const SERPRO_DECLARACAO: Faixa[] = [[100, 0.4], [500, 0.36], [1000, 0.32], [3000, 0.28], [5000, 0.24], [8000, 0.2], [10000, 0.16], [Infinity, 0.12]];
 const SERPRO_CND: Faixa[] = [[5000, 0.8788], [10000, 0.8265], [15000, 0.7951], [30000, 0.7533], [50000, 0.7219], [75000, 0.6905], [100000, 0.6486], [500000, 0.6173], [1000000, 0.5336], [2000000, 0.4394], [4000000, 0.3662], [10000000, 0.3139], [Infinity, 0.2511]];
 const SERPRO_DIVIDA: Faixa[] = [[999, 0.6591], [9999, 0.5649], [49999, 0.3557], [99999, 0.2616], [249999, 0.1779], [499999, 0.1569], [999999, 0.1465], [1499999, 0.136], [2999999, 0.1151], [4499999, 0.0732], [9999999, 0.0523], [Infinity, 0.0314]];
-const INFOSIMPLES_BASE: Faixa[] = [[500, 0.22], [2000, 0.18], [5000, 0.16], [10000, 0.15], [30000, 0.13], [50000, 0.11], [80000, 0.1], [100000, 0.08], [Infinity, 0.06]];
-const INFOSIMPLES_ADICIONAL: Record<string, number> = { INFOSIMPLES_CNDT: 0.04, INFOSIMPLES_CRF: 0.06 };
+// Tabela da conta do escritório (Área do cliente da Infosimples, 13/11/2026): menor que a do site público.
+const INFOSIMPLES_BASE: Faixa[] = [[500, 0.2], [2000, 0.16], [5000, 0.14], [10000, 0.13], [30000, 0.11], [50000, 0.1], [80000, 0.09], [100000, 0.07], [Infinity, 0.05]];
+// CRF +0,06 (tabela da conta); CNDT +0,04 (site); SEFAZ: MS +0,04, demais sem adicional; prefeituras variam (0 a 0,06): usado 0.
+const INFOSIMPLES_ADICIONAL: Record<string, number> = { INFOSIMPLES_CNDT: 0.04, INFOSIMPLES_CRF: 0.06, INFOSIMPLES_ESTADUAL: 0, INFOSIMPLES_MUNICIPAL: 0 };
 export const INFOSIMPLES_MINIMO = 100;
 export const FONTES_PRECO = {
   serpro_integra: 'https://loja.serpro.gov.br/integracontador',
@@ -54,7 +58,7 @@ function custoCascata(t: Faixa[], volume: number) {
 export function precosOficiais(volumes: Map<string, number>) {
   const v = (ids: string[]) => ids.reduce((s, id) => s + (volumes.get(id) ?? 0), 0);
   const consulta = v(['INTEGRA_CONSULTAR', 'INTEGRA_APOIAR', 'INTEGRA_MONITORAR']);
-  const infos = v(['INFOSIMPLES_CNDT', 'INFOSIMPLES_CRF']);
+  const infos = v(['INFOSIMPLES_CNDT', 'INFOSIMPLES_CRF', 'INFOSIMPLES_ESTADUAL', 'INFOSIMPLES_MUNICIPAL']);
   const baseInfos = infos ? custoCascata(INFOSIMPLES_BASE, infos) / infos : INFOSIMPLES_BASE[0][1];
   const p: Record<string, number> = {};
   for (const [id, g] of Object.entries(GRUPO_INTEGRA)) p[id] = g === 'CONSULTA' ? precoDaFaixa(SERPRO_CONSULTA, consulta) : g === 'EMISSAO' ? precoDaFaixa(SERPRO_EMISSAO, v(['INTEGRA_EMITIR'])) : precoDaFaixa(SERPRO_DECLARACAO, v(['INTEGRA_DECLARAR']));

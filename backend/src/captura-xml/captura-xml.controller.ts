@@ -60,3 +60,33 @@ export class CapturaXmlController {
     return this.service.executar(empresaId, tipoDe(tipo), 'MANUAL', user.email);
   }
 }
+
+/** Administração > Integrações > Captura de XML (regra global) e o interruptor de cada cliente. */
+@Controller('captura-xml')
+export class CapturaXmlGlobalController {
+  constructor(private readonly service: CapturaXmlService) {}
+
+  @Get('configuracao')
+  @Header('Cache-Control', 'no-store')
+  configuracao() {
+    return this.service.configuracaoParaTela();
+  }
+
+  @Put('configuracao')
+  salvar(@CurrentUser() user: AuthUser, @Body() body: { periodo?: string; tipos?: string[]; ciencia?: boolean; confirmo_ciencia?: boolean; confirmo_sem_concorrente?: boolean }) {
+    if (user.role !== 'admin') throw new ForbiddenException('Apenas administradores configuram a captura.');
+    return this.service.salvarConfiguracao(body ?? {}, user.email);
+  }
+
+  @Get('empresas')
+  @Header('Cache-Control', 'no-store')
+  empresas() {
+    return this.service.resumoEmpresas();
+  }
+
+  @Put('empresas/:empresaId/ligada')
+  ligar(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string, @Body() body: { ligada?: boolean }) {
+    if (user.role !== 'admin') throw new ForbiddenException('Apenas administradores ligam a captura.');
+    return this.service.ligar(empresaId, body?.ligada === true, user.email);
+  }
+}

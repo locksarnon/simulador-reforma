@@ -13,6 +13,7 @@ import DialogoServico from "@/components/clientes/DialogoServico";
 import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
 import ChipDeServico from "@/components/clientes/ChipDeServico";
 import AtalhosDoCliente from "@/components/clientes/AtalhosDoCliente";
+import CertificadoXml from "@/components/repositorio-xml/CertificadoXml";
 import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { useColaboradores, useTags } from "@/lib/useTags";
@@ -141,6 +142,10 @@ export default function FichaClientePagina() {
               <Dado rotulo="ERP" valor={[empresa.erp, empresa.erp_versao].filter(Boolean).join(" ")} />
             </dl>
             {empresa.observacao && <p className="text-sm whitespace-pre-line">{empresa.observacao}</p>}
+          </Cartao>
+
+          <Cartao titulo="Certificado digital A1">
+            <CertificadoXml empresaId={empresa.id} />
           </Cartao>
 
           {digitosDoc(empresa.cnpj_cpf).length === 14 && (

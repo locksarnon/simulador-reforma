@@ -15,6 +15,11 @@ import { plural } from '../common/plural';
 export const TIPOS_DISPONIVEIS: TipoCaptura[] = ['NFE', 'CTE', 'NFSE'];
 
 const MAX_LOTES_POR_EXECUCAO = 60;
+const CHAVE_GLOBAL = 'captura_xml_global';
+export type ConfiguracaoCaptura = {
+  periodo: PeriodoBusca; tipos: TipoCaptura[]; ciencia: boolean; ciencia_consentida_por: string | null; ciencia_consentida_em: string | null;
+  sem_concorrente_por: string | null; sem_concorrente_em: string | null;
+};
 const TRAVA_MS = 30 * 60_000;
 const MAX_CONFIGS_POR_RODADA = 40;
 const ZEROS = '000000000000000';
@@ -65,6 +70,88 @@ export class CapturaXmlService {
 
   private pausa = (ms = this.pausaEntreConsultasMs) => (ms > 0 ? new Promise<void>((r) => setTimeout(r, ms)) : Promise.resolve());
 
+  // ── Configuração global (Administração > Integrações > Captura de XML): vale para todos os clientes ──
+  async configuracao(): Promise<ConfiguracaoCaptura> {
+    let p: { valor: string } | null = null;
+    try { p = (await this.prisma.parametroSistema?.findUnique({ where: { chave: CHAVE_GLOBAL } })) ?? null; } catch { p = null; }
+    let v: Partial<ConfiguracaoCaptura> = {};
+    try { v = p ? JSON.parse(p.valor) : {}; } catch { v = {}; }
+    const tipos = (v.tipos ?? TIPOS_DISPONIVEIS).filter((t) => TIPOS_DISPONIVEIS.includes(t));
+    return {
+      periodo: periodoDe(v.periodo), tipos, ciencia: !!v.ciencia, ciencia_consentida_por: v.ciencia_consentida_por ?? null, ciencia_consentida_em: v.ciencia_consentida_em ?? null,
+      sem_concorrente_por: v.sem_concorrente_por ?? null, sem_concorrente_em: v.sem_concorrente_em ?? null,
+    };
+  }
+
+  async configuracaoParaTela() {
+    const c = await this.configuracao();
+    return {
+      ...c, tipos_disponiveis: TIPOS_DISPONIVEIS, agendador_ativo: CapturaXmlService.agendadorLigado(),
+      periodo_texto: descreverPeriodo(c.periodo),
+      periodos: (['NOTURNO', 'DIURNO'] as PeriodoBusca[]).map((valor) => ({ valor, texto: descreverPeriodo(valor) })),
+    };
+  }
+
+  async salvarConfiguracao(b: { periodo?: string; tipos?: string[]; ciencia?: boolean; confirmo_ciencia?: boolean; confirmo_sem_concorrente?: boolean }, usuario: string) {
+    const atual = await this.configuracao();
+    if (b.periodo !== undefined && !periodoValido(b.periodo)) throw new BadRequestException('Período inválido. Use NOTURNO ou DIURNO.');
+    const tipos = b.tipos ? (b.tipos.map((t) => String(t).toUpperCase()) as TipoCaptura[]).filter((t) => TIPOS_DISPONIVEIS.includes(t)) : atual.tipos;
+    if (b.ciencia && !atual.ciencia && !b.confirmo_ciencia) throw new BadRequestException('Confirme que os clientes autorizaram o registro automático da Ciência da Operação em nome do CNPJ deles.');
+    const agora = new Date().toISOString();
+    const nova: ConfiguracaoCaptura = {
+      periodo: (b.periodo as PeriodoBusca) ?? atual.periodo, tipos,
+      ciencia: b.ciencia ?? atual.ciencia,
+      ciencia_consentida_por: b.ciencia === true && !atual.ciencia ? usuario : b.ciencia === false ? null : atual.ciencia_consentida_por,
+      ciencia_consentida_em: b.ciencia === true && !atual.ciencia ? agora : b.ciencia === false ? null : atual.ciencia_consentida_em,
+      sem_concorrente_por: b.confirmo_sem_concorrente ? usuario : atual.sem_concorrente_por,
+      sem_concorrente_em: b.confirmo_sem_concorrente ? agora : atual.sem_concorrente_em,
+    };
+    const valor = JSON.stringify(nova);
+    await this.prisma.parametroSistema.upsert({ where: { chave: CHAVE_GLOBAL }, update: { valor }, create: { chave: CHAVE_GLOBAL, valor, descricao: 'Captura de XML: configuração global' } });
+    // Tipos que saíram da lista são desligados em todos os clientes; os que entraram valem para quem está com a captura ligada.
+    const fora = TIPOS_DISPONIVEIS.filter((t) => !tipos.includes(t));
+    if (fora.length) await this.prisma.capturaXmlConfig.updateMany({ where: { tipo: { in: fora }, ativo: true }, data: { ativo: false } });
+    const ligadas = [...new Set((await this.prisma.capturaXmlConfig.findMany({ where: { ativo: true }, select: { empresa_id: true } })).map((x) => x.empresa_id))];
+    for (const id of ligadas) for (const t of tipos) await this.configurarTipo(id, t, true, true, usuario).catch(() => undefined);
+    return this.configuracaoParaTela();
+  }
+
+  /** Lista de clientes: o interruptor da captura (ligada se algum tipo estiver ativo) e o certificado A1 de cada um. */
+  async resumoEmpresas() {
+    const agora = Date.now();
+    const [cfgs, certs] = await Promise.all([
+      this.prisma.capturaXmlConfig.findMany({ where: { ativo: true }, select: { empresa_id: true, tipo: true } }),
+      this.prisma.certificadoDigital.findMany({ where: { status: 'ATIVO' }, orderBy: { valido_ate: 'desc' }, select: { empresa_id: true, valido_ate: true, titular: true } }),
+    ]);
+    const mapa = new Map<string, { ligada: boolean; tipos: string[]; certificado: { valido_ate: Date; titular: string | null; situacao: string } | null }>();
+    const de = (id: string) => mapa.get(id) ?? (mapa.set(id, { ligada: false, tipos: [], certificado: null }), mapa.get(id)!);
+    for (const c of cfgs) { const m = de(c.empresa_id); m.ligada = true; m.tipos.push(c.tipo); }
+    for (const c of certs) {
+      const m = de(c.empresa_id);
+      if (m.certificado) continue;
+      const dias = Math.floor((c.valido_ate.getTime() - agora) / 86_400_000);
+      m.certificado = { valido_ate: c.valido_ate, titular: c.titular ?? null, situacao: dias < 0 ? 'VENCIDO' : dias <= 30 ? 'A_VENCER' : 'VALIDO' };
+    }
+    return Object.fromEntries(mapa);
+  }
+
+  /** Interruptor do cliente: liga a captura nos tipos da configuração global, ou desliga tudo. */
+  async ligar(empresaId: string, ligada: boolean, usuario: string) {
+    const cfg = await this.configuracao();
+    if (!ligada) {
+      for (const t of TIPOS_DISPONIVEIS) await this.configurarTipo(empresaId, t, false, false, usuario);
+      return { ligada: false, avisos: [] as string[] };
+    }
+    if (!cfg.sem_concorrente_em) throw new BadRequestException('Antes, em Administração > Integrações > Captura de XML, confirme que nenhum outro sistema consulta a Distribuição de DF-e dos clientes.');
+    const avisos: string[] = [];
+    let algum = false;
+    for (const t of cfg.tipos) {
+      try { await this.configurarTipo(empresaId, t, true, true, usuario); algum = true; } catch (e) { avisos.push(`${t}: ${(e as Error).message}`); }
+    }
+    if (!algum) throw new BadRequestException(avisos.join(' ') || 'Nenhum tipo de documento está ligado na configuração da captura.');
+    return { ligada: true, avisos };
+  }
+
   private async empresa(empresaId: string) {
     const e = await this.prisma.empresa.findUnique({ where: { id: empresaId } }).catch(() => null);
     if (!e) throw new NotFoundException('Empresa não localizada.');
@@ -82,7 +169,8 @@ export class CapturaXmlService {
       this.prisma.capturaXmlConfig.findMany({ where: { empresa_id: empresaId } }),
       this.prisma.capturaXmlExecucao.findMany({ where: { empresa_id: empresaId }, orderBy: { iniciado_em: 'desc' }, take: 10 }),
     ]);
-    const periodo = periodoDe(cfgEmpresa?.periodo_busca);
+    const global = await this.configuracao();
+    const periodo = global.periodo;
     const janela = janelaDoPeriodo(periodo);
     const [semCiencia, comCiencia, naoAplicaveis] = await Promise.all([
       this.prisma.documentoXml.count({ where: { empresa_id: empresaId, tipo: 'NFE', conteudo: 'RESUMO', ciencia_status: null } }),
@@ -91,9 +179,9 @@ export class CapturaXmlService {
     ]);
     return {
       ciencia: {
-        ativa: !!cfgEmpresa?.manifestar_ciencia,
-        consentida_em: cfgEmpresa?.manifestacao_consentida_em ?? null,
-        consentida_por: cfgEmpresa?.manifestacao_consentida_por ?? null,
+        ativa: global.ciencia,
+        consentida_em: global.ciencia_consentida_em,
+        consentida_por: global.ciencia_consentida_por,
         resumos_sem_ciencia: semCiencia,
         registradas: comCiencia,
         nao_aplicaveis: naoAplicaveis,
@@ -226,9 +314,10 @@ export class CapturaXmlService {
 
   /** Registra a Ciência dos resumos de NF-e autorizadas há menos de 9 dias, ainda sem Ciência; guarda o resultado de cada nota. Nunca interrompe a captura. */
   private async registrarCiencias(empresaId: string, ambiente: Ambiente, destinatario: string, material: MaterialCertificado, usuario: string) {
-    const cfg = await this.prisma.xmlEmpresaConfig.findUnique({ where: { empresa_id: empresaId } });
+    const global = await this.configuracao();
     const nada = { registradas: 0 as number, falha: undefined as string | undefined, recusadas: undefined as string | undefined };
-    if (!cfg?.manifestar_ciencia || !cfg.manifestacao_consentida_em) return nada;
+    // Regra única para todos os clientes (Administração > Integrações > Captura de XML).
+    if (!global.ciencia || !global.ciencia_consentida_em) return nada;
     const agora = Date.now();
     const candidatos = await this.prisma.documentoXml.findMany({
       where: {
@@ -430,12 +519,10 @@ export class CapturaXmlService {
     });
     if (!prontas.length) return;
     // O período é da empresa, não do tipo: o filtro vem antes do limite da rodada, para quem está fora do período não ocupar vaga de quem está dentro.
-    const periodos = new Map(
-      (await this.prisma.xmlEmpresaConfig.findMany({ where: { empresa_id: { in: [...new Set(prontas.map((c) => c.empresa_id))] } }, select: { empresa_id: true, periodo_busca: true } }))
-        .map((x) => [x.empresa_id, periodoDe(x.periodo_busca)] as const),
-    );
+    // Período global: todos os clientes seguem a mesma regra.
+    const global = await this.configuracao();
+    if (!dentroDaJanela(agora, janelaDoPeriodo(global.periodo))) return;
     const devidas = prontas
-      .filter((c) => dentroDaJanela(agora, janelaDoPeriodo(periodos.get(c.empresa_id) ?? periodoDe(undefined))))
       .slice(0, MAX_CONFIGS_POR_RODADA);
     for (const c of devidas) {
       try {

@@ -36,6 +36,23 @@ const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 @Injectable()
 export class CertidoesService {
   private readonly log = new Logger(CertidoesService.name);
+  /** Última tentativa automática por cliente e tipo (para não chamar a Infosimples a cada abertura da tela). */
+  private readonly tentativas = new Map<string, number>();
+
+  /**
+   * CNDT e CRF saem sozinhos, como a federal: ao abrir as certidões do cliente, se faltar a certidão ou ela estiver vencida, o InTAX
+   * emite pela Infosimples em segundo plano (no máximo uma tentativa a cada 6 horas por cliente e tipo).
+   */
+  private emitirQueFaltam(empresaId: string, docs: { tipo_id: string | null; validade: Date | null }[], tipos: Map<string, { id: string }>, hoje: Date) {
+    for (const tipo of ['ESTADUAL', 'MUNICIPAL', 'TRABALHISTA', 'FGTS'] as const) {
+      const t = tipos.get(DEF.get(tipo)!.tipoDocumento);
+      const vigente = t && docs.some((d) => d.tipo_id === t.id && d.validade && d.validade.getTime() >= hoje.getTime());
+      const chave = `${empresaId}:${tipo}`;
+      if (vigente || Date.now() - (this.tentativas.get(chave) ?? 0) < 6 * 3_600_000) continue;
+      this.tentativas.set(chave, Date.now());
+      this.emitir(empresaId, tipo, { email: 'InTAX (automático)' }).catch((e) => this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`));
+    }
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,7 +63,7 @@ export class CertidoesService {
   ) {}
 
   private async empresa(id: string) {
-    const e = await this.prisma.empresa.findUnique({ where: { id }, select: { id: true, razao_social: true, cnpj_cpf: true, uf: true, municipio: true } });
+    const e = await this.prisma.empresa.findUnique({ where: { id }, select: { id: true, razao_social: true, cnpj_cpf: true, uf: true, municipio: true, codigo_municipio_ibge: true } });
     if (!e) throw new NotFoundException('Cliente não encontrado.');
     return e;
   }
@@ -67,10 +84,11 @@ export class CertidoesService {
     const modo = await this.monitoramento.modo();
     const cndApi = modo === 'PRODUCAO' && !!(await this.serpro.disponivelEmProducao('cnd'));
     const infosimples = (await this.infosimples.estado()).configurado;
+    if (infosimples) this.emitirQueFaltam(empresaId, docs, tipos, hoje);
     return {
       empresa: { id: e.id, razao_social: e.razao_social, cnpj: so(e.cnpj_cpf), uf: e.uf ?? null, municipio: e.municipio ?? null },
       emissao_automatica_federal: cndApi,
-      emissao_automatica: { FEDERAL: cndApi, TRABALHISTA: infosimples, FGTS: infosimples },
+      emissao_automatica: { FEDERAL: cndApi, ESTADUAL: infosimples, MUNICIPAL: infosimples, TRABALHISTA: infosimples, FGTS: infosimples },
       modo,
       certidoes: CERTIDOES.map((c) => {
         const t = tipos.get(c.tipoDocumento);
@@ -151,7 +169,7 @@ export class CertidoesService {
     if (String(process.env.MONITORAMENTO_AGENDADOR ?? '').toLowerCase() === 'off') return { emitidas: 0, motivo: 'desligado no servidor' };
     const fontes: TipoCertidaoCliente[] = [];
     if ((await this.monitoramento.modo()) === 'PRODUCAO' && (await this.serpro.disponivelEmProducao('cnd'))) fontes.push('FEDERAL');
-    if (process.env.NODE_ENV === 'production' && (await this.infosimples.estado()).configurado) fontes.push('TRABALHISTA', 'FGTS');
+    if (process.env.NODE_ENV === 'production' && (await this.infosimples.estado()).configurado) fontes.push('ESTADUAL', 'MUNICIPAL', 'TRABALHISTA', 'FGTS');
     if (!fontes.length) return { emitidas: 0, motivo: 'sem fonte automática configurada' };
     const bpo = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: 'ATIVO' }, select: { empresa_id: true } });
     const tipos = await this.tiposPorNome();
@@ -173,16 +191,20 @@ export class CertidoesService {
   /** Emite pela fonte automática do tipo: federal pela API Consulta CND; CNDT e CRF pela Infosimples. */
   async emitir(empresaId: string, tipo: string, usuario: Usuario) {
     if (tipo === 'FEDERAL') return this.emitirFederal(empresaId, usuario);
-    if (tipo !== 'TRABALHISTA' && tipo !== 'FGTS') throw new BadRequestException('Sem emissão automática: anexe o PDF do portal.');
+    if (!['TRABALHISTA', 'FGTS', 'ESTADUAL', 'MUNICIPAL'].includes(tipo)) throw new BadRequestException('Sem emissão automática: anexe o PDF do portal.');
     const e = await this.empresa(empresaId);
     const cnpj = so(e.cnpj_cpf);
     if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
-    const r: ResultadoCertidao | null = tipo === 'TRABALHISTA' ? await this.infosimples.cndt(cnpj) : await this.infosimples.crf(cnpj);
-    if (r) await registrarUso(this.prisma, tipo === 'TRABALHISTA' ? 'INFOSIMPLES_CNDT' : 'INFOSIMPLES_CRF', usuario?.email ?? null, empresaId, cnpj);
+    const r: ResultadoCertidao | null = tipo === 'TRABALHISTA' ? await this.infosimples.cndt(cnpj)
+      : tipo === 'FGTS' ? await this.infosimples.crf(cnpj)
+      : tipo === 'ESTADUAL' ? await this.infosimples.estadual(cnpj, e.uf ?? '')
+      : await this.infosimples.municipal(cnpj, e.uf ?? '', e.municipio ?? '', (e as { codigo_municipio_ibge?: string | null }).codigo_municipio_ibge);
+    const item = { TRABALHISTA: 'INFOSIMPLES_CNDT', FGTS: 'INFOSIMPLES_CRF', ESTADUAL: 'INFOSIMPLES_ESTADUAL', MUNICIPAL: 'INFOSIMPLES_MUNICIPAL' }[tipo] as 'INFOSIMPLES_CNDT';
+    if (r) await registrarUso(this.prisma, item, usuario?.email ?? null, empresaId, cnpj);
     if (!r) throw new BadRequestException('Infosimples não configurada: anexe o PDF do portal.');
     if (r.status === 'INDISPONIVEL' || !r.comprovante) return { emitida: false, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
-    const def = DEF.get(tipo)!;
-    await this.guardar(empresaId, tipo, r.comprovante.buffer, `${def.rotulo} ${new Date().toISOString().slice(0, 10)}.${r.comprovante.extensao}`, { emissao: r.emissao, validade: r.validade, numero: r.numero, situacao: `${r.situacao} (Infosimples)` }, usuario, r.comprovante.tipo);
+    const def = DEF.get(tipo as TipoCertidaoCliente)!;
+    await this.guardar(empresaId, tipo as TipoCertidaoCliente, r.comprovante.buffer, `${def.rotulo} ${new Date().toISOString().slice(0, 10)}.${r.comprovante.extensao}`, { emissao: r.emissao, validade: r.validade, numero: r.numero, situacao: `${r.situacao} (Infosimples)` }, usuario, r.comprovante.tipo);
     return { emitida: true, resumo: r.resumo, status: r.status, detalhes: r.detalhes };
   }
 

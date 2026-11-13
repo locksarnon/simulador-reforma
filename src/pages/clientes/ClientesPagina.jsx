@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/api/client";
+import InterruptorCaptura from "@/components/repositorio-xml/InterruptorCaptura";
 import { Archive, ArrowRight, Loader2, Pencil, Plus, RefreshCw, Upload } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
@@ -85,7 +87,15 @@ function FichaRapida({ empresa, porTipo, grupo, nomesDaEquipe, tags, grupos, aoF
  * Clientes: a lista única do escritório. Busca, filtros, os serviços de cada cliente na própria linha (um clique liga), ações em
  * lote e a ficha rápida ao lado. O grupo econômico é só um dado do cliente.
  */
+/** Certificado A1 do cliente: validade e situação (vencido, vence em 30 dias, válido) ou "sem certificado". */
+export function SeloCertificado({ certificado }) {
+  if (!certificado) return <span className="text-[11px] text-muted-foreground">Sem certificado</span>;
+  const tom = certificado.situacao === "VENCIDO" ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" : certificado.situacao === "A_VENCER" ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300";
+  return <span className={`rounded px-1.5 py-0.5 text-[11px] tabular-nums ${tom}`} title={certificado.titular || undefined}>{new Date(certificado.valido_ate).toLocaleDateString("pt-BR")}</span>;
+}
+
 export default function ClientesPagina() {
+  const captura = useQuery({ queryKey: ["captura-xml", "empresas"], queryFn: () => api.get("/captura-xml/empresas"), staleTime: 60_000 });
   const { user } = useAuth();
   const ehAdmin = user?.role === "admin";
   const qc = useQueryClient();
@@ -209,14 +219,14 @@ export default function ClientesPagina() {
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="w-8 px-3 py-2"><input type="checkbox" aria-label="Marcar todos os clientes da lista" checked={todasMarcadas} onChange={() => setMarcadas(todasMarcadas ? new Set() : new Set(lista.map((e) => e.id)))} /></th>
-                <th className="px-2 py-2">Cliente</th><th className="px-2 py-2">Regime</th><th className="px-2 py-2">Serviços</th><th className="px-2 py-2">Equipe</th>
+                <th className="px-2 py-2">Cliente</th><th className="px-2 py-2">Regime</th><th className="px-2 py-2">Serviços</th><th className="px-2 py-2">Equipe</th><th className="px-2 py-2">Certificado</th><th className="px-2 py-2">Captura de XML</th>
               </tr>
             </thead>
             <tbody>
-              {carregando && <tr><td colSpan={5} className="py-10 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
-              {!carregando && erro && <tr><td colSpan={5} className="py-10 text-center" role="alert">Não foi possível carregar os clientes. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></td></tr>}
+              {carregando && <tr><td colSpan={7} className="py-10 text-center text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</td></tr>}
+              {!carregando && erro && <tr><td colSpan={7} className="py-10 text-center" role="alert">Não foi possível carregar os clientes. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></td></tr>}
               {!carregando && !erro && lista.length === 0 && (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">
+                <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">
                   {empresas.length === 0 ? <>Cadastre o primeiro cliente. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Novo cliente</button></> : <>Nenhum cliente com esses filtros. <button type="button" onClick={() => setFiltros(FILTROS_VAZIOS)} className="text-primary hover:underline">Limpar filtros</button></>}
                 </td></tr>
               )}
@@ -235,6 +245,8 @@ export default function ClientesPagina() {
                     <td className="px-2 py-2 whitespace-nowrap">{e.regime_atual || <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-2 py-2"><div className="flex flex-wrap gap-1">{TIPOS_DE_SERVICO.map((tipo) => <ChipDeServico key={tipo} empresa={e} tipo={tipo} servico={porTipo[tipo]} aoEditar={() => setDialogo({ empresas: [e], servico: porTipo[tipo], tipoInicial: tipo })} />)}</div></td>
                     <td className="px-2 py-2 text-muted-foreground">{equipe.length ? equipe.join(", ") : "—"}</td>
+                    <td className="px-2 py-2 whitespace-nowrap"><SeloCertificado certificado={captura.data?.[e.id]?.certificado} /></td>
+                    <td className="px-2 py-2"><InterruptorCaptura compacto empresaId={e.id} ligada={!!captura.data?.[e.id]?.ligada} certificadoOk={["VALIDO", "A_VENCER"].includes(captura.data?.[e.id]?.certificado?.situacao)} /></td>
                   </tr>
                 );
               })}

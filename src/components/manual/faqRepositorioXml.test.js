@@ -10,8 +10,11 @@ import capturaFonte from "@/components/repositorio-xml/CapturaXml.jsx?raw";
 import cartoesFonte from "@/components/repositorio-xml/CartoesDoRepositorio.jsx?raw";
 import relatoriosFonte from "@/components/repositorio-xml/RelatoriosXml.jsx?raw";
 import paginaFonte from "@/pages/bpo/RepositorioXmlEmpresa.jsx?raw";
+import configuracaoFonte from "@/components/repositorio-xml/ConfiguracaoCaptura.jsx?raw";
+import interruptorFonte from "@/components/repositorio-xml/InterruptorCaptura.jsx?raw";
+import fichaFonte from "@/pages/clientes/FichaClientePagina.jsx?raw";
 
-const TELAS = [documentosFonte, certificadoFonte, capturaFonte, cartoesFonte, relatoriosFonte, paginaFonte].join(" ");
+const TELAS = [documentosFonte, certificadoFonte, capturaFonte, cartoesFonte, relatoriosFonte, paginaFonte, configuracaoFonte, interruptorFonte, fichaFonte].join(" ");
 
 describe("FAQ do Repositório de XML", () => {
   it("entra logo depois da Importação de XML", () => {
@@ -94,9 +97,9 @@ describe("Roteiro do Repositório de XML", () => {
     const rotulos = [
       "Enviar certificado A1", "Substituir certificado", "Guardar no cofre", "Remover do cofre",
       "Auditoria do cofre (últimos 20 registros)", "Escolher arquivos", "Baixar ZIP dos filtros", "Incluir os PDF dos documentos", "Visualizar o PDF", "Baixar o PDF", "Ciência da Operação", "Abrir Importação XML", "Menu do repositório", "NF-e | NFC-e", "Relatórios", "Gerar relatório", "Baixar Excel", "Baixar CSV", "Contar também os que só têm o resumo", "Buscar nos itens", "Somar por", "Buscar (chave, número, emitente)",
-      "Capturar agora", "Ativar captura", "Ativar Ciência automática", "Cumpra os requisitos acima", "Últimas execuções", "Antes de ativar",
-      "Ciência da Operação (libera o XML completo das compras)", "Certificado guardado no cofre", "Envio concluído", "Enviado ao importador",
-      "Ambiente da SEFAZ", "UF do interessado", "Estados atendidos", "Captura ativada", "Captura desativada", "Ambiente atualizado", "Período da busca automática", "Período da busca automática atualizado", "Período da busca alterado", "Próxima busca automática",
+      "Capturar agora", "Últimas execuções", "Certificado digital A1", "Captura de XML", "Período da busca automática", "Documentos capturados", "Registrar a Ciência em nome dos clientes", "Captura ligada", "Captura desligada",
+      "Certificado guardado no cofre", "Envio concluído", "Enviado ao importador",
+      "Ambiente da SEFAZ", "Estados atendidos", "Ambiente atualizado", "Próxima busca",
       "Como baixar nas SEFAZ as notas que o cliente emitiu (MT, MS, GO, MA e PA)", "Só os que faltam enviar ao importador",
       "Documentos no repositório", "Enviados por arquivo", "Captura automática", "Resumos e eventos SEFAZ", "Aguardando o importador",
     ];

@@ -36,7 +36,7 @@ describe('custos das ferramentas externas', () => {
     const s = montar();
     const meu = await s.meu('ana@fal.com', '2026-11');
     const p = Object.fromEntries(meu.itens.map((i) => [i.id, i.preco]));
-    expect(p).toMatchObject({ INTEGRA_CONSULTAR: 0.24, INTEGRA_APOIAR: 0.24, INTEGRA_EMITIR: 0.32, INTEGRA_DECLARAR: 0.4, SERPRO_CND: 0.8788, SERPRO_DIVIDA: 0.6591, INFOSIMPLES_CNDT: 0.26, INFOSIMPLES_CRF: 0.28 });
+    expect(p).toMatchObject({ INTEGRA_CONSULTAR: 0.24, INTEGRA_APOIAR: 0.24, INTEGRA_EMITIR: 0.32, INTEGRA_DECLARAR: 0.4, SERPRO_CND: 0.8788, SERPRO_DIVIDA: 0.6591, INFOSIMPLES_CNDT: 0.24, INFOSIMPLES_CRF: 0.26 });
   });
 
   it('preços: só administrador, sem negativo, fixos sem nome caem', async () => {

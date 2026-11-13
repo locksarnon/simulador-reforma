@@ -38,24 +38,32 @@ function Erros({ erros }) {
   );
 }
 
-function AbaEmpresas({ empresas, grupos, ehAdmin }) {
+function AbaEmpresas({ empresas, arquivadas, grupos, ehAdmin }) {
   const qc = useQueryClient();
   const [analise, setAnalise] = useState(null);
+  const [falhas, setFalhas] = useState([]);
   const aplicar = useMutation({
     mutationFn: async () => {
       // Empresa nova vai pelo mesmo caminho do "Novo cliente": sem grupo, ela vira o próprio grupo; os dados do CNPJ vêm da Receita.
       const BASICOS = ["razao_social", "cnpj_cpf", "regime_atual", "uf", "municipio", "email_contato", "whatsapp_contato", "inscricao_estadual", "produtor_rural", "observacao", "grupo"];
+      // Uma linha com problema não para as outras: o erro fica registrado e a importação segue.
+      const erros = []; let novas = 0; let atualizadas = 0;
       for (const n of analise.novas) {
-        const { status: _s, id_empresa: _i, ...dados } = n.dados;
-        const base = Object.fromEntries(BASICOS.filter((k) => dados[k] !== undefined).map((k) => [k, dados[k]]));
-        const empresa = await api.post("/clientes", { ...base, grupo: base.grupo || null, servicos: [] });
-        const resto = Object.fromEntries(Object.entries(dados).filter(([k]) => !BASICOS.includes(k)));
-        if (Object.keys(resto).length) await api.entities.Empresa.update(empresa.id, resto);
+        try {
+          const { status: _s, id_empresa: _i, ...dados } = n.dados;
+          const base = Object.fromEntries(BASICOS.filter((k) => dados[k] !== undefined).map((k) => [k, dados[k]]));
+          const empresa = await api.post("/clientes", { ...base, grupo: base.grupo || null, servicos: [] });
+          const resto = Object.fromEntries(Object.entries(dados).filter(([k]) => !BASICOS.includes(k)));
+          if (Object.keys(resto).length) await api.entities.Empresa.update(empresa.id, resto);
+          novas++;
+        } catch (e) { erros.push({ linha: n.linha, motivo: `${n.dados.razao_social}: ${e.message}` }); }
       }
-      if (analise.atualizar.length) await api.entities.Empresa.bulkUpdate(analise.atualizar.map((a) => ({ id: a.id, ...a.mudancas })));
-      return { novas: analise.novas.length, atualizadas: analise.atualizar.length };
+      for (const a of analise.atualizar) {
+        try { await api.entities.Empresa.update(a.id, a.mudancas); atualizadas++; } catch (e) { erros.push({ linha: a.linha, motivo: `${a.razao_social}: ${e.message}` }); }
+      }
+      return { novas, atualizadas, erros };
     },
-    onSuccess: (r) => { toast({ title: "Cadastro importado", description: `Novas: ${r.novas}. Atualizadas: ${r.atualizadas}.` }); setAnalise(null); qc.invalidateQueries({ queryKey: ["empresas"] }); },
+    onSuccess: (r) => { toast({ title: "Cadastro importado", description: `Novas: ${r.novas}. Atualizadas: ${r.atualizadas}.${r.erros.length ? ` Com erro: ${r.erros.length}.` : ""}`, variant: r.erros.length ? "destructive" : undefined }); setFalhas(r.erros); setAnalise(null); qc.invalidateQueries({ queryKey: ["empresas"] }); },
     onError: (e) => toast({ title: "A importação parou", description: e.message, variant: "destructive" }),
   });
   const colunasExport = CAMPOS.map((c) => ({ chave: c.campo, rotulo: c.rotulo, valor: (l) => valorParaPlanilha(c.campo, l[c.campo]) }));
@@ -71,8 +79,9 @@ function AbaEmpresas({ empresas, grupos, ehAdmin }) {
         <p className="text-muted-foreground">Excel (.xlsx) ou CSV no formato do modelo. Célula vazia não apaga o cadastro.</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => exportarLista({ titulo: "Modelo de importação de empresas", colunas: colunasExport, linhas: [{ ...EXEMPLO_MODELO, grupo: grupos[0]?.numero || "001" }], formato: "xlsx" })} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
-          {ehAdmin ? <EscolherArquivo rotulo="Escolher a planilha" aoLer={(linhas) => setAnalise(analisarImportacao(linhas, empresas, grupos))} /> : <p className="text-xs text-muted-foreground">Só administradores importam.</p>}
+          {ehAdmin ? <EscolherArquivo rotulo="Escolher a planilha" aoLer={(linhas) => { setFalhas([]); setAnalise(analisarImportacao(linhas, empresas, grupos, arquivadas)); }} /> : <p className="text-xs text-muted-foreground">Só administradores importam.</p>}
         </div>
+        {!analise && <Erros erros={falhas} />}
         {analise && (
           <div className="space-y-3">
             <p role="status"><strong>{analise.novas.length}</strong> {palavra(analise.novas.length, "nova", "novas")}, <strong>{analise.atualizar.length}</strong> a atualizar, {analise.sem_mudanca} sem mudança, <strong>{analise.erros.length}</strong> com erro.</p>
@@ -125,6 +134,8 @@ function AbaVinculos({ empresas, ehAdmin }) {
 export default function ImportacaoCadastroPagina() {
   const { user } = useAuth();
   const emp = useQuery({ queryKey: ["empresas", "carteiras"], queryFn: () => api.entities.Empresa.list() });
+  const todas = useQuery({ queryKey: ["empresas", "todas"], queryFn: () => api.entities.Empresa.listTodas() });
+  const arquivadas = useMemo(() => (todas.data || []).filter((e) => e.arquivado_em), [todas.data]);
   const grp = useQuery({ queryKey: ["grupos"], queryFn: () => api.entities.Grupo.list() });
   const empresas = useMemo(() => [...(emp.data || [])].sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR")), [emp.data]);
   const ehAdmin = user?.role === "admin";
@@ -135,7 +146,7 @@ export default function ImportacaoCadastroPagina() {
         {(emp.isLoading || grp.isLoading) ? <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <Tabs defaultValue="empresas" className="space-y-4">
             <TabsList><TabsTrigger value="empresas">Empresas</TabsTrigger><TabsTrigger value="vinculos">Carteira por colaborador</TabsTrigger></TabsList>
-            <TabsContent value="empresas"><AbaEmpresas empresas={empresas} grupos={grp.data || []} ehAdmin={ehAdmin} /></TabsContent>
+            <TabsContent value="empresas"><AbaEmpresas empresas={empresas} arquivadas={arquivadas} grupos={grp.data || []} ehAdmin={ehAdmin} /></TabsContent>
             <TabsContent value="vinculos"><AbaVinculos empresas={empresas} ehAdmin={ehAdmin} /></TabsContent>
           </Tabs>
         )}

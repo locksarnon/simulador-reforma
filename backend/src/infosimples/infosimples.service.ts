@@ -45,6 +45,28 @@ export function lerCndt(d: Record<string, unknown>): Omit<ResultadoCertidao, 'co
   };
 }
 
+/**
+ * Certidões estaduais e municipais: cada portal devolve campos próprios; a leitura procura pelo sentido (negativa, positiva com
+ * efeito de negativa, positiva; emissão, validade, código).
+ */
+export function lerCertidaoGenerica(d: Record<string, unknown>): Omit<ResultadoCertidao, 'comprovante'> {
+  const achar = (re: RegExp) => { const k = Object.keys(d).find((x) => re.test(x) && txt(d[x])); return k ? txt(d[k]) : ''; };
+  const texto = [achar(/^certidao$|tipo_certidao|situacao|mensagem|resultado/i), achar(/certidao/i)].join(' ');
+  const negativaBool = d.conseguiu_emitir_certidao_negativa === true || d.negativa === true;
+  const efeito = /efeito de negativa/i.test(texto);
+  const positiva = !negativaBool && !efeito && (/positiva|consta|d[eé]bito|pend[eê]ncia/i.test(texto) && !/negativa|nada consta|n[aã]o constam/i.test(texto));
+  const validade = achar(/validade_data|normalizado_validade|^validade$|valida_ate|data_validade/i) || null;
+  const emissao = achar(/emissao_data|normalizado_emissao|^emissao$|data_emissao|expedicao/i) || null;
+  const numero = achar(/codigo|numero|controle/i) || null;
+  const situacao = achar(/^certidao$|tipo_certidao|situacao/i) || (negativaBool ? 'Certidão negativa' : texto.trim() || 'não informada');
+  const status = positiva ? 'DEBITOS' : 'CONCLUIDO';
+  return {
+    status, situacao, emissao, validade, numero,
+    resumo: positiva ? `${situacao}.` : `${situacao}${validade ? `, válida até ${validade}` : ''}.`,
+    detalhes: [{ rotulo: 'Situação', valor: situacao }, { rotulo: 'Emissão', valor: emissao ?? '' }, { rotulo: 'Validade', valor: validade ?? '' }, { rotulo: 'Código', valor: numero ?? '' }].filter((l) => l.valor),
+  };
+}
+
 /** CRF do FGTS (Caixa): "regular" = regular; qualquer outra situação = irregular. */
 export function lerCrf(d: Record<string, unknown>): Omit<ResultadoCertidao, 'comprovante'> {
   const situacao = txt(d.situacao) || 'não informada';
@@ -104,13 +126,24 @@ export class InfosimplesService {
   /** null = Infosimples não configurada. */
   async cndt(cnpj: string) { return this.certidao('tribunal/tst/cndt', cnpj, lerCndt); }
   async crf(cnpj: string) { return this.certidao('caixa/regularidade', cnpj, lerCrf); }
+  /** Certidão estadual (SEFAZ da UF do cliente). A Infosimples cobre MT, MS, GO, MA e PA, entre outras. */
+  async estadual(cnpj: string, uf: string) {
+    const u = String(uf || '').toLowerCase();
+    if (!/^[a-z]{2}$/.test(u)) throw new BadRequestException('O cliente não tem UF no cadastro.');
+    return this.certidao(`sefaz/${u}/certidao-debitos`, cnpj, lerCertidaoGenerica);
+  }
+  /** Certidão municipal pela CND unificada de prefeituras (pref/cnd), com a UF e o município do cliente. */
+  async municipal(cnpj: string, uf: string, municipio: string, ibge?: string | null) {
+    if (!uf || !municipio) throw new BadRequestException('O cliente não tem município ou UF no cadastro.');
+    return this.certidao('pref/cnd', cnpj, lerCertidaoGenerica, { uf: uf.toUpperCase(), municipio, ...(ibge ? { codigo_ibge: ibge } : {}) });
+  }
 
-  private async certidao(rota: string, cnpjInformado: string, ler: (d: Record<string, unknown>) => Omit<ResultadoCertidao, 'comprovante'>): Promise<ResultadoCertidao | null> {
+  private async certidao(rota: string, cnpjInformado: string, ler: (d: Record<string, unknown>) => Omit<ResultadoCertidao, 'comprovante'>, extras: Record<string, string> = {}): Promise<ResultadoCertidao | null> {
     const token = await this.token();
     if (!token) return null;
     const cnpj = so(cnpjInformado);
     if (cnpj.length !== 14) throw new BadRequestException('CNPJ inválido.');
-    const corpo = new URLSearchParams({ token, timeout: '300', cnpj });
+    const corpo = new URLSearchParams({ token, timeout: '300', cnpj, ...extras });
     const r = await fetch(`${URL_INFOSIMPLES}/${rota}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: corpo, signal: AbortSignal.timeout(330_000) });
     let j: RespostaInfosimples;
     try { j = (await r.json()) as RespostaInfosimples; } catch { throw new BadRequestException(`A Infosimples respondeu HTTP ${r.status} sem JSON.`); }

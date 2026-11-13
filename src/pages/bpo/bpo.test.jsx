@@ -130,7 +130,7 @@ describe("RepositorioXmlEmpresa", () => {
     expect(html).toContain("Grupo #001 xyz");
     // O caminho de volta é a lista do BPO, não o grupo.
     expect(html).toContain(`href="${CAMINHO_REPOSITORIO_XML}"`);
-    for (const aba of ["Certificado", "Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Relatórios"]) expect(html).toContain(aba);
+    for (const aba of ["Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Relatórios"]) expect(html).toContain(aba);
     expect(html).not.toContain("Certificado e autorização");
     // A Importação XML é do diagnóstico: o link leva ao grupo e à empresa certos.
     expect(html).toContain('href="/workroom/G1/empresas/E1/importacao-xml"');
@@ -142,7 +142,7 @@ describe("RepositorioXmlEmpresa", () => {
   it("o menu é uma barra com um item por tipo de documento, na ordem do Notalize, e o item aberto vem em destaque verde", () => {
     const html = tela([[["empresa", "E1"], empresa], [["grupos"], GRUPOS], ...cacheDocs]);
     const itens = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
-    expect(itens).toEqual(["Certificado", "Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Relatórios"]);
+    expect(itens).toEqual(["Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Relatórios"]);
     const aberto = [...html.matchAll(/<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
     expect(aberto).toEqual(["NF-e | NFC-e"]);
     expect(html).toContain("data-[state=active]:bg-primary");

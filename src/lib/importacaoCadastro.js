@@ -111,13 +111,14 @@ export function lerCsv(texto) {
 }
 
 /** Compara a planilha com o cadastro: novas, a atualizar (só o que muda) e erros, com o motivo. */
-export function analisarImportacao(linhas, empresas, grupos) {
+export function analisarImportacao(linhas, empresas, grupos, arquivadas = []) {
   if (!linhas.length) return { novas: [], atualizar: [], erros: [{ linha: 1, motivo: "Planilha vazia." }], sem_mudanca: 0 };
   const mapa = mapearCabecalho(linhas[0]);
   if (mapa.razao_social === undefined && mapa.cnpj_cpf === undefined) return { novas: [], atualizar: [], erros: [{ linha: 1, motivo: 'O cabeçalho precisa ter "Razão social" ou "CNPJ/CPF".' }], sem_mudanca: 0 };
   const porDoc = new Map(empresas.filter((e) => digitos(e.cnpj_cpf)).map((e) => [digitos(e.cnpj_cpf), e]));
   const porId = new Map(empresas.filter((e) => e.id_empresa).map((e) => [norm(e.id_empresa), e]));
   const numerosDeGrupo = new Set(grupos.map((g) => String(g.numero)));
+  const arquivadaPorDoc = new Map(arquivadas.filter((e) => digitos(e.cnpj_cpf)).map((e) => [digitos(e.cnpj_cpf), e]));
   const novas = []; const atualizar = []; const erros = []; let semMudanca = 0;
   linhas.slice(1).forEach((l, k) => {
     const n = k + 2;
@@ -135,6 +136,8 @@ export function analisarImportacao(linhas, empresas, grupos) {
       v[campo] = r.valor;
     }
     const existente = (v.cnpj_cpf && porDoc.get(digitos(v.cnpj_cpf))) || (v.id_empresa && porId.get(norm(v.id_empresa)));
+    const arquivada = !existente && v.cnpj_cpf && arquivadaPorDoc.get(digitos(v.cnpj_cpf));
+    if (arquivada) return erros.push({ linha: n, motivo: `${arquivada.razao_social} está arquivado: desarquive em Clientes (filtro Arquivados) para atualizar.` });
     if (existente) {
       const mudancas = Object.fromEntries(Object.entries(v).filter(([c, x]) => c !== "cnpj_cpf" && valorParaPlanilha(c, existente[c]) !== valorParaPlanilha(c, x)));
       if (Object.keys(mudancas).length) atualizar.push({ linha: n, id: existente.id, razao_social: existente.razao_social, mudancas });

@@ -7,6 +7,8 @@ import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
 import { fmtDoc } from "@/components/repositorio-xml/formatos";
 import { caminhoDoRepositorio } from "@/lib/bpoCaminhos";
+import InterruptorCaptura from "@/components/repositorio-xml/InterruptorCaptura";
+import { SeloCertificado } from "@/pages/clientes/ClientesPagina";
 
 const normalizar = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const soAlfanumericos = (s) => String(s ?? "").replace(/[^0-9a-z]/gi, "").toLowerCase();
@@ -32,6 +34,7 @@ export default function RepositorioXmlLista() {
   const [busca, setBusca] = useState("");
   const { data: empresas, isLoading, isError } = useQuery({ queryKey: ["empresas", "bpo-lista"], queryFn: () => api.entities.Empresa.list() });
   const { data: grupos } = useQuery({ queryKey: ["grupos"], queryFn: () => api.entities.Grupo.list() });
+  const { data: captura } = useQuery({ queryKey: ["captura-xml", "empresas"], queryFn: () => api.get("/captura-xml/empresas"), staleTime: 60_000 });
   const linhas = useMemo(() => filtrarEmpresas(empresas, grupos, busca), [empresas, grupos, busca]);
 
   return (
@@ -59,6 +62,8 @@ export default function RepositorioXmlLista() {
                     <th className="py-2.5 px-4 font-medium">CNPJ</th>
                     <th className="py-2.5 px-4 font-medium">Grupo</th>
                     <th className="py-2.5 px-4 font-medium">UF</th>
+                    <th className="py-2.5 px-4 font-medium">Certificado</th>
+                    <th className="py-2.5 px-4 font-medium">Captura</th>
                     <th className="py-2.5 px-4 font-medium w-24"><span className="sr-only">Abrir</span></th>
                   </tr>
                 </thead>
@@ -72,6 +77,8 @@ export default function RepositorioXmlLista() {
                       <td className="py-2.5 px-4 tabular-nums text-muted-foreground">{fmtDoc(e.cnpj_cpf)}</td>
                       <td className="py-2.5 px-4 text-muted-foreground">{g ? `${g.numero} ${g.nome}` : (e.grupo || "—")}</td>
                       <td className="py-2.5 px-4">{e.uf || "—"}</td>
+                      <td className="py-2.5 px-4"><SeloCertificado certificado={captura?.[e.id]?.certificado} /></td>
+                      <td className="py-2.5 px-4"><InterruptorCaptura compacto empresaId={e.id} ligada={!!captura?.[e.id]?.ligada} certificadoOk={["VALIDO", "A_VENCER"].includes(captura?.[e.id]?.certificado?.situacao)} /></td>
                       <td className="py-2.5 px-4 text-right">
                         <Link to={caminhoDoRepositorio(e.id)} onClick={(ev) => ev.stopPropagation()} className="text-primary hover:underline">Abrir ›</Link>
                       </td>
@@ -79,7 +86,7 @@ export default function RepositorioXmlLista() {
                   ))}
                   {linhas.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
                         {(empresas || []).length === 0
                           ? <>Nenhuma empresa cadastrada. Cadastre as empresas em <Link to="/" className="text-primary hover:underline">Clientes</Link>.</>
                           : "Nenhuma empresa encontrada para essa busca."}

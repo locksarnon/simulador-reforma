@@ -169,7 +169,6 @@ describe("CapturaXml", () => {
   });
   const captura = (extra = {}) => ({ ambiente: "PRODUCAO", uf_autor: "51", requisitos: { certificado_ativo: true }, tipos: [tipo()], execucoes: [], ...extra });
   const montar = (dados) => renderizar(<CapturaXml empresaId="E1" />, { cache: [[["repo-xml-captura", "E1"], dados]] });
-  const botaoAtivar = (html) => html.match(/<button[^>]*>(?:(?!<\/button>).)*Ativar captura<\/button>/)?.[0] ?? "";
 
   it("estados atendidos (MT, MS, GO, MA, PA) vêm primeiro na escolha da UF", () => {
     auth.role = "admin";
@@ -182,120 +181,32 @@ describe("CapturaXml", () => {
     expect(html.slice(html.indexOf("Outros estados"))).toContain("SP (35)");
   });
 
-  it("Ciência da Operação: explica o que é, mostra os números e oferece ativar (a confirmação expressa vem na janela)", () => {
-    auth.role = "admin";
-    const ciencia = { ativa: false, consentida_em: null, consentida_por: null, resumos_sem_ciencia: 12, registradas: 40, nao_aplicaveis: 3 };
-    const html = montar(captura({ ciencia }));
-    expect(html).toContain("Ciência da Operação (libera o XML completo das compras)");
-    expect(html).toContain("Desativada: as NF-e recebidas ficam só com o resumo.");
-    expect(html).toContain("Ativar Ciência automática");
-    const botao = html.match(/<button[^>]*>Ativar Ciência automática<\/button>/)?.[0] ?? "";
-    expect(botao).not.toContain('disabled=""');
-    for (const [rotulo, numero] of [["Resumos aguardando", "12"], ["Ciência registrada", "40"], ["Fora do prazo ou não aplicável", "3"]]) {
-      expect(html).toContain(`${rotulo}</dt><dd class="tabular-nums">${numero}</dd>`);
-    }
-  });
-
-  it("Ciência ativa mostra quem autorizou e oferece desativar; usuário comum só acompanha", () => {
-    const ciencia = { ativa: true, consentida_em: "2026-11-10T12:00:00Z", consentida_por: "admin@fal", resumos_sem_ciencia: 0, registradas: 5, nao_aplicaveis: 0 };
-    auth.role = "admin";
-    const admin = montar(captura({ ciencia }));
-    expect(admin).toContain("Autorizada por admin@fal");
-    expect(admin).toContain("Ativa: o InTAX registra a Ciência, em nome do cliente");
-    expect(admin).not.toContain("Ativar Ciência automática");
-    auth.role = "user";
-    const comum = montar(captura({ ciencia }));
-    expect(comum).toContain("Autorizada por admin@fal");
-    expect(comum).not.toContain("Ativar Ciência automática");
-  });
-
-  it("avisa quando o agendador está desligado no servidor e fica quieto quando está ligado", () => {
-    auth.role = "admin";
-    expect(montar(captura({ agendador_ativo: false }))).toContain("O agendador da captura está desligado neste servidor");
-    expect(montar(captura({ agendador_ativo: true }))).not.toContain("O agendador da captura está desligado");
-  });
-
-  it("administrador com requisitos cumpridos pode ativar; sem certificado, não", () => {
-    auth.role = "admin";
-    expect(botaoAtivar(montar(captura()))).not.toContain('disabled=""');
-    const sem = montar(captura({ requisitos: { certificado_ativo: false } }));
-    expect(botaoAtivar(sem)).toContain('disabled=""');
-    expect(sem).toContain("Certificado digital A1 do cliente guardado e dentro da validade");
-  });
-
-  it("captura ativa mostra Capturar agora e Desativar; antes da janela da SEFAZ o botão fica travado com o motivo", () => {
+  it("interruptor da captura, situação por documento, Ciência da regra global e últimas execuções", () => {
     auth.role = "admin";
     const futuro = new Date(Date.now() + 40 * 60_000).toISOString();
-    const html = montar(captura({ tipos: [tipo({ ativo: true, ultimo_nsu: "000000000000070", max_nsu: "000000000000070", ultimo_cstat: "137", ultimo_motivo: "Nenhum documento novo.", proxima_consulta_em: futuro, liberado_em: futuro })] }));
-    expect(html).toContain("Captura ativa");
-    expect(html).toContain("Desativar");
-    expect(html).toContain("Capturar agora");
-    expect(html).toContain("A SEFAZ só permite nova consulta a partir de");
+    const html = montar(captura({ periodo: { texto: "Noturno, das 18:00 às 05:59 (horário de Brasília)" }, ciencia: { ativa: true, resumos_sem_ciencia: 12, registradas: 40 }, tipos: [tipo({ ativo: true, ultimo_nsu: "000000000000070", max_nsu: "000000000000070", ultimo_cstat: "137", ultimo_motivo: "Nenhum documento novo.", liberado_em: futuro }), tipo({ tipo: "NFSE" })], execucoes: [{ id: "x1", iniciado_em: "2026-11-10T12:00:00Z", origem: "AGENDADOR", consultas: 2, docs_recebidos: 70, docs_novos: 68, ultimo_cstat: "138", mensagem: "68 novos", finalizado_em: "2026-11-10T12:00:05Z" }] }));
+    expect(html).toContain("Ligada");
+    expect(html).toContain("Período: Noturno, das 18:00 às 05:59");
     expect(html).toContain("000000000000070 de 000000000000070");
-    expect(html).toContain("Nenhum documento novo.");
+    expect(html).toContain("137 · Nenhum documento novo.");
+    expect(html).toContain("Capturar agora");
+    expect(html).toContain("NFS-e");
+    expect(html).toContain("Ciência automática</dt><dd>ligada");
+    expect(html).toContain("68 novos");
+    expect(html).toContain("Configuração da captura");
   });
 
-  it("usuário comum só acompanha; o texto explica o que a captura não traz", () => {
+  it("usuário comum só acompanha: sem Capturar agora e sem a configuração", () => {
     auth.role = "user";
-    const html = montar(captura({ tipos: [tipo({ ativo: true })], execucoes: [{ id: "x1", iniciado_em: "2026-11-10T12:00:00Z", origem: "AGENDADOR", usuario: null, consultas: 2, docs_recebidos: 70, docs_novos: 68, ultimo_cstat: "138", mensagem: "68 documento(s) novo(s), 2 já existiam.", finalizado_em: "2026-11-10T12:00:05Z" }] }));
-    expect(html).not.toContain("Ativar captura");
-    expect(html).not.toMatch(/<button[^>]*>(?:(?!<\/button>).)*Capturar agora<\/button>/); // o texto da tela cita o botão, mas o botão não existe para usuário comum
-    expect(html).toContain("As notas que o próprio cliente emitiu não vêm por este serviço");
-    expect(html).toContain("90 dias");
-    expect(html).toContain("68 documento(s) novo(s), 2 já existiam.");
-    expect(html).toContain("Automática");
+    const html = montar(captura({ tipos: [tipo({ ativo: true })] }));
+    expect(html).not.toMatch(/<button[^>]*>(?:(?!<\/button>).)*Capturar agora<\/button>/);
+    expect(html).not.toContain("Configuração da captura");
   });
 
-  it("NFS-e Nacional aparece como terceiro tipo de captura, e o texto avisa que depende do município compartilhar as notas", () => {
+  it("avisa quando o agendador está desligado no servidor", () => {
     auth.role = "admin";
-    const html = montar(captura({ tipos: [tipo(), tipo({ tipo: "CTE" }), tipo({ tipo: "NFSE", ativo: true, ultimo_nsu: "000000000000042" })] }));
-    expect(html).toContain("NFS-e Nacional (notas de serviço em que o cliente é prestador, tomador ou intermediário)");
-    expect(html).toContain("000000000000042");
-    expect(html).toContain("Ambiente de Dados Nacional (ADN)");
-    expect(html).toContain("compartilham as suas NFS-e com o ambiente nacional");
-    expect(html).toContain("a documentação do ADN não é conclusiva");
-    expect(html).toContain("Retorno do ADN");
-    expect(html).not.toContain(">NFSE<");
-  });
-
-  const periodoNoturno = { atual: "NOTURNO", texto: "Noturno, das 18:00 às 05:59 (horário de Brasília)", aberto_agora: false, opcoes: [{ valor: "NOTURNO", texto: "Noturno, das 18:00 às 05:59 (horário de Brasília)" }, { valor: "DIURNO", texto: "Diurno, das 06:00 às 17:59 (horário de Brasília)" }] };
-
-  it("o período da busca automática (Noturno ou Diurno) é escolhido na tela, e o texto diz quando a rotina consulta", () => {
-    auth.role = "admin";
-    const html = montar(captura({ agendador_ativo: true, periodo: periodoNoturno, tipos: [tipo({ ativo: true, proxima_automatica_em: "2099-11-11T21:00:00Z" })] }));
-    expect(html).toContain("Período da busca automática");
-    expect(html).toContain("Noturno, das 18:00 às 05:59 (horário de Brasília)");
-    expect(html).toContain("Diurno, das 06:00 às 17:59 (horário de Brasília)");
-    expect(html).toContain("Captura ativa: a rotina automática consulta a SEFAZ no período Noturno, das 18:00 às 05:59 (horário de Brasília)");
-    expect(html).toContain("Próxima busca automática");
-    expect(html).toMatch(/<option value="NOTURNO" selected="">/);
-    // usuário comum vê o período, mas não troca
-    auth.role = "user";
-    const comum = montar(captura({ periodo: periodoNoturno }));
-    expect(comum).toMatch(/Período da busca automática<\/span><select[^>]*disabled=""/);
-  });
-
-  it("com o agendador desligado o texto não promete rotina automática, e sem busca agendada a próxima é um traço", () => {
-    auth.role = "admin";
-    const html = montar(captura({ agendador_ativo: false, periodo: { ...periodoNoturno, atual: "DIURNO" }, tipos: [tipo({ ativo: true, proxima_automatica_em: null })] }));
-    expect(html).toContain("Captura ativa, mas o agendador está desligado neste servidor");
-    expect(html).not.toContain("a rotina automática consulta");
-    expect(html).toMatch(/Próxima busca automática<\/dt><dd>—<\/dd>/);
-    expect(html).toMatch(/<option value="DIURNO" selected="">/);
-  });
-
-  it("a NFS-e não exige a UF do interessado para ser ativada; a NF-e e o CT-e continuam exigindo", () => {
-    auth.role = "admin";
-    const html = montar(captura({ uf_autor: null, tipos: [tipo(), tipo({ tipo: "CTE" }), tipo({ tipo: "NFSE" })] }));
-    const botoes = html.match(/<button[^>]*>(?:(?!<\/button>).)*Ativar captura<\/button>/g) ?? [];
-    expect(botoes).toHaveLength(3);
-    expect(botoes[0]).toContain('disabled=""'); // NF-e
-    expect(botoes[1]).toContain('disabled=""'); // CT-e
-    expect(botoes[2]).not.toContain('disabled=""'); // NFS-e
-    expect(html).toContain("necessária para NF-e e CT-e, não para NFS-e");
-    // sem certificado, nenhuma é liberada
-    const sem = montar(captura({ uf_autor: "51", requisitos: { certificado_ativo: false }, tipos: [tipo({ tipo: "NFSE" })] }));
-    expect(botaoAtivar(sem)).toContain('disabled=""');
+    expect(montar(captura({ agendador_ativo: false }))).toContain("Agendador desligado");
+    expect(montar(captura({ agendador_ativo: true }))).not.toContain("Agendador desligado");
   });
 });
 
