@@ -1,12 +1,14 @@
 import { buscarServicos as buscar } from "@/lib/buscaServicos";
 import { useAnaliseEmpresa } from "@/hooks/useAnaliseEmpresa";
 import React, { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 import { api } from "@/api/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Wrench, Download, HelpCircle } from "lucide-react";
+import { Search, Wrench, Download, HelpCircle, Loader2, RefreshCw } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import TituloPagina from "@/components/TituloPagina";
 import TabelaPadrao from "@/components/TabelaPadrao";
@@ -49,6 +51,15 @@ export default function FerramentasClassificacao() {
     queryKey: ["correlacaoServico"],
     queryFn: () => api.entities.CorrelacaoServico.list(),
   });
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const anexo = useQuery({ queryKey: ["correlacaoServico", "situacao"], queryFn: () => api.get("/correlacao-servicos/situacao") });
+  const atualizarAnexo = useMutation({
+    mutationFn: () => api.post("/correlacao-servicos/atualizar"),
+    onSuccess: (r) => { qc.setQueryData(["correlacaoServico", "situacao"], r); qc.invalidateQueries({ queryKey: ["correlacaoServico"] }); toast({ title: `Anexo VIII ${r.versao} carregado`, description: `${r.linhas.toLocaleString("pt-BR")} linhas.` }); },
+    onError: (e) => toast({ title: "Não foi possível atualizar o Anexo VIII", description: e.message, variant: "destructive" }),
+  });
+  const quando = (d) => (d ? new Date(d).toLocaleDateString("pt-BR") : "");
   const [q, setQ] = useState("");
   const [campo, setCampo] = useState("todos");
   const [snapshot, setSnapshot] = useState(null);
@@ -95,8 +106,13 @@ export default function FerramentasClassificacao() {
           <TituloPagina icon={Wrench} ajuda={<InfoTooltip pagina="ferramentas" chave="classificacao_header" />}>Classificação e conversão de serviços</TituloPagina>
           <p className="text-sm text-muted-foreground">
             Item da LC 116/2003, NBS, cIndOp e cClassTrib — os quatro numa base só. Base:{" "}
-            {data.length ? data.length.toLocaleString("pt-BR") : "…"} linhas do <strong>Anexo VIII</strong> (Receita
+            {data.length ? data.length.toLocaleString("pt-BR") : "…"} linhas do <strong>Anexo VIII{anexo.data?.versao ? ` v${anexo.data.versao}` : ""}</strong> (Receita
             Federal / Comitê Gestor da NFS-e).
+          </p>
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {anexo.data?.verificado_em && <span>Conferido na página oficial em {quando(anexo.data.verificado_em)}{anexo.data.atualizado_em ? `; carregado em ${quando(anexo.data.atualizado_em)}` : ""}. Nova versão entra sozinha (toda segunda).</span>}
+            {anexo.data?.erro && <span className="text-amber-700 dark:text-amber-400">Última conferência: {anexo.data.erro}</span>}
+            {user?.role === "admin" && <button type="button" disabled={atualizarAnexo.isPending} onClick={() => atualizarAnexo.mutate()} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-60">{atualizarAnexo.isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3 w-3" aria-hidden="true" />}Atualizar pela fonte oficial</button>}
           </p>
         </div>
 
@@ -201,6 +217,8 @@ const COLUNAS_RESULTADOS = [
   { chave: "ind_op", rotulo: "cIndOp", render: (r) => <span className="font-mono text-xs">{r.ind_op || "Não informado na base"}</span> },
   { chave: "local_incidencia_ibs", rotulo: "Local incidência IBS", render: (r) => r.local_incidencia_ibs || "—" },
   { chave: "c_class_trib", rotulo: "cClassTrib", render: (r) => <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-accent/15" title={r.nome_class_trib}>{r.c_class_trib || "Não informado na base"}</span> },
+  { chave: "cod_ativ_sn", rotulo: "Atividade no Simples", render: (r) => r.cod_ativ_sn || "—" },
+  { chave: "descricao_ativ_sn", rotulo: "Atividade no Simples: descrição", quebrar: true, valor: (r) => r.descricao_ativ_sn || "" },
 ];
 
 /** Resultados da busca, na ordem de relevância (cabeçalhos ordenáveis). */

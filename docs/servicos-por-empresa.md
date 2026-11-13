@@ -22,7 +22,7 @@ Normas e perguntas revisadas em tabelas, preservando as cores. Os botões de set
 
 1. Compilar e testar frontend/backend.
 2. Aplicar a migração Prisma junto com o backend (o entrypoint padrão já roda migrate deploy).
-3. Atualizar a tabela oficial: primeiro auditar com node scripts/atualizar-correlacao-servicos.js; depois executar com --aplicar no backend. A carga usa o Anexo VIII v1.01.00 oficial, resolve células mescladas e substitui a tabela em uma transação. Não modifica as análises salvas.
+3. Tabela oficial (Anexo VIII da NFS-e): o backend confere a página oficial (gov.br/nfse, documentação técnica RTC) ao subir e toda segunda às 05:20, baixa a versão mais nova, confere o layout e troca a tabela numa transação; versão e data ficam em ParametroSistema `anexo_viii_versao`. O administrador força a atualização no Classificador ("Atualizar pela fonte oficial"). Layout não reconhecido não altera nada e o erro aparece na tela. Não modifica as análises salvas.
 4. Seguir docs/deploy/UPDATE.md, incluindo recriação do frontend e smoke test autenticado.
 
 Fonte oficial conferida: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc/anexoviii-correlacaoitemnbsindopcclasstrib_ibscbs_v1-01-00.xlsx/view

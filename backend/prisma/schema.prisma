@@ -694,6 +694,8 @@ model CorrelacaoServico {
   descricao_nbs        String?
   ps_onerosa           String?
   adq_exterior         String?
+  cod_ativ_sn          String?
+  descricao_ativ_sn    String?
   ind_op               String?
   local_incidencia_ibs String?
   c_class_trib         String?

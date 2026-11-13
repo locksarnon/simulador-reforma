@@ -234,7 +234,7 @@ export const SECAO_FERRAMENTAS = {
     },
     {
       p: "Para que serve a Classificação de serviços?",
-      r: "Correlaciona item da LC 116, NBS, indicador de operação e cClassTrib, a partir da tabela oficial do Anexo VIII do RTC (Receita Federal e Comitê Gestor da NFS-e). Ajuda a achar o cClassTrib de um serviço e a converter entre LC 116 e NBS.",
+      r: "Correlaciona item da LC 116, NBS, indicador de operação e cClassTrib, a partir da tabela oficial do Anexo VIII do RTC (Receita Federal e Comitê Gestor da NFS-e). Ajuda a achar o cClassTrib de um serviço e a converter entre LC 116 e NBS. A tabela se atualiza sozinha: o InTAX confere a página oficial toda segunda e carrega a versão nova quando a Receita publica (a versão em uso aparece no topo da tela).",
     },
     {
       p: "O que o Validador de NFS-e confere?",
