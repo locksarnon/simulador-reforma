@@ -13,7 +13,7 @@ import { SITUACOES_PROJETO } from "@/lib/projetos";
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Diagnósticos > Projetos: cada trabalho pontual com o seu escopo; "Novo diagnóstico" é a ação principal. */
-export default function DiagnosticosPagina() {
+export default function DiagnosticosPagina({ consultoria = false }) {
   const navigate = useNavigate();
   const { empresas, grupos, carregando: carregandoCadastro } = useCarteiras();
   const projetos = useQuery({ queryKey: ["projetos-diagnostico"], queryFn: () => api.get("/projetos-diagnostico") });
@@ -31,8 +31,8 @@ export default function DiagnosticosPagina() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: "Início", to: "/inicio" }, { label: "Diagnósticos" }]}
-        title="Diagnósticos"
+        crumbs={[{ label: "Início", to: "/inicio" }, ...(consultoria ? [{ label: "Consultoria Tributária", to: "/area/diagnostico" }, { label: "Projetos" }] : [{ label: "Diagnósticos" }])]}
+        title={consultoria ? "Projetos de Consultoria" : "Diagnósticos"}
         actions={<button type="button" onClick={() => setNovo(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
       />
       <div className="px-6 lg:px-8 py-5 space-y-3">
@@ -43,7 +43,7 @@ export default function DiagnosticosPagina() {
               <option value="abertos">Em andamento e pausados</option><option value="todos">Todos</option>
               {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
             </select></label>
-          <Link to="/diagnostico/carteira" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Clientes com diagnóstico</Link>
+          <Link to={consultoria ? "/consultoria/carteira" : "/diagnostico/carteira"} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">{consultoria ? "Carteira de Consultoria" : "Clientes com diagnóstico"}</Link>
         </div>
         {(projetos.isLoading || carregandoCadastro) ? <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <TabelaPadrao

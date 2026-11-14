@@ -46,6 +46,16 @@ describe("catálogo de navegação: nada do que existia se perde", () => {
   it("as rotas novas do núcleo estão registradas", () => {
     for (const rota of ["/inicio", "/area/:areaId", "/em-breve/:moduloId"]) expect(appFonte).toContain(`path="${rota}"`);
   });
+
+  it("reúne a Consultoria sem retirar o acesso às rotas de diagnóstico e reforma", () => {
+    const menu = areasDoMenu(consultor);
+    const consultoria = menu.find((a) => a.titulo === "Consultoria Tributária");
+    expect(consultoria?.modulos.map((m) => m.to)).toEqual(["/consultoria/carteira", "/consultoria/projetos", "/consultoria/servicos"]);
+    expect(menu.find((a) => a.id === "bpo")?.modulos[0].to).toBe("/bpo/carteira");
+    for (const rota of ["/diagnostico", "/diagnostico/carteira", "/diagnostico/projetos/:id", "/reforma/regimes"]) {
+      expect(appFonte).toContain(`path="${rota}"`);
+    }
+  });
 });
 
 describe("catálogo de navegação: estrutura", () => {
@@ -92,7 +102,7 @@ describe("catálogo de navegação: quem vê o quê", () => {
 
   it("administrador vê tudo, inclusive os em breve", () => {
     const ids = areasDoMenu(admin).flatMap((a) => a.modulos.map((m) => m.id));
-    expect(ids).toHaveLength(MODULOS.filter((m) => !m.oculto).length);
+    expect(ids).toHaveLength(MODULOS.filter((m) => !m.oculto && !areaPorId(m.area)?.oculto).length);
     expect(ids).toContain("usuarios");
     for (const m of MODULOS.filter((x) => x.situacao === SITUACAO.EM_BREVE)) expect(modulosDaArea(m.area, admin)).toContain(m);
   });

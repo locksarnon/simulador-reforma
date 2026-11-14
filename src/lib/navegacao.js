@@ -20,8 +20,8 @@ export const AREAS = [
   { id: "inicio", titulo: "Início", icone: Home, descricao: "Seu ponto de partida: atalhos, avisos, tarefas e a visão da carteira." },
   { id: "clientes", titulo: "Clientes", icone: Building2, descricao: "A lista de clientes e o que cada um contratou, as pessoas físicas, as etiquetas e quem atende cada cliente." },
   { id: "bpo", titulo: "BPO Fiscal", icone: Briefcase, descricao: "A rotina do escritório sobre a carteira: XML, obrigações, tarefas, monitoramento e arquivos." },
-  { id: "diagnostico", titulo: "Diagnósticos", icone: Stethoscope, descricao: "Trabalhos pontuais por cliente ou grupo: escopo, XML e operações, análises e entregáveis." },
-  { id: "reforma", titulo: "Planejamento tributário", icone: Landmark, descricao: "Painel executivo, comparação de regimes, cenários, transição e crédito de estoque, por empresa ou grupo." },
+  { id: "diagnostico", titulo: "Consultoria Tributária", icone: Stethoscope, descricao: "Carteira, projetos e serviços tributários por cliente." },
+  { id: "reforma", oculto: true, titulo: "Planejamento tributário", icone: Landmark, descricao: "Painel executivo, comparação de regimes, cenários, transição e crédito de estoque, por empresa ou grupo." },
   { id: "conhecimento", titulo: "Consultas fiscais", icone: BookOpen, descricao: "Base legal, NCM, catálogos IBS/CBS, guia do art. 11, agenda, radar e notícias, sempre com fonte oficial." },
   { id: "comercial", titulo: "Comercial", icone: Megaphone, descricao: "Leads, pré-análise por CNPJ, propostas, comunicados, newsletter e ferramentas públicas." },
   { id: "admin", titulo: "Administração", icone: Settings, descricao: "Usuários, acessos, integrações e configurações do sistema." },
@@ -59,8 +59,9 @@ export const MODULOS = [
   { id: "arquivos", area: "bpo", titulo: "Arquivos e documentos", descricao: "Arquivos por empresa e documentos com data de validade e alerta de vencimento.", icone: FolderOpen, to: "/bpo/arquivos", palavras: ["arquivo", "documento", "validade", "alvará", "licença", "download"] },
 
   // Diagnóstico e Serviços
-  { id: "carteira-diagnostico", area: "diagnostico", titulo: "Projetos de diagnóstico", descricao: "Cada diagnóstico com o seu escopo (uma empresa, parte de um grupo ou o grupo inteiro), prazo e as ferramentas de cada empresa.", icone: Stethoscope, to: "/diagnostico", prefixos: ["/workroom", "/diagnostico/projetos"], palavras: ["diagnóstico", "projeto", "novo diagnóstico", "escopo", "saneamento", "operações", "workroom"] },
-  { id: "clientes-diagnostico", area: "diagnostico", titulo: "Clientes com diagnóstico", descricao: "As empresas com diagnóstico pontual ativo e o caminho até o trabalho de cada uma.", icone: Contact, to: "/diagnostico/carteira", palavras: ["carteira", "diagnóstico pontual", "clientes"] },
+  { id: "clientes-diagnostico", area: "diagnostico", titulo: "Carteira de Consultoria", descricao: "Clientes, serviços contratados e projetos vinculados.", icone: Contact, to: "/consultoria/carteira", prefixos: ["/diagnostico/carteira"], palavras: ["carteira", "diagnóstico pontual", "clientes"] },
+  { id: "carteira-diagnostico", area: "diagnostico", titulo: "Projetos", descricao: "Cada diagnóstico com o seu escopo (uma empresa, parte de um grupo ou o grupo inteiro), prazo e as ferramentas de cada empresa.", icone: Stethoscope, to: "/consultoria/projetos", prefixos: ["/workroom", "/diagnostico"], palavras: ["diagnóstico", "projeto", "novo diagnóstico", "escopo", "saneamento", "operações", "workroom"] },
+  { id: "catalogo-consultoria", area: "diagnostico", titulo: "Serviços Tributários", descricao: "Catálogo de serviços para Pessoa Física e Pessoa Jurídica.", icone: Landmark, to: "/consultoria/servicos", palavras: ["catálogo", "consultoria", "créditos", "planejamento tributário"] },
 
   // Reforma Tributária
   { id: "painel-executivo", area: "reforma", titulo: "Painel executivo", descricao: "Carga, margem e caixa da carteira, de um grupo ou de uma empresa, com os cenários da Reforma.", icone: LayoutDashboard, to: "/cockpit", palavras: ["cockpit", "painel", "executivo", "carga", "margem", "simulação", "grupo"] },
@@ -119,7 +120,7 @@ export function modulosDaArea(areaId, user) {
 
 /** As áreas do menu, só com módulos visíveis para a pessoa; área vazia some. */
 export function areasDoMenu(user) {
-  return AREAS.map((a) => ({ ...a, modulos: modulosDaArea(a.id, user) })).filter((a) => a.modulos.length > 0);
+  return AREAS.filter((a) => !a.oculto).map((a) => ({ ...a, modulos: modulosDaArea(a.id, user) })).filter((a) => a.modulos.length > 0);
 }
 
 /** Todos os destinos do catálogo (os testes garantem que são únicos e que o menu antigo está todo aqui). */

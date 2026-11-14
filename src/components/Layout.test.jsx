@@ -47,7 +47,7 @@ describe("Layout: botão Sair e conta logada", () => {
   it("sem conta carregada não inventa identidade, mas o Sair continua disponível", () => {
     const html = renderizar(null);
     expect(html).not.toContain("Administrador");
-    expect(html).not.toContain("Consultor");
+    expect(html).not.toContain(">Consultor<");
     expect(html).toContain("Sair</span></button>");
   });
 });
@@ -55,11 +55,11 @@ describe("Layout: botão Sair e conta logada", () => {
 describe("Layout: menu em áreas, busca e acessibilidade", () => {
   it("mostra as áreas na ordem do plano, cada uma ligada à sua página", () => {
     const html = renderizar(ADMIN);
-    const ordem = ["Clientes", "BPO Fiscal", "Diagnósticos", "Planejamento tributário", "Consultas fiscais", "Comercial", "Administração", "Ajuda"];
+    const ordem = ["Clientes", "BPO Fiscal", "Consultoria Tributária", "Consultas fiscais", "Comercial", "Administração", "Ajuda"];
     const posicoes = ordem.map((a) => html.indexOf(`${a}</span></a>`));
     expect(posicoes.every((p) => p > 0)).toBe(true);
     expect([...posicoes].sort((a, b) => a - b)).toEqual(posicoes);
-    for (const id of ["clientes", "bpo", "diagnostico", "reforma", "conhecimento", "comercial", "admin", "suporte"]) expect(html).toContain(`href="/area/${id}"`);
+    for (const id of ["clientes", "bpo", "diagnostico", "conhecimento", "comercial", "admin", "suporte"]) expect(html).toContain(`href="/area/${id}"`);
     expect(html).toContain('href="/inicio"');
   });
 
@@ -68,7 +68,7 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
     expect(html).toContain("w-[72px]");
     expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*>Captura de XML<\/a>/);
     expect(html).not.toContain(">Cenários<");
-    expect(html).toContain('aria-label="Abrir Planejamento tributário"');
+    expect(html).toContain('aria-label="Abrir Consultoria Tributária"');
     expect(html).toContain('aria-label="Abrir BPO Fiscal"');
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("sem-barra");
@@ -82,7 +82,7 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
     const bpo = gaveta(CONSULTOR, "/bpo/repositorio-xml");
     expect(bpo).toContain("Monitoramento fiscal");
     expect(bpo).toContain('aria-label="Recolher BPO Fiscal"');
-    expect(bpo).toContain('aria-label="Abrir Planejamento tributário"');
+    expect(bpo).toContain('aria-label="Abrir Consultoria Tributária"');
     expect(bpo).not.toContain(">Cenários<");
     expect(gaveta(CONSULTOR, "/configuracao")).not.toContain("Usuários e acessos");
     expect(gaveta(ADMIN, "/configuracao")).toContain("Usuários e acessos");
@@ -90,7 +90,7 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
 
   it("o item do módulo aberto leva aria-current, inclusive nas telas internas dele", () => {
     const html = renderizar(ADMIN, "/workroom/G1/empresas/E1/servicos");
-    const link = html.match(/<a[^>]*href="\/diagnostico"[^>]*>/)?.[0] || "";
+    const link = html.match(/<a[^>]*href="\/consultoria\/projetos"[^>]*>/)?.[0] || "";
     expect(link).toContain('aria-current="page"');
   });
 

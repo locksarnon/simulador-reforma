@@ -38,12 +38,12 @@ describe("caminhos do BPO fiscal", () => {
 });
 
 describe("menu lateral: área BPO Fiscal", () => {
-  it("fica separada de Clientes e do Diagnósticos, e leva à Captura de XML", () => {
+  it("fica separada de Clientes e da Consultoria Tributária, e leva à Captura de XML", () => {
     const html = renderizar(<Layout />, { local: "/bpo/repositorio-xml/E1" });
     expect(html).toContain("BPO Fiscal");
     expect(html).toContain("Captura de XML");
     expect(html.indexOf("Clientes")).toBeLessThan(html.indexOf("BPO Fiscal"));
-    expect(html.indexOf("BPO Fiscal")).toBeLessThan(html.indexOf("Diagnósticos"));
+    expect(html.indexOf("BPO Fiscal")).toBeLessThan(html.indexOf("Consultoria Tributária"));
     // A Captura de XML está sob BPO Fiscal: nada dela aparece na área Clientes.
     const clientes = html.slice(html.indexOf("Clientes"), html.indexOf("BPO Fiscal"));
     expect(clientes).not.toContain("Captura de XML");

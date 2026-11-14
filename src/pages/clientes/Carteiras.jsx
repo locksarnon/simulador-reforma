@@ -13,12 +13,12 @@ export function CarteiraBpo() {
 }
 
 /** Carteira de diagnósticos: as empresas com diagnóstico pontual ativo ou pausado. */
-export function CarteiraDiagnostico() {
+export function CarteiraDiagnostico({ consultoria = false }) {
   return (
     <CarteiraPagina
       tipo="DIAGNOSTICO_PONTUAL"
       area={areaPorId("diagnostico")}
-      titulo="Carteira de diagnósticos"
+      titulo={consultoria ? "Carteira de Consultoria" : "Carteira de diagnósticos"}
     />
   );
 }

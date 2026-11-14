@@ -57,6 +57,7 @@ import ValidadorPublico from '@/pages/publico/ValidadorPublico';
 import { ConfirmProvider } from "@/components/ConfirmProvider";
 import InicioPagina from '@/pages/InicioPagina';
 import AreaPagina from '@/pages/AreaPagina';
+import ConsultoriaPagina from '@/pages/ConsultoriaPagina';
 import ModuloEmBreve from '@/pages/ModuloEmBreve';
 import ServicosContratadosPagina from '@/pages/clientes/ServicosContratadosPagina';
 import ClientesPagina from '@/pages/clientes/ClientesPagina';
@@ -132,6 +133,9 @@ function App() {
                   <Route path="/clientes/servicos-contratados" element={<ServicosContratadosPagina />} />
                   <Route path="/bpo/carteira" element={<CarteiraBpo />} />
                   <Route path="/diagnostico" element={<DiagnosticosPagina />} />
+                  <Route path="/consultoria/carteira" element={<CarteiraDiagnostico consultoria />} />
+                  <Route path="/consultoria/servicos" element={<ConsultoriaPagina />} />
+                  <Route path="/consultoria/projetos" element={<DiagnosticosPagina consultoria />} />
                   <Route path="/diagnostico/carteira" element={<CarteiraDiagnostico />} />
                   <Route path="/diagnostico/projetos/:id" element={<ProjetoDiagnosticoPagina />} />
                   <Route path="/clientes/carteira" element={<CarteiraColaboradoresPagina />} />
