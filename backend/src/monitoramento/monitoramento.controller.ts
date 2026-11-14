@@ -7,7 +7,7 @@ import { SimplesService } from './simples.service';
 import { EnvioDocumentosService, ItemDocumento, LIMITE_EMAIL_BYTES } from './envio-documentos.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ConfigRotina, MonitoramentoService } from './monitoramento.service';
+import { ConfigRotina, MonitoramentoService, PedidoLote } from './monitoramento.service';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new ForbiddenException('Só administradores.'); };
@@ -75,8 +75,8 @@ export class MonitoramentoController {
 
   /** Simples Nacional: sublimite, faturamento e Fator R pela última declaração do PGDAS-D. */
   @Get('empresas/:id/simples')
-  simplesDados(@Param('id') id: string, @Query('competencia') competencia?: string) {
-    return this.simples.dados(id, competencia);
+  simplesDados(@Param('id') id: string) {
+    return this.simples.dados(id);
   }
 
   @Post('empresas/:id/simples/atualizar')
@@ -155,8 +155,8 @@ export class MonitoramentoController {
   }
 
   @Get('painel')
-  painel(@Query('empresa_ids') ids?: string, @Query('competencia') competencia?: string) {
-    return this.m.painel(ids ? ids.split(',').filter(Boolean) : undefined, competencia);
+  painel(@Query('empresa_ids') ids?: string) {
+    return this.m.painel(ids ? ids.split(',').filter(Boolean) : undefined);
   }
 
   @Get('procuracoes')
@@ -165,13 +165,13 @@ export class MonitoramentoController {
   }
 
   @Get('empresas/:id')
-  daEmpresa(@Param('id') id: string, @Query('competencia') competencia?: string) {
-    return this.m.daEmpresa({ empresaId: id }, undefined, competencia);
+  daEmpresa(@Param('id') id: string) {
+    return this.m.daEmpresa({ empresaId: id });
   }
 
   @Get('empresas/:id/historico/:chave')
-  async historico(@Param('id') id: string, @Param('chave') chave: string, @Query('competencia') competencia?: string) {
-    const h = (await this.m.daEmpresa({ empresaId: id }, chave, competencia)) as unknown as { id: string }[];
+  async historico(@Param('id') id: string, @Param('chave') chave: string) {
+    const h = (await this.m.daEmpresa({ empresaId: id }, chave)) as unknown as { id: string }[];
     const reg = await this.envio.registros(h.map((x) => x.id));
     return h.map((x) => ({ ...x, registros: reg.get(x.id) ?? [] }));
   }
@@ -182,8 +182,8 @@ export class MonitoramentoController {
   }
 
   @Get('pessoas/:id')
-  daPessoa(@Param('id') id: string, @Query('competencia') competencia?: string) {
-    return this.m.daEmpresa({ pessoaFisicaId: id }, undefined, competencia);
+  daPessoa(@Param('id') id: string) {
+    return this.m.daEmpresa({ pessoaFisicaId: id });
   }
 
   @Post('pessoas/:id/consultar')
@@ -213,9 +213,14 @@ export class MonitoramentoController {
     return new StreamableFile(a.buffer, { type: 'application/pdf', disposition: disposicao(a.nome, ver === '1') });
   }
 
+  @Post('lote/previa')
+  previaLote(@CurrentUser() user: AuthUser, @Body() body: PedidoLote) {
+    return this.m.prepararLote(body ?? {}, user);
+  }
+
   @Post('lote')
-  lote(@CurrentUser() user: AuthUser, @Body() body: { empresa_ids?: string[]; chaves?: string[] }) {
-    return this.m.iniciarLote(body?.empresa_ids ?? [], body?.chaves, user);
+  lote(@CurrentUser() user: AuthUser, @Body() body: PedidoLote) {
+    return this.m.prepararLote(body ?? {}, user, true);
   }
 
   @Get('lote/:id')

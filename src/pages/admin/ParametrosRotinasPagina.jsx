@@ -64,7 +64,7 @@ export default function ParametrosRotinasPagina() {
   const cfg = edicao ?? rotina.data ?? null;
   const setCfg = (f) => setEdicao((e) => (typeof f === "function" ? f(e ?? rotina.data) : f));
   const salvar = useMutation({
-    mutationFn: () => api.put("/monitoramento/rotina", { ativa: cfg.ativa, guias: cfg.guias, servicos: cfg.servicos, documentos: cfg.documentos }),
+    mutationFn: () => api.put("/monitoramento/rotina", { ativa: cfg.ativa, teto_consultas: cfg.teto_consultas, guias: cfg.guias, servicos: cfg.servicos, documentos: cfg.documentos }),
     onSuccess: (c) => { setEdicao(null); qc.setQueryData(["monitoramento", "rotina"], { ...rotina.data, ...c }); toast({ title: "Rotinas salvas" }); },
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
   });
@@ -123,6 +123,10 @@ export default function ParametrosRotinasPagina() {
                 <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={!!cfg.ativa} onChange={(e) => setCfg((c) => ({ ...c, ativa: e.target.checked }))} /> Atualização automática ligada</label>
               </div>
               <p className="text-xs text-muted-foreground">Roda às 06:30 (Brasília) nos clientes com BPO fiscal ativo, só nos serviços do regime de cada um. {plural(ligados, "serviço agendado", "serviços agendados")}. Cada consulta tem custo no Serpro.</p>
+              <label className="flex items-center gap-2 text-sm">Teto por lote de consultas agendadas (R$)
+                <input type="number" min="0" max="100" step="0.01" className={`${campo} w-24`} value={cfg.teto_consultas ?? 50}
+                  onChange={(e) => setCfg((c) => ({ ...c, teto_consultas: Number(e.target.value) }))} />
+              </label>
               <TabelaPadrao id="admin:rotina-servicos" ariaLabel="Atualização por serviço" colunas={colunasServicos} linhas={cfg.agendaveis || []} chaveLinha={(l) => l.chave} tamanhoInicial={100} />
             </section>
             <section className="rounded-xl border border-border bg-card p-4 space-y-3 text-sm">

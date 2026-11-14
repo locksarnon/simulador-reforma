@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CompetenciaXml, { useCompetenciaXml } from "@/components/repositorio-xml/CompetenciaXml";
 import DocumentosXml from "@/components/repositorio-xml/DocumentosXml";
 import CapturaXml from "@/components/repositorio-xml/CapturaXml";
 import CartoesDoRepositorio from "@/components/repositorio-xml/CartoesDoRepositorio";
@@ -23,6 +24,9 @@ const ABAS_COM_CARTOES = [...ABAS_DE_DOCUMENTOS.map((a) => a.valor), "resumos"];
 /** Repositório de XML de um cliente: documentos por tipo, resumos e eventos, relatórios, captura automática e o certificado A1 dele. */
 export default function RepositorioXmlEmpresa() {
   const { empresaId } = useParams();
+  const periodo = useCompetenciaXml();
+  const [ano, mes] = periodo.competencia.split("-").map(Number);
+  const datas = { de: periodo.competencia + "-01", ate: new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10) };
   const [aba, setAba] = useState("nfe");
   const { data: empresa, isLoading, isError } = useQuery({ queryKey: ["empresa", empresaId], queryFn: () => api.entities.Empresa.get(empresaId), enabled: !!empresaId });
   const { data: grupos } = useQuery({ queryKey: ["grupos"], queryFn: () => api.entities.Grupo.list() });
@@ -50,7 +54,7 @@ export default function RepositorioXmlEmpresa() {
         : isError || !empresa ? <p role="alert" className="p-6">Empresa não encontrada. <Link to={CAMINHO_REPOSITORIO_XML} className="text-primary hover:underline">Voltar à lista do Repositório de XML</Link>.</p>
         : (
           <div className="px-6 lg:px-8 py-6 space-y-4">
-            <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">Repositório de XML</h2>
             </div>
             <Tabs value={aba} onValueChange={setAba} className="space-y-4">
@@ -63,11 +67,11 @@ export default function RepositorioXmlEmpresa() {
                 </TabsList>
               </div>
               {ABAS_COM_CARTOES.includes(aba) && <CartoesDoRepositorio empresaId={empresaId} aoAbrirResumos={() => setAba("resumos")} />}
-              <TabsContent value="captura" className="mt-0"><CapturaXml empresaId={empresaId} /></TabsContent>
+              <TabsContent value="captura" className="mt-0"><p className="mb-3 text-sm text-muted-foreground">A competência filtra os documentos do repositório pela emissão.</p><CapturaXml empresaId={empresaId} /></TabsContent>
               {ABAS_DE_DOCUMENTOS.map((a) => (
-                <TabsContent key={a.valor} value={a.valor} className="mt-0"><DocumentosXml empresaId={empresaId} empresa={empresa} linkImportacao={linkImportacao} grupo={a.grupo} /></TabsContent>
+                <TabsContent key={a.valor} value={a.valor} className="mt-0"><DocumentosXml key={periodo.competencia} datas={datas} seletorCompetencia={<CompetenciaXml {...periodo} />} empresaId={empresaId} empresa={empresa} linkImportacao={linkImportacao} grupo={a.grupo} /></TabsContent>
               ))}
-              <TabsContent value="resumos" className="mt-0"><DocumentosXml modo="resumos" empresaId={empresaId} empresa={empresa} linkImportacao={null} /></TabsContent>
+              <TabsContent value="resumos" className="mt-0"><DocumentosXml key={periodo.competencia} datas={datas} seletorCompetencia={<CompetenciaXml {...periodo} />} modo="resumos" empresaId={empresaId} empresa={empresa} linkImportacao={null} /></TabsContent>
               <TabsContent value="relatorios" className="mt-0"><RelatoriosXml empresaId={empresaId} empresa={empresa} /></TabsContent>
             </Tabs>
           </div>

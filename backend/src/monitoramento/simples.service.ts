@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { filtroDeCompetencia } from './catalogo';
 import { PrismaService } from '../prisma/prisma.service';
 import { MonitoramentoService } from './monitoramento.service';
 import { analiseSimples, LeituraPgdasd } from './pgdasd-leitura';
@@ -23,9 +22,9 @@ export function ultimaCompetenciaDeclarada(dados: unknown): string | null {
 export class SimplesService {
   constructor(private readonly prisma: PrismaService, private readonly m: MonitoramentoService) {}
 
-  async dados(empresaId: string, competencia?: string) {
-    const c = await this.prisma.consultaFiscal.findMany({ where: { empresa_id: empresaId, chave: { in: ['pgdasd-ultima', 'pgdasd-declaracao'] }, sucesso: true, ...filtroDeCompetencia(competencia) }, orderBy: { createdAt: 'desc' }, take: 20 });
-    const comLeitura = c.find((x) => (x.dados as { leitura_pgdasd?: LeituraPgdasd } | null)?.leitura_pgdasd && (!competencia || (x.dados as { leitura_pgdasd: LeituraPgdasd }).leitura_pgdasd.periodo === competencia));
+  async dados(empresaId: string) {
+    const c = await this.prisma.consultaFiscal.findMany({ where: { empresa_id: empresaId, chave: { in: ['pgdasd-ultima', 'pgdasd-declaracao'] }, sucesso: true }, orderBy: { createdAt: 'desc' }, take: 20 });
+    const comLeitura = c.find((x) => (x.dados as { leitura_pgdasd?: LeituraPgdasd } | null)?.leitura_pgdasd);
     if (!comLeitura) return { consultado_em: null, simulado: false, analise: null };
     const leitura = (comLeitura.dados as { leitura_pgdasd: LeituraPgdasd }).leitura_pgdasd;
     return { consultado_em: comLeitura.createdAt, simulado: comLeitura.simulado, analise: analiseSimples(leitura) };

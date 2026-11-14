@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { readFileSync } from 'fs';
@@ -6,11 +7,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { lerPfx } from '../certificados/certificado-pfx';
 import { CertificadosService } from '../certificados/certificados.service';
-import { ItemCusto, registrarUso } from '../custos/custos.service';
+import { CustosService, ItemCusto, registrarUso } from '../custos/custos.service';
 import { assinarDeclaracaoDctfweb } from './dctfweb-assinatura';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { MailService } from '../mail/mail.service';
-import { filtroDeCompetencia, completarParametros, GRUPOS, OBRIGACOES, SERVICO_POR_CHAVE, SERVICOS, Servico, servicosParaEmpresa } from './catalogo';
+import { completarParametros, GRUPOS, OBRIGACOES, SERVICO_POR_CHAVE, SERVICOS, Servico, servicosParaEmpresa } from './catalogo';
 import { Credenciais, ErroIntegra, Identificacao, IntegraCliente, Modo, MODOS, Resposta } from './integra.cliente';
 import { extrairArquivos, interpretar, Nivel, Resumo } from './interpretar';
 import { termoAssinado, vigenciaPadrao } from './termo-autorizacao';
@@ -26,11 +27,11 @@ import { Agenda, AgendaDocumentos, agendaDocumentos, agendasDosServicos, caiHoje
 
 type Usuario = { email?: string; role?: string; sub?: string; id?: string } | undefined;
 type Alvo = { empresaId?: string; pessoaFisicaId?: string };
-export type ConfigRotina = { ativa: boolean; dias: Record<string, number>; guias: { ativa: boolean; dia: number; enviar_email: boolean }; servicos: Record<string, Agenda>; documentos: AgendaDocumentos };
+export type ConfigRotina = { teto_consultas?: number; ativa: boolean; dias: Record<string, number>; guias: { ativa: boolean; dia: number; enviar_email: boolean }; servicos: Record<string, Agenda>; documentos: AgendaDocumentos };
 
 const CHAVE_MODO = 'integra_contador_modo';
 const CHAVE_ROTINA = 'monitoramento_rotina';
-const ROTINA_PADRAO: ConfigRotina = { ativa: false, dias: { situacao: 1, declaracoes: 21, guias: 0, mensagens: 1, parcelamentos: 5, mei: 5, procuracoes: 1, processos: 0 }, guias: { ativa: false, dia: 10, enviar_email: false }, servicos: {}, documentos: agendaDocumentos(undefined) };
+const ROTINA_PADRAO: ConfigRotina = { teto_consultas: 50, ativa: false, dias: { situacao: 1, declaracoes: 21, guias: 0, mensagens: 1, parcelamentos: 5, mei: 5, procuracoes: 1, processos: 0 }, guias: { ativa: false, dia: 10, enviar_email: false }, servicos: {}, documentos: agendaDocumentos(undefined) };
 const PESO: Record<Nivel, number> = { CRITICO: 3, ATENCAO: 2, OK: 1, INFO: 0 };
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 const pior = (a: Nivel | undefined, b: Nivel): Nivel => (!a || PESO[b] > PESO[a] ? b : a);
@@ -88,7 +89,8 @@ export async function relatorioSitfis(chamar: (servico: string, endpoint: Servic
   return { ...r, mensagens: r.mensagens.length ? r.mensagens : [{ codigo: 'TEMPO', texto: 'O relatório ainda está sendo gerado pela Receita. Consulte de novo em alguns minutos (o protocolo vale até o fim do dia).' }] };
 }
 
-type TarefaLote = { empresaId: string; chave: string };
+type TarefaLote = { empresaId: string; chave: string; parametros?: Record<string, string> };
+export type PedidoLote = { empresa_ids?: string[]; chaves?: string[]; competencia?: string; teto?: number };
 type EstadoLote = { id: string; total: number; feitas: number; erros: number; iniciado: Date; fim?: Date; por?: string };
 
 @Injectable()
@@ -476,13 +478,13 @@ export class MonitoramentoService {
   }
 
   /** Última consulta de cada serviço do cliente, e o histórico de um serviço (as 30 mais recentes). */
-  async daEmpresa(alvo: Alvo, chave?: string, competencia?: string) {
+  async daEmpresa(alvo: Alvo, chave?: string) {
     const where = alvo.empresaId ? { empresa_id: alvo.empresaId } : { pessoa_fisica_id: alvo.pessoaFisicaId };
     if (chave) {
-      const h = await this.prisma.consultaFiscal.findMany({ where: { ...where, chave, ...filtroDeCompetencia(competencia) }, orderBy: { createdAt: 'desc' }, take: 30 });
+      const h = await this.prisma.consultaFiscal.findMany({ where: { ...where, chave }, orderBy: { createdAt: 'desc' }, take: 30 });
       return h.map((c) => this.publico(c as never));
     }
-    const todas = await this.prisma.consultaFiscal.findMany({ where: { ...where, ...filtroDeCompetencia(competencia) }, orderBy: { createdAt: 'desc' }, take: 500 });
+    const todas = await this.prisma.consultaFiscal.findMany({ where, orderBy: { createdAt: 'desc' }, take: 500 });
     const ultima = new Map<string, unknown>();
     for (const c of todas) if (!ultima.has(c.chave)) ultima.set(c.chave, this.publico(c as never));
     const dispensas = alvo.empresaId ? await this.prisma.obrigacaoDispensada.findMany({ where: { empresa_id: alvo.empresaId } }) : [];
@@ -498,10 +500,10 @@ export class MonitoramentoService {
    * Em produção, resultados de demonstração não contam. Quando a última tentativa de um serviço falhou depois do último resultado,
    * o grupo fica marcado (vale o resultado anterior, com aviso) e entra um alerta.
    */
-  async painel(empresaIds?: string[], competencia?: string) {
+  async painel(empresaIds?: string[]) {
     const producao = (await this.modo()) === 'PRODUCAO';
     const consultas = await this.prisma.consultaFiscal.findMany({
-      where: { empresa_id: empresaIds?.length ? { in: empresaIds } : { not: null }, ...(producao ? { simulado: false } : {}), ...filtroDeCompetencia(competencia) },
+      where: { empresa_id: empresaIds?.length ? { in: empresaIds } : { not: null }, ...(producao ? { simulado: false } : {}) },
       orderBy: { createdAt: 'desc' }, take: 30000,
       select: { empresa_id: true, chave: true, nivel: true, createdAt: true, simulado: true, resumo: true, sucesso: true },
     });
@@ -585,28 +587,81 @@ export class MonitoramentoService {
    * Atualização em lote ("Atualizar tudo", rotina): as tarefas e o andamento ficam gravados no banco. Reinício do servidor não perde
    * o lote: ao subir, os lotes sem fim continuam de onde pararam. Consulta que volta sem resultado conta como erro do lote.
    */
-  iniciarLote(empresaIds: string[], chaves: string[] | undefined, usuario: Usuario, origem: 'LOTE' | 'ROTINA' = 'LOTE') {
-    const ids = [...new Set(empresaIds ?? [])];
-    if (!ids.length) throw new BadRequestException('Escolha pelo menos uma empresa.');
-    const id = `lote-${Date.now().toString(36)}`;
-    const estado: EstadoLote = { id, total: 0, feitas: 0, erros: 0, iniciado: new Date(), por: usuario?.email };
-    this.lotes.set(id, estado);
-    void (async () => {
-      const empresas = await this.prisma.empresa.findMany({ where: { id: { in: ids } }, select: { id: true, regime_atual: true, cnpj_cpf: true, uf: true } });
-      const dispensas = await this.prisma.obrigacaoDispensada.findMany({ where: { empresa_id: { in: ids } } });
-      const tarefas: TarefaLote[] = [];
-      for (const e of empresas) {
-        const pf = so(e.cnpj_cpf).length === 11;
-        const indicados = servicosParaEmpresa(e.regime_atual, pf, e.uf).filter((s) => !s.acao && (chaves?.length ? chaves.includes(s.chave) : s.rotina));
-        for (const s of indicados) {
-          if (s.obrigacao && dispensas.some((d) => d.empresa_id === e.id && d.obrigacao === s.obrigacao)) continue;
-          tarefas.push({ empresaId: e.id, chave: s.chave });
+  async prepararLote(pedido: PedidoLote, usuario: Usuario, executar = false, origem: 'LOTE' | 'ROTINA' = 'LOTE') {
+    if (usuario?.role !== 'admin') throw new ForbiddenException('Somente administradores executam lotes.');
+    if (!Array.isArray(pedido.empresa_ids) || !Array.isArray(pedido.chaves) ||
+      [...pedido.empresa_ids, ...pedido.chaves].some((v) => typeof v !== 'string' || !v.trim())) {
+      throw new BadRequestException('Informe os clientes e os serviços do lote.');
+    }
+    const ids = [...new Set(pedido.empresa_ids)];
+    const chaves = [...new Set(pedido.chaves)];
+    if (!ids.length || ids.length > 100 || !chaves.length || chaves.length > 20) {
+      throw new BadRequestException('Selecione até 100 clientes e de 1 a 20 serviços.');
+    }
+    const modo = await this.modo();
+    if (modo === 'DESLIGADO') throw new BadRequestException('Monitoramento desligado.');
+    const competencia = pedido.competencia;
+    if (competencia && !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) throw new BadRequestException('Competência inválida.');
+    const precos = (await new CustosService(this.prisma).geral(undefined, usuario)).oficiais;
+    const [empresas, dispensas, emFila] = await Promise.all([
+      this.prisma.empresa.findMany({ where: { id: { in: ids }, arquivado_em: null }, select: { id: true, regime_atual: true, cnpj_cpf: true, uf: true } }),
+      this.prisma.obrigacaoDispensada.findMany({ where: { empresa_id: { in: ids } } }),
+      this.prisma.loteMonitoramento.findMany({ where: { fim: null, iniciado: { gte: new Date(Date.now() - 3 * 86_400_000) } }, select: { tarefas: true } }),
+    ]);
+    const ocupadas = new Set(emFila.flatMap((l) => (Array.isArray(l.tarefas) ? l.tarefas as TarefaLote[] : [])
+      .map((t) => `${t.empresaId}:${t.chave}`)));
+    const porFornecedor: Record<string, { minimo: number; maximo: number }> = {};
+    const tarefas: TarefaLote[] = [];
+    const excluidas: Record<string, number> = {};
+    const excluir = (motivo: string) => { excluidas[motivo] = (excluidas[motivo] ?? 0) + 1; };
+    let chamadasMin = 0, chamadasMax = 0;
+    for (const e of empresas) {
+      const permitidos = servicosParaEmpresa(e.regime_atual, so(e.cnpj_cpf).length === 11, e.uf);
+      for (const chave of chaves) {
+        const s = permitidos.find((item) => item.chave === chave && item.rotina && !item.acao);
+        if (!s || !e.cnpj_cpf || dispensas.some((d) => d.empresa_id === e.id && d.obrigacao === s.obrigacao)) {
+          excluir('Dispensado ou serviço incompatível com o cadastro'); continue;
         }
+        if (ocupadas.has(`${e.id}:${chave}`)) { excluir('Consulta já em fila'); continue; }
+        const parametros = completarParametros(s, Object.fromEntries(s.parametros
+          .filter((p) => competencia && ['periodo', 'ano'].includes(p.tipo))
+          .map((p) => [p.nome, p.tipo === 'ano' ? competencia!.slice(0, 4) : competencia!.replace('-', '')])));
+        const anterior = await this.prisma.consultaFiscal.findFirst({
+          where: { empresa_id: e.id, chave, simulado: modo !== 'PRODUCAO' && s.fonte !== 'INFOSIMPLES', parametros: { equals: parametros },
+            createdAt: { gte: new Date(Date.now() - 24 * 3600_000) } }, orderBy: { createdAt: 'desc' }, select: { sucesso: true },
+        });
+        if (anterior) { excluir(anterior.sucesso ? 'Resultado disponível nas últimas 24 horas' : 'Tentativa recente com falha; revise o acesso antes de repetir'); continue; }
+        tarefas.push({ empresaId: e.id, chave, parametros });
+        const infos = s.fonte === 'INFOSIMPLES';
+        const sitfis = s.sistema === 'SITFIS' && modo === 'PRODUCAO';
+        const fornecedor = infos ? 'Infosimples' : 'Serpro';
+        const linha = porFornecedor[fornecedor] ??= { minimo: 0, maximo: 0 };
+        const unitario = !infos && modo !== 'PRODUCAO' ? 0 : precos[infos ? 'INFOSIMPLES_MONITORAMENTO' : `INTEGRA_${s.endpoint.toUpperCase()}`] ?? 0;
+        linha.minimo += unitario + (sitfis ? precos.INTEGRA_APOIAR ?? 0 : 0);
+        linha.maximo += sitfis ? 8 * unitario + 4 * (precos.INTEGRA_APOIAR ?? 0) : unitario + (infos ? 0.06 : 0);
+        chamadasMin += sitfis ? 2 : 1;
+        chamadasMax += sitfis ? 12 : 1;
       }
-      estado.total = tarefas.length;
-      await this.gravarLote(estado, { origem, tarefas });
-      await this.processarLote(estado, tarefas, 0, usuario, origem);
-    })().catch((e) => this.log.error(`Lote ${id} parou: ${(e as Error).message}`));
+    }
+    if (empresas.length < ids.length) excluidas['Cliente indisponível'] = (ids.length - empresas.length) * chaves.length;
+    const maximo = Math.ceil(Object.values(porFornecedor).reduce((n, l) => n + l.maximo, 0) * 100) / 100;
+    const minimo = Math.round(Object.values(porFornecedor).reduce((n, l) => n + l.minimo, 0) * 100) / 100;
+    const clientes = new Set(tarefas.map((t) => t.empresaId)).size;
+    const previa = { clientes, tarefas: tarefas.length, chamadasMin, chamadasMax, minimo, maximo, porFornecedor, excluidas };
+    if (!executar) return previa;
+    if (!tarefas.length || typeof pedido.teto !== 'number' || !Number.isFinite(pedido.teto) || pedido.teto < maximo || maximo > 100 || tarefas.length > 200) {
+      throw new BadRequestException('Revise a estimativa. O lote deve caber no teto aprovado, com limite de R$ 100 e 200 tarefas por execução.');
+    }
+    const estado: EstadoLote = { id: `lote-${randomUUID()}`, total: tarefas.length, feitas: 0, erros: 0, iniciado: new Date(), por: usuario?.email };
+    const gravado = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(816352)`;
+      if (await tx.loteMonitoramento.count({ where: { fim: null, iniciado: { gte: new Date(Date.now() - 3 * 86_400_000) } } })) throw new BadRequestException('Já existe um lote em execução. Atualize a prévia após a conclusão.');
+      return tx.loteMonitoramento.create({ data: {
+        id: estado.id, origem, por: estado.por, tarefas, total: estado.total, feitas: 0, erros: 0, iniciado: estado.iniciado,
+      } });
+    });
+    this.lotes.set(gravado.id, estado);
+    void this.processarLote(estado, tarefas, 0, usuario, origem).catch((e) => this.log.error(`Lote ${estado.id}: ${e.message}`));
     return estado;
   }
 
@@ -617,7 +672,7 @@ export class MonitoramentoService {
       for (let i = desde; i < tarefas.length; i++) {
         const t = tarefas[i];
         try {
-          const r = (await this.consultar({ empresaId: t.empresaId }, t.chave, {}, usuario, origem)) as unknown as { sucesso?: boolean };
+          const r = (await this.consultar({ empresaId: t.empresaId }, t.chave, t.parametros ?? {}, usuario, origem)) as unknown as { sucesso?: boolean };
           if (r && r.sucesso === false) estado.erros += 1;
         } catch (e) { estado.erros += 1; this.log.warn(`Lote ${estado.id}: ${t.chave} de ${t.empresaId}: ${(e as Error).message}`); }
         estado.feitas = i + 1;
@@ -701,7 +756,9 @@ export class MonitoramentoService {
       const d = documentos.certidoes[t].dias_antes;
       if (!Number.isInteger(d) || d < 0 || d > 60) throw new BadRequestException('A antecedência das certidões vai de 0 a 60 dias.');
     }
-    const nova: ConfigRotina = { ativa: c.ativa ?? atual.ativa, dias, guias: { ativa: !!guias.ativa, dia: Number(guias.dia), enviar_email: !!guias.enviar_email }, servicos, documentos };
+    const teto = c.teto_consultas ?? atual.teto_consultas ?? 50;
+    if (typeof teto !== 'number' || !Number.isFinite(teto) || teto < 0 || teto > 100) throw new BadRequestException('O teto das consultas agendadas vai de R$ 0 a R$ 100.');
+    const nova: ConfigRotina = { teto_consultas: teto, ativa: c.ativa ?? atual.ativa, dias, guias: { ativa: !!guias.ativa, dia: Number(guias.dia), enviar_email: !!guias.enviar_email }, servicos, documentos };
     await this.prisma.parametroSistema.upsert({ where: { chave: CHAVE_ROTINA }, update: { valor: JSON.stringify(nova) }, create: { chave: CHAVE_ROTINA, valor: JSON.stringify(nova), descricao: 'Rotina automática do monitoramento fiscal' } });
     return nova;
   }
@@ -724,7 +781,13 @@ export class MonitoramentoService {
     const grupos = [...new Set(chaves.map((k) => SERVICO_POR_CHAVE.get(k)?.grupo).filter(Boolean))];
     const empresas = await this.empresasDoBpo();
     let lote = null;
-    if (chaves.length && empresas.length) lote = this.iniciarLote(empresas, chaves, { email: 'rotina' }, 'ROTINA');
+    if (chaves.length && empresas.length) {
+      const usuario = { email: 'rotina', role: 'admin' };
+      const teto = cfg.teto_consultas ?? 50;
+      try {
+        lote = await this.prepararLote({ empresa_ids: empresas, chaves, teto }, usuario, true, 'ROTINA');
+      } catch (e) { this.log.warn(`Rotina sem lote: ${(e as Error).message}`); }
+    }
     let guias = null;
     if (cfg.guias.ativa && cfg.guias.dia === dia && empresas.length) guias = await this.enviarGuias(empresas, cfg.guias.enviar_email);
     return { rodou: true, grupos, lote, guias };

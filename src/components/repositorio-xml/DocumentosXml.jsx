@@ -51,7 +51,7 @@ const noImportador = (d) => d.conteudo === "COMPLETO" && importavelNoImportador(
  *    carta de correção, manifestação etc.), de qualquer tipo, separados dos documentos.
  * `linkImportacao` é o caminho da Importação XML da empresa (que fica no diagnóstico, dentro do grupo); `null` esconde o link.
  */
-export default function DocumentosXml({ empresaId, empresa, linkImportacao = "../importacao-xml", modo = "completos", grupo }) {
+export default function DocumentosXml({ empresaId, empresa, linkImportacao = "../importacao-xml", modo = "completos", grupo, datas, seletorCompetencia }) {
   const { user } = useAuth();
   const admin = user?.role === "admin";
   const soResumos = modo === "resumos";
@@ -59,7 +59,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   const qc = useQueryClient();
   const seletor = useRef(null);
 
-  const [filtros, setFiltros] = useState({ tipo: "", modelo: "", origem: "", de: "", ate: "", pendentes: false, papel_cte: "" });
+  const [filtros, setFiltros] = useState({ tipo: "", modelo: "", origem: "", de: "", ate: "", ...datas, pendentes: false, papel_cte: "" });
   const [incluirNaoTomados, setIncluirNaoTomados] = useState(false);
   const docEmpresa = String(empresa?.cnpj_cpf || "").replace(/\D/g, "");
   const [busca, setBusca] = useState("");
@@ -266,9 +266,10 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
             <select className={campo} value={filtros.origem} onChange={(e) => mudarFiltro("origem", e.target.value)}>
               <option value="">Todas</option>{Object.entries(ORIGENS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select></label>
+          {seletorCompetencia}
           <label className="space-y-1"><span className="block text-xs text-muted-foreground">Emissão de</span><input type="date" className={campo} value={filtros.de} onChange={(e) => mudarFiltro("de", e.target.value)} /></label>
           <label className="space-y-1"><span className="block text-xs text-muted-foreground">até</span><input type="date" className={campo} value={filtros.ate} onChange={(e) => mudarFiltro("ate", e.target.value)} /></label>
-          <label className="space-y-1 flex-1 min-w-[180px]"><span className="block text-xs text-muted-foreground">Buscar (chave, número, emitente)</span><input type="search" className={`${campo} w-full`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
+          <label className="space-y-1 w-52 max-w-full"><span className="block text-xs text-muted-foreground">Buscar (chave, número, emitente)</span><input type="search" className={`${campo} w-full`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
           {!soResumos && <label className="flex items-center gap-2 pb-1.5"><input type="checkbox" checked={filtros.pendentes} onChange={(e) => mudarFiltro("pendentes", e.target.checked)} /> <span>Só os que faltam enviar ao importador</span></label>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
