@@ -59,7 +59,9 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   const qc = useQueryClient();
   const seletor = useRef(null);
 
-  const [filtros, setFiltros] = useState({ tipo: "", modelo: "", origem: "", de: "", ate: "", pendentes: false });
+  const [filtros, setFiltros] = useState({ tipo: "", modelo: "", origem: "", de: "", ate: "", pendentes: false, papel_cte: "" });
+  const [incluirNaoTomados, setIncluirNaoTomados] = useState(false);
+  const docEmpresa = String(empresa?.cnpj_cpf || "").replace(/\D/g, "");
   const [busca, setBusca] = useState("");
   const [q, setQ] = useState("");
   const [pagina, setPagina] = useState(0);
@@ -80,6 +82,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   const parametros = {
     ...filtros,
     modelo: filtros.modelo || undefined,
+    papel_cte: grupo === "CTE" && filtros.papel_cte ? filtros.papel_cte : undefined,
     grupo: soResumos ? "RESUMOS_EVENTOS" : grupo || undefined,
     conteudo: soResumos ? undefined : "COMPLETO",
     pendentes: filtros.pendentes ? "true" : undefined,
@@ -145,7 +148,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   };
 
   const importar = useMutation({
-    mutationFn: (ids) => api.post(`${base(empresaId)}/documentos/enviar-importacao`, { ids }),
+    mutationFn: (ids) => api.post(`${base(empresaId)}/documentos/enviar-importacao`, { ids, incluir_nao_tomados: incluirNaoTomados }),
     onSuccess: (r) => { toast({ title: "Enviado ao importador", description: `${plural(r.arquivos, "arquivo", "arquivos")} no lote.` }); setSelecionados(new Set()); atualizar(); },
     onError: (e) => toast({ title: "Não foi possível enviar ao importador", description: e.message, variant: "destructive" }),
   });
@@ -155,13 +158,14 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
     onError: (e) => toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }),
   });
 
+  const naoTomados = resumo?.cte_nao_tomados ?? 0;
   const enviarAoImportador = async () => {
     const ids = [...selecionados];
     const pendentes = resumo?.nao_enviados_ao_importador ?? 0;
     if (!ids.length && !pendentes) { toast({ title: "Nada pendente", description: "Todos os XML completos já foram enviados ao importador." }); return; }
     const ok = await confirmar({
       titulo: "Enviar ao importador?",
-      descricao: ids.length ? `Enviar ${plural(ids.length, "documento selecionado", "documentos selecionados")} (só XML completo).` : `Enviar ${plural(pendentes, "XML completo pendente", "XML completos pendentes")}.`,
+      descricao: `${ids.length ? `Enviar ${plural(ids.length, "documento selecionado", "documentos selecionados")} (só XML completo).` : `Enviar ${plural(pendentes, "XML completo pendente", "XML completos pendentes")}.`}${naoTomados && !incluirNaoTomados ? ` Os CT-e em que o cliente não é o tomador (${naoTomados}) ficam de fora.` : ""}`,
       rotulo: "Enviar", perigoso: false,
     });
     if (ok) importar.mutate(ids.length ? ids : undefined);
@@ -239,6 +243,12 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
         <div className="flex flex-wrap items-end gap-2 text-sm">
           {grupo ? (
             <>
+              {grupo === "CTE" && (
+                <label className="space-y-1"><span className="block text-xs text-muted-foreground">Tomador do serviço</span>
+                  <select className={campo} value={filtros.papel_cte} onChange={(e) => mudarFiltro("papel_cte", e.target.value)} aria-label="Tomador do serviço">
+                    <option value="">Todos os CT-e</option><option value="TOMADOR">Tomados pelo cliente</option><option value="OUTRO">O cliente não é o tomador</option>
+                  </select></label>
+              )}
               {grupo === "NFE" && (
                 <label className="space-y-1"><span className="block text-xs text-muted-foreground">Modelo</span>
                   <select className={campo} value={filtros.modelo} onChange={(e) => mudarFiltro("modelo", e.target.value)}>
@@ -267,6 +277,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
               <button type="button" onClick={enviarAoImportador} disabled={importar.isPending} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
                 {importar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {selecionados.size ? `Enviar ${selecionados.size} ao importador` : "Enviar pendentes ao importador"}
               </button>
+              {naoTomados > 0 && <label className="flex items-center gap-1.5 text-xs" title="Por padrão, só vão ao importador os CT-e em que o cliente é o tomador (contrata e paga o frete)."><input type="checkbox" checked={incluirNaoTomados} onChange={(e) => setIncluirNaoTomados(e.target.checked)} />Incluir CT-e em que o cliente não é o tomador ({naoTomados})</label>}
               {linkImportacao && <Link to={linkImportacao} className="text-sm text-primary hover:underline">Abrir Importação XML</Link>}
             </>
           )}
@@ -304,6 +315,11 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
             { chave: "data_emissao", rotulo: "Emissão", tipo: "data", render: (d) => fmtData(d.data_emissao) },
             { chave: "emitente_nome", rotulo: "Emitente", valor: (d) => d.emitente_nome || "" },
             { chave: "emitente_doc", rotulo: "CNPJ/CPF do emitente", valor: (d) => (d.emitente_doc ? fmtDoc(d.emitente_doc) : ""), render: (d) => <span className="tabular-nums">{d.emitente_doc ? fmtDoc(d.emitente_doc) : ""}</span> },
+            ...(grupo === "CTE" ? [{
+              chave: "tomador_doc", rotulo: "Tomador",
+              valor: (d) => (!d.tomador_doc ? "" : d.tomador_doc === docEmpresa ? "Cliente" : fmtDoc(d.tomador_doc)),
+              render: (d) => (!d.tomador_doc ? <span className="text-muted-foreground">—</span> : d.tomador_doc === docEmpresa ? <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Cliente</span> : <span className="tabular-nums">{fmtDoc(d.tomador_doc)}</span>),
+            }] : []),
             { chave: "valor_total", rotulo: "Valor", alinhar: "direita", valor: (d) => (d.valor_total == null || d.valor_total === "" ? null : Number(d.valor_total)), render: (d) => fmtMoeda(d.valor_total) },
             { chave: "situacao", rotulo: "Situação", valor: (d) => (d.situacao ? d.situacao.charAt(0) + d.situacao.slice(1).toLowerCase() : ""), render: (d) => d.situacao && <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${SITUACAO[d.situacao] || "bg-muted"}`}>{d.situacao.charAt(0) + d.situacao.slice(1).toLowerCase()}</span> },
             { chave: "origem", rotulo: "Origem", valor: (d) => ORIGENS[d.origem] || d.origem || "" },

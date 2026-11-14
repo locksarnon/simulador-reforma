@@ -153,7 +153,8 @@ export class RelatoriosXmlService {
   /** Documentos do período por tipo e situação, com a lista de cada um. Os eventos não entram: o cancelamento já vale na situação do documento. */
   async geral(empresaId: string, f: FiltrosRelatorio): Promise<RelatorioGeral> {
     await this.garantirEmpresa(empresaId);
-    const where = construirWhere(empresaId, { ...f, tipo: undefined, conteudo: f.incluirResumos ? undefined : 'COMPLETO', pendentes: false });
+    const doc = (await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { cnpj_cpf: true } }))?.cnpj_cpf ?? '';
+    const where = construirWhere(empresaId, { ...f, tipo: undefined, conteudo: f.incluirResumos ? undefined : 'COMPLETO', pendentes: false, documento_empresa: doc });
     where.tipo = f.tipo && TIPOS_DE_DOCUMENTO.includes(f.tipo) ? f.tipo : { in: TIPOS_DE_DOCUMENTO };
 
     const [grupos, docs] = await Promise.all([
@@ -207,7 +208,7 @@ export class RelatoriosXmlService {
     await this.garantirEmpresa(empresaId);
     const modo: Modo = MODOS.includes(f.agrupar as Modo) ? (f.agrupar as Modo) : 'itens';
     const where = construirWhere(empresaId, {
-      ...f, tipo: 'NFE', grupo: undefined, conteudo: 'COMPLETO', pendentes: false,
+      ...f, tipo: 'NFE', grupo: undefined, papel_cte: undefined, conteudo: 'COMPLETO', pendentes: false,
       situacao: f.situacao === 'TODAS' ? undefined : f.situacao || 'AUTORIZADA',
     });
     if (!f.modelo) where.modelo = { in: ['55', '65'] };

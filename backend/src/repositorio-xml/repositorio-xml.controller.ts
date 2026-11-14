@@ -32,7 +32,7 @@ export const nomeDeDownload = (nome: string): string => nome.replace(/[^A-Za-z0-
 function filtros(q: Record<string, string | undefined>): FiltrosDocumentos {
   return {
     tipo: q.tipo || undefined, origem: q.origem || undefined, conteudo: q.conteudo || undefined, situacao: q.situacao || undefined,
-    grupo: q.grupo || undefined, modelo: q.modelo || undefined, de: q.de || undefined, ate: q.ate || undefined, q: q.q || undefined, pendentes: q.pendentes === 'true' || q.pendentes === '1',
+    grupo: q.grupo || undefined, modelo: q.modelo || undefined, papel_cte: q.papel_cte || undefined, de: q.de || undefined, ate: q.ate || undefined, q: q.q || undefined, pendentes: q.pendentes === 'true' || q.pendentes === '1',
     limit: q.limit ? Number(q.limit) : undefined, offset: q.offset ? Number(q.offset) : undefined,
   };
 }
@@ -100,8 +100,8 @@ export class RepositorioXmlController {
   }
 
   @Post('documentos/enviar-importacao')
-  enviarParaImportacao(@Param('empresaId') empresaId: string, @Body() body: { ids?: string[] }) {
-    return this.service.enviarParaImportacao(empresaId, Array.isArray(body?.ids) ? body.ids.map(String) : undefined);
+  enviarParaImportacao(@Param('empresaId') empresaId: string, @Body() body: { ids?: string[]; incluir_nao_tomados?: boolean }) {
+    return this.service.enviarParaImportacao(empresaId, Array.isArray(body?.ids) ? body.ids.map(String) : undefined, body?.incluir_nao_tomados === true);
   }
 
   @Post('documentos/excluir')

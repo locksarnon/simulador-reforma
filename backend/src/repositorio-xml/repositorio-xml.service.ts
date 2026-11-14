@@ -20,6 +20,10 @@ export type FiltrosDocumentos = {
   grupo?: string;
   /** Modelo do documento (55, 65, 57, 58...): na aba NF-e | NFC-e separa uma da outra. */
   modelo?: string;
+  /** CT-e: TOMADOR = o cliente é o tomador do serviço; OUTRO = o cliente aparece no CT-e em outro papel (remetente, destinatário...). */
+  papel_cte?: string;
+  /** CNPJ/CPF do cliente (preenchido pelo serviço; o filtro do tomador compara com ele). */
+  documento_empresa?: string;
   limit?: number; offset?: number;
 };
 
@@ -60,6 +64,17 @@ export const GRUPOS_DE_DOCUMENTOS: Record<string, Prisma.DocumentoXmlWhereInput>
   RESUMOS_EVENTOS: RESUMOS_E_EVENTOS,
 };
 
+/**
+ * CT-e tomados pelo cliente (ele contrata e paga o frete): o tomador é o próprio CNPJ/CPF. CT-e sem o tomador lido ainda (null ou "")
+ * contam como tomados, para nada sumir antes de o índice ser preenchido.
+ */
+export function cteTomado(documento: string): Prisma.DocumentoXmlWhereInput {
+  return { OR: [{ tomador_doc: documento }, { tomador_doc: null }, { tomador_doc: '' }] };
+}
+export function cteNaoTomado(documento: string): Prisma.DocumentoXmlWhereInput {
+  return { tipo: 'CTE', tomador_doc: { notIn: [documento, ''] }, NOT: { tomador_doc: null } };
+}
+
 /** Filtros da lista, do ZIP e dos relatórios do repositório (todos pedem os documentos de uma empresa). */
 export function construirWhere(empresaId: string, f: FiltrosDocumentos): Prisma.DocumentoXmlWhereInput {
   const w: Prisma.DocumentoXmlWhereInput = { empresa_id: empresaId };
@@ -70,6 +85,13 @@ export function construirWhere(empresaId: string, f: FiltrosDocumentos): Prisma.
   if (f.situacao) w.situacao = f.situacao;
   const e: Prisma.DocumentoXmlWhereInput[] = [];
   if (f.pendentes) { w.lote_importacao_id = null; w.conteudo = 'COMPLETO'; e.push(IMPORTAVEL); }
+  if (f.papel_cte) {
+    const doc = (f.documento_empresa ?? '').replace(/\D/g, '');
+    if (!doc) throw new BadRequestException('O cliente não tem CNPJ/CPF no cadastro para comparar com o tomador do CT-e.');
+    if (f.papel_cte === 'TOMADOR') e.push({ tipo: 'CTE' }, cteTomado(doc));
+    else if (f.papel_cte === 'OUTRO') e.push(cteNaoTomado(doc));
+    else throw new BadRequestException('Papel do cliente no CT-e desconhecido.');
+  }
   if (f.grupo) {
     const grupo = GRUPOS_DE_DOCUMENTOS[f.grupo];
     if (!grupo) throw new BadRequestException('Grupo de documentos desconhecido.');
@@ -249,6 +271,7 @@ export class RepositorioXmlService {
     const dados = {
       modelo: ind.modelo, numero: ind.numero, serie: ind.serie, data_emissao: ind.dataEmissao,
       emitente_doc: ind.emitenteDoc, emitente_nome: ind.emitenteNome, destinatario_doc: ind.destinatarioDoc, valor_total: ind.valorTotal,
+      ...(ind.tipo === 'CTE' ? { tomador_doc: ind.tomadorDoc ?? '' } : {}),
       conteudo: ind.conteudo, situacao: ind.situacao, origem: ctx.origem, nsu: ctx.nsu ?? null, autorizada_em: ind.autorizadaEm,
       storage_key: storageKey, sha256: hash, tamanho_bytes: buffer.length,
       nome_original: ctx.nomeOriginal ?? null, enviado_por: ctx.usuario ?? null, recebido_em: recebidoEm,
@@ -305,8 +328,8 @@ export class RepositorioXmlService {
   }
 
   async listar(empresaId: string, f: FiltrosDocumentos) {
-    await this.empresa(empresaId);
-    const where = this.where(empresaId, f);
+    const empresa = await this.empresa(empresaId);
+    const where = this.where(empresaId, { ...f, documento_empresa: String(empresa.cnpj_cpf ?? '') });
     const take = Math.min(Math.max(Number(f.limit) || 50, 1), MAX_POR_PAGINA);
     const skip = Math.max(Number(f.offset) || 0, 0);
     const [total, itens] = await Promise.all([
@@ -315,7 +338,7 @@ export class RepositorioXmlService {
         where, take, skip, orderBy: [{ data_emissao: 'desc' }, { createdAt: 'desc' }],
         select: {
           id: true, tipo: true, chave: true, evento_tipo: true, sequencia: true, modelo: true, numero: true, serie: true, data_emissao: true,
-          emitente_doc: true, emitente_nome: true, destinatario_doc: true, valor_total: true, conteudo: true, situacao: true, origem: true,
+          emitente_doc: true, emitente_nome: true, destinatario_doc: true, tomador_doc: true, valor_total: true, conteudo: true, situacao: true, origem: true,
           tamanho_bytes: true, nome_original: true, enviado_por: true, lote_importacao_id: true, importado_em: true, recebido_em: true,
           ciencia_status: true, ciencia_em: true,
         },
@@ -325,7 +348,8 @@ export class RepositorioXmlService {
   }
 
   async resumo(empresaId: string) {
-    await this.empresa(empresaId);
+    const empresa = await this.empresa(empresaId);
+    const doc = String(empresa.cnpj_cpf ?? '').replace(/\D/g, '');
     const base = { empresa_id: empresaId };
     const [total, porOrigem, porTipo, resumos, resumosEEventos, naoImportados, ultimo] = await Promise.all([
       this.prisma.documentoXml.count({ where: base }),
@@ -333,7 +357,7 @@ export class RepositorioXmlService {
       this.prisma.documentoXml.groupBy({ by: ['tipo'], where: base, _count: { _all: true } }),
       this.prisma.documentoXml.count({ where: { ...base, conteudo: 'RESUMO' } }),
       this.prisma.documentoXml.count({ where: { ...base, AND: [RESUMOS_E_EVENTOS] } }),
-      this.prisma.documentoXml.count({ where: { ...base, conteudo: 'COMPLETO', lote_importacao_id: null, AND: [IMPORTAVEL] } }),
+      this.prisma.documentoXml.count({ where: { ...base, conteudo: 'COMPLETO', lote_importacao_id: null, AND: [IMPORTAVEL, ...(doc ? [{ NOT: cteNaoTomado(doc) }] : [])] } }),
       this.prisma.documentoXml.findFirst({ where: base, orderBy: { recebido_em: 'desc' }, select: { recebido_em: true } }),
     ]);
     const conta = <K extends string>(linhas: ({ _count: { _all: number } } & Record<K, string>)[], k: K) => Object.fromEntries(linhas.map((l) => [l[k], l._count._all]));
@@ -344,6 +368,7 @@ export class RepositorioXmlService {
       so_resumo: resumos,
       resumos_e_eventos: resumosEEventos,
       nao_enviados_ao_importador: naoImportados,
+      cte_nao_tomados: doc ? await this.prisma.documentoXml.count({ where: { ...base, ...cteNaoTomado(doc) } }) : 0,
       ultimo_recebimento: ultimo?.recebido_em ?? null,
     };
   }
@@ -384,9 +409,9 @@ export class RepositorioXmlService {
    * PDF/<tipo>/<ano>-<mês>/ (a mesma organização do XML); o que não pôde ser desenhado vai listado em PDF/LEIAME-falhas.txt.
    */
   async baixarZip(empresaId: string, f: FiltrosDocumentos, opcoes: { incluirPdf?: boolean } = {}) {
-    await this.empresa(empresaId);
+    const empresa = await this.empresa(empresaId);
     const docs = await this.prisma.documentoXml.findMany({
-      where: { ...this.where(empresaId, f), storage_key: { not: null } },
+      where: { ...this.where(empresaId, { ...f, documento_empresa: String(empresa.cnpj_cpf ?? '') }), storage_key: { not: null } },
       orderBy: [{ data_emissao: 'asc' }],
       take: MAX_ZIP_DOWNLOAD + 1,
       select: { storage_key: true, tipo: true, chave: true, modelo: true, conteudo: true, situacao: true },
@@ -425,19 +450,29 @@ export class RepositorioXmlService {
 
   // ── Importação ──────────────────────────────────────────────────────
 
-  /** Entrega os XML completos ao importador de XML (que gera as operações). Sem ids, entrega todos os que ainda não foram enviados. */
-  async enviarParaImportacao(empresaId: string, ids?: string[]) {
+  /**
+   * Entrega os XML completos ao importador de XML (que gera as operações). Sem ids, entrega todos os que ainda não foram enviados.
+   * CT-e em que o cliente não é o tomador (não contratou nem pagou o frete) ficam de fora, com os eventos deles, salvo
+   * `incluirNaoTomados`.
+   */
+  async enviarParaImportacao(empresaId: string, ids?: string[], incluirNaoTomados = false) {
     const empresa = await this.empresa(empresaId);
+    const docEmpresa = String(empresa.cnpj_cpf ?? '').replace(/\D/g, '');
     const grupo = empresa.grupo ? await this.prisma.grupo.findFirst({ where: { numero: empresa.grupo } }) : null;
     if (!grupo) throw new BadRequestException('A empresa não está ligada a um grupo; não é possível importar.');
     const where: Prisma.DocumentoXmlWhereInput = {
       empresa_id: empresaId, conteudo: 'COMPLETO', storage_key: { not: null }, AND: [IMPORTAVEL],
       ...(ids?.length ? { id: { in: ids } } : { lote_importacao_id: null }),
     };
+    if (!incluirNaoTomados && docEmpresa) {
+      // Os CT-e não tomados e os eventos deles (mesma chave).
+      const fora = await this.prisma.documentoXml.findMany({ where: { empresa_id: empresaId, ...cteNaoTomado(docEmpresa) }, select: { chave: true } });
+      if (fora.length) (where.AND as Prisma.DocumentoXmlWhereInput[]).push({ NOT: { chave: { in: fora.map((f) => f.chave) }, tipo: { in: ['CTE', 'EVENTO'] } } });
+    }
     const docs = await this.prisma.documentoXml.findMany({ where, orderBy: [{ data_emissao: 'asc' }, { createdAt: 'asc' }], take: MAX_IMPORTACAO });
     if (!docs.length) {
       throw new BadRequestException(ids?.length
-        ? 'Nenhum dos documentos escolhidos pode ir ao importador: ele lê só o XML completo de NF-e, NFC-e e CT-e (com os eventos). NFS-e e MDF-e ainda não são lidos por ele.'
+        ? 'Nenhum dos documentos escolhidos pode ir ao importador: ele lê só o XML completo de NF-e, NFC-e e CT-e (com os eventos), e só os CT-e em que o cliente é o tomador, salvo se marcar para incluir os demais. NFS-e e MDF-e ainda não são lidos por ele.'
         : 'Não há XML completo pendente de importação.');
     }
 
@@ -451,6 +486,31 @@ export class RepositorioXmlService {
     const resp = await this.importacao.receberLote({ grupo_id: grupo.id, idempotency_key: `repositorio:${empresaId}:${assinatura}`, arquivos });
     await this.prisma.documentoXml.updateMany({ where: { id: { in: docs.map((d) => d.id) } }, data: { lote_importacao_id: resp.lote_id, importado_em: new Date() } });
     return { lote_id: resp.lote_id, status: resp.status, arquivos: docs.length, grupo_id: grupo.id };
+  }
+
+  /**
+   * CT-e guardados antes de o tomador ser lido: ao subir o servidor, relê o XML de cada um (em lotes) e grava o tomador.
+   * "" = o XML não indica o tomador (não é relido de novo).
+   */
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV === 'test') return;
+    setTimeout(() => void this.preencherTomadores().catch((e) => this.logger.warn(`Tomador dos CT-e: ${(e as Error).message}`)), 45_000);
+  }
+
+  async preencherTomadores() {
+    let feitos = 0;
+    for (;;) {
+      const lote = await this.prisma.documentoXml.findMany({ where: { tipo: 'CTE', conteudo: 'COMPLETO', tomador_doc: null, storage_key: { not: null } }, select: { id: true, storage_key: true }, take: 200 });
+      if (!lote.length) break;
+      await emLotes(lote, PARALELISMO, async (d) => {
+        let tomador = '';
+        try { tomador = indexarXml((await this.storage.getObjectBuffer(d.storage_key!)).toString('utf8').replace(/^﻿/, ''))?.tomadorDoc ?? ''; } catch { tomador = ''; }
+        await this.prisma.documentoXml.update({ where: { id: d.id }, data: { tomador_doc: tomador } });
+      });
+      feitos += lote.length;
+    }
+    if (feitos) this.logger.log(`Tomador lido em ${feitos} CT-e do repositório.`);
+    return feitos;
   }
 
   // ── Exclusão ────────────────────────────────────────────────────────

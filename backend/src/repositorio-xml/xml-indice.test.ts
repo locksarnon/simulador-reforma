@@ -104,6 +104,22 @@ describe('indexarXml', () => {
     expect(i.situacao).toBe('AUTORIZADA');
   });
 
+  it('CT-e: o tomador vem da parte que o toma3 indica, do toma4 ("outros") ou do grupo toma do CT-e OS', () => {
+    const cte = (tomador: string, partes = '') => indexarXml(`<cteProc xmlns="http://www.portalfiscal.inf.br/cte" versao="4.00"><CTe><infCte Id="CTe${CH_CTE}" versao="4.00">
+      <ide><mod>57</mod><serie>1</serie><nCT>456</nCT><dhEmi>2026-11-03T08:00:00-03:00</dhEmi>${tomador}</ide>
+      <emit><CNPJ>12345678000195</CNPJ></emit><rem><CNPJ>11111111000111</CNPJ></rem><exped><CNPJ>22222222000122</CNPJ></exped>
+      <receb><CPF>12345678909</CPF></receb><dest><CNPJ>33333333000133</CNPJ></dest>${partes}
+      <vPrest><vTPrest>10.00</vTPrest></vPrest></infCte></CTe></cteProc>`)!.tomadorDoc;
+    expect(cte('<toma3><toma>0</toma></toma3>')).toBe('11111111000111');
+    expect(cte('<toma3><toma>1</toma></toma3>')).toBe('22222222000122');
+    expect(cte('<toma3><toma>2</toma></toma3>')).toBe('12345678909');
+    expect(cte('<toma3><toma>3</toma></toma3>')).toBe('33333333000133');
+    expect(cte('<toma4><toma>4</toma><CNPJ>44444444000144</CNPJ><xNome>PAGADOR</xNome></toma4>')).toBe('44444444000144');
+    expect(cte('<toma03><toma>3</toma></toma03>')).toBe('33333333000133');
+    expect(cte('', '<toma><CNPJ>55555555000155</CNPJ></toma>')).toBe('55555555000155');
+    expect(cte('')).toBeNull();
+  });
+
   it('aceita chave alfanumérica (CNPJ novo) e recusa o que não é documento fiscal', () => {
     // 6 dígitos + 12 caracteres do CNPJ (com letras) + 2 dígitos verificadores + modelo, série, número, tipo, código e DV
     const alfa = '512611' + '12ABC34501DE' + '35' + '55' + '001' + '000000123' + '1' + '00000001' + '0';

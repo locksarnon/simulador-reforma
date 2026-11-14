@@ -208,13 +208,16 @@ describe('NFS-e Nacional no repositório', () => {
 
 describe('o que vai ao importador de XML', () => {
   type Linha = Record<string, unknown>;
-  // Avaliador mínimo do que o filtro usa: OR, AND, igualdade, "in" e "not".
+  // Avaliador mínimo do que o filtro usa: OR, AND, NOT, igualdade (campo ausente = null), "in", "notIn" e "not".
   const casa = (l: Linha, w: Linha): boolean => Object.entries(w).every(([k, v]) => {
     if (k === 'OR') return (v as Linha[]).some((x) => casa(l, x));
     if (k === 'AND') return (v as Linha[]).every((x) => casa(l, x));
-    if (v && typeof v === 'object' && 'in' in (v as object)) return ((v as { in: unknown[] }).in).includes(l[k]);
-    if (v && typeof v === 'object' && 'not' in (v as object)) return l[k] !== (v as { not: unknown }).not;
-    return l[k] === v;
+    if (k === 'NOT') return !casa(l, v as Linha);
+    const valor = l[k] === undefined ? null : l[k];
+    if (v && typeof v === 'object' && 'in' in (v as object)) return ((v as { in: unknown[] }).in).includes(valor);
+    if (v && typeof v === 'object' && 'notIn' in (v as object)) return valor !== null && !((v as { notIn: unknown[] }).notIn).includes(valor);
+    if (v && typeof v === 'object' && 'not' in (v as object)) return valor !== (v as { not: unknown }).not;
+    return valor === v;
   });
   const doc = (tipo: string, modelo: string | null, extra: Linha = {}): Linha => ({ tipo, modelo, conteudo: 'COMPLETO', ...extra });
 
@@ -266,6 +269,24 @@ describe('o que vai ao importador de XML', () => {
     const r = await t.service.enviarParaImportacao('E1');
     expect(r.arquivos).toBe(2);
     expect(t.importacao.receberLote).toHaveBeenCalledWith(expect.objectContaining({ arquivos: [expect.objectContaining({ nome: 'a.xml' }), expect.objectContaining({ nome: 'd.xml' })] }));
+  });
+
+  it('CT-e em que o cliente não é o tomador (e os eventos dele) não vão ao importador, salvo pedido; CT-e sem tomador lido vai', async () => {
+    const cte = (id: string, tomador: string | null, chave: string): Linha => ({ ...pendente(id, 'CTE', '57'), tomador_doc: tomador, chave });
+    const docs = [
+      cte('tomado', '12345678000195', 'K1'),
+      cte('outro', '99888777000166', 'K2'),
+      { ...pendente('evento-outro', 'EVENTO', '57'), chave: 'K2' },
+      cte('sem-leitura', null, 'K3'),
+    ];
+    const t = montarImportacao(docs);
+    expect((await t.service.resumo('E1')).cte_nao_tomados).toBe(1);
+    const r = await t.service.enviarParaImportacao('E1');
+    expect(r.arquivos).toBe(2);
+    const nomes = (t.importacao.receberLote.mock.calls[0] as unknown as [{ arquivos: { nome: string }[] }])[0].arquivos.map((a) => a.nome);
+    expect(nomes.sort()).toEqual(['sem-leitura.xml', 'tomado.xml']);
+    const todos = montarImportacao(docs);
+    expect((await todos.service.enviarParaImportacao('E1', undefined, true)).arquivos).toBe(4);
   });
 
   it('com ids de NFS-e ou MDF-e, a mensagem explica por que nada vai', async () => {

@@ -1292,6 +1292,8 @@ model DocumentoXml {
   emitente_doc       String?
   emitente_nome      String?
   destinatario_doc   String?
+  /// CT-e: CNPJ/CPF do tomador do serviço (quem contrata o frete). "" = o XML não indica.
+  tomador_doc        String?
   valor_total        Float?
   conteudo           String    @default("COMPLETO")
   situacao           String?
@@ -1316,6 +1318,7 @@ model DocumentoXml {
   @@index([empresa_id, data_emissao])
   @@index([empresa_id, origem])
   @@index([empresa_id, conteudo, ciencia_status])
+  @@index([empresa_id, tipo, tomador_doc])
 }
 
 // ── [servicos-contratados] ──

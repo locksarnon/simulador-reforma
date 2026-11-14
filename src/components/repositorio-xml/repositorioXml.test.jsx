@@ -267,6 +267,22 @@ describe("DocumentosXml", () => {
     for (const nome of ["NFC-e", "CT-e OS", "MDF-e", "NFS-e"]) expect(html).toContain(`>${nome}<`);
   });
 
+  it("aba CT-e: filtro pelo tomador do serviço, coluna Tomador com o cliente destacado e a opção de incluir os não tomados no envio", () => {
+    auth.role = "admin";
+    const cte = (id, tomador) => ({ ...doc, id, tipo: "CTE", modelo: "57", chave: `5126111234567800019557001000000456100000001${id.slice(-1)}`, tomador_doc: tomador });
+    const itens = [cte("t1", "12345678000195"), cte("t2", "99888777000166")];
+    const html = renderizar(<DocumentosXml empresaId="E1" empresa={{ id_empresa: "EMP-1", cnpj_cpf: "12.345.678/0001-95" }} grupo="CTE" />, {
+      cache: [[["repo-xml-resumo", "E1"], { ...resumo, cte_nao_tomados: 1 }], [["repo-xml-docs", "E1", { ...PARAMETROS, grupo: "CTE" }, 0, 50], { total: itens.length, itens }]],
+    });
+    expect(html).toContain('aria-label="Tomador do serviço"');
+    expect(html).toContain(">Tomados pelo cliente<");
+    expect(html).toContain(">O cliente não é o tomador<");
+    expect(html).toMatch(/>Tomador</);
+    expect(html).toContain(">Cliente<");
+    expect(html).toContain("99.888.777/0001-66");
+    expect(html).toContain("Incluir CT-e em que o cliente não é o tomador (1)");
+  });
+
   it("o ZIP tem a opção de incluir os PDF dos documentos, com o limite por ZIP no texto de ajuda", () => {
     auth.role = "admin";
     const html = renderizar(<DocumentosXml empresaId="E1" empresa={{ id_empresa: "EMP-1" }} />, {

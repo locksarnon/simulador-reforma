@@ -16,6 +16,8 @@ export type IndiceXml = {
   emitenteDoc: string | null;
   emitenteNome: string | null;
   destinatarioDoc: string | null;
+  /** CT-e: CNPJ/CPF de quem contrata e paga o frete (tomador do serviço). Nos demais, null. */
+  tomadorDoc?: string | null;
   valorTotal: number | null;
   /** RESUMO = só o resumo da Distribuição de DF-e (resNFe/resEvento), sem o XML completo. */
   conteudo: 'COMPLETO' | 'RESUMO';
@@ -151,6 +153,24 @@ function indexarEventoNfse(root: unknown): IndiceXml | null {
   };
 }
 
+/**
+ * Tomador do CT-e (MOC do CT-e 4.00): no CT-e (modelo 57), ide > toma3 > toma indica a parte (0 remetente, 1 expedidor, 2 recebedor,
+ * 3 destinatário; toma03 no leiaute 2.00) ou ide > toma4 traz o próprio tomador ("outros"); no CT-e OS (modelo 67), o grupo toma.
+ */
+function tomadorDoCte(inf: unknown): string | null {
+  const ide = getFirst(inf, 'ide');
+  const doc = (g: unknown) => vazioParaNulo(getText(g, 'CNPJ') || getText(g, 'CPF'));
+  const toma4 = getFirst(ide, 'toma4');
+  if (toma4) return doc(toma4);
+  const toma3 = getFirst(ide, 'toma3') ?? getFirst(ide, 'toma03');
+  if (toma3) {
+    const grupo = ({ '0': 'rem', '1': 'exped', '2': 'receb', '3': 'dest' } as Record<string, string>)[getText(toma3, 'toma')];
+    return grupo ? doc(getFirst(inf, grupo)) : null;
+  }
+  const tomaOs = getFirst(inf, 'toma');
+  return tomaOs ? doc(tomaOs) : null;
+}
+
 /** Lê o XML e devolve o que o repositório precisa para indexá-lo. Devolve null se não for um documento fiscal reconhecido. */
 export function indexarXml(xml: string): IndiceXml | null {
   let doc;
@@ -253,6 +273,7 @@ export function indexarXml(xml: string): IndiceXml | null {
     emitenteDoc: vazioParaNulo(getText(emit, 'CNPJ') || getText(emit, 'CPF')) ?? d.emitenteDoc,
     emitenteNome: vazioParaNulo(getText(emit, 'xNome')),
     destinatarioDoc: vazioParaNulo(getText(dest, 'CNPJ') || getText(dest, 'CPF') || getText(dest, 'idEstrangeiro')),
+    ...(familia.inf === 'infCte' ? { tomadorDoc: tomadorDoCte(inf) } : {}),
     valorTotal: numero(getTextDeep(root, familia.valor)),
     conteudo: 'COMPLETO',
     situacao: situacaoPorStatus(cStat),
