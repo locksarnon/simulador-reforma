@@ -23,6 +23,10 @@ const dataBr = (s: unknown) => { const m = String(s ?? '').match(/^(\d{4})-(\d{2
 const valor = (s: unknown) => Number(String(s ?? '').replace(/\./g, '').replace(',', '.')) || 0;
 const moeda = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const NOME: Record<Produto, string> = { cnd: 'Consulta CND', dividaAtiva: 'Consulta Dívida Ativa' };
+/** 401/403 na API (com token emitido) = as chaves cadastradas não são do produto ou o produto não está liberado no contrato: tentar de novo não resolve. */
+const semAcesso = (produto: Produto, http: number) =>
+  `Sem acesso à API ${NOME[produto]} (HTTP ${http}): as chaves cadastradas para este produto não dão acesso a ele. Confira, na Área do Cliente do Serpro, a Consumer Key e o Consumer Secret do produto ${NOME[produto]} e cadastre-os em Administração > Integrações.`;
 
 @Injectable()
 export class SerproCertidoes {
@@ -45,7 +49,7 @@ export class SerproCertidoes {
       method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${ch.key}:${ch.secret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'grant_type=client_credentials', signal: AbortSignal.timeout(20_000),
     });
-    if (!r.ok) throw new Error(r.status === 401 ? 'o Serpro recusou as chaves deste produto (confira em Administração > Integrações)' : `o Serpro não deu o acesso (HTTP ${r.status})`);
+    if (!r.ok) throw new Error(r.status === 400 || r.status === 401 ? `o Serpro recusou as chaves cadastradas para o produto ${NOME[produto]} (HTTP ${r.status}). Confira a Consumer Key e o Consumer Secret desse produto na Área do Cliente do Serpro e cadastre-os de novo em Administração > Integrações` : `o Serpro não emitiu o acesso (HTTP ${r.status})`);
     const j = (await r.json()) as { access_token: string; expires_in?: number };
     this.tokens.set(k, { token: j.access_token, expira: Date.now() + (j.expires_in ?? 3000) * 1000 });
     return { token: j.access_token, demo: false };
@@ -70,6 +74,7 @@ export class SerproCertidoes {
         body: JSON.stringify({ TipoContribuinte: 1, ContribuinteConsulta: doc, CodigoIdentificacao: '9001', GerarCertidaoPdf: true, ...(chave ? { Chave: chave } : {}) }),
         signal: AbortSignal.timeout(60_000),
       });
+      if (r.status === 401 || r.status === 403) return { status: 'INDISPONIVEL', resumo: semAcesso('cnd', r.status), detalhes: [], demonstracao: b.demo };
       j = (await r.json().catch(() => ({}))) as typeof j;
       if (j.Status === 7 && j.Chave) { chave = j.Chave; await esperar(this.pausaMs); continue; }
       if (j.Status === 5 && tentativa < 2) { await esperar(this.pausaMs); continue; }
@@ -103,6 +108,7 @@ export class SerproCertidoes {
     const demonstracao = b.demo;
     const marca = demonstracao ? [{ rotulo: 'Documento consultado', valor: `${doc} (teste do ambiente de demonstração)` }] : [];
     if (r.status === 404) return { status: 'CONCLUIDO', resumo: 'Nenhuma inscrição em Dívida Ativa da União.', detalhes: marca, demonstracao };
+    if (r.status === 401 || r.status === 403) return { status: 'INDISPONIVEL', resumo: semAcesso('dividaAtiva', r.status), detalhes: marca, demonstracao };
     if (!r.ok) return { status: 'INDISPONIVEL', resumo: `O Serpro não concluiu a consulta (HTTP ${r.status}). Use "Consultar de novo" em alguns minutos.`, detalhes: marca, demonstracao };
     const lista = ((await r.json().catch(() => [])) as Record<string, unknown>[]) ?? [];
     const ativas = lista.filter((x) => /^ATIVA/i.test(String(x.situacaoDescricao ?? '')));

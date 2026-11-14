@@ -140,7 +140,7 @@ export default function PreAnalisePagina() {
     { chave: "resumo", rotulo: "Resultado", quebrar: true, valor: (x) => x.resumo + (x.demonstracao ? " (demonstração)" : "") },
     { chave: "validade", rotulo: "Validade", valor: (x) => validadeDoProcesso(x), tipo: "data" },
     { chave: "consultado_em", rotulo: "Consultado em", valor: (x) => quando(x.consultado_em), tipo: "data" },
-    { chave: "fonte", rotulo: "Fonte", valor: (x) => definicoes.get(x.chave)?.fonte || "" },
+    { chave: "fonte", rotulo: "Fonte", valor: (x) => definicoes.get(x.chave)?.fonte || "", render: (x) => <span className="block max-w-[18rem] truncate text-muted-foreground" title={definicoes.get(x.chave)?.fonte || undefined}>{definicoes.get(x.chave)?.fonte}</span> },
   ];
 
   useEffect(() => { if (p && !processando) qc.invalidateQueries({ queryKey: ["pre-analises"], exact: true }); }, [p?.id, processando]); // eslint-disable-line react-hooks/exhaustive-deps

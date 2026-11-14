@@ -1,5 +1,6 @@
 import type { Grupo, Parametro, Servico } from '../catalogo';
 import type { Resumo } from '../interpretar';
+import { motivoDaInfosimples } from '../../infosimples/infosimples.service';
 
 /** O que a consulta da Infosimples recebe do cadastro do cliente e dos parâmetros da tela. */
 export type ContextoInfosimples = {
@@ -64,7 +65,7 @@ export function resumoDeFalha(r: RespostaInfosimples, http: number): Resumo {
   const semCobertura = /n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(msg);
   return {
     nivel: semCobertura ? 'INFO' : 'ATENCAO',
-    titulo: semCobertura ? 'Sem consulta automática para o estado ou município do cliente.' : `A Infosimples não trouxe o resultado (código ${r.code ?? http}): ${msg || 'sem mensagem'}.`,
+    titulo: semCobertura ? 'Sem consulta automática para o estado ou município do cliente.' : `Sem resultado: ${motivoDaInfosimples(r.code ?? http, msg)}.`,
     destaques: [],
   };
 }

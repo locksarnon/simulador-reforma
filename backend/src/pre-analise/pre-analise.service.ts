@@ -162,7 +162,8 @@ export class PreAnaliseService {
       });
       await passo('CERTIFICADO_CCC', async () => {
         const r = ccc as ResultadoCcc | null;
-        if (!r || !r.consultado) return { status: 'INDISPONIVEL', resumo: 'Depende da Consulta CCC, que não foi feita.', detalhes: [] };
+        if (!r) return { status: 'INDISPONIVEL', resumo: 'Sem comprovante: a Consulta CCC não foi feita (veja a linha Consulta CCC).', detalhes: [] };
+        if (!r.consultado) return { status: 'INDISPONIVEL', resumo: `Sem comprovante: a SEFAZ ${r.uf} não respondeu à Consulta CCC (veja a linha Consulta CCC).`, detalhes: [] };
         const nome = `Comprovante CCC ${fmtCnpj(cnpj)}.pdf`;
         const key = `pre-analise/${id}/certificado-ccc.pdf`;
         await this.storage.guardar(key, await this.comprovanteCcc(cnpj, r), 'application/pdf');

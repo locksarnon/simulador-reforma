@@ -24,6 +24,17 @@ export type ResultadoCertidao = {
 type RespostaInfosimples = { code?: number; code_message?: string; data?: Record<string, unknown>[]; errors?: string[]; site_receipts?: string[] };
 const txt = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'object' ? '' : String(v).trim());
 
+/**
+ * Motivo da falha da Infosimples em uma frase. A mensagem completa da Infosimples vai para os detalhes.
+ * O 603 é a conta ou o token sem acesso à consulta; se a mensagem fala em saldo ou pagamento, o crédito gratuito acabou.
+ */
+export function motivoDaInfosimples(code: number | undefined, mensagem: string): string {
+  if (code === 603 && /saldo|pagamento/i.test(mensagem)) return 'a conta da Infosimples está sem saldo para esta consulta. Adicione saldo no painel da Infosimples (Finanças > Saldo) e consulte de novo';
+  if (code === 603) return 'o token da Infosimples não tem acesso a esta consulta. Libere-a no painel da Infosimples';
+  if (code === 601 || code === 602) return 'a Infosimples recusou o token. Confira-o em Administração > Integrações';
+  return `a Infosimples não trouxe o resultado (código ${code ?? '—'})`;
+}
+
 /** CNDT (TST): emitida negativa (ou positiva com efeito de negativa) = regular; "consta" = débitos. */
 export function lerCndt(d: Record<string, unknown>): Omit<ResultadoCertidao, 'comprovante'> {
   const negativa = d.conseguiu_emitir_certidao_negativa === true;
@@ -175,7 +186,7 @@ export class InfosimplesService {
     try { j = (await r.json()) as RespostaInfosimples; } catch { throw new BadRequestException(`A Infosimples respondeu HTTP ${r.status} sem JSON.`); }
     if (j.code !== 200 || !j.data?.length) {
       const msg = [j.code_message, ...(j.errors ?? [])].filter(Boolean).join(' ');
-      return { status: 'INDISPONIVEL', situacao: 'não emitida', resumo: `A Infosimples não trouxe a certidão (código ${j.code ?? r.status}): ${msg || 'sem mensagem'}.`, emissao: null, validade: null, numero: null, detalhes: [], comprovante: null };
+      return { status: 'INDISPONIVEL', situacao: 'não emitida', resumo: `Certidão não emitida: ${motivoDaInfosimples(j.code ?? r.status, msg)}.`, emissao: null, validade: null, numero: null, detalhes: [{ rotulo: 'Retorno da Infosimples', valor: `${j.code ?? r.status}: ${msg || 'sem mensagem'}` }], comprovante: null };
     }
     const lido = ler(j.data[0]);
     // O link do comprovante vem em site_receipts e, em algumas consultas, também dentro dos dados (site_receipt, url do PDF).
