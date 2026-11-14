@@ -11,8 +11,8 @@ const p = 'Planejamento Tributário';
 export const CATALOGO_CONSULTORIA = [
   { id: 'pf-ibs-cbs', publico: 'PF', area: r, nome: 'Enquadramento e opção de IBS/CBS do produtor rural' },
   { id: 'pf-homologacao', publico: 'PF', area: r, nome: 'Homologação fiscal do ERP para IBS/CBS do produtor rural' },
-  { id: 'cruzamentos-pf', publico: 'PF', area: 'Outros Serviços Tributários', nome: 'Revisão de Cruzamentos Fiscais' },
   { id: 'lcdpr', publico: 'PF', area: c, nome: 'Revisão do livro-caixa rural (LCDPR)' },
+  { id: 'cruzamentos-pf', publico: 'PF', area: 'Outros Serviços Tributários', nome: 'Revisão de Cruzamentos Fiscais' },
   { id: 'simulador-reforma', publico: 'PJ', area: r, nome: 'Simulador da Reforma Tributária', projeto: true, acessos: [
     { nome: 'Painel Executivo', rota: '/cockpit' }, { nome: 'Comparação de regimes na transição', rota: '/reforma/regimes' },
     { nome: 'Cenários e alíquotas', rota: '/cenarios' }, { nome: 'Transição 2026–2033', rota: '/transicao' },

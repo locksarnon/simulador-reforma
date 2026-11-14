@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import OrganogramaServicos from "@/components/consultoria/OrganogramaServicos";
 import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsultoria";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useCarteiras } from "@/lib/useCarteiras";
@@ -18,6 +19,7 @@ const chave = ({ publico, id }) => `${publico}:${id}`;
 const documento = (s) => String(s ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
 const buscaCliente = (c, busca) => texto(c.nome).includes(texto(busca.trim()))
   || (documento(busca).length > 0 && documento(c.doc).includes(documento(busca)));
+const areasDoCatalogo = (servicos) => [...new Set(servicos.map((servico) => servico.area))];
 const compativel = (c, s) => c.publico === s.publico && !c.arquivado_em && (c.publico === "PF" || documento(c.doc).length === 14);
 
 export default function ConsultoriaPagina({ carteira = false }) {
@@ -81,7 +83,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
       && (!servico || p.servico_consultoria === servico));
   }
   const legados = new Set(cadastro.servicos.filter((s) => s.tipo === "DIAGNOSTICO_PONTUAL" && ["ATIVO", "PAUSADO"].includes(s.situacao)).map((s) => s.empresa_id));
-  const areas = [...new Set(servicos.filter((s) => !publico || s.publico === publico).map((s) => s.area))];
+  const areas = areasDoCatalogo(servicos.filter((s) => !publico || s.publico === publico));
   const candidatos = servicos.filter((s) => (!publico || s.publico === publico) && (!area || s.area === area));
   const lista = todos.filter((c) => {
     const ss = itens(c);
@@ -129,17 +131,8 @@ export default function ConsultoriaPagina({ carteira = false }) {
             { chave: "nome", rotulo: "Cliente", render: (c) => <button className="font-medium hover:underline" onClick={(e) => { e.stopPropagation(); abrir({ cliente: c.clienteOriginal }); }}>{c.nome}</button> },
             { chave: "doc", rotulo: "Documento" },
             { chave: "servicos", rotulo: "Serviços", render: (c) => itens(c.clienteOriginal).map((s) => s.nome).join(" · ") || "Diagnóstico existente" },
-          ]} /> : areas.filter((a) => !area || a === area).map((a) => <section key={a} className="space-y-2">
-          <h2 className="font-semibold">{a}</h2>
-          <div className="grid gap-3 md:grid-cols-2">{servicos.filter((s) => s.area === a && s.publico === publico).map((s) => <article key={s.id} className="space-y-3 rounded-lg border bg-card p-4">
-            <h3 className="font-medium">{s.nome}</h3>
-            {!s.projeto && <p className="text-xs text-muted-foreground">Em desenvolvimento</p>}
-            <div className="flex flex-wrap items-center gap-3">
-              <button className="text-sm text-primary hover:underline" onClick={() => setDocumentos({ servico: s, somenteModelo: true })}>Ver lista de documentos</button>
-              {(s.acessos || []).map((l) => <Link className="text-sm text-primary hover:underline" key={l.rota} to={l.rota}>{l.nome}</Link>)}
-            </div>
-          </article>)}</div>
-        </section>)}
+          ]} /> : <OrganogramaServicos key={publico} categorias={areas.filter((a) => !area || a === area)}
+          servicos={candidatos} aoVerDocumentos={(servico) => setDocumentos({ servico, somenteModelo: true })} />}
       </>}
     </div>
     <Sheet open={painel !== null} onOpenChange={(v) => !v && setPainel(null)}>
@@ -157,11 +150,27 @@ export default function ConsultoriaPagina({ carteira = false }) {
               e.preventDefault();
               if (escolhido && de && ate && de <= ate) abrirProjeto.mutate(false);
             }}>
-              <label className="block space-y-1 text-sm"><span>Serviço</span>
-                <select className={`${campo} w-full`} value={escolha} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setEscolha(e.target.value); }} required>
-                  <option value="">Selecione um serviço</option>{disponiveis.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                </select>
-              </label>
+              <fieldset className="space-y-3" disabled={abrirProjeto.isPending}>
+                <legend className="mb-2 text-sm font-semibold">Tipo de trabalho</legend>
+                {areasDoCatalogo(disponiveis).map((categoria) => <section key={categoria} className="overflow-hidden rounded-md border">
+                  <h3 className="bg-muted px-3 py-2 text-xs font-semibold">{categoria}</h3>
+                  <ul className="divide-y">
+                    {disponiveis.filter((s) => s.area === categoria).map((s) => {
+                      const emAberto = projetosDe(cliente, s.id).some((p) => ["EM_ANDAMENTO", "PAUSADO"].includes(p.situacao));
+                      return <li key={s.id}>
+                        <label className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted/60 ${escolha === s.id ? "bg-primary/10" : ""}`}>
+                          <input type="radio" name="servico-consultoria" value={s.id} checked={escolha === s.id} required className="shrink-0 accent-primary"
+                            onChange={() => { abrirProjeto.reset(); setEscolha(s.id); }} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block">{s.nome}</span>
+                            {emAberto && <span className="block text-xs text-muted-foreground">Já tem projeto em aberto</span>}
+                          </span>
+                        </label>
+                      </li>;
+                    })}
+                  </ul>
+                </section>)}
+              </fieldset>
               <div className="grid grid-cols-2 gap-2">
                 <label className="grid gap-1 text-sm">De<input type="date" className={campo} value={de} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setDe(e.target.value); }} required /></label>
                 <label className="grid gap-1 text-sm">Até<input type="date" className={campo} value={ate} min={de || undefined} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setAte(e.target.value); }} required /></label>
