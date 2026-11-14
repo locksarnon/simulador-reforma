@@ -62,7 +62,7 @@ export default function SolicitacoesConsultoria({ servico, clientes = [], deInic
       <label className="grid gap-1">Até<input className={campo} type="date" value={ate} onChange={(e) => setAte(e.target.value)} /></label>
     </div>
     </>}
-    {servico.id === "credito-estoque" && <p className="text-sm">Inventário de referência em 31/12/2026, para o estoque de abertura de 01/01/2027. O período acima filtra a busca de evidências.</p>}
+    {["credito-estoque", "credito-estoque-pf"].includes(servico.id) && <p className="text-sm">Inventário de referência em 31/12/2026, para o estoque de abertura de 01/01/2027. O período acima filtra a busca de evidências.</p>}
     {!somenteModelo && !cliente && <p className="text-sm text-muted-foreground">Vincule um cliente ao serviço para controlar entregas e emitir a solicitação.</p>}
     {(de && ate && !linhas.length) && <p role="alert">Confira o período informado. O intervalo deve ter até 21 exercícios.</p>}
     {consulta.isFetching && <p role="status">Conferindo o repositório…</p>}

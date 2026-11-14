@@ -75,7 +75,12 @@ export default function ProjetoDiagnosticoPagina() {
     })) exclusao.mutate(false);
   };
 
-  const crumbs = [{ label: "Início", to: "/inicio" }, { label: p?.servico_consultoria ? "Projetos de Consultoria" : "Diagnósticos", to: p?.servico_consultoria ? "/consultoria/projetos" : "/diagnostico" }, { label: p?.nome || "Projeto" }];
+  const clienteDoProjeto = p?.pessoa_fisica_id ? `PF/${p.pessoa_fisica_id}` : p?.empresa_ids?.length === 1 ? `PJ/${p.empresa_ids[0]}` : null;
+  const crumbs = [{ label: "Início", to: "/inicio" },
+    ...(p?.servico_consultoria && clienteDoProjeto
+      ? [{ label: "Carteira de Consultoria", to: "/consultoria/carteira" }, { label: "Trabalhos do cliente", to: `/consultoria/carteira/${clienteDoProjeto}` }]
+      : [{ label: p?.servico_consultoria ? "Projetos de Consultoria" : "Diagnósticos", to: p?.servico_consultoria ? "/consultoria/projetos" : "/diagnostico" }]),
+    { label: p?.nome || "Projeto" }];
   if (projeto.isLoading || carregando) return <div><PageHeader crumbs={crumbs} title="Diagnóstico" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
   if (!p) return <div><PageHeader crumbs={crumbs} title="Diagnóstico não encontrado" /><p role="alert" className="p-8 text-sm">Este projeto não existe mais. <Link to="/diagnostico" className="text-primary hover:underline">Voltar aos diagnósticos</Link></p></div>;
   const daLista = p.empresa_ids.map((eid) => empresas.find((e) => e.id === eid)).filter(Boolean);
@@ -140,10 +145,10 @@ export default function ProjetoDiagnosticoPagina() {
             {p.responsavel && <p className="text-xs text-muted-foreground">Responsável: {p.responsavel}</p>}
           </section>
         )}
-        {grupo && inteiro && (
+        {!p.servico_consultoria && grupo && inteiro && (
           <Link to={`/cockpit?grupo=${encodeURIComponent(grupo.numero)}`} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm hover:border-primary"><BarChart3 className="h-4 w-4" aria-hidden="true" /> Painel executivo do grupo inteiro</Link>
         )}
-        <div className="grid gap-3 xl:grid-cols-2">
+        {!p.servico_consultoria && <div className="grid gap-3 xl:grid-cols-2">
           {daLista.map((e) => (
             <section key={e.id} className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label={e.razao_social}>
               <div className="flex flex-wrap items-start gap-2">
@@ -159,7 +164,7 @@ export default function ProjetoDiagnosticoPagina() {
               </ul>
             </section>
           ))}
-        </div>
+        </div>}
         {daLista.length < p.empresa_ids.length && <p className="text-xs text-muted-foreground">{plural(p.empresa_ids.length - daLista.length, "empresa do escopo foi excluída", "empresas do escopo foram excluídas")} do cadastro.</p>}
       </div>
     </div>

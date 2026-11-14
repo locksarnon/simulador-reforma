@@ -7,6 +7,15 @@ const documento = (linha) => linha.split(" — ")[0].replace(/\.$/, "");
 const normalizar = (linha) => documento(linha).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 export function itensDoServico(servico) {
+  if (servico === "credito-estoque-pf") return [
+    "Evidência de enquadramento no regime regular da CBS — por CPF e atividade.",
+    "Inventário de 31/12/2026 — XLSX/CSV por estabelecimento, item, quantidade e valor.",
+    "NF-e de aquisição dos itens ainda em estoque — XML autorizado.",
+    "Declaração de importação — DI ou Duimp, quando aplicável.",
+    "Comprovante do PIS/Pasep-Importação pago — quando aplicável.",
+    "Comprovante da Cofins-Importação paga — quando aplicável.",
+    "Memória de apuração da elegibilidade — por item e hipótese do art. 381 da LC 214/2025.",
+  ];
   const cruzamentos = listas["conciliacao-escrituracoes"];
   if (servico === "cruzamentos-pf") {
     return [...listas.lcdpr, ...cruzamentos.filter((l) => /dirpf|pre-preenchida|rendimentos|locacao|compra e venda|medic|dimob|doi|e-financeira/i.test(normalizar(l)))];
