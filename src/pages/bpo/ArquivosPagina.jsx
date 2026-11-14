@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import TabelaDeDocumentos, { abreNoNavegador, formatoDoNome } from "@/components/documentos/TabelaDeDocumentos";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Download, FileArchive, Folder, FolderPlus, Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { api } from "@/api/client";
@@ -41,11 +42,16 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
   const entrada = useRef(null);
   const [dono, setDono] = useState(donoInicial);
   const [pasta, setPasta] = useState("");
-  const [marcados, setMarcados] = useState(new Set());
+  const [subpastas, setSubpastas] = useState(false);
   const [editar, setEditar] = useState(null);
   const ativo = !!dono.id;
-  const chave = ["arquivos", dono.tipo, dono.id, pasta];
-  const { data, isLoading, error } = useQuery({ queryKey: chave, queryFn: () => api.get("/documentos/arquivos", { ...donoParams(dono), pasta }), enabled: ativo });
+  const chave = ["arquivos", dono.tipo, dono.id, pasta, subpastas];
+  const { data, isLoading, error } = useQuery({ queryKey: chave, queryFn: () => api.get("/documentos/arquivos", { ...donoParams(dono), pasta, recursivo: subpastas ? "1" : undefined }), enabled: ativo });
+  const envioBase = dono.tipo === "empresa" ? `/monitoramento/empresas/${dono.id}` : `/monitoramento/pessoas/${dono.id}`;
+  const linhas = (data?.arquivos || []).map((a) => ({
+    id: a.id, documento: a.nome, pasta: a.pasta, formato: formatoDoNome(a.nome), tamanho: a.tamanho, data: a.createdAt, enviado_por: a.enviado_por,
+    url: `/documentos/arquivos/${a.id}/download`, nome: a.nome, ver: abreNoNavegador(a.nome), item: { tipo: "arquivo", arquivo_id: a.id }, arquivo: a,
+  }));
   const recarregar = () => qc.invalidateQueries({ queryKey: ["arquivos"] });
   const falha = (t) => (e) => toast({ title: t, description: e.message, variant: "destructive" });
   const enviar = useMutation({
@@ -55,18 +61,12 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
   });
   const excluir = useMutation({ mutationFn: (id) => api.delete(`/documentos/arquivos/${id}`), onSuccess: () => { recarregar(); toast({ title: "Arquivo excluído" }); }, onError: falha("Não foi possível excluir") });
   const mover = useMutation({ mutationFn: ({ id, ...c }) => api.put(`/documentos/arquivos/${id}`, c), onSuccess: () => { setEditar(null); recarregar(); toast({ title: "Arquivo salvo" }); }, onError: falha("Não foi possível salvar") });
-  const zip = useMutation({
-    mutationFn: () => api.post("/downloads", { arquivo_ids: [...marcados], nome: `arquivos ${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}` }),
-    onSuccess: async (l) => { setMarcados(new Set()); qc.invalidateQueries({ queryKey: ["downloads"] }); toast({ title: "ZIP pronto", description: "Em Meus downloads por 7 dias." }); await api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }); },
-    onError: falha("Não foi possível montar o ZIP"),
-  });
   const [nomePasta, setNomePasta] = useState(null); // campo da nova pasta aberto
   const criarPasta = () => { if (nomePasta && nomePasta.trim()) setPasta([pasta, nomePasta.trim().replace(/[\\/]+/g, "-")].filter(Boolean).join("/")); setNomePasta(null); };
-  const alternar = (id) => setMarcados((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
     <div className="space-y-3">
-      <SeletorDeDono empresas={empresas} pessoas={pessoas} dono={dono} aoMudar={(d) => { setDono(d); setPasta(""); setMarcados(new Set()); }} />
+      <SeletorDeDono empresas={empresas} pessoas={pessoas} dono={dono} aoMudar={(d) => { setDono(d); setPasta(""); }} />
       {!ativo ? <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Escolha uma empresa ou pessoa física.</p> : (
         <div className="rounded-xl border border-border bg-card p-3 space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -83,7 +83,7 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
                     <button type="submit" className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">Abrir</button>
                   </form>
                 )}
-              <button type="button" onClick={() => zip.mutate()} disabled={!marcados.size || zip.isPending} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50"><FileArchive className="h-4 w-4" aria-hidden="true" /> Baixar marcados (ZIP){marcados.size ? ` · ${marcados.size}` : ""}</button>
+              <label className="inline-flex items-center gap-1.5 text-sm" title="Mostra também os arquivos das subpastas: marque todos para baixar ou enviar a pasta inteira (no Início, tudo o que está arquivado)."><input type="checkbox" checked={subpastas} onChange={(e) => setSubpastas(e.target.checked)} />Incluir as subpastas</label>
               <button type="button" onClick={() => entrada.current?.click()} disabled={enviar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />} Enviar arquivos</button>
               <input ref={entrada} type="file" multiple className="hidden" aria-label="Escolher arquivos para enviar" onChange={(e) => { const f = [...(e.target.files || [])]; e.target.value = ""; if (f.length) enviar.mutate(f); }} />
             </div>
@@ -96,25 +96,17 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
             </ul>
           )}
           {data && (
-            <TabelaPadrao
-              id="bpo-arquivos-pasta" ariaLabel="Arquivos da pasta" linhas={data.arquivos}
-              vazio={data.subpastas.length ? "Nenhum arquivo nesta pasta." : pasta ? "Pasta nova: envie os arquivos para ela aparecer." : "Nenhum arquivo ainda. Use \"Enviar arquivos\" (até 25 MB cada)."}
-              colunas={[
-                { chave: "marcar", rotulo: "Marcar", ordenavel: false, filtravel: false, valor: () => "",
-                  render: (a) => <input type="checkbox" checked={marcados.has(a.id)} onChange={() => alternar(a.id)} aria-label={`Marcar ${a.nome}`} /> },
-                { chave: "nome", rotulo: "Arquivo", render: (a) => <span className="font-medium">{a.nome}</span> },
-                { chave: "tamanho", rotulo: "Tamanho", alinhar: "direita", render: (a) => <span className="text-muted-foreground">{tamanhoLegivel(a.tamanho)}</span> },
-                { chave: "createdAt", rotulo: "Enviado em", tipo: "data" },
-                { chave: "enviado_por", rotulo: "Enviado por", render: (a) => <span className="text-muted-foreground">{a.enviado_por || "—"}</span> },
-                { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
-                  render: (a) => (
-                    <>
-                      <button type="button" onClick={() => api.baixar("get", `/documentos/arquivos/${a.id}/download`, { nome: a.nome }).catch(falha("Não foi possível baixar"))} className="rounded p-1 hover:bg-muted" aria-label={`Baixar ${a.nome}`}><Download className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                      <button type="button" onClick={() => setEditar({ id: a.id, nome: a.nome, pasta: a.pasta })} className="rounded p-1 hover:bg-muted" aria-label={`Renomear ou mover ${a.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                      <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir "${a.nome}"?`, descricao: "O arquivo sai do InTAX e não volta.", rotulo: "Excluir" })) excluir.mutate(a.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${a.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
-                    </>
-                  ) },
-              ]}
+            <TabelaDeDocumentos
+              id="bpo-arquivos-pasta" ariaLabel="Arquivos da pasta" linhas={linhas} envioBase={envioBase} mostrarPasta={subpastas} mostrarOrigem={false} rotuloData="Enviado em"
+              ordemInicial={{ chave: "data", dir: -1 }}
+              vazio={data.subpastas.length ? "Nenhum arquivo nesta pasta. Marque \"Incluir as subpastas\" para ver os das pastas abaixo." : pasta ? "Pasta nova: envie os arquivos para ela aparecer." : "Nenhum arquivo ainda. Use \"Enviar arquivos\" (até 25 MB cada)."}
+              colunasExtras={[{ chave: "enviado_por", rotulo: "Enviado por", valor: (l) => l.enviado_por || "" }]}
+              acoesLinha={(l) => (
+                <>
+                  <button type="button" onClick={() => setEditar({ id: l.id, nome: l.arquivo.nome, pasta: l.arquivo.pasta })} className="rounded p-1 hover:bg-muted" aria-label={`Renomear ou mover ${l.nome}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                  <button type="button" onClick={async () => { if (await confirmar({ titulo: `Excluir "${l.nome}"?`, descricao: "O arquivo sai do InTAX e não volta.", rotulo: "Excluir" })) excluir.mutate(l.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${l.nome}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                </>
+              )}
             />
           )}
         </div>

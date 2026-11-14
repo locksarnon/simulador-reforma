@@ -31,6 +31,16 @@ describe('documentos do cliente: ZIP e e-mail dos marcados', () => {
     expect(registros.map((r) => [r.origem, r.origem_id])).toEqual([['DOCUMENTO_DOWNLOAD', 'A1'], ['DOCUMENTO_DOWNLOAD', 'C1']]);
   });
 
+  it('arquivo de pessoa física: só vai no ZIP dela', async () => {
+    const { s } = montar();
+    const prisma = (s as unknown as { prisma: { arquivoEmpresa: { findUnique: unknown }; pessoaFisica?: unknown } }).prisma;
+    prisma.arquivoEmpresa.findUnique = async () => ({ id: 'P1', empresa_id: null, pessoa_fisica_id: 'PF1', nome: 'IRPF 2026.pdf', tipo_mime: 'application/pdf', storage_key: 'k' });
+    prisma.pessoaFisica = { findUnique: async () => ({ nome: 'JOÃO PRODUTOR' }) };
+    const z = await s.zip({ pessoaFisicaId: 'PF1' }, [{ tipo: 'arquivo', arquivo_id: 'P1' }]);
+    expect(z.nome).toBe('JOÃO PRODUTOR - documentos.zip');
+    await expect(s.zip({ pessoaFisicaId: 'OUTRA' }, [{ tipo: 'arquivo', arquivo_id: 'P1' }])).rejects.toThrow('não encontrado neste cliente');
+  });
+
   it('não entrega documento de outro cliente', async () => {
     const { s } = montar();
     await expect(s.zip('E1', [{ tipo: 'arquivo', arquivo_id: 'A2' }])).rejects.toThrow('não encontrado neste cliente');

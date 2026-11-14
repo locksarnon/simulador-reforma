@@ -29,6 +29,17 @@ export class MonitoramentoController {
     return new StreamableFile(z.buffer, { type: 'application/zip', disposition: disposicao(z.nome) });
   }
 
+  @Post('pessoas/:id/documentos/zip')
+  async documentosZipPessoa(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { itens?: ItemDocumento[] }) {
+    const z = await this.envio.zip({ pessoaFisicaId: id }, body?.itens ?? [], user);
+    return new StreamableFile(z.buffer, { type: 'application/zip', disposition: disposicao(z.nome) });
+  }
+
+  @Post('pessoas/:id/documentos/email')
+  documentosEmailPessoa(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { para?: string[] | string; assunto?: string; mensagem?: string; itens?: ItemDocumento[] }) {
+    return this.envio.enviar({ pessoaFisicaId: id }, body ?? {}, user);
+  }
+
   @Post('empresas/:id/documentos/email')
   documentosEmail(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { para?: string[] | string; assunto?: string; mensagem?: string; itens?: ItemDocumento[] }) {
     return this.envio.enviar(id, body ?? {}, user);

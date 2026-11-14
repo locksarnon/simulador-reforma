@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Eye, Loader2, RefreshCw, Send } from "lucide-react";
+import { Loader2, RefreshCw, Send } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TabelaPadrao from "@/components/TabelaPadrao";
-import EnvioDocumentos, { tamanhoTexto } from "@/components/monitoramento/EnvioDocumentos";
+import TabelaDeDocumentos from "@/components/documentos/TabelaDeDocumentos";
+import BotoesDocumento from "@/components/documentos/BotoesDocumento";
+import EnvioDocumentos from "@/components/monitoramento/EnvioDocumentos";
 import { NIVEIS, quandoConsultou, SEM_CONSULTA } from "@/lib/monitoramento";
 
 const campo = "rounded-md border border-border bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -18,15 +20,7 @@ export function SeloNivel({ nivel }) {
   return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium leading-4 ${n.tom}`}><span className={`h-1.5 w-1.5 rounded-full ${n.ponto}`} aria-hidden="true" />{n.rotulo}</span>;
 }
 
-/** Botões Ver e Baixar de um arquivo (sempre no fim da linha). */
-export function BotoesDocumento({ url, nome, ver = true, rotulo }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      {ver && <button type="button" onClick={() => api.visualizar("GET", `${url}${url.includes("?") ? "&" : "?"}ver=1`).catch(falhar("Não foi possível abrir"))} className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-muted" aria-label={`Ver ${rotulo || nome}`} title="Visualizar"><Eye className="h-3 w-3" aria-hidden="true" /> Ver</button>}
-      <button type="button" onClick={() => api.baixar("GET", url, { nome }).catch(falhar("Não foi possível baixar"))} className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-muted" aria-label={`Baixar ${rotulo || nome}`} title="Baixar"><Download className="h-3 w-3" aria-hidden="true" /> Baixar</button>
-    </span>
-  );
-}
+export { BotoesDocumento };
 
 /** Documentos de uma consulta: os PDF oficiais do Serpro/Receita e o relatório do InTAX em PDF e Excel. */
 export function documentosDaConsulta(consulta, rotulo) {
@@ -41,16 +35,9 @@ export function documentosDaConsulta(consulta, rotulo) {
     { id: `${consulta.id}-pdf`, documento: `Relatório da consulta: ${rotulo}`, tipo: "Relatório do InTAX", formato: "PDF", data: consulta.createdAt, url: `/monitoramento/consultas/${consulta.id}/relatorio`, nome: `${nomeSeguro(rotulo)} ${data}.pdf`, ver: true, item: { tipo: "consulta", consulta_id: consulta.id } },
     ...(consulta.resumo?.tabela?.linhas?.length ? [{ id: `${consulta.id}-xlsx`, documento: `Tabela completa: ${rotulo}`, tipo: "Relatório do InTAX", formato: "Excel", data: consulta.createdAt, url: `/monitoramento/consultas/${consulta.id}/relatorio?formato=xlsx`, nome: `${nomeSeguro(rotulo)} ${data}.xlsx`, ver: false, item: { tipo: "consulta", consulta_id: consulta.id, formato: "xlsx" } }] : []),
   ];
-  return [...oficiais, ...relatorios];
+  return [...oficiais, ...relatorios].map((d) => ({ ...d, origem: d.tipo }));
 }
 
-const COLUNAS_DOCUMENTOS = [
-  { chave: "documento", rotulo: "Documento" },
-  { chave: "tipo", rotulo: "Origem" },
-  { chave: "formato", rotulo: "Formato" },
-  { chave: "tamanho", rotulo: "Tamanho", tipo: "numero", alinhar: "direita", render: (l) => (l.tamanho != null ? tamanhoTexto(l.tamanho) : "—") },
-  { chave: "data", rotulo: "Consultado em", tipo: "data", render: (l) => quandoConsultou(l.data) },
-];
 
 /** Último envio ou download registrado de uma consulta (para a coluna do histórico). */
 const ultimoRegistro = (h) => { const r = h.registros?.[0]; return r ? `${r.tipo} ${quandoConsultou(r.quando)}${r.tipo === "E-mail" ? ` para ${r.destinatario}${r.status === "FALHA" ? " (falhou)" : ""}` : ""}` : ""; };
@@ -75,7 +62,6 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
   const [params, setParams] = useState(() => Object.fromEntries(servico.parametros.map((p) => [p.nome, p.padrao || ""])));
   const [atual, setAtual] = useState(null);
   const [aba, setAba] = useState("documentos");
-  const [marcadosDocs, setMarcadosDocs] = useState(new Set());
   const [marcadosHist, setMarcadosHist] = useState(new Set());
   const [confirmando, setConfirmando] = useState(false);
   const empresa = base.includes("/empresas/");
@@ -94,7 +80,6 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
   const docs = documentosDaConsulta(mostrada, servico.rotulo);
   const chaveHistorico = ["monitoramento", "historico", base, servico.chave];
   const linhasHistorico = historico.data || [];
-  const empresaId = base.split("/").pop();
   const docsDoHistorico = (h) => documentosDaConsulta(h, servico.rotulo).filter((d) => d.formato === "PDF");
   const colunasHistorico = [
     { chave: "createdAt", rotulo: "Consultado em", tipo: "data", render: (l) => quandoConsultou(l.createdAt) },
@@ -165,11 +150,8 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
             {empresa && <TabsTrigger value="historico" className="text-xs">Histórico</TabsTrigger>}
           </TabsList>
           <TabsContent value="documentos" className="mt-2">
-            <TabelaPadrao id="monit:documentos" colunas={COLUNAS_DOCUMENTOS} linhas={docs} ariaLabel={`Documentos: ${servico.rotulo}`} vazio="Nenhum documento: consulte primeiro." tamanhoInicial={10}
-              ordemInicial={null}
-              selecao={empresa ? { marcadas: marcadosDocs, aoMudar: setMarcadosDocs } : undefined}
-              acoes={empresa ? <EnvioDocumentos empresaId={empresaId} marcados={docs.filter((d) => marcadosDocs.has(d.id))} aoConcluir={() => setMarcadosDocs(new Set())} invalidar={[chaveHistorico]} /> : null}
-              documentos={(l) => <BotoesDocumento url={l.url} nome={l.nome} ver={l.ver} rotulo={l.documento} />} />
+            <TabelaDeDocumentos id="monit:documentos" linhas={docs} ariaLabel={`Documentos: ${servico.rotulo}`} vazio="Nenhum documento: consulte primeiro." tamanhoInicial={10}
+              ordemInicial={null} rotuloData="Consultado em" envioBase={base} invalidar={[chaveHistorico]} />
           </TabsContent>
           {empresa && (
             <TabsContent value="historico" className="mt-2">
@@ -177,7 +159,7 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
                 <TabelaPadrao id="monit:historico" colunas={colunasHistorico} linhas={linhasHistorico} ariaLabel={`Histórico: ${servico.rotulo}`} vazio="Sem histórico." tamanhoInicial={10}
                   ordemInicial={{ chave: "createdAt", dir: -1 }}
                   selecao={{ marcadas: marcadosHist, aoMudar: setMarcadosHist }}
-                  acoes={<EnvioDocumentos empresaId={empresaId} marcados={linhasHistorico.filter((h) => marcadosHist.has(h.id)).flatMap(docsDoHistorico)} aoConcluir={() => setMarcadosHist(new Set())} invalidar={[chaveHistorico]} />}
+                  acoes={<EnvioDocumentos base={base} marcados={linhasHistorico.filter((h) => marcadosHist.has(h.id)).flatMap(docsDoHistorico)} aoConcluir={() => setMarcadosHist(new Set())} invalidar={[chaveHistorico]} />}
                   documentos={(h) => (
                     <span className="inline-flex justify-end gap-1">
                       {(h.arquivos || []).map((a) => <BotoesDocumento key={a.indice} url={`/monitoramento/consultas/${h.id}/arquivos/${a.indice}`} nome={a.nome} rotulo={a.nome} />)}

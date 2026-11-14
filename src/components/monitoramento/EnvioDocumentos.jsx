@@ -14,7 +14,8 @@ export const tamanhoTexto = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} 
  * Barra dos documentos marcados: Baixar (ZIP) e Enviar por e-mail, com o total e o limite do e-mail à vista.
  * `marcados` = [{ item: { tipo, ... }, nome, tamanho }]. O envio e o download ficam registrados no histórico.
  */
-export default function EnvioDocumentos({ empresaId, marcados, aoConcluir, invalidar = [] }) {
+export default function EnvioDocumentos({ empresaId, base: baseInformada, marcados, aoConcluir, invalidar = [] }) {
+  const base = baseInformada || `/monitoramento/empresas/${empresaId}`;
   const qc = useQueryClient();
   const limite = useQuery({ queryKey: ["monitoramento", "limite-email"], queryFn: () => api.get("/monitoramento/documentos/limite-email"), staleTime: Infinity });
   const bytes = limite.data?.bytes || LIMITE_PADRAO;
@@ -24,12 +25,12 @@ export default function EnvioDocumentos({ empresaId, marcados, aoConcluir, inval
   const [f, setF] = useState({ para: "", assunto: "", mensagem: "" });
   const atualizar = () => { for (const k of invalidar) qc.invalidateQueries({ queryKey: k }); };
   const zip = useMutation({
-    mutationFn: () => api.baixar("POST", `/monitoramento/empresas/${empresaId}/documentos/zip`, { body: { itens: marcados.map((m) => m.item) }, nome: "documentos.zip" }),
+    mutationFn: () => api.baixar("POST", `${base}/documentos/zip`, { body: { itens: marcados.map((m) => m.item) }, nome: "documentos.zip" }),
     onSuccess: () => { atualizar(); aoConcluir?.(); },
     onError: (e) => toast({ title: "Não foi possível baixar", description: e.message, variant: "destructive" }),
   });
   const enviar = useMutation({
-    mutationFn: () => api.post(`/monitoramento/empresas/${empresaId}/documentos/email`, { ...f, itens: marcados.map((m) => m.item) }),
+    mutationFn: () => api.post(`${base}/documentos/email`, { ...f, itens: marcados.map((m) => m.item) }),
     onSuccess: (r) => { atualizar(); setAberto(false); aoConcluir?.(); toast({ title: "E-mail enviado", description: `${r.anexos} anexo(s) para ${r.para.join(", ")}.` }); },
     onError: (e) => toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" }),
   });

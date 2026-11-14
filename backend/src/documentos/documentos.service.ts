@@ -79,14 +79,15 @@ export class DocumentosService {
   }
 
   // ── Arquivos ─────────────────────────────────────────────────────
-  /** Arquivos de uma pasta e as subpastas que existem logo abaixo dela. */
-  async listarArquivos(d: Dono & { pasta?: string }) {
+  /** Arquivos de uma pasta (com `recursivo`, também os das subpastas) e as subpastas que existem logo abaixo dela. */
+  async listarArquivos(d: Dono & { pasta?: string; recursivo?: boolean }) {
     const dono = await this.conferirDono(d);
     const pasta = pastaSegura(d.pasta);
     const todos = await this.prisma.arquivoEmpresa.findMany({ where: dono, orderBy: [{ pasta: 'asc' }, { nome: 'asc' }] });
     const prefixo = pasta ? `${pasta}/` : '';
     const subpastas = [...new Set(todos.filter((a) => a.pasta.startsWith(prefixo) && a.pasta !== pasta).map((a) => a.pasta.slice(prefixo.length).split('/')[0]))].sort();
-    return { pasta, subpastas, arquivos: todos.filter((a) => a.pasta === pasta), total: todos.length };
+    const arquivos = d.recursivo ? todos.filter((a) => a.pasta === pasta || a.pasta.startsWith(prefixo)) : todos.filter((a) => a.pasta === pasta);
+    return { pasta, subpastas, arquivos, total: todos.length };
   }
 
   async enviar(user: Ator, d: Dono & { pasta?: string }, arquivo: { buffer: Buffer; originalname: string; mimetype?: string; size: number }) {

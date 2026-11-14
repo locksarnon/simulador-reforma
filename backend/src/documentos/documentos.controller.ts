@@ -35,8 +35,8 @@ export class DocumentosController {
   }
 
   @Get('arquivos')
-  arquivos(@Query() q: { empresa_id?: string; pessoa_fisica_id?: string; pasta?: string }) {
-    return this.docs.listarArquivos(q);
+  arquivos(@Query() q: { empresa_id?: string; pessoa_fisica_id?: string; pasta?: string; recursivo?: string }) {
+    return this.docs.listarArquivos({ ...q, recursivo: q.recursivo === '1' || q.recursivo === 'true' });
   }
 
   @Post('arquivos')

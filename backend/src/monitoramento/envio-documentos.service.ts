@@ -16,6 +16,10 @@ export type ItemDocumento =
 
 const chaveDoItem = (i: ItemDocumento) => (i.tipo === 'arquivo' ? i.arquivo_id : i.consulta_id);
 
+/** Dono dos documentos: a empresa ou a pessoa física. */
+export type DonoDocumentos = { empresaId?: string; pessoaFisicaId?: string };
+const MAX_ZIP_BYTES = 200 * 1024 * 1024;
+
 /** Baixar em ZIP e enviar por e-mail os documentos marcados; todo envio fica registrado (quem, para quem, quando, o quê). */
 @Injectable()
 export class EnvioDocumentosService {
@@ -26,19 +30,23 @@ export class EnvioDocumentosService {
     private readonly m: MonitoramentoService,
   ) {}
 
-  /** Os arquivos dos itens, conferindo que todos são do cliente. */
-  async montar(empresaId: string, itens: ItemDocumento[]) {
+  /** Os arquivos dos itens, conferindo que todos são do cliente (empresa ou pessoa física). */
+  async montar(donoInformado: string | DonoDocumentos, itens: ItemDocumento[]) {
+    const dono: DonoDocumentos = typeof donoInformado === 'string' ? { empresaId: donoInformado } : donoInformado;
+    const empresaId = dono.empresaId ?? null;
+    const pfId = dono.pessoaFisicaId ?? null;
+    const doDono = (x: { empresa_id: string | null; pessoa_fisica_id?: string | null }) => (empresaId ? x.empresa_id === empresaId : !!pfId && x.pessoa_fisica_id === pfId);
     if (!Array.isArray(itens) || !itens.length) throw new BadRequestException('Marque ao menos um documento.');
-    if (itens.length > 200) throw new BadRequestException('Marque no máximo 200 documentos por vez.');
+    if (itens.length > 500) throw new BadRequestException('Marque no máximo 500 documentos por vez.');
     const saida: { nome: string; buffer: Buffer; tipo: string }[] = [];
     for (const i of itens) {
       if (i?.tipo === 'arquivo') {
         const a = await this.prisma.arquivoEmpresa.findUnique({ where: { id: String(i.arquivo_id) } });
-        if (!a || a.empresa_id !== empresaId) throw new NotFoundException('Documento não encontrado neste cliente.');
+        if (!a || !doDono(a as never)) throw new NotFoundException('Documento não encontrado neste cliente.');
         saida.push({ nome: a.nome, tipo: a.tipo_mime || 'application/octet-stream', buffer: await this.storage.getObjectBuffer(a.storage_key) });
       } else if (i?.tipo === 'consulta') {
-        const c = await this.prisma.consultaFiscal.findUnique({ where: { id: String(i.consulta_id) }, select: { empresa_id: true } });
-        if (!c || c.empresa_id !== empresaId) throw new NotFoundException('Consulta não encontrada neste cliente.');
+        const c = await this.prisma.consultaFiscal.findUnique({ where: { id: String(i.consulta_id) }, select: { empresa_id: true, pessoa_fisica_id: true } });
+        if (!c || !doDono(c)) throw new NotFoundException('Consulta não encontrada neste cliente.');
         if (typeof i.indice === 'number') { const a = await this.m.arquivo(i.consulta_id, i.indice); saida.push({ nome: a.nome, tipo: 'application/pdf', buffer: a.buffer }); }
         else { const r = await this.m.relatorio(i.consulta_id, i.formato === 'xlsx' ? 'xlsx' : 'pdf'); saida.push({ nome: r.nome, tipo: r.tipo, buffer: r.buffer }); }
       } else throw new BadRequestException('Documento inválido.');
@@ -53,30 +61,41 @@ export class EnvioDocumentosService {
     return saida;
   }
 
-  async zip(empresaId: string, itens: ItemDocumento[], usuario?: { email?: string }) {
-    const arquivos = await this.montar(empresaId, itens);
-    const e = await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { razao_social: true } });
-    const buffer = Buffer.from(zipSync(Object.fromEntries(arquivos.map((a) => [a.nome, new Uint8Array(a.buffer)])), { level: 6 }));
-    await this.registrar(empresaId, itens, 'DOWNLOAD', usuario?.email ?? 'usuário', `Download de ${arquivos.length} documento(s)`, 'BAIXADO');
-    return { nome: `${(e?.razao_social ?? 'documentos').replace(/[\\/:*?"<>|]/g, '-')} - documentos.zip`, buffer };
+  /** Nome do dono para o ZIP e o assunto do e-mail. */
+  private async nomeDoDono(dono: DonoDocumentos) {
+    if (dono.empresaId) return (await this.prisma.empresa.findUnique({ where: { id: dono.empresaId }, select: { razao_social: true } }))?.razao_social ?? '';
+    if (dono.pessoaFisicaId) return (await this.prisma.pessoaFisica.findUnique({ where: { id: dono.pessoaFisicaId }, select: { nome: true } }))?.nome ?? '';
+    return '';
   }
 
-  async enviar(empresaId: string, corpo: { para?: string[] | string; assunto?: string; mensagem?: string; itens?: ItemDocumento[] }, usuario?: { email?: string }) {
+  async zip(donoInformado: string | DonoDocumentos, itens: ItemDocumento[], usuario?: { email?: string }) {
+    const dono: DonoDocumentos = typeof donoInformado === 'string' ? { empresaId: donoInformado } : donoInformado;
+    const arquivos = await this.montar(dono, itens);
+    const total = arquivos.reduce((s, a) => s + a.buffer.length, 0);
+    if (total > MAX_ZIP_BYTES) throw new BadRequestException(`Os documentos somam ${(total / 1048576).toFixed(0)} MB; o ZIP aceita até 200 MB. Baixe em partes (por pasta ou por período).`);
+    const nome = await this.nomeDoDono(dono);
+    const buffer = Buffer.from(zipSync(Object.fromEntries(arquivos.map((a) => [a.nome, new Uint8Array(a.buffer)])), { level: 6 }));
+    await this.registrar(dono, itens, 'DOWNLOAD', usuario?.email ?? 'usuário', `Download de ${arquivos.length} documento(s)`, 'BAIXADO');
+    return { nome: `${(nome || 'documentos').replace(/[\\/:*?"<>|]/g, '-')} - documentos.zip`, buffer };
+  }
+
+  async enviar(donoInformado: string | DonoDocumentos, corpo: { para?: string[] | string; assunto?: string; mensagem?: string; itens?: ItemDocumento[] }, usuario?: { email?: string }) {
     const para = (Array.isArray(corpo?.para) ? corpo.para : String(corpo?.para ?? '').split(/[;,\s]+/)).map((x) => x.trim().toLowerCase()).filter(Boolean);
     if (!para.length) throw new BadRequestException('Informe ao menos um e-mail.');
     const invalido = para.find((x) => !EMAIL.test(x));
     if (invalido) throw new BadRequestException(`E-mail inválido: ${invalido}`);
     if (para.length > 10) throw new BadRequestException('No máximo 10 destinatários.');
     if (!this.mail.configurado) throw new BadRequestException('O envio de e-mail não está configurado neste servidor.');
-    const arquivos = await this.montar(empresaId, corpo?.itens ?? []);
+    const dono: DonoDocumentos = typeof donoInformado === 'string' ? { empresaId: donoInformado } : donoInformado;
+    const arquivos = await this.montar(dono, corpo?.itens ?? []);
     const total = arquivos.reduce((s, a) => s + a.buffer.length, 0);
     if (total > LIMITE_EMAIL_BYTES) throw new BadRequestException(`Os anexos somam ${(total / 1048576).toFixed(1)} MB; o limite por e-mail é ${LIMITE_EMAIL_BYTES / 1048576} MB. Desmarque alguns ou baixe em ZIP.`);
-    const e = await this.prisma.empresa.findUnique({ where: { id: empresaId }, select: { razao_social: true } });
-    const assunto = (corpo?.assunto ?? '').trim() || `Documentos - ${e?.razao_social ?? ''}`.trim();
+    const nome = await this.nomeDoDono(dono);
+    const assunto = (corpo?.assunto ?? '').trim() || `Documentos - ${nome}`.trim();
     const mensagem = (corpo?.mensagem ?? '').trim();
     const html = emailLayout(assunto, `${mensagem ? `<p>${esc(mensagem).replace(/\n/g, '<br>')}</p>` : '<p>Olá,</p><p>Seguem os documentos em anexo.</p>'}<ul>${arquivos.map((a) => `<li>${esc(a.nome)}</li>`).join('')}</ul>`);
     const res = await this.mail.enviar({ to: para.join(', '), subject: assunto, html, attachments: arquivos.map((a) => ({ filename: a.nome, content: a.buffer, contentType: a.tipo })) });
-    await this.registrar(empresaId, corpo.itens ?? [], 'EMAIL', para.join(', '), `${assunto}${usuario?.email ? ` (por ${usuario.email})` : ''}`, res.enviado ? 'ENVIADO' : 'FALHA', res.enviado ? null : res.motivo ?? null);
+    await this.registrar(dono, corpo.itens ?? [], 'EMAIL', para.join(', '), `${assunto}${usuario?.email ? ` (por ${usuario.email})` : ''}`, res.enviado ? 'ENVIADO' : 'FALHA', res.enviado ? null : res.motivo ?? null);
     if (!res.enviado) throw new BadRequestException(`O e-mail não foi enviado: ${res.motivo ?? 'erro no servidor de e-mail'}.`);
     return { enviado: true, para, anexos: arquivos.length, tamanho: total };
   }
@@ -94,8 +113,8 @@ export class EnvioDocumentosService {
     return m;
   }
 
-  private async registrar(empresaId: string, itens: ItemDocumento[], tipo: 'EMAIL' | 'DOWNLOAD', destinatario: string, assunto: string, status: string, erro: string | null = null) {
+  private async registrar(dono: DonoDocumentos, itens: ItemDocumento[], tipo: 'EMAIL' | 'DOWNLOAD', destinatario: string, assunto: string, status: string, erro: string | null = null) {
     const ids = [...new Set(itens.map(chaveDoItem))];
-    await this.prisma.envioEmail.createMany({ data: ids.map((id) => ({ origem: `DOCUMENTO_${tipo}`, origem_id: id, empresa_id: empresaId, destinatario, assunto, status, erro })) }).catch(() => undefined);
+    await this.prisma.envioEmail.createMany({ data: ids.map((id) => ({ origem: `DOCUMENTO_${tipo}`, origem_id: id, empresa_id: dono.empresaId ?? null, destinatario, assunto, status, erro })) }).catch(() => undefined);
   }
 }
