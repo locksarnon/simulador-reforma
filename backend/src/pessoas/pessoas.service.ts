@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { servicosConsultoria } from '../servicos-contratados/consultoria.service';
 import { lerData } from '../tarefas/tarefas.regras';
 
 type Ator = { id: string; email?: string; role?: string };
@@ -75,7 +76,16 @@ export class PessoasService {
   }
 
   async criar(user: Ator, e: Record<string, unknown>) {
-    return this.prisma.pessoaFisica.create({ data: { ...(await this.dados(e, false)), criado_por: user.email ?? user.id } as never });
+    const consultoria = servicosConsultoria(e.servicos_consultoria, 'PF');
+    const data = { ...(await this.dados(e, false)), criado_por: user.email ?? user.id } as never;
+    if (!consultoria.length) return this.prisma.pessoaFisica.create({ data });
+    return this.prisma.$transaction(async (tx) => {
+      const pessoa = await tx.pessoaFisica.create({ data });
+      await tx.vinculoConsultoria.createMany({ data: consultoria.map((servico) => ({
+        publico: 'PF', cliente_id: pessoa.id, servico, criado_por: user.email ?? user.id,
+      })) });
+      return pessoa;
+    });
   }
 
   async atualizar(id: string, e: Record<string, unknown>) {

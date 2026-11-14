@@ -1,4 +1,6 @@
 import { useState } from "react";
+import ServicosConsultoria from "@/components/clientes/ServicosConsultoria";
+import PerfilFiscal from "@/components/clientes/PerfilFiscal";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, Loader2, Pencil, Tags } from "lucide-react";
@@ -143,6 +145,11 @@ export default function FichaClientePagina() {
             </dl>
             {empresa.observacao && <p className="text-sm whitespace-pre-line">{empresa.observacao}</p>}
           </Cartao>
+
+          {(empresa.cnpj_cpf || "").replace(/[^a-z0-9]/gi, "").length === 14 && <Cartao titulo="Perfil fiscal">
+            <PerfilFiscal empresaId={empresa.id} />
+          </Cartao>}
+          {!empresa.arquivado_em && empresa.cnpj_cpf?.replace(/[^a-z0-9]/gi, "").length === 14 && <ServicosConsultoria publico="PJ" clienteId={empresa.id} />}
 
           <Cartao titulo="Certificado digital A1">
             <CertificadoXml empresaId={empresa.id} />

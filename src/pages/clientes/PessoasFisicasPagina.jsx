@@ -7,6 +7,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import ServicosConsultoria from "@/components/clientes/ServicosConsultoria";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PageHeader from "@/components/PageHeader";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
@@ -24,18 +25,19 @@ export function situacaoDoCertificado(validade, hoje = hojeBR()) {
   return { rotulo: `Válido até ${String(validade).slice(8, 10)}/${String(validade).slice(5, 7)}/${String(validade).slice(0, 4)}`, tom: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" };
 }
 
-function DialogoPessoa({ pessoa, empresas, aoFechar }) {
+export function DialogoPessoa({ pessoa, empresas, aoFechar, servicoInicial }) {
+  const [consultoria, setConsultoria] = useState(servicoInicial ? [servicoInicial] : []);
   const qc = useQueryClient();
   const [f, setF] = useState({ nome: pessoa?.nome || "", cpf: pessoa?.cpf || "", email: pessoa?.email || "", telefone: pessoa?.telefone || "", empresa_id: pessoa?.empresa_id || "", grupo: pessoa?.grupo || "", certificado_tipo: pessoa?.certificado_tipo || "", certificado_validade: pessoa?.certificado_validade?.slice(0, 10) || "", observacao: pessoa?.observacao || "" });
   const mudar = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const salvar = useMutation({
-    mutationFn: () => { const c = { ...f, empresa_id: f.empresa_id || null, certificado_tipo: f.certificado_tipo || null, certificado_validade: f.certificado_validade || null }; return pessoa ? api.put(`/pessoas-fisicas/${pessoa.id}`, c) : api.post("/pessoas-fisicas", c); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pessoas-fisicas"] }); toast({ title: "Pessoa física salva" }); aoFechar(); },
+    mutationFn: () => { const c = { ...f, empresa_id: f.empresa_id || null, certificado_tipo: f.certificado_tipo || null, certificado_validade: f.certificado_validade || null }; return pessoa ? api.put(`/pessoas-fisicas/${pessoa.id}`, c) : api.post("/pessoas-fisicas", { ...c, servicos_consultoria: consultoria }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pessoas-fisicas"] }); qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] }); toast({ title: "Pessoa física salva" }); aoFechar(); },
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
   });
   return (
     <Dialog open onOpenChange={(v) => { if (!v) aoFechar(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader><DialogTitle>{pessoa ? "Editar pessoa física" : "Nova pessoa física"}</DialogTitle><DialogDescription className="sr-only">Dados da pessoa física</DialogDescription></DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-3">
@@ -50,6 +52,7 @@ function DialogoPessoa({ pessoa, empresas, aoFechar }) {
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Validade do certificado</span><input type="date" className={campo} value={f.certificado_validade} onChange={(e) => mudar("certificado_validade", e.target.value)} /></label>
           </div>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Observação</span><textarea className={`${campo} min-h-[56px]`} value={f.observacao} maxLength={2000} onChange={(e) => mudar("observacao", e.target.value)} /></label>
+          <ServicosConsultoria publico="PF" selecao={consultoria} mudar={setConsultoria} clienteId={pessoa?.id} />
           <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button><button type="submit" disabled={salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button></DialogFooter>
         </form>
       </DialogContent>

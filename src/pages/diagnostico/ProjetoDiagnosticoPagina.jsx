@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsultoria";
 import EscolhaDeEmpresas from "@/components/diagnostico/EscolhaDeEmpresas";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
@@ -27,10 +28,11 @@ export default function ProjetoDiagnosticoPagina() {
   const { user } = useAuth();
   const { empresas, grupos, carregando } = useCarteiras();
   const projeto = useQuery({ queryKey: ["projetos-diagnostico", id], queryFn: () => api.get(`/projetos-diagnostico/${id}`) });
+  const [documentos, setDocumentos] = useState(false);
   const [editando, setEditando] = useState(false);
   const [rascunho, setRascunho] = useState(null);
   const p = projeto.data;
-  useEffect(() => { if (p && !editando) setRascunho({ nome: p.nome, escopo: p.escopo || "", prazo: dia(p.prazo), responsavel: p.responsavel || "", empresa_ids: p.empresa_ids }); }, [p, editando]);
+  useEffect(() => { if (p && !editando) setRascunho({ nome: p.nome, escopo: p.escopo || "", prazo: dia(p.prazo), ...(p.servico_consultoria ? { periodo_inicio: dia(p.periodo_inicio), periodo_fim: dia(p.periodo_fim) } : {}), responsavel: p.responsavel || "", empresa_ids: p.empresa_ids }); }, [p, editando]);
 
   const salvar = useMutation({
     mutationFn: (dados) => api.put(`/projetos-diagnostico/${id}`, dados),
@@ -42,7 +44,7 @@ export default function ProjetoDiagnosticoPagina() {
     try { await api.delete(`/projetos-diagnostico/${id}`); qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] }); navigate("/diagnostico"); } catch (e) { toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }); }
   };
 
-  const crumbs = [{ label: "Início", to: "/inicio" }, { label: "Diagnósticos", to: "/diagnostico" }, { label: p?.nome || "Projeto" }];
+  const crumbs = [{ label: "Início", to: "/inicio" }, { label: p?.servico_consultoria ? "Projetos de Consultoria" : "Diagnósticos", to: p?.servico_consultoria ? "/consultoria/projetos" : "/diagnostico" }, { label: p?.nome || "Projeto" }];
   if (projeto.isLoading || carregando) return <div><PageHeader crumbs={crumbs} title="Diagnóstico" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
   if (!p) return <div><PageHeader crumbs={crumbs} title="Diagnóstico não encontrado" /><p role="alert" className="p-8 text-sm">Este projeto não existe mais. <Link to="/diagnostico" className="text-primary hover:underline">Voltar aos diagnósticos</Link></p></div>;
   const daLista = p.empresa_ids.map((eid) => empresas.find((e) => e.id === eid)).filter(Boolean);
@@ -66,12 +68,26 @@ export default function ProjetoDiagnosticoPagina() {
         )}
       />
       <div className="px-6 lg:px-8 py-5 space-y-4">
+        {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
+          <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
+          <p className="text-sm text-muted-foreground">Período do projeto: {fmtDataCurta(p.periodo_inicio)} a {fmtDataCurta(p.periodo_fim)}. Selecione a empresa nas ferramentas de simulação.</p>
+          <button className="text-sm text-primary hover:underline" onClick={() => setDocumentos(true)}>Documentos e solicitações</button>
+          {documentos && <SolicitacoesConsultoria servico={{ id: p.servico_consultoria, nome: "Simulador da Reforma Tributária" }}
+            clientes={daLista.map((e) => ({ id: e.id, nome: e.razao_social }))} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)} />}
+          <div className="flex flex-wrap gap-4 text-sm text-primary">
+            <Link to="/cockpit">Painel Executivo</Link>
+            <Link to="/reforma/regimes">Comparação de regimes na transição</Link>
+            <Link to="/cenarios">Cenários e alíquotas</Link>
+            <Link to="/transicao">Transição 2026–2033</Link>
+          </div>
+        </section>}
         {editando && rascunho ? (
           <section className="rounded-xl border border-primary/40 bg-card p-4 space-y-3 text-sm" aria-label="Editar escopo">
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nome</span><input className={campo} value={rascunho.nome} onChange={(e) => setRascunho((r) => ({ ...r, nome: e.target.value }))} /></label>
             <div className="space-y-1"><span className="block text-xs text-muted-foreground">Empresas</span><EscolhaDeEmpresas empresas={empresas} grupos={grupos} valor={rascunho.empresa_ids} aoMudar={(v) => setRascunho((r) => ({ ...r, empresa_ids: v }))} /></div>
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Objetivo e escopo</span><textarea className={`${campo} min-h-[72px]`} value={rascunho.escopo} onChange={(e) => setRascunho((r) => ({ ...r, escopo: e.target.value }))} /></label>
             <div className="grid gap-3 sm:grid-cols-2">
+              {p.servico_consultoria && [["periodo_inicio", "De"], ["periodo_fim", "Até"]].map(([chave, rotulo]) => <label key={chave} className="block space-y-1"><span className="block text-xs text-muted-foreground">{rotulo}</span><input type="date" className={campo} value={rascunho[chave]} onChange={(e) => setRascunho((r) => ({ ...r, [chave]: e.target.value }))} /></label>)}
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Prazo</span><input type="date" className={campo} value={rascunho.prazo} onChange={(e) => setRascunho((r) => ({ ...r, prazo: e.target.value }))} /></label>
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span><input className={campo} value={rascunho.responsavel} onChange={(e) => setRascunho((r) => ({ ...r, responsavel: e.target.value }))} /></label>
             </div>

@@ -2,10 +2,12 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { PrismaService } from '../prisma/prisma.service';
 import { CnpjService } from '../cnpj/cnpj.service';
 import { camposDoCnpj } from '../cnpj/dados-publicos';
+import { servicosConsultoria } from './consultoria.service';
 import { TIPOS_DE_SERVICO } from './servicos-contratados.service';
 
 /** O que a tela "Novo cliente" manda. Só a razão social é obrigatória; o grupo econômico é opcional. */
 export type NovoCliente = {
+  servicos_consultoria?: string[];
   razao_social?: string; cnpj_cpf?: string | null; regime_atual?: string | null; uf?: string | null; municipio?: string | null;
   email_contato?: string | null; whatsapp_contato?: string | null; inscricao_estadual?: string | null; produtor_rural?: string | null;
   observacao?: string | null; grupo?: string | null; servicos?: string[]; responsavel?: string | null; colaborador_id?: string | null;
@@ -69,6 +71,9 @@ export class ClientesService {
     const servicos = [...new Set(entrada.servicos ?? [])];
     if (servicos.some((s) => !TIPOS_DE_SERVICO.includes(s as never))) throw new BadRequestException(`Serviço inválido. Use ${TIPOS_DE_SERVICO.join(' ou ')}.`);
 
+    const consultoria = servicosConsultoria(entrada.servicos_consultoria, 'PJ');
+    if (consultoria.length && digitos(doc).length !== 14) throw new BadRequestException('Informe o CNPJ para vincular serviços de pessoa jurídica.');
+
     if (doc) {
       const todas = await this.prisma.empresa.findMany({ where: { cnpj_cpf: { not: null } }, select: { id: true, razao_social: true, cnpj_cpf: true, arquivado_em: true } });
       const igual = todas.find((e) => digitos(e.cnpj_cpf) === digitos(doc));
@@ -108,6 +113,11 @@ export class ClientesService {
           status: 'Ativa',
         },
       });
+      if (consultoria.length) {
+        await tx.vinculoConsultoria.createMany({ data: consultoria.map((servico) => ({
+          publico: 'PJ', cliente_id: empresa.id, servico, criado_por: usuario?.email,
+        })) });
+      }
       const responsavel = limpo(entrada.responsavel, 120);
       for (const tipo of servicos) {
         await tx.servicoContratado.create({

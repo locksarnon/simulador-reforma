@@ -1730,6 +1730,9 @@ model TokenIntegraContador {
 /// continua onde sempre esteve, ligado à empresa.
 model ProjetoDiagnostico {
   id           String    @id @default(cuid())
+  servico_consultoria String?
+  periodo_inicio DateTime?
+  periodo_fim DateTime?
   nome         String
   grupo_numero String?
   empresa_ids  String[]  @default([])
@@ -1744,6 +1747,19 @@ model ProjetoDiagnostico {
   updatedAt    DateTime  @updatedAt
 
   @@index([situacao])
+}
+
+/// Vínculo comercial da Consultoria, independente dos contratos e rotinas do BPO.
+model VinculoConsultoria {
+  id           String   @id @default(cuid())
+  publico      String
+  cliente_id   String
+  servico      String
+  criado_por   String?
+  createdAt    DateTime @default(now())
+
+  @@unique([publico, cliente_id, servico])
+  @@index([servico])
 }
 
 // ── [/projetos-diagnostico] ──
@@ -1905,4 +1921,19 @@ model LoteMonitoramento {
   updatedAt DateTime  @updatedAt
 
   @@index([fim])
+}
+
+model ControleDocumentoConsultoria {
+  id          String   @id @default(cuid())
+  publico     String
+  cliente_id  String
+  servico     String
+  item        String
+  periodo     String
+  situacao    String
+  arquivo_id  String?
+  atualizado_por String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([publico, cliente_id, servico, item, periodo], map: "controle_documento_consultoria_chave")
 }

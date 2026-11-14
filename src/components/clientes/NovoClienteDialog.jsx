@@ -7,12 +7,13 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { mascararDocumento } from "@/lib/clientes";
+import ServicosConsultoria from "./ServicosConsultoria";
 import { TIPOS } from "@/lib/servicos";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real", "MEI", "Produtor rural PF", "Imune/Isenta"];
 const UFS = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
-const VAZIO = { cnpj_cpf: "", razao_social: "", regime_atual: "", uf: "", municipio: "", email_contato: "", whatsapp_contato: "", inscricao_estadual: "", grupo: "", servicos: [], responsavel: "", colaborador_id: "", publicos: null };
+const VAZIO = { cnpj_cpf: "", razao_social: "", regime_atual: "", uf: "", municipio: "", email_contato: "", whatsapp_contato: "", inscricao_estadual: "", grupo: "", servicos: [], consultoria: [], responsavel: "", colaborador_id: "", publicos: null };
 
 function Campo({ rotulo, children, dica }) {
   return (
@@ -28,14 +29,14 @@ function Campo({ rotulo, children, dica }) {
  * Clientes > Novo cliente: o documento primeiro (o CNPJ busca nome, cidade, CNAE e porte na Receita), os serviços marcados
  * na hora e o grupo econômico só se houver. Ao salvar, abre a ficha do cliente.
  */
-export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colaboradores = [] }) {
+export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colaboradores = [], servicoInicial, bpoInicial = false }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [f, setF] = useState(VAZIO);
   const [buscando, setBuscando] = useState(false);
   const [erro, setErro] = useState("");
-  useEffect(() => { if (aberto) { setF(VAZIO); setErro(""); } }, [aberto]);
+  useEffect(() => { if (aberto) { setF({ ...VAZIO, consultoria: servicoInicial ? [servicoInicial] : [], servicos: bpoInicial ? ["BPO_FISCAL"] : [] }); setErro(""); } }, [aberto, servicoInicial, bpoInicial]);
   const mudar = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const digitos = f.cnpj_cpf.replace(/\D/g, "");
   const alternarServico = (tipo) => setF((x) => ({ ...x, servicos: x.servicos.includes(tipo) ? x.servicos.filter((s) => s !== tipo) : [...x.servicos, tipo] }));
@@ -59,12 +60,13 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
         cnpj_cpf: f.cnpj_cpf, razao_social: f.razao_social, regime_atual: f.regime_atual || null, uf: f.uf || null, municipio: f.municipio || null,
         email_contato: f.email_contato || null, whatsapp_contato: f.whatsapp_contato || null, inscricao_estadual: f.inscricao_estadual || null,
         produtor_rural: f.regime_atual === "Produtor rural PF" ? "Sim" : null,
-        grupo: f.grupo || null, servicos: f.servicos, responsavel: f.responsavel || null, colaborador_id: f.colaborador_id || null,
+        grupo: f.grupo || null, servicos: f.servicos, servicos_consultoria: digitos.length === 14 ? f.consultoria : [], responsavel: f.responsavel || null, colaborador_id: f.colaborador_id || null,
         cnae_principal: p?.cnae_codigo || null, cnae_descricao: p?.cnae_descricao || null, porte: p?.porte || null, natureza_juridica: p?.natureza_juridica || null, codigo_municipio_ibge: p?.codigo_municipio_ibge || null,
       });
     },
     onSuccess: (empresa) => {
       ["empresas", "grupos", "servicos-contratados", "carteira"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] });
       toast({ title: "Cliente cadastrado", description: empresa.razao_social });
       aoFechar();
       navigate(`/clientes/${empresa.id}`);
@@ -81,7 +83,7 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
 
   return (
     <Dialog open={aberto} onOpenChange={(v) => !v && aoFechar()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo cliente</DialogTitle>
           <DialogDescription>Comece pelo CNPJ.</DialogDescription>
@@ -114,6 +116,7 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
               ))}
             </div>
           </fieldset>
+          {digitos.length === 14 && <ServicosConsultoria publico="PJ" selecao={f.consultoria} mudar={(v) => mudar("consultoria", v)} />}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {user?.role === "admin" ? (
               <Campo rotulo="Colaborador responsável"><select className={campo} value={f.colaborador_id} onChange={(e) => { const c = colaboradores.find((x) => x.id === e.target.value); setF((x) => ({ ...x, colaborador_id: e.target.value, responsavel: c ? (c.name || c.email) : "" })); }}><option value="">Ninguém por enquanto</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}</select></Campo>

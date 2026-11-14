@@ -29,7 +29,7 @@ const ACOES = {
  * Carteira de uma área: as empresas que contrataram aquele serviço (ativo ou pausado), com responsável, início e o caminho para
  * trabalhar em cada uma. Se nada foi marcado ainda, a página explica como marcar e oferece ver todas as empresas.
  */
-export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
+export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes }) {
   const { empresas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
   const { tags, porEmpresa, mapa: mapaTags } = useTags();
   const { data: colaboradores = [] } = useColaboradores();
@@ -69,7 +69,7 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo }) {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: area.titulo, to: `/area/${area.id}` }, { label: titulo }]} title={titulo} subtitle={subtitulo} />
+      <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: area.titulo, to: `/area/${area.id}` }, { label: titulo }]} title={titulo} subtitle={subtitulo} actions={acoes} />
       <div className="px-6 lg:px-8 py-6 space-y-4">
         {ninguemMarcado && !todas && (
           <div role="status" className="rounded-xl border border-amber-400/60 bg-card p-4 text-sm space-y-2">

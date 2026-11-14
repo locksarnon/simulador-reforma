@@ -33,7 +33,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, ...(consultoria ? [{ label: "Consultoria Tributária", to: "/area/diagnostico" }, { label: "Projetos" }] : [{ label: "Diagnósticos" }])]}
         title={consultoria ? "Projetos de Consultoria" : "Diagnósticos"}
-        actions={<button type="button" onClick={() => setNovo(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
+        actions={consultoria ? <Link to="/consultoria/servicos" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground">Escolher serviço</Link> : <button type="button" onClick={() => setNovo(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
       />
       <div className="px-6 lg:px-8 py-5 space-y-3">
         <div className="flex flex-wrap items-end gap-2 text-sm">
@@ -49,7 +49,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
           <TabelaPadrao
             id="diagnosticos-projetos" ariaLabel="Projetos de diagnóstico" titulo="Projetos de diagnóstico" linhas={lista}
             aoClicarLinha={(p) => navigate(`/diagnostico/projetos/${p.id}`)}
-            vazio={(projetos.data || []).length === 0 ? <>Nenhum diagnóstico ainda. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Criar o primeiro</button></> : "Nenhum diagnóstico com esses filtros."}
+            vazio={consultoria ? "Nenhum projeto com esses filtros." : (projetos.data || []).length === 0 ? <>Nenhum diagnóstico ainda. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Criar o primeiro</button></> : "Nenhum diagnóstico com esses filtros."}
             colunas={[
               { chave: "nome", rotulo: "Diagnóstico", render: (p) => <Link to={`/diagnostico/projetos/${p.id}`} onClick={(e) => e.stopPropagation()} className="font-medium hover:text-primary hover:underline">{p.nome}</Link> },
               { chave: "empresas", rotulo: "Empresas", valor: (p) => p.empresa_ids.map((id) => nomeDe.get(id) || "empresa removida").join(", "),

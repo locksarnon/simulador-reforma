@@ -133,7 +133,7 @@ function App() {
                   <Route path="/clientes/servicos-contratados" element={<ServicosContratadosPagina />} />
                   <Route path="/bpo/carteira" element={<CarteiraBpo />} />
                   <Route path="/diagnostico" element={<DiagnosticosPagina />} />
-                  <Route path="/consultoria/carteira" element={<CarteiraDiagnostico consultoria />} />
+                  <Route path="/consultoria/carteira" element={<ConsultoriaPagina carteira />} />
                   <Route path="/consultoria/servicos" element={<ConsultoriaPagina />} />
                   <Route path="/consultoria/projetos" element={<DiagnosticosPagina consultoria />} />
                   <Route path="/diagnostico/carteira" element={<CarteiraDiagnostico />} />

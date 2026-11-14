@@ -12,7 +12,7 @@ import { rotuloDoGrupo } from "@/lib/clientes";
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Diagnósticos > Novo diagnóstico: o escopo (empresa, parte de um grupo ou o grupo todo), o nome, o objetivo e o prazo. */
-export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grupos, inicial = [] }) {
+export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grupos, inicial = [], servico }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [ids, setIds] = useState(inicial);
@@ -23,15 +23,17 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
   const [prazo, setPrazo] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [erro, setErro] = useState("");
+  const [periodoInicio, setPeriodoInicio] = useState("");
+  const [periodoFim, setPeriodoFim] = useState("");
   useEffect(() => { if (aberto) { setIds(inicial); setGrupo(null); setNome(""); setNomeTocado(false); setEscopo(""); setPrazo(""); setResponsavel(""); setErro(""); } }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const primeira = empresas.find((e) => e.id === ids[0]);
   const alvo = grupo && ids.every((id) => empresas.find((e) => e.id === id)?.grupo === grupo.numero) ? rotuloDoGrupo(grupo) : ids.length === 1 ? primeira?.razao_social : ids.length > 1 ? `${primeira?.razao_social} e mais ${ids.length - 1}` : "";
-  const nomeFinal = nomeTocado ? nome : nomeSugerido(alvo);
+  const nomeFinal = nomeTocado ? nome : servico ? `${servico.nome} — ${alvo || ""}` : nomeSugerido(alvo);
   const grupoDoEscopo = grupo && ids.some((id) => empresas.find((e) => e.id === id)?.grupo === grupo.numero) ? grupo.numero : (ids.length ? empresas.find((e) => e.id === ids[0])?.grupo : null);
 
   const criar = useMutation({
-    mutationFn: () => api.post("/projetos-diagnostico", { nome: nomeFinal, empresa_ids: ids, grupo_numero: grupoDoEscopo || null, escopo: escopo || null, prazo: prazo || null, responsavel: responsavel || null }),
+    mutationFn: () => api.post("/projetos-diagnostico", { nome: nomeFinal, empresa_ids: ids, grupo_numero: grupoDoEscopo || null, escopo: escopo || null, prazo: prazo || null, responsavel: responsavel || null, ...(servico ? { servico_consultoria: servico.id, periodo_inicio: periodoInicio, periodo_fim: periodoFim } : {}) }),
     onSuccess: (p) => {
       ["projetos-diagnostico", "servicos-contratados"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       toast({ title: "Diagnóstico criado", description: p.nome });
@@ -45,6 +47,7 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
     ev.preventDefault();
     if (!ids.length) { setErro("Escolha pelo menos uma empresa."); return; }
     if (!nomeFinal.trim()) { setErro("Dê um nome ao diagnóstico."); return; }
+    if (servico && (!periodoInicio || !periodoFim || periodoInicio > periodoFim)) { setErro("Informe um período válido."); return; }
     criar.mutate();
   };
 
@@ -52,7 +55,7 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
     <Dialog open={aberto} onOpenChange={(v) => !v && aoFechar()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Novo diagnóstico</DialogTitle>
+          <DialogTitle>{servico ? "Novo projeto de consultoria" : "Novo diagnóstico"}</DialogTitle>
           <DialogDescription>Uma empresa, parte de um grupo ou o grupo inteiro.</DialogDescription>
         </DialogHeader>
         <form onSubmit={enviar} className="space-y-3 text-sm" noValidate>
@@ -66,6 +69,10 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Prazo de entrega</span><input type="date" className={campo} value={prazo} onChange={(e) => setPrazo(e.target.value)} /></label>
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span><input className={campo} value={responsavel} onChange={(e) => setResponsavel(e.target.value)} /></label>
           </div>
+          {servico && <div className="grid grid-cols-2 gap-3">
+            <label>Início do período<input type="date" className={campo} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} /></label>
+            <label>Fim do período<input type="date" className={campo} value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} /></label>
+          </div>}
           {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
           <DialogFooter>
             <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
