@@ -105,7 +105,7 @@ export default function PainelCarteiraPagina() {
 
             <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-labelledby="titulo-mapa">
               <h2 id="titulo-mapa" className="font-heading text-sm font-semibold">Onde ficam as empresas</h2>
-              <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,24%)]">
                 <Suspense fallback={<div className="flex h-[380px] items-center justify-center rounded-lg bg-muted/40 text-sm text-muted-foreground">Carregando o mapa…</div>}>
                   <MapaDaCarteira municipios={r.por_municipio} />
                 </Suspense>

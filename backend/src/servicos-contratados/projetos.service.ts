@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CATALOGO_CONSULTORIA } from './consultoria.service';
 
@@ -122,9 +122,33 @@ export class ProjetosDiagnosticoService {
   }
 
   async excluir(id: string, usuario?: Usuario) {
-    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores excluem projetos.');
-    await this.obter(id);
-    await this.prisma.projetoDiagnostico.delete({ where: { id } });
-    return { ok: true };
+    const projeto = await this.obter(id);
+    if (usuario?.role === 'admin') {
+      await this.prisma.projetoDiagnostico.delete({ where: { id } });
+      return { ok: true, pendente: false };
+    }
+    if (!usuario?.email) throw new ForbiddenException('Identifique-se para solicitar a exclusão.');
+    await this.prisma.projetoDiagnostico.updateMany({
+      where: { id, exclusao_solicitada_em: null },
+      data: { exclusao_solicitada_em: new Date(), exclusao_solicitada_por: usuario.email },
+    });
+    return { ok: true, pendente: true, projeto: await this.obter(projeto.id) };
+  }
+
+  async aprovarExclusao(id: string, usuario?: Usuario) {
+    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores decidem solicitações de exclusão.');
+    const resultado = await this.prisma.projetoDiagnostico.deleteMany({ where: { id, exclusao_solicitada_em: { not: null } } });
+    if (!resultado.count) throw new ConflictException('A solicitação já foi resolvida.');
+    return { ok: true, pendente: false };
+  }
+
+  async recusarExclusao(id: string, usuario?: Usuario) {
+    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores decidem solicitações de exclusão.');
+    const resultado = await this.prisma.projetoDiagnostico.updateMany({
+      where: { id, exclusao_solicitada_em: { not: null } },
+      data: { exclusao_solicitada_em: null, exclusao_solicitada_por: null },
+    });
+    if (!resultado.count) throw new ConflictException('A solicitação já foi resolvida.');
+    return this.obter(id);
   }
 }

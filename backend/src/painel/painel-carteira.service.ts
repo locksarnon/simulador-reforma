@@ -1,13 +1,21 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { camposDoCnpj } from '../cnpj/dados-publicos';
 import { CnpjService } from '../cnpj/cnpj.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { sedesIbge } from './sedes-ibge';
 
 type EmpresaPainel = {
   id: string; razao_social: string; cnpj_cpf: string | null; regime_atual: string | null; setor: string | null; uf: string | null; municipio: string | null;
   status: string; produtor_rural: string | null; cnae_principal: string | null; cnae_descricao: string | null; porte: string | null;
   latitude: number | null; longitude: number | null; email_contato: string | null; whatsapp_contato: string | null; dados_publicos_em: Date | null; situacao_cadastral?: string | null;
 };
+
+const nomeMunicipio = (nome: string) => nome.normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  .toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+const chaveMunicipio = (uf: string, nome: string) => `${uf.trim().toUpperCase()}|${nomeMunicipio(nome)}`;
+const sedes = new Map(sedesIbge.map(([, uf, nome, latitude, longitude]) => [
+  chaveMunicipio(uf, nome), { nome, latitude, longitude },
+]));
 
 const MAX_POR_RODADA = 20;
 const ESPERA_MS = 350;
@@ -44,8 +52,6 @@ export function faltasDoCadastro(e: EmpresaPainel): string[] {
  */
 @Injectable()
 export class PainelCarteiraService {
-  private readonly logger = new Logger(PainelCarteiraService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly cnpj: CnpjService,
@@ -53,6 +59,7 @@ export class PainelCarteiraService {
 
   private empresas(): Promise<EmpresaPainel[]> {
     return this.prisma.empresa.findMany({
+      where: { arquivado_em: null },
       select: {
         id: true, razao_social: true, cnpj_cpf: true, regime_atual: true, setor: true, uf: true, municipio: true, status: true, produtor_rural: true,
         cnae_principal: true, cnae_descricao: true, porte: true, latitude: true, longitude: true, email_contato: true, whatsapp_contato: true, dados_publicos_em: true, situacao_cadastral: true,
@@ -71,10 +78,13 @@ export class PainelCarteiraService {
     const municipios = new Map<string, { uf: string; municipio: string; total: number; latitude: number | null; longitude: number | null }>();
     for (const e of empresas) {
       if (!e.uf || !e.municipio) continue;
-      const k = `${e.uf}|${e.municipio.toUpperCase()}`;
-      const m = municipios.get(k) ?? { uf: e.uf, municipio: e.municipio, total: 0, latitude: null, longitude: null };
+      const k = chaveMunicipio(e.uf, e.municipio);
+      const sede = sedes.get(k);
+      const m = municipios.get(k) ?? {
+        uf: e.uf.trim().toUpperCase(), municipio: sede?.nome ?? e.municipio.trim(), total: 0,
+        latitude: sede?.latitude ?? null, longitude: sede?.longitude ?? null,
+      };
       m.total++;
-      if (m.latitude === null && e.latitude !== null && e.longitude !== null) { m.latitude = e.latitude; m.longitude = e.longitude; }
       municipios.set(k, m);
     }
     const cnaes = new Map<string, { codigo: string; descricao: string; total: number }>();
@@ -85,6 +95,7 @@ export class PainelCarteiraService {
       cnaes.set(e.cnae_principal, c);
     }
     const comFaltas = empresas.map((e) => ({ id: e.id, razao_social: e.razao_social, faltas: faltasDoCadastro(e) })).filter((e) => e.faltas.length);
+    const comPonto = [...municipios.values()].reduce((total, m) => total + (m.latitude === null ? 0 : m.total), 0);
     const pendentesDeCnpj = empresas.filter((e) => digitos(e.cnpj_cpf).length === 14 && !e.dados_publicos_em).length;
     return {
       total: empresas.length,
@@ -104,7 +115,7 @@ export class PainelCarteiraService {
         faltas: contar(comFaltas.flatMap((e) => e.faltas.map((f) => ({ f }))), (x) => x.f),
         empresas_com_faltas: comFaltas.slice(0, 200),
         pendentes_de_cnpj: pendentesDeCnpj,
-        sem_ponto_no_mapa: empresas.filter((e) => e.uf && e.municipio && e.latitude === null).length,
+        sem_ponto_no_mapa: empresas.length - comPonto,
       },
     };
   }
@@ -122,10 +133,13 @@ export class PainelCarteiraService {
     for (const e of fila.slice(0, MAX_POR_RODADA)) {
       try {
         const d = await this.cnpj.consultar(digitos(e.cnpj_cpf));
-        const ponto = d.codigo_municipio_ibge ? await this.cnpj.centroideDoMunicipio(d.codigo_municipio_ibge) : null;
+        const dados = camposDoCnpj(d, e);
+        const uf = dados.uf ?? e.uf;
+        const nome = dados.municipio ?? e.municipio;
+        const ponto = uf && nome ? sedes.get(chaveMunicipio(uf, nome)) : undefined;
         await this.prisma.empresa.update({
           where: { id: e.id },
-          data: { ...camposDoCnpj(d, e), latitude: ponto?.latitude ?? null, longitude: ponto?.longitude ?? null },
+          data: { ...dados, latitude: ponto?.latitude ?? null, longitude: ponto?.longitude ?? null },
         });
         atualizadas++;
       } catch (err) {

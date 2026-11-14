@@ -14,7 +14,6 @@ function montar(empresas: Record<string, unknown>[], consulta?: (cnpj: string) =
   };
   const cnpj = {
     consultar: consulta ?? (async (c: string) => ({ cnae_codigo: '0115600', cnae_descricao: 'Cultivo de soja', porte: 'DEMAIS', natureza_juridica: 'Sociedade Empresária Limitada', codigo_municipio_ibge: '5103403', uf: 'MT', municipio: 'CUIABA', cnpj: c })),
-    centroideDoMunicipio: async () => ({ latitude: -15.5, longitude: -55.9 }),
   };
   return { service: new PainelCarteiraService(prisma as never, cnpj as never), lista };
 }
@@ -41,13 +40,25 @@ describe('Painel da carteira: contas', () => {
     expect(r.total).toBe(3);
     expect(r.carteiras).toEqual({ bpo: 1, diagnostico: 2, ambas: 1, sem: 1 });
     expect(r.por_regime[0]).toEqual({ nome: 'Lucro Presumido', total: 2 });
-    expect(r.por_municipio[0]).toMatchObject({ uf: 'MT', total: 2, latitude: -15.5 }); // "Cuiabá" e "CUIABÁ" juntos
+    expect(r.por_municipio[0]).toMatchObject({ uf: 'MT', total: 2, latitude: -15.5676 }); // "Cuiabá" e "CUIABÁ" juntos
     expect(r.por_cnae).toEqual([{ codigo: '0115600', descricao: 'Cultivo de soja', total: 1 }]);
     expect(r.por_porte.find((p) => p.nome === 'Não informado')?.total).toBe(1); // só conta quem tem CNPJ
     expect(r.saude.pendentes_de_cnpj).toBe(1);
-    expect(r.saude.sem_ponto_no_mapa).toBe(2);
+    expect(r.saude.sem_ponto_no_mapa).toBe(0);
     expect(r.saude.completas).toBe(1);
   });
+});
+
+it('localiza as cidades do mapa mesmo sem geocodificação no cadastro', async () => {
+  const cidades = [
+    ['MS', 'CAMPO GRANDE'], ['GO', ' GOIANIA '], ['MT', 'ALTA FLORESTA'],
+    ['MT', 'CLAUDIA'], ['PA', 'PARAGOMINAS'], ['MT', 'SORRISO'],
+  ];
+  const { service } = montar([...cidades.map(([uf, municipio]) => ({ uf, municipio })), { uf: 'XX', municipio: 'Inválido' }, {}]);
+  const resumo = await service.resumo();
+  expect(resumo.saude.sem_ponto_no_mapa).toBe(2);
+  expect(resumo.por_municipio.filter((m) => m.latitude !== null)).toHaveLength(6);
+  expect(resumo.por_municipio.find((m) => m.municipio === 'Campo Grande')).toMatchObject({ latitude: -20.4626, longitude: -54.6086 });
 });
 
 describe('Painel da carteira: completar pelo CNPJ', () => {
@@ -59,7 +70,8 @@ describe('Painel da carteira: completar pelo CNPJ', () => {
     ]);
     const r = await t.service.completarPeloCnpj(0);
     expect(r).toEqual({ atualizadas: 2, falhas: [], restantes: 0 });
-    expect(t.lista[0]).toMatchObject({ cnae_principal: '0115600', porte: 'DEMAIS', uf: 'GO', municipio: 'Rio Verde', latitude: -15.5 });
+    expect(t.lista[0]).toMatchObject({ cnae_principal: '0115600', porte: 'DEMAIS', uf: 'GO', municipio: 'Rio Verde', latitude: expect.any(Number) });
+    expect(t.lista[0].latitude).not.toBe(-15.5676);
     expect(t.lista[1]).toMatchObject({ uf: 'MT', municipio: 'CUIABA' });
     expect(t.lista[2].dados_publicos_em).toBeNull();
     expect(await t.service.completarPeloCnpj(0)).toEqual({ atualizadas: 0, falhas: [], restantes: 0 }); // não repete

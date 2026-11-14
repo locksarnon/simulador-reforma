@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Menu, Search } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import MenuLateral from "@/components/MenuLateral";
 import BuscaRapida from "@/components/BuscaRapida";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
 import SeletorEmpresaEmFoco from "@/components/SeletorEmpresaEmFoco";
 import AvisoVersaoNova from "@/components/AvisoVersaoNova";
 import { EmpresaEmFocoProvider } from "@/lib/EmpresaEmFoco";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { moduloDoCaminho } from "@/lib/navegacao";
 
 const CHAVE_RECENTES = "intax-modulos-recentes";
@@ -59,9 +58,28 @@ export default function Layout() {
     });
   }, [pathname]);
 
-  const fecharGaveta = useCallback(() => setGaveta(false), []);
+  const botaoMenu = useRef(null);
+  const fecharGaveta = useCallback(() => {
+    setGaveta(false);
+    botaoMenu.current?.focus({ preventScroll: true });
+  }, []);
 
-  // Menu do computador: recolhido em ícones, abre por cima do conteúdo ao passar o mouse e recolhe ao sair; o alfinete deixa fixo.
+  useEffect(() => {
+    if (!gaveta) return;
+    const aoTeclar = (e) => {
+      if (e.key === "Escape" && !e.defaultPrevented) fecharGaveta();
+    };
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const aoRedimensionar = (e) => { if (e.matches) setGaveta(false); };
+    window.addEventListener("keydown", aoTeclar);
+    desktop.addEventListener("change", aoRedimensionar);
+    return () => {
+      window.removeEventListener("keydown", aoTeclar);
+      desktop.removeEventListener("change", aoRedimensionar);
+    };
+  }, [gaveta, fecharGaveta]);
+
+  // Menu do computador: recolhido em ícones, expande no fluxo da página ao passar o mouse e recolhe ao sair; o alfinete deixa fixo.
   const [fixa, setFixa] = useState(lerFixa);
   const [sobre, setSobre] = useState(false);
   const timerZona = useRef();
@@ -93,31 +111,35 @@ export default function Layout() {
 
   return (
     <EmpresaEmFocoProvider>
-    <div className="min-h-screen bg-canvas flex">
+    <div className="flex min-h-screen overflow-x-clip bg-canvas">
       <a href="#conteudo" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground">
         Pular para o conteúdo
       </a>
-      {/* Espaço do menu no fluxo da página: a faixa de ícones, ou o menu inteiro quando fixado. */}
-      <div aria-hidden="true" className={`hidden shrink-0 transition-[width] duration-150 ease-out motion-reduce:transition-none lg:block ${fixa ? "w-64" : "w-[72px]"}`} />
       <aside
         data-menu-lateral=""
         onFocus={aoFocar}
         onBlur={aoDesfocar}
-        className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-rail-border transition-[width,box-shadow] duration-150 ease-[cubic-bezier(0.2,0,0,1)] will-change-[width] [contain:layout_paint] motion-reduce:transition-none lg:block ${expandida ? "w-64" : "w-[72px]"} ${expandida && !fixa ? "shadow-[12px_0_40px_-12px_rgba(0,0,0,0.45)]" : ""}`}
+        className={`sticky top-0 hidden h-dvh shrink-0 self-start overflow-hidden border-r border-rail-border transition-[width] duration-150 ease-out motion-reduce:transition-none lg:block ${expandida ? "w-64" : "w-[72px]"}`}
       >
         <MenuLateral modo="trilho" compacto={!expandida} fixa={fixa} aoFixar={alternarFixa} />
       </aside>
-      <Sheet open={gaveta} onOpenChange={setGaveta}>
-        <SheetContent side="left" className="w-72 border-rail-border bg-rail p-0 text-rail-foreground [&>button]:text-rail-strong">
-          <SheetTitle className="sr-only">Menu principal</SheetTitle>
-          <SheetDescription className="sr-only">Áreas e módulos do InTAX</SheetDescription>
-          <MenuLateral modo="gaveta" aoNavegar={fecharGaveta} />
-        </SheetContent>
-      </Sheet>
+      <aside
+        id="menu-movel"
+        aria-label="Menu principal"
+        inert={gaveta ? undefined : ""}
+        className={`sticky top-0 h-dvh shrink-0 self-start overflow-hidden transition-[width] duration-150 ease-out motion-reduce:transition-none lg:hidden ${gaveta ? "w-[min(18rem,75vw)]" : "w-0"}`}
+      >
+        <div className="flex h-full w-[min(18rem,75vw)] flex-col border-r border-rail-border bg-rail text-rail-foreground">
+          {gaveta && <button type="button" className="m-2 self-end rounded-md p-2 hover:bg-rail-hover" aria-label="Fechar o menu" onClick={fecharGaveta} autoFocus>
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>}
+          <div className="min-h-0 flex-1">{gaveta && <MenuLateral modo="gaveta" aoNavegar={fecharGaveta} />}</div>
+        </div>
+      </aside>
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex w-full min-w-0 shrink-0 flex-col lg:w-auto lg:flex-1">
         <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-card/95 px-3 backdrop-blur lg:px-6">
-          <button type="button" onClick={() => setGaveta(true)} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" aria-label="Abrir o menu">
+          <button type="button" ref={botaoMenu} aria-controls="menu-movel" aria-expanded={gaveta} onClick={() => gaveta ? fecharGaveta() : setGaveta(true)} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" aria-label={gaveta ? "Fechar menu principal" : "Abrir o menu"}>
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
           <button

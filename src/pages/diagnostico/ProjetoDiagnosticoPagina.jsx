@@ -39,9 +39,35 @@ export default function ProjetoDiagnosticoPagina() {
     onSuccess: (novo) => { qc.setQueryData(["projetos-diagnostico", id], novo); qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] }); qc.invalidateQueries({ queryKey: ["servicos-contratados"] }); setEditando(false); toast({ title: "Diagnóstico atualizado" }); },
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
   });
+  const admin = user?.role === "admin";
+  const pendente = Boolean(p?.exclusao_solicitada_em);
+  const acaoExclusao = admin ? (pendente ? "Aprovar e excluir" : "Excluir projeto") : "Solicitar exclusão";
+  const atualizarProjeto = (novo) => {
+    qc.setQueryData(["projetos-diagnostico", id], novo);
+    qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] });
+  };
+  const exclusao = useMutation({
+    mutationFn: (recusar) => {
+      if (!recusar && admin && pendente) return api.post(`/projetos-diagnostico/${id}/solicitacao-exclusao/aprovar`, {});
+      return api.delete(`/projetos-diagnostico/${id}${recusar ? "/solicitacao-exclusao" : ""}`);
+    },
+    onSuccess: (resposta, recusar) => {
+      if (recusar || resposta.pendente) {
+        atualizarProjeto(recusar ? resposta : resposta.projeto);
+        toast({ title: recusar ? "Solicitação recusada" : "Solicitação enviada ao administrador" });
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] });
+      navigate(p.servico_consultoria ? "/consultoria/projetos" : "/diagnostico");
+    },
+    onError: (e) => toast({ title: "Não foi possível concluir a ação", description: e.message, variant: "destructive" }),
+  });
   const excluir = async () => {
-    if (!(await confirmar({ titulo: `Excluir o projeto ${p.nome}?`, descricao: "O trabalho das empresas continua no lugar.", rotulo: "Excluir projeto" }))) return;
-    try { await api.delete(`/projetos-diagnostico/${id}`); qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] }); navigate("/diagnostico"); } catch (e) { toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }); }
+    if (await confirmar({
+      titulo: `${acaoExclusao}: ${p.nome}?`,
+      descricao: admin ? "O projeto será excluído. Os trabalhos das empresas permanecem disponíveis." : "O projeto permanece ativo até um administrador autorizar a exclusão.",
+      rotulo: acaoExclusao,
+    })) exclusao.mutate(false);
   };
 
   const crumbs = [{ label: "Início", to: "/inicio" }, { label: p?.servico_consultoria ? "Projetos de Consultoria" : "Diagnósticos", to: p?.servico_consultoria ? "/consultoria/projetos" : "/diagnostico" }, { label: p?.nome || "Projeto" }];
@@ -63,11 +89,15 @@ export default function ProjetoDiagnosticoPagina() {
               {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
             </select>
             <button type="button" onClick={() => setEditando(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar escopo</button>
-            {user?.role === "admin" && <button type="button" onClick={excluir} className="rounded-md border border-destructive/50 p-1.5 text-destructive hover:bg-destructive/10" aria-label="Excluir projeto" title="Excluir projeto"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
+            {(admin || !pendente) && <button type="button" onClick={excluir} disabled={exclusao.isPending} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" aria-hidden="true" /> {acaoExclusao}</button>}
           </div>
         )}
       />
       <div className="px-6 lg:px-8 py-5 space-y-4">
+        {pendente && <section className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted p-3 text-sm" aria-label="Solicitação de exclusão">
+          <p><strong>Exclusão aguardando autorização.</strong> Solicitada por {p.exclusao_solicitada_por} em {fmtDataCurta(p.exclusao_solicitada_em)}.</p>
+          {admin && <button type="button" disabled={exclusao.isPending} className="rounded-md border bg-background px-3 py-1.5 hover:bg-muted" onClick={() => exclusao.mutate(true)}>Recusar exclusão</button>}
+        </section>}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
           <p className="text-sm text-muted-foreground">Período do projeto: {fmtDataCurta(p.periodo_inicio)} a {fmtDataCurta(p.periodo_fim)}. Selecione a empresa nas ferramentas de simulação.</p>

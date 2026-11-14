@@ -65,7 +65,7 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
 
   it("no computador o menu nasce recolhido em ícones; os módulos abrem num painel ao lado, e a área aberta mostra o módulo atual", () => {
     const html = renderizar(ADMIN, "/bpo/repositorio-xml/E1");
-    expect(html).toContain("w-[72px]");
+    expect(html).toMatch(/<aside data-menu-lateral=""[^>]*class="sticky[^"]*w-\[72px\]/);
     expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*>Captura de XML<\/a>/);
     expect(html).not.toContain(">Cenários<");
     expect(html).toContain('aria-label="Abrir Consultoria Tributária"');
@@ -104,6 +104,9 @@ describe("Layout: menu em áreas, busca e acessibilidade", () => {
   });
 
   it("no celular o menu abre numa gaveta (botão do menu na barra)", () => {
-    expect(renderizar(ADMIN)).toContain('aria-label="Abrir o menu"');
+    const html = renderizar(ADMIN);
+    expect(html).toContain('aria-label="Abrir o menu"');
+    expect(html).toContain('aria-controls="menu-movel" aria-expanded="false"');
+    expect(html).toMatch(/<aside id="menu-movel"[^>]*class="sticky[^"]*w-0/);
   });
 });

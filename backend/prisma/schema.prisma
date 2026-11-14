@@ -1730,6 +1730,8 @@ model TokenIntegraContador {
 /// continua onde sempre esteve, ligado à empresa.
 model ProjetoDiagnostico {
   id           String    @id @default(cuid())
+  exclusao_solicitada_em DateTime?
+  exclusao_solicitada_por String?
   servico_consultoria String?
   periodo_inicio DateTime?
   periodo_fim DateTime?

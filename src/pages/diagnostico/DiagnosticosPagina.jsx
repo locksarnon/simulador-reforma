@@ -24,6 +24,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
     const q = filtro.busca.trim().toLowerCase();
     return (projetos.data || [])
       .filter((p) => filtro.situacao === "todos" || (filtro.situacao === "abertos" ? ["EM_ANDAMENTO", "PAUSADO"].includes(p.situacao) : p.situacao === filtro.situacao))
+      .filter((p) => !filtro.exclusao || p.exclusao_solicitada_em)
       .filter((p) => !q || p.nome.toLowerCase().includes(q) || p.empresa_ids.some((id) => (nomeDe.get(id) || "").toLowerCase().includes(q)));
   }, [projetos.data, filtro, nomeDe]);
   const atrasado = (p) => p.prazo && ["EM_ANDAMENTO", "PAUSADO"].includes(p.situacao) && new Date(p.prazo) < new Date(new Date().toISOString().slice(0, 10));
@@ -43,6 +44,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
               <option value="abertos">Em andamento e pausados</option><option value="todos">Todos</option>
               {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
             </select></label>
+          <label className="inline-flex items-center gap-2"><input type="checkbox" checked={Boolean(filtro.exclusao)} onChange={(e) => setFiltro((f) => ({ ...f, exclusao: e.target.checked, situacao: e.target.checked ? "todos" : f.situacao }))} /> Exclusão pendente</label>
           <Link to={consultoria ? "/consultoria/carteira" : "/diagnostico/carteira"} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">{consultoria ? "Carteira de Consultoria" : "Clientes com diagnóstico"}</Link>
         </div>
         {(projetos.isLoading || carregandoCadastro) ? <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
@@ -51,7 +53,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
             aoClicarLinha={(p) => navigate(`/diagnostico/projetos/${p.id}`)}
             vazio={consultoria ? "Nenhum projeto com esses filtros." : (projetos.data || []).length === 0 ? <>Nenhum diagnóstico ainda. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Criar o primeiro</button></> : "Nenhum diagnóstico com esses filtros."}
             colunas={[
-              { chave: "nome", rotulo: "Diagnóstico", render: (p) => <Link to={`/diagnostico/projetos/${p.id}`} onClick={(e) => e.stopPropagation()} className="font-medium hover:text-primary hover:underline">{p.nome}</Link> },
+              { chave: "nome", rotulo: "Diagnóstico", render: (p) => <Link to={`/diagnostico/projetos/${p.id}`} onClick={(e) => e.stopPropagation()} className="font-medium hover:text-primary hover:underline">{p.nome}{p.exclusao_solicitada_em && <span className="block text-xs text-muted-foreground">Exclusão pendente</span>}</Link> },
               { chave: "empresas", rotulo: "Empresas", valor: (p) => p.empresa_ids.map((id) => nomeDe.get(id) || "empresa removida").join(", "),
                 render: (p) => <span className="text-xs">{p.empresa_ids.slice(0, 3).map((id) => nomeDe.get(id) || "empresa removida").join(", ")}{p.empresa_ids.length > 3 ? ` e mais ${p.empresa_ids.length - 3}` : ""}</span> },
               { chave: "situacao", rotulo: "Situação", valor: (p) => SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao, render: (p) => <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${SITUACOES_PROJETO[p.situacao]?.tom || ""}`}>{SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao}</span> },

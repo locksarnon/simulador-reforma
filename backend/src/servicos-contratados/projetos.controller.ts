@@ -28,6 +28,16 @@ export class ProjetosDiagnosticoController {
     return this.projetos.atualizar(id, body ?? {}, user);
   }
 
+  @Post(':id/solicitacao-exclusao/aprovar')
+  aprovarExclusao(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.projetos.aprovarExclusao(id, user);
+  }
+
+  @Delete(':id/solicitacao-exclusao')
+  recusarExclusao(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.projetos.recusarExclusao(id, user);
+  }
+
   @Delete(':id')
   excluir(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.projetos.excluir(id, user);
