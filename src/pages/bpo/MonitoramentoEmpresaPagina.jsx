@@ -86,7 +86,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
         if (!s) return;
         setLote(s);
         qc.invalidateQueries({ queryKey: ["monitoramento", "empresa", empresaId] });
-        if (!s.fim) setTimeout(passo, 2500); else toast({ title: "Atualização concluída", description: `${plural(s.feitas - s.erros, "consulta feita", "consultas feitas")}${s.erros ? `, ${s.erros} com erro` : ""}.` });
+        if (!s.fim) setTimeout(passo, 2500); else toast({ title: "Atualização concluída", description: `${plural(s.feitas - s.erros, "consulta feita", "consultas feitas")}${s.erros ? `, ${s.erros} com erro ou sem resultado` : ""}.` });
       };
       setTimeout(passo, 1500);
     },

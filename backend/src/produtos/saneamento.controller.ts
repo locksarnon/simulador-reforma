@@ -16,8 +16,8 @@ export class SaneamentoController {
 
   @Get(':id') obter(@Param('id') id: string, @Query('empresa_id') empresa_id?: string) { return this.service.obter(id, empresa_id); }
 
-  @Put(':id') salvar(@Param('id') id: string, @Body() b: { nome?: string; validacao_id?: string | null; status?: string; estado?: unknown; empresa_id?: string }) {
-    return this.service.salvar(id, { nome: b?.nome, validacao_id: b?.validacao_id, status: b?.status, estado: b?.estado }, b?.empresa_id);
+  @Put(':id') salvar(@Param('id') id: string, @Body() b: { nome?: string; validacao_id?: string | null; status?: string; estado?: unknown; empresa_id?: string; versao?: string }) {
+    return this.service.salvar(id, { nome: b?.nome, validacao_id: b?.validacao_id, status: b?.status, estado: b?.estado, versao: b?.versao }, b?.empresa_id);
   }
 
   /** `apagar_base=true` apaga junto a base importada neste projeto (se nenhum outro projeto a usa). */

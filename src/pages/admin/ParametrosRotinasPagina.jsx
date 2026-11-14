@@ -71,7 +71,7 @@ export default function ParametrosRotinasPagina() {
   const bpo = empresas.filter((e) => naCarteira(mapa.get(e.id)?.BPO_FISCAL));
   const guiasAgora = useMutation({
     mutationFn: () => api.post("/monitoramento/guias", { empresa_ids: bpo.map((e) => e.id), enviar_email: !!cfg?.guias?.enviar_email }),
-    onSuccess: (r) => toast({ title: `${plural(r.geradas, "guia gerada", "guias geradas")}${r.enviadas ? `, ${plural(r.enviadas, "enviada", "enviadas")} por e-mail` : ""}`, description: r.falhas.length ? `Sem guia: ${r.falhas.slice(0, 5).join("; ")}${r.falhas.length > 5 ? "…" : ""}` : undefined }),
+    onSuccess: (r) => toast({ title: `${plural(r.geradas, "guia gerada", "guias geradas")}${r.enviadas ? `, ${plural(r.enviadas, "enviada", "enviadas")} por e-mail` : ""}${r.ja_enviadas ? `; ${plural(r.ja_enviadas, "já tinha sido enviada", "já tinham sido enviadas")} nesta competência` : ""}`, description: r.falhas.length ? `Sem guia: ${r.falhas.slice(0, 5).join("; ")}${r.falhas.length > 5 ? "…" : ""}` : undefined }),
     onError: (e) => toast({ title: "Não foi possível gerar", description: e.message, variant: "destructive" }),
   });
   const crumbs = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Parâmetros e rotinas" }];

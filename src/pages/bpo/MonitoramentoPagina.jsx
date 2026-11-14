@@ -17,9 +17,10 @@ import { mascararDocumento } from "@/lib/clientes";
 import { plural } from "@/lib/plural";
 import { NIVEIS, quandoConsultou, SEM_CONSULTA, tomDaNota, useEstadoMonitoramento } from "@/lib/monitoramento";
 
-function Ponto({ nivel, rotulo }) {
+function Ponto({ nivel, rotulo, falhou }) {
   const n = NIVEIS[nivel] || SEM_CONSULTA;
-  return <span className={`inline-block h-3 w-3 rounded-full align-middle ${n.ponto}`} title={`${rotulo}: ${n.rotulo}`} aria-label={`${rotulo}: ${n.rotulo}`} />;
+  const texto = `${rotulo}: ${n.rotulo}${falhou ? " (a última consulta falhou)" : ""}`;
+  return <span className={`inline-block h-3 w-3 rounded-full align-middle ${n.ponto} ${falhou ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-background" : ""}`} title={texto} aria-label={texto} />;
 }
 
 const pior = (p) => { if (!p) return "SEM"; const v = Object.values(p.grupos || {}); return v.includes("CRITICO") ? "CRITICO" : v.includes("ATENCAO") ? "ATENCAO" : "OK"; };
@@ -61,7 +62,7 @@ export default function MonitoramentoPagina() {
         if (!s) return;
         setLote(s);
         qc.invalidateQueries({ queryKey: ["monitoramento", "painel"] });
-        if (!s.fim) setTimeout(passo, 3000); else { setMarcadas(new Set()); toast({ title: "Atualização concluída", description: `${plural(s.feitas - s.erros, "consulta", "consultas")}${s.erros ? `; ${s.erros} com erro` : ""}.` }); }
+        if (!s.fim) setTimeout(passo, 3000); else { setMarcadas(new Set()); toast({ title: "Atualização concluída", description: `${plural(s.feitas - s.erros, "consulta", "consultas")}${s.erros ? `; ${s.erros} com erro ou sem resultado` : ""}.` }); }
       };
       setTimeout(passo, 2000);
     },
@@ -89,7 +90,7 @@ export default function MonitoramentoPagina() {
     ...grupos.map((g) => ({
       chave: `g-${g.id}`, rotulo: g.rotulo, alinhar: "centro", dica: `Abrir ${g.rotulo} do cliente`,
       valor: ({ p }) => (NIVEIS[p?.grupos?.[g.id]] || SEM_CONSULTA).rotulo,
-      render: ({ p }) => <Ponto nivel={p?.grupos?.[g.id]} rotulo={g.rotulo} />,
+      render: ({ p }) => <Ponto nivel={p?.grupos?.[g.id]} rotulo={g.rotulo} falhou={!!p?.grupos_falha?.[g.id]} />,
       aoClicar: ({ e }) => abrir(e.id, g.id),
     })),
     { chave: "certidoes", rotulo: "Certidões", alinhar: "centro", valor: () => "", render: () => <span className="text-xs text-primary">Abrir</span>, aoClicar: ({ e }) => abrir(e.id, "certidoes"), filtravel: false, ordenavel: false },

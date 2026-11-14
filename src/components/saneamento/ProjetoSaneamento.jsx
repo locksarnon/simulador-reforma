@@ -89,14 +89,33 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     setEstado({ ...estadoInicial(), ...salvoNoProjeto, versaoChaves: versaoDasChaves(salvoNoProjeto), ...migrarPassos(salvoNoProjeto), observacao: salvoNoProjeto.observacao ?? { ...observacaoInicial(), reaplicar: true } }); // o passo salvo com a numeração antiga (Critérios e Análises separados) é convertido uma vez; // projeto antigo (decisões pela linha) fica com a versão 1 até migrar
   }, [proj.data, proj.isFetchedAfterMount, proj.isError]);
 
-  // Autosave: cada ajuste é salvo sozinho.
+  // Autosave: cada ajuste é salvo sozinho. A versão (salvo_em) impede apagar o que outra pessoa salvou; sair da tela grava na hora
+  // o que ainda estava esperando.
+  const versao = useRef(null);
+  const pendente = useRef(null);
+  const conflito = useRef(false);
+  const gravar = (corpo) => {
+    if (conflito.current) return Promise.resolve();
+    return api.put(`/produtos/saneamentos/${projetoId}`, { ...corpo, versao: versao.current || undefined })
+      .then((r) => { if (r?.salvo_em) versao.current = r.salvo_em; setSalvo(new Date()); setErroSalvar(""); })
+      .catch((err) => { setSalvo(null); if (err?.status === 409 || /Outra pessoa salvou/.test(err?.message || "")) conflito.current = true; setErroSalvar(err?.message || "sem resposta do servidor"); });
+  };
+  useEffect(() => { if (proj.data?.updatedAt && !versao.current) versao.current = proj.data.updatedAt; }, [proj.data?.updatedAt]);
   useEffect(() => {
     if (!carregado.current || !estado) return;
-    const t = setTimeout(() => {
-      api.put(`/produtos/saneamentos/${projetoId}`, { estado, validacao_id: validacaoId, empresa_id: empresaId }).then(() => { setSalvo(new Date()); setErroSalvar(""); }).catch((err) => { setSalvo(null); setErroSalvar(err?.message || "sem resposta do servidor"); });
-    }, 800);
+    pendente.current = { estado, validacao_id: validacaoId, empresa_id: empresaId };
+    const t = setTimeout(() => { const c = pendente.current; pendente.current = null; if (c) gravar(c); }, 800);
     return () => clearTimeout(t);
   }, [estado, validacaoId, projetoId, empresaId]);
+  useEffect(() => {
+    const avisar = (ev) => { if (pendente.current) { ev.preventDefault(); ev.returnValue = ""; } };
+    window.addEventListener("beforeunload", avisar);
+    return () => {
+      window.removeEventListener("beforeunload", avisar);
+      // Saindo da tela com ajuste ainda não gravado: grava agora.
+      const c = pendente.current; pendente.current = null; if (c) gravar(c);
+    };
+  }, [projetoId]);
 
   useEffect(() => {
     if (!importando) return undefined;

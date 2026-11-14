@@ -1887,3 +1887,19 @@ model UsoExterno {
   @@index([createdAt])
   @@index([usuario, createdAt])
 }
+
+/// Atualização em lote do monitoramento ("Atualizar tudo" e rotina): tarefas e andamento gravados para retomar depois de reinício.
+model LoteMonitoramento {
+  id        String    @id
+  origem    String
+  por       String?
+  tarefas   Json
+  total     Int       @default(0)
+  feitas    Int       @default(0)
+  erros     Int       @default(0)
+  iniciado  DateTime  @default(now())
+  fim       DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@index([fim])
+}

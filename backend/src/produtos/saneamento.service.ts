@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -49,9 +49,15 @@ export class SaneamentoService {
 
   async obter(id: string, empresa_id?: string) { return this.saida(await this.achar(id, empresa_id)); }
 
-  /** Autosave: qualquer combinação de nome, base vinculada, status e estado. */
-  async salvar(id: string, dados: { nome?: string; validacao_id?: string | null; status?: string; estado?: unknown }, empresa_id?: string) {
-    await this.achar(id, empresa_id);
+  /**
+   * Autosave: qualquer combinação de nome, base vinculada, status e estado. Com `versao` (o salvo_em da última gravação vista), recusa
+   * a gravação se outra pessoa salvou depois: ninguém apaga, sem saber, as decisões do outro.
+   */
+  async salvar(id: string, dados: { nome?: string; validacao_id?: string | null; status?: string; estado?: unknown; versao?: string }, empresa_id?: string) {
+    const atual = await this.achar(id, empresa_id);
+    if (dados.versao && dados.estado !== undefined && new Date(dados.versao).getTime() !== atual.updatedAt.getTime()) {
+      throw new ConflictException(`Outra pessoa salvou este projeto em ${atual.updatedAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Recarregue a página para ver as mudanças antes de continuar.`);
+    }
     if (dados.status !== undefined && !['ANDAMENTO', 'CONCLUIDO'].includes(dados.status)) throw new BadRequestException('Situação inválida.');
     const p = await this.prisma.saneamentoProjeto.update({
       where: { id },
