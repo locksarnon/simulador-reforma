@@ -1733,6 +1733,7 @@ model ProjetoDiagnostico {
   exclusao_solicitada_em DateTime?
   exclusao_solicitada_por String?
   servico_consultoria String?
+  pessoa_fisica_id String?
   periodo_inicio DateTime?
   periodo_fim DateTime?
   nome         String

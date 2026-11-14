@@ -112,6 +112,11 @@ export class ProjetosDiagnosticoService {
       if (!SITUACOES_DO_PROJETO.includes(e.situacao as never)) throw new BadRequestException('Situação inválida.');
       dados.situacao = e.situacao;
     }
+    if (e.empresa_ids !== undefined && (atual.pessoa_fisica_id ||
+      (atual.servico_consultoria && atual.empresa_ids.length === 1 &&
+        (e.empresa_ids.length !== 1 || e.empresa_ids[0] !== atual.empresa_ids[0])))) {
+      throw new BadRequestException('O contribuinte do projeto foi definido na Carteira.');
+    }
     if (e.empresa_ids !== undefined) {
       dados.empresa_ids = await this.validarEmpresas(e.empresa_ids);
       const novas = (dados.empresa_ids as string[]).filter((x) => !atual.empresa_ids.includes(x));

@@ -21,6 +21,10 @@ export class ConsultoriaController {
     @Body() entrada: Record<string, unknown>, @CurrentUser() user: AuthUser) {
     return this.service.controlarDocumento(servico, id, entrada ?? {}, user.email);
   }
+  @Post('carteira/clientes/:id/projetos')
+  abrirProjeto(@Param('id') id: string, @Body() entrada: Record<string, unknown>, @CurrentUser() user: AuthUser) {
+    return this.service.abrirProjeto(id, entrada ?? {}, user.email);
+  }
   @Post('vinculos')
   vincular(@Body() entrada: { servico?: string; cliente_id?: string }, @CurrentUser() user: AuthUser) {
     return this.service.vincular(entrada ?? {}, user.email);

@@ -1,3 +1,4 @@
+import { useCatalogoConsultoria } from "@/components/clientes/ServicosConsultoria";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,7 +33,11 @@ export default function ProjetoDiagnosticoPagina() {
   const [editando, setEditando] = useState(false);
   const [rascunho, setRascunho] = useState(null);
   const p = projeto.data;
-  useEffect(() => { if (p && !editando) setRascunho({ nome: p.nome, escopo: p.escopo || "", prazo: dia(p.prazo), ...(p.servico_consultoria ? { periodo_inicio: dia(p.periodo_inicio), periodo_fim: dia(p.periodo_fim) } : {}), responsavel: p.responsavel || "", empresa_ids: p.empresa_ids }); }, [p, editando]);
+  const catalogo = useCatalogoConsultoria(Boolean(p?.servico_consultoria));
+  const pessoas = useQuery({ queryKey: ["pessoas-fisicas"], queryFn: () => api.get("/pessoas-fisicas"), enabled: Boolean(p?.pessoa_fisica_id) });
+  const pessoa = pessoas.data?.find((c) => c.id === p?.pessoa_fisica_id);
+  const servico = catalogo.data?.find((c) => c.id === p?.servico_consultoria);
+  useEffect(() => { if (p && !editando) setRascunho({ nome: p.nome, escopo: p.escopo || "", prazo: dia(p.prazo), ...(p.servico_consultoria ? { periodo_inicio: dia(p.periodo_inicio), periodo_fim: dia(p.periodo_fim) } : {}), responsavel: p.responsavel || "", ...(!p.pessoa_fisica_id && (!p.servico_consultoria || p.empresa_ids.length > 1) ? { empresa_ids: p.empresa_ids } : {}) }); }, [p, editando]);
 
   const salvar = useMutation({
     mutationFn: (dados) => api.put(`/projetos-diagnostico/${id}`, dados),
@@ -74,6 +79,7 @@ export default function ProjetoDiagnosticoPagina() {
   if (projeto.isLoading || carregando) return <div><PageHeader crumbs={crumbs} title="Diagnóstico" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
   if (!p) return <div><PageHeader crumbs={crumbs} title="Diagnóstico não encontrado" /><p role="alert" className="p-8 text-sm">Este projeto não existe mais. <Link to="/diagnostico" className="text-primary hover:underline">Voltar aos diagnósticos</Link></p></div>;
   const daLista = p.empresa_ids.map((eid) => empresas.find((e) => e.id === eid)).filter(Boolean);
+  const clientesDocumentos = p.pessoa_fisica_id ? (pessoa ? [{ id: pessoa.id, nome: pessoa.nome }] : []) : daLista.map((e) => ({ id: e.id, nome: e.razao_social }));
   const grupo = grupos.find((g) => g.numero === p.grupo_numero);
   const inteiro = cobreGrupoInteiro(p, empresas);
 
@@ -82,11 +88,12 @@ export default function ProjetoDiagnosticoPagina() {
       <PageHeader
         crumbs={crumbs}
         title={p.nome}
-        subtitle={`${plural(daLista.length, "empresa", "empresas")}${grupo ? ` · ${rotuloDoGrupo(grupo)}${inteiro ? " (inteiro)" : " (parte)"}` : ""} · desde ${fmtDataCurta(p.inicio)}${p.prazo ? ` · prazo ${fmtDataCurta(p.prazo)}` : ""}`}
+        subtitle={p.servico_consultoria ? `${clientesDocumentos.map((c) => c.nome).join(", ") || "Cliente do projeto"} · ${fmtDataCurta(p.periodo_inicio)} a ${fmtDataCurta(p.periodo_fim)}${p.responsavel ? ` · ${p.responsavel}` : ""}` : `${plural(daLista.length, "empresa", "empresas")}${grupo ? ` · ${rotuloDoGrupo(grupo)}${inteiro ? " (inteiro)" : " (parte)"}` : ""} · desde ${fmtDataCurta(p.inicio)}${p.prazo ? ` · prazo ${fmtDataCurta(p.prazo)}` : ""}`}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
+            {servico && <button type="button" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" onClick={() => setDocumentos(true)}>Documentos e solicitações</button>}
             <select aria-label="Situação do diagnóstico" value={p.situacao} onChange={(e) => salvar.mutate({ situacao: e.target.value })} className="rounded-md border border-border bg-background px-2 py-1.5 text-sm">
-              {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
+              {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{servico && !servico.projeto && k === "EM_ANDAMENTO" ? "Em coleta de documentos" : s.rotulo}</option>)}
             </select>
             <button type="button" onClick={() => setEditando(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar escopo</button>
             {(admin || !pendente) && <button type="button" onClick={excluir} disabled={exclusao.isPending} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" aria-hidden="true" /> {acaoExclusao}</button>}
@@ -98,12 +105,13 @@ export default function ProjetoDiagnosticoPagina() {
           <p><strong>Exclusão aguardando autorização.</strong> Solicitada por {p.exclusao_solicitada_por} em {fmtDataCurta(p.exclusao_solicitada_em)}.</p>
           {admin && <button type="button" disabled={exclusao.isPending} className="rounded-md border bg-background px-3 py-1.5 hover:bg-muted" onClick={() => exclusao.mutate(true)}>Recusar exclusão</button>}
         </section>}
+        {documentos && servico && <SolicitacoesConsultoria servico={servico}
+          clientes={clientesDocumentos} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)} />}
+        {(catalogo.isError || pessoas.isError) && p.servico_consultoria && <p role="alert" className="text-sm">Não foi possível carregar os dados do serviço. Atualize para tentar novamente.</p>}
+        {servico && !servico.projeto && <p className="rounded-md border bg-card p-3 text-sm">Coleta de documentos disponível. Roteiro fiscal em desenvolvimento.</p>}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
           <p className="text-sm text-muted-foreground">Período do projeto: {fmtDataCurta(p.periodo_inicio)} a {fmtDataCurta(p.periodo_fim)}. Selecione a empresa nas ferramentas de simulação.</p>
-          <button className="text-sm text-primary hover:underline" onClick={() => setDocumentos(true)}>Documentos e solicitações</button>
-          {documentos && <SolicitacoesConsultoria servico={{ id: p.servico_consultoria, nome: "Simulador da Reforma Tributária" }}
-            clientes={daLista.map((e) => ({ id: e.id, nome: e.razao_social }))} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)} />}
           <div className="flex flex-wrap gap-4 text-sm text-primary">
             <Link to="/cockpit">Painel Executivo</Link>
             <Link to="/reforma/regimes">Comparação de regimes na transição</Link>
@@ -114,7 +122,7 @@ export default function ProjetoDiagnosticoPagina() {
         {editando && rascunho ? (
           <section className="rounded-xl border border-primary/40 bg-card p-4 space-y-3 text-sm" aria-label="Editar escopo">
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nome</span><input className={campo} value={rascunho.nome} onChange={(e) => setRascunho((r) => ({ ...r, nome: e.target.value }))} /></label>
-            <div className="space-y-1"><span className="block text-xs text-muted-foreground">Empresas</span><EscolhaDeEmpresas empresas={empresas} grupos={grupos} valor={rascunho.empresa_ids} aoMudar={(v) => setRascunho((r) => ({ ...r, empresa_ids: v }))} /></div>
+            {rascunho.empresa_ids && <div className="space-y-1"><span className="block text-xs text-muted-foreground">Empresas</span><EscolhaDeEmpresas empresas={empresas} grupos={grupos} valor={rascunho.empresa_ids} aoMudar={(v) => setRascunho((r) => ({ ...r, empresa_ids: v }))} /></div>}
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Objetivo e escopo</span><textarea className={`${campo} min-h-[72px]`} value={rascunho.escopo} onChange={(e) => setRascunho((r) => ({ ...r, escopo: e.target.value }))} /></label>
             <div className="grid gap-3 sm:grid-cols-2">
               {p.servico_consultoria && [["periodo_inicio", "De"], ["periodo_fim", "Até"]].map(([chave, rotulo]) => <label key={chave} className="block space-y-1"><span className="block text-xs text-muted-foreground">{rotulo}</span><input type="date" className={campo} value={rascunho[chave]} onChange={(e) => setRascunho((r) => ({ ...r, [chave]: e.target.value }))} /></label>)}
@@ -122,7 +130,7 @@ export default function ProjetoDiagnosticoPagina() {
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span><input className={campo} value={rascunho.responsavel} onChange={(e) => setRascunho((r) => ({ ...r, responsavel: e.target.value }))} /></label>
             </div>
             <div className="flex gap-2">
-              <button type="button" disabled={salvar.isPending || !rascunho.empresa_ids.length} onClick={() => salvar.mutate({ ...rascunho, prazo: rascunho.prazo || null })} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
+              <button type="button" disabled={salvar.isPending || rascunho.empresa_ids?.length === 0} onClick={() => salvar.mutate({ ...rascunho, prazo: rascunho.prazo || null })} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
               <button type="button" onClick={() => setEditando(false)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
             </div>
           </section>

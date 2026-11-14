@@ -96,7 +96,7 @@ export function ordemPadrao(colunas, ordemInicial) {
 
 const ALINHAR = { direita: "text-right tabular-nums", centro: "text-center" };
 
-export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel, ordemInicial, aoClicarLinha, selecao, filtrosVisiveis = true, rodape, simples = false, totais, classeTabela = "" }) {
+export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", filtrosExtras, acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel, ordemInicial, aoClicarLinha, selecao, filtrosVisiveis = true, rodape, simples = false, totais, classeTabela = "" }) {
   const pref = useMemo(() => lerPreferencia(id), [id]);
   const todas = colunas.map((c) => c.chave);
   const [ordemColunas, setOrdemColunas] = useState(() => {
@@ -141,7 +141,8 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
     <div className="space-y-2">
       {!simples && <div className="flex flex-wrap items-center gap-2">
         {titulo && <h4 className="mr-auto text-sm font-semibold">{titulo}</h4>}
-        <label className="relative min-w-[200px] flex-1 sm:max-w-xs">
+        {filtrosExtras}
+        <label className={`relative flex-1 sm:max-w-xs ${filtrosExtras ? "min-w-[135px]" : "min-w-[200px]"}`}>
           <span className="sr-only">Buscar em todas as colunas</span>
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar em todas as colunas" className="h-8 w-full rounded-md border border-border bg-background pl-7 pr-7 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />

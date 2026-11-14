@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 
-export function useCatalogoConsultoria() {
-  return useQuery({ queryKey: ["consultoria", "catalogo"], queryFn: () => api.get("/consultoria/catalogo") });
+export function useCatalogoConsultoria(enabled = true) {
+  return useQuery({ queryKey: ["consultoria", "catalogo"], queryFn: () => api.get("/consultoria/catalogo"), enabled });
 }
 
 export default function ServicosConsultoria({ publico, selecao, mudar, clienteId }) {

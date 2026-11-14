@@ -157,6 +157,48 @@ export class ConsultoriaService {
     });
   }
 
+  async abrirProjeto(id: string, entrada: Record<string, unknown>, email: string) {
+    const servico = CATALOGO_CONSULTORIA.find((s) => s.id === entrada.servico);
+    const data = (valor: unknown) => {
+      if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return null;
+      const d = new Date(valor + 'T00:00:00.000Z');
+      return !isNaN(+d) && d.toISOString().slice(0, 10) === valor ? d : null;
+    };
+    const de = data(entrada.periodo_inicio);
+    const ate = data(entrada.periodo_fim);
+    if (!servico || !de || !ate || de > ate) throw new BadRequestException('Escolha um serviço e informe um período válido.');
+    return this.prisma.$transaction(async (tx) => {
+      // Serializa aberturas do mesmo serviço por cliente, inclusive a verificação de sobreposição.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${JSON.stringify([servico.publico, id, servico.id])}))`;
+      const pj = servico.publico === 'PJ' ? await tx.empresa.findFirst({
+        where: { id, arquivado_em: null }, select: { cnpj_cpf: true, razao_social: true },
+      }) : null;
+      const pf = servico.publico === 'PF' ? await tx.pessoaFisica.findUnique({ where: { id }, select: { nome: true } }) : null;
+      if (!pf && (!pj || (pj.cnpj_cpf ?? '').replace(/[^a-z0-9]/gi, '').length !== 14)) {
+        throw new NotFoundException('Cliente ativo não encontrado para este serviço.');
+      }
+      const escopo = servico.publico === 'PF' ? { pessoa_fisica_id: id } : { pessoa_fisica_id: null, empresa_ids: { has: id } };
+      const candidatos = await tx.projetoDiagnostico.findMany({
+        where: { ...escopo, servico_consultoria: servico.id, situacao: { in: ['EM_ANDAMENTO', 'PAUSADO'] },
+          periodo_inicio: { lte: ate }, periodo_fim: { gte: de } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, nome: true, periodo_inicio: true, periodo_fim: true },
+      });
+      const existente = candidatos.find((p) => +p.periodo_inicio! === +de && +p.periodo_fim! === +ate);
+      if (existente) return { id: existente.id };
+      if (candidatos.length && entrada.confirmar_sobreposicao !== true) return { sobrepostos: candidatos };
+      await tx.vinculoConsultoria.createMany({
+        data: [{ publico: servico.publico, cliente_id: id, servico: servico.id, criado_por: email }],
+        skipDuplicates: true,
+      });
+      return tx.projetoDiagnostico.create({ data: {
+        nome: `${servico.nome} · ${pf?.nome ?? pj?.razao_social}`.slice(0, 160),
+        servico_consultoria: servico.id, pessoa_fisica_id: pf ? id : null, empresa_ids: pj ? [id] : [],
+        periodo_inicio: de, periodo_fim: ate, inicio: new Date(), criado_por: email,
+      }, select: { id: true } });
+    });
+  }
+
   listar() {
     return this.prisma.vinculoConsultoria.findMany({ orderBy: { createdAt: 'asc' } });
   }

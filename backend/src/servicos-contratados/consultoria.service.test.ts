@@ -28,6 +28,29 @@ function ambiente() {
 }
 
 describe('Consultoria Tributária', () => {
+  it('abre projetos PF pela carteira, reaproveita o período idêntico e apresenta sobreposições', async () => {
+    const existentes: { id: string; periodo_inicio: Date; periodo_fim: Date }[] = [];
+    const tx = {
+      $executeRaw: vi.fn(),
+      pessoaFisica: { findUnique: vi.fn(async () => ({ nome: 'Cliente PF' })) },
+      vinculoConsultoria: { createMany: vi.fn() },
+      projetoDiagnostico: {
+        findMany: vi.fn(async () => existentes),
+        create: vi.fn(async ({ data }) => { existentes.push({ ...data, id: 'P1' }); return { id: 'P1' }; }),
+      },
+    };
+    const service = new ConsultoriaService({ $transaction: (f: (t: typeof tx) => unknown) => f(tx) } as never);
+    const entrada = { servico: 'lcdpr', periodo_inicio: '2025-01-01', periodo_fim: '2025-12-31' };
+    await expect(service.abrirProjeto('PF1', entrada, 'autor@exemplo.test')).resolves.toEqual({ id: 'P1' });
+    expect(tx.projetoDiagnostico.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ pessoa_fisica_id: 'PF1', empresa_ids: [] }),
+    }));
+    await expect(service.abrirProjeto('PF1', entrada, 'autor@exemplo.test')).resolves.toEqual({ id: 'P1' });
+    await expect(service.abrirProjeto('PF1', { ...entrada, periodo_fim: '2025-06-30' }, 'autor@exemplo.test'))
+      .resolves.toMatchObject({ sobrepostos: [{ id: 'P1' }] });
+    expect(tx.vinculoConsultoria.createMany).toHaveBeenCalledTimes(1);
+  });
+
   it('o vínculo repetido converge sem duplicar o cliente ou gravar contrato BPO', async () => {
     const { carteira, registros, db } = ambiente();
     const entrada = { cliente_id: 'PJ1', servico: 'pis-cofins' };
