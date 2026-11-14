@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CofreService } from '../certificados/cofre.service';
 import { CertificadoInvalidoError, lerPfx } from '../certificados/certificado-pfx';
 import { Credenciais, ErroIntegra, pedirTokenSapi } from './integra.cliente';
+import { testarProdutoSerpro, type TesteProduto } from './serpro-produtos';
 
 export type CredenciaisContrato = Credenciais & { contratante: string; nome: string };
 type Usuario = { email?: string; role?: string } | undefined;
@@ -123,15 +124,21 @@ export class ContratoIntegraService {
   }
 
   /** Pede um token ao Serpro com o contrato salvo: confirma chaves e certificado sem consultar nenhum cliente (não é cobrado). */
-  async testar(usuario: Usuario, obterToken = pedirTokenSapi) {
+  /** Testa o Integra Contador (chaves + certificado) e, sem custo, as chaves de cada produto da pré-análise que estiver cadastrado. */
+  async testar(usuario: Usuario, obterToken = pedirTokenSapi, testarProduto: typeof testarProdutoSerpro = testarProdutoSerpro) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores testam o contrato.');
     const c = await this.credenciais();
     if (!c) return { ok: false, mensagem: 'Nenhum contrato configurado.' };
+    const produtos: TesteProduto[] = [];
+    for (const p of ['cnd', 'dividaAtiva'] as const) {
+      const ch = this.cache?.produtos[p] ?? null;
+      if (ch) produtos.push(await testarProduto(p, ch));
+    }
     try {
       await obterToken(c);
-      return { ok: true, mensagem: `O Serpro aceitou as chaves e o certificado de ${c.nome} (${c.contratante}).` };
+      return { ok: true, mensagem: `Integra Contador: o Serpro aceitou as chaves e o certificado de ${c.nome} (${c.contratante}).`, ...(produtos.length ? { produtos } : {}) };
     } catch (e) {
-      return { ok: false, mensagem: e instanceof ErroIntegra ? e.message : `Falha: ${(e as Error).message}` };
+      return { ok: false, mensagem: e instanceof ErroIntegra ? e.message : `Falha: ${(e as Error).message}`, ...(produtos.length ? { produtos } : {}) };
     }
   }
 }

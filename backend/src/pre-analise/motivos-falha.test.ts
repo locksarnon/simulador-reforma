@@ -4,8 +4,8 @@ import { SerproCertidoes } from './serpro-certidoes';
 
 describe('motivo das falhas na pré-análise', () => {
   it('Infosimples 603 por saldo vira uma frase curta com o que fazer', () => {
-    expect(motivoDaInfosimples(603, 'O token não tem autorização... faça seu primeiro pagamento adicionando saldo')).toMatch(/^a conta da Infosimples está sem saldo/);
-    expect(motivoDaInfosimples(603, 'sem autorização')).toMatch(/não tem acesso a esta consulta/);
+    expect(motivoDaInfosimples(603, 'O saldo inicial gratuito da sua conta permite uma quantidade limitada... faça seu primeiro pagamento adicionando saldo')).toMatch(/exige o primeiro pagamento/);
+    expect(motivoDaInfosimples(603, 'sem autorização')).toMatch(/não tem autorização para esta consulta/);
     expect(motivoDaInfosimples(612, 'x')).toBe('a Infosimples não trouxe o resultado (código 612)');
   });
 

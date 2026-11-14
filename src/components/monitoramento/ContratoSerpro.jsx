@@ -91,9 +91,13 @@ export default function ContratoSerpro() {
       )}
 
       {teste && (
-        <p role="status" className={`flex items-start gap-1.5 text-xs ${teste.ok ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}`}>
-          {teste.ok ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}{teste.mensagem}
-        </p>
+        <div role="status" className="space-y-0.5">
+          {[teste, ...(teste.produtos || [])].map((t) => (
+            <p key={t.produto || "integra"} className={`flex items-start gap-1.5 text-xs ${t.ok ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}`}>
+              {t.ok ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}{t.mensagem}
+            </p>
+          ))}
+        </div>
       )}
 
       {mostrarForm && (

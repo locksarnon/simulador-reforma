@@ -29,8 +29,8 @@ const txt = (v: unknown) => (v === null || v === undefined ? '' : typeof v === '
  * O 603 é a conta ou o token sem acesso à consulta; se a mensagem fala em saldo ou pagamento, o crédito gratuito acabou.
  */
 export function motivoDaInfosimples(code: number | undefined, mensagem: string): string {
-  if (code === 603 && /saldo|pagamento/i.test(mensagem)) return 'a conta da Infosimples está sem saldo para esta consulta. Adicione saldo no painel da Infosimples (Finanças > Saldo) e consulte de novo';
-  if (code === 603) return 'o token da Infosimples não tem acesso a esta consulta. Libere-a no painel da Infosimples';
+  if (code === 603 && /saldo inicial gratuito|primeiro pagamento/i.test(mensagem)) return 'o crédito gratuito inicial da Infosimples só cobre algumas consultas de cada serviço, e esta já usou a sua cota. Para continuar, a Infosimples exige o primeiro pagamento (uma recarga), mesmo com saldo de cortesia na conta';
+  if (code === 603) return 'o token da Infosimples não tem autorização para esta consulta (token inativo, com limite de uso ou restrito a outros serviços). Confira o token no painel da Infosimples';
   if (code === 601 || code === 602) return 'a Infosimples recusou o token. Confira-o em Administração > Integrações';
   return `a Infosimples não trouxe o resultado (código ${code ?? '—'})`;
 }
