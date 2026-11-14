@@ -26,17 +26,17 @@ export default function CompetenciaXml({ competencia, mudar }) {
     mudar(data.toISOString().slice(0, 7));
   };
   const rotulo = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(ano, mes - 1, 1)));
-  const seta = "p-1.5 hover:bg-muted focus-visible:outline focus-visible:outline-primary";
-  return <div className="inline-flex flex-wrap items-center gap-2" role="group" aria-label="Competência de emissão dos XML">
-    <div className="inline-flex items-center rounded-md border bg-background">
+  const seta = "grid h-full w-7 shrink-0 place-items-center hover:bg-muted focus-visible:outline focus-visible:outline-primary";
+  return <div className="inline-flex items-center gap-2" role="group" aria-label="Competência de emissão dos XML">
+    <div className="inline-flex h-9 items-center rounded-md border border-border bg-background">
       <button type="button" className={seta} aria-label="Mês anterior" onClick={() => mover(-1)}><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>
-      <label className="relative block min-w-28 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-primary">
+      <label className="relative grid h-full min-w-28 place-items-center px-1 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-primary">
         <span className="capitalize">{rotulo} {ano}</span>
         <input aria-label="Escolher mês e ano" type="month" value={competencia} onChange={(e) => mudar(e.target.value)}
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full" />
       </label>
       <button type="button" className={seta} aria-label="Próximo mês" onClick={() => mover(1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
     </div>
-    <button type="button" onClick={() => mudar(atual())} className="rounded border px-2 py-1 text-xs hover:bg-muted">Hoje</button>
+    <button type="button" onClick={() => mudar(atual())} className="h-9 rounded-md border border-border bg-background px-2.5 text-sm hover:bg-muted">Hoje</button>
   </div>;
 }

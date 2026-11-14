@@ -38,7 +38,7 @@ const TOM_CIENCIA = {
   aviso: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
   neutro: "text-muted-foreground",
 };
-const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
+const campo = "h-9 rounded-md border border-border bg-background px-2.5 text-sm";
 const botaoIcone = "p-0.5 rounded hover:bg-muted";
 /** O importador lê só o XML completo de NF-e, NFC-e e CT-e (e dos eventos deles): o resumo nunca vai. */
 const noImportador = (d) => d.conteudo === "COMPLETO" && importavelNoImportador(d);
