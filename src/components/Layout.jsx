@@ -32,6 +32,7 @@ function lerRecentes() {
 export default function Layout() {
   const { pathname } = useLocation();
   const [gaveta, setGaveta] = useState(false);
+  const [gavetaMontada, setGavetaMontada] = useState(false);
   const [busca, setBusca] = useState(false);
   const [recentes, setRecentes] = useState(lerRecentes);
 
@@ -59,6 +60,8 @@ export default function Layout() {
   }, [pathname]);
 
   const botaoMenu = useRef(null);
+  const botaoFecharMenu = useRef(null);
+  const abrirGaveta = () => { setGavetaMontada(true); setGaveta(true); };
   const fecharGaveta = useCallback(() => {
     setGaveta(false);
     botaoMenu.current?.focus({ preventScroll: true });
@@ -66,6 +69,7 @@ export default function Layout() {
 
   useEffect(() => {
     if (!gaveta) return;
+    botaoFecharMenu.current?.focus({ preventScroll: true });
     const aoTeclar = (e) => {
       if (e.key === "Escape" && !e.defaultPrevented) fecharGaveta();
     };
@@ -119,7 +123,7 @@ export default function Layout() {
         data-menu-lateral=""
         onFocus={aoFocar}
         onBlur={aoDesfocar}
-        className={`sticky top-0 hidden h-dvh shrink-0 self-start overflow-hidden border-r border-rail-border transition-[width] duration-150 ease-out motion-reduce:transition-none lg:block ${expandida ? "w-64" : "w-[72px]"}`}
+        className={`sticky top-0 hidden h-dvh shrink-0 self-start overflow-hidden border-r border-rail-border movimento-menu-lateral lg:block ${expandida ? "w-64" : "w-[72px]"}`}
       >
         <MenuLateral modo="trilho" compacto={!expandida} fixa={fixa} aoFixar={alternarFixa} />
       </aside>
@@ -127,19 +131,19 @@ export default function Layout() {
         id="menu-movel"
         aria-label="Menu principal"
         inert={gaveta ? undefined : ""}
-        className={`sticky top-0 h-dvh shrink-0 self-start overflow-hidden transition-[width] duration-150 ease-out motion-reduce:transition-none lg:hidden ${gaveta ? "w-[min(18rem,75vw)]" : "w-0"}`}
+        className={`sticky top-0 h-dvh shrink-0 self-start overflow-hidden movimento-menu-lateral lg:hidden ${gaveta ? "w-[min(18rem,75vw)]" : "w-0"}`}
       >
-        <div className="flex h-full w-[min(18rem,75vw)] flex-col border-r border-rail-border bg-rail text-rail-foreground">
-          {gaveta && <button type="button" className="m-2 self-end rounded-md p-2 hover:bg-rail-hover" aria-label="Fechar o menu" onClick={fecharGaveta} autoFocus>
+        <div className="flex h-full w-[min(18rem,75vw)] flex-col border-r border-rail-border superficie-menu-lateral text-rail-foreground">
+          <button type="button" className="m-2 self-end rounded-md p-2 hover:bg-rail-hover" aria-label="Fechar o menu" onClick={fecharGaveta} ref={botaoFecharMenu}>
             <X className="h-5 w-5" aria-hidden="true" />
-          </button>}
-          <div className="min-h-0 flex-1">{gaveta && <MenuLateral modo="gaveta" aoNavegar={fecharGaveta} />}</div>
+          </button>
+          <div className="min-h-0 flex-1">{gavetaMontada && <MenuLateral modo="gaveta" aoNavegar={fecharGaveta} />}</div>
         </div>
       </aside>
 
       <div className="flex w-full min-w-0 shrink-0 flex-col lg:w-auto lg:flex-1">
         <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-card/95 px-3 backdrop-blur lg:px-6">
-          <button type="button" ref={botaoMenu} aria-controls="menu-movel" aria-expanded={gaveta} onClick={() => gaveta ? fecharGaveta() : setGaveta(true)} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" aria-label={gaveta ? "Fechar menu principal" : "Abrir o menu"}>
+          <button type="button" ref={botaoMenu} aria-controls="menu-movel" aria-expanded={gaveta} onClick={() => gaveta ? fecharGaveta() : abrirGaveta()} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden" aria-label={gaveta ? "Fechar menu principal" : "Abrir o menu"}>
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
           <button

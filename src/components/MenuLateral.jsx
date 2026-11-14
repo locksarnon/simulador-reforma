@@ -21,19 +21,19 @@ const iniciais = (u) => String(u?.name || u?.email || "?").split(/[\s@.]+/).filt
  *  nível 2 (módulos, no painel lateral ou na gaveta): 13px, peso 400 (500 no ativo);
  *  rótulos de seção: 11px, maiúsculas, espaçamento 0,08em.
  */
-const linha = "group/linha relative flex h-10 w-full items-center gap-3 rounded-lg pl-[14px] pr-2 text-left transition-[background-color,color,box-shadow] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary";
-const linhaInativa = "text-rail-foreground hover:bg-rail-hover hover:text-rail-strong hover:shadow-[inset_0_0_0_1px_hsl(var(--rail-border))]";
-const linhaAtiva = "bg-gradient-to-r from-rail-primary/25 via-rail-primary/10 to-transparent text-rail-strong shadow-[inset_0_0_0_1px_hsl(var(--rail-primary)/0.25)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary";
-const icone = "h-[18px] w-[18px] shrink-0 transition-transform duration-150 ease-out group-hover/linha:scale-110 motion-reduce:transition-none";
+const linha = "group/linha relative flex h-10 w-full items-center gap-3 rounded-lg pl-[14px] pr-2 text-left transition-[background-color,color,box-shadow] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted";
+const linhaInativa = "text-rail-foreground hover:bg-rail-hover hover:text-rail-strong active:bg-rail-accent";
+const linhaAtiva = "bg-gradient-to-r from-rail-primary/25 via-rail-primary/10 to-transparent text-rail-strong shadow-[inset_0_0_0_1px_hsl(var(--rail-primary)/0.20)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary";
+const icone = "h-[18px] w-[18px] shrink-0 transition-transform duration-150 ease-out motion-safe:group-hover/linha:-translate-y-px motion-reduce:transition-none";
 const sumir = (compacto) => `whitespace-nowrap transition-opacity duration-150 motion-reduce:transition-none ${compacto ? "pointer-events-none opacity-0" : "opacity-100"}`;
-const itemModulo = "group/linha relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-[background-color,color,transform] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary";
-const itemModuloInativo = "text-rail-foreground hover:translate-x-0.5 hover:bg-rail-hover hover:text-rail-strong";
+const itemModulo = "group/linha relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-[background-color,color,transform] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted";
+const itemModuloInativo = "text-rail-foreground motion-safe:hover:translate-x-0.5 hover:bg-rail-hover hover:text-rail-strong";
 const itemModuloAtivo = "bg-rail-primary/20 font-medium text-rail-strong before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary";
 
 const brlMenu = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function Selo({ situacao }) {
-  if (situacao === SITUACAO.BETA) return <span className="ml-auto rounded bg-rail-primary/25 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-rail-strong">Beta</span>;
+  if (situacao === SITUACAO.BETA) return <span className="ml-auto rounded bg-rail-accent px-1.5 text-[10px] font-semibold uppercase tracking-wide text-rail-strong">Beta</span>;
   if (situacao === SITUACAO.EM_BREVE) return <span className="ml-auto rounded bg-rail-accent px-1.5 text-[10px] font-semibold uppercase tracking-wide text-rail-muted">Em breve</span>;
   return null;
 }
@@ -53,20 +53,22 @@ function ItemModulo({ m, ativo, aoNavegar }) {
 }
 
 /** Painel que abre ao lado da área (sem empurrar o menu para baixo), com abertura e fechamento automáticos ao passar o mouse. */
-function PainelLateral({ area, posicao, ativoId, aoNavegar, aoEntrar, aoSair }) {
+function PainelLateral({ area, posicao, saindo, ativoId, aoNavegar, aoEntrar, aoSair }) {
   if (typeof document === "undefined") return null;
   return createPortal(
     <div
       role="group"
-      data-painel-menu=""
+      data-painel-menu={saindo ? undefined : ""}
+      data-fechando={saindo || undefined}
+      inert={saindo ? "" : undefined}
       aria-label={`Módulos de ${area.titulo}`}
       onMouseEnter={aoEntrar}
       onMouseLeave={aoSair}
       style={{ top: posicao.top, left: posicao.left }}
-      className="sem-barra fixed z-50 max-h-[calc(100vh-16px)] w-[272px] overflow-y-auto rounded-xl border border-rail-border bg-rail p-2 text-rail-foreground shadow-[0_18px_48px_-12px_rgba(0,0,0,0.55)] ring-1 ring-black/10 animate-in fade-in-0 slide-in-from-left-2 duration-150 motion-reduce:animate-none"
+      className="sem-barra fixed z-50 max-h-[calc(100vh-16px)] w-[272px] overflow-y-auto rounded-xl border border-rail-border superficie-menu-lateral movimento-painel-menu p-2 text-rail-foreground"
     >
       <div className="flex items-center gap-2 px-2.5 pb-2 pt-1">
-        <area.icone className="h-3.5 w-3.5 text-rail-primary" aria-hidden="true" />
+        <area.icone className="h-3.5 w-3.5 text-rail-muted" aria-hidden="true" />
         <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-rail-muted">{area.titulo}</span>
         <Link to={caminhoDaArea(area.id)} onClick={aoNavegar} className="rounded px-1.5 py-0.5 text-[11px] text-rail-muted transition-colors hover:bg-rail-hover hover:text-rail-strong">Ver tudo</Link>
       </div>
@@ -99,8 +101,14 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
   // Trilho: painel lateral da área sob o mouse (ou aberta pelo teclado).
   const [painel, setPainel] = useState(null);
   const timer = useRef();
+  const timerSaida = useRef();
   const navRef = useRef(null);
-  const fecharPainel = useCallback(() => { clearTimeout(timer.current); setPainel(null); }, []);
+  const fecharPainel = useCallback(() => {
+    clearTimeout(timer.current);
+    clearTimeout(timerSaida.current);
+    setPainel((atual) => atual ? { ...atual, saindo: true } : null);
+    timerSaida.current = setTimeout(() => setPainel(null), 150);
+  }, []);
   const abrirPainel = (area, el, atraso = 70) => {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -109,14 +117,15 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
       const borda = LARGURA_ABERTA;
       const altura = 56 + area.modulos.length * 38;
       const top = Math.max(8, Math.min(r.top - 6, window.innerHeight - altura - 8));
+      clearTimeout(timerSaida.current);
       setPainel({ id: area.id, posicao: { top, left: borda + 6 } });
     }, atraso);
   };
-  const agendarFechar = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setPainel(null), 140); };
+  const agendarFechar = () => { clearTimeout(timer.current); timer.current = setTimeout(fecharPainel, 140); };
   const manterPainel = () => { clearTimeout(timer.current); aoEntrarZona?.(); };
   useEffect(() => fecharPainel(), [pathname, fecharPainel]);
   useEffect(() => { if (compacto) fecharPainel(); }, [compacto, fecharPainel]);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => () => { clearTimeout(timer.current); clearTimeout(timerSaida.current); }, []);
   useEffect(() => {
     if (!painel) return undefined;
     const aoTeclar = (e) => { if (e.key === "Escape") fecharPainel(); };
@@ -133,10 +142,10 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
 
   return (
     // No trilho o conteúdo tem largura fixa (256 px): ao abrir e fechar, o menu só é recortado, sem recalcular o layout a cada quadro.
-    <div className={`flex h-full flex-col overflow-hidden bg-rail text-rail-foreground ${trilho ? "w-64" : ""}`}>
+    <div className={`flex h-full flex-col overflow-hidden text-rail-foreground ${trilho ? "w-64 superficie-menu-lateral" : ""}`}>
       <div className="flex h-16 shrink-0 items-center gap-2 border-b border-rail-border pl-[18px] pr-2">
-        <Link to="/inicio" onClick={navegar} className="flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary" aria-label="InTAX: ir para o Início">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_4px_12px_-4px_hsl(var(--rail-primary)/0.6)]">
+        <Link to="/inicio" onClick={navegar} className="flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted" aria-label="InTAX: ir para o Início">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rail-accent text-rail-strong ring-1 ring-inset ring-white/10">
             <Logo className="h-5 w-5" />
           </div>
           <div className={`leading-tight ${sumir(compacto)}`}>
@@ -146,7 +155,7 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
         </Link>
         {trilho && aoFixar && !compacto && (
           <button type="button" onClick={aoFixar} aria-pressed={fixa} aria-label={fixa ? "Soltar o menu (abre ao passar o mouse)" : "Fixar o menu aberto"} title={fixa ? "Soltar o menu" : "Fixar o menu aberto"}
-            className={`rounded-md p-1.5 text-rail-muted hover:bg-rail-hover hover:text-rail-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary ${sumir(compacto)}`}>
+            className={`rounded-md p-1.5 text-rail-muted hover:bg-rail-hover hover:text-rail-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted ${sumir(compacto)}`}>
             {fixa ? <PinOff className="h-4 w-4" aria-hidden="true" /> : <Pin className="h-4 w-4" aria-hidden="true" />}
           </button>
         )}
@@ -171,7 +180,7 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
           }
 
           if (trilho) {
-            const aberto = painel?.id === area.id;
+            const aberto = painel?.id === area.id && !painel.saindo;
             return (
               <div key={area.id}>
                 <div className="relative" onMouseEnter={(e) => abrirPainel(area, e.currentTarget)} onMouseLeave={agendarFechar}>
@@ -182,8 +191,8 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
                   </Link>
                   <button type="button" aria-expanded={aberto} aria-label={`${aberto ? "Recolher" : "Abrir"} ${area.titulo}`}
                     onClick={(e) => (aberto ? fecharPainel() : abrirPainel(area, e.currentTarget.parentElement, 0))}
-                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-rail-muted transition-[opacity,color] duration-150 hover:text-rail-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary ${aberto ? "text-rail-strong" : ""} ${sumir(compacto)}`}>
-                    <ChevronRight className={`h-4 w-4 transition-transform duration-150 ${aberto ? "translate-x-0.5" : ""}`} aria-hidden="true" />
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-rail-muted motion-reduce:transition-none transition-[opacity,color] duration-150 hover:text-rail-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted ${aberto ? "text-rail-strong" : ""} ${sumir(compacto)}`}>
+                    <ChevronRight className={`h-4 w-4 transition-transform duration-150 motion-reduce:transition-none ${aberto ? "translate-x-0.5" : ""}`} aria-hidden="true" />
                   </button>
                 </div>
                 {areaAtiva && ativo && (
@@ -204,8 +213,8 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
                   <span className="min-w-0 flex-1 truncate">{area.titulo}</span>
                 </Link>
                 <button type="button" onClick={() => setAberta(expandida ? null : area.id)} aria-expanded={expandida} aria-label={`${expandida ? "Recolher" : "Abrir"} ${area.titulo}`}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1.5 text-rail-muted transition-colors hover:bg-rail-hover hover:text-rail-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-primary">
-                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${expandida ? "" : "-rotate-90"}`} aria-hidden="true" />
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1.5 text-rail-muted transition-colors hover:bg-rail-hover hover:text-rail-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted">
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 motion-reduce:transition-none ${expandida ? "" : "-rotate-90"}`} aria-hidden="true" />
                 </button>
               </div>
               <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${expandida ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
@@ -248,7 +257,7 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
       </div>
 
       {trilho && areaDoPainel && painel && (
-        <PainelLateral area={areaDoPainel} posicao={painel.posicao} ativoId={ativo?.id} aoNavegar={navegar}
+        <PainelLateral key={areaDoPainel.id} area={areaDoPainel} saindo={!!painel.saindo} posicao={painel.posicao} ativoId={ativo?.id} aoNavegar={navegar}
           aoEntrar={manterPainel} aoSair={() => { agendarFechar(); aoSairZona?.(); }} />
       )}
     </div>

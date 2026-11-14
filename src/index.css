@@ -122,3 +122,34 @@
   .sem-barra { scrollbar-width: none; -ms-overflow-style: none; }
   .sem-barra::-webkit-scrollbar { display: none; width: 0; height: 0; }
 }
+
+/* Acabamento restrito à navegação lateral. */
+@layer utilities {
+  .superficie-menu-lateral {
+    background-color: hsl(var(--rail));
+    background-image: linear-gradient(155deg, hsl(var(--rail-accent) / .42), transparent 65%);
+  }
+
+  .movimento-painel-menu {
+    box-shadow: inset 0 1px 0 hsl(var(--rail-strong) / .06),
+      0 8px 12px -8px rgb(0 0 0 / .4), 0 20px 44px -18px rgb(0 0 0 / .48);
+  }
+
+  .movimento-painel-menu[data-fechando] { pointer-events: none; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .movimento-menu-lateral { transition: width 210ms cubic-bezier(.22, .72, .25, 1); }
+    .movimento-painel-menu { animation: painel-menu-entra 190ms cubic-bezier(.22, .72, .25, 1) both; }
+    .movimento-painel-menu[data-fechando] { animation: painel-menu-sai 140ms ease-in both; }
+  }
+}
+
+@keyframes painel-menu-entra {
+  from { opacity: 0; transform: translateX(-5px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes painel-menu-sai {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-3px); }
+}
