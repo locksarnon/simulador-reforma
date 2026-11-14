@@ -75,8 +75,8 @@ export class MonitoramentoController {
 
   /** Simples Nacional: sublimite, faturamento e Fator R pela última declaração do PGDAS-D. */
   @Get('empresas/:id/simples')
-  simplesDados(@Param('id') id: string) {
-    return this.simples.dados(id);
+  simplesDados(@Param('id') id: string, @Query('competencia') competencia?: string) {
+    return this.simples.dados(id, competencia);
   }
 
   @Post('empresas/:id/simples/atualizar')
@@ -155,8 +155,8 @@ export class MonitoramentoController {
   }
 
   @Get('painel')
-  painel(@Query('empresa_ids') ids?: string) {
-    return this.m.painel(ids ? ids.split(',').filter(Boolean) : undefined);
+  painel(@Query('empresa_ids') ids?: string, @Query('competencia') competencia?: string) {
+    return this.m.painel(ids ? ids.split(',').filter(Boolean) : undefined, competencia);
   }
 
   @Get('procuracoes')
@@ -165,13 +165,13 @@ export class MonitoramentoController {
   }
 
   @Get('empresas/:id')
-  daEmpresa(@Param('id') id: string) {
-    return this.m.daEmpresa({ empresaId: id });
+  daEmpresa(@Param('id') id: string, @Query('competencia') competencia?: string) {
+    return this.m.daEmpresa({ empresaId: id }, undefined, competencia);
   }
 
   @Get('empresas/:id/historico/:chave')
-  async historico(@Param('id') id: string, @Param('chave') chave: string) {
-    const h = (await this.m.daEmpresa({ empresaId: id }, chave)) as unknown as { id: string }[];
+  async historico(@Param('id') id: string, @Param('chave') chave: string, @Query('competencia') competencia?: string) {
+    const h = (await this.m.daEmpresa({ empresaId: id }, chave, competencia)) as unknown as { id: string }[];
     const reg = await this.envio.registros(h.map((x) => x.id));
     return h.map((x) => ({ ...x, registros: reg.get(x.id) ?? [] }));
   }
@@ -182,8 +182,8 @@ export class MonitoramentoController {
   }
 
   @Get('pessoas/:id')
-  daPessoa(@Param('id') id: string) {
-    return this.m.daEmpresa({ pessoaFisicaId: id });
+  daPessoa(@Param('id') id: string, @Query('competencia') competencia?: string) {
+    return this.m.daEmpresa({ pessoaFisicaId: id }, undefined, competencia);
   }
 
   @Post('pessoas/:id/consultar')

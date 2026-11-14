@@ -10,7 +10,7 @@ import { ItemCusto, registrarUso } from '../custos/custos.service';
 import { assinarDeclaracaoDctfweb } from './dctfweb-assinatura';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { MailService } from '../mail/mail.service';
-import { completarParametros, GRUPOS, OBRIGACOES, SERVICO_POR_CHAVE, SERVICOS, Servico, servicosParaEmpresa } from './catalogo';
+import { filtroDeCompetencia, completarParametros, GRUPOS, OBRIGACOES, SERVICO_POR_CHAVE, SERVICOS, Servico, servicosParaEmpresa } from './catalogo';
 import { Credenciais, ErroIntegra, Identificacao, IntegraCliente, Modo, MODOS, Resposta } from './integra.cliente';
 import { extrairArquivos, interpretar, Nivel, Resumo } from './interpretar';
 import { termoAssinado, vigenciaPadrao } from './termo-autorizacao';
@@ -476,13 +476,13 @@ export class MonitoramentoService {
   }
 
   /** Última consulta de cada serviço do cliente, e o histórico de um serviço (as 30 mais recentes). */
-  async daEmpresa(alvo: Alvo, chave?: string) {
+  async daEmpresa(alvo: Alvo, chave?: string, competencia?: string) {
     const where = alvo.empresaId ? { empresa_id: alvo.empresaId } : { pessoa_fisica_id: alvo.pessoaFisicaId };
     if (chave) {
-      const h = await this.prisma.consultaFiscal.findMany({ where: { ...where, chave }, orderBy: { createdAt: 'desc' }, take: 30 });
+      const h = await this.prisma.consultaFiscal.findMany({ where: { ...where, chave, ...filtroDeCompetencia(competencia) }, orderBy: { createdAt: 'desc' }, take: 30 });
       return h.map((c) => this.publico(c as never));
     }
-    const todas = await this.prisma.consultaFiscal.findMany({ where, orderBy: { createdAt: 'desc' }, take: 500 });
+    const todas = await this.prisma.consultaFiscal.findMany({ where: { ...where, ...filtroDeCompetencia(competencia) }, orderBy: { createdAt: 'desc' }, take: 500 });
     const ultima = new Map<string, unknown>();
     for (const c of todas) if (!ultima.has(c.chave)) ultima.set(c.chave, this.publico(c as never));
     const dispensas = alvo.empresaId ? await this.prisma.obrigacaoDispensada.findMany({ where: { empresa_id: alvo.empresaId } }) : [];
@@ -498,10 +498,10 @@ export class MonitoramentoService {
    * Em produção, resultados de demonstração não contam. Quando a última tentativa de um serviço falhou depois do último resultado,
    * o grupo fica marcado (vale o resultado anterior, com aviso) e entra um alerta.
    */
-  async painel(empresaIds?: string[]) {
+  async painel(empresaIds?: string[], competencia?: string) {
     const producao = (await this.modo()) === 'PRODUCAO';
     const consultas = await this.prisma.consultaFiscal.findMany({
-      where: { empresa_id: empresaIds?.length ? { in: empresaIds } : { not: null }, ...(producao ? { simulado: false } : {}) },
+      where: { empresa_id: empresaIds?.length ? { in: empresaIds } : { not: null }, ...(producao ? { simulado: false } : {}), ...filtroDeCompetencia(competencia) },
       orderBy: { createdAt: 'desc' }, take: 30000,
       select: { empresa_id: true, chave: true, nivel: true, createdAt: true, simulado: true, resumo: true, sucesso: true },
     });

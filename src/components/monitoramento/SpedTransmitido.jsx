@@ -56,8 +56,8 @@ function ArquivosSped({ linha }) {
  * Monitoramento > Declarações > SPED e EFD: abre com o que já está guardado no InTAX (arquivo transmitido e recibo, prontos para
  * ver, baixar e enviar por e-mail). "Consultar na Receita" pergunta ao ReceitanetBX e pede os arquivos novos.
  */
-export default function SpedTransmitido({ empresaId }) {
-  const [ano, setAno] = useState(new Date().getFullYear());
+export default function SpedTransmitido({ empresaId, competencia }) {
+  const [ano, setAno] = useState(() => Number(competencia?.slice(0, 4)) || new Date().getFullYear());
   const qc = useQueryClient();
   const chave = ["monitoramento", "sped", empresaId, ano];
   const q = useQuery({ queryKey: chave, queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped`, { ano }), retry: false,
@@ -121,7 +121,7 @@ export default function SpedTransmitido({ empresaId }) {
               <p className="text-xs font-medium">{e.rotulo}</p>
               {e.encontrados > 0 && <p className="text-xs text-muted-foreground">{e.encontrados} na Receita · {e.baixados} no InTAX{e.na_fila ? ` · ${e.na_fila} chegando` : ""}</p>}
               {e.erro && <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{e.erro}</p>}
-              <TabelaPadrao id={`monit:sped:${e.id}`} colunas={colunas} linhas={linhasDaEscrituracao(e)} ariaLabel={`${e.rotulo} por competência`} tamanhoInicial={25} vazio="Nada para mostrar."
+              <TabelaPadrao id={`monit:sped:${e.id}`} colunas={colunas} linhas={linhasDaEscrituracao(e).filter((l) => !competencia || Number(competencia.slice(0, 4)) !== ano || l.competencia === competencia || l.competencia === String(ano))} ariaLabel={`${e.rotulo} por competência`} tamanhoInicial={25} vazio="Nada para mostrar."
                 ordemInicial={{ chave: "competencia", dir: 1 }}
                 selecao={{ marcadas, aoMudar: setMarcadas }}
                 acoes={<EnvioDocumentos empresaId={empresaId} marcados={marcados} aoConcluir={() => setMarcadas(new Set())} />}

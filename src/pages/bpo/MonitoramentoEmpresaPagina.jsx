@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CompetenciaMonitoramento, { useCompetenciaMonitoramento } from "@/components/monitoramento/CompetenciaMonitoramento";
 import PageHeader from "@/components/PageHeader";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
 import ParcelamentosPgfn from "@/components/monitoramento/ParcelamentosPgfn";
@@ -55,11 +56,13 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
   const ehAdmin = user?.role === "admin";
   const base = pessoaFisica ? `/monitoramento/pessoas/${empresaId}` : `/monitoramento/empresas/${empresaId}`;
   const estado = useEstadoMonitoramento();
+  const periodo = useCompetenciaMonitoramento();
+  const { competencia } = periodo;
   const dono = useQuery({
     queryKey: [pessoaFisica ? "pessoa" : "empresa", empresaId],
     queryFn: () => pessoaFisica ? api.get("/pessoas-fisicas").then((l) => l.find((p) => p.id === empresaId)) : api.entities.Empresa.get(empresaId),
   });
-  const dados = useQuery({ queryKey: ["monitoramento", "empresa", empresaId], queryFn: () => api.get(base) });
+  const dados = useQuery({ queryKey: ["monitoramento", "empresa", empresaId, competencia], queryFn: () => api.get(base, { competencia }) });
   const novidades = useQuery({ queryKey: ["monitoramento", "novidades", empresaId], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/novidades`), enabled: !pessoaFisica });
   const [lote, setLote] = useState(null);
   // Aba escolhida; até a pessoa escolher, a primeira do cliente (só depois de carregar os serviços indicados).
@@ -93,9 +96,9 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
     onError: (e) => toast({ title: "Não foi possível atualizar", description: e.message, variant: "destructive" }),
   });
 
-  const crumbs = [{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Monitoramento fiscal", to: "/bpo/monitoramento" }, { label: nome || "Cliente" }];
+  const crumbs = [{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Monitoramento fiscal", to: `/bpo/monitoramento?competencia=${competencia}` }, { label: nome || "Cliente" }];
   if (dono.isLoading || estado.isLoading) return <div><PageHeader crumbs={crumbs} title="Monitoramento" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
-  if (!dono.data) return <div><PageHeader crumbs={crumbs} title="Cliente não encontrado" /><p role="alert" className="p-8 text-sm">Este cliente não existe mais. <Link to="/bpo/monitoramento" className="text-primary hover:underline">Voltar</Link></p></div>;
+  if (!dono.data) return <div><PageHeader crumbs={crumbs} title="Cliente não encontrado" /><p role="alert" className="p-8 text-sm">Este cliente não existe mais. <Link to={`/bpo/monitoramento?competencia=${competencia}`} className="text-primary hover:underline">Voltar</Link></p></div>;
   const pontos = (estado.data?.grupos || []).map((g) => nivelDoGrupo(g.id)).filter(Boolean);
   const nota = Math.max(0, 100 - pontos.filter((n) => n === "CRITICO").length * 25 - pontos.filter((n) => n === "ATENCAO").length * 8);
 
@@ -107,6 +110,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
         subtitle={[mascararDocumento(doc), pessoaFisica ? "Pessoa física" : dono.data.regime_atual || "Regime não informado"].filter(Boolean).join(" · ")}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
+            <CompetenciaMonitoramento {...periodo} />
             {pontos.length > 0 && <span className={`text-sm font-semibold tabular-nums ${tomDaNota(nota)}`} title="Saúde fiscal">Saúde fiscal {nota}</span>}
             {!pessoaFisica && <button type="button" disabled={desligado || atualizarTudo.isPending || (lote && !lote.fim)} onClick={async () => { if (await confirmar({ titulo: "Este serviço tem custo. Confirma o avanço mesmo assim?", descricao: "Serão feitas todas as consultas deste cliente, e cada consulta é cobrada. Avalie atualizar só o serviço necessário.", rotulo: "Atualizar mesmo assim", perigoso: false })) atualizarTudo.mutate(); }} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
               {lote && !lote.fim ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Atualizar tudo</>}
@@ -116,6 +120,7 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
         )}
       />
       <div className="px-6 lg:px-8 py-5 space-y-4">
+        <p className="text-xs text-muted-foreground">A competência filtra dados mensais. Certidões, procurações, parcelamentos e situação fiscal exibem a informação mais recente.</p>
         <AvisoDoModo modo={estado.data?.modo} ehAdmin={ehAdmin} />
         {!pessoaFisica && (novidades.data || []).length > 0 && (
           <div role="status" className="flex flex-wrap items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50/60 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
@@ -131,13 +136,13 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
           </TabsList>
           {grupos.map((g) => {
             const { indicados: lista, outros } = servicosDoGrupo(servicos, g.id, indicados);
-            const cartao = (s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />;
+            const cartao = (s) => <CartaoServico key={`${s.chave}:${competencia}`} competencia={competencia} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />;
             // Subabas: o que é lido sozinho do relatório de situação fiscal, cada serviço do assunto e os demais.
             const subabas = [
               ...(g.id === "situacao" && !pessoaFisica ? [{ id: "lido", rotulo: "Situação fiscal", conteudo: <ResumoSitfis empresaId={empresaId} /> }] : []),
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "lido", rotulo: "Receita Federal e PGFN", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Parcelamentos na Receita Federal e na PGFN" filtro={(s) => s.assunto === "PARCELAMENTO"} vazio="Nenhum parcelamento na Receita Federal nem na PGFN." /> }] : []),
-              ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "lido", rotulo: "Omissões apontadas pela Receita", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} vazio="Nenhuma omissão de declaração." /> }, { id: "sped", rotulo: "SPED e EFD", conteudo: <SpedTransmitido empresaId={empresaId} /> }] : []),
-              ...(g.id === "declaracoes" && !pessoaFisica && /simples/i.test(dono.data.regime_atual || "") ? [{ id: "simples", rotulo: "Simples: sublimite, faturamento e Fator R", conteudo: <SimplesNacional empresaId={empresaId} /> }] : []),
+              ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "lido", rotulo: "Omissões apontadas pela Receita", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} vazio="Nenhuma omissão de declaração." /> }, { id: "sped", rotulo: "SPED e EFD", conteudo: <SpedTransmitido key={competencia} empresaId={empresaId} competencia={competencia} /> }] : []),
+              ...(g.id === "declaracoes" && !pessoaFisica && /simples/i.test(dono.data.regime_atual || "") ? [{ id: "simples", rotulo: "Simples: sublimite, faturamento e Fator R", conteudo: <SimplesNacional empresaId={empresaId} competencia={competencia} /> }] : []),
               ...lista.map((s) => ({ id: s.chave, rotulo: s.rotulo, nivel: ultimas[s.chave]?.sucesso ? ultimas[s.chave].nivel : undefined, conteudo: cartao(s) })),
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "estado-municipio", rotulo: "Estado e município", conteudo: <ParcelamentosPgfn empresaId={empresaId} /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "dispensas", rotulo: "Obrigações que não tem", conteudo: <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} /> }] : []),

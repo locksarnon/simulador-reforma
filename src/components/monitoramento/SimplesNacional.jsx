@@ -17,12 +17,12 @@ function Numero({ rotulo, valor, destaque }) {
 }
 
 /** Monitoramento > Declarações > Simples: sublimite, faturamento e Fator R, lidos da última declaração do PGDAS-D. */
-export default function SimplesNacional({ empresaId }) {
+export default function SimplesNacional({ empresaId, competencia }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["monitoramento", "simples", empresaId], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/simples`) });
+  const q = useQuery({ queryKey: ["monitoramento", "simples", empresaId, competencia], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/simples`, { competencia }) });
   const atualizar = useMutation({
     mutationFn: () => api.post(`/monitoramento/empresas/${empresaId}/simples/atualizar`, {}),
-    onSuccess: (r) => { qc.setQueryData(["monitoramento", "simples", empresaId], r); qc.invalidateQueries({ queryKey: ["monitoramento"] }); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["monitoramento"] }),
     onError: (e) => toast({ title: "Não foi possível consultar", description: e.message, variant: "destructive" }),
   });
   const d = q.data;
@@ -35,7 +35,7 @@ export default function SimplesNacional({ empresaId }) {
         <button type="button" disabled={atualizar.isPending} onClick={() => atualizar.mutate()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60">{atualizar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
       </div>
       {q.isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Carregando…</p>}
-      {d && !a && <p className="text-sm text-muted-foreground">Sem declaração lida.</p>}
+      {d && !a && <p className="text-sm text-muted-foreground">{competencia ? "Sem dados para esta competência." : "Sem declaração lida."}</p>}
       {a && (
         <Tabs defaultValue="sublimite">
           <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">

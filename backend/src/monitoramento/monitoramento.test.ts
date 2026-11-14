@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { completarParametros, SERVICOS, SERVICO_POR_CHAVE, servicosParaEmpresa } from './catalogo';
+import { filtroDeCompetencia, completarParametros, SERVICOS, SERVICO_POR_CHAVE, servicosParaEmpresa } from './catalogo';
 import { CHAVE_DEMONSTRACAO, ErroIntegra, IntegraCliente, lerResposta, URL_DEMONSTRACAO, URL_PRODUCAO } from './integra.cliente';
 import { dataBr, extrairArquivos, interpretar } from './interpretar';
 import { credenciaisDoAmbiente, MonitoramentoService, pontuacao } from './monitoramento.service';
@@ -213,4 +213,17 @@ describe('MonitoramentoService.consultar (demonstração)', () => {
     const { s } = montar();
     await expect(s.consultar({ empresaId: 'E1' }, 'nao-existe', {}, undefined)).rejects.toThrow(/desconhecido/);
   });
+});
+
+it('filtra pelo período fiscal do pedido ou do documento e preserva consultas sem competência', () => {
+  const filtro = filtroDeCompetencia('2026-10');
+  expect(filtro.OR).toEqual(expect.arrayContaining([
+    { chave: { in: expect.arrayContaining(['pgdasd-ultima', 'dctfweb-recibo']) }, parametros: { path: ['periodo'], equals: '202610' } },
+    { chave: 'pgdasd-declaracao', dados: { path: ['leitura_pgdasd', 'periodo'], equals: '2026-10' } },
+    expect.objectContaining({ chave: 'mit-apuracao' }),
+  ]));
+  const global = filtro.OR?.[0].chave as { notIn: string[] };
+  expect(global.notIn).not.toContain('sitfis');
+  expect(global.notIn).not.toContain('procuracao');
+  expect(filtroDeCompetencia('2026-13')).toEqual({});
 });

@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import CompetenciaMonitoramento, { useCompetenciaMonitoramento } from "@/components/monitoramento/CompetenciaMonitoramento";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
@@ -35,8 +36,10 @@ export default function MonitoramentoPagina() {
   const navegar = useNavigate();
   const confirmar = useConfirmar();
   const estado = useEstadoMonitoramento();
+  const periodo = useCompetenciaMonitoramento();
+  const { competencia } = periodo;
   const { empresas, mapa, carregando } = useCarteiras();
-  const painel = useQuery({ queryKey: ["monitoramento", "painel"], queryFn: () => api.get("/monitoramento/painel") });
+  const painel = useQuery({ queryKey: ["monitoramento", "painel", competencia], queryFn: () => api.get("/monitoramento/painel", { competencia }) });
   const [nivel, setNivel] = useState("");
   const [marcadas, setMarcadas] = useState(new Set());
   const [lote, setLote] = useState(null);
@@ -80,10 +83,11 @@ export default function MonitoramentoPagina() {
     });
     if (ok) atualizar.mutate(alvos);
   };
-  const abrir = (id, aba) => navegar(`/bpo/monitoramento/${id}${aba ? `?aba=${aba}` : ""}`);
+  const caminho = (id, aba) => `/bpo/monitoramento/${id}?competencia=${competencia}${aba ? `&aba=${aba}` : ""}`;
+  const abrir = (id, aba) => navegar(caminho(id, aba));
 
   const colunas = [
-    { chave: "cliente", rotulo: "Cliente", valor: ({ e }) => e.razao_social, render: ({ e }) => <Link to={`/bpo/monitoramento/${e.id}`} onClick={(ev) => ev.stopPropagation()} className="font-medium hover:text-primary hover:underline">{e.razao_social}</Link> },
+    { chave: "cliente", rotulo: "Cliente", valor: ({ e }) => e.razao_social, render: ({ e }) => <Link to={caminho(e.id)} onClick={(ev) => ev.stopPropagation()} className="font-medium hover:text-primary hover:underline">{e.razao_social}</Link> },
     { chave: "cnpj", rotulo: "CNPJ", valor: ({ e }) => mascararDocumento(e.cnpj_cpf) || "", render: ({ e }) => <span className="tabular-nums">{mascararDocumento(e.cnpj_cpf) || "—"}</span> },
     { chave: "regime", rotulo: "Regime", valor: ({ e }) => e.regime_atual || "" },
     { chave: "saude", rotulo: "Saúde", tipo: "numero", alinhar: "direita", valor: ({ p }) => (p ? p.score : null), render: ({ p }) => <span className={`font-semibold ${p ? tomDaNota(p.score) : "text-muted-foreground"}`}>{p ? p.score : "—"}</span> },
@@ -104,12 +108,14 @@ export default function MonitoramentoPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Monitoramento fiscal" }]}
         title="Monitoramento fiscal"
         actions={(
+          <div className="flex flex-wrap items-center gap-2"><CompetenciaMonitoramento {...periodo} />
           <button type="button" disabled={desligado || rodando || !alvos.length} onClick={pedirAtualizacao} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
             {rodando ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Atualizar {marcadas.size ? `${plural(marcadas.size, "marcado", "marcados")}` : `os ${alvos.length} da lista`}</>}
-          </button>
+          </button></div>
         )}
       />
       <div className="px-6 lg:px-8 py-5 space-y-4">
+        <p className="text-xs text-muted-foreground">A competência filtra dados mensais. Certidões, procurações, parcelamentos e situação fiscal exibem a informação mais recente.</p>
         <AvisoDoModo modo={estado.data?.modo} ehAdmin={user?.role === "admin"} />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[["CRITICO", "Com algo crítico"], ["ATENCAO", "Pedem atenção"], ["OK", "Em dia"], ["SEM", "Sem consulta"]].map(([n, r]) => (

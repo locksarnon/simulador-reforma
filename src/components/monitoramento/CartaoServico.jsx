@@ -57,15 +57,15 @@ function Destaques({ resumo }) {
  * marcados, Baixar (ZIP) e Enviar por e-mail; cada envio e download fica registrado no histórico.
  * `base` é "/monitoramento/empresas/ID" ou "/monitoramento/pessoas/ID".
  */
-export default function CartaoServico({ servico, ultima, base, desligado, aoConsultar }) {
+export default function CartaoServico({ servico, ultima, base, desligado, aoConsultar, competencia }) {
   const qc = useQueryClient();
-  const [params, setParams] = useState(() => Object.fromEntries(servico.parametros.map((p) => [p.nome, p.padrao || ""])));
+  const [params, setParams] = useState(() => Object.fromEntries(servico.parametros.map((p) => [p.nome, (p.nome === "periodo" && competencia ? competencia.replace("-", "") : p.nome === "ano" && competencia && servico.grupo === "declaracoes" ? competencia.slice(0, 4) : p.padrao) || ""])));
   const [atual, setAtual] = useState(null);
   const [aba, setAba] = useState("documentos");
   const [marcadosHist, setMarcadosHist] = useState(new Set());
   const [confirmando, setConfirmando] = useState(false);
   const empresa = base.includes("/empresas/");
-  const historico = useQuery({ queryKey: ["monitoramento", "historico", base, servico.chave], queryFn: () => api.get(`${base}/historico/${servico.chave}`), enabled: empresa && aba === "historico" });
+  const historico = useQuery({ queryKey: ["monitoramento", "historico", base, servico.chave, competencia], queryFn: () => api.get(`${base}/historico/${servico.chave}`, { competencia }), enabled: empresa && aba === "historico" });
   const consultar = useMutation({
     mutationFn: (extra) => api.post(`${base}/consultar`, { chave: servico.chave, parametros: { ...params, ...(extra || {}) } }),
     onSuccess: (c) => {
@@ -78,7 +78,7 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
   });
   const mostrada = atual || ultima;
   const docs = documentosDaConsulta(mostrada, servico.rotulo);
-  const chaveHistorico = ["monitoramento", "historico", base, servico.chave];
+  const chaveHistorico = ["monitoramento", "historico", base, servico.chave, competencia];
   const linhasHistorico = historico.data || [];
   const docsDoHistorico = (h) => documentosDaConsulta(h, servico.rotulo).filter((d) => d.formato === "PDF");
   const colunasHistorico = [
@@ -150,7 +150,7 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
             {empresa && <TabsTrigger value="historico" className="text-xs">Histórico</TabsTrigger>}
           </TabsList>
           <TabsContent value="documentos" className="mt-2">
-            <TabelaDeDocumentos id="monit:documentos" linhas={docs} ariaLabel={`Documentos: ${servico.rotulo}`} vazio="Nenhum documento: consulte primeiro." tamanhoInicial={10}
+            <TabelaDeDocumentos id="monit:documentos" linhas={docs} ariaLabel={`Documentos: ${servico.rotulo}`} vazio={competencia && (servico.parametros.some((p) => p.nome === "periodo") || ["mit-apuracao", "pgdasd-declaracao"].includes(servico.chave)) ? "Sem dados para esta competência." : "Nenhum documento: consulte primeiro."} tamanhoInicial={10}
               ordemInicial={null} rotuloData="Consultado em" envioBase={base} invalidar={[chaveHistorico]} />
           </TabsContent>
           {empresa && (

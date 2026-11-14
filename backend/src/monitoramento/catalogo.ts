@@ -459,3 +459,22 @@ export function completarParametros(s: Servico, vindos: Record<string, unknown> 
   for (const [k, v] of Object.entries(vindos)) if (!(k in out) && typeof v === 'string') out[k] = v;
   return out;
 }
+
+/** A competência fiscal é a do pedido ou do documento. A data da consulta não define o período. */
+export function filtroDeCompetencia(competencia?: string): import('@prisma/client').Prisma.ConsultaFiscalWhereInput {
+  if (!competencia || !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) return {};
+  const mensais = SERVICOS.filter((s) => s.parametros.some((p) => p.tipo === 'periodo' && p.nome === 'periodo')).map((s) => s.chave);
+  const anuais = SERVICOS.filter((s) => s.grupo === 'declaracoes' && s.parametros.some((p) => p.nome === 'ano')).map((s) => s.chave);
+  const ano = competencia.slice(0, 4);
+  const mes = competencia.slice(5);
+  return { OR: [
+    { chave: { notIn: [...mensais, ...anuais, 'mit-apuracao', 'pgdasd-declaracao'] } },
+    { chave: { in: mensais }, parametros: { path: ['periodo'], equals: ano + mes } },
+    { chave: { in: anuais }, parametros: { path: ['ano'], equals: ano } },
+    { chave: 'pgdasd-declaracao', dados: { path: ['leitura_pgdasd', 'periodo'], equals: competencia } },
+    { chave: 'mit-apuracao', AND: [
+      { OR: [Number(ano), ano].map((equals) => ({ dados: { path: ['dadosApuracaoMit', 'PeriodoApuracao', 'AnoApuracao'], equals } })) },
+      { OR: [Number(mes), mes, String(Number(mes))].map((equals) => ({ dados: { path: ['dadosApuracaoMit', 'PeriodoApuracao', 'MesApuracao'], equals } })) },
+    ] },
+  ] };
+}
