@@ -29,7 +29,7 @@ function Campo({ rotulo, children, dica }) {
  * Clientes > Novo cliente: o documento primeiro (o CNPJ busca nome, cidade, CNAE e porte na Receita), os serviços marcados
  * na hora e o grupo econômico só se houver. Ao salvar, abre a ficha do cliente.
  */
-export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colaboradores = [], servicoInicial, bpoInicial = false }) {
+export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colaboradores = [], servicoInicial, bpoInicial = false, aoSalvar }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -69,13 +69,15 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
       qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] });
       toast({ title: "Cliente cadastrado", description: empresa.razao_social });
       aoFechar();
-      navigate(`/clientes/${empresa.id}`);
+      if (aoSalvar) aoSalvar(empresa);
+      else navigate(`/clientes/${empresa.id}`);
     },
     onError: (e) => setErro(e.message || "Não foi possível cadastrar."),
   });
 
   const enviar = (ev) => {
     ev.preventDefault();
+    if (servicoInicial && (digitos.length !== 14 || !f.consultoria.includes(servicoInicial))) { setErro("Informe um CNPJ e mantenha selecionado o serviço de origem."); return; }
     if (!f.razao_social.trim()) { setErro("Informe o nome ou a razão social."); return; }
     if (digitos && digitos.length !== 11 && digitos.length !== 14) { setErro("O CNPJ tem 14 dígitos e o CPF tem 11."); return; }
     salvar.mutate();

@@ -25,14 +25,14 @@ export function situacaoDoCertificado(validade, hoje = hojeBR()) {
   return { rotulo: `Válido até ${String(validade).slice(8, 10)}/${String(validade).slice(5, 7)}/${String(validade).slice(0, 4)}`, tom: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" };
 }
 
-export function DialogoPessoa({ pessoa, empresas, aoFechar, servicoInicial }) {
+export function DialogoPessoa({ pessoa, empresas, aoFechar, servicoInicial, aoSalvar }) {
   const [consultoria, setConsultoria] = useState(servicoInicial ? [servicoInicial] : []);
   const qc = useQueryClient();
   const [f, setF] = useState({ nome: pessoa?.nome || "", cpf: pessoa?.cpf || "", email: pessoa?.email || "", telefone: pessoa?.telefone || "", empresa_id: pessoa?.empresa_id || "", grupo: pessoa?.grupo || "", certificado_tipo: pessoa?.certificado_tipo || "", certificado_validade: pessoa?.certificado_validade?.slice(0, 10) || "", observacao: pessoa?.observacao || "" });
   const mudar = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const salvar = useMutation({
-    mutationFn: () => { const c = { ...f, empresa_id: f.empresa_id || null, certificado_tipo: f.certificado_tipo || null, certificado_validade: f.certificado_validade || null }; return pessoa ? api.put(`/pessoas-fisicas/${pessoa.id}`, c) : api.post("/pessoas-fisicas", { ...c, servicos_consultoria: consultoria }); },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pessoas-fisicas"] }); qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] }); toast({ title: "Pessoa física salva" }); aoFechar(); },
+    mutationFn: () => { if (servicoInicial && !consultoria.includes(servicoInicial)) throw new Error("Mantenha selecionado o serviço de origem."); const c = { ...f, empresa_id: f.empresa_id || null, certificado_tipo: f.certificado_tipo || null, certificado_validade: f.certificado_validade || null }; return pessoa ? api.put(`/pessoas-fisicas/${pessoa.id}`, c) : api.post("/pessoas-fisicas", { ...c, servicos_consultoria: consultoria }); },
+    onSuccess: (cadastro) => { aoSalvar?.(cadastro); qc.invalidateQueries({ queryKey: ["pessoas-fisicas"] }); qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] }); toast({ title: "Pessoa física salva" }); aoFechar(); },
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
   });
   return (

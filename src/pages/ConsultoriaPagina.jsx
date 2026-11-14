@@ -34,6 +34,8 @@ export default function ConsultoriaPagina({ carteira = false }) {
   const [filtroServico, setFiltroServico] = useState("");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
   const [filtroSituacao, setFiltroSituacao] = useState("");
+  const [adicionando, setAdicionando] = useState(false);
+  const [escolha, setEscolha] = useState("");
   const [painel, setPainel] = useState(null);
   const [buscaPainel, setBuscaPainel] = useState("");
   const [documentos, setDocumentos] = useState(null);
@@ -41,9 +43,22 @@ export default function ConsultoriaPagina({ carteira = false }) {
   const [novo, setNovo] = useState(null);
   const salvar = useMutation({
     mutationFn: ({ cliente, servico }) => api.post("/consultoria/vinculos", { cliente_id: cliente.id, servico: servico.id }),
-    onSuccess: (_, { cliente }) => { qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] }); setPainel({ cliente }); },
+    onSuccess: (_, { cliente, servico }) => {
+      qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] });
+      abrirServico(cliente, servico);
+    },
   });
-  function abrir(valores) { salvar.reset(); setBuscaPainel(""); setPainel(valores); }
+  function abrirServico(cliente, servico, vinculoConcluido = true) {
+    setPainel(null);
+    setDocumentos({ servico, clientes: [cliente], vinculoConcluido });
+  }
+  function abrir(valores) {
+    salvar.reset();
+    setBuscaPainel("");
+    setAdicionando(Boolean(valores.adicionando));
+    setEscolha("");
+    setPainel(valores);
+  }
   const servicos = catalogo.data || [];
   const todos = [
     ...cadastro.todas.filter((c) => documento(c.cnpj_cpf).length === 14).map((c) => ({ ...c, publico: "PJ", nome: c.razao_social, doc: c.cnpj_cpf })),
@@ -73,13 +88,15 @@ export default function ConsultoriaPagina({ carteira = false }) {
   const cliente = painel?.cliente;
   const grupoLegado = cliente?.publico === "PJ" && cadastro.grupos.find((g) => g.numero === cliente.grupo);
   const servico = painel?.servico;
+  const disponiveis = cliente ? servicos.filter((s) => compativel(cliente, s) && !itens(cliente).includes(s)) : [];
+  const escolhido = disponiveis.find((s) => s.id === escolha);
   const titulo = carteira ? "Carteira de Consultoria" : "Serviços Tributários";
   const pendente = catalogo.isLoading || vinculos.isLoading || cadastro.carregando || pessoas.isLoading || projetos.isLoading;
   const erro = catalogo.error || vinculos.error || cadastro.erro || pessoas.error || projetos.error;
 
   return <div>
     <PageHeader crumbs={[{ label: "Consultoria Tributária", to: "/area/diagnostico" }, { label: titulo }]} title={titulo}
-      actions={carteira && <button className={botao} onClick={() => abrir({})}>Vincular cliente a um serviço</button>} />
+      actions={carteira && <button className={botao} onClick={() => abrir({ adicionando: true })}>Vincular cliente a um serviço</button>} />
     <div className="space-y-4 px-6 py-5 lg:px-8">
       {carteira && <Link to="/diagnostico/carteira" className="text-sm text-primary hover:underline">Ver carteira de diagnósticos anteriores</Link>}
       {erro && <p role="alert">Não foi possível carregar a Consultoria. Atualize a página para tentar novamente.</p>}
@@ -125,7 +142,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
             <input type="search" aria-label="Buscar no cadastro" className={`${campo} w-full`} value={buscaPainel} onChange={(e) => setBuscaPainel(e.target.value)} placeholder="Nome, CPF ou CNPJ" />
             {servico && <button className={botao} onClick={() => { setPainel(null); setNovoCadastro(servico); }}>Cadastrar cliente com este serviço</button>}
             <ul className="max-h-96 space-y-1 overflow-auto">{todos.filter((c) => !c.arquivado_em && (!servico || compativel(c, servico)) && buscaCliente(c, buscaPainel)).slice(0, 50).map((c) => <li key={chave(c)}>
-              <button disabled={salvar.isPending} className="w-full rounded border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => servico ? salvar.mutate({ cliente: c, servico }) : abrir({ cliente: c })}>{c.nome} · {c.doc}</button>
+              <button disabled={salvar.isPending} className="w-full rounded border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => servico ? (itens(c).includes(servico) ? abrirServico(c, servico, false) : salvar.mutate({ cliente: c, servico })) : abrir({ cliente: c, adicionando: painel.adicionando })}>{c.nome} · {c.doc}{servico && itens(c).includes(servico) ? " · Abrir serviço" : ""}</button>
             </li>)}</ul>
           </>}
           {cliente && <>
@@ -141,19 +158,28 @@ export default function ConsultoriaPagina({ carteira = false }) {
               </article>;
             })}
             {projetosDe(cliente).filter((p) => !p.servico_consultoria).map((p) => <Link key={p.id} className="block text-sm text-primary hover:underline" to={`/diagnostico/projetos/${p.id}`}>{p.nome} · Diagnóstico existente</Link>)}
-            <label className="block space-y-1 text-sm"><span>Adicionar serviço</span>
-              <select className={`${campo} w-full`} value="" disabled={salvar.isPending} onChange={(e) => { const s = servicos.find((x) => x.id === e.target.value); if (s) salvar.mutate({ cliente, servico: s }); }}>
-                <option value="">Selecione um serviço</option>{servicos.filter((s) => compativel(cliente, s) && !itens(cliente).includes(s)).map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-              </select>
-            </label>
+            {disponiveis.length > 0 && (adicionando ? <form className="space-y-2" onSubmit={(e) => {
+              e.preventDefault();
+              if (escolhido) salvar.mutate({ cliente, servico: escolhido });
+            }}>
+              <label className="block space-y-1 text-sm"><span>Serviço a vincular</span>
+                <select className={`${campo} w-full`} value={escolha} disabled={salvar.isPending} onChange={(e) => setEscolha(e.target.value)}>
+                  <option value="">Selecione um serviço</option>{disponiveis.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                </select>
+              </label>
+              <div className="flex gap-3">
+                <button type="submit" className={botao} disabled={!escolhido || salvar.isPending}>Confirmar vínculo</button>
+                <button type="button" disabled={salvar.isPending} className="text-sm" onClick={() => { setAdicionando(false); setEscolha(""); salvar.reset(); }}>Cancelar</button>
+              </div>
+            </form> : <button className="text-sm text-primary hover:underline" onClick={() => setAdicionando(true)}>Adicionar outro serviço</button>)}
           </>}
           {salvar.isError && <p role="alert">{salvar.error.message}</p>}
         </div>
       </SheetContent>
     </Sheet>
     {documentos && <SolicitacoesConsultoria {...documentos} aoFechar={() => setDocumentos(null)} />}
-    {novoCadastro?.publico === "PJ" && <NovoClienteDialog aberto servicoInicial={novoCadastro.id} grupos={cadastro.grupos} aoFechar={() => setNovoCadastro(null)} />}
-    {novoCadastro?.publico === "PF" && <DialogoPessoa servicoInicial={novoCadastro.id} empresas={cadastro.empresas} aoFechar={() => setNovoCadastro(null)} />}
+    {novoCadastro?.publico === "PJ" && <NovoClienteDialog aberto servicoInicial={novoCadastro.id} grupos={cadastro.grupos} aoSalvar={(e) => abrirServico({ id: e.id, nome: e.razao_social }, novoCadastro)} aoFechar={() => setNovoCadastro(null)} />}
+    {novoCadastro?.publico === "PF" && <DialogoPessoa servicoInicial={novoCadastro.id} empresas={cadastro.empresas} aoSalvar={(c) => abrirServico(c, novoCadastro)} aoFechar={() => setNovoCadastro(null)} />}
     {novo && <NovoDiagnosticoDialog aberto aoFechar={() => setNovo(null)} inicial={[novo.cliente.id]} grupos={cadastro.grupos}
       empresas={cadastro.empresas.filter((c) => itens({ publico: "PJ", id: c.id }).includes(novo.servico))} servico={novo.servico} />}
   </div>;

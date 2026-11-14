@@ -9,7 +9,7 @@ import { linhasDoPeriodo, arquivoSpedDaLinha, itensDoServico } from "@/lib/consu
 const estados = { PENDENTE: "Não localizado", RECEBIDO: "Recebido", VALIDADO: "Validado", DIVERGENTE: "Divergente", NAO_APLICAVEL: "Não aplicável" };
 const campo = "rounded border bg-background p-2";
 
-export default function SolicitacoesConsultoria({ servico, clientes = [], deInicial = "", ateInicial = "", aoFechar }) {
+export default function SolicitacoesConsultoria({ servico, clientes = [], deInicial = "", ateInicial = "", vinculoConcluido = false, aoFechar }) {
   const qc = useQueryClient();
   const [cliente, setCliente] = useState(clientes[0]?.id || "");
   const [de, setDe] = useState(deInicial);
@@ -56,6 +56,7 @@ export default function SolicitacoesConsultoria({ servico, clientes = [], deInic
 
   return <Dialog open onOpenChange={(v) => !v && aoFechar()}><DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
     <DialogHeader><DialogTitle>Documentos · {servico.nome}</DialogTitle><DialogDescription>Selecionar o contribuinte e o período para conferir o acervo e emitir as pendências.</DialogDescription></DialogHeader>
+    {vinculoConcluido && <p role="status" className="text-sm">Serviço vinculado a {selecionado?.nome}. Informe o período para consultar os documentos.</p>}
     <div className="flex flex-wrap gap-3 text-sm">
       <label className="grid gap-1">Cliente<select className={campo} value={cliente} onChange={(e) => setCliente(e.target.value)}><option value="">Selecione</option>{clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></label>
       <label className="grid gap-1">De<input className={campo} type="date" value={de} onChange={(e) => setDe(e.target.value)} /></label>
