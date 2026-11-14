@@ -68,3 +68,9 @@ Nunca rode `cp .env.example .env` num servidor que já tem banco — isso troca 
 ## Docs & Support
 
 Ver [backend/README.md](backend/README.md) para detalhes do backend.
+
+### Recuperação histórica de NF-e
+
+Em Repositório de XML, na aba NF-e, o administrador pode cruzar as EFDs ICMS/IPI guardadas pelo ReceitanetBX com os XMLs do estabelecimento. A prévia é gratuita e indica competências cuja cobertura é desconhecida. A fila consulta apenas chaves pendentes de NF-e modelo 55, com limite de 5.000 consultas por lote autorizado.
+
+A execução exige as credenciais do contrato **Consulta NF-e** em `SERPRO_NFE_CONSUMER_KEY` e `SERPRO_NFE_CONSUMER_SECRET`, configuradas no ambiente do backend. Em **Administração → Custos**, informe o preço por consulta desse contrato. Depois da migração, valide em um lote pequeno de notas emitidas e recebidas antigas. Confirme a disponibilidade e a recuperação do XML com assinatura e protocolo antes de liberar lotes extensos.

@@ -39,7 +39,7 @@ export function fmtDoc(d) {
   return d || "—";
 }
 
-export const ORIGENS = { UPLOAD: "Importação", CAPTURA: "Captura" };
+export const ORIGENS = { UPLOAD: "Importação", CAPTURA: "Captura", HISTORICO: "Recuperação histórica" };
 
 /** Cada pedido de envio leva até 100 arquivos e 100 MB (o servidor recusa pedidos acima de 120 MB): a tela divide o resto em vários pedidos. */
 export const ARQUIVOS_POR_ENVIO = 100;

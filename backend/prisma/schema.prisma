@@ -1940,3 +1940,28 @@ model ControleDocumentoConsultoria {
 
   @@unique([publico, cliente_id, servico, item, periodo], map: "controle_documento_consultoria_chave")
 }
+model RecuperacaoXmlHistorico {
+  id                String    @id @default(cuid())
+  empresa_id        String
+  solicitado_por    String
+  de                String
+  ate               String
+  situacao          String    @default("PREVIA")
+  preco_unitario    Float?
+  chaves            Json
+  cobertura         Json
+  total             Int
+  cursor            Int       @default(0)
+  recuperadas       Int       @default(0)
+  indisponiveis     Int       @default(0)
+  reaproveitadas    Int       @default(0)
+  falhas            Int       @default(0)
+  cobradas          Int       @default(0)
+  mensagem          String?
+  ocupado_ate       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([empresa_id, createdAt])
+  @@index([situacao, ocupado_ate])
+}

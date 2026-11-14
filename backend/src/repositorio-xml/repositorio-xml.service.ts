@@ -11,7 +11,7 @@ import { ErroLeituraDocumento } from './pdf/erros';
 import { geraPdf, tipoDePdf } from './pdf/tipos-de-pdf';
 import { lerXmlsDoZip } from './zip-seguro';
 
-export type Origem = 'UPLOAD' | 'CAPTURA';
+export type Origem = 'UPLOAD' | 'CAPTURA' | 'HISTORICO';
 export type ResultadoRegistro = { resultado: 'NOVO' | 'ATUALIZADO' | 'DUPLICADO' | 'IGNORADO'; motivo?: string; id?: string };
 
 export type FiltrosDocumentos = {
@@ -141,7 +141,7 @@ export function caminhoObjeto(
   const aamm = ind.chave.slice(2, 6);
   const { ano, mes } = ehChaveNfse(ind.chave) ? anoMesDe(ind.dataEmissao ?? recebidoEm) : { ano: `20${aamm.slice(0, 2)}`, mes: aamm.slice(2, 4) };
   const prefixo = ind.tipo === 'EVENTO' ? `evento-${ind.eventoTipo}-${ind.sequencia}-` : ind.conteudo === 'RESUMO' ? 'resumo-' : '';
-  return `repositorio/${empresaId}/${origem === 'UPLOAD' ? 'importacao' : 'captura'}/${ano}/${mes}/${prefixo}${ind.chave}.xml`;
+  return `repositorio/${empresaId}/${origem === 'HISTORICO' ? 'historico' : origem === 'UPLOAD' ? 'importacao' : 'captura'}/${ano}/${mes}/${prefixo}${ind.chave}.xml`;
 }
 
 const nomeBase = (caminho: string) => caminho.split(/[\\/]/).pop() || caminho;

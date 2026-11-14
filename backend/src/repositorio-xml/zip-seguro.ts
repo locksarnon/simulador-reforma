@@ -31,6 +31,10 @@ const megas = (bytes: number) => `${Math.round((bytes / (1024 * 1024)) * 10) / 1
  * ZIP64 e arquivos com senha não são lidos.
  */
 export function lerXmlsDoZip(zip: Buffer, limites: LimitesZip): ResultadoZip {
+  return lerArquivosDoZip(zip, limites, (caminho) => caminho.toLowerCase().endsWith('.xml'));
+}
+
+export function lerArquivosDoZip(zip: Buffer, limites: LimitesZip, incluir: (caminho: string) => boolean): ResultadoZip {
   const invalido = (motivo = 'ZIP inválido') => new ZipInvalidoError(motivo);
 
   // Fim do diretório central: nos últimos 22 bytes mais o comentário (até 65.535).
@@ -62,7 +66,7 @@ export function lerXmlsDoZip(zip: Buffer, limites: LimitesZip): ResultadoZip {
     const caminho = zip.toString(flags & 0x800 ? 'utf8' : 'latin1', p + 46, p + 46 + nomeLen);
     p += 46 + nomeLen + extraLen + comentarioLen;
 
-    if (!caminho.toLowerCase().endsWith('.xml') || caminho.startsWith('__MACOSX/')) continue;
+    if (!incluir(caminho) || caminho.startsWith('__MACOSX/')) continue;
     contados += 1;
     if (contados > limites.maxEntradas) throw invalido('limite de arquivos');
     const nome = nomeBase(caminho);

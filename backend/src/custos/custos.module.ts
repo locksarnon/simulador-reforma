@@ -5,5 +5,6 @@ import { CustosService } from './custos.service';
 @Module({
   controllers: [CustosController],
   providers: [CustosService],
+  exports: [CustosService],
 })
 export class CustosModule {}

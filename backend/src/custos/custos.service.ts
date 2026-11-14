@@ -13,6 +13,7 @@ export const ITENS = [
   { id: 'INTEGRA_DECLARAR', rotulo: 'Integra Contador: declarações e transmissões', fornecedor: 'Serpro' },
   { id: 'INTEGRA_APOIAR', rotulo: 'Integra Contador: serviços de apoio', fornecedor: 'Serpro' },
   { id: 'INTEGRA_MONITORAR', rotulo: 'Integra Contador: eventos de atualização', fornecedor: 'Serpro' },
+  { id: 'SERPRO_CONSULTA_NFE', rotulo: 'Consulta NF-e por chave', fornecedor: 'Serpro' },
   { id: 'SERPRO_CND', rotulo: 'Consulta CND (certidão federal)', fornecedor: 'Serpro' },
   { id: 'SERPRO_DIVIDA', rotulo: 'Consulta Dívida Ativa', fornecedor: 'Serpro' },
   { id: 'INFOSIMPLES_CNDT', rotulo: 'CNDT (TST) pela Infosimples', fornecedor: 'Infosimples' },

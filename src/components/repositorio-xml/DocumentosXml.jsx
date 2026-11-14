@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { ABAS_DE_DOCUMENTOS, base, dividirEmLotes, documentoDoEvento, fmtData, fmtDoc, fmtMoeda, importavelNoImportador, MAX_PDF_NO_ZIP, nomeDoPdf, ORIGENS, PORTAIS_NOTAS_EMITIDAS, rotuloTipo, situacaoCiencia, temPdf, TIPOS } from "./formatos";
 import { plural } from "@/lib/plural";
+import RecuperacaoHistorica from "./RecuperacaoHistorica";
 import TabelaPadrao from "@/components/TabelaPadrao";
 
 /** Linhas por página: 10, 50, 100, 500 ou todas (0). "Todas" busca em partes de 500 até o teto abaixo. */
@@ -201,6 +202,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
 
   return (
     <div className="space-y-4">
+      {admin && !soResumos && grupo === "NFE" && <RecuperacaoHistorica key={empresaId} empresaId={empresaId} />}
       {soResumos ? (
         <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm space-y-1">
           <p className="font-medium">Resumos e eventos da SEFAZ</p>

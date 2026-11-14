@@ -55,7 +55,7 @@ export default function CustosPagina() {
           <div className="grid gap-2 sm:grid-cols-2">
             {itens.map((i) => (
               <label key={i.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                <span className="min-w-0"><span className="block truncate">{i.rotulo}</span><span className="text-[11px] text-muted-foreground">{i.fornecedor}{!(Number(precos[i.id]) > 0) ? " · tabela oficial" : " · preço do contrato"}</span></span>
+                <span className="min-w-0"><span className="block truncate">{i.rotulo}</span><span className="text-[11px] text-muted-foreground">{i.fornecedor}{Number(precos[i.id]) > 0 ? " · preço do contrato" : i.id === "SERPRO_CONSULTA_NFE" ? " · preço do contrato obrigatório" : " · tabela oficial"}</span></span>
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">R$<input type="number" min="0" step="0.0001" value={precos[i.id] || ""} placeholder={d?.oficiais?.[i.id] != null ? String(d.oficiais[i.id]).replace(".", ",") : ""} onChange={(e) => setPrecos((p) => ({ ...p, [i.id]: e.target.value }))} className={`${campo} w-24 text-right`} aria-label={`Preço: ${i.rotulo}`} /></span>
               </label>
             ))}

@@ -87,6 +87,8 @@ services:
       # Monitoramento fiscal (Integra Contador do Serpro): as chaves ficam só no .env do servidor; o certificado do escritório (.pfx) fica em /etc/intax/segredos, fora do repositório.
       INTEGRA_CONTADOR_MODO: ${INTEGRA_CONTADOR_MODO:-}
       MONITORAMENTO_AGENDADOR: ${MONITORAMENTO_AGENDADOR:-}
+      SERPRO_NFE_CONSUMER_KEY: ${SERPRO_NFE_CONSUMER_KEY:-}
+      SERPRO_NFE_CONSUMER_SECRET: ${SERPRO_NFE_CONSUMER_SECRET:-}
       SERPRO_CONSUMER_KEY: ${SERPRO_CONSUMER_KEY:-}
       SERPRO_CONSUMER_SECRET: ${SERPRO_CONSUMER_SECRET:-}
       SERPRO_CONTRATANTE_CNPJ: ${SERPRO_CONTRATANTE_CNPJ:-}
