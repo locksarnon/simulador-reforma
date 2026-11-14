@@ -41,12 +41,13 @@ function renderizar(elemento, local = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, enabled: false } } });
   qc.setQueryData(["monitoramento", "estado"], ESTADO);
   qc.setQueryData(["monitoramento", "painel"], PAINEL);
+  qc.setQueryData(["monitoramento", "painel", "2026-10"], PAINEL);
   qc.setQueryData(["empresas", "carteiras"], EMPRESAS);
   qc.setQueryData(["grupos"], []);
   qc.setQueryData(["servicos-contratados"], SERVICOS_CONTRATADOS);
   qc.setQueryData(["servicos-contratados", "resumo"], {});
   qc.setQueryData(["empresa", "E1"], EMPRESAS[0]);
-  qc.setQueryData(["monitoramento", "empresa", "E1"], { ultimas: { "caixa-postal": ULTIMA_CAIXA, sitfis: ULTIMA_SITFIS }, dispensas: [{ obrigacao: "MIT" }], servicos_indicados: ["sitfis", "caixa-postal", "dctfweb-recibo"] });
+  qc.setQueryData(["monitoramento", "empresa", "E1", "2026-10"], { ultimas: { "caixa-postal": ULTIMA_CAIXA, sitfis: ULTIMA_SITFIS }, dispensas: [{ obrigacao: "MIT" }], servicos_indicados: ["sitfis", "caixa-postal", "dctfweb-recibo"] });
   qc.setQueryData(["monitoramento", "procuracoes"], [
     { empresa_id: "E1", razao_social: "EXTRA AGRO LTDA", cnpj_cpf: "58509112000152", certificado: { valido_ate: "2027-05-01T00:00:00Z", dias: 170, situacao: "VALIDO" }, procuracao: null, caminho: "TERMO_A1" },
     { empresa_id: "E2", razao_social: "Beta Comércio", cnpj_cpf: "12345678000195", certificado: null, procuracao: { nivel: "CRITICO", titulo: "Procuração vencida: peça ao cliente que renove no e-CAC.", consultado_em: "2026-11-11T12:00:00Z", simulado: true }, caminho: "SEM_ACESSO" },
@@ -57,7 +58,7 @@ function renderizar(elemento, local = "/") {
     agendaveis: [{ chave: "sitfis", rotulo: "Relatório de situação fiscal", grupo: "situacao", para: null }, { chave: "caixa-postal", rotulo: "Caixa postal do e-CAC", grupo: "mensagens", para: null }],
     certidoes: ["FEDERAL", "FGTS"] });
   qc.setQueryData(["documentos", "todos"], [{ id: "D1", empresa_id: "E2", tipo: { nome: "CND federal (Receita e PGFN)" }, situacao: "VENCIDO", validade: "2026-10-01T00:00:00Z" }]);
-  return renderToString(<QueryClientProvider client={qc}><StaticRouter location={local}>{elemento}</StaticRouter></QueryClientProvider>).replace(/<!-- -->/g, "");
+  return renderToString(<QueryClientProvider client={qc}><StaticRouter location={`${local}${local.includes("?") ? "&" : "?"}competencia=2026-10`}>{elemento}</StaticRouter></QueryClientProvider>).replace(/<!-- -->/g, "");
 }
 
 describe("Monitoramento fiscal: a carteira", () => {
@@ -68,6 +69,8 @@ describe("Monitoramento fiscal: a carteira", () => {
     expect(html).toContain("EXTRA AGRO LTDA");
     expect(html).toContain("Beta Comércio");
     expect(html).toContain(">75<");
+    expect(html).toContain("Outubro 2026".toLowerCase());
+    expect(html).toContain("/bpo/monitoramento/E1?competencia=2026-10");
     expect(html).toContain("50 mensagens");
     expect(html).toContain("Atualizar os 2 da lista");
     expect(html).toContain(">CNPJ<");
