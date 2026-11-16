@@ -15,6 +15,7 @@ export const GATEWAY = 'https://gateway.apiserpro.serpro.gov.br';
 export const BEARER_TRIAL = '06aef429-a981-3ec5-a1f8-71d38d86481e';
 const CNPJ_TESTE_CND = '00000000000001';
 const CNPJ_TESTE_DIVIDA = '01415666000181';
+export const BASES_DIVIDA = ['consulta-divida-ativa', 'consulta-divida-ativa-df'];
 
 export type ResultadoSerpro = { status: StatusProcesso; resumo: string; detalhes: { rotulo: string; valor: string }[]; demonstracao: boolean; pdf?: Buffer };
 type Produto = 'cnd' | 'dividaAtiva';
@@ -31,6 +32,7 @@ const semAcesso = (produto: Produto, http: number) =>
 @Injectable()
 export class SerproCertidoes {
   private tokens = new Map<string, { token: string; expira: number }>();
+  private baseDivida = BASES_DIVIDA[0];
   fetchImpl: typeof fetch = (...a) => fetch(...a);
   pausaMs = 600;
 
@@ -102,9 +104,16 @@ export class SerproCertidoes {
     const b = await this.bearer('dividaAtiva', modo);
     if (!b) return null;
     const doc = b.demo ? CNPJ_TESTE_DIVIDA : cnpj;
-    const r = await this.fetchImpl(`${GATEWAY}/${b.demo ? 'consulta-divida-ativa-trial' : 'consulta-divida-ativa'}/api/v1/devedor/${doc}`, {
-      headers: { Authorization: `Bearer ${b.token}`, Accept: 'application/json' }, signal: AbortSignal.timeout(60_000),
-    });
+    // O swagger oficial tem dois endereços de produção (consulta-divida-ativa e consulta-divida-ativa-df); o contrato libera um deles,
+    // e o caminho errado volta 403 (não bilhetado). Tenta o que funcionou por último e, no 403, o outro.
+    const bases = b.demo ? ['consulta-divida-ativa-trial'] : [this.baseDivida, ...BASES_DIVIDA.filter((x) => x !== this.baseDivida)];
+    let r!: Response;
+    for (const base of bases) {
+      r = await this.fetchImpl(`${GATEWAY}/${base}/api/v1/devedor/${doc}`, {
+        headers: { Authorization: `Bearer ${b.token}`, Accept: 'application/json' }, signal: AbortSignal.timeout(60_000),
+      });
+      if (r.status !== 403) { if (!b.demo) this.baseDivida = base; break; }
+    }
     const demonstracao = b.demo;
     const marca = demonstracao ? [{ rotulo: 'Documento consultado', valor: `${doc} (teste do ambiente de demonstração)` }] : [];
     if (r.status === 404) return { status: 'CONCLUIDO', resumo: 'Nenhuma inscrição em Dívida Ativa da União.', detalhes: marca, demonstracao };

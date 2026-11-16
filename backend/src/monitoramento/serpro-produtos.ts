@@ -21,9 +21,11 @@ export async function testarProdutoSerpro(produto: ProdutoSerpro, chaves: { key:
     if (!t.ok) return { produto, nome, ok: false, mensagem: `${nome}: o Serpro recusou as chaves (HTTP ${t.status}). Confira a Consumer Key e o Consumer Secret deste produto na Área do Cliente do Serpro.` };
     const { access_token } = (await t.json()) as { access_token: string };
     const h = { Authorization: `Bearer ${access_token}`, Accept: 'application/json', 'Content-Type': 'application/json' };
-    const r = produto === 'cnd'
+    let r = produto === 'cnd'
       ? await f(`${GATEWAY_SERPRO}/consulta-cnd/v1/certidao`, { method: 'POST', headers: h, body: JSON.stringify({ TipoContribuinte: 1, ContribuinteConsulta: '0', CodigoIdentificacao: '9001' }), signal: AbortSignal.timeout(30_000) })
       : await f(`${GATEWAY_SERPRO}/consulta-divida-ativa/api/v1/devedor/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
+    // Dívida Ativa: o swagger oficial tem também o endereço consulta-divida-ativa-df; o contrato libera um deles.
+    if (produto === 'dividaAtiva' && r.status === 403) r = await f(`${GATEWAY_SERPRO}/consulta-divida-ativa-df/api/v1/devedor/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
     if (r.status === 401 || r.status === 403) return { produto, nome, ok: false, mensagem: `${nome}: as chaves geram token, mas não têm acesso a este produto (HTTP ${r.status}). São de outro produto ou o produto não está ativo no contrato.` };
     if (r.status >= 500) return { produto, nome, ok: false, mensagem: `${nome}: chaves aceitas; a API do produto não respondeu agora (HTTP ${r.status}).` };
     return { produto, nome, ok: true, mensagem: `${nome}: chaves aceitas e com acesso ao produto.` };

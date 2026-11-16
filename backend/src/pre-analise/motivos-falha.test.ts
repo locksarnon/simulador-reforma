@@ -17,6 +17,11 @@ describe('motivo das falhas na pré-análise', () => {
     s.fetchImpl = (async (url: string) => (String(url).endsWith('/token') ? new Response(JSON.stringify({ access_token: 't', expires_in: 3600 })) : new Response('', { status: 403 }))) as typeof fetch;
     const d = await s.dividaAtiva('12345678000199', 'PRODUCAO');
     expect(d?.resumo).toMatch(/^Sem acesso à API Consulta Dívida Ativa \(HTTP 403\)/);
+    // com acesso pelo endereço -df: o 403 do primeiro endereço não vira erro
+    s.fetchImpl = (async (url: string) => (String(url).endsWith('/token') ? new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }))
+      : String(url).includes('consulta-divida-ativa-df/') ? new Response('', { status: 404 }) : new Response('', { status: 403 }))) as typeof fetch;
+    expect((await s.dividaAtiva('12345678000199', 'PRODUCAO'))?.resumo).toBe('Nenhuma inscrição em Dívida Ativa da União.');
+    s.fetchImpl = (async (url: string) => (String(url).endsWith('/token') ? new Response(JSON.stringify({ access_token: 't', expires_in: 3600 })) : new Response('', { status: 403 }))) as typeof fetch;
     const c = await s.certidaoFederal('12345678000199', 'PRODUCAO');
     expect(c?.resumo).toMatch(/^Sem acesso à API Consulta CND \(HTTP 403\)/);
   });
