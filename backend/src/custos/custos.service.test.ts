@@ -63,3 +63,25 @@ describe('Serpro: contrato da Consulta NF-e e ciclo de faturamento', () => {
     expect(mesDoCicloSerpro(new Date('2026-11-21T12:00:00Z'))).toBe('2026-12');
   });
 });
+
+import { tabelasDeContrato } from './custos.service';
+import { lerCapaContrato } from './contratos.service';
+describe('tabelas por contrato e leitura da capa do contrato', () => {
+  it('cada contrato com as faixas em linhas e a faixa do mês marcada', () => {
+    const t = tabelasDeContrato(new Map([['SERPRO_CONSULTA_NFE', 1500], ['INTEGRA_CONSULTAR', 200], ['INTEGRA_APOIAR', 200]]));
+    expect(t.map((x) => x.contrato)).toEqual(['626671', '630434', '630584', '630467', null]);
+    const nfe = t.find((x) => x.integracao === 'Consulta NF-e')!.servicos[0];
+    expect(nfe.faixas[0]).toEqual({ faixa: 1, de: 1, ate: 999, preco: 0.6591 });
+    expect(nfe.faixas.at(-1)).toMatchObject({ faixa: 16, de: 30000000, ate: null, preco: 0.027 });
+    expect(nfe.faixa_atual).toBe(2);
+    const consulta = t[0].servicos[0];
+    expect(consulta).toMatchObject({ volume: 400, faixa_atual: 2 });
+  });
+  it('lê número, produto e vigência da capa do Serpro', () => {
+    const capa = lerCapaContrato('Registro de Documentos Contratuais Nº do Pedido Eletrônico 630467 CONTRATO DE RECEITA 16/11/2026 16/11/2026 a 16/11/2031 CONSULTA NFE (ALOCADO NA FAIXA) CONTRATO DE ADESÃO');
+    expect(capa).toMatchObject({ numero: '630467', integracao: 'Consulta NF-e', vigencia: '16/11/2026 a 16/11/2031' });
+    expect(lerCapaContrato('Pedido Eletrônico 630584 Consulta Dívida Ativa (ALOCADO NA FAIXA)').integracao).toBe('Consulta Dívida Ativa');
+    expect(lerCapaContrato('Pedido Eletrônico 630434 Objeto: Consulta CND').integracao).toBe('Consulta CND');
+    expect(lerCapaContrato('626671 O Integra Contador é uma plataforma').integracao).toBe('Integra Contador');
+  });
+});

@@ -54,6 +54,48 @@ export const FONTES_PRECO = {
   serpro_nfe: 'Contrato Serpro 630467 (Consulta NF-e), Anexo I',
   infosimples: 'https://infosimples.com/consultas/precos/',
 };
+/**
+ * Tabela de cada contrato, serviço a serviço e faixa a faixa (Anexo I de cada contrato), para a tela de Custos. O volume do mês
+ * marca a faixa em que o escritório está. Infosimples não tem contrato: tabela da conta do escritório.
+ */
+type TabelaServico = { nome: string; unidade: string; itens: string[]; faixas: Faixa[]; nota?: string };
+const TABELAS: { integracao: string; contrato: string | null; regra: string; servicos: TabelaServico[] }[] = [
+  { integracao: 'Integra Contador', contrato: '626671', regra: 'O volume do ciclo (dia 21 ao dia 20) define a faixa; o preço dela vale para todas as requisições do tipo.', servicos: [
+    { nome: 'Consulta', unidade: 'Requisição', itens: ['INTEGRA_CONSULTAR', 'INTEGRA_APOIAR', 'INTEGRA_MONITORAR'], faixas: SERPRO_CONSULTA, nota: 'Serviços de apoio e eventos de atualização não têm linha própria no contrato: contados como consulta (não confirmado).' },
+    { nome: 'Emissão', unidade: 'Requisição', itens: ['INTEGRA_EMITIR'], faixas: SERPRO_EMISSAO },
+    { nome: 'Declaração', unidade: 'Requisição', itens: ['INTEGRA_DECLARAR'], faixas: SERPRO_DECLARACAO },
+  ] },
+  { integracao: 'Consulta CND', contrato: '630434', regra: 'O volume do ciclo (dia 21 ao dia 20) define a faixa; o preço dela vale para todas as requisições.', servicos: [
+    { nome: 'Consulta CND', unidade: 'Requisição', itens: ['SERPRO_CND'], faixas: SERPRO_CND },
+  ] },
+  { integracao: 'Consulta Dívida Ativa', contrato: '630584', regra: 'Alocado na faixa: o volume do ciclo (dia 21 ao dia 20) define a faixa; o preço dela vale para todas as transações.', servicos: [
+    { nome: 'Consulta Dívida Ativa', unidade: 'Transação', itens: ['SERPRO_DIVIDA'], faixas: SERPRO_DIVIDA },
+  ] },
+  { integracao: 'Consulta NF-e', contrato: '630467', regra: 'Alocado na faixa: o volume do ciclo (dia 21 ao dia 20) define a faixa; o preço dela vale para todas as transações. Nota não encontrada (404) e chave inválida (400) não são cobradas.', servicos: [
+    { nome: 'Consulta NF-e', unidade: 'Transação', itens: ['SERPRO_CONSULTA_NFE'], faixas: SERPRO_NFE },
+  ] },
+  { integracao: 'Infosimples', contrato: null, regra: 'Preço base em cascata (cada fatia do volume do mês paga a sua faixa), somando todas as consultas, mais o adicional de cada consulta. Franquia mínima de R$ 100,00 por mês.', servicos: [
+    { nome: 'Preço base (todas as consultas)', unidade: 'Consulta', itens: ['INFOSIMPLES_CNDT', 'INFOSIMPLES_CRF', 'INFOSIMPLES_ESTADUAL', 'INFOSIMPLES_MUNICIPAL', 'INFOSIMPLES_MONITORAMENTO'], faixas: INFOSIMPLES_BASE },
+    { nome: 'Adicional CNDT (TST)', unidade: 'Consulta', itens: ['INFOSIMPLES_CNDT'], faixas: [[Infinity, 0.04]] },
+    { nome: 'Adicional CRF do FGTS', unidade: 'Consulta', itens: ['INFOSIMPLES_CRF'], faixas: [[Infinity, 0.06]] },
+    { nome: 'Adicional certidões estadual e municipal e monitoramento', unidade: 'Consulta', itens: ['INFOSIMPLES_ESTADUAL', 'INFOSIMPLES_MUNICIPAL', 'INFOSIMPLES_MONITORAMENTO'], faixas: [[Infinity, 0]], nota: 'Varia de R$ 0,00 a R$ 0,06 conforme a consulta; o sistema usa R$ 0,00 (não confirmado por consulta). SEFAZ MS: + R$ 0,04.' },
+  ] },
+];
+
+/** As tabelas com as faixas em linhas (de, até, preço) e a faixa atual pelo volume do mês. */
+export function tabelasDeContrato(volumes: Map<string, number>) {
+  return TABELAS.map((tb) => ({
+    ...tb,
+    servicos: tb.servicos.map((sv) => {
+      const volume = sv.itens.reduce((n, id) => n + (volumes.get(id) ?? 0), 0);
+      let de = 1;
+      const faixas = sv.faixas.map(([ate, preco], i) => { const l = { faixa: i + 1, de, ate: Number.isFinite(ate) ? ate : null, preco }; de = Number.isFinite(ate) ? ate + 1 : de; return l; });
+      const atual = faixas.find((x) => x.ate === null || Math.max(volume, 1) <= x.ate)?.faixa ?? null;
+      return { nome: sv.nome, unidade: sv.unidade, nota: sv.nota ?? null, volume, faixa_atual: atual, faixas };
+    }),
+  }));
+}
+
 /** Tipo de cobrança do Integra Contador (apoio e eventos não têm linha própria na tabela: cobrados como consulta, não confirmado). */
 const GRUPO_INTEGRA: Record<string, 'CONSULTA' | 'EMISSAO' | 'DECLARACAO'> = { INTEGRA_CONSULTAR: 'CONSULTA', INTEGRA_APOIAR: 'CONSULTA', INTEGRA_MONITORAR: 'CONSULTA', INTEGRA_EMITIR: 'EMISSAO', INTEGRA_DECLARAR: 'DECLARACAO' };
 const precoDaFaixa = (t: Faixa[], volume: number) => (t.find(([ate]) => volume <= ate) ?? t[t.length - 1])[1];
@@ -136,31 +178,36 @@ export class CustosService {
     return this.precos();
   }
 
-  /** Contagem do mês por usuário e item. */
-  private async contagem(de: Date, ate: Date, mes?: string) {
+  /** Contagem do mês por usuário e item; com `porCliente`, também por cliente (empresa) e item. */
+  private async contagem(de: Date, ate: Date, mes?: string, porCliente?: Map<string, Map<string, number>>) {
     const ciclo = mes ? cicloSerpro(mes) : { de, ate };
     const mapa = new Map<string, Map<string, number>>();
-    const somar = (usuario: string | null | undefined, item: string, n = 1) => {
+    const somar = (usuario: string | null | undefined, item: string, n = 1, empresaId?: string | null) => {
       const quem = ehRotina(usuario) ? ROTINA : usuario!.toLowerCase();
       const m = mapa.get(quem) ?? new Map<string, number>();
       m.set(item, (m.get(item) ?? 0) + n);
       mapa.set(quem, m);
+      if (porCliente) {
+        const c = porCliente.get(empresaId ?? '') ?? new Map<string, number>();
+        c.set(item, (c.get(item) ?? 0) + n);
+        porCliente.set(empresaId ?? '', c);
+      }
     };
-    const consultas = await this.prisma.consultaFiscal.findMany({ where: { createdAt: { gte: ciclo.de, lt: ciclo.ate }, simulado: false, NOT: { sistema: 'INFOSIMPLES' } }, select: { chave: true, sistema: true, solicitado_por: true, status: true } });
+    const consultas = await this.prisma.consultaFiscal.findMany({ where: { createdAt: { gte: ciclo.de, lt: ciclo.ate }, simulado: false, NOT: { sistema: 'INFOSIMPLES' } }, select: { chave: true, sistema: true, solicitado_por: true, status: true, empresa_id: true } });
     for (const c of consultas) {
       if (c.status === null) continue; // não chegou ao Serpro
       const s = SERVICO_POR_CHAVE.get(c.chave);
       const endpoint = (s?.endpoint ?? 'Consultar').toUpperCase();
       // O relatório de situação fiscal são duas chamadas: o pedido (Apoiar) e a emissão.
-      if (c.sistema === 'SITFIS') { somar(c.solicitado_por, 'INTEGRA_APOIAR'); somar(c.solicitado_por, 'INTEGRA_EMITIR'); continue; }
-      somar(c.solicitado_por, `INTEGRA_${endpoint === 'DECLARAR' ? 'DECLARAR' : endpoint === 'EMITIR' ? 'EMITIR' : endpoint === 'APOIAR' ? 'APOIAR' : endpoint === 'MONITORAR' ? 'MONITORAR' : 'CONSULTAR'}`);
+      if (c.sistema === 'SITFIS') { somar(c.solicitado_por, 'INTEGRA_APOIAR', 1, c.empresa_id); somar(c.solicitado_por, 'INTEGRA_EMITIR', 1, c.empresa_id); continue; }
+      somar(c.solicitado_por, `INTEGRA_${endpoint === 'DECLARAR' ? 'DECLARAR' : endpoint === 'EMITIR' ? 'EMITIR' : endpoint === 'APOIAR' ? 'APOIAR' : endpoint === 'MONITORAR' ? 'MONITORAR' : 'CONSULTAR'}`, 1, c.empresa_id);
     }
     const inicio = new Date(Math.min(de.getTime(), ciclo.de.getTime()));
     const fim = new Date(Math.max(ate.getTime(), ciclo.ate.getTime()));
-    const usos = await this.prisma.usoExterno.findMany({ where: { createdAt: { gte: inicio, lt: fim } }, select: { servico: true, usuario: true, createdAt: true } });
+    const usos = await this.prisma.usoExterno.findMany({ where: { createdAt: { gte: inicio, lt: fim } }, select: { servico: true, usuario: true, createdAt: true, empresa_id: true } });
     for (const u of usos) {
       const j = ehSerpro(u.servico) ? ciclo : { de, ate };
-      if (!u.createdAt || (u.createdAt >= j.de && u.createdAt < j.ate)) somar(u.usuario, u.servico);
+      if (!u.createdAt || (u.createdAt >= j.de && u.createdAt < j.ate)) somar(u.usuario, u.servico, 1, u.empresa_id);
     }
     return mapa;
   }
@@ -210,8 +257,14 @@ export class CustosService {
   async geral(mesInformado: string | undefined, usuario: Usuario) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores veem os custos de todos.');
     const { mes, de, ate } = mesValido(mesInformado);
-    const [mapa, p] = await Promise.all([this.contagem(de, ate, mes), this.precos()]);
+    const mapaClientes = new Map<string, Map<string, number>>();
+    const [mapa, p] = await Promise.all([this.contagem(de, ate, mes, mapaClientes), this.precos()]);
     const efetivos = this.efetivos(mapa, p.precos);
+    // Por cliente: quem mais gerou chamadas pagas no mês (para cobrar adicionais). Sem cliente = pré-análise de prospect e afins.
+    const ids = [...mapaClientes.keys()].filter(Boolean);
+    const empresas = new Map((ids.length ? await this.prisma.empresa.findMany({ where: { id: { in: ids } }, select: { id: true, razao_social: true, cnpj_cpf: true } }).catch(() => []) : []).map((e) => [e.id, e]));
+    const clientes = [...mapaClientes.entries()].map(([id, m]) => ({ empresa_id: id || null, cliente: id ? empresas.get(id)?.razao_social ?? 'Cliente excluído' : 'Sem cliente vinculado (pré-análise de prospect)', documento: id ? empresas.get(id)?.cnpj_cpf ?? '' : '', ...this.linhas(m, efetivos) }))
+      .sort((a, b) => b.total - a.total || a.cliente.localeCompare(b.cliente));
     const usuarios = [...mapa.keys()].sort((a, b) => (a === ROTINA ? 1 : b === ROTINA ? -1 : a.localeCompare(b))).map((u) => ({ usuario: u, ...this.linhas(mapa.get(u), efetivos) }));
     const variavel = Math.round(usuarios.reduce((s, u) => s + u.total, 0) * 100) / 100;
     // Franquia mínima da Infosimples: se o consumo do mês não chegar a R$ 100,00, a diferença também é cobrada.
@@ -220,6 +273,8 @@ export class CustosService {
     const franquia = infosimplesAtiva ? Math.max(0, Math.round((INFOSIMPLES_MINIMO - gastoInfos) * 100) / 100) : 0;
     const fixos = [...p.fixos, ...(franquia ? [{ rotulo: 'Infosimples: complemento da franquia mínima (R$ 100/mês)', valor: franquia, automatico: true }] : [])];
     const fixo = Math.round(fixos.reduce((s, f) => s + f.valor, 0) * 100) / 100;
-    return { mes, ciclo_serpro: cicloSerpro(mes), itens: ITENS, integracoes: INTEGRACOES, precos: p.precos, oficiais: efetivos, fontes: FONTES_PRECO, fixos: p.fixos, fixos_do_mes: fixos, usuarios, variavel, fixo, total: Math.round((variavel + fixo) * 100) / 100 };
+    const volumes = new Map<string, number>();
+    for (const m of mapa.values()) for (const [id, n] of m) volumes.set(id, (volumes.get(id) ?? 0) + n);
+    return { mes, tabelas: tabelasDeContrato(volumes), ciclo_serpro: cicloSerpro(mes), itens: ITENS, integracoes: INTEGRACOES, precos: p.precos, oficiais: efetivos, fontes: FONTES_PRECO, fixos: p.fixos, fixos_do_mes: fixos, usuarios, clientes, variavel, fixo, total: Math.round((variavel + fixo) * 100) / 100 };
   }
 }
