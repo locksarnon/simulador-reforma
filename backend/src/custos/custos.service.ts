@@ -37,7 +37,7 @@ const SERPRO_CONSULTA: Faixa[] = [[300, 0.24], [1000, 0.21], [3000, 0.18], [7000
 const SERPRO_EMISSAO: Faixa[] = [[500, 0.32], [5000, 0.29], [10000, 0.26], [15000, 0.22], [25000, 0.19], [35000, 0.16], [50000, 0.12], [Infinity, 0.08]];
 const SERPRO_DECLARACAO: Faixa[] = [[100, 0.4], [500, 0.36], [1000, 0.32], [3000, 0.28], [5000, 0.24], [8000, 0.2], [10000, 0.16], [Infinity, 0.12]];
 const SERPRO_CND: Faixa[] = [[5000, 0.8788], [10000, 0.8265], [15000, 0.7951], [30000, 0.7533], [50000, 0.7219], [75000, 0.6905], [100000, 0.6486], [500000, 0.6173], [1000000, 0.5336], [2000000, 0.4394], [4000000, 0.3662], [10000000, 0.3139], [Infinity, 0.2511]];
-// Dívida Ativa: tabela não conferida com contrato do escritório (não confirmado).
+// Dívida Ativa: Anexo I do contrato Serpro 630584 (16/11/2026), "alocado na faixa" (conferida faixa a faixa).
 const SERPRO_DIVIDA: Faixa[] = [[999, 0.6591], [9999, 0.5649], [49999, 0.3557], [99999, 0.2616], [249999, 0.1779], [499999, 0.1569], [999999, 0.1465], [1499999, 0.136], [2999999, 0.1151], [4499999, 0.0732], [9999999, 0.0523], [Infinity, 0.0314]];
 // Consulta NF-e: Anexo I do contrato Serpro 630467 (16/11/2026), "alocado na faixa": o volume do ciclo define a faixa e o preço dela vale para todas.
 const SERPRO_NFE: Faixa[] = [[999, 0.6591], [9999, 0.5649], [49999, 0.3557], [99999, 0.2616], [249999, 0.1779], [499999, 0.1569], [999999, 0.1465], [1499999, 0.136], [2999999, 0.1151], [4499999, 0.0732], [9999999, 0.0523], [16999999, 0.0314], [19999999, 0.03], [24999999, 0.029], [29999999, 0.028], [Infinity, 0.027]];
@@ -49,8 +49,8 @@ const INFOSIMPLES_ADICIONAL: Record<string, number> = { INFOSIMPLES_CNDT: 0.04, 
 export const INFOSIMPLES_MINIMO = 100;
 export const FONTES_PRECO = {
   serpro_integra: 'https://loja.serpro.gov.br/integracontador',
-  serpro_cnd: 'https://loja.serpro.gov.br/consultacnd',
-  serpro_divida: 'https://loja.serpro.gov.br/consulta-divida-ativa',
+  serpro_cnd: 'Contrato Serpro 630434 (Consulta CND), Anexo I',
+  serpro_divida: 'Contrato Serpro 630584 (Consulta Dívida Ativa), Anexo I',
   serpro_nfe: 'Contrato Serpro 630467 (Consulta NF-e), Anexo I',
   infosimples: 'https://infosimples.com/consultas/precos/',
 };
