@@ -17,6 +17,8 @@ const LIMITE_EFD = 64 * 1024 * 1024;
 const VALIDADE_PREVIA = 30 * 60_000;
 const TAMANHO_LOTE = 5000;
 const TIMEOUT = 20_000;
+/** Swagger oficial: Consulta NF-e (Direto na Faixa) e Consulta NF-e (Escalonado). */
+export const BASES_NFE = ['/consulta-nfe-df/api/v1/nfe/', '/nfe/1/'];
 
 type Cobertura = {
   competencia: string;
@@ -278,11 +280,21 @@ export class RecuperacaoXmlHistoricoService {
     return this.token.valor;
   }
 
+  /**
+   * Endereços oficiais da Consulta NF-e: "Direto na Faixa" (/consulta-nfe-df/api/v1/nfe) e escalonado (/nfe/1). O contrato libera
+   * um deles; o caminho errado volta 403 (não bilhetado). Usa o que funcionou por último e, no 403, tenta o outro.
+   */
+  private baseNfe = BASES_NFE[0];
   private async consultar(chave: string, bearer: string, lote: RecuperacaoXmlHistorico, documento: string) {
-    const resposta = await fetch(GATEWAY + '/nfe/1/' + chave, {
-      headers: { Authorization: 'Bearer ' + bearer, Accept: 'application/xml' },
-      redirect: 'error', signal: AbortSignal.timeout(TIMEOUT),
-    });
+    let resposta!: Response;
+    for (const base of [this.baseNfe, ...BASES_NFE.filter((b) => b !== this.baseNfe)]) {
+      resposta = await fetch(GATEWAY + base + chave, {
+        headers: { Authorization: 'Bearer ' + bearer, Accept: 'application/xml' },
+        redirect: 'error', signal: AbortSignal.timeout(TIMEOUT),
+      });
+      if (resposta.status !== 403) { this.baseNfe = base; break; }
+      await resposta.body?.cancel();
+    }
     if (!resposta.ok) {
       await resposta.body?.cancel();
       if (resposta.status === 404) return 'indisponiveis';

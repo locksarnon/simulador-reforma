@@ -15,7 +15,7 @@ export const GATEWAY = 'https://gateway.apiserpro.serpro.gov.br';
 export const BEARER_TRIAL = '06aef429-a981-3ec5-a1f8-71d38d86481e';
 const CNPJ_TESTE_CND = '00000000000001';
 const CNPJ_TESTE_DIVIDA = '01415666000181';
-export const BASES_DIVIDA = ['consulta-divida-ativa', 'consulta-divida-ativa-df'];
+export const BASES_DIVIDA = ['consulta-divida-ativa-df', 'consulta-divida-ativa']; // "Direto na Faixa" primeiro (contrato do escritório)
 
 export type ResultadoSerpro = { status: StatusProcesso; resumo: string; detalhes: { rotulo: string; valor: string }[]; demonstracao: boolean; pdf?: Buffer };
 type Produto = 'cnd' | 'dividaAtiva';

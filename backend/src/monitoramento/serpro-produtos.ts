@@ -22,12 +22,14 @@ export async function testarProdutoSerpro(produto: ProdutoSerpro, chaves: { key:
     const { access_token } = (await t.json()) as { access_token: string };
     const h = { Authorization: `Bearer ${access_token}`, Accept: 'application/json', 'Content-Type': 'application/json' };
     // NF-e: chave inválida ("0") volta 400, que o Serpro não cobra (códigos de retorno da Consulta NF-e).
-    let r = produto === 'nfe' ? await f(`${GATEWAY_SERPRO}/nfe/1/0`, { headers: h, signal: AbortSignal.timeout(30_000) })
+    let r = produto === 'nfe' ? await f(`${GATEWAY_SERPRO}/consulta-nfe-df/api/v1/nfe/0`, { headers: h, signal: AbortSignal.timeout(30_000) })
       : produto === 'cnd'
       ? await f(`${GATEWAY_SERPRO}/consulta-cnd/v1/certidao`, { method: 'POST', headers: h, body: JSON.stringify({ TipoContribuinte: 1, ContribuinteConsulta: '0', CodigoIdentificacao: '9001' }), signal: AbortSignal.timeout(30_000) })
-      : await f(`${GATEWAY_SERPRO}/consulta-divida-ativa/api/v1/devedor/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
+      : await f(`${GATEWAY_SERPRO}/consulta-divida-ativa-df/api/v1/devedor/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
     // Dívida Ativa: o swagger oficial tem também o endereço consulta-divida-ativa-df; o contrato libera um deles.
-    if (produto === 'dividaAtiva' && r.status === 403) r = await f(`${GATEWAY_SERPRO}/consulta-divida-ativa-df/api/v1/devedor/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
+    // NF-e: o swagger oficial tem também o endereço escalonado (/nfe/1); o contrato libera um deles.
+    if (produto === 'nfe' && r.status === 403) r = await f(`${GATEWAY_SERPRO}/nfe/1/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
+    if (produto === 'dividaAtiva' && r.status === 403) r = await f(`${GATEWAY_SERPRO}/consulta-divida-ativa/api/v1/devedor/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
     if (r.status === 401 || r.status === 403) return { produto, nome, ok: false, mensagem: `${nome}: as chaves geram token, mas não têm acesso a este produto (HTTP ${r.status}). São de outro produto ou o produto não está ativo no contrato.` };
     if (r.status >= 500) return { produto, nome, ok: false, mensagem: `${nome}: chaves aceitas; a API do produto não respondeu agora (HTTP ${r.status}).` };
     return { produto, nome, ok: true, mensagem: `${nome}: chaves aceitas e com acesso ao produto.` };
