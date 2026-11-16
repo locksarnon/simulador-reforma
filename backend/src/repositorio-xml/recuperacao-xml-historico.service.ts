@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { ContratoIntegraService } from '../monitoramento/contrato.service';
 import { Cron } from '@nestjs/schedule';
 import { Prisma, RecuperacaoXmlHistorico } from '@prisma/client';
 import { setImmediate as ceder } from 'node:timers/promises';
@@ -26,6 +27,10 @@ type Cobertura = {
   indisponiveis?: number;
   falhas?: number;
   reaproveitadas?: number;
+  /** CT-e (D100): na EFD, faltando no repositório e as chaves que faltam (não há consulta de CT-e no Serpro: vão para a lista de solicitações). */
+  cte?: number;
+  cte_faltantes?: number;
+  cte_pendentes?: string[];
 };
 
 function dataValida(data: unknown): data is string {
@@ -48,15 +53,24 @@ export function lerEfd(buffer: Buffer, documento: string, de: string, ate: strin
     || !dataValida(isoDeDataEfd(abertura[4] ?? '')) || !dataValida(isoDeDataEfd(abertura[5] ?? ''))
     || !linhas.some((linha) => linha.startsWith('|9999|'))) return null;
   const chaves = new Set<string>();
+  const chavesCte = new Set<string>();
   for (const linha of linhas) {
-    if (!linha.startsWith('|C100|')) continue;
-    const campos = linha.split('|');
-    const chave = campos[9] ?? '';
-    const emissao = isoDeDataEfd(campos[10] ?? '');
-    if (campos[5] === '55' && /^\d{20}55\d{22}$/.test(chave) && dataValida(emissao)
-      && emissao >= de && emissao <= ate) chaves.add(chave);
+    if (linha.startsWith('|C100|')) {
+      const campos = linha.split('|');
+      const chave = campos[9] ?? '';
+      const emissao = isoDeDataEfd(campos[10] ?? '');
+      if (campos[5] === '55' && /^\d{20}55\d{22}$/.test(chave) && dataValida(emissao)
+        && emissao >= de && emissao <= ate) chaves.add(chave);
+    } else if (linha.startsWith('|D100|')) {
+      // D100 (Guia Prático da EFD ICMS/IPI): 05 COD_MOD, 10 CHV_CTE, 11 DT_DOC. CT-e (57) e CT-e OS (67).
+      const campos = linha.split('|');
+      const chave = campos[10] ?? '';
+      const emissao = isoDeDataEfd(campos[11] ?? '');
+      if (['57', '67'].includes(campos[5] ?? '') && /^\d{20}(57|67)\d{22}$/.test(chave) && dataValida(emissao)
+        && emissao >= de && emissao <= ate) chavesCte.add(chave);
+    }
   }
-  return { competencia, chaves };
+  return { competencia, chaves, chavesCte };
 }
 
 export function indiceHistorico(buffer: Buffer, chave: string, documento: string) {
@@ -64,12 +78,14 @@ export function indiceHistorico(buffer: Buffer, chave: string, documento: string
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) return null;
   try {
     const root = parseXml(xml).documentElement;
-    if (root?.localName !== 'nfeProc' || root.namespaceURI !== 'http://www.portalfiscal.inf.br/nfe') return null;
+    // A Consulta NF-e do Serpro devolve os dados da nota com o protocolo de autorização, sem a assinatura do emitente (especificação
+    // oficial da API): a assinatura, quando vier, é conferida; quando não vier, o documento fica com a origem HISTORICO (dados do Serpro).
+    if (root?.localName !== 'nfeProc' || (root.namespaceURI && root.namespaceURI !== 'http://www.portalfiscal.inf.br/nfe')) return null;
     const nota = getFirst(root, 'NFe');
     const assinatura = getFirst(nota, 'Signature');
     const protocolo = getFirst(getFirst(root, 'protNFe'), 'infProt');
-    if (assinatura?.namespaceURI !== 'http://www.w3.org/2000/09/xmldsig#'
-      || !getText(assinatura, 'SignatureValue') || !/^\d{15,17}$/.test(getText(protocolo, 'nProt'))
+    if ((assinatura && (assinatura.namespaceURI !== 'http://www.w3.org/2000/09/xmldsig#' || !getText(assinatura, 'SignatureValue')))
+      || !/^\d{15,17}$/.test(getText(protocolo, 'nProt'))
       || getText(protocolo, 'chNFe') !== chave || !['100', '150', '101', '151', '155'].includes(getText(protocolo, 'cStat'))) return null;
     const indice = indexarXml(xml);
     return indice?.chave === chave && indice.modelo === '55'
@@ -90,16 +106,28 @@ export class RecuperacaoXmlHistoricoService {
     private readonly storage: StorageService,
     private readonly repo: RepositorioXmlService,
     private readonly custos: CustosService,
+    @Optional() private readonly contrato?: ContratoIntegraService,
   ) {}
 
-  private configurado() {
-    return !!(process.env.SERPRO_NFE_CONSUMER_KEY?.trim() && process.env.SERPRO_NFE_CONSUMER_SECRET?.trim());
+  /** Chaves do produto Consulta NF-e: as cadastradas em Administração > Integrações; senão, as do servidor (.env). */
+  private async chavesNfe(): Promise<{ key: string; secret: string } | null> {
+    const tela = await this.contrato?.chavesDoProduto('nfe').catch(() => null);
+    if (tela) return tela;
+    const key = process.env.SERPRO_NFE_CONSUMER_KEY?.trim();
+    const secret = process.env.SERPRO_NFE_CONSUMER_SECRET?.trim();
+    return key && secret ? { key, secret } : null;
+  }
+
+  private ultimaConfig = false;
+  private async configurado() {
+    this.ultimaConfig = !!(await this.chavesNfe());
+    return this.ultimaConfig;
   }
 
   private apresentar({ chaves: _chaves, ocupado_ate: _ocupado, ...lote }: RecuperacaoXmlHistorico) {
     return {
       ...lote,
-      configurado: this.configurado(),
+      configurado: this.ultimaConfig,
       estimativa: lote.preco_unitario === null ? null : Math.ceil(lote.total * lote.preco_unitario * 100) / 100,
       custo_registrado: Math.round(lote.cobradas * (lote.preco_unitario ?? 0) * 100) / 100,
       expirada: Date.now() - lote.createdAt.getTime() > VALIDADE_PREVIA,
@@ -111,6 +139,7 @@ export class RecuperacaoXmlHistoricoService {
       where: { empresa_id: empresaId, situacao: { not: 'PREVIA' } },
       orderBy: { createdAt: 'desc' }, take: 10,
     });
+    await this.configurado();
     return lotes.map((lote) => this.apresentar(lote));
   }
 
@@ -144,6 +173,7 @@ export class RecuperacaoXmlHistoricoService {
     const cobertura: Cobertura[] = [];
     const competenciaPorChave = new Map<string, string>();
     const leituras = new Map<string, Set<string>>();
+    const leiturasCte = new Map<string, Set<string>>();
     for (const competencia of meses) {
       let fonte = 'SEM_EFD';
       for (const spedMes of sped.filter((item) => item.competencia === competencia)) {
@@ -158,6 +188,7 @@ export class RecuperacaoXmlHistoricoService {
           const efd = partes.map((parte) => lerEfd(parte, documento, de, ate)).find((item) => item?.competencia === competencia);
           if (!efd) { fonte = 'EFD_NAO_LIDA'; continue; }
           leituras.set(competencia, efd.chaves);
+          leiturasCte.set(competencia, efd.chavesCte);
           for (const chave of efd.chaves) {
             chaves.add(chave);
             if (!competenciaPorChave.has(chave)) competenciaPorChave.set(chave, competencia);
@@ -182,9 +213,25 @@ export class RecuperacaoXmlHistoricoService {
       for (const doc of docs) existentes.add(doc.chave);
     }
     for (const linha of cobertura) linha.faltantes = [...(leituras.get(linha.competencia) ?? [])].filter((chave) => !existentes.has(chave)).length;
+    const todasCte = [...new Set([...leiturasCte.values()].flatMap((x) => [...x]))];
+    const cteNoRepositorio = new Set<string>();
+    for (let i = 0; i < todasCte.length; i += 2000) {
+      const docs = await this.prisma.documentoXml.findMany({
+        where: { empresa_id: empresaId, tipo: 'CTE', evento_tipo: '', sequencia: 0, conteudo: 'COMPLETO', storage_key: { not: null }, chave: { in: todasCte.slice(i, i + 2000) } },
+        select: { chave: true },
+      });
+      for (const doc of docs) cteNoRepositorio.add(doc.chave);
+    }
+    for (const linha of cobertura) {
+      const doMes = [...(leiturasCte.get(linha.competencia) ?? [])];
+      if (!doMes.length) continue;
+      linha.cte = doMes.length;
+      linha.cte_pendentes = doMes.filter((chave) => !cteNoRepositorio.has(chave));
+      linha.cte_faltantes = linha.cte_pendentes.length;
+    }
     const pendentes = todas.filter((chave) => !existentes.has(chave));
-    const { precos } = await this.custos.precos();
-    const preco = precos[SERVICO];
+    await this.configurado();
+    const preco = await this.custos.precoVigente(SERVICO, Math.min(pendentes.length, TAMANHO_LOTE));
     await this.prisma.recuperacaoXmlHistorico.deleteMany({
       where: { empresa_id: empresaId, situacao: 'PREVIA', createdAt: { lt: new Date(Date.now() - VALIDADE_PREVIA) } },
     });
@@ -199,11 +246,9 @@ export class RecuperacaoXmlHistoricoService {
   async confirmar(empresaId: string, id: string, usuario: string) {
     const lote = await this.prisma.recuperacaoXmlHistorico.findFirst({ where: { id, empresa_id: empresaId, solicitado_por: usuario } });
     if (!lote) throw new NotFoundException('Prévia não localizada.');
-    if (!this.configurado()) throw new BadRequestException('Configure o contrato Consulta NF-e do Serpro no servidor.');
-    const { precos } = await this.custos.precos();
-    if (!lote.total || !lote.preco_unitario || lote.preco_unitario !== precos[SERVICO]) {
-      throw new BadRequestException('A prévia precisa ter chaves pendentes e preço vigente em Administração → Custos.');
-    }
+    if (!(await this.configurado())) throw new BadRequestException('Cadastre as chaves da Consulta NF-e em Administração > Integrações (contrato Serpro).');
+    if (!lote.total || !lote.preco_unitario) throw new BadRequestException('A prévia não tem chaves pendentes.');
+    if (lote.preco_unitario !== (await this.custos.precoVigente(SERVICO, lote.total))) throw new ConflictException('O preço da faixa mudou desde a prévia. Calcule a prévia de novo.');
     try {
       const resultado = await this.prisma.recuperacaoXmlHistorico.updateMany({
         where: { id, situacao: 'PREVIA', createdAt: { gte: new Date(Date.now() - VALIDADE_PREVIA) } },
@@ -219,7 +264,9 @@ export class RecuperacaoXmlHistoricoService {
 
   private async bearer() {
     if (this.token && this.token.expira > Date.now()) return this.token.valor;
-    const basic = Buffer.from(process.env.SERPRO_NFE_CONSUMER_KEY?.trim() + ':' + process.env.SERPRO_NFE_CONSUMER_SECRET?.trim()).toString('base64');
+    const ch = await this.chavesNfe();
+    if (!ch) throw new Error('Consulta NF-e sem chaves.');
+    const basic = Buffer.from(ch.key + ':' + ch.secret).toString('base64');
     const resposta = await fetch(GATEWAY + '/token', {
       method: 'POST', headers: { Authorization: 'Basic ' + basic, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: 'grant_type=client_credentials', redirect: 'error', signal: AbortSignal.timeout(TIMEOUT),
@@ -266,7 +313,7 @@ export class RecuperacaoXmlHistoricoService {
 
   @Cron('*/10 * * * * *')
   async processar() {
-    if (this.executando || !this.configurado()) return;
+    if (this.executando || !(await this.configurado())) return;
     this.executando = true;
     try {
       const agora = new Date();

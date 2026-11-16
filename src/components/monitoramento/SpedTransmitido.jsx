@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileCheck2, Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/api/client";
@@ -56,6 +56,60 @@ function ArquivosSped({ linha }) {
  * Monitoramento > Declarações > SPED e EFD: abre com o que já está guardado no InTAX (arquivo transmitido e recibo, prontos para
  * ver, baixar e enviar por e-mail). "Consultar na Receita" pergunta ao ReceitanetBX e pede os arquivos novos.
  */
+const ESCRITURACOES_PEDIDO = [
+  ["EFD_ICMS_IPI", "EFD ICMS/IPI"], ["EFD_CONTRIBUICOES", "EFD Contribuições"], ["ECD", "ECD"], ["ECF", "ECF"],
+];
+
+/** Pedido de vários anos à Receita: o usuário escolhe o período e as escriturações; os arquivos chegam em "Pedidos à Receita". */
+function PedidoPeriodo({ empresaId, aoConcluir }) {
+  const atual = new Date().getFullYear();
+  const [aberto, setAberto] = useState(false);
+  const [de, setDe] = useState(atual - 5);
+  const [ate, setAte] = useState(atual);
+  const [esc, setEsc] = useState(new Set(ESCRITURACOES_PEDIDO.map(([id]) => id)));
+  const url = `/monitoramento/empresas/${empresaId}/sped/pedir-periodo`;
+  const andamento = useQuery({ queryKey: ["monitoramento", "sped-periodo", empresaId], queryFn: () => api.get(url), refetchInterval: (x) => (x.state.data?.situacao === "ANDAMENTO" ? 10_000 : false) });
+  const pedir = useMutation({
+    mutationFn: () => api.post(url, { de, ate, escrituracoes: [...esc] }),
+    onSuccess: () => { andamento.refetch(); setAberto(false); },
+    onError: (e) => toast({ title: "Pedido não iniciado", description: e.message, variant: "destructive" }),
+  });
+  const a = andamento.data;
+  const fim = a?.situacao === "CONCLUIDO" ? a.iniciado_em : null;
+  useEffect(() => { if (fim) aoConcluir?.(); }, [fim]);
+  const anos = Array.from({ length: atual - 2009 + 1 }, (_, i) => atual - i);
+  return (
+    <div className="rounded-md border border-border p-2 text-xs space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="inline-flex h-7 items-center rounded-md border border-border px-2 hover:bg-muted">Pedir vários anos</button>
+        {a && (
+          <span className="text-muted-foreground">
+            {a.situacao === "ANDAMENTO" ? <><Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" aria-hidden="true" />Pedindo {a.de}–{a.ate}: {a.anos_feitos} de {a.anos} anos pesquisados</> : `Último pedido ${a.de}–${a.ate} concluído (${a.escrituracoes.length} escriturações)${a.erros.length ? `; com erro: ${a.erros.join(" · ")}` : ""}. Os arquivos chegam em "Pedidos à Receita".`}
+          </span>
+        )}
+      </div>
+      {aberto && (
+        <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); pedir.mutate(); }}>
+          <label className="grid gap-0.5">De
+            <select value={de} onChange={(e) => setDe(Number(e.target.value))} className="rounded border border-border bg-background px-1.5 py-1">{anos.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+          </label>
+          <label className="grid gap-0.5">Até
+            <select value={ate} onChange={(e) => setAte(Number(e.target.value))} className="rounded border border-border bg-background px-1.5 py-1">{anos.filter((x) => x >= de).map((x) => <option key={x} value={x}>{x}</option>)}</select>
+          </label>
+          <fieldset className="flex flex-wrap gap-2">
+            <legend className="sr-only">Escriturações</legend>
+            {ESCRITURACOES_PEDIDO.map(([id, rot]) => (
+              <label key={id} className="inline-flex items-center gap-1"><input type="checkbox" checked={esc.has(id)} onChange={() => setEsc((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; })} />{rot}</label>
+            ))}
+          </fieldset>
+          <button type="submit" disabled={!esc.size || pedir.isPending || a?.situacao === "ANDAMENTO"} className="inline-flex h-7 items-center rounded-md bg-primary px-2 text-primary-foreground disabled:opacity-60">Pedir à Receita</button>
+          <span className="text-muted-foreground">Sem custo de API. Arquivos já pedidos ou guardados não são pedidos de novo.</span>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export default function SpedTransmitido({ empresaId }) {
   const [ano, setAno] = useState(new Date().getFullYear());
   const qc = useQueryClient();
@@ -103,6 +157,7 @@ export default function SpedTransmitido({ empresaId }) {
         </label>
         <button type="button" disabled={consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60">{consultar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
       </div>
+      <PedidoPeriodo empresaId={empresaId} aoConcluir={() => { qc.invalidateQueries({ queryKey: ["monitoramento", "sped", empresaId] }); qc.invalidateQueries({ queryKey: ["monitoramento", "sped-pedidos", empresaId] }); }} />
       <p className="text-xs text-muted-foreground">
         {q.data ? (q.data.consultado_em ? `Última consulta à Receita em ${quandoConsultou(q.data.consultado_em)}${q.data.certificados?.length ? ` com ${q.data.certificados.join(" e ")}` : ""}.` : `Ano ${ano} ainda não consultado na Receita.`) : ""}
       </p>

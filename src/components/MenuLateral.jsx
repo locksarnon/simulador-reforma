@@ -244,6 +244,11 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
         {user && custo.data && (
           <Link to={user.role === "admin" ? "/admin/custos" : "/perfil"} onClick={navegar} title={custo.data.itens.filter((i) => i.quantidade).map((i) => `${i.rotulo}: ${i.quantidade} × ${brlMenu(i.preco)} = ${brlMenu(i.subtotal)}`).join(" · ") || "Nenhuma chamada paga neste mês"} className={`block rounded-md px-[14px] py-1 text-[11px] text-rail-muted hover:bg-rail-hover hover:text-rail-strong ${compacto ? "hidden" : ""}`}>
             Ferramentas externas no mês: <span className="font-medium tabular-nums text-rail-strong">{brlMenu(custo.data.total)}</span>{custo.data.chamadas ? ` · ${plural(custo.data.chamadas, "chamada", "chamadas")}` : ""}
+            {(custo.data.por_integracao || []).filter((g) => g.chamadas).map((g) => (
+              <span key={g.integracao} className="flex justify-between gap-2 pl-2" title={`${plural(g.chamadas, "chamada", "chamadas")}`}>
+                <span className="truncate">{g.integracao}</span><span className="tabular-nums text-rail-strong">{brlMenu(g.total)}</span>
+              </span>
+            ))}
           </Link>
         )}
         <button type="button" onClick={sair} disabled={saindo} title={compacto ? "Sair" : undefined} className={`${linha} text-[13.5px] font-medium ${linhaInativa} disabled:opacity-60`}>

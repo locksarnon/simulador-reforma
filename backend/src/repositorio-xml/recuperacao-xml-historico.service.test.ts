@@ -18,15 +18,23 @@ const xml = (assinatura: string, chaveProtocolo = chave) => Buffer.from(
 describe('recuperação histórica de NF-e', () => {
   it('deduplica as chaves do registro C100 e restringe o período pela data de emissão', () => {
     const arquivo = efd([nota('14012021'), nota('15012021'), nota('15012021')]);
-    expect(lerEfd(arquivo, cnpj, '2021-01-15', '2021-01-31')).toEqual({ competencia: '2021-01', chaves: new Set([chave]) });
+    expect(lerEfd(arquivo, cnpj, '2021-01-15', '2021-01-31')).toEqual({ competencia: '2021-01', chaves: new Set([chave]), chavesCte: new Set() });
     expect(lerEfd(arquivo, cnpj, '2021-01-16', '2021-01-31')?.chaves.size).toBe(0);
     expect(lerEfd(arquivo, '12345678000270', '2021-01-01', '2021-01-31')).toBeNull();
   });
 
-  it('recusa XML sem assinatura, com protocolo de outra chave ou de outro CNPJ', () => {
+  it('lê as chaves de CT-e (57) e CT-e OS (67) do registro D100', () => {
+    const cte = '512101' + cnpj + '570010000000011000000001';
+    const cteOs = '512101' + cnpj + '670010000000021000000002';
+    const d100 = (k: string, mod: string) => '|D100|0|1|P1|' + mod + '|00|1||1|' + k + '|20012021|';
+    expect(lerEfd(efd([d100(cte, '57'), d100(cteOs, '67'), d100(chave, '57')]), cnpj, '2021-01-01', '2021-01-31')?.chavesCte).toEqual(new Set([cte, cteOs]));
+  });
+
+  it('aceita a resposta do Serpro sem a assinatura do emitente; recusa assinatura inválida, protocolo de outra chave ou de outro CNPJ', () => {
     const assinatura = '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignatureValue>AAAA</SignatureValue></Signature>';
     expect(indiceHistorico(xml(assinatura), chave, cnpj)?.chave).toBe(chave);
-    expect(indiceHistorico(xml(''), chave, cnpj)).toBeNull();
+    expect(indiceHistorico(xml(''), chave, cnpj)?.chave).toBe(chave);
+    expect(indiceHistorico(xml('<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"></Signature>'), chave, cnpj)).toBeNull();
     expect(indiceHistorico(xml(assinatura, '0'.repeat(44)), chave, cnpj)).toBeNull();
     expect(indiceHistorico(xml(assinatura), chave, '12345678000270')).toBeNull();
   });

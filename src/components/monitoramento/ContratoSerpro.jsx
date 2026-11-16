@@ -23,14 +23,14 @@ export default function ContratoSerpro() {
   const [key, setKey] = useState("");
   const [secret, setSecret] = useState("");
   const [teste, setTeste] = useState(null);
-  const [extra, setExtra] = useState({ cnd_key: "", cnd_secret: "", divida_key: "", divida_secret: "" });
+  const [extra, setExtra] = useState({ cnd_key: "", cnd_secret: "", divida_key: "", divida_secret: "", nfe_key: "", nfe_secret: "" });
 
   const atualizar = (e) => {
     qc.setQueryData(["monitoramento", "contrato"], e);
     qc.invalidateQueries({ queryKey: ["monitoramento", "estado"] });
     qc.invalidateQueries({ queryKey: ["integracoes"] });
   };
-  const limpar = () => { setArquivo(null); setSenha(""); setKey(""); setSecret(""); setExtra({ cnd_key: "", cnd_secret: "", divida_key: "", divida_secret: "" }); setEditando(false); };
+  const limpar = () => { setArquivo(null); setSenha(""); setKey(""); setSecret(""); setExtra({ cnd_key: "", cnd_secret: "", divida_key: "", divida_secret: "", nfe_key: "", nfe_secret: "" }); setEditando(false); };
 
   const salvar = useMutation({
     mutationFn: () => {
@@ -85,7 +85,7 @@ export default function ContratoSerpro() {
           <div><dt className="inline text-muted-foreground">Titular: </dt><dd className="inline font-medium">{c.titular}</dd></div>
           <div><dt className="inline text-muted-foreground">CNPJ: </dt><dd className="inline tabular-nums">{mascararDocumento(c.cnpj)}</dd></div>
           {c.valido_ate && <div><dt className="inline text-muted-foreground">Certificado válido até: </dt><dd className={`inline tabular-nums ${vencido ? "text-destructive font-medium" : ""}`}>{data(c.valido_ate)}{vencido ? " (vencido)" : ""}</dd></div>}
-          {temTela && <div><dt className="inline text-muted-foreground">Pré-análise: </dt><dd className="inline">Consulta CND {c.cnd ? "configurada" : "não configurada"} · Dívida Ativa {c.divida_ativa ? "configurada" : "não configurada"}</dd></div>}
+          {temTela && <div><dt className="inline text-muted-foreground">Outras APIs: </dt><dd className="inline">Consulta CND {c.cnd ? "configurada" : "não configurada"} · Dívida Ativa {c.divida_ativa ? "configurada" : "não configurada"} · Consulta NF-e {c.nfe ? "configurada" : "não configurada"}</dd></div>}
           <div><dt className="inline text-muted-foreground">Onde está: </dt><dd className="inline">{temTela ? `cofre do InTAX${c.atualizado_por ? `, por ${c.atualizado_por} em ${data(c.atualizado_em)}` : ""}` : "arquivo de configuração do servidor"}</dd></div>
         </dl>
       )}
@@ -122,10 +122,10 @@ export default function ContratoSerpro() {
             <Input id="serpro-secret" type="password" autoComplete="off" value={secret} onChange={(ev) => setSecret(ev.target.value)} placeholder={temTela ? "Em branco = manter a atual" : ""} />
           </div>
           <details className="sm:col-span-2 rounded-md border border-border p-3 text-xs" open={temExtra}>
-            <summary className="cursor-pointer font-medium">Outras APIs do Serpro para a pré-análise (opcional)</summary>
+            <summary className="cursor-pointer font-medium">Outras APIs do Serpro: pré-análise e recuperação de NF-e (opcional)</summary>
             <p className="mt-2 text-muted-foreground">Contratos à parte na Loja Serpro.{temTela ? " Em branco = manter as atuais." : ""}</p>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              {[["cnd_key", "Consulta CND: Consumer Key"], ["cnd_secret", "Consulta CND: Consumer Secret"], ["divida_key", "Dívida Ativa: Consumer Key"], ["divida_secret", "Dívida Ativa: Consumer Secret"]].map(([k, rot]) => (
+              {[["cnd_key", "Consulta CND: Consumer Key"], ["cnd_secret", "Consulta CND: Consumer Secret"], ["divida_key", "Dívida Ativa: Consumer Key"], ["divida_secret", "Dívida Ativa: Consumer Secret"], ["nfe_key", "Consulta NF-e: Consumer Key"], ["nfe_secret", "Consulta NF-e: Consumer Secret"]].map(([k, rot]) => (
                 <div key={k} className="space-y-1">
                   <Label htmlFor={`serpro-${k}`}>{rot}</Label>
                   <Input id={`serpro-${k}`} type="password" autoComplete="off" value={extra[k]} onChange={(ev) => setExtra((x) => ({ ...x, [k]: ev.target.value }))} />

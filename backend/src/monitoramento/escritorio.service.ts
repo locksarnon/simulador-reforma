@@ -52,6 +52,7 @@ const chaveSped = (empresaId: string, ano: number) => `sped_consulta:${empresaId
 @Injectable()
 export class EscritorioService {
   private readonly log = new Logger(EscritorioService.name);
+  private readonly periodos = new Map<string, { situacao: 'ANDAMENTO' | 'CONCLUIDO'; de: number; ate: number; escrituracoes: string[]; anos_feitos: number; anos: number; erros: string[]; iniciado_em: string; por: string | null }>();
   pausaMs = 1;
 
   constructor(private readonly prisma: PrismaService, private readonly m: MonitoramentoService, @Optional() private readonly downloads?: SpedDownloadService) {}
@@ -146,7 +147,7 @@ export class EscritorioService {
    * SPED e EFD do cliente no ano. Sem `consultar`, mostra o que já está guardado no InTAX (sem ir à Receita); com `consultar`,
    * pergunta ao ReceitanetBX, pede os arquivos novos e guarda o resultado da consulta.
    */
-  async sped(empresaId: string, anoInformado?: string, usuario?: { email?: string }, consultar = false) {
+  async sped(empresaId: string, anoInformado?: string, usuario?: { email?: string }, consultar = false, somente?: string[]) {
     const ano = Number(anoInformado) || new Date().getFullYear();
     if (ano < 2009 || ano > new Date().getFullYear()) throw new BadRequestException('Ano inválido.');
     if (!consultar) return this.spedGuardado(empresaId, ano);
@@ -157,7 +158,7 @@ export class EscritorioService {
     // Pergunta aos dois serviços (escritório e sócio) e junta: vale a procuração que existir. Serviço fora do ar é ignorado.
     const escrituracoes = [];
     const usados = new Set<string>();
-    for (const esc of ESCRITURACOES) {
+    for (const esc of ESCRITURACOES.filter((x) => !somente?.length || somente.includes(x.id))) {
       const arquivos = new Map<string, Awaited<ReturnType<typeof pesquisarAno>>[number]>();
       const erros: string[] = [];
       let respondeu = false;
@@ -192,6 +193,37 @@ export class EscritorioService {
     const memoria: MemoriaSped = { consultado_em: consultado_em.toISOString(), certificados: [...usados], escrituracoes: Object.fromEntries(escrituracoes.map((x) => [x.id, { encontrados: x.encontrados, erro: x.erro }])) };
     await this.prisma.parametroSistema.upsert({ where: { chave: chaveSped(empresaId, ano) }, update: { valor: JSON.stringify(memoria) }, create: { chave: chaveSped(empresaId, ano), valor: JSON.stringify(memoria), descricao: 'SPED e EFD: última consulta à Receita' } }).catch(() => undefined);
     return { ...(await this.spedGuardado(empresaId, ano)), perfil: proprio ? 'contribuinte' : 'procurador', proprio, escrituracoes_consultadas: escrituracoes.length };
+  }
+
+  /**
+   * Pedido de vários anos de uma vez (Monitoramento > SPED): para cada ano do período, pesquisa na Receita as escriturações
+   * escolhidas e pede todos os arquivos achados (os já pedidos ou guardados não se repetem). Roda em segundo plano, ano a ano;
+   * o andamento fica em pedidosPeriodo(empresaId) e os arquivos chegam pela rotina do ReceitanetBX, como no pedido de um ano.
+   */
+  async pedirPeriodo(empresaId: string, b: { de?: number | string; ate?: number | string; escrituracoes?: string[] }, usuario?: { email?: string }) {
+    const hoje = new Date().getFullYear();
+    const de = Number(b.de) || hoje - 5;
+    const ate = Number(b.ate) || hoje;
+    if (de < 2009 || ate > hoje || de > ate) throw new BadRequestException('Período inválido (anos de 2009 até o atual).');
+    const somente = (b.escrituracoes ?? []).filter((x) => ESCRITURACOES.some((e) => e.id === x));
+    if (!somente.length) throw new BadRequestException('Escolha ao menos uma escrituração.');
+    if (this.periodos.get(empresaId)?.situacao === 'ANDAMENTO') throw new BadRequestException('Já há um pedido de período em andamento para este cliente.');
+    const anos = Array.from({ length: ate - de + 1 }, (_, i) => de + i);
+    const estado = { situacao: 'ANDAMENTO' as 'ANDAMENTO' | 'CONCLUIDO', de, ate, escrituracoes: somente, anos_feitos: 0, anos: anos.length, erros: [] as string[], iniciado_em: new Date().toISOString(), por: usuario?.email ?? null };
+    this.periodos.set(empresaId, estado);
+    void (async () => {
+      for (const ano of anos) {
+        try { await this.sped(empresaId, String(ano), usuario, true, somente); } catch (e) { estado.erros.push(`${ano}: ${(e as Error).message}`); }
+        estado.anos_feitos++;
+      }
+      estado.situacao = 'CONCLUIDO';
+      this.log.log(`Pedido de período ${de}–${ate} (${somente.join(', ')}) de ${empresaId}: ${estado.erros.length ? estado.erros.join(' · ') : 'sem erros'}`);
+    })();
+    return estado;
+  }
+
+  pedidosPeriodo(empresaId: string) {
+    return this.periodos.get(empresaId) ?? null;
   }
 
   /** O que já está no InTAX: arquivos guardados e a última consulta à Receita daquele ano (sem chamar a Receita). */

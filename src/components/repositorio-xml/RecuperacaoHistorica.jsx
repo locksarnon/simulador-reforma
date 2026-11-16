@@ -84,8 +84,8 @@ export default function RecuperacaoHistorica({ empresaId }) {
             <div className="space-y-2 rounded-md border border-border p-3" aria-live="polite">
               <p><strong>{previa.total}</strong> chaves no lote · Custo máximo estimado {previa.estimativa == null ? "indisponível" : fmtMoeda(previa.estimativa)}</p>
               {previa.mensagem && <p>{previa.mensagem}</p>}
-              {!previa.configurado && <p>Configure as credenciais da Consulta NF-e do Serpro no servidor.</p>}
-              {previa.estimativa == null && <p>Cadastre o preço por consulta em Administração → Custos.</p>}
+              {!previa.configurado && <p>Cadastre as chaves da Consulta NF-e em Administração &gt; Integrações (contrato do Serpro).</p>}
+              <p className="text-muted-foreground">Preço pela faixa do contrato Consulta NF-e (volume do ciclo de faturamento, do dia 21 ao dia 20). O Serpro devolve os dados da nota com o protocolo de autorização, sem a assinatura do emitente.</p>
               <Cobertura linhas={previa.cobertura} />
               <Button disabled={pendente || ativo || !previa.total || previa.estimativa == null || !previa.configurado}
                 onClick={() => autorizar.mutate(previa)}>
@@ -115,15 +115,34 @@ export default function RecuperacaoHistorica({ empresaId }) {
   );
 }
 
+/** CT-e da EFD que não estão no repositório: não há consulta de CT-e no Serpro; a planilha vai para o pedido ao cliente. */
+function baixarCteFaltantes(linhas) {
+  const corpo = linhas.flatMap((l) => (l.cte_pendentes || []).map((k) => `${l.competencia};${k};${k.slice(20, 22) === "67" ? "CT-e OS" : "CT-e"};${k.slice(6, 20)}`));
+  const csv = "﻿Competência;Chave de acesso;Modelo;CNPJ do emitente\n" + corpo.join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "CT-e faltantes.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function Cobertura({ linhas }) {
+  const cteFaltantes = linhas.reduce((s, l) => s + (l.cte_faltantes ?? 0), 0);
   return (
     <details className="py-1">
+      {cteFaltantes > 0 && (
+        <p className="mt-1">
+          {cteFaltantes} CT-e da EFD fora do repositório (CT-e não tem consulta por chave no Serpro).{" "}
+          <button type="button" className="underline" onClick={() => baixarCteFaltantes(linhas)}>Baixar a lista para pedir ao cliente</button>
+        </p>
+      )}
       <summary className="cursor-pointer">Cobertura por competência</summary>
       <ul className="mt-1 max-h-52 overflow-auto text-muted-foreground">
         {linhas.map((linha) => (
           <li key={linha.competencia}>
             {linha.competencia} · {fontes[linha.fonte]}
-            {linha.fonte === "EFD_LIDA" && (" · " + linha.chaves + " chaves identificadas, " + linha.faltantes + " faltantes")}
+            {linha.fonte === "EFD_LIDA" && (" · NF-e: " + linha.chaves + " na EFD, " + linha.faltantes + " faltantes")}
+            {linha.cte > 0 && (" · CT-e: " + linha.cte + " na EFD, " + (linha.cte_faltantes ?? 0) + " faltantes")}
             {(linha.recuperadas || linha.indisponiveis || linha.falhas || linha.reaproveitadas) > 0 && (
               <span> · {linha.recuperadas ?? 0} recuperadas, {linha.indisponiveis ?? 0} indisponíveis, {linha.falhas ?? 0} falhas, {linha.reaproveitadas ?? 0} já disponíveis</span>
             )}

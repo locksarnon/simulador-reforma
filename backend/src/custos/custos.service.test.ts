@@ -48,3 +48,18 @@ describe('custos das ferramentas externas', () => {
     expect(p.fixos).toEqual([{ rotulo: 'VPS', valor: 90 }]);
   });
 });
+
+import { cicloSerpro, mesDoCicloSerpro, precosOficiais } from './custos.service';
+describe('Serpro: contrato da Consulta NF-e e ciclo de faturamento', () => {
+  it('Consulta NF-e pela faixa do contrato 630467 (alocado na faixa)', () => {
+    expect(precosOficiais(new Map([['SERPRO_CONSULTA_NFE', 500]])).SERPRO_CONSULTA_NFE).toBe(0.6591);
+    expect(precosOficiais(new Map([['SERPRO_CONSULTA_NFE', 15000]])).SERPRO_CONSULTA_NFE).toBe(0.3557);
+    expect(precosOficiais(new Map([['SERPRO_CONSULTA_NFE', 31_000_000]])).SERPRO_CONSULTA_NFE).toBe(0.027);
+  });
+  it('ciclo do dia 21 do mês anterior ao dia 20 (horário de Brasília)', () => {
+    expect(cicloSerpro('2026-11')).toEqual({ de: new Date('2026-10-21T03:00:00Z'), ate: new Date('2026-11-21T03:00:00Z') });
+    expect(cicloSerpro('2026-01').de.toISOString()).toBe('2025-12-21T03:00:00.000Z');
+    expect(mesDoCicloSerpro(new Date('2026-11-20T12:00:00Z'))).toBe('2026-11');
+    expect(mesDoCicloSerpro(new Date('2026-11-21T12:00:00Z'))).toBe('2026-12');
+  });
+});

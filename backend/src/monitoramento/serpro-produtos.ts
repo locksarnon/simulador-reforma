@@ -5,8 +5,8 @@
  *    documentação dos códigos de retorno); sem acesso ao produto, o gateway responde 401/403 antes de chegar à API.
  */
 export const GATEWAY_SERPRO = 'https://gateway.apiserpro.serpro.gov.br';
-export type ProdutoSerpro = 'cnd' | 'dividaAtiva';
-export const NOME_PRODUTO: Record<ProdutoSerpro, string> = { cnd: 'Consulta CND', dividaAtiva: 'Consulta Dívida Ativa' };
+export type ProdutoSerpro = 'cnd' | 'dividaAtiva' | 'nfe';
+export const NOME_PRODUTO: Record<ProdutoSerpro, string> = { cnd: 'Consulta CND', dividaAtiva: 'Consulta Dívida Ativa', nfe: 'Consulta NF-e' };
 
 export type TesteProduto = { produto: ProdutoSerpro; nome: string; ok: boolean; mensagem: string };
 
@@ -21,7 +21,9 @@ export async function testarProdutoSerpro(produto: ProdutoSerpro, chaves: { key:
     if (!t.ok) return { produto, nome, ok: false, mensagem: `${nome}: o Serpro recusou as chaves (HTTP ${t.status}). Confira a Consumer Key e o Consumer Secret deste produto na Área do Cliente do Serpro.` };
     const { access_token } = (await t.json()) as { access_token: string };
     const h = { Authorization: `Bearer ${access_token}`, Accept: 'application/json', 'Content-Type': 'application/json' };
-    let r = produto === 'cnd'
+    // NF-e: chave inválida ("0") volta 400, que o Serpro não cobra (códigos de retorno da Consulta NF-e).
+    let r = produto === 'nfe' ? await f(`${GATEWAY_SERPRO}/nfe/1/0`, { headers: h, signal: AbortSignal.timeout(30_000) })
+      : produto === 'cnd'
       ? await f(`${GATEWAY_SERPRO}/consulta-cnd/v1/certidao`, { method: 'POST', headers: h, body: JSON.stringify({ TipoContribuinte: 1, ContribuinteConsulta: '0', CodigoIdentificacao: '9001' }), signal: AbortSignal.timeout(30_000) })
       : await f(`${GATEWAY_SERPRO}/consulta-divida-ativa/api/v1/devedor/0`, { headers: h, signal: AbortSignal.timeout(30_000) });
     // Dívida Ativa: o swagger oficial tem também o endereço consulta-divida-ativa-df; o contrato libera um deles.

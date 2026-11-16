@@ -95,6 +95,17 @@ export class MonitoramentoController {
     return this.downloads.solicitar(id, body ?? {}, user);
   }
 
+  /** Pedido de vários anos de SPED (escolha de período e escriturações). */
+  @Post('empresas/:id/sped/pedir-periodo')
+  spedPedirPeriodo(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { de?: number; ate?: number; escrituracoes?: string[] }) {
+    return this.escritorio.pedirPeriodo(id, body ?? {}, user);
+  }
+
+  @Get('empresas/:id/sped/pedir-periodo')
+  spedPeriodoAndamento(@Param('id') id: string) {
+    return this.escritorio.pedidosPeriodo(id);
+  }
+
   @Get('empresas/:id/sped')
   sped(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('ano') ano?: string, @Query('consultar') consultar?: string) {
     return this.escritorio.sped(id, ano, user, consultar === '1');
@@ -124,13 +135,14 @@ export class MonitoramentoController {
   salvarContrato(
     @CurrentUser() user: AuthUser,
     @UploadedFile() arquivo: { buffer: Buffer } | undefined,
-    @Body() body: { senha?: string; consumer_key?: string; consumer_secret?: string; cnd_key?: string; cnd_secret?: string; divida_key?: string; divida_secret?: string; remover?: string },
+    @Body() body: { senha?: string; consumer_key?: string; consumer_secret?: string; cnd_key?: string; cnd_secret?: string; divida_key?: string; divida_secret?: string; nfe_key?: string; nfe_secret?: string; remover?: string },
   ) {
     const rem = String(body?.remover ?? '').split(',');
     return this.contrato.salvar({
       pfx: arquivo?.buffer, senha: body?.senha, consumerKey: body?.consumer_key, consumerSecret: body?.consumer_secret,
       cnd: rem.includes('cnd') ? null : { key: body?.cnd_key, secret: body?.cnd_secret },
       dividaAtiva: rem.includes('divida') ? null : { key: body?.divida_key, secret: body?.divida_secret },
+      nfe: rem.includes('nfe') ? null : { key: body?.nfe_key, secret: body?.nfe_secret },
     }, user);
   }
 

@@ -6,11 +6,12 @@ import { RepositorioXmlController } from './repositorio-xml.controller';
 import { RepositorioXmlService } from './repositorio-xml.service';
 
 import { CustosModule } from '../custos/custos.module';
+import { MonitoramentoModule } from '../monitoramento/monitoramento.module';
 import { RecuperacaoXmlHistoricoController } from './recuperacao-xml-historico.controller';
 import { RecuperacaoXmlHistoricoService } from './recuperacao-xml-historico.service';
 
 @Module({
-  imports: [StorageModule, ImportacaoXmlModule, CustosModule],
+  imports: [StorageModule, ImportacaoXmlModule, CustosModule, MonitoramentoModule],
   controllers: [RepositorioXmlController, RecuperacaoXmlHistoricoController],
   providers: [RepositorioXmlService, RelatoriosXmlService, RecuperacaoXmlHistoricoService],
   exports: [RepositorioXmlService],

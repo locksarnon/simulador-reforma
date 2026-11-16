@@ -8,8 +8,9 @@ import { testarProdutoSerpro, type TesteProduto } from './serpro-produtos';
 export type CredenciaisContrato = Credenciais & { contratante: string; nome: string };
 type Usuario = { email?: string; role?: string } | undefined;
 type Chaves = { key: string; secret: string };
-type Segredo = { consumerKey: string; consumerSecret: string; pfx: string; senha: string; cnd?: Chaves | null; dividaAtiva?: Chaves | null };
-export type ProdutoSerpro = 'cnd' | 'dividaAtiva';
+type Segredo = { consumerKey: string; consumerSecret: string; pfx: string; senha: string; cnd?: Chaves | null; dividaAtiva?: Chaves | null; nfe?: Chaves | null };
+export type ProdutoSerpro = 'cnd' | 'dividaAtiva' | 'nfe';
+const NOME_PRODUTO: Record<ProdutoSerpro, string> = { cnd: 'Consulta CND', dividaAtiva: 'Consulta Dívida Ativa', nfe: 'Consulta NF-e' };
 
 const ID = 'unico';
 const CONTEXTO = 'integra-contador:contrato';
@@ -48,7 +49,7 @@ export class ContratoIntegraService {
       try {
         const s = JSON.parse(this.cofre.decifrar({ cifrado: Buffer.from(r.segredo_cifrado), iv: Buffer.from(r.segredo_iv), tag: Buffer.from(r.segredo_tag), chaveId: r.chave_id }, ID, CONTEXTO).toString('utf8')) as Segredo;
         valor = { consumerKey: s.consumerKey, consumerSecret: s.consumerSecret, pfx: Buffer.from(s.pfx, 'base64'), senha: s.senha, contratante: r.documento, nome: r.titular };
-        produtos = { cnd: s.cnd ?? null, dividaAtiva: s.dividaAtiva ?? null };
+        produtos = { cnd: s.cnd ?? null, dividaAtiva: s.dividaAtiva ?? null, nfe: s.nfe ?? null };
       } catch { valor = null; }
     }
     if (!valor) valor = credenciaisDoAmbiente();
@@ -77,10 +78,11 @@ export class ContratoIntegraService {
       cofre: this.cofre.disponivel(),
       cnd: !!(await this.chavesDoProduto('cnd')),
       divida_ativa: !!(await this.chavesDoProduto('dividaAtiva')),
+      nfe: !!(await this.chavesDoProduto('nfe')),
     };
   }
 
-  async salvar(e: { pfx?: Buffer; senha?: string; consumerKey?: string; consumerSecret?: string; cnd?: Partial<Chaves> | null; dividaAtiva?: Partial<Chaves> | null }, usuario: Usuario) {
+  async salvar(e: { pfx?: Buffer; senha?: string; consumerKey?: string; consumerSecret?: string; cnd?: Partial<Chaves> | null; dividaAtiva?: Partial<Chaves> | null; nfe?: Partial<Chaves> | null }, usuario: Usuario) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores configuram o contrato do Integra Contador.');
     if (!this.cofre.disponivel()) throw new BadRequestException('O cofre de certificados não está configurado no servidor (CERT_VAULT_KEY).');
     const atual = await this.credenciais();
@@ -102,10 +104,10 @@ export class ContratoIntegraService {
       if (vindo === null) return null; // remover
       const k = vindo?.key?.trim(); const sec = vindo?.secret?.trim();
       if (k && sec) return { key: k, secret: sec };
-      if (k || sec) throw new BadRequestException(`Informe as duas chaves (Key e Secret) da ${p === 'cnd' ? 'Consulta CND' : 'Consulta Dívida Ativa'}.`);
+      if (k || sec) throw new BadRequestException(`Informe as duas chaves (Key e Secret) da ${NOME_PRODUTO[p]}.`);
       return this.cache?.produtos[p] ?? null;
     };
-    const segredo: Segredo = { consumerKey, consumerSecret, pfx: pfx.toString('base64'), senha, cnd: produto('cnd'), dividaAtiva: produto('dividaAtiva') };
+    const segredo: Segredo = { consumerKey, consumerSecret, pfx: pfx.toString('base64'), senha, cnd: produto('cnd'), dividaAtiva: produto('dividaAtiva'), nfe: produto('nfe') };
     const c = this.cofre.cifrar(JSON.stringify(segredo), ID, CONTEXTO);
     const dados = {
       titular: lido.titular.replace(/:\d{11,14}$/, '').trim(), documento: lido.documento, valido_ate: lido.validoAte,
@@ -130,7 +132,7 @@ export class ContratoIntegraService {
     const c = await this.credenciais();
     if (!c) return { ok: false, mensagem: 'Nenhum contrato configurado.' };
     const produtos: TesteProduto[] = [];
-    for (const p of ['cnd', 'dividaAtiva'] as const) {
+    for (const p of ['cnd', 'dividaAtiva', 'nfe'] as const) {
       const ch = this.cache?.produtos[p] ?? null;
       if (ch) produtos.push(await testarProduto(p, ch));
     }
