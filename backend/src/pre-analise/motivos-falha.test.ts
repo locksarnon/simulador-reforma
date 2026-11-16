@@ -43,3 +43,11 @@ describe('pausa das certidões automáticas (não pagar a mesma consulta todo di
     expect(emPausa(undefined, agora)).toBe(false);
   });
 });
+
+describe('certidão estadual que a SEFAZ só emite pela inscrição estadual (620)', () => {
+  it('explica o que falta no cadastro e pausa como pendência', () => {
+    const m = motivoDaInfosimples(620, 'O site ou aplicativo de origem emitiu um erro. Existe Inscrição Estadual ativa para este CPF/CNPJ. Favor emitir pela Inscrição Estadual.');
+    expect(m).toMatch(/Cadastre a inscrição estadual na ficha do cliente/);
+    expect(resultadoDaFalha({ resumo: `Certidão não emitida: ${m}.`, status: 'INDISPONIVEL' })).toBe('PENDENCIA');
+  });
+});

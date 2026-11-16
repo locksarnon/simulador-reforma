@@ -7,6 +7,8 @@ type Usuario = { email?: string; role?: string } | undefined;
 const ID = 'infosimples';
 const CONTEXTO = 'integracao:infosimples';
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
+/** UF em que a certidão estadual da Infosimples aceita a inscrição estadual (parâmetro ie), pelo catálogo oficial apis.json. */
+export const UF_COM_IE = new Set(['ms', 'ma', 'pa']);
 export const URL_INFOSIMPLES = 'https://api.infosimples.com/api/v2/consultas';
 
 /** Status da certidão, no mesmo vocabulário da pré-análise. */
@@ -33,6 +35,7 @@ export function motivoDaInfosimples(code: number | undefined, mensagem: string):
   if (/n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(mensagem)) return 'não está disponível uma consulta para o estado ou o município do cliente na Infosimples';
   if (code === 603 && /saldo inicial gratuito|primeiro pagamento/i.test(mensagem)) return 'o crédito gratuito inicial da Infosimples só cobre algumas consultas de cada serviço, e esta já usou a sua cota. Para continuar, a Infosimples exige o primeiro pagamento (uma recarga), mesmo com saldo de cortesia na conta';
   if (code === 603) return 'o token da Infosimples não tem autorização para esta consulta (token inativo, com limite de uso ou restrito a outros serviços). Confira o token no painel da Infosimples';
+  if (/emitir pela Inscri[cç][aã]o Estadual/i.test(mensagem)) return 'a SEFAZ só emite a certidão pela inscrição estadual deste cliente. Cadastre a inscrição estadual na ficha do cliente (Editar dados) e emita de novo';
   if (code === 601 || code === 602) return 'a Infosimples recusou o token. Confira-o em Administração > Integrações';
   return `a Infosimples não trouxe o resultado (código ${code ?? '—'})`;
 }
@@ -165,9 +168,15 @@ export class InfosimplesService {
   async cndt(cnpj: string) { return this.certidao('tribunal/tst/cndt', cnpj, lerCndt); }
   async crf(cnpj: string) { return this.certidao('caixa/regularidade', cnpj, lerCrf); }
   /** Certidão estadual (SEFAZ da UF do cliente). A Infosimples cobre MT, MS, GO, MA e PA, entre outras. */
-  async estadual(cnpj: string, uf: string) {
+  /**
+   * Certidão estadual pela SEFAZ da UF do cliente. Nas UF em que a consulta aceita a inscrição estadual (catálogo oficial da
+   * Infosimples: MS, MA e PA), vai pela IE do cadastro quando houver: com IE ativa, a SEFAZ só emite por ela (retorno 620).
+   */
+  async estadual(cnpj: string, uf: string, ie?: string | null) {
     const u = String(uf || '').toLowerCase();
     if (!/^[a-z]{2}$/.test(u)) throw new BadRequestException('O cliente não tem UF no cadastro.');
+    const inscricao = so(ie);
+    if (UF_COM_IE.has(u) && inscricao) return this.certidao(`sefaz/${u}/certidao-debitos`, cnpj, lerCertidaoGenerica, { ie: inscricao }, true);
     return this.certidao(`sefaz/${u}/certidao-debitos`, cnpj, lerCertidaoGenerica);
   }
   /** Certidão municipal pela CND unificada de prefeituras (pref/cnd), com a UF e o município do cliente. */
@@ -177,12 +186,12 @@ export class InfosimplesService {
     return this.certidao('pref/cnd', cnpj, lerCertidaoGenerica, { uf: uf.toUpperCase(), municipio });
   }
 
-  private async certidao(rota: string, cnpjInformado: string, ler: (d: Record<string, unknown>) => Omit<ResultadoCertidao, 'comprovante'>, extras: Record<string, string> = {}): Promise<ResultadoCertidao | null> {
+  private async certidao(rota: string, cnpjInformado: string, ler: (d: Record<string, unknown>) => Omit<ResultadoCertidao, 'comprovante'>, extras: Record<string, string> = {}, semCnpj = false): Promise<ResultadoCertidao | null> {
     const token = await this.token();
     if (!token) return null;
     const cnpj = so(cnpjInformado);
     if (cnpj.length !== 14) throw new BadRequestException('CNPJ inválido.');
-    const corpo = new URLSearchParams({ token, timeout: '300', cnpj, ...extras });
+    const corpo = new URLSearchParams({ token, timeout: '300', ...(semCnpj ? {} : { cnpj }), ...extras });
     const r = await fetch(`${URL_INFOSIMPLES}/${rota}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: corpo, signal: AbortSignal.timeout(330_000) });
     let j: RespostaInfosimples;
     try { j = (await r.json()) as RespostaInfosimples; } catch { throw new BadRequestException(`A Infosimples respondeu HTTP ${r.status} sem JSON.`); }

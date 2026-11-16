@@ -497,6 +497,7 @@ export const POPS_BPO = [
     ],
     resultado: "A certidão fica guardada em Arquivos e documentos (pasta Certidões), com a validade, e o sino avisa antes de vencer.",
     atencao: [
+      "Certidão estadual em MS, MA e PA: com inscrição estadual ativa, a SEFAZ só emite pela IE. Mantenha a inscrição estadual na ficha do cliente (Editar dados); sem ela, a tela avisa para cadastrá-la.",
       "Ao abrir a aba, o sistema emite sozinho as certidões que faltam ou venceram, se houver emissão automática para aquela esfera.",
       "Todo dia, para os clientes com BPO fiscal ativo, o sistema emite as que faltam ou vencem em até 15 dias (CRF do FGTS: 5 dias), conforme a antecedência de Administração > Parâmetros e rotinas.",
       "Quando a fonte não atende o estado ou o município, a emissão automática para por 30 dias; quando há pendência que impede a certidão (débitos, situação cadastral), para por 7 dias. O Emitir agora não tem essa pausa.",

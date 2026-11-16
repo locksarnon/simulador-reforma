@@ -41,6 +41,8 @@ export function emPausa(u: { quando: string; resultado: string } | undefined, ag
 export function resultadoDaFalha(r: { resumo?: string | null; status?: string | null }) {
   if (/n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(r.resumo ?? '')) return 'SEM_COBERTURA';
   if (r.status === 'DEBITOS' || r.status === 'IRREGULAR') return 'PENDENCIA';
+  // Falta no cadastro (ex.: a SEFAZ só emite pela inscrição estadual): espera 7 dias ou alguém emitir na tela depois de corrigir.
+  if (/Cadastre a inscri[cç][aã]o estadual/i.test(r.resumo ?? '')) return 'PENDENCIA';
   return 'INDISPONIVEL';
 }
 
@@ -114,7 +116,7 @@ export class CertidoesService {
   }
 
   private async empresa(id: string) {
-    const e = await this.prisma.empresa.findUnique({ where: { id }, select: { id: true, razao_social: true, cnpj_cpf: true, uf: true, municipio: true, codigo_municipio_ibge: true } });
+    const e = await this.prisma.empresa.findUnique({ where: { id }, select: { id: true, razao_social: true, cnpj_cpf: true, uf: true, municipio: true, codigo_municipio_ibge: true, inscricao_estadual: true } });
     if (!e) throw new NotFoundException('Cliente não encontrado.');
     return e;
   }
@@ -265,7 +267,7 @@ export class CertidoesService {
     if (cnpj.length !== 14) throw new BadRequestException('O cliente não tem CNPJ válido no cadastro.');
     const r: ResultadoCertidao | null = tipo === 'TRABALHISTA' ? await this.infosimples.cndt(cnpj)
       : tipo === 'FGTS' ? await this.infosimples.crf(cnpj)
-      : tipo === 'ESTADUAL' ? await this.infosimples.estadual(cnpj, e.uf ?? '')
+      : tipo === 'ESTADUAL' ? await this.infosimples.estadual(cnpj, e.uf ?? '', e.inscricao_estadual)
       : await this.infosimples.municipal(cnpj, e.uf ?? '', e.municipio ?? '', (e as { codigo_municipio_ibge?: string | null }).codigo_municipio_ibge);
     const item = { TRABALHISTA: 'INFOSIMPLES_CNDT', FGTS: 'INFOSIMPLES_CRF', ESTADUAL: 'INFOSIMPLES_ESTADUAL', MUNICIPAL: 'INFOSIMPLES_MUNICIPAL' }[tipo] as 'INFOSIMPLES_CNDT';
     if (r) await registrarUso(this.prisma, item, usuario?.email ?? null, empresaId, cnpj);
