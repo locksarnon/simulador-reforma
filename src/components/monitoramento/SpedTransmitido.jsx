@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileCheck2, Loader2, RefreshCw } from "lucide-react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FileCheck2, Loader2 } from "lucide-react";
 import { api } from "@/api/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import FiltroMultiplo from "@/components/FiltroMultiplo";
 import { BotoesDocumento } from "@/components/monitoramento/CartaoServico";
 import EnvioDocumentos, { tamanhoTexto } from "@/components/monitoramento/EnvioDocumentos";
 import { toast } from "@/components/ui/use-toast";
@@ -54,7 +55,8 @@ function ArquivosSped({ linha }) {
 
 /**
  * Monitoramento > Declarações > SPED e EFD: abre com o que já está guardado no InTAX (arquivo transmitido e recibo, prontos para
- * ver, baixar e enviar por e-mail). "Consultar na Receita" pergunta ao ReceitanetBX e pede os arquivos novos.
+ * ver, baixar e enviar por e-mail), numa lista só por escrituração com todos os anos e filtros de Ano e Situação. "Pedir vários anos"
+ * pergunta ao ReceitanetBX e pede os arquivos novos.
  */
 const ESCRITURACOES_PEDIDO = [
   ["EFD_ICMS_IPI", "EFD ICMS/IPI"], ["EFD_CONTRIBUICOES", "EFD Contribuições"], ["ECD", "ECD"], ["ECF", "ECF"],
@@ -110,21 +112,53 @@ function PedidoPeriodo({ empresaId, aoConcluir }) {
   );
 }
 
+const ANO_ATUAL = new Date().getFullYear();
+const ANOS_PADRAO = Array.from({ length: 6 }, (_, i) => ANO_ATUAL - i);
+const OPCOES_ANO = Array.from({ length: ANO_ATUAL - 2009 + 1 }, (_, i) => ({ valor: ANO_ATUAL - i, rotulo: String(ANO_ATUAL - i) }));
+const OPCOES_SITUACAO = [["TRANSMITIDA", "Transmitida"], ["NAO_ENCONTRADA", "Não encontrada"], ["NA_FILA", "Chegando"], ["NO_PRAZO", "No prazo"], ["SEM_CONSULTA", "Sem consulta"]].map(([valor, rotulo]) => ({ valor, rotulo }));
+
+/**
+ * Junta o que está guardado de vários anos numa lista só por escrituração: as competências de todos os anos, os totais somados e
+ * o aviso da consulta mais recente à Receita.
+ */
+export function juntarAnos(respostas) {
+  const validas = respostas.filter(Boolean);
+  const porId = new Map();
+  const recente = [...validas].sort((a, b) => String(b.consultado_em || "").localeCompare(String(a.consultado_em || "")))[0];
+  for (const r of validas) {
+    for (const e of r.escrituracoes || []) {
+      const atual = porId.get(e.id) || { ...e, meses: [], encontrados: 0, baixados: 0, na_fila: 0, erro: null };
+      const vistos = new Set(atual.meses.map((m) => m.competencia));
+      atual.meses = [...atual.meses, ...(e.meses || []).filter((m) => !vistos.has(m.competencia))];
+      atual.encontrados += e.encontrados || 0;
+      atual.baixados += e.baixados || 0;
+      atual.na_fila = Math.max(atual.na_fila, e.na_fila || 0);
+      porId.set(e.id, atual);
+    }
+  }
+  for (const e of recente?.escrituracoes || []) if (porId.has(e.id)) porId.get(e.id).erro = e.erro || null;
+  return { escrituracoes: [...porId.values()], consultado_em: recente?.consultado_em || null, certificados: recente?.certificados || [] };
+}
+
 export default function SpedTransmitido({ empresaId }) {
-  const [ano, setAno] = useState(new Date().getFullYear());
   const qc = useQueryClient();
-  const chave = ["monitoramento", "sped", empresaId, ano];
-  const q = useQuery({ queryKey: chave, queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped`, { ano }), retry: false,
-    // Enquanto há arquivos chegando, relê o que está guardado a cada minuto (sem ir à Receita).
-    refetchInterval: (x) => ((x.state.data?.escrituracoes || []).some((e) => e.na_fila > 0) ? 60_000 : false) });
-  const consultar = useMutation({
-    mutationFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped`, { ano, consultar: 1 }),
-    onSuccess: (r) => qc.setQueryData(chave, r),
-    onError: (e) => toast({ title: "Não foi possível consultar a Receita", description: e.message, variant: "destructive" }),
+  const [anos, setAnos] = useState(ANOS_PADRAO);
+  const [situacoes, setSituacoes] = useState([]);
+  const [aba, setAba] = useState("");
+  const anosVistos = (anos.length ? anos : ANOS_PADRAO).slice().sort((a, b) => b - a);
+  const consultas = useQueries({
+    queries: anosVistos.map((ano) => ({
+      queryKey: ["monitoramento", "sped", empresaId, ano], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped`, { ano }), retry: false,
+      // Enquanto há arquivos chegando, relê o que está guardado a cada minuto (sem ir à Receita).
+      refetchInterval: (x) => ((x.state.data?.escrituracoes || []).some((e) => e.na_fila > 0) ? 60_000 : false),
+    })),
   });
+  const carregando = consultas.some((c) => c.isLoading);
+  const erro = consultas.find((c) => c.error)?.error;
+  const dados = juntarAnos(consultas.map((c) => c.data));
   const [marcadas, setMarcadas] = useState(new Set());
   const pedidos = useQuery({ queryKey: ["monitoramento", "sped-pedidos", empresaId], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/sped/downloads`), refetchInterval: 60_000 });
-  const ROTULO_ESC = Object.fromEntries((q.data?.escrituracoes || []).map((e) => [e.id, e.rotulo.split(" (")[0]]));
+  const ROTULO_ESC = Object.fromEntries(dados.escrituracoes.map((e) => [e.id, e.rotulo.split(" (")[0]]));
   const SIT_PEDIDO = { SOLICITADO: "Pedido à Receita", PROCESSANDO: "Baixando", DISPONIVEL: "Baixando", GUARDADO: "Guardado no InTAX", ERRO: "Com erro" };
   const colunasPedidos = [
     { chave: "escrituracao", rotulo: "Escrituração", valor: (l) => ROTULO_ESC[l.escrituracao] || l.escrituracao },
@@ -135,6 +169,7 @@ export default function SpedTransmitido({ empresaId }) {
     { chave: "createdAt", rotulo: "Pedido em", tipo: "data", render: (l) => quandoConsultou(l.createdAt) },
     { chave: "mensagem", rotulo: "Mensagem", quebrar: true },
   ];
+  const situacaoDe = (s) => (s === "FUTURA" ? "NO_PRAZO" : s);
   const colunas = [
     { chave: "competencia", rotulo: "Competência", valor: (l) => l.competencia, render: (l) => comp(l.competencia) },
     { chave: "situacao", rotulo: "Situação", valor: (l) => (SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).rotulo, render: (l) => <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${(SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).tom}`}>{(SITUACAO[l.situacao] || SITUACAO.NO_PRAZO).rotulo}</span> },
@@ -143,28 +178,30 @@ export default function SpedTransmitido({ empresaId }) {
     { chave: "transmissoes", rotulo: "Transmissões", tipo: "numero", alinhar: "direita", valor: (l) => l.transmissoes || null },
     { chave: "tamanho", rotulo: "Tamanho", tipo: "numero", alinhar: "direita", valor: (l) => l.arquivos.reduce((s2, a) => s2 + (a.tamanho || 0), 0) || null, render: (l) => { const b = l.arquivos.reduce((s2, a) => s2 + (a.tamanho || 0), 0); return b ? tamanhoTexto(b) : "—"; } },
   ];
-  const todasLinhas = (q.data?.escrituracoes || []).flatMap(linhasDaEscrituracao);
+  const filtrarLinhas = (linhas) => linhas.filter((l) => !situacoes.length || situacoes.includes(situacaoDe(l.situacao)));
+  const todasLinhas = dados.escrituracoes.flatMap(linhasDaEscrituracao);
   const marcados = todasLinhas.filter((l) => marcadas.has(l.id)).flatMap((l) => l.arquivos.map((a) => ({ item: a.item, nome: a.nome, tamanho: a.tamanho })));
-  const escrituracoes = q.data?.escrituracoes || [];
+  const escrituracoes = dados.escrituracoes;
+  const abaAtual = aba || escrituracoes[0]?.id || "PEDIDOS";
+  const filtros = (
+    <>
+      <FiltroMultiplo rotulo="Ano" opcoes={OPCOES_ANO} marcados={anos} mudar={(v) => setAnos(v.length ? v : ANOS_PADRAO)} />
+      <FiltroMultiplo rotulo="Situação" opcoes={OPCOES_SITUACAO} marcados={situacoes} mudar={setSituacoes} />
+    </>
+  );
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label="SPED transmitido">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="flex flex-1 items-center gap-1.5 text-sm font-semibold"><FileCheck2 className="h-4 w-4 text-primary" aria-hidden="true" />SPED e EFD: o que a Receita recebeu</h3>
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">Ano
-          <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="rounded border border-border bg-background px-1.5 py-1 text-xs">
-            {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </label>
-        <button type="button" disabled={consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60">{consultar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
       </div>
       <PedidoPeriodo empresaId={empresaId} aoConcluir={() => { qc.invalidateQueries({ queryKey: ["monitoramento", "sped", empresaId] }); qc.invalidateQueries({ queryKey: ["monitoramento", "sped-pedidos", empresaId] }); }} />
       <p className="text-xs text-muted-foreground">
-        {q.data ? (q.data.consultado_em ? `Última consulta à Receita em ${quandoConsultou(q.data.consultado_em)}${q.data.certificados?.length ? ` com ${q.data.certificados.join(" e ")}` : ""}.` : `Ano ${ano} ainda não consultado na Receita.`) : ""}
+        {dados.consultado_em ? `Última consulta à Receita em ${quandoConsultou(dados.consultado_em)}${dados.certificados?.length ? ` com ${dados.certificados.join(" e ")}` : ""}.` : carregando ? "" : "Anos escolhidos ainda não consultados na Receita: use Pedir vários anos."}
       </p>
-      {(q.isLoading || consultar.isPending) && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />{consultar.isPending ? "Consultando a Receita…" : "Carregando…"}</p>}
-      {q.error && <p role="alert" className="text-sm">{q.error.message}</p>}
-      {escrituracoes.length > 0 && (
-        <Tabs defaultValue={escrituracoes[0].id}>
+      {carregando && !escrituracoes.length && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Carregando…</p>}
+      {erro && <p role="alert" className="text-sm">{erro.message}</p>}
+      {(escrituracoes.length > 0 || !carregando) && (
+        <Tabs value={abaAtual} onValueChange={setAba}>
           <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
             {[...escrituracoes, { id: "REINF", rotulo: "EFD-Reinf", meses: [] }, { id: "PEDIDOS", rotulo: `Pedidos à Receita (${(pedidos.data || []).length})`, meses: [] }].map((e) => {
               const falta = e.meses.filter((m) => m.situacao === "NAO_ENCONTRADA").length;
@@ -176,8 +213,8 @@ export default function SpedTransmitido({ empresaId }) {
               <p className="text-xs font-medium">{e.rotulo}</p>
               {e.encontrados > 0 && <p className="text-xs text-muted-foreground">{e.encontrados} na Receita · {e.baixados} no InTAX{e.na_fila ? ` · ${e.na_fila} chegando` : ""}</p>}
               {e.erro && <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{e.erro}</p>}
-              <TabelaPadrao id={`monit:sped:${e.id}`} colunas={colunas} linhas={linhasDaEscrituracao(e)} ariaLabel={`${e.rotulo} por competência`} tamanhoInicial={25} vazio="Nada para mostrar."
-                ordemInicial={{ chave: "competencia", dir: 1 }}
+              <TabelaPadrao id={`monit:sped:${e.id}`} colunas={colunas} linhas={filtrarLinhas(linhasDaEscrituracao(e))} ariaLabel={`${e.rotulo} por competência`} tamanhoInicial={25} vazio="Nada para mostrar com esses filtros."
+                ordemInicial={{ chave: "competencia", dir: -1 }} filtrosExtras={filtros}
                 selecao={{ marcadas, aoMudar: setMarcadas }}
                 acoes={<EnvioDocumentos empresaId={empresaId} marcados={marcados} aoConcluir={() => setMarcadas(new Set())} />}
                 documentos={(l) => <ArquivosSped linha={l} />} />
