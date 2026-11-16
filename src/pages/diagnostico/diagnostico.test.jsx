@@ -44,7 +44,7 @@ describe("Diagnósticos: a lista de projetos", () => {
     expect(html).toContain("EXTRA AGRO LTDA, EXTRA TRANSPORTES LTDA");
     expect(html).toContain("atrasado");
     expect(html).not.toContain("Diagnóstico antigo"); // concluído não aparece no filtro padrão
-    expect(html).toContain("Clientes com diagnóstico");
+    expect(html).toContain("Carteira de Consultoria");
   });
 });
 

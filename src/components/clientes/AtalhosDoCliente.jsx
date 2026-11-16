@@ -1,29 +1,31 @@
 import { useNavigate } from "react-router-dom";
-import { Archive, CalendarRange, FolderOpen, ListChecks, ShieldCheck, Stethoscope } from "lucide-react";
+import { Archive, CalendarRange, FolderOpen, Landmark, ListChecks, ShieldCheck } from "lucide-react";
 import { useEmpresaEmFoco } from "@/lib/EmpresaEmFoco";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
-import { caminhoDoDiagnostico } from "@/lib/clientes";
+import { caminhoDaConsultoria } from "@/lib/consultoria";
+import { useVinculosConsultoria } from "@/components/clientes/ServicosConsultoria";
 
-/** Os atalhos do cliente: cada um abre a tela já com este cliente em foco. */
-export function atalhosDoCliente(empresa, grupos) {
-  const diag = caminhoDoDiagnostico(empresa, grupos);
+/** Os atalhos do cliente: cada um abre a tela já com este cliente em foco. `consultoria`: o cliente tem serviço de consultoria. */
+export function atalhosDoCliente(empresa, { consultoria = false } = {}) {
   return [
     { id: "xml", rotulo: "XML e certificado A1", icone: Archive, to: `${CAMINHO_REPOSITORIO_XML}/${empresa.id}` },
     { id: "monitoramento", rotulo: "Monitoramento fiscal", icone: ShieldCheck, to: `/bpo/monitoramento/${empresa.id}` },
     { id: "tarefas", rotulo: "Tarefas", icone: ListChecks, to: "/bpo/tarefas", foco: true },
     { id: "agenda", rotulo: "Obrigações e agenda", icone: CalendarRange, to: "/bpo/agenda", foco: true },
     { id: "arquivos", rotulo: "Arquivos e documentos", icone: FolderOpen, to: "/bpo/arquivos", foco: true },
-    ...(diag ? [{ id: "diagnostico", rotulo: "Trabalho do diagnóstico", icone: Stethoscope, to: diag }] : []),
+    ...(consultoria ? [{ id: "consultoria", rotulo: "Consultoria tributária", icone: Landmark, to: caminhoDaConsultoria(empresa.id) }] : []),
   ];
 }
 
-export default function AtalhosDoCliente({ empresa, grupos, grade = false }) {
+export default function AtalhosDoCliente({ empresa, grade = false }) {
   const navigate = useNavigate();
   const { definir } = useEmpresaEmFoco();
+  const vinculos = useVinculosConsultoria();
+  const consultoria = (vinculos.data || []).some((v) => v.publico === "PJ" && v.cliente_id === empresa.id);
   const ir = (a) => { definir(empresa.id); navigate(a.to); };
   return (
     <ul className={grade ? "grid gap-2 sm:grid-cols-2 lg:grid-cols-3" : "space-y-1"} aria-label={`Atalhos de ${empresa.razao_social}`}>
-      {atalhosDoCliente(empresa, grupos).map((a) => {
+      {atalhosDoCliente(empresa, { consultoria }).map((a) => {
         const Icone = a.icone;
         return (
           <li key={a.id}>

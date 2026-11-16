@@ -18,6 +18,7 @@ function montar({ smtp = true } = {}) {
   ];
   const prisma = {
     servicoContratado: { findMany: async () => [{ empresa_id: 'E1' }, { empresa_id: 'E2' }, { empresa_id: 'E3' }] },
+    vinculoConsultoria: { findMany: async ({ where }: { where: { publico: string } }) => [{ publico: 'PJ', cliente_id: 'E1' }, { publico: 'PJ', cliente_id: 'E1' }, { publico: 'PF', cliente_id: 'P1' }].filter((v) => v.publico === where.publico) },
     empresaTag: { findMany: async () => [{ empresa_id: 'E1', tag_id: 'T1' }, { empresa_id: 'E3', tag_id: 'T1' }, { empresa_id: 'E3', tag_id: 'T2' }] },
     empresa: { findMany: async ({ where }: { where: { id: { in: string[] } } }) => empresas.filter((e) => where.id.in.includes(e.id)) },
     bloqueioEnvio: {
@@ -75,6 +76,14 @@ describe('ComunicadosService', () => {
     const todas = await t.service.destinatarios({ tags: ['T1', 'T2'], tagModo: 'todas' });
     expect([...todas.incluidos, ...todas.fora].map((x) => x.empresa_id)).toEqual(['E3']);
     expect((await t.service.destinatarios({})).aviso).toMatch(/Escolha/);
+  });
+
+  it('destinatários pela carteira da Consultoria Tributária: as empresas com serviço de consultoria vinculado', async () => {
+    const t = montar();
+    expect(normalizarFiltro({ carteira: 'consultoria' }).carteira).toBe('consultoria');
+    const r = await t.service.destinatarios({ carteira: 'consultoria' });
+    expect(r.incluidos.map((x) => x.empresa_id)).toEqual(['E1']);
+    expect(r.fora).toEqual([]);
   });
 
   it('envia com anexo e link de saída, registra cada envio e fecha os contadores; enviado não muda', async () => {

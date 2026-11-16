@@ -5,7 +5,7 @@ import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
-import { brl, COMPLEXIDADES, MODULOS_HONORARIO, REGIMES_HONORARIO, SERVICOS, totaisDosItens, validadePadrao } from "@/lib/propostas";
+import { brl, COMPLEXIDADES, MODULOS_HONORARIO, REGIMES_HONORARIO, servicosOferecidos, totaisDosItens, validadePadrao } from "@/lib/propostas";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -97,7 +97,7 @@ export default function EditorProposta({ proposta, empresas, aoFechar }) {
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">E-mail</span><input type="email" className={campo} value={f.cliente_email} onChange={(e) => mudar("cliente_email", e.target.value)} /></label>
             </div>
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Serviço</span>
-              <select className={campo} value={f.servico} onChange={(e) => mudar("servico", e.target.value)}>{Object.entries(SERVICOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+              <select className={campo} value={f.servico} onChange={(e) => mudar("servico", e.target.value)}>{servicosOferecidos(f.servico).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Válida até</span><input type="date" className={campo} value={f.validade} onChange={(e) => mudar("validade", e.target.value)} /></label>
           </div>
           {f.servico === "BPO_FISCAL" && <CalculadoraHonorarios aoUsar={usarCalculo} regimeInicial={empresaAtual?.regime_atual} />}

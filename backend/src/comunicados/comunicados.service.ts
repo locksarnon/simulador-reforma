@@ -27,7 +27,7 @@ export function normalizarFiltro(bruto: unknown): Filtro {
   const f = (bruto && typeof bruto === 'object' ? bruto : {}) as Record<string, unknown>;
   const lista = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(String).filter(Boolean))].slice(0, 2000) : []);
   return {
-    carteira: ['bpo', 'diagnostico', ''].includes(String(f.carteira ?? '')) ? String(f.carteira ?? '') : '',
+    carteira: ['bpo', 'consultoria', 'diagnostico', ''].includes(String(f.carteira ?? '')) ? String(f.carteira ?? '') : '',
     tags: lista(f.tags),
     tagModo: f.tagModo === 'todas' ? 'todas' : 'qualquer',
     empresa_ids: lista(f.empresa_ids),
@@ -81,9 +81,12 @@ export class ComunicadosService {
     let ids: string[] | null = null;
     if (f.empresa_ids?.length) ids = f.empresa_ids;
     if (f.carteira) {
-      const tipo = f.carteira === 'bpo' ? 'BPO_FISCAL' : 'DIAGNOSTICO_PONTUAL';
-      const s = await this.prisma.servicoContratado.findMany({ where: { tipo, situacao: { in: ['ATIVO', 'PAUSADO'] } }, select: { empresa_id: true } });
-      const daCarteira = new Set(s.map((x) => x.empresa_id));
+      // Consultoria Tributária = empresas com algum serviço do catálogo vinculado; "diagnostico" fica só para rascunhos antigos.
+      const daCarteira = new Set(f.carteira === 'consultoria'
+        ? (await this.prisma.vinculoConsultoria.findMany({ where: { publico: 'PJ' }, select: { cliente_id: true } })).map((x) => x.cliente_id)
+        : (await this.prisma.servicoContratado.findMany({
+          where: { tipo: f.carteira === 'bpo' ? 'BPO_FISCAL' : 'DIAGNOSTICO_PONTUAL', situacao: { in: ['ATIVO', 'PAUSADO'] } }, select: { empresa_id: true },
+        })).map((x) => x.empresa_id));
       ids = ids ? ids.filter((i) => daCarteira.has(i)) : [...daCarteira];
     }
     if (f.tags?.length) {

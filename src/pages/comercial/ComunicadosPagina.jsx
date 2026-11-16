@@ -49,7 +49,7 @@ function Editor({ comunicado, empresas, aoFechar }) {
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-3 text-sm">
           <fieldset className="space-y-2 rounded-md border border-border p-3"><legend className="px-1 text-xs font-medium">Para quem</legend>
             <div className="flex flex-wrap items-end gap-3">
-              <label className="space-y-1"><span className="block text-xs text-muted-foreground">Carteira</span><select className={campo} value={f.filtro.carteira} onChange={(e) => mudarFiltro({ carteira: e.target.value })}><option value="">Qualquer</option><option value="bpo">BPO fiscal</option><option value="diagnostico">Diagnóstico pontual</option></select></label>
+              <label className="space-y-1"><span className="block text-xs text-muted-foreground">Carteira</span><select className={campo} value={f.filtro.carteira} onChange={(e) => mudarFiltro({ carteira: e.target.value })}><option value="">Qualquer</option><option value="bpo">BPO fiscal</option><option value="consultoria">Consultoria Tributária</option>{f.filtro.carteira === "diagnostico" && <option value="diagnostico">Diagnóstico pontual (antigo)</option>}</select></label>
               <FiltroPorTags tags={tags} escolhidas={f.filtro.tags} modo={f.filtro.tagModo} aoMudar={(p) => mudarFiltro(p)} />
             </div>
             <div className="w-80"><SeletorDeEmpresa empresas={empresas} valor="" aoMudar={(eid) => eid && !f.filtro.empresa_ids.includes(eid) && mudarFiltro({ empresa_ids: [...f.filtro.empresa_ids, eid] })} rotulo="Só estas empresas (opcional)" opcional={false} placeholder="Acrescentar uma empresa" /></div>

@@ -14,7 +14,7 @@ const { hojeBR } = await import("@/lib/tarefas");
 const { somarDias } = await import("@/lib/agenda");
 
 const RESUMO = {
-  total: 3, ativas: 3, carteiras: { bpo: 2, diagnostico: 1, ambas: 1, sem: 1 },
+  total: 3, ativas: 3, carteiras: { bpo: 2, consultoria: 1, ambas: 1, sem: 1 },
   por_regime: [{ nome: "Lucro Presumido", total: 2 }, { nome: "Lucro Real", total: 1 }], por_porte: [{ nome: "DEMAIS", total: 2 }], por_uf: [{ nome: "MT", total: 3 }],
   por_setor: [], por_situacao: [{ nome: "Ativa", total: 3 }],
   por_municipio: [{ uf: "MT", municipio: "Cuiabá", total: 2, latitude: -15.5, longitude: -55.9 }, { uf: "MT", municipio: "Sorriso", total: 1, latitude: null, longitude: null }],
@@ -43,7 +43,7 @@ describe("Início: resumo do dia", () => {
 describe("Painel da carteira", () => {
   it("cartões, distribuições, municípios (com e sem ponto), CNAE e saúde do cadastro", () => {
     const html = renderizar(<PainelCarteiraPagina />);
-    for (const t of ["Empresas", "No BPO fiscal", "Com diagnóstico pontual", "Sem carteira", "Cadastro completo", "1 de 3", "Por regime tributário", "Por porte (Receita Federal)", "Onde ficam as empresas", "Cuiabá/MT", "(sem ponto)", "0115-6/00", "Cultivo de soja", "Saúde do cadastro", "Beta SA"]) expect(html).toContain(t);
+    for (const t of ["Empresas", "No BPO fiscal", "Com Consultoria Tributária", "Sem carteira", "Cadastro completo", "1 de 3", "Por regime tributário", "Por porte (Receita Federal)", "Onde ficam as empresas", "Cuiabá/MT", "(sem ponto)", "0115-6/00", "Cultivo de soja", "Saúde do cadastro", "Beta SA"]) expect(html).toContain(t);
     expect(html).toContain("Carregando o mapa…"); // o mapa carrega depois, no navegador
     expect(html).toContain("Completar pelo CNPJ");
   });

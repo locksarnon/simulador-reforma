@@ -4,7 +4,7 @@ import { naCarteira } from "@/lib/servicos";
 export const FILTROS_RAPIDOS = [
   { id: "todos", rotulo: "Todos" },
   { id: "bpo", rotulo: "BPO fiscal" },
-  { id: "diagnostico", rotulo: "Diagnóstico pontual" },
+  { id: "consultoria", rotulo: "Consultoria" },
   { id: "sem-servico", rotulo: "Sem serviço" },
   { id: "sem-responsavel", rotulo: "Sem responsável" },
 ];
@@ -12,14 +12,17 @@ export const FILTROS_RAPIDOS = [
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const digitos = (s) => String(s ?? "").replace(/\D/g, "");
 
-/** O cliente passa no filtro rápido? `atendidas` = ids das empresas que têm colaborador. */
-export function passaNoRapido(empresa, porTipo = {}, rapido, atendidas) {
+/**
+ * O cliente passa no filtro rápido? `atendidas` = ids das empresas que têm colaborador; `comConsultoria` = ids com algum serviço
+ * de Consultoria Tributária vinculado.
+ */
+export function passaNoRapido(empresa, porTipo = {}, rapido, atendidas = new Set(), comConsultoria = new Set()) {
   const bpo = naCarteira(porTipo.BPO_FISCAL);
-  const diag = naCarteira(porTipo.DIAGNOSTICO_PONTUAL);
+  const consultoria = comConsultoria.has(empresa.id);
   switch (rapido) {
     case "bpo": return bpo;
-    case "diagnostico": return diag;
-    case "sem-servico": return !bpo && !diag;
+    case "consultoria": return consultoria;
+    case "sem-servico": return !bpo && !consultoria;
     case "sem-responsavel": return !atendidas.has(empresa.id);
     default: return true;
   }
@@ -36,12 +39,13 @@ export function casaBusca(empresa, busca, grupo) {
 
 /**
  * A lista de clientes já filtrada e em ordem alfabética.
- * filtros: { busca, rapido, regime, uf }; mapa: serviços por empresa; grupos: lista de grupos; atendidas: Set de ids com colaborador.
+ * filtros: { busca, rapido, regime, uf }; mapa: serviços por empresa; grupos: lista de grupos; atendidas: Set de ids com colaborador;
+ * comConsultoria: Set de ids com serviço de consultoria vinculado.
  */
-export function filtrarClientes(empresas, { busca = "", rapido = "todos", regime = "", uf = "" } = {}, mapa = new Map(), grupos = [], atendidas = new Set()) {
+export function filtrarClientes(empresas, { busca = "", rapido = "todos", regime = "", uf = "" } = {}, mapa = new Map(), grupos = [], atendidas = new Set(), comConsultoria = new Set()) {
   const grupoPorNumero = new Map(grupos.map((g) => [g.numero, g]));
   return empresas
-    .filter((e) => passaNoRapido(e, mapa.get(e.id), rapido, atendidas))
+    .filter((e) => passaNoRapido(e, mapa.get(e.id), rapido, atendidas, comConsultoria))
     .filter((e) => !regime || (regime === "—" ? !e.regime_atual : e.regime_atual === regime))
     .filter((e) => !uf || e.uf === uf)
     .filter((e) => casaBusca(e, busca, grupoPorNumero.get(e.grupo)))
@@ -49,14 +53,8 @@ export function filtrarClientes(empresas, { busca = "", rapido = "todos", regime
 }
 
 /** Quantos clientes há em cada filtro rápido (os números dos chips). */
-export function contarRapidos(empresas, mapa = new Map(), atendidas = new Set()) {
-  return Object.fromEntries(FILTROS_RAPIDOS.map((f) => [f.id, empresas.filter((e) => passaNoRapido(e, mapa.get(e.id), f.id, atendidas)).length]));
-}
-
-/** Endereço do trabalho de diagnóstico da empresa (as telas de diagnóstico continuam por grupo); null se o grupo não existe. */
-export function caminhoDoDiagnostico(empresa, grupos = []) {
-  const g = grupos.find((x) => x.numero === empresa?.grupo);
-  return g ? `/workroom/${g.id}/empresas/${empresa.id}` : null;
+export function contarRapidos(empresas, mapa = new Map(), atendidas = new Set(), comConsultoria = new Set()) {
+  return Object.fromEntries(FILTROS_RAPIDOS.map((f) => [f.id, empresas.filter((e) => passaNoRapido(e, mapa.get(e.id), f.id, atendidas, comConsultoria)).length]));
 }
 
 /** O grupo só é mostrado quando é um grupo de verdade (com mais de uma empresa ou criado como grupo, não o "Cliente individual"). */

@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import EditorProposta from "@/components/propostas/EditorProposta";
 import { baixarPdfDaProposta } from "@/lib/propostaPdf";
-import { brl, COMPLEXIDADES, MODULOS_HONORARIO, REGIMES_HONORARIO, SERVICOS, STATUS, TOM_DO_STATUS } from "@/lib/propostas";
+import { brl, COMPLEXIDADES, MODULOS_HONORARIO, REGIMES_HONORARIO, SERVICOS, servicosOferecidos, STATUS, TOM_DO_STATUS } from "@/lib/propostas";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -105,7 +105,7 @@ export function AbaModelos({ ehAdmin }) {
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-2 rounded-xl border border-border bg-card p-3 text-sm">
           <div className="grid gap-2 md:grid-cols-2">
             <label className="space-y-1"><span className="block text-xs text-muted-foreground">Nome</span><input className={`${campo} w-full`} value={f.nome} maxLength={120} onChange={(e) => setF({ ...f, nome: e.target.value })} required /></label>
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Serviço</span><select className={`${campo} w-full`} value={f.servico} onChange={(e) => setF({ ...f, servico: e.target.value })}>{Object.entries(SERVICOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Serviço</span><select className={`${campo} w-full`} value={f.servico} onChange={(e) => setF({ ...f, servico: e.target.value })}>{servicosOferecidos(f.servico).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
           </div>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Escopo</span><textarea className={`${campo} w-full min-h-[80px]`} value={f.escopo || ""} onChange={(e) => setF({ ...f, escopo: e.target.value })} /></label>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Condições</span><textarea className={`${campo} w-full min-h-[56px]`} value={f.condicoes || ""} onChange={(e) => setF({ ...f, condicoes: e.target.value })} /></label>

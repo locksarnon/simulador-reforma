@@ -1,8 +1,12 @@
 /**
- * Serviços contratados por empresa: o cadastro é um só e a carteira de cada área (BPO fiscal, diagnóstico pontual) sai do que a empresa
- * contratou. As regras daqui espelham o servidor (backend/src/servicos-contratados).
+ * Serviços contratados por empresa: o cadastro é um só; o BPO fiscal é um serviço contratado com situação e a Consultoria Tributária
+ * são os serviços do catálogo vinculados ao cliente (src/lib/consultoria.js). As regras daqui espelham o servidor
+ * (backend/src/servicos-contratados).
  */
+/** Rótulos de todos os tipos gravados (o diagnóstico pontual é antigo: só aparece no histórico, não é mais oferecido). */
 export const TIPOS = { BPO_FISCAL: "BPO fiscal", DIAGNOSTICO_PONTUAL: "Diagnóstico pontual" };
+/** Os tipos que as telas oferecem para ligar. */
+export const TIPOS_OFERECIDOS = { BPO_FISCAL: TIPOS.BPO_FISCAL };
 export const SITUACOES = { PROPOSTA: "Proposta", ATIVO: "Ativo", PAUSADO: "Pausado", ENCERRADO: "Encerrado" };
 export const MODULOS_BPO = { XML: "Captura de XML", MONITORAMENTO: "Monitoramento fiscal", OBRIGACOES: "Obrigações e agenda", TAREFAS: "Processos e tarefas", ARQUIVOS: "Arquivos e documentos" };
 
@@ -32,13 +36,12 @@ export function indexarPorEmpresa(servicos) {
   return mapa;
 }
 
-/** Em que carteira a empresa está: "bpo", "diagnostico", "ambas" ou "nenhuma". */
-export function carteiraDaEmpresa(porTipo) {
+/** Em que carteira a empresa está: "bpo", "consultoria" (algum serviço de consultoria vinculado), "ambas" ou "nenhuma". */
+export function carteiraDaEmpresa(porTipo, temConsultoria = false) {
   const bpo = naCarteira(porTipo?.BPO_FISCAL);
-  const diag = naCarteira(porTipo?.DIAGNOSTICO_PONTUAL);
-  if (bpo && diag) return "ambas";
+  if (bpo && temConsultoria) return "ambas";
   if (bpo) return "bpo";
-  if (diag) return "diagnostico";
+  if (temConsultoria) return "consultoria";
   return "nenhuma";
 }
 
@@ -55,13 +58,13 @@ export const fmtDataCurta = (v) => (v ? new Date(v).toLocaleDateString("pt-BR", 
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const digitos = (s) => String(s || "").replace(/\D/g, "");
 
-/** Filtra empresas por texto (nome, código ou CNPJ), grupo e carteira. */
-export function filtrarEmpresas(empresas, mapa, { busca = "", grupo = "", carteira = "" } = {}) {
+/** Filtra empresas por texto (nome, código ou CNPJ), grupo e carteira. `comConsultoria`: ids com serviço de consultoria vinculado. */
+export function filtrarEmpresas(empresas, mapa, { busca = "", grupo = "", carteira = "" } = {}, comConsultoria = new Set()) {
   const t = semAcento(busca).trim();
   const d = digitos(busca);
   return (empresas || []).filter((e) => {
     if (grupo && e.grupo !== grupo) return false;
-    if (carteira && carteiraDaEmpresa(mapa.get(e.id)) !== carteira) return false;
+    if (carteira && carteiraDaEmpresa(mapa.get(e.id), comConsultoria.has(e.id)) !== carteira) return false;
     if (!t) return true;
     return semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t) || (d.length >= 3 && digitos(e.cnpj_cpf).includes(d));
   });

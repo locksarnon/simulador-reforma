@@ -92,7 +92,7 @@ export default function PainelCarteiraPagina() {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
               <Cartao rotulo="Empresas" valor={r.total} detalhe={plural(r.ativas, "ativa", "ativas")} />
               <Cartao rotulo="No BPO fiscal" valor={r.carteiras.bpo} />
-              <Cartao rotulo="Com diagnóstico pontual" valor={r.carteiras.diagnostico} detalhe={r.carteiras.ambas ? `${r.carteiras.ambas} nas duas` : null} />
+              <Cartao rotulo="Com Consultoria Tributária" valor={r.carteiras.consultoria ?? 0} detalhe={r.carteiras.ambas ? `${r.carteiras.ambas} também no BPO` : null} />
               <Cartao rotulo="Sem carteira" valor={r.carteiras.sem} destaque={r.carteiras.sem > 0} />
               <Cartao rotulo="Cadastro completo" valor={`${r.saude.completas} de ${r.total}`} destaque={r.saude.com_faltas > 0} />
             </div>

@@ -22,7 +22,6 @@ const FILTROS_VAZIOS = { busca: "", situacao: "", grupo: "", tags: [], tagModo: 
 /** Caminhos que a carteira oferece para entrar numa empresa. */
 const ACOES = {
   BPO_FISCAL: (e) => [{ rotulo: "Captura de XML", to: caminhoDoRepositorio(e.id) }],
-  DIAGNOSTICO_PONTUAL: (e, g) => (g ? [{ rotulo: "Abrir diagnóstico", to: `/workroom/${g.id}/empresas/${e.id}` }] : []),
 };
 
 /**
@@ -64,7 +63,7 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes })
     { chave: "inicio", rotulo: "Desde", tipo: "data", valor: (e) => servicoDe(e)?.inicio || "", render: (e) => fmtDataCurta(servicoDe(e)?.inicio) },
     ...(tipo === "BPO_FISCAL" ? [{ chave: "modulos", rotulo: "Módulos ligados", valor: (e) => (servicoDe(e)?.modulos || []).map((m) => MODULOS_BPO[m] || m).join(", "), render: (e) => <span className="text-[11px] text-muted-foreground">{(servicoDe(e)?.modulos || []).map((m) => MODULOS_BPO[m] || m).join(", ") || "—"}</span> }] : []),
     { chave: "acesso", rotulo: "Ir para", ordenavel: false, filtravel: false, valor: () => "",
-      render: (e) => <div className="flex gap-3">{ACOES[tipo](e, grupoDe(e)).map((a) => <Link key={a.to} to={a.to} className="text-primary hover:underline">{a.rotulo}</Link>)}</div> },
+      render: (e) => <div className="flex gap-3">{(ACOES[tipo]?.(e) || []).map((a) => <Link key={a.to} to={a.to} className="text-primary hover:underline">{a.rotulo}</Link>)}</div> },
   ];
 
   return (

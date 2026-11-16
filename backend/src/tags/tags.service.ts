@@ -5,7 +5,7 @@ const COR = /^#[0-9a-fA-F]{6}$/;
 export const COR_PADRAO = '#1E764D';
 export const MODOS_TAG = ['adicionar', 'remover', 'definir'] as const;
 export const ESCOPOS_FILTRO = ['empresas'] as const;
-const CARTEIRAS = ['', 'bpo', 'diagnostico', 'ambas', 'nenhuma'];
+const CARTEIRAS = ['', 'bpo', 'consultoria', 'diagnostico', 'ambas', 'nenhuma'];
 const SITUACOES = ['', 'PROPOSTA', 'ATIVO', 'PAUSADO', 'ENCERRADO'];
 
 type Ator = { id: string; role?: string };

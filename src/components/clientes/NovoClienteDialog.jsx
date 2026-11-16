@@ -110,15 +110,12 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
             <Campo rotulo="E-mail de contato"><input type="email" className={campo} value={f.email_contato} onChange={(e) => mudar("email_contato", e.target.value)} placeholder="fiscal@cliente.com.br" /></Campo>
             <Campo rotulo="WhatsApp de contato"><input className={campo} value={f.whatsapp_contato} onChange={(e) => mudar("whatsapp_contato", e.target.value)} placeholder="(65) 99999-0000" /></Campo>
           </div>
-          <fieldset className="rounded-md border border-border p-3">
+          <fieldset className="space-y-3 rounded-md border border-border p-3">
             <legend className="px-1 text-xs text-muted-foreground">Serviços que o cliente contratou</legend>
-            <div className="flex flex-wrap gap-4">
-              {Object.entries(TIPOS).map(([tipo, rotulo]) => (
-                <label key={tipo} className="inline-flex items-center gap-2"><input type="checkbox" checked={f.servicos.includes(tipo)} onChange={() => alternarServico(tipo)} /> {rotulo}</label>
-              ))}
-            </div>
+            <label className="inline-flex items-center gap-2"><input type="checkbox" checked={f.servicos.includes("BPO_FISCAL")} onChange={() => alternarServico("BPO_FISCAL")} /> {TIPOS.BPO_FISCAL}</label>
+            <ServicosConsultoria publico="PJ" selecao={f.consultoria} mudar={(v) => mudar("consultoria", v)} desabilitado={digitos.length !== 14}
+              dica={digitos.length !== 14 ? "Informe o CNPJ completo para escolher os serviços de consultoria." : null} />
           </fieldset>
-          {digitos.length === 14 && <ServicosConsultoria publico="PJ" selecao={f.consultoria} mudar={(v) => mudar("consultoria", v)} />}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {user?.role === "admin" ? (
               <Campo rotulo="Colaborador responsável"><select className={campo} value={f.colaborador_id} onChange={(e) => { const c = colaboradores.find((x) => x.id === e.target.value); setF((x) => ({ ...x, colaborador_id: e.target.value, responsavel: c ? (c.name || c.email) : "" })); }}><option value="">Ninguém por enquanto</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}</select></Campo>

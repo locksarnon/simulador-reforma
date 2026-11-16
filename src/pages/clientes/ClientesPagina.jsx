@@ -16,6 +16,8 @@ import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
 import NovoClienteDialog from "@/components/clientes/NovoClienteDialog";
 import ChipDeServico from "@/components/clientes/ChipDeServico";
 import AtalhosDoCliente from "@/components/clientes/AtalhosDoCliente";
+import ServicosConsultoria, { useCatalogoConsultoria, useVinculosConsultoria } from "@/components/clientes/ServicosConsultoria";
+import DialogoVincularConsultoria from "@/components/clientes/DialogoVincularConsultoria";
 import FiltroPorTags from "@/components/clientes/FiltroPorTags";
 import ListasSalvas from "@/components/clientes/ListasSalvas";
 import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
@@ -23,16 +25,35 @@ import { useCarteiras } from "@/lib/useCarteiras";
 import { useColaboradores, useTags } from "@/lib/useTags";
 import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa } from "@/lib/tags";
 import { contarRapidos, filtrarClientes, FILTROS_RAPIDOS, grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
-import { SITUACOES, TIPOS } from "@/lib/servicos";
+import { SITUACOES, TIPOS_OFERECIDOS } from "@/lib/servicos";
+import { indexarConsultoria, temCnpj } from "@/lib/consultoria";
 import { arquivarCliente, CHAVES_APOS_ARQUIVAR, desarquivarCliente, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 import { plural, palavra } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const FILTROS_VAZIOS = { busca: "", rapido: "todos", regime: "", uf: "", tags: [], tagModo: "qualquer", colaborador: "" };
-const TIPOS_DE_SERVICO = Object.keys(TIPOS);
+const TIPOS_DE_SERVICO = Object.keys(TIPOS_OFERECIDOS);
+
+/** Selo da Consultoria Tributária na linha do cliente: os serviços vinculados ou "+ Consultoria" para vincular. */
+function SeloConsultoria({ empresa, servicos, aoAbrir }) {
+  if (!temCnpj(empresa.cnpj_cpf)) return <span className="text-[11px] text-muted-foreground" title="A consultoria exige CNPJ completo.">—</span>;
+  const nomes = servicos.map((s) => s.nome).join(" · ");
+  if (servicos.length) {
+    return (
+      <button type="button" onClick={(e) => { e.stopPropagation(); aoAbrir(); }} title={`${nomes}. Clique para ver ou vincular outro.`} className="rounded bg-emerald-100 px-1.5 py-0.5 text-left text-[11px] font-medium leading-4 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300">
+        {servicos.length === 1 ? servicos[0].nome : `${servicos.length} serviços`}
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={(e) => { e.stopPropagation(); aoAbrir(); }} aria-label={`Vincular consultoria para ${empresa.razao_social}`} className="inline-flex items-center gap-0.5 rounded border border-dashed border-border px-1.5 py-0.5 text-[11px] leading-4 text-muted-foreground hover:border-primary hover:text-primary">
+      <Plus className="h-3 w-3" aria-hidden="true" />Consultoria
+    </button>
+  );
+}
 
 /** Ficha rápida do cliente, ao lado da lista: dados, serviços e atalhos. */
-function FichaRapida({ empresa, porTipo, grupo, nomesDaEquipe, tags, grupos, aoFechar, aoEditarServico, aoEditarDados }) {
+function FichaRapida({ empresa, porTipo, grupo, nomesDaEquipe, tags, aoFechar, aoEditarServico, aoEditarDados }) {
   const navigate = useNavigate();
   return (
     <Sheet open={!!empresa} onOpenChange={(v) => !v && aoFechar()}>
@@ -53,11 +74,14 @@ function FichaRapida({ empresa, porTipo, grupo, nomesDaEquipe, tags, grupos, aoF
                 const s = porTipo[tipo];
                 return (
                   <div key={tipo} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
-                    <div><p className="font-medium">{TIPOS[tipo]}</p><p className="text-xs text-muted-foreground">{s ? `${SITUACOES[s.situacao]}${s.responsavel ? ` · ${s.responsavel}` : ""}` : "Não contratado"}</p></div>
+                    <div><p className="font-medium">{TIPOS_OFERECIDOS[tipo]}</p><p className="text-xs text-muted-foreground">{s ? `${SITUACOES[s.situacao]}${s.responsavel ? ` · ${s.responsavel}` : ""}` : "Não contratado"}</p></div>
                     <ChipDeServico empresa={empresa} tipo={tipo} servico={s} aoEditar={() => aoEditarServico(tipo)} />
                   </div>
                 );
               })}
+              {temCnpj(empresa.cnpj_cpf)
+                ? <ServicosConsultoria publico="PJ" clienteId={empresa.id} somenteLeitura={!!empresa.arquivado_em} />
+                : <p className="text-xs text-muted-foreground">Consultoria Tributária: disponível para cliente com CNPJ.</p>}
             </section>
             <section className="space-y-1">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Equipe e etiquetas</h3>
@@ -74,7 +98,7 @@ function FichaRapida({ empresa, porTipo, grupo, nomesDaEquipe, tags, grupos, aoF
             )}
             <section className="space-y-1">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ir para</h3>
-              <AtalhosDoCliente empresa={empresa} grupos={grupos} />
+              <AtalhosDoCliente empresa={empresa} />
             </section>
           </div>
         )}
@@ -109,7 +133,12 @@ export default function ClientesPagina() {
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
   const [dialogo, setDialogo] = useState(null);
+  const [vinculando, setVinculando] = useState(null);
   const [dialogoTags, setDialogoTags] = useState(null);
+  const catalogo = useCatalogoConsultoria();
+  const vinculos = useVinculosConsultoria();
+  const consultoriaDe = useMemo(() => indexarConsultoria(vinculos.data, catalogo.data), [vinculos.data, catalogo.data]);
+  const comConsultoria = useMemo(() => new Set(consultoriaDe.keys()), [consultoriaDe]);
   const [excluindo, setExcluindo] = useState(null);
   const vendoArquivados = filtros.rapido === "arquivados";
   const empresas = vendoArquivados ? arquivadas : ativas;
@@ -117,13 +146,13 @@ export default function ClientesPagina() {
   const atendidas = useMemo(() => new Set(colaboradores.flatMap((c) => c.empresa_ids || [])), [colaboradores]);
   const equipeDe = (id) => colaboradores.filter((c) => (c.empresa_ids || []).includes(id)).map((c) => c.name || c.email);
   const grupoDe = (e) => grupoVisivel(grupos.find((g) => g.numero === e.grupo), empresas);
-  const contagem = useMemo(() => ({ ...contarRapidos(ativas, mapa, atendidas), arquivados: arquivadas.length }), [ativas, arquivadas, mapa, atendidas]);
+  const contagem = useMemo(() => ({ ...contarRapidos(ativas, mapa, atendidas, comConsultoria), arquivados: arquivadas.length }), [ativas, arquivadas, mapa, atendidas, comConsultoria]);
   const regimes = useMemo(() => [...new Set(empresas.map((e) => e.regime_atual).filter(Boolean))].sort(), [empresas]);
   const ufs = useMemo(() => [...new Set(empresas.map((e) => e.uf).filter(Boolean))].sort(), [empresas]);
   const lista = useMemo(() => {
-    const base = filtrarClientes(empresas, vendoArquivados ? { ...filtros, rapido: "todos" } : filtros, mapa, grupos, atendidas);
+    const base = filtrarClientes(empresas, vendoArquivados ? { ...filtros, rapido: "todos" } : filtros, mapa, grupos, atendidas, comConsultoria);
     return filtrarPorColaborador(filtrarPorTags(base, porEmpresa, filtros.tags, filtros.tagModo), colaboradores, filtros.colaborador);
-  }, [empresas, filtros, mapa, grupos, atendidas, porEmpresa, colaboradores, vendoArquivados]);
+  }, [empresas, filtros, mapa, grupos, atendidas, porEmpresa, colaboradores, vendoArquivados, comConsultoria]);
   const sugestoes = useMemo(() => [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort(), [servicos]);
   const mudar = (k, v) => setFiltros((f) => ({ ...f, [k]: v }));
   const selecionadas = empresas.filter((e) => marcadas.has(e.id));
@@ -155,9 +184,11 @@ export default function ClientesPagina() {
     { chave: "grupo", rotulo: "Grupo econômico", valor: (e) => rotuloDoGrupo(grupoDe(e)) || "", render: (e) => ver(rotuloDoGrupo(grupoDe(e))) },
     { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", "), render: (e) => <EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} /> },
     ...TIPOS_DE_SERVICO.map((tipo) => ({
-      chave: `servico_${tipo}`, rotulo: TIPOS[tipo], valor: (e) => SITUACOES[mapa.get(e.id)?.[tipo]?.situacao] || "",
+      chave: `servico_${tipo}`, rotulo: TIPOS_OFERECIDOS[tipo], valor: (e) => SITUACOES[mapa.get(e.id)?.[tipo]?.situacao] || "",
       render: (e) => { const porTipo = mapa.get(e.id) || {}; return <ChipDeServico empresa={e} tipo={tipo} servico={porTipo[tipo]} aoEditar={() => setDialogo({ empresas: [e], servico: porTipo[tipo], tipoInicial: tipo })} />; },
     })),
+    { chave: "consultoria", rotulo: "Consultoria", valor: (e) => (consultoriaDe.get(e.id) || []).map((s) => s.nome).join(", "),
+      render: (e) => <SeloConsultoria empresa={e} servicos={consultoriaDe.get(e.id) || []} aoAbrir={() => setAberta(e.id)} /> },
     { chave: "equipe", rotulo: "Equipe", valor: (e) => equipeDe(e.id).join(", "), render: (e) => <span className="text-muted-foreground">{equipeDe(e.id).join(", ") || "—"}</span> },
     { chave: "certificado", rotulo: "Certificado", tipo: "data", valor: (e) => captura.data?.[e.id]?.certificado?.valido_ate || "", render: (e) => <SeloCertificado certificado={captura.data?.[e.id]?.certificado} /> },
     { chave: "captura", rotulo: "Captura de XML", valor: (e) => (captura.data?.[e.id]?.ligada ? "Ligada" : "Desligada"), render: (e) => <InterruptorCaptura compacto empresaId={e.id} ligada={!!captura.data?.[e.id]?.ligada} certificadoOk={["VALIDO", "A_VENCER"].includes(captura.data?.[e.id]?.certificado?.situacao)} /> },
@@ -207,7 +238,7 @@ export default function ClientesPagina() {
           <div role="status" className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm">
             <span className="font-medium">{plural(selecionadas.length, "marcado", "marcados")}</span>
             <button type="button" onClick={() => setDialogo({ empresas: selecionadas, servico: null, tipoInicial: "BPO_FISCAL" })} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Ligar BPO fiscal</button>
-            <button type="button" onClick={() => setDialogo({ empresas: selecionadas, servico: null, tipoInicial: "DIAGNOSTICO_PONTUAL" })} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Ligar diagnóstico</button>
+            {!vendoArquivados && <button type="button" onClick={() => setVinculando(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Vincular consultoria</button>}
             <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
             {ehAdmin && <Link to="/clientes/carteira" className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir colaborador</Link>}
             {ehAdmin && (
@@ -236,7 +267,7 @@ export default function ClientesPagina() {
 
       <FichaRapida
         empresa={abertaAgora} porTipo={abertaAgora ? mapa.get(abertaAgora.id) || {} : {}} grupo={abertaAgora ? grupoDe(abertaAgora) : null}
-        nomesDaEquipe={abertaAgora ? equipeDe(abertaAgora.id) : []} tags={abertaAgora ? tagsDaEmpresa(porEmpresa, mapaTags, abertaAgora.id) : []} grupos={grupos}
+        nomesDaEquipe={abertaAgora ? equipeDe(abertaAgora.id) : []} tags={abertaAgora ? tagsDaEmpresa(porEmpresa, mapaTags, abertaAgora.id) : []}
         aoFechar={() => setAberta(null)}
         aoEditarServico={(tipo) => setDialogo({ empresas: [abertaAgora], servico: (mapa.get(abertaAgora.id) || {})[tipo] || null, tipoInicial: tipo })}
         aoEditarDados={() => setEditando(abertaAgora)}
@@ -244,6 +275,7 @@ export default function ClientesPagina() {
       <NovoClienteDialog aberto={novo} aoFechar={() => setNovo(false)} grupos={grupos} colaboradores={colaboradores} />
       <EmpresaFormDialog open={!!editando} onOpenChange={(v) => !v && setEditando(null)} editing={editando} grupoNumero={editando?.grupo} />
       {dialogo && <DialogoServico aberto empresas={dialogo.empresas} servico={dialogo.servico} tipoInicial={dialogo.tipoInicial} sugestoes={sugestoes} aoFechar={() => { setDialogo(null); setMarcadas(new Set()); }} />}
+      {vinculando && <DialogoVincularConsultoria empresas={vinculando} aoFechar={() => { setVinculando(null); setMarcadas(new Set()); }} />}
       {dialogoTags && <DialogoEtiquetas empresas={dialogoTags} tags={tags} porEmpresa={porEmpresa} aoSalvar={() => setMarcadas(new Set())} aoFechar={() => setDialogoTags(null)} />}
     </div>
   );

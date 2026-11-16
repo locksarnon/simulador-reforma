@@ -11,6 +11,7 @@ function montar(empresas: Record<string, unknown>[], consulta?: (cnpj: string) =
       update: async ({ where, data }: { where: { id: string }; data: object }) => Object.assign(lista.find((e) => e.id === where.id)!, data),
     },
     servicoContratado: { findMany: async () => [{ empresa_id: 'E1', tipo: 'BPO_FISCAL' }, { empresa_id: 'E1', tipo: 'DIAGNOSTICO_PONTUAL' }, { empresa_id: 'E2', tipo: 'DIAGNOSTICO_PONTUAL' }] },
+    vinculoConsultoria: { findMany: async () => [{ cliente_id: 'E1' }, { cliente_id: 'E2' }, { cliente_id: 'E2' }] },
   };
   const cnpj = {
     consultar: consulta ?? (async (c: string) => ({ cnae_codigo: '0115600', cnae_descricao: 'Cultivo de soja', porte: 'DEMAIS', natureza_juridica: 'Sociedade Empresária Limitada', codigo_municipio_ibge: '5103403', uf: 'MT', municipio: 'CUIABA', cnpj: c })),
@@ -38,7 +39,7 @@ describe('Painel da carteira: contas', () => {
     ]);
     const r = await t.service.resumo();
     expect(r.total).toBe(3);
-    expect(r.carteiras).toEqual({ bpo: 1, diagnostico: 2, ambas: 1, sem: 1 });
+    expect(r.carteiras).toEqual({ bpo: 1, consultoria: 2, ambas: 1, sem: 1 }); // o diagnóstico pontual antigo não conta
     expect(r.por_regime[0]).toEqual({ nome: 'Lucro Presumido', total: 2 });
     expect(r.por_municipio[0]).toMatchObject({ uf: 'MT', total: 2, latitude: -15.5676 }); // "Cuiabá" e "CUIABÁ" juntos
     expect(r.por_cnae).toEqual([{ codigo: '0115600', descricao: 'Cultivo de soja', total: 1 }]);

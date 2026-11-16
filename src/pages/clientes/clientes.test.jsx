@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "qa@fal" } }) }));
 
 const ServicosContratadosPagina = (await import("./ServicosContratadosPagina")).default;
-const { CarteiraBpo, CarteiraDiagnostico } = await import("./Carteiras");
+const { CarteiraBpo } = await import("./Carteiras");
 
 const GRUPOS = [{ id: "G1", numero: "090", nome: "Extra Agro (teste)" }, { id: "G2", numero: "001", nome: "Cangaia" }];
 const EMPRESAS = [
@@ -22,6 +22,8 @@ const SERVICOS = [
   { id: "S4", empresa_id: "E2", tipo: "DIAGNOSTICO_PONTUAL", situacao: "ENCERRADO", createdAt: "2025-01-01T00:00:00Z" },
 ];
 const RESUMO = { empresas: 3, por_tipo: {}, em_carteira: { BPO_FISCAL: 2, DIAGNOSTICO_PONTUAL: 1, ambas: 1 }, sem_carteira: 1 };
+const CATALOGO = [{ id: "pis-cofins", publico: "PJ", area: "Créditos e Oportunidades Tributárias", nome: "Créditos de PIS e Cofins" }];
+const VINCULOS = [{ id: "V1", publico: "PJ", cliente_id: "E1", servico: "pis-cofins" }];
 
 function renderizar(elemento, { servicos = SERVICOS, resumo = RESUMO } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
@@ -29,32 +31,39 @@ function renderizar(elemento, { servicos = SERVICOS, resumo = RESUMO } = {}) {
   qc.setQueryData(["grupos"], GRUPOS);
   qc.setQueryData(["servicos-contratados"], servicos);
   qc.setQueryData(["servicos-contratados", "resumo"], resumo);
+  qc.setQueryData(["consultoria", "catalogo"], CATALOGO);
+  qc.setQueryData(["consultoria", "vinculos"], VINCULOS);
   return renderToString(<QueryClientProvider client={qc}><StaticRouter location="/">{elemento}</StaticRouter></QueryClientProvider>).replace(/<!-- -->/g, "");
 }
 
 describe("Serviços contratados", () => {
   it("mostra os números das carteiras e uma linha por empresa, com a situação de cada serviço", () => {
     const html = renderizar(<ServicosContratadosPagina />);
-    for (const rotulo of ["Empresas no cadastro", "No BPO fiscal", "Com diagnóstico pontual", "Sem carteira"]) expect(html).toContain(rotulo);
+    for (const rotulo of ["Empresas no cadastro", "No BPO fiscal", "Com Consultoria Tributária", "Sem carteira"]) expect(html).toContain(rotulo);
+    expect(html).not.toContain("diagnóstico pontual");
+    expect(html).toMatch(/Com Consultoria Tributária<\/p><p[^>]*>1<\/p>/);
+    expect(html).toMatch(/No BPO fiscal<\/p><p[^>]*>2<\/p>/);
     expect(html).toContain("EXTRA AGRO LTDA");
     expect(html).toContain("58.509.112/0001-52");
     expect(html).toContain("Ativo");
     expect(html).toContain("Pausado");
-    expect(html).toContain("Encerrado");
+    expect(html).toContain("Créditos de PIS e Cofins"); // consultoria vinculada à EXTRA
     expect(html).toContain("Maria"); // responsável do BPO
     expect(html).toContain("090 Extra Agro (teste)");
     expect(html).toContain("3 de 3 empresas");
   });
 
-  it("empresa sem serviço mostra o atalho Definir", () => {
+  it("empresa sem serviço mostra o atalho Definir no BPO e Vincular na consultoria (só com CNPJ)", () => {
     const html = renderizar(<ServicosContratadosPagina />);
     expect(html).toContain(">Definir<");
+    expect((html.match(/>Vincular</g) || []).length).toBe(1); // Beta tem CNPJ e não tem consultoria; Gama não tem CNPJ
   });
 
   it("tem busca, filtro de carteira e de grupo, e a marcação para definir vários de uma vez", () => {
     const html = renderizar(<ServicosContratadosPagina />);
     expect(html).toContain("Buscar (nome, código ou CNPJ)");
     expect(html).toContain("Só BPO fiscal");
+    expect(html).toContain("Só Consultoria Tributária");
     expect(html).toContain("Sem carteira");
     expect(html).toContain('aria-label="Marcar todas"');
     expect((html.match(/aria-label="Marcar a linha"/g) || []).length).toBe(3);
@@ -86,13 +95,3 @@ describe("Carteira do BPO", () => {
   });
 });
 
-describe("Carteira de diagnósticos", () => {
-  it("lista quem tem diagnóstico ativo e leva ao trabalho da empresa no diagnóstico", () => {
-    const html = renderizar(<CarteiraDiagnostico />);
-    expect(html).toContain("Carteira de diagnósticos");
-    expect(html).toContain("EXTRA AGRO LTDA");
-    expect(html).not.toContain("Beta Comércio SA"); // diagnóstico encerrado
-    expect(html).toContain('href="/workroom/G1/empresas/E1"');
-    expect(html).not.toContain("Módulos ligados"); // coluna só do BPO
-  });
-});

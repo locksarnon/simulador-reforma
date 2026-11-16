@@ -69,12 +69,14 @@ export class PainelCarteiraService {
   }
 
   async resumo() {
-    const [empresas, servicos] = await Promise.all([
+    const [empresas, servicos, vinculos] = await Promise.all([
       this.empresas(),
       this.prisma.servicoContratado.findMany({ where: { situacao: { in: ['ATIVO', 'PAUSADO'] } }, select: { empresa_id: true, tipo: true } }),
+      this.prisma.vinculoConsultoria.findMany({ where: { publico: 'PJ' }, select: { cliente_id: true } }),
     ]);
+    // Carteiras: BPO fiscal (ativo ou pausado) e Consultoria Tributária (algum serviço do catálogo vinculado à empresa).
     const bpo = new Set(servicos.filter((s) => s.tipo === 'BPO_FISCAL').map((s) => s.empresa_id));
-    const diag = new Set(servicos.filter((s) => s.tipo === 'DIAGNOSTICO_PONTUAL').map((s) => s.empresa_id));
+    const consultoria = new Set(vinculos.map((v) => v.cliente_id));
     const municipios = new Map<string, { uf: string; municipio: string; total: number; latitude: number | null; longitude: number | null }>();
     for (const e of empresas) {
       if (!e.uf || !e.municipio) continue;
@@ -100,7 +102,7 @@ export class PainelCarteiraService {
     return {
       total: empresas.length,
       ativas: empresas.filter((e) => (e.status || '').toLowerCase() === 'ativa').length,
-      carteiras: { bpo: bpo.size, diagnostico: diag.size, ambas: [...bpo].filter((id) => diag.has(id)).length, sem: empresas.filter((e) => !bpo.has(e.id) && !diag.has(e.id)).length },
+      carteiras: { bpo: bpo.size, consultoria: consultoria.size, ambas: [...bpo].filter((id) => consultoria.has(id)).length, sem: empresas.filter((e) => !bpo.has(e.id) && !consultoria.has(e.id)).length },
       por_regime: contar(empresas, (e) => e.regime_atual),
       por_porte: contar(empresas.filter((e) => digitos(e.cnpj_cpf).length === 14), (e) => e.porte),
       por_uf: contar(empresas, (e) => e.uf),

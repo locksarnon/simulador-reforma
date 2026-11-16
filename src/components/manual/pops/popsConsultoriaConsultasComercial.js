@@ -463,7 +463,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
       { acao: "Clique em Nova proposta." },
       { acao: "Em Empresa do cadastro, digite o nome, o código ou o CNPJ e escolha a empresa; para quem não está no cadastro, preencha Cliente, CNPJ/CPF e E-mail à mão." },
       { acao: "Se quiser, escolha um Modelo (opcional).", detalhe: "O modelo preenche serviço, escopo, itens e condições." },
-      { acao: "Escolha o Serviço (BPO fiscal, Diagnóstico pontual ou Outro serviço) e a data em Válida até." },
+      { acao: "Escolha o Serviço (BPO fiscal ou Outro serviço) e a data em Válida até.", detalhe: "Para Consultoria Tributária, use Outro serviço e descreva o serviço nos itens; depois do aceite, vincule o serviço ao cliente em Clientes (POP-CLI-02)." },
       { acao: "No BPO fiscal, use a Calculadora de honorários do BPO: Regime, Notas por mês, Estabelecimentos (CNPJ), Complexidade e os módulos do BPO; clique em Calcular.", detalhe: "A sugestão mostra o valor por mês e de onde vem cada parcela." },
       { acao: "Clique em Usar como honorário mensal." },
       { acao: "Ajuste os Itens (descrição, quantidade, valor e a marca mensal); use + Item para acrescentar.", detalhe: "Itens marcados como mensal formam o Honorário mensal; os outros, o Valor único." },
@@ -493,7 +493,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     resultado: "A coluna Situação mostra Rascunho, Enviada, Aceita ou Recusada.",
     atencao: [
       "Proposta aceita não muda mais: para mudar, duplique (a cópia vem como rascunho).",
-      "Na proposta aceita de uma empresa do cadastro, o serviço contratado dela (BPO fiscal ou Diagnóstico pontual) passa a ativo.",
+      "Na proposta aceita de BPO fiscal de uma empresa do cadastro, o BPO fiscal dela passa a ativo. Os serviços de Consultoria Tributária são vinculados em Clientes (POP-CLI-02).",
       "Só quem criou a proposta ou um administrador pode excluí-la, e só se não estiver aceita.",
     ],
   },
@@ -531,7 +531,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     ],
     passos: [
       { acao: "Clique em Novo comunicado." },
-      { acao: "Em Para quem, escolha a Carteira (Qualquer, BPO fiscal ou Diagnóstico pontual) e, se quiser, as Etiquetas (com qualquer uma ou com todas)." },
+      { acao: "Em Para quem, escolha a Carteira (Qualquer, BPO fiscal ou Consultoria Tributária) e, se quiser, as Etiquetas (com qualquer uma ou com todas).", detalhe: "Consultoria Tributária reúne as empresas com algum serviço de consultoria vinculado." },
       { acao: "Para limitar a algumas empresas, use Só estas empresas (opcional) e acrescente uma a uma.", detalhe: "O “x” ao lado do nome tira a empresa." },
       { acao: "Confira a prévia dos destinatários: quantos recebem e quem fica fora, com o motivo.", detalhe: "Ficam fora as empresas sem e-mail de contato no cadastro ou com o e-mail na lista de bloqueio." },
       { acao: "Preencha Assunto e Texto (uma linha em branco separa os parágrafos)." },

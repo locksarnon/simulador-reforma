@@ -127,6 +127,7 @@ describe('TagsService: listas salvas', () => {
     expect(criteriosDeEmpresas({ busca: ' agro ', carteira: 'bpo', situacao: 'LIXO', tags: ['T1', 'T1', ''], tagModo: 'todas', extra: 'x', grupo: '090' }))
       .toEqual({ busca: 'agro', grupo: '090', carteira: 'bpo', situacao: '', tags: ['T1'], tagModo: 'todas', colaborador: '' });
     expect(criteriosDeEmpresas('lixo')).toEqual({ busca: '', grupo: '', carteira: '', situacao: '', tags: [], tagModo: 'qualquer', colaborador: '' });
+    expect(criteriosDeEmpresas({ carteira: 'consultoria' }).carteira).toBe('consultoria');
     expect(criteriosDeEmpresas({ tags: Array.from({ length: 50 }, (_, i) => `T${i}`) }).tags).toHaveLength(30);
   });
 

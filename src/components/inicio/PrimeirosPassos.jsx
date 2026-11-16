@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CheckCircle2, Circle, X } from "lucide-react";
 
 export const PASSOS = [
-  { id: "carteira", titulo: "Marque quem é do BPO e quem tem diagnóstico", texto: "Em Serviços contratados, defina a carteira de cada empresa.", to: "/clientes/servicos-contratados" },
+  { id: "carteira", titulo: "Marque quem é do BPO e quem tem consultoria", texto: "Em Serviços contratados, ligue o BPO fiscal e vincule os serviços de Consultoria Tributária de cada empresa.", to: "/clientes/servicos-contratados" },
   { id: "colaboradores", titulo: "Distribua as empresas entre a equipe", texto: "Em Carteira e colaboradores, diga quem atende cada empresa.", to: "/clientes/carteira" },
   { id: "etiquetas", titulo: "Crie etiquetas para achar clientes rápido", texto: "Agro, Prioridade, Lucro presumido… e salve listas de filtros.", to: "/clientes/tags" },
   { id: "processos", titulo: "Cadastre as rotinas que se repetem", texto: "Os processos recorrentes viram tarefas sozinhos, 10 dias antes do prazo.", to: "/bpo/tarefas" },

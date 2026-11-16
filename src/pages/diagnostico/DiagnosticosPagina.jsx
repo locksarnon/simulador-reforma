@@ -46,7 +46,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
               {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
             </select></label>
           <label className="inline-flex items-center gap-2"><input type="checkbox" checked={Boolean(filtro.exclusao)} onChange={(e) => setFiltro((f) => ({ ...f, exclusao: e.target.checked, situacao: e.target.checked ? "todos" : f.situacao }))} /> Exclusão pendente</label>
-          <Link to={consultoria ? "/consultoria/carteira" : "/diagnostico/carteira"} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">{consultoria ? "Carteira de Consultoria" : "Clientes com diagnóstico"}</Link>
+          <Link to="/consultoria/carteira" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Carteira de Consultoria</Link>
         </div>
         {(projetos.isLoading || carregandoCadastro) ? <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <TabelaPadrao

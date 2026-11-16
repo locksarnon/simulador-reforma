@@ -21,7 +21,8 @@ import { useCarteiras } from "@/lib/useCarteiras";
 import { useColaboradores, useTags } from "@/lib/useTags";
 import { tagsDaEmpresa } from "@/lib/tags";
 import { grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
-import { fmtDataCurta, MODULOS_BPO, SITUACOES, TIPOS } from "@/lib/servicos";
+import { fmtDataCurta, MODULOS_BPO, SITUACOES, TIPOS, TIPOS_OFERECIDOS } from "@/lib/servicos";
+import { temCnpj } from "@/lib/consultoria";
 
 const digitosDoc = (v) => String(v || "").replace(/\D/g, "");
 const SITUACAO_DOC = { VENCIDO: "Vencido", A_VENCER: "Vence em breve", VALIDO: "Válido", SEM_VALIDADE: "Sem validade" };
@@ -106,7 +107,7 @@ export default function FichaClientePagina() {
         <div className="space-y-4 lg:col-span-2">
           <Cartao titulo="Serviços contratados">
             <div className="grid gap-2 sm:grid-cols-2">
-              {Object.keys(TIPOS).map((tipo) => {
+              {Object.keys(TIPOS_OFERECIDOS).map((tipo) => {
                 const s = porTipo[tipo];
                 return (
                   <div key={tipo} className="rounded-lg border border-border p-3 space-y-1.5">
@@ -123,12 +124,17 @@ export default function FichaClientePagina() {
                   </div>
                 );
               })}
+              <div className="rounded-lg border border-border p-3">
+                {temCnpj(empresa.cnpj_cpf)
+                  ? <ServicosConsultoria publico="PJ" clienteId={empresa.id} somenteLeitura={arquivada} />
+                  : <><p className="text-sm font-medium">Consultoria Tributária</p><p className="text-xs text-muted-foreground">Disponível para cliente com CNPJ.</p></>}
+              </div>
             </div>
             {historico.length > 2 && <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Histórico de serviços ({historico.length})</summary><ul className="mt-1 space-y-0.5">{historico.map((s) => <li key={s.id}>{TIPOS[s.tipo]}: {SITUACOES[s.situacao]} · {fmtDataCurta(s.inicio)} a {fmtDataCurta(s.fim)}</li>)}</ul></details>}
           </Cartao>
 
           <Cartao titulo="Ir para o trabalho deste cliente">
-            <AtalhosDoCliente empresa={empresa} grupos={grupos} grade />
+            <AtalhosDoCliente empresa={empresa} grade />
           </Cartao>
 
           <Cartao titulo="Dados cadastrais" acao={<button type="button" onClick={() => setEditando(true)} className="text-xs text-primary hover:underline">Editar</button>}>
@@ -149,7 +155,6 @@ export default function FichaClientePagina() {
           {(empresa.cnpj_cpf || "").replace(/[^a-z0-9]/gi, "").length === 14 && <Cartao titulo="Perfil fiscal">
             <PerfilFiscal empresaId={empresa.id} />
           </Cartao>}
-          {!empresa.arquivado_em && empresa.cnpj_cpf?.replace(/[^a-z0-9]/gi, "").length === 14 && <ServicosConsultoria publico="PJ" clienteId={empresa.id} />}
 
           <Cartao titulo="Certificado digital A1">
             <CertificadoXml empresaId={empresa.id} />

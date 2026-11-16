@@ -4,14 +4,14 @@ import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MODULOS_BPO, SITUACOES, TIPOS } from "@/lib/servicos";
+import { MODULOS_BPO, SITUACOES, TIPOS, TIPOS_OFERECIDOS } from "@/lib/servicos";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const dia = (v) => (v ? String(v).slice(0, 10) : "");
 
 function estadoInicial(servico, tipoInicial) {
   return {
-    tipo: servico?.tipo || tipoInicial || "BPO_FISCAL",
+    tipo: servico?.tipo || (TIPOS_OFERECIDOS[tipoInicial] ? tipoInicial : "BPO_FISCAL"),
     situacao: servico?.situacao || "ATIVO",
     nome: servico?.nome || "",
     inicio: dia(servico?.inicio),
@@ -66,7 +66,7 @@ export default function DialogoServico({ aberto, aoFechar, empresas = [], servic
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1"><span className="block text-xs text-muted-foreground">Serviço</span>
               <select className={campo} value={f.tipo} disabled={!!servico} onChange={(e) => mudar("tipo", e.target.value)}>
-                {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                {Object.entries(servico ? { [servico.tipo]: TIPOS[servico.tipo] || servico.tipo } : TIPOS_OFERECIDOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select></label>
             <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span>
               <select className={campo} value={f.situacao} onChange={(e) => mudar("situacao", e.target.value)}>

@@ -23,10 +23,11 @@ describe("serviços contratados: carteira", () => {
     expect(mapa.get("E1").DIAGNOSTICO_PONTUAL.id).toBe("d");
   });
 
-  it("diz em que carteira a empresa está", () => {
-    expect(carteiraDaEmpresa({ BPO_FISCAL: s({}), DIAGNOSTICO_PONTUAL: s({ tipo: "DIAGNOSTICO_PONTUAL" }) })).toBe("ambas");
+  it("diz em que carteira a empresa está: BPO fiscal, consultoria (vínculo), as duas ou nenhuma", () => {
+    expect(carteiraDaEmpresa({ BPO_FISCAL: s({}) }, true)).toBe("ambas");
     expect(carteiraDaEmpresa({ BPO_FISCAL: s({}) })).toBe("bpo");
-    expect(carteiraDaEmpresa({ DIAGNOSTICO_PONTUAL: s({ situacao: "PAUSADO" }) })).toBe("diagnostico");
+    expect(carteiraDaEmpresa({}, true)).toBe("consultoria");
+    expect(carteiraDaEmpresa({ DIAGNOSTICO_PONTUAL: s({ situacao: "PAUSADO" }) })).toBe("nenhuma"); // diagnóstico pontual antigo não é carteira
     expect(carteiraDaEmpresa({ BPO_FISCAL: s({ situacao: "ENCERRADO" }) })).toBe("nenhuma");
     expect(carteiraDaEmpresa(undefined)).toBe("nenhuma");
   });
@@ -52,7 +53,9 @@ describe("serviços contratados: filtro das empresas", () => {
   it("filtra por grupo e por carteira, inclusive as empresas sem carteira", () => {
     expect(filtrarEmpresas(empresas, mapa, { grupo: "001" }).map((e) => e.id)).toEqual(["E2", "E3"]);
     expect(filtrarEmpresas(empresas, mapa, { carteira: "bpo" }).map((e) => e.id)).toEqual(["E1"]);
-    expect(filtrarEmpresas(empresas, mapa, { carteira: "diagnostico" }).map((e) => e.id)).toEqual(["E2"]);
-    expect(filtrarEmpresas(empresas, mapa, { carteira: "nenhuma" }).map((e) => e.id)).toEqual(["E3"]);
+    expect(filtrarEmpresas(empresas, mapa, { carteira: "consultoria" }, new Set(["E2"])).map((e) => e.id)).toEqual(["E2"]);
+    expect(filtrarEmpresas(empresas, mapa, { carteira: "ambas" }, new Set(["E1"])).map((e) => e.id)).toEqual(["E1"]);
+    expect(filtrarEmpresas(empresas, mapa, { carteira: "nenhuma" }, new Set(["E2"])).map((e) => e.id)).toEqual(["E3"]);
+    expect(filtrarEmpresas(empresas, mapa, { carteira: "nenhuma" }).map((e) => e.id)).toEqual(["E2", "E3"]);
   });
 });

@@ -10,7 +10,10 @@ import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import DialogoServico from "@/components/clientes/DialogoServico";
 import { useCarteiras } from "@/lib/useCarteiras";
-import { carteiraDaEmpresa, filtrarEmpresas, fmtDataCurta, naCarteira, SITUACOES, TIPOS, TOM_DA_SITUACAO } from "@/lib/servicos";
+import { carteiraDaEmpresa, filtrarEmpresas, fmtDataCurta, naCarteira, SITUACOES, TIPOS_OFERECIDOS, TOM_DA_SITUACAO } from "@/lib/servicos";
+import { indexarConsultoria, temCnpj } from "@/lib/consultoria";
+import { useCatalogoConsultoria, useVinculosConsultoria } from "@/components/clientes/ServicosConsultoria";
+import DialogoVincularConsultoria from "@/components/clientes/DialogoVincularConsultoria";
 import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa } from "@/lib/tags";
 import { useColaboradores, useTags } from "@/lib/useTags";
 import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
@@ -20,7 +23,7 @@ import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 import { plural } from "@/lib/plural";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const CARTEIRAS = [["", "Todas as carteiras"], ["bpo", "Só BPO fiscal"], ["diagnostico", "Só diagnóstico pontual"], ["ambas", "Nas duas"], ["nenhuma", "Sem carteira"]];
+const CARTEIRAS = [["", "Todas as carteiras"], ["bpo", "Só BPO fiscal"], ["consultoria", "Só Consultoria Tributária"], ["ambas", "BPO fiscal e consultoria"], ["nenhuma", "Sem carteira"]];
 const FILTROS_VAZIOS = { busca: "", grupo: "", carteira: "", tags: [], tagModo: "qualquer", colaborador: "" };
 
 function Cartao({ rotulo, valor, destaque, aoClicar, ativo }) {
@@ -43,11 +46,21 @@ export function SeloDoServico({ servico, aoEditar, rotuloVazio = "Definir" }) {
 }
 
 /**
- * Clientes > Serviços contratados: o cadastro da empresa é um só; aqui se marca quem é do BPO fiscal e quem tem diagnóstico pontual.
- * As carteiras das áreas BPO Fiscal e Diagnóstico e Serviços saem daqui.
+ * Clientes > Serviços contratados: o cadastro da empresa é um só; aqui se marca quem é do BPO fiscal e quais serviços de Consultoria
+ * Tributária cada empresa tem. As carteiras do BPO fiscal e da Consultoria saem daqui.
  */
 export default function ServicosContratadosPagina() {
-  const { empresas, grupos, servicos, resumo, mapa, carregando, erro, recarregar } = useCarteiras();
+  const { empresas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
+  const catalogo = useCatalogoConsultoria();
+  const vinculos = useVinculosConsultoria();
+  const consultoriaDe = useMemo(() => indexarConsultoria(vinculos.data, catalogo.data), [vinculos.data, catalogo.data]);
+  const comConsultoria = useMemo(() => new Set(consultoriaDe.keys()), [consultoriaDe]);
+  const [vinculando, setVinculando] = useState(null);
+  const numeros = useMemo(() => {
+    const carteiras = empresas.map((e) => carteiraDaEmpresa(mapa.get(e.id), comConsultoria.has(e.id)));
+    const contar = (...c) => carteiras.filter((x) => c.includes(x)).length;
+    return { empresas: empresas.length, bpo: contar("bpo", "ambas"), consultoria: contar("consultoria", "ambas"), nenhuma: contar("nenhuma") };
+  }, [empresas, mapa, comConsultoria]);
   const { tags, porEmpresa, mapa: mapaTags } = useTags();
   const { data: colaboradores = [] } = useColaboradores();
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
@@ -56,28 +69,33 @@ export default function ServicosContratadosPagina() {
   const [dialogoTags, setDialogoTags] = useState(null); // empresas a etiquetar
 
   const lista = useMemo(() => {
-    const base = filtrarEmpresas(empresas, mapa, filtros);
+    const base = filtrarEmpresas(empresas, mapa, filtros, comConsultoria);
     const comTags = filtrarPorTags(base, porEmpresa, filtros.tags, filtros.tagModo);
     return filtrarPorColaborador(comTags, colaboradores, filtros.colaborador).sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR"));
-  }, [empresas, mapa, filtros, porEmpresa, colaboradores]);
+  }, [empresas, mapa, filtros, porEmpresa, colaboradores, comConsultoria]);
   const sugestoes = useMemo(() => [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort(), [servicos]);
   const grupoDe = (e) => grupos.find((g) => g.numero === e.grupo);
   const mudar = (chave, valor) => setFiltros((f) => ({ ...f, [chave]: valor }));
   const abrir = (empresasAlvo, servico = null, tipoInicial) => setDialogo({ empresas: empresasAlvo, servico, tipoInicial });
   const nomeDoGrupo = (e) => { const g = grupoDe(e); return g ? `${g.numero} ${g.nome}` : e.grupo || ""; };
   const servicoDe = (e, tipo) => mapa.get(e.id)?.[tipo];
-  const CURTO = { BPO_FISCAL: "do BPO", DIAGNOSTICO_PONTUAL: "do diagnóstico" };
+  const CURTO = { BPO_FISCAL: "do BPO" };
+  const nomesDaConsultoria = (e) => (consultoriaDe.get(e.id) || []).map((s) => s.nome).join(", ");
   const colunas = [
     { chave: "razao_social", rotulo: "Empresa", render: (e) => <span className="font-medium">{e.razao_social}</span> },
     { chave: "documento", rotulo: "CNPJ/CPF", valor: (e) => e.cnpj_cpf || e.id_empresa || "", render: (e) => <span className="tabular-nums text-muted-foreground">{e.cnpj_cpf || e.id_empresa || "—"}</span> },
     { chave: "tags", rotulo: "Etiquetas", valor: (e) => tagsDaEmpresa(porEmpresa, mapaTags, e.id).map((t) => t.nome).join(", "), render: (e) => <EtiquetasDaEmpresa tags={tagsDaEmpresa(porEmpresa, mapaTags, e.id)} aoEditar={() => setDialogoTags([e])} /> },
     { chave: "grupo", rotulo: "Grupo", valor: nomeDoGrupo, render: (e) => <span className="text-muted-foreground">{nomeDoGrupo(e) || "—"}</span> },
-    ...Object.keys(TIPOS).flatMap((tipo) => [
-      { chave: `situacao_${tipo}`, rotulo: TIPOS[tipo], valor: (e) => SITUACOES[servicoDe(e, tipo)?.situacao] || "",
+    ...Object.keys(TIPOS_OFERECIDOS).flatMap((tipo) => [
+      { chave: `situacao_${tipo}`, rotulo: TIPOS_OFERECIDOS[tipo], valor: (e) => SITUACOES[servicoDe(e, tipo)?.situacao] || "",
         render: (e) => <SeloDoServico servico={servicoDe(e, tipo)} aoEditar={() => abrir([e], servicoDe(e, tipo) || null, tipo)} /> },
       { chave: `responsavel_${tipo}`, rotulo: `Responsável ${CURTO[tipo]}`, valor: (e) => servicoDe(e, tipo)?.responsavel || "", render: (e) => servicoDe(e, tipo)?.responsavel || <span className="text-muted-foreground">—</span> },
       { chave: `inicio_${tipo}`, rotulo: `Início ${CURTO[tipo]}`, tipo: "data", valor: (e) => servicoDe(e, tipo)?.inicio || "", render: (e) => fmtDataCurta(servicoDe(e, tipo)?.inicio) },
     ]),
+    { chave: "consultoria", rotulo: "Consultoria Tributária", valor: nomesDaConsultoria,
+      render: (e) => nomesDaConsultoria(e) || (temCnpj(e.cnpj_cpf)
+        ? <button type="button" onClick={() => setVinculando([e])} className="text-xs text-muted-foreground underline-offset-2 hover:text-primary hover:underline">Vincular</button>
+        : <span className="text-xs text-muted-foreground" title="A consultoria exige CNPJ completo.">—</span>) },
   ];
   const selecionadas = empresas.filter((e) => marcadas.has(e.id));
   const { user } = useAuth();
@@ -112,10 +130,10 @@ export default function ServicosContratadosPagina() {
       />
       <div className="px-6 lg:px-8 py-6 space-y-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Cartao rotulo="Empresas no cadastro" valor={resumo?.empresas} aoClicar={() => mudar("carteira", "")} ativo={filtros.carteira === ""} />
-          <Cartao rotulo="No BPO fiscal" valor={resumo?.em_carteira?.BPO_FISCAL} aoClicar={() => mudar("carteira", "bpo")} ativo={filtros.carteira === "bpo"} />
-          <Cartao rotulo="Com diagnóstico pontual" valor={resumo?.em_carteira?.DIAGNOSTICO_PONTUAL} aoClicar={() => mudar("carteira", "diagnostico")} ativo={filtros.carteira === "diagnostico"} />
-          <Cartao rotulo="Sem carteira" valor={resumo?.sem_carteira} destaque={(resumo?.sem_carteira ?? 0) > 0} aoClicar={() => mudar("carteira", "nenhuma")} ativo={filtros.carteira === "nenhuma"} />
+          <Cartao rotulo="Empresas no cadastro" valor={carregando ? null : numeros.empresas} aoClicar={() => mudar("carteira", "")} ativo={filtros.carteira === ""} />
+          <Cartao rotulo="No BPO fiscal" valor={carregando ? null : numeros.bpo} aoClicar={() => mudar("carteira", "bpo")} ativo={filtros.carteira === "bpo"} />
+          <Cartao rotulo="Com Consultoria Tributária" valor={carregando || vinculos.isPending ? null : numeros.consultoria} aoClicar={() => mudar("carteira", "consultoria")} ativo={filtros.carteira === "consultoria"} />
+          <Cartao rotulo="Sem carteira" valor={carregando || vinculos.isPending ? null : numeros.nenhuma} destaque={numeros.nenhuma > 0} aoClicar={() => mudar("carteira", "nenhuma")} ativo={filtros.carteira === "nenhuma"} />
         </div>
 
         <div className="rounded-xl border border-border bg-card p-3 space-y-3">
@@ -144,7 +162,7 @@ export default function ServicosContratadosPagina() {
             <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-primary/5 px-3 py-2 text-sm">
               <span className="font-medium">{plural(selecionadas.length, "empresa marcada", "empresas marcadas")}</span>
               <button type="button" onClick={() => abrir(selecionadas, null, "BPO_FISCAL")} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Definir BPO fiscal</button>
-              <button type="button" onClick={() => abrir(selecionadas, null, "DIAGNOSTICO_PONTUAL")} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir diagnóstico pontual</button>
+              <button type="button" onClick={() => setVinculando(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Vincular consultoria</button>
               <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
               {user?.role === "admin" && (
                 <button type="button" onClick={excluirEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
@@ -169,6 +187,7 @@ export default function ServicosContratadosPagina() {
         </div>
       </div>
       {dialogo && <DialogoServico aberto empresas={dialogo.empresas} servico={dialogo.servico} tipoInicial={dialogo.tipoInicial} sugestoes={sugestoes} aoFechar={() => { setDialogo(null); setMarcadas(new Set()); }} />}
+      {vinculando && <DialogoVincularConsultoria empresas={vinculando} aoFechar={() => { setVinculando(null); setMarcadas(new Set()); }} />}
       {dialogoTags && <DialogoEtiquetas empresas={dialogoTags} tags={tags} porEmpresa={porEmpresa} aoSalvar={() => setMarcadas(new Set())} aoFechar={() => setDialogoTags(null)} />}
     </div>
   );

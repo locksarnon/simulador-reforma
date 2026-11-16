@@ -16,14 +16,3 @@ export function CarteiraBpo() {
     {aberto && <VincularBpo aoFechar={() => setAberto(false)} />}
   </>;
 }
-
-/** Carteira de diagnósticos: as empresas com diagnóstico pontual ativo ou pausado. */
-export function CarteiraDiagnostico({ consultoria = false }) {
-  return (
-    <CarteiraPagina
-      tipo="DIAGNOSTICO_PONTUAL"
-      area={areaPorId("diagnostico")}
-      titulo={consultoria ? "Carteira de Consultoria" : "Carteira de diagnósticos"}
-    />
-  );
-}

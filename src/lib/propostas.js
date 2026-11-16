@@ -1,5 +1,7 @@
 /** Propostas comerciais: rótulos, cores e contas da tela. As regras ficam no servidor (backend/src/propostas). */
 export const SERVICOS = { BPO_FISCAL: "BPO fiscal", DIAGNOSTICO_PONTUAL: "Diagnóstico pontual", OUTRO: "Outro serviço" };
+/** Serviços que a proposta oferece; o diagnóstico pontual é antigo e só aparece na proposta ou no modelo que já o usa. */
+export const servicosOferecidos = (atual) => Object.entries(SERVICOS).filter(([k]) => k !== "DIAGNOSTICO_PONTUAL" || k === atual);
 export const STATUS = { RASCUNHO: "Rascunho", ENVIADA: "Enviada", ACEITA: "Aceita", RECUSADA: "Recusada" };
 export const TOM_DO_STATUS = {
   RASCUNHO: "bg-muted text-muted-foreground",

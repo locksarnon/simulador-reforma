@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caminhoDoDiagnostico, contarRapidos, filtrarClientes, grupoVisivel, mascararDocumento } from "./clientes";
+import { contarRapidos, filtrarClientes, grupoVisivel, mascararDocumento } from "./clientes";
 
 const empresas = [
   { id: "A", razao_social: "Extra Agro Ltda", cnpj_cpf: "12.345.678/0001-90", regime_atual: "Lucro Presumido", uf: "MT", municipio: "Sorriso", grupo: "#001" },
@@ -16,16 +16,18 @@ const mapa = new Map([
   ["B", { BPO_FISCAL: { situacao: "ENCERRADO" } }],
 ]);
 const atendidas = new Set(["A"]);
+const comConsultoria = new Set(["C"]);
 
 describe("lista de clientes", () => {
-  it("filtros rápidos: BPO, diagnóstico, sem serviço e sem responsável", () => {
-    const ids = (rapido) => filtrarClientes(empresas, { rapido }, mapa, grupos, atendidas).map((e) => e.id);
+  it("filtros rápidos: BPO, consultoria, sem serviço e sem responsável (o diagnóstico pontual antigo não conta)", () => {
+    const ids = (rapido) => filtrarClientes(empresas, { rapido }, mapa, grupos, atendidas, comConsultoria).map((e) => e.id);
     expect(ids("todos")).toEqual(["B", "A", "C"]);
     expect(ids("bpo")).toEqual(["A"]);
-    expect(ids("diagnostico")).toEqual(["A"]);
-    expect(ids("sem-servico")).toEqual(["B", "C"]);
+    expect(ids("consultoria")).toEqual(["C"]);
+    expect(ids("sem-servico")).toEqual(["B"]);
     expect(ids("sem-responsavel")).toEqual(["B", "C"]);
-    expect(contarRapidos(empresas, mapa, atendidas)).toEqual({ todos: 3, bpo: 1, diagnostico: 1, "sem-servico": 2, "sem-responsavel": 2 });
+    expect(contarRapidos(empresas, mapa, atendidas, comConsultoria)).toEqual({ todos: 3, bpo: 1, consultoria: 1, "sem-servico": 1, "sem-responsavel": 2 });
+    expect(contarRapidos(empresas, mapa, atendidas)["sem-servico"]).toBe(2);
   });
 
   it("busca por nome sem acento, CNPJ sem pontuação, cidade e nome do grupo", () => {
@@ -49,9 +51,7 @@ describe("lista de clientes", () => {
     expect(grupoVisivel(grupos[1], [...empresas, { id: "D", grupo: "#002" }])).toBe(grupos[1]);
   });
 
-  it("o caminho do diagnóstico usa o grupo da empresa; documento ganha máscara", () => {
-    expect(caminhoDoDiagnostico(empresas[0], grupos)).toBe("/workroom/g1/empresas/A");
-    expect(caminhoDoDiagnostico({ id: "X", grupo: "#999" }, grupos)).toBeNull();
+  it("documento ganha máscara", () => {
     expect(mascararDocumento("12345678000190")).toBe("12.345.678/0001-90");
     expect(mascararDocumento("12345678901")).toBe("123.456.789-01");
     expect(mascararDocumento("abc")).toBe("abc");

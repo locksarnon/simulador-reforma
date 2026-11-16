@@ -23,12 +23,12 @@ export const ROTEIRO_NUCLEO = [
     objetivo: "Cadastrar e achar clientes numa lista só, ligar os serviços na própria linha e abrir a ficha do cliente.",
     preparo: ["Entrar como administrador. Ter um CNPJ de teste em mãos."],
     passos: [
-      p("No menu, clique em Clientes > Clientes.", "Abre a lista de todos os clientes, com os filtros rápidos (Todos, BPO fiscal, Diagnóstico pontual, Sem serviço, Sem responsável) e o número de cada um."),
+      p("No menu, clique em Clientes > Clientes.", "Abre a lista de todos os clientes, com os filtros rápidos (Todos, BPO fiscal, Consultoria, Sem serviço, Sem responsável) e o número de cada um."),
       p("Clique em \"Novo cliente\", digite o CNPJ e saia do campo.", "Nome, UF e município vêm da Receita, com a situação, o CNAE e o porte num quadro abaixo."),
-      p("Marque BPO fiscal, deixe o grupo econômico em Nenhum e clique em \"Cadastrar cliente\".", "Abre a ficha do cliente com o BPO fiscal Ativo desde hoje."),
-      p("Volte à lista e, na linha de outro cliente, clique em \"+ Diagnóstico\".", "O selo Diagnóstico fica verde e o número do filtro Diagnóstico pontual sobe."),
-      p("Clique no nome de um cliente.", "Abre a ficha rápida ao lado com os serviços, a equipe, o contato e os atalhos (XML, Monitoramento, Tarefas, Agenda, Arquivos, Diagnóstico)."),
-      p("Na ficha rápida, clique em \"Abrir ficha completa\" e depois em \"Trabalho do diagnóstico\".", "Abre o trabalho de diagnóstico do cliente, sem passar pela tela de grupos."),
+      p("Marque BPO fiscal e, em Consultoria Tributária, um serviço (por exemplo, Créditos de PIS e Cofins); deixe o grupo econômico em Nenhum e clique em \"Cadastrar cliente\".", "Abre a ficha do cliente com o BPO fiscal Ativo desde hoje e o serviço de consultoria em Serviços contratados."),
+      p("Volte à lista e, na linha de outro cliente com CNPJ, clique em \"+ Consultoria\" e, na ficha rápida, escolha um serviço em \"+ Vincular serviço de consultoria\".", "O serviço aparece na ficha rápida e na coluna Consultoria, e o número do filtro Consultoria sobe."),
+      p("Clique no nome de um cliente.", "Abre a ficha rápida ao lado com os serviços, a equipe, o contato e os atalhos (XML, Monitoramento, Tarefas, Agenda, Arquivos e, se houver consultoria, Consultoria tributária)."),
+      p("Na ficha rápida, clique em \"Abrir ficha completa\" e depois em \"Consultoria tributária\".", "Abre o cliente na Carteira de Consultoria, com os serviços contratados e os projetos."),
       p("Tente cadastrar de novo o mesmo CNPJ.", "Recusado, com o nome do cliente que já tem esse documento."),
     ],
     cuidados: ["A visão por grupo econômico continua em Clientes > Grupos econômicos (Ctrl K: grupo)."],
@@ -36,7 +36,7 @@ export const ROTEIRO_NUCLEO = [
   },
   {
     id: "nucleo-carteira", grupo: "Organização e núcleo", titulo: "Serviços, carteira, etiquetas e listas", rota: "/",
-    objetivo: "Separar BPO e diagnóstico pelo serviço contratado e organizar a carteira da equipe.",
+    objetivo: "Separar BPO fiscal e Consultoria Tributária pelo serviço contratado e organizar a carteira da equipe.",
     preparo: ["Duas empresas de teste e um consultor cadastrado."],
     passos: [
       p("Em Clientes, marque as duas empresas e clique em \"Ligar BPO fiscal\" como Ativo.", "As duas aparecem na Carteira do BPO."),
