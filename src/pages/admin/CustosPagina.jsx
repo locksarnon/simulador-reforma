@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export const brl = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const brl4 = (v) => `R$ ${Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
 const num = (v) => Number(v).toLocaleString("pt-BR");
+/** Item do menu de botões: o mesmo desenho do menu do Repositório de XML. */
+const ITEM_DO_MENU = "rounded-none px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none data-[state=active]:hover:bg-primary";
 const campo = "h-8 rounded-md border border-input bg-background px-2 text-sm tabular-nums";
 const dataBr = (iso) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 const diaMes = (d) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
@@ -162,6 +164,9 @@ export default function CustosPagina() {
     ...colunasDeCusto(integracoes),
   ];
   const colunasUsuario = [{ chave: "usuario", rotulo: "Usuário" }, ...colunasDeCusto(integracoes)];
+  const aba = params.get("aba") || "mes";
+  const mudarAba = (v) => setParams((p) => { const n = new URLSearchParams(p); n.set("aba", v); return n; }, { replace: true });
+  const botaoSalvar = <button type="button" disabled={salvar.isPending} onClick={() => salvar.mutate()} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Salvar preços e custos fixos</button>;
   const ciclo = d?.ciclo_serpro ? `${diaMes(d.ciclo_serpro.de)} a ${diaMes(new Date(d.ciclo_serpro.ate).getTime() - 86_400_000)}` : "";
 
   return (
@@ -177,44 +182,47 @@ export default function CustosPagina() {
         {q.error && <p role="alert" className="text-sm">{q.error.message}</p>}
 
         {d && (
-          <>
-            <section aria-label="Resumo do mês" className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              <Resumo rotulo="Total do escritório" valor={brl(d.total)} />
-              <Resumo rotulo="Variável (chamadas)" valor={brl(d.variavel)} />
-              <Resumo rotulo="Fixos" valor={brl(d.fixo)} dica={(d.fixos_do_mes || []).map((f) => `${f.rotulo}: ${brl(f.valor)}`).join("\n")} />
-              {integracoes.filter((n) => somaPorIntegracao(usuarios, n) > 0).map((n) => <Resumo key={n} rotulo={n} valor={brl(somaPorIntegracao(usuarios, n))} />)}
-            </section>
-
-            <Tabs defaultValue="clientes">
-              <TabsList>
-                <TabsTrigger value="clientes">Por cliente</TabsTrigger>
-                <TabsTrigger value="usuarios">Por usuário</TabsTrigger>
+          <Tabs value={aba} onValueChange={mudarAba} className="space-y-4">
+            <div className="border border-border bg-card">
+              <TabsList aria-label="Menu dos custos" className="h-auto w-full flex-wrap justify-start gap-1 rounded-none bg-transparent p-1.5">
+                <TabsTrigger value="mes" className={ITEM_DO_MENU}>Custos do mês</TabsTrigger>
+                {(d.tabelas || []).map((tb) => <TabsTrigger key={tb.integracao} value={tb.integracao} className={ITEM_DO_MENU}>{tb.integracao}</TabsTrigger>)}
+                <TabsTrigger value="fixos" className={ITEM_DO_MENU}>Custos fixos</TabsTrigger>
               </TabsList>
-              <TabsContent value="clientes" className="mt-3 space-y-1">
-                <p className="text-xs text-muted-foreground">Do cliente que mais gerou custo para o que menos: base para cobrar adicionais. Passe o mouse sobre um valor para ver as chamadas e o preço unitário.</p>
-                <TabelaPadrao id="admin:custos:clientes" colunas={colunasCliente} linhas={clientes} ariaLabel="Custos do mês por cliente" ordemInicial={{ chave: "total", dir: -1 }} vazio="Nenhuma chamada paga neste mês." />
-              </TabsContent>
-              <TabsContent value="usuarios" className="mt-3">
-                <TabelaPadrao id="admin:custos" colunas={colunasUsuario} linhas={usuarios} ariaLabel="Custos do mês por usuário" ordemInicial={{ chave: "total", dir: -1 }} vazio="Nenhuma chamada paga neste mês." />
-              </TabsContent>
-            </Tabs>
+            </div>
 
-            <section className="space-y-3" aria-label="Tabelas de preços e contratos">
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex-1">
-                  <h2 className="font-heading text-base font-semibold">Tabelas de preços e contratos</h2>
-                  <p className="text-xs text-muted-foreground">Uma tabela por contrato, serviço a serviço e faixa a faixa, como no Anexo I de cada um; a faixa do mês fica destacada. O PDF do contrato fica logo abaixo da tabela.</p>
-                </div>
-                <button type="button" disabled={salvar.isPending} onClick={() => salvar.mutate()} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Salvar preços e custos fixos</button>
-              </div>
-              {(d.tabelas || []).map((tb) => (
-                <CartaoContrato key={tb.integracao} tabela={tb} itens={d.itens || []} precos={precos} setPrecos={setPrecos} oficiais={d.oficiais} contratos={contratos.data || []}
+            <TabsContent value="mes" className="mt-0 space-y-4">
+              <section aria-label="Resumo do mês" className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                <Resumo rotulo="Total do escritório" valor={brl(d.total)} />
+                <Resumo rotulo="Variável (chamadas)" valor={brl(d.variavel)} />
+                <Resumo rotulo="Fixos" valor={brl(d.fixo)} dica={(d.fixos_do_mes || []).map((f) => `${f.rotulo}: ${brl(f.valor)}`).join("\n")} />
+                {integracoes.filter((n) => somaPorIntegracao(usuarios, n) > 0).map((n) => <Resumo key={n} rotulo={n} valor={brl(somaPorIntegracao(usuarios, n))} />)}
+              </section>
+              <Tabs defaultValue="clientes">
+                <TabsList>
+                  <TabsTrigger value="clientes">Por cliente</TabsTrigger>
+                  <TabsTrigger value="usuarios">Por usuário</TabsTrigger>
+                </TabsList>
+                <TabsContent value="clientes" className="mt-3">
+                  <TabelaPadrao id="admin:custos:clientes" colunas={colunasCliente} linhas={clientes} ariaLabel="Custos do mês por cliente" ordemInicial={{ chave: "total", dir: -1 }} vazio="Nenhuma chamada paga neste mês." />
+                </TabsContent>
+                <TabsContent value="usuarios" className="mt-3">
+                  <TabelaPadrao id="admin:custos" colunas={colunasUsuario} linhas={usuarios} ariaLabel="Custos do mês por usuário" ordemInicial={{ chave: "total", dir: -1 }} vazio="Nenhuma chamada paga neste mês." />
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+
+            {(d.tabelas || []).map((tb) => (
+              <TabsContent key={tb.integracao} value={tb.integracao} className="mt-0 space-y-3">
+                <CartaoContrato tabela={tb} itens={d.itens || []} precos={precos} setPrecos={setPrecos} oficiais={d.oficiais} contratos={contratos.data || []}
                   enviando={anexar.isPending} aoAnexar={(arquivo, integracao) => anexar.mutate({ arquivo, integracao })}
                   aoExcluir={async (c) => { if (await confirmar({ titulo: `Excluir o contrato ${c.numero || c.nome}?`, descricao: "O PDF sai do InTAX. A tabela de preços não muda.", rotulo: "Excluir" })) excluir.mutate(c.id); }} />
-              ))}
+                {botaoSalvar}
+              </TabsContent>
+            ))}
 
+            <TabsContent value="fixos" className="mt-0">
               <article className="rounded-xl border border-border bg-card p-4 space-y-2" aria-label="Custos fixos do mês">
-                <h3 className="font-heading text-sm font-semibold">Custos fixos do mês</h3>
                 <p className="text-xs text-muted-foreground">Mensalidades e outros valores fixos. O complemento da franquia mínima da Infosimples entra sozinho quando o consumo do mês não chega a R$ 100,00.</p>
                 {fixos.map((f, k) => (
                   <div key={k} className="flex flex-wrap items-center gap-2">
@@ -223,10 +231,13 @@ export default function CustosPagina() {
                     <button type="button" onClick={() => setFixos((x) => x.filter((_, j) => j !== k))} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Remover custo fixo"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
                   </div>
                 ))}
-                <button type="button" onClick={() => setFixos((x) => [...x, { rotulo: "", valor: 0 }])} className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" />Custo fixo</button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setFixos((x) => [...x, { rotulo: "", valor: 0 }])} className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" />Custo fixo</button>
+                  {botaoSalvar}
+                </div>
               </article>
-            </section>
-          </>
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </div>
