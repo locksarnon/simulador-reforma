@@ -26,3 +26,20 @@ describe('motivo das falhas na pré-análise', () => {
     expect(c?.resumo).toMatch(/^Sem acesso à API Consulta CND \(HTTP 403\)/);
   });
 });
+
+import { emPausa, resultadoDaFalha } from './certidoes.service';
+describe('pausa das certidões automáticas (não pagar a mesma consulta todo dia)', () => {
+  const agora = Date.parse('2026-11-16T12:00:00Z');
+  const ha = (dias: number) => new Date(agora - dias * 86_400_000).toISOString();
+  it('sem cobertura: 30 dias; pendência (débitos): 7 dias; fora do ar: tenta no dia seguinte', () => {
+    expect(resultadoDaFalha({ resumo: 'não está disponível uma consulta para o município' })).toBe('SEM_COBERTURA');
+    expect(resultadoDaFalha({ resumo: 'A certidão não foi emitida', status: 'DEBITOS' })).toBe('PENDENCIA');
+    expect(resultadoDaFalha({ resumo: 'HTTP 500', status: 'INDISPONIVEL' })).toBe('INDISPONIVEL');
+    expect(emPausa({ quando: ha(29), resultado: 'SEM_COBERTURA' }, agora)).toBe(true);
+    expect(emPausa({ quando: ha(31), resultado: 'SEM_COBERTURA' }, agora)).toBe(false);
+    expect(emPausa({ quando: ha(6), resultado: 'PENDENCIA' }, agora)).toBe(true);
+    expect(emPausa({ quando: ha(8), resultado: 'PENDENCIA' }, agora)).toBe(false);
+    expect(emPausa({ quando: ha(0.5), resultado: 'INDISPONIVEL' }, agora)).toBe(false);
+    expect(emPausa(undefined, agora)).toBe(false);
+  });
+});

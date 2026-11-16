@@ -27,6 +27,23 @@ export const semCoberturaTexto = (tipo: string) => (tipo === 'MUNICIPAL'
   ? 'Município sem emissão automática pela Infosimples: emita no portal da prefeitura e anexe o PDF. Nova tentativa automática em 30 dias.'
   : 'Estado sem emissão automática pela Infosimples: emita no portal da SEFAZ e anexe o PDF. Nova tentativa automática em 30 dias.');
 
+/**
+ * Pausa depois de uma tentativa automática que não emitiu, para não pagar a mesma consulta todo dia:
+ * sem cobertura da fonte = 30 dias; pendência que impede a certidão (débitos, situação cadastral) = 7 dias;
+ * fonte fora do ar ou erro (não cobrado) = tenta de novo no dia seguinte. O "Consultar de novo" da tela não tem pausa.
+ */
+export const PAUSA_DIAS: Record<string, number> = { SEM_COBERTURA: 30, PENDENCIA: 7, INDISPONIVEL: 0, ERRO: 0, EMITIDA: 0 };
+export function emPausa(u: { quando: string; resultado: string } | undefined, agora = Date.now()) {
+  const dias = u ? PAUSA_DIAS[u.resultado] ?? 0 : 0;
+  return dias > 0 && agora - Date.parse(u!.quando) < dias * 86_400_000;
+}
+/** Resultado de uma emissão que não saiu, para o registro da tentativa. */
+export function resultadoDaFalha(r: { resumo?: string | null; status?: string | null }) {
+  if (/n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(r.resumo ?? '')) return 'SEM_COBERTURA';
+  if (r.status === 'DEBITOS' || r.status === 'IRREGULAR') return 'PENDENCIA';
+  return 'INDISPONIVEL';
+}
+
 const DEF = new Map(CERTIDOES.map((c) => [c.tipo, c]));
 const PASTA = 'Certidões';
 /** dd/mm/aaaa → meio-dia UTC do mesmo dia (a data não muda com o fuso). */
@@ -56,9 +73,8 @@ export class CertidoesService {
       const vigente = t && docs.some((d) => d.tipo_id === t.id && d.validade && d.validade.getTime() >= hoje.getTime());
       const chave = `${empresaId}:${tipo}`;
       if (vigente || Date.now() - (this.tentativas.get(chave) ?? 0) < 6 * 3_600_000) continue;
-      // Município (ou UF) sem consulta na fonte: não tenta de novo sozinho por 30 dias (cada consulta pode ser cobrada).
-      const u = ultimas.get(tipo);
-      if (u?.resultado === 'SEM_COBERTURA' && Date.now() - Date.parse(u.quando) < 30 * 86_400_000) continue;
+      // Sem cobertura (30 dias) ou pendência que impede a certidão (7 dias): não tenta de novo sozinho (cada consulta pode ser cobrada).
+      if (emPausa(ultimas.get(tipo))) continue;
       this.tentativas.set(chave, Date.now());
       this.emitindo.add(chave);
       this.emitir(empresaId, tipo, { email: 'InTAX (automático)' })
@@ -66,8 +82,8 @@ export class CertidoesService {
           const bruto = (r as { detalhes?: { rotulo: string; valor: string }[] }).detalhes?.find((d) => d.rotulo === 'Retorno da Infosimples')?.valor;
           this.log.log(`Certidão ${tipo} (automática) de ${empresaId}: ${r.emitida ? 'emitida' : `não emitida: ${r.resumo ?? ''}${bruto ? ` [Infosimples ${bruto}]` : ''}`}`);
           if (r.emitida) return this.registrarTentativa(empresaId, tipo, 'EMITIDA', null);
-          const semCobertura = /n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(r.resumo ?? '');
-          return this.registrarTentativa(empresaId, tipo, semCobertura ? 'SEM_COBERTURA' : 'INDISPONIVEL', semCobertura ? semCoberturaTexto(tipo) : r.resumo ?? 'Fonte indisponível no momento.');
+          const res = resultadoDaFalha(r);
+          return this.registrarTentativa(empresaId, tipo, res, res === 'SEM_COBERTURA' ? semCoberturaTexto(tipo) : r.resumo ?? 'Fonte indisponível no momento.');
         })
         .catch((e) => { this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`); return this.registrarTentativa(empresaId, tipo, 'ERRO', (e as Error).message); })
         .finally(() => this.emitindo.delete(chave));
@@ -223,7 +239,18 @@ export class CertidoesService {
         const limite = new Date(agora.getTime() + folga(tipo) * 86_400_000);
         const vigente = t ? await this.prisma.documentoEmpresa.findFirst({ where: { empresa_id: empresaId, tipo_id: t.id, validade: { gt: limite } } }) : null;
         if (vigente) continue;
-        try { if ((await this.emitir(empresaId, tipo, { email: 'rotina diária' })).emitida) emitidas++; } catch (e) { this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`); }
+        // Mesma pausa da abertura da tela: sem cobertura (30 dias) e pendência (7 dias) não se repetem todo dia.
+        if (emPausa((await this.ultimasTentativas(empresaId)).get(tipo), agora.getTime())) continue;
+        try {
+          const r = await this.emitir(empresaId, tipo, { email: 'rotina diária' });
+          if (r.emitida) { emitidas++; await this.registrarTentativa(empresaId, tipo, 'EMITIDA', null); continue; }
+          const res = resultadoDaFalha(r);
+          this.log.log(`Certidão ${tipo} (rotina) de ${empresaId}: não emitida (${res}): ${r.resumo ?? ''}`);
+          await this.registrarTentativa(empresaId, tipo, res, res === 'SEM_COBERTURA' ? semCoberturaTexto(tipo) : r.resumo ?? null);
+        } catch (e) {
+          this.log.warn(`${tipo} de ${empresaId}: ${(e as Error).message}`);
+          await this.registrarTentativa(empresaId, tipo, 'ERRO', (e as Error).message);
+        }
       }
     }
     return { emitidas };
