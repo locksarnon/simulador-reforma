@@ -7,6 +7,8 @@ describe('motivo das falhas na pré-análise', () => {
     expect(motivoDaInfosimples(603, 'O saldo inicial gratuito da sua conta permite uma quantidade limitada... faça seu primeiro pagamento adicionando saldo')).toMatch(/exige o primeiro pagamento/);
     expect(motivoDaInfosimples(603, 'sem autorização')).toMatch(/não tem autorização para esta consulta/);
     expect(motivoDaInfosimples(612, 'x')).toBe('a Infosimples não trouxe o resultado (código 612)');
+    // o texto de "sem cobertura" continua reconhecível pela certidão do cliente (pausa de 30 dias e aviso para emitir no portal)
+    expect(motivoDaInfosimples(607, 'Não está disponível uma consulta para o município de Sinop/MT.')).toMatch(/n[aã]o est[aá] dispon[ií]vel uma consulta para/i);
   });
 
   it('Serpro 403 na API é falta de acesso das chaves, não "tente em alguns minutos"', async () => {

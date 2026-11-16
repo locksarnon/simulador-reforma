@@ -63,7 +63,8 @@ export class CertidoesService {
       this.emitindo.add(chave);
       this.emitir(empresaId, tipo, { email: 'InTAX (automático)' })
         .then((r) => {
-          this.log.log(`Certidão ${tipo} (automática) de ${empresaId}: ${r.emitida ? 'emitida' : `não emitida: ${r.resumo ?? ''}`}`);
+          const bruto = (r as { detalhes?: { rotulo: string; valor: string }[] }).detalhes?.find((d) => d.rotulo === 'Retorno da Infosimples')?.valor;
+          this.log.log(`Certidão ${tipo} (automática) de ${empresaId}: ${r.emitida ? 'emitida' : `não emitida: ${r.resumo ?? ''}${bruto ? ` [Infosimples ${bruto}]` : ''}`}`);
           if (r.emitida) return this.registrarTentativa(empresaId, tipo, 'EMITIDA', null);
           const semCobertura = /n[aã]o est[aá] dispon[ií]vel uma consulta para/i.test(r.resumo ?? '');
           return this.registrarTentativa(empresaId, tipo, semCobertura ? 'SEM_COBERTURA' : 'INDISPONIVEL', semCobertura ? semCoberturaTexto(tipo) : r.resumo ?? 'Fonte indisponível no momento.');
