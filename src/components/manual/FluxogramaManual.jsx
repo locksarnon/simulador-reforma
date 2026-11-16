@@ -1,44 +1,68 @@
 import React from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
-  Settings, Building2, CalendarClock, BookMarked, SlidersHorizontal,
-  FileText, LayoutDashboard, ShieldCheck, ArrowDown, ArrowRight,
-  CircleCheck, Info,
+  Settings, Building2, KeyRound, Archive, ShieldCheck, FolderOpen, ListChecks, Activity, ScanSearch, Stethoscope,
+  BookMarked, ArrowDown, ArrowRight, CircleCheck, Info, ExternalLink,
 } from "lucide-react";
+import { POPS } from "@/components/manual/pops";
+import { moduloPorId } from "@/lib/navegacao";
 
+/** Fluxo de trabalho do escritório no InTAX. Cada etapa abre o procedimento (POP) da tela; o ícone ao lado abre a tela. */
 const ETAPAS = [
-  {
-    n: 1, icon: Settings, label: "Configuração", to: "/configuracao",
-    desc: "Definir versão, data-base normativa, cenário ativo, margem-meta global e taxa de custo financeiro.",
-  },
-  {
-    n: 2, icon: Building2, label: "Empresas", to: "/empresas",
-    desc: "Cadastrar empresas e unidades com regime, setor, UF e indicadores de contribuinte/produtor rural/cooperativa.",
-  },
-  {
-    n: 3, icon: CalendarClock, label: "Transição 2026–2033", to: "/transicao",
-    desc: "Parametrizar fatores de extinção (PIS/Cofins, IPI, ICMS, ISS) e alíquotas efetivas de IBS/CBS por ano.",
-  },
-  {
-    n: 4, icon: BookMarked, label: "Catálogos IBS/CBS", to: "/catalogos",
-    desc: "Validar CST, cClassTrib (reduções e incidência) e cCredPres (crédito presumido, vigência e método).",
-  },
-  {
-    n: 5, icon: SlidersHorizontal, label: "Cenários", to: "/cenarios",
-    desc: "Criar cenários com fatores de volume, preço e custo. Ativar o cenário que alimenta os cálculos.",
-  },
-  {
-    n: 6, icon: FileText, label: "Operações", to: "/operacoes",
-    desc: "Lançar operações com valores, classificação fiscal, tributos atuais, split, crédito presumido e DF-e.",
-  },
-  {
-    n: 7, icon: LayoutDashboard, label: "Painel Executivo", to: "/",
-    desc: "Acompanhar a consolidação por ano: carga atual vs. transição, margem, split, crédito acumulado e funding.",
-  },
-  {
-    n: 8, icon: ShieldCheck, label: "Validação DF-e", to: "/operacoes",
-    desc: "Conferir status de classificação, redução, diferimento e crédito presumido após 03/08/2026.",
-  },
+  { n: 1, icon: Settings, label: "Preparar o sistema", modulos: ["usuarios", "integracoes", "parametros-rotinas"],
+    desc: "Administrador: cria os usuários, cadastra os contratos (Serpro, Infosimples) e define as rotinas automáticas." },
+  { n: 2, icon: Building2, label: "Cadastrar os clientes", modulos: ["grupos-empresas", "carteira", "importacao-cadastro"],
+    desc: "Cadastra cada cliente (um a um ou por planilha), marca os serviços contratados e quem atende cada um." },
+  { n: 3, icon: KeyRound, label: "Liberar o acesso à Receita", modulos: ["procuracoes"],
+    desc: "Guarda o certificado A1 do cliente no cofre ou confere a procuração eletrônica do escritório." },
+  { n: 4, icon: Archive, label: "Capturar os XML", modulos: ["captura-xml"],
+    desc: "Liga a captura automática da SEFAZ, importa os arquivos do cliente e recupera o histórico de NF-e." },
+  { n: 5, icon: ShieldCheck, label: "Monitorar o fisco", modulos: ["monitoramento"],
+    desc: "Situação fiscal, declarações, guias, caixa postal, certidões e SPED de cada cliente, com custo à vista." },
+  { n: 6, icon: FolderOpen, label: "Guardar e enviar documentos", modulos: ["arquivos"],
+    desc: "Arquivos por cliente, documentos com validade, download em ZIP e envio por e-mail." },
+  { n: 7, icon: ListChecks, label: "Cumprir a rotina", modulos: ["tarefas", "agenda-geral"],
+    desc: "Tarefas e processos recorrentes com responsável, e o calendário de obrigações." },
+  { n: 8, icon: Activity, label: "Priorizar o risco", modulos: ["analise-risco", "carteira-bpo"],
+    desc: "Saúde fiscal da carteira, fila de prioridade, radar de certidões e calculadora de multas." },
 ];
+/** Fora do ciclo do BPO: venda e consultoria. */
+const RAMOS = [
+  { icon: ScanSearch, label: "Comercial", modulos: ["pre-analise", "propostas", "leads"], desc: "Pré-análise do prospect pelo CNPJ e proposta de honorários." },
+  { icon: Stethoscope, label: "Consultoria tributária", modulos: ["carteira-diagnostico", "clientes-diagnostico"], desc: "Projetos de diagnóstico com as ferramentas de cada empresa." },
+];
+
+const primeiroPop = (modulos) => modulos.map((m) => POPS.find((p) => p.modulo === m)).find(Boolean);
+
+function StepNode({ etapa }) {
+  const [, setParams] = useSearchParams();
+  const Icon = etapa.icon;
+  const pop = primeiroPop(etapa.modulos);
+  const tela = moduloPorId(etapa.modulos[0]);
+  return (
+    <div className="flex items-start gap-3 w-full">
+      {etapa.n && (
+        <div className="shrink-0 w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-heading font-semibold text-sm">
+          {etapa.n}
+        </div>
+      )}
+      <div className="flex-1 flex items-stretch rounded-lg border border-border bg-card hover:border-primary/50 transition-colors">
+        <button type="button" disabled={!pop} onClick={() => setParams({ aba: "pop", pop: pop.codigo })} className="flex-1 p-3 text-left disabled:cursor-default" title={pop ? `Abrir o procedimento ${pop.codigo}` : undefined}>
+          <span className="flex items-center gap-2">
+            <Icon className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <span className="font-heading font-medium text-sm text-foreground">{etapa.label}</span>
+          </span>
+          <span className="block text-xs text-muted-foreground mt-1.5 leading-relaxed">{etapa.desc}</span>
+        </button>
+        {tela?.to && (
+          <Link to={tela.to} className="flex items-center border-l border-border px-2 text-muted-foreground hover:text-foreground" aria-label={`Abrir a tela ${tela.titulo}`} title={`Abrir a tela ${tela.titulo}`}>
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const SECOES = [
   {
@@ -71,35 +95,6 @@ const SECOES = [
   },
 ];
 
-function StepNode({ etapa }) {
-  const Icon = etapa.icon;
-  return (
-    <div className="flex items-start gap-3 w-full">
-      <div className="shrink-0 w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-heading font-semibold text-sm">
-        {etapa.n}
-      </div>
-      <a
-        href={etapa.to}
-        className="flex-1 rounded-lg border border-border bg-card p-3 hover:border-primary/50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4 text-muted-foreground" />
-          <span className="font-heading font-medium text-sm text-foreground">{etapa.label}</span>
-        </div>
-        <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{etapa.desc}</p>
-      </a>
-    </div>
-  );
-}
-
-function FlowConnector() {
-  return (
-    <div className="flex justify-center py-1">
-      <ArrowDown className="w-4 h-4 text-muted-foreground/60" />
-    </div>
-  );
-}
-
 export default function FluxogramaManual() {
   return (
     <div className="space-y-6">
@@ -107,44 +102,32 @@ export default function FluxogramaManual() {
       <section className="rounded-lg border border-border bg-card p-5 lg:p-6">
         <div className="flex items-center gap-2 mb-4">
           <CircleCheck className="w-4 h-4 text-chart-2" />
-          <h2 className="font-heading font-semibold text-sm">Fluxograma de Uso</h2>
+          <h2 className="font-heading font-semibold text-sm">Fluxograma de uso: a rotina do escritório</h2>
         </div>
 
-        <div className="hidden md:grid grid-cols-2 gap-x-8 gap-y-1">
-          {ETAPAS.map((etapa, i) => {
-            const left = i % 2 === 0;
-            return (
-              <React.Fragment key={etapa.n}>
-                <div className={left ? "" : "order-2"}>
-                  <StepNode etapa={etapa} />
-                </div>
-                <div className={left ? "order-2 flex items-center justify-center" : "flex items-center justify-center"}>
-                  {i < ETAPAS.length - 1 && (
-                    left
-                      ? <ArrowRight className="w-5 h-5 text-muted-foreground/50" />
-                      : <ArrowDown className="w-5 h-5 text-muted-foreground/50 md:hidden lg:block" />
-                  )}
-                </div>
-              </React.Fragment>
-            );
-          })}
-        </div>
-
-        <div className="md:hidden space-y-1">
+        <ol className="grid gap-x-3 gap-y-1 md:grid-cols-2">
           {ETAPAS.map((etapa, i) => (
-            <React.Fragment key={etapa.n}>
+            <li key={etapa.n} className="flex flex-col">
               <StepNode etapa={etapa} />
-              {i < ETAPAS.length - 1 && <FlowConnector />}
-            </React.Fragment>
+              {i < ETAPAS.length - 1 && (
+                <span className="flex justify-center py-1 text-muted-foreground/60" aria-hidden="true">
+                  {i % 2 === 0 ? <ArrowRight className="hidden h-4 w-4 md:block" /> : null}
+                  <ArrowDown className={`h-4 w-4 ${i % 2 === 0 ? "md:hidden" : ""}`} />
+                </span>
+              )}
+            </li>
           ))}
+        </ol>
+
+        <h3 className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fora da rotina do BPO</h3>
+        <div className="grid gap-3 md:grid-cols-2">
+          {RAMOS.map((r) => <StepNode key={r.label} etapa={r} />)}
         </div>
 
         <div className="mt-5 flex items-start gap-2 rounded-md bg-muted/50 p-3">
           <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Cada etapa é navegável. O motor recalcula os cinco módulos (sistema atual, IBS/CBS, transição,
-            preço/margem e caixa/funding) ao abrir uma operação, consumindo os parâmetros globais, o
-            cronograma de transição, os catálogos e o cenário ativo.
+            Clique numa etapa para abrir o procedimento passo a passo (POP) da tela; o ícone à direita abre a própria tela.
           </p>
         </div>
       </section>
@@ -161,7 +144,7 @@ function ManualSecoes() {
     <section className="rounded-lg border border-border bg-card p-5 lg:p-6">
       <div className="flex items-center gap-2 mb-4">
         <BookMarked className="w-4 h-4 text-muted-foreground" />
-        <h2 className="font-heading font-semibold text-sm">Manual de Uso</h2>
+        <h2 className="font-heading font-semibold text-sm">Motor de cálculo da Reforma (Planejamento tributário)</h2>
       </div>
       <div className="flex flex-wrap gap-1.5 mb-4 border-b border-border pb-3">
         {SECOES.map((s, i) => (

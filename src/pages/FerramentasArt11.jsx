@@ -98,11 +98,7 @@ export default function FerramentasArt11() {
             (brinde, bonificação, doação). Essa distinção é justamente o critério que o inciso X do Art. 11 usa
             para decidir entre domicílio do adquirente e domicílio do destinatário — por isso as duas ferramentas
             (guia de territorialidade e identificador de cIndOp) andam juntas: o cIndOp é, na prática, como o
-            sistema informa ao Fisco qual regra do Art. 11 se aplica àquela nota. Veja o{" "}
-            <a href="/ferramentas/classificacao" className="text-primary underline underline-offset-2">
-              Classificador &amp; Conversor
-            </a>{" "}
-            para consultar o cIndOp de um serviço específico.
+            sistema informa ao Fisco qual regra do Art. 11 se aplica àquela nota. Para consultar o cIndOp de um serviço específico, use a ferramenta Classificação de serviços, dentro do projeto de diagnóstico da empresa (Consultoria Tributária &gt; Projetos).
           </p>
         </section>
 

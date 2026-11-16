@@ -6,10 +6,10 @@
  * em fonte oficial. O que não foi confirmado aparece como "não localizamos". Ao mudar um número, atualize também
  * FAQ_ATUALIZADO_EM e a seção de novidades.
  */
-export const FAQ_ATUALIZADO_EM = "29/10/2026";
+export const FAQ_ATUALIZADO_EM = "16/11/2026";
 
 export const SECAO_NOVIDADES = {
-  titulo: "Novidades da Reforma (atualizado em 29/10/2026)",
+  titulo: `Novidades da Reforma (atualizado em ${FAQ_ATUALIZADO_EM})`,
   rotulo: "Novidades da Reforma",
   nota: "O que mudou com efeito em cálculo e alíquotas, com a fonte oficial de cada ponto. As alíquotas de 2027 em diante seguem como estimativa até a resolução do Senado. Confira sempre a data desta seção.",
   itens: [
@@ -265,7 +265,7 @@ export const SECAO_BASE_LEGAL = {
     },
     {
       p: "O que é o Radar da Reforma?",
-      r: "É um resumo semanal das novidades da Reforma, gerado com busca na web e organizado em fonte, categoria, resumo, impacto, prazo, ação recomendada e prioridade. Quando um dado não é confirmado, o campo vem como “A confirmar”. O Radar não altera o cálculo e não substitui a leitura do ato oficial: confira sempre na fonte antes de agir. A newsletter só sai com aprovação humana.",
+      r: "É um resumo semanal das novidades da Reforma, gerado com busca na web e organizado em fonte, categoria, resumo, impacto, prazo, ação recomendada e prioridade. Quando um dado não é confirmado, o campo vem como “A confirmar”. O Radar não altera o cálculo e não substitui a leitura do ato oficial: confira sempre na fonte antes de agir. Toda segunda-feira às 8h, se a edição da semana da newsletter ainda estiver como Rascunho, o sistema a aprova e envia sozinho; para revisar, aprovar ou enviar você mesmo, use Comercial > Newsletter antes desse horário. Passo a passo: POP-FIS-08 e POP-COM-09.",
     },
     {
       p: "Como funciona o Saneamento de estoques?",
@@ -293,7 +293,7 @@ export const SECAO_BASE_LEGAL = {
 
 export const SECAO_AGENDA = {
   titulo: "Agenda da Reforma",
-  nota: "Marcos e prazos da Reforma Tributária do consumo, cada um com a fonte oficial da data. Fica em Inteligência de mercado > Agenda da Reforma e na aba Agenda da Reforma de cada empresa.",
+  nota: "Marcos e prazos da Reforma Tributária do consumo, cada um com a fonte oficial da data. Fica em Consultas fiscais > Agenda da Reforma e na aba Agenda da Reforma de cada empresa.",
   itens: [
     {
       p: "O que é a Agenda da Reforma?",

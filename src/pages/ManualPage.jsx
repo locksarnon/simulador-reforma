@@ -1,6 +1,8 @@
 import React from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { BookOpen, HelpCircle, TriangleAlert } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { BookOpen, ClipboardList, HelpCircle, TriangleAlert } from "lucide-react";
+import ManualPop from "@/components/manual/ManualPop";
 import FluxogramaManual from "@/components/manual/FluxogramaManual";
 import FaqAccordion from "@/components/manual/FaqAccordion";
 import { FAQ_ATUALIZADO_EM } from "@/components/manual/faqData";
@@ -8,20 +10,26 @@ import InfoTooltip from "@/components/InfoTooltip";
 import TituloPagina from "@/components/TituloPagina";
 
 export default function ManualPage() {
+  const [params, setParams] = useSearchParams();
+  const aba = ["pop", "manual", "faq"].includes(params.get("aba")) ? params.get("aba") : "pop";
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <div>
         <TituloPagina icon={BookOpen} ajuda={<InfoTooltip pagina="manual" chave="header" />}>FAQ & Manual</TituloPagina>
         <p className="text-sm text-muted-foreground mt-1">
-          Fluxograma de utilização, manual técnico e perguntas frequentes do InTAX — FAQ atualizado em {FAQ_ATUALIZADO_EM}
+          Procedimentos passo a passo de cada tela (POP), fluxograma de utilização e perguntas frequentes do InTAX. FAQ atualizado em {FAQ_ATUALIZADO_EM}.
         </p>
       </div>
 
-      <Tabs defaultValue="manual" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+      <Tabs value={aba} onValueChange={(v) => setParams({ aba: v }, { replace: true })} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-xl print:hidden">
+          <TabsTrigger value="pop" className="gap-1.5">
+            <ClipboardList className="w-3.5 h-3.5" />
+            Procedimentos (POP)
+          </TabsTrigger>
           <TabsTrigger value="manual" className="gap-1.5">
             <BookOpen className="w-3.5 h-3.5" />
-            Manual & Fluxograma
+            Fluxograma
           </TabsTrigger>
           <TabsTrigger value="faq" className="gap-1.5">
             <HelpCircle className="w-3.5 h-3.5" />
@@ -29,6 +37,9 @@ export default function ManualPage() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="pop" className="mt-4">
+          <ManualPop />
+        </TabsContent>
         <TabsContent value="manual" className="mt-4">
           <FluxogramaManual />
         </TabsContent>

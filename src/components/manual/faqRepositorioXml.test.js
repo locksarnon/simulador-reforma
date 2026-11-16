@@ -66,7 +66,8 @@ describe("FAQ do Repositório de XML", () => {
     expect(menu.r).toContain("NF-e | NFC-e, CT-e, NFS-e e MDF-e");
     expect(menu.r).toContain("Resumos e eventos SEFAZ");
     expect(menu.r).toContain("Relatórios");
-    expect(SECAO_REPOSITORIO_XML.nota).toContain("Certificado, Captura, um item por tipo de documento");
+    expect(SECAO_REPOSITORIO_XML.nota).toContain("menu dela: Captura, um item por tipo de documento");
+    expect(SECAO_REPOSITORIO_XML.nota).toContain("cartão Certificado digital A1");
   });
 
   it("os limites citados são os do envio por arquivo", () => {

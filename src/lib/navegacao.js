@@ -76,7 +76,7 @@ export const MODULOS = [
   // Conhecimento
   { id: "base-legal", area: "conhecimento", titulo: "Base legal e assistente", descricao: "Leis, decretos e dispositivos com fonte oficial, e o assistente que responde com o artigo.", icone: Scale, to: "/base-legal", prefixos: ["/base-legal/"], palavras: ["lei", "lc 214", "decreto", "norma", "dispositivo"] },
   { id: "agenda-reforma", area: "conhecimento", titulo: "Agenda da Reforma", descricao: "Datas e marcos oficiais da Reforma Tributária.", icone: CalendarDays, to: "/agenda-reforma", palavras: ["prazo", "marco", "data", "lembrete"] },
-  { id: "radar", area: "conhecimento", titulo: "Radar de novidades", descricao: "O que mudou na legislação, filtrado por setor.", icone: Radar, to: "/ferramentas/radar-reforma", palavras: ["novidade", "radar", "setor"] },
+  { id: "radar", area: "conhecimento", titulo: "Radar de novidades", descricao: "O que mudou na legislação da Reforma, com a fonte oficial.", icone: Radar, to: "/ferramentas/radar-reforma", palavras: ["novidade", "radar", "setor"] },
   { id: "noticias", area: "conhecimento", titulo: "Acervo de notícias", descricao: "Notícias da Reforma guardadas e organizadas.", icone: Newspaper, to: "/ferramentas/noticias", palavras: ["notícia", "acervo"] },
 
   // Comercial e relacionamento
