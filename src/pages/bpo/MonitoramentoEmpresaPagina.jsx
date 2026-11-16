@@ -15,6 +15,7 @@ import LeituraSitfis, { ResumoSitfis } from "@/components/monitoramento/LeituraS
 import SpedTransmitido from "@/components/monitoramento/SpedTransmitido";
 import SimplesNacional from "@/components/monitoramento/SimplesNacional";
 import CartaoServico from "@/components/monitoramento/CartaoServico";
+import PainelUnificado from "@/components/monitoramento/PainelUnificado";
 import LegendaNiveis from "@/components/monitoramento/LegendaNiveis";
 import { mascararDocumento } from "@/lib/clientes";
 import { plural } from "@/lib/plural";
@@ -131,7 +132,16 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
             {!pessoaFisica && <TabsTrigger value="certidoes">Certidões</TabsTrigger>}
           </TabsList>
           {grupos.map((g) => {
-            const { indicados: lista, outros } = servicosDoGrupo(servicos, g.id, indicados);
+            // DCTFWeb e MIT: tudo de cada um numa tabela só, com a coluna Documento; os cartões avulsos deles saem das subabas.
+            // Serviços que não valem para o regime do cliente (ex.: DAS e Simples no Lucro Real) não aparecem.
+            const daEmpresa = servicos.filter((s) => indicados.includes(s.chave));
+            const dctf = daEmpresa.filter((s) => s.sistema === "DCTFWEB");
+            const mit = daEmpresa.filter((s) => s.sistema === "MIT");
+            const unificados = new Set([...dctf, ...mit].map((s) => s.chave));
+            const lista = servicosDoGrupo(servicos, g.id, indicados).indicados.filter((s) => !unificados.has(s.chave));
+            const nivelDe = (l) => piorNivel(l.map((s) => (ultimas[s.chave]?.sucesso ? ultimas[s.chave].nivel : undefined)));
+            const painel = (id, titulo, l, iniciais) => <PainelUnificado id={id} titulo={titulo} servicos={l} ultimas={ultimas} base={base} desligado={desligado} documentosIniciais={iniciais} />;
+            const darf = dctf.filter((s) => s.grupo === "guias");
             const cartao = (s) => <CartaoServico key={s.chave} servico={s} ultima={ultimas[s.chave]} base={base} desligado={desligado} />;
             // Subabas: o que é lido sozinho do relatório de situação fiscal, cada serviço do assunto e os demais.
             const subabas = [
@@ -139,10 +149,12 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "lido", rotulo: "Receita Federal e PGFN", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Parcelamentos na Receita Federal e na PGFN" filtro={(s) => s.assunto === "PARCELAMENTO"} vazio="Nenhum parcelamento na Receita Federal nem na PGFN." /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "lido", rotulo: "Omissões apontadas pela Receita", conteudo: <LeituraSitfis empresaId={empresaId} titulo="Declarações não entregues (omissões apontadas pela Receita)" filtro={(s) => s.tipo === "OMISSAO"} vazio="Nenhuma omissão de declaração." /> }, { id: "sped", rotulo: "SPED e EFD", conteudo: <SpedTransmitido empresaId={empresaId} /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica && /simples/i.test(dono.data.regime_atual || "") ? [{ id: "simples", rotulo: "Simples: sublimite, faturamento e Fator R", conteudo: <SimplesNacional empresaId={empresaId} /> }] : []),
+              ...(g.id === "declaracoes" && dctf.length ? [{ id: "dctfweb", rotulo: "DCTFWeb", nivel: nivelDe(dctf), conteudo: painel("dctfweb", "DCTFWeb: todos os documentos", dctf) }] : []),
+              ...(g.id === "declaracoes" && mit.length ? [{ id: "mit", rotulo: "MIT", nivel: nivelDe(mit), conteudo: painel("mit", "MIT: todos os documentos", mit) }] : []),
+              ...(g.id === "guias" && darf.length ? [{ id: "dctfweb-darf", rotulo: "DCTFWeb (DARF)", nivel: nivelDe(darf), conteudo: painel("dctfweb-darf", "DCTFWeb: DARF", dctf, darf.map((s) => s.chave)) }] : []),
               ...lista.map((s) => ({ id: s.chave, rotulo: s.rotulo, nivel: ultimas[s.chave]?.sucesso ? ultimas[s.chave].nivel : undefined, conteudo: cartao(s) })),
               ...(g.id === "parcelamentos" && !pessoaFisica ? [{ id: "estado-municipio", rotulo: "Estado e município", conteudo: <ParcelamentosPgfn empresaId={empresaId} /> }] : []),
               ...(g.id === "declaracoes" && !pessoaFisica ? [{ id: "dispensas", rotulo: "Obrigações que não tem", conteudo: <Dispensas empresaId={empresaId} obrigacoes={estado.data?.obrigacoes} dispensas={dados.data?.dispensas} /> }] : []),
-              ...(outros.length ? [{ id: "outros", rotulo: `Outros serviços (${outros.length})`, conteudo: <div className="space-y-3">{outros.map(cartao)}</div> }] : []),
             ];
             return (
               <TabsContent key={g.id} value={g.id} className="space-y-3">

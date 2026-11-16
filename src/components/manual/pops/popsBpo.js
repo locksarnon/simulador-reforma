@@ -444,7 +444,7 @@ export const POPS_BPO = [
     passos: [
       { acao: "Abra o cliente.", detalhe: "O topo mostra a Saúde fiscal e o botão Ficha do cliente; abaixo podem aparecer as Novidades da Receita." },
       { acao: "Escolha a aba do assunto: Situação fiscal, Declarações, Guias e pagamentos, Caixa postal, Parcelamentos, MEI ou Procuração.", detalhe: "Aparecem os assuntos do regime do cliente; sem regime no cadastro, aparecem todos os serviços." },
-      { acao: "Escolha a subaba do serviço.", detalhe: "Os serviços que não são do regime do cliente ficam em Outros serviços." },
+      { acao: "Escolha a subaba do serviço.", detalhe: "Só aparecem os serviços do regime do cliente; DCTFWeb e MIT ficam cada um numa subaba única (POP-BPO-30)." },
       { acao: "Preencha os campos do serviço, se houver (por exemplo, competência ou ano)." },
       { acao: "Clique em Consultar (ou Consultar de novo)." },
       { acao: "Leia a situação, o resultado em uma frase e os destaques." },
@@ -677,6 +677,28 @@ export const POPS_BPO = [
     atencao: [
       "O e-mail aceita até 18 MB de anexos; o ZIP, até 500 documentos e 200 MB.",
       "A aba Meus downloads lista os ZIP guardados para você, por 7 dias, com o botão Baixar.",
+    ],
+  },
+  {
+    modulo: "monitoramento",
+    codigo: "POP-BPO-30",
+    titulo: "Acompanhar a DCTFWeb e o MIT numa tabela só",
+    objetivo: "Ver tudo da DCTFWeb (recibo, declaração completa, XML, transmissão e DARF) e do MIT (apurações, apuração e encerramento) numa lista única, com a coluna Documento separando cada tipo.",
+    quem: "Consultor",
+    quando: "Na conferência mensal da DCTFWeb e do MIT de cada cliente.",
+    caminho: "Menu > BPO Fiscal > Monitoramento fiscal > cliente > Declarações > DCTFWeb (ou MIT)",
+    antes: ["Cliente com regime que tem DCTFWeb e MIT (os serviços que não valem para o regime não aparecem)."],
+    passos: [
+      { acao: "Na aba Declarações, abra a subaba DCTFWeb (ou MIT).", detalhe: "Cada consulta já feita é uma linha: Documento, Competência, Situação, Resultado, Consultado em, Feita por e Origem." },
+      { acao: "Use os filtros ao lado da busca: Documento (marque um ou vários tipos), Ano e Situação." },
+      { acao: "No fim da linha, use Ver e Baixar do documento Oficial e do Relatório; para vários, marque as linhas e use Baixar (ZIP) ou Enviar por e-mail." },
+      { acao: "Para uma consulta nova, em Nova consulta escolha o documento.", detalhe: "Abre o cartão do documento com os campos dele (competência, ano ou número da apuração) e o botão de consulta; a transmissão da DCTFWeb pede confirmação." },
+      { acao: "Na aba Guias, a subaba DCTFWeb (DARF) abre a mesma tabela já filtrada nos DARF." },
+    ],
+    resultado: "Toda a DCTFWeb e todo o MIT do cliente numa lista só, filtrável por documento, ano e situação.",
+    atencao: [
+      "Cada consulta ao Serpro é cobrada pela tabela do contrato do Integra Contador.",
+      "A transmissão da DCTFWeb é uma entrega oficial da declaração: confira antes de confirmar.",
     ],
   },
 ];

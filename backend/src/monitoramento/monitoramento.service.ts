@@ -139,7 +139,7 @@ export class MonitoramentoService {
       modo, contrato: !!c, contratante: c ? { cnpj: c.contratante, nome: c.nome } : null,
       consultas_24h: hoje, ultima_consulta: ultima?.createdAt ?? null,
       grupos: GRUPOS, obrigacoes: OBRIGACOES,
-      servicos: SERVICOS.map((s) => ({ chave: s.chave, rotulo: s.rotulo, grupo: s.grupo, alvo: s.alvo, para: s.para ?? null, rotina: !!s.rotina, acao: s.acao ?? null, descricao: s.descricao, parametros: s.parametros.map((p) => ({ nome: p.nome, rotulo: p.rotulo, tipo: p.tipo, padrao: p.padrao ? p.padrao(new Date()) : '', obrigatorio: !!p.obrigatorio, opcoes: p.opcoes ?? null })) })),
+      servicos: SERVICOS.map((s) => ({ chave: s.chave, rotulo: s.rotulo, grupo: s.grupo, sistema: s.sistema, alvo: s.alvo, para: s.para ?? null, rotina: !!s.rotina, acao: s.acao ?? null, descricao: s.descricao, parametros: s.parametros.map((p) => ({ nome: p.nome, rotulo: p.rotulo, tipo: p.tipo, padrao: p.padrao ? p.padrao(new Date()) : '', obrigatorio: !!p.obrigatorio, opcoes: p.opcoes ?? null })) })),
     };
   }
 
