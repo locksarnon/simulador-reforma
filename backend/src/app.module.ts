@@ -40,6 +40,7 @@ import { MonitoramentoModule } from './monitoramento/monitoramento.module';
 import { PreAnaliseModule } from './pre-analise/pre-analise.module';
 import { CustosModule } from './custos/custos.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { PermissoesGuard } from './permissoes/permissoes.guard';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     PreAnaliseModule,
     CustosModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  // A ordem importa: primeiro o login (preenche o usuário), depois as permissões.
+  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: PermissoesGuard }],
 })
 export class AppModule {}

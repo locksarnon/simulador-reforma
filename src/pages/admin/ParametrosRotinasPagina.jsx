@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
+import { temFuncao, temTela } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
@@ -57,8 +58,12 @@ function EditorAgenda({ agenda, aoMudar, rotulo }) {
 export default function ParametrosRotinasPagina() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  // Ver: quem tem a tela (Administrador e Gestor, pelo nível). Mudar as rotinas continua só com o Administrador.
+  const liberada = temTela(user, "parametros-rotinas");
+  const ehAdmin = user?.role === "admin";
+  const podeGuias = temFuncao(user, "consultas_pagas") && temFuncao(user, "autorizar_lotes");
   const estado = useEstadoMonitoramento();
-  const rotina = useQuery({ queryKey: ["monitoramento", "rotina"], queryFn: () => api.get("/monitoramento/rotina"), enabled: user?.role === "admin" });
+  const rotina = useQuery({ queryKey: ["monitoramento", "rotina"], queryFn: () => api.get("/monitoramento/rotina"), enabled: liberada });
   const { empresas, mapa } = useCarteiras();
   const [edicao, setEdicao] = useState(null);
   const cfg = edicao ?? rotina.data ?? null;
@@ -75,7 +80,7 @@ export default function ParametrosRotinasPagina() {
     onError: (e) => toast({ title: "Não foi possível gerar", description: e.message, variant: "destructive" }),
   });
   const crumbs = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Parâmetros e rotinas" }];
-  if (user?.role !== "admin") return <div><PageHeader crumbs={crumbs} title="Parâmetros e rotinas" /><p role="alert" className="p-8 text-sm">Somente administradores mudam as rotinas.</p></div>;
+  if (!liberada) return <div><PageHeader crumbs={crumbs} title="Parâmetros e rotinas" /><p role="alert" className="p-8 text-sm">Sem acesso a esta tela. Peça ao administrador.</p></div>;
   const rotuloGrupo = new Map((estado.data?.grupos || []).map((g) => [g.id, g.rotulo]));
   const mudarServico = (k, a) => setCfg((c) => ({ ...c, servicos: { ...c.servicos, [k]: a } }));
   const mudarCertidao = (t, v) => setCfg((c) => ({ ...c, documentos: { ...c.documentos, certidoes: { ...c.documentos.certidoes, [t]: { ...c.documentos.certidoes[t], ...v } } } }));
@@ -140,10 +145,10 @@ export default function ParametrosRotinasPagina() {
                 <label className="flex items-center gap-1">Dia <input type="number" min={1} max={28} className={`${campo} w-14`} value={cfg.guias?.dia ?? 10} onChange={(e) => setCfg((c) => ({ ...c, guias: { ...c.guias, dia: Math.max(1, Math.min(28, Number(e.target.value) || 1)) } }))} /></label>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={!!cfg.guias?.enviar_email} onChange={(e) => setCfg((c) => ({ ...c, guias: { ...c.guias, enviar_email: e.target.checked } }))} /> Enviar ao e-mail de contato do cliente</label>
               </div>
-              <button type="button" onClick={() => guiasAgora.mutate()} disabled={guiasAgora.isPending || !bpo.length || estado.data?.modo === "DESLIGADO"} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-60">{guiasAgora.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Gerar as guias agora ({plural(bpo.length, "cliente", "clientes")})</button>
+              <button type="button" onClick={() => guiasAgora.mutate()} disabled={guiasAgora.isPending || !bpo.length || estado.data?.modo === "DESLIGADO" || !podeGuias} title={!podeGuias ? "Seu acesso não permite: preparar e autorizar atualização em lote. Peça ao administrador." : undefined} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-60">{guiasAgora.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Gerar as guias agora ({plural(bpo.length, "cliente", "clientes")})</button>
             </section>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending || !edicao} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
+              <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending || !edicao || !ehAdmin} title={!ehAdmin ? "Só o Administrador muda as rotinas." : undefined} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
               <Link to="/bpo/monitoramento" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Ir para o monitoramento</Link>
             </div>
           </>

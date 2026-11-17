@@ -4,6 +4,7 @@ import {
   LayoutDashboard, ListChecks, Mail, Megaphone, Newspaper, PieChart, Plug, Radar, Receipt, ScanSearch, Scale, ScrollText, Search, Settings,
   ShieldCheck, SlidersHorizontal, Stethoscope, Tags, UserCog, Users } from "lucide-react";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
+import { telaPorId, temTela } from "@/lib/permissoes";
 
 /**
  * Catálogo único da navegação do InTAX (menu, páginas de área, busca rápida e regras de papel saem daqui).
@@ -30,7 +31,7 @@ export const AREAS = [
 
 /**
  * Módulos. `to` é a tela principal; `prefixos` são outros caminhos que também pertencem ao módulo (para marcar o menu).
- * `papeis` vazio = todos. `quando` explica o que falta para um módulo "em breve".
+ * Quem vê cada módulo sai do nível e das exceções da conta (src/lib/permissoes.js); `papeis` (opcional) ainda restringe por papel. `quando` explica o que falta para um módulo "em breve".
  */
 export const MODULOS = [
   // Início
@@ -88,13 +89,13 @@ export const MODULOS = [
   { id: "calculadora-publica", area: "comercial", titulo: "Ferramentas públicas", descricao: "A calculadora aberta, sem login, que traz os leads (e as outras ferramentas públicas a partir dela).", icone: ExternalLink, to: "/calculadora", externo: true, palavras: ["calculadora", "pública", "isca"] },
 
   // Administração
-  { id: "usuarios", area: "admin", titulo: "Usuários e acessos", descricao: "Quem usa o InTAX, com papel e situação de cada conta.", icone: UserCog, to: "/admin/usuarios", papeis: ["admin"], palavras: ["usuário", "papel", "acesso", "senha", "conta"] },
-  { id: "acessos", area: "admin", titulo: "Registro de acesso e IPs", descricao: "Quem entrou e quando, e a lista de endereços IP permitidos.", icone: ScrollText, to: "/admin/acessos", papeis: ["admin"], palavras: ["login", "ip", "auditoria", "último acesso"] },
-  { id: "comunicacoes", area: "admin", titulo: "Comunicações e envios", descricao: "E-mails enviados (comunicados e avisos), lista de bloqueio e para quem vão os avisos por e-mail.", icone: Inbox, to: "/admin/comunicacoes", papeis: ["admin"], palavras: ["log", "e-mail enviado", "bloqueio", "descadastro", "aviso por e-mail", "destinatário"] },
-  { id: "custos", area: "admin", titulo: "Custos das ferramentas", descricao: "Quanto cada usuário gasta no mês com Serpro e Infosimples, pelos preços do contrato.", icone: Receipt, to: "/admin/custos", papeis: ["admin"], palavras: ["custo", "preço", "serpro", "infosimples", "consumo", "fatura"] },
-  { id: "integracoes", area: "admin", titulo: "Integrações", descricao: "Estado das conexões com Serpro, e-mail e WhatsApp.", icone: Plug, to: "/admin/integracoes", papeis: ["admin"], palavras: ["serpro", "integra contador", "whatsapp", "smtp", "agente"] },
+  { id: "usuarios", area: "admin", titulo: "Usuários e acessos", descricao: "Quem usa o InTAX: nível, telas e funções de cada conta, e a situação.", icone: UserCog, to: "/admin/usuarios", palavras: ["usuário", "papel", "nível", "permissão", "acesso", "senha", "conta"] },
+  { id: "acessos", area: "admin", titulo: "Registro de acesso e IPs", descricao: "Quem entrou e quando, e a lista de endereços IP permitidos.", icone: ScrollText, to: "/admin/acessos", palavras: ["login", "ip", "auditoria", "último acesso"] },
+  { id: "comunicacoes", area: "admin", titulo: "Comunicações e envios", descricao: "E-mails enviados (comunicados e avisos), lista de bloqueio e para quem vão os avisos por e-mail.", icone: Inbox, to: "/admin/comunicacoes", palavras: ["log", "e-mail enviado", "bloqueio", "descadastro", "aviso por e-mail", "destinatário"] },
+  { id: "custos", area: "admin", titulo: "Custos das ferramentas", descricao: "Quanto cada usuário gasta no mês com Serpro e Infosimples, pelos preços do contrato.", icone: Receipt, to: "/admin/custos", palavras: ["custo", "preço", "serpro", "infosimples", "consumo", "fatura"] },
+  { id: "integracoes", area: "admin", titulo: "Integrações", descricao: "Estado das conexões com Serpro, e-mail e WhatsApp.", icone: Plug, to: "/admin/integracoes", palavras: ["serpro", "integra contador", "whatsapp", "smtp", "agente"] },
   { id: "configuracao", area: "admin", titulo: "Configuração do motor", descricao: "Parâmetros gerais do motor de cálculo e do sistema.", icone: Settings, to: "/configuracao", palavras: ["parâmetro", "ajuste"] },
-  { id: "parametros-rotinas", area: "admin", titulo: "Parâmetros e rotinas", descricao: "Dia da consulta automática de cada assunto do monitoramento e o envio das guias no dia escolhido.", icone: SlidersHorizontal, to: "/admin/parametros-rotinas", prefixos: ["/em-breve/parametros-rotinas"], papeis: ["admin"], palavras: ["rotina", "agendamento", "envio de guias", "consulta automática"] },
+  { id: "parametros-rotinas", area: "admin", titulo: "Parâmetros e rotinas", descricao: "Dia da consulta automática de cada assunto do monitoramento e o envio das guias no dia escolhido.", icone: SlidersHorizontal, to: "/admin/parametros-rotinas", prefixos: ["/em-breve/parametros-rotinas"], palavras: ["rotina", "agendamento", "envio de guias", "consulta automática"] },
 
   // Suporte
   { id: "roteiro-testes", area: "suporte", titulo: "Técnico: roteiro de testes", descricao: "Passo a passo para testar cada funcionalidade.", icone: ClipboardCheck, to: "/roteiro-testes", palavras: ["teste", "roteiro", "qa"] },
@@ -103,8 +104,11 @@ export const MODULOS = [
 ];
 
 const emBreve = (m) => m.situacao === SITUACAO.EM_BREVE;
+/** A tela está liberada para a conta (nível com as exceções; src/lib/permissoes.js)? Módulo fora do controle (Início, Manual...) sempre está. */
+export const podeAbrirModulo = (m, user) => !m || !telaPorId(m.id) || temTela(user, m.id);
 const podeVer = (m, user) => {
   if (emBreve(m) && user?.role !== "admin") return false;
+  if (!podeAbrirModulo(m, user)) return false;
   if (m.papeis?.length && !m.papeis.includes(user?.role)) return false;
   return true;
 };

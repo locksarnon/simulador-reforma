@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Send } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { api } from "@/api/client";
+import { usePermissoes } from "@/lib/usePermissao";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TabelaPadrao from "@/components/TabelaPadrao";
@@ -59,6 +60,9 @@ function Destaques({ resumo }) {
  */
 export default function CartaoServico({ servico, ultima, base, desligado, aoConsultar }) {
   const qc = useQueryClient();
+  const { pode, motivo } = usePermissoes();
+  // Registro na Receita exige também "Transmitir declarações"; o servidor confere de novo.
+  const falta = !pode("consultas_pagas") ? "consultas_pagas" : servico.acao && !pode("transmitir") ? "transmitir" : null;
   const [params, setParams] = useState(() => Object.fromEntries(servico.parametros.map((p) => [p.nome, p.padrao || ""])));
   const [atual, setAtual] = useState(null);
   const [aba, setAba] = useState("documentos");
@@ -114,11 +118,11 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
           </label>
         ))}
         {servico.acao ? (
-          <button type="button" disabled={desligado || consultar.isPending} onClick={() => setConfirmando(true)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60" title={desligado ? "Monitoramento desligado" : "Pede confirmação"}>
+          <button type="button" disabled={desligado || consultar.isPending || !!falta} onClick={() => setConfirmando(true)} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60" title={desligado ? "Monitoramento desligado" : falta ? motivo(falta) : "Pede confirmação"}>
             {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />} Executar na Receita
           </button>
         ) : (
-          <button type="button" disabled={desligado || consultar.isPending} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "Monitoramento desligado" : undefined}>
+          <button type="button" disabled={desligado || consultar.isPending || !!falta} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "Monitoramento desligado" : falta ? motivo(falta) : undefined}>
             {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} {mostrada ? "Consultar de novo" : "Consultar"}
           </button>
         )}

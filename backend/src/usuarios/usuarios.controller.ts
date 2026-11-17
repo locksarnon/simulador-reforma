@@ -20,7 +20,7 @@ export class UsuariosController {
   }
 
   @Post('usuarios')
-  criar(@CurrentUser() user: AuthUser, @Body() body: { email?: string; name?: string; role?: string; senha?: string; convite?: boolean }) {
+  criar(@CurrentUser() user: AuthUser, @Body() body: { email?: string; name?: string; role?: string; nivel?: string; senha?: string; convite?: boolean }) {
     exigirAdmin(user);
     return this.usuarios.criar(body ?? {}, user);
   }
@@ -38,9 +38,22 @@ export class UsuariosController {
   }
 
   @Put('usuarios/:id')
-  atualizar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { name?: string | null; role?: string; ativo?: boolean }) {
+  atualizar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { name?: string | null; role?: string; nivel?: string; ativo?: boolean }) {
     exigirAdmin(user);
     return this.usuarios.atualizar(id, body ?? {}, user);
+  }
+
+  /** Acesso da pessoa: nível, exceções de telas e funções, o sugerido e o que vale. */
+  @Get('usuarios/:id/acesso')
+  acesso(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    exigirAdmin(user);
+    return this.usuarios.acesso(id);
+  }
+
+  @Put('usuarios/:id/acesso')
+  salvarAcesso(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { nivel?: string; excecoes?: unknown }) {
+    exigirAdmin(user);
+    return this.usuarios.salvarAcesso(id, body ?? {}, user);
   }
 
   @Post('usuarios/:id/redefinir-senha')

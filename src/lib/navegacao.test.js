@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest";
 import appFonte from "@/App.jsx?raw";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 import {
-  AREAS, MODULOS, SITUACAO, areaPorId, areasDoMenu, buscarModulos, caminhoDaArea, modulosDaArea, moduloDoCaminho, todosOsDestinos,
+  AREAS, MODULOS, SITUACAO, areaPorId, areasDoMenu, buscarModulos, caminhoDaArea, modulosDaArea, moduloDoCaminho, podeAbrirModulo, todosOsDestinos,
 } from "./navegacao";
+import { NIVEIS, TELAS, permissoesEfetivas } from "./permissoes";
 
 const admin = { role: "admin" };
 const consultor = { role: "user" };
@@ -97,7 +98,9 @@ describe("catálogo de navegação: quem vê o quê", () => {
     expect(ids).not.toContain("usuarios");
     expect(ids).not.toContain("integracoes");
     expect(ids).toContain("captura-xml");
-    expect(ids).toContain("configuracao");
+    // Consultor: todas as telas menos a área Administração.
+    expect(ids).not.toContain("configuracao");
+    expect(ids.some((id) => MODULOS.find((m) => m.id === id)?.area === "admin")).toBe(false);
   });
 
   it("administrador vê tudo, inclusive os em breve", () => {
@@ -163,5 +166,44 @@ describe("busca de módulos", () => {
   it("respeita o papel: consultor não encontra o que é de administrador", () => {
     expect(buscarModulos("usuarios", consultor)).toEqual([]);
     expect(buscarModulos("usuarios", admin).map((m) => m.id)).toContain("usuarios");
+  });
+});
+
+describe("catálogo de navegação: nível, telas e funções", () => {
+  const sempreLivres = ["inicio", "notificacoes", "perfil", "manual", "calculadora-publica"];
+
+  it("toda tela das permissões é um módulo do menu, com o mesmo título e área; só Início, Notificações, Perfil, Manual e a calculadora pública ficam fora", () => {
+    for (const t of TELAS) {
+      const m = MODULOS.find((x) => x.id === t.id);
+      expect(m, t.id).toBeTruthy();
+      expect(m.titulo, t.id).toBe(t.titulo);
+      expect(m.area, t.id).toBe(t.area);
+    }
+    expect(MODULOS.filter((m) => !TELAS.some((t) => t.id === m.id)).map((m) => m.id).sort()).toEqual([...sempreLivres].sort());
+  });
+
+  it("o menu segue o nível: Gestor vê a Administração sem usuários, acessos, integrações e custos", () => {
+    const gestor = { role: "user", nivel: "GESTOR" };
+    const ids = areasDoMenu(gestor).flatMap((a) => a.modulos.map((m) => m.id));
+    for (const id of ["comunicacoes", "configuracao", "parametros-rotinas", "monitoramento"]) expect(ids, id).toContain(id);
+    for (const id of ["usuarios", "acessos", "integracoes", "custos"]) expect(ids, id).not.toContain(id);
+  });
+
+  it("as exceções e as permissões vindas do servidor mudam o menu, a busca e a abertura da tela", () => {
+    const leitura = { role: "user", nivel: "SOMENTE_LEITURA", permissoes: permissoesEfetivas({ role: "user", nivel: "SOMENTE_LEITURA", excecoes: { telas: { monitoramento: false, custos: true } } }) };
+    const ids = areasDoMenu(leitura).flatMap((a) => a.modulos.map((m) => m.id));
+    expect(ids).not.toContain("monitoramento");
+    expect(ids).toContain("custos");
+    expect(buscarModulos("monitoramento", leitura).map((m) => m.id)).not.toContain("monitoramento");
+    expect(podeAbrirModulo(moduloDoCaminho("/bpo/monitoramento/123"), leitura)).toBe(false);
+    expect(podeAbrirModulo(moduloDoCaminho("/inicio"), leitura)).toBe(true);
+    expect(podeAbrirModulo(moduloDoCaminho("/manual"), leitura)).toBe(true);
+    // Administrador sempre vê tudo, sejam quais forem as exceções.
+    expect(podeAbrirModulo(moduloDoCaminho("/admin/usuarios"), { role: "admin", permissoes: { telas: [], funcoes: [] } })).toBe(true);
+  });
+
+  it("os cinco níveis sugeridos estão na ordem do mais amplo ao mais restrito", () => {
+    expect(NIVEIS.map((n) => n.id)).toEqual(["ADMINISTRADOR", "GESTOR", "CONSULTOR", "ASSISTENTE", "SOMENTE_LEITURA"]);
+    for (let i = 1; i < NIVEIS.length; i++) expect(NIVEIS[i].funcoes.length).toBeLessThanOrEqual(NIVEIS[i - 1].funcoes.length);
   });
 });

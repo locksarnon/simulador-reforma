@@ -1,7 +1,9 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { id: "U1", role: "user", nivel: "CONSULTOR" } }) }));
+
 import TabelaDeDocumentos, { abreNoNavegador, formatoDoNome } from "./TabelaDeDocumentos";
 
 const montar = (props) => {

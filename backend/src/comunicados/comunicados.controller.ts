@@ -2,16 +2,15 @@ import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
+import { exigirTela } from '../permissoes/permissoes';
 import { Public } from '../common/decorators/public.decorator';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { ComunicadosService } from './comunicados.service';
 
-function exigirAdmin(user: AuthUser) {
-  if (user.role !== 'admin') throw new ForbiddenException('Somente administradores');
-}
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
-/** Comercial > Comunicados (e-mail para grupos de clientes). Enviar é do administrador. */
+/** Comercial > Comunicados (e-mail para grupos de clientes). Enviar exige a função "Enviar e-mails". */
 @Controller('comunicados')
 export class ComunicadosController {
   constructor(private readonly comunicados: ComunicadosService) {}
@@ -59,13 +58,13 @@ export class ComunicadosController {
   }
 
   @Post(':id/enviar')
+  @Permissao('enviar_email')
   enviar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    exigirAdmin(user);
     return this.comunicados.enviar(user, id);
   }
 }
 
-/** Administração > Comunicações e envios: e-mails enviados, lista de bloqueio e destinatários dos avisos. Só administradores. */
+/** Administração > Comunicações e envios: e-mails enviados, lista de bloqueio e destinatários dos avisos. Quem tem a tela (Administrador e Gestor, pelo nível). */
 @Controller('comunicacoes')
 export class ComunicacoesController {
   constructor(
@@ -75,37 +74,37 @@ export class ComunicacoesController {
 
   @Get('envios')
   envios(@CurrentUser() user: AuthUser, @Query() q: { empresa_id?: string; status?: string; origem?: string; de?: string; ate?: string }) {
-    exigirAdmin(user);
+    exigirTela(user, 'comunicacoes');
     return this.comunicados.listarEnvios(q);
   }
 
   @Get('bloqueios')
   bloqueios(@CurrentUser() user: AuthUser) {
-    exigirAdmin(user);
+    exigirTela(user, 'comunicacoes');
     return this.comunicados.listarBloqueios();
   }
 
   @Post('bloqueios')
   bloquear(@CurrentUser() user: AuthUser, @Body() body: { email?: string; motivo?: string }) {
-    exigirAdmin(user);
+    exigirTela(user, 'comunicacoes');
     return this.comunicados.bloquear(user, body ?? {});
   }
 
   @Delete('bloqueios/:id')
   desbloquear(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    exigirAdmin(user);
+    exigirTela(user, 'comunicacoes');
     return this.comunicados.desbloquear(id);
   }
 
   @Get('avisos-email')
   avisos(@CurrentUser() user: AuthUser) {
-    exigirAdmin(user);
+    exigirTela(user, 'comunicacoes');
     return this.notificacoes.configAvisosEmail();
   }
 
   @Put('avisos-email')
   salvarAvisos(@CurrentUser() user: AuthUser, @Body() body: { ativo?: boolean; destinatarios?: string[]; categorias?: string[] }) {
-    exigirAdmin(user);
+    exigirTela(user, 'comunicacoes');
     return this.notificacoes.salvarAvisosEmail(body ?? {});
   }
 }

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
+import { temFuncao } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
@@ -38,7 +39,7 @@ function Erros({ erros }) {
   );
 }
 
-function AbaEmpresas({ empresas, arquivadas, grupos, ehAdmin }) {
+function AbaEmpresas({ empresas, arquivadas, grupos, podeImportar }) {
   const qc = useQueryClient();
   const [analise, setAnalise] = useState(null);
   const [falhas, setFalhas] = useState([]);
@@ -79,7 +80,7 @@ function AbaEmpresas({ empresas, arquivadas, grupos, ehAdmin }) {
         <p className="text-muted-foreground">Excel (.xlsx) ou CSV no formato do modelo. Célula vazia não apaga o cadastro.</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => exportarLista({ titulo: "Modelo de importação de empresas", colunas: colunasExport, linhas: [{ ...EXEMPLO_MODELO, grupo: grupos[0]?.numero || "001" }], formato: "xlsx" })} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
-          {ehAdmin ? <EscolherArquivo rotulo="Escolher a planilha" aoLer={(linhas) => { setFalhas([]); setAnalise(analisarImportacao(linhas, empresas, grupos, arquivadas)); }} /> : <p className="text-xs text-muted-foreground">Só administradores importam.</p>}
+          {podeImportar ? <EscolherArquivo rotulo="Escolher a planilha" aoLer={(linhas) => { setFalhas([]); setAnalise(analisarImportacao(linhas, empresas, grupos, arquivadas)); }} /> : <p className="text-xs text-muted-foreground">Seu acesso não permite importar planilhas. Peça ao administrador.</p>}
         </div>
         {!analise && <Erros erros={falhas} />}
         {analise && (
@@ -146,7 +147,7 @@ export default function ImportacaoCadastroPagina() {
         {(emp.isLoading || grp.isLoading) ? <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <Tabs defaultValue="empresas" className="space-y-4">
             <TabsList><TabsTrigger value="empresas">Empresas</TabsTrigger><TabsTrigger value="vinculos">Carteira por colaborador</TabsTrigger></TabsList>
-            <TabsContent value="empresas"><AbaEmpresas empresas={empresas} arquivadas={arquivadas} grupos={grp.data || []} ehAdmin={ehAdmin} /></TabsContent>
+            <TabsContent value="empresas"><AbaEmpresas empresas={empresas} arquivadas={arquivadas} grupos={grp.data || []} podeImportar={temFuncao(user, "importar") && temFuncao(user, "alterar")} /></TabsContent>
             <TabsContent value="vinculos"><AbaVinculos empresas={empresas} ehAdmin={ehAdmin} /></TabsContent>
           </Tabs>
         )}

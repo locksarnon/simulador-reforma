@@ -4,12 +4,14 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
+import { exigirFuncao } from '../permissoes/permissoes';
 import { CertificadosService } from './certificados.service';
 import { PinCertificadoService } from './pin.service';
 
 const LIMITE_PFX = 1024 * 1024;
 
-/** Certificado A1 do cliente (cofre). Leitura para qualquer usuário; mudanças só para administradores. */
+/** Certificado A1 do cliente (cofre). Leitura para qualquer usuário; enviar e remover exigem a função "certificados". */
 @Controller('repositorio-xml/empresas/:empresaId')
 export class CertificadosController {
   constructor(
@@ -18,7 +20,7 @@ export class CertificadosController {
   ) {}
 
   private exigirAdmin(user: AuthUser) {
-    if (user.role !== 'admin') throw new ForbiddenException('Apenas administradores gerenciam certificados digitais.');
+    exigirFuncao(user, 'certificados');
   }
 
   @Get('certificado')
@@ -28,6 +30,7 @@ export class CertificadosController {
   }
 
   @Post('certificado')
+  @Permissao('certificados')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: LIMITE_PFX, files: 1 } }))
   async enviar(
     @CurrentUser() user: AuthUser,
@@ -44,6 +47,7 @@ export class CertificadosController {
   }
 
   @Delete('certificado')
+  @Permissao('certificados')
   async revogar(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string) {
     this.exigirAdmin(user);
     await this.pin.conferir(undefined); // com PIN ligado, a remoção é pelo POST abaixo (o PIN não vai na URL)
@@ -52,6 +56,7 @@ export class CertificadosController {
 
   /** Remover o certificado informando o PIN do cofre no corpo do pedido. */
   @Post('certificado/remover')
+  @Permissao('certificados')
   async remover(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string, @Body('pin') pin: unknown) {
     this.exigirAdmin(user);
     await this.pin.conferir(pin);

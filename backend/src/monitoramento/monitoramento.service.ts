@@ -8,6 +8,7 @@ import { StorageService } from '../storage/storage.service';
 import { lerPfx } from '../certificados/certificado-pfx';
 import { CertificadosService } from '../certificados/certificados.service';
 import { CustosService, ItemCusto, registrarUso } from '../custos/custos.service';
+import { exigirFuncao } from '../permissoes/permissoes';
 import { assinarDeclaracaoDctfweb } from './dctfweb-assinatura';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { MailService } from '../mail/mail.service';
@@ -579,7 +580,7 @@ export class MonitoramentoService {
    * o lote: ao subir, os lotes sem fim continuam de onde pararam. Consulta que volta sem resultado conta como erro do lote.
    */
   async prepararLote(pedido: PedidoLote, usuario: Usuario, executar = false, origem: 'LOTE' | 'ROTINA' = 'LOTE') {
-    if (usuario?.role !== 'admin') throw new ForbiddenException('Somente administradores executam lotes.');
+    exigirFuncao(usuario, 'consultas_pagas', 'autorizar_lotes');
     if (!Array.isArray(pedido.empresa_ids) || !Array.isArray(pedido.chaves) ||
       [...pedido.empresa_ids, ...pedido.chaves].some((v) => typeof v !== 'string' || !v.trim())) {
       throw new BadRequestException('Informe os clientes e os serviços do lote.');
@@ -593,7 +594,7 @@ export class MonitoramentoService {
     if (modo === 'DESLIGADO') throw new BadRequestException('Monitoramento desligado.');
     const competencia = pedido.competencia;
     if (competencia && !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) throw new BadRequestException('Competência inválida.');
-    const precos = (await new CustosService(this.prisma).geral(undefined, usuario)).oficiais;
+    const precos = await new CustosService(this.prisma).precosEfetivos();
     const [empresas, dispensas, emFila] = await Promise.all([
       this.prisma.empresa.findMany({ where: { id: { in: ids }, arquivado_em: null }, select: { id: true, regime_atual: true, cnpj_cpf: true, uf: true } }),
       this.prisma.obrigacaoDispensada.findMany({ where: { empresa_id: { in: ids } } }),

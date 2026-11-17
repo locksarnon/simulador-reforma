@@ -1,6 +1,7 @@
 import { Body, Controller, Param, Post } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
 import { ClientesService, NovoCliente } from './clientes.service';
 
 /** Clientes > Novo cliente: um passo só, com os serviços marcados e o grupo econômico opcional. */
@@ -9,11 +10,13 @@ export class ClientesController {
   constructor(private readonly clientes: ClientesService) {}
 
   @Post(':id/arquivar')
+  @Permissao('arquivar_clientes')
   arquivar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.clientes.arquivar(id, user);
   }
 
   @Post(':id/desarquivar')
+  @Permissao('arquivar_clientes')
   desarquivar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.clientes.desarquivar(id, user);
   }

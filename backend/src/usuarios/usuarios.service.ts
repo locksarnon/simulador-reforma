@@ -1,8 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { emailLayout, esc, MailService } from '../mail/mail.service';
+import { ehNivel, NIVEL_PADRAO, NivelId, nivelDaConta, nivelPorId, normalizarExcecoes, permissoesEfetivas } from '../permissoes/permissoes';
 
 export const DIAS_CONVITE = 7;
 export const HORAS_REDEFINICAO = 24;
@@ -35,7 +37,11 @@ export function validarSenha(senha: unknown, email?: string) {
 /** Senha provisória legível o bastante para ditar por telefone, mas longa (12 caracteres). */
 export const senhaProvisoria = () => randomBytes(9).toString('base64url');
 
-const publico = { id: true, email: true, name: true, role: true, ativo: true, lastLoginAt: true, createdAt: true } as const;
+const publico = { id: true, email: true, name: true, role: true, nivel: true, ativo: true, lastLoginAt: true, createdAt: true } as const;
+
+/** O papel anda junto com o nível: Administrador = admin; os demais = user. */
+const papelDoNivel = (nivel: NivelId) => (nivel === 'ADMINISTRADOR' ? 'admin' : 'user');
+const NIVEL_INVALIDO = 'Nível inválido. Use Administrador, Gestor, Consultor, Assistente ou Somente leitura.';
 
 /**
  * Usuários do InTAX (só administradores mexem), o perfil de cada pessoa e a carteira por colaborador. Desativar uma conta vale na hora:
@@ -121,18 +127,21 @@ export class UsuariosService {
     return { ...envio, link, expira_em: expira };
   }
 
-  async criar(entrada: { email?: string; name?: string; role?: string; senha?: string; convite?: boolean }, ator?: { email?: string }) {
+  async criar(entrada: { email?: string; name?: string; role?: string; nivel?: string; senha?: string; convite?: boolean }, ator?: { email?: string }) {
     const email = String(entrada.email ?? '').trim().toLowerCase();
     if (!EMAIL.test(email)) throw new BadRequestException('Informe um e-mail válido.');
-    const role = entrada.role ?? 'user';
-    if (!PAPEIS.includes(role as never)) throw new BadRequestException('Papel inválido. Use admin ou user.');
+    if (entrada.nivel !== undefined && !ehNivel(entrada.nivel)) throw new BadRequestException(NIVEL_INVALIDO);
+    if (entrada.role !== undefined && !PAPEIS.includes(entrada.role as never)) throw new BadRequestException('Papel inválido. Use admin ou user.');
+    // O nível manda; sem nível, o papel antigo (admin = Administrador, user = Consultor).
+    const nivel: NivelId = ehNivel(entrada.nivel) ? entrada.nivel : entrada.role === 'admin' ? 'ADMINISTRADOR' : NIVEL_PADRAO;
+    const role = papelDoNivel(nivel);
     // Sem senha informada, o padrão é o convite por e-mail: a pessoa cria a própria senha pelo link.
     const convite = entrada.convite ?? !entrada.senha;
     const provisoria = !convite && !entrada.senha;
     const senha = convite || provisoria ? senhaProvisoria() + (convite ? senhaProvisoria() : '') : validarSenha(entrada.senha, email);
     if (await this.prisma.user.findUnique({ where: { email } })) throw new ConflictException('Já existe uma conta com esse e-mail.');
     const user = await this.prisma.user.create({
-      data: { email, name: entrada.name?.trim().slice(0, 120) || null, role: role as never, passwordHash: await argon2.hash(senha) },
+      data: { email, name: entrada.name?.trim().slice(0, 120) || null, role: role as never, nivel, passwordHash: await argon2.hash(senha) },
       select: publico,
     });
     if (convite) {
@@ -147,14 +156,21 @@ export class UsuariosService {
     return this.prisma.user.count({ where: { role: 'admin', ativo: true, ...(exceto ? { id: { not: exceto } } : {}) } });
   }
 
-  async atualizar(id: string, entrada: { name?: string | null; role?: string; ativo?: boolean }, ator: Ator) {
+  async atualizar(id: string, entrada: { name?: string | null; role?: string; nivel?: string; ativo?: boolean }, ator: Ator) {
     const alvo = await this.prisma.user.findUnique({ where: { id } });
     if (!alvo) throw new NotFoundException('Usuário não encontrado.');
     const dados: Record<string, unknown> = {};
     if (entrada.name !== undefined) dados.name = entrada.name?.trim().slice(0, 120) || null;
-    if (entrada.role !== undefined) {
+    if (entrada.nivel !== undefined) {
+      if (!ehNivel(entrada.nivel)) throw new BadRequestException(NIVEL_INVALIDO);
+      dados.nivel = entrada.nivel;
+      dados.role = papelDoNivel(entrada.nivel);
+      if (entrada.nivel === 'ADMINISTRADOR') dados.permissoes = Prisma.DbNull;
+    } else if (entrada.role !== undefined) {
       if (!PAPEIS.includes(entrada.role as never)) throw new BadRequestException('Papel inválido. Use admin ou user.');
       dados.role = entrada.role;
+      // Papel antigo: admin vira Administrador; quem deixa de ser admin volta ao nível padrão (Consultor).
+      if (entrada.role === 'admin') { dados.nivel = 'ADMINISTRADOR'; dados.permissoes = Prisma.DbNull; } else if (alvo.role === 'admin') dados.nivel = NIVEL_PADRAO;
     }
     if (entrada.ativo !== undefined) dados.ativo = Boolean(entrada.ativo);
     const deixaDeSerAdmin = alvo.role === 'admin' && (dados.role === 'user' || dados.ativo === false);
@@ -166,6 +182,50 @@ export class UsuariosService {
     const user = await this.prisma.user.update({ where: { id }, data: dados as never, select: publico });
     if (dados.ativo === false) await this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
     return user;
+  }
+
+  // ── Acesso (nível, telas e funções) ───────────────────────────────
+
+  /** O acesso de uma pessoa: o nível, as exceções gravadas, o sugerido pelo nível e o que vale. */
+  async acesso(id: string) {
+    const u = await this.prisma.user.findUnique({ where: { id }, select: { ...publico, permissoes: true } });
+    if (!u) throw new NotFoundException('Usuário não encontrado.');
+    return this.vistaDoAcesso(u);
+  }
+
+  private vistaDoAcesso(u: { id: string; email: string; name: string | null; role: string; nivel: string; permissoes: unknown }) {
+    const nivel = nivelDaConta({ role: u.role, nivel: u.nivel });
+    const sugerido = nivelPorId(nivel)!;
+    return {
+      id: u.id, email: u.email, name: u.name, nivel,
+      excecoes: normalizarExcecoes(u.permissoes, nivel),
+      sugerido: { telas: sugerido.telas, funcoes: sugerido.funcoes },
+      efetivas: permissoesEfetivas({ role: u.role, nivel, excecoes: u.permissoes }),
+    };
+  }
+
+  /**
+   * Grava o nível e as exceções (só o que difere do nível). Administrador não tem exceções e o papel anda junto (Administrador = admin).
+   * Ninguém tira o próprio acesso de administrador, e o sistema não fica sem administrador ativo.
+   */
+  async salvarAcesso(id: string, entrada: { nivel?: string; excecoes?: unknown }, ator: Ator) {
+    const alvo = await this.prisma.user.findUnique({ where: { id } });
+    if (!alvo) throw new NotFoundException('Usuário não encontrado.');
+    const nivel = entrada.nivel === undefined ? nivelDaConta({ role: alvo.role, nivel: alvo.nivel }) : entrada.nivel;
+    if (!ehNivel(nivel)) throw new BadRequestException(NIVEL_INVALIDO);
+    const role = papelDoNivel(nivel);
+    if (alvo.role === 'admin' && role !== 'admin') {
+      if (alvo.id === ator.id) throw new ForbiddenException('Você não pode tirar o próprio acesso de administrador.');
+      if (alvo.ativo && (await this.administradoresAtivos(alvo.id)) === 0) throw new ForbiddenException('O sistema precisa de pelo menos um administrador ativo.');
+    }
+    const excecoes = normalizarExcecoes(entrada.excecoes, nivel);
+    const vazias = !Object.keys(excecoes.telas).length && !Object.keys(excecoes.funcoes).length;
+    const u = await this.prisma.user.update({
+      where: { id },
+      data: { nivel, role, permissoes: vazias ? Prisma.DbNull : (excecoes as unknown as Prisma.InputJsonValue) },
+      select: { ...publico, permissoes: true },
+    });
+    return this.vistaDoAcesso(u);
   }
 
   /** Define uma senha nova (a informada ou uma provisória) e derruba as sessões abertas da pessoa. */

@@ -5,6 +5,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
 import { FiltrosRelatorio, RelatoriosXmlService } from './relatorios-xml.service';
 import { FiltrosDocumentos, RepositorioXmlService } from './repositorio-xml.service';
 
@@ -68,6 +69,7 @@ export class RepositorioXmlController {
   }
 
   @Post('documentos')
+  @Permissao('importar')
   @UseGuards(LimiteEnvioGuard)
   @UseInterceptors(FilesInterceptor('arquivos', MAX_ARQUIVOS, { limits: { fileSize: LIMITE_ARQUIVO, files: MAX_ARQUIVOS } }))
   receber(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string, @UploadedFiles() arquivos: Express.Multer.File[] | undefined) {
@@ -100,6 +102,7 @@ export class RepositorioXmlController {
   }
 
   @Post('documentos/enviar-importacao')
+  @Permissao('importar')
   enviarParaImportacao(@Param('empresaId') empresaId: string, @Body() body: { ids?: string[]; incluir_nao_tomados?: boolean }) {
     return this.service.enviarParaImportacao(empresaId, Array.isArray(body?.ids) ? body.ids.map(String) : undefined, body?.incluir_nao_tomados === true);
   }

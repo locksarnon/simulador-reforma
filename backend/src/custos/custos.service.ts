@@ -253,6 +253,13 @@ export class CustosService {
     return precosOficiais(new Map([[item, ja + aMais]]))[item] ?? 0;
   }
 
+  /** Preço que vale para cada item no mês (o informado ou o oficial pela faixa): a estimativa do lote usa, sem abrir os custos de todos. */
+  async precosEfetivos(mesInformado?: string) {
+    const { mes, de, ate } = mesValido(mesInformado);
+    const [mapa, p] = await Promise.all([this.contagem(de, ate, mes), this.precos()]);
+    return this.efetivos(mapa, p.precos);
+  }
+
   /** Administração: o mês por usuário, rotinas, fixos e total do escritório. */
   async geral(mesInformado: string | undefined, usuario: Usuario) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores veem os custos de todos.');

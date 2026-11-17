@@ -538,7 +538,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
       { acao: "Se precisar, clique em Anexar e escolha o arquivo (até 5, 15 MB juntos)." },
       { acao: "Clique em Salvar rascunho." },
     ],
-    resultado: "O comunicado aparece na lista como Rascunho, pronto para o envio pelo administrador.",
+    resultado: "O comunicado aparece na lista como Rascunho, pronto para o envio por quem tem a função “Enviar e-mails”.",
     atencao: [
       "Rascunhos podem ser editados (lápis), duplicados ou excluídos (lixeira).",
     ],

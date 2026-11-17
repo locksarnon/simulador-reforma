@@ -156,6 +156,54 @@ describe('UsuariosService: administração', () => {
   });
 });
 
+describe('UsuariosService: nível, telas e funções', () => {
+  const ator = { id: 'A1', email: 'admin@fal' };
+  const de = (t: Awaited<ReturnType<typeof montar>>, id: string) => t.users.find((u) => u.id === id) as unknown as Record<string, unknown>;
+
+  it('lê o acesso: sem nível gravado, o papel decide (admin = Administrador, user = Consultor)', async () => {
+    const t = await montar();
+    const a = await t.service.acesso('A1');
+    expect(a).toMatchObject({ nivel: 'ADMINISTRADOR', excecoes: { telas: {}, funcoes: {} } });
+    expect(a.efetivas.telas).toContain('usuarios');
+    const u = await t.service.acesso('U1');
+    expect(u.nivel).toBe('CONSULTOR');
+    expect(u.sugerido.funcoes).toEqual(['alterar', 'consultas_pagas', 'enviar_email', 'importar', 'excluir']);
+    await expect(t.service.acesso('nada')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('grava nível e só as exceções que diferem dele; o papel anda junto com o nível', async () => {
+    const t = await montar();
+    const r = await t.service.salvarAcesso('U1', { nivel: 'ASSISTENTE', excecoes: { telas: { custos: true, monitoramento: true }, funcoes: { excluir: true, alterar: true } } }, ator);
+    expect(r.nivel).toBe('ASSISTENTE');
+    expect(r.excecoes).toEqual({ telas: { custos: true }, funcoes: { excluir: true } });
+    expect(r.efetivas.funcoes).toEqual(['alterar', 'enviar_email', 'importar', 'excluir']);
+    expect(de(t, 'U1')).toMatchObject({ role: 'user', nivel: 'ASSISTENTE' });
+    await t.service.salvarAcesso('U1', { nivel: 'ADMINISTRADOR', excecoes: { telas: { usuarios: false } } }, ator);
+    expect(de(t, 'U1')).toMatchObject({ role: 'admin', nivel: 'ADMINISTRADOR' });
+    expect((await t.service.acesso('U1')).excecoes).toEqual({ telas: {}, funcoes: {} });
+    await expect(t.service.salvarAcesso('U1', { nivel: 'CHEFE' }, ator)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('o administrador não tira o próprio acesso e o sistema não fica sem administrador', async () => {
+    const t = await montar();
+    await expect(t.service.salvarAcesso('A1', { nivel: 'GESTOR' }, ator)).rejects.toThrow(/próprio acesso de administrador/);
+    await t.service.salvarAcesso('U1', { nivel: 'ADMINISTRADOR' }, ator);
+    await expect(t.service.salvarAcesso('A1', { nivel: 'GESTOR' }, { id: 'U1', email: 'maria@fal' })).resolves.toMatchObject({ nivel: 'GESTOR' });
+    await expect(t.service.salvarAcesso('U1', { nivel: 'CONSULTOR' }, ator)).rejects.toThrow(/pelo menos um administrador ativo/);
+  });
+
+  it('criar e editar aceitam o nível; o papel antigo continua valendo', async () => {
+    const t = await montar();
+    const r = await t.service.criar({ email: 'g@fal.com', nivel: 'GESTOR', convite: false });
+    expect(de(t, r.usuario.id)).toMatchObject({ role: 'user', nivel: 'GESTOR' });
+    await t.service.atualizar('U1', { nivel: 'SOMENTE_LEITURA' }, ator);
+    expect(de(t, 'U1')).toMatchObject({ role: 'user', nivel: 'SOMENTE_LEITURA' });
+    await t.service.atualizar('U1', { role: 'admin' }, ator);
+    expect(de(t, 'U1')).toMatchObject({ role: 'admin', nivel: 'ADMINISTRADOR' });
+    await expect(t.service.criar({ email: 'z@fal.com', nivel: 'CHEFE' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
 describe('UsuariosService: perfil', () => {
   it('troca a própria senha só com a atual certa, e a nova precisa ser boa e diferente', async () => {
     const t = await montar();

@@ -7,7 +7,9 @@ import SinoNotificacoes from "@/components/SinoNotificacoes";
 import SeletorEmpresaEmFoco from "@/components/SeletorEmpresaEmFoco";
 import AvisoVersaoNova from "@/components/AvisoVersaoNova";
 import { EmpresaEmFocoProvider } from "@/lib/EmpresaEmFoco";
-import { moduloDoCaminho } from "@/lib/navegacao";
+import SemAcesso from "@/components/SemAcesso";
+import { useAuth } from "@/lib/AuthContext";
+import { moduloDoCaminho, podeAbrirModulo } from "@/lib/navegacao";
 
 const CHAVE_RECENTES = "intax-modulos-recentes";
 const CHAVE_FIXA = "intax-menu-fixo";
@@ -31,6 +33,10 @@ function lerRecentes() {
  */
 export default function Layout() {
   const { pathname } = useLocation();
+  const { user } = useAuth();
+  // Tela fora do nível ou das exceções da conta: no lugar do conteúdo, o aviso (o servidor também recusa os pedidos dela).
+  const moduloAtual = moduloDoCaminho(pathname);
+  const liberada = podeAbrirModulo(moduloAtual, user);
   const [gaveta, setGaveta] = useState(false);
   const [gavetaMontada, setGavetaMontada] = useState(false);
   const [busca, setBusca] = useState(false);
@@ -163,7 +169,7 @@ export default function Layout() {
         </header>
         <AvisoVersaoNova />
         <main id="conteudo" tabIndex={-1} className="flex-1 min-w-0 focus:outline-none">
-          <Outlet />
+          {liberada ? <Outlet /> : <SemAcesso titulo={moduloAtual?.titulo} />}
         </main>
       </div>
       <BuscaRapida aberta={busca} aoMudar={setBusca} recentes={recentes} />

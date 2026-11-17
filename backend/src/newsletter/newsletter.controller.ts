@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
 import { AuthUser } from '../auth/auth.types';
 import { NewsletterService } from './newsletter.service';
 
@@ -28,11 +29,13 @@ export class NewsletterController {
   }
 
   @Post('edicoes/:id/teste')
+  @Permissao('enviar_email')
   teste(@Param('id') id: string, @Body('para') para: string, @CurrentUser() user: AuthUser) {
     return this.service.enviarTeste(id, para || user.email);
   }
 
   @Post('edicoes/:id/enviar')
+  @Permissao('enviar_email')
   enviar(@Param('id') id: string) {
     return this.service.enviar(id);
   }

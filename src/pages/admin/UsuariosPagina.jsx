@@ -1,16 +1,19 @@
 import { useState } from "react";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, KeyRound, Loader2, Mail, Pencil, Send, UserCheck, UserPlus, UserX } from "lucide-react";
+import { Copy, KeyRound, Loader2, Mail, Pencil, Send, ShieldCheck, UserCheck, UserPlus, UserX } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PageHeader from "@/components/PageHeader";
+import AcessoUsuario from "@/pages/admin/AcessoUsuario";
+import { NIVEIS, NIVEL_PADRAO, nivelDaConta, nivelPorId, rotuloDoNivel } from "@/lib/permissoes";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const PAPEIS = { admin: "Administrador", user: "Consultor" };
+/** Rótulo do nível da conta (Administrador, Gestor, Consultor, Assistente, Somente leitura). */
+export const rotuloDaConta = (u) => rotuloDoNivel(nivelDaConta(u));
 const quando = (v) => (v ? new Date(v).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }) : "Nunca entrou");
 const dia = (v) => (v ? new Date(v).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "");
 
@@ -73,13 +76,13 @@ function LinkEnviado({ dados, aoFechar }) {
 function DialogoUsuario({ alvo, aoFechar, aoSalvar }) {
   const novo = alvo?.tipo === "novo";
   const u = alvo?.usuario;
-  const [f, setF] = useState({ email: u?.email || "", name: u?.name || "", role: u?.role || "user", senha: "", modo: "convite" });
+  const [f, setF] = useState({ email: u?.email || "", name: u?.name || "", nivel: NIVEL_PADRAO, senha: "", modo: "convite" });
   const mudar = (k, v) => setF((e) => ({ ...e, [k]: v }));
   const convite = novo && f.modo === "convite";
   const salvar = useMutation({
     mutationFn: () => (novo
-      ? api.post("/usuarios", { email: f.email, name: f.name, role: f.role, convite, senha: convite ? undefined : f.senha || undefined })
-      : api.put(`/usuarios/${u.id}`, { name: f.name, role: f.role })),
+      ? api.post("/usuarios", { email: f.email, name: f.name, nivel: f.nivel, convite, senha: convite ? undefined : f.senha || undefined })
+      : api.put(`/usuarios/${u.id}`, { name: f.name })),
     onSuccess: (r) => aoSalvar(r, novo),
     onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
   });
@@ -88,14 +91,17 @@ function DialogoUsuario({ alvo, aoFechar, aoSalvar }) {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{novo ? "Convidar pessoa" : `Editar ${u?.email}`}</DialogTitle>
-          <DialogDescription>{novo ? "Ela recebe o link para criar a senha." : "O e-mail não muda."}</DialogDescription>
+          <DialogDescription>{novo ? "Ela recebe o link para criar a senha." : "O e-mail não muda. Nível, telas e funções ficam no botão Acesso."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-3 text-sm">
           {novo && <label className="block space-y-1"><span className="block text-xs text-muted-foreground">E-mail</span><input type="email" required autoFocus className={campo} value={f.email} onChange={(e) => mudar("email", e.target.value)} /></label>}
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nome</span><input className={campo} value={f.name} maxLength={120} onChange={(e) => mudar("name", e.target.value)} /></label>
-          <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Papel</span>
-            <select className={campo} value={f.role} onChange={(e) => mudar("role", e.target.value)}>{Object.entries(PAPEIS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-</label>
+          {novo && (
+            <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nível</span>
+              <select className={campo} value={f.nivel} onChange={(e) => mudar("nivel", e.target.value)}>{NIVEIS.map((n) => <option key={n.id} value={n.id}>{n.rotulo}</option>)}</select>
+              <span className="block text-xs text-muted-foreground">{nivelPorId(f.nivel)?.descricao}</span>
+            </label>
+          )}
           {novo && (
             <fieldset className="space-y-1.5">
               <legend className="text-xs text-muted-foreground">Como a pessoa vai entrar</legend>
@@ -114,7 +120,7 @@ function DialogoUsuario({ alvo, aoFechar, aoSalvar }) {
   );
 }
 
-/** Administração > Usuários e acessos: quem usa o InTAX, com papel, situação (e convite) e último acesso. Só administradores. */
+/** Administração > Usuários e acessos: quem usa o InTAX, com nível, situação (e convite) e último acesso; o painel Acesso define telas e funções. Só administradores. */
 export default function UsuariosPagina() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -122,6 +128,7 @@ export default function UsuariosPagina() {
   const [dialogo, setDialogo] = useState(null);
   const [senha, setSenha] = useState(null);
   const [link, setLink] = useState(null);
+  const [acesso, setAcesso] = useState(null);
   const { data: usuarios, isLoading, error, refetch } = useQuery({ queryKey: ["usuarios"], queryFn: () => api.get("/usuarios"), enabled: user?.role === "admin" });
   const recarregar = () => qc.invalidateQueries({ queryKey: ["usuarios"] });
   const falhar = (titulo) => (e) => toast({ title: titulo, description: e.message, variant: "destructive" });
@@ -177,7 +184,7 @@ export default function UsuariosPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Usuários e acessos" }]}
         title="Usuários e acessos"
-        subtitle="Quem usa o InTAX, com o papel e a situação de cada conta. Convide por e-mail, reenvie o convite ou mande o link para a pessoa criar uma senha nova. O histórico de entradas fica em Registro de acesso e IPs."
+        subtitle="Quem usa o InTAX, com o nível e a situação de cada conta. Clique numa pessoa para definir o nível, as telas e as funções dela. Convide por e-mail, reenvie o convite ou mande o link para a pessoa criar uma senha nova. O histórico de entradas fica em Registro de acesso e IPs."
         actions={<button type="button" onClick={() => setDialogo({ tipo: "novo" })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><UserPlus className="h-4 w-4" aria-hidden="true" /> Convidar pessoa</button>}
       />
       <div className="px-6 lg:px-8 py-6">
@@ -185,11 +192,11 @@ export default function UsuariosPagina() {
         {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={() => refetch()} className="text-primary hover:underline">Tentar de novo</button></p>}
         {!isLoading && !error && (
           <TabelaPadrao
-            id="admin-usuarios" ariaLabel="Usuários do sistema" titulo="Usuários" linhas={usuarios || []} vazio="Nenhum usuário."
+            id="admin-usuarios" ariaLabel="Usuários do sistema" titulo="Usuários" linhas={usuarios || []} vazio="Nenhum usuário." aoClicarLinha={(u) => setAcesso(u)}
             colunas={[
               { chave: "name", rotulo: "Nome", render: (u) => <span className="font-medium">{u.name || <span className="font-normal text-muted-foreground">—</span>}{u.id === user.id && <span className="ml-2 rounded bg-primary/10 px-1.5 text-[10px] font-semibold uppercase text-primary">você</span>}</span> },
               { chave: "email", rotulo: "E-mail" },
-              { chave: "role", rotulo: "Papel", valor: (u) => PAPEIS[u.role] || u.role },
+              { chave: "nivel", rotulo: "Nível", valor: (u) => rotuloDaConta(u) },
               { chave: "situacao", rotulo: "Situação", valor: (u) => situacaoDaConta(u).rotulo, render: (u) => { const s = situacaoDaConta(u); return <span className={`inline-block rounded px-1.5 text-[11px] leading-4 ${s.tom}`}>{s.rotulo}</span>; } },
               { chave: "lastLoginAt", rotulo: "Último acesso", tipo: "data", render: (u) => <span className="text-muted-foreground">{quando(u.lastLoginAt)}</span> },
               { chave: "empresas", rotulo: "Empresas", tipo: "numero", alinhar: "direita" },
@@ -197,7 +204,8 @@ export default function UsuariosPagina() {
                 render: (u) => {
                   const semEntrar = u.ativo && !u.lastLoginAt;
                   return (
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()} role="presentation">
+                      <button type="button" onClick={() => setAcesso(u)} className={icone} aria-label={`Acesso de ${u.email}`} title="Nível, telas e funções"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /></button>
                       <button type="button" onClick={() => setDialogo({ tipo: "editar", usuario: u })} className={icone} aria-label={`Editar ${u.email}`} title="Editar"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
                       {semEntrar && <button type="button" disabled={ocupado} onClick={() => reenviar.mutate(u)} className={icone} aria-label={`Reenviar convite para ${u.email}`} title="Reenviar convite por e-mail"><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                       {u.ativo && <button type="button" disabled={ocupado} onClick={() => pedirRedefinicao(u)} className={icone} aria-label={`Redefinir a senha de ${u.email}`} title="Enviar link por e-mail para criar senha nova"><Mail className="h-3.5 w-3.5" aria-hidden="true" /></button>}
@@ -216,6 +224,7 @@ export default function UsuariosPagina() {
         <p className="mt-2 text-xs text-muted-foreground">Convite vale 7 dias; senha nova, 24 horas.</p>
       </div>
       {dialogo && <DialogoUsuario key={dialogo.usuario?.id || "novo"} alvo={dialogo} aoFechar={() => setDialogo(null)} aoSalvar={aoSalvar} />}
+      {acesso && <AcessoUsuario usuario={acesso} eu={acesso.id === user.id} aoFechar={() => setAcesso(null)} />}
       <SenhaProvisoria dados={senha} aoFechar={() => setSenha(null)} />
       <LinkEnviado dados={link} aoFechar={() => setLink(null)} />
     </div>

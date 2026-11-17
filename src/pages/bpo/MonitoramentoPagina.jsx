@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/api/client";
+import { usePermissoes } from "@/lib/usePermissao";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PrepararAtualizacao from "@/components/monitoramento/PrepararAtualizacao";
@@ -31,6 +32,8 @@ const pior = (p) => { if (!p) return "SEM"; const v = Object.values(p.grupos || 
  */
 export default function MonitoramentoPagina() {
   const { user } = useAuth();
+  const { pode } = usePermissoes();
+  const podeLote = pode("consultas_pagas") && pode("autorizar_lotes");
   const qc = useQueryClient();
   const navegar = useNavigate();
   const [preparando, setPreparando] = useState(null);
@@ -96,7 +99,7 @@ export default function MonitoramentoPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Monitoramento fiscal" }]}
         title="Monitoramento fiscal"
         actions={(
-          user?.role === "admin" && <button type="button" disabled={desligado || rodando || !alvos.length} onClick={() => setPreparando(alvos)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+          podeLote && <button type="button" disabled={desligado || rodando || !alvos.length} onClick={() => setPreparando(alvos)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
             {rodando ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Preparar atualização</>}
           </button>
         )}

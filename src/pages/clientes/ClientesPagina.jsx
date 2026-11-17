@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { usePermissoes } from "@/lib/usePermissao";
 import InterruptorCaptura from "@/components/repositorio-xml/InterruptorCaptura";
 import { Archive, ArrowRight, Loader2, Pencil, Plus, RefreshCw, Upload } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
@@ -122,6 +123,7 @@ export default function ClientesPagina() {
   const captura = useQuery({ queryKey: ["captura-xml", "empresas"], queryFn: () => api.get("/captura-xml/empresas"), staleTime: 60_000 });
   const { user } = useAuth();
   const ehAdmin = user?.role === "admin";
+  const { pode } = usePermissoes();
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const { empresas: ativas, arquivadas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
@@ -241,7 +243,7 @@ export default function ClientesPagina() {
             {!vendoArquivados && <button type="button" onClick={() => setVinculando(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Vincular consultoria</button>}
             <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
             {ehAdmin && <Link to="/clientes/carteira" className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir colaborador</Link>}
-            {ehAdmin && (
+            {pode("arquivar_clientes") && (
               <button type="button" onClick={arquivarEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
                 {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Archive className="h-3.5 w-3.5" aria-hidden="true" />}
                 {excluindo ? `${excluindo.feitas} de ${excluindo.total}…` : vendoArquivados ? "Desarquivar" : "Arquivar"}

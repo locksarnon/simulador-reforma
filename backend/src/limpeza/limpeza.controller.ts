@@ -1,6 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.types';
+import { Permissao } from '../permissoes/permissao.decorator';
 import { LimpezaService, PedidoLimpeza } from './limpeza.service';
 
 @Controller('limpeza')
@@ -15,6 +16,7 @@ export class LimpezaController {
 
   /** Apaga de verdade; exige a frase de confirmação no corpo (validada aqui, não só na tela). */
   @Post('executar')
+  @Permissao('alterar', 'excluir')
   executar(@Body() body: PedidoLimpeza & { confirmacao?: string }, @CurrentUser() user: AuthUser) {
     return this.service.executar(body, user);
   }

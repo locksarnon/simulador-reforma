@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, KeyRound, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
+import { temFuncao } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -56,10 +57,10 @@ export function PinDoCofre({ ativo }) {
   );
 }
 
-/** Certificado digital A1 do cliente (cofre). Mudanças só para administradores. */
+/** Certificado digital A1 do cliente (cofre). Enviar, remover e o PIN exigem a função "Enviar e remover certificados A1 e PIN do cofre". */
 export default function CertificadoXml({ empresaId }) {
   const { user } = useAuth();
-  const admin = user?.role === "admin";
+  const admin = temFuncao(user, "certificados");
   const confirmar = useConfirmar();
   const qc = useQueryClient();
   const [envioAberto, setEnvioAberto] = useState(false);

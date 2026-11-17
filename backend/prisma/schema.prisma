@@ -22,6 +22,10 @@ model User {
   passwordHash String
   name         String?
   role         Role      @default(user)
+  /// Nível de acesso sugerido (ADMINISTRADOR, GESTOR, CONSULTOR, ASSISTENTE, SOMENTE_LEITURA); ADMINISTRADOR anda junto com role admin.
+  nivel        String    @default("CONSULTOR")
+  /// Só as exceções ao nível: { telas: { [modulo]: boolean }, funcoes: { [funcao]: boolean } }.
+  permissoes   Json?
   ativo        Boolean   @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())

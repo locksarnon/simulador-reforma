@@ -5,6 +5,7 @@ import { AlertTriangle, Ban, CheckCircle2, Clock, Download, ExternalLink, Eye, F
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/api/client";
+import { usePermissoes } from "@/lib/usePermissao";
 import PageHeader from "@/components/PageHeader";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/lib/AuthContext";
@@ -115,6 +116,7 @@ function AcoesProcesso({ p, def, preAnaliseId, onAnexado, onDetalhes }) {
 export default function PreAnalisePagina() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { pode, motivo } = usePermissoes();
   const [params, setParams] = useSearchParams();
   const [texto, setTexto] = useState(params.get("cnpj") ? fmtCnpj(digitos(params.get("cnpj"))) : "");
   const id = params.get("id") || "";
@@ -164,7 +166,7 @@ export default function PreAnalisePagina() {
         <div className="space-y-4 min-w-0">
           <form onSubmit={iniciar} className="flex flex-wrap items-end gap-2 text-sm">
             <label className="space-y-1 flex-1 min-w-[220px]"><span className="block text-xs text-muted-foreground">CNPJ do prospect ou cliente</span><input className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="00.000.000/0000-00" inputMode="numeric" /></label>
-            <button type="submit" disabled={digitos(texto).length !== 14 || criar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{criar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />} Iniciar pré-análise</button>
+            <button type="submit" disabled={digitos(texto).length !== 14 || criar.isPending || !pode("consultas_pagas")} title={!pode("consultas_pagas") ? motivo("consultas_pagas") : undefined} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{criar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />} Iniciar pré-análise</button>
           </form>
 
           {atual.isError && <p role="alert" className="rounded-md border border-red-400/60 p-3 text-sm">{atual.error.message}</p>}

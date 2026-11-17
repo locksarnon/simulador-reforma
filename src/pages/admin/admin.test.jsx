@@ -133,3 +133,31 @@ describe("IPs permitidos", () => {
     papel.atual = "admin";
   });
 });
+
+describe("Usuários e acessos: nível, telas e funções", () => {
+  it("a tabela mostra o nível de cada conta e o botão Acesso", () => {
+    papel.atual = "admin";
+    const html = renderizar(<UsuariosPagina />, { usuarios: [...USUARIOS, { id: "G1", email: "gestor@fal", name: "Gina", role: "user", nivel: "GESTOR", ativo: true, lastLoginAt: null, empresas: 0 }] });
+    expect(html).toContain(">Nível<");
+    expect(html).toContain("Gestor");
+    expect(html).toContain('aria-label="Acesso de maria@fal"');
+  });
+
+  it("o painel mostra o nível, as telas por área, as funções e marca o que difere do sugerido", async () => {
+    const { ConteudoAcesso } = await import("./AcessoUsuario");
+    const dados = { id: "U1", email: "maria@fal", name: "Maria", nivel: "ASSISTENTE", excecoes: { telas: { custos: true }, funcoes: { excluir: true } } };
+    const html = renderizar(<ConteudoAcesso dados={dados} aoSalvar={() => {}} />);
+    for (const t of ["Nível", "Assistente", "Somente leitura", "Telas", "Administração", "Custos das ferramentas", "Funções", "Fazer consultas pagas", "Excluir registros", "Voltar ao sugerido", "Salvar"]) expect(html).toContain(t);
+    expect(html.match(/diferente do sugerido/g)).toHaveLength(2);
+    expect(html).toMatch(/aria-checked="true"[^>]*aria-label="Excluir registros"/);
+    expect(html).toMatch(/aria-checked="false"[^>]*aria-label="Fazer consultas pagas"/);
+  });
+
+  it("Administrador: tudo marcado e travado; a própria conta não pode deixar de ser administradora", async () => {
+    const { ConteudoAcesso } = await import("./AcessoUsuario");
+    const html = renderizar(<ConteudoAcesso dados={{ id: "A1", email: "admin@fal", nivel: "ADMINISTRADOR", excecoes: { telas: {}, funcoes: {} } }} eu aoSalvar={() => {}} />);
+    expect(html).toContain("Você não pode tirar o próprio acesso de administrador.");
+    expect(html).not.toContain("diferente do sugerido");
+    expect(html).not.toMatch(/aria-checked="false"/);
+  });
+});

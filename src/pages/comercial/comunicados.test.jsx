@@ -4,8 +4,8 @@ import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const papel = vi.hoisted(() => ({ atual: "admin" }));
-vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { id: "U1", role: papel.atual, email: "maria@fal" } }) }));
+const papel = vi.hoisted(() => ({ atual: "admin", nivel: undefined }));
+vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { id: "U1", role: papel.atual, nivel: papel.nivel, email: "maria@fal" } }) }));
 
 const ComunicadosPagina = (await import("./ComunicadosPagina")).default;
 const ComunicacoesPagina = (await import("@/pages/admin/ComunicacoesPagina")).default;
@@ -27,17 +27,20 @@ function renderizar(elemento) {
 }
 
 describe("Comunicados", () => {
-  it("lista rascunho e enviado com contadores; só o rascunho edita e envia (administrador)", () => {
+  it("lista rascunho e enviado com contadores; só o rascunho edita e envia (quem tem a função Enviar e-mails)", () => {
     const html = renderizar(<ComunicadosPagina />);
     for (const t of ["Agenda de novembro", "1 anexo", "Rascunho", "Enviado", "9 de 10 · 1 falha", "Novo comunicado"]) expect(html).toContain(t);
     expect(html).toContain('aria-label="Enviar Agenda de novembro"');
     expect(html).not.toContain('aria-label="Enviar Reforma: o que muda em 2027"');
     expect(html).not.toContain('aria-label="Editar Reforma: o que muda em 2027"');
     papel.atual = "user";
-    const consultor = renderizar(<ComunicadosPagina />);
-    expect(consultor).not.toContain('aria-label="Enviar Agenda de novembro"');
-    expect(consultor).toContain("O envio é feito por um administrador");
+    expect(renderizar(<ComunicadosPagina />)).toContain('aria-label="Enviar Agenda de novembro"'); // Consultor envia
+    papel.nivel = "SOMENTE_LEITURA";
+    const leitura = renderizar(<ComunicadosPagina />);
+    expect(leitura).not.toContain('aria-label="Enviar Agenda de novembro"');
+    expect(leitura).toContain("Seu acesso não permite enviar e-mails");
     papel.atual = "admin";
+    papel.nivel = undefined;
   });
 });
 
@@ -50,9 +53,12 @@ describe("Comunicações e envios", () => {
     expect(avisos).toContain("socio@fal.com");
     expect(avisos).toContain("Mandar cópia dos avisos por e-mail");
   });
-  it("consultor não vê os envios", () => {
+  it("consultor não vê os envios; gestor vê", () => {
     papel.atual = "user";
-    expect(renderizar(<ComunicacoesPagina />)).toContain("Somente administradores veem os envios.");
+    expect(renderizar(<ComunicacoesPagina />)).toContain("Sem acesso a esta tela. Peça ao administrador.");
+    papel.nivel = "GESTOR";
+    expect(renderizar(<ComunicacoesPagina />)).toContain("E-mails enviados");
     papel.atual = "admin";
+    papel.nivel = undefined;
   });
 });

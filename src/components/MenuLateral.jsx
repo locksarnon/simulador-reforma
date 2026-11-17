@@ -8,11 +8,12 @@ import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
 import { useAuth } from "@/lib/AuthContext";
 import { areasDoMenu, caminhoDaArea, moduloDoCaminho, SITUACAO, situacaoDoModulo } from "@/lib/navegacao";
+import { nivelDaConta, rotuloDoNivel } from "@/lib/permissoes";
 import { plural } from "@/lib/plural";
 
 /** "Administrador" ou "Consultor": o papel decide quem envia certificado, ativa a captura e exclui. */
 const LARGURA_ABERTA = 256;
-const rotuloPapel = (role) => (role === "admin" ? "Administrador" : "Consultor");
+const rotuloNivelDaConta = (user) => rotuloDoNivel(nivelDaConta(user));
 const iniciais = (u) => String(u?.name || u?.email || "?").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
 
 /*
@@ -237,7 +238,7 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
             <span className="-ml-1 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-rail-accent text-[11px] font-semibold text-rail-strong ring-1 ring-rail-border" aria-hidden="true">{iniciais(user)}</span>
             <span className={`min-w-0 leading-tight ${sumir(compacto)}`}>
               <span className="block truncate text-[12.5px] font-medium text-rail-strong">{user.name || user.email}</span>
-              <span className="block truncate text-[11px] text-rail-muted">{user.name ? `${rotuloPapel(user.role)} · ${user.email}` : rotuloPapel(user.role)}</span>
+              <span className="block truncate text-[11px] text-rail-muted">{user.name ? `${rotuloNivelDaConta(user)} · ${user.email}` : rotuloNivelDaConta(user)}</span>
             </span>
           </Link>
         )}

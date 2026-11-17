@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query, StreamableFile,
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
 import { PreAnaliseService } from './pre-analise.service';
 import { CertidoesService } from './certidoes.service';
 import { InfosimplesService } from '../infosimples/infosimples.service';
@@ -20,6 +21,7 @@ export class PreAnaliseController {
   }
 
   @Post()
+  @Permissao('consultas_pagas')
   criar(@CurrentUser() user: AuthUser, @Body() body: { cnpj?: string }) {
     return this.s.criar(String(body?.cnpj ?? ''), user);
   }
@@ -30,6 +32,7 @@ export class PreAnaliseController {
   }
 
   @Post(':id/reprocessar')
+  @Permissao('consultas_pagas')
   reprocessar(@Param('id') id: string) {
     return this.s.reprocessar(id);
   }
@@ -69,6 +72,7 @@ export class CertidoesController {
   }
 
   @Post('empresas/:id/:tipo/emitir')
+  @Permissao('consultas_pagas')
   emitir(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('tipo') tipo: string) {
     return this.s.emitir(id, tipo, user);
   }

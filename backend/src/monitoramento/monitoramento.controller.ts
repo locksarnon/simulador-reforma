@@ -7,10 +7,15 @@ import { SimplesService } from './simples.service';
 import { EnvioDocumentosService, ItemDocumento, LIMITE_EMAIL_BYTES } from './envio-documentos.service';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
+import { exigirFuncao } from '../permissoes/permissoes';
+import { SERVICO_POR_CHAVE } from './catalogo';
 import { ConfigRotina, MonitoramentoService, PedidoLote } from './monitoramento.service';
 
 const disposicao = (nome: string, inline = false) => `${inline ? 'inline' : 'attachment'}; filename="${nome.replace(/[^\w.\- ()]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(nome)}`;
 const exigirAdmin = (u: AuthUser) => { if (u?.role !== 'admin') throw new ForbiddenException('Só administradores.'); };
+/** Serviço que registra algo na Receita (DCTFWeb, opção de regime, benefício do MEI): além da consulta paga, exige "Transmitir declarações". */
+const exigirTransmissao = (u: AuthUser, chave?: string) => { if (SERVICO_POR_CHAVE.get(String(chave ?? ''))?.acao) exigirFuncao(u, 'transmitir'); };
 
 /** BPO Fiscal > Monitoramento fiscal: consultas ao Integra Contador (Serpro), histórico, PDF, lote, rotina e obrigações dispensadas. */
 @Controller('monitoramento')
@@ -36,11 +41,13 @@ export class MonitoramentoController {
   }
 
   @Post('pessoas/:id/documentos/email')
+  @Permissao('enviar_email')
   documentosEmailPessoa(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { para?: string[] | string; assunto?: string; mensagem?: string; itens?: ItemDocumento[] }) {
     return this.envio.enviar({ pessoaFisicaId: id }, body ?? {}, user);
   }
 
   @Post('empresas/:id/documentos/email')
+  @Permissao('enviar_email')
   documentosEmail(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { para?: string[] | string; assunto?: string; mensagem?: string; itens?: ItemDocumento[] }) {
     return this.envio.enviar(id, body ?? {}, user);
   }
@@ -80,6 +87,7 @@ export class MonitoramentoController {
   }
 
   @Post('empresas/:id/simples/atualizar')
+  @Permissao('consultas_pagas')
   simplesAtualizar(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.simples.atualizar(id, user);
   }
@@ -189,7 +197,9 @@ export class MonitoramentoController {
   }
 
   @Post('empresas/:id/consultar')
+  @Permissao('consultas_pagas')
   consultar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { chave?: string; parametros?: Record<string, unknown> }) {
+    exigirTransmissao(user, body?.chave);
     return this.m.consultar({ empresaId: id }, String(body?.chave ?? ''), body?.parametros, user);
   }
 
@@ -199,7 +209,9 @@ export class MonitoramentoController {
   }
 
   @Post('pessoas/:id/consultar')
+  @Permissao('consultas_pagas')
   consultarPessoa(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { chave?: string; parametros?: Record<string, unknown> }) {
+    exigirTransmissao(user, body?.chave);
     return this.m.consultar({ pessoaFisicaId: id }, String(body?.chave ?? ''), body?.parametros, user);
   }
 
@@ -226,11 +238,13 @@ export class MonitoramentoController {
   }
 
   @Post('lote/previa')
+  @Permissao('consultas_pagas', 'autorizar_lotes')
   previaLote(@CurrentUser() user: AuthUser, @Body() body: PedidoLote) {
     return this.m.prepararLote(body ?? {}, user);
   }
 
   @Post('lote')
+  @Permissao('consultas_pagas', 'autorizar_lotes')
   lote(@CurrentUser() user: AuthUser, @Body() body: PedidoLote) {
     return this.m.prepararLote(body ?? {}, user, true);
   }
@@ -251,8 +265,9 @@ export class MonitoramentoController {
   }
 
   @Post('guias')
+  @Permissao('consultas_pagas', 'autorizar_lotes')
   guias(@CurrentUser() user: AuthUser, @Body() body: { empresa_ids?: string[]; enviar_email?: boolean }) {
-    exigirAdmin(user);
+    if (body?.enviar_email) exigirFuncao(user, 'enviar_email');
     return this.m.enviarGuias(body?.empresa_ids ?? [], !!body?.enviar_email, user);
   }
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Post, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { OperacoesPlanilhaService } from './operacoes-planilha.service';
+import { Permissao } from '../permissoes/permissao.decorator';
 
 const MAX_SIZE = 60 * 1024 * 1024; // igual ao validador de cadastro: exportações de ERP passam de 25 MB
 
@@ -18,6 +19,7 @@ export class OperacoesPlanilhaController {
 
   /** 1) Cabeçalho, amostra e sugestão de colunas. */
   @Post('ler')
+  @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
   ler(@UploadedFile() file: Express.Multer.File) {
     if (!file?.buffer?.length) throw new BadRequestException('Arquivo vazio ou não enviado.');
@@ -26,6 +28,7 @@ export class OperacoesPlanilhaController {
 
   /** 2) Confere tudo sem gravar: resumo, erros e avisos por linha. */
   @Post('validar')
+  @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
   validar(@UploadedFile() file: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('opcoes') opcoes?: string) {
     if (!file?.buffer?.length) throw new BadRequestException('Arquivo vazio ou não enviado.');
@@ -34,6 +37,7 @@ export class OperacoesPlanilhaController {
 
   /** 3) Grava as linhas válidas que ainda não existem. */
   @Post('importar')
+  @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
   importar(@UploadedFile() file: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('opcoes') opcoes?: string) {
     if (!file?.buffer?.length) throw new BadRequestException('Arquivo vazio ou não enviado.');

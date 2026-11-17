@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthUser, JwtPayload } from '../auth.types';
+import { permissoesEfetivas } from '../../permissoes/permissoes';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -32,6 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Conta desativada');
     }
 
-    return { id: user.id, email: user.email, name: user.name, role: user.role };
+    const permissoes = permissoesEfetivas({ role: user.role, nivel: user.nivel, excecoes: user.permissoes });
+    return { id: user.id, email: user.email, name: user.name, role: user.role, nivel: permissoes.nivel, permissoes };
   }
 }

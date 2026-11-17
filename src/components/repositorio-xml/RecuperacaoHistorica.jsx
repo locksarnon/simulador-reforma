@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { usePermissoes } from "@/lib/usePermissao";
 import { Button } from "@/components/ui/button";
 import { base, fmtMoeda } from "./formatos";
 
@@ -18,6 +19,8 @@ const fontes = {
 
 export default function RecuperacaoHistorica({ empresaId }) {
   const [aberto, setAberto] = useState(false);
+  const { pode, motivo } = usePermissoes();
+  const falta = !pode("consultas_pagas") ? "consultas_pagas" : !pode("autorizar_lotes") ? "autorizar_lotes" : null;
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [previa, setPrevia] = useState(null);
@@ -77,7 +80,7 @@ export default function RecuperacaoHistorica({ empresaId }) {
             <label className="grid gap-1">Até
               <input className="h-9 rounded-md border border-border bg-background px-2" type="date" required value={ate} min={de || undefined} onChange={(e) => mudarData(setAte, e.target.value)} disabled={pendente} />
             </label>
-            <Button type="submit" variant="outline" disabled={pendente}>{preparar.isPending ? "Conferindo EFDs…" : "Calcular prévia"}</Button>
+            <Button type="submit" variant="outline" disabled={pendente || !pode("consultas_pagas")} title={!pode("consultas_pagas") ? motivo("consultas_pagas") : undefined}>{preparar.isPending ? "Conferindo EFDs…" : "Calcular prévia"}</Button>
           </form>
           {erro && <p role="alert" className="text-destructive">{erro.response?.data?.message || erro.message || "Falha ao consultar a recuperação."}</p>}
           {previa && (
@@ -87,7 +90,7 @@ export default function RecuperacaoHistorica({ empresaId }) {
               {!previa.configurado && <p>Cadastre as chaves da Consulta NF-e em Administração &gt; Integrações (contrato do Serpro).</p>}
               <p className="text-muted-foreground">Preço pela faixa do contrato Consulta NF-e (volume do ciclo de faturamento, do dia 21 ao dia 20). O Serpro devolve os dados da nota com o protocolo de autorização, sem a assinatura do emitente.</p>
               <Cobertura linhas={previa.cobertura} />
-              <Button disabled={pendente || ativo || !previa.total || previa.estimativa == null || !previa.configurado}
+              <Button disabled={pendente || ativo || !previa.total || previa.estimativa == null || !previa.configurado || !!falta} title={falta ? motivo(falta) : undefined}
                 onClick={() => autorizar.mutate(previa)}>
                 {autorizar.isPending ? "Autorizando…" : "Autorizar consultas do lote"}
               </Button>

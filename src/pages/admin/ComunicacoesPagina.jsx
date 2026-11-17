@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
+import { temTela } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
@@ -99,9 +100,10 @@ export function AbaAvisos() {
 /** Administração > Comunicações e envios: e-mails enviados, lista de bloqueio e cópia dos avisos por e-mail. */
 export default function ComunicacoesPagina() {
   const { user } = useAuth();
-  const emp = useQuery({ queryKey: ["empresas", "carteiras"], queryFn: () => api.entities.Empresa.list(), enabled: user?.role === "admin" });
+  const liberada = temTela(user, "comunicacoes");
+  const emp = useQuery({ queryKey: ["empresas", "carteiras"], queryFn: () => api.entities.Empresa.list(), enabled: liberada });
   const crumbs = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Comunicações e envios" }];
-  if (user?.role !== "admin") return <div><PageHeader crumbs={crumbs} title="Comunicações e envios" /><p role="alert" className="p-8 text-sm">Somente administradores veem os envios.</p></div>;
+  if (!liberada) return <div><PageHeader crumbs={crumbs} title="Comunicações e envios" /><p role="alert" className="p-8 text-sm">Sem acesso a esta tela. Peça ao administrador.</p></div>;
   return (
     <div>
       <PageHeader crumbs={crumbs} title="Comunicações e envios" />

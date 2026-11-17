@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { exigirFuncao } from '../permissoes/permissoes';
 import { CnpjService } from '../cnpj/cnpj.service';
 import { camposDoCnpj } from '../cnpj/dados-publicos';
 import { servicosConsultoria } from './consultoria.service';
@@ -138,7 +139,7 @@ export class ClientesService {
    * captura automática de XML é desligada. Todo o histórico (XML, análises, consultas, documentos) continua guardado.
    */
   async arquivar(id: string, usuario?: Usuario) {
-    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores arquivam clientes.');
+    exigirFuncao(usuario, 'arquivar_clientes');
     const e = await this.prisma.empresa.findUnique({ where: { id } });
     if (!e) throw new NotFoundException('Cliente não encontrado.');
     if (e.arquivado_em) return e;
@@ -152,7 +153,7 @@ export class ClientesService {
 
   /** Desarquiva: o cliente volta às listas; os serviços continuam pausados até alguém ligar de novo (um clique na lista). */
   async desarquivar(id: string, usuario?: Usuario) {
-    if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores desarquivam clientes.');
+    exigirFuncao(usuario, 'arquivar_clientes');
     const e = await this.prisma.empresa.findUnique({ where: { id } });
     if (!e) throw new NotFoundException('Cliente não encontrado.');
     return this.prisma.empresa.update({ where: { id }, data: { arquivado_em: null, arquivado_por: null, status: 'Ativa' } });

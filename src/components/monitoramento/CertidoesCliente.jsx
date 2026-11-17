@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, FileCheck2, Loader2, Paperclip } from "lucide-react";
 import { api } from "@/api/client";
+import { usePermissoes } from "@/lib/usePermissao";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TabelaPadrao from "@/components/TabelaPadrao";
@@ -41,6 +42,7 @@ export function linhasDaEsfera(c, sitfis) {
 
 function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
   const input = useRef(null);
+  const { pode, motivo } = usePermissoes();
   const [validade, setValidade] = useState("");
   const falhar = (t) => (e) => toast({ title: t, description: e.message, variant: "destructive" });
   const anexar = useMutation({
@@ -59,7 +61,7 @@ function Esfera({ c, empresaId, automatica, aoMudar, sitfis }) {
         {c.emitindo && <span role="status" className="mr-auto inline-flex items-center gap-1 text-xs text-sky-700 dark:text-sky-400"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Emitindo no portal oficial pela Infosimples…</span>}
         {!c.emitindo && c.ultima_tentativa && c.ultima_tentativa.resultado !== "EMITIDA" && <span role="status" className="mr-auto text-xs text-amber-700 dark:text-amber-400">Emissão automática em {new Date(c.ultima_tentativa.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}: {c.ultima_tentativa.mensagem || "não emitida"}</span>}
         {automatica && (
-          <button type="button" disabled={emitir.isPending} onClick={() => emitir.mutate()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60">
+          <button type="button" disabled={emitir.isPending || !pode("consultas_pagas")} title={!pode("consultas_pagas") ? motivo("consultas_pagas") : undefined} onClick={() => emitir.mutate()} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60">
             {emitir.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}Emitir agora
           </button>
         )}

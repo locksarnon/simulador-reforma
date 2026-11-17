@@ -3,6 +3,7 @@ import { lerOpcoes } from './opcoes-validacao';
 import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
 import { ValidacoesService } from './validacoes.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CAMPOS, Mapeamento, ProdutosService } from './produtos.service';
@@ -33,6 +34,7 @@ export class ProdutosController {
   constructor(private readonly service: ProdutosService, private readonly validacoes: ValidacoesService, private readonly prisma: PrismaService) {}
 
   @Post('ler')
+  @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
   ler(@UploadedFile() file: Express.Multer.File) {
     return this.service.previa(file);
@@ -73,6 +75,7 @@ export class ProdutosController {
   }
 
   @Post('validar')
+  @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_SIZE } }))
   async validar(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthUser, @Body('mapeamento') mapeamento?: string, @Body('empresa_id') empresa_id?: string, @Body('opcoes') bruto?: string) {
     if (!empresa_id || !await this.prisma.empresa.findUnique({ where: { id: empresa_id } })) throw new BadRequestException('Escolha uma empresa válida para esta análise.');

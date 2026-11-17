@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Loader2, Paperclip, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { api } from "@/api/client";
-import { useAuth } from "@/lib/AuthContext";
+import { usePermissoes } from "@/lib/usePermissao";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -77,7 +77,7 @@ function Editor({ comunicado, empresas, aoFechar }) {
 
 /** Comercial > Comunicados: e-mails para grupos de clientes, com anexos, registro de envio e link de saída. */
 export default function ComunicadosPagina() {
-  const { user } = useAuth();
+  const { pode } = usePermissoes();
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const [editor, setEditor] = useState(null);
@@ -115,7 +115,7 @@ export default function ComunicadosPagina() {
                 render: (c) => (
                   <>
                     {c.status === "RASCUNHO" && <button type="button" onClick={() => setEditor({ comunicado: c })} className="rounded p-1 hover:bg-muted" aria-label={`Editar ${c.assunto}`}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-                    {c.status === "RASCUNHO" && user?.role === "admin" && <button type="button" onClick={() => confirmarEnvio(c)} className="rounded p-1 text-primary hover:bg-muted" aria-label={`Enviar ${c.assunto}`}><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+                    {c.status === "RASCUNHO" && pode("enviar_email") && <button type="button" onClick={() => confirmarEnvio(c)} className="rounded p-1 text-primary hover:bg-muted" aria-label={`Enviar ${c.assunto}`}><Send className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                     <button type="button" onClick={() => duplicar.mutate(c.id)} className="rounded p-1 hover:bg-muted" aria-label={`Duplicar ${c.assunto}`}><Copy className="h-3.5 w-3.5" aria-hidden="true" /></button>
                     {c.status === "RASCUNHO" && <button type="button" onClick={async () => { if (await confirmar({ titulo: "Excluir este rascunho?", descricao: c.assunto, rotulo: "Excluir" })) excluir.mutate(c.id); }} className="rounded p-1 text-destructive hover:bg-destructive/10" aria-label={`Excluir ${c.assunto}`}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
                   </>
@@ -123,7 +123,7 @@ export default function ComunicadosPagina() {
             ]}
           />
         )}
-        {user?.role !== "admin" && <p className="text-xs text-muted-foreground">O envio é feito por um administrador.</p>}
+        {!pode("enviar_email") && <p className="text-xs text-muted-foreground">Seu acesso não permite enviar e-mails: o envio é feito por quem tem essa função.</p>}
         <ListaDePrevistas moduloId="comunicados" />
       </div>
       {editor && <Editor key={editor.comunicado?.id || "novo"} comunicado={editor.comunicado} empresas={empresas} aoFechar={() => setEditor(null)} />}

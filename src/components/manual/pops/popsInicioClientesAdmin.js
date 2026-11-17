@@ -421,10 +421,10 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     codigo: "POP-CLI-12",
     titulo: "Importar ou atualizar empresas por planilha",
     objetivo: "Cadastrar ou atualizar muitas empresas de uma vez, com conferência antes de gravar.",
-    quem: "Administrador (os demais só baixam o modelo)",
+    quem: "Quem tem a função “Importar planilhas e XML” (os demais só baixam o modelo)",
     quando: "Na implantação de uma carteira ou numa revisão geral do cadastro.",
     caminho: "Menu > Clientes > Planilha cadastral > aba “Empresas”",
-    antes: ["Ser administrador.", "Planilha Excel (.xlsx) ou CSV no formato do modelo."],
+    antes: ["Funções “Importar planilhas e XML” e “Alterar dados” (Administrador, Gestor, Consultor e Assistente, pelo nível).", "Planilha Excel (.xlsx) ou CSV no formato do modelo."],
     passos: [
       { acao: "Na aba “Empresas”, em “Importar empresas de uma planilha”, clique em “Baixar o modelo”." },
       { acao: "Preencha o modelo com as empresas." },
@@ -562,7 +562,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     antes: ["Ser administrador.", "E-mail da pessoa."],
     passos: [
       { acao: "Clique em “Convidar pessoa”." },
-      { acao: "Preencha “E-mail”, “Nome” e “Papel” (Administrador ou Consultor)." },
+      { acao: "Preencha “E-mail” e “Nome” e escolha o “Nível” (Administrador, Gestor, Consultor, Assistente ou Somente leitura).", detalhe: "Embaixo do nível aparece o que ele libera. As telas e funções de cada pessoa se ajustam depois, no botão “Acesso” (POP-ADM-22)." },
       { acao: "Em “Como a pessoa vai entrar”, escolha “Enviar convite por e-mail” ou “Definir a senha agora”.", detalhe: "Na segunda opção, digite a senha (mínimo 10 caracteres) ou deixe em branco para o sistema gerar uma provisória." },
       { acao: "Clique em “Enviar convite” (ou “Criar conta”)." },
       { acao: "Com convite: confira se o e-mail saiu. Se não saiu, clique em “Copiar link” e mande por outro canal.", detalhe: "Com senha provisória: ela aparece uma única vez; clique em “Copiar”, passe à pessoa e clique em “Já anotei”." },
@@ -577,21 +577,22 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
   {
     modulo: "usuarios",
     codigo: "POP-ADM-02",
-    titulo: "Mudar o nome ou o papel de uma pessoa",
-    objetivo: "Trocar o nome ou o papel (Administrador ou Consultor) de uma conta.",
+    titulo: "Mudar o nome ou o nível de uma pessoa",
+    objetivo: "Trocar o nome de uma conta ou o nível de acesso dela.",
     quem: "Administrador",
     quando: "Quando a pessoa muda de função.",
     caminho: "Menu > Administração > Usuários e acessos",
     antes: ["Ser administrador."],
     passos: [
-      { acao: "Na linha da pessoa, clique no lápis (“Editar”)." },
-      { acao: "Ajuste o “Nome” e o “Papel”." },
-      { acao: "Clique em “Salvar”." },
+      { acao: "Para o nome: na linha da pessoa, clique no lápis (“Editar”), ajuste o “Nome” e clique em “Salvar”." },
+      { acao: "Para o nível: clique na linha da pessoa (ou no escudo “Acesso de …”), escolha o “Nível” e clique em “Salvar” (POP-ADM-22)." },
+      { acao: "Confira a coluna “Nível” da lista." },
     ],
-    resultado: "Aparece “Alterações salvas” e a coluna “Papel” mostra o novo papel.",
+    resultado: "Aparece “Alterações salvas” (nome) ou “Acesso salvo” (nível) e a coluna “Nível” mostra o novo nível.",
     atencao: [
       "O e-mail da conta não muda.",
-      "Administrador vê e faz tudo o que é restrito: usuários, integrações, custos, rotinas, arquivar clientes e definir carteiras.",
+      "Só o Administrador vê usuários, registro de acesso, integrações e custos; o Gestor faz todo o resto, inclusive lote, arquivar clientes e certificados.",
+      "Você não consegue tirar o próprio nível de Administrador, e o sistema sempre fica com pelo menos um administrador ativo.",
     ],
   },
   {
@@ -614,6 +615,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     atencao: [
       "O link de senha nova vale 24 horas e só funciona uma vez.",
       "Ao gerar a senha provisória, a senha atual deixa de valer na hora; a provisória aparece uma única vez.",
+      "Os botões de senha ficam na coluna “Ações”; clicar no resto da linha abre o painel de acesso.",
     ],
   },
   {
@@ -635,6 +637,31 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     atencao: [
       "A pessoa perde o acesso na hora.",
       "Você não consegue desativar a própria conta: o botão não aparece na sua linha.",
+      "Para só limitar o que a pessoa vê ou faz, sem tirar o acesso, mude o nível ou as telas dela (POP-ADM-22).",
+    ],
+  },
+  {
+    modulo: "usuarios",
+    codigo: "POP-ADM-22",
+    titulo: "Definir o nível e as telas de um usuário",
+    objetivo: "Escolher o nível de acesso de uma pessoa e liberar ou tirar telas e funções só para ela.",
+    quem: "Administrador",
+    quando: "Quando a pessoa entra na equipe, muda de função ou precisa de uma tela ou função a mais (ou a menos).",
+    caminho: "Menu > Administração > Usuários e acessos > clique na linha da pessoa (painel “Acesso de …”)",
+    antes: ["Ser administrador.", "Saber o que a pessoa vai fazer no InTAX."],
+    passos: [
+      { acao: "Clique na linha da pessoa (ou no escudo “Acesso de …”, na coluna “Ações”)." },
+      { acao: "Em “Nível”, escolha Administrador, Gestor, Consultor, Assistente ou Somente leitura.", detalhe: "Administrador: tudo. Gestor: tudo, menos usuários, registro de acesso, integrações e custos. Consultor: as telas do dia a dia, sem a Administração; altera, faz consultas pagas, envia e-mails, importa e exclui. Assistente: as mesmas telas; altera, envia e-mails e importa. Somente leitura: as mesmas telas, só para ver." },
+      { acao: "Em “Telas”, separadas pelas áreas do menu, marque ou desmarque o que for diferente para esta pessoa.", detalhe: "O que fica diferente do sugerido pelo nível ganha a marca “diferente do sugerido”." },
+      { acao: "Em “Funções”, ligue ou desligue: Alterar dados, Fazer consultas pagas, Transmitir declarações à Receita, Enviar e-mails, Importar planilhas e XML, Excluir registros, Arquivar e desarquivar clientes, Enviar e remover certificados A1 e PIN do cofre, Preparar e autorizar atualização em lote." },
+      { acao: "Para desfazer as diferenças, clique em “Voltar ao sugerido”." },
+      { acao: "Clique em “Salvar”." },
+    ],
+    resultado: "Aparece “Acesso salvo”; a coluna “Nível” mostra o nível e, no próximo clique da pessoa, o menu dela já segue o novo acesso.",
+    atencao: [
+      "O servidor confere o acesso a cada pedido: tela fora do acesso mostra “Sem acesso a esta tela. Peça ao administrador.” e ação sem a função é recusada com a explicação.",
+      "O Administrador tem tudo e não tem exceções; você não consegue tirar o próprio nível de Administrador.",
+      "Consultas pagas e transmissões entram no custo do mês (Administração > Custos das ferramentas): libere só para quem precisa.",
     ],
   },
   {

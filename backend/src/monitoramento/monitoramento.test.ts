@@ -215,9 +215,10 @@ describe('MonitoramentoService.consultar (demonstração)', () => {
   });
 });
 
-it('exige administrador e seleção explícita antes de preparar um lote', async () => {
+it('exige a função de lote (Administrador ou Gestor, pelo nível) e seleção explícita antes de preparar um lote', async () => {
   const preparar = MonitoramentoService.prototype.prepararLote;
-  await expect(preparar.call({} as MonitoramentoService, {}, { role: 'user' })).rejects.toThrow(/administradores/);
+  await expect(preparar.call({} as MonitoramentoService, {}, { role: 'user' })).rejects.toThrow(/preparar e autorizar atualização em lote/);
+  await expect(preparar.call({} as MonitoramentoService, {}, { role: 'user', nivel: 'GESTOR' } as never)).rejects.toThrow(/Informe os clientes/);
   await expect(preparar.call({} as MonitoramentoService, { empresa_ids: ['E1'], chaves: [] }, { role: 'admin' }, true))
     .rejects.toThrow(/Selecione/);
 });

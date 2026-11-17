@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, Loader2, Pencil, Tags } from "lucide-react";
 import { arquivarCliente, CHAVES_APOS_ARQUIVAR, desarquivarCliente, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 import { api } from "@/api/client";
+import { usePermissoes } from "@/lib/usePermissao";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
@@ -42,6 +43,7 @@ function Dado({ rotulo, valor }) {
 
 /** Clientes > ficha do cliente: tudo sobre um cliente numa tela, com os atalhos para o trabalho de cada serviço. */
 export default function FichaClientePagina() {
+  const { pode } = usePermissoes();
   const { empresaId } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -98,7 +100,7 @@ export default function FichaClientePagina() {
         actions={(
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => setEditando(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar dados</button>
-            {user?.role === "admin" && <button type="button" onClick={alternarArquivo} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">{arquivada ? <><ArchiveRestore className="h-4 w-4" aria-hidden="true" /> Desarquivar</> : <><Archive className="h-4 w-4" aria-hidden="true" /> Arquivar</>}</button>}
+            {pode("arquivar_clientes") && <button type="button" onClick={alternarArquivo} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">{arquivada ? <><ArchiveRestore className="h-4 w-4" aria-hidden="true" /> Desarquivar</> : <><Archive className="h-4 w-4" aria-hidden="true" /> Arquivar</>}</button>}
           </div>
         )}
       />

@@ -7,6 +7,7 @@ import { AcessosService } from '../acessos/acessos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsuariosService, validarSenha } from '../usuarios/usuarios.service';
 import { AuthUser, JwtPayload } from './auth.types';
+import { permissoesEfetivas } from '../permissoes/permissoes';
 import { LoginDto, RegisterDto, ResetPasswordDto, ResetPasswordRequestDto } from './dto/auth.dto';
 
 @Injectable()
@@ -72,7 +73,8 @@ export class AuthService {
       throw new ForbiddenException('Entrada não permitida a partir deste endereço IP.');
     }
 
-    const authUser: AuthUser = { id: user.id, email: user.email, name: user.name, role: user.role };
+    const permissoes = permissoesEfetivas({ role: user.role, nivel: user.nivel, excecoes: user.permissoes });
+    const authUser: AuthUser = { id: user.id, email: user.email, name: user.name, role: user.role, nivel: permissoes.nivel, permissoes };
     const tokens = await this.issueTokens(authUser, meta);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await registro('OK', user.id);
@@ -123,9 +125,13 @@ export class AuthService {
   async me(user: AuthUser) {
     const full = await this.prisma.user.findUnique({
       where: { id: user.id },
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, nivel: true, permissoes: true, createdAt: true },
     });
-    return full;
+    if (!full) return full;
+    // Vai para a tela o nível e as permissões que valem (as do nível com as exceções), não as exceções cruas.
+    const { permissoes: excecoes, ...resto } = full;
+    const permissoes = permissoesEfetivas({ role: full.role, nivel: full.nivel, excecoes });
+    return { ...resto, nivel: permissoes.nivel, permissoes };
   }
 
   async resetPasswordRequest(dto: ResetPasswordRequestDto) {

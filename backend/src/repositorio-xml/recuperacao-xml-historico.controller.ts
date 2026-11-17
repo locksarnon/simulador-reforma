@@ -1,31 +1,27 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Permissao } from '../permissoes/permissao.decorator';
 import { RecuperacaoXmlHistoricoService } from './recuperacao-xml-historico.service';
 
 @Controller('repositorio-xml/empresas/:empresaId/historico')
 export class RecuperacaoXmlHistoricoController {
   constructor(private readonly service: RecuperacaoXmlHistoricoService) {}
 
-  private exigirAdmin(user: AuthUser) {
-    if (user.role !== 'admin') throw new ForbiddenException('Apenas administradores autorizam a recuperação histórica.');
-  }
-
   @Get()
-  listar(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string) {
-    this.exigirAdmin(user);
+  listar(@Param('empresaId') empresaId: string) {
     return this.service.listar(empresaId);
   }
 
   @Post('previa')
+  @Permissao('consultas_pagas')
   preparar(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string, @Body() body: { de?: string; ate?: string }) {
-    this.exigirAdmin(user);
     return this.service.preparar(empresaId, body?.de, body?.ate, user.email);
   }
 
   @Post(':id/confirmar')
+  @Permissao('consultas_pagas', 'autorizar_lotes')
   confirmar(@CurrentUser() user: AuthUser, @Param('empresaId') empresaId: string, @Param('id') id: string) {
-    this.exigirAdmin(user);
     return this.service.confirmar(empresaId, id, user.email);
   }
 }
