@@ -35,6 +35,14 @@ const CHAVE_ROTINA = 'monitoramento_rotina';
 const ROTINA_PADRAO: ConfigRotina = { teto_consultas: 50, ativa: false, dias: { situacao: 1, declaracoes: 21, guias: 0, mensagens: 1, parcelamentos: 5, mei: 5, procuracoes: 1, processos: 0 }, guias: { ativa: false, dia: 10, enviar_email: false }, servicos: {}, documentos: agendaDocumentos(undefined) };
 const PESO: Record<Nivel, number> = { CRITICO: 3, ATENCAO: 2, OK: 1, INFO: 0 };
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
+const formatarDoc = (n: string) => n.length === 14 ? n.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : n.length === 11 ? n.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4') : n;
+/** CNPJ da matriz (ordem 0001) a partir do de uma filial, com os dígitos verificadores. */
+export function cnpjDaMatriz(cnpj: string): string {
+  const base = cnpj.slice(0, 8) + '0001';
+  const dv = (n: string) => { const p = n.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]; const r = [...n].reduce((t, d, i) => t + Number(d) * p[i], 0) % 11; return r < 2 ? '0' : String(11 - r); };
+  const d1 = dv(base);
+  return base + d1 + dv(base + d1);
+}
 const pior = (a: Nivel | undefined, b: Nivel): Nivel => (!a || PESO[b] > PESO[a] ? b : a);
 
 /** Respostas oficiais do ambiente de demonstração do Serpro (guardadas em 11/11/2026), usadas quando o trial limita ou cai. */
@@ -246,12 +254,36 @@ export class MonitoramentoService {
     const c = (this.cred = await this.contrato.credenciais());
     if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador (Administração > Integrações).', 'SEM_CONTRATO');
     const contratante: Identificacao = { numero: c.contratante, tipo: 2 };
+    if (s.chave === 'procuracao') return { r: await this.consultarProcuracao(s, contribuinte, c), reserva: false };
     const token = ctx.empresaId ? await this.tokenDoCliente(ctx.empresaId, contribuinte, ctx.nome, { cnpj: c.contratante, nome: c.nome }, ctx.usuario) : null;
     const autor = token ? contribuinte : contratante;
-    const dados = s.chave === 'procuracao'
-      ? JSON.stringify({ outorgante: contribuinte.numero, tipoOutorgante: String(contribuinte.tipo), outorgado: c.contratante, tipoOutorgado: '2' })
-      : s.dados(params);
+    const dados = s.dados(params);
     return { r: await this.cliente.chamar({ endpoint: s.endpoint, contratante, autorPedidoDados: autor, contribuinte, idSistema: s.sistema, idServico: s.servico, versaoSistema: s.versao, dados, tokenProcurador: token }), reserva: false, autorCliente: !!token };
+  }
+
+  /**
+   * Procuração eletrônica do cliente para o escritório (OBTERPROCURACAO41). O pedido sai sempre em nome do escritório: o Serpro só
+   * responde quando o autor do pedido é o próprio outorgado (com o termo do A1 do cliente volta "Procurador diferente do Autor do pedido").
+   * A procuração de pessoa jurídica é outorgada pela matriz; para filial sem retorno, consulta a matriz. O próprio escritório não consulta.
+   */
+  private async consultarProcuracao(s: Servico, contribuinte: Identificacao, c: CredenciaisContrato): Promise<Resposta> {
+    const escritorio: Identificacao = { numero: c.contratante, tipo: 2 };
+    const consultado = (n: string) => ({ codigo: '[InTAX]', texto: `Consultada a procuração de ${formatarDoc(n)} para ${formatarDoc(c.contratante)} (${c.nome}, contratante do Integra Contador).` });
+    if (contribuinte.tipo === 2 && contribuinte.numero.slice(0, 8) === c.contratante.slice(0, 8)) {
+      return { http: 200, status: 200, dados: { proprio_escritorio: true }, mensagens: [{ codigo: '[InTAX]', texto: 'É o próprio escritório (contratante do Integra Contador): não precisa de procuração.' }], bruto: '' };
+    }
+    const chamar = (outorgante: Identificacao) => this.cliente.chamar({
+      endpoint: s.endpoint, contratante: escritorio, autorPedidoDados: escritorio, contribuinte: outorgante, idSistema: s.sistema, idServico: s.servico, versaoSistema: s.versao,
+      dados: JSON.stringify({ outorgante: outorgante.numero, tipoOutorgante: String(outorgante.tipo), outorgado: c.contratante, tipoOutorgado: '2' }),
+    });
+    const r = await chamar(contribuinte);
+    const vazio = r.status === 200 && r.mensagens.some((m) => /40400/.test(m.codigo));
+    const matriz = contribuinte.tipo === 2 && contribuinte.numero.length === 14 && contribuinte.numero.slice(8, 12) !== '0001' ? cnpjDaMatriz(contribuinte.numero) : null;
+    if (vazio && matriz) {
+      const rm = await chamar({ numero: matriz, tipo: 2 });
+      return { ...rm, mensagens: [...rm.mensagens, consultado(matriz), { codigo: '[InTAX]', texto: `Filial: a procuração é outorgada pela matriz ${formatarDoc(matriz)}; a filial ${formatarDoc(contribuinte.numero)} não tem procuração própria.` }] };
+    }
+    return { ...r, mensagens: [...r.mensagens, consultado(contribuinte.numero)] };
   }
 
   /**

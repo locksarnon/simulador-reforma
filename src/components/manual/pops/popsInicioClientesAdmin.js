@@ -501,6 +501,8 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     resultado: "Cada cliente do BPO mostra por qual caminho é consultado e o que falta.",
     atencao: [
       "Com o A1 do cliente guardado, não precisa de procuração; sem o A1, o cliente precisa dar procuração eletrônica ao escritório no e-CAC.",
+      "A procuração é consultada sempre em nome do escritório (CNPJ do contrato do Integra Contador), mesmo para cliente com A1. Procuração dada a outro CNPJ ou a um CPF não aparece; o relatório diz qual CNPJ foi consultado.",
+      "Filial: a procuração de pessoa jurídica é outorgada pela matriz; sem retorno na filial, o InTAX consulta a matriz.",
       "Em produção, cada consulta ao Integra Contador tem custo no Serpro. Com o monitoramento desligado, o botão de consulta fica travado.",
       "No modo demonstração, as procurações consultadas aparecem marcadas como “demonstração”.",
     ],

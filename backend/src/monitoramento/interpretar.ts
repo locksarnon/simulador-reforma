@@ -181,11 +181,12 @@ export function interpretar(sistema: string, servico: string, dados: unknown, ar
     };
   }
   if (sistema === 'PROCURACOES') {
+    if ((dados as { proprio_escritorio?: boolean } | null)?.proprio_escritorio) return { nivel: 'OK', titulo: 'É o próprio escritório: não precisa de procuração.', destaques: [] };
     const procs = lista(dados);
     const hoje = Number(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
     const vigentes = procs.filter((p) => Number(p.dtexpiracao) >= hoje);
     const linhas = procs.map((p) => ({ expira: p.dtexpiracao, sistemas: lista(p.sistemas).join(', '), situacao: Number(p.dtexpiracao) >= hoje ? 'Vigente' : 'Vencida' }));
-    return { nivel: vigentes.length ? 'OK' : 'CRITICO', titulo: vigentes.length ? `${plural(vigentes.length, 'procuração vigente', 'procurações vigentes')}.` : procs.length ? 'Procuração vencida: peça ao cliente que renove no e-CAC.' : 'Sem procuração para o escritório.', destaques: [], tabela: { colunas: [{ chave: 'expira', rotulo: 'Vale até', tipo: 'data' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'sistemas', rotulo: 'Serviços' }], linhas } };
+    return { nivel: vigentes.length ? 'OK' : 'CRITICO', titulo: vigentes.length ? `${plural(vigentes.length, 'procuração vigente', 'procurações vigentes')}.` : procs.length ? 'Procuração vencida: peça ao cliente que renove no e-CAC.' : 'Sem procuração vigente para o escritório na Receita: peça ao cliente que outorgue no e-CAC (Procuração eletrônica) para o CNPJ do escritório.', destaques: [], tabela: { colunas: [{ chave: 'expira', rotulo: 'Vale até', tipo: 'data' }, { chave: 'situacao', rotulo: 'Situação' }, { chave: 'sistemas', rotulo: 'Serviços' }], linhas } };
   }
   if (servico.startsWith('PEDIDOSPARC')) {
     const ps = lista(d.parcelamentos);
