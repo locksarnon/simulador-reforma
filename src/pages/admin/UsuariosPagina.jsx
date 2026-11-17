@@ -8,7 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PageHeader from "@/components/PageHeader";
-import AcessoUsuario from "@/pages/admin/AcessoUsuario";
+import { useNavigate } from "react-router-dom";
 import { NIVEIS, NIVEL_PADRAO, nivelDaConta, nivelPorId, rotuloDoNivel } from "@/lib/permissoes";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -120,7 +120,7 @@ function DialogoUsuario({ alvo, aoFechar, aoSalvar }) {
   );
 }
 
-/** Administração > Usuários e acessos: quem usa o InTAX, com nível, situação (e convite) e último acesso; o painel Acesso define telas e funções. Só administradores. */
+/** Administração > Usuários e acessos: quem usa o InTAX, com nível, situação (e convite) e último acesso; a página de cada pessoa define o nível, as telas e as funções. Só administradores. */
 export default function UsuariosPagina() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -128,7 +128,8 @@ export default function UsuariosPagina() {
   const [dialogo, setDialogo] = useState(null);
   const [senha, setSenha] = useState(null);
   const [link, setLink] = useState(null);
-  const [acesso, setAcesso] = useState(null);
+  const navigate = useNavigate();
+  const setAcesso = (u) => navigate(`/admin/usuarios/${u.id}`);
   const { data: usuarios, isLoading, error, refetch } = useQuery({ queryKey: ["usuarios"], queryFn: () => api.get("/usuarios"), enabled: user?.role === "admin" });
   const recarregar = () => qc.invalidateQueries({ queryKey: ["usuarios"] });
   const falhar = (titulo) => (e) => toast({ title: titulo, description: e.message, variant: "destructive" });
@@ -224,7 +225,6 @@ export default function UsuariosPagina() {
         <p className="mt-2 text-xs text-muted-foreground">Convite vale 7 dias; senha nova, 24 horas.</p>
       </div>
       {dialogo && <DialogoUsuario key={dialogo.usuario?.id || "novo"} alvo={dialogo} aoFechar={() => setDialogo(null)} aoSalvar={aoSalvar} />}
-      {acesso && <AcessoUsuario usuario={acesso} eu={acesso.id === user.id} aoFechar={() => setAcesso(null)} />}
       <SenhaProvisoria dados={senha} aoFechar={() => setSenha(null)} />
       <LinkEnviado dados={link} aoFechar={() => setLink(null)} />
     </div>

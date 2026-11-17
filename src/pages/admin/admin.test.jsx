@@ -158,6 +158,13 @@ describe("Usuários e acessos: nível, telas e funções", () => {
     const html = renderizar(<ConteudoAcesso dados={{ id: "A1", email: "admin@fal", nivel: "ADMINISTRADOR", excecoes: { telas: {}, funcoes: {} } }} eu aoSalvar={() => {}} />);
     expect(html).toContain("Você não pode tirar o próprio acesso de administrador.");
     expect(html).not.toContain("diferente do sugerido");
-    expect(html).not.toMatch(/aria-checked="false"/);
+    expect(html).not.toMatch(/role="switch" aria-checked="false"/);
+    expect(html).toContain("Administrador: tudo liberado.");
+  });
+
+  it("a página tem marcar e desmarcar tudo nas telas, por área e nas funções", async () => {
+    const { ConteudoAcesso } = await import("./AcessoUsuario");
+    const html = renderizar(<ConteudoAcesso dados={{ id: "U2", email: "ana@fal", nivel: "CONSULTOR", excecoes: { telas: {}, funcoes: {} } }} aoSalvar={() => {}} />);
+    for (const t of ["Marcar todas", "Desmarcar todas", "Ligar todas", "Desligar todas", "Todas as telas de Clientes", "Voltar ao sugerido"]) expect(html).toContain(t);
   });
 });

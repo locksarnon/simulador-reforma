@@ -87,6 +87,7 @@ import ImportacaoCadastroPagina from '@/pages/clientes/ImportacaoCadastroPagina'
 import AnaliseRiscoPagina from '@/pages/bpo/AnaliseRiscoPagina';
 import PreAnalisePagina from '@/pages/comercial/PreAnalisePagina';
 import UsuariosPagina from '@/pages/admin/UsuariosPagina';
+import AcessoUsuarioPagina from '@/pages/admin/AcessoUsuario';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
 import NotificacoesPagina from '@/pages/NotificacoesPagina';
@@ -156,6 +157,7 @@ function App() {
                   <Route path="/bpo/analise-risco" element={<AnaliseRiscoPagina />} />
                   <Route path="/comercial/pre-analise" element={<PreAnalisePagina />} />
                   <Route path="/admin/usuarios" element={<UsuariosPagina />} />
+                  <Route path="/admin/usuarios/:id" element={<AcessoUsuarioPagina />} />
                   <Route path="/admin/acessos" element={<AcessosPagina />} />
                   <Route path="/perfil" element={<PerfilPagina />} />
                   <Route path="/notificacoes" element={<NotificacoesPagina />} />
