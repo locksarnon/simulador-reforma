@@ -8,8 +8,8 @@ import { quandoConsultou } from "@/lib/monitoramento";
 
 export const useLeituraSitfis = (empresaId) => useQuery({ queryKey: ["monitoramento", "sitfis-leitura", empresaId], queryFn: () => api.get(`/monitoramento/empresas/${empresaId}/situacao-fiscal`), enabled: !!empresaId });
 
-const TIPO = { PENDENCIA: "Pendência", OMISSAO: "Omissão", SUSPENSO: "Exigibilidade suspensa", OUTRO: "Informação" };
-const TOM = { PENDENCIA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", OMISSAO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", SUSPENSO: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300", OUTRO: "bg-muted text-muted-foreground" };
+const TIPO = { PENDENCIA: "Pendência", OMISSAO: "Omissão", SUSPENSO: "Exigibilidade suspensa", INDISPONIVEL: "Base indisponível na Receita", OUTRO: "Informação" };
+const TOM = { PENDENCIA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", OMISSAO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", SUSPENSO: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300", INDISPONIVEL: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300", OUTRO: "bg-muted text-muted-foreground" };
 
 /** O PDF oficial do relatório (Receita e PGFN), para ver ou baixar. */
 export function PdfDoRelatorio({ dados }) {
@@ -39,7 +39,7 @@ export function resumoPorOrgao(leitura) {
     const s = (leitura?.secoes || []).filter((x) => x.orgao === id);
     const n = (t) => s.filter((x) => x.tipo === t).length;
     const situacao = n("PENDENCIA") + n("OMISSAO") ? "PENDENTE" : n("SUSPENSO") ? "SUSPENSO" : "REGULAR";
-    return { id, orgao, situacao, pendencias: n("PENDENCIA"), omissoes: n("OMISSAO"), suspensos: n("SUSPENSO"), secoes: s.filter((x) => x.tipo !== "OUTRO").map((x) => x.titulo).join("; ") };
+    return { id, orgao, situacao, pendencias: n("PENDENCIA"), omissoes: n("OMISSAO"), suspensos: n("SUSPENSO"), secoes: s.filter((x) => x.tipo !== "OUTRO" && x.tipo !== "INDISPONIVEL").map((x) => x.titulo).join("; ") };
   });
 }
 

@@ -65,3 +65,26 @@ describe('leitura do relatório de situação fiscal', () => {
     expect(resumoDoSitfis({ ...l, secoes: [] })).toEqual({ nivel: 'OK', titulo: 'Sem pendências.' });
   });
 });
+
+describe('seção com BASE INDISPONÍVEL (base da Receita fora do ar na hora do relatório)', () => {
+  it('não conta como pendência: nível informativo e pede nova consulta', () => {
+    const texto = [
+      'CPF: 028.297.311-74 - FULANO',
+      'Certidão Emitida ______________',
+      'Certidão Negativa: A36B.7046.BFDA.7E14 Emissão: 29/10/2026 Data de Validade: 27/04/2027',
+      '____________ Diagnóstico Fiscal na Receita Federal ____________',
+      'Pendência - Parcelamento (SIPADE) ______________',
+      'BASE INDISPONÍVEL',
+      'Parcelamento com Exigibilidade Suspensa (SIPADE) ______________',
+      'BASE INDISPONÍVEL',
+      '____________ Diagnóstico Fiscal na Procuradoria-Geral da Fazenda Nacional ____________',
+      'Não foram detectadas pendências/exigibilidades suspensas para esse contribuinte nos controles da Procuradoria-Geral da Fazenda Nacional.',
+    ].join('\n');
+    const l = lerRelatorioSitfis(texto);
+    expect(l.semPendencias).toBe(true);
+    expect(l.secoes.map((s) => s.tipo)).toEqual(['INDISPONIVEL', 'INDISPONIVEL']);
+    const r = resumoDoSitfis(l);
+    expect(r.nivel).toBe('INFO');
+    expect(r.titulo).toBe('Sem pendências; base SIPADE indisponível na Receita na hora do relatório (consulte de novo).');
+  });
+});

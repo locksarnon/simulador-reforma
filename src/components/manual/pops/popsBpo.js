@@ -545,7 +545,8 @@ export const POPS_BPO = [
       { acao: "Para ler a declaração mais recente, clique em Consultar na Receita." },
     ],
     resultado: "A situação lida do relatório oficial, sem nada digitado à mão.",
-    atencao: ["Sem relatório de situação fiscal consultado, a tela mostra “Sem relatório de situação fiscal.”"],
+    atencao: [
+      "Quando o relatório da Receita traz uma seção com “BASE INDISPONÍVEL” (a base daquele sistema, por exemplo o SIPADE, estava fora do ar na hora), o InTAX mostra “Base indisponível na Receita”, não conta como pendência e pede nova consulta.","Sem relatório de situação fiscal consultado, a tela mostra “Sem relatório de situação fiscal.”"],
   },
   {
     modulo: "monitoramento",

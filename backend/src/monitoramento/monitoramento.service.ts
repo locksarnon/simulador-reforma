@@ -17,7 +17,7 @@ import { extrairArquivos, interpretar, Nivel, Resumo } from './interpretar';
 import { termoAssinado, vigenciaPadrao } from './termo-autorizacao';
 import { PdfService } from '../pdf/pdf.service';
 import { ConsultaParaRelatorio, excelDaConsulta, pdfDaConsulta } from './relatorio-consulta';
-import { LeituraSitfis, lerRelatorioSitfis, resumoDoSitfis } from './sitfis-leitura';
+import { LeituraSitfis, lerRelatorioSitfis, marcarIndisponiveis, resumoCompletoSitfis } from './sitfis-leitura';
 import { textoDoPdf } from '../pre-analise/leitor-certidoes';
 import { lerDeclaracaoPgdasd } from './pgdasd-leitura';
 import { ContratoIntegraService, CredenciaisContrato } from './contrato.service';
@@ -379,17 +379,8 @@ export class MonitoramentoService {
         if (s.sistema === 'SITFIS' && ex.arquivos.length) {
           try {
             const leitura = lerRelatorioSitfis(await textoDoPdf(Buffer.from(ex.arquivos[0].base64, 'base64')));
-            const r2 = resumoDoSitfis(leitura);
             dadosGuardados = { leitura };
-            resumo = {
-              nivel: r2.nivel, titulo: r2.titulo,
-              destaques: [
-                ...(leitura.certidao ? [{ rotulo: 'Certidão', valor: `${leitura.certidao.tipo}${leitura.certidao.validade ? `, válida até ${leitura.certidao.validade}` : ''}` }] : []),
-                { rotulo: 'Pendências', valor: String(leitura.secoes.filter((x) => x.tipo === 'PENDENCIA').length) },
-                { rotulo: 'Exigibilidade suspensa', valor: String(leitura.secoes.filter((x) => x.tipo === 'SUSPENSO').length) },
-                { rotulo: 'Omissões de declaração', valor: String(leitura.secoes.filter((x) => x.tipo === 'OMISSAO').length) },
-              ],
-            };
+            resumo = resumoCompletoSitfis(leitura);
           } catch (e) { this.log.warn(`Leitura do relatório de situação fiscal: ${(e as Error).message}`); }
         }
       } else {
@@ -692,9 +683,29 @@ export class MonitoramentoService {
     } catch { /* sem a tabela (testes) o lote segue só em memória */ }
   }
 
+  /**
+   * Relatórios de situação fiscal já guardados em que a Receita escreveu "BASE INDISPONÍVEL" numa seção (ex.: SIPADE fora do ar na
+   * hora do relatório) foram lidos como pendência. Reaplica a regra sobre a leitura guardada (sem chamar o Serpro) e refaz o nível.
+   */
+  async corrigirSitfisIndisponivel() {
+    const consultas = await this.prisma.consultaFiscal.findMany({ where: { chave: 'sitfis', sucesso: true }, select: { id: true, dados: true } });
+    let corrigidas = 0;
+    for (const c of consultas) {
+      const leitura = (c.dados as { leitura?: LeituraSitfis } | null)?.leitura;
+      if (!leitura?.secoes?.length || !marcarIndisponiveis(leitura.secoes)) continue;
+      leitura.semPendencias = !leitura.secoes.some((s) => s.tipo === 'PENDENCIA' || s.tipo === 'OMISSAO');
+      const resumo = resumoCompletoSitfis(leitura);
+      await this.prisma.consultaFiscal.update({ where: { id: c.id }, data: { dados: { ...(c.dados as object), leitura } as never, nivel: resumo.nivel, resumo: resumo as never } });
+      corrigidas++;
+    }
+    if (corrigidas) this.log.log(`Relatório de situação fiscal: ${corrigidas} leitura(s) com base indisponível deixaram de contar como pendência.`);
+    return corrigidas;
+  }
+
   /** Ao subir o servidor: continua os lotes que ficaram pela metade (até 3 dias). */
   async onApplicationBootstrap() {
     if (process.env.NODE_ENV === 'test') return;
+    void this.corrigirSitfisIndisponivel().catch((e) => this.log.warn(`Correção do relatório de situação fiscal: ${(e as Error).message}`));
     try {
       const abertos = await this.prisma.loteMonitoramento.findMany({ where: { fim: null, iniciado: { gte: new Date(Date.now() - 3 * 86_400_000) } } });
       for (const l of abertos) {
