@@ -4,6 +4,7 @@ import { join } from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import { SignedXml } from 'xml-crypto';
 import { MonitoramentoService } from './monitoramento.service';
+import { lerPfx } from '../certificados/certificado-pfx';
 
 const FIX = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'demonstracao.json'), 'utf8'));
 const XML38 = JSON.parse(FIX.CONSXMLDECLARACAO38.dados).XMLStringBase64 as string;
@@ -31,6 +32,7 @@ describe('transmissão da DCTFWeb em produção', () => {
       parametroSistema: { findUnique: async () => ({ chave: 'integra_contador_modo', valor: 'PRODUCAO' }) },
       empresa: { findUnique: async () => ({ id: 'E1', razao_social: 'EMPRESA TESTE LTDA', cnpj_cpf: '11.222.333/0001-81', regime_atual: 'Lucro Presumido' }) },
       tokenIntegraContador: { findUnique: async () => null },
+      certificadoDigital: { findFirst: async () => null },
       consultaFiscal: { create: async ({ data }: { data: Record<string, unknown> }) => ({ id: 'C1', createdAt: new Date(), ...data }), update: async () => ({}) },
     };
     const certificados = { material: async () => { throw new Error('sem certificado do cliente'); } };
@@ -56,5 +58,43 @@ describe('transmissão da DCTFWeb em produção', () => {
     const v = new SignedXml({ publicCert: certPem });
     v.loadSignature(xml.match(/<Signature[\s\S]*<\/Signature>/)![0]);
     expect(v.checkSignature(xml)).toBe(true);
+  });
+});
+
+describe('termo do A1 e procuração', () => {
+  function montar(respostaServico: (p: { autorPedidoDados: { numero: string } ; tokenProcurador?: string | null }) => { http: number; status: number }) {
+    const { pfx } = pfxDoEscritorio();
+    const cred = { consumerKey: 'K', consumerSecret: 'S', pfx, senha: 'senha', contratante: '00000000000191', nome: 'ESCRITORIO' };
+    const prisma = {
+      parametroSistema: { findUnique: async () => ({ chave: 'integra_contador_modo', valor: 'PRODUCAO' }) },
+      empresa: { findUnique: async () => ({ id: 'E1', razao_social: 'FILIAL TESTE LTDA', cnpj_cpf: '11.222.333/0002-62', regime_atual: 'Lucro Real' }) },
+      tokenIntegraContador: { findUnique: async () => null, upsert: async () => ({}) },
+      certificadoDigital: { findFirst: async () => ({ documento: '11222333000181', titular: 'MATRIZ TESTE LTDA' }) },
+      consultaFiscal: { create: async ({ data }: { data: Record<string, unknown> }) => ({ id: 'C1', createdAt: new Date(), ...data }), update: async () => ({}) },
+    };
+    const certificados = { material: async () => lerPfx(pfx, 'senha') };
+    const s = new MonitoramentoService(prisma as never, {} as never, certificados as never, {} as never, {} as never, { credenciais: async () => cred } as never, {} as never);
+    const pedidos: { idSistema: string; autorPedidoDados: { numero: string }; contribuinte: { numero: string }; tokenProcurador?: string | null }[] = [];
+    (s as unknown as { cliente: unknown }).cliente = {
+      chamar: vi.fn(async (p: { idSistema: string; autorPedidoDados: { numero: string }; contribuinte: { numero: string }; tokenProcurador?: string | null }) => {
+        pedidos.push(p);
+        if (p.idSistema === 'AUTENTICAPROCURADOR') return { http: 200, status: 200, dados: { autenticar_procurador_token: 'TK' }, mensagens: [], bruto: '' };
+        return { ...respostaServico(p), dados: {}, mensagens: [], bruto: '' };
+      }),
+    };
+    return { s, pedidos };
+  }
+
+  it('filial com o A1 da matriz: o termo e o pedido saem em nome da matriz, o contribuinte é a filial', async () => {
+    const { s, pedidos } = montar(() => ({ http: 200, status: 200 }));
+    await s.consultar({ empresaId: 'E1' }, 'dte', {}, { email: 'qa@fal' });
+    expect(pedidos[0]).toMatchObject({ idSistema: 'AUTENTICAPROCURADOR', autorPedidoDados: { numero: '11222333000181' } });
+    expect(pedidos[1]).toMatchObject({ autorPedidoDados: { numero: '11222333000181' }, contribuinte: { numero: '11222333000262' }, tokenProcurador: 'TK' });
+  });
+
+  it('acesso negado pelo termo do A1: tenta pela procuração do escritório', async () => {
+    const { s, pedidos } = montar((p) => (p.tokenProcurador ? { http: 403, status: 403 } : { http: 200, status: 200 }));
+    await s.consultar({ empresaId: 'E1' }, 'dte', {}, { email: 'qa@fal' });
+    expect(pedidos.at(-1)).toMatchObject({ autorPedidoDados: { numero: '00000000000191' }, tokenProcurador: null });
   });
 });

@@ -503,6 +503,8 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
       "Com o A1 do cliente guardado, não precisa de procuração; sem o A1, o cliente precisa dar procuração eletrônica ao escritório no e-CAC.",
       "A procuração é consultada sempre em nome do escritório (CNPJ do contrato do Integra Contador), mesmo para cliente com A1. Procuração dada a outro CNPJ ou a um CPF não aparece; o relatório diz qual CNPJ foi consultado.",
       "Filial: a procuração de pessoa jurídica é outorgada pela matriz; sem retorno na filial, o InTAX consulta a matriz.",
+      "Filial que usa o A1 da matriz: o InTAX assina o termo de autorização em nome da matriz. Se o A1 não der acesso a algum serviço, a consulta tenta pela procuração.",
+      "Consultas negadas por falta de acesso são refeitas sozinhas, na hora seguinte, quando o A1 é guardado ou a procuração passa a aparecer: o aviso de “sem procuração” sai da tela sem precisar consultar de novo.",
       "Em produção, cada consulta ao Integra Contador tem custo no Serpro. Com o monitoramento desligado, o botão de consulta fica travado.",
       "No modo demonstração, as procurações consultadas aparecem marcadas como “demonstração”.",
     ],

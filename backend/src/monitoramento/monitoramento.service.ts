@@ -213,26 +213,34 @@ export class MonitoramentoService {
     throw new BadRequestException('Escolha a empresa ou a pessoa física.');
   }
 
-  /** Token do Autentica Procurador com o A1 do próprio cliente (guardado no cofre); null se o cliente não tem certificado ativo. */
-  private async tokenDoCliente(empresaId: string, contribuinte: Identificacao, nome: string, contratante: { cnpj: string; nome: string }, usuario: string): Promise<string | null> {
-    const guardado = await this.prisma.tokenIntegraContador.findUnique({ where: { documento: contribuinte.numero } });
-    if (guardado && guardado.expira_em.getTime() > Date.now() + 60_000) return guardado.token;
+  /**
+   * Token do Autentica Procurador com o A1 do próprio cliente (guardado no cofre); null se o cliente não tem certificado ativo ou a
+   * Receita recusou o termo. O termo é assinado em nome do titular do certificado: a filial que usa o e-CNPJ da matriz assina como a
+   * matriz, e o pedido sai com a matriz como autor (o token vale para o titular e serve a todas as empresas que usam aquele A1).
+   */
+  private async tokenDoCliente(empresaId: string, contribuinte: Identificacao, nome: string, contratante: { cnpj: string; nome: string }, usuario: string): Promise<{ token: string; autor: Identificacao } | null> {
+    const cert = await this.prisma.certificadoDigital.findFirst({ where: { empresa_id: empresaId, status: 'ATIVO', valido_ate: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, select: { documento: true, titular: true } });
+    if (!cert) return null;
+    const doc = so(cert.documento) || contribuinte.numero;
+    const autor: Identificacao = doc === contribuinte.numero ? contribuinte : { numero: doc, tipo: doc.length === 11 ? 1 : 2 };
+    const guardado = await this.prisma.tokenIntegraContador.findUnique({ where: { documento: autor.numero } });
+    if (guardado && guardado.expira_em.getTime() > Date.now() + 60_000) return { token: guardado.token, autor };
     let material;
     try { material = await this.certificados.material(empresaId, 'USO_INTEGRA_CONTADOR', usuario, 'Termo de autorização do Integra Contador'); } catch { return null; }
     const agora = new Date();
-    const xml = termoAssinado({ destinatario: { numero: contratante.cnpj, nome: contratante.nome }, assinadoPor: { numero: contribuinte.numero, nome }, dataAssinatura: agora, vigencia: vigenciaPadrao(agora) }, material);
+    const xml = termoAssinado({ destinatario: { numero: contratante.cnpj, nome: contratante.nome }, assinadoPor: { numero: autor.numero, nome: autor === contribuinte ? nome : (cert.titular || nome) }, dataAssinatura: agora, vigencia: vigenciaPadrao(agora) }, material);
     const r = await this.cliente.chamar({
-      endpoint: 'Apoiar', contratante: { numero: contratante.cnpj, tipo: 2 }, autorPedidoDados: contribuinte, contribuinte,
+      endpoint: 'Apoiar', contratante: { numero: contratante.cnpj, tipo: 2 }, autorPedidoDados: autor, contribuinte: autor,
       idSistema: 'AUTENTICAPROCURADOR', idServico: 'ENVIOXMLASSINADO81', versaoSistema: '1.0', dados: JSON.stringify({ xml: Buffer.from(xml, 'utf8').toString('base64') }),
     });
     const d = (r.dados ?? {}) as { autenticar_procurador_token?: string; data_hora_expiracao?: string };
     if (r.status !== 200 || !d.autenticar_procurador_token) {
-      this.log.warn(`Autentica Procurador recusou o termo de ${contribuinte.numero}: ${r.mensagens.map((m) => m.texto).join(' ')}`);
+      this.log.warn(`Autentica Procurador recusou o termo de ${autor.numero}: ${r.mensagens.map((m) => m.texto).join(' ')}`);
       return null;
     }
     const expira = d.data_hora_expiracao ? new Date(`${d.data_hora_expiracao}-03:00`) : new Date(Date.now() + 12 * 3_600_000);
-    await this.prisma.tokenIntegraContador.upsert({ where: { documento: contribuinte.numero }, update: { token: d.autenticar_procurador_token, expira_em: expira }, create: { documento: contribuinte.numero, token: d.autenticar_procurador_token, expira_em: expira } });
-    return d.autenticar_procurador_token;
+    await this.prisma.tokenIntegraContador.upsert({ where: { documento: autor.numero }, update: { token: d.autenticar_procurador_token, expira_em: expira }, create: { documento: autor.numero, token: d.autenticar_procurador_token, expira_em: expira } });
+    return { token: d.autenticar_procurador_token, autor };
   }
 
   /** Uma chamada ao Integra Contador para o serviço, no modo atual. Na demonstração, usa os exemplos oficiais e a reserva quando o trial falha. */
@@ -255,10 +263,16 @@ export class MonitoramentoService {
     if (!c) throw new ErroIntegra('Falta o contrato do Integra Contador (Administração > Integrações).', 'SEM_CONTRATO');
     const contratante: Identificacao = { numero: c.contratante, tipo: 2 };
     if (s.chave === 'procuracao') return { r: await this.consultarProcuracao(s, contribuinte, c), reserva: false };
-    const token = ctx.empresaId ? await this.tokenDoCliente(ctx.empresaId, contribuinte, ctx.nome, { cnpj: c.contratante, nome: c.nome }, ctx.usuario) : null;
-    const autor = token ? contribuinte : contratante;
+    const t = ctx.empresaId ? await this.tokenDoCliente(ctx.empresaId, contribuinte, ctx.nome, { cnpj: c.contratante, nome: c.nome }, ctx.usuario) : null;
     const dados = s.dados(params);
-    return { r: await this.cliente.chamar({ endpoint: s.endpoint, contratante, autorPedidoDados: autor, contribuinte, idSistema: s.sistema, idServico: s.servico, versaoSistema: s.versao, dados, tokenProcurador: token }), reserva: false, autorCliente: !!token };
+    const pedir = (autor: Identificacao, token: string | null) => this.cliente.chamar({ endpoint: s.endpoint, contratante, autorPedidoDados: autor, contribuinte, idSistema: s.sistema, idServico: s.servico, versaoSistema: s.versao, dados, tokenProcurador: token });
+    if (t) {
+      const r = await pedir(t.autor, t.token);
+      // Acesso negado pelo termo do A1 (ex.: certificado de outra empresa): tenta pela procuração do cliente para o escritório.
+      if (r.http !== 403 && r.status !== 403) return { r, reserva: false, autorCliente: true };
+      this.log.warn(`Termo do A1 sem acesso para ${contribuinte.numero} em ${s.sistema}/${s.servico}; tentando pela procuração.`);
+    }
+    return { r: await pedir(contratante, null), reserva: false, autorCliente: false };
   }
 
   /**
@@ -811,6 +825,45 @@ export class MonitoramentoService {
   private async empresasDoBpo(): Promise<string[]> {
     const s = await this.prisma.servicoContratado.findMany({ where: { tipo: 'BPO_FISCAL', situacao: 'ATIVO' }, select: { empresa_id: true, modulos: true } });
     return [...new Set(s.filter((x) => !x.modulos?.length || x.modulos.includes('MONITORAMENTO')).map((x) => x.empresa_id))];
+  }
+
+  /**
+   * De hora em hora: consulta de novo o que foi negado por falta de acesso (procuração) quando o acesso apareceu depois — A1 guardado
+   * no cofre ou procuração vigente consultada. Assim o aviso "sem procuração" não fica na tela depois que o cliente liberou.
+   */
+  @Cron('10 * * * *', { timeZone: 'America/Sao_Paulo' })
+  async refazerNegadasPorAcesso() {
+    if (String(process.env.MONITORAMENTO_AGENDADOR ?? '').toLowerCase() === 'off') return { refeitas: 0 };
+    if ((await this.modo()) !== 'PRODUCAO') return { refeitas: 0 };
+    const negadas = await this.prisma.$queryRaw<{ empresa_id: string; chave: string; parametros: unknown }[]>`
+      select distinct on (c.empresa_id, c.chave) c.empresa_id, c.chave, c.parametros, c.status, c.mensagens::text as m, c."createdAt"
+      from "ConsultaFiscal" c
+      where c.empresa_id is not null and not c.simulado and c.sistema <> '' and c."createdAt" > now() - interval '60 days'
+      order by c.empresa_id, c.chave, c."createdAt" desc`.then((linhas) => (linhas as unknown as { empresa_id: string; chave: string; parametros: unknown; status: number | null; m: string; createdAt: Date }[])
+      .filter((l) => l.status === 403 && /procura|autor do pedido/i.test(l.m)));
+    if (!negadas.length) return { refeitas: 0 };
+    const ids = [...new Set(negadas.map((n) => n.empresa_id))];
+    const [certs, procs] = await Promise.all([
+      this.prisma.certificadoDigital.findMany({ where: { empresa_id: { in: ids }, status: 'ATIVO', valido_ate: { gt: new Date() } }, select: { empresa_id: true, createdAt: true } }),
+      this.prisma.consultaFiscal.findMany({ where: { empresa_id: { in: ids }, chave: 'procuracao', nivel: 'OK', simulado: false }, select: { empresa_id: true, createdAt: true } }),
+    ]);
+    const liberadoEm = new Map<string, number>();
+    for (const x of [...certs, ...procs]) liberadoEm.set(x.empresa_id!, Math.max(liberadoEm.get(x.empresa_id!) ?? 0, x.createdAt.getTime()));
+    const ultima = await this.prisma.consultaFiscal.groupBy({ by: ['empresa_id', 'chave'], where: { empresa_id: { in: ids }, chave: { in: [...new Set(negadas.map((n) => n.chave))] }, simulado: false }, _max: { createdAt: true } });
+    const quando = new Map(ultima.map((u) => [`${u.empresa_id}|${u.chave}`, u._max.createdAt?.getTime() ?? 0]));
+    // Também a própria procuração negada com "Procurador diferente do Autor do pedido" (corrigido): refaz sem esperar novo acesso.
+    const refazer = negadas.filter((n) => (n.chave === 'procuracao' && /Procurador diferente/i.test((n as unknown as { m: string }).m)) || (liberadoEm.get(n.empresa_id) ?? 0) > (quando.get(`${n.empresa_id}|${n.chave}`) ?? 0)).slice(0, 300);
+    let refeitas = 0;
+    for (const n of refazer) {
+      const s = SERVICO_POR_CHAVE.get(n.chave);
+      if (!s || s.acao) continue;
+      try {
+        await this.consultar({ empresaId: n.empresa_id }, n.chave, (n.parametros ?? undefined) as Record<string, unknown> | undefined, { email: 'rotina', role: 'admin' }, 'ROTINA');
+        refeitas++;
+      } catch (e) { this.log.warn(`Refazer ${n.chave} de ${n.empresa_id}: ${(e as Error).message}`); }
+    }
+    if (refeitas) this.log.log(`Acesso liberado: ${refeitas} consultas refeitas.`);
+    return { refeitas };
   }
 
   /** Todo dia às 06:30 (Brasília): roda os serviços cuja agenda cai hoje e, no dia das guias, gera e envia as guias. */
