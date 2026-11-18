@@ -256,6 +256,10 @@ export const SECAO_BASE_LEGAL = {
       r: "Depois de cada Radar e toda segunda-feira o sistema confere se o texto oficial mudou e se há norma nova citada. Qualquer diferença vira um aviso para o administrador; nada entra na base sem aprovação humana.",
     },
     {
+      p: "Onde fica o assistente tributário?",
+      r: "No botão Assistente, no rodapé do menu lateral (acima da sua conta e do Sair), em qualquer tela; o atalho é Ctrl+/. Ele abre um painel de conversa ao lado do menu, sugere perguntas conforme a tela em que você está, mostra primeiro as respostas já revisadas pela equipe e depois a resposta do assistente com o artigo citado. As últimas perguntas ficam guardadas neste navegador, e Nova conversa limpa o painel. No celular o painel ocupa a tela. O botão aparece para quem tem acesso à Base legal.",
+    },
+    {
       p: "O assistente da Base legal pode errar?",
       r: "Ele responde somente com o texto das normas carregadas, cita o dispositivo e valida a citação; quando o texto carregado não basta, ele avisa. As perguntas ficam registradas para revisão da equipe. Continua sendo apoio, não parecer: confirme no texto do dispositivo.",
     },

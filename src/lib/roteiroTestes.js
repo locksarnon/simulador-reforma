@@ -349,13 +349,15 @@ export const ROTEIRO = [
     criterio: "CPF não bloqueia; CFOP fora do cálculo não vem marcado; ajuste por empresa grava e desfaz.",
   },
   {
-    id: "base-legal", grupo: "Inteligência de mercado", titulo: "Base legal e Perguntas ao assistente", rota: "/base-legal",
+    id: "base-legal", grupo: "Inteligência de mercado", titulo: "Base legal e assistente tributário", rota: "/base-legal",
     objetivo: "Ler a lei dentro do sistema, buscar por artigo e perguntar em linguagem natural com a base legal citada.",
     preparo: ["Estar logado (o administrador vê os painéis extras)."],
     passos: [
       p("Abra \"Base legal\" no menu.", "Cards das normas (EC 132, LC 214, LC 227, LC 235, Decreto 12.955, CF, LC 123, LC 87, LC 116, CTN, LC 225, LC 236, Lei 5.764)."),
       p("Busque \"art 164\".", "Aparece o atalho para o Art. 164 da LC 214 (e dos outros textos que tenham esse número)."),
-      p("Pergunte: \"Até quanto de receita o produtor rural fica fora do IBS e da CBS?\"", "Resposta com o Art. 164 e trecho literal; leva de 15 a 30 s."),
+      p("Clique no botão \"Assistente\" no rodapé do menu lateral (ou Ctrl+/).", "O painel de conversa abre ao lado do menu, com sugestões conforme a tela."),
+      p("Pergunte: \"Até quanto de receita o produtor rural fica fora do IBS e da CBS?\"", "Espera animada, resposta revisada primeiro (se houver) e a resposta com o Art. 164 e trecho literal; leva de 15 a 30 s."),
+      p("Feche com Esc e reabra com Ctrl+/.", "A conversa continua; \"Nova conversa\" limpa o painel."),
       p("Pergunte algo fora do assunto (ex.: carros voadores em Marte).", "O assistente diz que não encontrou base nas normas carregadas."),
       p("Clique em um artigo citado.", "Abre o texto integral com \"Copiar com citação\"."),
       p("Como administrador: abra \"Perguntas frequentes revisadas\" e use \"Revisar e publicar\" em um cartão.", "O cartão passa a aparecer para os consultores."),

@@ -54,6 +54,9 @@ export function sugestoesDoContexto(modulo, extras) {
   return lista.slice(0, 3);
 }
 
+/** A tela tem sugestões próprias (por tela ou por área)? Só então o painel diz "para quem está em…". */
+export const temContextoProprio = (modulo) => !!modulo && !!(POR_MODULO[modulo.id] || POR_AREA[modulo.area]);
+
 /** A pergunta serve para enviar? (o serviço exige alguns caracteres e corta nos 600) */
 export const perguntaValida = (texto) => String(texto ?? "").trim().length >= MINIMO_PERGUNTA;
 

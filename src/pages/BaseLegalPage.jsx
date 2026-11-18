@@ -8,7 +8,9 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
-import AssistenteLegal from "@/components/base-legal/AssistenteLegal";
+import { PerguntasRecentes } from "@/components/base-legal/AssistenteLegal";
+import { Orbe } from "@/components/assistente/AssistenteGlobal";
+import { abrirAssistente } from "@/lib/assistente";
 import CartoesLegais from "@/components/base-legal/CartoesLegais";
 import AlertasBaseLegal from "@/components/base-legal/AlertasBaseLegal";
 import RevisoesPendentes from "@/components/base-legal/RevisoesPendentes";
@@ -81,7 +83,15 @@ export default function BaseLegalPage() {
         {admin && <RevisoesPendentes />}
 
         <section className="space-y-3"><h2 className="text-sm font-medium">Explorar por setor</h2><div className="flex flex-wrap gap-2"><button type="button" aria-pressed={!setorId} onClick={() => setSetorId('')} className={!setorId ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm'}>Todos</button>{SETORES_BASE_LEGAL.map(s => <button key={s.id} type="button" aria-pressed={setorId === s.id} onClick={() => setSetorId(s.id)} className={setorId === s.id ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm hover:bg-muted'}>{s.nome}</button>)}</div>{setor && <button type="button" onClick={() => setQ(setor.busca)} className="text-primary text-sm underline">Buscar dispositivos sobre {setor.nome}</button>}</section>
-        <AssistenteLegal key={setorId} admin={admin} setor={setor} />
+        <section className="flex flex-wrap items-center gap-4 border border-border bg-gradient-to-r from-primary/10 via-card to-card p-4" aria-label="Assistente tributário">
+          <Orbe tamanho={40} />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold">Assistente tributário</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Agora ele fica no botão <b>Assistente</b> do menu lateral (atalho Ctrl+/), em qualquer tela. A resposta vem só do texto das normas abaixo e cita o artigo.</p>
+          </div>
+          <button type="button" onClick={() => abrirAssistente({ sugestoes: setor?.perguntas })} className="inline-flex items-center gap-2 bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">Abrir o assistente{setor ? ` (${setor.nome})` : ""}</button>
+        </section>
+        {admin && <PerguntasRecentes />}
 
         <CartoesLegais admin={admin} setor={setor} />
 

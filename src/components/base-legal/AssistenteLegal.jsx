@@ -1,22 +1,11 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertTriangle, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api } from "@/api/client";
-import { CartaoResposta } from "@/components/base-legal/CartoesLegais";
 import TabelaPadrao from "@/components/TabelaPadrao";
 
-const EXEMPLOS = [
-  "Qual o limite de receita para o produtor rural não ser contribuinte do IBS e da CBS?",
-  "Se o produtor rural passar do limite no meio do ano, quando ele vira contribuinte?",
-  "Quando o crédito de IBS e CBS pode ser apropriado?",
-  "Como funciona o split payment?",
-  "Como descubro quem é contribuinte regular?",
-  "Ouro paga IBS e CBS?",
-  "Crédito de IBS e CBS é sobre tudo ou depende do uso na operação, como no PIS/Cofins?",
-];
-
-function Fundamentos({ itens }) {
+export function Fundamentos({ itens }) {
   if (!itens?.length) return null;
   return (
     <div className="space-y-2">
@@ -33,7 +22,7 @@ function Fundamentos({ itens }) {
   );
 }
 
-function Resultado({ r }) {
+export function Resultado({ r }) {
   const [voto, setVoto] = useState(null);
   const votar = async (util) => {
     setVoto(util);
@@ -75,7 +64,7 @@ function Resultado({ r }) {
   );
 }
 
-function PerguntasRecentes() {
+export function PerguntasRecentes() {
   const { data = [] } = useQuery({ queryKey: ["base-legal-perguntas"], queryFn: () => api.get("/base-legal/perguntas") });
   return (
     <details className="text-sm rounded-xl border border-border bg-card p-4">
@@ -91,65 +80,5 @@ function PerguntasRecentes() {
           ]} />
       </div>
     </details>
-  );
-}
-
-/** "Perguntas ao assistente": responde só com o texto das normas carregadas, sempre citando o dispositivo. */
-export default function AssistenteLegal({ admin, setor }) {
-  const [pergunta, setPergunta] = useState("");
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState("");
-  const [resultado, setResultado] = useState(null);
-  const [revisados, setRevisados] = useState([]);
-
-  const perguntar = async (texto = pergunta) => {
-    const t = texto.trim();
-    if (t.length < 8 || carregando) return;
-    setCarregando(true); setErro(""); setResultado(null); setRevisados([]);
-    // Respostas já revisadas pela equipe aparecem primeiro (não dependem da IA).
-    api.get("/base-legal/cartoes/busca", { q: t }).then(setRevisados).catch(() => {});
-    try { setResultado(await api.post("/base-legal/perguntar", { pergunta: t })); }
-    catch (e) { setErro(e.message || "Não foi possível consultar agora."); }
-    finally { setCarregando(false); }
-  };
-
-  return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4" /> Perguntas ao assistente</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">Pergunte com as suas palavras. A resposta vem só do texto das normas abaixo e cita o artigo.</p>
-      </div>
-      <div className="flex gap-2 items-start">
-        <textarea
-          value={pergunta} onChange={(e) => setPergunta(e.target.value)} rows={2} maxLength={600}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) perguntar(); }}
-          placeholder="Ex.: Até quanto de receita o produtor rural fica fora do IBS e da CBS?"
-          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm resize-y min-h-[3.25rem]" aria-label="Pergunta ao assistente"
-        />
-        <button type="button" onClick={() => perguntar()} disabled={carregando || pergunta.trim().length < 8} className="h-[3.25rem] px-4 inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
-          {carregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Perguntar
-        </button>
-      </div>
-      {!resultado && !carregando && (
-        <div className="flex flex-wrap gap-2">
-          {(setor?.perguntas || EXEMPLOS).map((e) => <button key={e} type="button" onClick={() => { setPergunta(e); perguntar(e); }} className="px-2.5 py-1 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted text-left">{e}</button>)}
-        </div>
-      )}
-      {carregando && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Consultando as normas… aguarde a análise dos dispositivos.</p>}
-      {erro && <p className="text-sm text-red-600">{erro}</p>}
-      {revisados.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Respostas revisadas para perguntas parecidas</p>
-          {revisados.map((c, i) => <CartaoResposta key={c.id} c={c} admin={admin} aberto={i === 0} />)}
-        </div>
-      )}
-      {resultado && (
-        <div className="space-y-2">
-          {revisados.length > 0 && <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resposta do assistente (não revisada)</p>}
-          <Resultado key={resultado.id} r={resultado} />
-        </div>
-      )}
-      {admin && <div className="pt-2"><PerguntasRecentes /></div>}
-    </section>
   );
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  anexarAoHistorico, CHAVE_HISTORICO, gravarHistorico, lerHistorico, LIMITE_HISTORICO, mensagemDeEspera, paraGuardar, perguntaValida, sugestoesDoContexto, textoParaCopiar,
+  anexarAoHistorico, CHAVE_HISTORICO, temContextoProprio, gravarHistorico, lerHistorico, LIMITE_HISTORICO, mensagemDeEspera, paraGuardar, perguntaValida, sugestoesDoContexto, textoParaCopiar,
 } from "./assistente";
 
 function armazenamentoFalso() {
@@ -15,6 +15,12 @@ describe("sugestões por tela", () => {
     expect(sugestoesDoContexto({ id: "tarefas", area: "bpo" })).toHaveLength(3);
     expect(sugestoesDoContexto(null)).toHaveLength(3);
     expect(sugestoesDoContexto({ id: "x", area: "inexistente" })[0]).toMatch(/crédito/);
+  });
+  it("só diz “para quem está em…” quando a tela tem sugestões próprias", () => {
+    expect(temContextoProprio({ id: "transicao", area: "reforma" })).toBe(true);
+    expect(temContextoProprio({ id: "tarefas", area: "bpo" })).toBe(true);
+    expect(temContextoProprio({ id: "perfil", area: "inicio" })).toBe(false);
+    expect(temContextoProprio(null)).toBe(false);
   });
   it("quem abre o assistente pode trazer as próprias sugestões (ex.: as de um setor), até 4", () => {
     expect(sugestoesDoContexto({ id: "credito-estoque" }, ["a", "b", "c", "d", "e"])).toEqual(["a", "b", "c", "d"]);

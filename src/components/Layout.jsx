@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Menu, Search, X } from "lucide-react";
 import MenuLateral from "@/components/MenuLateral";
 import BuscaRapida from "@/components/BuscaRapida";
+import AssistenteGlobal from "@/components/assistente/AssistenteGlobal";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
 import SeletorEmpresaEmFoco from "@/components/SeletorEmpresaEmFoco";
 import AvisoVersaoNova from "@/components/AvisoVersaoNova";
@@ -173,6 +174,7 @@ export default function Layout() {
         </main>
       </div>
       <BuscaRapida aberta={busca} aoMudar={setBusca} recentes={recentes} />
+      <AssistenteGlobal />
     </div>
     </EmpresaEmFocoProvider>
   );

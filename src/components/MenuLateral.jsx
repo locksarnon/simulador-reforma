@@ -8,7 +8,9 @@ import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
 import { useAuth } from "@/lib/AuthContext";
 import { areasDoMenu, caminhoDaArea, moduloDoCaminho, SITUACAO, situacaoDoModulo } from "@/lib/navegacao";
-import { nivelDaConta, rotuloDoNivel } from "@/lib/permissoes";
+import { nivelDaConta, rotuloDoNivel, temTela } from "@/lib/permissoes";
+import { abrirAssistente } from "@/lib/assistente";
+import { Orbe } from "@/components/assistente/AssistenteGlobal";
 import { plural } from "@/lib/plural";
 
 /** "Administrador" ou "Consultor": o papel decide quem envia certificado, ativa a captura e exclui. */
@@ -233,6 +235,14 @@ export default function MenuLateral({ aoNavegar, modo = "gaveta", compacto = fal
       </nav>
 
       <div className="shrink-0 space-y-1 border-t border-rail-border px-2 py-3">
+        {user && temTela(user, "base-legal") && (
+          <button type="button" onClick={() => { abrirAssistente(); aoNavegar?.(); }} data-assistente-botao aria-label="Abrir o assistente tributário" title={compacto ? "Assistente tributário (Ctrl+/)" : "Pergunte sobre a Reforma Tributária (Ctrl+/)"}
+            className={`${linha} assistente-botao text-[13.5px] font-semibold text-rail-strong`}>
+            <span className="-ml-px flex h-[20px] w-[20px] shrink-0 items-center justify-center"><Orbe tamanho={20} /></span>
+            <span className={`min-w-0 flex-1 truncate ${sumir(compacto)}`}>Assistente</span>
+            <kbd className={`rounded border border-rail-border px-1.5 text-[10px] font-medium text-rail-muted ${sumir(compacto)}`}>Ctrl /</kbd>
+          </button>
+        )}
         {user && (
           <Link to="/perfil" onClick={navegar} title="Meu perfil e troca de senha" className={`${linha} h-auto py-1.5 ${linhaInativa}`}>
             <span className="-ml-1 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-rail-accent text-[11px] font-semibold text-rail-strong ring-1 ring-rail-border" aria-hidden="true">{iniciais(user)}</span>
