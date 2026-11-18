@@ -48,7 +48,7 @@ Régua: tabela cClassTrib do Portal da Conformidade Fácil (SVRS, v1.71) > texto
 | 7 | cClassTrib 220001–3 sem fim de vigência | tabela SVRS (fim 01/01/2026) | vigência encerrada |
 | 8 | Notação 07.02.00 → 0702.00.00 (Anexo XV item 2) | texto do item | corrigida |
 
-Resultado da comparação do cálculo do motor com a calculadora oficial (99 cClassTrib × 8 anos): antes das correções, 225 itens divergiam; depois, 1 (cClassTrib 221001, locação com alíquota sobre a receita bruta, só em 2026: a calculadora devolve valores próprios, CBS 32,85 e IBS 3,65 por R$ 1.000, e o motor aplica a alíquota padrão do ano). **Esse caso não foi corrigido**: depende do art. 487 da LC 214, que não foi conferido, e a calculadora marca essa classificação como dado simulado. Está registrado aqui, não escondido.
+Resultado da comparação do cálculo do motor com a calculadora oficial (99 cClassTrib × 8 anos): antes das correções, 225 itens divergiam; depois, 1 (cClassTrib 221001, locação com alíquota sobre a receita bruta, só em 2026: a calculadora devolve valores próprios, CBS 32,85 e IBS 3,65 por R$ 1.000, e o motor aplica a alíquota padrão do ano). **Corrigido depois da entrega (commits `ec7867d` e `d59b2ff`):** o art. 487 da LC 214 manda 3,65% da receita bruta, repartidos entre a CBS e o IBS na proporção das alíquotas de referência (§ 2º e § 12). O motor agora aplica isso e, em 2026, **bate com a calculadora** (CBS 32,85 e IBS 3,65 por R$ 1.000). De 2027 em diante a calculadora usa uma alíquota fictícia para essa classe (o tratamento dela se chama "alíquota fixa fictícia" e devolve CBS 112,00 e IBS 1,00 em 2027, marcado como simulado), então o selo do simulador avisa que vale a conta da lei.
 
 ## 4. O que a auditoria das notas já mostra (dados reais, sem identificar cliente)
 
@@ -100,6 +100,7 @@ Pontos da revisão que ficaram como estão, de propósito:
 | Imposto Seletivo, crédito presumido, monofásicos, ZFM | A calculadora oficial ainda não calcula (CAL-007, `NAO_IMPLEMENTADO`). Ficam como "Conferir à parte" e continuam só no motor do InTAX |
 | Alíquotas de 2027 em diante | A calculadora exige que quem chama informe; o InTAX informa as do cenário escolhido. A conferência vale para a regra e a conta, não para a alíquota |
 | Município na conferência da operação | Usa um município de referência (a calculadora não tem alíquota própria de UF/município) |
+| Notas de **homologação** (tpAmb=2) | **Corrigido depois da entrega (`9117602`):** a auditoria ignorava essas notas, mas são justamente as que o ERP emite ao ser homologado. Agora são conferidas e entram no laudo (coluna Ambiente; regra r4, migração `20261118200000`) |
 | Produtor rural Pessoa Física na homologação | O repositório de XML guarda só notas de empresa; o laudo ainda não se aplica |
 | Pedidos "vínculo da calculadora ausente no InTAX" (637) | Informativo: são classes que o InTAX não sugere por NCM porque dependem de quem compra ou da destinação (200005 e 515001 são irmãs de 200030 e 200038; Anexos VI e XI), como já documentado em `completar-correlacao-anexos.js`. Decisão de incluir algum fica com o especialista |
 
