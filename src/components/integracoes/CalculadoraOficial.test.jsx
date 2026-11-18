@@ -17,6 +17,12 @@ const BASE = {
 };
 
 describe("Calculadora oficial da Receita (Integrações)", () => {
+  it("mostra a comparação das tabelas: contagem por tipo, informativos por último e a lista", () => {
+    const html = render({ ...BASE, comparacao: { versao_db: "V0059", comparado_em: "2026-11-18T15:00:00Z", resumo: { "cClassTrib só no InTAX": 8, "Redução CBS divergente": 1 },
+      lista: [{ grupo: "Redução CBS divergente", chave: "200038", intax: "50%", oficial: "60%", observacao: "CST 200" }, { grupo: "cClassTrib só no InTAX", chave: "200056", intax: "CST 200", oficial: "—" }] } });
+    for (const t of ["Redução CBS divergente: <strong>1</strong>", "cClassTrib só no InTAX: <strong>8</strong>", "(informativo)", "200038", "InTAX: 50%", "Calculadora: 60%"]) expect(html).toContain(t);
+    expect(html.indexOf("Redução CBS divergente: <strong>")).toBeLessThan(html.indexOf("cClassTrib só no InTAX: <strong>"));
+  });
   it("mostra versão, tabelas copiadas e a última versão do GitHub; sem versão nova não oferece aplicar", () => {
     const html = render(BASE);
     for (const t of ["Ligada", "1.6.1 · banco V0059", "150cccb", "193 classificações e 1490 vínculos NCM/NBS", "Conferir no GitHub"]) expect(html).toContain(t);

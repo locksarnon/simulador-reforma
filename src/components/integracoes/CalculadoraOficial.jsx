@@ -14,6 +14,28 @@ const ETAPAS = {
   ERRO: "A atualização não foi concluída; a versão anterior continua em uso.",
 };
 
+const SO_INFORMA = new Set(["cClassTrib só no InTAX", "cClassTrib só na calculadora"]);
+
+/** Resultado da comparação das tabelas do InTAX com as da calculadora: contagem por tipo e a lista de cada tipo. */
+export function ComparacaoTabelas({ c }) {
+  const grupos = Object.entries(c.resumo ?? {}).sort(([a], [b]) => Number(SO_INFORMA.has(a)) - Number(SO_INFORMA.has(b)));
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="text-xs text-muted-foreground">Comparação das tabelas do InTAX com as da calculadora ({c.versao_db ?? "—"}), feita em {dataBr(c.comparado_em)}. A calculadora não troca as tabelas do InTAX: só aponta o que difere, e a fonte que vale é a tabela oficial do Portal da Conformidade Fácil.</p>
+      {grupos.length === 0 ? <p>Nenhuma diferença.</p> : grupos.map(([g, n]) => (
+        <details key={g} className="rounded-md border border-border">
+          <summary className="cursor-pointer px-3 py-1.5">{g}: <strong>{n}</strong>{SO_INFORMA.has(g) ? " (informativo)" : ""}</summary>
+          <div className="max-h-56 overflow-auto border-t border-border">
+            <table className="w-full text-xs"><tbody>{c.lista.filter((d) => d.grupo === g).map((d, i) => (
+              <tr key={i} className="border-t border-border/60 first:border-0"><td className="p-1.5 whitespace-nowrap">{d.chave}</td><td className="p-1.5">InTAX: {d.intax}</td><td className="p-1.5">Calculadora: {d.oficial}</td><td className="p-1.5 text-muted-foreground">{d.observacao ?? ""}</td></tr>
+            ))}</tbody></table>
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 /** Administração > Integrações: a calculadora oficial da Receita (régua de conferência do InTAX), a versão e a atualização. */
 export default function CalculadoraOficial() {
   const qc = useQueryClient();
@@ -49,6 +71,7 @@ export default function CalculadoraOficial() {
           <div><dt className="text-xs text-muted-foreground">Última versão no GitHub da Receita</dt><dd>{e.github?.commit ? `${e.github.commit} de ${dia(e.github.data)}` : "Não conferida"}{e.github?.verificado_em ? ` · conferido em ${dataBr(e.github.verificado_em)}` : ""}{e.github?.erro ? ` · última conferência falhou: ${e.github.erro}` : ""}</dd></div>
         </dl>
       )}
+      {e?.comparacao && <ComparacaoTabelas c={e.comparacao} />}
       {etapa && <p className="text-sm" aria-live="polite">{ETAPAS[etapa] ?? etapa}{e.atualizacao.situacao.mensagem ? ` ${e.atualizacao.situacao.mensagem}` : ""}</p>}
       {etapa === "AGUARDANDO_CONFIRMACAO" && bateria && (
         <div className="space-y-2">

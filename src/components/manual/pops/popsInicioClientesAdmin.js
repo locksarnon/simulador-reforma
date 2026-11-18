@@ -911,6 +911,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     atencao: [
       "Enquanto a atualização não termina, a versão anterior continua em uso; se a versão nova não montar ou não responder, nada muda.",
       "A calculadora da Receita é régua de conferência: ela não troca sozinha as tabelas do InTAX (a tabela de cClassTrib do Portal da Conformidade Fácil pode ser mais nova que o banco da calculadora).",
+      "O cartão mostra a comparação das tabelas do InTAX com as da calculadora (cClassTrib, reduções, CST e correlação NCM × anexos), refeita a cada versão e a cada 6 horas: abra cada tipo para ver a lista. “Só no InTAX” e “só na calculadora” são informativos, porque os dois bancos têm datas diferentes; as demais diferenças pedem conferência com a lei e a tabela do Portal da Conformidade Fácil.",
     ],
   },
   {

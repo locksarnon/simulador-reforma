@@ -219,6 +219,7 @@ export const POST_DE_LEITURA = [
   'validador-nfse/validar',
   'base-legal/perguntar',
   'limpeza/previa',
+  'calculadora-rfb/conferir-operacao',
 ];
 
 const segmentos = (rota: string) => rota.split('/').filter(Boolean);

@@ -27,8 +27,29 @@ export class CalculadoraRfbController {
   }
 }
 
+/** Simulador > operação: a conferência do cálculo com a calculadora oficial. Qualquer usuário logado (só lê). */
+@Controller('calculadora-rfb')
+export class ConferirOperacaoController {
+  constructor(private readonly calc: CalculadoraRfbService) {}
+
+  @Post('conferir-operacao')
+  conferir(@Body() corpo: Record<string, unknown>) {
+    const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const t = (v: unknown) => (typeof v === 'string' && v.length <= 40 ? v : undefined);
+    const f = (corpo.fatores ?? {}) as Record<string, unknown>;
+    const a = corpo.aliquotas as Record<string, unknown> | undefined;
+    return this.calc.conferirOperacao({
+      data: t(corpo.data), ano: n(corpo.ano), cst: t(corpo.cst), cClassTrib: t(corpo.cClassTrib), ncm: t(corpo.ncm), nbs: t(corpo.nbs), valorBruto: n(corpo.valorBruto),
+      pisPct: n(corpo.pisPct), cofinsPct: n(corpo.cofinsPct), icmsPct: n(corpo.icmsPct), fcpPct: n(corpo.fcpPct), issPct: n(corpo.issPct),
+      fatores: { pisCofins: n(f.pisCofins), icms: n(f.icms), iss: n(f.iss) },
+      aliquotas: a ? { cbs: n(a.cbs), ibsUf: n(a.ibsUf), ibsMun: n(a.ibsMun) } : undefined,
+      semAlcance: typeof corpo.semAlcance === 'string' ? corpo.semAlcance.slice(0, 300) : null,
+    });
+  }
+}
+
 @Module({
-  controllers: [CalculadoraRfbController],
+  controllers: [CalculadoraRfbController, ConferirOperacaoController],
   providers: [CalculadoraRfbService],
   exports: [CalculadoraRfbService],
 })

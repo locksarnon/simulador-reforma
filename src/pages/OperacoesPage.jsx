@@ -6,6 +6,7 @@ import { useSimuladorData } from "@/hooks/useSimuladorData";
 import { BRL } from "@/lib/format";
 import OperacaoForm from "@/components/operacoes/OperacaoForm";
 import OperacaoCalcDetail from "@/components/operacoes/OperacaoCalcDetail";
+import ConferenciaOficial from "@/components/operacoes/ConferenciaOficial";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -24,7 +25,7 @@ export default function OperacoesPage() {
   // .../empresas/:empresaId/operacoes), o Outlet já traz a empresa — trava o
   // filtro nela em vez de misturar todas as empresas do grupo.
   const { empresa: empresaTravada } = useOutletContext() || {};
-  const { operacoesCalculadas, empresas, transicao, classTrib, cenarioAtivo, config, isLoading } = useSimuladorData();
+  const { operacoesCalculadas, empresas, transicao, transicaoMap: transicaoDoMotor, classTrib, cenarioAtivo, config, isLoading } = useSimuladorData();
   const qc = useQueryClient();
   const { data: grupo } = useQuery({
     queryKey: ["grupo", grupoId],
@@ -189,6 +190,7 @@ export default function OperacoesPage() {
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <OperacaoCalcDetail calc={oc} />
                             <div className="space-y-2 text-sm">
+                              <ConferenciaOficial calc={oc} anoParams={transicaoDoMotor?.get(Number(op.ano))} classTrib={classTribMap.get(op.c_class_trib)} />
                               <div><span className="text-muted-foreground">cClassTrib:</span> {op.c_class_trib} · <span className="text-muted-foreground">CST:</span> {op.cst_ibs_cbs}</div>
                               {classTribMap.get(op.c_class_trib) && (
                                 <div className="text-xs rounded-md border border-border/60 p-2 space-y-0.5">

@@ -4,12 +4,15 @@ import { readFile, stat, writeFile, rename } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { lerTabelasOficiais } from './tabelas-oficiais';
+import { compararTabelas } from './comparar-tabelas';
+import { ConferenciaOperacao, EntradaOperacao, lerConferencia, pedidoDaOperacao } from './conferir-operacao';
 
 type Usuario = { email?: string; role?: string } | undefined;
 const URL_PADRAO = 'http://reforma-calculadora-rfb:8080/api/calculadora';
 const REPO = 'ReceitaFederal/calculadora-rtc-regime-regular';
 const P_TABELAS = 'calculadora_rfb_tabelas';
 const P_GITHUB = 'calculadora_rfb_github';
+const P_COMPARACAO = 'calculadora_rfb_comparacao';
 const lerJson = async (f: string) => { try { return JSON.parse(await readFile(f, 'utf8')); } catch { return null; } };
 const lerTexto = async (f: string) => { try { return (await readFile(f, 'utf8')).trim(); } catch { return null; } };
 
@@ -56,6 +59,15 @@ export class CalculadoraRfbService implements OnApplicationBootstrap {
     return { valido: false, mensagem: j?.detail ?? j?.title ?? `HTTP ${r.status}` };
   }
 
+  /** Conferência de uma operação do simulador (saída): o que a calculadora oficial calcula para os mesmos dados. */
+  async conferirOperacao(e: EntradaOperacao): Promise<ConferenciaOperacao & { versao: { versaoApp: string; versaoDb: string } | null }> {
+    const versao = await this.versaoServico();
+    if (e.semAlcance) return { estado: 'FORA_DO_ALCANCE', motivo: e.semAlcance, erros: [], oficial: null, versao };
+    if (!e.cst || !e.cClassTrib || !(e.valorBruto > 0)) return { estado: 'FORA_DO_ALCANCE', motivo: 'Informe o CST e o cClassTrib da operação para conferir com a calculadora oficial.', erros: [], oficial: null, versao };
+    const r = await this.post<{ objetos?: { nObj: number; estadoItem: string }[] }>('/observabilidade/regime-geral', pedidoDaOperacao(e), 30_000);
+    return { ...lerConferencia(r.json?.objetos?.[0] as never), versao };
+  }
+
   async versaoServico(): Promise<{ versaoApp: string; versaoDb: string; dataVersaoDb: string } | null> {
     try {
       const r = await fetch(`${this.url}/dados-abertos/versao`, { signal: AbortSignal.timeout(5_000) });
@@ -92,7 +104,28 @@ export class CalculadoraRfbService implements OnApplicationBootstrap {
     const registro = { versao_db: t.versao_db, data_db: t.data_db, commit, tamanho: info.size, classes: t.classes.length, vinculos: t.vinculos.length, importado_em: new Date().toISOString() };
     await this.gravarParametro(P_TABELAS, registro, 'Tabelas oficiais da calculadora da Receita copiadas para o InTAX');
     this.log.log(`Tabelas oficiais da calculadora: ${t.versao_db} (${t.classes.length} classes, ${t.vinculos.length} vínculos)`);
+    await this.compararComIntax();
     return { importado: true, ...registro };
+  }
+
+  /** Compara as tabelas copiadas da calculadora com as do InTAX (cClassTrib, reduções, CST e correlação NCM x anexos) e guarda o resultado. Só aponta; nunca corrige. */
+  async compararComIntax() {
+    const [oficial, intax, vinculos, correlacao] = await Promise.all([
+      this.prisma.rfbClassTrib.findMany(), this.prisma.classTrib.findMany({ select: { c_class_trib: true, cst: true, pct_reducao_cbs: true, pct_reducao_ibs: true, status: true, vigencia_fim: true } }),
+      this.prisma.rfbNomenclaturaVinculo.findMany(), this.prisma.correlacaoNcm.findMany({ select: { ncm: true, c_class_trib: true, anexo: true, item_lei: true, excecao: true } }),
+    ]);
+    const versao = oficial[0]?.versao_db ?? null;
+    const r = compararTabelas({ oficial, intax, vinculos, correlacao });
+    const registro = { ...r, versao_db: versao, comparado_em: new Date().toISOString() };
+    await this.gravarParametro(P_COMPARACAO, registro, 'Comparação das tabelas do InTAX com as da calculadora oficial da Receita');
+    return registro;
+  }
+
+  /** Refaz a comparação quando as tabelas do InTAX mudam (a cada 6 horas); as da calculadora já refazem a cada versão. */
+  @Cron('50 */6 * * *', { timeZone: 'America/Sao_Paulo' })
+  async recompararAgendado() {
+    if (!(await this.prisma.rfbClassTrib.count())) return;
+    await this.compararComIntax();
   }
 
   /** Toda segunda às 06:40: confere no GitHub da Receita se saiu versão nova (só avisa; a troca é pelo administrador). */
@@ -114,15 +147,16 @@ export class CalculadoraRfbService implements OnApplicationBootstrap {
   }
 
   async estado() {
-    const [servico, commit, tabelas, github, situacao, pedido] = await Promise.all([
+    const [servico, commit, tabelas, github, situacao, pedido, comparacao] = await Promise.all([
       this.versaoServico(), lerTexto(join(this.dados, 'COMMIT')), this.parametro<Record<string, unknown>>(P_TABELAS),
       this.parametro<{ commit?: string; data?: string; mensagem?: string; verificado_em?: string; erro?: string | null }>(P_GITHUB),
       lerJson(join(this.controle, 'situacao.json')), lerJson(join(this.controle, 'pedido.json')),
+      this.parametro<Record<string, unknown>>(P_COMPARACAO),
     ]);
     const alvo = (pedido?.commit as string | undefined) ?? (situacao?.commit as string | undefined);
     const bateria = alvo ? await lerJson(join(this.controle, `bateria-${alvo}.json`)) : null;
     return {
-      no_ar: !!servico, versao: servico, commit, tabelas, github,
+      no_ar: !!servico, versao: servico, commit, tabelas, github, comparacao,
       versao_nova: !!(github?.commit && commit && github.commit !== commit),
       atualizacao: { situacao, pedido, bateria: bateria ? { ...bateria, lista: (bateria.lista ?? []).slice(0, 100) } : null },
       fonte: `https://github.com/${REPO}`,
