@@ -22,6 +22,9 @@ describe("conferência da operação com a calculadora oficial", () => {
     expect(pedidoDeConferencia(CALC({ is_pct: 0.2 }), ANO, CT).semAlcance).toMatch(/Imposto Seletivo/);
     expect(pedidoDeConferencia(CALC({ compra_governamental_informado: "Sim" }), ANO, CT).semAlcance).toMatch(/órgão público/);
     expect(pedidoDeConferencia(CALC({}, { naoRecolhido: "Suspensão" }), ANO, CT).semAlcance).toMatch(/Suspensão/);
+    // locação (art. 487): confere em 2026 (a calculadora aplica os 3,65%) e avisa a partir de 2027 (alíquota fictícia dela)
+    expect(pedidoDeConferencia(CALC({}, { regimeReceitaBruta: true }), { ...ANO, ano: 2026 }, CT).semAlcance).toBeNull();
+    expect(pedidoDeConferencia(CALC({}, { regimeReceitaBruta: true }), ANO, CT).semAlcance).toMatch(/alíquota fictícia/);
   });
   it("compara base, CBS e IBS com tolerância de 1 centavo", () => {
     expect(compararComMotor({ baseCalculo: 838, debitoCbs: 77.18, debitoIbs: 15.67 }, { vBC: 838, vCBS: 77.19, vIBS: 15.67 }).confere).toBe(true);

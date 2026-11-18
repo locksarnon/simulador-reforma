@@ -17,6 +17,7 @@ export function pedidoDeConferencia(calc, anoParams, classTrib) {
   else if (Number(op.is_pct) > 0) semAlcance = "Operação com Imposto Seletivo: a conferência do IS ainda não é feita.";
   else if (String(op.compra_governamental_informado || "").toLowerCase().startsWith("s")) semAlcance = "Venda a órgão público: o redutor de compras governamentais depende de ato ainda não publicado.";
   else if (ib.naoRecolhido === "Suspensão") semAlcance = "Suspensão: sem tributo a conferir nesta etapa.";
+  else if (ib.regimeReceitaBruta && ano >= 2027) semAlcance = "Locação pelo regime opcional (art. 487 da LC 214): a calculadora oficial usa alíquota fictícia a partir de 2027; o simulador aplica os 3,65% da receita bruta da lei.";
   return {
     data: op.data ? String(op.data).slice(0, 10) : undefined, ano, cst: String(classTrib?.cst || op.cst_ibs_cbs || ""), cClassTrib: String(classTrib?.c_class_trib || op.c_class_trib || ""),
     ncm: op.ncm || undefined, nbs: op.nbs || undefined, valorBruto: Number(op.valor_bruto), pisPct: Number(op.pis_pct) || 0, cofinsPct: Number(op.cofins_pct) || 0,
