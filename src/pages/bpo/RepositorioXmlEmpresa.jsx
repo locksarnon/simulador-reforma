@@ -9,6 +9,7 @@ import DocumentosXml from "@/components/repositorio-xml/DocumentosXml";
 import CapturaXml from "@/components/repositorio-xml/CapturaXml";
 import CartoesDoRepositorio from "@/components/repositorio-xml/CartoesDoRepositorio";
 import RelatoriosXml from "@/components/repositorio-xml/RelatoriosXml";
+import DivergenciasIbsCbs from "@/components/repositorio-xml/DivergenciasIbsCbs";
 import { ABAS_DE_DOCUMENTOS, fmtDoc } from "@/components/repositorio-xml/formatos";
 import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 
@@ -63,6 +64,7 @@ export default function RepositorioXmlEmpresa() {
                   <TabsTrigger value="captura" className={ITEM_DO_MENU}>Captura</TabsTrigger>
                   {ABAS_DE_DOCUMENTOS.map((a) => <TabsTrigger key={a.valor} value={a.valor} className={ITEM_DO_MENU}>{a.rotulo}</TabsTrigger>)}
                   <TabsTrigger value="resumos" className={ITEM_DO_MENU}>{resumosEEventos > 0 ? `Resumos e eventos SEFAZ (${resumosEEventos})` : "Resumos e eventos SEFAZ"}</TabsTrigger>
+                  <TabsTrigger value="ibscbs" className={ITEM_DO_MENU}>Divergências IBS/CBS</TabsTrigger>
                   <TabsTrigger value="relatorios" className={ITEM_DO_MENU}>Relatórios</TabsTrigger>
                 </TabsList>
               </div>
@@ -72,6 +74,7 @@ export default function RepositorioXmlEmpresa() {
                 <TabsContent key={a.valor} value={a.valor} className="mt-0"><DocumentosXml key={periodo.competencia} datas={datas} seletorCompetencia={<CompetenciaXml {...periodo} />} empresaId={empresaId} empresa={empresa} linkImportacao={linkImportacao} grupo={a.grupo} /></TabsContent>
               ))}
               <TabsContent value="resumos" className="mt-0"><DocumentosXml key={periodo.competencia} datas={datas} seletorCompetencia={<CompetenciaXml {...periodo} />} modo="resumos" empresaId={empresaId} empresa={empresa} linkImportacao={null} /></TabsContent>
+              <TabsContent value="ibscbs" className="mt-0"><DivergenciasIbsCbs key={periodo.competencia} empresaId={empresaId} datas={datas} seletorCompetencia={<CompetenciaXml {...periodo} />} /></TabsContent>
               <TabsContent value="relatorios" className="mt-0"><RelatoriosXml empresaId={empresaId} empresa={empresa} /></TabsContent>
             </Tabs>
           </div>

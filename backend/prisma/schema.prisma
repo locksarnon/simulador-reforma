@@ -2013,3 +2013,31 @@ model RfbNomenclaturaVinculo {
   @@index([tipo, codigo])
   @@index([c_class_trib])
 }
+
+/// Conferência do IBS/CBS de cada NF-e/NFC-e do Repositório de XML com a calculadora oficial da Receita (uma linha por nota e versão).
+model AuditoriaIbsCbs {
+  id                String    @id @default(cuid())
+  empresa_id        String
+  documento_id      String    @unique
+  chave             String
+  modelo            String?
+  data_emissao      DateTime?
+  emitente_doc      String?
+  emitente_nome     String?
+  papel             String
+  situacao          String
+  itens             Int       @default(0)
+  itens_divergentes Int       @default(0)
+  vbc_nota          Float?
+  vbc_oficial       Float?
+  ibs_nota          Float?
+  ibs_oficial       Float?
+  cbs_nota          Float?
+  cbs_oficial       Float?
+  detalhes          Json
+  versao_db         String
+  conferido_em      DateTime  @default(now())
+
+  @@index([empresa_id, data_emissao])
+  @@index([empresa_id, situacao])
+}
