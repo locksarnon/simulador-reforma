@@ -32,7 +32,11 @@ export class CalculadoraRfbService implements OnApplicationBootstrap {
   private get controle() { return process.env.CALCULADORA_RFB_CONTROLE || '/calculadora-rfb-controle'; }
 
   onApplicationBootstrap() {
-    setTimeout(() => { this.importarSeMudou().catch((e) => this.log.warn(`Tabelas oficiais: ${(e as Error).message}`)); }, 20_000).unref?.();
+    setTimeout(() => {
+      this.importarSeMudou()
+        .then(async () => { if (!(await this.parametro(P_COMPARACAO)) && (await this.prisma.rfbClassTrib.count())) await this.compararComIntax(); })
+        .catch((e) => this.log.warn(`Tabelas oficiais: ${(e as Error).message}`));
+    }, 20_000).unref?.();
   }
 
   /** POST na API oficial (JSON). Erro de rede vira exceção com mensagem clara. */
