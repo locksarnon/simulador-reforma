@@ -701,3 +701,41 @@ describe("estorno de operação diferida (devolução)", () => {
     expect(r.ibsCbs.naoRecolhido).toBe("Diferimento");
   });
 });
+
+describe("regime opcional de locação de imóvel (cClassTrib 221001, LC 214, art. 487)", () => {
+  const CT = { c_class_trib: "221001", cst: "221" };
+  const ANO2026 = { ano: 2026, cbs_efetiva: 0.009, ibs_efetivo: 0.001, ibs_uf_aliquota: 0.001, ibs_mun_aliquota: 0, pis_cofins_fator: 1, icms_fator: 1, iss_fator: 1, efeito_financeiro: 1 };
+  const ANO2029 = { ano: 2029, cbs_efetiva: 0.0921, ibs_efetivo: 0.0187, ibs_uf_aliquota: 0.01477, ibs_mun_aliquota: 0.00393, pis_cofins_fator: 0, icms_fator: 0.9, iss_fator: 0.9, efeito_financeiro: 1 };
+
+  it("2026: 3,65% da receita bruta repartidos 90% CBS e 10% IBS (os valores da calculadora oficial para R$ 1.000)", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2026, direcao: "Saída", pis_pct: 0.0165, cofins_pct: 0.076 }, ANO2026, CT);
+    expect(r.baseCalculo).toBe(1000);
+    expect(r.debitoCbs).toBeCloseTo(32.85, 2);
+    expect(r.debitoIbs).toBeCloseTo(3.65, 2);
+    expect(r.debitoIbsUf).toBeCloseTo(3.65, 2);
+    expect(r.debitoIbsMun).toBeCloseTo(0, 2);
+    expect(r.regimeReceitaBruta).toBe(true);
+  });
+  it("a base é a receita bruta: PIS, Cofins, ICMS e ISS não saem dela", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Saída", pis_pct: 0.0165, cofins_pct: 0.076, icms_pct: 0.18, iss_pct: 0.05 }, ANO2029, CT);
+    expect(r.baseCalculo).toBe(1000);
+    expect(r.baseExcluida).toBe(0);
+  });
+  it("2029: o total continua 3,65% e a repartição segue as alíquotas de referência do ano (§12); o IBS reparte entre estado e município", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Saída" }, ANO2029, CT);
+    expect(r.debitoCbs + r.debitoIbs).toBeCloseTo(36.5, 6);
+    expect(r.debitoCbs / (r.debitoCbs + r.debitoIbs)).toBeCloseTo(0.0921 / (0.0921 + 0.0187), 6);
+    expect(r.debitoIbsUf + r.debitoIbsMun).toBeCloseTo(r.debitoIbs, 6);
+    expect(r.debitoIbsUf / r.debitoIbs).toBeCloseTo(0.01477 / (0.01477 + 0.00393), 6);
+  });
+  it("outra classe na mesma operação continua pela regra geral (nada mudou fora do 221001)", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Saída", icms_pct: 0.18 }, ANO2029, { c_class_trib: "000001", cst: "000" });
+    expect(r.regimeReceitaBruta).toBe(false);
+    expect(r.baseCalculo).toBeLessThan(1000);
+    expect(r.debitoCbs).toBeCloseTo(r.baseCalculo * 0.0921, 6);
+  });
+  it("sem alíquotas de referência no ano, não inventa tributo", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2027, direcao: "Saída" }, { ano: 2027 }, CT);
+    expect(r.debitoCbs + r.debitoIbs).toBe(0);
+  });
+});

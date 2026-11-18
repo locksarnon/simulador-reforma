@@ -63,6 +63,12 @@ export default function OperacaoCalcDetail({ calc }) {
             </p>
           </>
         )}
+        {ib.regimeReceitaBruta && (
+          <>
+            <Row label="Base de cálculo (receita bruta recebida)" value={ib.baseCalculo} />
+            <p className="text-xs text-muted-foreground pb-1.5">Locação, cessão onerosa ou arrendamento de imóvel pelo regime opcional (LC 214, art. 487): IBS e CBS somam 3,65% da receita bruta, repartidos entre a CBS e o IBS na proporção das alíquotas de referência do ano (§ 12). A base não perde ICMS, ISS, PIS nem Cofins, e o pagamento é definitivo.</p>
+          </>
+        )}
         {ib.fatorBaseReduzida > 0 && ib.fatorBaseReduzida < 1 && (
           <Row label={`Base reduzida por lei (${Math.round(ib.fatorBaseReduzida * 100)}% do valor)`} value={ib.baseCalculo} />
         )}

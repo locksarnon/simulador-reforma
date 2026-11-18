@@ -94,6 +94,14 @@ function percentuaisLegaisCredPres(codigo, ano, ibsDoAno, cbsDoAno) {
  * em conjunto) "a base de cálculo será a metade do valor cobrado" (tabela oficial de cClassTrib; calculadora da Receita).
  */
 export const BASE_REDUZIDA_POR_CLASSE = { "222001": 0.5 };
+/**
+ * Regime opcional de locação, cessão onerosa e arrendamento de imóvel (cClassTrib 221001; LC 214, art. 487): IBS e CBS somam 3,65% da
+ * receita bruta recebida (§2º), repartidos entre a CBS e o IBS (estadual e municipal) na proporção das alíquotas de referência do ano
+ * (§12). A base é a receita bruta, sem as exclusões do art. 12, e o pagamento é definitivo. O parcelamento do solo (art. 486) segue a
+ * mesma conta, mas as classes 220001 a 220003 já encerraram a vigência.
+ */
+export const ALIQUOTA_TOTAL_LOCACAO = 0.0365;
+export const CLASSES_RECEITA_BRUTA_3_65 = new Set(["221001"]);
 /** CST com diferimento (510, e 515 com redução de alíquota, ex.: insumos agropecuários, LC 214, art. 138, §2º). */
 export const CST_DIFERIMENTO = new Set(["510", "515"]);
 /** CST com suspensão (550: regimes aduaneiros, ZPE, drawback etc.). */
@@ -165,7 +173,9 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const { base: baseArt12, excluido: baseExcluida } = baseIbsCbs(op, anoParams);
   const cClassOp = String(classTrib?.c_class_trib || op.c_class_trib || "");
   const fatorBase = BASE_REDUZIDA_POR_CLASSE[cClassOp] ?? 1;
-  const baseCalc = baseArt12 * fatorBase;
+  const regimeReceitaBruta = CLASSES_RECEITA_BRUTA_3_65.has(cClassOp);
+  // Receita bruta: o valor recebido inteiro; a base não perde ICMS, ISS, PIS e Cofins como na regra geral.
+  const baseCalc = regimeReceitaBruta ? vb : baseArt12 * fatorBase;
   // Diferimento (CST 510/515) e suspensão (CST 550): o tributo não é recolhido nesta operação e, por não ser cobrado, não gera
   // crédito ao adquirente agora (o diferimento se encerra na etapa seguinte, art. 138, §§ 5º e 6º). O valor fica informado à parte.
   const cstOp = String(classTrib?.cst || op.cst_ibs_cbs || "");
@@ -184,6 +194,12 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const fatorGov = 1 - redutorGov;
   let ibsEfetiva = ibsNominal * (1 - redIbs) * fatorGov;
   let cbsEfetiva = cbsNominal * (1 - redCbs) * fatorGov;
+  if (regimeReceitaBruta) {
+    // 3,65% no total, repartidos pelas alíquotas de referência do ano.
+    const somaRef = ibsNominal + cbsNominal;
+    ibsEfetiva = somaRef > 0 ? ALIQUOTA_TOTAL_LOCACAO * (ibsNominal / somaRef) : 0;
+    cbsEfetiva = somaRef > 0 ? ALIQUOTA_TOTAL_LOCACAO * (cbsNominal / somaRef) : 0;
+  }
 
   let debitoIbs = isEntrada ? 0 : baseCalc * ibsEfetiva;
   let debitoCbs = isEntrada ? 0 : baseCalc * cbsEfetiva;
@@ -273,15 +289,15 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const aliqTotal = aliqUf + aliqMun;
   // Combustível: o IBS já vem em reais; reparte pela proporção estado × município do ano.
   const parteUf = aliqTotal > 0 ? aliqUf / aliqTotal : 0;
-  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * fatorGov * fatorRecolhe) : 0);
-  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * fatorGov * fatorRecolhe) : 0);
+  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel || regimeReceitaBruta ? debitoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * fatorGov * fatorRecolhe) : 0);
+  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel || regimeReceitaBruta ? debitoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * fatorGov * fatorRecolhe) : 0);
 
   // Split IBS UF / Município — créditos (proporcionais à alíquota de cada ente)
   const creditoIbsUf = isEntrada && aliqTotal > 0
-    ? (usaCombustivel ? creditoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * creditoElegivel * fatorRecolhe)
+    ? (usaCombustivel || regimeReceitaBruta ? creditoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * creditoElegivel * fatorRecolhe)
     : 0;
   const creditoIbsMun = isEntrada && aliqTotal > 0
-    ? (usaCombustivel ? creditoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * creditoElegivel * fatorRecolhe)
+    ? (usaCombustivel || regimeReceitaBruta ? creditoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * creditoElegivel * fatorRecolhe)
     : 0;
 
   // Saldos por ente (débito - crédito, nunca negativo individualmente)
@@ -303,11 +319,12 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
     redutorCompraGov: redutorGov,
     // Base de cálculo do IBS/CBS (art. 12, §2º, V) e o que saiu dela; o combustível não usa base (alíquota por unidade).
     baseCalculo: usaCombustivel ? vb : baseCalc,
-    baseExcluida: usaCombustivel ? 0 : baseExcluida,
+    baseExcluida: usaCombustivel || regimeReceitaBruta ? 0 : baseExcluida,
     // Detalhe do regime específico de combustíveis (null para operação comum). Avisos aparecem na tela.
     combustivel: comb,
     // Base reduzida por lei para a classificação (1 = base cheia) e tributo diferido/suspenso (só informativo).
     fatorBaseReduzida: fatorBase,
+    regimeReceitaBruta,
     // Combustível do regime específico segue o próprio regime (o diferimento/suspensão não é aplicado a ele aqui).
     naoRecolhido: fatorRecolhe === 0 ? naoRecolhido : null,
     valorNaoRecolhido,
