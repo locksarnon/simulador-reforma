@@ -60,8 +60,8 @@ export function Troca({ item, aoRepetir }) {
           {item.estado === "carregando" && <Pensando desde={item.inicio} />}
           {item.revisados?.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Resposta revisada pela equipe</p>
-              {item.revisados.map((c, i) => <CartaoResposta key={c.id} c={c} admin={false} aberto={i === 0} />)}
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{item.revisados.length > 1 ? "Perguntas parecidas já revisadas pela equipe" : "Pergunta parecida já revisada pela equipe"}</p>
+              {item.revisados.map((c) => <CartaoResposta key={c.id} c={c} admin={false} aberto={false} />)}
             </div>
           )}
           {item.estado === "ok" && (

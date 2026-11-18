@@ -274,7 +274,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
       { acao: "Se quiser focar num setor, clique nele em Explorar por setor.", detalhe: "Buscar dispositivos sobre (setor) preenche a busca com os termos do setor." },
       { acao: "Para perguntar ao assistente, clique no botão Assistente, no rodapé do menu lateral, em qualquer tela (ou use Ctrl+/).", detalhe: "O painel abre ao lado do menu e não tira você da tela em que está. Na Base legal, o botão Abrir o assistente faz o mesmo e leva as perguntas do setor escolhido." },
       { acao: "Clique numa das sugestões, que mudam conforme a tela aberta, ou escreva a pergunta com as suas palavras e aperte Enter.", detalhe: "A pergunta precisa ter pelo menos 8 caracteres. Shift+Enter quebra a linha." },
-      { acao: "Leia primeiro a “Resposta revisada pela equipe”, quando aparecer; depois a resposta do assistente, com os dispositivos citados.", detalhe: "Clique no artigo citado para abrir o texto da norma." },
+      { acao: "Se aparecer “Pergunta parecida já revisada pela equipe”, leia o título: é a pergunta do cartão, e ele só serve se for a mesma dúvida. Depois leia a resposta do assistente, com os dispositivos citados.", detalhe: "O cartão vem fechado; clique para abrir. Clique no artigo citado para abrir o texto da norma." },
       { acao: "Marque Ajudou ou Não ajudou, ou clique em Copiar resposta para levar a resposta com a base legal." },
       { acao: "Para começar outro assunto, clique em Nova conversa (a setinha circular no alto do painel).", detalhe: "As últimas perguntas ficam guardadas neste navegador até você começar uma nova conversa." },
       { acao: "Para buscar por assunto ou artigo, use o campo de busca (ex.: “produtor rural limite” ou “art 164”) e clique no resultado." },

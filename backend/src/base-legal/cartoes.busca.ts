@@ -6,6 +6,12 @@ const PARADAS = new Set([
   'vira', 'sobre', 'caso', 'quando', 'deve', 'devem', 'existe', 'preciso', 'posso',
 ]);
 
+/**
+ * Palavras que estão em quase todo cartão (o assunto da base inteira): sozinhas não indicam que o cartão responde à pergunta.
+ * "venda de soja tem incidência de IBS e CBS?" não pode casar com "Comprar do Simples gera crédito de IBS e CBS?" só por IBS e CBS.
+ */
+const DO_ASSUNTO = new Set(['ibs', 'cbs', 'incide']);
+
 export const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** "produtores" e "produtor" viram o mesmo radical (5 letras) — suficiente para o vocabulário jurídico daqui. */
@@ -16,11 +22,17 @@ export function radicais(texto: string): string[] {
     .map((t) => (/^\d+$/.test(t) ? t : t.slice(0, 6)));
 }
 
+/** Radicais que distinguem a pergunta: os mesmos de radicais(), sem as palavras do assunto da base inteira. */
+export function radicaisDistintivos(texto: string): string[] {
+  return radicais(texto).filter((t) => !DO_ASSUNTO.has(t));
+}
+
 export type CartaoBusca = { id: string; pergunta: string; sinonimos: string | null; resposta: string; tema: string };
 
 /** Pontua cada cartão: radical na pergunta (3), nos sinônimos/tema (2), na resposta (1). */
 export function buscarCartoes<T extends CartaoBusca>(consulta: string, cartoes: T[], limite = 4): (T & { pontos: number })[] {
-  const q = [...new Set(radicais(consulta))];
+  // Só as palavras que distinguem a pergunta decidem; sem nenhuma (ex.: "tem incidência de IBS e CBS?"), não há o que casar.
+  const q = [...new Set(radicaisDistintivos(consulta))];
   if (!q.length) return [];
   const pontuados = cartoes.map((c) => {
     const p = new Set(radicais(c.pergunta));

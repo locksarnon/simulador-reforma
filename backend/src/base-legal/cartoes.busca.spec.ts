@@ -19,6 +19,16 @@ describe('busca de cartões de perguntas frequentes', () => {
     expect(topo('restaurante crédito para quem compra')).toContain('bares e restaurantes');
   });
 
+  it('palavras do assunto da base inteira (IBS, CBS, incidência) sozinhas não casam cartão', () => {
+    // O cartão do Simples ("Comprar de fornecedor do Simples gera crédito de IBS e CBS?") não responde sobre soja.
+    const simples = base.filter((c) => /Simples/.test(c.pergunta));
+    expect(simples.length).toBeGreaterThan(0);
+    expect(buscarCartoes('venda de soja tem incidência de IBS e CBS?', base).map((c) => c.pergunta)).not.toContain(simples[0].pergunta);
+    expect(buscarCartoes('tem incidência de IBS e CBS?', base)).toEqual([]);
+    // e o que depende dessas palavras junto de outras continua achando
+    expect(topo('split payment com cartão parcelado')).toContain('vendas parceladas');
+  });
+
   it('não devolve nada para pergunta fora do assunto', () => {
     expect(buscarCartoes('carros voadores em Marte', base)).toEqual([]);
     expect(buscarCartoes('', base)).toEqual([]);
