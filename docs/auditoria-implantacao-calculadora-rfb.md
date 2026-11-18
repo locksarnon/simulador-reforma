@@ -61,16 +61,35 @@ As 313 notas são todas de captura da SEFAZ (notas **recebidas**). Para a homolo
 | Suíte | Resultado |
 |---|---|
 | Frontend (`vitest`, 102 arquivos) | 1.106 testes: passam todos |
-| Backend em lotes | 1.426 passam, 2 pulados e 11 falham, todos de leitura de planilha Excel (`operacoes-planilha`, `produtos/leitura-planilha`, `produtos.service.test`), módulos que **não foram alterados** (0 arquivos mudaram nessas pastas) |
+| Backend em lotes (antes das correções da revisão) | 1.426 passam, 2 pulados e 11 falham, todos de leitura de planilha Excel (`operacoes-planilha`, `produtos/leitura-planilha`, `produtos.service.test`), módulos que **não foram alterados** (0 arquivos mudaram nessas pastas) |
 | Esses mesmos arquivos no Linux de produção | 226 de 226 passam |
+| Áreas alteradas depois da revisão (auditoria, permissões, calculadora, consultoria) | passam (permissões 17, auditoria 18, calculadora/serviços 73, consultoria 2) |
 | Build do frontend | OK |
 | Verificação de tipos do backend | OK |
 
 As 11 falhas são do Windows desta máquina (a memória do projeto já registrava, em 11/11, que esses testes falham de forma intermitente aqui). A primeira tentativa de rodar a suíte inteira do backend caiu por falta de memória do PC (código 139) e foi refeita em lotes menores.
 
-## 6. Revisão independente
+## 6. Revisão independente (duas rodadas, outro agente, só leitura)
 
-Duas revisões feitas por outro agente, só leitura: a primeira (correções da Fase 0) não achou erro grave e levantou 9 pontos, tratados (estorno que espelhava campos novos, combustível com CST de diferimento, parâmetro sem uso). A segunda cobre as Fases 1 a 4; seus achados e o tratamento estão na seção 8.
+**Rodada 1 (correções da Fase 0):** nenhuma falha grave; 9 pontos, todos tratados (estorno que espelhava campos novos, combustível com CST de diferimento, parâmetro sem uso, entre outros).
+
+**Rodada 2 (Fases 1 a 4):** nenhuma falha de segurança grave nem risco de perda de dados (rotas atrás do login e do guarda de permissões; o commit do pedido de atualização passa por regex e é cortado em 7 caracteres, sem injeção; troca de tabelas atômica). Os problemas de correção encontrados foram corrigidos e implantados (commit `bb219d4`):
+
+| # | Achado | Tratamento | Prova |
+|---|---|---|---|
+| 1 | O laudo da homologação (`GET /projetos-diagnostico/:id/homologacao`) não exigia tela: qualquer usuário logado lia notas e empresas de qualquer projeto | rota passa a exigir uma das telas Captura de XML, Projetos ou Carteira de Consultoria | teste de permissões (17 passam) |
+| 2 | Documento que dá erro (XML ilegível, arquivo sumido) voltava sempre como pendente e, com 200 deles, travava a fila da auditoria | grava linha `FALHA` com o motivo; refaz depois de 6 horas | 4 testes novos do serviço |
+| 3 | Falha passageira da calculadora (fora do ar, resposta 5xx) podia virar resultado definitivo | não grava e interrompe o lote para o próximo ciclo; recusa 4xx da nota grava como falha | 2 testes novos |
+| 4 | "Notas aguardando conferência" no laudo contava também as recebidas e ficava sempre inflado | conta no banco só as notas emitidas pela empresa sem conferência atual | consulta rodada em produção: 0 |
+| 5 | Pendentes acima de 5.000 notas ficavam falsos | contagem direta no banco, com a marca da regra atual | consulta rodada em produção: 0 |
+| 6 | Linhas da auditoria sobravam quando o XML era apagado do repositório | chave estrangeira com cascata (migração `20261118190000`), órfãs removidas | `fk cascata: 1`, 0 órfãs |
+| 7 | Script de atualização: falha depois de gravar o `.env` deixava o painel "em andamento" para sempre e podia declarar sucesso com o serviço fora do ar | reescrito: qualquer erro volta à versão anterior, grava ERRO e limpa o pedido | **testado em produção**: (a) pedido da mesma versão: construiu, subiu a cópia, bateria 0 diferenças, trocou, ficou saudável, fotografou, 1m24s, `CONCLUIDA`; (b) pedido de versão inexistente: `ERRO` em 4s, versão em uso intacta, sem contêiner temporário |
+
+Pontos da revisão que ficaram como estão, de propósito:
+- **Sem limite de uso** na conferência de operação (`conferir-operacao`): só repassa números ao serviço interno; cada abertura do detalhe faz uma chamada. Risco baixo, usuário logado.
+- **Vazão da auditoria:** 200 notas a cada 20 minutos. O repositório tem 313 notas de 2026 (conferidas em minutos); um histórico de milhares leva horas a dias e refaz tudo a cada versão nova da calculadora. Aceitável hoje; o limite por ciclo pode subir se o volume crescer.
+- **"Sem destaque de IBS/CBS"** (ex.: emitente do Simples) fica numa categoria própria, separada de "Reprovado". Se a obrigatoriedade do grupo vale para cada tipo de emitente em 2026: **não confirmado**.
+- O backend roda como `root` no contêiner e escreve o pedido de atualização; quem comanda a compilação de um commit público no servidor é o administrador do InTAX, pelo botão.
 
 ## 7. O que NÃO foi feito, e por quê (decisões, não esquecimentos)
 
