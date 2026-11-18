@@ -142,7 +142,7 @@ describe("RepositorioXmlEmpresa", () => {
   it("o menu é uma barra com um item por tipo de documento, na ordem do Notalize, e o item aberto vem em destaque verde", () => {
     const html = tela([[["empresa", "E1"], empresa], [["grupos"], GRUPOS], ...cacheDocs]);
     const itens = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
-    expect(itens).toEqual(["Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Relatórios"]);
+    expect(itens).toEqual(["Captura", "NF-e | NFC-e", "CT-e", "NFS-e", "MDF-e", "Resumos e eventos SEFAZ", "Divergências IBS/CBS", "Relatórios"]);
     const aberto = [...html.matchAll(/<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
     expect(aberto).toEqual(["NF-e | NFC-e"]);
     expect(html).toContain("data-[state=active]:bg-primary");
