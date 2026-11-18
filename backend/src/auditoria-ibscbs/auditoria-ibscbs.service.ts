@@ -81,10 +81,7 @@ export class AuditoriaIbsCbsService {
     const nota = lerNotaIbsCbs(xml);
     let itens: ResultadoItem[];
     let situacao;
-    if (nota.ambiente === '2') {
-      itens = [];
-      situacao = 'HOMOLOGACAO';
-    } else if (!nota.itens.some((i) => i.ibscbs)) {
+    if (!nota.itens.some((i) => i.ibscbs)) {
       itens = nota.itens.map((i) => compararItem(i, undefined, classes));
       situacao = 'SEM_GRUPO';
     } else {
@@ -104,7 +101,7 @@ export class AuditoriaIbsCbsService {
     }
     const dados = {
       empresa_id: d.empresa_id, chave: d.chave, modelo: nota.modelo || d.modelo, data_emissao: d.data_emissao, emitente_doc: d.emitente_doc, emitente_nome: d.emitente_nome,
-      papel: so(nota.emitente) && so(nota.emitente) === so(empresa?.cnpj_cpf) ? 'EMITIDA' : 'RECEBIDA', situacao,
+      papel: so(nota.emitente) && so(nota.emitente) === so(empresa?.cnpj_cpf) ? 'EMITIDA' : 'RECEBIDA', situacao, ambiente: nota.ambiente === '2' ? 'HOMOLOGACAO' : 'PRODUCAO',
       itens: itens.filter((i) => i.situacao !== 'SEM_GRUPO').length, itens_divergentes: itens.filter((i) => ['DIVERGENTE', 'ENQUADRAMENTO'].includes(i.situacao)).length,
       vbc_nota: soma(itens, (i) => i.nota.vBC), vbc_oficial: soma(itens, (i) => i.oficial?.vBC), ibs_nota: soma(itens, (i) => i.nota.vIBS), ibs_oficial: soma(itens, (i) => i.oficial?.vIBS),
       cbs_nota: soma(itens, (i) => i.nota.vCBS), cbs_oficial: soma(itens, (i) => i.oficial?.vCBS),
@@ -116,7 +113,7 @@ export class AuditoriaIbsCbsService {
   /** Laudo de homologação do ERP: cenários (CST / cClassTrib / CFOP) das notas que as empresas emitiram no período, com o veredito de cada um. */
   async laudo(empresaIds: string[], de: Date, ate: Date) {
     const [linhas, empresas, versao] = await Promise.all([
-      this.prisma.auditoriaIbsCbs.findMany({ where: { empresa_id: { in: empresaIds }, papel: 'EMITIDA', data_emissao: { gte: de, lte: ate } }, select: { empresa_id: true, chave: true, papel: true, situacao: true, data_emissao: true, detalhes: true, versao_db: true } }),
+      this.prisma.auditoriaIbsCbs.findMany({ where: { empresa_id: { in: empresaIds }, papel: 'EMITIDA', data_emissao: { gte: de, lte: ate } }, select: { empresa_id: true, chave: true, papel: true, situacao: true, data_emissao: true, detalhes: true, versao_db: true, ambiente: true } }),
       this.prisma.empresa.findMany({ where: { id: { in: empresaIds } }, select: { id: true, razao_social: true } }),
       this.calc.versaoServico(),
     ]);

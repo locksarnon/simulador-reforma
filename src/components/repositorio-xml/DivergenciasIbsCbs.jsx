@@ -41,6 +41,7 @@ export default function DivergenciasIbsCbs({ empresaId, datas, seletorCompetenci
     { chave: "data_emissao", rotulo: "Emissão", tipo: "data" },
     { chave: "chave", rotulo: "Chave" },
     { chave: "papel", rotulo: "Nota", valor: (l) => (l.papel === "EMITIDA" ? "Emitida" : "Recebida") },
+    { chave: "ambiente", rotulo: "Ambiente", valor: (l) => (l.ambiente === "HOMOLOGACAO" ? "Homologação" : "Produção") },
     { chave: "emitente", rotulo: "Emitente", valor: (l) => l.emitente_nome || fmtDoc(l.emitente_doc) },
     { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACOES_IBSCBS[l.situacao]?.rotulo ?? l.situacao, render: (l) => <Selo s={l.situacao} /> },
     { chave: "itens_divergentes", rotulo: "Itens com achado", tipo: "numero", valor: (l) => l.itens_divergentes },

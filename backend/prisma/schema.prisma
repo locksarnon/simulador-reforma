@@ -2038,6 +2038,8 @@ model AuditoriaIbsCbs {
   cbs_oficial       Float?
   detalhes          Json
   versao_db         String
+  /// PRODUCAO ou HOMOLOGACAO (tpAmb da nota): a homologação do ERP precisa justamente das notas emitidas em ambiente de homologação.
+  ambiente          String    @default("PRODUCAO")
   conferido_em      DateTime  @default(now())
   documento         DocumentoXml @relation(fields: [documento_id], references: [id], onDelete: Cascade)
 

@@ -13,15 +13,15 @@ describe('laudo de homologação do ERP', () => {
     nota('N4', [it_(1, null, null, '5102', 'SEM_GRUPO')]),
     nota('N5', [it_(1, '620', '620006', '5656', 'NAO_COBERTO')]),
     nota('N6', [it_(1, '000', '000001', '5102', 'CONFERE')], { papel: 'RECEBIDA' }),
-    nota('N7', [], { situacao: 'HOMOLOGACAO' }),
+    nota('N7', [it_(1, '000', '000001', '5102', 'CONFERE')], { ambiente: 'HOMOLOGACAO' }),
   ]);
   const por = (ct: string) => laudo.cenarios.find((c) => c.cClassTrib === ct)!;
 
-  it('só entram as notas que o ERP emitiu; recebidas e de homologação ficam de fora', () => {
-    expect(laudo.resumo).toMatchObject({ notas: 5, itens: 6, homologacao_ignoradas: 1 });
+  it('só entram as notas que o ERP emitiu (as recebidas ficam de fora); as de ambiente de homologação ENTRAM e são contadas', () => {
+    expect(laudo.resumo).toMatchObject({ notas: 6, itens: 7, notas_homologacao: 1 });
   });
   it('um cenário com item divergente é reprovado, mesmo com itens que conferem', () => {
-    expect(por('000001')).toMatchObject({ situacao: 'REPROVADO', aprovados: 2, reprovados: 1, notas: 2 });
+    expect(por('000001')).toMatchObject({ situacao: 'REPROVADO', aprovados: 3, reprovados: 1, notas: 3 });
     expect(por('000001').achados[0]).toMatchObject({ tipo: 'DIVERGENTE', regra: 'Base de cálculo', texto: 'Base de cálculo: nota 3.19 × oficial 2.9', ocorrencias: 1, exemplo: { chave: 'N2', item: 1 } });
   });
   it('enquadramento reprovado traz o código e a mensagem oficiais', () => {

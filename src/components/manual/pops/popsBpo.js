@@ -284,7 +284,7 @@ export const POPS_BPO = [
       "A conferência roda sozinha a cada 20 minutos para as notas novas e de novo quando a versão da calculadora muda; o resumo mostra quantas ainda aguardam.",
       "Fora do alcance da calculadora: Imposto Seletivo, classificações que a versão da calculadora ainda não calcula (ex.: crédito presumido, monofásicos) e cClassTrib novos que só estão na tabela oficial. Esses itens precisam de conferência manual.",
       "A partir de 2027 a conta é conferida com as alíquotas da própria nota; a alíquota do ano se confere à parte.",
-      "Notas de homologação (sem valor fiscal) não são conferidas.",
+      "Notas emitidas em ambiente de homologação são conferidas como as demais e aparecem na coluna Ambiente (são elas que servem para homologar o ERP).",
     ],
   },
 

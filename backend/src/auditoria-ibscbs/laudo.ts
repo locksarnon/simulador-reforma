@@ -5,7 +5,7 @@
 import type { ResultadoItem } from './conferencia';
 
 export type LinhaAuditoria = {
-  empresa_id: string; chave: string; papel: string; situacao: string; data_emissao: Date | string | null; detalhes: unknown;
+  empresa_id: string; chave: string; papel: string; situacao: string; data_emissao: Date | string | null; detalhes: unknown; ambiente?: string;
 };
 export type SituacaoCenario = 'REPROVADO' | 'APROVADO' | 'NAO_COBERTO' | 'SEM_DESTAQUE';
 export type Achado = { tipo: 'ENQUADRAMENTO' | 'DIVERGENTE'; regra: string; texto: string; ocorrencias: number; exemplo: { chave: string; item: number } };
@@ -15,7 +15,7 @@ export type Cenario = {
 };
 export type Laudo = {
   cenarios: Cenario[];
-  resumo: { cenarios: number; aprovados: number; reprovados: number; nao_cobertos: number; sem_destaque: number; notas: number; itens: number; homologacao_ignoradas: number };
+  resumo: { cenarios: number; aprovados: number; reprovados: number; nao_cobertos: number; sem_destaque: number; notas: number; itens: number; notas_homologacao: number };
 };
 
 const ROTULO_ACHADO = (i: ResultadoItem): Omit<Achado, 'ocorrencias' | 'exemplo'>[] => {
@@ -26,11 +26,11 @@ const ROTULO_ACHADO = (i: ResultadoItem): Omit<Achado, 'ocorrencias' | 'exemplo'
 
 export function montarLaudo(linhas: LinhaAuditoria[]): Laudo {
   const mapa = new Map<string, Cenario & { _notas: Set<string>; _achados: Map<string, Achado> }>();
-  let homologacao = 0;
   const notasContadas = new Set<string>();
+  const notasHomologacao = new Set<string>();
   for (const l of linhas) {
     if (l.papel !== 'EMITIDA') continue;
-    if (l.situacao === 'HOMOLOGACAO') { homologacao++; continue; }
+    if (l.ambiente === 'HOMOLOGACAO') notasHomologacao.add(l.chave);
     const itens = (Array.isArray(l.detalhes) ? l.detalhes : []) as ResultadoItem[];
     notasContadas.add(l.chave);
     for (const i of itens) {
@@ -63,6 +63,6 @@ export function montarLaudo(linhas: LinhaAuditoria[]): Laudo {
   const conta = (s: SituacaoCenario) => cenarios.filter((c) => c.situacao === s).length;
   return {
     cenarios,
-    resumo: { cenarios: cenarios.length, aprovados: conta('APROVADO'), reprovados: conta('REPROVADO'), nao_cobertos: conta('NAO_COBERTO'), sem_destaque: conta('SEM_DESTAQUE'), notas: notasContadas.size, itens: cenarios.reduce((s, c) => s + c.itens, 0), homologacao_ignoradas: homologacao },
+    resumo: { cenarios: cenarios.length, aprovados: conta('APROVADO'), reprovados: conta('REPROVADO'), nao_cobertos: conta('NAO_COBERTO'), sem_destaque: conta('SEM_DESTAQUE'), notas: notasContadas.size, itens: cenarios.reduce((s, c) => s + c.itens, 0), notas_homologacao: notasHomologacao.size },
   };
 }

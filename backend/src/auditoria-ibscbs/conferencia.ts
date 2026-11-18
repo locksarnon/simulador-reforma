@@ -14,7 +14,7 @@ export type ResultadoItem = {
 };
 
 /** Versão da regra de conferência: entra na marca da conferência, então mudar a regra refaz as notas já conferidas. */
-export const REGRA_CONFERENCIA = 'r3';
+export const REGRA_CONFERENCIA = 'r4';
 /** Diferença de até 1 centavo é arredondamento da nota (cada ERP arredonda de um jeito), não divergência; o epsilon cobre o ponto flutuante. */
 const TOLERANCIA = 0.0105;
 const ROTULO: Record<string, string> = { vBC: 'Base de cálculo', vIBSUF: 'IBS estadual', vIBSMun: 'IBS municipal', vCBS: 'CBS', pRedAliq: 'Redução de alíquota (%)' };

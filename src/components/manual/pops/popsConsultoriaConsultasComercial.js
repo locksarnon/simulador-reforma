@@ -188,7 +188,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     ],
     resultado: "O laudo de cada cenário (aprovado, reprovado, conferir à parte ou sem destaque), com a regra oficial de cada achado, pronto para o fornecedor do ERP corrigir.",
     atencao: [
-      "Só entram as notas que a empresa emitiu; as recebidas e as de homologação (sem valor fiscal) ficam de fora.",
+      "Só entram as notas que a empresa emitiu (as recebidas ficam de fora); as emitidas em ambiente de homologação entram e são contadas à parte.",
       "Aprovado vale para a regra e a conta que a calculadora oficial confere; não cobre Imposto Seletivo, crédito presumido nem monofásicos, que ficam em “Conferir à parte”.",
       "Produtor rural Pessoa Física: o repositório de XML guarda só notas de empresa, então este laudo ainda não se aplica.",
     ],

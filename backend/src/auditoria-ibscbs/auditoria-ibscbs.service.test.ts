@@ -28,7 +28,7 @@ describe('auditoria do IBS/CBS: fila e falhas', () => {
     const { s, gravados } = montar({ xmls: { a: new Error('objeto sumido do armazenamento'), b: NFE('41261100000000000191550010000000011000000011') }, calculadora: OK });
     const r = await s.rodar();
     expect(r.conferidas).toBe(1);
-    expect(gravados.get('a')).toMatchObject({ situacao: 'FALHA', versao_db: 'V0059+r3' });
+    expect(gravados.get('a')).toMatchObject({ situacao: 'FALHA', versao_db: 'V0059+r4' });
     expect((gravados.get('a')!.detalhes as { aviso: string }[])[0].aviso).toContain('objeto sumido');
     expect(gravados.get('b')).toMatchObject({ situacao: 'CONFERE', papel: 'RECEBIDA' });
   });
