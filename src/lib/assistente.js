@@ -23,7 +23,7 @@ const GERAIS = [
 
 const PRODUTOR_RURAL = [
   "Qual o limite de receita para o produtor rural não ser contribuinte do IBS e da CBS?",
-  "Se o produtor rural passar do limite no meio do ano, quando ele vira contribuinte?",
+  "O que acontece se o produtor rural ultrapassar o limite de receita durante o ano?",
   "Como funciona o crédito presumido para quem compra do produtor rural?",
 ];
 

@@ -29,6 +29,36 @@ describe('busca de cartões de perguntas frequentes', () => {
     expect(topo('split payment com cartão parcelado')).toContain('vendas parceladas');
   });
 
+  describe('peso por raridade e cobertura da pergunta (sem lista de palavras)', () => {
+    const c = (id: string, pergunta: string, resposta: string, sinonimos = '', tema = 'Geral') => ({ id, pergunta, sinonimos, resposta, tema });
+    // IBS e CBS estão em todos os cartões (como na base real): sozinhas não podem casar nada.
+    const pequena = [
+      c('1', 'Como funciona o split payment do IBS e da CBS?', 'O split payment separa o IBS e a CBS no pagamento.', 'pagamento dividido'),
+      c('2', 'Qual o limite de receita do produtor rural no IBS e na CBS?', 'O produtor rural fora do IBS e da CBS tem limite de receita.', 'teto agricultor'),
+      c('3', 'Comprar do Simples gera crédito de IBS e CBS?', 'O adquirente apropria crédito de IBS e CBS.', 'fornecedor simples'),
+      c('4', 'O que é o Imposto Seletivo e como entra na conta de IBS e CBS?', 'O Imposto Seletivo recai sobre produtos nocivos, fora da base do IBS e da CBS.', 'seletivo nocivo'),
+      c('5', 'Quais produtos têm alíquota zero de IBS e CBS na cesta básica?', 'A cesta básica tem alíquota zero de IBS e CBS.', 'arroz feijão'),
+    ];
+    it('assunto que nenhum cartão tem não casa por causa das palavras comuns (qualquer assunto, não só soja)', () => {
+      for (const q of ['venda de soja tem incidência de IBS e CBS?', 'frete de café paga IBS e CBS?', 'venda de gado tem IBS e CBS?', 'exportação de minério tem IBS e CBS?']) {
+        expect(buscarCartoes(q, pequena), q).toEqual([]);
+      }
+    });
+    it('pergunta só com palavras comuns à base inteira não casa nada', () => {
+      expect(buscarCartoes('tem incidência de IBS e CBS?', pequena)).toEqual([]);
+      expect(buscarCartoes('IBS e CBS', pequena)).toEqual([]);
+    });
+    it('cartão que explica a pergunta inteira continua sendo achado, com palavras diferentes das do cartão', () => {
+      expect(buscarCartoes('como é o split payment?', pequena)[0]?.id).toBe('1');
+      expect(buscarCartoes('teto do agricultor no IBS', pequena)[0]?.id).toBe('2');
+      expect(buscarCartoes('fornecedor do Simples dá crédito?', pequena)[0]?.id).toBe('3');
+    });
+    it('palavra que o cartão não tem derruba a cobertura (o assunto da pergunta é outro)', () => {
+      // "split payment" existe, mas "soja" não: o cartão não responde à pergunta inteira.
+      expect(buscarCartoes('split payment na venda de soja', pequena)).toEqual([]);
+    });
+  });
+
   it('não devolve nada para pergunta fora do assunto', () => {
     expect(buscarCartoes('carros voadores em Marte', base)).toEqual([]);
     expect(buscarCartoes('', base)).toEqual([]);
