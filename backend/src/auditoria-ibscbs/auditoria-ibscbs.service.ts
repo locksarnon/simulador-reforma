@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { CalculadoraRfbService } from '../calculadora-rfb/calculadora-rfb.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { compararItem, montarPedido, ResultadoItem, situacaoDaNota } from './conferencia';
+import { compararItem, montarPedido, REGRA_CONFERENCIA, ResultadoItem, situacaoDaNota } from './conferencia';
 import { lerNotaIbsCbs } from './leitor-ibscbs';
 
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
@@ -31,16 +31,17 @@ export class AuditoriaIbsCbsService {
     try {
       const versao = await this.calc.versaoServico();
       if (!versao) return { conferidas: 0, motivo: 'calculadora oficial fora do ar' };
+      const marca = `${versao.versaoDb}+${REGRA_CONFERENCIA}`;
       const pendentes = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
         select d.id from "DocumentoXml" d left join "AuditoriaIbsCbs" a on a.documento_id = d.id
         where d.tipo = 'NFE' and d.conteudo = 'COMPLETO' and d.evento_tipo = '' and d.storage_key is not null
-          and d.data_emissao >= '2026-01-01' and (a.id is null or a.versao_db <> ${versao.versaoDb})
+          and d.data_emissao >= '2026-01-01' and (a.id is null or a.versao_db <> ${marca})
         order by d.data_emissao desc limit ${limite}`);
       if (!pendentes.length) return { conferidas: 0 };
       const classes = new Set((await this.prisma.classTrib.findMany({ select: { c_class_trib: true } })).map((c) => c.c_class_trib));
       let n = 0;
       for (const { id } of pendentes) {
-        try { await this.conferir(id, versao.versaoDb, classes); n++; } catch (e) { this.log.warn(`Auditoria IBS/CBS do documento ${id}: ${(e as Error).message}`); }
+        try { await this.conferir(id, marca, classes); n++; } catch (e) { this.log.warn(`Auditoria IBS/CBS do documento ${id}: ${(e as Error).message}`); }
       }
       if (n) this.log.log(`Auditoria IBS/CBS: ${n} notas conferidas (calculadora ${versao.versaoApp}, banco ${versao.versaoDb}).`);
       return { conferidas: n };

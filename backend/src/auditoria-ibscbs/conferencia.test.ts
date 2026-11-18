@@ -54,6 +54,12 @@ describe('comparação com o resultado oficial', () => {
     const r = compararItem(nota.itens[0], { nObj: 1, estadoItem: 'INCONSISTENCIA_ENTRADA', erros: [{ code: 'REG-005' }] }, new Set(['000001']));
     expect(r.situacao).toBe('NAO_COBERTO');
   });
+  it('diferença de 1 centavo é arredondamento da nota, não divergência', () => {
+    const o = { nObj: 1, estadoItem: 'CALCULADO', tribCalc: { IBSCBS: { gIBSCBS: { vBC: '787.51', gIBSUF: { vIBSUF: '0.79' }, gIBSMun: { vIBSMun: '0.00' }, vIBS: '0.79', gCBS: { vCBS: '7.09' } } } } };
+    expect(compararItem(nota.itens[0], o, new Set()).situacao).toBe('CONFERE');
+    const dois = { ...o, tribCalc: { IBSCBS: { gIBSCBS: { ...o.tribCalc.IBSCBS.gIBSCBS, vBC: '787.52' } } } };
+    expect(compararItem(nota.itens[0], dois, new Set()).situacao).toBe('DIVERGENTE');
+  });
   it('a nota fica com a situação do pior item', () => {
     const itens = [compararItem(nota.itens[0], ok(1), new Set()), compararItem(nota.itens[1], ok(2), new Set())];
     expect(situacaoDaNota(itens)).toBe('DIVERGENTE');

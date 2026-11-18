@@ -13,7 +13,10 @@ export type ResultadoItem = {
   nota: { vBC: number | null; vIBS: number | null; vCBS: number | null }; oficial: { vBC: number | null; vIBS: number | null; vCBS: number | null } | null;
 };
 
-const TOLERANCIA = 0.01;
+/** Versão da regra de conferência: entra na marca da conferência, então mudar a regra refaz as notas já conferidas. */
+export const REGRA_CONFERENCIA = 'r2';
+/** Diferença de até 1 centavo é arredondamento da nota (cada ERP arredonda de um jeito), não divergência; o epsilon cobre o ponto flutuante. */
+const TOLERANCIA = 0.0105;
 const ROTULO: Record<string, string> = { vBC: 'Base de cálculo', vIBSUF: 'IBS estadual', vIBSMun: 'IBS municipal', vCBS: 'CBS', pRedAliq: 'Redução de alíquota (%)' };
 const num = (v: unknown) => (v === undefined || v === null || v === '' ? null : Number(v));
 const ano = (iso: string) => Number(String(iso).slice(0, 4));
