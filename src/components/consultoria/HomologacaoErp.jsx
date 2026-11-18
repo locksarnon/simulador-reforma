@@ -41,7 +41,7 @@ export default function HomologacaoErp({ projetoId }) {
   if (q.isLoading) return <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Montando o laudo…</p>;
   if (q.error) return <p role="alert" className="text-sm">{q.error.message || "Não foi possível montar o laudo da homologação."}</p>;
   const r = d.resumo;
-  const aguardando = Math.max(0, d.notas_no_periodo - d.conferidas);
+  const aguardando = d.aguardando ?? 0;
   return (
     <section className="space-y-3 rounded-lg border bg-card p-4" aria-label="Homologação fiscal do ERP">
       <h2 className="font-semibold">Homologação do ERP: notas emitidas × calculadora oficial da Receita</h2>

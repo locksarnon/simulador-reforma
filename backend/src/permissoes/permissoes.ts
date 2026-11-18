@@ -177,6 +177,7 @@ export const ROTAS_DAS_TELAS: { rota: string; telas: string[] }[] = [
   { rota: 'monitoramento/contrato', telas: ['integracoes'] },
   { rota: 'certidoes', telas: ['monitoramento', 'analise-risco'] },
   { rota: 'repositorio-xml', telas: ['captura-xml'] },
+  { rota: 'projetos-diagnostico/:id/homologacao', telas: ['captura-xml', 'carteira-diagnostico', 'clientes-diagnostico'] },
   { rota: 'repositorio-xml/empresas/:empresaId/certificado', telas: ['captura-xml', 'grupos-empresas', 'procuracoes'] },
   { rota: 'repositorio-xml/empresas/:empresaId/auditoria-certificado', telas: ['captura-xml', 'grupos-empresas', 'procuracoes'] },
   { rota: 'certificados/pin', telas: ['captura-xml', 'grupos-empresas', 'procuracoes'] },

@@ -6,7 +6,7 @@ import HomologacaoErp, { achadosEmTexto } from "./HomologacaoErp";
 
 const CHAVE = "41261100000000000191550010000000011000000011";
 const DADOS = {
-  versao: { versaoApp: "1.6.1", versaoDb: "V0059" }, empresas: [{ id: "E1", razao_social: "EMPRESA TESTE" }], notas_no_periodo: 10, conferidas: 7,
+  versao: { versaoApp: "1.6.1", versaoDb: "V0059" }, empresas: [{ id: "E1", razao_social: "EMPRESA TESTE" }], aguardando: 3, conferidas: 7,
   resumo: { cenarios: 3, aprovados: 1, reprovados: 1, nao_cobertos: 1, sem_destaque: 0, notas: 7, itens: 20, homologacao_ignoradas: 2 },
   cenarios: [
     { empresa_id: "E1", cst: "000", cClassTrib: "000001", cfop: "5102", notas: 4, itens: 12, aprovados: 10, reprovados: 2, nao_cobertos: 0, sem_destaque: 0, situacao: "REPROVADO",

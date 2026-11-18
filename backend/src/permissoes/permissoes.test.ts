@@ -127,6 +127,16 @@ describe('decidirAcesso (a regra do guarda)', () => {
     expect(telasDaRota('repositorio-xml/empresas/:empresaId/documentos')).toEqual(['captura-xml']);
   });
 
+  it('laudo da homologação do ERP: exige uma das telas do projeto ou do repositório; conferência da operação continua livre (só lê)', () => {
+    expect(telasDaRota('projetos-diagnostico/:id/homologacao')).toEqual(expect.arrayContaining(['captura-xml', 'carteira-diagnostico']));
+    const semTelas = conta('CONSULTOR', { telas: { 'captura-xml': false, 'carteira-diagnostico': false, 'clientes-diagnostico': false } });
+    expect(decidirAcesso(semTelas, { metodo: 'GET', rota: 'projetos-diagnostico/:id/homologacao' }).ok).toBe(false);
+    expect(decidirAcesso(conta('CONSULTOR'), { metodo: 'GET', rota: 'projetos-diagnostico/:id/homologacao' }).ok).toBe(true);
+    // o projeto em si continua livre; só o laudo (que traz notas e empresas) pede a tela
+    expect(decidirAcesso(semTelas, { metodo: 'GET', rota: 'projetos-diagnostico/:id' }).ok).toBe(true);
+    expect(decidirAcesso(conta('SOMENTE_LEITURA'), { metodo: 'POST', rota: 'calculadora-rfb/conferir-operacao' }).ok).toBe(true);
+  });
+
   it('exceção de função liberada vale mesmo para o nível mais baixo', () => {
     const u = conta('SOMENTE_LEITURA', { funcoes: { enviar_email: true } });
     expect(decidirAcesso(u, { metodo: 'POST', rota: 'comunicados/:id/enviar', funcoes: ['enviar_email'] }).ok).toBe(true);
