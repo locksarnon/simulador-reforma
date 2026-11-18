@@ -1970,3 +1970,46 @@ model RecuperacaoXmlHistorico {
   @@index([empresa_id, createdAt])
   @@index([situacao, ocupado_ate])
 }
+
+/// Tabelas oficiais da calculadora da Receita (banco SQLite publicado pelo serviço calculadora-rfb), copiadas a cada versão.
+/// Régua de conferência: nunca sobrescrevem ClassTrib/CorrelacaoNcm; divergência vira apontamento.
+model RfbClassTrib {
+  id                    String    @id @default(cuid())
+  versao_db             String
+  c_class_trib          String
+  cst                   String
+  descricao             String
+  tipo_aliquota         String?
+  nomenclatura          String?
+  anexo                 String?
+  pct_reducao_cbs       Float?
+  pct_reducao_ibs       Float?
+  credito_adquirente    Boolean   @default(false)
+  cred_pres_fornecedor  Boolean   @default(false)
+  cred_pres_adquirente  Boolean   @default(false)
+  documentos            String[]
+  fundamento_curto      String?
+  fundamento_texto      String?
+  inicio_vigencia       String
+  fim_vigencia          String?
+  createdAt             DateTime  @default(now())
+
+  @@index([c_class_trib])
+}
+
+model RfbNomenclaturaVinculo {
+  id              String   @id @default(cuid())
+  versao_db       String
+  tipo            String
+  codigo          String
+  c_class_trib    String
+  anexo           String?
+  item            String?
+  excecoes        String[]
+  inicio_vigencia String
+  fim_vigencia    String?
+  createdAt       DateTime @default(now())
+
+  @@index([tipo, codigo])
+  @@index([c_class_trib])
+}

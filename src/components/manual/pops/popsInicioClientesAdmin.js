@@ -894,6 +894,27 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
   },
   {
     modulo: "integracoes",
+    codigo: "POP-ADM-23",
+    titulo: "Acompanhar e atualizar a calculadora oficial da Receita",
+    objetivo: "Saber a versão da calculadora oficial que confere as notas, a classificação e o motor, e trocar para a versão nova da Receita.",
+    quem: "Administrador",
+    quando: "Quando o cartão mostrar versão nova no GitHub (a conferência é automática toda segunda às 06:40).",
+    caminho: "Menu > Administração > Integrações > “Calculadora oficial da Receita (CBS, IBS e Imposto Seletivo)”",
+    antes: ["Ser administrador."],
+    passos: [
+      { acao: "Leia “Versão em uso”, “Tabelas oficiais no InTAX” e “Última versão no GitHub da Receita”.", detalhe: "As tabelas oficiais são copiadas sozinhas quando a versão muda." },
+      { acao: "Para conferir agora, clique em “Conferir no GitHub”." },
+      { acao: "Se aparecer “Aplicar versão nova”, clique nele.", detalhe: "O servidor monta a versão nova e roda a bateria de conferência (792 casos de cálculo e a base de 2026 a 2033) nas duas versões." },
+      { acao: "Sem diferença, a troca é feita sozinha. Com diferença, confira a lista “Caso / Antes / Depois” e clique em “Confirmar troca”." },
+    ],
+    resultado: "O cartão mostra “Versão nova em uso.” e a versão nova em “Versão em uso”.",
+    atencao: [
+      "Enquanto a atualização não termina, a versão anterior continua em uso; se a versão nova não montar ou não responder, nada muda.",
+      "A calculadora da Receita é régua de conferência: ela não troca sozinha as tabelas do InTAX (a tabela de cClassTrib do Portal da Conformidade Fácil pode ser mais nova que o banco da calculadora).",
+    ],
+  },
+  {
+    modulo: "integracoes",
     codigo: "POP-ADM-15",
     titulo: "Guardar o token da Infosimples",
     objetivo: "Ligar a emissão da CNDT, do CRF do FGTS e das certidões estadual e municipal pela Infosimples.",

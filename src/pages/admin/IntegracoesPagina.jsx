@@ -7,6 +7,7 @@ import ListaDePrevistas from "@/components/ListaDePrevistas";
 import ControleSerpro from "@/components/monitoramento/ControleSerpro";
 import IntegracoesCertidoes from "@/components/monitoramento/IntegracoesCertidoes";
 import ConfiguracaoCaptura from "@/components/repositorio-xml/ConfiguracaoCaptura";
+import CalculadoraOficial from "@/components/integracoes/CalculadoraOficial";
 
 export const ESTADOS = {
   ATIVO: { rotulo: "Ligada", icone: CheckCircle2, tom: "text-emerald-700 dark:text-emerald-400" },
@@ -42,6 +43,7 @@ export default function IntegracoesPagina() {
             </section>
           );
         })}
+        <CalculadoraOficial />
         <ControleSerpro />
         <ConfiguracaoCaptura />
         <IntegracoesCertidoes />
