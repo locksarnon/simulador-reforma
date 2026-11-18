@@ -11,7 +11,9 @@ export type Divergencia = { grupo: string; chave: string; intax: string; oficial
 export type ComparacaoTabelas = { data: string; contagens: Record<string, number>; resumo: Record<string, number>; lista: Divergencia[] };
 
 const so = (s: unknown) => String(s ?? '').replace(/\D/g, '');
-const GRUPOS_INFORMATIVOS = new Set(['cClassTrib só no InTAX', 'cClassTrib só na calculadora']);
+// Informativos: os dois bancos têm datas diferentes, e o InTAX não sugere por NCM as classes que dependem de quem compra ou da destinação
+// (ex.: 200005 e 515001, irmãs de 200030 e 200038; Anexos VI e XI), como já documentado em backend/scripts/completar-correlacao-anexos.js.
+export const GRUPOS_INFORMATIVOS = new Set(['cClassTrib só no InTAX', 'cClassTrib só na calculadora', 'Vínculo da calculadora ausente no InTAX']);
 const LIMITE_POR_GRUPO = 150;
 
 export function compararTabelas(

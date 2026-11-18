@@ -19,6 +19,18 @@ describe('correlação NCM × anexos: exceções e ressalvas da lei', () => {
   it('linha de exceção nunca vira sugestão', () => {
     expect(lista.some((l) => l.excecao)).toBe(false);
   });
+  it('Anexo XII: códigos excluídos pelo texto do item (1.3 e 11) não recebem a classe', () => {
+    const xii = prepararLista([
+      linha('XII', 1, '9018.19.80', '200004'), linha('XII', 1, '9018.14.10', '200004', true), linha('XII', 1, '9018.19.10', '200004', true),
+      linha('XII', 11, '9022.21.90', '200004'), linha('XII', 11, '9022.21.10', '200004', true), linha('XII', 11, '9022.21.20', '200004', true),
+    ]);
+    expect(avaliarNcm('9018.19.80', xii).esperado).toBe('200004');
+    expect(avaliarNcm('9018.14.10', xii).encontrado).toBe(false);
+    expect(avaliarNcm('9018.19.10', xii).encontrado).toBe(false);
+    expect(avaliarNcm('9022.21.90', xii).esperado).toBe('200004');
+    expect(avaliarNcm('9022.21.10', xii).encontrado).toBe(false);
+    expect(avaliarNcm('9022.21.20', xii).encontrado).toBe(false);
+  });
   it('Anexo VII cede ao Anexo I ("ressalvados os produtos relacionados no Anexo I")', () => {
     expect(avaliarNcm('1102.20.00', lista).classes).toEqual(['200003']);
     expect(avaliarNcm('1102.90.00', lista).esperado).toBe('200034');

@@ -14,7 +14,7 @@ const ETAPAS = {
   ERRO: "A atualização não foi concluída; a versão anterior continua em uso.",
 };
 
-const SO_INFORMA = new Set(["cClassTrib só no InTAX", "cClassTrib só na calculadora"]);
+const SO_INFORMA = new Set(["cClassTrib só no InTAX", "cClassTrib só na calculadora", "Vínculo da calculadora ausente no InTAX"]);
 
 /** Resultado da comparação das tabelas do InTAX com as da calculadora: contagem por tipo e a lista de cada tipo. */
 export function ComparacaoTabelas({ c }) {
