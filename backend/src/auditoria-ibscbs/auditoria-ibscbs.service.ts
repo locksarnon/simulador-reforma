@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { compararItem, montarPedido, REGRA_CONFERENCIA, ResultadoItem, situacaoDaNota } from './conferencia';
 import { lerNotaIbsCbs } from './leitor-ibscbs';
+import { montarLaudo } from './laudo';
 
 const so = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 const soma = (itens: ResultadoItem[], f: (i: ResultadoItem) => number | null | undefined) => {
@@ -80,6 +81,17 @@ export class AuditoriaIbsCbsService {
       detalhes: itens as unknown as Prisma.InputJsonValue, versao_db: versaoDb, conferido_em: new Date(),
     };
     await this.prisma.auditoriaIbsCbs.upsert({ where: { documento_id: d.id }, update: dados, create: { ...dados, documento_id: d.id } });
+  }
+
+  /** Laudo de homologação do ERP: cenários (CST / cClassTrib / CFOP) das notas que as empresas emitiram no período, com o veredito de cada um. */
+  async laudo(empresaIds: string[], de: Date, ate: Date) {
+    const [linhas, empresas, versao] = await Promise.all([
+      this.prisma.auditoriaIbsCbs.findMany({ where: { empresa_id: { in: empresaIds }, papel: 'EMITIDA', data_emissao: { gte: de, lte: ate } }, select: { empresa_id: true, chave: true, papel: true, situacao: true, data_emissao: true, detalhes: true, versao_db: true } }),
+      this.prisma.empresa.findMany({ where: { id: { in: empresaIds } }, select: { id: true, razao_social: true } }),
+      this.calc.versaoServico(),
+    ]);
+    const emitidas = await this.prisma.documentoXml.count({ where: { empresa_id: { in: empresaIds }, tipo: 'NFE', conteudo: 'COMPLETO', evento_tipo: '', storage_key: { not: null }, data_emissao: { gte: new Date(Math.max(de.getTime(), Date.parse('2026-01-01T00:00:00-03:00'))), lte: ate } } });
+    return { ...montarLaudo(linhas), versao, empresas, notas_no_periodo: emitidas, conferidas: linhas.length };
   }
 
   /** Lista da empresa no período (pela emissão), com o resumo por situação. */

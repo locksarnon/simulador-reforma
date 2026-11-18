@@ -9,9 +9,10 @@ import { ProjetosDiagnosticoService } from './projetos.service';
 import { ConsultoriaController } from './consultoria.controller';
 import { ConsultoriaService } from './consultoria.service';
 import { StorageModule } from '../storage/storage.module';
+import { AuditoriaIbsCbsModule } from '../auditoria-ibscbs/auditoria-ibscbs.module';
 
 @Module({
-  imports: [CnpjModule, StorageModule],
+  imports: [CnpjModule, StorageModule, AuditoriaIbsCbsModule],
   controllers: [ServicosContratadosController, ClientesController, ProjetosDiagnosticoController, ConsultoriaController],
   providers: [ServicosContratadosService, ClientesService, ProjetosDiagnosticoService, ConsultoriaService],
   exports: [ServicosContratadosService],

@@ -8,13 +8,13 @@ export type SituacaoItem = 'CONFERE' | 'DIVERGENTE' | 'ENQUADRAMENTO' | 'NAO_COB
 export type SituacaoNota = SituacaoItem | 'HOMOLOGACAO';
 export type CampoDivergente = { campo: string; nota: number | null; oficial: number | null };
 export type ResultadoItem = {
-  numero: number; ncm: string; descricao: string; cst: string | null; cClassTrib: string | null; situacao: SituacaoItem;
+  numero: number; ncm: string; cfop: string; descricao: string; cst: string | null; cClassTrib: string | null; situacao: SituacaoItem;
   campos: CampoDivergente[]; erros: { codigo: string; mensagem: string }[]; aviso: string | null;
   nota: { vBC: number | null; vIBS: number | null; vCBS: number | null }; oficial: { vBC: number | null; vIBS: number | null; vCBS: number | null } | null;
 };
 
 /** Versão da regra de conferência: entra na marca da conferência, então mudar a regra refaz as notas já conferidas. */
-export const REGRA_CONFERENCIA = 'r2';
+export const REGRA_CONFERENCIA = 'r3';
 /** Diferença de até 1 centavo é arredondamento da nota (cada ERP arredonda de um jeito), não divergência; o epsilon cobre o ponto flutuante. */
 const TOLERANCIA = 0.0105;
 const ROTULO: Record<string, string> = { vBC: 'Base de cálculo', vIBSUF: 'IBS estadual', vIBSMun: 'IBS municipal', vCBS: 'CBS', pRedAliq: 'Redução de alíquota (%)' };
@@ -49,7 +49,7 @@ type ObjetoOficial = { nObj: number; estadoItem: string; erros?: { code?: string
 export function compararItem(item: ItemIbsCbs, oficial: ObjetoOficial | undefined, classesConhecidas: Set<string>): ResultadoItem {
   const g = item.ibscbs;
   const base: ResultadoItem = {
-    numero: item.numero, ncm: item.ncm, descricao: item.descricao, cst: g?.cst ?? null, cClassTrib: g?.cClassTrib ?? null,
+    numero: item.numero, ncm: item.ncm, cfop: item.cfop, descricao: item.descricao, cst: g?.cst ?? null, cClassTrib: g?.cClassTrib ?? null,
     situacao: 'CONFERE', campos: [], erros: [], aviso: null,
     nota: { vBC: g?.vBC ?? null, vIBS: g?.vIBS ?? null, vCBS: g?.cbs?.valor ?? null }, oficial: null,
   };

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CATALOGO_CONSULTORIA } from './consultoria.service';
+import { AuditoriaIbsCbsService } from '../auditoria-ibscbs/auditoria-ibscbs.service';
 
 export const SITUACOES_DO_PROJETO = ['EM_ANDAMENTO', 'PAUSADO', 'CONCLUIDO', 'CANCELADO'] as const;
 export type EntradaProjeto = {
@@ -26,7 +27,7 @@ const hoje = () => new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.0
  */
 @Injectable()
 export class ProjetosDiagnosticoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auditoria?: AuditoriaIbsCbsService) {}
 
   private async validarEmpresas(ids: string[]) {
     const unicos = [...new Set(ids.filter(Boolean))];
@@ -61,6 +62,16 @@ export class ProjetosDiagnosticoService {
     const ativos = await this.prisma.empresa.count({ where: { id: { in: ids }, arquivado_em: null } });
     const vinculos = await this.prisma.vinculoConsultoria.count({ where: { publico: 'PJ', servico, cliente_id: { in: ids } } });
     if (ativos !== ids.length || vinculos !== ids.length) throw new BadRequestException('Vincule cada cliente ativo do escopo ao serviço antes de abrir o projeto.');
+  }
+
+  async homologacao(id: string) {
+    const p = await this.obter(id);
+    if (p.servico_consultoria !== 'pj-homologacao') throw new BadRequestException('Este projeto não é de homologação fiscal do ERP.');
+    if (!p.empresa_ids.length || !p.periodo_inicio || !p.periodo_fim) throw new BadRequestException('Informe as empresas e o período do projeto.');
+    if (!this.auditoria) throw new BadRequestException('A conferência com a calculadora oficial não está disponível neste servidor.');
+    const fim = new Date(p.periodo_fim);
+    fim.setUTCHours(23, 59, 59, 999);
+    return this.auditoria.laudo(p.empresa_ids, p.periodo_inicio, fim);
   }
 
   async obter(id: string) {

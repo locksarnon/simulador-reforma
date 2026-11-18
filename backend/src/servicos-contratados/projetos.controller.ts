@@ -18,6 +18,12 @@ export class ProjetosDiagnosticoController {
     return this.projetos.obter(id);
   }
 
+  /** Homologação fiscal do ERP para IBS/CBS: o laudo por cenário das notas emitidas pelas empresas do projeto no período dele. */
+  @Get(':id/homologacao')
+  homologacao(@Param('id') id: string) {
+    return this.projetos.homologacao(id);
+  }
+
   @Post()
   criar(@CurrentUser() user: AuthUser, @Body() body: EntradaProjeto) {
     return this.projetos.criar(body ?? {}, user);

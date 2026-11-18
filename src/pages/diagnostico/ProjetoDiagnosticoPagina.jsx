@@ -9,6 +9,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsultoria";
+import HomologacaoErp from "@/components/consultoria/HomologacaoErp";
 import EscolhaDeEmpresas from "@/components/diagnostico/EscolhaDeEmpresas";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
@@ -114,6 +115,7 @@ export default function ProjetoDiagnosticoPagina() {
           clientes={clientesDocumentos} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)} />}
         {(catalogo.isError || pessoas.isError) && p.servico_consultoria && <p role="alert" className="text-sm">Não foi possível carregar os dados do serviço. Atualize para tentar novamente.</p>}
         {servico && !servico.projeto && <p className="rounded-md border bg-card p-3 text-sm">Coleta de documentos disponível. Roteiro fiscal em desenvolvimento.</p>}
+        {p.servico_consultoria === "pj-homologacao" && <HomologacaoErp projetoId={p.id} />}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
           <p className="text-sm text-muted-foreground">Período do projeto: {fmtDataCurta(p.periodo_inicio)} a {fmtDataCurta(p.periodo_fim)}. Selecione a empresa nas ferramentas de simulação.</p>

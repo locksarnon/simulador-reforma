@@ -170,6 +170,30 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     ],
   },
 
+  {
+    modulo: "catalogo-consultoria",
+    codigo: "POP-CON-08",
+    titulo: "Fazer a homologação fiscal do ERP para IBS/CBS",
+    objetivo: "Conferir, cenário por cenário, se o ERP do cliente emite as notas com o IBS e a CBS certos, pela calculadora oficial da Receita.",
+    quem: "Consultor",
+    quando: "Na homologação do ERP do cliente e a cada ajuste que o fornecedor do ERP fizer.",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > cliente > projeto “Homologação fiscal do ERP para IBS/CBS”",
+    antes: ["Cliente de Pessoa Jurídica vinculado ao serviço (POP-CON-01).", "Notas de saída do cliente no Repositório de XML, emitidas a partir de 2026 (POP-BPO-03)."],
+    passos: [
+      { acao: "Abra o projeto e confira o período: ele define quais notas entram." },
+      { acao: "Leia os quatro números do topo: Cenários, Aprovados, Reprovados e Conferir à parte / sem destaque.", detalhe: "Cenário é cada combinação de CST, cClassTrib e CFOP que o ERP usou nas notas emitidas." },
+      { acao: "Na tabela, comece pelos Reprovados e leia “O que a calculadora oficial apontou”.", detalhe: "Enquadramento traz o código e a mensagem oficiais (ex.: REG-011, NCM fora do anexo do cClassTrib); valor mostra “nota × oficial”, com uma nota de exemplo." },
+      { acao: "Leve a lista ao fornecedor do ERP com o botão de exportar da tabela, corrija o parâmetro e emita novas notas.", detalhe: "A conferência roda sozinha a cada 20 minutos: o laudo se atualiza quando as notas novas chegam ao repositório." },
+      { acao: "Cenários em “Conferir à parte” e “Sem destaque de IBS/CBS” precisam de decisão sua: a calculadora oficial ainda não calcula aquele caso, ou o ERP não gravou o grupo IBS/CBS." },
+    ],
+    resultado: "O laudo de cada cenário (aprovado, reprovado, conferir à parte ou sem destaque), com a regra oficial de cada achado, pronto para o fornecedor do ERP corrigir.",
+    atencao: [
+      "Só entram as notas que a empresa emitiu; as recebidas e as de homologação (sem valor fiscal) ficam de fora.",
+      "Aprovado vale para a regra e a conta que a calculadora oficial confere; não cobre Imposto Seletivo, crédito presumido nem monofásicos, que ficam em “Conferir à parte”.",
+      "Produtor rural Pessoa Física: o repositório de XML guarda só notas de empresa, então este laudo ainda não se aplica.",
+    ],
+  },
+
   // ── Consultas fiscais ───────────────────────────────────────────────
   {
     modulo: "consulta-ncm",

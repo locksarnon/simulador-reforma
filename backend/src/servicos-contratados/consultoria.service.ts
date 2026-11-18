@@ -18,7 +18,7 @@ export const CATALOGO_CONSULTORIA = [
     { nome: 'Painel Executivo', rota: '/cockpit' }, { nome: 'Comparação de regimes na transição', rota: '/reforma/regimes' },
     { nome: 'Cenários e alíquotas', rota: '/cenarios' }, { nome: 'Transição 2026–2033', rota: '/transicao' },
   ] },
-  { id: 'pj-homologacao', publico: 'PJ', area: r, nome: 'Homologação fiscal do ERP para IBS/CBS' },
+  { id: 'pj-homologacao', publico: 'PJ', area: r, nome: 'Homologação fiscal do ERP para IBS/CBS', projeto: true },
   { id: 'pis-cofins', publico: 'PJ', area: c, nome: 'Créditos de PIS e Cofins' },
   { id: 'credito-estoque', publico: 'PJ', area: c, nome: 'Crédito presumido de estoque', acessos: [{ nome: 'Abrir calculadora de estoque', rota: '/ferramentas/credito-estoque' }] },
   { id: 'tributos-pagos', publico: 'PJ', area: c, nome: 'Conciliação de tributos pagos' },
