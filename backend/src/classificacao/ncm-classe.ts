@@ -16,6 +16,8 @@ export type CorrelacaoNcmRow = {
   anexo: string;
   item_lei: number | null;
   descricao_produto: string | null;
+  /** Código que a lei EXCLUI do item ("exceto…", "excetuadas…"): não sugere a classe para esse NCM. */
+  excecao?: boolean | null;
 };
 
 export type ClasseInfo = {
@@ -58,25 +60,44 @@ export function referenciasNcm(ncm: string | null | undefined, refs: ReferenciaA
 
 export const soDigitos = (s: unknown) => String(s ?? '').replace(/\D/g, '');
 
-/** Lista ordenada do prefixo mais longo para o mais curto (busca mais específica primeiro). */
-export function prepararLista(rows: CorrelacaoNcmRow[]): (CorrelacaoNcmRow & { _d: string })[] {
+/**
+ * Itens do Anexo VII que a lei ressalva em favor de outros anexos (LC 214/2025, Anexo VII: "ressalvados os produtos
+ * relacionados no Anexo I"; item 14: "...nos Anexos I e XV"). Se o NCM também está nesses anexos, o Anexo VII não vale.
+ */
+const RESSALVAS: Record<string, string[]> = { 'VII-4': ['I'], 'VII-5': ['I'], 'VII-6': ['I'], 'VII-14': ['I', 'XV'], 'VII-15': ['I'] };
+
+export type LinhaNcm = CorrelacaoNcmRow & { _d: string; _exc: string[] };
+
+/** Lista ordenada do prefixo mais longo para o mais curto (busca mais específica primeiro), com as exceções da lei de cada item. */
+export function prepararLista(rows: CorrelacaoNcmRow[]): LinhaNcm[] {
+  const excecoes = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.excecao) continue;
+    const k = `${r.anexo}|${r.item_lei}|${r.c_class_trib}`;
+    excecoes.set(k, [...(excecoes.get(k) ?? []), soDigitos(r.ncm)]);
+  }
   return rows
-    .map((r) => ({ ...r, _d: soDigitos(r.ncm) }))
+    .filter((r) => !r.excecao)
+    .map((r) => ({ ...r, _d: soDigitos(r.ncm), _exc: excecoes.get(`${r.anexo}|${r.item_lei}|${r.c_class_trib}`) ?? [] }))
     .filter((r) => r._d.length >= 2 && r.c_class_trib)
     .sort((a, b) => b._d.length - a._d.length);
 }
 
-export function avaliarNcm(ncm: string | null | undefined, lista: (CorrelacaoNcmRow & { _d: string })[]): AvaliacaoNcm {
+export function avaliarNcm(ncm: string | null | undefined, lista: LinhaNcm[]): AvaliacaoNcm {
   const d = soDigitos(ncm);
   const vazio: AvaliacaoNcm = {
     encontrado: false, ambiguo: false, classes: [], esperado: null, confianca: null, especificidade: 0, matches: [],
   };
   if (d.length < 2) return vazio;
 
+  // Itens que alcançam o NCM, sem os códigos que a própria lei exclui do item.
+  const alcancam = lista.filter((r) => d.startsWith(r._d) && !(r._exc ?? []).some((e) => d.startsWith(e)));
+  // Ressalvas entre anexos: o item do Anexo VII cede quando o NCM também está no anexo ressalvado.
+  const anexos = new Set(alcancam.map((r) => r.anexo));
+  const validos = alcancam.filter((r) => !(RESSALVAS[`${r.anexo}-${r.item_lei}`] ?? []).some((a) => anexos.has(a)));
   let especificidade = 0;
   const topo: CorrelacaoNcmRow[] = [];
-  for (const r of lista) {
-    if (!d.startsWith(r._d)) continue;
+  for (const r of validos) {
     if (especificidade === 0) especificidade = r._d.length;
     if (r._d.length < especificidade) break;
     topo.push(r);

@@ -660,3 +660,44 @@ describe('versão do motor', () => {
     expect(VERSAO_MOTOR).toBe('1.4.0');
   });
 });
+
+describe("tratamentos conferidos com a calculadora oficial da Receita (18/11/2026)", () => {
+  const ano2029 = { ano: 2029, cbs_efetiva: 0.0921, ibs_efetivo: 0.0187, ibs_uf_aliquota: 0.01477, ibs_mun_aliquota: 0.00393, pis_cofins_fator: 0, icms_fator: 0.9, iss_fator: 0.9 };
+  it("222001: base pela metade (transporte internacional de passageiros com ida e volta)", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Saída" }, ano2029, { c_class_trib: "222001", cst: "222" });
+    expect(r.baseCalculo).toBe(500);
+    expect(r.debitoCbs).toBeCloseTo(46.05, 2);
+    expect(r.debitoIbs).toBeCloseTo(9.35, 2);
+    expect(r.fatorBaseReduzida).toBe(0.5);
+  });
+  it("515001 (diferimento, insumo agropecuário): sem débito na venda e sem crédito na compra; valor diferido informado", () => {
+    const ct = { c_class_trib: "515001", cst: "515", pct_reducao_ibs: 0.6, pct_reducao_cbs: 0.6 };
+    const v = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Saída" }, ano2029, ct);
+    expect([v.debitoIbs, v.debitoCbs, v.debitoIbsUf, v.debitoIbsMun]).toEqual([0, 0, 0, 0]);
+    expect(v.naoRecolhido).toBe("Diferimento");
+    expect(v.valorNaoRecolhido.cbs).toBeCloseTo(36.84, 2);
+    const c = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Entrada", credito_elegivel_pct: 1 }, ano2029, ct);
+    expect([c.creditoIbs, c.creditoCbs, c.creditoIbsUf, c.creditoIbsMun]).toEqual([0, 0, 0, 0]);
+  });
+  it("550 (suspensão): sem débito", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Saída" }, ano2029, { c_class_trib: "550001", cst: "550" });
+    expect(r.debitoIbs + r.debitoCbs).toBe(0);
+    expect(r.naoRecolhido).toBe("Suspensão");
+  });
+  it("tributação integral continua igual", () => {
+    const r = calcIbsCbs({ valor_bruto: 1000, ano: 2029, direcao: "Saída" }, ano2029, { c_class_trib: "000001", cst: "000" });
+    expect(r.debitoCbs).toBeCloseTo(92.1, 2);
+    expect(r.naoRecolhido).toBeNull();
+    expect(r.fatorBaseReduzida).toBe(1);
+  });
+});
+
+describe("estorno de operação diferida (devolução)", () => {
+  it("espelha o valor diferido e mantém o fator da base", () => {
+    const anoParams = { ano: 2029, cbs_efetiva: 0.0921, ibs_efetivo: 0.0187, ibs_uf_aliquota: 0.01477, ibs_mun_aliquota: 0.00393, pis_cofins_fator: 0, icms_fator: 0.9, iss_fator: 0.9, efeito_financeiro: 1 };
+    const r = calcOperacao({ valor_bruto: -1000, ano: 2029, direcao: "Saída" }, anoParams, { c_class_trib: "515001", cst: "515", pct_reducao_ibs: 0.6, pct_reducao_cbs: 0.6 });
+    expect(r.ibsCbs.valorNaoRecolhido.cbs).toBeCloseTo(-36.84, 2);
+    expect(r.ibsCbs.fatorBaseReduzida).toBe(1);
+    expect(r.ibsCbs.naoRecolhido).toBe("Diferimento");
+  });
+});

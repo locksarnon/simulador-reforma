@@ -90,6 +90,16 @@ function percentuaisLegaisCredPres(codigo, ano, ibsDoAno, cbsDoAno) {
 }
 
 /**
+ * Base de cálculo reduzida por lei, por cClassTrib: 222001 (transporte internacional de passageiros com ida e volta vendidas
+ * em conjunto) "a base de cálculo será a metade do valor cobrado" (tabela oficial de cClassTrib; calculadora da Receita).
+ */
+export const BASE_REDUZIDA_POR_CLASSE = { "222001": 0.5 };
+/** CST com diferimento (510, e 515 com redução de alíquota, ex.: insumos agropecuários, LC 214, art. 138, §2º). */
+export const CST_DIFERIMENTO = new Set(["510", "515"]);
+/** CST com suspensão (550: regimes aduaneiros, ZPE, drawback etc.). */
+export const CST_SUSPENSAO = new Set(["550"]);
+
+/**
  * Base de cálculo do IBS e da CBS (LC 214, art. 12, §2º, V): de 1º/1/2026 a 31/12/2032 NÃO integram a base o ICMS, o
  * ISS, o PIS e a Cofins incidentes na operação. O valor da operação (`valor_bruto`) já os traz embutidos, "por dentro";
  * o que sai da base é o que ainda é cobrado no ano, isto é, o valor de cada tributo vezes o fator de transição do ano
@@ -152,7 +162,14 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const credPresLocalizado = Boolean(credPres?.c_cred_pres);
   const creditoElegivel = isEntrada && credPresLocalizado ? 0 : num(op.credito_elegivel_pct);
   // Base do IBS/CBS: valor da operação menos o ICMS, o ISS, o PIS e a Cofins ainda cobrados (LC 214, art. 12, §2º, V).
-  const { base: baseCalc, excluido: baseExcluida } = baseIbsCbs(op, anoParams);
+  const { base: baseArt12, excluido: baseExcluida } = baseIbsCbs(op, anoParams);
+  const cClassOp = String(classTrib?.c_class_trib || op.c_class_trib || "");
+  const fatorBase = BASE_REDUZIDA_POR_CLASSE[cClassOp] ?? 1;
+  const baseCalc = baseArt12 * fatorBase;
+  // Diferimento (CST 510/515) e suspensão (CST 550): o tributo não é recolhido nesta operação e, por não ser cobrado, não gera
+  // crédito ao adquirente agora (o diferimento se encerra na etapa seguinte, art. 138, §§ 5º e 6º). O valor fica informado à parte.
+  const cstOp = String(classTrib?.cst || op.cst_ibs_cbs || "");
+  const naoRecolhido = CST_DIFERIMENTO.has(cstOp) ? "Diferimento" : CST_SUSPENSAO.has(cstOp) ? "Suspensão" : null;
 
   // Combustível do regime específico (arts. 172 a 180): alíquota por unidade em vez de percentual.
   const comb = calcCombustivel(op, anoParams, classTrib);
@@ -174,6 +191,10 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   // fórmulas do Excel v0.16).
   let creditoIbs = isEntrada ? baseCalc * ibsEfetiva * creditoElegivel : 0;
   let creditoCbs = isEntrada ? baseCalc * cbsEfetiva * creditoElegivel : 0;
+  // Tributo diferido ou suspenso: calculado só para informação; não entra em débito nem em crédito.
+  const fatorRecolhe = naoRecolhido && !usaCombustivel ? 0 : 1;
+  const valorNaoRecolhido = fatorRecolhe === 0 ? { ibs: isEntrada ? baseCalc * ibsEfetiva : debitoIbs, cbs: isEntrada ? baseCalc * cbsEfetiva : debitoCbs } : null;
+  if (fatorRecolhe === 0) { debitoIbs = 0; debitoCbs = 0; creditoIbs = 0; creditoCbs = 0; }
 
   if (usaCombustivel) {
     // Tributo = quantidade × alíquota específica. Em 2027–2028 o IBS recolhido (0,1% do valor) pode ser
@@ -252,15 +273,15 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
   const aliqTotal = aliqUf + aliqMun;
   // Combustível: o IBS já vem em reais; reparte pela proporção estado × município do ano.
   const parteUf = aliqTotal > 0 ? aliqUf / aliqTotal : 0;
-  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * fatorGov) : 0);
-  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * fatorGov) : 0);
+  const debitoIbsUf = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * fatorGov * fatorRecolhe) : 0);
+  const debitoIbsMun = isEntrada ? 0 : (aliqTotal > 0 ? (usaCombustivel ? debitoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * fatorGov * fatorRecolhe) : 0);
 
   // Split IBS UF / Município — créditos (proporcionais à alíquota de cada ente)
   const creditoIbsUf = isEntrada && aliqTotal > 0
-    ? (usaCombustivel ? creditoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * creditoElegivel)
+    ? (usaCombustivel ? creditoIbs * parteUf : baseCalc * aliqUf * (1 - redIbs) * creditoElegivel * fatorRecolhe)
     : 0;
   const creditoIbsMun = isEntrada && aliqTotal > 0
-    ? (usaCombustivel ? creditoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * creditoElegivel)
+    ? (usaCombustivel ? creditoIbs * (1 - parteUf) : baseCalc * aliqMun * (1 - redIbs) * creditoElegivel * fatorRecolhe)
     : 0;
 
   // Saldos por ente (débito - crédito, nunca negativo individualmente)
@@ -285,6 +306,11 @@ export function calcIbsCbs(op, anoParams, classTrib = {}, cenario = {}, credPres
     baseExcluida: usaCombustivel ? 0 : baseExcluida,
     // Detalhe do regime específico de combustíveis (null para operação comum). Avisos aparecem na tela.
     combustivel: comb,
+    // Base reduzida por lei para a classificação (1 = base cheia) e tributo diferido/suspenso (só informativo).
+    fatorBaseReduzida: fatorBase,
+    // Combustível do regime específico segue o próprio regime (o diferimento/suspensão não é aplicado a ele aqui).
+    naoRecolhido: fatorRecolhe === 0 ? naoRecolhido : null,
+    valorNaoRecolhido,
   };
 }
 
@@ -417,7 +443,7 @@ export function calcCaixaSplit(op, ibsCbs, transicao, sisAtual, config = {}) {
 }
 
 // Campos que são razão/percentual/prazo — não mudam de sinal quando a operação é um estorno.
-const NAO_ESPELHAR = new Set(["ibsNominal", "cbsNominal", "ibsEfetiva", "cbsEfetiva", "cargaEfetiva", "diferencaPct", "margemPctAtual", "margemPctTransicao", "prazo", "redutorCompraGov", "aliquota", "teto"]);
+const NAO_ESPELHAR = new Set(["ibsNominal", "cbsNominal", "ibsEfetiva", "cbsEfetiva", "cargaEfetiva", "diferencaPct", "margemPctAtual", "margemPctTransicao", "prazo", "redutorCompraGov", "aliquota", "teto", "fatorBaseReduzida"]);
 
 /**
  * Devolução de venda = receita NEGATIVA (valor_bruto < 0): o cálculo é o espelho exato da venda de mesmo valor.
@@ -437,6 +463,9 @@ function espelharEstorno(r) {
   if (comb && typeof comb === "object") {
     out.ibsCbs.combustivel = { ...comb, cbsAdRem: comb.cbsAdRem ? -comb.cbsAdRem : 0, ibsValor: comb.ibsValor ? -comb.ibsValor : 0 };
   }
+  // Tributo diferido/suspenso (objeto informativo): também é espelhado.
+  const nr = out.ibsCbs?.valorNaoRecolhido;
+  if (nr && typeof nr === "object") out.ibsCbs.valorNaoRecolhido = { ibs: nr.ibs ? -nr.ibs : 0, cbs: nr.cbs ? -nr.cbs : 0 };
   out.precoMargem.alerta = null; // meta de margem não se aplica a um estorno
   out.caixa.classificacao = "Estorno (devolução de venda)";
   out.estorno = true;

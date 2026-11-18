@@ -47,19 +47,13 @@ import { plural } from '../common/plural';
 function buscarClassTribPorNcm(
   ncm: string | undefined,
   nbs: string | undefined,
-  lista: { ncm: string; c_class_trib: string | null }[],
+  lista: ReturnType<typeof prepararLista>,
 ): { cClassTrib: string; cst: string } | null {
   if (nbs || !ncm) return null; // serviço (NBS) não usa esta tabela
-  const ncmDigits = ncm.replace(/\D/g, '');
-  if (!ncmDigits) return null;
-  for (const c of lista) {
-    if (!c.c_class_trib) continue;
-    const candidatoDigits = c.ncm.replace(/\D/g, '');
-    if (candidatoDigits && ncmDigits.startsWith(candidatoDigits)) {
-      return { cClassTrib: c.c_class_trib, cst: c.c_class_trib.slice(0, 3) };
-    }
-  }
-  return null;
+  // Item mais específico do anexo que alcança o NCM, sem os códigos que a lei exclui e respeitando as ressalvas entre anexos.
+  const av = avaliarNcm(ncm, lista);
+  const classe = av.esperado ?? av.classes[0];
+  return classe ? { cClassTrib: classe, cst: classe.slice(0, 3) } : null;
 }
 
 /**
@@ -323,18 +317,9 @@ export class ImportacaoXmlService {
       const ncmSet = new Set((await this.prisma.ncm.findMany({ where: { status: 'Ativo' } })).map((n) => n.codigo));
       const cfopSet = new Set((await this.prisma.cfop.findMany({ where: { status: 'Ativo' } })).map((c) => c.codigo));
 
-      // NCM -> cClassTrib (mercadoria) extraída dos Anexos da LC 214/2025 —
-      // usada só quando o próprio XML não traz cClassTrib (comum em NF-e
-      // emitidas antes do IBS/CBS existir, 2024/2025). Ordenada do NCM mais
-      // longo pro mais curto: a lei às vezes lista o código completo
-      // (0401.10.10) e às vezes só o prefixo (38.24); o prefixo mais
-      // específico que bater primeiro é o correto.
-      const correlacaoNcmList = (await this.prisma.correlacaoNcm.findMany())
-        .filter((c) => c.ncm)
-        .sort((a, b) => (b.ncm as string).length - (a.ncm as string).length);
-
-      // Mesma base, preparada para a conferência NCM x cClassTrib DECLARADO
-      // (quando a nota traz o cClassTrib, confere se combina com o NCM).
+      // NCM -> cClassTrib (mercadoria) dos Anexos da LC 214/2025, com as exceções e ressalvas da lei: usada quando o
+      // próprio XML não traz cClassTrib (NF-e de antes do IBS/CBS, 2024/2025) e para conferir o cClassTrib DECLARADO.
+      const correlacaoNcmList = (await this.prisma.correlacaoNcm.findMany()).filter((c) => c.ncm);
       const listaNcm = prepararLista(correlacaoNcmList as unknown as CorrelacaoNcmRow[]);
       const classesInfo = new Map<string, ClasseInfo>(classTribCatalogo.map((c) => [c.c_class_trib, c as unknown as ClasseInfo]));
 
@@ -476,7 +461,6 @@ export class ImportacaoXmlService {
                   cfopSet,
                   histKeys,
                   chavesVistas,
-                  correlacaoNcmList,
                   correlacaoServicoList,
                   issCache,
                   listaNcm,
@@ -981,7 +965,6 @@ export class ImportacaoXmlService {
     cfopSet: Set<string>,
     histKeys: Set<string>,
     chavesVistas: Map<string, string>,
-    correlacaoNcmList: { ncm: string; c_class_trib: string | null }[],
     correlacaoServicoList: { nbs: string | null; item_lc116: string | null }[],
     issCache: Map<string, { aliquota: number; itemLc116: string } | null>,
     listaNcm: ReturnType<typeof prepararLista>,
@@ -1189,7 +1172,7 @@ export class ImportacaoXmlService {
       let cstIbs = cstIbsOriginal;
       let cClassTrib = cClassTribOriginal;
       if (!cClassTrib && !nbs && ncm) {
-        const derivado = buscarClassTribPorNcm(ncm, nbs, correlacaoNcmList);
+        const derivado = buscarClassTribPorNcm(ncm, nbs, listaNcm);
         if (derivado) {
           cClassTrib = derivado.cClassTrib;
           cstIbs = cstIbs || derivado.cst;

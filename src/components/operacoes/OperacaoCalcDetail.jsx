@@ -55,6 +55,17 @@ export default function OperacaoCalcDetail({ calc }) {
         {ib.redutorCompraGov > 0 && (
           <Row label="Redutor de compra governamental aplicado" value={ib.redutorCompraGov} isPct legal="compras_governamentais" />
         )}
+        {ib.naoRecolhido && ib.valorNaoRecolhido && (
+          <>
+            <Row label={`IBS/CBS ${ib.naoRecolhido === "Diferimento" ? "diferido" : "suspenso"} (não entra no débito nem no crédito)`} value={ib.valorNaoRecolhido.ibs + ib.valorNaoRecolhido.cbs} />
+            <p className="text-xs text-muted-foreground pb-1.5">
+              {ib.naoRecolhido === "Diferimento" ? "Diferimento (CST 510/515): o fornecedor não recolhe e o comprador não credita nesta etapa; o recolhimento fica com quem encerra o diferimento (LC 214, art. 138, §§ 5º e 6º)." : "Suspensão (CST 550): o tributo fica suspenso nesta operação, sem débito e sem crédito."}
+            </p>
+          </>
+        )}
+        {ib.fatorBaseReduzida > 0 && ib.fatorBaseReduzida < 1 && (
+          <Row label={`Base reduzida por lei (${Math.round(ib.fatorBaseReduzida * 100)}% do valor)`} value={ib.baseCalculo} />
+        )}
         {!comb?.aplicavel && ib.baseExcluida !== 0 && (
           <>
             <Row label="Base de cálculo do IBS/CBS" value={ib.baseCalculo} legal="base_calculo_ibs_cbs" />

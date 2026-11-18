@@ -190,6 +190,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     atencao: [
       "Com muitos resultados, a tela mostra só os 25 primeiros: refine a busca.",
       "Estar num anexo não basta: confira o texto do item e os requisitos na lei.",
+      "Os códigos que a lei exclui do item (“exceto…”, “excetuadas…”) não recebem a classificação do item, e o Anexo VII cede quando o produto também está no Anexo I (ou no XV, no item 14), como manda a lei.",
       "Se aparecer “Muitas consultas seguidas. Aguarde um instante.”, espere e digite de novo.",
     ],
   },

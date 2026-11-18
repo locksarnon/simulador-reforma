@@ -732,6 +732,7 @@ model CorrelacaoNcm {
   ncm               String
   descricao_produto String?
   c_class_trib      String?
+  excecao           Boolean  @default(false)
   fonte             String   @default("LC 214/2025")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

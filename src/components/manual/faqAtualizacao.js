@@ -226,7 +226,7 @@ export const SECAO_FERRAMENTAS = {
     },
     {
       p: "Como a Consulta NCM mostra o tratamento de um produto?",
-      r: "Mostra se o NCM aparece nos anexos da LC 214 já mapeados (alíquota zero, redução ou regra geral) e confere o código na tabela oficial vigente do Siscomex. Estar em um anexo é condição necessária, mas não suficiente: o texto do item e os requisitos, como o registro no órgão competente, também valem.",
+      r: "Mostra se o NCM aparece nos anexos da LC 214 já mapeados (alíquota zero, redução ou regra geral) e confere o código na tabela oficial vigente do Siscomex. Estar em um anexo é condição necessária, mas não suficiente: o texto do item e os requisitos, como o registro no órgão competente, também valem. Os códigos que a lei exclui do item (“exceto…”) não recebem a classificação dele, e o Anexo VII cede ao Anexo I (e ao XV, no item 14) quando o produto está nos dois. A tabela foi conferida em 18/11/2026 com a calculadora oficial da Receita e com o texto da LC 214.",
     },
     {
       p: "O que o Validador de cadastro faz?",

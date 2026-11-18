@@ -146,6 +146,9 @@ export default function FerramentasCalculadora() {
               <div className="space-y-3 text-sm">
                 <Linha label="Sistema atual líquido" value={BRL(resultado.sistemaAtual.tributosLiquidos)} sub={pct(resultado.sistemaAtual.cargaEfetiva)} />
                 <Linha label="IBS/CBS líquido" value={BRL(resultado.ibsCbs.ibsCbsLiquido)} sub={`IBS ${BRL(resultado.ibsCbs.debitoIbs)} + CBS ${BRL(resultado.ibsCbs.debitoCbs)}`} />
+                {resultado.ibsCbs.naoRecolhido && resultado.ibsCbs.valorNaoRecolhido && (
+                  <Linha label={resultado.ibsCbs.naoRecolhido === "Diferimento" ? "IBS/CBS diferido" : "IBS/CBS suspenso"} value={BRL(resultado.ibsCbs.valorNaoRecolhido.ibs + resultado.ibsCbs.valorNaoRecolhido.cbs)} sub="não entra no débito desta venda nem no crédito de quem compra" />
+                )}
                 {resultado.ibsCbs.redutorCompraGov > 0 && (
                   <Linha label="Redutor de compra governamental" value={pct(resultado.ibsCbs.redutorCompraGov)} sub="aplicado às alíquotas de IBS e CBS desta venda" />
                 )}
