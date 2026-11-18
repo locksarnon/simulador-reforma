@@ -34,7 +34,7 @@ export class CalculadoraRfbService implements OnApplicationBootstrap {
   onApplicationBootstrap() {
     setTimeout(() => {
       this.importarSeMudou()
-        .then(async () => { if (!(await this.parametro(P_COMPARACAO)) && (await this.prisma.rfbClassTrib.count())) await this.compararComIntax(); })
+        .then(async () => { if (await this.prisma.rfbClassTrib.count()) await this.compararComIntax(); })
         .catch((e) => this.log.warn(`Tabelas oficiais: ${(e as Error).message}`));
     }, 20_000).unref?.();
   }
