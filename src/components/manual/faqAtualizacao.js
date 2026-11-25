@@ -265,7 +265,7 @@ export const SECAO_BASE_LEGAL = {
     },
     {
       p: "Todo projeto de consultoria tem período? O que é a data-base?",
-      r: "Nem todo trabalho cobre um intervalo. A Homologação fiscal do ERP para IBS/CBS e o Crédito presumido de estoque olham a situação numa data, então o projeto pede só a Data-base (em vez de De e Até). Na homologação, a conferência das notas vai do início do IBS/CBS (2026) até a data-base. Os demais serviços, como créditos de PIS e Cofins, LCDPR e conciliação de tributos pagos, continuam com De e Até. Projetos antigos de homologação com período continuam mostrando o período.",
+      r: "Nem todo trabalho cobre um intervalo. A Homologação fiscal do ERP para IBS/CBS, o Crédito presumido de estoque e o Saneamento de estoques com foco em IBS e CBS olham a situação numa data, então o projeto pede só a Data-base (em vez de De e Até); o campo troca ao marcar o serviço na lista. O Saneamento de estoques abre o projeto com a lista de documentos e o link para a ferramenta passo a passo da empresa. Na homologação, a conferência das notas vai do início do IBS/CBS (2026) até a data-base. Os demais serviços, como créditos de PIS e Cofins, LCDPR e conciliação de tributos pagos, continuam com De e Até. Projetos antigos de homologação com período continuam mostrando o período.",
     },
     {
       p: "O que é a pesquisa aprofundada do assistente e como mando a resposta por e-mail?",

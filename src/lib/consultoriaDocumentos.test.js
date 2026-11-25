@@ -9,6 +9,11 @@ describe("Solicitações de Consultoria", () => {
       expect(itensDoServico(id).some((l) => l.includes("Capturas"))).toBe(true);
     }
   });
+  it("saneamento de estoques tem a lista de documentos própria, começando pelo cadastro de itens", () => {
+    const itens = itensDoServico("saneamento-estoques");
+    expect(itens[0]).toMatch(/^Cadastro de itens do ERP/);
+    expect(itens.some((l) => l.startsWith("Saldo de estoque na data-base"))).toBe(true);
+  });
   it("inclui os meses tocados pelo recorte e separa ECD, ECF e recibos", () => {
     const linhas = linhasDoPeriodo("irpj-csll", "2026-01-15", "2026-03-10");
     expect(linhas.filter((l) => l.item.startsWith("MIT")).map((l) => l.periodo)).toEqual(["2026-01", "2026-02", "2026-03"]);

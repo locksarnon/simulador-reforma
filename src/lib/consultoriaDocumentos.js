@@ -16,6 +16,16 @@ export function itensDoServico(servico) {
     "Comprovante da Cofins-Importação paga — quando aplicável.",
     "Memória de apuração da elegibilidade — por item e hipótese do art. 381 da LC 214/2025.",
   ];
+  if (servico === "saneamento-estoques") return [
+    "Cadastro de itens do ERP — XLSX/CSV completo: código, descrição, unidade, NCM, grupo, situação (ativo/bloqueado) e a classificação fiscal usada hoje.",
+    "Saldo de estoque na data-base — XLSX/CSV por item, estabelecimento, quantidade e valor.",
+    "Movimentação dos itens — última entrada e última saída de cada item, ou o extrato dos últimos 24 meses.",
+    "NF-e de compra dos principais itens — XML autorizado, para conferir o NCM e a descrição de origem.",
+    "Bloco H e Bloco K da EFD ICMS/IPI — arquivo transmitido, quando aplicável.",
+    "Tabela de equivalência de códigos — de-para de fornecedor, fabricante e códigos paralelos, se existir.",
+    "Política atual de cadastro e de classificação fiscal — documento ou procedimento interno, se existir.",
+    "Acesso de consulta ao cadastro do ERP — ou o responsável de TI para tirar dúvidas de campos.",
+  ];
   const cruzamentos = listas["conciliacao-escrituracoes"];
   if (servico === "cruzamentos-pf") {
     return [...listas.lcdpr, ...cruzamentos.filter((l) => /dirpf|pre-preenchida|rendimentos|locacao|compra e venda|medic|dimob|doi|e-financeira/i.test(normalizar(l)))];

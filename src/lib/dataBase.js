@@ -1,9 +1,9 @@
 /**
- * Serviços de consultoria que olham a situação numa data (data-base) e não um intervalo de datas: homologação do ERP e crédito
- * presumido de estoque. O projeto guarda a data-base nas duas pontas do período; o resto do sistema só muda o rótulo.
+ * Serviços de consultoria que olham a situação numa data (data-base) e não um intervalo de datas: homologação do ERP, crédito
+ * presumido de estoque e saneamento de estoques. O projeto guarda a data-base nas duas pontas do período; o resto do sistema só muda o rótulo.
  * (A mesma lista existe no servidor: SERVICOS_POR_DATA_BASE em consultoria.service.ts.)
  */
-export const SERVICOS_POR_DATA_BASE = ["pf-homologacao", "pj-homologacao", "credito-estoque", "credito-estoque-pf"];
+export const SERVICOS_POR_DATA_BASE = ["pf-homologacao", "pj-homologacao", "credito-estoque", "credito-estoque-pf", "saneamento-estoques"];
 
 export const porDataBase = (servicoId) => SERVICOS_POR_DATA_BASE.includes(servicoId);
 

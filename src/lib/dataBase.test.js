@@ -4,8 +4,8 @@ import { porDataBase, projetoPorDataBase, rotuloPeriodo, tituloPeriodo, valorPer
 const fmt = (v) => String(v).slice(0, 10).split("-").reverse().join("/");
 
 describe("data-base dos serviços", () => {
-  it("homologação do ERP e crédito de estoque são por data-base; os demais, por período", () => {
-    for (const id of ["pj-homologacao", "pf-homologacao", "credito-estoque", "credito-estoque-pf"]) expect(porDataBase(id), id).toBe(true);
+  it("homologação do ERP, crédito de estoque e saneamento de estoques são por data-base; os demais, por período", () => {
+    for (const id of ["pj-homologacao", "pf-homologacao", "credito-estoque", "credito-estoque-pf", "saneamento-estoques"]) expect(porDataBase(id), id).toBe(true);
     for (const id of ["pis-cofins", "lcdpr", "irpj-csll", "simulador-reforma", "tributos-pagos", undefined]) expect(porDataBase(id), String(id)).toBe(false);
   });
   it("mostra data-base só quando o projeto é de data-base (início = fim)", () => {

@@ -9,7 +9,7 @@ const r = 'Reforma Tributária';
 const c = 'Créditos e Oportunidades Tributárias';
 const p = 'Planejamento Tributário';
 /** Serviços que olham a situação numa data (data-base), não um intervalo: o projeto guarda a data-base nas duas pontas do período. */
-export const SERVICOS_POR_DATA_BASE = ['pf-homologacao', 'pj-homologacao', 'credito-estoque', 'credito-estoque-pf'];
+export const SERVICOS_POR_DATA_BASE = ['pf-homologacao', 'pj-homologacao', 'credito-estoque', 'credito-estoque-pf', 'saneamento-estoques'];
 
 export const CATALOGO_CONSULTORIA = [
   { id: 'pf-ibs-cbs', publico: 'PF', area: r, nome: 'Enquadramento e opção de IBS/CBS do produtor rural' },
@@ -22,6 +22,7 @@ export const CATALOGO_CONSULTORIA = [
     { nome: 'Cenários e alíquotas', rota: '/cenarios' }, { nome: 'Transição 2026–2033', rota: '/transicao' },
   ] },
   { id: 'pj-homologacao', publico: 'PJ', area: r, nome: 'Homologação fiscal do ERP para IBS/CBS', projeto: true },
+  { id: 'saneamento-estoques', publico: 'PJ', area: r, nome: 'Saneamento de estoques com foco em IBS e CBS' },
   { id: 'pis-cofins', publico: 'PJ', area: c, nome: 'Créditos de PIS e Cofins' },
   { id: 'credito-estoque', publico: 'PJ', area: c, nome: 'Crédito presumido de estoque', acessos: [{ nome: 'Abrir calculadora de estoque', rota: '/ferramentas/credito-estoque' }] },
   { id: 'tributos-pagos', publico: 'PJ', area: c, nome: 'Conciliação de tributos pagos' },

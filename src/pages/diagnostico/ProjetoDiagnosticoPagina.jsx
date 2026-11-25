@@ -117,6 +117,13 @@ export default function ProjetoDiagnosticoPagina() {
         {(catalogo.isError || pessoas.isError) && p.servico_consultoria && <p role="alert" className="text-sm">Não foi possível carregar os dados do serviço. Atualize para tentar novamente.</p>}
         {servico && !servico.projeto && <p className="rounded-md border bg-card p-3 text-sm">Coleta de documentos disponível. Roteiro fiscal em desenvolvimento.</p>}
         {p.servico_consultoria === "pj-homologacao" && <HomologacaoErp projetoId={p.id} />}
+        {p.servico_consultoria === "saneamento-estoques" && <section className="space-y-2 rounded-lg border bg-card p-4">
+          <h2 className="font-semibold">Saneamento de estoques</h2>
+          <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. O trabalho passo a passo, até a política de uso, é feito na ferramenta de Saneamento de estoques da empresa.</p>
+          <div className="flex flex-wrap gap-4 text-sm text-primary">
+            {(p.empresa_ids || []).map((id) => { const e = (empresas || []).find((x) => x.id === id); const to = e && caminhoDaFerramenta(e, grupos, "saneamento-estoque"); return to ? <Link key={id} to={to}>Abrir o saneamento de {e.razao_social || e.nome}</Link> : null; })}
+          </div>
+        </section>}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
           <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. Selecione a empresa nas ferramentas de simulação.</p>
