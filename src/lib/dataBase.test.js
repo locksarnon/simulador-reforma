@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { porDataBase, projetoPorDataBase, rotuloPeriodo, tituloPeriodo, valorPeriodo } from "./dataBase";
+import { datasValidas, porDataBase, projetoPorDataBase, rotuloPeriodo, tituloPeriodo, valorPeriodo } from "./dataBase";
 
 const fmt = (v) => String(v).slice(0, 10).split("-").reverse().join("/");
 
@@ -22,5 +22,15 @@ describe("data-base dos serviços", () => {
   it("serviço por período com início = fim (um dia) segue como período", () => {
     const dia = { servico_consultoria: "pis-cofins", periodo_inicio: "2026-03-01", periodo_fim: "2026-03-01" };
     expect(rotuloPeriodo(dia, fmt)).toBe("01/03/2026 a 01/03/2026");
+  });
+});
+
+describe("datas para abrir o projeto", () => {
+  it("data-base basta a data; período exige De e Até em ordem", () => {
+    expect(datasValidas("saneamento-estoques", "2026-10-31", "")).toBe(true);
+    expect(datasValidas("pj-homologacao", "", "")).toBe(false);
+    expect(datasValidas("pis-cofins", "2026-01-01", "")).toBe(false);
+    expect(datasValidas("pis-cofins", "2026-02-01", "2026-01-01")).toBe(false);
+    expect(datasValidas("pis-cofins", "2026-01-01", "2026-06-30")).toBe(true);
   });
 });

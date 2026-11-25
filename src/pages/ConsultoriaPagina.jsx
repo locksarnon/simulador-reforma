@@ -9,7 +9,7 @@ import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsul
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta } from "@/lib/servicos";
-import { porDataBase, rotuloPeriodo } from "@/lib/dataBase";
+import { datasValidas, porDataBase, rotuloPeriodo } from "@/lib/dataBase";
 import { SITUACOES_PROJETO } from "@/lib/projetos";
 
 const campo = "rounded-md border bg-background px-3 py-2 text-sm";
@@ -173,7 +173,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
               </div>}
               {abrirProjeto.isError && <p role="alert">{abrirProjeto.error.message}</p>}
               <div className="flex gap-3">
-                {!abrirProjeto.data?.sobrepostos && <button type="submit" className={botao} disabled={!escolhido || !de || !ate || de > ate || abrirProjeto.isPending}>Abrir projeto</button>}
+                {!abrirProjeto.data?.sobrepostos && <button type="submit" className={botao} disabled={!escolhido || !datasValidas(escolha, de, ate) || abrirProjeto.isPending}>Abrir projeto</button>}
                 <button type="button" className="text-sm" disabled={abrirProjeto.isPending} onClick={() => setAdicionando(false)}>Cancelar</button>
               </div>
             </form>}

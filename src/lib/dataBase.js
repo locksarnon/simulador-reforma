@@ -19,3 +19,6 @@ export const valorPeriodo = (p, fmt) => (projetoPorDataBase(p) ? fmt(p.periodo_i
 export const rotuloPeriodo = (p, fmt) => (projetoPorDataBase(p) ? `Data-base ${fmt(p.periodo_inicio)}` : valorPeriodo(p, fmt));
 
 export const tituloPeriodo = (p) => (projetoPorDataBase(p) ? "Data-base do projeto" : "Período do projeto");
+
+/** O que foi preenchido basta para abrir o projeto? Data-base: só a data; período: De e Até, com De não depois de Até. */
+export const datasValidas = (servicoId, de, ate) => (porDataBase(servicoId) ? !!de : !!de && !!ate && de <= ate);
