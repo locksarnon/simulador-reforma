@@ -71,10 +71,10 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Prazo de entrega</span><input type="date" className={campo} value={prazo} onChange={(e) => setPrazo(e.target.value)} /></label>
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span><input className={campo} value={responsavel} onChange={(e) => setResponsavel(e.target.value)} /></label>
           </div>
-          {servico && porDataBase(servico.id) && <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Data-base</span><input type="date" className={campo} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} /></label>}
+          {servico && porDataBase(servico.id) && <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Data-base</span><input type="date" style={{ maxWidth: "11rem" }} className={campo} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} /></label>}
           {servico && !porDataBase(servico.id) && <div className="grid grid-cols-2 gap-3">
-            <label>Início do período<input type="date" className={campo} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} /></label>
-            <label>Fim do período<input type="date" className={campo} value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} /></label>
+            <label>Início do período<input type="date" style={{ maxWidth: "11rem" }} className={campo} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} /></label>
+            <label>Fim do período<input type="date" style={{ maxWidth: "11rem" }} className={campo} value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} /></label>
           </div>}
           {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
           <DialogFooter>

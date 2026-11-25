@@ -156,7 +156,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
             <p className="px-1 pb-1 text-[11px] text-muted-foreground">Marque as colunas e use as setas para mudar a ordem (ou arraste o cabeçalho na tabela).</p>
             <ul className="max-h-72 space-y-0.5 overflow-y-auto">
               {ordemColunas.map((k, i) => { const c = colunas.find((x) => x.chave === k); if (!c) return null; return (
-                <li key={k} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs hover:bg-muted">
+                <li key={k} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs hover:bg-gradient-to-r hover:from-primary/30 hover:via-primary/12 hover:to-transparent">
                   <input type="checkbox" checked={!ocultas.includes(k)} onChange={() => setOcultas((o) => (o.includes(k) ? o.filter((x) => x !== k) : [...o, k]))} aria-label={`Mostrar ${c.rotulo}`} />
                   <span className="flex-1 truncate">{c.rotulo}</span>
                   <button type="button" disabled={i === 0} onClick={() => mover(k, -1)} className="rounded p-0.5 hover:bg-background disabled:opacity-30" aria-label={`Subir ${c.rotulo}`}><ArrowUp className="h-3 w-3" aria-hidden="true" /></button>
@@ -214,7 +214,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
             {exibidas.map((l, i) => {
               const k = chaveLinha(l, i);
               return (
-                <tr key={k} onClick={aoClicarLinha ? () => aoClicarLinha(l) : undefined} className={`border-t border-border/60 align-middle transition-colors hover:bg-muted/40 ${aoClicarLinha ? "cursor-pointer" : ""} ${i % 2 ? "bg-muted/15" : ""} ${destaqueLinha?.(l) ?? ""}`}>
+                <tr key={k} onClick={aoClicarLinha ? () => aoClicarLinha(l) : undefined} className={`border-t border-border/60 align-middle transition-[background-color,box-shadow] hover:bg-gradient-to-r hover:from-primary/30 hover:via-primary/12 hover:to-transparent hover:shadow-[inset_3px_0_0_0_hsl(var(--primary))] ${aoClicarLinha ? "cursor-pointer" : ""} ${i % 2 ? "bg-muted/15" : ""} ${destaqueLinha?.(l) ?? ""}`}>
                   {selecao && <td className="px-2 py-1" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label="Marcar a linha" checked={selecao.marcadas.has(k)} onChange={() => marcar(k)} /></td>}
                   {visiveis.map((c) => (
                     <td key={c.chave} onClick={c.aoClicar ? (e) => { e.stopPropagation(); c.aoClicar(l); } : undefined}

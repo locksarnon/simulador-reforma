@@ -137,7 +137,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
         {pendente ? <p role="status">Carregando…</p> : erro || !cliente ? <p role="alert">Não foi possível abrir os trabalhos do cliente.</p> : <>
                       {adicionando && <form className="space-y-3 rounded border p-3" onSubmit={(e) => {
               e.preventDefault();
-              if (escolhido && de && ate && de <= ate) abrirProjeto.mutate(false);
+              if (escolhido && datasValidas(escolha, de, ate)) abrirProjeto.mutate(false);
             }}>
               <fieldset className="space-y-3" disabled={abrirProjeto.isPending}>
                 <legend className="mb-2 text-sm font-semibold">Tipo de trabalho</legend>
@@ -146,26 +146,29 @@ export default function ConsultoriaPagina({ carteira = false }) {
                   <ul className="divide-y">
                     {disponiveis.filter((s) => s.area === categoria).map((s) => {
                       const emAberto = projetosDe(cliente, s.id).some((p) => ["EM_ANDAMENTO", "PAUSADO"].includes(p.situacao));
-                      return <li key={s.id}>
-                        <label className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted/60 ${escolha === s.id ? "bg-primary/10" : ""}`}>
-                          <input type="radio" name="servico-consultoria" value={s.id} checked={escolha === s.id} required className="shrink-0 accent-primary"
+                      const marcado = escolha === s.id;
+                      return <li key={s.id} className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-3 transition-[background-color] hover:bg-gradient-to-r hover:from-primary/30 hover:via-primary/12 hover:to-transparent ${marcado ? "bg-primary/10 py-2" : ""}`}>
+                        <label className="flex min-w-[15rem] flex-1 cursor-pointer items-center gap-2.5 py-2 text-sm">
+                          <input type="radio" name="servico-consultoria" value={s.id} checked={marcado} required className="shrink-0 accent-primary"
                             onChange={() => { abrirProjeto.reset(); setEscolha(s.id); }} />
                           <span className="min-w-0 flex-1">
                             <span className="block">{s.nome}</span>
                             {emAberto && <span className="block text-xs text-muted-foreground">Já tem projeto em aberto</span>}
                           </span>
                         </label>
+                        {marcado && <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          {porDataBase(s.id)
+                            ? <label className="flex items-center gap-1.5">Data-base<input type="date" aria-label="Data-base" style={{ width: "9.5rem" }} className={campoCompacto} value={de} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setDe(e.target.value); }} required /></label>
+                            : <>
+                              <label className="flex items-center gap-1.5">De<input type="date" aria-label="Período, de" style={{ width: "9.5rem" }} className={campoCompacto} value={de} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setDe(e.target.value); }} required /></label>
+                              <label className="flex items-center gap-1.5">Até<input type="date" aria-label="Período, até" style={{ width: "9.5rem" }} className={campoCompacto} value={ate} min={de || undefined} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setAte(e.target.value); }} required /></label>
+                            </>}
+                        </span>}
                       </li>;
                     })}
                   </ul>
                 </section>)}
               </fieldset>
-              <div className="grid grid-cols-2 gap-2">
-                {porDataBase(escolha) ? <label className="col-span-2 grid gap-1 text-sm">Data-base<input type="date" className={campo} value={de} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setDe(e.target.value); }} required /></label> : <>
-                <label className="grid gap-1 text-sm">De<input type="date" className={campo} value={de} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setDe(e.target.value); }} required /></label>
-                <label className="grid gap-1 text-sm">Até<input type="date" className={campo} value={ate} min={de || undefined} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setAte(e.target.value); }} required /></label>
-                </>}
-              </div>
               {abrirProjeto.data?.sobrepostos && <div className="space-y-2 text-sm">
                 <p>Já há projetos com período sobreposto:</p>
                 {abrirProjeto.data.sobrepostos.map((p) => <Link key={p.id} className="block text-primary underline" to={`/diagnostico/projetos/${p.id}`}>{p.nome} · {rotuloPeriodo({ ...p, servico_consultoria: escolha }, fmtDataCurta)}</Link>)}
