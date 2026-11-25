@@ -1,6 +1,60 @@
 /** Regras do assistente da Base legal: prompts e validação da resposta (funções puras, testáveis). */
 
-export type Candidato = { chave: string; numero: string; rotulo: string; caminho: string; secao: string | null; texto: string };
+export type Candidato = {
+  chave: string; numero: string; rotulo: string; caminho: string; secao: string | null; texto: string;
+  /** Situação do dispositivo no texto oficial: o assistente nunca apresenta como vigente o que está revogado. */
+  revogado?: boolean;
+  revogado_por?: string | null;
+  parcialmente_revogado?: boolean;
+  /** Situação da norma inteira (vigente | parcialmente_revogada | revogada) e o ato que a revogou. */
+  norma_situacao?: string;
+  norma_revogada_por?: string | null;
+  /** Notas oficiais de alteração, na ordem do texto ("(Redação dada pela Lei Complementar nº 227, de 2026)"). */
+  alteracoes?: string[];
+  /** Data (ISO) da última mudança de texto que a base registrou. */
+  alterado_em?: string | null;
+  /** Redação que valia antes da alteração (riscada no texto oficial). Serve só para comparar. */
+  redacao_anterior?: string | null;
+  /** Ato novo que altera o dispositivo sem o texto compilado já trazer a mudança. */
+  avisos?: string[];
+};
+
+const dia = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+const pelo = (ato: string | null | undefined) => (ato && ato !== 'veto' ? ` pelo ${ato}` : ato === 'veto' ? ' por veto' : '');
+
+/** A situação do dispositivo em uma linha, para o cabeçalho do bloco enviado ao modelo. */
+export function situacaoDoCandidato(c: Candidato): string {
+  if (c.norma_situacao === 'revogada') return `NORMA REVOGADA${pelo(c.norma_revogada_por)}: não é regra vigente`;
+  if (c.revogado) return `REVOGADO${pelo(c.revogado_por)}: o texto abaixo não é regra vigente`;
+  if (c.parcialmente_revogado) return 'PARCIALMENTE REVOGADO: há parágrafos, incisos ou alíneas com nota "(Revogado...)"';
+  return 'em vigor';
+}
+
+/** O bloco de um dispositivo no prompt: situação, notas oficiais de alteração, redação anterior, avisos e o texto. */
+export function blocoDoCandidato(c: Candidato, i: number): string {
+  const linhas = [`### [${i + 1}] ${c.numero} — ${c.rotulo} (id: ${c.chave}/${c.caminho}) — situação: ${situacaoDoCandidato(c)}`];
+  const notas = (c.alteracoes ?? []).slice(0, 4);
+  if (notas.length || c.alterado_em) linhas.push(`Alterações oficiais deste dispositivo: ${notas.join(' ') || 'registradas pela base'}${c.alterado_em ? ` (última mudança de texto registrada em ${dia(c.alterado_em)})` : ''}.`);
+  if (c.redacao_anterior) linhas.push(`Redação anterior (NÃO vale mais; serve só para comparar): "${c.redacao_anterior.slice(0, 500)}"`);
+  for (const a of c.avisos ?? []) linhas.push(`AVISO: ${a}.`);
+  linhas.push(c.texto);
+  return linhas.join('\n');
+}
+
+/** Regras comuns aos prompts do assistente sobre norma editada e revogada. */
+export const REGRAS_SITUACAO_DO_TEXTO = `- Cada dispositivo traz a situação (em vigor, REVOGADO, PARCIALMENTE REVOGADO ou NORMA REVOGADA), as alterações oficiais e, quando houver, a redação anterior e avisos. O que estiver REVOGADO, em NORMA REVOGADA ou na "Redação anterior" NÃO é regra vigente: nunca o apresente como vigente. Se a pergunta for sobre dispositivo revogado, diga que foi revogado (e por qual ato, se informado) e responda pelo dispositivo vigente que o substitui, se estiver entre os fornecidos.
+- Se houver AVISO de alteração ainda não consolidada no texto compilado, diga em "ressalvas" que o texto citado pode ter mudado e qual ato o altera. Se o dispositivo foi alterado há pouco tempo, lembre de conferir se o caso concreto é anterior à mudança.`;
+
+/** O que o consultor precisa saber sobre os dispositivos citados, mesmo que o modelo não tenha dito (vai para as ressalvas da resposta). */
+export function alertasDoCandidato(c: Candidato, agora = new Date()): string[] {
+  const a: string[] = [];
+  if (c.norma_situacao === 'revogada') a.push(`a norma consta como revogada${pelo(c.norma_revogada_por)}`);
+  else if (c.revogado) a.push(`consta como revogado${pelo(c.revogado_por)}`);
+  else if (c.parcialmente_revogado) a.push('tem partes revogadas (confira as notas "Revogado" no texto oficial)');
+  for (const v of c.avisos ?? []) a.push(v);
+  if (!c.revogado && c.alterado_em && agora.getTime() - new Date(c.alterado_em).getTime() < 120 * 86_400_000) a.push(`teve o texto alterado em ${dia(c.alterado_em)}; confira se o caso concreto é anterior à mudança`);
+  return a;
+}
 
 export type Fundamento = { norma: string; numero: string; rotulo: string; caminho: string; trecho: string | null };
 
@@ -50,13 +104,12 @@ Pergunta: ${JSON.stringify(pergunta)}`;
 }
 
 export function promptResposta(pergunta: string, candidatos: Candidato[]): string {
-  const blocos = candidatos
-    .map((c, i) => `### [${i + 1}] ${c.numero} — ${c.rotulo} (id: ${c.chave}/${c.caminho})\n${c.texto}`)
-    .join('\n\n');
+  const blocos = candidatos.map(blocoDoCandidato).join('\n\n');
   return `Você é um assistente para consultores tributários. Responda à pergunta usando EXCLUSIVAMENTE os dispositivos legais abaixo.
 
 Regras obrigatórias:
 - Não use conhecimento externo, não invente números, prazos, alíquotas nem artigos.
+${REGRAS_SITUACAO_DO_TEXTO}
 - Preserve o alcance de cada norma: uma regra de regulamento da CBS não pode ser apresentada como regra do IBS sem dispositivo que a sustente. Não generalize exceções condicionadas: diga quais condições o texto exige ou informe que é necessário conferir o enquadramento específico.
 - Priorize a definição e as verificações diretamente ligadas à pergunta; evite listar regimes especiais que não foram perguntados.
 - Interprete perguntas coloquiais pelo conceito jurídico central. "Contribuinte regular" pode se referir ao regime regular de IBS/CBS; diferencie esse enquadramento de regularidade fiscal ou cadastral, apenas se houver suporte nos dispositivos.
@@ -117,10 +170,17 @@ export function validarResposta(bruta: unknown, candidatos: Candidato[]): Respos
     });
   }
   const resposta = typeof r.resposta === 'string' ? r.resposta.trim() : '';
+  // Dispositivo revogado, norma revogada, alteração recente ou ainda não consolidada: o aviso vai nas ressalvas mesmo que o modelo não o tenha dado.
+  const alertas = fundamentos.flatMap((f) => {
+    const c = porId.get(`${f.norma}/${f.caminho}`);
+    return c ? alertasDoCandidato(c).map((t) => `${f.numero}, ${f.rotulo}: ${t}.`) : [];
+  });
+  const ressalvasDoModelo = typeof r.ressalvas === 'string' && r.ressalvas.trim() ? r.ressalvas.trim() : '';
+  const ressalvas = [ressalvasDoModelo, ...alertas].filter(Boolean).join(' ');
   return {
     resposta,
     suficiente: r.suficiente === true && fundamentos.length > 0 && resposta.length > 0,
-    ressalvas: typeof r.ressalvas === 'string' && r.ressalvas.trim() ? r.ressalvas.trim() : null,
+    ressalvas: ressalvas || null,
     fundamentos,
   };
 }

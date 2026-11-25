@@ -1,15 +1,35 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Cron } from '@nestjs/schedule';
 import { chaveDe, normasCitadas, referenciaDe, urlOficialValida } from './base-legal.deteccao';
 import { PrismaService } from '../prisma/prisma.service';
 import { AVISO_ASSISTENTE, Candidato, consultasDaPergunta, respostaDeApoio, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
-import { decodificar, extrairDispositivos, htmlParaTexto, sha256 } from './base-legal.parser';
-import { FONTES_NORMAS } from './fontes';
+import { avisosDePendencias } from './avisos-legais';
+import { decodificar, DispositivoExtraido, extrairDispositivos, htmlParaTexto, LEITOR_VERSAO, semRiscado, sha256 } from './base-legal.parser';
+import { atoDaMudanca, atosModificadores, novidadesDaAtualizacao, NovidadeNova, situacaoDaNorma } from './atualizacoes';
+import { FONTES_NORMAS, type GrupoNorma } from './fontes';
+import { pdfParaTexto } from './pdf-norma';
 import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
 import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
 import { plural } from '../common/plural';
 import { MODELO_CLAUDE_PADRAO, perguntarAoClaude, perguntarViaPonte } from './claude';
+
+/** Maior arquivo que aceitamos baixar de uma fonte oficial (o Regulamento do IBS em PDF tem ~3 MB). */
+const MAX_BYTES_FONTE = 40 * 1024 * 1024;
+/** Uma atualização automática que perca mais que isto dos dispositivos já gravados é tratada como página oficial que mudou de forma. */
+const PERDA_MAXIMA_AUTOMATICA = 0.3;
+/** Daqui para cima, a regra acima vale; norma pequena pode mesmo encolher. */
+const MINIMO_PARA_GUARDA = 20;
+
+export type OpcoesImportacao = {
+  /** Grava mesmo que o texto seja idêntico ao já guardado (reprocessa com o leitor atual). */
+  forcar?: boolean;
+  /** Chamada da rotina semanal: segura a gravação se a página oficial perdeu boa parte dos dispositivos. */
+  automatico?: boolean;
+  /** Número da rodada da revisão semanal, para ligar as novidades a ela. */
+  execucaoId?: string;
+  /** Não manda o e-mail de revisão desta norma (a rotina semanal manda um só, com tudo). */
+  semAviso?: boolean;
+};
 
 const MESES: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
@@ -24,10 +44,18 @@ export type ResultadoImportacao = {
   novos: number;
   alterados: number;
   removidos: number;
+  /** Dispositivos que passaram a constar como revogados nesta atualização (por nota de revogação ou por terem saído do texto). */
+  revogados: number;
   hash: string;
   motivo?: string;
   /** O que a atualização devolveu para revisão (cartões, notas do cálculo e marcos da agenda que citam o texto alterado). */
   revisao?: ResumoRevisao;
+  situacao?: string;
+  formato?: string;
+  /** Quantas novidades entraram na base de conhecimento. */
+  novidades?: number;
+  /** O texto foi relido com um leitor mais novo: a diferença vem do leitor, não de mudança na lei. */
+  reprocessada?: boolean;
 };
 
 /** Cabeçalho da norma → data e ementa (a data do texto oficial prevalece sobre o cadastro). */
@@ -64,54 +92,97 @@ export class BaseLegalService {
   /** Garante o cadastro das normas do manifesto (idempotente). */
   async garantirNormas() {
     for (const f of FONTES_NORMAS) {
+      const comum = {
+        tipo: f.tipo, numero: f.numero, titulo: f.titulo, orgao: f.orgao, url_oficial: f.url_oficial, prioridade: f.prioridade, observacao: f.observacao ?? null,
+        grupo: f.grupo ?? null, formato: f.formato ?? 'html', monitorar: f.formato !== 'externo',
+      };
       await this.prisma.normaLegal.upsert({
         where: { chave: f.chave },
-        create: {
-          chave: f.chave, tipo: f.tipo, numero: f.numero, titulo: f.titulo, orgao: f.orgao,
-          data_publicacao: new Date(f.data_publicacao), url_oficial: f.url_oficial, prioridade: f.prioridade, observacao: f.observacao ?? null,
-        },
-        update: { tipo: f.tipo, numero: f.numero, titulo: f.titulo, orgao: f.orgao, url_oficial: f.url_oficial, prioridade: f.prioridade, observacao: f.observacao ?? null },
+        create: { chave: f.chave, data_publicacao: f.data_publicacao ? new Date(f.data_publicacao) : null, origem: 'manifesto', ...comum },
+        update: comum,
       });
     }
   }
 
-  /** Baixa o texto oficial, divide por dispositivo e grava versões só do que mudou. */
-  async importar(chave: string, opcoes: { forcar?: boolean } = {}): Promise<ResultadoImportacao> {
+  /**
+   * Baixa o texto oficial (página HTML ou PDF), divide por dispositivo e grava versões só do que mudou. Guarda também o que o texto
+   * oficial diz sobre cada dispositivo: notas de alteração, ato que revogou, redação anterior (o que estava riscado) e temas.
+   */
+  async importar(chave: string, opcoes: OpcoesImportacao = {}): Promise<ResultadoImportacao> {
     await this.garantirNormas();
     const norma = await this.prisma.normaLegal.findUnique({ where: { chave } });
     if (!norma) throw new NotFoundException(`Norma "${chave}" não cadastrada`);
+    if (norma.formato === 'externo') throw new BadRequestException('Esta norma só tem a referência: a fonte oficial não publica o texto em uma página que o sistema consiga ler.');
 
-    const texto = await this.baixarTexto(norma.url_oficial);
+    const { texto, formato } = await this.baixarDocumento(norma.url_oficial);
     const hash = sha256(texto);
 
-    if (!opcoes.forcar && norma.hash_atual === hash) {
+    // Norma gravada por um leitor anterior é relida mesmo com o texto idêntico: os campos derivados (notas, redação anterior, revogação) não existiam.
+    const leitorAntigo = (norma.leitor_versao ?? LEITOR_VERSAO) < LEITOR_VERSAO;
+    if (!opcoes.forcar && !leitorAntigo && norma.hash_atual === hash) {
       await this.prisma.normaLegal.update({ where: { id: norma.id }, data: { capturada_em: new Date() } });
-      return { chave, alterada: false, dispositivos: norma.total_dispositivos, novos: 0, alterados: 0, removidos: 0, hash, motivo: 'Texto oficial idêntico ao já carregado' };
+      return { chave, alterada: false, dispositivos: norma.total_dispositivos, novos: 0, alterados: 0, removidos: 0, revogados: 0, hash, motivo: 'Texto oficial idêntico ao já carregado' };
     }
 
     const extraidos = extrairDispositivos(texto);
-    if (extraidos.length < 3) throw new BadRequestException('Não foi possível identificar os dispositivos — nada foi gravado (precisa de revisão)');
+    if (extraidos.length === 0) throw new BadRequestException('Não foi possível identificar os dispositivos — nada foi gravado (precisa de revisão)');
 
-    const existentes = await this.prisma.dispositivoLegal.findMany({ where: { norma_id: norma.id }, select: { id: true, caminho: true, rotulo: true, hash: true, texto: true, revogado: true } });
+    const existentes = await this.prisma.dispositivoLegal.findMany({
+      where: { norma_id: norma.id },
+      select: { id: true, caminho: true, rotulo: true, hash: true, texto: true, revogado: true, parcialmente_revogado: true, revogado_por: true, alteracoes: true, redacoes_anteriores: true, temas: true, ordem: true, secao: true },
+    });
+    if (existentes.length >= 3 && extraidos.length < 3) throw new BadRequestException('Não foi possível identificar os dispositivos — nada foi gravado (precisa de revisão)');
+
+    // Atualização automática não grava uma página que perdeu boa parte dos dispositivos: é sinal de que o site oficial mudou de forma.
+    if (opcoes.automatico && existentes.length >= MINIMO_PARA_GUARDA && extraidos.length < existentes.length * (1 - PERDA_MAXIMA_AUTOMATICA)) {
+      const motivo = `A página oficial trouxe ${extraidos.length} dispositivos e a base tem ${existentes.length}. Nada foi gravado: confira a página e, se estiver certo, atualize à mão.`;
+      await this.registrarNovidades([{ tipo: 'estrutura_suspeita', origem: 'texto_oficial', norma_chave: chave, norma_numero: norma.numero, titulo: `${norma.numero}: atualização segurada (página oficial mudou de forma)`, resumo: motivo, url: norma.url_oficial, oficial: true, confirmada: true, execucao_id: opcoes.execucaoId ?? null }]);
+      await this.criarAlertaSeNovo({ tipo: 'texto_alterado', chave, referencia: chave, titulo: `${norma.numero}: atualização segurada`, detalhe: motivo, url: norma.url_oficial, origem: 'agendada' }, true);
+      return { chave, alterada: false, dispositivos: existentes.length, novos: 0, alterados: 0, removidos: 0, revogados: 0, hash, motivo };
+    }
+
     const porCaminho = new Map(existentes.map((e) => [e.caminho, e]));
     const vistos = new Set(extraidos.map((d) => d.caminho));
     const removidos = existentes.filter((e) => !vistos.has(e.caminho));
+    const primeiraCarga = existentes.length === 0;
+    // A diferença entre o que estava gravado e o texto de agora vem do leitor (texto riscado separado do vigente), não da lei.
+    const reprocessamento = leitorAntigo && !primeiraCarga;
+    const igual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
     // 1) O que mudou (texto alterado, revogado ou fora do texto oficial), sem gravar nada ainda.
     const mudancas: MudancaDispositivo[] = [];
+    const alteradosLista: DispositivoExtraido[] = [];
+    const revogadosAgora: { rotulo: string; caminho: string; ato: string | null }[] = [];
     for (const d of extraidos) {
       const ex = porCaminho.get(d.caminho);
-      if (ex && ex.hash !== sha256(d.texto)) mudancas.push({ caminho: d.caminho, rotulo: d.rotulo, mudanca: d.revogado && !ex.revogado ? 'revogado' : 'alterado', texto: d.texto });
+      if (!ex) continue;
+      if (ex.hash !== sha256(d.texto)) {
+        const passouARevogado = d.revogado && !ex.revogado;
+        mudancas.push({ caminho: d.caminho, rotulo: d.rotulo, mudanca: passouARevogado ? 'revogado' : 'alterado', texto: d.texto });
+        if (passouARevogado) revogadosAgora.push({ rotulo: d.rotulo, caminho: d.caminho, ato: d.revogado_por });
+        else alteradosLista.push(d);
+      } else if (d.revogado && !ex.revogado) {
+        // O texto é o mesmo, mas o leitor agora reconhece que o dispositivo está revogado (antes ele constava como em vigor).
+        mudancas.push({ caminho: d.caminho, rotulo: d.rotulo, mudanca: 'revogado' });
+        revogadosAgora.push({ rotulo: d.rotulo, caminho: d.caminho, ato: d.revogado_por });
+      }
     }
-    for (const r of removidos) if (!r.revogado) mudancas.push({ caminho: r.caminho, rotulo: r.rotulo, mudanca: 'revogado' });
+    for (const r of removidos) {
+      if (r.revogado) continue;
+      mudancas.push({ caminho: r.caminho, rotulo: r.rotulo, mudanca: 'revogado' });
+      revogadosAgora.push({ rotulo: r.rotulo, caminho: r.caminho, ato: null });
+    }
 
     // 2) Cartões, notas do cálculo e marcos que citam o que mudou entram na fila de revisão ANTES de o texto novo ser gravado: se a
     //    fila não puder ser gravada, nada do texto muda e a atualização pode ser repetida (depois de gravado, a mudança não seria
     //    detectada de novo e o item ficaria publicado sobre uma lei alterada).
-    const revisao = await this.revisao.registrarMudancas({ chave, numero: norma.numero }, mudancas);
+    const revisao = await this.revisao.registrarMudancas({ chave, numero: norma.numero }, mudancas, { avisar: !opcoes.semAviso });
 
     // 3) Grava o texto novo, guardando a versão anterior de cada dispositivo alterado.
-    const novos: typeof extraidos = [];
+    const agora = new Date();
+    const mudouEm = reprocessamento ? undefined : agora;
+    const derivados = (d: DispositivoExtraido) => ({ parcialmente_revogado: d.parcialmente_revogado, revogado_por: d.revogado_por, alteracoes: d.alteracoes as object[], redacoes_anteriores: d.redacoes_anteriores, temas: d.temas });
+    const novos: DispositivoExtraido[] = [];
     let alterados = 0;
     for (const d of extraidos) {
       const h = sha256(d.texto);
@@ -121,45 +192,160 @@ export class BaseLegalService {
         alterados += 1;
         await this.prisma.$transaction([
           this.prisma.dispositivoLegalVersao.create({ data: { dispositivo_id: ex.id, texto: ex.texto, hash: ex.hash } }),
-          this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: { texto: d.texto, hash: h, rotulo: d.rotulo, ordem: d.ordem, secao: d.secao, revogado: d.revogado } }),
+          this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: { texto: d.texto, hash: h, rotulo: d.rotulo, ordem: d.ordem, secao: d.secao, revogado: d.revogado, ...derivados(d), ...(mudouEm ? { alterado_em: mudouEm } : {}) } }),
         ]);
       } else {
-        // Dispositivo que tinha saído do texto e voltou igual deixa de constar como revogado.
-        await this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: { ordem: d.ordem, secao: d.secao, ...(ex.revogado !== d.revogado ? { revogado: d.revogado } : {}) } });
+        // Mesmo texto: só atualiza o que o leitor deriva dele (notas, revogação, redações anteriores, temas, posição). Dispositivo que tinha
+        // saído do texto e voltou igual deixa de constar como revogado.
+        const dados: Record<string, unknown> = { ordem: d.ordem, secao: d.secao };
+        if (ex.revogado !== d.revogado) dados.revogado = d.revogado;
+        if ((ex.parcialmente_revogado ?? false) !== d.parcialmente_revogado) dados.parcialmente_revogado = d.parcialmente_revogado;
+        if ((ex.revogado_por ?? null) !== d.revogado_por) dados.revogado_por = d.revogado_por;
+        if (!igual(ex.alteracoes ?? [], d.alteracoes)) dados.alteracoes = d.alteracoes;
+        if (!igual(ex.redacoes_anteriores ?? [], d.redacoes_anteriores)) dados.redacoes_anteriores = d.redacoes_anteriores;
+        if (!igual(ex.temas ?? [], d.temas)) dados.temas = d.temas;
+        if (ex.ordem !== d.ordem || ex.secao !== d.secao || Object.keys(dados).length > 2) await this.prisma.dispositivoLegal.update({ where: { id: ex.id }, data: dados });
       }
     }
     for (let i = 0; i < novos.length; i += 100) {
       await this.prisma.dispositivoLegal.createMany({
-        data: novos.slice(i, i + 100).map((d) => ({ norma_id: norma.id, tipo: d.tipo, rotulo: d.rotulo, caminho: d.caminho, ordem: d.ordem, secao: d.secao, texto: d.texto, hash: sha256(d.texto), revogado: d.revogado })),
+        data: novos.slice(i, i + 100).map((d) => ({ norma_id: norma.id, tipo: d.tipo, rotulo: d.rotulo, caminho: d.caminho, ordem: d.ordem, secao: d.secao, texto: d.texto, hash: sha256(d.texto), revogado: d.revogado, ...derivados(d), alterado_em: primeiraCarga || reprocessamento ? null : agora })),
       });
     }
-    if (removidos.length) await this.prisma.dispositivoLegal.updateMany({ where: { id: { in: removidos.map((r) => r.id) } }, data: { revogado: true } });
+    if (removidos.length) await this.prisma.dispositivoLegal.updateMany({ where: { id: { in: removidos.map((r) => r.id) } }, data: { revogado: true, ...(mudouEm ? { alterado_em: mudouEm } : {}) } });
+    await this.gravarRemissoes(norma.id, extraidos);
 
-    const cab = lerCabecalho(texto);
+    const cab = lerCabecalho(semRiscado(texto));
+    const sit = situacaoDaNorma(extraidos, texto);
+    const houveMudanca = !primeiraCarga && !reprocessamento && (alterados > 0 || novos.length > 0 || removidos.length > 0 || revogadosAgora.length > 0);
     await this.prisma.normaLegal.update({
       where: { id: norma.id },
       data: {
-        hash_atual: hash, capturada_em: new Date(), total_dispositivos: extraidos.length,
+        hash_atual: hash, capturada_em: agora, total_dispositivos: extraidos.length, formato, leitor_versao: LEITOR_VERSAO,
         ...(cab.data ? { data_publicacao: cab.data } : {}), ementa: cab.ementa,
+        situacao: sit.situacao, revogada_por: sit.revogada_por, revogada_em: sit.situacao === 'revogada' ? (norma.revogada_em ?? agora) : null,
+        atos_modificadores: atosModificadores(extraidos) as object[],
+        ...(houveMudanca ? { atualizada_em: agora } : {}),
       },
     });
-    this.log.log(`${chave}: ${extraidos.length} dispositivos (${novos.length} novos, ${alterados} alterados, ${removidos.length} removidos)`);
-    return { chave, alterada: true, dispositivos: extraidos.length, novos: novos.length, alterados, removidos: removidos.length, hash, revisao };
+
+    // 4) O que a equipe lê: o que mudou, quem mudou (o ato) e se a norma inteira saiu.
+    const novidades = novidadesDaAtualizacao({
+      norma: { chave, numero: norma.numero, url_oficial: norma.url_oficial },
+      primeiraCarga, totalDispositivos: extraidos.length,
+      alterados: alteradosLista.map((d) => ({ rotulo: d.rotulo, caminho: d.caminho, ato: atoDaMudanca(d, ['redacao']) })),
+      revogados: revogadosAgora,
+      incluidos: novos.filter(() => !primeiraCarga).map((d) => ({ rotulo: d.rotulo, caminho: d.caminho, ato: atoDaMudanca(d, ['inclusao', 'redacao']) })),
+      situacaoAnterior: norma.situacao, situacao: sit, execucaoId: opcoes.execucaoId, reprocessamento,
+    });
+    await this.registrarNovidades(novidades);
+
+    this.log.log(`${chave}: ${extraidos.length} dispositivos (${novos.length} novos, ${alterados} alterados, ${revogadosAgora.length} revogados, ${removidos.length} removidos)`);
+    return { chave, alterada: true, dispositivos: extraidos.length, novos: novos.length, alterados, removidos: removidos.length, revogados: revogadosAgora.length, hash, revisao, situacao: sit.situacao, novidades: novidades.length, formato, ...(reprocessamento ? { reprocessada: true } : {}) };
   }
 
-  /** Baixa e normaliza o texto de uma fonte oficial (só https em sites oficiais; PDF ainda não é suportado). */
-  private async baixarTexto(url: string): Promise<string> {
-    if (!urlOficialValida(url)) throw new BadRequestException('URL fora dos sites oficiais aceitos (planalto.gov.br, cgibs.gov.br, gov.br)');
-    const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)' }, signal: AbortSignal.timeout(90_000) });
+  /** Grava as remissões ("(Art. 38 da LC 214/2025)") da norma: mostram, em cada artigo, o que o regulamenta ou reproduz. */
+  private async gravarRemissoes(normaId: string, extraidos: DispositivoExtraido[]) {
+    const linhas = extraidos.flatMap((d) => d.remissoes.flatMap((r) => r.caminhos.map((c) => ({ norma_id: normaId, caminho: d.caminho, rotulo: d.rotulo, destino_ref: r.referencia, destino_caminho: c, trecho: r.trecho }))));
+    await this.prisma.referenciaLegal.deleteMany({ where: { norma_id: normaId } });
+    for (let i = 0; i < linhas.length; i += 500) await this.prisma.referenciaLegal.createMany({ data: linhas.slice(i, i + 500) });
+  }
+
+  /** Registra novidades na base de conhecimento. Falha aqui nunca desfaz a atualização do texto. */
+  async registrarNovidades(lista: NovidadeNova[]) {
+    if (!lista.length) return 0;
+    try {
+      await this.prisma.novidadeLegal.createMany({
+        data: lista.map((n) => ({
+          tipo: n.tipo, origem: n.origem, norma_chave: n.norma_chave ?? null, norma_numero: n.norma_numero ?? null, caminho: n.caminho ?? null, rotulo: n.rotulo ?? null,
+          titulo: n.titulo.slice(0, 300), resumo: n.resumo?.slice(0, 1500) ?? null, detalhes: (n.detalhes ?? []) as object[], ato: n.ato ?? null, ato_ref: n.ato_ref ?? null,
+          url: n.url ?? null, oficial: n.oficial ?? true, confirmada: n.confirmada ?? false, execucao_id: n.execucao_id ?? null, data_ato: n.data_ato ?? null,
+        })),
+      });
+      return lista.length;
+    } catch (e) {
+      this.log.warn(`Novidades não gravadas: ${(e as Error).message}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Baixa e normaliza o texto de uma fonte oficial: página HTML ou PDF (regulamentos e resoluções do CGIBS), só https em sites oficiais.
+   * Em HTML, o que o site mostra riscado vem marcado à parte (ver htmlParaTexto); em PDF, o texto sai em linhas.
+   */
+  async baixarDocumento(url: string): Promise<{ texto: string; formato: 'html' | 'pdf' }> {
+    const { corpo, tipo } = await this.baixarBruto(url);
+    if (/pdf/i.test(tipo) || corpo.subarray(0, 5).toString('latin1') === '%PDF-') {
+      return { texto: await pdfParaTexto(corpo), formato: 'pdf' };
+    }
+    return { texto: htmlParaTexto(decodificar(corpo)), formato: 'html' };
+  }
+
+  /**
+   * Baixa o arquivo de uma fonte oficial sem interpretá-lo (página, PDF ou JSON). Só https em sites oficiais, sem redirecionar
+   * para fora deles e com limite de tamanho: o servidor não serve para acessar endereços arbitrários.
+   */
+  async baixarBruto(url: string, opcoes: { maxBytes?: number; timeoutMs?: number; aceitar?: string } = {}): Promise<{ corpo: Buffer; tipo: string; url: string }> {
+    if (!urlOficialValida(url)) throw new BadRequestException('URL fora dos sites oficiais aceitos (gov.br, jus.br e leg.br, por https)');
+    const limite = opcoes.maxBytes ?? MAX_BYTES_FONTE;
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)', ...(opcoes.aceitar ? { Accept: opcoes.aceitar } : {}) },
+      signal: AbortSignal.timeout(opcoes.timeoutMs ?? 180_000),
+    });
     if (!resp.ok) throw new BadRequestException(`Fonte oficial respondeu ${resp.status}`);
-    if (/pdf/i.test(resp.headers.get('content-type') || '')) throw new BadRequestException('A fonte é um PDF; informe a página HTML do texto da norma.');
-    return htmlParaTexto(decodificar(Buffer.from(await resp.arrayBuffer())));
+    if (resp.url && !urlOficialValida(resp.url)) throw new BadRequestException('A fonte oficial redirecionou para fora dos sites oficiais.');
+    if (Number(resp.headers.get('content-length') || 0) > limite) throw new BadRequestException('A fonte oficial é grande demais para carregar.');
+    const corpo = Buffer.from(await resp.arrayBuffer());
+    if (corpo.length > limite) throw new BadRequestException('A fonte oficial é grande demais para carregar.');
+    return { corpo, tipo: resp.headers.get('content-type') || '', url: resp.url || url };
+  }
+
+  /** O endereço oficial abre? Confere só a resposta, sem baixar o corpo (serve para descartar links que a pesquisa na web inventou). */
+  async urlResponde(url: string): Promise<boolean> {
+    if (!urlOficialValida(url)) return false;
+    try {
+      const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)' }, signal: AbortSignal.timeout(25_000) });
+      void resp.body?.cancel().catch(() => undefined);
+      return resp.ok && (!resp.url || urlOficialValida(resp.url));
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Cadastra um ato novo (lei, decreto, MP...) e carrega o texto oficial. Nada fica cadastrado se o texto não abrir ou não trouxer
+   * dispositivos. Não duplica norma que a base já tem, seja qual for a chave dela.
+   */
+  async registrarNorma(def: { referencia: string; numero: string; tipo: string; titulo: string; orgao: string; url: string; grupo: GrupoNorma; data?: Date | null; observacao?: string }, opcoes: OpcoesImportacao = {}): Promise<{ chave: string; jaExistia: boolean; resultado: ResultadoImportacao | null }> {
+    const existentes = await this.prisma.normaLegal.findMany({ select: { chave: true, numero: true } });
+    const igual = existentes.find((n) => referenciaDe(n.numero) === def.referencia);
+    if (igual) return { chave: igual.chave, jaExistia: true, resultado: null };
+    if (!urlOficialValida(def.url)) throw new BadRequestException('URL fora dos sites oficiais aceitos');
+    const chave = chaveDe(def.referencia.replace(/^lc /, 'lcp '));
+    await this.prisma.normaLegal.create({
+      data: {
+        chave, tipo: def.tipo, numero: def.numero, titulo: def.titulo.slice(0, 400), orgao: def.orgao, url_oficial: def.url, prioridade: 1, grupo: def.grupo,
+        data_publicacao: def.data ?? null, observacao: def.observacao ?? null, origem: 'revisao_semanal', monitorar: true,
+      },
+    });
+    try {
+      return { chave, jaExistia: false, resultado: await this.importar(chave, opcoes) };
+    } catch (e) {
+      // Sem texto não há norma: tira o cadastro para não deixar uma linha vazia na lista.
+      await this.prisma.normaLegal.deleteMany({ where: { chave, total_dispositivos: 0 } }).catch(() => undefined);
+      throw e;
+    }
+  }
+
+  /** Só o texto (para quem não precisa do formato). */
+  private async baixarTexto(url: string): Promise<string> {
+    return (await this.baixarDocumento(url)).texto;
   }
 
   async importarTodas(): Promise<(ResultadoImportacao | { chave: string; erro: string })[]> {
     await this.garantirNormas();
     const out: (ResultadoImportacao | { chave: string; erro: string })[] = [];
-    const normas = await this.prisma.normaLegal.findMany({ select: { chave: true }, orderBy: { createdAt: 'asc' } });
+    const normas = await this.prisma.normaLegal.findMany({ where: { formato: { not: 'externo' } }, select: { chave: true }, orderBy: { createdAt: 'asc' } });
     for (const { chave } of normas) {
       try { out.push(await this.importar(chave)); } catch (e) { out.push({ chave, erro: (e as Error).message }); }
     }
@@ -168,7 +354,7 @@ export class BaseLegalService {
 
   // ─────────────── Verificação de atualizações e alertas (nada entra sem aprovação) ───────────────
 
-  private async criarAlertaSeNovo(a: { tipo: string; chave?: string; referencia: string; titulo: string; detalhe?: string; url?: string; origem: string }, atualizarPendente = false) {
+  async criarAlertaSeNovo(a: { tipo: string; chave?: string; referencia: string; titulo: string; detalhe?: string; url?: string; origem: string }, atualizarPendente = false) {
     const existente = await this.prisma.alertaBaseLegal.findFirst({
       where: { tipo: a.tipo, referencia: a.referencia, ...(a.tipo === 'texto_alterado' ? { status: 'pendente' } : {}) },
     });
@@ -181,7 +367,7 @@ export class BaseLegalService {
 
   /** Compara o texto oficial de hoje com o carregado e abre alerta quando muda (não altera a base). */
   async verificarAtualizacoes(origem = 'verificacao'): Promise<{ verificadas: number; alertas: number; erros: string[] }> {
-    const normas = await this.prisma.normaLegal.findMany({ where: { total_dispositivos: { gt: 0 } } });
+    const normas = await this.prisma.normaLegal.findMany({ where: { total_dispositivos: { gt: 0 }, formato: { not: 'externo' } } });
     let alertas = 0;
     const erros: string[] = [];
     for (const n of normas) {
@@ -218,7 +404,10 @@ export class BaseLegalService {
     return { verificadas: normas.length, alertas, erros };
   }
 
-  /** Depois de gerar o Radar: procura normas citadas que ainda não estão na base e reconfere o texto das já carregadas. */
+  /**
+   * Depois de gerar o Radar: procura normas citadas que ainda não estão na base. O texto das já carregadas é conferido pela revisão
+   * semanal (RevisaoSemanalService), que roda antes do Radar; aqui não se baixa tudo de novo.
+   */
   async aposRadar(semana: string): Promise<{ novasNormas: number; atualizacoes: number }> {
     const itens = await this.prisma.radarReformaItem.findMany({ where: { semana_referencia: semana } });
     const normas = await this.prisma.normaLegal.findMany({ select: { numero: true } });
@@ -235,19 +424,7 @@ export class BaseLegalService {
         if (criado) novasNormas += 1;
       }
     }
-    const v = await this.verificarAtualizacoes('radar');
-    return { novasNormas, atualizacoes: v.alertas };
-  }
-
-  /** Toda segunda, 06h30 (o Radar roda às 06h): reconfere as fontes oficiais. */
-  @Cron('30 6 * * 1', { timeZone: 'America/Sao_Paulo' })
-  async verificacaoSemanal() {
-    try {
-      const r = await this.verificarAtualizacoes('agendada');
-      this.log.log(`Verificação semanal: ${r.verificadas} normas, ${r.alertas} alerta(s), ${r.erros.length} erro(s)`);
-    } catch (e) {
-      this.log.error(`Verificação semanal falhou: ${(e as Error).message}`);
-    }
+    return { novasNormas, atualizacoes: 0 };
   }
 
   listarAlertas(status = 'pendente') {
@@ -291,7 +468,7 @@ export class BaseLegalService {
     if (!norma) throw new NotFoundException('Norma não encontrada');
     const itens = await this.prisma.dispositivoLegal.findMany({
       where: { norma_id: norma.id }, orderBy: { ordem: 'asc' },
-      select: { rotulo: true, caminho: true, tipo: true, secao: true, revogado: true },
+      select: { rotulo: true, caminho: true, tipo: true, secao: true, revogado: true, parcialmente_revogado: true, alterado_em: true },
     });
     return { norma, itens };
   }
@@ -304,11 +481,36 @@ export class BaseLegalService {
       include: { versoes: { orderBy: { capturada_em: 'desc' }, select: { id: true, capturada_em: true, texto: true } } },
     });
     if (!d) throw new NotFoundException('Dispositivo não encontrado');
-    const [anterior, proximo] = await Promise.all([
+    const [anterior, proximo, citadoPor, cita, pendencias] = await Promise.all([
       this.prisma.dispositivoLegal.findFirst({ where: { norma_id: norma.id, ordem: { lt: d.ordem } }, orderBy: { ordem: 'desc' }, select: { rotulo: true, caminho: true } }),
       this.prisma.dispositivoLegal.findFirst({ where: { norma_id: norma.id, ordem: { gt: d.ordem } }, orderBy: { ordem: 'asc' }, select: { rotulo: true, caminho: true } }),
+      // Quem regulamenta ou reproduz este dispositivo ("(Art. 38 da LC 214/2025)" nos textos de outras normas).
+      this.prisma.referenciaLegal.findMany({
+        where: { destino_ref: referenciaDe(norma.numero), destino_caminho: caminho }, orderBy: { createdAt: 'asc' }, take: 60,
+        select: { rotulo: true, caminho: true, norma: { select: { chave: true, numero: true } } },
+      }),
+      // O que este dispositivo diz regulamentar ou reproduzir.
+      this.prisma.referenciaLegal.findMany({ where: { norma_id: norma.id, caminho }, take: 60, select: { destino_ref: true, destino_caminho: true, trecho: true } }),
+      // Alteração de ato novo que o texto compilado ainda não traz.
+      this.prisma.novidadeLegal.findMany({
+        where: { norma_chave: chave, tipo: 'nao_consolidada', status: { in: ['nova', 'vista'] } },
+        select: { id: true, titulo: true, resumo: true, ato: true, url: true, detalhes: true },
+      }),
     ]);
-    return { norma: { chave: norma.chave, numero: norma.numero, titulo: norma.titulo, url_oficial: norma.url_oficial, capturada_em: norma.capturada_em }, dispositivo: d, anterior, proximo };
+    const avisos = pendencias.filter((p) => {
+      const caminhos = (Array.isArray(p.detalhes) ? p.detalhes : []).map((x) => (x as { caminho?: string }).caminho);
+      return !caminhos.length || caminhos.includes(caminho);
+    }).map(({ detalhes: _detalhes, ...resto }) => resto);
+    // Resolve a norma citada pela referência normalizada, para o leitor poder abrir o dispositivo de destino.
+    const destinos = cita.length ? await this.prisma.normaLegal.findMany({ select: { chave: true, numero: true } }) : [];
+    const porReferencia = new Map(destinos.map((n) => [referenciaDe(n.numero), n]));
+    return {
+      norma: { chave: norma.chave, numero: norma.numero, titulo: norma.titulo, url_oficial: norma.url_oficial, capturada_em: norma.capturada_em, situacao: norma.situacao, revogada_por: norma.revogada_por },
+      dispositivo: d, anterior, proximo,
+      citado_por: citadoPor.map((c) => ({ rotulo: c.rotulo, caminho: c.caminho, norma: c.norma })),
+      cita: cita.map((c) => ({ referencia: c.destino_ref, caminho: c.destino_caminho, trecho: c.trecho, norma: porReferencia.get(c.destino_ref) ?? null })),
+      avisos,
+    };
   }
 
   /** Busca por artigo ("art 164") e por texto (português, com trecho destacado). */
@@ -499,12 +701,20 @@ export class BaseLegalService {
     }
     if (!ordem.length) return [];
     const rows = await this.prisma.dispositivoLegal.findMany({
-      where: { OR: ordem.map((o) => ({ caminho: o.caminho, norma: { chave: o.chave } })), revogado: false },
-      select: { rotulo: true, caminho: true, secao: true, texto: true, norma: { select: { chave: true, numero: true } } },
+      where: { OR: ordem.map((o) => ({ caminho: o.caminho, norma: { chave: o.chave } })) },
+      select: {
+        rotulo: true, caminho: true, secao: true, texto: true, revogado: true, revogado_por: true, parcialmente_revogado: true,
+        alteracoes: true, redacoes_anteriores: true, alterado_em: true,
+        norma: { select: { chave: true, numero: true, situacao: true, revogada_por: true } },
+      },
     });
     const pos = new Map(ordem.map((o, i) => [`${o.chave}/${o.caminho}`, i]));
+    // Dispositivo revogado só entra quando a pergunta o pediu pelo número ("art. 3º foi revogado?"): aí o assistente explica que foi revogado
+    // em vez de responder por outro artigo. Nas buscas por assunto, o revogado fica de fora, como sempre.
+    const pedidos = new Set(porPergunta.exatos.map((e) => `${e.norma.chave}/${e.caminho}`));
     let caracteres = 0;
-    return rows
+    const escolhidos = rows
+      .filter((r) => !r.revogado || pedidos.has(`${r.norma.chave}/${r.caminho}`))
       .filter((r) => r.texto.length <= 20_000) // artigos-alteradores gigantes e anexos enormes não cabem no contexto
       .sort((x, y) => (pos.get(`${x.norma.chave}/${x.caminho}`) ?? 99) - (pos.get(`${y.norma.chave}/${y.caminho}`) ?? 99))
       .filter((r) => {
@@ -512,8 +722,34 @@ export class BaseLegalService {
         caracteres += r.texto.length;
         return true;
       })
-      .slice(0, 12)
-      .map((r) => ({ chave: r.norma.chave, numero: r.norma.numero, rotulo: r.rotulo, caminho: r.caminho, secao: r.secao, texto: r.texto }));
+      .slice(0, 12);
+
+    // Ato novo que altera o dispositivo e o texto compilado ainda não mostra: o assistente avisa. Falha aqui nunca derruba a resposta.
+    let avisos = new Map<string, string[]>();
+    try {
+      const pendencias = await this.prisma.novidadeLegal.findMany({
+        where: { tipo: 'nao_consolidada', status: { in: ['nova', 'vista'] }, norma_chave: { in: [...new Set(escolhidos.map((r) => r.norma.chave))] } },
+        select: { norma_chave: true, ato: true, detalhes: true },
+      });
+      avisos = avisosDePendencias(pendencias, escolhidos.map((r) => ({ chave: r.norma.chave, caminho: r.caminho })));
+    } catch (e) {
+      this.log.warn(`Avisos de alteração não consolidada indisponíveis: ${(e as Error).message}`);
+    }
+
+    return escolhidos.map((r) => {
+      const notas = (Array.isArray(r.alteracoes) ? (r.alteracoes as { tipo?: string; trecho?: string }[]) : [])
+        .filter((m) => ['redacao', 'inclusao', 'revogacao'].includes(m?.tipo ?? '') && m?.trecho)
+        .map((m) => m.trecho as string);
+      const anteriores = Array.isArray(r.redacoes_anteriores) ? (r.redacoes_anteriores as unknown[]).map(String).filter(Boolean) : [];
+      return {
+        chave: r.norma.chave, numero: r.norma.numero, rotulo: r.rotulo, caminho: r.caminho, secao: r.secao, texto: r.texto,
+        revogado: r.revogado, revogado_por: r.revogado_por, parcialmente_revogado: r.parcialmente_revogado,
+        norma_situacao: r.norma.situacao, norma_revogada_por: r.norma.revogada_por,
+        alteracoes: [...new Set(notas)], alterado_em: r.alterado_em ? r.alterado_em.toISOString() : null,
+        redacao_anterior: anteriores.length ? anteriores[anteriores.length - 1] : null,
+        avisos: avisos.get(`${r.norma.chave}/${r.caminho}`) ?? [],
+      };
+    });
   }
 
   /** Pergunta livre: recupera dispositivos, pede a resposta ao Gemini só com esse material e valida as citações. */
