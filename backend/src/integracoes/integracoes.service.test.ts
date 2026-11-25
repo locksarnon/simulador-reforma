@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IntegracoesService } from './integracoes.service';
 
 const montar = ({ banco = true, storage = true, smtp = true } = {}) => new IntegracoesService(
@@ -25,5 +25,28 @@ describe('Integrações', () => {
     expect(e.captura.estado).toBe('DESLIGADO');
     expect(e.processos.estado).toBe('DESLIGADO');
     expect(e.serpro.fase).toBe('3');
+  });
+});
+
+describe('Integrações: Claude Code da VPS', () => {
+  const env = { CLAUDE_BRIDGE_URL: 'http://ponte.test:3910', CLAUDE_BRIDGE_TOKEN: 'segredo-bem-comprido-123456', GEMINI_API_KEY: 'g' };
+  const ponte = (corpo: object | null, ok = true) => vi.stubGlobal('fetch', vi.fn(async () => { if (!corpo) throw new Error('fora'); return { ok, json: async () => corpo }; }));
+  afterEach(() => vi.unstubAllGlobals());
+  const ia = async () => (await montar().estado(env)).find((x) => x.id === 'ia-assistente')!;
+
+  it('ponte logada: ativo', async () => {
+    ponte({ ok: true, logado: true });
+    expect((await ia()).estado).toBe('ATIVO');
+  });
+  it('login expirado: com problema, dizendo como refazer, sem expor o token', async () => {
+    ponte({ ok: true, logado: false, erro: 'OAuth session expired' });
+    const r = await ia();
+    expect(r.estado).toBe('COM_PROBLEMA');
+    expect(r.detalhe).toContain('claude auth login');
+    expect(JSON.stringify(r)).not.toContain('segredo-bem-comprido');
+  });
+  it('ponte fora do ar: com problema', async () => {
+    ponte(null);
+    expect((await ia()).estado).toBe('COM_PROBLEMA');
   });
 });

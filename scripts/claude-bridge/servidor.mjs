@@ -84,10 +84,31 @@ function executar({ prompt, busca, modelo, timeoutMs }) {
   });
 }
 
+// Mantém o login vivo: o Claude Code renova o acesso sozinho enquanto é usado, então um pedido mínimo a cada 6 horas evita que a
+// sessão fique parada até expirar. O resultado aparece em /saude (e na tela de Integrações do InTAX).
+const INTERVALO_PING_MS = 6 * 60 * 60 * 1000;
+const estadoLogin = { logado: null, verificado_em: null, erro: null };
+async function conferirLogin(motivo) {
+  try {
+    await esperarVez();
+    try {
+      await executar({ prompt: 'Responda apenas OK.', busca: false, modelo: '', timeoutMs: 60_000 });
+      Object.assign(estadoLogin, { logado: true, verificado_em: new Date().toISOString(), erro: null });
+    } finally { liberar(); }
+  } catch (e) {
+    const msg = String(e.message || e);
+    // Falha de login derruba o aviso; falha de fila ou de tempo não conta como deslogado.
+    if (/log ?in|auth|expired|sess[aã]o|OAuth/i.test(msg)) Object.assign(estadoLogin, { logado: false, verificado_em: new Date().toISOString(), erro: msg.slice(0, 200) });
+    console.error(`[login] ${motivo}: ${msg}`);
+  }
+}
+setTimeout(() => conferirLogin('inicio'), 5_000);
+setInterval(() => conferirLogin('periodico'), INTERVALO_PING_MS).unref?.();
+
 const responder = (res, codigo, corpo) => { res.writeHead(codigo, { 'content-type': 'application/json' }); res.end(JSON.stringify(corpo)); };
 
 http.createServer(async (req, res) => {
-  if (req.method === 'GET' && req.url === '/saude') return responder(res, 200, { ok: true });
+  if (req.method === 'GET' && req.url === '/saude') return responder(res, 200, { ok: true, ...estadoLogin });
   if (req.method !== 'POST' || req.url !== '/perguntar') return responder(res, 404, { erro: 'não encontrado' });
   if (!tokenValido(req.headers['x-token'])) return responder(res, 401, { erro: 'não autorizado' });
   let corpo = '';
@@ -98,7 +119,10 @@ http.createServer(async (req, res) => {
   const modelo = /^[a-z0-9.\-]{1,60}$/i.test(String(dados.modelo || '')) ? String(dados.modelo) : '';
   const timeoutMs = Math.min(Math.max(Number(dados.timeout_ms) || 120_000, 5_000), 175_000);
   try { await esperarVez(); } catch (e) { return responder(res, 503, { erro: e.message }); }
-  try { responder(res, 200, await executar({ prompt, busca: dados.busca === true, modelo, timeoutMs })); }
-  catch (e) { responder(res, 502, { erro: e.message }); }
+  try { const r = await executar({ prompt, busca: dados.busca === true, modelo, timeoutMs }); Object.assign(estadoLogin, { logado: true, verificado_em: new Date().toISOString(), erro: null }); responder(res, 200, r); }
+  catch (e) {
+    if (/log ?in|auth|expired|OAuth/i.test(String(e.message))) Object.assign(estadoLogin, { logado: false, verificado_em: new Date().toISOString(), erro: String(e.message).slice(0, 200) });
+    responder(res, 502, { erro: e.message });
+  }
   finally { liberar(); }
 }).listen(PORTA, ENDERECO, () => console.log(`Ponte do Claude Code em ${ENDERECO}:${PORTA}`));
