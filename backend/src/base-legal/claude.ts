@@ -39,6 +39,33 @@ export function lerBlocos(blocos: Bloco[]): { texto: string; fontes: { uri: stri
 }
 
 /**
+ * Pergunta ao Claude Code instalado e logado na VPS, por uma ponte local (sem chave de API: usa os créditos da conta logada).
+ * A ponte roda no servidor, só aceita este contêiner (token) e só deixa o Claude usar pesquisa na web.
+ */
+export async function perguntarViaPonte(opcoes: {
+  url: string;
+  token: string;
+  prompt: string;
+  busca?: boolean;
+  modelo?: string;
+  timeoutMs?: number;
+}): Promise<RespostaClaude> {
+  const { url, token, prompt, busca = false, modelo, timeoutMs = busca ? 175_000 : 90_000 } = opcoes;
+  const resp = await fetch(`${url.replace(/\/+$/, '')}/perguntar`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-token': token },
+    body: JSON.stringify({ prompt, busca, ...(modelo ? { modelo } : {}), timeout_ms: timeoutMs - 5_000 }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const corpo = (await resp.json().catch(() => ({}))) as { texto?: string; fontes?: { uri?: string; title?: string }[]; modelo?: string; erro?: string };
+  if (!resp.ok) throw new Error(`Claude Code ${resp.status}: ${corpo?.erro || 'erro'}`);
+  const texto = String(corpo.texto ?? '').trim();
+  if (!texto) throw new Error('Claude Code retornou resposta vazia');
+  const fontes = (corpo.fontes ?? []).filter((f) => /^https:\/\//i.test(String(f?.uri ?? ''))).map((f) => ({ uri: String(f.uri), title: String(f.title ?? '') }));
+  return { texto, grounding: { groundingChunks: fontes.map((f) => ({ web: f })) }, modelo: corpo.modelo || modelo || 'claude-code' };
+}
+
+/**
  * Pergunta ao Claude. Com `busca`, liga a ferramenta de pesquisa na web da Anthropic (até `maximoBuscas` consultas).
  * A pesquisa roda no servidor da Anthropic; se ela pedir para continuar (pause_turn), continuamos até 3 vezes.
  */

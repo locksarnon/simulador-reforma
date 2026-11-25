@@ -1,0 +1,16 @@
+[Unit]
+Description=Ponte do InTAX para o Claude Code da VPS
+After=network.target docker.service
+
+[Service]
+User=claude
+Group=claude
+EnvironmentFile=/etc/intax-claude-bridge.env
+ExecStart=/usr/bin/node /home/claude/intax-claude-bridge/servidor.mjs
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

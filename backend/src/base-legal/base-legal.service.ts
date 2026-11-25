@@ -9,7 +9,7 @@ import { FONTES_NORMAS } from './fontes';
 import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
 import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
 import { plural } from '../common/plural';
-import { MODELO_CLAUDE_PADRAO, perguntarAoClaude } from './claude';
+import { MODELO_CLAUDE_PADRAO, perguntarAoClaude, perguntarViaPonte } from './claude';
 
 const MESES: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
@@ -363,13 +363,20 @@ export class BaseLegalService {
   }
 
   /** Qual motor responde o assistente: Claude (Anthropic) se houver chave e não estiver forçado o Gemini; senão Gemini. */
-  provedorIa(): 'claude' | 'gemini' | null {
+  provedorIa(): 'claude-code' | 'claude' | 'gemini' | null {
     const forcado = (this.config.get<string>('IA_ASSISTENTE') || '').trim().toLowerCase();
+    const ponte = Boolean((this.config.get<string>('CLAUDE_BRIDGE_URL') || '').trim() && (this.config.get<string>('CLAUDE_BRIDGE_TOKEN') || '').trim());
     const claude = Boolean((this.config.get<string>('ANTHROPIC_API_KEY') || '').trim());
     const gemini = Boolean((this.config.get<string>('GEMINI_API_KEY') || '').trim());
     if (forcado === 'gemini') return gemini ? 'gemini' : null;
+    // Ordem: Claude Code da VPS (créditos da conta, sem chave de API) > API da Anthropic > Gemini.
+    if (ponte && forcado !== 'claude') return 'claude-code';
     if (claude) return 'claude';
     return gemini ? 'gemini' : null;
+  }
+
+  private ponte() {
+    return { url: this.config.get<string>('CLAUDE_BRIDGE_URL')!.trim(), token: this.config.get<string>('CLAUDE_BRIDGE_TOKEN')!.trim(), modelo: (this.config.get<string>('CLAUDE_CODE_MODEL') || '').trim() || undefined };
   }
 
   iaConfigurada(): boolean {
@@ -378,14 +385,24 @@ export class BaseLegalService {
 
   /** Nome do modelo que está respondendo (para registrar na pergunta). */
   modeloAtual(): string {
-    return this.provedorIa() === 'claude'
+    const p = this.provedorIa();
+    if (p === 'claude-code') return (this.config.get<string>('CLAUDE_CODE_MODEL') || '').trim() || 'claude-code';
+    return p === 'claude'
       ? this.config.get<string>('ANTHROPIC_MODEL') || MODELO_CLAUDE_PADRAO
       : this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
   }
 
   /** Resposta em texto (JSON no prompt). Claude quando configurado; se ele falhar e houver chave do Gemini, o Gemini responde. */
   async ia(prompt: string, timeoutMs = 60_000): Promise<string> {
-    if (this.provedorIa() === 'claude') {
+    if (this.provedorIa() === 'claude-code') {
+      try {
+        return (await perguntarViaPonte({ ...this.ponte(), prompt, timeoutMs: Math.max(timeoutMs, 90_000) })).texto;
+      } catch (e) {
+        if (!this.config.get<string>('GEMINI_API_KEY') && !this.config.get<string>('ANTHROPIC_API_KEY')) throw e;
+        this.log.warn(`Claude Code falhou (${(e as Error).message}); usando o próximo motor`);
+      }
+    }
+    if (this.provedorIa() === 'claude' || (this.provedorIa() === 'claude-code' && this.config.get<string>('ANTHROPIC_API_KEY'))) {
       try {
         const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, timeoutMs });
         return r.texto;
@@ -399,7 +416,16 @@ export class BaseLegalService {
 
   /** Com pesquisa na web. Mesmo desenho: Claude primeiro, Gemini de reserva. */
   async iaComBusca(prompt: string): Promise<{ texto: string; grounding: unknown; modelo: string }> {
-    if (this.provedorIa() === 'claude') {
+    if (this.provedorIa() === 'claude-code') {
+      try {
+        const r = await perguntarViaPonte({ ...this.ponte(), prompt, busca: true });
+        return { texto: r.texto, grounding: r.grounding, modelo: r.modelo };
+      } catch (e) {
+        if (!this.config.get<string>('GEMINI_API_KEY') && !this.config.get<string>('ANTHROPIC_API_KEY')) throw e;
+        this.log.warn(`Claude Code falhou na pesquisa (${(e as Error).message}); usando o próximo motor`);
+      }
+    }
+    if (this.provedorIa() === 'claude' || (this.provedorIa() === 'claude-code' && this.config.get<string>('ANTHROPIC_API_KEY'))) {
       try {
         const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, busca: true });
         return { texto: r.texto, grounding: r.grounding, modelo: r.modelo };

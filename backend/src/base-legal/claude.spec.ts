@@ -52,3 +52,25 @@ describe('chamada ao Claude', () => {
     await expect(perguntarAoClaude({ apiKey: 'k', modelo: 'm', prompt: 'p' })).rejects.toThrow('vazia');
   });
 });
+
+describe('ponte para o Claude Code da VPS', () => {
+  it('manda o token e devolve texto e fontes no mesmo formato; só aceita https', async () => {
+    const f = vi.fn(async () => resposta({ texto: 'Resposta.', fontes: [{ uri: 'https://a.gov.br/x', title: 'A' }, { uri: 'http://x.test', title: 'x' }], modelo: 'claude-fable-5-2' }));
+    vi.stubGlobal('fetch', f);
+    const { perguntarViaPonte } = await import('./claude');
+    const r = await perguntarViaPonte({ url: 'http://host.docker.internal:3910/', token: 'tok', prompt: 'p', busca: true });
+    expect(r.texto).toBe('Resposta.');
+    expect(r.grounding.groundingChunks.map((c) => c.web.uri)).toEqual(['https://a.gov.br/x']);
+    const [url, init] = f.mock.calls[0] as unknown as [string, { headers: Record<string, string>; body: string }];
+    expect(url).toBe('http://host.docker.internal:3910/perguntar');
+    expect(init.headers['x-token']).toBe('tok');
+    expect(JSON.parse(init.body)).toMatchObject({ prompt: 'p', busca: true });
+  });
+  it('ponte fora do ar ou sem login vira erro com o motivo', async () => {
+    const { perguntarViaPonte } = await import('./claude');
+    vi.stubGlobal('fetch', vi.fn(async () => resposta({ erro: 'Not logged in' }, false, 502)));
+    await expect(perguntarViaPonte({ url: 'http://x', token: 't', prompt: 'p' })).rejects.toThrow('Claude Code 502: Not logged in');
+    vi.stubGlobal('fetch', vi.fn(async () => resposta({ texto: '' })));
+    await expect(perguntarViaPonte({ url: 'http://x', token: 't', prompt: 'p' })).rejects.toThrow('vazia');
+  });
+});
