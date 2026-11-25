@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, BarChart3, Loader2, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
+import { porDataBase, rotuloPeriodo, tituloPeriodo, valorPeriodo } from "@/lib/dataBase";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
@@ -94,7 +95,7 @@ export default function ProjetoDiagnosticoPagina() {
       <PageHeader
         crumbs={crumbs}
         title={p.nome}
-        subtitle={p.servico_consultoria ? `${clientesDocumentos.map((c) => c.nome).join(", ") || "Cliente do projeto"} · ${fmtDataCurta(p.periodo_inicio)} a ${fmtDataCurta(p.periodo_fim)}${p.responsavel ? ` · ${p.responsavel}` : ""}` : `${plural(daLista.length, "empresa", "empresas")}${grupo ? ` · ${rotuloDoGrupo(grupo)}${inteiro ? " (inteiro)" : " (parte)"}` : ""} · desde ${fmtDataCurta(p.inicio)}${p.prazo ? ` · prazo ${fmtDataCurta(p.prazo)}` : ""}`}
+        subtitle={p.servico_consultoria ? `${clientesDocumentos.map((c) => c.nome).join(", ") || "Cliente do projeto"} · ${rotuloPeriodo(p, fmtDataCurta)}${p.responsavel ? ` · ${p.responsavel}` : ""}` : `${plural(daLista.length, "empresa", "empresas")}${grupo ? ` · ${rotuloDoGrupo(grupo)}${inteiro ? " (inteiro)" : " (parte)"}` : ""} · desde ${fmtDataCurta(p.inicio)}${p.prazo ? ` · prazo ${fmtDataCurta(p.prazo)}` : ""}`}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             {servico && <button type="button" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" onClick={() => setDocumentos(true)}>Documentos e solicitações</button>}
@@ -118,7 +119,7 @@ export default function ProjetoDiagnosticoPagina() {
         {p.servico_consultoria === "pj-homologacao" && <HomologacaoErp projetoId={p.id} />}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
-          <p className="text-sm text-muted-foreground">Período do projeto: {fmtDataCurta(p.periodo_inicio)} a {fmtDataCurta(p.periodo_fim)}. Selecione a empresa nas ferramentas de simulação.</p>
+          <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. Selecione a empresa nas ferramentas de simulação.</p>
           <div className="flex flex-wrap gap-4 text-sm text-primary">
             <Link to="/cockpit">Painel Executivo</Link>
             <Link to="/reforma/regimes">Comparação de regimes na transição</Link>
@@ -132,7 +133,7 @@ export default function ProjetoDiagnosticoPagina() {
             {rascunho.empresa_ids && <div className="space-y-1"><span className="block text-xs text-muted-foreground">Empresas</span><EscolhaDeEmpresas empresas={empresas} grupos={grupos} valor={rascunho.empresa_ids} aoMudar={(v) => setRascunho((r) => ({ ...r, empresa_ids: v }))} /></div>}
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Objetivo e escopo</span><textarea className={`${campo} min-h-[72px]`} value={rascunho.escopo} onChange={(e) => setRascunho((r) => ({ ...r, escopo: e.target.value }))} /></label>
             <div className="grid gap-3 sm:grid-cols-2">
-              {p.servico_consultoria && [["periodo_inicio", "De"], ["periodo_fim", "Até"]].map(([chave, rotulo]) => <label key={chave} className="block space-y-1"><span className="block text-xs text-muted-foreground">{rotulo}</span><input type="date" className={campo} value={rascunho[chave]} onChange={(e) => setRascunho((r) => ({ ...r, [chave]: e.target.value }))} /></label>)}
+              {p.servico_consultoria && (porDataBase(p.servico_consultoria) ? [["periodo_inicio", "Data-base"]] : [["periodo_inicio", "De"], ["periodo_fim", "Até"]]).map(([chave, rotulo]) => <label key={chave} className="block space-y-1"><span className="block text-xs text-muted-foreground">{rotulo}</span><input type="date" className={campo} value={rascunho[chave]} onChange={(e) => setRascunho((r) => ({ ...r, [chave]: e.target.value, ...(porDataBase(p.servico_consultoria) ? { periodo_fim: e.target.value } : {}) }))} /></label>)}
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Prazo</span><input type="date" className={campo} value={rascunho.prazo} onChange={(e) => setRascunho((r) => ({ ...r, prazo: e.target.value }))} /></label>
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span><input className={campo} value={rascunho.responsavel} onChange={(e) => setRascunho((r) => ({ ...r, responsavel: e.target.value }))} /></label>
             </div>

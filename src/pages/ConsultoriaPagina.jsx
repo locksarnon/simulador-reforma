@@ -9,6 +9,7 @@ import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsul
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta } from "@/lib/servicos";
+import { porDataBase, rotuloPeriodo } from "@/lib/dataBase";
 import { SITUACOES_PROJETO } from "@/lib/projetos";
 
 const campo = "rounded-md border bg-background px-3 py-2 text-sm";
@@ -47,7 +48,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
   const [ate, setAte] = useState("");
   const abrirProjeto = useMutation({
     mutationFn: (confirmar_sobreposicao) => api.post(`/consultoria/carteira/clientes/${cliente.id}/projetos`, {
-      servico: escolha, periodo_inicio: de, periodo_fim: ate, confirmar_sobreposicao,
+      servico: escolha, ...(porDataBase(escolha) ? { data_base: de } : { periodo_inicio: de, periodo_fim: ate }), confirmar_sobreposicao,
     }),
     onSuccess: (resultado) => {
       if (!resultado.id) return;
@@ -120,7 +121,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
       const s = servicos.find((s) => s.id === p.servico_consultoria);
       return <article key={p.id} className="space-y-2 rounded-lg border bg-card p-4">
         <h3 className="font-semibold">{s?.nome || p.nome}</h3>
-        <p className="text-sm text-muted-foreground">{fmtDataCurta(p.periodo_inicio)} a {fmtDataCurta(p.periodo_fim)} · {!s?.projeto && p.situacao === "EM_ANDAMENTO" ? "Em coleta de documentos" : SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao}</p>
+        <p className="text-sm text-muted-foreground">{rotuloPeriodo(p, fmtDataCurta)} · {!s?.projeto && p.situacao === "EM_ANDAMENTO" ? "Em coleta de documentos" : SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao}</p>
         <Link className="inline-block text-sm text-primary hover:underline" to={`/diagnostico/projetos/${p.id}`}>{emAberto.includes(p) ? "Continuar projeto" : "Abrir projeto"}</Link>
       </article>;
     };
@@ -160,12 +161,14 @@ export default function ConsultoriaPagina({ carteira = false }) {
                 </section>)}
               </fieldset>
               <div className="grid grid-cols-2 gap-2">
+                {porDataBase(escolha) ? <label className="col-span-2 grid gap-1 text-sm">Data-base<input type="date" className={campo} value={de} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setDe(e.target.value); }} required /></label> : <>
                 <label className="grid gap-1 text-sm">De<input type="date" className={campo} value={de} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setDe(e.target.value); }} required /></label>
                 <label className="grid gap-1 text-sm">Até<input type="date" className={campo} value={ate} min={de || undefined} disabled={abrirProjeto.isPending} onChange={(e) => { abrirProjeto.reset(); setAte(e.target.value); }} required /></label>
+                </>}
               </div>
               {abrirProjeto.data?.sobrepostos && <div className="space-y-2 text-sm">
                 <p>Já há projetos com período sobreposto:</p>
-                {abrirProjeto.data.sobrepostos.map((p) => <Link key={p.id} className="block text-primary underline" to={`/diagnostico/projetos/${p.id}`}>{p.nome} · {fmtDataCurta(p.periodo_inicio)} a {fmtDataCurta(p.periodo_fim)}</Link>)}
+                {abrirProjeto.data.sobrepostos.map((p) => <Link key={p.id} className="block text-primary underline" to={`/diagnostico/projetos/${p.id}`}>{p.nome} · {rotuloPeriodo({ ...p, servico_consultoria: escolha }, fmtDataCurta)}</Link>)}
                 <button type="button" className={botao} disabled={abrirProjeto.isPending} onClick={() => abrirProjeto.mutate(true)}>Criar novo projeto mesmo assim</button>
               </div>}
               {abrirProjeto.isError && <p role="alert">{abrirProjeto.error.message}</p>}

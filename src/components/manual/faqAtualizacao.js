@@ -261,7 +261,15 @@ export const SECAO_BASE_LEGAL = {
     },
     {
       p: "O assistente da Base legal pode errar?",
-      r: "Ele responde somente com o texto das normas carregadas, cita o dispositivo e valida a citação; quando o texto carregado não basta, ele avisa. As perguntas ficam registradas para revisão da equipe. Continua sendo apoio, não parecer: confirme no texto do dispositivo.",
+      r: "Sem a Pesquisa aprofundada, ele responde somente com o texto das normas carregadas, cita o dispositivo e valida a citação; quando o texto carregado não basta, ele avisa. Com a pesquisa ligada, também consulta fontes da internet e mostra quais usou. As perguntas ficam registradas para revisão da equipe. Continua sendo apoio, não parecer: confirme no texto do dispositivo e na fonte oficial.",
+    },
+    {
+      p: "Todo projeto de consultoria tem período? O que é a data-base?",
+      r: "Nem todo trabalho cobre um intervalo. A Homologação fiscal do ERP para IBS/CBS e o Crédito presumido de estoque olham a situação numa data, então o projeto pede só a Data-base (em vez de De e Até). Na homologação, a conferência das notas vai do início do IBS/CBS (2026) até a data-base. Os demais serviços, como créditos de PIS e Cofins, LCDPR e conciliação de tributos pagos, continuam com De e Até. Projetos antigos de homologação com período continuam mostrando o período.",
+    },
+    {
+      p: "O que é a pesquisa aprofundada do assistente e como mando a resposta por e-mail?",
+      r: "É um botão acima do campo da pergunta (Pesquisa aprofundada com fontes externas). Ligado, o assistente confere as normas carregadas e pesquisa na internet em fontes oficiais, como a Receita Federal, o SPED, o portal da NF-e, o CGIBS, o Planalto e os tribunais, citando as fontes (as oficiais primeiro). O texto da lei carregado no InTAX prevalece sobre qualquer fonte externa. Quando a resposta é conclusiva, aparecem Enviar por e-mail e Baixar PDF: o relatório sai no padrão FAL / InTAX, com pergunta, resposta, pontos de atenção, base legal e fontes. Só quem fez a pergunta ou um administrador envia o relatório.",
     },
     {
       p: "O que a Base legal ainda não tem?",

@@ -1,14 +1,15 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, StreamableFile } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { BaseLegalService } from './base-legal.service';
 import { CartoesService, DadosCartao } from './cartoes.service';
+import { ConsultaAprofundadaService } from './consulta-aprofundada.service';
 import { TipoRevisao } from './revisao-legal.regras';
 import { RevisaoLegalService, TIPOS_REVISAO } from './revisao-legal.service';
 
 @Controller('base-legal')
 export class BaseLegalController {
-  constructor(private readonly service: BaseLegalService, private readonly cartoes: CartoesService, private readonly revisao: RevisaoLegalService) {}
+  constructor(private readonly service: BaseLegalService, private readonly cartoes: CartoesService, private readonly revisao: RevisaoLegalService, private readonly aprofundada: ConsultaAprofundadaService) {}
 
   @Get('normas')
   normas() {
@@ -103,6 +104,24 @@ export class BaseLegalController {
   @Post('perguntar')
   perguntar(@CurrentUser() user: AuthUser, @Body() body: { pergunta?: string }) {
     return this.service.perguntar(user.email, body?.pergunta ?? '');
+  }
+
+  /** Pesquisa aprofundada: normas carregadas + fontes da web (oficiais primeiro), com as fontes citadas. */
+  @Post('perguntar-aprofundado')
+  perguntarAprofundado(@CurrentUser() user: AuthUser, @Body() body: { pergunta?: string }) {
+    return this.aprofundada.perguntar(user.email, body?.pergunta ?? '');
+  }
+
+  /** Envia por e-mail o relatório (PDF no padrão FAL/InTAX) de uma pergunta já respondida. */
+  @Post('perguntas/:id/enviar-relatorio')
+  enviarRelatorio(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { email?: string }) {
+    return this.aprofundada.enviarRelatorio(user, id, body?.email ?? '');
+  }
+
+  @Get('perguntas/:id/relatorio')
+  async relatorio(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const pdf = await this.aprofundada.baixarRelatorio(user, id);
+    return new StreamableFile(pdf, { type: 'application/pdf', disposition: 'attachment; filename="consulta-tributaria-intax.pdf"' });
   }
 
   @Put('perguntas/:id/feedback')

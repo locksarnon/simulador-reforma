@@ -51,6 +51,30 @@ describe('Consultoria Tributária', () => {
     expect(tx.vinculoConsultoria.createMany).toHaveBeenCalledTimes(1);
   });
 
+  it('serviço por data-base (homologação do ERP) abre pela data-base, que vale nas duas pontas do período', async () => {
+    const existentes: { id: string; periodo_inicio: Date; periodo_fim: Date }[] = [];
+    const tx = {
+      $executeRaw: vi.fn(),
+      empresa: { findFirst: vi.fn(async () => ({ cnpj_cpf: '12345678000190', razao_social: 'Empresa' })) },
+      vinculoConsultoria: { createMany: vi.fn() },
+      projetoDiagnostico: {
+        findMany: vi.fn(async () => existentes),
+        create: vi.fn(async ({ data }) => { existentes.push({ ...data, id: 'H1' }); return { id: 'H1' }; }),
+      },
+    };
+    const service = new ConsultoriaService({ $transaction: (f: (t: typeof tx) => unknown) => f(tx) } as never);
+    await expect(service.abrirProjeto('PJ1', { servico: 'pj-homologacao', data_base: '2026-12-31' }, 'a@b.test')).resolves.toEqual({ id: 'H1' });
+    const gravado = (tx.projetoDiagnostico.create.mock.calls[0] as unknown as [{ data: { periodo_inicio: Date; periodo_fim: Date } }])[0].data;
+    expect(gravado.periodo_inicio.toISOString().slice(0, 10)).toBe('2026-12-31');
+    expect(+gravado.periodo_fim).toBe(+gravado.periodo_inicio);
+    // a mesma data-base reabre o projeto que já existe
+    await expect(service.abrirProjeto('PJ1', { servico: 'pj-homologacao', data_base: '2026-12-31' }, 'a@b.test')).resolves.toEqual({ id: 'H1' });
+    // sem data-base (ou com data inválida) não abre; período não vale para esse serviço
+    await expect(service.abrirProjeto('PJ1', { servico: 'pj-homologacao' }, 'a@b.test')).rejects.toThrow(/data-base/);
+    await expect(service.abrirProjeto('PJ1', { servico: 'pj-homologacao', data_base: '31/12/2026' }, 'a@b.test')).rejects.toThrow(/data-base/);
+    await expect(service.abrirProjeto('PJ1', { servico: 'pj-homologacao', periodo_inicio: '2026-01-01', periodo_fim: '2026-06-30' }, 'a@b.test')).rejects.toThrow(/data-base/);
+  });
+
   it('o vínculo repetido converge sem duplicar o cliente ou gravar contrato BPO', async () => {
     const { carteira, registros, db } = ambiente();
     const entrada = { cliente_id: 'PJ1', servico: 'pis-cofins' };

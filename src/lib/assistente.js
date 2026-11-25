@@ -57,6 +57,9 @@ export function sugestoesDoContexto(modulo, extras) {
 /** A tela tem sugestões próprias (por tela ou por área)? Só então o painel diz "para quem está em…". */
 export const temContextoProprio = (modulo) => !!modulo && !!(POR_MODULO[modulo.id] || POR_AREA[modulo.area]);
 
+/** E-mail com forma válida (a conferência final é do servidor). */
+export const emailValido = (texto) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(texto ?? "").trim());
+
 /** A pergunta serve para enviar? (o serviço exige alguns caracteres e corta nos 600) */
 export const perguntaValida = (texto) => String(texto ?? "").trim().length >= MINIMO_PERGUNTA;
 
@@ -67,10 +70,18 @@ const ESPERAS = [
   [13, "Conferindo se cada trecho citado existe mesmo…"],
   [22, "Quase lá: a análise está demorando mais que o normal."],
 ];
+const ESPERAS_APROFUNDADA = [
+  [0, "Procurando nos dispositivos da lei…"],
+  [4, "Pesquisando em fontes oficiais na internet…"],
+  [14, "Comparando as fontes com o texto da lei…"],
+  [28, "Montando a resposta com as fontes citadas…"],
+  [50, "A pesquisa aprofundada demora mais. Só mais um instante."],
+];
 /** Mensagem de espera conforme os segundos desde o envio. */
-export function mensagemDeEspera(segundos) {
-  let texto = ESPERAS[0][1];
-  for (const [desde, t] of ESPERAS) if (segundos >= desde) texto = t;
+export function mensagemDeEspera(segundos, aprofundada = false) {
+  const lista = aprofundada ? ESPERAS_APROFUNDADA : ESPERAS;
+  let texto = lista[0][1];
+  for (const [desde, t] of lista) if (segundos >= desde) texto = t;
   return texto;
 }
 

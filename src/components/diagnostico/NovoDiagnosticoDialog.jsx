@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
+import { porDataBase } from "@/lib/dataBase";
 import { toast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EscolhaDeEmpresas from "@/components/diagnostico/EscolhaDeEmpresas";
@@ -33,7 +34,7 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
   const grupoDoEscopo = grupo && ids.some((id) => empresas.find((e) => e.id === id)?.grupo === grupo.numero) ? grupo.numero : (ids.length ? empresas.find((e) => e.id === ids[0])?.grupo : null);
 
   const criar = useMutation({
-    mutationFn: () => api.post("/projetos-diagnostico", { nome: nomeFinal, empresa_ids: ids, grupo_numero: grupoDoEscopo || null, escopo: escopo || null, prazo: prazo || null, responsavel: responsavel || null, ...(servico ? { servico_consultoria: servico.id, periodo_inicio: periodoInicio, periodo_fim: periodoFim } : {}) }),
+    mutationFn: () => api.post("/projetos-diagnostico", { nome: nomeFinal, empresa_ids: ids, grupo_numero: grupoDoEscopo || null, escopo: escopo || null, prazo: prazo || null, responsavel: responsavel || null, ...(servico ? { servico_consultoria: servico.id, ...(porDataBase(servico.id) ? { data_base: periodoInicio } : { periodo_inicio: periodoInicio, periodo_fim: periodoFim }) } : {}) }),
     onSuccess: (p) => {
       ["projetos-diagnostico", "servicos-contratados"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       toast({ title: "Diagnóstico criado", description: p.nome });
@@ -47,7 +48,8 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
     ev.preventDefault();
     if (!ids.length) { setErro("Escolha pelo menos uma empresa."); return; }
     if (!nomeFinal.trim()) { setErro("Dê um nome ao diagnóstico."); return; }
-    if (servico && (!periodoInicio || !periodoFim || periodoInicio > periodoFim)) { setErro("Informe um período válido."); return; }
+    if (servico && porDataBase(servico.id) && !periodoInicio) { setErro("Informe a data-base."); return; }
+    if (servico && !porDataBase(servico.id) && (!periodoInicio || !periodoFim || periodoInicio > periodoFim)) { setErro("Informe um período válido."); return; }
     criar.mutate();
   };
 
@@ -69,7 +71,8 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Prazo de entrega</span><input type="date" className={campo} value={prazo} onChange={(e) => setPrazo(e.target.value)} /></label>
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span><input className={campo} value={responsavel} onChange={(e) => setResponsavel(e.target.value)} /></label>
           </div>
-          {servico && <div className="grid grid-cols-2 gap-3">
+          {servico && porDataBase(servico.id) && <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Data-base</span><input type="date" className={campo} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} /></label>}
+          {servico && !porDataBase(servico.id) && <div className="grid grid-cols-2 gap-3">
             <label>Início do período<input type="date" className={campo} value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} /></label>
             <label>Fim do período<input type="date" className={campo} value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} /></label>
           </div>}

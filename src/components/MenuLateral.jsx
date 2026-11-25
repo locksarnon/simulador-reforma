@@ -25,12 +25,14 @@ const iniciais = (u) => String(u?.name || u?.email || "?").split(/[\s@.]+/).filt
  *  rótulos de seção: 11px, maiúsculas, espaçamento 0,08em.
  */
 const linha = "group/linha relative flex h-10 w-full items-center gap-3 rounded-lg pl-[14px] pr-2 text-left transition-[background-color,color,box-shadow] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted";
-const linhaInativa = "text-rail-foreground hover:bg-rail-hover hover:text-rail-strong active:bg-rail-accent";
-const linhaAtiva = "bg-gradient-to-r from-rail-primary/25 via-rail-primary/10 to-transparent text-rail-strong shadow-[inset_0_0_0_1px_hsl(var(--rail-primary)/0.20)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary";
+// Passar o mouse acende o mesmo degradê verde do item ativo, mais vivo, com a barrinha à esquerda e um brilho leve.
+const brilhoVerde = "hover:bg-gradient-to-r hover:from-rail-primary/45 hover:via-rail-primary/20 hover:to-transparent hover:text-rail-strong hover:shadow-[inset_0_0_0_1px_hsl(var(--rail-primary)/0.38),0_0_18px_-6px_hsl(var(--rail-primary)/0.55)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary before:opacity-0 before:transition-opacity before:duration-150 hover:before:opacity-100 motion-reduce:before:transition-none";
+const linhaInativa = `text-rail-foreground ${brilhoVerde} active:from-rail-primary/55`;
+const linhaAtiva = "bg-gradient-to-r from-rail-primary/25 via-rail-primary/10 to-transparent hover:from-rail-primary/45 hover:via-rail-primary/20 text-rail-strong shadow-[inset_0_0_0_1px_hsl(var(--rail-primary)/0.20)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary";
 const icone = "h-[18px] w-[18px] shrink-0 transition-transform duration-150 ease-out motion-safe:group-hover/linha:-translate-y-px motion-reduce:transition-none";
 const sumir = (compacto) => `whitespace-nowrap transition-opacity duration-150 motion-reduce:transition-none ${compacto ? "pointer-events-none opacity-0" : "opacity-100"}`;
 const itemModulo = "group/linha relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-[background-color,color,transform] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rail-muted";
-const itemModuloInativo = "text-rail-foreground motion-safe:hover:translate-x-0.5 hover:bg-rail-hover hover:text-rail-strong";
+const itemModuloInativo = `text-rail-foreground motion-safe:hover:translate-x-0.5 ${brilhoVerde.replace("before:inset-y-2", "before:inset-y-1.5")}`;
 const itemModuloAtivo = "bg-rail-primary/20 font-medium text-rail-strong before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-rail-primary";
 
 const brlMenu = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

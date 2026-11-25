@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertTriangle, ExternalLink, Globe, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api } from "@/api/client";
 import TabelaPadrao from "@/components/TabelaPadrao";
 
@@ -18,6 +18,28 @@ export function Fundamentos({ itens }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** Fontes da pesquisa na web (só aparecem na pesquisa aprofundada): as oficiais primeiro, com o aviso de que a lei prevalece. */
+export function FontesExternas({ itens }) {
+  if (!itens?.length) return null;
+  return (
+    <div className="space-y-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Globe className="h-3.5 w-3.5" aria-hidden="true" /> Fontes externas consultadas</p>
+      <ul className="space-y-1.5">
+        {itens.map((f) => (
+          <li key={f.dominio || f.url}>
+            <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted">
+              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${f.oficial ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>{f.oficial ? "Oficial" : "Contexto"}</span>
+              <span className="min-w-0 flex-1 truncate">{f.dominio || f.titulo}</span>
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-muted-foreground">Fontes de apoio: se divergirem do texto da lei carregado, vale o texto da lei. Confirme na fonte oficial antes de repassar ao cliente.</p>
     </div>
   );
 }
@@ -46,6 +68,7 @@ export function Resultado({ r }) {
       )}
       {r.ressalvas && <p className="text-sm rounded-lg bg-muted/60 p-3"><b>Atenção:</b> {r.ressalvas}</p>}
       <Fundamentos itens={r.fundamentos} />
+      <FontesExternas itens={r.fontes_externas} />
       {!r.suficiente && r.relacionados?.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dispositivos que podem ajudar</p>

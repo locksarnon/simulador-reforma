@@ -219,6 +219,8 @@ export const POST_DE_LEITURA = [
   'ncm/sugestoes',
   'validador-nfse/validar',
   'base-legal/perguntar',
+  'base-legal/perguntar-aprofundado',
+  'base-legal/perguntas/:id/enviar-relatorio',
   'limpeza/previa',
   'calculadora-rfb/conferir-operacao',
 ];

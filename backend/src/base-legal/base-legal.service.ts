@@ -9,6 +9,7 @@ import { FONTES_NORMAS } from './fontes';
 import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
 import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
 import { plural } from '../common/plural';
+import { MODELO_CLAUDE_PADRAO, perguntarAoClaude } from './claude';
 
 const MESES: Record<string, number> = {
   janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
@@ -353,7 +354,7 @@ export class BaseLegalService {
   // ───────────────────────── Assistente ─────────────────────────
 
   /** Limite simples por usuário (proteção de custo): 15 perguntas a cada 10 minutos. */
-  private checarLimite(email: string) {
+  checarLimite(email: string) {
     const agora = Date.now();
     const recentes = (this.usoPorUsuario.get(email) ?? []).filter((t) => agora - t < 10 * 60_000);
     if (recentes.length >= 15) throw new BadRequestException('Muitas perguntas seguidas. Aguarde alguns minutos e tente de novo.');
@@ -361,7 +362,63 @@ export class BaseLegalService {
     this.usoPorUsuario.set(email, recentes);
   }
 
-  private async gemini(prompt: string, timeoutMs = 60_000): Promise<string> {
+  /** Qual motor responde o assistente: Claude (Anthropic) se houver chave e não estiver forçado o Gemini; senão Gemini. */
+  provedorIa(): 'claude' | 'gemini' | null {
+    const forcado = (this.config.get<string>('IA_ASSISTENTE') || '').trim().toLowerCase();
+    const claude = Boolean((this.config.get<string>('ANTHROPIC_API_KEY') || '').trim());
+    const gemini = Boolean((this.config.get<string>('GEMINI_API_KEY') || '').trim());
+    if (forcado === 'gemini') return gemini ? 'gemini' : null;
+    if (claude) return 'claude';
+    return gemini ? 'gemini' : null;
+  }
+
+  iaConfigurada(): boolean {
+    return this.provedorIa() !== null;
+  }
+
+  /** Nome do modelo que está respondendo (para registrar na pergunta). */
+  modeloAtual(): string {
+    return this.provedorIa() === 'claude'
+      ? this.config.get<string>('ANTHROPIC_MODEL') || MODELO_CLAUDE_PADRAO
+      : this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
+  }
+
+  /** Resposta em texto (JSON no prompt). Claude quando configurado; se ele falhar e houver chave do Gemini, o Gemini responde. */
+  async ia(prompt: string, timeoutMs = 60_000): Promise<string> {
+    if (this.provedorIa() === 'claude') {
+      try {
+        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, timeoutMs });
+        return r.texto;
+      } catch (e) {
+        if (!this.config.get<string>('GEMINI_API_KEY')) throw e;
+        this.log.warn(`Claude falhou (${(e as Error).message}); usando o Gemini`);
+      }
+    }
+    return this.gemini(prompt, timeoutMs);
+  }
+
+  /** Com pesquisa na web. Mesmo desenho: Claude primeiro, Gemini de reserva. */
+  async iaComBusca(prompt: string): Promise<{ texto: string; grounding: unknown; modelo: string }> {
+    if (this.provedorIa() === 'claude') {
+      try {
+        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, busca: true });
+        return { texto: r.texto, grounding: r.grounding, modelo: r.modelo };
+      } catch (e) {
+        if (!this.config.get<string>('GEMINI_API_KEY')) throw e;
+        this.log.warn(`Claude falhou na pesquisa (${(e as Error).message}); usando o Gemini`);
+      }
+    }
+    const modeloForte = this.config.get<string>('GEMINI_MODEL_APROFUNDADO') || 'gemini-pro-latest';
+    const modeloBase = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
+    try {
+      return { ...(await this.geminiComBusca(prompt, modeloForte)), modelo: modeloForte };
+    } catch (e) {
+      this.log.warn(`Modelo ${modeloForte} falhou (${(e as Error).message}); usando ${modeloBase}`);
+      return { ...(await this.geminiComBusca(prompt, modeloBase)), modelo: modeloBase };
+    }
+  }
+
+  async gemini(prompt: string, timeoutMs = 60_000): Promise<string> {
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     if (!apiKey) throw new Error('GEMINI_API_KEY não configurada');
     const modelo = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
@@ -378,8 +435,27 @@ export class BaseLegalService {
     return texto;
   }
 
+  /** Gemini com a busca do Google ligada (fontes da web). Sem JSON forçado: o formato vem no prompt. Devolve o texto e os metadados das fontes. */
+  async geminiComBusca(prompt: string, modeloEscolhido?: string, timeoutMs = 150_000): Promise<{ texto: string; grounding: unknown }> {
+    const apiKey = this.config.get<string>('GEMINI_API_KEY');
+    if (!apiKey) throw new Error('GEMINI_API_KEY não configurada');
+    const modelo = modeloEscolhido || this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.1 } }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(`Gemini API ${resp.status}: ${body?.error?.message || 'erro'}`);
+    const cand = body?.candidates?.[0];
+    const texto = cand?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
+    if (!texto) throw new Error('Gemini retornou resposta vazia');
+    return { texto, grounding: cand?.groundingMetadata ?? null };
+  }
+
   /** Dispositivos mais prováveis para a pergunta (artigo citado, termos jurídicos e a própria pergunta). */
-  private async candidatos(pergunta: string, termos: string[]): Promise<Candidato[]> {
+  async candidatos(pergunta: string, termos: string[]): Promise<Candidato[]> {
     const consultas = consultasDaPergunta(pergunta, termos);
     const [porPergunta, ...porConceito] = await Promise.all([
       this.buscar(pergunta),
@@ -420,11 +496,11 @@ export class BaseLegalService {
     if (pergunta.length < 8) throw new BadRequestException('Escreva a pergunta com um pouco mais de detalhe.');
     this.checarLimite(email);
 
-    let iaDisponivel = Boolean(this.config.get<string>('GEMINI_API_KEY'));
+    let iaDisponivel = this.iaConfigurada();
     let termos: string[] = [];
     if (iaDisponivel) {
       try {
-        const t = lerJson<{ termos?: unknown }>(await this.gemini(promptTermos(pergunta), 30_000));
+        const t = lerJson<{ termos?: unknown }>(await this.ia(promptTermos(pergunta), 30_000));
         termos = (Array.isArray(t?.termos) ? t.termos : []).map(String).map((x) => x.slice(0, 60)).slice(0, 12);
       } catch (e) {
         this.log.warn(`Termos via IA falharam: ${(e as Error).message}`);
@@ -439,7 +515,7 @@ export class BaseLegalService {
     else if (!iaDisponivel) motivo = 'sem_ia';
     else {
       try {
-        saida = validarResposta(lerJson(await this.gemini(promptResposta(pergunta, cands))), cands);
+        saida = validarResposta(lerJson(await this.ia(promptResposta(pergunta, cands))), cands);
       } catch (e) {
         iaDisponivel = false;
         motivo = 'erro_ia';
@@ -449,7 +525,7 @@ export class BaseLegalService {
 
     if (!saida.resposta) saida = respostaDeApoio(cands, motivo === 'sem_ia' || motivo === 'erro_ia');
 
-    const modelo = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
+    const modelo = this.modeloAtual();
     const reg = await this.prisma.perguntaLegal.create({
       data: {
         user_email: email, pergunta, resposta: saida.resposta || null, fundamentos: saida.fundamentos as object,
@@ -464,6 +540,12 @@ export class BaseLegalService {
       relacionados: saida.suficiente ? [] : cands.slice(0, 6).map((c) => ({ norma: c.chave, numero: c.numero, rotulo: c.rotulo, caminho: c.caminho, secao: c.secao })),
       aviso: AVISO_ASSISTENTE,
     };
+  }
+
+  /** Palavras-chave jurídicas da pergunta (a IA reescreve na linguagem da lei). */
+  async termosDaPergunta(pergunta: string): Promise<string[]> {
+    const t = lerJson<{ termos?: unknown }>(await this.ia(promptTermos(pergunta), 30_000));
+    return (Array.isArray(t?.termos) ? t.termos : []).map(String).map((x) => x.slice(0, 60)).slice(0, 12);
   }
 
   async feedback(id: string, util: boolean) {

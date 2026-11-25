@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowUp, Check, Copy, RotateCcw, Scale, Sparkles, X } from "lucide-react";
+import { ArrowUp, Check, Copy, Download, Globe, Loader2, Mail, RotateCcw, Scale, Sparkles, X } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { moduloDoCaminho } from "@/lib/navegacao";
 import { temTela } from "@/lib/permissoes";
 import {
-  anexarAoHistorico, EVENTO_ASSISTENTE, gravarHistorico, lerHistorico, MAXIMO_PERGUNTA, mensagemDeEspera, perguntaValida, sugestoesDoContexto, temContextoProprio, textoParaCopiar,
+  anexarAoHistorico, emailValido, EVENTO_ASSISTENTE, gravarHistorico, lerHistorico, MAXIMO_PERGUNTA, mensagemDeEspera, perguntaValida, sugestoesDoContexto, temContextoProprio, textoParaCopiar,
 } from "@/lib/assistente";
 import { Resultado } from "@/components/base-legal/AssistenteLegal";
 import { CartaoResposta } from "@/components/base-legal/CartoesLegais";
@@ -21,7 +21,7 @@ export function Orbe({ pensando = false, tamanho = 28 }) {
   );
 }
 
-function Pensando({ desde }) {
+function Pensando({ desde, aprofundada = false }) {
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setAgora(Date.now()), 1000); return () => clearInterval(t); }, []);
   const segundos = Math.max(0, Math.floor((agora - desde) / 1000));
@@ -30,7 +30,50 @@ function Pensando({ desde }) {
       <span className="flex items-center gap-1" aria-hidden="true">
         <i className="assistente-ponto" /><i className="assistente-ponto" style={{ animationDelay: "160ms" }} /><i className="assistente-ponto" style={{ animationDelay: "320ms" }} />
       </span>
-      <span>{mensagemDeEspera(segundos)}</span>
+      <span>{mensagemDeEspera(segundos, aprofundada)}</span>
+    </div>
+  );
+}
+
+/** Envia o relatório (PDF no padrão FAL / InTAX) por e-mail ou baixa o arquivo. Só para resposta conclusiva. */
+function Relatorio({ resultado, emailPadrao }) {
+  const [aberto, setAberto] = useState(false);
+  const [email, setEmail] = useState(emailPadrao || "");
+  const [estado, setEstado] = useState("parado"); // parado | enviando | enviado | erro
+  const [msg, setMsg] = useState("");
+  if (!resultado?.suficiente) return null;
+  const enviar = async (e) => {
+    e.preventDefault();
+    if (!emailValido(email) || estado === "enviando") return;
+    setEstado("enviando"); setMsg("");
+    try {
+      await api.post(`/base-legal/perguntas/${resultado.id}/enviar-relatorio`, { email: email.trim() });
+      setEstado("enviado"); setMsg(`Relatório enviado para ${email.trim()}.`);
+    } catch (err) { setEstado("erro"); setMsg(err?.message || "Não foi possível enviar agora."); }
+  };
+  const baixar = async () => {
+    try { await api.baixar("get", `/base-legal/perguntas/${resultado.id}/relatorio`, { nome: "consulta-tributaria-intax.pdf" }); } catch (err) { setEstado("erro"); setMsg(err?.message || "Não foi possível gerar o PDF agora."); setAberto(true); }
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1">
+        <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><Mail className="h-3.5 w-3.5" aria-hidden="true" /> Enviar por e-mail</button>
+        <button type="button" onClick={baixar} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><Download className="h-3.5 w-3.5" aria-hidden="true" /> Baixar PDF</button>
+      </div>
+      {aberto && (
+        <form onSubmit={enviar} className="space-y-2 rounded-xl border border-border bg-background p-3">
+          <label className="block text-xs font-medium" htmlFor={`rel-${resultado.id}`}>Enviar o relatório para</label>
+          <div className="flex gap-2">
+            <input id={`rel-${resultado.id}`} type="email" value={email} onChange={(e) => { setEmail(e.target.value); if (estado !== "enviando") setEstado("parado"); }} placeholder="cliente@empresa.com.br" autoComplete="off"
+              className="min-w-0 flex-1 rounded-md border border-input bg-card px-2.5 py-1.5 text-sm outline-none focus:border-primary/60" />
+            <button type="submit" disabled={!emailValido(email) || estado === "enviando"} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">
+              {estado === "enviando" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Mail className="h-3.5 w-3.5" aria-hidden="true" />} {estado === "enviando" ? "Enviando…" : "Enviar"}
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Vai em PDF no padrão FAL / InTAX: pergunta, resposta, base legal{resultado.fontes_externas?.length ? " e fontes externas" : ""}.</p>
+          {msg && <p role={estado === "erro" ? "alert" : "status"} className={`text-xs ${estado === "erro" ? "text-red-600" : "text-emerald-700"}`}>{msg}</p>}
+        </form>
+      )}
     </div>
   );
 }
@@ -48,7 +91,7 @@ function Copiar({ resultado }) {
   );
 }
 
-export function Troca({ item, aoRepetir }) {
+export function Troca({ item, aoRepetir, emailPadrao }) {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
@@ -57,7 +100,7 @@ export function Troca({ item, aoRepetir }) {
       <div className="flex items-start gap-2.5 assistente-entra-msg">
         <Orbe tamanho={26} pensando={item.estado === "carregando"} />
         <div className="min-w-0 flex-1 space-y-2.5">
-          {item.estado === "carregando" && <Pensando desde={item.inicio} />}
+          {item.estado === "carregando" && <Pensando desde={item.inicio} aprofundada={item.aprofundada} />}
           {item.revisados?.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{item.revisados.length > 1 ? "Perguntas parecidas já revisadas pela equipe" : "Pergunta parecida já revisada pela equipe"}</p>
@@ -69,6 +112,7 @@ export function Troca({ item, aoRepetir }) {
               {item.revisados?.length > 0 && <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Resposta do assistente (não revisada)</p>}
               <Resultado key={item.resultado.id} r={item.resultado} />
               <Copiar resultado={item.resultado} />
+              <Relatorio resultado={item.resultado} emailPadrao={emailPadrao} />
             </>
           )}
           {item.estado === "erro" && (
@@ -95,6 +139,7 @@ export default function AssistenteGlobal() {
   const [pergunta, setPergunta] = useState("");
   const [itens, setItens] = useState(lerHistorico);
   const [extras, setExtras] = useState(null);
+  const [aprofundar, setAprofundar] = useState(false);
   const fimRef = useRef(null);
   const campoRef = useRef(null);
   const botaoAbertoPor = useRef(null);
@@ -114,23 +159,23 @@ export default function AssistenteGlobal() {
 
   const atualizar = (id, parte) => setItens((lista) => lista.map((i) => (i.id === id ? { ...i, ...parte } : i)));
 
-  const enviar = useCallback(async (texto) => {
+  const enviar = useCallback(async (texto, aprofundado = false) => {
     const t = String(texto ?? "").trim().slice(0, MAXIMO_PERGUNTA);
     if (!perguntaValida(t)) return;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setItens((lista) => anexarAoHistorico(lista, { id, pergunta: t, estado: "carregando", inicio: Date.now() }));
+    setItens((lista) => anexarAoHistorico(lista, { id, pergunta: t, estado: "carregando", inicio: Date.now(), aprofundada: aprofundado }));
     setPergunta("");
     // As respostas já revisadas pela equipe não dependem da IA: chegam primeiro.
     api.get("/base-legal/cartoes/busca", { q: t }).then((r) => atualizar(id, { revisados: r })).catch(() => {});
     try {
-      const resultado = await api.post("/base-legal/perguntar", { pergunta: t });
+      const resultado = await api.post(aprofundado ? "/base-legal/perguntar-aprofundado" : "/base-legal/perguntar", { pergunta: t });
       atualizar(id, { estado: "ok", resultado });
     } catch (e) {
       atualizar(id, { estado: "erro", erro: e?.message || "Não foi possível consultar agora." });
     }
   }, []);
 
-  const repetir = (item) => { setItens((lista) => lista.filter((i) => i.id !== item.id)); enviar(item.pergunta); };
+  const repetir = (item) => { setItens((lista) => lista.filter((i) => i.id !== item.id)); enviar(item.pergunta, !!item.aprofundada); };
   const novaConversa = () => { setItens([]); setExtras(null); setPergunta(""); gravarHistorico([]); campoRef.current?.focus({ preventScroll: true }); };
 
   // Abre por evento (botão do menu, página Base legal) e por Ctrl+/.
@@ -186,7 +231,7 @@ export default function AssistenteGlobal() {
           <Orbe tamanho={34} pensando={carregando} />
           <div className="min-w-0 flex-1 leading-tight">
             <h2 className="font-heading text-[15px] font-semibold">Assistente tributário</h2>
-            <p className="truncate text-[11.5px] text-muted-foreground">Responde só com o texto das normas, citando o artigo</p>
+            <p className="truncate text-[11.5px] text-muted-foreground">{aprofundar ? "Normas + fontes oficiais da internet, com as fontes citadas" : "Responde só com o texto das normas, citando o artigo"}</p>
           </div>
           {itens.length > 0 && (
             <button type="button" onClick={novaConversa} title="Nova conversa" aria-label="Nova conversa" className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><RotateCcw className="h-4 w-4" aria-hidden="true" /></button>
@@ -216,15 +261,20 @@ export default function AssistenteGlobal() {
                 <Scale className="h-3.5 w-3.5" aria-hidden="true" /> Prefere ler o texto? Abrir a Base legal
               </Link>
             </div>
-          ) : itens.map((item) => <Troca key={item.id} item={item} aoRepetir={repetir} />)}
+          ) : itens.map((item) => <Troca key={item.id} item={item} aoRepetir={repetir} emailPadrao={user.email} />)}
           <div ref={fimRef} />
         </div>
 
         <footer className="border-t border-border bg-card px-3 pb-3 pt-2.5">
-          <form onSubmit={(e) => { e.preventDefault(); if (podeEnviar) enviar(pergunta); }} className="flex items-end gap-2 rounded-2xl border border-input bg-background px-3 py-2 transition-shadow focus-within:border-primary/60 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]">
+          <button type="button" role="switch" aria-checked={aprofundar} onClick={() => setAprofundar((v) => !v)} disabled={carregando}
+            title="Pesquisa também em fontes oficiais da internet (Receita, CGIBS, Planalto, tribunais). Demora mais."
+            className={`mb-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors disabled:opacity-60 ${aprofundar ? "border-primary/60 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>
+            <Globe className="h-3.5 w-3.5" aria-hidden="true" /> Pesquisa aprofundada com fontes externas: {aprofundar ? "ligada" : "desligada"}
+          </button>
+          <form onSubmit={(e) => { e.preventDefault(); if (podeEnviar) enviar(pergunta, aprofundar); }} className="flex items-end gap-2 rounded-2xl border border-input bg-background px-3 py-2 transition-shadow focus-within:border-primary/60 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]">
             <textarea
               ref={campoRef} value={pergunta} onChange={(e) => setPergunta(e.target.value.slice(0, MAXIMO_PERGUNTA))} rows={1} aria-label="Pergunta ao assistente"
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (podeEnviar) enviar(pergunta); } }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (podeEnviar) enviar(pergunta, aprofundar); } }}
               placeholder={carregando ? "Aguarde a resposta…" : "Pergunte sobre a Reforma Tributária…"}
               className="max-h-[120px] min-h-[24px] flex-1 resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-muted-foreground"
             />

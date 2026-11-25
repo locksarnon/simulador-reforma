@@ -8,6 +8,9 @@ import { lerEfd, lerMit } from './perfil-fiscal';
 const r = 'Reforma Tributária';
 const c = 'Créditos e Oportunidades Tributárias';
 const p = 'Planejamento Tributário';
+/** Serviços que olham a situação numa data (data-base), não um intervalo: o projeto guarda a data-base nas duas pontas do período. */
+export const SERVICOS_POR_DATA_BASE = ['pf-homologacao', 'pj-homologacao', 'credito-estoque', 'credito-estoque-pf'];
+
 export const CATALOGO_CONSULTORIA = [
   { id: 'pf-ibs-cbs', publico: 'PF', area: r, nome: 'Enquadramento e opção de IBS/CBS do produtor rural' },
   { id: 'pf-homologacao', publico: 'PF', area: r, nome: 'Homologação fiscal do ERP para IBS/CBS do produtor rural' },
@@ -165,9 +168,10 @@ export class ConsultoriaService {
       const d = new Date(valor + 'T00:00:00.000Z');
       return !isNaN(+d) && d.toISOString().slice(0, 10) === valor ? d : null;
     };
-    const de = data(entrada.periodo_inicio);
-    const ate = data(entrada.periodo_fim);
-    if (!servico || !de || !ate || de > ate) throw new BadRequestException('Escolha um serviço e informe um período válido.');
+    const porBase = !!servico && SERVICOS_POR_DATA_BASE.includes(servico.id);
+    const de = porBase ? data(entrada.data_base) : data(entrada.periodo_inicio);
+    const ate = porBase ? de : data(entrada.periodo_fim);
+    if (!servico || !de || !ate || de > ate) throw new BadRequestException(porBase ? 'Escolha o serviço e informe a data-base.' : 'Escolha um serviço e informe um período válido.');
     return this.prisma.$transaction(async (tx) => {
       // Serializa aberturas do mesmo serviço por cliente, inclusive a verificação de sobreposição.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${JSON.stringify([servico.publico, id, servico.id])}))`;

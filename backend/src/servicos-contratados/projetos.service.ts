@@ -1,13 +1,13 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CATALOGO_CONSULTORIA } from './consultoria.service';
+import { CATALOGO_CONSULTORIA, SERVICOS_POR_DATA_BASE } from './consultoria.service';
 import { AuditoriaIbsCbsService } from '../auditoria-ibscbs/auditoria-ibscbs.service';
 
 export const SITUACOES_DO_PROJETO = ['EM_ANDAMENTO', 'PAUSADO', 'CONCLUIDO', 'CANCELADO'] as const;
 export type EntradaProjeto = {
   nome?: string; grupo_numero?: string | null; empresa_ids?: string[]; escopo?: string | null; situacao?: string;
   inicio?: string | null; prazo?: string | null; responsavel?: string | null; observacao?: string | null;
-  servico_consultoria?: string; periodo_inicio?: string; periodo_fim?: string;
+  servico_consultoria?: string; periodo_inicio?: string; periodo_fim?: string; data_base?: string;
 };
 type Usuario = { email?: string; role?: string } | undefined;
 
@@ -67,11 +67,14 @@ export class ProjetosDiagnosticoService {
   async homologacao(id: string) {
     const p = await this.obter(id);
     if (p.servico_consultoria !== 'pj-homologacao') throw new BadRequestException('Este projeto não é de homologação fiscal do ERP.');
-    if (!p.empresa_ids.length || !p.periodo_inicio || !p.periodo_fim) throw new BadRequestException('Informe as empresas e o período do projeto.');
+    if (!p.empresa_ids.length || !p.periodo_inicio || !p.periodo_fim) throw new BadRequestException('Informe as empresas e a data-base do projeto.');
     if (!this.auditoria) throw new BadRequestException('A conferência com a calculadora oficial não está disponível neste servidor.');
     const fim = new Date(p.periodo_fim);
     fim.setUTCHours(23, 59, 59, 999);
-    return this.auditoria.laudo(p.empresa_ids, p.periodo_inicio, fim);
+    // Projeto com data-base (início = fim): confere as notas desde o começo do IBS/CBS (2026) até a data-base. Projeto antigo com período mantém o período.
+    const porBase = +p.periodo_inicio === +p.periodo_fim;
+    const inicio = porBase ? new Date(Math.min(+new Date('2026-01-01T00:00:00.000Z'), +p.periodo_inicio)) : p.periodo_inicio;
+    return this.auditoria.laudo(p.empresa_ids, inicio, fim);
   }
 
   async obter(id: string) {
@@ -86,10 +89,11 @@ export class ProjetosDiagnosticoService {
     const empresa_ids = await this.validarEmpresas(e.empresa_ids ?? []);
     const responsavel = texto(e.responsavel, 120);
     const servico = e.servico_consultoria;
-    const periodo_inicio = servico ? data(e.periodo_inicio, 'início do período') : undefined;
-    const periodo_fim = servico ? data(e.periodo_fim, 'fim do período') : undefined;
+    const porBase = !!servico && SERVICOS_POR_DATA_BASE.includes(servico);
+    const periodo_inicio = servico ? data(porBase ? e.data_base : e.periodo_inicio, porBase ? 'data-base' : 'início do período') : undefined;
+    const periodo_fim = servico ? (porBase ? periodo_inicio : data(e.periodo_fim, 'fim do período')) : undefined;
     if (servico) {
-      if (!periodo_inicio || !periodo_fim || periodo_inicio > periodo_fim) throw new BadRequestException('Informe um período válido.');
+      if (!periodo_inicio || !periodo_fim || periodo_inicio > periodo_fim) throw new BadRequestException(porBase ? 'Informe a data-base.' : 'Informe um período válido.');
       await this.validarVinculos(servico, empresa_ids);
     }
     const projeto = await this.prisma.projetoDiagnostico.create({
@@ -112,10 +116,11 @@ export class ProjetosDiagnosticoService {
     if (e.responsavel !== undefined) dados.responsavel = texto(e.responsavel, 120);
     const inicio = data(e.inicio, 'início'); if (inicio !== undefined) dados.inicio = inicio;
     const prazo = data(e.prazo, 'prazo'); if (prazo !== undefined) dados.prazo = prazo;
-    if (atual.servico_consultoria && (e.periodo_inicio !== undefined || e.periodo_fim !== undefined)) {
-      const de = data(e.periodo_inicio, 'início do período') ?? atual.periodo_inicio;
-      const ate = data(e.periodo_fim, 'fim do período') ?? atual.periodo_fim;
-      if (!de || !ate || de > ate) throw new BadRequestException('Informe um período válido.');
+    const porBase = !!atual.servico_consultoria && SERVICOS_POR_DATA_BASE.includes(atual.servico_consultoria);
+    if (atual.servico_consultoria && (e.periodo_inicio !== undefined || e.periodo_fim !== undefined || e.data_base !== undefined)) {
+      const de = porBase ? data(e.data_base ?? e.periodo_inicio, 'data-base') ?? atual.periodo_inicio : data(e.periodo_inicio, 'início do período') ?? atual.periodo_inicio;
+      const ate = porBase ? de : data(e.periodo_fim, 'fim do período') ?? atual.periodo_fim;
+      if (!de || !ate || de > ate) throw new BadRequestException(porBase ? 'Informe a data-base.' : 'Informe um período válido.');
       dados.periodo_inicio = de;
       dados.periodo_fim = ate;
     }

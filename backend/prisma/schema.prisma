@@ -980,6 +980,10 @@ model PerguntaLegal {
   suficiente  Boolean  @default(false)
   modelo      String?
   util        Boolean?
+  /// Pesquisa aprofundada (com fontes da web): guarda as ressalvas e as fontes citadas para o relatório por e-mail.
+  aprofundada     Boolean @default(false)
+  ressalvas       String?
+  fontes_externas Json?
   createdAt   DateTime @default(now())
 
   @@index([createdAt])

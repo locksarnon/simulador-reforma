@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  anexarAoHistorico, CHAVE_HISTORICO, temContextoProprio, gravarHistorico, lerHistorico, LIMITE_HISTORICO, mensagemDeEspera, paraGuardar, perguntaValida, sugestoesDoContexto, textoParaCopiar,
+  anexarAoHistorico, emailValido, CHAVE_HISTORICO, temContextoProprio, gravarHistorico, lerHistorico, LIMITE_HISTORICO, mensagemDeEspera, paraGuardar, perguntaValida, sugestoesDoContexto, textoParaCopiar,
 } from "./assistente";
 
 function armazenamentoFalso() {
@@ -45,6 +45,21 @@ describe("pergunta e espera", () => {
     expect(mensagemDeEspera(9)).toMatch(/Montando/);
     expect(mensagemDeEspera(15)).toMatch(/Conferindo/);
     expect(mensagemDeEspera(60)).toMatch(/demorando/);
+  });
+});
+
+describe("pesquisa aprofundada e e-mail", () => {
+  it("a espera da pesquisa aprofundada fala das fontes na internet", () => {
+    expect(mensagemDeEspera(5, true)).toMatch(/fontes oficiais/);
+    expect(mensagemDeEspera(60, true)).toMatch(/aprofundada/);
+    expect(mensagemDeEspera(5)).toMatch(/Procurando|Lendo/);
+  });
+  it("valida a forma do e-mail", () => {
+    expect(emailValido("cliente@empresa.com.br")).toBe(true);
+    expect(emailValido("  a@b.co ")).toBe(true);
+    expect(emailValido("sem-arroba")).toBe(false);
+    expect(emailValido("a@b")).toBe(false);
+    expect(emailValido(null)).toBe(false);
   });
 });
 
