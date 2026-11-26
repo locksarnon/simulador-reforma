@@ -82,30 +82,71 @@ export function lerNumero(bruto: unknown, colunaNumerica = false, decimal?: Sepa
 }
 
 export type SeparadorDecimal = 'BR' | 'PONTO';
+export type ProvaSeparador = SeparadorDecimal | 'AMBIGUO' | null;
 
 /**
- * Separador decimal de UMA coluna de texto/CSV, para todas as células serem lidas do mesmo jeito (antes "0.500" valia 0,5 e "1.250" valia
- * 1250 na mesma coluna). BR quando alguma célula tem vírgula decimal ("12,5") ou o padrão "1.234,56"; PONTO quando alguma tem ponto seguido de
- * 1, 2 ou 4 ou mais dígitos ("12.5", "3.14159"), zero antes do ponto ("0.500": milhar não começa por zero), "1,234.56" ou mais de um ponto
- * sem formar milhar válido; AMBIGUO quando só há "x.yyy" (lida como milhar, BR, com aviso); null quando nenhuma célula tem separador.
- * Célula numérica do XLSX chega como texto BR (vírgula decimal, sem milhar) e não muda a leitura.
+ * Indício que UMA célula de texto dá sobre o separador decimal da coluna. Prova BR: vírgula com 1, 2 ou 4+ casas ("12,5"), zero à esquerda
+ * ("0,500": milhar nunca começa por zero), "1.234,56" ou pontos que formam milhar ("1.234.567"). Prova PONTO: o espelho ("12.5", "0.5",
+ * "1,234.56", "1,234,567"). "1.234" e "1,234" (1 a 3 dígitos, um separador, três casas) são AMBIGUO. Sem separador ou não numérico: null.
+ * `virgulaDecimal`: a coluna veio como número do XLSX, cuja leitura grava vírgula decimal e nenhum milhar; ali "1,234" é prova BR.
  */
-export function detectarSeparadorDecimal(valores: Iterable<unknown>): SeparadorDecimal | 'AMBIGUO' | null {
-  let br = false; let ponto = false; let ambiguo = false;
+export function provaDeSeparador(bruto: unknown, virgulaDecimal = false): ProvaSeparador {
+  const t = aparar(bruto).replace(/^R\$\s*/i, '').replace(/^[(+-]+|[)-]+$/g, '').trim();
+  if (!t || !/^[\d.,]+$/.test(t) || !/\d/.test(t)) return null;
+  const temPonto = t.includes('.'); const temVirgula = t.includes(',');
+  if (temPonto && temVirgula) return t.lastIndexOf(',') > t.lastIndexOf('.') ? 'BR' : 'PONTO';
+  if (!temPonto && !temVirgula) return null;
+  const sep = temPonto ? '.' : ',';
+  const decimal: SeparadorDecimal = temPonto ? 'PONTO' : 'BR';
+  const milhar: SeparadorDecimal = temPonto ? 'BR' : 'PONTO';
+  if (sep === ',' && virgulaDecimal) return 'BR';
+  const partes = t.split(sep);
+  if (partes.length > 2) return /^[1-9]\d{0,2}$/.test(partes[0]) && partes.slice(1).every((p) => /^\d{3}$/.test(p)) ? milhar : decimal;
+  const [inteiro, casas] = partes;
+  if (!casas) return null; // "12." ou "12,": sem casas, sem indício
+  if (!inteiro || /^0+$/.test(inteiro)) return decimal; // ".5", "0.500"
+  return /^[1-9]\d{0,2}$/.test(inteiro) && casas.length === 3 ? 'AMBIGUO' : decimal;
+}
+
+/** Até quantas linhas de exemplo cada lado guarda (o aviso cita até 5). */
+const EXEMPLOS_SEPARADOR = 5;
+
+export type AnaliseSeparador = {
+  /** Leitura única da coluna: BR, PONTO, AMBIGUO (só "x.yyy"/"x,yyy", lida como BR) ou null (nenhuma célula com separador). */
+  separador: SeparadorDecimal | 'AMBIGUO' | null;
+  /** Provas dos dois lados: a coluna foi lida pela maioria (empate = BR) e `contrarias` traz as células do outro lado. */
+  misturado: boolean;
+  provas: { BR: number; PONTO: number };
+  /** Posições (0 = primeiro valor) das primeiras células com prova contrária à leitura escolhida, até 5. */
+  contrarias: number[];
+  /** Quantas células têm prova contrária à leitura escolhida. */
+  totalContrarias: number;
+};
+
+/**
+ * Separador decimal de UMA coluna de texto/CSV, para todas as células serem lidas do mesmo jeito. Varre a coluna toda juntando os indícios
+ * (provaDeSeparador). Só provas BR: BR; só PONTO: PONTO; provas dos dois lados: a maioria (empate fica BR, o costume brasileiro) e
+ * `misturado`; só ambíguos: AMBIGUO (lida como BR, com aviso); nenhuma: null. Célula numérica do XLSX (`virgulaDecimal`) não muda a leitura.
+ */
+export function analisarSeparadorDecimal(valores: Iterable<unknown>, virgulaDecimal = false): AnaliseSeparador {
+  const provas = { BR: 0, PONTO: 0 };
+  const exemplos: { BR: number[]; PONTO: number[] } = { BR: [], PONTO: [] };
+  let ambiguo = false; let i = -1;
   for (const bruto of valores) {
-    let t = aparar(bruto).replace(/^R\$\s*/i, '').replace(/^[(+-]+|[)-]+$/g, '').trim();
-    if (!t || !/^[\d.,]+$/.test(t)) continue;
-    const pontos = (t.match(/\./g) || []).length; const virgulas = (t.match(/,/g) || []).length;
-    if (pontos && virgulas) { if (t.lastIndexOf(',') > t.lastIndexOf('.')) br = true; else ponto = true; }
-    else if (virgulas) { if (virgulas === 1) br = true; }
-    else if (pontos > 1) { if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) br = true; else ponto = true; }
-    else if (pontos === 1) {
-      t = t.replace(/^\./, '0.');
-      if (/^0\./.test(t) || !/\.\d{3}$/.test(t)) ponto = true; else ambiguo = true;
-    }
-    if (br) return 'BR';
+    i++;
+    const p = provaDeSeparador(bruto, virgulaDecimal);
+    if (p === 'AMBIGUO') ambiguo = true;
+    else if (p) { provas[p]++; if (exemplos[p].length < EXEMPLOS_SEPARADOR) exemplos[p].push(i); }
   }
-  return ponto ? 'PONTO' : ambiguo ? 'AMBIGUO' : null;
+  const misturado = provas.BR > 0 && provas.PONTO > 0;
+  const separador: AnaliseSeparador['separador'] = provas.BR || provas.PONTO ? (provas.PONTO > provas.BR ? 'PONTO' : 'BR') : ambiguo ? 'AMBIGUO' : null;
+  const outro = separador === 'PONTO' ? 'BR' : 'PONTO';
+  return { separador, misturado, provas, contrarias: misturado ? exemplos[outro] : [], totalContrarias: misturado ? provas[outro] : 0 };
+}
+
+/** Só a leitura da coluna (ver analisarSeparadorDecimal). */
+export function detectarSeparadorDecimal(valores: Iterable<unknown>, virgulaDecimal = false): SeparadorDecimal | 'AMBIGUO' | null {
+  return analisarSeparadorDecimal(valores, virgulaDecimal).separador;
 }
 
 /** Data de uma célula -> yyyy-mm-dd. `invalida` quando há texto que não é data. Vazio e "00/00/0000" = sem data. */

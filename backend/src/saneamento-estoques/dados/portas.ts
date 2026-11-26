@@ -1,5 +1,6 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { AnalisadorCamada, Camada, CasoProposto, ContextoAnalise, ItemTrabalho } from '../tipos';
+import type { SeparadoresDaImportacao } from '../importacao';
 
 /**
  * Portas: o que os outros agentes conectam. O módulo registra stubs; cada agente troca o provider pelo seu (injeção por token).
@@ -18,6 +19,12 @@ export type RelatorioImportacao = {
   pendentes: number;
   linhasRejeitadas: LinhaDoRelatorio[];
   linhasPendentes: LinhaDoRelatorio[];
+  /** Avisos da leitura (mapeamento, separador decimal). */
+  avisos?: string[];
+  /** Separador decimal com que cada coluna numérica foi lida; a próxima reimportação compara com ele. */
+  separadores?: SeparadoresDaImportacao;
+  /** Avisos em destaque: o separador decimal de uma coluna mudou desde a importação anterior. */
+  separadorMudou?: string[];
 };
 export type EntradaImportacao = {
   arquivo: Buffer;
@@ -26,6 +33,8 @@ export type EntradaImportacao = {
   mapeamento?: Record<string, string>;
   /** Estabelecimentos do projeto (vazio = único). */
   estabelecimentos: string[];
+  /** Separadores da importação anterior do projeto (do relatório dela), para avisar se a leitura mudou. */
+  separadorAnterior?: SeparadoresDaImportacao;
 };
 /** Para a tela de mapeamento: colunas do arquivo, sugestão por coluna e as 10 primeiras linhas normalizadas. */
 export type PreviaDoArquivo = {

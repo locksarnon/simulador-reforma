@@ -90,7 +90,9 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       "Linha rejeitada não entra: corrija no ERP ou na planilha e reimporte. Linha pendente entra, mas com dado faltando.",
       "A reimportação nunca apaga decisões nem rascunhos. Campos protegidos por decisão ficam como estão; o relatório diz quantos campos protegidos foram mantidos.",
       "Com muitas diferenças, prefira Todos os alterados ou Só os alterados sem campo protegido: valem para o arquivo inteiro, não só para a página na tela.",
-      "Em texto ou CSV, o separador decimal do saldo é decidido pela coluna inteira: se alguma célula tem vírgula decimal (“12,5” ou “1.234,56”), a coluna é brasileira e “1.250” vale mil duzentos e cinquenta; se alguma tem ponto com 1, 2 ou 4 ou mais casas (“12.5”) ou zero antes do ponto (“0.500”), a coluna é de ponto decimal e “1.250” vale 1,25. Coluna só com valores como “1.250” é lida como milhar e o relatório avisa “Separador decimal ambíguo”: confira. Planilha Excel com o saldo em número não muda.",
+      "Em texto ou CSV, o separador decimal do saldo é decidido pela coluna inteira, e a coluna toda é lida de um só jeito. Indicam vírgula decimal: vírgula com 1, 2 ou 4 ou mais casas (“12,5”) e “1.234,56”; indicam ponto decimal: ponto com 1, 2 ou 4 ou mais casas (“12.5”), zero antes do ponto (“0.500”) e “1,234.56”. Valores como “1.250” ou “1,250” não decidem nada. Na coluna brasileira “1.250” vale mil duzentos e cinquenta; na de ponto, 1,25. Coluna só com valores como “1.250” é lida como milhar e o relatório avisa “Separador decimal ambíguo”: confira. Planilha Excel com o saldo em número não muda.",
+      "Se a coluna de saldo tem indícios dos dois jeitos, ela é lida pela maioria (empate: vírgula decimal) e a prévia avisa “separadores decimais misturados”, com até 5 linhas do outro jeito para conferir.",
+      "Na reimportação, se o separador decimal da coluna de saldo mudou desde a última importação, aparece em destaque, junto do botão de confirmar, o aviso “Separador decimal mudou” com quantos saldos mudam só por isso: confira antes de incorporar.",
     ],
   },
   {

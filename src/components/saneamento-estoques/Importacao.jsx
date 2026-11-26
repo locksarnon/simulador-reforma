@@ -174,6 +174,13 @@ export function Reimportacao({ previa, escolhidos, aoMudar, modo, aoMudarModo, a
   );
 }
 
+/** Reimportação: o separador decimal de uma coluna numérica mudou desde a última importação (os saldos mudam só por isso). Fica perto do botão de confirmar. */
+export function AvisosDeSeparador({ relatorio }) {
+  const lista = relatorio?.separadorMudou || [];
+  if (!lista.length) return null;
+  return lista.map((a, n) => <Aviso key={`${n}-${a}`} tom="erro" titulo="Separador decimal mudou">{a}</Aviso>);
+}
+
 function Resultado({ r }) {
   const rel = resumirRelatorio(r);
   return (
@@ -281,6 +288,7 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
           <section aria-labelledby="san-imp-conf" className="space-y-2 border border-border bg-card p-4">
             <h2 id="san-imp-conf" className="font-semibold">3. Confirmar</h2>
             {mapeamentoPendente && <Aviso tom="alerta">O mapeamento foi corrigido: atualize a prévia antes de confirmar.</Aviso>}
+            <AvisosDeSeparador relatorio={previa.relatorio} />
             <button type="button" className={botaoPrimario} disabled={!podeImportar || confirmar.isPending || paginar.isPending || faltam.length > 0 || mapeamentoPendente || rel.aceitas + rel.pendentes === 0} onClick={() => confirmar.mutate()}>
               {confirmar.isPending ? "Importando…" : reimport ? `Confirmar (${quantosIncorporar(previa, modo, escolhidos).toLocaleString("pt-BR")} item(ns) com diferenças incorporadas)` : "Confirmar importação"}
             </button>

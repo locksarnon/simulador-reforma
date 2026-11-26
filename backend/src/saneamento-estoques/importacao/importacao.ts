@@ -1,9 +1,9 @@
 import { lerPlanilha, lerPrevia, formatoDoArquivo, type Planilha, type Previa } from '../../produtos/leitura-planilha';
 import { AcumuladorRelatorio, avisosDoMapeamento } from './relatorio';
 import { Conferidor, colunasNecessarias } from './conferencia';
-import { detectarSeparadorDecimal } from './normalizacao';
+import { analisarSeparadorDecimal, lerNumero, type SeparadorDecimal } from './normalizacao';
 import { sugerirMapeamento, validarMapeamento } from './mapeamento';
-import type { ConfigImportacao, ItemImportado, LinhaConferida, PreviaImportacao, RelatorioImportacao, SugestaoMapeamento } from './tipos';
+import type { CampoNumerico, ConfigImportacao, ItemImportado, SeparadoresDaImportacao, LinhaConferida, PreviaImportacao, RelatorioImportacao, SugestaoMapeamento } from './tipos';
 import { BadRequestException } from '@nestjs/common';
 
 export type ArquivoEntrada = { buffer: Buffer; originalname?: string };
@@ -27,7 +27,7 @@ export type ResultadoConferencia = {
 export function conferirBase(base: BaseLida, cfg: ConfigImportacao, arquivo: { nome: string; buffer: Buffer; formato: 'xlsx' | 'csv' }, guardarItens = true): ResultadoConferencia {
   const erros = validarMapeamento(cfg.mapeamento, base.cabecalho.length);
   if (erros.length) throw new BadRequestException(erros.join(' '));
-  const { decimalPorColuna, avisos: avisosDecimal } = separadoresDaBase(base, cfg);
+  const { decimalPorColuna, avisos: avisosDecimal, separadores, separadorMudou } = separadoresDaBase(base, cfg);
   const config: ConfigImportacao = { ...cfg, colunaNumerica: cfg.colunaNumerica ?? base.ncmNumerico, decimalPorColuna };
   const conf = new Conferidor(base.cabecalho, config);
   const acc = new AcumuladorRelatorio(cfg.maxLinhasDetalhadas ?? 2000);
@@ -38,30 +38,62 @@ export function conferirBase(base: BaseLida, cfg: ConfigImportacao, arquivo: { n
     if (amostra.length < 10) amostra.push(r);
     if (guardarItens && r.item && r.chave) { itens.push(r.item); origem.push({ linhaOrigem: r.linhaOrigem, chave: r.chave }); }
   });
-  const relatorio = acc.fechar(arquivo, base.cabecalho, config, conf.colunasExtras, [...avisosDoMapeamento(base.cabecalho, config), ...avisosDecimal]);
+  const relatorio = acc.fechar(arquivo, base.cabecalho, config, conf.colunasExtras, [...avisosDoMapeamento(base.cabecalho, config), ...avisosDecimal], { separadores, separadorMudou });
   return { itens, origem, amostra, relatorio };
 }
 
 /** Colunas numéricas lidas pela importação (hoje, o saldo). */
-const CAMPOS_NUMERICOS = ['saldo'] as const;
+const CAMPOS_NUMERICOS: readonly CampoNumerico[] = ['saldo'];
+
+const NOME_SEPARADOR: Record<SeparadorDecimal, string> = { BR: 'BR', PONTO: 'ponto' };
+
+/** "2, 5 e 9" / "2, 3, 4, 5, 6 (e mais 7)": linhas citadas num aviso. */
+function citarLinhas(linhas: number[], total: number): string {
+  const lista = linhas.join(', ');
+  const resto = total - linhas.length;
+  return `${linhas.length === 1 && resto === 0 ? 'a linha' : 'as linhas'} ${lista}${resto > 0 ? ` (e mais ${resto})` : ''}`;
+}
+
+export type SeparadoresDaBase = {
+  decimalPorColuna: ('BR' | 'PONTO' | undefined)[];
+  avisos: string[];
+  /** Separador com que cada coluna numérica foi lida (vai para o relatório e serve de referência à próxima reimportação). */
+  separadores: SeparadoresDaImportacao;
+  /** Avisos em destaque: o separador de uma coluna mudou em relação a `cfg.separadorAnterior`. */
+  separadorMudou: string[];
+};
 
 /**
- * Separador decimal por coluna numérica, detectado na base inteira (detectarSeparadorDecimal): a coluna toda é lida do mesmo jeito. Coluna
- * só com "x.yyy" fica BR (milhar) e gera o aviso para o consultor conferir.
+ * Separador decimal por coluna numérica, detectado na base inteira (analisarSeparadorDecimal): a coluna toda é lida do mesmo jeito. Coluna
+ * só com "x.yyy" fica BR (milhar) e gera o aviso para o consultor conferir; coluna com provas dos dois lados é lida pela maioria e o aviso
+ * cita as linhas do outro lado. Com `cfg.separadorAnterior` (a importação anterior), avisa quando a leitura da coluna mudou e quantos saldos
+ * mudam só por isso.
  */
-export function separadoresDaBase(base: Pick<BaseLida, 'cabecalho' | 'linhas'>, cfg: ConfigImportacao): { decimalPorColuna: ('BR' | 'PONTO' | undefined)[]; avisos: string[] } {
-  const decimalPorColuna: ('BR' | 'PONTO' | undefined)[] = [];
-  const avisos: string[] = [];
+export function separadoresDaBase(base: Pick<BaseLida, 'cabecalho' | 'linhas' | 'linhasFisicas' | 'ncmNumerico'>, cfg: ConfigImportacao): SeparadoresDaBase {
+  const r: SeparadoresDaBase = { decimalPorColuna: [], avisos: [], separadores: {}, separadorMudou: [] };
   for (const campo of CAMPOS_NUMERICOS) {
     const i = cfg.mapeamento[campo];
     if (i == null) continue;
-    const d = detectarSeparadorDecimal((function* () { for (const l of base.linhas) yield l[i]; })());
+    const coluna = function* () { for (const l of base.linhas) yield l[i]; };
+    const a = analisarSeparadorDecimal(coluna(), !!(cfg.colunaNumerica ?? base.ncmNumerico)?.[i]);
     const nome = base.cabecalho[i] || `Coluna ${i + 1}`;
-    if (d === 'AMBIGUO') { decimalPorColuna[i] = 'BR'; avisos.push(`Separador decimal ambíguo na coluna "${nome}": lido como milhar; confira (ex.: "1.250" foi lido como mil duzentos e cinquenta).`); }
-    else if (d === 'PONTO') { decimalPorColuna[i] = 'PONTO'; avisos.push(`A coluna "${nome}" usa ponto como separador decimal (ex.: "12.5"): toda a coluna foi lida assim ("1.250" = 1,25).`); }
-    else if (d === 'BR') decimalPorColuna[i] = 'BR';
+    if (a.separador == null) continue;
+    const lida: SeparadorDecimal = a.separador === 'PONTO' ? 'PONTO' : 'BR';
+    r.decimalPorColuna[i] = lida;
+    r.separadores[campo] = { coluna: nome, separador: lida };
+    if (a.misturado) {
+      const linhas = a.contrarias.map((p) => base.linhasFisicas?.[p] ?? p + 2);
+      r.avisos.push(`Coluna "${nome}" com separadores decimais misturados: lida como ${NOME_SEPARADOR[lida]}; confira ${citarLinhas(linhas, a.totalContrarias)}.`);
+    } else if (a.separador === 'AMBIGUO') r.avisos.push(`Separador decimal ambíguo na coluna "${nome}": lido como milhar; confira (ex.: "1.250" foi lido como mil duzentos e cinquenta).`);
+    else if (lida === 'PONTO') r.avisos.push(`A coluna "${nome}" usa ponto como separador decimal (ex.: "12.5"): toda a coluna foi lida assim ("1.250" = 1,25).`);
+    const antes = cfg.separadorAnterior?.[campo]?.separador;
+    if (antes && antes !== lida) {
+      let mudam = 0;
+      for (const v of coluna()) if (lerNumero(v, false, antes) !== lerNumero(v, false, lida)) mudam++;
+      r.separadorMudou.push(`O separador decimal da coluna "${nome}" mudou de ${NOME_SEPARADOR[antes]} para ${NOME_SEPARADOR[lida]} desde a última importação: ${mudam.toLocaleString('pt-BR')} ${mudam === 1 ? 'saldo muda' : 'saldos mudam'} por isso; confira antes de incorporar.`);
+    }
   }
-  return { decimalPorColuna, avisos };
+  return r;
 }
 
 /**

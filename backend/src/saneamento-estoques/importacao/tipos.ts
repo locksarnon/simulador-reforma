@@ -45,6 +45,8 @@ export type ConfigImportacao = {
   colunaNumerica?: boolean[];
   /** Por coluna: separador decimal detectado na base inteira (texto/CSV), para a coluna toda ser lida do mesmo jeito. Preenchido por conferirBase. */
   decimalPorColuna?: ('BR' | 'PONTO' | undefined)[];
+  /** Separador decimal com que a importação anterior do projeto leu cada coluna numérica (do relatório dela): se mudar, a prévia avisa. */
+  separadorAnterior?: SeparadoresDaImportacao;
   /** Quando a planilha é de um único depósito e não tem a coluna. */
   estabelecimentoFixo?: string | null;
   /** Data de referência para rejeitar datas no futuro (padrão: agora). */
@@ -93,7 +95,16 @@ export type RelatorioImportacao = {
   linhasRejeitadas: { linha: number; chave: string | null; ocorrencias: string[] }[];
   linhasPendentes: { linha: number; chave: string | null; ocorrencias: string[] }[];
   truncado: boolean;
+  /** Separador decimal com que cada coluna numérica foi lida (guardado para a próxima reimportação comparar). */
+  separadores: SeparadoresDaImportacao;
+  /** Avisos em destaque: o separador decimal de uma coluna mudou desde a importação anterior (vazio quando não mudou). */
+  separadorMudou: string[];
 };
+
+/** Colunas numéricas lidas pela importação (hoje, o saldo). */
+export type CampoNumerico = 'saldo';
+/** Por campo numérico: a coluna do arquivo e o separador com que ela foi lida (só quando alguma célula tinha separador decimal). */
+export type SeparadoresDaImportacao = Partial<Record<CampoNumerico, { coluna: string; separador: 'BR' | 'PONTO' }>>;
 
 export type PreviaImportacao = {
   formato: 'xlsx' | 'csv';

@@ -72,7 +72,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "O que acontece na reimportação do cadastro?",
-      r: "A prévia mostra o que mudou desde a última importação: itens Novos, Alterados, Inalterados e Ausentes do arquivo. Os novos entram sozinhos, os ausentes nunca são removidos e, nos alterados, você escolhe o que trazer. Campos que já têm decisão aparecem como “Protegido (decisão)” e não são sobrescritos. Decisões e rascunhos são preservados.",
+      r: "A prévia mostra o que mudou desde a última importação: itens Novos, Alterados, Inalterados e Ausentes do arquivo. Os novos entram sozinhos, os ausentes nunca são removidos e, nos alterados, você escolhe o que trazer. Campos que já têm decisão aparecem como “Protegido (decisão)” e não são sobrescritos. Decisões e rascunhos são preservados. Se o separador decimal da coluna de saldo mudou desde a última importação (por exemplo, de vírgula para ponto), o aviso “Separador decimal mudou” aparece junto do botão de confirmar, com quantos saldos mudam só por isso.",
     },
     {
       p: "Por que o caso aberto pela Visão geral avisa que tem itens de outros grupos?",

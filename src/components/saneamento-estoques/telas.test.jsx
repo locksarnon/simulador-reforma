@@ -14,7 +14,7 @@ import Casos from "./Casos";
 import Cobertura from "./Cobertura";
 import Configuracao from "./Configuracao";
 import Impacto from "./Impacto";
-import Importacao, { Reimportacao } from "./Importacao";
+import Importacao, { AvisosDeSeparador, Reimportacao } from "./Importacao";
 import TabelaUnica from "./TabelaUnica";
 import Unificacoes from "./Unificacoes";
 import Versoes, { ContinuarVersao } from "./Versoes";
@@ -261,6 +261,18 @@ describe("Reimportação grande", () => {
     expect(t).not.toContain("só as 200 primeiras");
     expect(ver("ALTERADOS")).toContain("Vale para todas as diferenças do arquivo, não só para a página abaixo: 28.970 item(ns)");
     expect(ver("ALTERADOS_SEM_PROTEGIDO")).toContain("28.940 item(ns)");
+  });
+});
+
+describe("Reimportação: separador decimal mudou", () => {
+  it("mostra o aviso em destaque (alerta) e nada quando não mudou", () => {
+    const msg = "O separador decimal da coluna \"Saldo\" mudou de BR para ponto desde a última importação: 2 saldos mudam por isso; confira antes de incorporar.";
+    const html = renderToStaticMarkup(<AvisosDeSeparador relatorio={{ separadorMudou: [msg] }} />);
+    expect(html).toContain("role=\"alert\"");
+    expect(texto(html)).toContain("Separador decimal mudou");
+    expect(texto(html)).toContain("2 saldos mudam por isso; confira antes de incorporar");
+    expect(renderToStaticMarkup(<AvisosDeSeparador relatorio={{ separadorMudou: [] }} />)).toBe("");
+    expect(renderToStaticMarkup(<AvisosDeSeparador relatorio={undefined} />)).toBe("");
   });
 });
 
