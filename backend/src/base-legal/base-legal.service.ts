@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { chaveDe, normasCitadas, referenciaDe, urlOficialValida } from './base-legal.deteccao';
@@ -92,17 +93,31 @@ export class BaseLegalService {
 
   /** Garante o cadastro das normas do manifesto (idempotente). */
   async garantirNormas() {
+    // `monitorar` é escolha do administrador (Administração > Normas monitoradas): nasce ligado e o catálogo não o sobrescreve.
+    const urls = new Map((await this.prisma.normaLegal.findMany({ select: { chave: true, url_oficial: true } })).map((n) => [n.chave, n.url_oficial]));
     for (const f of FONTES_NORMAS) {
       const comum = {
         tipo: f.tipo, numero: f.numero, titulo: f.titulo, orgao: f.orgao, url_oficial: f.url_oficial, prioridade: f.prioridade, observacao: f.observacao ?? null,
-        grupo: f.grupo ?? null, formato: f.formato ?? 'html', monitorar: f.formato !== 'externo',
+        grupo: f.grupo ?? null, formato: f.formato ?? 'html',
       };
+      // Documento só de referência que trocou de endereço: a impressão digital guardada era do endereço antigo.
+      const trocouEndereco = f.formato === 'externo' && urls.has(f.chave) && urls.get(f.chave) !== f.url_oficial;
       await this.prisma.normaLegal.upsert({
         where: { chave: f.chave },
-        create: { chave: f.chave, data_publicacao: f.data_publicacao ? new Date(f.data_publicacao) : null, origem: 'manifesto', ...comum },
-        update: comum,
+        create: { chave: f.chave, data_publicacao: f.data_publicacao ? new Date(f.data_publicacao) : null, origem: 'manifesto', monitorar: true, ...comum },
+        update: trocouEndereco ? { ...comum, hash_atual: null } : comum,
       });
     }
+  }
+
+  /**
+   * Impressão digital do documento oficial de uma norma só de referência (sem texto por artigo): do texto da página, em HTML
+   * (o que muda em volta, como menus, não conta), ou do próprio arquivo, em PDF. Serve para avisar quando o documento mudou.
+   */
+  async hashDoDocumento(url: string): Promise<string> {
+    const { corpo, tipo } = await this.baixarBruto(url);
+    if (/pdf/i.test(tipo) || corpo.subarray(0, 5).toString('latin1') === '%PDF-') return createHash('sha256').update(corpo).digest('hex');
+    return sha256(textoDaPagina(decodificar(corpo)));
   }
 
   /**
@@ -369,7 +384,7 @@ export class BaseLegalService {
 
   /** Compara o texto oficial de hoje com o carregado e abre alerta quando muda (não altera a base). */
   async verificarAtualizacoes(origem = 'verificacao'): Promise<{ verificadas: number; alertas: number; erros: string[] }> {
-    const normas = await this.prisma.normaLegal.findMany({ where: { total_dispositivos: { gt: 0 }, formato: { not: 'externo' } } });
+    const normas = await this.prisma.normaLegal.findMany({ where: { total_dispositivos: { gt: 0 }, formato: { not: 'externo' }, monitorar: true } });
     let alertas = 0;
     const erros: string[] = [];
     for (const n of normas) {

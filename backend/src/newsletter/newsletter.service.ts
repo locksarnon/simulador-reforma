@@ -1,13 +1,16 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService, emailLayout, esc } from '../mail/mail.service';
-import { plural } from '../common/plural';
+import { BaseLegalService } from '../base-legal/base-legal.service';
+import { htmlNewsletter, htmlNewsletterSemIa, itensDaSemana, promptNewsletter, TIPOS_NOVIDADE_NEWSLETTER, validarNewsletter } from './newsletter-resumo';
 
 const LINK = '{{LINK_DESCADASTRO}}';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const ORDEM: Record<string, number> = { Alta: 0, Média: 1 };
-const COR: Record<string, string> = { Alta: '#b3261e', Média: '#a86a00' };
+/** Novidades das bases legais que entram na edição: as da última semana (a revisão semanal roda na segunda às 5h). */
+const JANELA_NOVIDADES_MS = 8 * 86_400_000;
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -24,7 +27,16 @@ const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class NewsletterService {
   private readonly logger = new Logger(NewsletterService.name);
 
-  constructor(private readonly prisma: PrismaService, private readonly mail: MailService) {}
+  constructor(private readonly prisma: PrismaService, private readonly mail: MailService, private readonly modulos: ModuleRef) {}
+
+  /** Motor de IA das bases legais (Claude ou Gemini), buscado na hora: o módulo Comercial não depende do módulo da Base legal. */
+  private ia(): BaseLegalService | null {
+    try {
+      return this.modulos.get(BaseLegalService, { strict: false });
+    } catch {
+      return null;
+    }
+  }
 
   @Cron('30 7 * * 1', { timeZone: 'America/Sao_Paulo' })
   async rascunhoSemanal() {
@@ -70,29 +82,36 @@ export class NewsletterService {
     const existente = await this.prisma.newsletterEdicao.findFirst({ where: { semana_referencia: exec.semana_referencia } });
     if (existente) return existente;
 
-    const itens = (await this.prisma.radarReformaItem.findMany({
+    const radar = (await this.prisma.radarReformaItem.findMany({
       where: { semana_referencia: exec.semana_referencia, prioridade: { in: ['Alta', 'Média'] } },
     })).sort((a, b) => (ORDEM[a.prioridade] ?? 9) - (ORDEM[b.prioridade] ?? 9));
-    if (itens.length === 0) throw new BadRequestException('O Radar desta semana não tem itens de prioridade Alta ou Média.');
-
-    const blocos = itens.map((i) => `
-      <div style="border:1px solid #dfe5e0;border-radius:6px;padding:14px;margin:0 0 12px">
-        <div style="font-size:11px;font-weight:bold;color:${COR[i.prioridade] || '#555'};text-transform:uppercase">${esc(i.prioridade)} · ${esc(i.status_normativo || 'A confirmar')}</div>
-        <div style="font-size:12px;color:#5b6b63;margin:2px 0 8px">${esc(i.categoria)}</div>
-        <div style="font-size:14px;line-height:1.55">${esc(i.resumo)}</div>
-        ${i.prazo_vigencia ? `<div style="font-size:13px;margin-top:8px"><b>Prazo/vigência:</b> ${esc(i.prazo_vigencia)}</div>` : ''}
-        ${i.acao_recomendada ? `<div style="font-size:13px;margin-top:6px;background:#f3f5f2;padding:8px;border-radius:4px"><b>O que fazer:</b> ${esc(i.acao_recomendada)}</div>` : ''}
-        ${i.fonte_url ? `<div style="font-size:12px;margin-top:8px"><a href="${esc(i.fonte_url)}" style="color:#1f3a2e">${esc(i.fonte_nome || 'Fonte')}</a></div>` : ''}
-      </div>`).join('');
-
-    const corpo = `${exec.resumo_executivo ? `<p style="font-size:14px;line-height:1.6;margin:0 0 16px"><b>Resumo da semana:</b> ${esc(exec.resumo_executivo)}</p>` : ''}${blocos}`;
-    return this.prisma.newsletterEdicao.create({
-      data: {
-        assunto: `Radar InTAX — ${plural(itens.length, 'novidade', 'novidades')} da reforma tributária para você acompanhar`,
-        semana_referencia: exec.semana_referencia,
-        corpo_html: corpo,
-      },
+    // O que a revisão semanal das bases legais achou: leis alteradas ou revogadas, normas novas e documentos oficiais que mudaram.
+    const novidades = await this.prisma.novidadeLegal.findMany({
+      where: { detectada_em: { gte: new Date(Date.now() - JANELA_NOVIDADES_MS) }, oficial: true, confirmada: true, status: { not: 'descartada' }, tipo: { in: TIPOS_NOVIDADE_NEWSLETTER } },
+      orderBy: { detectada_em: 'desc' },
+      take: 20,
+      select: { tipo: true, norma_numero: true, titulo: true, resumo: true, url: true },
     });
+    if (radar.length === 0 && novidades.length === 0) throw new BadRequestException('Nada de prioridade Alta ou Média no Radar desta semana e nenhuma mudança nas leis acompanhadas.');
+
+    const { assunto, corpo } = await this.conteudo(radar, novidades, exec.resumo_executivo);
+    return this.prisma.newsletterEdicao.create({ data: { assunto, semana_referencia: exec.semana_referencia, corpo_html: corpo } });
+  }
+
+  /** A IA escreve o resumo do resumo, o efeito por setor e o que preparar; sem IA (ou resposta inaproveitável), a versão curta. */
+  private async conteudo(radar: Parameters<typeof itensDaSemana>[0], novidades: Parameters<typeof itensDaSemana>[1], resumoExecutivo: string | null) {
+    const itens = itensDaSemana(radar, novidades);
+    const motor = this.ia();
+    if (motor) {
+      try {
+        const c = validarNewsletter(await motor.ia(promptNewsletter(itens), 90_000), itens);
+        if (c) return { assunto: c.assunto, corpo: htmlNewsletter(c, itens) };
+        this.logger.warn('Newsletter: a resposta da IA não trouxe conteúdo aproveitável; usada a versão curta.');
+      } catch (e) {
+        this.logger.warn(`Newsletter: IA indisponível (${(e as Error).message}); usada a versão curta.`);
+      }
+    }
+    return htmlNewsletterSemIa(radar, novidades, resumoExecutivo);
   }
 
   private montarHtml(ed: { assunto: string; corpo_html: string }, linkDescadastro: string) {

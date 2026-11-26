@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { avisosDePendencias } from './avisos-legais';
+import { FONTES_NORMAS, UFS_REGRAS_ESTADUAIS } from './fontes';
 
 export type FiltroNovidades = {
   /** abertas (padrão: novas e vistas) | nova | vista | descartada | resolvida | todas */
@@ -31,6 +32,50 @@ const limitar = (n: unknown, padrao: number, max: number) => Math.min(Math.max(N
 @Injectable()
 export class ConhecimentoLegalService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Normas do catálogo com a marcação de monitoramento (Administração > Normas monitoradas). */
+  async normasMonitoradas() {
+    const normas = await this.prisma.normaLegal.findMany({
+      select: {
+        chave: true, numero: true, titulo: true, tipo: true, grupo: true, formato: true, monitorar: true, situacao: true,
+        capturada_em: true, atualizada_em: true, total_dispositivos: true, url_oficial: true, origem: true,
+      },
+      orderBy: [{ grupo: 'asc' }, { numero: 'asc' }],
+    });
+    const ufs = new Map(FONTES_NORMAS.filter((f) => f.uf).map((f) => [f.chave, f.uf as string]));
+    return normas.map((n) => ({ ...n, uf: ufs.get(n.chave) ?? null, leitura: n.formato === 'externo' ? 'referencia' : 'texto' }));
+  }
+
+  /** Grava a escolha do administrador: as normas da lista ficam monitoradas pela revisão semanal; as demais, não. */
+  async definirMonitoradas(chaves: unknown) {
+    if (!Array.isArray(chaves) || chaves.some((c) => typeof c !== 'string')) throw new BadRequestException('Envie a lista das normas monitoradas.');
+    const lista = [...new Set(chaves as string[])];
+    const [ligadas, desligadas] = await this.prisma.$transaction([
+      this.prisma.normaLegal.updateMany({ where: { chave: { in: lista } }, data: { monitorar: true } }),
+      this.prisma.normaLegal.updateMany({ where: { chave: { notIn: lista } }, data: { monitorar: false } }),
+    ]);
+    return { monitoradas: ligadas.count, fora: desligadas.count };
+  }
+
+  /** Tela Regras estaduais: as normas estaduais do catálogo por UF, com a última conferência e a última mudança do documento oficial. */
+  async regrasEstaduais() {
+    const estaduais = FONTES_NORMAS.filter((f) => f.uf);
+    const banco = new Map(
+      (await this.prisma.normaLegal.findMany({ where: { chave: { in: estaduais.map((f) => f.chave) } }, select: { chave: true, capturada_em: true, atualizada_em: true, monitorar: true } }))
+        .map((n) => [n.chave, n]),
+    );
+    return UFS_REGRAS_ESTADUAIS.map(({ uf, nome }) => ({
+      uf,
+      nome,
+      documentos: estaduais.filter((f) => f.uf === uf).map((f) => {
+        const b = banco.get(f.chave);
+        return {
+          chave: f.chave, botao: f.botao ?? f.tipo, numero: f.numero, titulo: f.titulo, orgao: f.orgao ?? null, url: f.url_oficial, observacao: f.observacao ?? null,
+          conferida_em: b?.capturada_em ?? null, mudou_em: b?.atualizada_em ?? null, monitorar: b?.monitorar ?? true,
+        };
+      }),
+    }));
+  }
 
   private onde(f: FiltroNovidades): Prisma.NovidadeLegalWhereInput {
     const where: Prisma.NovidadeLegalWhereInput = {};

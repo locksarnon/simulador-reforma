@@ -1,13 +1,34 @@
 import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { BaseLegalService } from './base-legal.service';
 import { ConhecimentoLegalService, FiltroNovidades } from './conhecimento-legal.service';
 import { RevisaoSemanalService } from './revisao-semanal.service';
 
-/** Bases legais: novidades (alterações, revogações, atos novos, aplicações) e a rotina de revisão semanal. */
+/** Bases legais: novidades (alterações, revogações, atos novos, aplicações), a rotina de revisão semanal, as normas monitoradas e as regras estaduais. */
 @Controller('base-legal')
 export class ConhecimentoLegalController {
-  constructor(private readonly conhecimento: ConhecimentoLegalService, private readonly semanal: RevisaoSemanalService) {}
+  constructor(private readonly conhecimento: ConhecimentoLegalService, private readonly semanal: RevisaoSemanalService, private readonly baseLegal: BaseLegalService) {}
+
+  // ───── Normas monitoradas (Administração) e regras estaduais ─────
+
+  @Get('monitoramento')
+  async monitoradas() {
+    await this.baseLegal.garantirNormas();
+    return this.conhecimento.normasMonitoradas();
+  }
+
+  /** Corpo: { monitoradas: [chaves] }. As normas fora da lista deixam de ser conferidas pela revisão semanal. */
+  @Post('monitoramento')
+  definirMonitoradas(@CurrentUser() user: AuthUser, @Body() body: { monitoradas?: unknown }) {
+    this.exigirAdmin(user);
+    return this.conhecimento.definirMonitoradas(body?.monitoradas);
+  }
+
+  @Get('regras-estaduais')
+  regrasEstaduais() {
+    return this.conhecimento.regrasEstaduais();
+  }
 
   private exigirAdmin(user: AuthUser) {
     if (user.role !== 'admin') throw new ForbiddenException('Somente administradores');

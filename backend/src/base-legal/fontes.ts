@@ -29,6 +29,34 @@ export type FonteNorma = {
   /** html (padrão) | pdf | externo (só referência: sem texto por artigo) */
   formato?: 'html' | 'pdf' | 'externo';
   observacao?: string;
+  /** Norma estadual: a UF e o rótulo do botão na tela Regras estaduais ("RICMS", "Lei do ICMS", "FETHAB"). */
+  uf?: string;
+  botao?: string;
+  /**
+   * Só referência: endereço que a revisão semanal confere quando o do botão não serve para isso (em RO o arquivo de cada
+   * consolidação ganha endereço novo; a lista dos arquivos atuais muda quando sai a consolidação nova).
+   */
+  url_monitoramento?: string;
+};
+
+/** UFs da tela Regras estaduais, na ordem em que aparecem. */
+export const UFS_REGRAS_ESTADUAIS: { uf: string; nome: string }[] = [
+  { uf: 'PA', nome: 'Pará' }, { uf: 'MS', nome: 'Mato Grosso do Sul' }, { uf: 'MT', nome: 'Mato Grosso' }, { uf: 'MA', nome: 'Maranhão' },
+  { uf: 'SP', nome: 'São Paulo' }, { uf: 'MG', nome: 'Minas Gerais' }, { uf: 'GO', nome: 'Goiás' }, { uf: 'BA', nome: 'Bahia' },
+  { uf: 'PI', nome: 'Piauí' }, { uf: 'TO', nome: 'Tocantins' }, { uf: 'RO', nome: 'Rondônia' },
+];
+
+/** Rótulo do botão de cada norma estadual na tela Regras estaduais (sem rótulo: "Lei" ou "Decreto"). */
+const BOTAO_ESTADUAL: Record<string, string> = {
+  'mt-lei-7098-1998': 'Lei do ICMS', 'mt-dec-2212-2014': 'RICMS', 'mt-lei-7263-2000': 'FETHAB',
+  'go-lei-11651-1991': 'Código Tributário (CTE)', 'go-dec-4852-1997': 'RICMS (RCTE)', 'go-lei-21670-2022': 'FUNDEINFRA', 'go-lei-14469-2003': 'PROTEGE',
+  'ms-lei-1810-1997': 'Lei do ICMS', 'ms-dec-9203-1998': 'RICMS', 'ms-lei-1963-1999': 'FUNDERSUL',
+  'ba-lei-7014-1996': 'Lei do ICMS', 'ba-dec-13780-2012': 'RICMS', 'ba-dec-14500-2013': 'Crédito de grãos', 'ba-lei-7932-2001': 'PROALBA', 'ba-dec-8064-2001': 'Regulamento do PROALBA',
+  'ma-lei-7799-2002': 'Lei do ICMS', 'ma-dec-19714-2003': 'RICMS', 'ma-lei-12428-2024': 'Contribuição de grãos',
+  'pa-lei-5530-1989': 'Lei do ICMS', 'pa-dec-4676-2001': 'RICMS',
+  'sp-lei-6374-1989': 'Lei do ICMS', 'sp-dec-45490-2000': 'RICMS', 'mg-lei-6763-1975': 'Lei do ICMS', 'mg-dec-48589-2023': 'RICMS',
+  'pi-lei-4257-1989': 'Lei do ICMS', 'pi-dec-21866-2023': 'RICMS', 'to-lei-1287-2001': 'Código Tributário', 'to-sefaz-legislacao': 'RICMS (página da SEFAZ-TO)',
+  'ro-lei-688-1996': 'Lei do ICMS', 'ro-dec-22721-2018': 'RICMS',
 };
 
 const PLANALTO = 'https://www.planalto.gov.br/ccivil_03';
@@ -607,7 +635,7 @@ export const FONTES_NORMAS: FonteNorma[] = [
   //    do texto (classe em GO, cor verde em MS, blocos "Redação anterior..." em MT, BA, PA e MA), e o leitor a tomaria por vigente.
   ...estadual('MT', 'SEFAZ-MT', [
     ['mt-lei-7098-1998', 'Lei', 'Lei 7.098/1998', 'Lei do ICMS de Mato Grosso (consolidada)', '1998-12-30', 'https://app1.sefaz.mt.gov.br/sistema/legislacao/legislacaotribut.nsf/07fa81bed2760c6b84256710004d3940/cc9c3b9886404baa0325678b0043a842?OpenDocument'],
-    ['mt-dec-2212-2014', 'Decreto', 'Decreto 2.212/2014', 'Regulamento do ICMS de Mato Grosso (RICMS/MT)', '2014-03-20', 'http://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=6', 'No portal da SEFAZ-MT o regulamento consolidado é publicado por capítulo, uma página para cada.'],
+    ['mt-dec-2212-2014', 'Decreto', 'Decreto 2.212/2014', 'Regulamento do ICMS de Mato Grosso (RICMS/MT)', '2014-03-20', 'https://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=6', 'No portal da SEFAZ-MT o regulamento consolidado é publicado por capítulo, uma página para cada.'],
     ['mt-lei-7263-2000', 'Lei', 'Lei 7.263/2000', 'Fundo Estadual de Transporte e Habitação (FETHAB)', '2000-03-27', 'https://app1.sefaz.mt.gov.br/sistema/legislacao/legislacaotribut.nsf/07fa81bed2760c6b84256710004d3940/3866792553b6de7b032568b30044c0d4?OpenDocument', 'O art. 7º condiciona o diferimento do ICMS de soja, gado, madeira e feijão à contribuição ao FETHAB.'],
   ]),
   ...estadual('GO', 'Secretaria da Economia de Goiás', [
@@ -637,13 +665,45 @@ export const FONTES_NORMAS: FonteNorma[] = [
     ['pa-lei-5530-1989', 'Lei', 'Lei 5.530/1989', 'Lei do ICMS do Pará', '1989-01-13', 'https://www.sefa.pa.gov.br/legislacao/interna/lei/lp1989_05530.pdf'],
     ['pa-dec-4676-2001', 'Decreto', 'Decreto 4.676/2001', 'Regulamento do ICMS do Pará (RICMS/PA)', '2001-06-18', 'https://www.sefa.pa.gov.br/legislacao/interna/decreto/dc2001_04676.pdf'],
   ]),
+  ...estadual('SP', 'SEFAZ-SP', [
+    ['sp-lei-6374-1989', 'Lei', 'Lei 6.374/1989', 'Lei do ICMS de São Paulo', '1989-03-01', 'https://legislacao.fazenda.sp.gov.br/Paginas/texto6374.aspx'],
+    ['sp-dec-45490-2000', 'Decreto', 'Decreto 45.490/2000', 'Regulamento do ICMS de São Paulo (RICMS/2000), com os anexos na mesma página', '2000-11-30', 'https://legislacao.fazenda.sp.gov.br/Paginas/textoricms.aspx'],
+  ]),
+  ...estadual('MG', 'SEF-MG', [
+    ['mg-lei-6763-1975', 'Lei', 'Lei 6.763/1975', 'Consolida a legislação tributária de Minas Gerais (o ICMS está no Título II)', '1975-12-26', 'https://www.almg.gov.br/legislacao-mineira/texto/LEI/6763/1975/?cons=1', { orgao: 'Assembleia Legislativa de Minas Gerais' }],
+    ['mg-dec-48589-2023', 'Decreto', 'Decreto 48.589/2023', 'Regulamento do ICMS de Minas Gerais (RICMS/2023), com os anexos em PDFs separados', '2023-03-22', 'https://www.fazenda.mg.gov.br/empresas/legislacao_tributaria/ricms_2023_seco/regulamento2023seco.pdf'],
+  ]),
+  ...estadual('PI', 'SEFAZ-PI', [
+    ['pi-lei-4257-1989', 'Lei', 'Lei 4.257/1989', 'Lei do ICMS do Piauí', '1989-01-06', 'https://portaldalegislacao.sefaz.pi.gov.br/Arquivos/ARQUIVOS_CHRONUS/ARQUIVO_PRINCIPAL_LEGISLACAO/2081/Lei_n_4.257_1989.pdf'],
+    ['pi-dec-21866-2023', 'Decreto', 'Decreto 21.866/2023', 'Regulamento do ICMS do Piauí (RICMS/PI), com os anexos em PDFs separados', '2023-03-06', 'https://portaldalegislacao.sefaz.pi.gov.br/Arquivos/ARQUIVOS_CHRONUS/ARQUIVO_PRINCIPAL_LEGISLACAO/1400/Decreto_n_21.866_2023_-_REGULAMENTO_DO_ICMS_DO_ESTADO_DO_PIAUI.pdf'],
+  ]),
+  ...estadual('TO', 'Assembleia Legislativa do Tocantins', [
+    ['to-lei-1287-2001', 'Lei', 'Lei 1.287/2001', 'Código Tributário do Estado do Tocantins (institui o ICMS)', '2001-12-28', 'https://www.al.to.leg.br/arquivo/68306'],
+    ['to-sefaz-legislacao', 'Página', 'Página da legislação tributária', 'Página oficial da legislação tributária do Tocantins (RICMS)', '', 'https://www.to.gov.br/sefaz/legislacao-tributaria/3lb4r1ekdyvb', {
+      orgao: 'SEFAZ-TO',
+      observacao: 'Em 26/11/2026 o link do RICMS nesta página apontava para um servidor da SEFAZ-TO que não respondia, e o regulamento não foi achado em outro endereço oficial. A revisão semanal avisa quando a página mudar.',
+    }],
+  ]),
+  ...estadual('RO', 'SEFIN-RO', [
+    ['ro-lei-688-1996', 'Lei', 'Lei 688/1996', 'Lei do ICMS de Rondônia (consolidada)', '1996-12-27', 'https://legislacao.sefin.ro.gov.br/normas/77', { monitorarEm: 'https://legislacao.sefin.ro.gov.br/link_arquivo/77' }],
+    ['ro-dec-22721-2018', 'Decreto', 'Decreto 22.721/2018', 'Regulamento do ICMS de Rondônia (RICMS/RO), consolidado; anexos em fichas separadas', '2018-04-05', 'https://legislacao.sefin.ro.gov.br/normas/128', { monitorarEm: 'https://legislacao.sefin.ro.gov.br/link_arquivo/128' }],
+  ]),
 ];
 
+type ExtraEstadual = { observacao?: string; orgao?: string; monitorarEm?: string };
+
 /** Norma estadual só com o link oficial: o número leva a UF ("Lei 7.098/1998 (MT)") para não se confundir com ato federal. */
-function estadual(uf: string, orgao: string, itens: [string, string, string, string, string, string, string?][]): FonteNorma[] {
-  return itens.map(([chave, tipo, numero, titulo, data, url, observacao]) => ({
-    chave, tipo: `${tipo} estadual`, numero: `${numero} (${uf})`, titulo, orgao, data_publicacao: data, url_oficial: url,
-    prioridade: 1, grupo: 'territorial' as const, formato: 'externo' as const,
-    observacao: observacao ?? 'Texto consolidado no site oficial do estado; a redação anterior fica no meio do texto, por isso a norma fica só como referência.',
-  }));
+function estadual(uf: string, orgao: string, itens: [string, string, string, string, string, string, (string | ExtraEstadual)?][]): FonteNorma[] {
+  return itens.map(([chave, tipo, numero, titulo, data, url, extra]) => {
+    const x: ExtraEstadual = typeof extra === 'string' ? { observacao: extra } : extra ?? {};
+    return {
+      chave, tipo: `${tipo} estadual`, numero: `${numero} (${uf})`, titulo, orgao: x.orgao ?? orgao, data_publicacao: data || undefined, url_oficial: url,
+      prioridade: 1, grupo: 'territorial' as const, formato: 'externo' as const, uf, botao: BOTAO_ESTADUAL[chave] ?? tipo,
+      ...(x.monitorarEm ? { url_monitoramento: x.monitorarEm } : {}),
+      observacao: x.observacao ?? 'Texto consolidado no site oficial do estado; a redação anterior fica no meio do texto, por isso a norma fica só como referência.',
+    };
+  });
 }
+
+/** Endereço que a revisão semanal confere em cada norma só de referência (o do botão, salvo quando o catálogo indica outro). */
+export const URL_MONITORAMENTO = new Map(FONTES_NORMAS.filter((f) => f.url_monitoramento).map((f) => [f.chave, f.url_monitoramento as string]));

@@ -1072,6 +1072,26 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
   },
   {
     modulo: "parametros-rotinas",
+    codigo: "POP-ADM-25",
+    titulo: "Escolher as normas que a revisão semanal monitora",
+    objetivo: "Marcar as leis e regras (federais, convênios e estaduais) que a revisão semanal confere toda segunda-feira para avisar o que mudou.",
+    quem: "Administrador",
+    quando: "Na implantação e quando a carteira passar a ter (ou deixar de ter) clientes de um estado ou setor.",
+    caminho: "Menu > Administração > Parâmetros e rotinas > aba Normas monitoradas",
+    antes: ["Ser administrador."],
+    passos: [
+      { acao: "Abra a aba Normas monitoradas.", detalhe: "A tabela traz todas as normas do catálogo, com o bloco, a UF (ou Federal), como cada uma é conferida e as datas da última conferência e da última mudança." },
+      { acao: "Marque ou desmarque a caixa Monitorar de cada norma; use os filtros das colunas para achar um estado ou um bloco.", detalhe: "Marcar todas e Desmarcar todas valem para o catálogo inteiro, não só para o que está filtrado." },
+      { acao: "Clique em Salvar.", detalhe: "Desfazer volta ao que estava gravado." },
+    ],
+    resultado: "Aparece “Normas monitoradas salvas”, com quantas ficaram monitoradas e quantas ficaram fora.",
+    atencao: [
+      "Por padrão, todas ficam marcadas. Norma desmarcada deixa de ser conferida: mudança nela não aparece nas Novidades, no e-mail da rodada nem na newsletter.",
+      "Nas normas lidas por artigo, a revisão relê o texto oficial; nas que ficam só como referência (estaduais, instruções da Receita, TIPI), ela confere se o documento oficial mudou e, se mudou, avisa com o link para você conferir.",
+    ],
+  },
+  {
+    modulo: "parametros-rotinas",
     codigo: "POP-ADM-21",
     titulo: "Gerar as guias do mês",
     objetivo: "Gerar as guias dos clientes do BPO todo mês no dia escolhido, com envio opcional por e-mail.",

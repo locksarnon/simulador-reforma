@@ -3,7 +3,7 @@ import { RevisaoSemanalService, semanaIso } from './revisao-semanal.service';
 
 const AGORA = new Date(Date.UTC(2026, 10, 25, 8, 0)); // quarta-feira, 05h em Brasília
 
-type Norma = { id: string; chave: string; numero: string; titulo: string; grupo: string; formato: string; monitorar: boolean; prioridade: number; total_dispositivos: number; url_oficial: string; situacao: string; atos_modificadores: unknown[] };
+type Norma = { id: string; chave: string; numero: string; titulo: string; grupo: string; formato: string; monitorar: boolean; prioridade: number; total_dispositivos: number; url_oficial: string; situacao: string; atos_modificadores: unknown[]; hash_atual?: string | null; capturada_em?: Date | null };
 const norma = (o: Partial<Norma> & { chave: string; numero: string }): Norma => ({
   id: `id-${o.chave}`, titulo: `Título de ${o.numero}`, grupo: 'reforma', formato: 'html', monitorar: true, prioridade: 0, total_dispositivos: 100,
   url_oficial: `https://www.planalto.gov.br/${o.chave}.htm`, situacao: 'vigente', atos_modificadores: [], ...o,
@@ -32,6 +32,8 @@ type Opcoes = {
   citacoes?: Record<string, unknown>[];
   emCurso?: boolean;
   ia?: boolean;
+  /** Impressão digital de hoje de cada documento só de referência, pela URL (erro: o documento não abriu). */
+  hashes?: Record<string, string | Error>;
 };
 
 function montar(o: Opcoes = {}) {
@@ -49,9 +51,10 @@ function montar(o: Opcoes = {}) {
     normaLegal: {
       findMany: vi.fn(async (a: { where?: any } = {}) => {
         const w = a.where ?? {};
-        return normas.filter((n) => (w.formato?.not ? n.formato !== w.formato.not : true) && (w.monitorar === undefined || n.monitorar === w.monitorar)
+        return normas.filter((n) => (typeof w.formato === 'string' ? n.formato === w.formato : w.formato?.not ? n.formato !== w.formato.not : true) && (w.monitorar === undefined || n.monitorar === w.monitorar)
           && (w.total_dispositivos?.gt === undefined || n.total_dispositivos > w.total_dispositivos.gt) && (!w.chave?.in || w.chave.in.includes(n.chave)));
       }),
+      update: vi.fn(async () => ({})),
     },
     dispositivoLegal: { findMany: vi.fn(async (a: { where: { norma_id: string } }) => o.artigos?.[a.where.norma_id] ?? []) },
     novidadeLegal: {
@@ -102,6 +105,11 @@ function montar(o: Opcoes = {}) {
     iaConfigurada: vi.fn(() => o.ia ?? false),
     iaComBusca: vi.fn(async () => ({ texto: '{"itens":[]}', grounding: null, modelo: 'teste' })),
     urlResponde: vi.fn(async () => true),
+    hashDoDocumento: vi.fn(async (url: string) => {
+      const h = o.hashes?.[url];
+      if (h instanceof Error) throw h;
+      return h ?? 'hash-de-hoje';
+    }),
   };
   const mail = { emailInterno: 'admin@fal.test', configurado: true, urlPublica: 'https://intax.test', enviar: vi.fn(async () => ({ enviado: true })) };
   const config = { get: (k: string) => o.env?.[k] };
@@ -210,6 +218,46 @@ describe('revisão semanal: texto oficial das normas', () => {
     expect(baseLegal.importar.mock.calls[0][0]).toBe('decreto-1-2026');
     expect(baseLegal.verificarAtualizacoes).toHaveBeenCalledWith('agendada');
     expect(ultimoUpdate(prisma).normas_verificadas).toBe(3);
+  });
+});
+
+describe('revisão semanal: documentos só de referência (normas estaduais, INs da RFB)', () => {
+  const RICMS_PA = 'https://www.sefa.pa.gov.br/legislacao/interna/decreto/dc2001_04676.pdf';
+  const RICMS_MT = 'https://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=6';
+  const LEI_GO = 'https://appasp.economia.go.gov.br/legislacao/arquivos/CTE/CTE.htm';
+  const referencias = () => [
+    norma({ chave: 'pa-dec-4676-2001', numero: 'Decreto 4.676/2001 (PA)', formato: 'externo', url_oficial: RICMS_PA, hash_atual: null }),
+    norma({ chave: 'mt-dec-2212-2014', numero: 'Decreto 2.212/2014 (MT)', formato: 'externo', url_oficial: RICMS_MT, hash_atual: 'antigo', capturada_em: new Date(Date.UTC(2026, 10, 16, 8)) }),
+    norma({ chave: 'go-lei-11651-1991', numero: 'Lei 11.651/1991 (GO)', formato: 'externo', url_oficial: LEI_GO, hash_atual: 'igual' }),
+    norma({ chave: 'ms-lei-1963-1999', numero: 'Lei 1.963/1999 (MS)', formato: 'externo', url_oficial: 'https://x.ms.gov.br/a', hash_atual: 'velho', monitorar: false }),
+  ];
+
+  it('primeira conferência guarda o ponto de partida; documento diferente vira novidade com o link; o não monitorado fica de fora', async () => {
+    const { service, prisma, baseLegal, mail } = montar({
+      normas: referencias(), hashes: { [RICMS_PA]: 'p1', [RICMS_MT]: 'novo', [LEI_GO]: 'igual' },
+      novidadesDaRodada: [{ tipo: 'fonte_atualizada', titulo: 'Decreto 2.212/2014 (MT): o documento oficial mudou', resumo: 'Confira.', url: 'https://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=6', oficial: true, confirmada: true }],
+    });
+    await service.executar('agendada');
+    expect(baseLegal.hashDoDocumento.mock.calls.map((c) => c[0]).sort()).toEqual([LEI_GO, RICMS_MT, RICMS_PA].sort());
+    const novidades = registradas(baseLegal).filter((n) => n.tipo === 'fonte_atualizada');
+    expect(novidades).toEqual([expect.objectContaining({
+      norma_chave: 'mt-dec-2212-2014', titulo: 'Decreto 2.212/2014 (MT): o documento oficial mudou', url: RICMS_MT, oficial: true, confirmada: true, execucao_id: 'rev1',
+    })]);
+    expect(novidades[0].resumo).toContain('desde a conferência de 16/11/2026');
+    const gravacoes = prisma.normaLegal.update.mock.calls.map((c: any[]) => c[0]);
+    expect(gravacoes.find((g: any) => g.where.id === 'id-mt-dec-2212-2014').data).toMatchObject({ hash_atual: 'novo', atualizada_em: AGORA });
+    expect(gravacoes.find((g: any) => g.where.id === 'id-pa-dec-4676-2001').data).toEqual({ hash_atual: 'p1', capturada_em: AGORA });
+    expect(ultimoUpdate(prisma).resumo).toContain('1 documento de referência mudou');
+    const email = mail.enviar.mock.calls[0][0] as Record<string, string>;
+    expect(email.html).toContain('Documentos só de referência: 3 conferidos de 3; mudaram Decreto 2.212/2014 (MT).');
+  });
+
+  it('documento que não abre vira erro dele e a rodada segue', async () => {
+    const { service, prisma } = montar({ normas: referencias(), hashes: { [RICMS_PA]: new Error('Fonte oficial respondeu 503') } });
+    await service.executar('agendada');
+    const fim = ultimoUpdate(prisma);
+    expect(fim.status).toBe('parcial');
+    expect(fim.erros).toEqual(['Decreto 4.676/2001 (PA): Fonte oficial respondeu 503']);
   });
 });
 

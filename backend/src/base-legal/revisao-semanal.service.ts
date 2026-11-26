@@ -9,7 +9,7 @@ import { referenciaDe } from './base-legal.deteccao';
 import { decodificar } from './base-legal.parser';
 import { BaseLegalService } from './base-legal.service';
 import { alteracoesDoAto, pendenciasDeConsolidacao, rotuloDoCaminho, type AtoAlterador, type PendenciaConsolidacao } from './consolidacao';
-import { GRUPOS_NORMAS } from './fontes';
+import { GRUPOS_NORMAS, URL_MONITORAMENTO } from './fontes';
 import { atoDoCgibsRelevante, FONTES_MONITORADAS, hashDosLinks, hostOficial, linksDaPagina, novosLinks, pareceDocumento, urlDaFonte, type LinkPagina } from './fontes-monitoradas';
 import {
   anosDaConsulta, atosNovos, deveCarregarTexto, lerListaFederal, porPrioridade, relevanciaDoAto, TIPOS_FEDERAIS, urlListaFederal,
@@ -38,6 +38,8 @@ export type ContadoresRodada = {
 
 type Rodada = ContadoresRodada & {
   id: string; semana: string; disparo: string; iniciado_em: Date; inicio_ms: number;
+  /** Documentos só de referência (estaduais, INs) cujo arquivo oficial mudou nesta rodada (vai no resumo; não tem coluna própria). */
+  referencias_mudaram: number;
   erros: string[]; notas: string[]; revisoes: { itens: number; cartoes: number; cartoes_despublicados: number; fundamentos: number; marcos: number };
 };
 
@@ -146,7 +148,7 @@ export class RevisaoSemanalService {
     return {
       id: criada.id, semana: criada.semana, disparo, iniciado_em: inicio, inicio_ms: inicio.getTime(),
       normas_verificadas: 0, normas_atualizadas: 0, dispositivos_alterados: 0, dispositivos_revogados: 0, normas_novas: 0, atos_relacionados: 0, fontes_verificadas: 0, fontes_alteradas: 0,
-      erros: [], notas: [], revisoes: { itens: 0, cartoes: 0, cartoes_despublicados: 0, fundamentos: 0, marcos: 0 },
+      referencias_mudaram: 0, erros: [], notas: [], revisoes: { itens: 0, cartoes: 0, cartoes_despublicados: 0, fundamentos: 0, marcos: 0 },
     };
   }
 
@@ -172,6 +174,7 @@ export class RevisaoSemanalService {
     this.emAndamento = true;
     try {
       await this.etapa(r, 'Normas', () => this.verificarNormas(r));
+      await this.etapa(r, 'Documentos de referência', () => this.verificarReferencias(r));
       await this.etapa(r, 'Legislação federal nova', () => this.descobrirAtosFederais(r));
       await this.etapa(r, 'Alterações ainda não consolidadas', () => this.cruzarAlteracoes(r));
       await this.etapa(r, 'Portais oficiais', () => this.verificarPortais(r));
@@ -225,6 +228,49 @@ export class RevisaoSemanalService {
       r.normas_verificadas += v.verificadas;
       v.erros.forEach((e) => r.erros.push(e));
       r.notas.push(`Modo com aprovação: ${plural(v.alertas, 'atualização aguarda', 'atualizações aguardam')} aprovação no painel de avisos das bases legais.`);
+    }
+  }
+
+  // ─────────────── 1b. Documentos só de referência (estaduais, INs da RFB, TIPI...) ───────────────
+
+  /**
+   * Norma sem texto por artigo, mas monitorada: confere a impressão digital do documento oficial. A primeira conferência só guarda
+   * o ponto de partida; depois, documento diferente vira novidade "o documento oficial mudou", com o link, para alguém conferir.
+   */
+  private async verificarReferencias(r: Rodada) {
+    const normas = await this.prisma.normaLegal.findMany({
+      where: { formato: 'externo', monitorar: true },
+      select: { id: true, chave: true, numero: true, url_oficial: true, hash_atual: true, capturada_em: true },
+      orderBy: [{ prioridade: 'asc' }, { createdAt: 'asc' }],
+    });
+    let conferidas = 0;
+    const mudaram: string[] = [];
+    for (const n of normas) {
+      if (this.estourou(r)) { r.notas.push('A rodada atingiu o tempo limite: os documentos de referência restantes ficam para a próxima.'); break; }
+      try {
+        const hash = await this.baseLegal.hashDoDocumento(URL_MONITORAMENTO.get(n.chave) ?? n.url_oficial);
+        conferidas += 1;
+        const mudou = Boolean(n.hash_atual) && n.hash_atual !== hash;
+        if (mudou) {
+          mudaram.push(n.numero);
+          const desde = n.capturada_em ? ` desde a conferência de ${n.capturada_em.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}` : '';
+          await this.baseLegal.registrarNovidades([{
+            tipo: 'fonte_atualizada', origem: 'texto_oficial', norma_chave: n.chave, norma_numero: n.numero,
+            titulo: `${n.numero}: o documento oficial mudou`,
+            resumo: `O documento publicado no site oficial mudou${desde}. O InTAX não lê esta norma por artigo: abra a fonte oficial e confira o que foi alterado.`,
+            url: n.url_oficial, oficial: true, confirmada: true, execucao_id: r.id,
+          }]);
+        }
+        await this.prisma.normaLegal.update({ where: { id: n.id }, data: { hash_atual: hash, capturada_em: this.agora(), ...(mudou ? { atualizada_em: this.agora() } : {}) } });
+      } catch (e) {
+        r.erros.push(`${n.numero}: ${mensagem(e)}`);
+      }
+      await this.pausa();
+    }
+    r.normas_verificadas += conferidas;
+    r.referencias_mudaram += mudaram.length;
+    if (normas.length) {
+      r.notas.push(`Documentos só de referência: ${plural(conferidas, 'conferido', 'conferidos')} de ${normas.length}${mudaram.length ? `; mudaram ${mudaram.join(', ')}` : '; nenhum mudou'}.`);
     }
   }
 
@@ -554,6 +600,7 @@ export class RevisaoSemanalService {
       r.dispositivos_alterados ? plural(r.dispositivos_alterados, 'dispositivo alterado', 'dispositivos alterados') : null,
       r.dispositivos_revogados ? plural(r.dispositivos_revogados, 'revogado', 'revogados') : null,
       r.normas_novas ? plural(r.normas_novas, 'norma nova', 'normas novas') : null,
+      r.referencias_mudaram ? plural(r.referencias_mudaram, 'documento de referência mudou', 'documentos de referência mudaram') : null,
       r.atos_relacionados ? plural(r.atos_relacionados, 'ato relacionado', 'atos relacionados') : null,
       r.fontes_alteradas ? plural(r.fontes_alteradas, 'portal com novidade', 'portais com novidade') : null,
       r.erros.length ? plural(r.erros.length, 'erro', 'erros') : null,
