@@ -603,4 +603,47 @@ export const FONTES_NORMAS: FonteNorma[] = [
     url_oficial: `${PLANALTO}/_ato2019-2022/2022/decreto/d11158.htm`, prioridade: 1,
     observacao: 'O anexo (TIPI) é PDF escaneado: sem texto por artigo. A classificação por NCM está na tabela do Siscomex carregada à parte.',
   },
+  // ── Legislação estadual (UFs dos clientes): só referência. Os sites estaduais não riscam a redação anterior: ela fica no meio
+  //    do texto (classe em GO, cor verde em MS, blocos "Redação anterior..." em MT, BA, PA e MA), e o leitor a tomaria por vigente.
+  ...estadual('MT', 'SEFAZ-MT', [
+    ['mt-lei-7098-1998', 'Lei', 'Lei 7.098/1998', 'Lei do ICMS de Mato Grosso (consolidada)', '1998-12-30', 'https://app1.sefaz.mt.gov.br/sistema/legislacao/legislacaotribut.nsf/07fa81bed2760c6b84256710004d3940/cc9c3b9886404baa0325678b0043a842?OpenDocument'],
+    ['mt-dec-2212-2014', 'Decreto', 'Decreto 2.212/2014', 'Regulamento do ICMS de Mato Grosso (RICMS/MT)', '2014-03-20', 'http://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=6', 'No portal da SEFAZ-MT o regulamento consolidado é publicado por capítulo, uma página para cada.'],
+    ['mt-lei-7263-2000', 'Lei', 'Lei 7.263/2000', 'Fundo Estadual de Transporte e Habitação (FETHAB)', '2000-03-27', 'https://app1.sefaz.mt.gov.br/sistema/legislacao/legislacaotribut.nsf/07fa81bed2760c6b84256710004d3940/3866792553b6de7b032568b30044c0d4?OpenDocument', 'O art. 7º condiciona o diferimento do ICMS de soja, gado, madeira e feijão à contribuição ao FETHAB.'],
+  ]),
+  ...estadual('GO', 'Secretaria da Economia de Goiás', [
+    ['go-lei-11651-1991', 'Lei', 'Lei 11.651/1991', 'Código Tributário do Estado de Goiás (CTE)', '1991-12-26', 'https://appasp.economia.go.gov.br/legislacao/arquivos/CTE/CTE.htm'],
+    ['go-dec-4852-1997', 'Decreto', 'Decreto 4.852/1997', 'Regulamento do Código Tributário de Goiás (RCTE), com os anexos em arquivos separados', '1997-12-29', 'https://appasp.economia.go.gov.br/legislacao/arquivos/RCTE/RCTE.htm'],
+    ['go-lei-21670-2022', 'Lei', 'Lei 21.670/2022', 'Fundo Estadual de Infraestrutura (FUNDEINFRA)', '2022-12-06', 'https://legisla.casacivil.go.gov.br/api/v2/pesquisa/legislacoes/106378/pdf', 'Art. 5º, I: contribuição como condição para a fruição de benefício ou incentivo fiscal. A página oficial registra eficácia suspensa por liminar (ADI 7885) em dispositivos incluídos em 2024.'],
+    ['go-lei-14469-2003', 'Lei', 'Lei 14.469/2003', 'PROTEGE GOIÁS: contribuição para fruição de benefício ou incentivo fiscal', '2003-07-16', 'https://appasp.economia.go.gov.br/legislacao/arquivos/Leis/L_14469.htm'],
+  ]),
+  ...estadual('MS', 'SEFAZ-MS', [
+    ['ms-lei-1810-1997', 'Lei', 'Lei 1.810/1997', 'Tributos de competência do Estado de Mato Grosso do Sul (ICMS)', '1997-12-22', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/23b657614c182061042579c80053770d/9b9e5fd2565751de042579cf004d33a6?OpenDocument'],
+    ['ms-dec-9203-1998', 'Decreto', 'Decreto 9.203/1998', 'Regulamento do ICMS de Mato Grosso do Sul (RICMS/MS), com os anexos em documentos separados', '1998-09-18', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/7a2675fdf26e910204256b1f005348a7/d3cc39d3a6aeeda803256cc20066f1fb?OpenDocument'],
+    ['ms-lei-1963-1999', 'Lei', 'Lei 1.963/1999', 'Fundo de Desenvolvimento do Sistema Rodoviário (FUNDERSUL)', '1999-06-11', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/23b657614c182061042579c80053770d/0fabf2cd6f2fefed04256ae7004d34c5?OpenDocument', 'O art. 9º condiciona o diferimento do ICMS de produtos agropecuários à contribuição dos produtores.'],
+  ]),
+  ...estadual('BA', 'SEFAZ-BA', [
+    ['ba-lei-7014-1996', 'Lei', 'Lei 7.014/1996', 'Lei do ICMS da Bahia (versão com notas da SEFAZ)', '1996-12-04', 'https://mbusca.sefaz.ba.gov.br/DITRI/leis/leis_estaduais/legest_1996_7014_icmscomnotas.pdf'],
+    ['ba-dec-13780-2012', 'Decreto', 'Decreto 13.780/2012', 'Regulamento do ICMS da Bahia (RICMS/BA)', '2012-03-16', 'https://mbusca.sefaz.ba.gov.br/DITRI/normas_complementares/decretos/decreto_2012_13780_ricms_texto_2021.pdf'],
+    ['ba-dec-14500-2013', 'Decreto', 'Decreto 14.500/2013', 'Crédito fiscal na compra de soja, milho, café e sorgo, com contribuição a fundo privado', '2013-05-28', 'https://mbusca.sefaz.ba.gov.br/DITRI/normas_complementares/decretos/decreto_2013_14500.pdf'],
+    ['ba-lei-7932-2001', 'Lei', 'Lei 7.932/2001', 'Programa de Incentivo à Cultura do Algodão (PROALBA)', '2001-09-19', 'https://mbusca.sefaz.ba.gov.br/DITRI/leis/leis_estaduais/legest_2001_7932.pdf'],
+    ['ba-dec-8064-2001', 'Decreto', 'Decreto 8.064/2001', 'Regulamento do PROALBA (contribuição a fundo privado da cotonicultura)', '2001-11-21', 'https://mbusca.sefaz.ba.gov.br/DITRI/normas_complementares/decretos/decreto_2001_8064.pdf'],
+  ]),
+  ...estadual('MA', 'SEFAZ-MA', [
+    ['ma-lei-7799-2002', 'Lei', 'Lei 7.799/2002', 'Sistema Tributário do Estado do Maranhão (ICMS)', '2002-12-19', 'https://portal-sgc.sefaz.ma.gov.br/sgc/api/portal/arquivos/public/identificador?identificador=2e774d84-6990-4fd3-bdfb-863829fd3c08'],
+    ['ma-dec-19714-2003', 'Decreto', 'Decreto 19.714/2003', 'Regulamento do ICMS do Maranhão (RICMS/MA), com os anexos em arquivos separados', '2003-07-10', 'https://portal-sgc.sefaz.ma.gov.br/sgc/api/portal/arquivos/public/identificador?identificador=99eaa3a0-b9c2-44ee-968f-d241aa074ff4'],
+    ['ma-lei-12428-2024', 'Lei', 'Lei 12.428/2024', 'Contribuição Especial de Grãos (CEG)', '2024-11-25', 'https://portal-sgc.sefaz.ma.gov.br/sgc/api/portal/arquivos/public/identificador?identificador=24a61d21-3267-4f45-b289-dc5985f84cb1'],
+  ]),
+  ...estadual('PA', 'SEFA-PA', [
+    ['pa-lei-5530-1989', 'Lei', 'Lei 5.530/1989', 'Lei do ICMS do Pará', '1989-01-13', 'https://www.sefa.pa.gov.br/legislacao/interna/lei/lp1989_05530.pdf'],
+    ['pa-dec-4676-2001', 'Decreto', 'Decreto 4.676/2001', 'Regulamento do ICMS do Pará (RICMS/PA)', '2001-06-18', 'https://www.sefa.pa.gov.br/legislacao/interna/decreto/dc2001_04676.pdf'],
+  ]),
 ];
+
+/** Norma estadual só com o link oficial: o número leva a UF ("Lei 7.098/1998 (MT)") para não se confundir com ato federal. */
+function estadual(uf: string, orgao: string, itens: [string, string, string, string, string, string, string?][]): FonteNorma[] {
+  return itens.map(([chave, tipo, numero, titulo, data, url, observacao]) => ({
+    chave, tipo: `${tipo} estadual`, numero: `${numero} (${uf})`, titulo, orgao, data_publicacao: data, url_oficial: url,
+    prioridade: 1, grupo: 'territorial' as const, formato: 'externo' as const,
+    observacao: observacao ?? 'Texto consolidado no site oficial do estado; a redação anterior fica no meio do texto, por isso a norma fica só como referência.',
+  }));
+}
