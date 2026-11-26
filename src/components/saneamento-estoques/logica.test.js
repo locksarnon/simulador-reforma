@@ -7,7 +7,7 @@ import {
   proximoCasoAberto, proximoPendente, resumirRelatorio, rolagemParaLinha, rotuloSituacao, situacaoAgregada, textoDaCelula, textoDoConjunto, versoesDaPrevia, edicaoSuja, edicaoInicial,
   paginasDeImpacto, corpoIncorporar, quantosIncorporar, lerNumeroBr, ALTURA_LINHA, LISTA_SITUACOES, fmtData, converterProposta, razaoSemAprovar, efeitoDaAtividade, interpretarRespostaParecer, textoDoEnquadramento, avisosDaLiberacao,
   versaoCriada, idsDoLote, rotuloDoCaso, rotuloSituacaoCaso, ehErroDeRede, ehPropostaDesatualizada, camposDivergentes, casoValeParaEnquadramento,
-  justificativaBasta, podeRestaurar, restauracoesDaVersao, linhasDaPrevia,
+  justificativaBasta, podeRestaurar, restauracoesDaVersao, linhasDaPrevia, paramsDoMapa, enderecoDoMapa, fmtSaldo,
 } from "./logica";
 
 const erro = (status, data) => Object.assign(new Error(data?.message || "x"), { status, response: { data } });
@@ -340,7 +340,7 @@ describe("abas", () => {
     expect(abaInicial(null, { atividadesConfirmadas: true })).toBe("tabela");
     expect(abaInicial("versoes", { atividadesConfirmadas: false })).toBe("versoes");
     expect(abaInicial("inexistente", { atividadesConfirmadas: true })).toBe("tabela");
-    expect(ABAS.map((a) => a.id)).toEqual(["configuracao", "importacao", "tabela", "visao", "casos", "impacto", "versoes"]);
+    expect(ABAS.map((a) => a.id)).toEqual(["configuracao", "importacao", "tabela", "visao", "casos", "impacto", "unificacoes", "versoes"]);
   });
   it("setas, Home e End navegam em círculo", () => {
     expect(abaPorTecla("versoes", "ArrowRight")).toBe("configuracao");
@@ -457,5 +457,19 @@ describe("continuar a partir de uma versão", () => {
   it("restaurações da versão, mais recente primeiro", () => {
     expect(restauracoesDaVersao({ resumo: {} })).toEqual([]);
     expect(restauracoesDaVersao({ resumo: { restauracoes: [{ id: "a" }, { id: "b" }] } }).map((r) => r.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("mapa de unificações", () => {
+  it("parâmetros só com o que foi preenchido; o Excel leva o filtro e não a página", () => {
+    expect(paramsDoMapa({})).toEqual({});
+    expect(paramsDoMapa({ situacao: "APROVADA", tipo: "", busca: "  0012 ", pagina: 3 })).toEqual({ situacao: "APROVADA", busca: "0012", pagina: 3 });
+    expect(enderecoDoMapa("p1", { situacao: "PROPOSTA", busca: "0012", pagina: 4 })).toBe("/saneamento-estoques/projetos/p1/unificacoes/excel?situacao=PROPOSTA&busca=0012");
+    expect(enderecoDoMapa("p1")).toBe("/saneamento-estoques/projetos/p1/unificacoes/excel");
+  });
+  it("saldo em pt-BR; vazio sem saldo", () => {
+    expect(fmtSaldo(1234.5)).toBe("1.234,5");
+    expect(fmtSaldo(0)).toBe("0");
+    expect(fmtSaldo(null)).toBe("");
   });
 });

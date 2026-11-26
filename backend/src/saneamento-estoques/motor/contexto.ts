@@ -42,8 +42,16 @@ export type ParametrosMotor = {
   minimoItensEvidencia?: number;
 };
 
-/** O contexto que o motor entende: o contrato (`ContextoAnalise`) mais parâmetros e a tabela NCM. As camadas continuam recebendo `ContextoAnalise`. */
-export type ContextoMotor = ContextoAnalise & { parametros?: ParametrosMotor; tabelaNcm?: TabelaNcm };
+/** Papel do item numa unificação de códigos proposta ou aprovada (Duplicidades): o código que FICA (recebe o saldo) ou um que SAI (morre). */
+export type PapelUnificacao = { papel: 'FICA' | 'SAI'; outro: string };
+
+/**
+ * O contexto que o motor entende: o contrato (`ContextoAnalise`) mais parâmetros, a tabela NCM e, na Qualidade, os itens que já estão
+ * numa unificação (id → papel), para a inativação por falta de movimento não propor inativar o código que recebe o saldo nem repetir o que já sai.
+ * As camadas continuam recebendo `ContextoAnalise`.
+ */
+export type ContextoMotor = ContextoAnalise & { parametros?: ParametrosMotor; tabelaNcm?: TabelaNcm; unificacoes?: Map<string, PapelUnificacao> };
 
 export const parametrosDe = (contexto: ContextoAnalise): ParametrosMotor => (contexto as ContextoMotor).parametros ?? {};
 export const tabelaNcmDe = (contexto: ContextoAnalise): TabelaNcm | null => (contexto as ContextoMotor).tabelaNcm ?? null;
+export const unificacoesDe = (contexto: ContextoAnalise): Map<string, PapelUnificacao> => (contexto as ContextoMotor).unificacoes ?? new Map();

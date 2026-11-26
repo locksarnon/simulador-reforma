@@ -1,11 +1,19 @@
 /**
  * FAQ do Saneamento de Estoques e Cadastro de Produtos (serviço da Consultoria Tributária) e do botão Analisar com IA.
- * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-17.
+ * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-18.
  */
 export const SECAO_SANEAMENTO = {
   titulo: "Saneamento de estoques e cadastro de produtos (consultoria)",
   nota: "O serviço de consultoria que limpa o cadastro de itens do cliente e prepara o tratamento tributário de IBS e CBS, com revisão por camada. Abre pelo projeto, em Consultoria Tributária > Projetos.",
   itens: [
+    {
+      p: "Como sei quais códigos vão deixar de existir e para onde vai o saldo de cada um?",
+      r: "Na aba Unificações. Cada linha é um código que morre: o estabelecimento, a descrição, a unidade e o saldo dele; o código que fica, com o saldo atual; o saldo que entra e o saldo consolidado; a situação (Proposta ou Aprovada); a ação no ERP (por exemplo, “Transferir o saldo de Y para X e inativar Y”); o início da vigência e a justificativa. Quando as unidades são diferentes sem fator de conversão aprovado, ou falta saldo na base, a coluna Alerta de coerência avisa e o saldo não é somado. Filtre por situação, tipo e código e clique em Baixar lista (Excel) para mandar a quem faz os ajustes. A mesma lista sai na aba De para e equivalências do Excel; na versão liberada, só o aprovado (POP-CON-18).",
+    },
+    {
+      p: "O sistema aponta itens sem movimentação há muito tempo para limpar a base?",
+      r: "Sim, na camada Qualidade, se a importação trouxer a coluna da última movimentação e o Corte de movimentação estiver informado na Configuração. Item ativo (ou de situação não informada) cuja última movimentação é anterior ao corte entra num caso por grupo. Sem saldo, o caso propõe inativar; aprovar inativa os itens, eles entram na aba Unificações com a ação “Inativar” e o checklist do SPED ganha o ajuste de consolidação ou inativação (0200 e H010). Com saldo, o caso não propõe inativar: pede regularizar o saldo antes. O código que fica numa unificação não é proposto. Sem o corte, o critério não é aplicado, e a Cobertura e o relatório dizem isso.",
+    },
     {
       p: "O que é a finalidade e o enquadramento legal de um item?",
       r: "A finalidade diz para que o cliente usa o item: Revenda, Matéria-prima, Insumo de produção, Embalagem, Uso e consumo, Manutenção, Imobilizado ou Material de terceiros. O enquadramento legal é o texto da lei e o artigo que sustentam o tratamento tributário (cClassTrib e CST) do item, e depende do NCM e da finalidade. Ambos saem na aba Cenários tributários do Excel. O sistema sugere, o consultor confirma: o texto da lei prevalece sobre qualquer sugestão.",

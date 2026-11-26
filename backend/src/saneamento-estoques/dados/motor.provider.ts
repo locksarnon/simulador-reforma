@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { soDigitos } from '../../classificacao/ncm-classe';
 import {
   AnalisadorDuplicidade, AnalisadorGrupos, AnalisadorIdentificacao, AnalisadorNcm, AnalisadorNomesUnidades, AnalisadorQualidade, novoCaso, valorComum,
-  type ContextoMotor, type ParametrosMotor, type TabelaNcm,
+  type ContextoMotor, type PapelUnificacao, type ParametrosMotor, type TabelaNcm,
 } from '../motor';
 import {
   AnalisadorObrigacoes, AnalisadorTributario, CatalogosFiscaisPrisma, agruparConjuntos, cenariosAplicaveis, ehAtividade, enquadrar, regraDoCnae, sugerirFinalidadePorGrupo,
@@ -170,6 +170,28 @@ export class AnalisadorTributarioCompleto implements AnalisadorCamada {
   }
 }
 
+/**
+ * Papel de cada item nas unificações (casos de Duplicidades com decisão PROPOR_CONSOLIDACAO): o item do caso cujo código é o `manter` FICA;
+ * os que estão em `consolidar` SAEM. `outro` = o(s) código(s) do outro lado, para a evidência.
+ */
+export function papeisDeUnificacao(casos: { itens: string[]; proposta: unknown }[], itens: Pick<ItemTrabalho, 'id' | 'codigo'>[]): Map<string, PapelUnificacao> {
+  const codigo = new Map<string, string>();
+  for (const i of itens) codigo.set(i.id, String(i.codigo));
+  const out = new Map<string, PapelUnificacao>();
+  for (const c of casos) {
+    const p = (c.proposta ?? {}) as Record<string, unknown>;
+    if (p.decisao !== 'PROPOR_CONSOLIDACAO' || !p.manter || !p.consolidar) continue;
+    const manter = String(p.manter).trim();
+    const saem = String(p.consolidar).split('|').map((x) => x.trim()).filter(Boolean);
+    for (const id of c.itens) {
+      const cod = codigo.get(id);
+      if (cod === manter) out.set(id, { papel: 'FICA', outro: saem.join(', ') });
+      else if (cod != null && saem.includes(cod) && out.get(id)?.papel !== 'FICA') out.set(id, { papel: 'SAI', outro: manter });
+    }
+  }
+  return out;
+}
+
 /** Motor do Saneamento: liga os analisadores puros de `motor/` e `fiscal/` ao banco (catálogos, tabela NCM e ajustes), uma vez por execução. */
 @Injectable()
 export class MotorSaneamento implements MotorPort {
@@ -179,11 +201,15 @@ export class MotorSaneamento implements MotorPort {
     return ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'TRIBUTARIO', 'OBRIGACOES'];
   }
 
-  async preparar(camada: Camada, { projetoId, contexto }: EntradaPreparo): Promise<{ analisador: AnalisadorCamada; contexto: ContextoAnalise }> {
+  async preparar(camada: Camada, { projetoId, itens, contexto }: EntradaPreparo): Promise<{ analisador: AnalisadorCamada; contexto: ContextoAnalise }> {
     const ctx = contexto as ContextoMotor;
     switch (camada) {
       case 'IDENTIFICACAO': return { analisador: new AnalisadorIdentificacao(), contexto: ctx };
-      case 'QUALIDADE': return { analisador: new AnalisadorQualidade(), contexto: ctx };
+      case 'QUALIDADE': {
+        // Itens que já estão numa unificação proposta ou aprovada: a inativação por falta de movimento não os toca (o código que fica recebe o saldo).
+        const unificacoes = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, camada: 'DUPLICIDADE', situacao: { in: ['PROPOSTO', 'RASCUNHO', 'APROVADO'] } }, select: { itens: true, proposta: true } });
+        return { analisador: new AnalisadorQualidade(), contexto: { ...ctx, unificacoes: papeisDeUnificacao(unificacoes, itens) } as ContextoMotor };
+      }
       case 'DUPLICIDADE': return { analisador: new AnalisadorDuplicidade(), contexto: ctx };
       case 'NOMES_UNIDADES': return { analisador: new AnalisadorNomesUnidades(), contexto: ctx };
       case 'GRUPOS_FINALIDADE': {

@@ -10,17 +10,18 @@ import { ROTULO_FINALIDADE, type Camada } from '../tipos';
 import {
   CASO_PENDENTE, MARCA_PROPOSTA, ROTULO_CAMADA, ROTULO_SITUACAO_CASO, celula, codigosDosItens, comMilhar, competenciaBr, competenciaEntregue, construirModelo, dataBr,
   linhasDeCenario, nomeCliente, obj, origemDaFinalidade, paraData, projetoTexto, propostasEmAberto, resumoCampos, rotuloDoCaso, rotuloObrigacao, rotuloSituacaoCelula,
-  rotuloDoCampo, rotuloDoValor, rotuloTipoAjuste, rotuloTipoCaso, textoSemEscrituracaoEntregue, txt, type Modelo,
+  rotuloDoCampo, rotuloDoValor, rotuloTipoAjuste, rotuloTipoCaso, textoSemEscrituracaoEntregue, txt, mapaDoModelo, type Modelo,
 } from './modelo';
+import { ROTULO_SITUACAO_MAPA, ROTULO_TIPO_MAPA, type LinhaMapa } from './unificacoes';
 
 type Valor = string | number | Date | null | undefined;
-type TipoCol = 'texto' | 'codigo' | 'data' | 'datahora' | 'numero';
+type TipoCol = 'texto' | 'codigo' | 'data' | 'datahora' | 'numero' | 'quantidade';
 type Col = { cab: string; larg: number; tipo?: TipoCol };
 
 export const NOMES_ABAS = ['Resumo da entrega', 'Cadastro saneado', 'De para e equivalências', 'Cenários tributários', 'Impactos no SPED', 'Pendências e histórico'] as const;
 
 const VERDE = 'FF197148'; const LARANJA = 'FFE08A00'; const AMARELO = 'FFFFF2CC'; const CINZA = 'FFF2F5F3';
-const FMT: Record<TipoCol, string | undefined> = { texto: undefined, codigo: '@', data: 'dd/mm/yyyy', datahora: 'dd/mm/yyyy hh:mm', numero: '#,##0' };
+const FMT: Record<TipoCol, string | undefined> = { texto: undefined, codigo: '@', data: 'dd/mm/yyyy', datahora: 'dd/mm/yyyy hh:mm', numero: '#,##0', quantidade: '#,##0.00##' };
 
 /** Brasília (UTC-3, sem horário de verão): o Excel mostra o relógio da data gravada, então deslocamos para a hora local. */
 const hora = (v: unknown): Date | null => { const d = paraData(v); return d ? new Date(+d - 3 * 3600_000) : null; };
@@ -215,39 +216,52 @@ async function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): P
 
 const ROTULO_FINALIDADE_TXT: Record<string, string> = ROTULO_FINALIDADE;
 
-async function abaDePara(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Promise<void> {
+/** Colunas do mapa de unificações (aba "De para e equivalências" e o Excel só do mapa). Sem código interno: o cliente lê a lista e ajusta o ERP. */
+function colunasDoMapa(liberada: boolean): Col[] {
   const cols: Col[] = [
-    { cab: 'Tipo de registro', larg: 24 }, { cab: 'Código antigo / consolidado', larg: 26, tipo: 'codigo' }, { cab: 'Código novo / mantido', larg: 22, tipo: 'codigo' },
-    { cab: 'Itens envolvidos', larg: 36 }, { cab: 'Qtde de itens', larg: 9, tipo: 'numero' }, { cab: 'Decisão', larg: 28 }, { cab: 'Situação', larg: 18 },
-    { cab: 'Início da vigência', larg: 13, tipo: 'data' }, { cab: 'Data da decisão', larg: 16, tipo: 'datahora' }, { cab: 'Justificativa', larg: 60 }, { cab: 'Fundamento', larg: 30 },
-    { cab: 'Responsável', larg: 24 },
+    { cab: 'Tipo de registro', larg: 24 }, { cab: 'Código que morre', larg: 18, tipo: 'codigo' }, { cab: 'Estabelecimento', larg: 14, tipo: 'codigo' },
+    { cab: 'Descrição (código que morre)', larg: 40 }, { cab: 'Unidade (código que morre)', larg: 10 }, { cab: 'Saldo (código que morre)', larg: 14, tipo: 'quantidade' },
+    { cab: 'Código que fica', larg: 18, tipo: 'codigo' }, { cab: 'Descrição (código que fica)', larg: 40 }, { cab: 'Unidade (código que fica)', larg: 10 },
+    { cab: 'Saldo atual (código que fica)', larg: 14, tipo: 'quantidade' }, { cab: 'Saldo que entra', larg: 14, tipo: 'quantidade' }, { cab: 'Saldo consolidado', larg: 14, tipo: 'quantidade' },
+    { cab: 'Situação', larg: 18 }, { cab: 'Ação no ERP', larg: 56 }, { cab: 'Início da vigência', larg: 13, tipo: 'data' }, { cab: 'Justificativa', larg: 60 },
+    { cab: 'Alerta de coerência', larg: 60 }, { cab: 'Responsável', larg: 24 }, { cab: 'Data da decisão', larg: 16, tipo: 'datahora' },
   ];
-  if (!m.liberada) cols.push({ cab: 'Marca', larg: 24 });
-  cols.push({ cab: 'ID do caso', larg: 26, tipo: 'codigo' });
-  const aba = criarAba(wb, NOMES_ABAS[2], cols, m.liberada ? VERDE : LARANJA, 0);
-  for (const v of m.vinculos) {
-    const linha: Valor[] = ['Vínculo de código (antigo → novo)', v.de, v.para, '', null, '', 'Registrado', dia(v.inicio), null, v.justificativa, '', v.criadoPor];
-    if (!m.liberada) linha.push('');
-    linha.push('');
-    aba.add(linha);
-    await respirar(aba);
-  }
-  for (const c of m.casos) {
-    if (c.camada !== 'DUPLICIDADE') continue;
-    if (m.liberada && CASO_PENDENTE.includes(c.situacao)) continue;
-    const proposta = obj(c.proposta);
-    const aberto = CASO_PENDENTE.includes(c.situacao);
-    const decisao = proposta.decisao ? rotuloDoValor(txt(proposta.decisao)) : rotuloTipoCaso(c.tipo);
+  if (!liberada) cols.push({ cab: 'Marca', larg: 24 });
+  return cols;
+}
+
+async function escreverMapa(wb: ExcelJS.stream.xlsx.WorkbookWriter, linhas: LinhaMapa[], liberada: boolean, nome: string): Promise<void> {
+  const aba = criarAba(wb, nome, colunasDoMapa(liberada), liberada ? VERDE : LARANJA, 2);
+  for (const l of linhas) {
+    const aberta = l.situacao === 'PROPOSTA' || l.situacao === 'AGUARDANDO';
     const linha: Valor[] = [
-      'Duplicidade / equivalência', txt(proposta.consolidar), txt(proposta.manter), codigosDosItens(m, c.itens, 8), c.itens.length, [decisao, proposta.fatorConversao ? `fator ${txt(proposta.fatorConversao)}` : ''].filter(Boolean).join(' · '),
-      ROTULO_SITUACAO_CASO[c.situacao] ?? c.situacao, null, hora(c.decididoEm), [c.justificativa, c.motivo].filter(Boolean).join(' · '), c.fundamento, c.decididoPor || c.responsavel,
+      ROTULO_TIPO_MAPA[l.tipo], l.morre?.codigo, l.morre?.estab, l.morre?.descricao, l.morre?.unidade, l.morre?.saldo,
+      l.fica?.codigo, l.fica?.descricao, l.fica?.unidade, l.fica?.saldo, l.saldoEntra, l.saldoConsolidado,
+      ROTULO_SITUACAO_MAPA[l.situacao], l.acao, dia(l.inicio), l.justificativa, l.alertas.join(' '), l.responsavel, hora(l.decididoEm),
     ];
-    if (!m.liberada) linha.push(aberto ? MARCA_PROPOSTA : '');
-    linha.push(c.id);
-    aba.add(linha, !m.liberada && aberto);
+    if (!liberada) linha.push(aberta ? MARCA_PROPOSTA : '');
+    aba.add(linha, !liberada && aberta);
     await respirar(aba);
   }
   aba.fim();
+}
+
+const abaDePara = (wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo) => escreverMapa(wb, mapaDoModelo(m), m.liberada, NOMES_ABAS[2]);
+
+/** Excel só com o mapa de unificações e inativações (botão da consulta "Unificações"): o mesmo conteúdo da aba "De para e equivalências". */
+export async function gerarExcelMapa(linhas: LinhaMapa[], opcoes: { liberada?: boolean; titulo?: string } = {}): Promise<Buffer> {
+  const saida = new PassThrough();
+  const partes: Buffer[] = [];
+  saida.on('data', (c: Buffer) => partes.push(c));
+  const fim = new Promise<void>((ok, erro) => { saida.on('end', ok); saida.on('error', erro); });
+  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: saida, useStyles: true, useSharedStrings: false });
+  wb.creator = 'InTAX — FAL Agro';
+  wb.title = opcoes.titulo ?? 'Saneamento de estoques — unificações e inativações';
+  wb.created = new Date();
+  await escreverMapa(wb, linhas, opcoes.liberada === true, 'Unificações e inativações');
+  await wb.commit();
+  await fim;
+  return Buffer.concat(partes);
 }
 
 async function abaCenarios(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Promise<void> {

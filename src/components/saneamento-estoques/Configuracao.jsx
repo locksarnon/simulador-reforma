@@ -68,9 +68,18 @@ export default function Configuracao({ projeto, recarregar }) {
           <label className="block sm:col-span-2"><Rotulo>Estabelecimentos (um por linha; vazio = um só)</Rotulo>
             <textarea className={`${campoCls} min-h-[72px]`} value={form.estabelecimentos} onChange={set("estabelecimentos")} />
           </label>
-          <label className="block"><Rotulo>Corte de movimentação (itens sem movimento desde esta data saem do escopo)</Rotulo>
-            <input type="date" className={campoCls} value={form.corte} onChange={set("corte")} />
-          </label>
+          <div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="san-cfg-corte" className="block"><Rotulo className="mb-0">Corte de movimentação (itens sem movimento desde esta data)</Rotulo></label>
+              <BotaoInfo id="san-cfg-corte-info" rotulo="Corte de movimentação" aberto={infoAberta === "corte"} aoAlternar={() => setInfoAberta(infoAberta === "corte" ? null : "corte")} />
+            </div>
+            <input id="san-cfg-corte" type="date" className={`${campoCls} mt-1`} value={form.corte} onChange={set("corte")} />
+            {infoAberta === "corte" && (
+              <p id="san-cfg-corte-info" className="mt-1 border-l-2 border-border pl-3 text-xs text-muted-foreground">
+                Item ativo cuja última movimentação (coluna importada do cadastro) é anterior a esta data é candidato a inativação, na camada Qualidade, por grupo. Sem saldo: propõe inativar. Com saldo: pede regularizar o saldo antes, sem propor inativar. O código que fica numa unificação de códigos não é proposto. Item sem data é tratado à parte. Vazio: o critério não é aplicado, e a Cobertura e o relatório dizem isso. Depois de mudar a data, rode a Qualidade de novo.
+              </p>
+            )}
+          </div>
           <label className="block"><Rotulo>Última competência de escrituração já entregue (SPED)</Rotulo>
             <input type="month" className={campoCls} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
             <span className="mt-1 block text-xs text-muted-foreground">Ajuste com início nesta competência ou antes aparece como “impacto em escrituração já entregue”. Vazio: esse impacto fica “não avaliado” no Excel e no relatório.</span>

@@ -16,6 +16,7 @@ import Configuracao from "./Configuracao";
 import Impacto from "./Impacto";
 import Importacao, { Reimportacao } from "./Importacao";
 import TabelaUnica from "./TabelaUnica";
+import Unificacoes from "./Unificacoes";
 import Versoes, { ContinuarVersao } from "./Versoes";
 import VisaoGeral from "./VisaoGeral";
 import SaneamentoEstoquesPagina from "@/pages/saneamento-estoques/SaneamentoEstoquesPagina";
@@ -324,11 +325,11 @@ describe("Cobertura, abas e página", () => {
     expect(texto(html)).toContain("as análises ficam bloqueadas");
     expect(html).toMatch(/<button[^>]*disabled/);
   });
-  it("as sete abas, com a atual marcada", () => {
+  it("as oito abas, com a atual marcada", () => {
     const html = montar(<Abas atual="casos" aoMudar={() => {}} />);
-    expect(texto(html)).toContain("Configuração Importação Tabela Visão geral Casos Impacto nas obrigações Versões");
+    expect(texto(html)).toContain("Configuração Importação Tabela Visão geral Casos Impacto nas obrigações Unificações Versões");
     expect(html).toContain('aria-selected="true"');
-    expect((html.match(/role="tab"/g) || []).length).toBe(7);
+    expect((html.match(/role="tab"/g) || []).length).toBe(8);
   });
   const rota = (qc) => renderToStaticMarkup(
     <QueryClientProvider client={qc}><StaticRouter location="/diagnostico/projetos/d1/saneamento"><Routes><Route path="/diagnostico/projetos/:id/saneamento" element={<SaneamentoEstoquesPagina />} /></Routes></StaticRouter></QueryClientProvider>,
@@ -387,5 +388,33 @@ describe("ajustes da revisão C nas telas", () => {
     const html = montar(<CasoDetalhe projeto={projeto()} casoId="c8" />, (qc) => qc.setQueryData(chaves.caso("c8"), caso));
     expect(html).toContain('aria-label="Proposta para Fator de conversão"');
     expect(texto(html)).toContain("Informe o fator de conversão");
+  });
+});
+
+describe("Unificações", () => {
+  const FILTRO = { situacao: "", tipo: "", busca: "", pagina: 1 };
+  const resposta = (linhas, o = {}) => ({ linhas, pagina: 1, limite: 100, total: linhas.length, totalGeral: linhas.length, porSituacao: { PROPOSTA: 1, APROVADA: 1, AGUARDANDO: 0, REGISTRADA: 0 }, porTipo: { UNIFICACAO: 1, INATIVACAO: 1 }, comAlerta: 1, corteDefinido: true, ...o });
+  const unif = { tipo: "UNIFICACAO", situacao: "PROPOSTA", casoId: "c1", morre: { codigo: "000456", estab: "", descricao: "SEMENTE SOJA", unidade: "SC", saldo: 4 }, fica: { codigo: "00123", descricao: "SEMENTE SOJA 40KG", unidade: "KG", saldo: 1234.5 }, saldoEntra: null, saldoConsolidado: null, acao: "Converter o saldo de 000456 para a unidade de 00123 (KG), transferir para 00123 e inativar 000456", inicio: "2026-12-31T00:00:00.000Z", justificativa: "Mesmo produto.", alertas: ["Unidades diferentes (SC × KG): saldo não somável direto; converter antes de somar (sem fator de conversão aprovado)."], responsavel: "", decididoEm: null };
+  const inat = { tipo: "INATIVACAO", situacao: "APROVADA", casoId: "c2", morre: { codigo: "0789", estab: "", descricao: "PEÇA TRATOR", unidade: "UN", saldo: 0 }, fica: null, saldoEntra: null, saldoConsolidado: null, acao: "Inativar 0789", inicio: "2026-12-31T00:00:00.000Z", justificativa: "Sem movimento.", alertas: [], responsavel: "ana@fal.test", decididoEm: "2026-11-20T12:00:00.000Z" };
+  it("carregando, erro e vazio", () => {
+    expect(texto(montar(<Unificacoes projeto={projeto()} />))).toContain("Carregando");
+    expect(texto(montar(<Unificacoes projeto={projeto()} />, (qc) => falhar(qc, chaves.unificacoes("p1", FILTRO))))).toContain("Não foi possível carregar as unificações");
+    expect(texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([], { totalGeral: 0 }))))).toContain("Nenhuma unificação nem inativação ainda");
+  });
+  it("mapa: código que morre, que fica, saldos, situação, ação no ERP, alerta, filtro e download", () => {
+    const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif, inat]))));
+    for (const x of ["Código que morre", "Código que fica", "Saldo consolidado", "Ação no ERP", "000456", "00123", "1.234,5", "Inativar 0789", "Proposta", "Aprovada", "converter antes de somar", "Baixar lista (Excel)", "Todas (2)", "Proposta (1)", "Unificação de códigos (1)", "1 linha(s) com alerta de coerência"]) expect(t, x).toContain(x);
+    expect(t).not.toContain("c1");
+    expect(t).not.toContain("corte de movimentação não está definido");
+  });
+  it("sem corte definido, avisa que os itens parados não foram avaliados", () => {
+    const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { corteDefinido: false }))));
+    expect(t).toContain("O corte de movimentação não está definido na Configuração");
+  });
+  it("Configuração: corte de movimentação editável, com o botão de explicação", () => {
+    const html = montar(<Configuracao projeto={projeto({ parametros: { corteMovimentacao: "2024-01-01" } })} recarregar={() => {}} />);
+    expect(html).toMatch(/<input id="san-cfg-corte" type="date"[^>]*value="2024-01-01"/);
+    expect(html).toContain('aria-label="Sobre: Corte de movimentação"');
+    expect(html).toContain('aria-controls="san-cfg-corte-info"');
   });
 });

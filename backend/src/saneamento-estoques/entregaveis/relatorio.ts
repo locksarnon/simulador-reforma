@@ -7,7 +7,7 @@ import type { DadosEntrega } from '../dados/portas';
 import type { Camada } from '../tipos';
 import {
   CASO_PENDENTE, ROTULO_CAMADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, paraData, origemDaFinalidade, pct1, rotuloDoCampo, rotuloObrigacao, rotuloTipoAjuste, textoSemEscrituracaoEntregue, txt,
-  type Modelo,
+  mapaDoModelo, type Modelo,
 } from './modelo';
 
 const n = comMilhar;
@@ -42,6 +42,16 @@ function comentarioDaCamada(m: Modelo, camada: Camada): string | null {
   const ajustados = m.itensAjustadosPorCamada.get(camada)?.size ?? 0;
   if (ajustados) partes.push(`${plural(ajustados, 'item teve', 'itens tiveram')} campo ajustado por decisão aprovada.`);
 
+  if (camada === 'DUPLICIDADE' || camada === 'QUALIDADE') {
+    const tipo = camada === 'DUPLICIDADE' ? 'UNIFICACAO' : 'INATIVACAO';
+    const linhas = mapaDoModelo(m).filter((l) => l.tipo === tipo && (!m.liberada || l.situacao === 'APROVADA'));
+    if (linhas.length) {
+      const alertas = linhas.filter((l) => l.alertas.length).length;
+      partes.push(camada === 'DUPLICIDADE'
+        ? `${plural(linhas.length, 'código deixa', 'códigos deixam')} de existir por unificação, com o saldo concentrado no código que fica (lista na aba "De para e equivalências" do Excel)${alertas ? `; ${plural(alertas, 'linha pede', 'linhas pedem')} conferência antes do ajuste (unidade diferente ou saldo não informado)` : ''}.`
+        : `${plural(linhas.length, 'item sem movimentação desde o corte e sem saldo será inativado', 'itens sem movimentação desde o corte e sem saldo serão inativados')} (lista na aba "De para e equivalências" do Excel)${alertas ? `; ${plural(alertas, 'linha pede', 'linhas pedem')} conferência do saldo antes` : ''}.`);
+    }
+  }
   if (camada === 'DUPLICIDADE' && m.vinculos.length) partes.push(`${plural(m.vinculos.length, 'vínculo de código antigo e novo registrado', 'vínculos de código antigo e novo registrados')}, com data e justificativa.`);
   if (camada === 'GRUPOS_FINALIDADE') partes.push(`Finalidade confirmada em ${n(m.itens.filter((i) => finalidadeConfirmada(m, i)).length)} de ${n(m.itens.length)} itens.`);
   if (camada === 'NCM') partes.push(`NCM de 8 dígitos em ${n(m.itens.filter((i) => i.ncm.replace(/\D/g, '').length === 8).length)} de ${n(m.itens.length)} itens.`);
@@ -200,6 +210,8 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   const semFin = m.itens.filter((i) => !finalidadeConfirmada(m, i)).length; const semNcm = m.itens.filter((i) => i.ncm.replace(/\D/g, '').length !== 8).length;
   if (semFin) itens.push(`${plural(semFin, 'item sem finalidade confirmada', 'itens sem finalidade confirmada')}: o enquadramento por cenário depende dela.`);
   if (semNcm) itens.push(`${plural(semNcm, 'item sem NCM de 8 dígitos', 'itens sem NCM de 8 dígitos')}: sem o NCM o enquadramento legal não é definido.`);
+  const corte = obj(dados.projeto.parametros).corteMovimentacao;
+  if (!(typeof corte === 'string' && corte)) itens.push('Itens sem movimentação a longa data: critério não aplicado, porque o corte de movimentação não foi definido na configuração do projeto.');
   const mod = obj(dados.projeto.modulos);
   const desligados = [mod.conciliacao === true ? '' : 'conciliação de estoque', mod.blocosKG === true ? '' : 'Blocos K e G', mod.arquivoErp === true ? '' : 'arquivo para o ERP'].filter(Boolean);
   if (desligados.length) itens.push(`Fora do escopo desta entrega: ${desligados.join(', ')}. O trabalho cobre o cadastro e o tratamento tributário dos itens, não a movimentação do estoque.`);

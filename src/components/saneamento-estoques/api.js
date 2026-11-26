@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import { enderecoDeEntrega, nomeDeEntrega } from "./logica";
+import { enderecoDeEntrega, enderecoDoMapa, nomeDeEntrega, paramsDoMapa } from "./logica";
 
 const B = "/saneamento-estoques";
 
@@ -43,6 +43,9 @@ export const san = {
   /** Paginado: { linhas, proximo, total, totalGeral, porTipo }. */
   impactos: (id, params) => api.get(`${B}/projetos/${id}/impactos-sped`, params),
   vinculos: (id) => api.get(`${B}/projetos/${id}/vinculos-codigo`),
+  /** Mapa de unificações e inativações (paginado): { linhas, pagina, limite, total, totalGeral, porSituacao, porTipo, comAlerta, corteDefinido }. */
+  unificacoes: (id, filtro) => api.get(`${B}/projetos/${id}/unificacoes`, paramsDoMapa(filtro)),
+  baixarUnificacoes: (id, filtro) => api.baixar("GET", enderecoDoMapa(id, filtro), { nome: "saneamento-estoques-unificacoes-e-inativacoes.xlsx" }),
 
   versoes: (id) => api.get(`${B}/projetos/${id}/versoes`),
   liberarVersao: (id, rotulo, extra) => api.post(`${B}/projetos/${id}/versoes`, { rotulo, ...(extra || {}) }),
@@ -64,6 +67,7 @@ export const chaves = {
   caso: (casoId) => ["san", "caso", casoId],
   gruposDoCaso: (projetoId, casoId) => ["san", projetoId, "caso-grupos", casoId],
   impactos: (projetoId, tipo = "") => ["san", projetoId, "impactos", tipo],
+  unificacoes: (projetoId, filtro) => ["san", projetoId, "unificacoes", filtro],
   versoes: (projetoId) => ["san", projetoId, "versoes"],
   continuar: (projetoId, versaoId) => ["san", projetoId, "continuar", versaoId],
   importacoes: (projetoId) => ["san", projetoId, "importacoes"],

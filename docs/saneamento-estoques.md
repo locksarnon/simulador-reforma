@@ -36,7 +36,7 @@ Configuração (uma tela, na ordem):
 4. **Responsável.**
 5. **Módulos opcionais** (desligados), cada um com "i".
 
-Sem campo De/Até. O corte de movimentação é parâmetro da Triagem (como hoje).
+Sem campo De/Até. O **corte de movimentação** fica na Configuração: item ativo sem movimento desde o corte é candidato a inativação na Qualidade (sem saldo propõe inativar; com saldo pede regularizar antes). Quem morre e para onde vai fica na aba **Unificações** (contrato, 7ª etapa).
 
 ## 3. Importação e base
 

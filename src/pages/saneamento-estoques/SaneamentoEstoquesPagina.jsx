@@ -14,6 +14,7 @@ import Configuracao from "@/components/saneamento-estoques/Configuracao";
 import Impacto from "@/components/saneamento-estoques/Impacto";
 import Importacao from "@/components/saneamento-estoques/Importacao";
 import TabelaUnica from "@/components/saneamento-estoques/TabelaUnica";
+import Unificacoes from "@/components/saneamento-estoques/Unificacoes";
 import Versoes from "@/components/saneamento-estoques/Versoes";
 import VisaoGeral from "@/components/saneamento-estoques/VisaoGeral";
 import { ABAS, abaInicial, mensagemDeErro, naoEncontrado } from "@/components/saneamento-estoques/logica";
@@ -26,6 +27,7 @@ function Painel({ projeto, aba, irPara, podeImportar, recarregar, recorte, casoI
   if (aba === "visao") return <VisaoGeral projeto={projeto} aoAbrirCasos={abrirCasos} aoAbrirTabela={abrirTabela} />;
   if (aba === "casos") return <Casos key={`${recorte?.camada}|${recorte?.grupo}|${casoInicial}`} projeto={projeto} recorte={recorte} casoInicial={casoInicial} />;
   if (aba === "impacto") return <Impacto projeto={projeto} />;
+  if (aba === "unificacoes") return <Unificacoes projeto={projeto} />;
   return <Versoes projeto={projeto} />;
 }
 

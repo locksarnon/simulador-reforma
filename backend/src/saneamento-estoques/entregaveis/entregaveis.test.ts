@@ -106,16 +106,36 @@ describe('Excel: 6 abas', () => {
     expect(c(a)).toEqual(c(b));
   });
 
-  it('de/para: vínculos e duplicidades decididas; liberada exclui a duplicidade só proposta', async () => {
-    const lib = await abrir(await svc().gerarExcel(dadosBase(true)));
+  it('de/para = mapa de unificações: por item que morre, o que fica, saldos, ação no ERP e alertas; liberada exclui o só proposto', async () => {
+    const base = dadosBase(true);
+    (base.itens[0].trabalho as Linha).saldo = 10; (base.itens[1].trabalho as Linha).saldo = 4;
+    const lib = await abrir(await svc().gerarExcel(base));
     const ws = lib.getWorksheet('De para e equivalências')!;
-    expect(valores(ws, 'Tipo de registro')).toEqual(['Vínculo de código (antigo → novo)', 'Duplicidade / equivalência']);
-    expect(valores(ws, 'Código antigo / consolidado')).toEqual(['000456', '000456']);
-    expect(valores(ws, 'Código novo / mantido')).toEqual(['00123', '00123']);
+    expect(cabecalhos(ws)).toEqual(['Tipo de registro', 'Código que morre', 'Estabelecimento', 'Descrição (código que morre)', 'Unidade (código que morre)', 'Saldo (código que morre)',
+      'Código que fica', 'Descrição (código que fica)', 'Unidade (código que fica)', 'Saldo atual (código que fica)', 'Saldo que entra', 'Saldo consolidado', 'Situação', 'Ação no ERP',
+      'Início da vigência', 'Justificativa', 'Alerta de coerência', 'Responsável', 'Data da decisão']);
+    // O vínculo gravado pela unificação aprovada não vira uma segunda linha; a equivalência só proposta fica fora da entrega liberada.
+    expect(valores(ws, 'Tipo de registro')).toEqual(['Unificação de códigos']);
+    expect(valores(ws, 'Código que morre')).toEqual(['000456']);
+    expect(ws.getRow(2).getCell(2).numFmt).toBe('@');
+    expect(valores(ws, 'Código que fica')).toEqual(['00123']);
+    expect(valores(ws, 'Descrição (código que morre)')).toEqual(['SEMENTE SOJA']);
+    expect([valores(ws, 'Saldo (código que morre)')[0], valores(ws, 'Saldo atual (código que fica)')[0], valores(ws, 'Saldo que entra')[0], valores(ws, 'Saldo consolidado')[0]]).toEqual([4, 10, 4, 14]);
+    expect(valores(ws, 'Situação')).toEqual(['Aprovada']);
+    expect(valores(ws, 'Ação no ERP')).toEqual(['Transferir o saldo de 000456 para 00123 e inativar 000456']);
     expect(valores(ws, 'Início da vigência')[0]).toBeInstanceOf(Date);
-    expect(valores(ws, 'Justificativa')[0]).toBe('Consolidação aprovada');
+    expect((valores(ws, 'Início da vigência')[0] as Date).toISOString().slice(0, 10)).toBe('2027-01-01'); // a data do vínculo
+    expect(valores(ws, 'Alerta de coerência')).toEqual([null]);
+    expect(cabecalhos(ws)).not.toContain('Marca');
+    expect(textoDaAba(ws)).not.toMatch(/\[caso:|PROPOR_|c-dup/);
     const rev = await abrir(await svc().gerarExcel(dadosBase(false)));
-    expect(valores(rev.getWorksheet('De para e equivalências')!, 'Situação')).toContain('Proposto');
+    const wr = rev.getWorksheet('De para e equivalências')!;
+    expect(valores(wr, 'Situação')).toEqual(['Aprovada', 'Proposta']);
+    expect(valores(wr, 'Tipo de registro')[1]).toBe('Equivalência (nenhum código morre)');
+    expect(valores(wr, 'Marca')).toEqual([null, 'Proposto — não aprovado']);
+    // Sem saldo na base: a linha avisa e a ação manda conferir no ERP.
+    expect(String(valores(wr, 'Alerta de coerência')[0])).toContain('Saldo de 000456 não informado na base');
+    expect(valores(wr, 'Saldo consolidado')[0]).toBeNull();
   });
 
   it('SPED: colunas do plano, datas como data; liberada exclui impacto de caso não aprovado', async () => {

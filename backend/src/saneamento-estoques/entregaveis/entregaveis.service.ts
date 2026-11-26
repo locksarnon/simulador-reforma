@@ -1,10 +1,22 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PdfService } from '../../pdf/pdf.service';
+import { fatiar, TIPOS_EXCECAO } from '../dados/constantes';
 import { SanVersoesService } from '../dados/versoes.service';
 import type { DadosEntrega, EntregaveisPort } from '../dados/portas';
-import { gerarExcelDeDados } from './excel';
+import { paramInteiro, paramTexto } from '../dados/validacao';
+import { gerarExcelDeDados, gerarExcelMapa } from './excel';
 import { montarRelatorio } from './relatorio';
+import { contarMapa, filtrarMapa, montarMapa, saldoDe, type CasoMapa, type FiltroMapa, type ItemMapa, type LinhaMapa } from './unificacoes';
+
+export type FiltroUnificacoes = FiltroMapa & { pagina?: string | number; limite?: string | number };
+const SITUACOES_MAPA = ['PROPOSTA', 'APROVADA', 'AGUARDANDO', 'REGISTRADA'];
+const TIPOS_MAPA = ['UNIFICACAO', 'INATIVACAO', 'EQUIVALENCIA', 'TROCA_CODIGO'];
+function listaValida(v: unknown, nome: string, validos: string[]): string | undefined {
+  const t = paramTexto(v, nome);
+  if (t && t.split(',').some((x) => !validos.includes(x.trim()))) throw new BadRequestException(`Valor inválido em "${nome}".`);
+  return t;
+}
 
 /** Nome de arquivo seguro (ASCII, sem espaços): o cliente vira "agropecuaria-crestani-ltda". */
 export function fatiaDoNome(texto: string): string {
@@ -48,6 +60,63 @@ export class EntregaveisService implements EntregaveisPort {
     const nome = nomeDoExcel(String(dados.projeto.clienteNome ?? ''), dados.versao);
     // Os dados são só desta requisição: o gerador esvazia as listas brutas depois de montar o modelo (menos memória no pico).
     return { buffer: await gerarExcelDeDados(dados, { consumir: true }), nome };
+  }
+
+  /**
+   * Mapa de unificações e inativações da base atual (o mesmo da aba "De para e equivalências" da exportação para revisão). Lê só o que o
+   * mapa usa: os casos de Duplicidades, as inativações e exceções da Qualidade, os itens citados por eles (em blocos) e os vínculos.
+   */
+  async mapaAtual(projetoId: string): Promise<{ linhas: LinhaMapa[]; corteDefinido: boolean }> {
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { data_base: true, parametros: true } });
+    if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
+    const brutos = await this.prisma.sanCaso.findMany({
+      where: { projeto_id: projetoId, situacao: { in: ['PROPOSTO', 'RASCUNHO', 'APROVADO', 'AGUARDANDO_INFORMACAO'] }, OR: [{ camada: 'DUPLICIDADE' }, { camada: 'QUALIDADE', tipo: { in: ['SEM_MOVIMENTACAO', ...TIPOS_EXCECAO] } }] },
+      orderBy: { id: 'asc' },
+      select: { id: true, camada: true, tipo: true, itens: true, proposta: true, justificativa: true, motivo: true, situacao: true, decidido_por: true, decidido_em: true },
+    });
+    const casos: CasoMapa[] = brutos.map((c) => ({
+      id: c.id, camada: c.camada, tipo: c.tipo, itens: c.itens, proposta: (c.proposta ?? {}) as Record<string, unknown>, justificativa: c.justificativa ?? '', motivo: c.motivo ?? '',
+      situacao: c.situacao, decididoPor: c.decidido_por ?? '', decididoEm: c.decidido_em ?? null,
+    }));
+    const ids = new Set<string>();
+    for (const c of casos) for (const id of c.itens) ids.add(id);
+    const itens = new Map<string, ItemMapa>();
+    for (const lote of fatiar(Array.from(ids), 5000)) {
+      for (const i of await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, codigo: true, estabelecimento: true, trabalho: true } })) {
+        const t = (i.trabalho ?? {}) as Record<string, unknown>;
+        itens.set(i.id, { id: i.id, codigo: String(t.codigo ?? i.codigo), estab: i.estabelecimento ?? '', descricao: String(t.descricao ?? ''), unidade: String(t.unidade ?? ''), saldo: saldoDe(t.saldo) });
+      }
+    }
+    const vinculos = await this.prisma.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } });
+    const linhas = montarMapa({
+      liberada: false, dataBase: p.data_base, casos, item: (id) => itens.get(id),
+      vinculos: vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criado_por ?? '' })),
+    });
+    const corte = (p.parametros as { corteMovimentacao?: unknown } | null)?.corteMovimentacao;
+    return { linhas, corteDefinido: typeof corte === 'string' && corte !== '' };
+  }
+
+  /** Consulta "Unificações" da tela: filtro por situação, tipo e código; página (`pagina` a partir de 1, `limite` até 500). */
+  async unificacoes(projetoId: string, f: FiltroUnificacoes = {}) {
+    const filtro: FiltroMapa = { situacao: listaValida(f.situacao, 'situacao', SITUACOES_MAPA), tipo: listaValida(f.tipo, 'tipo', TIPOS_MAPA), busca: paramTexto(f.busca, 'busca') };
+    const limite = Math.min(Math.max(paramInteiro(f.limite, 'limite') ?? 100, 1), 500);
+    const pagina = Math.max(paramInteiro(f.pagina, 'pagina') ?? 1, 1);
+    const { linhas, corteDefinido } = await this.mapaAtual(projetoId);
+    const filtradas = filtrarMapa(linhas, filtro);
+    return {
+      linhas: filtradas.slice((pagina - 1) * limite, pagina * limite), pagina, limite, total: filtradas.length, totalGeral: linhas.length,
+      ...contarMapa(linhas), corteDefinido,
+    };
+  }
+
+  /** Excel só do mapa (com o mesmo filtro da tela): o que vai para quem faz os ajustes no ERP. */
+  async excelUnificacoes(projetoId: string, f: FiltroMapa = {}): Promise<{ buffer: Buffer; nome: string }> {
+    const filtro: FiltroMapa = { situacao: listaValida(f.situacao, 'situacao', SITUACOES_MAPA), tipo: listaValida(f.tipo, 'tipo', TIPOS_MAPA), busca: paramTexto(f.busca, 'busca') };
+    const { linhas } = await this.mapaAtual(projetoId);
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { empresa_id: true } });
+    const empresa = p?.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: String(p.empresa_id) }, select: { razao_social: true } }) : null;
+    const nome = `unificacoes-e-inativacoes_${fatiaDoNome(empresa?.razao_social ?? '')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    return { buffer: await gerarExcelMapa(filtrarMapa(linhas, filtro)), nome };
   }
 
   /** Sem `versaoId`, usa a última versão liberada; sem nenhuma versão, recusa. */

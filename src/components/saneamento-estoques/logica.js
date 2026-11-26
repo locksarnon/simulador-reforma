@@ -486,6 +486,28 @@ export function nomeDeEntrega(tipo, versao) {
   return versao ? `saneamento-estoques-versao-${versao.numero}-liberada.${ext}` : `saneamento-estoques-para-revisao.${ext}`;
 }
 
+// ── Mapa de unificações e inativações ────────────────────────────────────────
+
+export const SITUACOES_MAPA = { PROPOSTA: "Proposta", APROVADA: "Aprovada", AGUARDANDO: "Aguardando informação", REGISTRADA: "Registrada" };
+export const TIPOS_MAPA = { UNIFICACAO: "Unificação de códigos", INATIVACAO: "Inativação (sem movimentação)", EQUIVALENCIA: "Equivalência (nenhum código morre)", TROCA_CODIGO: "Troca de código" };
+/** Parâmetros da consulta (só os preenchidos). */
+export function paramsDoMapa({ situacao = "", tipo = "", busca = "", pagina = 1, limite = 100 } = {}) {
+  const p = {};
+  if (situacao) p.situacao = situacao;
+  if (tipo) p.tipo = tipo;
+  if (String(busca).trim()) p.busca = String(busca).trim();
+  if (pagina > 1) p.pagina = pagina;
+  if (limite !== 100) p.limite = limite;
+  return p;
+}
+/** Endereço do Excel só do mapa, com o mesmo filtro da tela (sem a página). */
+export function enderecoDoMapa(projetoId, filtro = {}) {
+  const q = new URLSearchParams(paramsDoMapa({ ...filtro, pagina: 1, limite: 100 })).toString();
+  return `/saneamento-estoques/projetos/${projetoId}/unificacoes/excel${q ? `?${q}` : ""}`;
+}
+/** Número de saldo em pt-BR; vazio quando a base não traz. */
+export const fmtSaldo = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? "" : Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 6 }));
+
 export const fmtDataHora = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -706,6 +728,7 @@ export const ABAS = [
   { id: "visao", rotulo: "Visão geral" },
   { id: "casos", rotulo: "Casos" },
   { id: "impacto", rotulo: "Impacto nas obrigações" },
+  { id: "unificacoes", rotulo: "Unificações" },
   { id: "versoes", rotulo: "Versões" },
 ];
 /** Aba pedida na URL; sem pedido (ou inválida), a Configuração enquanto as atividades não estão confirmadas e a Tabela depois. */

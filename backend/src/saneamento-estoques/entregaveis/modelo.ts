@@ -5,6 +5,7 @@
 import { CAMADAS, ROTULO_CENARIO, ROTULO_FINALIDADE, type Camada } from '../tipos';
 import type { DadosEntrega } from '../dados/portas';
 import { ROTULO_CAMADA, rotuloDoCampo, rotuloDoCaso, rotuloDoValor, rotuloTipoCaso } from '../rotulos';
+import { montarMapa, saldoDe, type LinhaMapa } from './unificacoes';
 
 type Json = Record<string, unknown>;
 const NAO_CONFIRMADO = 'não confirmado';
@@ -59,7 +60,7 @@ const igual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.str
 
 export type ItemN = {
   id: string; codigo: string; estab: string; descricao: string; descricaoOriginal: string; unidade: string; ncm: string; grupo: string;
-  finalidade: string | null; tambem: string[]; ativo: boolean | null; campos: Json; camposAlterados: string[];
+  finalidade: string | null; tambem: string[]; ativo: boolean | null; saldo: number | null; campos: Json; camposAlterados: string[];
 };
 export type CelulaN = { situacao: string; revisar: boolean; casoId: string | null };
 export type CasoN = {
@@ -136,7 +137,7 @@ export function construirModelo(dados: DadosEntrega): Modelo {
     return {
       id, codigo: txt(r.codigo ?? t.codigo), estab: txt(r.estabelecimento ?? t.estabelecimento), descricao, descricaoOriginal,
       unidade: txt(t.unidade), ncm: txt(t.ncm), grupo: txt(r.grupo ?? t.grupo), finalidade: fin ? txt(fin) : null,
-      tambem: rotulosFinalidade(r.tambemUsadoComo ?? r.tambem_usado_como ?? t.tambemUsadoComo), ativo, campos, camposAlterados: alterados,
+      tambem: rotulosFinalidade(r.tambemUsadoComo ?? r.tambem_usado_como ?? t.tambemUsadoComo), ativo, saldo: saldoDe(t.saldo), campos, camposAlterados: alterados,
     };
   });
   const porId = new Map(itens.map((i) => [i.id, i]));
@@ -400,3 +401,18 @@ const ROTULO_TIPO_AJUSTE: Record<string, string> = {
 };
 export const rotuloObrigacao = (o: string) => ROTULO_OBRIGACAO[o] ?? o;
 export const rotuloTipoAjuste = (t: string) => ROTULO_TIPO_AJUSTE[t] ?? t;
+
+/** Mapa de unificações e inativações do modelo (aba "De para e equivalências" e relatório), calculado uma vez por modelo. */
+const mapas = new WeakMap<Modelo, LinhaMapa[]>();
+export function mapaDoModelo(m: Modelo): LinhaMapa[] {
+  let r = mapas.get(m);
+  if (!r) {
+    r = montarMapa({
+      liberada: m.liberada, dataBase: paraData(m.dados.projeto.data_base), item: (id) => m.porId.get(id),
+      casos: m.casos.map((c) => ({ id: c.id, camada: c.camada, tipo: c.tipo, itens: c.itens, proposta: c.proposta, justificativa: c.justificativa, motivo: c.motivo, situacao: c.situacao, decididoPor: c.decididoPor, decididoEm: c.decididoEm })),
+      vinculos: m.vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criadoPor })),
+    });
+    mapas.set(m, r);
+  }
+  return r;
+}

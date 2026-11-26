@@ -16,7 +16,8 @@ export const ROTULO_TIPO_CASO: Record<string, string> = {
   CODIGO_ANTIGO: 'Código antigo', CODIGO_ANTIGO_EM_USO: 'Código antigo em uso', CODIGO_DESCRICOES_DIVERGENTES: 'Mesmo código com descrições diferentes',
   ESTABELECIMENTO_AUSENTE: 'Estabelecimento ausente', CAMPO_OBRIGATORIO_VAZIO: 'Campo obrigatório vazio', DESCRICAO_INSUFICIENTE: 'Descrição insuficiente',
   SALDO_INVALIDO: 'Saldo inválido', SALDO_NEGATIVO: 'Saldo negativo', SEM_DATA_MOVIMENTACAO: 'Sem data de movimentação', DATA_MOVIMENTACAO_INVALIDA: 'Data de movimentação inválida',
-  ITEM_INATIVO_COM_USO: 'Item inativo com uso', UNIDADE_AUSENTE: 'Unidade ausente', NCM_AUSENTE: 'NCM ausente',
+  ITEM_INATIVO_COM_USO: 'Item inativo com uso', SEM_MOVIMENTACAO: 'Sem movimentação desde o corte (inativar)',
+  SEM_MOVIMENTACAO_COM_SALDO: 'Sem movimentação desde o corte, com saldo', UNIDADE_AUSENTE: 'Unidade ausente', NCM_AUSENTE: 'NCM ausente',
   // Duplicidade
   DUPLICIDADE_EXATA: 'Duplicidade exata', DUPLICIDADE_INDICACAO_ALTA: 'Indício alto de duplicidade', DUPLICIDADE_INDICACAO_POSSIVEL: 'Possível duplicidade',
   DUPLICIDADE_COM_SALDO: 'Duplicidade com saldo', APRESENTACOES_DISTINTAS: 'Apresentações distintas', ATRIBUTOS_CONFLITANTES: 'Atributos conflitantes',
@@ -63,7 +64,8 @@ const VALORES: Record<string, string> = {
   IMOBILIZADO: 'Imobilizado', MATERIAL_TERCEIROS: 'Material de terceiros', HERDADO: 'Herdado do conjunto', EXCECAO: 'Exceção do item', INFORMAR: 'a informar', CONFIRMAR: 'a confirmar',
   INFORMADO: 'informado', DEFINIDO: 'definido', CADASTRAL_FUTURO: 'Ajuste cadastral futuro', REGULARIZACAO_SALDO: 'Regularização de saldo',
   ESCRITURACAO_ENTREGUE: 'Impacto em escrituração já entregue', PROPOR_CONSOLIDACAO: 'Propor consolidação', SOLICITAR_INFORMACAO: 'Solicitar informação',
-  RELACIONAR_APRESENTACOES: 'Relacionar apresentações', SIM: 'Sim', NAO: 'Não',
+  RELACIONAR_APRESENTACOES: 'Relacionar apresentações', PROPOR_INATIVACAO: 'Propor inativação', REGULARIZAR_SALDO: 'Regularizar o saldo antes de inativar',
+  MANTER_DISTINTOS: 'Manter distintos', CORRIGIR_IDENTIFICACAO: 'Corrigir a identificação', RELACIONAR_EQUIVALENTES: 'Relacionar equivalentes', SIM: 'Sim', NAO: 'Não',
 };
 export const rotuloDoCampo = (k: string) => ROTULO_CAMPO[k.replace(/^campos\./, '')] ?? k.replace(/^campos\./, '');
 export const rotuloDoValor = (v: string) => VALORES[v] ?? v;
