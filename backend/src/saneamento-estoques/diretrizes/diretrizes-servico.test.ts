@@ -255,6 +255,11 @@ describe('versões: as Diretrizes entram na foto', () => {
     expect(pol.quadro.find((q) => q.grupo === 'G1')).toMatchObject({ NOMES: 'N01', LIMITES: 'L01' });
     expect(pol.rascunho).toBe(true); // L01 (padrão) não aprovada
     expect(pol.pendencias.regrasNaoAprovadas.map((x) => x.codigo)).toEqual(['L01']);
+    const pdf = await c.diretrizes.dadosPdfPolitica(pid, v.id);
+    expect(pdf.identificacao).toMatchObject({ situacao: 'RASCUNHO', versao: { numero: 1, rotulo: 'Entrega 1' }, aprovador: USER.email });
+    expect(pdf.regras.find((x) => x.codigo === 'N01')).toMatchObject({ nome: 'Nomes', situacao: 'APROVADA', conteudo: { capitalizacao: 'MAIUSCULAS' } });
+    expect(pdf.quadro.find((q) => q.grupo === 'G1')!.codigos).toEqual({ NOMES: 'N01', LIMITES: 'L01' });
+    expect(pdf.procedimentos).toBeDefined();
     const agora = await c.diretrizes.dadosDaPolitica(pid);
     expect(agora.regras.find((x) => x.codigo === 'N01')).toMatchObject({ nome: 'Nomes (mudado)', situacao: 'RASCUNHO' });
     expect((await c.versoes.foto(pid, v.id)).foto.diretrizes).toMatchObject({ formato: 1 });

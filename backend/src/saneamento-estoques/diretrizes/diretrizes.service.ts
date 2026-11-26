@@ -15,7 +15,7 @@ import {
   aplicacaoDoRascunho, conteudosDaBiblioteca, efetivoDaLinha, fotoDasDiretrizes, gruposDaBase, itensComGrupo, lerRegras, pendenteAplicar, regraApi, regrasDoProjeto,
   resolviveisAplicadas, situacaoDasDiretrizes, type Aplicacao, type LinhaRegra,
 } from './dados';
-import { carregarPerfil } from '../../erps/erps.service';
+import { carregarPerfil, nomeDoErp } from '../../erps/erps.service';
 import { LIMITES_OFICIAIS } from './conteudo/limites-oficiais';
 import { ID_BIBLIOTECA_LIMITES, converterParametros, limitesEfetivos, linhasDoErp } from './parametros';
 import { criarIndice, gruposSemRegra, retirarSobreposicao, sobreposicoes, type RegraResolvivel } from './resolucao';
@@ -524,6 +524,35 @@ export class SanDiretrizesService {
   }
 
   // ── Política ───────────────────────────────────────────────────────────────
+
+  /**
+   * Entrada de `gerarPdfPolitica` (entregaveis/politica, tipo `DadosPolitica`), montada a partir de `dadosDaPolitica`: versão liberada =
+   * Diretrizes congeladas na foto; sem versão = as de agora. Só regras ativas; o PDF marca Rascunho se houver regra não aprovada.
+   */
+  async dadosPdfPolitica(projetoId: string, versaoId?: string | null) {
+    const d = await this.dadosDaPolitica(projetoId, versaoId);
+    const diag = await this.prisma.projetoDiagnostico.findUnique({ where: { id: d.projeto.diagnostico_id }, select: { nome: true } });
+    const emp = await this.prisma.empresa.findUnique({ where: { id: d.projeto.empresa_id }, select: { razao_social: true, nome_fantasia: true } });
+    const proj = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { erp: true, erp_id: true } });
+    const regras = d.regras.map((x) => ({
+      codigo: String(x.codigo), aspecto: x.aspecto as Aspecto, nome: String(x.nome), abrangencia: x.abrangencia as Abrangencia, situacao: x.situacao as 'RASCUNHO' | 'APROVADA',
+      observacao: (x.observacao as string | null) ?? null, aprovadaPor: (x.aprovadaPor as string | null) ?? null, aprovadaEm: (x.aprovadaEm as string | null) ?? null, revisar: x.revisar === true,
+      conteudo: x.conteudoEfetivo as ConteudoRegra,
+    }));
+    const aprovadores = [...new Set(regras.filter((x) => x.situacao === 'APROVADA' && x.aprovadaPor).map((x) => x.aprovadaPor as string))];
+    return {
+      identificacao: {
+        cliente: emp?.razao_social || emp?.nome_fantasia || '', projeto: diag?.nome ?? '',
+        versao: d.versao ? { numero: Number(d.versao.numero), rotulo: (d.versao.rotulo as string) ?? null, liberadaEm: (d.versao.criadaEm as Date) ?? null } : null,
+        vigencia: (d.cabecalho.vigencia as string | null) ?? null, situacao: d.rascunho ? 'RASCUNHO' as const : 'APROVADA' as const,
+        aprovador: aprovadores.length ? aprovadores.join(', ') : null, dataEmissao: new Date(), erp: await nomeDoErp(this.prisma, proj?.erp_id, proj?.erp),
+      },
+      regras,
+      procedimentos: d.procedimentos,
+      quadro: d.quadro.map(({ grupo, ...cods }) => ({ grupo, codigos: Object.fromEntries(Object.entries(cods).filter(([, v]) => v)) as Partial<Record<Aspecto, string>> })),
+      pendencias: { gruposSemRegra: d.pendencias.gruposSemRegra },
+    };
+  }
 
   /**
    * Dados da política (para o PDF): as Diretrizes de agora ou as congeladas numa versão liberada (reproduzível), os procedimentos fixos, o

@@ -60,13 +60,13 @@ export class SanDiretrizesController {
 
   // ── Política (PDF) ─────────────────────────────────────────────────────────
   /**
-   * TODO(integrador): ligar a `gerarPdfPolitica(dados)` de entregaveis/politica (não existe neste worktree). Os dados já saem prontos de
-   * `SanDiretrizesService.dadosDaPolitica(projetoId, versaoId)` (versão liberada = Diretrizes congeladas na foto; sem versão = as de agora;
-   * `rascunho` = marca "Rascunho"). Até lá, 501.
+   * TODO(integrador): entregaveis/politica não existe neste worktree. Depois do merge, trocar o 501 por:
+   *   `const pdf = await gerarPdfPolitica(await this.diretrizes.dadosPdfPolitica(id, versaoId || null));` e devolver com
+   *   `@Res()`/`StreamableFile` (application/pdf). `dadosPdfPolitica` já devolve o formato `DadosPolitica` (versão liberada = foto).
    */
   @Get('projetos/:id/politica/pdf')
   async politicaPdf(@Param('id') id: string, @Query('versaoId') versaoId?: string) {
-    await this.diretrizes.dadosDaPolitica(id, versaoId || null);
+    await this.diretrizes.dadosPdfPolitica(id, versaoId || null);
     throw new NotImplementedException('O PDF da política ainda não está conectado neste servidor.');
   }
 }
