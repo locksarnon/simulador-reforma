@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, TriangleAlert } from "lucide-react";
 import { api } from "@/api/client";
-import { avisoNaoIdentificado, consultasDeExtracao, erpDoRegistro, GRAUS, restricoesDoTipo, SITUACOES_ERP, TIPOS_AJUSTE_ERP } from "@/lib/erps";
+import { avisoNaoIdentificado, avisoTextoOriginal, consultasDeExtracao, erpDoRegistro, GRAUS, restricoesDoTipo, SITUACOES_ERP, textoOriginalDivergente, TIPOS_AJUSTE_ERP } from "@/lib/erps";
 
 /**
  * Peças do Cadastro de ERPs que as telas usam: a lista (o ERP é SELECIONADO, nunca digitado), o perfil (o conhecimento daquele ERP),
@@ -34,6 +34,7 @@ export function SeletorErp({ registro, aoMudar, rotulo = "ERP", id = "seletor-er
   const q = useErps();
   const erps = (q.data || []).filter((e) => e.ativo !== false || e.id === registro?.erp_id);
   const { erp, texto, naoIdentificado } = erpDoRegistro(registro, q.data || []);
+  const original = textoOriginalDivergente(registro, q.data || []);
   return (
     <div>
       <label htmlFor={id} className="text-xs font-medium">{rotulo}{ajuda}</label>
@@ -44,6 +45,7 @@ export function SeletorErp({ registro, aoMudar, rotulo = "ERP", id = "seletor-er
       </select>
       {naoIdentificado && <p role="status" className="mt-1 text-xs text-amber-700 dark:text-amber-300">{avisoNaoIdentificado(texto)}</p>}
       {erp && <p className="mt-1 text-xs text-muted-foreground">Perfil {String(SITUACOES_ERP[erp.situacao] || erp.situacao || "").toLowerCase()}.</p>}
+      {original && <p className="mt-1 text-xs text-muted-foreground">{avisoTextoOriginal(original)}</p>}
     </div>
   );
 }

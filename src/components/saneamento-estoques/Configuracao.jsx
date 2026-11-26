@@ -16,7 +16,8 @@ export default function Configuracao({ projeto, recarregar }) {
   const trava = estadoDaTrava(projeto);
   const { pode, razao } = usePodeAlterar();
   const [form, setForm] = useState(() => ({
-    erp: projeto.erp ?? "", erp_id: projeto.erp_id ?? null, erp_versao: projeto.erp_versao ?? "", responsavel: projeto.responsavel ?? "",
+    // `erp` do formulário é o texto original (registro histórico); o nome exibido vem do cadastro pelo erp_id (projeto.erp/erp_nome).
+    erp: (projeto.erp_texto_original !== undefined ? projeto.erp_texto_original : projeto.erp) ?? "", erp_id: projeto.erp_id ?? null, erp_versao: projeto.erp_versao ?? "", responsavel: projeto.responsavel ?? "",
     estabelecimentos: listaDeEstabelecimentos(projeto).join("\n"), corte: projeto.parametros?.corteMovimentacao ?? "",
     competenciaEntregue: projeto.parametros?.competenciaEntregue ?? "",
   }));

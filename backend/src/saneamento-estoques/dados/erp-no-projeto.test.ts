@@ -43,11 +43,12 @@ describe('ERP do cliente no projeto de saneamento', () => {
     expect([de_novo.erp, de_novo.erp_id]).toEqual(['SAP Business One', sap.id]);
   });
 
-  it('trocar o ERP guarda o vínculo e preserva o texto antigo; texto vazio recebe o nome do cadastro', async () => {
+  it('trocar o ERP guarda o vínculo; a resposta mostra o nome do cadastro e o texto antigo só como texto original; texto vazio recebe o nome do cadastro', async () => {
     const c = montar({ erp: 'SAP B1 (digitado)', erp_id: null });
     const p = await c.projetos.criar('D1', USER);
     const r = await c.projetos.configurar(p.id, { versao: p.versao, erp_id: sap.id });
-    expect([r.erp, r.erp_id]).toEqual(['SAP B1 (digitado)', sap.id]);
+    expect([r.erp, r.erp_nome, r.erp_texto_original, r.erp_id]).toEqual(['SAP Business One', 'SAP Business One', 'SAP B1 (digitado)', sap.id]);
+    expect(c.db.sanProjeto[0].erp).toBe('SAP B1 (digitado)'); // o registro histórico fica no banco
     const v = montar({ erp: null, erp_id: null });
     const q = await v.projetos.criar('D1', USER);
     expect((await v.projetos.configurar(q.id, { versao: q.versao, erp_id: null })).erp_id).toBeNull(); // sem ERP ainda: continua sem
@@ -70,7 +71,23 @@ describe('ERP do cliente no projeto de saneamento', () => {
   it('texto antigo sem vínculo fica no projeto como estava', async () => {
     const c = montar({ erp: 'Sankhya', erp_id: null });
     const p = await c.projetos.criar('D1', USER);
-    expect([p.erp, p.erp_id]).toEqual(['Sankhya', null]);
+    expect([p.erp, p.erp_id, p.erp_texto_original]).toEqual(['Sankhya', null, 'Sankhya']);
+  });
+
+  it('troca por outro ERP do cadastro (SAP B1 -> Siagri): resposta, leitura e trava mostram o Siagri; o texto antigo não muda nem é exibido como ERP', async () => {
+    const c = montar({ erp: 'SAP B1', erp_id: sap.id });
+    c.db.erp.push({ id: 'erp-siagri', nome: 'Siagri', fabricante: 'Aliare', produto: null, versoes: [], situacao: 'A_DESENVOLVER', ativo: true });
+    const p = await c.projetos.criar('D1', USER);
+    expect([p.erp, p.erp_nome, p.erp_texto_original]).toEqual(['SAP Business One', 'SAP Business One', 'SAP B1']);
+    // A tela devolve o "erp" que recebeu (nome do cadastro) junto com o novo erp_id: o texto original continua o que estava.
+    const r = await c.projetos.configurar(p.id, { versao: p.versao, erp_id: 'erp-siagri', erp: 'SAP Business One' });
+    expect([r.erp, r.erp_nome, r.erp_id, r.erp_texto_original]).toEqual(['Siagri', 'Siagri', 'erp-siagri', 'SAP B1']);
+    expect(c.db.sanProjeto[0].erp).toBe('SAP B1');
+    expect((await c.projetos.obter(p.id)).erp).toBe('Siagri');
+    const t = await c.projetos.confirmarAtividades(p.id, r.versao, USER);
+    expect([t?.erp, t?.erp_texto_original]).toEqual(['Siagri', 'SAP B1']);
+    const a = await c.projetos.reabrirAtividades(p.id, t!.versao);
+    expect(a?.erp).toBe('Siagri');
   });
 
   it('importação: com o ERP selecionado, as colunas do export vão para o pré-mapeamento; sem ERP, não', async () => {

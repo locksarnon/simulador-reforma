@@ -198,21 +198,34 @@ export class PdfService {
           const fracoes = s.tabela.larguras?.length === cab.length ? s.tabela.larguras : cab.map(() => 1 / cab.length);
           const ws = fracoes.map((fr) => largura * fr);
           const xs = ws.map((_, i) => MARGEM + ws.slice(0, i).reduce((a, b) => a + b, 0));
-          const linha = (cels: string[], negrito: boolean, fundo?: string) => {
+          // Cabeçalho nunca fica órfão: só começa a tabela na página se couberem o cabeçalho e a 1ª linha; se uma linha
+          // não couber e a tabela continuar na página seguinte, o cabeçalho se repete no topo dela.
+          const textosDe = (cels: string[]) => cab.map((_, i) => cortar(cels[i] ?? '', 600));
+          const alturaDe = (cels: string[], negrito: boolean) => {
             pdf.font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
-            const textos = cab.map((_, i) => cortar(cels[i] ?? '', 600));
-            const h = Math.max(20, ...textos.map((t, i) => pdf.heightOfString(t, { width: ws[i] - 10 }) + 12));
-            novaPaginaSeNecessario(h);
+            return Math.max(20, ...textosDe(cels).map((t, i) => pdf.heightOfString(t, { width: ws[i] - 10 }) + 12));
+          };
+          const desenhar = (cels: string[], negrito: boolean, h: number, fundo?: string) => {
             const yy = pdf.y;
             if (fundo) pdf.rect(MARGEM, yy, largura, h).fill(fundo);
             pdf.fillColor(negrito ? BRANCO : TEXTO).font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
-            textos.forEach((t, i) => pdf.text(t, xs[i] + 6, yy + 6, { width: ws[i] - 10 }));
+            textosDe(cels).forEach((t, i) => pdf.text(t, xs[i] + 6, yy + 6, { width: ws[i] - 10 }));
             pdf.x = MARGEM;
             pdf.y = yy + h;
           };
+          const hCab = alturaDe(cab, true);
+          const linhas = s.tabela.linhas.slice(0, 200);
           pdf.moveDown(0.25);
-          linha(cab, true, VERDE);
-          s.tabela.linhas.slice(0, 200).forEach((l, i) => linha(l, false, i % 2 ? FUNDO_CARD : undefined));
+          novaPaginaSeNecessario(hCab + (linhas.length ? alturaDe(linhas[0], false) : 0));
+          desenhar(cab, true, hCab, VERDE);
+          linhas.forEach((l, i) => {
+            const h = alturaDe(l, false);
+            if (pdf.y + h > limiteInferior) {
+              pdf.addPage();
+              desenhar(cab, true, hCab, VERDE);
+            }
+            desenhar(l, false, h, i % 2 ? FUNDO_CARD : undefined);
+          });
         }
         pdf.moveDown(0.9);
       }

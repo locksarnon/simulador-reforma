@@ -14,7 +14,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { AlertasErp, chavesErps, ConsultasErp, NomeErp, SeletorErp } from "./erps";
-import { associarErp, erpDoRegistro, perfilEspecifico, restricoesDoTipo } from "@/lib/erps";
+import { associarErp, erpDoRegistro, perfilEspecifico, restricoesDoTipo, textoOriginalDivergente } from "@/lib/erps";
 import ErpsPagina, { diferencas, ErpFicha } from "@/pages/admin/ErpsPagina";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
@@ -143,6 +143,16 @@ describe("lista única nas telas que pediam o ERP", () => {
     expect(html).toMatch(/<select aria-label="Versão do ERP"[^>]*>.*<option value="10.0" selected="">10.0/);
     expect(texto(montar(<EmpresaFormDialog open editing={{ id: "E2", razao_social: "Y", erp: "Sankhya", addons: [] }} onOpenChange={() => {}} />))).toContain("ERP não identificado: Sankhya — selecione na lista");
   });
+  it("cadastro do cliente com ERP trocado: o nome do cadastro em todas as exibições; o texto antigo só como texto original", () => {
+    const empresa = { id: "E3", razao_social: "Z", erp: "SAP B1", erp_id: "erp-aliare-siagri", erp_versao: "", addons: [] };
+    const form = texto(montar(<EmpresaFormDialog open editing={empresa} onOpenChange={() => {}} />));
+    expect(form).toContain('Texto original: "SAP B1"');
+    expect(texto(montar(<NomeErp registro={empresa} />)).trim()).toBe("Aliare Siagri");
+    expect(texto(montar(<ConhecimentoEmpresa empresa={empresa} />))).toContain("Aliare Siagri");
+    expect(texto(montar(<ConhecimentoEmpresa empresa={empresa} />))).not.toContain("SAP B1");
+    expect(textoOriginalDivergente({ erp: "SAP Business One", erp_id: "erp-sap-b1" }, ERPS)).toBeNull();
+    expect(textoOriginalDivergente({ erp: "Sankhya" }, ERPS)).toBeNull(); // sem vínculo: é o aviso "não identificado", não texto original
+  });
   it("barra de sistemas da empresa (ficha do cliente e diagnóstico)", () => {
     expect(texto(montar(<ConhecimentoEmpresa empresa={{ erp: "Protheus", erp_versao: "12.1.2410", addons: [] }} />))).toContain("TOTVS Protheus · 12.1.2410");
   });
@@ -168,6 +178,12 @@ describe("perfil do ERP no Saneamento de estoques", () => {
     const html = montar(<Configuracao projeto={projeto()} recarregar={() => {}} />);
     expect(html).toMatch(/<option value="erp-sap-b1" selected="">SAP Business One/);
     expect(texto(montar(<Configuracao projeto={projeto({ erp: "ERP próprio", erp_id: null })} recarregar={() => {}} />))).toContain("ERP não identificado: ERP próprio — selecione na lista");
+  });
+  it("Configuração: ERP trocado (SAP B1 -> Siagri) mostra o Siagri; o texto antigo aparece só como texto original", () => {
+    const html = montar(<Configuracao projeto={projeto({ erp: "Aliare Siagri", erp_nome: "Aliare Siagri", erp_texto_original: "SAP B1", erp_id: "erp-aliare-siagri" })} recarregar={() => {}} />);
+    expect(html).toMatch(/<option value="erp-aliare-siagri" selected="">Aliare Siagri/);
+    expect(texto(html)).toContain('Texto original: "SAP B1" (registro histórico do que estava digitado; o ERP em uso é o selecionado na lista)');
+    expect(texto(montar(<Configuracao projeto={projeto({ erp_texto_original: "SAP Business One" })} recarregar={() => {}} />))).not.toContain("Texto original");
   });
   it("Importação: consulta de extração com copiar e aviso das colunas pré-mapeadas", () => {
     const t = texto(montar(<Importacao projeto={projeto()} />, comPerfil(PERFIL_SAP, (qc) => qc.setQueryData(chaves.importacoes("p1"), []))));

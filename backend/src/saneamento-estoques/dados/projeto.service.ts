@@ -1,11 +1,22 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ATIVIDADES, ehAtividade, regraDoCnae, soDigitosCnae } from '../fiscal';
+import { nomeDoErp } from '../../erps/erps.service';
 import { CAMADAS_DAS_ATIVIDADES, MODULOS_PADRAO, camadasAtivas, conflito, exigirVersao, TX_LONGA, quem, type Json, type Usuario } from './constantes';
 
 const texto = (v: unknown, max: number) => { const t = String(v ?? '').trim(); return t ? t.slice(0, max) : null; };
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const COMPETENCIA = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * Projeto como a API devolve: o ERP é o do Cadastro de ERPs (erp_id). `erp` e `erp_nome` trazem o nome do cadastro; o texto gravado na
+ * coluna `erp` (o que estava digitado antes do Cadastro de ERPs) vai só em `erp_texto_original`, como registro histórico, nunca como ERP
+ * atual. Sem vínculo, vale o texto (é o único nome que há).
+ */
+async function comErpDoCadastro<T extends { erp?: string | null; erp_id?: string | null }>(prisma: unknown, p: T) {
+  const nome = await nomeDoErp(prisma, p.erp_id, p.erp);
+  return { ...p, erp: nome, erp_nome: nome, erp_texto_original: p.erp ?? null };
+}
 
 export type EntradaConfiguracao = {
   versao?: number; erp?: string | null; erp_id?: string | null; erp_versao?: string | null; estabelecimentos?: string[]; responsavel?: string | null;
@@ -38,7 +49,7 @@ export class SanProjetoService {
       }
     }
     try {
-    return await this.prisma.$transaction(async (tx) => {
+    const criado = await this.prisma.$transaction(async (tx) => {
       const p = await tx.sanProjeto.create({
         data: {
           diagnostico_id: diag.id, empresa_id: empresa.id, data_base: diag.periodo_inicio as Date, erp: empresa.erp ?? null, erp_id: (empresa as { erp_id?: string | null }).erp_id ?? null, erp_versao: empresa.erp_versao ?? null,
@@ -49,6 +60,7 @@ export class SanProjetoService {
       if (atividades.length) await tx.sanAtividade.createMany({ data: atividades.map((a) => ({ projeto_id: p.id, codigo: a.codigo, descricao: a.descricao, origem: 'CNPJ', mantida: true })) });
       return p;
     });
+    return await comErpDoCadastro(this.prisma, criado);
     } catch (e) {
       if ((e as { code?: string }).code === 'P2002') throw new ConflictException({ statusCode: 409, codigo: 'PROJETO_JA_EXISTE', message: 'Este projeto já foi aberto.' });
       throw e;
@@ -69,7 +81,7 @@ export class SanProjetoService {
     const empresa = await this.prisma.empresa.findUnique({ where: { id: p.empresa_id }, select: { dados_publicos_em: true } });
     const atual = empresa?.dados_publicos_em ? empresa.dados_publicos_em.toISOString() : null;
     const data_base = new Date(`${await this.dataBase(id)}T00:00:00.000Z`);
-    return { ...p, data_base, atividadesConfirmadas: !!p.atividades_confirmadas_em, cnpjDesatualizado: !!atual && atual !== p.cnpj_versao, mapaAtividades: mapaDeAtividades(p.atividades.filter((a) => a.mantida).map((a) => a.codigo)) };
+    return { ...(await comErpDoCadastro(this.prisma, p)), data_base, atividadesConfirmadas: !!p.atividades_confirmadas_em, cnpjDesatualizado: !!atual && atual !== p.cnpj_versao, mapaAtividades: mapaDeAtividades(p.atividades.filter((a) => a.mantida).map((a) => a.codigo)) };
   }
 
   async obterPorDiagnostico(diagnosticoId: string) {
@@ -81,20 +93,22 @@ export class SanProjetoService {
   async configurar(id: string, e: EntradaConfiguracao) {
     const versao = exigirVersao(e.versao);
     const dados: Json = {};
-    if (e.erp !== undefined) dados.erp = texto(e.erp, 120);
-    // ERP selecionado no Cadastro de ERPs: grava o vínculo (erp_id). O texto antigo (`erp`) fica como estava; só é preenchido com o nome do ERP
-    // quando estava vazio. Escolhido um ERP, não se volta a "sem ERP" (a associação automática religaria o texto): troca-se por outro da lista,
-    // e o "Outro ERP (sem perfil)" serve quando o do cliente não está cadastrado.
+    // A coluna `erp` guarda o texto original (registro histórico do que estava digitado): uma vez gravado, não muda, nem quando a tela devolve o
+    // nome do cadastro. Só é preenchida quando está vazia.
+    const atualErp = e.erp !== undefined || e.erp_id !== undefined ? await this.prisma.sanProjeto.findUnique({ where: { id }, select: { erp: true, erp_id: true } }) : null;
+    if (e.erp !== undefined && !String(atualErp?.erp ?? '').trim()) dados.erp = texto(e.erp, 120);
+    // ERP selecionado no Cadastro de ERPs: grava o vínculo (erp_id), que é o que vale para o nome exibido (comErpDoCadastro). Escolhido um ERP,
+    // não se volta a "sem ERP" (a associação automática religaria o texto): troca-se por outro da lista, e o "Outro ERP (sem perfil)" serve
+    // quando o do cliente não está cadastrado.
     if (e.erp_id !== undefined) {
-      const atual = await this.prisma.sanProjeto.findUnique({ where: { id }, select: { erp: true, erp_id: true } });
       if (e.erp_id === null || e.erp_id === '') {
-        if (atual?.erp_id) throw new BadRequestException('O ERP do projeto não fica vazio depois de escolhido: selecione outro na lista (ou "Outro ERP (sem perfil)").');
+        if (atualErp?.erp_id) throw new BadRequestException('O ERP do projeto não fica vazio depois de escolhido: selecione outro na lista (ou "Outro ERP (sem perfil)").');
         dados.erp_id = null;
       } else {
         const erp = await this.prisma.erp.findUnique({ where: { id: String(e.erp_id) }, select: { id: true, nome: true } });
         if (!erp) throw new BadRequestException('ERP não encontrado no Cadastro de ERPs: selecione na lista.');
         dados.erp_id = erp.id;
-        if (!String(dados.erp ?? atual?.erp ?? '').trim()) dados.erp = erp.nome;
+        if (!String(dados.erp ?? atualErp?.erp ?? '').trim()) dados.erp = erp.nome;
       }
     }
     if (e.erp_versao !== undefined) dados.erp_versao = texto(e.erp_versao, 60);
@@ -196,7 +210,7 @@ export class SanProjetoService {
       });
       if (r.count === 0) throw conflito();
       return tx.sanProjeto.findUnique({ where: { id: projetoId } });
-    });
+    }).then((p) => (p ? comErpDoCadastro(this.prisma, p) : p));
   }
 
   /** Reabre a trava: as células já trabalhadas das camadas dependentes viram "revisar"; decisões e casos ficam como estão. */
@@ -218,7 +232,7 @@ export class SanProjetoService {
         data: { revisar: true, revisar_causa: 'Atividades do cliente reabertas: revise o que depende delas.' },
       });
       return tx.sanProjeto.findUnique({ where: { id: projetoId } });
-    });
+    }).then((p) => (p ? comErpDoCadastro(this.prisma, p) : p));
   }
 
   /** A trava. Importação e análises chamam isto antes de qualquer coisa. */

@@ -107,6 +107,18 @@ export function vinculoErpParaSalvar(registro, erps = [], listaCarregada = true)
 
 export const avisoNaoIdentificado = (texto) => `ERP não identificado: ${texto} — selecione na lista`;
 
+/**
+ * Texto original do registro que diverge do ERP escolhido (ex.: "SAP B1" digitado antes e o Siagri escolhido na lista): fica guardado só
+ * como registro histórico e a tela o identifica como "Texto original", nunca como o ERP em uso. null = não há texto ou ele é o mesmo ERP.
+ */
+export function textoOriginalDivergente(registro, erps = []) {
+  const { erp, texto } = erpDoRegistro(registro, erps);
+  if (!erp || !texto || !registro?.erp_id) return null;
+  return associarErp(texto, erps)?.id === erp.id ? null : texto;
+}
+
+export const avisoTextoOriginal = (texto) => `Texto original: "${texto}" (registro histórico do que estava digitado; o ERP em uso é o selecionado na lista)`;
+
 /** Perfil com conhecimento específico? A desenvolver (e o "Outro ERP") usa só as regras gerais, sem alertas específicos. */
 export const perfilEspecifico = (p) => !!p && p.situacao !== "A_DESENVOLVER" && p.ativo !== false;
 
