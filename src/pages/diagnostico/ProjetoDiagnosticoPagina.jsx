@@ -121,11 +121,8 @@ export default function ProjetoDiagnosticoPagina() {
         {p.servico_consultoria === "pj-homologacao" && <HomologacaoErp projetoId={p.id} />}
         {p.servico_consultoria === "saneamento-estoques" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Saneamento de estoques</h2>
-          <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. O trabalho passo a passo, até a política de uso, é feito na ferramenta de Saneamento de estoques da empresa.</p>
-          <div className="flex flex-wrap gap-4 text-sm text-primary">
-            <Link to={`/diagnostico/projetos/${p.id}/saneamento`}>Abrir o Saneamento de estoques e cadastro de produtos</Link>
-            {(p.empresa_ids || []).map((id) => { const e = (empresas || []).find((x) => x.id === id); const to = e && caminhoDaFerramenta(e, grupos, "saneamento-estoque"); return to ? <Link key={id} to={to}>Abrir o saneamento de {e.razao_social || e.nome}</Link> : null; })}
-          </div>
+          <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. Todas as etapas deste projeto, da importação dos arquivos à política de uso, ficam no Saneamento de estoques e cadastro de produtos.</p>
+          <Link to={`/diagnostico/projetos/${p.id}/saneamento`} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Abrir o Saneamento de estoques e cadastro de produtos</Link>
         </section>}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>

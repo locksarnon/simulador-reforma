@@ -61,6 +61,19 @@ describe("Diagnósticos: o projeto", () => {
     expect(html).toContain("/workroom/G1/empresas/A/importacao-xml");
     expect(html).not.toContain("Painel executivo do grupo inteiro");
   });
+  it("saneamento de estoques: um botão só, para o Saneamento de estoques e cadastro de produtos do projeto (sem o link da ferramenta antiga)", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, enabled: false } } });
+    qc.setQueryData(["empresas", "carteiras"], EMPRESAS);
+    qc.setQueryData(["grupos"], GRUPOS);
+    qc.setQueryData(["consultoria", "catalogo"], [{ id: "saneamento-estoques", nome: "Saneamento de estoques com foco em IBS e CBS", publico: "PJ", projeto: true }]);
+    qc.setQueryData(["projetos-diagnostico", "P3"], { id: "P3", nome: "Saneamento Extra", servico_consultoria: "saneamento-estoques", empresa_ids: ["A"], situacao: "EM_ANDAMENTO", periodo_inicio: "2026-12-31T00:00:00Z" });
+    const html = renderToString(<QueryClientProvider client={qc}><StaticRouter location="/diagnostico/projetos/P3"><Routes><Route path="/diagnostico/projetos/:id" element={<ProjetoDiagnosticoPagina />} /></Routes></StaticRouter></QueryClientProvider>).replace(/<!-- -->/g, "");
+    expect(html).toContain('href="/diagnostico/projetos/P3/saneamento"');
+    expect(html).toContain("Abrir o Saneamento de estoques e cadastro de produtos");
+    expect(html).toContain("da importação dos arquivos à política de uso");
+    expect(html).not.toContain("Abrir o saneamento de EXTRA");
+    expect(html).not.toContain("ferramenta de Saneamento de estoques da empresa");
+  });
 });
 
 describe("regras dos projetos e do seletor", () => {
