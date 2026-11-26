@@ -261,8 +261,21 @@ describe('camada TRIBUTARIO', () => {
 });
 
 describe('impacto no SPED', () => {
-  it('checklist cobre os 6 tipos, conferido nas fontes oficiais de 26/11/2026', () => {
-    expect(TIPOS_AJUSTE.length).toBe(6);
+  it('inativação pura (INATIVOU): só 0200 e H010 da EFD ICMS/IPI, sem 0205, 0221, C170 nem F150; consolidação segue completa', () => {
+    const regs = CHECKLIST.INATIVOU.registros;
+    expect(regs.map((r) => `${r.obrigacao}:${r.registro}`)).toEqual(['EFD_ICMS_IPI:0200', 'EFD_ICMS_IPI:H010']);
+    expect(regs.every((r) => r.conferido && r.semValor)).toBe(true);
+    expect(regs[0].ressalva).toMatch(/3.2.4, registro 0200: "somente devem ser apresentados itens referenciados nos demais blocos"/);
+    expect(regs[0].verificar).toMatch(/não pode ser reutilizado/);
+    expect(regs[1].verificar).toMatch(/não pode ter saldo no inventário/);
+    expect(CHECKLIST.INATIVOU.rotulo).toBe('Inativou código');
+    const linhas = impactosDoAjuste('INATIVOU', { dataBase: DB });
+    expect(linhas.map((l) => l.registro)).toEqual(['0200', 'H010']);
+    expect(linhas[0]).toMatchObject({ tipo: 'CADASTRAL_FUTURO', avaliarAnteriores: false, valorOriginal: null });
+    expect(CHECKLIST.CONSOLIDOU_INATIVOU.registros.map((r) => r.registro)).toEqual(['0200', '0205', '0221', 'H010', 'C170', 'F150']);
+  });
+  it('checklist cobre os 7 tipos, conferido nas fontes oficiais de 26/11/2026', () => {
+    expect(TIPOS_AJUSTE.length).toBe(7);
     const regs = (t: (typeof TIPOS_AJUSTE)[number]) => CHECKLIST[t].registros.map((r) => r.registro);
     expect(regs('MUDOU_CODIGO_DESCRICAO')).toEqual(expect.arrayContaining(['0200', '0205']));
     expect(regs('MUDOU_UNIDADE')).toEqual(expect.arrayContaining(['0190', '0220']));
@@ -316,6 +329,7 @@ describe('impacto no SPED', () => {
       expect(r.ressalva).toMatch(/NT EFD-Contribuições 13\/2026 \(alterações previstas\)/);
     }
     for (const t of TIPOS_AJUSTE.filter((x) => x !== 'CONSOLIDOU_INATIVOU' && x !== 'MUDOU_UNIDADE')) expect(f150(t)).toHaveLength(0);
+    expect(f150('INATIVOU')).toHaveLength(0);
     const linha = impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB }, { valorOriginal: 'A1', valorProposto: 'A2' }).find((l) => l.registro === 'F150')!;
     expect(linha).toMatchObject({ valorOriginal: null, valorProposto: null, registroConferido: false });
     expect(CHECKLIST.ITEM_ATIVO_IMOBILIZADO.registros.find((r) => r.registro === 'F120/F130')!.ressalva).toMatch(/art\. 380; NT EFD-Contribuições 13\/2026, alterações previstas/);

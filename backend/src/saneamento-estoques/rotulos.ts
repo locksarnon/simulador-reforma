@@ -37,7 +37,7 @@ export const ROTULO_TIPO_CASO: Record<string, string> = {
   ENQUADRAMENTO_CONJUNTO: 'Enquadramento do conjunto', ENQUADRAMENTO_CONFERIDO: 'Enquadramento conferido', EXCECAO_ITEM: 'Exceção do item', EXCECAO_MANUAL: 'Exceção do item',
   AGUARDANDO_NCM: 'Aguardando NCM', AGUARDANDO_FINALIDADE: 'Aguardando finalidade', AGUARDANDO_INFORMACAO: 'Aguardando informação',
   // Obrigações
-  IMPACTO_MUDOU_CODIGO_DESCRICAO: 'Impacto: código ou descrição', IMPACTO_MUDOU_UNIDADE: 'Impacto: unidade ou conversão', IMPACTO_CONSOLIDOU_INATIVOU: 'Impacto: consolidação ou inativação',
+  IMPACTO_MUDOU_CODIGO_DESCRICAO: 'Impacto: código ou descrição', IMPACTO_MUDOU_UNIDADE: 'Impacto: unidade ou conversão', IMPACTO_CONSOLIDOU_INATIVOU: 'Impacto: consolidação de código', IMPACTO_INATIVOU: 'Impacto: inativação de código',
   IMPACTO_MUDOU_NCM: 'Impacto: NCM', IMPACTO_MUDOU_TRATAMENTO: 'Impacto: tratamento (CST/cClassTrib)', IMPACTO_ITEM_ATIVO_IMOBILIZADO: 'Impacto: bem do ativo imobilizado',
 };
 

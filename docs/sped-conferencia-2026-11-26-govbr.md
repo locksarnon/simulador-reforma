@@ -137,3 +137,12 @@ Fora do checklist, mas ligado ao saneamento de estoques: pela NT 13/2026, o **F1
 - **EFD-Contribuições:** o guia continua o **1.35** (18/06/2021). O **COD_VER de 2026 segue não confirmado**: a tabela oficial vai até 006 (2020) e as NT de 2024/2025 não publicam código novo. Há as NT 11/2026 (sem leiaute de CBS/IBS em 2026; sem novos fatos geradores a partir de 2027) e 13/2026 (F120/F130 mantidos em 2027 para o crédito presumido de CBS; F150 para o estoque de abertura).
 - Os registros conferem: 0190, 0200 (COD_ANT_ITEM "Não preencher"), 0205, 0220, 0221, H010, C170, 0300, G110 e G125 no guia 3.2.4, com texto idêntico ao 3.2.2. A única mudança, no C170 QTD (nota de crédito de 2026), não afeta o checklist. Na EFD-Contribuições conferem 0200, 0205, C170, F120/F130 e M100/M500, e o 0220 não existe. A EFD ICMS/IPI não tem campo de IBS/CBS, nem no leiaute 021.
 - Mudanças no código: só as citações de fonte e versão (URLs gov.br, 3.2.2 para 3.2.4, leiaute 021 em 2027, nota do COD_VER) e duas ressalvas opcionais de 2027. Nenhuma mudança de campo.
+
+## 6. Complemento (26/11/2026): inativação de código sem troca
+
+Trechos do Guia Prático EFD ICMS/IPI 3.2.4 (cópia do PDF oficial baixado nesta conferência, texto extraído), usados no tipo de ajuste "Inativou código" (`INATIVOU`) de `impactoSped.ts`:
+
+- Registro 0200 (p. 35): "Validação do registro: somente devem ser apresentados itens referenciados nos demais blocos, exceto se for apresentado o fator de conversão no registro 0220 (a partir de julho de 2012) ou alteração do item no registro 0205 (a partir de janeiro de 2021) ou correlação entre códigos de itens comercializados no registro 0221 (a partir de janeiro de 2023)." Alínea "b": "Não é permitida a reutilização de código que tenha sido atribuído para qualquer produto anteriormente."
+- Registro H010 (p. 266): "Este registro deve ser informado para discriminar os itens existentes no estoque."
+
+Consequência: a inativação pura não gera 0205 (não há código anterior), 0221 (não há correlação) nem troca de COD_ITEM no C170; esses registros ficam no checklist da consolidação. O alerta do F150 (estoque de abertura de 2027) não entra, porque a inativação pressupõe saldo zero.

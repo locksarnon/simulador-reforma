@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ContextoAnalise, ItemTrabalho } from '../tipos';
 import { papeisDeUnificacao } from '../dados/motor.provider';
-import { ajustesDosCasos, tiposDeAjusteDoCaso } from '../dados/ajustes';
+import { ajustesDosCasos, linhasDeImpactoDoCaso, tiposDeAjusteDoCaso } from '../dados/ajustes';
 import { validarResultado } from '../dados/validacao';
 import { AnalisadorQualidade, type ContextoMotor } from './index';
 
@@ -68,12 +68,13 @@ describe('QUALIDADE: itens sem movimentação a longa data', () => {
     expect(new AnalisadorQualidade().analisar([item('A')], ctx()).semDados).toBeNull();
   });
 
-  it('inativação gera o ajuste "consolidou/inativou" por item (0200 e H010 no checklist)', () => {
+  it('inativação gera o ajuste "Inativou código" por item (só 0200 e H010 no checklist)', () => {
     const a = item('A'); const b = item('B');
     const [c] = doTipo(new AnalisadorQualidade().analisar([a, b], ctx()), 'SEM_MOVIMENTACAO');
-    expect(tiposDeAjusteDoCaso(c)).toEqual(['CONSOLIDOU_INATIVOU']);
+    expect(tiposDeAjusteDoCaso(c)).toEqual(['INATIVOU']);
+    expect(linhasDeImpactoDoCaso({ ...c, id: 'c1', projeto_id: 'P', situacao: 'APROVADO' }, '2026-12-31').map((l) => l.registro)).toEqual(['0200', 'H010']);
     const ajustes = ajustesDosCasos([{ ...c, situacao: 'APROVADO' }], { dataBase: '2026-12-31' });
-    expect(ajustes.map((x) => [x.tipo, x.itemId, x.status])).toEqual([['CONSOLIDOU_INATIVOU', a.id, 'APROVADO'], ['CONSOLIDOU_INATIVOU', b.id, 'APROVADO']]);
+    expect(ajustes.map((x) => [x.tipo, x.itemId, x.status])).toEqual([['INATIVOU', a.id, 'APROVADO'], ['INATIVOU', b.id, 'APROVADO']]);
   });
 
   it('30 mil itens parados em 30 grupos: 30 casos (conjunto), sem estourar a pilha', () => {

@@ -297,7 +297,7 @@ describe('ALTO F: impacto de consolidação só com decisão de consolidar ou in
     expect(tiposDeAjusteDoCaso(dup('SOLICITAR_INFORMACAO'))).toEqual([]);
     expect(tiposDeAjusteDoCaso(dup('RELACIONAR_APRESENTACOES'))).toEqual([]);
     expect(tiposDeAjusteDoCaso(dup('PROPOR_CONSOLIDACAO'))).toEqual(['CONSOLIDOU_INATIVOU']);
-    expect(tiposDeAjusteDoCaso(dup('PROPOR_INATIVACAO'))).toEqual(['CONSOLIDOU_INATIVOU']);
+    expect(tiposDeAjusteDoCaso(dup('PROPOR_INATIVACAO'))).toEqual(['INATIVOU']);
     const linhas = ajustesDosCasos([{ ...dup('MANTER_DISTINTOS'), itens: ['a', 'b'], justificativa: 'j', situacao: 'APROVADO', atual: {} }]);
     expect(linhas).toEqual([]);
   });

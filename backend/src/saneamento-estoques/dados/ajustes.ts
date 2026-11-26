@@ -17,7 +17,8 @@ type Mapa = Record<string, unknown>;
  * |-------------------------------------|-------------------------------------------------------------------------------------------|
  * | MUDOU_CODIGO_DESCRICAO              | proposta aplicável com `codigo` ou `descricao`, ou caso CODIGO_ANTIGO (vínculo antigo→novo) |
  * | MUDOU_UNIDADE                       | proposta aplicável com `unidade`, `unidadeCompra` ou `fatorConversao`                     |
- * | CONSOLIDOU_INATIVOU                 | decisão = PROPOR_CONSOLIDACAO ou PROPOR_INATIVACAO (nunca pela simples chave `consolidar`) |
+ * | CONSOLIDOU_INATIVOU                 | decisão = PROPOR_CONSOLIDACAO (unificação: o código que sai vai para o que fica; nunca pela chave `consolidar`) |
+ * | INATIVOU                            | decisão = PROPOR_INATIVACAO (inativação pura, sem troca de código: Qualidade sem movimentação e Duplicidades) |
  * | MUDOU_NCM                           | proposta aplicável com `ncm`                                                              |
  * | MUDOU_TRATAMENTO                    | proposta aplicável com `cClassTrib` ou `cst` (camada TRIBUTARIO)                          |
  * | ITEM_ATIVO_IMOBILIZADO              | proposta com `finalidade` = IMOBILIZADO                                                   |
@@ -28,7 +29,7 @@ type Mapa = Record<string, unknown>;
  * ajuste. O valor original e o proposto vêm de `atual` e `proposta` (primeiro campo relevante do tipo).
  */
 const DECISAO_SEM_EFEITO = ['MANTER_DISTINTOS', 'SOLICITAR_INFORMACAO'];
-const DECISAO_CONSOLIDA = ['PROPOR_CONSOLIDACAO', 'PROPOR_INATIVACAO'];
+
 export function tiposDeAjusteDoCaso(c: Pick<CasoParaAjuste, 'camada' | 'proposta'> & { tipo?: string }): TipoAjuste[] {
   if (c.camada === 'OBRIGACOES' || c.tipo === 'ENQUADRAMENTO_CONFERIDO') return [];
   const completa = (c.proposta ?? {}) as Mapa;
@@ -38,7 +39,8 @@ export function tiposDeAjusteDoCaso(c: Pick<CasoParaAjuste, 'camada' | 'proposta
   const tipos: TipoAjuste[] = [];
   if (c.tipo === 'CODIGO_ANTIGO' || tem('codigo', 'descricao')) tipos.push('MUDOU_CODIGO_DESCRICAO');
   if (tem('unidade', 'unidadeCompra', 'fatorConversao')) tipos.push('MUDOU_UNIDADE');
-  if (DECISAO_CONSOLIDA.includes(String(completa.decisao))) tipos.push('CONSOLIDOU_INATIVOU');
+  if (completa.decisao === 'PROPOR_CONSOLIDACAO') tipos.push('CONSOLIDOU_INATIVOU');
+  else if (completa.decisao === 'PROPOR_INATIVACAO') tipos.push('INATIVOU');
   if (tem('ncm')) tipos.push('MUDOU_NCM');
   if (tem('cClassTrib', 'cst')) tipos.push('MUDOU_TRATAMENTO');
   if (p.finalidade === 'IMOBILIZADO') tipos.push('ITEM_ATIVO_IMOBILIZADO');
@@ -46,7 +48,7 @@ export function tiposDeAjusteDoCaso(c: Pick<CasoParaAjuste, 'camada' | 'proposta
 }
 
 const CAMPOS_DO_TIPO: Record<TipoAjuste, string[]> = {
-  MUDOU_CODIGO_DESCRICAO: ['codigo', 'descricao'], MUDOU_UNIDADE: ['unidade', 'fatorConversao', 'unidadeCompra'], CONSOLIDOU_INATIVOU: ['manter', 'consolidar'],
+  MUDOU_CODIGO_DESCRICAO: ['codigo', 'descricao'], MUDOU_UNIDADE: ['unidade', 'fatorConversao', 'unidadeCompra'], CONSOLIDOU_INATIVOU: ['manter', 'consolidar'], INATIVOU: [],
   MUDOU_NCM: ['ncm'], MUDOU_TRATAMENTO: ['cClassTrib', 'cst'], ITEM_ATIVO_IMOBILIZADO: ['finalidade'],
 };
 const valor = (m: Mapa, campos: string[]): string | number | null => {

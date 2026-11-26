@@ -13,10 +13,10 @@ import { AnalisadorCamada, CasoProposto, ContextoAnalise, Evidencia, ItemTrabalh
 
 export const VERSAO_CHECKLIST = '1.0.0';
 
-export const TIPOS_AJUSTE = ['MUDOU_CODIGO_DESCRICAO', 'MUDOU_UNIDADE', 'CONSOLIDOU_INATIVOU', 'MUDOU_NCM', 'MUDOU_TRATAMENTO', 'ITEM_ATIVO_IMOBILIZADO'] as const;
+export const TIPOS_AJUSTE = ['MUDOU_CODIGO_DESCRICAO', 'MUDOU_UNIDADE', 'CONSOLIDOU_INATIVOU', 'INATIVOU', 'MUDOU_NCM', 'MUDOU_TRATAMENTO', 'ITEM_ATIVO_IMOBILIZADO'] as const;
 export type TipoAjuste = (typeof TIPOS_AJUSTE)[number];
 export const ROTULO_AJUSTE: Record<TipoAjuste, string> = {
-  MUDOU_CODIGO_DESCRICAO: 'Mudou código ou descrição do item', MUDOU_UNIDADE: 'Mudou unidade ou conversão', CONSOLIDOU_INATIVOU: 'Consolidou ou inativou código',
+  MUDOU_CODIGO_DESCRICAO: 'Mudou código ou descrição do item', MUDOU_UNIDADE: 'Mudou unidade ou conversão', CONSOLIDOU_INATIVOU: 'Consolidou código (unificação)', INATIVOU: 'Inativou código',
   MUDOU_NCM: 'Mudou NCM', MUDOU_TRATAMENTO: 'Mudou tratamento (CST/cClassTrib)', ITEM_ATIVO_IMOBILIZADO: 'Item de bem do ativo imobilizado',
 };
 
@@ -116,6 +116,23 @@ export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
       R('EFD_ICMS_IPI', 'H010', ['COD_ITEM', 'UNID', 'QTD', 'VL_UNIT', 'VL_ITEM'], 'Inventário sem código inativado e com o saldo consolidado; o código do item no inventário é o utilizado no mês inventariado', true),
       R('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Vínculo com os documentos do período', true),
       ALERTA_ESTOQUE_ABERTURA_2027,
+    ],
+  },
+  /**
+   * Inativação pura (sem troca nem consolidação de código): itens sem movimentação desde o corte e decisão PROPOR_INATIVACAO. Não há código
+   * anterior (0205), correlação (0221) nem troca de código nos documentos (C170). Guia Prático da EFD ICMS/IPI 3.2.4 (PDF oficial lido em
+   * 26/11/2026; trechos em docs/sped-conferencia-2026-11-26-govbr.md, seção 6): registro 0200, "Validação do registro: somente devem ser
+   * apresentados itens referenciados nos demais blocos" (salvo 0220, 0205 e 0221) e alínea "b" (sem reutilização de código); registro H010,
+   * "deve ser informado para discriminar os itens existentes no estoque". Sem o alerta do F150: a inativação pressupõe saldo zero (o saldo,
+   * se houver, é regularizado antes, como diz o mapa de unificações), e item sem saldo não compõe o estoque de abertura.
+   */
+  INATIVOU: {
+    rotulo: ROTULO_AJUSTE.INATIVOU, tipoPadrao: 'CADASTRAL_FUTURO', avaliarAnteriores: false,
+    motivoAvaliar: 'Os períodos já escriturados seguem com o código; ele só deixa de ser apresentado quando não houver referência a ele nos demais blocos',
+    registros: [
+      S('EFD_ICMS_IPI', '0200', ['COD_ITEM'], 'Código inativado: deixa de ser apresentado no 0200 do período em que não for referenciado nos demais blocos (sem documento nem inventário); o código não pode ser reutilizado para outro item', true,
+        'Guia Prático da EFD ICMS/IPI 3.2.4, registro 0200: "somente devem ser apresentados itens referenciados nos demais blocos", salvo 0220, 0205 ou 0221; alínea "b": não é permitida a reutilização de código'),
+      S('EFD_ICMS_IPI', 'H010', ['COD_ITEM', 'QTD'], 'O H010 discrimina os itens existentes no estoque: código inativado não pode ter saldo no inventário; havendo saldo, regularizar antes de inativar', true),
     ],
   },
   MUDOU_NCM: {
