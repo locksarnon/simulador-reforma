@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/AuthContext";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { chavesErps, RotuloGrau, useErps } from "@/components/erps/erps";
-import { CAMPOS_SANEAMENTO, GRAUS, SITUACOES_ERP, TIPOS_AJUSTE_ERP, TIPOS_CONHECIMENTO } from "@/lib/erps";
+import { CAMPOS_LIMITE, CAMPOS_SANEAMENTO, GRAUS, SITUACOES_ERP, TIPOS_AJUSTE_ERP, TIPOS_CONHECIMENTO } from "@/lib/erps";
 
 const CRUMBS = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Configuração e ERPs", to: "/configuracao" }];
 const campo = "mt-1 w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background text-foreground";
@@ -88,17 +88,19 @@ function FormItem({ inicial, aoSalvar, aoCancelar, salvando, erro }) {
   const [f, setF] = useState(() => ({ ...ITEM_VAZIO, ...inicial, tipo_ajuste: inicial?.tipo_ajuste || "", campo_erp: inicial?.campo_erp || "", fonte_url: inicial?.fonte_url || "" }));
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const coluna = f.tipo === "COLUNA_EXPORT";
+  const limite = f.tipo === "LIMITE_CAMPO";
+  const camposDoSelect = limite ? Object.fromEntries(CAMPOS_LIMITE.map((k) => [k, CAMPOS_SANEAMENTO[k]])) : CAMPOS_SANEAMENTO;
   return (
     <form aria-label="Item de conhecimento" className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); aoSalvar({ ...f, ordem: Number(f.ordem) || 0, tipo_ajuste: f.tipo_ajuste || null }); }}>
       <label className="text-xs font-medium">Tipo<select className={campo} value={f.tipo} onChange={set("tipo")}>{Object.entries(TIPOS_CONHECIMENTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
       <label className="text-xs font-medium">Tipo de ajuste (vazio = vale para o ERP todo)
         <select className={campo} value={f.tipo_ajuste} onChange={set("tipo_ajuste")}><option value="">—</option>{Object.entries(TIPOS_AJUSTE_ERP).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       </label>
-      {coluna
-        ? <label className="text-xs font-medium">Campo do saneamento<select className={campo} value={f.chave} onChange={set("chave")} required><option value="">Selecione</option>{Object.entries(CAMPOS_SANEAMENTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+      {coluna || limite
+        ? <label className="text-xs font-medium">{limite ? "Campo do item" : "Campo do saneamento"}<select className={campo} value={f.chave} onChange={set("chave")} required><option value="">Selecione</option>{Object.entries(camposDoSelect).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         : <label className="text-xs font-medium">Rótulo<input className={campo} value={f.chave} onChange={set("chave")} required /></label>}
-      <label className="text-xs font-medium">{coluna ? "Cabeçalho da coluna no export" : "Campo ou tabela do ERP (opcional)"}<input className={campo} value={f.campo_erp} onChange={set("campo_erp")} /></label>
-      <label className="text-xs font-medium sm:col-span-2">Texto{f.tipo === "ACAO_NO_ERP" ? " (use {sai} e {fica} para os códigos)" : ""}<textarea className={`${campo} min-h-[80px] font-mono`} value={f.texto} onChange={set("texto")} required /></label>
+      <label className="text-xs font-medium">{coluna ? "Cabeçalho da coluna no export" : limite ? "Campo no ERP" : "Campo ou tabela do ERP (opcional)"}<input className={campo} value={f.campo_erp} onChange={set("campo_erp")} /></label>
+      <label className="text-xs font-medium sm:col-span-2">Texto{f.tipo === "ACAO_NO_ERP" ? " (use {sai} e {fica} para os códigos)" : limite ? " (comece por \"N caracteres\" quando confirmado; sem número = não confirmado)" : ""}<textarea className={`${campo} min-h-[80px] font-mono`} value={f.texto} onChange={set("texto")} required /></label>
       <label className="text-xs font-medium">Fonte oficial (endereço)<input className={campo} value={f.fonte_url} onChange={set("fonte_url")} placeholder="https://" /></label>
       <label className="text-xs font-medium">Grau<select className={campo} value={f.grau} onChange={set("grau")}>{Object.entries(GRAUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
       <label className="text-xs font-medium">Ordem<input type="number" className={campo} value={f.ordem} onChange={set("ordem")} /></label>
@@ -110,7 +112,7 @@ function FormItem({ inicial, aoSalvar, aoCancelar, salvando, erro }) {
 }
 
 const colunasDoTipo = (tipo, admin, editar) => [
-  ...(tipo === "COLUNA_EXPORT" ? [{ chave: "chave", rotulo: "Campo do saneamento", valor: (i) => CAMPOS_SANEAMENTO[i.chave] || i.chave }, { chave: "campo_erp", rotulo: "Coluna no export" }]
+  ...(tipo === "COLUNA_EXPORT" || tipo === "LIMITE_CAMPO" ? [{ chave: "chave", rotulo: tipo === "LIMITE_CAMPO" ? "Campo do item" : "Campo do saneamento", valor: (i) => CAMPOS_SANEAMENTO[i.chave] || i.chave }, { chave: "campo_erp", rotulo: tipo === "LIMITE_CAMPO" ? "Campo no ERP" : "Coluna no export" }]
     : [{ chave: "chave", rotulo: "Rótulo" }, ...(tipo === "RESTRICAO" || tipo === "ACAO_NO_ERP" ? [{ chave: "tipo_ajuste", rotulo: "Tipo de ajuste", valor: (i) => (i.tipo_ajuste ? TIPOS_AJUSTE_ERP[i.tipo_ajuste] || i.tipo_ajuste : "Todos") }] : []), { chave: "campo_erp", rotulo: "Campo ou tabela" }]),
   { chave: "texto", rotulo: "Texto", quebrar: true, render: (i) => (tipo === "CONSULTA_EXTRACAO" ? <pre className="max-h-40 max-w-[36rem] overflow-auto whitespace-pre-wrap text-xs">{i.texto}</pre> : <span className="text-sm">{i.texto}</span>) },
   { chave: "grau", rotulo: "Grau", valor: (i) => GRAUS[i.grau] || i.grau, render: (i) => <RotuloGrau grau={i.grau} /> },

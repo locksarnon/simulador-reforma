@@ -1,7 +1,7 @@
 /**
  * Regras puras do Cadastro de ERPs. Espelho de src/lib/erps.js (o teste logica.test.ts confere que as duas associam igual).
  */
-export const TIPOS_CONHECIMENTO = ['COLUNA_EXPORT', 'CONSULTA_EXTRACAO', 'RESTRICAO', 'ACAO_NO_ERP', 'MODELO_CARGA', 'OBSERVACAO'] as const;
+export const TIPOS_CONHECIMENTO = ['COLUNA_EXPORT', 'CONSULTA_EXTRACAO', 'RESTRICAO', 'ACAO_NO_ERP', 'MODELO_CARGA', 'OBSERVACAO', 'LIMITE_CAMPO'] as const;
 export type TipoConhecimento = (typeof TIPOS_CONHECIMENTO)[number];
 export const SITUACOES_ERP = ['COMPLETO', 'PARCIAL', 'A_DESENVOLVER'] as const;
 export type SituacaoErp = (typeof SITUACOES_ERP)[number];
@@ -100,6 +100,33 @@ export function colunasDoExport(p: PerfilErp | null | undefined): Record<string,
   const out: Record<string, string[]> = {};
   for (const i of ativos(p, 'COLUNA_EXPORT')) if (i.campo_erp) (out[i.chave] ??= []).push(i.campo_erp);
   return out;
+}
+
+/**
+ * LIMITE_CAMPO: tamanho máximo de um campo do cadastro de itens no ERP (restrição adicional ao leiaute oficial, que é o teto).
+ * Convenção do item: `chave` = campo do item no saneamento (CAMPOS_LIMITE), `campo_erp` = campo do ERP (ex.: OITM.ItemName) e `texto`
+ * começando por "<n> caracteres" quando o tamanho é confirmado; sem número no início (ou grau NAO_CONFIRMADO) = limite não confirmado
+ * (null), nunca um número genérico. Tamanho configurável no ERP (ex.: SX3 do Protheus) fica registrado no texto, sem número.
+ */
+export const CAMPOS_LIMITE = ['descricao', 'codigo', 'unidade', 'referencia', 'fabricante'] as const;
+export type CampoLimite = (typeof CAMPOS_LIMITE)[number];
+export type LimiteCampoErp = { campoItem: CampoLimite; campoErp: string | null; limite: number | null; confirmado: boolean; observacao: string; fonteUrl: string | null };
+
+/** Tamanho no início do texto ("200 caracteres..."); null quando o texto não começa por um número de caracteres. */
+export function tamanhoDoTexto(texto: unknown): number | null {
+  const m = /^\s*(\d{1,5})\s*caracteres\b/i.exec(String(texto ?? ''));
+  const n = m ? Number(m[1]) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/** Limites de campo do ERP (itens LIMITE_CAMPO ativos). Só CONFIRMADO com tamanho no texto vira limite; o resto fica null (pendente). */
+export function limitesDoErp(p: PerfilErp | null | undefined): LimiteCampoErp[] {
+  return ativos(p, 'LIMITE_CAMPO')
+    .filter((i) => (CAMPOS_LIMITE as readonly string[]).includes(i.chave))
+    .map((i) => {
+      const n = i.grau === 'CONFIRMADO' ? tamanhoDoTexto(i.texto) : null;
+      return { campoItem: i.chave as CampoLimite, campoErp: i.campo_erp, limite: n, confirmado: n !== null, observacao: i.texto, fonteUrl: i.fonte_url };
+    });
 }
 
 export const consultasDeExtracao = (p: PerfilErp | null | undefined) => ativos(p, 'CONSULTA_EXTRACAO');

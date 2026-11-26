@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../prisma/prisma.service';
 import { TIPOS_AJUSTE } from '../saneamento-estoques/fiscal/impactoSped';
 import { CARGA_ERPS, idDoItemDaCarga, type ErpCarga } from './carga';
-import { apelidosDoTexto, associarErp, CHAVE_APELIDOS, GRAUS, SITUACOES_ERP, TIPOS_CONHECIMENTO, type ErpBasico, type PerfilErp } from './logica';
+import { apelidosDoTexto, associarErp, CAMPOS_LIMITE, CHAVE_APELIDOS, GRAUS, SITUACOES_ERP, TIPOS_CONHECIMENTO, type ErpBasico, type PerfilErp } from './logica';
 
 /** Apelidos do nome (item OBSERVACAO "Apelidos do nome" ativo) de um ERP com os conhecimentos. */
 const apelidosDe = (c: { tipo: string; chave?: string; texto?: string; ativo: boolean }[]) => c.filter((i) => i.ativo && i.tipo === 'OBSERVACAO' && i.chave === CHAVE_APELIDOS).flatMap((i) => apelidosDoTexto(i.texto));
@@ -49,6 +49,9 @@ export function validarItem(e: Json, parcial = false): Json {
     d.tipo_ajuste = t;
   }
   if (!parcial || e.chave !== undefined) { const c = texto(e.chave, 200); if (!c) throw new BadRequestException('Informe o rótulo (ou, nas colunas do export, o campo do saneamento).'); d.chave = c; }
+  if (e.tipo === 'LIMITE_CAMPO' && d.chave !== undefined && !(CAMPOS_LIMITE as readonly string[]).includes(String(d.chave))) {
+    throw new BadRequestException(`No limite de campo, o rótulo é o campo do item (${CAMPOS_LIMITE.join(', ')}).`);
+  }
   if (!parcial || e.texto !== undefined) { const t = texto(e.texto, 8000); if (!t) throw new BadRequestException('Informe o texto.'); d.texto = t; }
   if (e.campo_erp !== undefined) d.campo_erp = texto(e.campo_erp, 300);
   if (e.fonte_url !== undefined) {
