@@ -799,11 +799,21 @@ export class SanCasosService {
 
   /** Dependências: as camadas citadas em `afeta` viram "revisar" nos itens do caso (a decisão anterior nelas fica intacta). */
   private async marcarDependencias(tx: Tx, c: CasoLinha, verbo = 'foi aprovado e muda dados que esta camada usa') {
-    const afeta = ((c.afeta as string[]) ?? []).filter((x) => x !== c.camada);
+    let afeta = ((c.afeta as string[]) ?? []).filter((x) => x !== c.camada);
     if (!afeta.length) return;
-    await tx.sanCelula.updateMany({
-      where: { projeto_id: c.projeto_id, item_id: { in: c.itens }, camada: { in: afeta }, situacao: { not: 'PENDENTE' } },
-      data: { revisar: true, revisar_causa: `Revisar: o caso "${c.tipo}" (${c.camada}) ${verbo.startsWith('foi aprovado') ? verbo : `${verbo} e muda dados que esta camada usa`}.` },
-    });
+    const data = { revisar: true, revisar_causa: `Revisar: o caso "${c.tipo}" (${c.camada}) ${verbo.startsWith('foi aprovado') ? verbo : `${verbo} e muda dados que esta camada usa`}.` };
+    // Inativação da Qualidade (sem movimentação) × Duplicidades: só importa para o item que está numa unificação aberta ou aprovada (o código
+    // que fica não pode ser inativado). Item sem duplicata não ganha "revisar" na Duplicidade.
+    if (c.camada === 'QUALIDADE' && afeta.includes('DUPLICIDADE')) {
+      afeta = afeta.filter((x) => x !== 'DUPLICIDADE');
+      const doCaso = new Set(c.itens);
+      const comDup = new Set<string>();
+      for (const d of await tx.sanCaso.findMany({ where: { projeto_id: c.projeto_id, camada: 'DUPLICIDADE', situacao: { in: ['PROPOSTO', 'RASCUNHO', 'AGUARDANDO_INFORMACAO', 'APROVADO'] } }, select: { itens: true } })) {
+        for (const id of d.itens) if (doCaso.has(id)) comDup.add(id);
+      }
+      for (const lote of fatiar([...comDup], 5000)) await tx.sanCelula.updateMany({ where: { projeto_id: c.projeto_id, item_id: { in: lote }, camada: 'DUPLICIDADE', situacao: { not: 'PENDENTE' } }, data });
+      if (!afeta.length) return;
+    }
+    await tx.sanCelula.updateMany({ where: { projeto_id: c.projeto_id, item_id: { in: c.itens }, camada: { in: afeta }, situacao: { not: 'PENDENTE' } }, data });
   }
 }

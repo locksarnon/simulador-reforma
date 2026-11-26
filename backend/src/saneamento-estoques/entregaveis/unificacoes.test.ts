@@ -329,6 +329,28 @@ describe('modelo: código de trabalho primeiro (achado 6)', () => {
   });
 });
 
+describe('aprovar inativação sem movimentação: "revisar" na Duplicidade só de quem tem caso de Duplicidade (revisão, achado 6)', () => {
+  it('itens sem duplicata (SEM_PROBLEMA) não ganham "revisar"; os que estão em caso aberto ou aprovado de Duplicidade ganham', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, 1, USER);
+    c.fila.itens = [item('100', {}, 1), item('200', {}, 2), item('300', {}, 3), item('400', {}, 4)];
+    await c.importacao.confirmar(p.id, { buffer: Buffer.from('x'), nome: 'cadastro.xlsx' }, undefined, [], USER);
+    const id = Object.fromEntries(c.db.sanItem.map((i) => [i.codigo, i.id]));
+    await c.projetos.configurar(p.id, { versao: c.db.sanProjeto[0].versao, parametros: { corteMovimentacao: '2025-01-01' } });
+    await c.orquestracao.executarCamada(p.id, 'QUALIDADE');
+    // Duplicidade: 300 e 400 num caso aberto (manter distintos, sem efeito no cadastro); 100 e 200 sem duplicata.
+    await c.casos.registrarResultado(p.id, { camada: 'DUPLICIDADE', analisados: 4, semDados: null, semProblema: [id['100'], id['200']], casos: [{ camada: 'DUPLICIDADE', tipo: 'DUPLICIDADE_INDICACAO_POSSIVEL', itens: [id['300'], id['400']], problema: 'Possível duplicidade', evidencia: [], atual: {}, proposta: { decisao: 'SOLICITAR_INFORMACAO' }, justificativa: 'Confirmar.', fundamento: null, impactos: [], origem: 'REGRA', afeta: [] }] });
+    const dupCel = (cod: string) => c.db.sanCelula.find((x) => x.item_id === id[cod] && x.camada === 'DUPLICIDADE')!;
+    for (const cod of ['100', '200', '300', '400']) dupCel(cod).revisar = false;
+    expect(dupCel('100').situacao).toBe('SEM_PROBLEMA');
+    const inat = c.db.sanCaso.find((x) => x.tipo === 'SEM_MOVIMENTACAO')!;
+    expect([...inat.itens].sort()).toEqual([id['100'], id['200'], id['300'], id['400']].sort());
+    await c.casos.aprovar(inat.id, { versao: inat.versao }, USER);
+    expect(['100', '200', '300', '400'].map((cod) => dupCel(cod).revisar)).toEqual([false, false, true, true]);
+  });
+});
+
 describe('fluxo: propor e aprovar unificação marca a Qualidade como "revisar" (achado 3c)', () => {
   it('a inativação veio antes: a unificação proposta e a aprovada marcam a célula da Qualidade dos itens', async () => {
     const c = montar();

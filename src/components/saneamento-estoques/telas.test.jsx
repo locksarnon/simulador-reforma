@@ -194,6 +194,14 @@ describe("Detalhe do caso", () => {
     for (const b of ["Aprovar", "Salvar rascunho", "Salvar e ir ao próximo pendente", "Rejeitar", "Pedir informação", "Pedir parecer da IA"]) expect(t).toContain(b);
     expect(t).not.toContain("Desfazer aprovação");
   });
+  it("unificação com unidades diferentes oferece os campos do fator com a direção (1 unidade de, equivale a, fator); sem a diferença, não", () => {
+    const dup = { ...caso, camada: "DUPLICIDADE", tipo: "DUPLICIDADE_INDICACAO_ALTA", problema: "2 códigos com indicação alta", evidencia: [{ rotulo: "Diferença", valor: "unidades diferentes: UN, CX" }], atual: { codigos: "100 | 200" }, proposta: { decisao: "PROPOR_CONSOLIDACAO", manter: "100", consolidar: "200" } };
+    const html = montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), dup));
+    for (const r of ["Fator: 1 unidade de", "Fator: equivale a (unidade)"]) expect(html).toContain(`aria-label="Proposta para ${r}"`);
+    expect(html).toMatch(/aria-label="Proposta para Fator[^"]*conver/i);
+    const sem = montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), { ...dup, evidencia: [] }));
+    expect(sem).not.toContain("Proposta para Fator: 1 unidade de");
+  });
   it("caso aprovado oferece desfazer, não aprovar", () => {
     const t = texto(montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), { ...caso, situacao: "APROVADO" })));
     expect(t).toContain("Desfazer aprovação");

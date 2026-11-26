@@ -5,7 +5,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { san, chaves, atualizarTudo } from "./api";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Rotulo, Tag, usePodeAlterar } from "./comuns";
 import {
-  acoesDoCaso, aposConflito, avisoDeOutrosGrupos, camposDivergentes, converterProposta, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
+  acoesDoCaso, aposConflito, avisoDeOutrosGrupos, camposDivergentes, camposDoFatorAOferecer, converterProposta, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
   FINALIDADES, interpretarRespostaParecer, lerParecer, mensagemDeErro, mensagemDoParecer, precisaConfirmarFator, precisaInformarFator, propostaEditavel, razaoSemAprovar, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloFinalidade, rotuloSituacaoCaso, textoDoValor,
 } from "./logica";
 
@@ -143,7 +143,9 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
   return (
     <Carregar consulta={consulta} textoErro="Não foi possível carregar o caso.">
       {(c) => {
-        const campos = [...new Set([...Object.keys(c.atual || {}), ...Object.keys(edicao.proposta || {})])];
+        // Unificação com unidades diferentes: os campos do fator (com a direção) aparecem para preencher, mesmo sem estar na proposta.
+        const doFator = camposDoFatorAOferecer(c, edicao.proposta);
+        const campos = [...new Set([...Object.keys(c.atual || {}), ...Object.keys(edicao.proposta || {}), ...doFator])];
         const original = item.data?.original;
         const trabalho = item.data?.trabalho;
         const pega = (parte, k) => (parte ? (k in parte ? parte[k] : parte.campos?.[k]) : undefined);
@@ -188,7 +190,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
                           <th scope="row" className="py-1.5 pr-2 text-left font-normal">{rotuloDoCampo(k)}</th>
                           {unico && <td className="pr-2 tabular-nums">{textoDoValor(pega(original, k))}</td>}
                           <td className="pr-2 tabular-nums">{textoDoValor(k in (c.atual || {}) ? c.atual[k] : pega(trabalho, k))}</td>
-                          <td className={k === "fatorConversao" && precisaInformarFator(c) ? "bg-amber-500/10" : ""}>{k in (edicao.proposta || {}) ? (propostaEditavel(k)
+                          <td className={k === "fatorConversao" && precisaInformarFator(c) ? "bg-amber-500/10" : ""}>{k in (edicao.proposta || {}) || doFator.includes(k) ? (propostaEditavel(k)
                             ? <CampoDaProposta campo={k} valor={edicao.proposta[k]} destaque={k === "fatorConversao" && precisaInformarFator(c)} disabled={!pode || !acoes.editar || ocupado} aoMudar={(v) => mudarEdicao({ proposta: { ...edicao.proposta, [k]: v } })} />
                             : <span>{textoDoValor(edicao.proposta[k])}</span>) : <span className="text-muted-foreground">—</span>}</td>
                         </tr>

@@ -676,6 +676,20 @@ export function lerNumeroBr(bruto) {
   return n === 0 ? 0 : neg ? -n : n;
 }
 
+/** Campos do fator de conversão com a direção (1 unidade de fatorDe = fatorConversao unidades de fatorPara). */
+export const CAMPOS_DO_FATOR = ["fatorConversao", "fatorDe", "fatorPara"];
+/** O caso de Duplicidades junta itens de unidades diferentes (a evidência traz a diferença "unidades diferentes: ..."). */
+export const unidadesDiferemNoCaso = (c) => (c?.evidencia || []).some((e) => e?.rotulo === "Diferença" && /^unidades diferentes/i.test(String(e?.valor ?? "")));
+/**
+ * Campos do fator que a tela oferece para preencher numa unificação com unidades diferentes e que ainda não estão na proposta (o mapa só
+ * converte o saldo com a direção: sem eles, "converter antes de somar"). Fora disso, nenhum.
+ */
+export function camposDoFatorAOferecer(c, proposta) {
+  if (c?.camada !== "DUPLICIDADE" || !unidadesDiferemNoCaso(c)) return [];
+  const p = proposta || c?.proposta || {};
+  return CAMPOS_DO_FATOR.filter((k) => !(k in p));
+}
+
 /** Texto digitado → valor: mantém número onde o valor anterior era número (lido como o servidor lê); vazio vira null. */
 export function converterValor(texto, modelo) {
   const t = String(texto ?? "").trim();
