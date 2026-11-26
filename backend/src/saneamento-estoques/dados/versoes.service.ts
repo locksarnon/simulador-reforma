@@ -117,7 +117,7 @@ export class SanVersoesService {
     return this.prisma.sanVersao.findMany({ where: { projeto_id: projetoId }, orderBy: { numero: 'desc' } });
   }
 
-  private async foto(projetoId: string, versaoId: string): Promise<{ versao: { id: string; numero: number; rotulo: string; createdAt: Date; usuario: string }; foto: Foto }> {
+  async foto(projetoId: string, versaoId: string): Promise<{ versao: { id: string; numero: number; rotulo: string; createdAt: Date; usuario: string }; foto: Foto }> {
     const v = await this.prisma.sanVersao.findFirst({ where: { id: versaoId, projeto_id: projetoId }, include: { snapshot: true } });
     if (!v || !v.snapshot) throw new NotFoundException('Versão não encontrada.');
     const f = JSON.parse(gunzipSync(Buffer.from(v.snapshot.dados)).toString('utf8')) as Partial<Foto>;

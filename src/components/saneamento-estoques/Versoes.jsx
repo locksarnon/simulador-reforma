@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, History } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { chaves, san } from "./api";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, Rotulo, Tag, usePodeAlterar } from "./comuns";
-import { avisosDaLiberacao, dadosDoErro, fmtDataHora, mensagemDeErro, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao, textoDoValor, versaoCriada } from "./logica";
+import { atualizarTudo, chaves, san } from "./api";
+import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, Rotulo, Tag, usePodeAlterar } from "./comuns";
+import {
+  avisosDaLiberacao, dadosDoErro, fmtDataHora, JUSTIFICATIVA_MINIMA, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
+  textoDoValor, versaoCriada,
+} from "./logica";
 
 function Comparacao({ projetoId, a, b }) {
   const q = useQuery({ queryKey: [...chaves.todos(projetoId), "comparar", a, b], queryFn: () => san.compararVersoes(projetoId, a, b) });
@@ -35,6 +38,91 @@ function Comparacao({ projetoId, a, b }) {
   );
 }
 
+/**
+ * Continuar a partir de uma versão liberada: a prévia mostra antes quantos itens e campos voltam aos valores da foto; exige justificativa.
+ * Nada é apagado: cada campo grava uma decisão no histórico e a restauração pode ser desfeita.
+ */
+export function ContinuarVersao({ projeto, versao, aoFechar }) {
+  const qc = useQueryClient();
+  const { pode, razao } = usePodeAlterar();
+  const [justificativa, setJustificativa] = useState("");
+  const [msg, setMsg] = useState(null);
+  const q = useQuery({ queryKey: chaves.continuar(projeto.id, versao.id), queryFn: () => san.previaContinuar(projeto.id, versao.id) });
+  const restaurar = useMutation({
+    mutationFn: () => san.continuarVersao(projeto.id, versao.id, { versao: q.data.versaoProjeto, previa: q.data.previa, justificativa: justificativa.trim() }),
+    onSuccess: (r) => {
+      setJustificativa("");
+      setMsg({ tom: "ok", texto: `Base de trabalho restaurada à versão ${versao.numero}: ${r.itens.toLocaleString("pt-BR")} itens e ${r.campos.toLocaleString("pt-BR")} campos. Confira as células marcadas “revisar”.` });
+      atualizarTudo(qc, projeto.id);
+      qc.invalidateQueries({ queryKey: ["san", "projeto"] });
+    },
+    onError: (e) => { setMsg({ tom: "erro", texto: mensagemDeErro(e) }); q.refetch(); },
+  });
+  const p = q.data;
+  return (
+    <section aria-labelledby="san-ver-continuar" className="space-y-3 border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="san-ver-continuar" className="font-semibold">Continuar a partir da versão {versao.numero} ({versao.rotulo})</h3>
+        <button type="button" className={botaoSecundario} onClick={aoFechar}>Fechar</button>
+      </div>
+      <p className="text-sm text-muted-foreground">A base de trabalho volta aos valores desta versão. Decisões e histórico ficam; a situação das células e dos casos não muda.</p>
+      {q.isError && <Aviso tom="erro">{mensagemDeErro(q.error, "Não foi possível montar a prévia.")}</Aviso>}
+      {!p && !q.isError && <EstadoCarregando texto="Montando a prévia…" />}
+      {p && (
+        <>
+          <Aviso tom={p.totais.campos ? "alerta" : "info"} titulo="Prévia">
+            <ul className="list-disc pl-5">{linhasDaPrevia(p).map((l) => <li key={l}>{l}</li>)}</ul>
+          </Aviso>
+          {p.porCampo.length > 0 && <p className="text-sm">Campos: {p.porCampo.map((c) => `${rotuloDoCampo(c.campo)} (${c.itens.toLocaleString("pt-BR")})`).join(", ")}</p>}
+          {p.amostra.length > 0 && (
+            <details><summary className="cursor-pointer text-sm font-semibold">Exemplos ({p.amostra.length} de {p.totais.itens.toLocaleString("pt-BR")})</summary>
+              <ul className="mt-1 max-h-60 space-y-1 overflow-auto text-xs">{p.amostra.map((i) => <li key={i.id} className="border border-border p-1.5"><span className="font-medium tabular-nums">{i.codigo}</span>: {i.campos.map((c) => `${rotuloDoCampo(c.campo)} ${textoDoValor(c.antes)} → ${textoDoValor(c.depois)}`).join("; ")}</li>)}</ul></details>
+          )}
+          {p.totais.campos > 0 && (
+            <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (podeRestaurar(p, justificativa)) restaurar.mutate(); }}>
+              <label className="block"><Rotulo>Justificativa (obrigatória, ao menos {JUSTIFICATIVA_MINIMA} caracteres)</Rotulo>
+                <textarea className={campoCls} rows={2} maxLength={2000} value={justificativa} onChange={(e) => setJustificativa(e.target.value)} placeholder="Ex.: o cliente pediu voltar à Entrega 1 para reavaliar o NCM." /></label>
+              <button type="submit" className={botaoPrimario} disabled={!pode || !podeRestaurar(p, justificativa) || restaurar.isPending} title={razao}><History className="h-4 w-4" aria-hidden="true" />{restaurar.isPending ? "Restaurando…" : "Restaurar e continuar"}</button>
+            </form>
+          )}
+        </>
+      )}
+      {msg && <Aviso tom={msg.tom === "erro" ? "erro" : "ok"}>{msg.texto}</Aviso>}
+    </section>
+  );
+}
+
+/** Restaurações feitas a partir da versão, com o botão Desfazer (o campo que mudou depois por outra decisão impede o desfazer). */
+function Restauracoes({ projeto, versao }) {
+  const qc = useQueryClient();
+  const confirmar = useConfirmar();
+  const { pode, razao } = usePodeAlterar();
+  const [erro, setErro] = useState(null);
+  const desfazer = useMutation({
+    mutationFn: (r) => san.desfazerRestauracao(projeto.id, versao.id, r.id, projeto.versao),
+    onSuccess: () => { setErro(null); atualizarTudo(qc, projeto.id); qc.invalidateQueries({ queryKey: ["san", "projeto"] }); },
+    onError: (e) => setErro(mensagemDeErro(e)),
+  });
+  const lista = restauracoesDaVersao(versao);
+  if (!lista.length) return null;
+  const pedir = async (r) => {
+    const ok = await confirmar({ titulo: "Desfazer a restauração?", rotulo: "Desfazer", descricao: `Os ${r.campos} campos de ${r.itens} itens voltam ao valor de antes da restauração de ${fmtDataHora(r.quando)}. Cada um grava uma decisão no histórico.` });
+    if (ok) desfazer.mutate(r);
+  };
+  return (
+    <ul className="mt-1 space-y-1 text-xs text-muted-foreground" aria-label={`Restaurações a partir da versão ${versao.numero}`}>
+      {lista.map((r) => (
+        <li key={r.id} className="flex flex-wrap items-center gap-2">
+          <span>Base restaurada a esta versão em {fmtDataHora(r.quando)} por {r.usuario} ({r.itens.toLocaleString("pt-BR")} itens): “{r.justificativa}”</span>
+          {r.desfeita ? <Tag>Desfeita em {fmtDataHora(r.desfeita.em)}</Tag>
+            : <button type="button" className={botaoPerigo} disabled={!pode || desfazer.isPending} title={razao} onClick={() => pedir(r)}>Desfazer restauração</button>}
+        </li>
+      ))}
+      {erro && <li className="text-destructive" role="alert">{erro}</li>}
+    </ul>
+  );
+}
+
 function Entrega({ projetoId, versao, rotulo }) {
   // O relatório PDF só existe para a versão liberada; a exportação para revisão é só o Excel.
 
@@ -60,6 +148,7 @@ export default function Versoes({ projeto }) {
   const [b, setB] = useState("");
   const [msg, setMsg] = useState(null);
   const [avisos, setAvisos] = useState(null);
+  const [continuarDe, setContinuarDe] = useState(null);
   const { pode, razao } = usePodeAlterar();
   const liberar = useMutation({
     mutationFn: (extra) => san.liberarVersao(projeto.id, rotulo.trim(), extra),
@@ -111,7 +200,7 @@ export default function Versoes({ projeto }) {
             <>
               <div className="overflow-x-auto border border-border bg-card">
                 <table className="w-full text-sm" aria-label="Versões liberadas">
-                  <thead><tr className="bg-muted/50 text-left text-xs text-muted-foreground"><th scope="col" className="px-2 py-1.5">Comparar</th><th scope="col">Versão</th><th scope="col">Rótulo</th><th scope="col">Liberada por</th><th scope="col">Quando</th><th scope="col" className="text-right">Itens</th><th scope="col" className="text-right">Casos abertos</th><th scope="col">Baixar</th></tr></thead>
+                  <thead><tr className="bg-muted/50 text-left text-xs text-muted-foreground"><th scope="col" className="px-2 py-1.5">Comparar</th><th scope="col">Versão</th><th scope="col">Rótulo</th><th scope="col">Liberada por</th><th scope="col">Quando</th><th scope="col" className="text-right">Itens</th><th scope="col" className="text-right">Casos abertos</th><th scope="col">Baixar</th><th scope="col">Continuar</th></tr></thead>
                   <tbody>
                     {lista.map((v) => (
                       <tr key={v.id} className="border-t border-border/60 align-top">
@@ -119,9 +208,10 @@ export default function Versoes({ projeto }) {
                           <label className="mr-2 text-xs"><input type="radio" name="comparar-a" checked={a === v.id} onChange={() => setA(v.id)} aria-label={`Versão ${v.numero} como a primeira da comparação (antes)`} /> A</label>
                           <label className="text-xs"><input type="radio" name="comparar-b" checked={b === v.id} onChange={() => setB(v.id)} aria-label={`Versão ${v.numero} como a segunda da comparação (depois)`} /> B</label>
                         </td>
-                        <td className="whitespace-nowrap tabular-nums">{v.numero} <Tag tom="ok">Liberada</Tag></td><td>{v.rotulo}</td><td>{v.usuario}</td><td>{fmtDataHora(v.createdAt)}</td>
+                        <td className="whitespace-nowrap tabular-nums">{v.numero} <Tag tom="ok">Liberada</Tag></td><td>{v.rotulo}<Restauracoes projeto={projeto} versao={v} /></td><td>{v.usuario}</td><td>{fmtDataHora(v.createdAt)}</td>
                         <td className="text-right tabular-nums">{(v.resumo?.itens ?? 0).toLocaleString("pt-BR")}</td><td className="text-right tabular-nums">{(v.resumo?.casosAbertos ?? 0).toLocaleString("pt-BR")}</td>
                         <td className="py-1"><Entrega projetoId={projeto.id} versao={v} rotulo={`versão ${v.numero}`} /></td>
+                        <td className="py-1"><button type="button" className={botaoSecundario} disabled={!pode} title={razao} onClick={() => setContinuarDe(v)} aria-label={`Continuar a partir da versão ${v.numero}`}><History className="h-4 w-4" aria-hidden="true" />Continuar a partir desta versão</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -129,6 +219,7 @@ export default function Versoes({ projeto }) {
               </div>
               <p className="text-xs text-muted-foreground" aria-live="polite">{a && b && a === b ? "Escolha duas versões diferentes para comparar." : "Marque A (antes) e B (depois) para comparar duas versões."}</p>
               {a && b && a !== b && <Comparacao projetoId={projeto.id} a={a} b={b} />}
+              {continuarDe && <ContinuarVersao key={continuarDe.id} projeto={projeto} versao={continuarDe} aoFechar={() => setContinuarDe(null)} />}
             </>
           )}
         </Carregar>

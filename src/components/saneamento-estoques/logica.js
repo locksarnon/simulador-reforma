@@ -270,6 +270,30 @@ export function efeitoDaAtividade(mapa, codigo) {
 export const avisosDaLiberacao = (resposta) => (Array.isArray(resposta?.avisos) ? resposta.avisos.map((a) => (typeof a === "string" ? a : a?.texto || a?.mensagem || JSON.stringify(a))) : []);
 export const versaoCriada = (resposta) => !!resposta?.id;
 
+// ── Continuar a partir de uma versão liberada ────────────────────────────────
+export const JUSTIFICATIVA_MINIMA = 10;
+export const justificativaBasta = (t) => String(t || "").trim().length >= JUSTIFICATIVA_MINIMA;
+/** Só restaura quando a prévia mostra algo a mudar e há justificativa. */
+export const podeRestaurar = (previa, justificativa) => (Number(previa?.totais?.campos) || 0) > 0 && justificativaBasta(justificativa);
+/** Restaurações feitas a partir de uma versão (guardadas no resumo dela), mais recente primeiro. */
+export const restauracoesDaVersao = (v) => (Array.isArray(v?.resumo?.restauracoes) ? [...v.resumo.restauracoes].reverse() : []);
+const plural = (n, um, varios) => `${Number(n).toLocaleString("pt-BR")} ${n === 1 ? um : varios}`;
+/** Frases da prévia: o que muda, o que fica "revisar" e o que fica de fora. */
+export function linhasDaPrevia(previa) {
+  const t = previa?.totais || {};
+  const numero = previa?.versao?.numero;
+  if (!t.campos) return [`A base de trabalho já está igual à versão ${numero}: nada a restaurar.`];
+  const um = (n, a, b) => (n === 1 ? a : b);
+  const l = [`${plural(t.itens, "item", "itens")} e ${plural(t.campos, "campo", "campos")} voltam aos valores da versão ${numero}.`];
+  if (t.casosDecididosDepois) l.push(`${plural(t.casosDecididosDepois, "caso decidido", "casos decididos")} depois desta versão ${um(t.casosDecididosDepois, "mantém", "mantêm")} a decisão; as camadas afetadas ficam marcadas “revisar”.`);
+  if (previa?.camadasRevisar?.length) l.push(`Ficam “revisar” nos itens restaurados: ${previa.camadasRevisar.map((c) => ROTULO_CAMADA[c] || c).join(", ")}.`);
+  if (t.itensNovosDepois) l.push(`${plural(t.itensNovosDepois, "item importado", "itens importados")} depois desta versão não ${um(t.itensNovosDepois, "está", "estão")} na foto e ${um(t.itensNovosDepois, "fica como está", "ficam como estão")}.`);
+  if (t.itensAusentes) l.push(`${plural(t.itensAusentes, "item da foto não existe", "itens da foto não existem")} mais na base e ${um(t.itensAusentes, "fica", "ficam")} de fora.`);
+  if (previa?.ignorados?.length) l.push(`${plural(previa.ignorados.length, "código continua", "códigos continuam")} como ${um(previa.ignorados.length, "está", "estão")}: voltaria a repetir o de outro item.`);
+  l.push("Nada é apagado: cada campo grava uma decisão no histórico e a restauração pode ser desfeita.");
+  return l;
+}
+
 /** Coluna Tratamento tributário: o enquadramento do servidor, ou "Aguardando revisão" quando a célula tem a marca revisar. */
 export function textoDoEnquadramento(item) {
   const cel = celulaDa(item, "TRIBUTARIO");

@@ -10,6 +10,7 @@ import { SanImpactosService, type EntradaImpacto, type EntradaVinculo, type Filt
 import { SanItensService, type FiltroItens } from './itens.service';
 import { SanOrquestracaoService } from './orquestracao.service';
 import { SanProjetoService, type EntradaConfiguracao } from './projeto.service';
+import { SanRestauracaoService } from './restauracao.service';
 import { SanVersoesService } from './versoes.service';
 
 const MAX_ARQUIVO = 60 * 1024 * 1024;
@@ -31,6 +32,7 @@ export class SaneamentoEstoquesController {
     private readonly versoes: SanVersoesService,
     private readonly impactos: SanImpactosService,
     private readonly orquestracao: SanOrquestracaoService,
+    private readonly restauracao: SanRestauracaoService,
   ) {}
 
   // ── Projeto e atividades ───────────────────────────────────────────────────
@@ -119,6 +121,17 @@ export class SaneamentoEstoquesController {
   listarVersoes(@Param('id') id: string) { return this.versoes.listar(id); }
   @Get('projetos/:id/versoes/comparar')
   comparar(@Param('id') id: string, @Query('a') a: string, @Query('b') b: string) { return this.versoes.comparar(id, a, b); }
+  // Continuar a partir de uma versão liberada: prévia (GET, só lê), restauração com justificativa e desfazer (mesma permissão de liberar versão).
+  @Get('projetos/:id/versoes/:versaoId/continuar')
+  previaContinuar(@Param('id') id: string, @Param('versaoId') versaoId: string) { return this.restauracao.previa(id, versaoId); }
+  @Post('projetos/:id/versoes/:versaoId/continuar')
+  continuar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('versaoId') versaoId: string, @Body() b: { versao?: number; previa?: string; justificativa?: string }) {
+    return this.restauracao.continuar(id, versaoId, b ?? {}, user);
+  }
+  @Post('projetos/:id/versoes/:versaoId/restauracoes/:restauracaoId/desfazer')
+  desfazerRestauracao(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('versaoId') versaoId: string, @Param('restauracaoId') rid: string, @Body() b: { versao?: number }) {
+    return this.restauracao.desfazer(id, versaoId, rid, b ?? {}, user);
+  }
   // As exportações (Excel e relatório) saem pelo módulo de entregáveis; os dados brutos são só métodos de serviço (SanVersoesService.exportar/exportarAtual).
 
   // ── Impacto no SPED e vínculos de código ───────────────────────────────────

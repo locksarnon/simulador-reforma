@@ -2354,7 +2354,7 @@ model SanDecisao {
   depois     Json?
   fundamento String?
   usuario    String
-  /// aprovar | rejeitar | desfazer | importar
+  /// aprovar | rejeitar | desfazer | importar | restaurar
   tipo       String
   quando     DateTime @default(now())
 

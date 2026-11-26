@@ -7,6 +7,7 @@ import {
   proximoCasoAberto, proximoPendente, resumirRelatorio, rolagemParaLinha, rotuloSituacao, situacaoAgregada, textoDaCelula, textoDoConjunto, versoesDaPrevia, edicaoSuja, edicaoInicial,
   paginasDeImpacto, corpoIncorporar, quantosIncorporar, lerNumeroBr, ALTURA_LINHA, LISTA_SITUACOES, fmtData, converterProposta, razaoSemAprovar, efeitoDaAtividade, interpretarRespostaParecer, textoDoEnquadramento, avisosDaLiberacao,
   versaoCriada, idsDoLote, rotuloDoCaso, rotuloSituacaoCaso, ehErroDeRede, ehPropostaDesatualizada, camposDivergentes, casoValeParaEnquadramento,
+  justificativaBasta, podeRestaurar, restauracoesDaVersao, linhasDaPrevia,
 } from "./logica";
 
 const erro = (status, data) => Object.assign(new Error(data?.message || "x"), { status, response: { data } });
@@ -423,5 +424,33 @@ describe("revisão C: datas, proposta, parecer, lote e enquadramento", () => {
     expect(ehConflitoVersao(e)).toBe(false);
     expect(camposDivergentes(e)).toEqual([{ campo: "ncm", atual: "1", esperado: "2" }]);
     expect(ehErroDeRede(erro(500, {}))).toBe(false);
+  });
+});
+
+describe("continuar a partir de uma versão", () => {
+  const previa = (totais = {}, extra = {}) => ({ versao: { numero: 2 }, totais: { itens: 3, campos: 5, itensNaFoto: 10, itensNovosDepois: 0, itensAusentes: 0, casosDecididosDepois: 0, ...totais }, camadasRevisar: [], ignorados: [], ...extra });
+  it("só restaura com algo a mudar e justificativa de ao menos 10 caracteres", () => {
+    expect(justificativaBasta("  curta   ")).toBe(false);
+    expect(justificativaBasta("Cliente pediu")).toBe(true);
+    expect(podeRestaurar(previa(), "Cliente pediu")).toBe(true);
+    expect(podeRestaurar(previa(), "")).toBe(false);
+    expect(podeRestaurar(previa({ campos: 0, itens: 0 }), "Cliente pediu")).toBe(false);
+    expect(podeRestaurar(null, "Cliente pediu")).toBe(false);
+  });
+  it("a prévia diz quantos itens e campos mudam, o que fica revisar e o que fica de fora", () => {
+    const l = linhasDaPrevia(previa({ casosDecididosDepois: 1, itensNovosDepois: 2, itensAusentes: 1 }, { camadasRevisar: ["NCM", "TRIBUTARIO"], ignorados: [{ campo: "codigo" }] }));
+    expect(l[0]).toBe("3 itens e 5 campos voltam aos valores da versão 2.");
+    expect(l.join(" ")).toContain("1 caso decidido depois desta versão mantém a decisão");
+    expect(l.join(" ")).toContain("Ficam “revisar” nos itens restaurados: NCM");
+    expect(l.join(" ")).toContain("2 itens importados depois desta versão não estão na foto e ficam como estão.");
+    expect(l.join(" ")).toContain("1 item da foto não existe mais na base e fica de fora.");
+    expect(l.join(" ")).toContain("1 código continua como está");
+    expect(l[l.length - 1]).toContain("pode ser desfeita");
+    expect(linhasDaPrevia(previa({ campos: 0, itens: 0 }))).toEqual(["A base de trabalho já está igual à versão 2: nada a restaurar."]);
+    expect(linhasDaPrevia(previa({ itens: 30000, campos: 60000 }))[0]).toBe("30.000 itens e 60.000 campos voltam aos valores da versão 2.");
+  });
+  it("restaurações da versão, mais recente primeiro", () => {
+    expect(restauracoesDaVersao({ resumo: {} })).toEqual([]);
+    expect(restauracoesDaVersao({ resumo: { restauracoes: [{ id: "a" }, { id: "b" }] } }).map((r) => r.id)).toEqual(["b", "a"]);
   });
 });
