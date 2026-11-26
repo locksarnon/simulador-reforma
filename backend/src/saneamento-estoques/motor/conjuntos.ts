@@ -87,7 +87,7 @@ export function montarConjuntos<M extends MembroConjunto>(itens: M[], { escala =
     const grupo = [...contagem.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))[0][0];
     // o identificador do conjunto é o menor código: não muda de uma extração para outra
     const menorCodigo = lista.map((m) => idItem(m) || `L${m.linha}`).sort((a, b) => colador.compare(a, b))[0];
-    conjuntos.push({ id: `c:${menorCodigo}`, nivel, score: Math.max(...lista.map((m) => Number(m.duplicidade!.score) || 0)), grupo, membros, sugestao: sug });
+    conjuntos.push({ id: `c:${menorCodigo}`, nivel, score: lista.reduce((mx, m) => Math.max(mx, Number(m.duplicidade!.score) || 0), -Infinity), grupo, membros, sugestao: sug });
   }
   return conjuntos.sort((a, b) => NIVEL_ORDEM[a.nivel] - NIVEL_ORDEM[b.nivel] || b.membros.length - a.membros.length || a.membros[0].linha - b.membros[0].linha);
 }
