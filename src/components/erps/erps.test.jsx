@@ -122,7 +122,7 @@ describe("Administração > Configuração e ERPs > Cadastro de ERPs", () => {
     papel.atual = "admin";
     const html = montar(ui, (qc) => qc.setQueryData(chavesErps.ficha("erp-sap-b1"), ficha), "/admin/erps/erp-sap-b1");
     const t = texto(html);
-    for (const s of ["Colunas do export (1)", "Consultas de extração (1)", "Restrições (2)", "Ação no ERP (1)", "Modelos de carga (0)", "Observações (0)", "Histórico de alterações", "grau: Não confirmado → Confirmado", "Carga inicial", "Editar dados do ERP", "Novo item de conhecimento", "Fonte oficial"]) expect(t, s).toContain(s);
+    for (const s of ["Colunas do export (1)", "Consultas de extração (1)", "Restrições (2)", "Ação no ERP (1)", "Modelos de carga (0)", "Observações (0)", "Limite de campo (0)", "Histórico de alterações", "grau: Não confirmado → Confirmado", "Carga inicial", "Editar dados do ERP", "Novo item de conhecimento", "Fonte oficial"]) expect(t, s).toContain(s);
     papel.atual = "user";
     const leitor = texto(montar(ui, (qc) => qc.setQueryData(chavesErps.ficha("erp-sap-b1"), ficha), "/admin/erps/erp-sap-b1"));
     expect(leitor).toContain("Somente administradores alteram o cadastro.");

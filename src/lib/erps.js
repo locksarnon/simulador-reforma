@@ -10,6 +10,7 @@ export const TIPOS_CONHECIMENTO = {
   ACAO_NO_ERP: "Ação no ERP",
   MODELO_CARGA: "Modelos de carga",
   OBSERVACAO: "Observações",
+  LIMITE_CAMPO: "Limite de campo",
 };
 export const SITUACOES_ERP = { COMPLETO: "Completo", PARCIAL: "Parcial", A_DESENVOLVER: "A desenvolver" };
 export const GRAUS = { CONFIRMADO: "Confirmado", NAO_CONFIRMADO: "Não confirmado" };
@@ -28,6 +29,8 @@ export const CAMPOS_SANEAMENTO = {
   codigo: "Código", descricao: "Descrição", unidade: "Unidade", ncm: "NCM", grupo: "Grupo", ativo: "Ativo", saldo: "Saldo",
   ultimaMovimentacao: "Última movimentação", fabricante: "Fabricante", referencia: "Referência", estabelecimento: "Estabelecimento", finalidade: "Finalidade",
 };
+/** Campos do item que um limite de campo (LIMITE_CAMPO) pode restringir: os mesmos CAMPOS_LIMITE de backend/src/erps/logica.ts. */
+export const CAMPOS_LIMITE = ["descricao", "codigo", "unidade", "referencia", "fabricante"];
 
 /** Nome normalizado: sem acento, minúsculo, só letras e números separados por um espaço. */
 export function normalizarNome(s) {
