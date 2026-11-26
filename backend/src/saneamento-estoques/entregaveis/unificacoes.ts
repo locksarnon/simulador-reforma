@@ -81,7 +81,7 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
   const e: EntradaMapa = escala === 1 ? entrada : { ...entrada, item: (id) => { const i = entrada.item(id); return i ? { ...i, saldo: saldoNaEscala(i.saldo, escala) } : i; } };
   const unif: LinhaMapa[] = []; const inatComId: { l: LinhaMapa; id: string }[] = []; const equiv: LinhaMapa[] = []; const trocas: LinhaMapa[] = [];
   const pares = new Set<string>();
-  const cruz: Cruzamento = { linhasDoQueFica: new Map(), queMorrem: new Set() };
+  const cruz: Cruzamento = { linhasDoQueFica: new Map(), queMorrem: new Map() };
   const casos = semItensDeExcecao(e.casos);
   for (const c of casos) {
     const situacao = SITUACAO[c.situacao];
@@ -93,18 +93,31 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
     else if (decisao === 'PROPOR_INATIVACAO') linhasDeInativacao(c, e, comum, inatComId);
     else if (c.camada === 'DUPLICIDADE') equiv.push(linhaDeEquivalencia(c, e, comum));
   }
-  // Cruzamento das fontes (a Qualidade pode ter rodado antes da Duplicidade): o código que fica numa unificação não pode ser inativado. A
-  // inativação dele sai do mapa e a linha da unificação ganha o alerta de conflito (propor ou aprovar a unificação marca a Qualidade como
-  // "revisar"). O código que morre já tem a inativação na linha da unificação: a inativação repetida também sai.
+  // Cruzamento das fontes (a Qualidade pode ter rodado antes da Duplicidade): o código que fica numa unificação não pode ser inativado, e o
+  // que morre já tem a inativação na linha da unificação. Decisão aprovada nunca some: a inativação só sai do mapa quando a unificação que a
+  // cobre está APROVADA e a inativação não; nos demais casos as duas linhas ficam, com o alerta (propor ou aprovar a unificação marca a
+  // Qualidade como "revisar").
   const inat: LinhaMapa[] = [];
+  const sit = (s: SituacaoMapa) => ROTULO_SITUACAO_MAPA[s].toLowerCase();
   for (const x of inatComId) {
+    const inatAprovada = x.l.situacao === 'APROVADA';
     const doFica = cruz.linhasDoQueFica.get(x.id);
     if (doFica) {
       const origem = x.l.origem === 'DUPLICIDADE' ? 'Duplicidades' : 'Qualidade, sem movimentação';
-      for (const l of doFica) l.alertas.push(`Conflito: o código que fica (${l.fica?.codigo}) tem inativação ${ROTULO_SITUACAO_MAPA[x.l.situacao].toLowerCase()} (${origem}): a inativação ficou fora deste mapa; reabrir ou rejeitar o caso de inativação antes de transferir o saldo.`);
+      const sai = !inatAprovada && doFica.some((l) => l.situacao === 'APROVADA');
+      for (const l of doFica) l.alertas.push(`Conflito: o código que fica (${l.fica?.codigo}) tem inativação ${sit(x.l.situacao)} (${origem}): ${sai ? 'a inativação ficou fora deste mapa' : 'a inativação também está neste mapa'}; reabrir ou rejeitar o caso de inativação antes de transferir o saldo.`);
+      if (sai) continue;
+      const u = doFica[0];
+      x.l.alertas.push(`Conflito: ${x.l.morre?.codigo} é o código que fica numa unificação ${sit(u.situacao)} (recebe ${u.morre?.codigo}): não inativar enquanto a unificação valer; rejeitar ou reabrir um dos dois casos.`);
+      inat.push(x.l);
       continue;
     }
-    if (cruz.queMorrem.has(x.id)) continue;
+    const morreEm = cruz.queMorrem.get(x.id);
+    if (morreEm) {
+      if (!inatAprovada && morreEm.some((l) => l.situacao === 'APROVADA')) continue;
+      const u = morreEm[0];
+      x.l.alertas.push(`${x.l.morre?.codigo} também sai numa unificação ${sit(u.situacao)} (para ${u.fica?.codigo}): a inativação fica na linha da unificação; conferir para não inativar duas vezes.`);
+    }
     inat.push(x.l);
   }
   // Código que fica já inativo (na base ou por decisão aprovada) sem caso de inativação no mapa: o mesmo conflito.
@@ -134,7 +147,7 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 type Comum = Pick<LinhaMapa, 'situacao' | 'casoId' | 'origem' | 'inicio' | 'justificativa' | 'responsavel' | 'decididoEm'>;
 /** O que a unificação registra para o cruzamento com as inativações: linhas por item que fica e ids dos itens que morrem. */
-type Cruzamento = { linhasDoQueFica: Map<string, LinhaMapa[]>; queMorrem: Set<string> };
+type Cruzamento = { linhasDoQueFica: Map<string, LinhaMapa[]>; queMorrem: Map<string, LinhaMapa[]> };
 
 /** Conversão do saldo do código que morre para a unidade do que fica: multiplicador, ou por que não converte. */
 type Conversao = { multiplicador: number } | { falta: 'FATOR' | 'DIRECAO'; fator: number | null };
@@ -175,7 +188,7 @@ function linhasDeUnificacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: Linh
   }
   const qualquerFica = ficam.values().next().value as ItemMapa | undefined;
   // Linhas por item que morre; o saldo consolidado soma, por estabelecimento, o saldo atual do que fica e tudo o que entra nele.
-  const linhas: { l: LinhaMapa; estabFica: string | null; fica: ItemMapa | null }[] = [];
+  const linhas: { l: LinhaMapa; estabFica: string | null; fica: ItemMapa | null; morreId?: string }[] = [];
   for (const m of morrem) {
     pares.add(`${m.codigo}\u0001${manter}`);
     const f = ficam.get(m.estab) ?? null;
@@ -199,10 +212,10 @@ function linhasDeUnificacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: Linh
           : m.saldo < 0 ? `Regularizar o saldo negativo de ${m.codigo}; depois transferir para ${manter} e inativar ${m.codigo}`
             : m.saldo === 0 ? `Inativar ${m.codigo} (sem saldo a transferir); o código que fica é ${manter}`
               : `Transferir o saldo de ${m.codigo} para ${manter} e inativar ${m.codigo}`;
-    cruz.queMorrem.add(m.id);
     linhas.push({
       estabFica: f ? f.estab : null,
       fica: f,
+      morreId: m.id,
       l: {
         tipo: 'UNIFICACAO', rotuloTipo: ROTULO_TIPO_MAPA.UNIFICACAO, ...comum, morre: lado(m), fica: ref ? { codigo: manter, descricao: ref.descricao, unidade: ref.unidade, saldo: f ? f.saldo : null } : { codigo: manter, descricao: '', unidade: '', saldo: null },
         saldoEntra: entra, saldoConsolidado: null, acao, alertas,
@@ -226,6 +239,7 @@ function linhasDeUnificacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: Linh
   }
   for (const x of linhas) {
     out.push(x.l);
+    if (x.morreId) { const l = cruz.queMorrem.get(x.morreId); if (l) l.push(x.l); else cruz.queMorrem.set(x.morreId, [x.l]); }
     if (x.fica) { const l = cruz.linhasDoQueFica.get(x.fica.id); if (l) l.push(x.l); else cruz.linhasDoQueFica.set(x.fica.id, [x.l]); }
   }
 }

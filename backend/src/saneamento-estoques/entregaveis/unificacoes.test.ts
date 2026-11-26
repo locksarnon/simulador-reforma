@@ -224,11 +224,26 @@ describe('mapa: escala do saldo da base (achado 2)', () => {
 });
 
 describe('mapa: unificação × inativação (achado 3a)', () => {
-  it('o código que fica não pode ter inativação: a inativação sai do mapa e a unificação ganha o alerta de conflito', () => {
+  it('inativação APROVADA nunca some: com a unificação só proposta, as duas linhas ficam e o conflito vai nas duas', () => {
     const itens = [it_('a', '100'), it_('b', '200'), it_('c', '300')];
     const l = mapa(itens, [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200'), situacao: 'PROPOSTO' }), semMov('q', ['a', 'b', 'c'], 'APROVADO')]);
-    expect(l.map((x) => [x.tipo, x.morre?.codigo])).toEqual([['UNIFICACAO', '200'], ['INATIVACAO', '300']]); // 100 (fica) e 200 (já morre na unificação) saem da inativação
-    expect(l[0].alertas.join(' ')).toContain('Conflito: o código que fica (100) tem inativação aprovada (Qualidade, sem movimentação)');
+    expect(l.map((x) => [x.tipo, x.morre?.codigo, x.situacao])).toEqual([['UNIFICACAO', '200', 'PROPOSTA'], ['INATIVACAO', '100', 'APROVADA'], ['INATIVACAO', '200', 'APROVADA'], ['INATIVACAO', '300', 'APROVADA']]);
+    expect(l[0].alertas.join(' ')).toContain('Conflito: o código que fica (100) tem inativação aprovada (Qualidade, sem movimentação): a inativação também está neste mapa');
+    expect(l[1].alertas.join(' ')).toContain('Conflito: 100 é o código que fica numa unificação proposta (recebe 200)');
+    expect(l[2].alertas.join(' ')).toContain('200 também sai numa unificação proposta (para 100)');
+    expect(l[3].alertas).toEqual([]);
+  });
+  it('unificação APROVADA cobre a inativação só proposta: a inativação sai e a unificação leva o conflito', () => {
+    const itens = [it_('a', '100'), it_('b', '200'), it_('c', '300')];
+    const l = mapa(itens, [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200'), situacao: 'APROVADO' }), semMov('q', ['a', 'b', 'c'], 'PROPOSTO')]);
+    expect(l.map((x) => [x.tipo, x.morre?.codigo])).toEqual([['UNIFICACAO', '200'], ['INATIVACAO', '300']]); // 100 (fica) e 200 (já morre na unificação aprovada) saem
+    expect(l[0].alertas.join(' ')).toContain('Conflito: o código que fica (100) tem inativação proposta (Qualidade, sem movimentação): a inativação ficou fora deste mapa');
+  });
+  it('as duas aprovadas: nenhuma some (decisão aprovada fica), com o conflito', () => {
+    const itens = [it_('a', '100'), it_('b', '200')];
+    const l = mapa(itens, [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200'), situacao: 'APROVADO' }), semMov('q', ['a'], 'APROVADO')]);
+    expect(l.map((x) => [x.tipo, x.morre?.codigo])).toEqual([['UNIFICACAO', '200'], ['INATIVACAO', '100']]);
+    expect(l[1].alertas.join(' ')).toContain('Conflito: 100 é o código que fica numa unificação aprovada');
   });
   it('o código que fica já inativo (ativo = não) também gera o conflito', () => {
     const l = mapa([it_('a', '100', { ativo: false }), it_('b', '200')], [caso({ itens: ['a', 'b'], proposta: consolida('100', '200') })]);
@@ -306,9 +321,10 @@ describe('fluxo: propor e aprovar unificação marca a Qualidade como "revisar" 
     await c.casos.registrarResultado(p.id, dup);
     expect(cel('100').revisar).toBe(true);
     expect(cel('100').revisar_causa).toContain('o código que fica não pode ser inativado');
-    // O mapa: a inativação de 100 (o que fica) e de 200 (que morre na unificação) sai; a unificação traz o conflito.
+    // O mapa: com a unificação só proposta, as inativações de 100 (o que fica) e de 200 (que morre) continuam, com o alerta; a unificação traz o conflito.
     const tela = await c.entregas.unificacoes(p.id);
-    expect(tela.linhas.map((l) => [l.tipo, l.morre?.codigo])).toEqual([['UNIFICACAO', '200']]);
+    expect(tela.linhas.map((l) => [l.tipo, l.morre?.codigo])).toEqual([['UNIFICACAO', '200'], ['INATIVACAO', '100'], ['INATIVACAO', '200']]);
+    expect(tela.linhas.slice(1).every((l) => l.alertas.length === 1)).toBe(true);
     expect(tela.linhas[0].alertas.join(' ')).toContain('Conflito: o código que fica (100)');
     // Aprovar a unificação também marca (regra de dependências: consolidação → Qualidade).
     cel('100').revisar = false;
