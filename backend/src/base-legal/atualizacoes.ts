@@ -36,7 +36,7 @@ export type SituacaoDaNorma = { situacao: 'vigente' | 'parcialmente_revogada' | 
  */
 export function situacaoDaNorma(extraidos: DispositivoExtraido[], texto: string): SituacaoDaNorma {
   const linhas = semRiscado(texto).split('\n').map((l) => l.trim());
-  const primeiro = linhas.findIndex((l) => /^Art\.?\s*\d/.test(l));
+  const primeiro = linhas.findIndex((l) => /^(?:Art\.?\s*\d|Cl[áa]usula\s+[a-zé])/.test(l));
   // O aviso de revogação da norma inteira fica no cabeçalho, antes do primeiro artigo (sem artigo reconhecido, olha as 40 primeiras linhas).
   const cabecalho = linhas.slice(0, primeiro >= 0 ? Math.min(primeiro, 40) : 40).join('\n');
   const nota = /\(\s*Revogad[oa]s?\s+(?:pel[oa]s?|a partir)\b[^)]*\)/i.exec(cabecalho);

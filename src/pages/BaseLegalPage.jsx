@@ -146,7 +146,7 @@ export default function BaseLegalPage() {
               )}
             </section>
 
-            <p className="text-xs text-muted-foreground">Os textos vêm dos sites oficiais (Planalto, CGIBS e outros órgãos). O que o site mostra riscado ou revogado fica guardado como histórico e nunca é apresentado como texto vigente; as normas marcadas “Só referência” são publicadas em páginas que o sistema não consegue ler e abrem direto na fonte oficial. A revisão semanal confere tudo toda segunda-feira. Em caso de dúvida, vale o texto publicado no órgão oficial — use o link “Fonte oficial”.</p>
+            <p className="text-xs text-muted-foreground">Os textos vêm dos sites oficiais (Planalto, CGIBS, Confaz e outros órgãos). O que o site mostra riscado ou revogado fica guardado como histórico e nunca é apresentado como texto vigente; as normas marcadas “Só referência” são publicadas em páginas que o sistema não consegue ler e abrem direto na fonte oficial. A revisão semanal confere tudo toda segunda-feira. Em caso de dúvida, vale o texto publicado no órgão oficial — use o link “Fonte oficial”.</p>
           </>
         )}
       </div>

@@ -4,7 +4,8 @@ import { chaveDe, normasCitadas, referenciaDe, urlOficialValida } from './base-l
 import { PrismaService } from '../prisma/prisma.service';
 import { AVISO_ASSISTENTE, Candidato, consultasDaPergunta, respostaDeApoio, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
 import { avisosDePendencias } from './avisos-legais';
-import { decodificar, DispositivoExtraido, extrairDispositivos, htmlParaTexto, LEITOR_VERSAO, semRiscado, sha256 } from './base-legal.parser';
+import { decodificar, DispositivoExtraido, extrairDispositivos, LEITOR_VERSAO, semRiscado, sha256 } from './base-legal.parser';
+import { textoDaPagina } from './confaz';
 import { atoDaMudanca, atosModificadores, novidadesDaAtualizacao, NovidadeNova, situacaoDaNorma } from './atualizacoes';
 import { FONTES_NORMAS, type GrupoNorma } from './fontes';
 import { pdfParaTexto } from './pdf-norma';
@@ -271,14 +272,15 @@ export class BaseLegalService {
 
   /**
    * Baixa e normaliza o texto de uma fonte oficial: página HTML ou PDF (regulamentos e resoluções do CGIBS), só https em sites oficiais.
-   * Em HTML, o que o site mostra riscado vem marcado à parte (ver htmlParaTexto); em PDF, o texto sai em linhas.
+   * Em HTML, o que o site mostra riscado vem marcado à parte (ver htmlParaTexto; a página do Confaz é remontada antes, ver confaz.ts);
+   * em PDF, o texto sai em linhas.
    */
   async baixarDocumento(url: string): Promise<{ texto: string; formato: 'html' | 'pdf' }> {
     const { corpo, tipo } = await this.baixarBruto(url);
     if (/pdf/i.test(tipo) || corpo.subarray(0, 5).toString('latin1') === '%PDF-') {
       return { texto: await pdfParaTexto(corpo), formato: 'pdf' };
     }
-    return { texto: htmlParaTexto(decodificar(corpo)), formato: 'html' };
+    return { texto: textoDaPagina(decodificar(corpo)), formato: 'html' };
   }
 
   /**

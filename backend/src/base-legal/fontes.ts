@@ -1,7 +1,8 @@
 /**
  * Normas das bases legais (fonte oficial). `prioridade` 0 = muda cálculo/enquadramento/obrigação.
- * Só entram aqui URLs conferidas (a página abre e o leitor extrai os dispositivos). O que a fonte oficial só publica em página
- * dinâmica (Normas da RFB, Confaz) entra como `formato: 'externo'`: fica no catálogo com o link, mas sem texto por artigo.
+ * Só entram aqui URLs conferidas (a página abre e o leitor extrai os dispositivos). Os convênios e ajustes do Confaz são lidos por
+ * cláusula (ver confaz.ts). O que a fonte oficial só publica em página dinâmica (Normas da RFB) ou em PDF escaneado entra como
+ * `formato: 'externo'`: fica no catálogo com o link, mas sem texto por artigo.
  */
 export type GrupoNorma = 'fundamentos' | 'reforma' | 'federal' | 'agro' | 'territorial' | 'operacional';
 
@@ -34,6 +35,7 @@ const PLANALTO = 'https://www.planalto.gov.br/ccivil_03';
 const PR = 'Presidência da República';
 const NORMAS_RFB = 'https://normas.receita.fazenda.gov.br/sijut2consulta';
 const CGIBS_ARQ = 'https://www.cgibs.gov.br/upload/arquivos';
+const CONFAZ = 'https://www.confaz.fazenda.gov.br/legislacao';
 
 export const FONTES_NORMAS: FonteNorma[] = [
   // ── Reforma do consumo ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -311,6 +313,69 @@ export const FONTES_NORMAS: FonteNorma[] = [
     titulo: 'Contribuição previdenciária da agroindústria e do produtor rural', orgao: PR, data_publicacao: '1994-04-15',
     url_oficial: `${PLANALTO}/leis/l8870.htm`, prioridade: 1,
   },
+  {
+    chave: 'lei-12058-2009', tipo: 'Lei', numero: 'Lei 12.058/2009', grupo: 'agro',
+    titulo: 'Suspensão de PIS/Cofins e crédito presumido na cadeia de animais vivos e carnes (arts. 32 a 34)', orgao: PR, data_publicacao: '2009-10-13',
+    url_oficial: `${PLANALTO}/_ato2007-2010/2009/lei/l12058.htm`, prioridade: 1,
+    observacao: 'Art. 32: suspensão na venda de animais vivos das posições 01.02 e 01.04 da NCM; art. 33: crédito presumido de quem produz carnes (02.01, 02.02, 02.04...); art. 34: crédito presumido na industrialização.',
+  },
+  {
+    chave: 'lei-12350-2010', tipo: 'Lei', numero: 'Lei 12.350/2010', grupo: 'agro',
+    titulo: 'Suspensão de PIS/Cofins e crédito presumido na cadeia de aves e suínos (arts. 54 a 56-B)', orgao: PR, data_publicacao: '2010-12-20',
+    url_oficial: `${PLANALTO}/_ato2007-2010/2010/lei/l12350.htm`, prioridade: 1,
+    observacao: 'Art. 54: suspensão na venda de insumos (cereais das posições 10.01 a 10.08 e outros); art. 55: crédito presumido de quem produz carnes suínas e de aves (02.03, 02.07...) para exportação; art. 56-B: uso do saldo de crédito presumido.',
+  },
+  {
+    chave: 'lei-12865-2013', tipo: 'Lei', numero: 'Lei 12.865/2013', grupo: 'agro',
+    titulo: 'Suspensão de PIS/Cofins na venda de soja e crédito presumido da cadeia da soja (arts. 29 a 33)', orgao: PR, data_publicacao: '2013-10-09',
+    url_oficial: `${PLANALTO}/_ato2011-2014/2013/lei/l12865.htm`, prioridade: 1,
+    observacao: 'Art. 29: suspensão na venda de soja (12.01) e derivados; arts. 31 e 32: crédito presumido, apurado em separado, com ressarcimento e compensação.',
+  },
+  {
+    chave: 'lei-12599-2012', tipo: 'Lei', numero: 'Lei 12.599/2012', grupo: 'agro',
+    titulo: 'Crédito presumido de PIS/Cofins na exportação e na aquisição de café (arts. 5º a 7º-A)', orgao: PR, data_publicacao: '2012-03-23',
+    url_oficial: `${PLANALTO}/_ato2011-2014/2012/lei/l12599.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lei-11051-2004', tipo: 'Lei', numero: 'Lei 11.051/2004', grupo: 'agro',
+    titulo: 'Crédito de CSLL sobre depreciação (art. 1º) e limite do crédito presumido de PIS/Cofins sobre bens recebidos de cooperado (art. 9º)', orgao: PR, data_publicacao: '2004-12-29',
+    url_oficial: `${PLANALTO}/_ato2004-2006/2004/lei/l11051.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-11116-2005', tipo: 'Lei', numero: 'Lei 11.116/2005', grupo: 'agro',
+    titulo: 'Registro especial e PIS/Cofins do biodiesel; ressarcimento do saldo credor de PIS/Cofins (art. 16)', orgao: PR, data_publicacao: '2005-05-18',
+    url_oficial: `${PLANALTO}/_ato2004-2006/2005/lei/l11116.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-8315-1991', tipo: 'Lei', numero: 'Lei 8.315/1991', grupo: 'agro',
+    titulo: 'Cria o Serviço Nacional de Aprendizagem Rural (Senar) e define suas contribuições (art. 3º)', orgao: PR, data_publicacao: '1991-12-23',
+    url_oficial: `${PLANALTO}/leis/l8315.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lei-13606-2018', tipo: 'Lei', numero: 'Lei 13.606/2018', grupo: 'agro',
+    titulo: 'Programa de Regularização Tributária Rural (PRR) e alíquotas da contribuição do produtor rural e da agroindústria (arts. 14 e 15)', orgao: PR, data_publicacao: '2018-01-09',
+    url_oficial: `${PLANALTO}/_ato2015-2018/2018/lei/l13606.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lei-8929-1994', tipo: 'Lei', numero: 'Lei 8.929/1994', grupo: 'agro',
+    titulo: 'Cédula de Produto Rural (CPR)', orgao: PR, data_publicacao: '1994-08-22',
+    url_oficial: `${PLANALTO}/leis/l8929.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-11076-2004', tipo: 'Lei', numero: 'Lei 11.076/2004', grupo: 'agro',
+    titulo: 'Certificado de Depósito Agropecuário (CDA), Warrant (WA), CDCA, LCA e CRA', orgao: PR, data_publicacao: '2004-12-30',
+    url_oficial: `${PLANALTO}/_ato2004-2006/2004/lei/l11076.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-9973-2000', tipo: 'Lei', numero: 'Lei 9.973/2000', grupo: 'agro',
+    titulo: 'Sistema de armazenagem dos produtos agropecuários', orgao: PR, data_publicacao: '2000-05-29',
+    url_oficial: `${PLANALTO}/leis/l9973.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-13986-2020', tipo: 'Lei', numero: 'Lei 13.986/2020', grupo: 'agro',
+    titulo: 'Fundo Garantidor Solidário, patrimônio rural em afetação, Cédula Imobiliária Rural e escrituração de títulos do agro', orgao: PR, data_publicacao: '2020-04-07',
+    url_oficial: `${PLANALTO}/_ato2019-2022/2020/lei/l13986.htm`, prioridade: 2,
+  },
   // ── ICMS, ISS e benefícios estaduais ────────────────────────────────────────────────────────────────────────────────
   {
     chave: 'lcp-87-1996', tipo: 'Lei Complementar', numero: 'LC 87/1996', grupo: 'territorial',
@@ -338,6 +403,140 @@ export const FONTES_NORMAS: FonteNorma[] = [
     chave: 'lcp-190-2022', tipo: 'Lei Complementar', numero: 'LC 190/2022', grupo: 'territorial',
     titulo: 'Diferencial de alíquotas do ICMS (DIFAL) nas operações com consumidor final', orgao: PR, data_publicacao: '2022-01-04',
     url_oficial: `${PLANALTO}/leis/lcp/lcp190.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lcp-192-2022', tipo: 'Lei Complementar', numero: 'LC 192/2022', grupo: 'territorial',
+    titulo: 'Combustíveis com ICMS cobrado uma única vez (monofásico)', orgao: PR, data_publicacao: '2022-03-11',
+    url_oficial: `${PLANALTO}/leis/lcp/lcp192.htm`, prioridade: 1,
+  },
+  // ── Convênios e ajustes do Confaz (texto por cláusula; a redação anterior fica guardada à parte) ─────────────────────
+  {
+    chave: 'conv-icms-100-1997', tipo: 'Convênio ICMS', numero: 'Convênio ICMS 100/1997', grupo: 'agro',
+    titulo: 'Redução da base de cálculo do ICMS nas saídas de insumos agropecuários', orgao: 'Confaz', data_publicacao: '1997-11-04',
+    url_oficial: `${CONFAZ}/convenios/1997/CV100_97`, prioridade: 0,
+    observacao: 'A página do Confaz registra a prorrogação até 31.12.27 pelo Convênio ICMS 79/25; as reduções foram alteradas pelo Convênio ICMS 26/21.',
+  },
+  {
+    chave: 'conv-icms-52-1991', tipo: 'Convênio ICMS', numero: 'Convênio ICMS 52/1991', grupo: 'agro',
+    titulo: 'Redução da base de cálculo do ICMS em máquinas e equipamentos industriais (Anexo I) e máquinas e implementos agrícolas (Anexo II)', orgao: 'Confaz',
+    url_oficial: `${CONFAZ}/convenios/1991/CV052_91`, prioridade: 1,
+  },
+  {
+    chave: 'conv-icms-106-1996', tipo: 'Convênio ICMS', numero: 'Convênio ICMS 106/1996', grupo: 'territorial',
+    titulo: 'Crédito presumido de 20% do ICMS para prestadores de serviço de transporte, opcional, em lugar dos demais créditos', orgao: 'Confaz',
+    url_oficial: `${CONFAZ}/convenios/1996/CV106_96`, prioridade: 1,
+  },
+  {
+    chave: 'conv-icms-190-2017', tipo: 'Convênio ICMS', numero: 'Convênio ICMS 190/2017', grupo: 'territorial',
+    titulo: 'Remissão dos créditos tributários de benefícios fiscais de ICMS e sua reinstituição (LC 160/2017)', orgao: 'Confaz',
+    url_oficial: `${CONFAZ}/convenios/2017/CV190_17`, prioridade: 1,
+  },
+  {
+    chave: 'conv-icms-142-2018', tipo: 'Convênio ICMS', numero: 'Convênio ICMS 142/2018', grupo: 'territorial',
+    titulo: 'Substituição tributária do ICMS: normas gerais e segmentos de mercadorias (anexos)', orgao: 'Confaz',
+    url_oficial: `${CONFAZ}/convenios/2018/CV142_18`, prioridade: 1,
+  },
+  {
+    chave: 'conv-icms-84-2009', tipo: 'Convênio ICMS', numero: 'Convênio ICMS 84/2009', grupo: 'territorial',
+    titulo: 'Controle das saídas de mercadorias com o fim específico de exportação', orgao: 'Confaz',
+    url_oficial: `${CONFAZ}/convenios/2009/CV084_09`, prioridade: 1,
+  },
+  {
+    chave: 'aj-sinief-7-2005', tipo: 'Ajuste SINIEF', numero: 'Ajuste SINIEF 7/2005', grupo: 'operacional',
+    titulo: 'Institui a Nota Fiscal Eletrônica (NF-e, modelo 55) e o DANFE', orgao: 'Confaz',
+    url_oficial: `${CONFAZ}/ajustes/2005/AJ_007_05`, prioridade: 1,
+  },
+  {
+    chave: 'aj-sinief-9-2007', tipo: 'Ajuste SINIEF', numero: 'Ajuste SINIEF 9/2007', grupo: 'operacional',
+    titulo: 'Institui o Conhecimento de Transporte Eletrônico (CT-e, modelo 57) e o DACTE', orgao: 'Confaz',
+    url_oficial: `${CONFAZ}/ajustes/2007/AJ_009_07`, prioridade: 1,
+  },
+  // ── Tributação federal: IRPJ/CSLL, incentivos e obrigações ──────────────────────────────────────────────────────────
+  {
+    chave: 'lei-14789-2023', tipo: 'Lei', numero: 'Lei 14.789/2023', grupo: 'federal',
+    titulo: 'Crédito fiscal decorrente de subvenção para implantação ou expansão de empreendimento econômico', orgao: PR, data_publicacao: '2023-12-29',
+    url_oficial: `${PLANALTO}/_ato2023-2026/2023/lei/l14789.htm`, prioridade: 0,
+    observacao: 'Pela ementa: altera as Leis 9.249/1995, 14.592/2023 e 14.754/2023 e revoga dispositivos do DL 1.598/1977.',
+  },
+  {
+    chave: 'lei-14596-2023', tipo: 'Lei', numero: 'Lei 14.596/2023', grupo: 'federal',
+    titulo: 'Preços de transferência no IRPJ e na CSLL', orgao: PR, data_publicacao: '2023-06-14',
+    url_oficial: `${PLANALTO}/_ato2023-2026/2023/lei/l14596.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lei-8981-1995', tipo: 'Lei', numero: 'Lei 8.981/1995', grupo: 'federal',
+    titulo: 'Altera a legislação tributária federal (IRPJ, CSLL e IRPF)', orgao: PR, data_publicacao: '1995-01-20',
+    url_oficial: `${PLANALTO}/leis/l8981.htm`, prioridade: 1,
+    observacao: 'Arts. 42 e 58: limite de 30% na compensação de prejuízo fiscal e de base negativa da CSLL.',
+  },
+  {
+    chave: 'lei-9065-1995', tipo: 'Lei', numero: 'Lei 9.065/1995', grupo: 'federal',
+    titulo: 'Dá nova redação a dispositivos da Lei 8.981/1995', orgao: PR, data_publicacao: '1995-06-20',
+    url_oficial: `${PLANALTO}/leis/l9065.htm`, prioridade: 1,
+    observacao: 'Art. 15: compensação do prejuízo fiscal com o lucro líquido ajustado.',
+  },
+  {
+    chave: 'lei-9532-1997', tipo: 'Lei', numero: 'Lei 9.532/1997', grupo: 'federal',
+    titulo: 'Altera a legislação tributária federal (texto compilado)', orgao: PR, data_publicacao: '1997-12-10',
+    url_oficial: `${PLANALTO}/leis/l9532.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-11196-2005', tipo: 'Lei', numero: 'Lei 11.196/2005', grupo: 'federal',
+    titulo: 'Lei do Bem: incentivos fiscais à inovação tecnológica (art. 17 e seguintes) e outras medidas tributárias', orgao: PR, data_publicacao: '2005-11-21',
+    url_oficial: `${PLANALTO}/_ato2004-2006/2005/lei/l11196.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-10426-2002', tipo: 'Lei', numero: 'Lei 10.426/2002', grupo: 'federal',
+    titulo: 'Altera a legislação tributária federal (art. 7º: multas por atraso ou falta de DCTF, DIRF e outras declarações)', orgao: PR, data_publicacao: '2002-04-24',
+    url_oficial: `${PLANALTO}/leis/2002/l10426.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lei-6404-1976', tipo: 'Lei', numero: 'Lei 6.404/1976', grupo: 'fundamentos',
+    titulo: 'Sociedades por Ações (texto compilado)', orgao: PR, data_publicacao: '1976-12-15',
+    url_oficial: `${PLANALTO}/leis/l6404consol.htm`, prioridade: 2,
+    observacao: 'Inclui o art. 195-A: reserva de incentivos fiscais (doações e subvenções governamentais para investimentos).',
+  },
+  // ── Processo, cobrança e penalidades ────────────────────────────────────────────────────────────────────────────────
+  {
+    chave: 'dec-7574-2011', tipo: 'Decreto', numero: 'Decreto 7.574/2011', grupo: 'fundamentos',
+    titulo: 'Regulamenta o processo de determinação e exigência de créditos tributários da União e o processo de consulta', orgao: PR, data_publicacao: '2011-09-29',
+    url_oficial: `${PLANALTO}/_ato2011-2014/2011/decreto/d7574.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lei-14689-2023', tipo: 'Lei', numero: 'Lei 14.689/2023', grupo: 'fundamentos',
+    titulo: 'Empate no Carf, autorregularização, conformidade tributária e contencioso administrativo fiscal', orgao: PR, data_publicacao: '2023-09-20',
+    url_oficial: `${PLANALTO}/_ato2023-2026/2023/lei/l14689.htm`, prioridade: 1,
+  },
+  {
+    chave: 'lei-9784-1999', tipo: 'Lei', numero: 'Lei 9.784/1999', grupo: 'fundamentos',
+    titulo: 'Processo administrativo no âmbito da Administração Pública Federal', orgao: PR, data_publicacao: '1999-01-29',
+    url_oficial: `${PLANALTO}/leis/l9784.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-6830-1980', tipo: 'Lei', numero: 'Lei 6.830/1980', grupo: 'fundamentos',
+    titulo: 'Cobrança judicial da Dívida Ativa da Fazenda Pública (execução fiscal)', orgao: PR, data_publicacao: '1980-09-22',
+    url_oficial: `${PLANALTO}/leis/l6830.htm`, prioridade: 2,
+  },
+  {
+    chave: 'lei-8137-1990', tipo: 'Lei', numero: 'Lei 8.137/1990', grupo: 'fundamentos',
+    titulo: 'Crimes contra a ordem tributária, econômica e contra as relações de consumo', orgao: PR, data_publicacao: '1990-12-27',
+    url_oficial: `${PLANALTO}/leis/l8137.htm`, prioridade: 2,
+  },
+  // ── Obrigações e documentos fiscais ─────────────────────────────────────────────────────────────────────────────────
+  {
+    chave: 'lcp-199-2023', tipo: 'Lei Complementar', numero: 'LC 199/2023', grupo: 'operacional',
+    titulo: 'Estatuto Nacional de Simplificação de Obrigações Tributárias Acessórias', orgao: PR, data_publicacao: '2023-08-01',
+    url_oficial: `${PLANALTO}/leis/lcp/lcp199.htm`, prioridade: 1,
+  },
+  {
+    chave: 'dec-6022-2007', tipo: 'Decreto', numero: 'Decreto 6.022/2007', grupo: 'operacional',
+    titulo: 'Institui o Sistema Público de Escrituração Digital (Sped)', orgao: PR, data_publicacao: '2007-01-22',
+    url_oficial: `${PLANALTO}/_ato2007-2010/2007/decreto/d6022.htm`, prioridade: 2,
+  },
+  {
+    chave: 'dec-8373-2014', tipo: 'Decreto', numero: 'Decreto 8.373/2014', grupo: 'operacional',
+    titulo: 'Institui o eSocial', orgao: PR, data_publicacao: '2014-12-11',
+    url_oficial: `${PLANALTO}/_ato2011-2014/2014/decreto/d8373.htm`, prioridade: 2,
   },
   // ── Só referência: a fonte oficial não publica o texto em página que o servidor consiga ler ────────────────────────
   {
@@ -403,11 +602,5 @@ export const FONTES_NORMAS: FonteNorma[] = [
     titulo: 'Tabela de Incidência do IPI (TIPI)', orgao: PR, data_publicacao: '2022-07-29',
     url_oficial: `${PLANALTO}/_ato2019-2022/2022/decreto/d11158.htm`, prioridade: 1,
     observacao: 'O anexo (TIPI) é PDF escaneado: sem texto por artigo. A classificação por NCM está na tabela do Siscomex carregada à parte.',
-  },
-  {
-    chave: 'conv-icms-100-1997', tipo: 'Convênio ICMS', numero: 'Convênio ICMS 100/1997', grupo: 'agro', formato: 'externo',
-    titulo: 'Reduções de base de cálculo e isenções de ICMS em insumos agropecuários', orgao: 'Confaz', data_publicacao: '1997-11-04',
-    url_oficial: 'https://www.confaz.fazenda.gov.br/legislacao/convenios/1997/CV100_97', prioridade: 1,
-    observacao: 'O Confaz publica convênios por cláusulas, não por artigos: fica como referência.',
   },
 ];

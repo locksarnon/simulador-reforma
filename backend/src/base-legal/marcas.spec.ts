@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { atoDoTexto, ehSoNota, marcadorEstrutural, marcasDoTexto, marcasUnicas, numeroDoArtigo, remissoesDoTexto, situacaoDoDispositivo, temasDoTexto } from './marcas';
+import { atoDoTexto, ehSoNota, expandirFaixaRevogada, marcadorEstrutural, marcasDoTexto, marcasUnicas, numeroDoArtigo, remissoesDoTexto, situacaoDoDispositivo, temasDoTexto } from './marcas';
 
 describe('atos citados nas notas do texto oficial', () => {
   it.each([
@@ -12,6 +12,10 @@ describe('atos citados nas notas do texto oficial', () => {
     ['Instrução Normativa RFB nº 2.121/2022', null, null],
     ['LC 214/2025', 'LC 214/2025', 'Lei Complementar'],
     ['Decreto 12.955/2026', 'Decreto 12955/2026', 'Decreto'],
+    ['Lei nº 9.779, de 19/01/1999', 'Lei 9779/1999', 'Lei'],
+    ['Lei nº 10.833, de 29.12.2003', 'Lei 10833/2003', 'Lei'],
+    ['Lei nº 9.528, de 10.12.97', 'Lei 9528/1997', 'Lei'],
+    ['Emenda Constitucional nº 28, de 25/05/2000', 'EC 28/2000', 'Emenda Constitucional'],
   ])('%s → %s', (texto, rotulo, tipo) => {
     const a = atoDoTexto(texto);
     if (rotulo === null) { expect(a?.rotulo ?? null).toBe(a ? a.rotulo : null); return; }
@@ -116,5 +120,38 @@ describe('temas do dispositivo', () => {
 
   it('texto sem assunto reconhecível não recebe tema', () => {
     expect(temasDoTexto('Art. 1º Esta Lei entra em vigor na data de sua publicação.')).toEqual([]);
+  });
+});
+
+describe('linha que revoga vários artigos de uma vez', () => {
+  it('faixa com "a": uma linha por artigo, cada uma com o aviso no singular (CTN, arts. 52 a 58 e 59 a 62)', () => {
+    expect(expandirFaixaRevogada('Arts. 52 a 58 . (Revogados pelo Decreto-lei nº 406, de 1968')).toEqual(
+      [52, 53, 54, 55, 56, 57, 58].map((n) => `Art. ${n}. (Revogado pelo Decreto-lei nº 406, de 1968)`),
+    );
+    expect(expandirFaixaRevogada('Arts. 59 a 62 (Revogados pelo Ato Complementar nº 31, de 1966)')).toEqual(
+      [59, 60, 61, 62].map((n) => `Art. ${n}. (Revogado pelo Ato Complementar nº 31, de 1966)`),
+    );
+    expect(atoDoTexto('Ato Complementar nº 31, de 1966')).toMatchObject({ rotulo: 'AC 31/1966', tipo: 'Ato Complementar' });
+  });
+
+  it('lista com "e" e vírgula, ordinais e sufixos de letra', () => {
+    expect(expandirFaixaRevogada('Arts. 3º e 4º (Revogados pela Lei nº 9.430, de 1996)')).toEqual([
+      'Art. 3º (Revogado pela Lei nº 9.430, de 1996)',
+      'Art. 4º (Revogado pela Lei nº 9.430, de 1996)',
+    ]);
+    expect(expandirFaixaRevogada('Arts. 10, 11 e 13. (Vetados)')).toEqual(['Art. 10. (Vetado)', 'Art. 11. (Vetado)', 'Art. 13. (Vetado)']);
+    expect(expandirFaixaRevogada('Arts. 15-A a 15-C (Revogados)')).toEqual(['Art. 15-A. (Revogado)', 'Art. 15-B. (Revogado)', 'Art. 15-C. (Revogado)']);
+    expect(expandirFaixaRevogada('Arts. 15-E e 16 - Revogados.')).toEqual(['Art. 15-E. (Revogado)', 'Art. 16. (Revogado)']);
+    expect(expandirFaixaRevogada('Arts. 10 a 12-B (Revogados)')).toEqual([
+      'Art. 10. (Revogado)', 'Art. 11. (Revogado)', 'Art. 12. (Revogado)', 'Art. 12-A. (Revogado)', 'Art. 12-B. (Revogado)',
+    ]);
+  });
+
+  it('o que não é faixa revogada, ou não se sabe expandir, fica como está', () => {
+    expect(expandirFaixaRevogada('Art. 52. (Revogado pelo Decreto-lei nº 406, de 1968)')).toBeNull();
+    expect(expandirFaixaRevogada('Arts. 52 a 58 da Lei nº 5.172, de 1966 (Revogados)')).toBeNull();
+    expect(expandirFaixaRevogada('Arts. 52 a 58 aplicam-se ao imposto sobre operações relativas à circulação de mercadorias.')).toBeNull();
+    expect(expandirFaixaRevogada('Arts. 1º a 500 (Revogados)')).toBeNull();
+    expect(expandirFaixaRevogada('Arts. 58 a 52 (Revogados)')).toBeNull();
   });
 });

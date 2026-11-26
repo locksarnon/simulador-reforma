@@ -8,7 +8,7 @@ A barra **Consultar as bases legais** (`ConsultaBasesLegais.jsx`) faz, com a mes
 
 ## O que a base guarda
 
-- **Texto oficial por dispositivo** (artigo ou anexo) de cerca de 70 normas, em seis blocos: fundamentos, reforma do consumo, tributação federal atual, agro, ICMS/ISS e benefícios estaduais, obrigações e documentos fiscais. Catálogo em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas).
+- **Texto oficial por dispositivo** (artigo, anexo ou, nos convênios do Confaz, cláusula) de 104 normas do catálogo (92 com texto, 12 só com o link), em seis blocos: fundamentos, reforma do consumo, tributação federal atual, agro, ICMS/ISS e benefícios estaduais, obrigações e documentos fiscais. Catálogo em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas: cada página abre e o leitor extrai os dispositivos).
 - **Norma editada ou revogada**, lida do próprio texto oficial a cada captura:
   - o que o site mostra **riscado** (redação antiga, dispositivo revogado) nunca entra como texto vigente: vai para `redacoes_anteriores`;
   - `alteracoes`: notas oficiais ("Redação dada pela Lei Complementar nº 227, de 2026", "Incluído...", "Revogado...", "Vide...");
@@ -16,7 +16,17 @@ A barra **Consultar as bases legais** (`ConsultaBasesLegais.jsx`) faz, com a mes
   - `situacao` da norma (`vigente`, `parcialmente_revogada`, `revogada`), `revogada_por`, `atualizada_em` e `atos_modificadores` (quais atos mexeram nela e em quantos dispositivos);
   - versões anteriores do texto (`DispositivoLegalVersao`) quando o texto muda;
   - remissões entre normas (`ReferenciaLegal`: "(Art. 38 da LC 214/2025)" no Regulamento do IBS) e temas por dispositivo.
-- **Formatos**: HTML do Planalto e PDF (Regulamento do IBS e resoluções do CGIBS, via `pdfjs-dist`). Normas que o órgão só publica em página que o servidor não lê (Normas RFB, Confaz, TIPI) ficam como `formato: externo`: só o catálogo e o link.
+- **Formatos**: HTML do Planalto, PDF (Regulamento do IBS e resoluções do CGIBS, via `pdfjs-dist`) e as páginas do Confaz (convênios e ajustes, por cláusula: `confaz.ts`). Normas que o órgão só publica em página que o servidor não lê (Normas RFB, montada por script) ou em PDF escaneado (TIPI) ficam como `formato: externo`: só o catálogo e o link.
+
+## Leitura do texto oficial
+
+- Riscado no site (`<strike>`, `<s>`, `<del>` ou `text-decoration: line-through`) é redação anterior, nunca texto vigente.
+- "Arts. 52 a 58 (Revogados pelo...)", "Arts. 3º e 4º", "Arts. 15-A a 15-C": vira um artigo revogado por número, cada um com o aviso (faixa de até 80 artigos; faixa que não se sabe expandir fica como está).
+- Artigo inteiro riscado cujo aviso de revogação só aparece nos incisos continua na base, revogado, sem sujar o artigo anterior; artigo riscado com o aviso dentro do riscado guarda o ato que revogou.
+- Artigos de outra lei reproduzidos entre aspas num artigo alterador ("“Art. 22-A ... ” (NR)") valem quase nada na escolha da numeração: não tomam o lugar dos artigos da própria lei. "Art. 33, inciso II do caput" no começo da linha é remissão, não artigo. O "rt. 758." do RIR (erro da própria página) abre o artigo.
+- Datas das notas antigas ("Lei nº 9.779, de 19/01/1999", "de 10.12.97") são lidas para identificar o ato.
+- Confaz: a página traz a classe de cada parágrafo (texto vigente, nota da redação atual, redação anterior e a nota dela; nas tabelas, a linha "verde" é a redação anterior). O leitor remonta a página com a nota no fim do item a que se refere (como "(Redação dada ao inciso I ... pelo Convênio ICMS nº 99, de 2004 ...)"), a redação anterior riscada junto do texto que a substituiu e "II - REVOGADO" como o aviso com o convênio que revogou. Os atos do Confaz entram nas marcas como "Convênio ICMS 26/2021", "Ajuste SINIEF 7/2005".
+- Cada dispositivo guarda até 10 redações anteriores (as tabelas do Convênio ICMS 52/91 e 142/18 têm centenas de linhas antigas: ficam as 10 primeiras).
 - **Novidades** (`NovidadeLegal`): tudo o que a revisão e as atualizações descobrem. Tipos: `alteracao`, `revogacao`, `inclusao`, `norma_revogada`, `nova_norma`, `regulamentacao`, `aplicacao`, `interpretacao`, `fonte_atualizada`, `estrutura_suspeita`, `nao_consolidada`, `reprocessada`. Situação: `nova`, `vista`, `descartada`, `resolvida`. Origem: `texto_oficial`, `api_oficial`, `busca_web`, `fonte_monitorada`, `remissao`.
 
 ## Revisão semanal
@@ -54,11 +64,12 @@ Recebe, por dispositivo: situação (em vigor, revogado, parcialmente revogado, 
 
 ## Limites conhecidos
 
-- Instruções normativas da Receita (Normas RFB), convênios do Confaz e a TIPI não têm texto por artigo: só referência e acompanhamento do portal. `nfe.fazenda.gov.br` e `sped.rfb.gov.br` falham no TLS a partir do servidor e não são lidos.
+- Instruções normativas da Receita (Normas RFB, página montada por script) e a TIPI (PDF escaneado) não têm texto por artigo: só referência e acompanhamento do portal. `nfe.fazenda.gov.br` e `sped.rfb.gov.br` falham no TLS a partir do servidor e não são lidos.
+- Lei 10.833/2003: o art. 84 não está na página do Planalto (a numeração pula do 83 para o 85).
 - Leis e decretos estaduais e municipais (ICMS e ISS de cada ente) não estão na base.
 - A pesquisa na web depende do motor de IA configurado e nunca vale sem confirmação de um administrador.
 - O cruzamento de alterações não consolidadas é por ato (nenhuma nota do compilado cita o ato), para não confundir imprecisão da leitura com texto desatualizado; texto original de lei (não compilado) sempre aparecerá como "não consolidado" para atos posteriores, o que é correto.
 
 ## Testes
 
-`backend/src/base-legal/*.spec.ts` (leitor de texto riscado e revogado, marcas, PDF, importador, rotina semanal, legislação federal, consolidação, pesquisa, assistente) e `src/components/base-legal/NovidadesLegais.test.jsx`, `src/lib/novidadesLegais.test.js`. O leitor foi validado contra as páginas reais do Planalto e do CGIBS (LC 214 compilada, LC 224, LC 227, LC 235, LC 239, Lei 9.430, RIPI, DL 1.598, Res. CGIBS 6) e a relevância dos atos contra a lista real de 2026 do Senado.
+`backend/src/base-legal/*.spec.ts` (leitor de texto riscado e revogado, marcas, Confaz, PDF, importador, rotina semanal, legislação federal, consolidação, pesquisa, assistente) e `src/components/base-legal/NovidadesLegais.test.jsx`, `src/lib/novidadesLegais.test.js`. Em 26/11/2026 todas as normas com texto do catálogo foram relidas nas páginas oficiais com o leitor atual: nenhuma com erro e, fora o art. 84 da Lei 10.833 (ausente da página), nenhuma com artigo faltando na numeração (o CTN, o DL 1.598, o RIR, o RIPI e as Leis 10.637, 12.599 e 14.973 tinham lacunas que o leitor corrigido fechou). A relevância dos atos foi conferida contra a lista real de 2026 do Senado.

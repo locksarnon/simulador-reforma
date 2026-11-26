@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BaseLegalService } from './base-legal.service';
-import { extrairDispositivos, htmlParaTexto, sha256 } from './base-legal.parser';
+import { extrairDispositivos, htmlParaTexto, LEITOR_VERSAO, sha256 } from './base-legal.parser';
 
 const ANTIGO = '<p>Art. 1º Primeiro.</p><p>Art. 2º Segundo, texto antigo.</p><p>Art. 3º Terceiro.</p><p>Art. 4º Quarto.</p>';
 const NOVO = `<p>Art. 1º Primeiro.</p>
@@ -155,7 +155,7 @@ describe('norma gravada por um leitor anterior (reprocessamento)', () => {
     expect(art2.alteracoes).toEqual([expect.objectContaining({ tipo: 'redacao', ato: 'LC 239/2026' })]);
     expect(art2).not.toHaveProperty('alterado_em');
     const norma = prisma.normaLegal.update.mock.calls.at(-1)![0].data;
-    expect(norma.leitor_versao).toBe(2);
+    expect(norma.leitor_versao).toBe(LEITOR_VERSAO);
     expect(norma).not.toHaveProperty('atualizada_em');
     // nada mudou no texto: não há novidade a contar
     expect(novidades(prisma)).toEqual([]);
@@ -183,7 +183,7 @@ describe('norma gravada por um leitor anterior (reprocessamento)', () => {
 
   it('norma já gravada pelo leitor atual segue o caminho normal (a mudança é da lei)', async () => {
     const { service, prisma } = montar();
-    prisma.normaLegal.findUnique.mockResolvedValue({ ...NORMA, leitor_versao: 2 });
+    prisma.normaLegal.findUnique.mockResolvedValue({ ...NORMA, leitor_versao: LEITOR_VERSAO });
     const r = await service.importar('lcp-214-2025');
     expect(r.reprocessada).toBeUndefined();
     expect(novidades(prisma).map((x) => x.tipo).sort()).toEqual(['alteracao', 'inclusao', 'revogacao']);
