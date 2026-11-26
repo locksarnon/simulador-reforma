@@ -26,9 +26,13 @@ function montar(opcoes: { analyzeFalha?: boolean; mexerNaVersao?: (db: Record<st
   const analyze: string[] = [];
   prisma.$executeRaw = async (q: Sql) => {
     brutos.push(q.sql);
-    opcoes.mexerNaVersao?.(db);
     const linhas = JSON.parse(String(q.values[0])) as Record<string, unknown>[];
     let n = 0;
+    if (q.sql.includes('UPDATE "SanCelula"')) {
+      for (const l of linhas) for (const c of db.sanCelula) if (c.item_id === l.item_id && c.grupo !== l.grupo) { c.grupo = l.grupo; n++; }
+      return n;
+    }
+    opcoes.mexerNaVersao?.(db);
     for (const l of linhas) {
       const i = db.sanItem.find((x) => x.id === l.id);
       if (!i) continue;
@@ -99,15 +103,20 @@ describe('MÉDIO 3: reimportação grava em bloco', () => {
     const r = await c.importacao.confirmar(projetoId, ARQ, undefined, { filtro: 'ALTERADOS' }, USER);
     const ms = performance.now() - t0;
     expect(r.incorporados).toBe(n);
-    expect(c.brutos).toHaveLength(Math.ceil(n / BLOCO_REIMPORTACAO));
-    expect(c.brutos.every((s) => s.includes('i."versao" = v.versao'))).toBe(true);
+    const blocos = Math.ceil(n / BLOCO_REIMPORTACAO);
+    const deItens = c.brutos.filter((s) => s.includes('UPDATE "SanItem"'));
+    expect(deItens).toHaveLength(blocos);
+    expect(deItens.every((s) => s.includes('i."versao" = v.versao'))).toBe(true);
+    // a cópia do grupo nas células também é um UPDATE por bloco, e só onde o grupo mudou
+    expect(c.brutos.filter((s) => s.includes('UPDATE "SanCelula"'))).toHaveLength(blocos);
+    expect(c.db.sanCelula.every((x) => x.grupo === 'Fertilizantes')).toBe(true);
     const p = c.db.sanItem.find((i) => i.id === protegido.id)!;
     expect(p.trabalho.descricao).not.toContain('NOVA');
     expect(p.grupo).toBe('Fertilizantes');
     expect(c.db.sanItem.every((i) => i.versao === 2)).toBe(true);
     expect(c.db.sanDecisao.filter((d) => d.tipo === 'importar')).toHaveLength(n * 2 - 1);
     // eslint-disable-next-line no-console
-    console.log(`[medição] reimportação de ${n} itens (Prisma em memória, SQL em bloco): ${Math.round(ms)} ms, ${c.brutos.length} UPDATE de itens`);
+    console.log(`[medição] reimportação de ${n} itens (Prisma em memória, SQL em bloco): ${Math.round(ms)} ms, ${c.brutos.length} UPDATE em bloco (itens e células)`);
   }, 240_000);
 
   it('item alterado por outra pessoa no meio: 409 e nada gravado', async () => {

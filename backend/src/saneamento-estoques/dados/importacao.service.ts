@@ -105,6 +105,22 @@ export async function gravarLidoEmBloco(tx: TxImportacao, linhas: { id: string; 
   for (const l of linhas) await tx.sanItem.updateMany({ where: { id: l.id }, data: { lido: l.lido as never } });
 }
 
+/**
+ * Cópia do grupo nas células dos itens incorporados: um UPDATE por bloco que só toca a célula cujo grupo mudou (antes era um UPDATE
+ * por grupo do bloco, regravando as 9 células de cada item mesmo sem mudança).
+ */
+export async function gravarGrupoDasCelulas(tx: TxImportacao, porGrupo: Map<string, string[]>): Promise<void> {
+  if (!porGrupo.size) return;
+  if (temSqlBruto(tx)) {
+    const linhas = [...porGrupo].flatMap(([grupo, ids]) => ids.map((item_id) => ({ item_id, grupo })));
+    await tx.$executeRaw(Prisma.sql`UPDATE "SanCelula" AS c SET "grupo" = v.grupo, "updatedAt" = now()
+      FROM jsonb_to_recordset(${JSON.stringify(linhas)}::jsonb) AS v(item_id text, grupo text)
+      WHERE c."item_id" = v.item_id AND c."grupo" IS DISTINCT FROM v.grupo`);
+    return;
+  }
+  for (const [grupo, itensIds] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds } }, data: { grupo } });
+}
+
 /** Importação: prévia (nada gravado), confirmação e reimportação com diferenças. Decisão do consultor nunca é sobrescrita. */
 @Injectable()
 export class SanImportacaoService {
@@ -278,7 +294,7 @@ export class SanImportacaoService {
           for (const [afetadas, itensIds] of revisarPor) {
             await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds }, camada: { in: afetadas.split(',') }, situacao: { not: 'PENDENTE' } }, data: { revisar: true, revisar_causa: 'Reimportação alterou campos que esta camada usa.' } });
           }
-          for (const [grupo, itensIds] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds } }, data: { grupo } });
+          await gravarGrupoDasCelulas(tx, porGrupo);
         }
         const fim = { ...relatorio, novos: criados, inalterados: c.inalterados, alterados: c.diferencas.length, incorporados, ausentesDoArquivo: c.ausentes.length, ignorados, totalIgnorados };
         await tx.sanImportacao.update({ where: { id: imp.id }, data: { relatorio: fim as never } });
