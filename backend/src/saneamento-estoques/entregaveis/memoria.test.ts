@@ -65,6 +65,12 @@ async function medir<T>(rotulo: string, f: () => Promise<T>): Promise<T> {
 }
 
 describe('Memória do Saneamento com base grande', () => {
+  // Referência: só a base em memória (o menor teto de heap com que ela cabe; os cenários abaixo somam a isso).
+  it.runIf(CENARIO === 'base')('só a base sintética', () => {
+    const { db } = base();
+    expect(db.sanItem).toHaveLength(N);
+  });
+
   it.runIf(!CENARIO || CENARIO === 'excel')('Excel de revisão (base atual)', async () => {
     const { prisma } = base();
     const v = new SanVersoesService(prisma as never);

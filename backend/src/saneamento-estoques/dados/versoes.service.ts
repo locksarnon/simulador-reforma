@@ -103,11 +103,8 @@ async function emPaginas(ler: (a: { take: number; cursor?: { id: string }; skip?
   }
   return todas;
 }
-async function lerDecisoes(db: Leitor, projetoId: string): Promise<Json[]> {
-  const d = await emPaginas((p) => db.sanDecisao.findMany({ where: { projeto_id: projetoId }, orderBy: [{ quando: 'asc' }, { id: 'asc' }], select: SEL_DECISAO, ...p } as never), LOTE_DECISOES);
-  for (const x of d) delete x.id; // o id só serve de cursor: a foto e as entregas não o usam
-  return d;
-}
+// O id da decisão (cursor) fica no objeto: apagá-lo (delete) deixava 190 mil objetos no modo lento e maior do V8.
+const lerDecisoes = (db: Leitor, projetoId: string) => emPaginas((p) => db.sanDecisao.findMany({ where: { projeto_id: projetoId }, orderBy: [{ quando: 'asc' }, { id: 'asc' }], select: SEL_DECISAO, ...p } as never), LOTE_DECISOES);
 const lerCasos = (db: Leitor, projetoId: string) => emPaginas((p) => db.sanCaso.findMany({ where: { projeto_id: projetoId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: SEL_CASO, ...p } as never), LOTE_CASOS);
 
 const SEL_ITEM = { id: true, codigo: true, estabelecimento: true, descricao: true, trabalho: true, grupo: true, finalidade: true, tambem_usado_como: true, conjunto_chave: true, ativo: true } as const;
@@ -127,10 +124,10 @@ const SEL_PROJETO = {
  * Versão liberada = foto da base em JSON comprimido (gzip), numa tabela à parte dentro do próprio banco: a foto fica na mesma
  * transação e no mesmo backup da base, sem depender do MinIO.
  *
- * Memória (estimativa para 30 mil itens × 9 camadas, ~270 mil células): leitura em lotes de 5 mil itens e 20 mil células com `select` só dos
- * campos usados (nada de `original` nem `lido`); itens ≈ 25 MB e células em tuplas ≈ 20 MB de objetos JS, JSON ≈ 45 MB, gzip ≈ 6 MB:
- * pico em torno de 150 a 200 MB, bem abaixo de 300 MB. A comparação carrega uma versão por vez (reduz a um mapa) e depois a outra.
- * Estimativa por contas de tamanho, NÃO medida com 30 mil itens reais.
+ * Memória (30 mil itens × 9 camadas, 190 mil decisões): leitura em lotes (5 mil itens, 20 mil células, 20 mil decisões, 2 mil casos) com
+ * `select` só dos campos usados (nada de `original` nem `lido`); a foto vai para o gzip em partes; a comparação lê só as seções itens,
+ * células e casos de uma foto por vez. O QA com Postgres real mediu picos de 2,4 a 2,9 GiB antes destas mudanças; o teste de memória
+ * (entregaveis/memoria.test.ts, Prisma em memória) mede o teto de heap de cada caminho, sem o custo do Prisma real.
  */
 @Injectable()
 export class SanVersoesService {

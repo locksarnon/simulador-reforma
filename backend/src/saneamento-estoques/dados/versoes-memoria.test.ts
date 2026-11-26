@@ -53,6 +53,6 @@ describe('Foto da versão em partes', () => {
     expect(r.alterados[0]).toMatchObject({ codigo: '001', campos: [{ campo: 'unidade', antes: 'KG', depois: 'SC' }] });
     const exp = await v.exportar('P1', v2.id);
     expect(exp.decisoes).toEqual([expect.objectContaining({ campo: 'unidade', antes: 'UN', depois: 'KG' })]);
-    expect(exp.decisoes[0]).not.toHaveProperty('id');
+
   });
 });
