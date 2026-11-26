@@ -785,19 +785,29 @@ export class BaseLegalService {
    * Um LIKE por código, ligados por OR, usando o índice de trigramas do texto (sem ele, a consulta lia os 33 MB de texto: 1,5 s).
    * Código só tem dígitos e pontos: vai escrito na consulta (conferido pela expressão abaixo), porque com o padrão como parâmetro o
    * Postgres pode montar um plano genérico que ignora o índice; e LIKE basta (dígito não tem maiúscula). Código contido em outro sai
-   * ("1201.90.00" já é achado por "1201.9"): o resultado é o mesmo, com menos varreduras.
+   * do filtro do índice ("1201.90.00" já é achado por "1201.9"): o resultado é o mesmo, com menos varreduras.
+   * Ordem: código completo primeiro, depois a subposição, por último a posição. A posição com ponto ("12.01") também aparece no texto
+   * como data ("efeitos a partir de 05.12.01"), CEST ("03.012.01") e item de lista ("12.01 Espetáculos teatrais"): só conta quando o
+   * texto a chama de posição, NCM, NBM, TIPI, SH ou código ("soja classificada na posição 12.01").
    */
   private async buscarCodigos(padroes: string[], chaves?: string[]): Promise<{ chave: string; caminho: string }[]> {
     if (chaves && !chaves.length) return [];
     const validos = [...new Set(padroes)].filter((p) => /^[0-9][0-9.]{3,}[0-9]$/.test(p));
-    const codigos = validos.filter((p) => !validos.some((outro) => outro !== p && p.includes(outro))).slice(0, 12);
-    if (!codigos.length) return [];
-    const algum = codigos.map((p) => `d."texto" LIKE '%${p}%'`).join(' OR ');
+    const minimos = validos.filter((p) => !validos.some((outro) => outro !== p && p.includes(outro))).slice(0, 12);
+    if (!minimos.length) return [];
+    const ehPosicao = (p: string) => /^\d{2}\.\d{2}$/.test(p);
+    const completos = validos.filter((p) => /^\d{4}\.\d{2}\.\d{2}$|^\d{8}$/.test(p));
+    const parciais = validos.filter((p) => !ehPosicao(p) && !completos.includes(p));
+    const like = (p: string) => `d."texto" LIKE '%${p}%'`;
+    const chamadaDePosicao = (p: string) =>
+      `d."texto" ~* '(posi[çÇc][ãÃõÕao]|ncm|nbm|tipi|c[óÓo]digo|\\msh\\M)[^;]{0,60}(?<![0-9.])${p.replace(/\./g, '\\.')}(?!\\.?[0-9])'`;
+    const valem = [...minimos.filter((p) => !ehPosicao(p)).map(like), ...minimos.filter(ehPosicao).map(chamadaDePosicao)].join(' OR ');
+    const algum = (lista: string[]) => (lista.length ? lista.map(like).join(' OR ') : 'false');
     try {
       return await this.prisma.$queryRawUnsafe<{ chave: string; caminho: string }[]>(
         `SELECT n."chave", d."caminho" FROM "DispositivoLegal" d JOIN "NormaLegal" n ON n."id" = d."norma_id"
-          WHERE d."revogado" = false AND (${algum}) ${chaves ? 'AND n."chave" = ANY($1)' : ''}
-          ORDER BY n."prioridade" ASC, d."ordem" ASC LIMIT 12`,
+          WHERE d."revogado" = false AND (${minimos.map(like).join(' OR ')}) AND (${valem}) ${chaves ? 'AND n."chave" = ANY($1)' : ''}
+          ORDER BY CASE WHEN ${algum(completos)} THEN 0 WHEN ${algum(parciais)} THEN 1 ELSE 2 END, n."prioridade" ASC, d."ordem" ASC LIMIT 12`,
         ...(chaves ? [chaves] : []),
       );
     } catch (e) {

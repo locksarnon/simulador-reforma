@@ -88,6 +88,15 @@ describe('desempenho da busca (base com os regulamentos estaduais: ~19 mil dispo
     expect(params).toEqual([['pa-dec-4676-2001']]);
   });
 
+  it('código completo vem antes da subposição e da posição; a posição com ponto só vale chamada de posição, NCM, TIPI ou código', async () => {
+    const { service, prisma } = montar([[]]);
+    await (service as any).buscarCodigos(['1201.90.00', '12019000', '1201.90', '12.01']);
+    const sql = (prisma.$queryRawUnsafe.mock.calls[0] as unknown[])[0] as string;
+    expect(sql).toContain(`ORDER BY CASE WHEN d."texto" LIKE '%1201.90.00%' OR d."texto" LIKE '%12019000%' THEN 0 WHEN d."texto" LIKE '%1201.90%' THEN 1 ELSE 2 END`);
+    // "12.01" fica no filtro do índice (LIKE), mas só passa com a palavra que o chama de posição, e nunca dentro de data ou de outro número
+    expect(sql).toContain(`WHERE d."revogado" = false AND (d."texto" LIKE '%12019000%' OR d."texto" LIKE '%1201.90%' OR d."texto" LIKE '%12.01%') AND (d."texto" LIKE '%12019000%' OR d."texto" LIKE '%1201.90%' OR d."texto" ~* '(posi[çÇc][ãÃõÕao]|ncm|nbm|tipi|c[óÓo]digo|\\msh\\M)[^;]{0,60}(?<![0-9.])12\\.01(?!\\.?[0-9])')`);
+  });
+
   it('nada que não seja código (dígitos e pontos) entra na consulta, e sem código válido o banco nem é consultado', async () => {
     const { service, prisma } = montar([[]]);
     expect(await (service as any).buscarCodigos(["12'01", '10%_x', 'abc12', '1201.', '.1201'])).toEqual([]);
