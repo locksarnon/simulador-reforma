@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "a@b.c" } }) }));
 
-import { chaves } from "./api";
+import { chaves, renovarAposRestauracao } from "./api";
 import Abas from "./Abas";
 import CasoDetalhe, { ParecerIa } from "./CasoDetalhe";
 import Casos from "./Casos";
@@ -276,7 +276,7 @@ describe("Versões", () => {
     const t = texto(html);
     expect(t).toContain("Continuar a partir da versão 1 (Entrega 1)");
     expect(t).toContain("2 itens e 3 campos voltam aos valores da versão 1.");
-    expect(t).toContain("1 caso decidido depois desta versão mantém a decisão");
+    expect(t).toContain("1 caso aprovado depois desta versão volta a proposto");
     expect(t).toContain("000123");
     expect(t).toContain("31051000 → 31010000");
     expect(t).toContain("Justificativa (obrigatória, ao menos 10 caracteres)");
@@ -286,6 +286,19 @@ describe("Versões", () => {
     expect(igual).toContain("nada a restaurar");
     expect(igual).not.toContain("Restaurar e continuar");
     expect(texto(montar(<ContinuarVersao projeto={projeto()} versao={v} aoFechar={() => {}} />))).toContain("Montando a prévia");
+  });
+});
+
+describe("Restauração: depois de erro", () => {
+  it("renova o projeto (versão nova) e as versões, para o Desfazer não ficar preso no 409", async () => {
+    const qc = novoCliente();
+    qc.setQueryData(chaves.projeto("d1"), { id: "p1", versao: 3 });
+    qc.setQueryData(chaves.versoes("p1"), []);
+    qc.setQueryData(chaves.itens("p1", {}), []);
+    await renovarAposRestauracao(qc, "p1");
+    expect(qc.getQueryState(chaves.projeto("d1")).isInvalidated).toBe(true);
+    expect(qc.getQueryState(chaves.versoes("p1")).isInvalidated).toBe(true);
+    expect(qc.getQueryState(chaves.itens("p1", {})).isInvalidated).toBe(false);
   });
 });
 

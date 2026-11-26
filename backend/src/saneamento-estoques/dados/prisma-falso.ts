@@ -47,6 +47,7 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
     if ('has' in cond && !(v ?? []).includes(cond.has)) return false;
     if ('lte' in cond && !(v <= cond.lte)) return false;
     if ('gt' in cond && !(v > cond.gt)) return false;
+    if ('startsWith' in cond && !String(v ?? '').startsWith(cond.startsWith)) return false;
     return true;
   };
   const casa = (l: Linha, where: Linha | undefined, modelo: string): boolean => {

@@ -56,7 +56,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Dá para voltar a base de trabalho a uma versão liberada e continuar dali?",
-      r: "Sim. Na aba Versões, clique em Continuar a partir desta versão na linha da versão. A Prévia mostra quantos itens e campos voltam aos valores dela, quantos casos decididos depois mantêm a decisão e quais camadas ficam marcadas “revisar”. Com a Justificativa preenchida (ao menos 10 caracteres), clique em Restaurar e continuar. Nada é apagado: cada campo grava uma decisão no histórico do item, a situação das células e dos casos não muda e itens importados depois da versão ficam como estão. Para voltar atrás, use Desfazer restauração, embaixo do rótulo da versão. Se outra pessoa alterar a base depois da prévia, a restauração é recusada e é preciso refazer a prévia.",
+      r: "Sim. Na aba Versões, clique em Continuar a partir desta versão na linha da versão. A Prévia mostra quantos itens e campos voltam aos valores dela, quantos casos aprovados depois voltam a proposto e quais camadas ficam marcadas “revisar”. Com a Justificativa preenchida (ao menos 10 caracteres), clique em Restaurar e continuar. Nada é apagado: cada campo grava uma decisão no histórico do item; o caso aprovado depois cujo valor deixa de valer volta a proposto (com a célula e o impacto no SPED), e dá para aprovar de novo ou rejeitar; itens importados depois da versão ficam como estão. Para voltar atrás, use Desfazer restauração, embaixo do rótulo da versão: os valores e os casos aprovados voltam. Se outra pessoa alterar a base depois da prévia, a restauração é recusada e é preciso refazer a prévia.",
     },
     {
       p: "O que acontece na reimportação do cadastro?",

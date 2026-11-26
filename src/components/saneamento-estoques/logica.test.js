@@ -440,7 +440,7 @@ describe("continuar a partir de uma versão", () => {
   it("a prévia diz quantos itens e campos mudam, o que fica revisar e o que fica de fora", () => {
     const l = linhasDaPrevia(previa({ casosDecididosDepois: 1, itensNovosDepois: 2, itensAusentes: 1 }, { camadasRevisar: ["NCM", "TRIBUTARIO"], ignorados: [{ campo: "codigo" }] }));
     expect(l[0]).toBe("3 itens e 5 campos voltam aos valores da versão 2.");
-    expect(l.join(" ")).toContain("1 caso decidido depois desta versão mantém a decisão");
+    expect(l.join(" ")).toContain("1 caso aprovado depois desta versão volta a proposto");
     expect(l.join(" ")).toContain("Ficam “revisar” nos itens restaurados: NCM");
     expect(l.join(" ")).toContain("2 itens importados depois desta versão não estão na foto e ficam como estão.");
     expect(l.join(" ")).toContain("1 item da foto não existe mais na base e fica de fora.");

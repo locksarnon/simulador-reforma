@@ -285,7 +285,7 @@ export function linhasDaPrevia(previa) {
   if (!t.campos) return [`A base de trabalho já está igual à versão ${numero}: nada a restaurar.`];
   const um = (n, a, b) => (n === 1 ? a : b);
   const l = [`${plural(t.itens, "item", "itens")} e ${plural(t.campos, "campo", "campos")} voltam aos valores da versão ${numero}.`];
-  if (t.casosDecididosDepois) l.push(`${plural(t.casosDecididosDepois, "caso decidido", "casos decididos")} depois desta versão ${um(t.casosDecididosDepois, "mantém", "mantêm")} a decisão; as camadas afetadas ficam marcadas “revisar”.`);
+  if (t.casosDecididosDepois) l.push(`${plural(t.casosDecididosDepois, "caso aprovado", "casos aprovados")} depois desta versão ${um(t.casosDecididosDepois, "volta a proposto: a aprovação dele deixa de valer (célula, impacto no SPED e vínculos acompanham) e ele pode ser aprovado de novo ou rejeitado", "voltam a proposto: a aprovação deles deixa de valer (célula, impacto no SPED e vínculos acompanham) e eles podem ser aprovados de novo ou rejeitados")}.`);
   if (previa?.camadasRevisar?.length) l.push(`Ficam “revisar” nos itens restaurados: ${previa.camadasRevisar.map((c) => ROTULO_CAMADA[c] || c).join(", ")}.`);
   if (t.itensNovosDepois) l.push(`${plural(t.itensNovosDepois, "item importado", "itens importados")} depois desta versão não ${um(t.itensNovosDepois, "está", "estão")} na foto e ${um(t.itensNovosDepois, "fica como está", "ficam como estão")}.`);
   if (t.itensAusentes) l.push(`${plural(t.itensAusentes, "item da foto não existe", "itens da foto não existem")} mais na base e ${um(t.itensAusentes, "fica", "ficam")} de fora.`);

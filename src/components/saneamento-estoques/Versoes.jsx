@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, History } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { atualizarTudo, chaves, san } from "./api";
+import { atualizarTudo, chaves, renovarAposRestauracao, san } from "./api";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, Rotulo, Tag, usePodeAlterar } from "./comuns";
 import {
   avisosDaLiberacao, dadosDoErro, fmtDataHora, JUSTIFICATIVA_MINIMA, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
@@ -56,7 +56,7 @@ export function ContinuarVersao({ projeto, versao, aoFechar }) {
       atualizarTudo(qc, projeto.id);
       qc.invalidateQueries({ queryKey: ["san", "projeto"] });
     },
-    onError: (e) => { setMsg({ tom: "erro", texto: mensagemDeErro(e) }); q.refetch(); },
+    onError: (e) => { setMsg({ tom: "erro", texto: mensagemDeErro(e) }); renovarAposRestauracao(qc, projeto.id); q.refetch(); },
   });
   const p = q.data;
   return (
@@ -65,7 +65,7 @@ export function ContinuarVersao({ projeto, versao, aoFechar }) {
         <h3 id="san-ver-continuar" className="font-semibold">Continuar a partir da versão {versao.numero} ({versao.rotulo})</h3>
         <button type="button" className={botaoSecundario} onClick={aoFechar}>Fechar</button>
       </div>
-      <p className="text-sm text-muted-foreground">A base de trabalho volta aos valores desta versão. Decisões e histórico ficam; a situação das células e dos casos não muda.</p>
+      <p className="text-sm text-muted-foreground">A base de trabalho volta aos valores desta versão. Decisões e histórico ficam; os casos aprovados depois cujo valor deixa de valer voltam a proposto.</p>
       {q.isError && <Aviso tom="erro">{mensagemDeErro(q.error, "Não foi possível montar a prévia.")}</Aviso>}
       {!p && !q.isError && <EstadoCarregando texto="Montando a prévia…" />}
       {p && (
@@ -100,8 +100,8 @@ function Restauracoes({ projeto, versao }) {
   const [erro, setErro] = useState(null);
   const desfazer = useMutation({
     mutationFn: (r) => san.desfazerRestauracao(projeto.id, versao.id, r.id, projeto.versao),
-    onSuccess: () => { setErro(null); atualizarTudo(qc, projeto.id); qc.invalidateQueries({ queryKey: ["san", "projeto"] }); },
-    onError: (e) => setErro(mensagemDeErro(e)),
+    onSuccess: () => { setErro(null); atualizarTudo(qc, projeto.id); renovarAposRestauracao(qc, projeto.id); },
+    onError: (e) => { setErro(mensagemDeErro(e)); renovarAposRestauracao(qc, projeto.id); },
   });
   const lista = restauracoesDaVersao(versao);
   if (!lista.length) return null;

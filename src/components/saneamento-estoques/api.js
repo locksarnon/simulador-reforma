@@ -75,3 +75,11 @@ export async function atualizarTudo(qc, projetoId) {
   qc.setQueriesData({ queryKey: [...base, "itens"] }, (d) => (d && d.pages ? { pages: d.pages.slice(0, 1), pageParams: d.pageParams.slice(0, 1) } : d));
   await qc.invalidateQueries({ queryKey: base });
 }
+
+/**
+ * Depois de restaurar ou desfazer uma restauração, com sucesso OU erro (ex.: 409 por versão do projeto desatualizada): renova o projeto
+ * (a versão que vai no próximo pedido) e as versões, para o botão não ficar preso no conflito.
+ */
+export async function renovarAposRestauracao(qc, projetoId) {
+  await Promise.all([qc.invalidateQueries({ queryKey: ["san", "projeto"] }), qc.invalidateQueries({ queryKey: chaves.versoes(projetoId) })]);
+}
