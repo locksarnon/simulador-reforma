@@ -8,7 +8,7 @@ A barra **Consultar as bases legais** (`ConsultaBasesLegais.jsx`) faz, com a mes
 
 ## O que a base guarda
 
-- **Texto oficial por dispositivo** (artigo, anexo ou, nos convênios do Confaz, cláusula) de 104 normas do catálogo (92 com texto, 12 só com o link), em seis blocos: fundamentos, reforma do consumo, tributação federal atual, agro, ICMS/ISS e benefícios estaduais, obrigações e documentos fiscais. Catálogo em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas: cada página abre e o leitor extrai os dispositivos).
+- **Texto oficial por dispositivo** (artigo, anexo ou, nos convênios do Confaz, cláusula) de 124 normas do catálogo (92 com texto, 32 só com o link, entre elas 20 leis e regulamentos estaduais), em seis blocos: fundamentos, reforma do consumo, tributação federal atual, agro, ICMS/ISS e benefícios estaduais, obrigações e documentos fiscais. Catálogo em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas: cada página abre e o leitor extrai os dispositivos).
 - **Norma editada ou revogada**, lida do próprio texto oficial a cada captura:
   - o que o site mostra **riscado** (redação antiga, dispositivo revogado) nunca entra como texto vigente: vai para `redacoes_anteriores`;
   - `alteracoes`: notas oficiais ("Redação dada pela Lei Complementar nº 227, de 2026", "Incluído...", "Revogado...", "Vide...");
@@ -66,7 +66,7 @@ Recebe, por dispositivo: situação (em vigor, revogado, parcialmente revogado, 
 
 - Instruções normativas da Receita (Normas RFB, página montada por script) e a TIPI (PDF escaneado) não têm texto por artigo: só referência e acompanhamento do portal. `nfe.fazenda.gov.br` e `sped.rfb.gov.br` falham no TLS a partir do servidor e não são lidos.
 - Lei 10.833/2003: o art. 84 não está na página do Planalto (a numeração pula do 83 para o 85).
-- Leis e decretos estaduais e municipais (ICMS e ISS de cada ente) não estão na base.
+- Legislação estadual (MT, GO, MS, BA, MA e PA: lei do ICMS, regulamento e fundos ligados a benefícios do agro, como FETHAB, FUNDEINFRA, PROTEGE, FUNDERSUL, PROALBA e a Contribuição Especial de Grãos): no catálogo só como referência, com o link oficial levantado em 26/11/2026. Os sites estaduais não riscam a redação anterior (GO usa a classe `TextoRevo`, MS a cor verde `#008250`, MT, BA, PA e MA blocos "Redação anterior...") e o leitor a tomaria por vigente; ler por artigo exige um tratamento por site, como o do Confaz. O RICMS/MT consolidado sai por capítulo (uma página para cada) e tem artigos acima de 999 ("Art. 1.000"), que o leitor ainda não reconhece. Legislação municipal não está na base.
 - A pesquisa na web depende do motor de IA configurado e nunca vale sem confirmação de um administrador.
 - O cruzamento de alterações não consolidadas é por ato (nenhuma nota do compilado cita o ato), para não confundir imprecisão da leitura com texto desatualizado; texto original de lei (não compilado) sempre aparecerá como "não consolidado" para atos posteriores, o que é correto.
 
