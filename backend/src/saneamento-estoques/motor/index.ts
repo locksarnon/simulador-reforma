@@ -21,7 +21,7 @@ export { AnalisadorIdentificacao } from './identificacao';
 export { AnalisadorNcm } from './ncm';
 export { AnalisadorNomesUnidades, padronizarDescricao, ABREVIACOES_AMBIGUAS } from './nomes-unidades';
 export { AnalisadorQualidade } from './qualidade';
-export { detectarEscalaSaldo, montarConjuntos, saldoNaEscala, sugerirSobrevivente } from './conjuntos';
+export { detectarEscalaSaldo, escalaDaBase, montarConjuntos, saldoNaEscala, sugerirSobrevivente } from './conjuntos';
 export { achadosUnidade, classificarUnidade, chaveUnidade, fatorPelaDescricao, fatorDaDecisao, precisaFator, rotulosPadrao, unidadeCanonica, conteudoNaUnidade, lerFator } from './unidades';
 
 /** As camadas do motor, na ordem de execução (instâncias novas a cada chamada: sem estado entre execuções). */

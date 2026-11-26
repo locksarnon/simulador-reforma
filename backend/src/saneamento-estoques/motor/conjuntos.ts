@@ -13,6 +13,8 @@ export type CandidatoConjunto = { linha: number; score: number; nivel: NivelDupl
 export type MembroConjunto = {
   linha: number; codigo: string; descricao?: string | null; unidade?: string | null; ncm?: string | null; ncm_original?: string | null; principio_ativo?: string | null;
   grupo_atual?: string | null; saldo?: number | null; ultima_mov?: string | null;
+  /** false = inativo (na base ou por decisão aprovada): nunca é sugerido como o que fica se houver alternativa ativa. */
+  ativo?: boolean | null;
   duplicidade?: { nivel: NivelDuplicidade; score: number; grupo: number | null; candidatos?: CandidatoConjunto[] } | null;
 };
 export type Sugestao = { linha: number | null; id: string | null; criterio: string; motivo: string; ordem: number[] };
@@ -32,18 +34,38 @@ export function detectarEscalaSaldo(itens: { saldo?: number | null }[]): number 
   return v.length >= 3 && v.every((s) => s >= 1e6 && s % 1e6 === 0) ? 1e6 : 1;
 }
 
+/**
+ * Escala do saldo da BASE do projeto: a mesma detecção da Duplicidade (`detectarEscalaSaldo`), sobre os saldos somados por código (itens com o
+ * mesmo código em estabelecimentos distintos são um produto; sem código, o item é o próprio produto). Uma fonte só para Duplicidade, Qualidade,
+ * mapa de unificações e Excel: com a base ×1.000.000, todos mostram 3 onde a planilha traz 3.000.000.
+ */
+export function escalaDaBase(itens: { id?: unknown; codigo?: unknown; saldo?: unknown }[]): number {
+  const porCodigo = new Map<string, number | null>();
+  for (const i of itens) {
+    const cod = txt(i.codigo);
+    const k = cod ? `c:${cod}` : `i:${txt(i.id)}`;
+    const s = i.saldo == null || i.saldo === '' ? NaN : Number(i.saldo);
+    const atual = porCodigo.has(k) ? porCodigo.get(k)! : null;
+    porCodigo.set(k, Number.isFinite(s) ? (atual ?? 0) + s : atual);
+  }
+  const saldos: { saldo: number | null }[] = [];
+  for (const s of porCodigo.values()) saldos.push({ saldo: s });
+  return detectarEscalaSaldo(saldos);
+}
+
 /** Campos do cadastro preenchidos (NCM, unidade, princípio ativo e grupo): quem tem mais é o cadastro mais completo. */
 const completude = (m: MembroConjunto) => [m.ncm || m.ncm_original, m.unidade, m.principio_ativo, m.grupo_atual].filter((x) => String(x ?? '').trim()).length;
 
 /**
  * Quem a ferramenta sugere manter e por quê. Critérios, nesta ordem, cada um só decide se separa os que ainda empatam:
- * 1) maior saldo em estoque (menos estoque a transferir); 2) movimentação mais recente; 3) cadastro mais completo; 4) menor código (o mais antigo).
+ * 0) item ativo (o inativo, `ativo = false`, só fica se todos estiverem inativos); 1) maior saldo em estoque (menos estoque a transferir); 2) movimentação mais recente; 3) cadastro mais completo; 4) menor código (o mais antigo).
  * `ordem` = linhas da mais para a menos indicada. Determinístico.
  */
 export function sugerirSobrevivente(membros: MembroConjunto[], { escala = 1 }: { escala?: number } = {}): Sugestao {
   const saldo = (m: MembroConjunto) => { const s = saldoNaEscala(m.saldo, escala); return s != null && s > 0 ? s : 0; };
   type Crit = { id: string; v: (m: MembroConjunto) => any; melhor: (a: any, b: any) => number; motivo: (a: any, b: any) => string };
   const criterios: Crit[] = [
+    { id: 'ativo', v: (m) => (m.ativo === false ? 0 : 1), melhor: (a, b) => a - b, motivo: () => 'item ativo (o outro código está inativo)' },
     { id: 'saldo', v: saldo, melhor: (a, b) => a - b, motivo: (a, b) => `maior saldo em estoque (${numeroBr(a)} contra ${numeroBr(b)})` },
     { id: 'movimentacao', v: (m) => m.ultima_mov || '', melhor: (a, b) => (a < b ? -1 : a > b ? 1 : 0), motivo: (a, b) => `movimentação mais recente (${dataBr(a)} contra ${b ? dataBr(b) : 'sem data'})` },
     { id: 'completude', v: (m) => [completude(m), String(m.descricao ?? '').length], melhor: (a, b) => a[0] - b[0] || a[1] - b[1], motivo: () => 'cadastro mais completo' },

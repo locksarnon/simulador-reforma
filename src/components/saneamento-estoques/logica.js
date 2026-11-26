@@ -30,7 +30,7 @@ export const ROTULO_CAMPO = {
   codigo: "Código", estabelecimento: "Estabelecimento", descricao: "Descrição", unidade: "Unidade", ncm: "NCM", grupo: "Grupo", ativo: "Ativo",
   saldo: "Saldo", ultimaMovimentacao: "Última movimentação", fabricante: "Fabricante", referencia: "Referência", finalidade: "Finalidade",
   tambemUsadoComo: "Também usado como", fatorConversao: "Fator de conversão", unidadeCompra: "Unidade de compra", cClassTrib: "cClassTrib", cst: "CST", enquadramentoLegal: "Enquadramento legal", artigo: "Artigo", origem: "Origem",
-  fatorSituacao: "Situação do fator", exigeFator: "Exige fator (informativo)",
+  fatorSituacao: "Situação do fator", exigeFator: "Exige fator (informativo)", fatorDe: "Fator: 1 unidade de", fatorPara: "Fator: equivale a (unidade)",
 };
 export const rotuloDoCampo = (c) => ROTULO_CAMPO[c] || c;
 
@@ -489,7 +489,7 @@ export function nomeDeEntrega(tipo, versao) {
 // ── Mapa de unificações e inativações ────────────────────────────────────────
 
 export const SITUACOES_MAPA = { PROPOSTA: "Proposta", APROVADA: "Aprovada", AGUARDANDO: "Aguardando informação", REGISTRADA: "Registrada" };
-export const TIPOS_MAPA = { UNIFICACAO: "Unificação de códigos", INATIVACAO: "Inativação (sem movimentação)", EQUIVALENCIA: "Equivalência (nenhum código morre)", TROCA_CODIGO: "Troca de código" };
+export const TIPOS_MAPA = { UNIFICACAO: "Unificação de códigos", INATIVACAO: "Inativação (duplicidade ou sem movimentação)", EQUIVALENCIA: "Equivalência (nenhum código morre)", TROCA_CODIGO: "Troca de código" };
 /** Parâmetros da consulta (só os preenchidos). */
 export function paramsDoMapa({ situacao = "", tipo = "", busca = "", pagina = 1, limite = 100 } = {}) {
   const p = {};

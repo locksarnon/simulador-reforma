@@ -235,7 +235,7 @@ async function escreverMapa(wb: ExcelJS.stream.xlsx.WorkbookWriter, linhas: Linh
   for (const l of linhas) {
     const aberta = l.situacao === 'PROPOSTA' || l.situacao === 'AGUARDANDO';
     const linha: Valor[] = [
-      ROTULO_TIPO_MAPA[l.tipo], l.morre?.codigo, l.morre?.estab, l.morre?.descricao, l.morre?.unidade, l.morre?.saldo,
+      l.rotuloTipo || ROTULO_TIPO_MAPA[l.tipo], l.morre?.codigo, l.morre?.estab, l.morre?.descricao, l.morre?.unidade, l.morre?.saldo,
       l.fica?.codigo, l.fica?.descricao, l.fica?.unidade, l.fica?.saldo, l.saldoEntra, l.saldoConsolidado,
       ROTULO_SITUACAO_MAPA[l.situacao], l.acao, dia(l.inicio), l.justificativa, l.alertas.join(' '), l.responsavel, hora(l.decididoEm),
     ];

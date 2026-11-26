@@ -175,6 +175,19 @@ export class SanCasosService {
         });
         await this.marcarCelulas(tx, projetoId, camada, pares);
 
+        // Unificação proposta (caso novo): a Qualidade dos mesmos itens fica "revisar" (a inativação por falta de movimento pode ter vindo antes,
+        // e o código que fica não pode ser inativado). Mesma regra de dependência da aprovação (`camadasAfetadas`).
+        if (camada === 'DUPLICIDADE') {
+          const envolvidos = new Set<string>();
+          for (const { c } of unicos) if (camadasAfetadas(c).includes('QUALIDADE')) for (const i of c.itens) envolvidos.add(i);
+          for (const lote of fatiar([...envolvidos], 5000)) {
+            await tx.sanCelula.updateMany({
+              where: { projeto_id: projetoId, camada: 'QUALIDADE', item_id: { in: lote }, situacao: { not: 'PENDENTE' } },
+              data: { revisar: true, revisar_causa: 'Revisar: a Duplicidade propôs unificar este código; confira a inativação por falta de movimento (o código que fica não pode ser inativado).' },
+            });
+          }
+        }
+
         // Sem problema: o que estava aprovado continua aprovado (só deixa de ser "revisar"); o resto vira "sem problema".
         let sem = 0;
         for (const lote of fatiar((r.semProblema ?? []).filter((i) => !comExcecao.has(i)), 5000)) {

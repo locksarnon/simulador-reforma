@@ -12,7 +12,11 @@ import { SanProjetoService } from '../dados/projeto.service';
 import { EntregaveisController } from './entregaveis.controller';
 import { EntregaveisService } from './entregaveis.service';
 import { gerarExcelMapa } from './excel';
-import { contarMapa, filtrarMapa, montarMapa, type CasoMapa, type ItemMapa } from './unificacoes';
+import { escalaDaBase } from '../motor/conjuntos';
+import { dadosBase } from './__fixtures__/dados';
+import { construirModelo, mapaDoModelo } from './modelo';
+import { montarRelatorio } from './relatorio';
+import { contarMapa, conversaoDoSaldo, filtrarMapa, montarMapa, type CasoMapa, type ItemMapa } from './unificacoes';
 
 const USER = { email: 'consultor@fal.test' };
 const it_ = (id: string, codigo: string, o: Partial<ItemMapa> = {}): ItemMapa => ({ id, codigo, estab: '', descricao: `ITEM ${codigo}`, unidade: 'KG', saldo: 0, ...o });
@@ -40,9 +44,9 @@ describe('mapa de unificações (puro)', () => {
     expect([sem.saldoEntra, sem.saldoConsolidado]).toEqual([null, null]);
     expect(sem.alertas.join(' ')).toContain('Unidades diferentes (SC × KG): saldo não somável direto; converter antes de somar');
     expect(sem.acao).toContain('Converter o saldo de 200 para a unidade de 100 (KG)');
-    const com = mapa(itens, [caso({ itens: ['a', 'b'], proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '100', consolidar: '200', fatorConversao: 50 } })])[0];
+    const com = mapa(itens, [caso({ itens: ['a', 'b'], proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '100', consolidar: '200', fatorConversao: 50, fatorDe: 'SC', fatorPara: 'KG' } })])[0];
     expect([com.saldoEntra, com.saldoConsolidado]).toEqual([150, 160]);
-    expect(com.alertas.join(' ')).toContain('saldo convertido pelo fator aprovado 50');
+    expect(com.alertas.join(' ')).toContain('saldo convertido pelo fator aprovado (1 SC = 50 KG)');
     // Grafias da mesma unidade não são unidades diferentes.
     const kg = mapa([it_('a', '100', { saldo: 1, unidade: 'KG' }), it_('b', '200', { saldo: 2, unidade: 'kg.' })], [caso({ itens: ['a', 'b'], proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '100', consolidar: '200' } })])[0];
     expect([kg.saldoEntra, kg.saldoConsolidado, kg.alertas]).toEqual([2, 3, []]);
@@ -194,5 +198,137 @@ describe('sem movimentação e unificações: fluxo com o banco falso', () => {
     const ws = wb.getWorksheet('Unificações e inativações')!;
     expect(ws.rowCount).toBe(2);
     expect(ws.getRow(2).getCell(14).value).toBe('Inativar 400');
+  });
+});
+
+// ── Revisão final: escala do saldo, cruzamento unificação × inativação, origem da inativação, direção do fator, código de trabalho ──
+
+const consolida = (manter: string, consolidar: string, o: Record<string, unknown> = {}) => ({ decisao: 'PROPOR_CONSOLIDACAO', manter, consolidar, ...o });
+const semMov = (id: string, itens: string[], situacao = 'PROPOSTO') => caso({ id, itens, camada: 'QUALIDADE', tipo: 'SEM_MOVIMENTACAO', proposta: { decisao: 'PROPOR_INATIVACAO', ativo: false }, situacao });
+
+describe('mapa: escala do saldo da base (achado 2)', () => {
+  it('base ×1.000.000: mapa, alerta da inativação e consolidado mostram 3, não 3.000.000 (mesma detecção da Duplicidade)', () => {
+    const itens = [it_('a', '100', { saldo: 10_000_000 }), it_('b', '200', { saldo: 3_000_000 }), it_('c', '300', { saldo: 2_000_000 })];
+    expect(escalaDaBase(itens)).toBe(1e6);
+    const porId = new Map(itens.map((i) => [i.id, i]));
+    const l = montarMapa({ liberada: false, dataBase: null, item: (id) => porId.get(id), vinculos: [], escala: escalaDaBase(itens),
+      casos: [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200') }), semMov('q', ['c'])] });
+    const u = l.find((x) => x.tipo === 'UNIFICACAO')!; const q = l.find((x) => x.tipo === 'INATIVACAO')!;
+    expect([u.morre?.saldo, u.fica?.saldo, u.saldoEntra, u.saldoConsolidado]).toEqual([3, 10, 3, 13]);
+    expect(q.morre?.saldo).toBe(2);
+    expect(q.alertas[0]).toContain('300 tem saldo (2 KG)');
+    expect(JSON.stringify(l)).not.toContain('000000');
+    // Sem escala detectada (menos de 3 saldos múltiplos de 1.000.000), os valores ficam como estão.
+    expect(escalaDaBase([it_('a', '1', { saldo: 3_000_000 }), it_('b', '2', { saldo: 7 })])).toBe(1);
+  });
+});
+
+describe('mapa: unificação × inativação (achado 3a)', () => {
+  it('o código que fica não pode ter inativação: a inativação sai do mapa e a unificação ganha o alerta de conflito', () => {
+    const itens = [it_('a', '100'), it_('b', '200'), it_('c', '300')];
+    const l = mapa(itens, [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200'), situacao: 'PROPOSTO' }), semMov('q', ['a', 'b', 'c'], 'APROVADO')]);
+    expect(l.map((x) => [x.tipo, x.morre?.codigo])).toEqual([['UNIFICACAO', '200'], ['INATIVACAO', '300']]); // 100 (fica) e 200 (já morre na unificação) saem da inativação
+    expect(l[0].alertas.join(' ')).toContain('Conflito: o código que fica (100) tem inativação aprovada (Qualidade, sem movimentação)');
+  });
+  it('o código que fica já inativo (ativo = não) também gera o conflito', () => {
+    const l = mapa([it_('a', '100', { ativo: false }), it_('b', '200')], [caso({ itens: ['a', 'b'], proposta: consolida('100', '200') })]);
+    expect(l[0].alertas.join(' ')).toContain('Conflito: o código que fica (100) está inativo');
+  });
+});
+
+describe('mapa: origem da inativação (achado 7)', () => {
+  it('inativação vinda de Duplicidades × sem movimentação: rótulo e contagem separados', () => {
+    const itens = [it_('a', '100'), it_('b', '200'), it_('c', '300')];
+    const l = mapa(itens, [
+      caso({ id: 'd', itens: ['a', 'b'], proposta: { decisao: 'PROPOR_INATIVACAO', manter: '100', consolidar: '200' } }),
+      semMov('q', ['c']),
+    ]);
+    expect(l.map((x) => [x.morre?.codigo, x.origem, x.rotuloTipo])).toEqual([['200', 'DUPLICIDADE', 'Inativação (duplicidade)'], ['300', 'QUALIDADE', 'Inativação (sem movimentação)']]);
+    expect(contarMapa(l).inativacoesPorOrigem).toEqual({ DUPLICIDADE: 1, QUALIDADE: 1 });
+  });
+  it('relatório: a Qualidade conta só as inativações sem movimentação; a de Duplicidades vai na Duplicidade', () => {
+    const d = dadosBase(true);
+    d.casos = (d.casos as Record<string, unknown>[]).filter((c) => c.id !== 'c-dup');
+    d.casos.push({ id: 'c-inat', projeto_id: 'P1', camada: 'DUPLICIDADE', tipo: 'DUPLICIDADE_EXATA', itens: ['i1', 'i2'], problema: 'Duplicados', evidencia: [], atual: {}, proposta: { decisao: 'PROPOR_INATIVACAO', manter: '00123', consolidar: '000456' }, justificativa: 'Inativar o duplicado', fundamento: null, situacao: 'APROVADO', responsavel: 'ana', decidido_por: 'ana@fal.test', decidido_em: new Date('2026-11-11T12:00:00Z'), createdAt: new Date('2026-11-09T12:30:00Z') });
+    const texto = JSON.stringify(montarRelatorio(d));
+    expect(texto).toContain('1 código duplicado será inativado sem unificação');
+    expect(texto).not.toContain('sem movimentação desde o corte e sem saldo será inativado');
+  });
+});
+
+describe('mapa: direção do fator de conversão (achado 8)', () => {
+  it('UN 1 L → CX 5 L: fator 5 sem direção não soma (converter antes); com as unidades do fator, converte na direção certa', () => {
+    const itens = [it_('cx', 'CX5L', { unidade: 'CX', saldo: 4, descricao: 'OLEO 5L' }), it_('un', 'UN1L', { unidade: 'UN', saldo: 10, descricao: 'OLEO 1L' })];
+    const sem = mapa(itens, [caso({ tipo: 'APRESENTACOES_DISTINTAS', itens: ['cx', 'un'], proposta: consolida('CX5L', 'UN1L', { fatorConversao: 5 }) })])[0];
+    expect([sem.saldoEntra, sem.saldoConsolidado]).toEqual([null, null]);
+    expect(sem.alertas.join(' ')).toContain('o fator 5 não diz de qual unidade para qual; converter antes de somar');
+    expect(sem.acao).toContain('Converter o saldo de UN1L para a unidade de CX5L (CX)');
+    // 1 CX = 5 UN: o saldo de 10 UN entra como 2 CX.
+    const com = mapa(itens, [caso({ itens: ['cx', 'un'], proposta: consolida('CX5L', 'UN1L', { fatorConversao: 5, fatorDe: 'CX', fatorPara: 'UN' }) })])[0];
+    expect([com.saldoEntra, com.saldoConsolidado]).toEqual([2, 6]);
+    expect(com.alertas.join(' ')).toContain('1 UN = 0,2 CX');
+    // Unidades do fator que não são as dos itens: sem direção.
+    expect(conversaoDoSaldo({ fatorConversao: 5, fatorDe: 'PC', fatorPara: 'UN' }, 'UN', 'CX')).toEqual({ falta: 'DIRECAO', fator: 5 });
+    // Medidas da mesma grandeza: a tabela dá a direção (G → KG com fator 1000 = inverso).
+    expect(conversaoDoSaldo({ fatorConversao: 1000 }, 'G', 'KG')).toEqual({ multiplicador: 0.001 });
+    expect(conversaoDoSaldo({ fatorConversao: 0.001 }, 'G', 'KG')).toEqual({ multiplicador: 0.001 });
+  });
+});
+
+describe('modelo: código de trabalho primeiro (achado 6)', () => {
+  it('item com código trocado por decisão e depois unificado: o modelo e o mapa usam o código de trabalho', () => {
+    const d = dadosBase(false);
+    const i2 = (d.itens as Record<string, unknown>[]).find((i) => i.id === 'i2')!;
+    i2.trabalho = { ...(i2.trabalho as Record<string, unknown>), codigo: '000999' };
+    const dup = (d.casos as Record<string, unknown>[]).find((c) => c.id === 'c-dup')!;
+    dup.proposta = { decisao: 'PROPOR_CONSOLIDACAO', manter: '00123', consolidar: '000999' };
+    const m = construirModelo(d);
+    expect(m.porId.get('i2')!.codigo).toBe('000999');
+    const u = mapaDoModelo(m).find((l) => l.tipo === 'UNIFICACAO')!;
+    expect(u.morre).toMatchObject({ codigo: '000999', descricao: 'SEMENTE SOJA' });
+    expect(u.alertas.join(' ')).not.toContain('não foi encontrado na base');
+  });
+});
+
+describe('fluxo: propor e aprovar unificação marca a Qualidade como "revisar" (achado 3c)', () => {
+  it('a inativação veio antes: a unificação proposta e a aprovada marcam a célula da Qualidade dos itens', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, 1, USER);
+    c.fila.itens = [item('100', {}, 1), item('200', {}, 2)];
+    await c.importacao.confirmar(p.id, { buffer: Buffer.from('x'), nome: 'cadastro.xlsx' }, undefined, [], USER);
+    const id = Object.fromEntries(c.db.sanItem.map((i) => [i.codigo, i.id]));
+    await c.projetos.configurar(p.id, { versao: c.db.sanProjeto[0].versao, parametros: { corteMovimentacao: '2025-01-01' } });
+    await c.orquestracao.executarCamada(p.id, 'QUALIDADE'); // Qualidade antes: 100 e 200 entram em SEM_MOVIMENTACAO
+    const cel = (cod: string) => c.db.sanCelula.find((x) => x.item_id === id[cod] && x.camada === 'QUALIDADE')!;
+    expect(cel('100')).toMatchObject({ situacao: 'PROPOSTO', revisar: false });
+    const dup: ResultadoCamada = { camada: 'DUPLICIDADE', analisados: 2, semDados: null, semProblema: [], casos: [{ camada: 'DUPLICIDADE', tipo: 'DUPLICIDADE_EXATA', itens: [id['100'], id['200']], problema: 'Duplicados', evidencia: [], atual: {}, proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '100', consolidar: '200' }, justificativa: 'Mesmo produto.', fundamento: null, impactos: [], origem: 'REGRA', afeta: ['OBRIGACOES'] }] };
+    await c.casos.registrarResultado(p.id, dup);
+    expect(cel('100').revisar).toBe(true);
+    expect(cel('100').revisar_causa).toContain('o código que fica não pode ser inativado');
+    // O mapa: a inativação de 100 (o que fica) e de 200 (que morre na unificação) sai; a unificação traz o conflito.
+    const tela = await c.entregas.unificacoes(p.id);
+    expect(tela.linhas.map((l) => [l.tipo, l.morre?.codigo])).toEqual([['UNIFICACAO', '200']]);
+    expect(tela.linhas[0].alertas.join(' ')).toContain('Conflito: o código que fica (100)');
+    // Aprovar a unificação também marca (regra de dependências: consolidação → Qualidade).
+    cel('100').revisar = false;
+    const u = c.db.sanCaso.find((x) => x.camada === 'DUPLICIDADE')!;
+    await c.casos.aprovar(u.id, { versao: u.versao }, USER);
+    expect(cel('100').revisar).toBe(true);
+  });
+
+  it('mapa da tela com base ×1.000.000: saldo na escala de toda a base (não só dos itens citados)', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, 1, USER);
+    c.fila.itens = [item('100', { saldo: 10_000_000 }, 1), item('200', { saldo: 3_000_000 }, 2), item('300', { saldo: 4_000_000 }, 3), item('400', { saldo: 6_000_000 }, 4)];
+    await c.importacao.confirmar(p.id, { buffer: Buffer.from('x'), nome: 'cadastro.xlsx' }, undefined, [], USER);
+    const id = Object.fromEntries(c.db.sanItem.map((i) => [i.codigo, i.id]));
+    const dup: ResultadoCamada = { camada: 'DUPLICIDADE', analisados: 4, semDados: null, semProblema: [], casos: [{ camada: 'DUPLICIDADE', tipo: 'DUPLICIDADE_COM_SALDO', itens: [id['100'], id['200']], problema: 'Duplicados', evidencia: [], atual: {}, proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '100', consolidar: '200' }, justificativa: 'Mesmo produto.', fundamento: null, impactos: [], origem: 'REGRA', afeta: ['OBRIGACOES'] }] };
+    await c.casos.registrarResultado(p.id, dup);
+    const tela = await c.entregas.unificacoes(p.id);
+    expect(tela.escalaSaldo).toBe(1e6);
+    expect(tela.linhas[0]).toMatchObject({ saldoEntra: 3, saldoConsolidado: 13 });
+    expect(tela.linhas[0].morre?.saldo).toBe(3);
   });
 });

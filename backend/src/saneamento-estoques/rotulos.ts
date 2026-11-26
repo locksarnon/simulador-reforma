@@ -53,7 +53,7 @@ export const rotuloDoCaso = (camada: string, tipo: string) => [ROTULO_CAMADA_TXT
 
 /** Rótulos dos campos de "como é hoje" e da proposta no material do cliente. */
 export const ROTULO_CAMPO: Record<string, string> = {
-  codigo: 'Código', descricao: 'Descrição', unidade: 'Unidade', unidadeCompra: 'Unidade de compra', fatorConversao: 'Fator de conversão', fatorSituacao: 'Situação do fator',
+  codigo: 'Código', descricao: 'Descrição', unidade: 'Unidade', unidadeCompra: 'Unidade de compra', fatorConversao: 'Fator de conversão', fatorDe: 'Fator: 1 unidade de', fatorPara: 'Fator: equivale a (unidade)', fatorSituacao: 'Situação do fator',
   exigeFator: 'Exige fator', ncm: 'NCM', grupo: 'Grupo', finalidade: 'Finalidade', tambemUsadoComo: 'Também usado como', ativo: 'Ativo', saldo: 'Saldo',
   cClassTrib: 'cClassTrib', cst: 'CST', enquadramentoLegal: 'Enquadramento legal', artigo: 'Artigo', origem: 'Origem', decisao: 'Decisão', manter: 'Código mantido',
   consolidar: 'Código consolidado', ajustes: 'Ajustes', valorOriginal: 'Valor original', valorProposto: 'Valor proposto', tipoImpacto: 'Tipo de impacto',

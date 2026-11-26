@@ -1,7 +1,8 @@
 /**
  * Dependências entre camadas (docs/saneamento-estoques.md, seção 4). Mexer em um campo marca "revisar" nas camadas que dependem dele, sem apagar a decisão anterior:
  *   composição/identificação → NCM → tratamento → obrigações;   finalidade (ou grupo) → tratamento → obrigações;
- *   unidade/conversão → duplicidade e obrigações;   consolidação/mudança de código → obrigações.
+ *   unidade/conversão → duplicidade e obrigações;   consolidação/mudança de código → obrigações;
+ *   unificação ou inativação (Duplicidades × itens sem movimentação da Qualidade) → a outra das duas: o código que fica não pode ser inativado.
  * Mudança só de forma da descrição (caixa, espaços, abreviação aprovada) NÃO muda composição: não marca nada.
  */
 import { CAMADAS, type Camada, type CasoProposto } from '../tipos';
@@ -26,6 +27,7 @@ export function camadasAfetadas(caso: Entrada): Camada[] {
   if (tem('ncm') || tem('finalidade') || tem('grupo')) diretas.add('TRIBUTARIO');
   if (tem('unidade') || tem('unidadeCompra') || tem('fatorConversao')) { diretas.add('DUPLICIDADE'); diretas.add('OBRIGACOES'); }
   if (tem('codigo') || tem('manter') || DECISOES_CONSOLIDACAO.has(String(p.decisao ?? ''))) diretas.add('OBRIGACOES');
+  if (DECISOES_CONSOLIDACAO.has(String(p.decisao ?? ''))) { diretas.add('DUPLICIDADE'); diretas.add('QUALIDADE'); }
   const todas = new Set<Camada>(diretas);
   const fila = [...diretas];
   while (fila.length) for (const d of DEPENDENTES[fila.shift()!] ?? []) if (!todas.has(d)) { todas.add(d); fila.push(d); }

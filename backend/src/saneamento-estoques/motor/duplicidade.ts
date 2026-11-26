@@ -13,7 +13,7 @@ import type { AnalisadorCamada, CasoProposto, ContextoAnalise, ItemTrabalho, Res
 import { ev, justificar, montarResultado } from './base';
 import { parametrosDe, type RegraUnidade } from './contexto';
 import { novoCaso } from './dependencias';
-import { detectarEscalaSaldo, montarConjuntos, saldoNaEscala, sugerirSobrevivente, type MembroConjunto, type NivelDuplicidade } from './conjuntos';
+import { escalaDaBase, montarConjuntos, saldoNaEscala, sugerirSobrevivente, type MembroConjunto, type NivelDuplicidade } from './conjuntos';
 import { agrupar, campoExtra, dataBr, numeroBr, semAcento, soDigitos, txt, unicos } from './texto';
 import { classificarUnidade, unidadeCanonica } from './unidades';
 
@@ -47,7 +47,7 @@ const paraDup = (p: Produto, semCondicao = false): ItemDup => ({
 });
 const paraMembro = (p: Produto): Membro => ({
   linha: p.linha, codigo: p.codigo, descricao: p.rep.descricao, unidade: p.rep.unidade, ncm: p.rep.ncm, principio_ativo: campoExtra(p.rep, 'principioAtivo', 'principio_ativo', 'principio') || null,
-  grupo_atual: p.rep.grupo, saldo: p.saldo, ultima_mov: p.ultima, duplicidade: null, produto: p,
+  grupo_atual: p.rep.grupo, saldo: p.saldo, ultima_mov: p.ultima, ativo: p.itens.some((i) => i.ativo !== false), duplicidade: null, produto: p,
 });
 
 /** Fator para converter 1 unidade de `de` em `para`, quando as duas são da mesma medida e têm fator exato; senão null (a confirmar). */
@@ -114,7 +114,8 @@ function casoDoConjunto(b: Base, regrasUnidade: Record<string, RegraUnidade>): C
     decisao = r.unidadesDiferem ? 'RELACIONAR_APRESENTACOES' : 'SOLICITAR_INFORMACAO'; tipo = b.tipoBase;
     porque = r.unidadesDiferem ? 'Os itens parecem o mesmo produto em apresentações/unidades diferentes: não se fundem; relacionam-se com o fator de conversão.' : 'Os itens parecem iguais, mas têm NCM diferentes: um dos dois está classificado de forma diferente.';
     providencia = r.unidadesDiferem ? 'confirmar o conteúdo de cada apresentação e cadastrar o fator de conversão.' : 'conferir a classificação de cada item antes de qualquer consolidação (a camada NCM trata a divergência).';
-    if (r.unidadesDiferem && fator != null) proposta.fatorConversao = fator;
+    // Direção explícita: 1 unidade do código que sai (`fatorDe`) = fator unidades do que fica (`fatorPara`); o mapa só converte o saldo com ela.
+    if (r.unidadesDiferem && fator != null) { proposta.fatorConversao = fator; proposta.fatorDe = txt(b.membros[1].unidade); proposta.fatorPara = txt(manter.unidade); }
   } else if (forte && r.comSaldoOuUso.length) {
     decisao = 'PROPOR_CONSOLIDACAO'; tipo = 'DUPLICIDADE_COM_SALDO';
     porque = 'Itens duplicados em que os códigos que saem têm saldo ou histórico de movimentação: a consolidação exige transferir o saldo e preservar o vínculo, não apenas inativar.';
@@ -159,7 +160,7 @@ export class AnalisadorDuplicidade implements AnalisadorCamada {
     const regrasUn = par.politicaUnidade?.regras ?? {};
     const casos: CasoProposto[] = [];
     const produtos = montarProdutos(itens);
-    const escala = detectarEscalaSaldo(produtos);
+    const escala = escalaDaBase(itens);
     const corte = contexto.corteMovimentacao ?? null;
     const semData = par.semDataMovimentacao ?? 'SINALIZAR';
     const comTexto = produtos.filter((p) => txt(p.rep.descricao));

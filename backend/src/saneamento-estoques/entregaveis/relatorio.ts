@@ -9,6 +9,7 @@ import {
   CASO_PENDENTE, ROTULO_CAMADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, paraData, origemDaFinalidade, pct1, rotuloDoCampo, rotuloObrigacao, rotuloTipoAjuste, textoSemEscrituracaoEntregue, txt,
   mapaDoModelo, type Modelo,
 } from './modelo';
+import type { LinhaMapa } from './unificacoes';
 
 const n = comMilhar;
 /** Finalidade confirmada por decisão (do grupo, exceção ou do consultor); a só informada no cadastro não conta. */
@@ -43,13 +44,20 @@ function comentarioDaCamada(m: Modelo, camada: Camada): string | null {
   if (ajustados) partes.push(`${plural(ajustados, 'item teve', 'itens tiveram')} campo ajustado por decisão aprovada.`);
 
   if (camada === 'DUPLICIDADE' || camada === 'QUALIDADE') {
-    const tipo = camada === 'DUPLICIDADE' ? 'UNIFICACAO' : 'INATIVACAO';
-    const linhas = mapaDoModelo(m).filter((l) => l.tipo === tipo && (!m.liberada || l.situacao === 'APROVADA'));
-    if (linhas.length) {
-      const alertas = linhas.filter((l) => l.alertas.length).length;
-      partes.push(camada === 'DUPLICIDADE'
-        ? `${plural(linhas.length, 'código deixa', 'códigos deixam')} de existir por unificação, com o saldo concentrado no código que fica (lista na aba "De para e equivalências" do Excel)${alertas ? `; ${plural(alertas, 'linha pede', 'linhas pedem')} conferência antes do ajuste (unidade diferente ou saldo não informado)` : ''}.`
-        : `${plural(linhas.length, 'item sem movimentação desde o corte e sem saldo será inativado', 'itens sem movimentação desde o corte e sem saldo serão inativados')} (lista na aba "De para e equivalências" do Excel)${alertas ? `; ${plural(alertas, 'linha pede', 'linhas pedem')} conferência do saldo antes` : ''}.`);
+    // Cada camada conta só as linhas que vêm dela: a inativação diz a origem (Duplicidades ou sem movimentação da Qualidade).
+    const valem = (l: LinhaMapa) => !m.liberada || l.situacao === 'APROVADA';
+    const mapa = mapaDoModelo(m);
+    const comAlerta = (ls: LinhaMapa[]) => ls.filter((l) => l.alertas.length).length;
+    if (camada === 'DUPLICIDADE') {
+      const unif = mapa.filter((l) => l.tipo === 'UNIFICACAO' && valem(l));
+      const inat = mapa.filter((l) => l.tipo === 'INATIVACAO' && l.origem === 'DUPLICIDADE' && valem(l));
+      const alertas = comAlerta(unif);
+      if (unif.length) partes.push(`${plural(unif.length, 'código deixa', 'códigos deixam')} de existir por unificação, com o saldo concentrado no código que fica (lista na aba "De para e equivalências" do Excel)${alertas ? `; ${plural(alertas, 'linha pede', 'linhas pedem')} conferência antes do ajuste (unidade diferente, saldo não informado ou conflito com inativação)` : ''}.`);
+      if (inat.length) partes.push(`${plural(inat.length, 'código duplicado será inativado', 'códigos duplicados serão inativados')} sem unificação (mesma lista)${comAlerta(inat) ? `; ${plural(comAlerta(inat), 'linha pede', 'linhas pedem')} conferência do saldo antes` : ''}.`);
+    } else {
+      const inat = mapa.filter((l) => l.tipo === 'INATIVACAO' && l.origem === 'QUALIDADE' && valem(l));
+      const alertas = comAlerta(inat);
+      if (inat.length) partes.push(`${plural(inat.length, 'item sem movimentação desde o corte e sem saldo será inativado', 'itens sem movimentação desde o corte e sem saldo serão inativados')} (lista na aba "De para e equivalências" do Excel)${alertas ? `; ${plural(alertas, 'linha pede', 'linhas pedem')} conferência do saldo antes` : ''}.`);
     }
   }
   if (camada === 'DUPLICIDADE' && m.vinculos.length) partes.push(`${plural(m.vinculos.length, 'vínculo de código antigo e novo registrado', 'vínculos de código antigo e novo registrados')}, com data e justificativa.`);

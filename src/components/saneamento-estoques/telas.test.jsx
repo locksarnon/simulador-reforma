@@ -407,6 +407,13 @@ describe("Unificações", () => {
     expect(t).not.toContain("c1");
     expect(t).not.toContain("corte de movimentação não está definido");
   });
+  it("tipo da inativação diz a origem; base com saldo em escala é avisada", () => {
+    const dup = { ...inat, casoId: "c3", morre: { ...inat.morre, codigo: "0790" }, origem: "DUPLICIDADE", rotuloTipo: "Inativação (duplicidade)" };
+    const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([{ ...inat, origem: "QUALIDADE", rotuloTipo: "Inativação (sem movimentação)" }, dup], { escalaSaldo: 1000000 }))));
+    for (const x of ["Inativação (sem movimentação)", "Inativação (duplicidade)", "saldo multiplicado por 1.000.000"]) expect(t, x).toContain(x);
+    const sem = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { escalaSaldo: 1 }))));
+    expect(sem).not.toContain("saldo multiplicado");
+  });
   it("sem corte definido, avisa que os itens parados não foram avaliados", () => {
     const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { corteDefinido: false }))));
     expect(t).toContain("O corte de movimentação não está definido na Configuração");

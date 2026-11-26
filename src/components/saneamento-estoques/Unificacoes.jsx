@@ -7,7 +7,7 @@ import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo } from "./comuns";
 import { fmtData, fmtSaldo, mensagemDeErro, SITUACOES_MAPA, TIPOS_MAPA } from "./logica";
 
 const COLUNAS = [
-  { chave: "tipo", rotulo: "Tipo", valor: (l) => TIPOS_MAPA[l.tipo] || l.tipo },
+  { chave: "tipo", rotulo: "Tipo", valor: (l) => l.rotuloTipo || TIPOS_MAPA[l.tipo] || l.tipo },
   { chave: "morre", rotulo: "Código que morre", valor: (l) => l.morre?.codigo || "" },
   { chave: "estab", rotulo: "Estabelecimento", valor: (l) => l.morre?.estab || "" },
   { chave: "morreDescricao", rotulo: "Descrição (morre)", valor: (l) => l.morre?.descricao || "", quebrar: true },
@@ -72,7 +72,8 @@ export default function Unificacoes({ projeto }) {
               <label className="block"><Rotulo>Código (que morre ou que fica)</Rotulo><input className={`${campoCls} w-48`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
               <button type="submit" className={botaoSecundario}>Buscar</button>
             </form>
-            {d.comAlerta > 0 && <p className="text-sm text-muted-foreground">{Number(d.comAlerta).toLocaleString("pt-BR")} linha(s) com alerta de coerência (unidade diferente, saldo não informado ou código que fica fora do estabelecimento): conferir antes de ajustar o ERP.</p>}
+            {d.escalaSaldo > 1 && <p className="text-sm text-muted-foreground">A base traz o saldo multiplicado por {Number(d.escalaSaldo).toLocaleString("pt-BR")}: os saldos desta lista já estão divididos (a mesma regra da camada Duplicidades).</p>}
+            {d.comAlerta > 0 && <p className="text-sm text-muted-foreground">{Number(d.comAlerta).toLocaleString("pt-BR")} linha(s) com alerta de coerência (unidade diferente, fator sem direção, saldo não informado, código que fica fora do estabelecimento ou com inativação): conferir antes de ajustar o ERP.</p>}
             <TabelaPadrao id="saneamento-estoques-unificacoes" ariaLabel="Unificações e inativações" colunas={COLUNAS} linhas={d.linhas} chaveLinha={(l, i) => `${l.casoId || "v"}-${l.morre?.codigo || ""}-${l.morre?.estab || ""}-${i}`} tamanhoInicial={100} vazio="Nenhuma linha neste filtro." />
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span role="status">Linhas {d.total ? ((d.pagina - 1) * d.limite + 1).toLocaleString("pt-BR") : 0} a {Math.min(d.pagina * d.limite, d.total).toLocaleString("pt-BR")} de {Number(d.total).toLocaleString("pt-BR")}.</span>

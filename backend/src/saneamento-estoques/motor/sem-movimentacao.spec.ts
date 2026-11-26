@@ -23,7 +23,7 @@ describe('QUALIDADE: itens sem movimentação a longa data', () => {
     expect(casos).toHaveLength(2);
     const ferragens = casos.find((x) => x.itens.length === 2)!;
     expect(ferragens.proposta).toEqual({ decisao: 'PROPOR_INATIVACAO', ativo: false });
-    expect(ferragens.afeta).toEqual(['OBRIGACOES']);
+    expect(ferragens.afeta).toEqual(['DUPLICIDADE', 'OBRIGACOES']);
     expect(ferragens.problema).toContain('2 itens do grupo "Ferragens" sem movimentação desde 01/01/2024 e sem saldo');
     expect(ferragens.evidencia.find((e) => e.rotulo === 'Saldo não informado')?.valor).toContain('1 item(ns)');
     expect(ferragens.atual).toEqual({ ativo: 'varia por item' });
@@ -83,5 +83,21 @@ describe('QUALIDADE: itens sem movimentação a longa data', () => {
     expect(doTipo(r, 'SEM_MOVIMENTACAO')).toHaveLength(30);
     expect(doTipo(r, 'SEM_MOVIMENTACAO_COM_SALDO')).toHaveLength(30);
     expect(doTipo(r, 'SEM_MOVIMENTACAO').reduce((s, c) => s + c.itens.length, 0)).toBe(30_000 - Math.ceil(30_000 / 7));
+  });
+});
+
+describe('QUALIDADE: saldo na escala da base (a mesma detecção da Duplicidade)', () => {
+  it('base com saldo ×1.000.000: texto, evidência e exemplo mostram 3, não 3.000.000; o valor lido fica no atual', () => {
+    const a = item('A', { saldo: 3_000_000 }); const b = item('B', { saldo: 2_000_000, ultimaMovimentacao: '2026-10-01' }); const c = item('C', { saldo: 5_000_000, ultimaMovimentacao: '2026-10-01' });
+    const r = new AnalisadorQualidade().analisar([a, b, c], ctx());
+    const [caso] = doTipo(r, 'SEM_MOVIMENTACAO_COM_SALDO');
+    expect(caso.problema).toContain('com saldo (3)');
+    expect(caso.evidencia.find((e) => e.rotulo === 'Saldo somado (na unidade de cada item)')?.valor).toBe('3');
+    expect(caso.evidencia.find((e) => e.rotulo === 'Escala do saldo')?.valor).toContain('1.000.000');
+    expect(JSON.stringify(caso)).not.toContain('3.000.000');
+    expect(caso.atual).toEqual({ saldo: 3_000_000 });
+    // Sem escala (saldos comuns), nada muda.
+    const s = new AnalisadorQualidade().analisar([item('X', { saldo: 7 })], ctx());
+    expect(doTipo(s, 'SEM_MOVIMENTACAO_COM_SALDO')[0].problema).toContain('com saldo (7)');
   });
 });

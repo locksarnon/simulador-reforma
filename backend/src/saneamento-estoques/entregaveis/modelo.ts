@@ -5,6 +5,7 @@
 import { CAMADAS, ROTULO_CENARIO, ROTULO_FINALIDADE, type Camada } from '../tipos';
 import type { DadosEntrega } from '../dados/portas';
 import { ROTULO_CAMADA, rotuloDoCampo, rotuloDoCaso, rotuloDoValor, rotuloTipoCaso } from '../rotulos';
+import { escalaDaBase } from '../motor/conjuntos';
 import { montarMapa, saldoDe, type LinhaMapa } from './unificacoes';
 
 type Json = Record<string, unknown>;
@@ -135,7 +136,8 @@ export function construirModelo(dados: DadosEntrega): Modelo {
     const fin = r.finalidade ?? t.finalidade;
     const ativo = typeof r.ativo === 'boolean' ? r.ativo : typeof t.ativo === 'boolean' ? t.ativo : null;
     return {
-      id, codigo: txt(r.codigo ?? t.codigo), estab: txt(r.estabelecimento ?? t.estabelecimento), descricao, descricaoOriginal,
+      // Código de TRABALHO primeiro (a decisão pode trocá-lo; a coluna é a chave da importação), como o mapa e a orquestração.
+      id, codigo: txt(t.codigo ?? r.codigo), estab: txt(r.estabelecimento ?? t.estabelecimento), descricao, descricaoOriginal,
       unidade: txt(t.unidade), ncm: txt(t.ncm), grupo: txt(r.grupo ?? t.grupo), finalidade: fin ? txt(fin) : null,
       tambem: rotulosFinalidade(r.tambemUsadoComo ?? r.tambem_usado_como ?? t.tambemUsadoComo), ativo, saldo: saldoDe(t.saldo), campos, camposAlterados: alterados,
     };
@@ -408,7 +410,7 @@ export function mapaDoModelo(m: Modelo): LinhaMapa[] {
   let r = mapas.get(m);
   if (!r) {
     r = montarMapa({
-      liberada: m.liberada, dataBase: paraData(m.dados.projeto.data_base), item: (id) => m.porId.get(id),
+      liberada: m.liberada, dataBase: paraData(m.dados.projeto.data_base), item: (id) => m.porId.get(id), escala: escalaDaBase(m.itens),
       casos: m.casos.map((c) => ({ id: c.id, camada: c.camada, tipo: c.tipo, itens: c.itens, proposta: c.proposta, justificativa: c.justificativa, motivo: c.motivo, situacao: c.situacao, decididoPor: c.decididoPor, decididoEm: c.decididoEm })),
       vinculos: m.vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criadoPor })),
     });

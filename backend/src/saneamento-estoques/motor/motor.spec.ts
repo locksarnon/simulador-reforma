@@ -76,6 +76,18 @@ describe('DUPLICIDADE', () => {
     expect(caso.evidencia.some((e) => e.rotulo === 'Critério')).toBe(true);
     expect(caso.evidencia.some((e) => e.rotulo.includes('não é probabilidade'))).toBe(true);
   });
+  it('item inativo (por decisão ou na base) não é sugerido como o que fica quando há alternativa ativa', () => {
+    const a = item('A', 'FERTILIZANTE SUPERFOSFATO SIMPLES SACO 50 KG', { unidade: 'KG', saldo: 10, ultimaMovimentacao: '2026-10-01' });
+    const b = item('B', 'Fert. Superfosfato Simples saco 50kg', { unidade: 'KG', saldo: 300, ultimaMovimentacao: '2026-11-01', ativo: false });
+    const caso = new AnalisadorDuplicidade().analisar([a, b, ...fundo()], ctx).casos.find((c) => c.itens.includes(a.id) && c.itens.includes(b.id))!;
+    expect(caso.proposta.manter).toBe('A');
+    expect(caso.proposta.consolidar).toBe('B');
+    expect(caso.evidencia.find((e) => e.rotulo === 'Sugestão de qual fica')?.valor).toContain('item ativo');
+    // Todos inativos: volta aos critérios de sempre (maior saldo).
+    const a2 = { ...a, ativo: false }; const b2 = { ...b };
+    const todos = new AnalisadorDuplicidade().analisar([a2, b2, ...fundo()], ctx).casos.find((c) => c.itens.includes(a2.id) && c.itens.includes(b2.id))!;
+    expect(todos.proposta.manter).toBe('B');
+  });
   it('sem saldo nem movimentação nos que saem: consolidação simples', () => {
     const r = new AnalisadorDuplicidade().analisar([item('A', 'FERTILIZANTE SUPERFOSFATO SIMPLES SACO 50 KG', { unidade: 'KG', saldo: 0, ultimaMovimentacao: '2020-01-01' }), item('B', 'Fert. Superfosfato Simples saco 50kg', { unidade: 'KG', saldo: 5, ultimaMovimentacao: '2020-01-01' }), ...fundo()], { ...ctx, corteMovimentacao: '2025-01-01' });
     expect(r.casos[0].tipo).toBe('DUPLICIDADE_EXATA'); expect(r.casos[0].proposta.tratamentoDoSaldo).toContain('sem saldo');
@@ -214,7 +226,9 @@ describe('dependências (camadasAfetadas)', () => {
     expect(caso('QUALIDADE', 'X', { referencia: 'A' })).toEqual(['NCM', 'TRIBUTARIO', 'OBRIGACOES']);
     expect(caso('NCM', 'X', { ncm: '12345678' })).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
     expect(caso('NOMES_UNIDADES', 'UNIDADE_CONVERSAO', { unidade: 'KG', fatorConversao: 60 })).toEqual(['DUPLICIDADE', 'OBRIGACOES']);
-    expect(caso('DUPLICIDADE', 'X', { decisao: 'PROPOR_CONSOLIDACAO', manter: 'A' })).toEqual(['OBRIGACOES']);
+    // Unificação e inativação dependem uma da outra (o código que fica não pode ser inativado): cada uma marca a outra camada.
+    expect(caso('DUPLICIDADE', 'X', { decisao: 'PROPOR_CONSOLIDACAO', manter: 'A' })).toEqual(['QUALIDADE', 'OBRIGACOES']);
+    expect(caso('QUALIDADE', 'SEM_MOVIMENTACAO', { decisao: 'PROPOR_INATIVACAO', ativo: false })).toEqual(['DUPLICIDADE', 'OBRIGACOES']);
     expect(caso('GRUPOS_FINALIDADE', 'X', { finalidade: 'REVENDA' })).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
     expect(caso('NOMES_UNIDADES', 'DESCRICAO_FORA_DO_PADRAO', { descricao: 'A' })).toEqual([]);
     expect(caso('QUALIDADE', 'DESCRICAO_INSUFICIENTE', { descricao: 'LUVA NITRILICA 9' })).toEqual(['NCM', 'TRIBUTARIO', 'OBRIGACOES']);
