@@ -7,6 +7,9 @@ import { SAN_MOTOR, type MotorPort } from './portas';
 import { idsDeAtividades } from './motor.provider';
 import { SanProjetoService } from './projeto.service';
 import { nomeDoErp } from '../../erps/erps.service';
+import { envolverComDiretrizes } from '../diretrizes/analise';
+import { indiceAplicado } from '../diretrizes/dados';
+import { fecharEscopo, recortarResultado } from '../diretrizes/escopo';
 
 /** Roda uma camada: lê os itens, chama o analisador (função pura) e grava casos e células. Os analisadores entram por injeção (SAN_MOTOR). */
 @Injectable()
@@ -23,7 +26,12 @@ export class SanOrquestracaoService {
     return this.motor.camadas();
   }
 
-  async executarCamada(projetoId: string, camadaTexto: string) {
+  /**
+   * `escopo` (Diretrizes: aplicar e reanalisar): a análise roda sobre a base inteira, mas só se grava o que toca estes itens (escopo fechado
+   * pelos casos de conjunto, ver diretrizes/escopo.ts). As regras APLICADAS do projeto comandam as camadas (diretrizes/analise.ts); sem
+   * regra aplicada, a camada roda exatamente como antes.
+   */
+  async executarCamada(projetoId: string, camadaTexto: string, opcoes: { escopo?: Set<string> } = {}) {
     const camada = validarCamada(camadaTexto);
     const p = await this.projetos.exigirConfirmadas(projetoId); // A TRAVA
     if (!camadasAtivas(p.modulos as Json).includes(camada)) throw new BadRequestException('Esta camada não está ligada neste projeto (módulo opcional desligado).');
@@ -45,8 +53,16 @@ export class SanOrquestracaoService {
       ...((p.parametros as Json)?.motor ? { parametros: (p.parametros as Json).motor } : {}),
     } as ContextoAnalise;
     const preparado = await this.motor.preparar(camada, { projetoId, itens, contexto });
-    const resultado = preparado.analisador.analisar(itens, preparado.contexto);
-    const gravado = await this.casos.registrarResultado(projetoId, resultado, { completo: true, interno: true });
+    const diretrizes = await indiceAplicado(this.prisma, projetoId);
+    const analisador = diretrizes ? envolverComDiretrizes(preparado.analisador, diretrizes) : preparado.analisador;
+    let resultado = analisador.analisar(itens, preparado.contexto);
+    let escopo: Set<string> | undefined;
+    if (opcoes.escopo) {
+      const abertos = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, camada, situacao: 'PROPOSTO' }, select: { itens: true } });
+      escopo = fecharEscopo(opcoes.escopo, resultado.casos, abertos);
+      resultado = recortarResultado(resultado, escopo);
+    }
+    const gravado = await this.casos.registrarResultado(projetoId, resultado, { completo: true, interno: true, escopo });
     // A camada de obrigações também (re)grava as linhas de impacto no SPED de todos os casos que geram ajuste.
     if (camada === 'OBRIGACOES') await this.casos.sincronizarTodosImpactos(projetoId);
     return gravado;

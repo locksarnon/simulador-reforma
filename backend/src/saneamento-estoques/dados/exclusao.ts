@@ -13,6 +13,10 @@ type Cliente = {
   sanItem: { deleteMany(a: unknown): Promise<unknown> };
   sanImportacao: { deleteMany(a: unknown): Promise<unknown> };
   sanAtividade: { deleteMany(a: unknown): Promise<unknown> };
+  // Diretrizes (opcionais no tipo: clientes antigos dos testes não as têm).
+  sanDiretrizHistorico?: { deleteMany(a: unknown): Promise<unknown> };
+  sanDiretrizRegra?: { deleteMany(a: unknown): Promise<unknown> };
+  sanDiretrizes?: { deleteMany(a: unknown): Promise<unknown> };
 };
 
 /**
@@ -35,6 +39,9 @@ export async function apagarSaneamento(tx: Cliente, where: { diagnostico_id?: st
     await tx.sanItem.deleteMany({ where: doProjeto });
     await tx.sanImportacao.deleteMany({ where: doProjeto });
     await tx.sanAtividade.deleteMany({ where: doProjeto });
+    await tx.sanDiretrizHistorico?.deleteMany({ where: doProjeto });
+    await tx.sanDiretrizRegra?.deleteMany({ where: doProjeto });
+    await tx.sanDiretrizes?.deleteMany({ where: doProjeto });
     await tx.sanProjeto.deleteMany({ where: { id: { in: lote } } });
   }
   return projetos.length;

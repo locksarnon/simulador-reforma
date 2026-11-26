@@ -2428,6 +2428,114 @@ model SanVinculoCodigo {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// DIRETRIZES DO SANEAMENTO (docs/saneamento-diretrizes.md): regras por aspecto e grupo que comandam as análises; aprovadas, formam a
+// política. Migração aditiva 20261127090000_saneamento_diretrizes. A biblioteca FAL (regras-modelo) tem carga inicial idempotente no boot.
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Cabeçalho das Diretrizes de um projeto: vigência e versão (concorrência). Situação e "revisar" são derivadas das regras.
+model SanDiretrizes {
+  id            String    @id @default(cuid())
+  projeto_id    String    @unique
+  /// yyyy-mm-dd
+  vigencia      String?
+  versao        Int       @default(1)
+  /// Quando os parâmetros antigos do projeto foram convertidos em regras (uma vez, na primeira leitura).
+  convertido_em DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+/// Regra do projeto: aponta para a biblioteca (versão adotada) e guarda só as alterações do cliente. `aplicacao` = o que a análise usa.
+model SanDiretrizRegra {
+  id                String    @id @default(cuid())
+  projeto_id        String
+  /// NOMES | ATRIBUTOS | UNIDADES | LIMITES | FISCAL
+  aspecto           String
+  /// N01, A01, U01, L01, F01: estável no projeto.
+  codigo            String
+  nome              String
+  /// {todos: true} | {todos: false, grupos: [...], subgrupos?: [...]}
+  abrangencia       Json
+  observacao        String?
+  biblioteca_id     String?
+  biblioteca_versao Int?
+  /// Alterações do projeto sobre a biblioteca (mesmo formato do conteúdo, parcial).
+  alteracoes        Json?
+  /// RASCUNHO | APROVADA
+  situacao          String    @default("RASCUNHO")
+  revisar           Boolean   @default(false)
+  revisar_causa     String?
+  aprovada_por      String?
+  aprovada_em       DateTime?
+  /// {abrangencia, conteudo, legado, parametrosLegados} aplicados; null = nunca aplicada (não muda a análise).
+  aplicacao         Json?
+  aplicada_em       DateTime?
+  aplicada_por      String?
+  /// Convertida dos parâmetros antigos e não editada: a análise usa `parametros_legados` exatamente como antes.
+  legado            Boolean   @default(false)
+  parametros_legados Json?
+  criada_por        String?
+  versao            Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([projeto_id, codigo])
+  @@index([projeto_id, aspecto])
+}
+
+/// Histórico das regras do projeto: quem, quando, antes e depois. Só se acrescenta.
+model SanDiretrizHistorico {
+  id         String   @id @default(cuid())
+  projeto_id String
+  regra_id   String
+  /// CONVERTER | CRIAR | MODELO | TRANSFORMAR | ALTERAR | APLICAR | TRANSFERIR | APROVAR | ADOTAR_VERSAO
+  acao       String
+  usuario    String
+  antes      Json?
+  depois     Json?
+  detalhe    String?
+  quando     DateTime @default(now())
+
+  @@index([regra_id, quando])
+  @@index([projeto_id, quando])
+}
+
+/// Regra-modelo da biblioteca FAL (Administração). Id fixo na carga inicial; `editada` = um administrador alterou (a carga não sobrescreve).
+model SanDiretrizBiblioteca {
+  id            String   @id
+  aspecto       String
+  nome          String
+  indicada_para String?
+  observacao    String?
+  conteudo      Json
+  versao        Int      @default(1)
+  ativa         Boolean  @default(true)
+  editada       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([aspecto])
+}
+
+/// Cada versão da regra-modelo (o projeto aponta para uma versão; a política de uma versão liberada é reproduzível).
+model SanDiretrizBibliotecaVersao {
+  id            String   @id @default(cuid())
+  regra_id      String
+  versao        Int
+  nome          String
+  indicada_para String?
+  observacao    String?
+  conteudo      Json
+  ativa         Boolean  @default(true)
+  /// CARGA | CRIOU | ALTEROU
+  acao          String
+  usuario       String
+  createdAt     DateTime @default(now())
+
+  @@unique([regra_id, versao])
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // CADASTRO DE ERPs (Administração > Configuração e ERPs): o conhecimento de cada ERP, usado por todas as telas.
 // Migração aditiva. A carga inicial (SAP Business One, Aliare Siagri, TOTVS Protheus, Outro ERP) roda na inicialização, sem duplicar.
 // ═════════════════════════════════════════════════════════════════════════
@@ -2451,7 +2559,7 @@ model Erp {
 model ErpConhecimento {
   id          String   @id @default(cuid())
   erp_id      String
-  /// COLUNA_EXPORT | CONSULTA_EXTRACAO | RESTRICAO | ACAO_NO_ERP | MODELO_CARGA | OBSERVACAO
+  /// COLUNA_EXPORT | CONSULTA_EXTRACAO | RESTRICAO | ACAO_NO_ERP | MODELO_CARGA | OBSERVACAO | LIMITE_CAMPO
   tipo        String
   /// Tipo de ajuste do saneamento (TIPOS_AJUSTE de impactoSped.ts); vazio = vale para o ERP todo.
   tipo_ajuste String?

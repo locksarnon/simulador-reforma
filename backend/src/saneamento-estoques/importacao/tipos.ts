@@ -1,12 +1,13 @@
 import type { ItemTrabalho } from '../tipos';
 
 /** Campos de ItemTrabalho que a planilha pode alimentar (o resto vai em `campos`). */
-export const CAMPOS_BASE = ['codigo', 'estabelecimento', 'descricao', 'unidade', 'ncm', 'grupo', 'ativo', 'saldo', 'ultimaMovimentacao', 'fabricante', 'referencia', 'finalidade'] as const;
+export const CAMPOS_BASE = ['codigo', 'estabelecimento', 'descricao', 'unidade', 'ncm', 'grupo', 'ativo', 'saldo', 'ultimaMovimentacao', 'fabricante', 'referencia', 'finalidade', 'subgrupo'] as const;
 export type CampoBase = (typeof CAMPOS_BASE)[number];
 export const CAMPOS_OBRIGATORIOS: readonly CampoBase[] = ['codigo', 'descricao'];
 export const ROTULO_CAMPO: Record<CampoBase, string> = {
   codigo: 'Código', estabelecimento: 'Estabelecimento/depósito', descricao: 'Descrição', unidade: 'Unidade', ncm: 'NCM', grupo: 'Grupo',
   ativo: 'Ativo', saldo: 'Saldo', ultimaMovimentacao: 'Última movimentação', fabricante: 'Fabricante', referencia: 'Referência', finalidade: 'Finalidade',
+  subgrupo: 'Subgrupo',
 };
 
 /** Campo → índice da coluna (base 0, como em `Planilha.cabecalho`); null/ausente = sem coluna. */
