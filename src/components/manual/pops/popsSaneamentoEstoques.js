@@ -74,7 +74,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     ],
     passos: [
       { acao: "Se o ERP do projeto tem perfil no Cadastro de ERPs, abra “Como extrair do (ERP)” e clique em Copiar na consulta que vai usar.", detalhe: "Rode a consulta no ERP do cliente e exporte para Excel. Cada consulta mostra o grau (Confirmado ou Não confirmado) e a fonte oficial. Perfil a desenvolver ou “Outro ERP (sem perfil)” não traz consulta." },
-      { acao: "Em 1. Arquivo do cadastro de itens, clique em Escolher arquivo e selecione a planilha." },
+      { acao: "Em 1. Arquivo do cadastro de itens, arraste a planilha para a área tracejada ou clique nela (ou aperte Enter) para escolher o arquivo.", detalhe: "O nome do arquivo aparece na área, com “trocar”. Arquivo que não seja .xlsx, .xls ou .csv é recusado com aviso." },
       { acao: "Clique em Ler e mostrar a prévia.", detalhe: "Nada é gravado até a confirmação. Códigos e NCM são lidos como texto, preservando os zeros à esquerda." },
       { acao: "Em Colunas do arquivo, confira o que o sistema entendeu de cada coluna.", detalhe: "A coluna Certeza mostra “Certeza alta”, “Certeza média” ou “Reconhecida”. Código e descrição são obrigatórios (*). Com o ERP do projeto no Cadastro de ERPs, as colunas do export dele já chegam mapeadas (no SAP Business One, o NCM vem de NcmCode, nunca da chave interna NCMCode)." },
       { acao: "Se corrigir uma coluna, clique em Atualizar a prévia com este mapeamento.", detalhe: "Enquanto não atualizar, o botão de confirmar fica apagado." },

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, FileDown, FileUp, Loader2, Send, Trash2 } from "lucide-react";
@@ -58,7 +59,6 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   const soResumos = modo === "resumos";
   const confirmar = useConfirmar();
   const qc = useQueryClient();
-  const seletor = useRef(null);
 
   const [filtros, setFiltros] = useState({ tipo: "", modelo: "", origem: "", de: "", ate: "", ...datas, pendentes: false, papel_cte: "" });
   const [incluirNaoTomados, setIncluirNaoTomados] = useState(false);
@@ -69,7 +69,6 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
   const [porPagina, setPorPagina] = useState(lerPorPagina);
   const [selecionados, setSelecionados] = useState(new Set());
   const [progresso, setProgresso] = useState(null);
-  const [arrastando, setArrastando] = useState(false);
   const [comPdf, setComPdf] = useState(false);
   const [baixandoZip, setBaixandoZip] = useState(false);
 
@@ -143,7 +142,6 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
       toast({ title: "Não foi possível enviar", description: e.message, variant: "destructive" });
     } finally {
       setProgresso(null);
-      if (seletor.current) seletor.current.value = "";
       atualizar();
     }
   };
@@ -211,22 +209,17 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
           </p>
         </div>
       ) : (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
-          onDragLeave={() => setArrastando(false)}
-          onDrop={(e) => { e.preventDefault(); setArrastando(false); enviarArquivos(e.dataTransfer.files); }}
-          className={`rounded-xl border-2 border-dashed px-4 py-5 flex flex-wrap items-center gap-3 transition-colors ${arrastando ? "border-primary bg-primary/5" : "border-border"}`}
-        >
+        <CampoArquivo multiple accept=".xml,.zip" disabled={progresso !== null} rotulo="Enviar XML ou ZIP do cliente" aoEscolher={enviarArquivos}
+          className="rounded-xl flex-row flex-wrap items-center justify-start gap-3 text-left">
           <FileUp className="w-5 h-5 text-muted-foreground" aria-hidden="true" />
           <div className="flex-1 min-w-[220px] text-sm">
             <p className="font-medium">Arraste aqui os XML ou ZIP do cliente, ou escolha os arquivos</p>
             <p className="text-xs text-muted-foreground">NF-e, CT-e, MDF-e, NFS-e Nacional e eventos deste CNPJ.</p>
           </div>
-          <input ref={seletor} type="file" multiple accept=".xml,.zip" className="hidden" onChange={(e) => enviarArquivos(e.target.files)} />
-          <button type="button" disabled={progresso !== null} onClick={() => seletor.current?.click()} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
+          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium">
             {progresso !== null ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando {progresso}%</> : <><FileUp className="w-4 h-4" /> Escolher arquivos</>}
-          </button>
-        </div>
+          </span>
+        </CampoArquivo>
       )}
 
       {!soResumos && grupo !== "NFSE" && (

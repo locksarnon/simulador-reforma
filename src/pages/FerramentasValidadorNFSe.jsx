@@ -1,5 +1,6 @@
 import { useAnaliseEmpresa } from "@/hooks/useAnaliseEmpresa";
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { api } from "@/api/client";
 import { Textarea } from "@/components/ui/textarea";
 import { ShieldCheck, Upload, CheckCircle2, AlertTriangle, XCircle, Info, Loader2 } from "lucide-react";
@@ -32,16 +33,13 @@ export default function FerramentasValidadorNFSe() {
   const [resultado, setResultado] = useState(null);
   const [validando, setValidando] = useState(false);
   const [erro, setErro] = useState("");
-  const fileRef = useRef(null);
   const analise = useAnaliseEmpresa("validador-nfse", d => { setXml(d.xml || ""); setResultado(d.resultado || null); });
 
-  const onFile = (e) => {
-    const file = e.target.files?.[0];
+  const onFile = ([file]) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => { setXml(String(reader.result || "")); setResultado(null); };
     reader.readAsText(file);
-    e.target.value = "";
   };
 
   const validar = async () => {
@@ -80,14 +78,9 @@ export default function FerramentasValidadorNFSe() {
             className="font-mono text-xs min-h-[220px]"
           />
           <div className="flex items-center justify-between gap-3">
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted"
-              type="button"
-            >
-              <Upload className="w-4 h-4" /> Enviar arquivo .xml
-            </button>
-            <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={onFile} />
+            <CampoArquivo compacto accept=".xml,text/xml,application/xml" rotulo="Enviar arquivo .xml" className="gap-2 px-3 py-2 text-sm" aoEscolher={onFile}>
+              <Upload className="w-4 h-4" /> Enviar arquivo .xml <span className="text-xs text-muted-foreground">(ou arraste)</span>
+            </CampoArquivo>
             <button
               onClick={validar}
               disabled={!xml.trim() || validando}

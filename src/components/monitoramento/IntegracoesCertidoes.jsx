@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSearch, KeyRound, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 
 const quando = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "");
 /** Logo depois de configurar, o serviço reinicia por alguns segundos para ler a senha nova: não é "fora do ar". */
@@ -89,7 +90,7 @@ function CertificadoBx({ s, aoMudar }) {
         {ultima && !ultima.ok ? ` ${ultima.mensagem}` : ""}
       </p>
       <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (arquivo && senha) enviar.mutate(); }}>
-        <input type="file" accept=".pfx,.p12,application/x-pkcs12" onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} className="max-w-[220px] text-xs" aria-label={`Certificado A1: ${s.rotulo}`} />
+        <CampoArquivo compacto accept=".pfx,.p12,application/x-pkcs12" arquivo={arquivo} titulo="Arraste o certificado ou clique" className="max-w-[260px]" rotulo={`Certificado A1: ${s.rotulo}`} aoEscolher={([f]) => setArquivo(f ?? null)} />
         <input type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Senha do certificado" className="h-8 min-w-[160px] flex-1 rounded-md border border-input bg-background px-2 text-sm" aria-label={`Senha do certificado: ${s.rotulo}`} />
         <button type="submit" disabled={!arquivo || !senha || enviar.isPending || s.configurando} className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{t ? "Trocar certificado" : "Enviar"}</button>
       </form>

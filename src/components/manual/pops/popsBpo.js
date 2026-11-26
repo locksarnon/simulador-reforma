@@ -82,7 +82,7 @@ export const POPS_BPO = [
     passos: [
       { acao: "Abra a ficha do cliente e vá ao cartão Certificado digital A1." },
       { acao: "Clique em Enviar certificado A1 (ou Substituir certificado, se já houver um)." },
-      { acao: "Em Arquivo do certificado, escolha o arquivo .pfx ou .p12." },
+      { acao: "Em Arquivo do certificado, arraste o arquivo .pfx ou .p12 para a área tracejada ou clique nela para escolher." },
       { acao: "Digite a Senha do certificado.", detalhe: "Se o PIN do cofre estiver ligado, preencha também o PIN do cofre." },
       { acao: "Clique em Guardar no cofre.", detalhe: "O sistema confere a senha, a validade e se o titular é a empresa antes de guardar." },
       { acao: "Confira o titular, o CNPJ/CPF do titular, a validade e o campo Vence em." },
@@ -517,7 +517,7 @@ export const POPS_BPO = [
       { acao: "Leia a tabela: Vigência, Regularidade, Emissão, Validade, Número / código, Origem e Guardada por, com Ver e Baixar no fim.", detalhe: "Na federal, entra também a certidão que consta no relatório de situação fiscal." },
       { acao: "Se aparecer a mensagem Emissão automática em …, leia o motivo de a certidão não ter saído." },
       { acao: "Para emitir na hora, clique em Emitir agora.", detalhe: "Enquanto emite, aparece Emitindo no portal oficial pela Infosimples…" },
-      { acao: "Onde não houver emissão automática, clique em Portal oficial, emita a certidão, informe a Validade se quiser e clique em Anexar PDF." },
+      { acao: "Onde não houver emissão automática, clique em Portal oficial, emita a certidão, informe a Validade se quiser e clique em Anexar PDF (ou arraste o PDF até esse botão)." },
     ],
     resultado: "A certidão fica guardada em Arquivos e documentos (pasta Certidões), com a validade, e o sino avisa antes de vencer.",
     atencao: [
@@ -677,7 +677,7 @@ export const POPS_BPO = [
       { acao: "Escolha Empresa ou Pessoa física e selecione o dono." },
       { acao: "Entre na pasta clicando nos botões das subpastas; volte pelo caminho no topo (Início > …)." },
       { acao: "Para criar uma pasta, clique em Nova pasta, digite o nome e clique em Abrir; depois envie os arquivos para ela.", detalhe: "A pasta nova só fica guardada quando recebe um arquivo." },
-      { acao: "Clique em Enviar arquivos e escolha os arquivos." },
+      { acao: "Arraste os arquivos até o botão Enviar arquivos, ou clique nele e escolha os arquivos." },
       { acao: "Para renomear ou mover, clique no lápis da linha, mude Nome ou Pasta e clique em Salvar.", detalhe: "A pasta usa “/” para subpastas, por exemplo “Contratos/2026”." },
       { acao: "Para excluir, clique na lixeira da linha e confirme." },
     ],

@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import TabelaDeDocumentos, { abreNoNavegador, formatoDoNome } from "@/components/documentos/TabelaDeDocumentos";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,7 +40,6 @@ const donoParams = (dono) => (dono.tipo === "empresa" ? { empresa_id: dono.id } 
 function AbaArquivos({ empresas, pessoas, donoInicial }) {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
-  const entrada = useRef(null);
   const [dono, setDono] = useState(donoInicial);
   const [pasta, setPasta] = useState("");
   const [subpastas, setSubpastas] = useState(false);
@@ -84,8 +84,7 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
                   </form>
                 )}
               <label className="inline-flex items-center gap-1.5 text-sm" title="Mostra também os arquivos das subpastas: marque todos para baixar ou enviar a pasta inteira (no Início, tudo o que está arquivado)."><input type="checkbox" checked={subpastas} onChange={(e) => setSubpastas(e.target.checked)} />Incluir as subpastas</label>
-              <button type="button" onClick={() => entrada.current?.click()} disabled={enviar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />} Enviar arquivos</button>
-              <input ref={entrada} type="file" multiple className="hidden" aria-label="Escolher arquivos para enviar" onChange={(e) => { const f = [...(e.target.files || [])]; e.target.value = ""; if (f.length) enviar.mutate(f); }} />
+              <CampoArquivo compacto multiple disabled={enviar.isPending} rotulo="Enviar arquivos para a pasta" className="px-3 text-sm" aoEscolher={(f) => { if (f.length) enviar.mutate(f); }}>{enviar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />} Enviar arquivos <span className="text-xs text-muted-foreground">(ou arraste)</span></CampoArquivo>
             </div>
           </div>
           {isLoading && <p className="py-6 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
@@ -156,7 +155,7 @@ function DialogoDocumento({ doc, empresas, pessoas, tipos, aoFechar }) {
             <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Validade</span><input type="date" className={campo} value={f.validade} onChange={(e) => mudar("validade", e.target.value)} /></label>
           </div>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Descrição</span><input className={campo} value={f.descricao} maxLength={300} onChange={(e) => mudar("descricao", e.target.value)} /></label>
-          <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Arquivo (opcional; vai para a pasta Documentos)</span><input type="file" onChange={(e) => setArquivo(e.target.files?.[0] || null)} /></label>
+          <div className="space-y-1"><span className="block text-xs text-muted-foreground">Arquivo (opcional; vai para a pasta Documentos)</span><CampoArquivo compacto arquivo={arquivo} rotulo="Arquivo do documento" className="w-full" aoEscolher={([a]) => setArquivo(a || null)} /></div>
           <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button><button type="submit" disabled={(!doc && !f.dono) || (!f.tipo_id && !f.descricao.trim()) || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button></DialogFooter>
         </form>
       </DialogContent>

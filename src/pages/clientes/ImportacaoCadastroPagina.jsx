@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { temFuncao } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
 import BotaoExportar from "@/components/BotaoExportar";
@@ -17,15 +18,13 @@ import { plural, palavra } from "@/lib/plural";
 function EscolherArquivo({ rotulo, aoLer }) {
   const [lendo, setLendo] = useState(false);
   return (
-    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
-      {lendo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />} {rotulo}
-      <input type="file" accept=".xlsx,.csv" className="sr-only" onChange={async (e) => {
-        const f = e.target.files?.[0]; e.target.value = "";
+    <CampoArquivo compacto accept=".xlsx,.csv" rotulo={rotulo} className="px-3 text-sm font-medium" aoEscolher={async ([f]) => {
         if (!f) return;
         setLendo(true);
         try { aoLer(await lerPlanilha(f), f.name); } catch (err) { toast({ title: "Não foi possível ler a planilha", description: err.message, variant: "destructive" }); } finally { setLendo(false); }
-      }} />
-    </label>
+      }}>
+      {lendo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />} {rotulo} <span className="text-xs font-normal text-muted-foreground">(ou arraste)</span>
+    </CampoArquivo>
   );
 }
 

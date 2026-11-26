@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Loader2, Paperclip, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { api } from "@/api/client";
@@ -21,7 +22,6 @@ const TOM = { RASCUNHO: "bg-muted text-muted-foreground", ENVIANDO: "bg-sky-100 
 
 function Editor({ comunicado, empresas, aoFechar }) {
   const qc = useQueryClient();
-  const entrada = useRef(null);
   const { tags } = useTags();
   const filtroInicial = comunicado?.filtro || { carteira: "bpo", tags: [], tagModo: "qualquer", empresa_ids: [] };
   const [f, setF] = useState({ assunto: comunicado?.assunto || "", corpo: comunicado?.corpo || "", filtro: { carteira: "", tags: [], tagModo: "qualquer", empresa_ids: [], ...filtroInicial } });
@@ -65,7 +65,7 @@ function Editor({ comunicado, empresas, aoFechar }) {
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Assunto</span><input className={campo} value={f.assunto} maxLength={200} onChange={(e) => setF({ ...f, assunto: e.target.value })} required /></label>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Texto (uma linha em branco separa os parágrafos)</span><textarea className={`${campo} min-h-[180px]`} value={f.corpo} maxLength={20000} onChange={(e) => setF({ ...f, corpo: e.target.value })} required /></label>
           <div className="space-y-1">
-            <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Anexos (até 5, 15 MB juntos)</span><button type="button" onClick={() => entrada.current?.click()} disabled={anexar.isPending || anexos.length >= 5} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50"><Paperclip className="h-3.5 w-3.5" aria-hidden="true" /> Anexar</button><input ref={entrada} type="file" className="hidden" aria-label="Escolher o anexo" onChange={(e) => { const a = e.target.files?.[0]; e.target.value = ""; if (a) anexar.mutate(a); }} /></div>
+            <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Anexos (até 5, 15 MB juntos)</span><CampoArquivo compacto disabled={anexar.isPending || anexos.length >= 5} rotulo="Anexar arquivo ao comunicado" className="py-0.5" aoEscolher={([a]) => { if (a) anexar.mutate(a); }}><Paperclip className="h-3.5 w-3.5" aria-hidden="true" /> Anexar <span className="text-muted-foreground">(ou arraste)</span></CampoArquivo></div>
             {anexos.map((a, i) => <p key={a.storage_key} className="flex items-center gap-2 text-xs"><Paperclip className="h-3 w-3" aria-hidden="true" />{a.nome} <span className="text-muted-foreground">{tamanhoLegivel(a.tamanho)}</span><button type="button" onClick={() => tirar.mutate(i)} className="text-destructive" aria-label={`Tirar o anexo ${a.nome}`}><X className="h-3 w-3" aria-hidden="true" /></button></p>)}
           </div>
           <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Fechar</button><button type="submit" disabled={!f.assunto.trim() || !f.corpo.trim() || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar rascunho</button></DialogFooter>

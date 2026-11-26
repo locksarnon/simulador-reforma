@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { toast } from "@/components/ui/use-toast";
 import { mascararDocumento } from "@/lib/clientes";
 
@@ -107,7 +108,7 @@ export default function ContratoSerpro() {
           </p>
           <div className="space-y-1">
             <Label htmlFor="serpro-pfx">Certificado A1 do escritório (.pfx ou .p12)</Label>
-            <Input id="serpro-pfx" type="file" accept=".pfx,.p12,application/x-pkcs12" onChange={(ev) => setArquivo(ev.target.files?.[0] ?? null)} />
+            <CampoArquivo compacto id="serpro-pfx" accept=".pfx,.p12,application/x-pkcs12" arquivo={arquivo} rotulo="Certificado A1 do escritório" className="w-full" aoEscolher={([f]) => setArquivo(f ?? null)} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="serpro-senha">Senha do certificado</Label>
