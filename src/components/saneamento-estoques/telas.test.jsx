@@ -351,11 +351,11 @@ describe("Cobertura, abas e página", () => {
     expect(texto(html)).toContain("as análises ficam bloqueadas");
     expect(html).toMatch(/<button[^>]*disabled/);
   });
-  it("as oito abas, com a atual marcada", () => {
+  it("as nove abas, com a atual marcada (Diretrizes entre a Importação e as análises)", () => {
     const html = montar(<Abas atual="casos" aoMudar={() => {}} />);
-    expect(texto(html)).toContain("Configuração Importação Tabela Visão geral Casos Impacto nas obrigações Unificações Versões");
+    expect(texto(html)).toContain("Configuração Importação Diretrizes Tabela Visão geral Casos Impacto nas obrigações Unificações Versões");
     expect(html).toContain('aria-selected="true"');
-    expect((html.match(/role="tab"/g) || []).length).toBe(8);
+    expect((html.match(/role="tab"/g) || []).length).toBe(9);
   });
   const rota = (qc) => renderToStaticMarkup(
     <QueryClientProvider client={qc}><StaticRouter location="/diagnostico/projetos/d1/saneamento"><Routes><Route path="/diagnostico/projetos/:id/saneamento" element={<SaneamentoEstoquesPagina />} /></Routes></StaticRouter></QueryClientProvider>,

@@ -340,7 +340,7 @@ describe("abas", () => {
     expect(abaInicial(null, { atividadesConfirmadas: true })).toBe("tabela");
     expect(abaInicial("versoes", { atividadesConfirmadas: false })).toBe("versoes");
     expect(abaInicial("inexistente", { atividadesConfirmadas: true })).toBe("tabela");
-    expect(ABAS.map((a) => a.id)).toEqual(["configuracao", "importacao", "tabela", "visao", "casos", "impacto", "unificacoes", "versoes"]);
+    expect(ABAS.map((a) => a.id)).toEqual(["configuracao", "importacao", "diretrizes", "tabela", "visao", "casos", "impacto", "unificacoes", "versoes"]);
   });
   it("setas, Home e End navegam em círculo", () => {
     expect(abaPorTecla("versoes", "ArrowRight")).toBe("configuracao");

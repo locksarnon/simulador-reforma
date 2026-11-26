@@ -11,6 +11,7 @@ import Abas from "@/components/saneamento-estoques/Abas";
 import Casos from "@/components/saneamento-estoques/Casos";
 import Cobertura from "@/components/saneamento-estoques/Cobertura";
 import Configuracao from "@/components/saneamento-estoques/Configuracao";
+import Diretrizes from "@/components/saneamento-estoques/diretrizes/Diretrizes";
 import Impacto from "@/components/saneamento-estoques/Impacto";
 import Importacao from "@/components/saneamento-estoques/Importacao";
 import TabelaUnica from "@/components/saneamento-estoques/TabelaUnica";
@@ -23,6 +24,7 @@ function Painel({ projeto, aba, irPara, podeImportar, recarregar, recorte, casoI
   const configuracao = () => irPara("configuracao");
   if (aba === "configuracao") return <Configuracao projeto={projeto} recarregar={recarregar} />;
   if (aba === "importacao") return <Importacao projeto={projeto} podeImportar={podeImportar} aoIrParaConfiguracao={configuracao} />;
+  if (aba === "diretrizes") return <Diretrizes projeto={projeto} />;
   if (aba === "tabela") return <TabelaUnica key={JSON.stringify(recorte || {})} projeto={projeto} recorte={recorte} aoAbrirCaso={(id) => abrirCasos({}, id)} aoIrParaConfiguracao={configuracao} />;
   if (aba === "visao") return <VisaoGeral projeto={projeto} aoAbrirCasos={abrirCasos} aoAbrirTabela={abrirTabela} />;
   if (aba === "casos") return <Casos key={`${recorte?.camada}|${recorte?.grupo}|${casoInicial}`} projeto={projeto} recorte={recorte} casoInicial={casoInicial} />;

@@ -15,13 +15,14 @@ const botaoPrimario = "rounded-md bg-primary px-3 py-1.5 text-sm text-primary-fo
 const erroDe = (e) => e?.response?.data?.message || e?.message || "Não foi possível salvar.";
 const dataHora = (s) => (s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "");
 
-/** Abas do módulo Configuração e ERPs (o menu da Administração tem no máximo 7 itens: o cadastro de ERPs é uma aba). */
+/** Abas do módulo Configuração e ERPs (o menu da Administração tem no máximo 7 itens: o cadastro de ERPs e a biblioteca de diretrizes são abas). */
 export function AbasConfiguracao() {
   const cls = ({ isActive }) => `border-b-2 px-3 py-2 text-sm ${isActive ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`;
   return (
     <nav aria-label="Abas da configuração" className="flex gap-1 border-b border-border px-6 lg:px-8">
       <NavLink to="/configuracao" end className={cls}>Motor de cálculo</NavLink>
       <NavLink to="/admin/erps" className={cls}>Cadastro de ERPs</NavLink>
+      <NavLink to="/admin/diretrizes" className={cls}>Biblioteca de diretrizes</NavLink>
     </nav>
   );
 }

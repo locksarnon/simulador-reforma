@@ -1,5 +1,6 @@
 import { api } from "@/api/client";
 import { enderecoDeEntrega, enderecoDoMapa, nomeDeEntrega, paramsDoMapa } from "./logica";
+import { enderecoDaPolitica, nomeDaPolitica } from "./diretrizes/logica";
 
 const B = "/saneamento-estoques";
 
@@ -55,6 +56,31 @@ export const san = {
   continuarVersao: (id, versaoId, corpo) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/continuar`, corpo),
   desfazerRestauracao: (id, versaoId, restauracaoId, versao) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/restauracoes/${restauracaoId}/desfazer`, { versao }),
   baixarEntrega: (id, tipo, versao) => api.baixar("GET", enderecoDeEntrega(id, tipo, versao?.id), { nome: nomeDeEntrega(tipo, versao) }),
+  /** Política (PDF): sem versão = a política de agora (Rascunho enquanto houver regra não aprovada); com versão = a congelada nela. */
+  baixarPolitica: (id, versao) => api.baixar("GET", enderecoDaPolitica(id, versao?.id), { nome: nomeDaPolitica(versao) }),
+
+  // ── Diretrizes (docs/saneamento-diretrizes.md, seção 11). Toda alteração leva a `versao` que a tela viu. ──
+  diretrizes: (id) => api.get(`${B}/projetos/${id}/diretrizes`),
+  salvarCabecalhoDiretrizes: (id, corpo) => api.put(`${B}/projetos/${id}/diretrizes`, corpo),
+  aplicarModelo: (id, modeloId) => api.post(`${B}/projetos/${id}/diretrizes/aplicar-modelo`, { modeloId }),
+  criarRegra: (id, corpo) => api.post(`${B}/projetos/${id}/diretrizes/regras`, corpo),
+  alterarRegra: (regraId, corpo) => api.put(`${B}/diretrizes/regras/${regraId}`, corpo),
+  previaRegra: (regraId) => api.get(`${B}/diretrizes/regras/${regraId}/previa`),
+  exemplosRegra: (regraId) => api.get(`${B}/diretrizes/regras/${regraId}/exemplos`),
+  aplicarRegra: (regraId, corpo) => api.post(`${B}/diretrizes/regras/${regraId}/aplicar`, corpo),
+  aprovarRegra: (regraId, versao) => api.post(`${B}/diretrizes/regras/${regraId}/aprovar`, { versao }),
+  historicoRegra: (regraId) => api.get(`${B}/diretrizes/regras/${regraId}/historico`),
+  adotarVersao: (regraId, versao) => api.post(`${B}/diretrizes/regras/${regraId}/adotar-versao`, { versao }),
+  transformarEmRegra: (id, corpo) => api.post(`${B}/projetos/${id}/diretrizes/transformar`, corpo),
+
+  // ── Biblioteca de diretrizes (Administração; só o administrador grava) ──
+  biblioteca: () => api.get(`${B}/biblioteca`),
+  regraBiblioteca: (regraId) => api.get(`${B}/biblioteca/${regraId}`),
+  criarRegraBiblioteca: (corpo) => api.post(`${B}/biblioteca`, corpo),
+  alterarRegraBiblioteca: (regraId, corpo) => api.put(`${B}/biblioteca/${regraId}`, corpo),
+  historicoBiblioteca: (regraId) => api.get(`${B}/biblioteca/${regraId}/historico`),
+  procedimentos: () => api.get(`${B}/biblioteca/procedimentos`),
+  modelos: () => api.get(`${B}/biblioteca/modelos`),
 };
 
 export const chaves = {
@@ -71,6 +97,15 @@ export const chaves = {
   versoes: (projetoId) => ["san", projetoId, "versoes"],
   continuar: (projetoId, versaoId) => ["san", projetoId, "continuar", versaoId],
   importacoes: (projetoId) => ["san", projetoId, "importacoes"],
+  diretrizes: (projetoId) => ["san", projetoId, "diretrizes"],
+  exemplosRegra: (projetoId, regraId) => ["san", projetoId, "diretrizes", "exemplos", regraId],
+  historicoRegra: (projetoId, regraId) => ["san", projetoId, "diretrizes", "historico", regraId],
+  cliente: (empresaId) => ["san", "cliente", empresaId],
+  biblioteca: () => ["san-biblioteca", "lista"],
+  regraBiblioteca: (regraId) => ["san-biblioteca", "regra", regraId],
+  historicoBiblioteca: (regraId) => ["san-biblioteca", "historico", regraId],
+  procedimentos: () => ["san-biblioteca", "procedimentos"],
+  modelos: () => ["san-biblioteca", "modelos"],
 };
 
 /**

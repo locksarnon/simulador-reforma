@@ -1,11 +1,35 @@
 /**
  * FAQ do Saneamento de Estoques e Cadastro de Produtos (serviço da Consultoria Tributária) e do botão Analisar com IA.
- * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-18.
+ * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-20 e, na Administração, POP-ADM-25 (Biblioteca de diretrizes).
  */
 export const SECAO_SANEAMENTO = {
   titulo: "Saneamento de estoques e cadastro de produtos (consultoria)",
   nota: "O serviço de consultoria que limpa o cadastro de itens do cliente e prepara o tratamento tributário de IBS e CBS, com revisão por camada. Abre pelo projeto, em Consultoria Tributária > Projetos.",
   itens: [
+    {
+      p: "O que são as Diretrizes do saneamento?",
+      r: "São as regras do cliente, por aspecto e por grupo, que comandam as análises e, aprovadas, formam a política de cadastro e estoques. Ficam na aba Diretrizes, entre a Importação e as análises, e podem ser abertas a qualquer momento (antes da importação, só para Todos os grupos). São 5 aspectos, cada regra com um código: Padrão de nomes (N01…), Atributos técnicos (A01…), Unidades e embalagens (U01…), Limites de caracteres (L01…) e Classificação fiscal (F01…). Cada grupo tem no máximo uma regra por aspecto: Todos os grupos é o padrão, e a regra de um grupo é a exceção. O quadro Grupos sem regra mostra o que falta (POP-CON-19).",
+    },
+    {
+      p: "Aplicar uma regra muda o cadastro na hora?",
+      r: "Não. Aplicar e reanalisar sempre mostra antes a prévia: os grupos, quantos itens serão analisados de novo, quais análises serão refeitas e se algum grupo está em outra regra do mesmo aspecto (nesse caso, é preciso marcar a transferência). Só depois de Confirmar e aplicar as análises rodam, e só para os itens afetados. O resultado são casos para revisar, como sempre: nada é gravado no cadastro sem a sua aprovação. Alterar uma regra já aprovada a devolve a Rascunho e marca “revisar” no que depende dela.",
+    },
+    {
+      p: "Para que serve a Biblioteca de diretrizes?",
+      r: "É o cadastro único das regras-modelo FAL, em Administração > Configuração e ERPs > aba Biblioteca de diretrizes (só o administrador altera). No projeto, Partir de uma regra da biblioteca carrega o conteúdo e você ajusta só o que é diferente para o cliente; Aplicar modelo da biblioteca cria de uma vez as regras de um modelo, em rascunho, sem duplicar. Quando a regra-modelo ganha versão nova, a regra do projeto mostra “Regra atualizada na biblioteca” e o botão Adotar: nada muda sozinho (POP-ADM-25).",
+    },
+    {
+      p: "Qual limite de caracteres vale quando o leiaute oficial, o ERP e o cliente dizem números diferentes?",
+      r: "Vale o menor limite confirmado. O leiaute oficial (Guia Prático do SPED, MOC da NF-e), com referência e versão, é o teto; depois vem o ERP e, por fim, o limite próprio do cliente. Limite sem número fica não confirmado (pendente), nunca um número genérico. Se o ERP aceitar mais caracteres que o leiaute oficial, a regra avisa. O texto nunca é cortado: o excesso gera proposta com abreviação aprovada ou pedido de revisão, conforme a linha.",
+    },
+    {
+      p: "Como uso uma decisão de um caso como regra para os outros itens?",
+      r: "No detalhe do caso, clique em Transformar em regra. O aspecto, o nome e os grupos vêm preenchidos pelo caso; escolha se a regra fica neste projeto ou na biblioteca (só o administrador) e clique em Criar a regra. Ela nasce em Rascunho; abra-a nas Diretrizes, complete e use Aplicar e reanalisar, com a prévia. A decisão isolada nunca muda uma regra sozinha (POP-CON-20).",
+    },
+    {
+      p: "Onde baixo a política de cadastro e estoques?",
+      r: "No botão Política (PDF), na aba Diretrizes e na aba Versões. Sem versão, sai a política de agora, marcada Rascunho enquanto houver regra não aprovada; na linha de uma versão liberada, sai a política daquela versão, sempre igual. A política traz a identificação, as regras por aspecto com o código e os grupos, os procedimentos com fluxograma, o quadro de consulta por grupo e as pendências (regras não aprovadas e grupos sem regra) em seção própria.",
+    },
     {
       p: "O que muda no saneamento quando o ERP do cliente tem perfil no Cadastro de ERPs?",
       r: "O projeto abre com o ERP do cadastro do cliente (dá para trocar na Configuração, só para este trabalho). Com o perfil do ERP: a Importação mostra as consultas de extração com o botão Copiar e já reconhece as colunas do export (no SAP Business One, o NCM vem de ONCM.NcmCode pelo JOIN, nunca da chave interna OITM.NCMCode); o detalhe do caso e a aba Impacto nas obrigações mostram as restrições do ERP para o tipo de ajuste, com grau e fonte; a coluna Ação no ERP das Unificações e do Excel usa o procedimento do ERP (no SAP Business One, a unificação é saída de mercadoria OIGE do código que sai, entrada OIGN no que fica e inativação do que sai); e o relatório PDF traz a seção “Particularidades do ERP (nome)”. ERP com perfil a desenvolver ou Outro ERP (sem perfil) usa só as regras gerais, sem alertas específicos.",
