@@ -2,20 +2,20 @@ import { useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { chaves, san } from "./api";
-import { botaoSecundario, Carregar } from "./comuns";
+import { botaoSecundario, Carregar, TextoLongo } from "./comuns";
 import { fmtData, paginasDeImpacto, rotuloTipoAjuste, TIPOS_DE_AJUSTE } from "./logica";
 
 const COLUNAS = [
   { chave: "tipo_ajuste", rotulo: "Tipo de ajuste", valor: (l) => rotuloTipoAjuste(l.tipo_ajuste) },
   { chave: "obrigacao", rotulo: "Obrigação" },
   { chave: "competencia", rotulo: "Competência" },
-  { chave: "versao_leiaute", rotulo: "Leiaute" },
+  { chave: "versao_leiaute", rotulo: "Leiaute", render: (l) => <TextoLongo texto={l.versao_leiaute} largura="max-w-[10rem]" /> },
   { chave: "registro", rotulo: "Registro" },
-  { chave: "campo", rotulo: "Campo" },
+  { chave: "campo", rotulo: "Campo", render: (l) => <TextoLongo texto={l.campo} largura="max-w-[12rem]" /> },
   { chave: "valor_original", rotulo: "Original" },
   { chave: "valor_proposto", rotulo: "Proposto" },
-  { chave: "motivo", rotulo: "Motivo", quebrar: true },
-  { chave: "evidencia", rotulo: "Evidência", quebrar: true },
+  { chave: "motivo", rotulo: "Motivo", render: (l) => <TextoLongo texto={l.motivo} largura="max-w-[24rem]" /> },
+  { chave: "evidencia", rotulo: "Evidência", render: (l) => <TextoLongo texto={l.evidencia} largura="max-w-[18rem]" /> },
   { chave: "inicio", rotulo: "Início da vigência", valor: (l) => fmtData(l.inicio) },
   { chave: "avaliar_anteriores", rotulo: "Avaliar períodos anteriores", valor: (l) => (l.avaliar_anteriores ? "Sim" : "Não") },
   { chave: "responsavel", rotulo: "Responsável" },
@@ -23,7 +23,7 @@ const COLUNAS = [
 
 const COLUNAS_VINCULO = [
   { chave: "de", rotulo: "Código antigo" }, { chave: "para", rotulo: "Código novo" },
-  { chave: "inicio", rotulo: "A partir de", valor: (v) => fmtData(v.inicio) }, { chave: "justificativa", rotulo: "Justificativa", quebrar: true },
+  { chave: "inicio", rotulo: "A partir de", valor: (v) => fmtData(v.inicio) }, { chave: "justificativa", rotulo: "Justificativa", render: (v) => <TextoLongo texto={v.justificativa} largura="max-w-[28rem]" /> },
 ];
 
 /** Impacto nas obrigações: o checklist por tipo de ajuste e os vínculos de código antigo → novo. Somente leitura. */

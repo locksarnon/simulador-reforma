@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState } from "react";
 import { semFuncao } from "@/lib/permissoes";
 import { AlertTriangle, Check, CheckCircle2, Circle, Clock, Diamond, Info, Loader2, Lock, RefreshCw, Square } from "lucide-react";
 import { formaDaSituacao, mensagemDeErro, SITUACOES, textoDaCelula } from "./logica";
@@ -112,6 +112,20 @@ export function BotaoInfo({ id, rotulo, aberto, aoAlternar }) {
       className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <Info className="h-3.5 w-3.5" aria-hidden="true" />
     </button>
+  );
+}
+
+/**
+ * Texto longo numa célula de tabela densa: uma linha só, cortada com reticências, com o texto inteiro no título (passar o mouse) e ao clicar
+ * (alterna entre cortado e inteiro). Mantém as linhas da tabela baixas.
+ */
+export function TextoLongo({ texto, largura = "max-w-[18rem]" }) {
+  const [aberto, setAberto] = useState(false);
+  const t = String(texto ?? "");
+  if (!t) return null;
+  return (
+    <button type="button" title={t} aria-expanded={aberto} onClick={(e) => { e.stopPropagation(); setAberto((x) => !x); }}
+      className={`block text-left ${largura} ${aberto ? "whitespace-normal break-words" : "truncate"}`}>{t}</button>
   );
 }
 

@@ -230,6 +230,12 @@ describe("Impacto nas obrigações", () => {
     expect(t).toContain("EFD ICMS/IPI");
     expect(t).toContain("0200");
     expect(t).toContain("Avaliar períodos anteriores");
+    // Tabela densa: motivo e evidência numa linha só, com o texto inteiro no título.
+    const longo = { ...linha, id: "2", motivo: "Inativou código: Código inativado: deixa de ser apresentado no 0200 do período em que não for referenciado nos demais blocos (sem documento nem inventário); o código não pode ser reutilizado para outro item" };
+    const html = montar(<Impacto projeto={projeto()} />, (qc) => qc.setQueryData(chaves.impactos("p1"), paginas([longo])));
+    expect(html).toContain(`title="${longo.motivo}"`);
+    expect(html).toMatch(/class="[^"]*truncate[^"]*"[^>]*>Inativou código/);
+    expect(html).not.toContain("min-w-[16rem]");
     // paginado: mostra quantas linhas estão carregadas do total do servidor e oferece carregar mais
     expect(t).toContain("Todos (38.976)");
     expect(t).toContain("Mostrando 1 de 38.976 linha(s)");
@@ -414,6 +420,15 @@ describe("Unificações", () => {
     for (const x of ["Código que morre", "Código que fica", "Saldo consolidado", "Ação no ERP", "000456", "00123", "1.234,5", "Inativar 0789", "Proposta", "Aprovada", "converter antes de somar", "Baixar lista (Excel)", "Todas (2)", "Proposta (1)", "Unificação de códigos (1)", "1 linha(s) com alerta de coerência"]) expect(t, x).toContain(x);
     expect(t).not.toContain("c1");
     expect(t).not.toContain("corte de movimentação não está definido");
+  });
+  it("tabela densa: textos longos numa linha só, cortados com reticências e com o texto inteiro no título (sem células que quebram)", () => {
+    const longa = "Conflito: o código que fica (00123) tem inativação aprovada (Qualidade, sem movimentação): a inativação também está neste mapa; reabrir ou rejeitar o caso de inativação antes de transferir o saldo.";
+    const html = montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([{ ...unif, alertas: [longa] }, inat])));
+    expect(html).toContain(`title="${longa}"`);
+    expect(html).toContain(`title="${unif.acao}"`);
+    expect(html).toMatch(/class="[^"]*truncate[^"]*"[^>]*>Converter o saldo/);
+    expect(html).not.toContain("min-w-[16rem]"); // a classe das colunas que quebram linha (linhas de mais de 100 px)
+    expect(html).not.toMatch(/whitespace-normal/);
   });
   it("tipo da inativação diz a origem; base com saldo em escala é avisada", () => {
     const dup = { ...inat, casoId: "c3", morre: { ...inat.morre, codigo: "0790" }, origem: "DUPLICIDADE", rotuloTipo: "Inativação (duplicidade)" };

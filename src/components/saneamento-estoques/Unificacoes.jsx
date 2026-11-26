@@ -3,27 +3,27 @@ import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { chaves, san } from "./api";
-import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo } from "./comuns";
+import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo, TextoLongo } from "./comuns";
 import { fmtData, fmtSaldo, mensagemDeErro, SITUACOES_MAPA, TIPOS_MAPA } from "./logica";
 
 const COLUNAS = [
   { chave: "tipo", rotulo: "Tipo", valor: (l) => l.rotuloTipo || TIPOS_MAPA[l.tipo] || l.tipo },
   { chave: "morre", rotulo: "Código que morre", valor: (l) => l.morre?.codigo || "" },
   { chave: "estab", rotulo: "Estabelecimento", valor: (l) => l.morre?.estab || "" },
-  { chave: "morreDescricao", rotulo: "Descrição (morre)", valor: (l) => l.morre?.descricao || "", quebrar: true },
+  { chave: "morreDescricao", rotulo: "Descrição (morre)", valor: (l) => l.morre?.descricao || "", render: (l) => <TextoLongo texto={l.morre?.descricao} largura="max-w-[16rem]" /> },
   { chave: "morreUnidade", rotulo: "Unidade (morre)", valor: (l) => l.morre?.unidade || "" },
   { chave: "morreSaldo", rotulo: "Saldo (morre)", valor: (l) => fmtSaldo(l.morre?.saldo) },
   { chave: "fica", rotulo: "Código que fica", valor: (l) => l.fica?.codigo || "" },
-  { chave: "ficaDescricao", rotulo: "Descrição (fica)", valor: (l) => l.fica?.descricao || "", quebrar: true },
+  { chave: "ficaDescricao", rotulo: "Descrição (fica)", valor: (l) => l.fica?.descricao || "", render: (l) => <TextoLongo texto={l.fica?.descricao} largura="max-w-[16rem]" /> },
   { chave: "ficaUnidade", rotulo: "Unidade (fica)", valor: (l) => l.fica?.unidade || "" },
   { chave: "ficaSaldo", rotulo: "Saldo atual (fica)", valor: (l) => fmtSaldo(l.fica?.saldo) },
   { chave: "saldoEntra", rotulo: "Saldo que entra", valor: (l) => fmtSaldo(l.saldoEntra) },
   { chave: "saldoConsolidado", rotulo: "Saldo consolidado", valor: (l) => fmtSaldo(l.saldoConsolidado) },
   { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACOES_MAPA[l.situacao] || l.situacao },
-  { chave: "acao", rotulo: "Ação no ERP", quebrar: true },
+  { chave: "acao", rotulo: "Ação no ERP", render: (l) => <TextoLongo texto={l.acao} largura="max-w-[20rem]" /> },
   { chave: "inicio", rotulo: "Início da vigência", valor: (l) => fmtData(l.inicio) },
-  { chave: "alertas", rotulo: "Alerta de coerência", valor: (l) => (l.alertas || []).join(" "), quebrar: true },
-  { chave: "justificativa", rotulo: "Justificativa", quebrar: true },
+  { chave: "alertas", rotulo: "Alerta de coerência", valor: (l) => (l.alertas || []).join(" "), render: (l) => <TextoLongo texto={(l.alertas || []).join(" ")} largura="max-w-[20rem]" /> },
+  { chave: "justificativa", rotulo: "Justificativa", render: (l) => <TextoLongo texto={l.justificativa} /> },
 ];
 
 /**
