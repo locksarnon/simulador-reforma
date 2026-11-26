@@ -293,22 +293,37 @@ describe('importação, permissões e exclusão', () => {
 describe('30 mil itens', () => {
   it('aplicar uma regra de um grupo reanalisa só os 10 mil itens dele, sem tocar o resto', async () => {
     const c = montar();
-    const itens = Array.from({ length: 30_000 }, (_, i) => item(String(100000 + i), { descricao: `PECA ${i % 2 ? 'DIVERSA' : 'NOVA'} ${i}`, grupo: `G${i % 3}` }, i + 1));
-    const { pid } = await pronto(c, itens);
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, 1, USER);
+    // Base semeada direto no banco em memória (a importação do Prisma em memória confere unicidade linha a linha: O(n²) com 30 mil).
+    for (let i = 0; i < 30_000; i++) {
+      const grupo = `G${i % 3}`; const id = `it${i}`;
+      const trabalho = { codigo: String(100000 + i), descricao: `ROLAMENTO ${i % 2 ? 'BLINDADO' : 'ABERTO'} ${i}`, unidade: 'UN', ncm: '31010000', grupo, ativo: true, saldo: null, ultimaMovimentacao: null, fabricante: null, referencia: null, finalidade: null, campos: {} };
+      c.db.sanItem.push({ id, projeto_id: p.id, codigo: trabalho.codigo, estabelecimento: '', linha: i + 1, original: trabalho, lido: trabalho, trabalho, descricao: trabalho.descricao, grupo, finalidade: null, tambem_usado_como: [], conjunto_chave: null, ativo: true, versao: 1 });
+      c.db.sanCelula.push({ id: `cel${i}`, projeto_id: p.id, item_id: id, camada: 'NOMES_UNIDADES', situacao: 'PENDENTE', revisar: false, revisar_causa: null, caso_id: null, grupo });
+    }
+    const pid = p.id;
     await c.orq.executarCamada(pid, 'NOMES_UNIDADES');
-    const antes = new Map(c.db.sanCelula.filter((x) => x.camada === 'NOMES_UNIDADES').map((x) => [x.item_id, `${x.situacao}|${x.caso_id}`]));
-    const grupoDe = new Map(c.db.sanItem.map((i) => [i.id, i.grupo]));
-    const r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'G1', abrangencia: { todos: false, grupos: ['G1'] }, alteracoes: { termosProibidos: [{ termo: 'diversa', substituicao: null }], capitalizacao: 'MAIUSCULAS' } }, USER);
+    const antes = new Map(c.db.sanCelula.map((x) => [x.item_id, `${x.situacao}|${x.caso_id}|${x.revisar}`]));
+    expect([...antes.values()].every((v) => v.startsWith('SEM_PROBLEMA'))).toBe(true);
+    for (const x of c.db.sanCelula) if (x.grupo === 'G2') x.revisar = true; // marca que a reanálise de G1 não pode tirar
+    const r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'G1', abrangencia: { todos: false, grupos: ['G1'] }, alteracoes: { termosProibidos: [{ termo: 'blindado', substituicao: null }], capitalizacao: 'MAIUSCULAS' } }, USER);
     const t0 = Date.now();
     const ap = await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER);
     const ms = Date.now() - t0;
     expect(ap.previa.itens).toBe(10_000);
-    let mudouFora = 0;
-    for (const x of c.db.sanCelula) if (x.camada === 'NOMES_UNIDADES' && grupoDe.get(x.item_id) !== 'G1' && antes.get(x.item_id) !== `${x.situacao}|${x.caso_id}`) mudouFora++;
+    expect(ap.reanalise.camadas).toEqual([expect.objectContaining({ executada: true })]);
+    let mudouFora = 0; let g2Revisar = 0;
+    for (const x of c.db.sanCelula) {
+      if (x.grupo !== 'G1' && `${x.situacao}|${x.caso_id}` !== antes.get(x.item_id)!.split('|').slice(0, 2).join('|')) mudouFora++;
+      if (x.grupo === 'G2' && x.revisar) g2Revisar++;
+    }
     expect(mudouFora).toBe(0);
+    expect(g2Revisar).toBe(10_000);
     const termo = c.db.sanCaso.filter((x) => x.tipo === 'TERMO_PROIBIDO');
     expect(termo).toHaveLength(1);
     expect(termo[0].itens).toHaveLength(5_000);
+    expect(c.db.sanCelula.filter((x) => x.grupo === 'G1' && x.situacao === 'PROPOSTO')).toHaveLength(5_000);
     expect(ms).toBeLessThan(60_000);
-  }, 180_000);
+  }, 300_000);
 });
