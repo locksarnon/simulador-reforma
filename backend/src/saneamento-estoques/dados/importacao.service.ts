@@ -7,6 +7,52 @@ import { SanProjetoService } from './projeto.service';
 export type ArquivoImportacao = { buffer: Buffer; nome: string };
 type Diferenca = { itemId: string; codigo: string; estabelecimento: string; campos: { campo: string; antes: unknown; depois: unknown; protegido: boolean }[] };
 
+/**
+ * O que incorporar na reimportação: a lista de ids escolhidos um a um, ou um filtro sobre TODAS as diferenças do arquivo
+ * (sem listar ids): ALTERADOS = todos os itens alterados (campo protegido por decisão nunca é sobrescrito);
+ * ALTERADOS_SEM_PROTEGIDO = só os itens sem nenhum campo protegido. `exceto` tira itens do filtro.
+ */
+export type EscolhaIncorporar = string[] | { filtro: 'ALTERADOS' | 'ALTERADOS_SEM_PROTEGIDO'; exceto?: string[] };
+export type OpcoesPrevia = { pagina?: unknown; limite?: unknown; filtro?: unknown };
+const FILTROS_DIFERENCA = ['TODAS', 'COM_PROTEGIDO', 'SEM_PROTEGIDO'] as const;
+const LIMITE_DIFERENCAS = 200;
+const MAX_LIMITE_DIFERENCAS = 1000;
+
+const inteiro = (v: unknown, nome: string): number | undefined => {
+  if (v === undefined || v === null || v === '') return undefined;
+  const n = Number(v);
+  if (!Number.isInteger(n)) throw new BadRequestException(`"${nome}" deve ser um número inteiro.`);
+  return n;
+};
+
+/** Valida a escolha do que incorporar (lista de ids ou filtro). */
+function validarEscolha(v: unknown): EscolhaIncorporar {
+  if (v === undefined || v === null) return [];
+  if (Array.isArray(v)) {
+    if (v.some((x) => typeof x !== 'string')) throw new BadRequestException('"incorporar" deve ser uma lista de ids ou um filtro.');
+    return v as string[];
+  }
+  if (typeof v === 'object') {
+    const o = v as { filtro?: unknown; exceto?: unknown };
+    if (o.filtro !== 'ALTERADOS' && o.filtro !== 'ALTERADOS_SEM_PROTEGIDO') throw new BadRequestException('Filtro de incorporação inválido (ALTERADOS ou ALTERADOS_SEM_PROTEGIDO).');
+    if (o.exceto !== undefined && (!Array.isArray(o.exceto) || o.exceto.some((x) => typeof x !== 'string'))) throw new BadRequestException('"exceto" deve ser uma lista de ids.');
+    return { filtro: o.filtro, exceto: (o.exceto as string[] | undefined) ?? [] };
+  }
+  throw new BadRequestException('"incorporar" deve ser uma lista de ids ou um filtro.');
+}
+
+/** Quais itens alterados entram: os ids escolhidos ou os do filtro (menos os de `exceto`). */
+function quaisIncorporar(e: EscolhaIncorporar, difs: Map<string, Diferenca>): (itemId: string) => boolean {
+  if (Array.isArray(e)) { const s = new Set(e); return (id) => s.has(id); }
+  const fora = new Set(e.exceto ?? []);
+  return (id) => {
+    if (fora.has(id)) return false;
+    const d = difs.get(id);
+    if (!d) return false;
+    return e.filtro === 'ALTERADOS' || !d.campos.some((x) => x.protegido);
+  };
+}
+
 /** Estado do item como a base o guarda (sem a linha de origem). */
 const comoGuardado = (i: ItemImportado): Json => { const { linha: _l, ...resto } = i; return resto as Json; };
 const achatar = (t: Json): Json => { const { campos, ...topo } = t; return { ...topo, ...((campos as Json) ?? {}) }; };
@@ -72,15 +118,31 @@ export class SanImportacaoService {
     return { novos, alterados, diferencas, inalterados, ausentes };
   }
 
-  /** Nada é gravado. Mostra o que seria aceito, o que é novo, o que mudou (e o que está protegido por decisão) e o que sumiu. */
-  async previa(projetoId: string, arquivo: ArquivoImportacao, mapeamento?: Record<string, string>) {
+  /**
+   * Nada é gravado. Mostra o que seria aceito, o que é novo, o que mudou (e o que está protegido por decisão) e o que sumiu.
+   * Os totais são sempre do arquivo inteiro; as diferenças vêm paginadas (`pagina`, `limite`) e podem ser filtradas por proteção.
+   */
+  async previa(projetoId: string, arquivo: ArquivoImportacao, mapeamento?: Record<string, string>, opcoes: OpcoesPrevia = {}) {
+    const limite = Math.min(Math.max(inteiro(opcoes.limite, 'limite') ?? LIMITE_DIFERENCAS, 1), MAX_LIMITE_DIFERENCAS);
+    const pagina = Math.max(inteiro(opcoes.pagina, 'pagina') ?? 1, 1);
+    const filtro = opcoes.filtro == null || opcoes.filtro === '' ? 'TODAS' : String(opcoes.filtro);
+    if (!(FILTROS_DIFERENCA as readonly string[]).includes(filtro)) throw new BadRequestException('Filtro de diferenças inválido (TODAS, COM_PROTEGIDO ou SEM_PROTEGIDO).');
     const { itens, relatorio, mapeamento: usado, previaDoArquivo } = await this.ler(projetoId, arquivo, mapeamento);
     const c = await this.comparar(projetoId, itens);
+    const comProtegido = (d: Diferenca) => d.campos.some((x) => x.protegido);
+    const filtradas = filtro === 'TODAS' ? c.diferencas : c.diferencas.filter((d) => comProtegido(d) === (filtro === 'COM_PROTEGIDO'));
+    const totais = {
+      novos: c.novos.length, alterados: c.diferencas.length, inalterados: c.inalterados, ausentes: c.ausentes.length,
+      alteradosComProtegido: c.diferencas.filter(comProtegido).length,
+      alteradosIncorporaveis: c.diferencas.filter((d) => d.campos.some((x) => !x.protegido)).length,
+      camposProtegidos: c.diferencas.reduce((s, d) => s + d.campos.filter((x) => x.protegido).length, 0),
+    };
     return {
       mapeamento: usado, relatorio,
       colunas: previaDoArquivo?.colunas ?? [], sugestao: { colunas: previaDoArquivo?.sugestaoColunas ?? [] }, amostra: previaDoArquivo?.amostra ?? [],
-      novos: c.novos.length, inalterados: c.inalterados, alterados: c.diferencas.length, ausentesDoArquivo: c.ausentes.length,
-      diferencas: c.diferencas.slice(0, 200), diferencasTruncadas: c.diferencas.length > 200,
+      novos: totais.novos, inalterados: totais.inalterados, alterados: totais.alterados, ausentesDoArquivo: totais.ausentes, totais,
+      diferencas: filtradas.slice((pagina - 1) * limite, pagina * limite),
+      paginaDiferencas: { pagina, limite, filtro, total: filtradas.length, paginas: Math.max(1, Math.ceil(filtradas.length / limite)) },
       amostraNovos: c.novos.slice(0, 20).map((i) => ({ codigo: i.codigo, estabelecimento: i.estabelecimento, descricao: i.descricao })),
     };
   }
@@ -89,13 +151,15 @@ export class SanImportacaoService {
    * Grava. Itens novos entram; os já existentes mantêm a base de trabalho (decisões e rascunhos preservados). `incorporar` lista os ids de
    * itens cujas diferenças do arquivo o consultor quer trazer para a base de trabalho (campos com decisão ficam como estão).
    */
-  async confirmar(projetoId: string, arquivo: ArquivoImportacao, mapeamento: Record<string, string> | undefined, incorporar: string[], usuario?: Usuario) {
+  async confirmar(projetoId: string, arquivo: ArquivoImportacao, mapeamento: Record<string, string> | undefined, incorporar: EscolhaIncorporar | null | undefined, usuario?: Usuario) {
+    const escolha = validarEscolha(incorporar);
     const { p, itens, relatorio, mapeamento: usado } = await this.ler(projetoId, arquivo, mapeamento);
     const camadas = camadasAtivas(p.modulos as Json);
     const quemFez = quem(usuario);
-    const escolhidos = new Set(incorporar ?? []);
     // A comparação (leitura pesada) fica fora da transação; dentro dela só se reconfere versão e proteção dos itens que vão ser alterados.
     const c = await this.comparar(projetoId, itens);
+    const difPorItem = new Map(c.diferencas.map((d) => [d.itemId, d]));
+    const escolhido = quaisIncorporar(escolha, difPorItem);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const imp = await tx.sanImportacao.create({
@@ -117,39 +181,48 @@ export class SanImportacaoService {
         // Existentes: a última leitura é atualizada; a base de trabalho só muda no que o consultor escolheu e não tem decisão.
         let incorporados = 0;
         const ignorados: { itemId: string; campo: string; motivo: string }[] = [];
-        for (const a of c.alterados) {
-          const dif = c.diferencas.find((d) => d.itemId === a.existente.id)!;
-          const t = comoGuardado(a.item);
-          const escolhido = escolhidos.has(a.existente.id);
-          let aplicar = dif.campos.filter(() => escolhido);
-          if (aplicar.length) {
-            const agora = await tx.sanDecisao.findMany({ where: { item_id: a.existente.id, tipo: { in: ['aprovar', 'importar'] } }, select: { campo: true } });
-            const protegidosAgora = new Set(agora.map((d) => d.campo));
-            aplicar = aplicar.map((x) => ({ ...x, protegido: protegidosAgora.has(x.campo) }));
-          }
-          for (const x of aplicar.filter((y) => y.protegido)) ignorados.push({ itemId: a.existente.id, campo: x.campo, motivo: 'Campo já decidido: a decisão foi mantida.' });
-          aplicar = aplicar.filter((y) => !y.protegido);
-          if (aplicar.length) {
-            const atual = await tx.sanItem.findUnique({ where: { id: a.existente.id } });
-            const trabalho = JSON.parse(JSON.stringify(atual!.trabalho)) as Json;
-            const decs: Json[] = [];
+        // Em blocos: proteção (decisões) e itens lidos de uma vez; decisões e células gravadas por bloco.
+        // Item não escolhido fica de fora: a última leitura NÃO avança, para a diferença continuar aparecendo na próxima reimportação.
+        for (const lote of fatiar(c.alterados.filter((a) => escolhido(a.existente.id)), 500)) {
+          const ids = lote.map((a) => a.existente.id);
+          const decididos = await tx.sanDecisao.findMany({ where: { item_id: { in: ids }, tipo: { in: ['aprovar', 'importar'] } }, select: { item_id: true, campo: true } });
+          const protegidosAgora = new Set(decididos.map((d) => `${d.item_id}\u0000${d.campo}`));
+          const atuais = new Map((await tx.sanItem.findMany({ where: { id: { in: ids } }, select: { id: true, trabalho: true, versao: true } })).map((i) => [i.id, i]));
+          const decs: Json[] = [];
+          const revisarPor = new Map<string, string[]>();
+          const porGrupo = new Map<string, string[]>();
+          for (const a of lote) {
+            const id = a.existente.id;
+            const t = comoGuardado(a.item);
+            const protegido = (campo: string) => protegidosAgora.has(`${id}\u0000${campo}`);
+            const todas = difPorItem.get(id)!.campos;
+            for (const x of todas.filter((y) => protegido(y.campo))) ignorados.push({ itemId: id, campo: x.campo, motivo: 'Campo já decidido: a decisão foi mantida.' });
+            const aplicar = todas.filter((y) => !protegido(y.campo));
+            if (!aplicar.length) {
+              // Todas as diferenças escolhidas estavam protegidas por decisão: a leitura avança (a decisão manda).
+              await tx.sanItem.updateMany({ where: { id }, data: { lido: t as never } });
+              continue;
+            }
+            const atual = atuais.get(id)!;
+            const trabalho = JSON.parse(JSON.stringify(atual.trabalho)) as Json;
             for (const x of aplicar) {
               const antes = aplicarCampo(trabalho, x.campo, x.depois, false);
-              decs.push({ projeto_id: projetoId, item_id: a.existente.id, caso_id: null, campo: x.campo, antes: antes as never, depois: (x.depois ?? null) as never, fundamento: `Reimportação de ${arquivo.nome}`, usuario: quemFez, tipo: 'importar' });
+              decs.push({ projeto_id: projetoId, item_id: id, caso_id: null, campo: x.campo, antes: antes as never, depois: (x.depois ?? null) as never, fundamento: `Reimportação de ${arquivo.nome}`, usuario: quemFez, tipo: 'importar' });
             }
             const d = derivadosDoTrabalho(trabalho);
-            const r = await tx.sanItem.updateMany({ where: { id: a.existente.id, versao: atual!.versao }, data: { trabalho: trabalho as never, lido: t as never, ...d, versao: { increment: 1 } } });
+            const r = await tx.sanItem.updateMany({ where: { id, versao: atual.versao }, data: { trabalho: trabalho as never, lido: t as never, ...d, versao: { increment: 1 } } });
             if (r.count === 0) throw conflito('O item foi alterado por outra pessoa durante a importação. Tente de novo.');
-            await tx.sanDecisao.createMany({ data: decs as never });
-            const afetadas = [...new Set(aplicar.flatMap((x) => CAMPO_AFETA[x.campo] ?? ['QUALIDADE']))];
-            await tx.sanCelula.updateMany({ where: { item_id: a.existente.id, camada: { in: afetadas }, situacao: { not: 'PENDENTE' } }, data: { revisar: true, revisar_causa: 'Reimportação alterou campos que esta camada usa.' } });
-            await tx.sanCelula.updateMany({ where: { item_id: a.existente.id }, data: { grupo: d.grupo ?? '' } });
+            const afetadas = [...new Set(aplicar.flatMap((x) => CAMPO_AFETA[x.campo] ?? ['QUALIDADE']))].sort().join(',');
+            revisarPor.set(afetadas, [...(revisarPor.get(afetadas) ?? []), id]);
+            const g = d.grupo ?? '';
+            porGrupo.set(g, [...(porGrupo.get(g) ?? []), id]);
             incorporados++;
-          } else if (escolhido) {
-            // Todas as diferenças escolhidas estavam protegidas por decisão: a leitura avança (a decisão manda).
-            await tx.sanItem.updateMany({ where: { id: a.existente.id }, data: { lido: t as never } });
           }
-          // Item não escolhido: a última leitura NÃO avança, para a diferença continuar aparecendo na próxima reimportação.
+          if (decs.length) await tx.sanDecisao.createMany({ data: decs as never });
+          for (const [afetadas, itensIds] of revisarPor) {
+            await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds }, camada: { in: afetadas.split(',') }, situacao: { not: 'PENDENTE' } }, data: { revisar: true, revisar_causa: 'Reimportação alterou campos que esta camada usa.' } });
+          }
+          for (const [grupo, itensIds] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds } }, data: { grupo } });
         }
         const fim = { ...relatorio, novos: criados, inalterados: c.inalterados, alterados: c.diferencas.length, incorporados, ausentesDoArquivo: c.ausentes.length, ignorados };
         await tx.sanImportacao.update({ where: { id: imp.id }, data: { relatorio: fim as never } });

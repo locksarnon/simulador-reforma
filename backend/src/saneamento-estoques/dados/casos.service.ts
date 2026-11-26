@@ -24,13 +24,26 @@ export type EntradaAprovar = {
   /** Confirma o fator de conversão sugerido pela descrição (situação CONFIRMAR). */
   confirmarFator?: boolean;
 };
-export type EntradaLote = { ids?: string[]; filtro?: { camada?: string; tipo?: string; origem?: string }; versoes?: Record<string, number>; fundamento?: string; orcamentoMs?: number };
+export type EntradaLote = { ids?: string[]; filtro?: { camada?: string; tipo?: string; origem?: string }; versoes?: Record<string, number>; fundamento?: string; orcamentoMs?: unknown };
 type Excecao = { casoId: string; motivo: string };
 
+/** Aprovar "solicitar informação" não decide nada: o caso vai para "Aguardando informação" pelo botão próprio, ou a decisão muda antes. */
+const MSG_PEDE_INFORMACAO = 'A decisão proposta é solicitar informação ao cliente: aprovar não decide nada. Use "Pedir informação" (o caso fica Aguardando informação) ou escolha outra decisão na proposta antes de aprovar.';
 const texto = (v: unknown, max: number) => { const t = String(v ?? '').trim(); return t ? t.slice(0, max) : null; };
 const MAX_LOTE = 2000;
 const ORCAMENTO_LOTE_MS = 60_000;
+/** Orçamento de tempo do lote: o informado (ms) até o teto do servidor; o que não é número positivo é recusado. */
+export function orcamentoDoLote(v: unknown): number {
+  if (v === undefined || v === null || v === '') return ORCAMENTO_LOTE_MS;
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : NaN;
+  if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('"orcamentoMs" deve ser um número de milissegundos maior que zero.');
+  return Math.min(Math.floor(n), ORCAMENTO_LOTE_MS);
+}
 const bad = (codigo: string, message: string, extra: Json = {}) => new BadRequestException({ statusCode: 400, codigo, message, ...extra });
+/** Tipos de exceção por item: valem mais que o caso do conjunto (o conjunto não toca o item que tem exceção própria). */
+const TIPOS_EXCECAO = ['EXCECAO_MANUAL', 'EXCECAO_ITEM'];
+const EXCECAO_VIVA = ['PROPOSTO', 'RASCUNHO', 'APROVADO', 'AGUARDANDO_INFORMACAO'];
+const ehExcecao = (tipo: string) => TIPOS_EXCECAO.includes(tipo);
 const ehCasoDeUnidade = (p: Json) => p.fatorSituacao !== undefined || p.unidadeCompra !== undefined;
 const fatorValido = (p: Json) => p.fatorConversao != null && Number.isFinite(Number(p.fatorConversao)) && Number(p.fatorConversao) > 0;
 
@@ -52,9 +65,10 @@ export class SanCasosService {
    * Grava o resultado de uma camada: casos novos (sem duplicar os já existentes), células e "aguardando informação" quando faltou dado.
    * `completo` = a camada foi reexecutada inteira: os casos abertos que ela não produziu mais viram OBSOLETO.
    */
-  async registrarResultado(projetoId: string, bruto: ResultadoCamada, opcoes: { completo?: boolean } = {}) {
+  async registrarResultado(projetoId: string, bruto: ResultadoCamada, opcoes: { completo?: boolean; interno?: boolean } = {}) {
     const p = await this.projetos.exigirConfirmadas(projetoId); // A TRAVA
-    const r = validarResultado(bruto);
+    // O teto de casos protege só o POST (corpo HTTP); o caminho interno (executar camada) grava tudo, em blocos, numa transação.
+    const r = validarResultado(bruto, { semTeto: opcoes.interno === true });
     const camada = validarCamada(r.camada);
     if (!camadasAtivas(p.modulos as Json).includes(camada)) throw new BadRequestException('Esta camada não está ligada neste projeto (módulo opcional desligado).');
     const casos = r.casos ?? [];
@@ -136,11 +150,17 @@ export class SanCasosService {
         }
 
         // Células dos itens que entraram em caso (a situação da célula acompanha a do caso). O enquadramento conferido não mexe nas células.
+        // Item com exceção própria (viva) fica com a célula da exceção: o caso do conjunto não a sobrepõe.
+        const comExcecao = await this.mapaExcecoes(tx, projetoId, camada);
         const pares: { item_id: string; caso_id: string; situacao: string }[] = [];
         casos.forEach((c, i) => {
           if (c.tipo === 'ENQUADRAMENTO_CONFERIDO') return;
           const e = ja.get(chaves[i])!;
-          for (const item_id of c.itens) pares.push({ item_id, caso_id: e.id, situacao: CELULA_DO_CASO[e.situacao as SituacaoCaso] });
+          const doConjunto = !ehExcecao(c.tipo) && c.itens.length > 1;
+          for (const item_id of c.itens) {
+            if (doConjunto && comExcecao.has(item_id)) continue;
+            pares.push({ item_id, caso_id: e.id, situacao: CELULA_DO_CASO[e.situacao as SituacaoCaso] });
+          }
         });
         await this.marcarCelulas(tx, projetoId, camada, pares);
 
@@ -312,6 +332,7 @@ export class SanCasosService {
   private exigirEfeito(c: CasoLinha, aplicavel: Json, proposta: Json) {
     if (c.situacao === 'OBSOLETO') throw bad('CASO_OBSOLETO', 'Este caso ficou obsoleto: a camada foi reexecutada e não o produz mais. Rode a análise de novo.');
     if (c.tipo.startsWith('AGUARDANDO')) throw bad('FALTA_INFORMACAO', 'Falta informação para decidir este caso: informe o que falta e reabra, ou rejeite.');
+    if (proposta.decisao === 'SOLICITAR_INFORMACAO') throw bad('DECISAO_PEDE_INFORMACAO', MSG_PEDE_INFORMACAO);
     if (c.camada === 'OBRIGACOES' || c.tipo === 'CODIGO_ANTIGO' || proposta.decisao !== undefined || Object.keys(aplicavel).length) return;
     throw bad('SEM_PROPOSTA', 'Este caso não tem proposta aplicável: falta informação. Informe o valor (edite a proposta) ou rejeite o caso.');
   }
@@ -341,11 +362,14 @@ export class SanCasosService {
   }
 
   /** Aprova e APLICA ao trabalho, gravando uma decisão por campo. Idempotente: caso já aprovado devolve o estado sem gravar de novo. */
-  async aprovar(id: string, e: EntradaAprovar, usuario?: Usuario) {
+  async aprovar(id: string, e: EntradaAprovar, usuario?: Usuario, interno: { dataBase?: string } = {}) {
     const editada = e.proposta !== undefined ? this.normalizarFator(validarProposta(e.proposta)) : undefined;
     return this.prisma.$transaction(async (tx) => {
-      const c = await this.carregar(tx, id);
-      if (c.situacao === 'APROVADO') return { caso: c, jaAplicado: true };
+      const todo = await this.carregar(tx, id);
+      if (todo.situacao === 'APROVADO') return { caso: todo, jaAplicado: true };
+      // Conjunto: o item com exceção própria fica fora (a exceção vale mais que o conjunto); os demais recebem a decisão, item a item.
+      const c = await this.semExcecoes(tx, todo);
+      if (!c.itens.length) throw bad('SO_EXCECOES', 'Todos os itens deste conjunto têm exceção própria: decida as exceções (o conjunto não tem o que aplicar).');
       const versao = exigirVersao(e.versao);
       if (c.versao !== versao) throw conflito();
       if (c.situacao === 'REJEITADO') throw new BadRequestException('O caso foi rejeitado. Reabra antes de aprovar.');
@@ -376,10 +400,11 @@ export class SanCasosService {
       });
       if (r.count === 0) throw conflito();
       const novo = (await tx.sanCaso.findUnique({ where: { id } }))!;
-      await this.celulasDoCaso(tx, novo, 'APROVADO', false);
-      await this.marcarDependencias(tx, novo);
-      await this.sincronizarImpactos(tx, c.projeto_id, [id], await this.projetos.dataBase(c.projeto_id));
-      return { caso: novo, jaAplicado: false };
+      const efetivo = { ...novo, itens: c.itens };
+      await this.celulasDoCaso(tx, efetivo, 'APROVADO', false);
+      await this.marcarDependencias(tx, efetivo);
+      await this.sincronizarImpactos(tx, c.projeto_id, [id], interno.dataBase ?? (await this.projetos.dataBase(c.projeto_id)));
+      return { caso: novo, jaAplicado: false, ...(todo.itens.length !== c.itens.length ? { itensComExcecao: todo.itens.length - c.itens.length } : {}) };
     }, TX_LONGA);
   }
 
@@ -392,7 +417,9 @@ export class SanCasosService {
       const versao = exigirVersao(e.versao);
       if (c.versao !== versao) throw conflito();
       if (c.situacao === 'APROVADO') throw new BadRequestException('O caso já foi aprovado. Reabra (desfaça) antes de rejeitar.');
-      const itens = await tx.sanItem.findMany({ where: { id: { in: c.itens } }, select: { id: true, trabalho: true } });
+      const efetivos = (await this.semExcecoes(tx, c)).itens;
+      const itens: { id: string; trabalho: unknown }[] = [];
+      for (const lote of fatiar(efetivos, 5000)) itens.push(...(await tx.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, trabalho: true } })));
       const campos = Object.keys(propostaAplicavel(c.camada, c.proposta as Json));
       const rows = itens.flatMap((i) => (campos.length ? campos : [`caso:${c.tipo}`]).map((campo) => {
         const v = campo.startsWith('caso:') ? null : valorDoCampo(i.trabalho as Json, campo);
@@ -471,7 +498,11 @@ export class SanCasosService {
     if (e.ids?.length) {
       if (!Array.isArray(e.ids) || e.ids.some((x) => typeof x !== 'string')) throw new BadRequestException('"ids" deve ser uma lista de textos.');
       if (e.ids.length > MAX_LOTE) throw new BadRequestException(`O lote aceita até ${MAX_LOTE} casos por vez.`);
-      return this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, id: { in: e.ids } } });
+      const ids = [...new Set(e.ids)];
+      const achados = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, id: { in: ids } } });
+      const existem = new Set(achados.map((c) => c.id));
+      // Id que não existe neste projeto não some em silêncio: a prévia o lista entre as exceções.
+      return { casos: achados, inexistentes: ids.filter((x) => !existem.has(x)) };
     }
     const f = e.filtro ?? {};
     if (!f.camada && !f.tipo && !f.origem) throw new BadRequestException('Escolha os casos do lote (lista de ids ou filtro por camada, tipo ou origem).');
@@ -481,16 +512,21 @@ export class SanCasosService {
     if (f.origem) where.origem = String(f.origem);
     const achados = await this.prisma.sanCaso.findMany({ where: where as never, orderBy: { id: 'asc' }, take: MAX_LOTE + 1 });
     if (achados.length > MAX_LOTE) throw new BadRequestException(`O filtro traz mais de ${MAX_LOTE} casos. Restrinja por camada, tipo ou origem.`);
-    return achados;
+    return { casos: achados, inexistentes: [] as string[] };
   }
 
   /** Prévia: mostra itens, campos afetados, vínculos a criar e as exceções (que ficam de fora). Não grava nada. */
   async lotePrevia(projetoId: string, e: EntradaLote) {
-    const casos = await this.casosDoLote(projetoId, e);
+    const { casos: brutos, inexistentes } = await this.casosDoLote(projetoId, e);
+    // Conjunto: o item com exceção própria fica fora (como na aprovação individual).
+    const excecoesPorCamada = new Map<string, Map<string, string>>();
+    for (const camada of new Set(brutos.filter((c) => c.itens.length > 1 && !ehExcecao(c.tipo)).map((c) => c.camada))) excecoesPorCamada.set(camada, await this.mapaExcecoes(this.prisma, projetoId, camada));
+    const casos: CasoLinha[] = [];
+    for (const c of brutos) casos.push(await this.semExcecoes(this.prisma, c, excecoesPorCamada.get(c.camada) ?? new Map()));
     const itensIds = [...new Set(casos.flatMap((c) => c.itens))];
     const itens = new Map<string, { id: string; trabalho: unknown; versao: number }>();
     for (const lote of fatiar(itensIds, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, trabalho: true, versao: true } })) itens.set(i.id, i);
-    const excecoes: Excecao[] = [];
+    const excecoes: Excecao[] = inexistentes.map((casoId) => ({ casoId, motivo: 'Caso inexistente neste projeto.' }));
     const quemMuda = new Map<string, { valor: unknown; casoId: string }>();
     const aprovaveis: { casoId: string; versao: number; camada: string; tipo: string; itens: number; campos: string[]; vinculos: { de: string; para: string }[] }[] = [];
     const afetadosItens = new Set<string>();
@@ -503,6 +539,8 @@ export class SanCasosService {
       if (!CASO_ABERTO.includes(c.situacao as SituacaoCaso)) motivo = `O caso está "${c.situacao}", não em aberto.`;
       else if (c.tipo === 'DUPLICIDADE_COM_SALDO') motivo = 'Duplicidade com saldo ou movimentação: exige transferência de saldo e decisão individual.';
       else if (c.tipo.startsWith('AGUARDANDO')) motivo = 'Falta informação para decidir este caso.';
+      else if (completa.decisao === 'SOLICITAR_INFORMACAO') motivo = MSG_PEDE_INFORMACAO;
+      else if (!c.itens.length) motivo = 'Todos os itens deste conjunto têm exceção própria.';
       else if (ehCasoDeUnidade(completa) && (!fatorValido(completa) || completa.fatorSituacao === 'INFORMAR')) motivo = 'Conversão de unidade sem fator: informe o fator editando o caso.';
       else if (ehCasoDeUnidade(completa) && completa.fatorSituacao === 'CONFIRMAR') motivo = 'O fator de conversão veio da descrição do item: confirme-o caso a caso.';
       else if ((c.parecer_ia as { confianca?: string } | null)?.confianca === 'baixa') motivo = 'O parecer da IA tem confiança baixa: decida este caso à parte.';
@@ -539,7 +577,7 @@ export class SanCasosService {
       if (proposta.codigo !== undefined) for (const i of c.itens) { const antes = valorDoCampo(itens.get(i)!.trabalho as Json, 'codigo'); if (antes && antes !== proposta.codigo) vinculos.push({ de: String(antes), para: String(proposta.codigo) }); }
       aprovaveis.push({ casoId: c.id, versao: c.versao, camada: c.camada, tipo: c.tipo, itens: c.itens.length, campos: [...campos], vinculos });
     }
-    return { casos: casos.length, aprovaveis, excecoes, itensAfetados: afetadosItens.size, camposAfetados, vinculosACriar: aprovaveis.reduce((s, a) => s + a.vinculos.length, 0) };
+    return { casos: casos.length, inexistentes: inexistentes.length, aprovaveis, excecoes, itensAfetados: afetadosItens.size, camposAfetados, vinculosACriar: aprovaveis.reduce((s, a) => s + a.vinculos.length, 0) };
   }
 
   /**
@@ -548,17 +586,18 @@ export class SanCasosService {
    */
   async loteAprovar(projetoId: string, e: EntradaLote, usuario?: Usuario) {
     if (!e.versoes || !Object.keys(e.versoes).length) throw new BadRequestException('Faça a prévia do lote antes de aprovar e envie as versões que ela mostrou ("versoes").');
+    const orcamento = orcamentoDoLote(e.orcamentoMs);
+    const inicio = Date.now(); // o orçamento conta a requisição inteira (a prévia refeita também)
     const previa = await this.lotePrevia(projetoId, e);
     const excecoes = [...previa.excecoes];
-    const orcamento = Number.isFinite(e.orcamentoMs) ? Number(e.orcamentoMs) : ORCAMENTO_LOTE_MS;
-    const inicio = Date.now();
+    const dataBase = await this.projetos.dataBase(projetoId);
     const restantes: string[] = [];
     let aprovados = 0;
     for (const a of previa.aprovaveis) {
       if (Date.now() - inicio > orcamento) { restantes.push(a.casoId); continue; }
       if (e.versoes[a.casoId] !== a.versao) { excecoes.push({ casoId: a.casoId, motivo: 'O caso mudou depois da prévia. Refaça a prévia.' }); continue; }
       try {
-        await this.aprovar(a.casoId, { versao: a.versao, fundamento: e.fundamento }, usuario);
+        await this.aprovar(a.casoId, { versao: a.versao, fundamento: e.fundamento }, usuario, { dataBase });
         aprovados++;
       } catch (err) {
         const msg = (err as { response?: { message?: string } }).response?.message ?? (err as Error).message;
@@ -576,11 +615,32 @@ export class SanCasosService {
     return c;
   }
 
-  private celulasDoCaso(tx: Tx, c: CasoLinha, situacao: SituacaoCaso, revisar: boolean) {
-    return tx.sanCelula.updateMany({
-      where: { projeto_id: c.projeto_id, camada: c.camada, item_id: { in: c.itens } },
-      data: { situacao: CELULA_DO_CASO[situacao], caso_id: c.id, revisar, ...(revisar ? {} : { revisar_causa: null }) },
-    });
+  /** Células do caso. No conjunto, o item com exceção própria fica com a célula da exceção. */
+  private async celulasDoCaso(tx: Tx, c: CasoLinha, situacao: SituacaoCaso, revisar: boolean) {
+    const { itens } = await this.semExcecoes(tx, c);
+    for (const lote of fatiar(itens, 5000)) {
+      await tx.sanCelula.updateMany({
+        where: { projeto_id: c.projeto_id, camada: c.camada, item_id: { in: lote } },
+        data: { situacao: CELULA_DO_CASO[situacao], caso_id: c.id, revisar, ...(revisar ? {} : { revisar_causa: null }) },
+      });
+    }
+  }
+
+  /** Itens com exceção própria viva (aberta, aguardando ou aprovada) na camada: item → id da exceção. */
+  private async mapaExcecoes(db: Pick<Tx, 'sanCaso'>, projetoId: string, camada: string): Promise<Map<string, string>> {
+    const m = new Map<string, string>();
+    const lista = await db.sanCaso.findMany({ where: { projeto_id: projetoId, camada, tipo: { in: TIPOS_EXCECAO }, situacao: { in: EXCECAO_VIVA } }, select: { id: true, itens: true } });
+    for (const e of lista) for (const i of e.itens) m.set(i, e.id);
+    return m;
+  }
+
+  /** O caso sem os itens que têm exceção própria (só para caso de conjunto; a exceção e o caso de um item ficam como estão). */
+  private async semExcecoes<T extends Pick<CasoLinha, 'id' | 'projeto_id' | 'camada' | 'tipo' | 'itens'>>(db: Pick<Tx, 'sanCaso'>, c: T, mapa?: Map<string, string>): Promise<T> {
+    if (c.itens.length < 2 || ehExcecao(c.tipo)) return c;
+    const m = mapa ?? (await this.mapaExcecoes(db, c.projeto_id, c.camada));
+    if (!m.size) return c;
+    const itens = c.itens.filter((i) => { const dono = m.get(i); return !dono || dono === c.id; });
+    return itens.length === c.itens.length ? c : { ...c, itens };
   }
 
   /** Grava a proposta no trabalho dos itens do caso (uma decisão por campo; campo que não muda não gera linha). */
@@ -594,9 +654,14 @@ export class SanCasosService {
       const outro = item ? await tx.sanItem.findFirst({ where: { projeto_id: c.projeto_id, estabelecimento: item.estabelecimento, codigo: novo, NOT: { id: item.id } }, select: { id: true } }) : null;
       if (outro) throw bad('CODIGO_JA_EXISTE', `O código ${novo} já pertence a outro item deste projeto.`);
     }
+    // Consultas em bloco: um registro de aprovação por item e caso (a marca já gravada não se repete), decisões e grupos gravados por lote.
+    const marca = `caso:${c.tipo}`;
+    const jaMarcados = new Set((await tx.sanDecisao.findMany({ where: { caso_id: c.id, campo: marca, tipo: 'aprovar' }, select: { item_id: true } })).map((d) => d.item_id));
     for (const lote of fatiar(c.itens, 200)) {
       const itens = await tx.sanItem.findMany({ where: { id: { in: lote }, projeto_id: c.projeto_id } });
       if (itens.length !== lote.length) throw new BadRequestException('Algum item do caso não existe mais neste projeto.');
+      const decisoesDoLote: Json[] = [];
+      const porGrupo = new Map<string, string[]>();
       for (const item of itens) {
         if (versoesItens && versoesItens[item.id] !== undefined && versoesItens[item.id] !== item.versao) throw conflito(`O item ${item.codigo} foi alterado por outra pessoa depois que você abriu o caso. Recarregue.`);
         const trabalho = JSON.parse(JSON.stringify(item.trabalho)) as Json;
@@ -609,19 +674,19 @@ export class SanCasosService {
         }
         if (!decs.length) {
           // Nada a mudar (alerta ou já igual): fica o registro da aprovação, uma vez por item e caso.
-          const marca = `caso:${c.tipo}`;
-          const ja = await tx.sanDecisao.count({ where: { caso_id: c.id, item_id: item.id, campo: marca, tipo: 'aprovar' } });
-          if (!ja) await tx.sanDecisao.create({ data: { projeto_id: c.projeto_id, item_id: item.id, caso_id: c.id, campo: marca, antes: undefined, depois: 'APROVADO' as never, fundamento, usuario: quemFez, tipo: 'aprovar' } });
+          if (!jaMarcados.has(item.id)) { jaMarcados.add(item.id); decisoesDoLote.push({ projeto_id: c.projeto_id, item_id: item.id, caso_id: c.id, campo: marca, depois: 'APROVADO', fundamento, usuario: quemFez, tipo: 'aprovar' }); }
           continue;
         }
         const d = derivadosDoTrabalho(trabalho);
         const r = await tx.sanItem.updateMany({ where: { id: item.id, versao: item.versao }, data: { trabalho: trabalho as never, ...d, versao: { increment: 1 } } });
         if (r.count === 0) throw conflito(`O item ${item.codigo} foi alterado por outra pessoa durante a aprovação. Recarregue.`);
-        await tx.sanDecisao.createMany({ data: decs as never });
+        decisoesDoLote.push(...decs);
         const dc = decs.find((x) => x.campo === 'codigo');
         if (dc && dc.antes && dc.depois) await this.criarVinculo(tx, c, String(dc.antes), String(dc.depois), fundamento);
-        if ('grupo' in proposta) await tx.sanCelula.updateMany({ where: { item_id: item.id }, data: { grupo: d.grupo ?? '' } });
+        if ('grupo' in proposta) { const g = d.grupo ?? ''; porGrupo.set(g, [...(porGrupo.get(g) ?? []), item.id]); }
       }
+      if (decisoesDoLote.length) await tx.sanDecisao.createMany({ data: decisoesDoLote as never });
+      for (const [grupo, ids] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: ids } }, data: { grupo } });
     }
   }
 

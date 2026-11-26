@@ -69,6 +69,12 @@ const ESTAB = (e: string) => e;
 
 type LinhaResumo = { k: 'titulo' | 'alerta' | 'secao' | 'par' | 'cab' | 'linha' | 'total' | 'vazio' | 'nota'; v: Valor[] };
 
+/** Exportação para revisão: a base de agora, dizendo qual foi a última versão liberada (ou que ainda não há nenhuma). */
+export function textoDaBaseAtual(ultima: DadosEntrega['ultimaLiberada']): string {
+  if (!ultima) return 'Base atual, para revisão (nenhuma versão liberada ainda)';
+  return `Base atual, para revisão (inclui o que mudou depois da última versão liberada: Versão ${ultima.numero} — ${ultima.rotulo}, liberada em ${dataBr(paraData(ultima.criadaEm))})`;
+}
+
 function linhasResumo(m: Modelo, dados: DadosEntrega): LinhaResumo[] {
   const L: LinhaResumo[] = [];
   const p = dados.projeto;
@@ -89,7 +95,7 @@ function linhasResumo(m: Modelo, dados: DadosEntrega): LinhaResumo[] {
   par('ERP', [txt(p.erp), txt(p.erp_versao)].filter(Boolean).join(' ') || '—');
   const estabs = Array.isArray(p.estabelecimentos) ? (p.estabelecimentos as unknown[]).map(txt).filter(Boolean) : [];
   par('Estabelecimentos', estabs.length ? estabs.join(', ') : 'Único');
-  par('Versão', nomeVersao ?? 'Base atual (sem versão liberada)');
+  par('Versão', nomeVersao ?? textoDaBaseAtual(dados.ultimaLiberada));
   if (dados.versao) par('Versão liberada em', hora(dados.versao.criadaEm));
   par('Responsável', txt(p.responsavel) || '—');
   if (txt(p.atividades_confirmadas_por)) par('Atividades confirmadas por', `${txt(p.atividades_confirmadas_por)} em ${dataBr(paraData(p.atividades_confirmadas_em))}`);

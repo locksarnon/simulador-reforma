@@ -8,7 +8,7 @@
  * | INFORMAR (sem fator: o analista informa). `proposta.exigeFator` = 'SIM' (texto: a proposta só guarda texto, número ou null) quando o fator é nulo/INFORMAR: o backend deve RECUSAR a aprovação enquanto não houver fator.
  */
 import type { AnalisadorCamada, CasoProposto, ContextoAnalise, ItemTrabalho, ResultadoCamada } from '../tipos';
-import { ev, justificar, montarResultado } from './base';
+import { ev, justificar, montarResultado, rotuloItem } from './base';
 import { parametrosDe } from './contexto';
 import { novoCaso } from './dependencias';
 import { campoDe, semAcento, soTermosGenericos, txt } from './texto';
@@ -51,6 +51,15 @@ const CONTROLE_OU_LIXO = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f�]|Ã[\
 const ROTULO_TAMANHO: Record<string, string> = { codigo: 'Código', descricao: 'Descrição', unidade: 'Unidade', grupo: 'Grupo', fabricante: 'Fabricante', referencia: 'Referência' };
 const FATOR_SITUACAO: Record<string, string> = { universal: 'DEFINIDO', unidade: 'DEFINIDO', regra: 'DEFINIDO', descricao: 'CONFIRMAR' };
 
+/** Até 5 exemplos do conjunto (código e descrição) e a quantidade de itens. */
+const exemplos = (grupo: ItemTrabalho[]) => [
+  ...(grupo.length > 1 ? [ev('Itens do conjunto', grupo.length)] : []),
+  ...grupo.slice(0, 5).map((x) => ev(grupo.length > 1 ? 'Exemplo' : 'Item', `${rotuloItem(x)}: ${x.descricao ?? ''}`.slice(0, 300))),
+];
+/** "Como é hoje": a unidade é a mesma em todo o conjunto; o código só quando o caso é de um item (no conjunto, cada item tem o seu). */
+const atualDaUnidade = (grupo: ItemTrabalho[]): Record<string, string | null> => (grupo.length === 1 ? { codigo: grupo[0].codigo, unidade: grupo[0].unidade } : { unidade: grupo[0].unidade });
+const conjunto = (motivo: string, grupo: ItemTrabalho[]) => (grupo.length > 1 ? `${motivo} (${grupo.length} itens com esta unidade)` : motivo);
+
 export class AnalisadorNomesUnidades implements AnalisadorCamada {
   readonly camada = 'NOMES_UNIDADES' as const;
 
@@ -63,6 +72,14 @@ export class AnalisadorNomesUnidades implements AnalisadorCamada {
     const regrasForma = { ...REGRAS_PADRAO, caixaAlta: par.padronizarCaixaAlta === true };
     const casos: CasoProposto[] = [];
     const c = (x: Parameters<typeof novoCaso>[0]) => casos.push(novoCaso(x));
+    // Casos de unidade por conjunto: a chave junta o que tem a mesma unidade escrita (exata) e a mesma proposta.
+    type Montador = (grupo: ItemTrabalho[]) => Parameters<typeof novoCaso>[0];
+    const grupos = new Map<string, { itens: ItemTrabalho[]; montar: Montador }>();
+    const juntar = (chave: (string | number | null)[], it: ItemTrabalho, montar: Montador) => {
+      const k = chave.map(String).join('\u0000');
+      const g = grupos.get(k);
+      if (g) g.itens.push(it); else grupos.set(k, { itens: [it], montar });
+    };
 
     for (const it of itens) {
       const id = [it.id];
@@ -101,25 +118,39 @@ export class AnalisadorNomesUnidades implements AnalisadorCamada {
         }
       }
       // Unidade: política da menor unidade de estoque. Unidade ausente é caso da Qualidade.
+      // Trabalho por conjunto: itens com a MESMA unidade escrita e a MESMA proposta formam um só caso (resultado por item na aprovação).
       if (txt(it.unidade)) {
         const u = testeUnidade(it);
         if (u.achado && u.extra?.tipo === 'conversao') {
           const e = u.extra;
-          c({ camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_CONVERSAO', itens: id, problema: u.motivo ?? 'Unidade maior ou embalagem como unidade de estoque',
-            evidencia: [ev('Origem', 'Coluna da unidade e descrição da base importada'), ev('Unidade atual', e.de), ev('Medida', e.grandeza), ev('Evidência do fator', e.evidencia ?? 'nenhuma: a informar')], atual: { codigo: it.codigo, unidade: it.unidade },
-            proposta: { unidade: u.sugerida ?? null, unidadeCompra: e.de, fatorConversao: e.fator, fatorSituacao: e.fator == null ? 'INFORMAR' : FATOR_SITUACAO[e.evidencia ?? ''] ?? 'CONFIRMAR', exigeFator: e.fator == null ? 'SIM' : 'NAO' },
+          const situacao = e.fator == null ? 'INFORMAR' : FATOR_SITUACAO[e.evidencia ?? ''] ?? 'CONFIRMAR';
+          juntar(['UNIDADE_CONVERSAO', it.unidade, u.sugerida ?? '', e.grandeza, e.fator ?? '', situacao, e.evidencia ?? ''], it, (grupo) => ({
+            camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_CONVERSAO', itens: grupo.map((x) => x.id), problema: conjunto(u.motivo ?? 'Unidade maior ou embalagem como unidade de estoque', grupo),
+            evidencia: [ev('Origem', 'Coluna da unidade e descrição da base importada'), ev('Unidade atual', e.de), ev('Medida', e.grandeza), ev('Evidência do fator', e.evidencia ?? 'nenhuma: a informar'), ...exemplos(grupo)],
+            atual: atualDaUnidade(grupo),
+            proposta: { unidade: u.sugerida ?? null, unidadeCompra: e.de, fatorConversao: e.fator, fatorSituacao: situacao, exigeFator: e.fator == null ? 'SIM' : 'NAO' },
             fundamento: 'Política de unidade de estoque: menor unidade prática da medida; a maior/embalagem vira unidade de compra',
             impactos: ['Unidades e fatores de conversão (SPED 0190, 0220) e itens dos documentos', 'Duplicidade: itens em unidades diferentes passam a ser comparáveis'],
-            justificativa: justificar(`${u.motivo}. A unidade de estoque é a menor unidade prática; a atual passa a ser a de compra.`, e.fator == null ? 'informar quantas unidades de estoque há em cada unidade de compra (o motor não adivinha o conteúdo).' : e.evidencia === 'descricao' ? 'confirmar o conteúdo lido da descrição e aprovar.' : 'aprovar a conversão (fator exato).') });
+            justificativa: justificar(`${u.motivo}. A unidade de estoque é a menor unidade prática; a atual passa a ser a de compra.${grupo.length > 1 ? ` A proposta vale para os ${grupo.length} itens do conjunto (mesma unidade e mesmo fator).` : ''}`,
+              e.fator == null ? `informar quantas unidades de estoque há em cada unidade de compra (o motor não adivinha o conteúdo)${grupo.length > 1 ? '; o fator informado vale para todos os itens do conjunto: item de conteúdo diferente vira exceção (motivo obrigatório) antes de aprovar o conjunto' : ''}.` : e.evidencia === 'descricao' ? 'confirmar o conteúdo lido da descrição e aprovar.' : 'aprovar a conversão (fator exato).'),
+          }));
         } else if (u.achado && u.extra?.tipo === 'grafia') {
-          c({ camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_GRAFIA', itens: id, problema: u.motivo ?? 'Grafia da unidade diferente da padrão', evidencia: [ev('Origem', 'Coluna da unidade na base importada'), ev('Grafia atual', u.extra.de), ev('Grafia padrão', u.extra.para)], atual: { codigo: it.codigo, unidade: it.unidade },
-            proposta: { unidade: u.extra.para }, impactos: ['Unidades (SPED 0190)'], justificativa: justificar('A mesma unidade escrita de formas diferentes fragmenta relatórios e conversões.', 'aprovar a grafia padrão.') });
+          const g = u.extra;
+          juntar(['UNIDADE_GRAFIA', it.unidade, g.para], it, (grupo) => ({
+            camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_GRAFIA', itens: grupo.map((x) => x.id), problema: conjunto(u.motivo ?? 'Grafia da unidade diferente da padrão', grupo),
+            evidencia: [ev('Origem', 'Coluna da unidade na base importada'), ev('Grafia atual', g.de), ev('Grafia padrão', g.para), ...exemplos(grupo)], atual: atualDaUnidade(grupo),
+            proposta: { unidade: g.para }, impactos: ['Unidades (SPED 0190)'], justificativa: justificar('A mesma unidade escrita de formas diferentes fragmenta relatórios e conversões.', 'aprovar a grafia padrão.'),
+          }));
         } else if (u.achado && !u.sugerida) {
-          c({ camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_SEM_REGRA', itens: id, problema: u.motivo ?? 'Unidade sem regra na política', evidencia: [ev('Origem', 'Coluna da unidade na base importada'), ev('Unidade', it.unidade)], atual: { codigo: it.codigo, unidade: it.unidade },
-            justificativa: justificar('A política não conhece esta unidade e o motor não a adivinha (rolo, balde, frasco... dependem do item).', 'classificar a unidade na tabela de unidades do projeto (medida e fator) ou marcá-la para manter.') });
+          juntar(['UNIDADE_SEM_REGRA', it.unidade], it, (grupo) => ({
+            camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_SEM_REGRA', itens: grupo.map((x) => x.id), problema: conjunto(u.motivo ?? 'Unidade sem regra na política', grupo),
+            evidencia: [ev('Origem', 'Coluna da unidade na base importada'), ev('Unidade', it.unidade), ...exemplos(grupo)], atual: atualDaUnidade(grupo),
+            justificativa: justificar('A política não conhece esta unidade e o motor não a adivinha (rolo, balde, frasco... dependem do item).', 'classificar a unidade na tabela de unidades do projeto (medida e fator) ou marcá-la para manter.'),
+          }));
         }
       }
     }
+    for (const g of grupos.values()) c(g.montar(g.itens));
     return montarResultado('NOMES_UNIDADES', itens, casos);
   }
 }

@@ -4,7 +4,12 @@ import { nomeDoCampo, type Json } from './constantes';
 
 const MAX_TEXTO = 2000;
 const MAX_CHAVES = 40;
-const MAX_CASOS = 20_000;
+/**
+ * Teto de casos por chamada de POST projetos/:id/casos: protege o servidor de um corpo HTTP enorme (o JSON inteiro fica em memória antes de
+ * qualquer validação). O caminho interno (executar camada) não passa por HTTP: o resultado já está em memória, as gravações são em blocos e
+ * o teto não protege nada ali; por isso ele usa `semTeto` (a camada nunca fica PENDENTE só porque a base é grande).
+ */
+export const MAX_CASOS = 20_000;
 const MAX_ITENS_POR_CASO = 50_000;
 
 const ehObjetoSimples = (v: unknown): v is Json => {
@@ -47,12 +52,12 @@ export function validarProposta(v: unknown, nome = 'proposta', regras = true): J
 }
 
 /** Valida e normaliza (itens sem repetição) o resultado de uma camada. 400 claro em vez de erro de servidor. */
-export function validarResultado(r: unknown): ResultadoCamada {
+export function validarResultado(r: unknown, opcoes: { semTeto?: boolean } = {}): ResultadoCamada {
   if (!ehObjetoSimples(r)) throw erro('Envie o resultado da camada como objeto.');
   if (typeof r.camada !== 'string' || !(CAMADAS as readonly string[]).includes(r.camada)) throw erro('Camada inválida.');
   if (!Array.isArray(r.casos ?? [])) throw erro('"casos" deve ser uma lista.');
   const casosBrutos = (r.casos ?? []) as unknown[];
-  if (casosBrutos.length > MAX_CASOS) throw erro(`Casos demais em uma só chamada (máximo ${MAX_CASOS}).`);
+  if (!opcoes.semTeto && casosBrutos.length > MAX_CASOS) throw erro(`Casos demais em uma só chamada (máximo ${MAX_CASOS}).`);
   const lista = (v: unknown, n: string): string[] => {
     if (v === undefined || v === null) return [];
     if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) throw erro(`"${n}" deve ser uma lista de textos.`);

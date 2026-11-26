@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { construirModelo } from '../entregaveis/modelo';
 import { criarCatalogos } from '../fiscal';
 import type { AnalisadorCamada, ResultadoCamada } from '../tipos';
@@ -103,7 +103,8 @@ describe('C-ALTO-1: impacto no SPED gravado ligado ao caso', () => {
     await c.casos.aprovar(casoId, { versao: 1 }, USER); // idempotente
     expect(c.db.sanImpactoSped).toHaveLength(n);
     const lista = await new (await import('./impactos.service')).SanImpactosService(c.prisma as never).listarImpactos(projetoId);
-    expect(lista).toHaveLength(n);
+    expect(lista.linhas).toHaveLength(n);
+    expect(lista.total).toBe(n);
     await c.casos.reabrir(casoId, { versao: 2 }, USER);
     expect(c.db.sanImpactoSped.filter((i) => i.caso_id === casoId).length).toBe(n); // proposto de novo: volta a ser só proposto
     await c.casos.rejeitar(casoId, { versao: 3, justificativa: 'mantém o NCM' }, USER);
@@ -256,7 +257,11 @@ describe('M4/M6/M7/M8: lote com orçamento, parecer, obsoleto e data-base', () =
     await c.casos.registrarResultado(projetoId, res('NCM', [caso('NCM', 'A', [ids.A1], { ncm: '31010000' }, { ncm: '31051000' }), caso('NCM', 'B', [ids.A2], { ncm: '31010000' }, { ncm: '31051000' })]));
     const p = await c.casos.lotePrevia(projetoId, { filtro: { camada: 'NCM' } });
     const versoes = Object.fromEntries(p.aprovaveis.map((a) => [a.casoId, a.versao]));
-    const r = await c.casos.loteAprovar(projetoId, { filtro: { camada: 'NCM' }, versoes, orcamentoMs: -1 }, USER);
+    // O relógio anda 1 s a cada consulta: com orçamento de 1 ms nada cabe (orçamento negativo agora é 400).
+    let agora = Date.now();
+    const relogio = vi.spyOn(Date, 'now').mockImplementation(() => (agora += 1000));
+    const r = await c.casos.loteAprovar(projetoId, { filtro: { camada: 'NCM' }, versoes, orcamentoMs: 1 }, USER);
+    relogio.mockRestore();
     expect(r).toMatchObject({ aprovados: 0 });
     expect(r.restantes).toHaveLength(2);
     const r2 = await c.casos.loteAprovar(projetoId, { filtro: { camada: 'NCM' }, versoes }, USER);

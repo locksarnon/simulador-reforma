@@ -87,6 +87,8 @@ export interface ParecerIaPort {
 export type DadosEntrega = {
   projeto: Record<string, unknown>;
   versao: { numero: number; rotulo: string; criadaEm: string } | null;
+  /** Na exportação para revisão (versao = null): a última versão liberada do projeto, se houver, para o cabeçalho dizer de onde a base partiu. */
+  ultimaLiberada?: { numero: number; rotulo: string; criadaEm: string } | null;
   liberada: boolean;
   itens: Record<string, unknown>[];
   celulas: Record<string, unknown>[];

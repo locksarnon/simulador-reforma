@@ -5,8 +5,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissao } from '../../permissoes/permissao.decorator';
 import type { ResultadoCamada } from '../tipos';
 import { SanCasosService, type EntradaAprovar, type EntradaLote, type FiltroCasos } from './casos.service';
-import { SanImportacaoService } from './importacao.service';
-import { SanImpactosService, type EntradaImpacto, type EntradaVinculo } from './impactos.service';
+import { SanImportacaoService, type EscolhaIncorporar } from './importacao.service';
+import { SanImpactosService, type EntradaImpacto, type EntradaVinculo, type FiltroImpactos } from './impactos.service';
 import { SanItensService, type FiltroItens } from './itens.service';
 import { SanOrquestracaoService } from './orquestracao.service';
 import { SanProjetoService, type EntradaConfiguracao } from './projeto.service';
@@ -61,14 +61,14 @@ export class SaneamentoEstoquesController {
   /** Só lê (POST_DE_LEITURA): mostra o que seria aceito, novo, alterado e protegido. Não grava. */
   @Post('projetos/:id/importacoes/previa')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_ARQUIVO } }))
-  previa(@Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body('mapeamento') mapeamento?: string) {
-    return this.importacao.previa(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(mapeamento, undefined));
+  previa(@Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body() b: { mapeamento?: string; pagina?: string; limite?: string; filtro?: string }) {
+    return this.importacao.previa(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(b?.mapeamento, undefined), { pagina: b?.pagina, limite: b?.limite, filtro: b?.filtro });
   }
   @Post('projetos/:id/importacoes')
   @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_ARQUIVO } }))
   importar(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('incorporar') incorporar?: string) {
-    return this.importacao.confirmar(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(mapeamento, undefined), json<string[]>(incorporar, []), user);
+    return this.importacao.confirmar(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(mapeamento, undefined), json<EscolhaIncorporar>(incorporar, []), user);
   }
   @Get('projetos/:id/importacoes')
   importacoes(@Param('id') id: string) { return this.importacao.listar(id); }
@@ -123,7 +123,7 @@ export class SaneamentoEstoquesController {
 
   // ── Impacto no SPED e vínculos de código ───────────────────────────────────
   @Get('projetos/:id/impactos-sped')
-  impactosSped(@Param('id') id: string, @Query('obrigacao') obrigacao?: string, @Query('caso_id') casoId?: string) { return this.impactos.listarImpactos(id, { obrigacao, caso_id: casoId }); }
+  impactosSped(@Param('id') id: string, @Query() q: FiltroImpactos) { return this.impactos.listarImpactos(id, q ?? {}); }
   @Post('projetos/:id/impactos-sped')
   registrarImpactos(@Param('id') id: string, @Body() b: { linhas?: EntradaImpacto[] }) { return this.impactos.registrarImpactos(id, b?.linhas ?? []); }
   @Get('projetos/:id/vinculos-codigo')

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { quem, type Usuario } from './constantes';
+import { paramInteiro, paramTexto } from './validacao';
 
 export const TIPOS_DE_AJUSTE = ['CADASTRAL_FUTURO', 'REGULARIZACAO_SALDO', 'ESCRITURACAO_ENTREGUE'] as const;
 
@@ -9,6 +10,9 @@ export type EntradaImpacto = {
   valor_original?: string | null; valor_proposto?: string | null; motivo: string; evidencia?: string | null; inicio?: string | null;
   avaliar_anteriores?: boolean; responsavel?: string | null; tipo_ajuste: string;
 };
+export type FiltroImpactos = { obrigacao?: string; caso_id?: string; tipo_ajuste?: string; cursor?: string; limite?: number | string };
+const LIMITE_PADRAO = 500;
+const LIMITE_MAXIMO = 1000;
 export type EntradaVinculo = { de: string; para: string; inicio?: string | null; justificativa: string };
 
 const t = (v: unknown, max = 500) => { const x = String(v ?? '').trim(); return x ? x.slice(0, max) : null; };
@@ -19,8 +23,25 @@ const dia = (v: unknown) => { if (!v) return null; const d = new Date(String(v))
 export class SanImpactosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listarImpactos(projetoId: string, f: { obrigacao?: string; caso_id?: string } = {}) {
-    return this.prisma.sanImpactoSped.findMany({ where: { projeto_id: projetoId, ...(f.obrigacao ? { obrigacao: f.obrigacao } : {}), ...(f.caso_id ? { caso_id: f.caso_id } : {}) }, orderBy: { createdAt: 'asc' } });
+  /**
+   * Linhas do checklist, paginadas por cursor (`proximo`): um projeto grande tem dezenas de milhares de linhas. `total` e `porTipo`
+   * (contagem por tipo de ajuste) valem para o filtro inteiro, não só para a página.
+   */
+  async listarImpactos(projetoId: string, f: FiltroImpactos = {}) {
+    const limite = Math.min(Math.max(paramInteiro(f.limite, 'limite') ?? LIMITE_PADRAO, 1), LIMITE_MAXIMO);
+    const obrigacao = paramTexto(f.obrigacao, 'obrigacao'); const casoId = paramTexto(f.caso_id, 'caso_id'); const cursor = paramTexto(f.cursor, 'cursor');
+    const tipo = paramTexto(f.tipo_ajuste, 'tipo_ajuste');
+    if (tipo && !(TIPOS_DE_AJUSTE as readonly string[]).includes(tipo)) throw new BadRequestException('Tipo de ajuste inválido.');
+    const base = { projeto_id: projetoId, ...(obrigacao ? { obrigacao } : {}), ...(casoId ? { caso_id: casoId } : {}) };
+    const where = { ...base, ...(tipo ? { tipo_ajuste: tipo } : {}) };
+    const linhas = await this.prisma.sanImpactoSped.findMany({ where, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limite + 1, ...(cursor ? { cursor: { id: cursor } } : {}) });
+    const porTipo = Object.fromEntries(TIPOS_DE_AJUSTE.map((t) => [t, 0])) as Record<string, number>;
+    let todas = 0;
+    const grupos = await this.prisma.sanImpactoSped.groupBy({ by: ['tipo_ajuste'], where: base, _count: { _all: true } });
+    for (const g of grupos) {
+      porTipo[g.tipo_ajuste] = (porTipo[g.tipo_ajuste] ?? 0) + g._count._all; todas += g._count._all;
+    }
+    return { linhas: linhas.slice(0, limite), proximo: linhas.length > limite ? linhas[limite].id : null, total: tipo ? porTipo[tipo] ?? 0 : todas, totalGeral: todas, porTipo };
   }
 
   /** Substitui as linhas de impacto dos casos citados (idempotente: gerar de novo não duplica). */

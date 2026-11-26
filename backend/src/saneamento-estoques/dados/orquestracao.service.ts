@@ -44,7 +44,7 @@ export class SanOrquestracaoService {
     } as ContextoAnalise;
     const preparado = await this.motor.preparar(camada, { projetoId, itens, contexto });
     const resultado = preparado.analisador.analisar(itens, preparado.contexto);
-    const gravado = await this.casos.registrarResultado(projetoId, resultado, { completo: true });
+    const gravado = await this.casos.registrarResultado(projetoId, resultado, { completo: true, interno: true });
     // A camada de obrigações também (re)grava as linhas de impacto no SPED de todos os casos que geram ajuste.
     if (camada === 'OBRIGACOES') await this.casos.sincronizarTodosImpactos(projetoId);
     return gravado;

@@ -202,6 +202,7 @@ export class SanVersoesService {
       if (lote.length < LOTE_CELULAS) break;
       cursor = lote[lote.length - 1].id;
     }
+    const ultima = await this.prisma.sanVersao.findFirst({ where: { projeto_id: projetoId }, orderBy: { numero: 'desc' }, select: { numero: true, rotulo: true, createdAt: true } });
     const [casos, decisoes, impactosSped, vinculos, importacoes] = await Promise.all([
       this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' }, select: SEL_CASO }),
       this.prisma.sanDecisao.findMany({ where: { projeto_id: projetoId }, orderBy: { quando: 'asc' }, select: SEL_DECISAO }),
@@ -210,7 +211,7 @@ export class SanVersoesService {
       this.prisma.sanImportacao.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' }, select: SEL_IMPORTACAO }),
     ]);
     return {
-      projeto: projeto as never, versao: null, liberada: false, itens, celulas, casos: casos as never, decisoes: decisoes as never, impactosSped: impactosSped as never,
+      projeto: projeto as never, versao: null, ultimaLiberada: ultima ? { numero: ultima.numero, rotulo: ultima.rotulo, criadaEm: ultima.createdAt.toISOString() } : null, liberada: false, itens, celulas, casos: casos as never, decisoes: decisoes as never, impactosSped: impactosSped as never,
       vinculos: vinculos as never, importacoes: importacoes as never,
     };
   }
