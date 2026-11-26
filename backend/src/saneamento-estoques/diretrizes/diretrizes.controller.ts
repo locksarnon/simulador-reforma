@@ -1,4 +1,5 @@
-import { Body, Controller, Get, NotImplementedException, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, StreamableFile } from '@nestjs/common';
+import { gerarPdfPolitica } from '../entregaveis/politica';
 import { AuthUser } from '../../auth/auth.types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SanBibliotecaDiretrizesService } from './biblioteca.service';
@@ -59,14 +60,11 @@ export class SanDiretrizesController {
   atualizarBiblioteca(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: Record<string, unknown>) { return this.biblioteca.atualizar(id, b ?? {}, user); }
 
   // ── Política (PDF) ─────────────────────────────────────────────────────────
-  /**
-   * TODO(integrador): entregaveis/politica não existe neste worktree. Depois do merge, trocar o 501 por:
-   *   `const pdf = await gerarPdfPolitica(await this.diretrizes.dadosPdfPolitica(id, versaoId || null));` e devolver com
-   *   `@Res()`/`StreamableFile` (application/pdf). `dadosPdfPolitica` já devolve o formato `DadosPolitica` (versão liberada = foto).
-   */
+  /** PDF da política: regras aprovadas e vigentes (base atual ou a versão liberada, pela foto), procedimentos, quadro por grupo e pendências. */
   @Get('projetos/:id/politica/pdf')
   async politicaPdf(@Param('id') id: string, @Query('versaoId') versaoId?: string) {
-    await this.diretrizes.dadosPdfPolitica(id, versaoId || null);
-    throw new NotImplementedException('O PDF da política ainda não está conectado neste servidor.');
+    const buffer = await gerarPdfPolitica(await this.diretrizes.dadosPdfPolitica(id, versaoId || null));
+    const nome = `politica-estoques${versaoId ? '-versao' : ''}.pdf`;
+    return new StreamableFile(buffer, { type: 'application/pdf', disposition: `attachment; filename="${nome}"` });
   }
 }
