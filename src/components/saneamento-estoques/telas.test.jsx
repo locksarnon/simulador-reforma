@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "a@b.c" } }) }));
 
-import { chaves } from "./api";
+import { chaves, renovarAposRestauracao } from "./api";
 import Abas from "./Abas";
 import CasoDetalhe, { ParecerIa } from "./CasoDetalhe";
 import Casos from "./Casos";
@@ -16,7 +16,7 @@ import Configuracao from "./Configuracao";
 import Impacto from "./Impacto";
 import Importacao, { Reimportacao } from "./Importacao";
 import TabelaUnica from "./TabelaUnica";
-import Versoes from "./Versoes";
+import Versoes, { ContinuarVersao } from "./Versoes";
 import VisaoGeral from "./VisaoGeral";
 import SaneamentoEstoquesPagina from "@/pages/saneamento-estoques/SaneamentoEstoquesPagina";
 
@@ -264,6 +264,46 @@ describe("Versões", () => {
     expect(t).toContain("Liberada");
     expect(t).toContain("Relatório PDF");
     expect(t).toContain("Marque A (antes) e B (depois)");
+    expect(t).toContain("Continuar a partir desta versão");
+  });
+  it("mostra as restaurações feitas a partir da versão, com Desfazer (ou o selo de desfeita)", () => {
+    const r = (o) => ({ id: "r1", quando: "2026-11-21T12:00:00Z", usuario: "ana@x.com", justificativa: "Cliente pediu voltar", itens: 3, campos: 5, casosDecididosDepois: 1, desfeita: null, ...o });
+    const t = texto(montar(<Versoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.versoes("p1"), [{ id: "v1", numero: 1, rotulo: "Entrega 1", usuario: "ana@x.com", createdAt: "2026-11-20T12:00:00Z", resumo: { itens: 500, restauracoes: [r(), r({ id: "r2", desfeita: { por: "b", em: "2026-11-22T12:00:00Z" } })] } }])));
+    expect(t).toContain("Base restaurada a esta versão em");
+    expect(t).toContain("Cliente pediu voltar");
+    expect(t).toContain("Desfazer restauração");
+    expect(t).toContain("Desfeita em");
+  });
+  it("continuar: prévia com itens e campos que mudam, exemplos e justificativa obrigatória (botão desabilitado até preencher)", () => {
+    const v = { id: "v1", numero: 1, rotulo: "Entrega 1" };
+    const previa = { versao: v, versaoProjeto: 3, previa: "abc", totais: { itens: 2, campos: 3, itensNaFoto: 2, itensNovosDepois: 0, itensAusentes: 0, casosDecididosDepois: 1 }, porCampo: [{ campo: "ncm", itens: 2 }, { campo: "descricao", itens: 1 }], camadasRevisar: ["NCM"], amostra: [{ id: "i1", codigo: "000123", campos: [{ campo: "ncm", antes: "31051000", depois: "31010000" }] }], ignorados: [] };
+    const html = montar(<ContinuarVersao projeto={projeto()} versao={v} aoFechar={() => {}} />, (qc) => qc.setQueryData(chaves.continuar("p1", "v1"), previa));
+    const t = texto(html);
+    expect(t).toContain("Continuar a partir da versão 1 (Entrega 1)");
+    expect(t).toContain("2 itens e 3 campos voltam aos valores da versão 1.");
+    expect(t).toContain("1 caso aprovado depois desta versão volta a proposto");
+    expect(t).toContain("000123");
+    expect(t).toContain("31051000 → 31010000");
+    expect(t).toContain("Justificativa (obrigatória, ao menos 10 caracteres)");
+    expect(html).toMatch(/<button type="submit"[^>]*disabled=""/);
+    expect(t).toContain("Restaurar e continuar");
+    const igual = texto(montar(<ContinuarVersao projeto={projeto()} versao={v} aoFechar={() => {}} />, (qc) => qc.setQueryData(chaves.continuar("p1", "v1"), { ...previa, totais: { ...previa.totais, itens: 0, campos: 0 }, porCampo: [], amostra: [] })));
+    expect(igual).toContain("nada a restaurar");
+    expect(igual).not.toContain("Restaurar e continuar");
+    expect(texto(montar(<ContinuarVersao projeto={projeto()} versao={v} aoFechar={() => {}} />))).toContain("Montando a prévia");
+  });
+});
+
+describe("Restauração: depois de erro", () => {
+  it("renova o projeto (versão nova) e as versões, para o Desfazer não ficar preso no 409", async () => {
+    const qc = novoCliente();
+    qc.setQueryData(chaves.projeto("d1"), { id: "p1", versao: 3 });
+    qc.setQueryData(chaves.versoes("p1"), []);
+    qc.setQueryData(chaves.itens("p1", {}), []);
+    await renovarAposRestauracao(qc, "p1");
+    expect(qc.getQueryState(chaves.projeto("d1")).isInvalidated).toBe(true);
+    expect(qc.getQueryState(chaves.versoes("p1")).isInvalidated).toBe(true);
+    expect(qc.getQueryState(chaves.itens("p1", {})).isInvalidated).toBe(false);
   });
 });
 

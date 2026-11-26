@@ -11,6 +11,7 @@ import {
   SAN_ENTREGAVEIS, SAN_IMPORTADOR, SAN_MOTOR, SAN_PARECER_IA, entregaveisStub, parecerIaStub,
 } from './portas';
 import { SanProjetoService } from './projeto.service';
+import { SanRestauracaoService } from './restauracao.service';
 import { SaneamentoEstoquesController } from './saneamento-estoques.controller';
 import { SanVersoesService } from './versoes.service';
 
@@ -21,7 +22,7 @@ import { SanVersoesService } from './versoes.service';
 @Module({
   controllers: [SaneamentoEstoquesController],
   providers: [
-    SanProjetoService, SanImportacaoService, SanItensService, SanCasosService, SanVersoesService, SanImpactosService, SanOrquestracaoService,
+    SanProjetoService, SanImportacaoService, SanItensService, SanCasosService, SanVersoesService, SanImpactosService, SanOrquestracaoService, SanRestauracaoService,
     CatalogosFiscaisPrisma,
     { provide: SAN_IMPORTADOR, useClass: ImportadorPlanilha },
     { provide: SAN_MOTOR, useClass: MotorSaneamento },

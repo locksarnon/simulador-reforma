@@ -59,6 +59,10 @@ export const SECAO_SANEAMENTO = {
       r: "Quando o início do ajuste (a data-base do projeto) cai na Última competência de escrituração já entregue, informada na aba Configuração, ou antes dela. Sem essa competência, o Excel e o relatório dizem “não avaliado (competência entregue não informada)”, e não “nenhuma linha”. A retificação e a transmissão continuam fora do serviço.",
     },
     {
+      p: "Dá para voltar a base de trabalho a uma versão liberada e continuar dali?",
+      r: "Sim. Na aba Versões, clique em Continuar a partir desta versão na linha da versão. A Prévia mostra quantos itens e campos voltam aos valores dela, quantos casos aprovados depois voltam a proposto e quais camadas ficam marcadas “revisar”. Com a Justificativa preenchida (ao menos 10 caracteres), clique em Restaurar e continuar. Nada é apagado: cada campo grava uma decisão no histórico do item; o caso aprovado depois cujo valor deixa de valer volta a proposto (com a célula e o impacto no SPED), e dá para aprovar de novo ou rejeitar; itens importados depois da versão ficam como estão. Para voltar atrás, use Desfazer restauração, embaixo do rótulo da versão: os valores e os casos aprovados voltam. Se outra pessoa alterar a base depois da prévia, a restauração é recusada e é preciso refazer a prévia.",
+    },
+    {
       p: "O que acontece na reimportação do cadastro?",
       r: "A prévia mostra o que mudou desde a última importação: itens Novos, Alterados, Inalterados e Ausentes do arquivo. Os novos entram sozinhos, os ausentes nunca são removidos e, nos alterados, você escolhe o que trazer. Campos que já têm decisão aparecem como “Protegido (decisão)” e não são sobrescritos. Decisões e rascunhos são preservados.",
     },

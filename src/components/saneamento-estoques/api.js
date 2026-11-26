@@ -45,6 +45,10 @@ export const san = {
   versoes: (id) => api.get(`${B}/projetos/${id}/versoes`),
   liberarVersao: (id, rotulo, extra) => api.post(`${B}/projetos/${id}/versoes`, { rotulo, ...(extra || {}) }),
   compararVersoes: (id, a, b) => api.get(`${B}/projetos/${id}/versoes/comparar`, { a, b }),
+  /** Continuar a partir de uma versão liberada: prévia (só lê), restauração ({ versao, previa, justificativa }) e desfazer. */
+  previaContinuar: (id, versaoId) => api.get(`${B}/projetos/${id}/versoes/${versaoId}/continuar`),
+  continuarVersao: (id, versaoId, corpo) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/continuar`, corpo),
+  desfazerRestauracao: (id, versaoId, restauracaoId, versao) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/restauracoes/${restauracaoId}/desfazer`, { versao }),
   baixarEntrega: (id, tipo, versao) => api.baixar("GET", enderecoDeEntrega(id, tipo, versao?.id), { nome: nomeDeEntrega(tipo, versao) }),
 };
 
@@ -58,6 +62,7 @@ export const chaves = {
   caso: (casoId) => ["san", "caso", casoId],
   impactos: (projetoId, tipo = "") => ["san", projetoId, "impactos", tipo],
   versoes: (projetoId) => ["san", projetoId, "versoes"],
+  continuar: (projetoId, versaoId) => ["san", projetoId, "continuar", versaoId],
   importacoes: (projetoId) => ["san", projetoId, "importacoes"],
 };
 
@@ -69,4 +74,12 @@ export async function atualizarTudo(qc, projetoId) {
   const base = chaves.todos(projetoId);
   qc.setQueriesData({ queryKey: [...base, "itens"] }, (d) => (d && d.pages ? { pages: d.pages.slice(0, 1), pageParams: d.pageParams.slice(0, 1) } : d));
   await qc.invalidateQueries({ queryKey: base });
+}
+
+/**
+ * Depois de restaurar ou desfazer uma restauração, com sucesso OU erro (ex.: 409 por versão do projeto desatualizada): renova o projeto
+ * (a versão que vai no próximo pedido) e as versões, para o botão não ficar preso no conflito.
+ */
+export async function renovarAposRestauracao(qc, projetoId) {
+  await Promise.all([qc.invalidateQueries({ queryKey: ["san", "projeto"] }), qc.invalidateQueries({ queryKey: chaves.versoes(projetoId) })]);
 }

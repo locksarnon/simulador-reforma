@@ -25,15 +25,29 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
   const modelos = ['projetoDiagnostico', 'empresa', 'ncm', 'sanProjeto', 'sanAtividade', 'sanImportacao', 'sanItem', 'sanCelula', 'sanCaso', 'sanDecisao', 'sanVersao', 'sanVersaoSnapshot', 'sanImpactoSped', 'sanVinculoCodigo'];
   for (const m of modelos) db[m] = (sementes[m] ?? []).map((l) => ({ ...l }));
   const erroUnico = () => Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+  // Atalhos para as bases de 30 mil itens: 'in' por conjunto e busca por id por índice (refeito quando a lista muda de tamanho ou é trocada).
+  const conjuntos = new WeakMap<unknown[], Set<unknown>>();
+  const comoConjunto = (l: unknown[]) => { let c = conjuntos.get(l); if (!c) { c = new Set(l); conjuntos.set(l, c); } return c; };
+  const indices = new WeakMap<Linha[], Map<string, Linha>>();
+  const candidatos = (nome: string, where: Linha | undefined): Linha[] => {
+    const lista = db[nome];
+    if (typeof where?.id !== 'string') return lista;
+    let m = indices.get(lista);
+    if (!m || m.size !== lista.length) { m = new Map(lista.map((l) => [l.id, l])); indices.set(lista, m); }
+    const l = m.get(where.id);
+    return l ? [l] : [];
+  };
 
   const comparar = (v: any, cond: any, modelo: string): boolean => { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (cond === null || typeof cond !== 'object' || cond instanceof Date) return JSON.stringify(v ?? null) === JSON.stringify(cond ?? null) || (v instanceof Date && cond instanceof Date && +v === +cond);
-    if ('in' in cond && !cond.in.includes(v)) return false;
+    if ('in' in cond && !comoConjunto(cond.in).has(v)) return false;
     if ('not' in cond && (cond.not === null ? v == null : comparar(v, cond.not, modelo))) return false;
     if ('contains' in cond && !String(v ?? '').toLowerCase().includes(String(cond.contains).toLowerCase())) return false;
     if ('hasSome' in cond && !(v ?? []).some((x: unknown) => cond.hasSome.includes(x))) return false;
     if ('has' in cond && !(v ?? []).includes(cond.has)) return false;
     if ('lte' in cond && !(v <= cond.lte)) return false;
+    if ('gt' in cond && !(v > cond.gt)) return false;
+    if ('startsWith' in cond && !String(v ?? '').startsWith(cond.startsWith)) return false;
     return true;
   };
   const casa = (l: Linha, where: Linha | undefined, modelo: string): boolean => {
@@ -88,15 +102,15 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
   };
 
   const modelo = (nome: string) => ({
-    findUnique: async (a: Linha) => { const l = db[nome].find((x) => casa(x, a.where, nome)); return l ? projetar(nome, l, a) : null; },
-    findFirst: async (a: Linha) => { const [l] = ordenar(db[nome].filter((x) => casa(x, a.where, nome)), a.orderBy); return l ? projetar(nome, l, a) : null; },
+    findUnique: async (a: Linha) => { const l = candidatos(nome, a.where).find((x) => casa(x, a.where, nome)); return l ? projetar(nome, l, a) : null; },
+    findFirst: async (a: Linha) => { const [l] = ordenar(candidatos(nome, a.where).filter((x) => casa(x, a.where, nome)), a.orderBy); return l ? projetar(nome, l, a) : null; },
     findMany: async (a: Linha = {}) => {
-      let r = ordenar(db[nome].filter((x) => casa(x, a.where, nome)), a.orderBy);
+      let r = ordenar(candidatos(nome, a.where).filter((x) => casa(x, a.where, nome)), a.orderBy);
       if (a.cursor) { const i = r.findIndex((x) => x.id === a.cursor.id); r = i < 0 ? [] : r.slice(i + (a.skip ?? 0)); }
       if (a.take !== undefined) r = r.slice(0, a.take);
       return r.map((l) => projetar(nome, l, a));
     },
-    count: async (a: Linha = {}) => db[nome].filter((x) => casa(x, a.where, nome)).length,
+    count: async (a: Linha = {}) => candidatos(nome, a.where).filter((x) => casa(x, a.where, nome)).length,
     create: async (a: Linha) => { const l = completar(nome, a.data); db[nome].push(l); return { ...l }; },
     createMany: async (a: Linha) => {
       let n = 0;
@@ -110,12 +124,12 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
       for (const d of a.data as Linha[]) { const l = completar(nome, d); db[nome].push(l); r.push({ ...l }); }
       return r;
     },
-    update: async (a: Linha) => { const l = db[nome].find((x) => casa(x, a.where, nome)); if (!l) throw new Error('Registro não encontrado'); aplicarDados(l, a.data); return { ...l }; },
-    updateMany: async (a: Linha) => { const ls = db[nome].filter((x) => casa(x, a.where, nome)); ls.forEach((l) => aplicarDados(l, a.data)); return { count: ls.length }; },
+    update: async (a: Linha) => { const l = candidatos(nome, a.where).find((x) => casa(x, a.where, nome)); if (!l) throw new Error('Registro não encontrado'); aplicarDados(l, a.data); return { ...l }; },
+    updateMany: async (a: Linha) => { const ls = candidatos(nome, a.where).filter((x) => casa(x, a.where, nome)); ls.forEach((l) => aplicarDados(l, a.data)); return { count: ls.length }; },
     deleteMany: async (a: Linha) => { const antes = db[nome].length; db[nome] = db[nome].filter((x) => !casa(x, a.where, nome)); return { count: antes - db[nome].length }; },
     groupBy: async (a: Linha) => {
       const grupos = new Map<string, Linha>();
-      for (const l of db[nome].filter((x) => casa(x, a.where, nome))) {
+      for (const l of candidatos(nome, a.where).filter((x) => casa(x, a.where, nome))) {
         const k = JSON.stringify(a.by.map((b: string) => l[b]));
         const g = grupos.get(k) ?? { ...Object.fromEntries(a.by.map((b: string) => [b, l[b]])), _count: { _all: 0 } };
         g._count._all++;

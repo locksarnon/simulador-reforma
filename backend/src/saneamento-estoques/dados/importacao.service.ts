@@ -105,10 +105,10 @@ export class SanImportacaoService {
       if (campos.length) alterados.push({ existente: e, item: it, campos }); else inalterados++;
     }
     const ausentes = existentes.filter((e) => !naArquivo.has(chave(e.estabelecimento, e.codigo)));
-    // Campo já decidido (aprovado ou incorporado) é protegido: a reimportação não o sobrescreve.
+    // Campo já decidido (aprovado, incorporado ou restaurado de uma versão) é protegido: a reimportação não o sobrescreve.
     const protegidos = new Set<string>();
     for (const lote of fatiar(alterados.map((a) => a.existente.id), 2000)) {
-      const decs = await this.prisma.sanDecisao.findMany({ where: { projeto_id: projetoId, item_id: { in: lote }, tipo: { in: ['aprovar', 'importar'] } }, select: { item_id: true, campo: true } });
+      const decs = await this.prisma.sanDecisao.findMany({ where: { projeto_id: projetoId, item_id: { in: lote }, tipo: { in: ['aprovar', 'importar', 'restaurar'] } }, select: { item_id: true, campo: true } });
       for (const d of decs) protegidos.add(`${d.item_id}\u0000${d.campo}`);
     }
     const diferencas: Diferenca[] = alterados.map((a) => ({
@@ -185,7 +185,7 @@ export class SanImportacaoService {
         // Item não escolhido fica de fora: a última leitura NÃO avança, para a diferença continuar aparecendo na próxima reimportação.
         for (const lote of fatiar(c.alterados.filter((a) => escolhido(a.existente.id)), 500)) {
           const ids = lote.map((a) => a.existente.id);
-          const decididos = await tx.sanDecisao.findMany({ where: { item_id: { in: ids }, tipo: { in: ['aprovar', 'importar'] } }, select: { item_id: true, campo: true } });
+          const decididos = await tx.sanDecisao.findMany({ where: { item_id: { in: ids }, tipo: { in: ['aprovar', 'importar', 'restaurar'] } }, select: { item_id: true, campo: true } });
           const protegidosAgora = new Set(decididos.map((d) => `${d.item_id}\u0000${d.campo}`));
           const atuais = new Map((await tx.sanItem.findMany({ where: { id: { in: ids } }, select: { id: true, trabalho: true, versao: true } })).map((i) => [i.id, i]));
           const decs: Json[] = [];

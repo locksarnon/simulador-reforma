@@ -95,7 +95,7 @@ Cada linha do impacto registra: obrigação, competência, versão do leiaute, r
 
 **Relatório de fechamento (PDF, padrão FAL/InTAX):** itens recebidos e analisados; ajustes por categoria; revisões feitas; pendências e limitações; versão liberada; comentário de cada aspecto tratado e o resumo; seção de impacto no SPED.
 
-**Versões:** comparar duas, histórico por campo, exportar uma específica, continuar a partir dela.
+**Versões:** comparar duas, histórico por campo, exportar uma específica, continuar a partir dela (a base de trabalho volta aos valores da foto com uma decisão "restauração" por campo, prévia, justificativa e desfazer; nada é apagado — ver o contrato).
 
 ## 9. Governança de atuação
 
