@@ -89,7 +89,7 @@ export class AnalisadorIdentificacao implements AnalisadorCamada {
       } else {
         c({ camada: 'IDENTIFICACAO', tipo: 'CODIGO_ANTIGO', itens: [it.id], problema: `Item com código antigo informado (${antigo}): o vínculo antigo → atual precisa ficar registrado`,
           evidencia: [ev('Origem', 'Campo "código antigo" da base importada'), ev('Código atual', it.codigo), ev('Código antigo', antigo)], atual: { codigo: it.codigo, codigoAntigo: antigo },
-          impactos: ['Histórico de alteração do item no SPED: registro 0205 (COD_ANT_ITEM, DT_INI, DT_FIM) e campo COD_ANT_ITEM do 0200 (conferir no Guia Prático vigente)'],
+          impactos: ['Histórico de alteração do item no SPED: registro 0205 (COD_ANT_ITEM, DT_INI, DT_FIM); o campo COD_ANT_ITEM do 0200 não é preenchido (Guia Prático da EFD ICMS/IPI 3.2.2)'],
           justificativa: justificar('Documentos antigos citam o código antigo; sem o vínculo o histórico se perde.', 'registrar o vínculo código antigo → atual, com data e justificativa, no De/para.') });
       }
     }

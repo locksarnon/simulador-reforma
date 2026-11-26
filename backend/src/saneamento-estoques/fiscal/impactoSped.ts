@@ -2,10 +2,11 @@
  * Impacto nas obrigações (SPED e NF-e): checklist por tipo de ajuste (plano, seção 6) como DADOS versionados.
  * Escopo: dizer o que conferir. Retificação e transmissão estão FORA.
  *
- * Fontes oficiais: Guia Prático da EFD ICMS/IPI e Guia Prático da EFD-Contribuições (portal do SPED, sped.rfb.gov.br) e o portal
- * da NF-e (nfe.fazenda.gov.br). Nesta entrega NÃO foi possível abrir essas fontes (sem acesso de rede no ambiente do agente):
- * os registros vêm do plano aprovado e os nomes de campo foram escritos de memória do leiaute. Por isso todos os registros e campos
- * levam `conferido: false` e a versão do leiaute vale "não confirmado" até um consultor conferir no Guia vigente.
+ * Fontes oficiais conferidas em 26/11/2026 (docs/sped-conferencia-2026-11-26.md): Guia Prático da EFD ICMS/IPI 3.2.2 (11/02/2026),
+ * leiaute 020 (NT 2025.001, Ato Cotepe 79/2025, válido em 2026); Guia Prático da EFD-Contribuições 1.35 (18/06/2021), última versão
+ * publicada no portal do SPED (o código de versão do leiaute vigente em 2026 não foi confirmado); NT 2025.002-RTC v1.53 (30/10/2026) e
+ * MOC Anexo I da NF-e. Registros e campos conferidos levam `conferido: true`; a versão do leiaute de cada linha (competência do
+ * cliente) continua "não confirmado" até o consultor informá-la.
  */
 import { AnalisadorCamada, CasoProposto, ContextoAnalise, Evidencia, ItemTrabalho, ResultadoCamada } from '../tipos';
 
@@ -22,10 +23,13 @@ export const OBRIGACOES = ['EFD_ICMS_IPI', 'EFD_CONTRIBUICOES', 'NFE'] as const;
 export type Obrigacao = (typeof OBRIGACOES)[number];
 export const ROTULO_OBRIGACAO: Record<Obrigacao, string> = { EFD_ICMS_IPI: 'EFD ICMS/IPI', EFD_CONTRIBUICOES: 'EFD-Contribuições', NFE: 'NF-e (documento eletrônico)' };
 
-export const FONTES_LEIAUTE: Record<Obrigacao, { fonte: string; url: string; versaoConferida: string | null; status: 'CONFIRMADO' | 'NAO_CONFIRMADO' }> = {
-  EFD_ICMS_IPI: { fonte: 'Guia Prático da EFD ICMS/IPI (SPED/RFB)', url: 'http://sped.rfb.gov.br', versaoConferida: null, status: 'NAO_CONFIRMADO' },
-  EFD_CONTRIBUICOES: { fonte: 'Guia Prático da EFD-Contribuições (SPED/RFB)', url: 'http://sped.rfb.gov.br', versaoConferida: null, status: 'NAO_CONFIRMADO' },
-  NFE: { fonte: 'Portal Nacional da NF-e: manual de orientação do contribuinte e notas técnicas (grupo IBSCBS: NT 2025.002, conforme docs/auditoria-reforma-2026-10-28.md)', url: 'https://www.nfe.fazenda.gov.br', versaoConferida: null, status: 'NAO_CONFIRMADO' },
+export const FONTES_LEIAUTE: Record<Obrigacao, { fonte: string; url: string; versaoConferida: string | null; status: 'CONFIRMADO' | 'NAO_CONFIRMADO'; nota?: string }> = {
+  EFD_ICMS_IPI: { fonte: 'Guia Prático da EFD ICMS/IPI (SPED/RFB)', url: 'http://sped.rfb.gov.br/arquivo/show/8112', versaoConferida: 'Guia Prático 3.2.2 (11/02/2026); leiaute 020 (NT 2025.001, Ato Cotepe 79/2025, válido em 2026)', status: 'CONFIRMADO' },
+  EFD_CONTRIBUICOES: {
+    fonte: 'Guia Prático da EFD-Contribuições (SPED/RFB)', url: 'http://sped.rfb.gov.br/item/show/5836', versaoConferida: 'Guia Prático 1.35 (18/06/2021), última versão publicada no portal do SPED', status: 'CONFIRMADO',
+    nota: 'código de versão do leiaute vigente em 2026 (COD_VER do 0000) não confirmado',
+  },
+  NFE: { fonte: 'Portal Nacional da NF-e: NT 2025.002-RTC (grupo IBSCBS) e MOC Anexo I', url: 'https://www.nfe.fazenda.gov.br/portal/exibirArquivo.aspx?conteudo=BMcHSMEoepU=', versaoConferida: 'NT 2025.002-RTC v1.53 (30/10/2026)', status: 'CONFIRMADO' },
 };
 
 export type TipoImpacto = 'CADASTRAL_FUTURO' | 'REGULARIZACAO_SALDO' | 'ESCRITURACAO_ENTREGUE';
@@ -35,7 +39,7 @@ export const ROTULO_TIPO_IMPACTO: Record<TipoImpacto, string> = {
 
 export type RegistroChecklist = {
   obrigacao: Obrigacao; registro: string; campos: string[]; verificar: string;
-  /** Falso até alguém conferir registro e campos no Guia Prático/manual vigente. */
+  /** Verdadeiro quando registro e campos foram conferidos no Guia Prático/manual vigente (FONTES_LEIAUTE). */
   conferido: boolean;
   /** Observação de risco do próprio checklist (ex.: o registro do plano precisa de confirmação). */
   ressalva?: string;
@@ -49,72 +53,72 @@ export type LinhaChecklist = {
   rotulo: string; tipoPadrao: TipoImpacto; avaliarAnteriores: boolean; motivoAvaliar: string; registros: RegistroChecklist[];
 };
 
-const R = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: string, ressalva?: string): RegistroChecklist => ({ obrigacao, registro, campos, verificar, conferido: false, ressalva });
+const R = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: string, conferido: boolean, ressalva?: string): RegistroChecklist => ({ obrigacao, registro, campos, verificar, conferido, ressalva });
 /** Registro em que o valor do ajuste não é o conteúdo dos campos listados (ver `semValor`). */
-const S = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: string, ressalva?: string): RegistroChecklist => ({ ...R(obrigacao, registro, campos, verificar, ressalva), semValor: true });
+const S = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: string, conferido: boolean, ressalva?: string): RegistroChecklist => ({ ...R(obrigacao, registro, campos, verificar, conferido, ressalva), semValor: true });
 
 export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
   MUDOU_CODIGO_DESCRICAO: {
     rotulo: ROTULO_AJUSTE.MUDOU_CODIGO_DESCRICAO, tipoPadrao: 'CADASTRAL_FUTURO', avaliarAnteriores: false,
     motivoAvaliar: 'Os períodos já escriturados usaram o código e a descrição anteriores; o histórico do item (0205) preserva o vínculo',
     registros: [
-      R('EFD_ICMS_IPI', '0200', ['COD_ITEM', 'DESCR_ITEM', 'COD_ANT_ITEM'], 'Item com o novo código/descrição e o anterior informado'),
-      R('EFD_ICMS_IPI', '0205', ['DESCR_ANT_ITEM', 'DT_INI', 'DT_FIM', 'COD_ANT_ITEM'], 'Histórico da alteração com o período de vigência'),
-      R('EFD_CONTRIBUICOES', '0200', ['COD_ITEM', 'DESCR_ITEM', 'COD_ANT_ITEM'], 'Mesmo cadastro na escrituração de PIS/Cofins'),
-      R('EFD_CONTRIBUICOES', '0205', ['DESCR_ANT_ITEM', 'DT_INI', 'DT_FIM', 'COD_ANT_ITEM'], 'Histórico da alteração'),
+      R('EFD_ICMS_IPI', '0200', ['COD_ITEM', 'DESCR_ITEM'], 'Item com o novo código/descrição; o campo 05 COD_ANT_ITEM não é preenchido no 0200 (o código anterior vai no 0205)', true),
+      R('EFD_ICMS_IPI', '0205', ['DESCR_ANT_ITEM', 'DT_INI', 'DT_FIM', 'COD_ANT_ITEM'], 'Histórico da alteração (descrição ou código anterior) com DT_INI e DT_FIM; campos 02 e 05 mutuamente excludentes, um registro por alteração, sem sobreposição de períodos', true),
+      R('EFD_CONTRIBUICOES', '0200', ['COD_ITEM', 'DESCR_ITEM'], 'Mesmo cadastro na escrituração de PIS/Cofins; o código anterior vai no 0205', true),
+      R('EFD_CONTRIBUICOES', '0205', ['DESCR_ANT_ITEM', 'DT_INI', 'DT_FIM', 'COD_ANT_ITEM'], 'Histórico da alteração', true),
     ],
   },
   MUDOU_UNIDADE: {
     rotulo: ROTULO_AJUSTE.MUDOU_UNIDADE, tipoPadrao: 'CADASTRAL_FUTURO', avaliarAnteriores: true,
     motivoAvaliar: 'Quantidades e inventário de períodos anteriores podem estar na unidade antiga',
     registros: [
-      R('EFD_ICMS_IPI', '0190', ['UNID', 'DESCR'], 'Unidade nova cadastrada'),
-      S('EFD_ICMS_IPI', '0220', ['UNID_CONV', 'FAT_CONV'], 'Fator de conversão entre a unidade do item e a do documento (unidade de compra e fator do caso)'),
-      R('EFD_ICMS_IPI', '0200', ['UNID_INV'], 'Unidade de inventário do item'),
-      S('EFD_ICMS_IPI', 'C170', ['UNID', 'QTD'], 'Unidade e quantidade dos itens dos documentos (a unidade do documento pode ser a de compra, convertida pelo 0220)'),
-      R('EFD_ICMS_IPI', 'H010', ['UNID', 'QTD'], 'Unidade e quantidade do inventário'),
-      R('EFD_CONTRIBUICOES', '0190', ['UNID', 'DESCR'], 'Unidade nova cadastrada'),
-      S('EFD_CONTRIBUICOES', '0220', ['UNID_CONV', 'FAT_CONV'], 'Fator de conversão (unidade de compra e fator do caso)'),
+      R('EFD_ICMS_IPI', '0190', ['UNID', 'DESCR'], 'Unidade nova cadastrada', true),
+      S('EFD_ICMS_IPI', '0220', ['UNID_CONV', 'FAT_CONV'], 'Fator de conversão entre a unidade do item e a do documento (unidade de compra e fator do caso); obrigatório também quando a UNID_INV do 0200 muda em relação à EFD anterior; fator novo exige código de unidade novo', true),
+      R('EFD_ICMS_IPI', '0200', ['UNID_INV'], 'Unidade de inventário do item', true),
+      S('EFD_ICMS_IPI', 'C170', ['UNID', 'QTD'], 'Unidade e quantidade dos itens dos documentos (a unidade do documento pode ser a de compra, convertida pelo 0220)', true),
+      R('EFD_ICMS_IPI', 'H010', ['UNID', 'QTD'], 'Unidade e quantidade do inventário', true),
+      R('EFD_CONTRIBUICOES', '0190', ['UNID', 'DESCR'], 'Unidade nova cadastrada', true),
     ],
   },
   CONSOLIDOU_INATIVOU: {
     rotulo: ROTULO_AJUSTE.CONSOLIDOU_INATIVOU, tipoPadrao: 'REGULARIZACAO_SALDO', avaliarAnteriores: true,
     motivoAvaliar: 'O saldo do código inativado precisa migrar para o código mantido, e os documentos antigos seguem com o código anterior',
     registros: [
-      R('EFD_ICMS_IPI', '0200', ['COD_ITEM', 'COD_ANT_ITEM'], 'Código mantido com o anterior informado'),
-      R('EFD_ICMS_IPI', '0205', ['COD_ANT_ITEM', 'DT_INI', 'DT_FIM'], 'Vínculo do código antigo ao novo'),
-      R('EFD_ICMS_IPI', '0221', ['COD_ITEM_ATOMICO', 'QTD_CONTIDA'], 'Correlação de itens', 'O plano cita o 0221; o registro trata de correlação entre códigos de itens comercializados e pode não ser o caminho da consolidação simples (0205): confirmar no Guia Prático'),
-      R('EFD_ICMS_IPI', 'H010', ['COD_ITEM', 'UNID', 'QTD', 'VL_UNIT', 'VL_ITEM'], 'Inventário sem código inativado e com o saldo consolidado'),
-      R('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Vínculo com os documentos do período'),
+      R('EFD_ICMS_IPI', '0200', ['COD_ITEM'], 'Código mantido; o código anterior vai no 0205 (não reutilizar código já atribuído a outro item)', true),
+      R('EFD_ICMS_IPI', '0205', ['COD_ANT_ITEM', 'DT_INI', 'DT_FIM'], 'Vínculo do código antigo ao novo', true),
+      R('EFD_ICMS_IPI', '0221', ['COD_ITEM_ATOMICO', 'QTD_CONTIDA'], 'Correlação de itens', true, 'Correlação entre códigos de itens comercializados e o item atômico (Guia Prático 3.2.2): só para TIPO_ITEM 00 (revenda); obrigatoriedade e forma definidas pela UF do declarante. Para consolidação simples de código, o registro é o 0205'),
+      R('EFD_ICMS_IPI', 'H010', ['COD_ITEM', 'UNID', 'QTD', 'VL_UNIT', 'VL_ITEM'], 'Inventário sem código inativado e com o saldo consolidado; o código do item no inventário é o utilizado no mês inventariado', true),
+      R('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Vínculo com os documentos do período', true),
     ],
   },
   MUDOU_NCM: {
     rotulo: ROTULO_AJUSTE.MUDOU_NCM, tipoPadrao: 'CADASTRAL_FUTURO', avaliarAnteriores: true,
     motivoAvaliar: 'Documentos já emitidos e escriturados com o NCM anterior podem ter tratamento tributário diferente',
     registros: [
-      R('EFD_ICMS_IPI', '0200', ['COD_NCM'], 'NCM do cadastro do item'),
-      S('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Itens dos documentos ligados ao 0200: o NCM do cadastro deve coincidir com o do documento eletrônico'),
-      R('EFD_CONTRIBUICOES', '0200', ['COD_NCM'], 'NCM do cadastro do item'),
-      R('NFE', 'det/prod', ['NCM'], 'NCM informado no item do documento eletrônico'),
+      R('EFD_ICMS_IPI', '0200', ['COD_NCM'], 'NCM do cadastro do item', true),
+      S('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Itens dos documentos ligados ao 0200: o NCM do cadastro deve coincidir com o do documento eletrônico', true),
+      R('EFD_CONTRIBUICOES', '0200', ['COD_NCM'], 'NCM do cadastro do item', true),
+      R('NFE', 'det/prod', ['NCM'], 'NCM informado no item do documento eletrônico', true),
     ],
   },
   MUDOU_TRATAMENTO: {
     rotulo: ROTULO_AJUSTE.MUDOU_TRATAMENTO, tipoPadrao: 'CADASTRAL_FUTURO', avaliarAnteriores: true,
     motivoAvaliar: 'Documentos já emitidos e a apuração dos períodos anteriores podem ter usado o tratamento antigo',
     registros: [
-      R('NFE', 'det/imposto/IBSCBS', ['CST', 'cClassTrib'], 'CST e cClassTrib do item no documento eletrônico'),
-      S('EFD_ICMS_IPI', 'C170', ['CST_ICMS', 'CFOP'], 'CST do ICMS e CFOP dos itens', 'O campo do CST de IBS/CBS na EFD ICMS/IPI não foi confirmado'),
-      S('EFD_CONTRIBUICOES', 'C170', ['CST_PIS', 'CST_COFINS'], 'CST de PIS/Cofins dos itens'),
-      S('EFD_CONTRIBUICOES', 'M100/M500', ['VL_CRED'], 'Apuração do crédito de PIS e Cofins'),
+      R('NFE', 'det/imposto/IBSCBS', ['CST', 'cClassTrib'], 'CST (UB13) e cClassTrib (UB14) do grupo IBSCBS (UB12) do item', true),
+      S('EFD_ICMS_IPI', 'C170', ['CST_ICMS', 'CFOP'], 'CST do ICMS e CFOP dos itens', true, 'A EFD ICMS/IPI não tem campo de CST de IBS/CBS: não se presta à apuração de CBS, IBS e IS (Guia Prático 3.2.2, Seção 10)'),
+      S('EFD_CONTRIBUICOES', 'C170', ['CST_PIS', 'CST_COFINS'], 'CST de PIS/Cofins dos itens', true),
+      S('EFD_CONTRIBUICOES', 'M100/M500', ['VL_CRED'], 'Apuração do crédito de PIS e Cofins', true),
     ],
   },
   ITEM_ATIVO_IMOBILIZADO: {
     rotulo: ROTULO_AJUSTE.ITEM_ATIVO_IMOBILIZADO, tipoPadrao: 'REGULARIZACAO_SALDO', avaliarAnteriores: true,
     motivoAvaliar: 'O controle de crédito do bem corre por vários períodos',
     registros: [
-      S('EFD_ICMS_IPI', '0300', ['COD_IND_BEM', 'IDENT_MERC', 'DESCR_ITEM', 'COD_PRNC', 'COD_CTA', 'NR_PARC'], 'Cadastro do bem ou componente do ativo'),
-      S('EFD_ICMS_IPI', 'G110/G125', ['COD_IND_BEM', 'DT_MOV', 'TIPO_MOV'], 'Controle de crédito do ativo permanente (Bloco G) e movimentação do bem'),
-      S('EFD_CONTRIBUICOES', 'F120/F130', ['IDENT_BEM_IMOB', 'NAT_BC_CRED'], 'Crédito sobre bens do ativo imobilizado'),
+      S('EFD_ICMS_IPI', '0300', ['COD_IND_BEM', 'IDENT_MERC', 'DESCR_ITEM', 'COD_PRNC', 'COD_CTA', 'NR_PARC'], 'Cadastro do bem ou componente do ativo', true),
+      S('EFD_ICMS_IPI', 'G125', ['COD_IND_BEM', 'DT_MOV', 'TIPO_MOV'], 'Movimentação do bem ou componente do ativo', true),
+      S('EFD_ICMS_IPI', 'G110', ['SALDO_IN_ICMS', 'SOM_PARC'], 'Apuração do CIAP no período', true),
+      S('EFD_CONTRIBUICOES', 'F120/F130', ['IDENT_BEM_IMOB', 'NAT_BC_CRED'], 'Crédito sobre bens do ativo imobilizado', true),
     ],
   },
 };
@@ -234,7 +238,7 @@ export class AnalisadorObrigacoes implements AnalisadorCamada {
         atual: { ajustes: lista.length, valorOriginal: valorDoConjunto(lista.map((a) => a.valorOriginal)) },
         proposta: { valorProposto: valorDoConjunto(lista.map((a) => a.valorProposto)), tipoImpacto: principal.tipo },
         justificativa: `${lista[0].motivo || ROTULO_AJUSTE[tipo]}. Só conferência: retificação e transmissão ficam fora desta etapa.`,
-        fundamento: `${[...new Set(linhas.map((l) => FONTES_LEIAUTE[l.obrigacao].fonte))].join(' · ')} (leiaute não confirmado nesta entrega)`,
+        fundamento: [...new Set(linhas.map((l) => l.obrigacao))].map((o) => { const f = FONTES_LEIAUTE[o]; return `${f.fonte}: ${[f.versaoConferida ?? 'versão não confirmada', f.nota].filter(Boolean).join('; ')}`; }).join(' · '),
         impactos: ressalvas, origem: 'REGRA', afeta: [],
       });
     }

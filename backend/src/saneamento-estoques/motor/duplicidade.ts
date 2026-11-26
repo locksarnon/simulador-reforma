@@ -90,7 +90,7 @@ function impactosDe(r: Resumo, escala: number): string[] {
     const comSaldo = r.saidas.filter((m) => (saldoNaEscala(m.saldo, escala) ?? 0) > 0);
     if (comSaldo.length) imp.push(`Saldo a transferir antes de consolidar: ${comSaldo.length} código(s), total ${numeroBr(r.saldoTotalSaidas)} (inventário H010)`);
     const comMov = r.saidas.filter((m) => !!m.ultima_mov);
-    if (comMov.length) imp.push(`Histórico de movimentação nos códigos que saem (${comMov.length}): preservar o vínculo código antigo → mantido (SPED: registro 0205, COD_ANT_ITEM/DT_INI/DT_FIM, e campo COD_ANT_ITEM do 0200; conferir no Guia Prático vigente)`);
+    if (comMov.length) imp.push(`Histórico de movimentação nos códigos que saem (${comMov.length}): preservar o vínculo código antigo → mantido (SPED: registro 0205, COD_ANT_ITEM/DT_INI/DT_FIM; o campo COD_ANT_ITEM do 0200 não é preenchido, conforme o Guia Prático da EFD ICMS/IPI 3.2.2)`);
   }
   imp.push('Documentos abertos e cartilhas/planos de manutenção que usam os códigos que saem');
   return imp;

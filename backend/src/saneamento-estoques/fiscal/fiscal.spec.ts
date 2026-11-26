@@ -87,9 +87,11 @@ describe('correções da revisão', () => {
     const e = enquadrar('38089329', 'REVENDA', 'COMPRA_REVENDA', DB, cat2);
     expect(e.status).toBe('DEFINIDO'); expect(e.observacao).toMatch(/Anexo XX, item 2.*conferir os requisitos/);
   });
-  it('uso e consumo cita o art. 57 só como "conferir"; devolução é regra operacional, não norma', () => {
+  it('uso e consumo cita a vedação do art. 57, § 5º (conceito no caput, exceções no § 3º); devolução é regra operacional, não norma', () => {
     const c = enquadrar('73182100', 'USO_CONSUMO', 'USO_CONSUMO', DB, catalogos());
-    expect(c.credito!.descricao).toMatch(/art. 57: conferir no texto oficial/);
+    expect(c.credito!.descricao).toMatch(/art\. 47, caput/); expect(c.credito!.descricao).toMatch(/vedado \(art\. 57, § 5º\)/); expect(c.credito!.descricao).toMatch(/art\. 57, § 3º/);
+    expect(c.credito!.descricao).not.toMatch(/conferir no texto oficial/);
+    expect(enquadrar('84313990', 'IMOBILIZADO', 'USO_CONSUMO', DB, catalogos()).credito?.descricao ?? '').not.toMatch(/conferir no texto oficial/);
     const d = enquadrar('38089329', 'REVENDA', 'DEVOLUCAO', DB, catalogos());
     expect(d.credito!.fundamento).toMatch(/Regra operacional interna/);
     expect(d.observacao).toMatch(/interpretação interna/);
@@ -148,7 +150,7 @@ describe('enquadramento', () => {
     expect(e.enquadramentoLegal).toContain('Herbicidas');
     expect(e.vigencia).toEqual({ inicio: '2026-01-01', fim: null });
     expect(e.reducao).toEqual({ ibs: 0.6, cbs: 0.6 });
-    expect(e.credito).toMatchObject({ situacao: 'EM_REGRA', fundamento: 'LC 214/2025, art. 47' });
+    expect(e.credito).toMatchObject({ situacao: 'EM_REGRA', fundamento: 'LC 214/2025, art. 47, caput, e art. 57, caput e §§ 3º e 5º (redação da LC 227/2026)' });
     expect(e.observacao).toMatch(/Anexo IX/);
   });
   it('peça/manutenção sem anexo: tributação padrão resolvida pela tabela; crédito a verificar', () => {
@@ -253,7 +255,7 @@ describe('camada TRIBUTARIO', () => {
 });
 
 describe('impacto no SPED', () => {
-  it('checklist cobre os 6 tipos, com registros do plano e nada marcado como conferido', () => {
+  it('checklist cobre os 6 tipos, conferido nas fontes oficiais de 26/11/2026', () => {
     expect(TIPOS_AJUSTE.length).toBe(6);
     const regs = (t: (typeof TIPOS_AJUSTE)[number]) => CHECKLIST[t].registros.map((r) => r.registro);
     expect(regs('MUDOU_CODIGO_DESCRICAO')).toEqual(expect.arrayContaining(['0200', '0205']));
@@ -261,8 +263,20 @@ describe('impacto no SPED', () => {
     expect(regs('CONSOLIDOU_INATIVOU')).toEqual(expect.arrayContaining(['0221', 'H010']));
     expect(regs('MUDOU_NCM')).toEqual(expect.arrayContaining(['0200', 'C170']));
     expect(regs('ITEM_ATIVO_IMOBILIZADO')).toEqual(expect.arrayContaining(['0300']));
-    for (const t of TIPOS_AJUSTE) expect(CHECKLIST[t].registros.every((r) => r.conferido === false)).toBe(true);
-    expect(Object.values(FONTES_LEIAUTE).every((f) => f.status === 'NAO_CONFIRMADO' && f.versaoConferida === null)).toBe(true);
+    expect(regs('ITEM_ATIVO_IMOBILIZADO')).toEqual(expect.arrayContaining(['G110', 'G125'])); expect(regs('ITEM_ATIVO_IMOBILIZADO')).not.toContain('G110/G125');
+    const g125 = CHECKLIST.ITEM_ATIVO_IMOBILIZADO.registros.find((r) => r.registro === 'G125')!;
+    expect(g125.campos).toEqual(['COD_IND_BEM', 'DT_MOV', 'TIPO_MOV']);
+    // O 0220 não existe na EFD-Contribuições (Guia Prático 1.35).
+    expect(CHECKLIST.MUDOU_UNIDADE.registros.some((r) => r.obrigacao === 'EFD_CONTRIBUICOES' && r.registro === '0220')).toBe(false);
+    // COD_ANT_ITEM não é preenchido no 0200: o código anterior vai no 0205.
+    for (const t of TIPOS_AJUSTE) for (const r of CHECKLIST[t].registros.filter((x) => x.registro === '0200')) expect(r.campos).not.toContain('COD_ANT_ITEM');
+    expect(CHECKLIST.MUDOU_CODIGO_DESCRICAO.registros.find((r) => r.obrigacao === 'EFD_ICMS_IPI' && r.registro === '0200')!.verificar).toMatch(/não é preenchido no 0200/);
+    for (const t of TIPOS_AJUSTE) expect(CHECKLIST[t].registros.every((r) => r.conferido === true)).toBe(true);
+    expect(Object.values(FONTES_LEIAUTE).every((f) => f.status === 'CONFIRMADO' && !!f.versaoConferida)).toBe(true);
+    expect(FONTES_LEIAUTE.EFD_ICMS_IPI.versaoConferida).toMatch(/3\.2\.2.*leiaute 020/);
+    expect(FONTES_LEIAUTE.EFD_CONTRIBUICOES.nota).toMatch(/não confirmado/);
+    expect(FONTES_LEIAUTE.NFE.versaoConferida).toMatch(/v1\.53/);
+    expect(CHECKLIST.MUDOU_TRATAMENTO.registros.find((r) => r.obrigacao === 'EFD_ICMS_IPI')!.ressalva).toMatch(/não tem campo de CST de IBS\/CBS/);
   });
   it('impactosDoAjuste: versão "não confirmado", aplicabilidade pelas obrigações do cliente, tipo por ajuste', () => {
     const aberto = impactosDoAjuste('MUDOU_NCM', { dataBase: DB });
@@ -273,7 +287,7 @@ describe('impacto no SPED', () => {
     expect(f.find((l) => l.obrigacao === 'NFE')!.aplicabilidade).toBe('NAO_APLICAVEL');
     expect(impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB })[0].tipo).toBe('REGULARIZACAO_SALDO');
     expect(impactosDoAjuste('MUDOU_UNIDADE', { dataBase: DB }, { escrituracaoEntregue: true })[0].tipo).toBe('ESCRITURACAO_ENTREGUE');
-    expect(impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB }).find((l) => l.registro === '0221')!.ressalva).toMatch(/confirmar/);
+    expect(impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB }).find((l) => l.registro === '0221')!.ressalva).toMatch(/TIPO_ITEM 00.*UF do declarante/);
   });
   const ajustes: AjusteSped[] = [
     { tipo: 'MUDOU_NCM', itemId: 'i1', valorOriginal: '38089999', valorProposto: '38089329', motivo: 'NCM corrigido', status: 'APROVADO', inicio: '2027-01-01' },
@@ -288,7 +302,8 @@ describe('impacto no SPED', () => {
     expect(ncm.itens).toEqual(['i1', 'i2']);
     expect(ncm.evidencia.find((e) => e.rotulo === 'Competência inicial')!.valor).toBe('2026-11');
     expect(ncm.evidencia.some((e) => e.rotulo.includes('C170'))).toBe(true);
-    expect(ncm.fundamento).toMatch(/não confirmado/);
+    expect(ncm.fundamento).toMatch(/Guia Prático 3\.2\.2/); expect(ncm.fundamento).toMatch(/NT 2025\.002-RTC v1\.53/); expect(ncm.fundamento).toMatch(/COD_VER do 0000\) não confirmado/);
+    expect(ncm.fundamento).not.toMatch(/leiaute não confirmado nesta entrega/);
     expect(r.semProblema).toEqual(['i4']);
     expect(r.camada).toBe('OBRIGACOES');
   });

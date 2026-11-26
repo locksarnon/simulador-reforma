@@ -51,6 +51,10 @@ export const SECAO_SANEAMENTO = {
       r: "O Excel tem 6 abas: Resumo da entrega, Cadastro saneado (com a Finalidade), De para e equivalências, Cenários tributários (enquadramento legal, CST e cClassTrib), Impactos no SPED e Pendências e histórico. Preserva zeros à esquerda, filtros e identificadores. O relatório de fechamento em PDF traz o resumo, os itens recebidos e analisados, os ajustes por categoria, as revisões feitas, o comentário de cada aspecto tratado, as pendências e limitações, a versão liberada e o impacto nas obrigações.",
     },
     {
+      p: "De onde vêm os registros do impacto no SPED e a regra de crédito de uso e consumo?",
+      r: "Os registros e campos do checklist foram conferidos em 26/11/2026 nas fontes oficiais: Guia Prático da EFD ICMS/IPI 3.2.2 (leiaute 020, válido em 2026), Guia Prático da EFD-Contribuições 1.35 (o código de versão do leiaute de 2026 não foi confirmado) e NT 2025.002-RTC v1.53 da NF-e (grupo IBSCBS, com CST e cClassTrib). A troca de código vai no registro 0205 (o COD_ANT_ITEM do 0200 não é preenchido), a EFD ICMS/IPI não tem CST de IBS/CBS e, no ativo imobilizado, a movimentação do bem é o G125 e o G110 é a apuração do CIAP. A coluna Leiaute das linhas continua “não confirmado”, porque a versão vale por competência e se confere para a do cliente. No crédito, vale o art. 47, caput, da LC 214/2025: crédito amplo, exceto bens e serviços de uso ou consumo pessoal, cujo crédito é vedado (art. 57, § 5º; conceito no caput e exceções no § 3º, redação da LC 227/2026).",
+    },
+    {
       p: "O que acontece na reimportação do cadastro?",
       r: "A prévia mostra o que mudou desde a última importação: itens Novos, Alterados, Inalterados e Ausentes do arquivo. Os novos entram sozinhos, os ausentes nunca são removidos e, nos alterados, você escolhe o que trazer. Campos que já têm decisão aparecem como “Protegido (decisão)” e não são sobrescritos. Decisões e rascunhos são preservados.",
     },
