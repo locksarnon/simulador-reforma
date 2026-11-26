@@ -58,14 +58,18 @@ const exemplos = (grupo: ItemTrabalho[]) => [
 ];
 /**
  * "Como é hoje": a unidade é a mesma em todo o conjunto; o código só quando o caso é de um item (no conjunto, cada item tem o seu).
- * Com `comConversao`, também a unidade de compra e o fator atuais (todos os campos que a proposta altera); valor que muda de item
- * para item sai como "varia por item" e a conferência de divergência, na aprovação, vai item a item.
+ * Com `proposta` (conversão), também a unidade de compra e o fator atuais, só os que a proposta altera (valor proposto não nulo) ou que
+ * têm valor hoje: nenhuma chave nula sobra para campo que a proposta não muda (fator "a informar" com o item sem fator). Valor que muda
+ * de item para item sai como "varia por item" e a conferência de divergência, na aprovação, vai item a item.
  */
-const atualDaUnidade = (grupo: ItemTrabalho[], comConversao = false): Record<string, string | number | null> => {
+const atualDaUnidade = (grupo: ItemTrabalho[], proposta?: Record<string, unknown>): Record<string, string | number | null> => {
   const base: Record<string, string | number | null> = grupo.length === 1 ? { codigo: grupo[0].codigo, unidade: grupo[0].unidade } : { unidade: grupo[0].unidade };
-  if (!comConversao) return base;
-  const extra = (k: string) => valorComum(grupo.map((x) => (x.campos?.[k] ?? null) as string | number | null));
-  return { ...base, unidadeCompra: extra('unidadeCompra'), fatorConversao: extra('fatorConversao') };
+  if (!proposta) return base;
+  for (const k of ['unidadeCompra', 'fatorConversao']) {
+    const v = valorComum(grupo.map((x) => (x.campos?.[k] ?? null) as string | number | null));
+    if (v != null || proposta[k] != null) base[k] = v;
+  }
+  return base;
 };
 const conjunto = (motivo: string, grupo: ItemTrabalho[]) => (grupo.length > 1 ? `${motivo} (${grupo.length} itens com esta unidade)` : motivo);
 
@@ -133,11 +137,12 @@ export class AnalisadorNomesUnidades implements AnalisadorCamada {
         if (u.achado && u.extra?.tipo === 'conversao') {
           const e = u.extra;
           const situacao = e.fator == null ? 'INFORMAR' : FATOR_SITUACAO[e.evidencia ?? ''] ?? 'CONFIRMAR';
+          const proposta = { unidade: u.sugerida ?? null, unidadeCompra: e.de, fatorConversao: e.fator, fatorSituacao: situacao, exigeFator: e.fator == null ? 'SIM' : 'NAO' };
           juntar(['UNIDADE_CONVERSAO', it.unidade, u.sugerida ?? '', e.grandeza, e.fator ?? '', situacao, e.evidencia ?? ''], it, (grupo) => ({
             camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_CONVERSAO', itens: grupo.map((x) => x.id), problema: conjunto(u.motivo ?? 'Unidade maior ou embalagem como unidade de estoque', grupo),
             evidencia: [ev('Origem', 'Coluna da unidade e descrição da base importada'), ev('Unidade atual', e.de), ev('Medida', e.grandeza), ev('Evidência do fator', e.evidencia ?? 'nenhuma: a informar'), ...exemplos(grupo)],
-            atual: atualDaUnidade(grupo, true),
-            proposta: { unidade: u.sugerida ?? null, unidadeCompra: e.de, fatorConversao: e.fator, fatorSituacao: situacao, exigeFator: e.fator == null ? 'SIM' : 'NAO' },
+            atual: atualDaUnidade(grupo, proposta),
+            proposta,
             fundamento: 'Política de unidade de estoque: menor unidade prática da medida; a maior/embalagem vira unidade de compra',
             impactos: ['Unidades e fatores de conversão (SPED 0190, 0220) e itens dos documentos', 'Duplicidade: itens em unidades diferentes passam a ser comparáveis'],
             justificativa: justificar(`${u.motivo}. A unidade de estoque é a menor unidade prática; a atual passa a ser a de compra.${grupo.length > 1 ? ` A proposta vale para os ${grupo.length} itens do conjunto (mesma unidade e mesmo fator).` : ''}`,

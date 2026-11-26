@@ -169,6 +169,16 @@ describe('NOMES_UNIDADES', () => {
     expect(por('BB')).toMatchObject({ fatorConversao: null, fatorSituacao: 'INFORMAR', exigeFator: 'SIM' });
     expect(por('TONELADA')).toMatchObject({ fatorConversao: 1000, fatorSituacao: 'DEFINIDO', exigeFator: 'NAO' });
   });
+  it('"atual" da conversão: só os campos que a proposta altera ou que têm valor hoje (sem chave nula sobrando)', () => {
+    const q = new AnalisadorNomesUnidades().analisar([
+      item('b1', 'SEMENTE DE SOJA TMG', { unidade: 'BB' }), item('b2', 'SEMENTE DE SOJA BRS', { unidade: 'BB' }),
+      item('t', 'MILHO', { unidade: 'TONELADA' }), item('f', 'FEIJAO', { unidade: 'TON', campos: { fatorConversao: 1000 } }),
+    ], ctx);
+    const atual = (k: string) => q.casos.find((c) => c.tipo === 'UNIDADE_CONVERSAO' && c.atual.unidade === k)!.atual;
+    expect(atual('BB')).toEqual({ unidade: 'BB', unidadeCompra: null }); // fator "a informar": sem fatorConversao no atual
+    expect(atual('TONELADA')).toEqual({ codigo: 't', unidade: 'TONELADA', unidadeCompra: null, fatorConversao: null }); // a proposta grava os dois
+    expect(atual('TON')).toMatchObject({ fatorConversao: 1000 }); // valor de hoje nunca some
+  });
   it('caixa alta é opcional: por padrão não gera caso; ligada, gera', () => {
     const it1 = [item('1', 'Parafuso sextavado 10mm')];
     expect(tipos(new AnalisadorNomesUnidades().analisar(it1, ctx))).not.toContain('DESCRICAO_FORA_DO_PADRAO');
