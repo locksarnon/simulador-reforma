@@ -18,8 +18,9 @@ export class ErpsController {
   @Get()
   listar() { return this.erps.listar(); }
 
+  /** Ficha com o histórico: o e-mail de quem alterou só aparece para o administrador. */
   @Get(':id')
-  obter(@Param('id') id: string) { return this.erps.obter(id); }
+  obter(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.erps.obter(id, user); }
 
   /** Só o conhecimento ativo: o que as telas usam. */
   @Get(':id/perfil')

@@ -39,7 +39,7 @@ export const ORIENTACOES = {
     contribuinte_ibs_cbs: "Indica se a empresa é contribuinte do IBS/CBS. Não altera as fórmulas na versão atual.",
     produtor_rural: "Indica se a empresa é produtor rural. Cadastral — não altera as fórmulas automaticamente.",
     cooperativa: "Indica se a empresa é cooperativa. Cadastral — não altera as fórmulas automaticamente.",
-    erp: "Sistema de gestão utilizado (ex: SAP, Totvs). Informativo.",
+    erp: "ERP escolhido no Cadastro de ERPs (Administração > Configuração e ERPs), nunca digitado. Carrega o perfil do ERP: consultas de extração, restrições por tipo de ajuste e a ação no ERP usadas no saneamento, nos relatórios e na IA. ERP do cliente fora da lista: escolha \"Outro ERP (sem perfil)\" e peça o cadastro ao administrador.",
     responsavel_fiscal: "Nome do responsável fiscal pela empresa. Informativo.",
     observacao: "Anotações sobre a empresa: pendências, particularidades, revisões.",
   },

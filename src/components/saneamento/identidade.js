@@ -42,9 +42,14 @@ export const itemPorId = (indice, id) => (indice.repetidos.has(id) ? null : indi
 /** Por que o item não pode receber decisão ("" quando pode). */
 export const motivoSemIdentidade = (it, indice) => (!idItem(it) ? "Item sem código no ERP: não dá para identificá-lo de forma estável" : indice.repetidos.has(idItem(it)) ? `O código ${idItem(it)} aparece mais de uma vez na base: não dá para saber de qual item é a decisão` : "");
 
-/** Origem dos dados do projeto: ERP + instância + empresa (texto livre, preenchido pelo analista). Completa quando os três estão preenchidos. */
-export const origemCompleta = (o) => !!(String(o?.erp ?? "").trim() && String(o?.instancia ?? "").trim() && String(o?.empresa ?? "").trim());
-export const textoOrigem = (o) => (origemCompleta(o) ? `${String(o.erp).trim()} · ${String(o.instancia).trim()} · ${String(o.empresa).trim()}` : "origem não declarada");
+/**
+ * Origem dos dados do projeto: ERP + instância + empresa. O ERP é escolhido no Cadastro de ERPs (erp_id + erp_nome, o nome do cadastro); `erp`
+ * guarda o texto antigo digitado nos projetos salvos antes do cadastro, que continua valendo: as decisões ficam presas ao código do item, não
+ * ao texto do ERP, e trocar a escolha na lista não invalida nada. Completa quando ERP (vínculo ou texto), instância e empresa estão preenchidos.
+ */
+const nomeDoErpDaOrigem = (o) => String(o?.erp_nome ?? "").trim() || String(o?.erp ?? "").trim();
+export const origemCompleta = (o) => !!((nomeDoErpDaOrigem(o) || o?.erp_id) && String(o?.instancia ?? "").trim() && String(o?.empresa ?? "").trim());
+export const textoOrigem = (o) => (origemCompleta(o) ? `${nomeDoErpDaOrigem(o) || "ERP do cadastro"} · ${String(o.instancia).trim()} · ${String(o.empresa).trim()}` : "origem não declarada");
 
 /** Versão do formato das chaves guardadas no projeto: 1 = pelo número da linha (projetos antigos), 2 = pelo código do item. */
 export const VERSAO_CHAVES = 2;

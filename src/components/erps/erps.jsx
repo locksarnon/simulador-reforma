@@ -26,7 +26,9 @@ const selCls = "mt-1 w-full border border-input rounded-md px-2 py-1.5 text-sm b
 /**
  * Seleção do ERP na lista do cadastro. `registro` traz { erp_id, erp } (o texto antigo). Sem vínculo, o texto antigo que casa sem
  * ambiguidade já aparece selecionado (é gravado ao salvar); o que não casa aparece como "ERP não identificado: ... — selecione na lista".
- * `aoMudar({ erp_id, erp })` devolve o vínculo e o nome do ERP escolhido.
+ * `aoMudar({ erp_id, erp })` devolve o vínculo e o nome do ERP escolhido. Com um ERP já escolhido não há volta para "sem ERP": troca-se por
+ * outro da lista (o "Outro ERP (sem perfil)" serve quando o do cliente não está cadastrado). Assim a associação automática do texto antigo
+ * nunca desfaz uma escolha do usuário.
  */
 export function SeletorErp({ registro, aoMudar, rotulo = "ERP", id = "seletor-erp", desabilitado = false, ajuda }) {
   const q = useErps();
@@ -37,7 +39,7 @@ export function SeletorErp({ registro, aoMudar, rotulo = "ERP", id = "seletor-er
       <label htmlFor={id} className="text-xs font-medium">{rotulo}{ajuda}</label>
       <select id={id} aria-label={rotulo} className={selCls} disabled={desabilitado || q.isLoading} value={erp?.id ?? ""}
         onChange={(e) => { const novo = erps.find((x) => x.id === e.target.value); aoMudar(novo ? { erp_id: novo.id, erp: novo.nome } : { erp_id: null, erp: naoIdentificado ? texto : null }); }}>
-        <option value="">{q.isLoading ? "Carregando a lista…" : "Selecione o ERP"}</option>
+        <option value="" disabled={!!erp}>{q.isLoading ? "Carregando a lista…" : "Selecione o ERP"}</option>
         {erps.map((e) => <option key={e.id} value={e.id}>{e.nome}{e.situacao === "A_DESENVOLVER" ? " (perfil a desenvolver)" : ""}</option>)}
       </select>
       {naoIdentificado && <p role="status" className="mt-1 text-xs text-amber-700 dark:text-amber-300">{avisoNaoIdentificado(texto)}</p>}

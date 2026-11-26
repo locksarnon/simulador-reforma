@@ -4,6 +4,7 @@ import { createGzip, gunzipSync } from 'node:zlib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CASO_ABERTO, TX_LONGA, conflito, igual, quem, type Json, type Usuario } from './constantes';
 import type { DadosEntrega } from './portas';
+import { nomeDoErp } from '../../erps/erps.service';
 
 /** Ordem das chaves da foto (a mesma do JSON.stringify antigo e da escrita em partes): o leitor parcial depende dela só para achar as seções. */
 const SECOES_FOTO = ['itens', 'celulas', 'casos', 'decisoes', 'impactosSped', 'vinculos', 'importacoes'] as const;
@@ -116,7 +117,7 @@ const SEL_CASO = {
 const SEL_DECISAO = { id: true, item_id: true, caso_id: true, campo: true, antes: true, depois: true, fundamento: true, usuario: true, tipo: true, quando: true } as const;
 const SEL_IMPORTACAO = { id: true, arquivo: true, usuario: true, aceitas: true, rejeitadas: true, pendentes: true, createdAt: true } as const;
 const SEL_PROJETO = {
-  id: true, diagnostico_id: true, empresa_id: true, data_base: true, erp: true, erp_versao: true, estabelecimentos: true, responsavel: true, modulos: true, parametros: true,
+  id: true, diagnostico_id: true, empresa_id: true, data_base: true, erp: true, erp_id: true, erp_versao: true, estabelecimentos: true, responsavel: true, modulos: true, parametros: true,
   atividades_confirmadas_por: true, atividades_confirmadas_em: true, cnpj_versao: true, atividades: { select: { codigo: true, descricao: true, origem: true, mantida: true } },
 } as const;
 
@@ -139,7 +140,9 @@ export class SanVersoesService {
     if (!(await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true } }))) throw new NotFoundException('Projeto de saneamento não encontrado.');
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const projeto = await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: SEL_PROJETO });
+        const lido = await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: SEL_PROJETO });
+        // A foto guarda o nome do ERP do Cadastro de ERPs na liberação (erp_nome); `erp` segue com o texto antigo.
+        const projeto = lido ? { ...lido, erp_nome: await nomeDoErp(tx, lido.erp_id, lido.erp) } : lido;
         const itens: Json[] = [];
         let cursor: string | undefined;
         for (;;) {
@@ -285,8 +288,9 @@ export class SanVersoesService {
 
   /** Exportação para REVISÃO: a base de agora (não é a entrega liberada). Só as colunas que as planilhas usam. */
   async exportarAtual(projetoId: string): Promise<DadosEntrega> {
-    const projeto = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: SEL_PROJETO });
-    if (!projeto) throw new NotFoundException('Projeto de saneamento não encontrado.');
+    const lido = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: SEL_PROJETO });
+    if (!lido) throw new NotFoundException('Projeto de saneamento não encontrado.');
+    const projeto = { ...lido, erp_nome: await nomeDoErp(this.prisma, lido.erp_id, lido.erp) };
     const itens: Json[] = [];
     let cursor: string | undefined;
     for (;;) {

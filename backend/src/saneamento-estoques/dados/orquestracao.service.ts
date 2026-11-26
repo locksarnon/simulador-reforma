@@ -6,6 +6,7 @@ import { SanCasosService } from './casos.service';
 import { SAN_MOTOR, type MotorPort } from './portas';
 import { idsDeAtividades } from './motor.provider';
 import { SanProjetoService } from './projeto.service';
+import { nomeDoErp } from '../../erps/erps.service';
 
 /** Roda uma camada: lê os itens, chama o analisador (função pura) e grava casos e células. Os analisadores entram por injeção (SAN_MOTOR). */
 @Injectable()
@@ -38,7 +39,8 @@ export class SanOrquestracaoService {
     if (!itens.length) throw new BadRequestException('Importe o cadastro de itens antes de analisar.');
     const ativas = await this.prisma.sanAtividade.findMany({ where: { projeto_id: projetoId, mantida: true }, select: { codigo: true } });
     const contexto: ContextoAnalise = {
-      dataBase: await this.projetos.dataBase(projetoId), atividades: idsDeAtividades(ativas.map((a) => a.codigo)), erp: p.erp ?? null,
+      dataBase: await this.projetos.dataBase(projetoId), atividades: idsDeAtividades(ativas.map((a) => a.codigo)),
+      erp: await nomeDoErp(this.prisma, (p as { erp_id?: string | null }).erp_id, p.erp), erp_id: (p as { erp_id?: string | null }).erp_id ?? null,
       corteMovimentacao: ((p.parametros as Json)?.corteMovimentacao as string | null | undefined) ?? null,
       ...((p.parametros as Json)?.motor ? { parametros: (p.parametros as Json).motor } : {}),
     } as ContextoAnalise;

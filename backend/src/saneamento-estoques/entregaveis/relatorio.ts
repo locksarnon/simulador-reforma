@@ -128,7 +128,7 @@ export function secaoParticularidadesErp(m: Pick<Modelo, 'casos'>, perfil: Perfi
   if (!r.length) return null;
   return {
     titulo: `Particularidades do ERP ${perfil.nome}`,
-    paragrafos: ['Restrições do ERP do cliente para os ajustes aprovados, conforme a documentação oficial do fornecedor. "Não confirmado": sem fonte oficial que o afirme; conferir com o fornecedor antes de aplicar.'],
+    paragrafos: ['Restrições do ERP do cliente para os ajustes aprovados, do Cadastro de ERPs. Os itens "Confirmado" têm fonte na documentação oficial do fornecedor; os marcados "Não confirmado" não têm fonte oficial que os afirme e devem ser conferidos com o fornecedor antes de aplicar. Na Ação no ERP, o texto não confirmado vem marcado "(a confirmar no ERP)".'],
     tabela: {
       cabecalho: ['Ajuste', 'Restrição', 'Grau', 'Fonte'], larguras: [0.2, 0.5, 0.12, 0.18],
       linhas: r.map((i) => [ROTULO_AJUSTE[i.tipo_ajuste as TipoAjuste] ?? txt(i.tipo_ajuste), i.texto, i.grau === 'CONFIRMADO' ? 'Confirmado' : 'Não confirmado', txt(i.fonte_url)]),

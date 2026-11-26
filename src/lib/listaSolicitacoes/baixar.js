@@ -2,6 +2,7 @@
 import { carregarExcelJS, baixarXlsx } from "@/components/saneamento/arquivoXlsx";
 import { listaDoServico } from "./catalogo.js";
 import { montarPlanilha, nomeArquivo } from "./planilha.js";
+import { erpDoRegistro } from "../erps.js";
 
 /** Logo da FAL Agro (public/fal-agro-logo.png) em base64; se não carregar, a lista sai sem a imagem. */
 async function logoBase64() {
@@ -26,13 +27,21 @@ export function dataDoCampo(txt) {
   return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
 }
 
-/** Dados da Capa a partir do cadastro da empresa e do que a pessoa preencheu na janela. */
-export function dadosDaCapa(empresa, { dataBase, envio, responsavel, contatoFal } = {}) {
+/**
+ * Dados da Capa a partir do cadastro da empresa e do que a pessoa preencheu na janela. O ERP é o nome do Cadastro de ERPs (pelo erp_id ou
+ * pelo texto antigo que casa sem ambiguidade) + a versão; sem a lista ou sem casamento, vale o texto antigo do cadastro do cliente.
+ */
+export function nomeDoErpDaEmpresa(empresa, erps = []) {
+  const { erp, texto } = erpDoRegistro(empresa, erps);
+  return [erp?.nome || texto, empresa?.erp_versao].filter(Boolean).join(" ");
+}
+
+export function dadosDaCapa(empresa, { dataBase, envio, responsavel, contatoFal } = {}, erps = []) {
   return {
     cliente: empresa?.razao_social || "",
     cnpj: empresa?.cnpj_cpf || "",
     regime: empresa?.regime_atual || "",
-    erp: [empresa?.erp, empresa?.erp_versao].filter(Boolean).join(" "),
+    erp: nomeDoErpDaEmpresa(empresa, erps),
     database: dataDoCampo(dataBase),
     envio: dataDoCampo(envio),
     responsavel: (responsavel || "").trim(),

@@ -2,7 +2,10 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../prisma/prisma.service';
 import { TIPOS_AJUSTE } from '../saneamento-estoques/fiscal/impactoSped';
 import { CARGA_ERPS, idDoItemDaCarga, type ErpCarga } from './carga';
-import { associarErp, GRAUS, SITUACOES_ERP, TIPOS_CONHECIMENTO, type ErpBasico, type PerfilErp } from './logica';
+import { apelidosDoTexto, associarErp, CHAVE_APELIDOS, GRAUS, SITUACOES_ERP, TIPOS_CONHECIMENTO, type ErpBasico, type PerfilErp } from './logica';
+
+/** Apelidos do nome (item OBSERVACAO "Apelidos do nome" ativo) de um ERP com os conhecimentos. */
+const apelidosDe = (c: { tipo: string; chave?: string; texto?: string; ativo: boolean }[]) => c.filter((i) => i.ativo && i.tipo === 'OBSERVACAO' && i.chave === CHAVE_APELIDOS).flatMap((i) => apelidosDoTexto(i.texto));
 
 type Usuario = { email?: string; role?: string } | undefined;
 const quem = (u: Usuario) => u?.email ?? 'sistema';
@@ -74,6 +77,16 @@ export async function carregarPerfil(prisma: unknown, erpId: string | null | und
   return { ...erp, itens: conhecimentos };
 }
 
+/**
+ * Nome do ERP para exibir (Excel, PDF, foto da versão, contexto da IA): o do Cadastro de ERPs pelo erp_id; sem vínculo (ou sem a tabela), o
+ * texto antigo guardado no registro. null = nenhum dos dois.
+ */
+export async function nomeDoErp(prisma: unknown, erpId: string | null | undefined, textoAntigo?: string | null): Promise<string | null> {
+  const p = prisma as { erp?: { findUnique: (a: unknown) => Promise<{ nome?: string } | null> } };
+  const e = erpId && p.erp?.findUnique ? await p.erp.findUnique({ where: { id: erpId }, select: { nome: true } }) : null;
+  return e?.nome || String(textoAntigo ?? '').trim() || null;
+}
+
 /** Cadastro de ERPs: lista, ficha, edição (só administrador, com histórico), carga inicial e associação dos textos antigos. */
 @Injectable()
 export class ErpsService implements OnApplicationBootstrap {
@@ -97,17 +110,23 @@ export class ErpsService implements OnApplicationBootstrap {
   }
 
   async listar() {
-    const erps = await this.prisma.erp.findMany({ orderBy: { nome: 'asc' }, include: { conhecimentos: { select: { tipo: true, grau: true, ativo: true } } } });
+    const erps = await this.prisma.erp.findMany({ orderBy: { nome: 'asc' }, include: { conhecimentos: { select: { tipo: true, grau: true, ativo: true, chave: true, texto: true } } } });
     return erps.map(({ conhecimentos, ...e }) => {
       const ativos = conhecimentos.filter((c) => c.ativo);
-      return { ...e, itens: ativos.length, confirmados: ativos.filter((c) => c.grau === 'CONFIRMADO').length, restricoes: ativos.filter((c) => c.tipo === 'RESTRICAO').length };
+      return { ...e, apelidos: apelidosDe(conhecimentos), itens: ativos.length, confirmados: ativos.filter((c) => c.grau === 'CONFIRMADO').length, restricoes: ativos.filter((c) => c.tipo === 'RESTRICAO').length };
     });
   }
 
-  async obter(id: string) {
+  /** Ficha do ERP com o histórico. O e-mail de quem alterou só vai para o administrador; para os demais, o nome da pessoa (ou "usuário"). */
+  async obter(id: string, leitor?: Usuario) {
     const e = await this.prisma.erp.findUnique({ where: { id }, include: { conhecimentos: { orderBy: [{ tipo: 'asc' }, { ordem: 'asc' }, { createdAt: 'asc' }] } } });
     if (!e) throw new NotFoundException('ERP não encontrado.');
-    const historico = await this.prisma.erpHistorico.findMany({ where: { erp_id: id }, orderBy: { createdAt: 'desc' }, take: 300 });
+    const bruto = await this.prisma.erpHistorico.findMany({ where: { erp_id: id }, orderBy: { createdAt: 'desc' }, take: 300 });
+    if (leitor?.role === 'admin') return { ...e, historico: bruto };
+    const emails = [...new Set(bruto.map((h) => h.usuario).filter((u) => u.includes('@')))];
+    const p = this.prisma as unknown as { user?: { findMany: (a: unknown) => Promise<{ email: string; name: string | null }[]> } };
+    const nomes = new Map((emails.length && p.user?.findMany ? await p.user.findMany({ where: { email: { in: emails } }, select: { email: true, name: true } }) : []).map((u) => [u.email, u.name]));
+    const historico = bruto.map((h) => (h.usuario.includes('@') ? { ...h, usuario: nomes.get(h.usuario)?.trim() || 'usuário' } : h));
     return { ...e, historico };
   }
 
@@ -212,7 +231,8 @@ export class ErpsService implements OnApplicationBootstrap {
    * do cadastro. O texto fica como estava; o que não casa continua sem vínculo e a tela pede para selecionar na lista.
    */
   async associarTextosAntigos() {
-    const erps = await this.prisma.erp.findMany({ select: { id: true, nome: true, fabricante: true, produto: true, ativo: true } });
+    const lidos = await this.prisma.erp.findMany({ select: { id: true, nome: true, fabricante: true, produto: true, ativo: true, conhecimentos: { select: { tipo: true, chave: true, texto: true, ativo: true } } } });
+    const erps: ErpBasico[] = lidos.map(({ conhecimentos, ...e }) => ({ ...e, apelidos: apelidosDe(conhecimentos ?? []) }));
     let empresas = 0; let projetos = 0;
     const porTexto = (lista: { id: string; erp: string | null }[]) => {
       const m = new Map<string, string[]>();

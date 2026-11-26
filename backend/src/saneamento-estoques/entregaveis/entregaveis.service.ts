@@ -55,7 +55,9 @@ export class EntregaveisService implements EntregaveisPort {
     const projeto = dados.projeto;
     const empresa = projeto.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: String(projeto.empresa_id) }, select: { razao_social: true, cnpj_cpf: true } }) : null;
     const diag = projeto.diagnostico_id ? await this.prisma.projetoDiagnostico.findUnique({ where: { id: String(projeto.diagnostico_id) }, select: { nome: true } }) : null;
-    const perfilErp = await carregarPerfil(this.prisma, (projeto.erp_id as string | null | undefined) ?? null);
+    // Foto liberada antes do Cadastro de ERPs não tem erp_id: vale o ERP atual do projeto.
+    const erpId = projeto.erp_id !== undefined ? (projeto.erp_id as string | null) : (await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { erp_id: true } }))?.erp_id ?? null;
+    const perfilErp = await carregarPerfil(this.prisma, erpId);
     return { ...dados, perfilErp, projeto: { ...projeto, clienteNome: empresa?.razao_social ?? '', clienteDocumento: empresa?.cnpj_cpf ?? '', diagnosticoNome: diag?.nome ?? '' } };
   }
 

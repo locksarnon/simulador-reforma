@@ -106,7 +106,8 @@ function linhasResumo(m: Modelo, dados: DadosEntrega): LinhaResumo[] {
   if (projetoTexto(m, 'diagnosticoNome')) par('Projeto de consultoria', projetoTexto(m, 'diagnosticoNome'));
   par('Escopo', `Saneamento de estoques e cadastro de produtos com foco em IBS e CBS: ${comMilhar(m.itens.length)} itens do cadastro`);
   par('Data-base', dia(p.data_base));
-  par('ERP', [txt(p.erp), txt(p.erp_versao)].filter(Boolean).join(' ') || '—');
+  // Nome do Cadastro de ERPs (o gravado na foto, senão o do perfil); sem cadastro, o texto antigo.
+  par('ERP', [txt(p.erp_nome) || txt(dados.perfilErp?.nome) || txt(p.erp), txt(p.erp_versao)].filter(Boolean).join(' ') || '—');
   const estabs = Array.isArray(p.estabelecimentos) ? (p.estabelecimentos as unknown[]).map(txt).filter(Boolean) : [];
   par('Estabelecimentos', estabs.length ? estabs.join(', ') : 'Único');
   par('Versão', nomeVersao ?? textoDaBaseAtual(dados.ultimaLiberada));

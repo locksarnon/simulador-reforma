@@ -253,7 +253,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     passos: [
       { acao: "Abra a ficha do cliente." },
       { acao: "Clique em “Editar dados” (no alto) ou em “Editar”, no cartão “Dados cadastrais”." },
-      { acao: "Ajuste os campos, como Regime atual, Setor, Inscrição Estadual (IE), Contribuinte IBS/CBS, Produtor rural, ERP, Responsável fiscal, E-mail de contato e WhatsApp de contato.", detalhe: "O ERP é escolhido na lista do Cadastro de ERPs (nunca digitado) e a versão, na lista de versões do ERP quando houver. ERP antigo que não casa com o cadastro aparece como “ERP não identificado: … — selecione na lista”." },
+      { acao: "Ajuste os campos, como Regime atual, Setor, Inscrição Estadual (IE), Contribuinte IBS/CBS, Produtor rural, ERP, Responsável fiscal, E-mail de contato e WhatsApp de contato.", detalhe: "O ERP é escolhido na lista do Cadastro de ERPs (nunca digitado) e a versão, na lista de versões do ERP quando houver. Escolhido o ERP, ele não volta a ficar vazio: troque por outro (ou por “Outro ERP (sem perfil)”). ERP antigo que não casa com o cadastro aparece como “ERP não identificado: … — selecione na lista”." },
       { acao: "Clique em “Salvar”." },
       { acao: "Para cliente com CNPJ, no cartão “Dados da Receita Federal (CNPJ)”, clique em “Atualizar pela Receita”.", detalhe: "Traz nome fantasia, situação cadastral, abertura, natureza jurídica, capital social, Simples e MEI, endereço, CNAEs secundários e quadro societário." },
       { acao: "No cartão “Equipe e etiquetas”, clique em “Etiquetas” para marcar as etiquetas deste cliente e em “Salvar”." },
@@ -1017,13 +1017,16 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
       { acao: "Para incluir um item, clique em Novo item de conhecimento; escolha o Tipo e, se valer só para um ajuste, o Tipo de ajuste.", detalhe: "Em Colunas do export, escolha o Campo do saneamento e escreva o cabeçalho da coluna no export: a importação do saneamento passa a reconhecer essa coluna. Em Ação no ERP, use {sai} e {fica} no texto para os códigos da linha do mapa de unificações." },
       { acao: "Preencha o Texto, a Fonte oficial (endereço) e o Grau, e clique em Salvar.", detalhe: "Sem fonte oficial que confirme, o grau é “Não confirmado”." },
       { acao: "Para corrigir, clique em Editar na linha; para tirar um item ou um ERP de uso, desmarque Ativo e salve.", detalhe: "Nada é excluído: o histórico fica." },
-      { acao: "Confira o Histórico de alterações no pé da ficha.", detalhe: "Mostra quando, quem, a ação (Criou, Alterou ou Carga inicial) e o antes → depois de cada campo." },
+      { acao: "Confira o Histórico de alterações no pé da ficha.", detalhe: "Mostra quando, quem, a ação (Criou, Alterou ou Carga inicial) e o antes → depois de cada campo. O e-mail de quem alterou só aparece para o administrador; os demais veem o nome da pessoa (ou “usuário”)." },
     ],
-    resultado: "O ERP aparece na lista de todas as telas que pedem o ERP (cadastro do cliente, Configuração do saneamento, validador de cadastro, origem dos dados) e o conhecimento dele passa a ser usado no Saneamento de estoques.",
+    resultado: "O ERP aparece na lista de todas as telas que pedem o ERP (cadastro do cliente, Configuração do saneamento, validador de cadastro, origem dos dados, homologação do ERP) e o conhecimento dele passa a ser usado no Saneamento de estoques (importação, casos, Impacto no SPED, Ação no ERP do Excel e do PDF), na barra de sistemas do cliente (orientações de add-on como o PIMS), na Capa da lista de solicitações e no contexto do Analisar com IA e do parecer da IA do saneamento.",
     atencao: [
       "A carga inicial traz SAP Business One, Aliare Siagri, TOTVS Protheus e “Outro ERP (sem perfil)”, a partir das pesquisas em fonte oficial; ela nunca sobrescreve o que um administrador alterou.",
       "ERP antigo gravado como texto nos clientes e projetos é associado sozinho quando o nome casa sem ambiguidade; o resto aparece como “ERP não identificado: … — selecione na lista”, sem perder o texto.",
       "Perfil “A desenvolver” e “Outro ERP (sem perfil)” não geram alertas específicos.",
+      "Siglas e apelidos que identificam o ERP no texto antigo (ex.: SAP B1, SBO, P12) ficam no item de Observações com o rótulo “Apelidos do nome”, separados por “;”. A versão (10.0, 12.1.2510) e o banco (SQL, HANA) no fim do texto são ignorados. Apelido que serve a mais de um ERP (como “TOTVS” sozinho) não associa.",
+      "Orientações de add-on integrado ao ERP (ex.: PIMS Multicultivos no TOTVS Protheus) ficam no próprio ERP, em Observações, com o rótulo “PIMS (linha) · título” e o texto terminando em “Revisão da fonte: … Conferido em dd/mm/aaaa.”: é o que aparece na barra Sistemas da empresa.",
+      "Item “Não confirmado” na Ação no ERP sai marcado “(a confirmar no ERP)” na tela, no Excel e no PDF; a IA recebe os não confirmados como “a confirmar”.",
     ],
   },
   {

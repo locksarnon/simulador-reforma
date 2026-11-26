@@ -6,6 +6,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SanCasosService } from '../dados/casos.service';
 import type { CasoParaParecer, ParecerIa, ParecerIaPort } from '../dados/portas';
 import { CANDIDATOS_BORDA, motivoBorda, usaBusca, type Borda } from './borda';
+import { carregarPerfil } from '../../erps/erps.service';
+import { erpParaIa, type ErpParaIa } from '../../erps/logica';
+import { tiposDeAjusteDoCaso } from '../dados/ajustes';
 import { lerParecer, montarPrompt, paraGravar, type LeiCarregada, type ParecerGravado, type Precedente } from './parecer';
 
 /** Casos que ainda estão abertos (a IA não opina sobre o que já foi decidido). */
@@ -68,6 +71,14 @@ export class ParecerIaService implements ParecerIaPort {
     return escolhidos.slice(0, 3).map((a) => ({ problema: a.problema, atual: a.atual, proposta: a.proposta, justificativa: a.justificativa, fundamento: a.fundamento }));
   }
 
+  /** ERP do projeto (Cadastro de ERPs) com as restrições e ações para os tipos de ajuste do caso. Sem ERP: null. */
+  private async erpDoProjeto(c: { projeto_id: string; camada: string; tipo: string; proposta: unknown }): Promise<ErpParaIa | null> {
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: c.projeto_id }, select: { erp: true, erp_id: true, erp_versao: true } });
+    if (!p) return null;
+    const tipos = tiposDeAjusteDoCaso({ camada: c.camada, tipo: c.tipo, proposta: (c.proposta ?? {}) } as never);
+    return erpParaIa(await carregarPerfil(this.prisma, p.erp_id), { nome: p.erp, versao: p.erp_versao, tipos });
+  }
+
   private async atividades(projetoId: string): Promise<string[]> {
     const l = await this.prisma.sanAtividade.findMany({ where: { projeto_id: projetoId, mantida: true }, orderBy: { codigo: 'asc' }, take: 20 });
     return l.map((a) => `${a.codigo} — ${a.descricao}`);
@@ -99,9 +110,9 @@ export class ParecerIaService implements ParecerIaPort {
     if (!borda) return { parecer: null, motivo: 'nao_e_borda' };
     if (!this.base.iaConfigurada()) return { parecer: null, motivo: 'ia_indisponivel' };
     try {
-      const [atividades, precedentes, leis] = await Promise.all([this.atividades(c.projeto_id), this.precedentes(c), this.leis(c)]);
+      const [atividades, precedentes, leis, erp] = await Promise.all([this.atividades(c.projeto_id), this.precedentes(c), this.leis(c), this.erpDoProjeto(c)]);
       const comBusca = usaBusca(borda);
-      const prompt = montarPrompt({ caso, borda, atividades, precedentes, leis, comBusca });
+      const prompt = montarPrompt({ caso, borda, atividades, precedentes, leis, comBusca, erp });
       let texto: string, modelo: string | null = null, fontesDaBusca: ReturnType<typeof lerFontes> = [];
       if (comBusca) {
         const r = await comPrazo(this.base.iaComBusca(prompt), prazoMs ?? PRAZO_COM_BUSCA_MS);

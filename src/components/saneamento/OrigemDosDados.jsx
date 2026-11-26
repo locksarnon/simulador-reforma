@@ -23,7 +23,7 @@ export function OrigemDosDados({ origem, onMudar }) {
       </div>
       <p className="text-xs text-muted-foreground">O item é identificado por ERP + instância + empresa + código (o código como texto, com os zeros à esquerda). As decisões, as tarefas e a revisão fiscal ficam presas ao código, e não à linha da planilha, que muda a cada extração. Uma nova base só vale para este projeto se for da mesma origem: para outra empresa ou instância, crie outro projeto.</p>
       <div className="grid gap-2 sm:grid-cols-3">
-        <div className="text-muted-foreground"><SeletorErp id="origem-erp" rotulo="ERP" registro={o} aoMudar={(v) => onMudar({ erp_id: v.erp_id, erp: v.erp ?? o.erp ?? "" })} /></div>{campo("instancia", "Instância ou banco de dados", "Ex.: CRESTANI_PRD")}{campo("empresa", "Empresa no ERP", "Ex.: Crestani Agro")}
+        <div className="text-muted-foreground"><SeletorErp id="origem-erp" rotulo="ERP" registro={o} aoMudar={(v) => onMudar({ erp_id: v.erp_id, erp_nome: v.erp || "", erp: o.erp || v.erp || "" })} /></div>{campo("instancia", "Instância ou banco de dados", "Ex.: CRESTANI_PRD")}{campo("empresa", "Empresa no ERP", "Ex.: Crestani Agro")}
       </div>
     </div>
   );

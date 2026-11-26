@@ -91,6 +91,10 @@ export const SECAO_SANEAMENTO = {
       r: "Em qualquer projeto de serviço de consultoria, monta um rascunho de parecer no roteiro do serviço, com o contexto do projeto (serviço, período ou data-base, regime, setor, UF, porte, CNAE, situação dos documentos e achados) e os trechos da base legal do InTAX. Não envia nome, CNPJ, CPF, e-mail nem endereço do cliente e não muda o projeto: só o último rascunho fica guardado, e o consultor copia, revisa, confere as fontes e assume o texto. O rascunho rápido fica pronto em até um minuto.",
     },
     {
+      p: "A IA sabe o que o ERP do cliente permite?",
+      r: "Sim, pelo Cadastro de ERPs. O Analisar com IA e o parecer da IA do saneamento recebem o ERP do cliente com as restrições e as ações no ERP do perfil: as confirmadas como fato, citando o Cadastro de ERPs, e as não confirmadas como “a confirmar”. A IA é orientada a não recomendar o que contraria uma restrição confirmada. ERP sem perfil: valem só as regras gerais.",
+    },
+    {
       p: "Qual a diferença entre Analisar com IA e Aprofundar com pesquisa externa?",
       r: "Analisar com IA é o rascunho rápido: usa só o contexto do projeto e a base legal do InTAX, sem web, e leva até um minuto. Aprofundar com pesquisa externa também pesquisa na web (vigência, regulamentação, prazos) e leva até 3 minutos. Nos dois casos o pedido roda no servidor: você pode sair da página, e ao voltar o rascunho está em Último rascunho, com a data, o modo e o motor usados. Se passar do prazo, o pedido é encerrado e aparece Tentar de novo.",
     },

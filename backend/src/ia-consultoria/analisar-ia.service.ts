@@ -9,6 +9,8 @@ import {
 } from './contexto';
 import { roteiroDe, type Roteiro } from './roteiros';
 import { LimiteUso, comPrazo } from './util';
+import { carregarPerfil } from '../erps/erps.service';
+import { erpParaIa, type ErpParaIa } from '../erps/logica';
 
 /**
  * Achados que outro módulo já tem do serviço (ex.: o laudo da homologação). O integrador pode fornecer este token com uma função
@@ -93,6 +95,7 @@ export class AnalisarIaService {
 
     let clientes: ClienteResumo[] = [];
     let ids: string[] = [];
+    const erps: ErpParaIa[] = [];
     if (servico.publico === 'PF') {
       ids = p.pessoa_fisica_id ? [p.pessoa_fisica_id] : [];
       clientes = [{ tipo: 'Produtor rural pessoa física' }];
@@ -104,6 +107,16 @@ export class AnalisarIaService {
         cnae: e.cnae_principal ? `${e.cnae_principal}${e.cnae_descricao ? ` — ${e.cnae_descricao}` : ''}` : null,
         produtorRural: e.produtor_rural, contribuinteIbsCbs: e.contribuinte_ibs_cbs, cooperativa: e.cooperativa,
       }));
+      // ERP de cada cliente pelo Cadastro de ERPs (erp_id); sem vínculo, o texto antigo só como nome, sem perfil.
+      const vistos = new Set<string>();
+      for (const e of empresas) {
+        const erpId = (e as { erp_id?: string | null }).erp_id ?? null;
+        const chave = erpId ?? `texto:${String(e.erp ?? '').trim().toLowerCase()}`;
+        if (vistos.has(chave)) continue;
+        vistos.add(chave);
+        const x = erpParaIa(await carregarPerfil(this.prisma, erpId), { nome: e.erp, versao: e.erp_versao });
+        if (x) erps.push(x);
+      }
     }
     const porBase = SERVICOS_POR_DATA_BASE.includes(servico.id);
     return {
@@ -111,6 +124,7 @@ export class AnalisarIaService {
       referencia: porBase ? { tipo: 'data-base', de: iso(p.periodo_inicio), ate: null } : { tipo: 'período', de: iso(p.periodo_inicio), ate: iso(p.periodo_fim) },
       situacaoDoProjeto: p.situacao, qtdClientes: ids.length, clientes,
       documentos: await this.documentos(servico.id, servico.publico, ids),
+      erps,
       achados: await this.achadosDoServico({ id: p.id, servico_consultoria: servico.id, empresa_ids: p.empresa_ids, pessoa_fisica_id: p.pessoa_fisica_id, periodo_inicio: p.periodo_inicio, periodo_fim: p.periodo_fim }),
     };
   }

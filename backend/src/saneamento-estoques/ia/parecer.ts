@@ -1,6 +1,7 @@
 import { REGRAS_COMUNS, dominioEhOficial, extrairJson, limpar, mascarar } from '../../ia-consultoria/util';
 import type { CasoParaParecer, ParecerIa } from '../dados/portas';
 import type { Borda } from './borda';
+import { REGRA_ERP_IA, type ErpParaIa } from '../../erps/logica';
 
 /** Prompt e leitura do parecer da IA sobre um caso de borda. Funções puras: o modelo é chamado em parecer-ia.service.ts. */
 
@@ -14,6 +15,8 @@ export type EntradaParecer = {
   precedentes: Precedente[];
   leis: LeiCarregada[];
   comBusca: boolean;
+  /** ERP do projeto (Cadastro de ERPs): restrições e ações para os tipos de ajuste do caso. */
+  erp?: ErpParaIa | null;
 };
 
 export type FonteParecer = { titulo: string; url?: string; oficial: boolean };
@@ -49,6 +52,7 @@ export function montarPrompt(e: EntradaParecer): string {
       justificativa: mascarar(limpar(p.justificativa, 300)), fundamento: limpar(p.fundamento, 200) || null,
     })),
     textoDeLeiCarregadoNoInTAX: e.leis.slice(0, 3).map((l) => ({ dispositivo: limpar(l.rotulo, 120), texto: limpar(l.texto, 1200) })),
+    ...(e.erp ? { erpDoCliente: e.erp } : {}),
   };
   const busca = e.comBusca
     ? '- Você pode pesquisar na web, mas só fonte oficial (gov.br, planalto.gov.br, jus.br, leg.br, SPED, portal da NF-e) vale como fundamento; as demais servem só para localizar a oficial.'
@@ -57,7 +61,7 @@ export function montarPrompt(e: EntradaParecer): string {
 
 ${REGRAS_COMUNS}
 - Os precedentes aprovados são decisões anteriores DESTE cliente para a mesma família de caso: use-os como contexto e coerência, jamais como prova de que este produto é igual.
-${busca}
+${e.erp ? `${REGRA_ERP_IA}\n` : ''}${busca}
 
 Responda SOMENTE com um objeto JSON, sem texto fora dele, neste formato:
 {"recomendacao": "o que fazer, em até 3 frases", "confianca": "ALTA" | "MEDIA" | "BAIXA", "aFavor": ["..."], "contra": ["..."], "confirmar": ["o que o consultor deve confirmar com o cliente ou na fonte"], "fontes": [{"titulo": "norma, artigo ou página", "url": "https://... (só se tiver)", "oficial": true ou false}], "praticaMercado": "texto ou null"}

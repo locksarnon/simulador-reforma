@@ -1,5 +1,5 @@
 import { ADDONS, LINHAS_PIMS } from "@/lib/conhecimentoSistemas";
-import { erpDoRegistro } from "@/lib/erps";
+import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
 import { SeletorErp, useErps } from "@/components/erps/erps";
 import { RAMOS_CADASTRO } from "@/lib/setoresReforma";
 import React, { useState, useEffect } from "react";
@@ -58,7 +58,8 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
   const qc = useQueryClient();
   const [form, setForm] = useState(() => (editing && editing !== "new" ? { ...empty, ...editing, addons: editing.addons || [], addons_versoes: editing.addons_versoes || {} } : empty));
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
-  const erps = useErps(open).data || [];
+  const erpsQ = useErps(open);
+  const erps = erpsQ.data || [];
 
   useEffect(() => {
     if (!open) return;
@@ -103,9 +104,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
 
   const save = async (e) => {
     e.preventDefault();
-    // ERP do Cadastro de ERPs: o vínculo e o nome; texto antigo que casa sem ambiguidade é gravado com o vínculo; o que não casa fica como estava.
-    const { erp: doCadastro } = erpDoRegistro(form, erps);
-    const payload = { ...form, grupo: grupoNumero || form.grupo, erp_id: doCadastro?.id ?? null, erp: doCadastro?.nome ?? (form.erp || null) };
+    const payload = { ...form, grupo: grupoNumero || form.grupo, ...vinculoErpParaSalvar(form, erps, erpsQ.isSuccess) };
     if (editing === "new") await api.entities.Empresa.create(payload);
     else await api.entities.Empresa.update(editing.id, payload);
     rascunho.limpar();
@@ -183,7 +182,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
             <Input value={form.inscricao_estadual || ""} onChange={(e) => set("inscricao_estadual", e.target.value.replace(/[^0-9A-Za-z./-]/g, "").slice(0, 20))} placeholder="Só números, ou ISENTO" />
             <a href="https://www.sintegra.gov.br/" target="_blank" rel="noreferrer" className="text-[11px] text-muted-foreground underline">Conferir no Sintegra (site oficial)</a>
           </div>
-          <SeletorErp id="empresa-erp" rotulo="ERP" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, ...v }))} ajuda={<InfoTooltip pagina="empresas" chave="erp" />} />
+          <SeletorErp id="empresa-erp" rotulo="ERP" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} ajuda={<InfoTooltip pagina="empresas" chave="erp" />} />
           <div><Label className="text-xs">Versão do ERP</Label>{(erpDoRegistro(form, erps).erp?.versoes || []).length
             ? <select aria-label="Versão do ERP" className="mt-1 w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background" value={form.erp_versao || ""} onChange={(e) => set("erp_versao", e.target.value)}><option value="">Selecione a versão</option>{[...(erpDoRegistro(form, erps).erp?.versoes || []), ...(form.erp_versao && !(erpDoRegistro(form, erps).erp?.versoes || []).includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
             : <Input value={form.erp_versao || ""} onChange={(e) => set("erp_versao", e.target.value)} placeholder="Informe a versão instalada" />}</div>

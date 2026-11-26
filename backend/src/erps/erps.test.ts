@@ -146,9 +146,16 @@ describe('edição com histórico', () => {
     const e = await t.service.criar({ nome: 'Sankhya Om', fabricante: 'Sankhya', situacao: 'A_DESENVOLVER', versoes: ['4.20', '4.20', ' '] }, ADMIN);
     expect(e.versoes).toEqual(['4.20']);
     await t.service.atualizar(e.id, { situacao: 'PARCIAL' }, ADMIN);
-    const ficha = await t.service.obter(e.id);
+    const ficha = await t.service.obter(e.id, ADMIN);
     const alterou = ficha.historico.find((h) => h.acao === 'ALTEROU')!;
     expect(alterou.usuario).toBe('adm@fal');
+    // Para quem não é administrador, o histórico não mostra o e-mail: o nome da pessoa (se houver) ou "usuário".
+    const leitor = await t.service.obter(e.id, { email: 'consultor@fal', role: 'user' });
+    expect(leitor.historico.map((h) => h.usuario)).not.toContain('adm@fal');
+    expect(leitor.historico.find((h) => h.acao === 'ALTEROU')!.usuario).toBe('usuário');
+    expect((await t.service.obter(e.id)).historico.find((h) => h.acao === 'ALTEROU')!.usuario).toBe('usuário');
+    (t.prisma as Record<string, unknown>).user = { findMany: async () => [{ email: 'adm@fal', name: 'Ana Admin' }] };
+    expect((await t.service.obter(e.id, { role: 'user' })).historico.find((h) => h.acao === 'ALTEROU')!.usuario).toBe('Ana Admin');
     expect((alterou.antes as Linha).situacao).toBe('A_DESENVOLVER');
     expect((alterou.depois as Linha).situacao).toBe('PARCIAL');
     const k = await t.service.criarItem(e.id, { tipo: 'RESTRICAO', tipo_ajuste: 'INATIVOU', chave: 'X', texto: 'Y', fonte_url: 'https://exemplo.gov.br', grau: 'CONFIRMADO' }, ADMIN);
@@ -216,7 +223,7 @@ describe('perfil usado pelas telas', () => {
     const t = montar(); await t.service.aplicarCarga();
     const sap = (await carregarPerfil(t.prisma, 'erp-sap-b1'))!;
     expect(perfilEspecifico(sap)).toBe(true);
-    expect(restricoesDoTipo(sap, ['MUDOU_UNIDADE']).map((i) => i.chave)).toEqual(['Unidade de estoque travada', 'Grupo de UdM']);
+    expect(restricoesDoTipo(sap, ['MUDOU_UNIDADE']).map((i) => i.chave)).toEqual(['Unidade de estoque travada', 'Conversões com documentos abertos', 'Troca do grupo de UdM']);
     expect(restricoesDoTipo(sap, ['MUDOU_UNIDADE']).every((i) => i.fonte_url && i.grau)).toBe(true);
     expect(acaoNoErp(sap, 'CONSOLIDOU_INATIVOU', { sai: 'A1', fica: 'B2' })).toMatch(/OIGE\) de A1.*OIGN\) em B2.*inativar A1/);
     expect(colunasDoExport(sap).ncm).toEqual(['NcmCode']);
@@ -232,6 +239,6 @@ describe('perfil usado pelas telas', () => {
     const t = montar(); await t.service.aplicarCarga();
     await t.service.atualizarItem('erp-sap-b1', idDoItemDaCarga('erp-sap-b1', 'r-udm-grupo'), { ativo: false }, ADMIN);
     const sap = (await carregarPerfil(t.prisma, 'erp-sap-b1'))!;
-    expect(restricoesDoTipo(sap, ['MUDOU_UNIDADE']).map((i) => i.chave)).toEqual(['Unidade de estoque travada']);
+    expect(restricoesDoTipo(sap, ['MUDOU_UNIDADE']).map((i) => i.chave)).toEqual(['Unidade de estoque travada', 'Conversões com documentos abertos']);
   });
 });

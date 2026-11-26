@@ -93,7 +93,10 @@ export type ContextoAnalise = {
   dataBase: string;
   /** Atividades confirmadas pelo consultor (ids estáveis, ver fiscal/atividades). */
   atividades: string[];
+  /** Nome do ERP do Cadastro de ERPs (sem vínculo, o texto antigo do projeto). Só informativo: regra que dependa do ERP usa erp_id e o perfil. */
   erp: string | null;
+  /** ERP do Cadastro de ERPs (Administração > Configuração e ERPs). */
+  erp_id?: string | null;
   /** Corte da Triagem: itens sem movimentação desde esta data (yyyy-mm-dd) saem do escopo. */
   corteMovimentacao: string | null;
 };

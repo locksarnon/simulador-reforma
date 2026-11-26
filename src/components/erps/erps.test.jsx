@@ -14,7 +14,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { AlertasErp, chavesErps, ConsultasErp, NomeErp, SeletorErp } from "./erps";
-import { associarErp, erpDoRegistro, mesmoErp, perfilEspecifico, restricoesDoTipo } from "@/lib/erps";
+import { associarErp, erpDoRegistro, perfilEspecifico, restricoesDoTipo } from "@/lib/erps";
 import ErpsPagina, { diferencas, ErpFicha } from "@/pages/admin/ErpsPagina";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
@@ -63,8 +63,6 @@ describe("regras puras (src/lib/erps.js)", () => {
     expect(associarErp("Sankhya", ERPS)).toBeNull();
     expect(erpDoRegistro({ erp: "Sankhya" }, ERPS)).toEqual({ erp: null, texto: "Sankhya", naoIdentificado: true });
     expect(erpDoRegistro({ erp: "texto velho", erp_id: "erp-sap-b1" }, ERPS).erp.nome).toBe("SAP Business One");
-    expect(mesmoErp("Protheus", "TOTVS Protheus")).toBe(true);
-    expect(mesmoErp("Protheus", "SAP Business One")).toBe(false);
   });
   it("perfil a desenvolver não tem restrição específica", () => {
     expect(perfilEspecifico(PERFIL_OUTRO)).toBe(false);

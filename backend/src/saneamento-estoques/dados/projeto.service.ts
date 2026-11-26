@@ -82,13 +82,19 @@ export class SanProjetoService {
     const versao = exigirVersao(e.versao);
     const dados: Json = {};
     if (e.erp !== undefined) dados.erp = texto(e.erp, 120);
-    // ERP selecionado no Cadastro de ERPs: o vínculo e o nome (o texto acompanha o ERP escolhido). null = tira a seleção, o texto fica.
+    // ERP selecionado no Cadastro de ERPs: grava o vínculo (erp_id). O texto antigo (`erp`) fica como estava; só é preenchido com o nome do ERP
+    // quando estava vazio. Escolhido um ERP, não se volta a "sem ERP" (a associação automática religaria o texto): troca-se por outro da lista,
+    // e o "Outro ERP (sem perfil)" serve quando o do cliente não está cadastrado.
     if (e.erp_id !== undefined) {
-      if (e.erp_id === null || e.erp_id === '') dados.erp_id = null;
-      else {
+      const atual = await this.prisma.sanProjeto.findUnique({ where: { id }, select: { erp: true, erp_id: true } });
+      if (e.erp_id === null || e.erp_id === '') {
+        if (atual?.erp_id) throw new BadRequestException('O ERP do projeto não fica vazio depois de escolhido: selecione outro na lista (ou "Outro ERP (sem perfil)").');
+        dados.erp_id = null;
+      } else {
         const erp = await this.prisma.erp.findUnique({ where: { id: String(e.erp_id) }, select: { id: true, nome: true } });
         if (!erp) throw new BadRequestException('ERP não encontrado no Cadastro de ERPs: selecione na lista.');
-        dados.erp_id = erp.id; dados.erp = erp.nome;
+        dados.erp_id = erp.id;
+        if (!String(dados.erp ?? atual?.erp ?? '').trim()) dados.erp = erp.nome;
       }
     }
     if (e.erp_versao !== undefined) dados.erp_versao = texto(e.erp_versao, 60);

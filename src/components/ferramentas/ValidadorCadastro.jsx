@@ -1,5 +1,5 @@
 import { useErps } from "@/components/erps/erps";
-import { associarErp } from "@/lib/erps";
+import { associarErp, erpDoRegistro } from "@/lib/erps";
 import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -172,7 +172,8 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
   // ERPs de referência: a lista do Cadastro de ERPs; o texto antigo do cliente vira o nome do cadastro quando casa sem ambiguidade.
   const erpsQ = useErps(!publico);
   const listaErps = (erpsQ.data || []).filter((e) => e.ativo !== false).map((e) => e.nome);
-  useEffect(() => { if (erpsQ.data) setOpcoes((o) => ({ ...o, erps: [...new Set(o.erps.map((t) => associarErp(t, erpsQ.data)?.nome ?? t))] })); }, [erpsQ.data]);
+  // O ERP do cliente vira o nome do Cadastro de ERPs (pelo erp_id; sem vínculo, pelo texto antigo que casa sem ambiguidade).
+  useEffect(() => { if (erpsQ.data) setOpcoes((o) => ({ ...o, erps: [...new Set(o.erps.map((t) => (t === empresa?.erp ? erpDoRegistro(empresa, erpsQ.data).erp?.nome : associarErp(t, erpsQ.data)?.nome) ?? t))] })); }, [erpsQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const [excluir, setExcluir] = useState([]);
   const [problemasSelecionados, setProblemasSelecionados] = useState([]);
   const [periodoFiltro, setPeriodoFiltro] = useState("ANALISE");

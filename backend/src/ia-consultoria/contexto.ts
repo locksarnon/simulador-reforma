@@ -1,6 +1,7 @@
 import { REGRAS_COMUNS, dominioEhOficial, extrairJson, limpar } from './util';
 import type { Roteiro } from './roteiros';
 import { blocoDoCandidato, REGRAS_SITUACAO_DO_TEXTO, type Candidato } from '../base-legal/base-legal.assistente';
+import { REGRA_ERP_IA, type ErpParaIa } from '../erps/logica';
 
 /** Contexto padrão do projeto, o prompt do rascunho e a leitura da resposta. Funções puras. */
 
@@ -21,6 +22,8 @@ export type ContextoProjeto = {
   documentos: DocumentosResumo;
   /** Achados que o sistema já tem do serviço (ex.: laudo da homologação, casos do saneamento). Texto curto, já resumido. */
   achados: string[];
+  /** ERP(s) dos clientes, do Cadastro de ERPs: restrições e ações do perfil (confirmadas e "a confirmar"), para a IA não recomendar o que o ERP não permite. */
+  erps?: ErpParaIa[];
 };
 
 export const AVISO_RASCUNHO = 'Rascunho de apoio gerado por IA: não é parecer. O consultor precisa revisar, conferir as fontes e assumir o texto antes de usar.';
@@ -59,6 +62,7 @@ export function montarPromptRascunho(ctx: ContextoProjeto, roteiro: Roteiro, mod
       pendentesOuDivergentes: ctx.documentos.abertos.slice(0, 15).map((d) => ({ item: limpar(d.item, 120), periodo: d.periodo, situacao: d.situacao })),
     },
     achadosDoSistema: ctx.achados.slice(0, 12).map((a) => limpar(a, 400)),
+    ...(ctx.erps?.length ? { erpDoCliente: ctx.erps.slice(0, 3) } : {}),
   };
   return `Você prepara o RASCUNHO de um parecer de consultoria tributária e fiscal brasileira para o consultor da FAL (FAL Agro / InTAX) revisar. Serviço: "${ctx.servico.nome}".
 
@@ -70,7 +74,7 @@ Roteiro deste serviço:
 ${REGRAS_COMUNS}
 - Se o contexto não trouxer o dado, diga que falta; não presuma. Os clientes aparecem sem nome nem CNPJ: não tente identificá-los.
 - Fundamentos: cite norma e artigo só quando tiver fonte oficial (Planalto, Receita Federal, SPED, portal da NF-e, CGIBS, TCU); sem fonte, escreva "não confirmado".
-${modo === 'pesquisa' ? REGRA_PESQUISA : REGRA_RAPIDO}
+${ctx.erps?.length ? `${REGRA_ERP_IA}\n` : ''}${modo === 'pesquisa' ? REGRA_PESQUISA : REGRA_RAPIDO}
 
 Responda SOMENTE com um objeto JSON, sem texto fora dele:
 {"resumo": "até 5 frases, no padrão FAL: conclusão primeiro", "pontosDeAtencao": ["..."], "oQueConferir": ["..."], "fundamentos": ["norma, artigo e o que ela sustenta, ou 'não confirmado'"], "fontes": [{"titulo": "...", "url": "https://... (só se tiver)"}]}

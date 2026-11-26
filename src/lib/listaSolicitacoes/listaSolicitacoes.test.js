@@ -72,6 +72,11 @@ describe("planilha da lista de solicitações", () => {
     const empresa = { razao_social: "Agro Exemplo Ltda", cnpj_cpf: "12.345.678/0001-95", regime_atual: "Lucro Real", erp: "Protheus", erp_versao: "12.1.2210" };
     const dados = dadosDaCapa(empresa, { dataBase: "2026-12-31", envio: "2026-11-03", responsavel: " Ana ", contatoFal: "ana@fal.com.br" });
     expect(dados).toMatchObject({ cliente: "Agro Exemplo Ltda", regime: "Lucro Real", erp: "Protheus 12.1.2210", responsavel: "Ana" });
+    // Com o Cadastro de ERPs: o nome do cadastro (pelo erp_id ou pelo texto que casa) + versão; o texto antigo é o fallback.
+    const erps = [{ id: "erp-totvs-protheus", nome: "TOTVS Protheus", fabricante: "TOTVS", produto: "Protheus (P12)", ativo: true }, { id: "erp-sap-b1", nome: "SAP Business One", fabricante: "SAP", ativo: true }];
+    expect(dadosDaCapa(empresa, {}, erps).erp).toBe("TOTVS Protheus 12.1.2210");
+    expect(dadosDaCapa({ ...empresa, erp: "texto velho", erp_id: "erp-sap-b1", erp_versao: "10.0" }, {}, erps).erp).toBe("SAP Business One 10.0");
+    expect(dadosDaCapa({ ...empresa, erp: "Sankhya", erp_versao: "" }, {}, erps).erp).toBe("Sankhya");
     const { wb } = montarPlanilha({ ExcelJS, lista: listaDoServico("importacao-xml"), dados });
     const capa = wb.getWorksheet("Capa");
     const rotulos = {};

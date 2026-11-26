@@ -48,15 +48,16 @@ describe('perfil do ERP no mapa de unificações (Ação no ERP)', () => {
 
   it('SAP B1: unificação = saída OIGE do que sai + entrada OIGN no que fica + inativar; com pendência, o texto geral vem antes', () => {
     const l = mapa(itens, [unif], SAP);
-    expect(l[0].acao).toBe('Saída de mercadoria (OIGE) de 200 por depósito, lote e série; entrada de mercadoria (OIGN) em 100 na mesma quantidade convertida, pelo custo médio, na mesma data; depois inativar 200');
+    expect(l[0].acao).toBe('Saída de mercadoria (OIGE) de 200 por depósito, lote e série; entrada de mercadoria (OIGN) em 100 na mesma quantidade convertida, na mesma data; depois inativar 200');
     expect(l[1].acao).toMatch(/^Conferir o saldo de 300 no ERP; havendo saldo, transferir para 100; inativar 300\. No SAP Business One: Saída de mercadoria \(OIGE\) de 300/);
   });
 
   it('inativação e troca de código usam o texto do ERP', () => {
     const q = caso({ id: 'q', camada: 'QUALIDADE', tipo: 'SEM_MOVIMENTACAO', itens: ['x'], proposta: { decisao: 'PROPOR_INATIVACAO' } });
     const l = mapa([it_('x', '900', { saldo: 0 })], [q], SAP, [{ de: '1', para: '2', inicio: null, justificativa: '', criadoPor: 'sistema' }]);
-    expect(l.find((x) => x.tipo === 'INATIVACAO')!.acao).toBe('Inativar 900 no cadastro (frozenFor = Y) depois de zerar o saldo e fechar os documentos abertos');
-    expect(l.find((x) => x.tipo === 'TROCA_CODIGO')!.acao).toContain('Criar 2, saída OIGE de 1, entrada OIGN em 2 e inativar 1');
+    expect(l.find((x) => x.tipo === 'INATIVACAO')!.acao).toBe('Inativar 900 no cadastro (frozenFor = Y)');
+    // Ação NAO_CONFIRMADO no cadastro sai marcada "(a confirmar no ERP)" (a mesma linha vai para o Excel e o PDF).
+    expect(l.find((x) => x.tipo === 'TROCA_CODIGO')!.acao).toBe('Criar 2, saída OIGE de 1, entrada OIGN em 2 e inativar 1 (o ItemCode não se altera) (a confirmar no ERP)');
   });
 
   it('Outro ERP (a desenvolver) e sem ERP: o texto geral de sempre', () => {
@@ -80,7 +81,11 @@ describe('perfil do ERP nos casos e no relatório', () => {
     const casos = [{ situacao: 'APROVADO', camada: 'DUPLICIDADE', tipo: 'DUPLICIDADE_EXATA', proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '1', consolidar: '2' } }] as never;
     const s = secaoParticularidadesErp({ casos }, SAP)!;
     expect(s.titulo).toBe('Particularidades do ERP SAP Business One');
-    expect(s.tabela!.linhas.map((l) => l[0])).toEqual(['Consolidou código (unificação)', 'Consolidou código (unificação)']);
+    expect(s.tabela!.linhas.map((l) => l[0])).toEqual(Array(4).fill('Consolidou código (unificação)'));
+    // Parte confirmada e parte não confirmada em itens separados (fusão não documentada × OWTR; custo médio é pista da Community).
+    expect(s.tabela!.linhas.map((l) => l[2])).toEqual(['Não confirmado', 'Confirmado', 'Não confirmado', 'Confirmado']);
+    expect(s.tabela!.linhas[3][1]).toMatch(/versão 9\.0/);
+    expect(s.paragrafos![0]).toMatch(/"Não confirmado" não têm fonte oficial/);
     expect(s.tabela!.linhas[0][3]).toMatch(/^https:\/\//);
     expect(secaoParticularidadesErp({ casos }, OUTRO)).toBeNull();
     expect(secaoParticularidadesErp({ casos }, null)).toBeNull();

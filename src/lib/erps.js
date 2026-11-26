@@ -34,7 +34,21 @@ export function normalizarNome(s) {
   return String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-/** Formas do nome que identificam o ERP: o nome, sem o parêntese, sem o fabricante, sem a palavra "erp", o produto e fabricante + produto. */
+/**
+ * Apelidos do nome (siglas de mercado) ficam no próprio Cadastro de ERPs: item OBSERVACAO com a chave "Apelidos do nome" e os apelidos no
+ * texto, separados por ";" (o administrador edita como qualquer item, com histórico). A lista de ERPs (/erps) já traz `apelidos`.
+ */
+export const CHAVE_APELIDOS = "Apelidos do nome";
+export const apelidosDoTexto = (t) => String(t ?? "").split(/[;\n]/).map((s) => s.trim()).filter(Boolean);
+
+/** Tira do fim do texto normalizado a versão numérica ("10", "10.0", "12.1.2510", "v10") e o banco (SQL, SQL Server, HANA). */
+export function semSufixos(n) {
+  let s = n; let antes = "";
+  while (s !== antes) { antes = s; s = s.replace(/(?:\s+(?:v?\d+|sql|server|hana|e))+$/, "").trim(); }
+  return s;
+}
+
+/** Formas do nome que identificam o ERP: o nome, sem o parêntese, sem o fabricante, sem a palavra "erp", o produto, fabricante + produto e os apelidos do cadastro. */
 export function formasDoNome(e) {
   const f = new Set();
   const fab = normalizarNome(e?.fabricante);
@@ -51,6 +65,8 @@ export function formasDoNome(e) {
     add(prod);
     if (fab) add(`${fab} ${prod}`);
   }
+  for (const a of e?.apelidos ?? []) add(a);
+  for (const x of [...f]) { const s = semSufixos(x); if (s) f.add(s); }
   return f;
 }
 
@@ -58,7 +74,8 @@ export function formasDoNome(e) {
 export function associarErp(texto, erps = []) {
   const t = normalizarNome(texto);
   if (!t) return null;
-  const achados = erps.filter((e) => e.ativo !== false && formasDoNome(e).has(t));
+  const s = semSufixos(t);
+  const achados = erps.filter((e) => { if (e.ativo === false) return false; const f = formasDoNome(e); return f.has(t) || (!!s && f.has(s)); });
   return achados.length === 1 ? achados[0] : null;
 }
 
@@ -73,6 +90,19 @@ export function erpDoRegistro(registro, erps = [], campos = { id: "erp_id", text
   if (porId) return { erp: porId, texto, naoIdentificado: false };
   const porTexto = associarErp(texto, erps);
   return { erp: porTexto, texto, naoIdentificado: !porTexto && !!texto };
+}
+
+/**
+ * Vínculo do ERP a gravar (cliente e projeto): o erp_id escolhido na lista ou o do texto antigo que casa sem ambiguidade; o texto antigo
+ * (`erp`) fica como foi digitado e só é preenchido com o nome do ERP quando estava vazio. Sem a lista carregada (carregando ou falhou),
+ * o erp_id que o registro já tem é mantido: nunca se apaga o vínculo por falta de lista.
+ */
+export function vinculoErpParaSalvar(registro, erps = [], listaCarregada = true) {
+  const atualId = registro?.erp_id || null;
+  const texto = String(registro?.erp ?? "").trim();
+  if (!listaCarregada) return { erp_id: atualId, erp: texto || null };
+  const { erp } = erpDoRegistro(registro, erps);
+  return { erp_id: erp?.id ?? atualId, erp: texto || erp?.nome || null };
 }
 
 export const avisoNaoIdentificado = (texto) => `ERP não identificado: ${texto} — selecione na lista`;
@@ -91,8 +121,3 @@ export function restricoesDoTipo(p, tipos = []) {
 export const consultasDeExtracao = (p) => ativos(p, "CONSULTA_EXTRACAO");
 export const colunasDoExportDoPerfil = (p) => ativos(p, "COLUNA_EXPORT");
 
-/** Nomes que casam com o mesmo ERP (para as orientações dos add-ons gravadas com o nome curto, como "Protheus"). */
-export function mesmoErp(a, b) {
-  const x = normalizarNome(a); const y = normalizarNome(b);
-  return !!x && !!y && (x === y || x.endsWith(` ${y}`) || y.endsWith(` ${x}`));
-}

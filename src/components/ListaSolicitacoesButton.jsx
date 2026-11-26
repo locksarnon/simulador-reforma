@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "@/components/ui/use-toast";
 import { listaDoServico } from "@/lib/listaSolicitacoes/catalogo";
 import { baixarLista, dadosDaCapa } from "@/lib/listaSolicitacoes/baixar";
+import { api } from "@/api/client";
 
 const CHAVE_FAL = "intax.listaSolicitacoes.fal";
 
@@ -42,7 +43,9 @@ export default function ListaSolicitacoesButton({ servico, empresa }) {
   const baixar = async () => {
     setExecutando(true); setErro("");
     try {
-      await baixarLista(servico, dadosDaCapa(empresa, { dataBase, envio, responsavel, contatoFal }));
+      // Nome do ERP na Capa: o do Cadastro de ERPs; sem a lista (falha de rede), vale o texto antigo do cliente.
+      const erps = await api.get("/erps").catch(() => []);
+      await baixarLista(servico, dadosDaCapa(empresa, { dataBase, envio, responsavel, contatoFal }, Array.isArray(erps) ? erps : []));
       guardarFal({ responsavel: responsavel.trim(), contatoFal: contatoFal.trim() });
       setAberto(false);
       toast({ title: "Lista baixada", description: `${lista.nome}: confira a Capa antes de enviar ao cliente.` });

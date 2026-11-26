@@ -3,13 +3,20 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ADDONS, conhecimentoDaEmpresa } from '@/lib/conhecimentoSistemas';
 import EmpresaFormDialog from '@/components/empresas/EmpresaFormDialog';
 import TabelaPadrao from '@/components/TabelaPadrao';
-import { NomeErp } from '@/components/erps/erps';
+import { NomeErp, useErps, usePerfilErp } from '@/components/erps/erps';
+import { erpDoRegistro } from '@/lib/erps';
 
-/** Barra compacta com o ERP e os add-ons da empresa; as orientações documentadas ficam recolhidas até serem pedidas. */
+/**
+ * Barra compacta com o ERP e os add-ons da empresa; as orientações documentadas ficam recolhidas até serem pedidas. As orientações de add-on
+ * integrado ao ERP vêm do perfil do ERP no Cadastro de ERPs (pelo erp_id; sem vínculo, pelo texto antigo que casa sem ambiguidade).
+ */
 export default function ConhecimentoEmpresa({ empresa, editar = false }) {
   const [aberto, setAberto] = useState(false);
   const [detalhe, setDetalhe] = useState(false);
-  const regras = conhecimentoDaEmpresa(empresa);
+  const erps = useErps();
+  const erpId = erpDoRegistro(empresa, erps.data || []).erp?.id ?? empresa?.erp_id ?? null;
+  const perfil = usePerfilErp((empresa?.addons || []).length ? erpId : null).data;
+  const regras = conhecimentoDaEmpresa(empresa, perfil);
   const addons = (empresa?.addons || []).map((id) => ADDONS.find((a) => a.id === id)?.nome || id).join(', ') || 'sem add-ons vinculados';
   return (
     <section className="rounded-lg border border-border bg-card">
@@ -33,7 +40,8 @@ export default function ConhecimentoEmpresa({ empresa, editar = false }) {
                 { chave: 'titulo', rotulo: 'Título', render: (r) => <span className="font-medium">{r.titulo}</span> },
                 { chave: 'orientacao', rotulo: 'Orientação', quebrar: true, render: (r) => <span className="text-muted-foreground">{r.orientacao}</span> },
                 { chave: 'campos', rotulo: 'Campos', valor: (r) => r.campos.join(' · '), render: (r) => <span className="text-xs font-mono">{r.campos.join(' · ')}</span> },
-                { chave: 'versaoFonte', rotulo: 'Revisão da fonte', render: (r) => <span className="text-xs text-muted-foreground">{r.versaoFonte}</span> },
+                { chave: 'versaoFonte', rotulo: 'Revisão da fonte', render: (r) => <span className="text-xs text-muted-foreground">{[r.versaoFonte, r.conferidoEm && `conferido em ${r.conferidoEm.split('-').reverse().join('/')}`].filter(Boolean).join('; ')}</span> },
+                { chave: 'origem', rotulo: 'Origem', valor: (r) => r.origem || 'Base dos add-ons' },
                 { chave: 'fonte', rotulo: 'Fonte', ordenavel: false, filtravel: false, render: (r) => <a href={r.fonte} target="_blank" rel="noreferrer" className="text-primary underline">Documentação do fornecedor</a> },
                 { chave: 'situacao', rotulo: 'Situação', valor: () => 'Validar na instalação', render: () => <span className="inline-block rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 text-xs">Validar na instalação</span> },
               ]}

@@ -6,6 +6,8 @@ import { SanImportacaoService } from './importacao.service';
 import type { EntradaImportacao, ImportadorPort, ItemImportado } from './portas';
 import { criarPrismaFalso } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
+import { SanOrquestracaoService } from './orquestracao.service';
+import type { ContextoAnalise } from '../tipos';
 
 const USER = { email: 'consultor@fal.test' };
 const sap = CARGA_ERPS.find((e) => e.id === 'erp-sap-b1')!;
@@ -34,11 +36,35 @@ describe('ERP do cliente no projeto de saneamento', () => {
     const c = montar({ erp: 'SAP Business One', erp_id: sap.id });
     const p = await c.projetos.criar('D1', USER);
     expect([p.erp, p.erp_id]).toEqual(['SAP Business One', sap.id]);
-    const sem = await c.projetos.configurar(p.id, { versao: p.versao, erp_id: null });
-    expect([sem.erp, sem.erp_id]).toEqual(['SAP Business One', null]); // tirar a seleção não apaga o texto
-    const de_novo = await c.projetos.configurar(p.id, { versao: sem.versao, erp_id: sap.id });
-    expect(de_novo.erp_id).toBe(sap.id);
-    await expect(c.projetos.configurar(p.id, { versao: de_novo.versao, erp_id: 'nao-existe' })).rejects.toThrow(/selecione na lista/);
+    // Escolhido o ERP, não se volta a "sem ERP" (a associação automática religaria o texto): troca-se por outro da lista.
+    await expect(c.projetos.configurar(p.id, { versao: p.versao, erp_id: null })).rejects.toThrow(/não fica vazio/);
+    await expect(c.projetos.configurar(p.id, { versao: p.versao, erp_id: 'nao-existe' })).rejects.toThrow(/selecione na lista/);
+    const de_novo = await c.projetos.configurar(p.id, { versao: p.versao, erp_id: sap.id });
+    expect([de_novo.erp, de_novo.erp_id]).toEqual(['SAP Business One', sap.id]);
+  });
+
+  it('trocar o ERP guarda o vínculo e preserva o texto antigo; texto vazio recebe o nome do cadastro', async () => {
+    const c = montar({ erp: 'SAP B1 (digitado)', erp_id: null });
+    const p = await c.projetos.criar('D1', USER);
+    const r = await c.projetos.configurar(p.id, { versao: p.versao, erp_id: sap.id });
+    expect([r.erp, r.erp_id]).toEqual(['SAP B1 (digitado)', sap.id]);
+    const v = montar({ erp: null, erp_id: null });
+    const q = await v.projetos.criar('D1', USER);
+    expect((await v.projetos.configurar(q.id, { versao: q.versao, erp_id: null })).erp_id).toBeNull(); // sem ERP ainda: continua sem
+    const s = await v.projetos.configurar(q.id, { versao: q.versao + 1, erp_id: sap.id });
+    expect([s.erp, s.erp_id]).toEqual(['SAP Business One', sap.id]);
+  });
+
+  it('a análise recebe o nome do ERP do Cadastro de ERPs e o erp_id (não o texto antigo)', async () => {
+    const c = montar({ erp: 'SAP B1 (digitado)', erp_id: sap.id });
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, p.versao, USER);
+    c.db.sanItem.push({ id: 'it1', projeto_id: p.id, codigo: '1', estabelecimento: '', trabalho: { codigo: '1', descricao: 'X' } });
+    let ctx: ContextoAnalise | null = null;
+    const motor = { camadas: () => ['IDENTIFICACAO'], preparar: async (_c: string, e: { contexto: ContextoAnalise }) => { ctx = e.contexto; return { analisador: { camada: 'IDENTIFICACAO', analisar: () => ({ casos: [], celulas: [] }) }, contexto: e.contexto }; } };
+    const o = new SanOrquestracaoService(c.prisma as never, c.projetos, c.casos, motor as never);
+    await o.executarCamada(p.id, 'IDENTIFICACAO').catch(() => undefined);
+    expect(ctx).toMatchObject({ erp: 'SAP Business One', erp_id: sap.id });
   });
 
   it('texto antigo sem vínculo fica no projeto como estava', async () => {

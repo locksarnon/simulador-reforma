@@ -7,6 +7,7 @@ import { StorageService } from '../storage/storage.service';
 import { compararItem, montarPedido, REGRA_CONFERENCIA, ResultadoItem, situacaoDaNota } from './conferencia';
 import { lerNotaIbsCbs } from './leitor-ibscbs';
 import { montarLaudo } from './laudo';
+import { nomeDoErp } from '../erps/erps.service';
 
 /** Falha passageira (calculadora fora do ar, resposta 5xx): não vira resultado gravado e interrompe o lote para tentar de novo no próximo ciclo. */
 class ErroTransitorio extends Error {}
@@ -119,7 +120,9 @@ export class AuditoriaIbsCbsService {
     ]);
     const marca = versao ? `${versao.versaoDb}+${REGRA_CONFERENCIA}` : null;
     const aguardando = await this.contarAguardando(empresaIds, new Date(Math.max(de.getTime(), Date.parse('2026-01-01T00:00:00-03:00'))), ate, marca, true);
-    return { ...montarLaudo(linhas), versao, empresas, aguardando, conferidas: linhas.length };
+    // ERP de cada empresa pelo Cadastro de ERPs (nome do cadastro + versão); sem vínculo, o texto antigo.
+    const comErp = await Promise.all(empresas.map(async (e) => ({ ...e, erp_nome: await nomeDoErp(this.prisma, e.erp_id, e.erp) })));
+    return { ...montarLaudo(linhas), versao, empresas: comErp, aguardando, conferidas: linhas.length };
   }
 
   /** Notas que ainda não têm conferência na regra atual (sem linha, de outra versão ou com falha antiga). `soEmitidas`: só as que a própria empresa emitiu. */
