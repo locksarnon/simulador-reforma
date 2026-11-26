@@ -11,7 +11,7 @@ import { criarPrismaFalso } from '../dados/prisma-falso';
 import { SanProjetoService } from '../dados/projeto.service';
 import { EntregaveisController } from './entregaveis.controller';
 import { EntregaveisService } from './entregaveis.service';
-import { gerarExcelMapa } from './excel';
+import { gerarExcelMapa, gerarExcelDeDados, notaDaEscala } from './excel';
 import { escalaDaBase } from '../motor/conjuntos';
 import { dadosBase } from './__fixtures__/dados';
 import { construirModelo, mapaDoModelo } from './modelo';
@@ -220,6 +220,30 @@ describe('mapa: escala do saldo da base (achado 2)', () => {
     expect(JSON.stringify(l)).not.toContain('000000');
     // Sem escala detectada (menos de 3 saldos múltiplos de 1.000.000), os valores ficam como estão.
     expect(escalaDaBase([it_('a', '1', { saldo: 3_000_000 }), it_('b', '2', { saldo: 7 })])).toBe(1);
+  });
+});
+
+describe('mapa: nota da escala do saldo no Excel (revisão, achado 5)', () => {
+  const textos = (ws: ExcelJS.Worksheet) => { const t: string[] = []; ws.eachRow((r) => r.eachCell((c) => t.push(String(c.value ?? '')))); return t; };
+  it('Excel do mapa: com escala, nota abaixo da lista e cabeçalho dos saldos com o divisor; sem escala, nada', async () => {
+    const itens = [it_('a', '100', { saldo: 10_000_000 }), it_('b', '200', { saldo: 3_000_000 }), it_('c', '300', { saldo: 2_000_000 })];
+    const porId = new Map(itens.map((i) => [i.id, i]));
+    const l = montarMapa({ liberada: false, dataBase: null, item: (id) => porId.get(id), vinculos: [], escala: 1e6, casos: [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200') })] });
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l, { escala: 1e6 })) as never);
+    const ws = wb.getWorksheet('Unificações e inativações')!;
+    expect(notaDaEscala(1e6)).toBe('Saldos divididos por 1.000.000 (escala detectada na base: o ERP mostra os valores multiplicados)');
+    expect(textos(ws)).toContain(notaDaEscala(1e6));
+    expect(ws.getRow(1).getCell(6).value).toBe('Saldo (código que morre) ÷ 1.000.000');
+    expect(ws.getRow(1).getCell(12).value).toBe('Saldo consolidado ÷ 1.000.000');
+    expect(ws.getRow(2).getCell(6).value).toBe(3);
+    const sem = new ExcelJS.Workbook(); await sem.xlsx.load((await gerarExcelMapa(l)) as never);
+    expect(textos(sem.getWorksheet('Unificações e inativações')!).join(' ')).not.toMatch(/Saldos divididos|÷/);
+  });
+  it('aba De para e equivalências da entrega: a mesma nota quando a base tem a escala', async () => {
+    const d = dadosBase(false);
+    for (const [n, i] of (d.itens as Record<string, unknown>[]).entries()) i.trabalho = { ...(i.trabalho as Record<string, unknown>), saldo: (n + 2) * 1_000_000 };
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelDeDados(d)) as never);
+    expect(textos(wb.getWorksheet('De para e equivalências')!)).toContain(notaDaEscala(1e6));
   });
 });
 

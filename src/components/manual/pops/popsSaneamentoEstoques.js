@@ -269,7 +269,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       "Sem Corte de movimentação, os itens parados não são avaliados: a aba, o resultado da análise e o relatório avisam. Item sem data de movimentação tem caso próprio na Qualidade.",
       "O saldo consolidado só é calculado quando os saldos do código que fica e dos que entram são conhecidos e estão na mesma unidade (ou com fator aprovado no caso e direção conhecida).",
       "O Tipo diz a origem da inativação: “Inativação (duplicidade)” vem de um caso de Duplicidades decidido para inativar; “Inativação (sem movimentação)” vem da Qualidade. A inativação do código que fica numa unificação não entra na lista.",
-      "Quando a base traz o saldo multiplicado por 1.000.000 (o mesmo critério da camada Duplicidades), a aba, o Excel e os casos da Qualidade mostram o saldo já dividido, e a aba avisa.",
+      "Quando a base traz o saldo multiplicado por 1.000.000 (o mesmo critério da camada Duplicidades), a aba, o Excel e os casos da Qualidade mostram o saldo já dividido, e a aba avisa. No Excel (aba De para e equivalências e Excel só do mapa), a nota “Saldos divididos por 1.000.000” fica abaixo da lista e as colunas de saldo levam “÷ 1.000.000” no título.",
     ],
   },
   {

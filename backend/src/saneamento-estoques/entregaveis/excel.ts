@@ -13,6 +13,11 @@ import {
   rotuloDoCampo, rotuloDoValor, rotuloTipoAjuste, rotuloTipoCaso, textoSemEscrituracaoEntregue, txt, mapaDoModelo, type Modelo,
 } from './modelo';
 import { ROTULO_SITUACAO_MAPA, ROTULO_TIPO_MAPA, type LinhaMapa } from './unificacoes';
+import { escalaDaBase } from '../motor/conjuntos';
+
+/** Nota visível do mapa quando a base traz o saldo multiplicado (mesma escala da Duplicidade): os saldos do mapa já estão divididos. */
+export const notaDaEscala = (escala: number) => `Saldos divididos por ${escala.toLocaleString('pt-BR')} (escala detectada na base: o ERP mostra os valores multiplicados)`;
+const SALDOS_DO_MAPA = new Set(['Saldo (código que morre)', 'Saldo atual (código que fica)', 'Saldo que entra', 'Saldo consolidado']);
 
 type Valor = string | number | Date | null | undefined;
 type TipoCol = 'texto' | 'codigo' | 'data' | 'datahora' | 'numero' | 'quantidade';
@@ -217,7 +222,7 @@ async function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): P
 const ROTULO_FINALIDADE_TXT: Record<string, string> = ROTULO_FINALIDADE;
 
 /** Colunas do mapa de unificações (aba "De para e equivalências" e o Excel só do mapa). Sem código interno: o cliente lê a lista e ajusta o ERP. */
-function colunasDoMapa(liberada: boolean): Col[] {
+function colunasDoMapa(liberada: boolean, escala = 1): Col[] {
   const cols: Col[] = [
     { cab: 'Tipo de registro', larg: 24 }, { cab: 'Código que morre', larg: 18, tipo: 'codigo' }, { cab: 'Estabelecimento', larg: 14, tipo: 'codigo' },
     { cab: 'Descrição (código que morre)', larg: 40 }, { cab: 'Unidade (código que morre)', larg: 10 }, { cab: 'Saldo (código que morre)', larg: 14, tipo: 'quantidade' },
@@ -227,11 +232,12 @@ function colunasDoMapa(liberada: boolean): Col[] {
     { cab: 'Alerta de coerência', larg: 60 }, { cab: 'Responsável', larg: 24 }, { cab: 'Data da decisão', larg: 16, tipo: 'datahora' },
   ];
   if (!liberada) cols.push({ cab: 'Marca', larg: 24 });
+  if (escala !== 1) for (const c of cols) if (SALDOS_DO_MAPA.has(c.cab)) c.cab = `${c.cab} ÷ ${escala.toLocaleString('pt-BR')}`;
   return cols;
 }
 
-async function escreverMapa(wb: ExcelJS.stream.xlsx.WorkbookWriter, linhas: LinhaMapa[], liberada: boolean, nome: string): Promise<void> {
-  const aba = criarAba(wb, nome, colunasDoMapa(liberada), liberada ? VERDE : LARANJA, 2);
+async function escreverMapa(wb: ExcelJS.stream.xlsx.WorkbookWriter, linhas: LinhaMapa[], liberada: boolean, nome: string, escala = 1): Promise<void> {
+  const aba = criarAba(wb, nome, colunasDoMapa(liberada, escala), liberada ? VERDE : LARANJA, 2);
   for (const l of linhas) {
     const aberta = l.situacao === 'PROPOSTA' || l.situacao === 'AGUARDANDO';
     const linha: Valor[] = [
@@ -243,13 +249,15 @@ async function escreverMapa(wb: ExcelJS.stream.xlsx.WorkbookWriter, linhas: Linh
     aba.add(linha, !liberada && aberta);
     await respirar(aba);
   }
+  // Com a escala, a nota fica abaixo da lista (fora do filtro) e no cabeçalho das colunas de saldo.
+  if (escala !== 1) { const r = aba.ws.addRow([]); r.commit(); const n = aba.ws.addRow([notaDaEscala(escala)]); n.getCell(1).font = { bold: true, color: { argb: 'FF9C5700' } }; n.commit(); }
   aba.fim();
 }
 
-const abaDePara = (wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo) => escreverMapa(wb, mapaDoModelo(m), m.liberada, NOMES_ABAS[2]);
+const abaDePara = (wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo) => escreverMapa(wb, mapaDoModelo(m), m.liberada, NOMES_ABAS[2], escalaDaBase(m.itens));
 
 /** Excel só com o mapa de unificações e inativações (botão da consulta "Unificações"): o mesmo conteúdo da aba "De para e equivalências". */
-export async function gerarExcelMapa(linhas: LinhaMapa[], opcoes: { liberada?: boolean; titulo?: string } = {}): Promise<Buffer> {
+export async function gerarExcelMapa(linhas: LinhaMapa[], opcoes: { liberada?: boolean; titulo?: string; escala?: number } = {}): Promise<Buffer> {
   const saida = new PassThrough();
   const partes: Buffer[] = [];
   saida.on('data', (c: Buffer) => partes.push(c));
@@ -258,7 +266,7 @@ export async function gerarExcelMapa(linhas: LinhaMapa[], opcoes: { liberada?: b
   wb.creator = 'InTAX — FAL Agro';
   wb.title = opcoes.titulo ?? 'Saneamento de estoques — unificações e inativações';
   wb.created = new Date();
-  await escreverMapa(wb, linhas, opcoes.liberada === true, 'Unificações e inativações');
+  await escreverMapa(wb, linhas, opcoes.liberada === true, 'Unificações e inativações', opcoes.escala ?? 1);
   await wb.commit();
   await fim;
   return Buffer.concat(partes);

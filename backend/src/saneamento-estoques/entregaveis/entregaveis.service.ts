@@ -136,11 +136,11 @@ export class EntregaveisService implements EntregaveisPort {
   /** Excel só do mapa (com o mesmo filtro da tela): o que vai para quem faz os ajustes no ERP. */
   async excelUnificacoes(projetoId: string, f: FiltroMapa = {}): Promise<{ buffer: Buffer; nome: string }> {
     const filtro: FiltroMapa = { situacao: listaValida(f.situacao, 'situacao', SITUACOES_MAPA), tipo: listaValida(f.tipo, 'tipo', TIPOS_MAPA), busca: paramTexto(f.busca, 'busca') };
-    const { linhas } = await this.mapaAtual(projetoId);
+    const { linhas, escalaSaldo } = await this.mapaAtual(projetoId);
     const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { empresa_id: true } });
     const empresa = p?.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: String(p.empresa_id) }, select: { razao_social: true } }) : null;
     const nome = `unificacoes-e-inativacoes_${fatiaDoNome(empresa?.razao_social ?? '')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    return { buffer: await gerarExcelMapa(filtrarMapa(linhas, filtro)), nome };
+    return { buffer: await gerarExcelMapa(filtrarMapa(linhas, filtro), { escala: escalaSaldo }), nome };
   }
 
   /** Sem `versaoId`, usa a última versão liberada; sem nenhuma versão, recusa. */
