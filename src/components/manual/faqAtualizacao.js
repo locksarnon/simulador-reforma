@@ -249,11 +249,15 @@ export const SECAO_BASE_LEGAL = {
   itens: [
     {
       p: "O que é a Base legal?",
-      r: "É o texto integral das normas da Reforma, dividido por artigo e anexo e capturado de fonte oficial (Planalto): EC 132/2023, LC 214/2025 compilada, LC 227/2026, LC 235/2026, Decreto 12.955/2026, Constituição (com o ADCT), LC 123, LC 87, LC 116, LC 225 e LC 236, CTN e Lei 5.764/1971. Cada dispositivo guarda as versões anteriores quando o texto oficial muda.",
+      r: "É a base de conhecimento do InTAX sobre a legislação: o texto integral de cerca de 70 normas, dividido por artigo e anexo e capturado de fonte oficial (Planalto, CGIBS e outros órgãos), em seis blocos: fundamentos (Constituição, CTN), reforma do consumo (EC 132, LC 214 compilada, LC 227, LC 235 e os regulamentos do CBS e do IBS), tributação federal atual (IRPJ, CSLL, PIS e Cofins, IPI, previdenciário), agro, ICMS e ISS e obrigações e documentos fiscais. Cada dispositivo guarda o histórico oficial (as notas “Redação dada pela...”), a redação anterior (o que o site oficial mostra riscado), o ato que o revogou e as versões capturadas ao longo do tempo. As normas que o governo só publica em página que o sistema não consegue ler (instruções normativas da Receita, convênios do Confaz, TIPI) ficam como “Só referência”, com o link da fonte oficial."
+    },
+    {
+      p: "Como consulto todas as normas de uma vez, com a IA?",
+      r: "Em Consultas fiscais > Bases legais, a barra Consultar as bases legais, no alto da página, faz as duas coisas com a mesma pergunta: procura o texto em todas as normas carregadas (para olhar uma norma só, escolha-a em “Em”) e, com Resposta com IA ligada, o assistente responde citando o artigo. Se a equipe já revisou uma pergunta parecida, a resposta revisada aparece antes. A busca por número de artigo (“art 164”) abre o artigo direto, sem IA, e a Pesquisa aprofundada com fontes externas acrescenta fontes oficiais da internet. Os dispositivos revogados vêm marcados e por último. A resposta da IA fica guardada enquanto você navega: voltar da leitura de um artigo não pergunta de novo.",
     },
     {
       p: "Como a Base legal se mantém atualizada?",
-      r: "Depois de cada Radar e toda segunda-feira o sistema confere se o texto oficial mudou e se há norma nova citada. Qualquer diferença vira um aviso para o administrador; nada entra na base sem aprovação humana.",
+      r: "Toda segunda-feira, às 5h, a revisão semanal relê o texto oficial de cada norma, confere a lista oficial de leis, decretos e medidas provisórias novas (Senado Federal), cruza o que os atos novos alteram com o texto compilado das normas, lê os portais da Receita, do CGIBS, da NF-e, da NFS-e, do eSocial, do Confaz e do CARF e faz uma pesquisa na web só em fontes oficiais. O texto oficial que mudou é gravado sozinho, com a redação anterior guardada e uma trava: se a página do órgão perder mais de 30% dos dispositivos, nada é gravado e o administrador é avisado. O que cita o dispositivo alterado volta para revisão. Tudo o que a rotina acha entra na aba Novidades e revogações, e o administrador recebe um e-mail com o resumo quando há novidade. O administrador também pode rodar a revisão na hora, na aba Revisão semanal."
     },
     {
       p: "Onde fica o assistente tributário?",
@@ -262,6 +266,26 @@ export const SECAO_BASE_LEGAL = {
     {
       p: "O assistente da Base legal pode errar?",
       r: "Sem a Pesquisa aprofundada, ele responde somente com o texto das normas carregadas, cita o dispositivo e valida a citação; quando o texto carregado não basta, ele avisa. Com a pesquisa ligada, também consulta fontes da internet e mostra quais usou. As perguntas ficam registradas para revisão da equipe. Continua sendo apoio, não parecer: confirme no texto do dispositivo e na fonte oficial.",
+    },
+    {
+      p: "Como o InTAX trata norma editada ou revogada?",
+      r: "O texto que o site oficial mostra riscado (redação antiga, dispositivo revogado) nunca vale como texto vigente: fica guardado como redação anterior, e o dispositivo aparece com a etiqueta Revogado, com o ato que o revogou, ou Parcialmente revogado. Norma revogada por inteiro aparece como Revogada na lista e o leitor avisa que o texto é histórico. O assistente recebe a situação de cada dispositivo, as notas oficiais de alteração e a redação anterior, e a resposta traz nas ressalvas o aviso de revogação, de alteração recente (últimos 120 dias) e de alteração ainda não consolidada. O que é revogado só entra na resposta quando a pergunta o cita pelo número.",
+    },
+    {
+      p: "O que é uma alteração ainda não consolidada?",
+      r: "Uma lei nova já vale, mas o texto compilado da norma que ela altera só ganha as notas “Redação dada pela...” dias ou semanas depois. A revisão semanal lê os artigos que dizem “passa a vigorar com as seguintes alterações” e “ficam revogados” nas normas da base e, quando a norma alterada ainda não cita o ato em nenhuma nota, registra a pendência: “LC tal altera a LC tal, mas o texto compilado ainda não traz a mudança”, com os artigos atingidos. O aviso aparece na aba Novidades, no leitor do artigo e na resposta do assistente, e sai sozinho quando o Planalto atualiza o texto compilado.",
+    },
+    {
+      p: "O que significa “a confirmar” nas novidades?",
+      r: "É o que a pesquisa semanal na web achou: um ato, uma orientação ou uma decisão de fonte oficial que ainda ninguém da equipe conferiu. Só entra com endereço de órgão oficial que abre, nunca altera o texto de norma e não é usado pelo assistente. O administrador abre a fonte, confere e clica em Confirmar (ou Descartar). As novidades lidas do texto oficial e da lista oficial do Senado já entram confirmadas.",
+    },
+    {
+      p: "O que é “Texto reprocessado” nas novidades?",
+      r: "Quando o InTAX passa a ler o texto oficial de um jeito melhor (por exemplo, separar o que o site mostra riscado), a primeira releitura de cada norma muda o texto que estava gravado, mas isso não é mudança da lei. Nesse caso nasce uma novidade “Texto reprocessado”, sem data de alteração nos dispositivos, e a rodada apenas anota a releitura. Cartões, notas do cálculo e marcos que citavam texto riscado ou revogado voltam para revisão, porque podem ter se apoiado em redação que já não valia.",
+    },
+    {
+      p: "A revisão semanal pode ser disparada na hora?",
+      r: "Sim. O administrador abre a aba Revisão semanal e clica em Rodar a revisão agora. Leva alguns minutos (a primeira rodada carrega todas as normas e demora mais), a lista de rodadas atualiza sozinha e, havendo novidade ou erro, chega o e-mail com o resumo. Se já houver uma revisão em andamento, o sistema avisa e não inicia outra. Na instalação, a rotina pode ser desligada (BASE_LEGAL_REVISAO_SEMANAL), passar a exigir aprovação para gravar o texto oficial (BASE_LEGAL_APLICAR_AUTOMATICO) ou dispensar a pesquisa na web (BASE_LEGAL_BUSCA_WEB).",
     },
     {
       p: "Todo projeto de consultoria tem período? O que é a data-base?",
@@ -273,7 +297,7 @@ export const SECAO_BASE_LEGAL = {
     },
     {
       p: "O que a Base legal ainda não tem?",
-      r: "Resoluções e portarias do Comitê Gestor do IBS, como o Regulamento do IBS (Resolução CGIBS nº 6/2026), e atos da Receita Federal ainda não estão na Base legal, porque a fonte não é o Planalto. Consulte-os nos sites oficiais.",
+      r: "Instruções normativas e outros atos da Receita Federal (Normas RFB), convênios do Confaz, a TIPI e as notas técnicas da NF-e ficam como “Só referência”: o InTAX guarda o endereço oficial e acompanha as mudanças pelos portais, mas não tem o texto por artigo, porque o órgão não o publica em página que o sistema consiga ler. Leis e decretos estaduais e municipais (ICMS e ISS de cada estado e município) também não estão na base: consulte-os nos sites oficiais."
     },
     {
       p: "O que é o Radar da Reforma?",

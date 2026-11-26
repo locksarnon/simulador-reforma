@@ -18,6 +18,8 @@ function montar(opcoes: { revisao?: Record<string, unknown>; texto?: string } = 
     dispositivoLegal: { findMany: vi.fn().mockResolvedValue(gravados()), update: vi.fn(), createMany: vi.fn(), updateMany: vi.fn() },
     dispositivoLegalVersao: { create: vi.fn() },
     alertaBaseLegal: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({ id: 'a1' }), update: vi.fn() },
+    referenciaLegal: { deleteMany: vi.fn(), createMany: vi.fn() },
+    novidadeLegal: { createMany: vi.fn() },
     $transaction: vi.fn().mockResolvedValue([]),
   };
   const revisao = {
@@ -26,7 +28,7 @@ function montar(opcoes: { revisao?: Record<string, unknown>; texto?: string } = 
     ...opcoes.revisao,
   };
   const service = new BaseLegalService(prisma as any, { get: () => undefined } as any, revisao as any);
-  vi.spyOn(service as any, 'baixarTexto').mockResolvedValue(htmlParaTexto(opcoes.texto ?? HTML_NOVO));
+  vi.spyOn(service as any, 'baixarDocumento').mockResolvedValue({ texto: htmlParaTexto(opcoes.texto ?? HTML_NOVO), formato: 'html' });
   return { prisma, revisao, service };
 }
 

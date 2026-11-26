@@ -6,8 +6,8 @@ import { resumoRevisao } from "@/lib/revisaoLegal";
 import { toast } from "@/components/ui/use-toast";
 import { plural } from "@/lib/plural";
 
-const HOSTS = ["planalto.gov.br", "cgibs.gov.br", "gov.br"];
-const urlOficial = (u) => { try { const x = new URL(u); return x.protocol === "https:" && HOSTS.some((h) => x.hostname === h || x.hostname === `www.${h}`); } catch { return false; } };
+// Mesma regra do servidor: https em qualquer site de órgão oficial (.gov.br, .jus.br ou .leg.br), sem usuário nem porta.
+export const urlOficial = (u) => { try { const x = new URL(u); return x.protocol === "https:" && !x.username && !x.password && !x.port && (x.hostname === "gov.br" || /\.(gov|jus|leg)\.br$/.test(x.hostname)); } catch { return false; } };
 
 function Alerta({ a, onFeito }) {
   const [url, setUrl] = useState(a.url || "");
@@ -34,7 +34,7 @@ function Alerta({ a, onFeito }) {
         <div className="min-w-0">
           <p className="text-sm font-medium">{a.titulo}</p>
           {a.detalhe && <p className="text-xs text-muted-foreground mt-0.5">{a.detalhe}</p>}
-          <p className="text-[11px] text-muted-foreground mt-0.5">{a.origem === "radar" ? "Citada no Radar" : a.origem === "agendada" ? "Verificação semanal" : "Verificação"} · {new Date(a.createdAt).toLocaleDateString("pt-BR")}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{a.origem === "radar" ? "Citada no Radar" : a.origem === "agendada" ? "Revisão semanal" : "Verificação"} · {new Date(a.createdAt).toLocaleDateString("pt-BR")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => agir("aprovar")} disabled={Boolean(ocupado) || (nova && !urlOficial(url))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">

@@ -926,15 +926,34 @@ model NormaLegal {
   url_oficial        String
   prioridade         Int       @default(1)
   fonte_primaria     Boolean   @default(true)
+  /// vigente | parcialmente_revogada | revogada (lida do próprio texto oficial a cada captura)
   situacao           String    @default("vigente")
   hash_atual         String?
   capturada_em       DateTime?
   total_dispositivos Int       @default(0)
   observacao         String?
+  /// Bloco da lista de bases: fundamentos | reforma | federal | agro | territorial | operacional
+  grupo              String?
+  /// html | pdf: como o texto oficial é publicado
+  formato            String    @default("html")
+  /// Versão do leitor de texto com que o texto foi gravado (LEITOR_VERSAO). Norma gravada por leitor anterior é reprocessada sem contar como mudança da lei
+  leitor_versao      Int       @default(0)
+  /// manifesto (fontes.ts) | alerta (aprovada a partir de um aviso) | manual
+  origem             String    @default("manifesto")
+  /// A revisão semanal confere o texto desta norma
+  monitorar          Boolean   @default(true)
+  /// Ato que revogou a norma inteira, quando o texto oficial diz
+  revogada_por       String?
+  revogada_em        DateTime?
+  /// Última vez em que o texto oficial mudou em relação ao que estava guardado
+  atualizada_em      DateTime?
+  /// Atos que alteraram, incluíram ou revogaram dispositivos: [{ ato, referencia, dispositivos, tipos }]
+  atos_modificadores Json      @default("[]")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   dispositivos DispositivoLegal[]
+  remissoes    ReferenciaLegal[]
 }
 
 model DispositivoLegal {
@@ -947,7 +966,19 @@ model DispositivoLegal {
   secao     String?
   texto     String
   hash      String
+  /// Revogado (ou vetado) por inteiro: só sobra a nota de revogação. Revogado não é citado como regra em vigor.
   revogado  Boolean  @default(false)
+  /// Há parágrafos, incisos ou alíneas revogados junto de texto vigente
+  parcialmente_revogado Boolean @default(false)
+  revogado_por          String?
+  /// Notas do texto oficial: [{ tipo: redacao | inclusao | revogacao | veto | vide | vigencia | renumeracao | judicial, ato, referencia, trecho }]
+  alteracoes            Json    @default("[]")
+  /// Texto que o site oficial mostra riscado (redação superada ou revogada): consulta histórica, nunca regra vigente
+  redacoes_anteriores   Json    @default("[]")
+  /// Índice temático (produtor_rural, creditos, split_payment...)
+  temas                 String[] @default([])
+  /// Última vez em que o texto deste dispositivo mudou
+  alterado_em           DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -956,6 +987,104 @@ model DispositivoLegal {
 
   @@unique([norma_id, caminho])
   @@index([norma_id, ordem])
+}
+
+/// Remissão de um dispositivo a artigo de outra norma ("(Art. 38 da LC 214/2025)"): mostra o que regulamenta ou reproduz cada artigo.
+model ReferenciaLegal {
+  id              String @id @default(cuid())
+  norma_id        String
+  caminho         String
+  rotulo          String
+  /// Referência normalizada da norma citada ("lc 214/2025")
+  destino_ref     String
+  destino_caminho String
+  trecho          String?
+  createdAt       DateTime @default(now())
+
+  norma NormaLegal @relation(fields: [norma_id], references: [id], onDelete: Cascade)
+
+  @@index([destino_ref, destino_caminho])
+  @@index([norma_id, caminho])
+}
+
+/// O que a revisão semanal e as atualizações da Base legal descobrem: alteração, revogação, norma nova, regulamentação,
+/// aplicação ou interpretação. Compõe a base de conhecimento (consulta pública para a equipe, assistente cita as confirmadas).
+model NovidadeLegal {
+  id           String    @id @default(cuid())
+  /// alteracao | revogacao | inclusao | norma_revogada | nova_norma | regulamentacao | aplicacao | interpretacao | fonte_atualizada | estrutura_suspeita | nao_consolidada | reprocessada
+  tipo         String
+  /// texto_oficial | api_oficial | busca_web | radar | fonte_monitorada | remissao
+  origem       String
+  norma_chave  String?
+  norma_numero String?
+  caminho      String?
+  rotulo       String?
+  titulo       String
+  resumo       String?
+  /// Dispositivos (ou links) a que a novidade se refere: [{ rotulo, caminho, url? }]
+  detalhes     Json      @default("[]")
+  ato          String?
+  ato_ref      String?
+  url          String?
+  /// A fonte é de domínio oficial (gov.br, jus.br, leg.br)
+  oficial      Boolean   @default(true)
+  /// Lida do texto oficial ou conferida por pessoa (as achadas por busca na web começam sem confirmação)
+  confirmada   Boolean   @default(false)
+  /// nova | vista | descartada | resolvida
+  status       String    @default("nova")
+  execucao_id  String?
+  data_ato     DateTime? @db.Date
+  detectada_em DateTime  @default(now())
+  resolvida_por String?
+  resolvida_em  DateTime?
+
+  @@index([detectada_em])
+  @@index([norma_chave, caminho])
+  @@index([tipo, status])
+  @@index([execucao_id])
+}
+
+/// Uma rodada da revisão semanal (segunda-feira, ou manual): o que foi conferido, o que mudou e o que deu erro.
+model RevisaoSemanal {
+  id                     String    @id @default(cuid())
+  semana                 String
+  /// agendada | manual
+  disparo                String
+  /// executando | concluida | parcial | falhou
+  status                 String    @default("executando")
+  iniciado_em            DateTime  @default(now())
+  concluido_em           DateTime?
+  normas_verificadas     Int       @default(0)
+  normas_atualizadas     Int       @default(0)
+  dispositivos_alterados Int       @default(0)
+  dispositivos_revogados Int       @default(0)
+  normas_novas           Int       @default(0)
+  atos_relacionados      Int       @default(0)
+  fontes_verificadas     Int       @default(0)
+  fontes_alteradas       Int       @default(0)
+  erros                  Json      @default("[]")
+  resumo                 String?
+
+  @@index([iniciado_em])
+}
+
+/// Página oficial sem estrutura de artigos (portais do SPED, NF-e, eSocial, CGIBS, PGFN, CARF...): a revisão semanal compara a lista
+/// de links e avisa o que apareceu de novo.
+model FonteMonitorada {
+  id            String    @id @default(cuid())
+  chave         String    @unique
+  titulo        String
+  url           String
+  grupo         String
+  ativo         Boolean   @default(true)
+  hash_atual    String?
+  /// Links vistos na última leitura: [{ titulo, url }]
+  itens         Json      @default("[]")
+  verificada_em DateTime?
+  alterada_em   DateTime?
+  erro          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model DispositivoLegalVersao {

@@ -135,6 +135,18 @@ docker exec reforma-backend node scripts/carregar-base-legal.js lcp-214-2025 --f
 
 As normas ficam em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas). O assistente ("Perguntas ao assistente") usa `GEMINI_API_KEY` do `.env`; sem a chave, a tela mostra só os dispositivos relacionados.
 
+### Revisão semanal das bases legais
+
+Toda segunda-feira, às 5h (horário de Brasília), o backend roda a revisão semanal (`RevisaoSemanalService`): relê o texto oficial de cada norma (e carrega as que ainda não têm texto, inclusive as acrescentadas ao `fontes.ts`), confere a lista oficial de leis, decretos e MPs novos do Senado (`legis.senado.leg.br`, dados abertos), cruza o que os atos novos alteram com o texto compilado, lê os portais monitorados (`fontes-monitoradas.ts`) e faz a pesquisa semanal na web. Detalhes e limites: `docs/base-conhecimento-legal.md`.
+
+Depois do primeiro deploy, rode a revisão uma vez para carregar as normas novas (leva vários minutos; o resultado fica na aba "Revisão semanal"):
+
+```
+docker exec reforma-backend node scripts/revisao-semanal.js
+```
+
+Variáveis (no `.env`; vazio = ligado): `BASE_LEGAL_REVISAO_SEMANAL=false` desliga a rotina, `BASE_LEGAL_APLICAR_AUTOMATICO=false` faz o texto oficial que mudou virar aviso para aprovação, `BASE_LEGAL_BUSCA_WEB=false` dispensa a pesquisa na web. O resumo da semana vai por e-mail para `NOTIFY_EMAIL` (só quando há novidade ou erro).
+
 Perguntas frequentes revisadas (Base legal): o primeiro lote entra como RASCUNHO, com cada trecho conferido contra o texto da lei (`docker exec reforma-backend node scripts/carregar-cartoes.js`, idempotente). Só depois de "Revisar e publicar" (administrador) os consultores passam a ver cada cartão. Também dá para criar/editar cartões pela própria tela (o trecho é conferido no salvamento).
 
 ## ATENÇÃO: o frontend só recompila se o container for recriado

@@ -49,7 +49,7 @@ export class RevisaoLegalService {
    * Chamado quando uma atualização da Base legal muda dispositivos já carregados: grava a fila de revisão, devolve para
    * rascunho os cartões publicados que os citam e avisa o administrador por e-mail (se o envio estiver configurado).
    */
-  async registrarMudancas(norma: NormaMudada, mudancas: MudancaDispositivo[]): Promise<ResumoRevisao> {
+  async registrarMudancas(norma: NormaMudada, mudancas: MudancaDispositivo[], opcoes: { avisar?: boolean } = {}): Promise<ResumoRevisao> {
     const vazio: ResumoRevisao = { cartoes: 0, cartoes_despublicados: 0, fundamentos: 0, marcos: 0, itens: 0 };
     if (!mudancas.length) return vazio;
 
@@ -85,7 +85,7 @@ export class RevisaoLegalService {
     ]);
 
     this.log.log(`${norma.chave}: ${novas.length} item(ns) para revisar (${idsCartoes.size} cartão(ões), ${publicados.length} despublicado(s))`);
-    await this.avisarAdministrador(norma, novas, publicados.length);
+    if (opcoes.avisar !== false) await this.avisarAdministrador(norma, novas, publicados.length);
     return {
       cartoes: idsCartoes.size,
       cartoes_despublicados: publicados.length,

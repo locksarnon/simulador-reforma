@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { ehSoNota, type Marca, marcadorEstrutural, marcasDoTexto, marcasUnicas, numeroDoArtigo, type Remissao, remissoesDoTexto, situacaoDoDispositivo, temasDoTexto } from './marcas';
 
 /** Dispositivo extraído do texto de uma norma (artigo ou anexo). */
 export type DispositivoExtraido = {
@@ -8,7 +9,18 @@ export type DispositivoExtraido = {
   ordem: number;
   secao: string | null;
   texto: string;
+  /** Revogado (ou vetado) por inteiro: não sobra texto operativo, só a nota de revogação. */
   revogado: boolean;
+  /** Há parágrafos, incisos ou alíneas revogados junto de texto ainda vigente. */
+  parcialmente_revogado: boolean;
+  revogado_por: string | null;
+  /** Notas entre parênteses do texto oficial: redação dada, incluído, revogado, vide, vigência. */
+  alteracoes: Marca[];
+  /** Texto que estava riscado no site oficial (redação superada ou revogada). Nunca entra no texto vigente. */
+  redacoes_anteriores: string[];
+  /** Artigos de outras normas que o dispositivo diz regulamentar ou reproduzir. */
+  remissoes: Remissao[];
+  temas: string[];
 };
 
 const ENTIDADES: Record<string, string> = {
@@ -26,30 +38,117 @@ function decodificarEntidades(s: string): string {
     .replace(/&([a-zA-Z]+);/g, (m, nome) => ENTIDADES[nome] ?? m);
 }
 
+/** Delimitadores (área de uso privado do Unicode) do texto que o site oficial mostra riscado. */
 /**
- * HTML do Planalto → texto em linhas. Descarta o que está riscado (redação
- * revogada/alterada; o texto vigente vem depois, com "Redação dada por…").
+ * Versão do leitor de texto. Aumente quando o leitor passar a extrair o texto de outro jeito (por exemplo, separar o que está riscado):
+ * as normas gravadas por versão anterior são reprocessadas na próxima leitura, sem contar a diferença como mudança da lei.
+ */
+export const LEITOR_VERSAO = 2;
+
+export const INICIO_RISCADO = '';
+export const FIM_RISCADO = '';
+const RE_RISCADO = /([^]*)/g;
+
+/** Texto sem as partes riscadas (o que está em vigor). */
+export const semRiscado = (texto: string): string => texto.replace(RE_RISCADO, ' ');
+
+const ELEMENTOS_VAZIOS = new Set(['br', 'hr', 'img', 'meta', 'link', 'input', 'col', 'wbr', 'area', 'base', 'param', 'source', 'track', 'embed']);
+const BLOCOS = new Set(['p', 'div', 'tr', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'blockquote']);
+const TAGS_RISCADO = new Set(['strike', 's', 'del']);
+const RE_ESTILO_RISCADO = /text-decoration[^;"']*line-through/i;
+const RE_ABRE_TAG = /^<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)/;
+/** Elemento que, ao abrir de novo, fecha o irmão anterior ainda aberto (HTML antigo sem as tags de fechamento). */
+const IRMAOS: Record<string, { fecha: string[]; limite: string[] }> = {
+  p: { fecha: ['p'], limite: ['div', 'td', 'th', 'li', 'blockquote', 'table'] },
+  li: { fecha: ['li'], limite: ['ul', 'ol'] },
+  td: { fecha: ['td', 'th'], limite: ['tr', 'table'] },
+  th: { fecha: ['td', 'th'], limite: ['tr', 'table'] },
+  tr: { fecha: ['tr', 'td', 'th'], limite: ['table'] },
+};
+
+/**
+ * HTML do site oficial → texto em linhas. O que o Planalto mostra riscado (por <strike>, <s>, <del> ou por
+ * `text-decoration: line-through`, que é como a maior parte vem) é a redação superada ou revogada: sai do texto vigente e
+ * fica entre INICIO_RISCADO e FIM_RISCADO, para `extrairDispositivos` guardá-lo à parte como redação anterior.
  */
 export function htmlParaTexto(html: string): string {
-  let h = html
+  const limpo = html
     .replace(/\s+/g, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<(strike|s|del)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<\/t[dh]>/gi, ' | ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6]|table|blockquote)>/gi, '\n')
-    .replace(/<[^>]+>/g, '');
-  h = decodificarEntidades(h).replace(/ /g, ' ');
-  return h
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+
+  const pilha: { nome: string; riscado: boolean }[] = [];
+  let riscados = 0;
+  const saida: string[] = [];
+  let aberto = false;
+  const marcar = (riscado: boolean) => {
+    if (riscado && !aberto) { saida.push(INICIO_RISCADO); aberto = true; }
+    else if (!riscado && aberto) { saida.push(FIM_RISCADO); aberto = false; }
+  };
+  const texto = (s: string) => {
+    if (!s) return;
+    marcar(riscados > 0 && s.trim().length > 0);
+    saida.push(s);
+  };
+  const quebra = (s: string) => { marcar(false); saida.push(s); };
+  const desempilhar = (ate: number) => { while (pilha.length > ate) { if (pilha.pop()!.riscado) riscados -= 1; } };
+  const fecharIrmao = (nome: string) => {
+    const regra = IRMAOS[nome];
+    if (!regra) return;
+    for (let k = pilha.length - 1; k >= 0; k--) {
+      if (regra.fecha.includes(pilha[k].nome)) { desempilhar(k); return; }
+      if (regra.limite.includes(pilha[k].nome)) return;
+    }
+  };
+
+  let i = 0;
+  while (i < limpo.length) {
+    const lt = limpo.indexOf('<', i);
+    if (lt < 0) { texto(limpo.slice(i)); break; }
+    if (lt > i) texto(limpo.slice(i, lt));
+    const m = RE_ABRE_TAG.exec(limpo.slice(lt, lt + 48));
+    if (!m) { texto('<'); i = lt + 1; continue; }
+    // fim da tag respeitando aspas; aspa sem par não pode engolir o documento
+    let j = lt + m[0].length;
+    let aspas = '';
+    while (j < limpo.length && j - lt < 4000) {
+      const c = limpo[j];
+      if (aspas) { if (c === aspas) aspas = ''; } else if (c === '"' || c === "'") aspas = c; else if (c === '>') break;
+      j += 1;
+    }
+    if (limpo[j] !== '>') { texto('<'); i = lt + 1; continue; }
+    const attrs = limpo.slice(lt + m[0].length, j);
+    const nome = m[2].toLowerCase();
+    i = j + 1;
+
+    if (m[1] === '/') {
+      if (nome === 'td' || nome === 'th') quebra(' | ');
+      if (BLOCOS.has(nome)) quebra('\n');
+      for (let k = pilha.length - 1; k >= 0; k--) {
+        if (pilha[k].nome === nome) { desempilhar(k); break; }
+      }
+      continue;
+    }
+    if (nome === 'br') { quebra('\n'); continue; }
+    if (ELEMENTOS_VAZIOS.has(nome) || attrs.trimEnd().endsWith('/')) continue;
+    fecharIrmao(nome);
+    const riscado = TAGS_RISCADO.has(nome) || RE_ESTILO_RISCADO.test(attrs);
+    pilha.push({ nome, riscado });
+    if (riscado) riscados += 1;
+  }
+  marcar(false);
+
+  return decodificarEntidades(saida.join(''))
+    .replace(/ /g, ' ')
     .split('\n')
     .map((l) => l.replace(/[ \t]+/g, ' ').replace(/(\s\|)+\s*$/, '').trim())
     .filter((l) => l.length > 0)
     .join('\n');
 }
 
-const RE_ARTIGO = /^Art\.\s*(\d+)\s*(?:º|°|o\b|\.)?\s*(?:-\s*([A-Z]{1,3})\b)?/;
+// "Art. 5º", "Art. 5º-A" e o estilo antigo "Art 5º - texto" (sem ponto): o hífen só é sufixo quando colado ao número ("5º-A"), senão "Art 1º - O imposto" viraria o art. 1-O.
+const RE_ARTIGO = /^Art\.?\s*(\d+)\s*(?:º|°|o\b|\.)?(?:\s*-([A-Z]{1,3})\b)?/;
 const RE_ANEXO = /^ANEXO\s+([IVXLC]+(?:-[A-Z])?|[ÚU]NICO)\b/i;
 const RE_SECAO = /^(LIVRO|T[ÍI]TULO|CAP[ÍI]TULO|SE[ÇC][ÃA]O|SUBSE[ÇC][ÃA]O)\s+([IVXLCDM]+(?:-[A-Z])?|[ÚU]NIC[OA]|\d+)\b\s*(.*)$/i;
 const NIVEL: Record<string, number> = { LIVRO: 0, TITULO: 1, CAPITULO: 2, SECAO: 3, SUBSECAO: 4 };
@@ -69,17 +168,83 @@ function romano(r: string): number {
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 const cap = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
+/**
+ * Separa, linha a linha, o texto vigente do riscado, sem deixar sumir dispositivo revogado:
+ *  - cabeçalho riscado ("Art. 165.", "ANEXO XIV") seguido só do aviso de revogação ("(Revogado pelo Decreto...)") volta a ser a
+ *    linha "Art. 165. (Revogado pelo Decreto...)" (antes o dispositivo sumia e o aviso grudava no anterior);
+ *  - artigo riscado que não tem aviso próprio (o aviso está no título da seção) e não foi reeditado vira "Art. N. (Revogado...)".
+ * O que estava riscado fica à parte, em `riscados`, como redação anterior.
+ */
+function prepararLinhas(texto: string): { linhas: string[]; riscados: string[][] } {
+  const linhas: string[] = [];
+  const riscados: string[][] = [];
+  let pendente: string[] = [];
+  let notaSolta: string | null = null;
+
+  for (const bruta of texto.split('\n')) {
+    const fragmentos = [...bruta.matchAll(RE_RISCADO)].map((m) => m[1].replace(/\s+/g, ' ').trim()).filter((f) => f.length >= 3);
+    let vigente = semRiscado(bruta).replace(/[ \t]+/g, ' ').replace(/(\s\|)+\s*$/, '').trim();
+    if (!vigente) {
+      pendente.push(...fragmentos);
+      continue;
+    }
+    const iniciaRiscado = bruta.trimStart().startsWith(INICIO_RISCADO);
+    // Blocos riscados que vêm logo antes do texto vigente desta linha, em ordem (o primeiro fragmento da própria linha conta se ela começa riscada).
+    const sequencia = [...pendente, ...(iniciaRiscado && fragmentos[0] ? [fragmentos[0]] : [])];
+    const resto = iniciaRiscado ? fragmentos.slice(1) : fragmentos;
+
+    // O aviso de revogação sem cabeçalho pertence ao último bloco riscado que tinha cabeçalho.
+    let usado = -1;
+    if (!marcadorEstrutural(vigente) && (ehSoNota(vigente) || (iniciaRiscado && fragmentos[0]))) {
+      for (let k = sequencia.length - 1; k >= 0; k--) {
+        const marc = marcadorEstrutural(sequencia[k]);
+        if (!marc) continue;
+        if (ehSoNota(vigente) || k === sequencia.length - 1) { vigente = `${marc} ${vigente}`; usado = k; }
+        break;
+      }
+    }
+    const numeroAqui = numeroDoArtigo(vigente);
+
+    // Agrupa os blocos riscados por artigo: cada "Art. N" riscado abre um grupo e os blocos seguintes sem artigo são continuação dele.
+    const grupos: { token: string; numero: string; indices: number[] }[] = [];
+    const soltos: number[] = [];
+    sequencia.forEach((b, k) => {
+      const numero = numeroDoArtigo(b);
+      if (numero) grupos.push({ token: marcadorEstrutural(b) as string, numero, indices: [k] });
+      else if (grupos.length) grupos[grupos.length - 1].indices.push(k);
+      else soltos.push(k);
+    });
+    const proprios: number[] = [...soltos];
+    for (const g of grupos) {
+      if (g.indices.includes(usado) || g.numero === numeroAqui) { proprios.push(...g.indices); continue; }
+      // artigo riscado e não reeditado: continua existindo na base, como revogado
+      const cabeca = sequencia[g.indices[0]];
+      if (cabeca.length >= 20) {
+        linhas.push(`${g.token} ${notaSolta ?? '(Revogado)'}`);
+        riscados.push(g.indices.map((k) => sequencia[k]));
+      } else proprios.push(...g.indices);
+    }
+
+    linhas.push(vigente);
+    riscados.push([...proprios.sort((a, b) => a - b).map((k) => sequencia[k]), ...resto]);
+    pendente = [];
+    // Aviso de revogação solto (logo depois de um título) que vale para os artigos riscados que vierem em seguida.
+    notaSolta = ehSoNota(vigente) && /^\s*\(\s*Revogad/i.test(vigente) ? vigente : null;
+  }
+  return { linhas, riscados };
+}
+
 /** Divide o texto de uma norma em artigos e anexos, guardando o caminho (Título › Capítulo…). */
 export function extrairDispositivos(texto: string): DispositivoExtraido[] {
-  const linhas = texto.split('\n');
+  const { linhas, riscados } = prepararLinhas(texto);
   // Constituição: o ADCT tem numeração própria (Art. 1º…) — é tratado como um segundo bloco.
   const iAdct = linhas.findIndex((l) => /^ATO DAS DISPOSI[ÇC][ÕO]ES CONSTITUCIONAIS TRANSIT[ÓO]RIAS$/.test(l.trim()));
   if (iAdct > 0) {
-    const corpo = extrairSegmento(linhas.slice(0, iAdct), '', 0);
-    const adct = extrairSegmento(linhas.slice(iAdct + 1), 'adct', corpo.length);
+    const corpo = extrairSegmento(linhas.slice(0, iAdct), '', 0, riscados.slice(0, iAdct));
+    const adct = extrairSegmento(linhas.slice(iAdct + 1), 'adct', corpo.length, riscados.slice(iAdct + 1));
     return [...corpo, ...adct];
   }
-  return extrairSegmento(linhas, '', 0);
+  return extrairSegmento(linhas, '', 0, riscados);
 }
 
 const chaveArtigo = (num: string, suf?: string) => {
@@ -121,19 +286,43 @@ function linhasDeArtigos(linhas: string[]): Set<number> {
   return aceitos;
 }
 
-function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number): DispositivoExtraido[] {
+const LIMITE_REDACOES = 10;
+const LIMITE_CARACTERES_REDACAO = 2000;
+
+/** Preenche o que se lê do próprio texto: revogação, notas de alteração, remissões e temas. */
+function completar(d: DispositivoExtraido, riscados: string[]) {
+  // "Art. 540. Ficam revogados os seguintes dispositivos..." é artigo em vigor que revoga outros; só vale a nota "(Revogado...)" sem texto operativo.
+  const s = situacaoDoDispositivo(d.texto);
+  d.revogado = s.revogado;
+  d.parcialmente_revogado = !d.revogado && s.parcialmente_revogado;
+  d.revogado_por = d.revogado || d.parcialmente_revogado ? s.revogado_por : null;
+  d.alteracoes = marcasUnicas(marcasDoTexto(d.texto)).slice(0, 14);
+  d.remissoes = remissoesDoTexto(d.texto).slice(0, 12);
+  d.temas = d.revogado ? [] : temasDoTexto(d.texto);
+  // O que estava riscado fica como redação anterior, sem o que já é o próprio texto vigente.
+  const plano = d.texto.replace(/\s+/g, ' ');
+  d.redacoes_anteriores = [...new Set(riscados)]
+    .filter((r) => !plano.includes(r))
+    .slice(0, LIMITE_REDACOES)
+    .map((r) => r.slice(0, LIMITE_CARACTERES_REDACAO));
+}
+
+function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number, riscados: string[][]): DispositivoExtraido[] {
   const aceitos = linhasDeArtigos(linhas);
   const saida: DispositivoExtraido[] = [];
   const niveis: (string | null)[] = [null, null, null, null, null];
-  let atual: { d: DispositivoExtraido; linhas: string[] } | null = null;
+  let atual: { d: DispositivoExtraido; linhas: string[]; riscados: string[] } | null = null;
   let paiAnexo = '';
   let ultimoAnexo = 0;
   const usados = new Map<string, number>();
 
+  const novo = (base: Pick<DispositivoExtraido, 'tipo' | 'rotulo' | 'caminho' | 'ordem' | 'secao' | 'texto' | 'revogado'>): DispositivoExtraido => ({
+    ...base, parcialmente_revogado: false, revogado_por: null, alteracoes: [], redacoes_anteriores: [], remissoes: [], temas: [],
+  });
   const fechar = () => {
     if (!atual) return;
     atual.d.texto = atual.linhas.join('\n').trim();
-    atual.d.revogado = /^Art\.[^\n]{0,14}\(?\s*Revogad[oa]/i.test(atual.d.texto);
+    completar(atual.d, atual.riscados);
     saida.push(atual.d);
     atual = null;
   };
@@ -147,7 +336,7 @@ function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number): 
   for (let i = 0; i < linhas.length; i++) {
     const l = linhas[i];
     const asx = RE_ANEXO.exec(l);
-    if (asx && l.length <= 60 && l.startsWith('ANEXO')) {
+    if (asx && l.startsWith('ANEXO') && (l.length <= 60 || (l.length <= 200 && /\(\s*(?:Revogad|Reda[çc]|Inclu[íi]d|Vetad)/i.test(l)))) {
       fechar();
       const id = asx[1].toUpperCase().replace('Ú', 'U');
       const valor = romano(id);
@@ -157,8 +346,9 @@ function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number): 
       const rotulo = sub ? `Anexo ${paiAnexo} › Anexo ${id}` : `Anexo ${id}`;
       const base = sub ? `anexo-${paiAnexo.toLowerCase()}-${id.toLowerCase()}` : `anexo-${id.toLowerCase()}`;
       atual = {
-        d: { tipo: 'anexo', rotulo, caminho: caminhoUnico(prefixo ? `${prefixo}-${base}` : base), ordem: ordemBase + saida.length + 1, secao: 'Anexos', texto: '', revogado: false },
+        d: novo({ tipo: 'anexo', rotulo, caminho: caminhoUnico(prefixo ? `${prefixo}-${base}` : base), ordem: ordemBase + saida.length + 1, secao: 'Anexos', texto: '', revogado: false }),
         linhas: [l],
+        riscados: [...(riscados[i] ?? [])],
       };
       continue;
     }
@@ -169,8 +359,9 @@ function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number): 
         const num = ma[1];
         const suf = ma[2] ? `-${ma[2]}` : '';
         atual = {
-          d: { tipo: 'artigo', rotulo: `${prefixo ? 'ADCT, ' : ''}Art. ${num}${Number(num) <= 9 && !suf ? 'º' : ''}${suf}`, caminho: caminhoUnico(`${prefixo ? `${prefixo}-` : ''}art-${num}${suf.toLowerCase()}`), ordem: ordemBase + saida.length + 1, secao: prefixo ? `ADCT${secaoAtual() ? ' › ' + secaoAtual() : ''}` : secaoAtual(), texto: '', revogado: false },
+          d: novo({ tipo: 'artigo', rotulo: `${prefixo ? 'ADCT, ' : ''}Art. ${num}${Number(num) <= 9 && !suf ? 'º' : ''}${suf}`, caminho: caminhoUnico(`${prefixo ? `${prefixo}-` : ''}art-${num}${suf.toLowerCase()}`), ordem: ordemBase + saida.length + 1, secao: prefixo ? `ADCT${secaoAtual() ? ' › ' + secaoAtual() : ''}` : secaoAtual(), texto: '', revogado: false }),
           linhas: [l],
+          riscados: [...(riscados[i] ?? [])],
         };
         continue;
       }
@@ -190,7 +381,10 @@ function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number): 
         continue;
       }
     }
-    if (atual) atual.linhas.push(l);
+    if (atual) {
+      atual.linhas.push(l);
+      if (riscados[i]?.length) atual.riscados.push(...riscados[i]);
+    }
   }
   fechar();
   return saida;
