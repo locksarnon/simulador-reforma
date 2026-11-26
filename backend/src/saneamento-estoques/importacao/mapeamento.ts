@@ -23,6 +23,8 @@ export const SINONIMOS: Record<CampoBase, string[]> = {
   referencia: ['referencia', 'codigoreferencia', 'codref', 'ref', 'suppcatnum', 'numerocatalogo', 'codigofabricante', 'partnumber', 'pn'],
   estabelecimento: ['estabelecimento', 'codestabel', 'codigodoestabelecimento', 'estab', 'filial', 'b1filial', 'deposito', 'codigodeposito', 'whscode', 'armazem', 'b1locpad'],
   finalidade: ['finalidade', 'finalidadedoitem', 'usodoitem', 'usoitem'],
+  // Opcional (Diretrizes: regra por grupo e subgrupo). Vai para `campos.subgrupo` do item.
+  subgrupo: ['subgrupo', 'subgrupodoproduto', 'subgrupoproduto', 'subgrupodeitens', 'subfamilia', 'subcategoria', 'b1subgrupo', 'subgrp'],
 };
 
 /** Casamento aproximado (certeza MÉDIA): padrão que o nome deve ter e, se houver, o que o desqualifica. */
@@ -35,6 +37,7 @@ const APROXIMADOS: Partial<Record<CampoBase, { tem: RegExp; nao?: RegExp }>> = {
   fabricante: { tem: /fabric/, nao: /codigo|cod$/ },
   estabelecimento: { tem: /^(estab|deposito|filial)/ },
   finalidade: { tem: /finalid/ },
+  subgrupo: { tem: /^sub(grupo|famil|categ)/ },
 };
 
 /** Cabeçalho que indica coluna de BLOQUEIO (S = bloqueado) em vez de "ativo". */

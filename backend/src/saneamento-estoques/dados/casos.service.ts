@@ -93,9 +93,12 @@ export class SanCasosService {
 
   /**
    * Grava o resultado de uma camada: casos novos (sem duplicar os já existentes), células e "aguardando informação" quando faltou dado.
-   * `completo` = a camada foi reexecutada inteira: os casos abertos que ela não produziu mais viram OBSOLETO.
+   * `completo` = a camada foi reexecutada inteira: os casos abertos que ela não produziu mais viram OBSOLETO. `escopo` (Diretrizes: aplicar e
+   * reanalisar) = só estes itens foram reanalisados: a obsolescência e o "aguardando informação" ficam restritos aos casos e células deles (o
+   * resultado já vem recortado por `recortarResultado`, com o escopo fechado).
    */
-  async registrarResultado(projetoId: string, bruto: ResultadoCamada, opcoes: { completo?: boolean; interno?: boolean } = {}) {
+  async registrarResultado(projetoId: string, bruto: ResultadoCamada, opcoes: { completo?: boolean; interno?: boolean; escopo?: Set<string> } = {}) {
+    const noEscopo = (itens: string[]) => !opcoes.escopo || itens.some((i) => opcoes.escopo!.has(i));
     const p = await this.projetos.exigirConfirmadas(projetoId); // A TRAVA
     // O teto de casos protege só o POST (corpo HTTP); o caminho interno (executar camada) grava tudo, em blocos, numa transação.
     const r = validarResultado(bruto, { semTeto: opcoes.interno === true });
@@ -108,7 +111,7 @@ export class SanCasosService {
     const produzidas = new Set((r.casos ?? []).filter((c) => ehExcecao(c.tipo)).map((c) => chaveCaso(camada, c.tipo, c.itens)));
     const vivas = new Set<string>();
     for (const e of await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, camada, tipo: { in: TIPOS_EXCECAO }, situacao: { in: EXCECAO_VIVA } }, select: { itens: true, tipo: true, situacao: true, chave: true } })) {
-      if (opcoes.completo && e.situacao === 'PROPOSTO' && e.tipo !== 'EXCECAO_MANUAL' && !produzidas.has(e.chave)) continue;
+      if (opcoes.completo && e.situacao === 'PROPOSTO' && e.tipo !== 'EXCECAO_MANUAL' && !produzidas.has(e.chave) && noEscopo(e.itens)) continue;
       for (const i of e.itens) vivas.add(i);
     }
     const casos = (r.casos ?? [])
@@ -134,8 +137,8 @@ export class SanCasosService {
         const obsoletos: string[] = [];
         if (opcoes.completo) {
           const produzidas = new Set(chaves);
-          const abertos = await tx.sanCaso.findMany({ where: { projeto_id: projetoId, camada, situacao: 'PROPOSTO' }, select: { id: true, chave: true, tipo: true } });
-          for (const a of abertos) if (!produzidas.has(a.chave) && a.tipo !== 'EXCECAO_MANUAL') obsoletos.push(a.id);
+          const abertos: { id: string; chave: string; tipo: string; itens?: string[] }[] = await tx.sanCaso.findMany({ where: { projeto_id: projetoId, camada, situacao: 'PROPOSTO' }, select: { id: true, chave: true, tipo: true, itens: !!opcoes.escopo } });
+          for (const a of abertos) if (!produzidas.has(a.chave) && a.tipo !== 'EXCECAO_MANUAL' && noEscopo(a.itens ?? [])) obsoletos.push(a.id);
           for (const lote of fatiar(obsoletos, 1000)) {
             await tx.sanCaso.updateMany({ where: { id: { in: lote }, situacao: 'PROPOSTO' }, data: { situacao: 'OBSOLETO', versao: { increment: 1 } } });
             await tx.sanCelula.updateMany({ where: { projeto_id: projetoId, camada, caso_id: { in: lote } }, data: { situacao: 'PENDENTE', caso_id: null, revisar: false, revisar_causa: null } });
@@ -226,7 +229,12 @@ export class SanCasosService {
           sem += x.count;
         }
         // Faltou dado: o que ainda está pendente na camada fica "aguardando informação" (o motivo vai no retorno).
-        if (r.semDados) await tx.sanCelula.updateMany({ where: { projeto_id: projetoId, camada, situacao: 'PENDENTE' }, data: { situacao: 'AGUARDANDO_INFORMACAO', revisar_causa: r.semDados.motivo.slice(0, 300) } });
+        if (r.semDados && !opcoes.escopo) await tx.sanCelula.updateMany({ where: { projeto_id: projetoId, camada, situacao: 'PENDENTE' }, data: { situacao: 'AGUARDANDO_INFORMACAO', revisar_causa: r.semDados.motivo.slice(0, 300) } });
+        else if (r.semDados) {
+          for (const lote of fatiar([...opcoes.escopo!], 5000)) {
+            await tx.sanCelula.updateMany({ where: { projeto_id: projetoId, camada, situacao: 'PENDENTE', item_id: { in: lote } }, data: { situacao: 'AGUARDANDO_INFORMACAO', revisar_causa: r.semDados.motivo.slice(0, 300) } });
+          }
+        }
 
         await this.sincronizarImpactos(tx, projetoId, [...tocados], dataBase);
         return {

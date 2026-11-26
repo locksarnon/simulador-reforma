@@ -4,6 +4,7 @@ type Linha = Record<string, any>; // eslint-disable-line @typescript-eslint/no-e
 const UNICOS: Record<string, string[][]> = {
   sanProjeto: [['diagnostico_id']], sanItem: [['projeto_id', 'estabelecimento', 'codigo']], sanCaso: [['projeto_id', 'chave']],
   sanVersao: [['projeto_id', 'numero']], sanCelula: [['item_id', 'camada']], sanAtividade: [['projeto_id', 'codigo']],
+  sanDiretrizes: [['projeto_id']], sanDiretrizRegra: [['projeto_id', 'codigo']], sanDiretrizBiblioteca: [['id']], sanDiretrizBibliotecaVersao: [['regra_id', 'versao']],
 };
 const PADROES: Record<string, () => Linha> = {
   sanProjeto: () => ({ versao: 1, estabelecimentos: [], parametros: {}, modulos: { conciliacao: false, blocosKG: false, arquivoErp: false }, atividades_confirmadas_em: null, atividades_confirmadas_por: null }),
@@ -13,6 +14,14 @@ const PADROES: Record<string, () => Linha> = {
   sanCaso: () => ({ situacao: 'PROPOSTO', versao: 1, motivo: null, decidido_por: null, decidido_em: null, parecer_ia: null, responsavel: null, evidencia: [], atual: {}, proposta: {}, impactos: [], afeta: [] }),
   sanDecisao: () => ({ caso_id: null }),
   sanImpactoSped: () => ({ avaliar_anteriores: false }),
+  sanDiretrizes: () => ({ versao: 1, vigencia: null, convertido_em: null }),
+  sanDiretrizRegra: () => ({
+    situacao: 'RASCUNHO', revisar: false, revisar_causa: null, aprovada_por: null, aprovada_em: null, aplicacao: null, aplicada_em: null, aplicada_por: null, legado: false,
+    parametros_legados: null, versao: 1, observacao: null, biblioteca_id: null, biblioteca_versao: null, alteracoes: null, criada_por: null,
+  }),
+  sanDiretrizHistorico: () => ({ antes: null, depois: null, detalhe: null }),
+  sanDiretrizBiblioteca: () => ({ versao: 1, ativa: true, editada: false, indicada_para: null, observacao: null }),
+  sanDiretrizBibliotecaVersao: () => ({ ativa: true, indicada_para: null, observacao: null }),
 };
 const RELACOES: Record<string, Record<string, [string, string]>> = {
   sanItem: { celulas: ['sanCelula', 'item_id'] }, sanProjeto: { atividades: ['sanAtividade', 'projeto_id'] }, sanVersao: { snapshot: ['sanVersaoSnapshot', 'versao_id'] },
@@ -23,7 +32,8 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
   let seq = 0;
   let tempo = Date.parse('2026-11-26T12:00:00Z');
   const db: Record<string, Linha[]> = {};
-  const modelos = ['projetoDiagnostico', 'empresa', 'ncm', 'sanProjeto', 'sanAtividade', 'sanImportacao', 'sanItem', 'sanCelula', 'sanCaso', 'sanDecisao', 'sanVersao', 'sanVersaoSnapshot', 'sanImpactoSped', 'sanVinculoCodigo', 'erp', 'erpConhecimento'];
+  const modelos = ['projetoDiagnostico', 'empresa', 'ncm', 'sanProjeto', 'sanAtividade', 'sanImportacao', 'sanItem', 'sanCelula', 'sanCaso', 'sanDecisao', 'sanVersao', 'sanVersaoSnapshot', 'sanImpactoSped', 'sanVinculoCodigo', 'erp', 'erpConhecimento',
+    'sanDiretrizes', 'sanDiretrizRegra', 'sanDiretrizHistorico', 'sanDiretrizBiblioteca', 'sanDiretrizBibliotecaVersao'];
   for (const m of modelos) db[m] = (sementes[m] ?? []).map((l) => ({ ...l }));
   const erroUnico = () => Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
   // Atalhos para as bases de 30 mil itens: 'in' por conjunto e busca por id por índice (refeito quando a lista muda de tamanho ou é trocada).
@@ -87,7 +97,7 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
     l.id ??= modelo === 'sanVersaoSnapshot' ? undefined : `${modelo.slice(0, 3)}${++seq}`;
     l.createdAt ??= new Date((tempo += 1000));
     l.updatedAt = new Date(tempo);
-    if (modelo === 'sanDecisao') l.quando ??= new Date((tempo += 1000));
+    if (modelo === 'sanDecisao' || modelo === 'sanDiretrizHistorico') l.quando ??= new Date((tempo += 1000));
     for (const u of UNICOS[modelo] ?? []) if (db[modelo].some((o) => u.every((k) => o[k] === l[k]))) throw erroUnico();
     return l;
   };

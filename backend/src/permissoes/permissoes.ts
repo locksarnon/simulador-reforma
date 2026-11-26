@@ -197,6 +197,8 @@ export const ROTAS_DAS_TELAS: { rota: string; telas: string[] }[] = [
   { rota: 'validador-nfse', telas: ['carteira-diagnostico'] },
   { rota: 'ncm', telas: ['consulta-ncm', 'carteira-diagnostico'] },
   { rota: 'saneamento-estoques', telas: ['carteira-diagnostico'] },
+  // Biblioteca de diretrizes (Administração): leitura para quem está logado; gravar é só do administrador (no serviço).
+  { rota: 'saneamento-estoques/biblioteca', telas: [] },
   // Cadastro de ERPs: todas as telas leem a lista e o perfil; alterar é só do administrador (no controller).
   { rota: 'erps', telas: [] },
 ];

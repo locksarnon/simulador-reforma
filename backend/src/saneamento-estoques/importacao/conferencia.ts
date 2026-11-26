@@ -108,6 +108,9 @@ export function conferirLinhaPreparada(p: Preparada, valores: string[], linhaOri
 
   const campos: ItemImportado['campos'] = {};
   for (const e of p.extras) { const t = String(valores[e.indice] ?? '').trim(); if (t) campos[e.nome] = t; }
+  // Subgrupo (opcional): não é campo de topo do item; fica em `campos.subgrupo` (as Diretrizes resolvem a regra por grupo e subgrupo).
+  const subgrupo = textoOuNulo(v('subgrupo'));
+  if (subgrupo) campos.subgrupo = subgrupo;
 
   const item: ItemImportado = {
     codigo: cod.valor, estabelecimento, descricao: desc as string, unidade, ncm, grupo, ativo, saldo, ultimaMovimentacao,

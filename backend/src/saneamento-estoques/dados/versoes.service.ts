@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CASO_ABERTO, TX_LONGA, conflito, igual, quem, type Json, type Usuario } from './constantes';
 import type { DadosEntrega } from './portas';
 import { nomeDoErp } from '../../erps/erps.service';
+import { fotoDasDiretrizes } from '../diretrizes/dados';
 
 /** Ordem das chaves da foto (a mesma do JSON.stringify antigo e da escrita em partes): o leitor parcial depende dela só para achar as seções. */
 const SECOES_FOTO = ['itens', 'celulas', 'casos', 'decisoes', 'impactosSped', 'vinculos', 'importacoes'] as const;
@@ -14,7 +15,7 @@ type SecaoFoto = (typeof SECOES_FOTO)[number];
  * Gzip da foto escrito em partes (mil elementos por vez): o resultado é o mesmo JSON de `JSON.stringify(foto)`, mas sem montar a string
  * inteira (com 30 mil itens e 190 mil decisões, centenas de MB em UTF-16) nem a cópia dela em Buffer.
  */
-export async function gzipDaFoto(foto: { formato: number; projeto: unknown } & Record<SecaoFoto, unknown[]>): Promise<Buffer> {
+export async function gzipDaFoto(foto: { formato: number; projeto: unknown; diretrizes?: unknown } & Record<SecaoFoto, unknown[]>): Promise<Buffer> {
   const gz = createGzip();
   const partes: Buffer[] = [];
   gz.on('data', (b: Buffer) => partes.push(b));
@@ -27,6 +28,8 @@ export async function gzipDaFoto(foto: { formato: number; projeto: unknown } & R
     for (let i = 0; i < lista.length; i += 1000) await escrever((i ? ',' : '') + lista.slice(i, i + 1000).map((x) => JSON.stringify(x ?? null)).join(','));
     await escrever(']');
   }
+  // Diretrizes congeladas junto com a base (fotos antigas não têm a chave: leitura devolve null).
+  if (foto.diretrizes !== undefined) await escrever(`,"diretrizes":${JSON.stringify(foto.diretrizes ?? null)}`);
   await escrever('}');
   gz.end();
   await fim;
@@ -77,6 +80,8 @@ type Foto = {
   impactosSped: Json[];
   vinculos: Json[];
   importacoes: Json[];
+  /** Diretrizes na hora da liberação (regras com conteúdo efetivo, situação e aprovador). null = foto antiga ou projeto sem Diretrizes. */
+  diretrizes?: Json | null;
 };
 
 type CelulaSel = { id: string; item_id: string; camada: string; situacao: string; revisar: boolean; caso_id: string | null };
@@ -175,6 +180,7 @@ export class SanVersoesService {
           impactosSped: (await tx.sanImpactoSped.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } })) as never,
           vinculos: (await tx.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } })) as never,
           importacoes: (await tx.sanImportacao.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' }, select: SEL_IMPORTACAO })) as never,
+          diretrizes: await fotoDasDiretrizes(tx, projetoId),
         };
         const totalRevisar = Object.values(revisarPorCamada).reduce((s, n) => s + n, 0);
         const resumo = {
@@ -213,7 +219,7 @@ export class SanVersoesService {
     const f = JSON.parse(texto) as Partial<Foto>;
     const foto: Foto = {
       formato: 2, projeto: f.projeto ?? {}, itens: f.itens ?? [], celulas: f.celulas ?? [], casos: f.casos ?? [], decisoes: f.decisoes ?? [], impactosSped: f.impactosSped ?? [],
-      vinculos: f.vinculos ?? [], importacoes: f.importacoes ?? [],
+      vinculos: f.vinculos ?? [], importacoes: f.importacoes ?? [], diretrizes: f.diretrizes ?? null,
     };
     return { versao: { id: v.id, numero: v.numero, rotulo: v.rotulo, createdAt: v.createdAt, usuario: v.usuario }, foto };
   }
@@ -228,6 +234,13 @@ export class SanVersoesService {
     const itens = new Map<string, Json>();
     if (s) for (const i of (JSON.parse(texto.slice(s[0], s[1])) as Json[] | null) ?? []) itens.set(String(i.id), ((i.trabalho as Json) ?? {}) as Json);
     return { versao, itens };
+  }
+
+  /** Só as Diretrizes congeladas na versão (lê a seção, sem montar a foto inteira). null = foto antiga ou projeto sem Diretrizes. */
+  async diretrizesDaVersao(projetoId: string, versaoId: string): Promise<{ versao: { id: string; numero: number; rotulo: string; createdAt: Date; usuario: string }; diretrizes: Json | null }> {
+    const { versao, texto } = await this.textoDaFoto(projetoId, versaoId);
+    const s = secoesDoJson(texto).get('diretrizes');
+    return { versao, diretrizes: s ? ((JSON.parse(texto.slice(s[0], s[1])) as Json | null) ?? null) : null };
   }
 
   /** Reduz uma versão ao que a comparação usa e solta o resto (uma foto por vez na memória). */
