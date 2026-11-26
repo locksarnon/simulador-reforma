@@ -39,12 +39,19 @@ export type RegistroChecklist = {
   conferido: boolean;
   /** Observação de risco do próprio checklist (ex.: o registro do plano precisa de confirmação). */
   ressalva?: string;
+  /**
+   * O valor do ajuste NÃO é o conteúdo destes campos (ex.: C170 não tem NCM, só COD_ITEM ligado ao 0200): a linha sai sem valor original
+   * e proposto, para não mostrar um NCM no campo COD_ITEM. A conferência é o `verificar`.
+   */
+  semValor?: boolean;
 };
 export type LinhaChecklist = {
   rotulo: string; tipoPadrao: TipoImpacto; avaliarAnteriores: boolean; motivoAvaliar: string; registros: RegistroChecklist[];
 };
 
 const R = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: string, ressalva?: string): RegistroChecklist => ({ obrigacao, registro, campos, verificar, conferido: false, ressalva });
+/** Registro em que o valor do ajuste não é o conteúdo dos campos listados (ver `semValor`). */
+const S = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: string, ressalva?: string): RegistroChecklist => ({ ...R(obrigacao, registro, campos, verificar, ressalva), semValor: true });
 
 export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
   MUDOU_CODIGO_DESCRICAO: {
@@ -62,12 +69,12 @@ export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
     motivoAvaliar: 'Quantidades e inventário de períodos anteriores podem estar na unidade antiga',
     registros: [
       R('EFD_ICMS_IPI', '0190', ['UNID', 'DESCR'], 'Unidade nova cadastrada'),
-      R('EFD_ICMS_IPI', '0220', ['UNID_CONV', 'FAT_CONV'], 'Fator de conversão entre a unidade do item e a do documento'),
+      S('EFD_ICMS_IPI', '0220', ['UNID_CONV', 'FAT_CONV'], 'Fator de conversão entre a unidade do item e a do documento (unidade de compra e fator do caso)'),
       R('EFD_ICMS_IPI', '0200', ['UNID_INV'], 'Unidade de inventário do item'),
-      R('EFD_ICMS_IPI', 'C170', ['UNID', 'QTD'], 'Unidade e quantidade dos itens dos documentos'),
+      S('EFD_ICMS_IPI', 'C170', ['UNID', 'QTD'], 'Unidade e quantidade dos itens dos documentos (a unidade do documento pode ser a de compra, convertida pelo 0220)'),
       R('EFD_ICMS_IPI', 'H010', ['UNID', 'QTD'], 'Unidade e quantidade do inventário'),
       R('EFD_CONTRIBUICOES', '0190', ['UNID', 'DESCR'], 'Unidade nova cadastrada'),
-      R('EFD_CONTRIBUICOES', '0220', ['UNID_CONV', 'FAT_CONV'], 'Fator de conversão'),
+      S('EFD_CONTRIBUICOES', '0220', ['UNID_CONV', 'FAT_CONV'], 'Fator de conversão (unidade de compra e fator do caso)'),
     ],
   },
   CONSOLIDOU_INATIVOU: {
@@ -86,7 +93,7 @@ export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
     motivoAvaliar: 'Documentos já emitidos e escriturados com o NCM anterior podem ter tratamento tributário diferente',
     registros: [
       R('EFD_ICMS_IPI', '0200', ['COD_NCM'], 'NCM do cadastro do item'),
-      R('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Itens dos documentos ligados ao 0200: o NCM do cadastro deve coincidir com o do documento eletrônico'),
+      S('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Itens dos documentos ligados ao 0200: o NCM do cadastro deve coincidir com o do documento eletrônico'),
       R('EFD_CONTRIBUICOES', '0200', ['COD_NCM'], 'NCM do cadastro do item'),
       R('NFE', 'det/prod', ['NCM'], 'NCM informado no item do documento eletrônico'),
     ],
@@ -96,18 +103,18 @@ export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
     motivoAvaliar: 'Documentos já emitidos e a apuração dos períodos anteriores podem ter usado o tratamento antigo',
     registros: [
       R('NFE', 'det/imposto/IBSCBS', ['CST', 'cClassTrib'], 'CST e cClassTrib do item no documento eletrônico'),
-      R('EFD_ICMS_IPI', 'C170', ['CST_ICMS', 'CFOP'], 'CST do ICMS e CFOP dos itens', 'O campo do CST de IBS/CBS na EFD ICMS/IPI não foi confirmado'),
-      R('EFD_CONTRIBUICOES', 'C170', ['CST_PIS', 'CST_COFINS'], 'CST de PIS/Cofins dos itens'),
-      R('EFD_CONTRIBUICOES', 'M100/M500', ['VL_CRED'], 'Apuração do crédito de PIS e Cofins'),
+      S('EFD_ICMS_IPI', 'C170', ['CST_ICMS', 'CFOP'], 'CST do ICMS e CFOP dos itens', 'O campo do CST de IBS/CBS na EFD ICMS/IPI não foi confirmado'),
+      S('EFD_CONTRIBUICOES', 'C170', ['CST_PIS', 'CST_COFINS'], 'CST de PIS/Cofins dos itens'),
+      S('EFD_CONTRIBUICOES', 'M100/M500', ['VL_CRED'], 'Apuração do crédito de PIS e Cofins'),
     ],
   },
   ITEM_ATIVO_IMOBILIZADO: {
     rotulo: ROTULO_AJUSTE.ITEM_ATIVO_IMOBILIZADO, tipoPadrao: 'REGULARIZACAO_SALDO', avaliarAnteriores: true,
     motivoAvaliar: 'O controle de crédito do bem corre por vários períodos',
     registros: [
-      R('EFD_ICMS_IPI', '0300', ['COD_IND_BEM', 'IDENT_MERC', 'DESCR_ITEM', 'COD_PRNC', 'COD_CTA', 'NR_PARC'], 'Cadastro do bem ou componente do ativo'),
-      R('EFD_ICMS_IPI', 'G110/G125', ['COD_IND_BEM', 'DT_MOV', 'TIPO_MOV'], 'Controle de crédito do ativo permanente (Bloco G) e movimentação do bem'),
-      R('EFD_CONTRIBUICOES', 'F120/F130', ['IDENT_BEM_IMOB', 'NAT_BC_CRED'], 'Crédito sobre bens do ativo imobilizado'),
+      S('EFD_ICMS_IPI', '0300', ['COD_IND_BEM', 'IDENT_MERC', 'DESCR_ITEM', 'COD_PRNC', 'COD_CTA', 'NR_PARC'], 'Cadastro do bem ou componente do ativo'),
+      S('EFD_ICMS_IPI', 'G110/G125', ['COD_IND_BEM', 'DT_MOV', 'TIPO_MOV'], 'Controle de crédito do ativo permanente (Bloco G) e movimentação do bem'),
+      S('EFD_CONTRIBUICOES', 'F120/F130', ['IDENT_BEM_IMOB', 'NAT_BC_CRED'], 'Crédito sobre bens do ativo imobilizado'),
     ],
   },
 };
@@ -177,7 +184,7 @@ export function impactosDoAjuste(tipoAjuste: TipoAjuste, ctx: ContextoImpacto, a
     tipoAjuste, obrigacao: r.obrigacao, aplicabilidade: aplicabilidade(r.obrigacao, ctx), competencia: inicio.slice(0, 7),
     versaoLeiaute: ctx.versaoLeiaute?.[r.obrigacao] ?? 'não confirmado',
     registro: r.registro, campo: r.campos.join(', '),
-    valorOriginal: ajuste?.valorOriginal ?? null, valorProposto: ajuste?.valorProposto ?? null,
+    valorOriginal: r.semValor ? null : ajuste?.valorOriginal ?? null, valorProposto: r.semValor ? null : ajuste?.valorProposto ?? null,
     motivo: ajuste?.motivo ?? '', evidencia: ajuste?.evidencia ?? [], inicio, avaliarAnteriores: l.avaliarAnteriores || tipo === 'ESCRITURACAO_ENTREGUE', tipo,
     verificar: r.verificar, fonte: FONTES_LEIAUTE[r.obrigacao].fonte, registroConferido: r.conferido, ressalva: r.ressalva ?? null, itemId: ajuste?.itemId ?? null,
   }));
@@ -188,6 +195,15 @@ export function montarImpactos(ajustes: AjusteSped[], ctx: ContextoImpacto): Imp
   const out: ImpactoSped[] = [];
   for (const a of ajustes) out.push(...impactosDoAjuste(a.tipo, ctx, a));
   return out.sort((x, y) => TIPOS_AJUSTE.indexOf(x.tipoAjuste) - TIPOS_AJUSTE.indexOf(y.tipoAjuste) || x.obrigacao.localeCompare(y.obrigacao) || x.registro.localeCompare(y.registro) || (x.itemId ?? '').localeCompare(y.itemId ?? ''));
+}
+
+/** Texto do valor quando ele muda de item para item dentro do mesmo tipo de ajuste. */
+export const VALOR_VARIA = 'varia por item; ver a aba Impactos no SPED';
+/** O valor comum a todos os ajustes, ou o aviso de que varia por item. */
+export function valorDoConjunto(valores: (string | number | null)[]): string | number | null {
+  if (!valores.length) return null;
+  const primeiro = valores[0] ?? null;
+  return valores.every((v) => (v ?? null) === primeiro) ? primeiro : VALOR_VARIA;
 }
 
 /** Camada OBRIGACOES: um caso por tipo de ajuste proposto ou aprovado, com os registros a conferir. */
@@ -214,13 +230,15 @@ export class AnalisadorObrigacoes implements AnalisadorCamada {
         camada: 'OBRIGACOES', tipo: `IMPACTO_${tipo}`, itens: lista.map((a) => a.itemId),
         problema: `${ROTULO_AJUSTE[tipo]}: conferir o impacto nas obrigações (${lista.length} ajuste(s), ${ROTULO_TIPO_IMPACTO[principal.tipo].toLowerCase()})`,
         evidencia,
-        atual: { ajustes: lista.length, valorOriginal: lista[0].valorOriginal },
-        proposta: { valorProposto: lista[0].valorProposto, tipoImpacto: principal.tipo },
+        // O valor só aparece quando é o mesmo em todos os ajustes; senão, um resumo honesto (o valor de um item não é o do conjunto).
+        atual: { ajustes: lista.length, valorOriginal: valorDoConjunto(lista.map((a) => a.valorOriginal)) },
+        proposta: { valorProposto: valorDoConjunto(lista.map((a) => a.valorProposto)), tipoImpacto: principal.tipo },
         justificativa: `${lista[0].motivo || ROTULO_AJUSTE[tipo]}. Só conferência: retificação e transmissão ficam fora desta etapa.`,
         fundamento: `${[...new Set(linhas.map((l) => FONTES_LEIAUTE[l.obrigacao].fonte))].join(' · ')} (leiaute não confirmado nesta entrega)`,
         impactos: ressalvas, origem: 'REGRA', afeta: [],
       });
     }
-    return { camada: 'OBRIGACOES', analisados: itens.length, semDados: null, casos, semProblema: itens.filter((i) => !dosItens.some((a) => a.itemId === i.id)).map((i) => i.id) };
+    const comAjuste = new Set(dosItens.map((a) => a.itemId));
+    return { camada: 'OBRIGACOES', analisados: itens.length, semDados: null, casos, semProblema: itens.filter((i) => !comAjuste.has(i.id)).map((i) => i.id) };
   }
 }

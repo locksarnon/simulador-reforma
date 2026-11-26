@@ -7,7 +7,7 @@ import { criarCatalogos, CatalogosFiscais, ClasseFiscal } from './catalogos';
 import { enquadrar, chaveDoConjunto, agruparConjuntos, aplicarExcecao, classeVigente } from './enquadramento';
 import { cenariosAplicaveis } from './cenarios';
 import { AnalisadorTributario, AFETA } from './tributario';
-import { CHECKLIST, TIPOS_AJUSTE, impactosDoAjuste, montarImpactos, AnalisadorObrigacoes, FONTES_LEIAUTE, AjusteSped } from './impactoSped';
+import { CHECKLIST, TIPOS_AJUSTE, impactosDoAjuste, montarImpactos, AnalisadorObrigacoes, FONTES_LEIAUTE, AjusteSped, VALOR_VARIA } from './impactoSped';
 import { compararAtividadeComCfop } from './aderencia';
 import type { ItemTrabalho } from '../tipos';
 
@@ -316,5 +316,41 @@ describe('aderência atividade × CFOP', () => {
   it('transporte sem a atividade diverge; CFOP fora das famílias e duplicados são ignorados', () => {
     expect(compararAtividadeComCfop(['PRODUCAO_AGRICOLA'], ['5351', '5351']).map((x) => x.cfop)).toEqual(['5351']);
     expect(compararAtividadeComCfop([], ['5949', 'abc'])).toEqual([]);
+  });
+});
+
+describe('QA 30 mil: valores honestos no impacto no SPED', () => {
+  const ctxA = { dataBase: '2026-12-31', atividades: [], erp: null, corteMovimentacao: null };
+  const itens = ['a', 'b', 'c'].map((id) => ({ id, codigo: id, estabelecimento: null, descricao: id, unidade: 'UN', ncm: null, grupo: null, ativo: true, saldo: null, ultimaMovimentacao: null, fabricante: null, referencia: null, finalidade: null, campos: {} }));
+  it('caso de obrigação com valores diferentes por item não mostra o valor do primeiro item como se fosse do conjunto', () => {
+    const ajustes: AjusteSped[] = [
+      { tipo: 'CONSOLIDOU_INATIVOU', itemId: 'a', valorOriginal: '00032', valorProposto: '00032', motivo: 'm', status: 'APROVADO' },
+      { tipo: 'CONSOLIDOU_INATIVOU', itemId: 'b', valorOriginal: '00077', valorProposto: '00077', motivo: 'm', status: 'APROVADO' },
+    ];
+    const r = new AnalisadorObrigacoes(ajustes).analisar(itens, ctxA);
+    const caso = r.casos.find((c) => c.tipo === 'IMPACTO_CONSOLIDOU_INATIVOU')!;
+    expect(caso.itens).toEqual(['a', 'b']);
+    expect(caso.proposta.valorProposto).toBe(VALOR_VARIA);
+    expect(caso.atual.valorOriginal).toBe(VALOR_VARIA);
+    expect(r.semProblema).toEqual(['c']);
+  });
+  it('com o mesmo valor em todos os ajustes, o valor aparece', () => {
+    const ajustes: AjusteSped[] = ['a', 'b'].map((itemId) => ({ tipo: 'MUDOU_UNIDADE', itemId, valorOriginal: 'KGS', valorProposto: 'KG', motivo: 'm', status: 'PROPOSTO' }));
+    const caso = new AnalisadorObrigacoes(ajustes).analisar(itens, ctxA).casos[0];
+    expect(caso.proposta.valorProposto).toBe('KG');
+    expect(caso.atual.valorOriginal).toBe('KGS');
+  });
+  it('C170 de MUDOU_NCM não leva NCM no campo COD_ITEM (o C170 não tem NCM): só o 0200 e a NF-e levam os valores', () => {
+    const linhas = impactosDoAjuste('MUDOU_NCM', { dataBase: '2026-12-31' }, { valorOriginal: '31010000', valorProposto: '31051000' });
+    const c170 = linhas.find((l) => l.registro === 'C170')!;
+    expect(c170.campo).toBe('COD_ITEM');
+    expect(c170.valorOriginal).toBeNull();
+    expect(c170.valorProposto).toBeNull();
+    expect(linhas.find((l) => l.registro === '0200' && l.obrigacao === 'EFD_ICMS_IPI')).toMatchObject({ campo: 'COD_NCM', valorOriginal: '31010000', valorProposto: '31051000' });
+    expect(linhas.find((l) => l.obrigacao === 'NFE')).toMatchObject({ valorProposto: '31051000' });
+    // o mesmo conceito: CST/cClassTrib nunca aparece em campo de CST do ICMS/PIS nem na apuração
+    for (const l of impactosDoAjuste('MUDOU_TRATAMENTO', { dataBase: '2026-12-31' }, { valorOriginal: '000001', valorProposto: '200003' })) {
+      if (l.obrigacao === 'NFE') expect(l.valorProposto).toBe('200003'); else expect(l.valorProposto).toBeNull();
+    }
   });
 });
