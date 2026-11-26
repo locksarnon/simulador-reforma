@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { AlertasErp, usePerfilErp } from "@/components/erps/erps";
 import { san, chaves, atualizarTudo } from "./api";
+import TransformarEmRegra from "./diretrizes/TransformarEmRegra";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Rotulo, Tag, usePodeAlterar } from "./comuns";
 import {
   acoesDoCaso, aposConflito, avisoDeOutrosGrupos, camposDivergentes, camposDoFatorAOferecer, converterProposta, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
@@ -220,6 +221,8 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
               <span className="ml-2 text-xs text-muted-foreground">A IA só sugere; nunca grava a decisão.</span>
             </div>
             )}
+
+            <TransformarEmRegra key={c.id} projeto={projeto} caso={c} />
 
             <div className="space-y-2 border-t border-border pt-3">
               {modo && (

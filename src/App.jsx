@@ -91,6 +91,7 @@ import UsuariosPagina from '@/pages/admin/UsuariosPagina';
 import AcessoUsuarioPagina from '@/pages/admin/AcessoUsuario';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import ErpsPagina, { ErpFicha } from '@/pages/admin/ErpsPagina';
+import BibliotecaDiretrizesPagina, { RegraBibliotecaPagina } from '@/pages/admin/BibliotecaDiretrizesPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
 import NotificacoesPagina from '@/pages/NotificacoesPagina';
 // Add page imports here
@@ -164,6 +165,8 @@ function App() {
                   <Route path="/admin/acessos" element={<AcessosPagina />} />
                   <Route path="/admin/erps" element={<ErpsPagina />} />
                   <Route path="/admin/erps/:id" element={<ErpFicha />} />
+                  <Route path="/admin/diretrizes" element={<BibliotecaDiretrizesPagina />} />
+                  <Route path="/admin/diretrizes/:id" element={<RegraBibliotecaPagina />} />
                   <Route path="/perfil" element={<PerfilPagina />} />
                   <Route path="/notificacoes" element={<NotificacoesPagina />} />
                   <Route path="/cockpit" element={<Home />} />

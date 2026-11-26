@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, History } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { atualizarTudo, chaves, renovarAposRestauracao, san } from "./api";
+import { BotaoPolitica } from "./diretrizes/Diretrizes";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, Rotulo, Tag, usePodeAlterar } from "./comuns";
 import {
   avisosDaLiberacao, dadosDoErro, fmtDataHora, JUSTIFICATIVA_MINIMA, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
@@ -132,6 +133,7 @@ function Entrega({ projetoId, versao, rotulo }) {
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" className={botaoSecundario} disabled={baixar.isPending} onClick={() => baixar.mutate("excel")} aria-label={`Baixar o Excel: ${rotulo}`}><Download className="h-4 w-4" aria-hidden="true" />Excel</button>
       {versao && <button type="button" className={botaoSecundario} disabled={baixar.isPending} onClick={() => baixar.mutate("pdf")} aria-label={`Baixar o relatório PDF: ${rotulo}`}><FileText className="h-4 w-4" aria-hidden="true" />Relatório PDF</button>}
+      <BotaoPolitica projetoId={projetoId} versao={versao} />
       {baixar.isPending && <span className="text-xs text-muted-foreground" role="status">Gerando…</span>}
       {erro && <span className="text-xs text-destructive" role="alert">{erro}</span>}
     </div>

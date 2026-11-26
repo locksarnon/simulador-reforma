@@ -764,6 +764,7 @@ export function mensagemDoParecer(err) {
 export const ABAS = [
   { id: "configuracao", rotulo: "Configuração" },
   { id: "importacao", rotulo: "Importação" },
+  { id: "diretrizes", rotulo: "Diretrizes" },
   { id: "tabela", rotulo: "Tabela" },
   { id: "visao", rotulo: "Visão geral" },
   { id: "casos", rotulo: "Casos" },
