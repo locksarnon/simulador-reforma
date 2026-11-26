@@ -90,11 +90,11 @@ export function TabelaDeNovidades({ itens, admin = false, onAgir = () => {}, ocu
     { chave: "status", rotulo: "Situação", valor: (n) => ROTULO_STATUS_NOVIDADE[n.status] || n.status },
   ];
   if (admin) colunas.push({ chave: "acoes", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false, render: (n) => <Acoes n={n} onAgir={onAgir} ocupado={ocupadoId === n.id} /> });
-  return <TabelaPadrao id="base-legal:novidades" ariaLabel="Novidades da base de conhecimento legal" linhas={itens} chaveLinha={(n) => n.id} colunas={colunas} />;
+  return <TabelaPadrao id="base-legal:novidades" ariaLabel="Novidades das bases legais" linhas={itens} chaveLinha={(n) => n.id} colunas={colunas} />;
 }
 
 /**
- * Novidades da base de conhecimento legal: o que a revisão semanal e as atualizações das normas descobriram (alteração, revogação,
+ * Novidades das bases legais: o que a revisão semanal e as atualizações das normas descobriram (alteração, revogação,
  * ato novo, regulamentação, aplicação). As achadas na web ficam "a confirmar" até um administrador conferir a fonte.
  */
 export default function NovidadesLegais({ admin = false, normaInicial = "" }) {
@@ -125,7 +125,7 @@ export default function NovidadesLegais({ admin = false, normaInicial = "" }) {
   };
 
   return (
-    <section aria-label="Novidades da base de conhecimento legal" className="space-y-4">
+    <section aria-label="Novidades das bases legais" className="space-y-4">
       <div>
         <h2 className="text-sm font-medium">O que mudou na legislação</h2>
         <p className="text-xs text-muted-foreground mt-0.5">Alterações e revogações lidas do texto oficial, atos novos da lista oficial do Senado, documentos novos nos portais da Receita, do CGIBS, da NF-e, da NFS-e, do eSocial, do Confaz e do CARF e o que a pesquisa semanal na web achou. {fraseDoResumo(resumo)}</p>

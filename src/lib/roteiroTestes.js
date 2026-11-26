@@ -349,12 +349,14 @@ export const ROTEIRO = [
     criterio: "CPF não bloqueia; CFOP fora do cálculo não vem marcado; ajuste por empresa grava e desfaz.",
   },
   {
-    id: "base-legal", grupo: "Inteligência de mercado", titulo: "Base legal e assistente tributário", rota: "/base-legal",
-    objetivo: "Ler a lei dentro do sistema, buscar por artigo e perguntar em linguagem natural com a base legal citada.",
+    id: "base-legal", grupo: "Inteligência de mercado", titulo: "Bases legais: consulta em todas as normas e assistente tributário", rota: "/base-legal",
+    objetivo: "Ler a lei dentro do sistema, consultar todas as normas de uma vez (busca no texto e resposta da IA) e perguntar em linguagem natural com a base legal citada.",
     preparo: ["Estar logado (o administrador vê os painéis extras)."],
     passos: [
-      p("Abra \"Base legal\" no menu.", "Cards das normas (EC 132, LC 214, LC 227, LC 235, Decreto 12.955, CF, LC 123, LC 87, LC 116, CTN, LC 225, LC 236, Lei 5.764)."),
-      p("Busque \"art 164\".", "Aparece o atalho para o Art. 164 da LC 214 (e dos outros textos que tenham esse número)."),
+      p("Abra \"Bases legais\" no menu (Consultas fiscais).", "No alto, a barra \"Consultar as bases legais\" com as chaves de IA e de pesquisa aprofundada; abaixo, as abas Normas e assistente, Novidades e revogações e Revisão semanal."),
+      p("Na barra, busque \"art 164\" e aperte Enter.", "Aparece o atalho para o Art. 164 da LC 214 (e dos outros textos que tenham esse número), sem resposta da IA (a busca por artigo não chama a IA)."),
+      p("Na barra, pergunte \"ouro paga IBS?\" com Resposta com IA ligada.", "A resposta da IA vem com o artigo citado; abaixo, os dispositivos achados em todas as normas, com os revogados marcados e por último. Voltar da leitura de um artigo não pergunta de novo."),
+      p("Escolha uma norma em \"Em\" e consulte de novo; depois desligue \"Resposta com IA\".", "A busca fica só na norma escolhida; sem a IA, só os dispositivos achados aparecem."),
       p("Clique no botão \"Assistente\" no rodapé do menu lateral (ou Ctrl+/).", "O painel de conversa abre ao lado do menu, com sugestões conforme a tela."),
       p("Pergunte: \"Até quanto de receita o produtor rural fica fora do IBS e da CBS?\"", "Espera animada, resposta revisada primeiro (se houver) e a resposta com o Art. 164 e trecho literal; leva de 15 a 30 s."),
       p("Feche com Esc e reabra com Ctrl+/.", "A conversa continua; \"Nova conversa\" limpa o painel."),

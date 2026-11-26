@@ -4,7 +4,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ConhecimentoLegalService, FiltroNovidades } from './conhecimento-legal.service';
 import { RevisaoSemanalService } from './revisao-semanal.service';
 
-/** Base de conhecimento legal: novidades (alterações, revogações, atos novos, aplicações) e a rotina de revisão semanal. */
+/** Bases legais: novidades (alterações, revogações, atos novos, aplicações) e a rotina de revisão semanal. */
 @Controller('base-legal')
 export class ConhecimentoLegalController {
   constructor(private readonly conhecimento: ConhecimentoLegalService, private readonly semanal: RevisaoSemanalService) {}

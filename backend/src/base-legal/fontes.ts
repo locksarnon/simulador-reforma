@@ -1,5 +1,5 @@
 /**
- * Normas da Base de conhecimento legal (fonte oficial). `prioridade` 0 = muda cálculo/enquadramento/obrigação.
+ * Normas das bases legais (fonte oficial). `prioridade` 0 = muda cálculo/enquadramento/obrigação.
  * Só entram aqui URLs conferidas (a página abre e o leitor extrai os dispositivos). O que a fonte oficial só publica em página
  * dinâmica (Normas da RFB, Confaz) entra como `formato: 'externo'`: fica no catálogo com o link, mas sem texto por artigo.
  */

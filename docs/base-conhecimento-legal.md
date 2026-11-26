@@ -1,6 +1,10 @@
-# Base de conhecimento legal (InTAX)
+# Bases legais (InTAX): base de conhecimento da legislação
 
-Menu: **Base de conhecimento legal** (antes "Consultas fiscais"). A tela principal é a Base legal (`/base-legal`), com três abas: **Normas e assistente**, **Novidades e revogações** e **Revisão semanal**.
+Menu: **Consultas fiscais > Bases legais** (`/base-legal`). No topo fica a barra **Consultar as bases legais** (busca o texto em todas as normas e, com a IA ligada, responde com o artigo citado). A página tem três abas: **Normas e assistente**, **Novidades e revogações** e **Revisão semanal**.
+
+## Consulta (barra no alto da página)
+
+A barra **Consultar as bases legais** (`ConsultaBasesLegais.jsx`) faz, com a mesma pergunta, a busca no texto de **todas** as normas (`GET /base-legal/busca`, índice GIN `DispositivoLegal_texto_fts`; dá para restringir a uma norma) e, com "Resposta com IA" ligada, a pergunta ao assistente (`POST /base-legal/perguntar`, ou `perguntar-aprofundado` com a pesquisa aprofundada). As respostas já revisadas pela equipe (`/base-legal/cartoes/busca`) chegam antes. Busca por número de artigo ("art 164") não chama a IA. A busca devolve também `revogado`, `parcialmente_revogado` e a situação da norma: o revogado vem marcado e por último. A resposta da IA fica no cache da sessão (mesma pergunta e mesma chave de pesquisa aprofundada não perguntam de novo ao voltar da leitura de um artigo); o endereço guarda a consulta (`?q=`).
 
 ## O que a base guarda
 

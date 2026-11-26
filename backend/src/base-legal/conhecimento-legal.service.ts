@@ -25,7 +25,7 @@ export type AcaoNovidade = (typeof ACOES_NOVIDADE)[number];
 const limitar = (n: unknown, padrao: number, max: number) => Math.min(Math.max(Number.isFinite(Number(n)) && Number(n) > 0 ? Math.floor(Number(n)) : padrao, 1), max);
 
 /**
- * Consulta e curadoria das novidades da base de conhecimento legal: o que a revisão semanal e as atualizações das normas
+ * Consulta e curadoria das novidades das bases legais: o que a revisão semanal e as atualizações das normas
  * descobriram (alterações, revogações, atos novos, regulamentações, aplicações), com a situação de cada um.
  */
 @Injectable()

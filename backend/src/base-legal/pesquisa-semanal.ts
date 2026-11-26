@@ -18,7 +18,7 @@ const diaBr = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'America/Sa
 
 export function promptPesquisaSemanal(grupo: { rotulo: string; descricao: string }, normas: NormaDoGrupo[], desde: Date, hoje: Date): string {
   const lista = normas.slice(0, 45).map((n) => `- ${n.numero}: ${n.titulo.replace(/\s+/g, ' ').slice(0, 110)}`).join('\n');
-  return `Você é o pesquisador da Base de conhecimento legal do InTAX (FAL Agro, consultoria tributária brasileira). Faça uma pesquisa na web, com data de hoje ${diaBr(hoje)}, e traga APENAS fatos publicados ou divulgados entre ${diaBr(desde)} e ${diaBr(hoje)} sobre as normas do bloco "${grupo.rotulo}" (${grupo.descricao}):
+  return `Você é o pesquisador das bases legais do InTAX (FAL Agro, consultoria tributária brasileira). Faça uma pesquisa na web, com data de hoje ${diaBr(hoje)}, e traga APENAS fatos publicados ou divulgados entre ${diaBr(desde)} e ${diaBr(hoje)} sobre as normas do bloco "${grupo.rotulo}" (${grupo.descricao}):
 
 ${lista || '(nenhuma norma carregada neste bloco)'}
 

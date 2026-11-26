@@ -1,5 +1,5 @@
 /**
- * Base de conhecimento legal: textos e regras de exibição das novidades (alteração, revogação, ato novo, aplicação), da
+ * Bases legais: textos e regras de exibição das novidades (alteração, revogação, ato novo, aplicação), da
  * situação das normas e da revisão semanal. O servidor grava os dados; aqui só se decide como contá-los.
  */
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;

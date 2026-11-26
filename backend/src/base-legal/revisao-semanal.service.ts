@@ -95,7 +95,7 @@ export class RevisaoSemanalService {
   @Cron('0 5 * * 1', { timeZone: 'America/Sao_Paulo' })
   async agendada() {
     if (!this.ligado('BASE_LEGAL_REVISAO_SEMANAL')) {
-      this.log.log('Revisão semanal da Base de conhecimento legal desligada (BASE_LEGAL_REVISAO_SEMANAL=false).');
+      this.log.log('Revisão semanal das bases legais desligada (BASE_LEGAL_REVISAO_SEMANAL=false).');
       return;
     }
     try {
@@ -224,7 +224,7 @@ export class RevisaoSemanalService {
       const v = await this.baseLegal.verificarAtualizacoes('agendada');
       r.normas_verificadas += v.verificadas;
       v.erros.forEach((e) => r.erros.push(e));
-      r.notas.push(`Modo com aprovação: ${plural(v.alertas, 'atualização aguarda', 'atualizações aguardam')} aprovação no painel de avisos da Base de conhecimento legal.`);
+      r.notas.push(`Modo com aprovação: ${plural(v.alertas, 'atualização aguarda', 'atualizações aguardam')} aprovação no painel de avisos das bases legais.`);
     }
   }
 

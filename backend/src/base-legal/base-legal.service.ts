@@ -522,20 +522,21 @@ export class BaseLegalService {
     const exatos = art
       ? await this.prisma.dispositivoLegal.findMany({
           where: { caminho: `art-${art[1]}${art[2] ? `-${art[2].toLowerCase()}` : ''}`, ...(chave ? { norma: { chave } } : {}) },
-          select: { rotulo: true, caminho: true, secao: true, norma: { select: { chave: true, numero: true } } },
+          select: { rotulo: true, caminho: true, secao: true, revogado: true, norma: { select: { chave: true, numero: true, situacao: true } } },
           take: 10,
         })
       : [];
 
     const filtro = chave ? `AND n."chave" = $2` : '';
     const params: unknown[] = chave ? [termo, chave] : [termo];
-    const consulta = (tsquery: string) => `SELECT n."chave", n."numero", d."rotulo", d."caminho", d."secao",
+    // O que está revogado aparece por último e marcado: a consulta nunca deve tratar texto revogado como o primeiro achado.
+    const consulta = (tsquery: string) => `SELECT n."chave", n."numero", n."situacao" AS "norma_situacao", d."rotulo", d."caminho", d."secao", d."revogado", d."parcialmente_revogado",
               ts_headline('portuguese', d."texto", ${tsquery}, 'MaxFragments=2,MaxWords=28,MinWords=10,StartSel=[[,StopSel=]]') AS trecho,
               ts_rank_cd(to_tsvector('portuguese', left(d."texto", 200000)), ${tsquery}) AS rank
          FROM "DispositivoLegal" d JOIN "NormaLegal" n ON n."id" = d."norma_id"
         WHERE to_tsvector('portuguese', left(d."texto", 200000)) @@ ${tsquery} ${filtro}
-        ORDER BY rank DESC, d."ordem" LIMIT 40`;
-    type Linha = { chave: string; numero: string; rotulo: string; caminho: string; secao: string | null; trecho: string; rank: number };
+        ORDER BY d."revogado" ASC, rank DESC, d."ordem" LIMIT 40`;
+    type Linha = { chave: string; numero: string; norma_situacao: string; rotulo: string; caminho: string; secao: string | null; revogado: boolean; parcialmente_revogado: boolean; trecho: string; rank: number };
 
     // 1) todas as palavras (mais preciso); 2) se vier pouco, qualquer palavra — frases naturais
     // ("até quanto o produtor fica fora do IBS") raramente repetem todas as palavras do artigo.

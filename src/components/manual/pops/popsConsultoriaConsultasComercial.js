@@ -1,5 +1,5 @@
 /**
- * POPs das áreas Consultoria Tributária, Base de conhecimento legal e Comercial, e da tela do manual (Ajuda).
+ * POPs das áreas Consultoria Tributária, Consultas fiscais e Comercial, e da tela do manual (Ajuda).
  * Formato descrito em ./index.js. Textos de botões, abas e campos iguais aos das telas.
  */
 export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
@@ -194,7 +194,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     ],
   },
 
-  // ── Base de conhecimento legal ───────────────────────────────────────────────
+  // ── Consultas fiscais ───────────────────────────────────────────────
   {
     modulo: "consulta-ncm",
     codigo: "POP-FIS-01",
@@ -202,7 +202,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Saber se um produto tem alíquota zero, redução ou regra geral na LC 214/2025.",
     quem: "Consultor",
     quando: "Ao classificar um produto ou responder a um cliente.",
-    caminho: "Menu > Base de conhecimento legal > Consulta NCM",
+    caminho: "Menu > Consultas fiscais > Consulta NCM",
     antes: [],
     passos: [
       { acao: "No campo “Digite o NCM (ex.: 2309.90.10) ou o nome do produto”, digite pelo menos 2 caracteres.", detalhe: "A busca começa sozinha. Os exemplos em “Tente:” preenchem o campo com um clique." },
@@ -225,7 +225,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Consultar as tabelas de CST, cClassTrib, cCredPres, NCM, CFOP, benefício fiscal e combustíveis e incluir ou corrigir um código.",
     quem: "Consultor (consulta) e responsável tributário (manutenção)",
     quando: "Ao conferir um código ou quando sai uma tabela oficial nova.",
-    caminho: "Menu > Base de conhecimento legal > Catálogos IBS/CBS",
+    caminho: "Menu > Consultas fiscais > Catálogos IBS/CBS",
     antes: [
       "Para incluir ou corrigir, tenha à mão a tabela oficial com a versão e a data.",
     ],
@@ -248,7 +248,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Identificar onde a operação se considera realizada para o IBS e a CBS.",
     quem: "Consultor",
     quando: "Ao definir o local de incidência de um serviço ou de uma venda.",
-    caminho: "Menu > Base de conhecimento legal > Guia do art. 11",
+    caminho: "Menu > Consultas fiscais > Guia do art. 11",
     antes: [],
     passos: [
       { acao: "Leia “Por que ‘local da operação’ importa” para o contexto." },
@@ -264,22 +264,25 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
   {
     modulo: "base-legal",
     codigo: "POP-FIS-04",
-    titulo: "Pesquisar na Base legal e perguntar ao assistente",
-    objetivo: "Achar o artigo da norma que responde a uma dúvida, com o texto oficial, perguntando ao assistente de qualquer tela ou pesquisando na Base legal.",
+    titulo: "Consultar as bases legais: busca em todas as normas e IA",
+    objetivo: "Achar o artigo da norma que responde a uma dúvida, com o texto oficial, perguntando e buscando de uma vez em todas as normas carregadas, com a resposta da IA e o artigo citado.",
     quem: "Consultor",
     quando: "Sempre que precisar fundamentar uma resposta na lei.",
-    caminho: "Menu > Base de conhecimento legal > Base legal e assistente",
+    caminho: "Menu > Consultas fiscais > Bases legais",
     antes: [],
     passos: [
-      { acao: "Se quiser focar num setor, clique nele em Explorar por setor.", detalhe: "Buscar dispositivos sobre (setor) preenche a busca com os termos do setor." },
-      { acao: "Para perguntar ao assistente, clique no botão Assistente, no rodapé do menu lateral, em qualquer tela (ou use Ctrl+/).", detalhe: "O painel abre ao lado do menu e não tira você da tela em que está. Na Base legal, o botão Abrir o assistente faz o mesmo e leva as perguntas do setor escolhido." },
-      { acao: "Clique numa das sugestões, que mudam conforme a tela aberta, ou escreva a pergunta com as suas palavras e aperte Enter.", detalhe: "A pergunta precisa ter pelo menos 8 caracteres. Shift+Enter quebra a linha." },
+      { acao: "Na barra Consultar as bases legais, no alto da página, digite a pergunta ou o assunto (ex.: “ouro paga IBS?”, “produtor rural limite” ou “art 164”).", detalhe: "A barra procura o texto em todas as normas carregadas. Para olhar uma norma só, escolha-a em Em. Se não souber o que perguntar, clique numa das sugestões abaixo da barra." },
+      { acao: "Aperte Enter ou clique em Consultar.", detalhe: "A resposta da IA aparece primeiro, com o artigo citado; logo abaixo vêm os dispositivos achados nas normas, com o trecho em destaque. A busca por número de artigo (ex.: “art 164”) mostra o artigo direto e não chama a IA." },
+      { acao: "Deixe Resposta com IA ligada para receber a resposta do assistente; desligue para só buscar no texto das normas.", detalhe: "A pergunta precisa ter pelo menos 8 caracteres para a IA responder." },
+      { acao: "Para uma resposta mais completa, ligue Pesquisa aprofundada com fontes externas antes de consultar.", detalhe: "Além das normas carregadas, o assistente pesquisa na internet em fontes oficiais (Receita Federal, SPED, portal da NF-e, CGIBS, Planalto, tribunais) e mostra as fontes consultadas, as oficiais primeiro. Demora mais, até um minuto." },
       { acao: "Se aparecer “Pergunta parecida já revisada pela equipe”, leia o título: é a pergunta do cartão, e ele só serve se for a mesma dúvida. Depois leia a resposta do assistente, com os dispositivos citados.", detalhe: "O cartão vem fechado; clique para abrir. Clique no artigo citado para abrir o texto da norma." },
-      { acao: "Para uma resposta mais completa, ligue a Pesquisa aprofundada com fontes externas, acima do campo da pergunta, antes de enviar.", detalhe: "Além das normas carregadas, o assistente pesquisa na internet em fontes oficiais (Receita Federal, SPED, portal da NF-e, CGIBS, Planalto, tribunais) e mostra as fontes consultadas, as oficiais primeiro. Demora mais, até um minuto." },
+      { acao: "Clique no artigo citado, ou em qualquer dispositivo achado, para abrir o texto oficial da norma.", detalhe: "Os achados revogados vêm marcados (Revogado, Parte revogada, Norma revogada) e por último na lista; voltar da leitura de um artigo não pergunta de novo à IA." },
       { acao: "Marque Ajudou ou Não ajudou, ou clique em Copiar resposta para levar a resposta com a base legal." },
       { acao: "Para mandar a resposta a um cliente, clique em Enviar por e-mail, confira o endereço e clique em Enviar. Para só guardar o arquivo, clique em Baixar PDF.", detalhe: "O relatório vai em PDF no padrão FAL / InTAX, com a pergunta, a resposta, os pontos de atenção, a base legal e as fontes externas. Só respostas conclusivas geram relatório." },
+      { acao: "Para focar num setor, na aba Normas e assistente clique nele em Explorar por setor e depois em Consultar as bases legais sobre (setor).", detalhe: "As sugestões da barra passam a ser as do setor escolhido." },
+      { acao: "Para conversar com o assistente em qualquer tela, clique no botão Assistente, no rodapé do menu lateral, em qualquer tela (ou use Ctrl+/).", detalhe: "O painel abre ao lado do menu e não tira você da tela em que está. Na Base legal, o botão Abrir o assistente faz o mesmo e leva as perguntas do setor escolhido." },
+      { acao: "Clique numa das sugestões, que mudam conforme a tela aberta, ou escreva a pergunta com as suas palavras e aperte Enter.", detalhe: "A pergunta precisa ter pelo menos 8 caracteres. Shift+Enter quebra a linha." },
       { acao: "Para começar outro assunto, clique em Nova conversa (a setinha circular no alto do painel).", detalhe: "As últimas perguntas ficam guardadas neste navegador até você começar uma nova conversa." },
-      { acao: "Para buscar por assunto ou artigo, use o campo de busca (ex.: “produtor rural limite” ou “art 164”) e clique no resultado." },
       { acao: "Em Normas carregadas, use Ler texto integral para abrir a norma e escolha o artigo no índice.", detalhe: "Na norma, Copiar com citação copia o trecho com a referência, e Fonte oficial abre o site do órgão." },
       { acao: "Antes de citar o artigo, olhe as etiquetas no alto dele: Revogado (com o ato), Parcialmente revogado e Texto alterado em (data).", detalhe: "Abaixo ficam o histórico oficial (“Redação dada pela...”), a redação anterior em texto riscado, os avisos de alteração ainda não consolidada e as normas que citam o artigo. Revogado ou riscado nunca é regra vigente." },
     ],
@@ -290,6 +293,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
       "Se aparecer “Muitas perguntas seguidas”, espere um instante e clique em Tentar de novo.",
       "O assistente avisa nas ressalvas quando o dispositivo citado está revogado, foi alterado há menos de 120 dias ou tem alteração ainda não consolidada: leia o aviso antes de repassar a resposta.",
       "Em caso de dúvida, vale o texto publicado no órgão oficial (link Fonte oficial).",
+      "Os achados da busca vêm de todas as normas, inclusive as revogadas, que aparecem marcadas e por último: não cite um dispositivo marcado como revogado como regra em vigor.",
     ],
   },
   {
@@ -299,7 +303,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Manter o texto das normas e as respostas revisadas da equipe em dia com a lei.",
     quem: "Administrador",
     quando: "Quando o sistema avisa que o texto oficial mudou ou quando a equipe precisa de uma resposta padrão.",
-    caminho: "Menu > Base de conhecimento legal > Base legal e assistente",
+    caminho: "Menu > Consultas fiscais > Bases legais",
     antes: [],
     passos: [
       { acao: "Em Normas carregadas, clique em Atualizar na linha da norma.", detalhe: "A mensagem diz “Texto atualizado”, com os dispositivos novos, alterados e removidos, ou “Sem mudanças”." },
@@ -322,7 +326,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Saber, antes de citar uma norma, se ela foi alterada, revogada ou regulamentada, e acompanhar a conferência semanal das fontes oficiais.",
     quem: "Consultor (consulta) e Administrador (curadoria e revisão)",
     quando: "Toda segunda-feira, depois da revisão semanal, e antes de citar um dispositivo em resposta ou parecer.",
-    caminho: "Menu > Base de conhecimento legal > Base legal e assistente > Novidades e revogações",
+    caminho: "Menu > Consultas fiscais > Bases legais > Novidades e revogações",
     antes: [],
     passos: [
       { acao: "Abra a aba Novidades e revogações. Os números no alto mostram o que é novo, o que veio da pesquisa na web e precisa de confirmação, as alterações ainda não consolidadas e quantas normas têm parte revogada." },
@@ -346,7 +350,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Ver os marcos e prazos da Reforma que valem para um regime, uma UF ou uma empresa.",
     quem: "Consultor",
     quando: "No planejamento do cliente e ao responder sobre prazos.",
-    caminho: "Menu > Base de conhecimento legal > Agenda da Reforma",
+    caminho: "Menu > Consultas fiscais > Agenda da Reforma",
     antes: [],
     passos: [
       { acao: "Em Empresa, escolha um cliente para usar o regime e a UF do cadastro dele, ou deixe “Nenhuma (filtrar à mão)”." },
@@ -368,7 +372,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Receber por e-mail o aviso das datas da Reforma com a antecedência escolhida.",
     quem: "Consultor",
     quando: "Uma vez, e sempre que quiser mudar a antecedência.",
-    caminho: "Menu > Base de conhecimento legal > Agenda da Reforma > Lembretes por e-mail",
+    caminho: "Menu > Consultas fiscais > Agenda da Reforma > Lembretes por e-mail",
     antes: [
       "Para lembretes de uma empresa só, escolha a empresa no filtro Empresa antes.",
     ],
@@ -393,7 +397,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Acompanhar as novidades da semana sobre a Reforma, com a ação recomendada para o time fiscal.",
     quem: "Consultor",
     quando: "Toda segunda-feira, ou quando precisar de uma atualização.",
-    caminho: "Menu > Base de conhecimento legal > Radar de novidades",
+    caminho: "Menu > Consultas fiscais > Radar de novidades",
     antes: [],
     passos: [
       { acao: "Leia o Resumo executivo da semana." },
@@ -416,7 +420,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Guardar as notícias da Reforma revisadas, vindas dos feeds oficiais ou cadastradas à mão.",
     quem: "Consultor",
     quando: "Periodicamente, para revisar o que a busca trouxe.",
-    caminho: "Menu > Base de conhecimento legal > Acervo de notícias",
+    caminho: "Menu > Consultas fiscais > Acervo de notícias",
     antes: [],
     passos: [
       { acao: "Clique em Buscar atualizações.", detalhe: "Ao terminar, a mensagem “Busca concluída” informa os novos rascunhos, os itens relevantes e as fontes consultadas." },

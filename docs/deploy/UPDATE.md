@@ -135,7 +135,7 @@ docker exec reforma-backend node scripts/carregar-base-legal.js lcp-214-2025 --f
 
 As normas ficam em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas). O assistente ("Perguntas ao assistente") usa `GEMINI_API_KEY` do `.env`; sem a chave, a tela mostra só os dispositivos relacionados.
 
-### Revisão semanal da base de conhecimento legal
+### Revisão semanal das bases legais
 
 Toda segunda-feira, às 5h (horário de Brasília), o backend roda a revisão semanal (`RevisaoSemanalService`): relê o texto oficial de cada norma (e carrega as que ainda não têm texto, inclusive as acrescentadas ao `fontes.ts`), confere a lista oficial de leis, decretos e MPs novos do Senado (`legis.senado.leg.br`, dados abertos), cruza o que os atos novos alteram com o texto compilado, lê os portais monitorados (`fontes-monitoradas.ts`) e faz a pesquisa semanal na web. Detalhes e limites: `docs/base-conhecimento-legal.md`.
 

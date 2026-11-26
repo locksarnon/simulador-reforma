@@ -252,6 +252,10 @@ export const SECAO_BASE_LEGAL = {
       r: "É a base de conhecimento do InTAX sobre a legislação: o texto integral de cerca de 70 normas, dividido por artigo e anexo e capturado de fonte oficial (Planalto, CGIBS e outros órgãos), em seis blocos: fundamentos (Constituição, CTN), reforma do consumo (EC 132, LC 214 compilada, LC 227, LC 235 e os regulamentos do CBS e do IBS), tributação federal atual (IRPJ, CSLL, PIS e Cofins, IPI, previdenciário), agro, ICMS e ISS e obrigações e documentos fiscais. Cada dispositivo guarda o histórico oficial (as notas “Redação dada pela...”), a redação anterior (o que o site oficial mostra riscado), o ato que o revogou e as versões capturadas ao longo do tempo. As normas que o governo só publica em página que o sistema não consegue ler (instruções normativas da Receita, convênios do Confaz, TIPI) ficam como “Só referência”, com o link da fonte oficial."
     },
     {
+      p: "Como consulto todas as normas de uma vez, com a IA?",
+      r: "Em Consultas fiscais > Bases legais, a barra Consultar as bases legais, no alto da página, faz as duas coisas com a mesma pergunta: procura o texto em todas as normas carregadas (para olhar uma norma só, escolha-a em “Em”) e, com Resposta com IA ligada, o assistente responde citando o artigo. Se a equipe já revisou uma pergunta parecida, a resposta revisada aparece antes. A busca por número de artigo (“art 164”) abre o artigo direto, sem IA, e a Pesquisa aprofundada com fontes externas acrescenta fontes oficiais da internet. Os dispositivos revogados vêm marcados e por último. A resposta da IA fica guardada enquanto você navega: voltar da leitura de um artigo não pergunta de novo.",
+    },
+    {
       p: "Como a Base legal se mantém atualizada?",
       r: "Toda segunda-feira, às 5h, a revisão semanal relê o texto oficial de cada norma, confere a lista oficial de leis, decretos e medidas provisórias novas (Senado Federal), cruza o que os atos novos alteram com o texto compilado das normas, lê os portais da Receita, do CGIBS, da NF-e, da NFS-e, do eSocial, do Confaz e do CARF e faz uma pesquisa na web só em fontes oficiais. O texto oficial que mudou é gravado sozinho, com a redação anterior guardada e uma trava: se a página do órgão perder mais de 30% dos dispositivos, nada é gravado e o administrador é avisado. O que cita o dispositivo alterado volta para revisão. Tudo o que a rotina acha entra na aba Novidades e revogações, e o administrador recebe um e-mail com o resumo quando há novidade. O administrador também pode rodar a revisão na hora, na aba Revisão semanal."
     },
@@ -325,7 +329,7 @@ export const SECAO_BASE_LEGAL = {
 
 export const SECAO_AGENDA = {
   titulo: "Agenda da Reforma",
-  nota: "Marcos e prazos da Reforma Tributária do consumo, cada um com a fonte oficial da data. Fica em Base de conhecimento legal > Agenda da Reforma e na aba Agenda da Reforma de cada empresa.",
+  nota: "Marcos e prazos da Reforma Tributária do consumo, cada um com a fonte oficial da data. Fica em Consultas fiscais > Agenda da Reforma e na aba Agenda da Reforma de cada empresa.",
   itens: [
     {
       p: "O que é a Agenda da Reforma?",

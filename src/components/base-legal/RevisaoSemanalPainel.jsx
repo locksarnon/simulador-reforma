@@ -129,7 +129,7 @@ export default function RevisaoSemanalPainel({ admin = false }) {
     <section aria-label="Revisão semanal" className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1 max-w-3xl">
-          <h2 className="text-sm font-medium">Revisão semanal da base de conhecimento legal</h2>
+          <h2 className="text-sm font-medium">Revisão semanal das bases legais</h2>
           <p className="text-xs text-muted-foreground">Uma vez por semana o sistema relê o texto oficial de cada norma (guardando a redação anterior de tudo o que mudou), confere a lista oficial de leis, decretos e medidas provisórias novas, cruza o que os atos novos alteram com o texto compilado das normas, lê os portais da Receita, do CGIBS, da NF-e, da NFS-e, do eSocial, do Confaz e do CARF e faz uma pesquisa na web só em fontes oficiais. O que cita um dispositivo alterado volta para revisão; nada é republicado sozinho.</p>
         </div>
         {admin && (
