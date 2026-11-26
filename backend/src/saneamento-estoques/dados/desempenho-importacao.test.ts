@@ -66,12 +66,13 @@ describe('MÉDIO 2: ANALYZE depois da importação', () => {
   it('roda ANALYZE nas tabelas San* de nomes fixos ao fim da importação e da reimportação, fora da transação', async () => {
     const c = montar();
     const { projetoId, originais } = await projetoCom(c, 10);
-    expect(c.analyze).toEqual(TABELAS_ANALISADAS.map((t) => `ANALYZE "${t}"`));
+    // Primeira importação: sem decisão gravada, o SanDecisao não é analisado.
+    expect(c.analyze).toEqual(['ANALYZE "SanItem"', 'ANALYZE "SanCelula"']);
     expect(TABELAS_ANALISADAS).toEqual(['SanItem', 'SanCelula', 'SanDecisao']);
     c.analyze.length = 0;
     c.fila.itens = originais.map((i) => ({ ...i, descricao: `${i.descricao} NOVA` }));
     await c.importacao.confirmar(projetoId, ARQ, undefined, { filtro: 'ALTERADOS' }, USER);
-    expect(c.analyze).toHaveLength(3);
+    expect(c.analyze).toEqual(TABELAS_ANALISADAS.map((t) => `ANALYZE "${t}"`));
   });
 
   it('nada gravado (reimportação sem novos nem incorporados) = sem ANALYZE', async () => {
@@ -86,7 +87,7 @@ describe('MÉDIO 2: ANALYZE depois da importação', () => {
   it('falha no ANALYZE não derruba a importação', async () => {
     const c = montar({ analyzeFalha: true });
     const { projetoId } = await projetoCom(c, 3);
-    expect(c.analyze).toHaveLength(3);
+    expect(c.analyze).toHaveLength(2);
     expect(c.db.sanItem.filter((i) => i.projeto_id === projetoId)).toHaveLength(3);
   });
 });

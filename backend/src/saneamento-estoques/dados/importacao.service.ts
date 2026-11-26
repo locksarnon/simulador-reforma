@@ -300,7 +300,8 @@ export class SanImportacaoService {
         await tx.sanImportacao.update({ where: { id: imp.id }, data: { relatorio: fim as never } });
         return { importacaoId: imp.id, ...fim };
       }, TX_LONGA);
-      if (r.novos > 0 || r.incorporados > 0) await this.atualizarEstatisticas();
+      // Só as tabelas que mudaram: a primeira importação não grava decisão (o ANALYZE do SanDecisao fica para quando a reimportação incorpora).
+      if (r.novos > 0 || r.incorporados > 0) await this.atualizarEstatisticas(r.incorporados > 0 ? TABELAS_ANALISADAS : TABELAS_ANALISADAS.filter((t) => t !== 'SanDecisao'));
       return r;
     } catch (e) {
       if ((e as { code?: string }).code === 'P2002') throw conflito('Outra importação gravou os mesmos itens ao mesmo tempo. Refaça a importação.');
@@ -312,10 +313,10 @@ export class SanImportacaoService {
    * ANALYZE nas tabelas que a importação encheu, fora da transação: sem estatísticas, a primeira execução de camada depois da importação
    * (UPDATE em massa nas células) levava 49 s em vez de 2,7 s. Falha aqui não desfaz a importação (só fica no log).
    */
-  async atualizarEstatisticas(): Promise<void> {
+  async atualizarEstatisticas(tabelas: readonly (typeof TABELAS_ANALISADAS)[number][] = TABELAS_ANALISADAS): Promise<void> {
     const prisma = this.prisma as unknown as { $executeRawUnsafe?: (sql: string) => Promise<unknown> };
     if (typeof prisma.$executeRawUnsafe !== 'function') return;
-    for (const tabela of TABELAS_ANALISADAS) {
+    for (const tabela of tabelas) {
       try { await prisma.$executeRawUnsafe(`ANALYZE "${tabela}"`); } catch (e) { this.log.warn(`ANALYZE "${tabela}" falhou: ${(e as Error).message}`); }
     }
   }

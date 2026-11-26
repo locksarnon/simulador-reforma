@@ -15,6 +15,33 @@ import { SanProjetoService } from './projeto.service';
 import { paramInteiro, paramTexto, validarProposta, validarResultado } from './validacao';
 
 type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
+
+/** Itens por bloco na aprovação: lidos de uma vez e gravados num UPDATE só (antes, um UPDATE por item: 3,7 mil idas ao banco num lote). */
+export const BLOCO_APROVACAO = 1000;
+type ItemGravado = { id: string; codigo: string; versao: number; trabalho: Json } & ReturnType<typeof derivadosDoTrabalho>;
+
+/**
+ * Grava o trabalho dos itens aprovados conferindo a versão de cada um: no Postgres, um UPDATE ... FROM jsonb_to_recordset por bloco; sem SQL
+ * bruto (Prisma em memória dos testes), um por item. Menos linhas que o bloco = alguém alterou um item no meio: conflito (a transação desfaz).
+ */
+export async function gravarTrabalhoEmBloco(tx: Tx, linhas: ItemGravado[]): Promise<void> {
+  if (!linhas.length) return;
+  if (typeof (tx as unknown as { $executeRaw?: unknown }).$executeRaw === 'function') {
+    const dados = linhas.map(({ codigo: _c, ...l }) => l); // eslint-disable-line @typescript-eslint/no-unused-vars
+    const n = await tx.$executeRaw(Prisma.sql`UPDATE "SanItem" AS i SET "trabalho" = v.trabalho, "descricao" = v.descricao, "grupo" = v.grupo,
+        "finalidade" = v.finalidade, "tambem_usado_como" = v.tambem_usado_como, "conjunto_chave" = v.conjunto_chave, "ativo" = v.ativo,
+        "versao" = i."versao" + 1, "updatedAt" = now()
+      FROM jsonb_to_recordset(${JSON.stringify(dados)}::jsonb) AS v(id text, versao int, trabalho jsonb, descricao text, grupo text,
+        finalidade text, tambem_usado_como jsonb, conjunto_chave text, ativo boolean)
+      WHERE i."id" = v.id AND i."versao" = v.versao`);
+    if (n !== linhas.length) throw conflito('Algum item do caso foi alterado por outra pessoa durante a aprovação. Recarregue.');
+    return;
+  }
+  for (const { id, codigo, versao, trabalho, ...d } of linhas) {
+    const r = await tx.sanItem.updateMany({ where: { id, versao }, data: { trabalho: trabalho as never, ...d, versao: { increment: 1 } } });
+    if (r.count === 0) throw conflito(`O item ${codigo} foi alterado por outra pessoa durante a aprovação. Recarregue.`);
+  }
+}
 type CasoLinha = NonNullable<Awaited<ReturnType<PrismaService['sanCaso']['findUnique']>>>;
 
 export type FiltroCasos = { camada?: string; situacao?: string; grupo?: string; tipo?: string; origem?: string; item_id?: string; cursor?: string; limite?: number | string };
@@ -713,8 +740,9 @@ export class SanCasosService {
     // Consultas em bloco: um registro de aprovação por item e caso (a marca já gravada não se repete), decisões e grupos gravados por lote.
     const marca = `caso:${c.tipo}`;
     const jaMarcados = new Set((await tx.sanDecisao.findMany({ where: { caso_id: c.id, campo: marca, tipo: 'aprovar' }, select: { item_id: true } })).map((d) => d.item_id));
-    for (const lote of fatiar(c.itens, 200)) {
+    for (const lote of fatiar(c.itens, BLOCO_APROVACAO)) {
       const itens = await tx.sanItem.findMany({ where: { id: { in: lote }, projeto_id: c.projeto_id } });
+      const gravar: ItemGravado[] = [];
       if (itens.length !== lote.length) throw new BadRequestException('Algum item do caso não existe mais neste projeto.');
       const decisoesDoLote: Json[] = [];
       const porGrupo = new Map<string, string[]>();
@@ -734,13 +762,13 @@ export class SanCasosService {
           continue;
         }
         const d = derivadosDoTrabalho(trabalho);
-        const r = await tx.sanItem.updateMany({ where: { id: item.id, versao: item.versao }, data: { trabalho: trabalho as never, ...d, versao: { increment: 1 } } });
-        if (r.count === 0) throw conflito(`O item ${item.codigo} foi alterado por outra pessoa durante a aprovação. Recarregue.`);
+        gravar.push({ id: item.id, codigo: item.codigo, versao: item.versao, trabalho, ...d });
         decisoesDoLote.push(...decs);
         const dc = decs.find((x) => x.campo === 'codigo');
         if (dc && dc.antes && dc.depois) await this.criarVinculo(tx, c, String(dc.antes), String(dc.depois), fundamento);
         if ('grupo' in proposta) { const g = d.grupo ?? ''; acrescentar(porGrupo, g, item.id); }
       }
+      await gravarTrabalhoEmBloco(tx, gravar);
       if (decisoesDoLote.length) await tx.sanDecisao.createMany({ data: decisoesDoLote as never });
       for (const [grupo, ids] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: ids } }, data: { grupo } });
     }
