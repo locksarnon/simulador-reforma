@@ -5,8 +5,8 @@ import { semFuncao } from "@/lib/permissoes";
 import { san, chaves, atualizarTudo } from "./api";
 import { Aviso, AvisoDeTrava, botaoPrimario, botaoSecundario, Carregar, campoCls, Tag } from "./comuns";
 import {
-  alternarIncorporar, camposObrigatoriosSemColuna, colunasDoArquivo, corrigirMapeamento, ehReimportacao, estadoDaTrava, fmtDataHora, itensIncorporaveis,
-  linhasDeMapeamento, mapeamentoMudou, mensagemDeErro, resumirRelatorio, ROTULO_CERTEZA, rotuloDoCampo, textoDoValor,
+  alternarIncorporar, camposObrigatoriosSemColuna, colunasDoArquivo, corpoIncorporar, corrigirMapeamento, ehReimportacao, estadoDaTrava, fmtDataHora, itensIncorporaveis,
+  linhasDeMapeamento, mapeamentoMudou, mensagemDeErro, MODOS_INCORPORAR, quantosIncorporar, resumirRelatorio, ROTULO_CERTEZA, rotuloDoCampo, textoDoValor,
 } from "./logica";
 
 const ROTULO_LINHA = { ACEITA: "Aceita", REJEITADA: "Rejeitada", PENDENTE: "Pendente" };
@@ -102,24 +102,49 @@ function Amostra({ previa }) {
   );
 }
 
-function Reimportacao({ previa, escolhidos, aoMudar }) {
+export function Reimportacao({ previa, escolhidos, aoMudar, modo, aoMudarModo, aoPaginar, paginando }) {
   const diferencas = previa.diferencas || [];
   const possiveis = itensIncorporaveis(diferencas);
+  const t = previa.totais || {};
+  const pag = previa.paginaDiferencas || { pagina: 1, paginas: 1, total: diferencas.length, filtro: "TODAS" };
   return (
     <section aria-labelledby="san-imp-re" className="space-y-3 border border-border bg-card p-4">
       <h3 id="san-imp-re" className="font-semibold">Reimportação: o que mudou desde a última importação</h3>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <Numero rotulo="Novos" valor={previa.novos} /><Numero rotulo="Alterados" valor={previa.alterados} tom={previa.alterados ? "alerta" : undefined} />
-        <Numero rotulo="Inalterados" valor={previa.inalterados} /><Numero rotulo="Ausentes do arquivo" valor={previa.ausentesDoArquivo} />
+        <Numero rotulo="Com campo protegido" valor={t.alteradosComProtegido} /><Numero rotulo="Inalterados" valor={previa.inalterados} /><Numero rotulo="Ausentes do arquivo" valor={previa.ausentesDoArquivo} />
       </div>
-      <p className="text-sm text-muted-foreground">Itens novos entram sozinhos. Itens ausentes do arquivo nunca são removidos. Nas alterações, escolha o que trazer para a base de trabalho: os campos <strong>protegidos</strong> já têm decisão e não são sobrescritos.</p>
+      <p className="text-sm text-muted-foreground">Itens novos entram sozinhos. Itens ausentes do arquivo nunca são removidos. Nas alterações, escolha o que trazer para a base de trabalho: os campos <strong>protegidos</strong> já têm decisão e não são sobrescritos. Os totais valem para o arquivo inteiro.</p>
+      {Number(previa.alterados) > 0 && (
+        <fieldset className="space-y-1">
+          <legend className="text-sm font-semibold">O que incorporar</legend>
+          {Object.entries(MODOS_INCORPORAR).map(([k, rotulo]) => (
+            <label key={k} className="flex items-center gap-2 text-sm"><input type="radio" name="san-imp-modo" value={k} checked={modo === k} onChange={() => aoMudarModo(k)} />{rotulo}</label>
+          ))}
+          {(modo === "ALTERADOS" || modo === "ALTERADOS_SEM_PROTEGIDO") && <p className="text-xs text-muted-foreground">Vale para todas as diferenças do arquivo, não só para a página abaixo: {quantosIncorporar(previa, modo, escolhidos).toLocaleString("pt-BR")} item(ns).</p>}
+        </fieldset>
+      )}
+      {Number(previa.alterados) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <label className="flex items-center gap-2">Mostrar
+            <select className={`${campoCls} w-auto`} value={pag.filtro} disabled={paginando} onChange={(e) => aoPaginar({ pagina: 1, filtro: e.target.value })} aria-label="Filtrar as diferenças">
+              <option value="TODAS">todas as diferenças</option><option value="COM_PROTEGIDO">só itens com campo protegido</option><option value="SEM_PROTEGIDO">só itens sem campo protegido</option>
+            </select>
+          </label>
+          <button type="button" className={botaoSecundario} disabled={paginando || pag.pagina <= 1} onClick={() => aoPaginar({ pagina: pag.pagina - 1, filtro: pag.filtro })}>Anterior</button>
+          <span className="tabular-nums text-muted-foreground" role="status">Página {pag.pagina} de {pag.paginas} ({Number(pag.total).toLocaleString("pt-BR")} item(ns))</span>
+          <button type="button" className={botaoSecundario} disabled={paginando || pag.pagina >= pag.paginas} onClick={() => aoPaginar({ pagina: pag.pagina + 1, filtro: pag.filtro })}>Próxima</button>
+        </div>
+      )}
       {diferencas.length > 0 && (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={botaoSecundario} onClick={() => aoMudar(new Set(possiveis))}>Marcar todos com diferença aplicável</button>
-            <button type="button" className={botaoSecundario} onClick={() => aoMudar(new Set())}>Limpar</button>
-            <span className="text-sm text-muted-foreground">{escolhidos.size} de {possiveis.length} marcados</span>
-          </div>
+          {modo === "ITENS" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className={botaoSecundario} onClick={() => aoMudar(new Set([...escolhidos, ...possiveis]))}>Marcar os desta página com diferença aplicável</button>
+              <button type="button" className={botaoSecundario} onClick={() => aoMudar(new Set())}>Limpar</button>
+              <span className="text-sm text-muted-foreground">{escolhidos.size.toLocaleString("pt-BR")} item(ns) marcados (em todas as páginas)</span>
+            </div>
+          )}
           <div className="max-h-96 overflow-auto border border-border">
             <table className="w-full text-xs" aria-label="Diferenças por item">
               <thead className="sticky top-0 bg-muted text-left text-muted-foreground"><tr><th scope="col" className="w-8 px-2 py-1">Trazer</th><th scope="col">Código</th><th scope="col">Estabelecimento</th><th scope="col">Campos alterados (antes → depois)</th></tr></thead>
@@ -128,7 +153,7 @@ function Reimportacao({ previa, escolhidos, aoMudar }) {
                   const aplicavel = d.campos.some((c) => !c.protegido);
                   return (
                     <tr key={d.itemId} className="border-t border-border/60 align-top">
-                      <td className="px-2 py-1"><input type="checkbox" disabled={!aplicavel} checked={escolhidos.has(d.itemId)} onChange={() => aoMudar(alternarIncorporar(escolhidos, d.itemId))} aria-label={`Trazer as diferenças do item ${d.codigo}`} /></td>
+                      <td className="px-2 py-1"><input type="checkbox" disabled={!aplicavel || modo !== "ITENS"} checked={modo === "ITENS" ? escolhidos.has(d.itemId) : modo !== "NENHUM" && (modo === "ALTERADOS" ? aplicavel : !d.campos.some((c) => c.protegido))} onChange={() => aoMudar(alternarIncorporar(escolhidos, d.itemId))} aria-label={`Trazer as diferenças do item ${d.codigo}`} /></td>
                       <td className="py-1 tabular-nums">{d.codigo}</td><td>{d.estabelecimento || "—"}</td>
                       <td className="py-1">
                         <ul className="space-y-0.5">
@@ -143,7 +168,6 @@ function Reimportacao({ previa, escolhidos, aoMudar }) {
               </tbody>
             </table>
           </div>
-          {previa.diferencasTruncadas && <Aviso tom="alerta">A lista mostra só as 200 primeiras diferenças; só elas podem ser escolhidas nesta importação.</Aviso>}
         </>
       )}
     </section>
@@ -194,17 +218,24 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
   const [previa, setPrevia] = useState(null);
   const [mapeamento, setMapeamento] = useState(null);
   const [escolhidos, setEscolhidos] = useState(() => new Set());
+  const [modo, setModo] = useState("ITENS");
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
   const [chaveArquivo, setChaveArquivo] = useState(0);
 
   const ler = useMutation({
     mutationFn: (m) => san.previaImportacao(projeto.id, arquivo, m || undefined),
-    onSuccess: (p, m) => { setPrevia(p); setMapeamento(m ?? null); setEscolhidos(new Set()); setResultado(null); setErro(null); },
+    onSuccess: (p, m) => { setPrevia(p); setMapeamento(m ?? null); setEscolhidos(new Set()); setModo("ITENS"); setResultado(null); setErro(null); },
+    onError: (e) => setErro(mensagemDeErro(e)),
+  });
+  // Outra página (ou outro filtro) das diferenças: relê o mesmo arquivo com o mesmo mapeamento; as marcações continuam.
+  const paginar = useMutation({
+    mutationFn: (opcoes) => san.previaImportacao(projeto.id, arquivo, previa.mapeamento, opcoes),
+    onSuccess: (p) => { setPrevia(p); setErro(null); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
   const confirmar = useMutation({
-    mutationFn: () => san.importar(projeto.id, arquivo, mapeamento ?? previa.mapeamento, [...escolhidos]),
+    mutationFn: () => san.importar(projeto.id, arquivo, mapeamento ?? previa.mapeamento, corpoIncorporar(modo, escolhidos)),
     onSuccess: (r) => { setResultado(r); setPrevia(null); setArquivo(null); setChaveArquivo((k) => k + 1); setErro(null); atualizarTudo(qc, projeto.id); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
@@ -246,12 +277,12 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
             {rel.avisos.map((a, n) => <Aviso key={`${n}-${a}`} tom="alerta">{a}</Aviso>)}
             <Amostra previa={previa} />
           </section>
-          {reimport && <Reimportacao previa={previa} escolhidos={escolhidos} aoMudar={setEscolhidos} />}
+          {reimport && <Reimportacao previa={previa} escolhidos={escolhidos} aoMudar={setEscolhidos} modo={modo} aoMudarModo={setModo} aoPaginar={(o) => paginar.mutate(o)} paginando={paginar.isPending} />}
           <section aria-labelledby="san-imp-conf" className="space-y-2 border border-border bg-card p-4">
             <h2 id="san-imp-conf" className="font-semibold">3. Confirmar</h2>
             {mapeamentoPendente && <Aviso tom="alerta">O mapeamento foi corrigido: atualize a prévia antes de confirmar.</Aviso>}
-            <button type="button" className={botaoPrimario} disabled={!podeImportar || confirmar.isPending || faltam.length > 0 || mapeamentoPendente || rel.aceitas + rel.pendentes === 0} onClick={() => confirmar.mutate()}>
-              {confirmar.isPending ? "Importando…" : reimport ? `Confirmar (${escolhidos.size} item(ns) com diferenças incorporadas)` : "Confirmar importação"}
+            <button type="button" className={botaoPrimario} disabled={!podeImportar || confirmar.isPending || paginar.isPending || faltam.length > 0 || mapeamentoPendente || rel.aceitas + rel.pendentes === 0} onClick={() => confirmar.mutate()}>
+              {confirmar.isPending ? "Importando…" : reimport ? `Confirmar (${quantosIncorporar(previa, modo, escolhidos).toLocaleString("pt-BR")} item(ns) com diferenças incorporadas)` : "Confirmar importação"}
             </button>
           </section>
         </>

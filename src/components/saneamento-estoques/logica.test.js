@@ -5,7 +5,7 @@ import {
   estadoDaTrava, formaDaSituacao, gruposDeColunas, itensIncorporaveis, janelaVisivel, larguraTotal, LARGURA_FIXA, lerParecer,
   linhasDeMapeamento, loteTemEscolha, mensagemDeErro, mensagemDoParecer, montarExcecao, montarFiltroCasos, montarFiltroItens, MENSAGEM_TRAVA, nomeDeEntrega, precisaCarregarMais,
   proximoCasoAberto, proximoPendente, resumirRelatorio, rolagemParaLinha, rotuloSituacao, situacaoAgregada, textoDaCelula, textoDoConjunto, versoesDaPrevia, edicaoSuja, edicaoInicial,
-  contarPorTipoDeAjuste, ALTURA_LINHA, LISTA_SITUACOES, fmtData, converterProposta, razaoSemAprovar, efeitoDaAtividade, interpretarRespostaParecer, textoDoEnquadramento, avisosDaLiberacao,
+  paginasDeImpacto, corpoIncorporar, quantosIncorporar, lerNumeroBr, ALTURA_LINHA, LISTA_SITUACOES, fmtData, converterProposta, razaoSemAprovar, efeitoDaAtividade, interpretarRespostaParecer, textoDoEnquadramento, avisosDaLiberacao,
   versaoCriada, idsDoLote, rotuloDoCaso, rotuloSituacaoCaso, ehErroDeRede, ehPropostaDesatualizada, camposDivergentes, casoValeParaEnquadramento,
 } from "./logica";
 
@@ -294,8 +294,32 @@ describe("cobertura, exceções, impacto e entregas", () => {
     expect(() => montarExcecao({ camada: "NCM", item, valores: {}, motivo: "x" })).toThrow("não admite");
     expect(montarExcecao({ camada: "TRIBUTARIO", item, valores: { cClassTrib: "000001" }, motivo: "m" }).casos[0].proposta.origem).toBe("EXCECAO");
   });
+  it("QA 30 mil: aprovar \"solicitar informação\" fica bloqueado; exceção de conversão de unidade por item; incorporar por filtro", () => {
+    const dup = { tipo: "DUPLICIDADE_EXATA", situacao: "PROPOSTO", proposta: { decisao: "SOLICITAR_INFORMACAO", manter: "A" } };
+    expect(razaoSemAprovar(dup)).toMatch(/Pedir informação/);
+    expect(razaoSemAprovar(dup, { ...dup.proposta, decisao: "MANTER_DISTINTOS" })).toBeNull();
+    const item = { id: "i1", codigo: "001", estabelecimento: null, trabalho: { unidade: "BB", campos: {} } };
+    const r = montarExcecao({ camada: "NOMES_UNIDADES", item, valores: { unidade: "KG", unidadeCompra: "BB", fatorConversao: "1.000" }, motivo: "Big bag de 1 t" });
+    expect(r.casos[0]).toMatchObject({ tipo: "EXCECAO_MANUAL", itens: ["i1"], proposta: { unidade: "KG", unidadeCompra: "BB", fatorConversao: 1000 }, atual: { unidade: "BB", unidadeCompra: null, fatorConversao: null } });
+    expect(() => montarExcecao({ camada: "NOMES_UNIDADES", item, valores: { unidade: "KG", unidadeCompra: "BB", fatorConversao: "zero" }, motivo: "m" })).toThrow("maior que zero");
+    expect(() => montarExcecao({ camada: "NOMES_UNIDADES", item, valores: { fatorConversao: "10" }, motivo: "m" })).toThrow("unidade de estoque");
+    expect(lerNumeroBr("0,5")).toBe(0.5);
+    expect(lerNumeroBr("1.000")).toBe(1000);
+    expect(lerNumeroBr("")).toBeNull();
+    expect(corpoIncorporar("ALTERADOS", new Set(["a"]))).toEqual({ filtro: "ALTERADOS" });
+    expect(corpoIncorporar("ALTERADOS_SEM_PROTEGIDO")).toEqual({ filtro: "ALTERADOS_SEM_PROTEGIDO" });
+    expect(corpoIncorporar("ITENS", new Set(["a", "b"]))).toEqual(["a", "b"]);
+    expect(corpoIncorporar("NENHUM", new Set(["a"]))).toEqual([]);
+    const previa = { alterados: 100, totais: { alterados: 100, alteradosComProtegido: 3, alteradosIncorporaveis: 99 } };
+    expect(quantosIncorporar(previa, "ALTERADOS")).toBe(99);
+    expect(quantosIncorporar(previa, "ALTERADOS_SEM_PROTEGIDO")).toBe(97);
+    expect(quantosIncorporar(previa, "ITENS", new Set(["x"]))).toBe(1);
+  });
   it("conta o checklist por tipo de ajuste", () => {
-    expect(contarPorTipoDeAjuste([{ tipo_ajuste: "CADASTRAL_FUTURO" }, { tipo_ajuste: "CADASTRAL_FUTURO" }, { tipo_ajuste: "ESCRITURACAO_ENTREGUE" }])).toEqual({ CADASTRAL_FUTURO: 2, REGULARIZACAO_SALDO: 0, ESCRITURACAO_ENTREGUE: 1 });
+    // impactos paginados: as contagens vêm do servidor (filtro inteiro), as linhas são as páginas carregadas
+    const pag = paginasDeImpacto({ pages: [{ linhas: [{ id: "1" }, { id: "2" }], proximo: "3", total: 5, totalGeral: 9, porTipo: { CADASTRAL_FUTURO: 7, ESCRITURACAO_ENTREGUE: 2 } }, { linhas: [{ id: "3" }], proximo: null }] });
+    expect(pag).toEqual({ linhas: [{ id: "1" }, { id: "2" }, { id: "3" }], total: 5, totalGeral: 9, porTipo: { CADASTRAL_FUTURO: 7, REGULARIZACAO_SALDO: 0, ESCRITURACAO_ENTREGUE: 2 } });
+    expect(paginasDeImpacto(undefined)).toMatchObject({ linhas: [], total: 0, totalGeral: 0 });
   });
   it("liberada e para revisão têm endereços e nomes diferentes", () => {
     expect(enderecoDeEntrega("p1", "excel", "v9")).toBe("/saneamento-estoques/projetos/p1/entregas/excel?versaoId=v9");

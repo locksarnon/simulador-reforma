@@ -13,7 +13,9 @@ export const san = {
   confirmarAtividades: (id, versao) => api.post(`${B}/projetos/${id}/atividades/confirmar`, { versao }),
   reabrirAtividades: (id, versao) => api.post(`${B}/projetos/${id}/atividades/reabrir`, { versao }),
 
-  previaImportacao: (id, arquivo, mapeamento) => api.upload(`${B}/projetos/${id}/importacoes/previa`, arquivo, { mapeamento }),
+  /** `opcoes`: página e filtro das diferenças da reimportação ({ pagina, limite, filtro: TODAS | COM_PROTEGIDO | SEM_PROTEGIDO }). */
+  previaImportacao: (id, arquivo, mapeamento, opcoes) => api.upload(`${B}/projetos/${id}/importacoes/previa`, arquivo, { mapeamento, ...(opcoes || {}) }),
+  /** `incorporar`: lista de ids ou filtro { filtro: "ALTERADOS" | "ALTERADOS_SEM_PROTEGIDO", exceto?: [ids] }. */
   importar: (id, arquivo, mapeamento, incorporar) => api.upload(`${B}/projetos/${id}/importacoes`, arquivo, { mapeamento, incorporar: incorporar || [] }),
   importacoes: (id) => api.get(`${B}/projetos/${id}/importacoes`),
 
@@ -36,7 +38,8 @@ export const san = {
   lotePrevia: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/previa`, corpo),
   loteAprovar: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/aprovar`, corpo),
 
-  impactos: (id) => api.get(`${B}/projetos/${id}/impactos-sped`),
+  /** Paginado: { linhas, proximo, total, totalGeral, porTipo }. */
+  impactos: (id, params) => api.get(`${B}/projetos/${id}/impactos-sped`, params),
   vinculos: (id) => api.get(`${B}/projetos/${id}/vinculos-codigo`),
 
   versoes: (id) => api.get(`${B}/projetos/${id}/versoes`),
@@ -53,7 +56,7 @@ export const chaves = {
   camadas: () => ["san", "camadas-disponiveis"],
   casos: (projetoId, filtro) => ["san", projetoId, "casos", filtro],
   caso: (casoId) => ["san", "caso", casoId],
-  impactos: (projetoId) => ["san", projetoId, "impactos"],
+  impactos: (projetoId, tipo = "") => ["san", projetoId, "impactos", tipo],
   versoes: (projetoId) => ["san", projetoId, "versoes"],
   importacoes: (projetoId) => ["san", projetoId, "importacoes"],
 };

@@ -14,7 +14,7 @@ import Casos from "./Casos";
 import Cobertura from "./Cobertura";
 import Configuracao from "./Configuracao";
 import Impacto from "./Impacto";
-import Importacao from "./Importacao";
+import Importacao, { Reimportacao } from "./Importacao";
 import TabelaUnica from "./TabelaUnica";
 import Versoes from "./Versoes";
 import VisaoGeral from "./VisaoGeral";
@@ -25,6 +25,7 @@ const novoCliente = () => new QueryClient({ defaultOptions: { queries: { retry: 
 const ERRO = Object.assign(new Error("Servidor fora do ar."), { status: 500 });
 const falhar = (qc, chave) => qc.getQueryCache().build(qc, { queryKey: chave }).setState({ status: "error", error: ERRO, fetchStatus: "idle", data: undefined, errorUpdateCount: 1, dataUpdateCount: 0 });
 const pagina = (itens, extra = {}) => ({ pages: [{ itens, proximo: null, total: itens.length, ...extra }], pageParams: [undefined] });
+const paginas = (linhas, extra = {}) => ({ pages: [{ linhas, proximo: null, total: linhas.length, totalGeral: extra.total ?? linhas.length, porTipo: {}, ...extra }], pageParams: [undefined] });
 const montar = (ui, preparar) => {
   const qc = novoCliente();
   preparar?.(qc);
@@ -206,15 +207,40 @@ describe("Impacto nas obrigações", () => {
   it("carregando, erro e vazio", () => {
     expect(texto(montar(<Impacto projeto={projeto()} />))).toContain("Carregando");
     expect(texto(montar(<Impacto projeto={projeto()} />, (qc) => falhar(qc, chaves.impactos("p1"))))).toContain("Não foi possível carregar o impacto");
-    expect(texto(montar(<Impacto projeto={projeto()} />, (qc) => { qc.setQueryData(chaves.impactos("p1"), []); }))).toContain("Nenhum impacto registrado ainda");
+    expect(texto(montar(<Impacto projeto={projeto()} />, (qc) => { qc.setQueryData(chaves.impactos("p1"), paginas([])); }))).toContain("Nenhum impacto registrado ainda");
   });
   it("com linhas: tipos de ajuste e colunas do checklist", () => {
     const linha = { id: "1", tipo_ajuste: "ESCRITURACAO_ENTREGUE", obrigacao: "EFD ICMS/IPI", competencia: "2026-01", versao_leiaute: "019", registro: "0200", campo: "COD_NCM", valor_original: "1234", valor_proposto: "12345678", motivo: "NCM corrigido", evidencia: "Tabela TIPI", inicio: "2027-01-01", avaliar_anteriores: true, responsavel: "Ana" };
-    const t = texto(montar(<Impacto projeto={projeto()} />, (qc) => qc.setQueryData(chaves.impactos("p1"), [linha])));
+    const t = texto(montar(<Impacto projeto={projeto()} />, (qc) => qc.setQueryData(chaves.impactos("p1"), paginas([linha], { total: 38976, porTipo: { ESCRITURACAO_ENTREGUE: 38976 }, proximo: "2" }))));
     expect(t).toContain("Impacto em escrituração já entregue");
     expect(t).toContain("EFD ICMS/IPI");
     expect(t).toContain("0200");
     expect(t).toContain("Avaliar períodos anteriores");
+    // paginado: mostra quantas linhas estão carregadas do total do servidor e oferece carregar mais
+    expect(t).toContain("Todos (38.976)");
+    expect(t).toContain("Mostrando 1 de 38.976 linha(s)");
+    expect(t).toContain("Carregar mais linhas");
+  });
+});
+
+describe("Reimportação grande", () => {
+  const previa = {
+    novos: 0, alterados: 28970, inalterados: 10, ausentesDoArquivo: 0,
+    totais: { novos: 0, alterados: 28970, inalterados: 10, ausentes: 0, alteradosComProtegido: 30, alteradosIncorporaveis: 28970, camposProtegidos: 30 },
+    diferencas: [{ itemId: "i1", codigo: "001", estabelecimento: "", campos: [{ campo: "descricao", antes: "A", depois: "B", protegido: true }, { campo: "grupo", antes: "X", depois: "Y", protegido: false }] }],
+    paginaDiferencas: { pagina: 2, limite: 200, filtro: "TODAS", total: 28970, paginas: 145 },
+  };
+  const ver = (modo) => texto(renderToStaticMarkup(<Reimportacao previa={previa} escolhidos={new Set()} aoMudar={() => {}} modo={modo} aoMudarModo={() => {}} aoPaginar={() => {}} paginando={false} />));
+  it("totais do arquivo inteiro, página atual e escolha por filtro sem listar ids", () => {
+    const t = ver("ITENS");
+    expect(t).toContain("28.970");
+    expect(t).toContain("Com campo protegido");
+    expect(t).toContain("Página 2 de 145");
+    expect(t).toContain("Protegido (decisão)");
+    expect(t).toContain("Todos os alterados (campos protegidos ficam como estão)");
+    expect(t).not.toContain("só as 200 primeiras");
+    expect(ver("ALTERADOS")).toContain("Vale para todas as diferenças do arquivo, não só para a página abaixo: 28.970 item(ns)");
+    expect(ver("ALTERADOS_SEM_PROTEGIDO")).toContain("28.940 item(ns)");
   });
 });
 

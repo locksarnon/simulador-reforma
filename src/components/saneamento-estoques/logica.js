@@ -252,6 +252,7 @@ export function razaoSemAprovar(caso, proposta) {
   const p = proposta ?? caso.proposta ?? {};
   if (caso.situacao === "AGUARDANDO_INFORMACAO" || String(caso.tipo || "").startsWith("AGUARDANDO")) return "O caso aguarda informação: não há o que aprovar. Reabra quando a informação chegar.";
   if (Object.keys(p).length === 0) return "Não há proposta: não há alteração para aprovar. Rejeite ou peça informação.";
+  if (p.decisao === "SOLICITAR_INFORMACAO") return "A decisão proposta é solicitar informação ao cliente: use “Pedir informação” ou escolha outra decisão antes de aprovar.";
   if (precisaInformarFator(caso) && !fatorOk(p.fatorConversao)) return "Informe o fator de conversão (número maior que zero) para aprovar a mudança de unidade.";
   return null;
 }
@@ -393,6 +394,30 @@ export function resumirRelatorio(r) {
 /** Reimportação: há itens já guardados? Então a prévia mostra as diferenças antes de incorporar. */
 export const ehReimportacao = (previa) => !!previa && (Number(previa.inalterados) > 0 || Number(previa.alterados) > 0 || Number(previa.ausentesDoArquivo) > 0);
 
+/**
+ * O que a confirmação envia em `incorporar`: no modo "ITENS", os ids marcados; nos modos de filtro, o filtro do servidor (vale para TODAS
+ * as diferenças do arquivo, não só para a página na tela), sem listar ids.
+ */
+export const MODOS_INCORPORAR = {
+  NENHUM: "Não incorporar agora (só entram os itens novos)",
+  ITENS: "Escolher item a item",
+  ALTERADOS: "Todos os alterados (campos protegidos ficam como estão)",
+  ALTERADOS_SEM_PROTEGIDO: "Só os alterados sem campo protegido",
+};
+export function corpoIncorporar(modo, escolhidos) {
+  if (modo === "ALTERADOS" || modo === "ALTERADOS_SEM_PROTEGIDO") return { filtro: modo };
+  if (modo === "ITENS") return [...(escolhidos || [])];
+  return [];
+}
+/** Quantos itens a confirmação vai incorporar, pelos totais da prévia (o arquivo inteiro). */
+export function quantosIncorporar(previa, modo, escolhidos) {
+  const t = previa?.totais || {};
+  if (modo === "ALTERADOS") return Number(t.alteradosIncorporaveis ?? previa?.alterados ?? 0);
+  if (modo === "ALTERADOS_SEM_PROTEGIDO") return Math.max(0, Number(t.alterados ?? previa?.alterados ?? 0) - Number(t.alteradosComProtegido ?? 0));
+  if (modo === "ITENS") return escolhidos?.size || 0;
+  return 0;
+}
+
 /** Escolha do que incorporar: ids dos itens marcados (itens só com campos protegidos não adiantam). */
 export const itensIncorporaveis = (diferencas) => (diferencas || []).filter((d) => d.campos.some((c) => !c.protegido)).map((d) => d.itemId);
 export function alternarIncorporar(escolhidos, id) {
@@ -410,10 +435,13 @@ export const TIPOS_DE_AJUSTE = {
 };
 export const rotuloTipoAjuste = (t) => TIPOS_DE_AJUSTE[t] || String(t || "");
 
-export function contarPorTipoDeAjuste(linhas) {
-  const r = { CADASTRAL_FUTURO: 0, REGULARIZACAO_SALDO: 0, ESCRITURACAO_ENTREGUE: 0 };
-  for (const l of linhas || []) if (l.tipo_ajuste in r) r[l.tipo_ajuste]++;
-  return r;
+/** Páginas do GET impactos-sped ({ linhas, proximo, total, totalGeral, porTipo }) juntas: linhas carregadas e totais do servidor. */
+export function paginasDeImpacto(dados) {
+  const paginas = dados?.pages || [];
+  const primeira = paginas[0] || {};
+  const porTipo = { ...Object.fromEntries(Object.keys(TIPOS_DE_AJUSTE).map((k) => [k, 0])), ...(primeira.porTipo || {}) };
+  const linhas = paginas.flatMap((p) => p.linhas || []);
+  return { linhas, porTipo, total: Number(primeira.total ?? linhas.length) || 0, totalGeral: Number(primeira.totalGeral ?? primeira.total ?? linhas.length) || 0 };
 }
 
 export const ROTULO_ORIGEM = { REGRA: "Regra", IA: "IA", HERDADO: "Herdado do conjunto", EXCECAO: "Exceção" };
@@ -487,7 +515,20 @@ export const ROTULO_COBERTURA = {
 export const EXCECOES_POR_CAMADA = {
   GRUPOS_FINALIDADE: [{ campo: "finalidade", rotulo: "Finalidade deste item", tipo: "finalidade" }],
   TRIBUTARIO: [{ campo: "cClassTrib", rotulo: "cClassTrib", tipo: "texto" }, { campo: "cst", rotulo: "CST", tipo: "texto" }],
+  // Conversão de unidade decidida por conjunto: o item de conteúdo diferente (outro fator) vira exceção.
+  NOMES_UNIDADES: [
+    { campo: "unidade", rotulo: "Unidade de estoque (ex.: KG)", tipo: "texto" }, { campo: "unidadeCompra", rotulo: "Unidade de compra (ex.: SC)", tipo: "texto" },
+    { campo: "fatorConversao", rotulo: "Fator: unidades de estoque em 1 unidade de compra", tipo: "numero" },
+  ],
 };
+
+/** Número digitado no padrão brasileiro ("1.000", "0,5", "25"); null se vazio ou inválido. */
+export function lerNumeroBr(v) {
+  const t = String(v ?? "").trim();
+  if (!t) return null;
+  const n = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) ? Number(t.replace(/\./g, "").replace(",", ".")) : Number(t.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
 
 /** Caso individual de exceção, no formato de POST projetos/:id/casos. Exige o motivo. */
 export function montarExcecao({ camada, item, valores, motivo }) {
@@ -498,17 +539,24 @@ export function montarExcecao({ camada, item, valores, motivo }) {
   const atual = {};
   for (const c of campos) {
     const v = valores?.[c.campo];
-    if (v !== undefined && v !== null && String(v).trim() !== "") proposta[c.campo] = String(v).trim();
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      if (c.tipo === "numero") {
+        const n = lerNumeroBr(v);
+        if (n == null || n <= 0) throw new Error(`${c.rotulo}: informe um número maior que zero.`);
+        proposta[c.campo] = n;
+      } else proposta[c.campo] = String(v).trim();
+    }
     atual[c.campo] = item?.trabalho?.[c.campo] ?? item?.trabalho?.campos?.[c.campo] ?? null;
   }
   if (!Object.keys(proposta).length) throw new Error("Informe o valor da exceção.");
+  if (camada === "NOMES_UNIDADES" && campos.some((c) => proposta[c.campo] === undefined)) throw new Error("Informe a unidade de estoque, a unidade de compra e o fator deste item.");
   if (camada === "TRIBUTARIO") proposta.origem = "EXCECAO";
   return {
     camada, analisados: 1, semDados: null, semProblema: [],
     casos: [{
       camada, tipo: "EXCECAO_MANUAL", itens: [item.id], problema: `Exceção do item ${item.codigo}: tratamento diferente do conjunto`,
       evidencia: [{ rotulo: "Item", valor: `${item.codigo}${item.estabelecimento ? ` (${item.estabelecimento})` : ""}` }], atual, proposta,
-      justificativa: String(motivo).trim(), fundamento: null, impactos: [], origem: "REGRA", afeta: camada === "GRUPOS_FINALIDADE" ? ["TRIBUTARIO", "OBRIGACOES"] : ["OBRIGACOES"],
+      justificativa: String(motivo).trim(), fundamento: null, impactos: [], origem: "REGRA", afeta: camada === "GRUPOS_FINALIDADE" ? ["TRIBUTARIO", "OBRIGACOES"] : camada === "NOMES_UNIDADES" ? ["DUPLICIDADE", "OBRIGACOES"] : ["OBRIGACOES"],
     }],
   };
 }

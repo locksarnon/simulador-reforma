@@ -77,8 +77,10 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       { acao: "Em Colunas do arquivo, confira o que o sistema entendeu de cada coluna.", detalhe: "A coluna Certeza mostra “Certeza alta”, “Certeza média” ou “Reconhecida”. Código e descrição são obrigatórios (*)." },
       { acao: "Se corrigir uma coluna, clique em Atualizar a prévia com este mapeamento.", detalhe: "Enquanto não atualizar, o botão de confirmar fica apagado." },
       { acao: "Em 2. Prévia, leia as Linhas aceitas, Rejeitadas e Pendentes, os motivos agrupados (com exemplos de linha) e as 10 primeiras linhas." },
-      { acao: "Na reimportação, leia o quadro “Reimportação: o que mudou desde a última importação” (Novos, Alterados, Inalterados e Ausentes do arquivo).", detalhe: "Itens novos entram sozinhos; itens ausentes do arquivo nunca são removidos." },
-      { acao: "Nas alterações, marque Trazer nos itens cujas diferenças você quer incorporar (ou use Marcar todos com diferença aplicável).", detalhe: "Cada diferença aparece como antes → depois. Os campos com a etiqueta “Protegido (decisão)” já têm decisão e não são sobrescritos." },
+      { acao: "Na reimportação, leia o quadro “Reimportação: o que mudou desde a última importação” (Novos, Alterados, Com campo protegido, Inalterados e Ausentes do arquivo).", detalhe: "Os totais valem para o arquivo inteiro. Itens novos entram sozinhos; itens ausentes do arquivo nunca são removidos." },
+      { acao: "Em O que incorporar, escolha: Não incorporar agora, Escolher item a item, Todos os alterados (campos protegidos ficam como estão) ou Só os alterados sem campo protegido.", detalhe: "As duas últimas valem para todas as diferenças do arquivo, sem marcar item por item; o texto abaixo da escolha diz quantos itens entram." },
+      { acao: "Para ver as diferenças, use Mostrar (todas, só itens com campo protegido ou só itens sem campo protegido) e os botões Anterior e Próxima.", detalhe: "A lista vem em páginas de 200 itens. Cada diferença aparece como antes → depois; os campos com a etiqueta “Protegido (decisão)” já têm decisão e não são sobrescritos." },
+      { acao: "Em Escolher item a item, marque Trazer nos itens que quer incorporar (ou use Marcar os desta página com diferença aplicável).", detalhe: "As marcações de uma página continuam valendo quando você passa para outra." },
       { acao: "Em 3. Confirmar, clique em Confirmar importação (na reimportação, Confirmar com o número de itens incorporados).", detalhe: "Aparece o Relatório da importação: linhas aceitas, rejeitadas e pendentes, itens novos, incorporados e alterados no arquivo." },
       { acao: "Confira, ao pé da aba, Importações anteriores (quando, arquivo, usuário e totais)." },
     ],
@@ -86,7 +88,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     atencao: [
       "Linha rejeitada não entra: corrija no ERP ou na planilha e reimporte. Linha pendente entra, mas com dado faltando.",
       "A reimportação nunca apaga decisões nem rascunhos. Campos protegidos por decisão ficam como estão.",
-      "Se a lista de diferenças for maior que 200, só as 200 primeiras podem ser escolhidas nesta importação.",
+      "Com muitas diferenças, prefira Todos os alterados ou Só os alterados sem campo protegido: valem para o arquivo inteiro, não só para a página na tela.",
     ],
   },
   {
@@ -106,11 +108,12 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       { acao: "Clique em Ir ao próximo pendente.", detalhe: "A tabela rola até o próximo item pendente (na camada filtrada, se houver) e abre a visão focada. Se não houver mais, aparece “Não há mais itens pendentes depois deste ponto.”" },
       { acao: "Ou clique na situação de uma célula para abrir a visão focada daquele item naquela camada.", detalhe: "Ela mostra a situação, os Campos desta revisão (Original importado × Atual com as decisões aplicadas, com a etiqueta “alterado”), os Casos deste item nesta camada e, no fim, o histórico." },
       { acao: "Para tratar um caso, clique em Abrir o caso (segue no POP-CON-14).", detalhe: "Ver o histórico de decisões do item mostra, campo a campo, o antes, o depois, quem e quando." },
-      { acao: "Se o item for diferente do grupo (Grupos e finalidade) ou do conjunto (Tratamento tributário), preencha o formulário Exceção só para este item e clique em Registrar exceção.", detalhe: "O motivo é obrigatório. A exceção abre um caso individual, que precisa ser aprovado." },
+      { acao: "Se o item for diferente do grupo (Grupos e finalidade) ou do conjunto (Nomes e unidades, Tratamento tributário), preencha o formulário Exceção só para este item e clique em Registrar exceção.", detalhe: "O motivo é obrigatório. A exceção abre um caso individual, que precisa ser aprovado. Em Nomes e unidades, informe a unidade de estoque, a unidade de compra e o fator do item." },
     ],
     resultado: "Você percorre os itens pendentes em sequência e cada célula registra a situação da camada.",
     atencao: [
       "A finalidade é confirmada por grupo e o tratamento tributário vale para o conjunto de itens com o mesmo NCM e a mesma finalidade. Cada item herda o do conjunto; use a exceção só quando o item for realmente diferente.",
+      "Os casos de unidade também são por conjunto: itens com a mesma unidade escrita e a mesma proposta (mesma grafia padrão, mesma conversão e fator, ou a mesma unidade sem regra) formam um só caso. O fator informado vale para todos os itens do caso; o item que tem exceção própria fica com a exceção.",
       "Mudar a finalidade, o NCM ou a unidade de um item pode marcar “revisar” nas camadas que dependem dele. A decisão anterior não é apagada.",
       "A tabela carrega os itens aos poucos; se o cadastro é grande, aguarde o “Carregando mais…”.",
     ],
@@ -155,7 +158,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       { acao: "Ajuste a proposta e a Justificativa e clique em Salvar rascunho.", detalhe: "O rascunho guarda o seu trabalho sem mudar o cadastro. Salvar e ir ao próximo pendente salva e abre o seguinte." },
       { acao: "Para decidir, clique em Aprovar (ou Aprovar e ir ao próximo).", detalhe: "A aprovação grava a mudança no cadastro de trabalho, campo a campo, com o antes, o depois, o fundamento, quem e quando. Caso que é só alerta não tem alteração: aprovar significa concordar." },
       { acao: "Para negar, clique em Rejeitar…, escreva a justificativa (obrigatória) e clique em Confirmar rejeição." },
-      { acao: "Se faltar dado do cliente, clique em Pedir informação…, escreva que informação falta (obrigatório) e clique em Registrar pedido.", detalhe: "O caso passa a Aguardando informação." },
+      { acao: "Se faltar dado do cliente, clique em Pedir informação…, escreva que informação falta (obrigatório) e clique em Registrar pedido.", detalhe: "O caso passa a Aguardando informação. É também o caminho quando a duplicidade propõe a decisão “solicitar informação”: esse caso não se aprova (Aprovar fica apagado) até você pedir a informação ou escolher outra decisão." },
       { acao: "Para voltar atrás, clique em Reabrir (caso ainda não aprovado) ou Desfazer aprovação (caso aprovado) e confirme.", detalhe: "Desfazer devolve cada campo ao valor anterior e fica no histórico." },
       { acao: "Para decidir muitos de uma vez, marque os casos na tabela (ou escolha Camada, Tipo ou Origem) e clique em Aprovar em lote….", detalhe: "Preencha, se quiser, o Fundamento comum e clique em Ver a prévia: ela mostra casos aprováveis, exceções que ficam de fora, itens afetados e campos alterados. Só então clique em Aprovar N caso(s)." },
     ],
@@ -163,7 +166,8 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     atencao: [
       "A IA propõe e o consultor decide: o parecer nunca grava nada. Confira os argumentos e as fontes, e o texto da lei prevalece sobre qualquer sugestão.",
       "“Prática de mercado” é referência, não norma. Não use como fundamento legal.",
-      "No lote, os casos de exceção ficam de fora e precisam ser decididos um a um.",
+      "No lote, os casos de exceção ficam de fora e precisam ser decididos um a um. Também ficam de fora, com o motivo na prévia, os casos cuja decisão proposta é solicitar informação e os ids que não existem no projeto.",
+      "Num caso de conjunto, aprovar aplica a proposta a cada item e grava o histórico item a item; o item com exceção própria não é alterado pelo conjunto.",
       "Se outra pessoa mudou o caso antes de você gravar, a tela avisa, recarrega o caso e mantém o seu texto. Confira antes de gravar de novo.",
       "No Tratamento tributário, a proposta traz o enquadramento legal (texto da lei e artigo), cClassTrib e CST, com a etiqueta “herdado do conjunto” ou “exceção”.",
     ],
@@ -180,7 +184,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       "Camada Impacto nas obrigações analisada e ajustes aprovados. Sem isso, a aba diz “Nenhum impacto registrado ainda”.",
     ],
     passos: [
-      { acao: "Em Checklist por tipo de ajuste, filtre por Todos, Ajuste cadastral futuro, Regularização de saldo ou Impacto em escrituração já entregue." },
+      { acao: "Em Checklist por tipo de ajuste, filtre por Todos, Ajuste cadastral futuro, Regularização de saldo ou Impacto em escrituração já entregue.", detalhe: "Os números entre parênteses são do projeto inteiro. A tabela traz as linhas em páginas: abaixo dela, “Mostrando N de M linha(s)” e o botão Carregar mais linhas." },
       { acao: "Leia, em cada linha, a Obrigação, a Competência, o Leiaute, o Registro e o Campo, o valor Original e o Proposto, o Motivo, a Evidência, o Início da vigência, Avaliar períodos anteriores e o Responsável." },
       { acao: "Confira os registros indicados nos documentos e na escrituração do cliente." },
       { acao: "Em Vínculos de código (antigo → novo), veja os códigos consolidados ou substituídos, a data de início e a justificativa." },
@@ -189,6 +193,8 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     atencao: [
       "A aba é só de leitura. A retificação e a transmissão de declarações não fazem parte deste serviço.",
       "“Impacto em escrituração já entregue” pede avaliação própria dos períodos anteriores.",
+      "Original e Proposto ficam em branco quando o registro não guarda aquele valor (por exemplo, o C170 não tem NCM: só liga o item ao 0200). Num caso de obrigação que reúne itens com valores diferentes, o valor aparece como “varia por item; ver a aba Impactos no SPED”.",
+      "Os filtros e a ordenação da tabela valem para as linhas já carregadas: carregue mais linhas para filtrar sobre elas.",
     ],
   },
   {

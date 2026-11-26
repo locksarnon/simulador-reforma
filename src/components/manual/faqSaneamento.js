@@ -27,6 +27,18 @@ export const SECAO_SANEAMENTO = {
       r: "Conjunto é o grupo de itens com o mesmo NCM e a mesma finalidade: o tratamento tributário é decidido uma vez para ele, e cada item herda o resultado (etiqueta “herdado do conjunto”). Exceção é o item que não segue o conjunto ou o grupo: você a registra na visão focada, com motivo obrigatório, e ela abre um caso individual que precisa ser aprovado (etiqueta “exceção”). O trabalho é por conjunto, mas o resultado e o Excel são por item.",
     },
     {
+      p: "Por que um caso de unidade traz centenas de itens?",
+      r: "Porque o trabalho é por conjunto: itens com a mesma unidade escrita e a mesma proposta (por exemplo, todos os “KGS” que viram “KG”, ou todas as “TONELADA” com fator 1.000) formam um só caso. Ao aprovar, a mudança é aplicada item a item e cada item ganha o seu histórico. Se um item tiver conteúdo diferente (outro fator), registre a exceção dele na visão focada antes de aprovar o conjunto: o conjunto não mexe no item que tem exceção.",
+    },
+    {
+      p: "Na reimportação com milhares de diferenças, preciso marcar item por item?",
+      r: "Não. Em O que incorporar, escolha Todos os alterados (campos protegidos ficam como estão) ou Só os alterados sem campo protegido: vale para todas as diferenças do arquivo, não só para a página na tela. Os totais (inclusive os itens com campo protegido) são sempre do arquivo inteiro, e a lista de diferenças vem em páginas.",
+    },
+    {
+      p: "Por que não consigo aprovar uma duplicidade com a decisão “solicitar informação”?",
+      r: "Porque aprovar essa decisão não muda nada: falta a informação do cliente. Use Pedir informação… (o caso passa a Aguardando informação) ou escolha outra decisão na proposta e então aprove. No lote, esses casos ficam de fora, com o motivo na prévia.",
+    },
+    {
       p: "O que significa cada situação da tabela?",
       r: "Pendente: ainda não foi revisado. Sem problema: a camada foi analisada e não há o que ajustar. Proposto: existe uma proposta esperando a decisão do consultor. Aprovado: a decisão foi tomada e registrada. Aguardando informação: falta um dado do cliente. “Revisar” não é uma situação: é uma marca que pode aparecer em qualquer uma delas. Nos casos, as situações são Proposto, Rascunho, Aprovado, Rejeitado e Aguardando informação.",
     },
