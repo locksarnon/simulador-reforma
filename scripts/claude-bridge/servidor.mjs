@@ -14,6 +14,8 @@ const MODELO_PADRAO = process.env.CLAUDE_BRIDGE_MODELO || '';
 const MAX_SIMULTANEOS = Number(process.env.MAX_SIMULTANEOS || 2);
 const MAX_FILA = 6;
 const LIMITE_CORPO = 400_000;
+// Prazo máximo de um pedido: ao fim dele o processo do Claude Code é encerrado (SIGKILL), mesmo que o InTAX peça mais.
+const PRAZO_MAXIMO_MS = Number(process.env.PRAZO_MAXIMO_MS || 175_000);
 
 if (TOKEN.length < 24) { console.error('CLAUDE_BRIDGE_TOKEN ausente ou curto demais'); process.exit(1); }
 
@@ -58,8 +60,9 @@ function coletarFontes(eventos) {
   return fontes;
 }
 
-function executar({ prompt, busca, modelo, timeoutMs }) {
+function executar({ prompt, busca, modelo, timeoutMs, sinal }) {
   return new Promise((ok, erro) => {
+    if (sinal?.aborted) return erro(new Error('Pedido cancelado'));
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--no-session-persistence', '--disable-slash-commands'];
     if (busca) args.push('--tools', 'WebSearch,WebFetch', '--allowedTools', 'WebSearch', 'WebFetch');
     else args.push('--tools', '');
@@ -68,11 +71,15 @@ function executar({ prompt, busca, modelo, timeoutMs }) {
     const filho = spawn(CLAUDE, args, { cwd: PASTA, env: { ...process.env, HOME: process.env.HOME || '/home/claude', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' }, stdio: ['pipe', 'pipe', 'pipe'] });
     let saida = ''; let err = '';
     const relogio = setTimeout(() => { filho.kill('SIGKILL'); erro(new Error('Tempo esgotado')); }, timeoutMs);
+    // O InTAX desistiu (prazo dele ou conexão caída): encerra o processo na hora, sem deixá-lo órfão até o fim do prazo.
+    const cancelar = () => { filho.kill('SIGKILL'); erro(new Error('Pedido cancelado')); };
+    sinal?.addEventListener('abort', cancelar, { once: true });
     filho.stdout.on('data', (d) => { saida += d; if (saida.length > 6_000_000) filho.kill('SIGKILL'); });
     filho.stderr.on('data', (d) => { err += d; });
-    filho.on('error', (e) => { clearTimeout(relogio); erro(e); });
+    filho.on('error', (e) => { clearTimeout(relogio); sinal?.removeEventListener('abort', cancelar); erro(e); });
     filho.on('close', () => {
       clearTimeout(relogio);
+      sinal?.removeEventListener('abort', cancelar);
       const eventos = saida.split('\n').map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
       const fim = [...eventos].reverse().find((e) => e.type === 'result');
       if (!fim) return erro(new Error(`Claude Code sem resultado${err ? `: ${err.slice(0, 200)}` : ''}`));
@@ -117,9 +124,12 @@ http.createServer(async (req, res) => {
   const prompt = String(dados.prompt || '');
   if (!prompt.trim()) return responder(res, 400, { erro: 'prompt vazio' });
   const modelo = /^[a-z0-9.\-]{1,60}$/i.test(String(dados.modelo || '')) ? String(dados.modelo) : '';
-  const timeoutMs = Math.min(Math.max(Number(dados.timeout_ms) || 120_000, 5_000), 175_000);
+  const timeoutMs = Math.min(Math.max(Number(dados.timeout_ms) || 120_000, 5_000), PRAZO_MAXIMO_MS);
+  const cancelamento = new AbortController();
+  res.on('close', () => { if (!res.writableFinished) cancelamento.abort(); });
   try { await esperarVez(); } catch (e) { return responder(res, 503, { erro: e.message }); }
-  try { const r = await executar({ prompt, busca: dados.busca === true, modelo, timeoutMs }); Object.assign(estadoLogin, { logado: true, verificado_em: new Date().toISOString(), erro: null }); responder(res, 200, r); }
+  if (cancelamento.signal.aborted) { liberar(); return; }
+  try { const r = await executar({ prompt, busca: dados.busca === true, modelo, timeoutMs, sinal: cancelamento.signal }); Object.assign(estadoLogin, { logado: true, verificado_em: new Date().toISOString(), erro: null }); responder(res, 200, r); }
   catch (e) {
     if (/log ?in|auth|expired|OAuth/i.test(String(e.message))) Object.assign(estadoLogin, { logado: false, verificado_em: new Date().toISOString(), erro: String(e.message).slice(0, 200) });
     responder(res, 502, { erro: e.message });

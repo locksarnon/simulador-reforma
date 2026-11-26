@@ -597,9 +597,18 @@ export class BaseLegalService {
 
   /** Resposta em texto (JSON no prompt). Claude quando configurado; se ele falhar e houver chave do Gemini, o Gemini responde. */
   async ia(prompt: string, timeoutMs = 60_000): Promise<string> {
+    return (await this.iaComModelo(prompt, timeoutMs, Math.max(timeoutMs, 90_000))).texto;
+  }
+
+  /**
+   * Como `ia`, mas devolve também o modelo que respondeu. `prazoPonteMs` é o tempo que a ponte do Claude Code deixa o processo rodar
+   * (ela o encerra ao fim desse prazo); por padrão, o mesmo `timeoutMs`.
+   */
+  async iaComModelo(prompt: string, timeoutMs = 60_000, prazoPonteMs = timeoutMs): Promise<{ texto: string; modelo: string }> {
     if (this.provedorIa() === 'claude-code') {
       try {
-        return (await perguntarViaPonte({ ...this.ponte(), prompt, timeoutMs: Math.max(timeoutMs, 90_000) })).texto;
+        const r = await perguntarViaPonte({ ...this.ponte(), prompt, timeoutMs: prazoPonteMs });
+        return { texto: r.texto, modelo: r.modelo };
       } catch (e) {
         if (!this.config.get<string>('GEMINI_API_KEY') && !this.config.get<string>('ANTHROPIC_API_KEY')) throw e;
         this.log.warn(`Claude Code falhou (${(e as Error).message}); usando o próximo motor`);
@@ -608,20 +617,20 @@ export class BaseLegalService {
     if (this.provedorIa() === 'claude' || (this.provedorIa() === 'claude-code' && this.config.get<string>('ANTHROPIC_API_KEY'))) {
       try {
         const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, timeoutMs });
-        return r.texto;
+        return { texto: r.texto, modelo: r.modelo };
       } catch (e) {
         if (!this.config.get<string>('GEMINI_API_KEY')) throw e;
         this.log.warn(`Claude falhou (${(e as Error).message}); usando o Gemini`);
       }
     }
-    return this.gemini(prompt, timeoutMs);
+    return { texto: await this.gemini(prompt, timeoutMs), modelo: this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash' };
   }
 
   /** Com pesquisa na web. Mesmo desenho: Claude primeiro, Gemini de reserva. */
-  async iaComBusca(prompt: string): Promise<{ texto: string; grounding: unknown; modelo: string }> {
+  async iaComBusca(prompt: string, timeoutMs?: number): Promise<{ texto: string; grounding: unknown; modelo: string }> {
     if (this.provedorIa() === 'claude-code') {
       try {
-        const r = await perguntarViaPonte({ ...this.ponte(), prompt, busca: true });
+        const r = await perguntarViaPonte({ ...this.ponte(), prompt, busca: true, ...(timeoutMs ? { timeoutMs } : {}) });
         return { texto: r.texto, grounding: r.grounding, modelo: r.modelo };
       } catch (e) {
         if (!this.config.get<string>('GEMINI_API_KEY') && !this.config.get<string>('ANTHROPIC_API_KEY')) throw e;
@@ -630,7 +639,7 @@ export class BaseLegalService {
     }
     if (this.provedorIa() === 'claude' || (this.provedorIa() === 'claude-code' && this.config.get<string>('ANTHROPIC_API_KEY'))) {
       try {
-        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, busca: true });
+        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, busca: true, ...(timeoutMs ? { timeoutMs } : {}) });
         return { texto: r.texto, grounding: r.grounding, modelo: r.modelo };
       } catch (e) {
         if (!this.config.get<string>('GEMINI_API_KEY')) throw e;
@@ -640,10 +649,10 @@ export class BaseLegalService {
     const modeloForte = this.config.get<string>('GEMINI_MODEL_APROFUNDADO') || 'gemini-pro-latest';
     const modeloBase = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
     try {
-      return { ...(await this.geminiComBusca(prompt, modeloForte)), modelo: modeloForte };
+      return { ...(await this.geminiComBusca(prompt, modeloForte, timeoutMs)), modelo: modeloForte };
     } catch (e) {
       this.log.warn(`Modelo ${modeloForte} falhou (${(e as Error).message}); usando ${modeloBase}`);
-      return { ...(await this.geminiComBusca(prompt, modeloBase)), modelo: modeloBase };
+      return { ...(await this.geminiComBusca(prompt, modeloBase, timeoutMs)), modelo: modeloBase };
     }
   }
 

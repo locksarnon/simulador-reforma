@@ -221,6 +221,7 @@ export const POST_DE_LEITURA = [
   'ncm/sugestoes',
   'validador-nfse/validar',
   'base-legal/perguntar',
+  // Só guarda o rascunho de apoio do Analisar com IA; o projeto não muda.
   'consultoria/projetos/:id/analisar-ia',
   'base-legal/perguntar-aprofundado',
   'base-legal/perguntas/:id/enviar-relatorio',

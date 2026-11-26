@@ -1,5 +1,6 @@
 import { REGRAS_COMUNS, dominioEhOficial, extrairJson, limpar } from './util';
 import type { Roteiro } from './roteiros';
+import { blocoDoCandidato, REGRAS_SITUACAO_DO_TEXTO, type Candidato } from '../base-legal/base-legal.assistente';
 
 /** Contexto padrão do projeto, o prompt do rascunho e a leitura da resposta. Funções puras. */
 
@@ -26,7 +27,31 @@ export const AVISO_RASCUNHO = 'Rascunho de apoio gerado por IA: não é parecer.
 
 const semNulos = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined && v !== ''));
 
-export function montarPromptRascunho(ctx: ContextoProjeto, roteiro: Roteiro): string {
+/** "rapido": só o contexto do projeto e os trechos de norma da base legal local, sem web. "pesquisa": com pesquisa externa (mais lento). */
+export type ModoRascunho = 'rapido' | 'pesquisa';
+
+/** Trechos da base legal local que entram no rascunho rápido: poucos e curtos, para a resposta sair em segundos. */
+export const MAX_NORMAS_RASCUNHO = 6;
+const MAX_CARACTERES_NORMAS = 18_000;
+
+export function blocoDeNormas(normas: Candidato[]): string {
+  let total = 0;
+  const blocos: string[] = [];
+  for (const c of normas.slice(0, MAX_NORMAS_RASCUNHO)) {
+    const b = limpar(blocoDoCandidato({ ...c, texto: c.texto.slice(0, 4_000) }, blocos.length), 5_000);
+    if (total + b.length > MAX_CARACTERES_NORMAS) break;
+    total += b.length;
+    blocos.push(b);
+  }
+  return blocos.join('\n\n');
+}
+
+const REGRA_PESQUISA = '- Pesquise na web quando precisar confirmar vigência, regulamentação ou prazo; fonte não oficial só para localizar a oficial.';
+const REGRA_RAPIDO = `- NÃO pesquise na web: use só o contexto e os trechos da base legal do InTAX que vêm no bloco de dados (normasDaBaseLocal). Cite artigo só se ele estiver nesses trechos; o que depender de outra norma fica "não confirmado" e vai em "oQueConferir".
+${REGRAS_SITUACAO_DO_TEXTO}
+- Em "fontes", liste só as normas da base local que você usou (título como "LC 214/2025, art. X"), sem endereço.`;
+
+export function montarPromptRascunho(ctx: ContextoProjeto, roteiro: Roteiro, modo: ModoRascunho = 'pesquisa', normas: Candidato[] = []): string {
   const dados = {
     servico: ctx.servico, referencia: ctx.referencia, situacaoDoProjeto: ctx.situacaoDoProjeto, clientes: { total: ctx.qtdClientes, amostra: ctx.clientes.slice(0, 5).map((c) => semNulos({ ...c, cnae: limpar(c.cnae, 160) })) },
     documentosDoServico: {
@@ -45,14 +70,14 @@ Roteiro deste serviço:
 ${REGRAS_COMUNS}
 - Se o contexto não trouxer o dado, diga que falta; não presuma. Os clientes aparecem sem nome nem CNPJ: não tente identificá-los.
 - Fundamentos: cite norma e artigo só quando tiver fonte oficial (Planalto, Receita Federal, SPED, portal da NF-e, CGIBS, TCU); sem fonte, escreva "não confirmado".
-- Pesquise na web quando precisar confirmar vigência, regulamentação ou prazo; fonte não oficial só para localizar a oficial.
+${modo === 'pesquisa' ? REGRA_PESQUISA : REGRA_RAPIDO}
 
 Responda SOMENTE com um objeto JSON, sem texto fora dele:
 {"resumo": "até 5 frases, no padrão FAL: conclusão primeiro", "pontosDeAtencao": ["..."], "oQueConferir": ["..."], "fundamentos": ["norma, artigo e o que ela sustenta, ou 'não confirmado'"], "fontes": [{"titulo": "...", "url": "https://... (só se tiver)"}]}
 Máximo de 6 itens em cada lista.
 
 <<<DADOS
-${JSON.stringify(dados, null, 1)}
+${JSON.stringify(dados, null, 1)}${modo === 'rapido' ? `\n\nnormasDaBaseLocal:\n${blocoDeNormas(normas) || '(nenhum trecho da base local encontrado para este serviço)'}` : ''}
 DADOS>>>`;
 }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BaseLegalService } from './base-legal.service';
 
 const com = (env: Record<string, string>) => new BaseLegalService({} as never, { get: (k: string) => env[k] } as never, {} as never);
@@ -40,5 +40,27 @@ describe('ponte do Claude Code (créditos da conta, sem chave de API)', () => {
   it('o modelo registrado é o pedido à ponte, ou claude-code quando não se escolhe', () => {
     expect(com({ ...ponte }).modeloAtual()).toBe('claude-code');
     expect(com({ ...ponte, CLAUDE_CODE_MODEL: 'claude-fable-5-2' }).modeloAtual()).toBe('claude-fable-5-2');
+  });
+});
+
+describe('prazo pedido à ponte', () => {
+  const ponte = { CLAUDE_BRIDGE_URL: 'http://ponte', CLAUDE_BRIDGE_TOKEN: 'segredo-bem-comprido-123456' };
+  const comFetch = async (chamar: (s: BaseLegalService) => Promise<unknown>) => {
+    const corpos: { timeout_ms: number; busca: boolean }[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (_url: unknown, init?: { body?: string }) => {
+      corpos.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ texto: 'ok', modelo: 'claude-x' }), { status: 200 });
+    }) as never;
+    try { return { r: await chamar(com(ponte)), corpos }; } finally { globalThis.fetch = original; }
+  };
+  it('o rascunho rápido passa o prazo curto à ponte (que encerra o processo nele) e devolve o modelo', async () => {
+    const { r, corpos } = await comFetch((s) => s.iaComModelo('p', 60_000));
+    expect(r).toEqual({ texto: 'ok', modelo: 'claude-x' });
+    expect(corpos[0]).toMatchObject({ busca: false, timeout_ms: 55_000 });
+  });
+  it('a pesquisa externa aceita o prazo de quem chama; ia() mantém o mínimo de 90 s de antes', async () => {
+    expect((await comFetch((s) => s.iaComBusca('p', 170_000))).corpos[0]).toMatchObject({ busca: true, timeout_ms: 165_000 });
+    expect((await comFetch((s) => s.ia('p', 30_000))).corpos[0]).toMatchObject({ timeout_ms: 85_000 });
   });
 });
