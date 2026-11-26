@@ -1,5 +1,5 @@
 import type { PrismaService } from '../../prisma/prisma.service';
-import { linhasDeImpactoDoCaso } from './ajustes';
+import { linhasDeImpactoDoCaso, precisaDeCodigos, type CasoParaAjuste } from './ajustes';
 import { EXCECAO_VIVA, TIPOS_EXCECAO, ehExcecao, fatiar, propostaAplicavel, type Json } from './constantes';
 
 type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
@@ -21,6 +21,14 @@ export async function mapaExcecoes(db: Pick<Tx, 'sanCaso'>, projetoId: string, c
     }
   }
   for (const e of lista) for (const i of e.itens) m.set(i, e.id);
+  return m;
+}
+
+/** Código dos itens dos casos que precisam dele para o mapeamento de ajustes (inativação vinda de Duplicidades: só os de `consolidar`). */
+export async function codigosParaAjustes(db: Pick<Tx, 'sanItem'>, casos: Pick<CasoParaAjuste, 'camada' | 'proposta' | 'itens'>[]): Promise<Map<string, string>> {
+  const ids = [...new Set(casos.filter(precisaDeCodigos).flatMap((c) => c.itens))];
+  const m = new Map<string, string>();
+  for (const lote of fatiar(ids, 2000)) for (const i of await db.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, codigo: true } })) m.set(i.id, i.codigo);
   return m;
 }
 
@@ -53,7 +61,8 @@ export async function regravarImpactosDosCasos(tx: Tx, projetoId: string, casoId
       const e = await semExcecoes(tx, c, mapas.get(c.camada));
       if (e.itens.length) efetivos.push(e);
     }
-    const linhas = efetivos.flatMap((c) => linhasDeImpactoDoCaso(c, dataBase, competenciaEntregue));
+    const codigos = await codigosParaAjustes(tx, efetivos);
+    const linhas = efetivos.flatMap((c) => linhasDeImpactoDoCaso(c, dataBase, competenciaEntregue, codigos));
     for (const l of fatiar(linhas, 1000)) await tx.sanImpactoSped.createMany({ data: l as never });
   }
 }

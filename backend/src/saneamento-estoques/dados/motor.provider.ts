@@ -11,6 +11,7 @@ import {
 } from '../fiscal';
 import { ROTULO_CENARIO, ROTULO_FINALIDADE, type AnalisadorCamada, type Finalidade, type Camada, type CasoProposto, type ContextoAnalise, type ItemTrabalho, type ResultadoCamada } from '../tipos';
 import { ajustesDosCasos } from './ajustes';
+import { codigosParaAjustes } from './impactos-casos';
 import type { EntradaPreparo, MotorPort } from './portas';
 
 /** Atividades (CNAE da trava ou id da lista fechada) → ids da lista fechada de `fiscal/atividades`. */
@@ -242,7 +243,8 @@ export class MotorSaneamento implements MotorPort {
         });
         const parametros = (await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { parametros: true } }))?.parametros as { competenciaEntregue?: unknown } | null;
         const competenciaEntregue = typeof parametros?.competenciaEntregue === 'string' ? parametros.competenciaEntregue : null;
-        return { analisador: new AnalisadorObrigacoes(ajustesDosCasos(casos, { dataBase: ctx.dataBase, competenciaEntregue })), contexto: ctx };
+        const codigos = await codigosParaAjustes(this.prisma, casos);
+        return { analisador: new AnalisadorObrigacoes(ajustesDosCasos(casos, { dataBase: ctx.dataBase, competenciaEntregue, codigos })), contexto: ctx };
       }
       default: throw new Error(`Camada sem análise: ${camada}`);
     }

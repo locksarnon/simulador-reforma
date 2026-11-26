@@ -61,6 +61,23 @@ export function emEscrituracaoEntregue(inicio: string, competenciaEntregue: stri
   return !!competenciaEntregue && /^\d{4}-\d{2}$/.test(competenciaEntregue) && inicio.slice(0, 7) <= competenciaEntregue;
 }
 
+/** Código de cada item (id → código): a inativação vinda de Duplicidades se refere aos códigos de `consolidar`. */
+export type CodigosDosItens = ReadonlyMap<string, string>;
+
+/** O caso precisa do código dos itens para saber quais são inativados (inativação vinda de Duplicidades)? */
+export const precisaDeCodigos = (c: Pick<CasoParaAjuste, 'camada' | 'proposta'>) => c.camada === 'DUPLICIDADE' && ((c.proposta ?? {}) as Mapa).decisao === 'PROPOR_INATIVACAO';
+
+/**
+ * Itens que o tipo de ajuste atinge de fato. INATIVOU vindo de Duplicidades: só os itens cujos códigos estão em `consolidar` (o código que
+ * fica não é inativado), como no mapa de unificações; item sem código conhecido (`codigos`) não entra. Nos demais casos (inclusive
+ * Qualidade sem movimentação), todos os itens do caso, já sem os de exceção.
+ */
+export function itensDoAjuste(c: Pick<CasoParaAjuste, 'camada' | 'itens' | 'proposta'>, tipo: TipoAjuste, codigos?: CodigosDosItens): string[] {
+  if (tipo !== 'INATIVOU' || !precisaDeCodigos(c)) return c.itens;
+  const saem = new Set(String(((c.proposta ?? {}) as Mapa).consolidar ?? '').split('|').map((x) => x.trim()).filter(Boolean));
+  return c.itens.filter((id) => { const cod = codigos?.get(id); return cod != null && saem.has(cod); });
+}
+
 /** Motivo da linha: rótulo do caso (nunca o código interno) e a justificativa. */
 const motivoDoCaso = (c: Pick<CasoParaAjuste, 'camada' | 'tipo' | 'justificativa'>) => `${rotuloDoCaso(c.camada, c.tipo)}: ${c.justificativa}`.slice(0, 500);
 
@@ -69,7 +86,7 @@ const motivoDoCaso = (c: Pick<CasoParaAjuste, 'camada' | 'tipo' | 'justificativa
  * camada (que vale mais) fica fora, por isso a lista deve trazer também os casos de exceção. Com a última competência entregue, o ajuste
  * cujo início (data-base) cai nela ou antes é marcado como impacto em escrituração já entregue.
  */
-export function ajustesDosCasos(todos: CasoParaAjuste[], opcoes: { dataBase?: string; competenciaEntregue?: string | null } = {}): AjusteSped[] {
+export function ajustesDosCasos(todos: CasoParaAjuste[], opcoes: { dataBase?: string; competenciaEntregue?: string | null; codigos?: CodigosDosItens } = {}): AjusteSped[] {
   const out: AjusteSped[] = [];
   const entregue = !!opcoes.dataBase && emEscrituracaoEntregue(opcoes.dataBase, opcoes.competenciaEntregue);
   for (const c of semItensDeExcecao(todos)) {
@@ -77,7 +94,7 @@ export function ajustesDosCasos(todos: CasoParaAjuste[], opcoes: { dataBase?: st
     const proposta = (c.proposta ?? {}) as Mapa;
     const atual = (c.atual ?? {}) as Mapa;
     for (const tipo of tiposDeAjusteDoCaso(c)) {
-      for (const itemId of c.itens) {
+      for (const itemId of itensDoAjuste(c, tipo, opcoes.codigos)) {
         out.push({
           tipo, itemId, valorOriginal: valor(atual, CAMPOS_DO_TIPO[tipo]), valorProposto: valor(proposta, CAMPOS_DO_TIPO[tipo]),
           motivo: motivoDoCaso(c), status: c.situacao === 'APROVADO' ? 'APROVADO' : 'PROPOSTO', ...(entregue ? { escrituracaoEntregue: true } : {}),
@@ -100,16 +117,18 @@ const TIPO_IMPACTO: Record<string, string> = {
  * Só casos PROPOSTO, RASCUNHO e APROVADO geram; os demais devolvem vazio. A ressalva do registro (ex.: C170 sem CST de IBS/CBS; 0221 só
  * para TIPO_ITEM 00 e conforme a UF) vai junto do "verificar" no motivo, para chegar ao Excel e ao PDF.
  */
-export function linhasDeImpactoDoCaso(c: CasoParaAjuste & { id: string; projeto_id: string }, dataBase: string, competenciaEntregue: string | null = null) {
+export function linhasDeImpactoDoCaso(c: CasoParaAjuste & { id: string; projeto_id: string }, dataBase: string, competenciaEntregue: string | null = null, codigos?: CodigosDosItens) {
   if (!['PROPOSTO', 'RASCUNHO', 'APROVADO'].includes(c.situacao)) return [];
   const proposta = (c.proposta ?? {}) as Mapa;
   const atual = (c.atual ?? {}) as Mapa;
   const out: Record<string, unknown>[] = [];
   for (const tipo of tiposDeAjusteDoCaso(c)) {
+    const itens = itensDoAjuste(c, tipo, codigos);
+    if (!itens.length) continue;
     const ajuste: Partial<AjusteSped> = {
-      itemId: c.itens[0], valorOriginal: valor(atual, CAMPOS_DO_TIPO[tipo]), valorProposto: valor(proposta, CAMPOS_DO_TIPO[tipo]),
+      itemId: itens[0], valorOriginal: valor(atual, CAMPOS_DO_TIPO[tipo]), valorProposto: valor(proposta, CAMPOS_DO_TIPO[tipo]),
       motivo: motivoDoCaso(c), inicio: dataBase,
-      evidencia: [{ rotulo: 'Itens afetados', valor: String(c.itens.length) }],
+      evidencia: [{ rotulo: 'Itens afetados', valor: String(itens.length) }],
       escrituracaoEntregue: emEscrituracaoEntregue(dataBase, competenciaEntregue),
     };
     for (const l of impactosDoAjuste(tipo, { dataBase }, ajuste)) {
@@ -117,7 +136,7 @@ export function linhasDeImpactoDoCaso(c: CasoParaAjuste & { id: string; projeto_
       out.push({
         projeto_id: c.projeto_id, caso_id: c.id, obrigacao: l.obrigacao, competencia: l.competencia, versao_leiaute: l.versaoLeiaute, registro: l.registro, campo: l.campo,
         valor_original: l.valorOriginal == null ? null : String(l.valorOriginal), valor_proposto: l.valorProposto == null ? null : String(l.valorProposto),
-        motivo: `${ROTULO_AJUSTE[tipo]}: ${l.verificar}${l.ressalva ? `. Ressalva: ${l.ressalva}` : ''}`.slice(0, 2000), evidencia: `Itens afetados: ${c.itens.length} · ${l.motivo}`.slice(0, 2000),
+        motivo: `${ROTULO_AJUSTE[tipo]}: ${l.verificar}${l.ressalva ? `. Ressalva: ${l.ressalva}` : ''}`.slice(0, 2000), evidencia: `Itens afetados: ${itens.length} ·${l.motivo}`.slice(0, 2000),
         inicio: new Date(`${l.inicio}T00:00:00.000Z`), avaliar_anteriores: l.avaliarAnteriores, responsavel: null, tipo_ajuste: TIPO_IMPACTO[l.tipo] ?? 'CADASTRAL_FUTURO',
       });
     }
