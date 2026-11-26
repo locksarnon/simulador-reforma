@@ -466,7 +466,7 @@ const G = {
 export const MODELOS: ModeloDiretrizes[] = [
   {
     id: 'modelo-fal-insumos-agro-crestani',
-    nome: 'Modelo FAL — Revenda de insumos agro (base Crestani)',
+    nome: 'Modelo FAL — Agropecuária: insumos, peças e uso e consumo (base Crestani)',
     descricao:
       'Regras por família para os grupos da Agropecuária Crestani: insumos regulados (defensivos, fertilizantes, sementes), peças e materiais de manutenção, ' +
       'combustíveis e lubrificantes, EPI, consumo e refeitório. Grupos genéricos (a reclassificar), serviços, imobilizado e terceiros ficam no padrão de todos os grupos.',

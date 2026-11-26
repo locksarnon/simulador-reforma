@@ -92,7 +92,7 @@ Arquivos e donos (cada agente só cria/edita o que é seu):
 - **Limites:** `backend/src/saneamento-estoques/diretrizes/conteudo/limites-oficiais.ts` — exporta `LIMITES_OFICIAIS: LinhaLimite[]`; tipo "LIMITE_CAMPO" no Cadastro de ERPs (`backend/src/erps/`).
 - **PDF da política:** `backend/src/saneamento-estoques/entregaveis/politica/*` — exporta `gerarPdfPolitica(dados: DadosPolitica): Promise<Buffer>` e o tipo `DadosPolitica`.
 
-`ModeloDiretrizes` (em `conteudo/biblioteca.ts`): `{ id, nome, descricao, atribuicoes: { aspecto, bibliotecaId, grupos: 'TODOS' | string[] }[] }` — ex.: "Modelo FAL — Revenda de insumos agro (base Crestani)".
+`ModeloDiretrizes` (em `conteudo/biblioteca.ts`): `{ id, nome, descricao, atribuicoes: { aspecto, bibliotecaId, grupos: 'TODOS' | string[] }[] }` — ex.: "Modelo FAL — Agropecuária: insumos, peças e uso e consumo (base Crestani)".
 
 Rotas (prefixo `/api/v1/saneamento-estoques`):
 - `GET projetos/:id/diretrizes` → `{ cabecalho: { vigencia, situacao, revisar, versao }, regras: (RegraProjeto & { conteudoEfetivo })[], grupos: { grupo, subgrupos, itens }[], gruposSemRegra: { aspecto, grupos }[], atualizacoesBiblioteca: { regraId, versaoNova }[] }`
