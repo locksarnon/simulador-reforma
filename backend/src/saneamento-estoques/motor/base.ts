@@ -23,3 +23,12 @@ export function montarResultado(camada: Camada, itens: ItemTrabalho[], casos: Ca
 
 /** Itens sem repetir id (a entrada pode, por engano, trazer o mesmo id duas vezes). */
 export const porId = (itens: ItemTrabalho[]): Map<string, ItemTrabalho> => new Map(itens.map((i) => [i.id, i]));
+
+/** Marca do "como é hoje" de um caso de conjunto quando o valor muda de item para item (a conferência de divergência vai item a item). */
+export const VARIA_POR_ITEM = 'varia por item';
+/** O valor comum a todos, ou VARIA_POR_ITEM quando diverge. */
+export function valorComum<T>(valores: T[]): T | null | typeof VARIA_POR_ITEM {
+  if (!valores.length) return null;
+  const p = JSON.stringify(valores[0] ?? null);
+  return valores.every((v) => JSON.stringify(v ?? null) === p) ? (valores[0] ?? null) : VARIA_POR_ITEM;
+}

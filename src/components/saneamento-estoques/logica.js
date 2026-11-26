@@ -247,9 +247,10 @@ export function acoesDoCaso(caso) {
 }
 
 /** Por que "Aprovar" fica desligado (o servidor recusa estes casos), ou null se pode aprovar. */
-export function razaoSemAprovar(caso, proposta) {
+export function razaoSemAprovar(caso, proposta, justificativa) {
   if (!caso) return null;
   const p = proposta ?? caso.proposta ?? {};
+  if (caso.tipo === "FINALIDADE_EXCECAO" && String(justificativa ?? caso.justificativa ?? "").trim().length < 5) return "Exceção exige motivo: escreva na justificativa por que estes itens têm finalidade diferente da do grupo.";
   if (caso.situacao === "AGUARDANDO_INFORMACAO" || String(caso.tipo || "").startsWith("AGUARDANDO")) return "O caso aguarda informação: não há o que aprovar. Reabra quando a informação chegar.";
   if (Object.keys(p).length === 0) return "Não há proposta: não há alteração para aprovar. Rejeite ou peça informação.";
   if (p.decisao === "SOLICITAR_INFORMACAO") return "A decisão proposta é solicitar informação ao cliente: use “Pedir informação” ou escolha outra decisão antes de aprovar.";

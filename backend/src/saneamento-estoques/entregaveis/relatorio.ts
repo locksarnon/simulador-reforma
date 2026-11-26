@@ -6,10 +6,13 @@ import type { DocumentoPdf, SecaoPdf } from '../../pdf/pdf.service';
 import type { DadosEntrega } from '../dados/portas';
 import type { Camada } from '../tipos';
 import {
-  CASO_PENDENTE, ROTULO_CAMADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, paraData, pct1, rotuloObrigacao, rotuloTipoAjuste, txt, type Modelo,
+  CASO_PENDENTE, ROTULO_CAMADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, paraData, origemDaFinalidade, pct1, rotuloDoCampo, rotuloObrigacao, rotuloTipoAjuste, textoSemEscrituracaoEntregue, txt,
+  type Modelo,
 } from './modelo';
 
 const n = comMilhar;
+/** Finalidade confirmada por decisão (do grupo, exceção ou do consultor); a só informada no cadastro não conta. */
+const finalidadeConfirmada = (m: Modelo, i: Modelo['itens'][number]) => !!i.finalidade && !origemDaFinalidade(m, i).startsWith('Informada no cadastro');
 const plural = (q: number, um: string, varios: string) => `${n(q)} ${q === 1 ? um : varios}`;
 const parte = (a: number, b: number) => (b > 0 ? pct1(a / b) : '0,0%');
 
@@ -40,7 +43,7 @@ function comentarioDaCamada(m: Modelo, camada: Camada): string | null {
   if (ajustados) partes.push(`${plural(ajustados, 'item teve', 'itens tiveram')} campo ajustado por decisão aprovada.`);
 
   if (camada === 'DUPLICIDADE' && m.vinculos.length) partes.push(`${plural(m.vinculos.length, 'vínculo de código antigo e novo registrado', 'vínculos de código antigo e novo registrados')}, com data e justificativa.`);
-  if (camada === 'GRUPOS_FINALIDADE') partes.push(`Finalidade confirmada em ${n(m.itens.filter((i) => i.finalidade).length)} de ${n(m.itens.length)} itens.`);
+  if (camada === 'GRUPOS_FINALIDADE') partes.push(`Finalidade confirmada em ${n(m.itens.filter((i) => finalidadeConfirmada(m, i)).length)} de ${n(m.itens.length)} itens.`);
   if (camada === 'NCM') partes.push(`NCM de 8 dígitos em ${n(m.itens.filter((i) => i.ncm.replace(/\D/g, '').length === 8).length)} de ${n(m.itens.length)} itens.`);
   if (camada === 'NOMES_UNIDADES') {
     const desc = m.itens.filter((i) => i.camposAlterados.includes('descricao')).length; const un = m.itens.filter((i) => i.camposAlterados.includes('unidade')).length;
@@ -66,7 +69,10 @@ function secaoImpactoSped(m: Modelo): SecaoPdf {
   const obrigacoes = (l: typeof m.impactos) => [...new Set(l.map((i) => rotuloObrigacao(i.obrigacao)))].join(', ') || '-';
   const s: SecaoPdf = { titulo: 'Impacto nas obrigações (SPED)', paragrafos: [], tabela: undefined };
   if (m.impactos.length === 0) {
-    s.paragrafos = ['Nenhuma linha de impacto nas obrigações foi registrada nesta versão. Os ajustes aprovados no cadastro não geraram registro a conferir no SPED ou na NF-e, ou a camada de obrigações ainda não foi executada.'];
+    s.paragrafos = [
+      'Nenhuma linha de impacto nas obrigações foi registrada nesta versão. Os ajustes aprovados no cadastro não geraram registro a conferir no SPED ou na NF-e, ou a camada de obrigações ainda não foi executada.',
+      `Escrituração já entregue: ${textoSemEscrituracaoEntregue(m)}.`,
+    ];
     return s;
   }
   const cad = porTipo.get('CADASTRAL_FUTURO') ?? []; const sal = porTipo.get('REGULARIZACAO_SALDO') ?? []; const ent = porTipo.get('ESCRITURACAO_ENTREGUE') ?? [];
@@ -75,7 +81,7 @@ function secaoImpactoSped(m: Modelo): SecaoPdf {
     `${plural(m.impactos.length, 'linha de impacto registrada', 'linhas de impacto registradas')}, classificadas em três grupos: ajuste cadastral futuro (vale a partir da data de início, sem mexer no que já foi escriturado), regularização de saldo (acerto de saldo, inventário ou correlação de códigos) e impacto em escrituração já entregue (período transmitido com o cadastro anterior).`,
     cad.length ? `Ajuste cadastral futuro: ${plural(cad.length, 'linha', 'linhas')} (${registros(cad)}). Atualizar o cadastro no ERP e nos arquivos das próximas competências.` : 'Ajuste cadastral futuro: nenhuma linha.',
     sal.length ? `Regularização de saldo: ${plural(sal.length, 'linha', 'linhas')} (${registros(sal)}). Conferir saldos, inventário e vínculo com documentos antes de aplicar.` : 'Regularização de saldo: nenhuma linha.',
-    ent.length ? `Escrituração já entregue: ${plural(ent.length, 'linha', 'linhas')} (${registros(ent)}). Avaliar se os períodos anteriores precisam de retificação; a retificação e a transmissão não fazem parte deste serviço e exigem análise e autorização próprias.` : 'Escrituração já entregue: nenhuma linha.',
+    ent.length ? `Escrituração já entregue: ${plural(ent.length, 'linha', 'linhas')} (${registros(ent)}). Avaliar se os períodos anteriores precisam de retificação; a retificação e a transmissão não fazem parte deste serviço e exigem análise e autorização próprias.` : `Escrituração já entregue: ${textoSemEscrituracaoEntregue(m)}.`,
   ];
   if (outros.length) s.paragrafos.push(`${plural(outros.length, 'linha sem tipo de ajuste reconhecido', 'linhas sem tipo de ajuste reconhecido')}: classificar antes de aplicar.`);
   const anteriores = m.impactos.filter((i) => i.avaliarAnteriores).length;
@@ -162,7 +168,7 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
       : ['Nenhuma alteração foi aplicada ao cadastro até esta versão.'],
     tabela: porCampo.size ? {
       cabecalho: ['Campo alterado', 'Alterações aprovadas'], larguras: [0.6, 0.4],
-      linhas: [...porCampo].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([c, q]) => [c, n(q)]),
+      linhas: [...porCampo].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([c, q]) => [rotuloDoCampo(c), n(q)]),
     } : undefined,
   });
 
@@ -183,7 +189,7 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   if (m.impactosExcluidos) itens.push(`${plural(m.impactosExcluidos, 'linha de impacto no SPED', 'linhas de impacto no SPED')} ligada${m.impactosExcluidos === 1 ? '' : 's'} a caso não aprovado: fora desta entrega.`);
   const incompletas = m.camadas.filter((c) => { const x = m.porCamada.get(c)!; return (x.porSituacao.PENDENTE ?? 0) > 0; });
   if (incompletas.length) itens.push(`Cobertura incompleta em: ${incompletas.map((c) => `${ROTULO_CAMADA[c]} (${parte(m.porCamada.get(c)!.total - (m.porCamada.get(c)!.porSituacao.PENDENTE ?? 0), totalItens)})`).join('; ')}.`);
-  const semFin = m.itens.filter((i) => !i.finalidade).length; const semNcm = m.itens.filter((i) => i.ncm.replace(/\D/g, '').length !== 8).length;
+  const semFin = m.itens.filter((i) => !finalidadeConfirmada(m, i)).length; const semNcm = m.itens.filter((i) => i.ncm.replace(/\D/g, '').length !== 8).length;
   if (semFin) itens.push(`${plural(semFin, 'item sem finalidade confirmada', 'itens sem finalidade confirmada')}: o enquadramento por cenário depende dela.`);
   if (semNcm) itens.push(`${plural(semNcm, 'item sem NCM de 8 dígitos', 'itens sem NCM de 8 dígitos')}: sem o NCM o enquadramento legal não é definido.`);
   const mod = obj(dados.projeto.modulos);

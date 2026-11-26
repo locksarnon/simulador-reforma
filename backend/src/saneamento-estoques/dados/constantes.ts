@@ -11,6 +11,36 @@ export type SituacaoCaso = (typeof SITUACOES_CASO)[number];
 /** Casos ainda abertos para decisão. */
 export const CASO_ABERTO: SituacaoCaso[] = ['PROPOSTO', 'RASCUNHO'];
 
+/**
+ * Tipos de exceção: valem mais que o caso de regra (de conjunto ou de um item) da mesma camada. O caso de regra não toca o item que tem
+ * exceção viva, e os impactos no SPED do caso de regra não contam esse item. FINALIDADE_EXCECAO = itens que fogem da finalidade do grupo.
+ */
+export const TIPOS_EXCECAO = ['EXCECAO_MANUAL', 'EXCECAO_ITEM', 'FINALIDADE_EXCECAO'];
+export const EXCECAO_VIVA = ['PROPOSTO', 'RASCUNHO', 'APROVADO', 'AGUARDANDO_INFORMACAO'];
+export const ehExcecao = (tipo: string) => TIPOS_EXCECAO.includes(tipo);
+
+/**
+ * Casos sem os itens que têm exceção viva na mesma camada (a exceção vale mais que a regra). Pura: recebe todos os casos que importam
+ * (os de exceção inclusive). Caso de regra que fica sem item sai da lista.
+ */
+export function semItensDeExcecao<T extends { camada: string; tipo: string; itens: string[]; situacao: string }>(casos: T[]): T[] {
+  const dono = new Map<string, Set<string>>();
+  for (const c of casos) {
+    if (!ehExcecao(c.tipo) || !EXCECAO_VIVA.includes(c.situacao)) continue;
+    const s = dono.get(c.camada) ?? dono.set(c.camada, new Set()).get(c.camada)!;
+    for (const i of c.itens) s.add(i);
+  }
+  if (!dono.size) return casos;
+  const out: T[] = [];
+  for (const c of casos) {
+    const ex = dono.get(c.camada);
+    if (ehExcecao(c.tipo) || !ex) { out.push(c); continue; }
+    const itens = c.itens.filter((i) => !ex.has(i));
+    if (itens.length) out.push(itens.length === c.itens.length ? c : { ...c, itens });
+  }
+  return out;
+}
+
 export const MODULOS_PADRAO = { conciliacao: false, blocosKG: false, arquivoErp: false };
 
 /** Camadas que dependem das atividades do cliente (reabrir atividades as marca "revisar"). */

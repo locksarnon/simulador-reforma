@@ -5,10 +5,12 @@ import { CAMADAS_DAS_ATIVIDADES, MODULOS_PADRAO, camadasAtivas, conflito, exigir
 
 const texto = (v: unknown, max: number) => { const t = String(v ?? '').trim(); return t ? t.slice(0, max) : null; };
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const COMPETENCIA = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export type EntradaConfiguracao = {
   versao?: number; erp?: string | null; erp_versao?: string | null; estabelecimentos?: string[]; responsavel?: string | null;
-  modulos?: Partial<typeof MODULOS_PADRAO>; parametros?: { corteMovimentacao?: string | null; motor?: Record<string, unknown> | null };
+  modulos?: Partial<typeof MODULOS_PADRAO>;
+  parametros?: { corteMovimentacao?: string | null; competenciaEntregue?: string | null; motor?: Record<string, unknown> | null };
 };
 
 /** Projeto do Saneamento de Estoques: configuração, atividades do cliente e a TRAVA (sem confirmação não há importação nem análise). */
@@ -91,9 +93,13 @@ export class SanProjetoService {
       const corte = e.parametros?.corteMovimentacao !== undefined ? e.parametros.corteMovimentacao : ((atualParam?.corteMovimentacao as string | null | undefined) ?? null);
       if (corte !== null && !ISO.test(corte)) throw new BadRequestException('O corte de movimentação deve ser uma data (aaaa-mm-dd).');
       if (e.parametros?.motor != null && (typeof e.parametros.motor !== 'object' || Array.isArray(e.parametros.motor))) throw new BadRequestException('Os parâmetros do motor devem ser um objeto.');
+      // Última competência de escrituração já entregue (aaaa-mm), informada pelo consultor: classifica o impacto no SPED.
+      const bruta = e.parametros?.competenciaEntregue !== undefined ? e.parametros.competenciaEntregue : ((atualParam?.competenciaEntregue as string | null | undefined) ?? null);
+      const competenciaEntregue = bruta === '' ? null : bruta;
+      if (competenciaEntregue !== null && !COMPETENCIA.test(String(competenciaEntregue))) throw new BadRequestException('A última competência de escrituração já entregue deve ser um mês (aaaa-mm).');
       // Mescla: o que não veio fica como estava (o `motor` só muda se vier).
       const motor = e.parametros?.motor !== undefined ? e.parametros.motor : atualParam?.motor;
-      dados.parametros = { ...(atualParam ?? {}), corteMovimentacao: corte, ...(motor ? { motor } : {}) };
+      dados.parametros = { ...(atualParam ?? {}), corteMovimentacao: corte, competenciaEntregue, ...(motor ? { motor } : {}) };
       if (!motor) delete (dados.parametros as Json).motor;
     }
     const atual = await this.prisma.sanProjeto.findUnique({ where: { id } });

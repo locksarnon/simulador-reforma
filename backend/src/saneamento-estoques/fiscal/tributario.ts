@@ -4,7 +4,8 @@
  */
 import { AnalisadorCamada, Camada, CasoProposto, ContextoAnalise, Evidencia, ItemTrabalho, ResultadoCamada, ROTULO_CENARIO, ROTULO_FINALIDADE, Cenario } from '../tipos';
 import { CatalogosFiscais } from './catalogos';
-import { Enquadramento, ExcecaoItem, agruparConjuntos, aplicarExcecao, enquadrar } from './enquadramento';
+import { Enquadramento, ExcecaoItem, NAO_CONFIRMADO, agruparConjuntos, aplicarExcecao, enquadrar } from './enquadramento';
+import { valorComum } from '../motor/base';
 import { cenariosAplicaveis } from './cenarios';
 
 /** Dependências entre camadas (plano, seção 4): o que passa a "revisar" quando a camada tem caso aprovado/alterado. */
@@ -82,7 +83,9 @@ export class AnalisadorTributario implements AnalisadorCamada {
           casos.push({
             ...base, itens: [it.id], tipo: 'EXCECAO_ITEM', problema: `Exceção ao conjunto ${ncm} × ${ROTULO_FINALIDADE[finalidade!]}`,
             evidencia: [{ rotulo: 'Motivo', valor: ex.motivo }, { rotulo: 'Herdado', valor: ref.cClassTrib ?? '—' }],
-            atual: { cClassTrib: informada(it) || null }, proposta: { cClassTrib: e.cClassTrib, cst: e.cst, origem: 'EXCECAO' },
+            // Enquadramento e artigo da classe da exceção (nunca os herdados do conjunto); a tabela da SVRS não traz artigo: "não confirmado".
+            atual: { cClassTrib: informada(it) || null },
+            proposta: { cClassTrib: e.cClassTrib, cst: e.cst, enquadramentoLegal: e.status === 'DEFINIDO' ? e.enquadramentoLegal : null, artigo: e.status === 'DEFINIDO' ? e.artigo ?? NAO_CONFIRMADO : null, origem: 'EXCECAO' },
             justificativa: e.status === 'DEFINIDO' ? ex.motivo : e.motivoSeAguardando ?? 'Exceção inválida', fundamento: e.enquadramentoLegal,
           });
         } else if (informada(it) && informada(it) === ref.cClassTrib) semProblema.push(it.id);
@@ -93,7 +96,8 @@ export class AnalisadorTributario implements AnalisadorCamada {
           ...base, itens: aberto.map((i) => i.id), tipo: 'ENQUADRAMENTO_CONJUNTO',
           problema: `Enquadrar ${aberto.length} item(ns) do conjunto ${ncm} × ${ROTULO_FINALIDADE[finalidade!]}`,
           evidencia,
-          atual: { cClassTrib: informada(aberto[0]) || null },
+          // Classe informada hoje: a comum a todos, ou "varia por item" (o primeiro item não fala pelo conjunto).
+          atual: { cClassTrib: valorComum(aberto.map((i) => informada(i) || null)) },
           proposta: { cClassTrib: ref.cClassTrib, cst: ref.cst, enquadramentoLegal: ref.enquadramentoLegal, artigo: ref.artigo, origem: 'HERDADO' },
           justificativa: ref.observacao || 'Enquadramento pela tabela da SVRS e pelos anexos da LC 214 carregados',
           fundamento: [ref.artigo, ref.vigencia?.inicio ? `cClassTrib ${ref.cClassTrib} vigente desde ${ref.vigencia.inicio}` : null].filter(Boolean).join(' · ') || null,

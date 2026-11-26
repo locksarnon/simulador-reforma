@@ -377,6 +377,11 @@ describe("revisão C: datas, proposta, parecer, lote e enquadramento", () => {
     expect(razaoSemAprovar(unidade, { ...unidade.proposta, fatorConversao: "0" })).toContain("fator");
     expect(razaoSemAprovar(unidade, { ...unidade.proposta, fatorConversao: "2,5" })).toBeNull();
     expect(razaoSemAprovar({ situacao: "PROPOSTO", proposta: { ncm: "1" } })).toBeNull();
+    // exceção à finalidade do grupo: sem motivo escrito não se aprova
+    const ex = { situacao: "PROPOSTO", tipo: "FINALIDADE_EXCECAO", proposta: { finalidade: "USO_CONSUMO" }, justificativa: "" };
+    expect(razaoSemAprovar(ex)).toContain("Exceção exige motivo");
+    expect(razaoSemAprovar(ex, ex.proposta, "abc")).toContain("Exceção exige motivo");
+    expect(razaoSemAprovar(ex, ex.proposta, "Luva usada no armazém")).toBeNull();
   });
   it("mapa de atividades: em que o CNAE vira, ou sem efeito; ausente não quebra", () => {
     const mapa = { mapeadas: [{ codigo: "4623-1/99", atividade: "COMERCIO", rotulo: "Comércio atacadista" }], semMapeamento: ["9999-9/99"] };

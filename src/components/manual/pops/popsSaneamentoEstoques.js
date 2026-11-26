@@ -43,6 +43,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       { acao: "Em Dados do projeto, preencha ERP, Versão do ERP e Responsável.", detalhe: "A Data-base aparece só para leitura: vem do projeto de consultoria." },
       { acao: "Em Estabelecimentos, escreva um por linha. Se o cliente tem um só, deixe vazio." },
       { acao: "Em Corte de movimentação, informe a data a partir da qual itens sem movimento saem do escopo, se for o caso." },
+      { acao: "Em Última competência de escrituração já entregue (SPED), informe o mês e o ano da última escrituração que o cliente já transmitiu.", detalhe: "O ajuste com início nessa competência ou antes aparece como “Impacto em escrituração já entregue”. Vazio, esse impacto sai como “não avaliado (competência entregue não informada)” no Excel e no relatório." },
       { acao: "Clique em Salvar configuração.", detalhe: "Aparece “Configuração salva.”" },
       { acao: "Em Atividades do cliente, confira a lista que veio do CNAE principal e dos secundários do CNPJ.", detalhe: "Desmarque a caixa Manter das que o cliente não exerce (a linha fica riscada, com o selo “excluída”). A coluna Origem diz se veio do CNPJ ou foi acrescentada à mão." },
       { acao: "Para incluir uma atividade que falta, preencha Código (CNAE ou outro) e Descrição e clique em Acrescentar." },
@@ -166,10 +167,13 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     atencao: [
       "A IA propõe e o consultor decide: o parecer nunca grava nada. Confira os argumentos e as fontes, e o texto da lei prevalece sobre qualquer sugestão.",
       "“Prática de mercado” é referência, não norma. Não use como fundamento legal.",
+      "Em Grupos e finalidade, o caso do grupo confirma a finalidade dos itens que seguem o grupo, inclusive a que veio informada pelo cliente na base (aprovar confirma). Os itens que a regra ou o cliente mandam para outra finalidade ficam num caso próprio de exceção, um por finalidade: para aprovar, escreva na Justificativa o motivo (obrigatório). O caso do grupo nunca muda a finalidade desses itens.",
+      "Um caso de regra, de conjunto ou de um item só, não altera o item que tem exceção própria, nem o item com caso individual em rascunho no mesmo campo: decida esse caso primeiro. Se o valor de um item mudou por outra decisão depois que o caso foi proposto, a aprovação avisa que a proposta ficou desatualizada, item a item, mesmo quando o “Atual” do conjunto diz “varia por item”.",
       "No lote, os casos de exceção ficam de fora e precisam ser decididos um a um. Também ficam de fora, com o motivo na prévia, os casos cuja decisão proposta é solicitar informação e os ids que não existem no projeto.",
       "Num caso de conjunto, aprovar aplica a proposta a cada item e grava o histórico item a item; o item com exceção própria não é alterado pelo conjunto.",
       "Se outra pessoa mudou o caso antes de você gravar, a tela avisa, recarrega o caso e mantém o seu texto. Confira antes de gravar de novo.",
-      "No Tratamento tributário, a proposta traz o enquadramento legal (texto da lei e artigo), cClassTrib e CST, com a etiqueta “herdado do conjunto” ou “exceção”.",
+      "No Tratamento tributário, a proposta traz o enquadramento legal (texto da lei e artigo), cClassTrib e CST, com a etiqueta “herdado do conjunto” ou “exceção”. Na exceção, o enquadramento é o da classe escolhida na tabela da SVRS e o artigo fica “não confirmado” (a tabela não traz o artigo); nada do conjunto é herdado.",
+      "Na aba Cenários tributários, a aquisição de matéria-prima, insumo ou embalagem aparece como “Aquisição (finalidade)” e é avaliada no cenário Compra para revenda; a de manutenção ou imobilizado, no cenário Uso e consumo. A observação diz isso.",
     ],
   },
   {
@@ -192,7 +196,8 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     resultado: "Você tem o checklist do que conferir em cada obrigação e o histórico dos códigos trocados.",
     atencao: [
       "A aba é só de leitura. A retificação e a transmissão de declarações não fazem parte deste serviço.",
-      "“Impacto em escrituração já entregue” pede avaliação própria dos períodos anteriores.",
+      "“Impacto em escrituração já entregue” pede avaliação própria dos períodos anteriores. Ele depende da Última competência de escrituração já entregue, informada na aba Configuração: mudar essa competência reclassifica as linhas. Sem ela, o Excel e o relatório dizem “não avaliado (competência entregue não informada)”.",
+      "As linhas contam só os itens a que o caso se aplica: o item com exceção própria não entra no caso do conjunto. O Motivo traz a ressalva do registro quando há (por exemplo, a EFD ICMS/IPI não tem CST de IBS/CBS; o 0221 vale só para mercadoria para revenda e conforme a UF; o 0205 só vale se a alteração não descaracterizar o item, senão é item novo com código novo).",
       "Original e Proposto ficam em branco quando o registro não guarda aquele valor (por exemplo, o C170 não tem NCM: só liga o item ao 0200). Num caso de obrigação que reúne itens com valores diferentes, o valor aparece como “varia por item; ver a aba Impactos no SPED”.",
       "Os filtros e a ordenação da tabela valem para as linhas já carregadas: carregue mais linhas para filtrar sobre elas.",
       "Registros e campos do checklist conferidos em 26/11/2026 no Guia Prático da EFD ICMS/IPI 3.2.2 (leiaute 020, válido em 2026), no Guia Prático da EFD-Contribuições 1.35 e na NT 2025.002-RTC v1.53 da NF-e. A coluna Leiaute traz 020 nas linhas da EFD ICMS/IPI com competência em 2026; nas demais obrigações e anos fica “não confirmado”, porque a versão vale por competência e ainda não foi conferida.",

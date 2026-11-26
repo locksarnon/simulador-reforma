@@ -62,13 +62,16 @@ const R = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: 
 /** Registro em que o valor do ajuste não é o conteúdo dos campos listados (ver `semValor`). */
 const S = (obrigacao: Obrigacao, registro: string, campos: string[], verificar: string, conferido: boolean, ressalva?: string): RegistroChecklist => ({ ...R(obrigacao, registro, campos, verificar, conferido, ressalva), semValor: true });
 
+/** Guia Prático da EFD ICMS/IPI 3.2.2, registro 0205 (conferido em 26/11/2026, docs/sped-conferencia-2026-11-26.md). */
+const RESSALVA_0205 = 'O 0205 só vale se a alteração não descaracterizar o item; se descaracterizar, é item novo, com código novo (Guia Prático da EFD ICMS/IPI 3.2.2, registro 0205)';
+
 export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
   MUDOU_CODIGO_DESCRICAO: {
     rotulo: ROTULO_AJUSTE.MUDOU_CODIGO_DESCRICAO, tipoPadrao: 'CADASTRAL_FUTURO', avaliarAnteriores: false,
     motivoAvaliar: 'Os períodos já escriturados usaram o código e a descrição anteriores; o histórico do item (0205) preserva o vínculo',
     registros: [
       R('EFD_ICMS_IPI', '0200', ['COD_ITEM', 'DESCR_ITEM'], 'Item com o novo código/descrição; o campo 05 COD_ANT_ITEM não é preenchido no 0200 (o código anterior vai no 0205)', true),
-      R('EFD_ICMS_IPI', '0205', ['DESCR_ANT_ITEM', 'DT_INI', 'DT_FIM', 'COD_ANT_ITEM'], 'Histórico da alteração (descrição ou código anterior) com DT_INI e DT_FIM; campos 02 e 05 mutuamente excludentes, um registro por alteração, sem sobreposição de períodos', true),
+      R('EFD_ICMS_IPI', '0205', ['DESCR_ANT_ITEM', 'DT_INI', 'DT_FIM', 'COD_ANT_ITEM'], 'Histórico da alteração (descrição ou código anterior) com DT_INI e DT_FIM; campos 02 e 05 mutuamente excludentes, um registro por alteração, sem sobreposição de períodos', true, RESSALVA_0205),
       R('EFD_CONTRIBUICOES', '0200', ['COD_ITEM', 'DESCR_ITEM'], 'Mesmo cadastro na escrituração de PIS/Cofins; o código anterior vai no 0205', true),
       R('EFD_CONTRIBUICOES', '0205', ['DESCR_ANT_ITEM', 'DT_INI', 'DT_FIM', 'COD_ANT_ITEM'], 'Histórico da alteração', true),
     ],
@@ -90,7 +93,7 @@ export const CHECKLIST: Record<TipoAjuste, LinhaChecklist> = {
     motivoAvaliar: 'O saldo do código inativado precisa migrar para o código mantido, e os documentos antigos seguem com o código anterior',
     registros: [
       R('EFD_ICMS_IPI', '0200', ['COD_ITEM'], 'Código mantido; o código anterior vai no 0205 (não reutilizar código já atribuído a outro item)', true),
-      R('EFD_ICMS_IPI', '0205', ['COD_ANT_ITEM', 'DT_INI', 'DT_FIM'], 'Vínculo do código antigo ao novo', true),
+      R('EFD_ICMS_IPI', '0205', ['COD_ANT_ITEM', 'DT_INI', 'DT_FIM'], 'Vínculo do código antigo ao novo', true, RESSALVA_0205),
       R('EFD_ICMS_IPI', '0221', ['COD_ITEM_ATOMICO', 'QTD_CONTIDA'], 'Correlação de itens', true, 'Correlação entre códigos de itens comercializados e o item atômico (Guia Prático 3.2.2): só para TIPO_ITEM 00 (revenda); obrigatoriedade e forma definidas pela UF do declarante. Para consolidação simples de código, o registro é o 0205'),
       R('EFD_ICMS_IPI', 'H010', ['COD_ITEM', 'UNID', 'QTD', 'VL_UNIT', 'VL_ITEM'], 'Inventário sem código inativado e com o saldo consolidado; o código do item no inventário é o utilizado no mês inventariado', true),
       R('EFD_ICMS_IPI', 'C170', ['COD_ITEM'], 'Vínculo com os documentos do período', true),

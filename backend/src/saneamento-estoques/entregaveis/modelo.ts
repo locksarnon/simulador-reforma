@@ -4,13 +4,12 @@
  */
 import { CAMADAS, ROTULO_CENARIO, ROTULO_FINALIDADE, type Camada } from '../tipos';
 import type { DadosEntrega } from '../dados/portas';
+import { ROTULO_CAMADA, rotuloDoCampo, rotuloDoCaso, rotuloDoValor, rotuloTipoCaso } from '../rotulos';
 
 type Json = Record<string, unknown>;
+const NAO_CONFIRMADO = 'não confirmado';
 
-export const ROTULO_CAMADA: Record<Camada, string> = {
-  IDENTIFICACAO: 'Identificação', QUALIDADE: 'Qualidade', DUPLICIDADE: 'Duplicidades', GRUPOS_FINALIDADE: 'Grupos e finalidade',
-  NOMES_UNIDADES: 'Nomes e unidades', NCM: 'Classificação (NCM)', TRIBUTARIO: 'Tratamento tributário', ESTOQUE: 'Estoque', OBRIGACOES: 'Impacto nas obrigações',
-};
+export { ROTULO_CAMADA, rotuloDoCampo, rotuloDoCaso, rotuloDoValor, rotuloTipoCaso };
 export const ROTULO_SITUACAO: Record<string, string> = {
   PENDENTE: 'Pendente', SEM_PROBLEMA: 'Sem problema', PROPOSTO: 'Proposto', APROVADO: 'Aprovado', AGUARDANDO_INFORMACAO: 'Aguardando informação',
 };
@@ -41,9 +40,9 @@ export function paraData(v: unknown): Date | null {
   return Number.isNaN(+d) ? null : d;
 }
 
-/** Resumo "campo: valor; campo: valor" de um objeto (atual/proposta do caso). */
+/** Resumo "campo: valor; campo: valor" de um objeto (atual/proposta do caso), com rótulos (nunca o nome interno do campo). */
 export function resumoCampos(o: unknown): string {
-  return Object.entries(obj(o)).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k}: ${txt(v)}`).join('; ');
+  return Object.entries(obj(o)).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${rotuloDoCampo(k)}: ${typeof v === 'string' ? rotuloDoValor(v) : txt(v)}`).join('; ');
 }
 
 export const comMilhar = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -241,7 +240,9 @@ export type LinhaCenario = {
   cenario: string; enquadramentoLegal: string; artigo: string; cst: string; cClassTrib: string; origem: string; observacao: string; situacao: string; marca: string;
 };
 
-const CREDITO: Record<string, string> = { EM_REGRA: 'Crédito previsto', VERIFICAR: 'A verificar', NAO_SE_APLICA: 'Sem crédito (operação de saída)' };
+// "Em regra" não afirma crédito: a descrição traz as condições do art. 47 (débito extinto, documento idôneo) e a classe de alíquota zero
+// já chega como "a verificar".
+const CREDITO: Record<string, string> = { EM_REGRA: 'Crédito em regra, nas condições da lei', VERIFICAR: 'A verificar', NAO_SE_APLICA: 'Sem crédito (operação de saída)' };
 function textoCredito(caso: CasoN | undefined, rotulo: string): string {
   const e = caso?.evidencia.find((x) => x.rotulo === rotulo);
   if (!e) return '';
@@ -283,7 +284,12 @@ export function linhasDeCenario(m: Modelo, it: ItemN): LinhaCenario[] {
   const situacaoCel = ROTULO_SITUACAO[cel?.situacao ?? 'PENDENTE'] ?? 'Pendente';
   if (decidida && informada) {
     const p = obj(aprovado?.proposta);
-    base = {
+    // Exceção aprovada: enquadramento e artigo são os da exceção (nunca os herdados do conjunto que ficaram no cadastro); sem eles, "não confirmado".
+    const daExcecao = !!aprovado && ehExcecao(aprovado);
+    base = daExcecao ? {
+      enquadramentoLegal: txt(p.enquadramentoLegal) || NAO_CONFIRMADO, artigo: txt(p.artigo) || NAO_CONFIRMADO, cst: txt(p.cst ?? it.campos.cst), cClassTrib: informada,
+      origem: ORIGEM.EXCECAO, situacao: situacaoCel, marca: '',
+    } : {
       enquadramentoLegal: txt(it.campos.enquadramentoLegal ?? p.enquadramentoLegal), artigo: txt(it.campos.artigo ?? p.artigo), cst: txt(it.campos.cst ?? p.cst), cClassTrib: informada,
       origem: ORIGEM[txt(it.campos.origem ?? p.origem)] ?? 'Informado no cadastro', situacao: situacaoCel, marca: '',
     };
@@ -291,7 +297,8 @@ export function linhasDeCenario(m: Modelo, it: ItemN): LinhaCenario[] {
     if (aprovado && ehExcecao(aprovado)) obsBase = aprovado.justificativa;
   } else if (aberto) {
     const p = aberto.proposta;
-    base = { enquadramentoLegal: txt(p.enquadramentoLegal), artigo: txt(p.artigo), cst: txt(p.cst), cClassTrib: txt(p.cClassTrib), origem: ORIGEM[txt(p.origem)] ?? '', situacao: 'Proposto', marca: MARCA_PROPOSTA };
+    const naoConf = ehExcecao(aberto) ? NAO_CONFIRMADO : '';
+    base = { enquadramentoLegal: txt(p.enquadramentoLegal) || naoConf, artigo: txt(p.artigo) || naoConf, cst: txt(p.cst), cClassTrib: txt(p.cClassTrib), origem: ORIGEM[txt(p.origem)] ?? '', situacao: 'Proposto', marca: MARCA_PROPOSTA };
     fonteCredito = ehConjunto(aberto) ? aberto : conjunto;
     if (ehExcecao(aberto)) obsBase = aberto.justificativa;
   } else if (aguardando) {
@@ -310,10 +317,68 @@ export function linhasDeCenario(m: Modelo, it: ItemN): LinhaCenario[] {
     const motivo = !it.finalidade ? 'Finalidade não confirmada: o cenário depende dela' : 'Material de terceiros: o tratamento depende da operação e não foi conferido nesta base';
     return [{ cenario: '—', enquadramentoLegal: '', artigo: '', cst: '', cClassTrib: '', origem: '', situacao: base.situacao, marca: '', observacao: [motivo, obsBase].filter(Boolean).join(' · ') }];
   }
-  return cenarios.map((c) => ({
-    ...base, cenario: ROTULO_CENARIO[c as keyof typeof ROTULO_CENARIO],
-    observacao: [textoCredito(fonteCredito, ROTULO_CENARIO[c as keyof typeof ROTULO_CENARIO]), obsBase].filter(Boolean).join(' · '),
-  }));
+  return cenarios.map((c) => {
+    const rotuloBase = ROTULO_CENARIO[c as keyof typeof ROTULO_CENARIO];
+    const nota = notaDoCenario(c, it.finalidade!);
+    return {
+      ...base, cenario: rotuloDoCenario(c, it.finalidade!),
+      observacao: [nota, textoCredito(fonteCredito, rotuloBase), obsBase].filter(Boolean).join(' · '),
+    };
+  });
+}
+
+/**
+ * Os 4 cenários do plano são fixos: a aquisição de matéria-prima, insumo ou embalagem usa o cenário "Compra para revenda" e a de
+ * manutenção ou imobilizado usa o de "Uso e consumo" (mesma regra de crédito). O rótulo diz a finalidade real e a observação explica.
+ */
+export function rotuloDoCenario(cenario: string, finalidade: string): string {
+  const base = ROTULO_CENARIO[cenario as keyof typeof ROTULO_CENARIO] ?? cenario;
+  const fin = ROTULO_FINALIDADE[finalidade as keyof typeof ROTULO_FINALIDADE];
+  if ((cenario === 'COMPRA_REVENDA' && finalidade !== 'REVENDA') || (cenario === 'USO_CONSUMO' && finalidade !== 'USO_CONSUMO')) return `Aquisição (${(fin ?? finalidade).toLowerCase()})`;
+  return base;
+}
+function notaDoCenario(cenario: string, finalidade: string): string {
+  const fin = (ROTULO_FINALIDADE[finalidade as keyof typeof ROTULO_FINALIDADE] ?? finalidade).toLowerCase();
+  if (cenario === 'COMPRA_REVENDA' && finalidade !== 'REVENDA') return `Aquisição de ${fin} avaliada no cenário "Compra para revenda" (mesma regra de crédito)`;
+  if (cenario === 'USO_CONSUMO' && finalidade !== 'USO_CONSUMO') return `Aquisição de ${fin} avaliada no cenário "Uso e consumo"`;
+  return '';
+}
+
+/**
+ * Origem da finalidade do item, para o Excel: herdada do grupo (decisão do grupo aplicou a finalidade), exceção ao grupo (com o motivo),
+ * informada pelo cliente e confirmada no grupo (a decisão do grupo confirmou sem mudar), ou ainda não confirmada.
+ */
+const indicesFinalidade = new WeakMap<Modelo, { porItem: Map<string, CasoN[]>; aplicadas: Set<string> }>();
+export function origemDaFinalidade(m: Modelo, it: ItemN): string {
+  if (!it.finalidade) return '';
+  let idx = indicesFinalidade.get(m);
+  if (!idx) {
+    const porItem = new Map<string, CasoN[]>();
+    for (const c of m.casos) {
+      if (c.camada !== 'GRUPOS_FINALIDADE' || c.situacao !== 'APROVADO' || !txt(c.proposta.finalidade)) continue;
+      for (const id of c.itens) (porItem.get(id) ?? porItem.set(id, []).get(id)!).push(c);
+    }
+    const aplicadas = new Set(m.decisoes.filter((d) => d.campo === 'finalidade' && d.tipo === 'aprovar' && d.casoId).map((d) => `${d.casoId}\u0001${d.itemId}`));
+    idx = { porItem, aplicadas };
+    indicesFinalidade.set(m, idx);
+  }
+  const caso = (idx.porItem.get(it.id) ?? []).filter((c) => txt(c.proposta.finalidade) === it.finalidade).sort((a, b) => +(b.decididoEm ?? 0) - +(a.decididoEm ?? 0))[0];
+  if (!caso) return 'Informada no cadastro, não confirmada';
+  if (caso.tipo === 'FINALIDADE_EXCECAO') return `Exceção ao grupo: ${caso.justificativa || NAO_CONFIRMADO}`;
+  if (caso.tipo !== 'FINALIDADE_GRUPO') return 'Decisão do consultor';
+  return idx.aplicadas.has(`${caso.id}\u0001${it.id}`) ? 'Herdada do grupo' : 'Informada pelo cliente, confirmada no grupo';
+}
+
+/** Última competência de escrituração já entregue informada na configuração (aaaa-mm), ou null. */
+export function competenciaEntregue(m: Modelo): string | null {
+  const v = obj(m.dados.projeto.parametros).competenciaEntregue;
+  return typeof v === 'string' && /^\d{4}-\d{2}$/.test(v) ? v : null;
+}
+export const competenciaBr = (c: string) => `${c.slice(5, 7)}/${c.slice(0, 4)}`;
+/** Texto do grupo "escrituração já entregue" quando não há linha: sem a competência informada, não foi avaliado. */
+export function textoSemEscrituracaoEntregue(m: Modelo): string {
+  const c = competenciaEntregue(m);
+  return c ? `nenhuma linha (última competência entregue informada: ${competenciaBr(c)})` : 'não avaliado (competência entregue não informada)';
 }
 
 /** Propostas em aberto que tocam o item (só na exportação para revisão). */

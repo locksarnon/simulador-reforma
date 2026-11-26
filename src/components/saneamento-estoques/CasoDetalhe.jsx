@@ -135,7 +135,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou })
     });
     if (ok) reabrir.mutate();
   };
-  const bloqueioAprovar = caso ? razaoSemAprovar(caso, edicao?.proposta) : null;
+  const bloqueioAprovar = caso ? razaoSemAprovar(caso, edicao?.proposta, edicao?.justificativa) : null;
 
   return (
     <Carregar consulta={consulta} textoErro="Não foi possível carregar o caso.">

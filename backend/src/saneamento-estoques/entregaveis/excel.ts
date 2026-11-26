@@ -8,8 +8,9 @@ import { PassThrough } from 'node:stream';
 import type { DadosEntrega } from '../dados/portas';
 import { ROTULO_FINALIDADE, type Camada } from '../tipos';
 import {
-  CASO_PENDENTE, MARCA_PROPOSTA, ROTULO_CAMADA, ROTULO_SITUACAO_CASO, celula, codigosDosItens, comMilhar, construirModelo, dataBr, linhasDeCenario,
-  nomeCliente, obj, paraData, projetoTexto, propostasEmAberto, resumoCampos, rotuloObrigacao, rotuloSituacaoCelula, rotuloTipoAjuste, txt, type Modelo,
+  CASO_PENDENTE, MARCA_PROPOSTA, ROTULO_CAMADA, ROTULO_SITUACAO_CASO, celula, codigosDosItens, comMilhar, competenciaBr, competenciaEntregue, construirModelo, dataBr,
+  linhasDeCenario, nomeCliente, obj, origemDaFinalidade, paraData, projetoTexto, propostasEmAberto, resumoCampos, rotuloDoCaso, rotuloObrigacao, rotuloSituacaoCelula,
+  rotuloDoCampo, rotuloDoValor, rotuloTipoAjuste, rotuloTipoCaso, textoSemEscrituracaoEntregue, txt, type Modelo,
 } from './modelo';
 
 type Valor = string | number | Date | null | undefined;
@@ -62,6 +63,7 @@ function criarAba(wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Co
   return aba;
 }
 
+const valorLegivel = (v: unknown) => (typeof v === 'string' ? rotuloDoValor(v) : txt(v));
 const sn = (b: boolean | null) => (b === null ? '' : b ? 'Sim' : 'Não');
 const ESTAB = (e: string) => e;
 
@@ -137,6 +139,10 @@ function linhasResumo(m: Modelo, dados: DadosEntrega): LinhaResumo[] {
     par('Linhas de impacto no SPED excluídas (caso não aprovado)', m.impactosExcluidos);
   }
   par('Impactos no SPED registrados', m.impactos.length);
+  const comp = competenciaEntregue(m);
+  par('Última competência de escrituração já entregue', comp ? competenciaBr(comp) : 'não informada');
+  const entregue = m.impactos.filter((i) => i.tipo === 'ESCRITURACAO_ENTREGUE' || i.tipo === 'ESCRITURACAO_JA_ENTREGUE').length;
+  par('Impacto em escrituração já entregue', entregue ? `${entregue} linha(s)` : textoSemEscrituracaoEntregue(m));
   par('Vínculos de código (de/para) registrados', m.vinculos.length);
   par('Alterações registradas no histórico', m.decisoes.length);
   L.push({ k: 'vazio', v: [] });
@@ -175,7 +181,7 @@ function escreverResumo(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo, dados
 function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
   const fixas: Col[] = [
     { cab: 'Código', larg: 16, tipo: 'codigo' }, { cab: 'Estabelecimento', larg: 14, tipo: 'codigo' }, { cab: 'Descrição original', larg: 44 }, { cab: 'Descrição saneada', larg: 44 },
-    { cab: 'Unidade', larg: 9 }, { cab: 'NCM', larg: 12, tipo: 'codigo' }, { cab: 'Grupo', larg: 24 }, { cab: 'Finalidade confirmada', larg: 22 }, { cab: 'Também usado como', larg: 26 },
+    { cab: 'Unidade', larg: 9 }, { cab: 'NCM', larg: 12, tipo: 'codigo' }, { cab: 'Grupo', larg: 24 }, { cab: 'Finalidade', larg: 22 }, { cab: 'Origem da finalidade', larg: 34 }, { cab: 'Também usado como', larg: 26 },
     { cab: 'Ativo', larg: 7 }, { cab: 'Campos alterados', larg: 22 },
   ];
   const camadas = m.camadas.map((c) => ({ cab: ROTULO_CAMADA[c], larg: 17 }));
@@ -190,7 +196,7 @@ function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
     const revisar = m.camadas.filter((c, i) => cel[i]?.revisar).map((c) => ROTULO_CAMADA[c]).join(', ');
     const temProposta = cel.some((c) => c?.situacao === 'PROPOSTO');
     const linha: Valor[] = [
-      it.codigo, ESTAB(it.estab), it.descricaoOriginal, it.descricao, it.unidade, it.ncm, it.grupo, rotuloFin(it.finalidade), it.tambem.join(', '), sn(it.ativo), it.camposAlterados.join(', '),
+      it.codigo, ESTAB(it.estab), it.descricaoOriginal, it.descricao, it.unidade, it.ncm, it.grupo, rotuloFin(it.finalidade), origemDaFinalidade(m, it), it.tambem.join(', '), sn(it.ativo), it.camposAlterados.map(rotuloDoCampo).join(', '),
       ...cel.map(rotuloSituacaoCelula), revisar,
     ];
     if (!m.liberada) linha.push(temProposta ? MARCA_PROPOSTA : '', (propostas.get(it.id) ?? []).join(' | '));
@@ -223,7 +229,7 @@ function abaDePara(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
     if (m.liberada && CASO_PENDENTE.includes(c.situacao)) continue;
     const proposta = obj(c.proposta);
     const aberto = CASO_PENDENTE.includes(c.situacao);
-    const decisao = txt(proposta.decisao) || c.tipo;
+    const decisao = proposta.decisao ? rotuloDoValor(txt(proposta.decisao)) : rotuloTipoCaso(c.tipo);
     const linha: Valor[] = [
       'Duplicidade / equivalência', txt(proposta.consolidar), txt(proposta.manter), codigosDosItens(m, c.itens, 8), c.itens.length, [decisao, proposta.fatorConversao ? `fator ${txt(proposta.fatorConversao)}` : ''].filter(Boolean).join(' · '),
       ROTULO_SITUACAO_CASO[c.situacao] ?? c.situacao, null, hora(c.decididoEm), [c.justificativa, c.motivo].filter(Boolean).join(' · '), c.fundamento, c.decididoPor || c.responsavel,
@@ -268,7 +274,7 @@ function abaImpactos(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
     const aberto = !!caso && CASO_PENDENTE.includes(caso.situacao);
     const linha: Valor[] = [
       rotuloObrigacao(i.obrigacao), i.competencia, i.leiaute || 'não confirmado', i.registro, i.campo, i.valorOriginal, i.valorProposto, i.motivo, i.evidencia, dia(i.inicio),
-      i.avaliarAnteriores ? 'Sim' : 'Não', i.responsavel, rotuloTipoAjuste(i.tipo), caso ? `${ROTULO_CAMADA[caso.camada as Camada] ?? caso.camada} · ${caso.tipo}` : '',
+      i.avaliarAnteriores ? 'Sim' : 'Não', i.responsavel, rotuloTipoAjuste(i.tipo), caso ? rotuloDoCaso(caso.camada, caso.tipo) : '',
     ];
     if (!m.liberada) linha.push(aberto ? MARCA_PROPOSTA : '');
     aba.add(linha, !m.liberada && aberto);
@@ -286,7 +292,7 @@ function abaPendencias(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void 
   for (const c of m.casos) {
     if (!CASO_PENDENTE.includes(c.situacao)) continue;
     aba.add([
-      'Pendência', ROTULO_CAMADA[c.camada as Camada] ?? c.camada, c.tipo, ROTULO_SITUACAO_CASO[c.situacao] ?? c.situacao, codigosDosItens(m, c.itens, 6), '', c.itens.length, '',
+      'Pendência', ROTULO_CAMADA[c.camada as Camada] ?? c.camada, rotuloTipoCaso(c.tipo), ROTULO_SITUACAO_CASO[c.situacao] ?? c.situacao, codigosDosItens(m, c.itens, 6), '', c.itens.length, '',
       resumoCampos(c.atual), resumoCampos(c.proposta), [c.problema, c.fundamento].filter(Boolean).join(' · '), c.motivo || c.justificativa, c.responsavel, hora(c.criadoEm), c.id,
     ], !m.liberada && c.situacao !== 'AGUARDANDO_INFORMACAO');
   }
@@ -295,8 +301,8 @@ function abaPendencias(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void 
     const it = m.porId.get(d.itemId);
     const caso = d.casoId ? m.casoPorId.get(d.casoId) : undefined;
     aba.add([
-      'Histórico', caso ? ROTULO_CAMADA[caso.camada as Camada] ?? caso.camada : '', caso?.tipo ?? '', rotuloTipo[d.tipo] ?? d.tipo, it?.codigo ?? d.itemId, it?.estab ?? '', null, d.campo,
-      txt(d.antes), txt(d.depois), d.fundamento, '', d.usuario, hora(d.quando), d.casoId ?? '',
+      'Histórico', caso ? ROTULO_CAMADA[caso.camada as Camada] ?? caso.camada : '', caso ? rotuloTipoCaso(caso.tipo) : '', rotuloTipo[d.tipo] ?? d.tipo, it?.codigo ?? d.itemId, it?.estab ?? '', null, d.campo.startsWith('caso:') ? 'Aprovação do caso' : rotuloDoCampo(d.campo),
+      valorLegivel(d.antes), valorLegivel(d.depois), d.fundamento, '', d.usuario, hora(d.quando), d.casoId ?? '',
     ]);
   }
   aba.fim();

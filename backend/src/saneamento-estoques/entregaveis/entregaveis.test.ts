@@ -41,15 +41,16 @@ describe('Excel: 6 abas', () => {
   it('cadastro: códigos e NCM como texto (zeros preservados), original × saneada, finalidade, situação por camada', async () => {
     const wb = await abrir(await svc().gerarExcel(dadosBase(true)));
     const ws = wb.getWorksheet('Cadastro saneado')!;
-    expect(cabecalhos(ws).slice(0, 11)).toEqual(['Código', 'Estabelecimento', 'Descrição original', 'Descrição saneada', 'Unidade', 'NCM', 'Grupo', 'Finalidade confirmada', 'Também usado como', 'Ativo', 'Campos alterados']);
+    expect(cabecalhos(ws).slice(0, 11)).toEqual(['Código', 'Estabelecimento', 'Descrição original', 'Descrição saneada', 'Unidade', 'NCM', 'Grupo', 'Finalidade', 'Origem da finalidade', 'Também usado como', 'Ativo']);
     expect(valores(ws, 'Código')).toEqual(['00123', '000456', '0789']);
     expect(ws.getRow(2).getCell(1).type).toBe(ExcelJS.ValueType.String);
     expect(ws.getRow(2).getCell(1).numFmt).toBe('@');
     expect(ws.getRow(2).getCell(coluna(ws, 'NCM')).numFmt).toBe('@');
     expect(valores(ws, 'Descrição original')[0]).toBe('ADUBO NPK 04148 SC50');
     expect(valores(ws, 'Descrição saneada')[0]).toBe('ADUBO NPK 04-14-08 SC 50KG');
-    expect(valores(ws, 'Campos alterados')[0]).toBe('descricao, cClassTrib');
-    expect(valores(ws, 'Finalidade confirmada')).toEqual(['Insumo de produção', 'Revenda', null]);
+    // Material do cliente: rótulos, nunca o nome interno do campo.
+    expect(valores(ws, 'Campos alterados')[0]).toBe('Descrição, cClassTrib');
+    expect(valores(ws, 'Finalidade')).toEqual(['Insumo de produção', 'Revenda', null]);
     expect(valores(ws, 'Também usado como')[1]).toBe('Matéria-prima');
     expect(valores(ws, 'Tratamento tributário')).toEqual(['Aprovado', 'Proposto (revisar)', 'Pendente']);
     expect(valores(ws, 'Camadas a revisar')[1]).toBe('Tratamento tributário');
@@ -63,13 +64,15 @@ describe('Excel: 6 abas', () => {
     expect(cabecalhos(ws).slice(0, 13)).toEqual(['Código', 'Estabelecimento', 'Descrição saneada', 'NCM', 'Finalidade', 'Cenário', 'Enquadramento legal (texto da lei)', 'Artigo / anexo', 'CST', 'cClassTrib', 'Origem', 'Situação', 'Observação']);
     const por = (cod: string) => { const r: ExcelJS.Row[] = []; ws.eachRow((row, i) => { if (i > 1 && row.getCell(1).value === cod) r.push(row); }); return r; };
     const i1 = por('00123');
-    expect(i1.map((r) => r.getCell(6).value)).toEqual(['Compra para revenda', 'Devolução']);
+    // Insumo de produção: o rótulo diz a finalidade real; o cenário fixo do plano (compra) vai na observação.
+    expect(i1.map((r) => r.getCell(6).value)).toEqual(['Aquisição (insumo de produção)', 'Devolução']);
+    expect(i1[0].getCell(13).value).toContain('Aquisição de insumo de produção avaliada no cenário "Compra para revenda"');
     expect(i1[0].getCell(7).value).toBe('Insumos agropecuários: redução de 60% das alíquotas');
     expect(i1[0].getCell(8).value).toBe('LC 214/2025, Anexo IX, item 12');
     expect(i1[0].getCell(9).value).toBe('200');
     expect(i1[0].getCell(10).value).toBe('200003');
     expect(i1[0].getCell(11).value).toBe('Herdado do conjunto');
-    expect(i1[0].getCell(13).value).toContain('Crédito previsto: Crédito amplo');
+    expect(i1[0].getCell(13).value).toContain('Crédito em regra, nas condições da lei: Crédito amplo');
     const i2 = por('000456');
     // célula "revisar" na entrega liberada: sai como "Aguardando revisão", sem enquadramento nem aprovação
     expect(i2.map((r) => r.getCell(6).value)).toEqual(['—']);
@@ -99,7 +102,7 @@ describe('Excel: 6 abas', () => {
   it('os dois formatos de linha (foto × tabela) geram o mesmo cadastro', async () => {
     const a = await abrir(await svc().gerarExcel({ ...dadosBase(true, 'foto'), liberada: true }));
     const b = await abrir(await svc().gerarExcel({ ...dadosBase(true, 'tabela'), liberada: true }));
-    const c = (w: ExcelJS.Workbook) => { const ws = w.getWorksheet('Cadastro saneado')!; return ['Código', 'NCM', 'Grupo', 'Finalidade confirmada', 'Ativo', 'Tratamento tributário', 'Descrição original'].map((n) => valores(ws, n)); };
+    const c = (w: ExcelJS.Workbook) => { const ws = w.getWorksheet('Cadastro saneado')!; return ['Código', 'NCM', 'Grupo', 'Finalidade', 'Origem da finalidade', 'Ativo', 'Tratamento tributário', 'Descrição original'].map((n) => valores(ws, n)); };
     expect(c(a)).toEqual(c(b));
   });
 
@@ -140,7 +143,7 @@ describe('Excel: 6 abas', () => {
     expect(valores(ws, 'Registro')).toEqual(['Pendência', 'Pendência', 'Pendência', 'Histórico', 'Histórico']);
     const hist = ws.getRow(5);
     expect(hist.getCell(coluna(ws, 'Código do item')).value).toBe('00123');
-    expect(hist.getCell(coluna(ws, 'Campo')).value).toBe('descricao');
+    expect(hist.getCell(coluna(ws, 'Campo')).value).toBe('Descrição');
     expect(hist.getCell(coluna(ws, 'Antes')).value).toBe('ADUBO NPK 04148 SC50');
     expect(hist.getCell(coluna(ws, 'Depois')).value).toBe('ADUBO NPK 04-14-08 SC 50KG');
     expect(hist.getCell(coluna(ws, 'Fundamento / problema')).value).toBe('Padrão de nomes');
@@ -299,4 +302,36 @@ describe('30 mil linhas', () => {
     expect(primeiro).toBe('00000000');
     expect(ultimo).toBe('00029999');
   }, 240_000);
+});
+
+describe('revisão fiscal nos entregáveis (achados 2, 4, 9 e 10)', () => {
+  it('achado 4: exceção aprovada mostra o enquadramento e o artigo dela ("não confirmado"), não os herdados que ficaram no cadastro', async () => {
+    const d = dadosBase(true);
+    const c = d.casos.find((x) => x.id === 'c-trib')! as Linha;
+    Object.assign(c, { tipo: 'EXCECAO_MANUAL', proposta: { cClassTrib: '200003', cst: '200', origem: 'EXCECAO' }, justificativa: 'Produto de outro item do anexo' });
+    const ws = (await abrir(await svc().gerarExcel(d))).getWorksheet('Cenários tributários')!;
+    const linha = ws.getRow(2);
+    expect(linha.getCell(1).value).toBe('00123');
+    expect(linha.getCell(7).value).toBe('não confirmado');
+    expect(linha.getCell(8).value).toBe('não confirmado');
+    expect(linha.getCell(11).value).toBe('Exceção do item');
+  });
+  it('achado 2: sem a última competência entregue, o Resumo e o PDF dizem "não avaliado"; com ela, contam as linhas', async () => {
+    const d = dadosBase(true);
+    d.impactosSped = d.impactosSped.filter((i) => i.tipo_ajuste !== 'ESCRITURACAO_ENTREGUE');
+    const resumo = async (x: DadosEntrega) => textoDaAba((await abrir(await svc().gerarExcel(x))).getWorksheet('Resumo da entrega')!);
+    expect(await resumo(d)).toContain('não avaliado (competência entregue não informada)');
+    expect(JSON.stringify(montarRelatorio(d))).toContain('Escrituração já entregue: não avaliado (competência entregue não informada).');
+    d.projeto = { ...d.projeto, parametros: { competenciaEntregue: '2026-10' } };
+    expect(await resumo(d)).toContain('nenhuma linha (última competência entregue informada: 10/2026)');
+    expect(await resumo(d)).toContain('10/2026');
+  });
+  it('achado 10: o material do cliente não traz o código interno do tipo de caso', async () => {
+    const wb = await abrir(await svc().gerarExcel(dadosBase(false)));
+    const imp = textoDaAba(wb.getWorksheet('Impactos no SPED')!);
+    const pend = textoDaAba(wb.getWorksheet('Pendências e histórico')!);
+    for (const t of [imp, pend]) expect(t).not.toMatch(/ENQUADRAMENTO_CONJUNTO|DESCRICAO_FORA_DO_PADRAO|NCM_INFO_INSUFICIENTE|APRESENTACOES_DISTINTAS/);
+    expect(imp).toContain('Tratamento tributário · Enquadramento do conjunto');
+    expect(pend).toContain('Informação insuficiente para o NCM');
+  });
 });

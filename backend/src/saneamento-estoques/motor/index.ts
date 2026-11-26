@@ -13,6 +13,7 @@ import { AnalisadorNomesUnidades } from './nomes-unidades';
 import { AnalisadorQualidade } from './qualidade';
 
 export * from './contexto';
+export { VARIA_POR_ITEM, valorComum } from './base';
 export { camadasAfetadas, novoCaso } from './dependencias';
 export { AnalisadorDuplicidade, DECISOES_DUPLICIDADE, type DecisaoDuplicidade } from './duplicidade';
 export { AnalisadorGrupos } from './grupos';

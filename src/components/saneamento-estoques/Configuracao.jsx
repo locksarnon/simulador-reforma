@@ -16,6 +16,7 @@ export default function Configuracao({ projeto, recarregar }) {
   const [form, setForm] = useState(() => ({
     erp: projeto.erp ?? "", erp_versao: projeto.erp_versao ?? "", responsavel: projeto.responsavel ?? "",
     estabelecimentos: listaDeEstabelecimentos(projeto).join("\n"), corte: projeto.parametros?.corteMovimentacao ?? "",
+    competenciaEntregue: projeto.parametros?.competenciaEntregue ?? "",
   }));
   const [msg, setMsg] = useState(null);
   const [novaAtividade, setNovaAtividade] = useState({ codigo: "", descricao: "" });
@@ -32,7 +33,7 @@ export default function Configuracao({ projeto, recarregar }) {
     mutationFn: () => san.configurar(projeto.id, {
       versao: projeto.versao, erp: form.erp, erp_versao: form.erp_versao, responsavel: form.responsavel,
       estabelecimentos: form.estabelecimentos.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
-      parametros: { ...(projeto.parametros || {}), corteMovimentacao: form.corte || null },
+      parametros: { ...(projeto.parametros || {}), corteMovimentacao: form.corte || null, competenciaEntregue: form.competenciaEntregue || null },
     }),
     onSuccess: aoConcluir("Configuração salva."), onError: aoFalhar,
   });
@@ -69,6 +70,10 @@ export default function Configuracao({ projeto, recarregar }) {
           </label>
           <label className="block"><Rotulo>Corte de movimentação (itens sem movimento desde esta data saem do escopo)</Rotulo>
             <input type="date" className={campoCls} value={form.corte} onChange={set("corte")} />
+          </label>
+          <label className="block"><Rotulo>Última competência de escrituração já entregue (SPED)</Rotulo>
+            <input type="month" className={campoCls} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
+            <span className="mt-1 block text-xs text-muted-foreground">Ajuste com início nesta competência ou antes aparece como “impacto em escrituração já entregue”. Vazio: esse impacto fica “não avaliado” no Excel e no relatório.</span>
           </label>
         </div>
         <button type="button" className={botaoPrimario} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>

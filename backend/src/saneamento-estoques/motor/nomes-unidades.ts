@@ -8,7 +8,7 @@
  * | INFORMAR (sem fator: o analista informa). `proposta.exigeFator` = 'SIM' (texto: a proposta só guarda texto, número ou null) quando o fator é nulo/INFORMAR: o backend deve RECUSAR a aprovação enquanto não houver fator.
  */
 import type { AnalisadorCamada, CasoProposto, ContextoAnalise, ItemTrabalho, ResultadoCamada } from '../tipos';
-import { ev, justificar, montarResultado, rotuloItem } from './base';
+import { ev, justificar, montarResultado, rotuloItem, valorComum } from './base';
 import { parametrosDe } from './contexto';
 import { novoCaso } from './dependencias';
 import { campoDe, semAcento, soTermosGenericos, txt } from './texto';
@@ -56,8 +56,17 @@ const exemplos = (grupo: ItemTrabalho[]) => [
   ...(grupo.length > 1 ? [ev('Itens do conjunto', grupo.length)] : []),
   ...grupo.slice(0, 5).map((x) => ev(grupo.length > 1 ? 'Exemplo' : 'Item', `${rotuloItem(x)}: ${x.descricao ?? ''}`.slice(0, 300))),
 ];
-/** "Como é hoje": a unidade é a mesma em todo o conjunto; o código só quando o caso é de um item (no conjunto, cada item tem o seu). */
-const atualDaUnidade = (grupo: ItemTrabalho[]): Record<string, string | null> => (grupo.length === 1 ? { codigo: grupo[0].codigo, unidade: grupo[0].unidade } : { unidade: grupo[0].unidade });
+/**
+ * "Como é hoje": a unidade é a mesma em todo o conjunto; o código só quando o caso é de um item (no conjunto, cada item tem o seu).
+ * Com `comConversao`, também a unidade de compra e o fator atuais (todos os campos que a proposta altera); valor que muda de item
+ * para item sai como "varia por item" e a conferência de divergência, na aprovação, vai item a item.
+ */
+const atualDaUnidade = (grupo: ItemTrabalho[], comConversao = false): Record<string, string | number | null> => {
+  const base: Record<string, string | number | null> = grupo.length === 1 ? { codigo: grupo[0].codigo, unidade: grupo[0].unidade } : { unidade: grupo[0].unidade };
+  if (!comConversao) return base;
+  const extra = (k: string) => valorComum(grupo.map((x) => (x.campos?.[k] ?? null) as string | number | null));
+  return { ...base, unidadeCompra: extra('unidadeCompra'), fatorConversao: extra('fatorConversao') };
+};
 const conjunto = (motivo: string, grupo: ItemTrabalho[]) => (grupo.length > 1 ? `${motivo} (${grupo.length} itens com esta unidade)` : motivo);
 
 export class AnalisadorNomesUnidades implements AnalisadorCamada {
@@ -127,7 +136,7 @@ export class AnalisadorNomesUnidades implements AnalisadorCamada {
           juntar(['UNIDADE_CONVERSAO', it.unidade, u.sugerida ?? '', e.grandeza, e.fator ?? '', situacao, e.evidencia ?? ''], it, (grupo) => ({
             camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_CONVERSAO', itens: grupo.map((x) => x.id), problema: conjunto(u.motivo ?? 'Unidade maior ou embalagem como unidade de estoque', grupo),
             evidencia: [ev('Origem', 'Coluna da unidade e descrição da base importada'), ev('Unidade atual', e.de), ev('Medida', e.grandeza), ev('Evidência do fator', e.evidencia ?? 'nenhuma: a informar'), ...exemplos(grupo)],
-            atual: atualDaUnidade(grupo),
+            atual: atualDaUnidade(grupo, true),
             proposta: { unidade: u.sugerida ?? null, unidadeCompra: e.de, fatorConversao: e.fator, fatorSituacao: situacao, exigeFator: e.fator == null ? 'SIM' : 'NAO' },
             fundamento: 'Política de unidade de estoque: menor unidade prática da medida; a maior/embalagem vira unidade de compra',
             impactos: ['Unidades e fatores de conversão (SPED 0190, 0220) e itens dos documentos', 'Duplicidade: itens em unidades diferentes passam a ser comparáveis'],

@@ -87,14 +87,18 @@ describe('correções da revisão', () => {
     const e = enquadrar('38089329', 'REVENDA', 'COMPRA_REVENDA', DB, cat2);
     expect(e.status).toBe('DEFINIDO'); expect(e.observacao).toMatch(/Anexo XX, item 2.*conferir os requisitos/);
   });
-  it('uso e consumo cita a vedação do art. 57, § 5º (conceito no caput, exceções no § 3º); devolução é regra operacional, não norma', () => {
+  it('uso e consumo cita a vedação do art. 57, § 5º (conceito no caput, exceções no § 3º); devolução pela LC 214 (arts. 12, § 7º, 17 e 47, § 12)', () => {
     const c = enquadrar('73182100', 'USO_CONSUMO', 'USO_CONSUMO', DB, catalogos());
     expect(c.credito!.descricao).toMatch(/art\. 47, caput/); expect(c.credito!.descricao).toMatch(/vedado \(art\. 57, § 5º\)/); expect(c.credito!.descricao).toMatch(/art\. 57, § 3º/);
     expect(c.credito!.descricao).not.toMatch(/conferir no texto oficial/);
     expect(enquadrar('84313990', 'IMOBILIZADO', 'USO_CONSUMO', DB, catalogos()).credito?.descricao ?? '').not.toMatch(/conferir no texto oficial/);
     const d = enquadrar('38089329', 'REVENDA', 'DEVOLUCAO', DB, catalogos());
-    expect(d.credito!.fundamento).toMatch(/Regra operacional interna/);
-    expect(d.observacao).toMatch(/interpretação interna/);
+    // Achado 6: há norma (texto compilado do Planalto, 26/11/2026); o que falta é o regulamento, dito como "não confirmado".
+    expect(d.credito!.fundamento).toBe('LC 214/2025, art. 12, § 7º, art. 17 e art. 47, § 12, I e II (incluído pela LC 227/2026); regulamento não confirmado nesta base');
+    expect(d.credito!.situacao).toBe('VERIFICAR');
+    expect(d.credito!.descricao).toContain('base e alíquota da operação original (LC 214/2025, art. 12, § 7º, e art. 17)');
+    expect(d.observacao).toContain('art. 12, § 7º, e art. 17');
+    expect(`${d.observacao} ${d.credito!.descricao} ${d.credito!.fundamento}`).not.toMatch(/interpretação|não é norma|regra operacional/i);
   });
 });
 
@@ -118,7 +122,7 @@ describe('finalidade', () => {
     expect(sugerirFinalidade(item('6', { descricao: 'LUVA NITRILICA', grupo: 'EPI' }), []).finalidade).toBe('USO_CONSUMO');
     expect(sugerirFinalidade(item('7', { descricao: 'TRATOR 150CV', grupo: 'Máquinas e equipamentos' }), []).finalidade).toBe('IMOBILIZADO');
     expect(sugerirFinalidade(item('8', { descricao: 'SOJA EM PODER DE TERCEIROS' }), []).finalidade).toBe('MATERIAL_TERCEIROS');
-    expect(sugerirFinalidade(item('9', { descricao: 'ALGO', finalidade: 'REVENDA' }), []).motivo).toMatch(/já informada/);
+    expect(sugerirFinalidade(item('9', { descricao: 'ALGO', finalidade: 'REVENDA' }), []).motivo).toMatch(/já presente no item/);
     expect(sugerirFinalidade(item('10', { descricao: 'PRODUTO X' }), [])).toMatchObject({ finalidade: null, confianca: 'baixa' });
   });
   it('diesel só vira insumo quando o cliente tem atividade que o consome', () => {
@@ -150,7 +154,9 @@ describe('enquadramento', () => {
     expect(e.enquadramentoLegal).toContain('Herbicidas');
     expect(e.vigencia).toEqual({ inicio: '2026-01-01', fim: null });
     expect(e.reducao).toEqual({ ibs: 0.6, cbs: 0.6 });
-    expect(e.credito).toMatchObject({ situacao: 'EM_REGRA', fundamento: 'LC 214/2025, art. 47, caput, e art. 57, caput e §§ 3º e 5º (redação da LC 227/2026)' });
+    expect(e.credito).toMatchObject({ situacao: 'EM_REGRA', fundamento: 'LC 214/2025, art. 47, caput, § 1º, II, e § 2º; art. 57, caput e §§ 3º e 5º (redação da LC 227/2026)' });
+    // Achado 5: o crédito vem com as condições do art. 47 (débito extinto, documento idôneo, valor destacado e extinto ou presumido).
+    expect(e.credito!.descricao).toBe('Crédito na aquisição (regime regular) quando extinto o débito da operação e comprovado por documento fiscal eletrônico idôneo; valor = imposto destacado e extinto ou crédito presumido (LC 214/2025, art. 47, caput, § 1º, II, e § 2º); confirmar o regime do cliente');
     expect(e.observacao).toMatch(/Anexo IX/);
   });
   it('peça/manutenção sem anexo: tributação padrão resolvida pela tabela; crédito a verificar', () => {
@@ -189,9 +195,9 @@ describe('enquadramento', () => {
     const venda = enquadrar('38089329', 'REVENDA', 'VENDA', DB, cat);
     const dev = enquadrar('38089329', 'REVENDA', 'DEVOLUCAO', DB, cat);
     expect(dev).toMatchObject({ cenario: 'DEVOLUCAO', cClassTrib: venda.cClassTrib, cst: venda.cst });
-    expect(dev.credito!.descricao).toMatch(/anula o débito/);
+    expect(dev.credito!.descricao).toContain('Devolução de venda (o cliente é o fornecedor: art. 47, § 12, II)');
     const devCompra = enquadrar('38089329', 'REVENDA', 'DEVOLUCAO', DB, cat, { operacaoOriginal: 'COMPRA_REVENDA' });
-    expect(devCompra.credito!.descricao).toMatch(/estorna o crédito/);
+    expect(devCompra.credito!.descricao).toContain('Devolução de compra (o cliente é o adquirente: art. 47, § 12, I)');
     expect(devCompra.cClassTrib).toBe(venda.cClassTrib);
   });
 });
@@ -369,6 +375,52 @@ describe('QA 30 mil: valores honestos no impacto no SPED', () => {
     // o mesmo conceito: CST/cClassTrib nunca aparece em campo de CST do ICMS/PIS nem na apuração
     for (const l of impactosDoAjuste('MUDOU_TRATAMENTO', { dataBase: '2026-12-31' }, { valorOriginal: '000001', valorProposto: '200003' })) {
       if (l.obrigacao === 'NFE') expect(l.valorProposto).toBe('200003'); else expect(l.valorProposto).toBeNull();
+    }
+  });
+});
+
+describe('revisão fiscal (achados 4, 5, 6 e 11)', () => {
+  const cat = catalogos();
+  it('achado 4: a exceção do item traz o enquadramento e o artigo da própria classe ("não confirmado"), nunca os herdados do conjunto', () => {
+    const itens = [item('h1', { ncm: '38089329', finalidade: 'REVENDA' }), item('h3', { ncm: '38089329', finalidade: 'REVENDA' })];
+    const r = new AnalisadorTributario(cat, { excecoes: { h3: { motivo: 'Produto de outro item do anexo', cClassTrib: '200200' } } }).analisar(itens, ctx);
+    const ex = r.casos.find((c) => c.tipo === 'EXCECAO_ITEM')!;
+    expect(ex.proposta).toMatchObject({ cClassTrib: '200200', artigo: 'não confirmado', enquadramentoLegal: 'cClassTrib 200200: Classe 200200 (tabela cClassTrib da SVRS)', origem: 'EXCECAO' });
+    expect(String(ex.proposta.enquadramentoLegal)).not.toContain('Anexo IX');
+    const herdado = enquadrar('38089329', 'REVENDA', 'COMPRA_REVENDA', DB, cat);
+    const e = aplicarExcecao(herdado, { motivo: 'Produto de outro item do anexo', cClassTrib: '200200' }, DB, cat);
+    expect(e.artigo).toBe('não confirmado');
+    expect(herdado.artigo).toBe('Anexo IX, item 7 (LC 214/2025)');
+  });
+  it('achado 5: venda debita pelo CST e cClassTrib da linha; classe de alíquota zero não afirma crédito', () => {
+    expect(enquadrar('38089329', 'REVENDA', 'VENDA', DB, cat).credito!.descricao).toBe('Operação de saída: débito conforme o CST e o cClassTrib da linha; o crédito é o da aquisição do item');
+    // 200200 = redução de 100% do IBS e da CBS na tabela (alíquota zero)
+    const zero = aplicarExcecao(enquadrar('38089329', 'REVENDA', 'COMPRA_REVENDA', DB, cat), { motivo: 'Produto de alíquota zero', cClassTrib: '200200' }, DB, cat);
+    expect(zero.credito).toMatchObject({ situacao: 'VERIFICAR' });
+    expect(zero.credito!.descricao).toContain('art. 47, § 2º, I');
+    // redução parcial (60%) continua "em regra", com as condições do art. 47
+    expect(enquadrar('38089329', 'REVENDA', 'COMPRA_REVENDA', DB, cat).credito!.situacao).toBe('EM_REGRA');
+  });
+  it('achado 6: devolução de compra e de venda citam o art. 47, § 12, e dizem que o regulamento não foi confirmado', () => {
+    const dv = enquadrar('38089329', 'INSUMO_PRODUCAO', 'DEVOLUCAO', DB, cat);
+    expect(dv.credito!.descricao).toContain('art. 47, § 12, I e II (incluído pela LC 227/2026)');
+    expect(dv.credito!.descricao).toContain('regulamento não confirmado nesta base');
+  });
+  it('achado 9: a nota diz em que cenário fixo a aquisição de insumo e de imobilizado é avaliada', () => {
+    expect(enquadrar('38089329', 'INSUMO_PRODUCAO', 'COMPRA_REVENDA', DB, cat).observacao).toContain('Aquisição de insumo de produção avaliada no cenário de compra');
+    expect(enquadrar('73182100', 'IMOBILIZADO', 'USO_CONSUMO', DB, cat).observacao).toContain('Aquisição de imobilizado avaliada no cenário de uso e consumo');
+  });
+  it('achado 11: o "atual" do conjunto diz "varia por item" quando a classe informada diverge', () => {
+    const itens = [item('x1', { ncm: '38089329', finalidade: 'REVENDA', campos: { cClassTrib: '000001' } }), item('x2', { ncm: '38089329', finalidade: 'REVENDA' })];
+    const conj = new AnalisadorTributario(cat).analisar(itens, ctx).casos.find((c) => c.tipo === 'ENQUADRAMENTO_CONJUNTO')!;
+    expect(conj.atual).toEqual({ cClassTrib: 'varia por item' });
+    const iguais = [item('y1', { ncm: '38089329', finalidade: 'REVENDA', campos: { cClassTrib: '000001' } }), item('y2', { ncm: '38089329', finalidade: 'REVENDA', campos: { cClassTrib: '000001' } })];
+    expect(new AnalisadorTributario(cat).analisar(iguais, ctx).casos.find((c) => c.tipo === 'ENQUADRAMENTO_CONJUNTO')!.atual).toEqual({ cClassTrib: '000001' });
+  });
+  it('achado 8: o 0205 da EFD ICMS/IPI leva a ressalva do Guia Prático (não descaracterizar o item)', () => {
+    for (const t of ['MUDOU_CODIGO_DESCRICAO', 'CONSOLIDOU_INATIVOU'] as const) {
+      const r = CHECKLIST[t].registros.find((x) => x.obrigacao === 'EFD_ICMS_IPI' && x.registro === '0205')!;
+      expect(r.ressalva).toContain('não descaracterizar o item; se descaracterizar, é item novo, com código novo (Guia Prático da EFD ICMS/IPI 3.2.2');
     }
   });
 });

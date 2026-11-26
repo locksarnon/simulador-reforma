@@ -336,7 +336,7 @@ describe('projeto: atividades, parâmetros e módulos', () => {
     const { projetoId } = await pronto(c);
     await c.projetos.configurar(projetoId, { versao: c.db.sanProjeto[0].versao, parametros: { corteMovimentacao: '2025-01-01', motor: { exigeEstabelecimento: true } } });
     await c.projetos.configurar(projetoId, { versao: c.db.sanProjeto[0].versao, parametros: { corteMovimentacao: '2025-06-01' } });
-    expect(c.db.sanProjeto[0].parametros).toEqual({ corteMovimentacao: '2025-06-01', motor: { exigeEstabelecimento: true } });
+    expect(c.db.sanProjeto[0].parametros).toEqual({ corteMovimentacao: '2025-06-01', competenciaEntregue: null, motor: { exigeEstabelecimento: true } });
     expect(c.db.sanCelula.some((x) => x.camada === 'ESTOQUE')).toBe(false);
     await c.projetos.configurar(projetoId, { versao: c.db.sanProjeto[0].versao, modulos: { conciliacao: true } });
     expect(c.db.sanCelula.filter((x) => x.camada === 'ESTOQUE')).toHaveLength(3);

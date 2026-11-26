@@ -1,8 +1,8 @@
 /**
  * Cenários tributários (4, fixos pelo plano) e suas regras de crédito. Tabelas puras, sem catálogo.
- * Só entra aqui o que tem fonte: o crédito amplo do IBS/CBS (LC 214/2025, art. 47, caput) e a vedação do crédito sobre uso ou consumo
- * pessoal (art. 57, caput e §§ 3º e 5º, redação da LC 227/2026), conferidos no texto compilado do Planalto em 26/11/2026
- * (docs/sped-conferencia-2026-11-26.md).
+ * Só entra aqui o que tem fonte: o crédito do IBS/CBS (LC 214/2025, art. 47, caput, § 1º, II, e § 2º), a vedação do crédito sobre uso ou
+ * consumo pessoal (art. 57, caput e §§ 3º e 5º, redação da LC 227/2026) e a devolução (art. 12, § 7º, art. 17 e art. 47, § 12, incluído
+ * pela LC 227/2026), conferidos no texto compilado do Planalto em 26/11/2026 (docs/sped-conferencia-2026-11-26.md).
  * O que não foi conferido fica como "VERIFICAR" com o motivo dito (nada de regra inventada).
  */
 import { Cenario, Finalidade } from '../tipos';
@@ -44,9 +44,13 @@ const CREDITO_PLENO: Finalidade[] = ['REVENDA', 'MATERIA_PRIMA', 'INSUMO_PRODUCA
 /** Regra de crédito do cenário para a finalidade. `art47Carregado` = o art. 47 da LC 214 existe na Base legal. */
 export function regraCredito(cenario: CenarioBase, finalidade: Finalidade, art47Carregado: boolean): Credito {
   const fundamento = art47Carregado ? 'LC 214/2025, art. 47, caput, e art. 57, caput e §§ 3º e 5º (redação da LC 227/2026)' :'LC 214/2025, art. 47 (dispositivo não encontrado na Base legal: não confirmado)';
-  if (cenario === 'VENDA') return { situacao: 'NAO_SE_APLICA', descricao: 'Operação de saída: gera débito de IBS/CBS; o crédito é o da aquisição do item', fundamento: null };
+  if (cenario === 'VENDA') return { situacao: 'NAO_SE_APLICA', descricao: 'Operação de saída: débito conforme o CST e o cClassTrib da linha; o crédito é o da aquisição do item', fundamento: null };
   if (CREDITO_PLENO.includes(finalidade)) {
-    return { situacao: 'EM_REGRA', descricao: 'Crédito amplo na aquisição (regime regular), condicionado a documento fiscal eletrônico idôneo; confirmar o regime do cliente', fundamento };
+    return {
+      situacao: 'EM_REGRA',
+      descricao: 'Crédito na aquisição (regime regular) quando extinto o débito da operação e comprovado por documento fiscal eletrônico idôneo; valor = imposto destacado e extinto ou crédito presumido (LC 214/2025, art. 47, caput, § 1º, II, e § 2º); confirmar o regime do cliente',
+      fundamento: art47Carregado ? 'LC 214/2025, art. 47, caput, § 1º, II, e § 2º; art. 57, caput e §§ 3º e 5º (redação da LC 227/2026)' : fundamento,
+    };
   }
   if (finalidade === 'MATERIAL_TERCEIROS') return { situacao: 'VERIFICAR', descricao: 'Material de terceiros: a regra de crédito não foi conferida nesta base', fundamento: null };
   return {
@@ -58,10 +62,17 @@ export function regraCredito(cenario: CenarioBase, finalidade: Finalidade, art47
   };
 }
 
-/** Crédito da devolução: espelha o da operação original (estorno do crédito, nas aquisições; anulação do débito, na venda). */
-export function regraCreditoDevolucao(original: CenarioBase, finalidade: Finalidade, art47Carregado: boolean): Credito {
-  const interna = 'Regra operacional interna do saneamento (interpretação, não é norma): conferir';
-  if (original === 'VENDA') return { situacao: 'NAO_SE_APLICA', descricao: 'Devolução de venda: anula o débito da operação original (regra operacional; conferir)', fundamento: interna };
-  const c = regraCredito(original, finalidade, art47Carregado);
-  return { ...c, descricao: `Devolução de compra: estorna o crédito da operação original (regra operacional; conferir). ${c.descricao}`, fundamento: [interna, c.fundamento].filter(Boolean).join(' · ') };
+/**
+ * Devolução (texto compilado da LC 214/2025 no Planalto, conferido em 26/11/2026): base de cálculo e alíquota da operação original
+ * (art. 12, § 7º, e art. 17); nas operações com adquirente contribuinte do regime regular, o efeito no crédito ou no débito segue o
+ * art. 47, § 12, I (adquirente: débito ou estorno de crédito) e II (fornecedor: crédito ou estorno de débito), incluído pela LC 227/2026,
+ * com procedimento a disciplinar em regulamento (regulamento não confirmado nesta base). Fica "a verificar".
+ */
+export const FUNDAMENTO_DEVOLUCAO = 'LC 214/2025, art. 12, § 7º, art. 17 e art. 47, § 12, I e II (incluído pela LC 227/2026); regulamento não confirmado nesta base';
+const TEXTO_DEVOLUCAO = 'base e alíquota da operação original (LC 214/2025, art. 12, § 7º, e art. 17); efeito no crédito ou débito conforme o art. 47, § 12, I e II (incluído pela LC 227/2026), com procedimento a definir em regulamento (regulamento não confirmado nesta base)';
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function regraCreditoDevolucao(original: CenarioBase, _finalidade: Finalidade, _art47Carregado: boolean): Credito {
+  const quem = original === 'VENDA' ? 'Devolução de venda (o cliente é o fornecedor: art. 47, § 12, II)' : 'Devolução de compra (o cliente é o adquirente: art. 47, § 12, I)';
+  return { situacao: 'VERIFICAR', descricao: `${quem}: ${TEXTO_DEVOLUCAO}`, fundamento: FUNDAMENTO_DEVOLUCAO };
 }

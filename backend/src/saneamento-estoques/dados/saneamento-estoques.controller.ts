@@ -44,7 +44,13 @@ export class SaneamentoEstoquesController {
   @Get('projetos/:id')
   obter(@Param('id') id: string) { return this.projetos.obter(id); }
   @Put('projetos/:id')
-  configurar(@Param('id') id: string, @Body() b: EntradaConfiguracao) { return this.projetos.configurar(id, b ?? {}); }
+  async configurar(@Param('id') id: string, @Body() b: EntradaConfiguracao) {
+    const antes = ((await this.projetos.obter(id)).parametros as { competenciaEntregue?: unknown } | null)?.competenciaEntregue ?? null;
+    const p = await this.projetos.configurar(id, b ?? {});
+    // Mudou a última competência entregue: as linhas de impacto no SPED são reclassificadas (escrituração já entregue ou não).
+    if (((p.parametros as { competenciaEntregue?: unknown } | null)?.competenciaEntregue ?? null) !== antes) await this.casos.sincronizarTodosImpactos(id);
+    return p;
+  }
 
   @Get('projetos/:id/atividades')
   atividades(@Param('id') id: string) { return this.projetos.listarAtividades(id); }

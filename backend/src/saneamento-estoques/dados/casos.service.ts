@@ -6,9 +6,10 @@ import { camadasAfetadas } from '../motor';
 import { CAMADAS, type Camada, type CasoProposto, type ResultadoCamada } from '../tipos';
 import { linhasDeImpactoDoCaso } from './ajustes';
 import {
-  CASO_ABERTO, CELULA_DO_CASO, TX_LONGA, aplicarCampo, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, exigirVersao, fatiar, igual, propostaAplicavel, quem, validarCamada,
-  valorDoCampo, type Json, type SituacaoCaso, type Usuario,
+  CASO_ABERTO, CELULA_DO_CASO, EXCECAO_VIVA, TIPOS_EXCECAO, TX_LONGA, aplicarCampo, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, ehExcecao, exigirVersao, fatiar, igual,
+  propostaAplicavel, quem, validarCamada, valorDoCampo, type Json, type SituacaoCaso, type Usuario,
 } from './constantes';
+import { VARIA_POR_ITEM } from '../motor';
 import type { ParecerIa } from './portas';
 import { SanProjetoService } from './projeto.service';
 import { paramInteiro, paramTexto, validarProposta, validarResultado } from './validacao';
@@ -36,14 +37,14 @@ const ORCAMENTO_LOTE_MS = 60_000;
 export function orcamentoDoLote(v: unknown): number {
   if (v === undefined || v === null || v === '') return ORCAMENTO_LOTE_MS;
   const n = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : NaN;
-  if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('"orcamentoMs" deve ser um número de milissegundos maior que zero.');
-  return Math.min(Math.floor(n), ORCAMENTO_LOTE_MS);
+  if (!Number.isFinite(n) || n < 1) throw new BadRequestException('"orcamentoMs" deve ser um número de milissegundos maior ou igual a 1.');
+  return Math.min(Math.max(1, Math.floor(n)), ORCAMENTO_LOTE_MS);
 }
+/** Tempo estimado do próximo caso do lote (ms): itens × custo por item medido (sem medida ainda, 0: o primeiro caso sempre roda). */
+export const estimativaDoCaso = (itens: number, msPorItem: number) => Math.max(1, itens) * msPorItem;
 const bad = (codigo: string, message: string, extra: Json = {}) => new BadRequestException({ statusCode: 400, codigo, message, ...extra });
-/** Tipos de exceção por item: valem mais que o caso do conjunto (o conjunto não toca o item que tem exceção própria). */
-const TIPOS_EXCECAO = ['EXCECAO_MANUAL', 'EXCECAO_ITEM'];
-const EXCECAO_VIVA = ['PROPOSTO', 'RASCUNHO', 'APROVADO', 'AGUARDANDO_INFORMACAO'];
-const ehExcecao = (tipo: string) => TIPOS_EXCECAO.includes(tipo);
+/** Exceção de finalidade ao grupo: aprovar exige o motivo escrito pelo consultor (ao menos 5 caracteres). */
+const MOTIVO_MINIMO = 5;
 const ehCasoDeUnidade = (p: Json) => p.fatorSituacao !== undefined || p.unidadeCompra !== undefined;
 const fatorValido = (p: Json) => p.fatorConversao != null && Number.isFinite(Number(p.fatorConversao)) && Number(p.fatorConversao) > 0;
 
@@ -71,9 +72,19 @@ export class SanCasosService {
     const r = validarResultado(bruto, { semTeto: opcoes.interno === true });
     const camada = validarCamada(r.camada);
     if (!camadasAtivas(p.modulos as Json).includes(camada)) throw new BadRequestException('Esta camada não está ligada neste projeto (módulo opcional desligado).');
-    const casos = r.casos ?? [];
     const dataBase = await this.projetos.dataBase(projetoId);
-    for (const c of casos) await this.validarExcecaoManual(c, dataBase);
+    for (const c of r.casos ?? []) await this.validarExcecaoManual(c, dataBase);
+    // A exceção vale mais que a regra (todas as camadas, inclusive caso de um item): o caso de regra não cita o item que tem exceção viva.
+    // Exceção de regra ainda proposta que esta execução completa não produz mais vai virar obsoleta: não conta.
+    const produzidas = new Set((r.casos ?? []).filter((c) => ehExcecao(c.tipo)).map((c) => chaveCaso(camada, c.tipo, c.itens)));
+    const vivas = new Set<string>();
+    for (const e of await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, camada, tipo: { in: TIPOS_EXCECAO }, situacao: { in: EXCECAO_VIVA } }, select: { itens: true, tipo: true, situacao: true, chave: true } })) {
+      if (opcoes.completo && e.situacao === 'PROPOSTO' && e.tipo !== 'EXCECAO_MANUAL' && !produzidas.has(e.chave)) continue;
+      for (const i of e.itens) vivas.add(i);
+    }
+    const casos = (r.casos ?? [])
+      .map((c) => (ehExcecao(c.tipo) || !vivas.size ? c : { ...c, itens: c.itens.filter((i) => !vivas.has(i)) }))
+      .filter((c) => c.itens.length > 0);
     const ids = [...new Set([...casos.flatMap((c) => c.itens), ...(r.semProblema ?? [])])];
     let existem = 0;
     for (const lote of fatiar(ids, 5000)) existem += await this.prisma.sanItem.count({ where: { projeto_id: projetoId, id: { in: lote } } });
@@ -156,9 +167,9 @@ export class SanCasosService {
         casos.forEach((c, i) => {
           if (c.tipo === 'ENQUADRAMENTO_CONFERIDO') return;
           const e = ja.get(chaves[i])!;
-          const doConjunto = !ehExcecao(c.tipo) && c.itens.length > 1;
+          const deRegra = !ehExcecao(c.tipo); // de conjunto ou de um item: a exceção viva do item vale mais
           for (const item_id of c.itens) {
-            if (doConjunto && comExcecao.has(item_id)) continue;
+            if (deRegra && comExcecao.has(item_id)) continue;
             pares.push({ item_id, caso_id: e.id, situacao: CELULA_DO_CASO[e.situacao as SituacaoCaso] });
           }
         });
@@ -166,7 +177,7 @@ export class SanCasosService {
 
         // Sem problema: o que estava aprovado continua aprovado (só deixa de ser "revisar"); o resto vira "sem problema".
         let sem = 0;
-        for (const lote of fatiar(r.semProblema ?? [], 5000)) {
+        for (const lote of fatiar((r.semProblema ?? []).filter((i) => !comExcecao.has(i)), 5000)) {
           const base = { projeto_id: projetoId, camada, item_id: { in: lote } };
           await tx.sanCelula.updateMany({ where: { ...base, situacao: 'APROVADO' }, data: { revisar: false, revisar_causa: null } });
           const x = await tx.sanCelula.updateMany({ where: { ...base, situacao: { in: ['PENDENTE', 'PROPOSTO', 'SEM_PROBLEMA', 'AGUARDANDO_INFORMACAO'] } }, data: { situacao: 'SEM_PROBLEMA', caso_id: null, revisar: false, revisar_causa: null } });
@@ -220,13 +231,26 @@ export class SanCasosService {
 
   // ── Impacto no SPED ligado ao caso ─────────────────────────────────────────
 
-  /** Regrava as linhas de impacto dos casos (apaga e recria as ligadas ao caso; caso que não gera ajuste fica sem linhas). Idempotente. */
+  /**
+   * Regrava as linhas de impacto dos casos (apaga e recria as ligadas ao caso; caso que não gera ajuste fica sem linhas). Idempotente.
+   * O caso de regra conta só os itens a que ele de fato se aplica (o item com exceção viva fica fora). A última competência de
+   * escrituração já entregue (parâmetro do projeto) classifica a linha como "impacto em escrituração já entregue".
+   */
   private async sincronizarImpactos(tx: Tx, projetoId: string, casoIds: string[], dataBase: string) {
     if (!casoIds.length) return;
+    const parametros = (await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: { parametros: true } }))?.parametros as Json | undefined;
+    const competenciaEntregue = typeof parametros?.competenciaEntregue === 'string' ? parametros.competenciaEntregue : null;
+    const mapas = new Map<string, Map<string, string>>();
     for (const lote of fatiar(casoIds, 500)) {
       const casos = await tx.sanCaso.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, projeto_id: true, camada: true, tipo: true, itens: true, justificativa: true, situacao: true, atual: true, proposta: true } });
       await tx.sanImpactoSped.deleteMany({ where: { projeto_id: projetoId, caso_id: { in: lote } } });
-      const linhas = casos.flatMap((c) => linhasDeImpactoDoCaso(c, dataBase));
+      const efetivos = [];
+      for (const c of casos) {
+        if (!mapas.has(c.camada)) mapas.set(c.camada, await this.mapaExcecoes(tx, projetoId, c.camada));
+        const e = await this.semExcecoes(tx, c, mapas.get(c.camada));
+        if (e.itens.length) efetivos.push(e);
+      }
+      const linhas = efetivos.flatMap((c) => linhasDeImpactoDoCaso(c, dataBase, competenciaEntregue));
       for (const l of fatiar(linhas, 1000)) await tx.sanImpactoSped.createMany({ data: l as never });
     }
   }
@@ -344,18 +368,38 @@ export class SanCasosService {
     if (proposta.fatorSituacao === 'CONFIRMAR' && !confirmarFator) throw bad('FATOR_A_CONFIRMAR', 'O fator foi tirado da descrição do item: confirme-o (confirmarFator) ou corrija-o na proposta.');
   }
 
-  /** Campos da proposta cujo valor atual no item já não é o que o caso registrou em `atual`. */
+  /**
+   * Campos da proposta cujo valor atual no item já não é o que o caso registrou em `atual`. Quando o `atual` do conjunto diz "varia por
+   * item", a conferência é item a item e campo a campo: diverge o item cujo campo foi alterado por outra decisão (ou reimportação)
+   * depois que o caso foi proposto.
+   */
   private async divergencias(tx: Tx, c: CasoLinha, aplicavel: Json) {
     const atual = (c.atual as Json) ?? {};
     const campos = Object.keys(aplicavel).filter((k) => k in atual);
     if (!campos.length) return [];
-    const achadas: { campo: string; atual: unknown; esperado: unknown }[] = [];
+    const porItem = campos.filter((k) => atual[k] === VARIA_POR_ITEM);
+    const diretos = campos.filter((k) => atual[k] !== VARIA_POR_ITEM);
+    const achadas: { campo: string; atual: unknown; esperado: unknown; item?: string }[] = [];
     for (const lote of fatiar(c.itens, 500)) {
-      for (const i of await tx.sanItem.findMany({ where: { id: { in: lote }, projeto_id: c.projeto_id }, select: { id: true, trabalho: true } })) {
-        for (const k of campos) {
+      const itens = await tx.sanItem.findMany({ where: { id: { in: lote }, projeto_id: c.projeto_id }, select: { id: true, codigo: true, trabalho: true } });
+      for (const i of itens) {
+        for (const k of diretos) {
           const v = valorDoCampo(i.trabalho as Json, k);
           if (!igual(v, atual[k]) && !igual(v, aplicavel[k]) && !achadas.some((a) => a.campo === k)) achadas.push({ campo: k, atual: v, esperado: atual[k] });
         }
+      }
+      if (!porItem.length) continue;
+      const depois = await tx.sanDecisao.findMany({
+        where: { projeto_id: c.projeto_id, item_id: { in: lote }, campo: { in: porItem }, OR: [{ caso_id: null }, { caso_id: { not: c.id } }] },
+        select: { item_id: true, campo: true, quando: true },
+      });
+      for (const d of depois) {
+        if (+d.quando <= +c.createdAt) continue;
+        const i = itens.find((x) => x.id === d.item_id);
+        const v = i ? valorDoCampo(i.trabalho as Json, d.campo) : null;
+        const item = i?.codigo ?? d.item_id;
+        if (igual(v, aplicavel[d.campo]) || achadas.some((a) => a.campo === d.campo && a.item === item)) continue;
+        achadas.push({ campo: d.campo, atual: v, esperado: VARIA_POR_ITEM, item });
       }
     }
     return achadas;
@@ -367,9 +411,14 @@ export class SanCasosService {
     return this.prisma.$transaction(async (tx) => {
       const todo = await this.carregar(tx, id);
       if (todo.situacao === 'APROVADO') return { caso: todo, jaAplicado: true };
-      // Conjunto: o item com exceção própria fica fora (a exceção vale mais que o conjunto); os demais recebem a decisão, item a item.
-      const c = await this.semExcecoes(tx, todo);
-      if (!c.itens.length) throw bad('SO_EXCECOES', 'Todos os itens deste conjunto têm exceção própria: decida as exceções (o conjunto não tem o que aplicar).');
+      // Caso de regra (conjunto ou um item): o item com exceção própria fica fora (a exceção vale mais), e também o item que tem caso
+      // individual em edição (rascunho) na mesma camada e no mesmo campo; os demais recebem a decisão, item a item.
+      const camposDaProposta = Object.keys(propostaAplicavel(todo.camada, editada ?? ((todo.proposta as Json) ?? {})));
+      const c = await this.semExcecoes(tx, todo, await this.mapaExcecoes(tx, todo.projeto_id, todo.camada, camposDaProposta));
+      if (!c.itens.length) throw bad('SO_EXCECOES', 'Todos os itens deste caso têm exceção própria ou caso individual em edição no mesmo campo: decida esses casos primeiro (este não tem o que aplicar).');
+      if (c.tipo === 'FINALIDADE_EXCECAO' && (texto(e.justificativa, 4000) ?? texto(c.justificativa, 4000) ?? '').length < MOTIVO_MINIMO) {
+        throw bad('MOTIVO_EXCECAO', 'Exceção exige motivo: escreva na justificativa por que estes itens têm finalidade diferente da do grupo (ao menos 5 caracteres).');
+      }
       const versao = exigirVersao(e.versao);
       if (c.versao !== versao) throw conflito();
       if (c.situacao === 'REJEITADO') throw new BadRequestException('O caso foi rejeitado. Reabra antes de aprovar.');
@@ -520,7 +569,7 @@ export class SanCasosService {
     const { casos: brutos, inexistentes } = await this.casosDoLote(projetoId, e);
     // Conjunto: o item com exceção própria fica fora (como na aprovação individual).
     const excecoesPorCamada = new Map<string, Map<string, string>>();
-    for (const camada of new Set(brutos.filter((c) => c.itens.length > 1 && !ehExcecao(c.tipo)).map((c) => c.camada))) excecoesPorCamada.set(camada, await this.mapaExcecoes(this.prisma, projetoId, camada));
+    for (const camada of new Set(brutos.filter((c) => !ehExcecao(c.tipo)).map((c) => c.camada))) excecoesPorCamada.set(camada, await this.mapaExcecoes(this.prisma, projetoId, camada));
     const casos: CasoLinha[] = [];
     for (const c of brutos) casos.push(await this.semExcecoes(this.prisma, c, excecoesPorCamada.get(c.camada) ?? new Map()));
     const itensIds = [...new Set(casos.flatMap((c) => c.itens))];
@@ -541,6 +590,7 @@ export class SanCasosService {
       else if (c.tipo.startsWith('AGUARDANDO')) motivo = 'Falta informação para decidir este caso.';
       else if (completa.decisao === 'SOLICITAR_INFORMACAO') motivo = MSG_PEDE_INFORMACAO;
       else if (!c.itens.length) motivo = 'Todos os itens deste conjunto têm exceção própria.';
+      else if (c.tipo === 'FINALIDADE_EXCECAO') motivo = 'Exceção à finalidade do grupo: exige o motivo escrito, caso a caso.';
       else if (ehCasoDeUnidade(completa) && (!fatorValido(completa) || completa.fatorSituacao === 'INFORMAR')) motivo = 'Conversão de unidade sem fator: informe o fator editando o caso.';
       else if (ehCasoDeUnidade(completa) && completa.fatorSituacao === 'CONFIRMAR') motivo = 'O fator de conversão veio da descrição do item: confirme-o caso a caso.';
       else if ((c.parecer_ia as { confianca?: string } | null)?.confianca === 'baixa') motivo = 'O parecer da IA tem confiança baixa: decida este caso à parte.';
@@ -548,7 +598,7 @@ export class SanCasosService {
       else if (c.camada !== 'OBRIGACOES' && c.tipo !== 'CODIGO_ANTIGO' && completa.decisao === undefined && !Object.keys(proposta).length) motivo = 'Caso sem proposta aplicável: falta informação.';
       if (!motivo) {
         for (const campo of Object.keys(atual)) {
-          if (!(campo in proposta)) continue;
+          if (!(campo in proposta) || atual[campo] === VARIA_POR_ITEM) continue; // varia por item: a conferência é na aprovação, item a item
           const dif = c.itens.find((i) => !igual(valorDoCampo(itens.get(i)!.trabalho as Json, campo), atual[campo]));
           if (dif) { motivo = `O valor de "${campo}" mudou desde que o caso foi proposto.`; break; }
         }
@@ -593,11 +643,17 @@ export class SanCasosService {
     const dataBase = await this.projetos.dataBase(projetoId);
     const restantes: string[] = [];
     let aprovados = 0;
+    // O orçamento olha o PRÓXIMO caso antes de começá-lo: estimativa = itens do caso × o maior custo por item já medido neste lote
+    // (o primeiro caso sempre roda, para o lote andar). Caso que não cabe fica em "restantes" e o consultor chama de novo.
+    let msPorItem = 0;
     for (const a of previa.aprovaveis) {
-      if (Date.now() - inicio > orcamento) { restantes.push(a.casoId); continue; }
+      const gasto = Date.now() - inicio;
+      if (gasto > orcamento || (aprovados > 0 && gasto + estimativaDoCaso(a.itens, msPorItem) > orcamento)) { restantes.push(a.casoId); continue; }
       if (e.versoes[a.casoId] !== a.versao) { excecoes.push({ casoId: a.casoId, motivo: 'O caso mudou depois da prévia. Refaça a prévia.' }); continue; }
       try {
+        const t0 = Date.now();
         await this.aprovar(a.casoId, { versao: a.versao, fundamento: e.fundamento }, usuario, { dataBase });
+        msPorItem = Math.max(msPorItem, (Date.now() - t0) / Math.max(1, a.itens));
         aprovados++;
       } catch (err) {
         const msg = (err as { response?: { message?: string } }).response?.message ?? (err as Error).message;
@@ -626,21 +682,46 @@ export class SanCasosService {
     }
   }
 
-  /** Itens com exceção própria viva (aberta, aguardando ou aprovada) na camada: item → id da exceção. */
-  private async mapaExcecoes(db: Pick<Tx, 'sanCaso'>, projetoId: string, camada: string): Promise<Map<string, string>> {
+  /**
+   * Itens com exceção própria viva (aberta, aguardando ou aprovada) na camada: item → id da exceção. Com `campos` (aprovação), entram
+   * também os itens com caso individual em edição (rascunho) da mesma camada que mexe em algum desses campos: o caso de regra não passa
+   * por cima do que o consultor está editando. A exceção prevalece sobre o rascunho.
+   */
+  private async mapaExcecoes(db: Pick<Tx, 'sanCaso'>, projetoId: string, camada: string, campos?: string[]): Promise<Map<string, string>> {
     const m = new Map<string, string>();
     const lista = await db.sanCaso.findMany({ where: { projeto_id: projetoId, camada, tipo: { in: TIPOS_EXCECAO }, situacao: { in: EXCECAO_VIVA } }, select: { id: true, itens: true } });
+    if (campos?.length) {
+      const rascunhos = await db.sanCaso.findMany({ where: { projeto_id: projetoId, camada, situacao: 'RASCUNHO' }, select: { id: true, itens: true, tipo: true, proposta: true } });
+      for (const r of rascunhos) {
+        if (ehExcecao(r.tipo) || r.itens.length !== 1) continue;
+        if (Object.keys(propostaAplicavel(camada, (r.proposta as Json) ?? {})).some((k) => campos.includes(k))) m.set(r.itens[0], r.id);
+      }
+    }
     for (const e of lista) for (const i of e.itens) m.set(i, e.id);
     return m;
   }
 
-  /** O caso sem os itens que têm exceção própria (só para caso de conjunto; a exceção e o caso de um item ficam como estão). */
+  /** O caso de regra (de conjunto ou de um item) sem os itens que têm exceção própria; a exceção fica como está. */
   private async semExcecoes<T extends Pick<CasoLinha, 'id' | 'projeto_id' | 'camada' | 'tipo' | 'itens'>>(db: Pick<Tx, 'sanCaso'>, c: T, mapa?: Map<string, string>): Promise<T> {
-    if (c.itens.length < 2 || ehExcecao(c.tipo)) return c;
+    if (ehExcecao(c.tipo)) return c;
     const m = mapa ?? (await this.mapaExcecoes(db, c.projeto_id, c.camada));
     if (!m.size) return c;
     const itens = c.itens.filter((i) => { const dono = m.get(i); return !dono || dono === c.id; });
     return itens.length === c.itens.length ? c : { ...c, itens };
+  }
+
+  /**
+   * Outro item do mesmo estabelecimento já usa o código? Vale a coluna da importação (código original, nunca reutilizado) e o código de
+   * TRABALHO, que muda por decisão aprovada: os itens com código alterado são os que têm decisão no campo "codigo".
+   */
+  private async outroComCodigo(tx: Tx, projetoId: string, itemId: string, estabelecimento: string, novo: string): Promise<boolean> {
+    if (await tx.sanItem.findFirst({ where: { projeto_id: projetoId, estabelecimento, codigo: novo, NOT: { id: itemId } }, select: { id: true } })) return true;
+    const mudados = [...new Set((await tx.sanDecisao.findMany({ where: { projeto_id: projetoId, campo: 'codigo' }, select: { item_id: true } })).map((d) => d.item_id))].filter((i) => i !== itemId);
+    for (const lote of fatiar(mudados, 1000)) {
+      const itens = await tx.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: lote }, estabelecimento }, select: { trabalho: true } });
+      if (itens.some((i) => String((i.trabalho as Json)?.codigo ?? '') === novo)) return true;
+    }
+    return false;
   }
 
   /** Grava a proposta no trabalho dos itens do caso (uma decisão por campo; campo que não muda não gera linha). */
@@ -651,7 +732,7 @@ export class SanCasosService {
       if (c.itens.length > 1) throw bad('CODIGO_REPETIDO', 'Não dá para dar o mesmo código novo a mais de um item.');
       const novo = String(proposta.codigo);
       const item = await tx.sanItem.findFirst({ where: { id: c.itens[0], projeto_id: c.projeto_id }, select: { id: true, estabelecimento: true, trabalho: true } });
-      const outro = item ? await tx.sanItem.findFirst({ where: { projeto_id: c.projeto_id, estabelecimento: item.estabelecimento, codigo: novo, NOT: { id: item.id } }, select: { id: true } }) : null;
+      const outro = item ? await this.outroComCodigo(tx, c.projeto_id, item.id, item.estabelecimento, novo) : false;
       if (outro) throw bad('CODIGO_JA_EXISTE', `O código ${novo} já pertence a outro item deste projeto.`);
     }
     // Consultas em bloco: um registro de aprovação por item e caso (a marca já gravada não se repete), decisões e grupos gravados por lote.

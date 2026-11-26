@@ -4,12 +4,27 @@
  * NCM ambíguo ou citado só por capítulo/posição) o resultado é AGUARDANDO_INFORMACAO com o motivo.
  * Regra de ouro: tabela cClassTrib da SVRS (CST e vigência) > texto da LC 214 (anexo/item) > calculadora oficial (não usada aqui).
  */
-import { Cenario, Finalidade, ItemTrabalho } from '../tipos';
+import { Cenario, Finalidade, ItemTrabalho, ROTULO_FINALIDADE } from '../tipos';
 import { CatalogosFiscais, ClasseFiscal } from './catalogos';
 import { CenarioBase, Credito, cenariosAplicaveis, operacaoOriginalPadrao, regraCredito, regraCreditoDevolucao } from './cenarios';
 
 /** Classe da tributação padrão (integral) na tabela da SVRS; resolvida pelo catálogo (se não estiver carregada, fica aguardando). */
 export const CLASSE_PADRAO = '000001';
+export const NAO_CONFIRMADO = 'não confirmado';
+
+/**
+ * Classe com redução de 100% do IBS e da CBS (alíquota zero) na tabela da SVRS: não há imposto destacado na aquisição, logo o crédito do
+ * art. 47, § 2º, I (débito destacado e extinto), não se forma; o crédito "em regra" vira "a verificar" (crédito presumido, § 2º, II, só
+ * nas hipóteses previstas na lei). Isenção e outras situações sem redução registrada na tabela não são inferidas aqui.
+ */
+export function creditoDaClasse(credito: Credito, classe: Pick<ClasseFiscal, 'pctReducaoIbs' | 'pctReducaoCbs' | 'cClassTrib'>): Credito {
+  if (credito.situacao !== 'EM_REGRA' || classe.pctReducaoIbs < 1 || classe.pctReducaoCbs < 1) return credito;
+  return {
+    situacao: 'VERIFICAR',
+    descricao: `Classe ${classe.cClassTrib} com redução de 100% do IBS e da CBS (alíquota zero) na tabela da SVRS: sem imposto destacado, não há crédito pelo valor destacado e extinto (LC 214/2025, art. 47, § 2º, I); crédito presumido só nas hipóteses previstas na lei (§ 2º, II)`,
+    fundamento: credito.fundamento,
+  };
+}
 
 export type Enquadramento = {
   cenario: Cenario;
@@ -76,8 +91,9 @@ export function enquadrar(
   const art47 = cat.dispositivoExiste('lcp-214-2025', 'art-47');
   const credito = cenario === 'DEVOLUCAO' ? regraCreditoDevolucao(original!, finalidade, art47) : regraCredito(base as CenarioBase, finalidade, art47);
   const notas: string[] = [];
-  if (cenario === 'DEVOLUCAO') notas.push(`Devolução espelha a operação original (${original === 'VENDA' ? 'venda' : 'aquisição'}): mesmo CST e cClassTrib (interpretação interna, regra operacional; conferir)`);
-  if (base === 'COMPRA_REVENDA' && finalidade !== 'REVENDA') notas.push('Aquisição para produção avaliada no cenário de compra (mesma regra de crédito)');
+  if (cenario === 'DEVOLUCAO') notas.push(`Devolução da ${original === 'VENDA' ? 'venda' : 'aquisição'}: base de cálculo e alíquota da operação original (LC 214/2025, art. 12, § 7º, e art. 17); CST e cClassTrib propostos iguais aos da operação original (conferir no documento da devolução)`);
+  if (base === 'COMPRA_REVENDA' && finalidade !== 'REVENDA') notas.push(`Aquisição de ${ROTULO_FINALIDADE[finalidade].toLowerCase()} avaliada no cenário de compra (mesma regra de crédito)`);
+  if (base === 'USO_CONSUMO' && finalidade !== 'USO_CONSUMO') notas.push(`Aquisição de ${ROTULO_FINALIDADE[finalidade].toLowerCase()} avaliada no cenário de uso e consumo`);
 
   const av = cat.avaliarNcm(n);
   let cClassTrib: string; let enquadramentoLegal: string; let artigo: string | null = null;
@@ -116,7 +132,7 @@ export function enquadrar(
     artigo, cst: classe.cst, cClassTrib: classe.cClassTrib,
     vigencia: { inicio: classe.vigenciaInicio, fim: classe.vigenciaFim },
     reducao: { ibs: classe.pctReducaoIbs, cbs: classe.pctReducaoCbs },
-    credito,
+    credito: credito ? creditoDaClasse(credito, classe) : credito,
     observacao: [classe.pctReducaoIbs || classe.pctReducaoCbs ? `Redução IBS ${pct(classe.pctReducaoIbs)} / CBS ${pct(classe.pctReducaoCbs)}` : '', ...notas].filter(Boolean).join('. '),
     origem: 'HERDADO', status: 'DEFINIDO', motivoSeAguardando: null,
   };
@@ -148,11 +164,15 @@ export function aplicarExcecao(herdado: Enquadramento, excecao: ExcecaoItem | nu
   if (motivo.length < 5) return { ...herdado, origem: 'EXCECAO', status: 'AGUARDANDO_INFORMACAO', motivoSeAguardando: 'Exceção exige motivo escrito' };
   const { classe, motivo: erro } = classeVigente(cat, String(excecao.cClassTrib).trim(), dataBase);
   if (!classe) return { ...herdado, origem: 'EXCECAO', status: 'AGUARDANDO_INFORMACAO', motivoSeAguardando: erro };
+  // O enquadramento e o artigo herdados do conjunto não valem para a exceção: o texto é o da classe escolhida (tabela da SVRS), que não
+  // traz artigo da lei; o artigo fica "não confirmado" até o consultor informá-lo.
   return {
     ...herdado, origem: 'EXCECAO', status: 'DEFINIDO', motivoSeAguardando: null,
     cst: classe.cst, cClassTrib: classe.cClassTrib, vigencia: { inicio: classe.vigenciaInicio, fim: classe.vigenciaFim },
     reducao: { ibs: classe.pctReducaoIbs, cbs: classe.pctReducaoCbs },
-    enquadramentoLegal: `Exceção do item: ${motivo} | cClassTrib ${classe.cClassTrib}${classe.descricao ? `: ${classe.descricao}` : ''}`,
+    enquadramentoLegal: `cClassTrib ${classe.cClassTrib}${classe.descricao ? `: ${classe.descricao}` : ''} (tabela cClassTrib da SVRS)`,
+    artigo: NAO_CONFIRMADO,
+    credito: herdado.credito ? creditoDaClasse(herdado.credito, classe) : null,
     observacao: `Exceção ao conjunto (herdado: ${herdado.cClassTrib ?? 'sem classe'}): ${motivo}`,
   };
 }

@@ -57,7 +57,7 @@ function insumoAgro(ats: Atividade[], motivoBase: string): SugestaoFinalidade {
 }
 
 export function sugerirFinalidade(item: Pick<ItemTrabalho, 'descricao' | 'grupo' | 'finalidade'>, atividades: string[], contextoGrupo?: ContextoGrupo | null): SugestaoFinalidade {
-  if (item.finalidade) return { finalidade: item.finalidade, confianca: 'alta', motivo: 'finalidade já informada na base', alternativas: [] };
+  if (item.finalidade) return { finalidade: item.finalidade, confianca: 'alta', motivo: 'finalidade já presente no item (informada na base ou decidida antes)', alternativas: [] };
   const ats = atividades as Atividade[];
   const grupo = semAcento(item.grupo ?? contextoGrupo?.grupo ?? ''); const nome = semAcento(item.descricao);
   for (const r of REGRAS) {
