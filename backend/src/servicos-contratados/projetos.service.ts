@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { PrismaService } from '../prisma/prisma.service';
 import { CATALOGO_CONSULTORIA, SERVICOS_POR_DATA_BASE } from './consultoria.service';
 import { AuditoriaIbsCbsService } from '../auditoria-ibscbs/auditoria-ibscbs.service';
+import { apagarSaneamento } from '../saneamento-estoques/dados/exclusao';
 
 export const SITUACOES_DO_PROJETO = ['EM_ANDAMENTO', 'PAUSADO', 'CONCLUIDO', 'CANCELADO'] as const;
 export type EntradaProjeto = {
@@ -145,7 +146,11 @@ export class ProjetosDiagnosticoService {
   async excluir(id: string, usuario?: Usuario) {
     const projeto = await this.obter(id);
     if (usuario?.role === 'admin') {
-      await this.prisma.projetoDiagnostico.delete({ where: { id } });
+      // O saneamento de estoques do projeto vai junto, na mesma transação (sem órfãos).
+      await this.prisma.$transaction(async (tx) => {
+        await apagarSaneamento(tx as never, { diagnostico_id: id });
+        await tx.projetoDiagnostico.delete({ where: { id } });
+      });
       return { ok: true, pendente: false };
     }
     if (!usuario?.email) throw new ForbiddenException('Identifique-se para solicitar a exclusão.');
@@ -158,8 +163,11 @@ export class ProjetosDiagnosticoService {
 
   async aprovarExclusao(id: string, usuario?: Usuario) {
     if (usuario?.role !== 'admin') throw new ForbiddenException('Só administradores decidem solicitações de exclusão.');
-    const resultado = await this.prisma.projetoDiagnostico.deleteMany({ where: { id, exclusao_solicitada_em: { not: null } } });
-    if (!resultado.count) throw new ConflictException('A solicitação já foi resolvida.');
+    await this.prisma.$transaction(async (tx) => {
+      const resultado = await tx.projetoDiagnostico.deleteMany({ where: { id, exclusao_solicitada_em: { not: null } } });
+      if (!resultado.count) throw new ConflictException('A solicitação já foi resolvida.');
+      await apagarSaneamento(tx as never, { diagnostico_id: id });
+    });
     return { ok: true, pendente: false };
   }
 

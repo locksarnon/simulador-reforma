@@ -9,6 +9,8 @@ function montar(cenario: { custodia?: { empresa_id: string }[]; xmlDoRepositorio
   const tx: Record<string, { deleteMany: ReturnType<typeof vi.fn>; updateMany: ReturnType<typeof vi.fn> }> = {};
   for (const t of tabelas) tx[t] = { deleteMany: vi.fn(), updateMany: vi.fn() };
   (tx as Record<string, unknown>).auditoriaCertificado = { createMany: vi.fn() };
+  // Saneamento de estoques novo: nenhum projeto nestes cenários (a exclusão em cascata tem teste próprio em saneamento-estoques/dados).
+  (tx as Record<string, unknown>).sanProjeto = { findMany: vi.fn().mockResolvedValue([]), deleteMany: vi.fn() };
   const prisma = {
     documentoXml: { groupBy: vi.fn().mockResolvedValue(cenario.custodia ?? []), findMany: vi.fn().mockResolvedValue(cenario.xmlDoRepositorio ?? []) },
     certificadoDigital: { groupBy: vi.fn().mockResolvedValue([]) },

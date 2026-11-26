@@ -2050,3 +2050,246 @@ model AuditoriaIbsCbs {
   @@index([empresa_id, data_emissao])
   @@index([empresa_id, situacao])
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// SANEAMENTO DE ESTOQUES E CADASTRO DE PRODUTOS (docs/saneamento-estoques-contrato.md)
+// Projeto novo, independente de SaneamentoProjeto. Só tabelas novas (migração aditiva).
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Projeto: um por ProjetoDiagnostico do serviço 'saneamento-estoques'. A data-base vem do projeto de consultoria.
+model SanProjeto {
+  id                         String    @id @default(cuid())
+  diagnostico_id             String    @unique
+  empresa_id                 String
+  data_base                  DateTime
+  erp                        String?
+  erp_versao                 String?
+  /// Lista de estabelecimentos (texto). Vazia = um só.
+  estabelecimentos           Json      @default("[]")
+  responsavel                String?
+  /// {conciliacao, blocosKG, arquivoErp}: todos false por padrão.
+  modulos                    Json      @default("{\"conciliacao\":false,\"blocosKG\":false,\"arquivoErp\":false}")
+  /// {corteMovimentacao: 'yyyy-mm-dd' | null}
+  parametros                 Json      @default("{}")
+  /// Trava: sem isto, importação e análises são recusadas.
+  atividades_confirmadas_por String?
+  atividades_confirmadas_em  DateTime?
+  /// Versão do cadastro CNPJ (Empresa.dados_publicos_em, ISO) usada nas atividades.
+  cnpj_versao                String?
+  versao                     Int       @default(1)
+  criado_por                 String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  atividades                 SanAtividade[]
+
+  @@index([empresa_id])
+}
+
+model SanAtividade {
+  id         String   @id @default(cuid())
+  projeto_id String
+  /// CNAE (7 dígitos) ou, nas manuais, um identificador curto escolhido pelo consultor.
+  codigo     String
+  descricao  String
+  /// CNPJ | MANUAL
+  origem     String
+  /// false = excluída (a linha fica, para o histórico).
+  mantida    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  projeto    SanProjeto @relation(fields: [projeto_id], references: [id], onDelete: Cascade)
+
+  @@unique([projeto_id, codigo])
+}
+
+model SanImportacao {
+  id           String   @id @default(cuid())
+  projeto_id   String
+  arquivo      String
+  usuario      String
+  mapeamento   Json     @default("{}")
+  aceitas      Int      @default(0)
+  rejeitadas   Int      @default(0)
+  pendentes    Int      @default(0)
+  /// Relatório de linhas (rejeitadas e pendentes, com motivo) e diferenças incorporadas.
+  relatorio    Json     @default("{}")
+  createdAt    DateTime @default(now())
+
+  @@index([projeto_id, createdAt])
+}
+
+/// Item do cadastro. O id é estável (não muda na reimportação); a chave de negócio é projeto + estabelecimento + código
+/// (estabelecimento '' = único, porque NULL não participa de índice único).
+model SanItem {
+  id                String   @id @default(cuid())
+  projeto_id        String
+  estabelecimento   String   @default("")
+  codigo            String
+  linha             Int
+  importacao_id     String
+  descricao         String   @default("")
+  /// Imutável: como veio na primeira importação.
+  original          Json
+  /// Última leitura do arquivo (a reimportação compara com ela; o original nunca muda).
+  lido              Json?
+  /// Base de trabalho (ItemTrabalho sem id): muda só por decisão aprovada ou incorporação de reimportação.
+  trabalho          Json
+  grupo             String?
+  finalidade        String?
+  tambem_usado_como Json     @default("[]")
+  /// NCM + finalidade (interno): itens com a mesma chave formam um conjunto.
+  conjunto_chave    String?
+  ativo             Boolean?
+  /// Bloqueio otimista.
+  versao            Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  celulas           SanCelula[]
+
+  @@unique([projeto_id, estabelecimento, codigo])
+  @@index([projeto_id, codigo])
+  @@index([projeto_id, grupo])
+  @@index([projeto_id, conjunto_chave])
+  @@index([importacao_id])
+}
+
+/// Célula item × camada. `grupo` é cópia do grupo do item (a visão geral agrega sem junção).
+model SanCelula {
+  id            String   @id @default(cuid())
+  projeto_id    String
+  item_id       String
+  camada        String
+  grupo         String   @default("")
+  /// PENDENTE | SEM_PROBLEMA | PROPOSTO | APROVADO | AGUARDANDO_INFORMACAO
+  situacao      String   @default("PENDENTE")
+  revisar       Boolean  @default(false)
+  revisar_causa String?
+  caso_id       String?
+  updatedAt     DateTime @updatedAt
+
+  item          SanItem  @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  @@unique([item_id, camada])
+  @@index([projeto_id, camada, situacao])
+  @@index([projeto_id, grupo, camada])
+  @@index([caso_id])
+}
+
+model SanCaso {
+  id             String   @id @default(cuid())
+  projeto_id     String
+  camada         String
+  tipo           String
+  /// Impressão digital (camada + tipo + itens): reexecutar a camada não duplica caso.
+  chave          String
+  itens          String[]
+  problema       String
+  evidencia      Json     @default("[]")
+  atual          Json     @default("{}")
+  proposta       Json     @default("{}")
+  justificativa  String
+  fundamento     String?
+  impactos       Json     @default("[]")
+  /// REGRA | IA
+  origem         String
+  /// PROPOSTO | RASCUNHO | APROVADO | REJEITADO | AGUARDANDO_INFORMACAO
+  situacao       String   @default("PROPOSTO")
+  responsavel    String?
+  parecer_ia     Json?
+  afeta          Json     @default("[]")
+  /// Motivo da rejeição ou da informação pedida.
+  motivo         String?
+  decidido_por   String?
+  decidido_em    DateTime?
+  versao         Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([projeto_id, chave])
+  @@index([projeto_id, camada, situacao])
+  @@index([projeto_id, situacao])
+  @@index([itens], type: Gin)
+}
+
+/// Histórico por campo (o que mudou, de quê para quê, por quê, quem, quando). Só se acrescenta; nunca se altera.
+model SanDecisao {
+  id         String   @id @default(cuid())
+  projeto_id String
+  item_id    String
+  caso_id    String?
+  campo      String
+  antes      Json?
+  depois     Json?
+  fundamento String?
+  usuario    String
+  /// aprovar | rejeitar | desfazer | importar
+  tipo       String
+  quando     DateTime @default(now())
+
+  @@index([projeto_id, item_id, campo, quando])
+  @@index([caso_id])
+}
+
+model SanVersao {
+  id          String   @id @default(cuid())
+  projeto_id  String
+  numero      Int
+  rotulo      String
+  usuario     String
+  resumo      Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  snapshot    SanVersaoSnapshot?
+
+  @@unique([projeto_id, numero])
+}
+
+/// Foto da base (itens + células) em JSON comprimido (gzip). Tabela à parte para a lista de versões nunca carregá-la.
+model SanVersaoSnapshot {
+  versao_id  String    @id
+  dados      Bytes
+  itens      Int       @default(0)
+
+  versao     SanVersao @relation(fields: [versao_id], references: [id], onDelete: Cascade)
+}
+
+model SanImpactoSped {
+  id                 String    @id @default(cuid())
+  projeto_id         String
+  caso_id            String?
+  obrigacao          String
+  competencia        String?
+  versao_leiaute     String?
+  registro           String
+  campo              String?
+  valor_original     String?
+  valor_proposto     String?
+  motivo             String
+  evidencia          String?
+  inicio             DateTime?
+  avaliar_anteriores Boolean   @default(false)
+  responsavel        String?
+  /// CADASTRAL_FUTURO | REGULARIZACAO_SALDO | ESCRITURACAO_ENTREGUE
+  tipo_ajuste        String
+  createdAt          DateTime  @default(now())
+
+  @@index([projeto_id, obrigacao])
+  @@index([caso_id])
+}
+
+/// Código antigo → novo (consolidação), com data e justificativa.
+model SanVinculoCodigo {
+  id            String    @id @default(cuid())
+  projeto_id    String
+  de            String
+  para          String
+  inicio        DateTime?
+  justificativa String
+  criado_por    String?
+  createdAt     DateTime  @default(now())
+
+  @@index([projeto_id, de])
+}

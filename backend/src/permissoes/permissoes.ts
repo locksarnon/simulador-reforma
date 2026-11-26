@@ -177,6 +177,7 @@ export const ROTAS_DAS_TELAS: { rota: string; telas: string[] }[] = [
   { rota: 'monitoramento/contrato', telas: ['integracoes'] },
   { rota: 'certidoes', telas: ['monitoramento', 'analise-risco'] },
   { rota: 'repositorio-xml', telas: ['captura-xml'] },
+  { rota: 'consultoria/projetos/:id/analisar-ia', telas: ['carteira-diagnostico', 'catalogo-consultoria'] },
   { rota: 'projetos-diagnostico/:id/homologacao', telas: ['captura-xml', 'carteira-diagnostico', 'clientes-diagnostico'] },
   { rota: 'repositorio-xml/empresas/:empresaId/certificado', telas: ['captura-xml', 'grupos-empresas', 'procuracoes'] },
   { rota: 'repositorio-xml/empresas/:empresaId/auditoria-certificado', telas: ['captura-xml', 'grupos-empresas', 'procuracoes'] },
@@ -195,6 +196,7 @@ export const ROTAS_DAS_TELAS: { rota: string; telas: string[] }[] = [
   { rota: 'correlacao-servicos', telas: ['carteira-diagnostico'] },
   { rota: 'validador-nfse', telas: ['carteira-diagnostico'] },
   { rota: 'ncm', telas: ['consulta-ncm', 'carteira-diagnostico'] },
+  { rota: 'saneamento-estoques', telas: ['carteira-diagnostico'] },
 ];
 
 /** Entidades genéricas (/entities/:model) que pertencem a uma tela. */
@@ -219,10 +221,13 @@ export const POST_DE_LEITURA = [
   'ncm/sugestoes',
   'validador-nfse/validar',
   'base-legal/perguntar',
+  'consultoria/projetos/:id/analisar-ia',
   'base-legal/perguntar-aprofundado',
   'base-legal/perguntas/:id/enviar-relatorio',
   'limpeza/previa',
   'calculadora-rfb/conferir-operacao',
+  'saneamento-estoques/projetos/:id/importacoes/previa',
+  'saneamento-estoques/projetos/:id/casos/lote/previa',
 ];
 
 const segmentos = (rota: string) => rota.split('/').filter(Boolean);

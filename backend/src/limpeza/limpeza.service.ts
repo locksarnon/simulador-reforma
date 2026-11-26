@@ -3,6 +3,7 @@ import { empresasComCustodiaXml } from '../common/custodia-xml';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { AuthUser } from '../auth/auth.types';
+import { apagarSaneamento } from '../saneamento-estoques/dados/exclusao';
 
 /** 'analises' = tudo da lista "Análises salvas" da empresa; 'saneamento' = só os projetos de saneamento da empresa e as bases importadas neles. */
 export type TelaLimpeza = 'importacao-xml' | 'operacoes' | 'empresas' | 'workroom' | 'validacoes' | 'analises' | 'saneamento';
@@ -205,6 +206,8 @@ export class LimpezaService {
           data: ids.custodia.map((empresa_id) => ({ empresa_id, acao: 'EMPRESA_EXCLUIDA', usuario: user.email, detalhe: 'Certificado, XML e configurações da captura apagados pela Limpeza.' })),
         });
       }
+      // Saneamento de estoques das empresas apagadas (e todos os filhos): nada fica órfão.
+      await apagarSaneamento(tx as never, { empresa_id: { in: ids.empresas } });
       await tx.empresa.deleteMany({ where: { id: { in: ids.empresas } } });
       await tx.saneamentoProjeto.deleteMany({ where: { id: { in: ids.projetos } } });
       await tx.analiseEmpresa.deleteMany({ where: { id: { in: ids.analises } } });

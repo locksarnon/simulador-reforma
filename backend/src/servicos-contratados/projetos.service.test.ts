@@ -9,7 +9,7 @@ function montar() {
     servicos: [{ id: 'S1', empresa_id: 'B', tipo: 'DIAGNOSTICO_PONTUAL', situacao: 'PAUSADO' }] as Record<string, unknown>[],
   };
   let seq = 0;
-  const prisma = {
+  const prisma: Record<string, unknown> = {
     empresa: { findMany: async ({ where }: { where: { id: { in: string[] } } }) => db.empresas.filter((id) => where.id.in.includes(id)).map((id) => ({ id })) },
     projetoDiagnostico: {
       create: async ({ data }: { data: Record<string, unknown> }) => { const p = { id: `P${++seq}`, ...data }; db.projetos.push(p); return p; },
@@ -29,6 +29,8 @@ function montar() {
       },
       delete: async ({ where }: { where: { id: string } }) => { db.projetos = db.projetos.filter((p) => p.id !== where.id); },
     },
+    sanProjeto: { findMany: async () => [] },
+    $transaction: async (fn: (t: unknown) => Promise<unknown>) => fn(prisma),
     servicoContratado: {
       findFirst: async ({ where }: { where: { empresa_id: string; tipo: string } }) => db.servicos.find((s) => s.empresa_id === where.empresa_id && s.tipo === where.tipo && ['PROPOSTA', 'ATIVO', 'PAUSADO'].includes(String(s.situacao))) ?? null,
       create: async ({ data }: { data: Record<string, unknown> }) => { db.servicos.push({ id: `S${db.servicos.length + 1}`, ...data }); },

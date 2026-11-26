@@ -10,6 +10,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsultoria";
+import AnalisarComIa from "@/components/consultoria/AnalisarComIa";
 import HomologacaoErp from "@/components/consultoria/HomologacaoErp";
 import EscolhaDeEmpresas from "@/components/diagnostico/EscolhaDeEmpresas";
 import { useCarteiras } from "@/lib/useCarteiras";
@@ -112,6 +113,7 @@ export default function ProjetoDiagnosticoPagina() {
           <p><strong>Exclusão aguardando autorização.</strong> Solicitada por {p.exclusao_solicitada_por} em {fmtDataCurta(p.exclusao_solicitada_em)}.</p>
           {admin && <button type="button" disabled={exclusao.isPending} className="rounded-md border bg-background px-3 py-1.5 hover:bg-muted" onClick={() => exclusao.mutate(true)}>Recusar exclusão</button>}
         </section>}
+        {servico && <AnalisarComIa projetoId={p.id} servico={servico} />}
         {documentos && servico && <SolicitacoesConsultoria servico={servico}
           clientes={clientesDocumentos} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)} />}
         {(catalogo.isError || pessoas.isError) && p.servico_consultoria && <p role="alert" className="text-sm">Não foi possível carregar os dados do serviço. Atualize para tentar novamente.</p>}
@@ -121,6 +123,7 @@ export default function ProjetoDiagnosticoPagina() {
           <h2 className="font-semibold">Saneamento de estoques</h2>
           <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. O trabalho passo a passo, até a política de uso, é feito na ferramenta de Saneamento de estoques da empresa.</p>
           <div className="flex flex-wrap gap-4 text-sm text-primary">
+            <Link to={`/diagnostico/projetos/${p.id}/saneamento`}>Abrir o Saneamento de estoques e cadastro de produtos</Link>
             {(p.empresa_ids || []).map((id) => { const e = (empresas || []).find((x) => x.id === id); const to = e && caminhoDaFerramenta(e, grupos, "saneamento-estoque"); return to ? <Link key={id} to={to}>Abrir o saneamento de {e.razao_social || e.nome}</Link> : null; })}
           </div>
         </section>}

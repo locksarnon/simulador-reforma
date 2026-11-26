@@ -41,6 +41,10 @@ import { AuditoriaIbsCbsModule } from './auditoria-ibscbs/auditoria-ibscbs.modul
 import { MonitoramentoModule } from './monitoramento/monitoramento.module';
 import { PreAnaliseModule } from './pre-analise/pre-analise.module';
 import { CustosModule } from './custos/custos.module';
+import { SaneamentoEstoquesModule } from './saneamento-estoques/dados/saneamento-estoques.module';
+import { IaSaneamentoModule } from './saneamento-estoques/ia/ia-saneamento.module';
+import { IaConsultoriaModule } from './ia-consultoria/ia-consultoria.module';
+import { EntregaveisModule } from './saneamento-estoques/entregaveis/entregaveis.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissoesGuard } from './permissoes/permissoes.guard';
 
@@ -87,6 +91,10 @@ import { PermissoesGuard } from './permissoes/permissoes.guard';
     MonitoramentoModule,
     PreAnaliseModule,
     CustosModule,
+    SaneamentoEstoquesModule,
+    IaSaneamentoModule,
+    IaConsultoriaModule,
+    EntregaveisModule,
   ],
   // A ordem importa: primeiro o login (preenche o usuário), depois as permissões.
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: PermissoesGuard }],

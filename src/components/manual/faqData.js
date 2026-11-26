@@ -11,6 +11,7 @@ export { FAQ_ATUALIZADO_EM };
 
 import { SECAO_REPOSITORIO_XML } from "./faqRepositorioXml";
 import { SECAO_NUCLEO } from "./faqNucleo";
+import { SECAO_SANEAMENTO } from "./faqSaneamento";
 
 const SECOES_BASE = [
   {
@@ -366,6 +367,7 @@ const INSERCOES = [
   { depoisDe: "Informações de DF-e", secao: SECAO_FERRAMENTAS },
   { depoisDe: "Informações de DF-e", secao: SECAO_BASE_LEGAL },
   { depoisDe: "Informações de DF-e", secao: SECAO_AGENDA },
+  { depoisDe: "Informações de DF-e", secao: SECAO_SANEAMENTO },
 ];
 
 const comExtras = (secao) => (ITENS_EXTRAS[secao.titulo] ? { ...secao, itens: [...secao.itens, ...ITENS_EXTRAS[secao.titulo]] } : secao);

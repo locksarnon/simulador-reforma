@@ -1,0 +1,69 @@
+import { api } from "@/api/client";
+import { enderecoDeEntrega, nomeDeEntrega } from "./logica";
+
+const B = "/saneamento-estoques";
+
+/** Chamadas do módulo (rotas de docs/saneamento-estoques-contrato.md). Toda alteração leva a `versao` que a tela viu. */
+export const san = {
+  projetoDoDiagnostico: (diagnosticoId) => api.get(`${B}/projetos/por-diagnostico/${diagnosticoId}`),
+  criarProjeto: (diagnostico_id) => api.post(`${B}/projetos`, { diagnostico_id }),
+  configurar: (id, corpo) => api.put(`${B}/projetos/${id}`, corpo),
+  adicionarAtividade: (id, corpo) => api.post(`${B}/projetos/${id}/atividades`, corpo),
+  alterarAtividade: (id, atividadeId, mantida) => api.put(`${B}/projetos/${id}/atividades/${atividadeId}`, { mantida }),
+  confirmarAtividades: (id, versao) => api.post(`${B}/projetos/${id}/atividades/confirmar`, { versao }),
+  reabrirAtividades: (id, versao) => api.post(`${B}/projetos/${id}/atividades/reabrir`, { versao }),
+
+  previaImportacao: (id, arquivo, mapeamento) => api.upload(`${B}/projetos/${id}/importacoes/previa`, arquivo, { mapeamento }),
+  importar: (id, arquivo, mapeamento, incorporar) => api.upload(`${B}/projetos/${id}/importacoes`, arquivo, { mapeamento, incorporar: incorporar || [] }),
+  importacoes: (id) => api.get(`${B}/projetos/${id}/importacoes`),
+
+  itens: (id, params) => api.get(`${B}/projetos/${id}/itens`, params),
+  item: (itemId) => api.get(`${B}/itens/${itemId}`),
+  historicoDoItem: (itemId, campo) => api.get(`${B}/itens/${itemId}/historico`, campo ? { campo } : undefined),
+  visaoGeral: (id) => api.get(`${B}/projetos/${id}/visao-geral`),
+  camadasDisponiveis: () => api.get(`${B}/camadas-disponiveis`),
+  executarCamada: (id, camada) => api.post(`${B}/projetos/${id}/camadas/${camada}/executar`, {}),
+
+  casos: (id, params) => api.get(`${B}/projetos/${id}/casos`, params),
+  registrarCasos: (id, resultado) => api.post(`${B}/projetos/${id}/casos`, resultado),
+  caso: (casoId) => api.get(`${B}/casos/${casoId}`),
+  salvarRascunho: (casoId, corpo) => api.put(`${B}/casos/${casoId}/rascunho`, corpo),
+  aprovar: (casoId, corpo) => api.post(`${B}/casos/${casoId}/aprovar`, corpo),
+  rejeitar: (casoId, corpo) => api.post(`${B}/casos/${casoId}/rejeitar`, corpo),
+  pedirInformacao: (casoId, corpo) => api.post(`${B}/casos/${casoId}/pedir-informacao`, corpo),
+  reabrir: (casoId, versao) => api.post(`${B}/casos/${casoId}/reabrir`, { versao }),
+  pedirParecerIa: (casoId) => api.post(`${B}/casos/${casoId}/parecer-ia`, {}),
+  lotePrevia: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/previa`, corpo),
+  loteAprovar: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/aprovar`, corpo),
+
+  impactos: (id) => api.get(`${B}/projetos/${id}/impactos-sped`),
+  vinculos: (id) => api.get(`${B}/projetos/${id}/vinculos-codigo`),
+
+  versoes: (id) => api.get(`${B}/projetos/${id}/versoes`),
+  liberarVersao: (id, rotulo, extra) => api.post(`${B}/projetos/${id}/versoes`, { rotulo, ...(extra || {}) }),
+  compararVersoes: (id, a, b) => api.get(`${B}/projetos/${id}/versoes/comparar`, { a, b }),
+  baixarEntrega: (id, tipo, versao) => api.baixar("GET", enderecoDeEntrega(id, tipo, versao?.id), { nome: nomeDeEntrega(tipo, versao) }),
+};
+
+export const chaves = {
+  projeto: (diagId) => ["san", "projeto", diagId],
+  todos: (projetoId) => ["san", projetoId],
+  itens: (projetoId, filtro) => ["san", projetoId, "itens", filtro],
+  visao: (projetoId) => ["san", projetoId, "visao"],
+  camadas: () => ["san", "camadas-disponiveis"],
+  casos: (projetoId, filtro) => ["san", projetoId, "casos", filtro],
+  caso: (casoId) => ["san", "caso", casoId],
+  impactos: (projetoId) => ["san", projetoId, "impactos"],
+  versoes: (projetoId) => ["san", projetoId, "versoes"],
+  importacoes: (projetoId) => ["san", projetoId, "importacoes"],
+};
+
+/**
+ * Depois de uma gravação: renova o que a tela mostra sem refazer todas as páginas da tabela. As listas de itens (infinitas) voltam
+ * a só a primeira página antes de recarregar, para não buscar de novo dezenas de páginas; o resto é invalidado normalmente.
+ */
+export async function atualizarTudo(qc, projetoId) {
+  const base = chaves.todos(projetoId);
+  qc.setQueriesData({ queryKey: [...base, "itens"] }, (d) => (d && d.pages ? { pages: d.pages.slice(0, 1), pageParams: d.pageParams.slice(0, 1) } : d));
+  await qc.invalidateQueries({ queryKey: base });
+}

@@ -70,6 +70,7 @@ import ParametrosRotinasPagina from '@/pages/admin/ParametrosRotinasPagina';
 import { CarteiraBpo } from '@/pages/clientes/Carteiras';
 import DiagnosticosPagina from '@/pages/diagnostico/DiagnosticosPagina';
 import ProjetoDiagnosticoPagina from '@/pages/diagnostico/ProjetoDiagnosticoPagina';
+import SaneamentoEstoquesPagina from '@/pages/saneamento-estoques/SaneamentoEstoquesPagina';
 import CarteiraColaboradoresPagina from '@/pages/clientes/CarteiraColaboradoresPagina';
 import TagsPagina from '@/pages/clientes/TagsPagina';
 import TarefasPagina from '@/pages/bpo/TarefasPagina';
@@ -140,6 +141,7 @@ function App() {
                   <Route path="/consultoria/projetos" element={<DiagnosticosPagina consultoria />} />
                   <Route path="/diagnostico/carteira" element={<Navigate to="/consultoria/carteira" replace />} />
                   <Route path="/diagnostico/projetos/:id" element={<ProjetoDiagnosticoPagina />} />
+                  <Route path="/diagnostico/projetos/:id/saneamento" element={<SaneamentoEstoquesPagina />} />
                   <Route path="/clientes/carteira" element={<CarteiraColaboradoresPagina />} />
                   <Route path="/clientes/tags" element={<TagsPagina />} />
                   <Route path="/bpo/tarefas" element={<TarefasPagina />} />

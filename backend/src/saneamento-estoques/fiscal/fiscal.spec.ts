@@ -1,0 +1,320 @@
+import { describe, expect, it } from 'vitest';
+import {
+  ATIVIDADES, atividadesPF, sugerirAtividades, atividadesDistintas, mapaDeAtividades, regraDoCnae, ehAtividade,
+} from './atividades';
+import { sugerirFinalidade, sugerirFinalidadePorGrupo } from './finalidade';
+import { criarCatalogos, CatalogosFiscais, ClasseFiscal } from './catalogos';
+import { enquadrar, chaveDoConjunto, agruparConjuntos, aplicarExcecao, classeVigente } from './enquadramento';
+import { cenariosAplicaveis } from './cenarios';
+import { AnalisadorTributario, AFETA } from './tributario';
+import { CHECKLIST, TIPOS_AJUSTE, impactosDoAjuste, montarImpactos, AnalisadorObrigacoes, FONTES_LEIAUTE, AjusteSped } from './impactoSped';
+import { compararAtividadeComCfop } from './aderencia';
+import type { ItemTrabalho } from '../tipos';
+
+// ── Dados sintéticos (fixtures; códigos de classe fictícios exceto o padrão 000001 resolvido pelo catálogo) ──
+const classe = (cClassTrib: string, cst: string, reducao: number, extra: Partial<ClasseFiscal> = {}): ClasseFiscal => ({
+  cClassTrib, cst, descricao: `Classe ${cClassTrib}`, pctReducaoIbs: reducao, pctReducaoCbs: reducao, vigenciaInicio: '2026-01-01', vigenciaFim: null, ativa: true, fonte: 'fixture', ...extra,
+});
+function catalogos(opts: { art47?: boolean; ncms?: string[] | null } = {}): CatalogosFiscais {
+  return criarCatalogos({
+    correlacao: [
+      { ncm: '38089329', c_class_trib: '200100', anexo: 'IX', item_lei: 7, descricao_produto: 'Herbicidas (fixture)' },
+      { ncm: '12019000', c_class_trib: '200100', anexo: 'IX', item_lei: 3, descricao_produto: 'Sementes de soja (fixture)' },
+      { ncm: '3808', c_class_trib: '200100', anexo: 'IX', item_lei: 7, descricao_produto: 'Posição inteira (fixture)' },
+      { ncm: '21069090', c_class_trib: '200200', anexo: 'I', item_lei: 26, descricao_produto: 'Fórmulas (fixture)' },
+      { ncm: '21069090', c_class_trib: '200300', anexo: 'VI', item_lei: 4, descricao_produto: 'Outro (fixture)' },
+      { ncm: '84', c_class_trib: null, anexo: 'XX', item_lei: 9, descricao_produto: 'Capítulo citado (fixture)' },
+    ],
+    classes: [classe('000001', '000', 0), classe('200100', '200', 0.6), classe('200200', '200', 1), classe('200300', '200', 0.3), classe('200400', '200', 0.5, { vigenciaInicio: '2030-01-01' })],
+    ncms: opts.ncms === undefined ? null : opts.ncms,
+    dispositivos: opts.art47 === false ? [] : [{ norma: 'lcp-214-2025', caminho: 'art-47' }],
+  });
+}
+const DB = '2026-11-25';
+const item = (id: string, p: Partial<ItemTrabalho> = {}): ItemTrabalho => ({
+  id, codigo: id, estabelecimento: null, descricao: 'ITEM', unidade: 'UN', ncm: null, grupo: null, ativo: true, saldo: null, ultimaMovimentacao: null,
+  fabricante: null, referencia: null, finalidade: null, campos: {}, ...p,
+});
+const ctx = { dataBase: DB, atividades: [] as string[], erp: null, corteMovimentacao: null };
+
+describe('atividades por CNAE', () => {
+  it('mapeia CNAEs do agro e devolve a origem e o motivo', () => {
+    const r = sugerirAtividades('0111-3/01', ['0115-6/00', '4683-4/00', '4623-1/09', '4687-7/03', '4789-0/99']);
+    const por = (a: string) => r.sugestoes.filter((s) => s.atividade === a).map((s) => s.cnae);
+    expect(por('PRODUCAO_AGRICOLA')).toEqual(['0111301', '0115600']);
+    expect(por('REVENDA_INSUMOS')).toEqual(['4683400']);
+    expect(por('VENDA_RESIDUOS')).toEqual(['4687703']);
+    expect(por('COMERCIO_ATACADISTA')).toEqual(['4683400', '4623109', '4687703']);
+    expect(por('COMERCIO_VAREJISTA')).toEqual(['4789099']);
+    expect(r.sugestoes[0]).toMatchObject({ atividade: 'PRODUCAO_AGRICOLA', tipo: 'PRINCIPAL' });
+    expect(r.sugestoes.at(-1)!.tipo).toBe('SECUNDARIA');
+    expect(r.sugestoes.every((s) => s.motivo.length > 0)).toBe(true);
+  });
+  it('CNAE sem regra fica fora, sem chute', () => {
+    const r = sugerirAtividades('6911-7/01', ['4611-7/00', '9999-9/99']);
+    expect(r.sugestoes).toEqual([]);
+    expect(r.semMapeamento.map((s) => s.cnae)).toEqual(['6911701', '4611700', '9999999']);
+  });
+  it('manutenção de máquinas (divisão 33) é serviço, não indústria', () => {
+    expect(atividadesDistintas(sugerirAtividades('3314-7/01'))).toEqual(['PRESTACAO_SERVICO']);
+    expect(atividadesDistintas(sugerirAtividades('1061-9/01'))).toEqual(['INDUSTRIALIZACAO']);
+    expect(regraDoCnae('01')).toBeNull();
+  });
+  it('lista fechada e opções de PF válidas', () => {
+    expect(atividadesPF.every(ehAtividade)).toBe(true);
+    expect(new Set(ATIVIDADES).size).toBe(ATIVIDADES.length);
+  });
+});
+
+describe('correções da revisão', () => {
+  it('CNAE 38 e 49: só o que a CNAE 2.0 justifica', () => {
+    expect(atividadesDistintas(sugerirAtividades('3811-4/00'))).toEqual([]);
+    expect(atividadesDistintas(sugerirAtividades('3832-7/00'))).toEqual(['VENDA_RESIDUOS']);
+    expect(atividadesDistintas(sugerirAtividades('4921-3/01'))).toEqual([]);
+    expect(atividadesDistintas(sugerirAtividades('4930-2/02'))).toEqual(['TRANSPORTE']);
+  });
+  it('mapaDeAtividades separa o que vira atividade do que fica sem efeito', () => {
+    const m = mapaDeAtividades(['0111-3/01', '4683-4/00', '3811-4/00', '0111301']);
+    expect(m.mapeadas.map((x) => [x.codigo, x.atividade])).toEqual([['0111301', 'PRODUCAO_AGRICOLA'], ['4683400', 'REVENDA_INSUMOS'], ['4683400', 'COMERCIO_ATACADISTA']]);
+    expect(m.mapeadas[0].rotulo).toMatch(/agrícola/);
+    expect(m.semMapeamento).toEqual(['3811400']);
+  });
+  it('NCM com linha específica E referência de capítulo: define, mas ressalva a referência', () => {
+    const cat2 = criarCatalogos({
+      correlacao: [{ ncm: '38089329', c_class_trib: '200100', anexo: 'IX', item_lei: 7, descricao_produto: 'x' }, { ncm: '38', c_class_trib: null, anexo: 'XX', item_lei: 2, descricao_produto: 'cap' }],
+      classes: [classe('200100', '200', 0.6)], ncms: null, dispositivos: [],
+    });
+    const e = enquadrar('38089329', 'REVENDA', 'COMPRA_REVENDA', DB, cat2);
+    expect(e.status).toBe('DEFINIDO'); expect(e.observacao).toMatch(/Anexo XX, item 2.*conferir os requisitos/);
+  });
+  it('uso e consumo cita o art. 57 só como "conferir"; devolução é regra operacional, não norma', () => {
+    const c = enquadrar('73182100', 'USO_CONSUMO', 'USO_CONSUMO', DB, catalogos());
+    expect(c.credito!.descricao).toMatch(/art. 57: conferir no texto oficial/);
+    const d = enquadrar('38089329', 'REVENDA', 'DEVOLUCAO', DB, catalogos());
+    expect(d.credito!.fundamento).toMatch(/Regra operacional interna/);
+    expect(d.observacao).toMatch(/interpretação interna/);
+  });
+});
+
+describe('finalidade', () => {
+  it('herbicida: revenda para quem revende, insumo para quem produz, dúvida para quem faz as duas coisas', () => {
+    const h = item('1', { descricao: 'HERBICIDA GLIFOSATO 480', grupo: 'Defensivos' });
+    expect(sugerirFinalidade(h, ['REVENDA_INSUMOS'])).toMatchObject({ finalidade: 'REVENDA', confianca: 'alta' });
+    expect(sugerirFinalidade(h, ['PRODUCAO_AGRICOLA'])).toMatchObject({ finalidade: 'INSUMO_PRODUCAO', confianca: 'alta' });
+    const dupla = sugerirFinalidade(h, ['PRODUCAO_AGRICOLA', 'REVENDA_INSUMOS']);
+    expect(dupla.confianca).toBe('baixa');
+    expect(dupla.alternativas).toContain('INSUMO_PRODUCAO');
+    expect(sugerirFinalidade(h, []).finalidade).toBeNull();
+  });
+  it('semente em cliente produtor é insumo; peça no grupo de manutenção é manutenção', () => {
+    expect(sugerirFinalidade(item('2', { descricao: 'SEMENTE DE SOJA RR', grupo: 'Sementes' }), ['PRODUCAO_AGRICOLA']).finalidade).toBe('INSUMO_PRODUCAO');
+    expect(sugerirFinalidade(item('3', { descricao: 'ROLAMENTO 6205', grupo: 'Manutenção corpo de máquina' }), ['REVENDA_INSUMOS'])).toMatchObject({ finalidade: 'MANUTENCAO', confianca: 'alta' });
+    expect(sugerirFinalidade(item('4', { descricao: 'CORREIA DO ALTERNADOR', grupo: null }), []).finalidade).toBe('MANUTENCAO');
+  });
+  it('outras finalidades pelo nome e grupo; finalidade informada prevalece', () => {
+    expect(sugerirFinalidade(item('5', { descricao: 'BIG BAG 1000KG' }), []).finalidade).toBe('EMBALAGEM');
+    expect(sugerirFinalidade(item('6', { descricao: 'LUVA NITRILICA', grupo: 'EPI' }), []).finalidade).toBe('USO_CONSUMO');
+    expect(sugerirFinalidade(item('7', { descricao: 'TRATOR 150CV', grupo: 'Máquinas e equipamentos' }), []).finalidade).toBe('IMOBILIZADO');
+    expect(sugerirFinalidade(item('8', { descricao: 'SOJA EM PODER DE TERCEIROS' }), []).finalidade).toBe('MATERIAL_TERCEIROS');
+    expect(sugerirFinalidade(item('9', { descricao: 'ALGO', finalidade: 'REVENDA' }), []).motivo).toMatch(/já informada/);
+    expect(sugerirFinalidade(item('10', { descricao: 'PRODUTO X' }), [])).toMatchObject({ finalidade: null, confianca: 'baixa' });
+  });
+  it('diesel só vira insumo quando o cliente tem atividade que o consome', () => {
+    const d = item('11', { descricao: 'OLEO DIESEL S10' });
+    expect(sugerirFinalidade(d, ['PRODUCAO_AGRICOLA']).finalidade).toBe('INSUMO_PRODUCAO');
+    expect(sugerirFinalidade(d, ['COMERCIO_VAREJISTA']).finalidade).toBeNull();
+  });
+  it('agrega por grupo: dominante, distribuição e exceções', () => {
+    const itens = [
+      ...['A', 'B', 'C', 'D'].map((i) => item(`g${i}`, { descricao: `HERBICIDA ${i}`, grupo: 'Defensivos' })),
+      item('gx', { descricao: 'LUVA', grupo: 'Defensivos' }), item('gy', { descricao: 'PRODUTO Y', grupo: 'Defensivos' }),
+    ];
+    const [g] = sugerirFinalidadePorGrupo(itens, ['REVENDA_INSUMOS']);
+    expect(g).toMatchObject({ grupo: 'Defensivos', total: 6, dominante: 'REVENDA', semSugestao: 1 });
+    expect(g.distribuicao).toEqual({ REVENDA: 4, USO_CONSUMO: 1 });
+    expect(g.excecoes.map((e) => e.itemId)).toEqual(['gx']);
+  });
+  it('contexto do grupo com dominante ≥70% resolve item sem indício', () => {
+    const s = sugerirFinalidade(item('z', { descricao: 'PRODUTO Z', grupo: 'G' }), [], { grupo: 'G', distribuicao: { REVENDA: 8, USO_CONSUMO: 1 } });
+    expect(s).toMatchObject({ finalidade: 'REVENDA', confianca: 'media' });
+  });
+});
+
+describe('enquadramento', () => {
+  const cat = catalogos();
+  it('herbicida revenda: classe do anexo, artigo, CST, vigência e crédito em regra', () => {
+    const e = enquadrar('3808.93.29', 'REVENDA', 'COMPRA_REVENDA', DB, cat);
+    expect(e).toMatchObject({ status: 'DEFINIDO', cClassTrib: '200100', cst: '200', origem: 'HERDADO', artigo: 'Anexo IX, item 7 (LC 214/2025)' });
+    expect(e.enquadramentoLegal).toContain('Herbicidas');
+    expect(e.vigencia).toEqual({ inicio: '2026-01-01', fim: null });
+    expect(e.reducao).toEqual({ ibs: 0.6, cbs: 0.6 });
+    expect(e.credito).toMatchObject({ situacao: 'EM_REGRA', fundamento: 'LC 214/2025, art. 47' });
+    expect(e.observacao).toMatch(/Anexo IX/);
+  });
+  it('peça/manutenção sem anexo: tributação padrão resolvida pela tabela; crédito a verificar', () => {
+    const e = enquadrar('73182100', 'MANUTENCAO', 'USO_CONSUMO', DB, cat);
+    expect(e).toMatchObject({ status: 'DEFINIDO', cClassTrib: '000001', cst: '000' });
+    expect(e.credito!.situacao).toBe('VERIFICAR');
+  });
+  it('sem base: NCM ausente/inexistente, finalidade nula, ambíguo, posição, referência, fora de vigência, padrão não carregado', () => {
+    expect(enquadrar('3808', 'REVENDA', 'VENDA', DB, cat).motivoSeAguardando).toMatch(/8 dígitos/);
+    expect(enquadrar(null, 'REVENDA', 'VENDA', DB, cat).status).toBe('AGUARDANDO_INFORMACAO');
+    expect(enquadrar('38089329', 'REVENDA', 'VENDA', DB, catalogos({ ncms: ['12019000'] })).motivoSeAguardando).toMatch(/não consta/);
+    expect(enquadrar('38089329', null, 'VENDA', DB, cat).motivoSeAguardando).toMatch(/Finalidade/);
+    expect(enquadrar('21069090', 'REVENDA', 'VENDA', DB, cat).motivoSeAguardando).toMatch(/200200, 200300|200300, 200200/);
+    const refs = enquadrar('84311000', 'IMOBILIZADO', 'USO_CONSUMO', DB, cat);
+    expect(refs.status).toBe('AGUARDANDO_INFORMACAO'); expect(refs.motivoSeAguardando).toMatch(/Anexo XX/);
+    const semPadrao = criarCatalogos({ correlacao: [], classes: [], ncms: null, dispositivos: [] });
+    expect(enquadrar('84313990', 'MANUTENCAO', 'USO_CONSUMO', DB, semPadrao).motivoSeAguardando).toMatch(/SVRS/);
+    expect(classeVigente(cat, '200400', DB).motivo).toMatch(/sem versão vigente/);
+    expect(classeVigente(cat, '200400', '2031-01-01').classe?.cClassTrib).toBe('200400');
+  });
+  it('anexo que especifica só a posição fica aguardando (não sugere classe por prefixo curto)', () => {
+    const e = enquadrar('38089999', 'REVENDA', 'COMPRA_REVENDA', DB, cat);
+    expect(e.status).toBe('AGUARDANDO_INFORMACAO'); expect(e.motivoSeAguardando).toMatch(/só a posição/);
+  });
+  it('cenário incompatível e material de terceiros aguardam', () => {
+    expect(enquadrar('38089329', 'REVENDA', 'USO_CONSUMO', DB, cat).motivoSeAguardando).toMatch(/não se aplica/);
+    expect(enquadrar('38089329', 'MATERIAL_TERCEIROS', 'COMPRA_REVENDA', DB, cat).status).toBe('AGUARDANDO_INFORMACAO');
+    expect(cenariosAplicaveis('MATERIAL_TERCEIROS')).toEqual([]);
+  });
+  it('venda não gera crédito; art. 47 não carregado vira "não confirmado"', () => {
+    expect(enquadrar('38089329', 'REVENDA', 'VENDA', DB, cat).credito!.situacao).toBe('NAO_SE_APLICA');
+    const sem = enquadrar('38089329', 'REVENDA', 'COMPRA_REVENDA', DB, catalogos({ art47: false }));
+    expect(sem.credito!.fundamento).toMatch(/não confirmado/);
+  });
+  it('devolução espelha a operação original', () => {
+    const venda = enquadrar('38089329', 'REVENDA', 'VENDA', DB, cat);
+    const dev = enquadrar('38089329', 'REVENDA', 'DEVOLUCAO', DB, cat);
+    expect(dev).toMatchObject({ cenario: 'DEVOLUCAO', cClassTrib: venda.cClassTrib, cst: venda.cst });
+    expect(dev.credito!.descricao).toMatch(/anula o débito/);
+    const devCompra = enquadrar('38089329', 'REVENDA', 'DEVOLUCAO', DB, cat, { operacaoOriginal: 'COMPRA_REVENDA' });
+    expect(devCompra.credito!.descricao).toMatch(/estorna o crédito/);
+    expect(devCompra.cClassTrib).toBe(venda.cClassTrib);
+  });
+});
+
+describe('conjunto e exceção', () => {
+  const cat = catalogos();
+  it('chave = NCM de 8 dígitos + finalidade; incompletos ficam em conjuntos SEM_', () => {
+    expect(chaveDoConjunto(item('a', { ncm: '3808.93.29', finalidade: 'REVENDA' }))).toBe('38089329|REVENDA');
+    expect(chaveDoConjunto(item('b', { ncm: '3808', finalidade: 'REVENDA' }))).toBe('SEM_NCM|REVENDA');
+    expect(chaveDoConjunto(item('c', { ncm: '38089329' }))).toBe('38089329|SEM_FINALIDADE');
+    const m = agruparConjuntos([item('a', { ncm: '38089329', finalidade: 'REVENDA' }), item('b', { ncm: '38089329', finalidade: 'INSUMO_PRODUCAO' }), item('c', { ncm: '38089329', finalidade: 'REVENDA' })]);
+    expect([...m.keys()]).toEqual(['38089329|INSUMO_PRODUCAO', '38089329|REVENDA']);
+    expect(m.get('38089329|REVENDA')!.length).toBe(2);
+  });
+  it('exceção exige motivo e classe vigente; marca origem EXCECAO', () => {
+    const herdado = enquadrar('38089329', 'REVENDA', 'VENDA', DB, cat);
+    expect(aplicarExcecao(herdado, null, DB, cat)).toBe(herdado);
+    expect(aplicarExcecao(herdado, { motivo: '', cClassTrib: '200200' }, DB, cat)).toMatchObject({ origem: 'EXCECAO', status: 'AGUARDANDO_INFORMACAO' });
+    expect(aplicarExcecao(herdado, { motivo: 'Produto de outra posição', cClassTrib: '999999' }, DB, cat).motivoSeAguardando).toMatch(/não consta/);
+    const ok = aplicarExcecao(herdado, { motivo: 'Produto enquadrado em outro item', cClassTrib: '200200' }, DB, cat);
+    expect(ok).toMatchObject({ origem: 'EXCECAO', status: 'DEFINIDO', cClassTrib: '200200' });
+    expect(herdado.cClassTrib).toBe('200100'); // não muda o herdado
+  });
+});
+
+describe('camada TRIBUTARIO', () => {
+  const cat = catalogos();
+  const itens = [
+    item('h1', { ncm: '38089329', finalidade: 'REVENDA' }), item('h2', { ncm: '38089329', finalidade: 'REVENDA', campos: { cClassTrib: '200100' } }),
+    item('h3', { ncm: '38089329', finalidade: 'REVENDA' }),
+    item('s1', { ncm: '12019000', finalidade: 'INSUMO_PRODUCAO' }),
+    item('n1', { ncm: null, finalidade: 'REVENDA' }), item('f1', { ncm: '12019000', finalidade: null }),
+    item('t1', { ncm: '38089329', finalidade: 'MATERIAL_TERCEIROS' }),
+    item('a1', { ncm: '21069090', finalidade: 'REVENDA' }),
+  ];
+  const r = new AnalisadorTributario(cat, { excecoes: { h3: { motivo: 'Produto de outro item do anexo', cClassTrib: '200200' } } }).analisar(itens, ctx);
+  it('gera casos por conjunto, não por item, e aponta aguardando informação', () => {
+    const conj = r.casos.find((c) => c.tipo === 'ENQUADRAMENTO_CONJUNTO' && c.itens.includes('h1'))!;
+    expect(conj.itens).toEqual(['h1']); // h2 já confere (sem problema) e h3 é exceção
+    expect(conj.proposta).toMatchObject({ cClassTrib: '200100', origem: 'HERDADO' });
+    expect(conj.afeta).toEqual(['OBRIGACOES']);
+    expect(r.semProblema).toEqual(['h2']);
+    expect(r.casos.find((c) => c.tipo === 'EXCECAO_ITEM')).toMatchObject({ itens: ['h3'], proposta: { cClassTrib: '200200', origem: 'EXCECAO' } });
+    expect(r.casos.find((c) => c.tipo === 'AGUARDANDO_NCM')!.itens).toEqual(['n1']);
+    expect(r.casos.find((c) => c.tipo === 'AGUARDANDO_FINALIDADE')!.itens).toEqual(['f1']);
+    const ag = r.casos.filter((c) => c.tipo === 'AGUARDANDO_INFORMACAO').flatMap((c) => c.itens).sort();
+    expect(ag).toEqual(['a1', 't1']);
+    expect(r.semDados).toEqual({ motivo: expect.any(String), itens: 4 });
+    expect(r.analisados).toBe(8);
+  });
+  it('é determinística', () => {
+    const r2 = new AnalisadorTributario(cat, { excecoes: { h3: { motivo: 'Produto de outro item do anexo', cClassTrib: '200200' } } }).analisar([...itens].reverse(), ctx);
+    const norm = (x: typeof r) => JSON.stringify(x.casos.map((c) => [c.tipo, [...c.itens].sort()]).sort());
+    expect(norm(r2)).toBe(norm(r));
+  });
+  it('dependências coerentes com o plano', () => {
+    expect(AFETA.GRUPOS_FINALIDADE).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(AFETA.NCM).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(AFETA.NOMES_UNIDADES).toContain('OBRIGACOES');
+  });
+});
+
+describe('impacto no SPED', () => {
+  it('checklist cobre os 6 tipos, com registros do plano e nada marcado como conferido', () => {
+    expect(TIPOS_AJUSTE.length).toBe(6);
+    const regs = (t: (typeof TIPOS_AJUSTE)[number]) => CHECKLIST[t].registros.map((r) => r.registro);
+    expect(regs('MUDOU_CODIGO_DESCRICAO')).toEqual(expect.arrayContaining(['0200', '0205']));
+    expect(regs('MUDOU_UNIDADE')).toEqual(expect.arrayContaining(['0190', '0220']));
+    expect(regs('CONSOLIDOU_INATIVOU')).toEqual(expect.arrayContaining(['0221', 'H010']));
+    expect(regs('MUDOU_NCM')).toEqual(expect.arrayContaining(['0200', 'C170']));
+    expect(regs('ITEM_ATIVO_IMOBILIZADO')).toEqual(expect.arrayContaining(['0300']));
+    for (const t of TIPOS_AJUSTE) expect(CHECKLIST[t].registros.every((r) => r.conferido === false)).toBe(true);
+    expect(Object.values(FONTES_LEIAUTE).every((f) => f.status === 'NAO_CONFIRMADO' && f.versaoConferida === null)).toBe(true);
+  });
+  it('impactosDoAjuste: versão "não confirmado", aplicabilidade pelas obrigações do cliente, tipo por ajuste', () => {
+    const aberto = impactosDoAjuste('MUDOU_NCM', { dataBase: DB });
+    expect(aberto.every((l) => l.versaoLeiaute === 'não confirmado' && l.aplicabilidade === 'A_CONFIRMAR')).toBe(true);
+    expect(aberto[0]).toMatchObject({ tipo: 'CADASTRAL_FUTURO', competencia: '2026-11', avaliarAnteriores: true });
+    const f = impactosDoAjuste('MUDOU_NCM', { dataBase: DB, obrigacoes: ['EFD_ICMS_IPI'], versaoLeiaute: { EFD_ICMS_IPI: 'X.YZ' } });
+    expect(f.find((l) => l.obrigacao === 'EFD_ICMS_IPI')).toMatchObject({ aplicabilidade: 'APLICAVEL', versaoLeiaute: 'X.YZ' });
+    expect(f.find((l) => l.obrigacao === 'NFE')!.aplicabilidade).toBe('NAO_APLICAVEL');
+    expect(impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB })[0].tipo).toBe('REGULARIZACAO_SALDO');
+    expect(impactosDoAjuste('MUDOU_UNIDADE', { dataBase: DB }, { escrituracaoEntregue: true })[0].tipo).toBe('ESCRITURACAO_ENTREGUE');
+    expect(impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB }).find((l) => l.registro === '0221')!.ressalva).toMatch(/confirmar/);
+  });
+  const ajustes: AjusteSped[] = [
+    { tipo: 'MUDOU_NCM', itemId: 'i1', valorOriginal: '38089999', valorProposto: '38089329', motivo: 'NCM corrigido', status: 'APROVADO', inicio: '2027-01-01' },
+    { tipo: 'MUDOU_NCM', itemId: 'i2', valorOriginal: '12019000', valorProposto: '12019100', motivo: 'NCM corrigido', status: 'PROPOSTO' },
+    { tipo: 'MUDOU_UNIDADE', itemId: 'i3', valorOriginal: 'SC', valorProposto: 'KG', motivo: 'Conversão', status: 'PROPOSTO' },
+  ];
+  it('camada OBRIGACOES: um caso por tipo de ajuste, com os registros e a competência inicial', () => {
+    const its = ['i1', 'i2', 'i3', 'i4'].map((id) => item(id));
+    const r = new AnalisadorObrigacoes(ajustes).analisar(its, ctx);
+    expect(r.casos.map((c) => c.tipo)).toEqual(['IMPACTO_MUDOU_UNIDADE', 'IMPACTO_MUDOU_NCM']);
+    const ncm = r.casos.find((c) => c.tipo === 'IMPACTO_MUDOU_NCM')!;
+    expect(ncm.itens).toEqual(['i1', 'i2']);
+    expect(ncm.evidencia.find((e) => e.rotulo === 'Competência inicial')!.valor).toBe('2026-11');
+    expect(ncm.evidencia.some((e) => e.rotulo.includes('C170'))).toBe(true);
+    expect(ncm.fundamento).toMatch(/não confirmado/);
+    expect(r.semProblema).toEqual(['i4']);
+    expect(r.camada).toBe('OBRIGACOES');
+  });
+  it('montarImpactos devolve linhas ajuste × registro, estáveis', () => {
+    const a = montarImpactos(ajustes, { dataBase: DB });
+    const b = montarImpactos([...ajustes].reverse(), { dataBase: DB });
+    expect(a.length).toBe(CHECKLIST.MUDOU_NCM.registros.length * 2 + CHECKLIST.MUDOU_UNIDADE.registros.length);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    expect(a.find((l) => l.itemId === 'i1')).toMatchObject({ valorOriginal: '38089999', valorProposto: '38089329', inicio: '2027-01-01', competencia: '2027-01' });
+  });
+});
+
+describe('aderência atividade × CFOP', () => {
+  it('exportação e importação sem a atividade confirmada divergem', () => {
+    const d = compararAtividadeComCfop(['PRODUCAO_AGRICOLA'], [{ cfop: '7.101', valor: 500 }, '3102', { cfop: '5101' }]);
+    expect(d.map((x) => [x.cfop, x.familia])).toEqual([['7101', 'EXPORTACAO'], ['3102', 'IMPORTACAO']]);
+    expect(d[0].atividadesEsperadas).toEqual(['EXPORTACAO']);
+    expect(d[0].descricaoCfop).toBeTruthy();
+  });
+  it('venda de mercadoria de terceiros em cliente só produtor diverge; produção própria em revenda pura diverge', () => {
+    expect(compararAtividadeComCfop(['PRODUCAO_AGRICOLA'], ['5102']).map((x) => x.familia)).toEqual(['VENDA_MERCADORIA_TERCEIROS']);
+    expect(compararAtividadeComCfop(['REVENDA_INSUMOS'], ['6101']).map((x) => x.familia)).toEqual(['VENDA_PRODUCAO_PROPRIA']);
+    expect(compararAtividadeComCfop(['REVENDA_INSUMOS', 'EXPORTACAO'], ['5102', '7102'])).toEqual([]);
+  });
+  it('transporte sem a atividade diverge; CFOP fora das famílias e duplicados são ignorados', () => {
+    expect(compararAtividadeComCfop(['PRODUCAO_AGRICOLA'], ['5351', '5351']).map((x) => x.cfop)).toEqual(['5351']);
+    expect(compararAtividadeComCfop([], ['5949', 'abc'])).toEqual([]);
+  });
+});

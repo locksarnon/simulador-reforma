@@ -21,6 +21,7 @@
 import { POPS_INICIO_CLIENTES_ADMIN } from "./popsInicioClientesAdmin";
 import { POPS_BPO } from "./popsBpo";
 import { POPS_CONSULTORIA_CONSULTAS_COMERCIAL } from "./popsConsultoriaConsultasComercial";
+import { POPS_SANEAMENTO_ESTOQUES } from "./popsSaneamentoEstoques";
 
-export const POPS_ATUALIZADO_EM = "16/11/2026";
-export const POPS = [...POPS_INICIO_CLIENTES_ADMIN, ...POPS_BPO, ...POPS_CONSULTORIA_CONSULTAS_COMERCIAL];
+export const POPS_ATUALIZADO_EM = "25/11/2026";
+export const POPS = [...POPS_INICIO_CLIENTES_ADMIN, ...POPS_BPO, ...POPS_CONSULTORIA_CONSULTAS_COMERCIAL, ...POPS_SANEAMENTO_ESTOQUES];

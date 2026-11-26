@@ -1,0 +1,54 @@
+/**
+ * FAQ do Saneamento de Estoques e Cadastro de Produtos (serviço da Consultoria Tributária) e do botão Analisar com IA.
+ * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-17.
+ */
+export const SECAO_SANEAMENTO = {
+  titulo: "Saneamento de estoques e cadastro de produtos (consultoria)",
+  nota: "O serviço de consultoria que limpa o cadastro de itens do cliente e prepara o tratamento tributário de IBS e CBS, com revisão por camada. Abre pelo projeto, em Consultoria Tributária > Projetos.",
+  itens: [
+    {
+      p: "O que é a finalidade e o enquadramento legal de um item?",
+      r: "A finalidade diz para que o cliente usa o item: Revenda, Matéria-prima, Insumo de produção, Embalagem, Uso e consumo, Manutenção, Imobilizado ou Material de terceiros. O enquadramento legal é o texto da lei e o artigo que sustentam o tratamento tributário (cClassTrib e CST) do item, e depende do NCM e da finalidade. Ambos saem na aba Cenários tributários do Excel. O sistema sugere, o consultor confirma: o texto da lei prevalece sobre qualquer sugestão.",
+    },
+    {
+      p: "Por que preciso confirmar as atividades do cliente?",
+      r: "Porque a finalidade e o tratamento tributário dependem do que o cliente realmente faz. As atividades vêm do CNAE principal e dos secundários do CNPJ; você mantém as que valem, exclui as outras e acrescenta as que faltam. Enquanto não clicar em Confirmo as atividades, a importação e as análises ficam bloqueadas. Reabrir para alterar bloqueia de novo e marca como “revisar” o que já tinha sido trabalhado, sem apagar nenhuma decisão.",
+    },
+    {
+      p: "Qual a diferença entre exportação para revisão e entrega liberada?",
+      r: "A exportação para revisão (quadro Para revisão, na aba Versões) é a base de agora, com o que ainda está proposto ou pendente marcado no Excel; serve para conferir o trabalho e não vai ao cliente. A entrega liberada vem de uma versão liberada: é uma foto da base que não muda depois e leva só os dados aprovados, informando o que ficou de fora e as pendências.",
+    },
+    {
+      p: "O que significa a marca “revisar”?",
+      r: "Significa que algo de que aquela decisão depende mudou depois dela, por exemplo a finalidade, o NCM, a unidade ou as atividades do cliente. A decisão anterior não é apagada: a marca só pede que você confira se ela ainda vale. Na tabela, o filtro Só marcadas “revisar” junta o que precisa dessa conferência.",
+    },
+    {
+      p: "O que são conjunto e exceção?",
+      r: "Conjunto é o grupo de itens com o mesmo NCM e a mesma finalidade: o tratamento tributário é decidido uma vez para ele, e cada item herda o resultado (etiqueta “herdado do conjunto”). Exceção é o item que não segue o conjunto ou o grupo: você a registra na visão focada, com motivo obrigatório, e ela abre um caso individual que precisa ser aprovado (etiqueta “exceção”). O trabalho é por conjunto, mas o resultado e o Excel são por item.",
+    },
+    {
+      p: "O que significa cada situação da tabela?",
+      r: "Pendente: ainda não foi revisado. Sem problema: a camada foi analisada e não há o que ajustar. Proposto: existe uma proposta esperando a decisão do consultor. Aprovado: a decisão foi tomada e registrada. Aguardando informação: falta um dado do cliente. “Revisar” não é uma situação: é uma marca que pode aparecer em qualquer uma delas. Nos casos, as situações são Proposto, Rascunho, Aprovado, Rejeitado e Aguardando informação.",
+    },
+    {
+      p: "Quando a IA entra no saneamento e quando não entra?",
+      r: "A regra decide o que é claro (por exemplo, uma duplicidade exata). A IA entra só na borda, quando a regra não decide, e apenas se você clicar em Pedir parecer da IA num caso: ela devolve recomendação, confiança, argumentos a favor e contra, o que confirmar e as fontes, e rotula a “prática de mercado” como tal, nunca como norma. Ela não roda nos milhares de itens, nunca grava a decisão e, se estiver fora do ar, o caso segue sem parecer. Quem decide é o consultor.",
+    },
+    {
+      p: "O que o Excel e o relatório em PDF trazem?",
+      r: "O Excel tem 6 abas: Resumo da entrega, Cadastro saneado (com a Finalidade), De para e equivalências, Cenários tributários (enquadramento legal, CST e cClassTrib), Impactos no SPED e Pendências e histórico. Preserva zeros à esquerda, filtros e identificadores. O relatório de fechamento em PDF traz o resumo, os itens recebidos e analisados, os ajustes por categoria, as revisões feitas, o comentário de cada aspecto tratado, as pendências e limitações, a versão liberada e o impacto nas obrigações.",
+    },
+    {
+      p: "O que acontece na reimportação do cadastro?",
+      r: "A prévia mostra o que mudou desde a última importação: itens Novos, Alterados, Inalterados e Ausentes do arquivo. Os novos entram sozinhos, os ausentes nunca são removidos e, nos alterados, você escolhe o que trazer. Campos que já têm decisão aparecem como “Protegido (decisão)” e não são sobrescritos. Decisões e rascunhos são preservados.",
+    },
+    {
+      p: "Por que os módulos opcionais aparecem desligados?",
+      r: "Conciliação de estoque, Blocos K e G do SPED e Arquivo para o ERP ainda não estão disponíveis nesta versão do serviço, por isso trazem o selo “a desenvolver” e não podem ser ligados. O botão “i” de cada um explica o que é, que dados exige e o que muda quando existir.",
+    },
+    {
+      p: "O que o botão Analisar com IA faz e o que ele envia?",
+      r: "Em qualquer projeto de serviço de consultoria, monta um rascunho de parecer no roteiro do serviço, com o contexto do projeto (serviço, período ou data-base, regime, setor, UF, porte, CNAE, situação dos documentos e achados). Não envia nome, CNPJ, CPF, e-mail nem endereço do cliente e não grava nada: o consultor copia, revisa, confere as fontes e assume o texto. Pode levar um ou dois minutos.",
+    },
+  ],
+};
