@@ -208,8 +208,9 @@ describe('MÉDIO B: conjunto × caso individual em edição e divergência item 
     const { projetoId, ids } = await pronto(c);
     const prop = { unidade: 'KG', unidadeCompra: 'UN', fatorConversao: 1000, fatorSituacao: 'DEFINIDO' };
     await c.casos.registrarResultado(projetoId, res('NOMES_UNIDADES', [caso('NOMES_UNIDADES', 'UNIDADE_CONVERSAO', [ids.A1, ids.A2], { unidade: 'UN', fatorConversao: 'varia por item' }, prop)]));
+    // O banco falso data tudo pelo próprio relógio (2026-11-26T12:00:00Z, +1 s por registro): a decisão que vem depois tem data
+    // posterior ao createdAt do caso. Não misturar com o relógio real (Date.now), senão o teste depende da hora em que roda.
     const conj = c.db.sanCaso[0];
-    conj.createdAt = new Date(Date.now() - 60_000);
     await c.casos.registrarResultado(projetoId, res('NOMES_UNIDADES', [caso('NOMES_UNIDADES', 'EXCECAO_MANUAL', [ids.A3], { unidade: 'UN' }, { unidade: 'CX' }, { justificativa: 'outro item qualquer' })]));
     // outra decisão muda o fator de A1 depois da proposta do conjunto
     await c.casos.registrarResultado(projetoId, res('QUALIDADE', [caso('QUALIDADE', 'X', [ids.A1], {}, { fatorConversao: 900 })]));
