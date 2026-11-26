@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PdfService, type DocumentoPdf } from './pdf.service';
+import PDFDocument from 'pdfkit';
+import { PdfService, desenharTabela, type DocumentoPdf } from './pdf.service';
 
 type Item = { str?: string; transform?: number[] };
 async function paginas(pdf: Buffer): Promise<string[][]> {
@@ -50,5 +51,26 @@ describe('PDF: tabela sem cabeçalho órfão', () => {
       expect(cab).toBeGreaterThanOrEqual(0);
       expect(cab).toBeLessThan(p.findIndex((s) => /^AJ\d+$/.test(s)));
     }
+  }, 60000);
+});
+
+describe('PDF: desenharTabela (primitiva reaproveitada)', () => {
+  it('sem limite de linhas, repete o cabeçalho em cada página e não perde linha', async () => {
+    const buf = await new Promise<Buffer>((resolve) => {
+      const pdf = new PDFDocument({ size: 'A4', margin: 48, bufferPages: true });
+      const chunks: Buffer[] = [];
+      pdf.on('data', (c: Buffer) => chunks.push(c));
+      pdf.on('end', () => resolve(Buffer.concat(chunks)));
+      desenharTabela(pdf, { cabecalho: ['Grupo', 'Regra'], linhas: Array.from({ length: 450 }, (_, i) => [`G${String(i).padStart(3, '0')}`, 'N01']), larguras: [0.7, 0.3] },
+        { x: 48, largura: pdf.page.width - 96, limiteInferior: pdf.page.height - 56 });
+      pdf.end();
+    });
+    const ps = await paginas(buf);
+    expect(ps.length).toBeGreaterThan(5);
+    for (const p of ps) {
+      expect(p.indexOf('Grupo')).toBeGreaterThanOrEqual(0);
+      expect(p.indexOf('Grupo')).toBeLessThan(p.findIndex((s) => /^G\d{3}$/.test(s)));
+    }
+    expect(ps.flat().filter((s) => /^G\d{3}$/.test(s)).length).toBe(450);
   }, 60000);
 });

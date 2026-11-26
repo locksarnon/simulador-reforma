@@ -51,6 +51,49 @@ const SITE = 'simulador.clarityib.com.br';
 
 const cortar = (s: unknown, n: number) => String(s ?? '').slice(0, n);
 
+export type TabelaPdf = { cabecalho: string[]; linhas: string[][]; larguras?: number[] };
+
+/**
+ * Tabela com quebra de linha nas células, cabeçalho verde e linhas zebradas, a partir de pdf.y. Cabeçalho nunca fica órfão: só começa a
+ * tabela na página se couberem o cabeçalho e a 1ª linha; se uma linha não couber e a tabela continuar na página seguinte, o cabeçalho se
+ * repete no topo dela. `larguras` são frações de `largura` (somam 1). Sem `maxLinhas`/`maxColunas`, desenha tudo.
+ */
+export function desenharTabela(
+  pdf: PDFKit.PDFDocument, t: TabelaPdf,
+  o: { x: number; largura: number; limiteInferior: number; maxColunas?: number; maxLinhas?: number },
+): void {
+  const { x, largura, limiteInferior } = o;
+  const cab = t.cabecalho.slice(0, o.maxColunas ?? t.cabecalho.length);
+  const fracoes = t.larguras?.length === cab.length ? t.larguras : cab.map(() => 1 / cab.length);
+  const ws = fracoes.map((fr) => largura * fr);
+  const xs = ws.map((_, i) => x + ws.slice(0, i).reduce((a, b) => a + b, 0));
+  const textosDe = (cels: string[]) => cab.map((_, i) => cortar(cels[i] ?? '', 600));
+  const alturaDe = (cels: string[], negrito: boolean) => {
+    pdf.font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    return Math.max(20, ...textosDe(cels).map((tx, i) => pdf.heightOfString(tx, { width: ws[i] - 10 }) + 12));
+  };
+  const desenhar = (cels: string[], negrito: boolean, h: number, fundo?: string) => {
+    const yy = pdf.y;
+    if (fundo) pdf.rect(x, yy, largura, h).fill(fundo);
+    pdf.fillColor(negrito ? BRANCO : TEXTO).font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    textosDe(cels).forEach((tx, i) => pdf.text(tx, xs[i] + 6, yy + 6, { width: ws[i] - 10 }));
+    pdf.x = x;
+    pdf.y = yy + h;
+  };
+  const hCab = alturaDe(cab, true);
+  const linhas = t.linhas.slice(0, o.maxLinhas ?? t.linhas.length);
+  if (pdf.y + hCab + (linhas.length ? alturaDe(linhas[0], false) : 0) > limiteInferior) pdf.addPage();
+  desenhar(cab, true, hCab, VERDE);
+  linhas.forEach((l, i) => {
+    const h = alturaDe(l, false);
+    if (pdf.y + h > limiteInferior) {
+      pdf.addPage();
+      desenhar(cab, true, hCab, VERDE);
+    }
+    desenhar(l, false, h, i % 2 ? FUNDO_CARD : undefined);
+  });
+}
+
 /**
  * PDF genérico de relatório (calculadora, Simples x Híbrido, validador). Quem
  * chama monta o conteúdo (DocumentoPdf); aqui só cuidamos da aparência — um
@@ -194,38 +237,8 @@ export class PdfService {
         }
 
         if (s.tabela) {
-          const cab = s.tabela.cabecalho.slice(0, 8);
-          const fracoes = s.tabela.larguras?.length === cab.length ? s.tabela.larguras : cab.map(() => 1 / cab.length);
-          const ws = fracoes.map((fr) => largura * fr);
-          const xs = ws.map((_, i) => MARGEM + ws.slice(0, i).reduce((a, b) => a + b, 0));
-          // Cabeçalho nunca fica órfão: só começa a tabela na página se couberem o cabeçalho e a 1ª linha; se uma linha
-          // não couber e a tabela continuar na página seguinte, o cabeçalho se repete no topo dela.
-          const textosDe = (cels: string[]) => cab.map((_, i) => cortar(cels[i] ?? '', 600));
-          const alturaDe = (cels: string[], negrito: boolean) => {
-            pdf.font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
-            return Math.max(20, ...textosDe(cels).map((t, i) => pdf.heightOfString(t, { width: ws[i] - 10 }) + 12));
-          };
-          const desenhar = (cels: string[], negrito: boolean, h: number, fundo?: string) => {
-            const yy = pdf.y;
-            if (fundo) pdf.rect(MARGEM, yy, largura, h).fill(fundo);
-            pdf.fillColor(negrito ? BRANCO : TEXTO).font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
-            textosDe(cels).forEach((t, i) => pdf.text(t, xs[i] + 6, yy + 6, { width: ws[i] - 10 }));
-            pdf.x = MARGEM;
-            pdf.y = yy + h;
-          };
-          const hCab = alturaDe(cab, true);
-          const linhas = s.tabela.linhas.slice(0, 200);
-          pdf.moveDown(0.25);
-          novaPaginaSeNecessario(hCab + (linhas.length ? alturaDe(linhas[0], false) : 0));
-          desenhar(cab, true, hCab, VERDE);
-          linhas.forEach((l, i) => {
-            const h = alturaDe(l, false);
-            if (pdf.y + h > limiteInferior) {
-              pdf.addPage();
-              desenhar(cab, true, hCab, VERDE);
-            }
-            desenhar(l, false, h, i % 2 ? FUNDO_CARD : undefined);
-          });
+          pdf.font('Helvetica-Bold').fontSize(9).moveDown(0.25);
+          desenharTabela(pdf, s.tabela, { x: MARGEM, largura, limiteInferior, maxColunas: 8, maxLinhas: 200 });
         }
         pdf.moveDown(0.9);
       }
