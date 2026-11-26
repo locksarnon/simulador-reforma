@@ -106,8 +106,36 @@ export function alertasDeLimites(linhas: LinhaLimite[], oficiais: LinhaLimite[] 
 
 const ROTULO_CAMPO: Record<string, string> = { codigo: 'Código', descricao: 'Descrição', unidade: 'Unidade', referencia: 'Referência', fabricante: 'Fabricante', grupo: 'Grupo' };
 
-/** Regra equivalente "Todos os grupos" para cada aspecto com parâmetro antigo preenchido. O motor usa `parametrosLegados` (resultado idêntico). */
-export function converterParametros(motor: ParametrosMotor | null | undefined): { aspecto: Aspecto; nome: string; observacao: string; alteracoes: Record<string, unknown>; parametrosLegados: ParametrosMotor }[] {
+/** Id fixo da regra-modelo de limites com as linhas oficiais (LIMITES_OFICIAIS): a biblioteca de conteúdo não traz regra de LIMITES. */
+export const ID_BIBLIOTECA_LIMITES = 'bib-limites-oficiais';
+
+type ItemErp = { tipo: string; chave: string; texto: string; campo_erp: string | null; fonte_url: string | null; grau: string; ativo?: boolean };
+/** "200 caracteres..." no início do texto (mesma convenção de `tamanhoDoTexto` do Cadastro de ERPs); null = sem número (não confirmado). */
+const tamanhoNoTexto = (t: unknown): number | null => { const m = /^\s*(\d{1,5})\s*caracteres\b/i.exec(String(t ?? '')); const n = m ? Number(m[1]) : NaN; return Number.isInteger(n) && n > 0 ? n : null; };
+const CAMPOS_LINHA = ['descricao', 'codigo', 'unidade', 'referencia', 'fabricante'];
+
+/**
+ * Linhas de limite de origem ERP a partir do Cadastro de ERPs (conhecimento LIMITE_CAMPO ativo: `chave` = campo do item, `campo_erp` = campo
+ * do ERP, `texto` começando por "<n> caracteres"). Só CONFIRMADO com número vira limite; o resto entra sem número (pendência). Mesma regra de
+ * `limitesDoErp` (erps/logica.ts); o integrador pode trocar por ela.
+ */
+export function linhasDoErp(perfil: { nome: string; itens: ItemErp[] } | null | undefined): LinhaLimite[] {
+  if (!perfil) return [];
+  return perfil.itens.filter((i) => i.ativo !== false && i.tipo === 'LIMITE_CAMPO' && CAMPOS_LINHA.includes(i.chave)).map((i) => {
+    const n = i.grau === 'CONFIRMADO' ? tamanhoNoTexto(i.texto) : null;
+    return {
+      destino: perfil.nome.slice(0, 120), campo: String(i.campo_erp || i.chave).slice(0, 120), campoItem: i.chave as LinhaLimite['campoItem'], limite: n, origem: 'ERP',
+      referencia: `Cadastro de ERPs: ${String(i.texto).slice(0, 400)}`, url: i.fonte_url && /^https?:\/\//i.test(i.fonte_url) ? i.fonte_url.slice(0, 500) : null, confirmado: n !== null,
+      tratamento: 'SUGERIR_ABREVIACAO', preservar: ['NOME', 'REFERENCIA'],
+    } satisfies LinhaLimite;
+  });
+}
+
+/**
+ * Regra equivalente "Todos os grupos" para cada aspecto com parâmetro antigo preenchido. O motor usa `parametrosLegados` (resultado idêntico).
+ * `linhasPadrao` (leiaute oficial e ERP) entram na regra de limites convertida, depois das do parâmetro antigo: valem quando a regra for editada.
+ */
+export function converterParametros(motor: ParametrosMotor | null | undefined, linhasPadrao: LinhaLimite[] = []):{ aspecto: Aspecto; nome: string; observacao: string; alteracoes: Record<string, unknown>; parametrosLegados: ParametrosMotor }[] {
   const m = motor ?? {};
   const out: ReturnType<typeof converterParametros> = [];
   const nota = 'Convertida automaticamente dos parâmetros que o projeto já tinha antes das Diretrizes; enquanto não for editada, a análise segue exatamente como antes.';
@@ -148,7 +176,7 @@ export function converterParametros(motor: ParametrosMotor | null | undefined): 
     out.push({
       aspecto: 'LIMITES', nome: 'Limites de campo do projeto',
       observacao: `${nota}${grupo ? ` O limite do campo Grupo (${grupo[1]}) continua valendo pelo parâmetro antigo (não há linha de grupo nas Diretrizes).` : ''}`,
-      alteracoes: { linhas }, parametrosLegados: { limites: m.limites },
+      alteracoes: { linhas: [...linhas, ...linhasPadrao] }, parametrosLegados: { limites: m.limites },
     });
   }
   return out;

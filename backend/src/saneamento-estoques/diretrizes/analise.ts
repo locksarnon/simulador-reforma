@@ -61,7 +61,15 @@ const palavrasDaExpressao = (s: string): string[] => semAcento(s).toLowerCase().
 /** Trechos [início, fim) do texto onde a expressão aparece como palavras inteiras (sem acento nem caixa; pontuação entre as palavras é livre). */
 export function localizar(texto: string, expressao: string): [number, number][] {
   const alvo = palavrasDaExpressao(expressao);
-  if (!alvo.length) return [];
+  if (!alvo.length) {
+    // Só símbolos (", //, ;, #): o próprio texto, sem caixa.
+    const e = expressao.trim();
+    const out: [number, number][] = [];
+    if (!e) return out;
+    const t = texto.toLowerCase(); const x = e.toLowerCase();
+    for (let i = t.indexOf(x); i >= 0; i = t.indexOf(x, i + x.length)) out.push([i, i + x.length]);
+    return out;
+  }
   const toks = tokensDe(texto);
   const out: [number, number][] = [];
   for (let i = 0; i + alvo.length <= toks.length; i++) {

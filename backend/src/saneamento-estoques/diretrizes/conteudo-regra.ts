@@ -130,7 +130,6 @@ export function validarConteudo(aspecto: Aspecto, bruto: unknown, parcial: boole
       out.termosProibidos = semRepetir(lista(bruto.termosProibidos, 'Termos proibidos', 2000, (x, i) => {
         if (!ehObjeto(x)) throw erro(`Termo proibido ${i + 1}: formato inválido.`);
         const termo = texto(x.termo, `Termo proibido ${i + 1}`, 120) as string;
-        if (!/[A-Za-zÀ-ÿ0-9]/.test(termo)) throw erro(`Termo proibido ${i + 1}: precisa de letras ou números.`);
         return { termo, substituicao: texto(x.substituicao, `Termo proibido ${i + 1}, substituição`, 120, true) };
       }), (x) => chaveTexto(x.termo), 'Termos proibidos');
     }
@@ -144,7 +143,7 @@ export function validarConteudo(aspecto: Aspecto, bruto: unknown, parcial: boole
         const onde = umDe(x.onde, ['DESCRICAO', 'CAMPO_PROPRIO', 'AMBOS'] as const, `Atributo ${i + 1}, onde deve constar`);
         const campo = texto(x.campo, `Atributo ${i + 1}, campo próprio`, 60, true);
         if (campo && !/^[A-Za-z][A-Za-z0-9_]{0,59}$/.test(campo)) throw erro(`Atributo ${i + 1}: nome de campo inválido.`);
-        if (onde !== 'DESCRICAO' && !campo && !['MARCA', 'REFERENCIA'].includes(atributo)) throw erro(`Atributo ${i + 1}: informe o campo próprio (coluna mapeada na importação).`);
+        // Campo próprio sem nome (regra-modelo genérica): a coluna é definida no projeto; até lá o atributo não é verificável (não vira caso).
         const aplicabilidade = umDe(x.aplicabilidade, ['OBRIGATORIO', 'QUANDO_APLICAVEL'] as const, `Atributo ${i + 1}, aplicabilidade`);
         const condicao = texto(x.condicao, `Atributo ${i + 1}, condição`, 300, true);
         if (aplicabilidade === 'QUANDO_APLICAVEL' && !condicao) throw erro(`Atributo ${i + 1}: descreva a condição de "obrigatório quando aplicável".`);

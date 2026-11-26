@@ -4,6 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { conflito, exigirVersao, quem, type Usuario } from '../dados/constantes';
 import { canonico, conferirCoerencia, texto, validarAspecto, validarConteudo } from './conteudo-regra';
 import { BIBLIOTECA_INICIAL, MODELOS, PROCEDIMENTOS } from './conteudo/biblioteca';
+import { LIMITES_OFICIAIS } from './conteudo/limites-oficiais';
+import { ID_BIBLIOTECA_LIMITES } from './parametros';
 import type { Aspecto, ConteudoRegra, RegraBiblioteca } from './tipos';
 
 type Json = Record<string, unknown>;
@@ -23,6 +25,14 @@ export function validarRegraModelo(aspecto: Aspecto, conteudo: unknown): Conteud
 }
 
 const semAspecto = <T extends { aspecto?: unknown }>({ aspecto: _a, ...resto }: T) => resto;
+/** Regra-modelo de limites com as linhas dos leiautes oficiais (o teto). Entra na carga junto com a biblioteca de conteúdo, que não tem LIMITES. */
+export const REGRA_LIMITES_OFICIAIS: RegraBiblioteca = {
+  id: ID_BIBLIOTECA_LIMITES, aspecto: 'LIMITES', nome: 'Limites de caracteres dos leiautes oficiais (SPED e NF-e)', indicadaPara: 'Todos os grupos',
+  observacao: 'Leiaute oficial é o teto; o ERP (Cadastro de ERPs) e o cliente só restringem mais. Vale o menor limite confirmado; limite não confirmado é pendência.',
+  conteudo: { aspecto: 'LIMITES', linhas: LIMITES_OFICIAIS }, versao: 1, ativa: true,
+};
+export const CARGA_BIBLIOTECA: RegraBiblioteca[] = [...BIBLIOTECA_INICIAL, REGRA_LIMITES_OFICIAIS];
+
 const exigirAdmin = (u: Usuario) => { if (u?.role !== 'admin') throw new ForbiddenException('Somente administradores alteram a Biblioteca de diretrizes.'); };
 const ID_LIVRE = /^[a-z0-9][a-z0-9-]{2,59}$/;
 
@@ -45,7 +55,7 @@ export class SanBibliotecaDiretrizesService implements OnApplicationBootstrap {
   }
 
   /** Carga inicial: id fixo, sem duplicar; regra editada por administrador fica como está; mudança da carga = versão nova. Entrada inválida é ignorada (com o motivo). */
-  async aplicarCarga(carga: RegraBiblioteca[] = BIBLIOTECA_INICIAL) {
+  async aplicarCarga(carga: RegraBiblioteca[] = CARGA_BIBLIOTECA) {
     let criadas = 0; let atualizadas = 0; const ignoradas: { id: string; motivo: string }[] = [];
     for (const r of carga) {
       let conteudo: ConteudoRegra;
@@ -80,7 +90,8 @@ export class SanBibliotecaDiretrizesService implements OnApplicationBootstrap {
     if (f.aspecto) where.aspecto = validarAspecto(f.aspecto);
     if (f.ativas === 'true' || f.ativas === '1') where.ativa = true;
     const linhas: LinhaBib[] = await this.prisma.sanDiretrizBiblioteca.findMany({ where, orderBy: [{ aspecto: 'asc' }, { nome: 'asc' }] });
-    return linhas.map(bibliotecaApi);
+    // A lista não leva o conteúdo (vem em GET biblioteca/:id): id, aspecto, nome, indicadaPara, versao, ativa e o resto do cabeçalho.
+    return linhas.map((b) => { const { conteudo: _c, ...resto } = bibliotecaApi(b); return resto; });
   }
 
   async obter(id: string) {

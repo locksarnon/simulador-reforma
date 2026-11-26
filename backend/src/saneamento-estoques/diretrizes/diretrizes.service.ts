@@ -15,7 +15,9 @@ import {
   aplicacaoDoRascunho, conteudosDaBiblioteca, efetivoDaLinha, fotoDasDiretrizes, gruposDaBase, itensComGrupo, lerRegras, pendenteAplicar, regraApi, regrasDoProjeto,
   resolviveisAplicadas, situacaoDasDiretrizes, type Aplicacao, type LinhaRegra,
 } from './dados';
-import { limitesEfetivos } from './parametros';
+import { carregarPerfil } from '../../erps/erps.service';
+import { LIMITES_OFICIAIS } from './conteudo/limites-oficiais';
+import { ID_BIBLIOTECA_LIMITES, converterParametros, limitesEfetivos, linhasDoErp } from './parametros';
 import { criarIndice, gruposSemRegra, retirarSobreposicao, sobreposicoes, type RegraResolvivel } from './resolucao';
 import {
   CAMADAS_DO_ASPECTO, PREFIXO_ASPECTO, type Abrangencia, type Aspecto, type ConteudoRegra, type PreviaAplicacao, type RegraAtributos, type RegraFiscal, type RegraLimites,
@@ -28,6 +30,10 @@ const ehObjeto = (v: unknown): v is Json => !!v && typeof v === 'object' && !Arr
 const corpo = (b: unknown): Json => (ehObjeto(b) ? b : {});
 const bad = (codigo: string, message: string, extra: Json = {}) => new BadRequestException({ statusCode: 400, codigo, message, ...extra });
 const MAX_EXEMPLOS = 20;
+/** Ação gravada → ação que a tela mostra (o registro guarda a origem: criação manual, por modelo, por caso ou por conversão). */
+const ACAO_TELA: Record<string, string> = {
+  CRIAR: 'CRIOU', MODELO: 'CRIOU', TRANSFORMAR: 'CRIOU', CONVERTER: 'CRIOU', ALTERAR: 'ALTEROU', APLICAR: 'APLICOU', APROVAR: 'APROVOU', ADOTAR_VERSAO: 'ADOTOU', TRANSFERIR: 'TRANSFERIU',
+};
 
 /** Retrato da regra para o histórico (antes/depois). */
 const retrato = (r: Partial<LinhaRegra>) => ({
@@ -59,7 +65,7 @@ export class SanDiretrizesService {
   // ── Cabeçalho e conversão dos parâmetros antigos ────────────────────────────
 
   private async projeto(projetoId: string) {
-    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true, parametros: true, modulos: true, atividades_confirmadas_em: true } });
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true, parametros: true, modulos: true, atividades_confirmadas_em: true, erp_id: true } });
     if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
     return p;
   }
@@ -72,12 +78,16 @@ export class SanDiretrizesService {
     const ja = await this.prisma.sanDiretrizes.findUnique({ where: { projeto_id: projetoId } });
     if (ja) return ja;
     const p = await this.projeto(projetoId);
-    const { converterParametros } = await import('./parametros');
+    // Linhas de limite padrão: leiaute oficial (biblioteca, ou a lista oficial se a carga ainda não rodou) + ERP do projeto (Cadastro de ERPs).
+    const libLimites = await this.prisma.sanDiretrizBiblioteca.findUnique({ where: { id: ID_BIBLIOTECA_LIMITES } });
+    const oficiais = libLimites?.ativa ? ((libLimites.conteudo as RegraLimites).linhas ?? []) : LIMITES_OFICIAIS;
+    const doErp = linhasDoErp(await carregarPerfil(this.prisma, p.erp_id) as never);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const cab = await tx.sanDiretrizes.create({ data: { projeto_id: projetoId, convertido_em: new Date() } });
         const seq: Partial<Record<Aspecto, number>> = {};
-        for (const c of converterParametros(((p.parametros as Json | null)?.motor ?? null) as never)) {
+        const convertidas = converterParametros(((p.parametros as Json | null)?.motor ?? null) as never, [...oficiais, ...doErp]);
+        for (const c of convertidas) {
           const conteudo = conteudoEfetivo(c.aspecto, null, c.alteracoes as Partial<ConteudoRegra>);
           seq[c.aspecto] = (seq[c.aspecto] ?? 0) + 1;
           const aplicacao: Aplicacao = { abrangencia: { todos: true }, conteudo, legado: true, parametrosLegados: c.parametrosLegados };
@@ -89,6 +99,19 @@ export class SanDiretrizesService {
             },
           });
           await this.registrar(tx, r, 'CONVERTER', undefined, null, retrato(r), 'Parâmetros do projeto convertidos em regra equivalente (resultado das análises inalterado).');
+        }
+        // Sem limite antigo: regra padrão de LIMITES "Todos os grupos" com as linhas oficiais e as do ERP, em RASCUNHO e NÃO aplicada (a análise
+        // só muda quando o consultor aplicar). Vale o menor limite confirmado; ERP acima do leiaute vira alerta.
+        if (!convertidas.some((c) => c.aspecto === 'LIMITES')) {
+          const r = await tx.sanDiretrizRegra.create({
+            data: {
+              projeto_id: projetoId, aspecto: 'LIMITES', codigo: `${PREFIXO_ASPECTO.LIMITES}01`, nome: 'Limites de caracteres (leiaute oficial e ERP)', abrangencia: { todos: true },
+              observacao: 'Regra padrão: leiaute oficial é o teto; o ERP e o cliente só restringem mais. Vale o menor limite confirmado.',
+              biblioteca_id: libLimites?.ativa ? libLimites.id : null, biblioteca_versao: libLimites?.ativa ? libLimites.versao : null,
+              alteracoes: (libLimites?.ativa && !doErp.length ? undefined : { linhas: [...oficiais, ...doErp] }) as never, criada_por: 'sistema',
+            },
+          });
+          await this.registrar(tx, r, 'CRIAR', undefined, null, retrato(r), 'Regra padrão de limites criada na abertura das Diretrizes (rascunho, não aplicada).');
         }
         return cab;
       });
@@ -125,7 +148,7 @@ export class SanDiretrizesService {
     const x = await this.prisma.sanDiretrizes.updateMany({ where: { projeto_id: projetoId, versao }, data: { ...(vigencia !== undefined ? { vigencia } : {}), versao: { increment: 1 } } });
     if (x.count === 0) throw conflito();
     const cab = await this.prisma.sanDiretrizes.findUnique({ where: { projeto_id: projetoId } });
-    return { vigencia: cab!.vigencia, versao: cab!.versao };
+    return { id: cab!.id, vigencia: cab!.vigencia, versao: cab!.versao };
   }
 
   // ── Regras ─────────────────────────────────────────────────────────────────
@@ -219,7 +242,8 @@ export class SanDiretrizesService {
           const r = await this.criarNaTransacao(tx, projetoId, { aspecto: at.aspecto, nome: lib.nome, abrangencia, bibliotecaId: lib.id }, usuario, 'MODELO', `Modelo: ${modelo.nome}`);
           linhas.push(r); criadas.push(r.codigo);
         }
-        return { modeloId: modelo.id, criadas, jaExistentes, faltando };
+        // Formato da tela: quantidades em `criadas` e `jaExistiam`; os códigos vêm nas listas ao lado.
+        return { modeloId: modelo.id, criadas: criadas.length, jaExistiam: jaExistentes.length, codigosCriados: criadas, codigosJaExistentes: jaExistentes, faltando };
       });
     } catch (err) {
       if ((err as { code?: string }).code === 'P2002') throw conflito('Outra pessoa criou regras ao mesmo tempo. Tente de novo.');
@@ -376,7 +400,8 @@ export class SanDiretrizesService {
         `Aplicada a ${rotuloAbrangencia(r.abrangencia as Abrangencia)}: ${afetados.length} item(ns) em ${previa.grupos.length} grupo(s); camadas ${previa.camadas.join(', ')}.`);
     }, TX_LONGA);
     const reanalise = await this.reanalisar(r.projeto_id, r.aspecto as Aspecto, afetados);
-    return { regra: await this.apiDe(regraId), previa, reanalise };
+    const regra = await this.apiDe(regraId);
+    return { ...regra, regra, previa, reanalise };
   }
 
   /** Aprovação (um aprovador: o consultor). Exige a regra aplicada como está e com grupos. Já aprovada e sem "revisar": devolve sem gravar. */
@@ -397,9 +422,11 @@ export class SanDiretrizesService {
     return this.apiDe(regraId);
   }
 
+  /** Histórico da regra (o mais recente primeiro), no formato da tela: `{ linhas: [{ createdAt, usuario, acao, antes, depois, detalhe }] }`. */
   async historico(regraId: string) {
     await this.carregar(regraId);
-    return this.prisma.sanDiretrizHistorico.findMany({ where: { regra_id: regraId }, orderBy: [{ quando: 'desc' }, { id: 'desc' }], take: 500 });
+    const h = await this.prisma.sanDiretrizHistorico.findMany({ where: { regra_id: regraId }, orderBy: [{ quando: 'desc' }, { id: 'desc' }], take: 500 });
+    return { linhas: h.map((x) => ({ id: x.id, createdAt: x.quando, usuario: x.usuario, acao: ACAO_TELA[x.acao] ?? x.acao, origem: x.acao, antes: x.antes, depois: x.depois, detalhe: x.detalhe })) };
   }
 
   /** Adota a versão nova da regra da biblioteca (com o antes e depois do conteúdo efetivo e a prévia). Regra aprovada volta a rascunho. */
@@ -427,7 +454,8 @@ export class SanDiretrizesService {
         r.situacao === 'APROVADA' ? `Aprovação retirada; ${marcadas} célula(s) marcadas para revisar.` : undefined);
     }, TX_LONGA);
     const nova = await this.carregar(regraId);
-    return { regra: await this.apiDe(regraId), antes, depois, previa: (await this.calcularPrevia(nova)).previa };
+    const regra = await this.apiDe(regraId);
+    return { ...regra, regra, antes, depois, previa: (await this.calcularPrevia(nova)).previa };
   }
 
   /**
@@ -459,7 +487,8 @@ export class SanDiretrizesService {
           aspecto, nome: e.nome, abrangencia: e.abrangencia, observacao: e.observacao ?? detalhe, bibliotecaId, alteracoes: bibliotecaId ? null : alteracoes,
         }, usuario, 'TRANSFORMAR', detalhe);
       });
-      return { regra: await this.apiDe(r.id), previa: (await this.calcularPrevia(await this.carregar(r.id))).previa };
+      const regra = await this.apiDe(r.id);
+      return { ...regra, regra, previa: (await this.calcularPrevia(await this.carregar(r.id))).previa };
     } catch (err) {
       if ((err as { code?: string }).code === 'P2002') throw conflito('Outra pessoa criou uma regra ao mesmo tempo. Tente de novo.');
       throw err;
@@ -480,9 +509,17 @@ export class SanDiretrizesService {
     const lidos = ids.length ? await this.prisma.sanItem.findMany({ where: { id: { in: ids } }, orderBy: { id: 'asc' }, select: { id: true, codigo: true, estabelecimento: true, trabalho: true } }) : [];
     const itens: ItemTrabalho[] = lidos.map((i) => ({ ...(i.trabalho as Json), id: i.id, codigo: String((i.trabalho as Json).codigo ?? i.codigo), estabelecimento: i.estabelecimento || null }) as ItemTrabalho);
     const conteudo = conteudoDe.get(r.id)!;
+    // Formato da tela: `itens: [{ codigo, descricaoAtual, descricaoProposta }]` (+ o detalhe do aspecto). descricaoProposta: NOMES = como
+    // ficaria; LIMITES = a variante que cabe no menor limite confirmado (null = cabe como está ou precisa de revisão); demais = null.
     return {
       regraId: r.id, codigo: r.codigo, aspecto, total: doGrupo.length,
-      exemplos: itens.map((it) => ({ itemId: it.id, codigo: it.codigo, grupo: it.grupo, subgrupo: it.campos?.subgrupo ?? null, descricao: it.descricao, unidade: it.unidade, ...exemploDoItem(it, conteudo, idx.resolver(it.grupo, it.campos?.subgrupo).NOMES) })),
+      itens: itens.map((it) => {
+        const ex = exemploDoItem(it, conteudo, idx.resolver(it.grupo, it.campos?.subgrupo).NOMES);
+        return {
+          itemId: it.id, codigo: it.codigo, grupo: it.grupo, subgrupo: it.campos?.subgrupo ?? null, unidade: it.unidade, descricaoAtual: it.descricao,
+          descricaoProposta: (ex.descricaoProposta as string | null | undefined) ?? null, observacao: (ex.observacao as string | undefined) ?? '', ...ex,
+        };
+      }),
     };
   }
 
@@ -526,7 +563,9 @@ function exemploDoItem(it: ItemTrabalho, c: ConteudoRegra, nomes: RegraResolvive
   switch (c.aspecto) {
     case 'NOMES': {
       const p = descricaoPelaRegra(String(it.descricao ?? ''), c as RegraNomes);
+      const ausentes = (c as RegraNomes).obrigatorios.filter((o) => componentePresente(it, o) === false);
       return {
+        descricaoProposta: p.sugerida, observacao: [...p.motivos, ...(ausentes.length ? [`componente ausente: ${ausentes.join(', ')}`] : [])].join('; '),
         comoFicaria: p.sugerida, ajustes: p.motivos,
         termosProibidos: (c as RegraNomes).termosProibidos.filter((t) => t.substituicao == null && localizar(String(it.descricao ?? ''), t.termo).length).map((t) => t.termo),
         componentesAusentes: (c as RegraNomes).obrigatorios.filter((o) => componentePresente(it, o) === false),
@@ -536,7 +575,12 @@ function exemploDoItem(it: ItemTrabalho, c: ConteudoRegra, nomes: RegraResolvive
     case 'LIMITES': {
       const abrev = nomes ? (nomes.conteudo as RegraNomes).abreviacoes : [];
       const lin = (c as RegraLimites).linhas;
+      const desc = String(it.descricao ?? '');
+      const ef = limitesEfetivos(lin).get('descricao');
+      const v = ef && desc.length > ef.limite ? (ef.linha.tratamento === 'SUGERIR_ABREVIACAO' ? abreviarAte(desc, ef.limite, abrev) : { cabe: false, texto: desc }) : null;
       return {
+        descricaoProposta: v?.cabe ? v.texto : null,
+        observacao: !ef ? 'sem limite confirmado para a descrição' : !v ? `cabe no limite de ${ef.limite} (${ef.linha.destino})` : v.cabe ? `abreviada para caber em ${ef.limite} (${ef.linha.destino})` : `acima de ${ef.limite} (${ef.linha.destino}): revisar à mão; nada é cortado`,
         efetivos: [...limitesEfetivos(lin)].map(([campo, { limite, linha }]) => ({ campo, limite, destino: linha.destino })),
         destinos: lin.map((l) => {
           const valor = String((it as unknown as Json)[l.campoItem] ?? '');
