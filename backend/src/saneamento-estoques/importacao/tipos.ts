@@ -43,6 +43,8 @@ export type ConfigImportacao = {
   semanticaAtivo?: SemanticaAtivo;
   /** Por coluna: veio como número no Excel (zeros à esquerda perdidos). Vem de `Planilha.ncmNumerico`. */
   colunaNumerica?: boolean[];
+  /** Por coluna: separador decimal detectado na base inteira (texto/CSV), para a coluna toda ser lida do mesmo jeito. Preenchido por conferirBase. */
+  decimalPorColuna?: ('BR' | 'PONTO' | undefined)[];
   /** Quando a planilha é de um único depósito e não tem a coluna. */
   estabelecimentoFixo?: string | null;
   /** Data de referência para rejeitar datas no futuro (padrão: agora). */

@@ -90,6 +90,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       "Linha rejeitada não entra: corrija no ERP ou na planilha e reimporte. Linha pendente entra, mas com dado faltando.",
       "A reimportação nunca apaga decisões nem rascunhos. Campos protegidos por decisão ficam como estão; o relatório diz quantos campos protegidos foram mantidos.",
       "Com muitas diferenças, prefira Todos os alterados ou Só os alterados sem campo protegido: valem para o arquivo inteiro, não só para a página na tela.",
+      "Em texto ou CSV, o separador decimal do saldo é decidido pela coluna inteira: se alguma célula tem vírgula decimal (“12,5” ou “1.234,56”), a coluna é brasileira e “1.250” vale mil duzentos e cinquenta; se alguma tem ponto com 1, 2 ou 4 ou mais casas (“12.5”) ou zero antes do ponto (“0.500”), a coluna é de ponto decimal e “1.250” vale 1,25. Coluna só com valores como “1.250” é lida como milhar e o relatório avisa “Separador decimal ambíguo”: confira. Planilha Excel com o saldo em número não muda.",
     ],
   },
   {

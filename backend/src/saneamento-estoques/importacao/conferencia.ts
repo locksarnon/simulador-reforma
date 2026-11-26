@@ -25,6 +25,7 @@ type Preparada = {
   extras: { indice: number; nome: string }[];
   semantica: SemanticaAtivo;
   numerica: boolean[];
+  decimal: ('BR' | 'PONTO' | undefined)[];
   fixo: string | null;
   hoje: Date;
 };
@@ -43,7 +44,7 @@ export function prepararConfig(cabecalho: string[], cfg: ConfigImportacao): Prep
     nomes.add(nome);
     return { indice, nome };
   });
-  return { idx, extras, semantica: cfg.semanticaAtivo ?? 'ATIVO', numerica: cfg.colunaNumerica ?? [], fixo: cfg.estabelecimentoFixo ?? null, hoje: cfg.hoje ?? new Date() };
+  return { idx, extras, semantica: cfg.semanticaAtivo ?? 'ATIVO', numerica: cfg.colunaNumerica ?? [], decimal: cfg.decimalPorColuna ?? [], fixo: cfg.estabelecimentoFixo ?? null, hoje: cfg.hoje ?? new Date() };
 }
 
 /** Índices das colunas que precisam ser lidas (mapeadas + extras), para `lerPlanilha(arquivo, colunas)`. */
@@ -90,7 +91,7 @@ export function conferirLinhaPreparada(p: Preparada, valores: string[], linhaOri
   }
   let saldo: number | null = null;
   if (p.idx.saldo !== undefined && v('saldo')) {
-    saldo = lerNumero(v('saldo'));
+    saldo = lerNumero(v('saldo'), false, p.decimal[p.idx.saldo]);
     if (saldo === null) faltas.push(oc('SALDO_INVALIDO', v('saldo')));
   }
   let ultimaMovimentacao: string | null = null;

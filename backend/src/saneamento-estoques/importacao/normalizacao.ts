@@ -47,7 +47,7 @@ export function normalizarNcm(bruto: unknown, colunaNumerica = false): NcmNormal
  * de verdade, `colunaNumerica`, o ponto é decimal). Zero à esquerda desfaz a ambiguidade: "0.001" -> 0,001 (milhar nunca começa por zero).
  * Valor que já é número vale como está (0.001 não vira 1). "12-" (sinal no fim, SAP) e "(12)" são negativos. Vazio ou texto -> null.
  */
-export function lerNumero(bruto: unknown, colunaNumerica = false): number | null {
+export function lerNumero(bruto: unknown, colunaNumerica = false, decimal?: SeparadorDecimal): number | null {
   if (typeof bruto === 'number') return Number.isFinite(bruto) ? (bruto === 0 ? 0 : bruto) : null;
   let t = aparar(bruto).replace(/^R\$\s*/i, '');
   if (!t) return null;
@@ -66,7 +66,12 @@ export function lerNumero(bruto: unknown, colunaNumerica = false): number | null
     s = t.split(milhar).join('').replace(decimal, '.');
   } else if (virgulas) {
     if (virgulas > 1 && !/^\d{1,3}(,\d{3})+$/.test(t)) return null; // várias vírgulas = milhar americano
-    s = virgulas === 1 ? t.replace(',', '.') : t.replace(/,/g, '');
+    // Coluna com ponto decimal: a vírgula é milhar ("1,234" = mil duzentos e trinta e quatro).
+    if (decimal === 'PONTO') { if (!/^\d{1,3}(,\d{3})+$/.test(t)) return null; s = t.replace(/,/g, ''); }
+    else s = virgulas === 1 ? t.replace(',', '.') : t.replace(/,/g, '');
+  } else if (pontos && decimal === 'PONTO') {
+    if (pontos > 1) return null;
+    s = t;
   } else if (pontos) {
     if (pontos > 1) { if (!/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) return null; s = t.replace(/\./g, ''); }
     else s = !colunaNumerica && /^[1-9]\d{0,2}\.\d{3}$/.test(t) ? t.replace('.', '') : t;
@@ -74,6 +79,33 @@ export function lerNumero(bruto: unknown, colunaNumerica = false): number | null
   const n = Number(s);
   if (!Number.isFinite(n)) return null;
   return n === 0 ? 0 : neg ? -n : n;
+}
+
+export type SeparadorDecimal = 'BR' | 'PONTO';
+
+/**
+ * Separador decimal de UMA coluna de texto/CSV, para todas as células serem lidas do mesmo jeito (antes "0.500" valia 0,5 e "1.250" valia
+ * 1250 na mesma coluna). BR quando alguma célula tem vírgula decimal ("12,5") ou o padrão "1.234,56"; PONTO quando alguma tem ponto seguido de
+ * 1, 2 ou 4 ou mais dígitos ("12.5", "3.14159"), zero antes do ponto ("0.500": milhar não começa por zero), "1,234.56" ou mais de um ponto
+ * sem formar milhar válido; AMBIGUO quando só há "x.yyy" (lida como milhar, BR, com aviso); null quando nenhuma célula tem separador.
+ * Célula numérica do XLSX chega como texto BR (vírgula decimal, sem milhar) e não muda a leitura.
+ */
+export function detectarSeparadorDecimal(valores: Iterable<unknown>): SeparadorDecimal | 'AMBIGUO' | null {
+  let br = false; let ponto = false; let ambiguo = false;
+  for (const bruto of valores) {
+    let t = aparar(bruto).replace(/^R\$\s*/i, '').replace(/^[(+-]+|[)-]+$/g, '').trim();
+    if (!t || !/^[\d.,]+$/.test(t)) continue;
+    const pontos = (t.match(/\./g) || []).length; const virgulas = (t.match(/,/g) || []).length;
+    if (pontos && virgulas) { if (t.lastIndexOf(',') > t.lastIndexOf('.')) br = true; else ponto = true; }
+    else if (virgulas) { if (virgulas === 1) br = true; }
+    else if (pontos > 1) { if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) br = true; else ponto = true; }
+    else if (pontos === 1) {
+      t = t.replace(/^\./, '0.');
+      if (/^0\./.test(t) || !/\.\d{3}$/.test(t)) ponto = true; else ambiguo = true;
+    }
+    if (br) return 'BR';
+  }
+  return ponto ? 'PONTO' : ambiguo ? 'AMBIGUO' : null;
 }
 
 /** Data de uma célula -> yyyy-mm-dd. `invalida` quando há texto que não é data. Vazio e "00/00/0000" = sem data. */
