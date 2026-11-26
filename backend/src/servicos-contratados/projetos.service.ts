@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CATALOGO_CONSULTORIA, SERVICOS_POR_DATA_BASE } from './consultoria.service';
 import { AuditoriaIbsCbsService } from '../auditoria-ibscbs/auditoria-ibscbs.service';
 import { apagarSaneamento } from '../saneamento-estoques/dados/exclusao';
+import { TX_LONGA } from '../saneamento-estoques/dados/constantes';
 
 export const SITUACOES_DO_PROJETO = ['EM_ANDAMENTO', 'PAUSADO', 'CONCLUIDO', 'CANCELADO'] as const;
 export type EntradaProjeto = {
@@ -150,7 +151,7 @@ export class ProjetosDiagnosticoService {
       await this.prisma.$transaction(async (tx) => {
         await apagarSaneamento(tx as never, { diagnostico_id: id });
         await tx.projetoDiagnostico.delete({ where: { id } });
-      });
+      }, TX_LONGA); // projeto com saneamento grande (30 mil itens) não cabe no limite padrão de 5 s
       return { ok: true, pendente: false };
     }
     if (!usuario?.email) throw new ForbiddenException('Identifique-se para solicitar a exclusão.');
@@ -167,7 +168,7 @@ export class ProjetosDiagnosticoService {
       const resultado = await tx.projetoDiagnostico.deleteMany({ where: { id, exclusao_solicitada_em: { not: null } } });
       if (!resultado.count) throw new ConflictException('A solicitação já foi resolvida.');
       await apagarSaneamento(tx as never, { diagnostico_id: id });
-    });
+    }, TX_LONGA);
     return { ok: true, pendente: false };
   }
 

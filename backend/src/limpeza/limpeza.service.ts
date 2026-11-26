@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { AuthUser } from '../auth/auth.types';
 import { apagarSaneamento } from '../saneamento-estoques/dados/exclusao';
+import { TX_LONGA } from '../saneamento-estoques/dados/constantes';
 
 /** 'analises' = tudo da lista "Análises salvas" da empresa; 'saneamento' = só os projetos de saneamento da empresa e as bases importadas neles. */
 export type TelaLimpeza = 'importacao-xml' | 'operacoes' | 'empresas' | 'workroom' | 'validacoes' | 'analises' | 'saneamento';
@@ -214,7 +215,7 @@ export class LimpezaService {
       await tx.validacaoCadastro.deleteMany({ where: { id: { in: ids.validacoes } } });
       // Projetos que sobraram (limpeza só de validações) não ficam apontando para uma base que não existe mais.
       if (ids.validacoes.length) await tx.saneamentoProjeto.updateMany({ where: { validacao_id: { in: ids.validacoes } }, data: { validacao_id: null } });
-    });
+    }, TX_LONGA); // a limpeza de empresa com saneamento grande não cabe no limite padrão de 5 s
 
     // Armazenamento só depois do commit: se a transação falhar, nada some do MinIO.
     let removidos = 0;
