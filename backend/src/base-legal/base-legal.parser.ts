@@ -1,9 +1,9 @@
 import { createHash } from 'crypto';
-import { ehSoNota, type Marca, marcadorEstrutural, marcasDoTexto, marcasUnicas, numeroDoArtigo, type Remissao, remissoesDoTexto, situacaoDoDispositivo, temasDoTexto } from './marcas';
+import { clausulaDaLinha, ehSoNota, expandirFaixaRevogada, type Marca, marcadorEstrutural, marcasDoTexto, marcasUnicas, numeroDoArtigo, type Remissao, remissoesDoTexto, situacaoDoDispositivo, temasDoTexto } from './marcas';
 
-/** Dispositivo extraído do texto de uma norma (artigo ou anexo). */
+/** Dispositivo extraído do texto de uma norma (artigo, anexo ou, nos convênios do Confaz, cláusula). */
 export type DispositivoExtraido = {
-  tipo: 'artigo' | 'anexo';
+  tipo: 'artigo' | 'anexo' | 'clausula';
   rotulo: string;
   caminho: string;
   ordem: number;
@@ -31,7 +31,7 @@ const ENTIDADES: Record<string, string> = {
   lsquo: '‘', rsquo: '’', hellip: '…', deg: '°',
 };
 
-function decodificarEntidades(s: string): string {
+export function decodificarEntidades(s: string): string {
   return s
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
@@ -43,7 +43,8 @@ function decodificarEntidades(s: string): string {
  * Versão do leitor de texto. Aumente quando o leitor passar a extrair o texto de outro jeito (por exemplo, separar o que está riscado):
  * as normas gravadas por versão anterior são reprocessadas na próxima leitura, sem contar a diferença como mudança da lei.
  */
-export const LEITOR_VERSAO = 2;
+// 3: faixas "Arts. 52 a 58 (Revogados...)", artigo todo riscado com o aviso só no inciso, artigos citados entre aspas, cláusulas do Confaz.
+export const LEITOR_VERSAO = 3;
 
 export const INICIO_RISCADO = '';
 export const FIM_RISCADO = '';
@@ -148,7 +149,8 @@ export function htmlParaTexto(html: string): string {
 }
 
 // "Art. 5º", "Art. 5º-A" e o estilo antigo "Art 5º - texto" (sem ponto): o hífen só é sufixo quando colado ao número ("5º-A"), senão "Art 1º - O imposto" viraria o art. 1-O.
-const RE_ARTIGO = /^Art\.?\s*(\d+)\s*(?:º|°|o\b|\.)?(?:\s*-([A-Z]{1,3})\b)?/;
+// "Art. 33, inciso II do caput: ..." (vírgula logo depois do número) é remissão, não o início de um artigo.
+const RE_ARTIGO = /^Art\.?\s*(\d+)(?!\d)\s*(?:º|°|o\b|\.)?(?:\s*-([A-Z]{1,3})\b)?(?!\s*,)/;
 const RE_ANEXO = /^ANEXO\s+([IVXLC]+(?:-[A-Z])?|[ÚU]NICO)\b/i;
 const RE_SECAO = /^(LIVRO|T[ÍI]TULO|CAP[ÍI]TULO|SE[ÇC][ÃA]O|SUBSE[ÇC][ÃA]O)\s+([IVXLCDM]+(?:-[A-Z])?|[ÚU]NIC[OA]|\d+)\b\s*(.*)$/i;
 const NIVEL: Record<string, number> = { LIVRO: 0, TITULO: 1, CAPITULO: 2, SECAO: 3, SUBSECAO: 4 };
@@ -175,6 +177,12 @@ const cap = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
  *  - artigo riscado que não tem aviso próprio (o aviso está no título da seção) e não foi reeditado vira "Art. N. (Revogado...)".
  * O que estava riscado fica à parte, em `riscados`, como redação anterior.
  */
+/** O aviso "(Revogado pela Lei nº 10.833, de 29.12.2003)" que o próprio texto riscado traz, se trouxer. */
+function notaDoRiscado(bloco: string): string | null {
+  const m = /\(\s*((?:Revogad|Suprimid)[oa]s?\b[^()]*)\)/i.exec(bloco);
+  return m ? `(${m[1].replace(/\s+/g, ' ').trim()})` : null;
+}
+
 function prepararLinhas(texto: string): { linhas: string[]; riscados: string[][] } {
   const linhas: string[] = [];
   const riscados: string[][] = [];
@@ -184,6 +192,8 @@ function prepararLinhas(texto: string): { linhas: string[]; riscados: string[][]
   for (const bruta of texto.split('\n')) {
     const fragmentos = [...bruta.matchAll(RE_RISCADO)].map((m) => m[1].replace(/\s+/g, ' ').trim()).filter((f) => f.length >= 3);
     let vigente = semRiscado(bruta).replace(/[ \t]+/g, ' ').replace(/(\s\|)+\s*$/, '').trim();
+    // Erro de digitação da própria página oficial ("rt. 758." no RIR/2018): é o início de um artigo.
+    vigente = vigente.replace(/^rt\.\s*(?=\d)/, 'Art. ');
     if (!vigente) {
       pendente.push(...fragmentos);
       continue;
@@ -216,20 +226,31 @@ function prepararLinhas(texto: string): { linhas: string[]; riscados: string[][]
     });
     const proprios: number[] = [...soltos];
     for (const g of grupos) {
-      if (g.indices.includes(usado) || g.numero === numeroAqui) { proprios.push(...g.indices); continue; }
-      // artigo riscado e não reeditado: continua existindo na base, como revogado
+      if (g.numero === numeroAqui || usado === g.indices[0]) { proprios.push(...g.indices); continue; }
       const cabeca = sequencia[g.indices[0]];
-      if (cabeca.length >= 20) {
-        linhas.push(`${g.token} ${notaSolta ?? '(Revogado)'}`);
-        riscados.push(g.indices.map((k) => sequencia[k]));
-      } else proprios.push(...g.indices);
+      if (cabeca.length < 20) { proprios.push(...g.indices); continue; }
+      if (g.indices.includes(usado)) {
+        // Artigo inteiro riscado cujo aviso de revogação só veio no inciso ou parágrafo (RIPI, art. 146; Lei 10.637, art. 6º):
+        // o artigo continua na base, revogado, e o item com o aviso segue dentro dele.
+        linhas.push(`${g.token} ${notaDoRiscado(cabeca) ?? notaSolta ?? '(Revogado)'}`);
+        riscados.push(g.indices.filter((k) => k < usado).map((k) => sequencia[k]));
+        proprios.push(...g.indices.filter((k) => k >= usado));
+        continue;
+      }
+      // artigo riscado e não reeditado: continua existindo na base, como revogado (com o ato, se o próprio riscado o traz)
+      linhas.push(`${g.token} ${notaSolta ?? notaDoRiscado(cabeca) ?? '(Revogado)'}`);
+      riscados.push(g.indices.map((k) => sequencia[k]));
     }
 
-    linhas.push(vigente);
+    // "Arts. 52 a 58 (Revogados pelo...)": uma linha por artigo revogado, cada uma com o aviso.
+    const faixa = expandirFaixaRevogada(vigente);
+    const novas = faixa ?? [vigente];
+    linhas.push(novas[0]);
     riscados.push([...proprios.sort((a, b) => a - b).map((k) => sequencia[k]), ...resto]);
+    for (const extra of novas.slice(1)) { linhas.push(extra); riscados.push([]); }
     pendente = [];
     // Aviso de revogação solto (logo depois de um título) que vale para os artigos riscados que vierem em seguida.
-    notaSolta = ehSoNota(vigente) && /^\s*\(\s*Revogad/i.test(vigente) ? vigente : null;
+    notaSolta = !faixa && ehSoNota(vigente) && /^\s*\(\s*Revogad/i.test(vigente) ? vigente : null;
   }
   return { linhas, riscados };
 }
@@ -253,16 +274,47 @@ const chaveArtigo = (num: string, suf?: string) => {
   return Number(num) * 100000 + v;
 };
 
+const PESO_CITADO = 0.1;
+const MAX_LINHAS_CITACAO = 400;
+const fechaCitacao = (linha: string) => /[”"]\s*(?:\(\s*(?:NR|AC)\s*\))?\s*[.;,]?\s*$/i.test(linha.trim());
+
+/**
+ * Linhas de texto citado entre aspas: os artigos de outra lei que um artigo alterador reproduz ("“Art. 22-A. ... Capítulo.” (NR)").
+ * Abre na linha que começa com aspas e fecha na primeira que termina com aspas (com ou sem "(NR)"). Sem fechamento em até
+ * 400 linhas, a abertura é ignorada.
+ */
+function linhasCitadas(linhas: string[]): Set<number> {
+  const citadas = new Set<number>();
+  for (let i = 0; i < linhas.length; i++) {
+    const l = linhas[i].trim();
+    if (!/^[“"]/.test(l) || fechaCitacao(l.slice(1))) continue;
+    let fim = -1;
+    for (let j = i + 1; j < Math.min(linhas.length, i + MAX_LINHAS_CITACAO); j++) {
+      if (fechaCitacao(linhas[j])) { fim = j; break; }
+    }
+    if (fim < 0) continue;
+    for (let k = i; k <= fim; k++) citadas.add(k);
+    i = fim;
+  }
+  return citadas;
+}
+
 /**
  * Linhas que iniciam de fato os artigos da própria norma: a maior sequência crescente de
  * numeração (Art. 10 < 10-A < 11). Artigos de OUTRAS leis citados dentro de um artigo
  * alterador ("passa a vigorar com a redação…") ficam fora dela e continuam no texto do artigo.
  */
 function linhasDeArtigos(linhas: string[]): Set<number> {
-  const cand: { i: number; k: number; n: number }[] = [];
+  // Artigo de outra lei reproduzido entre aspas vale quase nada: só entra na cadeia se não disputar lugar com artigo da própria norma
+  // (Lei 14.973/2024: os arts. 22-A a 22-E citados da Lei 13.988 tomavam o lugar dos arts. 20 e 21).
+  const citadas = linhasCitadas(linhas);
+  const cand: { i: number; k: number; n: number; peso: number }[] = [];
   linhas.forEach((l, i) => {
+    const peso = citadas.has(i) ? PESO_CITADO : 1;
     const m = RE_ARTIGO.exec(l);
-    if (m) cand.push({ i, k: chaveArtigo(m[1], m[2]), n: Number(m[1]) });
+    if (m) { cand.push({ i, k: chaveArtigo(m[1], m[2]), n: Number(m[1]), peso }); return; }
+    const c = clausulaDaLinha(l);
+    if (c) cand.push({ i, k: chaveArtigo(String(c.numero), c.sufixo), n: c.numero, peso });
   });
   // Cadeia crescente de maior "pontuação": cada artigo vale 1 e um salto grande de numeração
   // (ex.: 165 → 323-G) custa 40. Assim a sequência real (densa) vence uma sequência de artigos
@@ -270,12 +322,12 @@ function linhasDeArtigos(linhas: string[]): Set<number> {
   const SALTO = 10;
   const CUSTO = 40;
   // Artigo inicial da cadeia: normas começam em números baixos; começar em 208-A é sinal de citação.
-  const dp: number[] = cand.map((c) => 1 - (c.n > SALTO ? CUSTO : 0));
+  const dp: number[] = cand.map((c) => c.peso - (c.n > SALTO ? CUSTO : 0));
   const pai: number[] = new Array(cand.length).fill(-1);
   for (let j = 0; j < cand.length; j++) {
     for (let i = 0; i < j; i++) {
       if (cand[i].k >= cand[j].k) continue;
-      const v = dp[i] + 1 - (cand[j].n - cand[i].n > SALTO ? CUSTO : 0);
+      const v = dp[i] + cand[j].peso - (cand[j].n - cand[i].n > SALTO ? CUSTO : 0);
       if (v > dp[j]) { dp[j] = v; pai[j] = i; }
     }
   }
@@ -360,6 +412,17 @@ function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number, r
         const suf = ma[2] ? `-${ma[2]}` : '';
         atual = {
           d: novo({ tipo: 'artigo', rotulo: `${prefixo ? 'ADCT, ' : ''}Art. ${num}${Number(num) <= 9 && !suf ? 'º' : ''}${suf}`, caminho: caminhoUnico(`${prefixo ? `${prefixo}-` : ''}art-${num}${suf.toLowerCase()}`), ordem: ordemBase + saida.length + 1, secao: prefixo ? `ADCT${secaoAtual() ? ' › ' + secaoAtual() : ''}` : secaoAtual(), texto: '', revogado: false }),
+          linhas: [l],
+          riscados: [...(riscados[i] ?? [])],
+        };
+        continue;
+      }
+      const mc = aceitos.has(i) ? clausulaDaLinha(l) : null;
+      if (mc) {
+        fechar();
+        const base = `clausula-${mc.numero}${mc.sufixo ? `-${mc.sufixo.toLowerCase()}` : ''}`;
+        atual = {
+          d: novo({ tipo: 'clausula', rotulo: mc.rotulo, caminho: caminhoUnico(prefixo ? `${prefixo}-${base}` : base), ordem: ordemBase + saida.length + 1, secao: secaoAtual(), texto: '', revogado: false }),
           linhas: [l],
           riscados: [...(riscados[i] ?? [])],
         };

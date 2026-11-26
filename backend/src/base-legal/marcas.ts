@@ -30,15 +30,24 @@ const ATOS: [RegExp, string, string][] = [
   [/^instru[çc][ãa]o normativa$/i, 'IN', 'Instrução Normativa'],
   [/^portaria$/i, 'Portaria', 'Portaria'],
   [/^ato declarat[óo]rio$/i, 'AD', 'Ato Declaratório'],
+  [/^ato complementar$/i, 'AC', 'Ato Complementar'],
   [/^conv[êe]nio$/i, 'Convênio', 'Convênio'],
+  [/^ajuste$/i, 'Ajuste', 'Ajuste'],
+  [/^protocolo$/i, 'Protocolo', 'Protocolo'],
 ];
 
-const NOME_ATO = 'Lei Complementar|Lei Delegada|Decreto[- ]Lei|Decreto Legislativo|Decreto|Medida Provis[óo]ria|Emenda Constitucional|Emenda à Constitui[çc][ãa]o|Lei|Resolu[çc][ãa]o|Instru[çc][ãa]o Normativa|Portaria|Ato Declarat[óo]rio|Conv[êe]nio';
+const NOME_ATO = 'Lei Complementar|Lei Delegada|Decreto[- ]Lei|Decreto Legislativo|Decreto|Medida Provis[óo]ria|Emenda Constitucional|Emenda à Constitui[çc][ãa]o|Lei|Resolu[çc][ãa]o|Instru[çc][ãa]o Normativa|Portaria|Ato Declarat[óo]rio|Ato Complementar|Conv[êe]nio|Ajuste|Protocolo';
+/** Atos em que o órgão faz parte do nome: "IN RFB 2.121", "Convênio ICMS 100/1997", "Ajuste SINIEF 7/2005". */
+const COM_ORGAO = ['IN', 'Portaria', 'Resolução', 'Convênio', 'Ajuste', 'Protocolo'];
 // "Lei Complementar nº 227, de 2026" | "Lei nº 11.945, de 4 de junho de 2009" | "LC 227/2026" | "Decreto 12.955/2026"
 const RE_ATO = new RegExp(
-  `\\b(${NOME_ATO}|LC|EC|MP)(?:\\s+(?<orgao>RFB|SRF\\/RFB|SRF|MF|MEF|ME|MDIC|PGFN|CGSN|CGIBS|COSIT|SEFAZ|ANP|STN))?\\s*(?:n[ºo°.]{0,2}\\s*)?(\\d{1,3}(?:\\.\\d{3})*|\\d+)(?:-(?:[A-Z]|\\d{1,2}))?\\s*(?:\\/\\s*(\\d{4})|,\\s*de\\s*(?:\\d{1,2}[º°]?\\s*(?:de\\s+)?[A-Za-zçãéúÇ]+\\s*(?:de\\s+)?)?(\\d{4}))`,
+  `\\b(${NOME_ATO}|LC|EC|MP)(?:\\s+(?<orgao>RFB|SRF\\/RFB|SRF|MF|MEF|ME|MDIC|PGFN|CGSN|CGIBS|COSIT|SEFAZ|ANP|STN|ICMS|SINIEF))?\\s*(?:n[ºo°.]{0,2}\\s*)?(\\d{1,3}(?:\\.\\d{3})*|\\d+)(?:-(?:[A-Z]|\\d{1,2}))?\\s*(?:\\/\\s*(\\d{4})|,\\s*de\\s*(?:\\d{1,2}[º°]?\\s*(?:de\\s+)?[A-Za-zçãéúÇ]+\\s*(?:de\\s+)?)?(\\d{4})|,\\s*de\\s*\\d{1,2}[./]\\d{1,2}[./](\\d{4}|\\d{2})(?!\\d))`,
   'i',
 );
+
+/** Ano de "19/01/1999" ou "10.12.97" (as páginas antigas do Planalto escrevem a data assim). */
+const anoCompleto = (ano: string | undefined): string | undefined =>
+  !ano ? undefined : ano.length === 4 ? ano : String((Number(ano) > 30 ? 1900 : 2000) + Number(ano));
 
 /** "Lei Complementar nº 227, de 2026" → { rotulo: "LC 227/2026", referencia: "lc 227/2026", tipo: "Lei Complementar" }. */
 export function atoDoTexto(texto: string): AtoNormativo | null {
@@ -70,11 +79,11 @@ function atoDeMatch(m: RegExpExecArray | RegExpMatchArray): AtoNormativo | null 
     tipo = achado[2];
     // O órgão faz parte do rótulo: "IN RFB" e "IN SRF" são normas diferentes.
     const orgao = m.groups?.orgao;
-    if (orgao && ['IN', 'Portaria', 'Resolução'].includes(abrev)) abrev = `${abrev} ${orgao.toUpperCase()}`;
+    if (orgao && COM_ORGAO.includes(abrev)) abrev = `${abrev} ${orgao.toUpperCase()}`;
   }
-  // Grupos: 1 tipo do ato, 2 órgão (opcional), 3 número, 4 ano ("/2026"), 5 ano ("de 12 de março de 2026").
+  // Grupos: 1 tipo do ato, 2 órgão (opcional), 3 número, 4 ano ("/2026"), 5 ano ("de 12 de março de 2026"), 6 ano ("de 19/01/1999", "de 10.12.97").
   const numero = m[3].replace(/\./g, '');
-  const ano = m[4] ?? m[5];
+  const ano = m[4] ?? m[5] ?? anoCompleto(m[6]);
   const rotulo = `${abrev} ${numero}/${ano}`;
   return { rotulo, referencia: rotulo.toLowerCase(), tipo };
 }
@@ -119,11 +128,31 @@ const RE_TOKEN_ARTIGO = /^Art\.?\s*\d+\s*(?:º|°|o\b)?(?:-[A-Z]{1,3})?\s*\.?/;
 const RE_SO_NOTA = /^\s*[-–—:.;,]*\s*\(?\s*(Revogad[oa]s?|Vetad[oa]s?|Suprimid[oa]s?)\b[^)]*\)?[\s.;,]*$/i;
 const RE_NOTA_COMPLETA = /\(\s*(?:Reda[çc][ãa]o dada|Inclu[íi]d[oa]s?|Acrescid[oa]s?|Revogad[oa]s?|Vetad[oa]s?|Vide|Vig[êe]ncia|Produ[çc][ãa]o de efeitos?|Renumerad[oa]s?|Declarad[oa]|Suprimid[oa]s?|Regulamento)\b[^()]*(?:\([^()]*\)[^()]*)?\)/gi;
 
-/** O que sobra de uma linha quando se tiram o marcador estrutural (Art. 5º, § 2º, I -, a)) e as notas entre parênteses. */
+// ── Cláusulas (convênios, ajustes e protocolos do Confaz): "Cláusula primeira", "Cláusula terceira-A", "Cláusula décima segunda" ──
+const UNIDADES: Record<string, number> = { primeira: 1, segunda: 2, terceira: 3, quarta: 4, quinta: 5, sexta: 6, 'sétima': 7, setima: 7, oitava: 8, nona: 9 };
+const DEZENAS: Record<string, number> = {
+  'décima': 10, decima: 10, 'vigésima': 20, vigesima: 20, 'trigésima': 30, trigesima: 30, 'quadragésima': 40, quadragesima: 40, 'quinquagésima': 50, quinquagesima: 50,
+};
+const ORD_UNIDADE = 'primeira|segunda|terceira|quarta|quinta|sexta|s[ée]tima|oitava|nona';
+const ORD_DEZENA = 'd[ée]cima|vig[ée]sima|trig[ée]sima|quadrag[ée]sima|quinquag[ée]sima';
+/** Só "Cláusula" com inicial maiúscula e ordinal por extenso: "CLÁUSULA PRIMEIRA DO CONVÊNIO..." (título de anexo) não é cláusula. */
+export const RE_CLAUSULA = new RegExp(`^Cl[áa]usula\\s+((?:${ORD_DEZENA})(?:[\\s-]+(?:${ORD_UNIDADE}))?|${ORD_UNIDADE})(?:\\s*-\\s*([A-Z]{1,2})\\b)?`);
+
+/** "Cláusula décima segunda-A ..." → { numero: 12, sufixo: 'A', rotulo: 'Cláusula décima segunda-A' }. */
+export function clausulaDaLinha(linha: string): { numero: number; sufixo: string; rotulo: string } | null {
+  const m = RE_CLAUSULA.exec(linha.trim());
+  if (!m) return null;
+  const ordinal = m[1].toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ');
+  const numero = ordinal.split(' ').reduce((s, p) => s + (DEZENAS[p] ?? UNIDADES[p] ?? 0), 0);
+  return numero ? { numero, sufixo: m[2] ?? '', rotulo: `Cláusula ${ordinal}${m[2] ? `-${m[2]}` : ''}` } : null;
+}
+
+/** O que sobra de uma linha quando se tiram o marcador estrutural (Art. 5º, Cláusula primeira, § 2º, I -, a)) e as notas entre parênteses. */
 function miolo(linha: string): string {
   return linha
     .replace(RE_NOTA_COMPLETA, ' ')
     .replace(RE_TOKEN_ARTIGO, ' ')
+    .replace(RE_CLAUSULA, ' ')
     .replace(/^\s*(?:ANEXO|LIVRO|T[ÍI]TULO|CAP[ÍI]TULO|SE[ÇC][ÃA]O|SUBSE[ÇC][ÃA]O)\s+(?:[IVXLCDM]+(?:-[A-Z])?|[ÚU]NIC[OA]|\d+)\b/i, ' ')
     .replace(/^\s*(§\s*\d+\s*[º°o]?\s*[-A-Z]*\s*\.?|Parágrafo único\.?|[IVXLCDM]+\s*[-–—]|[a-z]\)|\d{1,2}\s*[.)-])/i, ' ')
     .replace(/[\s.;,:()–—-]+/g, ' ')
@@ -165,6 +194,65 @@ export function marcadorEstrutural(linha: string): string | null {
 export function numeroDoArtigo(linha: string): string | null {
   const m = /^\s*Art\.?\s*(\d+)\s*(?:º|°|o\b)?(?:-([A-Z]{1,3})\b)?/.exec(linha);
   return m ? `${m[1]}${m[2] ? `-${m[2]}` : ''}` : null;
+}
+
+const NUM_FAIXA = String.raw`\d+(?:\s*(?:º|°|o\b))?(?:-[A-Z]{1,3}\b)?`;
+const RE_FAIXA_REVOGADA = new RegExp(
+  String.raw`^\s*Arts?\.?\s*(${NUM_FAIXA}(?:(?:\s*,\s*|\s+(?:e|ao?)\s+)${NUM_FAIXA})+)\s*\.?\s*[-–—:]?\s*\(?\s*((?:Revogad|Vetad|Suprimid)[^)]*)\)?[\s.;]*$`,
+  'i',
+);
+const MAX_FAIXA_REVOGADA = 80;
+
+/**
+ * "Arts. 52 a 58 (Revogados pelo Decreto-lei nº 406, de 1968)", "Arts. 3º e 4º (Revogados...)", "Arts. 15-A a 15-C (Vetados)": a linha que
+ * revoga vários artigos de uma vez vira uma linha por artigo, cada uma com o aviso ("Art. 52. (Revogado pelo Decreto-lei nº 406, de 1968)").
+ * Sem isso, os artigos sumiam da base e o aviso grudava no artigo anterior. Devolve null quando a linha não é desse tipo.
+ */
+export function expandirFaixaRevogada(linha: string): string[] | null {
+  const m = RE_FAIXA_REVOGADA.exec(linha);
+  if (!m) return null;
+  const nota = m[2].trim().replace(/[\s.;]+$/, '').replace(/^(Revogad|Vetad|Suprimid)([oa])s\b/i, '$1$2');
+  // Separadores: vírgula, "e" e "a"/"ao" (faixa); estes três só com espaço em volta, para não partir o sufixo de "Art. 15-E".
+  const partes = m[1]
+    .split(/\s*(,)\s*|\s+(e|ao?)\s+/i)
+    .filter((p): p is string => Boolean(p))
+    .map((p) => p.trim());
+  const ler = (p: string) => {
+    const x = /^(\d+)(?:\s*(?:º|°|o))?(?:-([A-Za-z]{1,3}))?$/i.exec(p);
+    return x ? { n: Number(x[1]), suf: x[2]?.toUpperCase() ?? '' } : null;
+  };
+  const letra = (suf: string) => (suf ? suf.charCodeAt(0) : 64); // 64 = a posição antes do "A"
+  const itens: { n: number; suf: string }[] = [];
+  const sufixos = (n: number, depoisDe: number, ate: number) => {
+    for (let c = depoisDe + 1; c <= ate; c++) itens.push({ n, suf: String.fromCharCode(c) });
+  };
+  for (let i = 0; i < partes.length; i++) {
+    const p = partes[i];
+    if (p === ',' || /^e$/i.test(p)) continue;
+    if (/^ao?$/i.test(p)) {
+      const ini = itens[itens.length - 1];
+      const fim = ler(partes[i + 1] ?? '');
+      if (!ini || !fim) return null;
+      if (fim.n > ini.n && fim.n - ini.n <= MAX_FAIXA_REVOGADA) {
+        // "52 a 58"; "10 a 12-B" = 10, 11, 12, 12-A e 12-B
+        for (let n = ini.n + 1; n <= fim.n; n++) itens.push({ n, suf: '' });
+        if (fim.suf.length === 1) sufixos(fim.n, 64, letra(fim.suf));
+        else if (fim.suf) itens.push(fim);
+      } else if (ini.n === fim.n && ini.suf.length <= 1 && fim.suf.length === 1 && letra(fim.suf) > letra(ini.suf)) {
+        sufixos(ini.n, letra(ini.suf), letra(fim.suf)); // "15-A a 15-C"
+      } else {
+        return null; // faixa que não se sabe expandir (ou longa demais): não adivinhar
+      }
+      i += 1;
+      continue;
+    }
+    const x = ler(p);
+    if (!x) return null;
+    itens.push(x);
+  }
+  if (itens.length < 2 || itens.length > MAX_FAIXA_REVOGADA + 1) return null;
+  const cabeca = ({ n, suf }: { n: number; suf: string }) => (suf ? `Art. ${n}-${suf}.` : n <= 9 ? `Art. ${n}º` : `Art. ${n}.`);
+  return itens.map((item) => `${cabeca(item)} (${nota})`);
 }
 
 /** A linha é só uma nota ("(Revogado pelo Decreto nº 7.990, de 2013)", "(Redação dada...)"), sem texto próprio. */

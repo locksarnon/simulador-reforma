@@ -101,6 +101,39 @@ describe('texto riscado no site oficial (redação superada ou revogada)', () =>
     expect(d.redacoes_anteriores.some((r) => r.includes('Parágrafo antigo'))).toBe(true);
   });
 
+  it('linha que revoga uma faixa de artigos ("Arts. 52 a 58 (Revogados...)") vira um artigo revogado por número e não gruda no anterior', () => {
+    const html = `<p>Art. 51. Contribuinte do imposto é o industrial.</p>
+      <p>Arts. 52 a 58 . <a href="x.htm">(Revogados pelo Decreto-lei nº 406, de 1968</a></p>
+      <p>Arts. 59 a 62 (Revogados pelo Ato Complementar nº 31, de 1966)</p>
+      <p>Art. 63. O imposto, de competência da União, sobre operações de crédito.</p>`;
+    const numeros = Array.from({ length: 13 }, (_, i) => `art-${51 + i}`);
+    expect(dispositivos(html).map((d) => d.caminho)).toEqual(numeros);
+    expect(por(html, 'art-51')).toMatchObject({ texto: 'Art. 51. Contribuinte do imposto é o industrial.', revogado: false, parcialmente_revogado: false });
+    expect(por(html, 'art-55')).toMatchObject({ revogado: true, revogado_por: 'Decreto-Lei 406/1968', texto: 'Art. 55. (Revogado pelo Decreto-lei nº 406, de 1968)' });
+    expect(por(html, 'art-60')).toMatchObject({ revogado: true, revogado_por: 'AC 31/1966' });
+    expect(por(html, 'art-63').revogado).toBe(false);
+  });
+
+  it('artigo todo riscado cujo aviso de revogação só aparece nos incisos (RIPI, art. 146) continua na base, revogado, e não suja o anterior', () => {
+    const html = `<p>Art. 145. Antes.</p>
+      <p><strike>Art. 146. O pleito para habilitação à concessão da isenção ou redução do imposto será apresentado ao Ministério.</strike></p>
+      <p><strike>I - identificar os produtos a serem fabricados; </strike> (Revogado pelo Decreto nº 10.668, de 2021)</p>
+      <p><strike>II - contemplar o plano de pesquisa e desenvolvimento elaborado pela empresa; </strike> (Revogado pelo Decreto nº 10.668, de 2021)</p>
+      <p>Art. 147. Depois.</p>`;
+    expect(dispositivos(html).map((d) => d.caminho)).toEqual(['art-145', 'art-146', 'art-147']);
+    expect(por(html, 'art-145')).toMatchObject({ texto: 'Art. 145. Antes.', revogado: false, parcialmente_revogado: false });
+    const d = por(html, 'art-146');
+    expect(d).toMatchObject({ revogado: true, revogado_por: 'Decreto 10668/2021' });
+    expect(d.redacoes_anteriores.some((r) => r.includes('O pleito para habilitação'))).toBe(true);
+  });
+
+  it('artigo todo riscado com o aviso dentro do riscado guarda o ato que revogou, mesmo com data "19/01/1999"', () => {
+    const html = `<p>Art. 12. Doze.</p>
+      <p><strike>Art. 13. As pessoas jurídicas poderão deduzir o saldo credor acumulado do imposto. (Revogado pela Lei nº 9.779, de 19/01/1999)</strike></p>
+      <p>Art. 14. Quatorze.</p>`;
+    expect(por(html, 'art-13')).toMatchObject({ revogado: true, revogado_por: 'Lei 9779/1999', texto: 'Art. 13. (Revogado pela Lei nº 9.779, de 19/01/1999)' });
+  });
+
   it('semRiscado devolve só o vigente, e o texto sem nada riscado fica idêntico ao que sempre se guardou', () => {
     const t = htmlParaTexto('<p>Art. 1º <s>velho</s> novo.</p>');
     expect(semRiscado(t).replace(/\s+/g, ' ').trim()).toBe('Art. 1º novo.');

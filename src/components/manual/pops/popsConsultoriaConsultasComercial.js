@@ -294,6 +294,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
       "O assistente avisa nas ressalvas quando o dispositivo citado está revogado, foi alterado há menos de 120 dias ou tem alteração ainda não consolidada: leia o aviso antes de repassar a resposta.",
       "Em caso de dúvida, vale o texto publicado no órgão oficial (link Fonte oficial).",
       "Os achados da busca vêm de todas as normas, inclusive as revogadas, que aparecem marcadas e por último: não cite um dispositivo marcado como revogado como regra em vigor.",
+      "Convênios e ajustes do Confaz (ICMS, NF-e, CT-e) aparecem por cláusula (Cláusula primeira, Cláusula terceira-A...), com as notas do Confaz no histórico e a redação anterior à parte, como nas leis.",
     ],
   },
   {

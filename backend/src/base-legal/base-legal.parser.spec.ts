@@ -45,6 +45,34 @@ describe('base legal — parser', () => {
     expect(extrairDispositivos(t).map((x) => x.caminho)).toEqual(['art-1', 'art-2', 'art-3']);
   });
 
+  it('artigos de outra lei entre aspas não tomam o lugar dos artigos seguintes da própria lei (Lei 14.973/2024, arts. 19 a 22)', () => {
+    const inicio = Array.from({ length: 18 }, (_, i) => `<p>Art. ${i + 1}${i < 9 ? 'º' : '.'} Texto ${i + 1}.</p>`).join('');
+    const t = htmlParaTexto(`${inicio}<p>Art. 19. A Lei nº 13.988 passa a vigorar acrescida dos seguintes arts. 22-A a 22-E:</p>
+      <p>“Art. 22-A. Primeiro artigo citado.</p><p>Art. 22-B. Segundo.</p><p>Art. 22-C. Terceiro.</p><p>Art. 22-D. Quarto.</p>
+      <p>Art. 22-E. Ato do Advogado-Geral da União disciplinará a transação de que trata este Capítulo.”</p>
+      <p>Art. 20. A Lei nº 10.522 passa a vigorar com as seguintes alterações:</p><p>“Art. 2º ......................” (NR)</p>
+      <p>Art. 21. No caso das agências reguladoras, a manifestação será proferida em até 180 dias.</p>
+      <p>Art. 22. Enquanto não for proferida a manifestação, consideram-se irrecuperáveis os créditos.</p><p>Art. 23. Esta Lei entra em vigor.</p>`);
+    const d = extrairDispositivos(t);
+    expect(d.map((x) => x.caminho).slice(18)).toEqual(['art-19', 'art-20', 'art-21', 'art-22', 'art-23']);
+    expect(d.find((x) => x.caminho === 'art-19')!.texto).toContain('Art. 22-E. Ato do Advogado-Geral');
+    expect(d.find((x) => x.caminho === 'art-20')!.texto).not.toContain('agências reguladoras');
+  });
+
+  it('"Art. 33, inciso II do caput" no começo da linha (tabela de anexo) é remissão, não artigo novo (Lei 12.599/2012)', () => {
+    const t = htmlParaTexto('<p>Art. 1º Um.</p><p>Art. 2º Dois.</p><p>Art. 3º Ficam revogados os incisos.</p><p>Art. 9, inciso II do caput: a) ......... | obra publicitária</p>');
+    const d = extrairDispositivos(t);
+    expect(d.map((x) => x.caminho)).toEqual(['art-1', 'art-2', 'art-3']);
+    expect(d[2].texto).toContain('Art. 9, inciso II do caput');
+  });
+
+  it('erro de digitação da página oficial ("rt. 758.", RIR/2018) ainda abre o artigo', () => {
+    const t = htmlParaTexto('<p>Art. 1º Um.</p><p>Art. 2º Dois.</p><p>rt. 3. A incorporação ao capital de lucros não fica sujeita ao imposto.</p><p>Art. 4º Quatro.</p>');
+    const d = extrairDispositivos(t);
+    expect(d.map((x) => x.caminho)).toEqual(['art-1', 'art-2', 'art-3', 'art-4']);
+    expect(d[2].texto).toBe('Art. 3. A incorporação ao capital de lucros não fica sujeita ao imposto.');
+  });
+
   it('numeração com lacuna grande (bloco de artigos revogados) continua sendo uma só sequência', () => {
     const nums = [...Array.from({ length: 51 }, (_, i) => i + 1), ...Array.from({ length: 80 }, (_, i) => i + 70)];
     const t = htmlParaTexto(nums.map((n) => `<p>Art. ${n}. Texto ${n}.</p>`).join(''));
