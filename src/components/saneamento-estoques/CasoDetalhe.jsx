@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import { AlertasErp, usePerfilErp } from "@/components/erps/erps";
 import { san, chaves, atualizarTudo } from "./api";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Rotulo, Tag, usePodeAlterar } from "./comuns";
 import {
@@ -51,6 +52,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
   const confirmar = useConfirmar();
   const consulta = useQuery({ queryKey: chaves.caso(casoId), queryFn: () => san.caso(casoId) });
   const caso = consulta.data;
+  const perfilErp = usePerfilErp(projeto.erp_id).data; // restrições do ERP do projeto para os tipos de ajuste do caso
   // No recorte de um grupo, o caso de conjunto pode ter itens de outros grupos: aprovar altera todos, e a tela avisa antes.
   const grupos = useQuery({ queryKey: chaves.gruposDoCaso(projeto.id, casoId), queryFn: () => san.gruposDoCaso(casoId), enabled: !!grupoDoRecorte && (caso?.itens?.length || 0) > 1 });
   const outrosGrupos = avisoDeOutrosGrupos(grupos.data, grupoDoRecorte);
@@ -207,6 +209,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
               <label className="block"><Rotulo>Fundamento (norma, artigo, critério)</Rotulo><textarea className={`${campoCls} min-h-[84px]`} disabled value={edicao.fundamento || "—"} readOnly /></label>
             </div>
             {c.impactos?.length > 0 && <Lista titulo="Impactos a conferir" itens={c.impactos} />}
+            <AlertasErp perfil={perfilErp} tipos={c.tiposAjuste || []} />
 
             {parecer && <ParecerIa parecer={parecer} />}
             {acoes.aprovar && (

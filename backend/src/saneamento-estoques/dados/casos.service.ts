@@ -5,6 +5,7 @@ import { CatalogosFiscaisPrisma, classeVigente } from '../fiscal';
 import { camadasAfetadas, lerFator } from '../motor';
 import { CAMADAS, type Camada, type CasoProposto, type ResultadoCamada } from '../tipos';
 import { mapaExcecoes, regravarImpactosDosCasos, semExcecoes } from './impactos-casos';
+import { tiposDeAjusteDoCaso } from './ajustes';
 import {
   CASO_ABERTO, CELULA_DO_CASO, acrescentar, EXCECAO_VIVA, TIPOS_EXCECAO, TX_LONGA, aplicarCampo, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, ehExcecao, exigirVersao, fatiar, igual,
   propostaAplicavel, quem, validarCamada, valorDoCampo, type Json, type SituacaoCaso, type Usuario,
@@ -320,7 +321,8 @@ export class SanCasosService {
   async obter(id: string) {
     const c = await this.prisma.sanCaso.findUnique({ where: { id } });
     if (!c) throw new NotFoundException('Caso não encontrado.');
-    return c;
+    // Tipos de ajuste do caso: a tela mostra as restrições do ERP do projeto para eles (Cadastro de ERPs).
+    return { ...c, tiposAjuste: tiposDeAjusteDoCaso(c) };
   }
 
   /** Histórico por campo de um item (mais recente primeiro). */

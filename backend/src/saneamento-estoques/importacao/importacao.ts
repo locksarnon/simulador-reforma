@@ -2,7 +2,7 @@ import { lerPlanilha, lerPrevia, formatoDoArquivo, type Planilha, type Previa } 
 import { AcumuladorRelatorio, avisosDoMapeamento } from './relatorio';
 import { Conferidor, colunasNecessarias } from './conferencia';
 import { analisarSeparadorDecimal, lerNumero, type SeparadorDecimal } from './normalizacao';
-import { sugerirMapeamento, validarMapeamento } from './mapeamento';
+import { sugerirMapeamento, validarMapeamento, type ColunasDoErp } from './mapeamento';
 import type { CampoNumerico, ConfigImportacao, ItemImportado, SeparadoresDaImportacao, LinhaConferida, PreviaImportacao, RelatorioImportacao, SugestaoMapeamento } from './tipos';
 import { BadRequestException } from '@nestjs/common';
 
@@ -100,9 +100,9 @@ export function separadoresDaBase(base: Pick<BaseLida, 'cabecalho' | 'linhas' | 
  * PASSO 1 (antes de mapear): lê só o cabeçalho, o total de linhas, o primeiro valor de cada coluna e as 10 primeiras linhas brutas, em fluxo,
  * e sugere o mapeamento. O consultor corrige com `corrigirMapeamento`.
  */
-export async function analisarArquivo(arquivo: ArquivoEntrada): Promise<{ previa: Previa; sugestao: SugestaoMapeamento }> {
+export async function analisarArquivo(arquivo: ArquivoEntrada, doErp?: ColunasDoErp): Promise<{ previa: Previa; sugestao: SugestaoMapeamento }> {
   const previa = await lerPrevia(arquivo, { numerosBR: true });
-  return { previa, sugestao: sugerirMapeamento(previa.cabecalho, previa.exemplos) };
+  return { previa, sugestao: sugerirMapeamento(previa.cabecalho, previa.exemplos, doErp) };
 }
 
 async function lerBase(arquivo: ArquivoEntrada, cfg: ConfigImportacao, cabecalho?: string[]): Promise<Planilha> {

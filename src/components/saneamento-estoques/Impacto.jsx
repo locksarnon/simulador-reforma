@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { AlertasErp, usePerfilErp } from "@/components/erps/erps";
 import { chaves, san } from "./api";
 import { botaoSecundario, Carregar, TextoLongo } from "./comuns";
 import { fmtData, paginasDeImpacto, rotuloTipoAjuste, TIPOS_DE_AJUSTE } from "./logica";
@@ -41,11 +42,14 @@ export default function Impacto({ projeto }) {
   const pag = useMemo(() => paginasDeImpacto(impactos.data), [impactos.data]);
   const linhas = pag.linhas;
   const contagem = pag.porTipo;
+  const perfilErp = usePerfilErp(projeto.erp_id).data;
+  const tiposAjuste = impactos.data?.pages?.[0]?.tiposAjuste || [];
   return (
     <div className="space-y-6">
       <section aria-labelledby="san-imp-sped" className="space-y-2">
         <h2 id="san-imp-sped" className="font-semibold">Checklist por tipo de ajuste</h2>
         <p className="text-sm text-muted-foreground">O que conferir nas obrigações acessórias a cada ajuste aprovado. A retificação e a transmissão não fazem parte deste serviço.</p>
+        <AlertasErp perfil={perfilErp} tipos={tiposAjuste} titulo={perfilErp ? `Restrições do ${perfilErp.nome} para os ajustes deste projeto` : undefined} />
         <Carregar consulta={impactos} textoErro="Não foi possível carregar o impacto nas obrigações." tituloVazio="Nenhum impacto registrado ainda" vazio={() => (pag.totalGeral ? null : "As linhas do checklist são geradas quando você roda a camada Impacto nas obrigações (faixa de Cobertura, no alto) e quando aprova ajustes que alteram o cadastro.")}>
           {() => (
             <>

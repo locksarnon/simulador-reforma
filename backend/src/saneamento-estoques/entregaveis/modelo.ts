@@ -410,7 +410,7 @@ export function mapaDoModelo(m: Modelo): LinhaMapa[] {
   let r = mapas.get(m);
   if (!r) {
     r = montarMapa({
-      liberada: m.liberada, dataBase: paraData(m.dados.projeto.data_base), item: (id) => m.porId.get(id), escala: escalaDaBase(m.itens),
+      liberada: m.liberada, dataBase: paraData(m.dados.projeto.data_base), item: (id) => m.porId.get(id), escala: escalaDaBase(m.itens), perfilErp: m.dados.perfilErp ?? null,
       casos: m.casos.map((c) => ({ id: c.id, camada: c.camada, tipo: c.tipo, itens: c.itens, proposta: c.proposta, justificativa: c.justificativa, motivo: c.motivo, situacao: c.situacao, decididoPor: c.decididoPor, decididoEm: c.decididoEm })),
       vinculos: m.vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criadoPor })),
     });

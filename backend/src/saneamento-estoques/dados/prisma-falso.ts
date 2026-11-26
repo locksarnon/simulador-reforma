@@ -16,13 +16,14 @@ const PADROES: Record<string, () => Linha> = {
 };
 const RELACOES: Record<string, Record<string, [string, string]>> = {
   sanItem: { celulas: ['sanCelula', 'item_id'] }, sanProjeto: { atividades: ['sanAtividade', 'projeto_id'] }, sanVersao: { snapshot: ['sanVersaoSnapshot', 'versao_id'] },
+  erp: { conhecimentos: ['erpConhecimento', 'erp_id'] },
 };
 
 export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
   let seq = 0;
   let tempo = Date.parse('2026-11-26T12:00:00Z');
   const db: Record<string, Linha[]> = {};
-  const modelos = ['projetoDiagnostico', 'empresa', 'ncm', 'sanProjeto', 'sanAtividade', 'sanImportacao', 'sanItem', 'sanCelula', 'sanCaso', 'sanDecisao', 'sanVersao', 'sanVersaoSnapshot', 'sanImpactoSped', 'sanVinculoCodigo'];
+  const modelos = ['projetoDiagnostico', 'empresa', 'ncm', 'sanProjeto', 'sanAtividade', 'sanImportacao', 'sanItem', 'sanCelula', 'sanCaso', 'sanDecisao', 'sanVersao', 'sanVersaoSnapshot', 'sanImpactoSped', 'sanVinculoCodigo', 'erp', 'erpConhecimento'];
   for (const m of modelos) db[m] = (sementes[m] ?? []).map((l) => ({ ...l }));
   const erroUnico = () => Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
   // Atalhos para as bases de 30 mil itens: 'in' por conjunto e busca por id por índice (refeito quando a lista muda de tamanho ou é trocada).

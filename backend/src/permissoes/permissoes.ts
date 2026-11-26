@@ -56,7 +56,7 @@ export const TELAS: Tela[] = [
   { id: 'comunicacoes', area: 'admin', titulo: 'Comunicações e envios' },
   { id: 'custos', area: 'admin', titulo: 'Custos das ferramentas' },
   { id: 'integracoes', area: 'admin', titulo: 'Integrações' },
-  { id: 'configuracao', area: 'admin', titulo: 'Configuração do motor' },
+  { id: 'configuracao', area: 'admin', titulo: 'Configuração e ERPs' },
   { id: 'parametros-rotinas', area: 'admin', titulo: 'Parâmetros e rotinas' },
   { id: 'roteiro-testes', area: 'suporte', titulo: 'Técnico: roteiro de testes' },
   { id: 'arquitetura', area: 'suporte', titulo: 'Técnico: arquitetura' },
@@ -197,6 +197,8 @@ export const ROTAS_DAS_TELAS: { rota: string; telas: string[] }[] = [
   { rota: 'validador-nfse', telas: ['carteira-diagnostico'] },
   { rota: 'ncm', telas: ['consulta-ncm', 'carteira-diagnostico'] },
   { rota: 'saneamento-estoques', telas: ['carteira-diagnostico'] },
+  // Cadastro de ERPs: todas as telas leem a lista e o perfil; alterar é só do administrador (no controller).
+  { rota: 'erps', telas: [] },
 ];
 
 /** Entidades genéricas (/entities/:model) que pertencem a uma tela. */

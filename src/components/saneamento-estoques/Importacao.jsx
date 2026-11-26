@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet } from "lucide-react";
 import { semFuncao } from "@/lib/permissoes";
+import { ConsultasErp, usePerfilErp } from "@/components/erps/erps";
+import { colunasDoExportDoPerfil } from "@/lib/erps";
 import { san, chaves, atualizarTudo } from "./api";
 import { Aviso, AvisoDeTrava, botaoPrimario, botaoSecundario, Carregar, campoCls, Tag } from "./comuns";
 import {
@@ -222,6 +224,7 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
   const qc = useQueryClient();
   const trava = estadoDaTrava(projeto);
   const [arquivo, setArquivo] = useState(null);
+  const perfilErp = usePerfilErp(projeto.erp_id).data;
   const [previa, setPrevia] = useState(null);
   const [mapeamento, setMapeamento] = useState(null);
   const [escolhidos, setEscolhidos] = useState(() => new Set());
@@ -261,6 +264,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
       <section aria-labelledby="san-imp-arq" className="space-y-2 border border-border bg-card p-4">
         <h2 id="san-imp-arq" className="font-semibold">1. Arquivo do cadastro de itens</h2>
         <p className="text-sm text-muted-foreground">Planilha (.xlsx) ou CSV exportado do ERP. Códigos e NCM são lidos como texto, preservando os zeros à esquerda. Nada é gravado até você confirmar.</p>
+        {colunasDoExportDoPerfil(perfilErp).length > 0 && <p className="text-sm">ERP do projeto: <b>{perfilErp.nome}</b>. As colunas do export dele ({colunasDoExportDoPerfil(perfilErp).map((i) => i.campo_erp).join(", ")}) já chegam mapeadas; confira na prévia.</p>}
+        <ConsultasErp perfil={perfilErp} />
         <div className="flex flex-wrap items-center gap-2">
           <label className="inline-flex cursor-pointer items-center gap-2 border border-border bg-background px-3 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring hover:bg-muted">
             <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />{arquivo ? arquivo.name : "Escolher arquivo"}

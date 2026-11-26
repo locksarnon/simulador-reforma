@@ -2,6 +2,8 @@ import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { usePerfilErp } from "@/components/erps/erps";
+import { perfilEspecifico } from "@/lib/erps";
 import { chaves, san } from "./api";
 import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo, TextoLongo } from "./comuns";
 import { fmtData, fmtSaldo, mensagemDeErro, SITUACOES_MAPA, TIPOS_MAPA } from "./logica";
@@ -31,6 +33,7 @@ const COLUNAS = [
  * quem faz os ajustes no ERP; o mesmo conteúdo da aba "De para e equivalências" do Excel. Somente leitura (as decisões ficam nos casos).
  */
 export default function Unificacoes({ projeto }) {
+  const perfilErp = usePerfilErp(projeto.erp_id).data;
   const [filtro, setFiltro] = useState({ situacao: "", tipo: "", busca: "", pagina: 1 });
   const [busca, setBusca] = useState("");
   const consulta = useQuery({ queryKey: chaves.unificacoes(projeto.id, filtro), queryFn: () => san.unificacoes(projeto.id, filtro), placeholderData: keepPreviousData });
@@ -45,6 +48,7 @@ export default function Unificacoes({ projeto }) {
         <div>
           <h2 id="san-unif" className="font-semibold">Unificações e inativações</h2>
           <p className="text-sm text-muted-foreground">Cada linha é um código que deixa de existir: para onde vai o saldo, o saldo que fica concentrado e o que fazer no ERP. As decisões são tomadas nos casos (Duplicidades e Qualidade).</p>
+          <p className="text-sm text-muted-foreground">{perfilEspecifico(perfilErp) ? <>A coluna “Ação no ERP” segue o perfil do <b>{perfilErp.nome}</b> (Cadastro de ERPs) quando ele tem o procedimento do ajuste.</> : "A coluna “Ação no ERP” traz o procedimento geral: o ERP do projeto não tem perfil desenvolvido no Cadastro de ERPs."}</p>
         </div>
         <button type="button" className={botaoSecundario} disabled={baixar.isPending} onClick={() => baixar.mutate()} aria-label="Baixar esta lista em Excel">
           <Download className="h-4 w-4" aria-hidden="true" />{baixar.isPending ? "Gerando…" : "Baixar lista (Excel)"}

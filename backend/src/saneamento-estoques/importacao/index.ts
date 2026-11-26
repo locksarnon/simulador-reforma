@@ -20,7 +20,7 @@ export type {
   CampoBase, Mapeamento, SemanticaAtivo, Certeza, SugestaoColuna, SugestaoMapeamento, ConfigImportacao, SituacaoLinha, Ocorrencia, ItemImportado,
   LinhaConferida, ExemploLinha, GrupoOcorrencia, TotaisImportacao, RelatorioImportacao, PreviaImportacao, CampoNumerico, SeparadoresDaImportacao,
 } from './tipos';
-export { sugerirMapeamento, corrigirMapeamento, validarMapeamento, SINONIMOS } from './mapeamento';
+export { sugerirMapeamento, corrigirMapeamento, validarMapeamento, SINONIMOS, type ColunasDoErp } from './mapeamento';
 export { normalizarCodigo, normalizarNcm, lerNumero, analisarSeparadorDecimal, detectarSeparadorDecimal, lerData, lerAtivo, lerFinalidade, chaveReconciliacao, normalizarEstabelecimento } from './normalizacao';
 export { Conferidor, conferirLinhaPreparada, prepararConfig, colunasNecessarias, TEXTO_OCORRENCIA, CODIGOS_REJEICAO } from './conferencia';
 export { sha256 } from './relatorio';

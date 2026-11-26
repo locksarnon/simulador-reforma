@@ -9,6 +9,7 @@ import { paramInteiro, paramTexto } from '../dados/validacao';
 import { escalaDaBase } from '../motor/conjuntos';
 import { gerarExcelDeDados, gerarExcelMapa } from './excel';
 import { montarRelatorio } from './relatorio';
+import { carregarPerfil } from '../../erps/erps.service';
 import { contarMapa, filtrarMapa, montarMapa, saldoDe, type CasoMapa, type FiltroMapa, type ItemMapa, type LinhaMapa } from './unificacoes';
 
 export type FiltroUnificacoes = FiltroMapa & { pagina?: string | number; limite?: string | number };
@@ -54,7 +55,8 @@ export class EntregaveisService implements EntregaveisPort {
     const projeto = dados.projeto;
     const empresa = projeto.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: String(projeto.empresa_id) }, select: { razao_social: true, cnpj_cpf: true } }) : null;
     const diag = projeto.diagnostico_id ? await this.prisma.projetoDiagnostico.findUnique({ where: { id: String(projeto.diagnostico_id) }, select: { nome: true } }) : null;
-    return { ...dados, projeto: { ...projeto, clienteNome: empresa?.razao_social ?? '', clienteDocumento: empresa?.cnpj_cpf ?? '', diagnosticoNome: diag?.nome ?? '' } };
+    const perfilErp = await carregarPerfil(this.prisma, (projeto.erp_id as string | null | undefined) ?? null);
+    return { ...dados, perfilErp, projeto: { ...projeto, clienteNome: empresa?.razao_social ?? '', clienteDocumento: empresa?.cnpj_cpf ?? '', diagnosticoNome: diag?.nome ?? '' } };
   }
 
   async excel(projetoId: string, versaoId?: string): Promise<{ buffer: Buffer; nome: string }> {
@@ -70,7 +72,7 @@ export class EntregaveisService implements EntregaveisPort {
    * os itens só código e saldo extraídos do JSON pelo banco (`codigosESaldos`: a escala do saldo, a mesma detecção da Duplicidade) e os vínculos.
    */
   async mapaAtual(projetoId: string): Promise<{ linhas: LinhaMapa[]; corteDefinido: boolean; escalaSaldo: number }> {
-    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { data_base: true, parametros: true } });
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { data_base: true, parametros: true, erp_id: true } });
     if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
     const brutos = await this.prisma.sanCaso.findMany({
       where: { projeto_id: projetoId, situacao: { in: ['PROPOSTO', 'RASCUNHO', 'APROVADO', 'AGUARDANDO_INFORMACAO'] }, OR: [{ camada: 'DUPLICIDADE' }, { camada: 'QUALIDADE', tipo: { in: ['SEM_MOVIMENTACAO', ...TIPOS_EXCECAO] } }] },
@@ -93,7 +95,7 @@ export class EntregaveisService implements EntregaveisPort {
     const escala = escalaDaBase(await this.codigosESaldos(projetoId));
     const vinculos = await this.prisma.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } });
     const linhas = montarMapa({
-      liberada: false, dataBase: p.data_base, casos, item: (id) => itens.get(id), escala,
+      liberada: false, dataBase: p.data_base, casos, item: (id) => itens.get(id), escala, perfilErp: await carregarPerfil(this.prisma, p.erp_id),
       vinculos: vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criado_por ?? '' })),
     });
     const corte = (p.parametros as { corteMovimentacao?: unknown } | null)?.corteMovimentacao;

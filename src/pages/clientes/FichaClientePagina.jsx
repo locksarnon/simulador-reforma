@@ -24,6 +24,7 @@ import { tagsDaEmpresa } from "@/lib/tags";
 import { grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
 import { fmtDataCurta, MODULOS_BPO, SITUACOES, TIPOS, TIPOS_OFERECIDOS } from "@/lib/servicos";
 import { temCnpj } from "@/lib/consultoria";
+import { NomeErp } from "@/components/erps/erps";
 
 const digitosDoc = (v) => String(v || "").replace(/\D/g, "");
 const SITUACAO_DOC = { VENCIDO: "Vencido", A_VENCER: "Vence em breve", VALIDO: "Válido", SEM_VALIDADE: "Sem validade" };
@@ -149,7 +150,7 @@ export default function FichaClientePagina() {
               <Dado rotulo="Porte" valor={empresa.porte} />
               <Dado rotulo="Setor" valor={empresa.setor} />
               <Dado rotulo="Produtor rural" valor={empresa.produtor_rural} />
-              <Dado rotulo="ERP" valor={[empresa.erp, empresa.erp_versao].filter(Boolean).join(" ")} />
+              <Dado rotulo="ERP" valor={(empresa.erp || empresa.erp_id) ? <NomeErp registro={empresa} versao={empresa.erp_versao} /> : null} />
             </dl>
             {empresa.observacao && <p className="text-sm whitespace-pre-line">{empresa.observacao}</p>}
           </Cartao>

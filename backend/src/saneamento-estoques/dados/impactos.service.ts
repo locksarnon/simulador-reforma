@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { quem, type Usuario } from './constantes';
 import { paramInteiro, paramTexto } from './validacao';
+import { tiposDeAjusteDoCaso } from './ajustes';
 
 export const TIPOS_DE_AJUSTE = ['CADASTRAL_FUTURO', 'REGULARIZACAO_SALDO', 'ESCRITURACAO_ENTREGUE'] as const;
 
@@ -41,7 +42,22 @@ export class SanImpactosService {
     for (const g of grupos) {
       porTipo[g.tipo_ajuste] = (porTipo[g.tipo_ajuste] ?? 0) + g._count._all; todas += g._count._all;
     }
-    return { linhas: linhas.slice(0, limite), proximo: linhas.length > limite ? linhas[limite].id : null, total: tipo ? porTipo[tipo] ?? 0 : todas, totalGeral: todas, porTipo };
+    // Primeira página: os tipos de ajuste (TIPOS_AJUSTE) dos casos que geram impacto, para a tela mostrar as restrições do ERP do projeto.
+    const tiposAjuste = cursor ? undefined : await this.tiposAjusteDosCasos(projetoId);
+    return { linhas: linhas.slice(0, limite), proximo: linhas.length > limite ? linhas[limite].id : null, total: tipo ? porTipo[tipo] ?? 0 : todas, totalGeral: todas, porTipo, ...(tiposAjuste ? { tiposAjuste } : {}) };
+  }
+
+  /** Tipos de ajuste (MUDOU_NCM, CONSOLIDOU_INATIVOU...) dos casos propostos, em rascunho ou aprovados do projeto. */
+  async tiposAjusteDosCasos(projetoId: string): Promise<string[]> {
+    const tipos = new Set<string>();
+    let cursor: string | undefined;
+    for (;;) {
+      const lote = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, situacao: { in: ['PROPOSTO', 'RASCUNHO', 'APROVADO'] } }, orderBy: { id: 'asc' }, take: 5000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: { id: true, camada: true, tipo: true, proposta: true } });
+      for (const c of lote) for (const t of tiposDeAjusteDoCaso(c)) tipos.add(t);
+      if (lote.length < 5000) break;
+      cursor = lote[lote.length - 1].id;
+    }
+    return [...tipos];
   }
 
   /** Substitui as linhas de impacto dos casos citados (idempotente: gerar de novo não duplica). */

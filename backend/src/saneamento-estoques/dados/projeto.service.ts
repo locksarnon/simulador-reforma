@@ -8,7 +8,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const COMPETENCIA = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export type EntradaConfiguracao = {
-  versao?: number; erp?: string | null; erp_versao?: string | null; estabelecimentos?: string[]; responsavel?: string | null;
+  versao?: number; erp?: string | null; erp_id?: string | null; erp_versao?: string | null; estabelecimentos?: string[]; responsavel?: string | null;
   modulos?: Partial<typeof MODULOS_PADRAO>;
   parametros?: { corteMovimentacao?: string | null; competenciaEntregue?: string | null; motor?: Record<string, unknown> | null };
 };
@@ -41,7 +41,7 @@ export class SanProjetoService {
     return await this.prisma.$transaction(async (tx) => {
       const p = await tx.sanProjeto.create({
         data: {
-          diagnostico_id: diag.id, empresa_id: empresa.id, data_base: diag.periodo_inicio as Date, erp: empresa.erp ?? null, erp_versao: empresa.erp_versao ?? null,
+          diagnostico_id: diag.id, empresa_id: empresa.id, data_base: diag.periodo_inicio as Date, erp: empresa.erp ?? null, erp_id: (empresa as { erp_id?: string | null }).erp_id ?? null, erp_versao: empresa.erp_versao ?? null,
           responsavel: diag.responsavel ?? null, modulos: { ...MODULOS_PADRAO }, parametros: {}, criado_por: quem(usuario),
           cnpj_versao: empresa.dados_publicos_em ? empresa.dados_publicos_em.toISOString() : null,
         },
@@ -82,6 +82,15 @@ export class SanProjetoService {
     const versao = exigirVersao(e.versao);
     const dados: Json = {};
     if (e.erp !== undefined) dados.erp = texto(e.erp, 120);
+    // ERP selecionado no Cadastro de ERPs: o vínculo e o nome (o texto acompanha o ERP escolhido). null = tira a seleção, o texto fica.
+    if (e.erp_id !== undefined) {
+      if (e.erp_id === null || e.erp_id === '') dados.erp_id = null;
+      else {
+        const erp = await this.prisma.erp.findUnique({ where: { id: String(e.erp_id) }, select: { id: true, nome: true } });
+        if (!erp) throw new BadRequestException('ERP não encontrado no Cadastro de ERPs: selecione na lista.');
+        dados.erp_id = erp.id; dados.erp = erp.nome;
+      }
+    }
     if (e.erp_versao !== undefined) dados.erp_versao = texto(e.erp_versao, 60);
     if (e.responsavel !== undefined) dados.responsavel = texto(e.responsavel, 120);
     if (e.estabelecimentos !== undefined) {

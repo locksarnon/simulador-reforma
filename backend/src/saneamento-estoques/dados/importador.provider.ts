@@ -15,7 +15,7 @@ const codigoDaChave = (chave: string | null) => (chave && chave.includes('|') ? 
 export class ImportadorPlanilha implements ImportadorPort {
   async ler(e: EntradaImportacao): Promise<SaidaImportacao> {
     const arquivo = { buffer: e.arquivo, originalname: e.nomeArquivo };
-    const { previa, sugestao } = await analisarArquivo(arquivo);
+    const { previa, sugestao } = await analisarArquivo(arquivo, e.colunasDoErp);
     let mapeamento: Mapeamento;
     if (e.mapeamento && Object.keys(e.mapeamento).length) {
       mapeamento = {};

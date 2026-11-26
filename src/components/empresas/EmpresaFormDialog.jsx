@@ -1,4 +1,6 @@
-import { ERPS, ADDONS, LINHAS_PIMS } from "@/lib/conhecimentoSistemas";
+import { ADDONS, LINHAS_PIMS } from "@/lib/conhecimentoSistemas";
+import { erpDoRegistro } from "@/lib/erps";
+import { SeletorErp, useErps } from "@/components/erps/erps";
 import { RAMOS_CADASTRO } from "@/lib/setoresReforma";
 import React, { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,7 +42,7 @@ const UFS = [
 const empty = {
   id_empresa: "", grupo: "", razao_social: "", cnpj_cpf: "", regime_atual: "Lucro Real",
   setor: "", uf: "", municipio: "", contribuinte_ibs_cbs: "Sim", produtor_rural: "Não",
-  cooperativa: "Não", inscricao_estadual: "", erp: "", erp_versao: "", addons: [], addons_versoes: {}, responsavel_fiscal: "", status: "Ativa", observacao: "", email_contato: "", whatsapp_contato: "",
+  cooperativa: "Não", inscricao_estadual: "", erp: "", erp_id: null, erp_versao: "", addons: [], addons_versoes: {}, responsavel_fiscal: "", status: "Ativa", observacao: "", email_contato: "", whatsapp_contato: "",
 };
 
 /**
@@ -54,8 +56,9 @@ const empty = {
  */
 export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNumero }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(() => (editing && editing !== "new" ? { ...empty, ...editing, addons: editing.addons || [], addons_versoes: editing.addons_versoes || {} } : empty));
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
+  const erps = useErps(open).data || [];
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +103,9 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
 
   const save = async (e) => {
     e.preventDefault();
-    const payload = { ...form, grupo: grupoNumero || form.grupo };
+    // ERP do Cadastro de ERPs: o vínculo e o nome; texto antigo que casa sem ambiguidade é gravado com o vínculo; o que não casa fica como estava.
+    const { erp: doCadastro } = erpDoRegistro(form, erps);
+    const payload = { ...form, grupo: grupoNumero || form.grupo, erp_id: doCadastro?.id ?? null, erp: doCadastro?.nome ?? (form.erp || null) };
     if (editing === "new") await api.entities.Empresa.create(payload);
     else await api.entities.Empresa.update(editing.id, payload);
     rascunho.limpar();
@@ -178,8 +183,10 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
             <Input value={form.inscricao_estadual || ""} onChange={(e) => set("inscricao_estadual", e.target.value.replace(/[^0-9A-Za-z./-]/g, "").slice(0, 20))} placeholder="Só números, ou ISENTO" />
             <a href="https://www.sintegra.gov.br/" target="_blank" rel="noreferrer" className="text-[11px] text-muted-foreground underline">Conferir no Sintegra (site oficial)</a>
           </div>
-          <div><Label className="text-xs">ERP <InfoTooltip pagina="empresas" chave="erp" /></Label><Select value={form.erp || undefined} onValueChange={v => set('erp',v)}><SelectTrigger aria-label="ERP principal"><SelectValue placeholder="Selecione o ERP" /></SelectTrigger><SelectContent>{[...ERPS,...(form.erp && !ERPS.includes(form.erp) ? [form.erp] : [])].map(erp => <SelectItem key={erp} value={erp}>{erp}</SelectItem>)}</SelectContent></Select></div>
-          <div><Label className="text-xs">Versão do ERP</Label><Input value={form.erp_versao || ''} onChange={e => set('erp_versao',e.target.value)} placeholder="Informe a versão instalada" /></div>
+          <SeletorErp id="empresa-erp" rotulo="ERP" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, ...v }))} ajuda={<InfoTooltip pagina="empresas" chave="erp" />} />
+          <div><Label className="text-xs">Versão do ERP</Label>{(erpDoRegistro(form, erps).erp?.versoes || []).length
+            ? <select aria-label="Versão do ERP" className="mt-1 w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background" value={form.erp_versao || ""} onChange={(e) => set("erp_versao", e.target.value)}><option value="">Selecione a versão</option>{[...(erpDoRegistro(form, erps).erp?.versoes || []), ...(form.erp_versao && !(erpDoRegistro(form, erps).erp?.versoes || []).includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
+            : <Input value={form.erp_versao || ""} onChange={(e) => set("erp_versao", e.target.value)} placeholder="Informe a versão instalada" />}</div>
           <fieldset className="col-span-2 border border-border rounded-lg p-4 space-y-3"><legend className="px-2 text-sm font-medium">Add-ons e módulos agrícolas</legend><div className="flex flex-wrap gap-5">{ADDONS.map(a => <label key={a.id} className="text-sm flex items-center gap-2"><input type="checkbox" checked={(form.addons || []).includes(a.id)} onChange={e => set('addons',e.target.checked ? [...(form.addons || []),a.id] : (form.addons || []).filter(id => id !== a.id))} />{a.nome}</label>)}</div>{ADDONS.filter(a => (form.addons || []).includes(a.id)).map(a => <div key={a.id} className="grid grid-cols-2 gap-3">{a.id === 'pims' && <div><Label className="text-xs">Linha do PIMS</Label><Select value={form.addons_versoes?.pims?.linha || 'Não informado'} onValueChange={v => setAddon('pims','linha',v)}><SelectTrigger aria-label="Linha do PIMS"><SelectValue /></SelectTrigger><SelectContent>{LINHAS_PIMS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>}<div><Label className="text-xs">Versão do {a.nome}</Label><Input value={form.addons_versoes?.[a.id]?.versao || ''} onChange={e => setAddon(a.id,'versao',e.target.value)} /></div></div>)}<p className="text-xs text-muted-foreground">O vínculo seleciona referências da base de conhecimento. Não estabelece conexão com o banco de dados.</p></fieldset>
           <div><Label className="text-xs">Responsável fiscal <InfoTooltip pagina="empresas" chave="responsavel_fiscal" /></Label><Input value={form.responsavel_fiscal} onChange={(e) => set("responsavel_fiscal", e.target.value)} /></div>
           <div><Label className="text-xs">E-mail de contato <InfoTooltip text="Recebe os comunicados por e-mail (Comercial > Comunicados). Quem pedir para sair pelo link do e-mail entra na lista de bloqueio." /></Label><Input type="email" value={form.email_contato || ""} onChange={(e) => set("email_contato", e.target.value.trim())} placeholder="fiscal@empresa.com.br" /></div>

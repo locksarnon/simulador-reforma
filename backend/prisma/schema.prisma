@@ -197,6 +197,8 @@ model Empresa {
   inscricao_estadual    String?
   erp                   String?
   erp_versao            String?
+  /// ERP do Cadastro de ERPs (Administração). O texto antigo de `erp` continua guardado ao lado.
+  erp_id                String?
   addons                String[]  @default([])
   addons_versoes        Json?
   responsavel_fiscal    String?
@@ -2193,6 +2195,8 @@ model SanProjeto {
   data_base                  DateTime
   erp                        String?
   erp_versao                 String?
+  /// ERP do Cadastro de ERPs: abre com o do cliente e pode ser trocado para este trabalho. `erp` guarda o texto antigo.
+  erp_id                     String?
   /// Lista de estabelecimentos (texto). Vazia = um só.
   estabelecimentos           Json      @default("[]")
   responsavel                String?
@@ -2421,4 +2425,65 @@ model SanVinculoCodigo {
   createdAt     DateTime  @default(now())
 
   @@index([projeto_id, de])
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// CADASTRO DE ERPs (Administração > Configuração e ERPs): o conhecimento de cada ERP, usado por todas as telas.
+// Migração aditiva. A carga inicial (SAP Business One, Aliare Siagri, TOTVS Protheus, Outro ERP) roda na inicialização, sem duplicar.
+// ═════════════════════════════════════════════════════════════════════════
+
+model Erp {
+  id            String   @id @default(cuid())
+  nome          String   @unique
+  fabricante    String
+  /// Produto ou edição (opcional).
+  produto       String?
+  versoes       String[] @default([])
+  /// COMPLETO | PARCIAL | A_DESENVOLVER (A_DESENVOLVER = só as regras gerais, sem alertas específicos)
+  situacao      String   @default("A_DESENVOLVER")
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  conhecimentos ErpConhecimento[]
+}
+
+model ErpConhecimento {
+  id          String   @id @default(cuid())
+  erp_id      String
+  /// COLUNA_EXPORT | CONSULTA_EXTRACAO | RESTRICAO | ACAO_NO_ERP | MODELO_CARGA | OBSERVACAO
+  tipo        String
+  /// Tipo de ajuste do saneamento (TIPOS_AJUSTE de impactoSped.ts); vazio = vale para o ERP todo.
+  tipo_ajuste String?
+  /// Rótulo; em COLUNA_EXPORT é o campo do saneamento (codigo, descricao, unidade, ncm...).
+  chave       String
+  texto       String
+  /// Campo ou tabela do ERP; em COLUNA_EXPORT é o cabeçalho da coluna no export.
+  campo_erp   String?
+  fonte_url   String?
+  /// CONFIRMADO | NAO_CONFIRMADO
+  grau        String   @default("NAO_CONFIRMADO")
+  ordem       Int      @default(0)
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  erp         Erp      @relation(fields: [erp_id], references: [id], onDelete: Cascade)
+
+  @@index([erp_id, tipo])
+}
+
+/// Histórico de alterações do Cadastro de ERPs: quem, quando, antes e depois.
+model ErpHistorico {
+  id              String   @id @default(cuid())
+  erp_id          String
+  conhecimento_id String?
+  /// CRIOU | ALTEROU
+  acao            String
+  usuario         String
+  antes           Json?
+  depois          Json?
+  createdAt       DateTime @default(now())
+
+  @@index([erp_id, createdAt])
 }

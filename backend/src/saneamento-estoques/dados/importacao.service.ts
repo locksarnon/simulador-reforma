@@ -5,6 +5,8 @@ import { CAMPO_AFETA, TX_LONGA, aplicarCampo, camadasAtivas, conflito, derivados
 import { SAN_IMPORTADOR, type ImportadorPort, type ItemImportado, type SaidaImportacao } from './portas';
 import { SanProjetoService } from './projeto.service';
 import type { SeparadoresDaImportacao } from '../importacao';
+import { carregarPerfil } from '../../erps/erps.service';
+import { colunasDoExport } from '../../erps/logica';
 
 export type ArquivoImportacao = { buffer: Buffer; nome: string };
 type Diferenca = { itemId: string; codigo: string; estabelecimento: string; campos: { campo: string; antes: unknown; depois: unknown; protegido: boolean }[] };
@@ -138,8 +140,12 @@ export class SanImportacaoService {
     // Separador decimal com que a importação anterior leu cada coluna numérica: se a leitura mudar, a prévia avisa em destaque.
     const anterior = await this.prisma.sanImportacao.findFirst({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'desc' }, select: { relatorio: true } });
     const separadorAnterior = (anterior?.relatorio as { separadores?: SeparadoresDaImportacao } | null)?.separadores;
+    // Perfil do ERP do projeto (Cadastro de ERPs): as colunas do export dele pré-mapeiam o arquivo.
+    const perfil = await carregarPerfil(this.prisma, (p as { erp_id?: string | null }).erp_id);
+    const colunas = colunasDoExport(perfil);
     const saida: SaidaImportacao = await this.importador.ler({
       arquivo: arquivo.buffer, nomeArquivo: arquivo.nome, mapeamento, estabelecimentos: ((p.estabelecimentos as string[]) ?? []), separadorAnterior,
+      ...(perfil && Object.keys(colunas).length ? { colunasDoErp: { erp: perfil.nome, colunas } } : {}),
     });
     // Defesa: a mesma chave duas vezes no arquivo fica só a primeira.
     const vistos = new Set<string>();

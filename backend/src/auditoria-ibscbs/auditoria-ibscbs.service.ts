@@ -114,7 +114,7 @@ export class AuditoriaIbsCbsService {
   async laudo(empresaIds: string[], de: Date, ate: Date) {
     const [linhas, empresas, versao] = await Promise.all([
       this.prisma.auditoriaIbsCbs.findMany({ where: { empresa_id: { in: empresaIds }, papel: 'EMITIDA', data_emissao: { gte: de, lte: ate } }, select: { empresa_id: true, chave: true, papel: true, situacao: true, data_emissao: true, detalhes: true, versao_db: true, ambiente: true } }),
-      this.prisma.empresa.findMany({ where: { id: { in: empresaIds } }, select: { id: true, razao_social: true } }),
+      this.prisma.empresa.findMany({ where: { id: { in: empresaIds } }, select: { id: true, razao_social: true, erp: true, erp_id: true, erp_versao: true } }),
       this.calc.versaoServico(),
     ]);
     const marca = versao ? `${versao.versaoDb}+${REGRA_CONFERENCIA}` : null;

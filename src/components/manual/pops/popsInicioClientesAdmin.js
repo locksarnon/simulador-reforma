@@ -253,7 +253,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     passos: [
       { acao: "Abra a ficha do cliente." },
       { acao: "Clique em “Editar dados” (no alto) ou em “Editar”, no cartão “Dados cadastrais”." },
-      { acao: "Ajuste os campos, como Regime atual, Setor, Inscrição Estadual (IE), Contribuinte IBS/CBS, Produtor rural, ERP, Responsável fiscal, E-mail de contato e WhatsApp de contato." },
+      { acao: "Ajuste os campos, como Regime atual, Setor, Inscrição Estadual (IE), Contribuinte IBS/CBS, Produtor rural, ERP, Responsável fiscal, E-mail de contato e WhatsApp de contato.", detalhe: "O ERP é escolhido na lista do Cadastro de ERPs (nunca digitado) e a versão, na lista de versões do ERP quando houver. ERP antigo que não casa com o cadastro aparece como “ERP não identificado: … — selecione na lista”." },
       { acao: "Clique em “Salvar”." },
       { acao: "Para cliente com CNPJ, no cartão “Dados da Receita Federal (CNPJ)”, clique em “Atualizar pela Receita”.", detalhe: "Traz nome fantasia, situação cadastral, abertura, natureza jurídica, capital social, Simples e MEI, endereço, CNAEs secundários e quadro societário." },
       { acao: "No cartão “Equipe e etiquetas”, clique em “Etiquetas” para marcar as etiquetas deste cliente e em “Salvar”." },
@@ -987,10 +987,10 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     objetivo: "Definir as premissas gerais do motor de cálculo: cenário ativo, data-base, margem meta, prazo do crédito e custo financeiro.",
     quem: "Responsável técnico pelas simulações",
     quando: "No início do uso do simulador e quando uma premissa mudar.",
-    caminho: "Menu > Administração > Configuração do motor",
+    caminho: "Menu > Administração > Configuração e ERPs > aba Motor de cálculo",
     antes: ["Premissas definidas com o responsável pela análise."],
     passos: [
-      { acao: "Abra Administração > Configuração do motor." },
+      { acao: "Abra Administração > Configuração e ERPs, aba Motor de cálculo." },
       { acao: "Preencha “Versão do simulador”, “Cenário ativo” e “Data-base normativa”." },
       { acao: "Informe a “Margem meta (%)”, o “Prazo realização crédito (dias)” e a “Taxa custo financeiro (% a.m.)”.", detalhe: "Digite os percentuais em pontos: 18 para 18%, 1,5 para 1,5% ao mês." },
       { acao: "Se quiser, escreva uma “Observação”." },
@@ -999,6 +999,31 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     resultado: "Aparece “Configuração salva.” e o motor passa a usar as novas premissas.",
     atencao: [
       "A mudança vale para todas as simulações do sistema.",
+    ],
+  },
+  {
+    modulo: "configuracao",
+    codigo: "POP-ADM-24",
+    titulo: "Manter o Cadastro de ERPs",
+    objetivo: "Guardar o conhecimento de cada ERP (colunas do export, consultas de extração, restrições, ação no ERP, modelos de carga e observações) que todas as telas usam quando o ERP é selecionado.",
+    quem: "Administrador (os demais só consultam)",
+    quando: "Quando entrar um ERP novo na carteira ou quando a documentação oficial de um ERP mudar.",
+    caminho: "Menu > Administração > Configuração e ERPs > aba Cadastro de ERPs",
+    antes: ["Ser administrador para criar e alterar.", "Ter a fonte oficial do fabricante (documentação, base de conhecimento, notas de versão) de cada item."],
+    passos: [
+      { acao: "Abra Administração > Configuração e ERPs e clique na aba Cadastro de ERPs.", detalhe: "A tabela mostra cada ERP com fabricante, versões, situação do perfil (Completo, Parcial ou A desenvolver) e quantos itens estão confirmados. Filtre e ordene pelas colunas." },
+      { acao: "Para incluir um ERP, clique em Novo ERP, preencha Nome, Fabricante, Produto ou edição, Versões (separadas por vírgula) e Situação do perfil e clique em Salvar.", detalhe: "Comece como “A desenvolver”: as telas usam só as regras gerais até o perfil ter conteúdo." },
+      { acao: "Clique no ERP para abrir a ficha.", detalhe: "Cada tipo de conhecimento tem a sua seção, com o grau e a fonte oficial de cada item." },
+      { acao: "Para incluir um item, clique em Novo item de conhecimento; escolha o Tipo e, se valer só para um ajuste, o Tipo de ajuste.", detalhe: "Em Colunas do export, escolha o Campo do saneamento e escreva o cabeçalho da coluna no export: a importação do saneamento passa a reconhecer essa coluna. Em Ação no ERP, use {sai} e {fica} no texto para os códigos da linha do mapa de unificações." },
+      { acao: "Preencha o Texto, a Fonte oficial (endereço) e o Grau, e clique em Salvar.", detalhe: "Sem fonte oficial que confirme, o grau é “Não confirmado”." },
+      { acao: "Para corrigir, clique em Editar na linha; para tirar um item ou um ERP de uso, desmarque Ativo e salve.", detalhe: "Nada é excluído: o histórico fica." },
+      { acao: "Confira o Histórico de alterações no pé da ficha.", detalhe: "Mostra quando, quem, a ação (Criou, Alterou ou Carga inicial) e o antes → depois de cada campo." },
+    ],
+    resultado: "O ERP aparece na lista de todas as telas que pedem o ERP (cadastro do cliente, Configuração do saneamento, validador de cadastro, origem dos dados) e o conhecimento dele passa a ser usado no Saneamento de estoques.",
+    atencao: [
+      "A carga inicial traz SAP Business One, Aliare Siagri, TOTVS Protheus e “Outro ERP (sem perfil)”, a partir das pesquisas em fonte oficial; ela nunca sobrescreve o que um administrador alterou.",
+      "ERP antigo gravado como texto nos clientes e projetos é associado sozinho quando o nome casa sem ambiguidade; o resto aparece como “ERP não identificado: … — selecione na lista”, sem perder o texto.",
+      "Perfil “A desenvolver” e “Outro ERP (sem perfil)” não geram alertas específicos.",
     ],
   },
   {

@@ -11,6 +11,7 @@ import { semItensDeExcecao } from '../dados/constantes';
 import { saldoNaEscala } from '../motor/conjuntos';
 import { chaveUnidade, classificarUnidade, lerFator } from '../motor/unidades';
 import { rotuloDoValor } from '../rotulos';
+import { acaoNoErp, type PerfilErp } from '../../erps/logica';
 
 export type TipoLinhaMapa = 'UNIFICACAO' | 'INATIVACAO' | 'EQUIVALENCIA' | 'TROCA_CODIGO';
 export type SituacaoMapa = 'PROPOSTA' | 'APROVADA' | 'AGUARDANDO' | 'REGISTRADA';
@@ -44,6 +45,8 @@ export type EntradaMapa = {
    * 3.000.000. Padrão 1.
    */
   escala?: number;
+  /** Perfil do ERP do projeto (Cadastro de ERPs): a "Ação no ERP" usa o texto dele quando houver; sem perfil, o texto geral. */
+  perfilErp?: PerfilErp | null;
 };
 type Lado = { codigo: string; estab: string; descricao: string; unidade: string; saldo: number | null };
 export type LinhaMapa = {
@@ -133,7 +136,7 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
     if (pares.has(`${v.de}\u0001${v.para}`)) continue; // já está na linha da unificação
     trocas.push({
       tipo: 'TROCA_CODIGO', rotuloTipo: ROTULO_TIPO_MAPA.TROCA_CODIGO, situacao: 'REGISTRADA', casoId: null, origem: null, morre: { codigo: v.de, estab: '', descricao: '', unidade: '', saldo: null }, fica: { codigo: v.para, descricao: '', unidade: '', saldo: null },
-      saldoEntra: null, saldoConsolidado: null, acao: `Registrar ${v.de} como código anterior de ${v.para} (histórico do item; SPED 0205)`, inicio: v.inicio ?? e.dataBase,
+      saldoEntra: null, saldoConsolidado: null, acao: acaoComErp(e, 'MUDOU_CODIGO_DESCRICAO', `Registrar ${v.de} como código anterior de ${v.para} (histórico do item; SPED 0205)`, { sai: v.de, fica: v.para }, true), inicio: v.inicio ?? e.dataBase,
       justificativa: semEtiquetas(v.justificativa), alertas: [], responsavel: v.criadoPor === 'sistema' ? '' : v.criadoPor, decididoEm: null,
     });
   }
@@ -144,6 +147,16 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
   return out;
 }
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * "Ação no ERP" com o texto do perfil do ERP (ACAO_NO_ERP do tipo de ajuste, com {sai} e {fica} trocados): na linha sem pendência ele
+ * substitui o texto geral; na linha com pendência (saldo desconhecido, negativo, sem conversão), vem depois do que conferir antes.
+ */
+export function acaoComErp(e: Pick<EntradaMapa, 'perfilErp'>, tipo: string, geral: string, codigos: { sai?: string; fica?: string }, normal: boolean): string {
+  const t = acaoNoErp(e.perfilErp, tipo, codigos);
+  if (!t) return geral;
+  return normal ? t : `${geral}. No ${e.perfilErp!.nome}: ${t}`;
+}
 
 type Comum = Pick<LinhaMapa, 'situacao' | 'casoId' | 'origem' | 'inicio' | 'justificativa' | 'responsavel' | 'decididoEm'>;
 /** O que a unificação registra para o cruzamento com as inativações: linhas por item que fica e ids dos itens que morrem. */
@@ -212,13 +225,14 @@ function linhasDeUnificacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: Linh
           : m.saldo < 0 ? `Regularizar o saldo negativo de ${m.codigo}; depois transferir para ${manter} e inativar ${m.codigo}`
             : m.saldo === 0 ? `Inativar ${m.codigo} (sem saldo a transferir); o código que fica é ${manter}`
               : `Transferir o saldo de ${m.codigo} para ${manter} e inativar ${m.codigo}`;
+    const acaoErp = !ref ? acao : acaoComErp(e, 'CONSOLIDOU_INATIVOU', acao, { sai: m.codigo, fica: manter }, m.saldo != null && m.saldo >= 0 && !(unDifere && semConversao));
     linhas.push({
       estabFica: f ? f.estab : null,
       fica: f,
       morreId: m.id,
       l: {
         tipo: 'UNIFICACAO', rotuloTipo: ROTULO_TIPO_MAPA.UNIFICACAO, ...comum, morre: lado(m), fica: ref ? { codigo: manter, descricao: ref.descricao, unidade: ref.unidade, saldo: f ? f.saldo : null } : { codigo: manter, descricao: '', unidade: '', saldo: null },
-        saldoEntra: entra, saldoConsolidado: null, acao, alertas,
+        saldoEntra: entra, saldoConsolidado: null, acao: acaoErp, alertas,
       },
     });
   }
@@ -255,6 +269,7 @@ function linhasDeInativacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: { l:
     let acao = `Inativar ${i.codigo}`;
     if (i.saldo == null) { alertas.push(`Saldo de ${i.codigo} não informado na base: conferir no ERP que está zerado antes de inativar.`); acao = `Conferir no ERP que ${i.codigo} está sem saldo e inativar ${i.codigo}`; }
     else if (i.saldo !== 0) { alertas.push(`${i.codigo} tem saldo (${num(i.saldo)} ${i.unidade}): regularizar o saldo antes de inativar.`); acao = `Regularizar o saldo de ${i.codigo} antes de inativar`; }
+    acao = acaoComErp(e, 'INATIVOU', acao, { sai: i.codigo }, i.saldo === 0);
     out.push({ id: i.id, l: { tipo: 'INATIVACAO', ...comum, origem, rotuloTipo: ROTULO_INATIVACAO[origem], morre: lado(i), fica: null, saldoEntra: null, saldoConsolidado: null, acao, alertas } });
   }
 }

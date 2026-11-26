@@ -75,7 +75,7 @@ Os números entre `#` são os itens do mapa de lacunas de 11/11/2026. `[existe]`
 - Parâmetros e rotinas automáticas
 - Integrações: Serpro Integra Contador (certificado do escritório), WhatsApp (Meta), Asaas, assinatura eletrônica, e-mail; mostra o estado, nunca o segredo
 - Logs de envio (e-mail e WhatsApp)
-- Configuração [existe]
+- Configuração e ERPs [existe]: abas Motor de cálculo e Cadastro de ERPs (o conhecimento de cada ERP, lista única de ERP em todas as telas)
 - Plano e uso (#33), só se o InTAX for oferecido a terceiros
 
 **9. Suporte**

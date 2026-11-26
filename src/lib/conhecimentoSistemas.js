@@ -1,5 +1,6 @@
 // Conhecimento versionado. Referências documentais não habilitam correções automáticas.
-export const ERPS = ['Protheus','Siagri','SAP Business One','SAP S/4HANA','Sankhya','Outro'];
+// A lista de ERPs é o Cadastro de ERPs (Administração > Configuração e ERPs): src/components/erps/erps.jsx.
+import { mesmoErp } from './erps';
 export const ADDONS = [{ id:'pims', nome:'PIMS' },{ id:'farmbox', nome:'FARMBOX' }];
 export const LINHAS_PIMS = ['Não informado','Multicultivos','CS / Bioenergia','Outro / legado'];
 const fontePims = 'https://tdn.totvs.com/pages/viewpage.action?pageId=351372629';
@@ -14,5 +15,5 @@ export const CONHECIMENTO_SISTEMAS = [
 export function conhecimentoDaEmpresa(empresa) {
  const addons = Array.isArray(empresa?.addons) ? empresa.addons : [];
  const linha = empresa?.addons_versoes?.pims?.linha;
- return CONHECIMENTO_SISTEMAS.filter(r => addons.includes(r.addon) && (!r.erp || r.erp === empresa.erp) && (!r.linha || !linha || linha === 'Não informado' || linha === 'Outro / legado' || r.linha === linha));
+ return CONHECIMENTO_SISTEMAS.filter(r => addons.includes(r.addon) && (!r.erp || mesmoErp(r.erp, empresa.erp)) && (!r.linha || !linha || linha === 'Não informado' || linha === 'Outro / legado' || r.linha === linha));
 }

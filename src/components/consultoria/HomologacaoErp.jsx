@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { NomeErp } from "@/components/erps/erps";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -45,6 +46,7 @@ export default function HomologacaoErp({ projetoId }) {
   return (
     <section className="space-y-3 rounded-lg border bg-card p-4" aria-label="Homologação fiscal do ERP">
       <h2 className="font-semibold">Homologação do ERP: notas emitidas × calculadora oficial da Receita</h2>
+      {(d.empresas ?? []).length > 0 && <p className="text-sm">ERP do cliente (do cadastro do cliente): {d.empresas.map((e, i) => <span key={e.id}>{i ? "; " : ""}{d.empresas.length > 1 ? `${e.razao_social}: ` : ""}<NomeErp registro={e} versao={e.erp_versao} /></span>)}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[["Cenários", r.cenarios], ["Aprovados", r.aprovados], ["Reprovados", r.reprovados], ["Conferir à parte / sem destaque", r.nao_cobertos + r.sem_destaque]].map(([rotulo, valor]) => (
           <div key={rotulo} className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">{rotulo}</p><p className="text-xl font-semibold">{valor}</p></div>

@@ -1,6 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { AnalisadorCamada, Camada, CasoProposto, ContextoAnalise, ItemTrabalho } from '../tipos';
-import type { SeparadoresDaImportacao } from '../importacao';
+import type { ColunasDoErp, SeparadoresDaImportacao } from '../importacao';
+import type { PerfilErp } from '../../erps/logica';
 
 /**
  * Portas: o que os outros agentes conectam. O módulo registra stubs; cada agente troca o provider pelo seu (injeção por token).
@@ -35,6 +36,8 @@ export type EntradaImportacao = {
   estabelecimentos: string[];
   /** Separadores da importação anterior do projeto (do relatório dela), para avisar se a leitura mudou. */
   separadorAnterior?: SeparadoresDaImportacao;
+  /** Colunas do export do ERP do projeto (Cadastro de ERPs): pré-mapeiam o arquivo quando não vem mapeamento. */
+  colunasDoErp?: ColunasDoErp;
 };
 /** Para a tela de mapeamento: colunas do arquivo, sugestão por coluna e as 10 primeiras linhas normalizadas. */
 export type PreviaDoArquivo = {
@@ -106,6 +109,8 @@ export type DadosEntrega = {
   impactosSped: Record<string, unknown>[];
   vinculos: Record<string, unknown>[];
   importacoes: Record<string, unknown>[];
+  /** Perfil do ERP do projeto (Cadastro de ERPs): Ação no ERP do mapa e particularidades no relatório. Sem perfil: regras gerais. */
+  perfilErp?: PerfilErp | null;
 };
 export interface EntregaveisPort {
   gerarExcel(dados: DadosEntrega): Promise<Buffer>;

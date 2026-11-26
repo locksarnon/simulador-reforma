@@ -10,6 +10,9 @@ import {
   mapaDoModelo, type Modelo,
 } from './modelo';
 import type { LinhaMapa } from './unificacoes';
+import { perfilEspecifico, restricoesDoTipo, type PerfilErp } from '../../erps/logica';
+import { tiposDeAjusteDoCaso } from '../dados/ajustes';
+import { ROTULO_AJUSTE, type TipoAjuste } from '../fiscal/impactoSped';
 
 const n = comMilhar;
 /** Finalidade confirmada por decisão (do grupo, exceção ou do consultor); a só informada no cadastro não conta. */
@@ -113,6 +116,26 @@ function secaoImpactoSped(m: Modelo): SecaoPdf {
   return s;
 }
 
+/**
+ * "Particularidades do ERP <nome>": as restrições do perfil do ERP (Cadastro de ERPs) para os tipos de ajuste dos casos aprovados, com o grau
+ * e a fonte. Sem perfil específico (A_DESENVOLVER ou Outro ERP) ou sem restrição aplicável: a seção não entra (valem as regras gerais).
+ */
+export function secaoParticularidadesErp(m: Pick<Modelo, 'casos'>, perfil: PerfilErp | null | undefined): SecaoPdf | null {
+  if (!perfilEspecifico(perfil)) return null;
+  const tipos = new Set<string>();
+  for (const c of m.casos) if (c.situacao === 'APROVADO') for (const t of tiposDeAjusteDoCaso(c)) tipos.add(t);
+  const r = restricoesDoTipo(perfil, [...tipos]);
+  if (!r.length) return null;
+  return {
+    titulo: `Particularidades do ERP ${perfil.nome}`,
+    paragrafos: ['Restrições do ERP do cliente para os ajustes aprovados, conforme a documentação oficial do fornecedor. "Não confirmado": sem fonte oficial que o afirme; conferir com o fornecedor antes de aplicar.'],
+    tabela: {
+      cabecalho: ['Ajuste', 'Restrição', 'Grau', 'Fonte'], larguras: [0.2, 0.5, 0.12, 0.18],
+      linhas: r.map((i) => [ROTULO_AJUSTE[i.tipo_ajuste as TipoAjuste] ?? txt(i.tipo_ajuste), i.texto, i.grau === 'CONFIRMADO' ? 'Confirmado' : 'Não confirmado', txt(i.fonte_url)]),
+    },
+  };
+}
+
 export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   const m = construirModelo(dados);
   const v = dados.versao;
@@ -203,6 +226,8 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   secoes.push({ titulo: 'Comentário por aspecto tratado', paragrafos: comentarios.length ? comentarios : ['Nenhuma camada foi analisada até esta versão.'] });
 
   secoes.push(secaoImpactoSped(m));
+  const erp = secaoParticularidadesErp(m, dados.perfilErp);
+  if (erp) secoes.push(erp);
 
   // Pendências e limitações
   const itens: string[] = [];

@@ -27,6 +27,7 @@ import { ServicosContratadosModule } from './servicos-contratados/servicos-contr
 import { AcessosModule } from './acessos/acessos.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { TagsModule } from './tags/tags.module';
+import { ErpsModule } from './erps/erps.module';
 import { TarefasModule } from './tarefas/tarefas.module';
 import { NotificacoesModule } from './notificacoes/notificacoes.module';
 import { AgendaGeralModule } from './agenda-geral/agenda-geral.module';
@@ -77,6 +78,7 @@ import { PermissoesGuard } from './permissoes/permissoes.guard';
     AcessosModule,
     UsuariosModule,
     TagsModule,
+    ErpsModule,
     TarefasModule,
     NotificacoesModule,
     AgendaGeralModule,

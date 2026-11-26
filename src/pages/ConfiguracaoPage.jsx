@@ -7,6 +7,7 @@ import { Save, Settings } from "lucide-react";
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
+import { AbasConfiguracao } from "@/pages/admin/ErpsPagina";
 
 const empty = {
   versao_simulador: "v0.16",
@@ -48,6 +49,7 @@ export default function ConfiguracaoPage() {
   return (
     <div>
       <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Configuração" }]} />
+      <AbasConfiguracao />
     <div className="p-6 lg:p-8 space-y-5">
       <div>
         <TituloPagina icon={Settings} ajuda={<InfoTooltip pagina="config" chave="header" />}>Configuração</TituloPagina>

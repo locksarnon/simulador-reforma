@@ -49,7 +49,7 @@ export const TELAS = [
   { id: "comunicacoes", area: "admin", titulo: "Comunicações e envios" },
   { id: "custos", area: "admin", titulo: "Custos das ferramentas" },
   { id: "integracoes", area: "admin", titulo: "Integrações" },
-  { id: "configuracao", area: "admin", titulo: "Configuração do motor" },
+  { id: "configuracao", area: "admin", titulo: "Configuração e ERPs" },
   { id: "parametros-rotinas", area: "admin", titulo: "Parâmetros e rotinas" },
   { id: "roteiro-testes", area: "suporte", titulo: "Técnico: roteiro de testes" },
   { id: "arquitetura", area: "suporte", titulo: "Técnico: arquitetura" },

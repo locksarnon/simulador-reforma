@@ -42,11 +42,18 @@ const BLOQUEIO = /bloq|frozen|inativ|msblql/;
 
 type Candidato = { indice: number; campo: CampoBase; certeza: Certeza; rank: number; motivo: string };
 
-function candidatos(indice: number, nome: string): Candidato[] {
+/**
+ * Colunas do export do ERP selecionado no projeto (Cadastro de ERPs, conhecimento COLUNA_EXPORT): campo → cabeçalhos. Casam antes de tudo
+ * (certeza ALTA), porque vêm do perfil do ERP; sem perfil, vale só o nome do cabeçalho.
+ */
+export type ColunasDoErp = { erp: string; colunas: Partial<Record<string, string[]>> };
+
+function candidatos(indice: number, nome: string, doErp?: ColunasDoErp): Candidato[] {
   const s = simplificar(nome);
   if (!s) return [];
   const lista: Candidato[] = [];
   for (const campo of CAMPOS_BASE) {
+    if (doErp?.colunas[campo]?.some((c) => simplificar(c) === s)) { lista.push({ indice, campo, certeza: 'ALTA', rank: -1, motivo: `"${nome}" é a coluna de ${ROTULO_CAMPO[campo].toLowerCase()} no export do ${doErp.erp} (Cadastro de ERPs)` }); continue; }
     const rank = SINONIMOS[campo].indexOf(s);
     if (rank >= 0) { lista.push({ indice, campo, certeza: 'ALTA', rank, motivo: `o nome "${nome}" é um nome conhecido de ${ROTULO_CAMPO[campo].toLowerCase()}` }); continue; }
     const ap = APROXIMADOS[campo];
@@ -60,8 +67,8 @@ function candidatos(indice: number, nome: string): Candidato[] {
  * (nome conhecido) vence MÉDIA (nome parecido). Colunas sem campo ficam com `campo: null` e viram `campos`. `exemplos` (primeiro valor não vazio de
  * cada coluna, vindo de `lerPrevia`) só serve para mostrar ao consultor. Campo obrigatório sem coluna aparece em `faltando`.
  */
-export function sugerirMapeamento(cabecalho: string[], exemplos: string[] = []): SugestaoMapeamento {
-  const todos = cabecalho.flatMap((nome, i) => candidatos(i, nome));
+export function sugerirMapeamento(cabecalho: string[], exemplos: string[] = [], doErp?: ColunasDoErp): SugestaoMapeamento {
+  const todos = cabecalho.flatMap((nome, i) => candidatos(i, nome, doErp));
   todos.sort((a, b) => (a.certeza === b.certeza ? 0 : a.certeza === 'ALTA' ? -1 : 1) || a.rank - b.rank || a.indice - b.indice || CAMPOS_BASE.indexOf(a.campo) - CAMPOS_BASE.indexOf(b.campo));
   const mapeamento: Mapeamento = {};
   const usadas = new Set<number>();

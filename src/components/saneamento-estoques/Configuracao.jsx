@@ -3,6 +3,8 @@ import { useMutation } from "@tanstack/react-query";
 import { Lock, Plus } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { san } from "./api";
+import { SeletorErp, useErps } from "@/components/erps/erps";
+import { erpDoRegistro } from "@/lib/erps";
 import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Rotulo, Tag, usePodeAlterar } from "./comuns";
 import { efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtData, fmtDataHora, mensagemDeErro, MODULOS_OPCIONAIS } from "./logica";
 
@@ -14,7 +16,7 @@ export default function Configuracao({ projeto, recarregar }) {
   const trava = estadoDaTrava(projeto);
   const { pode, razao } = usePodeAlterar();
   const [form, setForm] = useState(() => ({
-    erp: projeto.erp ?? "", erp_versao: projeto.erp_versao ?? "", responsavel: projeto.responsavel ?? "",
+    erp: projeto.erp ?? "", erp_id: projeto.erp_id ?? null, erp_versao: projeto.erp_versao ?? "", responsavel: projeto.responsavel ?? "",
     estabelecimentos: listaDeEstabelecimentos(projeto).join("\n"), corte: projeto.parametros?.corteMovimentacao ?? "",
     competenciaEntregue: projeto.parametros?.competenciaEntregue ?? "",
   }));
@@ -22,6 +24,8 @@ export default function Configuracao({ projeto, recarregar }) {
   const [novaAtividade, setNovaAtividade] = useState({ codigo: "", descricao: "" });
   const [infoAberta, setInfoAberta] = useState(null);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const erps = useErps().data || [];
+  const erpEscolhido = erpDoRegistro(form, erps).erp;
 
   const aoFalhar = (err) => {
     setMsg({ tom: "erro", texto: mensagemDeErro(err) });
@@ -31,7 +35,7 @@ export default function Configuracao({ projeto, recarregar }) {
 
   const salvar = useMutation({
     mutationFn: () => san.configurar(projeto.id, {
-      versao: projeto.versao, erp: form.erp, erp_versao: form.erp_versao, responsavel: form.responsavel,
+      versao: projeto.versao, ...(erpEscolhido ? { erp_id: erpEscolhido.id } : { erp: form.erp, erp_id: null }), erp_versao: form.erp_versao, responsavel: form.responsavel,
       estabelecimentos: form.estabelecimentos.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
       parametros: { ...(projeto.parametros || {}), corteMovimentacao: form.corte || null, competenciaEntregue: form.competenciaEntregue || null },
     }),
@@ -61,8 +65,10 @@ export default function Configuracao({ projeto, recarregar }) {
       <section aria-labelledby="san-cfg-dados" className="space-y-3 border border-border bg-card p-4">
         <h2 id="san-cfg-dados" className="font-semibold">Dados do projeto</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block"><Rotulo>ERP</Rotulo><input className={campoCls} value={form.erp} onChange={set("erp")} placeholder="Ex.: SAP Business One" /></label>
-          <label className="block"><Rotulo>Versão do ERP</Rotulo><input className={campoCls} value={form.erp_versao} onChange={set("erp_versao")} /></label>
+          <div><SeletorErp id="san-cfg-erp" rotulo="ERP (do cadastro do cliente; pode trocar para este trabalho)" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, ...v, erp: v.erp ?? f.erp }))} /></div>
+          <label className="block"><Rotulo>Versão do ERP</Rotulo>{erpEscolhido?.versoes?.length
+            ? <select className={campoCls} value={form.erp_versao} onChange={set("erp_versao")}><option value="">Selecione a versão</option>{[...erpEscolhido.versoes, ...(form.erp_versao && !erpEscolhido.versoes.includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
+            : <input className={campoCls} value={form.erp_versao} onChange={set("erp_versao")} />}</label>
           <label className="block"><Rotulo>Responsável</Rotulo><input className={campoCls} value={form.responsavel} onChange={set("responsavel")} /></label>
           <div><Rotulo>Data-base</Rotulo><p className="py-1.5 text-sm">{fmtData(projeto.data_base) || "—"}</p><p className="text-xs text-muted-foreground">Vem do projeto de consultoria.</p></div>
           <label className="block sm:col-span-2"><Rotulo>Estabelecimentos (um por linha; vazio = um só)</Rotulo>
