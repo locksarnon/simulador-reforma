@@ -1,5 +1,5 @@
 /**
- * POPs das áreas Consultoria Tributária, Consultas fiscais e Comercial, e da tela do manual (Ajuda).
+ * POPs das áreas Consultoria Tributária, Bases legais e Comercial, e da tela do manual (Ajuda).
  * Formato descrito em ./index.js. Textos de botões, abas e campos iguais aos das telas.
  */
 export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
@@ -194,7 +194,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     ],
   },
 
-  // ── Consultas fiscais ───────────────────────────────────────────────
+  // ── Bases legais ───────────────────────────────────────────────
   {
     modulo: "consulta-ncm",
     codigo: "POP-FIS-01",
@@ -202,7 +202,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Saber se um produto tem alíquota zero, redução ou regra geral na LC 214/2025.",
     quem: "Consultor",
     quando: "Ao classificar um produto ou responder a um cliente.",
-    caminho: "Menu > Consultas fiscais > Consulta NCM",
+    caminho: "Menu > Bases legais > Consulta NCM",
     antes: [],
     passos: [
       { acao: "No campo “Digite o NCM (ex.: 2309.90.10) ou o nome do produto”, digite pelo menos 2 caracteres.", detalhe: "A busca começa sozinha. Os exemplos em “Tente:” preenchem o campo com um clique." },
@@ -225,7 +225,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Consultar as tabelas de CST, cClassTrib, cCredPres, NCM, CFOP, benefício fiscal e combustíveis e incluir ou corrigir um código.",
     quem: "Consultor (consulta) e responsável tributário (manutenção)",
     quando: "Ao conferir um código ou quando sai uma tabela oficial nova.",
-    caminho: "Menu > Consultas fiscais > Catálogos IBS/CBS",
+    caminho: "Menu > Bases legais > Catálogos IBS/CBS",
     antes: [
       "Para incluir ou corrigir, tenha à mão a tabela oficial com a versão e a data.",
     ],
@@ -248,7 +248,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Identificar onde a operação se considera realizada para o IBS e a CBS.",
     quem: "Consultor",
     quando: "Ao definir o local de incidência de um serviço ou de uma venda.",
-    caminho: "Menu > Consultas fiscais > Guia do art. 11",
+    caminho: "Menu > Bases legais > Guia do art. 11",
     antes: [],
     passos: [
       { acao: "Leia “Por que ‘local da operação’ importa” para o contexto." },
@@ -268,10 +268,10 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Achar o artigo da norma que responde a uma dúvida, com o texto oficial, perguntando e buscando de uma vez em todas as normas carregadas, com a resposta da IA e o artigo citado.",
     quem: "Consultor",
     quando: "Sempre que precisar fundamentar uma resposta na lei.",
-    caminho: "Menu > Consultas fiscais > Bases legais",
+    caminho: "Menu > Bases legais > Base legal e assistente",
     antes: [],
     passos: [
-      { acao: "Na barra Consultar as bases legais, no alto da página, digite a pergunta ou o assunto (ex.: “ouro paga IBS?”, “produtor rural limite” ou “art 164”).", detalhe: "A barra procura o texto em todas as normas carregadas. Para olhar uma norma só, escolha-a em Em. Se não souber o que perguntar, clique numa das sugestões abaixo da barra." },
+      { acao: "Na barra Consultar as bases legais (no alto da página da área Bases legais e da tela Base legal e assistente), digite a pergunta ou o assunto (ex.: “ouro paga IBS?”, “produtor rural limite” ou “art 164”).", detalhe: "A barra procura o texto em todas as normas carregadas. Para olhar uma norma só, escolha-a em Em. Se não souber o que perguntar, clique numa das sugestões abaixo da barra." },
       { acao: "Aperte Enter ou clique em Consultar.", detalhe: "A resposta da IA aparece primeiro, com o artigo citado; logo abaixo vêm os dispositivos achados nas normas, com o trecho em destaque. A busca por número de artigo (ex.: “art 164”) mostra o artigo direto e não chama a IA." },
       { acao: "Deixe Resposta com IA ligada para receber a resposta do assistente; desligue para só buscar no texto das normas.", detalhe: "A pergunta precisa ter pelo menos 8 caracteres para a IA responder." },
       { acao: "Para uma resposta mais completa, ligue Pesquisa aprofundada com fontes externas antes de consultar.", detalhe: "Além das normas carregadas, o assistente pesquisa na internet em fontes oficiais (Receita Federal, SPED, portal da NF-e, CGIBS, Planalto, tribunais) e mostra as fontes consultadas, as oficiais primeiro. Demora mais, até um minuto." },
@@ -303,7 +303,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Manter o texto das normas e as respostas revisadas da equipe em dia com a lei.",
     quem: "Administrador",
     quando: "Quando o sistema avisa que o texto oficial mudou ou quando a equipe precisa de uma resposta padrão.",
-    caminho: "Menu > Consultas fiscais > Bases legais",
+    caminho: "Menu > Bases legais > Base legal e assistente",
     antes: [],
     passos: [
       { acao: "Em Normas carregadas, clique em Atualizar na linha da norma.", detalhe: "A mensagem diz “Texto atualizado”, com os dispositivos novos, alterados e removidos, ou “Sem mudanças”." },
@@ -326,7 +326,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Saber, antes de citar uma norma, se ela foi alterada, revogada ou regulamentada, e acompanhar a conferência semanal das fontes oficiais.",
     quem: "Consultor (consulta) e Administrador (curadoria e revisão)",
     quando: "Toda segunda-feira, depois da revisão semanal, e antes de citar um dispositivo em resposta ou parecer.",
-    caminho: "Menu > Consultas fiscais > Bases legais > Novidades e revogações",
+    caminho: "Menu > Bases legais > Base legal e assistente > Novidades e revogações",
     antes: [],
     passos: [
       { acao: "Abra a aba Novidades e revogações. Os números no alto mostram o que é novo, o que veio da pesquisa na web e precisa de confirmação, as alterações ainda não consolidadas e quantas normas têm parte revogada." },
@@ -350,7 +350,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Ver os marcos e prazos da Reforma que valem para um regime, uma UF ou uma empresa.",
     quem: "Consultor",
     quando: "No planejamento do cliente e ao responder sobre prazos.",
-    caminho: "Menu > Consultas fiscais > Agenda da Reforma",
+    caminho: "Menu > Bases legais > Agenda da Reforma",
     antes: [],
     passos: [
       { acao: "Em Empresa, escolha um cliente para usar o regime e a UF do cadastro dele, ou deixe “Nenhuma (filtrar à mão)”." },
@@ -372,7 +372,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Receber por e-mail o aviso das datas da Reforma com a antecedência escolhida.",
     quem: "Consultor",
     quando: "Uma vez, e sempre que quiser mudar a antecedência.",
-    caminho: "Menu > Consultas fiscais > Agenda da Reforma > Lembretes por e-mail",
+    caminho: "Menu > Bases legais > Agenda da Reforma > Lembretes por e-mail",
     antes: [
       "Para lembretes de uma empresa só, escolha a empresa no filtro Empresa antes.",
     ],
@@ -397,7 +397,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Acompanhar as novidades da semana sobre a Reforma, com a ação recomendada para o time fiscal.",
     quem: "Consultor",
     quando: "Toda segunda-feira, ou quando precisar de uma atualização.",
-    caminho: "Menu > Consultas fiscais > Radar de novidades",
+    caminho: "Menu > Bases legais > Radar de novidades",
     antes: [],
     passos: [
       { acao: "Leia o Resumo executivo da semana." },
@@ -420,7 +420,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Guardar as notícias da Reforma revisadas, vindas dos feeds oficiais ou cadastradas à mão.",
     quem: "Consultor",
     quando: "Periodicamente, para revisar o que a busca trouxe.",
-    caminho: "Menu > Consultas fiscais > Acervo de notícias",
+    caminho: "Menu > Bases legais > Acervo de notícias",
     antes: [],
     passos: [
       { acao: "Clique em Buscar atualizações.", detalhe: "Ao terminar, a mensagem “Busca concluída” informa os novos rascunhos, os itens relevantes e as fontes consultadas." },

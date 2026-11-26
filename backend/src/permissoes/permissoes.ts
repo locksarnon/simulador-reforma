@@ -42,7 +42,7 @@ export const TELAS: Tela[] = [
   { id: 'catalogos', area: 'conhecimento', titulo: 'Catálogos IBS/CBS' },
   { id: 'consulta-ncm', area: 'conhecimento', titulo: 'Consulta NCM' },
   { id: 'guia-art-11', area: 'conhecimento', titulo: 'Guia do art. 11' },
-  { id: 'base-legal', area: 'conhecimento', titulo: 'Bases legais' },
+  { id: 'base-legal', area: 'conhecimento', titulo: 'Base legal e assistente' },
   { id: 'agenda-reforma', area: 'conhecimento', titulo: 'Agenda da Reforma' },
   { id: 'radar', area: 'conhecimento', titulo: 'Radar de novidades' },
   { id: 'noticias', area: 'conhecimento', titulo: 'Acervo de notícias' },

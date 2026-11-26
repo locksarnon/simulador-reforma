@@ -1,6 +1,6 @@
 # Bases legais (InTAX): base de conhecimento da legislação
 
-Menu: **Consultas fiscais > Bases legais** (`/base-legal`). No topo fica a barra **Consultar as bases legais** (busca o texto em todas as normas e, com a IA ligada, responde com o artigo citado). A página tem três abas: **Normas e assistente**, **Novidades e revogações** e **Revisão semanal**.
+Menu: área **Bases legais** (`/area/conhecimento`, antes "Consultas fiscais"), que já abre com a barra **Consultar as bases legais** (busca o texto em todas as normas e, com a IA ligada, responde com o artigo citado) acima dos cartões das telas da área. A tela **Base legal e assistente** (`/base-legal`) tem a mesma barra no alto e três abas: **Normas e assistente**, **Novidades e revogações** e **Revisão semanal**.
 
 ## Consulta (barra no alto da página)
 

@@ -253,7 +253,7 @@ export const SECAO_BASE_LEGAL = {
     },
     {
       p: "Como consulto todas as normas de uma vez, com a IA?",
-      r: "Em Consultas fiscais > Bases legais, a barra Consultar as bases legais, no alto da página, faz as duas coisas com a mesma pergunta: procura o texto em todas as normas carregadas (para olhar uma norma só, escolha-a em “Em”) e, com Resposta com IA ligada, o assistente responde citando o artigo. Se a equipe já revisou uma pergunta parecida, a resposta revisada aparece antes. A busca por número de artigo (“art 164”) abre o artigo direto, sem IA, e a Pesquisa aprofundada com fontes externas acrescenta fontes oficiais da internet. Os dispositivos revogados vêm marcados e por último. A resposta da IA fica guardada enquanto você navega: voltar da leitura de um artigo não pergunta de novo.",
+      r: "Na área Bases legais do menu, a barra Consultar as bases legais, no alto da página (ela também fica no alto da tela Base legal e assistente), faz as duas coisas com a mesma pergunta: procura o texto em todas as normas carregadas (para olhar uma norma só, escolha-a em “Em”) e, com Resposta com IA ligada, o assistente responde citando o artigo. Se a equipe já revisou uma pergunta parecida, a resposta revisada aparece antes. A busca por número de artigo (“art 164”) abre o artigo direto, sem IA, e a Pesquisa aprofundada com fontes externas acrescenta fontes oficiais da internet. Os dispositivos revogados vêm marcados e por último. A resposta da IA fica guardada enquanto você navega: voltar da leitura de um artigo não pergunta de novo.",
     },
     {
       p: "Como a Base legal se mantém atualizada?",
@@ -329,7 +329,7 @@ export const SECAO_BASE_LEGAL = {
 
 export const SECAO_AGENDA = {
   titulo: "Agenda da Reforma",
-  nota: "Marcos e prazos da Reforma Tributária do consumo, cada um com a fonte oficial da data. Fica em Consultas fiscais > Agenda da Reforma e na aba Agenda da Reforma de cada empresa.",
+  nota: "Marcos e prazos da Reforma Tributária do consumo, cada um com a fonte oficial da data. Fica em Bases legais > Agenda da Reforma e na aba Agenda da Reforma de cada empresa.",
   itens: [
     {
       p: "O que é a Agenda da Reforma?",

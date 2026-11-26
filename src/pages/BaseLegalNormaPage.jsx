@@ -148,13 +148,13 @@ export default function BaseLegalNormaPage() {
   };
 
   if (isLoading) return <div className="p-8 text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
-  if (!est) return <div className="p-8 text-sm">Norma não encontrada. <Link className="underline" to="/base-legal">Voltar às Bases legais</Link></div>;
+  if (!est) return <div className="p-8 text-sm">Norma não encontrada. <Link className="underline" to="/base-legal">Voltar à Base legal</Link></div>;
   const n = est.norma;
   const d = disp?.dispositivo;
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Bases legais", to: "/base-legal" }, { label: n.numero, to: caminho ? `/base-legal/${chave}` : undefined }, ...(d ? [{ label: d.rotulo }] : [])]} />
+      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Base legal", to: "/base-legal" }, { label: n.numero, to: caminho ? `/base-legal/${chave}` : undefined }, ...(d ? [{ label: d.rotulo }] : [])]} />
       <div className="p-4 lg:p-6 grid lg:grid-cols-[320px_1fr] gap-6 items-start">
         <aside className="lg:sticky lg:top-4 rounded-xl border border-border bg-card">
           <div className="p-3 border-b border-border">

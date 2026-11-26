@@ -29,7 +29,7 @@ export const fmtData = (v) => {
 
 const ABAS = [["normas", "Normas e assistente"], ["novidades", "Novidades e revogações"], ["revisao", "Revisão semanal"]];
 
-/** Bases legais: a consulta em todas as normas (busca no texto e IA), o texto integral de cada norma, o que mudou ou foi revogado e a revisão semanal. */
+/** Base legal (área Bases legais): a consulta em todas as normas (busca no texto e IA), o texto integral de cada norma, o que mudou ou foi revogado e a revisão semanal. */
 export default function BaseLegalPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -67,10 +67,10 @@ export default function BaseLegalPage() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Bases legais" }]} />
+      <PageHeader crumbs={[{ label: "DataHub", to: "/" }, { label: "Base legal" }]} />
       <div className="p-6 lg:p-8 space-y-6">
         <div>
-          <h1 className="text-xl font-heading font-semibold flex items-center gap-2"><Scale className="w-5 h-5" /> Bases legais</h1>
+          <h1 className="text-xl font-heading font-semibold flex items-center gap-2"><Scale className="w-5 h-5" /> Base legal</h1>
           <p className="text-sm text-muted-foreground mt-1">O texto oficial das normas, com a redação anterior e as revogações de cada dispositivo, a consulta por busca e por IA em todas elas, o que mudou na legislação e a revisão semanal.</p>
         </div>
 

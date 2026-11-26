@@ -23,7 +23,7 @@ export const AREAS = [
   { id: "bpo", titulo: "BPO Fiscal", icone: Briefcase, descricao: "A rotina do escritório sobre a carteira: XML, obrigações, tarefas, monitoramento e arquivos." },
   { id: "diagnostico", titulo: "Consultoria Tributária", icone: Stethoscope, descricao: "Carteira, projetos e serviços tributários por cliente." },
   { id: "reforma", oculto: true, titulo: "Planejamento tributário", icone: Landmark, descricao: "Painel executivo, comparação de regimes, cenários, transição e crédito de estoque, por empresa ou grupo." },
-  { id: "conhecimento", titulo: "Consultas fiscais", icone: BookOpen, descricao: "Bases legais com consulta por IA, o que mudou ou foi revogado, NCM, catálogos IBS/CBS, guia do art. 11, agenda, radar e notícias, sempre com fonte oficial." },
+  { id: "conhecimento", titulo: "Bases legais", icone: BookOpen, descricao: "Consulta por IA e busca em todas as normas, leis e decretos com fonte oficial, o que mudou ou foi revogado, NCM, catálogos IBS/CBS, guia do art. 11, agenda, radar e notícias." },
   { id: "comercial", titulo: "Comercial", icone: Megaphone, descricao: "Leads, pré-análise por CNPJ, propostas, comunicados, newsletter e ferramentas públicas." },
   { id: "admin", titulo: "Administração", icone: Settings, descricao: "Usuários, acessos, integrações e configurações do sistema." },
   { id: "suporte", titulo: "Ajuda", icone: HelpCircle, descricao: "Manual e perguntas frequentes; roteiro de testes e arquitetura para a equipe técnica." },
@@ -75,7 +75,7 @@ export const MODULOS = [
   { id: "guia-art-11", area: "conhecimento", titulo: "Guia do art. 11", descricao: "Guia da base de cálculo do IBS/CBS pelo art. 12 e art. 11 da LC 214.", icone: Scale, to: "/base-legal/guia-art-11", palavras: ["art. 11", "base de cálculo", "lc 214"] },
 
   // Conhecimento
-  { id: "base-legal", area: "conhecimento", titulo: "Bases legais", descricao: "Consulta por IA e por busca em todas as normas, com leis e decretos de fonte oficial, o que mudou ou foi revogado e a revisão semanal.", icone: Scale, to: "/base-legal", prefixos: ["/base-legal/"], palavras: ["lei", "lc 214", "decreto", "norma", "dispositivo", "revogada", "revogado", "alteração", "novidades", "revisão semanal", "redação anterior", "legislação"] },
+  { id: "base-legal", area: "conhecimento", titulo: "Base legal e assistente", descricao: "Texto integral de cada norma com fonte oficial, a consulta por IA e por busca, o que mudou ou foi revogado e a revisão semanal.", icone: Scale, to: "/base-legal", prefixos: ["/base-legal/"], palavras: ["lei", "lc 214", "decreto", "norma", "dispositivo", "revogada", "revogado", "alteração", "novidades", "revisão semanal", "redação anterior", "legislação"] },
   { id: "agenda-reforma", area: "conhecimento", titulo: "Agenda da Reforma", descricao: "Datas e marcos oficiais da Reforma Tributária.", icone: CalendarDays, to: "/agenda-reforma", palavras: ["prazo", "marco", "data", "lembrete"] },
   { id: "radar", area: "conhecimento", titulo: "Radar de novidades", descricao: "O que mudou na legislação da Reforma, com a fonte oficial.", icone: Radar, to: "/ferramentas/radar-reforma", palavras: ["novidade", "radar", "setor"] },
   { id: "noticias", area: "conhecimento", titulo: "Acervo de notícias", descricao: "Notícias da Reforma guardadas e organizadas.", icone: Newspaper, to: "/ferramentas/noticias", palavras: ["notícia", "acervo"] },
