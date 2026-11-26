@@ -80,3 +80,32 @@ Controles internos como análise; segundo aprovador; arquivo de movimentação.
 Uma entrega, com agentes por frente (dados/regras, motor, telas, biblioteca e carga da política Crestani, PDF com fluxogramas, pesquisa de limites oficiais), duas revisões independentes, QA com Postgres real (30 mil itens) e um deploy com backup.
 
 **A confirmar com o usuário:** onde está o arquivo Word final da política da Crestani a usar como base (última versão editada).
+
+## 11. Contrato técnico (para os agentes)
+
+Tipos: `backend/src/saneamento-estoques/diretrizes/tipos.ts` (não alterar sem o integrador).
+
+Arquivos e donos (cada agente só cria/edita o que é seu):
+- **Núcleo (backend):** `backend/src/saneamento-estoques/diretrizes/*` (exceto `conteudo/`), migração Prisma, ligações em `dados/`, `motor/`, versões e permissões.
+- **Telas:** `src/components/saneamento-estoques/diretrizes/*`, aba na página do saneamento, `api.js`, aba "Biblioteca de diretrizes" em Administração.
+- **Conteúdo:** `backend/src/saneamento-estoques/diretrizes/conteudo/biblioteca.ts` — exporta `BIBLIOTECA_INICIAL: RegraBiblioteca[]`, `PROCEDIMENTOS: Procedimento[]`, `MODELOS: ModeloDiretrizes[]`.
+- **Limites:** `backend/src/saneamento-estoques/diretrizes/conteudo/limites-oficiais.ts` — exporta `LIMITES_OFICIAIS: LinhaLimite[]`; tipo "LIMITE_CAMPO" no Cadastro de ERPs (`backend/src/erps/`).
+- **PDF da política:** `backend/src/saneamento-estoques/entregaveis/politica/*` — exporta `gerarPdfPolitica(dados: DadosPolitica): Promise<Buffer>` e o tipo `DadosPolitica`.
+
+`ModeloDiretrizes` (em `conteudo/biblioteca.ts`): `{ id, nome, descricao, atribuicoes: { aspecto, bibliotecaId, grupos: 'TODOS' | string[] }[] }` — ex.: "Modelo FAL — Revenda de insumos agro (base Crestani)".
+
+Rotas (prefixo `/api/v1/saneamento-estoques`):
+- `GET projetos/:id/diretrizes` → `{ cabecalho: { vigencia, situacao, revisar, versao }, regras: (RegraProjeto & { conteudoEfetivo })[], grupos: { grupo, subgrupos, itens }[], gruposSemRegra: { aspecto, grupos }[], atualizacoesBiblioteca: { regraId, versaoNova }[] }`
+- `PUT projetos/:id/diretrizes` `{ vigencia, versao }`
+- `POST projetos/:id/diretrizes/aplicar-modelo` `{ modeloId }` → cria as regras do modelo em rascunho (sem duplicar)
+- `POST projetos/:id/diretrizes/regras` `{ aspecto, nome, abrangencia, observacao?, bibliotecaId?, alteracoes? }` → regra em RASCUNHO
+- `PUT diretrizes/regras/:regraId` `{ versao, nome?, abrangencia?, observacao?, alteracoes? }` (aprovada volta a RASCUNHO e marca "revisar" nas conclusões dependentes)
+- `GET diretrizes/regras/:regraId/previa` → `PreviaAplicacao`
+- `GET diretrizes/regras/:regraId/exemplos` → itens reais do grupo com a descrição atual e como ficaria (NOMES/LIMITES)
+- `POST diretrizes/regras/:regraId/aplicar` `{ versao, confirmarTransferencia? }` → reanalisa só os itens afetados; 409 se houver sobreposição sem confirmação
+- `POST diretrizes/regras/:regraId/aprovar` `{ versao }`
+- `GET diretrizes/regras/:regraId/historico`
+- `POST diretrizes/regras/:regraId/adotar-versao` `{ versao }` (regra da biblioteca atualizada)
+- `POST projetos/:id/diretrizes/transformar` `{ casoId, aspecto, nome, abrangencia, destino: 'PROJETO' | 'BIBLIOTECA' }`
+- Biblioteca: `GET biblioteca`, `GET biblioteca/:id`, `POST biblioteca`, `PUT biblioteca/:id` `{ versao, ... }` (só admin; nova versão a cada alteração), `GET biblioteca/:id/historico`, `GET biblioteca/procedimentos`, `GET biblioteca/modelos`
+- `GET projetos/:id/politica/pdf?versaoId=` → PDF da política (Rascunho enquanto houver regra não aprovada)
