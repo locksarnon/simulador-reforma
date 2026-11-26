@@ -1,6 +1,6 @@
 /**
- * Fluxograma vertical de um procedimento: Início -> passos (caixas, com responsável) e decisões (losangos; "Sim" segue para baixo,
- * "Não" sai à direita para a caixa do desvio) -> Fim. Nenhuma forma é cortada entre páginas: se a próxima não couber, a página termina
+ * Fluxograma vertical de um procedimento: Início -> passos (caixas, com responsável) e decisões (losangos; o ramo de `segue` (padrão "Sim") continua para baixo,
+ * o outro sai à direita para a caixa do desvio) -> Fim. Nenhuma forma é cortada entre páginas: se a próxima não couber, a página termina
  * com "Continua na próxima página" e o fluxo segue no topo da seguinte, com a indicação da continuação.
  */
 import type { Procedimento } from '../../diretrizes/tipos';
@@ -46,14 +46,17 @@ function bloco(pdf: PDFKit.PDFDocument, e: Etapa, m: Medidas): Bloco {
   }
   // Losango: o texto ocupa a metade central da largura; a altura dobra a do texto para caber dentro das diagonais.
   const hForma = Math.max(58, 2 * alturaTexto(pdf, textoPasso(e), m.w * 0.52, TAM_TEXTO, true) + 20);
-  const hDesvio = Math.max(30, alturaTexto(pdf, limpar(e.nao).slice(0, MAX_TEXTO), m.wDesvio - 16, TAM_ROTULO + 0.5) + 16);
+  const hDesvio = Math.max(30, alturaTexto(pdf, limpar(ramos(e).desvioTxt).slice(0, MAX_TEXTO), m.wDesvio - 16, TAM_ROTULO + 0.5) + 16);
   return { h: Math.max(hForma, hDesvio), hForma, hDesvio };
 }
 
-/** Altura do rótulo "Sim: ..." que acompanha a seta que sai de uma decisão. */
+/** Ramo que continua o fluxo (seta para baixo) e ramo de desvio (caixa à direita), conforme `segue` (padrão SIM). */
+const ramos = (e: Extract<Etapa, { tipo: 'decisao' }>) => (e.segue === 'NAO' ? { segueRot: 'Não', segueTxt: e.nao, desvioRot: 'Sim', desvioTxt: e.sim } : { segueRot: 'Sim', segueTxt: e.sim, desvioRot: 'Não', desvioTxt: e.nao });
+
+/** Altura do rótulo do ramo que continua, que acompanha a seta que sai de uma decisão. */
 function alturaSim(pdf: PDFKit.PDFDocument, e: Etapa | null, m: Medidas) {
   if (!e || e.tipo !== 'decisao') return 0;
-  return alturaTexto(pdf, `Sim: ${limpar(e.sim)}`.slice(0, MAX_TEXTO), m.w / 2 - 10, TAM_ROTULO);
+  return alturaTexto(pdf, `${ramos(e).segueRot}: ${limpar(ramos(e).segueTxt)}`.slice(0, MAX_TEXTO), m.w / 2 - 10, TAM_ROTULO);
 }
 const vao = (pdf: PDFKit.PDFDocument, anterior: Etapa | null, m: Medidas) => Math.max(SETA, alturaSim(pdf, anterior, m) + 10);
 
@@ -111,8 +114,8 @@ export function desenharFluxograma(
   const desenharSetaEntrada = (de: number, ate: number) => {
     setaBaixo(pdf, m.cx, de, ate);
     if (anterior?.tipo === 'decisao') {
-      pdf.fillColor(VERDE).font('Helvetica-Bold').fontSize(TAM_ROTULO).text('Sim: ', m.cx + 6, de + 4, { width: m.w / 2 - 10, continued: true })
-        .fillColor(TEXTO).font('Helvetica').text(limpar(anterior.sim).slice(0, MAX_TEXTO));
+      pdf.fillColor(VERDE).font('Helvetica-Bold').fontSize(TAM_ROTULO).text(`${ramos(anterior).segueRot}: `, m.cx + 6, de + 4, { width: m.w / 2 - 10, continued: true })
+        .fillColor(TEXTO).font('Helvetica').text(limpar(ramos(anterior).segueTxt).slice(0, MAX_TEXTO));
     }
   };
   /** Garante espaço para a seta + forma; se não couber, fecha a página com a indicação e continua no topo da seguinte. */
@@ -161,11 +164,11 @@ export function desenharFluxograma(
       pdf.fillColor(VERDE_ESCURO).font('Helvetica-Bold').fontSize(TAM_TEXTO).text(t, m.cx - wt / 2, cy - ht / 2, { width: wt, align: 'center' });
       numeroNo(n, cy);
       reg('decisao', n, m.x0, yd, m.w, b.hForma, t);
-      // ramo "Não": seta para a direita até a caixa do desvio
+      // ramo de desvio: seta para a direita até a caixa do desvio
       setaDireita(pdf, m.x0 + m.w, m.xDesvio, cy);
-      pdf.fillColor(AMBAR).font('Helvetica-Bold').fontSize(TAM_ROTULO).text('Não', m.x0 + m.w + 4, cy - 11, { width: m.xDesvio - m.x0 - m.w - 8, align: 'center', lineBreak: false });
+      pdf.fillColor(AMBAR).font('Helvetica-Bold').fontSize(TAM_ROTULO).text(ramos(e).desvioRot, m.x0 + m.w + 4, cy - 11, { width: m.xDesvio - m.x0 - m.w - 8, align: 'center', lineBreak: false });
       const yDes = topo + (b.h - b.hDesvio) / 2;
-      const nao = limpar(e.nao).slice(0, MAX_TEXTO);
+      const nao = limpar(ramos(e).desvioTxt).slice(0, MAX_TEXTO);
       pdf.roundedRect(m.xDesvio, yDes, m.wDesvio, b.hDesvio, 5).lineWidth(1).fillAndStroke(BRANCO, AMBAR);
       const hn = alturaTexto(pdf, nao, m.wDesvio - 16, TAM_ROTULO + 0.5);
       pdf.fillColor(TEXTO).font('Helvetica').fontSize(TAM_ROTULO + 0.5).text(nao, m.xDesvio + 8, yDes + (b.hDesvio - hn) / 2, { width: m.wDesvio - 16, align: 'center' });

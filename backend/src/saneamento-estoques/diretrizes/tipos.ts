@@ -161,7 +161,7 @@ export type Procedimento = {
   /** Para que serve, em 1–2 frases. */
   objetivo: string;
   /** Passos do fluxograma, em ordem; decisão = losango com ramos. */
-  fluxo: ({ tipo: 'passo'; texto: string; responsavel?: string | null } | { tipo: 'decisao'; pergunta: string; sim: string; nao: string })[];
+  fluxo: ({ tipo: 'passo'; texto: string; responsavel?: string | null } | { tipo: 'decisao'; pergunta: string; sim: string; nao: string; /** Ramo que continua o fluxo principal (o outro vira desvio). Padrão: SIM. */ segue?: 'SIM' | 'NAO' })[];
   /** Regras práticas (tópicos curtos). */
   regras: string[];
   /** Evidência a guardar. */
