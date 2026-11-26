@@ -1,7 +1,12 @@
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
+import ConsultaBasesLegais from "@/components/base-legal/ConsultaBasesLegais";
 import { useAuth } from "@/lib/AuthContext";
+import { sugestoesDoContexto } from "@/lib/assistente";
 import { areaPorId, caminhoDaArea, modulosDaArea, SITUACAO, situacaoDoModulo } from "@/lib/navegacao";
+import { temTela } from "@/lib/permissoes";
 
 /** Selo de situação do módulo (Beta ou Em breve); módulo ativo não leva selo. */
 export function SeloSituacao({ situacao }) {
@@ -36,6 +41,19 @@ export function CartaoDoModulo({ modulo }) {
     : <Link to={modulo.to} className={classe}>{conteudo}</Link>;
 }
 
+/** Área "Bases legais": a página já abre com a consulta em todas as normas (busca no texto e IA), antes dos cartões das telas. */
+export function ConsultaDaArea({ user }) {
+  const [params, setParams] = useSearchParams();
+  const { data: normas = [] } = useQuery({ queryKey: ["base-legal-normas"], queryFn: () => api.get("/base-legal/normas") });
+  return (
+    <ConsultaBasesLegais
+      inicial={params.get("q") || ""} normas={normas} emailPadrao={user?.email || ""}
+      sugestoes={sugestoesDoContexto({ id: "base-legal", area: "conhecimento" })}
+      aoConsultar={(texto) => setParams(texto ? { q: texto } : {}, { replace: true })}
+    />
+  );
+}
+
 /** Página de uma área: o que ela é e os módulos que a pessoa pode usar. */
 export default function AreaPagina() {
   const { areaId } = useParams();
@@ -44,6 +62,7 @@ export default function AreaPagina() {
   if (!area) return <Navigate to="/inicio" replace />;
   if (area.id === "inicio") return <Navigate to={caminhoDaArea("inicio")} replace />;
   const modulos = modulosDaArea(area.id, user);
+  const consulta = area.id === "conhecimento" && temTela(user, "base-legal");
 
   return (
     <div>
@@ -51,7 +70,8 @@ export default function AreaPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: area.titulo }]}
         title={area.titulo}
       />
-      <div className="px-6 lg:px-8 py-6">
+      <div className="px-6 lg:px-8 py-6 space-y-6">
+        {consulta && <ConsultaDaArea user={user} />}
         {modulos.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Você ainda não tem módulos liberados nesta área.</p>
         ) : (

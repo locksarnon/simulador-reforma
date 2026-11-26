@@ -55,7 +55,7 @@ describe("Layout: botão Sair e conta logada", () => {
 describe("Layout: menu em áreas, busca e acessibilidade", () => {
   it("mostra as áreas na ordem do plano, cada uma ligada à sua página", () => {
     const html = renderizar(ADMIN);
-    const ordem = ["Clientes", "BPO Fiscal", "Consultoria Tributária", "Consultas fiscais", "Comercial", "Administração", "Ajuda"];
+    const ordem = ["Clientes", "BPO Fiscal", "Consultoria Tributária", "Bases legais", "Comercial", "Administração", "Ajuda"];
     const posicoes = ordem.map((a) => html.indexOf(`${a}</span></a>`));
     expect(posicoes.every((p) => p > 0)).toBe(true);
     expect([...posicoes].sort((a, b) => a - b)).toEqual(posicoes);
