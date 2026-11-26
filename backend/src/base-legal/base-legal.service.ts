@@ -573,9 +573,11 @@ export class BaseLegalService {
     };
   }
 
-  /** Busca por artigo ("art 164") e por texto (português, com trecho destacado). */
-  /** Busca no texto de todas as normas; `chave` restringe a uma norma ou a uma lista delas (ex.: as do estado citado na pergunta). */
-  async buscar(q: string, chave?: string | string[]) {
+  /**
+   * Busca por artigo ("art 164") e por texto (português, com trecho destacado) em todas as normas; `chave` restringe a uma norma ou a
+   * uma lista delas (ex.: as do estado citado na pergunta). `trecho: false` dispensa o trecho destacado (o assistente só usa a posição).
+   */
+  async buscar(q: string, chave?: string | string[], opcoes: { trecho?: boolean } = {}) {
     const termo = (q || '').trim().slice(0, 200);
     if (termo.length < 2) return { exatos: [], resultados: [], parcial: false };
     const lista = Array.isArray(chave) ? chave : null;
@@ -590,15 +592,22 @@ export class BaseLegalService {
         })
       : [];
 
-    const filtro = lista ? `AND n."chave" = ANY($2)` : chave ? `AND n."chave" = $2` : '';
+    const filtro = lista ? `AND d."norma_id" IN (SELECT n."id" FROM "NormaLegal" n WHERE n."chave" = ANY($2))`
+      : chave ? `AND d."norma_id" IN (SELECT n."id" FROM "NormaLegal" n WHERE n."chave" = $2)` : '';
     const params: unknown[] = chave ? [termo, chave] : [termo];
+    const comTrecho = opcoes.trecho !== false;
     // O que está revogado aparece por último e marcado: a consulta nunca deve tratar texto revogado como o primeiro achado.
+    // As palavras de cada dispositivo ficam gravadas na coluna "busca" (gerada pelo banco a partir do texto, com índice GIN): a relevância
+    // sai dela, sem reler o texto de cada achado. O trecho destacado (ts_headline lê o texto inteiro) só é montado para as 40 linhas devolvidas.
     const consulta = (tsquery: string) => `SELECT n."chave", n."numero", n."situacao" AS "norma_situacao", d."rotulo", d."caminho", d."secao", d."revogado", d."parcialmente_revogado",
-              ts_headline('portuguese', d."texto", ${tsquery}, 'MaxFragments=2,MaxWords=28,MinWords=10,StartSel=[[,StopSel=]]') AS trecho,
-              ts_rank_cd(to_tsvector('portuguese', left(d."texto", 200000)), ${tsquery}) AS rank
-         FROM "DispositivoLegal" d JOIN "NormaLegal" n ON n."id" = d."norma_id"
-        WHERE to_tsvector('portuguese', left(d."texto", 200000)) @@ ${tsquery} ${filtro}
-        ORDER BY d."revogado" ASC, rank DESC, d."ordem" LIMIT 40`;
+              ${comTrecho ? `ts_headline('portuguese', d."texto", ${tsquery}, 'MaxFragments=2,MaxWords=28,MinWords=10,StartSel=[[,StopSel=]]')` : `''`} AS trecho, d."rank"
+         FROM (SELECT d."norma_id", d."rotulo", d."caminho", d."secao", d."revogado", d."parcialmente_revogado", d."ordem",${comTrecho ? ' d."texto",' : ''}
+                      ts_rank_cd(d."busca", ${tsquery}) AS rank
+                 FROM "DispositivoLegal" d
+                WHERE d."busca" @@ ${tsquery} ${filtro}
+                ORDER BY d."revogado" ASC, rank DESC, d."ordem" LIMIT 40) d
+         JOIN "NormaLegal" n ON n."id" = d."norma_id"
+        ORDER BY d."revogado" ASC, d."rank" DESC, d."ordem"`;
     type Linha = { chave: string; numero: string; norma_situacao: string; rotulo: string; caminho: string; secao: string | null; revogado: boolean; parcialmente_revogado: boolean; trecho: string; rank: number };
 
     // 1) todas as palavras (mais preciso); 2) se vier pouco, qualquer palavra — frases naturais
@@ -771,16 +780,25 @@ export class BaseLegalService {
     return { ufs, ncms, ufsDaBase, texto: textoDoContexto(ufs, ncms, ufsDaBase) };
   }
 
-  /** Dispositivos cujo texto cita um dos códigos (NCM nos anexos): busca literal, que a busca por palavras não acha ("1201.90.00"). */
+  /**
+   * Dispositivos cujo texto cita um dos códigos (NCM nos anexos): busca literal, que a busca por palavras não acha ("1201.90.00").
+   * Um LIKE por código, ligados por OR, usando o índice de trigramas do texto (sem ele, a consulta lia os 33 MB de texto: 1,5 s).
+   * Código só tem dígitos e pontos: vai escrito na consulta (conferido pela expressão abaixo), porque com o padrão como parâmetro o
+   * Postgres pode montar um plano genérico que ignora o índice; e LIKE basta (dígito não tem maiúscula). Código contido em outro sai
+   * ("1201.90.00" já é achado por "1201.9"): o resultado é o mesmo, com menos varreduras.
+   */
   private async buscarCodigos(padroes: string[], chaves?: string[]): Promise<{ chave: string; caminho: string }[]> {
-    if (!padroes.length || (chaves && !chaves.length)) return [];
-    const like = padroes.map((p) => `%${p.replace(/[%_\\]/g, '\\$&')}%`);
+    if (chaves && !chaves.length) return [];
+    const validos = [...new Set(padroes)].filter((p) => /^[0-9][0-9.]{3,}[0-9]$/.test(p));
+    const codigos = validos.filter((p) => !validos.some((outro) => outro !== p && p.includes(outro))).slice(0, 12);
+    if (!codigos.length) return [];
+    const algum = codigos.map((p) => `d."texto" LIKE '%${p}%'`).join(' OR ');
     try {
       return await this.prisma.$queryRawUnsafe<{ chave: string; caminho: string }[]>(
         `SELECT n."chave", d."caminho" FROM "DispositivoLegal" d JOIN "NormaLegal" n ON n."id" = d."norma_id"
-          WHERE d."revogado" = false AND d."texto" ILIKE ANY($1) ${chaves ? 'AND n."chave" = ANY($2)' : ''}
+          WHERE d."revogado" = false AND (${algum}) ${chaves ? 'AND n."chave" = ANY($1)' : ''}
           ORDER BY n."prioridade" ASC, d."ordem" ASC LIMIT 12`,
-        ...(chaves ? [like, chaves] : [like]),
+        ...(chaves ? [chaves] : []),
       );
     } catch (e) {
       this.log.warn(`Busca por código falhou: ${(e as Error).message}`);
@@ -795,13 +813,15 @@ export class BaseLegalService {
     const consultas = consultasDaPergunta(pergunta, [...termos, ...produtos]);
     const chavesUf = FONTES_NORMAS.filter((f) => f.uf && ctx.ufs.includes(f.uf) && f.formato !== 'externo').map((f) => f.chave);
     const variantes = ctx.ncms.flatMap((n) => variantesNcm(n)).filter((v) => v.length >= 5);
+    // O assistente só usa a posição de cada achado: as buscas dispensam o trecho destacado.
+    const semTrecho = { trecho: false };
     const [porPergunta, porEstado, porCodigoNoEstado, porCodigo, ...porConceito] = await Promise.all([
-      this.buscar(pergunta),
+      this.buscar(pergunta, undefined, semTrecho),
       // Pergunta sobre um estado: o regulamento dele entra com prioridade (benefício, redução, diferimento, ST, isenção do produto).
-      Promise.all([...new Set([...produtos, ...termos.slice(0, 3)])].slice(0, 5).map((c) => this.buscar(c, chavesUf))),
+      Promise.all([...new Set([...produtos, ...termos.slice(0, 3)])].slice(0, 5).map((c) => this.buscar(c, chavesUf, semTrecho))),
       this.buscarCodigos(variantes, chavesUf.length ? chavesUf : undefined),
       chavesUf.length ? this.buscarCodigos(variantes) : Promise.resolve([] as { chave: string; caminho: string }[]),
-      ...consultas.map((consulta) => this.buscar(consulta)),
+      ...consultas.map((consulta) => this.buscar(consulta, undefined, semTrecho)),
     ]);
     const ordem: { chave: string; caminho: string }[] = [];
     const add = (chave: string, caminho: string) => {
