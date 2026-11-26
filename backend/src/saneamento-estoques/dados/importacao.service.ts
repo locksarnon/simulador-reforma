@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CAMPO_AFETA, TX_LONGA, aplicarCampo, camadasAtivas, conflito, derivadosDoTrabalho, fatiar, igual, quem, type Json, type Usuario } from './constantes';
 import { SAN_IMPORTADOR, type ImportadorPort, type ItemImportado, type SaidaImportacao } from './portas';
@@ -58,9 +59,72 @@ const comoGuardado = (i: ItemImportado): Json => { const { linha: _l, ...resto }
 const achatar = (t: Json): Json => { const { campos, ...topo } = t; return { ...topo, ...((campos as Json) ?? {}) }; };
 const chave = (estabelecimento: string | null | undefined, codigo: string) => `${estabelecimento ?? ''}\u0000${codigo}`;
 
+/** Itens por bloco na gravação da reimportação (um UPDATE por bloco no Postgres, não um por item). */
+export const BLOCO_REIMPORTACAO = 1000;
+/** Quantos campos protegidos mantidos o relatório lista (o total vai em `totalIgnorados`): a lista inteira podia ter dezenas de milhares. */
+export const MAX_IGNORADOS_LISTADOS = 200;
+/** Tabelas que a importação acaba de encher: sem estatísticas, o Postgres escolhe planos ruins nos UPDATE em massa seguintes. Nomes fixos. */
+export const TABELAS_ANALISADAS = ['SanItem', 'SanCelula', 'SanDecisao'] as const;
+
+type TxImportacao = Prisma.TransactionClient;
+type ItemAtualizado = { id: string; versao: number; trabalho: Json; lido: Json; descricao: string; grupo: string | null; finalidade: string | null; tambem_usado_como: unknown; conjunto_chave: string | null; ativo: boolean | null };
+const temSqlBruto = (tx: unknown) => typeof (tx as { $executeRaw?: unknown }).$executeRaw === 'function';
+
+/**
+ * Grava a base de trabalho dos itens incorporados conferindo a versão de cada um: no Postgres, um UPDATE ... FROM jsonb_to_recordset
+ * por bloco (antes era um UPDATE por item: 27 mil idas ao banco numa transação). Devolve quantos casaram com a versão lida;
+ * menos que o bloco = alguém alterou um item no meio (quem chama lança o conflito e a transação desfaz tudo).
+ */
+export async function gravarItensEmBloco(tx: TxImportacao, linhas: ItemAtualizado[]): Promise<number> {
+  if (!linhas.length) return 0;
+  if (temSqlBruto(tx)) {
+    return tx.$executeRaw(Prisma.sql`UPDATE "SanItem" AS i SET "trabalho" = v.trabalho, "lido" = v.lido, "descricao" = v.descricao, "grupo" = v.grupo,
+        "finalidade" = v.finalidade, "tambem_usado_como" = v.tambem_usado_como, "conjunto_chave" = v.conjunto_chave, "ativo" = v.ativo,
+        "versao" = i."versao" + 1, "updatedAt" = now()
+      FROM jsonb_to_recordset(${JSON.stringify(linhas)}::jsonb) AS v(id text, versao int, trabalho jsonb, lido jsonb, descricao text, grupo text,
+        finalidade text, tambem_usado_como jsonb, conjunto_chave text, ativo boolean)
+      WHERE i."id" = v.id AND i."versao" = v.versao`);
+  }
+  // Sem SQL bruto (Prisma em memória dos testes): um por item, mesma conferência de versão.
+  let n = 0;
+  for (const l of linhas) {
+    const { id, versao, ...data } = l;
+    n += (await tx.sanItem.updateMany({ where: { id, versao }, data: { ...data, trabalho: data.trabalho as never, lido: data.lido as never, tambem_usado_como: data.tambem_usado_como as never, versao: { increment: 1 } } })).count;
+  }
+  return n;
+}
+
+/** Só a última leitura avança (todas as diferenças estavam protegidas por decisão): um UPDATE por bloco. */
+export async function gravarLidoEmBloco(tx: TxImportacao, linhas: { id: string; lido: Json }[]): Promise<void> {
+  if (!linhas.length) return;
+  if (temSqlBruto(tx)) {
+    await tx.$executeRaw(Prisma.sql`UPDATE "SanItem" AS i SET "lido" = v.lido, "updatedAt" = now()
+      FROM jsonb_to_recordset(${JSON.stringify(linhas)}::jsonb) AS v(id text, lido jsonb) WHERE i."id" = v.id`);
+    return;
+  }
+  for (const l of linhas) await tx.sanItem.updateMany({ where: { id: l.id }, data: { lido: l.lido as never } });
+}
+
+/**
+ * Cópia do grupo nas células dos itens incorporados: um UPDATE por bloco que só toca a célula cujo grupo mudou (antes era um UPDATE
+ * por grupo do bloco, regravando as 9 células de cada item mesmo sem mudança).
+ */
+export async function gravarGrupoDasCelulas(tx: TxImportacao, porGrupo: Map<string, string[]>): Promise<void> {
+  if (!porGrupo.size) return;
+  if (temSqlBruto(tx)) {
+    const linhas = [...porGrupo].flatMap(([grupo, ids]) => ids.map((item_id) => ({ item_id, grupo })));
+    await tx.$executeRaw(Prisma.sql`UPDATE "SanCelula" AS c SET "grupo" = v.grupo, "updatedAt" = now()
+      FROM jsonb_to_recordset(${JSON.stringify(linhas)}::jsonb) AS v(item_id text, grupo text)
+      WHERE c."item_id" = v.item_id AND c."grupo" IS DISTINCT FROM v.grupo`);
+    return;
+  }
+  for (const [grupo, itensIds] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds } }, data: { grupo } });
+}
+
 /** Importação: prévia (nada gravado), confirmação e reimportação com diferenças. Decisão do consultor nunca é sobrescrita. */
 @Injectable()
 export class SanImportacaoService {
+  private readonly log = new Logger(SanImportacaoService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly projetos: SanProjetoService,
@@ -161,7 +225,7 @@ export class SanImportacaoService {
     const difPorItem = new Map(c.diferencas.map((d) => [d.itemId, d]));
     const escolhido = quaisIncorporar(escolha, difPorItem);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const r = await this.prisma.$transaction(async (tx) => {
         const imp = await tx.sanImportacao.create({
           data: { projeto_id: projetoId, arquivo: arquivo.nome.slice(0, 255), usuario: quemFez, mapeamento: usado, aceitas: relatorio.aceitas, rejeitadas: relatorio.rejeitadas, pendentes: relatorio.pendentes, relatorio: {} },
         });
@@ -181,9 +245,10 @@ export class SanImportacaoService {
         // Existentes: a última leitura é atualizada; a base de trabalho só muda no que o consultor escolheu e não tem decisão.
         let incorporados = 0;
         const ignorados: { itemId: string; campo: string; motivo: string }[] = [];
-        // Em blocos: proteção (decisões) e itens lidos de uma vez; decisões e células gravadas por bloco.
+        let totalIgnorados = 0;
+        // Em blocos: proteção (decisões) e itens lidos de uma vez; itens, decisões e células gravados por bloco.
         // Item não escolhido fica de fora: a última leitura NÃO avança, para a diferença continuar aparecendo na próxima reimportação.
-        for (const lote of fatiar(c.alterados.filter((a) => escolhido(a.existente.id)), 500)) {
+        for (const lote of fatiar(c.alterados.filter((a) => escolhido(a.existente.id)), BLOCO_REIMPORTACAO)) {
           const ids = lote.map((a) => a.existente.id);
           const decididos = await tx.sanDecisao.findMany({ where: { item_id: { in: ids }, tipo: { in: ['aprovar', 'importar', 'restaurar'] } }, select: { item_id: true, campo: true } });
           const protegidosAgora = new Set(decididos.map((d) => `${d.item_id}\u0000${d.campo}`));
@@ -191,16 +256,22 @@ export class SanImportacaoService {
           const decs: Json[] = [];
           const revisarPor = new Map<string, string[]>();
           const porGrupo = new Map<string, string[]>();
+          const gravar: ItemAtualizado[] = [];
+          const soLido: { id: string; lido: Json }[] = [];
+          const juntar = (m: Map<string, string[]>, k: string, id: string) => { const l = m.get(k); if (l) l.push(id); else m.set(k, [id]); };
           for (const a of lote) {
             const id = a.existente.id;
             const t = comoGuardado(a.item);
             const protegido = (campo: string) => protegidosAgora.has(`${id}\u0000${campo}`);
             const todas = difPorItem.get(id)!.campos;
-            for (const x of todas.filter((y) => protegido(y.campo))) ignorados.push({ itemId: id, campo: x.campo, motivo: 'Campo já decidido: a decisão foi mantida.' });
+            for (const x of todas.filter((y) => protegido(y.campo))) {
+              totalIgnorados++;
+              if (ignorados.length < MAX_IGNORADOS_LISTADOS) ignorados.push({ itemId: id, campo: x.campo, motivo: 'Campo já decidido: a decisão foi mantida.' });
+            }
             const aplicar = todas.filter((y) => !protegido(y.campo));
             if (!aplicar.length) {
               // Todas as diferenças escolhidas estavam protegidas por decisão: a leitura avança (a decisão manda).
-              await tx.sanItem.updateMany({ where: { id }, data: { lido: t as never } });
+              soLido.push({ id, lido: t });
               continue;
             }
             const atual = atuais.get(id)!;
@@ -210,31 +281,50 @@ export class SanImportacaoService {
               decs.push({ projeto_id: projetoId, item_id: id, caso_id: null, campo: x.campo, antes: antes as never, depois: (x.depois ?? null) as never, fundamento: `Reimportação de ${arquivo.nome}`, usuario: quemFez, tipo: 'importar' });
             }
             const d = derivadosDoTrabalho(trabalho);
-            const r = await tx.sanItem.updateMany({ where: { id, versao: atual.versao }, data: { trabalho: trabalho as never, lido: t as never, ...d, versao: { increment: 1 } } });
-            if (r.count === 0) throw conflito('O item foi alterado por outra pessoa durante a importação. Tente de novo.');
+            gravar.push({ id, versao: atual.versao, trabalho, lido: t, ...d });
             const afetadas = [...new Set(aplicar.flatMap((x) => CAMPO_AFETA[x.campo] ?? ['QUALIDADE']))].sort().join(',');
-            revisarPor.set(afetadas, [...(revisarPor.get(afetadas) ?? []), id]);
-            const g = d.grupo ?? '';
-            porGrupo.set(g, [...(porGrupo.get(g) ?? []), id]);
+            juntar(revisarPor, afetadas, id);
+            juntar(porGrupo, d.grupo ?? '', id);
             incorporados++;
           }
+          await gravarLidoEmBloco(tx, soLido);
+          // Conferência de versão por item: se algum não casou, alguém o alterou no meio e a transação desfaz tudo.
+          if ((await gravarItensEmBloco(tx, gravar)) !== gravar.length) throw conflito('O item foi alterado por outra pessoa durante a importação. Tente de novo.');
           if (decs.length) await tx.sanDecisao.createMany({ data: decs as never });
           for (const [afetadas, itensIds] of revisarPor) {
             await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds }, camada: { in: afetadas.split(',') }, situacao: { not: 'PENDENTE' } }, data: { revisar: true, revisar_causa: 'Reimportação alterou campos que esta camada usa.' } });
           }
-          for (const [grupo, itensIds] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: itensIds } }, data: { grupo } });
+          await gravarGrupoDasCelulas(tx, porGrupo);
         }
-        const fim = { ...relatorio, novos: criados, inalterados: c.inalterados, alterados: c.diferencas.length, incorporados, ausentesDoArquivo: c.ausentes.length, ignorados };
+        const fim = { ...relatorio, novos: criados, inalterados: c.inalterados, alterados: c.diferencas.length, incorporados, ausentesDoArquivo: c.ausentes.length, ignorados, totalIgnorados };
         await tx.sanImportacao.update({ where: { id: imp.id }, data: { relatorio: fim as never } });
         return { importacaoId: imp.id, ...fim };
       }, TX_LONGA);
+      if (r.novos > 0 || r.incorporados > 0) await this.atualizarEstatisticas();
+      return r;
     } catch (e) {
       if ((e as { code?: string }).code === 'P2002') throw conflito('Outra importação gravou os mesmos itens ao mesmo tempo. Refaça a importação.');
       throw e;
     }
   }
 
+  /**
+   * ANALYZE nas tabelas que a importação encheu, fora da transação: sem estatísticas, a primeira execução de camada depois da importação
+   * (UPDATE em massa nas células) levava 49 s em vez de 2,7 s. Falha aqui não desfaz a importação (só fica no log).
+   */
+  async atualizarEstatisticas(): Promise<void> {
+    const prisma = this.prisma as unknown as { $executeRawUnsafe?: (sql: string) => Promise<unknown> };
+    if (typeof prisma.$executeRawUnsafe !== 'function') return;
+    for (const tabela of TABELAS_ANALISADAS) {
+      try { await prisma.$executeRawUnsafe(`ANALYZE "${tabela}"`); } catch (e) { this.log.warn(`ANALYZE "${tabela}" falhou: ${(e as Error).message}`); }
+    }
+  }
+
+  /** Histórico: só o que a tela mostra (o relatório de cada importação pode ter dezenas de milhares de linhas). */
   listar(projetoId: string) {
-    return this.prisma.sanImportacao.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.sanImportacao.findMany({
+      where: { projeto_id: projetoId }, orderBy: { createdAt: 'desc' },
+      select: { id: true, projeto_id: true, arquivo: true, usuario: true, aceitas: true, rejeitadas: true, pendentes: true, createdAt: true },
+    });
   }
 }

@@ -67,6 +67,10 @@ export const SECAO_SANEAMENTO = {
       r: "A prévia mostra o que mudou desde a última importação: itens Novos, Alterados, Inalterados e Ausentes do arquivo. Os novos entram sozinhos, os ausentes nunca são removidos e, nos alterados, você escolhe o que trazer. Campos que já têm decisão aparecem como “Protegido (decisão)” e não são sobrescritos. Decisões e rascunhos são preservados.",
     },
     {
+      p: "Por que o caso aberto pela Visão geral avisa que tem itens de outros grupos?",
+      r: "Casos de conjunto (por exemplo, a mesma conversão de unidade TON → KG, o mesmo NCM ou o mesmo tratamento tributário) juntam todos os itens do cadastro com a mesma situação, de qualquer grupo. Quando você abre o caso a partir de uma célula da Visão geral (um grupo numa camada), o detalhe mostra o aviso “Itens de outros grupos” com quantos são e de quais grupos, porque aprovar altera todos os itens do conjunto, não só os do grupo do recorte. Se algum item deve ficar diferente, registre uma exceção para ele antes de aprovar.",
+    },
+    {
       p: "Por que os módulos opcionais aparecem desligados?",
       r: "Conciliação de estoque, Blocos K e G do SPED e Arquivo para o ERP ainda não estão disponíveis nesta versão do serviço, por isso trazem o selo “a desenvolver” e não podem ser ligados. O botão “i” de cada um explica o que é, que dados exige e o que muda quando existir.",
     },

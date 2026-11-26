@@ -29,6 +29,8 @@ export const san = {
   casos: (id, params) => api.get(`${B}/projetos/${id}/casos`, params),
   registrarCasos: (id, resultado) => api.post(`${B}/projetos/${id}/casos`, resultado),
   caso: (casoId) => api.get(`${B}/casos/${casoId}`),
+  /** Quantos itens do caso há em cada grupo (caso de conjunto pode juntar vários grupos). */
+  gruposDoCaso: (casoId) => api.get(`${B}/casos/${casoId}/grupos`),
   salvarRascunho: (casoId, corpo) => api.put(`${B}/casos/${casoId}/rascunho`, corpo),
   aprovar: (casoId, corpo) => api.post(`${B}/casos/${casoId}/aprovar`, corpo),
   rejeitar: (casoId, corpo) => api.post(`${B}/casos/${casoId}/rejeitar`, corpo),
@@ -60,6 +62,7 @@ export const chaves = {
   camadas: () => ["san", "camadas-disponiveis"],
   casos: (projetoId, filtro) => ["san", projetoId, "casos", filtro],
   caso: (casoId) => ["san", "caso", casoId],
+  gruposDoCaso: (projetoId, casoId) => ["san", projetoId, "caso-grupos", casoId],
   impactos: (projetoId, tipo = "") => ["san", projetoId, "impactos", tipo],
   versoes: (projetoId) => ["san", projetoId, "versoes"],
   continuar: (projetoId, versaoId) => ["san", projetoId, "continuar", versaoId],

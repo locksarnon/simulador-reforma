@@ -159,12 +159,20 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
     if (d.usuario) quem.add(d.usuario);
     if (d.tipo === 'aprovar' && !d.campo.startsWith('caso:')) porCampo.set(d.campo, (porCampo.get(d.campo) ?? 0) + 1);
   }
-  const datas = m.decisoes.map((d) => d.quando).filter((d): d is Date => !!d);
+  // menor e maior data num laço: Math.min(...lista) estoura a pilha com centenas de milhares de decisões
+  let menorData = Infinity; let maiorData = -Infinity;
+  for (const d of m.decisoes) {
+    if (!d.quando) continue;
+    const t = Number(d.quando);
+    if (t < menorData) menorData = t;
+    if (t > maiorData) maiorData = t;
+  }
+  const temDatas = Number.isFinite(menorData);
   const detalheTipos = [...porTipo].map(([t, q]) => `${n(q)} ${TIPOS_DECISAO[t] ?? t}`).join(', ');
   secoes.push({
     titulo: 'Revisões executadas',
     paragrafos: m.decisoes.length
-      ? [`${plural(m.decisoes.length, 'registro', 'registros')} no histórico de alterações (${detalheTipos}), feitos por ${plural(quem.size, 'pessoa', 'pessoas')}${datas.length ? `, entre ${dataBr(new Date(Math.min(...datas.map(Number))), false)} e ${dataBr(new Date(Math.max(...datas.map(Number))), false)}` : ''}. Cada alteração guarda o valor anterior, o novo valor, o fundamento, o responsável e a data.`]
+      ? [`${plural(m.decisoes.length, 'registro', 'registros')} no histórico de alterações (${detalheTipos}), feitos por ${plural(quem.size, 'pessoa', 'pessoas')}${temDatas ? `, entre ${dataBr(new Date(menorData), false)} e ${dataBr(new Date(maiorData), false)}` : ''}. Cada alteração guarda o valor anterior, o novo valor, o fundamento, o responsável e a data.`]
       : ['Nenhuma alteração foi aplicada ao cadastro até esta versão.'],
     tabela: porCampo.size ? {
       cabecalho: ['Campo alterado', 'Alterações aprovadas'], larguras: [0.6, 0.4],

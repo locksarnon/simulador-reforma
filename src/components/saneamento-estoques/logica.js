@@ -30,6 +30,7 @@ export const ROTULO_CAMPO = {
   codigo: "Código", estabelecimento: "Estabelecimento", descricao: "Descrição", unidade: "Unidade", ncm: "NCM", grupo: "Grupo", ativo: "Ativo",
   saldo: "Saldo", ultimaMovimentacao: "Última movimentação", fabricante: "Fabricante", referencia: "Referência", finalidade: "Finalidade",
   tambemUsadoComo: "Também usado como", fatorConversao: "Fator de conversão", unidadeCompra: "Unidade de compra", cClassTrib: "cClassTrib", cst: "CST", enquadramentoLegal: "Enquadramento legal", artigo: "Artigo", origem: "Origem",
+  fatorSituacao: "Situação do fator", exigeFator: "Exige fator (informativo)",
 };
 export const rotuloDoCampo = (c) => ROTULO_CAMPO[c] || c;
 
@@ -624,7 +625,7 @@ export function gruposDeColunas(colunas) {
 // ── Edição da proposta de um caso ────────────────────────────────────────────
 
 /** Campos da proposta que são texto da lei ou rótulo calculado: aparecem, mas o consultor não os edita. */
-const SOMENTE_LEITURA = ["origem", "enquadramentoLegal", "artigo", "tipoImpacto", "valorProposto"];
+const SOMENTE_LEITURA = ["origem", "enquadramentoLegal", "artigo", "tipoImpacto", "valorProposto", "fatorSituacao", "exigeFator"];
 export const propostaEditavel = (campo) => !SOMENTE_LEITURA.includes(campo);
 
 /** Texto digitado → valor: mantém número onde o valor anterior era número; vazio vira null. */
@@ -720,4 +721,21 @@ export function abaPorTecla(atual, tecla) {
   if (tecla === "Home") return ABAS[0].id;
   if (tecla === "End") return ABAS[ABAS.length - 1].id;
   return null;
+}
+
+/**
+ * Aviso do recorte grupo × camada: caso de conjunto (unidade, NCM, tributário) pode juntar itens de vários grupos, e aprovar altera todos.
+ * `dados` = resposta de GET casos/:id/grupos. Devolve null quando todos os itens são do grupo do recorte.
+ */
+export function avisoDeOutrosGrupos(dados, grupoDoRecorte) {
+  if (!dados || !grupoDoRecorte) return null;
+  const outros = (dados.grupos || []).filter((g) => g.grupo !== grupoDoRecorte);
+  const n = outros.reduce((s, g) => s + Number(g.itens || 0), 0);
+  if (n === 0) return null;
+  const fmt = (q) => Number(q).toLocaleString("pt-BR");
+  const lista = outros.slice(0, 5).map((g) => `${g.grupo} (${fmt(g.itens)})`).join(", ") + (outros.length > 5 ? ` e mais ${outros.length - 5} grupo(s)` : "");
+  return {
+    outros: n,
+    texto: `Este conjunto inclui ${fmt(n)} ${n === 1 ? "item" : "itens"} de outros grupos, além do grupo ${grupoDoRecorte}: ${lista}. Aprovar altera todos os ${fmt(dados.total)} itens do conjunto, não só os do recorte.`,
+  };
 }

@@ -1,8 +1,66 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { once } from 'node:events';
+import { createGzip, gunzipSync } from 'node:zlib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CASO_ABERTO, TX_LONGA, conflito, igual, quem, type Json, type Usuario } from './constantes';
 import type { DadosEntrega } from './portas';
+
+/** Ordem das chaves da foto (a mesma do JSON.stringify antigo e da escrita em partes): o leitor parcial depende dela só para achar as seções. */
+const SECOES_FOTO = ['itens', 'celulas', 'casos', 'decisoes', 'impactosSped', 'vinculos', 'importacoes'] as const;
+type SecaoFoto = (typeof SECOES_FOTO)[number];
+
+/**
+ * Gzip da foto escrito em partes (mil elementos por vez): o resultado é o mesmo JSON de `JSON.stringify(foto)`, mas sem montar a string
+ * inteira (com 30 mil itens e 190 mil decisões, centenas de MB em UTF-16) nem a cópia dela em Buffer.
+ */
+export async function gzipDaFoto(foto: { formato: number; projeto: unknown } & Record<SecaoFoto, unknown[]>): Promise<Buffer> {
+  const gz = createGzip();
+  const partes: Buffer[] = [];
+  gz.on('data', (b: Buffer) => partes.push(b));
+  const fim = once(gz, 'end');
+  const escrever = async (s: string) => { if (!gz.write(s)) await once(gz, 'drain'); };
+  await escrever(`{"formato":${JSON.stringify(foto.formato)},"projeto":${JSON.stringify(foto.projeto ?? null)}`);
+  for (const secao of SECOES_FOTO) {
+    const lista = foto[secao] ?? [];
+    await escrever(`,"${secao}":[`);
+    for (let i = 0; i < lista.length; i += 1000) await escrever((i ? ',' : '') + lista.slice(i, i + 1000).map((x) => JSON.stringify(x ?? null)).join(','));
+    await escrever(']');
+  }
+  await escrever('}');
+  gz.end();
+  await fim;
+  return Buffer.concat(partes);
+}
+
+/**
+ * Onde começa e termina o valor de cada chave do primeiro nível do JSON (varredura única, respeitando texto entre aspas). Permite ler só
+ * as seções que interessam (a comparação não precisa de decisões, impactos, vínculos e importações) sem montar a foto inteira em objetos.
+ */
+export function secoesDoJson(texto: string): Map<string, [number, number]> {
+  const secoes = new Map<string, [number, number]>();
+  let nivel = 0; let emTexto = false; let escape = false;
+  let chave: string | null = null; let inicioTexto = -1; let ultimoTexto = ''; let inicioValor = -1;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charCodeAt(i);
+    if (emTexto) {
+      if (escape) escape = false;
+      else if (c === 92) escape = true; // \
+      else if (c === 34) { emTexto = false; if (nivel === 1) ultimoTexto = texto.slice(inicioTexto + 1, i); } // "
+      continue;
+    }
+    if (c === 34) { emTexto = true; inicioTexto = i; continue; }
+    if (c === 123 || c === 91) { nivel++; continue; } // { [
+    if (c === 125 || c === 93) { // } ]
+      nivel--;
+      if (nivel === 0 && chave !== null) { secoes.set(chave, [inicioValor, i]); chave = null; }
+      continue;
+    }
+    if (nivel !== 1) continue;
+    if (c === 58) { chave = ultimoTexto; inicioValor = i + 1; continue; } // :
+    if (c === 44 && chave !== null) { secoes.set(chave, [inicioValor, i]); chave = null; } // ,
+  }
+  return secoes;
+}
 
 /**
  * Foto CONGELADA da versão liberada (formato 2): itens, células, casos, decisões, impactos, vínculos, importações e o projeto, tudo como
@@ -26,6 +84,28 @@ const LOTE_ITENS = 5000;
 /** Ordem estável das exportações: código e, em empate, id (a leitura em lotes é por id). */
 const porCodigo = (a: Json, b: Json) => (String(a.codigo) < String(b.codigo) ? -1 : String(a.codigo) > String(b.codigo) ? 1 : String(a.id) < String(b.id) ? -1 : 1);
 const LOTE_CELULAS = 20_000;
+const LOTE_DECISOES = 20_000;
+const LOTE_CASOS = 2_000;
+
+type Leitor = { sanDecisao: { findMany: (a: never) => Promise<unknown[]> }; sanCaso: { findMany: (a: never) => Promise<unknown[]> } };
+/**
+ * Lê decisões e casos em páginas (cursor por id, ordem estável): uma consulta só de 190 mil decisões ou de milhares de casos com a lista
+ * de itens faz o Prisma montar a resposta inteira de uma vez, e esse pico somava centenas de MB.
+ */
+async function emPaginas(ler: (a: { take: number; cursor?: { id: string }; skip?: number }) => Promise<unknown[]>, tamanho: number): Promise<Json[]> {
+  const todas: Json[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const lote = (await ler({ take: tamanho, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) })) as Json[];
+    for (const l of lote) todas.push(l);
+    if (lote.length < tamanho) break;
+    cursor = String(lote[lote.length - 1].id);
+  }
+  return todas;
+}
+// O id da decisão (cursor) fica no objeto: apagá-lo (delete) deixava 190 mil objetos no modo lento e maior do V8.
+const lerDecisoes = (db: Leitor, projetoId: string) => emPaginas((p) => db.sanDecisao.findMany({ where: { projeto_id: projetoId }, orderBy: [{ quando: 'asc' }, { id: 'asc' }], select: SEL_DECISAO, ...p } as never), LOTE_DECISOES);
+const lerCasos = (db: Leitor, projetoId: string) => emPaginas((p) => db.sanCaso.findMany({ where: { projeto_id: projetoId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: SEL_CASO, ...p } as never), LOTE_CASOS);
 
 const SEL_ITEM = { id: true, codigo: true, estabelecimento: true, descricao: true, trabalho: true, grupo: true, finalidade: true, tambem_usado_como: true, conjunto_chave: true, ativo: true } as const;
 const SEL_CELULA = { id: true, item_id: true, camada: true, situacao: true, revisar: true, caso_id: true } as const;
@@ -33,7 +113,7 @@ const SEL_CASO = {
   id: true, camada: true, tipo: true, itens: true, problema: true, evidencia: true, atual: true, proposta: true, justificativa: true, fundamento: true, situacao: true, motivo: true,
   responsavel: true, decidido_por: true, decidido_em: true, origem: true, parecer_ia: true, createdAt: true,
 } as const;
-const SEL_DECISAO = { item_id: true, caso_id: true, campo: true, antes: true, depois: true, fundamento: true, usuario: true, tipo: true, quando: true } as const;
+const SEL_DECISAO = { id: true, item_id: true, caso_id: true, campo: true, antes: true, depois: true, fundamento: true, usuario: true, tipo: true, quando: true } as const;
 const SEL_IMPORTACAO = { id: true, arquivo: true, usuario: true, aceitas: true, rejeitadas: true, pendentes: true, createdAt: true } as const;
 const SEL_PROJETO = {
   id: true, diagnostico_id: true, empresa_id: true, data_base: true, erp: true, erp_versao: true, estabelecimentos: true, responsavel: true, modulos: true, parametros: true,
@@ -44,10 +124,10 @@ const SEL_PROJETO = {
  * Versão liberada = foto da base em JSON comprimido (gzip), numa tabela à parte dentro do próprio banco: a foto fica na mesma
  * transação e no mesmo backup da base, sem depender do MinIO.
  *
- * Memória (estimativa para 30 mil itens × 9 camadas, ~270 mil células): leitura em lotes de 5 mil itens e 20 mil células com `select` só dos
- * campos usados (nada de `original` nem `lido`); itens ≈ 25 MB e células em tuplas ≈ 20 MB de objetos JS, JSON ≈ 45 MB, gzip ≈ 6 MB:
- * pico em torno de 150 a 200 MB, bem abaixo de 300 MB. A comparação carrega uma versão por vez (reduz a um mapa) e depois a outra.
- * Estimativa por contas de tamanho, NÃO medida com 30 mil itens reais.
+ * Memória (30 mil itens × 9 camadas, 190 mil decisões): leitura em lotes (5 mil itens, 20 mil células, 20 mil decisões, 2 mil casos) com
+ * `select` só dos campos usados (nada de `original` nem `lido`); a foto vai para o gzip em partes; a comparação lê só as seções itens,
+ * células e casos de uma foto por vez. O QA com Postgres real mediu picos de 2,4 a 2,9 GiB antes destas mudanças; o teste de memória
+ * (entregaveis/memoria.test.ts, Prisma em memória) mede o teto de heap de cada caminho, sem o custo do Prisma real.
  */
 @Injectable()
 export class SanVersoesService {
@@ -83,12 +163,12 @@ export class SanVersoesService {
           if (lote.length < LOTE_CELULAS) break;
           cursor = lote[lote.length - 1].id;
         }
-        const casos = await tx.sanCaso.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' }, select: SEL_CASO });
+        const casos = await lerCasos(tx as never, projetoId);
         const porSituacaoCaso: Record<string, number> = {};
-        for (const c of casos) porSituacaoCaso[c.situacao] = (porSituacaoCaso[c.situacao] ?? 0) + 1;
+        for (const c of casos) porSituacaoCaso[String(c.situacao)] = (porSituacaoCaso[String(c.situacao)] ?? 0) + 1;
         const foto: Foto = {
-          formato: 2, projeto: projeto as never, itens, celulas, casos: casos as never,
-          decisoes: (await tx.sanDecisao.findMany({ where: { projeto_id: projetoId }, orderBy: { quando: 'asc' }, select: SEL_DECISAO })) as never,
+          formato: 2, projeto: projeto as never, itens, celulas, casos,
+          decisoes: await lerDecisoes(tx as never, projetoId),
           impactosSped: (await tx.sanImpactoSped.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } })) as never,
           vinculos: (await tx.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } })) as never,
           importacoes: (await tx.sanImportacao.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' }, select: SEL_IMPORTACAO })) as never,
@@ -100,7 +180,7 @@ export class SanVersoesService {
         };
         const ultimo = await tx.sanVersao.findFirst({ where: { projeto_id: projetoId }, orderBy: { numero: 'desc' }, select: { numero: true } });
         const v = await tx.sanVersao.create({ data: { projeto_id: projetoId, numero: (ultimo?.numero ?? 0) + 1, rotulo, usuario: quem(usuario), resumo: resumo as never } });
-        await tx.sanVersaoSnapshot.create({ data: { versao_id: v.id, dados: gzipSync(Buffer.from(JSON.stringify(foto), 'utf8')), itens: itens.length } });
+        await tx.sanVersaoSnapshot.create({ data: { versao_id: v.id, dados: (await gzipDaFoto(foto)) as Uint8Array<ArrayBuffer>, itens: itens.length } });
         // Aviso, não bloqueio: itens com célula "revisar" não saem como aprovados na entrega liberada.
         const aviso = totalRevisar
           ? { celulasRevisar: totalRevisar, porCamada: revisarPorCamada, mensagem: `${totalRevisar} célula(s) ainda marcadas para revisão (${Object.entries(revisarPorCamada).map(([c, n]) => `${c}: ${n}`).join(', ')}). Elas saem como "Aguardando revisão" na entrega.` }
@@ -117,10 +197,17 @@ export class SanVersoesService {
     return this.prisma.sanVersao.findMany({ where: { projeto_id: projetoId }, orderBy: { numero: 'desc' } });
   }
 
-  async foto(projetoId: string, versaoId: string): Promise<{ versao: { id: string; numero: number; rotulo: string; createdAt: Date; usuario: string }; foto: Foto }> {
+  /** Lê a versão e devolve o JSON da foto (texto). */
+  private async textoDaFoto(projetoId: string, versaoId: string) {
     const v = await this.prisma.sanVersao.findFirst({ where: { id: versaoId, projeto_id: projetoId }, include: { snapshot: true } });
     if (!v || !v.snapshot) throw new NotFoundException('Versão não encontrada.');
-    const f = JSON.parse(gunzipSync(Buffer.from(v.snapshot.dados)).toString('utf8')) as Partial<Foto>;
+    const texto = gunzipSync(Buffer.from(v.snapshot.dados)).toString('utf8');
+    return { versao: { id: v.id, numero: v.numero, rotulo: v.rotulo, createdAt: v.createdAt, usuario: v.usuario }, texto };
+  }
+
+  async foto(projetoId: string, versaoId: string): Promise<{ versao: { id: string; numero: number; rotulo: string; createdAt: Date; usuario: string }; foto: Foto }> {
+    const { versao: v, texto } = await this.textoDaFoto(projetoId, versaoId);
+    const f = JSON.parse(texto) as Partial<Foto>;
     const foto: Foto = {
       formato: 2, projeto: f.projeto ?? {}, itens: f.itens ?? [], celulas: f.celulas ?? [], casos: f.casos ?? [], decisoes: f.decisoes ?? [], impactosSped: f.impactosSped ?? [],
       vinculos: f.vinculos ?? [], importacoes: f.importacoes ?? [],
@@ -130,13 +217,16 @@ export class SanVersoesService {
 
   /** Reduz uma versão ao que a comparação usa e solta o resto (uma foto por vez na memória). */
   private async reduzida(projetoId: string, versaoId: string) {
-    const { versao, foto } = await this.foto(projetoId, versaoId);
+    const { versao, texto } = await this.textoDaFoto(projetoId, versaoId);
+    // Só as seções usadas viram objetos, uma de cada vez: decisões, impactos, vínculos e importações nem são lidas.
+    const secoes = secoesDoJson(texto);
+    const ler = <T>(nome: string): T[] => { const s = secoes.get(nome); return s ? (JSON.parse(texto.slice(s[0], s[1])) as T[]) ?? [] : []; };
     const itens = new Map<string, { codigo: string; trabalho: Json }>();
-    for (const i of foto.itens) itens.set(String(i.id), { codigo: String(i.codigo), trabalho: (i.trabalho as Json) ?? {} });
+    for (const i of ler<Json>('itens')) itens.set(String(i.id), { codigo: String(i.codigo), trabalho: (i.trabalho as Json) ?? {} });
     const celulas = new Map<string, string>();
-    for (const [item, camada, situacao] of foto.celulas) celulas.set(`${item}|${camada}`, situacao);
+    for (const [item, camada, situacao] of ler<Foto['celulas'][number]>('celulas')) celulas.set(`${item}|${camada}`, situacao);
     const casos = new Map<string, string>();
-    for (const c of foto.casos) casos.set(String(c.id), String(c.situacao));
+    for (const c of ler<Json>('casos')) casos.set(String(c.id), String(c.situacao));
     return { versao, itens, celulas, casos };
   }
 
@@ -203,15 +293,16 @@ export class SanVersoesService {
       cursor = lote[lote.length - 1].id;
     }
     const ultima = await this.prisma.sanVersao.findFirst({ where: { projeto_id: projetoId }, orderBy: { numero: 'desc' }, select: { numero: true, rotulo: true, createdAt: true } });
-    const [casos, decisoes, impactosSped, vinculos, importacoes] = await Promise.all([
-      this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' }, select: SEL_CASO }),
-      this.prisma.sanDecisao.findMany({ where: { projeto_id: projetoId }, orderBy: { quando: 'asc' }, select: SEL_DECISAO }),
+    // Casos e decisões em páginas e um depois do outro (em paralelo, os picos das duas leituras se somavam).
+    const casos = await lerCasos(this.prisma as never, projetoId);
+    const decisoes = await lerDecisoes(this.prisma as never, projetoId);
+    const [impactosSped, vinculos, importacoes] = await Promise.all([
       this.prisma.sanImpactoSped.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } }),
       this.prisma.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } }),
       this.prisma.sanImportacao.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' }, select: SEL_IMPORTACAO }),
     ]);
     return {
-      projeto: projeto as never, versao: null, ultimaLiberada: ultima ? { numero: ultima.numero, rotulo: ultima.rotulo, criadaEm: ultima.createdAt.toISOString() } : null, liberada: false, itens, celulas, casos: casos as never, decisoes: decisoes as never, impactosSped: impactosSped as never,
+      projeto: projeto as never, versao: null, ultimaLiberada: ultima ? { numero: ultima.numero, rotulo: ultima.rotulo, criadaEm: ultima.createdAt.toISOString() } : null, liberada: false, itens, celulas, casos, decisoes, impactosSped: impactosSped as never,
       vinculos: vinculos as never, importacoes: importacoes as never,
     };
   }

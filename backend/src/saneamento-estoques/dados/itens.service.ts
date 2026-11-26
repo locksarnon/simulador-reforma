@@ -79,6 +79,22 @@ export class SanItensService {
     return saida;
   }
 
+  /**
+   * Em quais grupos estão os itens de um caso (quantos por grupo, maior primeiro). Caso de conjunto (unidade, NCM, tributário) junta itens
+   * de vários grupos: a tela, no recorte de um grupo, avisa quantos itens de outros grupos a aprovação também altera.
+   */
+  async gruposDoCaso(casoId: string) {
+    const c = await this.prisma.sanCaso.findUnique({ where: { id: casoId }, select: { projeto_id: true, itens: true } });
+    if (!c) throw new NotFoundException('Caso não encontrado.');
+    const contagem = new Map<string, number>();
+    for (let i = 0; i < c.itens.length; i += 5000) {
+      const g = await this.prisma.sanItem.groupBy({ by: ['grupo'], where: { projeto_id: c.projeto_id, id: { in: c.itens.slice(i, i + 5000) } }, _count: { _all: true } });
+      for (const x of g) contagem.set(x.grupo ?? '', (contagem.get(x.grupo ?? '') ?? 0) + x._count._all);
+    }
+    const grupos = [...contagem].map(([grupo, itens]) => ({ grupo: grupo || '(sem grupo)', itens })).sort((a, b) => b.itens - a.itens || a.grupo.localeCompare(b.grupo, 'pt-BR'));
+    return { total: grupos.reduce((s, g) => s + g.itens, 0), grupos };
+  }
+
   async obter(itemId: string) {
     const i = await this.prisma.sanItem.findUnique({ where: { id: itemId }, include: { celulas: true } });
     if (!i) throw new NotFoundException('Item não encontrado.');

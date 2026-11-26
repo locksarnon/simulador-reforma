@@ -88,7 +88,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     resultado: "Os itens entram no projeto com um relatório de linhas aceitas, rejeitadas e pendentes, e a importação fica registrada com arquivo, usuário e data.",
     atencao: [
       "Linha rejeitada não entra: corrija no ERP ou na planilha e reimporte. Linha pendente entra, mas com dado faltando.",
-      "A reimportação nunca apaga decisões nem rascunhos. Campos protegidos por decisão ficam como estão.",
+      "A reimportação nunca apaga decisões nem rascunhos. Campos protegidos por decisão ficam como estão; o relatório diz quantos campos protegidos foram mantidos.",
       "Com muitas diferenças, prefira Todos os alterados ou Só os alterados sem campo protegido: valem para o arquivo inteiro, não só para a página na tela.",
     ],
   },
@@ -171,6 +171,8 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       "Um caso de regra, de conjunto ou de um item só, não altera o item que tem exceção própria, nem o item com caso individual em rascunho no mesmo campo: decida esse caso primeiro. Se o valor de um item mudou por outra decisão depois que o caso foi proposto, a aprovação avisa que a proposta ficou desatualizada, item a item, mesmo quando o “Atual” do conjunto diz “varia por item”.",
       "No lote, os casos de exceção ficam de fora e precisam ser decididos um a um. Também ficam de fora, com o motivo na prévia, os casos cuja decisão proposta é solicitar informação e os ids que não existem no projeto.",
       "Num caso de conjunto, aprovar aplica a proposta a cada item e grava o histórico item a item; o item com exceção própria não é alterado pelo conjunto.",
+      "Aberto a partir de uma célula da Visão geral (recorte de um grupo), o caso de conjunto pode ter itens de outros grupos (por exemplo, a conversão TON → KG de todo o cadastro). Nesse caso, o detalhe mostra o aviso “Itens de outros grupos”, com quantos são e de quais grupos: aprovar altera todos eles, não só os do recorte.",
+      "Na conversão de unidade, “Situação do fator” e “Exige fator (informativo)” só informam se o fator já está definido: não são editáveis e não vão para o cadastro. O que se edita é o Fator de conversão.",
       "Se outra pessoa mudou o caso antes de você gravar, a tela avisa, recarrega o caso e mantém o seu texto. Confira antes de gravar de novo.",
       "No Tratamento tributário, a proposta traz o enquadramento legal (texto da lei e artigo), cClassTrib e CST, com a etiqueta “herdado do conjunto” ou “exceção”. Na exceção, o enquadramento é o da classe escolhida na tabela da SVRS e o artigo fica “não confirmado” (a tabela não traz o artigo); nada do conjunto é herdado.",
       "Na aba Cenários tributários, a aquisição de matéria-prima, insumo ou embalagem aparece como “Aquisição (finalidade)” e é avaliada no cenário Compra para revenda; a de manutenção ou imobilizado, no cenário Uso e consumo. A observação diz isso.",

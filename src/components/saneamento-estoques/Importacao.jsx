@@ -183,7 +183,7 @@ function Resultado({ r }) {
         <Numero rotulo="Linhas aceitas" valor={rel.aceitas} /><Numero rotulo="Rejeitadas" valor={rel.rejeitadas} tom={rel.rejeitadas ? "erro" : undefined} /><Numero rotulo="Pendentes" valor={rel.pendentes} tom={rel.pendentes ? "alerta" : undefined} />
         <Numero rotulo="Itens novos" valor={r.novos} /><Numero rotulo="Incorporados" valor={r.incorporados} /><Numero rotulo="Alterados no arquivo" valor={r.alterados} />
       </div>
-      {r.ignorados?.length > 0 && <Aviso tom="alerta">{r.ignorados.length} campo(s) protegido(s) por decisão foram mantidos como estavam.</Aviso>}
+      {(r.totalIgnorados ?? r.ignorados?.length ?? 0) > 0 && <Aviso tom="alerta">{Number(r.totalIgnorados ?? r.ignorados.length).toLocaleString("pt-BR")} campo(s) protegido(s) por decisão foram mantidos como estavam.</Aviso>}
       <MotivosAgrupados titulo="Linhas rejeitadas" grupos={rel.motivosRejeicao} />
       <MotivosAgrupados titulo="Linhas pendentes (aceitas com dado faltando)" grupos={rel.motivosPendencia} />
       {rel.avisos.map((a, n) => <Aviso key={`${n}-${a}`} tom="alerta">{a}</Aviso>)}
