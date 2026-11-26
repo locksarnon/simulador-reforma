@@ -278,9 +278,12 @@ describe('impacto no SPED', () => {
     expect(FONTES_LEIAUTE.NFE.versaoConferida).toMatch(/v1\.53/);
     expect(CHECKLIST.MUDOU_TRATAMENTO.registros.find((r) => r.obrigacao === 'EFD_ICMS_IPI')!.ressalva).toMatch(/não tem campo de CST de IBS\/CBS/);
   });
-  it('impactosDoAjuste: versão "não confirmado", aplicabilidade pelas obrigações do cliente, tipo por ajuste', () => {
+  it('impactosDoAjuste: versão conferida só onde há fonte para o ano, aplicabilidade pelas obrigações do cliente, tipo por ajuste', () => {
     const aberto = impactosDoAjuste('MUDOU_NCM', { dataBase: DB });
-    expect(aberto.every((l) => l.versaoLeiaute === 'não confirmado' && l.aplicabilidade === 'A_CONFIRMAR')).toBe(true);
+    expect(aberto.every((l) => l.aplicabilidade === 'A_CONFIRMAR')).toBe(true);
+    expect(aberto.filter((l) => l.obrigacao === 'EFD_ICMS_IPI').every((l) => l.versaoLeiaute.startsWith('020'))).toBe(true);
+    expect(aberto.filter((l) => l.obrigacao !== 'EFD_ICMS_IPI').every((l) => l.versaoLeiaute === 'não confirmado')).toBe(true);
+    expect(impactosDoAjuste('MUDOU_NCM', { dataBase: '2027-03-31' }).every((l) => l.versaoLeiaute === 'não confirmado')).toBe(true);
     expect(aberto[0]).toMatchObject({ tipo: 'CADASTRAL_FUTURO', competencia: '2026-11', avaliarAnteriores: true });
     const f = impactosDoAjuste('MUDOU_NCM', { dataBase: DB, obrigacoes: ['EFD_ICMS_IPI'], versaoLeiaute: { EFD_ICMS_IPI: 'X.YZ' } });
     expect(f.find((l) => l.obrigacao === 'EFD_ICMS_IPI')).toMatchObject({ aplicabilidade: 'APLICAVEL', versaoLeiaute: 'X.YZ' });

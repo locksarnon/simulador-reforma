@@ -6,7 +6,7 @@
  * leiaute 020 (NT 2025.001, Ato Cotepe 79/2025, válido em 2026); Guia Prático da EFD-Contribuições 1.35 (18/06/2021), última versão
  * publicada no portal do SPED (o código de versão do leiaute vigente em 2026 não foi confirmado); NT 2025.002-RTC v1.53 (30/10/2026) e
  * MOC Anexo I da NF-e. Registros e campos conferidos levam `conferido: true`; a versão do leiaute de cada linha (competência do
- * cliente) continua "não confirmado" até o consultor informá-la.
+ * cliente) sai de VERSAO_LEIAUTE_POR_ANO quando conferida para o ano; fora disso, "não confirmado" até o consultor informá-la.
  */
 import { AnalisadorCamada, CasoProposto, ContextoAnalise, Evidencia, ItemTrabalho, ResultadoCamada } from '../tipos';
 
@@ -30,6 +30,11 @@ export const FONTES_LEIAUTE: Record<Obrigacao, { fonte: string; url: string; ver
     nota: 'código de versão do leiaute vigente em 2026 (COD_VER do 0000) não confirmado',
   },
   NFE: { fonte: 'Portal Nacional da NF-e: NT 2025.002-RTC (grupo IBSCBS) e MOC Anexo I', url: 'https://www.nfe.fazenda.gov.br/portal/exibirArquivo.aspx?conteudo=BMcHSMEoepU=', versaoConferida: 'NT 2025.002-RTC v1.53 (30/10/2026)', status: 'CONFIRMADO' },
+};
+
+/** Versão do leiaute conferida na fonte oficial, por obrigação e ano da competência (só o que foi conferido). */
+export const VERSAO_LEIAUTE_POR_ANO: Partial<Record<Obrigacao, Record<string, string>>> = {
+  EFD_ICMS_IPI: { '2026': '020 (NT 2025.001, Ato Cotepe 79/2025)' },
 };
 
 export type TipoImpacto = 'CADASTRAL_FUTURO' | 'REGULARIZACAO_SALDO' | 'ESCRITURACAO_ENTREGUE';
@@ -186,7 +191,7 @@ export function impactosDoAjuste(tipoAjuste: TipoAjuste, ctx: ContextoImpacto, a
   const tipo: TipoImpacto = ajuste?.escrituracaoEntregue ? 'ESCRITURACAO_ENTREGUE' : l.tipoPadrao;
   return l.registros.map((r) => ({
     tipoAjuste, obrigacao: r.obrigacao, aplicabilidade: aplicabilidade(r.obrigacao, ctx), competencia: inicio.slice(0, 7),
-    versaoLeiaute: ctx.versaoLeiaute?.[r.obrigacao] ?? 'não confirmado',
+    versaoLeiaute: ctx.versaoLeiaute?.[r.obrigacao] ?? VERSAO_LEIAUTE_POR_ANO[r.obrigacao]?.[inicio.slice(0, 4)] ?? 'não confirmado',
     registro: r.registro, campo: r.campos.join(', '),
     valorOriginal: r.semValor ? null : ajuste?.valorOriginal ?? null, valorProposto: r.semValor ? null : ajuste?.valorProposto ?? null,
     motivo: ajuste?.motivo ?? '', evidencia: ajuste?.evidencia ?? [], inicio, avaliarAnteriores: l.avaliarAnteriores || tipo === 'ESCRITURACAO_ENTREGUE', tipo,

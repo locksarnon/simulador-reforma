@@ -195,7 +195,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       "“Impacto em escrituração já entregue” pede avaliação própria dos períodos anteriores.",
       "Original e Proposto ficam em branco quando o registro não guarda aquele valor (por exemplo, o C170 não tem NCM: só liga o item ao 0200). Num caso de obrigação que reúne itens com valores diferentes, o valor aparece como “varia por item; ver a aba Impactos no SPED”.",
       "Os filtros e a ordenação da tabela valem para as linhas já carregadas: carregue mais linhas para filtrar sobre elas.",
-      "Registros e campos do checklist conferidos em 26/11/2026 no Guia Prático da EFD ICMS/IPI 3.2.2 (leiaute 020, válido em 2026), no Guia Prático da EFD-Contribuições 1.35 e na NT 2025.002-RTC v1.53 da NF-e. A coluna Leiaute continua “não confirmado”: a versão do leiaute vale por competência e se confere para a do cliente.",
+      "Registros e campos do checklist conferidos em 26/11/2026 no Guia Prático da EFD ICMS/IPI 3.2.2 (leiaute 020, válido em 2026), no Guia Prático da EFD-Contribuições 1.35 e na NT 2025.002-RTC v1.53 da NF-e. A coluna Leiaute traz 020 nas linhas da EFD ICMS/IPI com competência em 2026; nas demais obrigações e anos fica “não confirmado”, porque a versão vale por competência e ainda não foi conferida.",
       "Troca de código: o código anterior vai no 0205 (o campo COD_ANT_ITEM do 0200 não é preenchido). A EFD ICMS/IPI não tem CST de IBS/CBS. No ativo imobilizado, a movimentação do bem é o G125 e o G110 é a apuração do CIAP.",
     ],
   },
