@@ -1,15 +1,16 @@
 /** Diretrizes: lógica pura (conteúdo, resolução por grupo, parâmetros do motor, casos por aspecto, escopo). */
 import { describe, expect, it } from 'vitest';
+import { limitesDoErp, type PerfilErp } from '../../erps/logica';
 import { AnalisadorNcm } from '../motor/ncm';
 import { AnalisadorNomesUnidades } from '../motor/nomes-unidades';
 import { AnalisadorQualidade } from '../motor/qualidade';
 import type { ContextoMotor } from '../motor/contexto';
 import type { ItemTrabalho } from '../tipos';
 import { abreviarAte, envolverComDiretrizes, localizar } from './analise';
-import { canonico, conteudoEfetivo, conteudoPadrao, validarAbrangencia, validarConteudo } from './conteudo-regra';
+import { abreviacoesNoSentidoCerto, canonico, conteudoEfetivo, conteudoPadrao, validarAbrangencia, validarConteudo } from './conteudo-regra';
 import { fecharEscopo, recortarResultado } from './escopo';
 import { alertasDeLimites, converterParametros, limitesEfetivos, linhasDoErp, parametrosDaParticao } from './parametros';
-import { criarIndice, gruposSemRegra, retirarSobreposicao, sobreposicoes, type RegraResolvivel } from './resolucao';
+import { criarIndice, gruposSemRegra, retirarSobreposicao, sobreposicoes, subgrupoDosCampos, type RegraResolvivel } from './resolucao';
 import type { Aspecto, ConteudoRegra, LinhaLimite } from './tipos';
 
 const it_ = (id: string, x: Partial<ItemTrabalho> = {}): ItemTrabalho => ({
@@ -21,6 +22,10 @@ const regra = (id: string, aspecto: Aspecto, abrangencia: RegraResolvivel['abran
   id, codigo: id, nome: `Regra ${id}`, aspecto, abrangencia, conteudo: conteudoEfetivo(aspecto, null, alteracoes as Partial<ConteudoRegra>), aprovada: false, ...extra,
 });
 const status = (f: () => unknown) => { try { f(); return 200; } catch (e) { return (e as { getStatus?: () => number }).getStatus?.() ?? 500; } };
+const perfilErp = (itens: Record<string, unknown>[], extra: Partial<PerfilErp> = {}): PerfilErp => ({
+  id: 'erp-x', nome: 'SAP Business One', situacao: 'COMPLETO', ativo: true, ...extra,
+  itens: itens.map((i, n) => ({ id: `i${n}`, tipo_ajuste: null, ordem: n, ativo: true, ...i }) as PerfilErp['itens'][number]),
+});
 const linha = (x: Partial<LinhaLimite>): LinhaLimite => ({ destino: 'NF-e', campo: 'xProd', campoItem: 'descricao', limite: 20, origem: 'LEIAUTE_OFICIAL', referencia: 'MOC', url: null, confirmado: true, tratamento: 'SUGERIR_ABREVIACAO', preservar: [], ...x });
 
 describe('conteúdo e abrangência', () => {
@@ -104,14 +109,25 @@ describe('parâmetros do motor por grupo e conversão dos parâmetros antigos', 
     expect(al.some((a) => a.includes('Outro') && a.includes('não confirmado'))).toBe(true);
   });
   it('linhas do ERP: só CONFIRMADO com "<n> caracteres" vira limite; o resto entra sem número', () => {
-    const l = linhasDoErp({ nome: 'SAP Business One', itens: [
+    const l = linhasDoErp(perfilErp([
       { tipo: 'LIMITE_CAMPO', chave: 'descricao', texto: '200 caracteres (OITM.ItemName)', campo_erp: 'OITM.ItemName', fonte_url: 'https://help.sap.com', grau: 'CONFIRMADO' },
       { tipo: 'LIMITE_CAMPO', chave: 'codigo', texto: 'Configurável no ERP', campo_erp: 'B1_COD', fonte_url: null, grau: 'CONFIRMADO' },
       { tipo: 'LIMITE_CAMPO', chave: 'unidade', texto: '8 caracteres', campo_erp: null, fonte_url: null, grau: 'NAO_CONFIRMADO' },
       { tipo: 'RESTRICAO', chave: 'descricao', texto: '10 caracteres', campo_erp: null, fonte_url: null, grau: 'CONFIRMADO' },
-    ] });
+    ]));
     expect(l.map((x) => [x.campoItem, x.limite, x.confirmado, x.origem])).toEqual([['descricao', 200, true, 'ERP'], ['codigo', null, false, 'ERP'], ['unidade', null, false, 'ERP']]);
     expect(linhasDoErp(null)).toEqual([]);
+  });
+  it('linhas do ERP seguem limitesDoErp: ERP inativo ou A_DESENVOLVER fica de fora; ordem do cadastro', () => {
+    const itens = [
+      { tipo: 'LIMITE_CAMPO', chave: 'codigo', texto: '20 caracteres', campo_erp: 'ItemCode', fonte_url: null, grau: 'CONFIRMADO', ordem: 2 },
+      { tipo: 'LIMITE_CAMPO', chave: 'descricao', texto: '200 caracteres', campo_erp: 'ItemName', fonte_url: null, grau: 'CONFIRMADO', ordem: 1 },
+    ];
+    const l = linhasDoErp(perfilErp(itens));
+    expect(l.map((x) => x.campoItem)).toEqual(['descricao', 'codigo']);
+    expect(l.map((x) => [x.campoItem, x.limite])).toEqual(limitesDoErp(perfilErp(itens)).map((x) => [x.campoItem, x.limite]));
+    expect(linhasDoErp(perfilErp(itens, { situacao: 'A_DESENVOLVER' }))).toEqual([]);
+    expect(linhasDoErp(perfilErp(itens, { ativo: false }))).toEqual([]);
   });
 });
 
@@ -216,6 +232,68 @@ describe('casos por aspecto (regra nova)', () => {
     expect(ids).not.toContain('3');
     expect(r.semProblema).toEqual(expect.arrayContaining(['2', '3']));
     expect(r.casos.every((c) => c.evidencia.some((e) => e.rotulo === 'Regra' && e.valor.startsWith('F01')))).toBe(true);
+  });
+});
+
+describe('revisão independente (lógica)', () => {
+  const nomes = new AnalisadorNomesUnidades();
+  it('abreviações: a conversão guarda completa = por extenso e abreviação = a forma curta (chave do parâmetro antigo); o caminho inverso devolve o formato antigo', () => {
+    const conv = converterParametros({ abreviacoesAprovadas: { ESQ: 'ESQUERDO', sext: 'SEXTAVADO' } });
+    expect(conv[0].alteracoes.abreviacoes).toEqual([{ completa: 'ESQUERDO', abreviacao: 'ESQ' }, { completa: 'SEXTAVADO', abreviacao: 'sext' }]);
+    expect(status(() => validarConteudo('NOMES', conteudoEfetivo('NOMES', null, conv[0].alteracoes as never), false))).toBe(200);
+    // Regra (já editada, sem legado) com o par certo: a camada reconhece ESQ como aprovada (não aponta "abreviação que esconde atributo").
+    const n = regra('N01', 'NOMES', { todos: true }, conv[0].alteracoes);
+    expect(parametrosDaParticao({}, { NOMES: n }).abreviacoesAprovadas).toEqual({ esq: 'ESQUERDO', sext: 'SEXTAVADO' });
+    const r = envolverComDiretrizes(nomes, criarIndice([n])).analisar([it_('1', { descricao: 'ROLAMENTO 6205 ESQ' })], ctx);
+    expect(r.casos.some((c) => c.tipo === 'ABREVIACAO_ESCONDE_ATRIBUTO')).toBe(false);
+    // A abreviação serve para encurtar a descrição no limite (completa → abreviação).
+    expect(abreviarAte('ROLAMENTO ESQUERDO', 13, n.conteudo.aspecto === 'NOMES' ? n.conteudo.abreviacoes : []).texto).toBe('ROLAMENTO ESQ');
+  });
+  it('conversão gravada invertida (antes da correção) é lida no sentido certo; par certo não muda', () => {
+    const invertida = conteudoEfetivo('NOMES', null, { abreviacoes: [{ completa: 'ESQ', abreviacao: 'ESQUERDO' }, { completa: 'PARAFUSO', abreviacao: 'PARAF' }] });
+    expect((abreviacoesNoSentidoCerto(invertida) as { abreviacoes: unknown }).abreviacoes).toEqual([{ completa: 'ESQUERDO', abreviacao: 'ESQ' }, { completa: 'PARAFUSO', abreviacao: 'PARAF' }]);
+    const certa = conteudoEfetivo('NOMES', null, { abreviacoes: [{ completa: 'PARAFUSO', abreviacao: 'PARAF' }] });
+    expect(abreviacoesNoSentidoCerto(certa)).toBe(certa);
+  });
+  it('regra de NOMES num grupo não mexe nos casos de unidade nem nos de outro grupo (4 itens ROLO, 2 em G1 e 2 em G2)', () => {
+    const itens = [
+      it_('1', { descricao: 'Lona preta', unidade: 'ROLO', grupo: 'G1' }), it_('2', { descricao: 'Lona azul', unidade: 'ROLO', grupo: 'G1' }),
+      it_('3', { descricao: 'Fita crepe', unidade: 'ROLO', grupo: 'G2' }), it_('4', { descricao: 'Fita dupla  face', unidade: 'ROLO', grupo: 'G2' }),
+    ];
+    const sem = nomes.analisar(itens, ctx);
+    const rolo = sem.casos.filter((c) => c.tipo === 'UNIDADE_SEM_REGRA');
+    expect(rolo.map((c) => c.itens)).toEqual([['1', '2', '3', '4']]);
+    const n = regra('N01', 'NOMES', { todos: false, grupos: ['G1'] }, { capitalizacao: 'MAIUSCULAS' });
+    const com = envolverComDiretrizes(nomes, criarIndice([n])).analisar(itens, ctx);
+    expect(com.casos.filter((c) => c.tipo === 'UNIDADE_SEM_REGRA')).toEqual(rolo); // o mesmo caso de 4 itens, idêntico
+    const deG2 = (r: typeof sem) => r.casos.filter((c) => c.itens.every((i) => i === '3' || i === '4'));
+    expect(deG2(com)).toEqual(deG2(sem)); // G2 sem nenhuma mudança
+    expect(com.casos.filter((c) => c.tipo === 'DESCRICAO_FORA_PADRAO').map((c) => c.itens[0]).sort()).toEqual(['1', '2']);
+  });
+  it('regra de UNIDADES num grupo: grafia dominante e nome padrão continuam calculados sobre a base inteira', () => {
+    const itens = [
+      ...['1', '2', '3'].map((id) => it_(id, { unidade: 'UNID', grupo: 'G1' })), it_('4', { unidade: 'UN', grupo: 'G2' }), it_('5', { unidade: 'UN', grupo: 'G2' }),
+    ];
+    const sem = nomes.analisar(itens, ctx);
+    const u = regra('U01', 'UNIDADES', { todos: false, grupos: ['G1'] }, { unidadesCompra: ['UN'] });
+    const com = envolverComDiretrizes(nomes, criarIndice([u])).analisar(itens, ctx);
+    const deG2 = (r: typeof sem) => r.casos.filter((c) => c.itens.some((i) => i === '4' || i === '5')).map((c) => ({ ...c, evidencia: c.evidencia.filter((e) => e.rotulo !== 'Regra') }));
+    expect(deG2(com)).toEqual(deG2(sem));
+  });
+  it('pendência de limite é um conjunto por regra de LIMITES, mesmo com regras de NOMES diferentes por grupo', () => {
+    const l = regra('L01', 'LIMITES', { todos: true }, { linhas: [linha({ destino: 'ERP X', origem: 'ERP', limite: null, confirmado: false })] });
+    const n = regra('N01', 'NOMES', { todos: false, grupos: ['G1'] }, { capitalizacao: 'MAIUSCULAS' });
+    const r = envolverComDiretrizes(nomes, criarIndice([l, n])).analisar([it_('1'), it_('2', { grupo: 'G2' })], ctx);
+    expect(r.casos.filter((c) => c.tipo === 'LIMITE_NAO_CONFIRMADO').map((c) => c.itens.sort())).toEqual([['1', '2']]);
+  });
+  it('subgrupo de base antiga (coluna extra "Subgrupo") vale na resolução, sem reimportar', () => {
+    expect(subgrupoDosCampos({ Subgrupo: 'S1' })).toBe('S1');
+    expect(subgrupoDosCampos({ 'Sub Grupo': 'S2', Cor: 'Azul' })).toBe('S2');
+    expect(subgrupoDosCampos({ subgrupo: 'NOVO', Subgrupo: 'VELHO' })).toBe('NOVO');
+    expect(subgrupoDosCampos({ Cor: 'Azul' })).toBeNull();
+    const n = regra('N01', 'NOMES', { todos: false, grupos: ['G1'], subgrupos: ['S1'] }, { capitalizacao: 'MAIUSCULAS' });
+    const r = envolverComDiretrizes(nomes, criarIndice([n])).analisar([it_('1', { descricao: 'abc', campos: { Subgrupo: 'S1' } }), it_('2', { descricao: 'abc', campos: { Subgrupo: 'S2' } })], ctx);
+    expect(r.casos.filter((c) => c.tipo === 'DESCRICAO_FORA_PADRAO').map((c) => c.itens)).toEqual([['1']]);
   });
 });
 

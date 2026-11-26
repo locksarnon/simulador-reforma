@@ -205,12 +205,16 @@ describe("Política (PDF) e Transformar em regra", () => {
     expect(texto(html)).toContain("só o administrador");
     papel.atual = "admin";
   });
-  it("depois de criar: regra do projeto abre nas Diretrizes (prévia antes de aplicar); da biblioteca não muda o projeto", () => {
+  it("depois de criar: regra do projeto abre nas Diretrizes (prévia antes de aplicar); da biblioteca cria também a regra em rascunho no projeto", () => {
     const t = texto(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "F02" }} destino="PROJETO" />));
     expect(t).toContain("Regra F02 criada em rascunho");
     expect(t).toContain("Abrir nas Diretrizes");
     expect(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "F02" }} destino="PROJETO" />)).toContain('href="/?aba=diretrizes&amp;regra=r9"');
-    expect(texto(montar(<ResultadoTransformacao resultado={{ id: "b9" }} destino="BIBLIOTECA" />))).toContain("Nada mudou neste projeto");
+    const bib = texto(montar(<ResultadoTransformacao resultado={{ id: "r10", codigo: "F03" }} destino="BIBLIOTECA" />));
+    expect(bib).toContain("Regra criada na biblioteca e F03 em rascunho neste projeto");
+    expect(bib).toContain("sem códigos de item deste cliente");
+    expect(bib).toContain("Abrir nas Diretrizes");
+    expect(bib).not.toContain("Nada mudou neste projeto");
   });
 });
 

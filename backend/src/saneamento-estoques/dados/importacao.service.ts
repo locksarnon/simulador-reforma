@@ -7,6 +7,7 @@ import { SanProjetoService } from './projeto.service';
 import type { SeparadoresDaImportacao } from '../importacao';
 import { carregarPerfil } from '../../erps/erps.service';
 import { colunasDoExport } from '../../erps/logica';
+import { ehCabecalhoDeSubgrupo } from '../diretrizes/resolucao';
 
 export type ArquivoImportacao = { buffer: Buffer; nome: string };
 type Diferenca = { itemId: string; codigo: string; estabelecimento: string; campos: { campo: string; antes: unknown; depois: unknown; protegido: boolean }[] };
@@ -60,6 +61,17 @@ function quaisIncorporar(e: EscolhaIncorporar, difs: Map<string, Diferenca>): (i
 /** Estado do item como a base o guarda (sem a linha de origem). */
 const comoGuardado = (i: ItemImportado): Json => { const { linha: _l, ...resto } = i; return resto as Json; };
 const achatar = (t: Json): Json => { const { campos, ...topo } = t; return { ...topo, ...((campos as Json) ?? {}) }; };
+/**
+ * Base importada antes de o subgrupo ser mapeado guardava a coluna como extra (`campos["Subgrupo"]`); o arquivo de agora traz `subgrupo`.
+ * Para comparar, a coluna antiga conta como `subgrupo` (mesmo valor = sem diferença; valor novo = diferença só em `subgrupo`).
+ */
+function subgrupoComoAgora(antes: Json, depois: Json): Json {
+  if (!('subgrupo' in depois) || 'subgrupo' in antes) return antes;
+  const k = Object.keys(antes).filter((x) => ehCabecalhoDeSubgrupo(x) && !(x in depois)).sort()[0];
+  if (!k) return antes;
+  const { [k]: valor, ...resto } = antes;
+  return { ...resto, subgrupo: valor };
+}
 const chave = (estabelecimento: string | null | undefined, codigo: string) => `${estabelecimento ?? ''}\u0000${codigo}`;
 
 /** Itens por bloco na gravação da reimportação (um UPDATE por bloco no Postgres, não um por item). */
@@ -173,8 +185,8 @@ export class SanImportacaoService {
       naArquivo.add(k);
       const e = porChave.get(k);
       if (!e) { novos.push(it); continue; }
-      const antes = achatar((e.lido as Json) ?? {});
       const depois = achatar(comoGuardado(it));
+      const antes = subgrupoComoAgora(achatar((e.lido as Json) ?? {}), depois);
       const campos = [...new Set([...Object.keys(antes), ...Object.keys(depois)])].filter((c) => c !== 'estabelecimento' && c !== 'codigo' && !igual(antes[c], depois[c])).map((campo) => ({ campo, antes: antes[campo] ?? null, depois: depois[campo] ?? null }));
       if (campos.length) alterados.push({ existente: e, item: it, campos }); else inalterados++;
     }

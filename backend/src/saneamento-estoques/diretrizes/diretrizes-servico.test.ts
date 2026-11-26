@@ -332,3 +332,121 @@ describe('30 mil itens', () => {
     expect(ms).toBeLessThan(60_000);
   }, 300_000);
 });
+
+describe('revisão independente (serviço)', () => {
+  const MOTOR_ANTIGO = { abreviacoesAprovadas: { ESQ: 'ESQUERDO' }, padronizarCaixaAlta: true, politicaUnidade: { ativa: true, regras: { rolo: { manter: true } } } };
+  it('renomear N01/U01 convertidas (a tela antiga mandava o conteúdo inteiro) mantém o legado e o resultado idêntico; mudar o conteúdo tira o legado', async () => {
+    const c = montar(); const { pid } = await pronto(c, BASE, MOTOR_ANTIGO);
+    const d = await c.diretrizes.obter(pid);
+    for (const cam of ['NOMES_UNIDADES', 'QUALIDADE']) await c.orq.executarCamada(pid, cam);
+    const antes = retrato(c);
+    const n01 = d.regras.find((r) => r.codigo === 'N01')!; const u01 = d.regras.find((r) => r.codigo === 'U01')!;
+    expect(n01.conteudoEfetivo).toMatchObject({ abreviacoes: [{ completa: 'ESQUERDO', abreviacao: 'ESQ' }] });
+    const n = await c.diretrizes.atualizarRegra(n01.id, { versao: n01.versao, nome: 'Nomes (renomeada)', observacao: 'só o nome', alteracoes: n01.conteudoEfetivo }, USER);
+    const u = await c.diretrizes.atualizarRegra(u01.id, { versao: u01.versao, nome: 'Unidades (renomeada)' }, USER);
+    for (const r of [n, u]) expect(r).toMatchObject({ legado: true, pendenteAplicar: false });
+    expect(c.db.sanDiretrizRegra.find((x) => x.id === n01.id)!.parametros_legados).toEqual({ abreviacoesAprovadas: MOTOR_ANTIGO.abreviacoesAprovadas, padronizarCaixaAlta: true });
+    // Grupos (abrangência) também não tiram o legado.
+    const n2 = await c.diretrizes.atualizarRegra(n01.id, { versao: n.versao, abrangencia: { todos: false, grupos: ['G1', 'G2', '(sem grupo)'] } }, USER);
+    expect(n2.legado).toBe(true);
+    for (const cam of ['NOMES_UNIDADES', 'QUALIDADE']) await c.orq.executarCamada(pid, cam);
+    expect(retrato(c)).toEqual(antes);
+    const editada = await c.diretrizes.atualizarRegra(n01.id, { versao: n2.versao, alteracoes: { ...n01.conteudoEfetivo, capitalizacao: 'PRESERVAR' } }, USER);
+    expect(editada).toMatchObject({ legado: false, pendenteAplicar: true });
+  });
+  it('conversão gravada invertida antes da correção: tela e política leem no sentido certo, sem "aplicar pendente"', async () => {
+    const c = montar(); const { pid } = await pronto(c, BASE, MOTOR_ANTIGO);
+    await c.diretrizes.obter(pid);
+    const linhaN = c.db.sanDiretrizRegra.find((x) => x.codigo === 'N01')!;
+    const inverter = (o: { abreviacoes: { completa: string; abreviacao: string }[] }) => ({ ...o, abreviacoes: o.abreviacoes.map((a) => ({ completa: a.abreviacao, abreviacao: a.completa })) });
+    linhaN.alteracoes = inverter(linhaN.alteracoes); linhaN.aplicacao = { ...linhaN.aplicacao, conteudo: inverter(linhaN.aplicacao.conteudo) };
+    const n = (await c.diretrizes.obter(pid)).regras.find((x) => x.codigo === 'N01')!;
+    expect(n.conteudoEfetivo).toMatchObject({ abreviacoes: [{ completa: 'ESQUERDO', abreviacao: 'ESQ' }] });
+    expect(n.pendenteAplicar).toBe(false);
+    const pol = await c.diretrizes.dadosPdfPolitica(pid);
+    expect(pol.regras.find((x) => x.codigo === 'N01')!.conteudo).toMatchObject({ abreviacoes: [{ completa: 'ESQUERDO', abreviacao: 'ESQ' }] });
+  });
+  it('regra de NOMES só em G1: o caso de unidade de 4 itens (2 em G1, 2 em G2) não fica obsoleto e G2 não muda; a prévia mostra os itens que podem mudar', async () => {
+    const c = montar();
+    const { pid, ids } = await pronto(c, [
+      item('1', { descricao: 'Lona preta', unidade: 'ROLO', grupo: 'G1' }, 1), item('2', { descricao: 'Lona azul', unidade: 'ROLO', grupo: 'G1' }, 2),
+      item('3', { descricao: 'Fita crepe', unidade: 'ROLO', grupo: 'G2' }, 3), item('4', { descricao: 'Fita dupla  face', unidade: 'ROLO', grupo: 'G2' }, 4),
+    ]);
+    await c.orq.executarCamada(pid, 'NOMES_UNIDADES');
+    const caso = c.db.sanCaso.find((x) => x.tipo === 'UNIDADE_SEM_REGRA')!;
+    expect(caso.itens).toHaveLength(4);
+    const g2 = () => c.db.sanCaso.filter((x) => x.itens.some((i: string) => i === ids['3'] || i === ids['4'])).map((x) => `${x.id}|${x.tipo}|${x.situacao}|${x.versao}`).sort();
+    const g2Antes = g2();
+    const r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'Nomes G1', abrangencia: { todos: false, grupos: ['G1'] }, alteracoes: { capitalizacao: 'MAIUSCULAS' } }, USER);
+    expect(await c.diretrizes.previa(r.id)).toMatchObject({ grupos: ['G1'], itens: 2 });
+    await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER);
+    expect(c.db.sanCaso.find((x) => x.id === caso.id)!.situacao).toBe('PROPOSTO');
+    expect(g2()).toEqual(g2Antes);
+    // Regra de UNIDADES em G1 mexe no conjunto: a prévia inclui os itens de G2 que dividem o caso aberto com G1.
+    const u = await c.diretrizes.criarRegra(pid, { aspecto: 'UNIDADES', nome: 'Unidades G1', abrangencia: { todos: false, grupos: ['G1'] }, alteracoes: { criterioEstoque: 'DEFINIDA', unidadeDefinida: 'M' } }, USER);
+    expect(await c.diretrizes.previa(u.id)).toMatchObject({ grupos: ['G1', 'G2'], itens: 4 });
+  });
+  it('transformar para a biblioteca: a regra-modelo não leva código de item do cliente; a exceção fica na regra do projeto (rascunho)', async () => {
+    const c = montar(); const { pid, ids } = await pronto(c, BASE);
+    await c.diretrizes.obter(pid);
+    c.db.sanCaso.push({ id: 'caso-ncm', projeto_id: pid, camada: 'NCM', tipo: 'NCM_INEXISTENTE', situacao: 'REJEITADO', itens: [ids['1']], proposta: {}, motivo: 'Uso interno, sem NCM na compra', justificativa: null, evidencia: [], versao: 2 });
+    const t = await c.diretrizes.transformar(pid, { casoId: 'caso-ncm', aspecto: 'FISCAL', nome: 'Fiscal FAL', abrangencia: { todos: true }, destino: 'BIBLIOTECA' }, ADMIN);
+    const lib = await c.biblioteca.obter(t.regra.bibliotecaId!);
+    expect(lib.conteudo).toMatchObject({ excecoesNcm: [] });
+    expect(JSON.stringify(lib)).not.toContain('caso-ncm');
+    expect(t.regra).toMatchObject({ situacao: 'RASCUNHO', aplicada: false, alteracoes: { excecoesNcm: [{ alvo: '1', justificativa: 'Uso interno, sem NCM na compra' }] } });
+    expect(t.regra.conteudoEfetivo).toMatchObject({ excecoesNcm: [{ alvo: '1' }] });
+  });
+  it('L01 padrão aponta para os limites oficiais e deriva as linhas do ERP do projeto na leitura; trocar o ERP muda o rascunho, não a análise; cópia antiga continua', async () => {
+    const c = montar(); const { pid } = await pronto(c, BASE);
+    await c.biblioteca.aplicarCarga();
+    const erp = (id: string, nome: string, limite: number) => {
+      c.db.erp.push({ id, nome, fabricante: null, produto: null, versoes: [], situacao: 'COMPLETO', ativo: true });
+      c.db.erpConhecimento.push({ id: `${id}-d`, erp_id: id, tipo: 'LIMITE_CAMPO', tipo_ajuste: null, chave: 'descricao', texto: `${limite} caracteres`, campo_erp: 'Descr', fonte_url: null, grau: 'CONFIRMADO', ordem: 0, ativo: true });
+    };
+    erp('erp-a', 'ERP A', 80); erp('erp-b', 'ERP B', 60);
+    c.db.sanProjeto[0].erp_id = 'erp-a';
+    const l01 = (await c.diretrizes.obter(pid)).regras.find((x) => x.codigo === 'L01')!;
+    const linha = c.db.sanDiretrizRegra.find((x) => x.id === l01.id)!;
+    expect([linha.biblioteca_id, linha.alteracoes ?? null]).toEqual(['bib-limites-oficiais', null]);
+    const doErp = (r: typeof l01) => (r.conteudoEfetivo as { linhas: { origem: string; destino: string; limite: number }[] }).linhas.filter((x) => x.origem === 'ERP').map((x) => [x.destino, x.limite]);
+    expect(doErp(l01)).toEqual([['ERP A', 80]]);
+    c.db.sanProjeto[0].erp_id = 'erp-b';
+    const depois = (await c.diretrizes.obter(pid)).regras.find((x) => x.codigo === 'L01')!;
+    expect(doErp(depois)).toEqual([['ERP B', 60]]);
+    expect(depois.aplicada).toBe(false); // nada aplicado sozinho
+    // Projeto com a L01 em cópia (primeiras versões): fica como está.
+    linha.alteracoes = { linhas: [{ destino: 'Cópia', campo: 'x', campoItem: 'descricao', limite: 50, origem: 'ERP', referencia: null, url: null, confirmado: true, tratamento: 'SOLICITAR_REVISAO', preservar: [] }] };
+    expect(doErp((await c.diretrizes.obter(pid)).regras.find((x) => x.codigo === 'L01')!)).toEqual([['Cópia', 50]]);
+  });
+  it('PDF de versão liberada: procedimentos congelados na foto; grupos com espaços repetidos não se duplicam; foto sem procedimentos usa os atuais com nota', async () => {
+    const c = montar(); const { pid } = await pronto(c, [item('1', { grupo: 'PARAFUSOS E FIXADORES' }, 1), item('2', { grupo: 'PARAFUSOS  E FIXADORES' }, 2)]);
+    await c.diretrizes.obter(pid);
+    const v = await c.versoes.criar(pid, { rotulo: 'Entrega' }, USER);
+    const { diretrizes } = await c.versoes.diretrizesDaVersao(pid, v.id);
+    expect(Array.isArray(diretrizes!.procedimentos)).toBe(true);
+    const pol = await c.diretrizes.dadosDaPolitica(pid, v.id);
+    expect(pol.quadro.map((q) => q.grupo)).toEqual(['PARAFUSOS E FIXADORES']);
+    expect(pol.notaProcedimentos).toBeNull();
+    expect(pol.procedimentos).toEqual(diretrizes!.procedimentos);
+    // Foto anterior ao congelamento: procedimentos de agora, com nota.
+    const foto = JSON.parse(JSON.stringify((await c.versoes.foto(pid, v.id)).foto));
+    delete foto.diretrizes.procedimentos;
+    const antiga = await c.prisma.sanVersao.create({ data: { projeto_id: pid, numero: 98, rotulo: 'antes do congelamento', usuario: 'x', resumo: {} } });
+    await c.prisma.sanVersaoSnapshot.create({ data: { versao_id: antiga.id, itens: 2, dados: await gzipDaFoto(foto) } });
+    const velha = await c.diretrizes.dadosPdfPolitica(pid, antiga.id);
+    expect(velha.notaProcedimentos).toMatch(/redação vigente/);
+    expect(velha.procedimentos.length).toBeGreaterThan(0);
+  });
+  it('base antiga com a coluna "Subgrupo" como extra: a resolução lê o subgrupo sem reimportar e a reimportação não acusa diferença falsa', async () => {
+    const c = montar(); const { pid, ids } = await pronto(c, [item('1', { descricao: 'abc', campos: { Subgrupo: 'S1' } }, 1), item('2', { descricao: 'abc', campos: { Subgrupo: 'S2' } }, 2)]);
+    expect((await c.diretrizes.obter(pid)).grupos).toEqual([{ grupo: 'G1', subgrupos: ['S1', 'S2'], itens: 2 }]);
+    const r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'S1', abrangencia: { todos: false, grupos: ['G1'], subgrupos: ['S1'] }, alteracoes: { capitalizacao: 'MAIUSCULAS' } }, USER);
+    await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER);
+    expect(c.db.sanCaso.filter((x) => x.tipo === 'DESCRICAO_FORA_PADRAO').map((x) => x.itens)).toEqual([[ids['1']]]);
+    // Reimportação com o subgrupo mapeado (campos.subgrupo): mesmo valor = sem diferença; valor novo = diferença só em "subgrupo".
+    c.fila.itens = [item('1', { descricao: 'abc', campos: { subgrupo: 'S1' } }, 1), item('2', { descricao: 'abc', campos: { subgrupo: 'S9' } }, 2)];
+    const pv = await c.importacao.previa(pid, ARQ);
+    expect(pv.diferencas.map((x) => [x.codigo, x.campos.map((y) => [y.campo, y.antes, y.depois])])).toEqual([['2', [['subgrupo', 'S2', 'S9']]]]);
+  });
+});

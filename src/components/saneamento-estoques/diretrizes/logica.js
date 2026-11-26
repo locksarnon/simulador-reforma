@@ -120,16 +120,32 @@ export function textoAbrangencia(a) {
  * Regra "Todos os grupos" não perde grupo para uma regra de grupo: a regra de grupo é a exceção, não é transferência.
  */
 export function transferencias({ abrangencia, aspecto, regraId, regras }) {
-  const outras = (regras || []).filter((r) => r.aspecto === aspecto && r.id !== regraId);
+  const outras = (regras || []).filter((r) => r.aspecto === aspecto && r.id !== regraId).sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || "")));
   if (ehTodos(abrangencia)) {
     return outras.filter((r) => ehTodos(r.abrangencia)).map((r) => ({ grupo: "Todos os grupos (padrão)", regraId: r.id, codigo: r.codigo, nome: r.nome, padrao: true }));
   }
+  // Mesma regra de nível do servidor (resolucao.ts): só há sobreposição no MESMO nível — regra de grupo com regra de grupo, regra de
+  // grupo e subgrupo com regra do mesmo par grupo/subgrupo. Regra de subgrupo é exceção dentro da regra do grupo, não transferência.
+  const { nivel, chaves } = paresDaAbrangencia(abrangencia);
+  const minhas = new Set(chaves);
   const lista = [];
-  for (const g of gruposDaAbrangencia(abrangencia)) {
-    const dona = outras.find((r) => !ehTodos(r.abrangencia) && gruposDaAbrangencia(r.abrangencia).includes(g));
-    if (dona) lista.push({ grupo: g, regraId: dona.id, codigo: dona.codigo, nome: dona.nome, padrao: false });
+  for (const r of outras) {
+    const dela = paresDaAbrangencia(r.abrangencia);
+    if (dela.nivel !== nivel) continue;
+    for (const k of dela.chaves) if (minhas.has(k)) lista.push({ grupo: k.replace("\u0000", " / "), regraId: r.id, codigo: r.codigo, nome: r.nome, padrao: false });
   }
   return lista;
+}
+/** Chave de grupo como o servidor compara (espaços repetidos não distinguem; vazio = "(sem grupo)"). */
+const chaveGrupoTela = (g) => String(g ?? "").replace(/\s+/g, " ").trim() || "(sem grupo)";
+const chaveSubgrupoTela = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+/** Pares que a abrangência cobre no nível dela (TODOS, GRUPO ou SUBGRUPO), como `pares` em resolucao.ts. */
+function paresDaAbrangencia(a) {
+  if (ehTodos(a)) return { nivel: "TODOS", chaves: ["*"] };
+  const grupos = gruposDaAbrangencia(a);
+  const subs = Array.isArray(a.subgrupos) ? a.subgrupos : [];
+  if (subs.length) return { nivel: "SUBGRUPO", chaves: grupos.flatMap((g) => subs.map((s) => `${chaveGrupoTela(g)}\u0000${chaveSubgrupoTela(s)}`)) };
+  return { nivel: "GRUPO", chaves: grupos.map(chaveGrupoTela) };
 }
 /** Chave estável de um conjunto de transferências (a confirmação vale só para o que foi mostrado). */
 export const chaveTransferencias = (lista) => (lista || []).map((t) => `${t.grupo}>${t.regraId}`).sort().join("|");
@@ -150,14 +166,19 @@ export function regrasPorAspecto(regras) {
 
 // ── Conteúdo efetivo, alterações do projeto ──────────────────────────────────
 
-const igual = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** JSON com as chaves em ordem: compara conteúdos sem depender da ordem em que foram montados. */
+const estavel = (v) => (Array.isArray(v) ? `[${v.map(estavel).join(",")}]`
+  : v && typeof v === "object" ? `{${Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${estavel(v[k])}`).join(",")}}` : JSON.stringify(v ?? null));
+const igual = (a, b) => estavel(a) === estavel(b);
 
 /**
  * O que o projeto guarda: só o que difere da biblioteca. `base` = conteúdo de que a tela partiu (efetivo carregado ou o da biblioteca);
  * `editado` = o que está na tela; `anteriores` = alterações já gravadas (continuam valendo, com o editado por cima).
- * Sem biblioteca, o conteúdo inteiro é a regra.
+ * Sem biblioteca, o conteúdo inteiro é a regra. Conteúdo igual ao de que a tela partiu (só nome, observação ou grupos mudaram) devolve
+ * `undefined`: as alterações não vão no pedido (renomear não mexe no conteúdo nem tira a marca de regra convertida).
  */
 export function alteracoesParaSalvar({ bibliotecaId, base, editado, anteriores }) {
+  if (base && igual(editado, base)) return undefined;
   if (!bibliotecaId) return { ...editado };
   const r = { ...(anteriores || {}) };
   for (const k of Object.keys(editado || {})) if (k !== "aspecto" && !igual(editado[k], base?.[k])) r[k] = editado[k];

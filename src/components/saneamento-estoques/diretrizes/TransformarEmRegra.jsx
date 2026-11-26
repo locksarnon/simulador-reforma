@@ -8,12 +8,20 @@ import { Aviso, botaoPrimario, botaoSecundario, campoCls, Rotulo, usePodeAlterar
 import { SeletorMultiplo } from "./Blocos";
 import { ABRANGENCIA_TODOS, ASPECTOS, inicialDoCaso, mensagemDiretriz, ROTULO_ASPECTO } from "./logica";
 
-/** Mensagem depois de transformar: regra do projeto (abrir nas Diretrizes para ver a prévia e aplicar) ou da biblioteca. */
+/**
+ * Mensagem depois de transformar: regra do projeto (abrir nas Diretrizes para ver a prévia e aplicar). Destino biblioteca: a regra-modelo
+ * fica na biblioteca (sem código de item do cliente) e o projeto ganha a regra em rascunho que parte dela, com as exceções do caso.
+ */
 export function ResultadoTransformacao({ resultado, destino }) {
   const id = resultado?.id || resultado?.regra?.id;
   const codigo = resultado?.codigo || resultado?.regra?.codigo;
+  const abrir = id && <Link className={botaoSecundario} to={`?aba=diretrizes&regra=${encodeURIComponent(id)}`}>Abrir nas Diretrizes</Link>;
   if (destino === "BIBLIOTECA") {
-    return <Aviso tom="ok" titulo="Regra criada na biblioteca">Ela fica em Administração &gt; Configuração e ERPs &gt; Biblioteca de diretrizes, para todos os projetos. Nada mudou neste projeto: para usá-la aqui, adicione a regra nas Diretrizes partindo dela.</Aviso>;
+    return (
+      <Aviso tom="ok" titulo={`Regra criada na biblioteca e ${codigo || "a regra"} em rascunho neste projeto`.replace("  ", " ")} acao={abrir}>
+        A regra-modelo fica em Administração &gt; Configuração e ERPs &gt; Biblioteca de diretrizes, para todos os projetos, sem códigos de item deste cliente (exceções do caso ficam só neste projeto). Neste projeto, a regra nasce em rascunho partindo dela: nada foi reanalisado. Abra a regra para conferir, ver a prévia do impacto e só então aplicar.
+      </Aviso>
+    );
   }
   return (
     <Aviso tom="ok" titulo={`Regra ${codigo || ""} criada em rascunho`.replace("  ", " ")} acao={id && <Link className={botaoSecundario} to={`?aba=diretrizes&regra=${encodeURIComponent(id)}`}>Abrir nas Diretrizes</Link>}>

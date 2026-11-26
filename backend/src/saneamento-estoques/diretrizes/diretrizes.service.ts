@@ -7,20 +7,21 @@ import { SanVersoesService } from '../dados/versoes.service';
 import { lerFator } from '../motor';
 import { dataIsoValida } from '../motor/texto';
 import { CAMADAS, type Camada, type ItemTrabalho } from '../tipos';
-import { abreviarAte, atributoPresente, componentePresente, descricaoPelaRegra, foraDoNcm, localizar } from './analise';
+import { abreviarAte, atributoPresente, componentePresente, descricaoPelaRegra, foraDoNcm, localizar, tipoMudaComAspecto } from './analise';
+import { fecharEscopo } from './escopo';
 import { validarRegraModelo } from './biblioteca.service';
-import { abrangenciaVazia, canonico, conferirCoerencia, conteudoEfetivo, texto, validarAbrangencia, validarAspecto, validarConteudo } from './conteudo-regra';
+import { abrangenciaVazia, abreviacoesNoSentidoCerto, canonico, conferirCoerencia, conteudoEfetivo, mesmoConteudo, texto, validarAbrangencia, validarAspecto, validarConteudo } from './conteudo-regra';
 import { MODELOS, PROCEDIMENTOS } from './conteudo/biblioteca';
 import {
-  aplicacaoDoRascunho, conteudosDaBiblioteca, efetivoDaLinha, fotoDasDiretrizes, gruposDaBase, itensComGrupo, lerRegras, pendenteAplicar, regraApi, regrasDoProjeto,
+  aplicacaoDoRascunho, comLinhasDoErp, conteudosDaBiblioteca, efetivoDaLinha, fotoDasDiretrizes, gruposDaBase, itensComGrupo, lerRegras, pendenteAplicar, regraApi, regrasDoProjeto,
   resolviveisAplicadas, situacaoDasDiretrizes, type Aplicacao, type LinhaRegra,
 } from './dados';
 import { carregarPerfil, nomeDoErp } from '../../erps/erps.service';
 import { LIMITES_OFICIAIS } from './conteudo/limites-oficiais';
 import { ID_BIBLIOTECA_LIMITES, converterParametros, limitesEfetivos, linhasDoErp } from './parametros';
-import { criarIndice, gruposSemRegra, retirarSobreposicao, sobreposicoes, type RegraResolvivel } from './resolucao';
+import { chaveGrupo, criarIndice, gruposSemRegra, retirarSobreposicao, sobreposicoes, subgrupoDosCampos, type RegraResolvivel } from './resolucao';
 import {
-  CAMADAS_DO_ASPECTO, PREFIXO_ASPECTO, type Abrangencia, type Aspecto, type ConteudoRegra, type PreviaAplicacao, type RegraAtributos, type RegraFiscal, type RegraLimites,
+  CAMADAS_DO_ASPECTO, PREFIXO_ASPECTO, type Abrangencia, type Aspecto, type ConteudoRegra, type PreviaAplicacao, type Procedimento, type RegraAtributos, type RegraFiscal, type RegraLimites,
   type RegraNomes, type RegraUnidades,
 } from './tipos';
 
@@ -81,7 +82,7 @@ export class SanDiretrizesService {
     // Linhas de limite padrão: leiaute oficial (biblioteca, ou a lista oficial se a carga ainda não rodou) + ERP do projeto (Cadastro de ERPs).
     const libLimites = await this.prisma.sanDiretrizBiblioteca.findUnique({ where: { id: ID_BIBLIOTECA_LIMITES } });
     const oficiais = libLimites?.ativa ? ((libLimites.conteudo as RegraLimites).linhas ?? []) : LIMITES_OFICIAIS;
-    const doErp = linhasDoErp(await carregarPerfil(this.prisma, p.erp_id) as never);
+    const doErp = linhasDoErp(await carregarPerfil(this.prisma, p.erp_id));
     try {
       return await this.prisma.$transaction(async (tx) => {
         const cab = await tx.sanDiretrizes.create({ data: { projeto_id: projetoId, convertido_em: new Date() } });
@@ -101,14 +102,16 @@ export class SanDiretrizesService {
           await this.registrar(tx, r, 'CONVERTER', undefined, null, retrato(r), 'Parâmetros do projeto convertidos em regra equivalente (resultado das análises inalterado).');
         }
         // Sem limite antigo: regra padrão de LIMITES "Todos os grupos" com as linhas oficiais e as do ERP, em RASCUNHO e NÃO aplicada (a análise
-        // só muda quando o consultor aplicar). Vale o menor limite confirmado; ERP acima do leiaute vira alerta.
+        // só muda quando o consultor aplicar). Vale o menor limite confirmado; ERP acima do leiaute vira alerta. A regra APONTA para a regra-modelo
+        // dos limites oficiais e as linhas do ERP são derivadas na resolução (dados.ts, comLinhasDoErp): nada é copiado. Só sem a carga da
+        // biblioteca (ainda não rodou) as linhas vão como cópia, para a regra não nascer vazia.
         if (!convertidas.some((c) => c.aspecto === 'LIMITES')) {
           const r = await tx.sanDiretrizRegra.create({
             data: {
               projeto_id: projetoId, aspecto: 'LIMITES', codigo: `${PREFIXO_ASPECTO.LIMITES}01`, nome: 'Limites de caracteres (leiaute oficial e ERP)', abrangencia: { todos: true },
               observacao: 'Regra padrão: leiaute oficial é o teto; o ERP e o cliente só restringem mais. Vale o menor limite confirmado.',
               biblioteca_id: libLimites?.ativa ? libLimites.id : null, biblioteca_versao: libLimites?.ativa ? libLimites.versao : null,
-              alteracoes: (libLimites?.ativa && !doErp.length ? undefined : { linhas: [...oficiais, ...doErp] }) as never, criada_por: 'sistema',
+              alteracoes: (libLimites?.ativa ? undefined : { linhas: [...oficiais, ...doErp] }) as never, criada_por: 'sistema',
             },
           });
           await this.registrar(tx, r, 'CRIAR', undefined, null, retrato(r), 'Regra padrão de limites criada na abertura das Diretrizes (rascunho, não aplicada).');
@@ -172,7 +175,7 @@ export class SanDiretrizesService {
 
   private async apiDe(regraId: string) {
     const r = await this.carregar(regraId);
-    const bib = await conteudosDaBiblioteca(this.prisma, r.biblioteca_id ? [{ id: r.biblioteca_id, versao: r.biblioteca_versao }] : []);
+    const bib = await conteudosDaBiblioteca(this.prisma, r.biblioteca_id ? [{ id: r.biblioteca_id, versao: r.biblioteca_versao }] : [], r.projeto_id);
     return regraApi(r, bib);
   }
 
@@ -288,10 +291,17 @@ export class SanDiretrizesService {
     if (e.alteracoes !== undefined) novo.alteracoes = e.alteracoes === null ? null : validarConteudo(aspecto, e.alteracoes, true);
     const mudou = Object.keys(novo).filter((k) => canonico(novo[k]) !== canonico((r as unknown as Json)[k] ?? null));
     if (!mudou.length) return this.apiDe(regraId);
-    const bib = await conteudosDaBiblioteca(this.prisma, r.biblioteca_id ? [{ id: r.biblioteca_id, versao: r.biblioteca_versao }] : []);
+    const bib = await conteudosDaBiblioteca(this.prisma, r.biblioteca_id ? [{ id: r.biblioteca_id, versao: r.biblioteca_versao }] : [], r.projeto_id);
+    const baseLib = r.biblioteca_id ? efetivoDaLinha({ ...r, alteracoes: null, legado: false }, bib) : null;
+    // Alterações que não mudam o CONTEÚDO EFETIVO (a tela mandou o conteúdo inteiro, igual ao de hoje) não contam: nada se grava delas e a
+    // regra convertida continua legado (o motor segue com os parâmetros antigos, resultado idêntico).
+    if (mudou.includes('alteracoes') && mesmoConteudo(aspecto, efetivoDaLinha(r, bib), conteudoEfetivo(aspecto, baseLib, novo.alteracoes as Partial<ConteudoRegra> | null))) mudou.splice(mudou.indexOf('alteracoes'), 1);
+    if (!mudou.length) return this.apiDe(regraId);
     const alteracoes = (mudou.includes('alteracoes') ? novo.alteracoes : r.alteracoes) as Partial<ConteudoRegra> | null;
-    this.efetivoValido(aspecto, r.biblioteca_id ? efetivoDaLinha({ ...r, alteracoes: null }, bib) : null, alteracoes);
-    const conteudoMudou = mudou.includes('alteracoes') || mudou.includes('abrangencia');
+    this.efetivoValido(aspecto, baseLib, alteracoes);
+    // Só o conteúdo tira o legado: nome, observação e abrangência não mudam o que a regra manda (a regra convertida, com outra abrangência,
+    // continua aplicando os parâmetros antigos aos grupos que cobre).
+    const conteudoMudou = mudou.includes('alteracoes');
     const queda = this.quedaDeAprovacao(r, `A regra ${r.codigo} foi alterada depois de aprovada: aplicar, revisar os achados e aprovar de novo.`);
     const itens = r.situacao === 'APROVADA' ? await this.itensDaRegraAplicada(r.projeto_id, r) : [];
     const data: Json = {
@@ -331,11 +341,21 @@ export class SanDiretrizesService {
     depois.set(atual.id, { ...atual, aplicacao: aplicacaoDoRascunho(atual, conteudo) });
     const antesIdx = criarIndice(resolviveisAplicadas(linhas));
     const depoisIdx = criarIndice(resolviveisAplicadas(linhas.map((l) => depois.get(l.id) ?? l)));
-    const afetados: string[] = []; const grupos = new Set<string>();
-    for (const i of await itensComGrupo(this.prisma, r.projeto_id)) {
+    const todos = await itensComGrupo(this.prisma, r.projeto_id);
+    const diretos: string[] = [];
+    for (const i of todos) {
       const a = antesIdx.resolver(i.grupo, i.subgrupo)[aspecto]?.id; const d = depoisIdx.resolver(i.grupo, i.subgrupo)[aspecto]?.id;
-      if (a !== d || a === atual.id || d === atual.id) { afetados.push(i.id); grupos.add(i.grupo); }
+      if (a !== d || a === atual.id || d === atual.id) diretos.push(i.id);
     }
+    // Itens que podem mudar = os da regra + os que dividem com eles um caso aberto de conjunto que a regra mexe (o conjunto se refaz sem os
+    // itens que saem). Caso de outro aspecto (ex.: unidade, numa regra de nomes) não muda e não entra.
+    const conjuntos = diretos.length
+      ? (await this.prisma.sanCaso.findMany({ where: { projeto_id: r.projeto_id, camada: { in: camadasDoAspecto(aspecto) }, situacao: 'PROPOSTO' }, select: { camada: true, tipo: true, itens: true } }))
+        .filter((c: { camada: string; tipo: string; itens: string[] }) => c.itens.length > 1 && tipoMudaComAspecto(aspecto, c.camada, c.tipo))
+      : [];
+    const fechado = fecharEscopo(diretos, [], conjuntos);
+    const afetados: string[] = []; const grupos = new Set<string>();
+    for (const i of todos) if (fechado.has(i.id)) { afetados.push(i.id); grupos.add(i.grupo); }
     return {
       previa: {
         regraId: atual.id, grupos: [...grupos].sort(), itens: afetados.length, sobreposicoes: sobre.map(({ grupo, regraAtual }) => ({ grupo, regraAtual })), camadas: CAMADAS_DO_ASPECTO[aspecto],
@@ -411,7 +431,7 @@ export class SanDiretrizesService {
     const r = await this.carregar(regraId);
     if (r.versao !== versao) throw conflito();
     if (abrangenciaVazia(r.abrangencia as Abrangencia)) throw bad('REGRA_SEM_GRUPOS', 'A regra não cobre nenhum grupo: não há o que aprovar.');
-    const bib = await conteudosDaBiblioteca(this.prisma, r.biblioteca_id ? [{ id: r.biblioteca_id, versao: r.biblioteca_versao }] : []);
+    const bib = await conteudosDaBiblioteca(this.prisma, r.biblioteca_id ? [{ id: r.biblioteca_id, versao: r.biblioteca_versao }] : [], r.projeto_id);
     if (pendenteAplicar(r, efetivoDaLinha(r, bib))) throw bad('REGRA_NAO_APLICADA', 'Aplique e reanalise a regra como está antes de aprovar (o rascunho difere do que foi aplicado).');
     if (r.situacao === 'APROVADA' && !r.revisar) return { ...(await this.apiDe(regraId)), jaAprovada: true };
     await this.prisma.$transaction(async (tx) => {
@@ -438,12 +458,13 @@ export class SanDiretrizesService {
     if (!r.biblioteca_id) throw bad('SEM_BIBLIOTECA', 'Esta regra não vem da biblioteca.');
     const lib = await this.prisma.sanDiretrizBiblioteca.findUnique({ where: { id: r.biblioteca_id } });
     if (!lib || lib.versao <= (r.biblioteca_versao ?? 0)) throw bad('SEM_VERSAO_NOVA', 'Não há versão nova desta regra na biblioteca.');
-    const bib = await conteudosDaBiblioteca(this.prisma, [{ id: r.biblioteca_id, versao: r.biblioteca_versao }]);
+    const bib = await conteudosDaBiblioteca(this.prisma, [{ id: r.biblioteca_id, versao: r.biblioteca_versao }], r.projeto_id);
     const antes = efetivoDaLinha(r, bib);
     let depois: ConteudoRegra;
     try { depois = this.efetivoValido(r.aspecto as Aspecto, lib.conteudo as ConteudoRegra, r.alteracoes as Partial<ConteudoRegra> | null); } catch (err) {
       throw bad('ALTERACOES_INCOMPATIVEIS', `As alterações do projeto não cabem na versão nova da biblioteca: ${((err as { response?: { message?: string } }).response?.message) ?? (err as Error).message} Ajuste as alterações antes de adotar.`);
     }
+    depois = comLinhasDoErp(r, depois, bib);
     const itens = r.situacao === 'APROVADA' ? await this.itensDaRegraAplicada(r.projeto_id, r) : [];
     const queda = this.quedaDeAprovacao(r, `A regra ${r.codigo} adotou a versão ${lib.versao} da biblioteca depois de aprovada: aplicar, revisar os achados e aprovar de novo.`);
     await this.prisma.$transaction(async (tx) => {
@@ -476,15 +497,19 @@ export class SanDiretrizesService {
     try {
       const r = await this.prisma.$transaction(async (tx) => {
         let bibliotecaId: string | null = null;
+        // Destino biblioteca: a regra-modelo leva só o que vale para qualquer cliente; o que cita item do cliente (exceção de NCM por código,
+        // conversão de um produto) fica só na regra do projeto, que nasce em rascunho apontando para a regra-modelo.
+        const { geral, doProjeto } = e.destino === 'BIBLIOTECA' ? separarDoCliente(aspecto, alteracoes) : { geral: null, doProjeto: alteracoes };
         if (e.destino === 'BIBLIOTECA') {
-          const conteudo = validarRegraModelo(aspecto, conteudoEfetivo(aspecto, null, alteracoes));
+          const conteudo = validarRegraModelo(aspecto, conteudoEfetivo(aspecto, null, geral));
           bibliotecaId = `bib-${randomUUID().slice(0, 8)}`;
           const nome = texto(e.nome, 'o nome da regra', 160) as string;
-          await tx.sanDiretrizBiblioteca.create({ data: { id: bibliotecaId, aspecto, nome, observacao: detalhe, conteudo: conteudo as never, versao: 1, editada: true } });
-          await tx.sanDiretrizBibliotecaVersao.create({ data: { regra_id: bibliotecaId, versao: 1, nome, observacao: detalhe, conteudo: conteudo as never, acao: 'CRIOU', usuario: quem(usuario) } });
+          const obs = `Criada a partir de um caso do Saneamento (${caso.tipo}).`;
+          await tx.sanDiretrizBiblioteca.create({ data: { id: bibliotecaId, aspecto, nome, observacao: obs, conteudo: conteudo as never, versao: 1, editada: true } });
+          await tx.sanDiretrizBibliotecaVersao.create({ data: { regra_id: bibliotecaId, versao: 1, nome, observacao: obs, conteudo: conteudo as never, acao: 'CRIOU', usuario: quem(usuario) } });
         }
         return this.criarNaTransacao(tx, projetoId, {
-          aspecto, nome: e.nome, abrangencia: e.abrangencia, observacao: e.observacao ?? detalhe, bibliotecaId, alteracoes: bibliotecaId ? null : alteracoes,
+          aspecto, nome: e.nome, abrangencia: e.abrangencia, observacao: e.observacao ?? detalhe, bibliotecaId, alteracoes: doProjeto,
         }, usuario, 'TRANSFORMAR', detalhe);
       });
       const regra = await this.apiDe(r.id);
@@ -514,9 +539,9 @@ export class SanDiretrizesService {
     return {
       regraId: r.id, codigo: r.codigo, aspecto, total: doGrupo.length,
       itens: itens.map((it) => {
-        const ex = exemploDoItem(it, conteudo, idx.resolver(it.grupo, it.campos?.subgrupo).NOMES);
+        const ex = exemploDoItem(it, conteudo, idx.resolver(it.grupo, subgrupoDosCampos(it.campos)).NOMES);
         return {
-          itemId: it.id, codigo: it.codigo, grupo: it.grupo, subgrupo: it.campos?.subgrupo ?? null, unidade: it.unidade, descricaoAtual: it.descricao,
+          itemId: it.id, codigo: it.codigo, grupo: it.grupo, subgrupo: subgrupoDosCampos(it.campos), unidade: it.unidade, descricaoAtual: it.descricao,
           descricaoProposta: (ex.descricaoProposta as string | null | undefined) ?? null, observacao: (ex.observacao as string | undefined) ?? '', ...ex,
         };
       }),
@@ -548,7 +573,7 @@ export class SanDiretrizesService {
         aprovador: aprovadores.length ? aprovadores.join(', ') : null, dataEmissao: new Date(), erp: await nomeDoErp(this.prisma, proj?.erp_id, proj?.erp),
       },
       regras,
-      procedimentos: d.procedimentos,
+      procedimentos: d.procedimentos, notaProcedimentos: d.notaProcedimentos,
       quadro: d.quadro.map(({ grupo, ...cods }) => ({ grupo, codigos: Object.fromEntries(Object.entries(cods).filter(([, v]) => v)) as Partial<Record<Aspecto, string>> })),
       pendencias: { gruposSemRegra: d.pendencias.gruposSemRegra },
     };
@@ -562,22 +587,29 @@ export class SanDiretrizesService {
     const projeto = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true, empresa_id: true, diagnostico_id: true, responsavel: true } });
     if (!projeto) throw new NotFoundException('Projeto de saneamento não encontrado.');
     let diretrizes: Json | null; let versao: Json | null = null; let grupos: string[];
+    let procedimentos: Procedimento[] = PROCEDIMENTOS; let notaProcedimentos: string | null = null;
     if (versaoId) {
       const v = await this.versoes.diretrizesDaVersao(projetoId, versaoId);
       diretrizes = v.diretrizes; versao = { id: v.versao.id, numero: v.versao.numero, rotulo: v.versao.rotulo, criadaEm: v.versao.createdAt };
       const { itens } = await this.versoes.trabalhoDosItensDaFoto(projetoId, versaoId);
-      grupos = [...new Set([...itens.values()].map((t) => (String(t.grupo ?? '').trim() || '(sem grupo)')))].sort();
+      // Mesma chave de grupo da resolução (espaços repetidos não distinguem grupos): "PARAFUSOS  E FIXADORES" = "PARAFUSOS E FIXADORES".
+      grupos = [...new Set([...itens.values()].map((t) => chaveGrupo(t.grupo)))].sort();
+      // Procedimentos congelados na foto; foto anterior a isso usa a redação atual, com nota.
+      if (Array.isArray(diretrizes?.procedimentos)) procedimentos = diretrizes.procedimentos as Procedimento[];
+      else if (diretrizes) notaProcedimentos = 'Procedimentos na redação vigente na data de emissão deste documento.';
     } else {
       await this.garantir(projetoId);
       diretrizes = await fotoDasDiretrizes(this.prisma, projetoId);
       grupos = gruposDaBase(await itensComGrupo(this.prisma, projetoId)).map((g) => g.grupo);
     }
-    const regras = ((diretrizes?.regras as Json[] | undefined) ?? []).filter((x) => x.ativa !== false);
+    // Foto de versão: regra convertida (ou foto sem a marca) com as abreviações no sentido certo (conversão antiga gravava o par invertido).
+    const regras = ((diretrizes?.regras as Json[] | undefined) ?? []).filter((x) => x.ativa !== false)
+      .map((x) => (versaoId && x.legado !== false && x.conteudoEfetivo ? { ...x, conteudoEfetivo: abreviacoesNoSentidoCerto(x.conteudoEfetivo as ConteudoRegra) } : x));
     const idx = criarIndice(regras.map((x) => ({ id: String(x.id), codigo: String(x.codigo), nome: String(x.nome), aspecto: x.aspecto as Aspecto, abrangencia: x.abrangencia as Abrangencia, conteudo: x.conteudoEfetivo as ConteudoRegra, aprovada: x.situacao === 'APROVADA' })));
     const quadro = grupos.map((grupo) => { const rs = idx.resolver(grupo); return { grupo, NOMES: rs.NOMES?.codigo ?? null, ATRIBUTOS: rs.ATRIBUTOS?.codigo ?? null, UNIDADES: rs.UNIDADES?.codigo ?? null, LIMITES: rs.LIMITES?.codigo ?? null, FISCAL: rs.FISCAL?.codigo ?? null }; });
     const cab = (diretrizes?.cabecalho as Json | undefined) ?? { vigencia: null, situacao: 'RASCUNHO', revisar: false, versao: 1 };
     return {
-      projeto, versao, cabecalho: cab, regras, procedimentos: PROCEDIMENTOS, quadro,
+      projeto, versao, cabecalho: cab, regras, procedimentos, notaProcedimentos, quadro,
       pendencias: {
         regrasNaoAprovadas: regras.filter((x) => x.situacao !== 'APROVADA').map((x) => ({ codigo: x.codigo, nome: x.nome, revisar: x.revisar === true })),
         gruposSemRegra: gruposSemRegra(grupos, regras.map((x) => ({ id: String(x.id), codigo: String(x.codigo), aspecto: x.aspecto as Aspecto, abrangencia: x.abrangencia as Abrangencia }))).filter((g) => g.grupos.length),
@@ -626,6 +658,33 @@ function exemploDoItem(it: ItemTrabalho, c: ConteudoRegra, nomes: RegraResolvive
     case 'ATRIBUTOS': return { atributos: (c as RegraAtributos).atributos.map((a) => ({ atributo: a.atributo, aplicabilidade: a.aplicabilidade, ...atributoPresente(it, a) })) };
     case 'FISCAL': return { ncm: it.ncm, foraDaValidacaoNcm: foraDoNcm(it, c as RegraFiscal), validarCClassTrib: (c as RegraFiscal).validarCClassTrib };
   }
+}
+
+/**
+ * Separa as alterações tiradas de um caso entre o que pode ir para a biblioteca (vale para qualquer cliente) e o que cita item do cliente e
+ * fica só no projeto: exceções de NCM (o alvo é código de item ou grupo do cliente) e conversões de um produto (código do produto).
+ */
+export function separarDoCliente(aspecto: Aspecto, alteracoes: Partial<ConteudoRegra> | null): { geral: Partial<ConteudoRegra> | null; doProjeto: Partial<ConteudoRegra> | null } {
+  if (!alteracoes) return { geral: null, doProjeto: null };
+  const vazio = (o: Json) => (Object.keys(o).length ? o : null);
+  if (aspecto === 'FISCAL') {
+    const resto: Json = { ...alteracoes };
+    delete resto.excecoesNcm;
+    const excecoesNcm = (alteracoes as Partial<RegraFiscal>).excecoesNcm;
+    return { geral: vazio(resto) as Partial<ConteudoRegra> | null, doProjeto: excecoesNcm?.length ? ({ excecoesNcm } as Partial<RegraFiscal>) : null };
+  }
+  if (aspecto === 'UNIDADES' && (alteracoes as Partial<RegraUnidades>).conversoes) {
+    const a = alteracoes as Partial<RegraUnidades>;
+    const doGrupo = a.conversoes!.filter((c) => c.abrangencia !== 'PRODUTO');
+    const doProduto = a.conversoes!.filter((c) => c.abrangencia === 'PRODUTO');
+    const resto: Json = { ...a };
+    delete resto.conversoes;
+    return {
+      geral: vazio({ ...resto, ...(doGrupo.length ? { conversoes: doGrupo } : {}) }) as Partial<ConteudoRegra> | null,
+      doProjeto: doProduto.length ? ({ conversoes: [...doGrupo, ...doProduto] } as Partial<RegraUnidades>) : null,
+    };
+  }
+  return { geral: alteracoes, doProjeto: null };
 }
 
 /**

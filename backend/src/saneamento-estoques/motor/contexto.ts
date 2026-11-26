@@ -48,9 +48,10 @@ export type PapelUnificacao = { papel: 'FICA' | 'SAI'; outro: string };
 /**
  * O contexto que o motor entende: o contrato (`ContextoAnalise`) mais parâmetros, a tabela NCM e, na Qualidade, os itens que já estão
  * numa unificação (id → papel), para a inativação por falta de movimento não propor inativar o código que recebe o saldo nem repetir o que já sai.
- * As camadas continuam recebendo `ContextoAnalise`.
+ * As camadas continuam recebendo `ContextoAnalise`. `universoUnidades` (Diretrizes): quando a camada Nomes e unidades roda só sobre uma parte
+ * dos itens (parâmetros diferentes por grupo), a grafia dominante e o nome padrão das unidades continuam calculados sobre a base inteira.
  */
-export type ContextoMotor = ContextoAnalise & { parametros?: ParametrosMotor; tabelaNcm?: TabelaNcm; unificacoes?: Map<string, PapelUnificacao> };
+export type ContextoMotor = ContextoAnalise & { parametros?: ParametrosMotor; tabelaNcm?: TabelaNcm; unificacoes?: Map<string, PapelUnificacao>; universoUnidades?: { unidade?: string | null; descricao?: string | null }[] };
 
 export const parametrosDe = (contexto: ContextoAnalise): ParametrosMotor => (contexto as ContextoMotor).parametros ?? {};
 export const tabelaNcmDe = (contexto: ContextoAnalise): TabelaNcm | null => (contexto as ContextoMotor).tabelaNcm ?? null;

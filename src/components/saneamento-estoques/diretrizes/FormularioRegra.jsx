@@ -149,7 +149,7 @@ export default function FormularioRegra({ projeto, dados, regraId: regraIdInicia
     if (e.length) return null;
     const editado = normalizarConteudo(form.conteudo);
     const alteracoes = alteracoesParaSalvar({ bibliotecaId: form.bibliotecaId, base, editado, anteriores: regraServidor?.alteracoes });
-    const corpo = { nome: form.nome.trim(), abrangencia, observacao: form.observacao.trim() || null, alteracoes };
+    const corpo = { nome: form.nome.trim(), abrangencia, observacao: form.observacao.trim() || null, ...(alteracoes !== undefined ? { alteracoes } : {}) };
     const resp = regraId ? await san.alterarRegra(regraId, { versao, ...corpo }) : await san.criarRegra(projeto.id, { aspecto: form.aspecto, ...corpo, bibliotecaId: form.bibliotecaId || undefined });
     await gravou(resp);
     return resp || {};

@@ -20,11 +20,11 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Qual limite de caracteres vale quando o leiaute oficial, o ERP e o cliente dizem números diferentes?",
-      r: "Vale o menor limite confirmado. O leiaute oficial (Guia Prático do SPED, MOC da NF-e), com referência e versão, é o teto; depois vem o ERP e, por fim, o limite próprio do cliente. Limite sem número fica não confirmado (pendente), nunca um número genérico. Se o ERP aceitar mais caracteres que o leiaute oficial, a regra avisa. O texto nunca é cortado: o excesso gera proposta com abreviação aprovada ou pedido de revisão, conforme a linha.",
+      r: "Vale o menor limite confirmado. O leiaute oficial (Guia Prático do SPED, MOC da NF-e), com referência e versão, é o teto; depois vem o ERP e, por fim, o limite próprio do cliente. Limite sem número fica não confirmado (pendente), nunca um número genérico. Se o ERP aceitar mais caracteres que o leiaute oficial, a regra avisa. As linhas do ERP vêm do Cadastro de ERPs pelo ERP escolhido no projeto; trocar o ERP muda o rascunho da regra, e a análise só muda quando você aplica. O texto nunca é cortado: o excesso gera proposta com abreviação aprovada ou pedido de revisão, conforme a linha.",
     },
     {
       p: "Como uso uma decisão de um caso como regra para os outros itens?",
-      r: "No detalhe do caso, clique em Transformar em regra. O aspecto, o nome e os grupos vêm preenchidos pelo caso; escolha se a regra fica neste projeto ou na biblioteca (só o administrador) e clique em Criar a regra. Ela nasce em Rascunho; abra-a nas Diretrizes, complete e use Aplicar e reanalisar, com a prévia. A decisão isolada nunca muda uma regra sozinha (POP-CON-20).",
+      r: "No detalhe do caso, clique em Transformar em regra. O aspecto, o nome e os grupos vêm preenchidos pelo caso; escolha se a regra fica neste projeto ou na biblioteca (só o administrador) e clique em Criar a regra. Ela nasce em Rascunho (com Na biblioteca, a regra-modelo é criada sem códigos de item do cliente e o projeto ganha a regra que parte dela, com as exceções do caso); abra-a nas Diretrizes, complete e use Aplicar e reanalisar, com a prévia. A decisão isolada nunca muda uma regra sozinha (POP-CON-20).",
     },
     {
       p: "Onde baixo a política de cadastro e estoques?",

@@ -3,6 +3,8 @@
  * grupos" (o padrão, que vale também para grupos novos). Sobreposição = duas regras do mesmo aspecto no MESMO nível para o mesmo grupo
  * (ou o mesmo par grupo/subgrupo): bloqueia aplicar até a transferência ser confirmada. Funções puras.
  */
+import { SINONIMOS } from '../importacao/mapeamento';
+import { simplificar } from '../importacao/normalizacao';
 import type { ParametrosMotor } from '../motor/contexto';
 import { SEM_GRUPO } from './conteudo-regra';
 import { ASPECTOS, type Abrangencia, type Aspecto, type ConteudoRegra } from './tipos';
@@ -24,6 +26,24 @@ export type RegraResolvivel = {
 /** Chave do grupo do item: o texto aparado; vazio = "(sem grupo)". */
 export const chaveGrupo = (g: unknown): string => { const t = String(g ?? '').replace(/\s+/g, ' ').trim(); return t || SEM_GRUPO; };
 export const chaveSubgrupo = (s: unknown): string => String(s ?? '').replace(/\s+/g, ' ').trim();
+
+/**
+ * Cabeçalho de coluna que é o subgrupo gravado como coluna extra (bases importadas antes de a importação mapear o subgrupo guardavam
+ * `campos["Subgrupo"]`, com o nome do cabeçalho). Mesmos nomes que o mapeamento reconhece (SINONIMOS.subgrupo e o casamento aproximado).
+ */
+export function ehCabecalhoDeSubgrupo(k: string): boolean {
+  if (k === 'subgrupo') return false;
+  const s = simplificar(k);
+  return SINONIMOS.subgrupo.includes(s) || /^sub(grupo|famil|categ)/.test(s);
+}
+/** Subgrupo do item: `campos.subgrupo` (importação atual) ou, nas bases antigas, a coluna extra com cabeçalho de subgrupo. Sem reimportar. */
+export function subgrupoDosCampos(campos: Record<string, unknown> | null | undefined): string | null {
+  if (!campos || typeof campos !== 'object') return null;
+  const atual = campos.subgrupo;
+  if (atual != null && String(atual).trim()) return String(atual);
+  const k = Object.keys(campos).filter(ehCabecalhoDeSubgrupo).sort()[0];
+  return k && campos[k] != null && String(campos[k]).trim() ? String(campos[k]) : null;
+}
 
 export type Nivel = 'SUBGRUPO' | 'GRUPO' | 'TODOS';
 

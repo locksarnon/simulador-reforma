@@ -9,7 +9,7 @@
  */
 import type { AnalisadorCamada, CasoProposto, ContextoAnalise, ItemTrabalho, ResultadoCamada } from '../tipos';
 import { ev, justificar, montarResultado, rotuloItem, valorComum } from './base';
-import { parametrosDe } from './contexto';
+import { parametrosDe, type ContextoMotor } from './contexto';
 import { novoCaso } from './dependencias';
 import { campoDe, semAcento, soTermosGenericos, txt } from './texto';
 import { achadosUnidade, type Grandeza } from './unidades';
@@ -81,7 +81,8 @@ export class AnalisadorNomesUnidades implements AnalisadorCamada {
     const pol = par.politicaUnidade ?? {};
     const abrevAprovadas = par.abreviacoesAprovadas ?? {};
     const aprovadasChaves = new Set(Object.keys(abrevAprovadas).map((k) => semAcento(k).toLowerCase()));
-    const testeUnidade = achadosUnidade(itens, { politica: pol.ativa !== false, regras: pol.regras ?? {}, rotulos: (pol.rotulos ?? {}) as Partial<Record<Grandeza, string>> });
+    // Grafia dominante e nome padrão sobre a base inteira, mesmo quando a camada roda sobre uma parte dela (Diretrizes por grupo).
+    const testeUnidade = achadosUnidade((contexto as ContextoMotor).universoUnidades ?? itens, { politica: pol.ativa !== false, regras: pol.regras ?? {}, rotulos: (pol.rotulos ?? {}) as Partial<Record<Grandeza, string>> });
     const regrasForma = { ...REGRAS_PADRAO, caixaAlta: par.padronizarCaixaAlta === true };
     const casos: CasoProposto[] = [];
     const c = (x: Parameters<typeof novoCaso>[0]) => casos.push(novoCaso(x));

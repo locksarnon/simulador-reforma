@@ -27,6 +27,8 @@ export type DadosPolitica = {
   /** Todas as regras do projeto (aprovadas e não aprovadas). Só as aprovadas saem como vigentes. */
   regras: RegraPolitica[];
   procedimentos: Procedimento[];
+  /** Nota curta sob o título dos procedimentos (ex.: versão liberada antes de os procedimentos serem congelados na foto). */
+  notaProcedimentos?: string | null;
   /** Quadro de consulta: para cada grupo, o código da regra efetiva por aspecto (ausente = grupo sem regra no aspecto). */
   quadro: { grupo: string; codigos: Partial<Record<Aspecto, string>> }[];
   pendencias: {

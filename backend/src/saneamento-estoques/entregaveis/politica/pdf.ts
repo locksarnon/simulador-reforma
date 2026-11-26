@@ -215,6 +215,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         return hCab + alturaFluxo(pdf, p.fluxo, MARGEM, largura, Math.min(4, p.fluxo.length));
       };
       tituloSecao('3. Procedimentos', d.procedimentos.length ? inicioProcedimento(d.procedimentos[0]) : 30);
+      if (d.notaProcedimentos) paragrafo(d.notaProcedimentos, { italico: true, cor: CINZA });
       if (!d.procedimentos.length) paragrafo('Nenhum procedimento cadastrado.', { italico: true, cor: CINZA });
       d.procedimentos.forEach((p, i) => {
         const titulo = limpar(p.titulo);

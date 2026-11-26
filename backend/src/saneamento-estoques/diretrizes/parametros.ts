@@ -3,6 +3,7 @@
  * alta) passam a vir das regras, POR GRUPO. Regra convertida dos parâmetros antigos e não editada (legado) devolve exatamente os
  * parâmetros de antes: o resultado não muda. Funções puras.
  */
+import { limitesDoErp, type PerfilErp } from '../../erps/logica';
 import type { LimitesCampo, ParametrosMotor, RegraUnidade } from '../motor/contexto';
 import { chaveUnidade, classificarUnidade } from '../motor/unidades';
 import { conteudoPadrao } from './conteudo-regra';
@@ -41,9 +42,10 @@ export function parametrosDaParticao(base: ParametrosMotor, regras: Partial<Reco
       if (l.padronizarCaixaAlta !== undefined) p.padronizarCaixaAlta = l.padronizarCaixaAlta; else delete p.padronizarCaixaAlta;
     } else {
       // Regra nova: a forma da descrição vem da própria regra (caso DESCRICAO_FORA_PADRAO); aqui só as abreviações aprovadas, para a camada
-      // não apontar como ambígua uma abreviação que a regra aprovou.
+      // não apontar como ambígua uma abreviação que a regra aprovou. Mesmo formato do parâmetro antigo: chave = forma ABREVIADA, valor = forma
+      // POR EXTENSO (o inverso da conversão em converterParametros).
       const c = nomes.conteudo as RegraNomes;
-      p.abreviacoesAprovadas = Object.fromEntries(c.abreviacoes.map((a) => [chaveAbreviacao(a.abreviacao), a.abreviacao]).filter(([k]) => k));
+      p.abreviacoesAprovadas = Object.fromEntries(c.abreviacoes.map((a) => [chaveAbreviacao(a.abreviacao), a.completa]).filter(([k]) => k));
       p.padronizarCaixaAlta = false;
     }
   }
@@ -109,26 +111,18 @@ const ROTULO_CAMPO: Record<string, string> = { codigo: 'Código', descricao: 'De
 /** Id fixo da regra-modelo de limites com as linhas oficiais (LIMITES_OFICIAIS): a biblioteca de conteúdo não traz regra de LIMITES. */
 export const ID_BIBLIOTECA_LIMITES = 'bib-limites-oficiais';
 
-type ItemErp = { tipo: string; chave: string; texto: string; campo_erp: string | null; fonte_url: string | null; grau: string; ativo?: boolean };
-/** "200 caracteres..." no início do texto (mesma convenção de `tamanhoDoTexto` do Cadastro de ERPs); null = sem número (não confirmado). */
-const tamanhoNoTexto = (t: unknown): number | null => { const m = /^\s*(\d{1,5})\s*caracteres\b/i.exec(String(t ?? '')); const n = m ? Number(m[1]) : NaN; return Number.isInteger(n) && n > 0 ? n : null; };
-const CAMPOS_LINHA = ['descricao', 'codigo', 'unidade', 'referencia', 'fabricante'];
-
 /**
- * Linhas de limite de origem ERP a partir do Cadastro de ERPs (conhecimento LIMITE_CAMPO ativo: `chave` = campo do item, `campo_erp` = campo
- * do ERP, `texto` começando por "<n> caracteres"). Só CONFIRMADO com número vira limite; o resto entra sem número (pendência). Mesma regra de
- * `limitesDoErp` (erps/logica.ts); o integrador pode trocar por ela.
+ * Linhas de limite de origem ERP a partir do Cadastro de ERPs, pela MESMA regra de `limitesDoErp` (erps/logica.ts): conhecimento LIMITE_CAMPO
+ * ativo de ERP ativo e com perfil específico (A_DESENVOLVER fica de fora), na ordem do cadastro; só CONFIRMADO com "<n> caracteres" vira
+ * limite, o resto entra sem número (pendência).
  */
-export function linhasDoErp(perfil: { nome: string; itens: ItemErp[] } | null | undefined): LinhaLimite[] {
+export function linhasDoErp(perfil: PerfilErp | null | undefined): LinhaLimite[] {
   if (!perfil) return [];
-  return perfil.itens.filter((i) => i.ativo !== false && i.tipo === 'LIMITE_CAMPO' && CAMPOS_LINHA.includes(i.chave)).map((i) => {
-    const n = i.grau === 'CONFIRMADO' ? tamanhoNoTexto(i.texto) : null;
-    return {
-      destino: perfil.nome.slice(0, 120), campo: String(i.campo_erp || i.chave).slice(0, 120), campoItem: i.chave as LinhaLimite['campoItem'], limite: n, origem: 'ERP',
-      referencia: `Cadastro de ERPs: ${String(i.texto).slice(0, 400)}`, url: i.fonte_url && /^https?:\/\//i.test(i.fonte_url) ? i.fonte_url.slice(0, 500) : null, confirmado: n !== null,
-      tratamento: 'SUGERIR_ABREVIACAO', preservar: ['NOME', 'REFERENCIA'],
-    } satisfies LinhaLimite;
-  });
+  return limitesDoErp(perfil).map((l) => ({
+    destino: perfil.nome.slice(0, 120), campo: String(l.campoErp || l.campoItem).slice(0, 120), campoItem: l.campoItem, limite: l.limite, origem: 'ERP',
+    referencia: `Cadastro de ERPs: ${String(l.observacao).slice(0, 400)}`, url: l.fonteUrl && /^https?:\/\//i.test(l.fonteUrl) ? l.fonteUrl.slice(0, 500) : null, confirmado: l.confirmado,
+    tratamento: 'SUGERIR_ABREVIACAO', preservar: ['NOME', 'REFERENCIA'],
+  } satisfies LinhaLimite));
 }
 
 /**
@@ -139,13 +133,15 @@ export function converterParametros(motor: ParametrosMotor | null | undefined, l
   const m = motor ?? {};
   const out: ReturnType<typeof converterParametros> = [];
   const nota = 'Convertida automaticamente dos parâmetros que o projeto já tinha antes das Diretrizes; enquanto não for editada, a análise segue exatamente como antes.';
-  const abrev = m.abreviacoesAprovadas && typeof m.abreviacoesAprovadas === 'object' ? Object.entries(m.abreviacoesAprovadas).filter(([de, para]) => String(de).trim() && String(para ?? '').trim()) : [];
+  // No parâmetro antigo a chave é a forma ABREVIADA e o valor a forma POR EXTENSO (motor/nomes-unidades.ts: "sext" → "SEXTAVADO"); na regra,
+  // `completa` = por extenso e `abreviacao` = a forma curta.
+  const abrev = m.abreviacoesAprovadas && typeof m.abreviacoesAprovadas === 'object' ? Object.entries(m.abreviacoesAprovadas).filter(([curta, extenso]) => String(curta).trim() && String(extenso ?? '').trim()) : [];
   if (abrev.length || typeof m.padronizarCaixaAlta === 'boolean') {
     out.push({
       aspecto: 'NOMES', nome: 'Padrão de nomes do projeto', observacao: nota,
       alteracoes: {
         capitalizacao: m.padronizarCaixaAlta === true ? 'MAIUSCULAS' : 'PRESERVAR',
-        abreviacoes: abrev.map(([de, para]) => ({ completa: String(de).trim().slice(0, 120), abreviacao: String(para).trim().slice(0, 60) })),
+        abreviacoes: abrev.map(([curta, extenso]) => ({ completa: String(extenso).trim().slice(0, 120), abreviacao: String(curta).trim().slice(0, 60) })),
       },
       parametrosLegados: { ...(m.abreviacoesAprovadas !== undefined ? { abreviacoesAprovadas: m.abreviacoesAprovadas } : {}), ...(m.padronizarCaixaAlta !== undefined ? { padronizarCaixaAlta: m.padronizarCaixaAlta } : {}) },
     });

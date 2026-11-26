@@ -1,8 +1,8 @@
 /**
  * Ligação das Diretrizes com o motor: as regras efetivas de cada grupo comandam as camadas. Sem regra aplicada, nada passa por aqui
  * (comportamento de antes, byte a byte). Com regras:
- * - NOMES_UNIDADES: itens com as mesmas regras de NOMES, UNIDADES e LIMITES formam uma partição analisada com os parâmetros dela
- *   (parametrosDaParticao); regra nova acrescenta DESCRICAO_FORA_PADRAO, TERMO_PROIBIDO, COMPONENTE_AUSENTE, UNIDADE_NAO_PERMITIDA,
+ * - NOMES_UNIDADES: a análise de sempre roda pelo parâmetro efetivo de cada aspecto (parametrosDaParticao), com conjuntos de unidade e grafia
+ *   dominante sobre a base inteira (ver nomesUnidades); regra nova acrescenta DESCRICAO_FORA_PADRAO, TERMO_PROIBIDO, COMPONENTE_AUSENTE, UNIDADE_NAO_PERMITIDA,
  *   UNIDADE_FORA_CRITERIO, EXCEDE_LIMITE_DESTINO e LIMITE_NAO_CONFIRMADO. Regra convertida dos parâmetros antigos (legado) reproduz o de antes.
  * - QUALIDADE: a análise de sempre sobre todos os itens + ATRIBUTO_AUSENTE pela regra de ATRIBUTOS do grupo.
  * - NCM e TRIBUTARIO: a regra FISCAL do grupo decide se o item é validado (exceção justificada de NCM, validar NCM/cClassTrib).
@@ -10,18 +10,20 @@
  * atributo e nunca corta texto: excesso de limite sugere abreviação aprovada ou pede revisão. Funções puras.
  */
 import { ev, justificar, montarResultado, rotuloItem, valorComum } from '../motor/base';
-import { parametrosDe, type ContextoMotor } from '../motor/contexto';
+import { parametrosDe, type ContextoMotor, type ParametrosMotor } from '../motor/contexto';
 import { novoCaso } from '../motor/dependencias';
 import { padronizarDescricao } from '../motor/nomes-unidades';
 import { GENERICOS, campoDe, palavras, semAcento, txt } from '../motor/texto';
 import { chaveUnidade, classificarUnidade, grandezasNaDescricao, unidadeCanonica } from '../motor/unidades';
 import type { AnalisadorCamada, Camada, CasoProposto, ContextoAnalise, ItemTrabalho, ResultadoCamada } from '../tipos';
+import { canonico } from './conteudo-regra';
 import { limitesEfetivos, parametrosDaParticao } from './parametros';
-import { type IndiceDiretrizes, type RegraResolvivel } from './resolucao';
+import { subgrupoDosCampos, type IndiceDiretrizes, type RegraResolvivel } from './resolucao';
 import type { Aspecto, ComponenteNome, LinhaLimite, RegraAtributos, RegraFiscal, RegraLimites, RegraNomes, RegraUnidades } from './tipos';
 
 type Parcial = Parameters<typeof novoCaso>[0];
-const subgrupoDe = (it: ItemTrabalho) => it.campos?.subgrupo ?? null;
+/** Subgrupo do item (campos.subgrupo ou, em base antiga, a coluna extra "Subgrupo"). */
+const subgrupoDe = (it: ItemTrabalho) => subgrupoDosCampos(it.campos);
 export const referenciaRegra = (r: Pick<RegraResolvivel, 'codigo' | 'nome'>) => `${r.codigo} — ${r.nome}`;
 const fundamentoRegra = (r: RegraResolvivel) => `Regra ${referenciaRegra(r)} (Diretrizes do projeto)`;
 const comRegra = (c: CasoProposto, r: RegraResolvivel | undefined): CasoProposto => (r ? { ...c, evidencia: [...c.evidencia, ev('Regra', referenciaRegra(r))] } : c);
@@ -284,15 +286,17 @@ const ROTULO_CAMPO_ITEM: Record<LinhaLimite['campoItem'], string> = { descricao:
 /** Campos que aceitam abreviação aprovada; código, unidade e referência só por revisão (nunca se encurta identificador). */
 const ABREVIAVEIS = new Set<LinhaLimite['campoItem']>(['descricao', 'fabricante']);
 
-function casosLimites(itens: ItemTrabalho[], r: RegraResolvivel, nomes: RegraResolvivel | undefined): CasoProposto[] {
+/** `nomesDe` = regra de NOMES de cada item (as abreviações aprovadas são as do grupo do item; o conjunto de pendências é da regra de limites). */
+function casosLimites(itens: ItemTrabalho[], r: RegraResolvivel, nomesDe: (it: ItemTrabalho) => RegraResolvivel | undefined): CasoProposto[] {
   const c = r.conteudo as RegraLimites;
   const out: CasoProposto[] = [];
   const efetivos = limitesEfetivos(c.linhas);
-  const abreviacoes = nomes && !nomes.legado ? (nomes.conteudo as RegraNomes).abreviacoes : [];
+  const abreviacoesDe = (it: ItemTrabalho) => { const nomes = nomesDe(it); return nomes && !nomes.legado ? (nomes.conteudo as RegraNomes).abreviacoes : []; };
   const pendentes = c.linhas.filter((l) => !l.confirmado || l.limite == null);
   const camposPendentes = new Set(pendentes.map((l) => l.campoItem));
   const comPendencia: ItemTrabalho[] = [];
   for (const it of itens) {
+    const abreviacoes = abreviacoesDe(it);
     const proposta: Record<string, string> = {}; const evid = [] as ReturnType<typeof ev>[]; const campos: string[] = []; let pedeRevisao = false; let abreviou = false;
     for (const [campo, { limite, linha }] of efetivos) {
       const valor = String(campoDe(it, campo) ?? '');
@@ -405,36 +409,102 @@ function montar(camada: Camada, itens: ItemTrabalho[], casos: CasoProposto[], se
   return { ...r, semProblema };
 }
 
+/** Parte dos parâmetros do motor que cada aspecto comanda na camada Nomes e unidades (o resto da camada não depende das regras). */
+const PARAMETROS_DO_ASPECTO: Record<'NOMES' | 'UNIDADES' | 'LIMITES', (p: ParametrosMotor) => unknown> = {
+  NOMES: (p) => ({ abreviacoesAprovadas: p.abreviacoesAprovadas ?? {}, padronizarCaixaAlta: p.padronizarCaixaAlta === true }),
+  UNIDADES: (p) => p.politicaUnidade ?? {},
+  LIMITES: (p) => p.limites ?? null,
+};
+const ASPECTOS_NU = ['NOMES', 'UNIDADES', 'LIMITES'] as const;
+
+/** Referência da(s) regra(s) do aspecto dos itens do caso (uma regra: igual à de sempre; várias com os mesmos parâmetros: todas). */
+function comRegras(c: CasoProposto, regraDoItem: Map<string, RegraResolvivel | undefined>): CasoProposto {
+  const regras = [...new Map(c.itens.map((i) => regraDoItem.get(i)).filter((x): x is RegraResolvivel => !!x).map((x) => [x.id, x])).values()];
+  if (!regras.length) return c;
+  if (regras.length === 1) return comRegra(c, regras[0]);
+  const refs = regras.map(referenciaRegra).sort();
+  return { ...c, evidencia: [...c.evidencia, ev('Regra', refs.length > 3 ? `${refs.slice(0, 3).join('; ')} e mais ${refs.length - 3}` : refs.join('; '))] };
+}
+
+/**
+ * Camada Nomes e unidades com as regras de NOMES, UNIDADES e LIMITES de cada grupo. A análise de sempre roda por PARÂMETRO EFETIVO de cada
+ * aspecto (não pela combinação de regras): casos de nome por item usam os parâmetros de nome do item; casos de unidade (inclusive os de
+ * conjunto) juntam só itens com a mesma política de unidade, com grafia dominante e nome padrão calculados sobre a base inteira; tamanho, os
+ * limites do item. Assim uma regra de NOMES num grupo não mexe nos casos de unidade nem nos de outro grupo. Os casos das regras novas são
+ * montados por regra (o conjunto de uma regra não se parte pelo que outras regras do item mandam).
+ */
 function nomesUnidades(base: AnalisadorCamada, itens: ItemTrabalho[], contexto: ContextoAnalise, indice: IndiceDiretrizes): ResultadoCamada {
-  const parts = new Map<string, { itens: ItemTrabalho[]; regras: Partial<Record<Aspecto, RegraResolvivel>>; produto: string | null }>();
-  for (const it of itens) {
+  type Info = { it: ItemTrabalho; regras: Partial<Record<Aspecto, RegraResolvivel>>; produto: string | null };
+  const infos: Info[] = itens.map((it) => {
     const rs = indice.resolver(it.grupo, subgrupoDe(it));
-    const regras = { NOMES: rs.NOMES, UNIDADES: rs.UNIDADES, LIMITES: rs.LIMITES };
     const u = rs.UNIDADES;
     const produto = u && !u.legado && (u.conteudo as RegraUnidades).conversoes.some((c) => c.abrangencia === 'PRODUTO' && c.codigoProduto === it.codigo && mesmaUnidade(c.origem, it.unidade)) ? it.codigo : null;
-    const k = [rs.NOMES?.id ?? '', u?.id ?? '', rs.LIMITES?.id ?? '', produto ?? ''].join('\u0000');
-    const p = parts.get(k);
-    if (p) p.itens.push(it); else parts.set(k, { itens: [it], regras, produto });
-  }
+    return { it, regras: { NOMES: rs.NOMES, UNIDADES: u, LIMITES: rs.LIMITES }, produto };
+  });
   // Nenhum item com regra destes aspectos: a camada roda como sempre (mesmo objeto de resultado).
-  if (parts.size === 1) { const [p] = parts.values(); if (!p.regras.NOMES && !p.regras.UNIDADES && !p.regras.LIMITES) return base.analisar(itens, contexto); }
-  const casos: CasoProposto[] = []; const sem: string[] = []; const semDados: ResultadoCamada['semDados'][] = [];
+  if (infos.every((i) => !i.regras.NOMES && !i.regras.UNIDADES && !i.regras.LIMITES)) return base.analisar(itens, contexto);
   const baseParametros = parametrosDe(contexto);
-  for (const p of parts.values()) {
-    const { NOMES: n, UNIDADES: u, LIMITES: l } = p.regras;
-    const ctx = (n || u || l ? { ...contexto, parametros: parametrosDaParticao(baseParametros, p.regras, p.produto) } : contexto) as ContextoMotor;
-    const r = base.analisar(p.itens, ctx);
-    for (const c of r.casos) {
-      if (n && !n.legado && c.tipo === 'DESCRICAO_FORA_DO_PADRAO') continue; // a regra nova dá a forma (DESCRICAO_FORA_PADRAO)
-      casos.push(comRegra(c, p.regras[aspectoDoTipo(c.tipo)]));
+  const memo = new Map<string, ParametrosMotor>();
+  const parametrosDe_ = (i: Info) => {
+    const k = [i.regras.NOMES?.id ?? '', i.regras.UNIDADES?.id ?? '', i.regras.LIMITES?.id ?? '', i.produto ?? ''].join('\u0000');
+    let p = memo.get(k);
+    if (!p) { p = parametrosDaParticao(baseParametros, i.regras, i.produto); memo.set(k, p); }
+    return p;
+  };
+  // Partições por aspecto: itens com o mesmo parâmetro efetivo daquele aspecto.
+  const particoes = Object.fromEntries(ASPECTOS_NU.map((a) => {
+    const m = new Map<string, { itens: ItemTrabalho[]; parametros: ParametrosMotor }>();
+    for (const i of infos) {
+      const p = parametrosDe_(i);
+      const k = canonico(PARAMETROS_DO_ASPECTO[a](p));
+      const g = m.get(k);
+      if (g) g.itens.push(i.it); else m.set(k, { itens: [i.it], parametros: p });
     }
-    for (const id of r.semProblema) sem.push(id);
+    return [a, [...m.values()]];
+  })) as Record<(typeof ASPECTOS_NU)[number], { itens: ItemTrabalho[]; parametros: ParametrosMotor }[]>;
+  const regraDoItem = Object.fromEntries(ASPECTOS_NU.map((a) => [a, new Map(infos.map((i) => [i.it.id, i.regras[a]]))])) as Record<(typeof ASPECTOS_NU)[number], Map<string, RegraResolvivel | undefined>>;
+  const casos: CasoProposto[] = []; const semDados: ResultadoCamada['semDados'][] = [];
+  const guardar = (c: CasoProposto) => {
+    const a = aspectoDoTipo(c.tipo) as (typeof ASPECTOS_NU)[number];
+    const n = regraDoItem.NOMES.get(c.itens[0]);
+    if (c.tipo === 'DESCRICAO_FORA_DO_PADRAO' && n && !n.legado) return; // a regra nova do item dá a forma (DESCRICAO_FORA_PADRAO)
+    casos.push(comRegras(c, regraDoItem[a]));
+  };
+  const universo = itens;
+  if (ASPECTOS_NU.every((a) => particoes[a].length === 1)) {
+    // Mesmos parâmetros para todos os itens: uma só passada (o caso de sempre, inclusive regra convertida "Todos os grupos").
+    const r = base.analisar(itens, { ...contexto, parametros: particoes.NOMES[0].parametros, universoUnidades: universo } as ContextoMotor);
+    for (const c of r.casos) guardar(c);
     semDados.push(r.semDados);
-    if (n && !n.legado) for (const c of casosNomes(p.itens, n)) casos.push(comRegra(c, n));
-    if (u && !u.legado) for (const c of casosUnidades(p.itens, u)) casos.push(comRegra(c, u));
-    if (l && !l.legado) for (const c of casosLimites(p.itens, l, n)) casos.push(comRegra(c, l));
+  } else {
+    for (const a of ASPECTOS_NU) {
+      for (const p of particoes[a]) {
+        const r = base.analisar(p.itens, { ...contexto, parametros: p.parametros, universoUnidades: universo } as ContextoMotor);
+        for (const c of r.casos) if (aspectoDoTipo(c.tipo) === a) guardar(c);
+        if (a === 'NOMES') semDados.push(r.semDados);
+      }
+    }
   }
-  return montar('NOMES_UNIDADES', itens, casos, sem, juntarSemDados(semDados));
+  // Casos das regras novas, por regra.
+  const porRegra = (a: Aspecto) => {
+    const m = new Map<string, { regra: RegraResolvivel; itens: ItemTrabalho[] }>();
+    for (const i of infos) { const r = i.regras[a]; if (!r || r.legado) continue; const g = m.get(r.id); if (g) g.itens.push(i.it); else m.set(r.id, { regra: r, itens: [i.it] }); }
+    return [...m.values()];
+  };
+  for (const { regra, itens: lista } of porRegra('NOMES')) for (const c of casosNomes(lista, regra)) casos.push(comRegra(c, regra));
+  for (const { regra, itens: lista } of porRegra('UNIDADES')) for (const c of casosUnidades(lista, regra)) casos.push(comRegra(c, regra));
+  for (const { regra, itens: lista } of porRegra('LIMITES')) for (const c of casosLimites(lista, regra, (it) => regraDoItem.NOMES.get(it.id))) casos.push(comRegra(c, regra));
+  return montar('NOMES_UNIDADES', itens, casos, itens.map((i) => i.id), juntarSemDados(semDados));
+}
+
+/**
+ * Tipos de caso que uma regra do aspecto pode mudar, por camada (para a prévia "itens que podem mudar" fechar só pelos conjuntos que a
+ * regra mexe). Nomes e unidades: o aspecto de cada tipo; Qualidade: só ATRIBUTO_AUSENTE; NCM e Tributário: todos.
+ */
+export function tipoMudaComAspecto(aspecto: Aspecto, camada: string, tipo: string): boolean {
+  if (camada === 'NOMES_UNIDADES') return aspectoDoTipo(tipo) === aspecto;
+  if (camada === 'QUALIDADE') return aspecto === 'ATRIBUTOS' && tipo === 'ATRIBUTO_AUSENTE';
+  return aspecto === 'FISCAL' && (camada === 'NCM' || camada === 'TRIBUTARIO');
 }
 
 function qualidade(base: AnalisadorCamada, itens: ItemTrabalho[], contexto: ContextoAnalise, indice: IndiceDiretrizes): ResultadoCamada {

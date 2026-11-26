@@ -98,6 +98,18 @@ describe("abrangência e transferência", () => {
     expect(transferencias({ abrangencia: { todos: false, grupos: ["Tintas"] }, aspecto: "NOMES", regraId: null, regras })).toEqual([]);
     expect(transferencias({ abrangencia: { todos: false, grupos: ["Ferragens"] }, aspecto: "NOMES", regraId: "r2", regras })).toEqual([]);
   });
+  it("subgrupo segue a regra de nível do servidor: só há transferência no MESMO nível (grupo×grupo, par grupo/subgrupo×par)", () => {
+    const comSub = [...regras, { id: "r4", aspecto: "NOMES", codigo: "N04", nome: "Ferragens S1", abrangencia: { todos: false, grupos: ["Ferragens"], subgrupos: ["S1"] } }];
+    // Regra de subgrupo dentro de um grupo que já tem regra de grupo: é exceção, não transferência.
+    expect(transferencias({ abrangencia: { todos: false, grupos: ["Ferragens"], subgrupos: ["S2"] }, aspecto: "NOMES", regraId: null, regras: comSub })).toEqual([]);
+    // Regra de grupo não tira o par de uma regra de subgrupo.
+    expect(transferencias({ abrangencia: { todos: false, grupos: ["Ferragens"] }, aspecto: "NOMES", regraId: "r2", regras: comSub })).toEqual([]);
+    // Mesmo par grupo/subgrupo: transferência.
+    expect(transferencias({ abrangencia: { todos: false, grupos: ["Ferragens"], subgrupos: ["S1", "S3"] }, aspecto: "NOMES", regraId: null, regras: comSub }))
+      .toEqual([{ grupo: "Ferragens / S1", regraId: "r4", codigo: "N04", nome: "Ferragens S1", padrao: false }]);
+    // Espaços repetidos não distinguem grupos (como no servidor).
+    expect(transferencias({ abrangencia: { todos: false, grupos: ["Parafusos "] }, aspecto: "NOMES", regraId: null, regras })).toHaveLength(1);
+  });
   it("marcar Todos os grupos quando outra regra já é o padrão do aspecto", () => {
     const t = transferencias({ abrangencia: TODOS, aspecto: "NOMES", regraId: "r2", regras });
     expect(t).toHaveLength(1);
@@ -138,11 +150,17 @@ describe("alterações do projeto (só as exceções da biblioteca)", () => {
     const base = { aspecto: "NOMES", separador: " ", capitalizacao: "MAIUSCULAS", abreviacoes: [] };
     const editado = { ...base, separador: " - " };
     expect(alteracoesParaSalvar({ bibliotecaId: "b1", base, editado, anteriores: { capitalizacao: "MAIUSCULAS" } })).toEqual({ capitalizacao: "MAIUSCULAS", separador: " - ", aspecto: "NOMES" });
-    expect(alteracoesParaSalvar({ bibliotecaId: "b1", base, editado: base, anteriores: null })).toBeNull();
+    expect(alteracoesParaSalvar({ bibliotecaId: "b1", base, editado: base, anteriores: null })).toBeUndefined();
   });
   it("sem biblioteca, o conteúdo inteiro é a regra", () => {
     const c = conteudoPadrao("FISCAL");
     expect(alteracoesParaSalvar({ bibliotecaId: null, base: null, editado: c })).toEqual(c);
+    expect(alteracoesParaSalvar({ bibliotecaId: null, base: c, editado: { ...c, validarNcm: false } })).toEqual({ ...c, validarNcm: false });
+  });
+  it("conteúdo igual ao de partida (só renomear, observação ou grupos) não manda alterações: a regra convertida continua como está", () => {
+    const legado = { aspecto: "NOMES", capitalizacao: "MAIUSCULAS", abreviacoes: [{ completa: "ESQUERDO", abreviacao: "ESQ" }], separador: " " };
+    const mesmaOutraOrdem = { separador: " ", abreviacoes: [{ abreviacao: "ESQ", completa: "ESQUERDO" }], capitalizacao: "MAIUSCULAS", aspecto: "NOMES" };
+    expect(alteracoesParaSalvar({ bibliotecaId: null, base: legado, editado: mesmaOutraOrdem, anteriores: legado })).toBeUndefined();
   });
 });
 

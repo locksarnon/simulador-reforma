@@ -210,6 +210,22 @@ export function conteudoEfetivo(aspecto: Aspecto, base: ConteudoRegra | null, al
   return saida as ConteudoRegra;
 }
 
+/**
+ * Abreviações no sentido certo (completa = por extenso, abreviacao = forma curta). A conversão dos parâmetros antigos gravou o par invertido
+ * antes da correção (a chave do parâmetro antigo é a forma curta); a inversão se reconhece pela "abreviação" mais longa que a "completa".
+ * Usada só em regra convertida e não editada (legado), cujo conteúdo a análise não usa: corrige a tela, o PDF e o ponto de partida da edição.
+ */
+export function abreviacoesNoSentidoCerto(c: ConteudoRegra): ConteudoRegra {
+  if (c?.aspecto !== 'NOMES' || !Array.isArray(c.abreviacoes) || !c.abreviacoes.some((a) => String(a.abreviacao).length > String(a.completa).length)) return c;
+  return { ...c, abreviacoes: c.abreviacoes.map((a) => (String(a.abreviacao).length > String(a.completa).length ? { completa: a.abreviacao, abreviacao: a.completa } : a)) };
+}
+
+/** O mesmo conteúdo efetivo? Compara depois da validação (que normaliza textos e listas), sem depender da ordem das chaves. */
+export function mesmoConteudo(aspecto: Aspecto, a: ConteudoRegra, b: ConteudoRegra): boolean {
+  const norm = (c: ConteudoRegra) => { try { return canonico(validarConteudo(aspecto, c, false)); } catch { return canonico(c); } };
+  return canonico(a) === canonico(b) || norm(a) === norm(b);
+}
+
 /** Abrangência validada. `vaziaPermitida` só para o uso interno (regra que perdeu todos os grupos numa transferência). */
 export function validarAbrangencia(v: unknown, vaziaPermitida = false): Abrangencia {
   if (!ehObjeto(v)) throw erro('Abrangência: informe "todos" ou a lista de grupos.');
