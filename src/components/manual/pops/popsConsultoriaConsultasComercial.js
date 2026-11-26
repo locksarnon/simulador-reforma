@@ -313,8 +313,9 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     ],
     resultado: "O documento oficial do estado aberto, com a data da última conferência da revisão semanal.",
     atencao: [
-      "O texto estadual não é lido por artigo no InTAX: os sites dos estados deixam a redação anterior no meio do texto, sem riscar. Confira a vigência de cada trecho no próprio documento.",
-      "“O documento oficial mudou em…” quer dizer que a revisão semanal achou um arquivo diferente do da semana anterior: abra e confira o que foi alterado.",
+      "O texto estadual também está na base (Ler no InTAX), e o assistente responde com ele. Goiás e Mato Grosso do Sul marcam a redação anterior, que fica à parte; nos demais estados o site deixa a redação anterior no meio do texto: confira a vigência do trecho no próprio documento.",
+      "“Mudou em…” é a data em que a revisão semanal achou o texto oficial diferente do da semana anterior: abra e confira o que foi alterado.",
+      "Tocantins: o RICMS não abre em fonte oficial; o botão leva à página da SEFAZ-TO.",
     ],
   },
   {

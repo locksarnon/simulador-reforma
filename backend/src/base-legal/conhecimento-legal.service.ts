@@ -61,7 +61,7 @@ export class ConhecimentoLegalService {
   async regrasEstaduais() {
     const estaduais = FONTES_NORMAS.filter((f) => f.uf);
     const banco = new Map(
-      (await this.prisma.normaLegal.findMany({ where: { chave: { in: estaduais.map((f) => f.chave) } }, select: { chave: true, capturada_em: true, atualizada_em: true, monitorar: true } }))
+      (await this.prisma.normaLegal.findMany({ where: { chave: { in: estaduais.map((f) => f.chave) } }, select: { chave: true, capturada_em: true, atualizada_em: true, monitorar: true, total_dispositivos: true } }))
         .map((n) => [n.chave, n]),
     );
     return UFS_REGRAS_ESTADUAIS.map(({ uf, nome }) => ({
@@ -72,6 +72,7 @@ export class ConhecimentoLegalService {
         return {
           chave: f.chave, botao: f.botao ?? f.tipo, numero: f.numero, titulo: f.titulo, orgao: f.orgao ?? null, url: f.url_oficial, observacao: f.observacao ?? null,
           conferida_em: b?.capturada_em ?? null, mudou_em: b?.atualizada_em ?? null, monitorar: b?.monitorar ?? true,
+          texto_na_base: (b?.total_dispositivos ?? 0) > 0,
         };
       }),
     }));

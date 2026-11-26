@@ -15,8 +15,27 @@ export function ehPaginaConfaz(html: string): boolean {
 const RE_INICIO_CONTEUDO = /<p[^>]*class="(?:A\d+(?:-\d+)?)?(?:TituloAcordo|DataPublica[a-z]*|Ementa|TextoAcordo)"/i;
 
 /** Texto em linhas de uma página oficial, com o riscado marcado (Planalto, CGIBS... e, remontada antes, a do Confaz). */
-export function textoDaPagina(html: string): string {
-  return htmlParaTexto(ehPaginaConfaz(html) ? confazParaHtml(html) : html);
+export function textoDaPagina(html: string, url = ''): string {
+  if (ehPaginaConfaz(html)) return htmlParaTexto(confazParaHtml(html));
+  return htmlParaTexto(marcarRedacaoAnteriorEstadual(html, url));
+}
+
+/**
+ * Sites estaduais que marcam a redação anterior sem riscar: a marca vira riscado, para o leitor guardá-la à parte e ela nunca
+ * entrar no texto vigente. Goiás (Secretaria da Economia): parágrafos das classes TextoRevo (redação anterior), NotaVigncia
+ * ("Redação com vigência de ... a ...") e NovaRedRev. Mato Grosso do Sul: a redação anterior vem em verde (#008250), com a nota
+ * "Redação vigente até...".
+ */
+export function marcarRedacaoAnteriorEstadual(html: string, url = ''): string {
+  let host = '';
+  try { host = new URL(url).hostname.toLowerCase(); } catch { /* sem endereço: nada a marcar */ }
+  if (host.endsWith('economia.go.gov.br')) {
+    return html.replace(/<(p|span|div)\b([^>]*?)\bclass=(["']?)(TextoRevo|NotaVigncia|NovaRedRev)\3/gi, '<$1 style="text-decoration:line-through"$2class=$3$4$3');
+  }
+  if (host.endsWith('.ms.gov.br')) {
+    return html.replace(/<font\b([^>]*?\bcolor=["']?#008250)/gi, '<font style="text-decoration:line-through"$1');
+  }
+  return html;
 }
 
 type TipoBloco = 'texto' | 'nota' | 'antigo' | 'cabecalho';

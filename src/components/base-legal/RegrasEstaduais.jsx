@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -21,7 +22,7 @@ export default function RegrasEstaduais({ uf = "", aoEscolherUf = () => {}, comp
         <h2 className="text-sm font-semibold">Regras estaduais</h2>
         {!compacto && (
           <p className="text-xs text-muted-foreground">
-            Regulamento do ICMS (RICMS), lei do ICMS e fundos de cada estado. O botão abre o documento no site oficial do estado; toda segunda-feira a revisão semanal confere se ele mudou.
+            Regulamento do ICMS (RICMS), lei do ICMS, anexos e fundos de cada estado. O botão abre o documento no site oficial do estado; o texto também está na base (Ler no InTAX), o assistente responde com ele, e toda segunda-feira a revisão semanal confere se mudou.
           </p>
         )}
       </div>
@@ -61,8 +62,9 @@ export default function RegrasEstaduais({ uf = "", aoEscolherUf = () => {}, comp
                   <li key={d.chave}>
                     <b className="text-foreground">{d.botao}:</b> {d.numero} — {d.titulo}
                     {d.mudou_em
-                      ? <span className="text-amber-700 dark:text-amber-300"> · o documento oficial mudou em {dataBr(d.mudou_em)}: confira</span>
+                      ? <span className="text-amber-700 dark:text-amber-300"> · mudou em {dataBr(d.mudou_em)}: confira</span>
                       : d.conferida_em ? ` · conferido em ${dataBr(d.conferida_em)}` : ""}
+                    {d.texto_na_base && <> · <Link to={`/base-legal/${d.chave}`} className="text-primary underline">Ler no InTAX</Link></>}
                   </li>
                 ))}
               </ul>

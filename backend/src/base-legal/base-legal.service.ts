@@ -5,10 +5,16 @@ import { chaveDe, normasCitadas, referenciaDe, urlOficialValida } from './base-l
 import { PrismaService } from '../prisma/prisma.service';
 import { AVISO_ASSISTENTE, Candidato, consultasDaPergunta, respostaDeApoio, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
 import { avisosDePendencias } from './avisos-legais';
-import { decodificar, DispositivoExtraido, extrairDispositivos, LEITOR_VERSAO, semRiscado, sha256 } from './base-legal.parser';
+import { decodificar, DispositivoExtraido, extrairDispositivos, juntarPartes, LEITOR_VERSAO, semRiscado, sha256 } from './base-legal.parser';
 import { textoDaPagina } from './confaz';
 import { atoDaMudanca, atosModificadores, novidadesDaAtualizacao, NovidadeNova, situacaoDaNorma } from './atualizacoes';
 import { FONTES_NORMAS, type GrupoNorma } from './fontes';
+import { ncmFormatado, ncmsDaPergunta, palavrasDaDescricao, textoDoContexto, trechoRelevante, ufsDaPergunta, variantesNcm, type NcmDaPergunta } from './contexto-pergunta';
+
+/** UF e NCM achados na pergunta e o texto que a IA recebe sobre eles. */
+export type ContextoDaPergunta = { ufs: string[]; ncms: (NcmDaPergunta & { descricao: string | null })[]; ufsDaBase: string[]; texto: string };
+/** Aviso que vai junto de cada dispositivo das normas estaduais cujo site mistura redações (fontes.ts). */
+const AVISO_IA = new Map(FONTES_NORMAS.filter((f) => f.aviso_ia).map((f) => [f.chave, f.aviso_ia as string]));
 import { pdfParaTexto } from './pdf-norma';
 import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
 import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
@@ -130,7 +136,7 @@ export class BaseLegalService {
     if (!norma) throw new NotFoundException(`Norma "${chave}" não cadastrada`);
     if (norma.formato === 'externo') throw new BadRequestException('Esta norma só tem a referência: a fonte oficial não publica o texto em uma página que o sistema consiga ler.');
 
-    const { texto, formato } = await this.baixarDocumento(norma.url_oficial);
+    const { texto, formato, partes } = await this.lerNorma(chave, norma.url_oficial);
     const hash = sha256(texto);
 
     // Norma gravada por um leitor anterior é relida mesmo com o texto idêntico: os campos derivados (notas, redação anterior, revogação) não existiam.
@@ -140,7 +146,7 @@ export class BaseLegalService {
       return { chave, alterada: false, dispositivos: norma.total_dispositivos, novos: 0, alterados: 0, removidos: 0, revogados: 0, hash, motivo: 'Texto oficial idêntico ao já carregado' };
     }
 
-    const extraidos = extrairDispositivos(texto);
+    const extraidos = partes ? juntarPartes(partes.map(extrairDispositivos)) : extrairDispositivos(texto);
     if (extraidos.length === 0) throw new BadRequestException('Não foi possível identificar os dispositivos — nada foi gravado (precisa de revisão)');
 
     const existentes = await this.prisma.dispositivoLegal.findMany({
@@ -295,7 +301,7 @@ export class BaseLegalService {
     if (/pdf/i.test(tipo) || corpo.subarray(0, 5).toString('latin1') === '%PDF-') {
       return { texto: await pdfParaTexto(corpo), formato: 'pdf' };
     }
-    return { texto: textoDaPagina(decodificar(corpo)), formato: 'html' };
+    return { texto: textoDaPagina(decodificar(corpo), url), formato: 'html' };
   }
 
   /**
@@ -354,10 +360,47 @@ export class BaseLegalService {
     }
   }
 
-  /** Só o texto (para quem não precisa do formato). */
-  private async baixarTexto(url: string): Promise<string> {
-    return (await this.baixarDocumento(url)).texto;
+  /**
+   * Texto oficial de uma norma do catálogo. Em geral, um endereço só; mas há normas publicadas em várias páginas (o RICMS/MT, uma
+   * página por capítulo: `partes`, lidas uma a uma e devolvidas também separadas, para cada uma ser dividida sozinha) e normas cujo
+   * arquivo atual muda de endereço a cada consolidação (RO: `lista_de_arquivos` diz qual é o PDF de hoje). Página que não abre
+   * (ou devolve a página de erro do portal) interrompe a leitura: nada é gravado com parte do texto faltando.
+   */
+  async lerNorma(chave: string, url: string): Promise<{ texto: string; formato: 'html' | 'pdf'; partes: string[] | null }> {
+    const fonte = FONTES_NORMAS.find((f) => f.chave === chave);
+    if (fonte?.partes?.length) {
+      const partes: string[] = [];
+      for (const parte of fonte.partes) {
+        let texto = '';
+        for (let tentativa = 0; tentativa < 2 && !texto; tentativa++) {
+          try {
+            const lido = (await this.baixarDocumento(parte)).texto;
+            if (!/Sorry, something went wrong|An unexpected error has occurred/i.test(lido.slice(0, 2000))) texto = lido;
+          } catch (e) {
+            if (tentativa === 1) throw new BadRequestException(`Uma das páginas oficiais não abriu (${parte}): ${(e as Error).message}. Nada foi gravado.`);
+          }
+          if (!texto) await new Promise((ok) => setTimeout(ok, 1500));
+        }
+        if (!texto) throw new BadRequestException(`Uma das páginas oficiais devolveu erro (${parte}). Nada foi gravado.`);
+        partes.push(texto);
+        await new Promise((ok) => setTimeout(ok, 200));
+      }
+      return { texto: partes.join('\n'), formato: 'html', partes };
+    }
+    const alvo = fonte?.lista_de_arquivos ? await this.arquivoAtual(fonte.lista_de_arquivos) : url;
+    const { texto, formato } = await this.baixarDocumento(alvo);
+    return { texto, formato, partes: null };
   }
+
+  /** Lista dos arquivos atuais de uma norma no portal da SEFIN-RO ({ resultados: [{ extensao, url }] }) → o endereço do PDF. */
+  private async arquivoAtual(lista: string): Promise<string> {
+    const { corpo } = await this.baixarBruto(lista, { aceitar: 'application/json' });
+    const dados = JSON.parse(corpo.toString('utf8')) as { resultados?: { extensao?: string; url?: string }[] };
+    const pdf = (dados.resultados ?? []).find((r) => /pdf/i.test(r.extensao ?? '') && r.url);
+    if (!pdf?.url) throw new BadRequestException('A lista de arquivos do portal oficial não trouxe o PDF da norma.');
+    return new URL(pdf.url, lista).toString();
+  }
+
 
   async importarTodas(): Promise<(ResultadoImportacao | { chave: string; erro: string })[]> {
     await this.garantirNormas();
@@ -389,12 +432,12 @@ export class BaseLegalService {
     const erros: string[] = [];
     for (const n of normas) {
       try {
-        const texto = await this.baixarTexto(n.url_oficial);
+        const { texto, partes } = await this.lerNorma(n.chave, n.url_oficial);
         if (sha256(texto) === n.hash_atual) {
           await this.prisma.normaLegal.update({ where: { id: n.id }, data: { capturada_em: new Date() } });
           continue;
         }
-        const extraidos = extrairDispositivos(texto);
+        const extraidos = partes ? juntarPartes(partes.map(extrairDispositivos)) : extrairDispositivos(texto);
         const atuais = new Map((await this.prisma.dispositivoLegal.findMany({ where: { norma_id: n.id }, select: { caminho: true, hash: true, rotulo: true, revogado: true } })).map((d) => [d.caminho, d]));
         const alterados = extraidos.filter((d) => atuais.has(d.caminho) && atuais.get(d.caminho)!.hash !== sha256(d.texto));
         const novos = extraidos.filter((d) => !atuais.has(d.caminho));
@@ -531,20 +574,23 @@ export class BaseLegalService {
   }
 
   /** Busca por artigo ("art 164") e por texto (português, com trecho destacado). */
-  async buscar(q: string, chave?: string) {
+  /** Busca no texto de todas as normas; `chave` restringe a uma norma ou a uma lista delas (ex.: as do estado citado na pergunta). */
+  async buscar(q: string, chave?: string | string[]) {
     const termo = (q || '').trim().slice(0, 200);
     if (termo.length < 2) return { exatos: [], resultados: [], parcial: false };
+    const lista = Array.isArray(chave) ? chave : null;
+    if (lista && !lista.length) return { exatos: [], resultados: [], parcial: false };
 
     const art = /^art(?:igo)?\.?\s*(\d+)\s*[º°o]?\s*(?:-?\s*([a-z]))?\b/i.exec(termo);
     const exatos = art
       ? await this.prisma.dispositivoLegal.findMany({
-          where: { caminho: `art-${art[1]}${art[2] ? `-${art[2].toLowerCase()}` : ''}`, ...(chave ? { norma: { chave } } : {}) },
+          where: { caminho: `art-${art[1]}${art[2] ? `-${art[2].toLowerCase()}` : ''}`, ...(lista ? { norma: { chave: { in: lista } } } : typeof chave === 'string' ? { norma: { chave } } : {}) },
           select: { rotulo: true, caminho: true, secao: true, revogado: true, norma: { select: { chave: true, numero: true, situacao: true } } },
           take: 10,
         })
       : [];
 
-    const filtro = chave ? `AND n."chave" = $2` : '';
+    const filtro = lista ? `AND n."chave" = ANY($2)` : chave ? `AND n."chave" = $2` : '';
     const params: unknown[] = chave ? [termo, chave] : [termo];
     // O que está revogado aparece por último e marcado: a consulta nunca deve tratar texto revogado como o primeiro achado.
     const consulta = (tsquery: string) => `SELECT n."chave", n."numero", n."situacao" AS "norma_situacao", d."rotulo", d."caminho", d."secao", d."revogado", d."parcialmente_revogado",
@@ -709,11 +755,52 @@ export class BaseLegalService {
     return { texto, grounding: cand?.groundingMetadata ?? null };
   }
 
-  /** Dispositivos mais prováveis para a pergunta (artigo citado, termos jurídicos e a própria pergunta). */
-  async candidatos(pergunta: string, termos: string[]): Promise<Candidato[]> {
-    const consultas = consultasDaPergunta(pergunta, termos);
-    const [porPergunta, ...porConceito] = await Promise.all([
+  /** UF e NCM citados na pergunta, com a descrição do NCM da tabela oficial carregada no InTAX (quando o código existe). */
+  async contextoDaPergunta(pergunta: string): Promise<ContextoDaPergunta> {
+    const ufs = ufsDaPergunta(pergunta);
+    const ncms: ContextoDaPergunta['ncms'] = [];
+    for (const n of ncmsDaPergunta(pergunta)) {
+      let descricao: string | null = null;
+      try {
+        const achado = await this.prisma.ncm.findFirst({ where: { codigo: { in: [n.codigo, ncmFormatado(n.codigo)] } }, select: { descricao: true } });
+        descricao = achado?.descricao?.trim() || null;
+      } catch { /* tabela NCM indisponível: segue sem a descrição */ }
+      ncms.push({ ...n, descricao });
+    }
+    const ufsDaBase = [...new Set(FONTES_NORMAS.filter((f) => f.uf && f.formato !== 'externo').map((f) => f.uf as string))];
+    return { ufs, ncms, ufsDaBase, texto: textoDoContexto(ufs, ncms, ufsDaBase) };
+  }
+
+  /** Dispositivos cujo texto cita um dos códigos (NCM nos anexos): busca literal, que a busca por palavras não acha ("1201.90.00"). */
+  private async buscarCodigos(padroes: string[], chaves?: string[]): Promise<{ chave: string; caminho: string }[]> {
+    if (!padroes.length || (chaves && !chaves.length)) return [];
+    const like = padroes.map((p) => `%${p.replace(/[%_\\]/g, '\\$&')}%`);
+    try {
+      return await this.prisma.$queryRawUnsafe<{ chave: string; caminho: string }[]>(
+        `SELECT n."chave", d."caminho" FROM "DispositivoLegal" d JOIN "NormaLegal" n ON n."id" = d."norma_id"
+          WHERE d."revogado" = false AND d."texto" ILIKE ANY($1) ${chaves ? 'AND n."chave" = ANY($2)' : ''}
+          ORDER BY n."prioridade" ASC, d."ordem" ASC LIMIT 12`,
+        ...(chaves ? [like, chaves] : [like]),
+      );
+    } catch (e) {
+      this.log.warn(`Busca por código falhou: ${(e as Error).message}`);
+      return [];
+    }
+  }
+
+  /** Dispositivos mais prováveis para a pergunta (artigo citado, termos jurídicos, a própria pergunta e, se houver, o estado e o NCM citados). */
+  async candidatos(pergunta: string, termos: string[], contexto?: ContextoDaPergunta): Promise<Candidato[]> {
+    const ctx = contexto ?? await this.contextoDaPergunta(pergunta);
+    const produtos = ctx.ncms.flatMap((n) => (n.descricao ? palavrasDaDescricao(n.descricao) : []));
+    const consultas = consultasDaPergunta(pergunta, [...termos, ...produtos]);
+    const chavesUf = FONTES_NORMAS.filter((f) => f.uf && ctx.ufs.includes(f.uf) && f.formato !== 'externo').map((f) => f.chave);
+    const variantes = ctx.ncms.flatMap((n) => variantesNcm(n)).filter((v) => v.length >= 5);
+    const [porPergunta, porEstado, porCodigoNoEstado, porCodigo, ...porConceito] = await Promise.all([
       this.buscar(pergunta),
+      // Pergunta sobre um estado: o regulamento dele entra com prioridade (benefício, redução, diferimento, ST, isenção do produto).
+      Promise.all([...new Set([...produtos, ...termos.slice(0, 3)])].slice(0, 5).map((c) => this.buscar(c, chavesUf))),
+      this.buscarCodigos(variantes, chavesUf.length ? chavesUf : undefined),
+      chavesUf.length ? this.buscarCodigos(variantes) : Promise.resolve([] as { chave: string; caminho: string }[]),
       ...consultas.map((consulta) => this.buscar(consulta)),
     ]);
     const ordem: { chave: string; caminho: string }[] = [];
@@ -721,12 +808,17 @@ export class BaseLegalService {
       if (!ordem.some((o) => o.chave === chave && o.caminho === caminho)) ordem.push({ chave, caminho });
     };
     porPergunta.exatos.forEach((e) => add(e.norma.chave, e.caminho));
+    porCodigoNoEstado.slice(0, 6).forEach((r) => add(r.chave, r.caminho));
+    for (let i = 0; i < 3; i++) for (const r of porEstado) if (r.resultados[i]) add(r.resultados[i].chave, r.resultados[i].caminho);
+    porCodigo.slice(0, 4).forEach((r) => add(r.chave, r.caminho));
     // Distribui o contexto entre conceitos, sem deixar uma busca genérica ocupar tudo.
     const listas = [...porConceito.map((r) => r.resultados), porPergunta.resultados];
-    for (let i = 0; i < 4 && ordem.length < 32; i++) {
+    for (let i = 0; i < 4 && ordem.length < 40; i++) {
       for (const lista of listas) if (lista[i]) add(lista[i].chave, lista[i].caminho);
     }
     if (!ordem.length) return [];
+    // Dispositivo longo (anexo com lista de NCM): vai só o trecho que cita o código, o produto ou os termos da pergunta.
+    const chavesDoTrecho = [...variantes, ...produtos, ...termos.flatMap((t) => t.split(/\s+/)).filter((p) => p.length >= 5)].slice(0, 30);
     const rows = await this.prisma.dispositivoLegal.findMany({
       where: { OR: ordem.map((o) => ({ caminho: o.caminho, norma: { chave: o.chave } })) },
       select: {
@@ -740,9 +832,15 @@ export class BaseLegalService {
     // em vez de responder por outro artigo. Nas buscas por assunto, o revogado fica de fora, como sempre.
     const pedidos = new Set(porPergunta.exatos.map((e) => `${e.norma.chave}/${e.caminho}`));
     let caracteres = 0;
+    const recortados = new Set<string>();
     const escolhidos = rows
       .filter((r) => !r.revogado || pedidos.has(`${r.norma.chave}/${r.caminho}`))
-      .filter((r) => r.texto.length <= 20_000) // artigos-alteradores gigantes e anexos enormes não cabem no contexto
+      .map((r) => {
+        if (r.texto.length <= 20_000) return r;
+        recortados.add(`${r.norma.chave}/${r.caminho}`);
+        return { ...r, texto: trechoRelevante(r.texto, chavesDoTrecho) ?? '' };
+      })
+      .filter((r) => r.texto.length > 0) // anexo enorme que não cita nada da pergunta não cabe no contexto
       .sort((x, y) => (pos.get(`${x.norma.chave}/${x.caminho}`) ?? 99) - (pos.get(`${y.norma.chave}/${y.caminho}`) ?? 99))
       .filter((r) => {
         if (caracteres + r.texto.length > 60_000) return false;
@@ -774,7 +872,8 @@ export class BaseLegalService {
         norma_situacao: r.norma.situacao, norma_revogada_por: r.norma.revogada_por,
         alteracoes: [...new Set(notas)], alterado_em: r.alterado_em ? r.alterado_em.toISOString() : null,
         redacao_anterior: anteriores.length ? anteriores[anteriores.length - 1] : null,
-        avisos: avisos.get(`${r.norma.chave}/${r.caminho}`) ?? [],
+        avisos: [...(avisos.get(`${r.norma.chave}/${r.caminho}`) ?? []), ...(AVISO_IA.get(r.norma.chave) ? [AVISO_IA.get(r.norma.chave) as string] : [])],
+        nota: recortados.has(`${r.norma.chave}/${r.caminho}`) ? 'trecho de um texto longo (anexo ou tabela): vieram só o começo e as linhas que citam o código, o produto ou os termos da pergunta' : undefined,
       };
     });
   }
@@ -796,7 +895,8 @@ export class BaseLegalService {
       }
     }
 
-    const cands = await this.candidatos(pergunta, termos);
+    const contexto = await this.contextoDaPergunta(pergunta);
+    const cands = await this.candidatos(pergunta, termos, contexto);
     let saida: ReturnType<typeof validarResposta> = { resposta: '', suficiente: false, ressalvas: null, fundamentos: [] };
     let motivo: 'ok' | 'sem_ia' | 'sem_base' | 'erro_ia' = 'ok';
 
@@ -804,7 +904,7 @@ export class BaseLegalService {
     else if (!iaDisponivel) motivo = 'sem_ia';
     else {
       try {
-        saida = validarResposta(lerJson(await this.ia(promptResposta(pergunta, cands))), cands);
+        saida = validarResposta(lerJson(await this.ia(promptResposta(pergunta, cands, contexto.texto))), cands);
       } catch (e) {
         iaDisponivel = false;
         motivo = 'erro_ia';

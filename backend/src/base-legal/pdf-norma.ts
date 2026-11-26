@@ -14,7 +14,7 @@ type PdfJs = {
 };
 
 /** Quanto o PDF pode ter: o Regulamento do IBS tem ~300 páginas. */
-export const MAX_PAGINAS_PDF = 800;
+export const MAX_PAGINAS_PDF = 3000;
 
 /**
  * Junta os pedaços de texto de uma página em linhas: pedaços com a mesma altura (y) formam uma linha, da esquerda para a direita.

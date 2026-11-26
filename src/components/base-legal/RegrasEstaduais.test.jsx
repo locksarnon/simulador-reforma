@@ -37,7 +37,7 @@ describe("regras estaduais: um botão por UF", () => {
     expect(h).toContain('target="_blank"');
     expect(h).toContain("RICMS");
     expect(h).toContain("Lei do ICMS");
-    expect(h).toContain("o documento oficial mudou em 30/11/2026");
+    expect(h).toContain("mudou em 30/11/2026");
     expect(h).toContain("conferido em 30/11/2026");
   });
 
