@@ -4,6 +4,7 @@ import type { CasoProposto, ResultadoCamada } from '../tipos';
 import { SanCasosService } from './casos.service';
 import { SanImportacaoService } from './importacao.service';
 import { type ImportadorPort, type ItemImportado } from './portas';
+import { acrescentar } from './constantes';
 import { criarPrismaFalso } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 import { camadasDosCampos, diferencasDoTrabalho, gravarItensEmBloco, SanRestauracaoService, type LinhaItem } from './restauracao.service';
@@ -279,6 +280,34 @@ describe('continuar a partir de uma versão liberada', () => {
   });
 });
 
+describe('impacto no SPED regravado pela restauração e pelo desfazer (mesma função da decisão do caso)', () => {
+  it('com competência entregue, as linhas voltam ESCRITURACAO_ENTREGUE; item com exceção viva fica fora da contagem', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, 1, USER);
+    c.fila.itens = [item('00123', {}, 1), item('00124', {}, 2)];
+    await c.importacao.confirmar(p.id, ARQ, undefined, [], USER);
+    const ids = Object.fromEntries(c.db.sanItem.map((i) => [i.codigo, i.id])) as Record<string, string>;
+    const v1 = await c.versoes.criar(p.id, { rotulo: 'Entrega 1' }, USER);
+    await c.casos.registrarResultado(p.id, resultado('NCM', [umCaso('NCM', 'NCM_INCOERENTE', [ids['00123'], ids['00124']], { ncm: '31010000' }, { ncm: '31051000' })]));
+    const conjunto = c.db.sanCaso.find((x) => x.tipo === 'NCM_INCOERENTE')!;
+    await c.casos.aprovar(conjunto.id, { versao: conjunto.versao }, USER);
+    // Depois: exceção viva para o 00124 (vale mais que o conjunto) e a última competência entregue cobre a data-base.
+    await c.casos.registrarResultado(p.id, resultado('NCM', [umCaso('NCM', 'EXCECAO_ITEM', [ids['00124']], { ncm: '31051000' }, { ncm: '31059000' })]));
+    c.db.sanProjeto[0].parametros = { ...(c.db.sanProjeto[0].parametros ?? {}), competenciaEntregue: '2026-12' };
+    const linhas = () => c.db.sanImpactoSped.filter((l) => l.caso_id === conjunto.id);
+    const { r } = await restaurar(c, p.id, v1.id);
+    expect(caso(c, conjunto.id).situacao).toBe('PROPOSTO');
+    expect(linhas().length).toBeGreaterThan(0);
+    expect(linhas().every((l) => l.tipo_ajuste === 'ESCRITURACAO_ENTREGUE')).toBe(true);
+    expect(linhas().every((l) => String(l.evidencia).startsWith('Itens afetados: 1 '))).toBe(true);
+    await c.restauracao.desfazer(p.id, v1.id, r.restauracao.id, { versao: versaoProjeto(c) }, USER);
+    expect(caso(c, conjunto.id).situacao).toBe('APROVADO');
+    expect(linhas().length).toBeGreaterThan(0);
+    expect(linhas().every((l) => l.tipo_ajuste === 'ESCRITURACAO_ENTREGUE' && String(l.evidencia).startsWith('Itens afetados: 1 '))).toBe(true);
+  });
+});
+
 describe('30 mil itens em memória', () => {
   it('prévia e restauração em blocos: 30 mil itens e campos, decisões e células "revisar"', async () => {
     const c = montar();
@@ -292,6 +321,7 @@ describe('30 mil itens em memória', () => {
     }
     const v1 = await c.versoes.criar('P1', { rotulo: 'Base' }, USER);
     for (const i of c.db.sanItem) { i.trabalho = { ...i.trabalho, ncm: '31051000', grupo: 'Fertilizantes' }; i.grupo = 'Fertilizantes'; i.versao += 1; }
+    const fotoInteira = vi.spyOn(c.versoes, 'foto');
     const inicio = Date.now();
     const p = await c.restauracao.previa('P1', v1.id);
     expect(p.totais).toMatchObject({ itens: N, campos: 2 * N, itensNaFoto: N });
@@ -302,5 +332,15 @@ describe('30 mil itens em memória', () => {
     expect(c.db.sanItem.every((i) => i.trabalho.ncm === '31010000' && i.grupo === 'Adubos')).toBe(true);
     expect(c.db.sanCelula.every((x) => x.revisar && x.grupo === 'Adubos')).toBe(true);
     expect(Date.now() - inicio).toBeLessThan(60_000);
+    // Prévia e continuar leem só a seção itens da foto (nunca a foto inteira em objetos).
+    expect(fotoInteira).not.toHaveBeenCalled();
   }, 120_000);
+
+  it('agrupar 30 mil ids por chave é linear (push, sem copiar a lista a cada item)', () => {
+    const m = new Map<string, number[]>();
+    const inicio = Date.now();
+    for (let n = 0; n < 30_000; n++) acrescentar(m, 'mesma', n);
+    expect(m.get('mesma')).toHaveLength(30_000);
+    expect(Date.now() - inicio).toBeLessThan(200);
+  });
 });

@@ -147,4 +147,11 @@ export function fatiar<T>(lista: T[], n: number): T[][] {
   return r;
 }
 
+/** Acrescenta `v` à lista da chave `k` (push, sem copiar a lista: dentro de laço com 30 mil itens a cópia vira O(n²)). */
+export function acrescentar<K, V>(m: Map<K, V[]>, k: K, v: V): void {
+  const l = m.get(k);
+  if (l) l.push(v);
+  else m.set(k, [v]);
+}
+
 export const TX_LONGA = { timeout: 300_000, maxWait: 15_000 };

@@ -4,9 +4,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { camadasAfetadas } from '../motor';
 import type { Camada } from '../tipos';
-import { linhasDeImpactoDoCaso } from './ajustes';
+import { regravarImpactosDosCasos } from './impactos-casos';
 import {
-  CAMPOS_TOPO, TX_LONGA, aplicarCampo, conflito, derivadosDoTrabalho, exigirVersao, fatiar, igual, quem, valorDoCampo, type Json, type Usuario,
+  CAMPOS_TOPO, TX_LONGA, acrescentar, aplicarCampo, conflito, derivadosDoTrabalho, exigirVersao, fatiar, igual, quem, valorDoCampo, type Json, type Usuario,
 } from './constantes';
 import { SanProjetoService } from './projeto.service';
 import { SanVersoesService } from './versoes.service';
@@ -198,7 +198,7 @@ export class SanRestauracaoService {
       if (pr.count === 0) throw conflito();
       const decs = await tx.sanDecisao.findMany({ where: { projeto_id: projetoId, tipo: 'restaurar', id: { startsWith: prefixoDecisao(restauracaoId) } }, select: { item_id: true, campo: true, antes: true, depois: true } });
       const porItem = new Map<string, typeof decs>();
-      for (const d of decs) porItem.set(d.item_id, [...(porItem.get(d.item_id) ?? []), d]);
+      for (const d of decs) acrescentar(porItem, d.item_id, d);
       const fundamento = `Restauração da versão ${v.numero} desfeita`;
       const quemFez = quem(usuario);
       const linhas: LinhaItem[] = [];
@@ -257,14 +257,14 @@ export class SanRestauracaoService {
   /** A célula guarda o grupo do item (visão geral): acompanha o trabalho novo. */
   private async atualizarGrupos(tx: Tx, projetoId: string, linhas: LinhaItem[]) {
     const porGrupo = new Map<string, string[]>();
-    for (const l of linhas) { const g = derivadosDoTrabalho(l.trabalho).grupo ?? ''; porGrupo.set(g, [...(porGrupo.get(g) ?? []), l.id]); }
+    for (const l of linhas) { const g = derivadosDoTrabalho(l.trabalho).grupo ?? ''; acrescentar(porGrupo, g, l.id); }
     for (const [grupo, ids] of porGrupo) for (const lote of fatiar(ids, 5000)) await tx.sanCelula.updateMany({ where: { projeto_id: projetoId, item_id: { in: lote } }, data: { grupo } });
   }
 
   /** Marca "revisar" (célula já trabalhada) nas camadas de cada item, agrupando os itens com as mesmas camadas. */
   private async marcarRevisar(tx: Tx, projetoId: string, alvos: { id: string; camadas: string[] }[], causa: string) {
     const porCamadas = new Map<string, string[]>();
-    for (const a of alvos) { const k = [...new Set(a.camadas)].sort().join(','); if (k) porCamadas.set(k, [...(porCamadas.get(k) ?? []), a.id]); }
+    for (const a of alvos) { const k = [...new Set(a.camadas)].sort().join(','); if (k) acrescentar(porCamadas, k, a.id); }
     let n = 0;
     for (const [camadas, ids] of porCamadas) {
       for (const lote of fatiar(ids, 5000)) {
@@ -275,14 +275,9 @@ export class SanRestauracaoService {
     return n;
   }
 
-  /** Regrava as linhas de impacto no SPED dos casos (apaga e recria pela situação de agora), como faz a decisão do caso. */
+  /** Regrava as linhas de impacto no SPED dos casos pela situação de agora: a MESMA função da decisão do caso (competência entregue, exceções). */
   private async regravarImpactos(tx: Tx, projetoId: string, casoIds: string[], dataBase: string) {
-    for (const lote of fatiar(casoIds, 500)) {
-      const casos = await tx.sanCaso.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, projeto_id: true, camada: true, tipo: true, itens: true, justificativa: true, situacao: true, atual: true, proposta: true } });
-      await tx.sanImpactoSped.deleteMany({ where: { projeto_id: projetoId, caso_id: { in: lote } } });
-      const linhas = casos.flatMap((c) => linhasDeImpactoDoCaso(c, dataBase));
-      for (const l of fatiar(linhas, 1000)) await tx.sanImpactoSped.createMany({ data: l as never });
-    }
+    await regravarImpactosDosCasos(tx, projetoId, casoIds, dataBase);
   }
 
   /** Tira a etiqueta dos casos reabertos dos vínculos de código (some o vínculo sem outro caso), guardando como estavam para o desfazer. */
@@ -310,21 +305,20 @@ export class SanRestauracaoService {
 
   /** item → camadas do `afeta` dos casos (para as dependências). */
   private async afetaDosCasos(db: Db, casoIds: string[]) {
-    const m = new Map<string, Camada[]>();
+    const s = new Map<string, Set<Camada>>();
     for (const lote of fatiar(casoIds, 1000)) {
       for (const c of await db.sanCaso.findMany({ where: { id: { in: lote } }, select: { itens: true, afeta: true, camada: true } })) {
         const afeta = ((c.afeta as string[]) ?? []).filter((x) => x !== c.camada) as Camada[];
-        for (const i of c.itens) m.set(i, [...new Set([...(m.get(i) ?? []), ...afeta])]);
+        for (const i of c.itens) { const x = s.get(i) ?? new Set<Camada>(); for (const a of afeta) x.add(a); s.set(i, x); }
       }
     }
-    return m;
+    return new Map([...s].map(([i, x]) => [i, [...x]] as const));
   }
 
   /** Compara a base de agora com a foto (itens lidos em blocos), acha os casos aprovados que deixam de valer e monta a assinatura. */
   private async calcular(db: Db, projetoId: string, versaoId: string) {
-    const { versao, foto } = await this.versoes.foto(projetoId, versaoId);
-    const alvo = new Map<string, Json>();
-    for (const i of foto.itens) alvo.set(String(i.id), ((i.trabalho as Json) ?? {}) as Json);
+    // Só a seção `itens` da foto vira objeto (células, casos, decisões etc. não são lidos): prévia e continuar com pouca memória.
+    const { versao, itens: alvo } = await this.versoes.trabalhoDosItensDaFoto(projetoId, versaoId);
     const mudancas: Mudanca[] = [];
     // Códigos em uso (coluna e código de trabalho), por estabelecimento: o restaurado não pode repetir o de outro item.
     const codigos = new Map<string, Set<string>>();

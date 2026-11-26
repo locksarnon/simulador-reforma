@@ -74,7 +74,7 @@ function secaoImpactoSped(m: Modelo): SecaoPdf {
   const tipos = ['CADASTRAL_FUTURO', 'REGULARIZACAO_SALDO', 'ESCRITURACAO_ENTREGUE'];
   const norm = (t: string) => (t === 'ESCRITURACAO_JA_ENTREGUE' ? 'ESCRITURACAO_ENTREGUE' : t);
   const porTipo = new Map<string, typeof m.impactos>();
-  for (const i of m.impactos) { const k = norm(i.tipo); porTipo.set(k, [...(porTipo.get(k) ?? []), i]); }
+  for (const i of m.impactos) { const k = norm(i.tipo); const l = porTipo.get(k); if (l) l.push(i); else porTipo.set(k, [i]); }
   const registros = (l: typeof m.impactos) => [...new Set(l.map((i) => i.registro).filter(Boolean))].sort().join(', ') || '-';
   const obrigacoes = (l: typeof m.impactos) => [...new Set(l.map((i) => rotuloObrigacao(i.obrigacao)))].join(', ') || '-';
   const s: SecaoPdf = { titulo: 'Impacto nas obrigações (SPED)', paragrafos: [], tabela: undefined };

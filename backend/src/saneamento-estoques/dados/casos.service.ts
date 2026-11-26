@@ -4,9 +4,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogosFiscaisPrisma, classeVigente } from '../fiscal';
 import { camadasAfetadas } from '../motor';
 import { CAMADAS, type Camada, type CasoProposto, type ResultadoCamada } from '../tipos';
-import { linhasDeImpactoDoCaso } from './ajustes';
+import { mapaExcecoes, regravarImpactosDosCasos, semExcecoes } from './impactos-casos';
 import {
-  CASO_ABERTO, CELULA_DO_CASO, EXCECAO_VIVA, TIPOS_EXCECAO, TX_LONGA, aplicarCampo, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, ehExcecao, exigirVersao, fatiar, igual,
+  CASO_ABERTO, CELULA_DO_CASO, acrescentar, EXCECAO_VIVA, TIPOS_EXCECAO, TX_LONGA, aplicarCampo, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, ehExcecao, exigirVersao, fatiar, igual,
   propostaAplicavel, quem, validarCamada, valorDoCampo, type Json, type SituacaoCaso, type Usuario,
 } from './constantes';
 import { VARIA_POR_ITEM } from '../motor';
@@ -231,28 +231,9 @@ export class SanCasosService {
 
   // ── Impacto no SPED ligado ao caso ─────────────────────────────────────────
 
-  /**
-   * Regrava as linhas de impacto dos casos (apaga e recria as ligadas ao caso; caso que não gera ajuste fica sem linhas). Idempotente.
-   * O caso de regra conta só os itens a que ele de fato se aplica (o item com exceção viva fica fora). A última competência de
-   * escrituração já entregue (parâmetro do projeto) classifica a linha como "impacto em escrituração já entregue".
-   */
+  /** Regrava as linhas de impacto dos casos: a mesma função da restauração (`regravarImpactosDosCasos`, uma fonte só). */
   private async sincronizarImpactos(tx: Tx, projetoId: string, casoIds: string[], dataBase: string) {
-    if (!casoIds.length) return;
-    const parametros = (await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: { parametros: true } }))?.parametros as Json | undefined;
-    const competenciaEntregue = typeof parametros?.competenciaEntregue === 'string' ? parametros.competenciaEntregue : null;
-    const mapas = new Map<string, Map<string, string>>();
-    for (const lote of fatiar(casoIds, 500)) {
-      const casos = await tx.sanCaso.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, projeto_id: true, camada: true, tipo: true, itens: true, justificativa: true, situacao: true, atual: true, proposta: true } });
-      await tx.sanImpactoSped.deleteMany({ where: { projeto_id: projetoId, caso_id: { in: lote } } });
-      const efetivos = [];
-      for (const c of casos) {
-        if (!mapas.has(c.camada)) mapas.set(c.camada, await this.mapaExcecoes(tx, projetoId, c.camada));
-        const e = await this.semExcecoes(tx, c, mapas.get(c.camada));
-        if (e.itens.length) efetivos.push(e);
-      }
-      const linhas = efetivos.flatMap((c) => linhasDeImpactoDoCaso(c, dataBase, competenciaEntregue));
-      for (const l of fatiar(linhas, 1000)) await tx.sanImpactoSped.createMany({ data: l as never });
-    }
+    await regravarImpactosDosCasos(tx, projetoId, casoIds, dataBase);
   }
 
   /** Reconstrói TODAS as linhas de impacto do projeto (usado ao executar a camada de obrigações). */
@@ -516,7 +497,7 @@ export class SanCasosService {
         for (const d of decs) ultima.set(`${d.item_id}\u0000${d.campo}`, d);
         const aDesfazer = [...ultima.values()].filter((d) => d.tipo === 'aprovar' && !d.campo.startsWith('caso:'));
         const porItem = new Map<string, typeof aDesfazer>();
-        for (const d of aDesfazer) porItem.set(d.item_id, [...(porItem.get(d.item_id) ?? []), d]);
+        for (const d of aDesfazer) acrescentar(porItem, d.item_id, d);
         for (const [itemId, lista] of porItem) {
           const item = await tx.sanItem.findUnique({ where: { id: itemId } });
           if (!item) continue;
@@ -682,32 +663,12 @@ export class SanCasosService {
     }
   }
 
-  /**
-   * Itens com exceção própria viva (aberta, aguardando ou aprovada) na camada: item → id da exceção. Com `campos` (aprovação), entram
-   * também os itens com caso individual em edição (rascunho) da mesma camada que mexe em algum desses campos: o caso de regra não passa
-   * por cima do que o consultor está editando. A exceção prevalece sobre o rascunho.
-   */
-  private async mapaExcecoes(db: Pick<Tx, 'sanCaso'>, projetoId: string, camada: string, campos?: string[]): Promise<Map<string, string>> {
-    const m = new Map<string, string>();
-    const lista = await db.sanCaso.findMany({ where: { projeto_id: projetoId, camada, tipo: { in: TIPOS_EXCECAO }, situacao: { in: EXCECAO_VIVA } }, select: { id: true, itens: true } });
-    if (campos?.length) {
-      const rascunhos = await db.sanCaso.findMany({ where: { projeto_id: projetoId, camada, situacao: 'RASCUNHO' }, select: { id: true, itens: true, tipo: true, proposta: true } });
-      for (const r of rascunhos) {
-        if (ehExcecao(r.tipo) || r.itens.length !== 1) continue;
-        if (Object.keys(propostaAplicavel(camada, (r.proposta as Json) ?? {})).some((k) => campos.includes(k))) m.set(r.itens[0], r.id);
-      }
-    }
-    for (const e of lista) for (const i of e.itens) m.set(i, e.id);
-    return m;
+  private mapaExcecoes(db: Pick<Tx, 'sanCaso'>, projetoId: string, camada: string, campos?: string[]): Promise<Map<string, string>> {
+    return mapaExcecoes(db, projetoId, camada, campos);
   }
 
-  /** O caso de regra (de conjunto ou de um item) sem os itens que têm exceção própria; a exceção fica como está. */
-  private async semExcecoes<T extends Pick<CasoLinha, 'id' | 'projeto_id' | 'camada' | 'tipo' | 'itens'>>(db: Pick<Tx, 'sanCaso'>, c: T, mapa?: Map<string, string>): Promise<T> {
-    if (ehExcecao(c.tipo)) return c;
-    const m = mapa ?? (await this.mapaExcecoes(db, c.projeto_id, c.camada));
-    if (!m.size) return c;
-    const itens = c.itens.filter((i) => { const dono = m.get(i); return !dono || dono === c.id; });
-    return itens.length === c.itens.length ? c : { ...c, itens };
+  private semExcecoes<T extends Pick<CasoLinha, 'id' | 'projeto_id' | 'camada' | 'tipo' | 'itens'>>(db: Pick<Tx, 'sanCaso'>, c: T, mapa?: Map<string, string>): Promise<T> {
+    return semExcecoes(db, c, mapa);
   }
 
   /**
@@ -764,7 +725,7 @@ export class SanCasosService {
         decisoesDoLote.push(...decs);
         const dc = decs.find((x) => x.campo === 'codigo');
         if (dc && dc.antes && dc.depois) await this.criarVinculo(tx, c, String(dc.antes), String(dc.depois), fundamento);
-        if ('grupo' in proposta) { const g = d.grupo ?? ''; porGrupo.set(g, [...(porGrupo.get(g) ?? []), item.id]); }
+        if ('grupo' in proposta) { const g = d.grupo ?? ''; acrescentar(porGrupo, g, item.id); }
       }
       if (decisoesDoLote.length) await tx.sanDecisao.createMany({ data: decisoesDoLote as never });
       for (const [grupo, ids] of porGrupo) await tx.sanCelula.updateMany({ where: { item_id: { in: ids } }, data: { grupo } });

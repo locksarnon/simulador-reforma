@@ -215,6 +215,18 @@ export class SanVersoesService {
     return { versao: { id: v.id, numero: v.numero, rotulo: v.rotulo, createdAt: v.createdAt, usuario: v.usuario }, foto };
   }
 
+  /**
+   * Só o trabalho dos itens da foto (id → trabalho), para a restauração: lê a seção `itens` do JSON (`secoesDoJson`) sem montar células,
+   * casos, decisões, impactos, vínculos e importações em objetos (com 30 mil itens e 190 mil decisões, a foto inteira passa de centenas de MB).
+   */
+  async trabalhoDosItensDaFoto(projetoId: string, versaoId: string): Promise<{ versao: { id: string; numero: number; rotulo: string; createdAt: Date; usuario: string }; itens: Map<string, Json> }> {
+    const { versao, texto } = await this.textoDaFoto(projetoId, versaoId);
+    const s = secoesDoJson(texto).get('itens');
+    const itens = new Map<string, Json>();
+    if (s) for (const i of (JSON.parse(texto.slice(s[0], s[1])) as Json[] | null) ?? []) itens.set(String(i.id), ((i.trabalho as Json) ?? {}) as Json);
+    return { versao, itens };
+  }
+
   /** Reduz uma versão ao que a comparação usa e solta o resto (uma foto por vez na memória). */
   private async reduzida(projetoId: string, versaoId: string) {
     const { versao, texto } = await this.textoDaFoto(projetoId, versaoId);
