@@ -277,10 +277,15 @@ describe('impacto no SPED', () => {
     // COD_ANT_ITEM não é preenchido no 0200: o código anterior vai no 0205.
     for (const t of TIPOS_AJUSTE) for (const r of CHECKLIST[t].registros.filter((x) => x.registro === '0200')) expect(r.campos).not.toContain('COD_ANT_ITEM');
     expect(CHECKLIST.MUDOU_CODIGO_DESCRICAO.registros.find((r) => r.obrigacao === 'EFD_ICMS_IPI' && r.registro === '0200')!.verificar).toMatch(/não é preenchido no 0200/);
-    for (const t of TIPOS_AJUSTE) expect(CHECKLIST[t].registros.every((r) => r.conferido === true)).toBe(true);
+    // Todos conferidos, exceto o alerta do F150 de 2027 (NT 13/2026, alterações previstas, sem leiaute final).
+    for (const t of TIPOS_AJUSTE) expect(CHECKLIST[t].registros.filter((r) => r.registro !== 'F150').every((r) => r.conferido === true)).toBe(true);
     expect(Object.values(FONTES_LEIAUTE).every((f) => f.status === 'CONFIRMADO' && !!f.versaoConferida)).toBe(true);
-    expect(FONTES_LEIAUTE.EFD_ICMS_IPI.versaoConferida).toMatch(/3\.2\.2.*leiaute 020/);
-    expect(FONTES_LEIAUTE.EFD_CONTRIBUICOES.nota).toMatch(/não confirmado/);
+    expect(FONTES_LEIAUTE.EFD_ICMS_IPI.versaoConferida).toMatch(/3\.2\.4.*Ato COTEPE\/ICMS 86\/2026.*leiaute 020.*021 a partir de 01\/01\/2027.*NT 2026\.001/);
+    expect(FONTES_LEIAUTE.EFD_ICMS_IPI.url).toMatch(/^https:\/\/www\.gov\.br\/sped\/.*guia-pratico-efd-versao-3-2-4/);
+    expect(FONTES_LEIAUTE.EFD_CONTRIBUICOES.url).toMatch(/^https:\/\/www\.gov\.br\/sped\/.*versao_1_35/);
+    expect(FONTES_LEIAUTE.EFD_CONTRIBUICOES.versaoConferida).toMatch(/NT 11\/2026 e NT 13\/2026/);
+    expect(FONTES_LEIAUTE.EFD_CONTRIBUICOES.nota).toMatch(/não confirmado: a tabela 3\.1\.1 do Guia 1\.35 vai até o código 006/);
+    for (const t of TIPOS_AJUSTE) for (const r of CHECKLIST[t].registros) expect(r.ressalva ?? '').not.toMatch(/3\.2\.2/);
     expect(FONTES_LEIAUTE.NFE.versaoConferida).toMatch(/v1\.53/);
     expect(CHECKLIST.MUDOU_TRATAMENTO.registros.find((r) => r.obrigacao === 'EFD_ICMS_IPI')!.ressalva).toMatch(/não tem campo de CST de IBS\/CBS/);
   });
@@ -289,7 +294,10 @@ describe('impacto no SPED', () => {
     expect(aberto.every((l) => l.aplicabilidade === 'A_CONFIRMAR')).toBe(true);
     expect(aberto.filter((l) => l.obrigacao === 'EFD_ICMS_IPI').every((l) => l.versaoLeiaute.startsWith('020'))).toBe(true);
     expect(aberto.filter((l) => l.obrigacao !== 'EFD_ICMS_IPI').every((l) => l.versaoLeiaute === 'não confirmado')).toBe(true);
-    expect(impactosDoAjuste('MUDOU_NCM', { dataBase: '2027-03-31' }).every((l) => l.versaoLeiaute === 'não confirmado')).toBe(true);
+    const em2027 = impactosDoAjuste('MUDOU_NCM', { dataBase: '2027-03-31' });
+    expect(em2027.filter((l) => l.obrigacao === 'EFD_ICMS_IPI').every((l) => l.versaoLeiaute === '021 (NT 2026.001, Ato COTEPE/ICMS 69/2026)')).toBe(true);
+    expect(em2027.filter((l) => l.obrigacao !== 'EFD_ICMS_IPI').every((l) => l.versaoLeiaute === 'não confirmado')).toBe(true);
+    expect(impactosDoAjuste('MUDOU_NCM', { dataBase: '2028-01-31' }).every((l) => l.versaoLeiaute === 'não confirmado')).toBe(true);
     expect(aberto[0]).toMatchObject({ tipo: 'CADASTRAL_FUTURO', competencia: '2026-11', avaliarAnteriores: true });
     const f = impactosDoAjuste('MUDOU_NCM', { dataBase: DB, obrigacoes: ['EFD_ICMS_IPI'], versaoLeiaute: { EFD_ICMS_IPI: 'X.YZ' } });
     expect(f.find((l) => l.obrigacao === 'EFD_ICMS_IPI')).toMatchObject({ aplicabilidade: 'APLICAVEL', versaoLeiaute: 'X.YZ' });
@@ -297,6 +305,22 @@ describe('impacto no SPED', () => {
     expect(impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB })[0].tipo).toBe('REGULARIZACAO_SALDO');
     expect(impactosDoAjuste('MUDOU_UNIDADE', { dataBase: DB }, { escrituracaoEntregue: true })[0].tipo).toBe('ESCRITURACAO_ENTREGUE');
     expect(impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB }).find((l) => l.registro === '0221')!.ressalva).toMatch(/TIPO_ITEM 00.*UF do declarante/);
+  });
+  it('estoque de abertura de 2027: alerta F150 sem valores só nos ajustes que mudam o inventário; ressalvas de 2027 da EFD-Contribuições', () => {
+    const f150 = (t: (typeof TIPOS_AJUSTE)[number]) => CHECKLIST[t].registros.filter((r) => r.registro === 'F150');
+    for (const t of ['CONSOLIDOU_INATIVOU', 'MUDOU_UNIDADE'] as const) {
+      const [r] = f150(t);
+      expect(f150(t)).toHaveLength(1);
+      expect(r).toMatchObject({ obrigacao: 'EFD_CONTRIBUICOES', semValor: true, conferido: false });
+      expect(r.verificar).toBe('Estoque de abertura de 01/01/2027 (EFD-Contribuições, F150, crédito presumido de CBS do art. 381 da LC 214/2025): conferir o inventário de 31/12/2026 por item (H010) e a memória de cálculo');
+      expect(r.ressalva).toMatch(/NT EFD-Contribuições 13\/2026 \(alterações previstas\)/);
+    }
+    for (const t of TIPOS_AJUSTE.filter((x) => x !== 'CONSOLIDOU_INATIVOU' && x !== 'MUDOU_UNIDADE')) expect(f150(t)).toHaveLength(0);
+    const linha = impactosDoAjuste('CONSOLIDOU_INATIVOU', { dataBase: DB }, { valorOriginal: 'A1', valorProposto: 'A2' }).find((l) => l.registro === 'F150')!;
+    expect(linha).toMatchObject({ valorOriginal: null, valorProposto: null, registroConferido: false });
+    expect(CHECKLIST.ITEM_ATIVO_IMOBILIZADO.registros.find((r) => r.registro === 'F120/F130')!.ressalva).toMatch(/art\. 380; NT EFD-Contribuições 13\/2026, alterações previstas/);
+    for (const reg of ['C170', 'M100/M500']) expect(CHECKLIST.MUDOU_TRATAMENTO.registros.find((r) => r.obrigacao === 'EFD_CONTRIBUICOES' && r.registro === reg)!.ressalva).toMatch(/NT EFD-Contribuições 11\/2026/);
+    expect(CHECKLIST.MUDOU_TRATAMENTO.registros.find((r) => r.obrigacao === 'EFD_ICMS_IPI')!.ressalva).toMatch(/nem no leiaute 021.*Guia Prático 3\.2\.4, Cap\. I, Seção 10/);
   });
   const ajustes: AjusteSped[] = [
     { tipo: 'MUDOU_NCM', itemId: 'i1', valorOriginal: '38089999', valorProposto: '38089329', motivo: 'NCM corrigido', status: 'APROVADO', inicio: '2027-01-01' },
@@ -311,7 +335,7 @@ describe('impacto no SPED', () => {
     expect(ncm.itens).toEqual(['i1', 'i2']);
     expect(ncm.evidencia.find((e) => e.rotulo === 'Competência inicial')!.valor).toBe('2026-11');
     expect(ncm.evidencia.some((e) => e.rotulo.includes('C170'))).toBe(true);
-    expect(ncm.fundamento).toMatch(/Guia Prático 3\.2\.2/); expect(ncm.fundamento).toMatch(/NT 2025\.002-RTC v1\.53/); expect(ncm.fundamento).toMatch(/COD_VER do 0000\) não confirmado/);
+    expect(ncm.fundamento).toMatch(/Guia Prático 3\.2\.4/); expect(ncm.fundamento).toMatch(/NT 2025\.002-RTC v1\.53/); expect(ncm.fundamento).toMatch(/COD_VER do 0000\) não confirmado/);
     expect(ncm.fundamento).not.toMatch(/leiaute não confirmado nesta entrega/);
     expect(r.semProblema).toEqual(['i4']);
     expect(r.camada).toBe('OBRIGACOES');
@@ -420,7 +444,7 @@ describe('revisão fiscal (achados 4, 5, 6 e 11)', () => {
   it('achado 8: o 0205 da EFD ICMS/IPI leva a ressalva do Guia Prático (não descaracterizar o item)', () => {
     for (const t of ['MUDOU_CODIGO_DESCRICAO', 'CONSOLIDOU_INATIVOU'] as const) {
       const r = CHECKLIST[t].registros.find((x) => x.obrigacao === 'EFD_ICMS_IPI' && x.registro === '0205')!;
-      expect(r.ressalva).toContain('não descaracterizar o item; se descaracterizar, é item novo, com código novo (Guia Prático da EFD ICMS/IPI 3.2.2');
+      expect(r.ressalva).toContain('não descaracterizar o item; se descaracterizar, é item novo, com código novo (Guia Prático da EFD ICMS/IPI 3.2.4');
     }
   });
 });
