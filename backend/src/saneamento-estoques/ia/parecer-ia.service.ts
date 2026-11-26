@@ -5,12 +5,14 @@ import { LimiteUso, comPrazo, emParalelo } from '../../ia-consultoria/util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SanCasosService } from '../dados/casos.service';
 import type { CasoParaParecer, ParecerIa, ParecerIaPort } from '../dados/portas';
-import { motivoBorda, usaBusca, type Borda } from './borda';
+import { CANDIDATOS_BORDA, motivoBorda, usaBusca, type Borda } from './borda';
 import { lerParecer, montarPrompt, paraGravar, type LeiCarregada, type ParecerGravado, type Precedente } from './parecer';
 
 /** Casos que ainda estão abertos (a IA não opina sobre o que já foi decidido). */
 const SITUACOES_ABERTAS = ['PROPOSTO', 'RASCUNHO', 'AGUARDANDO_INFORMACAO'];
 const MAX_POR_CHAMADA = 12;
+/** Página da varredura dos casos candidatos a borda (só as colunas que a regra da borda lê). */
+const PAGINA = 2000;
 const CONCORRENCIA = 2;
 /** Depois deste tempo o lote não começa caso novo: devolve o que fez e quantos faltam (a requisição não fica presa por minutos). */
 const ORCAMENTO_LOTE_MS = 60_000;
@@ -131,16 +133,33 @@ export class ParecerIaService implements ParecerIaPort {
 
   /** Pareceres dos casos de borda ainda sem parecer: até 50 por chamada, 2 ao mesmo tempo, dentro do orçamento de tempo. */
   async gerarLote(projetoId: string, email: string) {
-    const abertos = await this.prisma.sanCaso.findMany({
-      where: { projeto_id: projetoId, situacao: { in: SITUACOES_ABERTAS } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 5000,
-    });
-    const pendentes = abertos.filter((c) => !c.parecer_ia && motivoBorda({
-      camada: c.camada as CasoParaParecer['camada'], tipo: c.tipo, problema: c.problema, evidencia: (c.evidencia ?? []) as CasoParaParecer['evidencia'],
-      atual: (c.atual ?? {}) as CasoParaParecer['atual'], proposta: (c.proposta ?? {}) as CasoParaParecer['proposta'], justificativa: c.justificativa,
-    }));
-    const vazio = { casosDeBorda: pendentes.length, tentados: 0, gerados: 0, semResposta: 0, restantes: pendentes.length };
+    // A consulta já filtra as camadas e os tipos que podem ser borda (borda.ts) e percorre todos em páginas: nenhum caso de borda fica de fora
+    // por estar depois de milhares de casos que a regra decide. Só a contagem e os primeiros 12 ficam em memória.
+    const where = {
+      projeto_id: projetoId, situacao: { in: SITUACOES_ABERTAS },
+      OR: CANDIDATOS_BORDA.map((x) => (x.tipos ? { camada: x.camada, tipo: { in: x.tipos } } : { camada: x.camada })),
+    };
+    const fatia: { id: string }[] = [];
+    let casosDeBorda = 0;
+    let cursor: string | undefined;
+    for (;;) {
+      const pagina = await this.prisma.sanCaso.findMany({
+        where: where as never, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: PAGINA, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        select: { id: true, camada: true, tipo: true, problema: true, evidencia: true, atual: true, proposta: true, justificativa: true, parecer_ia: true },
+      });
+      for (const c of pagina) {
+        if (c.parecer_ia || !motivoBorda({
+          camada: c.camada as CasoParaParecer['camada'], tipo: c.tipo, problema: c.problema, evidencia: (c.evidencia ?? []) as CasoParaParecer['evidencia'],
+          atual: (c.atual ?? {}) as CasoParaParecer['atual'], proposta: (c.proposta ?? {}) as CasoParaParecer['proposta'], justificativa: c.justificativa,
+        })) continue;
+        casosDeBorda++;
+        if (fatia.length < MAX_POR_CHAMADA) fatia.push({ id: c.id });
+      }
+      if (pagina.length < PAGINA) break;
+      cursor = pagina[pagina.length - 1].id;
+    }
+    const vazio = { casosDeBorda, tentados: 0, gerados: 0, semResposta: 0, restantes: casosDeBorda };
     if (!this.base.iaConfigurada()) return { iaDisponivel: false, ...vazio };
-    const fatia = pendentes.slice(0, MAX_POR_CHAMADA);
     if (!fatia.length) return { iaDisponivel: true, ...vazio };
     this.limite.consumir(email, fatia.length);
 
@@ -158,7 +177,7 @@ export class ParecerIaService implements ParecerIaPort {
         this.log.warn(`Lote de pareceres: caso ${c.id} falhou: ${(e as Error).message}`);
       }
     });
-    return { iaDisponivel: true, casosDeBorda: pendentes.length, tentados, gerados, semResposta: tentados - gerados, restantes: pendentes.length - gerados, mensagem: pendentes.length - gerados > 0 ? 'Repita para os demais casos de borda.' : null };
+    return { iaDisponivel: true, casosDeBorda, tentados, gerados, semResposta: tentados - gerados, restantes: casosDeBorda - gerados, mensagem: casosDeBorda - gerados > 0 ? 'Repita para os demais casos de borda.' : null };
   }
 }
 

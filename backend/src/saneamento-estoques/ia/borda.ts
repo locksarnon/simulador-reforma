@@ -61,6 +61,18 @@ export function motivoBorda(c: CasoBorda): Borda | null {
   return null;
 }
 
+/**
+ * Pré-filtro da consulta de casos de borda: só estas camadas (e, quando indicado, só estes tipos) podem ser borda em `motivoBorda`.
+ * O lote consulta o banco já com este filtro (não olha os milhares de casos que a regra decide). Mantido junto de `motivoBorda`:
+ * quem acrescentar uma borda nova acrescenta aqui também (o teste confere a coerência).
+ */
+export const CANDIDATOS_BORDA: { camada: string; tipos: string[] | null }[] = [
+  { camada: 'DUPLICIDADE', tipos: Object.keys(DUPLICIDADE) },
+  { camada: 'NCM', tipos: [...Object.keys(NCM), 'NCM_CLASSIFICACAO_ANTIGA'] },
+  { camada: 'TRIBUTARIO', tipos: null },
+  { camada: 'GRUPOS_FINALIDADE', tipos: null },
+];
+
 export const ehBorda = (c: CasoBorda): boolean => motivoBorda(c) !== null;
 
 /** Casos tributários e de crédito levam a pesquisa na web; os demais usam só o modelo. */

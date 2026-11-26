@@ -239,3 +239,29 @@ describe('parecer da IA no caso de borda', () => {
     expect(await fora.servico.gerarLote('P1', 'u@fal.test')).toMatchObject({ iaDisponivel: false, gerados: 0 });
   });
 });
+
+describe('QA 30 mil: o lote acha os casos de borda mesmo depois de milhares de casos que a regra decide', () => {
+  it('5.001 casos abertos que não são borda criados antes não escondem os 3 de borda (a consulta filtra camada e tipo)', async () => {
+    const c = await montar();
+    for (let i = 0; i < 5001; i++) await c.novo({ tipo: 'DUPLICIDADE_EXATA', chave: `x${i}` });
+    await c.novo({ camada: 'NCM', tipo: 'NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS', chave: 'n1' });
+    await c.novo({ chave: 'd1' });
+    await c.novo({ chave: 'd2' });
+    const r = await c.servico.gerarLote('P1', 'u@fal.test');
+    expect(r).toMatchObject({ iaDisponivel: true, casosDeBorda: 3, tentados: 3, gerados: 3, restantes: 0 });
+  });
+  it('o pré-filtro da consulta cobre toda borda que motivoBorda reconhece', async () => {
+    const { CANDIDATOS_BORDA, motivoBorda } = await import('./borda');
+    const exemplos = [
+      { camada: 'DUPLICIDADE', tipo: 'ATRIBUTOS_CONFLITANTES' }, { camada: 'NCM', tipo: 'NCM_INCOMPATIVEL_DESCRICAO' },
+      { camada: 'NCM', tipo: 'NCM_CLASSIFICACAO_ANTIGA', evidencia: [{ rotulo: 'Sucessores', valor: '1, 2' }] },
+      { camada: 'TRIBUTARIO', tipo: 'AGUARDANDO_INFORMACAO', evidencia: [{ rotulo: 'Candidatos', valor: 'a' }] },
+      { camada: 'GRUPOS_FINALIDADE', tipo: 'FINALIDADE_GRUPO', problema: 'finalidade', evidencia: [{ rotulo: 'Confiança', valor: 'baixa' }] },
+    ];
+    for (const e of exemplos) {
+      const caso = { problema: 'p', justificativa: 'j', evidencia: [], atual: {}, proposta: {}, ...e } as never;
+      expect(motivoBorda(caso), e.tipo).not.toBeNull();
+      expect(CANDIDATOS_BORDA.some((x) => x.camada === e.camada && (!x.tipos || x.tipos.includes(e.tipo))), e.tipo).toBe(true);
+    }
+  });
+});
