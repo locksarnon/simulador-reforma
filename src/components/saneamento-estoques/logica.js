@@ -570,14 +570,6 @@ export const EXCECOES_POR_CAMADA = {
   ],
 };
 
-/** Número digitado no padrão brasileiro ("1.000", "0,5", "25"); null se vazio ou inválido. */
-export function lerNumeroBr(v) {
-  const t = String(v ?? "").trim();
-  if (!t) return null;
-  const n = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) ? Number(t.replace(/\./g, "").replace(",", ".")) : Number(t.replace(",", "."));
-  return Number.isFinite(n) ? n : null;
-}
-
 /** Caso individual de exceção, no formato de POST projetos/:id/casos. Exige o motivo. */
 export function montarExcecao({ camada, item, valores, motivo }) {
   const campos = EXCECOES_POR_CAMADA[camada];
@@ -650,11 +642,45 @@ export function gruposDeColunas(colunas) {
 const SOMENTE_LEITURA = ["origem", "enquadramentoLegal", "artigo", "tipoImpacto", "valorProposto", "fatorSituacao", "exigeFator"];
 export const propostaEditavel = (campo) => !SOMENTE_LEITURA.includes(campo);
 
-/** Texto digitado → valor: mantém número onde o valor anterior era número; vazio vira null. */
+/**
+ * Número digitado, pela MESMA regra do servidor (lerNumero de backend/src/saneamento-estoques/importacao/normalizacao.ts, sem contexto de
+ * coluna): "1.234,56" e "1,234.56" = 1234,56; "1.000" (um ponto, três casas, sem vírgula) = mil; "1,5" = 1,5; zero à esquerda desfaz a
+ * ambiguidade ("0.001" = um milésimo); "12-" e "(12)" são negativos. Texto que não é número = null.
+ */
+export function lerNumeroBr(bruto) {
+  if (typeof bruto === "number") return Number.isFinite(bruto) ? (bruto === 0 ? 0 : bruto) : null;
+  let t = String(bruto ?? "").replace(/\s+/g, " ").trim().replace(/^R\$\s*/i, "");
+  if (!t) return null;
+  let neg = false;
+  if (/^\(.*\)$/.test(t)) { neg = true; t = t.slice(1, -1).trim(); }
+  if (t.endsWith("-")) { neg = !neg; t = t.slice(0, -1).trim(); }
+  if (t.startsWith("-")) { neg = !neg; t = t.slice(1).trim(); } else if (t.startsWith("+")) t = t.slice(1).trim();
+  if (/^\d+(\.\d+)?[eE][+-]?\d+$/.test(t)) { const n = Number(t); return Number.isFinite(n) ? (neg ? -n : n) : null; }
+  if (!/^[\d.,]+$/.test(t) || !/\d/.test(t)) return null;
+  const pontos = (t.match(/\./g) || []).length; const virgulas = (t.match(/,/g) || []).length;
+  let s;
+  if (pontos && virgulas) {
+    const decimal = t.lastIndexOf(".") > t.lastIndexOf(",") ? "." : ",";
+    const milhar = decimal === "." ? "," : ".";
+    if (t.split(decimal).length > 2) return null;
+    s = t.split(milhar).join("").replace(decimal, ".");
+  } else if (virgulas) {
+    if (virgulas > 1 && !/^\d{1,3}(,\d{3})+$/.test(t)) return null;
+    s = virgulas === 1 ? t.replace(",", ".") : t.replace(/,/g, "");
+  } else if (pontos) {
+    if (pontos > 1) { if (!/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) return null; s = t.replace(/\./g, ""); }
+    else s = /^[1-9]\d{0,2}\.\d{3}$/.test(t) ? t.replace(".", "") : t;
+  } else s = t;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return n === 0 ? 0 : neg ? -n : n;
+}
+
+/** Texto digitado → valor: mantém número onde o valor anterior era número (lido como o servidor lê); vazio vira null. */
 export function converterValor(texto, modelo) {
   const t = String(texto ?? "").trim();
   if (t === "") return null;
-  if (typeof modelo === "number" && /^-?\d+([.,]\d+)?$/.test(t)) return Number(t.replace(",", "."));
+  if (typeof modelo === "number") { const n = lerNumeroBr(t); return n ?? t; }
   if (typeof modelo === "boolean") return /^(sim|true|1|s)$/i.test(t);
   return t;
 }
