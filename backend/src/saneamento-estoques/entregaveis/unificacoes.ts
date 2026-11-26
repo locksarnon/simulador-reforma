@@ -145,9 +145,7 @@ const perto = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Ma
  * aprovado é esse (ou o inverso). Fator sem direção (ex.: apresentações 1 L × 5 L cadastradas em UN × CX, fator max/min) não converte.
  */
 export function conversaoDoSaldo(proposta: Record<string, unknown>, de: string, para: string): Conversao {
-  // Número já é número (0.001 não pode virar 1 pela leitura de texto com ponto de milhar).
-  const bruto = proposta.fatorConversao;
-  const fator = typeof bruto === 'number' ? (Number.isFinite(bruto) && bruto > 0 ? bruto : null) : lerFator(bruto);
+  const fator = lerFator(proposta.fatorConversao);
   if (fator == null) return { falta: 'FATOR', fator: null };
   const ud = chaveUnidade(de); const up = chaveUnidade(para);
   const fd = chaveUnidade(proposta.fatorDe); const fp = chaveUnidade(proposta.fatorPara);

@@ -6,6 +6,7 @@
  * O motor só SUGERE. O fator só é dado como certo quando é exato por definição (1 t = 1.000 kg) ou está escrito na unidade; quando vem da descrição
  * (uma única medida citada) fica "para confirmar"; nos demais casos fica "a informar". Unidade que a tabela não conhece nunca é adivinhada.
  */
+import { lerNumero as lerNumeroDaImportacao } from '../importacao/normalizacao';
 import type { RegraUnidade } from './contexto';
 import { numeroBr, semAcento } from './texto';
 
@@ -93,8 +94,11 @@ const lerNumero = (t: string): number | null => {
   const n = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s.replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 };
-/** Fator digitado pelo analista ("1.000", "0,5", "20"); null se vazio ou inválido. */
-export const lerFator = (t: unknown): number | null => { const n = lerNumero(String(t ?? '').trim()); return n != null && n > 0 ? n : null; };
+/**
+ * Fator digitado pelo analista ("1.000", "0,5", "20"); null se vazio, inválido ou ≤ 0. Número já é número (0.001 continua 0,001); texto segue a
+ * MESMA leitura da importação (`lerNumero` de importacao/normalizacao: "1.000" = mil, "1.000,5" = mil e meio, "0,001" e "0.001" = um milésimo).
+ */
+export const lerFator = (t: unknown): number | null => { const n = lerNumeroDaImportacao(t); return n != null && n > 0 ? n : null; };
 const fatorDoToken = (grupos: [string, number][], token: string): number | null => grupos.find(([e]) => new RegExp(`^(?:${e})$`).test(token))?.[1] ?? null;
 
 function medidasNoTexto(grandeza: Grandeza, d: string): number[] {
@@ -233,6 +237,6 @@ export function achadosUnidade(itens: ItemUn[], { politica = true, regras = {}, 
 }
 
 /** Fator de conversão de uma decisão de unidade: o informado pelo analista ou o sugerido; null se ainda é "a informar". */
-export const fatorDaDecisao = (d: { fatorFinal?: unknown; fator?: unknown } | null | undefined): number | null => { const f = Number(d?.fatorFinal ?? d?.fator); return Number.isFinite(f) && f > 0 ? f : null; };
+export const fatorDaDecisao = (d: { fatorFinal?: unknown; fator?: unknown } | null | undefined): number | null => lerFator(d?.fatorFinal ?? d?.fator);
 /** Conversão sem fator não pode ser aprovada: a unidade de compra precisa do "itens por unidade de compra". */
 export const precisaFator = (d: { tipo?: string; para?: string; fatorFinal?: unknown; fator?: unknown } | null | undefined): boolean => d?.tipo === 'conversao' && !!d.para && fatorDaDecisao(d) == null;

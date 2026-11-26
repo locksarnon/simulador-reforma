@@ -1,7 +1,8 @@
 // @ts-nocheck
 // Paridade com src/components/saneamento/unidades.test.js (porte para o motor).
 import { describe, expect, it } from "vitest";
-import { achadosUnidade, chaveUnidade, classificarUnidade, conteudoNaUnidade, fatorDaDecisao, fatorPelaDescricao, precisaFator, rotulosPadrao, unidadeCanonica } from './unidades';
+import { achadosUnidade, chaveUnidade, classificarUnidade, conteudoNaUnidade, fatorDaDecisao, fatorPelaDescricao, lerFator, precisaFator, rotulosPadrao, unidadeCanonica } from './unidades';
+import { lerNumero } from '../importacao/normalizacao';
 
 const it1 = (unidade, descricao = "ITEM", linha = 2) => ({ linha, unidade, descricao, problemas: [] });
 // Base de apoio que já usa os nomes do cliente para as unidades padrão (como na base real: QUILOGRAM, LITRO, METRO, UNIDADE).
@@ -262,5 +263,22 @@ describe("nome da unidade padrão e decisões", () => {
     expect(precisaFator({ tipo: "conversao", para: "KG", fator: 20, fatorFinal: "" })).toBe(true);
     expect(precisaFator({ tipo: "grafia", para: "UNIDADE" })).toBe(false); expect(precisaFator({ tipo: "conversao" })).toBe(false); expect(precisaFator(undefined)).toBe(false);
     expect(fatorDaDecisao({ fator: 20, fatorFinal: 25 })).toBe(25); expect(fatorDaDecisao({ fator: 20 })).toBe(20); expect(fatorDaDecisao({ fator: 0 })).toBeNull(); expect(fatorDaDecisao({})).toBeNull();
+  });
+});
+
+describe('lerFator: número como está; texto como a importação lê', () => {
+  it('0.001 número, "0,001", "0.001", "1.000", "1.000,5", 50 e "50"', () => {
+    expect(lerFator(0.001)).toBe(0.001);
+    expect(lerFator('0,001')).toBe(0.001);
+    expect(lerFator('0.001')).toBe(0.001); // zero à esquerda: decimal (milhar nunca começa por zero)
+    expect(lerFator('1.000')).toBe(1000); // costume brasileiro, o mesmo da importação
+    expect(lerFator('1.000,5')).toBe(1000.5);
+    expect(lerFator(50)).toBe(50);
+    expect(lerFator('50')).toBe(50);
+    expect([lerFator(0), lerFator(-2), lerFator(''), lerFator('abc'), lerFator(null)]).toEqual([null, null, null, null, null]);
+    // A importação lê igual (uma regra só).
+    expect([lerNumero(0.001), lerNumero('0.001'), lerNumero('1.000'), lerNumero('1.000,5'), lerNumero('0.500.000')]).toEqual([0.001, 0.001, 1000, 1000.5, null]);
+    // Decisão de unidade com fator digitado em texto brasileiro.
+    expect(fatorDaDecisao({ fator: '0,5' })).toBe(0.5);
   });
 });

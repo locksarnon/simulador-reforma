@@ -332,3 +332,26 @@ describe('fluxo: propor e aprovar unificação marca a Qualidade como "revisar" 
     expect(tela.linhas[0].morre?.saldo).toBe(3);
   });
 });
+
+describe('fator de conversão lido como número ou texto brasileiro (lerFator)', () => {
+  it('equivalência mostra o fator 0,001 (número) e o "0,5" (texto); a conversão do saldo usa os mesmos valores', () => {
+    const itens = [it_('a', '100', { unidade: 'G' }), it_('b', '200', { unidade: 'KG' })];
+    const eq = (f: unknown) => mapa(itens, [caso({ tipo: 'APRESENTACOES_DISTINTAS', itens: ['a', 'b'], proposta: { decisao: 'RELACIONAR_APRESENTACOES', fatorConversao: f } })])[0].acao;
+    expect(eq(0.001)).toContain('(fator 0,001)');
+    expect(eq('0,5')).toContain('(fator 0,5)');
+    expect(conversaoDoSaldo({ fatorConversao: '0.001' }, 'G', 'KG')).toEqual({ multiplicador: 0.001 });
+  });
+  it('aprovar aceita o fator digitado em texto brasileiro ("0,5"); sem fator, FATOR_AUSENTE', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, 1, USER);
+    c.fila.itens = [item('100', { unidade: 'CX' }, 1)];
+    await c.importacao.confirmar(p.id, { buffer: Buffer.from('x'), nome: 'cadastro.xlsx' }, undefined, [], USER);
+    const id = c.db.sanItem[0].id;
+    const r = (fator: unknown): ResultadoCamada => ({ camada: 'NOMES_UNIDADES', analisados: 1, semDados: null, semProblema: [], casos: [{ camada: 'NOMES_UNIDADES', tipo: 'UNIDADE_CONVERSAO', itens: [id], problema: 'Conversão', evidencia: [], atual: { unidade: 'CX' }, proposta: { unidade: 'UN', unidadeCompra: 'CX', fatorConversao: fator as never, fatorSituacao: 'DEFINIDO' }, justificativa: 'Caixa', fundamento: null, impactos: [], origem: 'REGRA', afeta: [] }] });
+    await c.casos.registrarResultado(p.id, r('0,5'));
+    const caso1 = c.db.sanCaso[0];
+    await c.casos.aprovar(caso1.id, { versao: caso1.versao }, USER);
+    expect(c.db.sanCaso[0].situacao).toBe('APROVADO');
+  });
+});

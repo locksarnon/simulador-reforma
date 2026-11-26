@@ -44,9 +44,11 @@ export function normalizarNcm(bruto: unknown, colunaNumerica = false): NcmNormal
 /**
  * Número em formato brasileiro ou americano. "1.234,56" e "1,234.56" -> 1234.56; "1234,56" e "1234.56" -> 1234.56;
  * "1.234" (um ponto, três casas, sem vírgula) -> 1234 e "1,234" -> 1.234 (costume brasileiro, o mesmo do saneamento atual; se a coluna é numérica
- * de verdade, `colunaNumerica`, o ponto é decimal). "12-" (sinal no fim, SAP) e "(12)" são negativos. Vazio ou texto -> null.
+ * de verdade, `colunaNumerica`, o ponto é decimal). Zero à esquerda desfaz a ambiguidade: "0.001" -> 0,001 (milhar nunca começa por zero).
+ * Valor que já é número vale como está (0.001 não vira 1). "12-" (sinal no fim, SAP) e "(12)" são negativos. Vazio ou texto -> null.
  */
 export function lerNumero(bruto: unknown, colunaNumerica = false): number | null {
+  if (typeof bruto === 'number') return Number.isFinite(bruto) ? (bruto === 0 ? 0 : bruto) : null;
   let t = aparar(bruto).replace(/^R\$\s*/i, '');
   if (!t) return null;
   let neg = false;
@@ -66,8 +68,8 @@ export function lerNumero(bruto: unknown, colunaNumerica = false): number | null
     if (virgulas > 1 && !/^\d{1,3}(,\d{3})+$/.test(t)) return null; // várias vírgulas = milhar americano
     s = virgulas === 1 ? t.replace(',', '.') : t.replace(/,/g, '');
   } else if (pontos) {
-    if (pontos > 1) { if (!/^\d{1,3}(\.\d{3})+$/.test(t)) return null; s = t.replace(/\./g, ''); }
-    else s = !colunaNumerica && /^\d{1,3}\.\d{3}$/.test(t) ? t.replace('.', '') : t;
+    if (pontos > 1) { if (!/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) return null; s = t.replace(/\./g, ''); }
+    else s = !colunaNumerica && /^[1-9]\d{0,2}\.\d{3}$/.test(t) ? t.replace('.', '') : t;
   } else s = t;
   const n = Number(s);
   if (!Number.isFinite(n)) return null;

@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CatalogosFiscaisPrisma, classeVigente } from '../fiscal';
-import { camadasAfetadas } from '../motor';
+import { camadasAfetadas, lerFator } from '../motor';
 import { CAMADAS, type Camada, type CasoProposto, type ResultadoCamada } from '../tipos';
 import { mapaExcecoes, regravarImpactosDosCasos, semExcecoes } from './impactos-casos';
 import {
@@ -46,7 +46,8 @@ const bad = (codigo: string, message: string, extra: Json = {}) => new BadReques
 /** Exceção de finalidade ao grupo: aprovar exige o motivo escrito pelo consultor (ao menos 5 caracteres). */
 const MOTIVO_MINIMO = 5;
 const ehCasoDeUnidade = (p: Json) => p.fatorSituacao !== undefined || p.unidadeCompra !== undefined;
-const fatorValido = (p: Json) => p.fatorConversao != null && Number.isFinite(Number(p.fatorConversao)) && Number(p.fatorConversao) > 0;
+/** Fator > 0, lido como o resto do módulo (`lerFator`: número como está; texto no formato brasileiro, "0,5" e "0.001" valem). */
+const fatorValido = (p: Json) => lerFator(p.fatorConversao) != null;
 
 /** Etiqueta de caso nas justificativas dos vínculos: vários casos podem usar o mesmo vínculo. */
 const etiqueta = (id: string) => `[caso:${id}]`;
