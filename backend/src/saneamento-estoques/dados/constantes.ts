@@ -26,7 +26,7 @@ export const CAMPOS_TOPO = ['codigo', 'descricao', 'unidade', 'ncm', 'grupo', 'a
 export const CAMPOS_PROIBIDOS = ['id', 'estabelecimento'];
 
 /** Chaves da proposta que são só informação para o consultor (decisão de duplicidade, árvore, tipo de impacto...): não vão para o item. */
-export const CHAVES_INFORMATIVAS = ['decisao', 'decisoesPossiveis', 'tratamentoDoSaldo', 'manter', 'consolidar', 'arvore', 'subgrupos', 'fatorSituacao', 'origem', 'tipoImpacto', 'valorProposto'];
+export const CHAVES_INFORMATIVAS = ['decisao', 'decisoesPossiveis', 'tratamentoDoSaldo', 'manter', 'consolidar', 'arvore', 'subgrupos', 'fatorSituacao', 'exigeFator', 'origem', 'tipoImpacto', 'valorProposto'];
 
 /** O que, da proposta do caso, vira alteração no item. A camada de obrigações só orienta a conferência: nunca altera o cadastro. */
 export function propostaAplicavel(camada: string, proposta: Json | null | undefined): Json {

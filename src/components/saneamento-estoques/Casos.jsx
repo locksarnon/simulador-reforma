@@ -138,7 +138,7 @@ export default function Casos({ projeto, recorte, casoInicial }) {
                 {q.hasNextPage && <button type="button" className={botaoSecundario} onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>{q.isFetchingNextPage ? "Carregando…" : "Carregar mais casos"}</button>}
               </div>
               <div className="min-w-0">
-                {aberto ? <CasoDetalhe key={aberto} projeto={projeto} casoId={aberto} aoIrAoProximo={irAoProximo} aoMudou={recarregar} />
+                {aberto ? <CasoDetalhe key={aberto} projeto={projeto} casoId={aberto} aoIrAoProximo={irAoProximo} aoMudou={recarregar} grupoDoRecorte={filtro.grupo || null} />
                   : <EstadoVazio titulo="Escolha um caso">Clique numa linha para ver o problema, a evidência, a proposta e decidir.</EstadoVazio>}
               </div>
             </div>

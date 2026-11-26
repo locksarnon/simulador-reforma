@@ -101,6 +101,8 @@ export class SaneamentoEstoquesController {
   loteAprovar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: EntradaLote) { return this.casos.loteAprovar(id, b ?? {}, user); }
   @Get('casos/:casoId')
   caso(@Param('casoId') id: string) { return this.casos.obter(id); }
+  @Get('casos/:casoId/grupos')
+  gruposDoCaso(@Param('casoId') id: string) { return this.itens.gruposDoCaso(id); }
   @Put('casos/:casoId/rascunho')
   rascunho(@CurrentUser() user: AuthUser, @Param('casoId') id: string, @Body() b: Record<string, never>) { return this.casos.salvarRascunho(id, b ?? {}, user); }
   @Post('casos/:casoId/aprovar')

@@ -5,7 +5,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { san, chaves, atualizarTudo } from "./api";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Rotulo, Tag, usePodeAlterar } from "./comuns";
 import {
-  acoesDoCaso, aposConflito, camposDivergentes, converterProposta, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
+  acoesDoCaso, aposConflito, avisoDeOutrosGrupos, camposDivergentes, converterProposta, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
   FINALIDADES, interpretarRespostaParecer, lerParecer, mensagemDeErro, mensagemDoParecer, precisaConfirmarFator, precisaInformarFator, propostaEditavel, razaoSemAprovar, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloFinalidade, rotuloSituacaoCaso, textoDoValor,
 } from "./logica";
 
@@ -46,11 +46,14 @@ function CampoDaProposta({ campo, valor, disabled, aoMudar, destaque }) {
 }
 
 /** Detalhe do caso: problema, evidência, dados originais e atuais, proposta editável, justificativa, parecer da IA e as ações. */
-export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou }) {
+export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, grupoDoRecorte }) {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const consulta = useQuery({ queryKey: chaves.caso(casoId), queryFn: () => san.caso(casoId) });
   const caso = consulta.data;
+  // No recorte de um grupo, o caso de conjunto pode ter itens de outros grupos: aprovar altera todos, e a tela avisa antes.
+  const grupos = useQuery({ queryKey: chaves.gruposDoCaso(projeto.id, casoId), queryFn: () => san.gruposDoCaso(casoId), enabled: !!grupoDoRecorte && (caso?.itens?.length || 0) > 1 });
+  const outrosGrupos = avisoDeOutrosGrupos(grupos.data, grupoDoRecorte);
   const unico = caso && caso.itens?.length === 1 ? caso.itens[0] : null;
   const item = useQuery({ queryKey: [...chaves.todos(projeto.id), "item", unico], queryFn: () => san.item(unico), enabled: !!unico });
   const [edicaoLocal, setEdicao] = useState(null);
@@ -159,6 +162,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou })
               {c.motivo && <p className="text-sm text-muted-foreground">Motivo registrado: {c.motivo}</p>}
             </header>
 
+            {outrosGrupos && <Aviso tom="alerta" titulo="Itens de outros grupos">{outrosGrupos.texto}</Aviso>}
             {aviso && <Aviso tom={aviso.tom === "erro" ? "erro" : aviso.tom === "alerta" ? "alerta" : "ok"}>{aviso.texto}</Aviso>}
             {divergencia && (
               <Aviso tom="alerta" titulo="A proposta ficou desatualizada" acao={pode && <button type="button" className={botaoPrimario} disabled={ocupado} onClick={() => aprovarAgora({ ...(divergencia.vars || {}), confirmarDivergencia: true })}>Aprovar mesmo assim</button>}>
