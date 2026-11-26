@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet } from "lucide-react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { semFuncao } from "@/lib/permissoes";
 import { ConsultasErp, usePerfilErp } from "@/components/erps/erps";
 import { colunasDoExportDoPerfil } from "@/lib/erps";
@@ -267,10 +268,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
         {colunasDoExportDoPerfil(perfilErp).length > 0 && <p className="text-sm">ERP do projeto: <b>{perfilErp.nome}</b>. As colunas do export dele ({colunasDoExportDoPerfil(perfilErp).map((i) => i.campo_erp).join(", ")}) já chegam mapeadas; confira na prévia.</p>}
         <ConsultasErp perfil={perfilErp} />
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex cursor-pointer items-center gap-2 border border-border bg-background px-3 py-1.5 text-sm focus-within:ring-2 focus-within:ring-ring hover:bg-muted">
-            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />{arquivo ? arquivo.name : "Escolher arquivo"}
-            <input key={chaveArquivo} type="file" accept=".xlsx,.xls,.csv" className="sr-only" onChange={(e) => { setArquivo(e.target.files?.[0] || null); setPrevia(null); setMapeamento(null); setResultado(null); setErro(null); }} />
-          </label>
+          <CampoArquivo key={chaveArquivo} accept=".xlsx,.xls,.csv" icone={FileSpreadsheet} arquivo={arquivo} rotulo="Arquivo do cadastro de itens" dica="Excel (.xlsx, .xls) ou CSV" className="w-full sm:w-auto sm:min-w-[22rem]"
+            aoEscolher={([f]) => { setArquivo(f || null); setPrevia(null); setMapeamento(null); setResultado(null); setErro(null); }} />
           <button type="button" className={botaoPrimario} disabled={!arquivo || ler.isPending || confirmar.isPending} onClick={() => ler.mutate(null)}>{ler.isPending ? "Lendo…" : "Ler e mostrar a prévia"}</button>
         </div>
       </section>

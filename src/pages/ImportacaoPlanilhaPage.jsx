@@ -1,4 +1,5 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Info, Loader2, Upload } from "lucide-react";
@@ -68,7 +69,6 @@ export default function ImportacaoPlanilhaPage() {
     queryKey: ["empresas", grupoNumero], queryFn: () => api.entities.Empresa.filter({ grupo: grupoNumero }), enabled: !!grupoNumero,
   });
 
-  const entrada = useRef(null);
   const [arquivo, setArquivo] = useState(null);
   const [previa, setPrevia] = useState(null);
   const [mapa, setMapa] = useState({});
@@ -172,11 +172,10 @@ export default function ImportacaoPlanilhaPage() {
           <section className="rounded-lg border border-border bg-card p-4">
             <h3 className="font-heading font-medium text-sm mb-2">1. Escolha a planilha</h3>
             <div className="flex items-center gap-3 flex-wrap">
-              <input ref={entrada} type="file" accept=".xlsx,.csv,.txt" className="hidden" onChange={(e) => escolherArquivo(e.target.files?.[0])} />
-              <Button onClick={() => entrada.current?.click()} disabled={!!ocupado} className="gap-2">
+              <CampoArquivo accept=".xlsx,.csv,.txt" disabled={!!ocupado} rotulo="Planilha de operações" className="w-full flex-row gap-2 sm:w-auto sm:min-w-[22rem]" aoEscolher={([f]) => escolherArquivo(f)}>
                 {ocupado === "lendo" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {arquivo ? "Trocar a planilha" : "Escolher .xlsx ou .csv"}
-              </Button>
+                <span className="font-medium">{arquivo ? "Trocar a planilha (arraste ou clique)" : "Arraste a planilha aqui ou clique para escolher (.xlsx ou .csv)"}</span>
+              </CampoArquivo>
               {arquivo && previa && (
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                   <FileSpreadsheet className="w-4 h-4" /> {arquivo.name} · {plural(previa.total, "linha", "linhas")} · {plural(previa.cabecalho.length, "coluna", "colunas")}

@@ -1,28 +1,13 @@
-import React, { useRef, useState } from "react";
+import React from "react";
 import { UploadCloud, FileText, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import InfoTooltip from "@/components/InfoTooltip";
 import { plural } from "@/lib/plural";
 
 const MAX_FILES = 5000;
 
 export default function DropzoneXML({ files, onAddFiles, onRemoveFile, onClear, uploading, uploadProgress, onEnviar, disabled }) {
-  const inputRef = useRef(null);
-  const [dragging, setDragging] = useState(false);
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragging(false);
-    if (uploading || disabled) return;
-    onAddFiles(e.dataTransfer.files);
-  };
-
-  const handleSelect = (e) => {
-    if (uploading || disabled) return;
-    onAddFiles(e.target.files);
-    e.target.value = "";
-  };
-
   const podeEnviar = files.length > 0 && !uploading && !disabled;
 
   return (
@@ -32,23 +17,7 @@ export default function DropzoneXML({ files, onAddFiles, onRemoveFile, onClear, 
         <InfoTooltip pagina="importacao" chave="header" />
       </div>
 
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-          dragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".xml"
-          multiple
-          onChange={handleSelect}
-          className="hidden"
-        />
+      <CampoArquivo accept=".xml" multiple disabled={uploading || disabled} aoEscolher={onAddFiles} rotulo="Arquivos XML" className="p-8">
         <UploadCloud className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
         <p className="text-sm text-foreground font-medium">
           Arraste arquivos .xml aqui ou clique para selecionar
@@ -56,7 +25,7 @@ export default function DropzoneXML({ files, onAddFiles, onRemoveFile, onClear, 
         <p className="text-xs text-muted-foreground mt-1">
           Até {MAX_FILES.toLocaleString("pt-BR")} arquivos · 2MB por arquivo · Processamento seguro no backend
         </p>
-      </div>
+      </CampoArquivo>
 
       {uploading && uploadProgress.total > 0 && (
         <div className="space-y-1.5">

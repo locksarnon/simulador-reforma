@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { temFuncao } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { base, fmtData, fmtDataHora } from "./formatos";
@@ -170,8 +171,8 @@ export default function CertificadoXml({ empresaId }) {
             <DialogDescription>Arquivo .pfx ou .p12 do próprio cliente ({data?.empresa?.cnpj_formatado || "CNPJ não cadastrado"}). O InTAX confere a senha, a validade e se o titular é a empresa; só então guarda a chave cifrada.</DialogDescription>
           </DialogHeader>
           <form className="space-y-3 text-sm" onSubmit={(e) => { e.preventDefault(); setErro(""); enviar.mutate(); }}>
-            <label className="block space-y-1"><span className="font-medium">Arquivo do certificado</span>
-              <input type="file" accept=".pfx,.p12" className={campo} onChange={(e) => setArquivo(e.target.files?.[0] || null)} /></label>
+            <div className="space-y-1"><span className="block font-medium">Arquivo do certificado</span>
+              <CampoArquivo accept=".pfx,.p12" arquivo={arquivo} rotulo="Arquivo do certificado" dica=".pfx ou .p12" aoEscolher={([f]) => setArquivo(f || null)} /></div>
             <label className="block space-y-1"><span className="font-medium">Senha do certificado</span>
               <input type="password" autoComplete="new-password" className={campo} value={senha} onChange={(e) => setSenha(e.target.value)} /></label>
             {comPin && <label className="block space-y-1"><span className="font-medium">PIN do cofre</span>

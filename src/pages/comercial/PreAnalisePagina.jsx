@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Ban, CheckCircle2, Clock, Download, ExternalLink, Eye, FileText, Info, Loader2, Paperclip, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
@@ -79,7 +80,6 @@ export function validadeDoProcesso(p) {
 
 /** Ações da linha: detalhes, ver e baixar o documento, portal oficial e anexo do PDF. */
 function AcoesProcesso({ p, def, preAnaliseId, onAnexado, onDetalhes }) {
-  const input = useRef(null);
   const url = `/pre-analises/${preAnaliseId}/arquivos/${p.chave}`;
   const falhar = (e) => toast({ title: "Não foi possível abrir", description: e.message, variant: "destructive" });
   const anexar = useMutation({
@@ -102,10 +102,9 @@ function AcoesProcesso({ p, def, preAnaliseId, onAnexado, onDetalhes }) {
       {mostrarPortal && <a href={def.portal} target="_blank" rel="noreferrer" className={botao}><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Portal</a>}
       {def.aceitaCertidao && p.status !== "PROCESSANDO" && !(p.arquivo && !p.arquivo.enviado_por) && (
         <>
-          <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1} aria-label={`Anexar PDF: ${def.rotulo}`} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) anexar.mutate(f); }} />
-          <button type="button" disabled={anexar.isPending} onClick={() => input.current?.click()} className={botao} title="Anexar o PDF emitido no portal oficial">
+          <CampoArquivo compacto accept="application/pdf,.pdf" disabled={anexar.isPending} className={botao} title="Anexar o PDF emitido no portal oficial (ou arraste o arquivo aqui)" rotulo={`Anexar PDF: ${def.rotulo}`} aoEscolher={([f]) => { if (f) anexar.mutate(f); }}>
             {anexar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />}{p.arquivo?.enviado_por ? "Trocar" : "Anexar"}
-          </button>
+          </CampoArquivo>
         </>
       )}
     </div>

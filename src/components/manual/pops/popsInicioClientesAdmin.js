@@ -428,7 +428,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     passos: [
       { acao: "Na aba “Empresas”, em “Importar empresas de uma planilha”, clique em “Baixar o modelo”." },
       { acao: "Preencha o modelo com as empresas." },
-      { acao: "Clique em “Escolher a planilha” e selecione o arquivo." },
+      { acao: "Arraste a planilha até o botão “Escolher a planilha”, ou clique nele e selecione o arquivo." },
       { acao: "Confira o resumo: novas, a atualizar, sem mudança e com erro.", detalhe: "Para cada empresa a atualizar, a tela mostra campo por campo o que muda; as linhas com erro aparecem com o motivo e ficam de fora." },
       { acao: "Clique em “Importar” (ou “Cancelar” para desistir)." },
     ],
@@ -450,7 +450,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     passos: [
       { acao: "Abra a aba “Carteira por colaborador” e clique em “Baixar o modelo”." },
       { acao: "Preencha as colunas “CNPJ/CPF” e “E-mail do colaborador”." },
-      { acao: "Clique em “Escolher a planilha” e selecione o arquivo." },
+      { acao: "Arraste a planilha até o botão “Escolher a planilha”, ou clique nele e selecione o arquivo." },
       { acao: "Confira quantas empresas vão para cada colaborador e as linhas com erro." },
       { acao: "Clique em “Importar vínculos”." },
     ],
@@ -809,7 +809,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     antes: ["Ser administrador.", "O PDF do contrato (baixado da Área do Cliente do Serpro)."],
     passos: [
       { acao: "No menu de botões da tela, clique no contrato: Integra Contador, Consulta CND, Consulta Dívida Ativa, Consulta NF-e ou Infosimples.", detalhe: "A tela mostra o número do contrato, a regra de cobrança e uma tabela por serviço com Faixa, De, Até e Preço unitário; a faixa em que o escritório está no mês fica destacada como “mês atual”." },
-      { acao: "Logo abaixo da tabela, em “Contrato”, clique em “Anexar o contrato (PDF)” e escolha o arquivo.", detalhe: "O sistema lê da capa o número, o produto e a vigência. O contrato aparece logo abaixo da tabela, com “Ver”, “Baixar” e a lixeira." },
+      { acao: "Logo abaixo da tabela, em “Contrato”, clique em “Anexar o contrato (PDF)” e escolha o arquivo, ou arraste o PDF até o botão.", detalhe: "O sistema lê da capa o número, o produto e a vigência. O contrato aparece logo abaixo da tabela, com “Ver”, “Baixar” e a lixeira." },
       { acao: "Se o escritório tiver preço negociado diferente da tabela, abra “Preço negociado diferente do contrato (opcional)” e digite o preço do item.", detalhe: "Em branco vale a tabela do contrato, pela faixa do volume do mês (o valor em cinza)." },
       { acao: "Para mensalidades, clique no botão “Custos fixos”, depois em “Custo fixo”, preencha a “Descrição” e o valor mensal; para tirar, clique na lixeira." },
       { acao: "Clique em “Salvar preços e custos fixos”." },
@@ -832,7 +832,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     antes: ["Ser administrador.", "e-CNPJ A1 do escritório (.pfx ou .p12) e a senha.", "Consumer Key e Consumer Secret da Área do Cliente Serpro."],
     passos: [
       { acao: "Abra Administração > Integrações e localize “Contrato do escritório”.", detalhe: "Se já houver contrato, clique em “Trocar”." },
-      { acao: "Em “Certificado A1 do escritório (.pfx ou .p12)”, escolha o arquivo e digite a “Senha do certificado”.", detalhe: "Para trocar só as chaves, deixe o certificado em branco." },
+      { acao: "Em “Certificado A1 do escritório (.pfx ou .p12)”, arraste o arquivo para a área tracejada (ou clique nela para escolher) e digite a “Senha do certificado”.", detalhe: "Para trocar só as chaves, deixe o certificado em branco." },
       { acao: "Digite a “Consumer Key” e o “Consumer Secret”.", detalhe: "Na troca, campo em branco mantém a chave atual." },
       { acao: "Clique em “Guardar no cofre”." },
       { acao: "Clique em “Testar conexão com o Serpro”.", detalhe: "A linha verde confirma que o Serpro aceitou as chaves e o certificado; a vermelha diz o problema." },
@@ -945,7 +945,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     antes: ["Ser administrador.", "Certificado A1 (.pfx ou .p12) e a senha."],
     passos: [
       { acao: "Localize o quadro do certificado (primário ou secundário)." },
-      { acao: "Escolha o arquivo do certificado e digite a “Senha do certificado”." },
+      { acao: "Arraste o arquivo do certificado para a área tracejada (ou clique nela para escolher) e digite a “Senha do certificado”." },
       { acao: "Clique em “Enviar” (ou “Trocar certificado”)." },
       { acao: "Aguarde a situação passar de “Configurando…” para “Configurado”.", detalhe: "Leva cerca de 1 minuto; a tela atualiza sozinha." },
     ],

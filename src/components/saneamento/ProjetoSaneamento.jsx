@@ -37,6 +37,7 @@ import PainelObservacao from "./PainelObservacao";
 import { contextosDasConclusoes } from "./contexto";
 import { podeCarregarEstado } from "./carregamento";
 import { useConfirmar } from "@/components/ConfirmProvider";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 
 const PASSOS = [
   { t: "Triagem", programa: "Fixar a origem e o universo; escolher os grupos que entram no saneamento; definir o parâmetro de saneamento (itens não movimentados desde a data escolhida ficam fora do trabalho; os sem data seguem a regra escolhida); mapear campos e grupos.", avancar: "Universo conferido, parâmetro de saneamento definido e limitações conhecidas." },
@@ -452,8 +453,8 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
     if (!linhas.length) { setMsgResposta("Não há correções de descrição aguardando resposta."); return; }
     await gerarListaCliente(linhas, `${slug}-sugestoes-de-descricao.xlsx`); setMsgResposta(`Lista emitida com ${fmt(linhas.length)} sugestões.`);
   };
-  const importarResposta = async (e) => {
-    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+  const importarResposta = async ([f]) => {
+    if (!f) return;
     try {
       const linhas = await lerRespostaCliente(f);
       const res = aplicarRespostas(estado.decisoes, itens, linhas, { quem, hoje: hojeIso(), regras: regrasPad, abrev: abreviacoesAprovadas(estado) });
@@ -470,7 +471,7 @@ export default function ProjetoSaneamento({ empresa, empresaId, projetoId, onVol
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
         <span className="text-sm font-medium">Correções de descrição com o cliente</span>
         <Botao onClick={emitirListaCliente} disabled={!temPadrao}><Download className="w-3.5 h-3.5 inline mr-1" />Emitir lista para o cliente</Botao>
-        <label className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted cursor-pointer">Importar resposta<input type="file" accept=".xlsx,.csv,.txt" className="hidden" onChange={importarResposta} /></label>
+        <CampoArquivo compacto accept=".xlsx,.csv,.txt" rotulo="Importar resposta do cliente" className="px-3 text-sm" aoEscolher={importarResposta}>Importar resposta <span className="text-xs text-muted-foreground">(ou arraste)</span></CampoArquivo>
         {msgResposta && <span className="text-xs text-muted-foreground" role="status">{msgResposta}</span>}
         <span className="basis-full text-xs text-muted-foreground">O cliente responde OK ou escreve ao lado como deve ficar. Nada é alterado no cadastro: a resposta fica registrada como decisão, com a descrição original preservada.</span>
       </div>

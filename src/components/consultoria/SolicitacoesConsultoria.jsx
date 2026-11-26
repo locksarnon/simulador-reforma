@@ -3,6 +3,7 @@ import { caminhoDoRepositorio } from "@/lib/bpoCaminhos";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { linhasDoPeriodo, arquivoSpedDaLinha, itensDoServico } from "@/lib/consultoriaDocumentos";
 
@@ -74,13 +75,9 @@ export default function SolicitacoesConsultoria({ servico, clientes = [], deInic
         <p>{linhas.filter((l) => l.situacao === "VALIDADO").length} validados · {linhas.filter((l) => l.situacao === "RECEBIDO").length} recebidos · {faltam.length} pendências</p>
         <button disabled={!faltam.length || consulta.isFetching || atualizar.isPending} onClick={emitir} className="rounded bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50">Baixar lista de pendências</button>
       </div>
-      <label className="block text-sm">Importar arquivo no acervo do cliente
-        <input type="file" className="ml-2 max-w-full" disabled={enviar.isPending} onChange={(e) => {
-          const file = e.target.files[0];
-          if (file) enviar.mutate(file);
-          e.target.value = "";
-        }} />
-      </label>
+      <div className="space-y-1 text-sm"><p>Importar arquivo no acervo do cliente</p>
+        <CampoArquivo rotulo="Importar arquivo no acervo do cliente" disabled={enviar.isPending} aoEscolher={([file]) => { if (file) enviar.mutate(file); }} />
+      </div>
       {enviar.isPending && <p role="status">Importando arquivo…</p>}
       {xml.length > 0 && <p className="text-sm"><Link className="text-primary underline" to={caminhoDoRepositorio(cliente)}>XML no repositório</Link> · {xml.map(({ tipo, total }) => `${tipo}: ${total}`).join(" · ")} por data de emissão. Confira o tipo de operação e a cobertura antes de validar.</p>}
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">

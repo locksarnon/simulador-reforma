@@ -29,7 +29,7 @@ describe("página de importação de operações por planilha", () => {
     expect(html).toContain("Importar operações por planilha");
     expect(html).toContain("Baixar modelo (.xlsx)");
     expect(html).toContain("1. Escolha a planilha");
-    expect(html).toContain("Escolher .xlsx ou .csv");
+    expect(html).toContain("Arraste a planilha aqui ou clique para escolher (.xlsx ou .csv)");
     expect(html).toContain("Grupo A");
     expect(html).not.toContain("2. Qual coluna é cada campo?");
     expect(html).not.toContain("Conferir a planilha");

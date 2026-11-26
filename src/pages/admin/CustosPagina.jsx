@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Loader2, Plus, Trash2, Upload } from "lucide-react";
@@ -58,7 +59,6 @@ const COLUNAS_FAIXA = [
 
 /** Um contrato: a regra de cobrança, a tabela de cada serviço (faixa a faixa, com a faixa do mês), o preço negociado e o PDF. */
 function CartaoContrato({ tabela, itens, precos, setPrecos, oficiais, contratos, aoAnexar, enviando, aoExcluir }) {
-  const entrada = useRef(null);
   const itensDoContrato = itens.filter((i) => i.integracao === tabela.integracao);
   const anexos = contratos.filter((c) => c.integracao === tabela.integracao);
   return (
@@ -102,10 +102,9 @@ function CartaoContrato({ tabela, itens, precos, setPrecos, oficiais, contratos,
         <section className="space-y-1" aria-label={`Contrato anexado: ${tabela.integracao}`}>
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="flex flex-1 items-center gap-1.5 text-sm font-medium"><FileText className="h-4 w-4 text-primary" aria-hidden="true" />Contrato</h4>
-            <input ref={entrada} type="file" accept="application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) aoAnexar(f, tabela.integracao); }} />
-            <button type="button" disabled={enviando} onClick={() => entrada.current?.click()} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60">
-              {enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}{anexos.length ? "Anexar outro PDF" : "Anexar o contrato (PDF)"}
-            </button>
+            <CampoArquivo compacto accept="application/pdf" disabled={enviando} rotulo={`Anexar o contrato em PDF: ${tabela.integracao}`} className="h-7" aoEscolher={([f]) => { if (f) aoAnexar(f, tabela.integracao); }}>
+              {enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}{anexos.length ? "Anexar outro PDF" : "Anexar o contrato (PDF)"} <span className="text-muted-foreground">(ou arraste)</span>
+            </CampoArquivo>
           </div>
           {anexos.length ? (
             <ul className="divide-y divide-border rounded-md border border-border">

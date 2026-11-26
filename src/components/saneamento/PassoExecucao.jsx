@@ -5,6 +5,7 @@ import { FRENTES, ORDEM_TIPOS, TIPOS_TAREFA, aplicarRespostaExecucao, confirmaca
 import { gerarListaFrente } from "./listasFinais";
 import { Acc, Botao, Chip, fmt, plural } from "./ui";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import CampoArquivo from "@/components/ui/CampoArquivo";
 
 const OPCOES = [["", "Pendente"], ["FEITO", "Feito"], ["DIV", "Divergência"]];
 
@@ -127,8 +128,8 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
       setMsg(`Lista emitida com ${plural(linhas.length, "tarefa", "tarefas")}.`);
     } catch (e) { setMsg(`Não foi possível emitir a lista: ${e.message}`); } finally { setGerando(""); }
   };
-  const importar = async (e) => {
-    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+  const importar = async ([f]) => {
+    if (!f) return;
     try {
       const linhas = await lerRespostaExecucao(f);
       const res = aplicarRespostaExecucao(registros, tarefas, linhas, { quem, hoje: hojeIso() });
@@ -164,7 +165,7 @@ export default function PassoExecucao({ estado, setEstado, tarefas, geradasPorTi
         <span className="text-sm font-medium">Listas para as equipes</span>
         <Botao disabled={!!gerando || nLista.adm === 0} onClick={() => emitir("adm")}>{gerando === "adm" ? <Loader2 className="w-3.5 h-3.5 inline mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 inline mr-1" />}Emitir lista do administrativo ({fmt(nLista.adm)})</Botao>
         <Botao disabled={!!gerando || nLista.alm === 0} onClick={() => emitir("alm")}>{gerando === "alm" ? <Loader2 className="w-3.5 h-3.5 inline mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 inline mr-1" />}Emitir lista do almoxarifado ({fmt(nLista.alm)})</Botao>
-        <label className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted cursor-pointer">Importar resposta<input type="file" accept=".xlsx,.csv,.txt" className="hidden" onChange={importar} /></label>
+        <CampoArquivo compacto accept=".xlsx,.csv,.txt" rotulo="Importar resposta das equipes" className="px-3 text-sm" aoEscolher={importar}>Importar resposta <span className="text-xs text-muted-foreground">(ou arraste)</span></CampoArquivo>
         {msg && <span className="text-xs text-muted-foreground" role="status">{msg}</span>}
         <span className="basis-full text-xs text-muted-foreground">Cada equipe responde FEITO ou DIVERGÊNCIA, com a evidência (documento no SAP, foto, link); o almoxarifado informa também os endereços e a quantidade realocada. A lista só traz o que ainda falta confirmar.</span>
       </div>
