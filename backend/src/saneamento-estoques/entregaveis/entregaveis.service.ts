@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PdfService } from '../../pdf/pdf.service';
 import { fatiar, TIPOS_EXCECAO } from '../dados/constantes';
@@ -65,8 +66,8 @@ export class EntregaveisService implements EntregaveisPort {
 
   /**
    * Mapa de unificações e inativações da base atual (o mesmo da aba "De para e equivalências" da exportação para revisão). Lê só o que o
-   * mapa usa: os casos de Duplicidades, as inativações e exceções da Qualidade, os itens (em blocos: dos citados guarda o que a linha mostra;
-   * de todos, só código e saldo para a escala do saldo, a mesma detecção da Duplicidade) e os vínculos.
+   * mapa usa: os casos de Duplicidades, as inativações e exceções da Qualidade, os itens citados (em blocos: o que a linha mostra), de todos
+   * os itens só código e saldo extraídos do JSON pelo banco (`codigosESaldos`: a escala do saldo, a mesma detecção da Duplicidade) e os vínculos.
    */
   async mapaAtual(projetoId: string): Promise<{ linhas: LinhaMapa[]; corteDefinido: boolean; escalaSaldo: number }> {
     const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { data_base: true, parametros: true } });
@@ -83,25 +84,13 @@ export class EntregaveisService implements EntregaveisPort {
     const ids = new Set<string>();
     for (const c of casos) for (const id of c.itens) ids.add(id);
     const itens = new Map<string, ItemMapa>();
-    const paraEscala: { id: string; codigo: string; saldo: number | null }[] = [];
-    let cursor: string | undefined;
-    for (;;) {
-      const lote = await this.prisma.sanItem.findMany({
-        where: { projeto_id: projetoId }, orderBy: { id: 'asc' }, take: 5000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-        select: { id: true, codigo: true, estabelecimento: true, trabalho: true, ativo: true },
-      });
-      for (const i of lote) {
+    for (const lote of fatiar([...ids], 5000)) {
+      for (const i of await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, codigo: true, estabelecimento: true, trabalho: true, ativo: true } })) {
         const t = (i.trabalho ?? {}) as Record<string, unknown>;
-        const codigo = String(t.codigo ?? i.codigo);
-        const saldo = saldoDe(t.saldo);
-        paraEscala.push({ id: i.id, codigo, saldo });
-        if (ids.has(i.id)) itens.set(i.id, { id: i.id, codigo, estab: i.estabelecimento ?? '', descricao: String(t.descricao ?? ''), unidade: String(t.unidade ?? ''), saldo, ativo: typeof t.ativo === 'boolean' ? t.ativo : (i.ativo ?? null) });
+        itens.set(i.id, { id: i.id, codigo: String(t.codigo ?? i.codigo), estab: i.estabelecimento ?? '', descricao: String(t.descricao ?? ''), unidade: String(t.unidade ?? ''), saldo: saldoDe(t.saldo), ativo: typeof t.ativo === 'boolean' ? t.ativo : (i.ativo ?? null) });
       }
-      if (lote.length < 5000) break;
-      cursor = lote[lote.length - 1].id;
     }
-    const escala = escalaDaBase(paraEscala);
-    paraEscala.length = 0;
+    const escala = escalaDaBase(await this.codigosESaldos(projetoId));
     const vinculos = await this.prisma.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } });
     const linhas = montarMapa({
       liberada: false, dataBase: p.data_base, casos, item: (id) => itens.get(id), escala,
@@ -109,6 +98,26 @@ export class EntregaveisService implements EntregaveisPort {
     });
     const corte = (p.parametros as { corteMovimentacao?: unknown } | null)?.corteMovimentacao;
     return { linhas, corteDefinido: typeof corte === 'string' && corte !== '', escalaSaldo: escala };
+  }
+
+  /**
+   * Código (o de trabalho, senão o da importação) e saldo de todos os itens, só para a escala do saldo. No Postgres, uma consulta que
+   * extrai os dois campos do JSON (antes cada página lia o `trabalho` inteiro de 30 mil itens); sem SQL bruto (testes), em blocos.
+   */
+  async codigosESaldos(projetoId: string): Promise<{ id: string; codigo: string; saldo: number | null }[]> {
+    if (typeof (this.prisma as unknown as { $queryRaw?: unknown }).$queryRaw === 'function') {
+      const linhas = await this.prisma.$queryRaw<{ id: string; codigo: string | null; saldo: string | null }[]>(Prisma.sql`SELECT "id", COALESCE("trabalho"->>'codigo', "codigo") AS "codigo", "trabalho"->>'saldo' AS "saldo" FROM "SanItem" WHERE "projeto_id" = ${projetoId}`);
+      return linhas.map((l) => ({ id: l.id, codigo: String(l.codigo ?? ''), saldo: saldoDe(l.saldo) }));
+    }
+    const out: { id: string; codigo: string; saldo: number | null }[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const lote = await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId }, orderBy: { id: 'asc' }, take: 5000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: { id: true, codigo: true, trabalho: true } });
+      for (const i of lote) { const t = (i.trabalho ?? {}) as Record<string, unknown>; out.push({ id: i.id, codigo: String(t.codigo ?? i.codigo), saldo: saldoDe(t.saldo) }); }
+      if (lote.length < 5000) break;
+      cursor = lote[lote.length - 1].id;
+    }
+    return out;
   }
 
   /** Consulta "Unificações" da tela: filtro por situação, tipo e código; página (`pagina` a partir de 1, `limite` até 500). */

@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PdfService } from '../../pdf/pdf.service';
 import type { ResultadoCamada } from '../tipos';
 import { SanCasosService } from '../dados/casos.service';
@@ -346,6 +346,27 @@ describe('fluxo: propor e aprovar unificação marca a Qualidade como "revisar" 
     expect(tela.escalaSaldo).toBe(1e6);
     expect(tela.linhas[0]).toMatchObject({ saldoEntra: 3, saldoConsolidado: 13 });
     expect(tela.linhas[0].morre?.saldo).toBe(3);
+  });
+  it('mapa da tela no Postgres: código e saldo de todos os itens numa consulta que extrai os campos do JSON; o trabalho inteiro só dos itens citados', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    await c.projetos.confirmarAtividades(p.id, 1, USER);
+    c.fila.itens = [item('100', { saldo: 10_000_000 }, 1), item('200', { saldo: 3_000_000 }, 2), item('300', { saldo: 4_000_000 }, 3), item('400', { saldo: 6_000_000 }, 4)];
+    await c.importacao.confirmar(p.id, { buffer: Buffer.from('x'), nome: 'cadastro.xlsx' }, undefined, [], USER);
+    const id = Object.fromEntries(c.db.sanItem.map((i) => [i.codigo, i.id]));
+    await c.casos.registrarResultado(p.id, { camada: 'DUPLICIDADE', analisados: 4, semDados: null, semProblema: [], casos: [{ camada: 'DUPLICIDADE', tipo: 'DUPLICIDADE_COM_SALDO', itens: [id['100'], id['200']], problema: 'Duplicados', evidencia: [], atual: {}, proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '100', consolidar: '200' }, justificativa: 'Mesmo produto.', fundamento: null, impactos: [], origem: 'REGRA', afeta: ['OBRIGACOES'] }] });
+    // Emula o SELECT ... "trabalho"->>'codigo', "trabalho"->>'saldo' (o Postgres devolve texto).
+    const sql: string[] = [];
+    (c.prisma as Record<string, unknown>).$queryRaw = vi.fn(async (q: { sql: string }) => { sql.push(q.sql); return c.db.sanItem.map((i) => ({ id: i.id, codigo: i.trabalho.codigo ?? i.codigo, saldo: i.trabalho.saldo == null ? null : String(i.trabalho.saldo) })); });
+    const findMany = vi.spyOn(c.prisma.sanItem, 'findMany');
+    const tela = await c.entregas.unificacoes(p.id);
+    expect(sql).toHaveLength(1);
+    expect(sql[0]).toMatch(/"trabalho"->>'codigo'.*"trabalho"->>'saldo'/);
+    expect(sql[0]).not.toContain(", \"trabalho\",");
+    // Os findMany de itens são só dos citados (id in [...]), nunca de todos.
+    for (const [a] of findMany.mock.calls) expect((a as { where: { id?: { in: string[] } } }).where.id?.in?.sort()).toEqual([id['100'], id['200']].sort());
+    expect(tela.escalaSaldo).toBe(1e6);
+    expect(tela.linhas[0]).toMatchObject({ saldoEntra: 3, saldoConsolidado: 13 });
   });
 });
 
