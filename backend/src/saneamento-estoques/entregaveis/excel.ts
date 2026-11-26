@@ -62,6 +62,12 @@ function criarAba(wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Co
   return aba;
 }
 
+/**
+ * A cada mil linhas devolve a vez ao laço de eventos: o zip comprime e solta o XML já escrito. Num laço síncrono, as linhas de todas as abas
+ * ficavam acumuladas na memória até o fim (190 mil linhas de histórico, só elas, eram centenas de MB).
+ */
+const respirar = (aba: Aba): Promise<void> | undefined => (aba.linhas % 1000 === 0 ? new Promise<void>((ok) => setImmediate(ok)) : undefined);
+
 const sn = (b: boolean | null) => (b === null ? '' : b ? 'Sim' : 'Não');
 const ESTAB = (e: string) => e;
 
@@ -172,7 +178,7 @@ function escreverResumo(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo, dados
 
 // ── Abas de dados ────────────────────────────────────────────────────────────
 
-function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
+async function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Promise<void> {
   const fixas: Col[] = [
     { cab: 'Código', larg: 16, tipo: 'codigo' }, { cab: 'Estabelecimento', larg: 14, tipo: 'codigo' }, { cab: 'Descrição original', larg: 44 }, { cab: 'Descrição saneada', larg: 44 },
     { cab: 'Unidade', larg: 9 }, { cab: 'NCM', larg: 12, tipo: 'codigo' }, { cab: 'Grupo', larg: 24 }, { cab: 'Finalidade confirmada', larg: 22 }, { cab: 'Também usado como', larg: 26 },
@@ -196,13 +202,14 @@ function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
     if (!m.liberada) linha.push(temProposta ? MARCA_PROPOSTA : '', (propostas.get(it.id) ?? []).join(' | '));
     linha.push(it.id);
     aba.add(linha, !m.liberada && temProposta);
+    await respirar(aba);
   }
   aba.fim();
 }
 
 const ROTULO_FINALIDADE_TXT: Record<string, string> = ROTULO_FINALIDADE;
 
-function abaDePara(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
+async function abaDePara(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Promise<void> {
   const cols: Col[] = [
     { cab: 'Tipo de registro', larg: 24 }, { cab: 'Código antigo / consolidado', larg: 26, tipo: 'codigo' }, { cab: 'Código novo / mantido', larg: 22, tipo: 'codigo' },
     { cab: 'Itens envolvidos', larg: 36 }, { cab: 'Qtde de itens', larg: 9, tipo: 'numero' }, { cab: 'Decisão', larg: 28 }, { cab: 'Situação', larg: 18 },
@@ -217,6 +224,7 @@ function abaDePara(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
     if (!m.liberada) linha.push('');
     linha.push('');
     aba.add(linha);
+    await respirar(aba);
   }
   for (const c of m.casos) {
     if (c.camada !== 'DUPLICIDADE') continue;
@@ -231,11 +239,12 @@ function abaDePara(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
     if (!m.liberada) linha.push(aberto ? MARCA_PROPOSTA : '');
     linha.push(c.id);
     aba.add(linha, !m.liberada && aberto);
+    await respirar(aba);
   }
   aba.fim();
 }
 
-function abaCenarios(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
+async function abaCenarios(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Promise<void> {
   const cols: Col[] = [
     { cab: 'Código', larg: 16, tipo: 'codigo' }, { cab: 'Estabelecimento', larg: 14, tipo: 'codigo' }, { cab: 'Descrição saneada', larg: 40 }, { cab: 'NCM', larg: 12, tipo: 'codigo' },
     { cab: 'Finalidade', larg: 20 }, { cab: 'Cenário', larg: 20 }, { cab: 'Enquadramento legal (texto da lei)', larg: 60 }, { cab: 'Artigo / anexo', larg: 30 },
@@ -250,12 +259,13 @@ function abaCenarios(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
       if (!m.liberada) linha.push(l.marca);
       linha.push(it.id);
       aba.add(linha, !m.liberada && !!l.marca);
+      await respirar(aba);
     }
   }
   aba.fim();
 }
 
-function abaImpactos(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
+async function abaImpactos(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Promise<void> {
   const cols: Col[] = [
     { cab: 'Obrigação', larg: 24 }, { cab: 'Competência', larg: 13, tipo: 'codigo' }, { cab: 'Versão do leiaute', larg: 16 }, { cab: 'Registro', larg: 10, tipo: 'codigo' }, { cab: 'Campo', larg: 18 },
     { cab: 'Valor original', larg: 22, tipo: 'codigo' }, { cab: 'Valor proposto', larg: 22, tipo: 'codigo' }, { cab: 'Motivo', larg: 50 }, { cab: 'Evidência', larg: 40 }, { cab: 'Início', larg: 12, tipo: 'data' },
@@ -272,11 +282,12 @@ function abaImpactos(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
     ];
     if (!m.liberada) linha.push(aberto ? MARCA_PROPOSTA : '');
     aba.add(linha, !m.liberada && aberto);
+    await respirar(aba);
   }
   aba.fim();
 }
 
-function abaPendencias(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void {
+async function abaPendencias(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Promise<void> {
   const cols: Col[] = [
     { cab: 'Registro', larg: 12 }, { cab: 'Camada', larg: 20 }, { cab: 'Tipo do caso', larg: 26 }, { cab: 'Situação / tipo', larg: 20 }, { cab: 'Código do item', larg: 16, tipo: 'codigo' },
     { cab: 'Estabelecimento', larg: 14, tipo: 'codigo' }, { cab: 'Qtde de itens', larg: 9, tipo: 'numero' }, { cab: 'Campo', larg: 18 }, { cab: 'Antes', larg: 34, tipo: 'codigo' }, { cab: 'Depois', larg: 34, tipo: 'codigo' },
@@ -289,6 +300,7 @@ function abaPendencias(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void 
       'Pendência', ROTULO_CAMADA[c.camada as Camada] ?? c.camada, c.tipo, ROTULO_SITUACAO_CASO[c.situacao] ?? c.situacao, codigosDosItens(m, c.itens, 6), '', c.itens.length, '',
       resumoCampos(c.atual), resumoCampos(c.proposta), [c.problema, c.fundamento].filter(Boolean).join(' · '), c.motivo || c.justificativa, c.responsavel, hora(c.criadoEm), c.id,
     ], !m.liberada && c.situacao !== 'AGUARDANDO_INFORMACAO');
+    await respirar(aba);
   }
   const rotuloTipo: Record<string, string> = { aprovar: 'Aprovada', rejeitar: 'Rejeitada', desfazer: 'Desfeita', importar: 'Reimportação' };
   for (const d of m.decisoes) {
@@ -298,14 +310,20 @@ function abaPendencias(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): void 
       'Histórico', caso ? ROTULO_CAMADA[caso.camada as Camada] ?? caso.camada : '', caso?.tipo ?? '', rotuloTipo[d.tipo] ?? d.tipo, it?.codigo ?? d.itemId, it?.estab ?? '', null, d.campo,
       txt(d.antes), txt(d.depois), d.fundamento, '', d.usuario, hora(d.quando), d.casoId ?? '',
     ]);
+    await respirar(aba);
   }
   aba.fim();
 }
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export async function gerarExcelDeDados(dados: DadosEntrega): Promise<Buffer> {
+/**
+ * `consumir`: quem chama não usa mais `dados` depois (o serviço de entregas). As listas brutas (itens, células, casos, decisões, impactos)
+ * são esvaziadas assim que o modelo está montado, para não ficarem na memória junto com o modelo durante a escrita.
+ */
+export async function gerarExcelDeDados(dados: DadosEntrega, opcoes: { consumir?: boolean } = {}): Promise<Buffer> {
   const m = construirModelo(dados);
+  if (opcoes.consumir) { dados.itens = []; dados.celulas = []; dados.casos = []; dados.decisoes = []; dados.impactosSped = []; }
   const saida = new PassThrough();
   const partes: Buffer[] = [];
   saida.on('data', (c: Buffer) => partes.push(c));
@@ -315,11 +333,11 @@ export async function gerarExcelDeDados(dados: DadosEntrega): Promise<Buffer> {
   wb.title = m.liberada ? 'Saneamento de estoques — entrega liberada' : 'Saneamento de estoques — exportação para revisão';
   wb.created = new Date();
   escreverResumo(wb, m, dados);
-  abaCadastro(wb, m);
-  abaDePara(wb, m);
-  abaCenarios(wb, m);
-  abaImpactos(wb, m);
-  abaPendencias(wb, m);
+  await abaCadastro(wb, m);
+  await abaDePara(wb, m);
+  await abaCenarios(wb, m);
+  await abaImpactos(wb, m);
+  await abaPendencias(wb, m);
   await wb.commit();
   await fim;
   return Buffer.concat(partes);

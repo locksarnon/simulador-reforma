@@ -45,7 +45,9 @@ export class EntregaveisService implements EntregaveisPort {
 
   async excel(projetoId: string, versaoId?: string): Promise<{ buffer: Buffer; nome: string }> {
     const dados = await this.dados(projetoId, versaoId);
-    return { buffer: await this.gerarExcel(dados), nome: nomeDoExcel(String(dados.projeto.clienteNome ?? ''), dados.versao) };
+    const nome = nomeDoExcel(String(dados.projeto.clienteNome ?? ''), dados.versao);
+    // Os dados são só desta requisição: o gerador esvazia as listas brutas depois de montar o modelo (menos memória no pico).
+    return { buffer: await gerarExcelDeDados(dados, { consumir: true }), nome };
   }
 
   /** Sem `versaoId`, usa a última versão liberada; sem nenhuma versão, recusa. */
