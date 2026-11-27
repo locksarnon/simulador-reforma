@@ -23,8 +23,8 @@
     --accent-foreground: 215 36% 14%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 212 18% 88%;
-    --input: 212 18% 88%;
+    --border: 212 16% 76%;
+    --input: 212 14% 62%;
     --ring: 152 60% 34%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -74,8 +74,8 @@
     --accent-foreground: 213 25% 94%;
     --destructive: 0 55% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 26% 22%;
-    --input: 214 26% 23%;
+    --border: 214 20% 34%;
+    --input: 214 16% 46%;
     --ring: 152 55% 46%;
     --chart-1: 152 55% 46%;
     --chart-2: 173 45% 48%;
@@ -182,3 +182,10 @@
 @keyframes assistente-sai { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(10px) scale(0.97); } }
 @keyframes assistente-msg { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes assistente-varre { 0%, 70% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+
+/* Campos digitáveis com contraste próprio (mais forte que as linhas de grade), em todo o InTAX, inclusive os que usam a cor de borda geral. */
+input[class~="border-border"]:not([type="checkbox"]):not([type="radio"]),
+textarea[class~="border-border"],
+select[class~="border-border"] {
+  border-color: hsl(var(--input));
+}
