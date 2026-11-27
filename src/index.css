@@ -57,8 +57,10 @@
     /* Títulos das tabelas: verde-escuro com texto branco (contraste 8:1, WCAG AA). */
     --cabecalho-tabela: 152 62% 22%;
     --cabecalho-tabela-texto: 0 0% 100%;
-    /* Célula com valor alterado (Tabela do saneamento: "como ficou" diferente de "como era"): o verde-claro do Excel, #E2F0D9. */
-    --celula-alterada: 97 45% 90%;
+    /* Célula com valor alterado (Tabela do saneamento: "como ficou" diferente de "como era"): verde bem visível, #C6E6B3, com a barra
+       verde do sistema à esquerda e o texto em negrito (.celula-alterada). */
+    --celula-alterada: 98 51% 80%;
+    --celula-alterada-texto: 152 70% 14%;
   }
 
   .dark {
@@ -105,7 +107,8 @@
     --rail-primary: 152 58% 50%;
     --cabecalho-tabela: 152 52% 24%;
     --cabecalho-tabela-texto: 0 0% 100%;
-    --celula-alterada: 100 32% 22%;
+    --celula-alterada: 130 45% 26%;
+    --celula-alterada-texto: 120 60% 92%;
   }
 }
 
@@ -134,8 +137,15 @@
   :where(thead tr.linha-filtros) :where(th) { background-color: transparent; color: inherit; }
 }
 
-/* Valor alterado numa célula (o verde-claro do Excel; no tema escuro, um verde escuro com o mesmo papel). */
-.celula-alterada { background-color: hsl(var(--celula-alterada)); }
+/* Valor alterado numa célula: fundo verde forte, texto em negrito e barra verde à esquerda, inconfundível nos dois temas. */
+.celula-alterada {
+  background-color: hsl(var(--celula-alterada));
+  color: hsl(var(--celula-alterada-texto));
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 hsl(var(--primary));
+}
+/* Amostra da legenda ("alterado no saneamento"). */
+.amostra-celula-alterada { display: inline-block; width: 0.85em; height: 0.85em; vertical-align: -0.1em; background-color: hsl(var(--celula-alterada)); box-shadow: inset 3px 0 0 hsl(var(--primary)); border: 1px solid hsl(var(--primary) / 0.5); }
 
 /* Texto cinza, escuro ou verde dentro dos títulos de tabela (ícones de ordenar, links, dicas) segue o branco do título. */
 .cabecalho-tabela :is(.text-muted-foreground, .text-foreground, .text-primary, a),

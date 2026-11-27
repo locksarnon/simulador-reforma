@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import CampoArquivo from "@/components/ui/CampoArquivo";
 import { san } from "./api";
 import { Aviso, botaoPrimario, botaoSecundario, campoCls, Rotulo, usePodeAlterar } from "./comuns";
-import { CAMADAS, mensagemDeErro, ROTULO_CAMADA, rotuloTipoCaso } from "./logica";
+import { CAMADAS, mensagemDeErro, ROTULO_CAMADA, rotuloTipoCaso, travaDeDecisao } from "./logica";
 import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const n = (v) => Number(v || 0).toLocaleString("pt-BR");
@@ -57,7 +57,7 @@ function TabelaRecusadas({ linhas }) {
 }
 
 /** Conteúdo do painel (separado do diálogo para os testes). `inicial` = estado de partida (prévia, resultado). */
-export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial = {}, camadas = null }) {
+export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial = {}, camadas = null, bloqueioFase2 = null }) {
   const { pode, razao } = usePodeAlterar();
   const [camada, setCamada] = useState(camadaInicial);
   const [arquivo, setArquivo] = useState(inicial.arquivo || null);
@@ -67,6 +67,8 @@ export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial =
   const [progresso, setProgresso] = useState(null);
   const [erro, setErro] = useState(null);
 
+  // Fase 2 ainda não liberada: a planilha das camadas travadas pode ser baixada e conferida, mas não aplicada.
+  const trava = travaDeDecisao(bloqueioFase2, camada);
   const trocarCamada = (c) => { setCamada(c); setPrevia(null); setResultado(null); setErro(null); };
   const trocarArquivo = (lista) => { setArquivo(lista[0] || null); setPrevia(null); setResultado(null); setErro(null); };
   const tarefa = (nome, f) => async () => { setErro(null); setOcupado(nome); try { await f(); } catch (e) { setErro(mensagemDeErro(e)); } finally { setOcupado(""); setProgresso(null); } };
@@ -100,6 +102,7 @@ export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial =
         <button type="button" className={botaoSecundario} disabled={!camada || !arquivo || !!ocupado} onClick={verPrevia}>{ocupado === "previa" ? "Conferindo…" : previa ? "Refazer a prévia" : "Ver a prévia"}</button>
       </section>
 
+      {trava && <Aviso tom="bloqueio" titulo="Fase 2 ainda não liberada">{trava} Dá para baixar a planilha e ver a prévia; aplicar fica desligado até lá.</Aviso>}
       {erro && <Aviso tom="erro">{erro}</Aviso>}
 
       {previa && (
@@ -110,7 +113,7 @@ export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial =
           </div>
           {previa.recusadas?.length > 0 && <p>As linhas recusadas ficam de fora; corrija a planilha e reimporte para incluí-las.</p>}
           <TabelaRecusadas linhas={previa.recusadas} />
-          <button type="button" className={botaoPrimario} disabled={!pode || !!ocupado || !temOQueAplicar(previa)} title={razao || (!temOQueAplicar(previa) ? "Nenhuma linha com decisão válida." : undefined)} onClick={aplicar}>
+          <button type="button" className={botaoPrimario} disabled={!pode || !!trava || !!ocupado || !temOQueAplicar(previa)} title={razao || trava || (!temOQueAplicar(previa) ? "Nenhuma linha com decisão válida." : undefined)} onClick={aplicar}>
             {ocupado === "aplicar" ? "Aplicando…" : "Aplicar as decisões"}
           </button>
           {progresso && <p role="status">Aplicadas até agora: {n(progresso.aprovar + progresso.rejeitar + progresso.pedirInformacao)}; faltam {n(progresso.restantes)}.</p>}
@@ -130,7 +133,7 @@ export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial =
 }
 
 /** Botão "Planilha de decisão" da aba Casos: baixar a planilha da camada, reimportar com prévia e aplicar. `camadas`: só as da fase. */
-export default function PlanilhaDecisao({ projeto, camada = "", camadas = null, aoMudou }) {
+export default function PlanilhaDecisao({ projeto, camada = "", camadas = null, aoMudou, bloqueioFase2 = null }) {
   const [aberto, setAberto] = useState(false);
   return (
     <>
@@ -143,7 +146,7 @@ export default function PlanilhaDecisao({ projeto, camada = "", camadas = null, 
             <DialogTitle>Planilha de decisão</DialogTitle>
             <DialogDescription>Decida os casos de uma camada no Excel, um por linha, e reimporte: a prévia mostra o que será feito antes de aplicar.</DialogDescription>
           </DialogHeader>
-          {aberto && <PainelPlanilha key={camada} projeto={projeto} camadaInicial={camada} camadas={camadas} aoMudou={aoMudou} />}
+          {aberto && <PainelPlanilha key={camada} projeto={projeto} camadaInicial={camada} camadas={camadas} aoMudou={aoMudou} bloqueioFase2={bloqueioFase2} />}
         </DialogContent>
       </Dialog>
     </>

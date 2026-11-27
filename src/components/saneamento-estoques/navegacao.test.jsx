@@ -213,7 +213,7 @@ describe("Página: fases no primeiro nível", () => {
     const fe = texto(pagina("/s/d1?fase=fechamento"));
     expect(fe).toContain("3.1 Entregas finais");
     // Áreas comuns sem número.
-    expect(texto(f1)).toContain("Projeto inteiro: Tabela Visão geral");
+    expect(texto(f1)).toContain("1.5 Entrega da Fase 1 Tabela Visão geral Impacto no SPED Versões");
     expect(texto(f1)).not.toMatch(/\d\.\d Tabela/);
     expect(fe).toContain("Entregas liberadas");
     expect(fe).toContain("Roteiro do projeto");

@@ -124,7 +124,7 @@ export default function VisaoFocada({ projeto, item, camada, aoFechar, aoAbrirCa
                       <div className="flex flex-wrap items-center gap-2"><Tag>{rotuloSituacaoCaso(c.situacao)}</Tag><Tag tom={c.origem === "IA" ? "info" : "neutro"}>{c.origem === "IA" ? "IA" : "Regra"}</Tag>{c.qtdItens > 1 && <Tag>conjunto de {c.qtdItens} itens</Tag>}</div>
                       <p className="mt-1">{c.problema}</p>
                       {camada === "TRIBUTARIO" && casoValeParaEnquadramento(c) && <Enquadramento caso={c} />}
-                      <button type="button" className="mt-1 text-primary underline" onClick={() => aoAbrirCaso?.(c.id)}>Abrir o caso</button>
+                      <button type="button" className="mt-1 text-primary underline" onClick={() => aoAbrirCaso?.(c.id, c.camada || camada)}>Abrir o caso</button>
                     </li>
                   ))}
                 </ul>

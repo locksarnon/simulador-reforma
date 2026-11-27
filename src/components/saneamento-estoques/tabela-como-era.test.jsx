@@ -59,6 +59,18 @@ describe("Tabela: dados do item como era × como ficou", () => {
     expect(html).not.toMatch(/data-coluna="ficou:ncm" data-alterada/);
     expect(html).not.toMatch(/data-coluna="era:unidade"[^>]*celula-alterada/);
     expect(html).toContain(">Ativo<");
+    // Legenda no alto da Tabela, com a mesma amostra da célula alterada.
+    expect(html).toMatch(/data-legenda="alterado"[^>]*><span class="amostra-celula-alterada"[^>]*><\/span>alterado no saneamento/);
+  });
+  it("a célula alterada é inconfundível nos dois temas: fundo verde forte, negrito e barra verde à esquerda", async () => {
+    const fs = await import("node:fs");
+    const css = fs.readFileSync(new URL("../../index.css", import.meta.url), "utf8");
+    const regra = css.match(/\.celula-alterada \{([^}]*)\}/)?.[1] || "";
+    expect(regra).toContain("background-color: hsl(var(--celula-alterada))");
+    expect(regra).toContain("font-weight: 600");
+    expect(regra).toContain("inset 3px 0 0 hsl(var(--primary))");
+    expect(css).toContain("--celula-alterada: 98 51% 80%;"); // #C6E6B3 no tema claro
+    expect(css).toContain("--celula-alterada: 130 45% 26%;"); // verde-escuro visível no tema escuro
   });
 
   it("colunas extras do ERP ficam ocultas por padrão e o botão Colunas aparece", () => {

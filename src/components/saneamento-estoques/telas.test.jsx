@@ -164,7 +164,7 @@ describe("Tabela única", () => {
   });
   it("vazio com atividades não confirmadas: só manda importar, sem trava", () => {
     const t = texto(montar(<TabelaUnica projeto={projeto()} />, (qc) => qc.setQueryData(chaves.itens("p1", filtroInicial), pagina([]))));
-    expect(t).toContain("Importe o cadastro de itens na aba Importação");
+    expect(t).toMatch(/Importe o cadastro de itens em Fase 1 (&gt;|>) 1.1 Preparar e diretrizes/);
     expect(t).not.toContain("Confirme as atividades");
   });
   it("com dados: colunas fixas, camadas, situações em texto e a marca revisar", () => {

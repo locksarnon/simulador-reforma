@@ -3,7 +3,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Pencil, RotateCw, Trash2 } from "lucide-react";
 import { chaves, san } from "./api";
 import { Aviso, botaoPrimario, botaoSecundario, campoCls, Tag, usePodeAlterar } from "./comuns";
-import { fmtData, mensagemDeErro } from "./logica";
+import { caminhoDaAba, destinoDaAba, fmtData, mensagemDeErro, ROTULO_CAMADA } from "./logica";
+
+/** Onde se mudam os critérios que vêm da Configuração (corte de movimentação): Fase 1 > 1.1 Preparar e diretrizes. */
+export const DESTINO_CONFIGURACAO = { fase: "fase1", aba: "preparar" };
+/** Ver nas Diretrizes: a aba que junta os dados e as Diretrizes da fase da camada (1.1 ou 2.1), rolando até as Diretrizes. */
+export const destinoDasDiretrizes = (camada) => ({ ...destinoDaAba("diretrizes", { camada }), rolar: "diretrizes" });
 
 /** O valor escrito para gente: "85%", "5 itens", "Sim". */
 export function textoDoValor(p, v) {
@@ -15,13 +20,17 @@ export function textoDoValor(p, v) {
   return (p.opcoes || []).find((o) => o.valor === v)?.rotulo ?? String(v ?? "");
 }
 
-/** O que a tela diz depois do texto livre: encaixado num critério (proposta a confirmar) ou verificação manual. */
-export function textoDoResultadoLivre(r) {
+/**
+ * O que a tela diz depois do texto livre: encaixado num critério (proposta a confirmar) ou verificação manual. Encaixado num critério de
+ * outra camada (`camadaAtual` diferente), o título diz qual.
+ */
+export function textoDoResultadoLivre(r, camadaAtual = null) {
   if (!r) return null;
   if (r.resultado === "PROPOSTA") {
     const p = r.proposta;
+    const outra = p.camada && camadaAtual && p.camada !== camadaAtual ? ` da camada ${ROTULO_CAMADA[p.camada] || p.camada}` : "";
     return {
-      tom: "info", titulo: `Encaixado no critério "${p.criterio}" com valor ${p.textoValor}`,
+      tom: "info", titulo: `Encaixado no critério "${p.criterio}"${outra} com valor ${p.textoValor}`,
       texto: p.igualAoAtual ? "O critério já está com esse valor: não há o que mudar." : `Hoje está ${p.textoAtual}. Nada foi alterado: confirme para aplicar.`,
     };
   }
@@ -105,12 +114,14 @@ function TextoLivre({ projetoId, camada, pode, razao, aoAlterar, resultadoInicia
     },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
+  // Aplicar grava o critério na camada da proposta (pode ser outra): só esta camada fica "alterada" quando a proposta é dela; a outra
+  // camada mostra "desatualizada" pelo estado das camadas, que é renovado.
   const aplicar = useMutation({
-    mutationFn: () => san.ajustarCriterio(projetoId, resultado.proposta.camada, resultado.proposta.chave, resultado.proposta.valor),
-    onSuccess: (r) => { setResultado(null); setTexto(""); qc.setQueryData(chaves.criterios(projetoId), r); qc.invalidateQueries({ queryKey: chaves.estadoCamadas(projetoId) }); if (r.alterado) aoAlterar(); },
+    mutationFn: (p) => san.ajustarCriterio(projetoId, p.camada, p.chave, p.valor),
+    onSuccess: (r, p) => { setResultado(null); setTexto(""); qc.setQueryData(chaves.criterios(projetoId), r); qc.invalidateQueries({ queryKey: chaves.estadoCamadas(projetoId) }); if (r.alterado && p.camada === camada) aoAlterar(); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
-  const msg = textoDoResultadoLivre(resultado);
+  const msg = textoDoResultadoLivre(resultado, camada);
   const id = `crit-livre-${camada}`;
   return (
     <div className="space-y-1.5 border-t border-border pt-2">
@@ -126,7 +137,7 @@ function TextoLivre({ projetoId, camada, pode, razao, aoAlterar, resultadoInicia
         <Aviso tom={msg.tom} titulo={msg.titulo}
           acao={resultado.resultado === "PROPOSTA" && !resultado.proposta.igualAoAtual ? (
             <span className="flex gap-1">
-              <button type="button" className={`${botaoPrimario} px-2 py-0.5 text-xs`} disabled={!pode || aplicar.isPending} onClick={() => aplicar.mutate()}>{aplicar.isPending ? "Aplicando…" : "Aplicar"}</button>
+              <button type="button" className={`${botaoPrimario} px-2 py-0.5 text-xs`} disabled={!pode || aplicar.isPending} onClick={() => aplicar.mutate(resultado.proposta)}>{aplicar.isPending ? "Aplicando…" : "Aplicar"}</button>
               <button type="button" className={`${botaoSecundario} px-2 py-0.5 text-xs`} onClick={() => setResultado(null)}>Descartar</button>
             </span>
           ) : null}>
@@ -151,9 +162,11 @@ export default function Considerado({ projetoId, camada, rotulo, dados, aoIrPara
   const aberto = abertoControlado ?? abertoLocal;
   const alternar = () => (aoAlternar ? aoAlternar(!aberto) : setAberto((a) => !a));
   const [alterado, setAlterado] = useState(alteradoInicial);
+  const [erroRemover, setErroRemover] = useState(null);
   const remover = useMutation({
     mutationFn: (id) => san.removerCriterioManual(projetoId, id),
-    onSuccess: (r) => qc.setQueryData(chaves.criterios(projetoId), r),
+    onSuccess: (r) => { setErroRemover(null); qc.setQueryData(chaves.criterios(projetoId), r); qc.invalidateQueries({ queryKey: chaves.estadoCamadas(projetoId) }); },
+    onError: (e) => setErroRemover(mensagemDeErro(e)),
   });
   const criterios = dados?.criterios || [];
   const manuais = dados?.manuais || [];
@@ -181,8 +194,8 @@ export default function Considerado({ projetoId, camada, rotulo, dados, aoIrPara
                   <li key={c.id} className="flex flex-wrap items-baseline gap-1.5">
                     <span aria-hidden="true">•</span>
                     <span>{c.texto}{c.origem === "CONFIGURACAO" ? `: ${c.valorConfiguracao ? fmtData(c.valorConfiguracao) : "corte não definido (critério não aplicado)"}` : ""}</span>
-                    {c.origem === "DIRETRIZES" && aoIrPara && <button type="button" className="text-primary underline" onClick={() => aoIrPara({ fase: "fase1", aba: "diretrizes" })}>Ver nas Diretrizes</button>}
-                    {c.origem === "CONFIGURACAO" && aoIrPara && <button type="button" className="text-primary underline" onClick={() => aoIrPara({ fase: "fase1", aba: "preparar" })}>Alterar na Configuração</button>}
+                    {c.origem === "DIRETRIZES" && aoIrPara && <button type="button" className="text-primary underline" onClick={() => aoIrPara(destinoDasDiretrizes(camada))}>Ver nas Diretrizes</button>}
+                    {c.origem === "CONFIGURACAO" && aoIrPara && <button type="button" className="text-primary underline" onClick={() => aoIrPara(DESTINO_CONFIGURACAO)}>Alterar em {caminhoDaAba(DESTINO_CONFIGURACAO.fase, DESTINO_CONFIGURACAO.aba)}</button>}
                   </li>
                 );
               })}
@@ -197,6 +210,7 @@ export default function Considerado({ projetoId, camada, rotulo, dados, aoIrPara
               ))}
             </ul>
           )}
+          {erroRemover && <Aviso tom="erro">{erroRemover}</Aviso>}
           <TextoLivre projetoId={projetoId} camada={camada} pode={pode} razao={razao} aoAlterar={() => setAlterado(true)} resultadoInicial={resultadoInicial} />
         </div>
       )}

@@ -62,8 +62,24 @@ export function bloqueioDaFase(fase, dados, { carregando = false } = {}) {
   return { codigo: b.codigo || null, mensagem: b.mensagem || MENSAGEM_BLOQUEIO_FASE2[b.codigo] || "A Fase 2 ainda não está liberada." };
 }
 
-/** Fase em que a análise em andamento foi pedida (a primeira que contém todas as camadas dela). */
-export const faseDaExecucao = (ex) => (ex?.camadas?.length ? LISTA_FASES.find((f) => ex.camadas.every((c) => FASES[f].includes(c))) || null : null);
+/**
+ * Fase em que a análise em andamento foi pedida. `preferida` = a fase de onde ela foi pedida (ou a da aba aberta): vale quando contém todas as
+ * camadas da análise (Impacto no SPED está nas duas fases); sem ela, a primeira fase que contém todas.
+ */
+export function faseDaExecucao(ex, { preferida = null } = {}) {
+  if (!ex?.camadas?.length) return null;
+  const contem = (f) => ex.camadas.every((c) => FASES[f].includes(c));
+  if (preferida && FASES[preferida] && contem(preferida)) return preferida;
+  return LISTA_FASES.find(contem) || null;
+}
+
+/**
+ * Marco da análise para renovar os dados: muda a cada camada concluída e no fim. Sem a resposta ainda: null (a primeira resposta só marca
+ * o ponto de partida, sem renovar nada).
+ */
+export const marcoDaAnalise = (dados) => (dados === undefined ? null : `${!!dados?.execucao?.rodando}-${dados?.execucao?.feitas?.length ?? 0}`);
+/** A mudança de marco pede renovar? Só entre dois marcos conhecidos e diferentes. */
+export const renovarNoMarco = (anterior, atual) => anterior !== null && atual !== null && anterior !== atual;
 
 const COR_FASE = { FASE1: "border-l-teal-600", FASE2: "border-l-violet-600" };
 
@@ -92,19 +108,24 @@ export default function Cobertura({ projeto, aoIrPara, fase: soFase = null }) {
   const rodandoAgora = !!ex?.rodando;
   const [erroInicio, setErroInicio] = useState(null);
   const [fechado, setFechado] = useState(null); // iniciadaEm do resultado que o usuário fechou
-  const marco = `${rodandoAgora}-${ex?.feitas?.length ?? 0}`;
-  const ultimoMarco = useRef(marco);
+  const marco = marcoDaAnalise(exec.data);
+  const ultimoMarco = useRef(null);
   useEffect(() => {
-    // Cada camada concluída (e o fim da análise) renova casos, contagens e tabelas.
-    if (ultimoMarco.current !== marco) { ultimoMarco.current = marco; atualizarTudo(qc, projeto.id); }
+    // Cada camada concluída (e o fim da análise) renova casos, contagens e tabelas. A primeira resposta só marca o ponto de partida.
+    if (marco === null) return;
+    const renovar = renovarNoMarco(ultimoMarco.current, marco);
+    ultimoMarco.current = marco;
+    if (renovar) atualizarTudo(qc, projeto.id);
   }, [marco, qc, projeto.id]);
+  // A fase de onde a análise foi pedida: Impacto no SPED está nas duas, e o andamento aparece na fase em que se clicou.
+  const [faseIniciada, setFaseIniciada] = useState(null);
   const iniciar = useMutation({
     mutationFn: (lista) => san.iniciarAnalises(projeto.id, lista),
     onSuccess: (r) => qc.setQueryData(chaves.analises(projeto.id), r),
     onError: (e) => { setErroInicio(mensagemDeErro(e)); qc.invalidateQueries({ queryKey: chaves.fases(projeto.id) }); },
   });
   const ocupado = rodandoAgora || iniciar.isPending;
-  const faseRodando = rodandoAgora ? faseDaExecucao(ex) : null;
+  const faseRodando = rodandoAgora ? faseDaExecucao(ex, { preferida: faseIniciada || soFase }) : null;
   const progresso = rodandoAgora && ex.atual ? { atual: ex.camadas.indexOf(ex.atual) + 1, total: ex.camadas.length, camada: ex.atual } : null;
   // O resultado fica à vista por 30 minutos depois do fim (ou até fechar), também para quem voltou à tela depois.
   const resultado = ex && !rodandoAgora && fechado !== ex.iniciadaEm && Date.now() - Date.parse(ex.terminadaEm) < 30 * 60 * 1000
@@ -114,7 +135,7 @@ export default function Cobertura({ projeto, aoIrPara, fase: soFase = null }) {
     : null;
   const pronto = visao.data !== undefined && disponiveis.data !== undefined;
   const porCamada = new Map((estado.data?.camadas || []).map((l) => [l.camada, l]));
-  const analisar = (lista) => { setErroInicio(null); iniciar.mutate(lista); };
+  const analisar = (lista, fase) => { setErroInicio(null); setFaseIniciada(fase || null); iniciar.mutate(lista); };
 
   const blocos = LISTA_FASES.filter((f) => !soFase || f === soFase).map((fase) => {
     const camadas = FASES[fase].filter((c) => ativas.includes(c));
@@ -137,7 +158,7 @@ export default function Cobertura({ projeto, aoIrPara, fase: soFase = null }) {
                   <h3 id={idTitulo} className="text-sm font-semibold">{ROTULO_FASE[fase]}</h3>
                   <button type="button" className={`${botaoPrimario} ml-auto px-2 py-1 text-xs`} disabled={!!travaDaFase || ocupado || !ordem.length}
                     title={travaDaFase || (!ordem.length ? "Importe o cadastro de itens antes" : `Analisa ${ordem.length} camada(s) desta fase, uma depois da outra, na ordem`)}
-                    aria-label={`Analisar a ${fase === "FASE1" ? "Fase 1" : "Fase 2"} (na ordem)`} onClick={() => analisar(ordem)}>
+                    aria-label={`Analisar a ${fase === "FASE1" ? "Fase 1" : "Fase 2"} (na ordem)`} onClick={() => analisar(ordem, fase)}>
                     <Play className="h-3.5 w-3.5" aria-hidden="true" />{faseRodando === fase && progresso ? `Analisando ${progresso.atual} de ${progresso.total}…` : "Analisar a fase (na ordem)"}
                   </button>
                 </div>
@@ -162,11 +183,11 @@ export default function Cobertura({ projeto, aoIrPara, fase: soFase = null }) {
                         {e?.desatualizada?.criterio && <span className="text-[11px] text-orange-900 dark:text-orange-200">{TEXTO_CRITERIO_ALTERADO}</span>}
                         <Considerado projetoId={projeto.id} camada={c.camada} rotulo={rotulo} dados={criteriosPorCamada.get(c.camada)} aoIrPara={aoIrPara}
                           aberto={abertos.has(c.camada)} aoAlternar={(abrir) => alternar(c.camada, abrir)} desatualizadaPorCriterio={!!e?.desatualizada?.criterio}
-                          analisando={ocupado} aoAnalisar={c.analisavel && !travaDaFase && c.estado !== "SEM_ITENS" ? () => analisar([c.camada]) : null} />
+                          analisando={ocupado} aoAnalisar={c.analisavel && !travaDaFase && c.estado !== "SEM_ITENS" ? () => analisar([c.camada], fase) : null} />
                         {c.analisavel && (
                           <button type="button" className={`${botaoSecundario} mt-auto px-2 py-1 text-xs`} disabled={!!travaDaFase || c.estado === "SEM_ITENS" || ocupado}
                             title={travaDaFase || (c.estado === "SEM_ITENS" ? "Importe o cadastro de itens antes" : e?.executadaEm ? `Última análise: ${fmtDataHora(e.executadaEm)}` : undefined)}
-                            aria-label={`Analisar ${rotulo}${fase === "FASE2" && c.camada === "OBRIGACOES" ? " (Fase 2)" : ""}`} onClick={() => analisar([c.camada])}>
+                            aria-label={`Analisar ${rotulo}${fase === "FASE2" && c.camada === "OBRIGACOES" ? " (Fase 2)" : ""}`} onClick={() => analisar([c.camada], fase)}>
                             <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />{rodando ? "Analisando…" : c.estado === "NAO_ANALISADA" || c.estado === "SEM_ITENS" ? "Analisar" : "Analisar de novo"}
                           </button>
                         )}

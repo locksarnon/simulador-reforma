@@ -1,4 +1,5 @@
 import { CheckCircle2, Lock } from "lucide-react";
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { ABAS_COMUNS, AREAS, abasDaArea, proximoPorTecla } from "./logica";
 
 /** Teclado do padrão de abas do WAI-ARIA: setas, Home e End, circular; o foco acompanha. */
@@ -42,13 +43,21 @@ export function SeletorDeFases({ atual, situacoes, aoMudar }) {
 
 /**
  * Faixa de abas de uma fase (segundo nível): as abas da fase, numeradas pela fase (1.1, 1.2…; o número vem de numeroDaAba), e, à direita,
- * as áreas comuns sem número (Tabela, Visão geral, Impacto no SPED e Versões), que mostram o projeto inteiro. Setas do teclado percorrem a
- * faixa toda.
+ * as áreas comuns sem número (Tabela, Visão geral, Impacto no SPED e Versões), que mostram o projeto inteiro: botões lado a lado no padrão
+ * dos botões de filtro (relevo, cantos retos; a aberta em verde cheio, as outras com contorno verde), na mesma faixa de abas. Setas do
+ * teclado percorrem a faixa toda.
  */
+export const classeAreaComum = (ativa) => `${classeBotaoFiltro(ativa)} !rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 export default function Abas({ fase, atual, aoMudar }) {
   const lista = abasDaArea(fase);
   const ids = lista.map((a) => a.id);
   const daFase = lista.filter((a) => !ABAS_COMUNS.some((c) => c.id === a.id));
+  const comum = (a) => (
+    <button key={a.id} type="button" role="tab" id={`san-aba-${a.id}`} aria-selected={atual === a.id} aria-controls="san-painel" tabIndex={atual === a.id ? 0 : -1}
+      onClick={() => aoMudar(a.id)} onKeyDown={aoTeclar(ids, atual, aoMudar, "san-aba-")} data-area-comum="" className={classeAreaComum(atual === a.id)}>
+      {a.rotulo}
+    </button>
+  );
   const botao = (a) => (
     <button key={a.id} type="button" role="tab" id={`san-aba-${a.id}`} aria-selected={atual === a.id} aria-controls="san-painel" tabIndex={atual === a.id ? 0 : -1}
       onClick={() => aoMudar(a.id)} onKeyDown={aoTeclar(ids, atual, aoMudar, "san-aba-")}
@@ -59,9 +68,8 @@ export default function Abas({ fase, atual, aoMudar }) {
   return (
     <div role="tablist" aria-label="Etapas da fase e áreas do projeto" className="flex flex-wrap items-end gap-1 border-b border-border">
       {daFase.map(botao)}
-      <span className="ml-auto flex flex-wrap items-end gap-1 border-l border-border pl-2" role="presentation">
-        <span className="self-center px-1 text-xs text-foreground/70" aria-hidden="true">Projeto inteiro:</span>
-        {ABAS_COMUNS.map(botao)}
+      <span className="mb-1 ml-auto flex flex-wrap items-center gap-1.5" role="presentation">
+        {ABAS_COMUNS.map(comum)}
       </span>
     </div>
   );

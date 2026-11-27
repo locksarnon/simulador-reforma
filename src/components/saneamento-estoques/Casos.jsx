@@ -9,7 +9,7 @@ import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, EstadoCar
 import {
   CAMADAS, contadorDeGrupos, corpoDoLote, descricaoDoLoteDoGrupo, fatiarIds, filtroAdmiteLote, grupoDoGrupoDeCasos, identificacaoDoCaso, idsDosGruposParaLote, lerParecer, linhaDeExcecao, MAX_LOTE, mensagemDeErro, montarFiltroCasos, opcoesDeTipo, proximoCasoAberto,
   problemaDoGrupoDeCasos, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloSituacaoCaso, rotuloTipoCaso, situacaoUnicaDoGrupo, SITUACOES_DO_CASO, somarPrevias, textoDaPropostaDoGrupo,
-  textoDasSituacoesDoGrupo, textoDoValor, textoLegivel, tituloDoCasoAberto, tituloDoGrupoDeCasos, versoesDaPrevia, vizinhosNaLista,
+  textoDasSituacoesDoGrupo, textoDoValor, textoLegivel, tituloDoCasoAberto, tituloDoGrupoDeCasos, travaDeDecisao, versoesDaPrevia, vizinhosNaLista,
 } from "./logica";
 
 /** As três decisões do lote. Pedir informação e rejeitar valem para todo caso em aberto; aprovar, só para os que têm proposta aprovável. */
@@ -29,7 +29,7 @@ function Contagem({ valor, rotulo }) {
  * 2000 casos, sozinhas, com progresso; o que não couber numa chamada (tempo do servidor) entra na rodada seguinte. Se algo interromper, a tela
  * diz quantos casos ficaram e oferece continuar.
  */
-export function PainelDeLote({ projeto, ids, filtro, descricao, aoFechar, aoMudou }) {
+export function PainelDeLote({ projeto, ids, filtro, descricao, aoFechar, aoMudou, trava = null }) {
   const { pode, razao } = usePodeAlterar();
   const confirmar = useConfirmar();
   const [acao, setAcao] = useState("aprovar");
@@ -118,10 +118,11 @@ export function PainelDeLote({ projeto, ids, filtro, descricao, aoFechar, aoMudo
           </>
         )}
       </div>
+      {trava && <Aviso tom="bloqueio" titulo="Fase 2 ainda não liberada">{trava}</Aviso>}
       {erro && <Aviso tom="erro">{erro}</Aviso>}
       {resultado && (
         <Aviso tom={resultado.pendentes.length || resultado.excecoes.length ? "alerta" : "ok"} titulo={`${n(resultado.feitos)} caso(s) ${ACOES_DO_LOTE[resultado.acao].resultado}`}
-          acao={resultado.pendentes.length > 0 && <button type="button" className={botaoPrimario} disabled={!pode || ocupado} title={razao} onClick={() => decidir(resultado.pendentes, resultado.versoes, resultado.acao, resultado.texto)}>Continuar</button>}>
+          acao={resultado.pendentes.length > 0 && <button type="button" className={botaoPrimario} disabled={!pode || ocupado || !!trava} title={razao || trava || undefined} onClick={() => decidir(resultado.pendentes, resultado.versoes, resultado.acao, resultado.texto)}>Continuar</button>}>
           {resultado.pendentes.length > 0 && <p>{n(resultado.pendentes.length)} caso(s) ficaram para a próxima rodada: use Continuar.</p>}
           {resultado.excecoes.length ? <p>{n(resultado.excecoes.length)} ficaram de fora: veja os motivos abaixo.</p> : <p>Nenhuma exceção.</p>}
           {resultado.excecoes.length > 0 && <ul className="mt-1 max-h-48 list-disc overflow-auto pl-5">{resultado.excecoes.slice(0, 200).map((x, i) => <li key={`${i}-${x.casoId}`}>{linhaDeExcecao(x)}</li>)}</ul>}
@@ -152,7 +153,7 @@ export function PainelDeLote({ projeto, ids, filtro, descricao, aoFechar, aoMudo
             <div><h4 className="text-sm font-semibold">Exceções: decida estes casos à parte</h4>
               <ul className="max-h-40 list-disc overflow-auto pl-5 text-sm">{previa.excecoes.slice(0, 200).map((x, i) => <li key={`${i}-${x.casoId}`}>{linhaDeExcecao(x)}</li>)}</ul></div>
           )}
-          <button type="button" className={acao === "rejeitar" ? botaoPerigo : botaoPrimario} disabled={!pode || ocupado || alvos.length === 0 || (cfg.obrigatorio && !texto.trim())} title={razao || (cfg.obrigatorio && !texto.trim() ? "Escreva o texto comum antes." : undefined)} onClick={executar}>
+          <button type="button" className={acao === "rejeitar" ? botaoPerigo : botaoPrimario} disabled={!pode || !!trava || ocupado || alvos.length === 0 || (cfg.obrigatorio && !texto.trim())} title={razao || trava || (cfg.obrigatorio && !texto.trim() ? "Escreva o texto comum antes." : undefined)} onClick={executar}>
             {`${cfg.rotulo} ${n(alvos.length)} caso(s)`}
           </button>
         </div>
@@ -187,7 +188,7 @@ const COLUNAS_DO_GRUPO = [
  * Detalhe de um grupo de casos iguais: o que o grupo tem em comum (problema, grupo, proposta e situação), o botão do lote (com todos os casos
  * do grupo) e a lista dos casos. Dentro do painel sobreposto (`noPainel`), o título fica no cabeçalho do painel e o quadro vem sem faixa.
  */
-export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbrirCaso, aoDecidir, aoFechar, noPainel = false }) {
+export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbrirCaso, aoDecidir, aoFechar, noPainel = false, trava = null }) {
   const { pode, razao } = usePodeAlterar();
   const g = dados?.grupo || grupo;
   const casos = dados?.casos || [];
@@ -205,7 +206,7 @@ export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbr
         {g.atual && Object.keys(g.atual).length > 0 && <><dt className="text-muted-foreground">Valor atual</dt><dd>{textoDoValor(g.atual)}</dd></>}
         <dt className="text-muted-foreground">Situação</dt><dd>{textoDasSituacoesDoGrupo(g.situacoes)}</dd>
       </dl>
-      <button type="button" className={botaoPrimario} disabled={!pode || !todos.length} title={!pode ? razao : "Abre a decisão em lote com todos os casos deste grupo"} onClick={() => aoDecidir(todos, g)}>
+      <button type="button" className={botaoPrimario} disabled={!pode || !!trava || !todos.length} title={!pode ? razao : trava || "Abre a decisão em lote com todos os casos deste grupo"} onClick={() => aoDecidir(todos, g)}>
         {`Decidir os ${n(todos.length || g.casos)} caso(s) do grupo em lote…`}
       </button>
       {erro ? <EstadoErro erro={erro} aoTentar={aoTentar} texto="Não foi possível carregar os casos do grupo." />
@@ -219,13 +220,39 @@ export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbr
 }
 
 const SELETOR_FOCAVEL = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+const SELETOR_DIALOGO = '[role="dialog"],[role="alertdialog"]';
+
+/** Outra janela aberta por cima do painel (confirmação, menu Colunas e outros popovers): a que está fechando (animação) não conta. */
+const outraJanelaAberta = (painel, doc) => [...doc.querySelectorAll(SELETOR_DIALOGO)].some((d) => d !== painel && !d.contains(painel) && d.getAttribute("data-state") !== "closed");
+
+/**
+ * O Esc fecha o painel? Não quando quem está por cima já tratou o Esc (o popover do menu Colunas marca o evento) ou quando há outra janela
+ * aberta por cima (a confirmação ou um popover): ela fecha primeiro.
+ */
+export function escFechaOPainel(e, painel, doc = document) {
+  if (e?.key !== "Escape" || e.defaultPrevented || !painel) return false;
+  return !outraJanelaAberta(painel, doc);
+}
+
+/**
+ * O foco escapou do painel? Sem foco (o botão focado sumiu ao trocar de caso), num botão desligado (Próximo no fim da lista) ou fora do
+ * painel. O foco dentro de outra janela por cima (confirmação, popover) não é fuga.
+ */
+export function focoForaDoPainel(painel, ativo, doc = document) {
+  if (!painel) return false;
+  if (!ativo || ativo === doc.body || ativo === doc.documentElement) return true;
+  if (ativo.disabled) return true;
+  if (painel === ativo || painel.contains(ativo)) return false;
+  return !ativo.closest?.(SELETOR_DIALOGO);
+}
 
 /**
  * Painel largo sobre a tabela dos casos: ocupa 70% da tela pela direita, na altura toda, com rolagem própria; a tabela fica escurecida atrás.
- * Cabeçalho com o título, a posição na lista carregada, Anterior, Próximo e Fechar (Esc também fecha, salvo com uma confirmação aberta por
- * cima). Ao abrir, o foco vai ao painel; o Tab circula dentro dele; ao fechar, o foco volta para onde estava. Sem portal: igual na tela e nos testes.
+ * Cabeçalho com o título, a posição na lista carregada, Anterior, Próximo e Fechar (Esc também fecha, salvo com uma confirmação ou um
+ * popover aberto por cima). Ao abrir, o foco vai ao painel; o Tab circula dentro dele e o foco que sai dele (ou que some ao trocar de caso,
+ * `chave`) volta para ele; ao fechar, o foco volta para onde estava. Sem portal: igual na tela e nos testes.
  */
-export function PainelSobreposto({ titulo, posicao, aoAnterior, aoProximo, aoFechar, acoes, children }) {
+export function PainelSobreposto({ titulo, posicao, aoAnterior, aoProximo, aoFechar, acoes, chave = null, children }) {
   const ref = useRef(null);
   const tituloId = useId();
   const fechar = useRef(aoFechar);
@@ -233,17 +260,21 @@ export function PainelSobreposto({ titulo, posicao, aoAnterior, aoProximo, aoFec
   useEffect(() => {
     const antes = document.activeElement;
     ref.current?.focus();
-    const tecla = (e) => {
-      if (e.key !== "Escape") return;
-      if (document.querySelector('[role="alertdialog"]')) return; // a confirmação por cima fecha primeiro
-      fechar.current?.();
-    };
-    window.addEventListener("keydown", tecla, true);
+    // Na fase de bolha da janela: o popover (que escuta o Esc no documento, na captura) trata o Esc dele antes.
+    const tecla = (e) => { if (escFechaOPainel(e, ref.current)) fechar.current?.(); };
+    const foco = (e) => { if (ref.current && focoForaDoPainel(ref.current, e.target)) ref.current.focus(); };
+    window.addEventListener("keydown", tecla);
+    document.addEventListener("focusin", foco);
     return () => {
-      window.removeEventListener("keydown", tecla, true);
+      window.removeEventListener("keydown", tecla);
+      document.removeEventListener("focusin", foco);
       if (antes?.isConnected && typeof antes.focus === "function") antes.focus();
     };
   }, []);
+  // Trocou o caso ou o grupo (Anterior, Próximo, "Aprovar e ir ao próximo"): o botão focado pode ter sumido ou ficado desligado.
+  useEffect(() => {
+    if (ref.current && focoForaDoPainel(ref.current, document.activeElement)) ref.current.focus();
+  }, [chave]);
   const prenderTab = (e) => {
     if (e.key !== "Tab" || !ref.current) return;
     const f = [...ref.current.querySelectorAll(SELETOR_FOCAVEL)];
@@ -277,11 +308,14 @@ export function PainelSobreposto({ titulo, posicao, aoAnterior, aoProximo, aoFec
  * `camadasPermitidas` (aba Casos de cada fase): o filtro de camada só oferece as camadas da fase e "Todas da fase" mostra só os casos
  * delas: o servidor recebe a lista de camadas da fase, então a contagem e a decisão em lote valem só para a fase.
  */
-export default function Casos({ projeto, recorte, casoInicial, agruparInicial = true, camadasPermitidas = null }) {
+export default function Casos({ projeto, recorte, casoInicial, aoUsarCasoInicial, aoTirarRecorte, agruparInicial = true, camadasPermitidas = null, bloqueioFase2 = null }) {
   const qc = useQueryClient();
   const { pode, razao } = usePodeAlterar();
   const [filtro, setFiltro] = useState(() => ({ camada: recorte?.camada && (!camadasPermitidas || camadasPermitidas.includes(recorte.camada)) ? recorte.camada : "", situacao: recorte?.situacao || "ABERTOS", tipo: "", origem: "", grupo: recorte?.grupo || "" }));
-  const [agrupar, setAgrupar] = useState(agruparInicial);
+  // O caso pedido (Tabela > Abrir o caso) abre na lista de um caso por linha: Anterior, Próximo e a posição andam nos casos da camada.
+  const [agrupar, setAgrupar] = useState(casoInicial ? false : agruparInicial);
+  // O caso pedido vale uma vez: a página o esquece assim que ele abre (voltar à aba não reabre o painel).
+  useEffect(() => { if (casoInicial) aoUsarCasoInicial?.(); }, []);
   const [aberto, setAberto] = useState(casoInicial || null);
   const [grupoAberto, setGrupoAberto] = useState(null); // a linha (grupo) aberta no painel sobreposto
   const [ultimoCaso, setUltimoCaso] = useState(casoInicial || null); // a última linha aberta fica marcada na tabela ao fechar o painel
@@ -358,6 +392,9 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
     ? `${n(idsMarcados.length)} caso(s) marcado(s).`
     : `Todos os casos em aberto deste filtro${total != null && emAberto ? ` (${n(total)})` : ""}, inclusive os que a lista ainda não carregou.`;
   const recarregar = () => { atualizarTudo(qc, projeto.id); };
+  // Fase 2 ainda não liberada: as decisões das camadas travadas ficam desligadas (o servidor as recusaria).
+  const travaDoLote = travaDeDecisao(bloqueioFase2, filtro.camada || camadasPermitidas || []);
+  const travaDoGrupo = grupoAberto ? travaDeDecisao(bloqueioFase2, grupoAberto.camada) : null;
   const listaDoProximo = agrupar ? casosDoGrupo : casos;
   const abrirCaso = (id) => { setAberto(id); setUltimoCaso(id); setSemProximo(false); };
   const abrirGrupo = (g) => {
@@ -391,11 +428,11 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
       const viz = vizinhosNaLista(listaDoProximo, aberto);
       const linha = listaDoProximo.find((c) => c.id === aberto);
       return (
-        <PainelSobreposto titulo={tituloDoCasoAberto(linha)} posicao={viz.posicao ? `Caso ${n(viz.posicao)} de ${n(viz.total)} ${agrupar ? "carregados deste grupo" : "carregados"}` : null}
+        <PainelSobreposto chave={aberto} titulo={tituloDoCasoAberto(linha)} posicao={viz.posicao ? `Caso ${n(viz.posicao)} de ${n(viz.total)} ${agrupar ? "carregados deste grupo" : "carregados"}` : null}
           aoAnterior={viz.anterior ? () => abrirCaso(viz.anterior) : null} aoProximo={viz.proximo ? () => abrirCaso(viz.proximo) : null} aoFechar={fecharPainel}
           acoes={agrupar && grupoAberto ? <button type="button" className={`${botaoSecundario} bg-card`} onClick={() => { setAberto(null); setSemProximo(false); }}>Voltar ao grupo</button> : null}>
           {semProximo && <Aviso>Não há mais casos em aberto na lista.</Aviso>}
-          <CasoDetalhe key={aberto} projeto={projeto} casoId={aberto} aoIrAoProximo={irAoProximo} aoMudou={recarregar} grupoDoRecorte={filtro.grupo || null} />
+          <CasoDetalhe key={aberto} projeto={projeto} casoId={aberto} aoIrAoProximo={irAoProximo} aoMudou={recarregar} grupoDoRecorte={filtro.grupo || null} bloqueioFase2={bloqueioFase2} />
         </PainelSobreposto>
       );
     }
@@ -403,10 +440,10 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
       const viz = vizinhosNaLista(grupos, grupoAberto.chave, (g) => g.chave);
       const ir = (chave) => () => abrirGrupo(grupos.find((g) => g.chave === chave));
       return (
-        <PainelSobreposto titulo={tituloDoGrupoDeCasos(qd.data?.grupo || grupoAberto)} posicao={viz.posicao ? `Grupo ${n(viz.posicao)} de ${n(viz.total)} carregados` : null}
+        <PainelSobreposto chave={grupoAberto.chave} titulo={tituloDoGrupoDeCasos(qd.data?.grupo || grupoAberto)} posicao={viz.posicao ? `Grupo ${n(viz.posicao)} de ${n(viz.total)} carregados` : null}
           aoAnterior={viz.anterior ? ir(viz.anterior) : null} aoProximo={viz.proximo ? ir(viz.proximo) : null} aoFechar={fecharPainel}>
-          {loteDoGrupo?.doGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
-          <DetalheDoGrupo noPainel grupo={grupoAberto} dados={qd.data} carregando={qd.isPending} erro={qd.isError ? qd.error : null} aoTentar={() => qd.refetch()}
+          {loteDoGrupo?.doGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} trava={travaDoGrupo} />}
+          <DetalheDoGrupo noPainel trava={travaDoGrupo} grupo={grupoAberto} dados={qd.data} carregando={qd.isPending} erro={qd.isError ? qd.error : null} aoTentar={() => qd.refetch()}
             aoAbrirCaso={abrirCaso} aoDecidir={decidirGrupo} />
         </PainelSobreposto>
       );
@@ -428,17 +465,17 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
           <input type="checkbox" checked={agrupar} onChange={(e) => trocarAgrupar(e.target.checked)} />Agrupar casos iguais
         </label>
         {temFiltro && <button type="button" className={botaoSecundario} onClick={() => trocarFiltro({ ...FILTRO_PADRAO, grupo: filtro.grupo })}>Limpar filtros</button>}
-        <button type="button" className={botaoPrimario} disabled={!pode || !podeLote || buscandoIds} title={!pode ? razao : agrupar ? "Marque grupos na tabela, ou decida todos os casos em aberto do filtro" : "Marque casos na tabela, ou decida todos os casos em aberto do filtro"} onClick={abrirLote}>{buscandoIds ? "Juntando os casos…" : "Decidir em lote…"}</button>
-        <PlanilhaDecisao projeto={projeto} camada={filtro.camada} camadas={camadasPermitidas} aoMudou={recarregar} />
+        <button type="button" className={botaoPrimario} disabled={!pode || !podeLote || buscandoIds || !!travaDoLote} title={!pode ? razao : travaDoLote || (agrupar ? "Marque grupos na tabela, ou decida todos os casos em aberto do filtro" : "Marque casos na tabela, ou decida todos os casos em aberto do filtro")} onClick={abrirLote}>{buscandoIds ? "Juntando os casos…" : "Decidir em lote…"}</button>
+        <PlanilhaDecisao projeto={projeto} camada={filtro.camada} camadas={camadasPermitidas} aoMudou={recarregar} bloqueioFase2={bloqueioFase2} />
       </div>
       {filtro.grupo && (
-        <Aviso titulo="Recorte da visão geral" acao={<button type="button" className={botaoSecundario} onClick={() => trocarFiltro({ ...filtro, grupo: "" })}>Tirar o recorte</button>}>
+        <Aviso titulo="Recorte da visão geral" acao={<button type="button" className={botaoSecundario} onClick={() => { trocarFiltro({ ...filtro, grupo: "" }); aoTirarRecorte?.(); }}>Tirar o recorte</button>}>
           Grupo <strong>{filtro.grupo}</strong>{filtro.camada ? <> na camada <strong>{ROTULO_CAMADA[filtro.camada]}</strong></> : null}.
         </Aviso>
       )}
       {erroIds && <Aviso tom="erro">{erroIds}</Aviso>}
-      {loteDoGrupo && !loteDoGrupo.doGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
-      {lote && !loteDoGrupo && <PainelDeLote projeto={projeto} ids={agrupar ? [] : idsMarcados} filtro={filtroSrv} descricao={agrupar ? `Todos os casos em aberto deste filtro${primeiraG ? ` (${n(primeiraG.totalCasos)})` : ""}, inclusive os que a lista ainda não carregou.` : descricaoLote} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
+      {loteDoGrupo && !loteDoGrupo.doGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} trava={travaDoLote} />}
+      {lote && !loteDoGrupo && <PainelDeLote projeto={projeto} ids={agrupar ? [] : idsMarcados} filtro={filtroSrv} descricao={agrupar ? `Todos os casos em aberto deste filtro${primeiraG ? ` (${n(primeiraG.totalCasos)})` : ""}, inclusive os que a lista ainda não carregou.` : descricaoLote} aoFechar={fecharLote} aoMudou={aoMudouLote} trava={travaDoLote} />}
       {ativa.isError ? <EstadoErro erro={ativa.error} aoTentar={() => ativa.refetch()} texto="Não foi possível carregar os casos." />
         : ativa.isPending ? <EstadoCarregando texto="Carregando os casos…" />
           : (

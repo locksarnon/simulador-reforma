@@ -57,7 +57,8 @@ describe("O que foi considerado", () => {
     const t = texto(montar(<Considerado {...props} dados={d} abertoInicial aoIrPara={() => {}} />));
     expect(t).toContain("Ver nas Diretrizes");
     expect(t).toContain("Corte de movimentação: 31/12/2025");
-    expect(t).toContain("Alterar na Configuração");
+    expect(t).toMatch(/Alterar em Fase 1 (&gt;|>) 1.1 Preparar e diretrizes/);
+    expect(t).not.toContain("Alterar na Configuração");
   });
   it("texto livre: encaixado vira proposta a confirmar; manual vai para a política; sem IA, manual com aviso", () => {
     const proposta = { resultado: "PROPOSTA", iaDisponivel: true, proposta: { camada: "DUPLICIDADE", chave: "similaridadeMinima", valor: 90, criterio: "Similaridade mínima para indicar duplicidade", textoValor: "90%", textoAtual: "78%", igualAoAtual: false } };
