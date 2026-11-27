@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -78,6 +79,19 @@ export async function gravarTrabalhoEmBloco(tx: Tx, linhas: ItemGravado[]): Prom
 type CasoLinha = NonNullable<Awaited<ReturnType<PrismaService['sanCaso']['findUnique']>>>;
 
 export type FiltroCasos = { camada?: string; situacao?: string; grupo?: string; tipo?: string; origem?: string; item_id?: string; cursor?: string; limite?: number | string };
+/** Casos agrupados: os filtros da lista, mais a busca no texto e a chave de um grupo (detalhe do grupo). */
+export type FiltroCasosAgrupados = FiltroCasos & { busca?: string; chave?: string };
+type CasoParaGrupo = { id: string; camada: string; tipo: string; itens: string[]; problema: string; proposta: unknown; atual: unknown; situacao: string };
+type GrupoDeCasos = {
+  chave: string; camada: string; tipo: string; grupo: string | null; conjunto: boolean; problema: string; problemaVaria: boolean; proposta: Json; atual: Json;
+  atualCanon: string; atualVaria: boolean; casos: number; itens: number; ids: string[]; situacoes: Record<string, number>;
+};
+/** Casos lidos por vez na leitura agrupada; ids de cada grupo na lista (o detalhe do grupo traz todos); linhas de casos no detalhe. */
+const JANELA_AGRUPAR = 5000;
+export const IDS_POR_GRUPO = 500;
+const CASOS_DO_GRUPO = 500;
+/** Busca sem acento e sem caixa. */
+const normalizarBusca = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 export type EntradaAprovar = {
   versao?: number; proposta?: Json; fundamento?: string; justificativa?: string; versoesItens?: Record<string, number>;
   /** Aprova mesmo que o valor atual do item já não seja o da época da proposta. */
@@ -419,6 +433,110 @@ export class SanCasosService {
       tipos = g.map((x) => ({ tipo: x.tipo, n: x._count._all })).sort((a, b) => b.n - a.n || a.tipo.localeCompare(b.tipo));
     }
     return { casos: pagina, proximo: linhas.length > limite ? linhas[limite].id : null, ...(tipos ? { tipos } : {}) };
+  }
+
+  /**
+   * Casos agrupados (leitura): casos iguais viram uma linha. Caso de um item entra no grupo (camada, tipo, grupo do item, proposta
+   * normalizada); caso de conjunto (vários itens) é um grupo sozinho. Não muda os casos nem a chave deles: a decisão do grupo usa o lote
+   * de sempre (ids do grupo), com as mesmas garantias (versão, exceções, conflitos). Mesmos filtros da lista de casos, mais `busca`
+   * (problema, grupo, tipo ou proposta). Com `chave`, devolve só aquele grupo com TODOS os ids e as primeiras linhas dos casos.
+   * Leitura em janelas de 5000 casos por id (memória limitada), grupo do item lido em bloco.
+   */
+  async agrupados(projetoId: string, f: FiltroCasosAgrupados) {
+    const limite = Math.min(Math.max(paramInteiro(f.limite, 'limite') ?? 200, 1), 500);
+    const inicio = Math.max(paramInteiro(f.cursor, 'cursor') ?? 0, 0);
+    const chaveF = paramTexto(f.chave, 'chave');
+    const busca = normalizarBusca(paramTexto(f.busca, 'busca') ?? '');
+    const where = await this.filtroDosCasos(projetoId, f);
+    const grupos = new Map<string, GrupoDeCasos>();
+    let totalCasos = 0;
+    let apos: string | undefined;
+    for (;;) {
+      const janela: CasoParaGrupo[] = await this.prisma.sanCaso.findMany({
+        where: { ...where, ...(apos ? { id: where.id ? { ...(where.id as Json), gt: apos } : { gt: apos } } : {}) } as never,
+        select: { id: true, camada: true, tipo: true, itens: true, problema: true, proposta: true, atual: true, situacao: true },
+        orderBy: { id: 'asc' }, take: JANELA_AGRUPAR,
+      });
+      if (!janela.length) break;
+      apos = janela[janela.length - 1].id;
+      const soltos = [...new Set(janela.filter((c) => c.itens.length === 1).map((c) => c.itens[0]))];
+      const grupoDoItem = new Map<string, string>();
+      for (const lote of fatiar(soltos, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, grupo: true } })) grupoDoItem.set(i.id, i.grupo ?? '');
+      for (const c of janela) {
+        const conjunto = c.itens.length !== 1;
+        const grupo = conjunto ? null : grupoDoItem.get(c.itens[0]) ?? '';
+        const proposta = canonico(c.proposta ?? {});
+        if (busca && !normalizarBusca(`${c.problema} ${grupo ?? ''} ${rotuloTipoCaso(c.tipo)} ${proposta}`).includes(busca)) continue;
+        const chave = conjunto ? `c:${c.id}` : `g:${createHash('sha1').update(`${c.camada}\u0000${c.tipo}\u0000${grupo}\u0000${proposta}`).digest('hex').slice(0, 24)}`;
+        if (chaveF && chave !== chaveF) continue;
+        totalCasos++;
+        const atual = canonico(c.atual ?? {});
+        let g = grupos.get(chave);
+        if (!g) {
+          g = { chave, camada: c.camada, tipo: c.tipo, grupo, conjunto, problema: c.problema, problemaVaria: false, proposta: (c.proposta as Json) ?? {}, atual: (c.atual as Json) ?? {}, atualCanon: atual, atualVaria: false, casos: 0, itens: 0, ids: [], situacoes: {} };
+          grupos.set(chave, g);
+        }
+        g.casos++;
+        g.itens += c.itens.length;
+        if (!g.problemaVaria && g.problema !== c.problema) g.problemaVaria = true;
+        if (!g.atualVaria && g.atualCanon !== atual) g.atualVaria = true;
+        if (chaveF || g.ids.length < IDS_POR_GRUPO) g.ids.push(c.id);
+        g.situacoes[c.situacao] = (g.situacoes[c.situacao] ?? 0) + 1;
+      }
+      if (janela.length < JANELA_AGRUPAR) break;
+    }
+    const saida = ({ atualCanon: _a, atualVaria, ids, ...g }: GrupoDeCasos, todos: boolean) => ({ // eslint-disable-line @typescript-eslint/no-unused-vars
+      ...g, atual: atualVaria ? null : g.atual, atualVaria, ids: todos ? ids : ids.slice(0, IDS_POR_GRUPO), idsCompletos: todos || ids.length >= g.casos,
+    });
+    if (chaveF) {
+      const g = grupos.get(chaveF);
+      if (!g) throw new NotFoundException('Grupo de casos não encontrado com estes filtros (os casos podem ter sido decididos). Recarregue a lista.');
+      const mostrar = g.ids.slice(0, CASOS_DO_GRUPO);
+      const linhas = await this.prisma.sanCaso.findMany({ where: { id: { in: mostrar } }, select: { id: true, camada: true, tipo: true, itens: true, problema: true, situacao: true, versao: true, origem: true } });
+      const itens = new Map<string, { codigo: string; descricao: string; grupo: string | null }>();
+      const primeiros = [...new Set(linhas.map((c) => c.itens[0]).filter(Boolean))];
+      for (const lote of fatiar(primeiros, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, codigo: true, descricao: true, grupo: true } })) itens.set(i.id, i);
+      const ordem = new Map(mostrar.map((id, i) => [id, i] as const));
+      const casos = linhas.sort((a, b) => ordem.get(a.id)! - ordem.get(b.id)!).map(({ itens: ids, ...resto }) => {
+        const i = itens.get(ids[0]);
+        return { ...resto, qtdItens: ids.length, item: i ? { codigo: i.codigo, descricao: i.descricao, grupo: i.grupo } : null };
+      });
+      return { grupo: { ...saida(g, true), todosIds: g.ids }, casos };
+    }
+    const ordemCamada = (c: string) => { const i = (CAMADAS as readonly string[]).indexOf(c); return i < 0 ? CAMADAS.length : i; };
+    const lista = [...grupos.values()].sort((a, b) => b.casos - a.casos || ordemCamada(a.camada) - ordemCamada(b.camada) || a.camada.localeCompare(b.camada)
+      || a.tipo.localeCompare(b.tipo) || (a.grupo ?? '').localeCompare(b.grupo ?? '') || a.chave.localeCompare(b.chave));
+    const pagina = lista.slice(inicio, inicio + limite).map((g) => saida(g, false));
+    let tipos: { tipo: string; n: number }[] | undefined;
+    if (!inicio && !busca) {
+      const { tipo: _t, ...semTipo } = where; // eslint-disable-line @typescript-eslint/no-unused-vars
+      const gb = await this.prisma.sanCaso.groupBy({ by: ['tipo'], where: semTipo as never, _count: { _all: true } });
+      tipos = gb.map((x) => ({ tipo: x.tipo, n: x._count._all })).sort((a, b) => b.n - a.n || a.tipo.localeCompare(b.tipo));
+    }
+    return { grupos: pagina, totalGrupos: lista.length, totalCasos, proximo: inicio + limite < lista.length ? String(inicio + limite) : null, ...(tipos ? { tipos } : {}) };
+  }
+
+  /** O `where` da lista de casos (camada, situação, grupo do item pela célula, tipo, origem, item), para a leitura agrupada. */
+  private async filtroDosCasos(projetoId: string, f: FiltroCasos): Promise<Json> {
+    const camadaF = paramTexto(f.camada, 'camada');
+    const situacaoF = paramTexto(f.situacao, 'situacao');
+    const grupoF = paramTexto(f.grupo, 'grupo');
+    const where: Json = { projeto_id: projetoId };
+    if (camadaF) where.camada = validarCamada(camadaF);
+    const sits = (situacaoF ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (sits.length) where.situacao = sits.length === 1 ? sits[0] : { in: sits };
+    if (grupoF) {
+      const cel = await this.prisma.sanCelula.findMany({
+        where: { projeto_id: projetoId, grupo: grupoF === '(sem grupo)' ? '' : grupoF, caso_id: { not: null }, ...(camadaF ? { camada: validarCamada(camadaF) } : {}) },
+        select: { caso_id: true }, distinct: ['caso_id'],
+      });
+      where.id = { in: [...new Set(cel.map((c) => c.caso_id as string))] };
+    }
+    const tipo = paramTexto(f.tipo, 'tipo'); const origem = paramTexto(f.origem, 'origem'); const itemId = paramTexto(f.item_id, 'item_id');
+    if (tipo) where.tipo = tipo;
+    if (origem) where.origem = origem;
+    if (itemId) where.itens = { has: itemId };
+    return where;
   }
 
   async obter(id: string) {

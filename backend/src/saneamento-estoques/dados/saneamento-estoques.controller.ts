@@ -4,7 +4,7 @@ import { AuthUser } from '../../auth/auth.types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissao } from '../../permissoes/permissao.decorator';
 import type { ResultadoCamada } from '../tipos';
-import { SanCasosService, type EntradaAprovar, type EntradaLote, type EntradaLoteDecisao, type FiltroCasos } from './casos.service';
+import { SanCasosService, type EntradaAprovar, type EntradaLote, type EntradaLoteDecisao, type FiltroCasos, type FiltroCasosAgrupados } from './casos.service';
 import { SanImportacaoService, type EscolhaIncorporar } from './importacao.service';
 import { SanImpactosService, type EntradaImpacto, type EntradaVinculo, type FiltroImpactos } from './impactos.service';
 import { SanItensService, type FiltroItens } from './itens.service';
@@ -114,6 +114,9 @@ export class SaneamentoEstoquesController {
   registrar(@Param('id') id: string, @Body() r: ResultadoCamada) { return this.casos.registrarResultado(id, r); }
   @Get('projetos/:id/casos')
   listarCasos(@Param('id') id: string, @Query() q: FiltroCasos) { return this.casos.listar(id, q); }
+  /** Casos iguais agrupados (camada, tipo, grupo do item, proposta); com `chave`, o grupo com todos os ids e as linhas dos casos. */
+  @Get('projetos/:id/casos/agrupados')
+  casosAgrupados(@Param('id') id: string, @Query() q: FiltroCasosAgrupados) { return this.casos.agrupados(id, q); }
   @Post('projetos/:id/casos/lote/previa')
   lotePrevia(@Param('id') id: string, @Body() b: EntradaLote) { return this.casos.lotePrevia(id, b ?? {}); }
   @Post('projetos/:id/casos/lote/aprovar')
