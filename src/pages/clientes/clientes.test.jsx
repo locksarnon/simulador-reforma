@@ -50,7 +50,7 @@ describe("Serviços contratados", () => {
     expect(html).toContain("Créditos de PIS e Cofins"); // consultoria vinculada à EXTRA
     expect(html).toContain("Maria"); // responsável do BPO
     expect(html).toContain("090 Extra Agro (teste)");
-    expect(html).toContain("3 de 3 empresas");
+    expect(html).toContain("3 linhas"); // rodapé da tabela: sem filtro, todas as empresas
   });
 
   it("empresa sem serviço mostra o atalho Definir no BPO e Vincular na consultoria (só com CNPJ)", () => {
@@ -61,7 +61,7 @@ describe("Serviços contratados", () => {
 
   it("tem busca, filtro de carteira e de grupo, e a marcação para definir vários de uma vez", () => {
     const html = renderizar(<ServicosContratadosPagina />);
-    expect(html).toContain('placeholder="Nome, código ou CNPJ"');
+    expect(html).toContain('placeholder="Buscar em todas as colunas"');
     expect(html.match(/type="search"/g)).toHaveLength(1); // a busca da página substitui a busca interna da tabela
     expect(html).not.toMatch(/>\s*Atualizar\s*</);
     expect(html).toContain("Carteira: todas");

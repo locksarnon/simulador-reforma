@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
+import AvisoFalhaAtualizar from "@/components/AvisoFalhaAtualizar";
 import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { campoBarraCls } from "@/lib/estiloTabela";
 import DialogoTarefa from "@/components/tarefas/DialogoTarefa";
@@ -16,9 +17,8 @@ import DialogoGerar from "@/components/tarefas/DialogoGerar";
 import SeletorDeEmpresa from "@/components/SeletorDeEmpresa";
 import { useColaboradores } from "@/lib/useTags";
 import { useEmpresaEmFoco } from "@/lib/EmpresaEmFoco";
-import { plural } from "@/lib/plural";
 import {
-  descreverRecorrencia, ESCOPOS, filtrarTarefas, PRIORIDADES, situacaoDoPrazo, STATUS_ABERTOS, TOM_DA_PRIORIDADE, TOM_DO_PRAZO,
+  casaTextoDaTarefa, descreverRecorrencia, ESCOPOS, filtrarTarefas, PRIORIDADES, situacaoDoPrazo, STATUS_ABERTOS, TOM_DA_PRIORIDADE, TOM_DO_PRAZO,
 } from "@/lib/tarefas";
 
 const SITUACOES_TAREFA = { ABERTA: "A fazer", EM_ANDAMENTO: "Em andamento", CONCLUIDA: "Concluída", CANCELADA: "Cancelada" };
@@ -41,12 +41,14 @@ function AbaTarefas({ user, empresas, colaboradores }) {
   const [filtros, setFiltros] = useState({ busca: "", responsavel: "", empresa: emFoco || "", atalho: "" });
   const [dialogo, setDialogo] = useState(null);
   const lista = useQuery({ queryKey: ["tarefas", grupo], queryFn: () => api.get("/tarefas", { status: grupo, limite: 1000 }), refetchOnWindowFocus: true });
-  const resumo = useQuery({ queryKey: ["tarefas", "resumo"], queryFn: () => api.get("/tarefas/resumo") });
+  // Os cartões também se atualizam ao voltar para a aba, junto com a lista.
+  const resumo = useQuery({ queryKey: ["tarefas", "resumo"], queryFn: () => api.get("/tarefas/resumo"), refetchOnWindowFocus: true });
   const empresaPorId = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas]);
   const pessoaPorId = useMemo(() => new Map(colaboradores.map((c) => [c.id, c.name || c.email])), [colaboradores]);
   const nomeDaEmpresa = (id) => empresaPorId.get(id)?.razao_social || "";
+  // O texto da busca fica com a tabela: todas as colunas (descrição, competência, prioridade…) + título, descrição e empresa.
   const tarefas = useMemo(
-    () => filtrarTarefas(lista.data, filtros, { usuarioId: user?.id, nomeDaEmpresa }),
+    () => filtrarTarefas(lista.data, { ...filtros, busca: "" }, { usuarioId: user?.id, nomeDaEmpresa }),
     [lista.data, filtros, user?.id, empresaPorId],
   );
   const mudar = (chave, valor) => setFiltros((f) => ({ ...f, [chave]: valor }));
@@ -91,11 +93,13 @@ function AbaTarefas({ user, empresas, colaboradores }) {
         </div>
 
         {lista.isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
-        {lista.error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
-        {!lista.isLoading && !lista.error && (
+        {lista.error && !lista.data && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
+        {lista.error && lista.data && <AvisoFalhaAtualizar aoTentar={recarregar} />}
+        {!lista.isLoading && lista.data && (
           <TabelaPadrao
             id="bpo-tarefas" ariaLabel="Tarefas" linhas={tarefas}
-            busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Título ou empresa", rotulo: "Buscar por título ou empresa" }}
+            busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Buscar em todas as colunas", rotulo: "Buscar tarefas em todas as colunas (título, empresa, descrição, competência…)", corresponde: (t, texto) => casaTextoDaTarefa(t, texto, nomeDaEmpresa) }}
+            totalSemFiltro={(lista.data || []).length}
             filtrosExtras={<>
               <select aria-label="Responsável" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.responsavel} onChange={(e) => mudar("responsavel", e.target.value)}>
                 <option value="">Responsável: todos</option><option value="eu">Eu</option><option value="sem">Sem responsável</option>
@@ -133,7 +137,6 @@ function AbaTarefas({ user, empresas, colaboradores }) {
             ]}
           />
         )}
-        <p className="text-xs text-muted-foreground">{tarefas.length} de {plural((lista.data || []).length, "tarefa", "tarefas")}.</p>
       </div>
       {dialogo && <DialogoTarefa key={dialogo.tarefa?.id || "nova"} tarefa={dialogo.tarefa} empresas={empresas} colaboradores={colaboradores} usuarioId={user?.id} aoFechar={() => setDialogo(null)} />}
     </div>

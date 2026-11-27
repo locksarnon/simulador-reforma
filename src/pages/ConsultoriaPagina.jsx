@@ -96,7 +96,8 @@ export default function ConsultoriaPagina({ carteira = false }) {
     const correspondem = pp.filter((p) => (!filtroResponsavel || p.responsavel === filtroResponsavel)
       && (!filtroSituacao || p.situacao === filtroSituacao));
     const semProjeto = ss.some((s) => (!area || s.area === area) && (!filtroServico || s.id === filtroServico) && !projetosDe(c, s.id).length);
-    return !c.arquivado_em && possuiServico && (!publico || c.publico === publico) && buscaCliente(c, busca)
+    // O texto da busca fica com a tabela (todas as colunas + nome ou documento só com letras e números, em busca.corresponde).
+    return !c.arquivado_em && possuiServico && (!publico || c.publico === publico)
       && (filtroSituacao === "SEM_PROJETO" ? !filtroResponsavel && semProjeto : (!filtroSituacao && !filtroResponsavel) || correspondem.length > 0);
   }).map((c) => ({ ...c, idTabela: chave(c) }));
   const cliente = todos.find((c) => c.id === clienteId && c.publico === tipoCliente && !c.arquivado_em);
@@ -206,7 +207,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
       {!erro && !pendente && <>
         {!carteira && <div className="flex flex-wrap gap-2">{filtrosDeCatalogo}</div>}
         {carteira ? <TabelaPadrao id="carteira-consultoria" ariaLabel={titulo} linhas={lista.map((c) => ({ ...c, id: c.idTabela, clienteOriginal: c }))} vazio="Nenhum cliente com esses filtros."
-          busca={{ valor: busca, aoMudar: setBusca, placeholder: "Nome ou documento", rotulo: "Buscar cliente por nome ou documento" }}
+          busca={{ valor: busca, aoMudar: setBusca, placeholder: "Buscar em todas as colunas", rotulo: "Buscar cliente em todas as colunas (nome, documento, serviço, responsável…)", corresponde: buscaCliente }}
           filtrosExtras={<>{filtrosDeCatalogo}
             <select aria-label="Serviço" className={carteira ? campoCompacto + " w-[9rem]" : campo} value={filtroServico} onChange={(e) => setFiltroServico(e.target.value)}><option value="">Serviço: todos</option>{candidatos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select>
             <select aria-label="Responsável" className={carteira ? campoCompacto + " w-[8rem]" : campo} value={filtroResponsavel} onChange={(e) => setFiltroResponsavel(e.target.value)}><option value="">Responsável: todos</option>{[...new Set(trabalhos.map((p) => p.responsavel).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}</select>

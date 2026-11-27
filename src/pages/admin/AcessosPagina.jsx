@@ -42,7 +42,7 @@ export function RegistroDeAcesso() {
       {data && (
         <TabelaPadrao
           id="admin-registro-acesso" ariaLabel="Registro de acesso" titulo="Registro de acesso" linhas={data}
-          busca={{ valor: filtros.email, aoMudar: (v) => setFiltros((f) => ({ ...f, email: v })), placeholder: "E-mail", rotulo: "Buscar pelo e-mail" }}
+          busca={{ valor: filtros.email, aoMudar: (v) => setFiltros((f) => ({ ...f, email: v })), placeholder: "E-mail", rotulo: "Buscar pelo e-mail", noServidor: true }}
           filtrosExtras={<select aria-label="Resultado" className={campoBarraCls} value={filtros.resultado} onChange={(e) => setFiltros((f) => ({ ...f, resultado: e.target.value }))}>
             <option value="">Resultado: todos</option>{Object.entries(RESULTADOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>} vazio="Nenhuma tentativa de entrada com esses filtros." ordemInicial={{ chave: "createdAt", dir: -1 }}

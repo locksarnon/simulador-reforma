@@ -45,6 +45,7 @@ export default function EmpresaWorkroom() {
   });
   const painelLiberado = !isLoadingOperacoes && (operacoesDaEmpresa?.length || 0) > 0;
   const estaNoPainel = location.pathname.endsWith("/painel");
+  const abaAtual = tabs.find((t) => location.pathname.split("/").includes(t.to));
   // Só redireciona quando a checagem já terminou E deu vazio — enquanto
   // carrega, mostra um spinner em vez do conteúdo (evita "piscar" o Painel
   // antes de decidir se ele deveria estar bloqueado).
@@ -64,6 +65,8 @@ export default function EmpresaWorkroom() {
           { label: "Clientes", to: "/" },
           ...(grupo?.tipo === "Cliente individual" ? [] : [{ label: grupo?.nome || "Grupo", to: `/workroom/${grupoId}` }]),
           { label: isLoading ? "Carregando..." : (empresa?.razao_social || "Empresa"), to: empresaId ? `/clientes/${empresaId}` : undefined },
+          // A aba aberta fecha a trilha (sem link); o nome da empresa continua levando à ficha do cliente.
+          ...(abaAtual ? [{ label: abaAtual.label }] : []),
         ]}
         title={isLoading ? "Carregando..." : empresa?.razao_social}
         subtitle={empresa ? `${empresa.id_empresa} · ${empresa.regime_atual || "Regime não informado"}` : ""}

@@ -76,8 +76,8 @@ describe("Clientes: a lista", () => {
   it("barra única: uma busca só (a da página), sem Atualizar, selects com o sentido dentro, tudo na barra da tabela", () => {
     const html = renderizar(<ClientesPagina />);
     expect(html.match(/type="search"/g)).toHaveLength(1);
-    expect(html).toContain('placeholder="Nome, CNPJ/CPF, cidade ou grupo"');
-    expect(html).not.toContain("Buscar em todas as colunas");
+    expect(html).toContain('placeholder="Buscar em todas as colunas"'); // a caixa da página busca em todas as colunas (e-mail, etiqueta…)
+    expect(html).toContain("Buscar clientes em todas as colunas");
     expect(html).not.toMatch(/>\s*Atualizar\s*</);
     expect(html).not.toContain("Planilha cadastral"); // a ação do cabeçalho era a mesma de "Importar planilha"
     for (const [rotulo, primeira] of [["Regime", "Regime: todos"], ["UF", "UF: todas"], ["Colaborador", "Colaborador: todos"]]) {

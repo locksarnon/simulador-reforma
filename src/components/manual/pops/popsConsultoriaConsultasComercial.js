@@ -40,7 +40,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     caminho: "Menu > Consultoria Tributária > Carteira de Consultoria",
     antes: [],
     passos: [
-      { acao: "Use a barra acima da tabela, numa linha só: a busca por nome ou documento e as caixas Público (PF e PJ, Pessoa Física ou Pessoa Jurídica), Área, Serviço, Responsável e Situação.", detalhe: "Em Situação, “Contratado · ainda não iniciado” mostra quem tem o serviço sem nenhum projeto aberto." },
+      { acao: "Use a barra acima da tabela, numa linha só: a busca (procura em todas as colunas, inclusive nome e documento) e as caixas Público (PF e PJ, Pessoa Física ou Pessoa Jurídica), Área, Serviço, Responsável e Situação.", detalhe: "Em Situação, “Contratado · ainda não iniciado” mostra quem tem o serviço sem nenhum projeto aberto." },
       { acao: "Clique na linha do cliente (ou no nome) para abrir os trabalhos dele." },
       { acao: "Em Projetos em andamento, clique no cartão do projeto (em qualquer ponto dele) para continuar.", detalhe: "Serviços contratados sem projeto aparecem como “Contratado · ainda não iniciado”: clique no cartão para abrir o primeiro projeto." },
       { acao: "Para ver os encerrados, abra Projetos concluídos ou cancelados e clique no cartão do projeto." },
@@ -64,7 +64,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
       "Projetos novos são abertos pela Carteira de Consultoria (POP-CON-01); o botão Abrir Carteira de Consultoria, no topo da tela, leva até lá.",
     ],
     passos: [
-      { acao: "No campo de busca da barra acima da lista, digite o nome do projeto ou da empresa.", detalhe: "Na mesma linha ficam “Situação”, “Exclusão pendente” e o atalho “Carteira de Consultoria”." },
+      { acao: "No campo de busca da barra acima da lista, digite o nome do projeto, da empresa ou outro dado da linha (a busca procura em todas as colunas).", detalhe: "Na mesma linha ficam “Situação”, “Exclusão pendente” e o atalho “Carteira de Consultoria”." },
       { acao: "Em Situação, escolha Em andamento e pausados (padrão), Todos ou uma situação (Em andamento, Pausado, Concluído, Cancelado).", detalhe: "A coluna Prazo mostra “· atrasado” quando o prazo passou e o projeto ainda está aberto." },
       { acao: "Clique na linha do projeto para abri-lo." },
       { acao: "No topo do projeto, mude a situação na caixa de seleção ao lado dos botões.", detalhe: "A mudança é gravada na hora. Em serviços cujo roteiro ainda está em desenvolvimento, “Em andamento” aparece como “Em coleta de documentos”." },
@@ -474,7 +474,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     antes: [],
     passos: [
       { acao: "Veja os indicadores do topo: Leads, Novos (sem contato), Perfil consultoria e Score médio." },
-      { acao: "Filtre pela busca (nome, e-mail ou empresa), pelo destino (Consultoria, BPO fiscal, Parceria, Nutrição) e pelo status." },
+      { acao: "Filtre pela busca (procura em todas as colunas: nome, e-mail, empresa, cargo…), pelo destino (Consultoria, BPO fiscal, Parceria, Nutrição) e pelo status." },
       { acao: "Clique na linha do lead para abrir o detalhe.", detalhe: "Mostra o resultado da ferramenta que ele usou e se consentiu receber a newsletter." },
       { acao: "Escreva em Notas do contato.", detalhe: "A nota é salva ao sair do campo." },
       { acao: "Atualize o Status na própria linha: Novo, Contatado, Qualificado, Reunião, Fechado ou Perdido." },
@@ -575,7 +575,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     caminho: "Menu > Comercial > Propostas e honorários > aba Propostas",
     antes: [],
     passos: [
-      { acao: "Ache a proposta pela busca (cliente ou número) ou pelo filtro Situação." },
+      { acao: "Ache a proposta pela busca (procura em todas as colunas: cliente, número, serviço…) ou pelo filtro Situação." },
       { acao: "Clique no ícone de PDF na coluna Ações para baixar a proposta.", detalhe: "O PDF sai com a logo do escritório." },
       { acao: "Depois de mandar ao cliente, clique em enviada na coluna Marcar como." },
       { acao: "Com a resposta, clique em aceita (e confirme em Aceita) ou em recusada." },

@@ -58,7 +58,7 @@ function acharElemento(no, teste) {
 describe("barra única da tabela padrão", () => {
   const barraDe = (html) => html.slice(html.indexOf("data-barra-lista"), html.indexOf("<table"));
 
-  it("busca controlada pela página: troca a caixa interna, mostra o valor e não filtra de novo as linhas", () => {
+  it("busca controlada pela página: troca a caixa interna, mostra o valor e a tabela também busca em todas as colunas", () => {
     const html = renderToString(<TabelaPadrao id="t-busca" colunas={COLUNAS} linhas={LINHAS} ariaLabel="Teste"
       busca={{ valor: "cuiaba", aoMudar: () => {}, placeholder: "Nome ou CNPJ", rotulo: "Buscar por nome ou CNPJ" }} />);
     expect(html).not.toContain("Buscar em todas as colunas");
@@ -67,7 +67,16 @@ describe("barra única da tabela padrão", () => {
     expect(html).toContain('value="cuiaba"');
     expect(html).toContain("Buscar por nome ou CNPJ");
     expect(html).toContain("Limpar filtros"); // a busca da página conta como filtro ligado
-    expect(html).toContain("3 linhas"); // quem filtra é a página: a tabela mostra as linhas que recebeu
+    expect(html).toContain("1 de 3 linhas"); // a tabela procura o texto em todas as colunas, como a busca interna
+    expect(html).toContain("Guia Cuiabá");
+    expect(html).not.toContain("Recibo Goiânia");
+  });
+
+  it("busca da página no servidor (noServidor): a tabela não filtra de novo as linhas que recebeu", () => {
+    const html = renderToString(<TabelaPadrao id="t-servidor" colunas={COLUNAS} linhas={LINHAS} ariaLabel="Teste"
+      busca={{ valor: "texto que só o servidor entende", aoMudar: () => {}, noServidor: true }} />);
+    expect(html).toContain(">3 linhas<");
+    expect(html).toContain("Recibo Goiânia");
   });
 
   it("a caixa de busca devolve o texto digitado e o X limpa", () => {

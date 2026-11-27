@@ -14,7 +14,6 @@ import { baixarPdfDaProposta } from "@/lib/propostaPdf";
 import { brl, COMPLEXIDADES, MODULOS_HONORARIO, REGIMES_HONORARIO, SERVICOS, servicosOferecidos, STATUS, TOM_DO_STATUS } from "@/lib/propostas";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export function AbaPropostas({ usuario, empresas }) {
   const qc = useQueryClient();
@@ -22,7 +21,8 @@ export function AbaPropostas({ usuario, empresas }) {
   const [filtro, setFiltro] = useState({ status: "", busca: "" });
   const [editor, setEditor] = useState(null);
   const { data = [], isLoading, error } = useQuery({ queryKey: ["propostas", "lista"], queryFn: () => api.get("/propostas") });
-  const lista = useMemo(() => data.filter((p) => (!filtro.status || p.status === filtro.status) && (!filtro.busca || semAcento(p.cliente_nome).includes(semAcento(filtro.busca)) || String(p.numero) === filtro.busca.trim())), [data, filtro]);
+  // O texto da busca fica com a tabela (todas as colunas + o número exato, sem o ponto de milhar).
+  const lista = useMemo(() => data.filter((p) => !filtro.status || p.status === filtro.status), [data, filtro.status]);
   const recarregar = () => qc.invalidateQueries({ queryKey: ["propostas"] });
   const falha = (t) => (e) => toast({ title: t, description: e.message, variant: "destructive" });
   const status = useMutation({
@@ -45,7 +45,8 @@ export function AbaPropostas({ usuario, empresas }) {
       {!isLoading && !error && (
         <TabelaPadrao
           id="propostas-lista" ariaLabel="Propostas" linhas={lista} ordemInicial={{ chave: "numero", dir: -1 }}
-          busca={{ valor: filtro.busca, aoMudar: (v) => setFiltro((f) => ({ ...f, busca: v })), placeholder: "Cliente ou número", rotulo: "Buscar por cliente ou número" }}
+          busca={{ valor: filtro.busca, aoMudar: (v) => setFiltro((f) => ({ ...f, busca: v })), placeholder: "Buscar em todas as colunas", rotulo: "Buscar propostas em todas as colunas (cliente, número, serviço…)", corresponde: (p, texto) => String(p.numero) === texto.trim() }}
+          totalSemFiltro={data.length}
           filtrosExtras={<select aria-label="Situação" className={campoBarraCls} value={filtro.status} onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value }))}><option value="">Situação: todas</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
           acoes={<button type="button" onClick={() => setEditor({ proposta: null })} className="botao-acao inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova proposta</button>}
           vazio={data.length ? "Nenhuma proposta com esses filtros." : "Nenhuma proposta ainda. Crie a primeira; a calculadora sugere o honorário do BPO."}

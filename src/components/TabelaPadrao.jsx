@@ -51,9 +51,10 @@ function chaveOrdenavel(col, linha) {
 }
 
 /** Ordena, filtra (busca geral e por coluna, sem acento) e devolve as linhas visíveis. Exportado para testes. */
-export function aplicarTabela(linhas, colunas, { busca = "", filtros = {}, ordem = null } = {}) {
+export function aplicarTabela(linhas, colunas, { busca = "", filtros = {}, ordem = null, corresponde = null } = {}) {
   const b = semAcento(busca).trim();
-  let l = linhas.filter((x) => (!b || colunas.some((c) => semAcento(textoDaColuna(c, x)).includes(b))) && Object.entries(filtros).every(([k, f]) => {
+  // Busca geral: o texto em qualquer coluna (mesmo oculta) OU a regra própria da página (ex.: CNPJ só com dígitos, grupo, código).
+  let l = linhas.filter((x) => (!b || colunas.some((c) => semAcento(textoDaColuna(c, x)).includes(b)) || !!corresponde?.(x, busca)) && Object.entries(filtros).every(([k, f]) => {
     if (!String(f ?? "").trim()) return true;
     const c = colunas.find((y) => y.chave === k);
     return !c || semAcento(textoDaColuna(c, x)).includes(semAcento(f).trim());
@@ -96,7 +97,9 @@ function gravarPreferencia(id, v) {
  * com 5 linhas ou mais ganha a busca "Buscar nesta lista".
  * Barra única: `filtrosExtras` + busca + Filtros por coluna + Colunas + Exportar + `acoes` numa linha só (quebra só em tela
  * estreita). `busca={{ valor, aoMudar, placeholder, rotulo }}` troca a busca interna pela da página (busca no servidor ou
- * guardada em lista salva): a tabela não filtra por ela e não mostra uma segunda caixa.
+ * guardada em lista salva) e não mostra uma segunda caixa. A tabela continua buscando o texto em todas as colunas, somado à regra
+ * da página em `busca.corresponde(linha, texto)` (a página NÃO deve filtrar o texto antes); `busca.noServidor: true` = quem
+ * filtra é o servidor e a tabela não filtra de novo. `totalSemFiltro`: total antes dos filtros da página, para o rodapé "N de M".
  */
 /** Ordem de partida: a indicada, senão a primeira coluna de texto em ordem alfabética. */
 export function ordemPadrao(colunas, ordemInicial) {
@@ -125,25 +128,38 @@ const LARGURA_MARCAR = 32;
 const LARGURA_DOCUMENTOS = 120;
 const CHAVE_DOCUMENTOS = "__documentos";
 
+/**
+ * Assinatura do que está desenhado (colunas, página, linhas mostradas e o texto delas): a medição das larguras só roda de novo
+ * quando ela muda. Arrays novos com o mesmo conteúdo (a página recria colunas e linhas a cada render) dão a mesma assinatura.
+ */
+export function assinaturaDaTela({ chaveVisiveis, pagina, tamanho, total, exibidas, visiveis, chaveLinha }) {
+  const linhas = exibidas.map((l, i) => `${chaveLinha(l, i)}:${visiveis.map((c) => textoDaColuna(c, l)).join("|")}`).join("¦");
+  return [chaveVisiveis, pagina, tamanho, total, linhas].join("#");
+}
+
 /** Mede a largura natural de cada título (e da sua coluna) com a tabela por um instante em layout automático, sem a linha de filtros. */
-function medirTabela(t) {
+export function medirTabela(t) {
   if (!t?.tHead?.rows?.[0] || t.getBoundingClientRect().width === 0) return null;
   const ths = [...t.tHead.rows[0].cells].filter((c) => c.dataset.coluna);
   const filtros = t.tHead.querySelector("tr.linha-filtros");
-  const antes = [t.style.tableLayout, t.style.width, t.style.minWidth, filtros?.style.display];
+  // A mensagem de lista vazia ocupa todas as colunas (colSpan) e alargaria a primeira: fica fora da medida.
+  const vazia = t.tBodies?.[0]?.querySelector("tr.linha-vazia");
+  const antes = [t.style.tableLayout, t.style.width, t.style.minWidth, filtros?.style.display, vazia?.style.display];
   const largs = ths.map((th) => th.style.width);
   t.style.tableLayout = "auto"; t.style.width = "max-content"; t.style.minWidth = "0";
   if (filtros) filtros.style.display = "none";
+  if (vazia) vazia.style.display = "none";
   ths.forEach((th) => { th.style.width = ""; });
   const saida = {};
   for (const th of ths) saida[th.dataset.coluna] = Math.ceil(th.getBoundingClientRect().width);
   ths.forEach((th, i) => { th.style.width = largs[i]; });
   [t.style.tableLayout, t.style.width, t.style.minWidth] = antes;
   if (filtros) filtros.style.display = antes[3];
+  if (vazia) vazia.style.display = antes[4];
   return saida;
 }
 
-export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", filtrosExtras, acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel, ordemInicial, aoClicarLinha, selecao, filtrosVisiveis = true, rodape, simples = false, totais, classeTabela = "", busca: buscaExterna }) {
+export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", filtrosExtras, acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel, ordemInicial, aoClicarLinha, selecao, filtrosVisiveis = true, rodape, simples = false, totais, classeTabela = "", busca: buscaExterna, totalSemFiltro }) {
   const pref = useMemo(() => lerPreferencia(id), [id]);
   const todas = colunas.map((c) => c.chave);
   const [ordemColunas, setOrdemColunas] = useState(() => {
@@ -152,8 +168,10 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
   });
   const [ocultas, setOcultas] = useState(() => (pref?.ocultas || []).filter((k) => todas.includes(k)));
   const [buscaInterna, setBuscaInterna] = useState("");
-  const busca = buscaExterna ? "" : buscaInterna;
   const textoBusca = buscaExterna ? buscaExterna.valor ?? "" : buscaInterna;
+  // Busca da página: a tabela também procura o texto em todas as colunas, salvo quando o servidor já filtrou.
+  const busca = buscaExterna?.noServidor ? "" : textoBusca;
+  const corresponde = buscaExterna && !buscaExterna.noServidor ? buscaExterna.corresponde : null;
   const setBusca = buscaExterna ? (v) => buscaExterna.aoMudar(v) : setBuscaInterna;
   const [filtros, setFiltros] = useState({});
   const [verFiltros, setVerFiltros] = useState(filtrosVisiveis && !simples);
@@ -171,8 +189,9 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
   useEffect(() => { setPagina(0); }, [textoBusca, JSON.stringify(filtros), ordem?.chave, ordem?.dir, tamanho]);
 
   const visiveis = ordemColunas.map((k) => colunas.find((c) => c.chave === k)).filter((c) => c && !ocultas.includes(c.chave));
-  const filtradas = useMemo(() => aplicarTabela(linhas, colunas, { busca, filtros, ordem }), [linhas, colunas, busca, filtros, ordem]);
+  const filtradas = useMemo(() => aplicarTabela(linhas, colunas, { busca, filtros, ordem, corresponde }), [linhas, colunas, busca, filtros, ordem, corresponde]);
   const total = filtradas.length;
+  const base = Math.max(totalSemFiltro ?? 0, linhas.length);
   const paginas = tamanho ? Math.max(1, Math.ceil(total / tamanho)) : 1;
   const exibidas = useMemo(() => (tamanho ? filtradas.slice(pagina * tamanho, pagina * tamanho + tamanho) : filtradas), [filtradas, tamanho, pagina]);
   const temFiltro = !!textoBusca || Object.values(filtros).some((f) => String(f ?? "").trim());
@@ -186,7 +205,10 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
     larguras.definirAuto(m, { crescer: ultimaMedida.current === chaveVisiveis });
     ultimaMedida.current = chaveVisiveis;
   }, [chaveVisiveis, larguras.definirAuto]);
-  useEfeitoDeLayout(() => { medir(); }, [medir, exibidas, larguras.versao]);
+  // Mede de novo só quando muda o que está na tela (colunas, página, linhas mostradas e o texto delas), não a cada render: as
+  // páginas passam colunas e linhas novas a cada render e a identidade dos arrays mudaria sempre.
+  const assinatura = assinaturaDaTela({ chaveVisiveis, pagina, tamanho, total: linhas.length, exibidas, visiveis, chaveLinha });
+  useEfeitoDeLayout(() => { medir(); }, [medir, assinatura, larguras.versao]);
   useAoRedimensionar(area, medir);
   const fixo = larguras.medidas || larguras.personalizadas;
   const larguraDe = (c) => larguras.larguraDe(c.chave, LARGURA_NOVA);
@@ -294,7 +316,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
             )}
           </thead>
           <tbody>
-            {exibidas.length === 0 && <tr><td colSpan={visiveis.length + extras} className="px-3 py-6 text-center text-sm text-muted-foreground">{temFiltro ? "Nenhuma linha com esses filtros." : vazio}</td></tr>}
+            {exibidas.length === 0 && <tr className="linha-vazia"><td colSpan={visiveis.length + extras} className="px-3 py-6 text-center text-sm text-muted-foreground">{temFiltro ? "Nenhuma linha com esses filtros." : vazio}</td></tr>}
             {exibidas.map((l, i) => {
               const k = chaveLinha(l, i);
               return (
@@ -322,7 +344,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
       {rodape}
 
       {!simples && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">{total === linhas.length ? plural(total, "linha", "linhas") : `${total} de ${plural(linhas.length, "linha", "linhas")}`}</span>
+        <span className="tabular-nums">{total === base ? plural(total, "linha", "linhas") : `${total} de ${plural(base, "linha", "linhas")}`}</span>
         <label className="ml-auto inline-flex items-center gap-1">Linhas por página
           <select value={tamanho} onChange={(e) => setTamanho(Number(e.target.value))} className="rounded border border-border bg-background px-1 py-0.5">{TAMANHOS.map((t) => <option key={t} value={t}>{t || "Todas"}</option>)}</select>
         </label>

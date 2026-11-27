@@ -2,7 +2,7 @@ import { ADDONS, LINHAS_PIMS } from "@/lib/conhecimentoSistemas";
 import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
 import { SeletorErp, useErps } from "@/components/erps/erps";
 import { RAMOS_CADASTRO } from "@/lib/setoresReforma";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { Input } from "@/components/ui/input";
@@ -61,11 +61,17 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
   const erpsQ = useErps(open);
   const erps = erpsQ.data || [];
 
+  // O formulário é preenchido ao abrir (ou ao trocar de empresa), não a cada novo objeto `editing`: a lista da página se
+  // atualiza sozinha ao voltar para a aba e entrega um objeto novo da mesma empresa, o que apagaria o que está sendo digitado.
+  const editingAtual = useRef(editing);
+  editingAtual.current = editing;
+  const chaveEdicao = editing === "new" ? "new" : editing?.id ?? null;
   useEffect(() => {
     if (!open) return;
-    if (editing === "new") setForm({ ...empty, grupo: grupoNumero || "" });
-    else if (editing) setForm({ ...empty, ...editing, addons: editing.addons || [], addons_versoes: editing.addons_versoes || {} });
-  }, [open, editing, grupoNumero]);
+    const e = editingAtual.current;
+    if (e === "new") setForm({ ...empty, grupo: grupoNumero || "" });
+    else if (e) setForm({ ...empty, ...e, addons: e.addons || [], addons_versoes: e.addons_versoes || {} });
+  }, [open, chaveEdicao, grupoNumero]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setAddon = (id, k, v) => setForm(f => ({ ...f, addons_versoes: { ...(f.addons_versoes || {}), [id]: { ...(f.addons_versoes?.[id] || {}), [k]: v } } }));

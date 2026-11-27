@@ -142,7 +142,7 @@ export default function NovidadesLegais({ admin = false, normaInicial = "" }) {
       {isLoading ? <p className="text-sm text-muted-foreground inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Carregando…</p>
         : <TabelaDeNovidades itens={itens} admin={admin} onAgir={agir} ocupadoId={ocupadoId}
             vazio="Nenhuma novidade com estes filtros. A revisão semanal roda toda segunda-feira, às 5h."
-            busca={{ valor: q, aoMudar: setQ, placeholder: "Norma, ato ou assunto", rotulo: "Buscar por norma, ato ou assunto" }}
+            busca={{ valor: q, aoMudar: setQ, placeholder: "Norma, ato ou assunto", rotulo: "Buscar por norma, ato ou assunto", noServidor: true }}
             filtrosExtras={<>
               <select aria-label="Situação" value={status} onChange={(e) => setStatus(e.target.value)} className={campoBarraCls}>{STATUS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select>
               <select aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)} className={campoBarraCls}>
