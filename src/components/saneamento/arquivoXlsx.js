@@ -1,5 +1,6 @@
 // Planilhas geradas no navegador: a biblioteca exceljs só é carregada quando alguém pede um arquivo (não pesa no resto do sistema).
-// Toda aba leva a logo da FAL na linha 1 (regra da ferramenta, src/lib/marcaFal.js); o conteúdo começa abaixo dela.
+// Toda aba leva a logo da FAL na linha 1 (regra da ferramenta, src/lib/marcaFal.js); o conteúdo começa abaixo dela. Exceção: aba de carga no ERP
+// (`cargaNoErp`), sem a logo e com os títulos na linha 1.
 import { cabecalhoFalExcel } from "@/lib/marcaFal";
 
 export async function carregarExcelJS() {
@@ -17,9 +18,10 @@ export function baixarXlsx(buf, nomeArquivo) {
 /**
  * Aba de tabela no padrão: logo da FAL na linha 1, títulos (negrito) na linha seguinte, painel congelado até os títulos e filtro neles.
  * `colunas` = [[título, chave, largura]]. Depois, `ws.addRows(objetos)` escreve as linhas pelas chaves. Devolve o número da linha dos títulos.
+ * `cargaNoErp`: aba de carga no ERP — sem a logo, títulos na linha 1 (congelamento e filtro nela).
  */
-export function tabelaComLogo(wb, ws, logo, colunas, { xSplit = 0, quebrarTitulos = false } = {}) {
-  const linha = cabecalhoFalExcel(wb, ws, logo) + 1;
+export function tabelaComLogo(wb, ws, logo, colunas, { xSplit = 0, quebrarTitulos = false, cargaNoErp = false } = {}) {
+  const linha = cabecalhoFalExcel(wb, ws, logo, { cargaNoErp }) + 1;
   ws.columns = colunas.map(([, key, width]) => ({ key, width }));
   const cab = ws.addRow(colunas.map(([titulo]) => titulo));
   cab.font = { bold: true };

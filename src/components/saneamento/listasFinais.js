@@ -150,17 +150,24 @@ export function montarListas({ nomeProjeto, nomeBase, estado: estadoBruto, itens
   return { resumo, finalCorrigida, desduplicacoes, analises, candidatos, execucao, contagem };
 }
 
+/**
+ * `cargaNoErp`: listas de dados que voltam para o ERP (SAP DTW e parecidos esperam os títulos na linha 1) saem sem a logo da FAL, com os títulos na
+ * linha 1: a lista final corrigida (o cadastro saneado: código, descrição final, unidades, NCM), as desduplicações (código de origem → código
+ * mantido) e os candidatos à inativação (código a inativar). Resumo, Análises e Execução continuam com a logo.
+ */
 const ABAS = {
   resumo: { nome: "Resumo" },
-  final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade de estoque (atual)", "unidade", 16], ["Unidade de estoque (proposta)", "unidadeProposta", 18], ["Unidade de compra (proposta)", "unidadeCompra", 18], ["Itens por unidade de compra", "itensPorCompra", 16], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16], ["Execução", "execucao", 18]], fonte: "finalCorrigida" },
-  dedup: { nome: "Desduplicações", colunas: [["Grupo", "grupo", 28], ["Código de origem", "codigoOrigem", 14], ["Descrição de origem", "descricaoOrigem", 44], ["Unidade", "unidadeOrigem", 10], ["Saldo de origem", "saldoOrigem", 14], ["Ação", "acao", 26], ["Código mantido", "codigoDestino", 14], ["Descrição do mantido", "descricaoDestino", 44], ["Saldo do mantido", "saldoDestino", 14], ["Indicação", "nivel", 16], ["Pontuação de similaridade", "similaridade", 14], ["Motivos", "motivos", 50], ["Observação a registrar no mantido", "observacao", 30], ["Decisão", "decisao", 22], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "desduplicacoes" },
+  final: { nome: "Lista final corrigida", colunas: [["Código", "codigo", 14], ["Descrição original", "original", 46], ["Descrição final", "final", 46], ["Mudança", "mudanca", 20], ["Origem da correção", "origem", 22], ["Unidade de estoque (atual)", "unidade", 16], ["Unidade de estoque (proposta)", "unidadeProposta", 18], ["Unidade de compra (proposta)", "unidadeCompra", 18], ["Itens por unidade de compra", "itensPorCompra", 16], ["Grupo", "grupo", 30], ["NCM", "ncm", 14], ["Última movimentação", "ultima_mov", 16], ["Execução", "execucao", 18]], fonte: "finalCorrigida", cargaNoErp: true },
+  dedup: { nome: "Desduplicações", colunas: [["Grupo", "grupo", 28], ["Código de origem", "codigoOrigem", 14], ["Descrição de origem", "descricaoOrigem", 44], ["Unidade", "unidadeOrigem", 10], ["Saldo de origem", "saldoOrigem", 14], ["Ação", "acao", 26], ["Código mantido", "codigoDestino", 14], ["Descrição do mantido", "descricaoDestino", 44], ["Saldo do mantido", "saldoDestino", 14], ["Indicação", "nivel", 16], ["Pontuação de similaridade", "similaridade", 14], ["Motivos", "motivos", 50], ["Observação a registrar no mantido", "observacao", 30], ["Decisão", "decisao", 22], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "desduplicacoes", cargaNoErp: true },
   analises: { nome: "Análises", colunas: [["Critério", "criterio", 26], ["Grupo", "grupo", 28], ["Código", "codigo", 14], ["Descrição", "descricao", 44], ["Achado", "achado", 60], ["Proposta", "proposta", 44], ["Decisão", "decisao", 24], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "analises" },
-  candidatos: { nome: "Candidatos à inativação", colunas: [["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["Última movimentação", "ultima_mov", 16], ["Saldo em estoque", "saldo", 14], ["Critério de corte", "criterio", 44], ["Situação da inativação", "situacao", 44], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "candidatos" },
+  candidatos: { nome: "Candidatos à inativação", colunas: [["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 12], ["Grupo", "grupo", 30], ["Última movimentação", "ultima_mov", 16], ["Saldo em estoque", "saldo", 14], ["Critério de corte", "criterio", 44], ["Situação da inativação", "situacao", 44], ["Aprovador", "aprovador", 24], ["Data", "data", 12]], fonte: "candidatos", cargaNoErp: true },
   execucao: { nome: "Execução", colunas: COLUNAS_EXECUCAO, fonte: "execucao" },
 };
 export const ABAS_DISPONIVEIS = Object.entries(ABAS).map(([id, a]) => ({ id, nome: a.nome }));
+/** Nomes das abas de carga no ERP (sem a logo). */
+export const ABAS_DE_CARGA_NO_ERP = Object.values(ABAS).filter((a) => a.cargaNoErp).map((a) => a.nome);
 
-/** Monta o workbook com as abas pedidas (separado do download para poder ser testado). `logo` = logo da FAL (carregarLogoFal), no topo de cada aba. */
+/** Monta o workbook com as abas pedidas (separado do download para poder ser testado). `logo` = logo da FAL (carregarLogoFal), no topo de cada aba (menos nas de carga no ERP). */
 export function criarWorkbook(ExcelJS, listas, ids, logo = null) {
   const wb = new ExcelJS.Workbook(); wb.created = new Date();
   for (const id of ids) {
@@ -172,7 +179,7 @@ export function criarWorkbook(ExcelJS, listas, ids, logo = null) {
       ws.getColumn(1).font = { bold: true };
       continue;
     }
-    tabelaComLogo(wb, ws, logo, a.colunas);
+    tabelaComLogo(wb, ws, logo, a.colunas, { cargaNoErp: a.cargaNoErp === true });
     ws.addRows(listas[a.fonte]);
   }
   return wb;

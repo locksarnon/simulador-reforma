@@ -4,7 +4,9 @@
  *  - PDF (jsPDF): logoFalNasPaginasPdf, depois de desenhar o documento (logo no alto de TODAS as páginas);
  *  - Excel (exceljs): cabecalhoFalExcel em cada aba, antes de escrever a primeira linha (a logo ocupa a linha 1; o conteúdo começa abaixo);
  *  - impressão do navegador: o componente CabecalhoImpressaoFal (src/components/CabecalhoImpressaoFal.jsx).
- * CSV não leva imagem: fica de fora da regra.
+ * CSV não leva imagem: fica de fora da regra. Exceção aprovada: aba de dados feita para CARGA NO ERP (SAP DTW e parecidos esperam os títulos na
+ * linha 1) sai sem a logo — cabecalhoFalExcel(wb, ws, logo, { cargaNoErp: true }) devolve 0 e não reserva linha; o Resumo da mesma pasta
+ * continua com a logo. A lista dessas abas fica na trava (src/lib/marcaFal.test.js, ABAS_DE_CARGA_NO_ERP).
  * Um teste (src/lib/marcaFal.test.js) falha se um arquivo novo gerar PDF ou Excel sem importar este módulo.
  */
 import urlLogo from "@/assets/marca/logo-fal.png";
@@ -64,8 +66,10 @@ const idsPorPasta = new WeakMap();
  * seguinte (e soma esse número ao congelamento de painéis, ao filtro e às fórmulas). Chamar ANTES de escrever a primeira linha.
  * A linha da logo fica sem valor nenhum: quem lê a planilha de volta (eachRow, leitores que pulam linha em branco) não enxerga a linha.
  * Sem logo (falha ao carregar), a linha fica reservada do mesmo jeito: o layout não muda.
+ * `cargaNoErp`: aba de dados que volta para o ERP — sem a logo, títulos na linha 1 (devolve 0). Só para as abas da lista da trava.
  */
-export function cabecalhoFalExcel(wb, ws, logo) {
+export function cabecalhoFalExcel(wb, ws, logo, { cargaNoErp = false } = {}) {
+  if (cargaNoErp) return 0;
   const linha = ws.getRow(1);
   linha.height = ALTURA_LINHA_LOGO_FAL;
   if (logo) {

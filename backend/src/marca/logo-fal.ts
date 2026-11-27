@@ -6,7 +6,10 @@
  *  - Excel em fluxo (WorkbookWriter, que não aceita imagem): reservarLinhaLogoFal em cada aba + logoFalNoXlsx no arquivo pronto;
  *  - e-mail: o MailService põe a logo (anexo embutido, cid) no topo de toda mensagem (comLogoFalNoEmail);
  *  - HTML gerado como documento: cabecalhoFalHtml (imagem embutida em base64).
- * Fora da regra: documentos fiscais de layout oficial (DANFE, DANFE NFC-e, DACTE, DAMDFE, DANFSe) e CSV (não leva imagem).
+ * Fora da regra: documentos fiscais de layout oficial (DANFE, DANFE NFC-e, DACTE, DAMDFE, DANFSe), CSV (não leva imagem) e as abas de dados
+ * feitas para CARGA NO ERP (o SAP DTW e ferramentas parecidas esperam os títulos na linha 1): essas abas saem sem a logo, com os títulos na
+ * linha 1 e os dados a partir da linha 2 (opção `cargaNoErp` de cabecalhoFalExcel / reservarLinhaLogoFal e `abasDeCargaNoErp` de
+ * logoFalNoXlsx). O resto da mesma pasta (o Resumo, por exemplo) continua com a logo. A lista dessas abas fica na trava (logo-fal.test.ts).
  * Um teste (src/marca/logo-fal.test.ts) falha se um arquivo novo gerar PDF ou Excel sem importar este módulo.
  */
 import { existsSync, readFileSync } from 'fs';
@@ -64,13 +67,20 @@ export const ALTURA_LINHA_LOGO_FAL = 42;
 const ALTURA_LOGO_PX = 46;
 const LARGURA_LOGO_PX = Math.round(ALTURA_LOGO_PX * LOGO_FAL_PROPORCAO);
 
+/**
+ * `cargaNoErp`: aba de dados que volta para o ERP (carga pelo SAP DTW ou ferramenta parecida). Sai SEM a logo: títulos na linha 1, dados a
+ * partir da linha 2 (a função devolve 0 linhas de logo). Só para as abas da lista da trava (ABAS_DE_CARGA_NO_ERP em src/marca/logo-fal.test.ts).
+ */
+export type OpcoesLogoExcel = { cargaNoErp?: boolean };
+
 const idsPorPasta = new WeakMap<object, number>();
 /**
  * Põe a logo na linha 1 da aba (canto superior esquerdo) e devolve quantas linhas ela ocupa: o conteúdo começa na linha seguinte (somar esse
  * número ao congelamento de painéis, ao filtro e às fórmulas). Chamar ANTES de escrever a primeira linha. A linha da logo fica sem valor
  * nenhum: quem lê a planilha de volta pulando linha em branco não a enxerga.
  */
-export function cabecalhoFalExcel(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet): number {
+export function cabecalhoFalExcel(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, o: OpcoesLogoExcel = {}): number {
+  if (o.cargaNoErp) return 0;
   ws.getRow(1).height = ALTURA_LINHA_LOGO_FAL;
   if (LOGO_FAL) {
     let id = idsPorPasta.get(wb);
@@ -83,8 +93,12 @@ export function cabecalhoFalExcel(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet): 
   return LINHAS_LOGO_FAL;
 }
 
-/** Aba em fluxo (WorkbookWriter): escreve a linha vazia e alta da logo. A imagem entra depois, no arquivo pronto (logoFalNoXlsx). */
-export function reservarLinhaLogoFal(ws: ExcelJS.Worksheet): number {
+/**
+ * Aba em fluxo (WorkbookWriter): escreve a linha vazia e alta da logo. A imagem entra depois, no arquivo pronto (logoFalNoXlsx). Aba de carga
+ * no ERP (`cargaNoErp`): nada é escrito e devolve 0 (o nome da aba vai também em `abasDeCargaNoErp` de logoFalNoXlsx).
+ */
+export function reservarLinhaLogoFal(ws: ExcelJS.Worksheet, o: OpcoesLogoExcel = {}): number {
+  if (o.cargaNoErp) return 0;
   const r = ws.addRow([]);
   r.height = ALTURA_LINHA_LOGO_FAL;
   r.commit();
@@ -149,6 +163,12 @@ function textoDe(zip: Buffer, e: EntradaZip | undefined): string {
   if (e.metodo === 8) return strFromU8(inflateSync(b, { out: new Uint8Array(e.tam) }));
   throw new Error(`logoFalNoXlsx: método de compressão ${e.metodo} não suportado (${e.nome})`);
 }
+
+/** Valor de atributo XML (o nome da aba no workbook.xml) sem as entidades. */
+const ENTIDADES: Record<string, string> = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' };
+const desescaparXml = (t: string) =>
+  t.replace(/&(lt|gt|quot|apos|amp|#x[0-9a-fA-F]+|#\d+);/g, (_, e: string) =>
+    ENTIDADES[e] ?? String.fromCodePoint(e[1] === 'x' ? parseInt(e.slice(2), 16) : Number(e.slice(1))));
 
 /** Cede a vez ao laço de eventos (o processamento de um arquivo grande não trava as outras requisições). */
 const ceder = () => new Promise<void>((ok) => setImmediate(ok));
@@ -308,21 +328,24 @@ async function remendarAba(zip: Zip, z: Buffer, e: EntradaZip): Promise<void> {
 
 /**
  * Põe a logo (canto superior esquerdo, linha 1) em cada aba visível de um .xlsx pronto que ainda não tenha desenho — o caminho do Excel
- * escrito em fluxo, cujo gravador não aceita imagem. Abas ocultas ficam como estão. Devolve o arquivo novo.
+ * escrito em fluxo, cujo gravador não aceita imagem. Abas ocultas ficam como estão, e também as abas de carga no ERP nomeadas em
+ * `abasDeCargaNoErp` (escritas com reservarLinhaLogoFal(ws, { cargaNoErp: true }): títulos na linha 1). Devolve o arquivo novo.
  *
  * Em fluxo, sem descomprimir o arquivo inteiro: as entradas que não mudam são copiadas comprimidas como estão; cada aba é descomprimida em
  * fluxo (zlib do Node, fora da thread principal) e só o começo (<worksheet>) e o fim (depois de </sheetData>) são remendados. Na memória
  * fica o .xlsx de entrada e o de saída (comprimidos), nunca o XML das abas inteiro.
  */
-export async function logoFalNoXlsx(xlsx: Buffer): Promise<Buffer> {
+export async function logoFalNoXlsx(xlsx: Buffer, o: { abasDeCargaNoErp?: Iterable<string> } = {}): Promise<Buffer> {
   if (!LOGO_FAL) return xlsx;
   const entradas = diretorioDoZip(xlsx);
   const porNome = new Map(entradas.map((e) => [e.nome, e]));
   const livro = textoDe(xlsx, porNome.get('xl/workbook.xml'));
   const relsLivro = textoDe(xlsx, porNome.get('xl/_rels/workbook.xml.rels'));
-  const ocultas = new Set<string>();
+  const deCarga = new Set(o.abasDeCargaNoErp ?? []);
+  const ocultas = new Set<string>(); // abas que ficam sem a logo: as ocultas e as de carga no ERP
   for (const m of livro.matchAll(/<sheet\b[^>]*>/g)) {
-    if (!/state="(hidden|veryHidden)"/.test(m[0])) continue;
+    const nome = desescaparXml(/\sname="([^"]*)"/.exec(m[0])?.[1] ?? '');
+    if (!/state="(hidden|veryHidden)"/.test(m[0]) && !deCarga.has(nome)) continue;
     const rid = /r:id="([^"]+)"/.exec(m[0])?.[1];
     const alvo = rid ? new RegExp(`<Relationship\\b[^>]*Id="${rid}"[^>]*>`).exec(relsLivro)?.[0] : null;
     const t = alvo ? /Target="([^"]+)"/.exec(alvo)?.[1] : null;

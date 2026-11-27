@@ -45,4 +45,23 @@ describe('logo da FAL nas planilhas do validador de cadastro', () => {
     expect(String(r.autoFilter)).toMatch(/^A2:/);
     expect(wb.getWorksheet('Resumo')!.getCell('A2').value).toBe('Resumo da validação de cadastro');
   });
+
+  it('"Cadastro saneado" (carga de volta no ERP) sai SEM a logo, com os títulos do ERP na linha 1; as outras abas mantêm a logo', async () => {
+    const csv = { buffer: Buffer.from('Codigo;Descricao;NCM\nA1;PARAFUSO;73181500\nA2;PARAFUSO;73181500\nA3;PORCA;73181600\n', 'utf8'), originalname: 'base.csv' } as Express.Multer.File;
+    const service = new ProdutosService({ ncm: { findMany: async () => [] } } as never, { base: async () => ({ lista: [], classes: new Map(), referencias: [] }) } as never);
+    const r = await service.validar(csv);
+    const linha = (c: string) => r.itens.find((i) => i.codigo === c)!.linha;
+    const salvo = { ...r, itens: r.itens.map((i) => (i.codigo === 'A3' ? i : { ...i, candidatos_duplicidade: [linha(i.codigo === 'A1' ? 'A2' : 'A1')] })) };
+    const wb = await abrir(await service.exportarXlsx(csv, undefined, undefined, [linha('A2')], salvo as never));
+    const s = wb.getWorksheet('Cadastro saneado')!;
+    expect(s.getImages()).toHaveLength(0);
+    expect((s.getRow(1).values as unknown[]).slice(1)).toEqual(['Codigo', 'Descricao', 'NCM']);
+    expect((s.getRow(2).values as unknown[]).slice(1)).toEqual(['A1', 'PARAFUSO', '73181500']);
+    expect((s.getRow(3).values as unknown[]).slice(1)).toEqual(['A3', 'PORCA', '73181600']);
+    expect(s.rowCount).toBe(3);
+    for (const nome of ['Resultado', 'Exclusões confirmadas', 'Resumo']) {
+      expect(wb.getWorksheet(nome)!.getImages().length, nome).toBe(1);
+      expect(wb.getWorksheet(nome)!.getImages()[0].range.tl.nativeRow, nome).toBe(0);
+    }
+  });
 });

@@ -83,6 +83,40 @@ describe('logo da FAL no Excel', () => {
     expect((await abrir(duas)).getWorksheet('Dados')!.getImages()).toHaveLength(1);
   });
 
+  it('aba de carga no ERP (exceção): sem a logo e com os títulos na linha 1, em fluxo e em memória; o Resumo da mesma pasta mantém a logo', async () => {
+    const saida = new PassThrough(); const partes: Buffer[] = [];
+    saida.on('data', (c: Buffer) => partes.push(c));
+    const fim = new Promise<void>((ok, erro) => { saida.on('end', ok); saida.on('error', erro); });
+    const wf = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: saida, useStyles: true, useSharedStrings: false });
+    const resumo = wf.addWorksheet('Resumo');
+    expect(reservarLinhaLogoFal(resumo)).toBe(LINHAS_LOGO_FAL);
+    resumo.addRow(['Resumo']).commit(); resumo.commit();
+    const carga = wf.addWorksheet('Carga & "ERP"', { views: [{ state: 'frozen', ySplit: 1 }] }); // nome com entidade XML no workbook.xml
+    expect(reservarLinhaLogoFal(carga, { cargaNoErp: true })).toBe(0);
+    carga.addRow(['ItemCode', 'ItemName']).commit(); carga.addRow(['001', 'Milho']).commit();
+    carga.autoFilter = { from: { row: 1, column: 1 }, to: { row: 2, column: 2 } } as never;
+    carga.commit();
+    await wf.commit(); await fim;
+    const pronto = await logoFalNoXlsx(Buffer.concat(partes), { abasDeCargaNoErp: ['Carga & "ERP"'] });
+    const lido = await abrir(pronto);
+    expect(lido.getWorksheet('Resumo')!.getImages()).toHaveLength(1);
+    expect(lido.getWorksheet('Resumo')!.getCell(2, 1).value).toBe('Resumo');
+    const c = lido.getWorksheet('Carga & "ERP"')!;
+    expect(c.getImages()).toHaveLength(0);
+    expect(texto(pronto, 'xl/worksheets/sheet2.xml')).not.toContain('<drawing');
+    expect((c.getRow(1).values as unknown[]).slice(1)).toEqual(['ItemCode', 'ItemName']);
+    expect(c.getCell(2, 1).value).toBe('001');
+    expect(c.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Cadastro');
+    expect(cabecalhoFalExcel(wb, ws, { cargaNoErp: true })).toBe(0);
+    ws.addRow(['ItemCode']);
+    const r = await abrir(Buffer.from(await wb.xlsx.writeBuffer()));
+    expect(r.getWorksheet('Cadastro')!.getImages()).toHaveLength(0);
+    expect(r.getWorksheet('Cadastro')!.getCell(1, 1).value).toBe('ItemCode');
+  });
+
   it('aba com relações próprias (link) mantém as relações e ganha a do desenho', async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Links');
