@@ -16,6 +16,12 @@ import { novoCaso } from './dependencias';
 import { escalaDaBase, montarConjuntos, saldoNaEscala, sugerirSobrevivente, type MembroConjunto, type NivelDuplicidade } from './conjuntos';
 import { agrupar, campoExtra, dataBr, numeroBr, semAcento, soDigitos, txt, unicos } from './texto';
 import { classificarUnidade, unidadeCanonica } from './unidades';
+import { diferemSoPelaApresentacao, separarApresentacao } from './apresentacao';
+import { valorCriterio } from '../criterios/catalogo';
+
+/** Rótulo da pontuação no caso: é uma pontuação de semelhança, não uma probabilidade (regra do usuário). */
+export const ROTULO_SIMILARIDADE = 'Similaridade (pontuação, não é probabilidade)';
+const pct = (score: number) => `${Math.round(score * 100)}%`;
 
 /** Decisões que a proposta oferece ao consultor (a recomendada vai em `proposta.decisao`). */
 export const DECISOES_DUPLICIDADE = ['MANTER_DISTINTOS', 'CORRIGIR_IDENTIFICACAO', 'RELACIONAR_EQUIVALENTES', 'RELACIONAR_APRESENTACOES', 'PROPOR_CONSOLIDACAO', 'PROPOR_INATIVACAO', 'SOLICITAR_INFORMACAO'] as const;
@@ -96,7 +102,8 @@ function impactosDe(r: Resumo, escala: number): string[] {
   return imp;
 }
 
-type Base = { membros: Membro[]; nivel: NivelDuplicidade; score: number; escala: number; corte: string | null; semData: 'SINALIZAR' | 'ANTERIOR_AO_CORTE'; motivos: string[]; tipoBase: string; origem: string; sugestao: ReturnType<typeof sugerirSobrevivente> };
+/** `score` null = o caso não vem da comparação das descrições (ex.: mesma referência): não há similaridade a mostrar. */
+type Base = { membros: Membro[]; nivel: NivelDuplicidade; score: number | null; escala: number; corte: string | null; semData: 'SINALIZAR' | 'ANTERIOR_AO_CORTE'; motivos: string[]; tipoBase: string; origem: string; sugestao: ReturnType<typeof sugerirSobrevivente> };
 
 /** O caso de um conjunto: o que é, por quê (critérios), o que difere, o que acontece com saldo/histórico e qual decisão se recomenda. */
 function casoDoConjunto(b: Base, regrasUnidade: Record<string, RegraUnidade>): CasoProposto {
@@ -144,7 +151,7 @@ function casoDoConjunto(b: Base, regrasUnidade: Record<string, RegraUnidade>): C
   return novoCaso({
     camada: 'DUPLICIDADE', tipo, itens: idsItens,
     problema: `${b.membros.length} códigos com ${forte ? 'indicação alta de serem' : 'indicação possível de serem'} o mesmo produto`,
-    evidencia: [ev('Origem', b.origem), ev('Nível', ROTULO_NIVEL[b.nivel]), ev('Pontuação de similaridade (não é probabilidade)', b.score.toFixed(2)), ...criterios,
+    evidencia: [ev('Origem', b.origem), ev('Nível', ROTULO_NIVEL[b.nivel]), ...(b.score != null ? [ev(ROTULO_SIMILARIDADE, pct(b.score))] : []), ...criterios,
       ...r.diferencas.map((d) => ev('Diferença', d)), ev('Sugestão de qual fica', `${manter.codigo}: ${b.sugestao.motivo || 'único'}`), ...b.membros.slice(0, 6).map((m) => ev(`Código ${m.codigo}`, `${txt(m.descricao)} · saldo ${m.saldo == null ? 'n/d' : numeroBr(saldoNaEscala(m.saldo, b.escala) ?? 0)} · mov. ${m.ultima_mov ? dataBr(m.ultima_mov) : 'sem data'}`))],
     atual: { codigos: lista(b.membros.map((m) => m.codigo), 20), descricoes: lista(b.membros.map((m) => txt(m.descricao)), 3) },
     proposta, impactos: impactosDe(r, b.escala), justificativa: justificar(porque, providencia),
@@ -165,9 +172,21 @@ export class AnalisadorDuplicidade implements AnalisadorCamada {
     const semData = par.semDataMovimentacao ?? 'SINALIZAR';
     const comTexto = produtos.filter((p) => txt(p.rep.descricao));
 
-    // 1) Descrições iguais ou parecidas (detector) → conjuntos.
-    const resultados0 = detectarDuplicidades(comTexto.map((p) => paraDup(p, par.paralelosNoMesmoCodigo === true)), { exigirPrincipio: false });
-    const resultados = resultados0;
+    // Critérios do projeto ("O que foi considerado"): similaridade mínima e embalagens diferentes = itens diferentes.
+    const scoreMinimo = Number(valorCriterio(par.criterios, 'DUPLICIDADE', 'similaridadeMinima')) / 100;
+    const embalagensSeparam = valorCriterio(par.criterios, 'DUPLICIDADE', 'embalagensDiferentesSaoItensDiferentes') === true;
+    const apresentacoes = embalagensSeparam ? comTexto.map((p) => separarApresentacao(p.rep.descricao, p.rep.unidade)) : [];
+    const paresDeApresentacao: { i: number; j: number; score: number }[] = [];
+
+    // 1) Descrições iguais ou parecidas (detector) → conjuntos. O par que difere só pela embalagem não é duplicidade (vai para 3b).
+    const resultados = detectarDuplicidades(comTexto.map((p) => paraDup(p, par.paralelosNoMesmoCodigo === true)), {
+      exigirPrincipio: false, scoreMinimo,
+      ...(embalagensSeparam ? { excluirPar: (i: number, j: number, r: { score: number }) => {
+        if (!diferemSoPelaApresentacao(apresentacoes[i], apresentacoes[j])) return false;
+        paresDeApresentacao.push({ i, j, score: r.score });
+        return true;
+      } } : {}),
+    });
     const membros: Membro[] = comTexto.map((p, i) => {
       const m = paraMembro(p); const r = resultados[i]; const top = r.candidatos[0];
       m.duplicidade = top ? { nivel: top.nivel, score: top.score, grupo: r.grupo, candidatos: r.candidatos.map((c: CandidatoDup) => ({ linha: comTexto[c.idx].linha, score: c.score, nivel: c.nivel, motivos: c.motivos })) } : null;
@@ -200,11 +219,12 @@ export class AnalisadorDuplicidade implements AnalisadorCamada {
       const tipoBase = condicaoDiferente ? 'REFERENCIA_COINCIDENTE_CONDICAO_DIFERENTE' : mesmoFab ? 'REFERENCIA_COINCIDENTE' : todosTemFab ? 'REFERENCIA_FABRICANTES_DIFERENTES' : 'REFERENCIA_COINCIDENTE_SEM_FABRICANTE';
       const motivos = [`mesma referência "${txt(g[0].rep.referencia)}"`, condicaoDiferente ? 'condição diferente na descrição (original × paralelo...): produtos distintos' : mesmoFab ? 'mesmo fabricante' : todosTemFab ? 'fabricantes diferentes: referência igual não prova equivalência técnica' : 'fabricante não informado em algum dos itens'];
       const forteRef = mesmoFab && !condicaoDiferente;
-      casos.push(casoDoConjunto({ membros: ordenados, nivel: forteRef ? 'MUITO_PROVAVEL' : 'POSSIVEL', score: forteRef ? 0.95 : 0.6, escala, corte, semData, motivos, tipoBase, origem: 'Campo referência (e fabricante) da base importada', sugestao: sug }, regrasUn));
+      casos.push(casoDoConjunto({ membros: ordenados, nivel: forteRef ? 'MUITO_PROVAVEL' : 'POSSIVEL', score: null, escala, corte, semData, motivos, tipoBase, origem: 'Campo referência (e fabricante) da base importada', sugestao: sug }, regrasUn));
     }
 
     // 3) Mesmo nome, apresentações diferentes (embalagem) ou concentração diferente: nunca se fundem.
     const normas = comTexto.map((p) => normalizar(p.rep.descricao));
+    const emApresentacoes = new Set<number>();
     const porNome = new Map<string, number[]>();
     normas.forEach((n, i) => { const k = n.tokens.filter((t) => !t.leve).map((t) => t.t).sort().join(' '); if (k) { const a = porNome.get(k); if (a) a.push(i); else porNome.set(k, [i]); } });
     for (const [nome, idxs] of porNome) {
@@ -230,10 +250,42 @@ export class AnalisadorDuplicidade implements AnalisadorCamada {
         const vs = ns.map(unico); const mesmaDim = ns.every((n) => n.medidas.has('volume')) || ns.every((n) => n.medidas.has('massa'));
         const proposta: CasoProposto['proposta'] = { decisao: 'RELACIONAR_APRESENTACOES', decisoesPossiveis: DECISOES_DUPLICIDADE.join(' | ') };
         if (ordenados.length === 2 && mesmaDim && vs[0] && vs[1]) proposta.fatorConversao = Math.round((Math.max(vs[0], vs[1]) / Math.min(vs[0], vs[1])) * 1e6) / 1e6;
+        for (const m of ordenados) emApresentacoes.add(m.linha);
         casos.push(novoCaso({ camada: 'DUPLICIDADE', tipo: 'APRESENTACOES_DISTINTAS', itens: ids, problema: `O mesmo produto em ${ordenados.length} apresentações (embalagens) diferentes`,
           evidencia: [ev('Origem', 'Descrições da base importada'), ev('Nome comum', nome), ...ordenados.slice(0, 6).map((m) => ev(`Código ${m.codigo}`, txt(m.descricao)))], atual, proposta,
           impactos: ['Relacionar apresentações altera unidades e conversões (SPED 0190/0220)'],
           justificativa: justificar('Mesmo produto em embalagens diferentes são itens distintos que se relacionam por conversão, não duplicidade a consolidar.', 'cadastrar a relação e o fator de conversão (ou unidade de compra); manter os códigos separados.') }));
+      }
+    }
+
+    // 3b) Critério "embalagens diferentes são itens diferentes": os pares que o detector indicaria, mas diferem só pela embalagem, viram um caso
+    //     de apresentações (relacionar, não fundir), salvo os que o passo 3 já cobriu.
+    if (paresDeApresentacao.length) {
+      const pai = new Map<number, number>();
+      const raiz = (x: number): number => { let r = x; while (pai.has(r) && pai.get(r) !== r) r = pai.get(r)!; return r; };
+      const score = new Map<number, number>();
+      for (const { i, j, score: s } of paresDeApresentacao) {
+        for (const k of [i, j]) { if (!pai.has(k)) pai.set(k, k); score.set(k, Math.max(score.get(k) ?? 0, s)); }
+        const a = raiz(i); const b = raiz(j); if (a !== b) pai.set(Math.max(a, b), Math.min(a, b));
+      }
+      const comps = new Map<number, number[]>();
+      for (const k of pai.keys()) { const r = raiz(k); const l = comps.get(r); if (l) l.push(k); else comps.set(r, [k]); }
+      for (const idxs of comps.values()) {
+        const ms = idxs.map((i) => membros[i]);
+        if (ms.length < 2 || ms.every((m) => emApresentacoes.has(m.linha))) continue;
+        const sug = sugerirSobrevivente(ms, { escala }); const pos = new Map(sug.ordem.map((l, i) => [l, i]));
+        const ordenados = [...ms].sort((a, b) => pos.get(a.linha)! - pos.get(b.linha)!);
+        const maior = Math.max(...idxs.map((i) => score.get(i) ?? 0));
+        casos.push(novoCaso({ camada: 'DUPLICIDADE', tipo: 'APRESENTACOES_DISTINTAS', itens: unicos(ordenados.flatMap((m) => m.produto.itens.map((i) => i.id))),
+          problema: `O mesmo produto em ${ordenados.length} embalagens ou apresentações diferentes`,
+          evidencia: [ev('Origem', 'Descrições e unidades da base importada'), ev('Critério', 'embalagens ou apresentações diferentes são itens diferentes (critério do projeto)'),
+            ev('Nome comum', apresentacoes[idxs[0]].nome.toUpperCase()), ev(ROTULO_SIMILARIDADE, pct(maior)),
+            ...ordenados.slice(0, 6).map((m) => ev(`Código ${m.codigo}`, `${txt(m.descricao)} · ${txt(m.unidade).toUpperCase() || 'sem unidade'}`))],
+          atual: { codigos: lista(ordenados.map((m) => m.codigo), 20), descricoes: lista(ordenados.map((m) => txt(m.descricao)), 3) },
+          proposta: { decisao: 'RELACIONAR_APRESENTACOES', decisoesPossiveis: DECISOES_DUPLICIDADE.join(' | ') },
+          impactos: ['Relacionar apresentações altera unidades e conversões (SPED 0190/0220)'],
+          fundamento: 'Critério do projeto: embalagens ou apresentações diferentes são itens diferentes (volume, peso, quantidade por embalagem ou unidade).',
+          justificativa: justificar('As descrições indicam o mesmo produto, mas em embalagens ou apresentações diferentes: são itens distintos que se relacionam por conversão, não duplicidade a consolidar.', 'cadastrar a relação e o fator de conversão (ou a unidade de compra); manter os códigos separados.') }));
       }
     }
 

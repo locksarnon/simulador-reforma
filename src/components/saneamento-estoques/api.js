@@ -34,6 +34,13 @@ export const san = {
   /** { camadas: [{ camada, abertos, aguardando, aprovados, executadaEm, desatualizada }], abertos, aguardando, aprovados, efeitos }. */
   estadoCamadas: (id) => api.get(`${B}/projetos/${id}/estado-camadas`),
 
+  // ── "O que foi considerado" por camada (aba Análise): critérios, ajuste, verificações manuais e texto livre (a IA encaixa ou vira manual). ──
+  criterios: (id) => api.get(`${B}/projetos/${id}/criterios`),
+  ajustarCriterio: (id, camada, chave, valor) => api.put(`${B}/projetos/${id}/criterios/${camada}/${chave}`, { valor }),
+  removerCriterioManual: (id, manualId) => api.delete(`${B}/projetos/${id}/criterios/manuais/${manualId}`),
+  /** { resultado: "PROPOSTA", proposta } (nada gravado) ou { resultado: "MANUAL", iaDisponivel, manual, camadas } (gravado). */
+  normalizarCriterio: (id, camada, texto) => api.post(`${B}/projetos/${id}/criterios/normalizar`, { camada, texto }),
+
   casos: (id, params) => api.get(`${B}/projetos/${id}/casos`, params),
   /** Casos iguais agrupados (mesmos filtros da lista, mais `busca`); com `chave`, o grupo com todos os ids e as linhas dos casos. */
   casosAgrupados: (id, params) => api.get(`${B}/projetos/${id}/casos/agrupados`, params),
@@ -117,6 +124,7 @@ export const chaves = {
   camadas: () => ["san", "camadas-disponiveis"],
   estadoCamadas: (projetoId) => ["san", projetoId, "estado-camadas"],
   analises: (projetoId) => ["san", projetoId, "analises"],
+  criterios: (projetoId) => ["san", projetoId, "criterios"],
   casos: (projetoId, filtro) => ["san", projetoId, "casos", filtro],
   casosAgrupados: (projetoId, filtro) => ["san", projetoId, "casos-agrupados", filtro],
   grupoDeCasos: (projetoId, filtro, chave) => ["san", projetoId, "casos-agrupados", filtro, chave],

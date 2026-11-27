@@ -257,11 +257,17 @@ export class SanVersoesService {
 
   /** Parâmetros do motor congelados na versão (`projeto.parametros.motor` da foto); null = sem parâmetros. Lê só a seção do projeto. */
   async parametrosMotorDaVersao(projetoId: string, versaoId: string): Promise<Json | null> {
+    const motor = (await this.parametrosDaVersao(projetoId, versaoId))?.motor;
+    return motor && typeof motor === 'object' ? (motor as Json) : null;
+  }
+
+  /** `projeto.parametros` congelados na versão (critérios das análises, corte...); null = foto sem parâmetros. Lê só a seção do projeto. */
+  async parametrosDaVersao(projetoId: string, versaoId: string): Promise<Json | null> {
     const { texto } = await this.textoDaFoto(projetoId, versaoId);
     const s = secoesDoJson(texto).get('projeto');
     const projeto = s ? ((JSON.parse(texto.slice(s[0], s[1])) as Json | null) ?? null) : null;
-    const motor = (projeto?.parametros as Json | null | undefined)?.motor;
-    return motor && typeof motor === 'object' ? (motor as Json) : null;
+    const par = projeto?.parametros;
+    return par && typeof par === 'object' ? (par as Json) : null;
   }
 
   /** Reduz uma versão ao que a comparação usa e solta o resto (uma foto por vez na memória). */

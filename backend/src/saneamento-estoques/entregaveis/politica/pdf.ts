@@ -13,6 +13,8 @@ import { alturaFluxo, desenharFluxograma, type GeometriaNo } from './fluxograma'
 import { dataBr, juntar, limpar, ordenarPt } from './texto';
 import { diferencaDaPadrao, limiteNaoConfirmado, tabelasDoAnexo, textoGrupos, topicosDaRegra } from './topicos';
 import type { DadosPolitica, RegraPolitica } from './tipos';
+import { criteriosParaPolitica } from '../../criterios/politica';
+import { CAMADAS } from '../../tipos';
 
 /** Colunas do quadro de consulta. */
 const COLUNA_QUADRO: Record<Aspecto, string> = { NOMES: 'Nomes', ATRIBUTOS: 'Atributos', UNIDADES: 'Unidades', LIMITES: 'Limites', FISCAL: 'Fiscal' };
@@ -23,7 +25,9 @@ export const TITULO_POLITICA = 'Política de estoques e cadastro de produtos';
 export const NOTA_SEM_FASE2 = 'A seção tributária (finalidade, cClassTrib, CST e crédito do estoque de IBS e CBS por item e operação) é entregue com a Fase 2 (Tributário e Reforma).';
 
 /** Seção de versão e pendências (citada no aviso de rascunho, no quadro e nas regras). */
-const SECAO_PENDENCIAS = 7;
+const SECAO_PENDENCIAS = 8;
+/** Seção dos critérios das análises (o que cada camada considera, com os valores do projeto e as verificações manuais). */
+const SECAO_CRITERIOS = 7;
 
 /** Rascunho = situação Rascunho ou qualquer regra ainda não aprovada. */
 export const emRascunho = (d: DadosPolitica) => d.identificacao.situacao !== 'APROVADA' || d.regras.some((r) => r.situacao !== 'APROVADA');
@@ -187,7 +191,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         ['ERP', id.erp ? limpar(id.erp) : 'Não informado'],
       ];
       cartoes(campos, (r) => (r === 'Situação' && rascunho ? AMBAR : VERDE_ESCURO));
-      paragrafo('Três partes: cadastro (seções 2 a 4: quadro por grupo, regras e procedimentos), controles internos (seção 5) e fiscal (seção 6).', { cor: CINZA, tam: 9 });
+      paragrafo(`Três partes: cadastro (seções 2 a 4: quadro por grupo, regras e procedimentos), controles internos (seção 5) e fiscal (seção 6); os critérios das análises estão na seção ${SECAO_CRITERIOS}.`, { cor: CINZA, tam: 9 });
 
       // ---- Regra (vigente ou em aprovação) ----
       const desenharRegra = (r: RegraPolitica, vigente: boolean) => {
@@ -249,7 +253,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         const doAspecto = aprovadas.filter((r) => r.aspecto === a).sort((x, y) => Number(y === padrao) - Number(x === padrao) || ordemCodigo(x, y));
         if (!doAspecto.length) {
           const emAprov = d.regras.some((r) => r.aspecto === a && r.situacao !== 'APROVADA');
-          paragrafo(`Nenhuma regra aprovada neste aspecto${emAprov ? '; há regra em aprovação (seção ${SECAO_PENDENCIAS})' : ''}.`, { italico: true, cor: CINZA });
+          paragrafo(`Nenhuma regra aprovada neste aspecto${emAprov ? `; há regra em aprovação (seção ${SECAO_PENDENCIAS})` : ''}.`, { italico: true, cor: CINZA });
         }
         doAspecto.forEach((r) => desenharRegra(r, true));
       });
@@ -316,7 +320,18 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         }
       } else paragrafo(NOTA_SEM_FASE2);
 
-      // ---- 7. Versão e pendências ----
+      // ---- 7. Critérios das análises (o que cada camada considera; ausente = critérios padrão do sistema) ----
+      const criterios = d.criterios ?? criteriosParaPolitica(null, [...CAMADAS]);
+      tituloSecao(`${SECAO_CRITERIOS}. Critérios das análises`, 60);
+      paragrafo('O que cada camada de análise considerou, com os valores definidos no projeto. As verificações manuais foram acrescentadas pela equipe: o sistema não as aplica sozinho, elas são conferidas por quem revisa o cadastro.');
+      if (!criterios.length) paragrafo('Nenhuma camada de análise no projeto.', { italico: true, cor: CINZA });
+      criterios.forEach((c, i) => {
+        subtitulo(`${SECAO_CRITERIOS}.${i + 1} ${limpar(c.camada)}`, 40);
+        marcadores(c.itens.map((x) => (x.manual ? `Verificação manual: ${x.texto}` : x.texto)));
+        pdf.y += 3;
+      });
+
+      // ---- 8. Versão e pendências ----
       tituloSecao(`${SECAO_PENDENCIAS}. Versão e pendências`, 60);
       subtitulo(`${SECAO_PENDENCIAS}.1 Versão`, 30);
       if (id.versao) {

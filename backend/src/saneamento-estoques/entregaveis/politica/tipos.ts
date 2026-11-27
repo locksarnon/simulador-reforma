@@ -39,6 +39,8 @@ export type DadosPolitica = {
    * decisões; sem ela, uma linha diz que a seção tributária é entregue com a Fase 2. Ausente = sem Fase 2.
    */
   fiscal?: { fase2: boolean; finalidadeAprovadas?: number; tributarioAprovadas?: number };
+  /** Critérios das análises por camada (criterios/politica.ts): texto com o valor efetivo e as verificações manuais. Ausente = os padrão do sistema. */
+  criterios?: { camada: string; itens: { texto: string; manual: boolean }[] }[];
   /** Quadro de consulta: para cada grupo, o código da regra efetiva por aspecto (ausente = grupo sem regra no aspecto). */
   quadro: { grupo: string; codigos: Partial<Record<Aspecto, string>> }[];
   pendencias: {
