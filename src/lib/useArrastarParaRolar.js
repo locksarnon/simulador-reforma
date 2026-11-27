@@ -4,8 +4,9 @@ import { useEffect } from "react";
  * Arrastar para rolar ("pegar a tabela e puxar para o lado"): com o botão principal do mouse apertado numa área sem controle da tabela,
  * a rolagem acompanha o ponteiro. Regras:
  * - só mouse: no toque e na caneta, a rolagem nativa do aparelho continua (o navegador já arrasta com o dedo);
- * - não começa em botão, link, campo, rótulo, [role=button], alça de largura da coluna, título arrastável (reordenar colunas) nem em
- *   nada marcado com data-sem-arraste; nem com Ctrl/Shift/Alt/Cmd (seleção e atalhos seguem como antes);
+ * - não começa em link, campo, rótulo, alça de largura da coluna, título arrastável (reordenar colunas), botão fora de célula nem em
+ *   nada marcado com data-sem-arraste; nem com Ctrl/Shift/Alt/Cmd (seleção e atalhos seguem como antes). Botão dentro de célula da
+ *   tabela (role=cell, td) ou marcado data-arrastavel começa o arraste;
  * - só vira arraste depois de LIMIAR px: abaixo disso é um clique simples e segue normal;
  * - depois de arrastar, o clique que o navegador dispara ao soltar é engolido (não abre a célula, a linha nem a visão focada);
  * - durante o arraste, cursor "grabbing" e nada de selecionar texto; fora dele, cursor "grab" quando há o que rolar;
@@ -18,11 +19,27 @@ const IGNORAR = [
   "[role=\"link\"]", "[data-alca-largura]", "[draggable=\"true\"]", "[contenteditable=\"\"]", "[contenteditable=\"true\"]", "[data-sem-arraste]",
 ].join(", ");
 
-/** O arraste não começa neste alvo (controle, alça, título arrastável ou marcado data-sem-arraste)? Alvo sem elemento = ignora. */
+/** Botão de célula: pode começar o arraste (o clique curto segue abrindo; o do fim do arraste é engolido). */
+const BOTAO = "button, [role=\"button\"]";
+const CELULA = "[role=\"cell\"], [role=\"gridcell\"], td, [data-arrastavel]";
+
+/**
+ * O arraste não começa neste alvo? Não começa em campo, link, rótulo, alça de largura, título arrastável nem em nada marcado
+ * data-sem-arraste. Botão só bloqueia fora de célula: o botão DENTRO de uma célula da tabela (role=cell, td) ou marcado data-arrastavel
+ * deixa arrastar, porque a maior parte da área visível pode ser feita deles (ex.: as situações da Tabela do Saneamento). Alvo sem elemento = ignora.
+ */
 export function alvoSemArraste(alvo) {
   const el = alvo && alvo.nodeType === 1 ? alvo : alvo?.parentElement;
   if (!el || typeof el.closest !== "function") return true;
-  return !!el.closest(IGNORAR);
+  if (el.closest("[data-sem-arraste]")) return true;
+  let controle = el.closest(IGNORAR);
+  while (controle) {
+    const botaoDeCelula = controle.matches?.(BOTAO) && !!controle.closest?.(CELULA);
+    if (!botaoDeCelula) return true;
+    // Botão de célula liberado: confere se não há outro controle por fora dele (ex.: link ou rótulo envolvendo o botão).
+    controle = controle.parentElement?.closest?.(IGNORAR) || null;
+  }
+  return false;
 }
 
 /** Há o que rolar no elemento (na horizontal ou, com `vertical`, também na vertical)? */

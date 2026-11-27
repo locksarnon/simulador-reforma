@@ -6,6 +6,12 @@ import { alvoSemArraste, ligarArrastarParaRolar, LIMIAR_ARRASTE } from "./useArr
 function alvo({ controle = false } = {}) {
   return { nodeType: 1, closest: (sel) => (controle && sel.includes("button") ? {} : null) };
 }
+/** Nó falso com seletores que ele "casa" (ex.: ["button"], ["td"]) e o pai: closest/matches como no DOM, para a lista de seletores. */
+function no(casa, pai = null) {
+  const n = { nodeType: 1, parentElement: pai, matches: (sel) => sel.split(", ").some((x) => casa.includes(x)) };
+  n.closest = (sel) => { for (let x = n; x; x = x.parentElement) if (x.matches(sel)) return x; return null; };
+  return n;
+}
 function cenario({ vertical = false, larguraConteudo = 2000, alturaConteudo = 600 } = {}) {
   const janela = new EventTarget();
   janela.document = { body: { style: { userSelect: "" } } };
@@ -117,11 +123,47 @@ describe("arrastar para rolar", () => {
     const seletores = [];
     alvoSemArraste({ nodeType: 1, closest: (s) => { seletores.push(s); return null; } });
     for (const s of ["button", "a", "input", "select", "textarea", "label", "[role=\"button\"]", "[data-alca-largura]", "[draggable=\"true\"]", "[data-sem-arraste]"]) {
-      expect(seletores[0].split(", ")).toContain(s);
+      expect(seletores.join(", ").split(", ")).toContain(s);
     }
     // Texto solto (nó de texto) usa o elemento pai; sem elemento, não arrasta.
     expect(alvoSemArraste({ nodeType: 3, parentElement: { nodeType: 1, closest: () => null } })).toBe(false);
     expect(alvoSemArraste(null)).toBe(true);
+  });
+
+  it("botão dentro de célula (role=cell, td) ou data-arrastavel deixa arrastar; fora de célula, campo, link, alça e data-sem-arraste não", () => {
+    const celula = no(['[role="cell"]'], no(['[role="row"]']));
+    expect(alvoSemArraste(no(["button"], celula))).toBe(false);
+    expect(alvoSemArraste(no([], no(["button"], celula)))).toBe(false); // o texto dentro do botão da célula
+    expect(alvoSemArraste(no(['[role="button"]'], no(["td"])))).toBe(false);
+    expect(alvoSemArraste(no(["button", "[data-arrastavel]"]))).toBe(false);
+    expect(alvoSemArraste(no(["button"], no(['[role="columnheader"]'])))).toBe(true); // botão do título (filtrar a camada)
+    expect(alvoSemArraste(no(["button"]))).toBe(true);
+    expect(alvoSemArraste(no(["input"], celula))).toBe(true); // campo de verdade, mesmo na célula
+    expect(alvoSemArraste(no(["a"], celula))).toBe(true);
+    expect(alvoSemArraste(no(["button"], no(["a"], celula)))).toBe(true); // botão dentro de link
+    expect(alvoSemArraste(no(["[data-alca-largura]", '[role="separator"]'], celula))).toBe(true);
+    expect(alvoSemArraste(no(['[draggable="true"]']))).toBe(true);
+    expect(alvoSemArraste(no(["button"], no(["[data-sem-arraste]"], celula)))).toBe(true);
+  });
+
+  it("arraste que começa no botão da célula rola e engole o clique dele; o clique curto no botão abre", () => {
+    const botao = () => no(["button"], no(['[role="cell"]']));
+    const c = cenario({ vertical: true });
+    const aoAbrir = vi.fn();
+    c.apertar({ alvo: botao(), clientX: 300, clientY: 100 });
+    c.mover(240, 100);
+    expect(c.el.scrollLeft).toBe(160);
+    c.soltar(240, 100);
+    c.janela.addEventListener("click", aoAbrir);
+    expect(c.clicar().defaultPrevented).toBe(true);
+    expect(aoAbrir).not.toHaveBeenCalled();
+    // Clique curto (abaixo do limiar) no mesmo botão: abre a visão focada como antes.
+    c.apertar({ alvo: botao(), clientX: 300, clientY: 100 });
+    c.mover(302, 101);
+    c.soltar(302, 101);
+    expect(c.el.scrollLeft).toBe(160);
+    expect(c.clicar().defaultPrevented).toBe(false);
+    expect(aoAbrir).toHaveBeenCalledTimes(1);
   });
 });
 

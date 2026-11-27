@@ -183,7 +183,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
   const larguras = useLargurasColunas(idDaTabela(id, ariaLabel || titulo, todas));
   const tabela = useRef(null);
   const [area, setArea] = useState(null);
-  // Clicar numa área vazia e arrastar leva a tabela para o lado (o clique simples segue como antes).
+  // Clicar numa célula (botões de célula inclusive) e arrastar leva a tabela para o lado (o clique simples segue como antes).
   useArrastarParaRolar(area);
 
   // Colunas novas (vindas de outra consulta) entram no fim, sem perder a ordem escolhida.

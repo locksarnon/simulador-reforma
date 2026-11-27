@@ -49,7 +49,7 @@ export default function TabelaDensa({
   });
   const [ocultas, setOcultas] = useState(() => (pref?.ocultas ? pref.ocultas.filter((k) => todas.includes(k)) : colunas.filter((c) => c.oculta).map((c) => c.chave)));
   const [busca, setBusca] = useState("");
-  // Área rolável: clicar numa área vazia e arrastar leva a tabela para o lado (e para cima e para baixo).
+  // Área rolável: clicar numa célula (botões de célula inclusive) e arrastar leva a tabela para o lado (e para cima e para baixo).
   const [areaRolavel, setAreaRolavel] = useState(null);
   useArrastarParaRolar(areaRolavel, { vertical: true });
   const [filtros, setFiltros] = useState({});

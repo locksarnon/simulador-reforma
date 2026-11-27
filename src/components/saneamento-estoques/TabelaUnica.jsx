@@ -123,7 +123,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
   const [aviso, setAviso] = useState(null);
   const [regraAberta, setRegraAberta] = useState(false);
   const [area, setArea] = useState(null);
-  // Clicar numa área vazia e arrastar leva a tabela para o lado e para cima/baixo; o clique que termina o arraste não abre a visão focada.
+  // Clicar numa célula (botões de célula inclusive) e arrastar leva a tabela para o lado e para cima/baixo; o clique que termina o arraste não abre a visão focada.
   useArrastarParaRolar(area, { vertical: true });
   const quadro = useRef(0);
   // Colunas do cadastro (pares como era × como ficou) e colunas extras do ERP; as extras escolhidas ficam guardadas por projeto.
