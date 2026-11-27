@@ -35,6 +35,8 @@ export const san = {
   estadoCamadas: (id) => api.get(`${B}/projetos/${id}/estado-camadas`),
 
   casos: (id, params) => api.get(`${B}/projetos/${id}/casos`, params),
+  /** Casos iguais agrupados (mesmos filtros da lista, mais `busca`); com `chave`, o grupo com todos os ids e as linhas dos casos. */
+  casosAgrupados: (id, params) => api.get(`${B}/projetos/${id}/casos/agrupados`, params),
   registrarCasos: (id, resultado) => api.post(`${B}/projetos/${id}/casos`, resultado),
   caso: (casoId) => api.get(`${B}/casos/${casoId}`),
   /** Quantos itens do caso há em cada grupo (caso de conjunto pode juntar vários grupos). */
@@ -105,6 +107,8 @@ export const chaves = {
   estadoCamadas: (projetoId) => ["san", projetoId, "estado-camadas"],
   analises: (projetoId) => ["san", projetoId, "analises"],
   casos: (projetoId, filtro) => ["san", projetoId, "casos", filtro],
+  casosAgrupados: (projetoId, filtro) => ["san", projetoId, "casos-agrupados", filtro],
+  grupoDeCasos: (projetoId, filtro, chave) => ["san", projetoId, "casos-agrupados", filtro, chave],
   caso: (casoId) => ["san", "caso", casoId],
   gruposDoCaso: (projetoId, casoId) => ["san", projetoId, "caso-grupos", casoId],
   impactos: (projetoId, tipo = "") => ["san", projetoId, "impactos", tipo],

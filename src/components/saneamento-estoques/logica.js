@@ -985,3 +985,40 @@ export const REGRA_FINALIDADE = [
   "A finalidade do grupo é a mais frequente entre os itens do grupo (caso \"Confirmar a finalidade do grupo\"). O item que a regra manda para outra finalidade vira caso de exceção, que exige o motivo escrito para aprovar.",
   "Enquanto o caso não é aprovado, a coluna mostra a finalidade em itálico com o selo \"sugerida\". Aprovar o caso grava a finalidade no item e libera o Tratamento tributário.",
 ];
+
+// ── Casos agrupados (casos iguais numa linha) ────────────────────────────────
+
+/** Proposta do grupo em texto legível (sem as listas auxiliares de decisões, códigos e descrições). Vazia = "sem proposta". */
+export function textoDaPropostaDoGrupo(proposta) {
+  const campos = Object.fromEntries(Object.entries(proposta || {}).filter(([k]) => !CAMPOS_FORA_DA_GRADE.includes(k)));
+  return Object.keys(campos).length ? textoDoValor(campos) : "Sem proposta";
+}
+/** Grupo do item na linha agrupada: o conjunto (vários itens) junta itens de grupos diferentes. */
+export const grupoDoGrupoDeCasos = (g) => (g?.conjunto ? "Vários itens (conjunto)" : g?.grupo || "(sem grupo)");
+/** Problema da linha agrupada: quando o texto muda de caso para caso (cita o item), mostra o primeiro como exemplo. */
+export const problemaDoGrupoDeCasos = (g) => `${g?.problemaVaria ? "Ex.: " : ""}${textoLegivel(g?.problema)}`;
+/** Situações dos casos do grupo, por extenso e com a quantidade quando há mais de uma ("Proposto 3; Rascunho 1"). */
+export function textoDasSituacoesDoGrupo(situacoes) {
+  const e = Object.entries(situacoes || {}).filter(([, q]) => q > 0);
+  if (e.length === 1) return rotuloSituacaoCaso(e[0][0]);
+  return e.map(([s, q]) => `${rotuloSituacaoCaso(s)} ${Number(q).toLocaleString("pt-BR")}`).join("; ");
+}
+/** Situação única do grupo (para o selo), ou null quando o grupo mistura situações. */
+export const situacaoUnicaDoGrupo = (situacoes) => { const e = Object.keys(situacoes || {}); return e.length === 1 ? e[0] : null; };
+/** Contador da lista agrupada: "N grupos (M casos)". */
+export const contadorDeGrupos = (grupos, casos) => `${Number(grupos || 0).toLocaleString("pt-BR")} grupo(s) (${Number(casos || 0).toLocaleString("pt-BR")} caso(s))`;
+/**
+ * Ids dos casos dos grupos marcados, para o lote: usa os ids que a lista trouxe e, no grupo maior que isso, pede todos (`buscarTodos(chave)`
+ * devolve a lista completa). Sem repetir id.
+ */
+export async function idsDosGruposParaLote(grupos, marcadas, buscarTodos) {
+  const ids = new Set();
+  for (const g of grupos || []) {
+    if (!marcadas.has(g.chave)) continue;
+    const lista = g.idsCompletos === false || (g.ids || []).length < g.casos ? await buscarTodos(g.chave) : g.ids;
+    for (const id of lista || []) ids.add(id);
+  }
+  return [...ids];
+}
+/** Descrição do lote de um grupo de casos (o texto do painel "Decidir em lote"). */
+export const descricaoDoLoteDoGrupo = (g, nIds) => `${Number(nIds ?? g?.casos ?? 0).toLocaleString("pt-BR")} caso(s) do grupo ${rotuloTipoCaso(g?.tipo)} · ${grupoDoGrupoDeCasos(g)}.`;
