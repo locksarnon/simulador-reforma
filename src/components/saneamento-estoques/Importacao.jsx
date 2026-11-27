@@ -11,6 +11,7 @@ import {
   alternarIncorporar, camposObrigatoriosSemColuna, colunasDoArquivo, corpoIncorporar, corrigirMapeamento, ehReimportacao, estadoDaTrava, fmtDataHora, itensIncorporaveis,
   linhasDeMapeamento, mapeamentoMudou, mensagemDeErro, MODOS_INCORPORAR, quantosIncorporar, resumirRelatorio, ROTULO_CERTEZA, rotuloDoCampo, textoDoValor,
 } from "./logica";
+import { escalaAplicada, escalaDetectada, exemplosDaColuna, fmtNumero, seloDoMapeamento, textoEscalaAplicada, textoEscalaSaldo } from "./importacaoTela";
 
 const ROTULO_LINHA = { ACEITA: "Aceita", REJEITADA: "Rejeitada", PENDENTE: "Pendente" };
 
@@ -43,7 +44,31 @@ export function MotivosAgrupados({ titulo, grupos }) {
   );
 }
 
-function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carregando }) {
+/** Certeza da sugestão; some quando o consultor troca a coluna. */
+function Selo({ selo }) {
+  if (selo === "ALTA" || selo === "MEDIA") return <Tag tom={selo === "ALTA" ? "ok" : "alerta"}>{ROTULO_CERTEZA[selo]}</Tag>;
+  if (selo === "RECONHECIDA") return <Tag>Reconhecida</Tag>;
+  return <span className="text-xs text-muted-foreground">—</span>;
+}
+
+/** Saldo que parece exportado sem a vírgula das casas decimais: o consultor escolhe dividir (nada é automático). */
+export function EscalaDoSaldo({ relatorio, aoEscolher, carregando }) {
+  const e = escalaDetectada(relatorio);
+  if (!e) return null;
+  const dividido = escalaAplicada(relatorio) > 1;
+  return (
+    <Aviso tom="alerta" titulo="Saldos muito altos">
+      <p>{textoEscalaSaldo(e)}</p>
+      <label className="mt-2 flex items-center gap-2 font-medium">
+        <input type="checkbox" checked={dividido} disabled={carregando} onChange={() => aoEscolher(dividido ? 1 : Number(e.detectada))} />
+        Dividir os saldos por {fmtNumero(e.detectada)}
+      </label>
+      {carregando && <p className="mt-1 text-xs">Atualizando a prévia…</p>}
+    </Aviso>
+  );
+}
+
+export function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carregando }) {
   const colunas = colunasDoArquivo(previa);
   const linhas = linhasDeMapeamento(previa, mapeamento);
   const faltam = camposObrigatoriosSemColuna(mapeamento ?? previa.mapeamento);
@@ -53,7 +78,7 @@ function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carregando })
       <h3 id="san-imp-map" className={tituloSecaoCls}>Colunas do arquivo</h3>
       <p className="text-sm text-muted-foreground">O sistema sugeriu o que cada coluna significa. Confira e corrija o que estiver errado; código e descrição são obrigatórios.</p>
       <table className="w-full text-sm" aria-label="Mapeamento de colunas">
-        <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Campo do sistema</th><th scope="col">Coluna do arquivo</th><th scope="col">Certeza</th></tr></thead>
+        <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Campo do sistema</th><th scope="col">Coluna do arquivo</th><th scope="col">Exemplos</th><th scope="col">Certeza</th></tr></thead>
         <tbody>
           {linhas.map((l) => (
             <tr key={l.campo} className="border-b border-border/60">
@@ -68,7 +93,8 @@ function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carregando })
                   <input className={`${campoCls} max-w-xs`} value={l.coluna} aria-label={`Coluna de ${l.rotulo}`} onChange={(e) => aoCorrigir(corrigirMapeamento(mapeamento ?? previa.mapeamento, l.campo, e.target.value))} />
                 )}
               </td>
-              <td>{l.certeza ? <Tag tom={l.certeza === "ALTA" ? "ok" : "alerta"}>{ROTULO_CERTEZA[l.certeza]}</Tag> : l.coluna ? <Tag>Reconhecida</Tag> : <span className="text-xs text-muted-foreground">—</span>}</td>
+              <td className="max-w-[16rem] truncate pr-2 text-xs text-muted-foreground" title={exemplosDaColuna(previa, l.coluna).join(" · ")}>{exemplosDaColuna(previa, l.coluna).join(" · ") || "—"}</td>
+              <td><Selo selo={seloDoMapeamento(previa, l.campo, l.coluna)} /></td>
             </tr>
           ))}
         </tbody>
@@ -184,8 +210,9 @@ export function AvisosDeSeparador({ relatorio }) {
   return lista.map((a, n) => <Aviso key={`${n}-${a}`} tom="erro" titulo="Separador decimal mudou">{a}</Aviso>);
 }
 
-function Resultado({ r }) {
+export function Resultado({ r, aoIrParaDiretrizes }) {
   const rel = resumirRelatorio(r);
+  const escala = textoEscalaAplicada(r.escalaSaldo);
   return (
     <section aria-labelledby="san-imp-res" className="space-y-3 border border-emerald-600/50 bg-emerald-600/5 p-4">
       <h3 id="san-imp-res" className="font-semibold">Relatório da importação</h3>
@@ -196,7 +223,9 @@ function Resultado({ r }) {
       {(r.totalIgnorados ?? r.ignorados?.length ?? 0) > 0 && <Aviso tom="alerta">{Number(r.totalIgnorados ?? r.ignorados.length).toLocaleString("pt-BR")} campo(s) protegido(s) por decisão foram mantidos como estavam.</Aviso>}
       <MotivosAgrupados titulo="Linhas rejeitadas" grupos={rel.motivosRejeicao} />
       <MotivosAgrupados titulo="Linhas pendentes (aceitas com dado faltando)" grupos={rel.motivosPendencia} />
+      {escala && <p className="text-sm">{escala}</p>}
       {rel.avisos.map((a, n) => <Aviso key={`${n}-${a}`} tom="alerta">{a}</Aviso>)}
+      {aoIrParaDiretrizes && <button type="button" className={botaoPrimario} onClick={aoIrParaDiretrizes}>Ir para Diretrizes</button>}
     </section>
   );
 }
@@ -221,7 +250,7 @@ function Historico({ projetoId }) {
 }
 
 /** Importação: arquivo → mapeamento → prévia → (reimportação: o que incorporar) → confirmação → relatório. Bloqueada pela trava das atividades. */
-export default function Importacao({ projeto, podeImportar = true, aoIrParaConfiguracao }) {
+export default function Importacao({ projeto, podeImportar = true, aoIrParaConfiguracao, aoIrParaDiretrizes }) {
   const qc = useQueryClient();
   const trava = estadoDaTrava(projeto);
   const [arquivo, setArquivo] = useState(null);
@@ -234,19 +263,20 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
   const [erro, setErro] = useState(null);
   const [chaveArquivo, setChaveArquivo] = useState(0);
 
+  // `m`: mapeamento corrigido (null = o sugerido); `escala`: divisor do saldo escolhido (1 = como veio).
   const ler = useMutation({
-    mutationFn: (m) => san.previaImportacao(projeto.id, arquivo, m || undefined),
-    onSuccess: (p, m) => { setPrevia(p); setMapeamento(m ?? null); setEscolhidos(new Set()); setModo("ITENS"); setResultado(null); setErro(null); },
+    mutationFn: ({ m, escala = 1 }) => san.previaImportacao(projeto.id, arquivo, m || undefined, escala > 1 ? { escalaSaldo: escala } : undefined),
+    onSuccess: (p, { m }) => { setPrevia(p); setMapeamento(m ?? null); setEscolhidos(new Set()); setModo("ITENS"); setResultado(null); setErro(null); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
   // Outra página (ou outro filtro) das diferenças: relê o mesmo arquivo com o mesmo mapeamento; as marcações continuam.
   const paginar = useMutation({
-    mutationFn: (opcoes) => san.previaImportacao(projeto.id, arquivo, previa.mapeamento, opcoes),
+    mutationFn: (opcoes) => san.previaImportacao(projeto.id, arquivo, previa.mapeamento, { ...opcoes, ...(escalaAplicada(previa.relatorio) > 1 ? { escalaSaldo: escalaAplicada(previa.relatorio) } : {}) }),
     onSuccess: (p) => { setPrevia(p); setErro(null); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
   const confirmar = useMutation({
-    mutationFn: () => san.importar(projeto.id, arquivo, mapeamento ?? previa.mapeamento, corpoIncorporar(modo, escolhidos)),
+    mutationFn: () => san.importar(projeto.id, arquivo, mapeamento ?? previa.mapeamento, corpoIncorporar(modo, escolhidos), escalaAplicada(previa.relatorio)),
     onSuccess: (r) => { setResultado(r); setPrevia(null); setArquivo(null); setChaveArquivo((k) => k + 1); setErro(null); atualizarTudo(qc, projeto.id); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
@@ -270,21 +300,22 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
         <div className="flex flex-wrap items-center gap-2">
           <CampoArquivo key={chaveArquivo} accept=".xlsx,.xls,.csv" icone={FileSpreadsheet} arquivo={arquivo} rotulo="Arquivo do cadastro de itens" dica="Excel (.xlsx, .xls) ou CSV" className="w-full sm:w-auto sm:min-w-[22rem]"
             aoEscolher={([f]) => { setArquivo(f || null); setPrevia(null); setMapeamento(null); setResultado(null); setErro(null); }} />
-          <button type="button" className={botaoPrimario} disabled={!arquivo || ler.isPending || confirmar.isPending} onClick={() => ler.mutate(null)}>{ler.isPending ? "Lendo…" : "Ler e mostrar a prévia"}</button>
+          <button type="button" className={botaoPrimario} disabled={!arquivo || ler.isPending || confirmar.isPending} onClick={() => ler.mutate({ m: null })}>{ler.isPending ? "Lendo…" : "Ler e mostrar a prévia"}</button>
         </div>
       </section>
 
       {erro && <Aviso tom="erro">{erro}</Aviso>}
-      {resultado && <Resultado r={resultado} />}
+      {resultado && <Resultado r={resultado} aoIrParaDiretrizes={aoIrParaDiretrizes} />}
 
       {previa && (
         <>
-          <Mapeamento previa={previa} mapeamento={mapeamento} aoCorrigir={setMapeamento} aoAtualizar={() => ler.mutate(mapeamento)} carregando={ler.isPending} />
+          <Mapeamento previa={previa} mapeamento={mapeamento} aoCorrigir={setMapeamento} aoAtualizar={() => ler.mutate({ m: mapeamento, escala: escalaAplicada(previa.relatorio) })} carregando={ler.isPending} />
           <section aria-labelledby="san-imp-prev" className={`space-y-3 ${secaoCls}`}>
             <h2 id="san-imp-prev" className={tituloSecaoCls}>2. Prévia</h2>
             <div className="grid grid-cols-3 gap-2"><Numero rotulo="Linhas aceitas" valor={rel.aceitas} /><Numero rotulo="Rejeitadas" valor={rel.rejeitadas} tom={rel.rejeitadas ? "erro" : undefined} /><Numero rotulo="Pendentes" valor={rel.pendentes} tom={rel.pendentes ? "alerta" : undefined} /></div>
             <MotivosAgrupados titulo="Motivos de rejeição" grupos={rel.motivosRejeicao} />
             <MotivosAgrupados titulo="Pendências (aceitas com dado faltando)" grupos={rel.motivosPendencia} />
+            <EscalaDoSaldo relatorio={previa.relatorio} carregando={ler.isPending} aoEscolher={(escala) => ler.mutate({ m: mapeamento ?? previa.mapeamento, escala })} />
             {rel.avisos.map((a, n) => <Aviso key={`${n}-${a}`} tom="alerta">{a}</Aviso>)}
             <Amostra previa={previa} />
           </section>

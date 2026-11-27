@@ -18,7 +18,8 @@ export const san = {
   /** `opcoes`: página e filtro das diferenças da reimportação ({ pagina, limite, filtro: TODAS | COM_PROTEGIDO | SEM_PROTEGIDO }). */
   previaImportacao: (id, arquivo, mapeamento, opcoes) => api.upload(`${B}/projetos/${id}/importacoes/previa`, arquivo, { mapeamento, ...(opcoes || {}) }),
   /** `incorporar`: lista de ids ou filtro { filtro: "ALTERADOS" | "ALTERADOS_SEM_PROTEGIDO", exceto?: [ids] }. */
-  importar: (id, arquivo, mapeamento, incorporar) => api.upload(`${B}/projetos/${id}/importacoes`, arquivo, { mapeamento, incorporar: incorporar || [] }),
+  /** `escalaSaldo`: divisor do saldo escolhido na prévia (1 ou vazio = como veio). */
+  importar: (id, arquivo, mapeamento, incorporar, escalaSaldo) => api.upload(`${B}/projetos/${id}/importacoes`, arquivo, { mapeamento, incorporar: incorporar || [], ...(escalaSaldo > 1 ? { escalaSaldo } : {}) }),
   importacoes: (id) => api.get(`${B}/projetos/${id}/importacoes`),
 
   itens: (id, params) => api.get(`${B}/projetos/${id}/itens`, params),

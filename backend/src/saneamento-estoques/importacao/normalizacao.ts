@@ -149,6 +149,32 @@ export function detectarSeparadorDecimal(valores: Iterable<unknown>, virgulaDeci
   return analisarSeparadorDecimal(valores, virgulaDecimal).separador;
 }
 
+/** Divisores que a importação aceita para o saldo (potências de 10, de mil a um milhão), do maior para o menor. */
+export const ESCALAS_DE_SALDO = [1e6, 1e5, 1e4, 1e3] as const;
+
+/**
+ * Saldo exportado sem a vírgula das casas decimais (o SAP B1 da Crestani grava 24 como 24.000.000 e 9,07 como 9.070.000). Devolve o divisor
+ * provável, só para a prévia perguntar ao consultor (nada é dividido sem a escolha dele):
+ *  - 1.000.000 quando todo saldo não nulo é inteiro e tem 1.000.000 ou mais (ao menos 3): nenhum saldo entre zero e um milhão;
+ *  - senão, a maior potência de 10 de 1.000 a 100.000 da qual todo saldo não nulo é múltiplo (ao menos 10: múltiplos de mil por acaso são
+ *    comuns em base pequena);
+ *  - sem indício: 1.
+ */
+export function detectarEscalaDoSaldo(valores: Iterable<number | null | undefined>): number {
+  let quantos = 0; let todosMilhao = true;
+  let multiplos: number[] = ESCALAS_DE_SALDO.filter((f) => f < 1e6);
+  for (const v of valores) {
+    if (v == null || !Number.isFinite(v) || v === 0) continue;
+    quantos++;
+    const a = Math.abs(v);
+    if (!(Number.isInteger(a) && a >= 1e6)) todosMilhao = false;
+    multiplos = multiplos.filter((f) => a % f === 0);
+    if (!todosMilhao && !multiplos.length) return 1;
+  }
+  if (todosMilhao && quantos >= 3) return 1e6;
+  return multiplos.length && quantos >= 10 ? multiplos[0] : 1;
+}
+
 /** Data de uma célula -> yyyy-mm-dd. `invalida` quando há texto que não é data. Vazio e "00/00/0000" = sem data. */
 export function lerData(bruto: unknown, hoje: Date = new Date()): { data: string | null; invalida: boolean } {
   const t = aparar(bruto);

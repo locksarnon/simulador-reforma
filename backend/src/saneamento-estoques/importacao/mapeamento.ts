@@ -12,7 +12,9 @@ export const SINONIMOS: Record<CampoBase, string[]> = {
     'material', 'sku', 'codigointerno', 'numerodoitem', 'numeroitem', 'matnr'],
   descricao: ['descricao', 'descricaodoproduto', 'descricaoproduto', 'descricaodoitem', 'descricaoitem', 'itemname', 'b1desc', 'descitem', 'descproduto', 'descrproduto',
     'descrprod', 'desc', 'denominacao', 'nome', 'nomedoproduto', 'textobreve', 'descricaomaterial', 'produto'],
-  unidade: ['unidadedemedidadeestoque', 'unidademedidaestoque', 'unidadedeestoque', 'invntryuom', 'unidade', 'unidademedida', 'unidadedemedida', 'un', 'um', 'unid', 'b1um', 'salunitmsr'],
+  // O código da unidade (UN, KG, L: até 6 caracteres, como no SPED) vem antes do nome ("UNIDADE", "QUILOGRAMA").
+  unidade: ['codigodaunidadedemedida', 'codigodaunidadedemedidadeestoque', 'codigounidademedida', 'codigodaunidade', 'codunidade', 'codum', 'uomcode',
+    'unidadedemedidadeestoque', 'unidademedidaestoque', 'unidadedeestoque', 'invntryuom', 'unidade', 'unidademedida', 'unidadedemedida', 'un', 'um', 'unid', 'b1um', 'salunitmsr'],
   ncm: ['ncm', 'codigoncm', 'codncm', 'ncmcode', 'b1posipi', 'posipi', 'classificacaofiscal', 'classfiscal', 'steuc', 'nbm', 'ncmsh'],
   grupo: ['grupodoproduto', 'grupoproduto', 'grupo', 'descricaodogrupodeitens', 'descricaogrupodeitens', 'itmsgrpnam', 'grupodeitens', 'itmsgrpcod', 'b1grupo', 'gecodigo', 'familia', 'categoria'],
   ativo: ['ativo', 'itemativo', 'ativoinativo', 'status', 'situacao', 'validfor', 'bloqueado', 'inativo', 'frozenfor', 'b1msblql', 'bloqueio'],
@@ -31,11 +33,13 @@ export const SINONIMOS: Record<CampoBase, string[]> = {
 const APROXIMADOS: Partial<Record<CampoBase, { tem: RegExp; nao?: RegExp }>> = {
   descricao: { tem: /^descri/, nao: /grupo|unid|ncm|famil|conta|fiscal|tribut|classe|barras/ },
   ncm: { tem: /ncm/, nao: /descri|desc/ },
-  unidade: { tem: /^unid/, nao: /compra|venda|embalagem|negocio/ },
+  unidade: { tem: /^unid|^cod(igo)?(da)?unid/, nao: /compra|venda|embalagem|negocio/ },
   grupo: { tem: /^grupo/, nao: /contabil|conta|tribut/ },
   ultimaMovimentacao: { tem: /ultim.*(mov|compra|venda|entrada|saida)|(mov|compra|venda|entrada|saida).*ultim|^dtult|^dataultim/ },
   fabricante: { tem: /fabric/, nao: /codigo|cod$/ },
-  estabelecimento: { tem: /^(estab|deposito|filial)/ },
+  // "Depósito Última Compra", "Depósito padrão": é onde o item foi comprado ou costuma entrar, não o estabelecimento do item; sugerir dividiria o
+  // mesmo item por depósito.
+  estabelecimento: { tem: /^(estab|deposito|filial)/, nao: /ultim|compra|venda|mov|padrao/ },
   finalidade: { tem: /finalid/ },
   subgrupo: { tem: /^sub(grupo|famil|categ)/ },
 };
@@ -44,6 +48,22 @@ const APROXIMADOS: Partial<Record<CampoBase, { tem: RegExp; nao?: RegExp }>> = {
 const BLOQUEIO = /bloq|frozen|inativ|msblql/;
 
 type Candidato = { indice: number; campo: CampoBase; certeza: Certeza; rank: number; motivo: string };
+
+/** Maior tamanho de unidade que o leiaute oficial aceita (0190 UNID, uCom e uTrib da NF-e: 6 caracteres). */
+export const MAX_CARACTERES_UNIDADE = 6;
+/** Quantos valores de exemplo cada coluna mostra no mapeamento. */
+const MAX_EXEMPLOS = 3;
+
+/** Valores distintos e não vazios de cada coluna: os das primeiras linhas (`amostra`) e, na falta, o primeiro valor da coluna (`exemplos`). */
+function valoresPorColuna(largura: number, exemplos: string[], amostra: string[][]): string[][] {
+  return Array.from({ length: largura }, (_, i) => {
+    const vistos = new Set<string>();
+    for (const l of amostra) { const t = String(l[i] ?? '').trim(); if (t) vistos.add(t); }
+    const primeiro = String(exemplos[i] ?? '').trim();
+    if (primeiro) vistos.add(primeiro);
+    return [...vistos];
+  });
+}
 
 /**
  * Colunas do export do ERP selecionado no projeto (Cadastro de ERPs, conhecimento COLUNA_EXPORT): campo → cabeçalhos. Casam antes de tudo
@@ -56,7 +76,9 @@ function candidatos(indice: number, nome: string, doErp?: ColunasDoErp): Candida
   if (!s) return [];
   const lista: Candidato[] = [];
   for (const campo of CAMPOS_BASE) {
-    if (doErp?.colunas[campo]?.some((c) => simplificar(c) === s)) { lista.push({ indice, campo, certeza: 'ALTA', rank: -1, motivo: `"${nome}" é a coluna de ${ROTULO_CAMPO[campo].toLowerCase()} no export do ${doErp.erp} (Cadastro de ERPs)` }); continue; }
+    const posErp = doErp?.colunas[campo]?.findIndex((c) => simplificar(c) === s) ?? -1;
+    // Do perfil do ERP: antes de tudo, na ordem do perfil (o código da unidade antes do nome).
+    if (posErp >= 0) { lista.push({ indice, campo, certeza: 'ALTA', rank: posErp - 100, motivo: `"${nome}" é a coluna de ${ROTULO_CAMPO[campo].toLowerCase()} no export do ${doErp!.erp} (Cadastro de ERPs)` }); continue; }
     const rank = SINONIMOS[campo].indexOf(s);
     if (rank >= 0) { lista.push({ indice, campo, certeza: 'ALTA', rank, motivo: `o nome "${nome}" é um nome conhecido de ${ROTULO_CAMPO[campo].toLowerCase()}` }); continue; }
     const ap = APROXIMADOS[campo];
@@ -68,10 +90,17 @@ function candidatos(indice: number, nome: string, doErp?: ColunasDoErp): Candida
 /**
  * Sugere o mapeamento coluna → campo pelo NOME do cabeçalho. Cada campo recebe no máximo uma coluna e cada coluna no máximo um campo; certeza ALTA
  * (nome conhecido) vence MÉDIA (nome parecido). Colunas sem campo ficam com `campo: null` e viram `campos`. `exemplos` (primeiro valor não vazio de
- * cada coluna, vindo de `lerPrevia`) só serve para mostrar ao consultor. Campo obrigatório sem coluna aparece em `faltando`.
+ * cada coluna, vindo de `lerPrevia`) e `amostra` (as primeiras linhas) mostram ao consultor até 3 valores por coluna. Campo obrigatório sem coluna
+ * aparece em `faltando`.
+ * Unidade: havendo uma coluna com o código (todos os valores com até 6 caracteres, "UN") e outra com o nome ("UNIDADE", "QUILOGRAM"), vale a do
+ * código, a que cabe no 0190 do SPED e na NF-e; a do nome vira campo adicional.
  */
-export function sugerirMapeamento(cabecalho: string[], exemplos: string[] = [], doErp?: ColunasDoErp): SugestaoMapeamento {
-  const todos = cabecalho.flatMap((nome, i) => candidatos(i, nome, doErp));
+export function sugerirMapeamento(cabecalho: string[], exemplos: string[] = [], doErp?: ColunasDoErp, amostra: string[][] = []): SugestaoMapeamento {
+  const valores = valoresPorColuna(cabecalho.length, exemplos, amostra);
+  const longa = (i: number) => valores[i].some((v) => v.length > MAX_CARACTERES_UNIDADE);
+  let todos = cabecalho.flatMap((nome, i) => candidatos(i, nome, doErp));
+  const unidades = todos.filter((c) => c.campo === 'unidade');
+  if (unidades.some((c) => valores[c.indice].length && !longa(c.indice))) todos = todos.filter((c) => c.campo !== 'unidade' || !longa(c.indice));
   todos.sort((a, b) => (a.certeza === b.certeza ? 0 : a.certeza === 'ALTA' ? -1 : 1) || a.rank - b.rank || a.indice - b.indice || CAMPOS_BASE.indexOf(a.campo) - CAMPOS_BASE.indexOf(b.campo));
   const mapeamento: Mapeamento = {};
   const usadas = new Set<number>();
@@ -82,7 +111,7 @@ export function sugerirMapeamento(cabecalho: string[], exemplos: string[] = [], 
   }
   const colunas: SugestaoColuna[] = cabecalho.map((nome, indice) => {
     const c = escolha.get(indice);
-    return { indice, nome, exemplo: exemplos[indice] ?? '', campo: c?.campo ?? null, certeza: c?.certeza ?? null, motivo: c?.motivo ?? 'sem campo correspondente: entra como campo adicional' };
+    return { indice, nome, exemplo: exemplos[indice] ?? '', exemplos: valores[indice].slice(0, MAX_EXEMPLOS), campo: c?.campo ?? null, certeza: c?.certeza ?? null, motivo: c?.motivo ?? 'sem campo correspondente: entra como campo adicional' };
   });
   const semanticaAtivo: SemanticaAtivo = mapeamento.ativo != null && BLOQUEIO.test(simplificar(cabecalho[mapeamento.ativo])) ? 'BLOQUEADO' : 'ATIVO';
   const faltando = CAMPOS_OBRIGATORIOS.filter((c) => mapeamento[c] == null);

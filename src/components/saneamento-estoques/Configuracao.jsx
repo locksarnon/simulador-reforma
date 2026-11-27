@@ -8,12 +8,19 @@ import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
 import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Rotulo, SecaoForm, Tag, usePodeAlterar } from "./comuns";
 import {
   efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtCnae, fmtData, fmtDataHora, mensagemDeErro, motivoDaAtividade, motivoListaVazia,
-  MODULOS_OPCIONAIS, textoBuscaCnpj,
+  textoBuscaCnpj,
 } from "./logica";
+
+/** Origem da atividade numa etiqueta só: "CNPJ · principal", "CNPJ · secundário" ou "Manual". */
+export function rotuloDaOrigem(a, projeto) {
+  if (a.origem !== "CNPJ") return "Manual";
+  const principal = projeto?.cliente?.cnaePrincipal;
+  return principal ? `CNPJ · ${String(principal) === String(a.codigo) ? "principal" : "secundário"}` : "CNPJ";
+}
 
 const listaDeEstabelecimentos = (p) => (Array.isArray(p?.estabelecimentos) ? p.estabelecimentos : []);
 
-/** Configuração do projeto: ERP, estabelecimentos, responsável, data-base, corte, atividades com a trava e módulos opcionais. */
+/** Configuração do projeto: ERP, estabelecimentos, responsável, data-base, corte e atividades com a trava. Módulos ainda não disponíveis não aparecem. */
 export default function Configuracao({ projeto, recarregar }) {
   const confirmar = useConfirmar();
   const trava = estadoDaTrava(projeto);
@@ -131,8 +138,7 @@ export default function Configuracao({ projeto, recarregar }) {
                   <td className="px-2 tabular-nums">{fmtCnae(a.codigo)}</td>
                   <td className={a.mantida ? "px-2" : "px-2 line-through"}>{a.descricao}{!a.mantida && <Tag className="ml-2">excluída</Tag>}</td>
                   <td className="px-2">
-                    <Tag tom={a.origem === "CNPJ" ? "info" : "neutro"}>{a.origem === "CNPJ" ? "CNPJ" : "Manual"}</Tag>
-                    {a.origem === "CNPJ" && projeto.cliente?.cnaePrincipal && <span className="ml-1 text-xs text-foreground/75">{String(projeto.cliente.cnaePrincipal) === String(a.codigo) ? "principal" : "secundário"}</span>}
+                    <Tag tom={a.origem === "CNPJ" ? "info" : "neutro"}>{rotuloDaOrigem(a, projeto)}</Tag>
                   </td>
                   {projeto.mapaAtividades && (
                     <td className="px-2 text-xs">
@@ -170,33 +176,6 @@ export default function Configuracao({ projeto, recarregar }) {
             <span className="text-xs text-muted-foreground">Registra quem confirmou e quando.</span>
           </div>
         )}
-      </SecaoForm>
-
-      <SecaoForm titulo="Módulos opcionais" nivel="h2" idTitulo="san-cfg-mod">
-        <p className="text-sm text-foreground/75">Ainda não estão disponíveis nesta versão do serviço: ficam desligados.</p>
-        <ul className="divide-y divide-foreground/20 border border-foreground/30 bg-card px-3">
-          {MODULOS_OPCIONAIS.map((m) => {
-            const id = `san-mod-${m.id}`;
-            const aberto = infoAberta === m.id;
-            return (
-              <li key={m.id} className="py-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="min-w-0 flex-1 text-sm font-medium">{m.titulo}</span>
-                  <Tag tom="info">a desenvolver</Tag>
-                  <span className="text-xs text-muted-foreground">Desligado</span>
-                  <BotaoInfo id={id} rotulo={m.titulo} aberto={aberto} aoAlternar={() => setInfoAberta(aberto ? null : m.id)} />
-                </div>
-                {aberto && (
-                  <dl id={id} className="mt-2 space-y-1 border-l-2 border-border pl-3 text-sm">
-                    <div><dt className="inline font-semibold">O que é: </dt><dd className="inline">{m.oQueE}</dd></div>
-                    <div><dt className="inline font-semibold">Dados que exige: </dt><dd className="inline">{m.exige}</dd></div>
-                    <div><dt className="inline font-semibold">O que muda ao ligar: </dt><dd className="inline">{m.oQueMuda}</dd></div>
-                  </dl>
-                )}
-              </li>
-            );
-          })}
-        </ul>
       </SecaoForm>
     </div>
   );

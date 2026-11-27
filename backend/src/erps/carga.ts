@@ -26,7 +26,7 @@ const WN10 = 'https://help.sap.com/doc/1e4d3a635ae2433597e22263e3b2c8f4/10.0/en-
 const SAP_CONSULTA_A = `SELECT T0."ItemCode", T0."ItemName", T0."FrgnName",
        T0."ItmsGrpCod", T1."ItmsGrpNam",
        T0."InvntItem", T0."SellItem", T0."PrchseItem", T0."ItemClass",
-       T0."InvntryUom", T0."IUoMEntry", T0."UgpEntry", T4."UgpCode",
+       T0."InvntryUom", T0."IUoMEntry", T6."UomCode", T0."UgpEntry", T4."UgpCode",
        T0."BuyUnitMsr", T0."NumInBuy", T0."SalUnitMsr", T0."NumInSale",
        T0."NCMCode" AS "NcmEntry", T2."NcmCode", T2."Descrip" AS "NcmDescricao",
        T0."CESTCode", T5."CEST", T0."ProductSrc", T0."MatType",
@@ -42,6 +42,7 @@ LEFT JOIN "ONCM"  T2 ON T2."AbsEntry"   = T0."NCMCode"
 LEFT JOIN "OMRC"  T3 ON T3."FirmCode"   = T0."FirmCode"
 LEFT JOIN "OUGP"  T4 ON T4."UgpEntry"   = T0."UgpEntry"
 LEFT JOIN "OCEST" T5 ON T5."AbsId"      = T0."CESTCode"
+LEFT JOIN "OUOM"  T6 ON T6."UomEntry"   = T0."IUoMEntry"
 LEFT JOIN (SELECT "ItemCode",
                   MAX("DocDate") AS "UltimaMov",
                   MAX(CASE WHEN "InQty"  <> 0 THEN "DocDate" END) AS "UltimaEntrada",
@@ -74,7 +75,8 @@ const SAP: ErpCarga = {
     // Colunas do export (Consulta A; estabelecimento na Consulta B)
     { k: 'col-codigo', tipo: 'COLUNA_EXPORT', chave: 'codigo', campo_erp: 'ItemCode', texto: 'Código do item (OITM.ItemCode).', fonte_url: `${SDK}/OITM.html`, grau: C },
     { k: 'col-descricao', tipo: 'COLUNA_EXPORT', chave: 'descricao', campo_erp: 'ItemName', texto: 'Descrição do item (OITM.ItemName); FrgnName é a descrição alternativa.', fonte_url: `${SDK}/OITM.html`, grau: C },
-    { k: 'col-unidade', tipo: 'COLUNA_EXPORT', chave: 'unidade', campo_erp: 'InvntryUom', texto: 'Unidade de estoque (OITM.InvntryUom).', fonte_url: `${SDK}/OITM.html`, grau: C },
+    { k: 'col-unidade-codigo', tipo: 'COLUNA_EXPORT', chave: 'unidade', campo_erp: 'UomCode', texto: 'Código da unidade de estoque (OUOM.UomCode pelo JOIN com OITM.IUoMEntry): "UN", "KG", até 6 caracteres como no 0190 do SPED. Vem antes do nome.', fonte_url: `${SDK}/OUOM.html`, grau: C },
+    { k: 'col-unidade', tipo: 'COLUNA_EXPORT', chave: 'unidade', campo_erp: 'InvntryUom', texto: 'Nome da unidade de estoque (OITM.InvntryUom, "Unidade de Medida de Estoque" no export em português): só quando o export não traz o código.', fonte_url: `${SDK}/OITM.html`, grau: C },
     { k: 'col-ncm', tipo: 'COLUNA_EXPORT', chave: 'ncm', campo_erp: 'NcmCode', texto: 'NCM de 8 dígitos vem de ONCM.NcmCode pelo JOIN; OITM.NCMCode é a chave interna (-1 = sem NCM) e nunca vai cru.', fonte_url: `${SDK}/ONCM.html`, grau: C },
     { k: 'col-grupo', tipo: 'COLUNA_EXPORT', chave: 'grupo', campo_erp: 'ItmsGrpNam', texto: 'Grupo de itens pelo nome (OITB.ItmsGrpNam); ItmsGrpCod é a chave.', fonte_url: `${SDK}/OITB.html`, grau: C },
     { k: 'col-ativo', tipo: 'COLUNA_EXPORT', chave: 'ativo', campo_erp: 'frozenFor', texto: 'Situação: frozenFor = Y é inativo (congelado); validFor = N também.', fonte_url: `${SDK}/OITM.html`, grau: C },

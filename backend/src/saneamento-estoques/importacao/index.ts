@@ -18,13 +18,13 @@
 export { CAMPOS_BASE, CAMPOS_OBRIGATORIOS, ROTULO_CAMPO } from './tipos';
 export type {
   CampoBase, Mapeamento, SemanticaAtivo, Certeza, SugestaoColuna, SugestaoMapeamento, ConfigImportacao, SituacaoLinha, Ocorrencia, ItemImportado,
-  LinhaConferida, ExemploLinha, GrupoOcorrencia, TotaisImportacao, RelatorioImportacao, PreviaImportacao, CampoNumerico, SeparadoresDaImportacao,
+  LinhaConferida, ExemploLinha, GrupoOcorrencia, TotaisImportacao, RelatorioImportacao, PreviaImportacao, CampoNumerico, SeparadoresDaImportacao, EscalaDoSaldo,
 } from './tipos';
 export { sugerirMapeamento, corrigirMapeamento, validarMapeamento, SINONIMOS, type ColunasDoErp } from './mapeamento';
-export { normalizarCodigo, normalizarNcm, lerNumero, analisarSeparadorDecimal, detectarSeparadorDecimal, lerData, lerAtivo, lerFinalidade, chaveReconciliacao, normalizarEstabelecimento } from './normalizacao';
+export { normalizarCodigo, normalizarNcm, lerNumero, analisarSeparadorDecimal, detectarSeparadorDecimal, detectarEscalaDoSaldo, ESCALAS_DE_SALDO, lerData, lerAtivo, lerFinalidade, chaveReconciliacao, normalizarEstabelecimento } from './normalizacao';
 export { Conferidor, conferirLinhaPreparada, prepararConfig, colunasNecessarias, TEXTO_OCORRENCIA, CODIGOS_REJEICAO } from './conferencia';
 export { sha256 } from './relatorio';
-export { analisarArquivo, gerarPrevia, importarArquivo, conferirBase, formatoDoArquivo } from './importacao';
+export { analisarArquivo, gerarPrevia, importarArquivo, conferirBase, formatoDoArquivo, escalaDoSaldoDaBase } from './importacao';
 export type { ArquivoEntrada, BaseLida, ResultadoConferencia } from './importacao';
 export { compararBases, achatarItem, PREFIXO_CAMPOS } from './reimportacao';
 export type { CamposPlanos, EntradaAtual, EntradaNova, Mudanca, ItemNovo, ItemAlterado, Conflito, ComparacaoBases, Valor } from './reimportacao';

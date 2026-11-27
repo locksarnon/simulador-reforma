@@ -27,7 +27,7 @@ export class ImportadorPlanilha implements ImportadorPort {
       }
     } else mapeamento = sugestao.mapeamento;
     const unico = e.estabelecimentos.length === 1 ? e.estabelecimentos[0] : null;
-    const r = await importarArquivo(arquivo, { mapeamento, colunasExtras: 'demais', estabelecimentoFixo: unico, separadorAnterior: e.separadorAnterior }, previa.cabecalho);
+    const r = await importarArquivo(arquivo, { mapeamento, colunasExtras: 'demais', estabelecimentoFixo: unico, separadorAnterior: e.separadorAnterior, escalaSaldo: e.escalaSaldo }, previa.cabecalho);
     const usado: Record<string, string> = {};
     for (const [campo, v] of Object.entries(r.relatorio.mapeamentoUsado)) if (v) usado[campo] = v.nome;
     const motivo = (l: { ocorrencias: string[] }) => l.ocorrencias.join('; ');
@@ -43,7 +43,7 @@ export class ImportadorPlanilha implements ImportadorPort {
         aceitas: r.relatorio.totais.aceitas, rejeitadas: r.relatorio.totais.rejeitadas, pendentes: r.relatorio.totais.pendentes,
         linhasRejeitadas: r.relatorio.linhasRejeitadas.map((l) => ({ linha: l.linha, codigo: codigoDaChave(l.chave), motivo: motivo(l) })),
         linhasPendentes: r.relatorio.linhasPendentes.map((l) => ({ linha: l.linha, codigo: codigoDaChave(l.chave), motivo: motivo(l) })),
-        avisos: r.relatorio.avisos, separadores: r.relatorio.separadores, separadorMudou: r.relatorio.separadorMudou,
+        avisos: r.relatorio.avisos, separadores: r.relatorio.separadores, separadorMudou: r.relatorio.separadorMudou, escalaSaldo: r.relatorio.escalaSaldo,
       },
     };
   }

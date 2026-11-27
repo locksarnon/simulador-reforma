@@ -72,14 +72,14 @@ export class SaneamentoEstoquesController {
   /** Só lê (POST_DE_LEITURA): mostra o que seria aceito, novo, alterado e protegido. Não grava. */
   @Post('projetos/:id/importacoes/previa')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_ARQUIVO } }))
-  previa(@Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body() b: { mapeamento?: string; pagina?: string; limite?: string; filtro?: string }) {
-    return this.importacao.previa(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(b?.mapeamento, undefined), { pagina: b?.pagina, limite: b?.limite, filtro: b?.filtro });
+  previa(@Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body() b: { mapeamento?: string; pagina?: string; limite?: string; filtro?: string; escalaSaldo?: string }) {
+    return this.importacao.previa(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(b?.mapeamento, undefined), { pagina: b?.pagina, limite: b?.limite, filtro: b?.filtro, escalaSaldo: b?.escalaSaldo });
   }
   @Post('projetos/:id/importacoes')
   @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_ARQUIVO } }))
-  importar(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('incorporar') incorporar?: string) {
-    return this.importacao.confirmar(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(mapeamento, undefined), json<EscolhaIncorporar>(incorporar, []), user);
+  importar(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('incorporar') incorporar?: string, @Body('escalaSaldo') escalaSaldo?: string) {
+    return this.importacao.confirmar(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(mapeamento, undefined), json<EscolhaIncorporar>(incorporar, []), user, escalaSaldo);
   }
   @Get('projetos/:id/importacoes')
   importacoes(@Param('id') id: string) { return this.importacao.listar(id); }

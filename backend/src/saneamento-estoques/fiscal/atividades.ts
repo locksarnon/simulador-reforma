@@ -57,7 +57,17 @@ const REGRAS: Regra[] = [
   { prefixo: '4687', atividades: ['VENDA_RESIDUOS', 'COMERCIO_ATACADISTA'], motivo: 'CNAE 46.87-7: atacadista de resíduos e sucatas' },
   { prefixo: '47', atividades: ['COMERCIO_VAREJISTA'], motivo: 'CNAE divisão 47: comércio varejista' },
   { prefixo: '4930', atividades: ['TRANSPORTE'], motivo: 'CNAE 49.30-2: transporte rodoviário de carga (49.2 e demais, de passageiros, ficam sem regra)' },
+  { prefixo: '4911', atividades: ['TRANSPORTE'], motivo: 'CNAE 49.11-6: transporte ferroviário de carga' },
+  { prefixo: '4940', atividades: ['TRANSPORTE'], motivo: 'CNAE 49.40-0: transporte dutoviário' },
+  { prefixo: '5011', atividades: ['TRANSPORTE'], motivo: 'CNAE 50.11-4: transporte marítimo de cabotagem (carga)' },
+  { prefixo: '5012', atividades: ['TRANSPORTE'], motivo: 'CNAE 50.12-2: transporte marítimo de longo curso (carga)' },
+  { prefixo: '5021', atividades: ['TRANSPORTE'], motivo: 'CNAE 50.21-1: transporte por navegação interior de carga' },
+  { prefixo: '5120', atividades: ['TRANSPORTE'], motivo: 'CNAE 51.20-0: transporte aéreo de carga' },
   { prefixo: '521', atividades: ['ARMAZENAGEM'], motivo: 'CNAE 52.1: armazenamento' },
+  { prefixo: '52508', atividades: ['PRESTACAO_SERVICO'], motivo: 'CNAE 52.50-8: atividades relacionadas à organização do transporte de carga (comissaria de despachos e despachante aduaneiro são serviço)' },
+  { prefixo: '5250803', atividades: ['TRANSPORTE'], motivo: 'CNAE 52.50-8/03: agenciamento de cargas, exceto para o transporte marítimo' },
+  { prefixo: '5250804', atividades: ['TRANSPORTE', 'ARMAZENAGEM'], motivo: 'CNAE 52.50-8/04: organização logística do transporte de carga (operador logístico: transporte e armazenagem)' },
+  { prefixo: '5250805', atividades: ['TRANSPORTE'], motivo: 'CNAE 52.50-8/05: operador de transporte multimodal (OTM)' },
 ];
 
 export const soDigitosCnae = (c: unknown) => String(c ?? '').replace(/\D/g, '');

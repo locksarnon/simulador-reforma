@@ -1,9 +1,9 @@
 import { lerPlanilha, lerPrevia, formatoDoArquivo, type Planilha, type Previa } from '../../produtos/leitura-planilha';
 import { AcumuladorRelatorio, avisosDoMapeamento } from './relatorio';
 import { Conferidor, colunasNecessarias } from './conferencia';
-import { analisarSeparadorDecimal, lerNumero, type SeparadorDecimal } from './normalizacao';
+import { analisarSeparadorDecimal, detectarEscalaDoSaldo, ESCALAS_DE_SALDO, lerNumero, type SeparadorDecimal } from './normalizacao';
 import { sugerirMapeamento, validarMapeamento, type ColunasDoErp } from './mapeamento';
-import type { CampoNumerico, ConfigImportacao, ItemImportado, SeparadoresDaImportacao, LinhaConferida, PreviaImportacao, RelatorioImportacao, SugestaoMapeamento } from './tipos';
+import type { CampoNumerico, ConfigImportacao, EscalaDoSaldo, ItemImportado, SeparadoresDaImportacao, LinhaConferida, PreviaImportacao, RelatorioImportacao, SugestaoMapeamento } from './tipos';
 import { BadRequestException } from '@nestjs/common';
 
 export type ArquivoEntrada = { buffer: Buffer; originalname?: string };
@@ -28,7 +28,8 @@ export function conferirBase(base: BaseLida, cfg: ConfigImportacao, arquivo: { n
   const erros = validarMapeamento(cfg.mapeamento, base.cabecalho.length);
   if (erros.length) throw new BadRequestException(erros.join(' '));
   const { decimalPorColuna, avisos: avisosDecimal, separadores, separadorMudou } = separadoresDaBase(base, cfg);
-  const config: ConfigImportacao = { ...cfg, colunaNumerica: cfg.colunaNumerica ?? base.ncmNumerico, decimalPorColuna };
+  const escalaSaldo = escalaDoSaldoDaBase(base, cfg, decimalPorColuna);
+  const config: ConfigImportacao = { ...cfg, colunaNumerica: cfg.colunaNumerica ?? base.ncmNumerico, decimalPorColuna, escalaSaldo: escalaSaldo?.aplicada ?? 1 };
   const conf = new Conferidor(base.cabecalho, config);
   const acc = new AcumuladorRelatorio(cfg.maxLinhasDetalhadas ?? 2000);
   const itens: ItemImportado[] = []; const origem: { linhaOrigem: number; chave: string }[] = []; const amostra: LinhaConferida[] = [];
@@ -38,9 +39,32 @@ export function conferirBase(base: BaseLida, cfg: ConfigImportacao, arquivo: { n
     if (amostra.length < 10) amostra.push(r);
     if (guardarItens && r.item && r.chave) { itens.push(r.item); origem.push({ linhaOrigem: r.linhaOrigem, chave: r.chave }); }
   });
-  const relatorio = acc.fechar(arquivo, base.cabecalho, config, conf.colunasExtras, [...avisosDoMapeamento(base.cabecalho, config), ...avisosDecimal], { separadores, separadorMudou });
+  const relatorio = acc.fechar(arquivo, base.cabecalho, config, conf.colunasExtras, [...avisosDoMapeamento(base.cabecalho, config), ...avisosDecimal], { separadores, separadorMudou, escalaSaldo });
   return { itens, origem, amostra, relatorio };
 }
+
+export const fmtEscala = (n: number) => n.toLocaleString('pt-BR');
+
+/**
+ * Escala do saldo no arquivo (detectarEscalaDoSaldo sobre a coluna inteira, lida com o separador da coluna) e o divisor escolhido pelo
+ * consultor (`cfg.escalaSaldo`). O divisor só vale se todo saldo não nulo for múltiplo dele; do contrário a importação é recusada, para
+ * nunca dividir um saldo que não estava em escala. Sem coluna de saldo: null.
+ */
+export function escalaDoSaldoDaBase(base: Pick<BaseLida, 'cabecalho' | 'linhas'>, cfg: ConfigImportacao, decimalPorColuna: ('BR' | 'PONTO' | undefined)[] = []): EscalaDoSaldo | null {
+  const i = cfg.mapeamento.saldo;
+  const pedida = cfg.escalaSaldo ?? 1;
+  if (pedida !== 1 && !(ESCALAS_DE_SALDO as readonly number[]).includes(pedida)) throw new BadRequestException('Divisor do saldo inválido: use uma potência de 10 entre 1.000 e 1.000.000.');
+  if (i == null) {
+    if (pedida > 1) throw new BadRequestException('Sem coluna de saldo no mapeamento: não há saldo para dividir.');
+    return null;
+  }
+  const valores: number[] = [];
+  for (const l of base.linhas) { const n = lerNumero(String(l[i] ?? '').trim(), false, decimalPorColuna[i]); if (n != null && n !== 0) valores.push(n); }
+  const detectada = detectarEscalaDoSaldo(valores);
+  if (pedida > 1 && detectada % pedida !== 0) throw new BadRequestException(`Os saldos deste arquivo não estão na escala de ${fmtEscala(pedida)}: a divisão não pode ser aplicada. Leia a prévia de novo.`);
+  return { coluna: base.cabecalho[i] || `Coluna ${i + 1}`, detectada, aplicada: pedida, naoNulos: valores.length, exemplo: valores.find((v) => Math.abs(v) >= detectada) ?? null };
+}
+
 
 /** Colunas numéricas lidas pela importação (hoje, o saldo). */
 const CAMPOS_NUMERICOS: readonly CampoNumerico[] = ['saldo'];
@@ -102,7 +126,7 @@ export function separadoresDaBase(base: Pick<BaseLida, 'cabecalho' | 'linhas' | 
  */
 export async function analisarArquivo(arquivo: ArquivoEntrada, doErp?: ColunasDoErp): Promise<{ previa: Previa; sugestao: SugestaoMapeamento }> {
   const previa = await lerPrevia(arquivo, { numerosBR: true });
-  return { previa, sugestao: sugerirMapeamento(previa.cabecalho, previa.exemplos, doErp) };
+  return { previa, sugestao: sugerirMapeamento(previa.cabecalho, previa.exemplos, doErp, previa.amostra) };
 }
 
 async function lerBase(arquivo: ArquivoEntrada, cfg: ConfigImportacao, cabecalho?: string[]): Promise<Planilha> {

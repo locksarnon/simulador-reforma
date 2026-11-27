@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { semFuncao, temFuncao } from "@/lib/permissoes";
 import PageHeader from "@/components/PageHeader";
 import { san, chaves } from "@/components/saneamento-estoques/api";
-import { Aviso, botaoPrimario, EstadoCarregando, EstadoErro, EstadoVazio, PermissaoContext } from "@/components/saneamento-estoques/comuns";
+import { Aviso, botaoPrimario, EstadoCarregando, EstadoErro, PermissaoContext } from "@/components/saneamento-estoques/comuns";
 import Abas from "@/components/saneamento-estoques/Abas";
 import Casos from "@/components/saneamento-estoques/Casos";
 import Cobertura from "@/components/saneamento-estoques/Cobertura";
@@ -23,7 +23,7 @@ import { ABAS, abaInicial, mensagemDeErro, naoEncontrado } from "@/components/sa
 function Painel({ projeto, aba, irPara, podeImportar, recarregar, recorte, casoInicial, abrirCasos, abrirTabela }) {
   const configuracao = () => irPara("configuracao");
   if (aba === "configuracao") return <Configuracao projeto={projeto} recarregar={recarregar} />;
-  if (aba === "importacao") return <Importacao projeto={projeto} podeImportar={podeImportar} aoIrParaConfiguracao={configuracao} />;
+  if (aba === "importacao") return <Importacao projeto={projeto} podeImportar={podeImportar} aoIrParaConfiguracao={configuracao} aoIrParaDiretrizes={() => irPara("diretrizes")} />;
   if (aba === "diretrizes") return <Diretrizes projeto={projeto} />;
   if (aba === "tabela") return <TabelaUnica key={JSON.stringify(recorte || {})} projeto={projeto} recorte={recorte} aoAbrirCaso={(id) => abrirCasos({}, id)} aoIrParaConfiguracao={configuracao} />;
   if (aba === "visao") return <VisaoGeral projeto={projeto} aoAbrirCasos={abrirCasos} aoAbrirTabela={abrirTabela} />;
@@ -46,6 +46,10 @@ export default function SaneamentoEstoquesPagina() {
   const consulta = useQuery({ queryKey: chaves.projeto(id), queryFn: () => san.projetoDoDiagnostico(id), retry: (n, e) => !naoEncontrado(e) && n < 2 });
   const abrir = useMutation({ mutationFn: () => san.criarProjeto(id), onSuccess: () => qc.invalidateQueries({ queryKey: chaves.projeto(id) }) });
   const projeto = consulta.data;
+  // Primeira vez: o saneamento do projeto é criado ao entrar (sem a tela intermediária). Uma tentativa só; se falhar, o botão tenta de novo.
+  const naoAberto = consulta.isError && naoEncontrado(consulta.error);
+  const tentou = useRef(false);
+  useEffect(() => { if (naoAberto && !tentou.current) { tentou.current = true; abrir.mutate(); } }, [naoAberto, abrir]);
   // A aba de partida é decidida uma vez: confirmar ou reabrir as atividades não troca de aba sozinho.
   const [padrao, setPadrao] = useState(null);
   useEffect(() => { if (projeto && !padrao) setPadrao(abaInicial(null, projeto)); }, [projeto, padrao]);
@@ -61,15 +65,10 @@ export default function SaneamentoEstoquesPagina() {
   const crumbs = [{ label: "Consultoria Tributária", to: "/consultoria/carteira" }, { label: "Projetos", to: "/consultoria/projetos" }, { label: nome, to: `/diagnostico/projetos/${id}` }, { label: "Saneamento de estoques" }];
 
   let corpo;
-  if (consulta.isError && naoEncontrado(consulta.error)) {
-    corpo = (
-      <EstadoVazio titulo="Este projeto ainda não foi aberto no Saneamento de estoques">
-        <p className="mb-3">Ao abrir, as atividades do cliente são lidas do CNPJ e a data-base vem do projeto de consultoria.</p>
-        <button type="button" className={botaoPrimario} disabled={abrir.isPending} onClick={() => abrir.mutate()}>{abrir.isPending ? "Abrindo…" : "Abrir o saneamento deste projeto"}</button>
-        {abrir.isError && <div className="mt-3 text-left"><Aviso tom="erro">{mensagemDeErro(abrir.error)}</Aviso></div>}
-      </EstadoVazio>
-    );
-  } else if (consulta.isError) corpo = <EstadoErro erro={consulta.error} aoTentar={() => consulta.refetch()} texto="Não foi possível abrir o projeto de saneamento." />;
+  if (naoAberto && abrir.isError) {
+    corpo = <Aviso tom="erro" titulo="Não foi possível abrir o saneamento deste projeto" acao={<button type="button" className={botaoPrimario} disabled={abrir.isPending} onClick={() => abrir.mutate()}>Tentar de novo</button>}>{mensagemDeErro(abrir.error)}</Aviso>;
+  } else if (naoAberto) corpo = <EstadoCarregando texto="Abrindo o saneamento: lendo as atividades do CNPJ e a data-base do projeto…" />;
+  else if (consulta.isError) corpo = <EstadoErro erro={consulta.error} aoTentar={() => consulta.refetch()} texto="Não foi possível abrir o projeto de saneamento." />;
   else if (!projeto) corpo = <EstadoCarregando texto="Abrindo o projeto…" />;
   else {
     corpo = (

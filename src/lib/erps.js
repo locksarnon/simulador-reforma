@@ -122,6 +122,12 @@ export function textoOriginalDivergente(registro, erps = []) {
 
 export const avisoTextoOriginal = (texto) => `Texto original: "${texto}" (registro histórico do que estava digitado; o ERP em uso é o selecionado na lista)`;
 
+/** O nome já diz que não há perfil ("Outro ERP (sem perfil)"): a lista não repete "perfil a desenvolver". */
+export const nomeDizSemPerfil = (e) => /sem perfil/i.test(String(e?.nome ?? ""));
+
+/** Nome do ERP na lista de escolha: "(perfil a desenvolver)" só quando o nome não diz isso. */
+export const rotuloNaListaDeErps = (e) => `${e?.nome ?? ""}${e?.situacao === "A_DESENVOLVER" && !nomeDizSemPerfil(e) ? " (perfil a desenvolver)" : ""}`;
+
 /** Perfil com conhecimento específico? A desenvolver (e o "Outro ERP") usa só as regras gerais, sem alertas específicos. */
 export const perfilEspecifico = (p) => !!p && p.situacao !== "A_DESENVOLVER" && p.ativo !== false;
 

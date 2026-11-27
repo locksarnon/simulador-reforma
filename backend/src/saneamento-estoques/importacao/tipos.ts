@@ -23,6 +23,8 @@ export type SugestaoColuna = {
   nome: string;
   /** Primeiro valor não vazio da coluna, para o consultor conferir. */
   exemplo: string;
+  /** Até 3 valores distintos da coluna (das primeiras linhas), para a coluna Exemplos do mapeamento. */
+  exemplos: string[];
   /** Campo sugerido; null = a coluna vira `campos` (ou fica de fora). */
   campo: CampoBase | null;
   certeza: Certeza | null;
@@ -48,6 +50,11 @@ export type ConfigImportacao = {
   decimalPorColuna?: ('BR' | 'PONTO' | undefined)[];
   /** Separador decimal com que a importação anterior do projeto leu cada coluna numérica (do relatório dela): se mudar, a prévia avisa. */
   separadorAnterior?: SeparadoresDaImportacao;
+  /**
+   * Divisor do saldo escolhido pelo consultor na prévia (ex.: 1.000.000 quando o ERP exportou 24 como 24.000.000). Ausente ou 1 = o saldo
+   * fica como veio. Só vale se todo saldo não nulo do arquivo for múltiplo dele (detectarEscalaDoSaldo); nada é dividido sem a escolha.
+   */
+  escalaSaldo?: number;
   /** Quando a planilha é de um único depósito e não tem a coluna. */
   estabelecimentoFixo?: string | null;
   /** Data de referência para rejeitar datas no futuro (padrão: agora). */
@@ -100,7 +107,15 @@ export type RelatorioImportacao = {
   separadores: SeparadoresDaImportacao;
   /** Avisos em destaque: o separador decimal de uma coluna mudou desde a importação anterior (vazio quando não mudou). */
   separadorMudou: string[];
+  /** Saldo em escala: o que foi detectado no arquivo e o divisor aplicado por escolha do consultor (null sem coluna de saldo). */
+  escalaSaldo: EscalaDoSaldo | null;
 };
+
+/**
+ * Escala do saldo na importação. `detectada`: maior potência de 10 de que todo saldo não nulo é múltiplo (1 = nenhuma). `aplicada`: o
+ * divisor escolhido pelo consultor (1 = saldo como veio). `anterior`: o divisor da importação anterior do projeto, quando houve.
+ */
+export type EscalaDoSaldo = { coluna: string; detectada: number; aplicada: number; naoNulos: number; exemplo: number | null; anterior?: number | null };
 
 /** Colunas numéricas lidas pela importação (hoje, o saldo). */
 export type CampoNumerico = 'saldo';

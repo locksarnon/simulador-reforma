@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, TriangleAlert } from "lucide-react";
 import { api } from "@/api/client";
-import { avisoNaoIdentificado, avisoTextoOriginal, consultasDeExtracao, erpDoRegistro, GRAUS, restricoesDoTipo, SITUACOES_ERP, textoOriginalDivergente, TIPOS_AJUSTE_ERP } from "@/lib/erps";
+import { avisoNaoIdentificado, avisoTextoOriginal, consultasDeExtracao, erpDoRegistro, GRAUS, nomeDizSemPerfil, restricoesDoTipo, rotuloNaListaDeErps, SITUACOES_ERP, textoOriginalDivergente, TIPOS_AJUSTE_ERP } from "@/lib/erps";
 
 /**
  * Peças do Cadastro de ERPs que as telas usam: a lista (o ERP é SELECIONADO, nunca digitado), o perfil (o conhecimento daquele ERP),
@@ -41,10 +41,10 @@ export function SeletorErp({ registro, aoMudar, rotulo = "ERP", id = "seletor-er
       <select id={id} aria-label={rotulo} className={selCls} disabled={desabilitado || q.isLoading} value={erp?.id ?? ""}
         onChange={(e) => { const novo = erps.find((x) => x.id === e.target.value); aoMudar(novo ? { erp_id: novo.id, erp: novo.nome } : { erp_id: null, erp: naoIdentificado ? texto : null }); }}>
         <option value="" disabled={!!erp}>{q.isLoading ? "Carregando a lista…" : "Selecione o ERP"}</option>
-        {erps.map((e) => <option key={e.id} value={e.id}>{e.nome}{e.situacao === "A_DESENVOLVER" ? " (perfil a desenvolver)" : ""}</option>)}
+        {erps.map((e) => <option key={e.id} value={e.id}>{rotuloNaListaDeErps(e)}</option>)}
       </select>
       {naoIdentificado && <p role="status" className="mt-1 text-xs text-amber-700 dark:text-amber-300">{avisoNaoIdentificado(texto)}</p>}
-      {erp && <p className="mt-1 text-xs text-muted-foreground">Perfil {String(SITUACOES_ERP[erp.situacao] || erp.situacao || "").toLowerCase()}.</p>}
+      {erp && <p className="mt-1 text-xs text-muted-foreground">{nomeDizSemPerfil(erp) ? "Valem só as regras gerais." : `Perfil ${String(SITUACOES_ERP[erp.situacao] || erp.situacao || "").toLowerCase()}.`}</p>}
       {original && <p className="mt-1 text-xs text-muted-foreground">{avisoTextoOriginal(original)}</p>}
     </div>
   );

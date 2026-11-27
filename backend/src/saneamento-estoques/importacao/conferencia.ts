@@ -28,6 +28,8 @@ type Preparada = {
   decimal: ('BR' | 'PONTO' | undefined)[];
   fixo: string | null;
   hoje: Date;
+  /** Divisor do saldo escolhido pelo consultor (1 = como veio). */
+  escala: number;
 };
 
 /** Resolve a configuração contra o cabeçalho: índices dos campos, nomes únicos das colunas extras. */
@@ -44,7 +46,7 @@ export function prepararConfig(cabecalho: string[], cfg: ConfigImportacao): Prep
     nomes.add(nome);
     return { indice, nome };
   });
-  return { idx, extras, semantica: cfg.semanticaAtivo ?? 'ATIVO', numerica: cfg.colunaNumerica ?? [], decimal: cfg.decimalPorColuna ?? [], fixo: cfg.estabelecimentoFixo ?? null, hoje: cfg.hoje ?? new Date() };
+  return { idx, extras, semantica: cfg.semanticaAtivo ?? 'ATIVO', numerica: cfg.colunaNumerica ?? [], decimal: cfg.decimalPorColuna ?? [], fixo: cfg.estabelecimentoFixo ?? null, hoje: cfg.hoje ?? new Date(), escala: cfg.escalaSaldo && cfg.escalaSaldo > 1 ? cfg.escalaSaldo : 1 };
 }
 
 /** Índices das colunas que precisam ser lidas (mapeadas + extras), para `lerPlanilha(arquivo, colunas)`. */
@@ -93,6 +95,7 @@ export function conferirLinhaPreparada(p: Preparada, valores: string[], linhaOri
   if (p.idx.saldo !== undefined && v('saldo')) {
     saldo = lerNumero(v('saldo'), false, p.decimal[p.idx.saldo]);
     if (saldo === null) faltas.push(oc('SALDO_INVALIDO', v('saldo')));
+    else if (p.escala > 1 && saldo !== 0) saldo = saldo / p.escala;
   }
   let ultimaMovimentacao: string | null = null;
   if (p.idx.ultimaMovimentacao !== undefined) {

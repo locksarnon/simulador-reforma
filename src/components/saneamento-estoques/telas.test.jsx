@@ -40,15 +40,11 @@ const item = (o = {}) => ({ id: "i1", codigo: "000123", estabelecimento: "", des
 const filtroInicial = { busca: "", camada: "", situacao: "", grupo: "", revisar: false, ordem: "codigo" };
 
 describe("Configuração", () => {
-  it("antes da confirmação: lista as atividades, o botão e os módulos 'a desenvolver' desligados", () => {
+  it("antes da confirmação: lista as atividades e o botão; módulos ainda não disponíveis não aparecem", () => {
     const t = texto(montar(<Configuracao projeto={projeto()} recarregar={() => {}} />));
     expect(t).toContain("Confirmo as atividades");
     expect(t).toContain("Comércio atacadista de animais vivos");
-    expect(t).toContain("Conciliação de estoque");
-    expect(t).toContain("Blocos K e G do SPED");
-    expect(t).toContain("Arquivo para o ERP");
-    expect((t.match(/a desenvolver/g) || []).length).toBe(3);
-    expect(t).toContain("Desligado");
+    for (const m of ["Conciliação de estoque", "Blocos K e G do SPED", "Arquivo para o ERP", "a desenvolver", "Desligado"]) expect(t).not.toContain(m);
     expect(t).not.toContain("Reabrir para alterar");
   });
   it("traz o campo da última competência de escrituração já entregue, com o valor salvo", () => {
@@ -86,8 +82,9 @@ describe("Configuração", () => {
     })} recarregar={() => {}} />));
     expect(t.match(/Buscar atividades pelo CNPJ/g).length).toBeGreaterThanOrEqual(2);
     expect(t).toContain("0111-3/01");
-    expect(t).toContain("principal");
-    expect(t).toContain("secundário");
+    expect(t).toContain("CNPJ · principal");
+    expect(t).toContain("CNPJ · secundário");
+    expect(t).not.toContain("CNPJprincipal");
     expect(t).toContain("Vira: Produção agrícola (lavoura, sementes e mudas)");
     expect(t).not.toContain("Vira: PRODUCAO_AGRICOLA");
     expect(t).toContain("CNAE 01.1: cultivo de lavouras temporárias");
@@ -96,9 +93,11 @@ describe("Configuração", () => {
   });
   it("seções com faixa de título (linha verde), borda nítida, rótulos legíveis e campos em fundo de campo", () => {
     const html = montar(<Configuracao projeto={projeto()} recarregar={() => {}} />);
-    for (const [id, t] of [["san-cfg-dados", "Dados do projeto"], ["san-cfg-ativ", "Atividades do cliente"], ["san-cfg-mod", "Módulos opcionais"]]) {
+    for (const [id, t] of [["san-cfg-dados", "Dados do projeto"], ["san-cfg-ativ", "Atividades do cliente"]]) {
       expect(html, t).toMatch(new RegExp(`<section aria-labelledby="${id}" class="border border-foreground/50 bg-card[^"]*"><div class="[^"]*border-b-2 border-primary bg-muted[^"]*"><h2 id="${id}"[^>]*>${t}</h2>`));
     }
+    expect(texto(html)).not.toContain("Módulos opcionais"); // nenhum disponível: a seção não aparece
+    expect(texto(html)).not.toContain("a desenvolver");
     expect(html).toContain("w-full border border-input bg-background");
     expect(html).toContain("mb-1 block text-xs font-medium text-foreground/80");
     expect(html).not.toMatch(/<(input|select|textarea)[^>]*border-border/);
@@ -432,7 +431,8 @@ describe("Cobertura, abas e página", () => {
     expect(texto(rota(e))).toContain("Não foi possível abrir o projeto de saneamento");
     const nao = novoCliente();
     nao.getQueryCache().build(nao, { queryKey: chaves.projeto("d1") }).setState({ status: "error", error: Object.assign(new Error("Este projeto ainda não foi aberto."), { status: 404 }), fetchStatus: "idle", data: undefined, errorUpdateCount: 1 });
-    expect(texto(rota(nao))).toContain("Abrir o saneamento deste projeto");
+    expect(texto(rota(nao))).toContain("Abrindo o saneamento"); // criado ao entrar, sem a tela intermediária
+    expect(texto(rota(nao))).not.toContain("Abrir o saneamento deste projeto");
     const ok = novoCliente(); ok.setQueryData(chaves.projeto("d1"), projeto());
     const t = texto(rota(ok));
     expect(t).toContain("Saneamento de estoques e cadastro de produtos");

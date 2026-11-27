@@ -119,8 +119,16 @@ export const SECAO_SANEAMENTO = {
       r: "Casos de conjunto (por exemplo, a mesma conversão de unidade TON → KG, o mesmo NCM ou o mesmo tratamento tributário) juntam todos os itens do cadastro com a mesma situação, de qualquer grupo. Quando você abre o caso a partir de uma célula da Visão geral (um grupo numa camada), o detalhe mostra o aviso “Itens de outros grupos” com quantos são e de quais grupos, porque aprovar altera todos os itens do conjunto, não só os do grupo do recorte. Se algum item deve ficar diferente, registre uma exceção para ele antes de aprovar.",
     },
     {
-      p: "Por que os módulos opcionais aparecem desligados?",
-      r: "Conciliação de estoque, Blocos K e G do SPED e Arquivo para o ERP ainda não estão disponíveis nesta versão do serviço, por isso trazem o selo “a desenvolver” e não podem ser ligados. O botão “i” de cada um explica o que é, que dados exige e o que muda quando existir.",
+      p: "Onde ficam os módulos opcionais (Conciliação de estoque, Blocos K e G do SPED, Arquivo para o ERP)?",
+      r: "Ainda não estão disponíveis nesta versão do serviço, por isso não aparecem na Configuração. Quando existirem, aparecem lá para ligar.",
+    },
+    {
+      p: "A prévia avisa “Saldos muito altos”. O que fazer?",
+      r: "Alguns exports de ERP (do SAP Business One, por exemplo) exportam a quantidade sem a vírgula das casas decimais: 24 vira 24.000.000 e 9,07 vira 9.070.000. O aviso aparece quando todo saldo não zerado tem 1.000.000 ou mais (ou é múltiplo de 1.000, 10.000 ou 100.000) e mostra um exemplo. Confira com um item que você conhece e, se for o caso, marque Dividir os saldos por 1.000.000: a prévia é atualizada e a confirmação grava os saldos divididos. Nada é dividido sem a sua marcação, a escolha fica registrada na importação e as análises não dividem de novo. Na reimportação, o aviso lembra o divisor usado na vez anterior: use o mesmo, senão todos os saldos aparecem como alterados.",
+    },
+    {
+      p: "Por que a importação sugere a coluna do código da unidade e não a do nome?",
+      r: "O leiaute oficial aceita unidade de até 6 caracteres (registro 0190 do SPED e unidade comercial e tributável da NF-e). Quando o arquivo traz o código (“UN”, “KG”) e o nome (“UNIDADE”, “QUILOGRAMA”), vem o código; o nome entra como campo adicional. Com o nome, cada item virava um caso de limite de caracteres. A coluna Exemplos mostra 3 valores da coluna escolhida para você conferir; trocando a coluna, o selo de certeza some.",
     },
     {
       p: "O que o botão Analisar com IA faz e o que ele envia?",

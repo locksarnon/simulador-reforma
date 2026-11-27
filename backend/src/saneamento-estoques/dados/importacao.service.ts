@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CAMPO_AFETA, TX_LONGA, aplicarCampo, camadasAtivas, conflito, derivadosDoTrabalho, fatiar, igual, quem, type Json, type Usuario } from './constantes';
 import { SAN_IMPORTADOR, type ImportadorPort, type ItemImportado, type SaidaImportacao } from './portas';
 import { SanProjetoService } from './projeto.service';
-import type { SeparadoresDaImportacao } from '../importacao';
+import type { EscalaDoSaldo, SeparadoresDaImportacao } from '../importacao';
 import { carregarPerfil } from '../../erps/erps.service';
 import { colunasDoExport } from '../../erps/logica';
 import { ehCabecalhoDeSubgrupo } from '../diretrizes/resolucao';
@@ -18,7 +18,7 @@ type Diferenca = { itemId: string; codigo: string; estabelecimento: string; camp
  * ALTERADOS_SEM_PROTEGIDO = só os itens sem nenhum campo protegido. `exceto` tira itens do filtro.
  */
 export type EscolhaIncorporar = string[] | { filtro: 'ALTERADOS' | 'ALTERADOS_SEM_PROTEGIDO'; exceto?: string[] };
-export type OpcoesPrevia = { pagina?: unknown; limite?: unknown; filtro?: unknown };
+export type OpcoesPrevia = { pagina?: unknown; limite?: unknown; filtro?: unknown; escalaSaldo?: unknown };
 const FILTROS_DIFERENCA = ['TODAS', 'COM_PROTEGIDO', 'SEM_PROTEGIDO'] as const;
 const LIMITE_DIFERENCAS = 200;
 const MAX_LIMITE_DIFERENCAS = 1000;
@@ -29,6 +29,14 @@ const inteiro = (v: unknown, nome: string): number | undefined => {
   if (!Number.isInteger(n)) throw new BadRequestException(`"${nome}" deve ser um número inteiro.`);
   return n;
 };
+
+/** Divisor do saldo escolhido na prévia: vazio = 1 (saldo como veio); o importador confere se é uma potência de 10 aceita e se cabe no arquivo. */
+export function lerEscalaSaldo(v: unknown): number {
+  if (v === undefined || v === null || v === '') return 1;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1) throw new BadRequestException('"escalaSaldo" deve ser um número inteiro positivo.');
+  return n;
+}
 
 /** Valida a escolha do que incorporar (lista de ids ou filtro). */
 function validarEscolha(v: unknown): EscolhaIncorporar {
@@ -146,17 +154,18 @@ export class SanImportacaoService {
     @Inject(SAN_IMPORTADOR) private readonly importador: ImportadorPort,
   ) {}
 
-  private async ler(projetoId: string, arquivo: ArquivoImportacao, mapeamento?: Record<string, string>) {
+  private async ler(projetoId: string, arquivo: ArquivoImportacao, mapeamento?: Record<string, string>, escalaSaldo = 1) {
     const p = await this.projetos.exigirConfirmadas(projetoId); // A TRAVA
     if (!arquivo?.buffer?.length) throw new BadRequestException('Envie o arquivo do cadastro de itens.');
     // Separador decimal com que a importação anterior leu cada coluna numérica: se a leitura mudar, a prévia avisa em destaque.
     const anterior = await this.prisma.sanImportacao.findFirst({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'desc' }, select: { relatorio: true } });
-    const separadorAnterior = (anterior?.relatorio as { separadores?: SeparadoresDaImportacao } | null)?.separadores;
+    const relAnterior = anterior?.relatorio as { separadores?: SeparadoresDaImportacao; escalaSaldo?: EscalaDoSaldo | null } | null;
+    const separadorAnterior = relAnterior?.separadores;
     // Perfil do ERP do projeto (Cadastro de ERPs): as colunas do export dele pré-mapeiam o arquivo.
     const perfil = await carregarPerfil(this.prisma, (p as { erp_id?: string | null }).erp_id);
     const colunas = colunasDoExport(perfil);
     const saida: SaidaImportacao = await this.importador.ler({
-      arquivo: arquivo.buffer, nomeArquivo: arquivo.nome, mapeamento, estabelecimentos: ((p.estabelecimentos as string[]) ?? []), separadorAnterior,
+      arquivo: arquivo.buffer, nomeArquivo: arquivo.nome, mapeamento, estabelecimentos: ((p.estabelecimentos as string[]) ?? []), separadorAnterior, escalaSaldo,
       ...(perfil && Object.keys(colunas).length ? { colunasDoErp: { erp: perfil.nome, colunas } } : {}),
     });
     // Defesa: a mesma chave duas vezes no arquivo fica só a primeira.
@@ -169,7 +178,9 @@ export class SanImportacaoService {
       vistos.add(k);
       itens.push({ ...it, estabelecimento: it.estabelecimento ?? null });
     }
-    const relatorio = { ...saida.relatorio, aceitas: itens.length, rejeitadas: saida.relatorio.rejeitadas + repetidas.length, linhasRejeitadas: [...saida.relatorio.linhasRejeitadas, ...repetidas] };
+    // Divisor da importação anterior (só quando houve): a tela lembra o consultor, sem escolher por ele.
+    const escala = saida.relatorio.escalaSaldo ? { ...saida.relatorio.escalaSaldo, anterior: relAnterior?.escalaSaldo?.aplicada ?? null } : saida.relatorio.escalaSaldo;
+    const relatorio = { ...saida.relatorio, escalaSaldo: escala ?? null, aceitas: itens.length, rejeitadas: saida.relatorio.rejeitadas + repetidas.length, linhasRejeitadas: [...saida.relatorio.linhasRejeitadas, ...repetidas] };
     return { p, itens, relatorio, mapeamento: saida.mapeamento, previaDoArquivo: saida.previa };
   }
 
@@ -213,7 +224,7 @@ export class SanImportacaoService {
     const pagina = Math.max(inteiro(opcoes.pagina, 'pagina') ?? 1, 1);
     const filtro = opcoes.filtro == null || opcoes.filtro === '' ? 'TODAS' : String(opcoes.filtro);
     if (!(FILTROS_DIFERENCA as readonly string[]).includes(filtro)) throw new BadRequestException('Filtro de diferenças inválido (TODAS, COM_PROTEGIDO ou SEM_PROTEGIDO).');
-    const { itens, relatorio, mapeamento: usado, previaDoArquivo } = await this.ler(projetoId, arquivo, mapeamento);
+    const { itens, relatorio, mapeamento: usado, previaDoArquivo } = await this.ler(projetoId, arquivo, mapeamento, lerEscalaSaldo(opcoes.escalaSaldo));
     const c = await this.comparar(projetoId, itens);
     const comProtegido = (d: Diferenca) => d.campos.some((x) => x.protegido);
     const filtradas = filtro === 'TODAS' ? c.diferencas : c.diferencas.filter((d) => comProtegido(d) === (filtro === 'COM_PROTEGIDO'));
@@ -237,9 +248,9 @@ export class SanImportacaoService {
    * Grava. Itens novos entram; os já existentes mantêm a base de trabalho (decisões e rascunhos preservados). `incorporar` lista os ids de
    * itens cujas diferenças do arquivo o consultor quer trazer para a base de trabalho (campos com decisão ficam como estão).
    */
-  async confirmar(projetoId: string, arquivo: ArquivoImportacao, mapeamento: Record<string, string> | undefined, incorporar: EscolhaIncorporar | null | undefined, usuario?: Usuario) {
+  async confirmar(projetoId: string, arquivo: ArquivoImportacao, mapeamento: Record<string, string> | undefined, incorporar: EscolhaIncorporar | null | undefined, usuario?: Usuario, escalaSaldo?: unknown) {
     const escolha = validarEscolha(incorporar);
-    const { p, itens, relatorio, mapeamento: usado } = await this.ler(projetoId, arquivo, mapeamento);
+    const { p, itens, relatorio, mapeamento: usado } = await this.ler(projetoId, arquivo, mapeamento, lerEscalaSaldo(escalaSaldo));
     const camadas = camadasAtivas(p.modulos as Json);
     const quemFez = quem(usuario);
     // A comparação (leitura pesada) fica fora da transação; dentro dela só se reconfere versão e proteção dos itens que vão ser alterados.

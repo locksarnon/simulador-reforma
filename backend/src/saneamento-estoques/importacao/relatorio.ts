@@ -35,7 +35,7 @@ export class AcumuladorRelatorio {
 
   totaisAtuais(): TotaisImportacao { return { ...this.totais, importaveis: this.totais.aceitas + this.totais.pendentes }; }
 
-  fechar(arquivo: { nome: string; buffer: Buffer; formato: 'xlsx' | 'csv' }, cabecalho: string[], cfg: ConfigImportacao, colunasExtras: string[], avisos: string[], decimal: Pick<RelatorioImportacao, 'separadores' | 'separadorMudou'> = { separadores: {}, separadorMudou: [] }): RelatorioImportacao {
+  fechar(arquivo: { nome: string; buffer: Buffer; formato: 'xlsx' | 'csv' }, cabecalho: string[], cfg: ConfigImportacao, colunasExtras: string[], avisos: string[], decimal: Pick<RelatorioImportacao, 'separadores' | 'separadorMudou'> & Partial<Pick<RelatorioImportacao, 'escalaSaldo'>> = { separadores: {}, separadorMudou: [] }): RelatorioImportacao {
     const mapeamentoUsado: RelatorioImportacao['mapeamentoUsado'] = {};
     for (const c of CAMPOS_BASE as readonly CampoBase[]) { const i = cfg.mapeamento[c]; if (i != null) mapeamentoUsado[c] = { indice: i, nome: cabecalho[i] ?? `Coluna ${i + 1}` }; }
     const ordenar = (m: Map<string, GrupoOcorrencia>) => [...m.values()].sort((a, b) => b.quantidade - a.quantidade || a.codigo.localeCompare(b.codigo));
@@ -43,7 +43,7 @@ export class AcumuladorRelatorio {
       arquivo: { nome: arquivo.nome, sha256: sha256(arquivo.buffer), formato: arquivo.formato, tamanhoBytes: arquivo.buffer.length },
       mapeamentoUsado, semanticaAtivo: cfg.semanticaAtivo ?? 'ATIVO', colunasExtras,
       totais: this.totaisAtuais(), motivosRejeicao: ordenar(this.rej), pendencias: ordenar(this.pend), avisos,
-      linhasRejeitadas: this.linhasRej, linhasPendentes: this.linhasPend, truncado: this.truncado, ...decimal,
+      linhasRejeitadas: this.linhasRej, linhasPendentes: this.linhasPend, truncado: this.truncado, escalaSaldo: null, ...decimal,
     };
   }
 }

@@ -1,6 +1,6 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { AnalisadorCamada, Camada, CasoProposto, ContextoAnalise, ItemTrabalho } from '../tipos';
-import type { ColunasDoErp, SeparadoresDaImportacao } from '../importacao';
+import type { ColunasDoErp, EscalaDoSaldo, SeparadoresDaImportacao } from '../importacao';
 import type { PerfilErp } from '../../erps/logica';
 
 /**
@@ -26,6 +26,8 @@ export type RelatorioImportacao = {
   separadores?: SeparadoresDaImportacao;
   /** Avisos em destaque: o separador decimal de uma coluna mudou desde a importação anterior. */
   separadorMudou?: string[];
+  /** Saldo em escala (ex.: 24 exportado como 24.000.000): o detectado e o divisor escolhido pelo consultor; fica registrado na importação. */
+  escalaSaldo?: EscalaDoSaldo | null;
 };
 export type EntradaImportacao = {
   arquivo: Buffer;
@@ -38,11 +40,13 @@ export type EntradaImportacao = {
   separadorAnterior?: SeparadoresDaImportacao;
   /** Colunas do export do ERP do projeto (Cadastro de ERPs): pré-mapeiam o arquivo quando não vem mapeamento. */
   colunasDoErp?: ColunasDoErp;
+  /** Divisor do saldo escolhido pelo consultor na prévia (1 ou ausente = como veio). */
+  escalaSaldo?: number;
 };
 /** Para a tela de mapeamento: colunas do arquivo, sugestão por coluna e as 10 primeiras linhas normalizadas. */
 export type PreviaDoArquivo = {
   colunas: { indice: number; nome: string }[];
-  sugestaoColunas: { indice: number; nome: string; exemplo: string; campo: string | null; certeza: 'ALTA' | 'MEDIA' | null; motivo: string }[];
+  sugestaoColunas: { indice: number; nome: string; exemplo: string; exemplos?: string[]; campo: string | null; certeza: 'ALTA' | 'MEDIA' | null; motivo: string }[];
   amostra: unknown[];
 };
 export type SaidaImportacao = { itens: ItemImportado[]; relatorio: RelatorioImportacao; mapeamento: Record<string, string>; previa?: PreviaDoArquivo };
