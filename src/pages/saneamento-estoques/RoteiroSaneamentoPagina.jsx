@@ -2,7 +2,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
-import { telasDoSaneamento, trilhaDoProjeto } from "@/lib/trilhas";
+import { trilhaDoProjeto } from "@/lib/trilhas";
 import { useClienteDoProjeto } from "@/lib/useClienteDoProjeto";
 import { san, chaves } from "@/components/saneamento-estoques/api";
 import { EstadoCarregando, EstadoErro } from "@/components/saneamento-estoques/comuns";
@@ -16,7 +16,8 @@ export default function RoteiroSaneamentoPagina() {
   const consulta = useQuery({ queryKey: chaves.projeto(id), queryFn: () => san.projetoDoDiagnostico(id), retry: (n, e) => !naoEncontrado(e) && n < 2 });
   const nome = diag.data?.nome || "Projeto";
   const cliente = useClienteDoProjeto(diag.data);
-  const crumbs = trilhaDoProjeto({ projeto: diag.data || { id, servico_consultoria: "saneamento-estoques" }, cliente, telas: [...telasDoSaneamento(id), { label: "Roteiro do projeto" }] });
+  // O projeto, na trilha, leva de volta ao Saneamento (ele abre direto na ferramenta).
+  const crumbs = trilhaDoProjeto({ projeto: diag.data || { id, servico_consultoria: "saneamento-estoques" }, cliente, telas: [{ label: "Roteiro do projeto" }] });
   let corpo;
   if (consulta.isError) corpo = <EstadoErro erro={consulta.error} aoTentar={() => consulta.refetch()} texto="Não foi possível abrir o roteiro. Abra o saneamento do projeto primeiro." />;
   else if (!consulta.data) corpo = <EstadoCarregando texto="Abrindo o roteiro…" />;

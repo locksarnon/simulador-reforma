@@ -153,7 +153,13 @@ export default function SaneamentoEstoquesPagina() {
   const abrirTabela = (r) => { setRecorte(r); irPara({ fase, aba: "tabela" }); };
 
   const cliente = useClienteDoProjeto(diag.data);
-  const crumbs = trilhaDoProjeto({ projeto: diag.data || { id, servico_consultoria: "saneamento-estoques" }, cliente, telas: telasDoSaneamento(id, esperandoFase ? {} : { fase, aba }) });
+  // Na trilha, o projeto leva à tela em que ele abre (a fase em andamento, na primeira aba); estando nela, o projeto fica sem link.
+  const partida = inicio || { fase: faseInicial(fasesQ.data), aba: abaInicialDaFase(faseInicial(fasesQ.data)) };
+  const crumbs = trilhaDoProjeto({
+    projeto: diag.data || { id, servico_consultoria: "saneamento-estoques" }, cliente,
+    telas: telasDoSaneamento(id, esperandoFase ? {} : { fase, aba }),
+    noInicioDoProjeto: esperandoFase || (fase === partida.fase && aba === partida.aba),
+  });
 
   let corpo;
   if (naoAberto && abrir.isError) {

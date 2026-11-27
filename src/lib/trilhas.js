@@ -5,9 +5,10 @@
  *
  * Regras: começa sempre por "Início"; o cliente aparece pelo nome (link para a página dele na carteira); o projeto não repete o nome
  * do cliente; o último item é a tela aberta, sem link. Projeto sem cliente único (diagnóstico de grupo) passa por "Projetos" ou
- * "Diagnósticos", as listas onde ele está.
+ * "Diagnósticos", as listas onde ele está. Nenhum item leva à tela que já está aberta: o que levaria a ela fica sem link (o projeto,
+ * na tela em que ele abre; a fase, na primeira aba dela), porque o clique não mudaria nada.
  */
-import { areaPorId as faseDoSaneamento, paramDaArea, rotuloNumerado, ABAS_COMUNS } from "@/components/saneamento-estoques/logica";
+import { abaInicialDaFase, areaPorId as faseDoSaneamento, paramDaArea, rotuloNumerado, ABAS_COMUNS } from "@/components/saneamento-estoques/logica";
 
 export const INICIO = { label: "Início", to: "/inicio" };
 export const AREA_CONSULTORIA = { label: "Consultoria Tributária", to: "/area/diagnostico" };
@@ -78,26 +79,28 @@ export const trilhaDoCliente = (cliente, ...telas) => finalizar([INICIO, AREA_CO
 
 /**
  * Projeto (e as telas dentro dele): com cliente único, pela Carteira de Consultoria e o cliente; senão, pela lista de projetos
- * (consultoria) ou de diagnósticos.
+ * (consultoria) ou de diagnósticos. O projeto leva para onde ele abre (o de Saneamento de estoques, direto na ferramenta, que é a
+ * raiz das telas dele). `noInicioDoProjeto`: a tela aberta é a mesma em que o projeto abre, e o projeto fica sem link.
  */
-export function trilhaDoProjeto({ projeto: p, cliente, telas = [] }) {
+export function trilhaDoProjeto({ projeto: p, cliente, telas = [], noInicioDoProjeto = false }) {
   const id = p?.id;
   const nomeCliente = cliente?.nome || "";
-  const projetoItem = { label: rotuloDoProjeto(p?.nome, nomeCliente) || "Projeto", ...(id ? { to: rotaProjeto(id) } : {}) };
+  const projetoItem = { label: rotuloDoProjeto(p?.nome, nomeCliente) || "Projeto", ...(id && !noInicioDoProjeto ? { to: rotaDeAbrirProjeto(p) } : {}) };
   if (cliente && nomeCliente) return trilhaDoCliente(cliente, projetoItem, ...telas);
   const lista = p && !p.servico_consultoria ? DIAGNOSTICOS : PROJETOS_CONSULTORIA;
   return finalizar([INICIO, AREA_CONSULTORIA, lista, projetoItem, ...telas]);
 }
 
 /**
- * Telas do saneamento: "Saneamento de estoques > Fase 1 > 1.3 Casos". Áreas comuns (Tabela, Visão geral…) vêm sem a fase, como na
- * faixa de abas; sem fase/aba definidas ainda, só "Saneamento de estoques".
+ * Telas do saneamento, depois do projeto (o projeto de Saneamento abre direto na ferramenta, então ele é a raiz delas): "Fase 1 >
+ * 1.3 Casos". Áreas comuns (Tabela, Visão geral…) vêm sem a fase, como na faixa de abas; sem fase/aba definidas ainda, nada. A fase
+ * leva à primeira aba dela; na primeira aba, a fase fica sem link (o clique não mudaria a tela).
  */
 export function telasDoSaneamento(id, { fase, aba } = {}) {
-  const raiz = { label: "Saneamento de estoques", to: rotaSaneamento(id) };
-  if (!fase || !aba) return [raiz];
-  if (ABAS_COMUNS.some((a) => a.id === aba)) return [raiz, { label: rotuloNumerado(fase, aba), to: rotaSaneamento(id, { fase, aba }) }];
+  if (!fase || !aba) return [];
+  const tela = { label: rotuloNumerado(fase, aba), to: rotaSaneamento(id, { fase, aba }) };
+  if (ABAS_COMUNS.some((a) => a.id === aba)) return [tela];
   const area = faseDoSaneamento(fase);
-  if (!area) return [raiz];
-  return [raiz, { label: area.rotulo.split(" · ")[0], to: rotaSaneamento(id, { fase }) }, { label: rotuloNumerado(fase, aba), to: rotaSaneamento(id, { fase, aba }) }];
+  if (!area) return [];
+  return [{ label: area.rotulo.split(" · ")[0], ...(aba === abaInicialDaFase(fase) ? {} : { to: rotaSaneamento(id, { fase }) }) }, tela];
 }

@@ -83,6 +83,10 @@ export const SECAO_SANEAMENTO = {
       r: "Em três fases, no alto: Fase 1 · Saneamento, Fase 2 · Tributário e Fechamento, cada uma com a sua situação (andamento em percentual, Liberada, Bloqueada ou Após as fases). Cada fase tem as suas abas, com o número da fase: Fase 1, 1.1 Preparar e diretrizes, 1.2 Análise, 1.3 Casos, 1.4 Unificações e 1.5 Entrega da Fase 1; Fase 2, 2.1 Premissas e diretrizes, 2.2 Análise, 2.3 Casos e 2.4 Entrega da Fase 2; Fechamento, 3.1 Entregas finais. As Diretrizes ficam embaixo da primeira aba de cada fase. À direita das abas, em qualquer fase e sem número, ficam Tabela, Visão geral, Impacto no SPED e Versões, que mostram o projeto inteiro. O projeto abre na fase em andamento (POP-CON-09).",
     },
     {
+      p: "Para onde leva cada item da trilha no alto do saneamento?",
+      r: "A trilha é Início > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > fase > aba. O cliente leva à página dele na Carteira de Consultoria, com os cartões dos projetos. Como o projeto abre direto na ferramenta, ele é a raiz das telas do saneamento: clicar no projeto leva à tela em que ele abre (a fase em andamento, na primeira aba), e clicar na fase leva à primeira aba dela. O item que levaria à tela já aberta fica sem link, na cor da tela aberta, porque o clique não mudaria nada. Voltar volta à tela anterior; aberto numa aba nova, sem tela anterior no InTAX, sobe um nível na trilha (POP-CON-09).",
+    },
+    {
       p: "Como fica a Cobertura das camadas agora que o trabalho é em fases?",
       r: "Ela fica na aba Análise de cada fase e mostra só as camadas daquela fase. Fase 1 · Saneamento de estoques: Identificação, Qualidade, Duplicidades, Grupos, Nomes e unidades, Validar NCM e Impacto no SPED. Fase 2 · Tributário e Reforma: Finalidade, Classificação NCM (reclassificação: NCM incompatível com a descrição, informação insuficiente ou diferente entre itens iguais), Tratamento tributário e Impacto no SPED. Cada fase tem o botão Analisar a fase (na ordem) e cada camada o seu botão Analisar. Impacto no SPED aparece nas duas fases porque roda no fim de cada uma.",
     },
