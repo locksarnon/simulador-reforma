@@ -17,12 +17,15 @@ afterEach(() => { vi.unstubAllGlobals(); });
 const projeto = { id: "p1", versao: 3, estabelecimentos: [], modulos: { conciliacao: false }, atividades: [], atividadesConfirmadas: true, parametros: {} };
 const filtro = { busca: "", camada: "", situacao: "", grupo: "", revisar: false, ordem: "codigo" };
 const COLUNAS = {
-  fundamentais: [{ campo: "descricao", rotulo: "Descrição" }, { campo: "unidade", rotulo: "Unidade" }, { campo: "ncm", rotulo: "NCM" }, { campo: "ativo", rotulo: "Ativo" }],
+  fundamentais: [
+    { campo: "descricao", rotulo: "Descrição", alteravel: true }, { campo: "unidade", rotulo: "Unidade", alteravel: true }, { campo: "ncm", rotulo: "NCM", alteravel: true },
+    { campo: "ativo", rotulo: "Ativo", alteravel: true }, { campo: "saldo", rotulo: "Saldo", alteravel: false }, { campo: "ultimaMovimentacao", rotulo: "Última movimentação", alteravel: false },
+  ],
   extras: ["Cor", "Peso bruto"],
 };
 const item = {
   id: "i1", codigo: "000123", estabelecimento: "", descricao: "PARAFUSO", grupo: "Ferragens", finalidade: "REVENDA", ativo: true, celulas: [],
-  como: { descricao: ["PARAFUSO", "PARAFUSO"], unidade: ["PC", "UN"], ncm: ["73181500", "73181500"], ativo: [true, true] },
+  como: { descricao: ["PARAFUSO", "PARAFUSO"], unidade: ["PC", "UN"], ncm: ["73181500", "73181500"], ativo: [true, true], saldo: [10, 12], ultimaMovimentacao: ["2025-03-10", "2025-03-10"] },
 };
 
 function montar({ extras } = {}) {
@@ -40,7 +43,7 @@ describe("Tabela: dados do item como era × como ficou", () => {
     const html = montar();
     const ids = ordemDosTitulos(html);
     expect(ids.slice(0, 2)).toEqual(["codigo", "descricao"]); // fixas como antes
-    expect(ids.slice(2, 10)).toEqual(["era:descricao", "ficou:descricao", "era:unidade", "ficou:unidade", "era:ncm", "ficou:ncm", "era:ativo", "ficou:ativo"]);
+    expect(ids.slice(2, 12)).toEqual(["era:descricao", "ficou:descricao", "era:unidade", "ficou:unidade", "era:ncm", "ficou:ncm", "era:ativo", "ficou:ativo", "valor:saldo", "valor:ultimaMovimentacao"]);
     // As camadas continuam todas, depois dos pares.
     expect(ids.indexOf("situacao-IDENTIFICACAO")).toBeGreaterThan(ids.indexOf("ficou:ativo"));
     expect(ids).toContain("grupo");
@@ -104,9 +107,28 @@ describe("Tabela: dados do item como era × como ficou", () => {
   });
 });
 
+describe("Tabela: campo que nenhuma camada altera fica numa coluna só", () => {
+  it("saldo e última movimentação: uma coluna com o valor da base, sem \"como era\"/\"como ficou\" nem destaque", () => {
+    vi.stubGlobal("localStorage", armazenamento());
+    const html = montar();
+    const ids = ordemDosTitulos(html);
+    expect(ids).not.toContain("era:saldo");
+    expect(ids).not.toContain("ficou:saldo");
+    expect(ids).not.toContain("era:ultimaMovimentacao");
+    expect(html).not.toContain("Saldo (como");
+    expect(html).toMatch(/role="columnheader" data-coluna="valor:saldo"[^>]*><span class="truncate">Saldo<\/span>/);
+    // Valor da base (o atual), sem o destaque mesmo que a reimportação tenha trazido outro número.
+    expect(html).toMatch(/data-coluna="valor:saldo" class="[^"]*"[^>]*><span[^>]*title="12"/);
+    expect(html).not.toMatch(/data-coluna="valor:saldo" data-alterada/);
+    expect(html).toContain(">10/03/2025<");
+  });
+});
+
 describe("lógica dos pares", () => {
   it("colunas do cadastro e extras", () => {
-    expect(colunasDoCadastro([{ campo: "saldo", rotulo: "Saldo" }]).map((c) => c.titulo)).toEqual(["Saldo (como era)", "Saldo (como ficou)"]);
+    expect(colunasDoCadastro([{ campo: "unidade", rotulo: "Unidade", alteravel: true }]).map((c) => c.titulo)).toEqual(["Unidade (como era)", "Unidade (como ficou)"]);
+    expect(colunasDoCadastro([{ campo: "saldo", rotulo: "Saldo", alteravel: false }])).toEqual([expect.objectContaining({ id: "valor:saldo", titulo: "Saldo", tipo: "valor" })]);
+    expect(colunasDoCadastro([{ campo: "fabricante", rotulo: "Fabricante" }]).map((c) => c.id)).toEqual(["valor:fabricante"]);
     expect(colunasExtras(["Cor"])[0]).toMatchObject({ id: "extra:Cor", titulo: "Cor", tipo: "extra" });
   });
   it("mudou, texto e dica", () => {

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { SanImportacaoService } from './importacao.service';
 import { ImportadorPlanilha } from './importador.provider';
-import { CAMPOS_PAREADOS, lerExtras, SanItensService } from './itens.service';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { CAMPOS_TOPO } from './constantes';
+import { CAMPOS_ALTERAVEIS, CAMPOS_PAREADOS, lerExtras, SanItensService } from './itens.service';
 import { criarPrismaFalso } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 
@@ -68,5 +71,40 @@ describe('Tabela: como era × como ficou', () => {
     expect(CAMPOS_PAREADOS).not.toContain('codigo');
     expect(CAMPOS_PAREADOS).toContain('ultimaMovimentacao');
     expect(CAMPOS_PAREADOS).toContain('subgrupo');
+  });
+});
+
+describe('Tabela: só os campos que as camadas alteram vêm em par', () => {
+  it('colunas: cada fundamental diz se alguma camada pode alterá-lo (alteravel)', async () => {
+    const c = await pronto();
+    const r = await c.itens.colunas(c.projetoId);
+    const por = Object.fromEntries(r.fundamentais.map((f) => [f.campo, f.alteravel]));
+    expect(por).toEqual({ descricao: true, unidade: true, ncm: true, grupo: true, saldo: false });
+    for (const c2 of ['saldo', 'ultimaMovimentacao', 'fabricante', 'referencia', 'subgrupo']) expect(CAMPOS_ALTERAVEIS).not.toContain(c2);
+  });
+
+  it('campos alteráveis: nenhuma camada propõe campo de topo fora da lista (varre as propostas do código das camadas)', () => {
+    const raiz = join(__dirname, '..');
+    const arquivos: string[] = [];
+    const varrer = (d: string) => {
+      for (const n of readdirSync(d)) {
+        const p = join(d, n);
+        if (statSync(p).isDirectory()) varrer(p);
+        else if (/\.ts$/.test(n) && !/\.(spec|test)\.ts$/.test(n) && !/prisma-falso/.test(n)) arquivos.push(p);
+      }
+    };
+    varrer(raiz);
+    const propostos = new Set<string>();
+    for (const a of arquivos) {
+      const s = readFileSync(a, 'utf8');
+      for (const m of s.matchAll(/(?:proposta|const proposta)\s*[:=][^{\n;]*\{([^}\n]*)\}/g)) {
+        for (const k of m[1].matchAll(/(?:^|[{,])\s*([A-Za-z]+)\s*:/g)) propostos.add(k[1]);
+      }
+    }
+    // A varredura acha as propostas conhecidas (prova de que funciona)...
+    for (const k of ['codigo', 'descricao', 'unidade', 'ncm', 'grupo', 'ativo', 'finalidade']) expect(propostos).toContain(k);
+    // ...e todo campo de topo proposto está na lista dos alteráveis.
+    const topo = [...propostos].filter((k) => (CAMPOS_TOPO as readonly string[]).includes(k));
+    expect(topo.filter((k) => !CAMPOS_ALTERAVEIS.includes(k))).toEqual([]);
   });
 });

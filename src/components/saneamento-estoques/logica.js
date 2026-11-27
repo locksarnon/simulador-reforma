@@ -902,13 +902,15 @@ const ROTULO_DO_PAR = { ativo: "Ativo/inativo", estabelecimento: "Estabeleciment
 const LARGURA_PAR = { descricao: 260, unidade: 110, ncm: 120, saldo: 110, ultimaMovimentacao: 140, ativo: 130, finalidade: 170 };
 
 /**
- * Colunas "<Campo> (como era)" e "<Campo> (como ficou)" de cada campo fundamental importado (lista do servidor, na ordem do catálogo da
- * importação). `fundamentais`: [{ campo, rotulo }].
+ * Colunas dos campos fundamentais importados (lista do servidor, na ordem do catálogo da importação). `fundamentais`: [{ campo, rotulo,
+ * alteravel }]. Campo que alguma camada pode alterar (`alteravel`, decidido no servidor pelas propostas das camadas) vira o par
+ * "<Campo> (como era)" × "<Campo> (como ficou)"; os demais (saldo, última movimentação, fabricante...) ficam numa coluna só, com o valor importado.
  */
 export function colunasDoCadastro(fundamentais) {
-  return (fundamentais || []).flatMap(({ campo, rotulo }) => {
+  return (fundamentais || []).flatMap(({ campo, rotulo, alteravel }) => {
     const nome = ROTULO_DO_PAR[campo] || rotulo || rotuloDoCampo(campo);
     const largura = LARGURA_PAR[campo] || 150;
+    if (!alteravel) return [{ id: `valor:${campo}`, titulo: nome, largura, camada: GRUPO_CADASTRO, tipo: "valor", campo }];
     return [
       { id: `era:${campo}`, titulo: `${nome} (como era)`, largura, camada: GRUPO_CADASTRO, tipo: "era", campo },
       { id: `ficou:${campo}`, titulo: `${nome} (como ficou)`, largura, camada: GRUPO_CADASTRO, tipo: "ficou", campo },

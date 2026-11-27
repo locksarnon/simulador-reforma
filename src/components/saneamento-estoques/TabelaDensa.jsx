@@ -7,6 +7,7 @@ import { botaoSecundario, estiloTabela } from "./comuns";
 import { ALTURA_LINHA } from "./logica";
 import AlcaLargura from "@/components/AlcaLargura";
 import { cabecalhoTabelaCls } from "@/lib/estiloTabela";
+import { useArrastarParaRolar } from "@/lib/useArrastarParaRolar";
 import { idDaTabela, medirColunasNaturais, useAoRedimensionar, useEfeitoDeLayout, useLargurasColunas } from "@/lib/useLargurasColunas";
 
 const ALTURA_TITULOS = 28; // a mesma faixa de títulos da aba Tabela (metade do cabeçalho de 56 px)
@@ -48,6 +49,9 @@ export default function TabelaDensa({
   });
   const [ocultas, setOcultas] = useState(() => (pref?.ocultas ? pref.ocultas.filter((k) => todas.includes(k)) : colunas.filter((c) => c.oculta).map((c) => c.chave)));
   const [busca, setBusca] = useState("");
+  // Área rolável: clicar numa área vazia e arrastar leva a tabela para o lado (e para cima e para baixo).
+  const [areaRolavel, setAreaRolavel] = useState(null);
+  useArrastarParaRolar(areaRolavel, { vertical: true });
   const [filtros, setFiltros] = useState({});
   const [verFiltros, setVerFiltros] = useState(false);
   const [ordem, setOrdem] = useState(ordemInicial);
@@ -135,7 +139,7 @@ export default function TabelaDensa({
         {acoes}
       </div>
 
-      <div onScroll={aoRolar} className={`${estiloTabela.area} ${alturaCls}`} tabIndex={0} aria-label={`${ariaLabel}. Role para ver mais linhas e colunas.`}>
+      <div ref={setAreaRolavel} onScroll={aoRolar} className={`${estiloTabela.area} ${alturaCls}`} tabIndex={0} aria-label={`${ariaLabel}. Role para ver mais linhas e colunas.`}>
         <div ref={setRaiz} role="table" aria-label={ariaLabel} aria-rowcount={filtradas.length + 1} aria-colcount={visiveis.length + (selecao ? 1 : 0)} style={{ width: larg, minWidth: "100%" }}>
           <div role="rowgroup" className={estiloTabela.cabecalho}>
             <div role="row" className={`flex border-b border-border/70 text-xs ${cabecalhoTabelaCls}`} style={{ height: ALTURA_TITULOS }}>

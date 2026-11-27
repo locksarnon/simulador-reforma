@@ -14,10 +14,22 @@ export type FiltroItens = {
 };
 
 /**
- * Campos fundamentais da importação que a Tabela mostra em par "como era" × "como ficou": todo o catálogo da importação (CAMPOS_BASE),
- * menos código e estabelecimento (a chave do item, que não muda e já fica fixa à esquerda). Campo novo no catálogo entra sozinho.
+ * Campos fundamentais da importação que a Tabela mostra (e que a lista devolve em par original × atual): todo o catálogo da importação
+ * (CAMPOS_BASE), menos código e estabelecimento (a chave do item, fixa à esquerda). Campo novo no catálogo entra sozinho.
  */
 export const CAMPOS_PAREADOS: readonly string[] = CAMPOS_BASE.filter((c) => c !== 'codigo' && c !== 'estabelecimento');
+
+/**
+ * Campos do cadastro que as camadas de análise propõem alterar (o caso aprovado grava no `trabalho` por aplicarCampo). Só os fundamentais
+ * desta lista aparecem na Tabela em duas colunas ("como era" × "como ficou"); os demais (saldo, última movimentação, fabricante,
+ * referência, subgrupo) nenhuma camada altera e aparecem numa coluna só, com o valor importado. Origem de cada um:
+ *   código: IDENTIFICACAO (motor/identificacao.ts, espaços nas pontas); descrição e unidade: NOMES_UNIDADES (motor/nomes-unidades.ts,
+ *   diretrizes/analise.ts); NCM: NCM (motor/ncm.ts); grupo: GRUPOS_FINALIDADE (motor/grupos.ts); ativo: QUALIDADE (motor/qualidade.ts,
+ *   PROPOR_INATIVACAO); finalidade e "também usado como": FINALIDADE (dados/motor.provider.ts; validacao.ts aceita a lista na edição).
+ * A consolidação de duplicidades só cria vínculo de código (não altera campo). O teste "campos alteráveis" confere que nenhuma camada
+ * propõe outro campo de topo.
+ */
+export const CAMPOS_ALTERAVEIS: readonly string[] = ['codigo', 'descricao', 'unidade', 'ncm', 'grupo', 'ativo', 'finalidade', 'tambemUsadoComo'];
 /** Até quantas colunas extras do ERP a lista devolve por pedido. */
 const MAX_EXTRAS = 60;
 const NOMES_PROIBIDOS = ['__proto__', 'constructor', 'prototype'];
@@ -142,7 +154,8 @@ export class SanItensService {
     }
     const rotulos = ROTULO_CAMPO_IMPORTACAO as Record<string, string>;
     return {
-      fundamentais: CAMPOS_PAREADOS.filter((c) => presentes.has(c)).map((campo) => ({ campo, rotulo: rotulos[campo] ?? campo })),
+      // alteravel: alguma camada pode mudar o campo (a tela mostra o par como era × como ficou); senão, uma coluna com o valor importado.
+      fundamentais: CAMPOS_PAREADOS.filter((c) => presentes.has(c)).map((campo) => ({ campo, rotulo: rotulos[campo] ?? campo, alteravel: CAMPOS_ALTERAVEIS.includes(campo) })),
       extras: [...extras].filter((k) => !CAMPOS_PAREADOS.includes(k) && !NOMES_PROIBIDOS.includes(k)).sort((a, b) => a.localeCompare(b, 'pt-BR')),
     };
   }

@@ -6,6 +6,7 @@ import { plural } from "@/lib/plural";
 import AlcaLargura, { redimensionandoColuna } from "@/components/AlcaLargura";
 import { idDaTabela, useAoRedimensionar, useEfeitoDeLayout, useLargurasColunas } from "@/lib/useLargurasColunas";
 import { barraListaCls, botaoBarraCls, cabecalhoTabelaCls } from "@/lib/estiloTabela";
+import { useArrastarParaRolar } from "@/lib/useArrastarParaRolar";
 
 const TAMANHOS = [10, 25, 50, 100, 0];
 const colador = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
@@ -182,6 +183,8 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
   const larguras = useLargurasColunas(idDaTabela(id, ariaLabel || titulo, todas));
   const tabela = useRef(null);
   const [area, setArea] = useState(null);
+  // Clicar numa área vazia e arrastar leva a tabela para o lado (o clique simples segue como antes).
+  useArrastarParaRolar(area);
 
   // Colunas novas (vindas de outra consulta) entram no fim, sem perder a ordem escolhida.
   useEffect(() => { setOrdemColunas((o) => [...o.filter((k) => todas.includes(k)), ...todas.filter((k) => !o.includes(k))]); }, [todas.join("|")]);

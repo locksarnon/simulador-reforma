@@ -23,7 +23,7 @@ export const san = {
   importacoes: (id) => api.get(`${B}/projetos/${id}/importacoes`),
 
   itens: (id, params) => api.get(`${B}/projetos/${id}/itens`, params),
-  /** Colunas da Tabela: campos fundamentais importados (pares como era × como ficou) e nomes das colunas extras do ERP. */
+  /** Colunas da Tabela: campos fundamentais importados (alteravel = par como era × como ficou; senão uma coluna) e nomes das colunas extras do ERP. */
   colunasDosItens: (id) => api.get(`${B}/projetos/${id}/itens-colunas`),
   item: (itemId) => api.get(`${B}/itens/${itemId}`),
   historicoDoItem: (itemId, campo) => api.get(`${B}/itens/${itemId}/historico`, campo ? { campo } : undefined),

@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ChevronsDown, Columns3, RotateCcw } from "lucide-react";
 import AlcaLargura from "@/components/AlcaLargura";
 import { cabecalhoTabelaCls } from "@/lib/estiloTabela";
+import { useArrastarParaRolar } from "@/lib/useArrastarParaRolar";
 import { limitarLargura, medirColunasNaturais, useEfeitoDeLayout, useLargurasColunas } from "@/lib/useLargurasColunas";
 import { san, chaves } from "./api";
 import { Aviso, BotaoInfo, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, estiloTabela, SeloSituacao, Tag } from "./comuns";
@@ -15,7 +16,7 @@ import {
 
 /** Rótulo do grupo de colunas: a camada ou um dos grupos do cadastro (dados do item, outras colunas do ERP). */
 const rotuloDoGrupo = (g) => ROTULO_GRUPO_TABELA[g] || ROTULO_CAMADA[g] || g;
-const ehColunaDoCadastro = (c) => c.tipo === "era" || c.tipo === "ficou" || c.tipo === "extra";
+const ehColunaDoCadastro = (c) => c.tipo === "era" || c.tipo === "ficou" || c.tipo === "valor" || c.tipo === "extra";
 
 const ALTURA_CABECALHO = 56;
 const FILTRO_VAZIO = { busca: "", camada: "", situacao: "", grupo: "", revisar: false, ordem: "codigo" };
@@ -34,8 +35,8 @@ export function textoParaMedir(item, id) {
   if (id === "grupo") return { texto: item.grupo || "(sem grupo)" };
   if (id === "finalidade") return { texto: rotuloFinalidade(item.finalidade || item.finalidadeSugerida), extra: !item.finalidade && item.finalidadeSugerida ? 76 : 0 };
   if (id === "conjunto") { const e = textoDoEnquadramento(item); return { texto: e.texto, extra: e.origem ? 76 : 0 }; }
-  // Pares do cadastro (era:campo / ficou:campo) e extras do ERP (extra:nome).
-  const m = /^(era|ficou|extra):(.*)$/.exec(String(id));
+  // Pares do cadastro (era:campo / ficou:campo), campo de coluna única (valor:campo) e extras do ERP (extra:nome).
+  const m = /^(era|ficou|valor|extra):(.*)$/.exec(String(id));
   if (m) { const tipo = m[1]; const campo = m[2]; const par = parDoItem(item, { tipo, campo }); return { texto: textoDoCadastro(campo, tipo === "era" ? par[0] : par[1]) }; }
   return null; // situação: selo, medido na tela
 }
@@ -72,11 +73,14 @@ function useItens(projetoId, filtro, extras) {
   return { q, itens, total: q.data?.pages?.[0]?.total };
 }
 
-/** Célula do cadastro: "como era", "como ficou" (verde-claro quando mudou, dica com os dois valores) ou coluna extra do ERP. */
+/**
+ * Célula do cadastro: "como era", "como ficou" (destaque quando mudou, dica com os dois valores), coluna única de campo que nenhuma camada
+ * altera (o valor importado na base) ou coluna extra do ERP.
+ */
 function CelulaCadastro({ item, coluna }) {
   const par = parDoItem(item, coluna);
   const texto = textoDoCadastro(coluna.campo, coluna.tipo === "era" ? par[0] : par[1]);
-  const dica = coluna.tipo === "era" ? texto : dicaDoPar(coluna.campo, par);
+  const dica = coluna.tipo === "era" || coluna.tipo === "valor" ? texto : dicaDoPar(coluna.campo, par);
   return <span className={`block truncate ${coluna.campo === "saldo" ? "tabular-nums" : ""}`} title={dica}>{texto === "—" ? <span className="text-muted-foreground">—</span> : texto}</span>;
 }
 
@@ -119,6 +123,8 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
   const [aviso, setAviso] = useState(null);
   const [regraAberta, setRegraAberta] = useState(false);
   const [area, setArea] = useState(null);
+  // Clicar numa área vazia e arrastar leva a tabela para o lado e para cima/baixo; o clique que termina o arraste não abre a visão focada.
+  useArrastarParaRolar(area, { vertical: true });
   const quadro = useRef(0);
   // Colunas do cadastro (pares como era × como ficou) e colunas extras do ERP; as extras escolhidas ficam guardadas por projeto.
   const colunasQ = useQuery({ queryKey: chaves.colunasDosItens(projeto.id), queryFn: () => san.colunasDosItens(projeto.id), staleTime: 60_000 });
@@ -285,7 +291,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
                     <div className="sticky left-0 z-40 bg-cabecalho" style={{ width: larguraFixa }} />
                     {gruposCab.map((g) => ROTULO_GRUPO_TABELA[g.camada] ? (
                       <div key={g.camada} role="columnheader" style={{ width: g.largura }} className="flex items-center border-l border-white/20 px-2"
-                        title={g.camada === "CADASTRO" ? "Cada campo do cadastro em duas colunas: como veio na importação e como está agora, com as decisões aplicadas" : undefined}>
+                        title={g.camada === "CADASTRO" ? "Campos que as camadas podem alterar em duas colunas (como veio na importação e como está agora, com as decisões aplicadas); os demais numa coluna só, com o valor importado" : undefined}>
                         <span className="truncate text-xs font-semibold">{ROTULO_GRUPO_TABELA[g.camada]}</span>
                       </div>
                     ) : (
@@ -328,7 +334,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
                         {colunas.map((c) => {
                           const cel = c.tipo === "situacao" ? celulaDa(item, c.camada) : null;
                           if (ehColunaDoCadastro(c)) {
-                            const alterada = c.tipo !== "era" && mudouPar(parDoItem(item, c));
+                            const alterada = (c.tipo === "ficou" || c.tipo === "extra") && mudouPar(parDoItem(item, c));
                             return (
                               <div key={c.id} role="cell" data-coluna={c.id} data-alterada={alterada || undefined} className={`${estiloTabela.celula} ${alterada ? "celula-alterada" : ""}`} style={{ width: c.largura }}>
                                 <CelulaCadastro item={item} coluna={c} />
