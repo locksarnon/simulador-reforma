@@ -8,6 +8,7 @@ import { formatarNcm, leituraAchado, textoLinhas } from "./leituraAchados";
 import { montarConjuntos } from "./conjuntos";
 import { chaveDe, identificavel, indexar } from "./identidade";
 import { coerenciaDaDecisao } from "./aprovacao";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -59,7 +60,7 @@ export function montarRelatorioAnalises({ achados, criterios, grupos, estado, co
       let r = linhas.get(it.linha);
       if (!r) {
         const saldo = it.saldo != null && Number.isFinite(Number(it.saldo)) ? Number(it.saldo) / (escalaSaldo || 1) : null;
-        r = { grupo: g, linha: it.linha, codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", ncm: formatarNcm(it.ncm || it.ncm_original || ""), ultimaMov: dataBr(it.ultima_mov), saldo, porCriterio: {} };
+        r = { grupo: g, linha: it.linha, linhaPlanilha: linhaNaPlanilha(it), codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", ncm: formatarNcm(it.ncm || it.ncm_original || ""), ultimaMov: dataBr(it.ultima_mov), saldo, porCriterio: {} };
         linhas.set(it.linha, r);
       }
       r.porCriterio[c.id] = { como: textoLinhas(l.como), seria: textoLinhas(l.seria), porque: l.porque, decisao: textoDaDecisao(it, c.id) };
@@ -113,7 +114,7 @@ export function criarWorkbookAnalises(ExcelJS, rel, { nomeProjeto = "", nomeBase
   // Linha 1: logo da FAL; lb = linha das bandas (critérios), lt = linha dos títulos.
   const b0 = cabecalhoFalExcel(wb, ws, logo); const lb = b0 + 1; const lt = b0 + 2;
   const fixas = [["Código", 14, (l) => l.codigo], ["Descrição", 46, (l) => l.descricao], ["Unidade", 10, (l) => l.unidade], ["Grupo", 28, (l) => l.grupo], ["NCM", 13, (l) => l.ncm], ["Última movimentação", 14, (l) => l.ultimaMov],
-    ...(rel.temSaldo ? [["Saldo em estoque", 14, (l) => l.saldo]] : []), ["Linha da planilha", 10, (l) => l.linha]];
+    ...(rel.temSaldo ? [["Saldo em estoque", 14, (l) => l.saldo]] : []), ["Linha da planilha", 10, (l) => l.linhaPlanilha]];
   const cab = fixas.map(([t]) => t); const larguras = fixas.map(([, w]) => w);
   const bandas = [{ de: 1, ate: fixas.length, titulo: "Item", cor: COR_ITEM }]; const campos = []; let col = fixas.length + 1;
   rel.criterios.forEach((c, i) => {

@@ -15,7 +15,8 @@ const COL_NOME = ['nomeconta', 'descricaoconta', 'nomedaconta', 'descricaodacont
 /** Chave canônica: cClassTrib de 6 dígitos fica como está; qualquer outro texto vira o nome normalizado do grupo. */
 export const chavePlano = (k: string) => (/^\d{6}$/.test(k.trim()) ? k.trim() : normalizarProduto(k));
 
-export function montarPlanoContas(nome: string, cabecalho: string[], linhas: string[][]): PlanoContas {
+/** `linhasFisicas`: a linha de verdade no arquivo de cada linha lida (as mensagens apontam a linha que o Excel mostra). */
+export function montarPlanoContas(nome: string, cabecalho: string[], linhas: string[][], linhasFisicas?: number[]): PlanoContas {
   const h = cabecalho.map(norm);
   const achar = (alvos: string[]) => { for (const a of alvos) { const i = h.indexOf(a); if (i >= 0) return i; } return -1; };
   const iChave = achar(COL_CHAVE);
@@ -26,14 +27,15 @@ export function montarPlanoContas(nome: string, cabecalho: string[], linhas: str
   }
   const regras: Record<string, string> = {};
   linhas.forEach((l, i) => {
+    const n = linhasFisicas?.[i] ?? i + 2;
     const chaveBruta = (l[iChave] ?? '').trim();
     const codigo = (l[iConta] ?? '').trim();
     if (!chaveBruta && !codigo) return;
-    if (!chaveBruta || !codigo) throw new BadRequestException(`Linha ${i + 2} do de-para está incompleta (precisa de chave e conta).`);
+    if (!chaveBruta || !codigo) throw new BadRequestException(`Linha ${n} do de-para está incompleta (precisa de chave e conta).`);
     const nomeConta = iNome >= 0 && iNome !== iConta ? (l[iNome] ?? '').trim() : '';
     const conta = nomeConta ? `${codigo} — ${nomeConta}` : codigo;
     const k = chavePlano(chaveBruta);
-    if (regras[k] && regras[k] !== conta) throw new BadRequestException(`A chave "${chaveBruta}" aparece na linha ${i + 2} com uma conta diferente da anterior.`);
+    if (regras[k] && regras[k] !== conta) throw new BadRequestException(`A chave "${chaveBruta}" aparece na linha ${n} com uma conta diferente da anterior.`);
     regras[k] = conta;
   });
   if (!Object.keys(regras).length) throw new BadRequestException('O de-para não tem nenhuma regra.');

@@ -90,38 +90,48 @@ export function mapearCabecalho(cabecalho) {
   return mapa;
 }
 
+/**
+ * Número da linha no arquivo (o que o Excel ou o editor mostra) de cada linha lida. As linhas em branco (como a linha da logo da FAL no
+ * topo dos modelos do InTAX) somem da leitura, mas a mensagem de erro precisa apontar a linha de verdade. Sem a informação, conta de 1.
+ */
+export const linhaNoArquivo = (linhas, indice) => linhas.numeros?.[indice] ?? indice + 1;
+const comNumeros = (linhas, numeros) => Object.defineProperty(linhas, "numeros", { value: numeros, enumerable: false });
+
 /** Lê CSV com ";" ou "," (o que aparecer no cabeçalho) e aspas. */
 export function lerCsv(texto) {
   const t = String(texto).replace(/^﻿/, "");
   const sep = (t.split(/\r?\n/)[0].match(/;/g) || []).length >= (t.split(/\r?\n/)[0].match(/,/g) || []).length ? ";" : ",";
-  const linhas = [];
+  const linhas = []; const numeros = [];
   let atual = [""];
   let aspas = false;
+  let fisica = 1; let inicio = 1; // linha do arquivo em que a linha lida começa (texto entre aspas pode quebrar linha)
   for (let i = 0; i < t.length; i++) {
     const ch = t[i];
     if (aspas) {
+      if (ch === "\n") fisica++;
       if (ch === '"' && t[i + 1] === '"') { atual[atual.length - 1] += '"'; i++; } else if (ch === '"') aspas = false; else atual[atual.length - 1] += ch;
     } else if (ch === '"') aspas = true;
     else if (ch === sep) atual.push("");
-    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && t[i + 1] === "\n") i++; linhas.push(atual); atual = [""]; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && t[i + 1] === "\n") i++; linhas.push(atual); numeros.push(inicio); atual = [""]; fisica++; inicio = fisica; }
     else atual[atual.length - 1] += ch;
   }
-  if (atual.length > 1 || atual[0] !== "") linhas.push(atual);
-  return linhas.filter((l) => l.some((c) => String(c).trim()));
+  if (atual.length > 1 || atual[0] !== "") { linhas.push(atual); numeros.push(inicio); }
+  const cheias = linhas.map((l, k) => [l, numeros[k]]).filter(([l]) => l.some((c) => String(c).trim()));
+  return comNumeros(cheias.map(([l]) => l), cheias.map(([, n]) => n));
 }
 
 /** Compara a planilha com o cadastro: novas, a atualizar (só o que muda) e erros, com o motivo. */
 export function analisarImportacao(linhas, empresas, grupos, arquivadas = []) {
   if (!linhas.length) return { novas: [], atualizar: [], erros: [{ linha: 1, motivo: "Planilha vazia." }], sem_mudanca: 0 };
   const mapa = mapearCabecalho(linhas[0]);
-  if (mapa.razao_social === undefined && mapa.cnpj_cpf === undefined) return { novas: [], atualizar: [], erros: [{ linha: 1, motivo: 'O cabeçalho precisa ter "Razão social" ou "CNPJ/CPF".' }], sem_mudanca: 0 };
+  if (mapa.razao_social === undefined && mapa.cnpj_cpf === undefined) return { novas: [], atualizar: [], erros: [{ linha: linhaNoArquivo(linhas, 0), motivo: 'O cabeçalho precisa ter "Razão social" ou "CNPJ/CPF".' }], sem_mudanca: 0 };
   const porDoc = new Map(empresas.filter((e) => digitos(e.cnpj_cpf)).map((e) => [digitos(e.cnpj_cpf), e]));
   const porId = new Map(empresas.filter((e) => e.id_empresa).map((e) => [norm(e.id_empresa), e]));
   const numerosDeGrupo = new Set(grupos.map((g) => String(g.numero)));
   const arquivadaPorDoc = new Map(arquivadas.filter((e) => digitos(e.cnpj_cpf)).map((e) => [digitos(e.cnpj_cpf), e]));
   const novas = []; const atualizar = []; const erros = []; let semMudanca = 0;
   linhas.slice(1).forEach((l, k) => {
-    const n = k + 2;
+    const n = linhaNoArquivo(linhas, k + 1);
     const v = {};
     for (const [campo, i] of Object.entries(mapa)) { const x = String(l[i] ?? "").trim(); if (x) v[campo] = x; }
     if (v.uf) v.uf = v.uf.toUpperCase();
@@ -156,7 +166,7 @@ export function analisarVinculos(linhas, empresas, colaboradores) {
   const cab = (linhas[0] || []).map(norm);
   const iDoc = cab.findIndex((h) => ["cnpj/cpf", "cnpj", "cpf", "documento"].includes(h));
   const iMail = cab.findIndex((h) => ["e-mail do colaborador", "email do colaborador", "colaborador", "e-mail", "email"].includes(h));
-  if (iDoc < 0 || iMail < 0) return { porColaborador: [], erros: [{ linha: 1, motivo: 'O cabeçalho precisa ter "CNPJ/CPF" e "E-mail do colaborador".' }] };
+  if (iDoc < 0 || iMail < 0) return { porColaborador: [], erros: [{ linha: linhaNoArquivo(linhas, 0), motivo: 'O cabeçalho precisa ter "CNPJ/CPF" e "E-mail do colaborador".' }] };
   const porDoc = new Map(empresas.filter((e) => digitos(e.cnpj_cpf)).map((e) => [digitos(e.cnpj_cpf), e]));
   const porEmail = new Map(colaboradores.map((c) => [c.email.toLowerCase(), c]));
   const grupos = new Map();
@@ -164,8 +174,8 @@ export function analisarVinculos(linhas, empresas, colaboradores) {
   linhas.slice(1).forEach((l, k) => {
     const e = porDoc.get(digitos(l[iDoc]));
     const c = porEmail.get(String(l[iMail] ?? "").trim().toLowerCase());
-    if (!e) return erros.push({ linha: k + 2, motivo: `Empresa não encontrada pelo CNPJ/CPF ${l[iDoc] ?? ""}` });
-    if (!c) return erros.push({ linha: k + 2, motivo: `Colaborador não encontrado (ou desativado): ${l[iMail] ?? ""}` });
+    if (!e) return erros.push({ linha: linhaNoArquivo(linhas, k + 1), motivo: `Empresa não encontrada pelo CNPJ/CPF ${l[iDoc] ?? ""}` });
+    if (!c) return erros.push({ linha: linhaNoArquivo(linhas, k + 1), motivo: `Colaborador não encontrado (ou desativado): ${l[iMail] ?? ""}` });
     const g = grupos.get(c.id) ?? { user_id: c.id, nome: c.name || c.email, empresa_ids: [] };
     if (!g.empresa_ids.includes(e.id)) g.empresa_ids.push(e.id);
     grupos.set(c.id, g);
@@ -181,11 +191,12 @@ export async function lerPlanilha(arquivo) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await arquivo.arrayBuffer());
   const ws = wb.worksheets[0];
-  const linhas = [];
+  const linhas = []; const numeros = [];
   ws.eachRow({ includeEmpty: false }, (row) => {
+    numeros.push(row.number);
     const valores = [];
     for (let i = 1; i <= ws.columnCount; i++) { const c = row.getCell(i).value; valores.push(c === null || c === undefined ? "" : typeof c === "object" ? (c.text ?? c.result ?? String(c)) : String(c)); }
     linhas.push(valores);
   });
-  return linhas;
+  return comNumeros(linhas, numeros);
 }

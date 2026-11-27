@@ -3,6 +3,7 @@
 import { dataBr, grupoDe } from "./logica";
 import { baixarXlsx, carregarExcelJS, tabelaComLogo } from "./arquivoXlsx";
 import { cabecalhoFalExcel, carregarLogoFal } from "@/lib/marcaFal";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 export const RELACOES = {
   universo: { titulo: "Universo", arquivo: "universo" },
@@ -51,7 +52,7 @@ export function linhasRelacao(lista, escopo, corte) {
   const situacao = criarSituacao(escopo, corte);
   return lista.map((it) => ({
     codigo: it.codigo, descricao: it.descricao, unidade: it.unidade, grupo: grupoDe(it), ncm: it.ncm || it.ncm_original || "",
-    ultima_mov: dataBr(it.ultima_mov), situacao: situacao(it), linha: it.linha,
+    ultima_mov: dataBr(it.ultima_mov), situacao: situacao(it), linha: linhaNaPlanilha(it),
   }));
 }
 

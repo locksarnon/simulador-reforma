@@ -3,6 +3,7 @@
 // no ERP, e a sugestão é leitura dos anexos consultados, não parecer: onde o enquadramento depende dos requisitos do produto, o item vai para revisão. Funções puras.
 import { dataBr, grupoDe } from "./logica";
 import { idItem, identificavel } from "./identidade";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const soDigitos = (s) => String(s ?? "").replace(/\D/g, "");
@@ -100,7 +101,7 @@ export function leituraFiscal(it, classes = new Map(), indice = null) {
   const infoSug = sugerida ? classes.get(sugerida) : null; const infoInf = informada ? classes.get(informada) : null;
   const fundamento = s?.anexo ? `${s.anexo} da LC 214/2025` : s?.padrao ? "sem enquadramento nos anexos consultados da LC 214/2025 (não indica, por si só, ausência de benefício por outra base legal)" : "";
   const l = {
-    linha: it.linha, id: idItem(it), semIdentidade: indice ? !identificavel(it, indice) : !idItem(it), codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", grupo: grupoDe(it),
+    linha: it.linha, linhaPlanilha: linhaNaPlanilha(it), id: idItem(it), semIdentidade: indice ? !identificavel(it, indice) : !idItem(it), codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", grupo: grupoDe(it),
     ncmOriginal: it.ncm_original || "", ncm: it.ncm || "", ncmCorrigido: soDigitos(it.ncm).length === 8 && soDigitos(it.ncm) !== soDigitos(it.ncm_original),
     informada, sugerida, reducao: sugerida && s ? pct(s.reducao) : "", confianca: sugerida || s?.referencia ? s?.confianca || "" : "", fundamento,
     cstSugerida: infoSug?.cst || "", cstInformada: infoInf?.cst || "", descricaoClasse: infoSug?.descricao_oficial || s?.descricao || "",
@@ -162,7 +163,7 @@ export const COLUNAS_MATRIZ = [
   ["Grupo", "grupo", 28], ["Código", "codigo", 14], ["Descrição", "descricao", 46], ["Unidade", "unidade", 10], ["NCM informado", "ncmOriginal", 14], ["NCM (corrigido/validado)", "ncmFinal", 16],
   ["cClassTrib informado", "informada", 14], ["CST (informado)", "cstInformada", 11], ["cClassTrib sugerido (anexos LC 214)", "sugerida", 16], ["CST (sugerido)", "cstSugerida", 11], ["Descrição da classe sugerida", "descricaoClasse", 40],
   ["Redução IBS", "reducaoIbs", 10], ["Redução CBS", "reducaoCbs", 10], ["Confiança", "confianca", 30], ["Fundamento", "fundamento", 40], ["Situação", "rotuloSituacao", 36], ["Proposta", "proposta", 50],
-  ["Decisão do analista", "decisao", 28], ["Classe que vale", "classeFinal", 14], ["Fundamento do analista", "obs", 40], ["Validação", "validacao", 36], ["Revisor", "por", 24], ["Data", "em", 12], ["Linha da planilha", "linha", 10],
+  ["Decisão do analista", "decisao", 28], ["Classe que vale", "classeFinal", 14], ["Fundamento do analista", "obs", 40], ["Validação", "validacao", 36], ["Revisor", "por", 24], ["Data", "em", 12], ["Linha da planilha", "linhaPlanilha", 10],
 ];
 
 /** Linhas da matriz fiscal de um conjunto de itens (todas as situações), na ordem de gravidade e depois pela linha da planilha. */

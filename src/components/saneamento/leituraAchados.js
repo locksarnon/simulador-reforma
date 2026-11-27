@@ -4,6 +4,7 @@ import { GRANDEZAS, numeroBr } from "./unidades";
 import { dataBr } from "./logica";
 import { conjuntoIdentificavel, escolhaDoConjunto } from "./conjuntos";
 import { idItem } from "./identidade";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 export const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const L = (rotulo, valor, destaque = false) => ({ rotulo, valor, destaque });
@@ -52,7 +53,7 @@ function leituraDuplicidade(a, itemPorLinha, { conjuntoDe, decisoes, escala = 1,
   const it = a.item; const dup = it.duplicidade;
   if (!dup) return { como: [L("Indicação", "duplicidade apontada pelo teste")], seria: [L("Ação", "confirmar se é o mesmo produto")], porque: a.motivo || "" };
   const cands = dup.candidatos || [];
-  const nomes = cands.slice(0, 3).map((c) => { const o = itemPorLinha?.get(c.linha); return o ? `${o.codigo || `linha ${c.linha}`}${o.descricao ? ` · ${o.descricao}` : ""}${saldoTxt(o, escala)}` : `linha ${c.linha}`; });
+  const nomes = cands.slice(0, 3).map((c) => { const o = itemPorLinha?.get(c.linha); return o ? `${o.codigo || `linha ${linhaNaPlanilha(o)}`}${o.descricao ? ` · ${o.descricao}` : ""}${saldoTxt(o, escala)}` : `linha ${c.linha}`; });
   const como = [L("Parecido com", nomes.length ? nomes.join(" | ") + (cands.length > nomes.length ? ` (+${cands.length - nomes.length})` : "") : "—"), L("Indicação", `${NIVEL_ROT[dup.nivel] ?? dup.nivel} · ${cands[0]?.origem === "observacao" ? "pela regra de observação" : `similaridade ${num2(dup.score)}`}`),
     ...(dup.porObservacao ? [L("Observação (não é produto)", dup.observacao?.palavras?.length ? dup.observacao.palavras.join(", ") : "nenhuma neste item")] : [])]; // regra de observação do grupo: cor, tipo e apresentação não separam os itens
   const conj = conjuntoDe?.get(it.linha);
