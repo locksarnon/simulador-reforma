@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Info, Loader2 } from "lucide-react";
@@ -72,7 +73,7 @@ function GrupoFiscal({ g, todosItens, saem, classes, decisoes, concl, onMudar, o
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Situação fiscal dos itens">
           {[["DECIDIR", "Pedem decisão", resumo.precisaDecidir], ...ORDEM_SITUACOES.filter((s) => resumo.porSit[s] > 0).map((s) => [s, SITUACOES[s].rotulo, resumo.porSit[s]]), ["TODAS", "Todas", resumo.total]].map(([id, rot, n]) => (
             <button key={id} type="button" aria-pressed={filtro === id} onClick={() => setFiltro(id)}
-              className={`px-2.5 py-1 text-xs rounded-md border ${filtro === id ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted"}`}>{rot} <span className="tabular-nums opacity-70">{fmt(n)}</span></button>))}
+              className={classeBotaoFiltro(filtro === id, "xs")}>{rot} <span className="tabular-nums opacity-70">{fmt(n)}</span></button>))}
         </div>
         {!travada && decidiveis.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">

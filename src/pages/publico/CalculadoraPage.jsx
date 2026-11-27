@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Download, Loader2, CheckCircle2 } from "lucide-react";
@@ -176,7 +177,7 @@ export default function CalculadoraPage() {
                 <p className="text-xs text-muted-foreground mt-1">{q.ajuda}</p>
                 <div className="flex gap-2 mt-4">
                   {["sim", "nao"].map((v) => (
-                    <button key={v} type="button" onClick={() => responder(q.id, v)} className={`px-6 py-2 rounded-md border text-sm font-medium transition-colors ${resp === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{v === "sim" ? "Sim" : "Não"}</button>
+                    <button key={v} type="button" onClick={() => responder(q.id, v)} aria-pressed={resp === v} className={`px-6 ${classeBotaoFiltro(resp === v)}`}>{v === "sim" ? "Sim" : "Não"}</button>
                   ))}
                 </div>
               </div>
@@ -194,7 +195,7 @@ export default function CalculadoraPage() {
             <p className="text-sm font-medium mb-2">Regime tributário</p>
             <div className="flex flex-wrap gap-2">
               {REGIMES.filter((r) => perfil.regimes.includes(r.id)).map((r) => (
-                <button key={r.id} type="button" onClick={() => setDados((d) => ({ ...d, regime: r.id }))} className={`px-4 py-2 rounded-md border text-sm ${dados.regime === r.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{r.label}</button>
+                <button key={r.id} type="button" onClick={() => setDados((d) => ({ ...d, regime: r.id }))} aria-pressed={dados.regime === r.id} className={classeBotaoFiltro(dados.regime === r.id)}>{r.label}</button>
               ))}
             </div>
           </div>
@@ -203,7 +204,7 @@ export default function CalculadoraPage() {
             <p className="text-xs text-muted-foreground mb-2">Muitos itens (alimentos, insumos, medicamentos) têm alíquota zero ou reduzida. Não sabe? Use a <a href="/consulta-ncm" target="_blank" rel="noreferrer" className="underline">Consulta NCM</a>.</p>
             <div className="flex flex-wrap gap-2">
               {[[0, "Alíquota padrão"], [0.6, "Redução de 60% (insumos, alimentos)"], [1, "Alíquota zero (cesta básica, hortifrúti)"]].map(([v, r]) => (
-                <button key={v} type="button" onClick={() => setDados((d) => ({ ...d, reducao: v }))} className={`px-3 py-2 rounded-md border text-sm ${dados.reducao === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{r}</button>
+                <button key={v} type="button" onClick={() => setDados((d) => ({ ...d, reducao: v }))} aria-pressed={dados.reducao === v} className={classeBotaoFiltro(dados.reducao === v)}>{r}</button>
               ))}
             </div>
           </div>

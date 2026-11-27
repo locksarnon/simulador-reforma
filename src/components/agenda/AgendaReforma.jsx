@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, CalendarPlus, Loader2, Mail, RefreshCw } from "lucide-react";
@@ -95,7 +96,7 @@ export default function AgendaReforma({ empresa = null, admin = false }) {
           <button type="button" onClick={baixar} disabled={ocupado === "ics"} className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-50">
             {ocupado === "ics" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarPlus className="w-3.5 h-3.5" />} Baixar calendário (.ics)
           </button>
-          <button type="button" aria-pressed={lembretes} onClick={() => setLembretes((v) => !v)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm ${lembretes ? "border-primary text-primary bg-primary/5" : "border-border hover:bg-muted"}`}>
+          <button type="button" aria-pressed={lembretes} onClick={() => setLembretes((v) => !v)} className={classeBotaoFiltro(lembretes)}>
             <Mail className="w-3.5 h-3.5" /> Lembretes por e-mail
           </button>
           {admin && (

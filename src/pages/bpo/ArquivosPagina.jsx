@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useMemo, useState } from "react";
 import CampoArquivo from "@/components/ui/CampoArquivo";
 import TabelaPadrao from "@/components/TabelaPadrao";
@@ -23,8 +24,8 @@ const fmtData = (v) => (v ? new Date(v).toLocaleDateString("pt-BR", { timeZone: 
 function SeletorDeDono({ empresas, pessoas, dono, aoMudar }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="De quem">
-        {[["empresa", "Empresa"], ["pf", "Pessoa física"]].map(([v, r]) => <button key={v} type="button" aria-pressed={dono.tipo === v} onClick={() => aoMudar({ tipo: v, id: "" })} className={`rounded px-3 py-1 text-sm ${dono.tipo === v ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{r}</button>)}
+      <div className="inline-flex flex-wrap gap-1.5" role="group" aria-label="De quem">
+        {[["empresa", "Empresa"], ["pf", "Pessoa física"]].map(([v, r]) => <button key={v} type="button" aria-pressed={dono.tipo === v} onClick={() => aoMudar({ tipo: v, id: "" })} className={classeBotaoFiltro(dono.tipo === v)}>{r}</button>)}
       </div>
       <div className="w-72">
         {dono.tipo === "empresa"

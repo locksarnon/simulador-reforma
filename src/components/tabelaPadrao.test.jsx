@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
-import TabelaPadrao, { aplicarTabela, textoDaColuna } from "./TabelaPadrao";
+import TabelaPadrao, { aplicarTabela, CaixaBusca, textoDaColuna } from "./TabelaPadrao";
 import { linhasDaLeitura } from "./monitoramento/LeituraSitfis";
 import { linhasDaEsfera, situacaoPelaValidade } from "./monitoramento/CertidoesCliente";
 
@@ -44,6 +44,82 @@ describe("tabela padrão do InTAX", () => {
     const cab = html.match(/<thead[\s\S]*?<\/tr>/)[0];
     expect(cab.lastIndexOf("Documentos")).toBeGreaterThan(cab.lastIndexOf("Competência"));
     expect(html).toContain("3 linhas");
+  });
+});
+
+/** Acha, na árvore de elementos devolvida por um componente sem estado, o primeiro elemento que satisfaz `teste`. */
+function acharElemento(no, teste) {
+  if (!no || typeof no !== "object") return null;
+  if (Array.isArray(no)) { for (const n of no) { const r = acharElemento(n, teste); if (r) return r; } return null; }
+  if (teste(no)) return no;
+  return acharElemento(no.props?.children, teste);
+}
+
+describe("barra única da tabela padrão", () => {
+  const barraDe = (html) => html.slice(html.indexOf("data-barra-lista"), html.indexOf("<table"));
+
+  it("busca controlada pela página: troca a caixa interna, mostra o valor e não filtra de novo as linhas", () => {
+    const html = renderToString(<TabelaPadrao id="t-busca" colunas={COLUNAS} linhas={LINHAS} ariaLabel="Teste"
+      busca={{ valor: "cuiaba", aoMudar: () => {}, placeholder: "Nome ou CNPJ", rotulo: "Buscar por nome ou CNPJ" }} />);
+    expect(html).not.toContain("Buscar em todas as colunas");
+    expect(html.match(/type="search"/g)).toHaveLength(1);
+    expect(html).toContain('placeholder="Nome ou CNPJ"');
+    expect(html).toContain('value="cuiaba"');
+    expect(html).toContain("Buscar por nome ou CNPJ");
+    expect(html).toContain("Limpar filtros"); // a busca da página conta como filtro ligado
+    expect(html).toContain("3 linhas"); // quem filtra é a página: a tabela mostra as linhas que recebeu
+  });
+
+  it("a caixa de busca devolve o texto digitado e o X limpa", () => {
+    const recebidos = [];
+    const caixa = CaixaBusca({ valor: "abc", aoMudar: (v) => recebidos.push(v), placeholder: "Busca da página" });
+    const input = acharElemento(caixa, (e) => e.type === "input");
+    expect(input.props.value).toBe("abc");
+    expect(input.props.placeholder).toBe("Busca da página");
+    input.props.onChange({ target: { value: "goiania" } });
+    acharElemento(caixa, (e) => e.props?.["aria-label"] === "Limpar a busca").props.onClick();
+    expect(recebidos).toEqual(["goiania", ""]);
+  });
+
+  it("sem busca controlada, mantém a busca interna em todas as colunas", () => {
+    const html = renderToString(<TabelaPadrao id="t-interna" colunas={COLUNAS} linhas={LINHAS} ariaLabel="Teste" />);
+    expect(html).toContain('placeholder="Buscar em todas as colunas"');
+  });
+
+  it("uma linha só: filtros extras, busca, Filtros por coluna, Colunas, Exportar e ações, na mesma barra e com a mesma altura", () => {
+    const html = renderToString(<TabelaPadrao id="t-barra" colunas={COLUNAS} linhas={LINHAS} ariaLabel="Teste"
+      filtrosExtras={<select aria-label="Situação"><option>Situação: todas</option></select>}
+      acoes={<button type="button">Ação da página</button>} />);
+    expect(html).toMatch(/<div class="flex flex-wrap items-center gap-1\.5" data-barra-lista="">/);
+    const barra = barraDe(html);
+    const ordem = ['aria-label="Situação"', 'type="search"', "Filtros por coluna", "Colunas", "Exportar", "Ação da página"].map((t) => barra.indexOf(t));
+    expect(ordem.every((p) => p >= 0)).toBe(true);
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+    expect(html.match(/data-barra-lista/g)).toHaveLength(1); // nenhuma segunda linha de controles
+    for (const rotulo of ["Filtros por coluna", "Colunas", "Exportar"]) {
+      const botao = barra.slice(0, barra.indexOf(rotulo)).split("<button").pop();
+      expect(botao).toContain("h-8");
+      expect(botao).toContain("botao-acao");
+    }
+  });
+
+  it("com a busca da página, ela vem antes dos filtros extras", () => {
+    const html = renderToString(<TabelaPadrao id="t-ordem" colunas={COLUNAS} linhas={LINHAS} ariaLabel="Teste"
+      busca={{ valor: "", aoMudar: () => {} }} filtrosExtras={<select aria-label="Regime"><option>Regime: todos</option></select>} />);
+    const barra = barraDe(html);
+    expect(barra.indexOf('type="search"')).toBeLessThan(barra.indexOf('aria-label="Regime"'));
+  });
+});
+
+describe("botão de filtro (sem pílula)", () => {
+  it("ativo é verde cheio com texto branco; inativo tem fundo da tela; ambos com o relevo dos botões e cantos levemente arredondados", async () => {
+    const { default: BotaoFiltro, classeBotaoFiltro } = await import("./BotaoFiltro");
+    expect(classeBotaoFiltro(true)).toMatch(/botao-acao.*bg-primary.*text-primary-foreground/);
+    expect(classeBotaoFiltro(false)).toContain("bg-background");
+    for (const a of [true, false]) { expect(classeBotaoFiltro(a)).toContain("rounded-md"); expect(classeBotaoFiltro(a)).not.toContain("rounded-full"); }
+    const html = renderToString(<BotaoFiltro ativo contagem={3}>Todos</BotaoFiltro>);
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toMatch(/Todos<span class="tabular-nums opacity-80">3<\/span>/);
   });
 });
 

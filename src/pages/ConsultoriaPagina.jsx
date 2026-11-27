@@ -108,9 +108,9 @@ export default function ConsultoriaPagina({ carteira = false }) {
 
   const filtrosDeCatalogo = <>
           <select aria-label="Público" className={carteira ? campoCompacto + " w-[7rem]" : campo} value={publico} onChange={(e) => { setPublico(e.target.value); setArea(""); setFiltroServico(""); }}>
-            {carteira && <option value="">PF e PJ</option>}<option value="PF">Pessoa Física</option><option value="PJ">Pessoa Jurídica</option>
+            {carteira && <option value="">Público: PF e PJ</option>}<option value="PF">Pessoa Física</option><option value="PJ">Pessoa Jurídica</option>
           </select>
-          <select aria-label="Área" className={carteira ? campoCompacto + " w-[8rem]" : campo} value={area} onChange={(e) => { setArea(e.target.value); setFiltroServico(""); }}><option value="">Todas as áreas</option>{areas.map((a) => <option key={a}>{a}</option>)}</select>
+          <select aria-label="Área" className={carteira ? campoCompacto + " w-[8rem]" : campo} value={area} onChange={(e) => { setArea(e.target.value); setFiltroServico(""); }}><option value="">Área: todas</option>{areas.map((a) => <option key={a}>{a}</option>)}</select>
   </>;
 
   if (clienteId) {
@@ -209,11 +209,11 @@ export default function ConsultoriaPagina({ carteira = false }) {
       {!erro && !pendente && <>
         {!carteira && <div className="flex flex-wrap gap-2">{filtrosDeCatalogo}</div>}
         {carteira ? <TabelaPadrao id="carteira-consultoria" ariaLabel={titulo} linhas={lista.map((c) => ({ ...c, id: c.idTabela, clienteOriginal: c }))} vazio="Nenhum cliente com esses filtros."
+          busca={{ valor: busca, aoMudar: setBusca, placeholder: "Nome ou documento", rotulo: "Buscar cliente por nome ou documento" }}
           filtrosExtras={<>{filtrosDeCatalogo}
-            <input type="search" aria-label="Buscar cliente" className={carteira ? campoCompacto + " w-[9rem]" : campo} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome ou documento" />
-            <select aria-label="Serviço" className={carteira ? campoCompacto + " w-[9rem]" : campo} value={filtroServico} onChange={(e) => setFiltroServico(e.target.value)}><option value="">Todos os serviços</option>{candidatos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select>
-            <select aria-label="Responsável" className={carteira ? campoCompacto + " w-[8rem]" : campo} value={filtroResponsavel} onChange={(e) => setFiltroResponsavel(e.target.value)}><option value="">Todos os responsáveis</option>{[...new Set(trabalhos.map((p) => p.responsavel).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}</select>
-            <select aria-label="Situação" className={carteira ? campoCompacto + " w-[8rem]" : campo} value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)}><option value="">Todas as situações</option><option value="SEM_PROJETO">Contratado · ainda não iniciado</option><option value="EM_ANDAMENTO">Em andamento</option><option value="PAUSADO">Pausado</option><option value="CONCLUIDO">Concluído</option><option value="CANCELADO">Cancelado</option></select>
+            <select aria-label="Serviço" className={carteira ? campoCompacto + " w-[9rem]" : campo} value={filtroServico} onChange={(e) => setFiltroServico(e.target.value)}><option value="">Serviço: todos</option>{candidatos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select>
+            <select aria-label="Responsável" className={carteira ? campoCompacto + " w-[8rem]" : campo} value={filtroResponsavel} onChange={(e) => setFiltroResponsavel(e.target.value)}><option value="">Responsável: todos</option>{[...new Set(trabalhos.map((p) => p.responsavel).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}</select>
+            <select aria-label="Situação" className={carteira ? campoCompacto + " w-[8rem]" : campo} value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)}><option value="">Situação: todas</option><option value="SEM_PROJETO">Contratado · ainda não iniciado</option><option value="EM_ANDAMENTO">Em andamento</option><option value="PAUSADO">Pausado</option><option value="CONCLUIDO">Concluído</option><option value="CANCELADO">Cancelado</option></select>
           </>}
           aoClicarLinha={(c) => { setAdicionando(false); navigate(rotaCliente(c.clienteOriginal)); }}
           colunas={[

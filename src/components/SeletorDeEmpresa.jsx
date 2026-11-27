@@ -14,9 +14,10 @@ export function buscarEmpresasPorTexto(empresas, texto, limite = 8) {
 
 /**
  * Campo para escolher uma empresa digitando: mostra as primeiras que casam, navega com as setas e escolhe com Enter.
- * Com uma empresa escolhida, aparece o nome com o botão de tirar.
+ * Com uma empresa escolhida, aparece o nome com o botão de tirar. `compacto`: para a barra única das listas (altura h-8,
+ * sem rótulo em cima; o rótulo fica só para leitores de tela).
  */
-export default function SeletorDeEmpresa({ empresas, valor, aoMudar, rotulo = "Empresa", placeholder = "Digite o nome, o código ou o CNPJ", opcional = true }) {
+export default function SeletorDeEmpresa({ empresas, valor, aoMudar, rotulo = "Empresa", placeholder = "Digite o nome, o código ou o CNPJ", opcional = true, compacto = false }) {
   const idLista = useId();
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
@@ -33,10 +34,10 @@ export default function SeletorDeEmpresa({ empresas, valor, aoMudar, rotulo = "E
   };
 
   return (
-    <div className="relative space-y-1">
-      <span className="block text-xs text-muted-foreground">{rotulo}{opcional ? " (opcional)" : ""}</span>
+    <div className={compacto ? "relative w-56 max-w-full" : "relative space-y-1"}>
+      <span className={compacto ? "sr-only" : "block text-xs text-muted-foreground"}>{rotulo}{opcional ? " (opcional)" : ""}</span>
       {escolhida ? (
-        <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm">
+        <div className={`flex items-center gap-2 rounded-md border border-border bg-background ${compacto ? "h-8 px-2 text-xs" : "px-2.5 py-1.5 text-sm"}`}>
           <span className="min-w-0 flex-1 truncate">{escolhida.razao_social}</span>
           <button type="button" onClick={() => aoMudar("")} className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Tirar a empresa ${escolhida.razao_social}`}><X className="h-3.5 w-3.5" aria-hidden="true" /></button>
         </div>
@@ -44,7 +45,7 @@ export default function SeletorDeEmpresa({ empresas, valor, aoMudar, rotulo = "E
         <>
           <input
             role="combobox" aria-expanded={aberto} aria-controls={idLista} aria-autocomplete="list" aria-label={rotulo} autoComplete="off"
-            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={`w-full rounded-md border border-border bg-background ${compacto ? "h-8 px-2 text-xs" : "px-2.5 py-1.5 text-sm"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
             placeholder={placeholder} value={busca}
             onChange={(e) => { setBusca(e.target.value); setAberto(true); setAtivo(0); }}
             onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 120)} onKeyDown={aoTeclar}

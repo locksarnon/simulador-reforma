@@ -5,13 +5,13 @@ import { Loader2, Plus } from "lucide-react";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { botaoBarraCls, campoBarraCls } from "@/lib/estiloTabela";
 import NovoDiagnosticoDialog from "@/components/diagnostico/NovoDiagnosticoDialog";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta } from "@/lib/servicos";
 import { SITUACOES_PROJETO } from "@/lib/projetos";
 import { DIAGNOSTICOS, PROJETOS_CONSULTORIA, trilhaDaConsultoria } from "@/lib/trilhas";
 
-const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Diagnósticos > Projetos: cada trabalho pontual com o seu escopo; "Novo diagnóstico" é a ação principal. */
 export default function DiagnosticosPagina({ consultoria = false }) {
@@ -36,22 +36,21 @@ export default function DiagnosticosPagina({ consultoria = false }) {
       <PageHeader
         crumbs={trilhaDaConsultoria(consultoria ? PROJETOS_CONSULTORIA : DIAGNOSTICOS)}
         title={consultoria ? "Projetos de Consultoria" : "Diagnósticos"}
-        actions={consultoria ? <Link to="/consultoria/carteira" className="botao-acao rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground">Abrir Carteira de Consultoria</Link> : <button type="button" onClick={() => setNovo(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
+        actions={consultoria ? undefined : <button type="button" onClick={() => setNovo(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
       />
       <div className="px-6 lg:px-8 py-5 space-y-3">
-        <div className="flex flex-wrap items-end gap-2 text-sm">
-          <label className="flex-1 min-w-[220px] space-y-1"><span className="block text-xs text-muted-foreground">Buscar</span><input type="search" className={`${campo} w-full`} placeholder="Nome do projeto ou da empresa" value={filtro.busca} onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))} /></label>
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span>
-            <select className={campo} value={filtro.situacao} onChange={(e) => setFiltro((f) => ({ ...f, situacao: e.target.value }))}>
-              <option value="abertos">Em andamento e pausados</option><option value="todos">Todos</option>
-              {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
-            </select></label>
-          <label className="inline-flex items-center gap-2"><input type="checkbox" checked={Boolean(filtro.exclusao)} onChange={(e) => setFiltro((f) => ({ ...f, exclusao: e.target.checked, situacao: e.target.checked ? "todos" : f.situacao }))} /> Exclusão pendente</label>
-          <Link to="/consultoria/carteira" className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Carteira de Consultoria</Link>
-        </div>
         {(projetos.isLoading || carregandoCadastro) ? <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <TabelaPadrao
-            id="diagnosticos-projetos" ariaLabel="Projetos de diagnóstico" titulo="Projetos de diagnóstico" linhas={lista}
+            id="diagnosticos-projetos" ariaLabel="Projetos de diagnóstico" linhas={lista}
+            busca={{ valor: filtro.busca, aoMudar: (v) => setFiltro((f) => ({ ...f, busca: v })), placeholder: "Nome do projeto ou da empresa", rotulo: "Buscar pelo nome do projeto ou da empresa" }}
+            filtrosExtras={<>
+              <select aria-label="Situação" className={campoBarraCls} value={filtro.situacao} onChange={(e) => setFiltro((f) => ({ ...f, situacao: e.target.value }))}>
+                <option value="abertos">Situação: em andamento e pausados</option><option value="todos">Situação: todas</option>
+                {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
+              </select>
+              <label className="inline-flex h-8 items-center gap-1.5 text-xs"><input type="checkbox" checked={Boolean(filtro.exclusao)} onChange={(e) => setFiltro((f) => ({ ...f, exclusao: e.target.checked, situacao: e.target.checked ? "todos" : f.situacao }))} /> Exclusão pendente</label>
+            </>}
+            acoes={<Link to="/consultoria/carteira" className={botaoBarraCls}>Carteira de Consultoria</Link>}
             aoClicarLinha={(p) => navigate(`/diagnostico/projetos/${p.id}`)}
             vazio={consultoria ? "Nenhum projeto com esses filtros." : (projetos.data || []).length === 0 ? <>Nenhum diagnóstico ainda. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Criar o primeiro</button></> : "Nenhum diagnóstico com esses filtros."}
             colunas={[

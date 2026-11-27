@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -50,7 +51,7 @@ export function ResultadosDaBusca({ busca, termo, carregando = false }) {
 function Chave({ ligada, aoMudar, desabilitada = false, titulo, icone = null, children }) {
   return (
     <button type="button" role="switch" aria-checked={ligada} onClick={aoMudar} disabled={desabilitada} title={titulo}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-50 ${ligada ? "border-primary/60 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>
+      className={`disabled:opacity-50 ${classeBotaoFiltro(ligada, "xs")}`}>
       {icone}<span>{children}: {ligada ? "ligada" : "desligada"}</span>
     </button>
   );

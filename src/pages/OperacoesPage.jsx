@@ -14,6 +14,7 @@ import { Plus, Pencil, Trash2, ChevronRight, ArrowLeftRight } from "lucide-react
 import InfoTooltip from "@/components/InfoTooltip";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { campoBarraCls } from "@/lib/estiloTabela";
 import LimparDadosButton from "@/components/LimparDadosButton";
 import TituloPagina from "@/components/TituloPagina";
 import { useConfirmar } from "@/components/ConfirmProvider";
@@ -134,24 +135,23 @@ export default function OperacoesPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        {empresaTravada ? (
-          <span className="px-3 py-1.5 text-sm rounded-md border border-border bg-muted/40 text-muted-foreground">
-            {empresaTravada.id_empresa} — {empresaTravada.razao_social}
-          </span>
-        ) : (
-          <select value={filterEmpresa} onChange={(e) => setFilterEmpresa(e.target.value)} className="px-3 py-1.5 text-sm rounded-md border border-border bg-background">
-            <option value="">Todas as empresas</option>
-            {(grupoEmpresaIds ? empresas.filter(e => grupoEmpresaIds.has(e.id_empresa)) : empresas).map((em) => <option key={em.id} value={em.id_empresa}>{em.id_empresa} — {em.razao_social}</option>)}
-          </select>
-        )}
-        <select value={filterAno} onChange={(e) => setFilterAno(e.target.value)} className="px-3 py-1.5 text-sm rounded-md border border-border bg-background">
-          <option value="">Todos os anos</option>
-          {anos.map((a) => <option key={a} value={String(a)}>{a}</option>)}
-        </select>
-      </div>
-
       <TabelaPadrao id="operacoes" ariaLabel="Operações" linhas={filtered} chaveLinha={(oc) => oc.op.id}
+        filtrosExtras={<>
+          {empresaTravada ? (
+            <span className="inline-flex h-8 items-center rounded-md border border-border bg-muted/40 px-2 text-xs text-muted-foreground">
+              {empresaTravada.id_empresa} — {empresaTravada.razao_social}
+            </span>
+          ) : (
+            <select aria-label="Empresa" value={filterEmpresa} onChange={(e) => setFilterEmpresa(e.target.value)} className={`${campoBarraCls} max-w-[16rem]`}>
+              <option value="">Empresa: todas</option>
+              {(grupoEmpresaIds ? empresas.filter(e => grupoEmpresaIds.has(e.id_empresa)) : empresas).map((em) => <option key={em.id} value={em.id_empresa}>{em.id_empresa} — {em.razao_social}</option>)}
+            </select>
+          )}
+          <select aria-label="Ano" value={filterAno} onChange={(e) => setFilterAno(e.target.value)} className={campoBarraCls}>
+            <option value="">Ano: todos</option>
+            {anos.map((a) => <option key={a} value={String(a)}>{a}</option>)}
+          </select>
+        </>}
         vazio="Nenhuma operação encontrada. Clique em “Nova operação”."
         aoClicarLinha={(oc) => setExpanded(expanded === oc.op.id ? null : oc.op.id)}
         destaqueLinha={(oc) => (expanded === oc.op.id ? "bg-primary/5" : "")}

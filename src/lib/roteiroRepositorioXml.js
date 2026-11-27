@@ -23,7 +23,7 @@ export const ROTEIRO_REPOSITORIO_XML = [
       p("Envie o XML de outra empresa.", "Aviso com \"1 ignorado\" e o motivo (não cita o CNPJ da empresa). Ele não entra na lista."),
       p("Envie o ZIP.", "Todos os XML do ZIP entram de uma vez, contados em \"novos\"."),
       p("Se tiver o XML da NFS-e Nacional, envie-o.", "Entra como \"NFS-e\" na coluna Tipo. Na coluna Importador aparece um traço (o importador de XML ainda não lê NFS-e) e ela não entra na contagem de \"Aguardando o importador\" nem no filtro \"Só os que faltam enviar ao importador\"."),
-      p("Use os filtros Modelo (só na aba NF-e | NFC-e), Origem, Emissão de e até, e o campo \"Buscar (chave, número, emitente)\".", "A lista e o contador (\"N documentos\") mudam a cada filtro. A busca espera um instante depois que você para de digitar."),
+      p("Na linha de filtros acima da lista, use o campo de busca \"Chave, número ou emitente\" e os filtros Modelo (só na aba NF-e | NFC-e), Origem, Emissão de e até.", "A lista e o contador (\"N documentos\") mudam a cada filtro. A busca espera um instante depois que você para de digitar."),
       p("Clique no ícone de download de uma linha.", "Baixa o XML com a chave de acesso no nome do arquivo."),
       p("Clique em \"Baixar ZIP dos filtros\".", "Baixa um ZIP com os XML do filtro atual; dentro dele há um arquivo por documento."),
       p("Na linha de uma NF-e com XML completo, clique no ícone com o olho (\"Visualizar o PDF\"), ao lado do ícone do XML.", "Abre numa aba nova o PDF do documento (DANFE): emitente, destinatário, chave de acesso em código de barras, itens e totais iguais aos do XML."),

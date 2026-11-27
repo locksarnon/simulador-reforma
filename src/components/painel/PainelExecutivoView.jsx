@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSimuladorData, calcularOperacoes } from "@/hooks/useSimuladorData";
@@ -314,24 +315,22 @@ export default function PainelExecutivoView({
           return (
             <button
               key={cen.id}
+              type="button"
+              aria-pressed={selecionado && !comparar}
               onClick={() => setCenarioNome(cen.nome)}
               disabled={comparar}
               title={cen.descricao || cen.nome}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                selecionado && !comparar
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border hover:bg-muted text-foreground"
-              }`}
+              className={`disabled:opacity-50 disabled:cursor-not-allowed ${classeBotaoFiltro(selecionado && !comparar, "xs")}`}
             >
               {cen.nome}
             </button>
           );
         })}
         <button
+          type="button"
+          aria-pressed={comparar}
           onClick={() => setComparar((v) => !v)}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-            comparar ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted text-foreground"
-          }`}
+          className={classeBotaoFiltro(comparar, "xs")}
         >
           <GitCompare className="w-3.5 h-3.5" />
           Comparar os {cenarios.length || 3}

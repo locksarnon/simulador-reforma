@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,9 +29,9 @@ export default function NotificacoesPagina() {
       <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Notificações" }]} title="Notificações" />
       <div className="px-6 lg:px-8 py-6 max-w-3xl space-y-3">
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Categoria">
-          <button type="button" aria-pressed={!categoria} onClick={() => setCategoria("")} className={`rounded-full border px-3 py-1 text-xs ${!categoria ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}>Todas</button>
+          <button type="button" aria-pressed={!categoria} onClick={() => setCategoria("")} className={classeBotaoFiltro(!categoria, "xs")}>Todas</button>
           {Object.entries(CATEGORIAS).map(([k, c]) => (
-            <button key={k} type="button" aria-pressed={categoria === k} onClick={() => setCategoria(k)} className={`rounded-full border px-3 py-1 text-xs ${categoria === k ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}>{c.rotulo}</button>
+            <button key={k} type="button" aria-pressed={categoria === k} onClick={() => setCategoria(k)} className={classeBotaoFiltro(categoria === k, "xs")}>{c.rotulo}</button>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">

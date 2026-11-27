@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Archive, Search } from "lucide-react";
+import { Archive } from "lucide-react";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
@@ -46,17 +46,12 @@ export default function RepositorioXmlLista() {
           <TituloPagina icon={Archive}>Repositório de XML</TituloPagina>
         </div>
 
-        <label className="relative block">
-          <span className="sr-only">Buscar empresa</span>
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por empresa, CNPJ ou grupo…" className="w-full h-10 rounded-md border border-input bg-background pl-9 pr-3 text-sm" />
-        </label>
-
         {isLoading ? <p className="text-sm text-muted-foreground">Carregando as empresas…</p>
           : isError ? <p role="alert" className="text-sm text-red-600">Não foi possível carregar as empresas.</p>
           : (
             <TabelaPadrao
               id="repositorio-xml-empresas" ariaLabel="Empresas do Repositório de XML" linhas={linhas} chaveLinha={(l) => l.empresa.id}
+              busca={{ valor: busca, aoMudar: setBusca, placeholder: "Empresa, CNPJ ou grupo", rotulo: "Buscar empresa por nome, CNPJ ou grupo" }}
               aoClicarLinha={(l) => navigate(caminhoDoRepositorio(l.empresa.id))}
               vazio={(empresas || []).length === 0
                 ? <>Nenhuma empresa cadastrada. Cadastre as empresas em <Link to="/" className="text-primary hover:underline">Clientes</Link>.</>

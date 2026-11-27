@@ -80,9 +80,11 @@ describe("Processos e tarefas: aba Tarefas", () => {
 
   it("tem busca, filtro de responsável, de empresa e a troca entre em aberto, concluídas e canceladas", () => {
     const html = renderizar(<AbaTarefas user={{ id: "U1", role: "admin" }} empresas={EMPRESAS} colaboradores={COLABORADORES} />);
-    expect(html).toContain("Buscar (título ou empresa)");
+    expect(html).toContain('placeholder="Título ou empresa"');
+    expect(html.match(/type="search"/g)).toHaveLength(1); // a busca da página substitui a busca interna da tabela
+    expect(html).not.toMatch(/>\s*Atualizar\s*</);
     expect(html).toContain('aria-label="Situação das tarefas"');
-    for (const t of ["Em aberto", "Concluídas", "Canceladas", "Todos", "Eu", "Sem responsável"]) expect(html).toContain(t);
+    for (const t of ["Em aberto", "Concluídas", "Canceladas", "Responsável: todos", "Eu", "Sem responsável", 'placeholder="Empresa: todas"']) expect(html).toContain(t);
   });
 });
 

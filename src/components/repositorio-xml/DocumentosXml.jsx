@@ -11,6 +11,7 @@ import { ABAS_DE_DOCUMENTOS, base, dividirEmLotes, documentoDoEvento, fmtData, f
 import { plural } from "@/lib/plural";
 import RecuperacaoHistorica from "./RecuperacaoHistorica";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { barraListaCls, campoBarraCls } from "@/lib/estiloTabela";
 
 /** Linhas por página: 10, 50, 100, 500 ou todas (0). "Todas" busca em partes de 500 até o teto abaixo. */
 const OPCOES_POR_PAGINA = [10, 50, 100, 500, 0];
@@ -235,37 +236,33 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
       )}
 
       <div className="rounded-xl border border-border bg-card p-3 space-y-3">
-        <div className="flex flex-wrap items-end gap-2 text-sm">
+        <div className={barraListaCls}>
+          <input type="search" aria-label="Buscar por chave, número ou emitente" placeholder="Chave, número ou emitente" className={`${campoBarraCls} w-52 max-w-full`} value={busca} onChange={(e) => setBusca(e.target.value)} />
           {grupo ? (
             <>
               {grupo === "CTE" && (
-                <label className="space-y-1"><span className="block text-xs text-muted-foreground">Tomador do serviço</span>
-                  <select className={campo} value={filtros.papel_cte} onChange={(e) => mudarFiltro("papel_cte", e.target.value)} aria-label="Tomador do serviço">
-                    <option value="">Todos os CT-e</option><option value="TOMADOR">Tomados pelo cliente</option><option value="OUTRO">O cliente não é o tomador</option>
-                  </select></label>
+                <select className={campoBarraCls} value={filtros.papel_cte} onChange={(e) => mudarFiltro("papel_cte", e.target.value)} aria-label="Tomador do serviço">
+                  <option value="">Tomador: todos os CT-e</option><option value="TOMADOR">Tomados pelo cliente</option><option value="OUTRO">O cliente não é o tomador</option>
+                </select>
               )}
               {grupo === "NFE" && (
-                <label className="space-y-1"><span className="block text-xs text-muted-foreground">Modelo</span>
-                  <select className={campo} value={filtros.modelo} onChange={(e) => mudarFiltro("modelo", e.target.value)}>
-                    <option value="">NF-e e NFC-e</option><option value="55">NF-e</option><option value="65">NFC-e</option>
-                  </select></label>
+                <select aria-label="Modelo" className={campoBarraCls} value={filtros.modelo} onChange={(e) => mudarFiltro("modelo", e.target.value)}>
+                  <option value="">Modelo: NF-e e NFC-e</option><option value="55">NF-e</option><option value="65">NFC-e</option>
+                </select>
               )}
             </>
           ) : (
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Tipo</span>
-              <select className={campo} value={filtros.tipo} onChange={(e) => mudarFiltro("tipo", e.target.value)}>
-                <option value="">Todos</option>{Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select></label>
+            <select aria-label="Tipo" className={campoBarraCls} value={filtros.tipo} onChange={(e) => mudarFiltro("tipo", e.target.value)}>
+              <option value="">Tipo: todos</option>{Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
           )}
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">Origem</span>
-            <select className={campo} value={filtros.origem} onChange={(e) => mudarFiltro("origem", e.target.value)}>
-              <option value="">Todas</option>{Object.entries(ORIGENS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select></label>
+          <select aria-label="Origem" className={campoBarraCls} value={filtros.origem} onChange={(e) => mudarFiltro("origem", e.target.value)}>
+            <option value="">Origem: todas</option>{Object.entries(ORIGENS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
           {seletorCompetencia}
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">Emissão de</span><input type="date" className={campo} value={filtros.de} onChange={(e) => mudarFiltro("de", e.target.value)} /></label>
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">até</span><input type="date" className={campo} value={filtros.ate} onChange={(e) => mudarFiltro("ate", e.target.value)} /></label>
-          <label className="space-y-1 w-52 max-w-full"><span className="block text-xs text-muted-foreground">Buscar (chave, número, emitente)</span><input type="search" className={`${campo} w-full`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
-          {!soResumos && <label className="flex items-center gap-2 pb-1.5"><input type="checkbox" checked={filtros.pendentes} onChange={(e) => mudarFiltro("pendentes", e.target.checked)} /> <span>Só os que faltam enviar ao importador</span></label>}
+          <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">Emissão de <input type="date" className={campoBarraCls} value={filtros.de} onChange={(e) => mudarFiltro("de", e.target.value)} /></label>
+          <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">até <input type="date" className={campoBarraCls} value={filtros.ate} onChange={(e) => mudarFiltro("ate", e.target.value)} /></label>
+          {!soResumos && <label className="inline-flex h-8 items-center gap-1.5 text-xs"><input type="checkbox" checked={filtros.pendentes} onChange={(e) => mudarFiltro("pendentes", e.target.checked)} /> Só os que faltam enviar ao importador</label>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!soResumos && (

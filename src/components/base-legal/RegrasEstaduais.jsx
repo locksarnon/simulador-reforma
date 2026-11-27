@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -32,7 +33,7 @@ export default function RegrasEstaduais({ uf = "", aoEscolherUf = () => {}, comp
         {ufs.map((u) => (
           <button
             key={u.uf} type="button" aria-pressed={u.uf === uf} title={u.nome} onClick={() => aoEscolherUf(u.uf === uf ? "" : u.uf)}
-            className={`min-w-11 rounded-md border px-2.5 py-1 text-sm font-medium ${u.uf === uf ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}
+            className={`min-w-11 ${classeBotaoFiltro(u.uf === uf)}`}
           >
             {u.uf}
           </button>

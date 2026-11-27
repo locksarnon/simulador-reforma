@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TituloPagina from "@/components/TituloPagina";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { campoBarraCls } from "@/lib/estiloTabela";
 
 const STATUS = ["Novo", "Contatado", "Qualificado", "Reunião", "Fechado", "Perdido"];
 const DESTINOS = { consultoria: "Consultoria", bpo: "BPO fiscal", parceria: "Parceria", nutricao: "Nutrição" };
@@ -74,13 +75,12 @@ export default function LeadsPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome, e-mail ou empresa" className="h-9 w-64 rounded-md border border-input bg-background px-3 text-sm" />
-          <select value={destino} onChange={(e) => setDestino(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm"><option value="">Todos os destinos</option>{Object.entries(DESTINOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm"><option value="">Todos os status</option>{STATUS.map((s) => <option key={s}>{s}</option>)}</select>
-        </div>
-
         <TabelaPadrao id="leads" ariaLabel="Leads" linhas={filtrados} ordemInicial={{ chave: "createdAt", dir: -1 }}
+          busca={{ valor: busca, aoMudar: setBusca, placeholder: "Nome, e-mail ou empresa", rotulo: "Buscar por nome, e-mail ou empresa" }}
+          filtrosExtras={<>
+            <select aria-label="Destino" value={destino} onChange={(e) => setDestino(e.target.value)} className={campoBarraCls}><option value="">Destino: todos</option>{Object.entries(DESTINOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+            <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={campoBarraCls}><option value="">Status: todos</option>{STATUS.map((s) => <option key={s}>{s}</option>)}</select>
+          </>}
           vazio={isLoading ? "Carregando…" : leads.length === 0 ? "Nenhum lead ainda. Divulgue a Calculadora, a Consulta NCM e o Validador de cadastro." : "Nenhum lead neste filtro."}
           aoClicarLinha={(l) => setAberto(aberto === l.id ? null : l.id)}
           destaqueLinha={(l) => (aberto === l.id ? "bg-primary/5" : "")}

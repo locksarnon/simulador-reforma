@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Loader2, Pencil, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Ban, Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
+import { campoBarraCls } from "@/lib/estiloTabela";
 import DialogoTarefa from "@/components/tarefas/DialogoTarefa";
 import DialogoProcesso from "@/components/tarefas/DialogoProcesso";
 import DialogoGerar from "@/components/tarefas/DialogoGerar";
@@ -19,7 +21,6 @@ import {
   descreverRecorrencia, ESCOPOS, filtrarTarefas, PRIORIDADES, situacaoDoPrazo, STATUS_ABERTOS, TOM_DA_PRIORIDADE, TOM_DO_PRAZO,
 } from "@/lib/tarefas";
 
-const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const SITUACOES_TAREFA = { ABERTA: "A fazer", EM_ANDAMENTO: "Em andamento", CONCLUIDA: "Concluída", CANCELADA: "Cancelada" };
 const GRUPOS = [["abertas", "Em aberto"], ["CONCLUIDA", "Concluídas"], ["CANCELADA", "Canceladas"]];
 
@@ -39,7 +40,7 @@ function AbaTarefas({ user, empresas, colaboradores }) {
   const { empresaId: emFoco } = useEmpresaEmFoco();
   const [filtros, setFiltros] = useState({ busca: "", responsavel: "", empresa: emFoco || "", atalho: "" });
   const [dialogo, setDialogo] = useState(null);
-  const lista = useQuery({ queryKey: ["tarefas", grupo], queryFn: () => api.get("/tarefas", { status: grupo, limite: 1000 }) });
+  const lista = useQuery({ queryKey: ["tarefas", grupo], queryFn: () => api.get("/tarefas", { status: grupo, limite: 1000 }), refetchOnWindowFocus: true });
   const resumo = useQuery({ queryKey: ["tarefas", "resumo"], queryFn: () => api.get("/tarefas/resumo") });
   const empresaPorId = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas]);
   const pessoaPorId = useMemo(() => new Map(colaboradores.map((c) => [c.id, c.name || c.email])), [colaboradores]);
@@ -82,27 +83,26 @@ function AbaTarefas({ user, empresas, colaboradores }) {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-3 space-y-3">
-        <div className="flex flex-wrap items-end gap-2 text-sm">
-          <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Situação das tarefas">
-            {GRUPOS.map(([v, rotulo]) => <button key={v} type="button" aria-pressed={grupo === v} onClick={() => setGrupo(v)} className={`rounded px-3 py-1 text-sm ${grupo === v ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{rotulo}</button>)}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Situação das tarefas">
+            {GRUPOS.map(([v, rotulo]) => <button key={v} type="button" aria-pressed={grupo === v} onClick={() => setGrupo(v)} className={classeBotaoFiltro(grupo === v)}>{rotulo}</button>)}
           </div>
-          <label className="space-y-1 flex-1 min-w-[180px]"><span className="block text-xs text-muted-foreground">Buscar (título ou empresa)</span>
-            <input type="search" className={`${campo} w-full`} value={filtros.busca} onChange={(e) => mudar("busca", e.target.value)} /></label>
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span>
-            <select className={campo} value={filtros.responsavel} onChange={(e) => mudar("responsavel", e.target.value)}>
-              <option value="">Todos</option><option value="eu">Eu</option><option value="sem">Sem responsável</option>
-              {colaboradores.filter((c) => c.id !== user?.id).map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
-            </select></label>
-          <div className="w-60"><SeletorDeEmpresa empresas={empresas} valor={filtros.empresa} aoMudar={(v) => mudar("empresa", v)} rotulo="Empresa" opcional={false} placeholder="Todas as empresas" /></div>
-          <button type="button" onClick={recarregar} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
-          <button type="button" onClick={() => setDialogo({ tarefa: null })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova tarefa</button>
+          <button type="button" onClick={() => setDialogo({ tarefa: null })} className="botao-acao ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova tarefa</button>
         </div>
 
         {lista.isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
         {lista.error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
         {!lista.isLoading && !lista.error && (
           <TabelaPadrao
-            id="bpo-tarefas" ariaLabel="Tarefas" titulo="Tarefas" linhas={tarefas} tamanhoInicial={50} ordemInicial={{ chave: "prazo", dir: 1 }}
+            id="bpo-tarefas" ariaLabel="Tarefas" linhas={tarefas}
+            busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Título ou empresa", rotulo: "Buscar por título ou empresa" }}
+            filtrosExtras={<>
+              <select aria-label="Responsável" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.responsavel} onChange={(e) => mudar("responsavel", e.target.value)}>
+                <option value="">Responsável: todos</option><option value="eu">Eu</option><option value="sem">Sem responsável</option>
+                {colaboradores.filter((c) => c.id !== user?.id).map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
+              </select>
+              <SeletorDeEmpresa compacto empresas={empresas} valor={filtros.empresa} aoMudar={(v) => mudar("empresa", v)} rotulo="Empresa" opcional={false} placeholder="Empresa: todas" />
+            </>} tamanhoInicial={50} ordemInicial={{ chave: "prazo", dir: 1 }}
             vazio={(lista.data || []).length === 0 && grupo === "abertas" ? "Nenhuma tarefa em aberto. Crie uma, ou cadastre um processo recorrente para elas aparecerem sozinhas." : "Nenhuma tarefa com esses filtros."}
             colunas={[
               { chave: "concluir", rotulo: "Feita", ordenavel: false, filtravel: false, valor: (t) => (t.status === "CONCLUIDA" ? "Sim" : "Não"),

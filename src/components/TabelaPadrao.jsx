@@ -5,7 +5,7 @@ import BotaoExportar from "@/components/BotaoExportar";
 import { plural } from "@/lib/plural";
 import AlcaLargura, { redimensionandoColuna } from "@/components/AlcaLargura";
 import { idDaTabela, useAoRedimensionar, useEfeitoDeLayout, useLargurasColunas } from "@/lib/useLargurasColunas";
-import { cabecalhoTabelaCls } from "@/lib/estiloTabela";
+import { barraListaCls, botaoBarraCls, cabecalhoTabelaCls } from "@/lib/estiloTabela";
 
 const TAMANHOS = [10, 25, 50, 100, 0];
 const colador = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
@@ -94,6 +94,9 @@ function gravarPreferencia(id, v) {
  * conteúdo), guardado neste navegador; "Restaurar larguras" no menu Colunas. Antes de medir (servidor, testes) vale o layout
  * automático. Títulos em verde-escuro com texto branco (cabecalhoTabelaCls); a linha de filtros fica clara. Tabela `simples`
  * com 5 linhas ou mais ganha a busca "Buscar nesta lista".
+ * Barra única: `filtrosExtras` + busca + Filtros por coluna + Colunas + Exportar + `acoes` numa linha só (quebra só em tela
+ * estreita). `busca={{ valor, aoMudar, placeholder, rotulo }}` troca a busca interna pela da página (busca no servidor ou
+ * guardada em lista salva): a tabela não filtra por ela e não mostra uma segunda caixa.
  */
 /** Ordem de partida: a indicada, senão a primeira coluna de texto em ordem alfabética. */
 export function ordemPadrao(colunas, ordemInicial) {
@@ -102,7 +105,20 @@ export function ordemPadrao(colunas, ordemInicial) {
   return c ? { chave: c.chave, dir: 1 } : null;
 }
 
-const ALINHAR = { direita: "text-right tabular-nums", centro: "text-center" };
+/** Caixa de busca da barra única (h-8, com o X para limpar). Sem `placeholder`, é a busca interna "em todas as colunas". */
+export function CaixaBusca({ valor, aoMudar, placeholder, rotulo, estreita = false }) {
+  const texto = placeholder || "Buscar em todas as colunas";
+  return (
+    <label className={`relative flex-1 sm:max-w-xs ${estreita ? "min-w-[160px]" : "min-w-[200px]"}`}>
+      <span className="sr-only">{rotulo || texto}</span>
+      <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <input type="search" value={valor} onChange={(e) => aoMudar(e.target.value)} placeholder={texto} className="h-8 w-full rounded-md border border-border bg-background pl-7 pr-7 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-search-cancel-button]:hidden" />
+      {valor && <button type="button" onClick={() => aoMudar("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Limpar a busca"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+    </label>
+  );
+}
+
+const ALINHAR = { direita:"text-right tabular-nums", centro: "text-center" };
 
 const LARGURA_NOVA = 150; // coluna ainda não medida (acabou de aparecer) com a tabela já em layout fixo
 const LARGURA_MARCAR = 32;
@@ -127,7 +143,7 @@ function medirTabela(t) {
   return saida;
 }
 
-export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", filtrosExtras, acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel, ordemInicial, aoClicarLinha, selecao, filtrosVisiveis = true, rodape, simples = false, totais, classeTabela = "" }) {
+export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documentos, chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", filtrosExtras, acoes, tamanhoInicial = 25, destaqueLinha, ariaLabel, ordemInicial, aoClicarLinha, selecao, filtrosVisiveis = true, rodape, simples = false, totais, classeTabela = "", busca: buscaExterna }) {
   const pref = useMemo(() => lerPreferencia(id), [id]);
   const todas = colunas.map((c) => c.chave);
   const [ordemColunas, setOrdemColunas] = useState(() => {
@@ -135,7 +151,10 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
     return [...salvo, ...todas.filter((k) => !salvo.includes(k))];
   });
   const [ocultas, setOcultas] = useState(() => (pref?.ocultas || []).filter((k) => todas.includes(k)));
-  const [busca, setBusca] = useState("");
+  const [buscaInterna, setBuscaInterna] = useState("");
+  const busca = buscaExterna ? "" : buscaInterna;
+  const textoBusca = buscaExterna ? buscaExterna.valor ?? "" : buscaInterna;
+  const setBusca = buscaExterna ? (v) => buscaExterna.aoMudar(v) : setBuscaInterna;
   const [filtros, setFiltros] = useState({});
   const [verFiltros, setVerFiltros] = useState(filtrosVisiveis && !simples);
   const [ordem, setOrdem] = useState(() => ordemPadrao(colunas, ordemInicial));
@@ -149,14 +168,14 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
   // Colunas novas (vindas de outra consulta) entram no fim, sem perder a ordem escolhida.
   useEffect(() => { setOrdemColunas((o) => [...o.filter((k) => todas.includes(k)), ...todas.filter((k) => !o.includes(k))]); }, [todas.join("|")]);
   useEffect(() => { gravarPreferencia(id, { ordem: ordemColunas, ocultas, tamanho }); }, [id, ordemColunas, ocultas, tamanho]);
-  useEffect(() => { setPagina(0); }, [busca, JSON.stringify(filtros), ordem?.chave, ordem?.dir, tamanho]);
+  useEffect(() => { setPagina(0); }, [textoBusca, JSON.stringify(filtros), ordem?.chave, ordem?.dir, tamanho]);
 
   const visiveis = ordemColunas.map((k) => colunas.find((c) => c.chave === k)).filter((c) => c && !ocultas.includes(c.chave));
   const filtradas = useMemo(() => aplicarTabela(linhas, colunas, { busca, filtros, ordem }), [linhas, colunas, busca, filtros, ordem]);
   const total = filtradas.length;
   const paginas = tamanho ? Math.max(1, Math.ceil(total / tamanho)) : 1;
   const exibidas = useMemo(() => (tamanho ? filtradas.slice(pagina * tamanho, pagina * tamanho + tamanho) : filtradas), [filtradas, tamanho, pagina]);
-  const temFiltro = !!busca || Object.values(filtros).some((f) => String(f ?? "").trim());
+  const temFiltro = !!textoBusca || Object.values(filtros).some((f) => String(f ?? "").trim());
 
   // Larguras: mede o conteúdo depois de desenhar (antes de pintar); trocou o conjunto de colunas, mede do zero; senão só cresce.
   const chaveVisiveis = visiveis.map((c) => c.chave).join("|") + (documentos ? "|docs" : "");
@@ -190,26 +209,27 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
     <label className="relative min-w-[180px] flex-1 sm:max-w-xs">
       <span className="sr-only">Buscar nesta lista</span>
       <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-      <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nesta lista" className="h-7 w-full rounded-md border border-border bg-background pl-7 pr-7 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-      {busca && <button type="button" onClick={() => setBusca("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Limpar a busca"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>}
+      <input value={textoBusca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nesta lista" className="h-7 w-full rounded-md border border-border bg-background pl-7 pr-7 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+      {textoBusca && <button type="button" onClick={() => setBusca("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Limpar a busca"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>}
     </label>
+  );
+
+  // A busca da página (servidor ou lista salva) vem primeiro na barra; a busca interna fica depois dos filtros extras.
+  const caixaBusca = (
+    <CaixaBusca valor={textoBusca} aoMudar={setBusca} placeholder={buscaExterna?.placeholder} rotulo={buscaExterna?.rotulo} estreita={!!filtrosExtras} />
   );
 
   return (
     <div className="space-y-2">
-      {!simples && <div className="flex flex-wrap items-center gap-2">
+      {!simples && <div className={barraListaCls} data-barra-lista="">
         {titulo && <h4 className="mr-auto text-sm font-semibold">{titulo}</h4>}
-        {filtrosExtras}
-        <label className={`relative flex-1 sm:max-w-xs ${filtrosExtras ? "min-w-[135px]" : "min-w-[200px]"}`}>
-          <span className="sr-only">Buscar em todas as colunas</span>
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar em todas as colunas" className="h-8 w-full rounded-md border border-border bg-background pl-7 pr-7 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-          {busca && <button type="button" onClick={() => setBusca("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Limpar a busca"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>}
-        </label>
-        <button type="button" onClick={() => setVerFiltros((v) => !v)} aria-pressed={verFiltros} className={`inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs ${verFiltros ? "border-primary/40 bg-primary/5 text-primary" : "border-border hover:bg-muted"}`}><Filter className="h-3.5 w-3.5" aria-hidden="true" /> Filtros por coluna</button>
+        {!buscaExterna && filtrosExtras}
+        {caixaBusca}
+        {buscaExterna && filtrosExtras}
+        <button type="button" onClick={() => setVerFiltros((v) => !v)} aria-pressed={verFiltros} className={`${botaoBarraCls} ${verFiltros ? "bg-primary/10 text-primary" : ""}`}><Filter className="h-3.5 w-3.5" aria-hidden="true" /> Filtros por coluna</button>
         {temFiltro && <button type="button" onClick={() => { setBusca(""); setFiltros({}); }} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-3.5 w-3.5" aria-hidden="true" /> Limpar filtros</button>}
         <Popover>
-          <PopoverTrigger asChild><button type="button" className="botao-acao inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs hover:bg-muted"><Columns3 className="h-3.5 w-3.5" aria-hidden="true" /> Colunas</button></PopoverTrigger>
+          <PopoverTrigger asChild><button type="button" className={botaoBarraCls}><Columns3 className="h-3.5 w-3.5" aria-hidden="true" /> Colunas</button></PopoverTrigger>
           <PopoverContent align="end" className="w-64 p-2">
             <p className="px-1 pb-1 text-[11px] text-muted-foreground">Marque as colunas e use as setas para mudar a ordem (ou arraste o cabeçalho na tabela). Para mudar a largura, arraste a borda direita do título.</p>
             <ul className="max-h-72 space-y-0.5 overflow-y-auto">
@@ -226,7 +246,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
             <button type="button" onClick={larguras.restaurar} disabled={!larguras.personalizadas} className="inline-flex w-full items-center justify-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-40"><RotateCcw className="h-3 w-3" aria-hidden="true" /> Restaurar larguras</button>
           </PopoverContent>
         </Popover>
-        <BotaoExportar titulo={titulo || ariaLabel || "Tabela"} linhas={filtradas.map((l) => Object.fromEntries(visiveis.map((c) => [c.chave, textoDaColuna(c, l)])))} colunas={visiveis.map((c) => ({ chave: c.chave, rotulo: c.rotulo }))} />
+        <BotaoExportar titulo={titulo || ariaLabel || "Tabela"} linhas={filtradas.map((l) => Object.fromEntries(visiveis.map((c) => [c.chave, textoDaColuna(c, l)])))} colunas={visiveis.map((c) => ({ chave: c.chave, rotulo: c.rotulo }))} compacto />
         {acoes}
       </div>}
       {simples && (titulo || acoes || buscaCurta) && <div className="flex flex-wrap items-center gap-2">{titulo && <h4 className="mr-auto text-sm font-semibold">{titulo}</h4>}{buscaCurta}{acoes}</div>}

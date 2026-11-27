@@ -4,13 +4,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { usePermissoes } from "@/lib/usePermissao";
 import InterruptorCaptura from "@/components/repositorio-xml/InterruptorCaptura";
-import { Archive, ArrowRight, Loader2, Pencil, Plus, RefreshCw, Upload } from "lucide-react";
+import { Archive, ArrowRight, Loader2, Pencil, Plus, Upload } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import BotaoFiltro from "@/components/BotaoFiltro";
+import { botaoBarraCls, campoBarraCls } from "@/lib/estiloTabela";
 import EmpresaFormDialog from "@/components/empresas/EmpresaFormDialog";
 import DialogoServico from "@/components/clientes/DialogoServico";
 import DialogoEtiquetas from "@/components/clientes/DialogoEtiquetas";
@@ -31,7 +33,6 @@ import { indexarConsultoria, temCnpj } from "@/lib/consultoria";
 import { arquivarCliente, CHAVES_APOS_ARQUIVAR, desarquivarCliente, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
 import { plural, palavra } from "@/lib/plural";
 
-const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const FILTROS_VAZIOS = { busca: "", rapido: "todos", regime: "", uf: "", tags: [], tagModo: "qualquer", colaborador: "" };
 const TIPOS_DE_SERVICO = Object.keys(TIPOS_OFERECIDOS);
 
@@ -202,39 +203,18 @@ export default function ClientesPagina() {
     <div>
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Clientes" }]}
-        title={`Clientes${empresas.length ? ` · ${empresas.length}` : ""}`}
-        actions={(
-          <div className="flex flex-wrap gap-2">
-            <Link to="/clientes/importacao" className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted"><Upload className="h-4 w-4" aria-hidden="true" /> Planilha cadastral</Link>
-            <button type="button" onClick={() => setNovo(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo cliente</button>
-          </div>
-        )}
+        title="Clientes"
       />
       <div className="px-6 lg:px-8 py-5 space-y-3">
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtros rápidos">
-          {[...FILTROS_RAPIDOS, { id: "arquivados", rotulo: "Arquivados" }].map((f) => (
-            <button key={f.id} type="button" aria-pressed={filtros.rapido === f.id} onClick={() => mudar("rapido", f.id)} className={`rounded-full px-3 py-1 text-sm ${filtros.rapido === f.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>
-              {f.rotulo} <span className="tabular-nums opacity-80">{contagem[f.id] ?? 0}</span>
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtros rápidos">
+            {[...FILTROS_RAPIDOS, { id: "arquivados", rotulo: "Arquivados" }].map((f) => (
+              <BotaoFiltro key={f.id} ativo={filtros.rapido === f.id} contagem={contagem[f.id] ?? 0} onClick={() => mudar("rapido", f.id)}>{f.rotulo}</BotaoFiltro>
+            ))}
+          </div>
+          <button type="button" onClick={() => setNovo(true)} className="botao-acao ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo cliente</button>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2 text-sm">
-          <label className="flex-1 min-w-[220px] space-y-1"><span className="block text-xs text-muted-foreground">Buscar</span>
-            <input type="search" className={`${campo} w-full`} placeholder="Nome, CNPJ/CPF, cidade ou grupo" value={filtros.busca} onChange={(e) => mudar("busca", e.target.value)} /></label>
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">Regime</span>
-            <select className={campo} value={filtros.regime} onChange={(e) => mudar("regime", e.target.value)}><option value="">Todos</option>{regimes.map((r) => <option key={r}>{r}</option>)}<option value="—">Sem regime</option></select></label>
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">UF</span>
-            <select className={campo} value={filtros.uf} onChange={(e) => mudar("uf", e.target.value)}><option value="">Todas</option>{ufs.map((u) => <option key={u}>{u}</option>)}</select></label>
-          <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
-            <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}><option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}</select></label>
-          <button type="button" onClick={recarregar} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
-          <Link to="/clientes/importacao" className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted" title="Importar ou atualizar o cadastro por planilha"><Upload className="h-3.5 w-3.5" aria-hidden="true" /> Importar planilha</Link>
-        </div>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <FiltroPorTags tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
-          <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
-        </div>
 
         {selecionadas.length > 0 && (
           <div role="status" className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm">
@@ -258,6 +238,15 @@ export default function ClientesPagina() {
         {!carregando && !erro && (
           <TabelaPadrao
             id="clientes-lista" ariaLabel="Clientes" colunas={colunas} linhas={lista}
+            busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Nome, CNPJ/CPF, cidade ou grupo", rotulo: "Buscar clientes por nome, CNPJ/CPF, cidade ou grupo" }}
+            filtrosExtras={<>
+              <select aria-label="Regime" className={campoBarraCls} value={filtros.regime} onChange={(e) => mudar("regime", e.target.value)}><option value="">Regime: todos</option>{regimes.map((r) => <option key={r}>{r}</option>)}<option value="—">Sem regime</option></select>
+              <select aria-label="UF" className={campoBarraCls} value={filtros.uf} onChange={(e) => mudar("uf", e.target.value)}><option value="">UF: todas</option>{ufs.map((u) => <option key={u}>{u}</option>)}</select>
+              <select aria-label="Colaborador" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}><option value="">Colaborador: todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}</select>
+              <FiltroPorTags compacto tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
+              <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
+            </>}
+            acoes={<Link to="/clientes/importacao" className={botaoBarraCls} title="Importar ou atualizar o cadastro por planilha"><Upload className="h-3.5 w-3.5" aria-hidden="true" /> Importar planilha</Link>}
             selecao={{ marcadas, aoMudar: setMarcadas }}
             aoClicarLinha={(e) => setAberta(e.id)}
             destaqueLinha={(e) => (aberta === e.id ? "bg-muted/60" : "")}

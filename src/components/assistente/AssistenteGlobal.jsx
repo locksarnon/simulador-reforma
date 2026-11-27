@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
@@ -266,7 +267,7 @@ export default function AssistenteGlobal() {
         <footer className="border-t border-border bg-card px-3 pb-3 pt-2.5">
           <button type="button" role="switch" aria-checked={aprofundar} onClick={() => setAprofundar((v) => !v)} disabled={carregando}
             title="Pesquisa também em fontes oficiais da internet (Receita, CGIBS, Planalto, tribunais). Demora mais."
-            className={`mb-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors disabled:opacity-60 ${aprofundar ? "border-primary/60 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>
+            className={`mb-2 disabled:opacity-60 ${classeBotaoFiltro(aprofundar, "xs")}`}>
             <Globe className="h-3.5 w-3.5" aria-hidden="true" /> Pesquisa aprofundada com fontes externas: {aprofundar ? "ligada" : "desligada"}
           </button>
           <form onSubmit={(e) => { e.preventDefault(); if (podeEnviar) enviar(pergunta, aprofundar); }} className="flex items-end gap-2 rounded-2xl border border-input bg-background px-3 py-2 transition-shadow focus-within:border-primary/60 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]">

@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
@@ -76,7 +77,7 @@ export default function DialogoEtiquetas({ empresas, tags, porEmpresa, aoFechar,
                 <div className="ml-auto flex gap-1" role="group" aria-label={`O que fazer com a etiqueta ${t.nome}`}>
                   {ACOES.map(([v, rotulo]) => (
                     <button key={rotulo} type="button" aria-pressed={(acoes[t.id] || "") === v} disabled={(v === "adicionar" && n === empresas.length) || (v === "remover" && n === 0)} onClick={() => definir(t.id, v)}
-                      className={`rounded border px-2 py-0.5 text-xs disabled:opacity-40 ${(acoes[t.id] || "") === v ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}>{rotulo}</button>
+                      className={`disabled:opacity-40 ${classeBotaoFiltro((acoes[t.id] || "") === v, "xs")}`}>{rotulo}</button>
                   ))}
                 </div>
               </div>

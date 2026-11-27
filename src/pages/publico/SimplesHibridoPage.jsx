@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, CheckCircle2, Info, MessageCircle } from "lucide-react";
@@ -231,16 +232,16 @@ export default function SimplesHibridoPage() {
             <p className="text-sm font-medium mb-2">Qual Anexo do Simples se aplica ao seu negócio?</p>
             <div className="flex flex-wrap gap-2">
               {ANEXOS_SEM_FATOR_R.map((a) => (
-                <button key={a.id} type="button" onClick={() => setDados((d) => ({ ...d, modo: a.id }))} className={`px-4 py-2 rounded-md border text-sm ${dados.modo === a.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{a.label}</button>
+                <button key={a.id} type="button" onClick={() => setDados((d) => ({ ...d, modo: a.id }))} aria-pressed={dados.modo === a.id} className={classeBotaoFiltro(dados.modo === a.id)}>{a.label}</button>
               ))}
             </div>
 
             <p className="text-xs text-muted-foreground mt-4 mb-2">Presta serviço e pode cair no Anexo III ou V? Esses dois dependem do Fator R (folha ÷ receita, nos últimos 12 meses):</p>
             <div className="flex flex-wrap gap-2">
               {ANEXOS_FATOR_R.map((a) => (
-                <button key={a.id} type="button" onClick={() => setDados((d) => ({ ...d, modo: a.id }))} className={`px-4 py-2 rounded-md border text-sm ${dados.modo === a.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{a.label}</button>
+                <button key={a.id} type="button" onClick={() => setDados((d) => ({ ...d, modo: a.id }))} aria-pressed={dados.modo === a.id} className={classeBotaoFiltro(dados.modo === a.id)}>{a.label}</button>
               ))}
-              <button type="button" onClick={() => setDados((d) => ({ ...d, modo: "automatico" }))} className={`px-4 py-2 rounded-md border text-sm font-medium ${dados.modo === "automatico" ? "bg-primary text-primary-foreground border-primary" : "border-primary/50 text-primary hover:bg-primary/5"}`}>Não sei — calcular automaticamente</button>
+              <button type="button" onClick={() => setDados((d) => ({ ...d, modo: "automatico" }))} aria-pressed={dados.modo === "automatico"} className={classeBotaoFiltro(dados.modo === "automatico")}>Não sei — calcular automaticamente</button>
             </div>
             <div className="flex gap-2 items-start text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-md p-3 mt-3" role="note">
               <Info className="w-4 h-4 shrink-0 mt-0.5" />

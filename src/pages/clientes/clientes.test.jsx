@@ -61,7 +61,10 @@ describe("Serviços contratados", () => {
 
   it("tem busca, filtro de carteira e de grupo, e a marcação para definir vários de uma vez", () => {
     const html = renderizar(<ServicosContratadosPagina />);
-    expect(html).toContain("Buscar (nome, código ou CNPJ)");
+    expect(html).toContain('placeholder="Nome, código ou CNPJ"');
+    expect(html.match(/type="search"/g)).toHaveLength(1); // a busca da página substitui a busca interna da tabela
+    expect(html).not.toMatch(/>\s*Atualizar\s*</);
+    expect(html).toContain("Carteira: todas");
     expect(html).toContain("Só BPO fiscal");
     expect(html).toContain("Só Consultoria Tributária");
     expect(html).toContain("Sem carteira");

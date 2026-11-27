@@ -40,7 +40,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     caminho: "Menu > Consultoria Tributária > Carteira de Consultoria",
     antes: [],
     passos: [
-      { acao: "Use os filtros acima da tabela: Público (PF e PJ, Pessoa Física ou Pessoa Jurídica), Área, a busca por nome ou documento, Serviço, Responsável e Situação.", detalhe: "Em Situação, “Contratado · ainda não iniciado” mostra quem tem o serviço sem nenhum projeto aberto." },
+      { acao: "Use a barra acima da tabela, numa linha só: a busca por nome ou documento e as caixas Público (PF e PJ, Pessoa Física ou Pessoa Jurídica), Área, Serviço, Responsável e Situação.", detalhe: "Em Situação, “Contratado · ainda não iniciado” mostra quem tem o serviço sem nenhum projeto aberto." },
       { acao: "Clique na linha do cliente (ou no nome) para abrir os trabalhos dele." },
       { acao: "Em Projetos em andamento, clique em Continuar projeto.", detalhe: "Serviços contratados sem projeto aparecem como “Contratado · ainda não iniciado”, com o botão Abrir primeiro projeto." },
       { acao: "Para ver os encerrados, abra Projetos concluídos ou cancelados e clique em Abrir projeto." },
@@ -64,7 +64,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
       "Projetos novos são abertos pela Carteira de Consultoria (POP-CON-01); o botão Abrir Carteira de Consultoria, no topo da tela, leva até lá.",
     ],
     passos: [
-      { acao: "Em Buscar, digite o nome do projeto ou da empresa." },
+      { acao: "No campo de busca da barra acima da lista, digite o nome do projeto ou da empresa.", detalhe: "Na mesma linha ficam “Situação”, “Exclusão pendente” e o atalho “Carteira de Consultoria”." },
       { acao: "Em Situação, escolha Em andamento e pausados (padrão), Todos ou uma situação (Em andamento, Pausado, Concluído, Cancelado).", detalhe: "A coluna Prazo mostra “· atrasado” quando o prazo passou e o projeto ainda está aberto." },
       { acao: "Clique na linha do projeto para abri-lo." },
       { acao: "No topo do projeto, mude a situação na caixa de seleção ao lado dos botões.", detalhe: "A mudança é gravada na hora. Em serviços cujo roteiro ainda está em desenvolvimento, “Em andamento” aparece como “Em coleta de documentos”." },
@@ -161,7 +161,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     antes: [],
     passos: [
       { acao: "Escolha o público no primeiro filtro: Pessoa Física ou Pessoa Jurídica." },
-      { acao: "Se quiser, escolha uma área no filtro Área (ou deixe Todas as áreas)." },
+      { acao: "Se quiser, escolha uma área no filtro Área (ou deixe “Área: todas”)." },
       { acao: "Clique no quadro da área para abrir os serviços dela.", detalhe: "Serviços marcados com “Roteiro em desenvolvimento” já permitem a coleta de documentos." },
       { acao: "Clique em Ver lista de documentos para ver o modelo de documentos solicitados do serviço." },
       { acao: "Quando o serviço tem atalhos, clique no nome do atalho para abrir a ferramenta ligada a ele." },
@@ -357,7 +357,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     antes: [],
     passos: [
       { acao: "Abra a aba Novidades e revogações. Os números no alto mostram o que é novo, o que veio da pesquisa na web e precisa de confirmação, as alterações ainda não consolidadas e quantas normas têm parte revogada." },
-      { acao: "Filtre por Situação e Tipo, ou digite a norma, o ato ou o assunto em Buscar.", detalhe: "Por padrão aparecem as novidades abertas (novas e vistas). A tabela também filtra e ordena por coluna." },
+      { acao: "Na barra acima da tabela, filtre por Situação e Tipo, ou digite a norma, o ato ou o assunto no campo de busca.", detalhe: "Por padrão aparecem as novidades abertas (novas e vistas). A tabela também filtra e ordena por coluna." },
       { acao: "Leia a coluna Novidade e clique nos artigos listados para abrir o texto oficial.", detalhe: "Cada novidade diz qual ato mudou qual norma e quais dispositivos foram atingidos. Em Fonte oficial você abre a página do órgão." },
       { acao: "Para ver a história de um artigo, abra a norma em Normas e assistente > Ler texto integral e escolha o artigo.", detalhe: "O leitor mostra se está revogado, o histórico oficial, a redação anterior, os avisos e as normas que citam o artigo." },
       { acao: "Administrador: em cada linha, marque como Vista, Confirme o que veio da pesquisa na web depois de abrir a fonte oficial, Descarte o que não interessa ou Reabra." },

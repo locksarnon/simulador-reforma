@@ -15,8 +15,8 @@ export const POPS_BPO = [
     antes: ["O BPO fiscal da empresa marcado como Ativo ou Pausado em Clientes > Serviços contratados."],
     passos: [
       { acao: "Abra a Carteira do BPO.", detalhe: "A tabela mostra Empresa, CNPJ/CPF, Etiquetas, Grupo, Situação, Responsável, Desde, Módulos ligados e Ir para." },
-      { acao: "Use os filtros do topo: Buscar (nome, código ou CNPJ), Situação, Grupo e Colaborador.", detalhe: "Em Colaborador, a opção Sem colaborador mostra as empresas que ninguém atende." },
-      { acao: "Se precisar, filtre por etiquetas e salve o filtro em Listas salvas." },
+      { acao: "Use a barra acima da lista, numa linha só: o campo de busca (nome, código ou CNPJ) e as caixas Situação, Grupo e Colaborador.", detalhe: "Cada caixa mostra o que filtra na primeira opção, como “Situação: todas”. Em Colaborador, a opção Sem colaborador mostra as empresas que ninguém atende." },
+      { acao: "Se precisar, clique em Etiquetas para filtrar por etiquetas e salve o filtro com Salvar lista; para usar de novo, escolha-o em “Lista salva: escolha…”." },
       { acao: "Marque Mostrar todas as empresas para ver também as que não estão na carteira.", detalhe: "O rodapé informa quantas empresas aparecem e se são da carteira ou todas." },
       { acao: "Na coluna Etiquetas, clique em + etiqueta (ou editar) para mudar as etiquetas daquela empresa." },
       { acao: "Na coluna Ir para, clique em Captura de XML para abrir o repositório de XML da empresa." },
@@ -61,7 +61,7 @@ export const POPS_BPO = [
     antes: ["Empresa cadastrada em Clientes."],
     passos: [
       { acao: "Abra Captura de XML.", detalhe: "A tela Repositório de XML lista as empresas de todos os grupos." },
-      { acao: "Digite no campo Buscar por empresa, CNPJ ou grupo…", detalhe: "Aceita o CNPJ com ou sem pontuação." },
+      { acao: "Digite no campo de busca da barra acima da lista o nome da empresa, o CNPJ ou o grupo.", detalhe: "Aceita o CNPJ com ou sem pontuação." },
       { acao: "Confira as colunas Certificado (validade do A1) e Captura (interruptor ligado ou desligado)." },
       { acao: "Clique na linha, no nome da empresa ou em Abrir ›." },
       { acao: "No alto da empresa, leia os cartões: Documentos no repositório, Enviados por arquivo, Captura automática, Resumos e eventos SEFAZ e Aguardando o importador.", detalhe: "Clicar em Resumos e eventos SEFAZ abre a aba desses documentos." },
@@ -156,7 +156,7 @@ export const POPS_BPO = [
     passos: [
       { acao: "Abra a aba do tipo: NF-e | NFC-e, CT-e, NFS-e ou MDF-e.", detalhe: "Cada aba mostra só os documentos com o XML completo daquele tipo." },
       { acao: "Escolha a competência nas setas Mês anterior e Próximo mês, clicando no mês ou em Hoje.", detalhe: "A competência filtra pela data de emissão." },
-      { acao: "Refine com os filtros: Modelo (na aba NF-e | NFC-e), Tomador do serviço (na aba CT-e), Origem, Emissão de / até e Buscar (chave, número, emitente)." },
+      { acao: "Refine na linha de filtros acima da lista: o campo de busca (chave, número ou emitente), Modelo (na aba NF-e | NFC-e), Tomador (na aba CT-e), Origem e Emissão de / até." },
       { acao: "Na aba CT-e, use Tomador do serviço: Todos os CT-e, Tomados pelo cliente ou O cliente não é o tomador.", detalhe: "A coluna Tomador mostra “Cliente” quando o tomador é a própria empresa." },
       { acao: "No fim da linha, use os ícones Baixar o XML, Visualizar o PDF e Baixar o PDF." },
       { acao: "Para baixar tudo o que o filtro mostra, clique em Baixar ZIP dos filtros.", detalhe: "Marque Incluir os PDF dos documentos para levar também o PDF de cada documento (até 300 por ZIP)." },
@@ -300,7 +300,7 @@ export const POPS_BPO = [
     antes: [],
     passos: [
       { acao: "Use os cartões do topo para filtrar: Minhas em aberto, Atrasadas, Vencem hoje, Próximos 7 dias e Sem responsável." },
-      { acao: "Escolha Em aberto, Concluídas ou Canceladas e, se quiser, filtre por Buscar (título ou empresa), Responsável e Empresa." },
+      { acao: "Escolha Em aberto, Concluídas ou Canceladas e, se quiser, filtre na barra acima da lista: busca (título ou empresa), “Responsável: todos” e “Empresa: todas”.", detalhe: "“Nova tarefa” fica à direita, na linha de Em aberto, Concluídas e Canceladas." },
       { acao: "Para criar, clique em Nova tarefa." },
       { acao: "Preencha Título, Empresa (opcional), Descrição (opcional), Responsável, Prazo (opcional), Prioridade e Situação, e clique em Salvar." },
       { acao: "Para começar uma tarefa, clique no botão Marcar como em andamento da linha." },
@@ -311,7 +311,7 @@ export const POPS_BPO = [
     atencao: [
       "Tarefa gerada por processo recorrente é cancelada, não excluída, para o processo não a criar de novo.",
       "Tarefa avulsa só pode ser excluída por quem a criou ou por um administrador.",
-      "Atualizar busca a lista de novo.",
+      "A lista se atualiza sozinha ao voltar para a tela e depois de cada mudança.",
     ],
   },
   {

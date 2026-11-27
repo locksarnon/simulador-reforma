@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useState, useMemo } from "react";
 import {
   Accordion,
@@ -101,11 +102,7 @@ export default function FaqAccordion() {
                   role="tab"
                   aria-selected={selecionada}
                   onClick={() => setAtiva(s.titulo)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs transition-colors ${
-                    selecionada
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
+                  className={classeBotaoFiltro(selecionada, "xs")}
                 >
                   {s.rotulo || s.titulo}
                   <span className={selecionada ? "opacity-80" : "opacity-60"}>{s.itens.length}</span>

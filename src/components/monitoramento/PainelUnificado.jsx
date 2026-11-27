@@ -66,15 +66,6 @@ export default function PainelUnificado({ id, titulo, servicos, ultimas = {}, ba
   const servicoNovo = servicos.find((s) => s.chave === novo);
   return (
     <section className="space-y-3" aria-label={titulo}>
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2 text-sm">
-        <label className="flex items-center gap-2"><span className="text-muted-foreground">Nova consulta:</span>
-          <select value={novo} onChange={(e) => setNovo(e.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-sm" aria-label={`Documento para consultar: ${titulo}`}>
-            <option value="">Escolha o documento…</option>
-            {servicos.map((s) => <option key={s.chave} value={s.chave}>{rotuloDoDocumento(s)}</option>)}
-          </select>
-        </label>
-        {servicoNovo && <button type="button" onClick={() => setNovo("")} className="text-xs text-primary hover:underline">Fechar</button>}
-      </div>
       {servicoNovo && <CartaoServico key={servicoNovo.chave} servico={servicoNovo} ultima={ultimas[servicoNovo.chave]} base={base} desligado={desligado} />}
       <TabelaPadrao
         id={`monit:unificado:${id}`} ariaLabel={titulo} colunas={colunas} linhas={filtradas} ordemInicial={{ chave: "createdAt", dir: -1 }} tamanhoInicial={25}
@@ -87,7 +78,14 @@ export default function PainelUnificado({ id, titulo, servicos, ultimas = {}, ba
           </>
         )}
         selecao={base.includes("/empresas/") ? { marcadas, aoMudar: setMarcadas } : undefined}
-        acoes={base.includes("/empresas/") ? <EnvioDocumentos base={base} marcados={marcados} aoConcluir={() => setMarcadas(new Set())} /> : null}
+        acoes={<>
+          <select value={novo} onChange={(e) => setNovo(e.target.value)} className="h-8 max-w-[16rem] rounded-md border border-border bg-background px-2 text-xs" aria-label={`Documento para consultar: ${titulo}`}>
+            <option value="">Nova consulta: escolha o documento…</option>
+            {servicos.map((s) => <option key={s.chave} value={s.chave}>{rotuloDoDocumento(s)}</option>)}
+          </select>
+          {servicoNovo && <button type="button" onClick={() => setNovo("")} className="text-xs text-primary hover:underline">Fechar</button>}
+          {base.includes("/empresas/") && <EnvioDocumentos base={base} marcados={marcados} aoConcluir={() => setMarcadas(new Set())} />}
+        </>}
         documentos={(l) => (l.docs.length ? (
           <span className="inline-flex items-center gap-2">
             {l.docs.map((d) => <span key={d.id} className="inline-flex items-center gap-1"><span className="text-[11px] text-muted-foreground">{/^Relatório/.test(d.documento) ? "Relatório" : "Oficial"}</span><BotoesDocumento url={d.url} nome={d.nome} ver={d.ver} rotulo={d.documento} /></span>)}

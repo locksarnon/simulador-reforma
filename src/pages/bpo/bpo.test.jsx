@@ -102,7 +102,8 @@ describe("RepositorioXmlLista", () => {
     for (const id of ["E1", "E2", "E3"]) expect(html).toContain(`href="/bpo/repositorio-xml/${id}"`);
     expect(html.indexOf("Álvares")).toBeLessThan(html.indexOf("Beta Serviços"));
     expect(html.indexOf("Beta Serviços")).toBeLessThan(html.indexOf("Zeta Comércio"));
-    expect(html).toContain("Buscar por empresa, CNPJ ou grupo");
+    expect(html).toContain('placeholder="Empresa, CNPJ ou grupo"');
+    expect(html.match(/type="search"/g)).toHaveLength(1); // uma busca só, na barra da tabela
   });
 
   it("sem empresas, manda cadastrar em Clientes", () => {
