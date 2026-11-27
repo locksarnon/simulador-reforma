@@ -113,10 +113,10 @@ export function Carregar({ consulta, vazio, tituloVazio, textoCarregando, textoE
 }
 
 /** Botão "i": quem o usa mostra a explicação (com o mesmo id) quando `aberto`. Teclado e leitor de tela: aria-expanded e aria-controls. */
-export function BotaoInfo({ id, rotulo, aberto, aoAlternar }) {
+export function BotaoInfo({ id, rotulo, aberto, aoAlternar, pequeno = false }) {
   return (
     <button type="button" aria-expanded={aberto} aria-controls={id} aria-label={`Sobre: ${rotulo}`} title={`Sobre: ${rotulo}`} onClick={aoAlternar}
-      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      className={`inline-flex ${pequeno ? "h-5 w-5" : "h-6 w-6"} shrink-0 items-center justify-center rounded-full border border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}>
       <Info className="h-3.5 w-3.5" aria-hidden="true" />
     </button>
   );

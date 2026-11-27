@@ -11,6 +11,7 @@ vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", e
 import { chaves } from "./api";
 import Cobertura, { ordemDeAnalise, seloDaCamada, textoDasAnalises, textoDesatualizada } from "./Cobertura";
 import TabelaUnica, { fixasDaTabela } from "./TabelaUnica";
+import { REGRA_FINALIDADE } from "./logica";
 import { textoDaLiberacao } from "./Versoes";
 import VisaoGeral, { matrizOrdenada } from "./VisaoGeral";
 import Diretrizes, { GruposSemRegra, PreviaVarias } from "./diretrizes/Diretrizes";
@@ -120,6 +121,15 @@ describe("Tabela: estabelecimento único", () => {
     const html = montar(<TabelaUnica projeto={projeto()} />, (qc) => qc.setQueryData(chaves.itens("p1", filtro), pagina));
     expect(texto(html)).not.toContain("Estabelec.");
     expect(html).toContain('aria-colcount="');
+  });
+  it("finalidade sugerida (caso em aberto) em itálico com selo; a aprovada sem selo; botão i com a regra no título", () => {
+    const pagina = { pages: [{ itens: [item({ id: "i1", codigo: "1", finalidadeSugerida: "INSUMO_PRODUCAO" }), item({ id: "i2", codigo: "2", finalidade: "USO_CONSUMO", finalidadeSugerida: null })], proximo: null, total: 2 }], pageParams: [undefined] };
+    const html = montar(<TabelaUnica projeto={projeto()} />, (qc) => qc.setQueryData(chaves.itens("p1", filtro), pagina));
+    const t = texto(html);
+    expect(t).toContain("Insumo de produção sugerida");
+    expect(t).toMatch(/Uso e consumo(?! sugerida)/);
+    expect(html).toContain('aria-label="Sobre: regra da finalidade"');
+    expect(REGRA_FINALIDADE.join(" ")).toContain("atividades (CNAE) confirmadas");
   });
 });
 

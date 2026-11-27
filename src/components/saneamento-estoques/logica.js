@@ -786,7 +786,7 @@ export const LARGURA_FIXA = COLUNAS_FIXAS.reduce((s, c) => s + c.largura, 0);
 /** Colunas rolantes: uma por camada ativa (a situação), mais os campos que a camada exibe na própria lista. */
 export function colunasDaTabela(camadas) {
   const extras = {
-    GRUPOS_FINALIDADE: [{ id: "grupo", titulo: "Grupo", largura: 170 }, { id: "finalidade", titulo: "Finalidade", largura: 150 }],
+    GRUPOS_FINALIDADE: [{ id: "grupo", titulo: "Grupo", largura: 170 }, { id: "finalidade", titulo: "Finalidade", largura: 200 }],
     TRIBUTARIO: [{ id: "conjunto", titulo: "Enquadramento", largura: 360 }],
   };
   return camadas.flatMap((camada) => [
@@ -974,3 +974,14 @@ export function avisoDeOutrosGrupos(dados, grupoDoRecorte) {
     texto: `Este conjunto inclui ${fmt(n)} ${n === 1 ? "item" : "itens"} de outros grupos, além do grupo ${grupoDoRecorte}: ${lista}. Aprovar altera todos os ${fmt(dados.total)} itens do conjunto, não só os do recorte.`,
   };
 }
+
+/** Regra da finalidade sugerida (botão "i" no título da coluna Finalidade da Tabela). Espelha backend/src/saneamento-estoques/fiscal/finalidade.ts. */
+export const REGRA_FINALIDADE = [
+  "Item que já tem finalidade (informada na base ou aprovada num caso) fica com ela.",
+  "Sem finalidade, o sistema lê o grupo e a descrição, nesta ordem: material de terceiros ou consignado → Material de terceiros; grupo de manutenção, peças de reposição ou oficina (e peças pelo nome, como rolamento, retentor, correia, filtro de óleo) → Manutenção; embalagens e sacarias → Embalagem; EPI, uniforme, limpeza, escritório, refeitório, informática e bens de pequeno valor → Uso e consumo; máquinas, veículos, implementos e equipamentos → Imobilizado; matéria-prima → Matéria-prima.",
+  "Insumo agropecuário (defensivo, adubo, fertilizante, semente, inoculante, ração, sal mineral, vacina, medicamento veterinário) depende das atividades (CNAE) confirmadas na Configuração: só produção → Insumo de produção; só revenda ou comércio → Revenda; produção e revenda juntas → sugestão de confiança baixa, a confirmar. Sem atividade confirmada, não há sugestão.",
+  "Combustível e lubrificante (diesel, gasolina, Arla, graxa, óleo de motor) → Insumo de produção quando o cliente produz, transporta ou industrializa; nos demais casos, sem sugestão.",
+  "Grupos ambíguos (serviços, taxas, diversos, outros, plantel ou rebanho, produção) ficam sem sugestão: a finalidade se confirma com o cliente. Materiais de construção, lonas e beneficiamento recebem sugestão de confiança baixa, com alternativas.",
+  "A finalidade do grupo é a mais frequente entre os itens do grupo (caso \"Confirmar a finalidade do grupo\"). O item que a regra manda para outra finalidade vira caso de exceção, que exige o motivo escrito para aprovar.",
+  "Enquanto o caso não é aprovado, a coluna mostra a finalidade em itálico com o selo \"sugerida\". Aprovar o caso grava a finalidade no item e libera o Tratamento tributário.",
+];

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ChevronsDown } from "lucide-react";
 import { san, chaves } from "./api";
-import { Aviso, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, estiloTabela, SeloSituacao, Tag } from "./comuns";
+import { Aviso, BotaoInfo, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, estiloTabela, SeloSituacao, Tag } from "./comuns";
 import VisaoFocada from "./VisaoFocada";
 import {
   ALTURA_LINHA, camadasAtivas, celulaDa, colunasDaTabela, COLUNAS_FIXAS, gruposDeColunas, janelaVisivel, larguraTotal, LARGURA_FIXA, LISTA_SITUACOES, montarFiltroItens,
-  precisaCarregarMais, proximoPendente, ROTULO_CAMADA, rolagemParaLinha, rotuloFinalidade, rotuloSituacao, textoDaCelula, textoDoEnquadramento,
+  precisaCarregarMais, proximoPendente, ROTULO_CAMADA, rolagemParaLinha, REGRA_FINALIDADE, rotuloFinalidade, rotuloSituacao, textoDaCelula, textoDoEnquadramento,
 } from "./logica";
 
 const ALTURA_CABECALHO = 56;
@@ -45,6 +45,11 @@ function Celula({ item, coluna }) {
       </span>
     );
   }
+  if (coluna.id === "finalidade" && !item.finalidade && item.finalidadeSugerida) {
+    // Proposta da camada Grupos e finalidade ainda não aprovada: aparece como sugerida até o caso ser aprovado.
+    const t = rotuloFinalidade(item.finalidadeSugerida);
+    return <span className="flex min-w-0 items-center gap-1" title={`${t} (sugerida: aprove o caso em Casos para confirmar)`}><span className="truncate italic text-muted-foreground">{t}</span><Tag tom="info">sugerida</Tag></span>;
+  }
   const texto = coluna.id === "grupo" ? item.grupo || "(sem grupo)" : coluna.id === "finalidade" ? rotuloFinalidade(item.finalidade) : "";
   return <span className="block truncate" title={texto}>{texto || <span className="text-muted-foreground">—</span>}</span>;
 }
@@ -58,6 +63,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
   const [rolagem, setRolagem] = useState(0);
   const [alturaVisivel, setAlturaVisivel] = useState(560);
   const [aviso, setAviso] = useState(null);
+  const [regraAberta, setRegraAberta] = useState(false);
   const [area, setArea] = useState(null);
   const quadro = useRef(0);
   const { q, itens, total } = useItens(projeto.id, filtro);
@@ -150,6 +156,12 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
         {q.isFetchingNextPage && " Carregando mais…"}
       </p>
       {aviso && <Aviso>{aviso}</Aviso>}
+      {regraAberta && (
+        <div id="san-regra-finalidade" className="border border-border bg-card p-3 text-xs">
+          <div className="mb-1 flex items-center justify-between gap-2"><span className="font-semibold">Como o sistema chega à finalidade</span><button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setRegraAberta(false)}>Fechar</button></div>
+          <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">{REGRA_FINALIDADE.map((t) => <li key={t}>{t}</li>)}</ol>
+        </div>
+      )}
 
       {q.isError ? <EstadoErro erro={q.error} aoTentar={() => q.refetch()} texto="Não foi possível carregar os produtos." />
         : q.isPending ? <EstadoCarregando texto="Carregando os produtos…" />
@@ -177,7 +189,12 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
                     {fixas.map((c, n) => (
                       <div key={c.id} role="columnheader" className={estiloTabela.tituloFixo} style={{ width: c.largura, left: fixas.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>{c.titulo}</div>
                     ))}
-                    {colunas.map((c) => <div key={c.id} role="columnheader" className={estiloTabela.tituloColuna} style={{ width: c.largura }}>{c.titulo}</div>)}
+                    {colunas.map((c) => (
+                      <div key={c.id} role="columnheader" className={`${estiloTabela.tituloColuna} gap-1`} style={{ width: c.largura }}>
+                        {c.titulo}
+                        {c.id === "finalidade" && <BotaoInfo id="san-regra-finalidade" rotulo="regra da finalidade" pequeno aberto={regraAberta} aoAlternar={() => setRegraAberta((x) => !x)} />}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div role="rowgroup" className="relative" style={{ height: janela.alturaTotal }}>

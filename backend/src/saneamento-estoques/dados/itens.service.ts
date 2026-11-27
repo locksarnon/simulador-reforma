@@ -45,8 +45,9 @@ export class SanItensService {
     const total = f.cursor ? undefined : await this.prisma.sanItem.count({ where: where as never });
     const pagina = linhas.slice(0, limite);
     const enq = await this.enquadramentos(projetoId, pagina.map((x) => x.id));
+    const sug = await this.finalidadesSugeridas(projetoId, pagina.filter((x) => !x.finalidade).map((x) => x.id));
     const proximo = linhas.length > limite ? linhas[limite].id : null;
-    return { itens: pagina.map((x) => ({ ...x, enquadramento: enq.get(x.id) ?? null })), proximo, ...(total === undefined ? {} : { total }) };
+    return { itens: pagina.map((x) => ({ ...x, enquadramento: enq.get(x.id) ?? null, finalidadeSugerida: sug.get(x.id) ?? null })), proximo, ...(total === undefined ? {} : { total }) };
   }
 
   /**
@@ -82,6 +83,28 @@ export class SanItensService {
    * Enquadramento de cada item da página: o do caso TRIBUTARIO aprovado ou aberto mais relevante (exceção antes de conjunto; depois o mais recente).
    * Uma consulta por página (até 500 itens), com índice GIN em SanCaso.itens; só campos leves.
    */
+  /**
+   * Finalidade que a camada Grupos e finalidade propõe e ainda não foi aprovada (caso em aberto), para a tabela mostrar como "sugerida".
+   * A exceção do item vale mais que o caso do grupo. Item que já tem finalidade não entra.
+   */
+  private async finalidadesSugeridas(projetoId: string, ids: string[]) {
+    const saida = new Map<string, string>();
+    if (!ids.length) return saida;
+    const casos = await this.prisma.sanCaso.findMany({
+      where: { projeto_id: projetoId, camada: 'GRUPOS_FINALIDADE', tipo: { in: ['FINALIDADE_GRUPO', 'FINALIDADE_EXCECAO'] }, situacao: { in: ['PROPOSTO', 'RASCUNHO'] }, itens: { hasSome: ids } },
+      select: { tipo: true, itens: true, proposta: true },
+    });
+    const quer = new Set(ids);
+    for (const tipo of ['FINALIDADE_GRUPO', 'FINALIDADE_EXCECAO']) {
+      for (const c of casos) {
+        if (c.tipo !== tipo) continue;
+        const f = (c.proposta as Json | null)?.finalidade;
+        if (typeof f === 'string') for (const id of c.itens) if (quer.has(id)) saida.set(id, f);
+      }
+    }
+    return saida;
+  }
+
   private async enquadramentos(projetoId: string, ids: string[]) {
     const saida = new Map<string, Json>();
     if (!ids.length) return saida;
