@@ -30,21 +30,24 @@ const selCls = "mt-1 w-full border border-input rounded-md px-2 py-1.5 text-sm b
  * outro da lista (o "Outro ERP (sem perfil)" serve quando o do cliente não está cadastrado). Assim a associação automática do texto antigo
  * nunca desfaz uma escolha do usuário.
  */
-export function SeletorErp({ registro, aoMudar, rotulo = "ERP", id = "seletor-erp", desabilitado = false, ajuda }) {
+/** Situação do perfil do ERP escolhido, em uma linha (no modo compacto vai na dica do campo). */
+const textoDoPerfil = (erp) => (nomeDizSemPerfil(erp) ? "Valem só as regras gerais." : `Perfil ${String(SITUACOES_ERP[erp.situacao] || erp.situacao || "").toLowerCase()}.`);
+
+export function SeletorErp({ registro, aoMudar, rotulo = "ERP", id = "seletor-erp", desabilitado = false, ajuda, compacto = false, classeRotulo, classeCampo }) {
   const q = useErps();
   const erps = (q.data || []).filter((e) => e.ativo !== false || e.id === registro?.erp_id);
   const { erp, texto, naoIdentificado } = erpDoRegistro(registro, q.data || []);
   const original = textoOriginalDivergente(registro, q.data || []);
   return (
     <div>
-      <label htmlFor={id} className="text-xs font-medium">{rotulo}{ajuda}</label>
-      <select id={id} aria-label={rotulo} className={selCls} disabled={desabilitado || q.isLoading} value={erp?.id ?? ""}
+      <label htmlFor={id} className={classeRotulo || "text-xs font-medium"}>{rotulo}{ajuda}</label>
+      <select id={id} aria-label={rotulo} className={classeCampo || selCls} title={compacto && erp ? textoDoPerfil(erp) : undefined} disabled={desabilitado || q.isLoading} value={erp?.id ?? ""}
         onChange={(e) => { const novo = erps.find((x) => x.id === e.target.value); aoMudar(novo ? { erp_id: novo.id, erp: novo.nome } : { erp_id: null, erp: naoIdentificado ? texto : null }); }}>
         <option value="" disabled={!!erp}>{q.isLoading ? "Carregando a lista…" : "Selecione o ERP"}</option>
         {erps.map((e) => <option key={e.id} value={e.id}>{rotuloNaListaDeErps(e)}</option>)}
       </select>
       {naoIdentificado && <p role="status" className="mt-1 text-xs text-amber-700 dark:text-amber-300">{avisoNaoIdentificado(texto)}</p>}
-      {erp && <p className="mt-1 text-xs text-muted-foreground">{nomeDizSemPerfil(erp) ? "Valem só as regras gerais." : `Perfil ${String(SITUACOES_ERP[erp.situacao] || erp.situacao || "").toLowerCase()}.`}</p>}
+      {erp && !compacto && <p className="mt-1 text-xs text-muted-foreground">{textoDoPerfil(erp)}</p>}
       {original && <p className="mt-1 text-xs text-muted-foreground">{avisoTextoOriginal(original)}</p>}
     </div>
   );

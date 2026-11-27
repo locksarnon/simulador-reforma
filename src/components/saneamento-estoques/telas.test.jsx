@@ -106,7 +106,7 @@ describe("Configuração", () => {
   it("Fase 1 sem trava; Premissas da Fase 2 com o regime (lista com fundamento) e as atividades dentro, dizendo que só a Fase 2 depende delas", () => {
     const html = montar(<Configuracao projeto={projeto()} recarregar={() => {}} />);
     const t = texto(html);
-    expect(t).toContain("importação e análises da Fase 1 ficam sempre disponíveis");
+    expect(html).toContain("importação e análises da Fase 1 ficam sempre disponíveis");
     expect(t).toContain("Regime do cliente no IBS e na CBS (obrigatório para a Fase 2)");
     for (const r of ["Regime regular", "Simples Nacional, recolhendo IBS e CBS no Simples", "Produtor rural não contribuinte", "Produtor rural contribuinte (por opção)"]) expect(t).toContain(r);
     expect(t).toContain("Sem o regime, as análises da Fase 2 ficam bloqueadas");

@@ -26,6 +26,9 @@ const listaDeEstabelecimentos = (p) => (Array.isArray(p?.estabelecimentos) ? p.e
  * Módulos ainda não disponíveis não aparecem. `parte`: "dados" (só os dados do projeto: Fase 1 > Preparar), "premissas" (só as premissas:
  * Fase 2 > Premissas) ou as duas (padrão).
  */
+/** Rótulo dos campos compactos: mesma altura em todos (com ou sem o botão "i"), para os campos ficarem alinhados. */
+const ROT = "flex h-5 items-center gap-1 whitespace-nowrap text-xs font-medium";
+
 export default function Configuracao({ projeto, recarregar: recarregarProjeto, parte = "tudo" }) {
   const confirmar = useConfirmar();
   const qc = useQueryClient();
@@ -101,30 +104,24 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
       {parte !== "premissas" && (
       <SecaoForm titulo="Fase 1 · Dados do projeto" nivel="h2" idTitulo="san-cfg-dados" corpoCls="space-y-2"
         acoes={<button type="button" className={`${botaoPrimario} px-3 py-1 text-sm`} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>}>
-        <p className="text-xs text-foreground/75">Usado pela Fase 1. Não depende das atividades do cliente: importação e análises da Fase 1 ficam sempre disponíveis.</p>
-        <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-          <div><SeletorErp id="san-cfg-erp" rotulo="ERP (pode trocar para este trabalho)" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} /></div>
-          <label className="block"><Rotulo>Versão do ERP</Rotulo>{erpEscolhido?.versoes?.length
-            ? <select className={campoCls} value={form.erp_versao} onChange={set("erp_versao")}><option value="">Selecione a versão</option>{[...erpEscolhido.versoes, ...(form.erp_versao && !erpEscolhido.versoes.includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
-            : <input className={campoCls} value={form.erp_versao} onChange={set("erp_versao")} />}</label>
-          <label className="block"><Rotulo>Responsável</Rotulo><input className={campoCls} value={form.responsavel} onChange={set("responsavel")} /></label>
-          <div title="Vem do projeto de consultoria."><Rotulo>Data-base (do projeto de consultoria)</Rotulo><p className="py-1.5 text-sm">{fmtData(projeto.data_base) || "—"}</p></div>
+        {/* Seis campos numa linha (lg): rótulos de mesma altura (ROT), campos com a mesma classe e margem, alinhados pela base. */}
+        <div className="grid items-end gap-x-3 gap-y-2 sm:grid-cols-3 lg:grid-cols-6" title="Usado pela Fase 1. Não depende das atividades do cliente: importação e análises da Fase 1 ficam sempre disponíveis.">
+          <SeletorErp id="san-cfg-erp" rotulo="ERP" compacto classeRotulo={ROT} classeCampo={`${campoCls} mt-1`} registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} />
+          <label className="block"><span className={ROT}>Versão do ERP</span>{erpEscolhido?.versoes?.length
+            ? <select className={`${campoCls} mt-1`} value={form.erp_versao} onChange={set("erp_versao")}><option value="">Selecione a versão</option>{[...erpEscolhido.versoes, ...(form.erp_versao && !erpEscolhido.versoes.includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
+            : <input className={`${campoCls} mt-1`} value={form.erp_versao} onChange={set("erp_versao")} />}</label>
+          <label className="block"><span className={ROT}>Responsável</span><input className={`${campoCls} mt-1`} value={form.responsavel} onChange={set("responsavel")} /></label>
+          <div><span className={ROT} title="Vem do projeto de consultoria.">Data-base</span><p className={`${campoCls} mt-1 bg-muted/40`} title="Vem do projeto de consultoria.">{fmtData(projeto.data_base) || "—"}</p></div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <label htmlFor="san-cfg-corte" className="block"><Rotulo className="mb-0">Corte de movimentação</Rotulo></label>
-              <BotaoInfo id="san-cfg-corte-info" rotulo="Corte de movimentação" aberto={infoAberta === "corte"} aoAlternar={() => setInfoAberta(infoAberta === "corte" ? null : "corte")} />
-            </div>
-            <input id="san-cfg-corte" type="date" className={`${campoCls} mt-0.5`} value={form.corte} onChange={set("corte")} title="Itens sem movimento desde esta data" />
+            <span className={ROT}><label htmlFor="san-cfg-corte">Corte de movimentação</label><BotaoInfo id="san-cfg-corte-info" rotulo="Corte de movimentação" pequeno aberto={infoAberta === "corte"} aoAlternar={() => setInfoAberta(infoAberta === "corte" ? null : "corte")} /></span>
+            <input id="san-cfg-corte" type="date" className={`${campoCls} mt-1`} value={form.corte} onChange={set("corte")} title="Itens sem movimento desde esta data" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <label htmlFor="san-cfg-competencia" className="block"><Rotulo className="mb-0">Última escrituração entregue (SPED)</Rotulo></label>
-              <BotaoInfo id="san-cfg-competencia-info" rotulo="Última escrituração entregue" aberto={infoAberta === "competencia"} aoAlternar={() => setInfoAberta(infoAberta === "competencia" ? null : "competencia")} />
-            </div>
-            <input id="san-cfg-competencia" type="month" className={`${campoCls} mt-0.5`} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
+            <span className={ROT}><label htmlFor="san-cfg-competencia">Última escrituração entregue (SPED)</label><BotaoInfo id="san-cfg-competencia-info" rotulo="Última escrituração entregue" pequeno aberto={infoAberta === "competencia"} aoAlternar={() => setInfoAberta(infoAberta === "competencia" ? null : "competencia")} /></span>
+            <input id="san-cfg-competencia" type="month" className={`${campoCls} mt-1`} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
           </div>
-          <label className="block sm:col-span-2"><Rotulo>Estabelecimentos (um por linha; vazio = um só)</Rotulo>
-            <textarea rows={1} className={`${campoCls} min-h-[34px] resize-y`} value={form.estabelecimentos} onChange={set("estabelecimentos")} />
+          <label className="block sm:col-span-3 lg:col-span-6"><span className={ROT}>Estabelecimentos (um por linha; vazio = um só)</span>
+            <textarea rows={1} className={`${campoCls} mt-1 min-h-[34px] resize-y`} value={form.estabelecimentos} onChange={set("estabelecimentos")} />
           </label>
         </div>
         {infoAberta === "corte" && (
