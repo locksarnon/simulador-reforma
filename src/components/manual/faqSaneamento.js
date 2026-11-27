@@ -1,6 +1,6 @@
 /**
  * FAQ do Saneamento de Estoques e Cadastro de Produtos (serviço da Consultoria Tributária) e do botão Analisar com IA.
- * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-20 e, na Administração, POP-ADM-25 (Biblioteca de diretrizes).
+ * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-20 e, na Administração, POP-ADM-26 (Biblioteca de diretrizes).
  */
 export const SECAO_SANEAMENTO = {
   titulo: "Saneamento de estoques e cadastro de produtos (consultoria)",
@@ -16,7 +16,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Para que serve a Biblioteca de diretrizes?",
-      r: "É o cadastro único das regras-modelo FAL, em Administração > Configuração e ERPs > aba Biblioteca de diretrizes (só o administrador altera). No projeto, Partir de uma regra da biblioteca carrega o conteúdo e você ajusta só o que é diferente para o cliente; Aplicar modelo da biblioteca cria de uma vez as regras de um modelo, em rascunho, sem duplicar. Quando a regra-modelo ganha versão nova, a regra do projeto mostra “Regra atualizada na biblioteca” e o botão Adotar: nada muda sozinho (POP-ADM-25).",
+      r: "É o cadastro único das regras-modelo FAL, em Administração > Configuração e ERPs > aba Biblioteca de diretrizes (só o administrador altera). No projeto, Partir de uma regra da biblioteca carrega o conteúdo e você ajusta só o que é diferente para o cliente; Aplicar modelo da biblioteca cria de uma vez as regras de um modelo, em rascunho, sem duplicar. Quando a regra-modelo ganha versão nova, a regra do projeto mostra “Regra atualizada na biblioteca” e o botão Adotar: nada muda sozinho (POP-ADM-26).",
     },
     {
       p: "Qual limite de caracteres vale quando o leiaute oficial, o ERP e o cliente dizem números diferentes?",

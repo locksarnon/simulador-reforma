@@ -1032,7 +1032,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
   },
   {
     modulo: "configuracao",
-    codigo: "POP-ADM-25",
+    codigo: "POP-ADM-26",
     titulo: "Manter a Biblioteca de diretrizes do saneamento",
     objetivo: "Guardar as regras-modelo FAL (nomes, atributos, unidades, limites de caracteres e classificação fiscal) que os projetos de Saneamento de estoques usam, sem cadastrar nada duas vezes.",
     quem: "Administrador (os demais só consultam)",
