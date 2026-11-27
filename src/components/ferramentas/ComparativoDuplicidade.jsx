@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 const ROT_NIVEL = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const COR_NIVEL = {
@@ -28,6 +29,7 @@ function Descricao({ texto, referencia }) {
  * Painel de comparativo: o item e as correspondências encontradas lado a lado, com nota, motivos e diferenças destacadas.
  * Marcar "Excluir" só afeta a cópia saneada baixada; nenhum cadastro é alterado no ERP.
  */
+/** Linhas mostradas = linha real do arquivo (linhaNaPlanilha); `linha` segue como chave interna (mestre, exclusões, candidatos). */
 export default function ComparativoDuplicidade({ item, itens, excluir, setExcluir, podeExcluir, onFechar }) {
   const porLinha = useMemo(() => new Map((itens || []).map((i) => [i.linha, i])), [itens]);
   const dup = item?.duplicidade;
@@ -38,11 +40,11 @@ export default function ComparativoDuplicidade({ item, itens, excluir, setExclui
     <Sheet open={!!item} onOpenChange={(v) => !v && onFechar()}>
       <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Comparativo de duplicidade — linha {item?.linha}</SheetTitle>
+          <SheetTitle>Comparativo de duplicidade — linha {item ? linhaNaPlanilha(item) : ""}</SheetTitle>
           <SheetDescription>
             Os cadastros abaixo foram comparados por descrição, unidade, medidas, NCM e código de barras. Palavras destacadas existem só neste cadastro.
             {dup?.porObservacao && <> Neste grupo a variante (cor, tipo, apresentação) é observação, não produto: {dup.observacao?.palavras?.length ? `a deste cadastro é ${dup.observacao.palavras.join(", ")}.` : "este cadastro não traz nenhuma."}</>}
-            {dup?.mestre != null && <> Sugestão de cadastro a manter: <b>linha {dup.mestre}</b> ({dup.porObservacao ? "pelo maior saldo, a movimentação mais recente, o cadastro mais completo e o menor código" : "o mais completo"}).</>}
+            {dup?.mestre != null && <> Sugestão de cadastro a manter: <b>linha {linhaNaPlanilha(porLinha.get(dup.mestre) ?? { linha: dup.mestre })}</b> ({dup.porObservacao ? "pelo maior saldo, a movimentação mais recente, o cadastro mais completo e o menor código" : "o mais completo"}).</>}
           </SheetDescription>
         </SheetHeader>
         <div className="mt-4 space-y-3 text-sm">
@@ -53,7 +55,7 @@ export default function ComparativoDuplicidade({ item, itens, excluir, setExclui
             return (
               <div key={ln} className={`rounded-lg border p-3 ${base ? "border-primary/50 bg-primary/5" : "border-border"}`}>
                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                  <span className="font-semibold">Linha {ln}</span>
+                  <span className="font-semibold">Linha {linhaNaPlanilha(it)}</span>
                   {base && <span className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-primary text-primary-foreground">item analisado</span>}
                   {dup?.mestre === ln && <span className="text-[10px] uppercase font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">mestre sugerido</span>}
                   {m && <span className={`text-[10px] uppercase font-medium px-1.5 py-0.5 rounded ${COR_NIVEL[m.nivel]}`}>{ROT_NIVEL[m.nivel]} · {m.origem === "observacao" ? "pela regra de observação" : `similaridade ${m.score.toFixed(2).replace(".", ",")}`}</span>}

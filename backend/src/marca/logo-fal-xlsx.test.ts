@@ -54,7 +54,7 @@ describe('logo da FAL no Excel', () => {
 
   it('pasta em fluxo: logoFalNoXlsx põe o desenho na aba visível, deixa a oculta como está e o arquivo reabre no ExcelJS', async () => {
     const antes = await pastaEmFluxo();
-    const depois = logoFalNoXlsx(antes);
+    const depois = await logoFalNoXlsx(antes);
     const f = arquivos(depois);
     expect(Object.keys(f).filter((n) => /^xl\/media\/.+/.test(n))).toEqual(['xl/media/logofal.png']);
     expect(Object.keys(f).filter((n) => /^xl\/drawings\/[^/]+\.xml$/.test(n))).toHaveLength(1);
@@ -77,8 +77,8 @@ describe('logo da FAL no Excel', () => {
   });
 
   it('aba que já tem desenho fica como está (não duplica a logo ao passar duas vezes)', async () => {
-    const uma = logoFalNoXlsx(await pastaEmFluxo());
-    const duas = logoFalNoXlsx(uma);
+    const uma = await logoFalNoXlsx(await pastaEmFluxo());
+    const duas = await logoFalNoXlsx(uma);
     expect(texto(duas, 'xl/worksheets/sheet1.xml').match(/<drawing /g)).toHaveLength(1);
     expect((await abrir(duas)).getWorksheet('Dados')!.getImages()).toHaveLength(1);
   });
@@ -87,7 +87,7 @@ describe('logo da FAL no Excel', () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Links');
     ws.getCell('A2').value = { text: 'site', hyperlink: 'https://example.com' };
-    const comLink = logoFalNoXlsx(Buffer.from(await wb.xlsx.writeBuffer()));
+    const comLink = await logoFalNoXlsx(Buffer.from(await wb.xlsx.writeBuffer()));
     const rels = texto(comLink, 'xl/worksheets/_rels/sheet1.xml.rels');
     expect(rels).toContain('hyperlink');
     expect(rels).toContain('rIdLogoFal');

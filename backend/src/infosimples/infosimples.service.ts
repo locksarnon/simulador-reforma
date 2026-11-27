@@ -103,19 +103,24 @@ export function lerCrf(d: Record<string, unknown>): Omit<ResultadoCertidao, 'com
 
 /**
  * O servidor só baixa comprovante de endereço da própria Infosimples: https na porta padrão, sem usuário/senha, no domínio
- * infosimples.com (e subdomínios, como storage.infosimples.com) ou no bucket dela no Google Cloud Storage
- * (storage.googleapis.com/infosimples...). Qualquer outro endereço vindo da resposta é ignorado (proteção contra SSRF).
+ * infosimples.com (e subdomínios, como storage.infosimples.com). Qualquer outro endereço vindo da resposta é ignorado (proteção contra SSRF).
+ * Bucket no Google Cloud Storage NÃO entra por prefixo ("infosimples*" qualquer um pode criar) e o nome exato do bucket da Infosimples não
+ * está documentado no projeto: se ela mandar comprovante de lá, o aviso no log mostra o host recusado e o bucket entra aqui, pelo nome exato.
  */
 export function linkComprovantePermitido(url: string): boolean {
   try {
     const u = new URL(url);
     if (u.protocol !== 'https:' || u.username || u.password || (u.port !== '' && u.port !== '443')) return false;
     const host = u.hostname.toLowerCase();
-    if (host === 'infosimples.com' || host.endsWith('.infosimples.com')) return true;
-    return host === 'storage.googleapis.com' && /^\/infosimples[a-z0-9-]*\//i.test(u.pathname);
+    return host === 'infosimples.com' || host.endsWith('.infosimples.com');
   } catch {
     return false;
   }
+}
+
+/** Host do link, para o aviso no log (sem caminho nem parâmetros assinados). */
+export function hostDoLink(url: string): string {
+  try { return new URL(url).host || '(sem host)'; } catch { return '(endereço inválido)'; }
 }
 
 /** Links (https) dentro dos dados devolvidos: site_receipt, url do PDF da certidão etc. */
@@ -245,7 +250,7 @@ export class InfosimplesService {
    */
   private async baixarComprovante(u: string): Promise<Response | null> {
     if (!linkComprovantePermitido(u)) {
-      this.log.warn(`Comprovante da Infosimples ignorado: endereço fora da Infosimples (${String(u).slice(0, 200)})`);
+      this.log.warn(`Comprovante da Infosimples ignorado: host fora da lista permitida (${hostDoLink(u)}). Se o host for da Infosimples, incluí-lo em linkComprovantePermitido.`);
       return null;
     }
     const r = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(60_000) });

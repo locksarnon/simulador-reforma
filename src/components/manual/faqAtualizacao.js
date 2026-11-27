@@ -177,7 +177,7 @@ export const SECAO_IMPORTACAO_XML = {
     },
     {
       p: "Quais são os limites de um lote?",
-      r: "Até 5.000 arquivos por lote, 2 MB por arquivo XML e 500 itens por nota. O sistema recusa arquivos que não sejam .xml ou que passem desses limites.",
+      r: "Até 5.000 arquivos por lote, 2 MB por arquivo XML e 500 itens por nota. O sistema recusa arquivos que não sejam .xml ou que passem desses limites. O nome do arquivo não impede o envio: nome muito longo ou com caracteres especiais é ajustado no armazenamento. Se algum arquivo do lote for recusado no processamento, só ele fica de fora: os demais seguem e o aviso diz quais foram recusados, para enviar de novo.",
     },
     {
       p: "O que o sistema valida em cada item?",

@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.types';
 import { StorageService } from './storage.service';
+import { nomeParaChaveDeUpload } from '../importacao-xml/shared/chave-armazenamento';
 
 const MAX_SIZE = 2 * 1024 * 1024; // 2 MB, mesmo limite do frontend (useImportacaoXML.js)
 
@@ -15,7 +16,8 @@ export class StorageController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_SIZE } }))
   async upload(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: AuthUser) {
     if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
-    const objectKey = `${user.id}/${randomUUID()}-${file.originalname}`;
+    // Nome saneado (sem `..`, barras, controle; até 150 caracteres): toda chave nova passa no validador da importação de XML.
+    const objectKey = `${user.id}/${randomUUID()}-${nomeParaChaveDeUpload(file.originalname)}`;
     const { storageKey, url } = await this.storage.putFileAndGetUrl(objectKey, file.buffer, file.mimetype);
     return { file_url: url, storage_key: storageKey };
   }

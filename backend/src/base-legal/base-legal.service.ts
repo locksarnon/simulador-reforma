@@ -16,7 +16,7 @@ export type ContextoDaPergunta = { ufs: string[]; ncms: (NcmDaPergunta & { descr
 /** Aviso que vai junto de cada dispositivo das normas estaduais cujo site mistura redações (fontes.ts). */
 const AVISO_IA = new Map(FONTES_NORMAS.filter((f) => f.aviso_ia).map((f) => [f.chave, f.aviso_ia as string]));
 import { pdfParaTexto } from './pdf-norma';
-import { fetchOficial } from './fetch-oficial';
+import { fetchOficial, lerCorpoComLimite } from './fetch-oficial';
 import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
 import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
 import { plural } from '../common/plural';
@@ -326,8 +326,8 @@ export class BaseLegalService {
     });
     if (!resp.ok) throw new BadRequestException(`Fonte oficial respondeu ${resp.status}`);
     if (Number(resp.headers.get('content-length') || 0) > limite) throw new BadRequestException('A fonte oficial é grande demais para carregar.');
-    const corpo = Buffer.from(await resp.arrayBuffer());
-    if (corpo.length > limite) throw new BadRequestException('A fonte oficial é grande demais para carregar.');
+    // Em fluxo, com contador: passou do limite, a leitura é cancelada (o corpo inteiro nunca entra na memória antes da conferência).
+    const corpo = await lerCorpoComLimite(resp, limite, () => new BadRequestException('A fonte oficial é grande demais para carregar.'));
     return { corpo, tipo: resp.headers.get('content-type') || '', url: final };
   }
 

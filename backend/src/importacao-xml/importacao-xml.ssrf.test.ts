@@ -2,7 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { ImportacaoXmlController } from './importacao-xml.controller';
 import { ImportacaoXmlService } from './importacao-xml.service';
-import { chaveArmazenamentoSegura, chaveDeUploadDoUsuario, pareceUrl } from './shared/chave-armazenamento';
+import { MAX_NOME_NA_CHAVE, chaveArmazenamentoSegura, chaveDeUploadDoUsuario, nomeParaChaveDeUpload, pareceUrl } from './shared/chave-armazenamento';
+import { StorageController } from '../storage/storage.controller';
 
 // Correção de SSRF na importação em lote: o servidor nunca baixa a URL enviada
 // pelo cliente; só lê do armazenamento a chave que o upload devolveu ao usuário.
@@ -40,11 +41,25 @@ describe('POST /xml/processar-lote — chave de armazenamento obrigatória e do 
     expect(service.receberLote).not.toHaveBeenCalled();
   });
 
-  it('um arquivo inválido recusa o lote inteiro', () => {
+  it('arquivo com chave inválida é recusado sozinho: os válidos seguem e a resposta lista os recusados', async () => {
     const { controller, service } = montarController();
     const arquivos = [{ nome: 'ok.xml', storage_key: chaveValida }, { nome: 'ruim.xml', storage_key: `repositorio/E1/captura/2026/01/x.xml` }];
+    const r = await controller.processarLote(corpo(arquivos) as any, USUARIO);
+    expect(service.receberLote).toHaveBeenCalledTimes(1);
+    expect((service.receberLote.mock.calls[0] as any[])[0].arquivos).toEqual([arquivos[0]]);
+    expect(r).toEqual({ lote_id: 'L1', status: 'RECEBIDO', arquivos_rejeitados: [{ nome: 'ruim.xml', motivo: expect.stringMatching(/sem chave de armazenamento válida/) }] });
+  });
+
+  it('lote só com chaves inválidas: 400 com o nome do arquivo', () => {
+    const { controller, service } = montarController();
+    const arquivos = [{ nome: 'ruim.xml', storage_key: `repositorio/E1/captura/2026/01/x.xml` }, { nome: 'outro.xml', storage_key: 'x' }];
     expect(() => controller.processarLote(corpo(arquivos) as any, USUARIO)).toThrow(/ruim\.xml/);
     expect(service.receberLote).not.toHaveBeenCalled();
+  });
+
+  it('lote todo válido: resposta do serviço sem alteração', async () => {
+    const { controller } = montarController();
+    expect(await controller.processarLote(corpo([{ nome: 'a.xml', storage_key: chaveValida }]) as any, USUARIO)).toEqual({ lote_id: 'L1', status: 'RECEBIDO' });
   });
 
   it.each([
@@ -131,4 +146,36 @@ describe('chave-armazenamento', () => {
     expect(pareceUrl('https://minio:9000/b/k?X-Amz-Signature=1')).toBe(true);
     expect(pareceUrl(chaveValida)).toBe(false);
   });
+});
+
+describe('upload: nome do arquivo saneado na chave (POST /uploads)', () => {
+  it.each([
+    ['nota..xml', 'nota.xml'],
+    ['../../segredo.xml', '._._segredo.xml'],
+    ['pasta\\nota.xml', 'pasta_nota.xml'],
+    ['a/b.xml', 'a_b.xml'],
+    ['nota\u0000\n\t.xml', 'nota___.xml'],
+    ['http://x/a.xml', 'http:__x_a.xml'],
+    ['...', 'arquivo'],
+    ['', 'arquivo'],
+    ['  nota 123.xml ', 'nota 123.xml'],
+  ])('%j vira %j', (original, esperado) => {
+    expect(nomeParaChaveDeUpload(original)).toBe(esperado);
+  });
+
+  it('nome longo: corta em 150 caracteres mantendo a extensão, sem criar ".."', () => {
+    const n = nomeParaChaveDeUpload('N'.repeat(400) + '.xml');
+    expect(n).toHaveLength(MAX_NOME_NA_CHAVE);
+    expect(n.endsWith('NNN.xml')).toBe(true);
+    expect(nomeParaChaveDeUpload('a'.repeat(145) + '.b'.repeat(20) + '.xml')).not.toContain('..');
+  });
+
+  it.each(['nota..xml', '../../x.xml', 'a\\b.xml', 'a\u0007b.xml', 'x'.repeat(600) + '.xml', 'http://169.254.169.254/', 'ç ã é.xml', '..'])(
+    'a chave gerada pelo upload sempre passa no validador estrito (%#)',
+    async (original) => {
+      const storage = { putFileAndGetUrl: vi.fn(async (k: string) => ({ storageKey: k, url: 'u' })) };
+      const r = await new StorageController(storage as any).upload({ originalname: original, buffer: Buffer.from('<x/>'), mimetype: 'text/xml' } as any, USUARIO);
+      expect(chaveDeUploadDoUsuario(r.storage_key, USUARIO.id)).toBe(true);
+    },
+  );
 });

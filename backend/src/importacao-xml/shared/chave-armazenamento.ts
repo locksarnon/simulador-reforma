@@ -32,6 +32,28 @@ export function chaveArmazenamentoSegura(chave: unknown): chave is string {
   );
 }
 
+/** Tamanho máximo do nome do arquivo dentro da chave (com a extensão). */
+export const MAX_NOME_NA_CHAVE = 150;
+
+/**
+ * Nome do arquivo enviado (originalname) pronto para entrar na chave do upload: `..` vira `.`, barra, barra invertida e caractere de
+ * controle viram `_`, e o nome é cortado em MAX_NOME_NA_CHAVE caracteres mantendo a extensão. Assim toda chave nova passa no validador
+ * estrito (chaveDeUploadDoUsuario), qualquer que seja o nome do arquivo no computador do usuário.
+ */
+export function nomeParaChaveDeUpload(original: unknown): string {
+  // eslint-disable-next-line no-control-regex
+  let nome = String(original ?? '').replace(/[\u0000-\u001f\u007f\\/]/g, '_');
+  while (nome.includes('..')) nome = nome.replace(/\.{2,}/g, '.');
+  nome = nome.trim();
+  if (!nome || nome === '.') nome = 'arquivo';
+  if (nome.length > MAX_NOME_NA_CHAVE) {
+    const ponto = nome.lastIndexOf('.');
+    const ext = ponto > 0 && nome.length - ponto <= 10 ? nome.slice(ponto) : '';
+    nome = nome.slice(0, MAX_NOME_NA_CHAVE - ext.length).replace(/\.+$/, '') + ext;
+  }
+  return nome;
+}
+
 /** Expressão do formato gerado no upload para um usuário: `${userId}/${uuid}-${nome}` (nome sem barra nem controle). */
 export function regexChaveDeUpload(userId: string): RegExp {
   return new RegExp(`^${escaparRegex(userId)}/${UUID}-[^/\\\\\\u0000-\\u001f\\u007f]+$`);
