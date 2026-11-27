@@ -98,3 +98,43 @@ Etapas 1 a 5 entregam a Fase 1.
 - Migração da finalidade: quebra motor, regras, cenários, Excel, testes e projetos salvos — exige de-para e migração de dados.
 - "Executado no ERP" depende da confirmação do cliente.
 - Não confirmado: percentuais de 2027 do crédito presumido (arts. 168 e 169); percentual do crédito do estoque; tabela do tipo do item no Guia 3.2.4.
+
+## Contrato técnico (onda 1 — todos os agentes seguem isto)
+
+### Camadas (chaves em `tipos.ts` CAMADAS e espelho em `src/components/saneamento-estoques/logica.js`)
+
+Ordem: IDENTIFICACAO, QUALIDADE, DUPLICIDADE, GRUPOS_FINALIDADE, NOMES_UNIDADES, NCM, ESTOQUE, FINALIDADE, NCM_CLASSIFICACAO, TRIBUTARIO, OBRIGACOES.
+
+| Chave | Rótulo | Fase | Tipos de caso |
+|---|---|---|---|
+| GRUPOS_FINALIDADE (chave mantida, sem migrar) | Grupos | 1 | só os de grupo (GRUPO_*, ITEM_DESLOCADO, ITEM_SEM_GRUPO, NECESSIDADE_NOVO_GRUPO) |
+| NCM | Validar NCM | 1 | NCM_AUSENTE, NCM_PREENCHIMENTO_INVALIDO, NCM_FORMATO, NCM_INEXISTENTE, NCM_NAO_VIGENTE, NCM_CLASSIFICACAO_ANTIGA |
+| FINALIDADE (nova) | Finalidade | 2 | FINALIDADE_GRUPO, FINALIDADE_EXCECAO |
+| NCM_CLASSIFICACAO (nova) | Classificação NCM | 2 | NCM_INFO_INSUFICIENTE, NCM_INCOMPATIVEL_DESCRICAO, NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS |
+| OBRIGACOES | Impacto no SPED | 1 e 2 | sem mudança (roda no fim de cada fase) |
+| ESTOQUE (módulo conciliação) | Estoque | 1 | sem mudança |
+
+`FASES` (backend `dados/constantes.ts`, espelho no front): `FASE1 = [IDENTIFICACAO, QUALIDADE, DUPLICIDADE, GRUPOS_FINALIDADE, NOMES_UNIDADES, NCM, ESTOQUE, OBRIGACOES]`,
+`FASE2 = [FINALIDADE, NCM_CLASSIFICACAO, TRIBUTARIO, OBRIGACOES]` (filtradas por `camadasAtivas`). `faseDaCamada(c)` devolve a primeira fase que a contém.
+
+### Travas
+- Importação e camadas da Fase 1: **sem trava** de atividades.
+- Camadas FINALIDADE, NCM_CLASSIFICACAO e TRIBUTARIO (e gravação de casos delas): exigem, nesta ordem, (1) versão liberada com `resumo.fase = 'FASE1'`
+  → erro 400 `codigo: 'FASE1_NAO_LIBERADA'`; (2) `parametros.regimeCliente` preenchido → `REGIME_NAO_INFORMADO`; (3) atividades confirmadas →
+  `ATIVIDADES_NAO_CONFIRMADAS` (o código que já existe). OBRIGACOES roda sem trava.
+- `CAMADAS_DAS_ATIVIDADES = ['FINALIDADE','TRIBUTARIO']`. `DEPENDENCIAS.TRIBUTARIO` lê FINALIDADE (finalidade, tambemUsadoComo), NCM e NCM_CLASSIFICACAO (ncm).
+
+### Regime do cliente (Fase 2, obrigatório)
+`parametros.regimeCliente` ∈ `REGIMES_CLIENTE` (backend `fiscal/regimes.ts`, espelho no front), cada um com `{codigo, rotulo, fundamento}`:
+REGULAR (LC 214 arts. 21 e 41), SIMPLES_NO_SIMPLES (art. 47 §9º), SIMPLES_REGULAR (art. 41 §3º), PRODUTOR_RURAL_NAO_CONTRIBUINTE (art. 164),
+PRODUTOR_RURAL_CONTRIBUINTE (art. 165). Gravado pelo PUT de configuração existente (campo `regimeCliente`, validado contra a lista).
+
+### Versões por fase
+POST de versão aceita `fase: 'FASE1' | 'FASE2'` (opcional; gravada em `resumo.fase`). FASE2 exige uma FASE1 liberada antes (`FASE1_NAO_LIBERADA`).
+Nova rota `GET projetos/:id/fases` → `{ fases: [{ fase: 'FASE1'|'FASE2', camadas: [...], liberada: {versaoId, numero, em} | null,
+bloqueio: {codigo, mensagem} | null }] }`.
+
+### Migração (no boot, idempotente, como o preenchimento de células do ESTOQUE)
+Casos FINALIDADE_GRUPO/FINALIDADE_EXCECAO de GRUPOS_FINALIDADE → camada FINALIDADE; NCM_INFO_INSUFICIENTE/NCM_INCOMPATIVEL_DESCRICAO/
+NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS de NCM → NCM_CLASSIFICACAO; recalcula `chave`; move as células cujo `caso_id` aponta para esses casos; cria as
+células que faltarem das camadas novas para todos os itens. Fotos de versões antigas ficam como estão: leitores aceitam as duas camadas.
