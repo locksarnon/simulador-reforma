@@ -113,6 +113,15 @@ export function useImportacaoXML(grupoId) {
       });
       setLoteId(resp.data.lote_id);
       if (falhas.length === 0) setSelectedFiles([]);
+      // Arquivos recusados pelo servidor (chave de armazenamento inválida): os demais seguem no lote.
+      const rejeitados = Array.isArray(resp.data?.arquivos_rejeitados) ? resp.data.arquivos_rejeitados : [];
+      if (rejeitados.length > 0) {
+        const nomes = rejeitados.slice(0, 5).map((x) => x.nome).join(", ");
+        const msg =
+          `${plural(rejeitados.length, "arquivo foi recusado", "arquivos foram recusados")} (${nomes}${rejeitados.length > 5 ? "…" : ""}): ` +
+          "envie de novo pela tela de importação. Os demais seguem em processamento.";
+        setError((anterior) => (anterior ? `${anterior} ${msg}` : msg));
+      }
       qc.invalidateQueries({ queryKey: ["lote-xml", resp.data.lote_id] });
     } catch (err) {
       setError(String(err?.response?.data?.error || err?.message || err));

@@ -34,3 +34,25 @@ export async function fetchOficial(
     }
   }
 }
+
+/**
+ * Lê o corpo da resposta em fluxo, contando os bytes: passou de `maxBytes`, cancela a leitura (a conexão é largada) e lança `erro()`.
+ * Nunca junta o corpo inteiro antes de conferir o tamanho (um servidor que mente ou omite o Content-Length não estoura a memória).
+ */
+export async function lerCorpoComLimite(resp: Response, maxBytes: number, erro: () => Error): Promise<Buffer> {
+  if (!resp.body) return Buffer.alloc(0);
+  const leitor = resp.body.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await leitor.cancel().catch(() => undefined);
+      throw erro();
+    }
+    partes.push(value);
+  }
+  return Buffer.concat(partes, total);
+}

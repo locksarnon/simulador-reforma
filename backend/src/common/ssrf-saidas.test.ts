@@ -65,7 +65,10 @@ describe('Infosimples: só baixa comprovante de endereço da própria Infosimple
   it.each([
     ['https://storage.infosimples.com/r/abc.pdf', true],
     ['https://infosimples.com/r/abc.pdf', true],
-    ['https://storage.googleapis.com/infosimples-api-tmp/api/x.pdf', true],
+    // GCS por prefixo era falsificável (qualquer um cria um bucket infosimples-*): fora até o bucket exato ser conhecido.
+    ['https://storage.googleapis.com/infosimples-api-tmp/api/x.pdf', false],
+    ['https://storage.googleapis.com/infosimples-do-atacante/x.pdf', false],
+    ['https://infosimples-api-tmp.storage.googleapis.com/api/x.pdf', false],
     ['http://storage.infosimples.com/r/abc.pdf', false],
     ['https://storage.infosimples.com:8443/r/abc.pdf', false],
     ['https://user:senha@storage.infosimples.com/r', false],
@@ -85,7 +88,7 @@ describe('Infosimples: só baixa comprovante de endereço da própria Infosimple
     expect(pdfs).toHaveLength(1);
     expect(f).toHaveBeenCalledTimes(1);
     expect(f).toHaveBeenCalledWith('https://storage.infosimples.com/r/abc.pdf', expect.objectContaining({ redirect: 'manual' }));
-    expect(aviso).toHaveBeenCalledWith(expect.stringContaining('fora da Infosimples'));
+    expect(aviso).toHaveBeenCalledWith(expect.stringContaining('host fora da lista permitida (10.0.0.5)'));
   });
 
   it('um redirecionamento (3xx) não é seguido: o comprovante é ignorado', async () => {
