@@ -6,6 +6,7 @@ import {
   COLUNAS_GERAL, COLUNAS_RESUMO_GERAL, colunasProdutos, dataLocal, linhasParaCsv, montarPlanilha, nomeDoArquivo, periodoPadrao, textoDaCelula, textoDoPeriodo, valorDoExcel,
 } from "./dadosDosRelatorios";
 import RelatoriosXml, { ResultadoGeral, ResultadoProdutos } from "./RelatoriosXml";
+import { carregarLogoFal } from "@/lib/marcaFal";
 
 const renderizar = (elemento) => {
   const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
@@ -132,13 +133,16 @@ describe("planilha do Excel", () => {
     const wb = montarPlanilha(ExcelJS, [
       { nome: "Resumo", titulo: "Resumo", linhasDeTexto: ["Empresa X"], colunas: COLUNAS_RESUMO_GERAL, linhas: g.resumo.por_documento, totais: false },
       { nome: "Documentos", titulo: "Relatório Geral — documentos", linhasDeTexto: ["Empresa X", "Período de emissão: 01/11/2026 a 30/11/2026"], colunas: COLUNAS_GERAL, linhas: g.linhas },
-    ]);
+    ], await carregarLogoFal());
     expect(wb.worksheets.map((w) => w.name)).toEqual(["Resumo", "Documentos"]);
 
     const ws = wb.getWorksheet("Documentos");
-    expect(ws.getCell("A1").value).toBe("Relatório Geral — documentos");
-    expect(ws.getCell("A2").value).toBe("Empresa X");
-    const cab = 5; // 1 título + 2 linhas de texto + 1 em branco
+    // linha 1 = logo da FAL (em todas as abas); o título vem logo abaixo
+    for (const aba of wb.worksheets) expect(aba.getImages().length).toBe(1);
+    expect(ws.getCell("A1").value).toBeNull();
+    expect(ws.getCell("A2").value).toBe("Relatório Geral — documentos");
+    expect(ws.getCell("A3").value).toBe("Empresa X");
+    const cab = 6; // logo + 1 título + 2 linhas de texto + 1 em branco
     expect(ws.getCell(cab, 1).value).toBe("Emissão");
     expect(ws.getCell(cab, 1).fill.fgColor.argb).toBe("FF1E764D");
     expect(ws.getCell(cab, 1).font.color.argb).toBe("FFFFFFFF");
@@ -157,8 +161,8 @@ describe("planilha do Excel", () => {
 
     // a aba do resumo não leva linha de total
     const resumo = wb.getWorksheet("Resumo");
-    expect(resumo.getCell(4, 1).value).toBe("Documento");
-    expect(resumo.getCell(7, 1).value).toBeNull();
+    expect(resumo.getCell(5, 1).value).toBe("Documento");
+    expect(resumo.getCell(8, 1).value).toBeNull();
 
     // vai para o arquivo e volta com os mesmos dados
     const buf = await wb.xlsx.writeBuffer();
@@ -166,6 +170,7 @@ describe("planilha do Excel", () => {
     await lido.xlsx.load(buf);
     expect(lido.getWorksheet("Documentos").getCell(cab + 1, 5).value).toBe("FORNECEDOR AGRO LTDA");
     expect(lido.getWorksheet("Documentos").getCell(cab + 1, colValor).value).toBe(1000);
+    expect(lido.getWorksheet("Documentos").getImages().length).toBe(1);
   });
 
   it("sem linhas não cria total nem filtro", async () => {
@@ -173,8 +178,8 @@ describe("planilha do Excel", () => {
     const wb = montarPlanilha(ExcelJS, [{ nome: "Produtos", titulo: "Relatório de Produtos", linhasDeTexto: [], colunas: colunasProdutos("itens"), linhas: [] }]);
     const ws = wb.getWorksheet("Produtos");
     expect(ws.autoFilter).toBeFalsy();
-    expect(ws.getCell(3, 1).value).toBe("Emissão"); // título, uma linha em branco e o cabeçalho
-    expect(ws.getCell(4, 1).value).toBeNull();
+    expect(ws.getCell(4, 1).value).toBe("Emissão"); // logo, título, uma linha em branco e o cabeçalho
+    expect(ws.getCell(5, 1).value).toBeNull();
   });
 });
 

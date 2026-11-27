@@ -8,11 +8,20 @@ import { lerPlanilha, lerPrevia, MAX_LINHAS, Planilha } from './leitura-planilha
 import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
 import { avaliarNcm, compararComDeclarado, referenciasNcm, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
+import { LINHAS_LOGO_FAL, cabecalhoFalExcel } from '../marca/logo-fal';
 
 export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto', 'codigo_barras', 'saldo'] as const;
 export type Campo = (typeof CAMPOS)[number];
 export type Mapeamento = Partial<Record<Campo, number | null>>;
 
+/** Linha dos títulos nas abas exportadas: logo da FAL na linha 1, títulos logo abaixo. */
+const CAB = LINHAS_LOGO_FAL + 1;
+/** O ExcelJS escreve os títulos de `ws.columns` na linha 1 (a da logo): eles descem para a linha CAB. */
+function colunasComTitulo(ws: ExcelJS.Worksheet): void {
+  const titulos = ws.columns.map((c) => (typeof c.header === 'string' ? c.header : ''));
+  ws.getRow(1).values = [];
+  ws.getRow(CAB).values = titulos;
+}
 const ROT_NIVEL_DUP: Record<NivelDup, string> = { EXATA: 'Idêntico', MUITO_PROVAVEL: 'Indicação alta', POSSIVEL: 'Indicação possível' };
 export const ROTULOS: Record<Campo, string> = {
   principio_ativo: 'Princípio ativo (inclua concentração e formulação)',
@@ -86,7 +95,10 @@ export type { Planilha } from './leitura-planilha';
 
 export type Problema = { codigo: string; severidade: 'erro' | 'alerta' | 'info'; mensagem: string };
 export type LinhaResultado = {
+  /** Chave interna do item (posição na leitura + 2): liga duplicidades, exclusões e o que já está salvo. Não é mostrada ao usuário. */
   linha: number;
+  /** Linha de verdade no arquivo (o que o Excel mostra), para as telas e os relatórios: no modelo do InTAX, a logo ocupa a linha 1. */
+  linha_planilha: number;
   codigo: string;
   descricao: string;
   ncm_original: string;
@@ -138,7 +150,7 @@ function resumirGrupos(itens: LinhaResultado[]) {
     .map(([grupo, e]) => ({ grupo, qtd: e.qtd, atuais: [...e.atuais.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([g, qtd]) => ({ grupo: g, qtd })) }));
 }
 
-export type ForaDoPeriodo = { linha: number; codigo: string; descricao: string; ncm_original: string; ultima_mov: string };
+export type ForaDoPeriodo = { linha: number; linha_planilha: number; codigo: string; descricao: string; ncm_original: string; ultima_mov: string };
 
 @Injectable()
 export class ProdutosService {
@@ -180,7 +192,7 @@ export class ProdutosService {
   /** De-para contábil enviado pelo cliente (xlsx/csv): chave (cClassTrib ou grupo sugerido) -> conta. */
   async lerPlanoContas(file: Express.Multer.File): Promise<PlanoContas> {
     const p = await this.lerArquivo(file);
-    return montarPlanoContas((file.originalname || 'de-para').slice(0, 120), p.cabecalho, p.linhas);
+    return montarPlanoContas((file.originalname || 'de-para').slice(0, 120), p.cabecalho, p.linhas, p.linhasFisicas);
   }
 
   async previa(file: Express.Multer.File) {
@@ -213,7 +225,7 @@ export class ProdutosService {
     const g = (l: string[], c: Campo) => (mapa[c] === null || mapa[c] === undefined ? '' : (l[mapa[c] as number] ?? '').trim());
 
     const truncado = limiteLinhas && p.linhas.length > limiteLinhas ? p.linhas.length : 0;
-    const origem = (limiteLinhas ? p.linhas.slice(0, limiteLinhas) : p.linhas).map((l, i) => ({ l, linha: i + 2 }));
+    const origem = (limiteLinhas ? p.linhas.slice(0, limiteLinhas) : p.linhas).map((l, i) => ({ l, linha: i + 2, linha_planilha: p.linhasFisicas?.[i] ?? i + 2 }));
     if ((opcoes.dataInicio || opcoes.dataFim) && mapa.data_cadastro == null) throw new BadRequestException('Mapeie a coluna de data para aplicar o período.');
     if (opcoes.gruposContabeis && mapa.grupo_contabil == null) throw new BadRequestException('Mapeie a coluna do grupo/conta contábil atual para a análise contábil.');
     if (opcoes.grupos && mapa.grupo_produto == null) throw new BadRequestException('Mapeie a coluna do grupo de produto: a sugestão de grupo usa os grupos que o próprio cliente já tem na planilha.');
@@ -223,18 +235,18 @@ export class ProdutosService {
     // CONTINUA na análise, sinalizado — uma data em branco numa base de 50 mil linhas não pode derrubar a validação
     // nem fazer um produto ativo sumir.
     const periodoAtivo = Boolean(opcoes.dataInicio || opcoes.dataFim);
-    const classificadas = origem.map(({ l, linha }) => {
+    const classificadas = origem.map(({ l, linha, linha_planilha }) => {
       // Sem período, a data ainda é lida (quando a coluna está mapeada): o projeto de saneamento aplica o corte por conta própria.
-      if (!periodoAtivo) return { l, linha, data: mapa.data_cadastro != null ? lerDataMovimento(g(l, 'data_cadastro')).data : null, bruto: '', periodo: null as LinhaResultado['periodo'] | 'FORA' };
+      if (!periodoAtivo) return { l, linha, linha_planilha, data: mapa.data_cadastro != null ? lerDataMovimento(g(l, 'data_cadastro')).data : null, bruto: '', periodo: null as LinhaResultado['periodo'] | 'FORA' };
       const bruto = g(l, 'data_cadastro');
       const lida = lerDataMovimento(bruto);
       const dentro = lida.data !== null && (!opcoes.dataInicio || lida.data >= opcoes.dataInicio) && (!opcoes.dataFim || lida.data <= opcoes.dataFim);
       const periodo: LinhaResultado['periodo'] | 'FORA' = lida.data ? (dentro ? 'DENTRO' : 'FORA') : lida.invalida ? 'DATA_INVALIDA' : 'SEM_DATA';
-      return { l, linha, data: lida.data, bruto, periodo };
+      return { l, linha, linha_planilha, data: lida.data, bruto, periodo };
     });
     const selecionadas = classificadas.filter((x) => x.periodo !== 'FORA');
     const foraDoPeriodo: ForaDoPeriodo[] = classificadas.filter((x) => x.periodo === 'FORA').map((x) => ({
-      linha: x.linha, codigo: g(x.l, 'codigo'), descricao: g(x.l, 'descricao'), ncm_original: g(x.l, 'ncm'), ultima_mov: x.data as string,
+      linha: x.linha, linha_planilha: x.linha_planilha, codigo: g(x.l, 'codigo'), descricao: g(x.l, 'descricao'), ncm_original: g(x.l, 'ncm'), ultima_mov: x.data as string,
     }));
     const linhas = selecionadas.map(x => x.l);
 
@@ -423,7 +435,7 @@ export class ProdutosService {
       if (periodo === 'SEM_DATA') problemas.push({ codigo: 'SEM_DATA_MOVIMENTO', severidade: 'info', mensagem: 'Sem data de movimentação; mantido na análise por segurança.' });
 
       const situacao: LinhaResultado['situacao'] = problemas.some((x) => x.severidade === 'erro') ? 'ERRO' : problemas.some((x) => x.severidade === 'alerta') ? 'ALERTA' : 'OK';
-      return { linha: selecionadas[i].linha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, grupo_evidencia, conta_sugerida, conta_flag, candidatos_duplicidade, duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, saldo: lerSaldo(g(l, 'saldo'), saldoNumerico), periodo };
+      return { linha: selecionadas[i].linha, linha_planilha: selecionadas[i].linha_planilha, unidade, principio_ativo, grupo_contabil: g(l, 'grupo_contabil'), grupo_atual, grupo_sugerido, grupo_flag, grupo_evidencia, conta_sugerida, conta_flag, candidatos_duplicidade, duplicidade, codigo, descricao, ncm_original: ncmOriginal, ncm, situacao, problemas, sugestao, c_class_trib_informado: informado, ultima_mov: selecionadas[i].data, saldo: lerSaldo(g(l, 'saldo'), saldoNumerico), periodo };
     });
 
     const resumo = {
@@ -465,7 +477,8 @@ export class ProdutosService {
     const r = salvo || await this.validar(file, mapeamento, undefined, opcoes, plano);
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX — FAL Agro';
-    const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: CAB }] });
+    cabecalhoFalExcel(wb, ws);
     const per = r.resumo.periodo;
     const dataBr = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
     const ROT_FLAG: Record<FlagComparacao, string> = { IGUAL: 'Igual', DIFERENTE: 'Diferente', SEM_ATUAL: 'Sem valor atual', SEM_SUGESTAO: 'Sem sugestão (certeza insuficiente)', SEM_REGRA: 'Sem regra no de-para', SEM_PLANO: 'Sem de-para enviado' };
@@ -503,17 +516,21 @@ export class ProdutosService {
         { header: 'No período', key: 'periodo', width: 16 },
       ] : []),
     ];
+    colunasComTitulo(ws);
     const cor = { OK: 'FFE8F5E9', ALERTA: 'FFFFF8E1', ERRO: 'FFFDECEA' } as const;
+    // Linha mostrada = linha de verdade no arquivo do cliente; a chave interna (linha) só liga duplicidade e mestre.
+    const naPlanilha = new Map(r.itens.map((i) => [i.linha, i.linha_planilha ?? i.linha]));
+    const real = (k: number) => naPlanilha.get(k) ?? k;
     r.itens.forEach((it) => {
       const row = ws.addRow({
         ultima_mov: dataBr(it.ultima_mov), periodo: it.periodo ? ROT_PERIODO[it.periodo] : '',
         grupo_atual: it.grupo_atual, grupo_sugerido: it.grupo_sugerido ?? '', grupo_flag: it.grupo_flag ? ROT_FLAG[it.grupo_flag] : '', grupo_evidencia: it.grupo_evidencia ?? '',
         conta_sugerida: it.conta_sugerida ?? '', conta_flag: it.conta_flag ? ROT_FLAG[it.conta_flag] : '',
-        unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.join(', '),
+        unidade: it.unidade, principio_ativo: it.principio_ativo, grupo_contabil: it.grupo_contabil, candidatos: it.candidatos_duplicidade.map(real).join(', '),
         dup_nivel: it.duplicidade ? ROT_NIVEL_DUP[it.duplicidade.nivel] : '', dup_nota: it.duplicidade ? it.duplicidade.score.toFixed(2).replace('.', ',') : '',
         dup_motivos: it.duplicidade ? (it.duplicidade.candidatos[0]?.motivos ?? []).join('; ') : '', dup_grupo: it.duplicidade?.grupo != null ? `G${it.duplicidade.grupo + 1}` : '',
-        dup_mestre: it.duplicidade?.mestre != null ? (it.duplicidade.mestre === it.linha ? 'este item' : it.duplicidade.mestre) : '',
-        linha: it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,
+        dup_mestre: it.duplicidade?.mestre != null ? (it.duplicidade.mestre === it.linha ? 'este item' : real(it.duplicidade.mestre)) : '',
+        linha: it.linha_planilha ?? it.linha, codigo: it.codigo, descricao: it.descricao, ncm_original: it.ncm_original, ncm: it.ncm,
         situacao: it.situacao === 'OK' ? 'OK' : it.situacao === 'ALERTA' ? 'Atenção' : 'Corrigir',
         problemas: it.problemas.filter((p) => p.severidade !== 'info' || p.codigo === 'CLASSE_SUGERIDA').map((p) => p.mensagem).join(' | '),
         informado: it.c_class_trib_informado, sugerido: it.sugestao?.c_class_trib ?? '',
@@ -522,23 +539,25 @@ export class ProdutosService {
       });
       row.getCell('situacao').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cor[it.situacao] } };
     });
-    const cab = ws.getRow(1);
+    const cab = ws.getRow(CAB);
     cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columnCount } };
+    ws.autoFilter = { from: { row: CAB, column: 1 }, to: { row: CAB, column: ws.columnCount } };
 
     // Quem não movimentou no período não entra no saneamento: vai para aba própria (candidatos a inativar no ERP).
     if (per && r.fora_periodo.length) {
-      const fora = wb.addWorksheet('Sem movimento no período', { views: [{ state: 'frozen', ySplit: 1 }] });
+      const fora = wb.addWorksheet('Sem movimento no período', { views: [{ state: 'frozen', ySplit: CAB }] });
+      cabecalhoFalExcel(wb, fora);
       fora.columns = [
         { header: 'Linha', key: 'linha', width: 8 }, { header: 'Código', key: 'codigo', width: 16 }, { header: 'Descrição', key: 'descricao', width: 44 },
         { header: 'NCM informado', key: 'ncm', width: 16, style: { numFmt: '@' } }, { header: 'Última movimentação', key: 'mov', width: 20 },
       ];
-      r.fora_periodo.forEach((f) => fora.addRow({ linha: f.linha, codigo: f.codigo, descricao: f.descricao, ncm: f.ncm_original, mov: dataBr(f.ultima_mov) }));
-      const cabF = fora.getRow(1);
+      colunasComTitulo(fora);
+      r.fora_periodo.forEach((f) => fora.addRow({ linha: f.linha_planilha ?? f.linha, codigo: f.codigo, descricao: f.descricao, ncm: f.ncm_original, mov: dataBr(f.ultima_mov) }));
+      const cabF = fora.getRow(CAB);
       cabF.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cabF.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-      fora.autoFilter = { from: 'A1', to: 'E1' };
+      fora.autoFilter = { from: `A${CAB}`, to: `E${CAB}` };
     }
 
     if (excluir.length) {
@@ -552,14 +571,17 @@ export class ProdutosService {
       }
       const original = await this.lerArquivo(file);
       const saneada = wb.addWorksheet('Cadastro saneado');
+      cabecalhoFalExcel(wb, saneada);
       saneada.addRow(original.cabecalho);
       const linhasAnalisadas = new Set(r.itens.map(i => i.linha));
       original.linhas.forEach((linha, i) => { if (linhasAnalisadas.has(i + 2) && !exclusoes.has(i + 2)) saneada.addRow(linha); });
       const decisoes = wb.addWorksheet('Exclusões confirmadas');
+      cabecalhoFalExcel(wb, decisoes);
       decisoes.addRow(['Linha original', 'Código', 'Descrição', 'Motivo']);
-      r.itens.filter(i => exclusoes.has(i.linha)).forEach(i => decisoes.addRow([i.linha, i.codigo, i.descricao, 'Duplicidade selecionada pelo usuário; removida apenas da cópia saneada.']));
+      r.itens.filter(i => exclusoes.has(i.linha)).forEach(i => decisoes.addRow([i.linha_planilha ?? i.linha, i.codigo, i.descricao, 'Duplicidade selecionada pelo usuário; removida apenas da cópia saneada.']));
     }
     const rs = wb.addWorksheet('Resumo');
+    cabecalhoFalExcel(wb, rs);
     rs.columns = [{ width: 44 }, { width: 16 }];
     rs.addRows([
       ['Resumo da validação de cadastro', ''],
@@ -582,7 +604,7 @@ export class ProdutosService {
       ['Aviso: as sugestões são orientativas, baseadas nos anexos da LC 214/2025 já mapeados.', ''],
       ['A classificação fiscal é responsabilidade do contribuinte e deve ser validada por um especialista.', ''],
     ]);
-    rs.getRow(1).font = { bold: true, size: 13 };
+    rs.getRow(CAB).font = { bold: true, size: 13 };
     return Buffer.from(await wb.xlsx.writeBuffer());
   }
 
@@ -591,7 +613,8 @@ export class ProdutosService {
   async modeloXlsx(): Promise<Buffer> {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX — FAL Agro';
-    const ws = wb.addWorksheet('Produtos', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const ws = wb.addWorksheet('Produtos', { views: [{ state: 'frozen', ySplit: CAB }] });
+    cabecalhoFalExcel(wb, ws);
     ws.columns = [
       { header: 'Codigo', key: 'a', width: 16, style: { numFmt: '@' } },
       { header: 'Descricao', key: 'b', width: 48 },
@@ -600,17 +623,19 @@ export class ProdutosService {
       { header: 'Origem', key: 'e', width: 10 },
       { header: 'cClassTrib', key: 'f', width: 14, style: { numFmt: '@' } },
     ];
+    colunasComTitulo(ws);
     ws.addRow({ a: 'RAC-001', b: 'Ração para bovinos, saco 25 kg', c: '23099010', d: 'SC', e: '0', f: '' });
     ws.addRow({ a: 'MIL-010', b: 'Milho em grão', c: '10059010', d: 'KG', e: '0', f: '' });
-    const cab = ws.getRow(1);
+    const cab = ws.getRow(CAB);
     cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-    for (let i = 2; i <= 1000; i++) {
+    for (let i = CAB + 1; i <= 1000 + LINHAS_LOGO_FAL; i++) {
       ws.getCell(`A${i}`).numFmt = '@';
       ws.getCell(`C${i}`).numFmt = '@';
       ws.getCell(`F${i}`).numFmt = '@';
     }
     const inst = wb.addWorksheet('Instruções');
+    cabecalhoFalExcel(wb, inst);
     inst.columns = [{ width: 110 }];
     inst.addRows([
       ['Como preencher'],
@@ -621,7 +646,7 @@ export class ProdutosService {
       ['5. Se a sua planilha vem direto do ERP, não precisa usar este modelo: envie como está e indique as colunas na tela.'],
       ['6. Apague as duas linhas de exemplo antes de enviar.'],
     ]);
-    inst.getRow(1).font = { bold: true, size: 13 };
+    inst.getRow(CAB).font = { bold: true, size: 13 };
     return Buffer.from(await wb.xlsx.writeBuffer());
   }
 }

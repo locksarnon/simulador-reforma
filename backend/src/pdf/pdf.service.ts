@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
 import PDFDocument from 'pdfkit';
-
-/** Logo FAL Agro (backend/assets). Se o arquivo faltar, o cabeçalho cai no texto "FAL Agro". */
-const LOGO_PATH = join(process.cwd(), 'assets', 'logo-fal-agro.png');
-const LOGO: Buffer | null = existsSync(LOGO_PATH) ? readFileSync(LOGO_PATH) : null;
+import { desenharLogoFal, LOGO_FAL, logoFalNoTopoDasPaginas } from '../marca/logo-fal';
 
 export type SecaoPdf = {
   titulo: string;
@@ -126,9 +121,9 @@ export class PdfService {
       const xInTax = MARGEM + pdf.widthOfString('InTAX');
       pdf.font('Helvetica').fontSize(10).text('por', xInTax + 8, 33, { lineBreak: false });
       const xLogo = xInTax + 8 + pdf.widthOfString('por') + 6;
-      if (LOGO) {
+      if (LOGO_FAL) {
         pdf.roundedRect(xLogo, 19, 72, 26, 4).fill(BRANCO);
-        pdf.image(LOGO, xLogo + 5, 22, { height: 20 });
+        desenharLogoFal(pdf, xLogo + 5, 22, 20);
       } else {
         pdf.text('FAL Agro', xLogo, 33, { lineBreak: false });
       }
@@ -282,6 +277,9 @@ export class PdfService {
         'Estimativa orientativa, baseada em premissas simplificadas e na legislação vigente na data de emissão. Não constitui parecer tributário; valide com um especialista antes de decidir.';
       novaPaginaSeNecessario(40);
       pdf.font('Helvetica-Oblique').fontSize(8).fillColor(CINZA).text(cortar(aviso, 600), MARGEM, pdf.y, { width: largura, lineGap: 1 });
+
+      // ---- Logo da FAL no alto das páginas 2 em diante (a 1ª já tem a logo na faixa verde) ----
+      logoFalNoTopoDasPaginas(pdf, { x: MARGEM, y: 14, altura: 20, pular: [0] });
 
       // ---- Rodapé de marca + numeração, repetido em todas as páginas ----
       // Desenhar DENTRO da margem inferior faria o PDFKit entender que o texto

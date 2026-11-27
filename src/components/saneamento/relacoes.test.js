@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aplicarEscopo } from "./logica";
 import { COLUNAS_RELACAO, RELACOES, criarSituacao, criarWorkbookRelacao, descricaoRelacao, itensDaRelacao, linhasRelacao } from "./relacoes";
+import { carregarLogoFal } from "@/lib/marcaFal";
 
 const item = (linha, ultima_mov, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: `ITEM ${linha}`, unidade: "UN", grupo_atual: "Peças", ncm: "73181500", ultima_mov, problemas: [], ...extra });
 const itens = [item(2, "2023-05-01"), item(3, "2024-12-31"), item(4, "2025-01-01"), item(5, "2026-01-10"), item(6, null), item(7, null, { grupo_atual: "", ncm: "", ncm_original: "7318" })];
@@ -47,14 +48,15 @@ describe("relações dos cartões da triagem", () => {
   it("a planilha tem a lista e o resumo, e o filtro da tela fica registrado", async () => {
     const ExcelJS = (await import("exceljs")).default;
     const lista = itensDaRelacao("fora", itens, escopo);
-    const wb = criarWorkbookRelacao(ExcelJS, { id: "fora", lista, escopo, corte: "01/01/2025", nomeProjeto: "Projeto X", nomeBase: "itens.xlsx", filtro: "item 2" });
+    const wb = criarWorkbookRelacao(ExcelJS, { id: "fora", lista, escopo, corte: "01/01/2025", nomeProjeto: "Projeto X", nomeBase: "itens.xlsx", filtro: "item 2" }, await carregarLogoFal());
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Fora do escopo", "Resumo"]);
     const ws = lido.getWorksheet("Fora do escopo");
-    expect(ws.getRow(1).values.slice(1)).toEqual(COLUNAS_RELACAO.map(([titulo]) => titulo));
-    expect(ws.rowCount).toBe(3);
-    expect(ws.getRow(2).getCell(1).value).toBe("C2");
-    expect(ws.getRow(2).getCell(7).value).toBe("Fora do escopo (não movimentado desde 01/01/2025)");
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1); // logo da FAL na linha 1 de cada aba
+    expect(ws.getRow(2).values.slice(1)).toEqual(COLUNAS_RELACAO.map(([titulo]) => titulo));
+    expect(ws.rowCount).toBe(4);
+    expect(ws.getRow(3).getCell(1).value).toBe("C2");
+    expect(ws.getRow(3).getCell(7).value).toBe("Fora do escopo (não movimentado desde 01/01/2025)");
     const resumo = lido.getWorksheet("Resumo"); const texto = []; resumo.eachRow((r) => texto.push(r.values.slice(1).join(" | ")));
     expect(texto.some((t) => t.startsWith("Filtro aplicado na tela | item 2"))).toBe(true);
     expect(texto.some((t) => t.startsWith("Itens nesta planilha | 2"))).toBe(true);
@@ -68,7 +70,7 @@ describe("relações dos cartões da triagem", () => {
     const texto = []; lido.getWorksheet("Resumo").eachRow((r) => texto.push(r.values.slice(1).join(" | ")));
     expect(texto.some((t) => t.startsWith("Filtro aplicado"))).toBe(false);
     expect(texto.some((t) => t.includes("Parâmetro de saneamento | sem corte"))).toBe(true);
-    expect(lido.getWorksheet("Universo").rowCount).toBe(7);
+    expect(lido.getWorksheet("Universo").rowCount).toBe(8);
   });
 });
 
@@ -95,8 +97,8 @@ describe("relações com os sem data tratados como anteriores à data", () => {
     const wb = criarWorkbookRelacao(ExcelJS, { id: "fora", lista: itensDaRelacao("fora", itens, escopoAnt), escopo: escopoAnt, corte: "01/01/2025", nomeProjeto: "P", nomeBase: "b.xlsx", semDataFora: true });
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
     const ws = lido.getWorksheet("Fora do escopo");
-    expect(ws.rowCount).toBe(5);
-    expect(ws.getRow(4).getCell(7).value).toBe("Fora do escopo (sem data de movimentação, tratado como anterior a 01/01/2025)");
+    expect(ws.rowCount).toBe(6);
+    expect(ws.getRow(5).getCell(7).value).toBe("Fora do escopo (sem data de movimentação, tratado como anterior a 01/01/2025)");
     const texto = []; lido.getWorksheet("Resumo").eachRow((x) => texto.push(x.values.slice(1).join(" | ")));
     expect(texto.some((t) => t.includes("desconsiderar itens não movimentados desde 01/01/2025; itens sem data de movimentação tratados como anteriores à data"))).toBe(true);
   });
@@ -128,7 +130,7 @@ describe("relação dos grupos fora do saneamento", () => {
     const wb = criarWorkbookRelacao(ExcelJS, { id: "foraGrupos", lista: itensDaRelacao("foraGrupos", gi, e), escopo: e, corte: "01/01/2025", nomeProjeto: "P", nomeBase: "b.xlsx" });
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Fora dos grupos marcados", "Resumo"]);
-    const ws = lido.getWorksheet("Fora dos grupos marcados"); expect(ws.rowCount).toBe(4);
-    expect(ws.getRow(2).getCell(4).value).toBe("B"); expect(ws.getRow(2).getCell(7).value).toBe("Grupo fora do saneamento");
+    const ws = lido.getWorksheet("Fora dos grupos marcados"); expect(ws.rowCount).toBe(5);
+    expect(ws.getRow(3).getCell(4).value).toBe("B"); expect(ws.getRow(3).getCell(7).value).toBe("Grupo fora do saneamento");
   });
 });

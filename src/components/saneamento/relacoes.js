@@ -1,7 +1,9 @@
 // Relações da triagem: cada cartão (universo, fora do escopo, em escopo, sem data legível) abre a lista dos itens e permite emitir o Excel dela.
 // Funções puras (sem React nem arquivo): a geração do XLSX fica em gerarRelacao().
 import { dataBr, grupoDe } from "./logica";
-import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
+import { baixarXlsx, carregarExcelJS, tabelaComLogo } from "./arquivoXlsx";
+import { cabecalhoFalExcel, carregarLogoFal } from "@/lib/marcaFal";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 export const RELACOES = {
   universo: { titulo: "Universo", arquivo: "universo" },
@@ -50,19 +52,18 @@ export function linhasRelacao(lista, escopo, corte) {
   const situacao = criarSituacao(escopo, corte);
   return lista.map((it) => ({
     codigo: it.codigo, descricao: it.descricao, unidade: it.unidade, grupo: grupoDe(it), ncm: it.ncm || it.ncm_original || "",
-    ultima_mov: dataBr(it.ultima_mov), situacao: situacao(it), linha: it.linha,
+    ultima_mov: dataBr(it.ultima_mov), situacao: situacao(it), linha: linhaNaPlanilha(it),
   }));
 }
 
 /** Monta o workbook da relação (separado do download para poder ser testado): a lista e uma aba de resumo. */
-export function criarWorkbookRelacao(ExcelJS, { id, lista, escopo, corte, nomeProjeto, nomeBase, filtro = "", semDataFora = false }) {
+export function criarWorkbookRelacao(ExcelJS, { id, lista, escopo, corte, nomeProjeto, nomeBase, filtro = "", semDataFora = false }, logo = null) {
   const wb = new ExcelJS.Workbook(); wb.created = new Date();
   const ws = wb.addWorksheet(RELACOES[id].titulo);
-  ws.columns = COLUNAS_RELACAO.map(([titulo, chave, largura]) => ({ header: titulo, key: chave, width: largura }));
+  tabelaComLogo(wb, ws, logo, COLUNAS_RELACAO);
   ws.addRows(linhasRelacao(lista, escopo, corte));
-  ws.getRow(1).font = { bold: true }; ws.views = [{ state: "frozen", ySplit: 1 }];
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUNAS_RELACAO.length } };
   const resumo = wb.addWorksheet("Resumo");
+  cabecalhoFalExcel(wb, resumo, logo);
   resumo.columns = [{ width: 32 }, { width: 90 }];
   [
     ["Relação", RELACOES[id].titulo], ["O que reúne", descricaoRelacao(id, corte, semDataFora)], ...(filtro ? [["Filtro aplicado na tela", filtro]] : []),
@@ -76,6 +77,6 @@ export function criarWorkbookRelacao(ExcelJS, { id, lista, escopo, corte, nomePr
 
 /** Gera e baixa o Excel da relação. */
 export async function gerarRelacao(args, nomeArquivo) {
-  const ExcelJS = await carregarExcelJS();
-  baixarXlsx(await criarWorkbookRelacao(ExcelJS, args).xlsx.writeBuffer(), nomeArquivo);
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
+  baixarXlsx(await criarWorkbookRelacao(ExcelJS, args, logo).xlsx.writeBuffer(), nomeArquivo);
 }

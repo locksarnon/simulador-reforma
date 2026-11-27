@@ -3,23 +3,7 @@ import { carregarExcelJS, baixarXlsx } from "@/components/saneamento/arquivoXlsx
 import { listaDoServico } from "./catalogo.js";
 import { montarPlanilha, nomeArquivo } from "./planilha.js";
 import { erpDoRegistro } from "../erps.js";
-
-/** Logo da FAL Agro (public/fal-agro-logo.png) em base64; se não carregar, a lista sai sem a imagem. */
-async function logoBase64() {
-  try {
-    const r = await fetch(`${import.meta.env.BASE_URL}fal-agro-logo.png`);
-    if (!r.ok) return null;
-    const blob = await r.blob();
-    return await new Promise((ok, falha) => {
-      const fr = new FileReader();
-      fr.onload = () => ok(fr.result);
-      fr.onerror = falha;
-      fr.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
+import { carregarLogoFal } from "../marcaFal.js";
 
 /** Data AAAA-MM-DD (campo de data) para Date em UTC, como a planilha espera; vazio ou inválido vira null. */
 export function dataDoCampo(txt) {
@@ -53,7 +37,7 @@ export function dadosDaCapa(empresa, { dataBase, envio, responsavel, contatoFal 
 export async function baixarLista(servico, dados) {
   const lista = listaDoServico(servico);
   if (!lista) throw new Error("Este serviço ainda não tem lista de solicitações.");
-  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), logoBase64()]);
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
   const { wb } = montarPlanilha({ ExcelJS, lista, dados, logo });
   const buf = await wb.xlsx.writeBuffer();
   baixarXlsx(buf, nomeArquivo(lista, dados));

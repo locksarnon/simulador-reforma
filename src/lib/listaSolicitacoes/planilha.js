@@ -33,7 +33,10 @@ const REGIMES = "Lucro Real,Lucro Presumido,Simples Nacional,Produtor rural pess
 const LINHA_INICIAL = 4; // primeira linha após o cabeçalho da lista
 const LINHA_FINAL_FORMULAS = 400; // faixa coberta por painel, formatação e validações
 const ABA_LISTA = "Solicitações";
-const LOGO_PROPORCAO = 640 / 262; // largura / altura do PNG da logo
+// Largura / altura da logo da FAL (src/assets/marca/logo-fal.png, 480 × 196; mesmo valor de LOGO_FAL_PROPORCAO em src/lib/marcaFal.js).
+// Este arquivo também roda no Node (scripts/gerar-listas-solicitacoes.mjs), por isso não importa o marcaFal: a logo chega por parâmetro
+// (baixar.js usa carregarLogoFal; o script lê o PNG) e entra no topo das duas abas.
+const LOGO_PROPORCAO = 480 / 196;
 
 // ---------------------------------------------------------------- utilitários
 

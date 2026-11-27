@@ -174,13 +174,16 @@ describe("planilha das listas finais", () => {
     };
     const escopo = aplicarEscopo(itens, estado.params);
     const listas = montarListas({ nomeProjeto: "Projeto", nomeBase: "itens.xlsx", estado, itens, escopo, testes: criarTestes(escopo.emEscopo, estado) });
-    const wb = criarWorkbook(ExcelJS, listas, ["resumo", "final", "dedup", "analises", "candidatos"]);
+    const { carregarLogoFal } = await import("@/lib/marcaFal");
+    const wb = criarWorkbook(ExcelJS, listas, ["resumo", "final", "dedup", "analises", "candidatos"], await carregarLogoFal());
     const buf = await wb.xlsx.writeBuffer();
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(buf);
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Resumo", "Lista final corrigida", "Desduplicações", "Análises", "Candidatos à inativação"]);
-    expect(lido.getWorksheet("Candidatos à inativação").getRow(2).getCell(1).value).toBe("B1");
-    expect(lido.getWorksheet("Desduplicações").getRow(2).getCell(2).value).toBe("A1");
-    expect(lido.getWorksheet("Lista final corrigida").rowCount).toBe(3);
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1); // logo da FAL na linha 1 de cada aba
+    expect(lido.getWorksheet("Candidatos à inativação").getRow(3).getCell(1).value).toBe("B1");
+    expect(lido.getWorksheet("Desduplicações").getRow(3).getCell(2).value).toBe("A1");
+    expect(lido.getWorksheet("Lista final corrigida").rowCount).toBe(4);
+    expect(lido.getWorksheet("Lista final corrigida").views[0]).toMatchObject({ state: "frozen", ySplit: 2 });
   });
 });
 
@@ -242,9 +245,9 @@ describe("listas finais: unidade de estoque (menor unidade, com a unidade maior 
     const { criarWorkbook } = await import("./listasFinais");
     const wb = criarWorkbook(ExcelJS, listasU(), ["final"]);
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
-    const cab = lido.getWorksheet("Lista final corrigida").getRow(1).values.slice(1);
+    const cab = lido.getWorksheet("Lista final corrigida").getRow(2).values.slice(1);
     expect(cab).toEqual(expect.arrayContaining(["Unidade de estoque (atual)", "Unidade de estoque (proposta)", "Unidade de compra (proposta)", "Itens por unidade de compra"]));
-    const t1 = lido.getWorksheet("Lista final corrigida").getRow(2).values.slice(1);
+    const t1 = lido.getWorksheet("Lista final corrigida").getRow(3).values.slice(1);
     expect(t1).toEqual(expect.arrayContaining(["TONELADA", "QUILOGRAM", 1000]));
   });
 });
@@ -308,9 +311,9 @@ describe("listas finais: execução (administrativo e almoxarifado)", () => {
     const wb = criarWorkbook(ExcelJS, base(estadoE({ "A1|duplicidade": { adm: ok("SAP 1") } })), ["final", "execucao"]);
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Lista final corrigida", "Execução"]);
-    expect(lido.getWorksheet("Lista final corrigida").getRow(1).values.slice(1)).toContain("Execução");
-    const ex = lido.getWorksheet("Execução"); expect(ex.rowCount).toBe(4);
-    expect(ex.getRow(1).values.slice(1)).toEqual(expect.arrayContaining(["Lote (grupo)", "Administrativo", "Almoxarifado", "Situação da tarefa"]));
-    expect(ex.getRow(2).getCell(6).value).toBe("Confirmado"); // administrativo da unificação
+    expect(lido.getWorksheet("Lista final corrigida").getRow(2).values.slice(1)).toContain("Execução");
+    const ex = lido.getWorksheet("Execução"); expect(ex.rowCount).toBe(5);
+    expect(ex.getRow(2).values.slice(1)).toEqual(expect.arrayContaining(["Lote (grupo)", "Administrativo", "Almoxarifado", "Situação da tarefa"]));
+    expect(ex.getRow(3).getCell(6).value).toBe("Confirmado"); // administrativo da unificação
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COLUNAS_MATRIZ, ORDEM_SITUACOES, SITUACOES, linhasMatriz, mapaClasses, resumoFiscal } from "./fiscal";
 import { NOTAS_FISCAIS, criarWorkbookFiscal } from "./matrizFiscal";
+import { carregarLogoFal } from "@/lib/marcaFal";
 
 const sug = (extra = {}) => ({ c_class_trib: "200003", descricao: "Alimentação humana (Anexo I)", reducao: 1, confianca: "Alta (NCM completo no anexo)", ambiguo: false, anexo: "Anexo I, item 7", ...extra });
 const item = (linha, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "FEIJAO CARIOCA", unidade: "KG", grupo_atual: "Grãos", ncm: "07133319", ncm_original: "07133319", problemas: [], c_class_trib_informado: "200003", sugestao: sug(), ...extra });
@@ -12,20 +13,23 @@ describe("matriz fiscal em Excel", () => {
   it("uma linha por item, das situações mais graves às mais tranquilas, com a situação colorida; resumo por grupo com pendências e como ler", async () => {
     const ExcelJS = (await import("exceljs")).default;
     const resumo = resumoFiscal(itens, classes, decisoes);
-    const wb = criarWorkbookFiscal(ExcelJS, { linhas: linhasMatriz(itens, classes, decisoes), resumos: [{ grupo: "Grãos", resumo, concluida: null }], nomeProjeto: "Projeto X", nomeBase: "itens.xlsx" });
+    const wb = criarWorkbookFiscal(ExcelJS, { linhas: linhasMatriz(itens, classes, decisoes), resumos: [{ grupo: "Grãos", resumo, concluida: null }], nomeProjeto: "Projeto X", nomeBase: "itens.xlsx" }, await carregarLogoFal());
     const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Matriz fiscal", "Resumo"]);
     const ws = lido.getWorksheet("Matriz fiscal");
-    expect(ws.getRow(1).values.slice(1)).toEqual(COLUNAS_MATRIZ.map(([t]) => t));
-    expect(ws.rowCount).toBe(4);
+    // linha 1 = logo da FAL (em todas as abas); títulos na linha 2
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1);
+    expect(ws.getImages()[0].range.tl.nativeRow).toBe(0); expect(ws.getImages()[0].range.tl.nativeCol).toBe(0);
+    expect(ws.getRow(2).values.slice(1)).toEqual(COLUNAS_MATRIZ.map(([t]) => t));
+    expect(ws.rowCount).toBe(5);
     const col = (chave) => COLUNAS_MATRIZ.findIndex(([, k]) => k === chave) + 1;
-    expect([2, 3, 4].map((r) => ws.getRow(r).getCell(col("codigo")).value)).toEqual(["C4", "C3", "C2"]); // NCM a corrigir, sem classe (decidido), confere
-    expect(ws.getRow(2).getCell(col("rotuloSituacao")).value).toBe(SITUACOES.NCM.rotulo);
-    expect(ws.getRow(3).getCell(col("decisao")).value).toBe("Adotar a classe sugerida"); expect(ws.getRow(3).getCell(col("classeFinal")).value).toBe("200003");
-    expect(ws.getRow(3).getCell(col("cstSugerida")).value).toBe("200"); expect(ws.getRow(3).getCell(col("fundamento")).value).toBe("Anexo I, item 7 da LC 214/2025");
-    expect(ws.getRow(2).getCell(col("validacao")).value).toBe("Pendente de decisão");
-    expect(ws.getRow(2).getCell(col("rotuloSituacao")).fill.fgColor.argb).not.toBe(ws.getRow(4).getCell(col("rotuloSituacao")).fill.fgColor.argb);
-    expect(ws.views[0]).toMatchObject({ state: "frozen", xSplit: 3, ySplit: 1 }); expect(ws.autoFilter).toBe(`A1:${String.fromCharCode(64 + COLUNAS_MATRIZ.length)}1`.replace("@", "A"));
+    expect([3, 4, 5].map((r) => ws.getRow(r).getCell(col("codigo")).value)).toEqual(["C4", "C3", "C2"]); // NCM a corrigir, sem classe (decidido), confere
+    expect(ws.getRow(3).getCell(col("rotuloSituacao")).value).toBe(SITUACOES.NCM.rotulo);
+    expect(ws.getRow(4).getCell(col("decisao")).value).toBe("Adotar a classe sugerida"); expect(ws.getRow(4).getCell(col("classeFinal")).value).toBe("200003");
+    expect(ws.getRow(4).getCell(col("cstSugerida")).value).toBe("200"); expect(ws.getRow(4).getCell(col("fundamento")).value).toBe("Anexo I, item 7 da LC 214/2025");
+    expect(ws.getRow(3).getCell(col("validacao")).value).toBe("Pendente de decisão");
+    expect(ws.getRow(3).getCell(col("rotuloSituacao")).fill.fgColor.argb).not.toBe(ws.getRow(5).getCell(col("rotuloSituacao")).fill.fgColor.argb);
+    expect(ws.views[0]).toMatchObject({ state: "frozen", xSplit: 3, ySplit: 2 }); expect(ws.autoFilter).toBe(`A2:${String.fromCharCode(64 + COLUNAS_MATRIZ.length)}2`.replace("@", "A"));
     const texto = []; lido.getWorksheet("Resumo").eachRow((r) => texto.push(r.values.slice(1).join(" | ")));
     expect(texto).toContain("Projeto | Projeto X"); expect(texto.some((t) => t.startsWith("Grãos | 3 |"))).toBe(true);
     const linhaGrupo = texto.find((t) => t.startsWith("Grãos | 3 |")).split(" | ");

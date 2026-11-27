@@ -5,7 +5,8 @@ import { calcularAchados, contarAchados, criteriosAprovados } from "./analise";
 import { checagens, linhasEvidencia, resumoChecagens, textoConclusao } from "./checagens";
 import { contextosDasConclusoes } from "./contexto";
 import { COLUNAS_LISTA } from "./respostaCliente";
-import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
+import { baixarXlsx, carregarExcelJS, tabelaComLogo } from "./arquivoXlsx";
+import { cabecalhoFalExcel, carregarLogoFal } from "@/lib/marcaFal";
 import { fatorDaDecisao, numeroBr } from "./unidades";
 import { saldoNaEscala } from "./conjuntos";
 import { chaveDe, idItem, identificavel, indexar, itemPorId, partirChave } from "./identidade";
@@ -159,55 +160,64 @@ const ABAS = {
 };
 export const ABAS_DISPONIVEIS = Object.entries(ABAS).map(([id, a]) => ({ id, nome: a.nome }));
 
-/** Monta o workbook com as abas pedidas (separado do download para poder ser testado). */
-export function criarWorkbook(ExcelJS, listas, ids) {
+/** Monta o workbook com as abas pedidas (separado do download para poder ser testado). `logo` = logo da FAL (carregarLogoFal), no topo de cada aba. */
+export function criarWorkbook(ExcelJS, listas, ids, logo = null) {
   const wb = new ExcelJS.Workbook(); wb.created = new Date();
   for (const id of ids) {
     const a = ABAS[id]; const ws = wb.addWorksheet(a.nome);
     if (id === "resumo") {
+      cabecalhoFalExcel(wb, ws, logo);
       ws.columns = [{ width: 46 }, { width: 90 }];
       listas.resumo.forEach((l) => ws.addRow(l));
       ws.getColumn(1).font = { bold: true };
       continue;
     }
-    ws.columns = a.colunas.map(([titulo, chave, largura]) => ({ header: titulo, key: chave, width: largura }));
+    tabelaComLogo(wb, ws, logo, a.colunas);
     ws.addRows(listas[a.fonte]);
-    ws.getRow(1).font = { bold: true }; ws.views = [{ state: "frozen", ySplit: 1 }];
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: a.colunas.length } };
   }
   return wb;
 }
 
 /** Gera e baixa o XLSX com as abas pedidas. A biblioteca é carregada só nesta hora (não pesa no resto do sistema). */
 export async function gerarXlsx(listas, ids, nomeArquivo) {
-  const ExcelJS = await carregarExcelJS();
-  baixarXlsx(await criarWorkbook(ExcelJS, listas, ids).xlsx.writeBuffer(), nomeArquivo);
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
+  baixarXlsx(await criarWorkbook(ExcelJS, listas, ids, logo).xlsx.writeBuffer(), nomeArquivo);
 }
 
 /** Planilha das sugestões de descrição para o cliente: ele responde OK ou escreve ao lado como deve ficar. */
 export async function gerarListaCliente(linhas, nomeArquivo) {
-  const ExcelJS = await carregarExcelJS();
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
+  baixarXlsx(await criarWorkbookListaCliente(ExcelJS, linhas, logo).xlsx.writeBuffer(), nomeArquivo);
+}
+
+/** Workbook da lista do cliente (separado do download para poder ser testado). A logo fica na linha 1; o leitor da resposta (lerMatriz) pula a linha em branco. */
+export function criarWorkbookListaCliente(ExcelJS, linhas, logo = null) {
   const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Sugestões de descrição");
-  ws.columns = COLUNAS_LISTA.map((h, i) => ({ header: h, key: "c" + i, width: [14, 46, 46, 22, 46, 28][i] }));
+  const h = tabelaComLogo(wb, ws, logo, COLUNAS_LISTA.map((t, i) => [t, "c" + i, [14, 46, 46, 22, 46, 28][i]]));
   ws.addRows(linhas);
-  ws.getRow(1).font = { bold: true }; ws.getRow(1).alignment = { wrapText: true, vertical: "top" }; ws.views = [{ state: "frozen", ySplit: 1 }];
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUNAS_LISTA.length } };
+  ws.getRow(h).alignment = { wrapText: true, vertical: "top" };
   const instr = wb.addWorksheet("Como responder");
+  cabecalhoFalExcel(wb, instr, logo);
   instr.columns = [{ width: 110 }];
   ["Para cada linha: se concordar com a descrição sugerida, escreva OK na coluna de resposta.", "Se não concordar, escreva na coluna 'Como deve ficar' a descrição que deseja. Não precisa preencher a resposta.", "Se quiser manter a descrição atual, escreva NÃO.", "Linhas sem resposta continuam aguardando. Não altere a coluna Código.", "Nenhuma alteração é feita no cadastro por esta planilha: ela só registra a decisão."].forEach((t) => instr.addRow([t]));
-  baixarXlsx(await wb.xlsx.writeBuffer(), nomeArquivo);
+  return wb;
 }
 
 /** Planilha de uma frente (administrativo ou almoxarifado): as tarefas a executar, com as colunas de resposta em branco e a aba de instruções. */
 export async function gerarListaFrente(frente, linhas, nomeArquivo) {
-  const ExcelJS = await carregarExcelJS();
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
+  baixarXlsx(await criarWorkbookListaFrente(ExcelJS, frente, linhas, logo).xlsx.writeBuffer(), nomeArquivo);
+}
+
+/** Workbook da lista de uma frente (separado do download para poder ser testado). O leitor da resposta (lerMatriz) pula a linha da logo. */
+export function criarWorkbookListaFrente(ExcelJS, frente, linhas, logo = null) {
   const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet(`Tarefas - ${FRENTES[frente]}`.slice(0, 31));
-  ws.columns = COLUNAS_FRENTE[frente].map((h, i) => ({ header: h, key: "c" + i, width: LARGURAS_FRENTE[frente][i] }));
+  const h = tabelaComLogo(wb, ws, logo, COLUNAS_FRENTE[frente].map((t, i) => [t, "c" + i, LARGURAS_FRENTE[frente][i]]));
   ws.addRows(linhas);
-  ws.getRow(1).font = { bold: true }; ws.getRow(1).alignment = { wrapText: true, vertical: "top" }; ws.views = [{ state: "frozen", ySplit: 1 }];
   ws.getColumn(7).alignment = { wrapText: true, vertical: "top" }; // "O que fazer"
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUNAS_FRENTE[frente].length } };
+  ws.getRow(h).font = { bold: true }; ws.getRow(h).alignment = { wrapText: true, vertical: "top" };
   const instr = wb.addWorksheet("Como responder");
+  cabecalhoFalExcel(wb, instr, logo);
   instr.columns = [{ width: 110 }];
   [
     "Para cada linha: escreva FEITO quando a tarefa estiver concluída e informe a evidência (número do documento no SAP, foto, etiqueta ou link).",
@@ -218,5 +228,5 @@ export async function gerarListaFrente(frente, linhas, nomeArquivo) {
     "Se a decisão mudar depois de a lista ser emitida, a resposta desta planilha para a alteração antiga é recusada: peça a lista nova.",
     "Nenhuma alteração é feita no SAP nem no físico por esta planilha: ela só registra a confirmação.",
   ].forEach((t) => instr.addRow([t]));
-  baixarXlsx(await wb.xlsx.writeBuffer(), nomeArquivo);
+  return wb;
 }

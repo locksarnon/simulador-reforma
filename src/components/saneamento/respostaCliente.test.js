@@ -93,6 +93,17 @@ describe("leitura do arquivo devolvido (xlsx ou csv)", () => {
     const b = await lerRespostaCliente(new File([await wb.xlsx.writeBuffer()], "cliente.xlsx"));
     expect(b).toEqual(a);
   });
+  it("a planilha emitida pelo sistema sai com a logo da FAL na linha 1 e é lida de volta (a linha da logo é pulada)", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const { criarWorkbookListaCliente } = await import("./listasFinais");
+    const { carregarLogoFal } = await import("@/lib/marcaFal");
+    const wb = criarWorkbookListaCliente(ExcelJS, [["1065", "MILHO", "MILHO GRAO", "OK", "", ""]], await carregarLogoFal());
+    const buf = await wb.xlsx.writeBuffer();
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(buf);
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1);
+    expect(lido.worksheets[0].getRow(2).values.slice(1)).toEqual(COLUNAS_LISTA);
+    expect(await lerRespostaCliente(new File([buf], "cliente.xlsx"))).toEqual([{ codigo: "1065", resposta: "OK", comoFica: "", sugerida: "MILHO GRAO", atual: "MILHO" }]);
+  });
   it("avisa quando faltam as colunas ou quando a planilha está vazia", async () => {
     await expect(lerRespostaCliente(new File(["Nome;Idade\nA;3\n"], "x.csv"))).rejects.toThrow("Não encontrei as colunas");
     await expect(lerRespostaCliente(new File([""], "vazio.csv"))).rejects.toThrow("vazia");

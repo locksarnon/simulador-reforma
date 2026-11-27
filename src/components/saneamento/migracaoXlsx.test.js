@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { planejarMigracao } from "./migracao";
 import { criarWorkbookMigracao, relatorioDoLegado } from "./migracaoXlsx";
+import { carregarLogoFal } from "@/lib/marcaFal";
 
 const item = (linha, codigo, descricao, extra = {}) => ({ linha, codigo, descricao, unidade: "UN", grupo_atual: "Peças", ultima_mov: "2026-03-01", problemas: [], ...extra });
 const itens = [item(2, "00123", "ANEL  TRAVA 10"), item(3, "00124", "FILTRO")];
@@ -11,18 +12,21 @@ describe("relatório da migração em Excel", () => {
   it("tem o resumo e uma aba por resultado, com o código como texto (os zeros à esquerda sobrevivem ao Excel)", async () => {
     const ExcelJS = (await import("exceljs")).default;
     const { relatorio } = planejarMigracao(legado, itens, ctx);
-    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await criarWorkbookMigracao(ExcelJS, relatorio, { nomeProjeto: "Projeto X" }).xlsx.writeBuffer());
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await criarWorkbookMigracao(ExcelJS, relatorio, { nomeProjeto: "Projeto X" }, await carregarLogoFal()).xlsx.writeBuffer());
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1); // logo da FAL no topo de cada aba
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Resumo", "Vinculadas", "Ambíguas", "Não encontradas"]);
     const resumo = []; lido.getWorksheet("Resumo").eachRow((r) => resumo.push(r.values.slice(1).join(" | ")));
     expect(resumo).toContain("Origem dos dados | SAP B1 · PRD · Crestani"); expect(resumo).toContain("Base original usada | itens.xlsx");
     expect(resumo.some((t) => t.startsWith("Decisões | 1 no total: 1 vinculadas, 0 ambíguas"))).toBe(true);
     expect(resumo.some((t) => t.startsWith("Confirmações de execução | 2 no total: 1 vinculadas, 1 ambíguas"))).toBe(true);
     expect(resumo.some((t) => t.startsWith("Atenção | A migração só organiza"))).toBe(true);
-    const v = lido.getWorksheet("Vinculadas"); expect(v.getRow(1).values.slice(1)).toContain("Código do item (texto)");
-    const codigo = v.getRow(2).getCell(5).value; expect(codigo).toBe("00123"); expect(typeof codigo).toBe("string");
-    expect(v.getRow(2).getCell(10).value).toBe("00123|padrao");
-    const a = lido.getWorksheet("Ambíguas"); expect(a.rowCount).toBe(2); expect(a.getRow(2).getCell(5).value).toBe("00124"); expect(String(a.getRow(2).getCell(9).value)).toContain("lista fechada");
-    expect(lido.getWorksheet("Não encontradas").rowCount).toBe(1);
+    // linha 1 = logo da FAL; títulos na linha 2
+    const v = lido.getWorksheet("Vinculadas"); expect(v.getRow(2).values.slice(1)).toContain("Código do item (texto)");
+    const codigo = v.getRow(3).getCell(5).value; expect(codigo).toBe("00123"); expect(typeof codigo).toBe("string");
+    expect(v.getRow(3).getCell(10).value).toBe("00123|padrao");
+    const a = lido.getWorksheet("Ambíguas"); expect(a.rowCount).toBe(3); expect(a.getRow(3).getCell(5).value).toBe("00124"); expect(String(a.getRow(3).getCell(9).value)).toContain("lista fechada");
+    expect(lido.getWorksheet("Não encontradas").rowCount).toBe(2);
+    expect(v.views[0]).toMatchObject({ state: "frozen", ySplit: 2 });
   });
   it("depois da migração, o que ficou pendente no legado volta no mesmo formato, para baixar de novo", () => {
     const { estado } = planejarMigracao(legado, itens, ctx);

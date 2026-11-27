@@ -1,6 +1,7 @@
 // Relatórios do Repositório de XML: colunas de cada um, o texto de cada célula na tela e nos arquivos, e os arquivos (CSV e Excel).
 // O Excel é montado no navegador; o exceljs só é carregado quando alguém pede o arquivo.
 import { carregarExcelJS, baixarXlsx } from "@/components/saneamento/arquivoXlsx";
+import { cabecalhoFalExcel, carregarLogoFal } from "@/lib/marcaFal";
 import { fmtDoc, ORIGENS } from "./formatos";
 
 const FUSO = "America/Sao_Paulo";
@@ -156,15 +157,17 @@ export function nomeDoArquivo({ qual, empresa, de, ate, extensao }) {
 const COR = { verde: "FF1E764D", texto: "FF1F2A24", suave: "FF5B6B62", borda: "FFD5DDD8", faixa: "FFF3F6F4" };
 const FONTE = "Arial";
 
-function cabecalhoDaPlanilha(ws, { titulo, linhasDeTexto = [], colunas }) {
-  ws.getCell("A1").value = titulo;
-  ws.getCell("A1").font = { name: FONTE, size: 14, bold: true, color: { argb: COR.verde } };
+/** `base` = linhas já ocupadas no topo (a logo da FAL); o título vem logo abaixo. */
+function cabecalhoDaPlanilha(ws, { titulo, linhasDeTexto = [], colunas }, base = 0) {
+  const t = ws.getCell(base + 1, 1);
+  t.value = titulo;
+  t.font = { name: FONTE, size: 14, bold: true, color: { argb: COR.verde } };
   linhasDeTexto.forEach((txt, i) => {
-    const c = ws.getCell(`A${i + 2}`);
+    const c = ws.getCell(base + i + 2, 1);
     c.value = txt;
     c.font = { name: FONTE, size: 9.5, color: { argb: COR.suave } };
   });
-  const linhaDoCabecalho = linhasDeTexto.length + 3;
+  const linhaDoCabecalho = base + linhasDeTexto.length + 3;
   colunas.forEach((col, i) => {
     const c = ws.getCell(linhaDoCabecalho, i + 1);
     c.value = col.titulo;
@@ -213,15 +216,15 @@ function linhaDeTotais(ws, colunas, linhas, primeira) {
 
 /**
  * Planilha do relatório. `abas` é uma lista de { nome, titulo, linhasDeTexto, colunas, linhas, totais }: cada uma vira uma aba, com
- * cabeçalho verde, filtro automático e a primeira linha de dados congelada. Devolve o workbook (quem chama escreve o arquivo).
+ * a logo da FAL na linha 1, cabeçalho verde, filtro automático e a primeira linha de dados congelada. Devolve o workbook (quem chama escreve o arquivo).
  */
-export function montarPlanilha(ExcelJS, abas) {
+export function montarPlanilha(ExcelJS, abas, logo = null) {
   const wb = new ExcelJS.Workbook();
   wb.creator = "InTAX";
   wb.created = new Date();
   for (const aba of abas) {
     const ws = wb.addWorksheet(aba.nome, { properties: { tabColor: { argb: COR.verde } } });
-    const cab = cabecalhoDaPlanilha(ws, aba);
+    const cab = cabecalhoDaPlanilha(ws, aba, cabecalhoFalExcel(wb, ws, logo));
     preencherLinhas(ws, aba.colunas, aba.linhas, cab + 1);
     if (aba.totais !== false) linhaDeTotais(ws, aba.colunas, aba.linhas, cab + 1);
     if (aba.linhas.length) ws.autoFilter = { from: { row: cab, column: 1 }, to: { row: cab + aba.linhas.length, column: aba.colunas.length } };
@@ -231,8 +234,8 @@ export function montarPlanilha(ExcelJS, abas) {
 }
 
 export async function baixarPlanilha(abas, nomeArquivo) {
-  const ExcelJS = await carregarExcelJS();
-  const buf = await montarPlanilha(ExcelJS, abas).xlsx.writeBuffer();
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
+  const buf = await montarPlanilha(ExcelJS, abas, logo).xlsx.writeBuffer();
   baixarXlsx(buf, nomeArquivo);
 }
 

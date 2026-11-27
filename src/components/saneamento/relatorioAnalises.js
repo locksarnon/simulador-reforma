@@ -3,10 +3,12 @@
 import { CRITERIOS, dataBr, grupoDe } from "./logica";
 import { situacaoCriterio } from "./analise";
 import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
+import { cabecalhoFalExcel, carregarLogoFal } from "@/lib/marcaFal";
 import { formatarNcm, leituraAchado, textoLinhas } from "./leituraAchados";
 import { montarConjuntos } from "./conjuntos";
 import { chaveDe, identificavel, indexar } from "./identidade";
 import { coerenciaDaDecisao } from "./aprovacao";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
 const plural = (n, um, varios) => `${fmt(n)} ${n === 1 ? um : varios}`;
@@ -58,7 +60,7 @@ export function montarRelatorioAnalises({ achados, criterios, grupos, estado, co
       let r = linhas.get(it.linha);
       if (!r) {
         const saldo = it.saldo != null && Number.isFinite(Number(it.saldo)) ? Number(it.saldo) / (escalaSaldo || 1) : null;
-        r = { grupo: g, linha: it.linha, codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", ncm: formatarNcm(it.ncm || it.ncm_original || ""), ultimaMov: dataBr(it.ultima_mov), saldo, porCriterio: {} };
+        r = { grupo: g, linha: it.linha, linhaPlanilha: linhaNaPlanilha(it), codigo: it.codigo || "", descricao: it.descricao || "", unidade: it.unidade || "", ncm: formatarNcm(it.ncm || it.ncm_original || ""), ultimaMov: dataBr(it.ultima_mov), saldo, porCriterio: {} };
         linhas.set(it.linha, r);
       }
       r.porCriterio[c.id] = { como: textoLinhas(l.como), seria: textoLinhas(l.seria), porque: l.porque, decisao: textoDaDecisao(it, c.id) };
@@ -106,11 +108,13 @@ function linhasResumo(rel, { nomeProjeto, nomeBase }) {
 }
 
 /** Monta o workbook (separado do download para poder ser testado): aba "Análises" com um bloco de colunas por critério e aba "Resumo". */
-export function criarWorkbookAnalises(ExcelJS, rel, { nomeProjeto = "", nomeBase = "" } = {}) {
+export function criarWorkbookAnalises(ExcelJS, rel, { nomeProjeto = "", nomeBase = "" } = {}, logo = null) {
   const wb = new ExcelJS.Workbook(); wb.created = new Date();
   const ws = wb.addWorksheet("Análises");
+  // Linha 1: logo da FAL; lb = linha das bandas (critérios), lt = linha dos títulos.
+  const b0 = cabecalhoFalExcel(wb, ws, logo); const lb = b0 + 1; const lt = b0 + 2;
   const fixas = [["Código", 14, (l) => l.codigo], ["Descrição", 46, (l) => l.descricao], ["Unidade", 10, (l) => l.unidade], ["Grupo", 28, (l) => l.grupo], ["NCM", 13, (l) => l.ncm], ["Última movimentação", 14, (l) => l.ultimaMov],
-    ...(rel.temSaldo ? [["Saldo em estoque", 14, (l) => l.saldo]] : []), ["Linha da planilha", 10, (l) => l.linha]];
+    ...(rel.temSaldo ? [["Saldo em estoque", 14, (l) => l.saldo]] : []), ["Linha da planilha", 10, (l) => l.linhaPlanilha]];
   const cab = fixas.map(([t]) => t); const larguras = fixas.map(([, w]) => w);
   const bandas = [{ de: 1, ate: fixas.length, titulo: "Item", cor: COR_ITEM }]; const campos = []; let col = fixas.length + 1;
   rel.criterios.forEach((c, i) => {
@@ -131,14 +135,14 @@ export function criarWorkbookAnalises(ExcelJS, rel, { nomeProjeto = "", nomeBase
     if (bandas.some((b) => b.inicio && b.de === i + 1)) c.border = { left: { style: "thin", color: { argb: "FF9E9E9E" } } };
   });
   for (const b of bandas) {
-    ws.mergeCells(1, b.de, 1, b.ate);
-    for (let x = b.de; x <= b.ate; x++) for (const r of [1, 2]) ws.getCell(r, x).fill = { type: "pattern", pattern: "solid", fgColor: { argb: b.cor } };
-    ws.getCell(1, b.de).alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells(lb, b.de, lb, b.ate);
+    for (let x = b.de; x <= b.ate; x++) for (const r of [lb, lt]) ws.getCell(r, x).fill = { type: "pattern", pattern: "solid", fgColor: { argb: b.cor } };
+    ws.getCell(lb, b.de).alignment = { horizontal: "center", vertical: "middle" };
   }
-  ws.getRow(1).font = { bold: true, size: 12 }; ws.getRow(2).font = { bold: true }; ws.getRow(2).alignment = { vertical: "middle", wrapText: true };
-  ws.views = [{ state: "frozen", xSplit: 2, ySplit: 2 }];
-  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: cab.length } };
-  const rs = wb.addWorksheet("Resumo"); rs.columns = [{ width: 46 }, { width: 100 }];
+  ws.getRow(lb).font = { bold: true, size: 12 }; ws.getRow(lt).font = { bold: true }; ws.getRow(lt).alignment = { vertical: "middle", wrapText: true };
+  ws.views = [{ state: "frozen", xSplit: 2, ySplit: lt }];
+  ws.autoFilter = { from: { row: lt, column: 1 }, to: { row: lt, column: cab.length } };
+  const rs = wb.addWorksheet("Resumo"); cabecalhoFalExcel(wb, rs, logo); rs.columns = [{ width: 46 }, { width: 100 }];
   linhasResumo(rel, { nomeProjeto, nomeBase }).forEach((l) => rs.addRow(l));
   rs.getColumn(1).font = { bold: true }; rs.getColumn(2).alignment = { vertical: "top", wrapText: true };
   return wb;
@@ -146,6 +150,6 @@ export function criarWorkbookAnalises(ExcelJS, rel, { nomeProjeto = "", nomeBase
 
 /** Gera e baixa o Excel. A biblioteca é carregada só nesta hora. */
 export async function gerarXlsxAnalises(rel, meta, nomeArquivo) {
-  const ExcelJS = await carregarExcelJS();
-  baixarXlsx(await criarWorkbookAnalises(ExcelJS, rel, meta).xlsx.writeBuffer(), nomeArquivo);
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
+  baixarXlsx(await criarWorkbookAnalises(ExcelJS, rel, meta, logo).xlsx.writeBuffer(), nomeArquivo);
 }

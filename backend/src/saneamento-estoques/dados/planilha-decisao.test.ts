@@ -78,31 +78,37 @@ describe('planilha de decisão: exportação', () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual([ABA_CASOS, ABA_ITENS, ABA_CONTROLE]);
     expect(wb.getWorksheet(ABA_CONTROLE)!.state).toBe('veryHidden');
     const ws = wb.getWorksheet(ABA_CASOS)!;
-    expect(String(ws.getCell(1, 1).value)).toContain('Planilha de decisão');
-    expect(String(ws.getCell(2, 1).value)).toContain('Cliente Agro Ltda');
-    expect(String(ws.getCell(3, 1).value)).toMatch(/^1\. /);
-    expect(String(ws.getCell(5, 1).value)).toMatch(/^3\. /);
-    const cab = ws.getRow(7).values as unknown[];
+    // Logo da FAL na linha 1 (sem valor); o conteúdo começa na linha 2.
+    expect(ws.getImages().length).toBe(1);
+    expect(ws.getRow(1).cellCount).toBe(0);
+    expect(String(ws.getCell(2, 1).value)).toContain('Planilha de decisão');
+    expect(String(ws.getCell(3, 1).value)).toContain('Cliente Agro Ltda');
+    expect(String(ws.getCell(4, 1).value)).toMatch(/^1\. /);
+    expect(String(ws.getCell(6, 1).value)).toMatch(/^3\. /);
+    const cab = ws.getRow(8).values as unknown[];
     expect(cab.slice(1)).toEqual(COLUNAS.map((c) => c.cab));
-    expect(ws.getCell(7, 1).font?.name).toBe('Arial');
-    expect(ws.views[0]).toMatchObject({ state: 'frozen', ySplit: 7 });
+    expect(ws.getCell(8, 1).font?.name).toBe('Arial');
+    expect(ws.views[0]).toMatchObject({ state: 'frozen', ySplit: 8 });
     expect(ws.autoFilter).toBeTruthy();
     expect((ws as unknown as { sheetProtection?: { sheet?: boolean } }).sheetProtection?.sheet).toBe(true);
     // Só os 3 casos da camada NCM (a exceção da outra camada fica fora).
-    const ids = [8, 9, 10].map((r) => String(ws.getCell(r, 1).value));
+    const ids = [9, 10, 11].map((r) => String(ws.getCell(r, 1).value));
     expect(new Set(ids)).toEqual(new Set(t.db.sanCaso.filter((c) => c.camada === 'NCM').map((c) => c.id)));
-    expect(ws.getCell(11, 1).value).toBeNull();
+    expect(ws.getCell(12, 1).value).toBeNull();
     const dec = COLUNAS.findIndex((c) => c.chave === 'decisao') + 1;
-    for (const [i, c] of COLUNAS.entries()) expect(ws.getCell(8, i + 1).protection?.locked ?? true).toBe(!('editavel' in c));
-    expect(ws.getCell(8, dec).dataValidation).toMatchObject({ type: 'list', formulae: ['"Aprovar,Rejeitar,Pedir informação"'] });
-    const linhaFormato = [8, 9, 10].find((r) => ws.getCell(r, 1).value === t.casoDe('NCM_FORMATO').id)!;
+    for (const [i, c] of COLUNAS.entries()) expect(ws.getCell(9, i + 1).protection?.locked ?? true).toBe(!('editavel' in c));
+    expect(ws.getCell(9, dec).dataValidation).toMatchObject({ type: 'list', formulae: ['"Aprovar,Rejeitar,Pedir informação"'] });
+    const linhaFormato = [9, 10, 11].find((r) => ws.getCell(r, 1).value === t.casoDe('NCM_FORMATO').id)!;
     const valor = (k: string) => ws.getCell(linhaFormato, COLUNAS.findIndex((c) => c.chave === k) + 1).value;
     expect(valor('proposta')).toBe('NCM: 01012100');
     expect(valor('campoCorrigivel')).toBe('NCM');
     expect(valor('codigos')).toBe('C1');
     const wi = wb.getWorksheet(ABA_ITENS)!;
-    expect(wi.getRow(1).values).toEqual([undefined, 'ID do caso', 'Código', 'Descrição', 'Grupo', 'NCM', 'Unidade', 'Saldo']);
-    expect(wi.rowCount).toBe(4);
+    expect(wi.getImages().length).toBe(1);
+    expect(wb.getWorksheet(ABA_CONTROLE)!.getImages().length).toBe(0);
+    expect(wi.views[0]).toMatchObject({ state: 'frozen', ySplit: 2 });
+    expect(wi.getRow(2).values).toEqual([undefined, 'ID do caso', 'Código', 'Descrição', 'Grupo', 'NCM', 'Unidade', 'Saldo']);
+    expect(wi.rowCount).toBe(5);
   });
 
   it('camada inválida ou desligada: 400', async () => {

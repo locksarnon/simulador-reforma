@@ -10,6 +10,7 @@ import InfoLegal from "@/components/InfoLegal";
 import ComparacaoClassificacao from "@/components/painel/ComparacaoClassificacao";
 import { RESSALVA_CRED_PRES, RESSALVA_ALIQUOTAS, LINK_CRED_PRES } from "@/lib/ressalvas";
 import { gerarRelatorioSimulacao } from "@/lib/pdfReport";
+import { carregarLogoFal } from "@/lib/marcaFal";
 import { alertaGatilho, descricaoCurta } from "@/motor/cenariosAliquota";
 import SeletorCenarioAliquotas from "@/components/SeletorCenarioAliquotas";
 import KpiCard from "@/components/KpiCard";
@@ -250,9 +251,11 @@ export default function PainelExecutivoView({
     }
   };
 
-  const handleExportarPdf = () => {
+  const handleExportarPdf = async () => {
     try {
+      const logo = await carregarLogoFal();
       const nome = gerarRelatorioSimulacao({
+        logo,
         totais, consolidado,
         transicaoAnos: [...transicao].sort((a, b) => a.ano - b.ano),
         comparacaoCenarios: comparar ? comparacaoCenarios : null,

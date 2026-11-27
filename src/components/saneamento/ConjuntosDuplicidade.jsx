@@ -6,6 +6,7 @@ import { SituacaoEncaminhado } from "./TabelaAchados";
 import { conjuntoIdentificavel, escolhaDoConjunto, membrosSemProposta, saldoNaEscala } from "./conjuntos";
 import { chaveDe, idItem } from "./identidade";
 import { numeroBr } from "./unidades";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 const NIVEL_ROT = { EXATA: "Idêntico", MUITO_PROVAVEL: "Indicação alta", POSSIVEL: "Indicação possível" };
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -60,7 +61,7 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
       {!ident.ok && <p className="text-xs text-amber-700 dark:text-amber-300">{ident.motivo} Corrija no ERP e traga a base de novo.</p>}
       <TabelaPadrao id="saneamento-conjunto-duplicidade" ariaLabel="Itens do conjunto" simples linhas={conj.membros} chaveLinha={(m) => m.linha}
         destaqueLinha={(m) => (esc.fica === idItem(m) ? "bg-emerald-50/60 dark:bg-emerald-950/20" : "")} colunas={[
-          { chave: "fica", rotulo: "Fica", ordenavel: false, filtravel: false, render: (m) => <input type="radio" name={`fica-${conj.id}`} checked={esc.fica === idItem(m)} disabled={bloqueado} onChange={() => onEscolher(conj, idItem(m), idItem(m) === sugId ? "sugestao" : "analista")} aria-label={`Manter o código ${m.codigo || `da linha ${m.linha}`}`} /> },
+          { chave: "fica", rotulo: "Fica", ordenavel: false, filtravel: false, render: (m) => <input type="radio" name={`fica-${conj.id}`} checked={esc.fica === idItem(m)} disabled={bloqueado} onChange={() => onEscolher(conj, idItem(m), idItem(m) === sugId ? "sugestao" : "analista")} aria-label={`Manter o código ${m.codigo || `da linha ${linhaNaPlanilha(m)}`}`} /> },
           { chave: "codigo", rotulo: "Código", render: (m) => <><span className="tabular-nums">{m.codigo || "—"}</span>{idItem(m) === sugId && <span className="ml-1.5" title={conj.sugestao.motivo || undefined}><Chip tom="b">Sugerido</Chip></span>}</> },
           { chave: "saldo", rotulo: "Saldo em estoque", alinhar: "direita", valor: (m) => saldoNaEscala(m.saldo, escala), render: (m) => { const s = saldoNaEscala(m.saldo, escala); return s == null ? "—" : numeroBr(s); } },
           { chave: "descricao", rotulo: "Descrição", render: (m) => <Descricao texto={m.descricao} comuns={comuns} /> },
@@ -68,7 +69,7 @@ function CartaoConjunto({ conj, decisoes, escala, indice, onEscolher, onDesfazer
           { chave: "situacao", rotulo: "Situação", valor: (m) => (esc.fica === idItem(m) ? "Fica" : esc.fica != null ? `sai → ${codigoDe(esc.fica)}` : ""), render: (m) => { const dec = decisoes[chaveDe(m, "duplicidade")]; return esc.fica === idItem(m) ? <Chip tom="g">Fica</Chip> : esc.fica != null ? <span className="inline-flex items-center gap-1.5 text-muted-foreground">sai → {codigoDe(esc.fica)}{dec && <SituacaoEncaminhado d={dec} />}</span> : null; } },
         ]} />
       {conj.membros.some((m) => m.duplicidade?.porObservacao) && <p className="text-[11px] text-muted-foreground">Neste grupo a variante (cor, tipo, apresentação) é observação, não produto: ao unificar, ela é registrada no campo adicional do código que fica.</p>}
-      {sugerido && conj.sugestao.motivo && <p className="text-[11px] text-muted-foreground">Sugestão: manter o código <b className="font-medium text-foreground">{sugerido.codigo || `da linha ${sugerido.linha}`}</b> ({conj.sugestao.motivo}).{esc.fica != null && esc.fica !== sugId ? ` Escolha do analista: ${codigoDe(esc.fica)}.` : ""}</p>}
+      {sugerido && conj.sugestao.motivo && <p className="text-[11px] text-muted-foreground">Sugestão: manter o código <b className="font-medium text-foreground">{sugerido.codigo || `da linha ${linhaNaPlanilha(sugerido)}`}</b> ({conj.sugestao.motivo}).{esc.fica != null && esc.fica !== sugId ? ` Escolha do analista: ${codigoDe(esc.fica)}.` : ""}</p>}
     </div>
   );
 }

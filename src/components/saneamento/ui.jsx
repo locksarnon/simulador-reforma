@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { dataBr as dataBrBase } from "./logica";
 import { ordenarPor, proximaOrdem } from "./ordenacao";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 export { ordenarPor };
 export const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
@@ -46,7 +47,7 @@ export function Th({ chave, ord, onOrdenar, className = "p-1.5", title, children
 }
 
 const COL_ITENS = {
-  linha: { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita" },
+  linha: { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", valor: (i) => linhaNaPlanilha(i) },
   codigo: { chave: "codigo", rotulo: "Código" },
   descricao: { chave: "descricao", rotulo: "Descrição" },
   unidade: { chave: "unidade", rotulo: "Unidade" },

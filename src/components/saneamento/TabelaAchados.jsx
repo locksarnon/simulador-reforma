@@ -5,6 +5,7 @@ import { Chip, dataBr, fmt, plural } from "./ui";
 import { dadosDoItem, leituraAchado } from "./leituraAchados";
 import { chaveDe, identificavel, motivoSemIdentidade } from "./identidade";
 import { sugestaoMudou } from "./aprovacao";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 /** O que "encaminhar" faz, dito de forma completa para quem está decidindo. */
 export const TXT_ENCAMINHAR = "Encaminhar = enviar o achado ao passo De/para como proposta, para você aprovar ou rejeitar (com aprovador e data). Só o aprovado entra nas listas finais e na execução; o que não for encaminhado fica como está. Nada é alterado no cadastro: a ferramenta só sugere.";
@@ -64,7 +65,7 @@ export default function TabelaAchados({ ach, crit, decisoes, itemPorLinha, indic
       valor: (x) => x.dados[r] ?? "", render: (x) => <span className="text-muted-foreground">{x.dados[r] ?? ""}</span>,
     }));
     return [
-      { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", valor: (x) => x.a.item.linha },
+      { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", valor: (x) => linhaNaPlanilha(x.a.item) },
       { chave: "codigo", rotulo: "Código", valor: (x) => x.a.item.codigo || "—" },
       { chave: "descricao", rotulo: "Descrição", valor: (x) => x.a.item.descricao || "—" },
       ...dados,
@@ -74,7 +75,7 @@ export default function TabelaAchados({ ach, crit, decisoes, itemPorLinha, indic
       { chave: "porque", rotulo: "Por quê", quebrar: true, valor: (x) => x.l.porque || "", render: (x) => <span className="text-muted-foreground">{x.l.porque}</span> },
       { chave: "enc", rotulo: "Encaminhar para aprovação", dica: "Enviar o achado ao passo De/para, para aprovar ou rejeitar lá", valor: (x) => ROT_DECISAO[decDe(x)?.status] || "", render: (x) => {
         const it = x.a.item; const s = semId(x); const dec = decDe(x);
-        return <label className="inline-flex items-center gap-1.5" title={s || undefined}><input type="checkbox" aria-label={`Encaminhar o item ${it.codigo || `da linha ${it.linha}`} para aprovação`} checked={!!dec} disabled={(!!dec && dec.status !== "PROP") || !!s} onChange={() => onAlternar(x.a)} />{dec && <SituacaoEncaminhado d={dec} />}</label>;
+        return <label className="inline-flex items-center gap-1.5" title={s || undefined}><input type="checkbox" aria-label={`Encaminhar o item ${it.codigo || `da linha ${linhaNaPlanilha(it)}`} para aprovação`} checked={!!dec} disabled={(!!dec && dec.status !== "PROP") || !!s} onChange={() => onAlternar(x.a)} />{dec && <SituacaoEncaminhado d={dec} />}</label>;
       } },
       { chave: "aviso", rotulo: "Aviso", quebrar: true, valor: (x) => avisoAchado(x, semId(x), decDe(x), crit.id), render: (x) => { const t = avisoAchado(x, semId(x), decDe(x), crit.id); return t ? <span className="text-[11px] text-amber-700 dark:text-amber-300">{t}</span> : null; } },
     ];

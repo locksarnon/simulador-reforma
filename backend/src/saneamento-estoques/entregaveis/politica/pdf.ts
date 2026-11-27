@@ -8,7 +8,8 @@ import PDFDocument from 'pdfkit';
 import { desenharTabela } from '../../../pdf/pdf.service';
 import { CONTROLES_INTERNOS } from '../../diretrizes/conteudo/controles-internos';
 import { ASPECTOS, ROTULO_ASPECTO, type Aspecto, type LinhaLimite } from '../../diretrizes/tipos';
-import { AMBAR, AMBAR_FUNDO, BORDA, BRANCO, CINZA, FUNDO_CARD, LOGO, MARGEM, MARGEM_TOPO, SITE, TEXTO, VERDE, VERDE_ESCURO } from './estilo';
+import { desenharLogoFal, LOGO_FAL } from '../../../marca/logo-fal';
+import { AMBAR, AMBAR_FUNDO, BORDA, BRANCO, CINZA, FUNDO_CARD, MARGEM, MARGEM_TOPO, SITE, TEXTO, VERDE, VERDE_ESCURO } from './estilo';
 import { alturaFluxo, desenharFluxograma, type GeometriaNo } from './fluxograma';
 import { dataBr, juntar, limpar, ordenarPt } from './texto';
 import { diferencaDaPadrao, limiteNaoConfirmado, tabelasDoAnexo, textoGrupos, topicosDaRegra } from './topicos';
@@ -148,9 +149,9 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
       const xInTax = MARGEM + pdf.widthOfString('InTAX');
       pdf.font('Helvetica').fontSize(10).text('por', xInTax + 8, 33, { lineBreak: false });
       const xLogo = xInTax + 8 + pdf.widthOfString('por') + 6;
-      if (LOGO) {
+      if (LOGO_FAL) {
         pdf.roundedRect(xLogo, 19, 72, 26, 4).fill(BRANCO);
-        pdf.image(LOGO, xLogo + 5, 22, { height: 20 });
+        desenharLogoFal(pdf, xLogo + 5, 22, 20);
       } else pdf.text('FAL Agro', xLogo, 33, { lineBreak: false });
       pdf.font('Helvetica').fontSize(9).fillColor('#cfe3d6').text('Consultoria tributária · FAL Agro', MARGEM, 22, { width: largura, align: 'right', lineBreak: false });
 
@@ -393,8 +394,10 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
           pdf.fillOpacity(1);
         }
         if (i > paginas.start) {
+          // Logo da FAL no alto de toda página (regra da ferramenta: src/marca/logo-fal.ts).
+          const wLogo = desenharLogoFal(pdf, MARGEM, 17, 18);
           pdf.font('Helvetica').fontSize(8).fillColor(CINZA)
-            .text(`${TITULO_POLITICA}  ·  ${cliente}`, MARGEM, 26, { width: largura - 90, lineBreak: false, ellipsis: true });
+            .text(`${TITULO_POLITICA}  ·  ${cliente}`, MARGEM + (wLogo ? wLogo + 10 : 0), 26, { width: largura - 90 - (wLogo ? wLogo + 10 : 0), lineBreak: false, ellipsis: true });
           if (rascunho) pdf.font('Helvetica-Bold').fillColor(AMBAR).text('RASCUNHO', MARGEM, 26, { width: largura, align: 'right', lineBreak: false });
           pdf.rect(MARGEM, 40, largura, 0.75).fill(BORDA);
         }

@@ -5,6 +5,7 @@ import { ArrowDown, ArrowRight, ChevronRight, Map as IconeMapa, Printer } from "
 import { chaves, san } from "./api";
 import { botaoSecundario, Tag } from "./comuns";
 import { FASES_ROTEIRO, situacaoDaEtapa, situacaoDaLiberacao } from "./roteiro";
+import CabecalhoImpressaoFal from "@/components/CabecalhoImpressaoFal";
 
 const COR = {
   fase1: { caixa: "border-teal-600/50 bg-teal-500/10", titulo: "text-teal-800 dark:text-teal-200" },
@@ -180,6 +181,7 @@ export function PainelRoteiro({ projeto, nome }) {
     <>
           <style>{`@media print { body.imprimir-roteiro * { visibility: hidden !important; } body.imprimir-roteiro .roteiro-imprimivel, body.imprimir-roteiro .roteiro-imprimivel * { visibility: visible !important; } body.imprimir-roteiro .roteiro-imprimivel { position: absolute; inset: 0 auto auto 0; width: 100%; } body.imprimir-roteiro .nao-imprimir { display: none !important; } }`}</style>
           <div className="roteiro-imprimivel">
+            <CabecalhoImpressaoFal />
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <p className="mr-auto text-sm text-muted-foreground">{nome} · Saneamento de estoques e cadastro de produtos · FAL Auditores e Consultores</p>
               <label className="nao-imprimir flex items-center gap-1.5 text-sm">

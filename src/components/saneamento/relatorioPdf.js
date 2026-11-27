@@ -1,6 +1,7 @@
 // Desenho do relatório do programa de trabalho em PDF (A4, retrato). Recebe o construtor do jsPDF (carregado só na hora de emitir) e os blocos de
 // relatorioFinal.js. As fontes embutidas do PDF só têm o conjunto Latin-1/WinAnsi: o texto é limpo antes de desenhar (setas e sinais fora dele viram letras).
-const MARGEM = 14; const LARGURA_PAGINA = 210; const ALTURA_PAGINA = 297; const LARGURA = LARGURA_PAGINA - MARGEM * 2; const TOPO = 22; const BASE = ALTURA_PAGINA - 18;
+import { carregarLogoFal, logoFalNasPaginasPdf, TOPO_ABAIXO_DA_LOGO_MM } from "@/lib/marcaFal";
+const MARGEM = 14; const LARGURA_PAGINA = 210; const ALTURA_PAGINA = 297; const LARGURA = LARGURA_PAGINA - MARGEM * 2; const TOPO = TOPO_ABAIXO_DA_LOGO_MM; const BASE = ALTURA_PAGINA - 18;
 const ESCURO = [31, 41, 55]; const MEDIO = [90, 98, 110]; const FAIXA = [243, 245, 248]; const LINHA = [214, 218, 224]; const DESTAQUE = [28, 74, 120];
 
 /** Troca o que a fonte do PDF não desenha por equivalentes em letras (→ vira ->, ≥ vira >=...) e tira o resto fora de Latin-1 e dos sinais comuns do WinAnsi. */
@@ -11,9 +12,9 @@ export function limparTextoPdf(s) {
 
 /**
  * Desenha o relatório e devolve o documento. `JsPdf` é o construtor do jsPDF. Cada bloco: titulo, sub, p, nota, kv, tabela (colunas com peso `w`, células que quebram
- * linha, cabeçalho repetido a cada página) e lista. Rodapé com o projeto e a página em todas as páginas.
+ * linha, cabeçalho repetido a cada página) e lista. Rodapé com o projeto e a página e a logo da FAL no alto de todas as páginas.
  */
-export function desenharRelatorio(JsPdf, relatorio) {
+export function desenharRelatorio(JsPdf, relatorio, logo = null) {
   const doc = new JsPdf({ unit: "mm", format: "a4" });
   const L = limparTextoPdf; let y = TOPO;
   const cor = (c) => doc.setTextColor(c[0], c[1], c[2]);
@@ -74,6 +75,7 @@ export function desenharRelatorio(JsPdf, relatorio) {
     }
   }
 
+  logoFalNasPaginasPdf(doc, logo, { margem: MARGEM });
   // rodapé e numeração em todas as páginas
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
@@ -85,8 +87,8 @@ export function desenharRelatorio(JsPdf, relatorio) {
 
 /** Gera e baixa o PDF. O jsPDF é carregado só nesta hora (não pesa no resto do sistema). */
 export async function gerarPdfRelatorio(relatorio, nomeArquivo) {
-  const { jsPDF } = await import("jspdf");
-  const doc = desenharRelatorio(jsPDF, relatorio);
+  const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), carregarLogoFal()]);
+  const doc = desenharRelatorio(jsPDF, relatorio, logo);
   doc.save(nomeArquivo);
   return doc.getNumberOfPages();
 }

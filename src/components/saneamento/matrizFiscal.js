@@ -1,6 +1,7 @@
 // Matriz fiscal do grupo em Excel (passo 7): uma linha por item, com a proposta, o fundamento, a validação e as pendências, e um resumo por grupo.
 // Funções puras (sem React); o download fica em gerarXlsxFiscal().
-import { baixarXlsx, carregarExcelJS } from "./arquivoXlsx";
+import { baixarXlsx, carregarExcelJS, tabelaComLogo } from "./arquivoXlsx";
+import { cabecalhoFalExcel, carregarLogoFal } from "@/lib/marcaFal";
 import { COLUNAS_MATRIZ, ORDEM_SITUACOES, SITUACOES } from "./fiscal";
 import { dataBr } from "./logica";
 
@@ -17,22 +18,21 @@ export const NOTAS_FISCAIS = [
 
 /**
  * Monta o workbook (separado do download para poder ser testado). `linhas` vem de linhasMatriz(); `resumos` é [{ grupo, resumo, concluida: { por, em } | null }],
- * de resumoFiscal() por grupo.
+ * de resumoFiscal() por grupo. `logo` = logo da FAL (carregarLogoFal), no topo de cada aba.
  */
-export function criarWorkbookFiscal(ExcelJS, { linhas, resumos, nomeProjeto = "", nomeBase = "" }) {
+export function criarWorkbookFiscal(ExcelJS, { linhas, resumos, nomeProjeto = "", nomeBase = "" }, logo = null) {
   const wb = new ExcelJS.Workbook(); wb.created = new Date();
   const ws = wb.addWorksheet("Matriz fiscal");
-  ws.columns = COLUNAS_MATRIZ.map(([titulo, chave, largura]) => ({ header: titulo, key: chave, width: largura }));
+  const h = tabelaComLogo(wb, ws, logo, COLUNAS_MATRIZ, { xSplit: 3 });
   ws.addRows(linhas);
   COLUNAS_MATRIZ.forEach(([, chave], i) => { ws.getColumn(i + 1).alignment = { vertical: "top", wrapText: QUEBRAR.includes(chave) }; });
-  ws.getRow(1).font = { bold: true }; ws.getRow(1).alignment = { vertical: "middle", wrapText: true };
+  ws.getRow(h).font = { bold: true }; ws.getRow(h).alignment = { vertical: "middle", wrapText: true };
   const iSit = COLUNAS_MATRIZ.findIndex(([, k]) => k === "rotuloSituacao") + 1;
-  linhas.forEach((l, i) => { ws.getCell(i + 2, iSit).fill = { type: "pattern", pattern: "solid", fgColor: { argb: TONS[SITUACOES[l.situacao].tom] } }; });
-  ws.views = [{ state: "frozen", xSplit: 3, ySplit: 1 }];
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUNAS_MATRIZ.length } };
+  linhas.forEach((l, i) => { ws.getCell(h + 1 + i, iSit).fill = { type: "pattern", pattern: "solid", fgColor: { argb: TONS[SITUACOES[l.situacao].tom] } }; });
 
   const rs = wb.addWorksheet("Resumo");
   const cab = ["Grupo", "Itens", ...ORDEM_SITUACOES.map((s) => SITUACOES[s].rotulo), "A decidir", "A revisar com especialista", "Decididos", "Revisão fiscal", "Concluída por", "Em"];
+  cabecalhoFalExcel(wb, rs, logo);
   rs.columns = cab.map((_, i) => ({ width: i === 0 ? 30 : i < 2 ? 10 : i < 2 + ORDEM_SITUACOES.length ? 18 : 16 }));
   rs.addRow(["Projeto", nomeProjeto]); rs.addRow(["Base importada", nomeBase]); rs.addRow(["Gerado em", new Date().toLocaleString("pt-BR")]); rs.addRow([]);
   const hr = rs.addRow(cab); hr.font = { bold: true }; hr.alignment = { wrapText: true, vertical: "middle" };
@@ -47,6 +47,6 @@ export function criarWorkbookFiscal(ExcelJS, { linhas, resumos, nomeProjeto = ""
 
 /** Gera e baixa o Excel da matriz fiscal. A biblioteca é carregada só nesta hora. */
 export async function gerarXlsxFiscal(dados, nomeArquivo) {
-  const ExcelJS = await carregarExcelJS();
-  baixarXlsx(await criarWorkbookFiscal(ExcelJS, dados).xlsx.writeBuffer(), nomeArquivo);
+  const [ExcelJS, logo] = await Promise.all([carregarExcelJS(), carregarLogoFal()]);
+  baixarXlsx(await criarWorkbookFiscal(ExcelJS, dados, logo).xlsx.writeBuffer(), nomeArquivo);
 }

@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { cabecalhoFalExcel } from '../marca/logo-fal';
 import { PdfService, SecaoPdf } from '../pdf/pdf.service';
 import { Coluna, Resumo, tabelaGenerica } from './interpretar';
 
@@ -72,6 +73,7 @@ export async function excelDaConsulta(c: ConsultaParaRelatorio, rotulo: string, 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'InTAX';
   const capa = wb.addWorksheet('Resumo');
+  cabecalhoFalExcel(wb, capa);
   capa.columns = [{ width: 32 }, { width: 70 }];
   const linhas: [string, string][] = [
     ['Consulta', rotulo], ['Cliente', `${cliente.nome} (${fmtDoc(cliente.documento)})`], ['Data', quando(c.createdAt)], ['Feita por', c.solicitado_por ?? ''],
@@ -83,11 +85,13 @@ export async function excelDaConsulta(c: ConsultaParaRelatorio, rotulo: string, 
   capa.getColumn(1).font = { bold: true };
   if (t?.colunas.length) {
     const ws = wb.addWorksheet('Detalhe');
-    ws.columns = t.colunas.map((x) => ({ header: x.rotulo, key: x.chave, width: Math.min(45, Math.max(12, x.rotulo.length + 4)) }));
+    const cab = cabecalhoFalExcel(wb, ws) + 1;
+    ws.columns = t.colunas.map((x) => ({ key: x.chave, width: Math.min(45, Math.max(12, x.rotulo.length + 4)) }));
+    ws.addRow(t.colunas.map((x) => x.rotulo));
     for (const l of t.linhas) ws.addRow(Object.fromEntries(t.colunas.map((x) => [x.chave, x.tipo === 'moeda' && typeof l[x.chave] === 'number' ? l[x.chave] : celula(l[x.chave], x.tipo)])));
-    ws.getRow(1).font = { bold: true };
-    ws.views = [{ state: 'frozen', ySplit: 1 }];
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: t.colunas.length } };
+    ws.getRow(cab).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: cab }];
+    ws.autoFilter = { from: { row: cab, column: 1 }, to: { row: cab, column: t.colunas.length } };
     t.colunas.forEach((x, i) => { if (x.tipo === 'moeda') ws.getColumn(i + 1).numFmt = '"R$" #,##0.00'; });
   }
   return Buffer.from(await wb.xlsx.writeBuffer());

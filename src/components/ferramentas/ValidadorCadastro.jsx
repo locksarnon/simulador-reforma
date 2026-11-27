@@ -13,6 +13,7 @@ import ComparativoDuplicidade from "@/components/ferramentas/ComparativoDuplicid
 import HistoricoValidacoes from "@/components/ferramentas/HistoricoValidacoes";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { useQueryClient } from "@tanstack/react-query";
+import { linhaNaPlanilha } from "@/lib/linhaPlanilha";
 
 const CABECALHO_MODELO = ["Codigo", "Descricao", "NCM", "Unidade", "Origem", "cClassTrib"];
 
@@ -77,9 +78,9 @@ function colunasDosItens({ opRes, periodo, podeExcluir, excluir, setExcluir, aoC
   return [
     ...(podeExcluir ? [{
       chave: "excluir", rotulo: "Excluir da cópia saneada", valor: () => "", ordenavel: false, filtravel: false, alinhar: "centro",
-      render: (i) => <input type="checkbox" aria-label={`Excluir linha ${i.linha} da cópia saneada`} disabled={!i.candidatos_duplicidade?.length} checked={excluir.includes(i.linha)} onChange={(e) => setExcluir((xs) => (e.target.checked ? [...xs, i.linha] : xs.filter((n) => n !== i.linha)))} />,
+      render: (i) => <input type="checkbox" aria-label={`Excluir linha ${linhaNaPlanilha(i)} da cópia saneada`} disabled={!i.candidatos_duplicidade?.length} checked={excluir.includes(i.linha)} onChange={(e) => setExcluir((xs) => (e.target.checked ? [...xs, i.linha] : xs.filter((n) => n !== i.linha)))} />,
     }] : []),
-    { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", render: (i) => <span className="text-muted-foreground">{i.linha}</span> },
+    { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", valor: (i) => linhaNaPlanilha(i), render: (i) => <span className="text-muted-foreground">{linhaNaPlanilha(i)}</span> },
     { chave: "codigo", rotulo: "Código", render: (i) => <span className="font-medium">{traco(i.codigo)}</span> },
     { chave: "descricao", rotulo: "Descrição", render: (i) => traco(i.descricao) },
     { chave: "unidade", rotulo: "Unidade", render: (i) => traco(i.unidade) },
@@ -138,7 +139,7 @@ function colunasDosItens({ opRes, periodo, podeExcluir, excluir, setExcluir, aoC
 }
 
 const COLUNAS_FORA = [
-  { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", render: (f) => <span className="text-muted-foreground">{f.linha}</span> },
+  { chave: "linha", rotulo: "Linha", tipo: "numero", alinhar: "direita", valor: (f) => linhaNaPlanilha(f), render: (f) => <span className="text-muted-foreground">{linhaNaPlanilha(f)}</span> },
   { chave: "codigo", rotulo: "Código", render: (f) => <span className="font-medium">{traco(f.codigo)}</span> },
   { chave: "descricao", rotulo: "Descrição", render: (f) => traco(f.descricao) },
   { chave: "ncm_original", rotulo: "NCM informado", render: (f) => <span className="font-mono">{traco(f.ncm_original)}</span> },

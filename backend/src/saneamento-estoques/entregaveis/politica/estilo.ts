@@ -1,6 +1,4 @@
-/** Padrão visual FAL/InTAX (o mesmo do PdfService): cores, margens e logo. */
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+/** Padrão visual FAL/InTAX (o mesmo do PdfService): cores e margens (a logo vem de src/marca/logo-fal.ts). */
 
 export const VERDE = '#197148';
 export const VERDE_ESCURO = '#123424';
@@ -17,6 +15,3 @@ export const MARGEM = 48;
 export const MARGEM_TOPO = 62;
 export const SITE = 'intax.clarityib.com.br';
 
-/** Logo FAL Agro (backend/assets). Sem o arquivo, o cabeçalho escreve "FAL Agro". */
-const LOGO_PATH = join(process.cwd(), 'assets', 'logo-fal-agro.png');
-export const LOGO: Buffer | null = existsSync(LOGO_PATH) ? readFileSync(LOGO_PATH) : null;

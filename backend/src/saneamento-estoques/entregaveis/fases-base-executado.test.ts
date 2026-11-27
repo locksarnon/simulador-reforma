@@ -19,9 +19,10 @@ import { NOMES_ABAS_FASE1, VERDE_CLARO, gerarExcelDeDados, gerarExcelMapa } from
 import { cel, dadosBase, VERSAO, type Linha } from './__fixtures__/dados';
 import { TEXTO_FASE2_SEPARADA, construirModelo, origemDaFinalidade } from './modelo';
 import { montarRelatorio } from './relatorio';
+import { tirarLinhaDaLogo } from '../../marca/__fixtures__/excel-com-logo';
 
 const USER = { email: 'consultor@fal.test' };
-async function abrir(buf: Buffer) { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf as never); return wb; }
+async function abrir(buf: Buffer) { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf as never); return tirarLinhaDaLogo(wb); }
 const cabecalhos = (ws: ExcelJS.Worksheet) => (ws.getRow(1).values as unknown[]).slice(1).map(String);
 const coluna = (ws: ExcelJS.Worksheet, nome: string) => cabecalhos(ws).indexOf(nome) + 1;
 const valores = (ws: ExcelJS.Worksheet, nome: string) => { const c = coluna(ws, nome); const r: unknown[] = []; for (let i = 2; i <= ws.rowCount; i++) r.push(ws.getRow(i).getCell(c).value); return r; };
@@ -80,7 +81,7 @@ describe('entrega da Fase 1: sem a parte tributária', () => {
     expect((await svc.dados('P1', undefined, 'FASE1')).fase).toBe('FASE1');
     const ctrl = new EntregaveisController(svc);
     const arq = await ctrl.excel('P1', undefined, 'FASE1');
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(arq.getStream().read() as never);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(arq.getStream().read() as never); tirarLinhaDaLogo(wb);
     expect(wb.worksheets.map((w) => w.name)).not.toContain('Cenários tributários');
     expect(() => faseDoFiltro('FASE3')).toThrow('Fase inválida');
     expect(faseDoFiltro('')).toBeNull();

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { criarTestes } from "./logica";
 import { calcularAchados, contarAchados } from "./analise";
 import { contarSelecao, criarWorkbookAnalises, criteriosDoRelatorio, montarRelatorioAnalises, nomeArquivoAnalises, textoDecisao } from "./relatorioAnalises";
+import { carregarLogoFal } from "@/lib/marcaFal";
 
 const item = (linha, grupo, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "ITEM", unidade: "UN", grupo_atual: grupo, ultima_mov: "2026-01-10", problemas: [], ...extra });
 const itens = [
@@ -84,7 +85,7 @@ describe("Excel das análises: grupos e critérios escolhidos", () => {
 describe("Excel das análises: a planilha", () => {
   const carregar = async (rel, meta = { nomeProjeto: "Projeto X", nomeBase: "itens.xlsx" }) => {
     const ExcelJS = (await import("exceljs")).default;
-    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await criarWorkbookAnalises(ExcelJS, rel, meta).xlsx.writeBuffer()); return lido;
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await criarWorkbookAnalises(ExcelJS, rel, meta, await carregarLogoFal()).xlsx.writeBuffer()); return lido;
   };
   const FIXAS = ["Código", "Descrição", "Unidade", "Grupo", "NCM", "Última movimentação", "Linha da planilha"];
   const BLOCO = ["Como é", "Como seria", "Por quê", "Decisão"];
@@ -93,31 +94,32 @@ describe("Excel das análises: a planilha", () => {
     const lido = await carregar(monta(["padrao", "unidade"]));
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Análises", "Resumo"]);
     const ws = lido.getWorksheet("Análises");
-    expect(ws.getRow(2).values.slice(1)).toEqual([...FIXAS, ...BLOCO, ...BLOCO]);
-    expect(ws.getCell("A1").value).toBe("Item"); expect(ws.getCell("H1").value).toBe("Padronização da descrição"); expect(ws.getCell("L1").value).toBe("Unidade de medida");
-    expect(ws.getCell("K1").master.address).toBe("H1"); expect(ws.getCell("G1").master.address).toBe("A1"); expect(ws.getCell("O1").master.address).toBe("L1");
-    expect(ws.getCell("H1").fill.fgColor.argb).not.toBe(ws.getCell("L1").fill.fgColor.argb); // uma cor por critério
-    expect(ws.views[0]).toMatchObject({ state: "frozen", xSplit: 2, ySplit: 2 }); expect(ws.autoFilter).toBe("A2:O2"); // filtro na linha dos títulos, de ponta a ponta
-    expect(ws.rowCount).toBe(2 + 3);
+    expect(ws.getRow(3).values.slice(1)).toEqual([...FIXAS, ...BLOCO, ...BLOCO]);
+    expect(ws.getCell("A2").value).toBe("Item"); expect(ws.getCell("H2").value).toBe("Padronização da descrição"); expect(ws.getCell("L2").value).toBe("Unidade de medida");
+    expect(ws.getCell("K2").master.address).toBe("H2"); expect(ws.getCell("G2").master.address).toBe("A2"); expect(ws.getCell("O2").master.address).toBe("L2");
+    expect(ws.getCell("H2").fill.fgColor.argb).not.toBe(ws.getCell("L2").fill.fgColor.argb); // uma cor por critério
+    expect(ws.views[0]).toMatchObject({ state: "frozen", xSplit: 2, ySplit: 3 }); expect(ws.autoFilter).toBe("A3:O3"); // filtro na linha dos títulos, de ponta a ponta
+    expect(ws.rowCount).toBe(3 + 3); // linha 1 = logo da FAL, 2 = faixas dos critérios, 3 = títulos
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1);
   });
   it("as linhas trazem o item e, em cada bloco, o que o critério achou (vazio quando o item não tem achado nele)", async () => {
     const ws = (await carregar(monta(["padrao", "unidade"]))).getWorksheet("Análises");
     const r = (n) => ws.getRow(n).values.slice(1).map((v) => v ?? "");
-    expect(r(3)).toEqual(["C4", "CORANTE ALIMENTÍCIO LÍQ.CONFEITARIA ROSA", "UN", "Insumos", "", "10/01/2026", 4,
+    expect(r(4)).toEqual(["C4", "CORANTE ALIMENTÍCIO LÍQ.CONFEITARIA ROSA", "UN", "Insumos", "", "10/01/2026", 4,
       "Descrição: CORANTE ALIMENTÍCIO LÍQ.CONFEITARIA ROSA", "Descrição: CORANTE ALIMENTÍCIO LÍQ. CONFEITARIA ROSA", "espaço depois do ponto da abreviação", "Não encaminhado", "", "", "", ""]);
-    expect(r(4).slice(0, 7)).toEqual(["C2", "ANEL  TRAVA", "QUILOGRAM", "Peças", "", "10/01/2026", 2]);
-    expect(r(4)[10]).toBe("Aprovado por ana em 22/10/2026"); expect(r(4)[11]).toBe("Unidade de estoque: QUILOGRAM"); expect(r(4)[12]).toBe("Unidade de estoque: KG");
-    expect(r(5)[7]).toBe(""); expect(r(5)[14]).toBe("Encaminhado (aguarda decisão)");
+    expect(r(5).slice(0, 7)).toEqual(["C2", "ANEL  TRAVA", "QUILOGRAM", "Peças", "", "10/01/2026", 2]);
+    expect(r(5)[10]).toBe("Aprovado por ana em 22/10/2026"); expect(r(5)[11]).toBe("Unidade de estoque: QUILOGRAM"); expect(r(5)[12]).toBe("Unidade de estoque: KG");
+    expect(r(6)[7]).toBe(""); expect(r(6)[14]).toBe("Encaminhado (aguarda decisão)");
   });
   it("um critério só: a mesma estrutura, sem bloco a mais; e o saldo só aparece quando a base tem", async () => {
     const lido = await carregar(monta(["unidade"]));
-    expect(lido.getWorksheet("Análises").getRow(2).values.slice(1)).toEqual([...FIXAS, ...BLOCO]);
+    expect(lido.getWorksheet("Análises").getRow(3).values.slice(1)).toEqual([...FIXAS, ...BLOCO]);
     const comSaldo = itens.map((i) => (i.linha === 3 ? { ...i, saldo: 5000000 } : i)); const a2 = calcularAchados(comSaldo, criarTestes(comSaldo, estado));
     const r = montarRelatorioAnalises({ achados: a2, criterios: ["unidade"], grupos: null, estado, contagem, itemPorLinha: new Map(comSaldo.map((i) => [i.linha, i])), totaisGrupos, escalaSaldo: 1e6 });
     expect(r.temSaldo).toBe(true);
     const ws = (await carregar(r)).getWorksheet("Análises");
-    expect(ws.getRow(2).values.slice(1, 9)).toEqual(["Código", "Descrição", "Unidade", "Grupo", "NCM", "Última movimentação", "Saldo em estoque", "Linha da planilha"]);
-    expect(ws.getRow(4).getCell(7).value).toBe(5); // 5.000.000 na escala ×1.000.000
+    expect(ws.getRow(3).values.slice(1, 9)).toEqual(["Código", "Descrição", "Unidade", "Grupo", "NCM", "Última movimentação", "Saldo em estoque", "Linha da planilha"]);
+    expect(ws.getRow(5).getCell(7).value).toBe(5); // 5.000.000 na escala ×1.000.000
   });
   it("duplicidade: o Como seria traz a escolha de quem fica (ou a sugestão pelo saldo) e o saldo aparece na planilha", async () => {
     const d = (c) => ({ nivel: "EXATA", score: 1, grupo: 0, mestre: null, candidatos: c.map((l) => ({ linha: l, score: 1, nivel: "EXATA", motivos: ["descrição idêntica"] })) });
@@ -131,7 +133,7 @@ describe("Excel das análises: a planilha", () => {
     expect(escolhido.linhas[0].porCriterio.duplicidade.seria).toBe("Ação: fica este código (escolhido)"); expect(escolhido.linhas[1].porCriterio.duplicidade.seria).toContain("Ação: unificar no código C2 (escolhido)");
     expect(escolhido.linhas[1].porCriterio.duplicidade.decisao).toBe("Encaminhado (aguarda decisão)");
     const ws = (await carregar(r)).getWorksheet("Análises");
-    expect(ws.getRow(2).values.slice(1, 9)).toEqual(["Código", "Descrição", "Unidade", "Grupo", "NCM", "Última movimentação", "Saldo em estoque", "Linha da planilha"]);
+    expect(ws.getRow(3).values.slice(1, 9)).toEqual(["Código", "Descrição", "Unidade", "Grupo", "NCM", "Última movimentação", "Saldo em estoque", "Linha da planilha"]);
   });
   it("o resumo diz o que foi escolhido, os totais, a situação dos critérios e como ler, sem concluir nada", async () => {
     const lido = await carregar(monta(["padrao", "unidade"], ["Peças"]));
