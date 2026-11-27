@@ -101,7 +101,7 @@ function comentarioDaCamada(m: Modelo, camada: Camada): string | null {
     }
   }
   if (camada === 'DUPLICIDADE' && m.vinculos.length) partes.push(`${plural(m.vinculos.length, 'vínculo de código antigo e novo registrado', 'vínculos de código antigo e novo registrados')}, com data e justificativa.`);
-  if (camada === 'GRUPOS_FINALIDADE') partes.push(`Finalidade confirmada em ${n(m.itens.filter((i) => finalidadeConfirmada(m, i)).length)} de ${n(m.itens.length)} itens.`);
+  if (camada === 'FINALIDADE' || (camada === 'GRUPOS_FINALIDADE' && !m.camadas.includes('FINALIDADE'))) partes.push(`Finalidade confirmada em ${n(m.itens.filter((i) => finalidadeConfirmada(m, i)).length)} de ${n(m.itens.length)} itens.`);
   if (camada === 'NCM') partes.push(`NCM de 8 dígitos em ${n(m.itens.filter((i) => i.ncm.replace(/\D/g, '').length === 8).length)} de ${n(m.itens.length)} itens.`);
   if (camada === 'NOMES_UNIDADES') {
     const desc = m.itens.filter((i) => i.camposAlterados.includes('descricao')).length; const un = m.itens.filter((i) => i.camposAlterados.includes('unidade')).length;

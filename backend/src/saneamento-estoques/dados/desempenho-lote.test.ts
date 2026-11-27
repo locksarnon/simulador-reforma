@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { BLOCO_APROVACAO, SanCasosService } from './casos.service';
 import { SanImportacaoService } from './importacao.service';
 import type { ImportadorPort, ItemImportado } from './portas';
-import { criarPrismaFalso } from './prisma-falso';
+import { criarPrismaFalso, liberarFase2 } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 
 const USER = { email: 'consultor@fal.test' };
@@ -54,10 +54,11 @@ async function comFinalidades(c: ReturnType<typeof montar>) {
   const p = await c.projetos.criar('D1', USER);
   await c.projetos.confirmarAtividades(p.id, 1, USER);
   await c.importacao.confirmar(p.id, ARQ, undefined, [], USER);
+  liberarFase2(c.db, p.id);
   const porGrupo = new Map<string, string[]>();
   for (const i of c.db.sanItem) { const l = porGrupo.get(i.grupo) ?? []; l.push(i.id); porGrupo.set(i.grupo, l); }
-  await c.casos.registrarResultado(p.id, { camada: 'GRUPOS_FINALIDADE', analisados: c.db.sanItem.length, semDados: null, semProblema: [], casos: [...porGrupo].map(([g, itens]) => ({ camada: 'GRUPOS_FINALIDADE', tipo: 'FINALIDADE_GRUPO', itens, problema: `Finalidade ${g}`, evidencia: [], atual: { finalidade: null }, proposta: { finalidade: 'REVENDA' }, justificativa: 'Finalidade do grupo.', fundamento: null, impactos: [], origem: 'REGRA', afeta: ['TRIBUTARIO', 'OBRIGACOES'] })) } as never, { interno: true });
-  const previa = await c.casos.lotePrevia(p.id, { filtro: { camada: 'GRUPOS_FINALIDADE' } });
+  await c.casos.registrarResultado(p.id, { camada: 'FINALIDADE', analisados: c.db.sanItem.length, semDados: null, semProblema: [], casos: [...porGrupo].map(([g, itens]) => ({ camada: 'FINALIDADE', tipo: 'FINALIDADE_GRUPO', itens, problema: `Finalidade ${g}`, evidencia: [], atual: { finalidade: null }, proposta: { finalidade: 'REVENDA' }, justificativa: 'Finalidade do grupo.', fundamento: null, impactos: [], origem: 'REGRA', afeta: ['TRIBUTARIO', 'OBRIGACOES'] })) } as never, { interno: true });
+  const previa = await c.casos.lotePrevia(p.id, { filtro: { camada: 'FINALIDADE' } });
   return { projetoId: p.id, versoes: Object.fromEntries(previa.aprovaveis.map((a) => [a.casoId, a.versao])) };
 }
 
@@ -67,7 +68,7 @@ describe('lote de finalidades: gravação em bloco', () => {
     const { projetoId, versoes } = await comFinalidades(c);
     const brutos = ligarSqlBruto(c);
     const n = contar(c.prisma as never);
-    const r = await c.casos.loteAprovar(projetoId, { filtro: { camada: 'GRUPOS_FINALIDADE' }, versoes, orcamentoMs: 60_000 }, USER);
+    const r = await c.casos.loteAprovar(projetoId, { filtro: { camada: 'FINALIDADE' }, versoes, orcamentoMs: 60_000 }, USER);
     expect(r).toMatchObject({ aprovados: 7, restantes: [] });
     expect(n['sanItem.updateMany'] ?? 0).toBe(0);
     expect(brutos.filter((s) => s.includes('UPDATE "SanItem"'))).toHaveLength(7); // 530 itens cabem num bloco de BLOCO_APROVACAO
@@ -86,7 +87,7 @@ describe('lote de finalidades: gravação em bloco', () => {
     const { projetoId, versoes } = await comFinalidades(c);
     let mexeu = false;
     ligarSqlBruto(c, () => { if (!mexeu) { mexeu = true; c.db.sanItem[0].versao += 5; } });
-    const r = await c.casos.loteAprovar(projetoId, { filtro: { camada: 'GRUPOS_FINALIDADE' }, versoes }, USER);
+    const r = await c.casos.loteAprovar(projetoId, { filtro: { camada: 'FINALIDADE' }, versoes }, USER);
     expect(r.aprovados).toBe(1);
     expect(r.excecoes).toHaveLength(1);
     expect(r.excecoes[0].motivo).toMatch(/alterado por outra pessoa/);

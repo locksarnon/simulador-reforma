@@ -31,7 +31,7 @@ describe('desempenho: 30 mil itens', () => {
     const mb = Math.round((process.memoryUsage().heapUsed - antes) / 1048576);
     const porCamada = Object.fromEntries(r.map((x) => [x.camada, x.casos.length]));
     console.log(`[desempenho] 30000 itens: ${ms} ms, +${mb} MB de heap, casos por camada`, JSON.stringify(porCamada));
-    expect(r).toHaveLength(6); expect(r.every((x) => x.analisados === 30000)).toBe(true);
+    expect(r).toHaveLength(7); expect(r.every((x) => x.analisados === 30000)).toBe(true);
     expect(ms).toBeLessThan(300000);
   }, 400000);
 });

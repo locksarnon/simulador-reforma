@@ -255,8 +255,10 @@ describe('camada TRIBUTARIO', () => {
     expect(norm(r2)).toBe(norm(r));
   });
   it('dependências coerentes com o plano', () => {
-    expect(AFETA.GRUPOS_FINALIDADE).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
-    expect(AFETA.NCM).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(AFETA.GRUPOS_FINALIDADE).toEqual(['FINALIDADE', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(AFETA.FINALIDADE).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(AFETA.NCM).toEqual(['NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(AFETA.NCM_CLASSIFICACAO).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
     expect(AFETA.NOMES_UNIDADES).toContain('OBRIGACOES');
   });
 });

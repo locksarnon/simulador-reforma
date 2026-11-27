@@ -12,7 +12,7 @@ import { ajustesDosCasos, linhasDeImpactoDoCaso, tiposDeAjusteDoCaso } from './a
 import { SanCasosService, estimativaDoCaso, orcamentoDoLote } from './casos.service';
 import { semItensDeExcecao } from './constantes';
 import { SanImportacaoService } from './importacao.service';
-import { AnalisadorGruposFinalidade, finalidadesConfirmadas } from './motor.provider';
+import { AnalisadorFinalidade, finalidadesConfirmadas } from './motor.provider';
 import { type ImportadorPort, type ItemImportado } from './portas';
 import { criarPrismaFalso } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
@@ -58,7 +58,6 @@ const trab = (id: string, p: Partial<ItemTrabalho> = {}): ItemTrabalho => ({
   id, codigo: id, estabelecimento: null, descricao: 'ITEM', unidade: 'UN', ncm: null, grupo: 'Defensivos', ativo: true, saldo: null, ultimaMovimentacao: null,
   fabricante: null, referencia: null, finalidade: null, campos: {}, ...p,
 });
-const semGrupos: AnalisadorCamada = { camada: 'GRUPOS_FINALIDADE', analisar: (itens) => ({ camada: 'GRUPOS_FINALIDADE', analisados: itens.length, semDados: null, casos: [], semProblema: itens.map((i) => i.id) }) };
 const CTX = { dataBase: '2026-12-31', atividades: ['REVENDA_INSUMOS'], erp: null, corteMovimentacao: null };
 
 afterEach(() => vi.restoreAllMocks());
@@ -71,7 +70,7 @@ describe('ALTO 1 e MÉDIO 7: finalidade por grupo, exceções em caso próprio e
     trab('i2', { descricao: 'HERBICIDA E', finalidade: 'EMBALAGEM' }), // informada pelo cliente, diferente da do grupo
   ];
   it('o caso do grupo não leva os itens em exceção; cada finalidade diferente vira caso próprio, sem justificativa pronta', () => {
-    const r = new AnalisadorGruposFinalidade(semGrupos, CTX.atividades).analisar(itens, CTX);
+    const r = new AnalisadorFinalidade(CTX.atividades).analisar(itens);
     const grupo = r.casos.find((c) => c.tipo === 'FINALIDADE_GRUPO')!;
     expect(grupo.itens.sort()).toEqual(['h1', 'h2', 'h3', 'i1']);
     expect(grupo.proposta).toEqual({ finalidade: 'REVENDA' });
@@ -87,7 +86,7 @@ describe('ALTO 1 e MÉDIO 7: finalidade por grupo, exceções em caso próprio e
   });
   it('só a finalidade confirmada por decisão aprovada desta camada fica sem problema (e a exceção aprovada não some)', () => {
     const conf = finalidadesConfirmadas([{ itens: ['i1', 'h1'], proposta: { finalidade: 'REVENDA' } }, { itens: ['i2'], proposta: { finalidade: 'EMBALAGEM' } }]);
-    const r = new AnalisadorGruposFinalidade(semGrupos, CTX.atividades, conf).analisar(itens.map((i) => (i.id === 'h1' ? { ...i, finalidade: 'REVENDA' as const } : i)), CTX);
+    const r = new AnalisadorFinalidade(CTX.atividades, conf).analisar(itens.map((i) => (i.id === 'h1' ? { ...i, finalidade: 'REVENDA' as const } : i)));
     expect(r.semProblema.sort()).toEqual(['h1', 'i1', 'i2']);
     expect(r.casos.find((c) => c.tipo === 'FINALIDADE_GRUPO')!.itens.sort()).toEqual(['h2', 'h3']);
     expect(r.casos.filter((c) => c.tipo === 'FINALIDADE_EXCECAO').map((c) => c.itens)).toEqual([['l1']]);

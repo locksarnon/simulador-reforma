@@ -1,6 +1,6 @@
 /**
  * Dependências entre camadas (docs/saneamento-estoques.md, seção 4). Mexer em um campo marca "revisar" nas camadas que dependem dele, sem apagar a decisão anterior:
- *   composição/identificação → NCM → tratamento → obrigações;   finalidade (ou grupo) → tratamento → obrigações;
+ *   composição/identificação → NCM (validar e classificação) → tratamento → obrigações;   grupo → finalidade → tratamento → obrigações;
  *   unidade/conversão → duplicidade e obrigações;   consolidação/mudança de código → obrigações;
  *   unificação ou inativação (Duplicidades × itens sem movimentação da Qualidade) → a outra das duas: o código que fica não pode ser inativado.
  * Mudança só de forma da descrição (caixa, espaços, abreviação aprovada) NÃO muda composição: não marca nada.
@@ -8,7 +8,7 @@
 import { CAMADAS, type Camada, type CasoProposto } from '../tipos';
 
 /** Efeito indireto: se esta camada precisa ser revista, estas também. */
-const DEPENDENTES: Partial<Record<Camada, Camada[]>> = { NCM: ['TRIBUTARIO'], TRIBUTARIO: ['OBRIGACOES'] };
+const DEPENDENTES: Partial<Record<Camada, Camada[]>> = { NCM: ['NCM_CLASSIFICACAO', 'TRIBUTARIO'], NCM_CLASSIFICACAO: ['TRIBUTARIO'], FINALIDADE: ['TRIBUTARIO'], TRIBUTARIO: ['OBRIGACOES'] };
 
 /** Campos da proposta que mudam a identificação/composição do produto. */
 const CAMPOS_COMPOSICAO = ['composicao', 'concentracao', 'principioAtivo', 'referencia', 'fabricante', 'marca', 'identificacao'];
@@ -23,8 +23,10 @@ export function camadasAfetadas(caso: Entrada): Camada[] {
   const p = caso.proposta ?? {};
   const tem = (k: string) => Object.prototype.hasOwnProperty.call(p, k) && p[k] !== undefined;
   const diretas = new Set<Camada>();
-  if (CAMPOS_COMPOSICAO.some(tem) || (tem('descricao') && !TIPOS_SO_FORMA.has(caso.tipo))) diretas.add('NCM');
-  if (tem('ncm') || tem('finalidade') || tem('grupo')) diretas.add('TRIBUTARIO');
+  if (CAMPOS_COMPOSICAO.some(tem) || (tem('descricao') && !TIPOS_SO_FORMA.has(caso.tipo))) { diretas.add('NCM'); diretas.add('NCM_CLASSIFICACAO'); }
+  if (tem('ncm')) { diretas.add('NCM_CLASSIFICACAO'); diretas.add('TRIBUTARIO'); }
+  if (tem('finalidade') || tem('tambemUsadoComo')) diretas.add('TRIBUTARIO');
+  if (tem('grupo')) diretas.add('FINALIDADE');
   if (tem('unidade') || tem('unidadeCompra') || tem('fatorConversao')) { diretas.add('DUPLICIDADE'); diretas.add('OBRIGACOES'); }
   if (tem('codigo') || tem('manter') || DECISOES_CONSOLIDACAO.has(String(p.decisao ?? ''))) diretas.add('OBRIGACOES');
   if (DECISOES_CONSOLIDACAO.has(String(p.decisao ?? ''))) { diretas.add('DUPLICIDADE'); diretas.add('QUALIDADE'); }

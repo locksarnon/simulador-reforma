@@ -44,7 +44,30 @@ export function semItensDeExcecao<T extends { camada: string; tipo: string; iten
 export const MODULOS_PADRAO = { conciliacao: false, blocosKG: false, arquivoErp: false };
 
 /** Camadas que dependem das atividades do cliente (reabrir atividades as marca "revisar"). */
-export const CAMADAS_DAS_ATIVIDADES: Camada[] = ['GRUPOS_FINALIDADE', 'TRIBUTARIO', 'OBRIGACOES'];
+export const CAMADAS_DAS_ATIVIDADES: Camada[] = ['FINALIDADE', 'TRIBUTARIO'];
+
+/**
+ * Fases do Saneamento (docs/saneamento-fases.md, contrato da onda 1). Fase 1 = saneamento do cadastro, sem trava de atividades; Fase 2 =
+ * tributário e Reforma. OBRIGACOES (impacto no SPED) roda no fim de cada uma. A lista real do projeto passa por `camadasAtivas`.
+ */
+export const FASES = {
+  FASE1: ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'ESTOQUE', 'OBRIGACOES'],
+  FASE2: ['FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'],
+} as const satisfies Record<string, readonly Camada[]>;
+export type Fase = keyof typeof FASES;
+export const LISTA_FASES = Object.keys(FASES) as Fase[];
+/** A primeira fase que contém a camada (OBRIGACOES → FASE1). */
+export const faseDaCamada = (c: Camada): Fase => LISTA_FASES.find((f) => (FASES[f] as readonly Camada[]).includes(c)) ?? 'FASE1';
+/** Camadas da Fase 2 que exigem, nesta ordem, Fase 1 liberada, regime do cliente e atividades confirmadas (OBRIGACOES roda sem trava). */
+export const CAMADAS_TRAVADAS_FASE2: Camada[] = ['FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO'];
+export const camadaTravada = (c: string) => (CAMADAS_TRAVADAS_FASE2 as string[]).includes(c);
+/** Camadas que nasceram da divisão das antigas (migração no boot): de onde vieram os casos e as datas de execução. */
+export const ORIGEM_DA_CAMADA_NOVA = { FINALIDADE: 'GRUPOS_FINALIDADE', NCM_CLASSIFICACAO: 'NCM' } as const satisfies Partial<Record<Camada, Camada>>;
+/** Tipos de caso de cada camada nova (o que a migração tira da camada antiga). */
+export const TIPOS_DA_CAMADA_NOVA = {
+  FINALIDADE: ['FINALIDADE_GRUPO', 'FINALIDADE_EXCECAO'],
+  NCM_CLASSIFICACAO: ['NCM_INFO_INSUFICIENTE', 'NCM_INCOMPATIVEL_DESCRICAO', 'NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS'],
+} as const satisfies Partial<Record<Camada, readonly string[]>>;
 
 /** Situação da célula conforme a situação do caso. Rejeitar = o consultor mantém como está, logo "sem problema". */
 export const CELULA_DO_CASO: Record<SituacaoCaso, Situacao> = {
@@ -66,11 +89,11 @@ export function propostaAplicavel(camada: string, proposta: Json | null | undefi
 
 /** Quais camadas voltam a "revisar" quando um campo muda por reimportação (nas decisões vale o `afeta` do caso). */
 export const CAMPO_AFETA: Record<string, Camada[]> = {
-  descricao: ['QUALIDADE', 'DUPLICIDADE', 'NOMES_UNIDADES', 'NCM'],
+  descricao: ['QUALIDADE', 'DUPLICIDADE', 'NOMES_UNIDADES', 'NCM', 'NCM_CLASSIFICACAO'],
   unidade: ['NOMES_UNIDADES', 'DUPLICIDADE', 'OBRIGACOES'],
-  ncm: ['NCM', 'TRIBUTARIO', 'OBRIGACOES'],
-  grupo: ['GRUPOS_FINALIDADE'],
-  finalidade: ['GRUPOS_FINALIDADE', 'TRIBUTARIO'],
+  ncm: ['NCM', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'],
+  grupo: ['GRUPOS_FINALIDADE', 'FINALIDADE'],
+  finalidade: ['FINALIDADE', 'TRIBUTARIO'],
 };
 
 export const camadasAtivas = (modulos: Json | null | undefined): Camada[] => CAMADAS.filter((c) => c !== 'ESTOQUE' || modulos?.conciliacao === true);

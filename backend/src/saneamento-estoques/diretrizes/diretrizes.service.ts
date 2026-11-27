@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { TX_LONGA, camadasAtivas, conflito, exigirVersao, fatiar, quem, type Usuario } from '../dados/constantes';
+import { TX_LONGA, camadaTravada, camadasAtivas, conflito, exigirVersao, fatiar, quem, type Usuario } from '../dados/constantes';
 import { SanOrquestracaoService } from '../dados/orquestracao.service';
 import { SanVersoesService } from '../dados/versoes.service';
 import { lerFator } from '../motor';
@@ -378,12 +378,18 @@ export class SanDiretrizesService {
   private async reanalisarCamadas(projetoId: string, porCamada: Map<Camada, Set<string>>, total: number) {
     if (!total) return { itens: 0, camadas: [], aviso: 'Nenhum item afetado: nada a reanalisar.' };
     const p = await this.projeto(projetoId);
-    if (!p.atividades_confirmadas_em) return { itens: total, camadas: [], aviso: 'As atividades do cliente ainda não foram confirmadas: a regra está aplicada e vale na próxima análise.' };
     const disponiveis = this.orquestracao.camadasDisponiveis();
     const ativas = camadasAtivas(p.modulos as Json);
     const out: Json[] = [];
+    // Trava por fase: só as camadas da Fase 2 ficam de fora enquanto a fase estiver travada (a regra vale na próxima análise delas).
+    let bloqueio: { codigo: string; mensagem: string } | null | undefined;
+    const puladas: string[] = [];
     for (const camada of CAMADAS.filter((c) => porCamada.get(c)?.size)) {
       if (!disponiveis.includes(camada) || !ativas.includes(camada)) { out.push({ camada, executada: false, motivo: 'Camada sem análise conectada ou desligada neste projeto.' }); continue; }
+      if (camadaTravada(camada)) {
+        if (bloqueio === undefined) bloqueio = await this.orquestracao.bloqueioDaFase2(projetoId);
+        if (bloqueio) { out.push({ camada, executada: false, codigo: bloqueio.codigo, motivo: bloqueio.mensagem }); puladas.push(camada); continue; }
+      }
       try {
         const g = await this.orquestracao.executarCamada(projetoId, camada, { escopo: porCamada.get(camada) });
         out.push({ camada, executada: true, casosNovos: g.casosNovos, casosObsoletos: g.casosObsoletos, semProblema: g.semProblema, semDados: g.semDados ?? null });
@@ -391,6 +397,7 @@ export class SanDiretrizesService {
         out.push({ camada, executada: false, motivo: (e as Error).message });
       }
     }
+    if (puladas.length && bloqueio) return { itens: total, camadas: out, aviso: `${bloqueio.mensagem} A regra está aplicada e vale na próxima análise de ${puladas.join(', ')}.` };
     return { itens: total, camadas: out };
   }
 
@@ -842,7 +849,7 @@ export function alteracoesDoCaso(aspecto: Aspecto, caso: { tipo: string; camada:
       return { conversoes: [{ origem: p.unidadeCompra.trim().slice(0, 20), destino: p.unidade.trim().slice(0, 20), fator, abrangencia: 'GRUPO', codigoProduto: null }] } as Partial<RegraUnidades>;
     }
   }
-  if (aspecto === 'FISCAL' && caso.camada === 'NCM' && caso.situacao === 'REJEITADO' && codigos.length) {
+  if (aspecto === 'FISCAL' && (caso.camada === 'NCM' || caso.camada === 'NCM_CLASSIFICACAO') && caso.situacao === 'REJEITADO' && codigos.length) {
     const j = String(caso.motivo || caso.justificativa || '').trim();
     const justificativa = (j.length >= 5 ? j : `NCM mantido pelo consultor ao rejeitar o caso ${caso.tipo}`).slice(0, 500);
     return { excecoesNcm: [...new Set(codigos)].slice(0, 5000).map((alvo) => ({ alvo: alvo.slice(0, 120), justificativa })) } as Partial<RegraFiscal>;

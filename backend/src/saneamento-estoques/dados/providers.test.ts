@@ -7,7 +7,7 @@ import { ImportadorPlanilha } from './importador.provider';
 import { SanItensService } from './itens.service';
 import { MotorSaneamento, criarTabelaNcm, idsDeAtividades } from './motor.provider';
 import { SanOrquestracaoService } from './orquestracao.service';
-import { criarPrismaFalso } from './prisma-falso';
+import { criarPrismaFalso, liberarFase2 } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 
 const USER = { email: 'consultor@fal.test' };
@@ -90,6 +90,7 @@ async function pronto() {
   const p = await c.projetos.criar('D1', USER);
   await c.projetos.confirmarAtividades(p.id, 1, USER);
   await c.importacao.confirmar(p.id, { buffer: Buffer.from(linhas.join('\n')), nome: 'cad.csv' }, undefined, [], USER);
+  liberarFase2(c.db, p.id); // os testes daqui também rodam as camadas da Fase 2
   return { ...c, projetoId: p.id };
 }
 const casoManual = (camada: string, tipo: string, itens: string[], atual: Record<string, unknown>, proposta: Record<string, unknown>) => ({
@@ -97,14 +98,35 @@ const casoManual = (camada: string, tipo: string, itens: string[], atual: Record
 });
 
 describe('motor ligado: camadas, finalidade por grupo, aprovação e dependências', () => {
-  it('as 8 camadas têm analisador; ESTOQUE não', async () => {
+  it('as 10 camadas têm analisador; ESTOQUE não', async () => {
     const c = montar();
-    expect(c.orq.camadasDisponiveis()).toEqual(['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(c.orq.camadasDisponiveis()).toEqual(['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
   });
 
-  it('GRUPOS_FINALIDADE gera um caso por grupo; aprovar aplica a finalidade a todos e marca TRIBUTARIO e OBRIGACOES como revisar', async () => {
+  it('Grupos (GRUPOS_FINALIDADE, Fase 1) não propõe finalidade; a camada FINALIDADE (Fase 2) sim', async () => {
     const c = await pronto();
-    const r = await c.orq.executarCamada(c.projetoId, 'GRUPOS_FINALIDADE');
+    await c.orq.executarCamada(c.projetoId, 'GRUPOS_FINALIDADE');
+    expect(c.db.sanCaso.filter((x) => x.tipo.startsWith('FINALIDADE_'))).toHaveLength(0);
+    await c.orq.executarCamada(c.projetoId, 'FINALIDADE');
+    const fin = c.db.sanCaso.filter((x) => x.tipo.startsWith('FINALIDADE_'));
+    expect(fin.length).toBeGreaterThan(0);
+    expect(fin.every((x) => x.camada === 'FINALIDADE')).toBe(true);
+    expect(c.db.sanCaso.filter((x) => x.camada === 'GRUPOS_FINALIDADE').every((x) => !x.tipo.startsWith('FINALIDADE_'))).toBe(true);
+  });
+
+  it('NCM_CLASSIFICACAO usa a tabela do banco e só traz a reclassificação; a validação fica no NCM', async () => {
+    const c = await pronto();
+    await c.orq.executarCamada(c.projetoId, 'NCM');
+    await c.orq.executarCamada(c.projetoId, 'NCM_CLASSIFICACAO');
+    const tiposDe = (camada: string) => new Set(c.db.sanCaso.filter((x) => x.camada === camada).map((x) => x.tipo));
+    for (const t of tiposDe('NCM')) expect(['NCM_INFO_INSUFICIENTE', 'NCM_INCOMPATIVEL_DESCRICAO', 'NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS']).not.toContain(t);
+    for (const t of tiposDe('NCM_CLASSIFICACAO')) expect(['NCM_INFO_INSUFICIENTE', 'NCM_INCOMPATIVEL_DESCRICAO', 'NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS']).toContain(t);
+    expect(c.db.sanCelula.filter((x) => x.camada === 'NCM_CLASSIFICACAO').every((x) => x.situacao !== 'PENDENTE')).toBe(true);
+  });
+
+  it('FINALIDADE gera um caso por grupo; aprovar aplica a finalidade a todos e marca TRIBUTARIO e OBRIGACOES como revisar', async () => {
+    const c = await pronto();
+    const r = await c.orq.executarCamada(c.projetoId, 'FINALIDADE');
     expect(r.casosNovos).toBeGreaterThan(0);
     const caso = c.db.sanCaso.find((x) => x.tipo === 'FINALIDADE_GRUPO' && x.problema.includes('Defensivos'))!;
     expect(caso.itens).toHaveLength(6);
@@ -121,7 +143,7 @@ describe('motor ligado: camadas, finalidade por grupo, aprovação e dependênci
     }
     // exceção: ajuste de um item, com decisão própria
     const um = itens[0];
-    await c.casos.registrarResultado(c.projetoId, { camada: 'GRUPOS_FINALIDADE', analisados: 1, semDados: null, semProblema: [], casos: [casoManual('GRUPOS_FINALIDADE', 'FINALIDADE_ITEM', [um.id], { finalidade: caso.proposta.finalidade }, { finalidade: 'USO_CONSUMO' })] });
+    await c.casos.registrarResultado(c.projetoId, { camada: 'FINALIDADE', analisados: 1, semDados: null, semProblema: [], casos: [casoManual('FINALIDADE', 'FINALIDADE_ITEM', [um.id], { finalidade: caso.proposta.finalidade }, { finalidade: 'USO_CONSUMO' })] });
     await c.casos.aprovar(c.db.sanCaso[c.db.sanCaso.length - 1].id, { versao: 1 }, USER);
     expect(c.db.sanItem.find((i) => i.id === um.id)!.finalidade).toBe('USO_CONSUMO');
     expect(c.db.sanItem.find((i) => i.id === itens[1].id)!.finalidade).toBe(caso.proposta.finalidade);

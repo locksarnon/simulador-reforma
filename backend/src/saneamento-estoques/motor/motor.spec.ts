@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContextoAnalise, ItemTrabalho } from '../tipos';
-import { AnalisadorDuplicidade, AnalisadorGrupos, AnalisadorIdentificacao, AnalisadorNcm, AnalisadorNomesUnidades, AnalisadorQualidade, camadasAfetadas, executarMotor, type ContextoMotor, type TabelaNcm } from './index';
+import { AnalisadorDuplicidade, AnalisadorGrupos, AnalisadorIdentificacao, AnalisadorNcm, AnalisadorNcmClassificacao, AnalisadorNomesUnidades, AnalisadorQualidade, camadasAfetadas, executarMotor, type ContextoMotor, type TabelaNcm } from './index';
 
 let n = 0;
 const item = (codigo: string, descricao: string, extra: Partial<ItemTrabalho> = {}): ItemTrabalho => ({
@@ -204,7 +204,9 @@ describe('NCM', () => {
     item('9', 'DIVERSOS', { ncm: '12019000' }), item('10', 'SOJA EM GRAOS', { ncm: '84821010' }), item('11', 'ARRUELA LISA', { ncm: 'ABC' }), item('12', 'X', { ncm: '00000000' }),
   ];
   const r = new AnalisadorNcm().analisar(itens, { ...ctx, tabelaNcm: tabela } as ContextoMotor);
-  const por = (t: string) => r.casos.filter((c) => c.tipo === t);
+  // Reclassificação (Fase 2) em camada própria: NCM_CLASSIFICACAO.
+  const rc = new AnalisadorNcmClassificacao().analisar(itens, { ...ctx, tabelaNcm: tabela } as ContextoMotor);
+  const por = (t: string) => [...r.casos, ...rc.casos].filter((c) => c.tipo === t);
   it('formato, zeros à esquerda, vigência com sucessor, inexistente, incompatível, divergente e informação insuficiente', () => {
     expect(por('NCM_AUSENTE')).toHaveLength(1);
     expect(por('NCM_FORMATO').find((c) => c.itens[0] === itens[3].id)!.proposta.ncm).toBe('01012100');
@@ -215,14 +217,22 @@ describe('NCM', () => {
     expect(por('NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS')).toHaveLength(1);
     expect(por('NCM_INFO_INSUFICIENTE').map((c) => c.itens[0])).toContain(itens[8].id);
     expect(por('NCM_PREENCHIMENTO_INVALIDO')).toHaveLength(1);
-    expect(r.semDados).toBeNull();
+    expect(r.semDados).toBeNull(); expect(rc.semDados).toBeNull();
+  });
+  it('validar (Fase 1) e classificação (Fase 2) ficam em camadas separadas', () => {
+    expect(new Set(r.casos.map((c) => c.camada))).toEqual(new Set(['NCM']));
+    expect(new Set(rc.casos.map((c) => c.camada))).toEqual(new Set(['NCM_CLASSIFICACAO']));
+    expect(r.casos.map((c) => c.tipo)).not.toContain('NCM_INFO_INSUFICIENTE');
+    expect(new Set(rc.casos.map((c) => c.tipo))).toEqual(new Set(['NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS', 'NCM_INCOMPATIVEL_DESCRICAO', 'NCM_INFO_INSUFICIENTE']));
+    // Item só com caso de classificação é "sem problema" na validação.
+    expect(r.semProblema).toContain(itens[7].id); expect(rc.semProblema).not.toContain(itens[7].id);
   });
   it('texto de NCM encerrado não afirma vigência por data', () => {
     const c = por('NCM_CLASSIFICACAO_ANTIGA')[0];
     expect(c.problema).toContain('não consta como ativo na tabela atual'); expect(c.problema).not.toContain('vigente na data-base');
   });
   it('NCM corrigido afeta tratamento e obrigações; não afeta a própria camada', () => {
-    expect(por('NCM_FORMATO')[0].afeta).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(por('NCM_FORMATO')[0].afeta).toEqual(['NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
   });
   it('sem tabela injetada, só a parte formal e semDados explica', () => {
     const s = new AnalisadorNcm().analisar(itens, ctx);
@@ -233,25 +243,28 @@ describe('NCM', () => {
 describe('dependências (camadasAfetadas)', () => {
   const caso = (camada: any, tipo: string, proposta: Record<string, any>) => camadasAfetadas({ camada, tipo, proposta });
   it('segue a seção 4 do plano', () => {
-    expect(caso('QUALIDADE', 'X', { referencia: 'A' })).toEqual(['NCM', 'TRIBUTARIO', 'OBRIGACOES']);
-    expect(caso('NCM', 'X', { ncm: '12345678' })).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(caso('QUALIDADE', 'X', { referencia: 'A' })).toEqual(['NCM', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(caso('NCM', 'X', { ncm: '12345678' })).toEqual(['NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(caso('NCM_CLASSIFICACAO', 'X', { ncm: '12345678' })).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(caso('GRUPOS_FINALIDADE', 'ITEM_SEM_GRUPO', { grupo: 'Adubos' })).toEqual(['FINALIDADE', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(caso('FINALIDADE', 'FINALIDADE_GRUPO', { finalidade: 'REVENDA' })).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
     expect(caso('NOMES_UNIDADES', 'UNIDADE_CONVERSAO', { unidade: 'KG', fatorConversao: 60 })).toEqual(['DUPLICIDADE', 'OBRIGACOES']);
     // Unificação e inativação dependem uma da outra (o código que fica não pode ser inativado): cada uma marca a outra camada.
     expect(caso('DUPLICIDADE', 'X', { decisao: 'PROPOR_CONSOLIDACAO', manter: 'A' })).toEqual(['QUALIDADE', 'OBRIGACOES']);
     expect(caso('QUALIDADE', 'SEM_MOVIMENTACAO', { decisao: 'PROPOR_INATIVACAO', ativo: false })).toEqual(['DUPLICIDADE', 'OBRIGACOES']);
     expect(caso('GRUPOS_FINALIDADE', 'X', { finalidade: 'REVENDA' })).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
     expect(caso('NOMES_UNIDADES', 'DESCRICAO_FORA_DO_PADRAO', { descricao: 'A' })).toEqual([]);
-    expect(caso('QUALIDADE', 'DESCRICAO_INSUFICIENTE', { descricao: 'LUVA NITRILICA 9' })).toEqual(['NCM', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(caso('QUALIDADE', 'DESCRICAO_INSUFICIENTE', { descricao: 'LUVA NITRILICA 9' })).toEqual(['NCM', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
     expect(caso('QUALIDADE', 'X', {})).toEqual([]);
   });
 });
 
 describe('executarMotor', () => {
   const itens = [...fundo(), item('A', 'FERTILIZANTE SUPERFOSFATO SIMPLES SACO 50 KG', { unidade: 'KG' }), item('B', 'Fert. Superfosfato Simples saco 50kg', { unidade: 'KG' }), item('', 'X')];
-  it('roda as 6 camadas na ordem, é determinístico e não altera a entrada', () => {
+  it('roda as 7 camadas na ordem, é determinístico e não altera a entrada', () => {
     const copia = JSON.stringify(itens);
     const a = executarMotor(itens, ctx); const b = executarMotor(itens, ctx);
-    expect(a.map((x) => x.camada)).toEqual(['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM']);
+    expect(a.map((x) => x.camada)).toEqual(['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'NCM_CLASSIFICACAO']);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b)); expect(JSON.stringify(itens)).toBe(copia);
     for (const r of a) expect(r.analisados).toBe(itens.length);
   });

@@ -3,7 +3,7 @@ import { SanCasosService } from './casos.service';
 import { SanImportacaoService } from './importacao.service';
 import { ImportadorPlanilha } from './importador.provider';
 import { SanItensService } from './itens.service';
-import { criarPrismaFalso } from './prisma-falso';
+import { criarPrismaFalso, liberarFase2 } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 
 const USER = { email: 'consultor@fal.test' };
@@ -20,6 +20,7 @@ async function pronto() {
   const itens = new SanItensService(prisma as never);
   const p = await projetos.criar('D1', USER);
   await projetos.confirmarAtividades(p.id, 1, USER);
+  liberarFase2(db, p.id); // os testes daqui gravam casos do TRIBUTARIO (Fase 2)
   const arquivo = { buffer: Buffer.from(CSV), nome: 'cad.csv' };
   await importacao.confirmar(p.id, arquivo, undefined, [], USER);
   const id = (cod: string) => db.sanItem.find((i) => i.codigo === cod)!.id;

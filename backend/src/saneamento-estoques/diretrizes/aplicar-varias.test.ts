@@ -4,10 +4,10 @@ import { SanCasosService } from '../dados/casos.service';
 import { SanImportacaoService } from '../dados/importacao.service';
 import { SanOrquestracaoService, desatualizacao, efeitosDosAprovados } from '../dados/orquestracao.service';
 import { motorDeAnalisadores, type ImportadorPort, type ItemImportado } from '../dados/portas';
-import { criarPrismaFalso } from '../dados/prisma-falso';
+import { criarPrismaFalso, liberarFase2 } from '../dados/prisma-falso';
 import { SanProjetoService } from '../dados/projeto.service';
 import { SanVersoesService } from '../dados/versoes.service';
-import { AnalisadorNcm } from '../motor/ncm';
+import { AnalisadorNcm, AnalisadorNcmClassificacao } from '../motor/ncm';
 import { AnalisadorNomesUnidades } from '../motor/nomes-unidades';
 import { AnalisadorQualidade } from '../motor/qualidade';
 import { SanDiretrizesService } from './diretrizes.service';
@@ -30,7 +30,7 @@ function montar() {
   const projetos = new SanProjetoService(prisma as never);
   const casos = new SanCasosService(prisma as never, projetos);
   const importacao = new SanImportacaoService(prisma as never, projetos, importador);
-  const orq = new SanOrquestracaoService(prisma as never, projetos, casos, motorDeAnalisadores([new AnalisadorQualidade(), new AnalisadorNomesUnidades(), new AnalisadorNcm()]));
+  const orq = new SanOrquestracaoService(prisma as never, projetos, casos, motorDeAnalisadores([new AnalisadorQualidade(), new AnalisadorNomesUnidades(), new AnalisadorNcm(), new AnalisadorNcmClassificacao()]));
   const diretrizes = new SanDiretrizesService(prisma as never, orq, new SanVersoesService(prisma as never));
   return { prisma, db, fila, projetos, casos, importacao, orq, diretrizes };
 }
@@ -106,6 +106,21 @@ describe('aplicar várias regras de uma vez', () => {
   });
 });
 
+describe('reanálise pelas Diretrizes e a trava por fase', () => {
+  it('só as camadas da Fase 2 ficam de fora enquanto a fase está travada; a Fase 1 reanalisa', async () => {
+    const c = montar(); const pid = await pronto(c);
+    const ids = new Set(c.db.sanItem.map((i) => i.id));
+    const reanalisar = (c.diretrizes as unknown as { reanalisarCamadas: (p: string, m: Map<string, Set<string>>, n: number) => Promise<{ camadas: { camada: string; executada: boolean; codigo?: string }[]; aviso?: string }> }).reanalisarCamadas.bind(c.diretrizes);
+    const r = await reanalisar(pid, new Map([['NCM', ids], ['NCM_CLASSIFICACAO', ids]]), ids.size);
+    expect(r.camadas.map((x) => [x.camada, x.executada, x.codigo ?? null])).toEqual([['NCM', true, null], ['NCM_CLASSIFICACAO', false, 'FASE1_NAO_LIBERADA']]);
+    expect(r.aviso).toMatch(/Fase 1.*NCM_CLASSIFICACAO/);
+    liberarFase2(c.db, pid);
+    const r2 = await reanalisar(pid, new Map([['NCM', ids], ['NCM_CLASSIFICACAO', ids]]), ids.size);
+    expect(r2.camadas.map((x) => [x.camada, x.executada])).toEqual([['NCM', true], ['NCM_CLASSIFICACAO', true]]);
+    expect(r2.aviso).toBeUndefined();
+  });
+});
+
 describe('estado das camadas', () => {
   it('conta casos por camada e grava a data da análise completa', async () => {
     const c = montar(); const pid = await pronto(c);
@@ -125,12 +140,13 @@ describe('estado das camadas', () => {
     c.db.sanDecisao.push({ id: 'd1', projeto_id: pid, item_id: itemId, caso_id: null, campo: 'finalidade', antes: null, depois: 'REVENDA', usuario: 'x', tipo: 'aprovar', quando: new Date('2026-02-01T00:00:00Z') });
     c.db.sanDecisao.push({ id: 'd2', projeto_id: pid, item_id: itemId, caso_id: null, campo: 'ncm', antes: '1', depois: '1', usuario: 'x', tipo: 'rejeitar', quando: new Date('2026-03-01T00:00:00Z') });
     const e = await c.orq.estadoDasCamadas(pid);
-    expect(e.camadas.find((x) => x.camada === 'TRIBUTARIO')!.desatualizada).toEqual({ por: ['GRUPOS_FINALIDADE'], desde: '2026-02-01T00:00:00.000Z' });
+    expect(e.camadas.find((x) => x.camada === 'TRIBUTARIO')!.desatualizada).toEqual({ por: ['FINALIDADE'], desde: '2026-02-01T00:00:00.000Z' });
   });
 
   it('funções puras: desatualização e efeitos dos aprovados', () => {
-    const m = new Map([['GRUPOS_FINALIDADE', '2026-05-01T00:00:00.000Z'], ['NCM', '2026-04-01T00:00:00.000Z']]);
-    expect(desatualizacao('TRIBUTARIO', '2026-04-15T00:00:00.000Z', m)).toEqual({ por: ['GRUPOS_FINALIDADE'], desde: '2026-05-01T00:00:00.000Z' });
+    const m = new Map([['FINALIDADE', '2026-05-01T00:00:00.000Z'], ['NCM', '2026-04-01T00:00:00.000Z'], ['NCM_CLASSIFICACAO', '2026-04-01T00:00:00.000Z']]);
+    expect(desatualizacao('TRIBUTARIO', '2026-04-15T00:00:00.000Z', m)).toEqual({ por: ['FINALIDADE'], desde: '2026-05-01T00:00:00.000Z' });
+    expect(desatualizacao('TRIBUTARIO', '2026-03-15T00:00:00.000Z', m)).toEqual({ por: ['FINALIDADE', 'NCM', 'NCM_CLASSIFICACAO'], desde: '2026-04-01T00:00:00.000Z' });
     expect(desatualizacao('TRIBUTARIO', '2026-06-01T00:00:00.000Z', m)).toBeNull();
     expect(desatualizacao('TRIBUTARIO', null, m)).toBeNull();
     expect(desatualizacao('NCM', '2026-01-01T00:00:00.000Z', m)).toBeNull();

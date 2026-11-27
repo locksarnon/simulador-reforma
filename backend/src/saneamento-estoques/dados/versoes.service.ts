@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { once } from 'node:events';
 import { createGzip, gunzipSync } from 'node:zlib';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CASO_ABERTO, TX_LONGA, conflito, igual, quem, type Json, type Usuario } from './constantes';
+import { CASO_ABERTO, LISTA_FASES, TX_LONGA, conflito, igual, quem, type Json, type Usuario } from './constantes';
+import { MSG_BLOQUEIO } from './projeto.service';
 import type { DadosEntrega } from './portas';
 import { nomeDoErp } from '../../erps/erps.service';
 import { fotoDasDiretrizes } from '../diretrizes/dados';
@@ -139,10 +140,20 @@ const SEL_PROJETO = {
 export class SanVersoesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async criar(projetoId: string, e: { rotulo?: string }, usuario?: Usuario) {
+  /**
+   * Libera uma versão. `fase` (opcional, 'FASE1' ou 'FASE2') vai em `resumo.fase`: a versão FASE1 ("Cadastro saneado") libera a Fase 2;
+   * a FASE2 ("Tributário aprovado") exige uma FASE1 liberada antes.
+   */
+  async criar(projetoId: string, e: { rotulo?: string; fase?: unknown }, usuario?: Usuario) {
     const rotulo = String(e.rotulo ?? '').trim().slice(0, 120);
     if (!rotulo) throw new BadRequestException('Dê um rótulo à versão (ex.: "Entrega 1").');
+    const fase = e.fase == null || e.fase === '' ? null : String(e.fase);
+    if (fase !== null && !(LISTA_FASES as string[]).includes(fase)) throw new BadRequestException({ statusCode: 400, codigo: 'FASE_INVALIDA', message: `Fase inválida: ${fase}. Use FASE1 ou FASE2.` });
     if (!(await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true } }))) throw new NotFoundException('Projeto de saneamento não encontrado.');
+    if (fase === 'FASE2') {
+      const versoes = await this.prisma.sanVersao.findMany({ where: { projeto_id: projetoId }, select: { resumo: true } });
+      if (!versoes.some((v) => (v.resumo as Json | null)?.fase === 'FASE1')) throw new BadRequestException({ statusCode: 400, codigo: 'FASE1_NAO_LIBERADA', message: MSG_BLOQUEIO.FASE1_NAO_LIBERADA });
+    }
     try {
       return await this.prisma.$transaction(async (tx) => {
         const lido = await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: SEL_PROJETO });
@@ -186,6 +197,7 @@ export class SanVersoesService {
         const resumo = {
           itens: itens.length, celulasPorSituacao: porSituacao, celulasRevisar: totalRevisar, revisarPorCamada, casosPorSituacao: porSituacaoCaso,
           casosAbertos: casos.filter((c) => CASO_ABERTO.includes(c.situacao as never)).length,
+          ...(fase ? { fase } : {}),
         };
         const ultimo = await tx.sanVersao.findFirst({ where: { projeto_id: projetoId }, orderBy: { numero: 'desc' }, select: { numero: true } });
         const v = await tx.sanVersao.create({ data: { projeto_id: projetoId, numero: (ultimo?.numero ?? 0) + 1, rotulo, usuario: quem(usuario), resumo: resumo as never } });

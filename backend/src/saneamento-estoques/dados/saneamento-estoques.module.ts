@@ -4,6 +4,7 @@ import { SanCasosService } from './casos.service';
 import { SanImportacaoService } from './importacao.service';
 import { SanImpactosService } from './impactos.service';
 import { SanItensService } from './itens.service';
+import { SanMigracaoFasesService } from './migracao-fases';
 import { CatalogosFiscaisPrisma } from '../fiscal';
 import { ImportadorPlanilha } from './importador.provider';
 import { MotorSaneamento } from './motor.provider';
@@ -28,7 +29,7 @@ import { SanDiretrizesService } from '../diretrizes/diretrizes.service';
   controllers: [SaneamentoEstoquesController, SanDiretrizesController],
   providers: [
     SanProjetoService, SanImportacaoService, SanItensService, SanCasosService, SanVersoesService, SanImpactosService, SanOrquestracaoService, SanRestauracaoService,
-    SanDiretrizesService, SanBibliotecaDiretrizesService,
+    SanDiretrizesService, SanBibliotecaDiretrizesService, SanMigracaoFasesService,
     CatalogosFiscaisPrisma,
     { provide: SAN_IMPORTADOR, useClass: ImportadorPlanilha },
     { provide: SAN_MOTOR, useClass: MotorSaneamento },
