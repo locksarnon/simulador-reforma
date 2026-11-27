@@ -59,7 +59,7 @@ describe('e-mail de lembrete', () => {
   it('traz data, categoria, descrição, fonte oficial e o link da agenda', () => {
     const e = montarEmailLembrete(
       [{ diasAntes: 7, marco: m({ chave: 'estoque', titulo: 'Prazo do estoque', tipo: 'prazo', data: d('2026-11-17'), categoria: 'Crédito presumido do estoque' }) }],
-      hoje, { urlPublica: 'https://simulador.clarityib.com.br/' },
+      hoje, { urlPublica: 'https://intax.clarityib.com.br/' },
     );
     expect(e.assunto).toBe('[InTAX] Agenda da Reforma: 1 data para acompanhar');
     for (const t of ['Prazo do estoque', 'Crédito presumido do estoque', '17/11/2026', 'em 7 dias', 'Descrição do marco.', 'Lei Complementar nº 214']) {
@@ -67,8 +67,8 @@ describe('e-mail de lembrete', () => {
       expect(e.texto, t).toContain(t);
     }
     expect(e.texto).toContain('Fonte oficial: Lei Complementar nº 214');
-    expect(e.html).toContain('href="https://simulador.clarityib.com.br/agenda-reforma"');
-    expect(e.texto).toContain('Agenda completa: https://simulador.clarityib.com.br/agenda-reforma');
+    expect(e.html).toContain('href="https://intax.clarityib.com.br/agenda-reforma"');
+    expect(e.texto).toContain('Agenda completa: https://intax.clarityib.com.br/agenda-reforma');
   });
 
   it('prazo com período mostra "até" o último dia', () => {

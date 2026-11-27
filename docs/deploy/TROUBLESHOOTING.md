@@ -1,6 +1,6 @@
 # Deploy travou — o que costuma ser
 
-O colaborador **não** publica o app rodando `docker compose up` no notebook. Produção é o VPS Clarity, domínio [https://simulador.clarityib.com.br](https://simulador.clarityib.com.br), comando com **dois** compose files.
+O colaborador **não** publica o app rodando `docker compose up` no notebook. Produção é o VPS Clarity, domínio [https://intax.clarityib.com.br](https://intax.clarityib.com.br), comando com **dois** compose files.
 
 ## Antes de qualquer coisa
 
@@ -34,7 +34,7 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .e
 | Sintoma | Causa | O que fazer |
 |---|---|---|
 | Traefik 404 | Container `starting` / `unhealthy` | `docker ps` e espere healthy. Logs do `reforma-backend` (Prisma migrate costuma ser o gargalo). |
-| `Blocked request. This host is not allowed` | Vite recusou o Host | `vite.config.js` precisa de `allowedHosts: ['simulador.clarityib.com.br', '.clarityib.com.br']`. `git pull` e recrie o frontend. |
+| `Blocked request. This host is not allowed` | Vite recusou o Host | `vite.config.js` precisa de `allowedHosts: ['intax.clarityib.com.br', '.clarityib.com.br']`. `git pull` e recrie o frontend. |
 | Front 200, API CORS / Network error | Overlay não setou `CORS_ORIGINS` / `VITE_API_URL` | Confirme que o comando incluiu `docker-compose.traefik.yml`. |
 | Backend reinicia em loop | `.env` novo com senha de Postgres diferente da do volume | **Não** recrie o `.env`. Restaure as senhas originais do servidor. |
 | `reforma-frontend` never healthy | Backend não ficou healthy (`depends_on`) | Trate o backend primeiro: `docker logs reforma-backend`. |

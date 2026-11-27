@@ -4,7 +4,7 @@ Guia curto para o time (Claude Code / Cursor). Deploy: **manual** no VPS Clarity
 
 | Item | Valor |
 |---|---|
-| Domínio | https://simulador.clarityib.com.br |
+| Domínio | https://intax.clarityib.com.br |
 | Código no servidor | `/var/www/html/simulador-reforma` (confirme com `ls /var/www/html`) |
 | Compose | **dois** arquivos: `docker-compose.yml` + `docker-compose.traefik.yml` |
 | Env | `.env` **só no servidor**, nunca no Git |
@@ -83,8 +83,8 @@ docker compose \
 docker ps --filter name=reforma-
 # Esperar reforma-backend e reforma-frontend = healthy
 
-curl -sk https://simulador.clarityib.com.br/api/v1/health
-curl -sk -o /dev/null -w '%{http_code}\n' https://simulador.clarityib.com.br/
+curl -sk https://intax.clarityib.com.br/api/v1/health
+curl -sk -o /dev/null -w '%{http_code}\n' https://intax.clarityib.com.br/
 ```
 
 1. Health API → 200
@@ -157,7 +157,7 @@ O código do frontend é montado por volume e o build (`npm run build`) roda ape
 docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build --force-recreate frontend
 ```
 
-e confira que o bundle novo está no ar (ex.: `curl -s https://simulador.clarityib.com.br/ | grep -o 'assets/index-[^"]*\.js'` muda de nome e contém o texto novo). Aguarde ~1 min (build + healthcheck).
+e confira que o bundle novo está no ar (ex.: `curl -s https://intax.clarityib.com.br/ | grep -o 'assets/index-[^"]*\.js'` muda de nome e contém o texto novo). Aguarde ~1 min (build + healthcheck).
 
 ## Correções de dados a rodar depois do deploy (idempotentes)
 

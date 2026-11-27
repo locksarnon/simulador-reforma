@@ -1,6 +1,6 @@
 # Primeiro deploy — Simulador FAL
 
-Checklist para o **primeiro** ambiente em https://simulador.clarityib.com.br
+Checklist para o **primeiro** ambiente em https://intax.clarityib.com.br
 
 Se o site **já está no ar**, não use este guia — use [`UPDATE.md`](./UPDATE.md). Recriar o `.env` num banco existente derruba o backend.
 
@@ -8,7 +8,7 @@ Se o site **já está no ar**, não use este guia — use [`UPDATE.md`](./UPDATE
 
 - [ ] VPS Clarity com Docker + Traefik (`traefik-net` existente)
 - [ ] Docker Compose ≥ 2.24 (`docker compose version`)
-- [ ] DNS A: `simulador.clarityib.com.br` → IP do VPS
+- [ ] DNS A: `intax.clarityib.com.br` → IP do VPS
 - [ ] Código deste repo no servidor (padrão: `/var/www/html/simulador-reforma`)
 - [ ] Arquivo `.env` criado **no servidor** (nunca no Git)
 - [ ] Acesso SSH ao VPS — sem isso não há como publicar
@@ -20,7 +20,7 @@ Se o site **já está no ar**, não use este guia — use [`UPDATE.md`](./UPDATE
 | A | `simulador` | IP público do VPS |
 
 ```bash
-dig +short simulador.clarityib.com.br A
+dig +short intax.clarityib.com.br A
 ```
 
 ## 2. Código e secrets no VPS
@@ -71,8 +71,8 @@ O frontend em produção hoje sobe com Vite (`npm run dev`) atrás do Traefik �
 ## 4. Smoke
 
 ```bash
-curl -sk https://simulador.clarityib.com.br/api/v1/health
-curl -sk -o /dev/null -w '%{http_code}\n' https://simulador.clarityib.com.br/
+curl -sk https://intax.clarityib.com.br/api/v1/health
+curl -sk -o /dev/null -w '%{http_code}\n' https://intax.clarityib.com.br/
 ```
 
 1. [ ] Health API 200

@@ -47,7 +47,7 @@ const FUNDO_CARD = '#eef3f0';
 const BRANCO = '#ffffff';
 
 const MARGEM = 48;
-const SITE = 'simulador.clarityib.com.br';
+const SITE = 'intax.clarityib.com.br';
 
 const cortar = (s: unknown, n: number) => String(s ?? '').slice(0, n);
 

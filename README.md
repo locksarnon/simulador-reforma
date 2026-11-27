@@ -49,7 +49,7 @@ npm run dev
 
 ## Deploy em produção (VPS + Traefik)
 
-Produção: [https://simulador.clarityib.com.br](https://simulador.clarityib.com.br)
+Produção: [https://intax.clarityib.com.br](https://intax.clarityib.com.br)
 
 **Não** publique com `docker compose up` no notebook. O VPS precisa dos **dois** arquivos de compose, de um `.env` que já existe no servidor, e de `git pull` (o código é bind-mount).
 

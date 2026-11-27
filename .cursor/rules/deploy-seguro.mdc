@@ -27,5 +27,5 @@ Ao usuário pedir salvar, commit, push ou deploy deste projeto, seguir `docs/dep
 - Responder em português
 - Confirmar hash do commit deployado
 - Aguardar `reforma-frontend` / `reforma-backend` healthy
-- Domínio: https://simulador.clarityib.com.br
+- Domínio: https://intax.clarityib.com.br
 - Erros: `docs/deploy/TROUBLESHOOTING.md`

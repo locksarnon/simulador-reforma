@@ -152,7 +152,7 @@ export class MailService {
   }
 
   get urlPublica() {
-    return (this.config.get<string>('APP_PUBLIC_URL') || 'https://simulador.clarityib.com.br').replace(/\/$/, '');
+    return (this.config.get<string>('APP_PUBLIC_URL') || 'https://intax.clarityib.com.br').replace(/\/$/, '');
   }
 
   async enviar(msg: EnvioEmail): Promise<{ enviado: boolean; motivo?: string }> {

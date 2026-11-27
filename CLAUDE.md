@@ -26,7 +26,7 @@ Siga `docs/deploy/UPDATE.md`. Erros: `docs/deploy/TROUBLESHOOTING.md`. Prompt: `
 - Subir no VPS só o `docker-compose.yml` (a API vira `localhost:3003`)
 
 ### Produção
-- Host: https://simulador.clarityib.com.br
+- Host: https://intax.clarityib.com.br
 - Containers: `reforma-frontend`, `reforma-backend`, `reforma-postgres`, `reforma-minio`
 - Aguardar healthy antes de declarar sucesso
 - Relatar hash do commit deployado

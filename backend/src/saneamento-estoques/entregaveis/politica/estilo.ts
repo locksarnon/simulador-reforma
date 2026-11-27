@@ -15,7 +15,7 @@ export const BRANCO = '#ffffff';
 export const MARGEM = 48;
 /** Topo do conteúdo nas páginas 2 em diante (abaixo do cabeçalho corrido). */
 export const MARGEM_TOPO = 62;
-export const SITE = 'simulador.clarityib.com.br';
+export const SITE = 'intax.clarityib.com.br';
 
 /** Logo FAL Agro (backend/assets). Sem o arquivo, o cabeçalho escreve "FAL Agro". */
 const LOGO_PATH = join(process.cwd(), 'assets', 'logo-fal-agro.png');
