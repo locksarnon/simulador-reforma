@@ -1213,3 +1213,23 @@ export async function idsDosGruposParaLote(grupos, marcadas, buscarTodos) {
 }
 /** Descrição do lote de um grupo de casos (o texto do painel "Decidir em lote"). */
 export const descricaoDoLoteDoGrupo = (g, nIds) => `${Number(nIds ?? g?.casos ?? 0).toLocaleString("pt-BR")} caso(s) do grupo ${rotuloTipoCaso(g?.tipo)} · ${grupoDoGrupoDeCasos(g)}.`;
+
+// ── Painel sobreposto dos casos (caso ou grupo aberto sobre a tabela) ──────────
+
+/**
+ * Posição de uma linha na lista carregada e as vizinhas, para os botões Anterior e Próximo do painel.
+ * `chaveDe` diz a chave da linha (id do caso ou chave do grupo). Fora da lista: posição 0 e nenhuma vizinha.
+ */
+export function vizinhosNaLista(lista, chave, chaveDe = (l) => l?.id) {
+  const l = lista || [];
+  const i = chave == null ? -1 : l.findIndex((x) => chaveDe(x) === chave);
+  if (i < 0) return { posicao: 0, total: l.length, anterior: null, proximo: null };
+  return { posicao: i + 1, total: l.length, anterior: i > 0 ? chaveDe(l[i - 1]) : null, proximo: i < l.length - 1 ? chaveDe(l[i + 1]) : null };
+}
+/** Título do quadro do grupo: "Grupo de casos iguais — <camada>". */
+export const tituloDoGrupoDeCasos = (g) => `Grupo de casos iguais — ${ROTULO_CAMADA[g?.camada] || g?.camada || ""}`.replace(/ — $/, "");
+/** Título do painel do caso: o código e a descrição do item (vindos da linha da lista), ou só "Caso" quando a linha não está carregada. */
+export function tituloDoCasoAberto(linha) {
+  const id = linha ? identificacaoDoCaso({ codigo: linha.item?.codigo, descricao: linha.item?.descricao, qtdItens: linha.qtdItens }) : "";
+  return id ? `Caso — ${id}` : "Caso";
+}

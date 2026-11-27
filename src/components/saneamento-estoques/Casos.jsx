@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { san, chaves, atualizarTudo } from "./api";
@@ -9,7 +9,7 @@ import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, EstadoCar
 import {
   CAMADAS, contadorDeGrupos, corpoDoLote, descricaoDoLoteDoGrupo, fatiarIds, filtroAdmiteLote, grupoDoGrupoDeCasos, identificacaoDoCaso, idsDosGruposParaLote, lerParecer, linhaDeExcecao, MAX_LOTE, mensagemDeErro, montarFiltroCasos, opcoesDeTipo, proximoCasoAberto,
   problemaDoGrupoDeCasos, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloSituacaoCaso, rotuloTipoCaso, situacaoUnicaDoGrupo, SITUACOES_DO_CASO, somarPrevias, textoDaPropostaDoGrupo,
-  textoDasSituacoesDoGrupo, textoDoValor, textoLegivel, versoesDaPrevia,
+  textoDasSituacoesDoGrupo, textoDoValor, textoLegivel, tituloDoCasoAberto, tituloDoGrupoDeCasos, versoesDaPrevia, vizinhosNaLista,
 } from "./logica";
 
 /** As três decisões do lote. Pedir informação e rejeitar valem para todo caso em aberto; aprovar, só para os que têm proposta aprovável. */
@@ -183,23 +183,26 @@ const COLUNAS_DO_GRUPO = [
   { chave: "situacao", rotulo: "Situação", largura: 116, valor: (c) => rotuloSituacaoCaso(c.situacao), render: (c) => <SeloTexto situacao={c.situacao}>{rotuloSituacaoCaso(c.situacao)}</SeloTexto> },
 ];
 
-/** Detalhe de um grupo de casos iguais: o que o grupo tem em comum, o botão do lote (com todos os casos do grupo) e a lista dos casos. */
-export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbrirCaso, aoDecidir, aoFechar }) {
+/**
+ * Detalhe de um grupo de casos iguais: o que o grupo tem em comum (problema, grupo, proposta e situação), o botão do lote (com todos os casos
+ * do grupo) e a lista dos casos. Dentro do painel sobreposto (`noPainel`), o título fica no cabeçalho do painel e o quadro vem sem faixa.
+ */
+export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbrirCaso, aoDecidir, aoFechar, noPainel = false }) {
   const { pode, razao } = usePodeAlterar();
   const g = dados?.grupo || grupo;
   const casos = dados?.casos || [];
   const todos = dados?.grupo?.todosIds || [];
+  const titulo = tituloDoGrupoDeCasos(g);
   return (
-    <section aria-label="Grupo de casos" className={`space-y-3 ${quadroCls}`}>
-      <div className={`-mx-3 -mt-3 mb-2 flex items-center justify-between ${faixaQuadroCls}`}><h3 className="text-sm font-semibold text-foreground">Grupo de casos iguais</h3><button type="button" className={`${botaoSecundario} bg-card`} onClick={aoFechar}>Fechar</button></div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-muted-foreground">Camada</dt><dd>{ROTULO_CAMADA[g.camada] || g.camada}</dd>
-        <dt className="text-muted-foreground">Tipo</dt><dd>{rotuloTipoCaso(g.tipo)}</dd>
+    <section aria-label={titulo} className={noPainel ? "space-y-2" : `space-y-2 ${quadroCls}`}>
+      {!noPainel && (
+        <div className={`-mx-3 -mt-3 mb-2 flex items-center justify-between ${faixaQuadroCls}`}><h3 className="text-sm font-semibold text-foreground">{titulo}</h3>{aoFechar && <button type="button" className={`${botaoSecundario} bg-card`} onClick={aoFechar}>Fechar</button>}</div>
+      )}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm" aria-label="O que os casos do grupo têm em comum">
+        <dt className="text-muted-foreground">Problema identificado</dt><dd>{problemaDoGrupoDeCasos(g)}</dd>
         <dt className="text-muted-foreground">Grupo</dt><dd>{grupoDoGrupoDeCasos(g)}</dd>
-        <dt className="text-muted-foreground">Problema</dt><dd>{problemaDoGrupoDeCasos(g)}</dd>
         <dt className="text-muted-foreground">Proposta</dt><dd>{textoDaPropostaDoGrupo(g.proposta)}</dd>
         {g.atual && Object.keys(g.atual).length > 0 && <><dt className="text-muted-foreground">Valor atual</dt><dd>{textoDoValor(g.atual)}</dd></>}
-        <dt className="text-muted-foreground">Casos e itens</dt><dd>{n(g.casos)} caso(s), {n(g.itens)} item(ns)</dd>
         <dt className="text-muted-foreground">Situação</dt><dd>{textoDasSituacoesDoGrupo(g.situacoes)}</dd>
       </dl>
       <button type="button" className={botaoPrimario} disabled={!pode || !todos.length} title={!pode ? razao : "Abre a decisão em lote com todos os casos deste grupo"} onClick={() => aoDecidir(todos, g)}>
@@ -209,9 +212,63 @@ export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbr
         : carregando ? <EstadoCarregando texto="Carregando os casos do grupo…" />
           : (
             <TabelaDensa id="saneamento-estoques-casos-do-grupo" ariaLabel="Casos do grupo" colunas={COLUNAS_DO_GRUPO} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso neste grupo."
-              contador={`${n(casos.length)} caso(s)${casos.length < g.casos ? ` de ${n(g.casos)} (os primeiros)` : ""}. Clique num caso para abrir.`} aoClicarLinha={(c) => aoAbrirCaso(c.id)} alturaCls="max-h-[40vh]" />
+              contador={`${n(casos.length)} caso(s)${casos.length < g.casos ? ` de ${n(g.casos)} (os primeiros)` : ""}. Clique num caso para abrir.`} aoClicarLinha={(c) => aoAbrirCaso(c.id)} alturaCls="max-h-[60vh]" />
           )}
     </section>
+  );
+}
+
+const SELETOR_FOCAVEL = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Painel largo sobre a tabela dos casos: ocupa 70% da tela pela direita, na altura toda, com rolagem própria; a tabela fica escurecida atrás.
+ * Cabeçalho com o título, a posição na lista carregada, Anterior, Próximo e Fechar (Esc também fecha, salvo com uma confirmação aberta por
+ * cima). Ao abrir, o foco vai ao painel; o Tab circula dentro dele; ao fechar, o foco volta para onde estava. Sem portal: igual na tela e nos testes.
+ */
+export function PainelSobreposto({ titulo, posicao, aoAnterior, aoProximo, aoFechar, acoes, children }) {
+  const ref = useRef(null);
+  const tituloId = useId();
+  const fechar = useRef(aoFechar);
+  fechar.current = aoFechar;
+  useEffect(() => {
+    const antes = document.activeElement;
+    ref.current?.focus();
+    const tecla = (e) => {
+      if (e.key !== "Escape") return;
+      if (document.querySelector('[role="alertdialog"]')) return; // a confirmação por cima fecha primeiro
+      fechar.current?.();
+    };
+    window.addEventListener("keydown", tecla, true);
+    return () => {
+      window.removeEventListener("keydown", tecla, true);
+      if (antes?.isConnected && typeof antes.focus === "function") antes.focus();
+    };
+  }, []);
+  const prenderTab = (e) => {
+    if (e.key !== "Tab" || !ref.current) return;
+    const f = [...ref.current.querySelectorAll(SELETOR_FOCAVEL)];
+    if (!f.length) return;
+    const atual = document.activeElement;
+    if (e.shiftKey && (atual === f[0] || atual === ref.current)) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && atual === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  };
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={tituloId} tabIndex={-1} onKeyDown={prenderTab}
+        className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-background shadow-xl focus:outline-none sm:w-[70vw]">
+        <header className={`flex flex-wrap items-center gap-2 ${faixaQuadroCls}`}>
+          <div className="min-w-0 flex-1">
+            <h2 id={tituloId} className="truncate text-sm font-semibold text-foreground" title={titulo}>{titulo}</h2>
+            {posicao && <p className="text-xs text-muted-foreground">{posicao}</p>}
+          </div>
+          {acoes}
+          <button type="button" className={`${botaoSecundario} bg-card`} disabled={!aoAnterior} onClick={aoAnterior || undefined} aria-label="Anterior da lista">Anterior</button>
+          <button type="button" className={`${botaoSecundario} bg-card`} disabled={!aoProximo} onClick={aoProximo || undefined} aria-label="Próximo da lista">Próximo</button>
+          <button type="button" className={`${botaoSecundario} bg-card`} onClick={aoFechar} aria-label="Fechar o painel (Esc)">Fechar</button>
+        </header>
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-3">{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -226,10 +283,12 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   const [filtro, setFiltro] = useState(() => ({ camada: recorte?.camada && (!camadasPermitidas || camadasPermitidas.includes(recorte.camada)) ? recorte.camada : "", situacao: recorte?.situacao || "ABERTOS", tipo: "", origem: "", grupo: recorte?.grupo || "" }));
   const [agrupar, setAgrupar] = useState(agruparInicial);
   const [aberto, setAberto] = useState(casoInicial || null);
-  const [grupoAberto, setGrupoAberto] = useState(null); // a linha (grupo) aberta à direita
+  const [grupoAberto, setGrupoAberto] = useState(null); // a linha (grupo) aberta no painel sobreposto
+  const [ultimoCaso, setUltimoCaso] = useState(casoInicial || null); // a última linha aberta fica marcada na tabela ao fechar o painel
+  const [ultimoGrupo, setUltimoGrupo] = useState(null);
   const [marcados, setMarcados] = useState(() => new Set());
   const [lote, setLote] = useState(false);
-  const [loteDoGrupo, setLoteDoGrupo] = useState(null); // { ids, descricao }: lote com os casos de grupos escolhidos
+  const [loteDoGrupo, setLoteDoGrupo] = useState(null); // { ids, descricao, doGrupo }: lote com os casos de grupos escolhidos (doGrupo: aberto no painel do grupo)
   const [buscandoIds, setBuscandoIds] = useState(false);
   const [erroIds, setErroIds] = useState(null);
   const [semProximo, setSemProximo] = useState(false);
@@ -288,9 +347,9 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   const primeiraG = qg.data?.pages?.[0];
   const contador = agrupar
     ? [primeiraG ? `${contadorDeGrupos(primeiraG.totalGrupos, primeiraG.totalCasos)}${sufixo}` : null,
-      `${n(grupos.length)} grupo(s) carregado(s)${qg.hasNextPage ? " (role até o fim para carregar mais)" : ""}`].filter(Boolean).join("; ") + (qg.isFetchingNextPage ? ". Carregando mais…" : ".")
+      `${n(grupos.length)} grupo(s) carregado(s)${qg.hasNextPage ? " (role até o fim para carregar mais)" : ""}`].filter(Boolean).join("; ") + (qg.isFetchingNextPage ? ". Carregando mais…" : ".") + " Clique numa linha para abrir."
     : [total != null ? `${n(total)} caso(s)${sufixo}` : null,
-      `${n(casos.length)} carregado(s)${q.hasNextPage ? " (role até o fim para carregar mais)" : ""}`].filter(Boolean).join("; ") + (q.isFetchingNextPage ? ". Carregando mais…" : ".");
+      `${n(casos.length)} carregado(s)${q.hasNextPage ? " (role até o fim para carregar mais)" : ""}`].filter(Boolean).join("; ") + (q.isFetchingNextPage ? ". Carregando mais…" : ".") + " Clique numa linha para abrir.";
   const carregarMais = () => { if (ativa.hasNextPage && !ativa.isFetchingNextPage) ativa.fetchNextPage(); };
 
   const idsMarcados = [...marcados];
@@ -300,10 +359,16 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
     : `Todos os casos em aberto deste filtro${total != null && emAberto ? ` (${n(total)})` : ""}, inclusive os que a lista ainda não carregou.`;
   const recarregar = () => { atualizarTudo(qc, projeto.id); };
   const listaDoProximo = agrupar ? casosDoGrupo : casos;
+  const abrirCaso = (id) => { setAberto(id); setUltimoCaso(id); setSemProximo(false); };
+  const abrirGrupo = (g) => {
+    if (loteDoGrupo?.doGrupo) fecharLote();
+    setGrupoAberto(g); setUltimoGrupo(g.chave); setAberto(null); setSemProximo(false);
+  };
+  const fecharPainel = () => { if (loteDoGrupo?.doGrupo) fecharLote(); setAberto(null); setGrupoAberto(null); setSemProximo(false); };
   const irAoProximo = () => {
     const prox = proximoCasoAberto(listaDoProximo, aberto);
     setSemProximo(!prox);
-    if (prox) setAberto(prox);
+    if (prox) { setAberto(prox); setUltimoCaso(prox); }
   };
   // Lote: com grupos marcados, os casos desses grupos (os ids que faltarem são pedidos ao servidor); sem marcação, o filtro inteiro.
   const abrirLote = async () => {
@@ -316,25 +381,37 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
       setLoteDoGrupo({ ids, descricao: `${n(ids.length)} caso(s) de ${n(marcados.size)} grupo(s) marcado(s).` });
     } catch (e) { setErroIds(mensagemDeErro(e)); } finally { setBuscandoIds(false); }
   };
-  const decidirGrupo = (ids, g) => { setLote(false); setLoteDoGrupo({ ids, descricao: descricaoDoLoteDoGrupo(g, ids.length) }); };
+  // O lote de um grupo abre dentro do painel do grupo, onde a pessoa está.
+  const decidirGrupo = (ids, g) => { setLote(false); setLoteDoGrupo({ ids, descricao: descricaoDoLoteDoGrupo(g, ids.length), doGrupo: true }); };
   const aoMudouLote = () => { setMarcados(new Set()); recarregar(); };
 
-  const painelDireito = () => {
+  /** O painel sobreposto: o caso aberto (Anterior e Próximo andam na lista carregada ou nos casos do grupo) ou o grupo aberto (andam nos grupos). */
+  const painel = () => {
     if (aberto) {
+      const viz = vizinhosNaLista(listaDoProximo, aberto);
+      const linha = listaDoProximo.find((c) => c.id === aberto);
       return (
-        <div className="space-y-2">
-          {agrupar && grupoAberto && <button type="button" className={botaoSecundario} onClick={() => { setAberto(null); setSemProximo(false); }}>Voltar ao grupo</button>}
+        <PainelSobreposto titulo={tituloDoCasoAberto(linha)} posicao={viz.posicao ? `Caso ${n(viz.posicao)} de ${n(viz.total)} ${agrupar ? "carregados deste grupo" : "carregados"}` : null}
+          aoAnterior={viz.anterior ? () => abrirCaso(viz.anterior) : null} aoProximo={viz.proximo ? () => abrirCaso(viz.proximo) : null} aoFechar={fecharPainel}
+          acoes={agrupar && grupoAberto ? <button type="button" className={`${botaoSecundario} bg-card`} onClick={() => { setAberto(null); setSemProximo(false); }}>Voltar ao grupo</button> : null}>
+          {semProximo && <Aviso>Não há mais casos em aberto na lista.</Aviso>}
           <CasoDetalhe key={aberto} projeto={projeto} casoId={aberto} aoIrAoProximo={irAoProximo} aoMudou={recarregar} grupoDoRecorte={filtro.grupo || null} />
-        </div>
+        </PainelSobreposto>
       );
     }
     if (agrupar && grupoAberto) {
-      return <DetalheDoGrupo grupo={grupoAberto} dados={qd.data} carregando={qd.isPending} erro={qd.isError ? qd.error : null} aoTentar={() => qd.refetch()}
-        aoAbrirCaso={(id) => { setAberto(id); setSemProximo(false); }} aoDecidir={decidirGrupo} aoFechar={() => setGrupoAberto(null)} />;
+      const viz = vizinhosNaLista(grupos, grupoAberto.chave, (g) => g.chave);
+      const ir = (chave) => () => abrirGrupo(grupos.find((g) => g.chave === chave));
+      return (
+        <PainelSobreposto titulo={tituloDoGrupoDeCasos(qd.data?.grupo || grupoAberto)} posicao={viz.posicao ? `Grupo ${n(viz.posicao)} de ${n(viz.total)} carregados` : null}
+          aoAnterior={viz.anterior ? ir(viz.anterior) : null} aoProximo={viz.proximo ? ir(viz.proximo) : null} aoFechar={fecharPainel}>
+          {loteDoGrupo?.doGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
+          <DetalheDoGrupo noPainel grupo={grupoAberto} dados={qd.data} carregando={qd.isPending} erro={qd.isError ? qd.error : null} aoTentar={() => qd.refetch()}
+            aoAbrirCaso={abrirCaso} aoDecidir={decidirGrupo} />
+        </PainelSobreposto>
+      );
     }
-    return agrupar
-      ? <EstadoVazio titulo="Escolha um grupo">Clique numa linha para ver o que os casos do grupo têm em comum, decidir todos de uma vez ou abrir um caso.</EstadoVazio>
-      : <EstadoVazio titulo="Escolha um caso">Clique numa linha para ver o item, o problema, a proposta e decidir.</EstadoVazio>;
+    return null;
   };
   const vazioTitulo = emAberto ? "Nenhum caso em aberto com este filtro" : "Nenhum caso com este filtro";
 
@@ -360,35 +437,31 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
         </Aviso>
       )}
       {erroIds && <Aviso tom="erro">{erroIds}</Aviso>}
-      {loteDoGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
+      {loteDoGrupo && !loteDoGrupo.doGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
       {lote && !loteDoGrupo && <PainelDeLote projeto={projeto} ids={agrupar ? [] : idsMarcados} filtro={filtroSrv} descricao={agrupar ? `Todos os casos em aberto deste filtro${primeiraG ? ` (${n(primeiraG.totalCasos)})` : ""}, inclusive os que a lista ainda não carregou.` : descricaoLote} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
-      {semProximo && <Aviso>Não há mais casos em aberto na lista.</Aviso>}
-
       {ativa.isError ? <EstadoErro erro={ativa.error} aoTentar={() => ativa.refetch()} texto="Não foi possível carregar os casos." />
         : ativa.isPending ? <EstadoCarregando texto="Carregando os casos…" />
           : (
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-              <div className="min-w-0 space-y-2">
-                {agrupar ? (
-                  grupos.length === 0 && !qg.hasNextPage ? (
-                    <EstadoVazio titulo={vazioTitulo}>Troque os filtros, ou rode as análises na aba Análise da fase.</EstadoVazio>
-                  ) : (
-                    <TabelaDensa id="saneamento-estoques-casos-agrupados" ariaLabel="Casos agrupados" colunas={COLUNAS_AGRUPADAS} linhas={grupos} chaveLinha={(g) => g.chave} vazio="Nenhum grupo com estes filtros." contador={contador}
-                      aoClicarLinha={(g) => { setGrupoAberto(g); setAberto(null); setSemProximo(false); }} linhaMarcada={(g) => g.chave === grupoAberto?.chave} selecao={{ marcadas: marcados, aoMudar: (m) => { setMarcados(m); fecharLote(); } }}
-                      aoChegarAoFim={carregarMais} rodape={qg.isFetchingNextPage ? "Carregando mais grupos…" : null} />
-                  )
-                ) : casos.length === 0 && !q.hasNextPage ? (
+            <div className="min-w-0 space-y-2">
+              {agrupar ? (
+                grupos.length === 0 && !qg.hasNextPage ? (
                   <EstadoVazio titulo={vazioTitulo}>Troque os filtros, ou rode as análises na aba Análise da fase.</EstadoVazio>
                 ) : (
-                  <TabelaDensa id="saneamento-estoques-casos-v2" ariaLabel="Casos" colunas={colunas} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso com estes filtros." contador={contador}
-                    aoClicarLinha={(c) => { setAberto(c.id); setSemProximo(false); }} linhaMarcada={(c) => c.id === aberto} selecao={{ marcadas: marcados, aoMudar: (m) => { setMarcados(m); setLote(false); } }}
-                    aoChegarAoFim={carregarMais} rodape={q.isFetchingNextPage ? "Carregando mais casos…" : null} />
-                )}
-                {ativa.hasNextPage && <button type="button" className={botaoSecundario} onClick={() => ativa.fetchNextPage()} disabled={ativa.isFetchingNextPage}>{ativa.isFetchingNextPage ? "Carregando…" : agrupar ? "Carregar mais grupos" : "Carregar mais casos"}</button>}
-              </div>
-              <div className="min-w-0">{painelDireito()}</div>
+                  <TabelaDensa id="saneamento-estoques-casos-agrupados" ariaLabel="Casos agrupados" colunas={COLUNAS_AGRUPADAS} linhas={grupos} chaveLinha={(g) => g.chave} vazio="Nenhum grupo com estes filtros." contador={contador}
+                    aoClicarLinha={abrirGrupo} linhaMarcada={(g) => g.chave === (grupoAberto?.chave ?? ultimoGrupo)} selecao={{ marcadas: marcados, aoMudar: (m) => { setMarcados(m); fecharLote(); } }}
+                    aoChegarAoFim={carregarMais} rodape={qg.isFetchingNextPage ? "Carregando mais grupos…" : null} />
+                )
+              ) : casos.length === 0 && !q.hasNextPage ? (
+                <EstadoVazio titulo={vazioTitulo}>Troque os filtros, ou rode as análises na aba Análise da fase.</EstadoVazio>
+              ) : (
+                <TabelaDensa id="saneamento-estoques-casos-v2" ariaLabel="Casos" colunas={colunas} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso com estes filtros." contador={contador}
+                  aoClicarLinha={(c) => abrirCaso(c.id)} linhaMarcada={(c) => c.id === (aberto ?? ultimoCaso)} selecao={{ marcadas: marcados, aoMudar: (m) => { setMarcados(m); setLote(false); } }}
+                  aoChegarAoFim={carregarMais} rodape={q.isFetchingNextPage ? "Carregando mais casos…" : null} />
+              )}
+              {ativa.hasNextPage && <button type="button" className={botaoSecundario} onClick={() => ativa.fetchNextPage()} disabled={ativa.isFetchingNextPage}>{ativa.isFetchingNextPage ? "Carregando…" : agrupar ? "Carregar mais grupos" : "Carregar mais casos"}</button>}
             </div>
           )}
+      {painel()}
     </div>
   );
 }

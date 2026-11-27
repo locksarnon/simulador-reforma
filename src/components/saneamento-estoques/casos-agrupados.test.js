@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   contadorDeGrupos, descricaoDoLoteDoGrupo, grupoDoGrupoDeCasos, idsDosGruposParaLote, problemaDoGrupoDeCasos, situacaoUnicaDoGrupo, textoDaPropostaDoGrupo, textoDasSituacoesDoGrupo,
+  tituloDoCasoAberto, tituloDoGrupoDeCasos, vizinhosNaLista,
 } from "./logica";
 
 describe("casos agrupados: textos da linha", () => {
@@ -42,5 +43,24 @@ describe("casos agrupados: ids do lote", () => {
     const buscar = vi.fn();
     expect(await idsDosGruposParaLote(grupos, new Set(), buscar)).toEqual([]);
     expect(buscar).not.toHaveBeenCalled();
+  });
+});
+
+describe("painel sobreposto dos casos", () => {
+  it("posição e vizinhas na lista carregada; nas pontas não há anterior ou próximo; fora da lista, nenhuma", () => {
+    const lista = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(vizinhosNaLista(lista, "a")).toEqual({ posicao: 1, total: 3, anterior: null, proximo: "b" });
+    expect(vizinhosNaLista(lista, "b")).toEqual({ posicao: 2, total: 3, anterior: "a", proximo: "c" });
+    expect(vizinhosNaLista(lista, "c")).toEqual({ posicao: 3, total: 3, anterior: "b", proximo: null });
+    expect(vizinhosNaLista(lista, "z")).toEqual({ posicao: 0, total: 3, anterior: null, proximo: null });
+    expect(vizinhosNaLista([], "a")).toEqual({ posicao: 0, total: 0, anterior: null, proximo: null });
+    expect(vizinhosNaLista([{ chave: "g1" }, { chave: "g2" }], "g2", (g) => g.chave)).toEqual({ posicao: 2, total: 2, anterior: "g1", proximo: null });
+  });
+  it("títulos: grupo com o nome da camada; caso com código e descrição do item", () => {
+    expect(tituloDoGrupoDeCasos({ camada: "NOMES_UNIDADES" })).toBe("Grupo de casos iguais — Nomes e unidades");
+    expect(tituloDoGrupoDeCasos({})).toBe("Grupo de casos iguais");
+    expect(tituloDoCasoAberto({ item: { codigo: "2186", descricao: "RETENTOR" }, qtdItens: 1 })).toBe("Caso — 2186 — RETENTOR");
+    expect(tituloDoCasoAberto({ item: { codigo: "2186" }, qtdItens: 12 })).toBe("Caso — 12 itens (1º: 2186)");
+    expect(tituloDoCasoAberto(undefined)).toBe("Caso");
   });
 });

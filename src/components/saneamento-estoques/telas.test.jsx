@@ -12,7 +12,7 @@ import { estiloTabela, PermissaoContext } from "./comuns";
 import { descricaoDoLoteDoGrupo } from "./logica";
 import Abas from "./Abas";
 import CasoDetalhe, { ParecerIa } from "./CasoDetalhe";
-import Casos, { DetalheDoGrupo, PainelDeLote } from "./Casos";
+import Casos, { DetalheDoGrupo, PainelDeLote, PainelSobreposto } from "./Casos";
 import Cobertura from "./Cobertura";
 import Configuracao from "./Configuracao";
 import Impacto from "./Impacto";
@@ -230,7 +230,7 @@ describe("Casos", () => {
     expect(t).toContain("NCM com 7 dígitos");
     expect(t).toContain("Decidir em lote");
     expect(t).toContain("Em aberto (plano de ajustes)");
-    expect(t).toContain("Escolha um caso");
+    expect(t).toContain("Clique numa linha para abrir.");
   });
   it("tabela no layout da aba Tabela: cabeçalho fixo, colunas fixas, linhas de 38 px com zebra, selo de situação e contador no topo", () => {
     const outro = { ...caso, id: "c2", camada: "QUALIDADE", tipo: "SEM_MOVIMENTACAO", qtdItens: 12, situacao: "RASCUNHO", origem: "IA", problema: "Item parado desde o corte de movimentação, sem saldo, no grupo Ferragens e em outros quatro grupos do cadastro de itens" };
@@ -256,6 +256,31 @@ describe("Casos", () => {
     // texto longo numa linha só, com o texto inteiro no título
     expect(html).toContain(`title="${outro.problema}"`);
     expect(t).not.toContain("Limpar filtros");
+  });
+  it("tela cheia: a tabela ocupa a largura toda, sem painel ao lado, e só o painel sobreposto mostra o caso", () => {
+    const html = montar(<Casos projeto={projeto()} agruparInicial={false} />, seed([caso]));
+    expect(html).not.toContain("xl:grid-cols");
+    expect(html).not.toContain('role="dialog"');
+    expect(texto(html)).not.toContain("Escolha um caso");
+  });
+  it("caso aberto: painel largo sobre a tabela, com título, posição, Anterior, Próximo e Fechar; nas pontas o botão fica desligado", () => {
+    const outro = { ...caso, id: "c2", item: { codigo: "3001", descricao: "ROLAMENTO 6204", grupo: "Peças" } };
+    const primeiro = montar(<Casos projeto={projeto()} agruparInicial={false} casoInicial="c1" />, seed([caso, outro]));
+    expect(primeiro).toContain('role="table" aria-label="Casos"'); // a tabela continua atrás
+    expect(primeiro).toMatch(/role="dialog" aria-modal="true" aria-labelledby="[^"]+"/);
+    expect(primeiro).toContain("sm:w-[70vw]");
+    expect(primeiro).toContain("bg-black/40");
+    const tp = texto(primeiro);
+    for (const x of ["Caso — 2186 — RETENTOR 45X62", "Caso 1 de 2 carregados", "Anterior", "Próximo", "Fechar"]) expect(tp, x).toContain(x);
+    expect(primeiro).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Anterior da lista"/);
+    expect(primeiro).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Próximo da lista"/);
+    expect(primeiro).toContain('aria-label="Fechar o painel (Esc)"');
+    expect(primeiro).toMatch(/role="row" aria-selected="true"/); // a linha aberta fica marcada
+    const ultimo = montar(<Casos projeto={projeto()} agruparInicial={false} casoInicial="c2" />, seed([caso, outro]));
+    expect(texto(ultimo)).toContain("Caso — 3001 — ROLAMENTO 6204");
+    expect(texto(ultimo)).toContain("Caso 2 de 2 carregados");
+    expect(ultimo).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Anterior da lista"/);
+    expect(ultimo).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Próximo da lista"/);
   });
   it("lista com mais páginas: o contador avisa e o botão Carregar mais casos continua", () => {
     const t = texto(montar(<Casos projeto={projeto()} agruparInicial={false} />, (qc) => qc.setQueryData(chaveLista, { pages: [{ casos: [caso], proximo: "c9" }], pageParams: [undefined] })));
@@ -293,7 +318,7 @@ describe("Casos agrupados", () => {
     expect(html).toContain('role="table" aria-label="Casos agrupados"');
     for (const cls of [estiloTabela.area, estiloTabela.cabecalho, estiloTabela.linha]) expect(html, cls).toContain(cls);
     for (const x of ["Camada", "Tipo", "Grupo", "Problema", "Proposta", "Casos", "Itens", "Situação", "Nomes e unidades", "Peças", "Ex.: A unidade UNIDADE", "Unidade: UN", "1.250", "Proposto 1.200; Rascunho 50",
-      "Vários itens (conjunto)", "Itens parados", "Ativo: Não", "2 grupo(s) (1.251 caso(s)) em aberto", "Escolha um grupo"]) expect(t, x).toContain(x);
+      "Vários itens (conjunto)", "Itens parados", "Ativo: Não", "2 grupo(s) (1.251 caso(s)) em aberto", "Clique numa linha para abrir."]) expect(t, x).toContain(x);
     expect(t).not.toContain("TAMANHO_EXCEDIDO");
     expect(html).toContain('aria-label="Marcar a linha"');
   });
@@ -301,7 +326,7 @@ describe("Casos agrupados", () => {
     const t = texto(montar(<Casos projeto={projeto()} agruparInicial={false} />, (qc) => qc.setQueryData(chaves.casos("p1", filtro), { pages: [{ casos: [], proximo: null }], pageParams: [undefined] })));
     expect(t).toContain("Agrupar casos iguais");
     expect(t).toContain("Nenhum caso em aberto com este filtro");
-    expect(t).toContain("Escolha um caso");
+    expect(t).not.toContain("Escolha um caso");
   });
   it("vazio e erro na lista agrupada", () => {
     expect(texto(montar(<Casos projeto={projeto()} />, seed([])))).toContain("Nenhum caso em aberto com este filtro");
@@ -311,12 +336,38 @@ describe("Casos agrupados", () => {
     const dados = { grupo: { ...grupo(), todosIds: Array.from({ length: 1250 }, (_, i) => `c${i}`), idsCompletos: true }, casos: [{ id: "c1", camada: "NOMES_UNIDADES", tipo: "TAMANHO_EXCEDIDO", problema: "A unidade do item 2186", situacao: "PROPOSTO", qtdItens: 1, item: { codigo: "2186", descricao: "RETENTOR 45X62", grupo: "Peças" } }] };
     const html = montar(<DetalheDoGrupo grupo={grupo()} dados={dados} carregando={false} erro={null} aoAbrirCaso={() => {}} aoDecidir={() => {}} aoFechar={() => {}} />);
     const t = texto(html);
-    for (const x of ["Grupo de casos iguais", "Nomes e unidades", "Peças", "Unidade: UN", "Valor atual", "UNIDADE", "1.250 caso(s), 1.250 item(ns)", "Decidir os 1.250 caso(s) do grupo em lote", "2186", "RETENTOR 45X62", "1 caso(s) de 1.250 (os primeiros)"]) expect(t, x).toContain(x);
+    for (const x of ["Grupo de casos iguais — Nomes e unidades", "Peças", "Unidade: UN", "Valor atual", "UNIDADE", "Decidir os 1.250 caso(s) do grupo em lote", "2186", "RETENTOR 45X62", "1 caso(s) de 1.250 (os primeiros)"]) expect(t, x).toContain(x);
     expect(html).toContain('aria-label="Casos do grupo"');
     // Carregando: o botão do lote espera os ids do grupo.
     const carregando = montar(<DetalheDoGrupo grupo={grupo()} dados={undefined} carregando erro={null} aoAbrirCaso={() => {}} aoDecidir={() => {}} aoFechar={() => {}} />);
     expect(carregando).toMatch(/<button[^>]*disabled[^>]*>Decidir os 1\.250 caso\(s\) do grupo em lote/);
     expect(texto(carregando)).toContain("Carregando os casos do grupo");
+  });
+  it("quadro do grupo: título com a camada; Problema identificado, Grupo, Proposta e Situação, nesta ordem; sem Tipo, Camada nem Casos e itens", () => {
+    const html = montar(<DetalheDoGrupo grupo={grupo()} dados={undefined} carregando erro={null} aoAbrirCaso={() => {}} aoDecidir={() => {}} aoFechar={() => {}} />);
+    const rotulos = [...html.matchAll(/<dt[^>]*>([^<]*)<\/dt>/g)].map((m) => m[1]);
+    expect(rotulos).toEqual(["Problema identificado", "Grupo", "Proposta", "Valor atual", "Situação"]);
+    expect(html).toContain('aria-label="Grupo de casos iguais — Nomes e unidades"');
+    expect(texto(html)).toContain("Ex.: A unidade UNIDADE"); // o problema que muda de caso para caso vem como exemplo
+    for (const x of ["Casos e itens", "1.250 caso(s), 1.250 item(ns)", "Tamanho acima do limite do ERP"]) expect(texto(html), x).not.toContain(x);
+    const semAtual = montar(<DetalheDoGrupo grupo={grupo({ atual: {} })} dados={undefined} carregando erro={null} aoAbrirCaso={() => {}} aoDecidir={() => {}} />);
+    expect([...semAtual.matchAll(/<dt[^>]*>([^<]*)<\/dt>/g)].map((m) => m[1])).toEqual(["Problema identificado", "Grupo", "Proposta", "Situação"]);
+    expect(texto(semAtual)).not.toContain("Fechar"); // sem aoFechar (dentro do painel), o quadro não traz o próprio Fechar
+  });
+  it("grupo no painel sobreposto: o título com a camada fica no cabeçalho do painel, uma vez só, com Anterior e Próximo", () => {
+    const html = montar(
+      <PainelSobreposto titulo="Grupo de casos iguais — Nomes e unidades" posicao="Grupo 1 de 2 carregados" aoAnterior={null} aoProximo={() => {}} aoFechar={() => {}}>
+        <DetalheDoGrupo noPainel grupo={grupo()} dados={undefined} carregando erro={null} aoAbrirCaso={() => {}} aoDecidir={() => {}} />
+      </PainelSobreposto>,
+    );
+    const t = texto(html);
+    expect(t.split("Grupo de casos iguais — Nomes e unidades").length - 1).toBe(1);
+    expect(html).toMatch(/<h2 id="[^"]+"[^>]*>Grupo de casos iguais — Nomes e unidades<\/h2>/);
+    expect(t).toContain("Grupo 1 de 2 carregados");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Anterior da lista"/);
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Próximo da lista"/);
+    expect(html).toContain("botao-acao");
+    expect(t).toContain("Problema identificado");
   });
   it("lote do grupo: o painel de sempre, já com os casos do grupo", () => {
     const t = texto(montar(<PainelDeLote projeto={projeto()} ids={["c1", "c2", "c3"]} filtro={filtro} descricao={descricaoDoLoteDoGrupo(grupo(), 3)} aoFechar={() => {}} aoMudou={() => {}} />));
