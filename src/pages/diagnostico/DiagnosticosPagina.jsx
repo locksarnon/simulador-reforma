@@ -9,6 +9,7 @@ import NovoDiagnosticoDialog from "@/components/diagnostico/NovoDiagnosticoDialo
 import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta } from "@/lib/servicos";
 import { SITUACOES_PROJETO } from "@/lib/projetos";
+import { DIAGNOSTICOS, PROJETOS_CONSULTORIA, trilhaDaConsultoria } from "@/lib/trilhas";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -33,7 +34,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: "Início", to: "/inicio" }, ...(consultoria ? [{ label: "Consultoria Tributária", to: "/area/diagnostico" }, { label: "Projetos" }] : [{ label: "Diagnósticos" }])]}
+        crumbs={trilhaDaConsultoria(consultoria ? PROJETOS_CONSULTORIA : DIAGNOSTICOS)}
         title={consultoria ? "Projetos de Consultoria" : "Diagnósticos"}
         actions={consultoria ? <Link to="/consultoria/carteira" className="botao-acao rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground">Abrir Carteira de Consultoria</Link> : <button type="button" onClick={() => setNovo(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
       />

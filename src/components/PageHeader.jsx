@@ -15,15 +15,23 @@ import {
  */
 
 /**
- * A raiz antiga "DataHub" (nome técnico) vira "Início > área da tela", tirada do catálogo do menu pelo endereço aberto.
- * Assim toda tela mostra o mesmo caminho do menu, mesmo as que ainda montam o breadcrumb à moda antiga.
+ * Trilha sempre no mesmo formato: começa por "Início" e o último item (a tela aberta) fica sem link.
+ * A raiz antiga "DataHub" (nome técnico) vira "Início > área da tela", tirada do catálogo do menu pelo endereço aberto; trilha
+ * que não começa por "Início" ganha o "Início" na frente. Assim toda tela mostra o mesmo caminho do menu, mesmo as que ainda
+ * montam o breadcrumb à moda antiga. A trilha da Consultoria (cliente, projeto, saneamento) vem pronta de `@/lib/trilhas`.
  */
 export function normalizarCrumbs(crumbs, pathname) {
-  if (!crumbs.length || crumbs[0].label !== "DataHub") return crumbs;
-  const area = areaPorId(moduloDoCaminho(pathname)?.area);
-  const raiz = [{ label: "Início", to: "/inicio" }];
-  if (area && area.id !== "inicio") raiz.push({ label: area.titulo, to: caminhoDaArea(area.id) });
-  return [...raiz, ...crumbs.slice(1)];
+  if (!crumbs.length) return crumbs;
+  const inicio = { label: "Início", to: "/inicio" };
+  let lista = crumbs;
+  if (crumbs[0].label === "DataHub") {
+    const area = areaPorId(moduloDoCaminho(pathname)?.area);
+    const raiz = [inicio];
+    if (area && area.id !== "inicio") raiz.push({ label: area.titulo, to: caminhoDaArea(area.id) });
+    lista = [...raiz, ...crumbs.slice(1)];
+  } else if (crumbs[0].label !== "Início") lista = [inicio, ...crumbs];
+  const { to: _atual, ...ultimo } = lista[lista.length - 1];
+  return [...lista.slice(0, -1), ultimo];
 }
 export default function PageHeader({ crumbs: crumbsBrutos = [], title, subtitle, actions }) {
   const navigate = useNavigate();
