@@ -51,7 +51,7 @@ describe("Configuração", () => {
   it("traz o campo da última competência de escrituração já entregue, com o valor salvo", () => {
     const html = montar(<Configuracao projeto={projeto({ parametros: { corteMovimentacao: null, competenciaEntregue: "2026-10" } })} recarregar={() => {}} />);
     expect(texto(html)).toContain("Última escrituração entregue (SPED)");
-    expect(html).toMatch(/<input type="month"[^>]*value="2026-10"/);
+    expect(html).toMatch(/<input[^>]*type="month"[^>]*value="2026-10"/);
   });
   it("sem atividade mantida o botão de confirmar fica desabilitado", () => {
     const html = montar(<Configuracao projeto={projeto({ atividades: [atividade({ mantida: false })] })} recarregar={() => {}} />);
