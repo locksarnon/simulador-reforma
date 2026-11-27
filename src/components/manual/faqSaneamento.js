@@ -127,8 +127,20 @@ export const SECAO_SANEAMENTO = {
       r: "A regra decide o que é claro (por exemplo, uma duplicidade exata). A IA entra só na borda, quando a regra não decide, e apenas se você clicar em Pedir parecer da IA num caso: ela devolve recomendação, confiança, argumentos a favor e contra, o que confirmar e as fontes, e rotula a “prática de mercado” como tal, nunca como norma. Ela não roda nos milhares de itens, nunca grava a decisão e, se estiver fora do ar, o caso segue sem parecer. Quem decide é o consultor.",
     },
     {
+      p: "O que é a base antes e depois do Cadastro saneado?",
+      r: "É a aba Cadastro saneado do Excel: todas as colunas que vieram do ERP, inclusive as que o saneamento não usa. Quando algum item teve a coluna alterada, ela aparece em par, “(como era)” e “(como ficou)”, e a célula alterada fica em verde claro; a coluna Camada que alterou diz qual análise mudou o item. O item inativado ou unificado continua na lista, com a Situação do item (“Inativado” ou “Unificado em outro código”) e o Código de destino. Assim o cliente confere, item a item, o que mudou no cadastro (POP-CON-16).",
+    },
+    {
+      p: "O que muda na entrega da Fase 1?",
+      r: "A entrega da Fase 1 é só o saneamento do cadastro. O Excel sai com 5 abas (sem Cenários tributários), sem a finalidade e sem as colunas da parte tributária, e sem os impactos de tratamento tributário, de bem do imobilizado e de reclassificação de NCM. O Resumo do Excel e o relatório em PDF dizem, numa linha, que a parte tributária é entregue em separado, na Fase 2. A versão liberada como Fase 1 tem o selo “Fase 1 · Saneamento”; no quadro Para revisão, marque “Só a Fase 1 (sem a parte tributária)” para conferir o mesmo recorte. Versões liberadas antes das fases saem completas, como antes (POP-CON-16).",
+    },
+    {
+      p: "Como marco que um ajuste já foi feito no ERP?",
+      r: "Na aba Unificações, na coluna Executado no ERP (logo depois da Ação no ERP), marque a caixa da linha. Só a linha aprovada tem a caixa; a proposta mostra um traço. Ficam registrados a data, a hora e quem marcou, e acima da tabela aparece “X de Y ações executadas no ERP”, contando a lista inteira. Desmarque se marcou por engano. O Excel das listas e o Excel da entrega trazem as colunas Executado no ERP, Executado em e Executado por (POP-CON-18).",
+    },
+    {
       p: "O que o Excel e o relatório em PDF trazem?",
-      r: "O Excel tem 6 abas: Resumo da entrega, Cadastro saneado (com a Finalidade), De para e equivalências, Cenários tributários (enquadramento legal, CST e cClassTrib), Impactos no SPED e Pendências e histórico. Preserva zeros à esquerda, filtros e identificadores. O relatório de fechamento em PDF traz o resumo, os itens recebidos e analisados, os ajustes por categoria, as revisões feitas, o comentário de cada aspecto tratado, as pendências e limitações, a versão liberada e o impacto nas obrigações.",
+      r: "O Excel tem 6 abas (5 na entrega da Fase 1, sem Cenários tributários): Resumo da entrega, Cadastro saneado (a base antes e depois, com a Finalidade), De para e equivalências (com a marca de executado no ERP), Cenários tributários (enquadramento legal, CST e cClassTrib), Impactos no SPED e Pendências e histórico. Preserva zeros à esquerda, filtros e identificadores. O relatório de fechamento em PDF traz o resumo, os itens recebidos e analisados, os ajustes por categoria, as revisões feitas, o comentário de cada aspecto tratado, as pendências e limitações, a versão liberada e o impacto nas obrigações.",
     },
     {
       p: "De onde vêm os registros do impacto no SPED e a regra de crédito de uso e consumo?",

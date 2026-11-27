@@ -129,8 +129,10 @@ export class SanProjetoService {
     };
     // Quantos itens a base tem: a tela escolhe a aba de abertura sem esperar a visão geral.
     const totalItens = await this.prisma.sanItem.count({ where: { projeto_id: id } });
+    // As marcas "Executado no ERP" do mapa (parametros.acoesExecutadas, uma por linha) não vão à tela do projeto: a aba Unificações as lê.
+    const { acoesExecutadas: _executadas, ...parametros } = (p.parametros ?? {}) as Record<string, unknown>;
     return {
-      ...(await comErpDoCadastro(this.prisma, p)), data_base, totalItens, atividadesConfirmadas: !!p.atividades_confirmadas_em, cnpjDesatualizado: !!atual && atual !== p.cnpj_versao,
+      ...(await comErpDoCadastro(this.prisma, { ...p, parametros })), data_base, totalItens, atividadesConfirmadas: !!p.atividades_confirmadas_em, cnpjDesatualizado: !!atual && atual !== p.cnpj_versao,
       mapaAtividades: mapaDeAtividades(p.atividades.filter((a) => a.mantida).map((a) => a.codigo)), cliente,
       listaAtividades: ATIVIDADES.map((codigo) => ({ codigo, rotulo: ROTULO_ATIVIDADE[codigo] })),
     };

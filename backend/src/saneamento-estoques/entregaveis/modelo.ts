@@ -6,7 +6,8 @@ import { CAMADAS, ROTULO_CENARIO, ROTULO_FINALIDADE, type Camada } from '../tipo
 import type { DadosEntrega } from '../dados/portas';
 import { ROTULO_CAMADA, rotuloDoCampo, rotuloDoCaso, rotuloDoValor, rotuloTipoCaso } from '../rotulos';
 import { escalaDaBase } from '../motor/conjuntos';
-import { montarMapa, saldoDe, type LinhaMapa } from './unificacoes';
+import { CAMPOS_TOPO } from '../dados/constantes';
+import { montarMapa, saldoDe, type Executadas, type LinhaMapa } from './unificacoes';
 
 type Json = Record<string, unknown>;
 const NAO_CONFIRMADO = 'não confirmado';
@@ -52,12 +53,47 @@ export const pct1 = (x: number) => `${(Math.round(x * 1000) / 10).toFixed(1).rep
 export { dataBr, dataExcel } from './formato';
 
 const igual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** Igual para a base antes × depois: vazio e nulo são a mesma coisa. */
+const mesmoValor = (a: unknown, b: unknown) => igual(a === '' ? null : a, b === '' ? null : b);
+
+// ── Fases (docs/saneamento-fases.md) ─────────────────────────────────────────
+
+/** Camadas da Fase 2 (Tributário e Reforma): ficam fora da entrega da Fase 1. Texto (e não o tipo Camada): as fotos antigas não as têm. */
+export const CAMADAS_FASE2 = ['FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO'];
+/**
+ * Tipos de caso da Fase 2 que, nas fotos anteriores à separação, ficavam em camadas da Fase 1: finalidade (em Grupos e finalidade),
+ * reclassificação de NCM (em NCM) e os impactos de tratamento e de imobilizado (em Obrigações).
+ */
+export const TIPOS_FASE2 = [
+  'FINALIDADE_GRUPO', 'FINALIDADE_EXCECAO', 'FINALIDADE_SUGERIDA', 'NCM_INFO_INSUFICIENTE', 'NCM_INCOMPATIVEL_DESCRICAO', 'NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS',
+  'IMPACTO_MUDOU_TRATAMENTO', 'IMPACTO_ITEM_ATIVO_IMOBILIZADO',
+];
+/** Camadas que dão a finalidade do item: a antiga (Grupos e finalidade) e a nova (Finalidade). */
+export const CAMADAS_DA_FINALIDADE = ['GRUPOS_FINALIDADE', 'FINALIDADE'];
+export const ehDaFase2 = (c: { camada: string; tipo: string }) => CAMADAS_FASE2.includes(c.camada) || TIPOS_FASE2.includes(c.tipo);
+/** Linha de impacto no SPED que nasce do tratamento tributário ou da finalidade (o motivo começa pelo rótulo do ajuste). */
+const MOTIVOS_FASE2 = ['Mudou tratamento (CST/cClassTrib)', 'Item de bem do ativo imobilizado'];
+export const TEXTO_FASE2_SEPARADA = 'Entrega da Fase 1 (saneamento do cadastro): a parte tributária (finalidade, cenários, enquadramento e reclassificação de NCM) é entregue em separado, na Fase 2.';
+
+/** Chave normalizada do campo de uma decisão: o de topo do item pelo nome; os demais como "campos.<nome>". */
+export function chaveDoCampo(campo: string): string {
+  if (campo.startsWith('campos.')) return campo;
+  return (CAMPOS_TOPO as readonly string[]).includes(campo) ? campo : `campos.${campo}`;
+}
+/** Valor atual do campo no trabalho do item (chave normalizada). */
+export function valorNoTrabalho(t: Json, chave: string): unknown {
+  return chave.startsWith('campos.') ? obj(t.campos)[chave.slice(7)] : t[chave];
+}
+/** Como era o campo antes do saneamento e quem o alterou (camadas das decisões aprovadas). */
+export type AlteracaoCampo = { antes: unknown; camadas: Set<string>; soFase2: boolean };
 
 // ── Tipos normalizados ───────────────────────────────────────────────────────
 
 export type ItemN = {
   id: string; codigo: string; estab: string; descricao: string; descricaoOriginal: string; unidade: string; ncm: string; grupo: string;
   finalidade: string | null; tambem: string[]; ativo: boolean | null; saldo: number | null; campos: Json; camposAlterados: string[];
+  /** Base de trabalho do item como veio (todas as colunas do ERP: as de topo e as de `campos`). */
+  trabalho: Json;
 };
 export type CelulaN = { situacao: string; revisar: boolean; casoId: string | null };
 export type CasoN = {
@@ -76,6 +112,12 @@ export type ContagemSituacao = { total: number; porSituacao: Record<string, numb
 export type Modelo = {
   dados: DadosEntrega;
   liberada: boolean;
+  /** Entrega só da Fase 1 (versão com `resumo.fase = 'FASE1'` ou revisão filtrada): sem o conteúdo tributário. */
+  soFase1: boolean;
+  /** Por item e campo (chave normalizada): como era antes do saneamento e as camadas que o alteraram (base antes × depois). */
+  alteracoes: Map<string, Map<string, AlteracaoCampo>>;
+  /** Na Fase 1: colunas de `campos` que só existem pela parte tributária (chaves das propostas da Fase 2), fora da base. */
+  camposDaFase2: Set<string>;
   itens: ItemN[];
   porId: Map<string, ItemN>;
   celulas: Map<string, Map<string, CelulaN>>;
@@ -98,44 +140,75 @@ export type Modelo = {
   decisoesPorCamada: Map<string, number>;
 };
 
+/** Linha de impacto no SPED da parte tributária: ligada a caso da Fase 2 ou nascida do tratamento ou do imobilizado. */
+function impactoDaFase2(i: Pick<ImpactoN, 'casoId' | 'motivo'>, origemDoCaso: Map<string, { camada: string; tipo: string }>): boolean {
+  const o = i.casoId ? origemDoCaso.get(i.casoId) : undefined;
+  return (!!o && ehDaFase2(o)) || MOTIVOS_FASE2.some((x) => i.motivo.startsWith(x));
+}
+
 function rotulosFinalidade(v: unknown): string[] {
   return lista(v).map((x) => ROTULO_FINALIDADE[x as keyof typeof ROTULO_FINALIDADE] ?? txt(x)).filter(Boolean);
 }
 
 export function construirModelo(dados: DadosEntrega): Modelo {
   const liberada = dados.liberada === true;
+  const soFase1 = dados.fase === 'FASE1';
   const aprovadoOuDecidido = (s: string) => !CASO_PENDENTE.includes(s);
   const limite = liberada ? paraData(dados.versao?.criadaEm) : null;
   const ate = (d: Date | null) => !limite || !d || +d <= +limite;
 
-  // decisões: primeira "antes" e última "depois" por item e campo (descrição original e campos alterados)
-  const decisoes: DecisaoN[] = dados.decisoes.map((d) => ({
+  // Camada e tipo de TODO caso (também os obsoletos): a decisão de um caso que ficou obsoleto continua tendo alterado o campo.
+  const origemDoCaso = new Map<string, { camada: string; tipo: string }>();
+  for (const c of dados.casos) origemDoCaso.set(txt(c.id), { camada: txt(c.camada), tipo: txt(c.tipo) });
+  const camposDaFase2 = new Set<string>();
+  if (soFase1) {
+    for (const c of dados.casos) {
+      if (!ehDaFase2({ camada: txt(c.camada), tipo: txt(c.tipo) })) continue;
+      for (const k of Object.keys(obj(c.proposta))) { const ch = chaveDoCampo(k); if (ch.startsWith('campos.')) camposDaFase2.add(ch); }
+    }
+  }
+
+  const todasDecisoes: DecisaoN[] = dados.decisoes.map((d) => ({
     itemId: txt(d.item_id), casoId: d.caso_id ? txt(d.caso_id) : null, campo: txt(d.campo), antes: d.antes ?? null, depois: d.depois ?? null,
     fundamento: txt(d.fundamento), usuario: txt(d.usuario), tipo: txt(d.tipo), quando: paraData(d.quando),
   })).sort((a, b) => (+(a.quando ?? 0)) - (+(b.quando ?? 0)));
-  const primeira = new Map<string, unknown>(); const ultima = new Map<string, unknown>(); const camposDoItem = new Map<string, string[]>();
-  for (const d of decisoes) {
-    if (d.tipo === 'rejeitar' || d.campo.startsWith('caso:')) continue;
-    const k = `${d.itemId}\u0001${d.campo}`;
-    if (!primeira.has(k)) { primeira.set(k, d.antes); (camposDoItem.get(d.itemId) ?? camposDoItem.set(d.itemId, []).get(d.itemId)!).push(d.campo); }
-    ultima.set(k, d.depois);
+  // Base antes × depois: por item e campo, o valor de antes da PRIMEIRA decisão do saneamento (a reimportação é o próprio ERP: não conta) e as
+  // camadas das decisões aprovadas. O "como ficou" é o trabalho do item (só muda por decisão aprovada ou reimportação).
+  const alteracoes = new Map<string, Map<string, AlteracaoCampo>>();
+  const fase2PorCampo = new Map<AlteracaoCampo, { f1: number; f2: number }>();
+  for (const d of todasDecisoes) {
+    if (d.tipo === 'rejeitar' || d.tipo === 'importar' || d.campo.startsWith('caso:')) continue;
+    const chave = chaveDoCampo(d.campo);
+    let m = alteracoes.get(d.itemId); if (!m) { m = new Map(); alteracoes.set(d.itemId, m); }
+    let a = m.get(chave); if (!a) { a = { antes: d.antes, camadas: new Set(), soFase2: false }; m.set(chave, a); fase2PorCampo.set(a, { f1: 0, f2: 0 }); }
+    const origem = d.casoId ? origemDoCaso.get(d.casoId) : undefined;
+    const conta = fase2PorCampo.get(a)!;
+    if (origem && ehDaFase2(origem)) conta.f2++; else conta.f1++;
+    if (d.tipo === 'aprovar') a.camadas.add(origem?.camada || '');
   }
+  for (const [a, c] of fase2PorCampo) a.soFase2 = c.f2 > 0 && c.f1 === 0;
+  // Fase 1: as decisões da parte tributária não entram (nem no histórico, nem na contagem de itens ajustados).
+  const fase2Ids = new Set<string>();
+  if (soFase1) for (const [id, o] of origemDoCaso) if (ehDaFase2(o)) fase2Ids.add(id);
+  const decisoes = soFase1 ? todasDecisoes.filter((d) => !d.casoId || !fase2Ids.has(d.casoId)) : todasDecisoes;
 
   const itens: ItemN[] = dados.itens.map((r) => {
     const t = obj(r.trabalho); const campos = obj(t.campos);
     const id = txt(r.id);
     const original = obj(r.original);
-    const k = `${id}\u0001descricao`;
     const descricao = txt(t.descricao ?? r.descricao);
-    const descricaoOriginal = txt(original.descricao) || (primeira.has(k) ? txt(primeira.get(k)) : descricao);
-    const alterados = (camposDoItem.get(id) ?? []).filter((c) => !igual(primeira.get(`${id}\u0001${c}`), ultima.get(`${id}\u0001${c}`)));
+    const alt = alteracoes.get(id);
+    const altDesc = alt?.get('descricao');
+    const descricaoOriginal = txt(original.descricao) || (altDesc ? txt(altDesc.antes) : descricao);
+    const alterados: string[] = [];
+    if (alt) for (const [chave, a] of alt) if (!(soFase1 && a.soFase2) && !mesmoValor(a.antes, valorNoTrabalho(t, chave))) alterados.push(chave);
     const fin = r.finalidade ?? t.finalidade;
     const ativo = typeof r.ativo === 'boolean' ? r.ativo : typeof t.ativo === 'boolean' ? t.ativo : null;
     return {
       // Código de TRABALHO primeiro (a decisão pode trocá-lo; a coluna é a chave da importação), como o mapa e a orquestração.
       id, codigo: txt(t.codigo ?? r.codigo), estab: txt(r.estabelecimento ?? t.estabelecimento), descricao, descricaoOriginal,
       unidade: txt(t.unidade), ncm: txt(t.ncm), grupo: txt(r.grupo ?? t.grupo), finalidade: fin ? txt(fin) : null,
-      tambem: rotulosFinalidade(r.tambemUsadoComo ?? r.tambem_usado_como ?? t.tambemUsadoComo), ativo, saldo: saldoDe(t.saldo), campos, camposAlterados: alterados,
+      tambem: rotulosFinalidade(r.tambemUsadoComo ?? r.tambem_usado_como ?? t.tambemUsadoComo), ativo, saldo: saldoDe(t.saldo), campos, camposAlterados: alterados, trabalho: t,
     };
   });
   const porId = new Map(itens.map((i) => [i.id, i]));
@@ -149,11 +222,12 @@ export function construirModelo(dados: DadosEntrega): Modelo {
     m.set(camada, { situacao: txt(c.situacao) || 'PENDENTE', revisar: c.revisar === true, casoId: c.caso_id ? txt(c.caso_id) : null });
   }
   const modulos = obj(dados.projeto.modulos);
-  // Camadas nascidas da divisão em fases (FINALIDADE, NCM_CLASSIFICACAO) só aparecem se a foto as tem: foto antiga fica como estava.
-  const novas: readonly string[] = ['FINALIDADE', 'NCM_CLASSIFICACAO'];
-  const camadas = CAMADAS.filter((c) => (c !== 'ESTOQUE' || modulos.conciliacao === true || presentes.has('ESTOQUE')) && (!novas.includes(c) || presentes.has(c) || !presentes.size));
+  // As camadas novas da Fase 2 (Finalidade, Classificação NCM) só aparecem quando a base as tem (as fotos antigas não têm essas células).
+  const novas: string[] = ['FINALIDADE', 'NCM_CLASSIFICACAO'];
+  const camadas = (CAMADAS as readonly Camada[]).filter((c) => (c !== 'ESTOQUE' || modulos.conciliacao === true || presentes.has('ESTOQUE')) && (!novas.includes(c) || presentes.has(c) || !presentes.size))
+    .filter((c) => !soFase1 || !CAMADAS_FASE2.includes(c));
 
-  const casos: CasoN[] = dados.casos.filter((c) => txt(c.situacao) !== 'OBSOLETO').map((c) => ({
+  const casos: CasoN[] = dados.casos.filter((c) => txt(c.situacao) !== 'OBSOLETO' && !(soFase1 && fase2Ids.has(txt(c.id)))).map((c) => ({
     id: txt(c.id), camada: txt(c.camada), tipo: txt(c.tipo), itens: lista(c.itens).map(txt), problema: txt(c.problema),
     evidencia: lista(c.evidencia).map((e) => ({ rotulo: txt(obj(e).rotulo), valor: txt(obj(e).valor) })), atual: obj(c.atual), proposta: obj(c.proposta),
     justificativa: txt(c.justificativa), fundamento: txt(c.fundamento), situacao: txt(c.situacao), motivo: txt(c.motivo), responsavel: txt(c.responsavel),
@@ -165,7 +239,7 @@ export function construirModelo(dados: DadosEntrega): Modelo {
     casoId: i.caso_id ? txt(i.caso_id) : null, obrigacao: txt(i.obrigacao), competencia: txt(i.competencia), leiaute: txt(i.versao_leiaute), registro: txt(i.registro),
     campo: txt(i.campo), valorOriginal: txt(i.valor_original), valorProposto: txt(i.valor_proposto), motivo: txt(i.motivo), evidencia: txt(i.evidencia),
     inicio: paraData(i.inicio), avaliarAnteriores: i.avaliar_anteriores === true, responsavel: txt(i.responsavel), tipo: txt(i.tipo_ajuste), criadoEm: paraData(i.createdAt),
-  })).filter((i) => ate(i.criadoEm));
+  })).filter((i) => ate(i.criadoEm) && !(soFase1 && impactoDaFase2(i, origemDoCaso)));
   // liberada: só impacto de caso já decidido (ou lançado sem caso); o resto fica registrado como excluído
   const impactos = liberada ? impactosTodos.filter((i) => !i.casoId || !casoPorId.has(i.casoId) || aprovadoOuDecidido(casoPorId.get(i.casoId)!.situacao)) : impactosTodos;
   const vinculos: VinculoN[] = dados.vinculos.map((v) => ({ de: txt(v.de), para: txt(v.para), inicio: paraData(v.inicio), justificativa: txt(v.justificativa), criadoPor: txt(v.criado_por), criadoEm: paraData(v.createdAt) })).filter((v) => ate(v.criadoEm));
@@ -218,7 +292,7 @@ export function construirModelo(dados: DadosEntrega): Modelo {
   }
 
   return {
-    dados, liberada, itens, porId, celulas, camadas, casos, casoPorId, decisoes, impactos, impactosExcluidos: impactosTodos.length - impactos.length, vinculos,
+    dados, liberada, soFase1, alteracoes, camposDaFase2, itens, porId, celulas, camadas, casos, casoPorId, decisoes, impactos, impactosExcluidos: impactosTodos.length - impactos.length, vinculos,
     casosDoItem, porCamada, casosPorCamada, itensAjustadosPorCamada, decisoesPorCamada,
   };
 }
@@ -376,8 +450,7 @@ export function origemDaFinalidade(m: Modelo, it: ItemN): string {
   if (!idx) {
     const porItem = new Map<string, CasoN[]>();
     for (const c of m.casos) {
-      // FINALIDADE (Fase 2) ou GRUPOS_FINALIDADE (fotos de versões anteriores à divisão em fases): os leitores aceitam as duas.
-      if ((c.camada !== 'FINALIDADE' && c.camada !== 'GRUPOS_FINALIDADE') || c.situacao !== 'APROVADO' || !txt(c.proposta.finalidade)) continue;
+      if (!CAMADAS_DA_FINALIDADE.includes(c.camada) || c.situacao !== 'APROVADO' || !txt(c.proposta.finalidade)) continue;
       for (const id of c.itens) (porItem.get(id) ?? porItem.set(id, []).get(id)!).push(c);
     }
     const aplicadas = new Set(m.decisoes.filter((d) => d.campo === 'finalidade' && d.tipo === 'aprovar' && d.casoId).map((d) => `${d.casoId}\u0001${d.itemId}`));
@@ -430,6 +503,7 @@ export function mapaDoModelo(m: Modelo): LinhaMapa[] {
   if (!r) {
     r = montarMapa({
       liberada: m.liberada, dataBase: paraData(m.dados.projeto.data_base), item: (id) => m.porId.get(id), escala: escalaDaBase(m.itens), perfilErp: m.dados.perfilErp ?? null,
+      executadas: obj(obj(m.dados.projeto.parametros).acoesExecutadas) as Executadas,
       casos: m.casos.map((c) => ({ id: c.id, camada: c.camada, tipo: c.tipo, itens: c.itens, proposta: c.proposta, justificativa: c.justificativa, motivo: c.motivo, situacao: c.situacao, decididoPor: c.decididoPor, decididoEm: c.decididoEm })),
       vinculos: m.vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criadoPor })),
     });

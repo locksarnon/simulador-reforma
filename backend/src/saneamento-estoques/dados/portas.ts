@@ -115,6 +115,12 @@ export type DadosEntrega = {
   importacoes: Record<string, unknown>[];
   /** Perfil do ERP do projeto (Cadastro de ERPs): Ação no ERP do mapa e particularidades no relatório. Sem perfil: regras gerais. */
   perfilErp?: PerfilErp | null;
+  /**
+   * Fase da entrega (`resumo.fase` da versão; na revisão, o filtro escolhido na tela). FASE1 = só o saneamento: o Excel e o relatório deixam
+   * de fora o conteúdo tributário (finalidade, cenários, enquadramento, impactos de tratamento e reclassificação de NCM). Sem fase (versões
+   * antigas), tudo, como antes.
+   */
+  fase?: 'FASE1' | 'FASE2' | null;
 };
 export interface EntregaveisPort {
   gerarExcel(dados: DadosEntrega): Promise<Buffer>;

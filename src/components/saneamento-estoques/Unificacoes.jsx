@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { usePerfilErp } from "@/components/erps/erps";
 import { perfilEspecifico } from "@/lib/erps";
 import { chaves, san } from "./api";
 import TabelaDensa from "./TabelaDensa";
-import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo, SeloTexto, TextoLongo } from "./comuns";
-import { fmtData, fmtSaldo, mensagemDeErro, SITUACOES_MAPA, TIPOS_MAPA } from "./logica";
+import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo, SeloTexto, TextoLongo, usePodeAlterar } from "./comuns";
+import { fmtData, fmtDataHora, fmtSaldo, linhaExecutavel, mensagemDeErro, SITUACOES_MAPA, textoExecutadas, TIPOS_MAPA } from "./logica";
 
 const longo = (texto) => <TextoLongo texto={texto} largura="max-w-full" />;
 const num = (n) => Number(n || 0).toLocaleString("pt-BR");
@@ -77,6 +77,21 @@ export function textoDoConflito(c) {
 }
 const MAX_CONFLITOS_NA_TELA = 20;
 
+/** "Sim · quando · quem" da linha executada; "Não" na aprovada ainda não executada; vazio na proposta (não vai ao ERP). */
+export const textoDoExecutado = (l) => (!linhaExecutavel(l) ? "" : l.executado ? `Sim · ${fmtDataHora(l.executado.em)} · ${l.executado.por}` : "Não");
+
+/** Caixa "Executado no ERP" da linha: só a ação aprovada (ou a troca registrada) pode ser marcada; quem marcou e quando aparecem ao lado. */
+function CaixaExecutado({ linha, pode, razao, aoMudar, ocupado }) {
+  if (!linhaExecutavel(linha)) return <span className="text-xs text-muted-foreground" title="Aprove o caso antes de marcar como executado">—</span>;
+  const codigo = linha.morre?.codigo || linha.fica?.codigo || "";
+  return (
+    <label className="flex min-w-0 items-center gap-1.5 text-xs" title={linha.executado ? textoDoExecutado(linha) : razao}>
+      <input type="checkbox" checked={!!linha.executado} disabled={!pode || ocupado} onChange={(e) => aoMudar(linha, e.target.checked)} aria-label={`Executado no ERP: ${codigo}`} />
+      <span className="truncate">{linha.executado ? `${fmtDataHora(linha.executado.em)} · ${linha.executado.por}` : "Não"}</span>
+    </label>
+  );
+}
+
 function Conflitos({ conflitos = [], total = 0 }) {
   if (!conflitos.length) return null;
   const n = Math.max(total, conflitos.length);
@@ -93,10 +108,12 @@ function Conflitos({ conflitos = [], total = 0 }) {
 
 /**
  * Unificações, inativações e equivalências: o que sai, para onde vai e com que saldo, o que só se inativa e o que fica relacionado. É a lista
- * que se manda para quem faz os ajustes no ERP (o Excel traz uma aba por lista e os conflitos). Somente leitura: as decisões ficam nos casos.
+ * que se manda para quem faz os ajustes no ERP (o Excel traz uma aba por lista e os conflitos). As decisões ficam nos casos; aqui só se marca a ação executada no ERP.
  */
 export default function Unificacoes({ projeto }) {
   const perfilErp = usePerfilErp(projeto.erp_id).data;
+  const qc = useQueryClient();
+  const { pode, razao } = usePodeAlterar();
   const [lista, setLista] = useState(LISTAS_MAPA[0].id);
   const atual = LISTAS_MAPA.find((x) => x.id === lista) || LISTAS_MAPA[0];
   const [filtro, setFiltro] = useState({ situacao: "", tipo: LISTAS_MAPA[0].tipos, busca: "", pagina: 1 });
@@ -104,6 +121,15 @@ export default function Unificacoes({ projeto }) {
   const consulta = useQuery({ queryKey: chaves.unificacoes(projeto.id, filtro), queryFn: () => san.unificacoes(projeto.id, filtro), placeholderData: keepPreviousData });
   const [erro, setErro] = useState(null);
   const baixar = useMutation({ mutationFn: () => san.baixarUnificacoes(projeto.id, { ...filtro, tipo: "" }), onSuccess: () => setErro(null), onError: (e) => setErro(mensagemDeErro(e, "Não foi possível gerar o Excel agora.")) });
+  const marcar = useMutation({
+    mutationFn: ({ chave, executado }) => (executado ? san.marcarExecutada(projeto.id, chave) : san.desmarcarExecutada(projeto.id, chave)),
+    onSuccess: () => { setErro(null); qc.invalidateQueries({ queryKey: ["san", projeto.id, "unificacoes"] }); },
+    onError: (e) => setErro(mensagemDeErro(e, "Não foi possível gravar a marca de executado agora.")),
+  });
+  const executado = {
+    chave: "executado", rotulo: "Executado no ERP", largura: 210, valor: textoDoExecutado,
+    render: (l) => <CaixaExecutado linha={l} pode={pode} razao={razao} ocupado={marcar.isPending} aoMudar={(x, v) => marcar.mutate({ chave: x.chave, executado: v })} />,
+  };
   const mudar = (k, v) => setFiltro((f) => ({ ...f, [k]: v, pagina: 1 }));
   const trocarLista = (id) => { const l = LISTAS_MAPA.find((x) => x.id === id); setLista(id); setFiltro((f) => ({ ...f, tipo: l.tipos, pagina: 1 })); };
   const botao = (ativo) => `border px-2.5 py-1 text-sm ${ativo ? "border-primary bg-primary/10" : "border-border hover:bg-muted"}`;
@@ -125,7 +151,9 @@ export default function Unificacoes({ projeto }) {
         vazio={(d) => (d.totalGeral ? null : "As linhas aparecem quando a camada Duplicidades propõe unificar ou relacionar códigos ou a camada Qualidade propõe inativar itens sem movimentação desde o corte.")}>
         {(d) => {
           const semEstab = (d.linhas || []).every((l) => !l.morre?.estab);
-          const colunas = semEstab ? atual.colunas.filter((c) => c.chave !== "estab") : atual.colunas;
+          // A coluna "Executado no ERP" vem logo depois da ação (a marca é de quem fez o ajuste no ERP).
+          const base = semEstab ? atual.colunas.filter((c) => c.chave !== "estab") : atual.colunas;
+          const colunas = base.flatMap((c) => (c.chave === "acao" ? [c, executado] : [c]));
           return (
             <>
               <Conflitos conflitos={d.conflitos} total={d.totalConflitos} />
@@ -139,6 +167,7 @@ export default function Unificacoes({ projeto }) {
                 ))}
               </div>
               <p className="text-sm text-muted-foreground">{atual.explica}</p>
+              <p className="text-sm font-medium" role="status" aria-label="Ações executadas no ERP">{textoExecutadas(d.executadasPorLista?.[lista])}</p>
               <div className="flex flex-wrap items-end gap-2" role="group" aria-label="Filtrar por situação">
                 <button type="button" aria-pressed={filtro.situacao === ""} onClick={() => mudar("situacao", "")} className={botao(filtro.situacao === "")}>Todas as situações</button>
                 {Object.entries(SITUACOES_MAPA).filter(([k]) => d.porSituacao?.[k]).map(([k, v]) => (

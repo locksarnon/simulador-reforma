@@ -3,7 +3,7 @@ import {
   ABAS, abaInicial, acaoDoBloqueio, CAMADAS, camadasDaFase, ehTravaDaFase2, FASES, faseDaCamada, fase1Liberada, itensDaVisao, REGIMES_CLIENTE, regimeDoCliente, ROTULO_CAMADA, rotuloDaFaseLiberada, abaPorTecla, acoesDoCaso, alternarIncorporar, aposConflito, camadasAtivas, camposObrigatoriosSemColuna, casoAberto, celulaDa, colunasDaTabela,
   colunasDoArquivo, converterValor, coberturaDeCamadas, corpoDoLote, corrigirMapeamento, ehConflitoVersao, ehReimportacao, ehTravaNaoConfirmada, enderecoDeEntrega,
   estadoDaTrava, formaDaSituacao, gruposDeColunas, itensIncorporaveis, janelaVisivel, larguraTotal, LARGURA_FIXA, lerParecer,
-  linhasDeMapeamento, loteTemEscolha, mensagemDeErro, mensagemDoParecer, montarExcecao, montarFiltroCasos, montarFiltroItens, MENSAGEM_TRAVA, nomeDeEntrega, precisaCarregarMais,
+  linhasDeMapeamento, loteTemEscolha, mensagemDeErro, mensagemDoParecer, montarExcecao, montarFiltroCasos, montarFiltroItens, MENSAGEM_TRAVA, nomeDeEntrega, linhaExecutavel, textoExecutadas, precisaCarregarMais,
   proximoCasoAberto, proximoPendente, resumirRelatorio, rolagemParaLinha, rotuloSituacao, situacaoAgregada, textoDaCelula, textoDoConjunto, versoesDaPrevia, edicaoSuja, edicaoInicial,
   paginasDeImpacto, corpoIncorporar, quantosIncorporar, lerNumeroBr, ALTURA_LINHA, LISTA_SITUACOES, fmtData, converterProposta, razaoSemAprovar, efeitoDaAtividade, interpretarRespostaParecer, textoDoEnquadramento, avisosDaLiberacao,
   versaoCriada, filtroAdmiteLote, fatiarIds, somarPrevias, linhaDeExcecao, identificacaoDoCaso, rotuloSituacaoCaso, ehErroDeRede, ehPropostaDesatualizada, camposDivergentes, casoValeParaEnquadramento,
@@ -370,6 +370,19 @@ describe("cobertura, exceções, impacto e entregas", () => {
     expect(enderecoDeEntrega("p1", "pdf")).toBe("/saneamento-estoques/projetos/p1/entregas/relatorio");
     expect(nomeDeEntrega("excel", { numero: 2 })).toBe("saneamento-estoques-versao-2-liberada.xlsx");
     expect(nomeDeEntrega("excel", null)).toBe("saneamento-estoques-para-revisao.xlsx");
+    // Revisão só da Fase 1 (sem a parte tributária); na versão liberada a fase é a da versão (o parâmetro não vai).
+    expect(enderecoDeEntrega("p1", "excel", null, "FASE1")).toBe("/saneamento-estoques/projetos/p1/entregas/excel?fase=FASE1");
+    expect(enderecoDeEntrega("p1", "excel", "v9", "FASE1")).toBe("/saneamento-estoques/projetos/p1/entregas/excel?versaoId=v9");
+    expect(nomeDeEntrega("excel", null, "FASE1")).toBe("saneamento-estoques-para-revisao-fase-1.xlsx");
+  });
+  it("ações no ERP: só a linha aprovada ou registrada é executável; contador X de Y", () => {
+    expect(linhaExecutavel({ situacao: "APROVADA" })).toBe(true);
+    expect(linhaExecutavel({ situacao: "REGISTRADA" })).toBe(true);
+    expect(linhaExecutavel({ situacao: "PROPOSTA" })).toBe(false);
+    expect(textoExecutadas({ executadas: 3, total: 1200 })).toBe("3 de 1.200 ações executadas no ERP");
+    expect(textoExecutadas({ executadas: 1, total: 1 })).toBe("1 de 1 ação executada no ERP");
+    expect(textoExecutadas({ executadas: 0, total: 0 })).toBe("Nenhuma ação aprovada para executar no ERP nesta lista.");
+    expect(textoExecutadas(undefined)).toBe("Nenhuma ação aprovada para executar no ERP nesta lista.");
   });
   it("o conjunto aparece como NCM · finalidade", () => {
     expect(textoDoConjunto("12345678|REVENDA")).toBe("12345678 · Revenda");

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type { AuthUser } from '../../auth/auth.types';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PdfService } from '../../pdf/pdf.service';
@@ -10,7 +11,7 @@ import { escalaDaBase } from '../motor/conjuntos';
 import { gerarExcelDeDados, gerarExcelMapa } from './excel';
 import { montarRelatorio } from './relatorio';
 import { carregarPerfil } from '../../erps/erps.service';
-import { conflitosDoMapa, contarMapa, filtrarMapa, montarMapa, saldoDe, type CasoMapa, type FiltroMapa, type ItemMapa, type LinhaMapa } from './unificacoes';
+import { conflitosDoMapa, contarMapa, filtrarMapa, montarMapa, saldoDe, type CasoMapa, type Executadas, type FiltroMapa, type ItemMapa, type LinhaMapa, type MarcaExecutado } from './unificacoes';
 import { fatiaDoNome, nomeDoExcel, nomeDoMapa, nomeDoRelatorio } from './nomes';
 import { comNomesDeUsuarios, nomeDe, nomesDeUsuarios } from './usuarios';
 
@@ -28,6 +29,33 @@ export { fatiaDoNome, nomeDaPolitica, nomeDoExcel, nomeDoMapa, nomeDoRelatorio }
 export const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 export const PDF = 'application/pdf';
 
+const FASES = ['FASE1', 'FASE2'] as const;
+/** Fase pedida na exportação para revisão (`fase=FASE1`): só FASE1 ou FASE2; vazio = tudo, como antes. */
+export function faseDoFiltro(v: unknown): DadosEntrega['fase'] {
+  const t = paramTexto(v, 'fase');
+  if (!t) return null;
+  if (!(FASES as readonly string[]).includes(t)) throw new BadRequestException('Fase inválida: use FASE1 ou FASE2.');
+  return t as DadosEntrega['fase'];
+}
+/** Fase gravada no resumo da versão (`resumo.fase`); versão antiga, sem fase = null. */
+const faseDoResumo = (resumo: unknown): DadosEntrega['fase'] => {
+  const f = (resumo as { fase?: unknown } | null)?.fase;
+  return f === 'FASE1' || f === 'FASE2' ? f : null;
+};
+/** Marcas "Executado no ERP" do projeto (`parametros.acoesExecutadas`), só as bem formadas. */
+export function executadasDe(parametros: unknown): Executadas {
+  const bruto = (parametros as { acoesExecutadas?: unknown } | null)?.acoesExecutadas;
+  const out: Executadas = {};
+  if (!bruto || typeof bruto !== 'object' || Array.isArray(bruto)) return out;
+  for (const [k, v] of Object.entries(bruto as Record<string, unknown>)) {
+    const x = v as { em?: unknown; por?: unknown } | null;
+    if (x && typeof x.em === 'string') out[k] = { em: x.em, por: typeof x.por === 'string' ? x.por : '' };
+  }
+  return out;
+}
+const MAX_CHAVE = 600;
+const objeto = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
 /** A consulta devolve no máximo 500 pares em conflito (o Excel do mapa traz todos). */
 const comConflitosLimitados = <T extends { conflitos: unknown[] }>(c: T) => ({ ...c, totalConflitos: c.conflitos.length, conflitos: c.conflitos.slice(0, 500) });
 
@@ -44,9 +72,17 @@ export class EntregaveisService implements EntregaveisPort {
   }
 
   /** Dados da versão (liberada) ou da base atual (revisão), com o nome do cliente e do projeto para o cabeçalho. */
-  async dados(projetoId: string, versaoId?: string): Promise<DadosEntrega> {
+  async dados(projetoId: string, versaoId?: string, fase?: DadosEntrega['fase']): Promise<DadosEntrega> {
     const d = versaoId ? await this.versoes.exportar(projetoId, versaoId) : await this.versoes.exportarAtual(projetoId);
     const { foto: _foto, ...dados } = d as DadosEntrega & { foto?: unknown };
+    // Versão: vale a fase gravada nela (resumo.fase); revisão: a escolhida na tela.
+    dados.fase = versaoId ? faseDoResumo((await this.prisma.sanVersao.findFirst({ where: { id: versaoId, projeto_id: projetoId }, select: { resumo: true } }))?.resumo) : (fase ?? null);
+    const executadas = executadasDe(objeto(dados.projeto).parametros);
+    if (Object.keys(executadas).length) {
+      const nomes = await nomesDeUsuarios(this.prisma, Object.values(executadas).map((x) => x.por));
+      for (const x of Object.values(executadas)) x.por = nomeDe(nomes, x.por);
+      dados.projeto = { ...dados.projeto, parametros: { ...objeto(dados.projeto.parametros), acoesExecutadas: executadas } };
+    }
     const projeto = dados.projeto;
     const empresa = projeto.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: String(projeto.empresa_id) }, select: { razao_social: true, cnpj_cpf: true } }) : null;
     const diag = projeto.diagnostico_id ? await this.prisma.projetoDiagnostico.findUnique({ where: { id: String(projeto.diagnostico_id) }, select: { nome: true } }) : null;
@@ -57,8 +93,8 @@ export class EntregaveisService implements EntregaveisPort {
     return comNomesDeUsuarios(this.prisma, { ...dados, perfilErp, projeto: { ...projeto, clienteNome: empresa?.razao_social ?? '', clienteDocumento: empresa?.cnpj_cpf ?? '', diagnosticoNome: diag?.nome ?? '' } });
   }
 
-  async excel(projetoId: string, versaoId?: string): Promise<{ buffer: Buffer; nome: string }> {
-    const dados = await this.dados(projetoId, versaoId);
+  async excel(projetoId: string, versaoId?: string, fase?: DadosEntrega['fase']): Promise<{ buffer: Buffer; nome: string }> {
+    const dados = await this.dados(projetoId, versaoId, fase);
     const nome = nomeDoExcel(String(dados.projeto.clienteNome ?? ''), dados.versao);
     // Os dados são só desta requisição: o gerador esvazia as listas brutas depois de montar o modelo (menos memória no pico).
     return { buffer: await gerarExcelDeDados(dados, { consumir: true }), nome };
@@ -92,10 +128,12 @@ export class EntregaveisService implements EntregaveisPort {
     }
     const escala = escalaDaBase(await this.codigosESaldos(projetoId));
     const vinculos = await this.prisma.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } });
-    const nomes = await nomesDeUsuarios(this.prisma, [...casos.map((c) => c.decididoPor), ...vinculos.map((v) => v.criado_por)]);
+    const executadas = executadasDe(p.parametros);
+    const nomes = await nomesDeUsuarios(this.prisma, [...casos.map((c) => c.decididoPor), ...vinculos.map((v) => v.criado_por), ...Object.values(executadas).map((x) => x.por)]);
     for (const c of casos) c.decididoPor = nomeDe(nomes, c.decididoPor);
+    for (const x of Object.values(executadas)) x.por = nomeDe(nomes, x.por);
     const linhas = montarMapa({
-      liberada: false, dataBase: p.data_base, casos, item: (id) => itens.get(id), escala, perfilErp: await carregarPerfil(this.prisma, p.erp_id),
+      liberada: false, dataBase: p.data_base, casos, item: (id) => itens.get(id), escala, perfilErp: await carregarPerfil(this.prisma, p.erp_id), executadas,
       vinculos: vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criado_por === 'sistema' ? 'sistema' : nomeDe(nomes, v.criado_por ?? '') })),
     });
     const corte = (p.parametros as { corteMovimentacao?: unknown } | null)?.corteMovimentacao;
@@ -144,6 +182,58 @@ export class EntregaveisService implements EntregaveisPort {
     const nome = nomeDoMapa(empresa?.razao_social ?? '');
     // Os conflitos vêm do mapa inteiro (o par pode ter uma linha fora do filtro).
     return { buffer: await gerarExcelMapa(filtrarMapa(linhas, filtro), { escala: escalaSaldo, conflitos: conflitosDoMapa(linhas) }), nome };
+  }
+
+  /**
+   * Marca uma linha do mapa como "Executado no ERP": grava quando e quem em `parametros.acoesExecutadas[chave]` do projeto, sem mexer na
+   * versão do projeto (a tela de Configuração não recebe conflito). A chave é a da linha (`chaveDaLinha`): o caso tem de ser deste projeto,
+   * de Duplicidades ou Qualidade, e estar aprovado; a troca de código, um vínculo deste projeto.
+   */
+  async marcarExecutada(projetoId: string, chaveBruta: unknown, usuario: AuthUser | undefined): Promise<{ chave: string; executado: MarcaExecutado }> {
+    const chave = await this.validarChave(projetoId, chaveBruta, true);
+    const marca: MarcaExecutado = { em: new Date().toISOString(), por: usuario?.email ?? 'sistema' };
+    await this.gravarExecutada(projetoId, chave, marca);
+    const nomes = await nomesDeUsuarios(this.prisma, [marca.por]);
+    return { chave, executado: { ...marca, por: nomeDe(nomes, marca.por) } };
+  }
+
+  /** Desmarca (a linha volta a "não executada"). O caso pode ter sido reaberto depois: desmarcar não exige aprovação. */
+  async desmarcarExecutada(projetoId: string, chaveBruta: unknown): Promise<{ chave: string; executado: null }> {
+    const chave = await this.validarChave(projetoId, chaveBruta, false);
+    await this.gravarExecutada(projetoId, chave, null);
+    return { chave, executado: null };
+  }
+
+  private async validarChave(projetoId: string, bruta: unknown, exigirAprovado: boolean): Promise<string> {
+    const chave = typeof bruta === 'string' ? bruta.trim() : '';
+    if (!chave || chave.length > MAX_CHAVE) throw new BadRequestException('Informe a linha do mapa (campo "chave").');
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true } });
+    if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
+    const partes = chave.split('|');
+    if (partes[0] === 'vinculo') {
+      if (partes.length !== 3 || !partes[1] || !partes[2]) throw new BadRequestException('Linha do mapa inválida.');
+      const v = await this.prisma.sanVinculoCodigo.findFirst({ where: { projeto_id: projetoId, de: partes[1], para: partes[2] }, select: { id: true } });
+      if (!v) throw new NotFoundException('Esta troca de código não pertence a este projeto.');
+      return chave;
+    }
+    if (partes.length !== 1 && partes.length !== 3) throw new BadRequestException('Linha do mapa inválida.');
+    const caso = await this.prisma.sanCaso.findFirst({ where: { id: partes[0], projeto_id: projetoId }, select: { camada: true, situacao: true } });
+    if (!caso || !['DUPLICIDADE', 'QUALIDADE'].includes(caso.camada)) throw new NotFoundException('Esta ação não pertence ao mapa de unificações deste projeto.');
+    if (exigirAprovado && caso.situacao !== 'APROVADO') throw new BadRequestException('Só a ação aprovada pode ser marcada como executada no ERP: aprove o caso antes.');
+    return chave;
+  }
+
+  /** Grava (ou apaga, com `marca` null) só esta chave, de forma atômica no banco (jsonb), sem regravar os demais parâmetros. */
+  private async gravarExecutada(projetoId: string, chave: string, marca: MarcaExecutado | null) {
+    if (typeof (this.prisma as unknown as { $executeRaw?: unknown }).$executeRaw === 'function') {
+      if (marca) await this.prisma.$executeRaw`UPDATE "SanProjeto" SET "parametros" = jsonb_set(COALESCE("parametros", '{}'::jsonb), '{acoesExecutadas}', COALESCE("parametros"->'acoesExecutadas', '{}'::jsonb) || jsonb_build_object(${chave}::text, jsonb_build_object('em', ${marca.em}::text, 'por', ${marca.por}::text))) WHERE "id" = ${projetoId}`;
+      else await this.prisma.$executeRaw`UPDATE "SanProjeto" SET "parametros" = jsonb_set(COALESCE("parametros", '{}'::jsonb), '{acoesExecutadas}', COALESCE("parametros"->'acoesExecutadas', '{}'::jsonb) - ${chave}::text) WHERE "id" = ${projetoId}`;
+      return;
+    }
+    const atual = (await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { parametros: true } }))?.parametros as Record<string, unknown> | null;
+    const executadas = { ...executadasDe(atual) };
+    if (marca) executadas[chave] = marca; else delete executadas[chave];
+    await this.prisma.sanProjeto.update({ where: { id: projetoId }, data: { parametros: { ...(atual ?? {}), acoesExecutadas: executadas } as never } });
   }
 
   /** Sem `versaoId`, usa a última versão liberada; sem nenhuma versão, recusa. */
