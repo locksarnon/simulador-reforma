@@ -7,6 +7,7 @@ import { atualizarTudo, chaves, san } from "../api";
 import { Aviso, botaoPrimario, botaoSecundario, campoCls, MarcaRevisar, Rotulo, rotuloCls, SecaoForm, Tag, usePodeAlterar } from "../comuns";
 import { ehConflitoVersao, fmtDataHora } from "../logica";
 import { BlocoDoAspecto, ExemplosReais, SeletorMultiplo } from "./Blocos";
+import Janela from "./Janela";
 import {
   ABRANGENCIA_TODOS, alteracoesParaSalvar, aplicarComPrevia, ASPECTOS, chaveTransferencias, conteudoParaTela, conteudoPadrao, ehSobreposicao, ehTodos, gruposDaAbrangencia,
   lerHistorico, mensagemDiretriz, normalizarConteudo, resumoPrevia, ROTULO_ASPECTO, SITUACAO_REGRA, SOBRE_ASPECTO, subgruposDisponiveis, transferencias, validarRegra,
@@ -35,6 +36,7 @@ export function PreviaAplicar({ previa, aoConfirmar, aoCancelar, ocupado }) {
   const r = resumoPrevia(previa);
   const sobrepoe = r.sobreposicoes.length > 0;
   return (
+    <Janela titulo="Prévia da aplicação" aoFechar={ocupado ? undefined : aoCancelar}>
     <section aria-label="Prévia da aplicação" className="space-y-2 border-2 border-primary/60 bg-card p-3">
       <h3 className="text-sm font-semibold">Antes de aplicar, confira o que muda</h3>
       <p className="text-sm">{r.texto}</p>
@@ -53,6 +55,7 @@ export function PreviaAplicar({ previa, aoConfirmar, aoCancelar, ocupado }) {
         <button type="button" className={botaoSecundario} disabled={ocupado} onClick={aoCancelar}>Cancelar</button>
       </div>
     </section>
+    </Janela>
   );
 }
 

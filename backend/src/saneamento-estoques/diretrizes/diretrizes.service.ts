@@ -31,6 +31,8 @@ const ehObjeto = (v: unknown): v is Json => !!v && typeof v === 'object' && !Arr
 const corpo = (b: unknown): Json => (ehObjeto(b) ? b : {});
 const bad = (codigo: string, message: string, extra: Json = {}) => new BadRequestException({ statusCode: 400, codigo, message, ...extra });
 const MAX_EXEMPLOS = 20;
+/** Teto de regras aplicadas numa só vez (um modelo da biblioteca tem dezenas). */
+const MAX_REGRAS_JUNTAS = 200;
 /** Ação gravada → ação que a tela mostra (o registro guarda a origem: criação manual, por modelo, por caso ou por conversão). */
 const ACAO_TELA: Record<string, string> = {
   CRIAR: 'CRIOU', MODELO: 'CRIOU', TRANSFORMAR: 'CRIOU', CONVERTER: 'CRIOU', ALTERAR: 'ALTEROU', APLICAR: 'APLICOU', APROVAR: 'APROVOU', ADOTAR_VERSAO: 'ADOTOU', TRANSFERIR: 'TRANSFERIU',
@@ -319,8 +321,8 @@ export class SanDiretrizesService {
   }
 
   /** Prévia de "Aplicar e reanalisar": grupos e itens afetados, sobreposições que bloqueiam e camadas que serão reexecutadas. Só lê. */
-  private async calcularPrevia(r: LinhaRegra): Promise<{ previa: Previa; afetados: string[]; linhas: LinhaRegra[]; conteudo: ConteudoRegra }> {
-    const { linhas, bib } = await regrasDoProjeto(this.prisma, r.projeto_id);
+  private async calcularPrevia(r: LinhaRegra, db: Tx | PrismaService = this.prisma, cache: { todos?: Awaited<ReturnType<typeof itensComGrupo>> } = {}): Promise<{ previa: Previa; afetados: string[]; linhas: LinhaRegra[]; conteudo: ConteudoRegra }> {
+    const { linhas, bib } = await regrasDoProjeto(db, r.projeto_id);
     const atual = linhas.find((l) => l.id === r.id) ?? r;
     const conteudo = efetivoDaLinha(atual, bib);
     const aspecto = atual.aspecto as Aspecto;
@@ -341,7 +343,7 @@ export class SanDiretrizesService {
     depois.set(atual.id, { ...atual, aplicacao: aplicacaoDoRascunho(atual, conteudo) });
     const antesIdx = criarIndice(resolviveisAplicadas(linhas));
     const depoisIdx = criarIndice(resolviveisAplicadas(linhas.map((l) => depois.get(l.id) ?? l)));
-    const todos = await itensComGrupo(this.prisma, r.projeto_id);
+    const todos = (cache.todos ??= await itensComGrupo(db, r.projeto_id));
     const diretos: string[] = [];
     for (const i of todos) {
       const a = antesIdx.resolver(i.grupo, i.subgrupo)[aspecto]?.id; const d = depoisIdx.resolver(i.grupo, i.subgrupo)[aspecto]?.id;
@@ -350,7 +352,7 @@ export class SanDiretrizesService {
     // Itens que podem mudar = os da regra + os que dividem com eles um caso aberto de conjunto que a regra mexe (o conjunto se refaz sem os
     // itens que saem). Caso de outro aspecto (ex.: unidade, numa regra de nomes) não muda e não entra.
     const conjuntos = diretos.length
-      ? (await this.prisma.sanCaso.findMany({ where: { projeto_id: r.projeto_id, camada: { in: camadasDoAspecto(aspecto) }, situacao: 'PROPOSTO' }, select: { camada: true, tipo: true, itens: true } }))
+      ? (await db.sanCaso.findMany({ where: { projeto_id: r.projeto_id, camada: { in: camadasDoAspecto(aspecto) }, situacao: 'PROPOSTO' }, select: { camada: true, tipo: true, itens: true } }))
         .filter((c: { camada: string; tipo: string; itens: string[] }) => c.itens.length > 1 && tipoMudaComAspecto(aspecto, c.camada, c.tipo))
       : [];
     const fechado = fecharEscopo(diretos, [], conjuntos);
@@ -369,25 +371,62 @@ export class SanDiretrizesService {
     return (await this.calcularPrevia(await this.carregar(regraId))).previa;
   }
 
-  /** Reexecuta só os itens afetados nas camadas do aspecto (orquestração existente, com escopo). Falha de uma camada não desfaz a aplicação: vem no retorno. */
-  private async reanalisar(projetoId: string, aspecto: Aspecto, itens: string[]) {
-    const camadas = camadasDoAspecto(aspecto);
-    if (!itens.length) return { itens: 0, camadas: [], aviso: 'Nenhum item afetado: nada a reanalisar.' };
+  /**
+   * Reexecuta só os itens afetados (orquestração existente, com escopo), uma vez por camada: `porCamada` junta os itens de todas as regras
+   * aplicadas juntas. Falha de uma camada não desfaz a aplicação: vem no retorno.
+   */
+  private async reanalisarCamadas(projetoId: string, porCamada: Map<Camada, Set<string>>, total: number) {
+    if (!total) return { itens: 0, camadas: [], aviso: 'Nenhum item afetado: nada a reanalisar.' };
     const p = await this.projeto(projetoId);
-    if (!p.atividades_confirmadas_em) return { itens: itens.length, camadas: [], aviso: 'As atividades do cliente ainda não foram confirmadas: a regra está aplicada e vale na próxima análise.' };
+    if (!p.atividades_confirmadas_em) return { itens: total, camadas: [], aviso: 'As atividades do cliente ainda não foram confirmadas: a regra está aplicada e vale na próxima análise.' };
     const disponiveis = this.orquestracao.camadasDisponiveis();
     const ativas = camadasAtivas(p.modulos as Json);
     const out: Json[] = [];
-    for (const camada of camadas) {
+    for (const camada of CAMADAS.filter((c) => porCamada.get(c)?.size)) {
       if (!disponiveis.includes(camada) || !ativas.includes(camada)) { out.push({ camada, executada: false, motivo: 'Camada sem análise conectada ou desligada neste projeto.' }); continue; }
       try {
-        const g = await this.orquestracao.executarCamada(projetoId, camada, { escopo: new Set(itens) });
+        const g = await this.orquestracao.executarCamada(projetoId, camada, { escopo: porCamada.get(camada) });
         out.push({ camada, executada: true, casosNovos: g.casosNovos, casosObsoletos: g.casosObsoletos, semProblema: g.semProblema, semDados: g.semDados ?? null });
       } catch (e) {
         out.push({ camada, executada: false, motivo: (e as Error).message });
       }
     }
-    return { itens: itens.length, camadas: out };
+    return { itens: total, camadas: out };
+  }
+
+  /** Reexecuta só os itens afetados nas camadas do aspecto. */
+  private async reanalisar(projetoId: string, aspecto: Aspecto, itens: string[]) {
+    return this.reanalisarCamadas(projetoId, new Map(camadasDoAspecto(aspecto).map((c) => [c, new Set(itens)])), itens.length);
+  }
+
+  /** Sobreposição sem a transferência confirmada (409) e transferência que exige ajuste manual (409). */
+  private exigirTransferencia(r: LinhaRegra, previa: Previa, confirmada: boolean) {
+    if (previa.sobreposicoes.length && !confirmada) {
+      throw new ConflictException({
+        statusCode: 409, codigo: 'SOBREPOSICAO', sobreposicoes: previa.sobreposicoes, transferencias: previa.transferencias,
+        message: `Já há regra de ${r.aspecto} para: ${previa.sobreposicoes.map((s) => `${s.grupo} (${s.regraAtual})`).join('; ')}. Confirme a transferência (o histórico fica) ou ajuste a abrangência.`,
+      });
+    }
+    if (previa.transferenciaManual) throw new ConflictException({ statusCode: 409, codigo: 'TRANSFERENCIA_MANUAL', message: 'A transferência deixaria a outra regra com grupos e subgrupos que não se combinam: ajuste a abrangência dela à mão.' });
+  }
+
+  /** Grava a aplicação da regra (e as transferências confirmadas), com o histórico, dentro da transação de quem chama. */
+  private async gravarAplicacao(tx: Tx, r: LinhaRegra, calc: { previa: Previa; afetados: string[]; linhas: LinhaRegra[]; conteudo: ConteudoRegra }, usuario: Usuario, agora: Date) {
+    const { previa, afetados, linhas, conteudo } = calc;
+    const x = await tx.sanDiretrizRegra.updateMany({ where: { id: r.id, versao: r.versao }, data: { aplicacao: aplicacaoDoRascunho(r, conteudo) as never, aplicada_em: agora, aplicada_por: quem(usuario), versao: r.versao + 1 } });
+    if (x.count === 0) throw conflito();
+    for (const t of previa.transferencias) {
+      const o = linhas.find((l) => l.id === t.regraId)!;
+      const aplicacao = o.aplicacao ? { ...(o.aplicacao as Aplicacao), abrangencia: retirarSobreposicao((o.aplicacao as Aplicacao).abrangencia, r.abrangencia as Abrangencia) } : null;
+      // A abrangência da regra aprovada mudou: a aprovação cai (volta a rascunho com "revisar") e precisa ser refeita.
+      const queda = this.quedaDeAprovacao(o, `A regra ${o.codigo} perdeu grupos para a regra ${r.codigo}: confira a abrangência e aprove de novo.`);
+      const y = await tx.sanDiretrizRegra.updateMany({ where: { id: o.id, versao: o.versao }, data: { abrangencia: t.abrangenciaDepois as never, aplicacao: (aplicacao ?? undefined) as never, ...queda, versao: o.versao + 1 } as never });
+      if (y.count === 0) throw conflito('Outra regra envolvida na transferência foi alterada ao mesmo tempo. Recarregue e tente de novo.');
+      await this.registrar(tx, o, 'TRANSFERIR', usuario, { abrangencia: o.abrangencia, situacao: o.situacao }, { abrangencia: t.abrangenciaDepois, ...(o.situacao === 'APROVADA' ? { situacao: 'RASCUNHO', revisar: true } : {}) },
+        `Transferido para a regra ${r.codigo}: ${previa.sobreposicoes.filter((s) => s.regraAtual === o.codigo).map((s) => s.grupo).join(', ')}.${o.situacao === 'APROVADA' ? ' Aprovação retirada: a abrangência mudou.' : ''}`);
+    }
+    await this.registrar(tx, r, 'APLICAR', usuario, { aplicacao: r.aplicacao ?? null }, { aplicacao: aplicacaoDoRascunho(r, conteudo) },
+      `Aplicada a ${rotuloAbrangencia(r.abrangencia as Abrangencia)}: ${afetados.length} item(ns) em ${previa.grupos.length} grupo(s); camadas ${previa.camadas.join(', ')}.`);
   }
 
   async aplicar(regraId: string, b: unknown, usuario: Usuario) {
@@ -396,34 +435,102 @@ export class SanDiretrizesService {
     const r = await this.carregar(regraId);
     if (r.versao !== versao) throw conflito();
     if (abrangenciaVazia(r.abrangencia as Abrangencia)) throw bad('REGRA_SEM_GRUPOS', 'A regra não cobre nenhum grupo: escolha os grupos (ou "Todos os grupos") antes de aplicar.');
-    const { previa, afetados, linhas, conteudo } = await this.calcularPrevia(r);
-    if (previa.sobreposicoes.length && e.confirmarTransferencia !== true) {
+    const calc = await this.calcularPrevia(r);
+    this.exigirTransferencia(r, calc.previa, e.confirmarTransferencia === true);
+    await this.prisma.$transaction(async (tx) => this.gravarAplicacao(tx, r, calc, usuario, new Date()), TX_LONGA);
+    const reanalise = await this.reanalisar(r.projeto_id, r.aspecto as Aspecto, calc.afetados);
+    const regra = await this.apiDe(regraId);
+    return { ...regra, regra, previa: calc.previa, reanalise };
+  }
+
+  // ── Várias regras de uma vez (Aplicar todas / Aplicar selecionadas) ─────────
+
+  /** Regras pedidas, do projeto, na ordem do código. `versoes` (id → versão que a tela viu) confere a concorrência. */
+  private async regrasPedidas(projetoId: string, ids: string[], versoes?: Map<string, number>) {
+    if (!ids.length) throw bad('SEM_REGRAS', 'Escolha ao menos uma regra.');
+    if (ids.length > MAX_REGRAS_JUNTAS) throw bad('REGRAS_DEMAIS', `Aplique no máximo ${MAX_REGRAS_JUNTAS} regras de uma vez.`);
+    const linhas = (await this.prisma.sanDiretrizRegra.findMany({ where: { projeto_id: projetoId, id: { in: ids } } })) as LinhaRegra[];
+    if (linhas.length !== ids.length) throw new NotFoundException('Alguma regra escolhida não existe neste projeto.');
+    if (versoes) for (const r of linhas) if (versoes.get(r.id) !== r.versao) throw conflito(`A regra ${r.codigo} foi alterada depois que você abriu a lista. Recarregue e tente de novo.`);
+    const vazias = linhas.filter((r) => abrangenciaVazia(r.abrangencia as Abrangencia));
+    if (vazias.length) throw bad('REGRA_SEM_GRUPOS', `Sem grupos escolhidos: ${vazias.map((r) => r.codigo).sort().join(', ')}. Escolha os grupos (ou "Todos os grupos") ou tire essas regras da seleção.`);
+    return linhas.sort((a, b) => (a.codigo < b.codigo ? -1 : a.codigo > b.codigo ? 1 : 0));
+  }
+
+  /** Prévia agregada: grupos, itens distintos e camadas de todas as regras; sobreposições com regras fora da seleção e entre as escolhidas. Só lê. */
+  private async previaAgregada(linhas: LinhaRegra[]) {
+    const cache: { todos?: Awaited<ReturnType<typeof itensComGrupo>> } = {};
+    const escolhidas = new Set(linhas.map((l) => l.codigo));
+    const grupos = new Set<string>(); const itens = new Set<string>(); const camadas = new Set<string>();
+    const sobreposicoes: { regra: string; grupo: string; regraAtual: string }[] = [];
+    const entreEscolhidas: { regra: string; grupo: string; regraAtual: string }[] = [];
+    let transferenciaManual = false;
+    for (const r of linhas) {
+      const { previa, afetados } = await this.calcularPrevia(r, this.prisma, cache);
+      previa.grupos.forEach((g) => grupos.add(g)); afetados.forEach((i) => itens.add(i)); previa.camadas.forEach((c) => camadas.add(c));
+      for (const s of previa.sobreposicoes) (escolhidas.has(s.regraAtual) ? entreEscolhidas : sobreposicoes).push({ regra: r.codigo, ...s });
+      if (previa.transferenciaManual) transferenciaManual = true;
+    }
+    return {
+      regras: linhas.map((r) => ({ id: r.id, codigo: r.codigo, nome: r.nome })), grupos: [...grupos].sort(), itens: itens.size,
+      camadas: CAMADAS.filter((c) => camadas.has(c)), sobreposicoes, entreEscolhidas, transferenciaManual,
+    };
+  }
+
+  /** Só lê: prévia agregada de aplicar várias regras numa só reanálise (`ids` separados por vírgula). */
+  async previaVarias(projetoId: string, idsTexto: unknown) {
+    const ids = [...new Set(String(idsTexto ?? '').split(',').map((s) => s.trim()).filter(Boolean))];
+    return this.previaAgregada(await this.regrasPedidas(projetoId, ids));
+  }
+
+  /**
+   * Aplica várias regras de uma vez, com as mesmas garantias da regra individual (versão de cada uma, sobreposição só com a transferência
+   * confirmada, tudo numa transação), e reanalisa UMA vez por camada os itens afetados por todas. Duas regras escolhidas que disputam o
+   * mesmo grupo: recusa (a pessoa decide qual fica).
+   */
+  async aplicarVarias(projetoId: string, b: unknown, usuario: Usuario) {
+    const e = corpo(b);
+    const pedidas = Array.isArray(e.regras) ? e.regras : [];
+    const versoes = new Map<string, number>();
+    for (const x of pedidas) {
+      if (!ehObjeto(x) || typeof x.id !== 'string' || !x.id) throw bad('REGRAS_INVALIDAS', 'Envie as regras como [{ id, versao }].');
+      if (versoes.has(x.id)) throw bad('REGRAS_REPETIDAS', 'A mesma regra veio duas vezes.');
+      versoes.set(x.id, exigirVersao(x.versao));
+    }
+    const linhas = await this.regrasPedidas(projetoId, [...versoes.keys()], versoes);
+    const agregada = await this.previaAgregada(linhas);
+    if (agregada.entreEscolhidas.length) {
+      throw bad('SOBREPOSICAO_ENTRE_REGRAS', `Regras escolhidas disputam o mesmo grupo: ${agregada.entreEscolhidas.map((s) => `${s.grupo} (${s.regraAtual} e ${s.regra})`).join('; ')}. Ajuste a abrangência de uma delas ou aplique-as separadamente.`);
+    }
+    if (agregada.sobreposicoes.length && e.confirmarTransferencia !== true) {
       throw new ConflictException({
-        statusCode: 409, codigo: 'SOBREPOSICAO', sobreposicoes: previa.sobreposicoes, transferencias: previa.transferencias,
-        message: `Já há regra de ${r.aspecto} para: ${previa.sobreposicoes.map((s) => `${s.grupo} (${s.regraAtual})`).join('; ')}. Confirme a transferência (o histórico fica) ou ajuste a abrangência.`,
+        statusCode: 409, codigo: 'SOBREPOSICAO', sobreposicoes: agregada.sobreposicoes,
+        message: `Já há regra para: ${agregada.sobreposicoes.map((s) => `${s.grupo} (${s.regraAtual} → ${s.regra})`).join('; ')}. Confirme a transferência (o histórico fica) ou ajuste a abrangência.`,
       });
     }
-    if (previa.transferenciaManual) throw new ConflictException({ statusCode: 409, codigo: 'TRANSFERENCIA_MANUAL', message: 'A transferência deixaria a outra regra com grupos e subgrupos que não se combinam: ajuste a abrangência dela à mão.' });
+    if (agregada.transferenciaManual) throw new ConflictException({ statusCode: 409, codigo: 'TRANSFERENCIA_MANUAL', message: 'A transferência deixaria outra regra com grupos e subgrupos que não se combinam: ajuste a abrangência dela à mão.' });
+    const porCamada = new Map<Camada, Set<string>>();
+    const afetados = new Set<string>();
     const agora = new Date();
     await this.prisma.$transaction(async (tx) => {
-      const x = await tx.sanDiretrizRegra.updateMany({ where: { id: regraId, versao }, data: { aplicacao: aplicacaoDoRascunho(r, conteudo) as never, aplicada_em: agora, aplicada_por: quem(usuario), versao: versao + 1 } });
-      if (x.count === 0) throw conflito();
-      for (const t of previa.transferencias) {
-        const o = linhas.find((l) => l.id === t.regraId)!;
-        const aplicacao = o.aplicacao ? { ...(o.aplicacao as Aplicacao), abrangencia: retirarSobreposicao((o.aplicacao as Aplicacao).abrangencia, r.abrangencia as Abrangencia) } : null;
-        // A abrangência da regra aprovada mudou: a aprovação cai (volta a rascunho com "revisar") e precisa ser refeita.
-        const queda = this.quedaDeAprovacao(o, `A regra ${o.codigo} perdeu grupos para a regra ${r.codigo}: confira a abrangência e aprove de novo.`);
-        const y = await tx.sanDiretrizRegra.updateMany({ where: { id: o.id, versao: o.versao }, data: { abrangencia: t.abrangenciaDepois as never, aplicacao: (aplicacao ?? undefined) as never, ...queda, versao: o.versao + 1 } as never });
-        if (y.count === 0) throw conflito('Outra regra envolvida na transferência foi alterada ao mesmo tempo. Recarregue e tente de novo.');
-        await this.registrar(tx, o, 'TRANSFERIR', usuario, { abrangencia: o.abrangencia, situacao: o.situacao }, { abrangencia: t.abrangenciaDepois, ...(o.situacao === 'APROVADA' ? { situacao: 'RASCUNHO', revisar: true } : {}) },
-          `Transferido para a regra ${r.codigo}: ${previa.sobreposicoes.filter((s) => s.regraAtual === o.codigo).map((s) => s.grupo).join(', ')}.${o.situacao === 'APROVADA' ? ' Aprovação retirada: a abrangência mudou.' : ''}`);
+      const cache: { todos?: Awaited<ReturnType<typeof itensComGrupo>> } = {};
+      for (const pedida of linhas) {
+        // Relida na transação: a regra anterior pode ter transferido grupos (e mudado a versão das outras).
+        const r = (await tx.sanDiretrizRegra.findUnique({ where: { id: pedida.id } })) as LinhaRegra | null;
+        if (!r || r.versao !== pedida.versao) throw conflito(`A regra ${pedida.codigo} foi alterada ao mesmo tempo. Recarregue e tente de novo.`);
+        const calc = await this.calcularPrevia(r, tx, cache);
+        this.exigirTransferencia(r, calc.previa, e.confirmarTransferencia === true);
+        await this.gravarAplicacao(tx, r, calc, usuario, agora);
+        for (const c of camadasDoAspecto(r.aspecto as Aspecto)) {
+          const s = porCamada.get(c) ?? new Set<string>();
+          for (const i of calc.afetados) { s.add(i); afetados.add(i); }
+          porCamada.set(c, s);
+        }
       }
-      await this.registrar(tx, r, 'APLICAR', usuario, { aplicacao: r.aplicacao ?? null }, { aplicacao: aplicacaoDoRascunho(r, conteudo) },
-        `Aplicada a ${rotuloAbrangencia(r.abrangencia as Abrangencia)}: ${afetados.length} item(ns) em ${previa.grupos.length} grupo(s); camadas ${previa.camadas.join(', ')}.`);
     }, TX_LONGA);
-    const reanalise = await this.reanalisar(r.projeto_id, r.aspecto as Aspecto, afetados);
-    const regra = await this.apiDe(regraId);
-    return { ...regra, regra, previa, reanalise };
+    const reanalise = await this.reanalisarCamadas(projetoId, porCamada, afetados.size);
+    const { regras } = await regrasDoProjeto(this.prisma, projetoId);
+    return { aplicadas: linhas.length, regras: regras.filter((r) => versoes.has(r.id)), previa: agregada, reanalise };
   }
 
   /** Aprovação (um aprovador: o consultor). Exige a regra aplicada como está e com grupos. Já aprovada e sem "revisar": devolve sem gravar. */

@@ -482,3 +482,60 @@ export function enderecoDaPolitica(projetoId, versaoId) {
   return versaoId ? `${base}?versaoId=${encodeURIComponent(versaoId)}` : base;
 }
 export const nomeDaPolitica = (versao) => (versao ? `politica-de-cadastro-e-estoques-versao-${versao.numero}.pdf` : "politica-de-cadastro-e-estoques.pdf");
+
+// ── Várias regras de uma vez (Aplicar todas / selecionadas, Aprovar selecionadas) ──
+
+/** Regras que "Aplicar todas" envia: as que cobrem grupos e cujo rascunho ainda não foi aplicado. */
+export const regrasParaAplicar = (regras) => (regras || []).filter((r) => r.ativa !== false && r.pendenteAplicar);
+
+/** Das escolhidas, as que dá para aprovar agora (aplicadas como estão e ainda não aprovadas, ou aprovadas com "revisar") e as que ficam de fora. */
+export function separarParaAprovar(regras) {
+  const aprovaveis = []; const fora = [];
+  for (const r of regras || []) {
+    if (r.ativa === false || r.pendenteAplicar || !r.aplicada) fora.push(r);
+    else if (r.situacao !== "APROVADA" || r.revisar) aprovaveis.push(r);
+  }
+  return { aprovaveis, fora };
+}
+
+/** Texto da prévia agregada: "3 regras: 120 itens de 4 grupos serão analisados de novo." */
+export function resumoPreviaVarias(p) {
+  if (!p) return null;
+  const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
+  const regras = (p.regras || []).length;
+  const itens = Number(p.itens || 0);
+  const grupos = (p.grupos || []).length;
+  const corpo = `${fmt(itens)} ${itens === 1 ? "item" : "itens"} de ${fmt(grupos)} ${grupos === 1 ? "grupo" : "grupos"}`;
+  return {
+    regras, itens, grupos: p.grupos || [], camadas: (p.camadas || []).map(rotuloCamada),
+    sobreposicoes: p.sobreposicoes || [], entreEscolhidas: p.entreEscolhidas || [],
+    texto: `${fmt(regras)} ${regras === 1 ? "regra" : "regras"}: ${corpo} ${itens === 1 ? "será analisado" : "serão analisados"} de novo, numa só reanálise.`,
+    textoFeito: (aplicadas) => `${fmt(aplicadas)} ${aplicadas === 1 ? "regra aplicada" : "regras aplicadas"}: ${corpo} ${itens === 1 ? "foi analisado" : "foram analisados"} de novo.`,
+  };
+}
+
+/** Camadas da reanálise que não rodaram (vêm no retorno; a aplicação fica). */
+export const falhasDaReanalise = (reanalise) => (reanalise?.camadas || []).filter((c) => c.executada === false).map((c) => `${rotuloCamada(c.camada)}: ${c.motivo}`);
+
+/**
+ * "Grupos sem regra" sem repetir a lista por aspecto: junta os grupos que faltam nos MESMOS aspectos. Devolve a contagem por aspecto e
+ * os conjuntos [{ aspectos, grupos }] (o maior primeiro).
+ */
+export function gruposSemRegraAgrupados(gruposSemRegra) {
+  const porAspecto = Object.fromEntries(ASPECTOS.map((a) => [a, 0]));
+  const faltam = new Map();
+  for (const { aspecto, grupos } of gruposSemRegra || []) {
+    if (!(aspecto in porAspecto)) continue;
+    porAspecto[aspecto] = (grupos || []).length;
+    for (const g of grupos || []) faltam.set(g, [...(faltam.get(g) || []), aspecto]);
+  }
+  const conjuntos = new Map();
+  for (const [g, aspectos] of faltam) {
+    const chave = ASPECTOS.filter((a) => aspectos.includes(a)).join("|");
+    conjuntos.set(chave, [...(conjuntos.get(chave) || []), g]);
+  }
+  return {
+    porAspecto,
+    conjuntos: [...conjuntos].map(([chave, grupos]) => ({ aspectos: chave.split("|"), grupos: grupos.sort((a, b) => a.localeCompare(b, "pt-BR")) })).sort((a, b) => b.grupos.length - a.grupos.length),
+  };
+}

@@ -12,7 +12,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Aplicar uma regra muda o cadastro na hora?",
-      r: "Não. Aplicar e reanalisar sempre mostra antes a prévia: os grupos, quantos itens serão analisados de novo, quais análises serão refeitas e se algum grupo está em outra regra do mesmo aspecto (nesse caso, é preciso marcar a transferência). Só depois de Confirmar e aplicar as análises rodam, e só para os itens afetados. O resultado são casos para revisar, como sempre: nada é gravado no cadastro sem a sua aprovação. Alterar uma regra já aprovada a devolve a Rascunho e marca “revisar” no que depende dela. Ao reaplicar, o caso ainda proposto passa a mostrar a proposta da regra nova; o caso que você já editou ou decidiu não é alterado e ganha “revisar”.",
+      r: "Não. Aplicar e reanalisar sempre mostra antes a prévia: os grupos, quantos itens serão analisados de novo, quais análises serão refeitas e se algum grupo está em outra regra do mesmo aspecto (nesse caso, é preciso marcar a transferência). Só depois de Confirmar e aplicar as análises rodam, e só para os itens afetados. Com muitas regras (por exemplo, depois de aplicar um modelo), use Aplicar todas as regras: uma prévia só, somando as regras, e uma reanálise só, em vez de abrir regra por regra. O resultado são casos para revisar, como sempre: nada é gravado no cadastro sem a sua aprovação. Alterar uma regra já aprovada a devolve a Rascunho e marca “revisar” no que depende dela. Ao reaplicar, o caso ainda proposto passa a mostrar a proposta da regra nova; o caso que você já editou ou decidiu não é alterado e ganha “revisar”.",
     },
     {
       p: "Para que serve a Biblioteca de diretrizes?",
@@ -117,6 +117,14 @@ export const SECAO_SANEAMENTO = {
     {
       p: "Dá para voltar a base de trabalho a uma versão liberada e continuar dali?",
       r: "Sim. Na aba Versões, clique em Continuar a partir desta versão na linha da versão. A Prévia mostra quantos itens e campos voltam aos valores dela, quantos casos aprovados depois voltam a proposto e quais camadas ficam marcadas “revisar”. Com a Justificativa preenchida (ao menos 10 caracteres), clique em Restaurar e continuar. Nada é apagado: cada campo grava uma decisão no histórico do item; o caso aprovado depois cujo valor deixa de valer volta a proposto (com a célula e o impacto no SPED), e dá para aprovar de novo ou rejeitar; itens importados depois da versão ficam como estão. Para voltar atrás, use Desfazer restauração, embaixo do rótulo da versão: os valores e os casos aprovados voltam. Se outra pessoa alterar a base depois da prévia, a restauração é recusada e é preciso refazer a prévia.",
+    },
+    {
+      p: "Como sei o que vai na versão liberada antes de liberar?",
+      r: "A confirmação de Liberar versão mostra a conta: “Entram: N casos aprovados”, com o que eles fazem no cadastro (itens inativados, unificações, itens com finalidade, descrições padronizadas, unidades, NCMs, tratamento tributário), e “Ficam fora: N pendentes de decisão, N aguardando informação”. Só o aprovado entra na versão; o resto aparece no relatório como pendência (POP-CON-16).",
+    },
+    {
+      p: "O que quer dizer o selo “desatualizada” na Cobertura das camadas?",
+      r: "Que uma decisão de que a camada depende mudou depois da última análise completa dela. Hoje vale para o Tratamento tributário, que usa a finalidade (Grupos e finalidade) e o NCM: aprovar, desfazer, reimportar ou restaurar esses campos depois de analisar o tributário marca a camada. Passe o mouse no selo para ver de onde veio a mudança e desde quando, e use o botão de analisar da camada (ou Analisar todas). A faixa fica nas abas Configuração, Importação e Visão geral (POP-CON-09).",
     },
     {
       p: "O que acontece na reimportação do cadastro?",

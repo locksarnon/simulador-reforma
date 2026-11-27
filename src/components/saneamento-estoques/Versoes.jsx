@@ -140,6 +140,31 @@ function Entrega({ projetoId, versao, rotulo }) {
   );
 }
 
+const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
+
+/**
+ * O que entra e o que fica fora de uma versão liberada, a partir do estado das camadas: "Entram: N aprovados (…). Ficam fora: N pendentes,
+ * N aguardando informação." Sem dados (falhou a leitura): vazio, e o diálogo mostra só o texto padrão.
+ */
+export function textoDaLiberacao(estado) {
+  if (!estado) return "";
+  const e = estado.efeitos || {};
+  const efeitos = [
+    [e.inativados, (n) => `${fmt(n)} ${n === 1 ? "item inativado" : "itens inativados"}`],
+    [e.unificacoes, (n) => `${fmt(n)} ${n === 1 ? "unificação" : "unificações"}`],
+    [e.finalidade, (n) => `${fmt(n)} ${n === 1 ? "item com finalidade" : "itens com finalidade"}`],
+    [e.descricao, (n) => `${fmt(n)} ${n === 1 ? "descrição padronizada" : "descrições padronizadas"}`],
+    [e.unidade, (n) => `${fmt(n)} ${n === 1 ? "unidade ajustada" : "unidades ajustadas"}`],
+    [e.ncm, (n) => `${fmt(n)} ${n === 1 ? "NCM corrigido" : "NCMs corrigidos"}`],
+    [e.tributario, (n) => `${fmt(n)} ${n === 1 ? "item com tratamento tributário" : "itens com tratamento tributário"}`],
+  ].filter(([n]) => Number(n) > 0).map(([n, f]) => f(Number(n)));
+  const aprovados = Number(estado.aprovados) || 0;
+  const entram = `Entram: ${fmt(aprovados)} ${aprovados === 1 ? "caso aprovado" : "casos aprovados"}${efeitos.length ? ` (${efeitos.join(", ")})` : ""}.`;
+  const fora = `Ficam fora: ${fmt(estado.abertos)} ${Number(estado.abertos) === 1 ? "pendente" : "pendentes"} de decisão, ${fmt(estado.aguardando)} aguardando informação.`;
+  return `${entram}
+${fora}`;
+}
+
 /** Versões: liberar (foto da base), listar, comparar duas e baixar. "Para revisão" (base de agora) não é "liberada". */
 export default function Versoes({ projeto }) {
   const qc = useQueryClient();
@@ -168,7 +193,12 @@ export default function Versoes({ projeto }) {
     },
   });
   const pedirLiberacao = async () => {
-    const ok = await confirmar({ titulo: "Liberar uma versão?", rotulo: "Liberar", perigoso: false, descricao: `Guarda uma foto da base como está agora, com o rótulo "${rotulo.trim()}". A versão liberada não muda depois.` });
+    // A conta do que entra e do que fica fora é lida na hora (o que a pessoa vê é o que vai na foto).
+    const estado = await qc.fetchQuery({ queryKey: chaves.estadoCamadas(projeto.id), queryFn: () => san.estadoCamadas(projeto.id), staleTime: 0 }).catch(() => null);
+    const conta = textoDaLiberacao(estado);
+    const ok = await confirmar({ titulo: "Liberar uma versão?", rotulo: "Liberar", perigoso: false, descricao: `${conta ? `${conta}
+
+` : ""}Guarda uma foto da base como está agora, com o rótulo "${rotulo.trim()}". A versão liberada não muda depois.` });
     if (ok) liberar.mutate();
   };
 
