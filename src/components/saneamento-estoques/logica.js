@@ -190,9 +190,9 @@ export const MENSAGEM_TRAVA = "Confirme as atividades do cliente para analisar a
  * A importação e as camadas da Fase 1 nunca são bloqueadas.
  */
 export const MENSAGEM_BLOQUEIO_FASE2 = {
-  FASE1_NAO_LIBERADA: "Libere uma versão da Fase 1 (Cadastro saneado) em Fase 1 > Entrega da Fase 1 para começar a Fase 2.",
-  REGIME_NAO_INFORMADO: "Informe o regime do cliente em Fase 2 > Premissas para analisar a Fase 2.",
-  ATIVIDADES_NAO_CONFIRMADAS: "Confirme as atividades do cliente em Fase 2 > Premissas para analisar a Fase 2.",
+  FASE1_NAO_LIBERADA: "Libere uma versão da Fase 1 (Cadastro saneado) em Fase 1 > 1.5 Entrega da Fase 1 para começar a Fase 2.",
+  REGIME_NAO_INFORMADO: "Informe o regime do cliente em Fase 2 > 2.1 Premissas e diretrizes para analisar a Fase 2.",
+  ATIVIDADES_NAO_CONFIRMADAS: "Confirme as atividades do cliente em Fase 2 > 2.1 Premissas e diretrizes para analisar a Fase 2.",
 };
 /** Onde se resolve cada bloqueio da Fase 2: a fase, a aba e o texto do botão. */
 export function acaoDoBloqueio(codigo) {
@@ -1011,8 +1011,7 @@ export const AREAS = [
   {
     id: "fase1", param: "1", fase: "FASE1", rotulo: "Fase 1 · Saneamento",
     abas: [
-      { id: "preparar", rotulo: "Preparar" },
-      { id: "diretrizes", rotulo: "Diretrizes" },
+      { id: "preparar", rotulo: "Preparar e diretrizes" },
       { id: "analise", rotulo: "Análise" },
       { id: "casos", rotulo: "Casos" },
       { id: "unificacoes", rotulo: "Unificações" },
@@ -1022,8 +1021,7 @@ export const AREAS = [
   {
     id: "fase2", param: "2", fase: "FASE2", rotulo: "Fase 2 · Tributário",
     abas: [
-      { id: "premissas", rotulo: "Premissas" },
-      { id: "diretrizes", rotulo: "Diretrizes" },
+      { id: "premissas", rotulo: "Premissas e diretrizes" },
       { id: "analise", rotulo: "Análise" },
       { id: "casos", rotulo: "Casos" },
       { id: "entrega", rotulo: "Entrega da Fase 2" },
@@ -1045,18 +1043,45 @@ export const areaPorId = (id) => AREAS.find((a) => a.id === id) || null;
 /** `?fase=1|2|fechamento` → id da área (fase1, fase2, fechamento); inválido = null. */
 export const areaDoParam = (valor) => AREAS.find((a) => a.param === valor || a.id === valor)?.id || null;
 export const paramDaArea = (id) => areaPorId(id)?.param || null;
-/** Abas da faixa de uma fase: as da fase e, depois, as comuns. */
-export const abasDaArea = (id) => [...(areaPorId(id)?.abas || []), ...ABAS_COMUNS];
+/**
+ * Número de uma aba da fase: "número da fase.posição da aba" (Fase 1 → 1.1, 1.2…; Fase 2 → 2.1…; Fechamento → 3.1), calculado pela
+ * ordem em AREAS — reordenar as abas nunca deixa o número fora de ordem. Áreas comuns e abas desconhecidas = null (sem número).
+ */
+export function numeroDaAba(fase, aba) {
+  const n = AREAS.findIndex((a) => a.id === fase);
+  if (n < 0) return null;
+  const i = AREAS[n].abas.findIndex((a) => a.id === aba);
+  return i < 0 ? null : `${n + 1}.${i + 1}`;
+}
+/** Rótulo com o número na frente ("1.1 Preparar e diretrizes"); áreas comuns ficam só com o nome. */
+export const rotuloNumerado = (fase, aba) => {
+  const r = areaPorId(fase)?.abas.find((a) => a.id === aba)?.rotulo || ABAS_COMUNS.find((a) => a.id === aba)?.rotulo || "";
+  const n = numeroDaAba(fase, aba);
+  return n && r ? `${n} ${r}` : r;
+};
+/** Abas da faixa de uma fase: as da fase (com `numero`, ex.: "1.1") e, depois, as comuns (`numero` = null). */
+export const abasDaArea = (id) => [...(areaPorId(id)?.abas || []).map((a) => ({ ...a, numero: numeroDaAba(id, a.id) })), ...ABAS_COMUNS.map((a) => ({ ...a, numero: null }))];
 const ehComum = (aba) => ABAS_COMUNS.some((a) => a.id === aba);
 const temAba = (area, aba) => !!areaPorId(area)?.abas.some((a) => a.id === aba);
 
 /**
- * Endereços antigos (`?aba=` da faixa única de nove abas) e atalhos internos (irPara, abrirCasos, abrirTabela, links das Diretrizes)
- * → fase e aba de agora. Mapa:
- *   configuracao, importacao → Fase 1 > Preparar        unificacoes, preparar → Fase 1        premissas → Fase 2 > Premissas
- *   entregas → Fechamento > Entregas finais
- *   diretrizes, analise, casos, entrega (abas das duas fases) → na fase da camada (`camada`, quando houver; Impacto no SPED está nas
- *     duas e fica a aberta), senão na fase aberta, senão na Fase 1
+ * Abas antigas que hoje estão dentro de outra aba, por fase: Configuração e Importação ficam em Fase 1 > Preparar e diretrizes; as
+ * Diretrizes ficam em Preparar e diretrizes (Fase 1) e em Premissas e diretrizes (Fase 2).
+ */
+export const ABAS_JUNTADAS = {
+  configuracao: { fase1: "preparar" },
+  importacao: { fase1: "preparar" },
+  diretrizes: { fase1: "preparar", fase2: "premissas" },
+};
+
+/**
+ * Endereços antigos (`?aba=` da faixa única de nove abas, e as abas Preparar, Diretrizes e Premissas antes de juntar) e atalhos
+ * internos (irPara, abrirCasos, abrirTabela, links das Diretrizes) → fase e aba de agora. Mapa:
+ *   configuracao, importacao, preparar → Fase 1 > 1.1 Preparar e diretrizes        premissas → Fase 2 > 2.1 Premissas e diretrizes
+ *   diretrizes → 1.1 Preparar e diretrizes (Fase 1) ou 2.1 Premissas e diretrizes (Fase 2), pela fase aberta (senão a Fase 1)
+ *   unificacoes → Fase 1        entregas → Fechamento > 3.1 Entregas finais
+ *   analise, casos, entrega (abas das duas fases) → na fase da camada (`camada`, quando houver; Impacto no SPED está nas duas e fica a
+ *     aberta), senão na fase aberta, senão na Fase 1
  *   tabela, visao, impacto, versoes → a área comum, na fase aberta (fase = null quando nenhuma está aberta)
  * Aba desconhecida = null (a página usa a aba de partida da fase).
  */
@@ -1064,15 +1089,18 @@ export function destinoDaAba(aba, { fase = null, camada = null } = {}) {
   if (!aba) return null;
   const aberta = areaPorId(fase) ? fase : null;
   if (ehComum(aba)) return { fase: aberta, aba };
-  if (aba === "configuracao" || aba === "importacao") return { fase: "fase1", aba: "preparar" };
-  const areas = AREAS.filter((a) => temAba(a.id, aba)).map((a) => a.id);
+  // Onde a aba está em cada fase: ela mesma, ou a aba em que foi juntada.
+  const onde = new Map(AREAS.filter((a) => temAba(a.id, aba)).map((a) => [a.id, aba]));
+  for (const [area, destino] of Object.entries(ABAS_JUNTADAS[aba] || {})) if (!onde.has(area)) onde.set(area, destino);
+  const areas = AREAS.map((a) => a.id).filter((a) => onde.has(a));
   if (!areas.length) return null;
+  const em = (f) => ({ fase: f, aba: onde.get(f) });
   // A camada decide a fase (Impacto no SPED está nas duas: fica a aberta, se ela tiver a camada).
   if (camada) {
     const comCamada = areas.filter((a) => areaPorId(a).fase && FASES[areaPorId(a).fase].includes(camada));
-    if (comCamada.length) return { fase: comCamada.includes(aberta) ? aberta : comCamada[0], aba };
+    if (comCamada.length) return em(comCamada.includes(aberta) ? aberta : comCamada[0]);
   }
-  return { fase: areas.includes(aberta) ? aberta : areas[0], aba };
+  return em(areas.includes(aberta) ? aberta : areas[0]);
 }
 
 /**
@@ -1140,13 +1168,13 @@ export function situacaoDasFases({ fases: dadosFases, estado, modulos, bloqueio2
   };
 }
 
-/** Caminho legível de uma aba, para avisos e manual: "Fase 1 > Casos", ou só "Tabela" para as áreas comuns. */
+/** Caminho legível de uma aba, para avisos e manual: "Fase 1 > 1.3 Casos", ou só "Tabela" para as áreas comuns. */
 export function caminhoDaAba(fase, aba) {
   const comum = ABAS_COMUNS.find((a) => a.id === aba);
   if (comum) return comum.rotulo;
   const area = areaPorId(fase);
   const r = area?.abas.find((a) => a.id === aba)?.rotulo;
-  return area && r ? `${area.rotulo.split(" · ")[0]} > ${r}` : r || "";
+  return area && r ? `${area.rotulo.split(" · ")[0]} > ${rotuloNumerado(fase, aba)}` : r || "";
 }
 
 /**
@@ -1170,7 +1198,7 @@ export function avisoDeOutrosGrupos(dados, grupoDoRecorte) {
 export const REGRA_FINALIDADE = [
   "Item que já tem finalidade (informada na base ou aprovada num caso) fica com ela.",
   "Sem finalidade, o sistema lê o grupo e a descrição, nesta ordem: material de terceiros ou consignado → Material de terceiros; grupo de manutenção, peças de reposição ou oficina (e peças pelo nome, como rolamento, retentor, correia, filtro de óleo) → Manutenção; embalagens e sacarias → Embalagem; EPI, uniforme, limpeza, escritório, refeitório, informática e bens de pequeno valor → Uso e consumo; máquinas, veículos, implementos e equipamentos → Imobilizado; matéria-prima → Matéria-prima.",
-  "Insumo agropecuário (defensivo, adubo, fertilizante, semente, inoculante, ração, sal mineral, vacina, medicamento veterinário) depende das atividades (CNAE) confirmadas em Fase 2 > Premissas: só produção → Insumo de produção; só revenda ou comércio → Revenda; produção e revenda juntas → sugestão de confiança baixa, a confirmar. Sem atividade confirmada, não há sugestão.",
+  "Insumo agropecuário (defensivo, adubo, fertilizante, semente, inoculante, ração, sal mineral, vacina, medicamento veterinário) depende das atividades (CNAE) confirmadas em Fase 2 > 2.1 Premissas e diretrizes: só produção → Insumo de produção; só revenda ou comércio → Revenda; produção e revenda juntas → sugestão de confiança baixa, a confirmar. Sem atividade confirmada, não há sugestão.",
   "Combustível e lubrificante (diesel, gasolina, Arla, graxa, óleo de motor) → Insumo de produção quando o cliente produz, transporta ou industrializa; nos demais casos, sem sugestão.",
   "Grupos ambíguos (serviços, taxas, diversos, outros, plantel ou rebanho, produção) ficam sem sugestão: a finalidade se confirma com o cliente. Materiais de construção, lonas e beneficiamento recebem sugestão de confiança baixa, com alternativas.",
   "A finalidade do grupo é a mais frequente entre os itens do grupo (caso \"Confirmar a finalidade do grupo\"). O item que a regra manda para outra finalidade vira caso de exceção, que exige o motivo escrito para aprovar.",

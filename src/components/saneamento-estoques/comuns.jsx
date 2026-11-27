@@ -11,6 +11,12 @@ import { formaDaSituacao, mensagemDeErro, SITUACOES, textoDaCelula } from "./log
 export const bordaCampo = "border-input";
 export const bordaQuadro = "border-foreground/50";
 export const campoCls = "w-full border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
+/**
+ * Formulário compacto (Configuração, Diretrizes): rótulo de altura fixa em todos os campos, com ou sem o botão "i", e o campo logo
+ * abaixo com a mesma margem — campos lado a lado ficam alinhados.
+ */
+export const rotuloCompactoCls = "flex h-5 items-center gap-1 whitespace-nowrap text-xs font-medium text-foreground/80";
+export const campoCompactoCls = `${campoCls} mt-1`;
 export const botaoPrimario = "botao-acao inline-flex items-center gap-1.5 bg-primary px-3 py-1 text-sm text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 export const botaoSecundario = "botao-acao inline-flex items-center gap-1.5 bg-background px-3 py-[5px] text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 export const botaoPerigo = "botao-acao botao-acao-perigo inline-flex items-center gap-1.5 px-3 py-[5px] text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
@@ -111,6 +117,32 @@ export function BotaoInfo({ id, rotulo, aberto, aoAlternar, pequeno = false }) {
       <Info className="h-3.5 w-3.5" aria-hidden="true" />
     </button>
   );
+}
+
+/**
+ * Campo do formulário compacto: rótulo de altura fixa ligado ao controle (`children(id)` desenha o controle com esse id) e, com `info`,
+ * o botão "i" no rótulo, que abre a explicação embaixo do campo (em vez de um parágrafo sempre à vista).
+ */
+export function CampoCompacto({ rotulo, info, className = "", children }) {
+  const id = useId();
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className={className}>
+      <span className={rotuloCompactoCls}><label htmlFor={id}>{rotulo}</label>{info && <BotaoInfo id={`${id}-info`} rotulo={rotulo} pequeno aberto={aberto} aoAlternar={() => setAberto((a) => !a)} />}</span>
+      {children(id)}
+      {info && aberto && <p id={`${id}-info`} className="mt-1 text-xs text-foreground/75">{info}</p>}
+    </div>
+  );
+}
+/** Explicação atrás do "i" para um título (seção, quadro): devolve o botão e o parágrafo (só quando aberto), para pôr onde couber. */
+export function useExplicacao(rotulo, texto) {
+  const id = `${useId()}-info`;
+  const [aberto, setAberto] = useState(false);
+  if (!texto) return { botao: null, texto: null };
+  return {
+    botao: <BotaoInfo id={id} rotulo={rotulo} pequeno aberto={aberto} aoAlternar={() => setAberto((a) => !a)} />,
+    texto: aberto ? <p id={id} className="text-xs text-foreground/75">{texto}</p> : null,
+  };
 }
 
 /**

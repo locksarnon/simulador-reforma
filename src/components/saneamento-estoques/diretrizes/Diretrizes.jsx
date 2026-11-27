@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookCopy, CheckCircle2, FileText, Pencil, Play, Plus } from "lucide-react";
 import { api } from "@/api/client";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { atualizarTudo, chaves, san } from "../api";
-import { Aviso, bordaQuadro, botaoPrimario, botaoSecundario, campoCls, Carregar, MarcaRevisar, Quadro, Rotulo, rotuloCls, Tag, TextoLongo, usePodeAlterar } from "../comuns";
+import { Aviso, bordaQuadro, botaoPrimario, botaoSecundario, campoCls, campoCompactoCls, Carregar, MarcaRevisar, Quadro, Rotulo, rotuloCls, rotuloCompactoCls, Tag, TextoLongo, useExplicacao, usePodeAlterar } from "../comuns";
 import { ehConflitoVersao, fmtData, fmtDataHora, mensagemDeErro } from "../logica";
 import { realceVerde } from "./Blocos";
 import FormularioRegra from "./FormularioRegra";
@@ -35,18 +35,19 @@ export function CabecalhoDiretrizes({ projeto, cabecalho, cliente, ultimaImporta
   const mudou = vigencia !== (cabecalho?.vigencia ? String(cabecalho.vigencia).slice(0, 10) : "");
   const erp = projeto.erp_nome || projeto.erp || "Não informado";
   return (
-    <section aria-label="Cabeçalho das diretrizes" className={`space-y-3 border ${bordaQuadro} bg-card p-4`}>
-      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div><dt className={rotuloCls}>Cliente</dt><dd>{cliente || "—"}</dd></div>
-        <div><dt className={rotuloCls}>Base importada</dt><dd>{ultimaImportacao === undefined ? "…" : ultimaImportacao ? `${ultimaImportacao.arquivo || "Cadastro de itens"} — ${fmtDataHora(ultimaImportacao.createdAt)}` : "Nenhuma importação ainda"}</dd></div>
-        <div><dt className={rotuloCls}>ERP</dt><dd>{erp}{projeto.erp_versao ? ` — versão ${projeto.erp_versao}` : ""}</dd></div>
-        <div><dt className={rotuloCls}>Data-base</dt><dd>{fmtData(projeto.data_base) || "—"}</dd></div>
+    <section aria-label="Cabeçalho das diretrizes" className={`flex flex-wrap items-start gap-x-4 gap-y-2 border ${bordaQuadro} bg-card px-3 py-2`}>
+      {/* O que o projeto já tem (só leitura), a vigência e a situação numa faixa só, com rótulos de mesma altura. */}
+      <dl className="grid min-w-0 flex-[3] grid-cols-2 gap-x-4 gap-y-2 text-sm lg:grid-cols-4">
+        <div className="min-w-0"><dt className={rotuloCompactoCls}>Cliente</dt><dd className="mt-1 truncate" title={cliente || undefined}>{cliente || "—"}</dd></div>
+        <div className="min-w-0"><dt className={rotuloCompactoCls}>Base importada</dt><dd className="mt-1 truncate" title={ultimaImportacao ? `${ultimaImportacao.arquivo || "Cadastro de itens"} — ${fmtDataHora(ultimaImportacao.createdAt)}` : undefined}>{ultimaImportacao === undefined ? "…" : ultimaImportacao ? `${ultimaImportacao.arquivo || "Cadastro de itens"} — ${fmtDataHora(ultimaImportacao.createdAt)}` : "Nenhuma importação ainda"}</dd></div>
+        <div className="min-w-0"><dt className={rotuloCompactoCls}>ERP</dt><dd className="mt-1 truncate">{erp}{projeto.erp_versao ? ` — versão ${projeto.erp_versao}` : ""}</dd></div>
+        <div><dt className={rotuloCompactoCls}>Data-base</dt><dd className="mt-1">{fmtData(projeto.data_base) || "—"}</dd></div>
       </dl>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="block"><Rotulo>Vigência da política</Rotulo><input type="date" className={`${campoCls} w-44`} disabled={!podeAlterar || salvando} value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></label>
+      <div className="flex flex-wrap items-end gap-2">
+        <div><label htmlFor="dir-vigencia" className={rotuloCompactoCls}>Vigência da política</label><input type="date" id="dir-vigencia" className={`${campoCompactoCls} w-40`} disabled={!podeAlterar || salvando} value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></div>
         <button type="button" className={botaoSecundario} disabled={!podeAlterar || salvando || !mudou} title={razao} onClick={() => aoSalvarVigencia(vigencia || null)}>{salvando ? "Salvando…" : "Salvar vigência"}</button>
-        <div><Rotulo>Situação</Rotulo>
-          <span className="flex items-center gap-1"><Tag tom={cabecalho?.situacao === "APROVADA" ? "ok" : "neutro"}>{SITUACAO_REGRA[cabecalho?.situacao] || "Rascunho"}</Tag>{cabecalho?.revisar && <MarcaRevisar causa="Uma regra mudou depois da aprovação: confira." />}</span>
+        <div><span className={rotuloCompactoCls}>Situação</span>
+          <span className="mt-1 flex min-h-[34px] items-center gap-1"><Tag tom={cabecalho?.situacao === "APROVADA" ? "ok" : "neutro"}>{SITUACAO_REGRA[cabecalho?.situacao] || "Rascunho"}</Tag>{cabecalho?.revisar && <MarcaRevisar causa="Uma regra mudou depois da aprovação: confira." />}</span>
         </div>
       </div>
     </section>
@@ -76,25 +77,34 @@ function LinhaRegra({ regra, atualizacao, aoAbrir, aoAdotar, adotando, pode, raz
   );
 }
 
+/** Um aspecto na lista: faixa fina com o nome, a contagem, o "i" (o que o aspecto cobre) e o botão de nova regra; embaixo, as regras. */
+function SecaoAspecto({ aspecto: a, regras, dados, aoAbrir, aoNova, aoAdotar, adotandoId, pode, razao, selecionadas, aoMarcar }) {
+  const info = useExplicacao(ROTULO_ASPECTO[a], SOBRE_ASPECTO[a]);
+  return (
+    <section aria-labelledby={`dir-asp-${a}`} className={`border ${bordaQuadro} bg-card shadow-sm`}>
+      <header className={`flex flex-wrap items-center gap-2 border-b ${bordaQuadro} bg-primary/10 px-3 py-1`}>
+        <h3 id={`dir-asp-${a}`} className="text-sm font-semibold text-foreground">{ROTULO_ASPECTO[a]}</h3>
+        <span className="text-xs font-medium text-foreground/75">{regras.length} {regras.length === 1 ? "regra" : "regras"}</span>
+        {info.botao}
+        <button type="button" className={`${botaoSecundario} ml-auto bg-card px-2 py-0.5 text-xs`} disabled={!pode} title={razao} onClick={() => aoNova(a)}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Regra de {ROTULO_ASPECTO[a].toLocaleLowerCase("pt-BR")}</button>
+      </header>
+      {info.texto && <div className="border-b border-foreground/20 bg-muted px-3 py-1">{info.texto}</div>}
+      {regras.length === 0 ? <p className="px-3 py-1.5 text-sm text-foreground/75">Nenhuma regra deste aspecto.</p> : (
+        <ul aria-label={`Regras: ${ROTULO_ASPECTO[a]}`}>
+          {regras.map((r) => <LinhaRegra key={r.id} regra={r} atualizacao={atualizacaoDa(r, dados.atualizacoesBiblioteca)} aoAbrir={() => aoAbrir(r.id)} aoAdotar={() => aoAdotar(r)} adotando={adotandoId === r.id} pode={pode} razao={razao} marcada={selecionadas?.has(r.id)} aoMarcar={aoMarcar} />)}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /** Regras do projeto por aspecto (as 5 seções, ou só os `aspectos` da fase) e o quadro "Grupos sem regra". */
 export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, pode, razao, selecionadas, aoMarcar, aspectos = ASPECTOS }) {
   const porAspecto = regrasPorAspecto(dados.regras);
   return (
-    <div className="space-y-5">
+    <div className="space-y-2">
       {aspectos.map((a) => (
-        <section key={a} aria-labelledby={`dir-asp-${a}`} className={`border ${bordaQuadro} bg-card shadow-sm`}>
-          <header className={`flex flex-wrap items-center gap-2 border-b ${bordaQuadro} bg-primary/10 px-3 py-2`}>
-            <h3 id={`dir-asp-${a}`} className="text-sm font-semibold text-foreground">{ROTULO_ASPECTO[a]}</h3>
-            <span className="text-xs font-medium text-foreground/75">{porAspecto[a].length} {porAspecto[a].length === 1 ? "regra" : "regras"}</span>
-            <button type="button" className={`${botaoSecundario} ml-auto bg-card px-2 py-1 text-xs`} disabled={!pode} title={razao} onClick={() => aoNova(a)}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Regra de {ROTULO_ASPECTO[a].toLocaleLowerCase("pt-BR")}</button>
-          </header>
-          <p className="border-b border-foreground/20 bg-muted px-3 py-1.5 text-xs text-foreground/75">{SOBRE_ASPECTO[a]}</p>
-          {porAspecto[a].length === 0 ? <p className="px-3 py-2 text-sm text-foreground/75">Nenhuma regra deste aspecto.</p> : (
-            <ul className="py-1" aria-label={`Regras: ${ROTULO_ASPECTO[a]}`}>
-              {porAspecto[a].map((r) => <LinhaRegra key={r.id} regra={r} atualizacao={atualizacaoDa(r, dados.atualizacoesBiblioteca)} aoAbrir={() => aoAbrir(r.id)} aoAdotar={() => aoAdotar(r)} adotando={adotandoId === r.id} pode={pode} razao={razao} marcada={selecionadas?.has(r.id)} aoMarcar={aoMarcar} />)}
-            </ul>
-          )}
-        </section>
+        <SecaoAspecto key={a} aspecto={a} regras={porAspecto[a]} dados={dados} aoAbrir={aoAbrir} aoNova={aoNova} aoAdotar={aoAdotar} adotandoId={adotandoId} pode={pode} razao={razao} selecionadas={selecionadas} aoMarcar={aoMarcar} />
       ))}
       <GruposSemRegra dados={dados} aspectos={aspectos} />
     </div>
@@ -106,8 +116,10 @@ export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, po
  */
 export function GruposSemRegra({ dados, aspectos = ASPECTOS }) {
   const { porAspecto, conjuntos } = gruposSemRegraAgrupados((dados.gruposSemRegra || []).filter((g) => aspectos.includes(g.aspecto)));
+  const info = useExplicacao("Grupos sem regra", "Grupo sem regra entra na política como pendência, nunca como regra vigente.");
   return (
-    <Quadro as="section" titulo="Grupos sem regra" nivel="h3">
+    <Quadro as="section" titulo="Grupos sem regra" nivel="h3" acoes={info.botao}>
+      {info.texto}
       {(dados.grupos || []).length === 0 ? <p className="text-sm text-foreground/75">Os grupos aparecem depois de importar o cadastro de itens.</p> : (
         <>
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="Grupos sem regra por aspecto">
@@ -126,7 +138,6 @@ export function GruposSemRegra({ dados, aspectos = ASPECTOS }) {
           ))}
         </>
       )}
-      <p className="text-xs text-foreground/75">Grupo sem regra entra na política como pendência, nunca como regra vigente.</p>
     </Quadro>
   );
 }
@@ -213,7 +224,7 @@ export function textoModeloAplicado(r, modelo) {
  * os aspectos que a fase mostra (Fase 1: nomes, atributos, unidades e limites; Fase 2: classificação fiscal); aplicar e aprovar em lote
  * ficam nas regras desses aspectos. Uma regra aberta pelo endereço abre mesmo sendo de outro aspecto.
  */
-export default function Diretrizes({ projeto, aspectos = ASPECTOS }) {
+export default function Diretrizes({ projeto, aspectos = ASPECTOS, rolarAoAbrir = false }) {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const { pode, razao } = usePodeAlterar();
@@ -223,6 +234,13 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS }) {
   const importacoes = useQuery({ queryKey: chaves.importacoes(projeto.id), queryFn: () => san.importacoes(projeto.id) });
   const [edicao, setEdicao] = useState(() => (params.get("regra") ? { regraId: params.get("regra") } : null));
   const [msg, setMsg] = useState(null);
+  // Dentro da aba que junta os dados da fase e as diretrizes, a regra aberta (pelo endereço, como em "Abrir nas Diretrizes", ou pelo
+  // botão Abrir) fica embaixo: a tela rola até o formulário dela quando os dados chegam.
+  const topo = useRef(null);
+  const carregou = consulta.data !== undefined;
+  useEffect(() => {
+    if (rolarAoAbrir && edicao && carregou) topo.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [rolarAoAbrir, edicao, carregou]);
 
   const ultimaImportacao = importacoes.isError ? null : importacoes.data === undefined ? undefined
     : [...(Array.isArray(importacoes.data) ? importacoes.data : [])].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] || null;
@@ -291,6 +309,7 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS }) {
   };
 
   return (
+    <div ref={topo} className="scroll-mt-4">
     <Carregar consulta={consulta} textoErro="Não foi possível carregar as diretrizes." textoCarregando="Carregando as diretrizes…">
       {(dados) => {
         if (edicao) {
@@ -302,7 +321,7 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS }) {
         const pendentes = regrasParaAplicar(daFase.regras);
         const marcadas = daFase.regras.filter((r) => selecionadas.has(r.id));
         return (
-          <div className="space-y-4">
+          <div className="space-y-2">
             <CabecalhoDiretrizes key={`${dados.cabecalho?.versao}-${dados.cabecalho?.vigencia}`} projeto={projeto} cabecalho={dados.cabecalho} cliente={cliente.data?.razao_social || cliente.data?.nome} ultimaImportacao={ultimaImportacao}
               aoSalvarVigencia={(v) => vigencia.mutate(v)} salvando={vigencia.isPending} podeAlterar={pode} razao={razao} />
             {msg && <Aviso tom={msg.tom === "erro" ? "erro" : msg.tom === "alerta" ? "alerta" : "ok"}>{msg.texto}</Aviso>}
@@ -311,13 +330,13 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS }) {
                 Você já pode cadastrar regras para Todos os grupos ou aplicar um modelo da biblioteca. Depois da importação, os grupos do cliente aparecem aqui para regras por grupo e no quadro Grupos sem regra.
               </Aviso>
             )}
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Ações numa faixa só: regra nova, modelo e política; à direita, as ações em várias regras. */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
               <button type="button" className={botaoPrimario} disabled={!pode} title={razao} onClick={() => nova(aspectos[0])}><Plus className="h-4 w-4" aria-hidden="true" />Adicionar regra</button>
               <AplicarModelo projeto={projeto} pode={pode} razao={razao} aoAplicou={async (m) => { setMsg(m); if (m.tom === "ok") await atualizarTudo(qc, projeto.id); }} />
               <BotaoPolitica projetoId={projeto.id} />
-            </div>
             {daFase.regras.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 border-y border-border py-2" role="group" aria-label="Ações em várias regras">
+              <div className="flex flex-wrap items-center gap-2 lg:ml-auto" role="group" aria-label="Ações em várias regras">
                 <button type="button" className={botaoPrimario} disabled={!pode || ocupadoVarias || !pendentes.length} title={razao || (!pendentes.length ? "Todas as regras já estão aplicadas como estão" : "Uma prévia só e uma reanálise só")} onClick={() => buscarPrevia.mutate(pendentes)}>
                   <Play className="h-4 w-4" aria-hidden="true" />{buscarPrevia.isPending ? "Preparando a prévia…" : `Aplicar todas as regras (${pendentes.length})`}
                 </button>
@@ -326,11 +345,13 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS }) {
                 {marcadas.length > 0 && <button type="button" className="text-xs underline" onClick={() => setSelecionadas(new Set())}>Limpar seleção</button>}
               </div>
             )}
+            </div>
             <ListaDeRegras dados={daFase} aspectos={aspectos} aoAbrir={abrir} aoNova={nova} aoAdotar={pedirAdocao} adotandoId={adotar.isPending ? adotar.variables?.id : null} pode={pode} razao={razao} selecionadas={selecionadas} aoMarcar={marcar} />
             {previaVarias && <PreviaVarias previa={previaVarias.dados} ocupado={aplicarVarias.isPending} aoCancelar={() => setPreviaVarias(null)} aoConfirmar={({ confirmarTransferencia }) => aplicarVarias.mutate({ regras: previaVarias.regras, confirmarTransferencia })} />}
           </div>
         );
       }}
     </Carregar>
+    </div>
   );
 }
