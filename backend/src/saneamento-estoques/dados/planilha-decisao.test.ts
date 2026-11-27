@@ -72,7 +72,7 @@ describe('planilha de decisão: exportação', () => {
   it('uma linha por caso aberto da camada, colunas travadas, decisão em lista, aba protegida, itens e controle', async () => {
     const t = await montar();
     const { buffer, nome } = await t.planilha.baixar(t.projetoId, 'NCM');
-    expect(nome).toMatch(/^Planilha de decisao - Validar NCM -\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(nome).toMatch(/^Planilha de decisao - Validar NCM - \d{4}-\d{2}-\d{2}\.xlsx$/);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer as never);
     expect(wb.worksheets.map((w) => w.name)).toEqual([ABA_CASOS, ABA_ITENS, ABA_CONTROLE]);

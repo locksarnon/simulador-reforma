@@ -478,8 +478,9 @@ describe("Versões", () => {
     const t = texto(html);
     expect(t).toContain("Só a Fase 1 (sem a parte tributária)");
     expect(html.match(/type="checkbox"/g)).toHaveLength(1); // só no quadro Para revisão
-    expect(t).toContain("Fase 1 · Saneamento");
-    expect(t.match(/Fase 1 · Saneamento/g)).toHaveLength(1); // a versão antiga não tem fase
+    // A coluna Fase mostra a fase gravada na versão; a versão antiga, sem fase, mostra "—".
+    expect(t).toContain("Fase 1 · Cadastro saneado");
+    expect(t).toContain("Entrega antiga");
   });
   it("mostra as restaurações feitas a partir da versão, com Desfazer (ou o selo de desfeita)", () => {
     const r = (o) => ({ id: "r1", quando: "2026-11-21T12:00:00Z", usuario: "ana@x.com", justificativa: "Cliente pediu voltar", itens: 3, campos: 5, casosDecididosDepois: 1, desfeita: null, ...o });
