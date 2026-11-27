@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Map as IconeMapa, Printer, X } from "lucide-react";
+import { ArrowDown, ArrowRight, Map as IconeMapa, Printer, X } from "lucide-react";
 import Janela from "./diretrizes/Janela";
 import { chaves, san } from "./api";
 import { botaoSecundario, Tag } from "./comuns";
@@ -18,17 +18,24 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
   const sel = selecionada && FASES_ROTEIRO.flatMap((f) => f.etapas.map((e) => ({ f, e }))).find((x) => x.e.id === selecionada);
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-3">
-        {FASES_ROTEIRO.map((f) => (
-          <section key={f.id} aria-label={f.titulo} className="flex flex-col gap-2">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr]">
+        {FASES_ROTEIRO.map((f, n) => (
+          <Fragment key={f.id}>
+          {n > 0 && (
+            <div className="flex items-center justify-center text-muted-foreground" aria-hidden="true">
+              <ArrowDown className="h-6 w-6 lg:hidden" /><ArrowRight className="hidden h-6 w-6 lg:block" />
+            </div>
+          )}
+          <section aria-label={f.titulo} className="flex flex-col gap-2">
             <h3 className={`border border-border bg-card px-3 py-2 text-sm font-semibold ${COR[f.id].titulo}`}>{f.titulo}</h3>
             <p className="text-xs text-muted-foreground">{f.objetivo}</p>
-            <ol className="flex flex-col gap-2">
-              {f.etapas.map((e) => {
+            <ol className="flex flex-col gap-0.5">
+              {f.etapas.map((e, k) => {
                 const s = situacaoDaEtapa(f.id, e, ctx);
                 const ativa = selecionada === e.id;
                 return (
                   <li key={e.id}>
+                    {k > 0 && <ArrowDown className="mx-auto mb-0.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
                     <button type="button" aria-pressed={ativa} onClick={() => aoSelecionar(ativa ? null : e.id)}
                       className={`w-full border px-3 py-2 text-left transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${COR[f.id].caixa} ${ativa ? "ring-2 ring-primary" : ""}`}>
                       <span className="flex items-start justify-between gap-2">
@@ -47,6 +54,8 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
             {f.liberacao && (() => {
               const s = situacaoDaLiberacao(f.id, liberadas);
               return (
+                <>
+                <ArrowDown className="mx-auto h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                 <div className="border-2 border-dashed border-border bg-card px-3 py-2" title={f.liberacao.recebe}>
                   <span className="flex items-center justify-between gap-2">
                     <span><span className="block text-sm font-semibold">{f.liberacao.titulo}</span><span className="block text-xs text-muted-foreground">{f.liberacao.resumo}</span></span>
@@ -54,9 +63,11 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">{f.liberacao.recebe}</span>
                 </div>
+                </>
               );
             })()}
           </section>
+          </Fragment>
         ))}
       </div>
       {sel && (
