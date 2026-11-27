@@ -3,7 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CAMPO_AFETA, TX_LONGA, aplicarCampo, camadasAtivas, conflito, derivadosDoTrabalho, fatiar, igual, quem, type Json, type Usuario } from './constantes';
 import { SAN_IMPORTADOR, type ImportadorPort, type ItemImportado, type SaidaImportacao } from './portas';
-import { SanProjetoService } from './projeto.service';
+import { SanProjetoService, gravarChavesDosParametros } from './projeto.service';
+import { ROTULO_TRATAMENTO_SEM_DATA, chavesDaEscolhaSemData, tratamentoSemDataDe, validarTratamentoSemData, type TratamentoSemData } from '../sem-data-movimentacao';
 import type { EscalaDoSaldo, SeparadoresDaImportacao } from '../importacao';
 import { carregarPerfil } from '../../erps/erps.service';
 import { colunasDoExport } from '../../erps/logica';
@@ -37,6 +38,19 @@ export function lerEscalaSaldo(v: unknown): number {
   if (!Number.isInteger(n) || n < 1) throw new BadRequestException('"escalaSaldo" deve ser um número inteiro positivo.');
   return n;
 }
+
+/**
+ * Tratamento para itens sem data de última movimentação: obrigatório em TODA importação do Saneamento (a API responde 400 sem ele; a tela só
+ * deixa confirmar depois da escolha). Vale para o projeto (parametros.semDataMovimentacao) e fica registrado no relatório da importação.
+ */
+export function exigirTratamentoSemData(v: unknown): TratamentoSemData {
+  const r = validarTratamentoSemData(v);
+  if (!r.ok) throw new BadRequestException({ statusCode: 400, codigo: r.codigo, message: r.erro });
+  return r.valor;
+}
+
+/** Itens do arquivo sem data de última movimentação (vazio), para a prévia mostrar quantos o tratamento escolhido vai alcançar. */
+export const contarSemData = (itens: { ultimaMovimentacao?: unknown }[]) => itens.filter((i) => i.ultimaMovimentacao == null || String(i.ultimaMovimentacao).trim() === '').length;
 
 /** Valida a escolha do que incorporar (lista de ids ou filtro). */
 function validarEscolha(v: unknown): EscolhaIncorporar {
@@ -224,8 +238,10 @@ export class SanImportacaoService {
     const pagina = Math.max(inteiro(opcoes.pagina, 'pagina') ?? 1, 1);
     const filtro = opcoes.filtro == null || opcoes.filtro === '' ? 'TODAS' : String(opcoes.filtro);
     if (!(FILTROS_DIFERENCA as readonly string[]).includes(filtro)) throw new BadRequestException('Filtro de diferenças inválido (TODAS, COM_PROTEGIDO ou SEM_PROTEGIDO).');
-    const { itens, relatorio, mapeamento: usado, previaDoArquivo } = await this.ler(projetoId, arquivo, mapeamento, lerEscalaSaldo(opcoes.escalaSaldo));
+    const { p, itens, relatorio, mapeamento: usado, previaDoArquivo } = await this.ler(projetoId, arquivo, mapeamento, lerEscalaSaldo(opcoes.escalaSaldo));
     const c = await this.comparar(projetoId, itens);
+    // Itens sem data de última movimentação: quantos são, se a coluna foi mapeada e o tratamento já escolhido no projeto (a tela não o pré-seleciona).
+    const semDataMovimentacao = { itens: contarSemData(itens), colunaMapeada: !!(usado as Record<string, string> | undefined)?.ultimaMovimentacao, tratamentoAtual: tratamentoSemDataDe(p.parametros as Json | null) };
     const comProtegido = (d: Diferenca) => d.campos.some((x) => x.protegido);
     const filtradas = filtro === 'TODAS' ? c.diferencas : c.diferencas.filter((d) => comProtegido(d) === (filtro === 'COM_PROTEGIDO'));
     const totais = {
@@ -241,15 +257,19 @@ export class SanImportacaoService {
       diferencas: filtradas.slice((pagina - 1) * limite, pagina * limite),
       paginaDiferencas: { pagina, limite, filtro, total: filtradas.length, paginas: Math.max(1, Math.ceil(filtradas.length / limite)) },
       amostraNovos: c.novos.slice(0, 20).map((i) => ({ codigo: i.codigo, estabelecimento: i.estabelecimento, descricao: i.descricao })),
+      semDataMovimentacao,
     };
   }
 
   /**
    * Grava. Itens novos entram; os já existentes mantêm a base de trabalho (decisões e rascunhos preservados). `incorporar` lista os ids de
    * itens cujas diferenças do arquivo o consultor quer trazer para a base de trabalho (campos com decisão ficam como estão).
+   * `semData`: tratamento dos itens sem data de última movimentação (obrigatório na API: o controlador exige; aqui, se vier, é validado,
+   * gravado no projeto na mesma transação e registrado no relatório da importação).
    */
-  async confirmar(projetoId: string, arquivo: ArquivoImportacao, mapeamento: Record<string, string> | undefined, incorporar: EscolhaIncorporar | null | undefined, usuario?: Usuario, escalaSaldo?: unknown) {
+  async confirmar(projetoId: string, arquivo: ArquivoImportacao, mapeamento: Record<string, string> | undefined, incorporar: EscolhaIncorporar | null | undefined, usuario?: Usuario, escalaSaldo?: unknown, semData?: unknown) {
     const escolha = validarEscolha(incorporar);
+    const tratamento = semData === undefined ? null : exigirTratamentoSemData(semData);
     const { p, itens, relatorio, mapeamento: usado } = await this.ler(projetoId, arquivo, mapeamento, lerEscalaSaldo(escalaSaldo));
     const camadas = camadasAtivas(p.modulos as Json);
     const quemFez = quem(usuario);
@@ -329,7 +349,16 @@ export class SanImportacaoService {
           }
           await gravarGrupoDasCelulas(tx, porGrupo);
         }
-        const fim = { ...relatorio, novos: criados, inalterados: c.inalterados, alterados: c.diferencas.length, incorporados, ausentesDoArquivo: c.ausentes.length, ignorados, totalIgnorados };
+        // Tratamento dos itens sem data: vale para o projeto (chaves gravadas de forma atômica) e fica no relatório desta importação (auditoria).
+        let semDataMovimentacao: Json | null = null;
+        if (tratamento) {
+          const em = new Date().toISOString();
+          const atualPar = (await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: { parametros: true } }))?.parametros as Json | null;
+          const definir = chavesDaEscolhaSemData(atualPar, tratamento, { por: quemFez, em, origem: 'IMPORTACAO', arquivo: arquivo.nome.slice(0, 255) });
+          if (Object.keys(definir).length) await gravarChavesDosParametros(tx, projetoId, definir);
+          semDataMovimentacao = { tratamento, rotulo: ROTULO_TRATAMENTO_SEM_DATA[tratamento], itens: contarSemData(itens), por: quemFez, em, alterouAnalise: 'semDataMovimentacaoAlteradaEm' in definir };
+        }
+        const fim = { ...relatorio, novos: criados, inalterados: c.inalterados, alterados: c.diferencas.length, incorporados, ausentesDoArquivo: c.ausentes.length, ignorados, totalIgnorados, semDataMovimentacao };
         await tx.sanImportacao.update({ where: { id: imp.id }, data: { relatorio: fim as never } });
         return { importacaoId: imp.id, ...fim };
       }, TX_LONGA);

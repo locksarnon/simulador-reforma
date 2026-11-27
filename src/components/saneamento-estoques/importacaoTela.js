@@ -50,3 +50,53 @@ export function textoEscalaSaldo(e) {
 
 /** Linha do relatório da importação confirmada quando o saldo foi dividido. */
 export const textoEscalaAplicada = (e) => (Number(e?.aplicada) > 1 ? `Saldos da coluna "${e.coluna}" divididos por ${fmtNumero(e.aplicada)}, por escolha na prévia.` : "");
+
+/**
+ * Tratamento para itens sem data de última movimentação: escolha obrigatória em toda importação (nada pré-selecionado) e editável em
+ * Fase 1 > 1.1 Dados do projeto. O servidor guarda em `parametros.semDataMovimentacao` e recusa a importação sem ela.
+ */
+export const TRATAMENTOS_SEM_DATA = [
+  { valor: "SEM_MOVIMENTACAO", rotulo: "Considerar sem movimentação", ajuda: "Entram no corte de movimentação como itens parados: sem saldo, propõe inativar; com saldo, pede regularizar o saldo antes." },
+  { valor: "DEPOIS", rotulo: "Deixar para tratar depois", ajuda: "Ficam fora do corte, pendentes: cada item vira um caso \"Sem data de movimentação\" na Qualidade, tratado à parte." },
+];
+export const rotuloTratamentoSemData = (v) => TRATAMENTOS_SEM_DATA.find((t) => t.valor === v)?.rotulo || "";
+export const MENSAGEM_SEM_TRATAMENTO = "Escolha o tratamento para itens sem data de última movimentação (em Colunas do arquivo, na linha Última movimentação) para continuar.";
+
+/** Quantos itens do arquivo estão sem data, em texto para a prévia (null quando a prévia não informa). */
+export function textoItensSemData(previa) {
+  const s = previa?.semDataMovimentacao;
+  if (!s || s.itens == null) return null;
+  const n = Number(s.itens);
+  if (!s.colunaMapeada) return `Sem coluna de última movimentação: todos os ${n.toLocaleString("pt-BR")} item(ns) do arquivo ficam sem data.`;
+  return n ? `${n.toLocaleString("pt-BR")} item(ns) do arquivo sem data de última movimentação.` : "Todos os itens do arquivo têm data de última movimentação (a escolha vale se algum ficar sem data).";
+}
+
+/** Linha do relatório da importação confirmada: o tratamento escolhido e quantos itens ele alcançou. */
+export function textoTratamentoNaImportacao(s) {
+  if (!s?.tratamento) return "";
+  const n = Number(s.itens || 0);
+  const base = `Itens sem data de última movimentação (${n.toLocaleString("pt-BR")}): ${rotuloTratamentoSemData(s.tratamento) || s.rotulo}.`;
+  return s.alterouAnalise ? `${base} O tratamento mudou: analise a Qualidade e as Duplicidades de novo.` : base;
+}
+
+/** "Considerar sem movimentação, na importação, por Fulano, em 27/11/2026 14:03" (vazio sem registro). */
+export function textoDecisaoSemData(d) {
+  if (!d?.tratamento) return "";
+  const t = d.em ? new Date(d.em) : null;
+  const quando = t && !Number.isNaN(t.getTime()) ? t.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }) : "";
+  return [rotuloTratamentoSemData(d.tratamento), d.origem === "CONFIGURACAO" ? "na configuração do projeto" : "na importação", d.por ? `por ${d.por}` : "", quando ? `em ${quando}` : ""].filter(Boolean).join(", ");
+}
+
+/**
+ * Por que o botão de confirmar a importação está desligado (null = pode confirmar). O tratamento dos itens sem data é obrigatório: sem ele,
+ * a mensagem diz onde escolher.
+ */
+export function bloqueioDaConfirmacao({ podeImportar = true, semData, ocupado = false, faltam = [], mapeamentoPendente = false, aceitas = 0 }) {
+  if (!podeImportar) return "Sem permissão para importar.";
+  if (!semData) return MENSAGEM_SEM_TRATAMENTO;
+  if (faltam.length) return `Escolha a coluna de: ${faltam.join(", ")}.`;
+  if (mapeamentoPendente) return "O mapeamento foi corrigido: atualize a prévia antes de confirmar.";
+  if (!aceitas) return "Nenhuma linha aceita para importar.";
+  if (ocupado) return "Aguarde a operação em andamento.";
+  return null;
+}

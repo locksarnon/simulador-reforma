@@ -10,6 +10,7 @@ import { nomeDoErp } from '../../erps/erps.service';
 import { envolverComDiretrizes } from '../diretrizes/analise';
 import { indiceAplicado } from '../diretrizes/dados';
 import { fecharEscopo, recortarResultado } from '../diretrizes/escopo';
+import { CAMADAS_DO_TRATAMENTO_SEM_DATA, decisaoSemDataDe, tratamentoSemDataDe } from '../sem-data-movimentacao';
 
 /** Análise em segundo plano (uma por projeto): roda as camadas na ordem, no servidor, e segue mesmo que a tela seja fechada. */
 export interface ExecucaoCamadas {
@@ -185,7 +186,10 @@ export class SanOrquestracaoService {
     if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
     const camadas = camadasAtivas(p.modulos as Json);
     const execucoes = ((p.parametros as Json | null)?.execucoes ?? {}) as Record<string, string>;
-    const criteriosEm = ((p.parametros as Json | null)?.criteriosAlteradosEm ?? {}) as Record<string, string>;
+    const criteriosEm = { ...(((p.parametros as Json | null)?.criteriosAlteradosEm ?? {}) as Record<string, string>) };
+    // Mudou o tratamento dos itens sem data: Qualidade e Duplicidades ficam desatualizadas como num critério ajustado (pede "Analisar de novo").
+    const semDataEm = (p.parametros as Json | null)?.semDataMovimentacaoAlteradaEm as string | undefined;
+    if (semDataEm) for (const c of CAMADAS_DO_TRATAMENTO_SEM_DATA) if (!criteriosEm[c] || criteriosEm[c] < semDataEm) criteriosEm[c] = semDataEm;
     const contagem = await this.prisma.sanCaso.groupBy({ by: ['camada', 'situacao'], where: { projeto_id: projetoId }, _count: { _all: true } });
     const porCamada = new Map<string, { abertos: number; aguardando: number; aprovados: number }>();
     for (const c of contagem) {
@@ -228,8 +232,13 @@ export const DEPENDENCIAS: Partial<Record<Camada, { camada: Camada; campos: stri
  */
 export function parametrosDoMotor(parametros: Json | null | undefined): { parametros?: Json } {
   const motor = parametros?.motor as Json | undefined; const criterios = parametros?.criterios as Json | undefined;
-  if (!motor && !criterios) return {};
-  return { parametros: { ...(motor ?? {}), ...(criterios ? { criterios } : {}) } };
+  // Tratamento dos itens sem data escolhido na importação (ou em 1.1 Dados do projeto): vale sobre o de `parametros.motor`.
+  const semData = tratamentoSemDataDe(parametros);
+  if (!motor && !criterios && !semData) return {};
+  return { parametros: {
+    ...(motor ?? {}), ...(criterios ? { criterios } : {}),
+    ...(semData ? { semDataMovimentacao: semData === 'SEM_MOVIMENTACAO' ? 'SEM_MOVIMENTACAO' : 'SINALIZAR', semDataMovimentacaoDecisao: decisaoSemDataDe(parametros) } : {}),
+  } };
 }
 
 /** Critério da camada alterado depois da última análise completa dela: desatualizada, com `criterio: true` (a tela pede "analise de novo"). */

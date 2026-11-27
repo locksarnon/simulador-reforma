@@ -1,6 +1,7 @@
 /**
  * Camada QUALIDADE: o cadastro está completo e coerente? Descrição insuficiente, unidade ausente ou incompatível com a descrição, campos obrigatórios extras vazios,
- * datas e saldos inválidos, item inativo/bloqueado que ainda tem saldo ou uso, item sem data de movimentação (conforme o parâmetro do projeto) e item
+ * datas e saldos inválidos, item inativo/bloqueado que ainda tem saldo ou uso, item sem data de movimentação (conforme o tratamento escolhido na
+ * importação: "Deixar para tratar depois" sinaliza à parte; "Considerar sem movimentação" o leva ao corte como item parado) e item
  * ativo sem movimentação desde o corte (candidato a inativação, por grupo: sem saldo propõe inativar; com saldo pede regularizar o saldo antes).
  * NCM e grupo vazios são casos das camadas NCM e Grupos (cada célula da tabela única precisa refletir o próprio problema); código e estabelecimento, da Identificação.
  */
@@ -11,6 +12,7 @@ import { escalaDaBase, saldoNaEscala } from './conjuntos';
 import { novoCaso } from './dependencias';
 import { campoDe, dataBr, dataIsoValida, motivoDescricaoInsuficiente, numeroBr, txt, vazio } from './texto';
 import { GRANDEZAS, classificarUnidade, grandezasNaDescricao } from './unidades';
+import { textoDaDecisaoSemData } from '../sem-data-movimentacao';
 
 export class AnalisadorQualidade implements AnalisadorCamada {
   readonly camada = 'QUALIDADE' as const;
@@ -20,7 +22,12 @@ export class AnalisadorQualidade implements AnalisadorCamada {
     const casos: CasoProposto[] = [];
     const c = (x: Parameters<typeof novoCaso>[0]) => casos.push(novoCaso(x));
     const obrigatorios = par.camposObrigatorios ?? [];
-    const sinalizaSemData = (par.semDataMovimentacao ?? 'SINALIZAR') === 'SINALIZAR' && itens.some((i) => !!i.ultimaMovimentacao); // base sem nenhuma data: não há o que cobrar item a item
+    const tratamento = par.semDataMovimentacao ?? 'SINALIZAR';
+    const sinalizaSemData = tratamento === 'SINALIZAR' && itens.some((i) => !!i.ultimaMovimentacao); // base sem nenhuma data: não há o que cobrar item a item
+    // "Considerar sem movimentação" (escolha da importação): o item sem data entra no corte como parado, com a escolha na evidência.
+    const semDataParado = tratamento === 'SEM_MOVIMENTACAO';
+    const decisaoSemData = textoDaDecisaoSemData(par.semDataMovimentacaoDecisao);
+    let semDataPendentes = 0;
     const politica = par.politicaUnidade ?? {};
     const corte = contexto.corteMovimentacao && dataIsoValida(txt(contexto.corteMovimentacao)) ? txt(contexto.corteMovimentacao) : null;
     const paradosPorGrupo = new Map<string, ItemTrabalho[]>();
@@ -64,8 +71,9 @@ export class AnalisadorQualidade implements AnalisadorCamada {
             justificativa: justificar('Data no futuro em relação à data-base indica erro de formato ou extração fora do período.', 'conferir a data na planilha e a data-base do projeto.') });
         }
       } else if (sinalizaSemData) {
-        c({ camada: 'QUALIDADE', tipo: 'SEM_DATA_MOVIMENTACAO', itens: id, problema: 'Item sem data de última movimentação', evidencia: [ev('Origem', 'Coluna da última movimentação na base importada'), ev('Parâmetro do projeto', 'itens sem data são sinalizados')], atual: { codigo: it.codigo, ultimaMovimentacao: null },
-          justificativa: justificar('Sem data não dá para aplicar o corte de movimentação; a ausência de movimento, por si só, não determina bloqueio.', 'obter a data no ERP, ou definir no projeto como tratar itens sem data (anteriores ao corte).') });
+        semDataPendentes++;
+        c({ camada: 'QUALIDADE', tipo: 'SEM_DATA_MOVIMENTACAO', itens: id, problema: 'Item sem data de última movimentação', evidencia: [ev('Origem', 'Coluna da última movimentação na base importada'), ev('Tratamento dos itens sem data', `Deixar para tratar depois: pendente, fora do corte de movimentação${decisaoSemData ? ` (escolha ${decisaoSemData})` : ''}`)], atual: { codigo: it.codigo, ultimaMovimentacao: null },
+          justificativa: justificar('Sem data não dá para aplicar o corte de movimentação; a ausência de movimento, por si só, não determina bloqueio.', 'obter a data no ERP, ou escolher "Considerar sem movimentação" em Fase 1 > 1.1 Dados do projeto e analisar de novo.') });
       }
       if (it.saldo != null && !Number.isFinite(it.saldo)) {
         c({ camada: 'QUALIDADE', tipo: 'SALDO_INVALIDO', itens: id, problema: 'Saldo não numérico', evidencia: [ev('Origem', 'Coluna do saldo na base importada')], atual: { codigo: it.codigo },
@@ -74,11 +82,12 @@ export class AnalisadorQualidade implements AnalisadorCamada {
         c({ camada: 'QUALIDADE', tipo: 'SALDO_NEGATIVO', itens: id, problema: `Saldo negativo (${sb(it.saldo)})`, evidencia: [ev('Origem', 'Coluna do saldo na base importada'), ev('Saldo', sb(it.saldo))], atual: { codigo: it.codigo, saldo: it.saldo },
           justificativa: justificar('Saldo negativo é indício de movimentação lançada em outro código ou de erro de baixa, não conclusão.', 'investigar a movimentação do item antes de qualquer consolidação ou inativação.') });
       }
-      // Sem movimentação desde o corte (item ativo ou de situação desconhecida, com data legível): candidato a inativação, tratado por grupo depois do laço.
+      // Sem movimentação desde o corte (item ativo ou de situação desconhecida, com data legível, ou sem data quando a escolha da importação foi
+      // "Considerar sem movimentação"): candidato a inativação, tratado por grupo depois do laço.
       const mov = txt(it.ultimaMovimentacao);
-      if (it.ativo !== false && mov && dataIsoValida(mov)) {
+      if (it.ativo !== false && ((mov && dataIsoValida(mov)) || (!mov && semDataParado))) {
         if (!corte) comDataSemCorte++;
-        else if (mov < corte) { const g = txt(it.grupo) || SEM_GRUPO; const l = paradosPorGrupo.get(g); if (l) l.push(it); else paradosPorGrupo.set(g, [it]); }
+        else if (!mov || mov < corte) { const g = txt(it.grupo) || SEM_GRUPO; const l = paradosPorGrupo.get(g); if (l) l.push(it); else paradosPorGrupo.set(g, [it]); }
       }
       if (it.ativo === false) {
         const comSaldo = it.saldo != null && Number.isFinite(it.saldo) && it.saldo > 0;
@@ -91,7 +100,7 @@ export class AnalisadorQualidade implements AnalisadorCamada {
         }
       }
     }
-    for (const caso of casosSemMovimentacao(paradosPorGrupo, corte, contexto, escala)) casos.push(caso);
+    for (const caso of casosSemMovimentacao(paradosPorGrupo, corte, contexto, escala, decisaoSemData)) casos.push(caso);
     // Cobertura: campo que a base não traz não se verifica; diz-se quantos itens ficaram de fora em vez de silenciar.
     const falta: [string, number][] = [];
     if (itens.length && !itens.some((i) => i.ultimaMovimentacao)) falta.push(['nenhuma data de movimentação (corte e uso não verificados)', itens.length]);
@@ -100,8 +109,10 @@ export class AnalisadorQualidade implements AnalisadorCamada {
     const motivos: string[] = [];
     if (falta.length) motivos.push(`A base não traz: ${falta.map(([m]) => m).join('; ')}`);
     // Sem corte não há como dizer o que está parado: o critério de itens sem movimentação a longa data não é aplicado, e isso é dito (não silenciado).
-    if (comDataSemCorte) motivos.push(`Corte de movimentação não definido na configuração: o critério de itens sem movimentação a longa data (candidatos a inativação) não foi aplicado a ${comDataSemCorte} item(ns) com data`);
-    const semDados = motivos.length ? { motivo: motivos.join('. '), itens: Math.max(comDataSemCorte, ...falta.map(([, n]) => n)) } : null;
+    if (comDataSemCorte) motivos.push(`Corte de movimentação não definido na configuração: o critério de itens sem movimentação a longa data (candidatos a inativação) não foi aplicado a ${comDataSemCorte} item(ns) ${semDataParado ? 'com data ou considerados sem movimentação' : 'com data'}`);
+    // "Deixar para tratar depois": os itens sem data ficam pendentes (fora do corte), e a Cobertura diz quantos.
+    if (semDataPendentes) motivos.push(`${semDataPendentes} item(ns) sem data de última movimentação deixados para tratar depois (pendentes): ficam fora do corte de movimentação até ter a data ou mudar o tratamento`);
+    const semDados = motivos.length ? { motivo: motivos.join('. '), itens: Math.max(comDataSemCorte, semDataPendentes, ...falta.map(([, n]) => n)) } : null;
     return montarResultado('QUALIDADE', itens, casos, semDados);
   }
 }
@@ -111,10 +122,12 @@ const saldoZeroOuNulo = (i: ItemTrabalho) => i.saldo == null || i.saldo === 0;
 const saldoTexto = (i: ItemTrabalho, escala: number) => (i.saldo == null ? 'não informado' : Number.isFinite(i.saldo) ? numeroBr(saldoNaEscala(i.saldo, escala) ?? i.saldo) : 'ilegível');
 function faixaDeDatas(itens: ItemTrabalho[]): string {
   let min = ''; let max = '';
-  for (const i of itens) { const d = txt(i.ultimaMovimentacao); if (!min || d < min) min = d; if (d > max) max = d; }
-  return min === max ? dataBr(min) : `entre ${dataBr(min)} e ${dataBr(max)}`;
+  let semData = 0;
+  for (const i of itens) { const d = txt(i.ultimaMovimentacao); if (!d) { semData++; continue; } if (!min || d < min) min = d; if (d > max) max = d; }
+  const faixa = !min ? '' : min === max ? dataBr(min) : `entre ${dataBr(min)} e ${dataBr(max)}`;
+  return semData ? [faixa, `${semData === itens.length ? 'sem data' : `${semData} sem data`}`].filter(Boolean).join('; ') : faixa;
 }
-const exemplo = (i: ItemTrabalho, escala: number) => `${rotuloItem(i)}: ${txt(i.descricao).slice(0, 120)} · mov. ${dataBr(txt(i.ultimaMovimentacao))} · saldo ${saldoTexto(i, escala)}`;
+const exemplo = (i: ItemTrabalho, escala: number) => `${rotuloItem(i)}: ${txt(i.descricao).slice(0, 120)} · mov. ${txt(i.ultimaMovimentacao) ? dataBr(txt(i.ultimaMovimentacao)) : 'sem data'} · saldo ${saldoTexto(i, escala)}`;
 
 /**
  * Itens sem movimentação desde o corte, por grupo (trabalho por conjunto, resultado por item):
@@ -124,7 +137,7 @@ const exemplo = (i: ItemTrabalho, escala: number) => `${rotuloItem(i)}: ${txt(i.
  *   registra a ciência).
  * Item que já está numa unificação de códigos (o código que fica, que recebe o saldo, ou um que sai) fica fora dos dois, e a evidência diz por quê.
  */
-function casosSemMovimentacao(porGrupo: Map<string, ItemTrabalho[]>, corte: string | null, contexto: ContextoAnalise, escala = 1): CasoProposto[] {
+function casosSemMovimentacao(porGrupo: Map<string, ItemTrabalho[]>, corte: string | null, contexto: ContextoAnalise, escala = 1, decisaoSemData = ''): CasoProposto[] {
   if (!corte) return [];
   const unif = unificacoesDe(contexto);
   const out: CasoProposto[] = [];
@@ -136,9 +149,14 @@ function casosSemMovimentacao(porGrupo: Map<string, ItemTrabalho[]>, corte: stri
     const foraUnif = emUnif.length
       ? [ev('Fora desta proposta', `${emUnif.length} item(ns) já em unificação de códigos (a inativação segue a unificação): ${emUnif.slice(0, 5).map((i) => `${rotuloItem(i)} (${papel(i)})`).join('; ')}${emUnif.length > 5 ? '; e outros' : ''}`)]
       : [];
+    // Itens sem data que entraram por "Considerar sem movimentação": a evidência diz que não há data na base e quem decidiu tratá-los assim.
+    const semDataEv = (l: ItemTrabalho[]) => {
+      const n = l.filter((i) => !txt(i.ultimaMovimentacao)).length;
+      return n ? [ev('Sem data de movimentação', `${n} item(ns): sem data de movimentação na base; tratado como sem movimentação por decisão ${decisaoSemData || 'na importação'}`)] : [];
+    };
     const base = (l: ItemTrabalho[]) => [
       ev('Origem', 'Última movimentação, saldo e situação na base importada'), ev('Corte de movimentação (configuração do projeto)', dataBr(corte)), ev('Grupo', grupo),
-      ...(l.length > 1 ? [ev('Itens do conjunto', l.length)] : []), ev('Última movimentação', faixaDeDatas(l)),
+      ...(l.length > 1 ? [ev('Itens do conjunto', l.length)] : []), ev('Última movimentação', faixaDeDatas(l)), ...semDataEv(l),
     ];
     if (semSaldo.length) {
       const naoInformado = semSaldo.filter((i) => i.saldo == null).length;

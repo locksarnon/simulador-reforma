@@ -19,7 +19,8 @@ export const san = {
   previaImportacao: (id, arquivo, mapeamento, opcoes) => api.upload(`${B}/projetos/${id}/importacoes/previa`, arquivo, { mapeamento, ...(opcoes || {}) }),
   /** `incorporar`: lista de ids ou filtro { filtro: "ALTERADOS" | "ALTERADOS_SEM_PROTEGIDO", exceto?: [ids] }. */
   /** `escalaSaldo`: divisor do saldo escolhido na prévia (1 ou vazio = como veio). */
-  importar: (id, arquivo, mapeamento, incorporar, escalaSaldo) => api.upload(`${B}/projetos/${id}/importacoes`, arquivo, { mapeamento, incorporar: incorporar || [], ...(escalaSaldo > 1 ? { escalaSaldo } : {}) }),
+  /** `semDataMovimentacao`: tratamento dos itens sem data de última movimentação (SEM_MOVIMENTACAO | DEPOIS), obrigatório (o servidor recusa sem ele). */
+  importar: (id, arquivo, mapeamento, incorporar, escalaSaldo, semDataMovimentacao) => api.upload(`${B}/projetos/${id}/importacoes`, arquivo, { mapeamento, incorporar: incorporar || [], ...(escalaSaldo > 1 ? { escalaSaldo } : {}), ...(semDataMovimentacao ? { semDataMovimentacao } : {}) }),
   importacoes: (id) => api.get(`${B}/projetos/${id}/importacoes`),
 
   itens: (id, params) => api.get(`${B}/projetos/${id}/itens`, params),

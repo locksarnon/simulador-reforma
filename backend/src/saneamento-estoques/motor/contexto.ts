@@ -24,8 +24,14 @@ export type ParametrosMotor = {
   exigeEstabelecimento?: boolean;
   /** Campos obrigatórios ALÉM dos que as camadas já cobrem (código, descrição, unidade, NCM e grupo têm caso próprio). Nome de ItemTrabalho ou de `campos`. Padrão: nenhum. */
   camposObrigatorios?: string[];
-  /** Itens sem data de movimentação: SINALIZAR (padrão) ou tratar como ANTERIOR_AO_CORTE (saem do escopo e não geram caso). */
-  semDataMovimentacao?: 'SINALIZAR' | 'ANTERIOR_AO_CORTE';
+  /**
+   * Itens sem data de movimentação: SINALIZAR (padrão; caso SEM_DATA_MOVIMENTACAO, tratado à parte), ANTERIOR_AO_CORTE (saem do escopo e não
+   * geram caso) ou SEM_MOVIMENTACAO (escolha "Considerar sem movimentação" da importação: entram no corte como itens parados). A escolha da
+   * importação fica em `parametros.semDataMovimentacao` (SEM_MOVIMENTACAO | DEPOIS) e chega aqui por parametrosDoMotor (DEPOIS = SINALIZAR).
+   */
+  semDataMovimentacao?: 'SINALIZAR' | 'ANTERIOR_AO_CORTE' | 'SEM_MOVIMENTACAO';
+  /** Quem escolheu e quando o tratamento dos itens sem data (vai na evidência dos casos). */
+  semDataMovimentacaoDecisao?: { por?: string | null; em?: string | null; origem?: string | null } | null;
   limites?: LimitesCampo;
   /** Política da menor unidade de estoque (padrão: ativa, sem regras nem rótulos do projeto). */
   politicaUnidade?: { ativa?: boolean; regras?: Record<string, RegraUnidade>; rotulos?: Partial<Record<'massa' | 'volume' | 'comprimento' | 'area' | 'contagem', string>> };

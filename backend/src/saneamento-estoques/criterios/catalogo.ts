@@ -27,8 +27,10 @@ export type Criterio = {
   camada: Camada;
   texto: string;
   parametro?: ParametroCriterio;
-  /** Quem define o valor: as Diretrizes do projeto ou a Configuração (corte de movimentação). A tela leva até lá. */
+  /** Quem define o valor: as Diretrizes do projeto ou a Configuração (corte de movimentação, tratamento dos itens sem data). A tela leva até lá. */
   origem?: 'DIRETRIZES' | 'CONFIGURACAO';
+  /** Só para origem CONFIGURACAO: qual valor da Configuração o critério mostra (padrão: o corte de movimentação). */
+  configuracao?: 'CORTE' | 'SEM_DATA';
 };
 
 const DIR = 'DIRETRIZES' as const;
@@ -46,6 +48,7 @@ export const CATALOGO_CRITERIOS: Criterio[] = [
   { id: 'q-corte', camada: 'QUALIDADE', origem: 'CONFIGURACAO', texto: 'Corte de movimentação: item ativo sem movimento desde esta data e sem saldo é proposto para inativar; com saldo, pede regularizar o saldo antes' },
   { id: 'q-saldo', camada: 'QUALIDADE', texto: 'Saldo negativo ou ilegível' },
   { id: 'q-inativo', camada: 'QUALIDADE', texto: 'Item inativo que ainda tem saldo ou uso' },
+  { id: 'q-sem-data', camada: 'QUALIDADE', origem: 'CONFIGURACAO', configuracao: 'SEM_DATA', texto: 'Itens sem data de última movimentação (escolha feita na importação)' },
   { id: 'q-data', camada: 'QUALIDADE', texto: 'Data da última movimentação em branco ou ilegível' },
   { id: 'q-descricao', camada: 'QUALIDADE', texto: 'Descrição que não basta para identificar o item' },
   { id: 'q-unidade', camada: 'QUALIDADE', texto: 'Unidade em branco ou que não combina com a medida escrita na descrição' },

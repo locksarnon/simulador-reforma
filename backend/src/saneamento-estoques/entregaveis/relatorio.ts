@@ -14,6 +14,7 @@ import {
 import type { LinhaMapa } from './unificacoes';
 import { perfilEspecifico, restricoesDoTipo, type PerfilErp } from '../../erps/logica';
 import { tiposDeAjusteDoCaso } from '../dados/ajustes';
+import { textoTratamentoSemData, tratamentoSemDataDe } from '../sem-data-movimentacao';
 import { ROTULO_AJUSTE, type TipoAjuste } from '../fiscal/impactoSped';
 
 const n = comMilhar;
@@ -303,6 +304,8 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   if (semNcm) itens.push(`${plural(semNcm, 'item sem NCM de 8 dígitos', 'itens sem NCM de 8 dígitos')}: ${m.soFase1 ? 'completar o NCM no cadastro antes da Fase 2' : 'sem o NCM o enquadramento legal não é definido'}.`);
   const corte = obj(dados.projeto.parametros).corteMovimentacao;
   if (!(typeof corte === 'string' && corte)) itens.push('Itens sem movimentação a longa data: critério não aplicado, porque o corte de movimentação não foi definido na configuração do projeto.');
+  // Itens sem data de última movimentação: "Deixar para tratar depois" (ou sem escolha) = pendentes, fora do corte; o relatório diz isso.
+  if (tratamentoSemDataDe(obj(dados.projeto.parametros)) !== 'SEM_MOVIMENTACAO') itens.push(`Itens sem data de última movimentação: ${textoTratamentoSemData(obj(dados.projeto.parametros))}.`);
   const mod = obj(dados.projeto.modulos);
   const desligados = [mod.conciliacao === true ? '' : 'conciliação de estoque', mod.blocosKG === true ? '' : 'Blocos K e G', mod.arquivoErp === true ? '' : 'arquivo para o ERP'].filter(Boolean);
   if (desligados.length) itens.push(`Fora do escopo desta entrega: ${desligados.join(', ')}. O trabalho cobre ${m.soFase1 ? 'o cadastro dos itens' : 'o cadastro e o tratamento tributário dos itens'}, não a movimentação do estoque.`);

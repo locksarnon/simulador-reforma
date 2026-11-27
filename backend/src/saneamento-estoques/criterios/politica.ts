@@ -1,5 +1,6 @@
 /** Critérios das análises para a política (função pura, sem Nest nem banco). */
 import { ROTULO_CAMADA } from '../rotulos';
+import { textoTratamentoSemData } from '../sem-data-movimentacao';
 import type { Camada } from '../tipos';
 import { CATALOGO_CRITERIOS, criteriosDaCamada, textoDoValor, valorCriterio, type CriterioManual, type CriteriosGravados } from './catalogo';
 
@@ -19,6 +20,7 @@ export function criteriosParaPolitica(parametros: Json | null | undefined, camad
     itens: [
       ...criteriosDaCamada(camada).map((c) => {
         if (c.parametro) return { texto: `${c.texto}: ${textoDoValor(c.parametro, valorCriterio(gravados, camada, c.parametro.chave))}`, manual: false };
+        if (c.origem === 'CONFIGURACAO' && c.configuracao === 'SEM_DATA') return { texto: `${c.texto}: ${textoTratamentoSemData(parametros)}`, manual: false };
         if (c.origem === 'CONFIGURACAO') {
           const corte = parametros?.corteMovimentacao as string | null | undefined;
           return { texto: `${c.texto} (${corte ? `corte em ${corte.slice(8, 10)}/${corte.slice(5, 7)}/${corte.slice(0, 4)}` : 'corte não definido: critério não aplicado'})`, manual: false };

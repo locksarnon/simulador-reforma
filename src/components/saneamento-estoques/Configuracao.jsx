@@ -11,6 +11,7 @@ import {
   efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtCnae, fmtData, fmtDataHora, mensagemDeErro, motivoDaAtividade, motivoListaVazia,
   regimeDoCliente, REGIMES_CLIENTE, textoBuscaCnpj,
 } from "./logica";
+import { rotuloTratamentoSemData, textoDecisaoSemData, TRATAMENTOS_SEM_DATA } from "./importacaoTela";
 
 /** Origem da atividade numa etiqueta só: "CNPJ · principal", "CNPJ · secundário" ou "Manual". */
 export function rotuloDaOrigem(a, projeto) {
@@ -44,6 +45,8 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
     erp: (projeto.erp_texto_original !== undefined ? projeto.erp_texto_original : projeto.erp) ?? "", erp_id: projeto.erp_id ?? null, erp_versao: projeto.erp_versao ?? "", responsavel: projeto.responsavel ?? "",
     estabelecimentos: listaDeEstabelecimentos(projeto).join("\n"), corte: projeto.parametros?.corteMovimentacao ?? "",
     competenciaEntregue: projeto.parametros?.competenciaEntregue ?? "",
+    // Tratamento dos itens sem data de última movimentação (escolhido na importação); "" = ainda não escolhido.
+    semData: projeto.parametros?.semDataMovimentacao ?? "",
   }));
   const [msg, setMsg] = useState(null);
   const [novaAtividade, setNovaAtividade] = useState({ codigo: "", descricao: "" });
@@ -63,9 +66,12 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
     mutationFn: () => san.configurar(projeto.id, {
       versao: projeto.versao, ...vinculoErpParaSalvar(form, erps, erpsQ.isSuccess), erp_versao: form.erp_versao, responsavel: form.responsavel,
       estabelecimentos: form.estabelecimentos.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
-      parametros: { ...(projeto.parametros || {}), corteMovimentacao: form.corte || null, competenciaEntregue: form.competenciaEntregue || null },
+      parametros: { ...(projeto.parametros || {}), corteMovimentacao: form.corte || null, competenciaEntregue: form.competenciaEntregue || null, ...(form.semData ? { semDataMovimentacao: form.semData } : {}) },
     }),
-    onSuccess: aoConcluir("Configuração salva."), onError: aoFalhar,
+    // Mudou o tratamento dos itens sem data: a Qualidade e as Duplicidades ficam desatualizadas (a Cobertura pede analisar de novo).
+    onSuccess: () => aoConcluir(form.semData && form.semData !== (projeto.parametros?.semDataMovimentacao ?? "")
+      ? "Configuração salva. O tratamento dos itens sem data mudou: analise a Qualidade e as Duplicidades de novo." : "Configuração salva.")(),
+    onError: aoFalhar,
   });
   const alternar = useMutation({ mutationFn: ({ id, mantida }) => san.alterarAtividade(projeto.id, id, mantida), onSuccess: aoConcluir(), onError: aoFalhar });
   const acrescentar = useMutation({
@@ -106,7 +112,7 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
       <SecaoForm titulo="Fase 1 · Dados do projeto" nivel="h2" idTitulo="san-cfg-dados" corpoCls="space-y-2"
         acoes={<button type="button" className={`${botaoPrimario} px-3 py-1 text-sm`} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>}>
         {/* Seis campos numa linha (lg): rótulos de mesma altura (ROT), campos com a mesma classe e margem, alinhados pela base. */}
-        <div className="grid items-end gap-x-3 gap-y-2 sm:grid-cols-3 lg:grid-cols-6" title="Usado pela Fase 1. Não depende das atividades do cliente: importação e análises da Fase 1 ficam sempre disponíveis.">
+        <div className="grid items-end gap-x-3 gap-y-2 sm:grid-cols-3 lg:grid-cols-7" title="Usado pela Fase 1. Não depende das atividades do cliente: importação e análises da Fase 1 ficam sempre disponíveis.">
           <SeletorErp id="san-cfg-erp" rotulo="ERP" compacto classeRotulo={ROT} classeCampo={`${campoCls} mt-1`} registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} />
           <label className="block"><span className={ROT}>Versão do ERP</span>{erpEscolhido?.versoes?.length
             ? <select className={`${campoCls} mt-1`} value={form.erp_versao} onChange={set("erp_versao")}><option value="">Selecione a versão</option>{[...erpEscolhido.versoes, ...(form.erp_versao && !erpEscolhido.versoes.includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
@@ -118,16 +124,28 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
             <input id="san-cfg-corte" type="date" className={`${campoCls} mt-1`} value={form.corte} onChange={set("corte")} title="Itens sem movimento desde esta data" />
           </div>
           <div>
+            <span className={ROT}><label htmlFor="san-cfg-semdata">Itens sem data de movimentação</label><BotaoInfo id="san-cfg-semdata-info" rotulo="Itens sem data de movimentação" pequeno aberto={infoAberta === "semdata"} aoAlternar={() => setInfoAberta(infoAberta === "semdata" ? null : "semdata")} /></span>
+            <select id="san-cfg-semdata" className={`${campoCls} mt-1`} value={form.semData} onChange={set("semData")} title={rotuloTratamentoSemData(form.semData) || "Escolhido na importação"}>
+              {!form.semData && <option value="">Escolhido na importação</option>}
+              {TRATAMENTOS_SEM_DATA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+            </select>
+          </div>
+          <div>
             <span className={ROT}><label htmlFor="san-cfg-competencia">Última escrituração entregue (SPED)</label><BotaoInfo id="san-cfg-competencia-info" rotulo="Última escrituração entregue" pequeno aberto={infoAberta === "competencia"} aoAlternar={() => setInfoAberta(infoAberta === "competencia" ? null : "competencia")} /></span>
             <input id="san-cfg-competencia" type="month" className={`${campoCls} mt-1`} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
           </div>
-          <label className="block sm:col-span-3 lg:col-span-6"><span className={ROT}>Estabelecimentos (um por linha; vazio = um só)</span>
+          <label className="block sm:col-span-3 lg:col-span-7"><span className={ROT}>Estabelecimentos (um por linha; vazio = um só)</span>
             <textarea rows={1} className={`${campoCls} mt-1 min-h-[34px] resize-y`} value={form.estabelecimentos} onChange={set("estabelecimentos")} />
           </label>
         </div>
         {infoAberta === "corte" && (
           <p id="san-cfg-corte-info" className="border-l-2 border-border pl-3 text-xs text-muted-foreground">
-            Item ativo cuja última movimentação (coluna importada do cadastro) é anterior a esta data é candidato a inativação, na camada Qualidade, por grupo. Sem saldo: propõe inativar. Com saldo: pede regularizar o saldo antes, sem propor inativar. O código que fica numa unificação de códigos não é proposto. Item sem data é tratado à parte. Vazio: o critério não é aplicado, e a Cobertura e o relatório dizem isso. Depois de mudar a data, rode a Qualidade de novo.
+            Item ativo cuja última movimentação (coluna importada do cadastro) é anterior a esta data é candidato a inativação, na camada Qualidade, por grupo. Sem saldo: propõe inativar. Com saldo: pede regularizar o saldo antes, sem propor inativar. O código que fica numa unificação de códigos não é proposto. Item sem data segue o tratamento escolhido na importação (campo ao lado). Vazio: o critério não é aplicado, e a Cobertura e o relatório dizem isso. Depois de mudar a data, rode a Qualidade de novo.
+          </p>
+        )}
+        {infoAberta === "semdata" && (
+          <p id="san-cfg-semdata-info" className="border-l-2 border-border pl-3 text-xs text-muted-foreground">
+            Escolha feita na importação (obrigatória) para os itens sem data de última movimentação. Considerar sem movimentação: entram no corte como itens parados (sem saldo, propõe inativar; com saldo, pede regularizar o saldo antes), e a evidência diz que a data falta e quem escolheu. Deixar para tratar depois: ficam fora do corte, pendentes, como casos "Sem data de movimentação" na Qualidade. Mudou aqui: a Qualidade e as Duplicidades ficam desatualizadas até analisar de novo.{textoDecisaoSemData(projeto.parametros?.semDataMovimentacaoDecisao) ? ` Escolha atual: ${textoDecisaoSemData(projeto.parametros.semDataMovimentacaoDecisao)}.` : ""}
           </p>
         )}
         {infoAberta === "competencia" && (
