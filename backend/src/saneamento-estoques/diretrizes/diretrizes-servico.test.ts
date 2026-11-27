@@ -544,3 +544,40 @@ describe('baixas do QA', () => {
     expect(buf.length).toBeGreaterThan(1000);
   });
 });
+
+describe('renovação só pelo que importa para a decisão', () => {
+  it('reexecutar no projeto convertido não muda a versão de nenhum caso proposto; mudar a regra que altera a proposta renova o caso', async () => {
+    const c = montar(); const { pid, ids } = await pronto(c, BASE, { abreviacoesAprovadas: { ESQ: 'ESQUERDO' }, padronizarCaixaAlta: true, politicaUnidade: { ativa: true, regras: { rolo: { manter: true } } } });
+    for (const cam of ['NOMES_UNIDADES', 'QUALIDADE']) await c.orq.executarCamada(pid, cam);
+    const versoes = () => new Map(c.db.sanCaso.filter((x) => x.situacao === 'PROPOSTO').map((x) => [x.id, x.versao]));
+    const antes = versoes();
+    expect(antes.size).toBeGreaterThan(0);
+    const d = await c.diretrizes.obter(pid); // converte os parâmetros: a evidência passa a citar "Regra: N01 …"
+    for (const cam of ['NOMES_UNIDADES', 'QUALIDADE']) await c.orq.executarCamada(pid, cam);
+    expect(versoes()).toEqual(antes);
+    const caso2 = c.db.sanCaso.find((x) => x.tipo === 'DESCRICAO_FORA_DO_PADRAO' && x.itens[0] === ids['2'])!;
+    expect(caso2.evidencia.some((e: { rotulo: string }) => e.rotulo === 'Regra')).toBe(false); // só texto de evidência: não renovou
+    // Regra editada que muda a proposta (ESQ passa a ESQ. por extenso diferente): renova o caso, versão nova.
+    const n01 = d.regras.find((r) => r.codigo === 'N01')!;
+    const r = await c.diretrizes.atualizarRegra(n01.id, { versao: n01.versao, alteracoes: { ...n01.conteudoEfetivo, abreviacoes: [], termosProibidos: [{ termo: 'ESQ', substituicao: 'ESQUERDA' }] } }, USER);
+    await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER);
+    const novo = c.db.sanCaso.find((x) => x.itens[0] === ids['2'] && x.tipo === 'DESCRICAO_FORA_PADRAO' && x.situacao === 'PROPOSTO')!;
+    expect(novo.proposta).toEqual({ descricao: 'ROLAMENTO 6205 ESQUERDA' });
+    // Caso de grafia de unidade (U01 legado, mesma proposta): continua na mesma versão.
+    const grafia = c.db.sanCaso.find((x) => x.tipo === 'UNIDADE_GRAFIA')!;
+    expect(grafia.versao).toBe(antes.get(grafia.id));
+  });
+  it('mesma chave com proposta nova renova o caso proposto (versão +1); só a evidência diferente não', async () => {
+    const c = montar(); const { pid, ids } = await pronto(c, [item('1', { descricao: 'PARAF M8' }, 1)]);
+    let r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'N', abrangencia: { todos: true }, alteracoes: { termosProibidos: [{ termo: 'PARAF', substituicao: 'PARAFUSO' }] } }, USER);
+    r = (await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER)).regra;
+    const caso = c.db.sanCaso.find((x) => x.tipo === 'DESCRICAO_FORA_PADRAO' && x.itens[0] === ids['1'])!;
+    const v0 = caso.versao;
+    await c.orq.executarCamada(pid, 'NOMES_UNIDADES');
+    expect(caso.versao).toBe(v0);
+    r = await c.diretrizes.atualizarRegra(r.id, { versao: r.versao, alteracoes: { termosProibidos: [{ termo: 'PARAF', substituicao: 'PARAFUSO SEXTAVADO' }] } }, USER);
+    await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER);
+    expect(caso).toMatchObject({ situacao: 'PROPOSTO', proposta: { descricao: 'PARAFUSO SEXTAVADO M8' } });
+    expect(caso.versao).toBe(v0 + 1);
+  });
+});

@@ -28,20 +28,24 @@ const conteudoDoCaso = (c: CasoProposto): ConteudoDoCaso => ({
 type Ev = { rotulo?: string; valor?: unknown };
 /** Códigos das regras citadas na evidência ("N01 — nome" → N01): renomear a regra não pede revisão. */
 const regraDa = (ev: unknown): string => (Array.isArray(ev) ? (ev as Ev[]).filter((x) => x?.rotulo === 'Regra').map((x) => String(x.valor).split(/;\s*/).map((r) => r.split(' — ')[0].trim()).join('; ')).join('; ') : '');
-const semRegra = (ev: unknown) => (Array.isArray(ev) ? (ev as Ev[]).filter((x) => x?.rotulo !== 'Regra') : []);
 /**
- * O que mudou entre o caso gravado e o produzido agora (mesma chave). `conteudo` = qualquer campo da análise (renova o caso proposto).
- * `analise` = mudança que pede revisão de quem já decidiu ou editou: evidência (fora a linha da regra) ou a regra trocada por outra. A linha
- * "Regra" que só aparece (regra convertida dos parâmetros antigos, mesmo resultado) não conta; a proposta também não (no caso decidido ou em
- * rascunho, a proposta gravada é a do consultor).
+ * O que mudou, do que importa para a decisão, entre o caso gravado e o produzido agora (mesma chave, logo os mesmos itens). Só contam a
+ * proposta, o problema, o fundamento e o CÓDIGO da regra citada (trocado por outro). Diferença só de texto da evidência — inclusive a linha
+ * "Regra" que só aparece (regra convertida dos parâmetros antigos, mesmo resultado) ou o nome novo da regra — não renova, não sobe a versão
+ * e não marca revisar.
+ * - `conteudo`: renova o caso PROPOSTO (não editado).
+ * - `analise`: pede revisão de quem editou ou decidiu; a proposta não conta (no caso decidido ou em rascunho, a gravada é a do consultor).
  */
 export function mudancaDoCaso(e: Partial<ConteudoDoCaso>, c: CasoProposto): { conteudo: boolean; analise: boolean; regra: string | null } {
   if (e.problema === undefined) return { conteudo: false, analise: false, regra: null };
   const n = conteudoDoCaso(c);
-  const conteudo = (Object.keys(n) as (keyof ConteudoDoCaso)[]).some((k) => canonico(e[k] ?? null) !== canonico(n[k] ?? null));
+  // O fundamento cita "Regra N01 — nome (Diretrizes do projeto)": renomear a regra não conta, só o código.
+  const semNome = (v: unknown) => (typeof v === 'string' ? v.replace(/(Regra [A-Z]\d+) — .*? \(Diretrizes do projeto\)/g, '$1 (Diretrizes do projeto)') : v);
+  const difere = (k: keyof ConteudoDoCaso) => canonico(semNome(e[k]) ?? null) !== canonico(semNome(n[k]) ?? null);
   const ra = regraDa(e.evidencia); const rn = regraDa(n.evidencia);
   const regraTrocada = !!ra && !!rn && ra !== rn;
-  return { conteudo, analise: regraTrocada || canonico(semRegra(e.evidencia)) !== canonico(semRegra(n.evidencia)), regra: regraTrocada ? rn : null };
+  const base = difere('problema') || difere('fundamento') || regraTrocada;
+  return { conteudo: base || difere('proposta'), analise: base, regra: regraTrocada ? rn : null };
 }
 
 /** Itens por bloco na aprovação: lidos de uma vez e gravados num UPDATE só (antes, um UPDATE por item: 3,7 mil idas ao banco num lote). */
