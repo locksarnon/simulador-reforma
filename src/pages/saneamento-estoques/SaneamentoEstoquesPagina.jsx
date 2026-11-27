@@ -89,7 +89,7 @@ export default function SaneamentoEstoquesPagina() {
 
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada." actions={projeto ? <RoteiroProjeto projeto={projeto} nome={nome} /> : null} />
+      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada." actions={<RoteiroProjeto />} />
       <div className="px-6 py-5 lg:px-8">{corpo}</div>
     </div>
   );

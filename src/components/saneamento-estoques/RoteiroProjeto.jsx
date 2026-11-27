@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowRight, Map as IconeMapa, Printer, X } from "lucide-react";
-import Janela from "./diretrizes/Janela";
+import { ArrowDown, ArrowRight, ChevronRight, Map as IconeMapa, Printer } from "lucide-react";
 import { chaves, san } from "./api";
 import { botaoSecundario, Tag } from "./comuns";
 import { FASES_ROTEIRO, situacaoDaEtapa, situacaoDaLiberacao } from "./roteiro";
@@ -81,6 +81,7 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
                                 <div><dt className="font-semibold uppercase tracking-wide text-muted-foreground">O que é feito</dt><dd>{e.faz}</dd></div>
                                 <div><dt className="font-semibold uppercase tracking-wide text-muted-foreground">O que o cliente fornece</dt><dd>{e.fornece}</dd></div>
                                 <div><dt className="font-semibold uppercase tracking-wide text-muted-foreground">O que o cliente recebe</dt><dd>{e.recebe}</dd></div>
+                                <Verificacoes etapa={e} />
                               </dl>
                             </div>
                           </div>
@@ -127,14 +128,43 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
   );
 }
 
-/** Botão "Roteiro do projeto" e a janela com as fases, a situação real de cada etapa, o modo apresentação e a impressão (PDF). */
-export default function RoteiroProjeto({ projeto, nome }) {
+/** Terceiro nível: a lista do que é verificado na etapa (abre e fecha dentro da explicação). */
+function Verificacoes({ etapa }) {
   const [aberto, setAberto] = useState(false);
+  if (!etapa.verifica?.length) return null;
+  return (
+    <div>
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto((x) => !x)} className="flex items-center gap-1 font-semibold text-primary hover:underline">
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform duration-300 ${aberto ? "rotate-90" : ""}`} aria-hidden="true" />
+        {aberto ? "Ocultar" : "Ver"} o que é verificado ({etapa.verifica.length})
+      </button>
+      <div className={`grid transition-all duration-500 ease-out ${aberto ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <ul className="overflow-hidden">
+          {etapa.verifica.map((v) => <li key={v} className="ml-5 mt-1 list-disc">{v}</li>)}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** Botão "Roteiro do projeto": abre a tela própria do roteiro. */
+export default function RoteiroProjeto() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  return (
+    <button type="button" className={`${botaoSecundario} px-3 py-1.5 text-sm`} onClick={() => navigate(`/diagnostico/projetos/${id}/saneamento/roteiro`)}>
+      <IconeMapa className="h-4 w-4" aria-hidden="true" />Roteiro do projeto
+    </button>
+  );
+}
+
+/** Painel do roteiro (tela própria): fases, situação real, modo apresentação e impressão (PDF). */
+export function PainelRoteiro({ projeto, nome }) {
   const [apresentacao, setApresentacao] = useState(false);
   const [selecionada, setSelecionada] = useState(null);
-  const estado = useQuery({ queryKey: chaves.estadoCamadas(projeto.id), queryFn: () => san.estadoCamadas(projeto.id), enabled: aberto });
-  const visao = useQuery({ queryKey: chaves.visao(projeto.id), queryFn: () => san.visaoGeral(projeto.id), enabled: aberto });
-  const versoes = useQuery({ queryKey: chaves.versoes(projeto.id), queryFn: () => san.versoes(projeto.id), enabled: aberto });
+  const estado = useQuery({ queryKey: chaves.estadoCamadas(projeto.id), queryFn: () => san.estadoCamadas(projeto.id) });
+  const visao = useQuery({ queryKey: chaves.visao(projeto.id), queryFn: () => san.visaoGeral(projeto.id) });
+  const versoes = useQuery({ queryKey: chaves.versoes(projeto.id), queryFn: () => san.versoes(projeto.id) });
   const porCamada = new Map((estado.data?.camadas || []).map((l) => [l.camada, l]));
   const itens = (visao.data?.grupos || []).reduce((s, g) => s + (Number(g.itens) || 0), 0);
   const liberadas = Array.isArray(versoes.data) ? versoes.data.length : 0;
@@ -146,29 +176,18 @@ export default function RoteiroProjeto({ projeto, nome }) {
   };
   return (
     <>
-      <button type="button" className={`${botaoSecundario} px-3 py-1.5 text-sm`} onClick={() => setAberto(true)}>
-        <IconeMapa className="h-4 w-4" aria-hidden="true" />Roteiro do projeto
-      </button>
-      {aberto && (
-        <Janela titulo="Roteiro do projeto" aoFechar={() => setAberto(false)} largura="max-w-7xl">
           <style>{`@media print { body.imprimir-roteiro * { visibility: hidden !important; } body.imprimir-roteiro .roteiro-imprimivel, body.imprimir-roteiro .roteiro-imprimivel * { visibility: visible !important; } body.imprimir-roteiro .roteiro-imprimivel { position: absolute; inset: 0 auto auto 0; width: 100%; } body.imprimir-roteiro .nao-imprimir { display: none !important; } }`}</style>
-          <div className="roteiro-imprimivel p-4">
+          <div className="roteiro-imprimivel">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <div className="mr-auto">
-                <h2 className="text-lg font-semibold">Roteiro do projeto</h2>
-                <p className="text-xs text-muted-foreground">{nome} · Saneamento de estoques e cadastro de produtos · FAL Auditores e Consultores</p>
-              </div>
+              <p className="mr-auto text-sm text-muted-foreground">{nome} · Saneamento de estoques e cadastro de produtos · FAL Auditores e Consultores</p>
               <label className="nao-imprimir flex items-center gap-1.5 text-sm">
                 <input type="checkbox" checked={apresentacao} onChange={(e) => setApresentacao(e.target.checked)} />Modo apresentação
               </label>
               <button type="button" className={`${botaoSecundario} nao-imprimir px-2 py-1 text-sm`} onClick={imprimir}><Printer className="h-4 w-4" aria-hidden="true" />Imprimir ou salvar em PDF</button>
-              <button type="button" className="nao-imprimir p-1 text-muted-foreground hover:text-foreground" aria-label="Fechar o roteiro" onClick={() => setAberto(false)}><X className="h-5 w-5" aria-hidden="true" /></button>
             </div>
-            <p className="nao-imprimir mb-3 text-xs text-muted-foreground">Clique numa etapa para ver o que é feito, o que o cliente fornece e o que recebe. A situação da Fase 1 vem do projeto; o Modo apresentação esconde os números internos.</p>
+            <p className="nao-imprimir mb-3 text-xs text-muted-foreground">Clique numa etapa (ou use Próxima etapa) para acender o caminho e ver o que é feito, o que o cliente fornece e o que recebe; dentro dela, Ver o que é verificado abre o detalhe. A situação da Fase 1 vem do projeto; o Modo apresentação esconde os números internos.</p>
             <Roteiro nome={nome} estado={porCamada} itens={itens} liberadas={liberadas} apresentacao={apresentacao} selecionada={selecionada} aoSelecionar={setSelecionada} />
           </div>
-        </Janela>
-      )}
     </>
   );
 }
