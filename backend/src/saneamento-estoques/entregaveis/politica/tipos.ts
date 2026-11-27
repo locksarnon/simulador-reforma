@@ -2,6 +2,7 @@
  * Entrada do PDF da POLÍTICA do saneamento (docs/saneamento-diretrizes.md, seção 7). Tipos puros: quem chama (rota
  * `GET projetos/:id/politica/pdf`) resolve as regras do projeto com o conteúdo efetivo e entrega tudo pronto; o gerador só escreve.
  */
+import type { ControleInterno } from '../../diretrizes/conteudo/controles-internos';
 import type { Aspecto, ConteudoRegra, Procedimento, RegraProjeto } from '../../diretrizes/tipos';
 
 /** Regra como entra na política: os campos da RegraProjeto que o PDF usa + o conteúdo efetivo (biblioteca + alterações do projeto). */
@@ -31,6 +32,13 @@ export type DadosPolitica = {
   notaProcedimentos?: string | null;
   /** Versão liberada antes das Diretrizes: aspecto sem regra sai como "não registrada" (não se sabe se havia regra), não "Sem regra". */
   antesDasDiretrizes?: boolean;
+  /** Controles internos (capítulo próprio, depois dos procedimentos). Ausente = modelo FAL (CONTROLES_INTERNOS). */
+  controles?: ControleInterno[];
+  /**
+   * Seção fiscal: com a Fase 2 (decisões de Finalidade ou de Tratamento tributário aprovadas; numa versão, versão da Fase 2), resume as
+   * decisões; sem ela, uma linha diz que a seção tributária é entregue com a Fase 2. Ausente = sem Fase 2.
+   */
+  fiscal?: { fase2: boolean; finalidadeAprovadas?: number; tributarioAprovadas?: number };
   /** Quadro de consulta: para cada grupo, o código da regra efetiva por aspecto (ausente = grupo sem regra no aspecto). */
   quadro: { grupo: string; codigos: Partial<Record<Aspecto, string>> }[];
   pendencias: {

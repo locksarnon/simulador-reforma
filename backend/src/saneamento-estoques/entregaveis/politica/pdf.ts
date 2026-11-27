@@ -1,10 +1,12 @@
 /**
  * PDF da POLÍTICA do saneamento (docs/saneamento-diretrizes.md, seção 7), no padrão visual FAL/InTAX: identificação, regras vigentes por
- * aspecto, procedimentos com fluxograma, quadro de consulta por grupo, versão e pendências. Só regras aprovadas saem como vigentes; o
+ * aspecto, procedimentos com fluxograma, quadro de consulta por grupo (cadastro), controles internos, seção fiscal (completa só com a
+ * Fase 2), versão e pendências. Só regras aprovadas saem como vigentes; o
  * documento leva a marca RASCUNHO enquanto a situação for Rascunho ou houver regra não aprovada.
  */
 import PDFDocument from 'pdfkit';
 import { desenharTabela } from '../../../pdf/pdf.service';
+import { CONTROLES_INTERNOS } from '../../diretrizes/conteudo/controles-internos';
 import { ASPECTOS, ROTULO_ASPECTO, type Aspecto, type LinhaLimite } from '../../diretrizes/tipos';
 import { AMBAR, AMBAR_FUNDO, BORDA, BRANCO, CINZA, FUNDO_CARD, LOGO, MARGEM, MARGEM_TOPO, SITE, TEXTO, VERDE, VERDE_ESCURO } from './estilo';
 import { alturaFluxo, desenharFluxograma, type GeometriaNo } from './fluxograma';
@@ -16,6 +18,12 @@ import type { DadosPolitica, RegraPolitica } from './tipos';
 const COLUNA_QUADRO: Record<Aspecto, string> = { NOMES: 'Nomes', ATRIBUTOS: 'Atributos', UNIDADES: 'Unidades', LIMITES: 'Limites', FISCAL: 'Fiscal' };
 
 export const TITULO_POLITICA = 'Política de estoques e cadastro de produtos';
+
+/** Linha da seção fiscal quando o projeto não tem a Fase 2. */
+export const NOTA_SEM_FASE2 = 'A seção tributária (finalidade, cClassTrib, CST e crédito do estoque de IBS e CBS por item e operação) é entregue com a Fase 2 (Tributário e Reforma).';
+
+/** Seção de versão e pendências (citada no aviso de rascunho, no quadro e nas regras). */
+const SECAO_PENDENCIAS = 7;
 
 /** Rascunho = situação Rascunho ou qualquer regra ainda não aprovada. */
 export const emRascunho = (d: DadosPolitica) => d.identificacao.situacao !== 'APROVADA' || d.regras.some((r) => r.situacao !== 'APROVADA');
@@ -104,6 +112,26 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
           pdf.y += 3;
         }
       };
+      /** Cartões rótulo/valor, dois por linha (o mesmo desenho da identificação). */
+      const cartoes = (campos: [string, string][], corValor: (rotulo: string) => string = () => VERDE_ESCURO) => {
+        const gap = 10;
+        const wCel = (largura - gap) / 2;
+        for (let i = 0; i < campos.length; i += 2) {
+          const par = campos.slice(i, i + 2).map(([r, v]) => [r, limpar(v)] as const);
+          pdf.font('Helvetica-Bold').fontSize(10);
+          const h = Math.max(...par.map(([, v]) => pdf.heightOfString(v, { width: wCel - 20 }))) + 26;
+          garantir(h + 6);
+          const y0 = pdf.y;
+          par.forEach(([r, v], j) => {
+            const x = MARGEM + j * (wCel + gap);
+            pdf.roundedRect(x, y0, wCel, h, 5).fillAndStroke(FUNDO_CARD, BORDA);
+            pdf.fillColor(CINZA).font('Helvetica-Bold').fontSize(7.5).text(limpar(r).toLocaleUpperCase('pt-BR'), x + 10, y0 + 8, { width: wCel - 20, lineBreak: false });
+            pdf.fillColor(corValor(r)).font('Helvetica-Bold').fontSize(10).text(v, x + 10, y0 + 19, { width: wCel - 20 });
+          });
+          pdf.x = MARGEM;
+          pdf.y = y0 + h + 6;
+        }
+      };
       const tabela = (cabecalho: string[], linhas: string[][], larguras: number[]) => {
         pdf.y += 2;
         desenharTabela(pdf, { cabecalho, linhas: linhas.map((l) => l.map(limpar)), larguras }, { x: MARGEM, largura, limiteInferior });
@@ -134,7 +162,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
       if (rascunho) {
         const naoAprovadas = d.regras.filter((r) => r.situacao !== 'APROVADA').length;
         const aviso = naoAprovadas
-          ? `${naoAprovadas === 1 ? 'Há 1 regra ainda não aprovada' : `Há ${naoAprovadas} regras ainda não aprovadas`}. Só as regras aprovadas estão vigentes; as demais constam em Pendências (seção 5).`
+          ? `${naoAprovadas === 1 ? 'Há 1 regra ainda não aprovada' : `Há ${naoAprovadas} regras ainda não aprovadas`}. Só as regras aprovadas estão vigentes; as demais constam em Pendências (seção ${SECAO_PENDENCIAS}).`
           : 'A política ainda não foi aprovada pelo responsável. As regras aprovadas estão listadas, mas a política só entra em vigor após a aprovação.';
         pdf.font('Helvetica').fontSize(9);
         const h = pdf.heightOfString(aviso, { width: largura - 110 }) + 16;
@@ -158,23 +186,8 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         ['Data de emissão', dataBr(id.dataEmissao) ?? 'Não informada'],
         ['ERP', id.erp ? limpar(id.erp) : 'Não informado'],
       ];
-      const gap = 10;
-      const wCel = (largura - gap) / 2;
-      for (let i = 0; i < campos.length; i += 2) {
-        const par = campos.slice(i, i + 2);
-        pdf.font('Helvetica-Bold').fontSize(10);
-        const h = Math.max(...par.map(([, v]) => pdf.heightOfString(v, { width: wCel - 20 }))) + 26;
-        garantir(h + 6);
-        const y0 = pdf.y;
-        par.forEach(([r, v], j) => {
-          const x = MARGEM + j * (wCel + gap);
-          pdf.roundedRect(x, y0, wCel, h, 5).fillAndStroke(FUNDO_CARD, BORDA);
-          pdf.fillColor(CINZA).font('Helvetica-Bold').fontSize(7.5).text(r.toLocaleUpperCase('pt-BR'), x + 10, y0 + 8, { width: wCel - 20, lineBreak: false });
-          pdf.fillColor(r === 'Situação' && rascunho ? AMBAR : VERDE_ESCURO).font('Helvetica-Bold').fontSize(10).text(v, x + 10, y0 + 19, { width: wCel - 20 });
-        });
-        pdf.x = MARGEM;
-        pdf.y = y0 + h + 6;
-      }
+      cartoes(campos, (r) => (r === 'Situação' && rascunho ? AMBAR : VERDE_ESCURO));
+      paragrafo('Três partes: cadastro (seções 2 a 4: quadro por grupo, regras e procedimentos), controles internos (seção 5) e fiscal (seção 6).', { cor: CINZA, tam: 9 });
 
       // ---- Regra (vigente ou em aprovação) ----
       const desenharRegra = (r: RegraPolitica, vigente: boolean) => {
@@ -215,7 +228,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         return r && r.situacao !== 'APROVADA' ? `${codigo} (em aprovação)` : codigo;
       };
       if (d.antesDasDiretrizes) paragrafo('Versão liberada antes das Diretrizes: regras não registradas. O quadro mostra só as regras que valiam pelos parâmetros do projeto congelados na versão.');
-      else paragrafo('Código da regra que vale para cada grupo em cada aspecto (seção 3). "Sem regra" indica aspecto ainda sem regra para o grupo; "em aprovação" indica regra ainda não vigente (seção 5).');
+      else paragrafo(`Código da regra que vale para cada grupo em cada aspecto (seção 3). "Sem regra" indica aspecto ainda sem regra para o grupo; "em aprovação" indica regra ainda não vigente (seção ${SECAO_PENDENCIAS}).`);
       const grupos = ordenarPt([...new Set(d.quadro.map((q) => q.grupo))]);
       const porGrupo = new Map(d.quadro.map((q) => [q.grupo, q.codigos]));
       if (grupos.length) {
@@ -236,7 +249,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         const doAspecto = aprovadas.filter((r) => r.aspecto === a).sort((x, y) => Number(y === padrao) - Number(x === padrao) || ordemCodigo(x, y));
         if (!doAspecto.length) {
           const emAprov = d.regras.some((r) => r.aspecto === a && r.situacao !== 'APROVADA');
-          paragrafo(`Nenhuma regra aprovada neste aspecto${emAprov ? '; há regra em aprovação (seção 5)' : ''}.`, { italico: true, cor: CINZA });
+          paragrafo(`Nenhuma regra aprovada neste aspecto${emAprov ? '; há regra em aprovação (seção ${SECAO_PENDENCIAS})' : ''}.`, { italico: true, cor: CINZA });
         }
         doAspecto.forEach((r) => desenharRegra(r, true));
       });
@@ -271,9 +284,41 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         pdf.y += 6;
       });
 
-      // ---- 5. Versão e pendências ----
-      tituloSecao('5. Versão e pendências', 60);
-      subtitulo('5.1 Versão', 30);
+      // ---- 5. Controles internos (fora das Diretrizes: rotinas de quem cadastra, aprova, movimenta e confere) ----
+      const controles = d.controles ?? CONTROLES_INTERNOS;
+      tituloSecao('5. Controles internos', 120);
+      if (!controles.length) paragrafo('Nenhum controle interno cadastrado.', { italico: true, cor: CINZA });
+      else {
+        paragrafo('Rotinas que mantêm o cadastro e o estoque no padrão. Cada controle tem responsável, frequência e a evidência que prova que foi feito; quando segue um procedimento da seção 4, o fluxograma está indicado.');
+        tabela(['Código', 'Controle', 'Responsável', 'Frequência'], controles.map((c) => [c.codigo, c.titulo, c.responsavel, c.frequencia]), [0.1, 0.34, 0.28, 0.28]);
+      }
+      const posProc = new Map(d.procedimentos.map((p, i) => [p.id, { n: i + 1, titulo: limpar(p.titulo) }]));
+      controles.forEach((c, i) => {
+        subtitulo(`5.${i + 1} ${limpar(c.codigo)} — ${limpar(c.titulo)}`, 110);
+        paragrafo(c.objetivo);
+        cartoes([['Responsável', c.responsavel], ['Frequência', c.frequencia]]);
+        if (c.procedimento.length) { rotulo('Procedimento', 16); marcadores(c.procedimento.map((p, k) => `${k + 1}. ${p}`)); pdf.y += 3; }
+        if (c.evidencia.length) { rotulo('Evidência a guardar', 16); marcadores(c.evidencia); pdf.y += 3; }
+        const fluxo = c.fluxograma ? posProc.get(c.fluxograma) : undefined;
+        if (fluxo) { rotulo('Fluxograma', 16); paragrafo(`Seção 4.${fluxo.n}, ${fluxo.titulo}.`); }
+        pdf.y += 4;
+      });
+
+      // ---- 6. Seção fiscal (com a Fase 2; sem ela, uma linha) ----
+      tituloSecao('6. Seção fiscal', 40);
+      if (d.fiscal?.fase2) {
+        const nFiscal = ASPECTOS.indexOf('FISCAL') + 1;
+        const procFiscal = d.procedimentos.findIndex((p) => p.id === 'proc-classificacao-fiscal-item');
+        paragrafo(`Classificação fiscal do item: regras da seção 3.${nFiscal} (${ROTULO_ASPECTO.FISCAL})${procFiscal >= 0 ? ` e procedimento da seção 4.${procFiscal + 1}` : ''}.`);
+        const decisoes = (n: number | undefined) => (n === 1 ? '1 decisão aprovada' : `${(n ?? 0).toLocaleString('pt-BR')} decisões aprovadas`);
+        if (d.fiscal.finalidadeAprovadas != null || d.fiscal.tributarioAprovadas != null) {
+          cartoes([['Finalidade (tipo do item)', decisoes(d.fiscal.finalidadeAprovadas)], ['Tratamento tributário', decisoes(d.fiscal.tributarioAprovadas)]]);
+        }
+      } else paragrafo(NOTA_SEM_FASE2);
+
+      // ---- 7. Versão e pendências ----
+      tituloSecao(`${SECAO_PENDENCIAS}. Versão e pendências`, 60);
+      subtitulo(`${SECAO_PENDENCIAS}.1 Versão`, 30);
       if (id.versao) {
         const lib = dataBr(id.versao.liberadaEm ?? null);
         paragrafo(`${textoVersao(id.versao)}${lib ? `, liberada em ${lib}` : ''}. A versão congela a base de itens e a política vigente na mesma data; esta política é reproduzível a partir dela.`);
@@ -282,7 +327,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
       }
       paragrafo(`Emitida em ${dataBr(id.dataEmissao) ?? 'data não informada'}${id.aprovador && !rascunho ? `; aprovada por ${limpar(id.aprovador)}` : ''}.`);
 
-      subtitulo('5.2 Pendências', 30);
+      subtitulo(`${SECAO_PENDENCIAS}.2 Pendências`, 30);
       const naoAprovadas = d.regras.filter((r) => r.situacao !== 'APROVADA').sort((a, b) => ASPECTOS.indexOf(a.aspecto) - ASPECTOS.indexOf(b.aspecto) || ordemCodigo(a, b));
       const semRegra = d.pendencias.gruposSemRegra.filter((g) => g.grupos.length).sort((a, b) => ASPECTOS.indexOf(a.aspecto) - ASPECTOS.indexOf(b.aspecto));
       const limitesPend: { regra: RegraPolitica; linha: LinhaLimite }[] = [];

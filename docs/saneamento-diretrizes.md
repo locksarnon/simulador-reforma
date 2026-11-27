@@ -31,7 +31,7 @@ Comum a todos: aspecto, nome da regra, grupos abrangidos (multisseleção + "Tod
 
 **Limites — ordem de confiança:** (1) leiaute oficial (Guia Prático do SPED, MOC da NF-e) é o teto, com fonte e versão; (2) ERP, pelo Cadastro de ERPs (novo tipo de conhecimento "limite de campo"), quando menor e confirmado; (3) limite próprio do cliente. Vale o **menor confirmado**; ERP configurado acima do leiaute gera alerta. Limites oficiais entram por pesquisa nas fontes oficiais, com "não confirmado" quando faltar.
 
-**Controles internos:** fora das Diretrizes (não há análise). Entram na política como capítulo fixo (seção 7).
+**Controles internos:** fora das Diretrizes (não há análise). Entram na política como capítulo fixo (seção 7, item 5).
 
 ## 4. Biblioteca FAL (nada em dobro)
 
@@ -62,7 +62,9 @@ Mudar regra aprovada: a aprovação cai, conclusões dependentes ganham "revisar
 2. **Regras por aspecto**, cada regra com código (N01, A01, U01, L01, F01), "Aplicável aos grupos: …" (grupos juntos, sem repetir texto) e os itens da regra em tópicos curtos.
 3. **Procedimentos com fluxograma** (conteúdo efetivo, prático, sem metacomentário): cadastro de item novo, alteração, unificação, inativação e **Retirada e uso de materiais** (pedido → autorização → retirada → registro do destino; depósito, centro de custo, equipamento/OS e documento; por que: comprovar uso na atividade para sustentar o crédito de IBS/CBS — LC 214/2025, art. 57, § 3º; como fazer no ERP do cliente quando o Cadastro de ERPs tiver confirmado).
 4. **Quadro de consulta por grupo:** Grupo × Nomes × Atributos × Unidades × Limites × Fiscal (códigos das regras).
-5. **Pendências:** regras não aprovadas e grupos sem regra, em seção própria, nunca como vigentes.
+5. **Controles internos** (capítulo 5 do PDF, depois dos procedimentos): conteúdo em `backend/src/saneamento-estoques/diretrizes/conteudo/controles-internos.ts` (`CONTROLES_INTERNOS`, CI01 a CI13: código, título, objetivo, passos, responsável, frequência, evidência e o id do procedimento cujo fluxograma o controle segue; o PDF cita a seção 4.x, não redesenha). Modelo FAL generalizado da política aprovada na Agropecuária, **o mesmo para todos os projetos** (sem edição por projeto nesta entrega; versões antigas também saem com o modelo atual).
+6. **Seção fiscal** (capítulo 6): com a Fase 2, remete às regras de Classificação fiscal e ao procedimento fiscal e mostra as decisões aprovadas de Finalidade e de Tratamento tributário (sem versão: contagem atual; numa versão: só se a versão for da Fase 2, sem contagem). Sem a Fase 2, uma linha: a seção tributária é entregue com a Fase 2. As regras do aspecto Classificação fiscal continuam na seção 3.
+7. **Pendências:** regras não aprovadas e grupos sem regra, em seção própria, nunca como vigentes.
 
 ## 8. O que muda no que já existe
 
