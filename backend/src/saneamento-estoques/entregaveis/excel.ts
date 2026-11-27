@@ -21,6 +21,7 @@ import {
 } from './unificacoes';
 import { escalaDaBase } from '../motor/conjuntos';
 import { pendenciasPorTipo } from './relatorio';
+import { LINHAS_LOGO_FAL, logoFalNoXlsx, reservarLinhaLogoFal } from '../../marca/logo-fal';
 
 /** Nota visível do mapa quando a base traz o saldo multiplicado (mesma escala da Duplicidade): os saldos do mapa já estão divididos. */
 export const notaDaEscala = (escala: number) => `Saldos divididos por ${escala.toLocaleString('pt-BR')} (escala detectada na base: o ERP mostra os valores multiplicados)`;
@@ -78,8 +79,10 @@ function estiloCompartilhado(fmt: string | undefined, fundo: string | undefined)
 type Aba = { ws: ExcelJS.Worksheet; cols: Col[]; linhas: number; add(valores: Valor[], destaque?: boolean, cores?: (string | undefined)[]): void; fim(): void };
 
 function criarAba(wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Col[], cor: string, congelarColunas: number): Aba {
-  const ws = wb.addWorksheet(nome, { properties: { tabColor: { argb: cor } }, views: [{ state: 'frozen', xSplit: congelarColunas, ySplit: 1 }] });
+  // Logo da FAL na linha 1; títulos na linha 2 (o congelamento inclui as duas).
+  const ws = wb.addWorksheet(nome, { properties: { tabColor: { argb: cor } }, views: [{ state: 'frozen', xSplit: congelarColunas, ySplit: 1 + LINHAS_LOGO_FAL }] });
   ws.columns = cols.map((c) => ({ width: c.larg }));
+  reservarLinhaLogoFal(ws);
   const cab = ws.addRow(cols.map((c) => c.cab));
   cab.height = 30;
   cab.eachCell((c) => {
@@ -105,8 +108,8 @@ function criarAba(wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Co
       aba.linhas++;
     },
     fim() {
-      const ate = Math.max(2, aba.linhas + 1);
-      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: ate, column: cols.length } } as never;
+      const ate = Math.max(2, aba.linhas + 1) + LINHAS_LOGO_FAL;
+      ws.autoFilter = { from: { row: 1 + LINHAS_LOGO_FAL, column: 1 }, to: { row: ate, column: cols.length } } as never;
       ws.commit();
     },
   };
@@ -280,6 +283,7 @@ function linhasResumo(m: Modelo, dados: DadosEntrega, cen: Cenarios | null): Lin
 function escreverResumo(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo, dados: DadosEntrega, cen: Cenarios | null): void {
   const ws = wb.addWorksheet(NOMES_ABAS[0], { properties: { tabColor: { argb: m.liberada ? VERDE : LARANJA } }, views: [{ showGridLines: false }] });
   ws.columns = [60, 22, 14, 14, 14, 14, 18, 16, 18].map((width) => ({ width }));
+  reservarLinhaLogoFal(ws);
   for (const l of linhasResumo(m, dados, cen)) {
     const row = ws.addRow(l.v.map((v) => (v === '' || v === undefined ? null : v)));
     if (l.k === 'titulo') { row.getCell(1).font = { name: FONTE, bold: true, size: 14, color: { argb: VERDE } }; row.height = 24; }
@@ -563,7 +567,8 @@ export async function gerarExcelMapa(linhas: LinhaMapa[], opcoes: { liberada?: b
   }
   await wb.commit();
   await fim;
-  return Buffer.concat(partes);
+  // O gravador em fluxo não aceita imagem: a logo da FAL entra no arquivo pronto, na linha 1 reservada de cada aba.
+  return logoFalNoXlsx(Buffer.concat(partes));
 }
 
 async function abaCenarios(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo, cen: Cenarios | null): Promise<void> {
@@ -709,5 +714,6 @@ export async function gerarExcelDeDados(dados: DadosEntrega, opcoes: { consumir?
   await abaPendencias(wb, m);
   await wb.commit();
   await fim;
-  return Buffer.concat(partes);
+  // O gravador em fluxo não aceita imagem: a logo da FAL entra no arquivo pronto, na linha 1 reservada de cada aba.
+  return logoFalNoXlsx(Buffer.concat(partes));
 }

@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger } from '@ne
 import { PrismaService } from '../prisma/prisma.service';
 import { CofreService } from '../certificados/cofre.service';
 import { plural } from '../common/plural';
+import { cabecalhoFalHtml } from '../marca/logo-fal';
 
 type Usuario = { email?: string; role?: string } | undefined;
 const ID = 'infosimples';
@@ -121,7 +122,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
  */
 export function comprovanteDosDados(rota: string, cnpj: string, l: Omit<ResultadoCertidao, 'comprovante'>): NonNullable<ResultadoCertidao['comprovante']> {
   const linhas = l.detalhes.map((d) => `<tr><th>${esc(d.rotulo)}</th><td>${esc(d.valor)}</td></tr>`).join('');
-  const html = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${esc(l.situacao)}</title><body style="font-family:sans-serif;padding:24px"><h1 style="font-size:18px">${esc(l.situacao)}</h1><p>CNPJ ${esc(cnpj)} · consulta ${esc(rota)} pela Infosimples em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.</p><table cellpadding="6" style="border-collapse:collapse">${linhas}</table><p style="color:#555;font-size:12px">O portal não devolveu o arquivo da certidão; estes são os dados oficiais lidos no portal. Para o PDF, use o portal oficial.</p></body></html>`;
+  const html = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${esc(l.situacao)}</title><body style="font-family:sans-serif;padding:24px">${cabecalhoFalHtml()}<h1 style="font-size:18px">${esc(l.situacao)}</h1><p>CNPJ ${esc(cnpj)} · consulta ${esc(rota)} pela Infosimples em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.</p><table cellpadding="6" style="border-collapse:collapse">${linhas}</table><p style="color:#555;font-size:12px">O portal não devolveu o arquivo da certidão; estes são os dados oficiais lidos no portal. Para o PDF, use o portal oficial.</p></body></html>`;
   return { buffer: Buffer.from(html, 'utf8'), tipo: 'text/html', extensao: 'html' };
 }
 

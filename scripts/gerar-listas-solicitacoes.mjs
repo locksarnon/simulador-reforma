@@ -40,7 +40,7 @@ const dados = {
 };
 const saida = path.resolve(texto(a.saida) || path.join(raiz, "listas-de-solicitacoes"));
 fs.mkdirSync(saida, { recursive: true });
-const logo = "data:image/png;base64," + fs.readFileSync(path.join(raiz, "public", "fal-agro-logo.png")).toString("base64");
+const logo = "data:image/png;base64," + fs.readFileSync(path.join(raiz, "src", "assets", "marca", "logo-fal.png")).toString("base64");
 
 for (const lista of escolha) {
   const { wb, itens } = montarPlanilha({ ExcelJS, lista, dados, logo });

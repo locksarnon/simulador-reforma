@@ -1,13 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
+import { anexoLogoFal, blocoLogoFalEmail, comLogoFalNoEmail } from '../marca/logo-fal';
 
 export type EnvioEmail = {
   to: string;
   subject: string;
   html: string;
   text?: string;
-  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+  attachments?: { filename: string; content: Buffer; contentType?: string; cid?: string; contentDisposition?: 'inline' | 'attachment' }[];
   headers?: Record<string, string>;
 };
 
@@ -178,9 +179,8 @@ export class MailService {
         replyTo: this.config.get<string>('MAIL_REPLY_TO') || undefined,
         to: msg.to,
         subject: msg.subject,
-        html: msg.html,
+        ...comLogoFal(msg),
         text: msg.text,
-        attachments: msg.attachments,
         headers: msg.headers,
       });
       return { enviado: true };
@@ -282,6 +282,15 @@ export class MailService {
   }
 }
 
+/**
+ * Regra da ferramenta: todo e-mail sai com a logo da FAL no topo. O HTML ganha o bloco da logo (se ainda não tiver) e a imagem vai como
+ * anexo embutido (cid), que o leitor de e-mail mostra no corpo e não lista como arquivo anexo.
+ */
+export function comLogoFal(msg: Pick<EnvioEmail, 'html' | 'attachments'>): { html: string; attachments: NonNullable<EnvioEmail['attachments']> } {
+  const logo = anexoLogoFal();
+  return { html: comLogoFalNoEmail(msg.html), attachments: [...(msg.attachments ?? []), ...(logo ? [logo] : [])] };
+}
+
 export const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -290,6 +299,7 @@ export function emailLayout(titulo: string, corpoHtml: string, rodapeHtml = ''):
   return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f3f5f2;font-family:Arial,Helvetica,sans-serif;color:#1c2b24">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden">
+<tr><td>${blocoLogoFalEmail()}</td></tr>
 <tr><td style="background:#1f3a2e;padding:18px 24px;color:#ffffff"><span style="font-size:20px;font-weight:bold;letter-spacing:.5px">InTAX</span> <span style="font-size:12px;opacity:.8">&nbsp;por FAL Agro</span></td></tr>
 <tr><td style="padding:24px"><h1 style="font-size:20px;margin:0 0 14px">${esc(titulo)}</h1>${corpoHtml}</td></tr>
 <tr><td style="padding:16px 24px;background:#f3f5f2;font-size:11px;color:#5b6b63;line-height:1.5">${rodapeHtml}

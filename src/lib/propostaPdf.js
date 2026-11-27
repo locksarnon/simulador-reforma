@@ -1,21 +1,10 @@
 import { jsPDF } from "jspdf";
 import { brl, SERVICOS, totaisDosItens } from "@/lib/propostas";
+import { carregarLogoFal, logoFalNasPaginasPdf, TOPO_ABAIXO_DA_LOGO_MM } from "@/lib/marcaFal";
 
 const M = 16;
 const LARGURA = 210 - M * 2;
 const VERDE = [30, 118, 77];
-
-/** Logo da FAL Agro (public/fal-agro-logo.png) em base64; sem logo, o PDF sai só com o nome. */
-export async function carregarLogo() {
-  try {
-    const r = await fetch(`${import.meta.env.BASE_URL}fal-agro-logo.png`);
-    if (!r.ok) return null;
-    const blob = await r.blob();
-    return await new Promise((ok) => { const f = new FileReader(); f.onload = () => ok(f.result); f.onerror = () => ok(null); f.readAsDataURL(blob); });
-  } catch {
-    return null;
-  }
-}
 
 const fmtData = (v) => (v ? new Date(v).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "—");
 
@@ -23,13 +12,12 @@ const fmtData = (v) => (v ? new Date(v).toLocaleDateString("pt-BR", { timeZone: 
 export function montarPdfDaProposta(p, { logo = null, hoje = new Date() } = {}) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = 16;
-  const pagina = (preciso = 10) => { if (y + preciso > 280) { doc.addPage(); y = 18; } };
+  const pagina = (preciso = 10) => { if (y + preciso > 280) { doc.addPage(); y = TOPO_ABAIXO_DA_LOGO_MM + 2; } };
   const texto = (t, { tamanho = 10, negrito = false, cor = 40, recuo = 0 } = {}) => {
     doc.setFont("helvetica", negrito ? "bold" : "normal"); doc.setFontSize(tamanho); doc.setTextColor(cor);
     for (const l of doc.splitTextToSize(String(t || ""), LARGURA - recuo)) { pagina(6); doc.text(l, M + recuo, y); y += tamanho * 0.48; }
     y += 1.5;
   };
-  if (logo) { try { doc.addImage(logo, "PNG", M, y - 6, 34, 12); } catch { /* logo inválida: segue sem */ } }
   doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...VERDE);
   doc.text("Proposta comercial", 210 - M, y, { align: "right" });
   doc.setFontSize(9); doc.setTextColor(90);
@@ -67,6 +55,8 @@ export function montarPdfDaProposta(p, { logo = null, hoje = new Date() } = {}) 
   y += 3;
   if (p.condicoes) { texto("Condições", { tamanho: 10, negrito: true, cor: 20 }); texto(p.condicoes, { tamanho: 9.5 }); }
   if (p.observacoes) { texto("Observações", { tamanho: 10, negrito: true, cor: 20 }); texto(p.observacoes, { tamanho: 9.5 }); }
+  // Logo da FAL no alto de todas as páginas (regra da ferramenta: src/lib/marcaFal.js).
+  logoFalNasPaginasPdf(doc, logo, { margem: M, topo: 5, altura: 12 });
   const paginas = doc.getNumberOfPages();
   for (let i = 1; i <= paginas; i++) {
     doc.setPage(i); doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(130);
@@ -78,7 +68,7 @@ export function montarPdfDaProposta(p, { logo = null, hoje = new Date() } = {}) 
 
 /** Baixa o PDF da proposta com a logo. */
 export async function baixarPdfDaProposta(p) {
-  const doc = montarPdfDaProposta(p, { logo: await carregarLogo() });
+  const doc = montarPdfDaProposta(p, { logo: await carregarLogoFal() });
   const nome = `proposta-${p.numero}-${String(p.cliente_nome || "cliente").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase()}.pdf`;
   doc.save(nome);
   return nome;

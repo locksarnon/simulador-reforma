@@ -3,6 +3,7 @@ import { aplicarEscopo, agruparPorGrupo, criarTestes } from "./logica";
 import { calcularAchados, contarAchados } from "./analise";
 import { COLUNAS_REGRAS, SECOES, montarPolitica } from "./politica";
 import { criarWorkbookPolitica } from "./politicaXlsx";
+import { carregarLogoFal } from "@/lib/marcaFal";
 
 const item = (linha, extra = {}) => ({ linha, codigo: `C${linha}`, descricao: "PARAFUSO", unidade: "UN", grupo_atual: "Peças", ultima_mov: "2026-03-01", problemas: [], ...extra });
 const itens = [item(2), item(3, { unidade: "KG", grupo_atual: "Insumos" })];
@@ -16,15 +17,17 @@ const politica = montarPolitica({ estado, contagem, escopo, grupos: agruparPorGr
 describe("política em Excel", () => {
   it("resumo com a situação e as pendências, regras por procedimento, por grupo, padrão de descrição e unidades", async () => {
     const ExcelJS = (await import("exceljs")).default;
-    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await criarWorkbookPolitica(ExcelJS, politica, { nomeProjeto: "Projeto X", nomeBase: "itens.xlsx" }).xlsx.writeBuffer());
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await criarWorkbookPolitica(ExcelJS, politica, { nomeProjeto: "Projeto X", nomeBase: "itens.xlsx" }, await carregarLogoFal()).xlsx.writeBuffer());
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1); // logo da FAL no topo de cada aba
     expect(lido.worksheets.map((w) => w.name)).toEqual(["Resumo", "Procedimentos e regras", "Por grupo", "Padrão de descrição", "Unidades"]);
     const texto = (nome) => { const t = []; lido.getWorksheet(nome).eachRow((r) => t.push(r.values.slice(1).map((v) => v ?? "").join(" | "))); return t; };
     const resumo = texto("Resumo");
     expect(resumo).toContain("Situação | Aprovada"); expect(resumo).toContain("Aprovada por | ana em 23/10/2026"); // a data guardada (AAAA-MM-DD) não anda um dia para trás com o fuso expect(resumo.some((t) => t.startsWith("Atenção | Proposta de política"))).toBe(true);
     expect(resumo.some((t) => t.includes("ainda não foi aprovado"))).toBe(false); // nenhum critério pendente: os manuais foram aprovados e os automáticos abriram aprovados
     const regras = lido.getWorksheet("Procedimentos e regras");
-    expect(regras.getRow(1).values.slice(1)).toEqual(COLUNAS_REGRAS.map(([t]) => t)); expect(regras.rowCount).toBe(1 + politica.secoes.reduce((n, s) => n + s.regras.length, 0));
-    expect(regras.getRow(2).getCell(1).value).toBe("Criar o cadastro"); expect(regras.getRow(2).getCell(5).value).toBe("Gestor"); expect(regras.autoFilter).toBe("A1:F1");
+    // linha 1 = logo da FAL; títulos na linha 2
+    expect(regras.getRow(2).values.slice(1)).toEqual(COLUNAS_REGRAS.map(([t]) => t)); expect(regras.rowCount).toBe(2 + politica.secoes.reduce((n, s) => n + s.regras.length, 0));
+    expect(regras.getRow(3).getCell(1).value).toBe("Criar o cadastro"); expect(regras.getRow(3).getCell(5).value).toBe("Gestor"); expect(regras.autoFilter).toBe("A2:F2");
     const grupos = texto("Por grupo"); expect(grupos).toContain("Peças | 1 | Sim | Em revisão | 0 | "); expect(grupos).toContain("Insumos | 1 | Não | Não liberado | 3 | Adubo só em KG"); // Insumos ainda não concluiu os três critérios de conferência manual
     const pd = texto("Padrão de descrição"); expect(pd).toContain("Formato | NOME + REFERENCIA + COMPLEMENTO"); expect(pd).toContain("SEXT | SEXTAVADO"); expect(pd.some((t) => t.startsWith("Caixa alta | Sim"))).toBe(true);
     expect(pd.some((t) => t.includes("(ex.:"))).toBe(false);

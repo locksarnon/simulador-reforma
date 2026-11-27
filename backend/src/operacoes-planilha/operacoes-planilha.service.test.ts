@@ -91,6 +91,19 @@ describe('modelo de planilha', () => {
     expect(r).toMatchObject({ total: 1, novas: 1, comErro: 0 });
   });
 
+  it('o modelo sai com a logo da FAL no topo de cada aba (linha 1) e o cabeçalho logo abaixo', async () => {
+    const { service } = criar();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await service.modelo()) as never);
+    for (const ws of wb.worksheets) {
+      expect(ws.getImages().length, ws.name).toBeGreaterThanOrEqual(1);
+      expect(ws.getImages()[0].range.tl.nativeRow, ws.name).toBe(0);
+      expect(ws.getRow(1).cellCount, ws.name).toBe(0);
+    }
+    expect(wb.worksheets[0].getCell(2, 1).value).toBeTruthy();
+    expect(wb.worksheets[0].views[0]).toMatchObject({ state: 'frozen', ySplit: 2 });
+  });
+
   it('títulos de coluna únicos e reconhecidos por qualquer outro campo? não: cada título só vale para o seu campo', async () => {
     const { CAMPOS, sugerirMapeamento } = await import('./campos');
     const m = sugerirMapeamento(CAMPOS.map((c) => c.coluna));

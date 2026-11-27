@@ -8,11 +8,20 @@ import { lerPlanilha, lerPrevia, MAX_LINHAS, Planilha } from './leitura-planilha
 import { PrismaService } from '../prisma/prisma.service';
 import { ClassificacaoService } from '../classificacao/classificacao.service';
 import { avaliarNcm, compararComDeclarado, referenciasNcm, soDigitos, textoConfianca } from '../classificacao/ncm-classe';
+import { LINHAS_LOGO_FAL, cabecalhoFalExcel } from '../marca/logo-fal';
 
 export const CAMPOS = ['codigo', 'descricao', 'ncm', 'unidade', 'origem', 'c_class_trib', 'principio_ativo', 'data_cadastro', 'grupo_contabil', 'grupo_produto', 'codigo_barras', 'saldo'] as const;
 export type Campo = (typeof CAMPOS)[number];
 export type Mapeamento = Partial<Record<Campo, number | null>>;
 
+/** Linha dos títulos nas abas exportadas: logo da FAL na linha 1, títulos logo abaixo. */
+const CAB = LINHAS_LOGO_FAL + 1;
+/** O ExcelJS escreve os títulos de `ws.columns` na linha 1 (a da logo): eles descem para a linha CAB. */
+function colunasComTitulo(ws: ExcelJS.Worksheet): void {
+  const titulos = ws.columns.map((c) => (typeof c.header === 'string' ? c.header : ''));
+  ws.getRow(1).values = [];
+  ws.getRow(CAB).values = titulos;
+}
 const ROT_NIVEL_DUP: Record<NivelDup, string> = { EXATA: 'Idêntico', MUITO_PROVAVEL: 'Indicação alta', POSSIVEL: 'Indicação possível' };
 export const ROTULOS: Record<Campo, string> = {
   principio_ativo: 'Princípio ativo (inclua concentração e formulação)',
@@ -465,7 +474,8 @@ export class ProdutosService {
     const r = salvo || await this.validar(file, mapeamento, undefined, opcoes, plano);
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX — FAL Agro';
-    const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const ws = wb.addWorksheet('Resultado', { views: [{ state: 'frozen', ySplit: CAB }] });
+    cabecalhoFalExcel(wb, ws);
     const per = r.resumo.periodo;
     const dataBr = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
     const ROT_FLAG: Record<FlagComparacao, string> = { IGUAL: 'Igual', DIFERENTE: 'Diferente', SEM_ATUAL: 'Sem valor atual', SEM_SUGESTAO: 'Sem sugestão (certeza insuficiente)', SEM_REGRA: 'Sem regra no de-para', SEM_PLANO: 'Sem de-para enviado' };
@@ -503,6 +513,7 @@ export class ProdutosService {
         { header: 'No período', key: 'periodo', width: 16 },
       ] : []),
     ];
+    colunasComTitulo(ws);
     const cor = { OK: 'FFE8F5E9', ALERTA: 'FFFFF8E1', ERRO: 'FFFDECEA' } as const;
     r.itens.forEach((it) => {
       const row = ws.addRow({
@@ -522,23 +533,25 @@ export class ProdutosService {
       });
       row.getCell('situacao').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cor[it.situacao] } };
     });
-    const cab = ws.getRow(1);
+    const cab = ws.getRow(CAB);
     cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columnCount } };
+    ws.autoFilter = { from: { row: CAB, column: 1 }, to: { row: CAB, column: ws.columnCount } };
 
     // Quem não movimentou no período não entra no saneamento: vai para aba própria (candidatos a inativar no ERP).
     if (per && r.fora_periodo.length) {
-      const fora = wb.addWorksheet('Sem movimento no período', { views: [{ state: 'frozen', ySplit: 1 }] });
+      const fora = wb.addWorksheet('Sem movimento no período', { views: [{ state: 'frozen', ySplit: CAB }] });
+      cabecalhoFalExcel(wb, fora);
       fora.columns = [
         { header: 'Linha', key: 'linha', width: 8 }, { header: 'Código', key: 'codigo', width: 16 }, { header: 'Descrição', key: 'descricao', width: 44 },
         { header: 'NCM informado', key: 'ncm', width: 16, style: { numFmt: '@' } }, { header: 'Última movimentação', key: 'mov', width: 20 },
       ];
+      colunasComTitulo(fora);
       r.fora_periodo.forEach((f) => fora.addRow({ linha: f.linha, codigo: f.codigo, descricao: f.descricao, ncm: f.ncm_original, mov: dataBr(f.ultima_mov) }));
-      const cabF = fora.getRow(1);
+      const cabF = fora.getRow(CAB);
       cabF.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cabF.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-      fora.autoFilter = { from: 'A1', to: 'E1' };
+      fora.autoFilter = { from: `A${CAB}`, to: `E${CAB}` };
     }
 
     if (excluir.length) {
@@ -552,14 +565,17 @@ export class ProdutosService {
       }
       const original = await this.lerArquivo(file);
       const saneada = wb.addWorksheet('Cadastro saneado');
+      cabecalhoFalExcel(wb, saneada);
       saneada.addRow(original.cabecalho);
       const linhasAnalisadas = new Set(r.itens.map(i => i.linha));
       original.linhas.forEach((linha, i) => { if (linhasAnalisadas.has(i + 2) && !exclusoes.has(i + 2)) saneada.addRow(linha); });
       const decisoes = wb.addWorksheet('Exclusões confirmadas');
+      cabecalhoFalExcel(wb, decisoes);
       decisoes.addRow(['Linha original', 'Código', 'Descrição', 'Motivo']);
       r.itens.filter(i => exclusoes.has(i.linha)).forEach(i => decisoes.addRow([i.linha, i.codigo, i.descricao, 'Duplicidade selecionada pelo usuário; removida apenas da cópia saneada.']));
     }
     const rs = wb.addWorksheet('Resumo');
+    cabecalhoFalExcel(wb, rs);
     rs.columns = [{ width: 44 }, { width: 16 }];
     rs.addRows([
       ['Resumo da validação de cadastro', ''],
@@ -582,7 +598,7 @@ export class ProdutosService {
       ['Aviso: as sugestões são orientativas, baseadas nos anexos da LC 214/2025 já mapeados.', ''],
       ['A classificação fiscal é responsabilidade do contribuinte e deve ser validada por um especialista.', ''],
     ]);
-    rs.getRow(1).font = { bold: true, size: 13 };
+    rs.getRow(CAB).font = { bold: true, size: 13 };
     return Buffer.from(await wb.xlsx.writeBuffer());
   }
 
@@ -591,7 +607,8 @@ export class ProdutosService {
   async modeloXlsx(): Promise<Buffer> {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX — FAL Agro';
-    const ws = wb.addWorksheet('Produtos', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const ws = wb.addWorksheet('Produtos', { views: [{ state: 'frozen', ySplit: CAB }] });
+    cabecalhoFalExcel(wb, ws);
     ws.columns = [
       { header: 'Codigo', key: 'a', width: 16, style: { numFmt: '@' } },
       { header: 'Descricao', key: 'b', width: 48 },
@@ -600,17 +617,19 @@ export class ProdutosService {
       { header: 'Origem', key: 'e', width: 10 },
       { header: 'cClassTrib', key: 'f', width: 14, style: { numFmt: '@' } },
     ];
+    colunasComTitulo(ws);
     ws.addRow({ a: 'RAC-001', b: 'Ração para bovinos, saco 25 kg', c: '23099010', d: 'SC', e: '0', f: '' });
     ws.addRow({ a: 'MIL-010', b: 'Milho em grão', c: '10059010', d: 'KG', e: '0', f: '' });
-    const cab = ws.getRow(1);
+    const cab = ws.getRow(CAB);
     cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3A2E' } };
-    for (let i = 2; i <= 1000; i++) {
+    for (let i = CAB + 1; i <= 1000 + LINHAS_LOGO_FAL; i++) {
       ws.getCell(`A${i}`).numFmt = '@';
       ws.getCell(`C${i}`).numFmt = '@';
       ws.getCell(`F${i}`).numFmt = '@';
     }
     const inst = wb.addWorksheet('Instruções');
+    cabecalhoFalExcel(wb, inst);
     inst.columns = [{ width: 110 }];
     inst.addRows([
       ['Como preencher'],
@@ -621,7 +640,7 @@ export class ProdutosService {
       ['5. Se a sua planilha vem direto do ERP, não precisa usar este modelo: envie como está e indique as colunas na tela.'],
       ['6. Apague as duas linhas de exemplo antes de enviar.'],
     ]);
-    inst.getRow(1).font = { bold: true, size: 13 };
+    inst.getRow(CAB).font = { bold: true, size: 13 };
     return Buffer.from(await wb.xlsx.writeBuffer());
   }
 }

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
 import ExcelJS from 'exceljs';
+import { cabecalhoFalExcel } from '../marca/logo-fal';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatoDoArquivo, lerPlanilha, lerPrevia } from '../produtos/leitura-planilha';
 import { CAMPOS, CAMPOS_PCT, IDS_CAMPOS, Mapeamento, sugerirMapeamento } from './campos';
@@ -110,15 +111,17 @@ export class OperacoesPlanilhaService {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'InTAX'; wb.created = new Date();
     const ws = wb.addWorksheet('Operações');
+    const linhaCab = cabecalhoFalExcel(wb, ws) + 1;
     ws.addRow(CAMPOS.map((c) => c.coluna));
     ws.addRow(CAMPOS.map((c) => c.exemplo));
-    const cab = ws.getRow(1);
+    const cab = ws.getRow(linhaCab);
     cab.font = { bold: true };
     cab.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF4' } };
-    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    ws.views = [{ state: 'frozen', ySplit: linhaCab }];
     CAMPOS.forEach((c, i) => { ws.getColumn(i + 1).width = Math.max(12, Math.min(36, c.coluna.length + 4)); });
 
     const aj = wb.addWorksheet('Como preencher');
+    const linhaCabAj = cabecalhoFalExcel(wb, aj) + 1;
     aj.addRow(['Coluna', 'Obrigatória', 'Como preencher', 'Exemplo']);
     for (const c of CAMPOS) aj.addRow([c.coluna, c.obrigatorio ? 'Sim' : 'Não', c.ajuda, c.exemplo]);
     aj.addRow([]);
@@ -130,7 +133,7 @@ export class OperacoesPlanilhaService {
       'As colunas Empresa, Entrada/Saída e Data podem ficar de fora se a tela de importação for usada com uma empresa e uma direção para todas as linhas.',
       'Enviar a mesma planilha de novo não duplica: a linha igual à já importada é ignorada. A linha em que você corrigiu empresa, data, valor, descrição, documento, CFOP, NCM, NBS, UF ou quantidade entra como nova; apague a antiga em Operações. Percentual ou classificação corrigidos numa linha já importada NÃO alteram a operação gravada (a conferência avisa): edite a operação, ou apague a antiga e importe de novo.',
     ].forEach((t) => aj.addRow([t]));
-    aj.getRow(1).font = { bold: true };
+    aj.getRow(linhaCabAj).font = { bold: true };
     aj.getColumn(1).width = 34; aj.getColumn(2).width = 12; aj.getColumn(3).width = 90; aj.getColumn(4).width = 30;
     return Buffer.from(await wb.xlsx.writeBuffer());
   }

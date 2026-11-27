@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { rotuloDoCampo, rotuloDoValor, rotuloTipoCaso, ROTULO_CAMADA } from '../rotulos';
 import { CASO_ABERTO, propostaAplicavel, type Json, type SituacaoCaso } from './constantes';
 import { lerFator } from '../motor';
+import { LINHAS_LOGO_FAL, cabecalhoFalExcel } from '../../marca/logo-fal';
 
 // ── Colunas ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,9 @@ export const COLUNAS = [
   { chave: 'valorCorrigido', cab: 'Valor corrigido', larg: 24, editavel: true },
 ] as const;
 type ChaveColuna = (typeof COLUNAS)[number]['chave'];
-const LINHA_CABECALHO = 7;
+/** Logo da FAL na linha 1; título, dados, instruções e o cabeçalho da tabela vêm abaixo dela. */
+const L = LINHAS_LOGO_FAL;
+const LINHA_CABECALHO = 7 + L;
 
 const FONTE = 'Arial';
 const COR = { navy: 'FF243B55', verde: 'FF1C682F', borda: 'FFC9CFD6', entrada: 'FFFFF8DC', texto: 'FF1F2937', suave: 'FF5B6675', branco: 'FFFFFFFF', faixa: 'FFE9EDF2' };
@@ -133,18 +136,19 @@ export async function montarPlanilha(d: DadosPlanilha): Promise<ExcelJS.Workbook
     views: [{ state: 'frozen', xSplit: 1, ySplit: LINHA_CABECALHO, showGridLines: false, zoomScale: 90 }],
     pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
+  cabecalhoFalExcel(wb, ws);
   ws.columns = COLUNAS.map((c) => ({ width: c.larg }));
   const ultimaCol = COLUNAS.length;
 
-  const t = ws.getCell(1, 1);
+  const t = ws.getCell(1 + L, 1);
   t.value = `Planilha de decisão — ${rotuloCamada(d.camada)}`;
   t.font = fonte({ size: 15, bold: true, color: { argb: COR.navy } });
-  const info = ws.getCell(2, 1);
+  const info = ws.getCell(2 + L, 1);
   info.value = `Projeto: ${d.projetoNome || '—'}     |     Camada: ${rotuloCamada(d.camada)}     |     Gerada em: ${dataHora(d.geradaEm)}     |     ${d.casos.length.toLocaleString('pt-BR')} caso(s)`;
   info.font = fonte({ size: 10.5, color: { argb: COR.suave } });
-  for (let c = 1; c <= ultimaCol; c++) ws.getCell(2, c).border = { bottom: { style: 'medium', color: { argb: COR.verde } } };
+  for (let c = 1; c <= ultimaCol; c++) ws.getCell(2 + L, c).border = { bottom: { style: 'medium', color: { argb: COR.verde } } };
   INSTRUCOES.forEach((txt, i) => {
-    const cel = ws.getCell(3 + i, 1);
+    const cel = ws.getCell(3 + L + i, 1);
     cel.value = txt;
     cel.font = fonte({ size: 10, color: { argb: COR.texto } });
   });
@@ -198,12 +202,13 @@ export async function montarPlanilha(d: DadosPlanilha): Promise<ExcelJS.Workbook
   await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true, autoFilter: true, sort: false, formatColumns: true, formatRows: true });
 
   // Itens de cada caso (consulta; aba inteira protegida).
-  const wi = wb.addWorksheet(ABA_ITENS, { properties: { tabColor: { argb: COR.navy } }, views: [{ state: 'frozen', xSplit: 0, ySplit: 1, showGridLines: false }] });
+  const wi = wb.addWorksheet(ABA_ITENS, { properties: { tabColor: { argb: COR.navy } }, views: [{ state: 'frozen', xSplit: 0, ySplit: 1 + L, showGridLines: false }] });
+  cabecalhoFalExcel(wb, wi);
   const colItens = [['ID do caso', 28], ['Código', 16], ['Descrição', 50], ['Grupo', 22], ['NCM', 12], ['Unidade', 10], ['Saldo', 14]] as const;
   wi.columns = colItens.map(([, w]) => ({ width: w }));
-  const ci = wi.getRow(1);
+  const ci = wi.getRow(1 + L);
   colItens.forEach(([nome], i) => { const c = ci.getCell(i + 1); c.value = nome; c.font = fonte({ bold: true, color: { argb: COR.branco } }); c.fill = preenche(COR.navy); c.border = caixa; });
-  let ri = 1;
+  let ri = 1 + L;
   for (const c of casos) {
     for (const id of c.itens) {
       const it = d.itens.get(id);
@@ -219,7 +224,7 @@ export async function montarPlanilha(d: DadosPlanilha): Promise<ExcelJS.Workbook
       });
     }
   }
-  wi.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(ri, 2), column: colItens.length } };
+  wi.autoFilter = { from: { row: 1 + L, column: 1 }, to: { row: Math.max(ri, 2 + L), column: colItens.length } };
   await wi.protect('', { selectLockedCells: true, selectUnlockedCells: true, autoFilter: true, sort: false });
 
   // Controle (oculta): de que projeto e camada é a planilha.

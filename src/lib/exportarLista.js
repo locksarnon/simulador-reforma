@@ -3,6 +3,7 @@
  * colunas: [{ chave, rotulo, valor?: (linha) => texto|número }]. O arquivo é montado no navegador.
  */
 import { plural } from "./plural";
+import { cabecalhoFalExcel, carregarLogoFal, logoFalNasPaginasPdf, TOPO_ABAIXO_DA_LOGO_MM } from "./marcaFal";
 const valorDa = (c, l) => {
   const v = c.valor ? c.valor(l) : l[c.chave];
   return v === null || v === undefined ? "" : v;
@@ -24,28 +25,32 @@ function baixarBlob(blob, nome) {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
+/** Excel com a logo da FAL na linha 1 e os títulos na linha seguinte (quem lê de volta, como a importação de empresas, pula a linha em branco). */
 export async function montarXlsx(titulo, colunas, linhas) {
-  const ExcelJS = (await import("exceljs")).default;
+  const [ExcelJS, logo] = await Promise.all([import("exceljs").then((m) => m.default), carregarLogoFal()]);
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(titulo.slice(0, 31).replace(/[\\/?*[\]:]/g, "-") || "Lista");
+  const h = cabecalhoFalExcel(wb, ws, logo) + 1;
   ws.addRow(colunas.map((c) => c.rotulo));
-  ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E764D" } };
+  ws.getRow(h).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  ws.getRow(h).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E764D" } };
   for (const l of linhas) ws.addRow(colunas.map((c) => valorDa(c, l)));
   ws.columns.forEach((col, i) => { col.width = Math.min(60, Math.max(10, String(colunas[i].rotulo).length + 2, ...linhas.slice(0, 200).map((l) => String(valorDa(colunas[i], l)).length + 2))); });
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: colunas.length } };
-  ws.views = [{ state: "frozen", ySplit: 1 }];
+  ws.autoFilter = { from: { row: h, column: 1 }, to: { row: h, column: colunas.length } };
+  ws.views = [{ state: "frozen", ySplit: h }];
   return wb.xlsx.writeBuffer();
 }
 
+/** PDF com a logo da FAL no alto de todas as páginas (o conteúdo começa abaixo dela). */
 export async function montarPdf(titulo, colunas, linhas) {
-  const { jsPDF } = await import("jspdf");
+  const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), carregarLogoFal()]);
   const doc = new jsPDF({ orientation: colunas.length > 5 ? "landscape" : "portrait", unit: "mm", format: "a4" });
   const larguraPagina = doc.internal.pageSize.getWidth();
   const alturaPagina = doc.internal.pageSize.getHeight();
   const M = 12;
   const w = (larguraPagina - M * 2) / colunas.length;
-  let y = 16;
+  const TOPO = TOPO_ABAIXO_DA_LOGO_MM;
+  let y = TOPO;
   doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(titulo, M, y);
   doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(110);
   doc.text(`${plural(linhas.length, "linha", "linhas")} · gerado em ${new Date().toLocaleString("pt-BR")}`, M, y + 5);
@@ -55,10 +60,11 @@ export async function montarPdf(titulo, colunas, linhas) {
   for (const l of linhas) {
     const celulas = colunas.map((c) => doc.splitTextToSize(String(valorDa(c, l)), w - 2).slice(0, 3));
     const altura = Math.max(...celulas.map((x) => x.length)) * 3.4 + 1.5;
-    if (y + altura > alturaPagina - 10) { doc.addPage(); y = 16; cabecalho(); }
+    if (y + altura > alturaPagina - 10) { doc.addPage(); y = TOPO; cabecalho(); }
     celulas.forEach((linhasCel, i) => doc.text(linhasCel, M + i * w, y));
     y += altura;
   }
+  logoFalNasPaginasPdf(doc, logo, { margem: M });
   return doc.output("arraybuffer");
 }
 

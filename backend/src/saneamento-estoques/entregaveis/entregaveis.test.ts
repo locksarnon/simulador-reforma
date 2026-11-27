@@ -10,9 +10,11 @@ import { EntregaveisService, fatiaDoNome, nomeDaPolitica, nomeDoExcel, nomeDoRel
 import { NOMES_ABAS } from './excel';
 import { CAMADAS_TESTE, dadosBase, itensTabela, trab, type Linha } from './__fixtures__/dados';
 import { montarRelatorio } from './relatorio';
+import { tirarLinhaDaLogo } from '../../marca/__fixtures__/excel-com-logo';
 
 const svc = () => new EntregaveisService(new PdfService(), {} as never, {} as never);
-async function abrir(buf: Buffer) { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf as never); return wb; }
+/** Abre o Excel, confere a logo da FAL na linha 1 de cada aba e tira essa linha (as conferências por posição partem dos títulos). */
+async function abrir(buf: Buffer) { const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf as never); return tirarLinhaDaLogo(wb); }
 const cabecalhos = (ws: ExcelJS.Worksheet) => (ws.getRow(1).values as unknown[]).slice(1).map(String);
 const coluna = (ws: ExcelJS.Worksheet, nome: string) => cabecalhos(ws).indexOf(nome) + 1;
 const valores = (ws: ExcelJS.Worksheet, nome: string) => { const c = coluna(ws, nome); const r: unknown[] = []; for (let i = 2; i <= ws.rowCount; i++) r.push(ws.getRow(i).getCell(c).value); return r; };
@@ -32,7 +34,7 @@ describe('Excel: 6 abas', () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual([...NOMES_ABAS]);
     for (const nome of NOMES_ABAS.slice(1)) {
       const ws = wb.getWorksheet(nome)!;
-      expect(ws.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
+      expect(ws.views[0]).toMatchObject({ state: 'frozen', ySplit: 2 }); // logo da FAL + títulos
       expect(ws.autoFilter).toBeTruthy();
       expect(ws.getRow(1).getCell(1).font?.bold).toBe(true);
     }
@@ -374,11 +376,12 @@ describe('30 mil linhas', () => {
     const contagens: number[] = []; let primeiro = ''; let ultimo = '';
     for await (const ws of leitor as unknown as AsyncIterable<AsyncIterable<{ getCell: (n: number) => { value: unknown } }>>) {
       let c = 0; let p = ''; let u = '';
-      for await (const row of ws) { c++; if (c === 2) p = String(row.getCell(1).value); u = String(row.getCell(1).value); }
+      // Linha 1 = logo da FAL (vazia), linha 2 = títulos, linha 3 = primeiro item.
+      for await (const row of ws) { c++; if (c === 3) p = String(row.getCell(1).value); u = String(row.getCell(1).value); }
       contagens.push(c);
-      if (c === N + 1 && !primeiro) { primeiro = p; ultimo = u; }
+      if (c === N + 2 && !primeiro) { primeiro = p; ultimo = u; }
     }
-    expect(contagens).toContain(N + 1);
+    expect(contagens).toContain(N + 2);
     expect(primeiro).toBe('00000000');
     expect(ultimo).toBe('00029999');
   }, 240_000);

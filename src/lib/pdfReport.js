@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import { BRL, pct } from "./format";
+import { logoFalNasPaginasPdf, TOPO_ABAIXO_DA_LOGO_MM } from "./marcaFal";
 
 const MARGIN = 14;
 const PAGE_W = 210; // A4 mm
@@ -15,7 +16,7 @@ function linha(doc, y) {
 function espaco(doc, y, preciso = 12) {
   if (y + preciso > PAGE_H - 16) {
     doc.addPage();
-    return 20;
+    return TOPO_ABAIXO_DA_LOGO_MM;
   }
   return y;
 }
@@ -66,7 +67,7 @@ function tabela(doc, y, cols, linhas) {
   linhas.forEach((valores, idx) => {
     if (y > PAGE_H - 20) {
       doc.addPage();
-      y = 20;
+      y = TOPO_ABAIXO_DA_LOGO_MM;
       cabecalho();
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
@@ -95,10 +96,10 @@ const fator = (v) => (v === undefined || v === null ? "—" : `${(Number(v) * 10
  */
 export function gerarRelatorioSimulacao({
   totais, consolidado, versaoMotor, versaoRegras, cenarioNome, cenarioAliquotasNome, grupoNome,
-  transicaoAnos = [], comparacaoCenarios = null, ressalvas = [],
+  transicaoAnos = [], comparacaoCenarios = null, ressalvas = [], logo = null,
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  let y = 20;
+  let y = TOPO_ABAIXO_DA_LOGO_MM;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
@@ -221,6 +222,8 @@ export function gerarRelatorioSimulacao({
   y = paragrafo(doc, y, "• Premissas e alíquotas futuras permanecem como hipóteses até a publicação oficial. O motor calcula IBS/CBS, transição, margem, caixa e split a partir dos parâmetros editáveis nas abas Cenários, Transição e Catálogos.", { recuo: 2 });
   y = paragrafo(doc, y, "Estimativa gerencial: não substitui parecer tributário nem serve como guia de recolhimento.", { tamanho: 8, cor: 120 });
 
+  // Logo da FAL no alto de todas as páginas (regra da ferramenta: src/lib/marcaFal.js).
+  logoFalNasPaginasPdf(doc, logo, { margem: MARGIN });
   const nomeArquivo = `simulacao-fal-${new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(nomeArquivo);
   return nomeArquivo;

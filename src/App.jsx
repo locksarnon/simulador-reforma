@@ -6,6 +6,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider } from '@/lib/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
+import CabecalhoImpressaoFal from "@/components/CabecalhoImpressaoFal";
 import Layout from '@/components/Layout';
 import ThemeProvider from '@/components/ThemeProvider';
 import Login from '@/pages/Login';
@@ -107,6 +108,7 @@ function App() {
           <ConfirmProvider>
           <Router>
             <ScrollToTop />
+            <CabecalhoImpressaoFal />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />

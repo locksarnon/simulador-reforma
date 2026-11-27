@@ -17,6 +17,7 @@ import { dadosBase } from './__fixtures__/dados';
 import { construirModelo, mapaDoModelo } from './modelo';
 import { montarRelatorio } from './relatorio';
 import { conflitosDoMapa, contarMapa, conversaoDoSaldo, filtrarMapa, montarMapa, type CasoMapa, type ItemMapa } from './unificacoes';
+import { tirarLinhaDaLogo } from '../../marca/__fixtures__/excel-com-logo';
 
 const USER = { email: 'consultor@fal.test' };
 const it_ = (id: string, codigo: string, o: Partial<ItemMapa> = {}): ItemMapa => ({ id, codigo, estab: '', descricao: `ITEM ${codigo}`, unidade: 'KG', saldo: 0, ...o });
@@ -123,7 +124,7 @@ describe('mapa de unificações (puro)', () => {
     expect(contarMapa(l).porTipo).toMatchObject({ UNIFICACAO: 20_000, INATIVACAO: 10_000 });
     expect(Date.now() - inicio).toBeLessThan(5000);
     const buf = await gerarExcelMapa(l);
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf as never);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf as never); tirarLinhaDaLogo(wb);
     // Uma aba por lista, cada uma com as suas colunas.
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Unificações', 'Inativações']);
     const ws = wb.getWorksheet('Unificações')!;
@@ -198,7 +199,7 @@ describe('sem movimentação e unificações: fluxo com o banco falso', () => {
     const ctrl = new EntregaveisController(c.entregas);
     const arq = await ctrl.unificacoesExcel(p.id, { situacao: 'APROVADA' });
     expect(arq.getHeaders().disposition).toMatch(/^attachment; filename="unificacoes-e-inativacoes_agropecuaria-teste-ltda_\d{2}-\d{2}-\d{4}\.xlsx"$/);
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(arq.getStream().read() as never);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(arq.getStream().read() as never); tirarLinhaDaLogo(wb);
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Inativações']);
     const ws = wb.getWorksheet('Inativações')!;
     expect(ws.rowCount).toBe(2);
@@ -235,7 +236,7 @@ describe('mapa: nota da escala do saldo no Excel (revisão, achado 5)', () => {
     const itens = [it_('a', '100', { saldo: 10_000_000 }), it_('b', '200', { saldo: 3_000_000 }), it_('c', '300', { saldo: 2_000_000 })];
     const porId = new Map(itens.map((i) => [i.id, i]));
     const l = montarMapa({ liberada: false, dataBase: null, item: (id) => porId.get(id), vinculos: [], escala: 1e6, casos: [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200') })] });
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l, { escala: 1e6 })) as never);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l, { escala: 1e6 })) as never); tirarLinhaDaLogo(wb);
     const ws = wb.getWorksheet('Unificações')!;
     expect(notaDaEscala(1e6)).toBe('Saldos divididos por 1.000.000 (escala detectada na base: o ERP mostra os valores multiplicados)');
     expect(textos(ws)).toContain(notaDaEscala(1e6));
@@ -243,13 +244,13 @@ describe('mapa: nota da escala do saldo no Excel (revisão, achado 5)', () => {
     expect(cab).toContain('Saldo (código que sai) ÷ 1.000.000');
     expect(cab).toContain('Saldo consolidado ÷ 1.000.000');
     expect(ws.getRow(2).getCell(cab.indexOf('Saldo (código que sai) ÷ 1.000.000') + 1).value).toBe(3);
-    const sem = new ExcelJS.Workbook(); await sem.xlsx.load((await gerarExcelMapa(l)) as never);
+    const sem = new ExcelJS.Workbook(); await sem.xlsx.load((await gerarExcelMapa(l)) as never); tirarLinhaDaLogo(sem);
     expect(textos(sem.getWorksheet('Unificações')!).join(' ')).not.toMatch(/Saldos divididos|÷/);
   });
   it('aba De para e equivalências da entrega: a mesma nota quando a base tem a escala', async () => {
     const d = dadosBase(false);
     for (const [n, i] of (d.itens as Record<string, unknown>[]).entries()) i.trabalho = { ...(i.trabalho as Record<string, unknown>), saldo: (n + 2) * 1_000_000 };
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelDeDados(d)) as never);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelDeDados(d)) as never); tirarLinhaDaLogo(wb);
     expect(textos(wb.getWorksheet('De para e equivalências')!)).toContain(notaDaEscala(1e6));
   });
 });
@@ -287,7 +288,7 @@ describe('mapa: unificação × inativação (achado 3a)', () => {
     const pares = contarMapa(l).conflitos;
     expect(pares).toEqual([{ sai: '200', fica: '100', situacaoUnificacao: 'PROPOSTA', inativacao: { codigo: '100', situacao: 'APROVADA', origem: 'QUALIDADE' } }]);
     expect(contarMapa(l).porLista).toEqual({ UNIFICACOES: 1, INATIVACOES: 2, EQUIVALENCIAS: 0 });
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l)) as never);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l)) as never); tirarLinhaDaLogo(wb);
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Conflitos', 'Unificações', 'Inativações']);
     const ws = wb.getWorksheet('Conflitos')!;
     expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(['Código que sai', 'Código que fica', 'Situação da unificação', 'Código inativado', 'Situação da inativação', 'Origem da inativação', 'O que fazer']);

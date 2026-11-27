@@ -145,6 +145,19 @@ describe("planilha da lista de solicitações", () => {
     expect(sem.getWorksheet("Capa").getImages().length).toBe(0);
   });
 
+  it("a logo da FAL (a mesma do resto do sistema) fica no topo das duas abas", async () => {
+    const ExcelJS = await carregar();
+    const { carregarLogoFal } = await import("@/lib/marcaFal");
+    const { wb } = montarPlanilha({ ExcelJS, lista: listaDoServico("validador-cadastro"), logo: await carregarLogoFal() });
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(await wb.xlsx.writeBuffer());
+    for (const aba of lido.worksheets) {
+      const [img, ...resto] = aba.getImages();
+      expect(resto).toHaveLength(0);
+      expect(img.range.tl.nativeRow).toBeLessThanOrEqual(1); // nas duas primeiras linhas
+      expect(img.range.tl.nativeCol).toBeLessThanOrEqual(1); // à esquerda
+    }
+  });
+
   it("o nome do arquivo usa o serviço e o cliente, sem caracteres proibidos nem ponto no fim", () => {
     const lista = listaDoServico("validador-cadastro");
     expect(nomeArquivo(lista, { cliente: "Cliente S.A." })).toBe("Lista de Solicitações - Validação de cadastro - Cliente S.A.xlsx");

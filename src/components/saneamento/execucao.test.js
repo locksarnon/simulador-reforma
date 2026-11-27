@@ -260,6 +260,20 @@ describe("resposta das equipes", () => {
     expect(lidas[0]).toMatchObject({ id: "B1|unidade", frente: "adm", resposta: "FEITO", evidencia: "SAP 55/2026", alteracao: tarefas.find((t) => t.id === "B1|unidade").alteracao }); // a alteração emitida volta na leitura
     expect(lidas[1].resposta).toBe("");
   });
+  it("a lista da frente emitida pelo sistema (com a logo da FAL na linha 1) é lida de volta", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const { criarWorkbookListaFrente } = await import("./listasFinais");
+    const { carregarLogoFal } = await import("@/lib/marcaFal");
+    const { tarefas } = gerar(); const l = linhasListaFrente("adm", tarefas, {}); l[0][7] = "FEITO"; l[0][8] = "SAP 55/2026";
+    const wb = criarWorkbookListaFrente(ExcelJS, "adm", l, await carregarLogoFal());
+    const buf = await wb.xlsx.writeBuffer();
+    const lido = new ExcelJS.Workbook(); await lido.xlsx.load(buf);
+    for (const aba of lido.worksheets) expect(aba.getImages().length).toBe(1);
+    expect(lido.worksheets[0].views[0]).toMatchObject({ state: "frozen", ySplit: 2 });
+    const lidas = await lerRespostaExecucao(new File([buf], "administrativo.xlsx"));
+    expect(lidas).toHaveLength(l.length);
+    expect(lidas[0]).toMatchObject({ id: "B1|unidade", resposta: "FEITO", evidencia: "SAP 55/2026" });
+  });
   it("a resposta vale para a alteração para a qual a lista foi emitida: se a decisão mudou depois, a planilha antiga não confirma a nova", () => {
     const { tarefas } = gerar(); const t = (id) => tarefas.find((x) => x.id === id);
     const velha = { id: "C1|padrao", frente: "adm", resposta: "FEITO", evidencia: "SAP 55", alteracao: "descricao:OUTRO TEXTO QUE ERA O APROVADO ANTES" }; // emitida quando a descrição aprovada era outra

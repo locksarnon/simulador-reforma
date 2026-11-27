@@ -8,6 +8,9 @@ vi.mock("jspdf", () => ({
     text(t) { chamadas.textos.push(String(t)); }
     splitTextToSize(t) { return [String(t)]; }
     addPage() { chamadas.paginas += 1; }
+    addImage() { chamadas.imagens = (chamadas.imagens || 0) + 1; }
+    getNumberOfPages() { return chamadas.paginas; }
+    setPage() {}
     save(n) { chamadas.salvo = n; }
   },
 }));
@@ -37,6 +40,16 @@ describe("PDF do Painel Executivo", () => {
   it("anos do cronograma sem operação aparecem com traço, não somem", () => {
     const traços = chamadas.textos.filter((t) => t === "—").length;
     expect(traços).toBeGreaterThan(10);
+  });
+});
+
+describe("PDF do Painel Executivo: logo da FAL", () => {
+  it("a logo entra no alto de todas as páginas", () => {
+    chamadas.imagens = 0;
+    chamadas.paginas = 1; // o dublê conta as páginas de um documento só
+    gerarRelatorioSimulacao({ totais, consolidado, versaoMotor: "t", versaoRegras: "t", transicaoAnos: transicao, logo: "data:image/png;base64,AAAA" });
+    expect(chamadas.imagens).toBe(chamadas.paginas);
+    expect(chamadas.paginas).toBeGreaterThan(1);
   });
 });
 
