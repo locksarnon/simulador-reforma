@@ -21,7 +21,7 @@ function montar(cenario: { cartoes?: unknown[]; marcos?: unknown[]; para?: strin
     $transaction: vi.fn().mockResolvedValue([]),
   };
   const mail = {
-    emailInterno: cenario.para ?? 'admin@falagro.com.br', configurado: cenario.configurado ?? true, urlPublica: 'https://simulador.clarityib.com.br',
+    emailInterno: cenario.para ?? 'admin@falagro.com.br', configurado: cenario.configurado ?? true, urlPublica: 'https://intax.clarityib.com.br',
     enviar: cenario.falhaNoEnvio ? vi.fn().mockRejectedValue(new Error('SMTP caiu')) : vi.fn().mockResolvedValue({ enviado: true }),
   };
   return { prisma, mail, service: new RevisaoLegalService(prisma as any, mail as any) };

@@ -16,20 +16,20 @@ describe('aviso de revisão ao administrador', () => {
   ];
 
   it('assunto com a contagem de itens (não de linhas) e a norma', () => {
-    const e = montarEmailRevisao(norma, revisoes, 1, 'https://simulador.clarityib.com.br/');
+    const e = montarEmailRevisao(norma, revisoes, 1, 'https://intax.clarityib.com.br/');
     expect(e.total).toBe(3);
     expect(e.assunto).toBe('[InTAX] 3 itens para revisar: LC 214/2025 mudou na Base legal');
     expect(montarEmailRevisao(norma, revisoes.slice(2, 3), 0, 'https://x').assunto).toBe('[InTAX] 1 item para revisar: LC 214/2025 mudou na Base legal');
   });
 
   it('lista cada item sob a sua seção, com os dispositivos e o motivo, e o link da Base legal', () => {
-    const e = montarEmailRevisao(norma, revisoes, 1, 'https://simulador.clarityib.com.br/');
+    const e = montarEmailRevisao(norma, revisoes, 1, 'https://intax.clarityib.com.br/');
     for (const t of ['Perguntas frequentes (1)', 'Notas do cálculo (ícone da balança) (1)', 'Marcos da Agenda da Reforma (1)', 'Qual o limite do produtor rural?', 'Art. 164: O trecho citado no cartão não consta mais', 'Art. 167: O texto do dispositivo mudou.']) {
       expect(e.html, t).toContain(t);
       expect(e.texto, t).toContain(t);
     }
-    expect(e.html).toContain('href="https://simulador.clarityib.com.br/base-legal"');
-    expect(e.texto).toContain('Abrir a Base legal: https://simulador.clarityib.com.br/base-legal');
+    expect(e.html).toContain('href="https://intax.clarityib.com.br/base-legal"');
+    expect(e.texto).toContain('Abrir a Base legal: https://intax.clarityib.com.br/base-legal');
   });
 
   it('diz que cartões publicados voltaram para rascunho, no singular e no plural', () => {

@@ -6,18 +6,18 @@
 #   docker compose -f docker-compose.yml -f docker-compose.traefik.yml --env-file .env up -d --build
 # NÃO use este overlay no notebook. NÃO recrie o .env num ambiente que já roda.
 #
-# Domínio: https://simulador.clarityib.com.br
+# Domínio: https://intax.clarityib.com.br (o antigo simulador.clarityib.com.br redireciona para ele)
 # Guia: docs/deploy/UPDATE.md  |  Erros: docs/deploy/TROUBLESHOOTING.md
 
 services:
   backend:
     ports: !override []
     environment:
-      CORS_ORIGINS: https://simulador.clarityib.com.br,http://simulador.clarityib.com.br
+      CORS_ORIGINS: https://intax.clarityib.com.br,http://intax.clarityib.com.br
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-net
-      - traefik.http.routers.simulador-api.rule=Host(`simulador.clarityib.com.br`) && PathPrefix(`/api`)
+      - traefik.http.routers.simulador-api.rule=Host(`intax.clarityib.com.br`) && PathPrefix(`/api`)
       - traefik.http.routers.simulador-api.entrypoints=websecure
       - traefik.http.routers.simulador-api.tls.certresolver=myresolver
       - traefik.http.routers.simulador-api.priority=100
@@ -39,11 +39,11 @@ services:
     healthcheck:
       start_period: 120s
     environment:
-      VITE_API_URL: https://simulador.clarityib.com.br/api/v1
+      VITE_API_URL: https://intax.clarityib.com.br/api/v1
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-net
-      - traefik.http.routers.simulador-web.rule=Host(`simulador.clarityib.com.br`)
+      - traefik.http.routers.simulador-web.rule=Host(`intax.clarityib.com.br`)
       - traefik.http.routers.simulador-web.entrypoints=websecure
       - traefik.http.routers.simulador-web.tls.certresolver=myresolver
       - traefik.http.routers.simulador-web.priority=1
@@ -52,11 +52,27 @@ services:
       - traefik.http.routers.simulador-web-http.service=simulador-web
       - traefik.http.routers.reforma-web.service=reforma-web
       - traefik.http.routers.reforma-web-http.service=reforma-web
-      - traefik.http.routers.simulador-web-http.rule=Host(`simulador.clarityib.com.br`)
+      - traefik.http.routers.simulador-web-http.rule=Host(`intax.clarityib.com.br`)
       - traefik.http.routers.simulador-web-http.entrypoints=web
       - traefik.http.routers.simulador-web-http.middlewares=simulador-https-redirect
       - traefik.http.middlewares.simulador-https-redirect.redirectscheme.scheme=https
       - traefik.http.middlewares.simulador-https-redirect.redirectscheme.permanent=true
+      # Domínio antigo: tudo (site e API, http e https) vai para o mesmo caminho no domínio novo,
+      # para não quebrar links de e-mails já enviados e favoritos. Prioridade acima da API (100).
+      - traefik.http.routers.intax-dominio-antigo.rule=Host(`simulador.clarityib.com.br`)
+      - traefik.http.routers.intax-dominio-antigo.entrypoints=websecure
+      - traefik.http.routers.intax-dominio-antigo.tls.certresolver=myresolver
+      - traefik.http.routers.intax-dominio-antigo.priority=200
+      - traefik.http.routers.intax-dominio-antigo.middlewares=intax-dominio-antigo-redirect
+      - traefik.http.routers.intax-dominio-antigo.service=simulador-web
+      - traefik.http.routers.intax-dominio-antigo-http.rule=Host(`simulador.clarityib.com.br`)
+      - traefik.http.routers.intax-dominio-antigo-http.entrypoints=web
+      - traefik.http.routers.intax-dominio-antigo-http.priority=200
+      - traefik.http.routers.intax-dominio-antigo-http.middlewares=intax-dominio-antigo-redirect
+      - traefik.http.routers.intax-dominio-antigo-http.service=simulador-web
+      - traefik.http.middlewares.intax-dominio-antigo-redirect.redirectregex.regex=^https?://simulador\.clarityib\.com\.br/(.*)
+      - traefik.http.middlewares.intax-dominio-antigo-redirect.redirectregex.replacement=https://intax.clarityib.com.br/$${1}
+      - traefik.http.middlewares.intax-dominio-antigo-redirect.redirectregex.permanent=true
     networks:
       - default
       - traefik-net

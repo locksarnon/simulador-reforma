@@ -45,7 +45,7 @@ function montar(cenario: { marcos?: ReturnType<typeof linha>[]; configurado?: bo
     },
   };
   const mail = {
-    configurado: cenario.configurado ?? true, urlPublica: 'https://simulador.clarityib.com.br',
+    configurado: cenario.configurado ?? true, urlPublica: 'https://intax.clarityib.com.br',
     enviar: vi.fn().mockResolvedValue(cenario.envia === false ? { enviado: false, motivo: 'SMTP caiu' } : { enviado: true }),
   };
   const revisao = { pendentesPorAlvo: vi.fn().mockResolvedValue(cenario.pendentes ?? new Map()) };
@@ -126,7 +126,7 @@ describe('Agenda da Reforma: consulta', () => {
     const l = ics.replace(/\r\n /g, '').split('\r\n');
     expect(l).toContain('X-WR-CALNAME:Agenda da Reforma Tributária (Alfa Simples Ltda · Simples Nacional · SP)');
     expect(l.filter((x) => x === 'BEGIN:VEVENT')).toHaveLength(2);
-    expect(l).toContain('UID:simples@simulador.clarityib.com.br');
+    expect(l).toContain('UID:simples@intax.clarityib.com.br');
     expect(l).toContain('DTSTART;VALUE=DATE:20261103');
     expect(l).toContain('DTEND;VALUE=DATE:20261221');
     expect(l.some((x) => x.startsWith('DESCRIPTION:') && x.includes('Fonte oficial:'))).toBe(true);

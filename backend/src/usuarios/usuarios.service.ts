@@ -74,7 +74,7 @@ export class UsuariosService {
     const token = randomBytes(32).toString('base64url');
     const expira = new Date(agora.getTime() + (tipo === 'CONVITE' ? DIAS_CONVITE * 86_400_000 : tipo === 'ESQUECI' ? 3_600_000 : HORAS_REDEFINICAO * 3_600_000));
     await this.prisma.passwordResetToken.create({ data: { userId, tokenHash: hash(token), expiresAt: expira, tipo: tipoBanco, enviadoPor: porQuem ?? null } });
-    const base = this.mail?.urlPublica ?? (process.env.APP_PUBLIC_URL || 'https://simulador.clarityib.com.br').replace(/\/$/, '');
+    const base = this.mail?.urlPublica ?? (process.env.APP_PUBLIC_URL || 'https://intax.clarityib.com.br').replace(/\/$/, '');
     return { link: `${base}/reset-password?token=${token}${tipo === 'CONVITE' ? '&convite=1' : ''}`, expira };
   }
 

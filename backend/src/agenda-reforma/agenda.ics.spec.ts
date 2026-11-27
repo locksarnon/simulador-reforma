@@ -15,14 +15,14 @@ const linhas = (ics: string) => desdobrar(ics).split('\r\n').filter(Boolean);
 
 describe('exportação em .ics', () => {
   it('monta um calendário válido: cabeçalho, eventos de dia inteiro e fim de linha CRLF', () => {
-    const ics = gerarIcs([evento()], { nome: 'Agenda da Reforma Tributária (InTAX)', agora, dominio: 'simulador.clarityib.com.br' });
+    const ics = gerarIcs([evento()], { nome: 'Agenda da Reforma Tributária (InTAX)', agora, dominio: 'intax.clarityib.com.br' });
     expect(ics.startsWith('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n')).toBe(true);
     expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
     expect(ics.replace(/\r\n/g, '').includes('\n')).toBe(false); // nenhuma quebra de linha solta
     const l = linhas(ics);
     expect(l).toContain('PRODID:-//FAL Agro//InTAX Agenda da Reforma//PT-BR');
     expect(l).toContain('X-WR-CALNAME:Agenda da Reforma Tributária (InTAX)');
-    expect(l).toContain('UID:estoque-apropriacao-2027@simulador.clarityib.com.br');
+    expect(l).toContain('UID:estoque-apropriacao-2027@intax.clarityib.com.br');
     expect(l).toContain('DTSTAMP:20261110T150000Z');
     expect(l).toContain('LAST-MODIFIED:20261101T100000Z');
     expect(l).toContain('DTSTART;VALUE=DATE:20270630');
