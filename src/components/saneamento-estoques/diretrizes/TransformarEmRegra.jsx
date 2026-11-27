@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Wand2 } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { chaves, san } from "../api";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls, Rotulo, usePodeAlterar } from "../comuns";
+import { Aviso, botaoPrimario, botaoSecundario, campoCls, quadroCls, Rotulo, textoApoioCls, tituloQuadroCls, usePodeAlterar } from "../comuns";
 import { SeletorMultiplo } from "./Blocos";
 import { ABRANGENCIA_TODOS, ASPECTOS, inicialDoCaso, mensagemDiretriz, ROTULO_ASPECTO } from "./logica";
 
@@ -61,9 +61,9 @@ export default function TransformarEmRegra({ projeto, caso, abertoInicial = fals
     );
   }
   return (
-    <section aria-label="Transformar em regra" className="space-y-3 border border-border bg-muted/20 p-3">
-      <h4 className="text-sm font-semibold">Transformar em regra</h4>
-      <p className="text-xs text-muted-foreground">A regra nasce em rascunho. Nada é reanalisado até você conferir a prévia do impacto e aplicar.</p>
+    <section aria-label="Transformar em regra" className={`space-y-3 ${quadroCls}`}>
+      <h4 className={tituloQuadroCls}>Transformar em regra</h4>
+      <p className={textoApoioCls}>A regra nasce em rascunho. Nada é reanalisado até você conferir a prévia do impacto e aplicar.</p>
       {transformar.isSuccess ? <ResultadoTransformacao resultado={transformar.data} destino={f.destino} /> : (
         <>
           <div className="grid gap-3 sm:grid-cols-2">

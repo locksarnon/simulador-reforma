@@ -5,7 +5,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { san } from "./api";
 import { SeletorErp, useErps } from "@/components/erps/erps";
 import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
-import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Rotulo, Tag, usePodeAlterar } from "./comuns";
+import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Rotulo, SecaoForm, Tag, usePodeAlterar } from "./comuns";
 import {
   efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtCnae, fmtData, fmtDataHora, mensagemDeErro, motivoDaAtividade, motivoListaVazia,
   MODULOS_OPCIONAIS, textoBuscaCnpj,
@@ -76,15 +76,14 @@ export default function Configuracao({ projeto, recarregar }) {
     <div className="space-y-6">
       {msg && <Aviso tom={msg.tom === "erro" || msg.tom === "alerta" ? msg.tom : "ok"}>{msg.texto}</Aviso>}
 
-      <section aria-labelledby="san-cfg-dados" className="space-y-3 border border-border bg-card p-4">
-        <h2 id="san-cfg-dados" className="font-semibold">Dados do projeto</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <SecaoForm titulo="Dados do projeto" nivel="h2" idTitulo="san-cfg-dados">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div><SeletorErp id="san-cfg-erp" rotulo="ERP (do cadastro do cliente; pode trocar para este trabalho)" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} /></div>
           <label className="block"><Rotulo>Versão do ERP</Rotulo>{erpEscolhido?.versoes?.length
             ? <select className={campoCls} value={form.erp_versao} onChange={set("erp_versao")}><option value="">Selecione a versão</option>{[...erpEscolhido.versoes, ...(form.erp_versao && !erpEscolhido.versoes.includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
             : <input className={campoCls} value={form.erp_versao} onChange={set("erp_versao")} />}</label>
           <label className="block"><Rotulo>Responsável</Rotulo><input className={campoCls} value={form.responsavel} onChange={set("responsavel")} /></label>
-          <div><Rotulo>Data-base</Rotulo><p className="py-1.5 text-sm">{fmtData(projeto.data_base) || "—"}</p><p className="text-xs text-muted-foreground">Vem do projeto de consultoria.</p></div>
+          <div><Rotulo>Data-base</Rotulo><p className="py-1.5 text-sm">{fmtData(projeto.data_base) || "—"}</p><p className="text-xs text-foreground/75">Vem do projeto de consultoria.</p></div>
           <label className="block sm:col-span-2"><Rotulo>Estabelecimentos (um por linha; vazio = um só)</Rotulo>
             <textarea className={`${campoCls} min-h-[72px]`} value={form.estabelecimentos} onChange={set("estabelecimentos")} />
           </label>
@@ -102,18 +101,14 @@ export default function Configuracao({ projeto, recarregar }) {
           </div>
           <label className="block"><Rotulo>Última competência de escrituração já entregue (SPED)</Rotulo>
             <input type="month" className={campoCls} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
-            <span className="mt-1 block text-xs text-muted-foreground">Ajuste com início nesta competência ou antes aparece como “impacto em escrituração já entregue”. Vazio: esse impacto fica “não avaliado” no Excel e no relatório.</span>
+            <span className="mt-1 block text-xs text-foreground/75">Ajuste com início nesta competência ou antes aparece como “impacto em escrituração já entregue”. Vazio: esse impacto fica “não avaliado” no Excel e no relatório.</span>
           </label>
         </div>
         <button type="button" className={botaoPrimario} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>
-      </section>
+      </SecaoForm>
 
-      <section aria-labelledby="san-cfg-ativ" className="space-y-3 border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="san-cfg-ativ" className="font-semibold">Atividades do cliente</h2>
-          {atividades.length > 0 && botaoBuscarCnpj}
-        </div>
-        <p className="text-sm text-muted-foreground">Vêm do CNAE principal e dos secundários do CNPJ. Mantenha as que o cliente realmente exerce, exclua as outras e acrescente as que faltam. Sem esta confirmação não há importação nem análise. “Buscar atividades pelo CNPJ” consulta a Receita agora e acrescenta os CNAEs que faltam, sem apagar nada.</p>
+      <SecaoForm titulo="Atividades do cliente" nivel="h2" idTitulo="san-cfg-ativ" acoes={atividades.length > 0 ? botaoBuscarCnpj : null}>
+        <p className="text-sm text-foreground/75">Vêm do CNAE principal e dos secundários do CNPJ. Mantenha as que o cliente realmente exerce, exclua as outras e acrescente as que faltam. Sem esta confirmação não há importação nem análise. “Buscar atividades pelo CNPJ” consulta a Receita agora e acrescenta os CNAEs que faltam, sem apagar nada.</p>
         {trava.revisarAtividades && <Aviso tom="alerta" titulo="Revisar atividades">Os dados do CNPJ do cliente mudaram depois que o projeto foi aberto. Confira se as atividades abaixo ainda valem; o que já foi feito não é bloqueado.</Aviso>}
         {trava.confirmada && (
           <Aviso tom="ok" titulo="Atividades confirmadas" acao={<button type="button" className={botaoSecundario} onClick={pedirReabertura} disabled={!pode || reabrir.isPending} title={razao}>Reabrir para alterar</button>}>
@@ -125,24 +120,24 @@ export default function Configuracao({ projeto, recarregar }) {
             {motivoListaVazia(projeto)}
           </Aviso>
         ) : (
-          <table className="w-full text-sm" aria-label="Atividades do cliente">
-            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="w-16 py-1">Manter</th><th scope="col">Código</th><th scope="col">Descrição</th><th scope="col">Origem</th>{projeto.mapaAtividades && <th scope="col">Efeito nas sugestões</th>}</tr></thead>
+          <table className="w-full border border-foreground/30 text-sm" aria-label="Atividades do cliente">
+            <thead><tr className="border-b border-foreground/50 bg-primary/10 text-left text-xs font-medium text-foreground/80"><th scope="col" className="w-16 px-2 py-1.5">Manter</th><th scope="col" className="px-2">Código</th><th scope="col" className="px-2">Descrição</th><th scope="col" className="px-2">Origem</th>{projeto.mapaAtividades && <th scope="col" className="px-2">Efeito nas sugestões</th>}</tr></thead>
             <tbody>
               {atividades.map((a) => (
-                <tr key={a.id} className={`border-b border-border/60 ${a.mantida ? "" : "text-muted-foreground"}`}>
-                  <td className="py-1.5">
+                <tr key={a.id} className={`border-b border-foreground/20 last:border-b-0 ${a.mantida ? "" : "text-muted-foreground"}`}>
+                  <td className="px-2 py-1.5">
                     <input type="checkbox" checked={!!a.mantida} disabled={!pode || !trava.editavel || alternar.isPending} title={razao} aria-label={`${a.mantida ? "Excluir" : "Manter"} a atividade ${a.codigo}`} onChange={() => alternar.mutate({ id: a.id, mantida: !a.mantida })} />
                   </td>
-                  <td className="tabular-nums">{fmtCnae(a.codigo)}</td>
-                  <td className={a.mantida ? "" : "line-through"}>{a.descricao}{!a.mantida && <Tag className="ml-2">excluída</Tag>}</td>
-                  <td>
+                  <td className="px-2 tabular-nums">{fmtCnae(a.codigo)}</td>
+                  <td className={a.mantida ? "px-2" : "px-2 line-through"}>{a.descricao}{!a.mantida && <Tag className="ml-2">excluída</Tag>}</td>
+                  <td className="px-2">
                     <Tag tom={a.origem === "CNPJ" ? "info" : "neutro"}>{a.origem === "CNPJ" ? "CNPJ" : "Manual"}</Tag>
-                    {a.origem === "CNPJ" && projeto.cliente?.cnaePrincipal && <span className="ml-1 text-xs text-muted-foreground">{String(projeto.cliente.cnaePrincipal) === String(a.codigo) ? "principal" : "secundário"}</span>}
+                    {a.origem === "CNPJ" && projeto.cliente?.cnaePrincipal && <span className="ml-1 text-xs text-foreground/75">{String(projeto.cliente.cnaePrincipal) === String(a.codigo) ? "principal" : "secundário"}</span>}
                   </td>
                   {projeto.mapaAtividades && (
-                    <td className="text-xs">
+                    <td className="px-2 text-xs">
                       {a.mantida ? (efeitoDaAtividade(projeto.mapaAtividades, a.codigo) || "—") : "—"}
-                      {a.mantida && motivoDaAtividade(projeto.mapaAtividades, a.codigo) && <span className="block text-muted-foreground">{motivoDaAtividade(projeto.mapaAtividades, a.codigo)}</span>}
+                      {a.mantida && motivoDaAtividade(projeto.mapaAtividades, a.codigo) && <span className="block text-foreground/75">{motivoDaAtividade(projeto.mapaAtividades, a.codigo)}</span>}
                     </td>
                   )}
                 </tr>
@@ -175,12 +170,11 @@ export default function Configuracao({ projeto, recarregar }) {
             <span className="text-xs text-muted-foreground">Registra quem confirmou e quando.</span>
           </div>
         )}
-      </section>
+      </SecaoForm>
 
-      <section aria-labelledby="san-cfg-mod" className="space-y-2 border border-border bg-card p-4">
-        <h2 id="san-cfg-mod" className="font-semibold">Módulos opcionais</h2>
-        <p className="text-sm text-muted-foreground">Ainda não estão disponíveis nesta versão do serviço: ficam desligados.</p>
-        <ul className="divide-y divide-border">
+      <SecaoForm titulo="Módulos opcionais" nivel="h2" idTitulo="san-cfg-mod">
+        <p className="text-sm text-foreground/75">Ainda não estão disponíveis nesta versão do serviço: ficam desligados.</p>
+        <ul className="divide-y divide-foreground/20 border border-foreground/30 bg-card px-3">
           {MODULOS_OPCIONAIS.map((m) => {
             const id = `san-mod-${m.id}`;
             const aberto = infoAberta === m.id;
@@ -203,7 +197,7 @@ export default function Configuracao({ projeto, recarregar }) {
             );
           })}
         </ul>
-      </section>
+      </SecaoForm>
     </div>
   );
 }

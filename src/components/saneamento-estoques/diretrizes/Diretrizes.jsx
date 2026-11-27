@@ -5,7 +5,7 @@ import { BookCopy, FileText, Pencil, Plus } from "lucide-react";
 import { api } from "@/api/client";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { atualizarTudo, chaves, san } from "../api";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls, Carregar, MarcaRevisar, Rotulo, Tag, TextoLongo, usePodeAlterar } from "../comuns";
+import { Aviso, bordaQuadro, botaoPrimario, botaoSecundario, campoCls, Carregar, MarcaRevisar, Quadro, Rotulo, rotuloCls, Tag, TextoLongo, usePodeAlterar } from "../comuns";
 import { ehConflitoVersao, fmtData, fmtDataHora, mensagemDeErro } from "../logica";
 import { realceVerde } from "./Blocos";
 import FormularioRegra from "./FormularioRegra";
@@ -31,12 +31,12 @@ export function CabecalhoDiretrizes({ projeto, cabecalho, cliente, ultimaImporta
   const mudou = vigencia !== (cabecalho?.vigencia ? String(cabecalho.vigencia).slice(0, 10) : "");
   const erp = projeto.erp_nome || projeto.erp || "Não informado";
   return (
-    <section aria-label="Cabeçalho das diretrizes" className="space-y-3 border border-border bg-card p-4">
+    <section aria-label="Cabeçalho das diretrizes" className={`space-y-3 border ${bordaQuadro} bg-card p-4`}>
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div><dt className="text-xs text-muted-foreground">Cliente</dt><dd>{cliente || "—"}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Base importada</dt><dd>{ultimaImportacao === undefined ? "…" : ultimaImportacao ? `${ultimaImportacao.arquivo || "Cadastro de itens"} — ${fmtDataHora(ultimaImportacao.createdAt)}` : "Nenhuma importação ainda"}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">ERP</dt><dd>{erp}{projeto.erp_versao ? ` — versão ${projeto.erp_versao}` : ""}</dd></div>
-        <div><dt className="text-xs text-muted-foreground">Data-base</dt><dd>{fmtData(projeto.data_base) || "—"}</dd></div>
+        <div><dt className={rotuloCls}>Cliente</dt><dd>{cliente || "—"}</dd></div>
+        <div><dt className={rotuloCls}>Base importada</dt><dd>{ultimaImportacao === undefined ? "…" : ultimaImportacao ? `${ultimaImportacao.arquivo || "Cadastro de itens"} — ${fmtDataHora(ultimaImportacao.createdAt)}` : "Nenhuma importação ainda"}</dd></div>
+        <div><dt className={rotuloCls}>ERP</dt><dd>{erp}{projeto.erp_versao ? ` — versão ${projeto.erp_versao}` : ""}</dd></div>
+        <div><dt className={rotuloCls}>Data-base</dt><dd>{fmtData(projeto.data_base) || "—"}</dd></div>
       </dl>
       <div className="flex flex-wrap items-end gap-3">
         <label className="block"><Rotulo>Vigência da política</Rotulo><input type="date" className={`${campoCls} w-44`} disabled={!podeAlterar || salvando} value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></label>
@@ -52,10 +52,10 @@ export function CabecalhoDiretrizes({ projeto, cabecalho, cliente, ultimaImporta
 /** Uma regra na lista: código, nome, grupos, situação, revisar e o aviso de atualização da biblioteca (com "Adotar"). */
 function LinhaRegra({ regra, atualizacao, aoAbrir, aoAdotar, adotando, pode, razao }) {
   return (
-    <li className={`flex flex-wrap items-center gap-2 border-b border-border/60 px-2 py-1.5 text-sm ${realceVerde}`}>
+    <li className={`flex flex-wrap items-center gap-2 border-b border-foreground/20 px-3 py-1.5 text-sm last:border-b-0 ${realceVerde}`}>
       <span className="w-12 font-mono font-semibold">{regra.codigo}</span>
       <button type="button" className="min-w-[12rem] flex-1 text-left font-medium text-primary underline-offset-2 hover:underline" onClick={aoAbrir}>{regra.nome}</button>
-      <span className="text-xs text-muted-foreground">Grupos:</span><TextoLongo texto={textoAbrangencia(regra.abrangencia)} largura="max-w-[22rem]" />
+      <span className="text-xs font-medium text-foreground/80">Grupos:</span><TextoLongo texto={textoAbrangencia(regra.abrangencia)} largura="max-w-[22rem]" />
       <Tag tom={regra.situacao === "APROVADA" ? "ok" : "neutro"}>{SITUACAO_REGRA[regra.situacao] || "Rascunho"}</Tag>
       {regra.revisar && <MarcaRevisar causa="Algo de que esta regra depende mudou: confira." />}
       {regra.bibliotecaId && <Tag tom="info">Biblioteca{regra.bibliotecaVersao ? ` v${regra.bibliotecaVersao}` : ""}</Tag>}
@@ -75,30 +75,29 @@ export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, po
   const porAspecto = regrasPorAspecto(dados.regras);
   const semRegra = new Map((dados.gruposSemRegra || []).map((g) => [g.aspecto, g.grupos || []]));
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {ASPECTOS.map((a) => (
-        <section key={a} aria-labelledby={`dir-asp-${a}`} className="border border-border bg-card">
-          <header className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
-            <h3 id={`dir-asp-${a}`} className="text-sm font-semibold">{ROTULO_ASPECTO[a]}</h3>
-            <span className="text-xs text-muted-foreground">{porAspecto[a].length} {porAspecto[a].length === 1 ? "regra" : "regras"}</span>
-            <button type="button" className={`${botaoSecundario} ml-auto px-2 py-1 text-xs`} disabled={!pode} title={razao} onClick={() => aoNova(a)}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Regra de {ROTULO_ASPECTO[a].toLocaleLowerCase("pt-BR")}</button>
+        <section key={a} aria-labelledby={`dir-asp-${a}`} className={`border ${bordaQuadro} bg-card shadow-sm`}>
+          <header className={`flex flex-wrap items-center gap-2 border-b ${bordaQuadro} bg-primary/10 px-3 py-2`}>
+            <h3 id={`dir-asp-${a}`} className="text-sm font-semibold text-foreground">{ROTULO_ASPECTO[a]}</h3>
+            <span className="text-xs font-medium text-foreground/75">{porAspecto[a].length} {porAspecto[a].length === 1 ? "regra" : "regras"}</span>
+            <button type="button" className={`${botaoSecundario} ml-auto bg-card px-2 py-1 text-xs`} disabled={!pode} title={razao} onClick={() => aoNova(a)}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Regra de {ROTULO_ASPECTO[a].toLocaleLowerCase("pt-BR")}</button>
           </header>
-          <p className="px-3 pt-2 text-xs text-muted-foreground">{SOBRE_ASPECTO[a]}</p>
-          {porAspecto[a].length === 0 ? <p className="px-3 py-2 text-sm text-muted-foreground">Nenhuma regra deste aspecto.</p> : (
+          <p className="border-b border-foreground/20 bg-muted px-3 py-1.5 text-xs text-foreground/75">{SOBRE_ASPECTO[a]}</p>
+          {porAspecto[a].length === 0 ? <p className="px-3 py-2 text-sm text-foreground/75">Nenhuma regra deste aspecto.</p> : (
             <ul className="py-1" aria-label={`Regras: ${ROTULO_ASPECTO[a]}`}>
               {porAspecto[a].map((r) => <LinhaRegra key={r.id} regra={r} atualizacao={atualizacaoDa(r, dados.atualizacoesBiblioteca)} aoAbrir={() => aoAbrir(r.id)} aoAdotar={() => aoAdotar(r)} adotando={adotandoId === r.id} pode={pode} razao={razao} />)}
             </ul>
           )}
         </section>
       ))}
-      <section aria-labelledby="dir-sem-regra" className="space-y-2 border border-border bg-card p-3">
-        <h3 id="dir-sem-regra" className="text-sm font-semibold">Grupos sem regra</h3>
-        {(dados.grupos || []).length === 0 ? <p className="text-sm text-muted-foreground">Os grupos aparecem depois de importar o cadastro de itens.</p> : (
+      <Quadro as="section" titulo="Grupos sem regra" nivel="h3">
+        {(dados.grupos || []).length === 0 ? <p className="text-sm text-foreground/75">Os grupos aparecem depois de importar o cadastro de itens.</p> : (
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {ASPECTOS.map((a) => {
               const g = semRegra.get(a) || [];
               return (
-                <li key={a} className="space-y-1 border border-border p-2 text-xs">
+                <li key={a} className="space-y-1 border border-foreground/30 bg-card p-2 text-xs">
                   <span className="block font-medium">{ROTULO_ASPECTO[a]}</span>
                   {g.length === 0 ? <Tag tom="ok">Todos os grupos têm regra</Tag> : <><Tag tom="alerta">{g.length} {g.length === 1 ? "grupo pendente" : "grupos pendentes"}</Tag><TextoLongo texto={g.join(", ")} largura="max-w-full" /></>}
                 </li>
@@ -106,8 +105,8 @@ export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, po
             })}
           </ul>
         )}
-        <p className="text-xs text-muted-foreground">Grupo sem regra entra na política como pendência, nunca como regra vigente.</p>
-      </section>
+        <p className="text-xs text-foreground/75">Grupo sem regra entra na política como pendência, nunca como regra vigente.</p>
+      </Quadro>
     </div>
   );
 }
@@ -127,7 +126,7 @@ function AplicarModelo({ projeto, pode, razao, aoAplicou }) {
   };
   if (!aberto) return <button type="button" className={botaoSecundario} disabled={!pode} title={razao} onClick={() => setAberto(true)}><BookCopy className="h-4 w-4" aria-hidden="true" />Aplicar modelo da biblioteca</button>;
   return (
-    <div className="flex w-full flex-wrap items-end gap-2 border border-border bg-muted/30 p-2">
+    <div className={`flex w-full flex-wrap items-end gap-2 border ${bordaQuadro} bg-muted p-3`}>
       <label className="block min-w-[260px] flex-1"><Rotulo>Modelo da biblioteca</Rotulo>
         <select className={campoCls} value={modeloId} disabled={modelos.data === undefined} onChange={(e) => setModeloId(e.target.value)}>
           <option value="">{modelos.isError ? "Não foi possível carregar os modelos" : modelos.data === undefined ? "Carregando…" : lista.length ? "Escolha o modelo" : "Nenhum modelo cadastrado"}</option>

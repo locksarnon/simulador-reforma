@@ -4,7 +4,7 @@ import { Download, FileText, History } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { atualizarTudo, chaves, renovarAposRestauracao, san } from "./api";
 import { BotaoPolitica } from "./diretrizes/Diretrizes";
-import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, Rotulo, Tag, usePodeAlterar } from "./comuns";
+import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, faixaSecaoCls, Rotulo, secaoCls, Tag, tituloSecaoCls, usePodeAlterar } from "./comuns";
 import {
   avisosDaLiberacao, dadosDoErro, fmtDataHora, JUSTIFICATIVA_MINIMA, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
   textoDoValor, versaoCriada,
@@ -61,9 +61,9 @@ export function ContinuarVersao({ projeto, versao, aoFechar }) {
   });
   const p = q.data;
   return (
-    <section aria-labelledby="san-ver-continuar" className="space-y-3 border border-border bg-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id="san-ver-continuar" className="font-semibold">Continuar a partir da versão {versao.numero} ({versao.rotulo})</h3>
+    <section aria-labelledby="san-ver-continuar" className={`space-y-3 ${secaoCls}`}>
+      <div className={`-mx-4 -mt-4 mb-3 flex flex-wrap items-center justify-between gap-2 ${faixaSecaoCls}`}>
+        <h3 id="san-ver-continuar" className="text-sm font-semibold text-foreground">Continuar a partir da versão {versao.numero} ({versao.rotulo})</h3>
         <button type="button" className={botaoSecundario} onClick={aoFechar}>Fechar</button>
       </div>
       <p className="text-sm text-muted-foreground">A base de trabalho volta aos valores desta versão. Decisões e histórico ficam; os casos aprovados depois cujo valor deixa de valer voltam a proposto.</p>
@@ -174,14 +174,14 @@ export default function Versoes({ projeto }) {
 
   return (
     <div className="space-y-6">
-      <section aria-labelledby="san-ver-rev" className="space-y-2 border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center gap-2"><h2 id="san-ver-rev" className="font-semibold">Para revisão</h2><Tag tom="alerta">Não é entrega</Tag></div>
+      <section aria-labelledby="san-ver-rev" className={`space-y-2 ${secaoCls}`}>
+        <div className={`-mx-4 -mt-4 mb-3 flex flex-wrap items-center gap-2 ${faixaSecaoCls}`}><h2 id="san-ver-rev" className="text-sm font-semibold text-foreground">Para revisão</h2><Tag tom="alerta">Não é entrega</Tag></div>
         <p className="text-sm text-muted-foreground">Exportação da base como está agora, com tudo o que ainda está proposto ou pendente. Serve para conferir o trabalho; não vai ao cliente.</p>
         <Entrega projetoId={projeto.id} versao={null} rotulo="para revisão" />
       </section>
 
-      <section aria-labelledby="san-ver-lib" className="space-y-2 border border-border bg-card p-4">
-        <h2 id="san-ver-lib" className="font-semibold">Liberar uma versão</h2>
+      <section aria-labelledby="san-ver-lib" className={`space-y-2 ${secaoCls}`}>
+        <h2 id="san-ver-lib" className={tituloSecaoCls}>Liberar uma versão</h2>
         <p className="text-sm text-muted-foreground">A versão liberada é a entrega: só os dados aprovados, com as exclusões e pendências informadas.</p>
         <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (rotulo.trim()) pedirLiberacao(); }}>
           <label className="block min-w-[240px] flex-1"><Rotulo>Rótulo da versão</Rotulo><input className={campoCls} value={rotulo} onChange={(e) => setRotulo(e.target.value)} placeholder="Ex.: Entrega 1" maxLength={120} /></label>

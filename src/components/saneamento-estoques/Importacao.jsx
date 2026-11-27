@@ -6,7 +6,7 @@ import { semFuncao } from "@/lib/permissoes";
 import { ConsultasErp, usePerfilErp } from "@/components/erps/erps";
 import { colunasDoExportDoPerfil } from "@/lib/erps";
 import { san, chaves, atualizarTudo } from "./api";
-import { Aviso, AvisoDeTrava, botaoPrimario, botaoSecundario, Carregar, campoCls, Tag } from "./comuns";
+import { Aviso, AvisoDeTrava, botaoPrimario, botaoSecundario, Carregar, campoCls, secaoCls, Tag, tituloSecaoCls } from "./comuns";
 import {
   alternarIncorporar, camposObrigatoriosSemColuna, colunasDoArquivo, corpoIncorporar, corrigirMapeamento, ehReimportacao, estadoDaTrava, fmtDataHora, itensIncorporaveis,
   linhasDeMapeamento, mapeamentoMudou, mensagemDeErro, MODOS_INCORPORAR, quantosIncorporar, resumirRelatorio, ROTULO_CERTEZA, rotuloDoCampo, textoDoValor,
@@ -49,8 +49,8 @@ function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carregando })
   const faltam = camposObrigatoriosSemColuna(mapeamento ?? previa.mapeamento);
   const mudou = mapeamentoMudou(mapeamento ?? previa.mapeamento, previa.mapeamento);
   return (
-    <section aria-labelledby="san-imp-map" className="space-y-2 border border-border bg-card p-4">
-      <h3 id="san-imp-map" className="font-semibold">Colunas do arquivo</h3>
+    <section aria-labelledby="san-imp-map" className={`space-y-2 ${secaoCls}`}>
+      <h3 id="san-imp-map" className={tituloSecaoCls}>Colunas do arquivo</h3>
       <p className="text-sm text-muted-foreground">O sistema sugeriu o que cada coluna significa. Confira e corrija o que estiver errado; código e descrição são obrigatórios.</p>
       <table className="w-full text-sm" aria-label="Mapeamento de colunas">
         <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Campo do sistema</th><th scope="col">Coluna do arquivo</th><th scope="col">Certeza</th></tr></thead>
@@ -111,8 +111,8 @@ export function Reimportacao({ previa, escolhidos, aoMudar, modo, aoMudarModo, a
   const t = previa.totais || {};
   const pag = previa.paginaDiferencas || { pagina: 1, paginas: 1, total: diferencas.length, filtro: "TODAS" };
   return (
-    <section aria-labelledby="san-imp-re" className="space-y-3 border border-border bg-card p-4">
-      <h3 id="san-imp-re" className="font-semibold">Reimportação: o que mudou desde a última importação</h3>
+    <section aria-labelledby="san-imp-re" className={`space-y-3 ${secaoCls}`}>
+      <h3 id="san-imp-re" className={tituloSecaoCls}>Reimportação: o que mudou desde a última importação</h3>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <Numero rotulo="Novos" valor={previa.novos} /><Numero rotulo="Alterados" valor={previa.alterados} tom={previa.alterados ? "alerta" : undefined} />
         <Numero rotulo="Com campo protegido" valor={t.alteradosComProtegido} /><Numero rotulo="Inalterados" valor={previa.inalterados} /><Numero rotulo="Ausentes do arquivo" valor={previa.ausentesDoArquivo} />
@@ -262,8 +262,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
   return (
     <div className="space-y-5">
       {!podeImportar && <Aviso tom="alerta">{semFuncao("importar")}</Aviso>}
-      <section aria-labelledby="san-imp-arq" className="space-y-2 border border-border bg-card p-4">
-        <h2 id="san-imp-arq" className="font-semibold">1. Arquivo do cadastro de itens</h2>
+      <section aria-labelledby="san-imp-arq" className={`space-y-2 ${secaoCls}`}>
+        <h2 id="san-imp-arq" className={tituloSecaoCls}>1. Arquivo do cadastro de itens</h2>
         <p className="text-sm text-muted-foreground">Planilha (.xlsx) ou CSV exportado do ERP. Códigos e NCM são lidos como texto, preservando os zeros à esquerda. Nada é gravado até você confirmar.</p>
         {colunasDoExportDoPerfil(perfilErp).length > 0 && <p className="text-sm">ERP do projeto: <b>{perfilErp.nome}</b>. As colunas do export dele ({colunasDoExportDoPerfil(perfilErp).map((i) => i.campo_erp).join(", ")}) já chegam mapeadas; confira na prévia.</p>}
         <ConsultasErp perfil={perfilErp} />
@@ -280,8 +280,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
       {previa && (
         <>
           <Mapeamento previa={previa} mapeamento={mapeamento} aoCorrigir={setMapeamento} aoAtualizar={() => ler.mutate(mapeamento)} carregando={ler.isPending} />
-          <section aria-labelledby="san-imp-prev" className="space-y-3 border border-border bg-card p-4">
-            <h2 id="san-imp-prev" className="font-semibold">2. Prévia</h2>
+          <section aria-labelledby="san-imp-prev" className={`space-y-3 ${secaoCls}`}>
+            <h2 id="san-imp-prev" className={tituloSecaoCls}>2. Prévia</h2>
             <div className="grid grid-cols-3 gap-2"><Numero rotulo="Linhas aceitas" valor={rel.aceitas} /><Numero rotulo="Rejeitadas" valor={rel.rejeitadas} tom={rel.rejeitadas ? "erro" : undefined} /><Numero rotulo="Pendentes" valor={rel.pendentes} tom={rel.pendentes ? "alerta" : undefined} /></div>
             <MotivosAgrupados titulo="Motivos de rejeição" grupos={rel.motivosRejeicao} />
             <MotivosAgrupados titulo="Pendências (aceitas com dado faltando)" grupos={rel.motivosPendencia} />
@@ -289,8 +289,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
             <Amostra previa={previa} />
           </section>
           {reimport && <Reimportacao previa={previa} escolhidos={escolhidos} aoMudar={setEscolhidos} modo={modo} aoMudarModo={setModo} aoPaginar={(o) => paginar.mutate(o)} paginando={paginar.isPending} />}
-          <section aria-labelledby="san-imp-conf" className="space-y-2 border border-border bg-card p-4">
-            <h2 id="san-imp-conf" className="font-semibold">3. Confirmar</h2>
+          <section aria-labelledby="san-imp-conf" className={`space-y-2 ${secaoCls}`}>
+            <h2 id="san-imp-conf" className={tituloSecaoCls}>3. Confirmar</h2>
             {mapeamentoPendente && <Aviso tom="alerta">O mapeamento foi corrigido: atualize a prévia antes de confirmar.</Aviso>}
             <AvisosDeSeparador relatorio={previa.relatorio} />
             <button type="button" className={botaoPrimario} disabled={!podeImportar || confirmar.isPending || paginar.isPending || faltam.length > 0 || mapeamentoPendente || rel.aceitas + rel.pendentes === 0} onClick={() => confirmar.mutate()}>

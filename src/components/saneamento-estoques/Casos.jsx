@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import TabelaPadrao from "@/components/TabelaPadrao";
 import { san, chaves, atualizarTudo } from "./api";
 import CasoDetalhe from "./CasoDetalhe";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, Rotulo, usePodeAlterar } from "./comuns";
+import TabelaDensa from "./TabelaDensa";
+import { Aviso, botaoPrimario, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, faixaQuadroCls, quadroCls, Rotulo, SeloTexto, Tag, TextoLongo, usePodeAlterar } from "./comuns";
 import {
   CAMADAS, corpoDoLote, idsDoLote, lerParecer, loteTemEscolha, mensagemDeErro, montarFiltroCasos, proximoCasoAberto, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo,
   rotuloDoCaso, rotuloSituacaoCaso, SITUACOES_DO_CASO, versoesDaPrevia,
@@ -24,8 +24,8 @@ function PainelDeLote({ projeto, ids, descricao, casos, aoFechar, aoAprovado }) 
   const p = previa.data;
   const linhaDeExcecao = (x) => `${rotuloDoCaso(casos, x.casoId)} [${String(x.casoId).slice(0, 8)}]: ${x.motivo}`;
   return (
-    <section aria-label="Aprovação em lote" className="space-y-3 border border-primary/40 bg-card p-4">
-      <div className="flex items-center justify-between"><h3 className="font-semibold">Aprovar em lote</h3><button type="button" className={botaoSecundario} onClick={aoFechar}>Fechar</button></div>
+    <section aria-label="Aprovação em lote" className={`space-y-3 ${quadroCls}`}>
+      <div className={`-mx-3 -mt-3 mb-2 flex items-center justify-between ${faixaQuadroCls}`}><h3 className="text-sm font-semibold text-foreground">Aprovar em lote</h3><button type="button" className={`${botaoSecundario} bg-card`} onClick={aoFechar}>Fechar</button></div>
       <p className="text-sm text-muted-foreground">{descricao} Primeiro veja a prévia: quais itens e campos mudam e quais casos ficam de fora. Só então aprove.</p>
       <label className="block"><Rotulo>Fundamento comum (opcional)</Rotulo><input className={campoCls} value={fundamento} onChange={(e) => setFundamento(e.target.value)} /></label>
       <button type="button" className={botaoSecundario} disabled={previa.isPending || !loteTemEscolha(envio)} onClick={() => previa.mutate()}>{previa.isPending ? "Calculando…" : "Ver a prévia"}</button>
@@ -40,14 +40,14 @@ function PainelDeLote({ projeto, ids, descricao, casos, aoFechar, aoAprovado }) 
       {p && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.aprovaveis.length}</div>casos aprováveis</div>
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.excecoes.length}</div>exceções (ficam de fora)</div>
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.itensAfetados.toLocaleString("pt-BR")}</div>itens afetados</div>
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.camposAfetados.toLocaleString("pt-BR")}</div>campos alterados</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.aprovaveis.length}</div>casos aprováveis</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.excecoes.length}</div>exceções (ficam de fora)</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.itensAfetados.toLocaleString("pt-BR")}</div>itens afetados</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.camposAfetados.toLocaleString("pt-BR")}</div>campos alterados</div>
           </div>
           {p.restantes > 0 && <Aviso tom="alerta">Ainda restam {p.restantes.toLocaleString("pt-BR")} casos além do limite do lote: repita depois.</Aviso>}
           {p.aprovaveis.length > 0 && (
-            <div className="max-h-64 overflow-auto border border-border">
+            <div className="max-h-64 overflow-auto border border-foreground/30 bg-card">
               <table className="w-full text-xs" aria-label="Casos que serão aprovados">
                 <thead className="sticky top-0 bg-muted text-left text-muted-foreground"><tr><th scope="col" className="px-2 py-1">Camada</th><th scope="col">Tipo</th><th scope="col" className="text-right">Itens</th><th scope="col">Campos afetados</th></tr></thead>
                 <tbody>{p.aprovaveis.map((a) => <tr key={a.casoId} className="border-t border-border/60"><td className="px-2 py-1">{ROTULO_CAMADA[a.camada]}</td><td>{a.tipo}</td><td className="text-right tabular-nums">{a.itens}</td><td>{a.campos.length ? a.campos.map(rotuloDoCampo).join(", ") : "nenhum (só alerta)"}</td></tr>)}</tbody>
@@ -64,6 +64,8 @@ function PainelDeLote({ projeto, ids, descricao, casos, aoFechar, aoAprovado }) 
     </section>
   );
 }
+
+const FILTRO_PADRAO = { camada: "", situacao: "ABERTOS", tipo: "", origem: "" };
 
 /** Casos: lista filtrada no servidor (o plano de ajustes é o filtro "em aberto"), detalhe do caso e aprovação em lote. */
 export default function Casos({ projeto, recorte, casoInicial }) {
@@ -86,14 +88,17 @@ export default function Casos({ projeto, recorte, casoInicial }) {
   const casos = useMemo(() => (q.data ? q.data.pages.flatMap((p) => p.casos) : []), [q.data]);
 
   const colunas = useMemo(() => [
-    { chave: "camada", rotulo: "Camada", valor: (c) => ROTULO_CAMADA[c.camada] },
-    { chave: "tipo", rotulo: "Tipo" },
-    { chave: "problema", rotulo: "Problema", quebrar: true },
-    { chave: "qtdItens", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
-    { chave: "situacao", rotulo: "Situação", valor: (c) => rotuloSituacaoCaso(c.situacao) },
-    { chave: "origem", rotulo: "Origem", valor: (c) => (c.origem === "IA" ? "IA" : "Regra") },
-    { chave: "parecer", rotulo: "Parecer da IA", valor: (c) => { const p = lerParecer(c); return p?.confianca ? ROTULO_CONFIANCA[p.confianca] : p ? "Com parecer" : ""; } },
+    { chave: "camada", rotulo: "Camada", largura: 128, fixa: true, valor: (c) => ROTULO_CAMADA[c.camada] },
+    { chave: "tipo", rotulo: "Tipo", largura: 200, fixa: true },
+    { chave: "problema", rotulo: "Problema", largura: 340, render: (c) => <TextoLongo texto={c.problema} largura="max-w-full" /> },
+    { chave: "qtdItens", rotulo: "Itens", largura: 72, tipo: "numero", alinhar: "direita" },
+    { chave: "situacao", rotulo: "Situação", largura: 170, valor: (c) => rotuloSituacaoCaso(c.situacao), render: (c) => <SeloTexto situacao={c.situacao}>{rotuloSituacaoCaso(c.situacao)}</SeloTexto> },
+    { chave: "origem", rotulo: "Origem", largura: 84, valor: (c) => (c.origem === "IA" ? "IA" : "Regra"), render: (c) => <Tag tom={c.origem === "IA" ? "info" : "neutro"}>{c.origem === "IA" ? "IA" : "Regra"}</Tag> },
+    { chave: "parecer", rotulo: "Parecer da IA", largura: 140, valor: (c) => { const p = lerParecer(c); return p?.confianca ? ROTULO_CONFIANCA[p.confianca] : p ? "Com parecer" : ""; } },
   ], []);
+  const temFiltro = Object.keys(FILTRO_PADRAO).some((k) => filtro[k] !== FILTRO_PADRAO[k]);
+  const contador = `${casos.length.toLocaleString("pt-BR")} caso(s) ${temFiltro || filtro.grupo ? "com estes filtros" : "em aberto"} carregado(s)${q.hasNextPage ? "; há mais casos a carregar (role até o fim ou use Carregar mais casos)" : ""}.${q.isFetchingNextPage ? " Carregando mais…" : ""}`;
+  const carregarMais = () => { if (q.hasNextPage && !q.isFetchingNextPage) q.fetchNextPage(); };
 
   const idsLote = idsDoLote(marcados, casos);
   const descricaoLote = marcados.size
@@ -114,6 +119,7 @@ export default function Casos({ projeto, recorte, casoInicial }) {
           <select className={campoCls} value={filtro.situacao} onChange={mudar("situacao")}><option value="ABERTOS">Em aberto (plano de ajustes)</option><option value="">Todos</option>{Object.entries(SITUACOES_DO_CASO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label className="block"><Rotulo>Origem</Rotulo><select className={campoCls} value={filtro.origem} onChange={mudar("origem")}><option value="">Todas</option><option value="REGRA">Regra</option><option value="IA">IA</option></select></label>
         <label className="block"><Rotulo>Tipo (texto exato)</Rotulo><input className={`${campoCls} w-44`} value={filtro.tipo} onChange={mudar("tipo")} placeholder="Ex.: DUPLICIDADE_EXATA" /></label>
+        {temFiltro && <button type="button" className={botaoSecundario} onClick={() => { setFiltro((f) => ({ ...FILTRO_PADRAO, grupo: f.grupo })); setMarcados(new Set()); }}>Limpar filtros</button>}
         <button type="button" className={botaoPrimario} disabled={!pode || idsLote.length === 0} title={!pode ? razao : "Marque casos na tabela, ou use todos os casos em aberto listados"} onClick={() => setLote(true)}>Aprovar em lote…</button>
       </div>
       {filtro.grupo && (
@@ -132,8 +138,9 @@ export default function Casos({ projeto, recorte, casoInicial }) {
                 {casos.length === 0 && !q.hasNextPage ? (
                   <EstadoVazio titulo="Nenhum caso ainda">Rode as análises pela faixa de cobertura no alto da página, ou importe o cadastro de itens.</EstadoVazio>
                 ) : (
-                  <TabelaPadrao id="saneamento-estoques-casos" ariaLabel="Casos" colunas={colunas} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso com estes filtros." tamanhoInicial={25}
-                    ordemInicial={null} aoClicarLinha={(c) => { setAberto(c.id); setSemProximo(false); }} destaqueLinha={(c) => (c.id === aberto ? "bg-primary/10" : "")} selecao={{ marcadas: marcados, aoMudar: setMarcados }} />
+                  <TabelaDensa id="saneamento-estoques-casos" ariaLabel="Casos" colunas={colunas} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso com estes filtros." contador={contador}
+                    aoClicarLinha={(c) => { setAberto(c.id); setSemProximo(false); }} linhaMarcada={(c) => c.id === aberto} selecao={{ marcadas: marcados, aoMudar: setMarcados }}
+                    aoChegarAoFim={carregarMais} rodape={q.isFetchingNextPage ? "Carregando mais casos…" : null} />
                 )}
                 {q.hasNextPage && <button type="button" className={botaoSecundario} onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>{q.isFetchingNextPage ? "Carregando…" : "Carregar mais casos"}</button>}
               </div>

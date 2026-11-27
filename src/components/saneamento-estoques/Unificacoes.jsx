@@ -1,31 +1,32 @@
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
-import TabelaPadrao from "@/components/TabelaPadrao";
 import { usePerfilErp } from "@/components/erps/erps";
 import { perfilEspecifico } from "@/lib/erps";
 import { chaves, san } from "./api";
-import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo, TextoLongo } from "./comuns";
+import TabelaDensa from "./TabelaDensa";
+import { Aviso, botaoSecundario, campoCls, Carregar, Rotulo, SeloTexto, TextoLongo } from "./comuns";
 import { fmtData, fmtSaldo, mensagemDeErro, SITUACOES_MAPA, TIPOS_MAPA } from "./logica";
 
+const longo = (texto) => <TextoLongo texto={texto} largura="max-w-full" />;
 const COLUNAS = [
-  { chave: "tipo", rotulo: "Tipo", valor: (l) => l.rotuloTipo || TIPOS_MAPA[l.tipo] || l.tipo },
-  { chave: "morre", rotulo: "Código que morre", valor: (l) => l.morre?.codigo || "" },
-  { chave: "estab", rotulo: "Estabelecimento", valor: (l) => l.morre?.estab || "" },
-  { chave: "morreDescricao", rotulo: "Descrição (morre)", valor: (l) => l.morre?.descricao || "", render: (l) => <TextoLongo texto={l.morre?.descricao} largura="max-w-[16rem]" /> },
-  { chave: "morreUnidade", rotulo: "Unidade (morre)", valor: (l) => l.morre?.unidade || "" },
-  { chave: "morreSaldo", rotulo: "Saldo (morre)", valor: (l) => fmtSaldo(l.morre?.saldo) },
-  { chave: "fica", rotulo: "Código que fica", valor: (l) => l.fica?.codigo || "" },
-  { chave: "ficaDescricao", rotulo: "Descrição (fica)", valor: (l) => l.fica?.descricao || "", render: (l) => <TextoLongo texto={l.fica?.descricao} largura="max-w-[16rem]" /> },
-  { chave: "ficaUnidade", rotulo: "Unidade (fica)", valor: (l) => l.fica?.unidade || "" },
-  { chave: "ficaSaldo", rotulo: "Saldo atual (fica)", valor: (l) => fmtSaldo(l.fica?.saldo) },
-  { chave: "saldoEntra", rotulo: "Saldo que entra", valor: (l) => fmtSaldo(l.saldoEntra) },
-  { chave: "saldoConsolidado", rotulo: "Saldo consolidado", valor: (l) => fmtSaldo(l.saldoConsolidado) },
-  { chave: "situacao", rotulo: "Situação", valor: (l) => SITUACOES_MAPA[l.situacao] || l.situacao },
-  { chave: "acao", rotulo: "Ação no ERP", render: (l) => <TextoLongo texto={l.acao} largura="max-w-[20rem]" /> },
-  { chave: "inicio", rotulo: "Início da vigência", valor: (l) => fmtData(l.inicio) },
-  { chave: "alertas", rotulo: "Alerta de coerência", valor: (l) => (l.alertas || []).join(" "), render: (l) => <TextoLongo texto={(l.alertas || []).join(" ")} largura="max-w-[20rem]" /> },
-  { chave: "justificativa", rotulo: "Justificativa", render: (l) => <TextoLongo texto={l.justificativa} /> },
+  { chave: "tipo", rotulo: "Tipo", largura: 190, fixa: true, valor: (l) => l.rotuloTipo || TIPOS_MAPA[l.tipo] || l.tipo },
+  { chave: "morre", rotulo: "Código que morre", largura: 124, fixa: true, valor: (l) => l.morre?.codigo || "", render: (l) => <span className="block truncate font-medium tabular-nums" title={l.morre?.codigo}>{l.morre?.codigo || "—"}</span> },
+  { chave: "estab", rotulo: "Estabelecimento", largura: 110, valor: (l) => l.morre?.estab || "" },
+  { chave: "morreDescricao", rotulo: "Descrição (morre)", largura: 240, valor: (l) => l.morre?.descricao || "", render: (l) => longo(l.morre?.descricao) },
+  { chave: "morreUnidade", rotulo: "Unidade (morre)", largura: 96, valor: (l) => l.morre?.unidade || "" },
+  { chave: "morreSaldo", rotulo: "Saldo (morre)", largura: 110, alinhar: "direita", valor: (l) => fmtSaldo(l.morre?.saldo) },
+  { chave: "fica", rotulo: "Código que fica", largura: 124, valor: (l) => l.fica?.codigo || "", render: (l) => <span className="block truncate font-medium tabular-nums" title={l.fica?.codigo}>{l.fica?.codigo || "—"}</span> },
+  { chave: "ficaDescricao", rotulo: "Descrição (fica)", largura: 240, valor: (l) => l.fica?.descricao || "", render: (l) => longo(l.fica?.descricao) },
+  { chave: "ficaUnidade", rotulo: "Unidade (fica)", largura: 96, valor: (l) => l.fica?.unidade || "" },
+  { chave: "ficaSaldo", rotulo: "Saldo atual (fica)", largura: 124, alinhar: "direita", valor: (l) => fmtSaldo(l.fica?.saldo) },
+  { chave: "saldoEntra", rotulo: "Saldo que entra", largura: 120, alinhar: "direita", valor: (l) => fmtSaldo(l.saldoEntra) },
+  { chave: "saldoConsolidado", rotulo: "Saldo consolidado", largura: 130, alinhar: "direita", valor: (l) => fmtSaldo(l.saldoConsolidado) },
+  { chave: "situacao", rotulo: "Situação", largura: 170, valor: (l) => SITUACOES_MAPA[l.situacao] || l.situacao, render: (l) => <SeloTexto situacao={l.situacao}>{SITUACOES_MAPA[l.situacao] || l.situacao}</SeloTexto> },
+  { chave: "acao", rotulo: "Ação no ERP", largura: 300, valor: (l) => l.acao || "", render: (l) => longo(l.acao) },
+  { chave: "inicio", rotulo: "Início da vigência", largura: 124, valor: (l) => fmtData(l.inicio) },
+  { chave: "alertas", rotulo: "Alerta de coerência", largura: 300, valor: (l) => (l.alertas || []).join(" "), render: (l) => longo((l.alertas || []).join(" ")) },
+  { chave: "justificativa", rotulo: "Justificativa", largura: 260, valor: (l) => l.justificativa || "", render: (l) => longo(l.justificativa) },
 ];
 
 /**
@@ -75,12 +76,14 @@ export default function Unificacoes({ projeto }) {
               </label>
               <label className="block"><Rotulo>Código (que morre ou que fica)</Rotulo><input className={`${campoCls} w-48`} value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
               <button type="submit" className={botaoSecundario}>Buscar</button>
+              {(filtro.situacao || filtro.tipo || filtro.busca) && <button type="button" className={botaoSecundario} onClick={() => { setBusca(""); setFiltro({ situacao: "", tipo: "", busca: "", pagina: 1 }); }}>Limpar filtros</button>}
             </form>
             {d.escalaSaldo > 1 && <p className="text-sm text-muted-foreground">A base traz o saldo multiplicado por {Number(d.escalaSaldo).toLocaleString("pt-BR")}: os saldos desta lista já estão divididos (a mesma regra da camada Duplicidades).</p>}
             {d.comAlerta > 0 && <p className="text-sm text-muted-foreground">{Number(d.comAlerta).toLocaleString("pt-BR")} linha(s) com alerta de coerência (unidade diferente, fator sem direção, saldo não informado, código que fica fora do estabelecimento ou com inativação): conferir antes de ajustar o ERP.</p>}
-            <TabelaPadrao id="saneamento-estoques-unificacoes" ariaLabel="Unificações e inativações" colunas={COLUNAS} linhas={d.linhas} chaveLinha={(l, i) => `${l.casoId || "v"}-${l.morre?.codigo || ""}-${l.morre?.estab || ""}-${i}`} tamanhoInicial={100} vazio="Nenhuma linha neste filtro." />
+            <TabelaDensa id="saneamento-estoques-unificacoes" ariaLabel="Unificações e inativações" colunas={COLUNAS} linhas={d.linhas} chaveLinha={(l, i) => `${l.casoId || "v"}-${l.morre?.codigo || ""}-${l.morre?.estab || ""}-${i}`} vazio="Nenhuma linha neste filtro."
+              contador={`Linhas ${d.total ? ((d.pagina - 1) * d.limite + 1).toLocaleString("pt-BR") : 0} a ${Math.min(d.pagina * d.limite, d.total).toLocaleString("pt-BR")} de ${Number(d.total).toLocaleString("pt-BR")}${filtro.situacao || filtro.tipo || filtro.busca ? " com estes filtros" : ""}.`} />
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span role="status">Linhas {d.total ? ((d.pagina - 1) * d.limite + 1).toLocaleString("pt-BR") : 0} a {Math.min(d.pagina * d.limite, d.total).toLocaleString("pt-BR")} de {Number(d.total).toLocaleString("pt-BR")}.</span>
+              <span>Página {Number(d.pagina).toLocaleString("pt-BR")} de {Math.max(1, Math.ceil(Number(d.total) / d.limite)).toLocaleString("pt-BR")}</span>
               <button type="button" className={botaoSecundario} disabled={d.pagina <= 1} onClick={() => setFiltro((f) => ({ ...f, pagina: f.pagina - 1 }))}>Anterior</button>
               <button type="button" className={botaoSecundario} disabled={d.pagina * d.limite >= d.total} onClick={() => setFiltro((f) => ({ ...f, pagina: f.pagina + 1 }))}>Próxima</button>
             </div>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ChevronsDown } from "lucide-react";
 import { san, chaves } from "./api";
-import { Aviso, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, SeloSituacao, Tag } from "./comuns";
+import { Aviso, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, estiloTabela, SeloSituacao, Tag } from "./comuns";
 import VisaoFocada from "./VisaoFocada";
 import {
   ALTURA_LINHA, camadasAtivas, celulaDa, colunasDaTabela, COLUNAS_FIXAS, gruposDeColunas, janelaVisivel, larguraTotal, LARGURA_FIXA, LISTA_SITUACOES, montarFiltroItens,
@@ -149,10 +149,10 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
               {temFiltro ? "Mude ou limpe os filtros." : projeto.atividadesConfirmadas ? "Importe o cadastro de itens na aba Importação." : <>Confirme as atividades do cliente para continuar.{aoIrParaConfiguracao && <> <button type="button" className="text-primary underline" onClick={aoIrParaConfiguracao}>Ir para a Configuração</button></>}</>}
             </EstadoVazio>
           ) : (
-            <div ref={setArea} onScroll={aoRolar} className="relative h-[68vh] min-h-[320px] overflow-auto border border-border bg-card" tabIndex={0} aria-label="Tabela de produtos por camada. Role para ver mais linhas.">
+            <div ref={setArea} onScroll={aoRolar} className={`${estiloTabela.area} h-[68vh] min-h-[320px]`} tabIndex={0} aria-label="Tabela de produtos por camada. Role para ver mais linhas.">
               <div role="table" aria-label="Produtos e situação de cada camada" aria-rowcount={(total ?? itens.length) + 2} aria-colcount={COLUNAS_FIXAS.length + colunas.length} style={{ width: larg }}>
                 {/* Cabeçalho: grupos (camadas) e colunas, fixo no topo; as 3 primeiras colunas também ficam fixas à esquerda. */}
-                <div role="rowgroup" className="sticky top-0 z-30 bg-muted" style={{ height: ALTURA_CABECALHO }}>
+                <div role="rowgroup" className={estiloTabela.cabecalho} style={{ height: ALTURA_CABECALHO }}>
                   <div role="row" className="flex border-b border-border/70" style={{ height: ALTURA_CABECALHO / 2 }}>
                     <div className="sticky left-0 z-40 bg-muted" style={{ width: LARGURA_FIXA }} />
                     {gruposCab.map((g) => (
@@ -166,9 +166,9 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
                   </div>
                   <div role="row" className="flex text-xs text-muted-foreground" style={{ height: ALTURA_CABECALHO / 2 }}>
                     {COLUNAS_FIXAS.map((c, n) => (
-                      <div key={c.id} role="columnheader" className="sticky z-40 flex items-center bg-muted px-2 font-medium" style={{ width: c.largura, left: COLUNAS_FIXAS.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>{c.titulo}</div>
+                      <div key={c.id} role="columnheader" className={estiloTabela.tituloFixo} style={{ width: c.largura, left: COLUNAS_FIXAS.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>{c.titulo}</div>
                     ))}
-                    {colunas.map((c) => <div key={c.id} role="columnheader" className="flex items-center border-l border-border/70 px-2" style={{ width: c.largura }}>{c.titulo}</div>)}
+                    {colunas.map((c) => <div key={c.id} role="columnheader" className={estiloTabela.tituloColuna} style={{ width: c.largura }}>{c.titulo}</div>)}
                   </div>
                 </div>
                 <div role="rowgroup" className="relative" style={{ height: janela.alturaTotal }}>
@@ -176,9 +176,9 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
                     const i = janela.inicio + k;
                     const marcado = selecao?.id === item.id;
                     return (
-                      <div key={item.id} role="row" aria-rowindex={i + 3} aria-selected={marcado} className={`absolute left-0 flex border-b border-border/60 text-[13px] ${marcado ? "bg-primary/10" : i % 2 ? "bg-muted/20" : "bg-card"}`} style={{ top: i * ALTURA_LINHA, height: ALTURA_LINHA, width: larg }}>
+                      <div key={item.id} role="row" aria-rowindex={i + 3} aria-selected={marcado} className={`absolute left-0 ${estiloTabela.linha} ${estiloTabela.fundoLinha(i, marcado)}`} style={{ top: i * ALTURA_LINHA, height: ALTURA_LINHA, width: larg }}>
                         {COLUNAS_FIXAS.map((c, n) => (
-                          <div key={c.id} role="cell" className={`sticky z-10 flex items-center overflow-hidden px-2 ${marcado ? "bg-primary/10" : i % 2 ? "bg-muted" : "bg-card"} ${c.id === "codigo" ? "font-medium tabular-nums" : ""}`} style={{ width: c.largura, left: COLUNAS_FIXAS.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>
+                          <div key={c.id} role="cell" className={`sticky z-10 flex items-center overflow-hidden px-2 ${estiloTabela.fundoFixo(i, marcado)} ${c.id === "codigo" ? "font-medium tabular-nums" : ""}`} style={{ width: c.largura, left: COLUNAS_FIXAS.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>
                             <span className="truncate" title={c.id === "descricao" ? item.descricao : undefined}>{c.id === "estabelecimento" ? item.estabelecimento || "—" : item[c.id]}</span>
                             {c.id === "descricao" && item.ativo === false && <Tag className="ml-1">inativo</Tag>}
                           </div>
@@ -186,7 +186,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
                         {colunas.map((c) => {
                           const cel = c.tipo === "situacao" ? celulaDa(item, c.camada) : null;
                           return (
-                            <div key={c.id} role="cell" className="flex items-center overflow-hidden border-l border-border/40 px-2" style={{ width: c.largura }}>
+                            <div key={c.id} role="cell" className={estiloTabela.celula} style={{ width: c.largura }}>
                               {c.tipo === "situacao" ? (
                                 <button type="button" onClick={() => setSelecao({ id: item.id, camada: c.camada })} title={cel?.revisar_causa || undefined}
                                   aria-label={`${item.codigo}, ${ROTULO_CAMADA[c.camada]}: ${textoDaCelula(cel)}. Abrir a visão focada.`}

@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "a@b.c" } }) }));
 
 import { chaves, renovarAposRestauracao } from "./api";
+import { estiloTabela } from "./comuns";
 import Abas from "./Abas";
 import CasoDetalhe, { ParecerIa } from "./CasoDetalhe";
 import Casos from "./Casos";
@@ -92,6 +93,15 @@ describe("Configuração", () => {
     expect(t).toContain("CNAE 01.1: cultivo de lavouras temporárias");
     expect(t).toContain("CNAE sem atividade correspondente — inclua manualmente se aplicável");
     expect(t).toContain("Pecuária (criação de animais)");
+  });
+  it("seções com faixa de título (linha verde), borda nítida, rótulos legíveis e campos em fundo de campo", () => {
+    const html = montar(<Configuracao projeto={projeto()} recarregar={() => {}} />);
+    for (const [id, t] of [["san-cfg-dados", "Dados do projeto"], ["san-cfg-ativ", "Atividades do cliente"], ["san-cfg-mod", "Módulos opcionais"]]) {
+      expect(html, t).toMatch(new RegExp(`<section aria-labelledby="${id}" class="border border-foreground/50 bg-card[^"]*"><div class="[^"]*border-b-2 border-primary bg-muted[^"]*"><h2 id="${id}"[^>]*>${t}</h2>`));
+    }
+    expect(html).toContain("w-full border border-input bg-background");
+    expect(html).toContain("mb-1 block text-xs font-medium text-foreground/80");
+    expect(html).not.toMatch(/<(input|select|textarea)[^>]*border-border/);
   });
   it("CNPJ desatualizado pede para revisar as atividades", () => {
     expect(texto(montar(<Configuracao projeto={projeto({ cnpjDesatualizado: true })} recarregar={() => {}} />))).toContain("Revisar atividades");
@@ -202,6 +212,36 @@ describe("Casos", () => {
     expect(t).toContain("Aprovar em lote");
     expect(t).toContain("Em aberto (plano de ajustes)");
     expect(t).toContain("Escolha um caso");
+  });
+  it("tabela no layout da aba Tabela: cabeçalho fixo, colunas fixas, linhas de 38 px com zebra, selo de situação e contador no topo", () => {
+    const outro = { ...caso, id: "c2", camada: "QUALIDADE", tipo: "SEM_MOVIMENTO", situacao: "RASCUNHO", origem: "IA", problema: "Item parado desde o corte de movimentação, sem saldo, no grupo Ferragens e em outros quatro grupos do cadastro de itens" };
+    const html = montar(<Casos projeto={projeto()} />, seed([caso, outro]));
+    const t = texto(html);
+    // mesmas classes da aba Tabela
+    for (const cls of [estiloTabela.area, estiloTabela.cabecalho, estiloTabela.tituloFixo, estiloTabela.linha]) expect(html, cls).toContain(cls);
+    const unica = montar(<TabelaUnica projeto={projeto({ atividadesConfirmadas: true })} />, (qc) => qc.setQueryData(chaves.itens("p1", filtroInicial), pagina([item()])));
+    for (const cls of [estiloTabela.area, estiloTabela.cabecalho, estiloTabela.tituloFixo, estiloTabela.linha]) expect(unica, cls).toContain(cls);
+    expect(html).toContain('role="table" aria-label="Casos"');
+    expect(html).toContain("min-height:38px");
+    expect(html).toContain(estiloTabela.fundoFixo(1, false)); // zebra nas colunas fixas
+    expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:36px/); // Camada fixa logo depois da caixa de marcar
+    for (const x of ["Camada", "Tipo", "Problema", "Itens", "Situação", "Origem", "Parecer da IA", "Proposto", "Rascunho", "Regra", "IA", "2 caso(s) em aberto carregado(s).", "Buscar nesta lista", "Filtros por coluna", "Colunas"]) expect(t, x).toContain(x);
+    expect(html).toContain('aria-label="Marcar todas"');
+    expect(html).toContain('aria-label="Marcar a linha"');
+    expect(html).toContain('aria-sort="none"');
+    // texto longo numa linha só, com o texto inteiro no título
+    expect(html).toContain(`title="${outro.problema}"`);
+    expect(t).not.toContain("Limpar filtros");
+  });
+  it("lista com mais páginas: o contador avisa e o botão Carregar mais casos continua", () => {
+    const t = texto(montar(<Casos projeto={projeto()} />, (qc) => qc.setQueryData(chaveLista, { pages: [{ casos: [caso], proximo: "c9" }], pageParams: [undefined] })));
+    expect(t).toContain("há mais casos a carregar");
+    expect(t).toContain("Carregar mais casos");
+  });
+  it("recorte da visão geral: aviso do grupo, filtro de camada e Limpar filtros (que mantém o recorte)", () => {
+    const f = { camada: "NCM", situacao: "ABERTOS", tipo: "", origem: "", grupo: "Ferragens" };
+    const t = texto(montar(<Casos projeto={projeto()} recorte={{ camada: "NCM", grupo: "Ferragens" }} />, (qc) => qc.setQueryData(chaves.casos("p1", f), { pages: [{ casos: [caso], proximo: null }], pageParams: [undefined] })));
+    for (const x of ["Recorte da visão geral", "Ferragens", "Tirar o recorte", "Limpar filtros", "1 caso(s) com estes filtros carregado(s)."]) expect(t, x).toContain(x);
   });
 });
 
@@ -474,6 +514,20 @@ describe("Unificações", () => {
     for (const x of ["Inativação (sem movimentação)", "Inativação (duplicidade)", "saldo multiplicado por 1.000.000"]) expect(t, x).toContain(x);
     const sem = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { escalaSaldo: 1 }))));
     expect(sem).not.toContain("saldo multiplicado");
+  });
+  it("tabela no layout da aba Tabela: cabeçalho fixo, Tipo e Código que morre fixos, selos de situação, contador no topo e páginas", () => {
+    const html = montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif, inat])));
+    const t = texto(html);
+    for (const cls of [estiloTabela.area, estiloTabela.cabecalho, estiloTabela.tituloFixo, estiloTabela.linha, estiloTabela.celula]) expect(html, cls).toContain(cls);
+    expect(html).toContain('role="table" aria-label="Unificações e inativações"');
+    expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:0/);
+    expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:190px/);
+    expect(html).not.toContain('aria-label="Marcar todas"'); // somente leitura: sem caixas de marcar
+    for (const x of ["Linhas 1 a 2 de 2.", "Página 1 de 1", "Anterior", "Próxima", "Buscar nesta lista", "Filtros por coluna", "Colunas", "Código (que morre ou que fica)", "Buscar"]) expect(t, x).toContain(x);
+    expect(t).not.toContain("Limpar filtros");
+    expect(html).toMatch(/border-orange-600\/50[^"]*"[^>]*>Proposta/); // selo de situação com cor e texto
+    expect(html).toMatch(/border-emerald-600\/50[^"]*"[^>]*>Aprovada/);
+    expect(t).not.toContain("com estes filtros");
   });
   it("sem corte definido, avisa que os itens parados não foram avaliados", () => {
     const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { corteDefinido: false }))));
