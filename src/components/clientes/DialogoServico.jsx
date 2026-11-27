@@ -100,8 +100,8 @@ export default function DialogoServico({ aberto, aoFechar, empresas = [], servic
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Observação</span>
             <textarea className={campo} rows={2} value={f.observacao} maxLength={2000} onChange={(e) => mudar("observacao", e.target.value)} /></label>
           <DialogFooter>
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={salvar.isPending || !datasOk} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={salvar.isPending || !datasOk} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 text-sm font-medium text-primary-foreground disabled:opacity-60">
               {salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar
             </button>
           </DialogFooter>

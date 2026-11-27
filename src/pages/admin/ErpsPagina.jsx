@@ -10,8 +10,8 @@ import { CAMPOS_LIMITE, CAMPOS_SANEAMENTO, GRAUS, SITUACOES_ERP, TIPOS_AJUSTE_ER
 
 const CRUMBS = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Configuração e ERPs", to: "/configuracao" }];
 const campo = "mt-1 w-full border border-input rounded-md px-2 py-1.5 text-sm bg-background text-foreground";
-const botao = "rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50";
-const botaoPrimario = "rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50";
+const botao = "botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted disabled:opacity-50";
+const botaoPrimario = "botao-acao rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50";
 const erroDe = (e) => e?.response?.data?.message || e?.message || "Não foi possível salvar.";
 const dataHora = (s) => (s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "");
 

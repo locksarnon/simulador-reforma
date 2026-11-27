@@ -50,7 +50,7 @@ export default function RegrasEstaduais({ uf = "", aoEscolherUf = () => {}, comp
                   <li key={d.chave}>
                     <a
                       href={d.url} target="_blank" rel="noreferrer" title={`${d.numero}: ${d.titulo}`}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
+                      className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary/5 px-3 py-[5px] text-sm font-medium text-primary hover:bg-primary/10"
                     >
                       {d.botao}<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                     </a>

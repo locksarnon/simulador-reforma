@@ -69,7 +69,7 @@ export default function LeadForm({ origem, titulo, subtitulo, botao = "Receber o
         <span>Aceito receber novidades da reforma tributária por e-mail (posso cancelar quando quiser). Seus dados são usados só para enviar este relatório e o contato da equipe FAL Agro, conforme a LGPD.</span>
       </label>
       {erro && <p className="text-sm text-destructive">{erro}</p>}
-      <button type="submit" disabled={enviando} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60">
+      <button type="submit" disabled={enviando} className="botao-acao w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60">
         {enviando && <Loader2 className="w-4 h-4 animate-spin" />}
         {enviando ? "Enviando…" : botao}
       </button>

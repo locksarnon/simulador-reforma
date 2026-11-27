@@ -94,8 +94,8 @@ function AbaTarefas({ user, empresas, colaboradores }) {
               {colaboradores.filter((c) => c.id !== user?.id).map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
             </select></label>
           <div className="w-60"><SeletorDeEmpresa empresas={empresas} valor={filtros.empresa} aoMudar={(v) => mudar("empresa", v)} rotulo="Empresa" opcional={false} placeholder="Todas as empresas" /></div>
-          <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
-          <button type="button" onClick={() => setDialogo({ tarefa: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova tarefa</button>
+          <button type="button" onClick={recarregar} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
+          <button type="button" onClick={() => setDialogo({ tarefa: null })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova tarefa</button>
         </div>
 
         {lista.isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
@@ -167,8 +167,8 @@ function AbaProcessos({ ehAdmin, colaboradores }) {
         <p className="flex-1 min-w-[260px] text-sm text-muted-foreground">A tarefa de cada período é criada 10 dias antes do prazo.</p>
         {ehAdmin ? (
           <>
-            <button type="button" onClick={() => setGerar({ modelo: "" })} disabled={!processos.some((p) => p.ativo)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50">Gerar tarefas agora</button>
-            <button type="button" onClick={() => setDialogo({ processo: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo processo</button>
+            <button type="button" onClick={() => setGerar({ modelo: "" })} disabled={!processos.some((p) => p.ativo)} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted disabled:opacity-50">Gerar tarefas agora</button>
+            <button type="button" onClick={() => setDialogo({ processo: null })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo processo</button>
           </>
         ) : <p className="text-xs text-muted-foreground">Só administradores criam e mudam processos.</p>}
       </div>

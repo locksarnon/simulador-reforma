@@ -99,19 +99,19 @@ export default function ProjetoDiagnosticoPagina() {
         subtitle={p.servico_consultoria ? `${clientesDocumentos.map((c) => c.nome).join(", ") || "Cliente do projeto"} · ${rotuloPeriodo(p, fmtDataCurta)}${p.responsavel ? ` · ${p.responsavel}` : ""}` : `${plural(daLista.length, "empresa", "empresas")}${grupo ? ` · ${rotuloDoGrupo(grupo)}${inteiro ? " (inteiro)" : " (parte)"}` : ""} · desde ${fmtDataCurta(p.inicio)}${p.prazo ? ` · prazo ${fmtDataCurta(p.prazo)}` : ""}`}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            {servico && <button type="button" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground" onClick={() => setDocumentos(true)}>Documentos e solicitações</button>}
+            {servico && <button type="button" className="botao-acao rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground" onClick={() => setDocumentos(true)}>Documentos e solicitações</button>}
             <select aria-label="Situação do diagnóstico" value={p.situacao} onChange={(e) => salvar.mutate({ situacao: e.target.value })} className="rounded-md border border-border bg-background px-2 py-1.5 text-sm">
               {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{servico && !servico.projeto && k === "EM_ANDAMENTO" ? "Em coleta de documentos" : s.rotulo}</option>)}
             </select>
-            <button type="button" onClick={() => setEditando(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar escopo</button>
-            {(admin || !pendente) && <button type="button" onClick={excluir} disabled={exclusao.isPending} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" aria-hidden="true" /> {acaoExclusao}</button>}
+            <button type="button" onClick={() => setEditando(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar escopo</button>
+            {(admin || !pendente) && <button type="button" onClick={excluir} disabled={exclusao.isPending} className="botao-acao botao-acao-perigo inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" aria-hidden="true" /> {acaoExclusao}</button>}
           </div>
         )}
       />
       <div className="px-6 lg:px-8 py-5 space-y-4">
         {pendente && <section className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted p-3 text-sm" aria-label="Solicitação de exclusão">
           <p><strong>Exclusão aguardando autorização.</strong> Solicitada por {p.exclusao_solicitada_por} em {fmtDataCurta(p.exclusao_solicitada_em)}.</p>
-          {admin && <button type="button" disabled={exclusao.isPending} className="rounded-md border bg-background px-3 py-1.5 hover:bg-muted" onClick={() => exclusao.mutate(true)}>Recusar exclusão</button>}
+          {admin && <button type="button" disabled={exclusao.isPending} className="botao-acao rounded-md bg-background px-3 py-[5px] hover:bg-muted" onClick={() => exclusao.mutate(true)}>Recusar exclusão</button>}
         </section>}
         {servico && <AnalisarComIa projetoId={p.id} servico={servico} />}
         {documentos && servico && <SolicitacoesConsultoria servico={servico}
@@ -122,7 +122,7 @@ export default function ProjetoDiagnosticoPagina() {
         {p.servico_consultoria === "saneamento-estoques" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Saneamento de estoques</h2>
           <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. Todas as etapas deste projeto, da importação dos arquivos à política de uso, ficam no Saneamento de estoques e cadastro de produtos.</p>
-          <Link to={`/diagnostico/projetos/${p.id}/saneamento`} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Abrir o Saneamento de estoques e cadastro de produtos</Link>
+          <Link to={`/diagnostico/projetos/${p.id}/saneamento`} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">Abrir o Saneamento de estoques e cadastro de produtos</Link>
         </section>}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
@@ -145,8 +145,8 @@ export default function ProjetoDiagnosticoPagina() {
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Responsável</span><input className={campo} value={rascunho.responsavel} onChange={(e) => setRascunho((r) => ({ ...r, responsavel: e.target.value }))} /></label>
             </div>
             <div className="flex gap-2">
-              <button type="button" disabled={salvar.isPending || rascunho.empresa_ids?.length === 0} onClick={() => salvar.mutate({ ...rascunho, prazo: rascunho.prazo || null })} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
-              <button type="button" onClick={() => setEditando(false)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
+              <button type="button" disabled={salvar.isPending || rascunho.empresa_ids?.length === 0} onClick={() => salvar.mutate({ ...rascunho, prazo: rascunho.prazo || null })} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
+              <button type="button" onClick={() => setEditando(false)} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
             </div>
           </section>
         ) : (p.escopo || p.responsavel) && (
@@ -156,15 +156,15 @@ export default function ProjetoDiagnosticoPagina() {
           </section>
         )}
         {!p.servico_consultoria && grupo && inteiro && (
-          <Link to={`/cockpit?grupo=${encodeURIComponent(grupo.numero)}`} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm hover:border-primary"><BarChart3 className="h-4 w-4" aria-hidden="true" /> Painel executivo do grupo inteiro</Link>
+          <Link to={`/cockpit?grupo=${encodeURIComponent(grupo.numero)}`} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-card px-3 py-[7px] text-sm"><BarChart3 className="h-4 w-4" aria-hidden="true" /> Painel executivo do grupo inteiro</Link>
         )}
         {!p.servico_consultoria && <div className="grid gap-3 xl:grid-cols-2">
           {daLista.map((e) => (
             <section key={e.id} className="rounded-xl border border-border bg-card p-4 space-y-3" aria-label={e.razao_social}>
               <div className="flex flex-wrap items-start gap-2">
                 <div className="min-w-0 flex-1"><Link to={`/clientes/${e.id}`} className="font-semibold hover:text-primary hover:underline">{e.razao_social}</Link><p className="text-xs text-muted-foreground tabular-nums">{mascararDocumento(e.cnpj_cpf)} · {e.regime_atual || "regime não informado"}</p></div>
-                <Link to={`/cockpit?grupo=${encodeURIComponent(e.grupo || "")}&empresa=${encodeURIComponent(e.id_empresa)}`} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Painel</Link>
-                <Link to={`${CAMINHO_REPOSITORIO_XML}/${e.id}`} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" title="Usar os XML já capturados no BPO"><Archive className="h-3.5 w-3.5" aria-hidden="true" /> XML do repositório</Link>
+                <Link to={`/cockpit?grupo=${encodeURIComponent(e.grupo || "")}&empresa=${encodeURIComponent(e.id_empresa)}`} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted"><BarChart3 className="h-3.5 w-3.5" aria-hidden="true" /> Painel</Link>
+                <Link to={`${CAMINHO_REPOSITORIO_XML}/${e.id}`} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted" title="Usar os XML já capturados no BPO"><Archive className="h-3.5 w-3.5" aria-hidden="true" /> XML do repositório</Link>
               </div>
               <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                 {FERRAMENTAS.map((f) => {

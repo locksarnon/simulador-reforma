@@ -66,7 +66,7 @@ function Relatorio({ resultado, emailPadrao }) {
           <div className="flex gap-2">
             <input id={`rel-${resultado.id}`} type="email" value={email} onChange={(e) => { setEmail(e.target.value); if (estado !== "enviando") setEstado("parado"); }} placeholder="cliente@empresa.com.br" autoComplete="off"
               className="min-w-0 flex-1 rounded-md border border-input bg-card px-2.5 py-1.5 text-sm outline-none focus:border-primary/60" />
-            <button type="submit" disabled={!emailValido(email) || estado === "enviando"} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={!emailValido(email) || estado === "enviando"} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50">
               {estado === "enviando" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Mail className="h-3.5 w-3.5" aria-hidden="true" />} {estado === "enviando" ? "Enviando…" : "Enviar"}
             </button>
           </div>
@@ -118,7 +118,7 @@ export function Troca({ item, aoRepetir, emailPadrao }) {
           {item.estado === "erro" && (
             <div className="space-y-2 rounded-xl border border-red-300/60 bg-red-50 p-3 text-sm dark:border-red-900/60 dark:bg-red-950/20" role="alert">
               <p>{item.erro || "Não foi possível consultar agora."}</p>
-              <button type="button" onClick={() => aoRepetir(item)} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs hover:bg-muted"><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Tentar de novo</button>
+              <button type="button" onClick={() => aoRepetir(item)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-background px-2.5 py-[3px] text-xs hover:bg-muted"><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Tentar de novo</button>
             </div>
           )}
         </div>

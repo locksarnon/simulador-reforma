@@ -76,11 +76,11 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
             </nav>
             <div className="ml-auto flex flex-wrap gap-2">
               {nomePasta === null
-                ? <button type="button" onClick={() => setNomePasta("")} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><FolderPlus className="h-4 w-4" aria-hidden="true" /> Nova pasta</button>
+                ? <button type="button" onClick={() => setNomePasta("")} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted"><FolderPlus className="h-4 w-4" aria-hidden="true" /> Nova pasta</button>
                 : (
                   <form onSubmit={(e) => { e.preventDefault(); criarPasta(); }} className="flex items-center gap-1">
                     <input autoFocus className="w-40 rounded-md border border-border bg-background px-2 py-1 text-sm" value={nomePasta} maxLength={60} onChange={(e) => setNomePasta(e.target.value)} placeholder="Nome da pasta" aria-label="Nome da nova pasta" onKeyDown={(e) => { if (e.key === "Escape") setNomePasta(null); }} />
-                    <button type="submit" className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">Abrir</button>
+                    <button type="submit" className="botao-acao rounded-md bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">Abrir</button>
                   </form>
                 )}
               <label className="inline-flex items-center gap-1.5 text-sm" title="Mostra também os arquivos das subpastas: marque todos para baixar ou enviar a pasta inteira (no Início, tudo o que está arquivado)."><input type="checkbox" checked={subpastas} onChange={(e) => setSubpastas(e.target.checked)} />Incluir as subpastas</label>
@@ -91,7 +91,7 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
           {error && <p role="alert" className="py-6 text-center text-sm">Não foi possível carregar os arquivos.</p>}
           {data && data.subpastas.length > 0 && (
             <ul className="flex flex-wrap gap-1.5" aria-label="Subpastas">
-              {[...data.subpastas].sort((a, b) => a.localeCompare(b, "pt-BR")).map((s) => <li key={s}><button type="button" onClick={() => setPasta([pasta, s].filter(Boolean).join("/"))} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm font-medium hover:bg-muted hover:text-primary"><Folder className="h-4 w-4 text-amber-600" aria-hidden="true" /> {s}</button></li>)}
+              {[...data.subpastas].sort((a, b) => a.localeCompare(b, "pt-BR")).map((s) => <li key={s}><button type="button" onClick={() => setPasta([pasta, s].filter(Boolean).join("/"))} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-2.5 py-[3px] text-sm font-medium hover:bg-muted hover:text-primary"><Folder className="h-4 w-4 text-amber-600" aria-hidden="true" /> {s}</button></li>)}
             </ul>
           )}
           {data && (
@@ -117,7 +117,7 @@ function AbaArquivos({ empresas, pessoas, donoInicial }) {
             <form onSubmit={(e) => { e.preventDefault(); mover.mutate(editar); }} className="space-y-3 text-sm">
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Nome</span><input className={campo} value={editar.nome} onChange={(e) => setEditar({ ...editar, nome: e.target.value })} /></label>
               <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Pasta</span><input className={campo} value={editar.pasta} onChange={(e) => setEditar({ ...editar, pasta: e.target.value })} placeholder="(raiz)" /></label>
-              <DialogFooter><button type="button" onClick={() => setEditar(null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button><button type="submit" className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground">Salvar</button></DialogFooter>
+              <DialogFooter><button type="button" onClick={() => setEditar(null)} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button><button type="submit" className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground">Salvar</button></DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -156,7 +156,7 @@ function DialogoDocumento({ doc, empresas, pessoas, tipos, aoFechar }) {
           </div>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Descrição</span><input className={campo} value={f.descricao} maxLength={300} onChange={(e) => mudar("descricao", e.target.value)} /></label>
           <div className="space-y-1"><span className="block text-xs text-muted-foreground">Arquivo (opcional; vai para a pasta Documentos)</span><CampoArquivo compacto arquivo={arquivo} rotulo="Arquivo do documento" className="w-full" aoEscolher={([a]) => setArquivo(a || null)} /></div>
-          <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button><button type="submit" disabled={(!doc && !f.dono) || (!f.tipo_id && !f.descricao.trim()) || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button></DialogFooter>
+          <DialogFooter><button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button><button type="submit" disabled={(!doc && !f.dono) || (!f.tipo_id && !f.descricao.trim()) || salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -189,7 +189,7 @@ function AbaDocumentos({ empresas, pessoas, tipos }) {
         <TabelaPadrao
           id="bpo-documentos-validade" ariaLabel="Documentos com validade" titulo="Documentos com validade" linhas={lista} ordemInicial={{ chave: "validade", dir: 1 }}
           vazio={docs.length ? "Nenhum documento nessa situação." : "Nenhum documento ainda. Cadastre alvarás, licenças e certidões com a validade para receber o aviso antes de vencer."}
-          acoes={<button type="button" onClick={() => setDialogo({ doc: null })} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo documento</button>}
+          acoes={<button type="button" onClick={() => setDialogo({ doc: null })} className="botao-acao inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo documento</button>}
           colunas={[
             { chave: "documento", rotulo: "Documento", valor: (d) => d.tipo?.nome || d.descricao || "", render: (d) => <span className="font-medium">{d.tipo?.nome || d.descricao}</span> },
             { chave: "descricao", rotulo: "Descrição", valor: (d) => (d.tipo ? d.descricao || "" : ""), render: (d) => (d.tipo && d.descricao ? <span className="block max-w-[24rem] truncate" title={d.descricao}>{d.descricao}</span> : <span className="text-muted-foreground">—</span>) },
@@ -228,7 +228,7 @@ function AbaDownloads() {
             { chave: "tamanho", rotulo: "Tamanho", alinhar: "direita", render: (l) => tamanhoLegivel(l.tamanho) },
             { chave: "expira_em", rotulo: "Validade", tipo: "data", render: (l) => <span className="text-muted-foreground">{expiraEm(l.expira_em)}</span> },
             { chave: "acoes", rotulo: "Ações", ordenavel: false, filtravel: false, alinhar: "direita", valor: () => "",
-              render: (l) => <button type="button" onClick={() => api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }).catch((e) => toast({ title: "Não foi possível baixar", description: e.message, variant: "destructive" }))} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" /> Baixar</button> },
+              render: (l) => <button type="button" onClick={() => api.baixar("get", `/downloads/${l.id}/arquivo`, { nome: l.nome }).catch((e) => toast({ title: "Não foi possível baixar", description: e.message, variant: "destructive" }))} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-px text-xs hover:bg-muted"><Download className="h-3.5 w-3.5" aria-hidden="true" /> Baixar</button> },
           ]}
         />
       )}
@@ -250,7 +250,7 @@ function AbaTipos({ ehAdmin, tipos }) {
           <label className="space-y-1"><span className="block text-xs text-muted-foreground">Tipo de documento</span><input className={campo} value={novo.nome} maxLength={80} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Ex.: CAR, CCIR" /></label>
           <label className="space-y-1"><span className="block text-xs text-muted-foreground">Órgão expedidor</span><input className={campo} value={novo.orgao} maxLength={120} onChange={(e) => setNovo({ ...novo, orgao: e.target.value })} /></label>
           <label className="space-y-1"><span className="block text-xs text-muted-foreground">Avisar (dias antes)</span><input type="number" min={0} max={365} className={campo} value={novo.alerta_dias} onChange={(e) => setNovo({ ...novo, alerta_dias: e.target.value })} /></label>
-          <button type="submit" className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground">Criar</button>
+          <button type="submit" className="botao-acao rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground">Criar</button>
         </form>
       ) : <p className="text-sm text-muted-foreground">Só administradores mudam os tipos de documento.</p>}
       <TabelaPadrao

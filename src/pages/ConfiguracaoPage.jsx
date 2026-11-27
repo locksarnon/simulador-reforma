@@ -89,7 +89,7 @@ export default function ConfiguracaoPage() {
         </div>
         <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
           {saved && <span className="text-xs text-chart-2">Configuração salva.</span>}
-          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50">
+          <button type="submit" disabled={saving} className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50">
             <Save className="w-4 h-4" /> Salvar
           </button>
         </div>

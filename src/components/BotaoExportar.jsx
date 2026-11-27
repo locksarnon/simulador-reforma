@@ -28,7 +28,7 @@ export default function BotaoExportar({ titulo, colunas, linhas }) {
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
       <PopoverTrigger asChild>
-        <button type="button" disabled={!linhas.length} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50" aria-label={`Exportar ${titulo}`}><Download className="h-4 w-4" aria-hidden="true" /> Exportar</button>
+        <button type="button" disabled={!linhas.length} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted disabled:opacity-50" aria-label={`Exportar ${titulo}`}><Download className="h-4 w-4" aria-hidden="true" /> Exportar</button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-3 text-sm">
         <p className="text-xs text-muted-foreground">{plural(linhas.length, "linha", "linhas")} com os filtros da tela.</p>
@@ -38,7 +38,7 @@ export default function BotaoExportar({ titulo, colunas, linhas }) {
         <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Formato">
           {FORMATOS.map(([v, r]) => <button key={v} type="button" aria-pressed={formato === v} onClick={() => setFormato(v)} className={`rounded px-3 py-1 text-xs ${formato === v ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{r}</button>)}
         </div>
-        <button type="button" onClick={exportar} disabled={!escolhidas.length || gerando} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{gerando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Baixar</button>
+        <button type="button" onClick={exportar} disabled={!escolhidas.length || gerando} className="botao-acao inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground disabled:opacity-60">{gerando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Baixar</button>
       </PopoverContent>
     </Popover>
   );

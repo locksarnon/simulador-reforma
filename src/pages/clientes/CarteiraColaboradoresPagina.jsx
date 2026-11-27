@@ -61,7 +61,7 @@ export function PorColaborador({ colaboradores, empresas, ehAdmin }) {
               ]}
               ordemInicial={{ chave: "razao_social", dir: 1 }}
               acoes={ehAdmin && (
-                <button type="button" disabled={salvar.isPending || (dif.entram === 0 && dif.saem === 0)} onClick={() => salvar.mutate()} className="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground disabled:opacity-60">
+                <button type="button" disabled={salvar.isPending || (dif.entram === 0 && dif.saem === 0)} onClick={() => salvar.mutate()} className="botao-acao inline-flex h-8 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground disabled:opacity-60">
                   {salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar carteira
                 </button>
               )}
@@ -94,7 +94,7 @@ export function SemColaborador({ colaboradores, ehAdmin }) {
             <div className="flex flex-wrap items-end gap-2 text-sm">
               <label className="space-y-1"><span className="block text-xs text-muted-foreground">Atribuir as marcadas a</span>
                 <select className={campo} value={destino} onChange={(e) => setDestino(e.target.value)}><option value="">Escolha…</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}</select></label>
-              <button type="button" disabled={!destino || marcadas.size === 0 || atribuir.isPending} onClick={() => atribuir.mutate()} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">Atribuir {marcadas.size || ""}</button>
+              <button type="button" disabled={!destino || marcadas.size === 0 || atribuir.isPending} onClick={() => atribuir.mutate()} className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">Atribuir {marcadas.size || ""}</button>
             </div>
           )}
           <TabelaPadrao

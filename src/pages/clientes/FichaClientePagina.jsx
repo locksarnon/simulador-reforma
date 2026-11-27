@@ -100,8 +100,8 @@ export default function FichaClientePagina() {
         subtitle={[mascararDocumento(empresa.cnpj_cpf), empresa.regime_atual, [empresa.municipio, empresa.uf].filter(Boolean).join("/"), rotuloDoGrupo(grupo)].filter(Boolean).join(" · ")}
         actions={(
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setEditando(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar dados</button>
-            {pode("arquivar_clientes") && <button type="button" onClick={alternarArquivo} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">{arquivada ? <><ArchiveRestore className="h-4 w-4" aria-hidden="true" /> Desarquivar</> : <><Archive className="h-4 w-4" aria-hidden="true" /> Arquivar</>}</button>}
+            <button type="button" onClick={() => setEditando(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar dados</button>
+            {pode("arquivar_clientes") && <button type="button" onClick={alternarArquivo} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted">{arquivada ? <><ArchiveRestore className="h-4 w-4" aria-hidden="true" /> Desarquivar</> : <><Archive className="h-4 w-4" aria-hidden="true" /> Arquivar</>}</button>}
           </div>
         )}
       />

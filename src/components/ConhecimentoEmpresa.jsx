@@ -27,7 +27,7 @@ export default function ConhecimentoEmpresa({ empresa, editar = false }) {
           <span className="text-muted-foreground truncate"><NomeErp registro={empresa} versao={empresa?.erp_versao ? `· ${empresa.erp_versao}` : ''} /> · {addons}</span>
           {regras.length > 0 && <span className="text-xs rounded-full bg-muted px-2 py-0.5 text-muted-foreground whitespace-nowrap">{regras.length} {regras.length === 1 ? 'orientação' : 'orientações'}</span>}
         </button>
-        {editar && <button type="button" onClick={() => setAberto(true)} className="border border-border rounded-md px-2.5 py-1 text-xs hover:bg-muted">Editar ERP e add-ons</button>}
+        {editar && <button type="button" onClick={() => setAberto(true)} className="botao-acao rounded-md px-2.5 py-[3px] text-xs hover:bg-muted">Editar ERP e add-ons</button>}
       </div>
       {detalhe && (
         <div className="border-t border-border p-3 space-y-3">

@@ -74,7 +74,7 @@ function colunaEditar(aoEditar, nome = (r) => r.codigo) {
 
 function BotaoNovo({ onClick }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex h-8 items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-xs hover:bg-primary/90">
+    <button type="button" onClick={onClick} className="botao-acao inline-flex h-8 items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-xs hover:bg-primary/90">
       <Plus className="w-3.5 h-3.5" /> Novo
     </button>
   );
@@ -155,8 +155,8 @@ function CstTable() {
             <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
             <VigenciaFields form={form} set={set} />
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>
@@ -208,8 +208,8 @@ function ClassTribTable() {
             </div>
             <VigenciaFields form={form} set={set} />
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>
@@ -310,8 +310,8 @@ function CredPresTable() {
             <VigenciaFields form={form} set={set} inicioKey="inicio_ibs" fimKey="fim_ibs" label="Vigência IBS" />
             <VigenciaFields form={form} set={set} inicioKey="inicio_cbs" fimKey="fim_cbs" label="Vigência CBS" />
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>
@@ -358,8 +358,8 @@ function NcmTable() {
             <div><label className="text-xs text-muted-foreground">Descrição</label><Input value={form.descricao || ""} onChange={(e) => set("descricao", e.target.value)} /></div>
             <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>
@@ -411,8 +411,8 @@ function CfopTable() {
             </div>
             <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>
@@ -463,8 +463,8 @@ function BeneficioFiscalTable() {
             <VigenciaFields form={form} set={set} />
             <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>
@@ -528,7 +528,7 @@ function CombustivelTable() {
           A CBS de 2027 é a da Portaria MF nº 3.074/2026 (efeitos a partir de 08/01/2027). O IBS por unidade, de 2029 em diante, ainda
           não foi divulgado pelo Comitê Gestor: deixe em branco até lá. Anos sem linha repetem a CBS do último ano divulgado.
         </p>
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 shrink-0">
+        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="botao-acao inline-flex items-center gap-2 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 shrink-0">
           <Plus className="w-4 h-4" /> Novo
         </button>
       </div>
@@ -549,8 +549,8 @@ function CombustivelTable() {
               options={[{ value: "Oficial", label: "Oficial (ato publicado)" }, { value: "Estimativa", label: "Estimativa" }]} />
             <div><label className="text-xs text-muted-foreground">Observação</label><Input value={form.observacao || ""} onChange={(e) => set("observacao", e.target.value)} /></div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>

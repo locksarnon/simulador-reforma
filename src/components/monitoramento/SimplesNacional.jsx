@@ -32,7 +32,7 @@ export default function SimplesNacional({ empresaId }) {
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="flex-1 text-sm font-semibold">Simples Nacional{a?.periodo ? ` · declaração de ${comp(a.periodo)}` : ""}</h3>
         {d?.consultado_em && <span className="text-[11px] text-muted-foreground">{quandoConsultou(d.consultado_em)}{d.simulado ? " · demonstração" : ""}</span>}
-        <button type="button" disabled={atualizar.isPending} onClick={() => atualizar.mutate()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60">{atualizar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
+        <button type="button" disabled={atualizar.isPending} onClick={() => atualizar.mutate()} className="botao-acao inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-muted disabled:opacity-60">{atualizar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}Consultar na Receita</button>
       </div>
       {q.isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" aria-hidden="true" />Carregando…</p>}
       {d && !a && <p className="text-sm text-muted-foreground">Sem declaração lida.</p>}

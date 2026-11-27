@@ -43,7 +43,7 @@ export default function InicioPagina({ agora = new Date() }) {
       <PageHeader
         crumbs={[{ label: "Início" }]}
         title={`${saudacao(agora.getHours())}${primeiroNome ? `, ${primeiroNome}` : ""}`}
-        actions={<Link to="/cockpit" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><LayoutDashboard className="h-4 w-4" aria-hidden="true" /> Painel executivo</Link>}
+        actions={<Link to="/cockpit" className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted"><LayoutDashboard className="h-4 w-4" aria-hidden="true" /> Painel executivo</Link>}
       />
       <div className="px-6 lg:px-8 py-6 space-y-8">
         <PrimeirosPassos usuarioId={user?.id} />

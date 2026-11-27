@@ -54,7 +54,7 @@ export default function PerfilPagina() {
               <form onSubmit={(e) => { e.preventDefault(); salvarNome.mutate(); }} className="flex items-end gap-2 text-sm">
                 <label className="flex-1 space-y-1"><span className="block text-xs text-muted-foreground">Nome</span>
                   <input className={campo} value={nome ?? perfil.name ?? ""} maxLength={120} onChange={(e) => setNome(e.target.value)} /></label>
-                <button type="submit" disabled={salvarNome.isPending} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">Salvar</button>
+                <button type="submit" disabled={salvarNome.isPending} className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">Salvar</button>
               </form>
             </section>
 
@@ -65,7 +65,7 @@ export default function PerfilPagina() {
                 <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Senha nova (mínimo 10 caracteres)</span><input type="password" autoComplete="new-password" className={campo} value={s.nova} onChange={(e) => mudar("nova", e.target.value)} /></label>
                 <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Repita a senha nova</span><input type="password" autoComplete="new-password" className={campo} value={s.confirmacao} onChange={(e) => mudar("confirmacao", e.target.value)} /></label>
                 {problemas.length > 0 && <ul role="alert" className="space-y-0.5 text-xs text-destructive">{problemas.map((p) => <li key={p}>{p}</li>)}</ul>}
-                <button type="submit" disabled={!podeTrocar || trocar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+                <button type="submit" disabled={!podeTrocar || trocar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">
                   {trocar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Trocar senha
                 </button>
               </form>

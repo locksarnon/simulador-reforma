@@ -32,10 +32,10 @@ function Item({ grupo, onFeito }) {
         </ul>
       </div>
       <div className="flex items-center gap-2">
-        {grupo.tipo === "cartao" && <a href="#cartoes-legais" className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted">Abrir o cartão</a>}
-        {grupo.tipo === "marco" && <Link to="/agenda-reforma" className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted">Ver na agenda</Link>}
+        {grupo.tipo === "cartao" && <a href="#cartoes-legais" className="botao-acao px-3 py-[5px] rounded-md text-sm hover:bg-muted">Abrir o cartão</a>}
+        {grupo.tipo === "marco" && <Link to="/agenda-reforma" className="botao-acao px-3 py-[5px] rounded-md text-sm hover:bg-muted">Ver na agenda</Link>}
         {conferivel && (
-          <button type="button" onClick={conferir} disabled={ocupado} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
+          <button type="button" onClick={conferir} disabled={ocupado} className="botao-acao inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
             {ocupado ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Marcar como conferido
           </button>
         )}

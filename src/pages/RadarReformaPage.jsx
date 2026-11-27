@@ -93,7 +93,7 @@ export default function RadarReformaPage() {
           <button
             onClick={gerarAgora}
             disabled={gerando}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"
+            className="botao-acao inline-flex items-center gap-2 px-4 py-[7px] rounded-md text-sm hover:bg-muted disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${gerando ? "animate-spin" : ""}`} />
             {gerando ? "Gerando…" : "Gerar agora"}

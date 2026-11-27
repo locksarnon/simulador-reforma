@@ -35,7 +35,7 @@ export default function NotificacoesPagina() {
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" checked={soNaoLidas} onChange={(e) => setSoNaoLidas(e.target.checked)} /> Só as não lidas</label>
-          <button type="button" onClick={() => todas.mutate()} disabled={!naoLidas || todas.isPending} className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50"><CheckCheck className="h-4 w-4" aria-hidden="true" /> Marcar {categoria ? "estas" : "todas"} como lidas</button>
+          <button type="button" onClick={() => todas.mutate()} disabled={!naoLidas || todas.isPending} className="botao-acao ml-auto inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted disabled:opacity-50"><CheckCheck className="h-4 w-4" aria-hidden="true" /> Marcar {categoria ? "estas" : "todas"} como lidas</button>
         </div>
         <div className="rounded-xl border border-border bg-card divide-y divide-border/60 overflow-hidden">
           {isLoading && <p className="px-4 py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}

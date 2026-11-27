@@ -57,7 +57,7 @@ export function Tabela({ colunas, linhas, rotuloDaTabela, simples = false, id })
 }
 
 function BotoesDeArquivo({ aoBaixar, baixando }) {
-  const classe = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50";
+  const classe = "botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-50";
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" disabled={!!baixando} onClick={() => aoBaixar("xlsx")} className={classe}>
@@ -246,7 +246,7 @@ export default function RelatoriosXml({ empresaId, empresa, hoje }) {
           )}
           {qual === "geral" && <label className="flex items-center gap-2 pb-1.5"><input type="checkbox" checked={geral.incluirResumos} onChange={(e) => setGeral((g) => ({ ...g, incluirResumos: e.target.checked }))} /> <span>Contar também os que só têm o resumo</span></label>}
         </div>
-        <button type="button" onClick={() => gerar.mutate()} disabled={gerar.isPending} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
+        <button type="button" onClick={() => gerar.mutate()} disabled={gerar.isPending} className="botao-acao inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
           {gerar.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Gerando…</> : "Gerar relatório"}
         </button>
       </div>

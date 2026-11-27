@@ -47,7 +47,7 @@ export default function FerramentasSaneamento() {
             <label className="text-sm flex-1 min-w-[220px]">Novo projeto
               <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Saneamento de estoques 2026" className="mt-1 w-full border rounded-md p-2 bg-background" />
             </label>
-            <button type="submit" disabled={!nome.trim() || criar.isPending} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">Criar projeto</button>
+            <button type="submit" disabled={!nome.trim() || criar.isPending} className="botao-acao px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">Criar projeto</button>
           </form>
           {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
           <section>

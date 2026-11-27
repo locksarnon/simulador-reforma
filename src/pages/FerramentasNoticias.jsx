@@ -89,12 +89,12 @@ export default function FerramentasNoticias() {
             <button
               onClick={buscarAtualizacoes}
               disabled={buscando}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"
+              className="botao-acao inline-flex items-center gap-2 px-4 py-[7px] rounded-md text-sm hover:bg-muted disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${buscando ? "animate-spin" : ""}`} />
               {buscando ? "Buscando…" : "Buscar atualizações"}
             </button>
-            <button onClick={() => start("new")} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
+            <button onClick={() => start("new")} className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
               <Plus className="w-4 h-4" /> Nova notícia
             </button>
           </div>
@@ -153,8 +153,8 @@ export default function FerramentasNoticias() {
               </div>
               <div><Label className="text-xs">Tags</Label><Input value={form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="separadas por vírgula" /></div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-                <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+                <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+                <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
               </div>
             </form>
           </DialogContent>

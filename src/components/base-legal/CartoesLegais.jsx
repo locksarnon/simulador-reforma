@@ -73,10 +73,10 @@ export function CartaoResposta({ c, admin, onMudou, onEditar, aberto = false }) 
           {admin && (
             <div className="flex flex-wrap gap-2">
               {c.status === "revisado"
-                ? <button type="button" disabled={Boolean(ocupado)} onClick={() => agir("despublicar")} className="px-2.5 py-1 rounded-md border border-border text-xs hover:bg-muted">Voltar para rascunho</button>
-                : <button type="button" disabled={Boolean(ocupado)} onClick={() => agir("revisar")} className="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs inline-flex items-center gap-1">{ocupado === "revisar" && <Loader2 className="w-3 h-3 animate-spin" />} Revisar e publicar</button>}
-              <button type="button" onClick={() => onEditar(c)} className="px-2.5 py-1 rounded-md border border-border text-xs hover:bg-muted inline-flex items-center gap-1"><Pencil className="w-3 h-3" /> Editar</button>
-              <button type="button" disabled={Boolean(ocupado)} onClick={() => agir("excluir")} className="px-2.5 py-1 rounded-md border border-border text-xs hover:bg-muted text-red-600 inline-flex items-center gap-1"><Trash2 className="w-3 h-3" /> Excluir</button>
+                ? <button type="button" disabled={Boolean(ocupado)} onClick={() => agir("despublicar")} className="botao-acao px-2.5 py-[3px] rounded-md text-xs hover:bg-muted">Voltar para rascunho</button>
+                : <button type="button" disabled={Boolean(ocupado)} onClick={() => agir("revisar")} className="botao-acao px-2.5 py-0.5 rounded-md bg-primary text-primary-foreground text-xs inline-flex items-center gap-1">{ocupado === "revisar" && <Loader2 className="w-3 h-3 animate-spin" />} Revisar e publicar</button>}
+              <button type="button" onClick={() => onEditar(c)} className="botao-acao px-2.5 py-[3px] rounded-md text-xs hover:bg-muted inline-flex items-center gap-1"><Pencil className="w-3 h-3" /> Editar</button>
+              <button type="button" disabled={Boolean(ocupado)} onClick={() => agir("excluir")} className="botao-acao botao-acao-perigo px-2.5 py-[3px] rounded-md text-xs hover:bg-muted text-red-600 inline-flex items-center gap-1"><Trash2 className="w-3 h-3" /> Excluir</button>
             </div>
           )}
         </div>
@@ -118,8 +118,8 @@ function Editor({ inicial, onFechar, onSalvo }) {
       <label className="text-xs block">Atenção (opcional)<textarea rows={2} className={campo} value={f.ressalvas} onChange={(e) => setF({ ...f, ressalvas: e.target.value })} /></label>
       <label className="text-xs block">Base legal — uma por linha: <code>norma/artigo :: trecho copiado da lei</code> (ex.: <code>lcp-214-2025/art-164 :: receita inferior a R$ 3.600.000,00</code>). O trecho é conferido contra o texto da lei.<textarea rows={4} className={`${campo} font-mono text-xs`} value={f.fundamentos} onChange={(e) => setF({ ...f, fundamentos: e.target.value })} /></label>
       <div className="flex gap-2 justify-end">
-        <button type="button" onClick={onFechar} className="px-3 py-1.5 rounded-md border border-border text-sm">Cancelar</button>
-        <button type="button" onClick={salvar} disabled={salvando} className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm inline-flex items-center gap-1.5">{salvando && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Salvar rascunho</button>
+        <button type="button" onClick={onFechar} className="botao-acao px-3 py-[5px] rounded-md text-sm">Cancelar</button>
+        <button type="button" onClick={salvar} disabled={salvando} className="botao-acao px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm inline-flex items-center gap-1.5">{salvando && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Salvar rascunho</button>
       </div>
     </div>
   );
@@ -157,8 +157,8 @@ export default function CartoesLegais({ admin, setor }) {
         </div>
         {admin && (
           <div className="flex gap-2">
-            {cartoes.length === 0 && <button type="button" onClick={carregarLote} disabled={carregando} className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted inline-flex items-center gap-1.5">{carregando && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Carregar lote inicial</button>}
-            <button type="button" onClick={() => setEditando("novo")} className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm inline-flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Novo cartão</button>
+            {cartoes.length === 0 && <button type="button" onClick={carregarLote} disabled={carregando} className="botao-acao px-3 py-[5px] rounded-md text-sm hover:bg-muted inline-flex items-center gap-1.5">{carregando && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Carregar lote inicial</button>}
+            <button type="button" onClick={() => setEditando("novo")} className="botao-acao px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm inline-flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Novo cartão</button>
           </div>
         )}
       </div>

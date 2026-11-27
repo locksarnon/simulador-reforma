@@ -78,8 +78,8 @@ export default function ListaSolicitacoesButton({ servico, empresa }) {
           </div>
           {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
           <DialogFooter>
-            <button type="button" disabled={executando} onClick={() => setAberto(false)} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">Cancelar</button>
-            <button type="button" disabled={executando} onClick={baixar} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
+            <button type="button" disabled={executando} onClick={() => setAberto(false)} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted disabled:opacity-50">Cancelar</button>
+            <button type="button" disabled={executando} onClick={baixar} className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
               {executando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Baixar Excel
             </button>
           </DialogFooter>

@@ -73,7 +73,7 @@ export function Resultado({ r }) {
         <div className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dispositivos que podem ajudar</p>
           <div className="flex flex-wrap gap-2">
-            {r.relacionados.map((x) => <Link key={x.norma + x.caminho} to={`/base-legal/${x.norma}/${x.caminho}`} className="px-2.5 py-1 rounded-md border border-border text-xs hover:bg-muted">{x.numero} — {x.rotulo}</Link>)}
+            {r.relacionados.map((x) => <Link key={x.norma + x.caminho} to={`/base-legal/${x.norma}/${x.caminho}`} className="botao-acao px-2.5 py-[3px] rounded-md text-xs hover:bg-muted">{x.numero} — {x.rotulo}</Link>)}
           </div>
         </div>
       )}

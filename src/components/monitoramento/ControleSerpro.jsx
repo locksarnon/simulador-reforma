@@ -38,7 +38,7 @@ export default function ControleSerpro() {
       <ContratoSerpro />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="text-muted-foreground">Eventos de atualização da Receita (DCTFWeb, caixa postal e pagamentos): a rotina das 06:10 consulta sozinha os clientes com novidade.</span>
-        <button type="button" disabled={eventos.isPending || e.modo === "DESLIGADO"} onClick={() => eventos.mutate()} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 hover:bg-muted disabled:opacity-60">{eventos.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Buscar novidades agora</button>
+        <button type="button" disabled={eventos.isPending || e.modo === "DESLIGADO"} onClick={() => eventos.mutate()} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] hover:bg-muted disabled:opacity-60">{eventos.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Buscar novidades agora</button>
       </div>
       <details className="text-xs">
         <summary className="cursor-pointer text-primary">Como funciona para cada cliente</summary>

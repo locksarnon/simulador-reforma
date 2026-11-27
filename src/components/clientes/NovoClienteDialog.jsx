@@ -94,7 +94,7 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
           <Campo rotulo="CNPJ ou CPF">
             <div className="flex gap-2">
               <input className={campo} value={f.cnpj_cpf} onChange={(e) => mudar("cnpj_cpf", e.target.value)} onBlur={() => { mudar("cnpj_cpf", mascararDocumento(f.cnpj_cpf)); if (digitos.length === 14 && !f.publicos && !buscando) buscar(); }} inputMode="numeric" placeholder="00.000.000/0001-00" autoFocus />
-              <button type="button" onClick={buscar} disabled={buscando} className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-60">
+              <button type="button" onClick={buscar} disabled={buscando} className="botao-acao inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted disabled:opacity-60">
                 {buscando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />} Buscar na Receita
               </button>
             </div>
@@ -128,8 +128,8 @@ export default function NovoClienteDialog({ aberto, aoFechar, grupos = [], colab
           </div>
           {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
           <DialogFooter>
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Cadastrar cliente</button>
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Cadastrar cliente</button>
           </DialogFooter>
         </form>
       </DialogContent>

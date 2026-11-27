@@ -45,7 +45,7 @@ export default function Workroom() {
           actions={
             <button
               onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors"
+              className="botao-acao botao-acao-perigo inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-xs text-muted-foreground hover:text-destructive transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Excluir

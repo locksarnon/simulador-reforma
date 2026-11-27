@@ -56,7 +56,7 @@ function RevisaoDaNota({ chave }) {
       <ul className="list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">{daNota.map((l) => <li key={l.id}>{fraseDaRevisao(l)}</li>)}</ul>
       <p className="text-[11px]">A nota ainda não foi conferida contra a redação nova.</p>
       {user?.role === "admin" && (
-        <button type="button" disabled={conferindo} onClick={conferir} className="mt-1 px-2 py-1 rounded-md border border-border text-[11px] hover:bg-muted disabled:opacity-50">Marcar como conferida</button>
+        <button type="button" disabled={conferindo} onClick={conferir} className="botao-acao mt-1 px-2 py-[3px] rounded-md text-[11px] hover:bg-muted disabled:opacity-50">Marcar como conferida</button>
       )}
     </div>
   );

@@ -189,3 +189,57 @@ textarea[class~="border-border"],
 select[class~="border-border"] {
   border-color: hsl(var(--input));
 }
+
+/* ── Botões de ação: contorno verde de 2px e relevo leve (sobe ao passar o mouse, afunda ao clicar) ──
+   Fora de @layer para prevalecer sobre as classes de borda/sombra do Tailwind no mesmo elemento.
+   Aplicado no Button (variantes default, secondary, outline e destructive) e nas classes de botão
+   compartilhadas dos módulos; não vale para botões fantasma/link, ícones, abas e menus. */
+:root {
+  --botao-borda: 152 60% 29%;
+  --botao-relevo: 152 62% 19%;
+  --botao-perigo-borda: 0 74% 42%;
+  --botao-perigo-relevo: 0 63% 28%;
+}
+.dark {
+  --botao-borda: 152 55% 46%;
+  --botao-relevo: 152 60% 22%;
+  --botao-perigo-borda: 0 72% 55%;
+  --botao-perigo-relevo: 0 63% 26%;
+}
+.botao-acao {
+  --botao-cor-borda: var(--botao-borda);
+  --botao-cor-relevo: var(--botao-relevo);
+  border-width: 2px;
+  border-style: solid;
+  border-color: hsl(var(--botao-cor-borda));
+  box-shadow: 0 2px 0 0 hsl(var(--botao-cor-relevo)), 0 3px 6px -2px rgb(0 0 0 / .15);
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out, background-color 120ms ease-out,
+    color 120ms ease-out, border-color 120ms ease-out, opacity 120ms ease-out;
+}
+.botao-acao.botao-acao-perigo {
+  --botao-cor-borda: var(--botao-perigo-borda);
+  --botao-cor-relevo: var(--botao-perigo-relevo);
+}
+.botao-acao:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 0 hsl(var(--botao-cor-relevo)), 0 5px 10px -3px rgb(0 0 0 / .22);
+}
+.botao-acao:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 0 hsl(var(--botao-cor-relevo)), 0 1px 2px -1px rgb(0 0 0 / .15);
+}
+.botao-acao:focus-visible {
+  outline: none;
+  box-shadow: 0 2px 0 0 hsl(var(--botao-cor-relevo)), 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+}
+.botao-acao:disabled,
+.botao-acao[aria-disabled="true"],
+.botao-acao[data-disabled] {
+  transform: none;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .botao-acao { transition: background-color 120ms, color 120ms, border-color 120ms, opacity 120ms; }
+  .botao-acao:hover,
+  .botao-acao:active { transform: none; }
+}

@@ -240,7 +240,7 @@ export default function ImportacaoXMLPage() {
         {empresaTravada && outrasCount > 0 && (
           <button
             onClick={() => setMostrarOutras((v) => !v)}
-            className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-1.5 w-fit"
+            className="botao-acao inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground rounded-md px-3 py-[5px] w-fit"
           >
             <Users className="w-3.5 h-3.5" />
             {mostrarOutras ? "Ocultar" : "Mostrar também"} {[

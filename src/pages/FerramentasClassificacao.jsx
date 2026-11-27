@@ -112,11 +112,11 @@ export default function FerramentasClassificacao() {
           <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {anexo.data?.verificado_em && <span>Conferido na página oficial em {quando(anexo.data.verificado_em)}{anexo.data.atualizado_em ? `; carregado em ${quando(anexo.data.atualizado_em)}` : ""}. Nova versão entra sozinha (toda segunda).</span>}
             {anexo.data?.erro && <span className="text-amber-700 dark:text-amber-400">Última conferência: {anexo.data.erro}</span>}
-            {user?.role === "admin" && <button type="button" disabled={atualizarAnexo.isPending} onClick={() => atualizarAnexo.mutate()} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-60">{atualizarAnexo.isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3 w-3" aria-hidden="true" />}Atualizar pela fonte oficial</button>}
+            {user?.role === "admin" && <button type="button" disabled={atualizarAnexo.isPending} onClick={() => atualizarAnexo.mutate()} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-px hover:bg-muted disabled:opacity-60">{atualizarAnexo.isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3 w-3" aria-hidden="true" />}Atualizar pela fonte oficial</button>}
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 items-center"><label className="text-sm">Pesquisar em <select aria-label="Campo de pesquisa de serviços" value={campo} onChange={e => { setCampo(e.target.value); setSnapshot(null); }} className="ml-2 border rounded-md p-2 bg-background">{[['todos','Todos os códigos e descrições'],['descricao_nbs','Descrição NBS'],['descricao_item','Descrição LC 116'],['item_lc116','Item LC 116'],['nbs','NBS'],['ind_op','cIndOp'],['c_class_trib','cClassTrib'],['local_incidencia_ibs','Local de incidência IBS']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label><button type="button" disabled={analise.ocupado || (!q.trim() && !resultadosLote)} onClick={() => analise.salvar({ q, campo, lote, resultadosLote, resultados }, q.trim() || 'Consulta de serviços em lote')} className="border border-border rounded-md px-3 py-2 text-sm disabled:opacity-50">Salvar análise na empresa</button></div>
+        <div className="flex flex-wrap gap-3 items-center"><label className="text-sm">Pesquisar em <select aria-label="Campo de pesquisa de serviços" value={campo} onChange={e => { setCampo(e.target.value); setSnapshot(null); }} className="ml-2 border rounded-md p-2 bg-background">{[['todos','Todos os códigos e descrições'],['descricao_nbs','Descrição NBS'],['descricao_item','Descrição LC 116'],['item_lc116','Item LC 116'],['nbs','NBS'],['ind_op','cIndOp'],['c_class_trib','cClassTrib'],['local_incidencia_ibs','Local de incidência IBS']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label><button type="button" disabled={analise.ocupado || (!q.trim() && !resultadosLote)} onClick={() => analise.salvar({ q, campo, lote, resultadosLote, resultados }, q.trim() || 'Consulta de serviços em lote')} className="botao-acao rounded-md px-3 py-[7px] text-sm disabled:opacity-50">Salvar análise na empresa</button></div>
         {analise.mensagem && <p role="status" className="text-sm">{analise.mensagem}</p>}
         <a href="https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc" target="_blank" rel="noreferrer" className="text-xs text-primary underline">Conferir versões na documentação oficial da NFS-e</a>
         <Tabs defaultValue="busca">
@@ -139,7 +139,7 @@ export default function FerramentasClassificacao() {
               </div>
               <button
                 onClick={() => setMostrarAjuda((v) => !v)}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-3 py-2"
+                className="botao-acao inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md px-3 py-[7px]"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
                 Não sabe o código? Filtre por tipo de operação
@@ -189,12 +189,12 @@ export default function FerramentasClassificacao() {
               <button
                 onClick={processarLote}
                 disabled={isLoading || !lote.trim()}
-                className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+                className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground disabled:opacity-50"
               >
                 Processar lote
               </button>
               {resultadosLote && (
-                <button onClick={exportarLote} className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md border border-border hover:bg-muted">
+                <button onClick={exportarLote} className="botao-acao inline-flex items-center gap-2 px-4 py-[7px] text-sm rounded-md hover:bg-muted">
                   <Download className="w-4 h-4" /> Exportar CSV
                 </button>
               )}

@@ -57,7 +57,7 @@ export default function LimparDadosButton({ tela, grupoId, empresaId, rotulo = "
 
   return (
     <>
-      <button type="button" onClick={abrir} className={`inline-flex items-center gap-2 px-3 py-2 rounded-md border border-destructive/40 text-destructive text-sm hover:bg-destructive/5 ${className}`}>
+      <button type="button" onClick={abrir} className={`botao-acao botao-acao-perigo inline-flex items-center gap-2 px-3 py-[7px] rounded-md text-destructive text-sm hover:bg-destructive/5 ${className}`}>
         <Trash2 className="w-4 h-4" /> {rotulo}
       </button>
       <AlertDialog open={aberto} onOpenChange={(v) => !apagando && setAberto(v)}>
@@ -87,9 +87,9 @@ export default function LimparDadosButton({ tela, grupoId, empresaId, rotulo = "
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <button type="button" disabled={apagando} onClick={() => setAberto(false)} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">Cancelar</button>
+            <button type="button" disabled={apagando} onClick={() => setAberto(false)} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted disabled:opacity-50">Cancelar</button>
             {itens.length > 0 && (
-              <button type="button" disabled={!fraseOk || apagando} onClick={apagar} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-destructive text-destructive-foreground text-sm font-medium disabled:opacity-50">
+              <button type="button" disabled={!fraseOk || apagando} onClick={apagar} className="botao-acao botao-acao-perigo inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-destructive text-destructive-foreground text-sm font-medium disabled:opacity-50">
                 {apagando && <Loader2 className="w-4 h-4 animate-spin" />} Apagar definitivamente
               </button>
             )}

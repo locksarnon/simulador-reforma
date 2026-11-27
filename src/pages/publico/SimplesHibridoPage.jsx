@@ -261,7 +261,7 @@ export default function SimplesHibridoPage() {
           </div>
           </div>
           <div className="flex justify-end">
-            <button type="button" onClick={() => setPasso(1)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium">Continuar <ArrowRight className="w-4 h-4" /></button>
+            <button type="button" onClick={() => setPasso(1)} className="botao-acao inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium">Continuar <ArrowRight className="w-4 h-4" /></button>
           </div>
         </div>
       )}
@@ -297,8 +297,8 @@ export default function SimplesHibridoPage() {
           </div>
           {isError &&<p className="text-sm text-destructive">Não foi possível carregar os parâmetros da transição. Tente novamente em instantes.</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={() => setPasso(0)} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Voltar</button>
-            <button type="button" disabled={!dadosValidos || carregandoParams || isError} onClick={() => setPasso(2)} className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Simular agora <ArrowRight className="w-4 h-4" /></button>
+            <button type="button" onClick={() => setPasso(0)} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Voltar</button>
+            <button type="button" disabled={!dadosValidos || carregandoParams || isError} onClick={() => setPasso(2)} className="botao-acao inline-flex items-center gap-2 px-5 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Simular agora <ArrowRight className="w-4 h-4" /></button>
           </div>
         </div>
       )}
@@ -313,7 +313,7 @@ export default function SimplesHibridoPage() {
             <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" /> Simulando o regime híbrido (LC 123/2006, art. 13, §9º, c/c LC 214/2025, art. 47, §9º)</li>
             <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" /> Calculando o ponto de equilíbrio de preço</li>
           </ul>
-          <button type="button" onClick={() => setPasso(3)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium">Ver resultado <ArrowRight className="w-4 h-4" /></button>
+          <button type="button" onClick={() => setPasso(3)} className="botao-acao inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium">Ver resultado <ArrowRight className="w-4 h-4" /></button>
         </div>
       )}
 
@@ -468,7 +468,7 @@ export default function SimplesHibridoPage() {
           <div className="rounded-xl border border-border bg-muted/40 p-5">
             <p className="font-semibold">Quer decidir isso com quem entende da reforma e da sua operação?</p>
             <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-prose">A equipe da FAL Agro ajuda a avaliar se compensa migrar pro regime regular no seu caso — com as suas notas fiscais reais, não só a média do segmento.</p>
-            <a href={`${CONTATO.whatsappLink}?text=${encodeURIComponent("Olá! Simulei Simples puro × Híbrido no InTAX e quero entender se vale migrar para o regime regular do IBS/CBS.")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+            <a href={`${CONTATO.whatsappLink}?text=${encodeURIComponent("Olá! Simulei Simples puro × Híbrido no InTAX e quero entender se vale migrar para o regime regular do IBS/CBS.")}`} target="_blank" rel="noreferrer" className="botao-acao inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
               <MessageCircle className="w-4 h-4" /> Migre para a FAL
             </a>
           </div>

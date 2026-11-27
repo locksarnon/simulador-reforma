@@ -39,7 +39,7 @@ function Copiar({ texto }) {
     try { await navigator.clipboard.writeText(texto); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch { /* sem permissão da área de transferência */ }
   };
   return (
-    <button type="button" onClick={copiar} className="inline-flex items-center gap-1.5 border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+    <button type="button" onClick={copiar} className="botao-acao inline-flex items-center gap-1.5 px-2 py-[3px] text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
       {copiado ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
       {copiado ? "Copiado" : "Copiar"}
     </button>
@@ -65,7 +65,7 @@ export function Resultado({ ultimo, aviso }) {
 /** `servico` pode ser o objeto do catálogo ({ nome }) ou só o nome. */
 export const nomeDoServico = (servico) => (typeof servico === "string" ? servico : servico?.nome || "");
 
-const botao = "inline-flex items-center gap-2 border px-3 py-2 text-sm font-medium disabled:opacity-50";
+const botao = "botao-acao inline-flex items-center gap-2 px-3 py-[7px] text-sm font-medium disabled:opacity-50";
 
 /** O quadro em si, sem chamadas ao servidor (testável). `info` é o estado devolvido pelo servidor. */
 export function PainelAnalise({ nome, info, erro, enviando, aoPedir }) {

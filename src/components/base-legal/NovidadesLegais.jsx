@@ -52,7 +52,7 @@ function Conteudo({ n }) {
 
 function Acoes({ n, onAgir, ocupado }) {
   const aberta = n.status === "nova" || n.status === "vista";
-  const btn = "inline-flex items-center gap-1 border border-border rounded px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50";
+  const btn = "botao-acao inline-flex items-center gap-1 rounded px-2 py-px text-xs hover:bg-muted disabled:opacity-50";
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {n.status === "nova" && <button type="button" className={btn} disabled={ocupado} onClick={() => onAgir(n, "visto")}><Eye className="w-3 h-3" />Vista</button>}
@@ -152,7 +152,7 @@ export default function NovidadesLegais({ admin = false, normaInicial = "" }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Norma, ato ou assunto" className="block w-full h-9 rounded-md border border-input bg-background px-2 text-sm" />
         </label>
         <label className="text-xs inline-flex items-center gap-1.5 h-9"><input type="checkbox" checked={soAConfirmar} onChange={(e) => setSoAConfirmar(e.target.checked)} />Só as a confirmar</label>
-        {norma && <button type="button" onClick={() => setNorma("")} className="h-9 inline-flex items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted"><X className="w-3 h-3" />Só da norma {norma}</button>}
+        {norma && <button type="button" onClick={() => setNorma("")} className="botao-acao h-9 inline-flex items-center gap-1 rounded-md px-2 text-xs hover:bg-muted"><X className="w-3 h-3" />Só da norma {norma}</button>}
       </div>
 
       {isLoading ? <p className="text-sm text-muted-foreground inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Carregando…</p>

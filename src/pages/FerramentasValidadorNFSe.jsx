@@ -84,7 +84,7 @@ export default function FerramentasValidadorNFSe() {
             <button
               onClick={validar}
               disabled={!xml.trim() || validando}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+              className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
             >
               {validando ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
               {validando ? "Validando…" : "Validar"}
@@ -92,7 +92,7 @@ export default function FerramentasValidadorNFSe() {
           </div>
         </div>
 
-        {resultado && <button type="button" disabled={analise.ocupado} onClick={() => analise.salvar({ xml, resultado }, "Validação de NFS-e")} className="border border-border rounded-md px-3 py-2 text-sm disabled:opacity-50">Salvar análise na empresa</button>}
+        {resultado && <button type="button" disabled={analise.ocupado} onClick={() => analise.salvar({ xml, resultado }, "Validação de NFS-e")} className="botao-acao rounded-md px-3 py-[7px] text-sm disabled:opacity-50">Salvar análise na empresa</button>}
         {analise.mensagem && <p role="status" className="text-sm">{analise.mensagem}</p>}
         {erro && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm p-3">{erro}</div>

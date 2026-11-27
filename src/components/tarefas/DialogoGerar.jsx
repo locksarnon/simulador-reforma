@@ -54,9 +54,9 @@ export default function DialogoGerar({ processos, processoInicial, aoFechar }) {
           )}
         </div>
         <DialogFooter>
-          <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Cancelar</button>
-          <button type="button" onClick={() => ver.mutate()} disabled={!competencia || ver.isPending} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-60">Ver o que será criado</button>
-          <button type="button" onClick={() => gerar.mutate()} disabled={!competencia || gerar.isPending || previa?.criadas === 0} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+          <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted">Cancelar</button>
+          <button type="button" onClick={() => ver.mutate()} disabled={!competencia || ver.isPending} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted disabled:opacity-60">Ver o que será criado</button>
+          <button type="button" onClick={() => gerar.mutate()} disabled={!competencia || gerar.isPending || previa?.criadas === 0} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 text-sm font-medium text-primary-foreground disabled:opacity-60">
             {gerar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Gerar
           </button>
         </DialogFooter>

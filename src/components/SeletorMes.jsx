@@ -24,6 +24,6 @@ export default function SeletorMes({ valor, mudar, ariaLabel = "Mês" }) {
       </label>
       <button type="button" className={seta} aria-label="Próximo mês" onClick={() => mover(1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
     </div>
-    <button type="button" onClick={() => mudar(mesDeHoje())} className="h-9 rounded-md border border-border bg-background px-2.5 text-sm hover:bg-muted">Hoje</button>
+    <button type="button" onClick={() => mudar(mesDeHoje())} className="botao-acao h-9 rounded-md bg-background px-2.5 text-sm hover:bg-muted">Hoje</button>
   </div>;
 }

@@ -59,8 +59,8 @@ export default function LembretesAgenda({ empresa = null }) {
                     <p className="text-xs text-muted-foreground">{l.dias_antes.map(ROTULO_ANTECEDENCIA).join(", ")}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => alternarAtivo(l)} disabled={Boolean(ocupado)} className="px-2.5 py-1 rounded-md border border-border text-xs hover:bg-muted disabled:opacity-50">{l.ativo ? "Pausar" : "Reativar"}</button>
-                    <button type="button" onClick={() => remover(l)} disabled={Boolean(ocupado)} aria-label="Remover lembrete" className="px-2 py-1 rounded-md border border-border text-xs text-red-600 hover:bg-muted disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button type="button" onClick={() => alternarAtivo(l)} disabled={Boolean(ocupado)} className="botao-acao px-2.5 py-[3px] rounded-md text-xs hover:bg-muted disabled:opacity-50">{l.ativo ? "Pausar" : "Reativar"}</button>
+                    <button type="button" onClick={() => remover(l)} disabled={Boolean(ocupado)} aria-label="Remover lembrete" className="botao-acao botao-acao-perigo px-2 py-[3px] rounded-md text-xs text-red-600 hover:bg-muted disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </li>
               ))}
@@ -89,10 +89,10 @@ export default function LembretesAgenda({ empresa = null }) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={salvar} disabled={Boolean(ocupado) || !escolhidos.length} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
+            <button type="button" onClick={salvar} disabled={Boolean(ocupado) || !escolhidos.length} className="botao-acao inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
               {ocupado === "salvar" && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Salvar lembrete
             </button>
-            <button type="button" onClick={testar} disabled={Boolean(ocupado)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">
+            <button type="button" onClick={testar} disabled={Boolean(ocupado)} className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-50">
               {ocupado === "teste" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Enviar e-mail de teste para mim
             </button>
           </div>

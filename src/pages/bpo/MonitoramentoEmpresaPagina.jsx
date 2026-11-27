@@ -113,10 +113,10 @@ export default function MonitoramentoEmpresaPagina({ pessoaFisica = false }) {
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             {pontos.length > 0 && <span className={`text-sm font-semibold tabular-nums ${tomDaNota(nota)}`} title="Saúde fiscal">Saúde fiscal {nota}</span>}
-            {podeLote && !pessoaFisica && <button type="button" disabled={desligado || atualizarTudo.isPending || (lote && !lote.fim)} onClick={() => setPreparando([empresaId])} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            {podeLote && !pessoaFisica && <button type="button" disabled={desligado || atualizarTudo.isPending || (lote && !lote.fim)} onClick={() => setPreparando([empresaId])} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground disabled:opacity-60">
               {lote && !lote.fim ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Preparar atualização</>}
             </button>}
-            {!pessoaFisica && <Link to={`/clientes/${empresaId}`} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Ficha do cliente</Link>}
+            {!pessoaFisica && <Link to={`/clientes/${empresaId}`} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted">Ficha do cliente</Link>}
           </div>
         )}
       />

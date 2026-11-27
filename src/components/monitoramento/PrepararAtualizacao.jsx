@@ -31,8 +31,8 @@ export default function PrepararAtualizacao({ ids, servicos, executar, fechar, e
         {(maximo > 100 || p.tarefas > 200) && <p>Reduza o lote para até 200 tarefas e R$ 100.</p>}
       </div>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="rounded border px-3 py-2 text-sm disabled:opacity-50" disabled={!chaves.length || previa.isPending || executando} onClick={() => previa.mutate()}>{previa.isPending ? "Calculando…" : "Calcular estimativa"}</button>
-        {p && <button type="button" className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50" disabled={!p.tarefas || maximo > 100 || p.tarefas > 200 || executando} onClick={() => executar({ ...pedido, teto: maximo })}>Autorizar até {brl(maximo)}</button>}
+        <button type="button" className="botao-acao rounded px-3 py-[7px] text-sm disabled:opacity-50" disabled={!chaves.length || previa.isPending || executando} onClick={() => previa.mutate()}>{previa.isPending ? "Calculando…" : "Calcular estimativa"}</button>
+        {p && <button type="button" className="botao-acao rounded bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" disabled={!p.tarefas || maximo > 100 || p.tarefas > 200 || executando} onClick={() => executar({ ...pedido, teto: maximo })}>Autorizar até {brl(maximo)}</button>}
       </div>
     </DialogContent>
   </Dialog>;

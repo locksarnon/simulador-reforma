@@ -182,7 +182,7 @@ export default function CalculadoraPage() {
               </div>
             );
           })}
-          {perguntasRespondidas && <button type="button" onClick={() => setPasso(2)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium">Continuar <ArrowRight className="w-4 h-4" /></button>}
+          {perguntasRespondidas && <button type="button" onClick={() => setPasso(2)} className="botao-acao inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium">Continuar <ArrowRight className="w-4 h-4" /></button>}
         </div>
       )}
 
@@ -227,8 +227,8 @@ export default function CalculadoraPage() {
           </details>
           {isError && <p className="text-sm text-destructive">Não foi possível carregar os parâmetros da transição. Tente novamente em instantes.</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={() => setPasso(1)} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Voltar</button>
-            <button type="button" disabled={!dadosValidos || carregandoParams || isError} onClick={() => setPasso(3)} className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
+            <button type="button" onClick={() => setPasso(1)} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted">Voltar</button>
+            <button type="button" disabled={!dadosValidos || carregandoParams || isError} onClick={() => setPasso(3)} className="botao-acao inline-flex items-center gap-2 px-5 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
               {carregandoParams && <Loader2 className="w-4 h-4 animate-spin" />} Ver resultado <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -317,7 +317,7 @@ export default function CalculadoraPage() {
               Este resultado usa médias do seu segmento. Com as suas notas fiscais, a equipe da FAL Agro calcula item a item e mostra onde a reforma mais pesa ou ajuda no seu caso. Sem compromisso: começamos com uma conversa curta.
             </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
-              <a href={`${CONTATO.whatsappLink}?text=${encodeURIComponent("Olá! Fiz a calculadora da reforma tributária no InTAX e gostaria de conversar sobre o meu caso.")}`} target="_blank" rel="noreferrer" className="inline-flex items-center px-4 py-2 rounded-md border border-primary text-primary text-sm font-medium hover:bg-primary/5">Conversar no WhatsApp</a>
+              <a href={`${CONTATO.whatsappLink}?text=${encodeURIComponent("Olá! Fiz a calculadora da reforma tributária no InTAX e gostaria de conversar sobre o meu caso.")}`} target="_blank" rel="noreferrer" className="botao-acao inline-flex items-center px-4 py-[7px] rounded-md text-primary text-sm font-medium hover:bg-primary/5">Conversar no WhatsApp</a>
               <a href={`mailto:${CONTATO.email}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{CONTATO.email}</a>
             </div>
           </div>
@@ -334,7 +334,7 @@ export default function CalculadoraPage() {
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20 p-5 space-y-3">
               <p className="font-medium flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Pronto, {enviado.nome?.split(" ")[0]}!</p>
               <p className="text-sm text-muted-foreground">{enviado.relatorio_enviado ? "Enviamos o relatório para o seu e-mail." : "Não conseguimos enviar o e-mail agora — baixe o relatório abaixo (ele também fica disponível com a nossa equipe)."} Se quiser, refazemos esse cálculo com as suas notas fiscais reais: {CONTATO.whatsapp} · {CONTATO.email}.</p>
-              <button type="button" onClick={baixarPdf} disabled={baixando} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
+              <button type="button" onClick={baixarPdf} disabled={baixando} className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
                 {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Baixar PDF agora
               </button>
             </div>

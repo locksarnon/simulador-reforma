@@ -270,14 +270,14 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
         <div className="flex flex-wrap items-center gap-2">
           {!soResumos && (
             <>
-              <button type="button" onClick={enviarAoImportador} disabled={importar.isPending} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
+              <button type="button" onClick={enviarAoImportador} disabled={importar.isPending} className="botao-acao inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60">
                 {importar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {selecionados.size ? `Enviar ${selecionados.size} ao importador` : "Enviar pendentes ao importador"}
               </button>
               {naoTomados > 0 && <label className="flex items-center gap-1.5 text-xs" title="Por padrão, só vão ao importador os CT-e em que o cliente é o tomador (contrata e paga o frete)."><input type="checkbox" checked={incluirNaoTomados} onChange={(e) => setIncluirNaoTomados(e.target.checked)} />Incluir CT-e em que o cliente não é o tomador ({naoTomados})</label>}
               {linkImportacao && <Link to={linkImportacao} className="text-sm text-primary hover:underline">Abrir Importação XML</Link>}
             </>
           )}
-          <button type="button" onClick={baixarZip} disabled={!total || baixandoZip} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">
+          <button type="button" onClick={baixarZip} disabled={!total || baixandoZip} className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-50">
             {baixandoZip ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparando o ZIP…</> : <><Download className="w-4 h-4" /> Baixar ZIP dos filtros</>}
           </button>
           {!soResumos && (
@@ -286,7 +286,7 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
             </label>
           )}
           {admin && selecionados.size > 0 && (
-            <button type="button" onClick={excluirSelecionados} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /> Excluir {selecionados.size}</button>
+            <button type="button" onClick={excluirSelecionados} className="botao-acao botao-acao-perigo inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /> Excluir {selecionados.size}</button>
           )}
           <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">Mostrar
             <select className={`${campo} py-0.5 text-xs`} value={porPagina} onChange={(e) => mudarPorPagina(Number(e.target.value))} aria-label="Documentos por página">
@@ -349,8 +349,8 @@ export default function DocumentosXml({ empresaId, empresa, linkImportacao = "..
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{pagina * porPagina + 1}–{Math.min((pagina + 1) * porPagina, total)} de {total}</span>
             <div className="flex gap-2">
-              <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} className="px-3 py-1.5 rounded-md border border-border hover:bg-muted disabled:opacity-50">Anterior</button>
-              <button type="button" disabled={(pagina + 1) * porPagina >= total} onClick={() => setPagina((p) => p + 1)} className="px-3 py-1.5 rounded-md border border-border hover:bg-muted disabled:opacity-50">Próxima</button>
+              <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} className="botao-acao px-3 py-[5px] rounded-md hover:bg-muted disabled:opacity-50">Anterior</button>
+              <button type="button" disabled={(pagina + 1) * porPagina >= total} onClick={() => setPagina((p) => p + 1)} className="botao-acao px-3 py-[5px] rounded-md hover:bg-muted disabled:opacity-50">Próxima</button>
             </div>
           </div>
         )}

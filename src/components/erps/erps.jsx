@@ -88,7 +88,7 @@ function BotaoCopiar({ texto, rotulo }) {
   const [ok, setOk] = useState(false);
   const copiar = async () => { try { await navigator.clipboard.writeText(texto); setOk(true); setTimeout(() => setOk(false), 2000); } catch { setOk(false); } };
   return (
-    <button type="button" onClick={copiar} aria-label={rotulo} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted">
+    <button type="button" onClick={copiar} aria-label={rotulo} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted">
       {ok ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}{ok ? "Copiada" : "Copiar"}
     </button>
   );

@@ -150,7 +150,7 @@ export default function ServicosContratadosPagina() {
               <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
                 <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
               </select></label>
-            <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
+            <button type="button" onClick={recarregar} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
           </div>
 
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -161,11 +161,11 @@ export default function ServicosContratadosPagina() {
           {selecionadas.length > 0 && (
             <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-primary/5 px-3 py-2 text-sm">
               <span className="font-medium">{plural(selecionadas.length, "empresa marcada", "empresas marcadas")}</span>
-              <button type="button" onClick={() => abrir(selecionadas, null, "BPO_FISCAL")} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Definir BPO fiscal</button>
-              <button type="button" onClick={() => setVinculando(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Vincular consultoria</button>
-              <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
+              <button type="button" onClick={() => abrir(selecionadas, null, "BPO_FISCAL")} className="botao-acao rounded-md bg-primary px-3 py-0.5 text-primary-foreground">Definir BPO fiscal</button>
+              <button type="button" onClick={() => setVinculando(selecionadas)} className="botao-acao rounded-md bg-background px-3 py-[3px] hover:bg-muted">Vincular consultoria</button>
+              <button type="button" onClick={() => setDialogoTags(selecionadas)} className="botao-acao rounded-md bg-background px-3 py-[3px] hover:bg-muted">Etiquetar</button>
               {user?.role === "admin" && (
-                <button type="button" onClick={excluirEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
+                <button type="button" onClick={excluirEmLote} disabled={!!excluindo} className="botao-acao botao-acao-perigo inline-flex items-center gap-1.5 rounded-md bg-background px-3 py-[3px] text-destructive hover:bg-destructive/10 disabled:opacity-60">
                   {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
                   {excluindo ? `${excluindo.feitas} de ${excluindo.total}…` : "Arquivar"}
                 </button>

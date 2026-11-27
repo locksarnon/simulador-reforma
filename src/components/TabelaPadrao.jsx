@@ -151,7 +151,7 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
         <button type="button" onClick={() => setVerFiltros((v) => !v)} aria-pressed={verFiltros} className={`inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs ${verFiltros ? "border-primary/40 bg-primary/5 text-primary" : "border-border hover:bg-muted"}`}><Filter className="h-3.5 w-3.5" aria-hidden="true" /> Filtros por coluna</button>
         {temFiltro && <button type="button" onClick={() => { setBusca(""); setFiltros({}); }} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-3.5 w-3.5" aria-hidden="true" /> Limpar filtros</button>}
         <Popover>
-          <PopoverTrigger asChild><button type="button" className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted"><Columns3 className="h-3.5 w-3.5" aria-hidden="true" /> Colunas</button></PopoverTrigger>
+          <PopoverTrigger asChild><button type="button" className="botao-acao inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs hover:bg-muted"><Columns3 className="h-3.5 w-3.5" aria-hidden="true" /> Colunas</button></PopoverTrigger>
           <PopoverContent align="end" className="w-64 p-2">
             <p className="px-1 pb-1 text-[11px] text-muted-foreground">Marque as colunas e use as setas para mudar a ordem (ou arraste o cabeçalho na tabela).</p>
             <ul className="max-h-72 space-y-0.5 overflow-y-auto">
@@ -239,9 +239,9 @@ export default function TabelaPadrao({ id, titulo, colunas, linhas = [], documen
         </label>
         {tamanho > 0 && paginas > 1 && (
           <span className="inline-flex items-center gap-1">
-            <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} className="rounded border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-40">Anterior</button>
+            <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} className="botao-acao rounded px-2 py-px hover:bg-muted disabled:opacity-40">Anterior</button>
             <span className="tabular-nums">{pagina + 1} de {paginas}</span>
-            <button type="button" disabled={pagina >= paginas - 1} onClick={() => setPagina((p) => p + 1)} className="rounded border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-40">Próxima</button>
+            <button type="button" disabled={pagina >= paginas - 1} onClick={() => setPagina((p) => p + 1)} className="botao-acao rounded px-2 py-px hover:bg-muted disabled:opacity-40">Próxima</button>
           </span>
         )}
       </div>}

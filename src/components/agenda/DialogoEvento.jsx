@@ -98,10 +98,10 @@ export default function DialogoEvento({ evento, diaInicial, tipos, empresas, col
           {problema && <p role="alert" className="text-xs text-destructive">{problema}</p>}
           <DialogFooter className="gap-2">
             {podeExcluir && (
-              <button type="button" onClick={async () => { if (await confirmar({ titulo: "Excluir este evento?", descricao: f.titulo, rotulo: "Excluir" })) excluir.mutate(); }} className="mr-auto inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Excluir</button>
+              <button type="button" onClick={async () => { if (await confirmar({ titulo: "Excluir este evento?", descricao: f.titulo, rotulo: "Excluir" })) excluir.mutate(); }} className="botao-acao botao-acao-perigo mr-auto inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Excluir</button>
             )}
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={!f.titulo.trim() || !!problema || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={!f.titulo.trim() || !!problema || salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">
               {salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar
             </button>
           </DialogFooter>

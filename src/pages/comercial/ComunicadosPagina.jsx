@@ -68,7 +68,7 @@ function Editor({ comunicado, empresas, aoFechar }) {
             <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Anexos (até 5, 15 MB juntos)</span><CampoArquivo compacto disabled={anexar.isPending || anexos.length >= 5} rotulo="Anexar arquivo ao comunicado" className="py-0.5" aoEscolher={([a]) => { if (a) anexar.mutate(a); }}><Paperclip className="h-3.5 w-3.5" aria-hidden="true" /> Anexar <span className="text-muted-foreground">(ou arraste)</span></CampoArquivo></div>
             {anexos.map((a, i) => <p key={a.storage_key} className="flex items-center gap-2 text-xs"><Paperclip className="h-3 w-3" aria-hidden="true" />{a.nome} <span className="text-muted-foreground">{tamanhoLegivel(a.tamanho)}</span><button type="button" onClick={() => tirar.mutate(i)} className="text-destructive" aria-label={`Tirar o anexo ${a.nome}`}><X className="h-3 w-3" aria-hidden="true" /></button></p>)}
           </div>
-          <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Fechar</button><button type="submit" disabled={!f.assunto.trim() || !f.corpo.trim() || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar rascunho</button></DialogFooter>
+          <DialogFooter><button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Fechar</button><button type="submit" disabled={!f.assunto.trim() || !f.corpo.trim() || salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar rascunho</button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -98,7 +98,7 @@ export default function ComunicadosPagina() {
     <div>
       <PageHeader crumbs={[{ label: "Início", to: "/inicio" }, { label: "Comercial", to: "/area/comercial" }, { label: "Comunicados" }]} title="Comunicados" />
       <div className="px-6 lg:px-8 py-6 space-y-3">
-        <div className="flex justify-end"><button type="button" onClick={() => setEditor({ comunicado: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo comunicado</button></div>
+        <div className="flex justify-end"><button type="button" onClick={() => setEditor({ comunicado: null })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo comunicado</button></div>
         {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
         {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar.</p>}
         {!isLoading && !error && (

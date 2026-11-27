@@ -58,8 +58,8 @@ export default function DialogoVincularConsultoria({ empresas = [], aoFechar }) 
           )}
           {semCnpj.length > 0 && <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">A consultoria exige CNPJ completo. Ficam de fora: {nomes(semCnpj)}.</p>}
           <DialogFooter>
-            <button type="button" onClick={aoFechar} disabled={!!andamento} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-60">Cancelar</button>
-            <button type="submit" disabled={!servico || !aptas.length || !!andamento} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+            <button type="button" onClick={aoFechar} disabled={!!andamento} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted disabled:opacity-60">Cancelar</button>
+            <button type="submit" disabled={!servico || !aptas.length || !!andamento} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">
               {andamento && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               {andamento ? `${andamento.feitas} de ${andamento.total}…` : `Vincular ${plural(aptas.length, "cliente", "clientes")}`}
             </button>

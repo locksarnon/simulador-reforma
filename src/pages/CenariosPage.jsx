@@ -59,7 +59,7 @@ export default function CenariosPage() {
             no Painel Executivo — o "padrão" abaixo só define qual deles vem pré-selecionado lá.
           </p>
         </div>
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
+        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
           <Plus className="w-4 h-4" /> Novo cenário
         </button>
       </div>
@@ -89,7 +89,7 @@ export default function CenariosPage() {
                 <Factor label="Crédito aproveitado" v={c.fator_credito_aproveitado} />
               </div>
               {!active && (
-                <button onClick={() => setActive(c.nome)} className="mt-4 w-full text-xs py-1.5 rounded-md border border-border hover:bg-muted inline-flex items-center justify-center gap-1.5">
+                <button onClick={() => setActive(c.nome)} className="botao-acao mt-4 w-full text-xs py-[5px] rounded-md hover:bg-muted inline-flex items-center justify-center gap-1.5">
                   <Check className="w-3.5 h-3.5" /> Definir como padrão
                 </button>
               )}
@@ -116,8 +116,8 @@ export default function CenariosPage() {
               <div><Label className="text-xs">Crédito aproveitado <InfoTooltip pagina="cenarios" chave="fator_credito_aproveitado" /></Label><Input type="number" step="any" value={form.fator_credito_aproveitado} onChange={(e) => set("fator_credito_aproveitado", Number(e.target.value))} /></div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>

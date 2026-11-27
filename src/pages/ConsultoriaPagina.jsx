@@ -14,7 +14,7 @@ import { SITUACOES_PROJETO } from "@/lib/projetos";
 
 const campo = "rounded-md border bg-background px-3 py-2 text-sm";
 const campoCompacto = "h-8 min-w-0 rounded-md border bg-background px-2 text-xs";
-const botao = "inline-block rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50";
+const botao = "botao-acao inline-block rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50";
 const texto = (s) => String(s ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const chave = ({ publico, id }) => `${publico}:${id}`;
 const documento = (s) => String(s ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
