@@ -8,7 +8,7 @@ A barra **Consultar as bases legais** (`ConsultaBasesLegais.jsx`) faz, com a mes
 
 ## O que a base guarda
 
-- **Texto oficial por dispositivo** (artigo, anexo ou, nos convênios do Confaz, cláusula) de 145 normas do catálogo (132 com texto, 13 só com o link; 41 estaduais de 11 UFs, 40 delas com texto), em seis blocos: fundamentos, reforma do consumo, tributação federal atual, agro, ICMS/ISS e benefícios estaduais, obrigações e documentos fiscais. Catálogo em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas: cada página abre e o leitor extrai os dispositivos).
+- **Texto oficial por dispositivo** (artigo, anexo ou, nos convênios do Confaz, cláusula) de 149 normas do catálogo (136 com texto, 13 só com o link; 41 estaduais de 11 UFs, 40 delas com texto), em seis blocos: fundamentos, reforma do consumo, tributação federal atual, agro, ICMS/ISS e benefícios estaduais, obrigações e documentos fiscais. Catálogo em `backend/src/base-legal/fontes.ts` (só URLs oficiais conferidas: cada página abre e o leitor extrai os dispositivos).
 - **Norma editada ou revogada**, lida do próprio texto oficial a cada captura:
   - o que o site mostra **riscado** (redação antiga, dispositivo revogado) nunca entra como texto vigente: vai para `redacoes_anteriores`;
   - `alteracoes`: notas oficiais ("Redação dada pela Lei Complementar nº 227, de 2026", "Incluído...", "Revogado...", "Vide...");
@@ -74,6 +74,8 @@ Recebe, por dispositivo: situação (em vigor, revogado, parcialmente revogado, 
 - o trecho destacado (`ts_headline`) só é montado para as 40 linhas devolvidas e só quando a tela vai mostrá-lo: o assistente busca com `{ trecho: false }`;
 - `buscarCodigos` usa LIKE (código só tem dígitos e pontos; o ILIKE convertia maiúsculas em 33 MB de texto), escreve o código na consulta depois de conferi-lo (com o padrão como parâmetro o Postgres pode montar um plano genérico que ignora o índice) e descarta do filtro do índice o código contido em outro; há índice de trigramas (`pg_trgm`, `DispositivoLegal_texto_trgm_idx`). Ordem dos achados: código completo, depois a subposição, por último a posição. A posição com ponto ("12.01") só conta quando o texto a chama de posição, NCM, NBM, TIPI, SH ou código: em 26/11/2026, dos 100 dispositivos com "12.01", 98 não tinham o código completo e eram, na maioria, datas ("efeitos a partir de 05.12.01"), CEST ("03.012.01") e itens de lista ("12.01 Espetáculos teatrais", LC 116), que antes ocupavam os primeiros lugares da pergunta sobre o Pará.
 O schema declara a coluna como `Unsupported("tsvector")` com a expressão em `dbgenerated` e os dois índices, para o `prisma migrate diff` não propor apagá-los.
+
+**Normas novas citadas no Radar** (`resolverAlerta`): o aviso só é aprovado com o endereço do próprio ato (página ou PDF com o texto). A página inicial ou a lista do portal (`paginaDoPortal`: nenhum segmento no caminho, ou um só, sem extensão nem consulta, desconsiderando "pt-br") é recusada no servidor e na tela, e a norma recém-criada cujo texto não foi lido é apagada (só se continuar sem dispositivo). Em 12/11/2026 quatro atos tinham ficado cadastrados assim, sem texto (Decreto 13.140/2026 e Atos Técnicos Conjuntos RFB/CGIBS 5, 9 e 10/2026), e a primeira rodada da revisão semanal acusou os quatro; em 26/11/2026 entraram no catálogo com as mesmas chaves e os endereços oficiais (Planalto e PDFs do CGIBS), e o `garantirNormas` corrige o endereço na próxima leitura.
 
 ## Variáveis de ambiente
 

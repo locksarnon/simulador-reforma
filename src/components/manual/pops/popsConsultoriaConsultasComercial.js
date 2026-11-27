@@ -433,6 +433,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     atencao: [
       "O Radar é gerado por IA com busca na web, toda segunda-feira: confira sempre na fonte oficial antes de agir. O que não foi confirmado vem como “A confirmar”.",
       "Se a última geração falhou, a tela mostra “Falha na última geração” com o motivo.",
+      "Norma citada no Radar que ainda não está na Base legal vira aviso em Atualizações da Base legal (administrador). Para incluir, cole o endereço do próprio ato no site oficial (a página ou o PDF com o texto), não a página inicial nem a lista do portal: com esse endereço o botão Incluir na base fica desligado. Se o texto não puder ser lido, nada é cadastrado e o aviso continua pendente.",
     ],
   },
   {

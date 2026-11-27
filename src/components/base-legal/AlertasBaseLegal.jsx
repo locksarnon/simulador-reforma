@@ -9,6 +9,15 @@ import { plural } from "@/lib/plural";
 // Mesma regra do servidor: https em qualquer site de órgão oficial (.gov.br, .jus.br ou .leg.br), sem usuário nem porta.
 export const urlOficial = (u) => { try { const x = new URL(u); return x.protocol === "https:" && !x.username && !x.password && !x.port && (x.hostname === "gov.br" || /\.(gov|jus|leg)\.br$/.test(x.hostname)); } catch { return false; } };
 
+// Mesma regra do servidor (paginaDoPortal): página inicial ou lista do portal não tem o texto do ato. O Radar costuma guardar esse endereço.
+export const paginaDoPortal = (u) => {
+  try {
+    const x = new URL(u);
+    const partes = x.pathname.split("/").filter((p) => p && !/^[a-z]{2}(-[a-z]{2})?$/i.test(p));
+    return partes.length === 0 || (partes.length === 1 && !x.search && !/\.[a-z0-9]{2,5}$/i.test(partes[0]));
+  } catch { return false; }
+};
+
 function Alerta({ a, onFeito }) {
   const [url, setUrl] = useState(a.url || "");
   const [ocupado, setOcupado] = useState("");
@@ -37,7 +46,7 @@ function Alerta({ a, onFeito }) {
           <p className="text-[11px] text-muted-foreground mt-0.5">{a.origem === "radar" ? "Citada no Radar" : a.origem === "agendada" ? "Revisão semanal" : "Verificação"} · {new Date(a.createdAt).toLocaleDateString("pt-BR")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => agir("aprovar")} disabled={Boolean(ocupado) || (nova && !urlOficial(url))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
+          <button type="button" onClick={() => agir("aprovar")} disabled={Boolean(ocupado) || (nova && (!urlOficial(url) || paginaDoPortal(url)))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
             {ocupado === "aprovar" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} {nova ? "Incluir na base" : "Atualizar texto"}
           </button>
           <button type="button" onClick={() => agir("descartar")} disabled={Boolean(ocupado)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"><X className="w-3.5 h-3.5" /> Descartar</button>
@@ -49,7 +58,8 @@ function Alerta({ a, onFeito }) {
           {url && urlOficial(url) && <a href={url} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"><ExternalLink className="w-3 h-3" /> Abrir</a>}
         </div>
       )}
-      {nova && url && !urlOficial(url) && <p className="text-[11px] text-amber-700 dark:text-amber-400">Use o endereço https da página com o texto da norma em planalto.gov.br ou cgibs.gov.br (PDF ainda não é suportado).</p>}
+      {nova && url && !urlOficial(url) && <p className="text-[11px] text-amber-700 dark:text-amber-400">Use o endereço https do próprio ato (a página ou o PDF com o texto) em um site oficial: planalto.gov.br, cgibs.gov.br ou outro .gov.br.</p>}
+      {nova && url && urlOficial(url) && paginaDoPortal(url) && <p className="text-[11px] text-amber-700 dark:text-amber-400">Este é o endereço da página inicial (ou de uma lista) do portal, sem o texto do ato. Abra o ato no site oficial e cole aqui o endereço da página ou do PDF dele.</p>}
     </li>
   );
 }

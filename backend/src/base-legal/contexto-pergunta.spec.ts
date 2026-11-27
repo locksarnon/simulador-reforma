@@ -12,6 +12,15 @@ describe('UF na pergunta, do jeito que o usuário escreve', () => {
     ['ICMS SP x BA na venda interestadual', ['SP', 'BA']],
     ['isso serve para quem vende soja?', []],
     ['preciso disso para a empresa', []],
+    // Sigla em minúsculas, como o leigo escreve (em produção, "qual a aliquota do icms do adubo no ms" saía sem UF)
+    ['qual a aliquota do icms do adubo no ms', ['MS']],
+    ['icms do milho em mt e go', ['MT', 'GO']],
+    ['vendo pro pr ou pra sc', ['PR', 'SC']],
+    ['soja no pa tem icms?', ['PA']],
+    ['tem diferimento no ma?', ['MA']],
+    ['em se tratando de soja, tem icms?', []],
+    ['o que diz a lei ao pé da letra', []],
+    ['agiu de ma fe na venda', []],
   ])('%s → %j', (pergunta, ufs) => {
     expect(ufsDaPergunta(pergunta)).toEqual(ufs);
   });

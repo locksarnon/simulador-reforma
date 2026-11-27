@@ -159,6 +159,34 @@ export const FONTES_NORMAS: FonteNorma[] = [
     url_oficial: `${CGIBS_ARQ}/202604/30094136-sei-mgi-60959979-portaria-conjunta.pdf`, prioridade: 1,
     observacao: 'Publicada junto com o Regulamento do IBS.',
   },
+  // Atos que o Radar achou em 12/11/2026 e que ficaram cadastrados com o endereço da página inicial do portal (sem texto): as chaves são
+  // as que o Radar criou, para o catálogo corrigir o endereço dessas normas. Endereços conferidos em 26/11/2026 (o leitor acha os artigos).
+  {
+    chave: 'decreto-13140-2026', tipo: 'Decreto', numero: 'Decreto 13.140/2026', grupo: 'reforma',
+    titulo: 'Dispensa de inscrição no CNPJ e de emissão de documentos fiscais eletrônicos do nanoempreendedor e do MEI (no âmbito da União)',
+    orgao: PR, data_publicacao: '2026-10-21',
+    url_oficial: `${PLANALTO}/_ato2023-2026/2026/decreto/D13140.htm`, prioridade: 1,
+    observacao: 'Publicado no DOU de 21/10/2026, edição extra. Regulamenta, no âmbito da União, a LC 123/2006 e a LC 214/2025.',
+  },
+  {
+    chave: 'ato-tecnico-conjunto-rfb-cgibs-5-2026', tipo: 'Ato Técnico Conjunto', numero: 'Ato Técnico Conjunto RFB/CGIBS 5/2026', grupo: 'reforma', formato: 'pdf',
+    titulo: 'Documentação técnica da Plataforma Pública do Split Payment', orgao: 'Receita Federal e Comitê Gestor do IBS',
+    url_oficial: `${CGIBS_ARQ}/202609/24094106-ato-tecnico-conjunto-5-rfb-cgibs-assinado-assinado.pdf`, prioridade: 1,
+    observacao: 'Ato Técnico Conjunto RFB/SUARA/CGIBS/Diretoria-Executiva nº 5, de 22/09/2026. Lista oficial: cgibs.gov.br/atos-tecnicos-conjuntos.',
+  },
+  {
+    chave: 'ato-tecnico-conjunto-rfb-cgibs-9-2026', tipo: 'Ato Técnico Conjunto', numero: 'Ato Técnico Conjunto RFB/CGIBS 9/2026', grupo: 'reforma', formato: 'pdf',
+    titulo: 'Trabalhos conjuntos da Receita Federal e da Diretoria-Executiva do CGIBS para implementar a reforma do consumo',
+    orgao: 'Receita Federal e Comitê Gestor do IBS',
+    url_oficial: `${CGIBS_ARQ}/202610/26090508-20261019-atc-rfb-cgibs-nba-9-2026-assinado-29-as-261026-090221.pdf`, prioridade: 1,
+    observacao: 'Ato Técnico Conjunto RFB/CGIBS nº 9, de 20/10/2026. Lista oficial: cgibs.gov.br/atos-tecnicos-conjuntos.',
+  },
+  {
+    chave: 'ato-tecnico-conjunto-rfb-cgibs-10-2026', tipo: 'Ato Técnico Conjunto', numero: 'Ato Técnico Conjunto RFB/CGIBS 10/2026', grupo: 'operacional', formato: 'pdf',
+    titulo: 'Documentação técnica dos documentos fiscais eletrônicos (aprovação conjunta)', orgao: 'Receita Federal e Comitê Gestor do IBS',
+    url_oficial: `${CGIBS_ARQ}/202610/30102301-atc-10-vf-assinado-assinado-261030-102245.pdf`, prioridade: 1,
+    observacao: 'Ato Técnico Conjunto RFB/SUFIS/CGIBS/Diretoria-Executiva nº 10, de 29/10/2026. Lista oficial: cgibs.gov.br/atos-tecnicos-conjuntos.',
+  },
   {
     chave: 'lcp-123-2006', tipo: 'Lei Complementar', numero: 'LC 123/2006', grupo: 'reforma',
     titulo: 'Estatuto Nacional da Microempresa e da Empresa de Pequeno Porte (Simples Nacional)', orgao: PR, data_publicacao: '2006-12-14',

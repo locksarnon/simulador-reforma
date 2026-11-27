@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { chaveDe, normasCitadas, referenciaDe, urlOficialValida } from './base-legal.deteccao';
+import { chaveDe, normasCitadas, paginaDoPortal, referenciaDe, urlOficialValida } from './base-legal.deteccao';
 import { PrismaService } from '../prisma/prisma.service';
 import { AVISO_ASSISTENTE, Candidato, consultasDaPergunta, respostaDeApoio, lerJson, promptResposta, promptTermos, validarResposta } from './base-legal.assistente';
 import { avisosDePendencias } from './avisos-legais';
@@ -504,14 +504,22 @@ export class BaseLegalService {
       } else if (a.tipo === 'nova_norma') {
         const alvo = (url || a.url || '').trim();
         if (!urlOficialValida(alvo)) throw new BadRequestException('Informe a URL oficial (https) da página com o texto da norma — planalto.gov.br ou cgibs.gov.br');
+        if (paginaDoPortal(alvo)) throw new BadRequestException('Este endereço é a página inicial (ou uma lista) do portal: informe o endereço do próprio ato, a página ou o PDF com o texto');
         const chave = chaveDe(a.referencia);
         const tipo = /^lc\b/.test(a.referencia) ? 'Lei Complementar' : /^ec\b/.test(a.referencia) ? 'Emenda Constitucional' : /^decreto\b/.test(a.referencia) ? 'Decreto' : 'Norma';
+        const existia = await this.prisma.normaLegal.findUnique({ where: { chave }, select: { id: true } });
         await this.prisma.normaLegal.upsert({
           where: { chave },
           create: { chave, tipo, numero: a.titulo.split(' citada')[0], titulo: a.titulo.split(' citada')[0], url_oficial: alvo, prioridade: 1, observacao: 'Incluída a partir de alerta do Radar.' },
           update: { url_oficial: alvo },
         });
-        resultado = await this.importar(chave);
+        try {
+          resultado = await this.importar(chave);
+        } catch (e) {
+          // Texto não lido: a norma recém-criada não fica cadastrada vazia (a revisão semanal acusaria o mesmo erro toda semana).
+          if (!existia) await this.prisma.normaLegal.deleteMany({ where: { chave, total_dispositivos: 0 } }).catch(() => undefined);
+          throw e;
+        }
       }
     }
     await this.prisma.alertaBaseLegal.update({ where: { id }, data: { status: acao === 'aprovar' ? 'aprovado' : 'descartado', resolvido_por: por, resolvido_em: new Date() } });

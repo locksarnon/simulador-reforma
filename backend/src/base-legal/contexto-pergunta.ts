@@ -32,6 +32,13 @@ export function ufsDaPergunta(pergunta: string): string[] {
   for (const m of semAcento(pergunta).toLowerCase().matchAll(/\b(?:no|do|ao|pro|estado do)\s+para\b(?!\s+(?:o|a|os|as|que|quem|um|uma)\b)/g)) achadas.push({ uf: 'PA', pos: m.index ?? 0 });
   // Siglas em maiúsculas ("ICMS em MT", "no PA"), como palavra solta.
   for (const m of pergunta.matchAll(/(?<![\p{L}\d])([A-Z]{2})(?![\p{L}\d])/gu)) if (SIGLAS.has(m[1])) achadas.push({ uf: m[1], pos: m.index ?? 0 });
+  // Siglas em minúsculas depois de preposição ou numa lista ("adubo no ms", "em mt e go"), como quem não é da área escreve. Com acento
+  // não conta ("ao pé da letra", "má-fé"); "se" nunca ("em se tratando"); "ma" só depois de no/na/em/pro/pra ("de ma fe" não é o Maranhão).
+  for (const m of pergunta.toLowerCase().matchAll(/(?<![\p{L}\d])(no|na|em|do|da|de|pro|pra|ao|e|ou)\s+([a-z]{2})(?![\p{L}\d])/gu)) {
+    const uf = m[2].toUpperCase();
+    if (!SIGLAS.has(uf) || uf === 'SE' || (uf === 'MA' && !['no', 'na', 'em', 'pro', 'pra'].includes(m[1]))) continue;
+    achadas.push({ uf, pos: (m.index ?? 0) + m[0].length - 2 });
+  }
   return [...new Set(achadas.sort((a, b) => a.pos - b.pos).map((a) => a.uf))];
 }
 
