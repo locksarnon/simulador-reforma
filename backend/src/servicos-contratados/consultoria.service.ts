@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { textoDoSped } from '../receitanetbx/sped-cabecalho';
 import { lerEfd, lerMit } from './perfil-fiscal';
+import { documentosAutomaticos, REGRAS_AUTOMATICAS } from './documentos-automaticos';
 
 const r = 'Reforma Tributária';
 const c = 'Créditos e Oportunidades Tributárias';
@@ -136,7 +137,27 @@ export class ConsultoriaService {
         data_emissao: { gte: inicio, lt: fim },
       }, _count: { _all: true } }) : [],
     ]);
-    return { arquivos, controles, sped, xml: xml.map((r) => ({ tipo: r.tipo, total: r._count._all })) };
+    const automaticos = dono.empresa_id ? documentosAutomaticos(servico, `${de}/${ate}`, await this.importacoesDoServico(servico, id, inicio, fim), controles) : [];
+    return { arquivos, controles, sped, xml: xml.map((r) => ({ tipo: r.tipo, total: r._count._all })), automaticos };
+  }
+
+  /** Importações dos projetos do serviço (hoje, o Saneamento de estoques) da empresa cuja data-base cai no período [inicio, fimExclusivo). */
+  private async importacoesDoServico(servico: string, empresaId: string, inicio: Date, fimExclusivo: Date) {
+    if (!REGRAS_AUTOMATICAS[servico]) return [];
+    const projetos = await this.prisma.sanProjeto.findMany({ where: { empresa_id: empresaId, data_base: { gte: inicio, lt: fimExclusivo } }, select: { id: true } });
+    if (!projetos.length) return [];
+    return this.prisma.sanImportacao.findMany({ where: { projeto_id: { in: projetos.map((p) => p.id) } },
+      select: { arquivo: true, usuario: true, createdAt: true, mapeamento: true }, orderBy: { createdAt: 'desc' } });
+  }
+
+  /** O documento tem evidência da importação (coberto ou parcial) no período 'aaaa-mm-dd/aaaa-mm-dd'? Então a situação manual dispensa arquivo. */
+  private async cobertoPelaImportacao(servico: string, empresaId: string | null, item: string, periodo: string) {
+    const m = /^(\d{4}-\d{2}-\d{2})\/(\d{4}-\d{2}-\d{2})$/.exec(periodo);
+    if (!empresaId || !m || !REGRAS_AUTOMATICAS[servico]?.some((r) => r.item === item)) return false;
+    const inicio = new Date(m[1] + 'T00:00:00.000Z'), fim = new Date(m[2] + 'T00:00:00.000Z');
+    if (isNaN(+inicio) || isNaN(+fim)) return false;
+    fim.setUTCDate(fim.getUTCDate() + 1);
+    return documentosAutomaticos(servico, periodo, await this.importacoesDoServico(servico, empresaId, inicio, fim)).some((d) => d.item === item);
   }
 
   async controlarDocumento(servico: string, id: string, entrada: Record<string, unknown>, email?: string) {
@@ -144,18 +165,23 @@ export class ConsultoriaService {
     const { item, periodo, situacao, arquivo_id } = entrada;
     if (typeof item !== 'string' || !item || item.length > 500 || typeof periodo !== 'string' ||
       !/^\d{4}(?:-\d{2}(?:-\d{2}\/\d{4}-\d{2}-\d{2})?)?$/.test(periodo) ||
-      typeof situacao !== 'string' || !['PENDENTE', 'RECEBIDO', 'VALIDADO', 'DIVERGENTE', 'NAO_APLICAVEL'].includes(situacao)) {
+      typeof situacao !== 'string' || !['PENDENTE', 'RECEBIDO', 'VALIDADO', 'DIVERGENTE', 'NAO_APLICAVEL', 'AUTOMATICO'].includes(situacao)) {
       throw new BadRequestException('Item, período ou situação inválidos.');
     }
     if (arquivo_id != null && (typeof arquivo_id !== 'string' ||
       !await this.prisma.arquivoEmpresa.findFirst({ where: { id: arquivo_id, ...dono }, select: { id: true } }))) {
       throw new BadRequestException('Escolha um arquivo deste contribuinte.');
     }
-    if (['RECEBIDO', 'VALIDADO', 'DIVERGENTE'].includes(situacao) && !arquivo_id) {
+    const identificador = { ...chave, item, periodo };
+    // Voltar ao automático: o controle manual sai e vale de novo a cobertura pela importação.
+    if (situacao === 'AUTOMATICO') {
+      await this.prisma.controleDocumentoConsultoria.deleteMany({ where: identificador });
+      return { removido: true };
+    }
+    if (['RECEBIDO', 'VALIDADO', 'DIVERGENTE'].includes(situacao) && !arquivo_id && !await this.cobertoPelaImportacao(servico, dono.empresa_id, item, periodo)) {
       throw new BadRequestException('Vincule uma evidência do repositório.');
     }
     const dados = { situacao, arquivo_id: typeof arquivo_id === 'string' ? arquivo_id : null, atualizado_por: email };
-    const identificador = { ...chave, item, periodo };
     return this.prisma.controleDocumentoConsultoria.upsert({
       where: { publico_cliente_id_servico_item_periodo: identificador },
       create: { ...identificador, ...dados }, update: dados,

@@ -115,7 +115,8 @@ export default function ProjetoDiagnosticoPagina() {
         </section>}
         {servico && <AnalisarComIa projetoId={p.id} servico={servico} />}
         {documentos && servico && <SolicitacoesConsultoria servico={servico}
-          clientes={clientesDocumentos} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)} />}
+          clientes={clientesDocumentos} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)}
+          caminhoImportacao={p.servico_consultoria === "saneamento-estoques" ? `/diagnostico/projetos/${p.id}/saneamento` : null} />}
         {(catalogo.isError || pessoas.isError) && p.servico_consultoria && <p role="alert" className="text-sm">Não foi possível carregar os dados do serviço. Atualize para tentar novamente.</p>}
         {servico && !servico.projeto && <p className="rounded-md border bg-card p-3 text-sm">Coleta de documentos disponível. Roteiro fiscal em desenvolvimento.</p>}
         {p.servico_consultoria === "pj-homologacao" && <HomologacaoErp projetoId={p.id} />}

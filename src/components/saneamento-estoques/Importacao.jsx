@@ -281,7 +281,9 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaDiret
   });
   const confirmar = useMutation({
     mutationFn: () => san.importar(projeto.id, arquivo, mapeamento ?? previa.mapeamento, corpoIncorporar(modo, escolhidos), escalaAplicada(previa.relatorio)),
-    onSuccess: (r) => { setResultado(r); setPrevia(null); setArquivo(null); setChaveArquivo((k) => k + 1); setErro(null); atualizarTudo(qc, projeto.id); },
+    onSuccess: (r) => { setResultado(r); setPrevia(null); setArquivo(null); setChaveArquivo((k) => k + 1); setErro(null); atualizarTudo(qc, projeto.id);
+      // Documentos e solicitações do projeto: a importação cobre o cadastro, o saldo, a movimentação e a equivalência de códigos.
+      qc.invalidateQueries({ queryKey: ["consultoria", "documentos"] }); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
 
