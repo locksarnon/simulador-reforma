@@ -3,6 +3,7 @@ import TabelaPadrao from "@/components/TabelaPadrao";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { campoBarraCls } from "@/lib/estiloTabela";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta, MODULOS_BPO, naCarteira, SITUACOES, TIPOS, TOM_DA_SITUACAO } from "@/lib/servicos";
 import { caminhoDoRepositorio } from "@/lib/bpoCaminhos";
@@ -14,7 +15,6 @@ import ListasSalvas from "@/components/clientes/ListasSalvas";
 import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 import { plural } from "@/lib/plural";
 
-const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const digitos = (s) => String(s || "").replace(/\D/g, "");
 const FILTROS_VAZIOS = { busca: "", situacao: "", grupo: "", tags: [], tagModo: "qualquer", colaborador: "" };
@@ -81,34 +81,28 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes })
           </div>
         )}
         <div className="rounded-xl border border-border bg-card p-3 space-y-3">
-          <div className="flex flex-wrap items-end gap-2 text-sm">
-            <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (nome, código ou CNPJ)</span>
-              <input type="search" className={`${campo} w-full`} value={filtros.busca} onChange={(e) => mudar("busca", e.target.value)} /></label>
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span>
-              <select className={campo} value={filtros.situacao} onChange={(e) => mudar("situacao", e.target.value)}>
-                <option value="">Todas</option>{Object.entries(SITUACOES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select></label>
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Grupo</span>
-              <select className={campo} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
-                <option value="">Todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
-              </select></label>
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
-              <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
-                <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
-              </select></label>
-            {(todas || daCarteira.length > 0) && (
-              <label className="flex items-center gap-2 pb-1.5"><input type="checkbox" checked={todas} onChange={(e) => setTodas(e.target.checked)} /> <span>Mostrar todas as empresas</span></label>
-            )}
-          </div>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <FiltroPorTags tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
-            <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
-          </div>
           {carregando && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
           {!carregando && erro && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
           {!carregando && !erro && (
             <TabelaPadrao
-              id={`carteira-${tipo}`} ariaLabel={`Empresas da carteira: ${titulo}`} titulo={titulo} colunas={colunas} linhas={lista}
+              id={`carteira-${tipo}`} ariaLabel={`Empresas da carteira: ${titulo}`} colunas={colunas} linhas={lista}
+              busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Nome, código ou CNPJ", rotulo: "Buscar por nome, código ou CNPJ" }}
+              filtrosExtras={<>
+                <select aria-label="Situação" className={campoBarraCls} value={filtros.situacao} onChange={(e) => mudar("situacao", e.target.value)}>
+                  <option value="">Situação: todas</option>{Object.entries(SITUACOES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                <select aria-label="Grupo" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
+                  <option value="">Grupo: todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
+                </select>
+                <select aria-label="Colaborador" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
+                  <option value="">Colaborador: todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
+                </select>
+                <FiltroPorTags compacto tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
+                <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
+                {(todas || daCarteira.length > 0) && (
+                  <label className="inline-flex h-8 items-center gap-1.5 text-xs"><input type="checkbox" checked={todas} onChange={(e) => setTodas(e.target.checked)} /> Mostrar todas as empresas</label>
+                )}
+              </>}
               vazio={ninguemMarcado ? "Nenhuma empresa na carteira." : servicos.length === 0 && empresas.length === 0 ? "Nenhuma empresa cadastrada." : "Nenhuma empresa com esses filtros."}
             />
           )}

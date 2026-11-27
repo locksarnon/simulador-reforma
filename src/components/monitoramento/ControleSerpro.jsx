@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
@@ -26,9 +27,9 @@ export default function ControleSerpro() {
     <section className="rounded-xl border border-border bg-card p-4 space-y-3 md:col-span-2 xl:col-span-3" aria-label="Monitoramento fiscal (Integra Contador)">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex-1 font-heading text-sm font-semibold">Monitoramento fiscal: Integra Contador (Serpro)</h2>
-        <div className="inline-flex rounded-md border border-border p-0.5" role="radiogroup" aria-label="Modo do monitoramento">
+        <div className="inline-flex flex-wrap gap-1.5" role="radiogroup" aria-label="Modo do monitoramento">
           {Object.entries(MODOS).map(([id, m]) => (
-            <button key={id} type="button" role="radio" aria-checked={e.modo === id} disabled={mudar.isPending || (id === "PRODUCAO" && !e.contrato)} onClick={() => mudar.mutate(id)} title={id === "PRODUCAO" && !e.contrato ? "Falta o contrato" : undefined} className={`rounded px-3 py-1 text-xs ${e.modo === id ? "bg-primary text-primary-foreground" : "hover:bg-muted disabled:opacity-50"}`}>{m.rotulo}</button>
+            <button key={id} type="button" role="radio" aria-checked={e.modo === id} disabled={mudar.isPending || (id === "PRODUCAO" && !e.contrato)} onClick={() => mudar.mutate(id)} title={id === "PRODUCAO" && !e.contrato ? "Falta o contrato" : undefined} className={`disabled:opacity-50 ${classeBotaoFiltro(e.modo === id, "xs")}`}>{m.rotulo}</button>
           ))}
         </div>
         {mudar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}

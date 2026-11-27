@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, Loader2 } from "lucide-react";
@@ -197,10 +198,10 @@ export default function RelatoriosXml({ empresaId, empresa, hoje }) {
           <h3 className="text-base font-semibold">Relatórios</h3>
           <p className="text-xs text-muted-foreground">{ajuda}</p>
         </div>
-        <div role="tablist" aria-label="Relatório" className="inline-flex border border-border bg-card p-0.5 gap-0.5">
+        <div role="tablist" aria-label="Relatório" className="inline-flex flex-wrap gap-1.5">
           {RELATORIOS.map((r) => (
             <button key={r.valor} type="button" role="tab" aria-selected={qual === r.valor} onClick={() => setQual(r.valor)}
-              className={`px-3.5 py-1.5 text-sm font-medium transition-colors ${qual === r.valor ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+              className={classeBotaoFiltro(qual === r.valor)}>
               {r.rotulo}
             </button>
           ))}

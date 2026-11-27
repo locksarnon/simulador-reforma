@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { SETORES_BASE_LEGAL } from "@/lib/setoresBaseLegal";
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -103,7 +104,7 @@ export default function BaseLegalPage() {
 
             {admin && <RevisoesPendentes />}
 
-            <section className="space-y-3"><h2 className="text-sm font-medium">Explorar por setor</h2><div className="flex flex-wrap gap-2"><button type="button" aria-pressed={!setorId} onClick={() => setSetorId('')} className={!setorId ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm'}>Todos</button>{SETORES_BASE_LEGAL.map(s => <button key={s.id} type="button" aria-pressed={setorId === s.id} onClick={() => setSetorId(s.id)} className={setorId === s.id ? 'px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm' : 'px-3 py-2 rounded-md border border-border text-sm hover:bg-muted'}>{s.nome}</button>)}</div>{setor && <button type="button" onClick={() => setPedido({ texto: setor.busca, n: Date.now() })} className="text-primary text-sm underline">Consultar as bases legais sobre {setor.nome}</button>}</section>
+            <section className="space-y-3"><h2 className="text-sm font-medium">Explorar por setor</h2><div className="flex flex-wrap gap-2"><button type="button" aria-pressed={!setorId} onClick={() => setSetorId('')} className={classeBotaoFiltro(!setorId)}>Todos</button>{SETORES_BASE_LEGAL.map(s => <button key={s.id} type="button" aria-pressed={setorId === s.id} onClick={() => setSetorId(s.id)} className={classeBotaoFiltro(setorId === s.id)}>{s.nome}</button>)}</div>{setor && <button type="button" onClick={() => setPedido({ texto: setor.busca, n: Date.now() })} className="text-primary text-sm underline">Consultar as bases legais sobre {setor.nome}</button>}</section>
             <section className="flex flex-wrap items-center gap-4 border border-border bg-gradient-to-r from-primary/10 via-card to-card p-4" aria-label="Assistente tributário">
               <Orbe tamanho={40} />
               <div className="min-w-0 flex-1">

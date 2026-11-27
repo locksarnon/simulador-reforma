@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import TabelaPadrao from "@/components/TabelaPadrao";
@@ -54,9 +55,9 @@ export default function Impacto({ projeto }) {
           {() => (
             <>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por tipo de ajuste">
-                <button type="button" aria-pressed={tipo === ""} onClick={() => setTipo("")} className={`border px-2.5 py-1 text-sm ${tipo === "" ? "border-primary bg-primary/10" : "border-border hover:bg-muted"}`}>Todos ({pag.totalGeral.toLocaleString("pt-BR")})</button>
+                <button type="button" aria-pressed={tipo === ""} onClick={() => setTipo("")} className={classeBotaoFiltro(tipo === "")}>Todos ({pag.totalGeral.toLocaleString("pt-BR")})</button>
                 {Object.entries(TIPOS_DE_AJUSTE).map(([k, v]) => (
-                  <button key={k} type="button" aria-pressed={tipo === k} onClick={() => setTipo(tipo === k ? "" : k)} className={`border px-2.5 py-1 text-sm ${tipo === k ? "border-primary bg-primary/10" : "border-border hover:bg-muted"}`}>{v} ({(contagem[k] || 0).toLocaleString("pt-BR")})</button>
+                  <button key={k} type="button" aria-pressed={tipo === k} onClick={() => setTipo(tipo === k ? "" : k)} className={classeBotaoFiltro(tipo === k)}>{v} ({(contagem[k] || 0).toLocaleString("pt-BR")})</button>
                 ))}
               </div>
               <TabelaPadrao id="saneamento-estoques-impactos" ariaLabel="Impacto nas obrigações" colunas={COLUNAS} linhas={linhas} chaveLinha={(l) => l.id} vazio="Nenhuma linha neste tipo de ajuste." />

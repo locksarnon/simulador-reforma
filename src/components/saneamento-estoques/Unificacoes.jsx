@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
@@ -132,7 +133,7 @@ export default function Unificacoes({ projeto }) {
   };
   const mudar = (k, v) => setFiltro((f) => ({ ...f, [k]: v, pagina: 1 }));
   const trocarLista = (id) => { const l = LISTAS_MAPA.find((x) => x.id === id); setLista(id); setFiltro((f) => ({ ...f, tipo: l.tipos, pagina: 1 })); };
-  const botao = (ativo) => `border px-2.5 py-1 text-sm ${ativo ? "border-primary bg-primary/10" : "border-border hover:bg-muted"}`;
+  const botao = (ativo) => classeBotaoFiltro(ativo);
 
   return (
     <section aria-labelledby="san-unif" className="space-y-3">

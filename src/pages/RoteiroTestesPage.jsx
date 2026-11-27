@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ClipboardCopy, ExternalLink, AlertTriangle, RotateCcw, ListChecks, Map as MapIcon } from "lucide-react";
@@ -221,7 +222,7 @@ function Mapa() {
       </div>
       <div className="flex gap-2">
         {[["", "Todos"], ["coberto", "Cobertos"], ["parcial", "Parciais"], ["pendente", "Pendentes"]].map(([k, l]) => (
-          <button key={k} onClick={() => setFiltro(k)} className={`px-3 py-1.5 rounded-md border text-sm ${filtro === k ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{l}</button>
+          <button key={k} type="button" aria-pressed={filtro === k} onClick={() => setFiltro(k)} className={classeBotaoFiltro(filtro === k)}>{l}</button>
         ))}
       </div>
       {SETORES_REFORMA.map((g) => {

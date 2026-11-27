@@ -171,7 +171,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     caminho: "Menu > Clientes > Clientes > “Novo cliente”",
     antes: ["CNPJ ou CPF do cliente.", "Saber quais serviços ele contratou (BPO fiscal e os serviços de Consultoria Tributária)."],
     passos: [
-      { acao: "Em Clientes, clique em “Novo cliente”." },
+      { acao: "Em Clientes, clique em “Novo cliente”.", detalhe: "O botão fica à direita, na mesma linha dos filtros rápidos (“Todos”, “BPO fiscal” e os demais)." },
       { acao: "Digite o “CNPJ ou CPF”.", detalhe: "Com CNPJ, ao sair do campo o sistema busca sozinho na Receita; também dá para clicar em “Buscar na Receita”. Nome, UF, município e, quando houver, o regime (MEI ou Simples Nacional) são preenchidos, e a tela mostra situação, CNAE e porte." },
       { acao: "Confira ou preencha “Nome ou razão social”, “Regime”, “UF” e “Município”.", detalhe: "Com CPF, preencha o nome à mão: a busca na Receita é só por CNPJ." },
       { acao: "Preencha “E-mail de contato” e “WhatsApp de contato”." },
@@ -227,15 +227,16 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     antes: ["Clientes cadastrados."],
     passos: [
       { acao: "Use os filtros rápidos do topo: “Todos”, “BPO fiscal”, “Consultoria”, “Sem serviço”, “Sem responsável” ou “Arquivados”.", detalhe: "Cada um mostra quantos clientes tem. “Consultoria” traz quem tem algum serviço de Consultoria Tributária vinculado; “Sem serviço”, quem não tem BPO fiscal nem consultoria." },
-      { acao: "Digite em “Buscar” o nome, CNPJ/CPF, cidade ou grupo." },
-      { acao: "Se precisar, escolha “Regime”, “UF” e “Colaborador” (inclusive “Sem colaborador”)." },
-      { acao: "Em “Etiquetas”, clique nas etiquetas desejadas e escolha “com qualquer uma” ou “com todas”." },
+      { acao: "Na barra logo acima da lista, digite no campo de busca o nome, CNPJ/CPF, cidade ou grupo.", detalhe: "Tudo fica numa linha só: busca, “Regime: todos”, “UF: todas”, “Colaborador: todos”, “Etiquetas”, “Lista salva”, “Salvar lista”, “Filtros por coluna”, “Colunas”, “Exportar” e “Importar planilha”." },
+      { acao: "Se precisar, escolha o regime, a UF e o colaborador nas caixas da mesma barra (em Colaborador há “Sem colaborador”).", detalhe: "Cada caixa mostra o que filtra na primeira opção, como “Regime: todos”." },
+      { acao: "Clique em “Etiquetas”, marque as etiquetas desejadas e escolha “com qualquer uma” ou “com todas”.", detalhe: "Com etiquetas ligadas, o botão mostra quantas são." },
       { acao: "Clique no nome do cliente (ou na linha) para abrir a ficha rápida ao lado.", detalhe: "Ela mostra os serviços (BPO fiscal e Consultoria Tributária), equipe, etiquetas, contato e os atalhos “Ir para” (com “Consultoria tributária” quando o cliente tem consultoria); “Abrir ficha completa” abre a ficha do cliente." },
       { acao: "Para guardar o filtro, clique em “Salvar lista”, dê o “Nome da lista” e, se quiser, marque “Compartilhar com a equipe”; clique em “Salvar”." },
-      { acao: "Para usar uma lista guardada, escolha-a em “Listas salvas”." },
+      { acao: "Para usar uma lista guardada, escolha-a na caixa “Lista salva: escolha…” da barra." },
     ],
     resultado: "A tabela mostra só os clientes do filtro, com a contagem “X de Y clientes” embaixo.",
     atencao: [
+      "A lista se atualiza sozinha ao voltar para a tela e depois de cada mudança; não há botão de atualizar.",
       "“Salvar lista” só funciona com algum filtro aplicado; salvar com o mesmo nome atualiza a lista.",
       "Apagar uma lista compartilhada tira a lista de toda a equipe; só quem criou ou um administrador apaga.",
       "Sem resultado, use “Limpar filtros”.",
@@ -406,7 +407,7 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     caminho: "Menu > Clientes > Planilha cadastral > aba “Empresas”",
     antes: ["Clientes cadastrados."],
     passos: [
-      { acao: "Abra Clientes > Planilha cadastral, aba “Empresas”." },
+      { acao: "Abra Clientes > Planilha cadastral, aba “Empresas”.", detalhe: "Na lista de Clientes, o botão “Importar planilha”, no fim da barra acima da lista, abre a mesma tela." },
       { acao: "Em “Exportar o cadastro”, clique em “Exportar”." },
       { acao: "Marque as colunas desejadas e escolha o formato." },
       { acao: "Clique em “Baixar”." },
@@ -679,10 +680,9 @@ export const POPS_INICIO_CLIENTES_ADMIN = [
     antes: ["Ser administrador."],
     passos: [
       { acao: "Abra a aba “Registro de acesso”." },
-      { acao: "Em “Resultado”, escolha Todos, Entrou, Senha errada, Conta desativada ou IP não permitido." },
-      { acao: "Para uma pessoa, digite o “E-mail”." },
-      { acao: "Leia as colunas “Quando”, “E-mail”, “Resultado”, “IP” e “Navegador”." },
-      { acao: "Clique em “Atualizar” para ver as tentativas mais recentes." },
+      { acao: "Na barra acima da lista, escolha em “Resultado: todos” um resultado: Entrou, Senha errada, Conta desativada ou IP não permitido." },
+      { acao: "Para uma pessoa, digite o e-mail no campo de busca da mesma barra." },
+      { acao: "Leia as colunas “Quando”, “E-mail”, “Resultado”, “IP” e “Navegador”.", detalhe: "A lista traz as tentativas mais recentes sempre que você volta para a tela." },
     ],
     resultado: "A tabela mostra as tentativas de entrada do filtro.",
     atencao: [

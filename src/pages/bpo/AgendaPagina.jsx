@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -88,8 +89,8 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-2 text-sm">
-        <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Visão do calendário">
-          {VISOES.map(([v, r]) => <button key={v} type="button" aria-pressed={visao === v} onClick={() => setVisao(v)} className={`rounded px-3 py-1 ${visao === v ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{r}</button>)}
+        <div className="inline-flex flex-wrap gap-1.5" role="group" aria-label="Visão do calendário">
+          {VISOES.map(([v, r]) => <button key={v} type="button" aria-pressed={visao === v} onClick={() => setVisao(v)} className={classeBotaoFiltro(visao === v)}>{r}</button>)}
         </div>
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => setDia(andar(visao, dia, -1))} className="rounded-md border border-border p-1.5 hover:bg-muted" aria-label="Anterior"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>
@@ -103,7 +104,7 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
 
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Camadas do calendário">
         {Object.entries(CAMADAS).map(([c, info]) => (
-          <button key={c} type="button" aria-pressed={ligadas.includes(c)} onClick={() => alternarCamada(c)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${ligadas.includes(c) ? "border-foreground/30 bg-muted/60" : "border-border opacity-50"}`}>
+          <button key={c} type="button" aria-pressed={ligadas.includes(c)} onClick={() => alternarCamada(c)} className={classeBotaoFiltro(ligadas.includes(c), "xs")}>
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: info.cor }} aria-hidden="true" />{info.rotulo}
           </button>
         ))}

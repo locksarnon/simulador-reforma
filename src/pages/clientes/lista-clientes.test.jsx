@@ -48,7 +48,8 @@ function renderizar(elemento, local = "/") {
 describe("Clientes: a lista", () => {
   it("mostra todos os clientes, os filtros rápidos com números e o botão de novo cliente", () => {
     const html = renderizar(<ClientesPagina />);
-    expect(html).toContain("Clientes · 2");
+    expect(html).not.toContain("Clientes · 2"); // título sem contador: a contagem está nos filtros rápidos e no rodapé
+    expect(html).toMatch(/<h1[^>]*>Clientes<\/h1>/);
     expect(html).toContain("Novo cliente");
     expect(html).toContain("EXTRA AGRO LTDA");
     expect(html).toContain("Beta Comércio SA");
@@ -68,8 +69,29 @@ describe("Clientes: a lista", () => {
 
   it("o filtro rápido Consultoria conta quem tem serviço de consultoria vinculado", () => {
     const html = renderizar(<ClientesPagina />);
-    expect(html).toMatch(/Consultoria <span[^>]*>1<\/span>/);
-    expect(html).toMatch(/Sem serviço <span[^>]*>1<\/span>/); // Beta só tem o diagnóstico pontual antigo
+    expect(html).toMatch(/Consultoria<span[^>]*>1<\/span>/);
+    expect(html).toMatch(/Sem serviço<span[^>]*>1<\/span>/); // Beta só tem o diagnóstico pontual antigo
+  });
+
+  it("barra única: uma busca só (a da página), sem Atualizar, selects com o sentido dentro, tudo na barra da tabela", () => {
+    const html = renderizar(<ClientesPagina />);
+    expect(html.match(/type="search"/g)).toHaveLength(1);
+    expect(html).toContain('placeholder="Nome, CNPJ/CPF, cidade ou grupo"');
+    expect(html).not.toContain("Buscar em todas as colunas");
+    expect(html).not.toMatch(/>\s*Atualizar\s*</);
+    expect(html).not.toContain("Planilha cadastral"); // a ação do cabeçalho era a mesma de "Importar planilha"
+    for (const [rotulo, primeira] of [["Regime", "Regime: todos"], ["UF", "UF: todas"], ["Colaborador", "Colaborador: todos"]]) {
+      expect(html).toMatch(new RegExp(`<select aria-label="${rotulo}"[^>]*><option value=""[^>]*>${primeira}</option>`));
+    }
+    const barra = html.slice(html.indexOf("data-barra-lista"), html.indexOf("<table"));
+    for (const t of ['type="search"', 'aria-label="Regime"', 'aria-label="UF"', 'aria-label="Colaborador"', 'aria-label="Listas salvas"', "Salvar lista", "Filtros por coluna", "Colunas", "Exportar", "Importar planilha"]) expect(barra).toContain(t);
+    expect(barra.indexOf('type="search"')).toBeLessThan(barra.indexOf('aria-label="Regime"'));
+    expect(barra.indexOf("Filtros por coluna")).toBeLessThan(barra.indexOf("Importar planilha"));
+    // Filtros rápidos no padrão dos botões (sem pílula) e "Novo cliente" na mesma linha, à direita.
+    const rapidos = html.slice(html.indexOf('aria-label="Filtros rápidos"'), html.indexOf("data-barra-lista"));
+    expect(rapidos).toContain("botao-filtro");
+    expect(rapidos).not.toContain("rounded-full");
+    expect(rapidos).toMatch(/ml-auto[^>]*>.*Novo cliente/);
   });
 
   it("mostra o grupo só quando é grupo de verdade, e a equipe de cada cliente", () => {

@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { buscarServicos as buscar } from "@/lib/buscaServicos";
 import { useAnaliseEmpresa } from "@/hooks/useAnaliseEmpresa";
 import React, { useMemo, useState } from "react";
@@ -158,7 +159,7 @@ export default function FerramentasClassificacao() {
                     <button
                       key={c.label}
                       onClick={() => { setQ(c.filtro); setCampo("local_incidencia_ibs"); setSnapshot(null); setMostrarAjuda(false); }}
-                      className="text-xs px-3 py-1.5 rounded-full border border-border hover:border-primary hover:bg-primary/5"
+                      className={classeBotaoFiltro(false, "xs")}
                     >
                       {c.label} <span className="text-muted-foreground font-mono ml-1">Art.11-{c.inciso}</span>
                     </button>

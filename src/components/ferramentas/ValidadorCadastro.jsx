@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useErps } from "@/components/erps/erps";
 import { associarErp, erpDoRegistro } from "@/lib/erps";
 import ConhecimentoEmpresa from "@/components/ConhecimentoEmpresa";
@@ -454,7 +455,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
             </p>
             <div className="flex flex-wrap gap-2 text-xs">
               {[["ANALISE", "No saneamento"], ["FORA", "Sem movimento no período"]].map(([v, rot]) => (
-                <button key={v} type="button" onClick={() => { setPeriodoFiltro(v); setAba(v === "FORA" ? "FORA" : "TODOS"); }} className={`px-3 py-1.5 rounded-full border ${periodoFiltro === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>{rot}</button>
+                <button key={v} type="button" onClick={() => { setPeriodoFiltro(v); setAba(v === "FORA" ? "FORA" : "TODOS"); }} aria-pressed={periodoFiltro === v} className={classeBotaoFiltro(periodoFiltro === v)}>{rot}</button>
               ))}
             </div>
             {periodoFiltro === "FORA" && <p className="text-xs text-muted-foreground">Estes produtos não entram no saneamento: são candidatos a inativar no ERP. A lista completa vai numa aba própria da planilha baixada.</p>}
@@ -474,7 +475,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
             const ativa = aba === a.id;
             return (
               <button key={a.id} type="button" role="tab" aria-selected={ativa} onClick={() => { setAba(a.id); setPeriodoFiltro(a.id === "FORA" ? "FORA" : "ANALISE"); if (a.id === "TODOS") { setFiltro("TODOS"); setProblemasSelecionados([]); } }}
-                className={`px-3 py-1.5 rounded-full border text-xs whitespace-nowrap ${ativa ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>
+                className={`whitespace-nowrap ${classeBotaoFiltro(ativa, "xs")}`}>
                 {a.titulo} <b className="tabular-nums">({n.toLocaleString("pt-BR")})</b>
               </button>
             );

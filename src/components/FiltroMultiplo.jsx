@@ -19,7 +19,7 @@ export default function FiltroMultiplo({ rotulo, opcoes, marcados, mudar }) {
   const alternar = (v) => mudar(marcados.includes(v) ? marcados.filter((x) => x !== v) : [...marcados, v]);
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-sm hover:bg-muted">
+      <button type="button" onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2 text-xs hover:bg-muted">
         <span className="text-muted-foreground">{rotulo}:</span> <span className="font-medium">{resumo}</span><ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
       {aberto && (

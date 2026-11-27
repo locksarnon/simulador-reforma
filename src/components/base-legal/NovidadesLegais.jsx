@@ -5,11 +5,12 @@ import { CheckCircle2, ExternalLink, Eye, Loader2, RotateCcw, X } from "lucide-r
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { botaoBarraCls, campoBarraCls } from "@/lib/estiloTabela";
 import {
   CLASSE_TIPO_NOVIDADE, dataHoraBr, dispositivosDaNovidade, fraseDoResumo, linksDaNovidade, ROTULO_ORIGEM_NOVIDADE, ROTULO_STATUS_NOVIDADE, ROTULO_TIPO_NOVIDADE,
 } from "@/lib/novidadesLegais";
 
-const STATUS = [["abertas", "Abertas (novas e vistas)"], ["nova", "Só as novas"], ["vista", "Vistas"], ["resolvida", "Resolvidas"], ["descartada", "Descartadas"], ["todas", "Todas"]];
+const STATUS = [["abertas", "Situação: abertas (novas e vistas)"], ["nova", "Só as novas"], ["vista", "Vistas"], ["resolvida", "Resolvidas"], ["descartada", "Descartadas"], ["todas", "Situação: todas"]];
 
 function useDebounced(v, ms = 350) {
   const [d, setD] = useState(v);
@@ -64,7 +65,7 @@ function Acoes({ n, onAgir, ocupado }) {
 }
 
 /** A tabela das novidades; separada da busca dos dados para ser testada sem a rede. */
-export function TabelaDeNovidades({ itens, admin = false, onAgir = () => {}, ocupadoId = null }) {
+export function TabelaDeNovidades({ itens, admin = false, onAgir = () => {}, ocupadoId = null, busca, filtrosExtras, vazio }) {
   const colunas = [
     { chave: "detectada_em", rotulo: "Detectada", tipo: "data", render: (n) => dataHoraBr(n.detectada_em) },
     {
@@ -90,7 +91,7 @@ export function TabelaDeNovidades({ itens, admin = false, onAgir = () => {}, ocu
     { chave: "status", rotulo: "Situação", valor: (n) => ROTULO_STATUS_NOVIDADE[n.status] || n.status },
   ];
   if (admin) colunas.push({ chave: "acoes", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false, render: (n) => <Acoes n={n} onAgir={onAgir} ocupado={ocupadoId === n.id} /> });
-  return <TabelaPadrao id="base-legal:novidades" ariaLabel="Novidades das bases legais" linhas={itens} chaveLinha={(n) => n.id} colunas={colunas} />;
+  return <TabelaPadrao id="base-legal:novidades" ariaLabel="Novidades das bases legais" linhas={itens} chaveLinha={(n) => n.id} colunas={colunas} busca={busca} filtrosExtras={filtrosExtras} vazio={vazio} />;
 }
 
 /**
@@ -108,7 +109,7 @@ export default function NovidadesLegais({ admin = false, normaInicial = "" }) {
   const [ocupadoId, setOcupadoId] = useState(null);
 
   const params = { status, ...(tipo ? { tipo } : {}), ...(norma ? { norma } : {}), ...(soAConfirmar ? { confirmada: "nao" } : {}), ...(busca ? { busca } : {}), limite: 200 };
-  const { data, isLoading } = useQuery({ queryKey: ["base-legal-novidades", params], queryFn: () => api.get("/base-legal/novidades", params) });
+  const { data, isLoading } = useQuery({ queryKey: ["base-legal-novidades", params], queryFn: () => api.get("/base-legal/novidades", params), placeholderData: (anterior) => anterior });
   const { data: resumo } = useQuery({ queryKey: ["base-legal-novidades-resumo"], queryFn: () => api.get("/base-legal/novidades/resumo") });
   const itens = data?.itens ?? [];
 
@@ -138,26 +139,19 @@ export default function NovidadesLegais({ admin = false, normaInicial = "" }) {
         <Selo valor={resumo ? resumo.normas_revogadas + resumo.normas_parcialmente_revogadas : undefined} rotulo={`normas revogadas ou com parte revogada${resumo ? ` (${resumo.normas_revogadas} por inteiro)` : ""}`} />
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs space-y-1">Situação
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="block h-9 rounded-md border border-input bg-background px-2 text-sm">{STATUS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select>
-        </label>
-        <label className="text-xs space-y-1">Tipo
-          <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="block h-9 rounded-md border border-input bg-background px-2 text-sm">
-            <option value="">Todos os tipos</option>
-            {Object.entries(ROTULO_TIPO_NOVIDADE).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
-          </select>
-        </label>
-        <label className="text-xs space-y-1 flex-1 min-w-[12rem] max-w-md">Buscar
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Norma, ato ou assunto" className="block w-full h-9 rounded-md border border-input bg-background px-2 text-sm" />
-        </label>
-        <label className="text-xs inline-flex items-center gap-1.5 h-9"><input type="checkbox" checked={soAConfirmar} onChange={(e) => setSoAConfirmar(e.target.checked)} />Só as a confirmar</label>
-        {norma && <button type="button" onClick={() => setNorma("")} className="botao-acao h-9 inline-flex items-center gap-1 rounded-md px-2 text-xs hover:bg-muted"><X className="w-3 h-3" />Só da norma {norma}</button>}
-      </div>
-
       {isLoading ? <p className="text-sm text-muted-foreground inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Carregando…</p>
-        : itens.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma novidade com estes filtros. A revisão semanal roda toda segunda-feira, às 5h.</p>
-          : <TabelaDeNovidades itens={itens} admin={admin} onAgir={agir} ocupadoId={ocupadoId} />}
+        : <TabelaDeNovidades itens={itens} admin={admin} onAgir={agir} ocupadoId={ocupadoId}
+            vazio="Nenhuma novidade com estes filtros. A revisão semanal roda toda segunda-feira, às 5h."
+            busca={{ valor: q, aoMudar: setQ, placeholder: "Norma, ato ou assunto", rotulo: "Buscar por norma, ato ou assunto" }}
+            filtrosExtras={<>
+              <select aria-label="Situação" value={status} onChange={(e) => setStatus(e.target.value)} className={campoBarraCls}>{STATUS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select>
+              <select aria-label="Tipo" value={tipo} onChange={(e) => setTipo(e.target.value)} className={campoBarraCls}>
+                <option value="">Tipo: todos</option>
+                {Object.entries(ROTULO_TIPO_NOVIDADE).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+              </select>
+              <label className="inline-flex h-8 items-center gap-1.5 text-xs"><input type="checkbox" checked={soAConfirmar} onChange={(e) => setSoAConfirmar(e.target.checked)} />Só as a confirmar</label>
+              {norma && <button type="button" onClick={() => setNorma("")} className={botaoBarraCls}><X className="w-3 h-3" />Só da norma {norma}</button>}
+            </>} />}
       {data && data.total > itens.length && <p className="text-xs text-muted-foreground">Mostrando {itens.length} de {data.total}. Refine os filtros para ver as demais.</p>}
       {!admin && <p className="text-xs text-muted-foreground">Novidade marcada “a confirmar” veio da pesquisa na web: confira a fonte oficial antes de usar. Só administradores marcam como vista, confirmam ou descartam.</p>}
     </section>

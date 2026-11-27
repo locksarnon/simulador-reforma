@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useState, useMemo } from "react";
 import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -168,11 +169,10 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
           {FILTROS.map((f) => (
             <button
               key={f.value}
+              type="button"
+              aria-pressed={filtro === f.value}
               onClick={() => mudarFiltro(f.value)}
-              className={cn(
-                "px-2.5 py-1 rounded-md text-xs font-medium border transition-colors",
-                filtro === f.value ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted text-foreground"
-              )}
+              className={classeBotaoFiltro(filtro === f.value, "xs")}
             >
               {f.label}
             </button>

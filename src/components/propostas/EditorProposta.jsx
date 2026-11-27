@@ -1,3 +1,4 @@
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calculator, Loader2, Plus, Trash2 } from "lucide-react";
@@ -27,7 +28,7 @@ export function CalculadoraHonorarios({ aoUsar, regimeInicial }) {
         <label className="space-y-1"><span className="block text-[11px] text-muted-foreground">Complexidade</span><select className={campo} value={e.complexidade} onChange={(x) => mudar("complexidade", x.target.value)}>{Object.entries(COMPLEXIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
       </div>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Módulos do BPO">
-        {Object.entries(MODULOS_HONORARIO).map(([k, v]) => <button key={k} type="button" aria-pressed={e.modulos.includes(k)} onClick={() => alternar(k)} className={`rounded-full border px-2.5 py-0.5 text-xs ${e.modulos.includes(k) ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}>{v}</button>)}
+        {Object.entries(MODULOS_HONORARIO).map(([k, v]) => <button key={k} type="button" aria-pressed={e.modulos.includes(k)} onClick={() => alternar(k)} className={classeBotaoFiltro(e.modulos.includes(k), "xs")}>{v}</button>)}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => calc.mutate()} disabled={calc.isPending} className="botao-acao rounded-md bg-background px-3 py-[3px] text-xs hover:bg-muted">Calcular</button>

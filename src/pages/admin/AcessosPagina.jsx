@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
+import { campoBarraCls } from "@/lib/estiloTabela";
 
 const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const RESULTADOS = { OK: "Entrou", FALHA: "Senha errada", INATIVO: "Conta desativada", BLOQUEADO_IP: "IP não permitido" };
@@ -32,23 +33,19 @@ export function RegistroDeAcesso() {
     return () => clearTimeout(t);
   }, [filtros.email]);
   const consulta = { resultado: filtros.resultado, email: emailBusca };
-  const { data, isLoading, error, refetch, isFetching } = useQuery({ queryKey: ["acessos-log", consulta], queryFn: () => api.get("/acessos/log", { ...consulta, limite: 200 }) });
+  // Mantém a lista anterior enquanto a nova chega (a barra não some ao digitar) e atualiza sozinha ao voltar para a aba.
+  const { data, isLoading, error } = useQuery({ queryKey: ["acessos-log", consulta], queryFn: () => api.get("/acessos/log", { ...consulta, limite: 200 }), placeholderData: (anterior) => anterior, refetchOnWindowFocus: true });
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-2 text-sm">
-        <label className="space-y-1"><span className="block text-xs text-muted-foreground">Resultado</span>
-          <select className={campo} value={filtros.resultado} onChange={(e) => setFiltros((f) => ({ ...f, resultado: e.target.value }))}>
-            <option value="">Todos</option>{Object.entries(RESULTADOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select></label>
-        <label className="space-y-1 flex-1 min-w-[180px]"><span className="block text-xs text-muted-foreground">E-mail</span>
-          <input type="search" className={`${campo} w-full`} value={filtros.email} onChange={(e) => setFiltros((f) => ({ ...f, email: e.target.value }))} /></label>
-        <button type="button" onClick={() => refetch()} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">{isFetching ? "Atualizando…" : "Atualizar"}</button>
-      </div>
       {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
       {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar o registro.</p>}
       {data && (
         <TabelaPadrao
-          id="admin-registro-acesso" ariaLabel="Registro de acesso" titulo="Registro de acesso" linhas={data} vazio="Nenhuma tentativa de entrada com esses filtros." ordemInicial={{ chave: "createdAt", dir: -1 }}
+          id="admin-registro-acesso" ariaLabel="Registro de acesso" titulo="Registro de acesso" linhas={data}
+          busca={{ valor: filtros.email, aoMudar: (v) => setFiltros((f) => ({ ...f, email: v })), placeholder: "E-mail", rotulo: "Buscar pelo e-mail" }}
+          filtrosExtras={<select aria-label="Resultado" className={campoBarraCls} value={filtros.resultado} onChange={(e) => setFiltros((f) => ({ ...f, resultado: e.target.value }))}>
+            <option value="">Resultado: todos</option>{Object.entries(RESULTADOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>} vazio="Nenhuma tentativa de entrada com esses filtros." ordemInicial={{ chave: "createdAt", dir: -1 }}
           colunas={[
             { chave: "createdAt", rotulo: "Quando", tipo: "data", render: (l) => <span className="tabular-nums">{quando(l.createdAt)}</span> },
             { chave: "email", rotulo: "E-mail" },

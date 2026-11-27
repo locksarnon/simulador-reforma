@@ -5,11 +5,13 @@ import { indexarPorEmpresa } from "@/lib/servicos";
 
 /** Empresas, grupos e serviços contratados juntos, com o índice por empresa e os números para os cartões. */
 export function useCarteiras() {
-  const empresas = useQuery({ queryKey: ["empresas", "carteiras"], queryFn: () => api.entities.Empresa.list() });
-  const todas = useQuery({ queryKey: ["empresas", "todas"], queryFn: () => api.entities.Empresa.listTodas() });
-  const grupos = useQuery({ queryKey: ["grupos"], queryFn: () => api.entities.Grupo.list() });
-  const servicos = useQuery({ queryKey: ["servicos-contratados"], queryFn: () => api.get("/servicos-contratados") });
-  const resumo = useQuery({ queryKey: ["servicos-contratados", "resumo"], queryFn: () => api.get("/servicos-contratados/resumo") });
+  // A lista se atualiza sozinha ao voltar para a aba (sem botão "Atualizar") e depois de cada ação (invalidação das chaves).
+  const foco = { refetchOnWindowFocus: true };
+  const empresas = useQuery({ queryKey: ["empresas", "carteiras"], queryFn: () => api.entities.Empresa.list(), ...foco });
+  const todas = useQuery({ queryKey: ["empresas", "todas"], queryFn: () => api.entities.Empresa.listTodas(), ...foco });
+  const grupos = useQuery({ queryKey: ["grupos"], queryFn: () => api.entities.Grupo.list(), ...foco });
+  const servicos = useQuery({ queryKey: ["servicos-contratados"], queryFn: () => api.get("/servicos-contratados"), ...foco });
+  const resumo = useQuery({ queryKey: ["servicos-contratados", "resumo"], queryFn: () => api.get("/servicos-contratados/resumo"), ...foco });
   const mapa = useMemo(() => indexarPorEmpresa(servicos.data), [servicos.data]);
   const carregando = empresas.isLoading || grupos.isLoading || servicos.isLoading;
   const erro = empresas.error || grupos.error || servicos.error;

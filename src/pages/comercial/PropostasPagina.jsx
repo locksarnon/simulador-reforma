@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
+import { campoBarraCls } from "@/lib/estiloTabela";
 import EditorProposta from "@/components/propostas/EditorProposta";
 import { baixarPdfDaProposta } from "@/lib/propostaPdf";
 import { brl, COMPLEXIDADES, MODULOS_HONORARIO, REGIMES_HONORARIO, SERVICOS, servicosOferecidos, STATUS, TOM_DO_STATUS } from "@/lib/propostas";
@@ -39,16 +40,14 @@ export function AbaPropostas({ usuario, empresas }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-2 text-sm">
-        <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (cliente ou número)</span><input type="search" className={`${campo} w-full`} value={filtro.busca} onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))} /></label>
-        <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span><select className={campo} value={filtro.status} onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value }))}><option value="">Todas</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-        <button type="button" onClick={() => setEditor({ proposta: null })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova proposta</button>
-      </div>
       {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
       {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar as propostas.</p>}
       {!isLoading && !error && (
         <TabelaPadrao
-          id="propostas-lista" ariaLabel="Propostas" titulo="Propostas" linhas={lista} ordemInicial={{ chave: "numero", dir: -1 }}
+          id="propostas-lista" ariaLabel="Propostas" linhas={lista} ordemInicial={{ chave: "numero", dir: -1 }}
+          busca={{ valor: filtro.busca, aoMudar: (v) => setFiltro((f) => ({ ...f, busca: v })), placeholder: "Cliente ou número", rotulo: "Buscar por cliente ou número" }}
+          filtrosExtras={<select aria-label="Situação" className={campoBarraCls} value={filtro.status} onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value }))}><option value="">Situação: todas</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
+          acoes={<button type="button" onClick={() => setEditor({ proposta: null })} className="botao-acao inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova proposta</button>}
           vazio={data.length ? "Nenhuma proposta com esses filtros." : "Nenhuma proposta ainda. Crie a primeira; a calculadora sugere o honorário do BPO."}
           colunas={[
             { chave: "numero", rotulo: "Nº", tipo: "numero", alinhar: "direita" },

@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { Link } from "react-router-dom";
-import { Loader2, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { arquivarCliente } from "@/lib/arquivamento";
 import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import { campoBarraCls } from "@/lib/estiloTabela";
 import DialogoServico from "@/components/clientes/DialogoServico";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { carteiraDaEmpresa, filtrarEmpresas, fmtDataCurta, naCarteira, SITUACOES, TIPOS_OFERECIDOS, TOM_DA_SITUACAO } from "@/lib/servicos";
@@ -22,8 +23,7 @@ import ListasSalvas from "@/components/clientes/ListasSalvas";
 import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 import { plural } from "@/lib/plural";
 
-const campo = "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-const CARTEIRAS = [["", "Todas as carteiras"], ["bpo", "Só BPO fiscal"], ["consultoria", "Só Consultoria Tributária"], ["ambas", "BPO fiscal e consultoria"], ["nenhuma", "Sem carteira"]];
+const CARTEIRAS = [["", "Carteira: todas"], ["bpo", "Só BPO fiscal"], ["consultoria", "Só Consultoria Tributária"], ["ambas", "BPO fiscal e consultoria"], ["nenhuma", "Sem carteira"]];
 const FILTROS_VAZIOS = { busca: "", grupo: "", carteira: "", tags: [], tagModo: "qualquer", colaborador: "" };
 
 function Cartao({ rotulo, valor, destaque, aoClicar, ativo }) {
@@ -137,27 +137,6 @@ export default function ServicosContratadosPagina() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-3 space-y-3">
-          <div className="flex flex-wrap items-end gap-2 text-sm">
-            <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (nome, código ou CNPJ)</span>
-              <input type="search" className={`${campo} w-full`} value={filtros.busca} onChange={(e) => mudar("busca", e.target.value)} /></label>
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Carteira</span>
-              <select className={campo} value={filtros.carteira} onChange={(e) => mudar("carteira", e.target.value)}>{CARTEIRAS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select></label>
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Grupo</span>
-              <select className={campo} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
-                <option value="">Todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
-              </select></label>
-            <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
-              <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
-                <option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
-              </select></label>
-            <button type="button" onClick={recarregar} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
-          </div>
-
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <FiltroPorTags tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
-            <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
-          </div>
-
           {selecionadas.length > 0 && (
             <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-primary/5 px-3 py-2 text-sm">
               <span className="font-medium">{plural(selecionadas.length, "empresa marcada", "empresas marcadas")}</span>
@@ -178,7 +157,19 @@ export default function ServicosContratadosPagina() {
           {!carregando && erro && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
           {!carregando && !erro && (
             <TabelaPadrao
-              id="servicos-contratados" ariaLabel="Serviços contratados por empresa" titulo="Serviços contratados" colunas={colunas} linhas={lista}
+              id="servicos-contratados" ariaLabel="Serviços contratados por empresa" colunas={colunas} linhas={lista}
+              busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Nome, código ou CNPJ", rotulo: "Buscar por nome, código ou CNPJ" }}
+              filtrosExtras={<>
+                <select aria-label="Carteira" className={campoBarraCls} value={filtros.carteira} onChange={(e) => mudar("carteira", e.target.value)}>{CARTEIRAS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select>
+                <select aria-label="Grupo" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
+                  <option value="">Grupo: todos</option>{grupos.map((g) => <option key={g.id} value={g.numero}>{g.numero} {g.nome}</option>)}
+                </select>
+                <select aria-label="Colaborador" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}>
+                  <option value="">Colaborador: todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}
+                </select>
+                <FiltroPorTags compacto tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
+                <ListasSalvas criterios={filtros} aoAplicar={(c) => setFiltros(aplicarCriterios(FILTROS_VAZIOS, c))} />
+              </>}
               selecao={{ marcadas, aoMudar: setMarcadas }}
               vazio={empresas.length === 0 ? <>Nenhuma empresa cadastrada. <Link to="/" className="text-primary hover:underline">Cadastre o cliente em Clientes</Link>.</> : "Nenhuma empresa com esses filtros."}
             />

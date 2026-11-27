@@ -1,4 +1,5 @@
 // Peças das checagens (passo Checagens): as abas, o selo da conclusão, o selo da regra, o aviso de situação e as ações de aprovar, reabrir ou declarar que não se aplica.
+import { classeBotaoFiltro } from "@/components/BotaoFiltro";
 import React, { useState } from "react";
 import { CRITERIOS } from "./logica";
 import { JUSTIFICATIVA_MIN, achadosDe, coberturaDoCriterio, naoAplicavelDe } from "./analise";
@@ -20,7 +21,7 @@ export function AbasCriterios({ contagem, ativo, onSelecionar, conclusoes }) {
         const n = achadosDe(contagem, c); const concl = conclusoes?.[c.id];
         return (
           <button key={c.id} type="button" role="tab" aria-selected={c.id === ativo} onClick={() => onSelecionar(c.id)} title={concl ? ROTULO_CONCLUSAO[concl] : undefined}
-            className={`px-2.5 py-1 text-xs rounded-md border ${c.id === ativo ? "border-primary bg-primary/10 text-primary" : "border-border bg-card"}`}>
+            className={classeBotaoFiltro(c.id === ativo, "xs")}>
             {c.titulo}{n > 0 && <span className="ml-1 tabular-nums opacity-70">{fmt(n)}</span>}{concl === "SEM_ACHADOS" || concl === "COM_ACHADOS" ? " ✓" : concl === "NAO_APLICAVEL" ? " n/a" : ""}
           </button>);
       })}

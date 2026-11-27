@@ -8,6 +8,7 @@ import { temTela } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/PageHeader";
+import { campoBarraCls } from "@/lib/estiloTabela";
 import { CATEGORIAS } from "@/lib/notificacoes";
 import ListaDePrevistas from "@/components/ListaDePrevistas";
 
@@ -18,22 +19,22 @@ const TOM = { ENVIADO: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark
 
 export function AbaEnvios({ empresas }) {
   const [f, setF] = useState({ status: "", origem: "", de: "", ate: "" });
-  const { data = [], isLoading, error } = useQuery({ queryKey: ["comunicacoes", "envios", f], queryFn: () => api.get("/comunicacoes/envios", Object.fromEntries(Object.entries(f).filter(([, v]) => v))) });
+  const { data = [], isLoading, error } = useQuery({ queryKey: ["comunicacoes", "envios", f], queryFn: () => api.get("/comunicacoes/envios", Object.fromEntries(Object.entries(f).filter(([, v]) => v))), placeholderData: (anterior) => anterior });
   const nome = useMemo(() => new Map(empresas.map((e) => [e.id, e.razao_social])), [empresas]);
   const mudar = (k, v) => setF((x) => ({ ...x, [k]: v }));
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-2 text-sm">
-        <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span><select className={campo} value={f.status} onChange={(e) => mudar("status", e.target.value)}><option value="">Todas</option><option value="ENVIADO">Enviado</option><option value="FALHA">Falha</option></select></label>
-        <label className="space-y-1"><span className="block text-xs text-muted-foreground">Origem</span><select className={campo} value={f.origem} onChange={(e) => mudar("origem", e.target.value)}><option value="">Todas</option>{Object.entries(ORIGENS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-        <label className="space-y-1"><span className="block text-xs text-muted-foreground">De</span><input type="date" className={campo} value={f.de} onChange={(e) => mudar("de", e.target.value)} /></label>
-        <label className="space-y-1"><span className="block text-xs text-muted-foreground">Até</span><input type="date" className={campo} value={f.ate} onChange={(e) => mudar("ate", e.target.value)} /></label>
-      </div>
       {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
       {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar.</p>}
       {!isLoading && !error && (
         <TabelaPadrao
-          id="admin-envios" ariaLabel="E-mails enviados" titulo="E-mails enviados" linhas={data} vazio="Nenhum e-mail com esses filtros." ordemInicial={{ chave: "createdAt", dir: -1 }}
+          id="admin-envios" ariaLabel="E-mails enviados" titulo="E-mails enviados" linhas={data}
+          filtrosExtras={<>
+            <select aria-label="Situação" className={campoBarraCls} value={f.status} onChange={(e) => mudar("status", e.target.value)}><option value="">Situação: todas</option><option value="ENVIADO">Enviado</option><option value="FALHA">Falha</option></select>
+            <select aria-label="Origem" className={campoBarraCls} value={f.origem} onChange={(e) => mudar("origem", e.target.value)}><option value="">Origem: todas</option>{Object.entries(ORIGENS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+            <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">De <input type="date" className={campoBarraCls} value={f.de} onChange={(e) => mudar("de", e.target.value)} /></label>
+            <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">Até <input type="date" className={campoBarraCls} value={f.ate} onChange={(e) => mudar("ate", e.target.value)} /></label>
+          </>} vazio="Nenhum e-mail com esses filtros." ordemInicial={{ chave: "createdAt", dir: -1 }}
           colunas={[
             { chave: "createdAt", rotulo: "Quando", tipo: "data", render: (e) => <span className="tabular-nums">{new Date(e.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}</span> },
             { chave: "destinatario", rotulo: "Para" },
