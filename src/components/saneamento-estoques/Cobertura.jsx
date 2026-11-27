@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play, RotateCw } from "lucide-react";
 import { chaves, san, atualizarTudo } from "./api";
@@ -58,39 +58,45 @@ export default function Cobertura({ projeto }) {
   const visao = useQuery({ queryKey: chaves.visao(projeto.id), queryFn: () => san.visaoGeral(projeto.id) });
   const disponiveis = useQuery({ queryKey: chaves.camadas(), queryFn: () => san.camadasDisponiveis() });
   const estado = useQuery({ queryKey: chaves.estadoCamadas(projeto.id), queryFn: () => san.estadoCamadas(projeto.id) });
-  const [resultado, setResultado] = useState(null);
-  const [progresso, setProgresso] = useState(null); // { atual, total, camada }
-  const executar = useMutation({
-    mutationFn: async (lista) => {
-      const feitas = [];
-      for (let n = 0; n < lista.length; n++) {
-        setProgresso({ atual: n + 1, total: lista.length, camada: lista[n] });
-        try { feitas.push(await san.executarCamada(projeto.id, lista[n])); } catch (e) { throw Object.assign(e, { feitas, camada: lista[n] }); }
-      }
-      return feitas;
-    },
-    onSuccess: (feitas) => { setProgresso(null); setResultado({ tom: "ok", feitas }); atualizarTudo(qc, projeto.id); },
-    onError: (e) => {
-      setProgresso(null);
-      const antes = e.feitas?.length ? `${e.feitas.length} camada(s) analisada(s); parou em ${ROTULO_CAMADA[e.camada]}: ` : "";
-      setResultado({ tom: "erro", texto: `${antes}${mensagemDeErro(e)}` });
-      atualizarTudo(qc, projeto.id);
-    },
+  // A análise roda no servidor, em segundo plano: segue mesmo que você saia desta tela; aqui só se acompanha.
+  const exec = useQuery({ queryKey: chaves.analises(projeto.id), queryFn: () => san.analises(projeto.id), refetchInterval: (q) => (q.state.data?.execucao?.rodando ? 2000 : false) });
+  const ex = exec.data?.execucao || null;
+  const rodandoAgora = !!ex?.rodando;
+  const [erroInicio, setErroInicio] = useState(null);
+  const [fechado, setFechado] = useState(null); // iniciadaEm do resultado que o usuário fechou
+  const marco = `${rodandoAgora}-${ex?.feitas?.length ?? 0}`;
+  const ultimoMarco = useRef(marco);
+  useEffect(() => {
+    // Cada camada concluída (e o fim da análise) renova casos, contagens e tabelas.
+    if (ultimoMarco.current !== marco) { ultimoMarco.current = marco; atualizarTudo(qc, projeto.id); }
+  }, [marco, qc, projeto.id]);
+  const iniciar = useMutation({
+    mutationFn: (lista) => san.iniciarAnalises(projeto.id, lista),
+    onSuccess: (r) => qc.setQueryData(chaves.analises(projeto.id), r),
+    onError: (e) => setErroInicio(mensagemDeErro(e)),
   });
+  const ocupado = rodandoAgora || iniciar.isPending;
+  const progresso = rodandoAgora && ex.atual ? { atual: ex.camadas.indexOf(ex.atual) + 1, total: ex.camadas.length, camada: ex.atual } : null;
+  // O resultado fica à vista por 30 minutos depois do fim (ou até fechar), também para quem voltou à tela depois.
+  const resultado = ex && !rodandoAgora && fechado !== ex.iniciadaEm && Date.now() - Date.parse(ex.terminadaEm) < 30 * 60 * 1000
+    ? (ex.erro
+      ? { tom: "erro", texto: `${ex.feitas.length ? `${ex.feitas.length} camada(s) analisada(s); parou em ${ROTULO_CAMADA[ex.erro.camada]}: ` : `${ROTULO_CAMADA[ex.erro.camada]}: `}${ex.erro.mensagem}` }
+      : { tom: "ok", feitas: ex.feitas })
+    : null;
   const cobertura = coberturaDeCamadas(camadas, disponiveis.data, visao.data);
   const pronto = visao.data !== undefined && disponiveis.data !== undefined;
   const porCamada = new Map((estado.data?.camadas || []).map((l) => [l.camada, l]));
   const ordem = ordemDeAnalise(cobertura);
   const bloqueio = !pode ? razao : trava.bloqueada ? trava.mensagem : null;
-  const analisar = (lista) => { setResultado(null); executar.mutate(lista); };
+  const analisar = (lista) => { setErroInicio(null); iniciar.mutate(lista); };
 
   return (
     <section aria-labelledby="san-cobertura" className="space-y-2 border border-border bg-card p-3">
       <div className="flex flex-wrap items-center gap-2">
         <h2 id="san-cobertura" className="text-sm font-semibold">Cobertura das camadas</h2>
-        <button type="button" className={`${botaoPrimario} ml-auto px-2 py-1 text-xs`} disabled={!pronto || !!bloqueio || executar.isPending || !ordem.length}
+        <button type="button" className={`${botaoPrimario} ml-auto px-2 py-1 text-xs`} disabled={!pronto || !!bloqueio || ocupado || !ordem.length}
           title={bloqueio || (!ordem.length ? "Importe o cadastro de itens antes" : `Analisa ${ordem.length} camada(s), uma depois da outra, na ordem das abas`)} onClick={() => analisar(ordem)}>
-          <Play className="h-3.5 w-3.5" aria-hidden="true" />{executar.isPending && progresso ? `Analisando ${progresso.atual} de ${progresso.total}…` : "Analisar todas (na ordem)"}
+          <Play className="h-3.5 w-3.5" aria-hidden="true" />{ocupado && progresso ? `Analisando ${progresso.atual} de ${progresso.total}…` : "Analisar todas (na ordem)"}
         </button>
       </div>
       {visao.isError || disponiveis.isError ? <p className="text-sm text-muted-foreground" role="alert">Não foi possível carregar a cobertura agora.</p>
@@ -100,7 +106,7 @@ export default function Cobertura({ projeto }) {
               {cobertura.map((c) => {
                 const e = porCamada.get(c.camada);
                 const selo = seloDaCamada(c, e);
-                const rodando = executar.isPending && progresso?.camada === c.camada;
+                const rodando = ocupado && progresso?.camada === c.camada;
                 return (
                   <li key={c.camada} className="flex flex-col gap-1 border border-border p-2 text-xs">
                     <span className="font-medium">{ROTULO_CAMADA[c.camada]}</span>
@@ -109,7 +115,7 @@ export default function Cobertura({ projeto }) {
                       {e?.desatualizada && <span title={textoDesatualizada(e.desatualizada)}><Tag tom="alerta">desatualizada</Tag></span>}
                     </span>
                     {c.analisavel && (
-                      <button type="button" className={`${botaoSecundario} mt-auto px-2 py-1 text-xs`} disabled={!!bloqueio || c.estado === "SEM_ITENS" || executar.isPending}
+                      <button type="button" className={`${botaoSecundario} mt-auto px-2 py-1 text-xs`} disabled={!!bloqueio || c.estado === "SEM_ITENS" || ocupado}
                         title={bloqueio || (c.estado === "SEM_ITENS" ? "Importe o cadastro de itens antes" : e?.executadaEm ? `Última análise: ${fmtDataHora(e.executadaEm)}` : undefined)}
                         aria-label={`Analisar ${ROTULO_CAMADA[c.camada]}`} onClick={() => analisar([c.camada])}>
                         <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />{rodando ? "Analisando…" : c.estado === "NAO_ANALISADA" || c.estado === "SEM_ITENS" ? "Analisar" : "Analisar de novo"}
@@ -121,8 +127,14 @@ export default function Cobertura({ projeto }) {
             </ul>
           )}
       {trava.bloqueada && <p className="text-xs text-muted-foreground">{trava.mensagem}: as análises ficam bloqueadas até lá.</p>}
-      {resultado?.tom === "erro" && <Aviso tom="erro">{resultado.texto}</Aviso>}
-      {resultado?.tom === "ok" && <Aviso tom={resultado.feitas.some((r) => r.semDados) ? "alerta" : "ok"}>{textoDasAnalises(resultado.feitas)}</Aviso>}
+      {rodandoAgora && <p className="text-xs text-muted-foreground" role="status">A análise roda no servidor: pode sair desta tela ou do sistema, ela continua.</p>}
+      {erroInicio && <Aviso tom="erro">{erroInicio}</Aviso>}
+      {resultado && (
+        <div className="flex items-start gap-2">
+          <div className="flex-1">{resultado.tom === "erro" ? <Aviso tom="erro">{resultado.texto}</Aviso> : <Aviso tom={resultado.feitas.some((r) => r.semDados) ? "alerta" : "ok"}>{textoDasAnalises(resultado.feitas)}</Aviso>}</div>
+          <button type="button" className="px-1 text-xs text-muted-foreground hover:text-foreground" aria-label="Fechar o resultado da análise" onClick={() => setFechado(ex.iniciadaEm)}>Fechar</button>
+        </div>
+      )}
     </section>
   );
 }

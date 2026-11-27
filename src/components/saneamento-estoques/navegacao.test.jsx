@@ -27,7 +27,7 @@ const montar = (ui, preparar, local = "/") => {
 };
 const projeto = (o = {}) => ({ id: "p1", empresa_id: "e1", versao: 3, estabelecimentos: [], data_base: "2026-12-31T00:00:00.000Z", parametros: {}, modulos: {}, atividades: [], atividadesConfirmadas: true, ...o });
 
-describe("Cobertura numa linha", () => {
+describe("Cobertura das camadas", () => {
   const visao = { camadas: [], grupos: [{ grupo: "A", itens: 3, camadas: { QUALIDADE: { PROPOSTO: 2, SEM_PROBLEMA: 1 }, NCM: { SEM_PROBLEMA: 3 }, TRIBUTARIO: { PROPOSTO: 3 } } }] };
   const estado = { camadas: [
     { camada: "QUALIDADE", abertos: 9265, aguardando: 12, aprovados: 0, executadaEm: "2026-11-20T10:00:00Z", desatualizada: null },
@@ -44,6 +44,26 @@ describe("Cobertura numa linha", () => {
     expect(t).toContain("Analisar todas (na ordem)");
     expect(html).toContain('aria-label="Analisar Qualidade"');
     expect(t).not.toMatch(/GRUPOS_FINALIDADE|TRIBUTARIO/);
+  });
+  it("análise em segundo plano: mostra o andamento vindo do servidor e avisa que pode sair da tela", () => {
+    const html = montar(<Cobertura projeto={projeto()} />, (qc) => {
+      preparar(qc);
+      qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: true, camadas: ["QUALIDADE", "NCM", "TRIBUTARIO"], atual: "NCM", feitas: [{ camada: "QUALIDADE" }], erro: null, iniciadaEm: "2026-11-27T09:00:00Z", terminadaEm: null } });
+    });
+    const t = texto(html);
+    expect(t).toContain("Analisando 2 de 3…");
+    expect(t).toContain("pode sair desta tela ou do sistema, ela continua");
+    expect(t).toContain("NCM analisando…");
+  });
+  it("análise terminada há pouco: resumo com Fechar; parada por erro diz onde", () => {
+    const agora = new Date().toISOString();
+    const ok = texto(montar(<Cobertura projeto={projeto()} />, (qc) => { preparar(qc); qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: false, camadas: ["QUALIDADE", "NCM"], atual: null, feitas: [{ camada: "QUALIDADE", casosNovos: 2 }, { camada: "NCM", casosNovos: 3 }], erro: null, iniciadaEm: agora, terminadaEm: agora } }); }));
+    expect(ok).toContain("2 camadas analisadas, na ordem; 5 caso(s) novo(s).");
+    expect(ok).toContain("Fechar");
+    const erro = texto(montar(<Cobertura projeto={projeto()} />, (qc) => { preparar(qc); qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: false, camadas: ["QUALIDADE", "NCM"], atual: null, feitas: [{ camada: "QUALIDADE" }], erro: { camada: "NCM", mensagem: "falhou" }, iniciadaEm: agora, terminadaEm: agora } }); }));
+    expect(erro).toContain("1 camada(s) analisada(s); parou em NCM: falhou");
+    const antiga = texto(montar(<Cobertura projeto={projeto()} />, (qc) => { preparar(qc); qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: false, camadas: ["NCM"], atual: null, feitas: [{ camada: "NCM", casosNovos: 1 }], erro: null, iniciadaEm: "2026-01-01T00:00:00Z", terminadaEm: "2026-01-01T00:01:00Z" } }); }));
+    expect(antiga).not.toContain("Fechar");
   });
   it("funções: selo, ordem da análise, dica e resumo", () => {
     expect(seloDaCamada({ estado: "SEM_ANALISE" })).toEqual({ texto: "análise indisponível", tom: "neutro" });

@@ -101,6 +101,11 @@ export class SaneamentoEstoquesController {
   camadasDisponiveis() { return this.orquestracao.camadasDisponiveis(); }
   @Post('projetos/:id/camadas/:camada/executar')
   executar(@Param('id') id: string, @Param('camada') camada: string) { return this.orquestracao.executarCamada(id, camada); }
+  /** Análise em segundo plano: roda as camadas na ordem no servidor; a tela acompanha pelo GET e pode ser fechada. */
+  @Post('projetos/:id/analises')
+  iniciarAnalises(@Param('id') id: string, @Body() corpo: { camadas?: unknown }) { return this.orquestracao.iniciarExecucao(id, corpo?.camadas).then((execucao) => ({ execucao })); }
+  @Get('projetos/:id/analises')
+  analises(@Param('id') id: string) { return { execucao: this.orquestracao.execucao(id) }; }
   /** Só lê: casos em aberto, aguardando e aprovados por camada, última análise completa, camada desatualizada e o que os aprovados fazem. */
   @Get('projetos/:id/estado-camadas')
   estadoCamadas(@Param('id') id: string) { return this.orquestracao.estadoDasCamadas(id); }

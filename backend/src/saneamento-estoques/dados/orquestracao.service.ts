@@ -11,6 +11,17 @@ import { envolverComDiretrizes } from '../diretrizes/analise';
 import { indiceAplicado } from '../diretrizes/dados';
 import { fecharEscopo, recortarResultado } from '../diretrizes/escopo';
 
+/** Análise em segundo plano (uma por projeto): roda as camadas na ordem, no servidor, e segue mesmo que a tela seja fechada. */
+export interface ExecucaoCamadas {
+  rodando: boolean;
+  camadas: Camada[];
+  atual: Camada | null;
+  feitas: Array<Record<string, unknown> & { camada: Camada }>;
+  erro: { camada: Camada; mensagem: string } | null;
+  iniciadaEm: string;
+  terminadaEm: string | null;
+}
+
 /** Roda uma camada: lê os itens, chama o analisador (função pura) e grava casos e células. Os analisadores entram por injeção (SAN_MOTOR). */
 @Injectable()
 export class SanOrquestracaoService {
@@ -20,6 +31,41 @@ export class SanOrquestracaoService {
     private readonly casos: SanCasosService,
     @Inject(SAN_MOTOR) private readonly motor: MotorPort,
   ) {}
+
+  private readonly execucoes = new Map<string, ExecucaoCamadas>();
+
+  /** Situação da análise em segundo plano do projeto (a última, mesmo terminada); null se nenhuma rodou desde que o servidor subiu. */
+  execucao(projetoId: string): ExecucaoCamadas | null {
+    return this.execucoes.get(projetoId) ?? null;
+  }
+
+  /**
+   * Inicia a análise das camadas, na ordem dada, em segundo plano. Confere a trava e as camadas antes de responder; recusa se já houver
+   * uma análise rodando no projeto. Para na primeira camada que falhar (as anteriores ficam gravadas).
+   */
+  async iniciarExecucao(projetoId: string, camadasTexto: unknown): Promise<ExecucaoCamadas> {
+    if (!Array.isArray(camadasTexto) || !camadasTexto.length) throw new BadRequestException('Informe as camadas a analisar.');
+    const camadas = camadasTexto.map((c) => validarCamada(String(c)));
+    await this.projetos.exigirConfirmadas(projetoId);
+    if (this.execucoes.get(projetoId)?.rodando) throw new BadRequestException('Já há uma análise rodando neste projeto. Aguarde terminar.');
+    const ex: ExecucaoCamadas = { rodando: true, camadas, atual: camadas[0], feitas: [], erro: null, iniciadaEm: new Date().toISOString(), terminadaEm: null };
+    this.execucoes.set(projetoId, ex);
+    void (async () => {
+      for (const camada of camadas) {
+        ex.atual = camada;
+        try {
+          ex.feitas.push({ ...(await this.executarCamada(projetoId, camada) as Record<string, unknown>), camada });
+        } catch (e) {
+          ex.erro = { camada, mensagem: e instanceof Error ? e.message : String(e) };
+          break;
+        }
+      }
+      ex.atual = null;
+      ex.rodando = false;
+      ex.terminadaEm = new Date().toISOString();
+    })();
+    return ex;
+  }
 
   /** Camadas que têm analisador conectado. */
   camadasDisponiveis() {

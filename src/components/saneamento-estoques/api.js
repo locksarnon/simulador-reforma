@@ -28,6 +28,9 @@ export const san = {
   visaoGeral: (id) => api.get(`${B}/projetos/${id}/visao-geral`),
   camadasDisponiveis: () => api.get(`${B}/camadas-disponiveis`),
   executarCamada: (id, camada) => api.post(`${B}/projetos/${id}/camadas/${camada}/executar`, {}),
+  /** Análise em segundo plano no servidor (segue mesmo fora da tela): { execucao: { rodando, camadas, atual, feitas, erro, iniciadaEm, terminadaEm } }. */
+  iniciarAnalises: (id, camadas) => api.post(`${B}/projetos/${id}/analises`, { camadas }),
+  analises: (id) => api.get(`${B}/projetos/${id}/analises`),
   /** { camadas: [{ camada, abertos, aguardando, aprovados, executadaEm, desatualizada }], abertos, aguardando, aprovados, efeitos }. */
   estadoCamadas: (id) => api.get(`${B}/projetos/${id}/estado-camadas`),
 
@@ -100,6 +103,7 @@ export const chaves = {
   visao: (projetoId) => ["san", projetoId, "visao"],
   camadas: () => ["san", "camadas-disponiveis"],
   estadoCamadas: (projetoId) => ["san", projetoId, "estado-camadas"],
+  analises: (projetoId) => ["san", projetoId, "analises"],
   casos: (projetoId, filtro) => ["san", projetoId, "casos", filtro],
   caso: (casoId) => ["san", "caso", casoId],
   gruposDoCaso: (projetoId, casoId) => ["san", projetoId, "caso-grupos", casoId],
