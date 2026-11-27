@@ -19,6 +19,8 @@ import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 import { fmtDataCurta } from "@/lib/servicos";
 import { caminhoDaFerramenta, cobreGrupoInteiro, FERRAMENTAS, SITUACOES_PROJETO } from "@/lib/projetos";
 import { plural } from "@/lib/plural";
+import { trilhaDoProjeto } from "@/lib/trilhas";
+import { useClienteDoProjeto } from "@/lib/useClienteDoProjeto";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const dia = (v) => (v ? String(v).slice(0, 10) : "");
@@ -78,12 +80,8 @@ export default function ProjetoDiagnosticoPagina() {
     })) exclusao.mutate(false);
   };
 
-  const clienteDoProjeto = p?.pessoa_fisica_id ? `PF/${p.pessoa_fisica_id}` : p?.empresa_ids?.length === 1 ? `PJ/${p.empresa_ids[0]}` : null;
-  const crumbs = [{ label: "Início", to: "/inicio" },
-    ...(p?.servico_consultoria && clienteDoProjeto
-      ? [{ label: "Carteira de Consultoria", to: "/consultoria/carteira" }, { label: "Trabalhos do cliente", to: `/consultoria/carteira/${clienteDoProjeto}` }]
-      : [{ label: p?.servico_consultoria ? "Projetos de Consultoria" : "Diagnósticos", to: p?.servico_consultoria ? "/consultoria/projetos" : "/diagnostico" }]),
-    { label: p?.nome || "Projeto" }];
+  const cliente = useClienteDoProjeto(p?.servico_consultoria ? p : null);
+  const crumbs = trilhaDoProjeto({ projeto: p, cliente });
   if (projeto.isLoading || carregando) return <div><PageHeader crumbs={crumbs} title="Diagnóstico" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
   if (!p) return <div><PageHeader crumbs={crumbs} title="Diagnóstico não encontrado" /><p role="alert" className="p-8 text-sm">Este projeto não existe mais. <Link to="/diagnostico" className="text-primary hover:underline">Voltar aos diagnósticos</Link></p></div>;
   const daLista = p.empresa_ids.map((eid) => empresas.find((e) => e.id === eid)).filter(Boolean);

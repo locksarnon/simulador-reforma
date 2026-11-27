@@ -83,7 +83,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Conferir, por período, quais documentos do serviço já chegaram e emitir a lista do que falta.",
     quem: "Consultor",
     quando: "No início do projeto e a cada entrega de documentos pelo cliente.",
-    caminho: "Menu > Consultoria Tributária > Projetos > (projeto) > Documentos e solicitações",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Documentos e solicitações",
     antes: [
       "O projeto precisa ser de um serviço do catálogo de Serviços Tributários.",
     ],
@@ -109,7 +109,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Abrir, a partir do projeto, as telas de trabalho de cada empresa do escopo.",
     quem: "Consultor",
     quando: "Na execução de um projeto de diagnóstico por empresa.",
-    caminho: "Menu > Consultoria Tributária > Projetos > (projeto)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto)",
     antes: [
       "Vale para os projetos de diagnóstico por empresa, que não são de um serviço do catálogo: neles a tela mostra um cartão por empresa.",
       "A empresa precisa estar num grupo econômico no cadastro; sem grupo, os botões das ferramentas aparecem apagados.",
@@ -133,7 +133,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Tirar um projeto aberto por engano, com a autorização do administrador.",
     quem: "Consultor (solicita) e Administrador (aprova)",
     quando: "Quando o projeto não deve existir.",
-    caminho: "Menu > Consultoria Tributária > Projetos > (projeto)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto)",
     antes: [
       "Para encerrar um trabalho, prefira mudar a situação para Concluído ou Cancelado (POP-CON-03).",
     ],
@@ -177,7 +177,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     objetivo: "Conferir, cenário por cenário, se o ERP do cliente emite as notas com o IBS e a CBS certos, pela calculadora oficial da Receita.",
     quem: "Consultor",
     quando: "Na homologação do ERP do cliente e a cada ajuste que o fornecedor do ERP fizer.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > cliente > projeto “Homologação fiscal do ERP para IBS/CBS”",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > projeto “Homologação fiscal do ERP para IBS/CBS”",
     antes: ["Cliente de Pessoa Jurídica vinculado ao serviço (POP-CON-01).", "Notas de saída do cliente no Repositório de XML, emitidas a partir de 2026 (POP-BPO-03)."],
     passos: [
       { acao: "Abra o projeto e confira o período: ele define quais notas entram." },

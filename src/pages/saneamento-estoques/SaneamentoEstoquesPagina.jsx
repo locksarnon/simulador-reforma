@@ -5,6 +5,8 @@ import { api } from "@/api/client";
 import { useAuth } from "@/lib/AuthContext";
 import { semFuncao, temFuncao } from "@/lib/permissoes";
 import PageHeader from "@/components/PageHeader";
+import { telasDoSaneamento, trilhaDoProjeto } from "@/lib/trilhas";
+import { useClienteDoProjeto } from "@/lib/useClienteDoProjeto";
 import { san, chaves } from "@/components/saneamento-estoques/api";
 import { Aviso, botaoPrimario, botaoSecundario, EstadoCarregando, EstadoErro, PermissaoContext, Quadro } from "@/components/saneamento-estoques/comuns";
 import Abas, { SeletorDeFases } from "@/components/saneamento-estoques/Abas";
@@ -149,8 +151,8 @@ export default function SaneamentoEstoquesPagina() {
   };
   const abrirTabela = (r) => { setRecorte(r); irPara({ fase, aba: "tabela" }); };
 
-  const nome = diag.data?.nome || "Projeto";
-  const crumbs = [{ label: "Consultoria Tributária", to: "/consultoria/carteira" }, { label: "Projetos", to: "/consultoria/projetos" }, { label: nome, to: `/diagnostico/projetos/${id}` }, { label: "Saneamento de estoques" }];
+  const cliente = useClienteDoProjeto(diag.data);
+  const crumbs = trilhaDoProjeto({ projeto: diag.data || { id, servico_consultoria: "saneamento-estoques" }, cliente, telas: telasDoSaneamento(id, esperandoFase ? {} : { fase, aba }) });
 
   let corpo;
   if (naoAberto && abrir.isError) {

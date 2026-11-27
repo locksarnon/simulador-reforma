@@ -11,6 +11,7 @@ import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta } from "@/lib/servicos";
 import { datasValidas, porDataBase, rotuloPeriodo } from "@/lib/dataBase";
 import { SITUACOES_PROJETO } from "@/lib/projetos";
+import { trilhaDaConsultoria, trilhaDoCliente } from "@/lib/trilhas";
 
 const campo = "rounded-md border bg-background px-3 py-2 text-sm";
 const campoCompacto = "h-8 min-w-0 rounded-md border bg-background px-2 text-xs";
@@ -128,7 +129,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
 
     return <div>
       <PageHeader title={cliente?.nome || "Trabalhos do cliente"}
-        crumbs={[{ label: "Carteira de Consultoria", to: "/consultoria/carteira" }, { label: cliente?.nome || "Cliente" }]}
+        crumbs={trilhaDoCliente(cliente)}
         actions={cliente && <div className="flex flex-wrap items-center gap-3">
           {cliente.publico === "PJ" && <Link to={`/clientes/${cliente.id}`} className="text-sm text-primary hover:underline">Ficha completa</Link>}
           {!adicionando && <button type="button" className={botao} onClick={() => configurar()}>Novo projeto</button>}
@@ -200,7 +201,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
   }
 
   return <div>
-    <PageHeader crumbs={[{ label: "Consultoria Tributária", to: "/area/diagnostico" }, { label: titulo }]} title={titulo}
+    <PageHeader crumbs={trilhaDaConsultoria({ label: titulo })} title={titulo}
       actions={carteira && <button className={botao} onClick={() => abrir({ adicionando: true })}>Adicionar cliente à carteira</button>} />
     <div className="space-y-4 px-6 py-5 lg:px-8">
       {erro && <p role="alert">Não foi possível carregar a Consultoria. Atualize a página para tentar novamente.</p>}
