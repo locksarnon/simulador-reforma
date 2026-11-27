@@ -102,7 +102,7 @@ export class SanOrquestracaoService {
       dataBase: await this.projetos.dataBase(projetoId), atividades: idsDeAtividades(ativas.map((a) => a.codigo)),
       erp: await nomeDoErp(this.prisma, (p as { erp_id?: string | null }).erp_id, p.erp), erp_id: (p as { erp_id?: string | null }).erp_id ?? null,
       corteMovimentacao: ((p.parametros as Json)?.corteMovimentacao as string | null | undefined) ?? null,
-      ...((p.parametros as Json)?.motor ? { parametros: (p.parametros as Json).motor } : {}),
+      ...parametrosDoMotor(p.parametros as Json | null),
     } as ContextoAnalise;
     const preparado = await this.motor.preparar(camada, { projetoId, itens, contexto });
     const diretrizes = await indiceAplicado(this.prisma, projetoId);
@@ -144,6 +144,7 @@ export class SanOrquestracaoService {
     if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
     const camadas = camadasAtivas(p.modulos as Json);
     const execucoes = ((p.parametros as Json | null)?.execucoes ?? {}) as Record<string, string>;
+    const criteriosEm = ((p.parametros as Json | null)?.criteriosAlteradosEm ?? {}) as Record<string, string>;
     const contagem = await this.prisma.sanCaso.groupBy({ by: ['camada', 'situacao'], where: { projeto_id: projetoId }, _count: { _all: true } });
     const porCamada = new Map<string, { abertos: number; aguardando: number; aprovados: number }>();
     for (const c of contagem) {
@@ -164,7 +165,7 @@ export class SanOrquestracaoService {
     }
     const linhas = camadas.map((camada) => ({
       camada, ...(porCamada.get(camada) ?? { abertos: 0, aguardando: 0, aprovados: 0 }), executadaEm: execucoes[camada] ?? null,
-      desatualizada: desatualizacao(camada, execucoes[camada] ?? null, mudancas),
+      desatualizada: desatualizacao(camada, execucoes[camada] ?? null, mudancas) ?? desatualizacaoPorCriterio(execucoes[camada] ?? null, criteriosEm[camada] ?? null),
     }));
     const aprovados = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, situacao: 'APROVADO' }, select: { camada: true, proposta: true, itens: true } });
     return {
@@ -179,6 +180,21 @@ export class SanOrquestracaoService {
 export const DEPENDENCIAS: Partial<Record<Camada, { camada: Camada; campos: string[] }[]>> = {
   TRIBUTARIO: [{ camada: 'FINALIDADE', campos: ['finalidade', 'tambemUsadoComo'] }, { camada: 'NCM', campos: ['ncm'] }, { camada: 'NCM_CLASSIFICACAO', campos: ['ncm'] }],
 };
+
+/**
+ * Parâmetros que o motor lê: os de `parametros.motor` mais os critérios ajustados em "O que foi considerado" (`parametros.criterios`).
+ * Sem nenhum dos dois, nada (a camada roda como sempre). Função pura.
+ */
+export function parametrosDoMotor(parametros: Json | null | undefined): { parametros?: Json } {
+  const motor = parametros?.motor as Json | undefined; const criterios = parametros?.criterios as Json | undefined;
+  if (!motor && !criterios) return {};
+  return { parametros: { ...(motor ?? {}), ...(criterios ? { criterios } : {}) } };
+}
+
+/** Critério da camada alterado depois da última análise completa dela: desatualizada, com `criterio: true` (a tela pede "analise de novo"). */
+export function desatualizacaoPorCriterio(executadaEm: string | null, alteradoEm: string | null): { por: Camada[]; desde: string; criterio: true } | null {
+  return executadaEm && alteradoEm && alteradoEm > executadaEm ? { por: [], desde: alteradoEm, criterio: true } : null;
+}
 
 /** A camada ficou desatualizada? Só quando foi analisada por inteiro e um campo de que depende mudou depois. Função pura. */
 export function desatualizacao(camada: Camada, executadaEm: string | null, mudancas: Map<string, string | null>): { por: Camada[]; desde: string } | null {

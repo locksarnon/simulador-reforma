@@ -15,6 +15,7 @@ import {
 import { VARIA_POR_ITEM } from '../motor';
 import { canonico } from '../diretrizes/conteudo-regra';
 import type { ParecerIa } from './portas';
+import { similaridadeDoCaso } from '../criterios/similaridade';
 import { SanProjetoService } from './projeto.service';
 import { paramInteiro, paramTexto, validarProposta, validarResultado } from './validacao';
 
@@ -429,7 +430,8 @@ export class SanCasosService {
     for (const lote of fatiar(primeiros, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, codigo: true, descricao: true, grupo: true } })) itens.set(i.id, i);
     const pagina = linhas.slice(0, limite).map(({ itens: ids, ...resto }) => {
       const i = itens.get(ids[0]);
-      return { ...resto, qtdItens: ids.length, itens: ids.slice(0, 20), item: i ? { codigo: i.codigo, descricao: i.descricao, grupo: i.grupo } : null };
+      // `similaridade` (0 a 100, pontuação e não probabilidade): Duplicidades e Grupos; null nos demais.
+      return { ...resto, qtdItens: ids.length, itens: ids.slice(0, 20), item: i ? { codigo: i.codigo, descricao: i.descricao, grupo: i.grupo } : null, similaridade: similaridadeDoCaso(resto.evidencia) };
     });
     // Primeira página: quantos casos há por tipo no filtro (sem o próprio tipo), para a lista de tipos com contagem.
     let tipos: { tipo: string; n: number }[] | undefined;
@@ -498,14 +500,14 @@ export class SanCasosService {
       const g = grupos.get(chaveF);
       if (!g) throw new NotFoundException('Grupo de casos não encontrado com estes filtros (os casos podem ter sido decididos). Recarregue a lista.');
       const mostrar = g.ids.slice(0, CASOS_DO_GRUPO);
-      const linhas = await this.prisma.sanCaso.findMany({ where: { id: { in: mostrar } }, select: { id: true, camada: true, tipo: true, itens: true, problema: true, situacao: true, versao: true, origem: true } });
+      const linhas = await this.prisma.sanCaso.findMany({ where: { id: { in: mostrar } }, select: { id: true, camada: true, tipo: true, itens: true, problema: true, situacao: true, versao: true, origem: true, evidencia: true } });
       const itens = new Map<string, { codigo: string; descricao: string; grupo: string | null }>();
       const primeiros = [...new Set(linhas.map((c) => c.itens[0]).filter(Boolean))];
       for (const lote of fatiar(primeiros, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, codigo: true, descricao: true, grupo: true } })) itens.set(i.id, i);
       const ordem = new Map(mostrar.map((id, i) => [id, i] as const));
-      const casos = linhas.sort((a, b) => ordem.get(a.id)! - ordem.get(b.id)!).map(({ itens: ids, ...resto }) => {
+      const casos = linhas.sort((a, b) => ordem.get(a.id)! - ordem.get(b.id)!).map(({ itens: ids, evidencia, ...resto }) => {
         const i = itens.get(ids[0]);
-        return { ...resto, qtdItens: ids.length, item: i ? { codigo: i.codigo, descricao: i.descricao, grupo: i.grupo } : null };
+        return { ...resto, similaridade: similaridadeDoCaso(evidencia), qtdItens: ids.length, item: i ? { codigo: i.codigo, descricao: i.descricao, grupo: i.grupo } : null };
       });
       return { grupo: { ...saida(g, true), todosIds: g.ids }, casos };
     }

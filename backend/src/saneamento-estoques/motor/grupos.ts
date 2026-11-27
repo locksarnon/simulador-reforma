@@ -9,9 +9,11 @@ import { ev, justificar, montarResultado } from './base';
 import { parametrosDe } from './contexto';
 import { novoCaso } from './dependencias';
 import { agrupar, GENERICOS, palavras, porTexto, STOP, txt } from './texto';
+import { valorCriterio } from '../criterios/catalogo';
 
-const PARTICIPACAO_MINIMA = 0.9; // uma palavra só indica um grupo se ao menos 90% dos itens com ela estão nele
 const MAX_SUBGRUPOS = 8;
+/** Rótulo da participação no caso: quanto do uso da palavra está no grupo indicado. */
+export const ROTULO_SIMILARIDADE_GRUPO = 'Similaridade com o grupo';
 
 const grupoDe = (it: ItemTrabalho): string => txt(it.grupo);
 
@@ -43,7 +45,12 @@ export class AnalisadorGrupos implements AnalisadorCamada {
 
   analisar(itens: ItemTrabalho[], contexto: ContextoAnalise): ResultadoCamada {
     const par = parametrosDe(contexto);
-    const minimo = Math.max(2, par.minimoItensEvidencia ?? 5);
+    // Critérios do projeto: o ajustado em "O que foi considerado" vale; sem ele, o parâmetro antigo do motor; sem os dois, o padrão (5 itens, 90%).
+    // Uma palavra só indica um grupo se aparece em ao menos `minimo` itens e ao menos PARTICIPACAO_MINIMA deles estão nesse grupo.
+    const ajustado = par.criterios?.GRUPOS_FINALIDADE?.minimoItensEvidencia !== undefined;
+    const minimo = Math.max(2, ajustado || par.minimoItensEvidencia == null ? Number(valorCriterio(par.criterios, 'GRUPOS_FINALIDADE', 'minimoItensEvidencia')) : par.minimoItensEvidencia);
+    const PARTICIPACAO_MINIMA = Number(valorCriterio(par.criterios, 'GRUPOS_FINALIDADE', 'participacaoMinima')) / 100;
+    const similaridade = (dec: { d: { participacao: number } }[]) => ev(ROTULO_SIMILARIDADE_GRUPO, `${Math.round(Math.max(...dec.map((x) => x.d.participacao)) * 100)}%`);
     const casos: CasoProposto[] = [];
     const c = (x: Parameters<typeof novoCaso>[0]) => casos.push(novoCaso(x));
     const origem = ev('Origem', 'Coluna do grupo de itens e descrição da base importada');
@@ -125,7 +132,7 @@ export class AnalisadorGrupos implements AnalisadorCamada {
         if (destinos.size !== 1) continue; // palavras apontam grupos diferentes: sem certeza
         const alvo = dec[0].d.grupo;
         c({ camada: 'GRUPOS_FINALIDADE', tipo: 'ITEM_DESLOCADO', itens: [it.id], problema: `A descrição combina com o grupo "${alvo}", não com "${g}"`,
-          evidencia: [origem, ev('Descrição', it.descricao), ...dec.slice(0, 4).map((x) => ev(x.t.toUpperCase(), `${Math.round(x.d.participacao * 100)}% dos ${x.d.total} itens com a palavra estão em "${alvo}"`))], atual: { codigo: it.codigo, grupo: g },
+          evidencia: [origem, ev('Descrição', it.descricao), similaridade(dec), ...dec.slice(0, 4).map((x) => ev(x.t.toUpperCase(), `${Math.round(x.d.participacao * 100)}% dos ${x.d.total} itens com a palavra estão em "${alvo}"`))], atual: { codigo: it.codigo, grupo: g },
           proposta: { grupo: alvo }, fundamento: `Uso do próprio cliente: palavra presente em ao menos ${minimo} itens e ao menos ${Math.round(PARTICIPACAO_MINIMA * 100)}% deles no mesmo grupo`,
           justificativa: justificar('Indicação pelo uso do cliente na própria base; não prova que o grupo atual esteja errado.', 'conferir o item e, se for o caso, aprovar a mudança de grupo (a finalidade herdada muda junto).') });
       }
@@ -137,7 +144,7 @@ export class AnalisadorGrupos implements AnalisadorCamada {
       if (destinos.size === 1) {
         const alvo = dec[0].d.grupo;
         c({ camada: 'GRUPOS_FINALIDADE', tipo: 'ITEM_SEM_GRUPO', itens: [it.id], problema: `Item sem grupo; a descrição combina com "${alvo}"`,
-          evidencia: [origem, ev('Descrição', it.descricao), ...dec.slice(0, 4).map((x) => ev(x.t.toUpperCase(), `${Math.round(x.d.participacao * 100)}% dos ${x.d.total} itens com a palavra estão em "${alvo}"`))], atual: { codigo: it.codigo, grupo: null }, proposta: { grupo: alvo },
+          evidencia: [origem, ev('Descrição', it.descricao), similaridade(dec), ...dec.slice(0, 4).map((x) => ev(x.t.toUpperCase(), `${Math.round(x.d.participacao * 100)}% dos ${x.d.total} itens com a palavra estão em "${alvo}"`))], atual: { codigo: it.codigo, grupo: null }, proposta: { grupo: alvo },
           fundamento: `Uso do próprio cliente (participação mínima ${Math.round(PARTICIPACAO_MINIMA * 100)}%)`, justificativa: justificar('Indicação pelo uso do cliente na própria base.', 'conferir e aprovar o grupo sugerido.') });
       } else {
         semProposta.push(it);

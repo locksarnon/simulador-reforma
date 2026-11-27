@@ -182,7 +182,13 @@ export function simToken(a: Tok, b: Tok): { s: number; motivo?: string; genero?:
   return { s: 0 };
 }
 
-export type Opcoes = { exigirPrincipio: boolean };
+/**
+ * `scoreMinimo` (0 a 1, padrão 0,78): pontuação mínima para indicar duplicidade possível; quem não passa não é candidato (o Saneamento ajusta pelo
+ * critério do projeto; as demais telas usam o padrão). `excluirPar`: o chamador recusa um par já pontuado (ex.: embalagens diferentes são itens
+ * diferentes) antes de formar os grupos.
+ */
+export type Opcoes = { exigirPrincipio: boolean; scoreMinimo?: number; excluirPar?: (i: number, j: number, r: { score: number; nivel: NivelDup; motivos: string[] }) => boolean };
+export const SCORE_MINIMO_PADRAO = 0.78;
 const NIVEL_ORDEM: Record<NivelDup, number> = { EXATA: 3, MUITO_PROVAVEL: 2, POSSIVEL: 1 };
 
 type Comparacao = { score: number; nivel: NivelDup; motivos: string[] } | null;
@@ -272,7 +278,7 @@ function compararPar(a: Norm, b: Norm, ia: ItemDup, ib: ItemDup, ua: string, ub:
   if (identico && unidadesConhecidas) { nivel = 'EXATA'; score = 1; motivos.unshift('descrição idêntica após normalizar acentos, caixa, pontuação e abreviações'); }
   else if (barras) { nivel = score >= 0.5 ? 'MUITO_PROVAVEL' : 'POSSIVEL'; score = Math.max(score, 0.9); motivos.unshift('mesmo código de barras'); }
   else if (score >= 0.9 && unidadesConhecidas && !incompleto && !ncmDiferente) nivel = 'MUITO_PROVAVEL';
-  else if (score >= 0.78) nivel = 'POSSIVEL';
+  else if (score >= (opc.scoreMinimo ?? SCORE_MINIMO_PADRAO)) nivel = 'POSSIVEL';
   else return null;
   // Descrição genérica (sem referência, número nem medida): igualdade de texto não prova que seja o mesmo produto.
   const generica = identico && a.codigos.size === 0 && a.numeros.size === 0 && a.medidas.size === 0;
@@ -324,7 +330,8 @@ export function detectarDuplicidades(itens: ItemDup[], opc: Opcoes): ResultadoDu
     const alvo = [...cont.entries()].sort((a, b) => b[1] - a[1]).slice(0, 400);
     for (const [j] of alvo) {
       const r = compararPar(norms[i], norms[j], itens[i], itens[j], unid[i], unid[j], opc);
-      if (!r) continue;
+      if (!r || r.score < (opc.scoreMinimo ?? 0)) continue;
+      if (opc.excluirPar?.(i, j, r)) continue;
       vizinhos[i].push({ idx: j, ...r }); vizinhos[j].push({ idx: i, ...r });
     }
   }

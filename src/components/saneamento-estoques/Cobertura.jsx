@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play, RotateCw } from "lucide-react";
 import { chaves, san, atualizarTudo } from "./api";
+import Considerado, { TEXTO_CRITERIO_ALTERADO } from "./Considerado";
 import { Aviso, botaoPrimario, botaoSecundario, Tag, usePodeAlterar } from "./comuns";
 import {
   acaoDoBloqueio, camadasAtivas, coberturaDeCamadas, FASES, fmtDataHora, LISTA_FASES, mensagemDeErro, MENSAGEM_BLOQUEIO_FASE2, ROTULO_CAMADA, ROTULO_FASE,
@@ -29,6 +30,7 @@ export function seloDaCamada(c, estado) {
 /** Dica do selo "desatualizada": de que camada veio a mudança e desde quando. */
 export function textoDesatualizada(d) {
   if (!d) return "";
+  if (d.criterio) return `Critério desta camada alterado em ${fmtDataHora(d.desde)}, depois da última análise dela. Analise de novo.`;
   const por = (d.por || []).map((c) => ROTULO_CAMADA[c] || c).join(" e ");
   return `${por ? `${por}: decisões` : "Decisões"} de ${fmtDataHora(d.desde)} mudaram o que esta camada usa depois da última análise dela. Analise de novo.`;
 }
@@ -79,6 +81,11 @@ export default function Cobertura({ projeto, aoIrPara, fase: soFase = null }) {
   const disponiveis = useQuery({ queryKey: chaves.camadas(), queryFn: () => san.camadasDisponiveis() });
   const estado = useQuery({ queryKey: chaves.estadoCamadas(projeto.id), queryFn: () => san.estadoCamadas(projeto.id) });
   const fases = useQuery({ queryKey: chaves.fases(projeto.id), queryFn: () => san.fases(projeto.id) });
+  // "O que foi considerado" de cada camada (fechado por padrão; aberto, o cartão ocupa a linha toda).
+  const criterios = useQuery({ queryKey: chaves.criterios(projeto.id), queryFn: () => san.criterios(projeto.id) });
+  const criteriosPorCamada = new Map((criterios.data?.camadas || []).map((l) => [l.camada, l]));
+  const [abertos, setAbertos] = useState(() => new Set());
+  const alternar = (camada, abrir) => setAbertos((s) => { const n = new Set(s); if (abrir) n.add(camada); else n.delete(camada); return n; });
   // A análise roda no servidor, em segundo plano: segue mesmo que você saia desta tela; aqui só se acompanha.
   const exec = useQuery({ queryKey: chaves.analises(projeto.id), queryFn: () => san.analises(projeto.id), refetchInterval: (q) => (q.state.data?.execucao?.rodando ? 2000 : false) });
   const ex = exec.data?.execucao || null;
@@ -146,12 +153,16 @@ export default function Cobertura({ projeto, aoIrPara, fase: soFase = null }) {
                     const rodando = ocupado && faseRodando === fase && progresso?.camada === c.camada;
                     const rotulo = ROTULO_CAMADA[c.camada];
                     return (
-                      <li key={c.camada} className="flex flex-col gap-1 border border-border p-2 text-xs">
+                      <li key={c.camada} className={`flex flex-col gap-1 border border-border p-2 text-xs ${abertos.has(c.camada) ? "col-span-full" : ""}`}>
                         <span className="font-medium">{rotulo}</span>
                         <span className="flex flex-wrap gap-1">
                           <Tag tom={selo.tom}>{rodando ? "analisando…" : selo.texto}</Tag>
                           {e?.desatualizada && <span title={textoDesatualizada(e.desatualizada)}><Tag tom="alerta">desatualizada</Tag></span>}
                         </span>
+                        {e?.desatualizada?.criterio && <span className="text-[11px] text-orange-900 dark:text-orange-200">{TEXTO_CRITERIO_ALTERADO}</span>}
+                        <Considerado projetoId={projeto.id} camada={c.camada} rotulo={rotulo} dados={criteriosPorCamada.get(c.camada)} aoIrPara={aoIrPara}
+                          aberto={abertos.has(c.camada)} aoAlternar={(abrir) => alternar(c.camada, abrir)} desatualizadaPorCriterio={!!e?.desatualizada?.criterio}
+                          analisando={ocupado} aoAnalisar={c.analisavel && !travaDaFase && c.estado !== "SEM_ITENS" ? () => analisar([c.camada]) : null} />
                         {c.analisavel && (
                           <button type="button" className={`${botaoSecundario} mt-auto px-2 py-1 text-xs`} disabled={!!travaDaFase || c.estado === "SEM_ITENS" || ocupado}
                             title={travaDaFase || (c.estado === "SEM_ITENS" ? "Importe o cadastro de itens antes" : e?.executadaEm ? `Última análise: ${fmtDataHora(e.executadaEm)}` : undefined)}

@@ -1,4 +1,5 @@
-import { Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post } from '@nestjs/common';
+import { SanCriteriosIaService } from '../criterios/criterios-ia.service';
 import { Permissao } from '../../permissoes/permissao.decorator';
 import { AuthUser } from '../../auth/auth.types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -10,7 +11,17 @@ import { ParecerIaService } from './parecer-ia.service';
  */
 @Controller('saneamento-estoques')
 export class IaSaneamentoController {
-  constructor(private readonly pareceres: ParecerIaService) {}
+  constructor(private readonly pareceres: ParecerIaService, private readonly criterios: SanCriteriosIaService) {}
+
+  /**
+   * "Acrescentar critério (texto livre)": a IA encaixa a frase num critério ajustável (devolve a PROPOSTA, nada é gravado) ou ela fica como
+   * verificação manual (gravada). IA fora do ar: gravada como manual, com nota. Gasta IA paga: mesmas permissões do parecer.
+   */
+  @Post('projetos/:id/criterios/normalizar')
+  @Permissao('alterar', 'consultas_pagas')
+  normalizarCriterio(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: { camada?: string; texto?: string }) {
+    return this.criterios.normalizar(id, String(b?.camada ?? ''), b?.texto, user);
+  }
 
   @Post('casos/:id/parecer-ia')
   @Permissao('alterar', 'consultas_pagas')

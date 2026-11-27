@@ -13,6 +13,7 @@ import { validarRegraModelo } from './biblioteca.service';
 import { abrangenciaVazia, abreviacoesNoSentidoCerto, canonico, conferirCoerencia, conteudoEfetivo, mesmoConteudo, texto, validarAbrangencia, validarAspecto, validarConteudo } from './conteudo-regra';
 import { MODELOS, PROCEDIMENTOS } from './conteudo/biblioteca';
 import { CONTROLES_INTERNOS } from './conteudo/controles-internos';
+import { criteriosParaPolitica } from '../criterios/politica';
 import {
   aplicacaoDoRascunho, comLinhasDoErp, conteudosDaBiblioteca, efetivoDaLinha, fotoDasDiretrizes, gruposDaBase, itensComGrupo, lerRegras, pendenteAplicar, regraApi, regrasDoProjeto,
   resolviveisAplicadas, situacaoDasDiretrizes, type Aplicacao, type LinhaRegra,
@@ -692,7 +693,9 @@ export class SanDiretrizesService {
     const d = await this.dadosDaPolitica(projetoId, versaoId);
     const diag = await this.prisma.projetoDiagnostico.findUnique({ where: { id: d.projeto.diagnostico_id }, select: { nome: true } });
     const emp = await this.prisma.empresa.findUnique({ where: { id: d.projeto.empresa_id }, select: { razao_social: true, nome_fantasia: true } });
-    const proj = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { erp: true, erp_id: true } });
+    const proj = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { erp: true, erp_id: true, parametros: true, modulos: true } });
+    // Critérios das análises: os congelados na versão (reproduzível); sem versão, os de agora.
+    const parametrosCriterios = versaoId ? await this.versoes.parametrosDaVersao(projetoId, versaoId) : (proj?.parametros as Json | null | undefined) ?? null;
     const regras = d.regras.map((x) => ({
       codigo: String(x.codigo), aspecto: x.aspecto as Aspecto, nome: String(x.nome), abrangencia: x.abrangencia as Abrangencia, situacao: x.situacao as 'RASCUNHO' | 'APROVADA',
       observacao: (x.observacao as string | null) ?? null, aprovadaPor: (x.aprovadaPor as string | null) ?? null, aprovadaEm: (x.aprovadaEm as string | null) ?? null, revisar: x.revisar === true,
@@ -719,6 +722,7 @@ export class SanDiretrizesService {
       regras,
       procedimentos: d.procedimentos, notaProcedimentos: d.notaProcedimentos, antesDasDiretrizes: d.antesDasDiretrizes,
       controles: CONTROLES_INTERNOS, fiscal,
+      criterios: criteriosParaPolitica(parametrosCriterios, camadasAtivas(proj?.modulos as Json | null | undefined)),
       quadro: d.quadro.map(({ grupo, ...cods }) => ({ grupo, codigos: Object.fromEntries(Object.entries(cods).filter(([, v]) => v)) as Partial<Record<Aspecto, string>> })),
       pendencias: { gruposSemRegra: d.antesDasDiretrizes ? [] : d.pendencias.gruposSemRegra },
     };

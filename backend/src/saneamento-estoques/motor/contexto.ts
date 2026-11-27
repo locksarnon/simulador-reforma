@@ -40,6 +40,11 @@ export type ParametrosMotor = {
   paralelosNoMesmoCodigo?: boolean;
   /** Mínimo de itens para um grupo ou palavra valer como evidência (padrão 5). */
   minimoItensEvidencia?: number;
+  /**
+   * Critérios ajustados no projeto ("O que foi considerado", criterios/catalogo.ts): { [camada]: { [chave]: valor } }. Vêm de `parametros.criterios`
+   * (não de `parametros.motor`); o motor lê por `valorCriterio`, que cai no padrão do catálogo quando não há valor válido.
+   */
+  criterios?: Partial<Record<string, Record<string, unknown>>>;
 };
 
 /** Papel do item numa unificação de códigos proposta ou aprovada (Duplicidades): o código que FICA (recebe o saldo) ou um que SAI (morre). */
