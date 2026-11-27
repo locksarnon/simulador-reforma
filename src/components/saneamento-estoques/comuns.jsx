@@ -11,9 +11,9 @@ import { formaDaSituacao, mensagemDeErro, SITUACOES, textoDaCelula } from "./log
 export const bordaCampo = "border-input";
 export const bordaQuadro = "border-foreground/50";
 export const campoCls = "w-full border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
-export const botaoPrimario = "inline-flex items-center gap-1.5 bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
-export const botaoSecundario = "inline-flex items-center gap-1.5 border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
-export const botaoPerigo = "inline-flex items-center gap-1.5 border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+export const botaoPrimario = "botao-acao inline-flex items-center gap-1.5 bg-primary px-3 py-1 text-sm text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+export const botaoSecundario = "botao-acao inline-flex items-center gap-1.5 bg-background px-3 py-[5px] text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+export const botaoPerigo = "botao-acao botao-acao-perigo inline-flex items-center gap-1.5 px-3 py-[5px] text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 const ICONES = { circulo: Circle, visto: Check, losango: Diamond, quadrado: Square, relogio: Clock };
 const COR_DA_SITUACAO = {

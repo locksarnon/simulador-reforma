@@ -11,8 +11,8 @@ import { ROTULO_GRUPO_NORMA } from "@/lib/novidadesLegais";
 import { plural } from "@/lib/plural";
 
 const CRUMBS = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Parâmetros e rotinas", to: "/admin/parametros-rotinas" }];
-const botao = "rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50";
-const botaoPrimario = "rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50";
+const botao = "botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted disabled:opacity-50";
+const botaoPrimario = "botao-acao rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50";
 
 /** Abas de Parâmetros e rotinas (a Administração tem no máximo 7 itens no menu: as normas monitoradas são uma aba). */
 export function AbasRotinas() {

@@ -31,7 +31,7 @@ export default function IntegracoesCertidoes() {
   const bx = useQuery({ queryKey: ["integracoes", "receitanetbx"], queryFn: () => api.get("/integracoes/receitanetbx"), refetchInterval: (q) => ((q.state.data || []).some((x) => x.configurando || reiniciando(x)) ? 5000 : 60_000) });
   const i = info.data;
   const campo = "h-8 min-w-[260px] flex-1 rounded-md border border-input bg-background px-2 text-sm";
-  const botao = "inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60";
+  const botao = "botao-acao inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs hover:bg-muted disabled:opacity-60";
   return (
     <section className="rounded-xl border border-border bg-card p-4 space-y-4 md:col-span-2 xl:col-span-3" aria-label="Certidões sem API oficial">
       <h2 className="font-heading text-sm font-semibold">Certidões sem API oficial</h2>

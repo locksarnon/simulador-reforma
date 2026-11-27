@@ -89,7 +89,7 @@ function AcoesProcesso({ p, def, preAnaliseId, onAnexado, onDetalhes }) {
   });
   const temDetalhes = p.detalhes.some((d) => d.rotulo !== "Portal oficial");
   const mostrarPortal = def.portal && p.status !== "PROCESSANDO" && (p.status === "MANUAL" || p.status === "INDISPONIVEL");
-  const botao = "inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted disabled:opacity-60";
+  const botao = "botao-acao inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-muted disabled:opacity-60";
   return (
     <div className="flex flex-nowrap items-center gap-1">
       {temDetalhes && <button type="button" onClick={onDetalhes} className={botao}><Info className="h-3.5 w-3.5" aria-hidden="true" />Detalhes</button>}

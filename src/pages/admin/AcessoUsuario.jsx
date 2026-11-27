@@ -10,7 +10,7 @@ import { AREAS } from "@/lib/navegacao";
 import { FUNCOES, NIVEIS, TELAS, nivelPorId, normalizarExcecoes, permissoesEfetivas } from "@/lib/permissoes";
 
 const marca = "ml-1.5 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-300";
-const botaoLeve = "rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50";
+const botaoLeve = "botao-acao rounded-md px-2 py-px text-xs hover:bg-muted disabled:opacity-50";
 const vazias = () => ({ telas: {}, funcoes: {} });
 
 /** Caixa de marcar com estado parcial (algumas marcadas). */

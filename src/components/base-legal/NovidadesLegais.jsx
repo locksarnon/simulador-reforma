@@ -52,7 +52,7 @@ function Conteudo({ n }) {
 
 function Acoes({ n, onAgir, ocupado }) {
   const aberta = n.status === "nova" || n.status === "vista";
-  const btn = "inline-flex items-center gap-1 border border-border rounded px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50";
+  const btn = "botao-acao inline-flex items-center gap-1 rounded px-2 py-px text-xs hover:bg-muted disabled:opacity-50";
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {n.status === "nova" && <button type="button" className={btn} disabled={ocupado} onClick={() => onAgir(n, "visto")}><Eye className="w-3 h-3" />Vista</button>}

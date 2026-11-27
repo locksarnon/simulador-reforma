@@ -65,7 +65,7 @@ export function Resultado({ ultimo, aviso }) {
 /** `servico` pode ser o objeto do catálogo ({ nome }) ou só o nome. */
 export const nomeDoServico = (servico) => (typeof servico === "string" ? servico : servico?.nome || "");
 
-const botao = "inline-flex items-center gap-2 border px-3 py-2 text-sm font-medium disabled:opacity-50";
+const botao = "botao-acao inline-flex items-center gap-2 px-3 py-[7px] text-sm font-medium disabled:opacity-50";
 
 /** O quadro em si, sem chamadas ao servidor (testável). `info` é o estado devolvido pelo servidor. */
 export function PainelAnalise({ nome, info, erro, enviando, aoPedir }) {
