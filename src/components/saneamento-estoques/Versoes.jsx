@@ -5,6 +5,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { atualizarTudo, chaves, renovarAposRestauracao, san } from "./api";
 import { BotaoPolitica } from "./diretrizes/Diretrizes";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, faixaSecaoCls, Rotulo, secaoCls, Tag, tituloSecaoCls, usePodeAlterar } from "./comuns";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 import {
   avisosDaLiberacao, dadosDoErro, fase1Liberada, fmtDataHora, JUSTIFICATIVA_MINIMA, rotuloDaFaseLiberada, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
   textoDoValor, versaoCriada,
@@ -276,6 +277,7 @@ export default function Versoes({ projeto, modo = "completo", fase: faseFixa = n
         <Carregar consulta={q} textoErro="Não foi possível carregar as versões." tituloVazio={modo === "fase" ? `Nenhuma versão da ${nomeFase} liberada` : "Nenhuma versão liberada"} vazio={(d) => (d.filter(daLista).length ? null : modo === "fase" ? `Libere a versão da ${nomeFase} acima quando as decisões da fase estiverem aprovadas.` : "Libere a primeira versão quando houver decisões aprovadas para entregar.")}>
           {(todas) => { const lista = todas.filter(daLista); return (
             <>
+              <BuscaNaTabela />
               <div className="overflow-x-auto border border-border bg-card">
                 <table className="w-full text-sm" aria-label="Versões liberadas">
                   <thead><tr className="bg-muted/50 text-left text-xs text-muted-foreground">{mostrar.comparar && <th scope="col" className="px-2 py-1.5">Comparar</th>}<th scope="col" className={mostrar.comparar ? "" : "px-2 py-1.5"}>Versão</th><th scope="col">Fase</th><th scope="col">Rótulo</th><th scope="col">Liberada por</th><th scope="col">Quando</th><th scope="col" className="text-right">Itens</th><th scope="col" className="text-right">Casos abertos</th><th scope="col">Baixar</th>{mostrar.comparar && <th scope="col">Continuar</th>}</tr></thead>

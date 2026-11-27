@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ChevronsDown } from "lucide-react";
+import { ChevronsDown, RotateCcw } from "lucide-react";
+import AlcaLargura from "@/components/AlcaLargura";
+import { cabecalhoTabelaCls } from "@/lib/estiloTabela";
+import { limitarLargura, medirColunasNaturais, useEfeitoDeLayout, useLargurasColunas } from "@/lib/useLargurasColunas";
 import { san, chaves } from "./api";
 import { Aviso, BotaoInfo, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, estiloTabela, SeloSituacao, Tag } from "./comuns";
 import VisaoFocada from "./VisaoFocada";
@@ -16,6 +19,36 @@ const FILTRO_VAZIO = { busca: "", camada: "", situacao: "", grupo: "", revisar: 
 export function fixasDaTabela(estabelecimentos, itens) {
   const varios = (Array.isArray(estabelecimentos) ? estabelecimentos : []).length > 1 || new Set((itens || []).map((i) => i.estabelecimento).filter(Boolean)).size > 1;
   return varios ? COLUNAS_FIXAS : COLUNAS_FIXAS.filter((c) => c.id !== "estabelecimento");
+}
+
+/** Texto simples de cada coluna (para medir a largura nas linhas já carregadas, inclusive as fora da tela); `extra`: espaço de selos. */
+export function textoParaMedir(item, id) {
+  if (id === "codigo") return { texto: item.codigo };
+  if (id === "descricao") return { texto: item.descricao, extra: item.ativo === false ? 64 : 0 };
+  if (id === "estabelecimento") return { texto: item.estabelecimento || "—" };
+  if (id === "grupo") return { texto: item.grupo || "(sem grupo)" };
+  if (id === "finalidade") return { texto: rotuloFinalidade(item.finalidade || item.finalidadeSugerida), extra: !item.finalidade && item.finalidadeSugerida ? 76 : 0 };
+  if (id === "conjunto") { const e = textoDoEnquadramento(item); return { texto: e.texto, extra: e.origem ? 76 : 0 }; }
+  return null; // situação: selo, medido na tela
+}
+
+let pincel = null;
+/** Maior largura de texto das linhas carregadas, por coluna (amostra de até 3.000 linhas), com a fonte das células. */
+function medirTextosCarregados(itens, ids, fonte) {
+  if (typeof document === "undefined") return {};
+  try {
+    pincel = pincel || document.createElement("canvas").getContext("2d");
+    if (!pincel) return {};
+    pincel.font = fonte;
+    const saida = {};
+    for (const item of itens.slice(0, 3000)) for (const id of ids) {
+      const m = textoParaMedir(item, id);
+      if (!m || !m.texto) continue;
+      const w = Math.ceil(pincel.measureText(String(m.texto)).width) + 18 + (m.extra || 0);
+      if (w > (saida[id] || 0)) saida[id] = w;
+    }
+    return saida;
+  } catch { return {}; }
 }
 
 /** Lista paginada (cursor) acumulada numa só sequência. */
@@ -54,7 +87,12 @@ function Celula({ item, coluna }) {
   return <span className="block truncate" title={texto}>{texto || <span className="text-muted-foreground">—</span>}</span>;
 }
 
-/** Tabela única: uma linha por produto, colunas agrupadas por camada, janela de linhas (virtualização) e páginas por cursor. */
+/**
+ * Tabela única: uma linha por produto, colunas agrupadas por camada, janela de linhas (virtualização) e páginas por cursor.
+ * Larguras como no Excel: cada coluna fica do tamanho do conteúdo (título, linhas na tela e o texto das linhas já carregadas; medida
+ * de novo ao trocar filtro ou camadas, não ao rolar), a alça na borda do título ajusta (arrastar, setas, clique duplo = conteúdo),
+ * guardado neste navegador; as posições das colunas fixas, os grupos e a largura das linhas seguem a mesma conta.
+ */
 export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
   const camadas = useMemo(() => camadasAtivas(projeto.modulos), [projeto.modulos]);
   const [filtro, setFiltro] = useState(() => ({ ...FILTRO_VAZIO, ...(recorte || {}) }));
@@ -70,12 +108,29 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
   const visao = useQuery({ queryKey: chaves.visao(projeto.id), queryFn: () => san.visaoGeral(projeto.id) });
   const grupos = visao.data?.grupos?.map((g) => g.grupo) || [];
 
-  const colunas = useMemo(() => colunasDaTabela(camadas), [camadas]);
+  const larguras = useLargurasColunas("saneamento-estoques-tabela-unica");
+  const [tabelaEl, setTabelaEl] = useState(null);
+  const ajustar = (c) => ({ ...c, largura: larguras.larguraDe(c.id, c.largura) });
+  const colunas = useMemo(() => colunasDaTabela(camadas), [camadas]).map(ajustar);
   // Estabelecimento só aparece quando o projeto tem mais de um (ou o cadastro traz algum).
-  const fixas = useMemo(() => fixasDaTabela(projeto.estabelecimentos, itens), [projeto.estabelecimentos, itens]);
+  const fixas = useMemo(() => fixasDaTabela(projeto.estabelecimentos, itens), [projeto.estabelecimentos, itens]).map(ajustar);
+  const esquerdas = fixas.map((_, n) => fixas.slice(0, n).reduce((s, x) => s + x.largura, 0));
   const larguraFixa = fixas.reduce((s, c) => s + c.largura, 0);
   const larg = larguraTotal(colunas) - LARGURA_FIXA + larguraFixa;
-  const gruposCab = useMemo(() => gruposDeColunas(colunas), [colunas]);
+  const gruposCab = gruposDeColunas(colunas);
+  const chaveColunas = [...fixas, ...colunas].map((c) => c.id).join("|");
+  const primeiraPagina = q.data?.pages?.[0];
+  // Tamanho do conteúdo: ao chegar a primeira página de um filtro, ao trocar as colunas ou ao restaurar (não ao rolar nem ao carregar mais).
+  useEfeitoDeLayout(() => {
+    const dom = medirColunasNaturais(tabelaEl, { limiteLinhas: 120 });
+    if (!dom) return;
+    const celula = tabelaEl.querySelector('[role="cell"]');
+    const fonte = celula && typeof getComputedStyle === "function" ? getComputedStyle(celula).font : "13px sans-serif";
+    const texto = medirTextosCarregados(itens, chaveColunas.split("|"), fonte);
+    const mapa = { ...dom };
+    for (const [k, v] of Object.entries(texto)) mapa[k] = Math.max(mapa[k] || 0, limitarLargura(v));
+    larguras.definirAuto(mapa);
+  }, [tabelaEl, chaveColunas, primeiraPagina, larguras.versao]);
   const janela = janelaVisivel({ rolagem, alturaVisivel, alturaLinha: ALTURA_LINHA, total: itens.length });
 
   // Busca digitada: espera a pessoa parar de digitar antes de consultar o servidor.
@@ -150,6 +205,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
         <label className="flex items-center gap-1.5 pb-2 text-sm"><input type="checkbox" checked={filtro.revisar} onChange={mudar("revisar")} />Só marcadas "revisar"</label>
         {temFiltro && <button type="button" className={botaoSecundario} onClick={() => { setBusca(""); setFiltro(FILTRO_VAZIO); }}>Limpar filtros</button>}
         <button type="button" className={botaoSecundario} onClick={irAoProximoPendente} disabled={!itens.length}><ChevronsDown className="h-4 w-4" aria-hidden="true" />Ir ao próximo pendente</button>
+        {larguras.personalizadas && <button type="button" className={botaoSecundario} onClick={larguras.restaurar} title="Volta cada coluna ao tamanho do conteúdo"><RotateCcw className="h-4 w-4" aria-hidden="true" />Restaurar larguras</button>}
       </div>
       <p className="text-xs text-muted-foreground" aria-live="polite">
         {q.isSuccess ? `${total !== undefined ? total.toLocaleString("pt-BR") : itens.length.toLocaleString("pt-BR")} produto(s) ${temFiltro ? "com estes filtros" : "no projeto"}; ${itens.length.toLocaleString("pt-BR")} carregado(s).` : ""}
@@ -171,28 +227,32 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
             </EstadoVazio>
           ) : (
             <div ref={setArea} onScroll={aoRolar} className={`${estiloTabela.area} h-[68vh] min-h-[320px]`} tabIndex={0} aria-label="Tabela de produtos por camada. Role para ver mais linhas.">
-              <div role="table" aria-label="Produtos e situação de cada camada" aria-rowcount={(total ?? itens.length) + 2} aria-colcount={fixas.length + colunas.length} style={{ width: larg }}>
+              <div ref={setTabelaEl} role="table" aria-label="Produtos e situação de cada camada" aria-rowcount={(total ?? itens.length) + 2} aria-colcount={fixas.length + colunas.length} style={{ width: larg }}>
                 {/* Cabeçalho: grupos (camadas) e colunas, fixo no topo; as 3 primeiras colunas também ficam fixas à esquerda. */}
                 <div role="rowgroup" className={estiloTabela.cabecalho} style={{ height: ALTURA_CABECALHO }}>
-                  <div role="row" className="flex border-b border-border/70" style={{ height: ALTURA_CABECALHO / 2 }}>
-                    <div className="sticky left-0 z-40 bg-muted" style={{ width: larguraFixa }} />
+                  <div role="row" className={`flex border-b border-white/20 ${cabecalhoTabelaCls}`} style={{ height: ALTURA_CABECALHO / 2 }}>
+                    <div className="sticky left-0 z-40 bg-cabecalho" style={{ width: larguraFixa }} />
                     {gruposCab.map((g) => (
-                      <div key={g.camada} role="columnheader" style={{ width: g.largura }} className="border-l border-border/70 px-1">
+                      <div key={g.camada} role="columnheader" style={{ width: g.largura }} className="border-l border-white/20 px-1">
                         <button type="button" aria-pressed={filtro.camada === g.camada} onClick={() => alternarCamada(g.camada)} title="Mostrar só os produtos com situação nesta camada"
-                          className={`h-full w-full truncate px-1 text-left text-xs font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${filtro.camada === g.camada ? "bg-primary/15" : ""}`}>
+                          className={`h-full w-full truncate px-1 text-left text-xs font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${filtro.camada === g.camada ? "bg-white/20" : ""}`}>
                           {ROTULO_CAMADA[g.camada]}
                         </button>
                       </div>
                     ))}
                   </div>
-                  <div role="row" className="flex text-xs text-muted-foreground" style={{ height: ALTURA_CABECALHO / 2 }}>
+                  <div role="row" className={`flex text-xs ${cabecalhoTabelaCls}`} style={{ height: ALTURA_CABECALHO / 2 }}>
                     {fixas.map((c, n) => (
-                      <div key={c.id} role="columnheader" className={estiloTabela.tituloFixo} style={{ width: c.largura, left: fixas.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>{c.titulo}</div>
+                      <div key={c.id} role="columnheader" data-coluna={c.id} className={estiloTabela.tituloFixo} style={{ width: c.largura, left: esquerdas[n] }}>
+                        <span className="truncate">{c.titulo}</span>
+                        <AlcaLargura rotulo={c.titulo} largura={c.largura} aoMudar={(px, { final }) => larguras.definir(c.id, px, { gravar: final })} aoAutoAjustar={() => larguras.autoAjustar(c.id)} />
+                      </div>
                     ))}
                     {colunas.map((c) => (
-                      <div key={c.id} role="columnheader" className={`${estiloTabela.tituloColuna} gap-1`} style={{ width: c.largura }}>
-                        {c.titulo}
+                      <div key={c.id} role="columnheader" data-coluna={c.id} className={`${estiloTabela.tituloColuna} gap-1`} style={{ width: c.largura }}>
+                        <span className="truncate">{c.titulo}</span>
                         {c.id === "finalidade" && <BotaoInfo id="san-regra-finalidade" rotulo="regra da finalidade" pequeno aberto={regraAberta} aoAlternar={() => setRegraAberta((x) => !x)} />}
+                        <AlcaLargura rotulo={`${c.titulo} (${ROTULO_CAMADA[c.camada]})`} largura={c.largura} aoMudar={(px, { final }) => larguras.definir(c.id, px, { gravar: final })} aoAutoAjustar={() => larguras.autoAjustar(c.id)} />
                       </div>
                     ))}
                   </div>
@@ -204,7 +264,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
                     return (
                       <div key={item.id} role="row" aria-rowindex={i + 3} aria-selected={marcado} className={`absolute left-0 ${estiloTabela.linha} ${estiloTabela.fundoLinha(i, marcado)}`} style={{ top: i * ALTURA_LINHA, height: ALTURA_LINHA, width: larg }}>
                         {fixas.map((c, n) => (
-                          <div key={c.id} role="cell" className={`sticky z-10 flex items-center overflow-hidden px-2 ${estiloTabela.fundoFixo(i, marcado)} ${c.id === "codigo" ? "font-medium tabular-nums" : ""}`} style={{ width: c.largura, left: fixas.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>
+                          <div key={c.id} role="cell" data-coluna={c.id} className={`sticky z-10 flex items-center overflow-hidden px-2 ${estiloTabela.fundoFixo(i, marcado)} ${c.id === "codigo" ? "font-medium tabular-nums" : ""}`} style={{ width: c.largura, left: esquerdas[n] }}>
                             <span className="truncate" title={c.id === "descricao" ? item.descricao : undefined}>{c.id === "estabelecimento" ? item.estabelecimento || "—" : item[c.id]}</span>
                             {c.id === "descricao" && item.ativo === false && <Tag className="ml-1">inativo</Tag>}
                           </div>
@@ -212,7 +272,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
                         {colunas.map((c) => {
                           const cel = c.tipo === "situacao" ? celulaDa(item, c.camada) : null;
                           return (
-                            <div key={c.id} role="cell" className={estiloTabela.celula} style={{ width: c.largura }}>
+                            <div key={c.id} role="cell" data-coluna={c.id} className={estiloTabela.celula} style={{ width: c.largura }}>
                               {c.tipo === "situacao" ? (
                                 <button type="button" onClick={() => setSelecao({ id: item.id, camada: c.camada })} title={cel?.revisar_causa || undefined}
                                   aria-label={`${item.codigo}, ${ROTULO_CAMADA[c.camada]}: ${textoDaCelula(cel)}. Abrir a visão focada.`}

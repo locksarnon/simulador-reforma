@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2, ChevronLeft, ChevronRight } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, Minus, Link2, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRATAMENTO_COR, TRATAMENTO_ROTULO, tratamentoDoItem } from "@/lib/cfopTratamento";
 import { plural } from "@/lib/plural";
@@ -57,6 +57,8 @@ const colador = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" 
 const rotuloRelacionamento = (it) => (it.tipo_relacionamento === "INTERCOMPANY" ? "Interco" : it.tipo_relacionamento === "TRANSFERENCIA_INTERNA" ? "Transf." : "Terceiro");
 
 /** Valor de cada coluna ordenável (a ordenação é por grupo, pela primeira linha, para não separar o par intercompany). */
+const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
 function valoresDasColunas(empresaMap, regras) {
   return {
     numero_item: (it) => Number(it.numero_item) || 0,
@@ -104,17 +106,23 @@ function StatusIcon({ checks }) {
  */
 export default function StagingTable({ itens, empresaMap, selectedIds, onToggleSelect, onOpenDrawer, regras, onCfopChange }) {
   const [filtro, setFiltro] = useState("TODOS");
+  const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(0);
   const [ordem, setOrdem] = useState({ chave: "descricao", dir: 1 });
   const ordenar = (chave) => { setOrdem((o) => (o.chave === chave ? { chave, dir: -o.dir } : { chave, dir: 1 })); setPagina(0); };
 
   const itensFiltrados = useMemo(
     () => {
-      if (filtro === "TODOS") return itens;
-      if (filtro === "FORA_CALCULO") return (itens || []).filter((it) => tratamentoDoItem(regras, it.empresa_id, it.cfop_servico, it.direcao).tratamento === "NAO_RECEITA");
-      return (itens || []).filter((it) => it.resultado_final === filtro);
+      const porSituacao = filtro === "TODOS" ? itens || []
+        : filtro === "FORA_CALCULO" ? (itens || []).filter((it) => tratamentoDoItem(regras, it.empresa_id, it.cfop_servico, it.direcao).tratamento === "NAO_RECEITA")
+          : (itens || []).filter((it) => it.resultado_final === filtro);
+      // Busca digitada: qualquer coluna da tabela, sem acento e sem diferença de maiúsculas.
+      const b = semAcento(busca).trim();
+      if (!b) return porSituacao;
+      const valores = Object.values(valoresDasColunas(empresaMap, regras));
+      return porSituacao.filter((it) => valores.some((v) => semAcento(v(it)).includes(b)));
     },
-    [itens, filtro, regras]
+    [itens, filtro, regras, busca, empresaMap]
   );
 
   // Agrupa intercompany por chave_nfe + numero_item — cada grupo é 1 ou 2 linhas.
@@ -152,6 +160,11 @@ export default function StagingTable({ itens, empresaMap, selectedIds, onToggleS
           </p>
         </div>
         <div className="flex items-center gap-1 flex-wrap">
+          <label className="relative mr-1">
+            <span className="sr-only">Buscar nesta lista</span>
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <input value={busca} onChange={(e) => { setBusca(e.target.value); setPagina(0); }} placeholder="Buscar nesta lista" className="h-7 w-48 rounded-md border border-border bg-background pl-7 pr-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+          </label>
           {FILTROS.map((f) => (
             <button
               key={f.value}

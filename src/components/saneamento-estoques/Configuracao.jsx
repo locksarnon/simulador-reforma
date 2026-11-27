@@ -6,6 +6,7 @@ import { chaves, san } from "./api";
 import { SeletorErp, useErps } from "@/components/erps/erps";
 import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
 import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Quadro, Rotulo, rotuloCompactoCls, SecaoForm, Tag, usePodeAlterar } from "./comuns";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 import {
   efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtCnae, fmtData, fmtDataHora, mensagemDeErro, motivoDaAtividade, motivoListaVazia,
   regimeDoCliente, REGIMES_CLIENTE, textoBuscaCnpj,
@@ -166,7 +167,8 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
           <Aviso tom="alerta" titulo="Nenhuma atividade na lista" acao={projeto.cliente?.tipoDocumento === "PF" ? null : botaoBuscarCnpj}>
             {motivoListaVazia(projeto)}
           </Aviso>
-        ) : (
+        ) : (<>
+          <BuscaNaTabela />
           <table className="w-full border border-foreground/30 text-sm" aria-label="Atividades do cliente">
             <thead><tr className="border-b border-foreground/50 bg-primary/10 text-left text-xs font-medium text-foreground/80"><th scope="col" className="w-16 px-2 py-1.5">Manter</th><th scope="col" className="px-2">Código</th><th scope="col" className="px-2">Descrição</th><th scope="col" className="px-2">Origem</th>{projeto.mapaAtividades && <th scope="col" className="px-2">Efeito nas sugestões</th>}</tr></thead>
             <tbody>
@@ -190,7 +192,7 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
               ))}
             </tbody>
           </table>
-        )}
+        </>)}
         {trava.editavel && (
           <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); acrescentar.mutate(); }}>
             {Array.isArray(projeto.listaAtividades) && projeto.listaAtividades.length > 0 && (

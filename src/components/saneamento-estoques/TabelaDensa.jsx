@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Columns3, Filter, RotateCcw, Search, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import BotaoExportar from "@/components/BotaoExportar";
 import { aplicarTabela, textoDaColuna } from "@/components/TabelaPadrao";
 import { botaoSecundario, estiloTabela } from "./comuns";
 import { ALTURA_LINHA } from "./logica";
+import AlcaLargura from "@/components/AlcaLargura";
+import { cabecalhoTabelaCls } from "@/lib/estiloTabela";
+import { idDaTabela, medirColunasNaturais, useAoRedimensionar, useEfeitoDeLayout, useLargurasColunas } from "@/lib/useLargurasColunas";
 
 const ALTURA_TITULOS = 28; // a mesma faixa de títulos da aba Tabela (metade do cabeçalho de 56 px)
 const LARGURA_PADRAO = 140;
@@ -29,6 +32,9 @@ function gravarPreferencia(id, v) {
  * reordenáveis (guardadas neste navegador), exportação do que está filtrado e caixas de marcar (`selecao`).
  * Colunas: { chave, rotulo, largura (px), fixa, valor(linha), render(linha), tipo, alinhar, ordenavel, filtravel, dica, oculta, elastica }.
  * `oculta`: começa escondida (quem nunca mexeu nas colunas); `elastica`: cresce para ocupar a sobra da largura (a `largura` é o mínimo).
+ * Larguras como no Excel: depois de desenhada, cada coluna fica do tamanho do conteúdo (título e até 200 linhas; só cresce ao
+ * filtrar), a `largura` vale até medir; a alça na borda do título ajusta (arrastar, setas, clique duplo = conteúdo), guardado
+ * neste navegador; "Restaurar larguras" no menu Colunas. Coluna com largura escolhida deixa de ser elástica.
  */
 export default function TabelaDensa({
   id, ariaLabel, colunas, linhas = [], chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", aoClicarLinha, linhaMarcada, selecao,
@@ -45,6 +51,8 @@ export default function TabelaDensa({
   const [filtros, setFiltros] = useState({});
   const [verFiltros, setVerFiltros] = useState(false);
   const [ordem, setOrdem] = useState(ordemInicial);
+  const larguras = useLargurasColunas(idDaTabela(id, ariaLabel, todas));
+  const [raiz, setRaiz] = useState(null);
 
   useEffect(() => { setOrdemColunas((o) => [...o.filter((k) => todas.includes(k)), ...todas.filter((k) => !o.includes(k))]); }, [todas.join("|")]);
   useEffect(() => { gravarPreferencia(id, { ...(lerPreferencia(id) || {}), ordem: ordemColunas, ocultas }); }, [id, ordemColunas, ocultas]);
@@ -55,8 +63,21 @@ export default function TabelaDensa({
   const filtradas = useMemo(() => aplicarTabela(linhas, colunas, { busca, filtros, ordem }), [linhas, colunas, busca, filtros, ordem]);
   const temFiltro = !!busca || Object.values(filtros).some((f) => String(f ?? "").trim());
 
+  // Larguras: mede o conteúdo depois de desenhar (antes de pintar); trocou o conjunto de colunas, mede do zero; senão só cresce.
+  const chaveVisiveis = visiveis.map((c) => c.chave).join("|");
+  const ultimaMedida = useRef("");
+  const medir = useCallback(() => {
+    const m = medirColunasNaturais(raiz);
+    if (!m) return;
+    larguras.definirAuto(m, { crescer: ultimaMedida.current === chaveVisiveis });
+    ultimaMedida.current = chaveVisiveis;
+  }, [raiz, chaveVisiveis, larguras.definirAuto]);
+  useEfeitoDeLayout(() => { medir(); }, [medir, filtradas, larguras.versao]);
+  useAoRedimensionar(raiz, medir);
+  const elastica = (c) => c.elastica && !c.fixa && !larguras.escolhida(c.chave);
+
   // Posição de cada coluna fixa (soma das larguras à esquerda) e largura total.
-  const larguraDe = (c) => c.largura || LARGURA_PADRAO;
+  const larguraDe = (c) => larguras.larguraDe(c.chave, c.largura || LARGURA_PADRAO);
   const inicioFixas = selecao ? LARGURA_MARCAR : 0;
   const esquerda = {};
   let acumulado = inicioFixas;
@@ -95,7 +116,7 @@ export default function TabelaDensa({
         <Popover>
           <PopoverTrigger asChild><button type="button" className={botaoSecundario}><Columns3 className="h-3.5 w-3.5" aria-hidden="true" />Colunas</button></PopoverTrigger>
           <PopoverContent align="end" className="w-64 p-2">
-            <p className="px-1 pb-1 text-[11px] text-muted-foreground">Marque as colunas e use as setas para mudar a ordem. As colunas fixas ficam sempre à esquerda.</p>
+            <p className="px-1 pb-1 text-[11px] text-muted-foreground">Marque as colunas e use as setas para mudar a ordem. As colunas fixas ficam sempre à esquerda. Para mudar a largura, arraste a borda direita do título.</p>
             <ul className="max-h-72 space-y-0.5 overflow-y-auto">
               {ordemColunas.map((k, i) => { const c = colunas.find((x) => x.chave === k); if (!c) return null; return (
                 <li key={k} className="flex items-center gap-1.5 px-1 py-0.5 text-xs hover:bg-muted">
@@ -107,6 +128,7 @@ export default function TabelaDensa({
               ); })}
             </ul>
             <button type="button" onClick={() => { setOrdemColunas(todas); setOcultas(colunas.filter((c) => c.oculta).map((c) => c.chave)); }} className="mt-1 inline-flex w-full items-center justify-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted"><RotateCcw className="h-3 w-3" aria-hidden="true" /> Restaurar colunas</button>
+            <button type="button" onClick={larguras.restaurar} disabled={!larguras.personalizadas} className="inline-flex w-full items-center justify-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-40"><RotateCcw className="h-3 w-3" aria-hidden="true" /> Restaurar larguras</button>
           </PopoverContent>
         </Popover>
         <BotaoExportar titulo={ariaLabel || "Tabela"} linhas={filtradas.map((l) => Object.fromEntries(visiveis.map((c) => [c.chave, textoDaColuna(c, l)])))} colunas={visiveis.map((c) => ({ chave: c.chave, rotulo: c.rotulo }))} />
@@ -114,9 +136,9 @@ export default function TabelaDensa({
       </div>
 
       <div onScroll={aoRolar} className={`${estiloTabela.area} ${alturaCls}`} tabIndex={0} aria-label={`${ariaLabel}. Role para ver mais linhas e colunas.`}>
-        <div role="table" aria-label={ariaLabel} aria-rowcount={filtradas.length + 1} aria-colcount={visiveis.length + (selecao ? 1 : 0)} style={{ width: larg, minWidth: "100%" }}>
+        <div ref={setRaiz} role="table" aria-label={ariaLabel} aria-rowcount={filtradas.length + 1} aria-colcount={visiveis.length + (selecao ? 1 : 0)} style={{ width: larg, minWidth: "100%" }}>
           <div role="rowgroup" className={estiloTabela.cabecalho}>
-            <div role="row" className="flex border-b border-border/70 text-xs text-muted-foreground" style={{ height: ALTURA_TITULOS }}>
+            <div role="row" className={`flex border-b border-border/70 text-xs ${cabecalhoTabelaCls}`} style={{ height: ALTURA_TITULOS }}>
               {selecao && (
                 <div role="columnheader" className={`${estiloTabela.tituloFixo} left-0 justify-center`} style={{ width: LARGURA_MARCAR }}>
                   <input type="checkbox" aria-label="Marcar todas" checked={todasMarcadas} onChange={() => selecao.aoMudar(todasMarcadas ? new Set() : new Set(chaves))} />
@@ -126,14 +148,15 @@ export default function TabelaDensa({
                 const ativa = ordem?.chave === c.chave;
                 const Icone = !ativa ? ArrowUpDown : ordem.dir === 1 ? ArrowUp : ArrowDown;
                 return (
-                  <div key={c.chave} role="columnheader" aria-sort={ativa ? (ordem.dir === 1 ? "ascending" : "descending") : "none"} title={c.dica}
-                    className={`${c.fixa ? estiloTabela.tituloFixo : `${estiloTabela.tituloColuna} font-medium`} ${ALINHAR[c.alinhar] || ""}`} style={{ width: larguraDe(c), ...(c.elastica && !c.fixa ? { flexGrow: 1, flexShrink: 0 } : {}), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
+                  <div key={c.chave} role="columnheader" data-coluna={c.chave} aria-sort={ativa ? (ordem.dir === 1 ? "ascending" : "descending") : "none"} title={c.dica}
+                    className={`${c.fixa ? estiloTabela.tituloFixo : `${estiloTabela.tituloColuna} font-medium`} ${ALINHAR[c.alinhar] || ""}`} style={{ width: larguraDe(c), ...(elastica(c) ? { flexGrow: 1, flexShrink: 0 } : {}), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
                     {c.ordenavel === false ? <span className="truncate">{c.rotulo}</span> : (
                       <button type="button" onClick={() => ordenar(c.chave)} title={c.dica || "Ordenar"}
-                        className={`inline-flex min-w-0 items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ativa ? "text-foreground" : ""}`}>
-                        <span className="truncate">{c.rotulo}</span><Icone className={`h-3 w-3 shrink-0 ${ativa ? "" : "opacity-40"}`} aria-hidden="true" />
+                        className={`inline-flex min-w-0 items-center gap-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${ativa ? "font-semibold" : ""}`}>
+                        <span className="truncate">{c.rotulo}</span><Icone className={`h-3 w-3 shrink-0 ${ativa ? "" : "opacity-60"}`} aria-hidden="true" />
                       </button>
                     )}
+                    <AlcaLargura rotulo={c.rotulo} largura={larguraDe(c)} aoMudar={(px, { final }) => larguras.definir(c.chave, px, { gravar: final })} aoAutoAjustar={() => larguras.autoAjustar(c.chave)} />
                   </div>
                 );
               })}
@@ -142,7 +165,7 @@ export default function TabelaDensa({
               <div role="row" className="flex border-b border-border/70" style={{ height: ALTURA_TITULOS + 2 }}>
                 {selecao && <div role="columnheader" aria-label="Marcar" className="sticky left-0 z-40 bg-muted" style={{ width: LARGURA_MARCAR }} />}
                 {visiveis.map((c) => (
-                  <div key={c.chave} role="columnheader" aria-label={`Filtro de ${c.rotulo}`} className={`${c.fixa ? "sticky z-40 bg-muted" : "border-l border-border/70"} flex items-center px-1`} style={{ width: larguraDe(c), ...(c.elastica && !c.fixa ? { flexGrow: 1, flexShrink: 0 } : {}), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
+                  <div key={c.chave} role="columnheader" aria-label={`Filtro de ${c.rotulo}`} className={`${c.fixa ? "sticky z-40 bg-muted" : "border-l border-border/70"} flex items-center px-1`} style={{ width: larguraDe(c), ...(elastica(c) ? { flexGrow: 1, flexShrink: 0 } : {}), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
                     {c.filtravel === false ? null : <input value={filtros[c.chave] ?? ""} onChange={(e) => setFiltros((f) => ({ ...f, [c.chave]: e.target.value }))} placeholder="Filtrar" aria-label={`Filtrar ${c.rotulo}`} className="h-6 w-full border border-border bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />}
                   </div>
                 ))}
@@ -171,10 +194,10 @@ export default function TabelaDensa({
                     const conteudo = c.render ? c.render(l) : (() => { const t = textoDaColuna(c, l); return <span className="block truncate" title={t || undefined}>{t || <span className="text-muted-foreground">—</span>}</span>; })();
                     if (c.fixa) {
                       const f = celulaFixa(i, marcado, esquerda[c.chave], proximaEhPrimeira());
-                      return <div key={c.chave} role="cell" className={`${f.className} ${ALINHAR[c.alinhar] || ""}`} style={{ ...f.style, width: larguraDe(c) }}>{f.sobre}<span className="relative min-w-0 max-w-full">{conteudo}</span></div>;
+                      return <div key={c.chave} role="cell" data-coluna={c.chave} className={`${f.className} ${ALINHAR[c.alinhar] || ""}`} style={{ ...f.style, width: larguraDe(c) }}>{f.sobre}<span className="relative min-w-0 max-w-full">{conteudo}</span></div>;
                     }
                     const esq = proximaEhPrimeira() ? "shadow-[inset_3px_0_0_0_transparent] group-hover:shadow-[inset_3px_0_0_0_hsl(var(--primary))]" : "";
-                    return <div key={c.chave} role="cell" className={`${estiloTabela.celula} ${ALINHAR[c.alinhar] || ""} ${esq}`} style={{ width: larguraDe(c), ...(c.elastica ? { flexGrow: 1, flexShrink: 0 } : {}) }}><span className="min-w-0 max-w-full">{conteudo}</span></div>;
+                    return <div key={c.chave} role="cell" data-coluna={c.chave} className={`${estiloTabela.celula} ${ALINHAR[c.alinhar] || ""} ${esq}`} style={{ width: larguraDe(c), ...(elastica(c) ? { flexGrow: 1, flexShrink: 0 } : {}) }}><span className="min-w-0 max-w-full">{conteudo}</span></div>;
                   })}
                 </div>
               );

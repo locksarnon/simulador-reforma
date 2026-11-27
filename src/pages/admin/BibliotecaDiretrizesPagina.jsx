@@ -14,6 +14,7 @@ import {
   ABRANGENCIA_TODOS, ASPECTOS, conteudoPadrao, conteudoParaTela, mensagemDiretriz, normalizarConteudo, ROTULO_ASPECTO, SOBRE_ASPECTO, validarRegra,
 } from "@/components/saneamento-estoques/diretrizes/logica";
 import { AbasConfiguracao } from "./ErpsPagina";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const CRUMBS = [{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Configuração e ERPs", to: "/configuracao" }];
 const SUBABAS = [{ id: "regras", rotulo: "Regras-modelo" }, { id: "procedimentos", rotulo: "Procedimentos" }, { id: "modelos", rotulo: "Modelos" }];
@@ -58,6 +59,7 @@ export function ModeloLeitura({ modelo, regras }) {
     <article className="space-y-2 border border-border bg-card p-4" aria-label={modelo.nome}>
       <h3 className="font-semibold">{modelo.nome}</h3>
       {modelo.descricao && <p className="text-sm text-muted-foreground">{modelo.descricao}</p>}
+      <BuscaNaTabela />
       <table className="w-full text-sm" aria-label={`Regras do modelo ${modelo.nome}`}>
         <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Aspecto</th><th scope="col">Regra da biblioteca</th><th scope="col">Grupos</th></tr></thead>
         <tbody>{(modelo.atribuicoes || []).map((a, i) => (

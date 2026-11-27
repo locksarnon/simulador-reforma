@@ -411,7 +411,7 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         <div className="rounded-xl border border-border bg-card overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="border-b border-border text-left text-muted-foreground">
-              {previa.colunas.map((c) => <th key={c.indice} className={`px-2 py-1.5 font-medium whitespace-nowrap ${indicesMapeados.has(c.indice) ? "bg-primary/10 text-foreground" : ""}`}>{c.nome}</th>)}
+              {previa.colunas.map((c) => <th key={c.indice} className={`px-2 py-1.5 font-medium whitespace-nowrap ${indicesMapeados.has(c.indice) ? "underline decoration-2 underline-offset-4" : ""}`} title={indicesMapeados.has(c.indice) ? "Coluna usada na validação" : undefined}>{c.nome}</th>)}
             </tr></thead>
             <tbody>
               {previa.previa.slice(0, 6).map((l, i) => (
