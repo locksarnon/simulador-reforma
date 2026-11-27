@@ -19,6 +19,8 @@ const TAMANHO_LOTE = 5000;
 const TIMEOUT = 20_000;
 /** Swagger oficial: Consulta NF-e (Direto na Faixa) e Consulta NF-e (Escalonado). */
 export const BASES_NFE = ['/consulta-nfe-df/api/v1/nfe/', '/nfe/1/'];
+/** Chave de acesso da NF-e: exatamente 44 dígitos (nada mais entra no caminho do gateway do Serpro). */
+export const chaveNfeValida = (chave: unknown): chave is string => typeof chave === 'string' && /^\d{44}$/.test(chave);
 
 type Cobertura = {
   competencia: string;
@@ -286,9 +288,11 @@ export class RecuperacaoXmlHistoricoService {
    */
   private baseNfe = BASES_NFE[0];
   private async consultar(chave: string, bearer: string, lote: RecuperacaoXmlHistorico, documento: string) {
+    // A chave vem da leitura do SPED: só 44 dígitos entram no endereço do gateway.
+    if (!chaveNfeValida(chave)) throw new Error('Chave de acesso inválida (são 44 dígitos).');
     let resposta!: Response;
     for (const base of [this.baseNfe, ...BASES_NFE.filter((b) => b !== this.baseNfe)]) {
-      resposta = await fetch(GATEWAY + base + chave, {
+      resposta = await fetch(GATEWAY + base + encodeURIComponent(chave), {
         headers: { Authorization: 'Bearer ' + bearer, Accept: 'application/xml' },
         redirect: 'error', signal: AbortSignal.timeout(TIMEOUT),
       });
