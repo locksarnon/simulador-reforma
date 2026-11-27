@@ -6,7 +6,7 @@ import { atualizarTudo, chaves, renovarAposRestauracao, san } from "./api";
 import { BotaoPolitica } from "./diretrizes/Diretrizes";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, faixaSecaoCls, Rotulo, secaoCls, Tag, tituloSecaoCls, usePodeAlterar } from "./comuns";
 import {
-  avisosDaLiberacao, dadosDoErro, fmtDataHora, JUSTIFICATIVA_MINIMA, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
+  avisosDaLiberacao, dadosDoErro, fmtDataHora, JUSTIFICATIVA_MINIMA, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, ROTULO_FASE_VERSAO, rotuloDoCampo, rotuloSituacao,
   textoDoValor, versaoCriada,
 } from "./logica";
 
@@ -125,12 +125,19 @@ function Restauracoes({ projeto, versao }) {
 }
 
 function Entrega({ projetoId, versao, rotulo }) {
-  // O relatório PDF só existe para a versão liberada; a exportação para revisão é só o Excel.
-
+  // O relatório PDF só existe para a versão liberada; a exportação para revisão é só o Excel. Na revisão dá para tirar a parte tributária
+  // (só a Fase 1); na versão liberada vale a fase gravada nela.
   const [erro, setErro] = useState(null);
-  const baixar = useMutation({ mutationFn: (tipo) => san.baixarEntrega(projetoId, tipo, versao), onError: (e) => setErro(mensagemDeErro(e, "Não foi possível gerar o arquivo agora.")), onSuccess: () => setErro(null) });
+  const [soFase1, setSoFase1] = useState(false);
+  const baixar = useMutation({ mutationFn: (tipo) => san.baixarEntrega(projetoId, tipo, versao, !versao && soFase1 ? "FASE1" : undefined), onError: (e) => setErro(mensagemDeErro(e, "Não foi possível gerar o arquivo agora.")), onSuccess: () => setErro(null) });
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {!versao && (
+        <label className="flex items-center gap-1.5 text-sm">
+          <input type="checkbox" checked={soFase1} onChange={(e) => setSoFase1(e.target.checked)} />
+          Só a Fase 1 (sem a parte tributária)
+        </label>
+      )}
       <button type="button" className={botaoSecundario} disabled={baixar.isPending} onClick={() => baixar.mutate("excel")} aria-label={`Baixar o Excel: ${rotulo}`}><Download className="h-4 w-4" aria-hidden="true" />Excel</button>
       {versao && <button type="button" className={botaoSecundario} disabled={baixar.isPending} onClick={() => baixar.mutate("pdf")} aria-label={`Baixar o relatório PDF: ${rotulo}`}><FileText className="h-4 w-4" aria-hidden="true" />Relatório PDF</button>}
       <BotaoPolitica projetoId={projetoId} versao={versao} />
@@ -240,7 +247,7 @@ export default function Versoes({ projeto }) {
                           <label className="mr-2 text-xs"><input type="radio" name="comparar-a" checked={a === v.id} onChange={() => setA(v.id)} aria-label={`Versão ${v.numero} como a primeira da comparação (antes)`} /> A</label>
                           <label className="text-xs"><input type="radio" name="comparar-b" checked={b === v.id} onChange={() => setB(v.id)} aria-label={`Versão ${v.numero} como a segunda da comparação (depois)`} /> B</label>
                         </td>
-                        <td className="whitespace-nowrap tabular-nums">{v.numero} <Tag tom="ok">Liberada</Tag></td><td>{v.rotulo}<Restauracoes projeto={projeto} versao={v} /></td><td>{v.usuario}</td><td>{fmtDataHora(v.createdAt)}</td>
+                        <td className="whitespace-nowrap tabular-nums">{v.numero} <Tag tom="ok">Liberada</Tag>{ROTULO_FASE_VERSAO[v.resumo?.fase] && <> <Tag>{ROTULO_FASE_VERSAO[v.resumo.fase]}</Tag></>}</td><td>{v.rotulo}<Restauracoes projeto={projeto} versao={v} /></td><td>{v.usuario}</td><td>{fmtDataHora(v.createdAt)}</td>
                         <td className="text-right tabular-nums">{(v.resumo?.itens ?? 0).toLocaleString("pt-BR")}</td><td className="text-right tabular-nums">{(v.resumo?.casosAbertos ?? 0).toLocaleString("pt-BR")}</td>
                         <td className="py-1"><Entrega projetoId={projeto.id} versao={v} rotulo={`versão ${v.numero}`} /></td>
                         <td className="py-1"><button type="button" className={botaoSecundario} disabled={!pode} title={razao} onClick={() => setContinuarDe(v)} aria-label={`Continuar a partir da versão ${v.numero}`}><History className="h-4 w-4" aria-hidden="true" />Continuar a partir desta versão</button></td>

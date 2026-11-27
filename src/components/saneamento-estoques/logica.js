@@ -584,17 +584,32 @@ export const etiquetaDeEnquadramento = (origem) => (origem === "EXCECAO" ? "exce
 
 export const ROTULO_CONFIANCA = { alta: "Confiança alta", media: "Confiança média", baixa: "Confiança baixa" };
 
-/** Endereço do download de uma entrega. Com `versaoId` = versão liberada; sem ele = exportação para revisão (base de agora). */
-export function enderecoDeEntrega(projetoId, tipo, versaoId) {
+/**
+ * Endereço do download de uma entrega. Com `versaoId` = versão liberada (a fase é a gravada na versão); sem ele = exportação para revisão
+ * (base de agora), e `fase` = "FASE1" deixa de fora a parte tributária.
+ */
+export function enderecoDeEntrega(projetoId, tipo, versaoId, fase) {
   const base = `/saneamento-estoques/projetos/${projetoId}/entregas/${tipo === "pdf" ? "relatorio" : "excel"}`;
-  return versaoId ? `${base}?versaoId=${encodeURIComponent(versaoId)}` : base;
+  if (versaoId) return `${base}?versaoId=${encodeURIComponent(versaoId)}`;
+  return fase ? `${base}?fase=${encodeURIComponent(fase)}` : base;
 }
-export function nomeDeEntrega(tipo, versao) {
+/** Rótulo da fase gravada na versão (`resumo.fase`); versão antiga, sem fase = "". */
+export const ROTULO_FASE_VERSAO = { FASE1: "Fase 1 · Saneamento", FASE2: "Fase 2 · Tributário" };
+export function nomeDeEntrega(tipo, versao, fase) {
   const ext = tipo === "pdf" ? "pdf" : "xlsx";
-  return versao ? `saneamento-estoques-versao-${versao.numero}-liberada.${ext}` : `saneamento-estoques-para-revisao.${ext}`;
+  return versao ? `saneamento-estoques-versao-${versao.numero}-liberada.${ext}` : `saneamento-estoques-para-revisao${fase === "FASE1" ? "-fase-1" : ""}.${ext}`;
 }
 
 // ── Mapa de unificações e inativações ────────────────────────────────────────
+
+/** Linha do mapa que pode ser marcada como executada no ERP: a decidida (aprovada) ou a troca de código registrada. */
+export const linhaExecutavel = (l) => l?.situacao === "APROVADA" || l?.situacao === "REGISTRADA";
+/** "X de Y executadas" da lista (contagem do servidor, sobre todas as linhas da lista, não só a página). */
+export function textoExecutadas(c) {
+  const total = Number(c?.total) || 0; const feitas = Number(c?.executadas) || 0;
+  if (!total) return "Nenhuma ação aprovada para executar no ERP nesta lista.";
+  return `${feitas.toLocaleString("pt-BR")} de ${total.toLocaleString("pt-BR")} ${total === 1 ? "ação executada" : "ações executadas"} no ERP`;
+}
 
 export const SITUACOES_MAPA = { PROPOSTA: "Proposta", APROVADA: "Aprovada", AGUARDANDO: "Aguardando informação", REGISTRADA: "Registrada" };
 export const TIPOS_MAPA = { UNIFICACAO: "Unificação de códigos", INATIVACAO: "Inativação (duplicidade ou sem movimentação)", EQUIVALENCIA: "Equivalência (nenhum código morre)", TROCA_CODIGO: "Troca de código" };

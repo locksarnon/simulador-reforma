@@ -8,7 +8,7 @@ import type { DocumentoPdf, SecaoPdf } from '../../pdf/pdf.service';
 import type { DadosEntrega } from '../dados/portas';
 import type { Camada } from '../tipos';
 import {
-  CASO_PENDENTE, ROTULO_CAMADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, origemDaFinalidade, pct1, rotuloDoCampo, rotuloObrigacao, rotuloTipoAjuste,
+  CASO_PENDENTE, ROTULO_CAMADA, TEXTO_FASE2_SEPARADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, origemDaFinalidade, pct1, rotuloDoCampo, rotuloObrigacao, rotuloTipoAjuste,
   rotuloTipoCaso, textoSemEscrituracaoEntregue, txt, mapaDoModelo, type Modelo,
 } from './modelo';
 import type { LinhaMapa } from './unificacoes';
@@ -42,9 +42,9 @@ export function resultadoDaEntrega(m: Modelo): Resultado {
   const alterou = (campo: string) => m.itens.filter((i) => i.camposAlterados.includes(campo)).length;
   const ajustados = new Set<string>(); for (const s of m.itensAjustadosPorCamada.values()) for (const id of s) ajustados.add(id);
   return {
-    itensInativar: inativar.size, unificacoes: casosUnif.size, codigosQueSaem, finalidadeDefinida: m.itens.filter((i) => finalidadeConfirmada(m, i)).length,
+    itensInativar: inativar.size, unificacoes: casosUnif.size, codigosQueSaem, finalidadeDefinida: m.soFase1 ? 0 : m.itens.filter((i) => finalidadeConfirmada(m, i)).length,
     descricoes: alterou('descricao'), unidades: alterou('unidade'), ncm: alterou('ncm'),
-    enquadramentos: m.itens.filter((i) => { const x = celula(m, i.id, 'TRIBUTARIO')?.situacao; return (x === 'APROVADO' || x === 'SEM_PROBLEMA') && !!txt(i.campos.cClassTrib ?? i.campos.c_class_trib); }).length,
+    enquadramentos: m.soFase1 ? 0 : m.itens.filter((i) => { const x = celula(m, i.id, 'TRIBUTARIO')?.situacao; return (x === 'APROVADO' || x === 'SEM_PROBLEMA') && !!txt(i.campos.cClassTrib ?? i.campos.c_class_trib); }).length,
     vinculos: m.vinculos.length, itensAjustados: ajustados.size,
   };
 }
@@ -101,7 +101,7 @@ function comentarioDaCamada(m: Modelo, camada: Camada): string | null {
     }
   }
   if (camada === 'DUPLICIDADE' && m.vinculos.length) partes.push(`${plural(m.vinculos.length, 'vínculo de código antigo e novo registrado', 'vínculos de código antigo e novo registrados')}, com data e justificativa.`);
-  if (camada === 'GRUPOS_FINALIDADE') partes.push(`Finalidade confirmada em ${n(m.itens.filter((i) => finalidadeConfirmada(m, i)).length)} de ${n(m.itens.length)} itens.`);
+  if (!m.soFase1 && ((camada as string) === 'FINALIDADE' || (camada === 'GRUPOS_FINALIDADE' && !(m.camadas as string[]).includes('FINALIDADE')))) partes.push(`Finalidade confirmada em ${n(m.itens.filter((i) => finalidadeConfirmada(m, i)).length)} de ${n(m.itens.length)} itens.`);
   if (camada === 'NCM') partes.push(`NCM de 8 dígitos em ${n(m.itens.filter((i) => i.ncm.replace(/\D/g, '').length === 8).length)} de ${n(m.itens.length)} itens.`);
   if (camada === 'NOMES_UNIDADES') {
     const desc = m.itens.filter((i) => i.camposAlterados.includes('descricao')).length; const un = m.itens.filter((i) => i.camposAlterados.includes('unidade')).length;
@@ -199,6 +199,7 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   if (r.unidades) resultado.push(`${plural(r.unidades, 'unidade ajustada', 'unidades ajustadas')}.`);
   if (r.ncm) resultado.push(`${plural(r.ncm, 'NCM corrigido', 'NCM corrigidos')}.`);
   if (r.enquadramentos) resultado.push(`Enquadramento tributário (cClassTrib) aprovado ou conferido em ${plural(r.enquadramentos, 'item', 'itens')}.`);
+  if (m.soFase1) resultado.push(TEXTO_FASE2_SEPARADA);
   if (r.vinculos) resultado.push(`${plural(r.vinculos, 'vínculo de código antigo e novo registrado', 'vínculos de código antigo e novo registrados')}, com data e justificativa.`);
   if (!resultado.length) resultado.push('Nenhuma alteração do cadastro foi aprovada até esta versão.');
   const marcadasRevisar = [...m.porCamada.values()].reduce((s, x) => s + x.revisar, 0);
@@ -208,7 +209,9 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
     destaques: [
       { rotulo: 'Itens a inativar', valor: n(r.itensInativar), detalhe: parte(r.itensInativar, totalItens) },
       { rotulo: 'Unificações', valor: n(r.unificacoes), detalhe: plural(r.codigosQueSaem, 'código sai', 'códigos saem') },
-      { rotulo: 'Finalidade definida', valor: n(r.finalidadeDefinida), detalhe: `de ${n(totalItens)} itens` },
+      m.soFase1
+        ? { rotulo: 'Descrições padronizadas', valor: n(r.descricoes), detalhe: `de ${n(totalItens)} itens` }
+        : { rotulo: 'Finalidade definida', valor: n(r.finalidadeDefinida), detalhe: `de ${n(totalItens)} itens` },
     ],
     itens: [
       ...resultado,
@@ -296,13 +299,13 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   const incompletas = m.camadas.filter((c) => { const x = m.porCamada.get(c)!; return (x.porSituacao.PENDENTE ?? 0) > 0; });
   if (incompletas.length) itens.push(`Análise incompleta em: ${incompletas.map((c) => `${ROTULO_CAMADA[c]} (${parte(m.porCamada.get(c)!.total - (m.porCamada.get(c)!.porSituacao.PENDENTE ?? 0), totalItens)} analisados)`).join('; ')}.`);
   const semFin = totalItens - r.finalidadeDefinida; const semNcm = m.itens.filter((i) => i.ncm.replace(/\D/g, '').length !== 8).length;
-  if (semFin) itens.push(`${plural(semFin, 'item sem finalidade confirmada', 'itens sem finalidade confirmada')}: o enquadramento por cenário depende dela.`);
-  if (semNcm) itens.push(`${plural(semNcm, 'item sem NCM de 8 dígitos', 'itens sem NCM de 8 dígitos')}: sem o NCM o enquadramento legal não é definido.`);
+  if (semFin && !m.soFase1) itens.push(`${plural(semFin, 'item sem finalidade confirmada', 'itens sem finalidade confirmada')}: o enquadramento por cenário depende dela.`);
+  if (semNcm) itens.push(`${plural(semNcm, 'item sem NCM de 8 dígitos', 'itens sem NCM de 8 dígitos')}: ${m.soFase1 ? 'completar o NCM no cadastro antes da Fase 2' : 'sem o NCM o enquadramento legal não é definido'}.`);
   const corte = obj(dados.projeto.parametros).corteMovimentacao;
   if (!(typeof corte === 'string' && corte)) itens.push('Itens sem movimentação a longa data: critério não aplicado, porque o corte de movimentação não foi definido na configuração do projeto.');
   const mod = obj(dados.projeto.modulos);
   const desligados = [mod.conciliacao === true ? '' : 'conciliação de estoque', mod.blocosKG === true ? '' : 'Blocos K e G', mod.arquivoErp === true ? '' : 'arquivo para o ERP'].filter(Boolean);
-  if (desligados.length) itens.push(`Fora do escopo desta entrega: ${desligados.join(', ')}. O trabalho cobre o cadastro e o tratamento tributário dos itens, não a movimentação do estoque.`);
+  if (desligados.length) itens.push(`Fora do escopo desta entrega: ${desligados.join(', ')}. O trabalho cobre ${m.soFase1 ? 'o cadastro dos itens' : 'o cadastro e o tratamento tributário dos itens'}, não a movimentação do estoque.`);
   itens.push('A análise se apoia na legislação e nas tabelas oficiais carregadas no sistema na data da versão; mudança posterior de norma ou de leiaute exige nova conferência.');
   secoes.push({ titulo: 'Limitações', itens });
 
@@ -311,7 +314,7 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   secoes.push({
     titulo: 'Versão liberada',
     paragrafos: [
-      `Versão ${v?.numero ?? '-'} — ${txt(v?.rotulo)}${v ? `, liberada em ${dataBr(v.criadaEm)}` : ''}. A versão congela ${plural(totalItens, 'item', 'itens')} e ${plural(fotoCelulas, 'situação de camada', 'situações de camada')}; somente decisões aprovadas até essa data compõem a entrega, e o Excel desta versão traz o cadastro saneado, o de/para de códigos, os cenários tributários, os impactos no SPED, as pendências e o histórico das alterações aprovadas.`,
+      `Versão ${v?.numero ?? '-'} — ${txt(v?.rotulo)}${v ? `, liberada em ${dataBr(v.criadaEm)}` : ''}. A versão congela ${plural(totalItens, 'item', 'itens')} e ${plural(fotoCelulas, 'situação de camada', 'situações de camada')}; somente decisões aprovadas até essa data compõem a entrega, e o Excel desta versão traz o cadastro saneado (base antes e depois), o de/para de códigos, ${m.soFase1 ? '' : 'os cenários tributários, '}os impactos no SPED, as pendências e o histórico das alterações aprovadas.`,
     ],
     destaques: [
       { rotulo: 'Itens ajustados', valor: n(r.itensAjustados), detalhe: `de ${n(totalItens)} itens` },

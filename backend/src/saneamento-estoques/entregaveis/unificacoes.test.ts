@@ -202,7 +202,7 @@ describe('sem movimentação e unificações: fluxo com o banco falso', () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Inativações']);
     const ws = wb.getWorksheet('Inativações')!;
     expect(ws.rowCount).toBe(2);
-    expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(['Origem', 'Código', 'Descrição', 'Unidade', 'Saldo', 'Situação', 'Ação no ERP', 'Início da vigência', 'Justificativa', 'Responsável', 'Data da decisão']); // sem Marca: nenhuma linha aberta no filtro
+    expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(['Origem', 'Código', 'Descrição', 'Unidade', 'Saldo', 'Situação', 'Ação no ERP', 'Início da vigência', 'Justificativa', 'Responsável', 'Data da decisão', 'Executado no ERP']); // sem Marca: nenhuma linha aberta no filtro
     expect(ws.getRow(2).getCell(7).value).toBe('Inativar 400');
   });
 });

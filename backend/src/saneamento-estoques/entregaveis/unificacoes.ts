@@ -36,6 +36,9 @@ export type CasoMapa = {
   id: string; camada: string; tipo: string; itens: string[]; proposta: Record<string, unknown>; justificativa: string; motivo: string; situacao: string;
   decididoPor: string; decididoEm: Date | null;
 };
+/** Marca "Executado no ERP" de uma linha (gravada em `parametros.acoesExecutadas` do projeto, pela chave da linha): quando e quem. */
+export type MarcaExecutado = { em: string; por: string };
+export type Executadas = Record<string, MarcaExecutado>;
 export type VinculoMapa = { de: string; para: string; inicio: Date | null; justificativa: string; criadoPor: string };
 export type EntradaMapa = {
   /** Entrega liberada: só o que foi aprovado (e os vínculos registrados). */
@@ -52,6 +55,8 @@ export type EntradaMapa = {
   escala?: number;
   /** Perfil do ERP do projeto (Cadastro de ERPs): a "Ação no ERP" usa o texto dele quando houver; sem perfil, o texto geral. */
   perfilErp?: PerfilErp | null;
+  /** Linhas já executadas no ERP (chave da linha → quando e quem). */
+  executadas?: Executadas | null;
 };
 type Lado = { codigo: string; estab: string; descricao: string; unidade: string; saldo: number | null };
 export type LinhaMapa = {
@@ -65,7 +70,20 @@ export type LinhaMapa = {
   acao: string; inicio: Date | null; justificativa: string; alertas: string[]; responsavel: string; decididoEm: Date | null;
   /** Conflito unificação × inativação desta linha (o par), para o destaque da tela e a aba "Conflitos" do Excel do mapa. */
   conflito?: ParConflito | null;
+  /** Chave estável da linha (caso + código que sai + estabelecimento; vínculo de troca: de e para): a marca "Executado no ERP" usa esta chave. */
+  chave: string;
+  /** Executada no ERP (quando e quem), ou null. */
+  executado: MarcaExecutado | null;
 };
+/** Só a ação decidida (aprovada) ou registrada pode ser executada no ERP: é a base do contador "X de Y executadas". */
+export const linhaExecutavel = (l: Pick<LinhaMapa, 'situacao'>) => l.situacao === 'APROVADA' || l.situacao === 'REGISTRADA';
+
+/** Chave da linha do mapa: caso|código que sai|estabelecimento (unificação e inativação), caso (equivalência), vinculo|de|para (troca). */
+export function chaveDaLinha(l: Pick<LinhaMapa, 'tipo' | 'casoId' | 'morre' | 'fica'>): string {
+  if (l.tipo === 'TROCA_CODIGO') return `vinculo|${l.morre?.codigo ?? ''}|${l.fica?.codigo ?? ''}`;
+  if (l.tipo === 'EQUIVALENCIA') return l.casoId ?? '';
+  return `${l.casoId ?? ''}|${l.morre?.codigo ?? ''}|${l.morre?.estab ?? ''}`;
+}
 /**
  * O par em conflito: a unificação (código que sai → código que fica) e a inativação do código que fica (caso de inativação, ou o código já
  * inativo na base). A recusa na aprovação em lote é de outra rotina; aqui só a apresentação.
@@ -106,7 +124,7 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
     if (!situacao || (e.liberada && situacao !== 'APROVADA')) continue;
     if (c.tipo.startsWith('EXCECAO') || c.tipo === 'FINALIDADE_EXCECAO') continue;
     const decisao = t(c.proposta.decisao);
-    const comum = { situacao, casoId: c.id, origem: null, inicio: e.dataBase, justificativa: [c.justificativa, c.motivo].filter(Boolean).join(' · '), responsavel: c.decididoPor, decididoEm: c.decididoEm };
+    const comum = { situacao, casoId: c.id, origem: null, chave: '', executado: null, inicio: e.dataBase, justificativa: [c.justificativa, c.motivo].filter(Boolean).join(' · '), responsavel: c.decididoPor, decididoEm: c.decididoEm };
     if (decisao === 'PROPOR_CONSOLIDACAO' && c.camada === 'DUPLICIDADE') linhasDeUnificacao(c, e, comum, unif, pares, cruz);
     else if (decisao === 'PROPOR_INATIVACAO') linhasDeInativacao(c, e, comum, inatComId);
     else if (c.camada === 'DUPLICIDADE') equiv.push(linhaDeEquivalencia(c, e, comum));
@@ -159,14 +177,15 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
     if (pares.has(`${v.de}\u0001${v.para}`)) continue; // já está na linha da unificação
     trocas.push({
       tipo: 'TROCA_CODIGO', rotuloTipo: ROTULO_TIPO_MAPA.TROCA_CODIGO, situacao: 'REGISTRADA', casoId: null, origem: null, morre: { codigo: v.de, estab: '', descricao: '', unidade: '', saldo: null }, fica: { codigo: v.para, descricao: '', unidade: '', saldo: null },
-      saldoEntra: null, saldoConsolidado: null, acao: acaoComErp(e, 'MUDOU_CODIGO_DESCRICAO', `Registrar ${v.de} como código anterior de ${v.para} (histórico do item; SPED 0205)`, { sai: v.de, fica: v.para }, true), inicio: v.inicio ?? e.dataBase,
+      chave: '', executado: null, saldoEntra: null, saldoConsolidado: null, acao: acaoComErp(e, 'MUDOU_CODIGO_DESCRICAO', `Registrar ${v.de} como código anterior de ${v.para} (histórico do item; SPED 0205)`, { sai: v.de, fica: v.para }, true), inicio: v.inicio ?? e.dataBase,
       justificativa: semEtiquetas(v.justificativa), alertas: [], responsavel: v.criadoPor === 'sistema' ? '' : v.criadoPor, decididoEm: null,
     });
   }
   const ordem = (a: LinhaMapa, b: LinhaMapa) => cmp(a.fica?.codigo ?? '', b.fica?.codigo ?? '') || cmp(a.morre?.codigo ?? '', b.morre?.codigo ?? '') || cmp(a.morre?.estab ?? '', b.morre?.estab ?? '');
   unif.sort(ordem); inat.sort(ordem);
   const out: LinhaMapa[] = [];
-  for (const l of [unif, inat, equiv, trocas]) for (const x of l) out.push(x);
+  const exec = e.executadas ?? {};
+  for (const l of [unif, inat, equiv, trocas]) for (const x of l) { x.chave = chaveDaLinha(x); x.executado = exec[x.chave] ?? null; out.push(x); }
   return out;
 }
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -181,7 +200,7 @@ export function acaoComErp(e: Pick<EntradaMapa, 'perfilErp'>, tipo: string, gera
   return normal ? t : `${geral}. No ${e.perfilErp!.nome}: ${t}`;
 }
 
-type Comum = Pick<LinhaMapa, 'situacao' | 'casoId' | 'origem' | 'inicio' | 'justificativa' | 'responsavel' | 'decididoEm'>;
+type Comum = Pick<LinhaMapa, 'situacao' | 'casoId' | 'origem' | 'inicio' | 'justificativa' | 'responsavel' | 'decididoEm' | 'chave' | 'executado'>;
 /** O que a unificação registra para o cruzamento com as inativações: linhas por item que fica e ids dos itens que morrem. */
 type Cruzamento = { linhasDoQueFica: Map<string, LinhaMapa[]>; queMorrem: Map<string, LinhaMapa[]> };
 
@@ -339,9 +358,15 @@ export function contarMapa(linhas: LinhaMapa[]) {
   const porTipo: Record<string, number> = { UNIFICACAO: 0, INATIVACAO: 0, EQUIVALENCIA: 0, TROCA_CODIGO: 0 };
   const inativacoesPorOrigem: Record<OrigemInativacao, number> = { DUPLICIDADE: 0, QUALIDADE: 0 };
   const porLista: Record<ListaMapa, number> = { UNIFICACOES: 0, INATIVACOES: 0, EQUIVALENCIAS: 0 };
+  // "X de Y executadas" por lista: Y = linhas aprovadas ou registradas (as que vão ao ERP); X = as marcadas como executadas.
+  const executadasPorLista: Record<ListaMapa, { executadas: number; total: number }> = { UNIFICACOES: { executadas: 0, total: 0 }, INATIVACOES: { executadas: 0, total: 0 }, EQUIVALENCIAS: { executadas: 0, total: 0 } };
   let comAlerta = 0;
-  for (const l of linhas) { porSituacao[l.situacao]++; porTipo[l.tipo]++; porLista[listaDoTipo(l.tipo)]++; if (l.origem) inativacoesPorOrigem[l.origem]++; if (l.alertas.length) comAlerta++; }
-  return { porSituacao, porTipo, porLista, inativacoesPorOrigem, comAlerta, conflitos: conflitosDoMapa(linhas) };
+  for (const l of linhas) {
+    const lista = listaDoTipo(l.tipo);
+    porSituacao[l.situacao]++; porTipo[l.tipo]++; porLista[lista]++; if (l.origem) inativacoesPorOrigem[l.origem]++; if (l.alertas.length) comAlerta++;
+    if (linhaExecutavel(l)) { executadasPorLista[lista].total++; if (l.executado) executadasPorLista[lista].executadas++; }
+  }
+  return { porSituacao, porTipo, porLista, executadasPorLista, inativacoesPorOrigem, comAlerta, conflitos: conflitosDoMapa(linhas) };
 }
 
 /** Pares unificação × inativação em conflito, um por par (sem repetir quando o conflito está nas duas linhas). */

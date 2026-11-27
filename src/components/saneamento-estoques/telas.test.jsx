@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "a@b.c" } }) }));
 
 import { chaves, renovarAposRestauracao } from "./api";
-import { estiloTabela } from "./comuns";
+import { estiloTabela, PermissaoContext } from "./comuns";
 import Abas from "./Abas";
 import CasoDetalhe, { ParecerIa } from "./CasoDetalhe";
 import Casos from "./Casos";
@@ -17,7 +17,7 @@ import Configuracao from "./Configuracao";
 import Impacto from "./Impacto";
 import Importacao, { AvisosDeSeparador, Reimportacao } from "./Importacao";
 import TabelaUnica from "./TabelaUnica";
-import Unificacoes, { LISTAS_MAPA, textoDoConflito } from "./Unificacoes";
+import Unificacoes, { LISTAS_MAPA, textoDoConflito, textoDoExecutado } from "./Unificacoes";
 import Versoes, { ContinuarVersao } from "./Versoes";
 import VisaoGeral from "./VisaoGeral";
 import SaneamentoEstoquesPagina from "@/pages/saneamento-estoques/SaneamentoEstoquesPagina";
@@ -389,6 +389,17 @@ describe("Versões", () => {
     expect(t).toContain("Marque A (antes) e B (depois)");
     expect(t).toContain("Continuar a partir desta versão");
   });
+  it("fase: a revisão pode sair só com a Fase 1 (sem a parte tributária) e a versão mostra a fase gravada nela", () => {
+    const html = montar(<Versoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.versoes("p1"), [
+      { id: "v2", numero: 2, rotulo: "Cadastro saneado", usuario: "ana@x.com", createdAt: "2026-11-20T12:00:00Z", resumo: { itens: 500, casosAbertos: 0, fase: "FASE1" } },
+      { id: "v1", numero: 1, rotulo: "Entrega antiga", usuario: "ana@x.com", createdAt: "2026-11-10T12:00:00Z", resumo: { itens: 500, casosAbertos: 4 } },
+    ]));
+    const t = texto(html);
+    expect(t).toContain("Só a Fase 1 (sem a parte tributária)");
+    expect(html.match(/type="checkbox"/g)).toHaveLength(1); // só no quadro Para revisão
+    expect(t).toContain("Fase 1 · Saneamento");
+    expect(t.match(/Fase 1 · Saneamento/g)).toHaveLength(1); // a versão antiga não tem fase
+  });
   it("mostra as restaurações feitas a partir da versão, com Desfazer (ou o selo de desfeita)", () => {
     const r = (o) => ({ id: "r1", quando: "2026-11-21T12:00:00Z", usuario: "ana@x.com", justificativa: "Cliente pediu voltar", itens: 3, campos: 5, casosDecididosDepois: 1, desfeita: null, ...o });
     const t = texto(montar(<Versoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.versoes("p1"), [{ id: "v1", numero: 1, rotulo: "Entrega 1", usuario: "ana@x.com", createdAt: "2026-11-20T12:00:00Z", resumo: { itens: 500, restauracoes: [r(), r({ id: "r2", desfeita: { por: "b", em: "2026-11-22T12:00:00Z" } })] } }])));
@@ -581,6 +592,31 @@ describe("Unificações", () => {
     expect(html).toMatch(/border-orange-600\/50[^"]*"[^>]*>Proposta/); // selo de situação com cor e texto
     expect(html).toMatch(/border-emerald-600\/50[^"]*"[^>]*>Aprovada/);
     expect(t).not.toContain("com estes filtros");
+  });
+  it("ações no ERP: caixa Executado no ERP na linha aprovada (com quem e quando), traço na proposta e o contador X de Y", () => {
+    const feita = { ...inat, chave: "c2|0789|", executado: { em: "2026-11-25T15:30:00.000Z", por: "Ana Souza" } };
+    const aberta = { ...inat, casoId: "c4", chave: "c4|0790|", morre: { ...inat.morre, codigo: "0790" }, executado: null };
+    const proposta = { ...unif, chave: "c1|000456|", executado: null };
+    const html = montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([proposta, feita, aberta], { executadasPorLista: { UNIFICACOES: { executadas: 1, total: 2 }, INATIVACOES: { executadas: 0, total: 0 }, EQUIVALENCIAS: { executadas: 0, total: 0 } } })));
+    const t = texto(html);
+    expect(t).toContain("Executado no ERP");
+    expect(t).toContain("1 de 2 ações executadas no ERP");
+    const caixa = (h, cod) => h.match(new RegExp(`<input type="checkbox"[^>]*aria-label="Executado no ERP: ${cod}"[^>]*>`))?.[0] ?? "";
+    expect(caixa(html, "0789")).toContain('checked=""');
+    expect(caixa(html, "0790")).not.toContain("checked");
+    expect(caixa(html, "0790")).not.toContain("disabled");
+    expect(html).not.toContain('aria-label="Executado no ERP: 000456"'); // proposta: não vai ao ERP
+    expect(t).toContain("Ana Souza");
+    expect(textoDoExecutado(feita)).toMatch(/^Sim · \d{2}\/\d{2}\/2026,? \d{2}:\d{2} · Ana Souza$/);
+    expect(textoDoExecutado(aberta)).toBe("Não");
+    expect(textoDoExecutado(proposta)).toBe("");
+    // A ordem: logo depois da Ação no ERP.
+    expect(t.indexOf("Executado no ERP")).toBeGreaterThan(t.indexOf("Ação no ERP"));
+    // Sem a função "Alterar dados", a caixa fica bloqueada.
+    const so = renderToStaticMarkup(<PermissaoContext.Provider value={{ podeAlterar: false }}><QueryClientProvider client={(() => { const qc = novoCliente(); qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([aberta])); return qc; })()}><StaticRouter location="/"><Unificacoes projeto={projeto()} /></StaticRouter></QueryClientProvider></PermissaoContext.Provider>);
+    expect(caixa(so, "0790")).toContain('disabled=""');
+    // Lista sem ação aprovada.
+    expect(texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([proposta]))))).toContain("Nenhuma ação aprovada para executar no ERP nesta lista.");
   });
   it("sem corte definido, avisa que os itens parados não foram avaliados", () => {
     const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { corteDefinido: false }))));

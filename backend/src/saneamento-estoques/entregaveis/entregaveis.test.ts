@@ -38,19 +38,19 @@ describe('Excel: 6 abas', () => {
     }
   });
 
-  it('cadastro: códigos e NCM como texto (zeros preservados), original × saneada, finalidade, situação por camada', async () => {
+  it('cadastro: códigos e NCM como texto (zeros preservados), como era × como ficou, finalidade, situação por camada', async () => {
     const wb = await abrir(await svc().gerarExcel(dadosBase(true)));
     const ws = wb.getWorksheet('Cadastro saneado')!;
     // Entrega liberada: sem coluna totalmente vazia (estabelecimento único) e sem identificador interno.
-    expect(cabecalhos(ws).slice(0, 10)).toEqual(['Código', 'Descrição original', 'Descrição saneada', 'Unidade', 'NCM', 'Grupo', 'Finalidade', 'Origem da finalidade', 'Também usado como', 'Ativo']);
+    expect(cabecalhos(ws).slice(0, 12)).toEqual(['Código', 'Situação do item', 'Código de destino', 'Descrição (como era)', 'Descrição (como ficou)', 'Unidade', 'NCM', 'Grupo', 'Finalidade', 'Origem da finalidade', 'Também usado como', 'Ativo']);
     expect(cabecalhos(ws)).not.toContain('Estabelecimento');
     expect(cabecalhos(ws)).not.toContain('ID interno');
     expect(valores(ws, 'Código')).toEqual(['00123', '000456', '0789']);
     expect(ws.getRow(2).getCell(1).type).toBe(ExcelJS.ValueType.String);
     expect(ws.getRow(2).getCell(1).numFmt).toBe('@');
     expect(ws.getRow(2).getCell(coluna(ws, 'NCM')).numFmt).toBe('@');
-    expect(valores(ws, 'Descrição original')[0]).toBe('ADUBO NPK 04148 SC50');
-    expect(valores(ws, 'Descrição saneada')[0]).toBe('ADUBO NPK 04-14-08 SC 50KG');
+    expect(valores(ws, 'Descrição (como era)')[0]).toBe('ADUBO NPK 04148 SC50');
+    expect(valores(ws, 'Descrição (como ficou)')[0]).toBe('ADUBO NPK 04-14-08 SC 50KG');
     // Material do cliente: rótulos, nunca o nome interno do campo.
     expect(valores(ws, 'Campos alterados')[0]).toBe('Descrição, cClassTrib');
     expect(valores(ws, 'Finalidade')).toEqual(['Insumo de produção', 'Revenda', null]);
@@ -122,7 +122,7 @@ describe('Excel: 6 abas', () => {
   it('os dois formatos de linha (foto × tabela) geram o mesmo cadastro', async () => {
     const a = await abrir(await svc().gerarExcel({ ...dadosBase(true, 'foto'), liberada: true }));
     const b = await abrir(await svc().gerarExcel({ ...dadosBase(true, 'tabela'), liberada: true }));
-    const c = (w: ExcelJS.Workbook) => { const ws = w.getWorksheet('Cadastro saneado')!; return ['Código', 'NCM', 'Grupo', 'Finalidade', 'Origem da finalidade', 'Ativo', 'Tratamento tributário', 'Descrição original'].map((n) => valores(ws, n)); };
+    const c = (w: ExcelJS.Workbook) => { const ws = w.getWorksheet('Cadastro saneado')!; return ['Código', 'NCM', 'Grupo', 'Finalidade', 'Origem da finalidade', 'Ativo', 'Tratamento tributário', 'Descrição (como era)', 'Descrição (como ficou)', 'Situação do item'].map((n) => valores(ws, n)); };
     expect(c(a)).toEqual(c(b));
   });
 
@@ -134,7 +134,8 @@ describe('Excel: 6 abas', () => {
     // Liberada: sem as colunas totalmente vazias (estabelecimento único, nenhum alerta).
     expect(cabecalhos(ws)).toEqual(['Tipo de registro', 'Código que sai', 'Descrição (código que sai)', 'Unidade (código que sai)', 'Saldo (código que sai)',
       'Código que fica', 'Descrição (código que fica)', 'Unidade (código que fica)', 'Saldo atual (código que fica)', 'Saldo que entra', 'Saldo consolidado', 'Situação', 'Ação no ERP',
-      'Início da vigência', 'Justificativa', 'Responsável', 'Data da decisão']);
+      'Início da vigência', 'Justificativa', 'Responsável', 'Data da decisão', 'Executado no ERP']);
+    expect(valores(ws, 'Executado no ERP')).toEqual(['Não']);
     // O vínculo gravado pela unificação aprovada não vira uma segunda linha; a equivalência só proposta fica fora da entrega liberada.
     expect(valores(ws, 'Tipo de registro')).toEqual(['Unificação de códigos']);
     expect(valores(ws, 'Código que sai')).toEqual(['000456']);

@@ -56,6 +56,9 @@ export const san = {
   vinculos: (id) => api.get(`${B}/projetos/${id}/vinculos-codigo`),
   /** Mapa de unificações e inativações (paginado): { linhas, pagina, limite, total, totalGeral, porSituacao, porTipo, comAlerta, corteDefinido }. */
   unificacoes: (id, filtro) => api.get(`${B}/projetos/${id}/unificacoes`, paramsDoMapa(filtro)),
+  /** Marca "Executado no ERP" de uma linha do mapa (`chave` da linha): marcar grava quem e quando; desmarcar apaga. */
+  marcarExecutada: (id, chave) => api.post(`${B}/projetos/${id}/unificacoes/executadas`, { chave }),
+  desmarcarExecutada: (id, chave) => api.delete(`${B}/projetos/${id}/unificacoes/executadas?chave=${encodeURIComponent(chave)}`),
   baixarUnificacoes: (id, filtro) => api.baixar("GET", enderecoDoMapa(id, filtro), { nome: "saneamento-estoques-unificacoes-e-inativacoes.xlsx", nomeDoServidor: true }),
 
   versoes: (id) => api.get(`${B}/projetos/${id}/versoes`),
@@ -65,7 +68,8 @@ export const san = {
   previaContinuar: (id, versaoId) => api.get(`${B}/projetos/${id}/versoes/${versaoId}/continuar`),
   continuarVersao: (id, versaoId, corpo) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/continuar`, corpo),
   desfazerRestauracao: (id, versaoId, restauracaoId, versao) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/restauracoes/${restauracaoId}/desfazer`, { versao }),
-  baixarEntrega: (id, tipo, versao) => api.baixar("GET", enderecoDeEntrega(id, tipo, versao?.id), { nome: nomeDeEntrega(tipo, versao), nomeDoServidor: true }),
+  /** `fase` (só na revisão): "FASE1" = sem a parte tributária. */
+  baixarEntrega: (id, tipo, versao, fase) => api.baixar("GET", enderecoDeEntrega(id, tipo, versao?.id, fase), { nome: nomeDeEntrega(tipo, versao, fase), nomeDoServidor: true }),
   /** Política (PDF): sem versão = a política de agora (Rascunho enquanto houver regra não aprovada); com versão = a congelada nela. */
   baixarPolitica: (id, versao) => api.baixar("GET", enderecoDaPolitica(id, versao?.id), { nome: nomeDaPolitica(versao), nomeDoServidor: true }),
 
