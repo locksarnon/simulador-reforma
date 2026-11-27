@@ -201,7 +201,10 @@ thead tr:not(.linha-filtros) th :is(button, a):hover { color: inherit; text-deco
   .assistente-painel[data-fechando] { animation: assistente-sai 160ms ease-in both; }
   .assistente-entra-msg { animation: assistente-msg 280ms ease-out both; }
   .assistente-botao::after { animation: assistente-varre 6s ease-in-out 1.5s infinite; }
+  .assistente-barra { animation: assistente-barra 1.6s ease-in-out infinite; }
 }
+/* Barra da tela travada do assistente: sem movimento (preferência do sistema), fica parada no começo. */
+@keyframes assistente-barra { 0% { transform: translateX(-110%); } 100% { transform: translateX(320%); } }
 @keyframes assistente-respira { 0%, 100% { transform: scale(1); filter: hue-rotate(0deg); } 50% { transform: scale(1.07); filter: hue-rotate(25deg); } }
 @keyframes assistente-pensa { 0%, 100% { transform: scale(1) rotate(0deg); filter: hue-rotate(0deg); } 50% { transform: scale(1.12) rotate(180deg); filter: hue-rotate(70deg); } }
 @keyframes assistente-salta { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }

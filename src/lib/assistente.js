@@ -63,19 +63,25 @@ export const emailValido = (texto) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(Strin
 /** A pergunta serve para enviar? (o serviço exige alguns caracteres e corta nos 600) */
 export const perguntaValida = (texto) => String(texto ?? "").trim().length >= MINIMO_PERGUNTA;
 
+/** Mensagem da tela travada enquanto o assistente trabalha (nada mais da tela responde até a resposta chegar). */
+export const MENSAGEM_CONSTRUINDO = "Construindo a resposta consultiva ao seu problema, aguarde…";
+
+// O Claude Fable 5.2 leva de 40 s a 2 min numa resposta com passo a passo e cálculo: as etapas acompanham esse tempo.
 const ESPERAS = [
   [0, "Procurando nos dispositivos da lei…"],
-  [3, "Lendo os artigos mais próximos da sua pergunta…"],
-  [7, "Montando a resposta com o texto da lei…"],
-  [13, "Conferindo se cada trecho citado existe mesmo…"],
-  [22, "Quase lá: a análise está demorando mais que o normal."],
+  [4, "Lendo os artigos mais próximos da sua pergunta…"],
+  [12, "Montando a resposta com o texto da lei…"],
+  [30, "Montando o passo a passo e o cálculo, quando a pergunta pede…"],
+  [60, "Conferindo os artigos citados e refazendo as contas…"],
+  [110, "Está demorando mais que o normal: a resposta ainda está sendo construída."],
 ];
 const ESPERAS_APROFUNDADA = [
   [0, "Procurando nos dispositivos da lei…"],
   [4, "Pesquisando em fontes oficiais na internet…"],
-  [14, "Comparando as fontes com o texto da lei…"],
-  [28, "Montando a resposta com as fontes citadas…"],
-  [50, "A pesquisa aprofundada demora mais. Só mais um instante."],
+  [20, "Comparando as fontes com o texto da lei…"],
+  [45, "Montando a resposta, o passo a passo e o cálculo…"],
+  [90, "Conferindo os artigos citados e refazendo as contas…"],
+  [140, "A pesquisa aprofundada demora mais. Só mais um instante."],
 ];
 /** Mensagem de espera conforme os segundos desde o envio. */
 export function mensagemDeEspera(segundos, aprofundada = false) {
@@ -109,10 +115,39 @@ export function gravarHistorico(itens) {
 }
 
 /** Texto para copiar: a resposta, as ressalvas e a base legal citada. */
+/** O cálculo modelo em linhas de texto (mesma ordem da tela: fórmula, premissas de exemplo, números da lei com o artigo, contas). */
+export function linhasDoCalculo(c) {
+  if (!c) return [];
+  return [
+    ...(c.formula ? [`Fórmula: ${c.formula}`] : []),
+    ...(c.premissas ?? []).map((p) => `${p.descricao}: ${p.valor_texto} (exemplo)`),
+    ...(c.parametros ?? []).map((p) => `${p.descricao}: ${p.valor_texto} (${p.fundamento?.numero}, ${p.fundamento?.rotulo})`),
+    ...(c.linhas ?? []).map((l) => `${l.descricao}: ${l.conta} = ${l.valor_texto}`),
+  ];
+}
+
 export function textoParaCopiar(r) {
   if (!r) return "";
   const partes = [String(r.resposta ?? "").trim()];
+  const p = r.pratica;
+  if (p?.passos?.length) partes.push(`Na prática:\n${p.passos.map((x, i) => `${i + 1}. ${x}`).join("\n")}`);
+  if (p?.calculo) partes.push(`Cálculo modelo (valores de exemplo; contas conferidas pelo InTAX):\n${linhasDoCalculo(p.calculo).join("\n")}`);
+  else if (p?.sem_calculo) partes.push(`Cálculo modelo: ${p.sem_calculo}`);
   if (r.ressalvas) partes.push(`Atenção: ${r.ressalvas}`);
   if (r.fundamentos?.length) partes.push(`Base legal:\n${r.fundamentos.map((f) => `- ${f.numero} — ${f.rotulo}`).join("\n")}`);
   return partes.filter(Boolean).join("\n\n");
 }
+
+const maiuscula = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+/** Nome do modelo para a tela: "claude-fable-5-2" → "Claude Fable 5.2"; "gemini-3.5-flash" → "Gemini 3.5 Flash". */
+export function nomeDoModelo(modelo) {
+  const m = String(modelo ?? "").trim();
+  const claude = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/i.exec(m);
+  if (claude) return `Claude ${maiuscula(claude[1].toLowerCase())} ${claude[2]}${claude[3] ? `.${claude[3]}` : ""}`;
+  const gemini = /^gemini-(.+)$/i.exec(m);
+  if (gemini) return `Gemini ${gemini[1].split("-").map(maiuscula).join(" ")}`;
+  return m;
+}
+
+/** A resposta veio do motor principal da resposta consultiva (Claude Fable)? */
+export const respondeuPeloFable = (modelo) => /fable/i.test(String(modelo ?? ""));

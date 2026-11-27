@@ -265,7 +265,11 @@ export const SECAO_BASE_LEGAL = {
     },
     {
       p: "O assistente da Base legal pode errar?",
-      r: "Sem a Pesquisa aprofundada, ele responde somente com o texto das normas carregadas, cita o dispositivo e valida a citação; quando o texto carregado não basta, ele avisa. Com a pesquisa ligada, também consulta fontes da internet e mostra quais usou. As perguntas ficam registradas para revisão da equipe. Continua sendo apoio, não parecer: confirme no texto do dispositivo e na fonte oficial.",
+      r: "Sem a Pesquisa aprofundada, ele responde somente com o texto das normas carregadas, cita o dispositivo e valida a citação; quando o texto carregado não basta, ele avisa. Com a pesquisa ligada, também consulta fontes da internet e mostra quais usou. No cálculo modelo, o InTAX refaz todas as contas e só aceita número da lei que esteja no texto do artigo citado. Toda resposta diz qual motor a construiu: o Claude Fable 5.2 ou, se ele não respondeu, o motor reserva, com aviso para conferir com atenção redobrada. As perguntas ficam registradas para revisão da equipe. Continua sendo apoio, não parecer: confirme no texto do dispositivo e na fonte oficial.",
+    },
+    {
+      p: "O assistente diz o que fazer e como calcular?",
+      r: "Sim, quando a pergunta é prática (“o que eu faço?”, “como emito?”, “como calculo?”, “me dá um exemplo”). Depois da resposta direta com a base legal vêm Na prática: o que fazer, com os passos em ordem e o artigo de cada passo, e Como calcular, com a fórmula e um cálculo modelo: os valores da operação são de exemplo, cada número da lei (alíquota, percentual, redução, limite) aparece com o artigo que o traz e todas as contas são refeitas pelo InTAX. Se o modelo errar uma conta, a tabela mostra a correta e avisa; se o número da lei não estiver no texto do artigo citado, ou não estiver na base, o cálculo não aparece e a resposta diz o que falta e onde conferir. Enquanto a resposta é construída, a tela fica travada com o aviso “Construindo a resposta consultiva ao seu problema, aguarde…” (o Claude Fable 5.2 leva de 40 segundos a 2 minutos; no máximo 5 minutos). O passo a passo e o cálculo vão também no Copiar resposta e no relatório em PDF.",
     },
     {
       p: "Como o InTAX trata norma editada ou revogada?",

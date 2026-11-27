@@ -1,4 +1,5 @@
 /** Regras do assistente da Base legal: prompts e validação da resposta (funções puras, testáveis). */
+import { conferirPratica, type Pratica } from './calculo-modelo';
 
 export type Candidato = {
   chave: string; numero: string; rotulo: string; caminho: string; secao: string | null; texto: string;
@@ -66,6 +67,8 @@ export type RespostaAssistente = {
   suficiente: boolean;
   ressalvas: string | null;
   fundamentos: Fundamento[];
+  /** Pergunta prática: o passo a passo e o cálculo modelo conferido pelo InTAX (null em pergunta só conceitual). */
+  pratica?: Pratica | null;
 };
 
 export const AVISO_ASSISTENTE =
@@ -119,6 +122,25 @@ export const REGRAS_PERGUNTA_LEIGA = `- Quem pergunta pode não ser da área: en
 - NCM: use a descrição informada no contexto para saber de que produto se trata; se o código não existir na tabela, diga que pode estar errado e peça o código completo, mas ainda assim responda o que for possível pelo produto descrito.
 - Pergunta absurda, fora de tributação ou impossível de responder com a legislação: diga isso com educação, em uma frase, e indique como reformular (ex.: informar o produto, o estado e se a venda é dentro do estado ou para fora). Nunca invente para agradar.`;
 
+/**
+ * Pergunta prática ("o que eu faço?", "como calculo?", "me dá um exemplo"): passo a passo e cálculo modelo, no formato que o InTAX
+ * confere (calculo-modelo.ts). Vale para a pergunta comum e para a pesquisa aprofundada.
+ */
+export const REGRAS_PRATICA = `- Pergunta prática ("o que eu faço?", "como faz?", "como emito?", "como calculo?", "quanto pago?", "me dá um exemplo", "simula", "qual o passo a passo"): além da resposta, preencha "pratica". Pergunta só conceitual ("o que é", "existe", "tem incidência?" sem pedir como fazer ou quanto dá): "pratica" é null.
+- "pratica.passos": o que a pessoa deve fazer, em ordem, de 2 a 8 passos curtos e concretos (quem faz, o quê, com qual documento ou dado), cada um com a norma e o artigo quando o passo vier da lei. Não invente procedimento, sistema, formulário, código ou prazo que os dispositivos não tragam: se o procedimento operacional não estiver nos dispositivos, diga no passo o que confirmar e onde (manual, SEFAZ, Receita).
+- "pratica.calculo": só quando a pergunta envolver valor a pagar, crédito, base de cálculo, redução, limite ou comparação numérica, e só se os números da lei necessários estiverem nos dispositivos fornecidos. Campos:
+  "formula": a fórmula em palavras (ex.: "ICMS = valor da operação × carga efetiva");
+  "premissas": os valores de EXEMPLO da operação, redondos, com "(exemplo)" na descrição (ex.: {"id": "P1", "descricao": "Valor da venda (exemplo)", "valor": 100000, "unidade": "R$"});
+  "parametros": cada número da lei, com o id exato do dispositivo que o traz e o número exatamente como está escrito nele (ex.: {"id": "A1", "descricao": "Carga efetiva do ICMS", "valor": 4, "unidade": "%", "fundamento": "chave/caminho"});
+  "linhas": as contas, em ordem, cada uma com "expressao" usando só P1, A1, L1 (linhas anteriores), + - * / e parênteses, e o "resultado" que você calculou (ex.: {"id": "L1", "descricao": "ICMS da operação", "expressao": "P1 * A1", "unidade": "R$", "resultado": 4000}).
+  Na conta, o que está em % vale como fração (4% = 0,04): escreva "P1 * A1", nunca "P1 * A1 / 100". O único número que pode ir direto na conta é 1 (ex.: "1 - A1" é o que sobra depois de uma redução). Linha em % tem o resultado em percentual (40 para 40%). Unidade: "R$", "%" ou "" (quantidade).
+  O InTAX refaz todas as contas e descarta o cálculo inteiro se um número da lei não estiver no texto do dispositivo citado.
+- Se faltar número da lei para o cálculo, não invente: "calculo": null e explique em "sem_calculo" o que falta e onde a pessoa encontra (ex.: "a alíquota interna do produto não está nos dispositivos fornecidos; confira no RICMS do estado").
+- Não repita no texto da "resposta" os valores do cálculo modelo: a tabela do cálculo os mostra.`;
+
+/** O formato JSON de "pratica", para o fim do prompt. */
+export const FORMATO_PRATICA = `{"passos": ["..."], "calculo": {"formula": "...", "premissas": [{"id": "P1", "descricao": "... (exemplo)", "valor": 0, "unidade": "R$"}], "parametros": [{"id": "A1", "descricao": "...", "valor": 0, "unidade": "%", "fundamento": "chave/caminho"}], "linhas": [{"id": "L1", "descricao": "...", "expressao": "P1 * A1", "unidade": "R$", "resultado": 0}]}, "sem_calculo": null}`;
+
 export function promptResposta(pergunta: string, candidatos: Candidato[], contexto = ''): string {
   const blocos = candidatos.map(blocoDoCandidato).join('\n\n');
   return `Você é o assistente tributário do InTAX. Quem pergunta pode ser um consultor ou alguém sem formação na área. Responda à pergunta usando EXCLUSIVAMENTE os dispositivos legais abaixo.
@@ -144,9 +166,12 @@ ${REGRAS_SITUACAO_DO_TEXTO}
 - Se dois dispositivos tratarem do mesmo ponto (ex.: lei e regulamento), priorize a lei complementar/emenda e mencione o regulamento como complemento.
 - Em "fundamentos", liste os dispositivos que sustentam a resposta usando o id exato entre parênteses e um "trecho" copiado LITERALMENTE do dispositivo (até 300 caracteres).
 - Use "ressalvas" para vigência, transição ou dúvida de interpretação; senão null.
+${REGRAS_PRATICA}
 
 Responda SOMENTE com JSON neste formato:
-{"resposta": "...", "suficiente": true, "ressalvas": null, "fundamentos": [{"id": "chave/caminho", "trecho": "..."}]}
+{"resposta": "...", "suficiente": true, "ressalvas": null, "fundamentos": [{"id": "chave/caminho", "trecho": "..."}], "pratica": null}
+Em pergunta prática, "pratica" vem neste formato (com "calculo": null e "sem_calculo" explicando, quando não houver cálculo possível):
+${FORMATO_PRATICA}
 
 Pergunta do consultor: ${JSON.stringify(pergunta)}
 
@@ -172,7 +197,7 @@ export function lerJson<T>(texto: string): T | null {
  * Sem fundamento válido, a resposta não é tratada como suficiente.
  */
 export function validarResposta(bruta: unknown, candidatos: Candidato[]): RespostaAssistente {
-  const r = (bruta ?? {}) as { resposta?: unknown; suficiente?: unknown; ressalvas?: unknown; fundamentos?: unknown };
+  const r = (bruta ?? {}) as { resposta?: unknown; suficiente?: unknown; ressalvas?: unknown; fundamentos?: unknown; pratica?: unknown };
   const porId = new Map(candidatos.map((c) => [`${c.chave}/${c.caminho}`, c]));
   const fundamentos: Fundamento[] = [];
   const vistos = new Set<string>();
@@ -200,5 +225,7 @@ export function validarResposta(bruta: unknown, candidatos: Candidato[]): Respos
     suficiente: r.suficiente === true && fundamentos.length > 0 && resposta.length > 0,
     ressalvas: ressalvas || null,
     fundamentos,
+    // Passo a passo e cálculo modelo: os números da lei só com o dispositivo que os traz, e as contas refeitas pelo InTAX.
+    pratica: resposta ? conferirPratica(r.pratica, candidatos) : null,
   };
 }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   anexarAoHistorico, emailValido, CHAVE_HISTORICO, temContextoProprio, gravarHistorico, lerHistorico, LIMITE_HISTORICO, mensagemDeEspera, paraGuardar, perguntaValida, sugestoesDoContexto, textoParaCopiar,
+  linhasDoCalculo, MENSAGEM_CONSTRUINDO, nomeDoModelo, respondeuPeloFable,
 } from "./assistente";
 
 function armazenamentoFalso() {
@@ -39,19 +40,61 @@ describe("pergunta e espera", () => {
     expect(perguntaValida("Ouro paga IBS e CBS?")).toBe(true);
     expect(perguntaValida(null)).toBe(false);
   });
-  it("a mensagem de espera muda com o tempo", () => {
+  it("a mensagem de espera muda com o tempo (na escala do Claude Fable 5.2: até 2 minutos)", () => {
     expect(mensagemDeEspera(0)).toMatch(/Procurando/);
     expect(mensagemDeEspera(4)).toMatch(/Lendo/);
-    expect(mensagemDeEspera(9)).toMatch(/Montando/);
-    expect(mensagemDeEspera(15)).toMatch(/Conferindo/);
-    expect(mensagemDeEspera(60)).toMatch(/demorando/);
+    expect(mensagemDeEspera(12)).toMatch(/Montando a resposta/);
+    expect(mensagemDeEspera(30)).toMatch(/passo a passo e o cálculo/);
+    expect(mensagemDeEspera(60)).toMatch(/refazendo as contas/);
+    expect(mensagemDeEspera(110)).toMatch(/demorando/);
+  });
+  it("a tela travada diz que a resposta consultiva está sendo construída", () => {
+    expect(MENSAGEM_CONSTRUINDO).toBe("Construindo a resposta consultiva ao seu problema, aguarde…");
+  });
+});
+
+describe("motor da resposta", () => {
+  it("dá o nome do modelo como a pessoa lê e reconhece o Fable", () => {
+    expect(nomeDoModelo("claude-fable-5-2")).toBe("Claude Fable 5.2");
+    expect(nomeDoModelo("claude-opus-5-5")).toBe("Claude Opus 5.5");
+    expect(nomeDoModelo("gemini-3.5-flash")).toBe("Gemini 3.5 Flash");
+    expect(nomeDoModelo("")).toBe("");
+    expect(respondeuPeloFable("claude-fable-5-2")).toBe(true);
+    expect(respondeuPeloFable("gemini-3.5-flash")).toBe(false);
+    expect(respondeuPeloFable(null)).toBe(false);
+  });
+});
+
+describe("texto copiado da resposta prática", () => {
+  const pratica = {
+    passos: ["Confira o destino do adubo.", "Emita a NF-e com a redução."],
+    calculo: {
+      formula: "ICMS = valor da operação × carga efetiva",
+      premissas: [{ id: "P1", descricao: "Valor da venda (exemplo)", valor_texto: "R$ 100.000,00" }],
+      parametros: [{ id: "A1", descricao: "Carga efetiva do ICMS", valor_texto: "4%", fundamento: { numero: "Anexo I do RICMS (MS)", rotulo: "Art. 59-A" } }],
+      linhas: [{ id: "L1", descricao: "ICMS da operação", conta: "R$ 100.000,00 × 4%", valor_texto: "R$ 4.000,00" }],
+      ajustes: [],
+    },
+    sem_calculo: null,
+  };
+  it("leva o passo a passo e o cálculo com a origem de cada número", () => {
+    const t = textoParaCopiar({ resposta: "Depende.", pratica, fundamentos: [] });
+    expect(t).toContain("Na prática:\n1. Confira o destino do adubo.\n2. Emita a NF-e com a redução.");
+    expect(t).toContain("Cálculo modelo (valores de exemplo; contas conferidas pelo InTAX):");
+    expect(t).toContain("Carga efetiva do ICMS: 4% (Anexo I do RICMS (MS), Art. 59-A)");
+    expect(t).toContain("ICMS da operação: R$ 100.000,00 × 4% = R$ 4.000,00");
+    expect(linhasDoCalculo(null)).toEqual([]);
+  });
+  it("sem cálculo possível, copia o motivo", () => {
+    expect(textoParaCopiar({ resposta: "Depende.", pratica: { passos: [], calculo: null, sem_calculo: "A alíquota não está na base." } })).toContain("Cálculo modelo: A alíquota não está na base.");
   });
 });
 
 describe("pesquisa aprofundada e e-mail", () => {
   it("a espera da pesquisa aprofundada fala das fontes na internet", () => {
     expect(mensagemDeEspera(5, true)).toMatch(/fontes oficiais/);
-    expect(mensagemDeEspera(60, true)).toMatch(/aprofundada/);
+    expect(mensagemDeEspera(60, true)).toMatch(/passo a passo e o cálculo/);
+    expect(mensagemDeEspera(140, true)).toMatch(/aprofundada/);
     expect(mensagemDeEspera(5)).toMatch(/Procurando|Lendo/);
   });
   it("valida a forma do e-mail", () => {

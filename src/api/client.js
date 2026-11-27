@@ -86,6 +86,7 @@ function unwrapError(err) {
   const wrapped = new Error(Array.isArray(message) ? message.join(', ') : message);
   wrapped.status = err?.response?.status;
   wrapped.response = err?.response;
+  wrapped.code = err?.code;
   return wrapped;
 }
 
@@ -207,8 +208,9 @@ const chamadas = {
   async get(url, params) {
     try { return (await http.get(url, { params })).data; } catch (err) { throw unwrapError(err); }
   },
-  async post(url, body) {
-    try { return (await http.post(url, body)).data; } catch (err) { throw unwrapError(err); }
+  /** `opcoes` (axios) é opcional: ex. `{ timeout }` na pergunta ao assistente, para a espera nunca ficar sem fim. */
+  async post(url, body, opcoes) {
+    try { return (await http.post(url, body, opcoes)).data; } catch (err) { throw unwrapError(err); }
   },
   async put(url, body) {
     try { return (await http.put(url, body)).data; } catch (err) { throw unwrapError(err); }

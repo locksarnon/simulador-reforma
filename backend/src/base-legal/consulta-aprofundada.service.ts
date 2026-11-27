@@ -3,11 +3,18 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { PdfService } from '../pdf/pdf.service';
-import { AVISO_ASSISTENTE, Fundamento, respostaDeApoio } from './base-legal.assistente';
+import { AVISO_ASSISTENTE, Fundamento, respostaDeApoio, type RespostaAssistente } from './base-legal.assistente';
+import type { Pratica } from './calculo-modelo';
 import { BaseLegalService } from './base-legal.service';
 import { emailRelatorio, FonteExterna, lerFontes, lerRespostaAprofundada, montarRelatorio, promptAprofundado } from './pesquisa-externa';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Passo a passo e cálculo modelo guardados com a pergunta (coluna JSON "pratica"); pergunta antiga não tem. */
+const praticaDe = (reg: object): Pratica | null => {
+  const p = (reg as { pratica?: unknown }).pratica;
+  return p && typeof p === 'object' && Array.isArray((p as { passos?: unknown }).passos) ? (p as Pratica) : null;
+};
 
 /** Pesquisa aprofundada (normas + fontes da web) e envio do relatório por e-mail no padrão FAL/InTAX. */
 @Injectable()
@@ -49,7 +56,7 @@ export class ConsultaAprofundadaService {
     }
     const cands = await this.base.candidatos(pergunta, termos);
 
-    let saida = { resposta: '', suficiente: false, ressalvas: null as string | null, fundamentos: [] as Fundamento[] };
+    let saida: RespostaAssistente = { resposta: '', suficiente: false, ressalvas: null, fundamentos: [] };
     let fontes: FonteExterna[] = [];
     let motivo: 'ok' | 'sem_ia' | 'erro_ia' = 'ok';
     let modeloUsado = this.base.modeloAtual();
@@ -71,10 +78,11 @@ export class ConsultaAprofundadaService {
       data: {
         user_email: email, pergunta, resposta: saida.resposta || null, fundamentos: saida.fundamentos as object, suficiente: saida.suficiente,
         modelo: motivo === 'ok' ? modeloUsado : null, aprofundada: true, ressalvas: saida.ressalvas, fontes_externas: fontes as object,
+        ...(saida.pratica ? { pratica: saida.pratica as object } : {}),
       },
     });
     return {
-      id: reg.id, motivo, aprofundada: true, ...saida, fontes_externas: fontes,
+      id: reg.id, motivo, aprofundada: true, ...saida, fontes_externas: fontes, modelo: motivo === 'ok' ? modeloUsado : null,
       relacionados: saida.suficiente ? [] : cands.slice(0, 6).map((c) => ({ norma: c.chave, numero: c.numero, rotulo: c.rotulo, caminho: c.caminho, secao: c.secao })),
       aviso: AVISO_ASSISTENTE,
     };
@@ -95,6 +103,7 @@ export class ConsultaAprofundadaService {
       fundamentos: Array.isArray(reg.fundamentos) ? (reg.fundamentos as unknown as Fundamento[]) : [],
       fontes: Array.isArray(reg.fontes_externas) ? (reg.fontes_externas as unknown as FonteExterna[]) : [],
       aprofundada: reg.aprofundada, data: reg.createdAt, solicitante: user.name || user.email,
+      pratica: praticaDe(reg),
     };
     const pdf = await this.pdf.gerar(montarRelatorio(dados));
     const msg = emailRelatorio(dados);
@@ -117,6 +126,7 @@ export class ConsultaAprofundadaService {
       fundamentos: Array.isArray(reg.fundamentos) ? (reg.fundamentos as unknown as Fundamento[]) : [],
       fontes: Array.isArray(reg.fontes_externas) ? (reg.fontes_externas as unknown as FonteExterna[]) : [],
       aprofundada: reg.aprofundada, data: reg.createdAt, solicitante: user.name || user.email,
+      pratica: praticaDe(reg),
     }));
   }
 }

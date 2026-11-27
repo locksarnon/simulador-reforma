@@ -9,17 +9,13 @@ import { temTela } from "@/lib/permissoes";
 import {
   anexarAoHistorico, emailValido, EVENTO_ASSISTENTE, gravarHistorico, lerHistorico, MAXIMO_PERGUNTA, mensagemDeEspera, perguntaValida, sugestoesDoContexto, temContextoProprio, textoParaCopiar,
 } from "@/lib/assistente";
+import { perguntarAoAssistente } from "@/lib/perguntarAssistente";
 import { Resultado } from "@/components/base-legal/AssistenteLegal";
 import { CartaoResposta } from "@/components/base-legal/CartoesLegais";
+import AguardandoResposta from "@/components/assistente/AguardandoResposta";
+import { Orbe } from "@/components/assistente/Orbe";
 
-/** A esfera do assistente: gira devagar quando está pensando e respira quando parada. */
-export function Orbe({ pensando = false, tamanho = 28 }) {
-  return (
-    <span className={`assistente-orbe ${pensando ? "assistente-orbe-pensando" : ""}`} style={{ width: tamanho, height: tamanho }} aria-hidden="true">
-      <Sparkles style={{ width: tamanho * 0.5, height: tamanho * 0.5 }} className="relative text-white drop-shadow" />
-    </span>
-  );
-}
+export { Orbe };
 
 function Pensando({ desde, aprofundada = false }) {
   const [agora, setAgora] = useState(() => Date.now());
@@ -94,6 +90,8 @@ function Copiar({ resultado }) {
 export function Troca({ item, aoRepetir, emailPadrao }) {
   return (
     <div className="space-y-3">
+      {/* Enquanto a resposta consultiva é construída, a tela inteira fica travada (barra de consulta e painel do assistente). */}
+      {item.estado === "carregando" && <AguardandoResposta desde={item.inicio} aprofundada={item.aprofundada} />}
       <div className="flex justify-end">
         <p className="max-w-[88%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm text-primary-foreground assistente-entra-msg">{item.pergunta}</p>
       </div>
@@ -168,7 +166,7 @@ export default function AssistenteGlobal() {
     // As respostas já revisadas pela equipe não dependem da IA: chegam primeiro.
     api.get("/base-legal/cartoes/busca", { q: t }).then((r) => atualizar(id, { revisados: r })).catch(() => {});
     try {
-      const resultado = await api.post(aprofundado ? "/base-legal/perguntar-aprofundado" : "/base-legal/perguntar", { pergunta: t });
+      const resultado = await perguntarAoAssistente(t, aprofundado);
       atualizar(id, { estado: "ok", resultado });
     } catch (e) {
       atualizar(id, { estado: "erro", erro: e?.message || "Não foi possível consultar agora." });
