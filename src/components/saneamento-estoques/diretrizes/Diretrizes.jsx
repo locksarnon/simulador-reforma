@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookCopy, CheckCircle2, FileText, Pencil, Play, Plus } from "lucide-react";
-import { api } from "@/api/client";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { atualizarTudo, chaves, san } from "../api";
-import { Aviso, bordaQuadro, botaoPrimario, botaoSecundario, campoCls, campoCompactoCls, Carregar, MarcaRevisar, Quadro, Rotulo, rotuloCls, rotuloCompactoCls, Tag, TextoLongo, useExplicacao, usePodeAlterar } from "../comuns";
-import { ehConflitoVersao, fmtData, fmtDataHora, mensagemDeErro } from "../logica";
+import { Aviso, bordaQuadro, botaoPrimario, botaoSecundario, campoCls, Carregar, MarcaRevisar, Quadro, Rotulo, rotuloCls, rotuloCompactoCls, Tag, TextoLongo, useExplicacao, usePodeAlterar } from "../comuns";
+import { ehConflitoVersao, mensagemDeErro } from "../logica";
 import { realceVerde } from "./Blocos";
 import FormularioRegra from "./FormularioRegra";
 import Janela from "./Janela";
@@ -29,28 +28,46 @@ export function BotaoPolitica({ projetoId, versao = null, rotulo = "Política (P
   );
 }
 
-/** Cabeçalho: só MOSTRA o que o projeto já tem (cliente, base importada, ERP, data-base) e edita a vigência; situação e "revisar". */
-export function CabecalhoDiretrizes({ projeto, cabecalho, cliente, ultimaImportacao, aoSalvarVigencia, salvando, podeAlterar, razao }) {
-  const [vigencia, setVigencia] = useState(cabecalho?.vigencia ? String(cabecalho.vigencia).slice(0, 10) : "");
-  const mudou = vigencia !== (cabecalho?.vigencia ? String(cabecalho.vigencia).slice(0, 10) : "");
-  const erp = projeto.erp_nome || projeto.erp || "Não informado";
+/** Vigência como a tela usa (aaaa-mm-dd ou ""), a partir do que o servidor devolve (texto aaaa-mm-dd ou null). */
+export const vigenciaDaTela = (cabecalho) => (cabecalho?.vigencia ? String(cabecalho.vigencia).slice(0, 10) : "");
+
+/**
+ * Salvar a vigência: PUT /projetos/:id/diretrizes com { vigencia, versao } — a vigência vazia vai como null (limpa) e a `versao` é a do
+ * cabeçalho que a tela viu (o servidor recusa com conflito se outra pessoa salvou antes).
+ */
+export function salvarVigencia(projetoId, vigencia, cabecalho) {
+  return san.salvarCabecalhoDiretrizes(projetoId, { vigencia: vigencia || null, versao: cabecalho?.versao });
+}
+
+/** Mensagem do erro ao salvar a vigência: conflito de versão (recarrega e pede para salvar de novo) ou o erro do servidor. */
+export function mensagemErroVigencia(e) {
+  return ehConflitoVersao(e)
+    ? { tom: "alerta", texto: "Outra pessoa alterou as diretrizes depois que você abriu a aba. Recarregamos os dados: confira e salve de novo." }
+    : { tom: "erro", texto: mensagemDiretriz(e) };
+}
+
+/** Situação das diretrizes (todas as regras ativas aprovadas = Aprovada; senão, Rascunho) e a marca "revisar". */
+export function situacaoDoCabecalho(cabecalho) {
+  return { rotulo: SITUACAO_REGRA[cabecalho?.situacao] || "Rascunho", tom: cabecalho?.situacao === "APROVADA" ? "ok" : "neutro", revisar: !!cabecalho?.revisar };
+}
+
+/**
+ * Cabeçalho das diretrizes, numa linha só ao lado do título da seção: a vigência da política (editável) e a situação. Cliente, base
+ * importada, ERP e data-base não se repetem aqui: ficam em Fase 1 · Dados do projeto, na importação e em Dados do projeto (topo da página).
+ */
+export function CabecalhoDiretrizes({ cabecalho, aoSalvarVigencia, salvando, podeAlterar, razao }) {
+  const [vigencia, setVigencia] = useState(vigenciaDaTela(cabecalho));
+  const mudou = vigencia !== vigenciaDaTela(cabecalho);
+  const s = situacaoDoCabecalho(cabecalho);
   return (
-    <section aria-label="Cabeçalho das diretrizes" className={`flex flex-wrap items-start gap-x-4 gap-y-2 border ${bordaQuadro} bg-card px-3 py-2`}>
-      {/* O que o projeto já tem (só leitura), a vigência e a situação numa faixa só, com rótulos de mesma altura. */}
-      <dl className="grid min-w-0 flex-[3] grid-cols-2 gap-x-4 gap-y-2 text-sm lg:grid-cols-4">
-        <div className="min-w-0"><dt className={rotuloCompactoCls}>Cliente</dt><dd className="mt-1 truncate" title={cliente || undefined}>{cliente || "—"}</dd></div>
-        <div className="min-w-0"><dt className={rotuloCompactoCls}>Base importada</dt><dd className="mt-1 truncate" title={ultimaImportacao ? `${ultimaImportacao.arquivo || "Cadastro de itens"} — ${fmtDataHora(ultimaImportacao.createdAt)}` : undefined}>{ultimaImportacao === undefined ? "…" : ultimaImportacao ? `${ultimaImportacao.arquivo || "Cadastro de itens"} — ${fmtDataHora(ultimaImportacao.createdAt)}` : "Nenhuma importação ainda"}</dd></div>
-        <div className="min-w-0"><dt className={rotuloCompactoCls}>ERP</dt><dd className="mt-1 truncate">{erp}{projeto.erp_versao ? ` — versão ${projeto.erp_versao}` : ""}</dd></div>
-        <div><dt className={rotuloCompactoCls}>Data-base</dt><dd className="mt-1">{fmtData(projeto.data_base) || "—"}</dd></div>
-      </dl>
-      <div className="flex flex-wrap items-end gap-2">
-        <div><label htmlFor="dir-vigencia" className={rotuloCompactoCls}>Vigência da política</label><input type="date" id="dir-vigencia" className={`${campoCompactoCls} w-40`} disabled={!podeAlterar || salvando} value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></div>
-        <button type="button" className={botaoSecundario} disabled={!podeAlterar || salvando || !mudou} title={razao} onClick={() => aoSalvarVigencia(vigencia || null)}>{salvando ? "Salvando…" : "Salvar vigência"}</button>
-        <div><span className={rotuloCompactoCls}>Situação</span>
-          <span className="mt-1 flex min-h-[34px] items-center gap-1"><Tag tom={cabecalho?.situacao === "APROVADA" ? "ok" : "neutro"}>{SITUACAO_REGRA[cabecalho?.situacao] || "Rascunho"}</Tag>{cabecalho?.revisar && <MarcaRevisar causa="Uma regra mudou depois da aprovação: confira." />}</span>
-        </div>
-      </div>
-    </section>
+    <div role="group" aria-label="Cabeçalho das diretrizes" className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <label htmlFor="dir-vigencia" className={rotuloCompactoCls}>Vigência da política</label>
+      <input type="date" id="dir-vigencia" className="h-8 w-40 border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        disabled={!podeAlterar || salvando} title={razao} value={vigencia} onChange={(e) => setVigencia(e.target.value)} />
+      <button type="button" className={`${botaoSecundario} h-8 py-0`} disabled={!podeAlterar || salvando || !mudou} title={razao} onClick={() => aoSalvarVigencia(vigencia || null)}>{salvando ? "Salvando…" : "Salvar vigência"}</button>
+      <span className={`${rotuloCompactoCls} ml-2`}>Situação</span>
+      <span className="flex h-8 items-center gap-1" data-situacao={cabecalho?.situacao || "RASCUNHO"}><Tag tom={s.tom}>{s.rotulo}</Tag>{s.revisar && <MarcaRevisar causa="Uma regra mudou depois da aprovação: confira." />}</span>
+    </div>
   );
 }
 
@@ -224,14 +241,12 @@ export function textoModeloAplicado(r, modelo) {
  * os aspectos que a fase mostra (Fase 1: nomes, atributos, unidades e limites; Fase 2: classificação fiscal); aplicar e aprovar em lote
  * ficam nas regras desses aspectos. Uma regra aberta pelo endereço abre mesmo sendo de outro aspecto.
  */
-export default function Diretrizes({ projeto, aspectos = ASPECTOS, rolarAoAbrir = false }) {
+export default function Diretrizes({ projeto, aspectos = ASPECTOS, rolarAoAbrir = false, titulo = null, tituloId }) {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const { pode, razao } = usePodeAlterar();
   const [params, setParams] = useSearchParams();
   const consulta = useQuery({ queryKey: chaves.diretrizes(projeto.id), queryFn: () => san.diretrizes(projeto.id) });
-  const cliente = useQuery({ queryKey: chaves.cliente(projeto.empresa_id), queryFn: () => api.entities.Empresa.get(projeto.empresa_id), enabled: !!projeto.empresa_id });
-  const importacoes = useQuery({ queryKey: chaves.importacoes(projeto.id), queryFn: () => san.importacoes(projeto.id) });
   const [edicao, setEdicao] = useState(() => (params.get("regra") ? { regraId: params.get("regra") } : null));
   const [msg, setMsg] = useState(null);
   // Dentro da aba que junta os dados da fase e as diretrizes, a regra aberta (pelo endereço, como em "Abrir nas Diretrizes", ou pelo
@@ -242,13 +257,11 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS, rolarAoAbrir 
     if (rolarAoAbrir && edicao && carregou) topo.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }, [rolarAoAbrir, edicao, carregou]);
 
-  const ultimaImportacao = importacoes.isError ? null : importacoes.data === undefined ? undefined
-    : [...(Array.isArray(importacoes.data) ? importacoes.data : [])].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] || null;
-
+  // A vigência vai para a política (capa e quadro de identificação do PDF, gerado na hora pelo servidor) e para a foto da versão liberada.
   const vigencia = useMutation({
-    mutationFn: (v) => san.salvarCabecalhoDiretrizes(projeto.id, { vigencia: v, versao: consulta.data?.cabecalho?.versao }),
-    onSuccess: async () => { setMsg({ tom: "ok", texto: "Vigência salva." }); await qc.invalidateQueries({ queryKey: chaves.diretrizes(projeto.id) }); },
-    onError: async (e) => { setMsg({ tom: ehConflitoVersao(e) ? "alerta" : "erro", texto: ehConflitoVersao(e) ? "Outra pessoa alterou as diretrizes depois que você abriu a aba. Recarregamos os dados: confira e salve de novo." : mensagemDiretriz(e) }); if (ehConflitoVersao(e)) await qc.invalidateQueries({ queryKey: chaves.diretrizes(projeto.id) }); },
+    mutationFn: (v) => salvarVigencia(projeto.id, v, consulta.data?.cabecalho),
+    onSuccess: async () => { setMsg({ tom: "ok", texto: "Vigência salva. A política (PDF) já sai com ela." }); await qc.invalidateQueries({ queryKey: chaves.diretrizes(projeto.id) }); },
+    onError: async (e) => { setMsg(mensagemErroVigencia(e)); if (ehConflitoVersao(e)) await qc.invalidateQueries({ queryKey: chaves.diretrizes(projeto.id) }); },
   });
   const adotar = useMutation({
     mutationFn: (r) => san.adotarVersao(r.id, r.versao),
@@ -309,7 +322,18 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS, rolarAoAbrir 
   };
 
   return (
-    <div ref={topo} className="scroll-mt-4">
+    <div ref={topo} className="scroll-mt-4 space-y-2">
+    {/* Faixa do título da seção: o título à esquerda; a vigência e a situação à direita, numa linha só (quando as diretrizes carregam). */}
+    {(titulo || consulta.data) && (
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b-2 border-primary pb-1">
+        {titulo && <h2 id={tituloId} className="text-sm font-semibold text-foreground">{titulo}</h2>}
+        {consulta.data && (
+          <CabecalhoDiretrizes key={`${consulta.data.cabecalho?.versao}-${consulta.data.cabecalho?.vigencia}`} cabecalho={consulta.data.cabecalho}
+            aoSalvarVigencia={(v) => vigencia.mutate(v)} salvando={vigencia.isPending} podeAlterar={pode} razao={razao} />
+        )}
+      </div>
+    )}
+    {edicao && msg && <Aviso tom={msg.tom === "erro" ? "erro" : msg.tom === "alerta" ? "alerta" : "ok"}>{msg.texto}</Aviso>}
     <Carregar consulta={consulta} textoErro="Não foi possível carregar as diretrizes." textoCarregando="Carregando as diretrizes…">
       {(dados) => {
         if (edicao) {
@@ -322,8 +346,6 @@ export default function Diretrizes({ projeto, aspectos = ASPECTOS, rolarAoAbrir 
         const marcadas = daFase.regras.filter((r) => selecionadas.has(r.id));
         return (
           <div className="space-y-2">
-            <CabecalhoDiretrizes key={`${dados.cabecalho?.versao}-${dados.cabecalho?.vigencia}`} projeto={projeto} cabecalho={dados.cabecalho} cliente={cliente.data?.razao_social || cliente.data?.nome} ultimaImportacao={ultimaImportacao}
-              aoSalvarVigencia={(v) => vigencia.mutate(v)} salvando={vigencia.isPending} podeAlterar={pode} razao={razao} />
             {msg && <Aviso tom={msg.tom === "erro" ? "erro" : msg.tom === "alerta" ? "alerta" : "ok"}>{msg.texto}</Aviso>}
             {(dados.grupos || []).length === 0 && (
               <Aviso tom="info" titulo="Os grupos aparecem depois de importar o cadastro">

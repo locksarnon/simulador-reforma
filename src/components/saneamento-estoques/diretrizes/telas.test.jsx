@@ -7,11 +7,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const papel = vi.hoisted(() => ({ atual: "admin" }));
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { id: "A1", role: papel.atual, email: "a@fal" } }) }));
 
-import { chaves } from "../api";
+import { chaves, san } from "../api";
 import Abas from "../Abas";
 import CasoDetalhe from "../CasoDetalhe";
 import Versoes from "../Versoes";
-import Diretrizes, { CabecalhoDiretrizes, textoModeloAplicado } from "./Diretrizes";
+import Diretrizes, { CabecalhoDiretrizes, mensagemErroVigencia, salvarVigencia, situacaoDoCabecalho, textoModeloAplicado, vigenciaDaTela } from "./Diretrizes";
 import FormularioRegra, { AvisoTransferencia, PreviaAplicar } from "./FormularioRegra";
 import TransformarEmRegra, { ResultadoTransformacao } from "./TransformarEmRegra";
 import { BlocoAtributos, BlocoFiscal, BlocoLimites, BlocoNomes, BlocoUnidades } from "./Blocos";
@@ -65,12 +65,14 @@ describe("aba Diretrizes na página do saneamento", () => {
     expect(f2).not.toContain("Padrão de nomes");
     expect(f2).not.toContain("N01");
   });
-  it("cabeçalho só mostra cliente, base importada (a mais recente), ERP do cadastro e data-base; vigência editável; situação com revisar", () => {
-    const html = montar(<Diretrizes projeto={projeto()} />, comDiretrizes());
+  it("cabeçalho numa linha ao lado do título: só a vigência (editável) e a situação; cliente, base importada, ERP e data-base não se repetem", () => {
+    const html = montar(<Diretrizes projeto={projeto()} titulo="Diretrizes da Fase 1 (nomes, atributos, unidades e limites)" tituloId="t1" />, comDiretrizes());
     const t = texto(html);
-    for (const s of ["Agropecuária Teste Ltda", "itens.xlsx", "SAP Business One — versão 10.0", "31/12/2026", "Vigência da política", "Rascunho", "revisar"]) expect(t, s).toContain(s);
-    expect(t).not.toContain("antigo.xlsx");
+    for (const s of ["Diretrizes da Fase 1", "Vigência da política", "Salvar vigência", "Situação", "Rascunho", "revisar"]) expect(t, s).toContain(s);
+    for (const s of ["Agropecuária Teste Ltda", "itens.xlsx", "Base importada", "SAP Business One", "31/12/2026", "Data-base", "Cliente"]) expect(t, s).not.toContain(s);
     expect(html).toMatch(/<input type="date"[^>]*value="2027-01-01"/);
+    // A faixa do título leva o cabeçalho: o h2 com o id da seção e, logo depois, o grupo da vigência e da situação.
+    expect(html).toMatch(/<h2 id="t1"[^>]*>Diretrizes da Fase 1[^<]*<\/h2><div role="group" aria-label="Cabeçalho das diretrizes"/);
   });
   it("lista as regras por aspecto com código, grupos, situação, revisar e o aviso de atualização da biblioteca", () => {
     const t = texto(montar(<Diretrizes projeto={projeto()} />, comDiretrizes()));
@@ -94,9 +96,34 @@ describe("aba Diretrizes na página do saneamento", () => {
     expect(t).toContain("Regra F01 — Classificação fiscal");
     expect(t).toContain("Voltar às diretrizes");
   });
-  it("sem cabeçalho de importação: 'Nenhuma importação ainda'", () => {
-    const t = texto(montar(<CabecalhoDiretrizes projeto={projeto()} cabecalho={DADOS.cabecalho} cliente="X" ultimaImportacao={null} aoSalvarVigencia={() => {}} podeAlterar />));
-    expect(t).toContain("Nenhuma importação ainda");
+  it("situação: Aprovada (verde) quando o servidor diz APROVADA; Rascunho sem situação; revisar só quando marcado", () => {
+    const aprovada = montar(<CabecalhoDiretrizes cabecalho={{ vigencia: null, situacao: "APROVADA", revisar: false, versao: 2 }} aoSalvarVigencia={() => {}} podeAlterar />);
+    expect(texto(aprovada)).toContain("Aprovada");
+    expect(texto(aprovada)).not.toContain("revisar");
+    expect(aprovada).toContain("data-situacao=\"APROVADA\"");
+    expect(aprovada).toContain("emerald");
+    expect(texto(montar(<CabecalhoDiretrizes cabecalho={null} aoSalvarVigencia={() => {}} podeAlterar />))).toContain("Rascunho");
+    expect(situacaoDoCabecalho({ situacao: "RASCUNHO", revisar: true })).toEqual({ rotulo: "Rascunho", tom: "neutro", revisar: true });
+  });
+  it("vigência: sem permissão, campo e botão desabilitados; sem mudança, Salvar vigência desabilitado", () => {
+    const sem = montar(<CabecalhoDiretrizes cabecalho={DADOS.cabecalho} aoSalvarVigencia={() => {}} podeAlterar={false} razao="Sem permissão" />);
+    expect(sem).toMatch(/<input type="date"[^>]*disabled=""/);
+    expect(sem).toMatch(/<button[^>]*disabled=""[^>]*>Salvar vigência/);
+    const com = montar(<CabecalhoDiretrizes cabecalho={DADOS.cabecalho} aoSalvarVigencia={() => {}} podeAlterar />);
+    expect(com).not.toMatch(/<input type="date"[^>]*disabled=""/);
+    expect(com).toMatch(/<button[^>]*disabled=""[^>]*>Salvar vigência/);
+  });
+  it("vigência: salva com PUT das diretrizes levando a data e a versão do cabeçalho (vazia = null); erro e conflito viram mensagem", async () => {
+    const put = vi.spyOn(san, "salvarCabecalhoDiretrizes").mockResolvedValue({ id: "d1", vigencia: "2027-03-01", versao: 5 });
+    await salvarVigencia("p1", "2027-03-01", DADOS.cabecalho);
+    expect(put).toHaveBeenLastCalledWith("p1", { vigencia: "2027-03-01", versao: 4 });
+    await salvarVigencia("p1", "", DADOS.cabecalho);
+    expect(put).toHaveBeenLastCalledWith("p1", { vigencia: null, versao: 4 });
+    put.mockRestore();
+    expect(vigenciaDaTela({ vigencia: "2027-01-01T00:00:00.000Z" })).toBe("2027-01-01");
+    expect(vigenciaDaTela(null)).toBe("");
+    expect(mensagemErroVigencia({ status: 400, message: "A vigência deve ser uma data (aaaa-mm-dd)." })).toEqual({ tom: "erro", texto: "A vigência deve ser uma data (aaaa-mm-dd)." });
+    expect(mensagemErroVigencia({ status: 409 })).toMatchObject({ tom: "alerta", texto: expect.stringContaining("Recarregamos os dados") });
   });
   it("mensagem do modelo aplicado", () => {
     expect(textoModeloAplicado({ criadas: 5, jaExistiam: 2 }, { nome: "Modelo FAL" })).toBe("\"Modelo FAL\" foi aplicado: 5 regras criadas em rascunho; 2 já existiam.");

@@ -44,12 +44,15 @@ const ID_DIRETRIZES = "san-diretrizes";
 /** Leva a tela até as Diretrizes, que ficam embaixo, na mesma aba (botão "Ir para Diretrizes" do resultado da importação e `?secao=diretrizes`). */
 const rolarParaDiretrizes = () => document.getElementById(ID_DIRETRIZES)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
 
-/** As Diretrizes dentro da aba que junta os dados da fase e as diretrizes: faixa de título fina e só os aspectos da fase. */
+/**
+ * As Diretrizes dentro da aba que junta os dados da fase e as diretrizes: faixa de título fina (com a vigência e a situação à direita,
+ * desenhadas pelas Diretrizes) e só os aspectos da fase.
+ */
 function SecaoDiretrizes({ projeto, fase }) {
   return (
-    <section id={ID_DIRETRIZES} aria-labelledby={`${ID_DIRETRIZES}-t`} className="scroll-mt-4 space-y-2">
-      <h2 id={`${ID_DIRETRIZES}-t`} className="border-b-2 border-primary pb-1 text-sm font-semibold text-foreground">Diretrizes {fase === "fase2" ? "da Fase 2 (classificação fiscal)" : "da Fase 1 (nomes, atributos, unidades e limites)"}</h2>
-      <Diretrizes projeto={projeto} aspectos={ASPECTOS_DA_FASE[fase]} rolarAoAbrir />
+    <section id={ID_DIRETRIZES} aria-labelledby={`${ID_DIRETRIZES}-t`} className="scroll-mt-4">
+      <Diretrizes projeto={projeto} aspectos={ASPECTOS_DA_FASE[fase]} rolarAoAbrir tituloId={`${ID_DIRETRIZES}-t`}
+        titulo={`Diretrizes ${fase === "fase2" ? "da Fase 2 (classificação fiscal)" : "da Fase 1 (nomes, atributos, unidades e limites)"}`} />
     </section>
   );
 }
