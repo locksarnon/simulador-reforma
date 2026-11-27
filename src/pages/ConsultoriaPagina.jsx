@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import CartaoClicavel from "@/components/CartaoClicavel";
 import OrganogramaServicos from "@/components/consultoria/OrganogramaServicos";
 import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsultoria";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -118,13 +119,11 @@ export default function ConsultoriaPagina({ carteira = false }) {
     const projetosCliente = cliente ? projetosDe(cliente).filter((p) => p.servico_consultoria) : [];
     const emAberto = projetosCliente.filter((p) => ["EM_ANDAMENTO", "PAUSADO"].includes(p.situacao));
     const anteriores = projetosCliente.filter((p) => !emAberto.includes(p));
+    // O cartão inteiro abre o projeto (CartaoClicavel), não só o link.
     const renderProjeto = (p) => {
       const s = servicos.find((s) => s.id === p.servico_consultoria);
-      return <article key={p.id} className="space-y-2 rounded-lg border bg-card p-4">
-        <h3 className="font-semibold">{s?.nome || p.nome}</h3>
-        <p className="text-sm text-muted-foreground">{rotuloPeriodo(p, fmtDataCurta)} · {!s?.projeto && p.situacao === "EM_ANDAMENTO" ? "Em coleta de documentos" : SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao}</p>
-        <Link className="inline-block text-sm text-primary hover:underline" to={`/diagnostico/projetos/${p.id}`}>{emAberto.includes(p) ? "Continuar projeto" : "Abrir projeto"}</Link>
-      </article>;
+      return <CartaoClicavel key={p.id} titulo={s?.nome || p.nome} para={`/diagnostico/projetos/${p.id}`} acao={emAberto.includes(p) ? "Continuar projeto" : "Abrir projeto"}
+        detalhe={`${rotuloPeriodo(p, fmtDataCurta)} · ${!s?.projeto && p.situacao === "EM_ANDAMENTO" ? "Em coleta de documentos" : SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao}`} />;
     };
 
     return <div>
@@ -186,11 +185,9 @@ export default function ConsultoriaPagina({ carteira = false }) {
             <h2 className="font-semibold">Projetos em andamento</h2>
             {emAberto.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{emAberto.map(renderProjeto)}</div> : <p className="text-sm text-muted-foreground">Nenhum projeto em andamento.</p>}
           </section>
-          {contratados.filter((s) => !projetosDe(cliente, s.id).length).map((s) => <article key={s.id} className="space-y-2 rounded-lg border bg-card p-4">
-            <h3 className="font-semibold">{s.nome}</h3>
-            <p className="text-sm text-muted-foreground">Contratado · ainda não iniciado</p>
-            {!adicionando && <button type="button" className="text-sm text-primary hover:underline" onClick={() => configurar(s.id)}>Abrir primeiro projeto</button>}
-          </article>)}
+          {contratados.filter((s) => !projetosDe(cliente, s.id).length).map((s) => (
+            <CartaoClicavel key={s.id} titulo={s.nome} detalhe="Contratado · ainda não iniciado" acao="Abrir primeiro projeto" aoClicar={() => configurar(s.id)} desligado={adicionando} />
+          ))}
           {anteriores.length > 0 && <details className="space-y-2">
             <summary className="cursor-pointer font-semibold">Projetos concluídos ou cancelados</summary>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{anteriores.map(renderProjeto)}</div>
