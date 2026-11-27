@@ -143,10 +143,15 @@ describe("Cobertura das camadas", () => {
 
 describe("Casos por fase", () => {
   const filtro = { camada: "", situacao: "ABERTOS", tipo: "", origem: "", grupo: "" };
-  const caso = (o) => ({ id: "c1", camada: "NCM", tipo: "NCM_FORMATO", itens: ["i1"], qtdItens: 1, problema: "NCM com 7 dígitos", situacao: "PROPOSTO", origem: "REGRA", versao: 1, parecer_ia: null, item: { codigo: "2186", descricao: "RETENTOR", grupo: "Peças" }, ...o });
-  const seed = (qc) => qc.setQueryData(chaves.casos("p1", filtro), { pages: [{ casos: [caso(), caso({ id: "c2", camada: "TRIBUTARIO", tipo: "X", problema: "Sem cClassTrib" })], proximo: null, tipos: [{ tipo: "NCM_FORMATO", n: 1 }, { tipo: "X", n: 1 }] }], pageParams: [undefined] });
   const fase2 = ["FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO", "OBRIGACOES"];
-  it("o filtro de camada só oferece as camadas da fase; Todas da fase mostra só os casos delas e o lote sem marcação fica desligado", () => {
+  const caso = (o) => ({ id: "c1", camada: "NCM", tipo: "NCM_FORMATO", itens: ["i1"], qtdItens: 1, problema: "NCM com 7 dígitos", situacao: "PROPOSTO", origem: "REGRA", versao: 1, parecer_ia: null, item: { codigo: "2186", descricao: "RETENTOR", grupo: "Peças" }, ...o });
+  const pagina = (casos, tipos) => ({ pages: [{ casos, proximo: null, tipos }], pageParams: [undefined] });
+  // Sem fase, o servidor recebe o filtro como está; na fase, "Todas da fase" vira a lista das camadas da fase.
+  const seed = (qc) => {
+    qc.setQueryData(chaves.casos("p1", filtro), pagina([caso(), caso({ id: "c2", camada: "TRIBUTARIO", tipo: "X", problema: "Sem cClassTrib" })], [{ tipo: "NCM_FORMATO", n: 1 }, { tipo: "X", n: 1 }]));
+    qc.setQueryData(chaves.casos("p1", { ...filtro, camada: fase2.join(",") }), pagina([caso({ id: "c2", camada: "TRIBUTARIO", tipo: "X", problema: "Sem cClassTrib" })], [{ tipo: "X", n: 1 }]));
+  };
+  it("o filtro de camada só oferece as camadas da fase; Todas da fase pede ao servidor só as camadas dela (total e lote da fase)", () => {
     const html = montar(<Casos projeto={projeto()} agruparInicial={false} camadasPermitidas={fase2} />, seed);
     const t = texto(html);
     expect(t).toContain("Todas da fase");
@@ -154,9 +159,8 @@ describe("Casos por fase", () => {
     expect(html).not.toContain('<option value="QUALIDADE">');
     expect(t).toContain("Sem cClassTrib");
     expect(t).not.toContain("NCM com 7 dígitos");
-    expect(t).toContain("1 caso(s) em aberto desta fase carregado(s).");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Decidir em lote/);
-    // Sem fase: todas as camadas, como antes.
+    expect(t).toContain("1 caso(s) em aberto");
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Decidir em lote/);
     const todas = texto(montar(<Casos projeto={projeto()} agruparInicial={false} />, seed));
     expect(todas).toContain("NCM com 7 dígitos");
     expect(todas).toContain("Sem cClassTrib");

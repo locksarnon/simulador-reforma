@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { san, chaves, atualizarTudo } from "./api";
@@ -215,14 +215,10 @@ export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbr
   );
 }
 
-/** Quantas páginas a mais a lista busca sozinha para achar casos da fase (com "Todas da fase"); depois, só pelo botão. */
-const PAGINAS_EXTRAS_DA_FASE = 5;
-
 /**
  * Casos: lista filtrada no servidor (o plano de ajustes é o filtro "em aberto"), agrupada ou um a um, detalhe do caso e decisão em lote.
  * `camadasPermitidas` (aba Casos de cada fase): o filtro de camada só oferece as camadas da fase e "Todas da fase" mostra só os casos
- * delas. O servidor filtra uma camada por vez; em "Todas da fase" a lista é filtrada aqui, a contagem é a do que já foi carregado e a
- * decisão em lote sem marcação fica desligada (escolha uma camada ou marque as linhas), para nunca decidir casos da outra fase.
+ * delas: o servidor recebe a lista de camadas da fase, então a contagem e a decisão em lote valem só para a fase.
  */
 export default function Casos({ projeto, recorte, casoInicial, agruparInicial = true, camadasPermitidas = null }) {
   const qc = useQueryClient();
@@ -241,45 +237,38 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   // Trocar o filtro (ou o agrupamento) muda o recorte: o painel do lote (e o resultado anterior) fecha.
   const trocarFiltro = (f) => { setFiltro(f); setMarcados(new Set()); fecharLote(); setGrupoAberto(null); };
   const mudar = (k) => (e) => trocarFiltro({ ...filtro, [k]: e.target.value, ...(k === "camada" ? { tipo: "" } : {}) });
+  // "Todas da fase": o servidor recebe as camadas da fase separadas por vírgula (lista, contagem e lote só da fase).
+  const filtroSrv = useMemo(() => (camadasPermitidas && !filtro.camada ? { ...filtro, camada: camadasPermitidas.join(",") } : filtro), [filtro, camadasPermitidas]);
   const trocarAgrupar = (v) => { setAgrupar(v); setMarcados(new Set()); fecharLote(); setGrupoAberto(null); };
 
   const q = useInfiniteQuery({
-    queryKey: chaves.casos(projeto.id, filtro),
-    queryFn: ({ pageParam }) => san.casos(projeto.id, montarFiltroCasos(filtro, { cursor: pageParam })),
+    queryKey: chaves.casos(projeto.id, filtroSrv),
+    queryFn: ({ pageParam }) => san.casos(projeto.id, montarFiltroCasos(filtroSrv, { cursor: pageParam })),
     initialPageParam: undefined,
     getNextPageParam: (u) => u.proximo || undefined,
     gcTime: 60_000,
     enabled: !agrupar,
   });
   const qg = useInfiniteQuery({
-    queryKey: chaves.casosAgrupados(projeto.id, filtro),
-    queryFn: ({ pageParam }) => san.casosAgrupados(projeto.id, montarFiltroCasos(filtro, { cursor: pageParam })),
+    queryKey: chaves.casosAgrupados(projeto.id, filtroSrv),
+    queryFn: ({ pageParam }) => san.casosAgrupados(projeto.id, montarFiltroCasos(filtroSrv, { cursor: pageParam })),
     initialPageParam: undefined,
     getNextPageParam: (u) => u.proximo || undefined,
     gcTime: 60_000,
     enabled: agrupar,
   });
   const qd = useQuery({
-    queryKey: chaves.grupoDeCasos(projeto.id, filtro, grupoAberto?.chave),
-    queryFn: () => san.casosAgrupados(projeto.id, { ...montarFiltroCasos(filtro, { limite: 1 }), chave: grupoAberto.chave }),
+    queryKey: chaves.grupoDeCasos(projeto.id, filtroSrv, grupoAberto?.chave),
+    queryFn: () => san.casosAgrupados(projeto.id, { ...montarFiltroCasos(filtroSrv, { limite: 1 }), chave: grupoAberto.chave }),
     enabled: agrupar && !!grupoAberto,
     gcTime: 60_000,
   });
   const ativa = agrupar ? qg : q;
-  // "Todas da fase": o servidor devolve todas as camadas; ficam só as da fase.
-  const soDaFase = !!camadasPermitidas && !filtro.camada;
-  const daFase = (x) => !soDaFase || camadasPermitidas.includes(x.camada);
-  const casos = useMemo(() => (q.data ? q.data.pages.flatMap((p) => p.casos).filter(daFase) : []), [q.data, soDaFase, camadasPermitidas]);
-  const grupos = useMemo(() => (qg.data ? qg.data.pages.flatMap((p) => p.grupos).filter(daFase) : []), [qg.data, soDaFase, camadasPermitidas]);
-  const visiveis = agrupar ? grupos.length : casos.length;
-  const paginasCarregadas = ativa.data?.pages?.length || 0;
-  useEffect(() => {
-    // Poucas linhas da fase na primeira leva: busca mais algumas páginas sozinha (o resto, pelo botão Carregar mais).
-    if (soDaFase && visiveis < 50 && ativa.hasNextPage && !ativa.isFetchingNextPage && paginasCarregadas <= PAGINAS_EXTRAS_DA_FASE) ativa.fetchNextPage();
-  }, [soDaFase, visiveis, ativa, paginasCarregadas]);
+  const casos = useMemo(() => (q.data ? q.data.pages.flatMap((p) => p.casos) : []), [q.data]);
+  const grupos = useMemo(() => (qg.data ? qg.data.pages.flatMap((p) => p.grupos) : []), [qg.data]);
   const casosDoGrupo = qd.data?.casos || [];
   const tipos = ativa.data?.pages?.[0]?.tipos;
-  const total = tipos && !soDaFase ? tipos.filter((t) => !filtro.tipo || t.tipo === filtro.tipo).reduce((s, t) => s + t.n, 0) : null;
+  const total = tipos ? tipos.filter((t) => !filtro.tipo || t.tipo === filtro.tipo).reduce((s, t) => s + t.n, 0) : null;
 
   const colunas = useMemo(() => [
     { chave: "codigo", rotulo: "Código", largura: 110, fixa: true, valor: codigoDaLinha },
@@ -297,9 +286,7 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   const emAberto = filtro.situacao === "ABERTOS";
   const sufixo = `${emAberto ? " em aberto" : ""}${temFiltro || filtro.grupo ? " com estes filtros" : ""}`;
   const primeiraG = qg.data?.pages?.[0];
-  const contador = soDaFase
-    ? `${n(visiveis)} ${agrupar ? "grupo(s)" : "caso(s)"}${emAberto ? " em aberto" : ""} desta fase carregado(s)${ativa.hasNextPage ? " (role até o fim para carregar mais)" : ""}${ativa.isFetchingNextPage ? ". Carregando mais…" : "."}`
-    : agrupar
+  const contador = agrupar
     ? [primeiraG ? `${contadorDeGrupos(primeiraG.totalGrupos, primeiraG.totalCasos)}${sufixo}` : null,
       `${n(grupos.length)} grupo(s) carregado(s)${qg.hasNextPage ? " (role até o fim para carregar mais)" : ""}`].filter(Boolean).join("; ") + (qg.isFetchingNextPage ? ". Carregando mais…" : ".")
     : [total != null ? `${n(total)} caso(s)${sufixo}` : null,
@@ -307,7 +294,7 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   const carregarMais = () => { if (ativa.hasNextPage && !ativa.isFetchingNextPage) ativa.fetchNextPage(); };
 
   const idsMarcados = [...marcados];
-  const podeLote = idsMarcados.length > 0 || (!soDaFase && filtroAdmiteLote(filtro) && (total == null || total > 0));
+  const podeLote = idsMarcados.length > 0 || (filtroAdmiteLote(filtroSrv) && (total == null || total > 0));
   const descricaoLote = idsMarcados.length
     ? `${n(idsMarcados.length)} caso(s) marcado(s).`
     : `Todos os casos em aberto deste filtro${total != null && emAberto ? ` (${n(total)})` : ""}, inclusive os que a lista ainda não carregou.`;
@@ -324,7 +311,7 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
     if (!agrupar || !marcados.size) { setLoteDoGrupo(null); setLote(true); return; }
     setBuscandoIds(true);
     try {
-      const ids = await idsDosGruposParaLote(grupos, marcados, async (chave) => (await san.casosAgrupados(projeto.id, { ...montarFiltroCasos(filtro, { limite: 1 }), chave })).grupo.todosIds);
+      const ids = await idsDosGruposParaLote(grupos, marcados, async (chave) => (await san.casosAgrupados(projeto.id, { ...montarFiltroCasos(filtroSrv, { limite: 1 }), chave })).grupo.todosIds);
       setLote(false);
       setLoteDoGrupo({ ids, descricao: `${n(ids.length)} caso(s) de ${n(marcados.size)} grupo(s) marcado(s).` });
     } catch (e) { setErroIds(mensagemDeErro(e)); } finally { setBuscandoIds(false); }
@@ -364,7 +351,7 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
           <input type="checkbox" checked={agrupar} onChange={(e) => trocarAgrupar(e.target.checked)} />Agrupar casos iguais
         </label>
         {temFiltro && <button type="button" className={botaoSecundario} onClick={() => trocarFiltro({ ...FILTRO_PADRAO, grupo: filtro.grupo })}>Limpar filtros</button>}
-        <button type="button" className={botaoPrimario} disabled={!pode || !podeLote || buscandoIds} title={!pode ? razao : soDaFase && !idsMarcados.length ? "Escolha uma camada desta fase, ou marque linhas na tabela, para decidir em lote" : agrupar ? "Marque grupos na tabela, ou decida todos os casos em aberto do filtro" : "Marque casos na tabela, ou decida todos os casos em aberto do filtro"} onClick={abrirLote}>{buscandoIds ? "Juntando os casos…" : "Decidir em lote…"}</button>
+        <button type="button" className={botaoPrimario} disabled={!pode || !podeLote || buscandoIds} title={!pode ? razao : agrupar ? "Marque grupos na tabela, ou decida todos os casos em aberto do filtro" : "Marque casos na tabela, ou decida todos os casos em aberto do filtro"} onClick={abrirLote}>{buscandoIds ? "Juntando os casos…" : "Decidir em lote…"}</button>
         <PlanilhaDecisao projeto={projeto} camada={filtro.camada} camadas={camadasPermitidas} aoMudou={recarregar} />
       </div>
       {filtro.grupo && (
@@ -373,8 +360,8 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
         </Aviso>
       )}
       {erroIds && <Aviso tom="erro">{erroIds}</Aviso>}
-      {loteDoGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtro} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
-      {lote && !loteDoGrupo && <PainelDeLote projeto={projeto} ids={agrupar ? [] : idsMarcados} filtro={filtro} descricao={agrupar ? `Todos os casos em aberto deste filtro${primeiraG ? ` (${n(primeiraG.totalCasos)})` : ""}, inclusive os que a lista ainda não carregou.` : descricaoLote} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
+      {loteDoGrupo && <PainelDeLote key={loteDoGrupo.ids.slice(0, 20).join("|")} projeto={projeto} ids={loteDoGrupo.ids} filtro={filtroSrv} descricao={loteDoGrupo.descricao} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
+      {lote && !loteDoGrupo && <PainelDeLote projeto={projeto} ids={agrupar ? [] : idsMarcados} filtro={filtroSrv} descricao={agrupar ? `Todos os casos em aberto deste filtro${primeiraG ? ` (${n(primeiraG.totalCasos)})` : ""}, inclusive os que a lista ainda não carregou.` : descricaoLote} aoFechar={fecharLote} aoMudou={aoMudouLote} />}
       {semProximo && <Aviso>Não há mais casos em aberto na lista.</Aviso>}
 
       {ativa.isError ? <EstadoErro erro={ativa.error} aoTentar={() => ativa.refetch()} texto="Não foi possível carregar os casos." />

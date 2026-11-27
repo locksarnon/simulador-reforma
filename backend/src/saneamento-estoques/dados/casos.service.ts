@@ -143,6 +143,12 @@ const fatorValido = (p: Json) => lerFator(p.fatorConversao) != null;
 /** Etiqueta de caso nas justificativas dos vínculos: vários casos podem usar o mesmo vínculo. */
 const etiqueta = (id: string) => `[caso:${id}]`;
 
+/** Filtro de camada da lista e do lote: uma camada, ou várias separadas por vírgula (as camadas de uma fase). */
+export function filtroDeCamada(valor: string): string | { in: string[] } {
+  const lista = [...new Set(valor.split(",").map((x) => x.trim()).filter(Boolean))].map((c) => validarCamada(c));
+  return lista.length === 1 ? lista[0] : { in: lista };
+}
+
 /** Casos: criação a partir das camadas, decisão (rascunho, aprovar e APLICAR, rejeitar, pedir informação, reabrir) e lote com prévia. */
 @Injectable()
 export class SanCasosService {
@@ -399,13 +405,13 @@ export class SanCasosService {
     const situacaoF = paramTexto(f.situacao, 'situacao');
     const grupoF = paramTexto(f.grupo, 'grupo');
     const where: Json = { projeto_id: projetoId };
-    if (camadaF) where.camada = validarCamada(camadaF);
+    if (camadaF) where.camada = filtroDeCamada(camadaF);
     const sits = (situacaoF ?? '').split(',').map((x) => x.trim()).filter(Boolean);
     if (sits.length) where.situacao = sits.length === 1 ? sits[0] : { in: sits };
     if (grupoF) {
       // Casos cujos itens estão no grupo: a célula guarda o caso e o grupo (índice projeto+grupo+camada).
       const cel = await this.prisma.sanCelula.findMany({
-        where: { projeto_id: projetoId, grupo: grupoF === '(sem grupo)' ? '' : grupoF, caso_id: { not: null }, ...(camadaF ? { camada: validarCamada(camadaF) } : {}) },
+        where: { projeto_id: projetoId, grupo: grupoF === '(sem grupo)' ? '' : grupoF, caso_id: { not: null }, ...(camadaF ? { camada: filtroDeCamada(camadaF) } : {}) },
         select: { caso_id: true }, distinct: ['caso_id'],
       });
       where.id = { in: [...new Set(cel.map((c) => c.caso_id as string))] };
@@ -522,12 +528,12 @@ export class SanCasosService {
     const situacaoF = paramTexto(f.situacao, 'situacao');
     const grupoF = paramTexto(f.grupo, 'grupo');
     const where: Json = { projeto_id: projetoId };
-    if (camadaF) where.camada = validarCamada(camadaF);
+    if (camadaF) where.camada = filtroDeCamada(camadaF);
     const sits = (situacaoF ?? '').split(',').map((x) => x.trim()).filter(Boolean);
     if (sits.length) where.situacao = sits.length === 1 ? sits[0] : { in: sits };
     if (grupoF) {
       const cel = await this.prisma.sanCelula.findMany({
-        where: { projeto_id: projetoId, grupo: grupoF === '(sem grupo)' ? '' : grupoF, caso_id: { not: null }, ...(camadaF ? { camada: validarCamada(camadaF) } : {}) },
+        where: { projeto_id: projetoId, grupo: grupoF === '(sem grupo)' ? '' : grupoF, caso_id: { not: null }, ...(camadaF ? { camada: filtroDeCamada(camadaF) } : {}) },
         select: { caso_id: true }, distinct: ['caso_id'],
       });
       where.id = { in: [...new Set(cel.map((c) => c.caso_id as string))] };
@@ -812,14 +818,14 @@ export class SanCasosService {
     // Só casos em aberto; a situação do filtro só restringe (proposto ou rascunho).
     const sits = String(f.situacao ?? '').split(',').map((x) => x.trim()).filter((x) => CASO_ABERTO.includes(x as SituacaoCaso));
     const where: Json = { projeto_id: projetoId, situacao: { in: sits.length ? sits : CASO_ABERTO } };
-    if (f.camada) where.camada = validarCamada(String(f.camada));
+    if (f.camada) where.camada = filtroDeCamada(String(f.camada));
     if (f.tipo) where.tipo = String(f.tipo);
     if (f.origem) where.origem = String(f.origem);
     const idF: Json = {};
     if (f.grupo) {
       // Casos cujos itens estão no grupo (o mesmo recorte da lista de casos).
       const cel = await this.prisma.sanCelula.findMany({
-        where: { projeto_id: projetoId, grupo: f.grupo === '(sem grupo)' ? '' : String(f.grupo), caso_id: { not: null }, ...(f.camada ? { camada: validarCamada(String(f.camada)) } : {}) },
+        where: { projeto_id: projetoId, grupo: f.grupo === '(sem grupo)' ? '' : String(f.grupo), caso_id: { not: null }, ...(f.camada ? { camada: filtroDeCamada(String(f.camada)) } : {}) },
         select: { caso_id: true }, distinct: ['caso_id'],
       });
       idF.in = [...new Set(cel.map((c) => c.caso_id as string))];
