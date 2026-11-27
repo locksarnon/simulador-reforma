@@ -34,6 +34,18 @@ export const faseDaCamada = (c) => LISTA_FASES.find((f) => FASES[f].includes(c))
 export const camadasDaFase = (fase, modulos) => (FASES[fase] || []).filter((c) => camadasAtivas(modulos).includes(c));
 /** Camadas que só rodam depois da Fase 1 liberada, com o regime e as atividades. Impacto no SPED roda sem trava. */
 export const CAMADAS_TRAVADAS_FASE2 = ["FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO"];
+/**
+ * Trava das decisões (aprovar, rejeitar, pedir informação, reabrir, lote e planilha) enquanto a Fase 2 não está liberada: o servidor
+ * recusa com 400 (FASE1_NAO_LIBERADA, REGIME_NAO_INFORMADO, ATIVIDADES_NAO_CONFIRMADAS) as decisões das camadas travadas da Fase 2.
+ * `bloqueio` = bloqueioDaFase("FASE2", GET fases); só um bloqueio com código trava (sem a resposta das fases, nada é presumido).
+ * `camadas` = a camada (ou a lista de camadas) da decisão. Devolve a mensagem do bloqueio ou null.
+ */
+export function travaDeDecisao(bloqueio, camadas) {
+  if (!bloqueio?.codigo) return null;
+  const lista = [].concat(camadas || []).filter(Boolean);
+  if (!lista.some((c) => CAMADAS_TRAVADAS_FASE2.includes(c))) return null;
+  return bloqueio.mensagem || MENSAGEM_BLOQUEIO_FASE2[bloqueio.codigo] || "A Fase 2 ainda não está liberada.";
+}
 
 /** Regime do cliente no IBS e na CBS (premissa obrigatória da Fase 2). Espelha backend/src/saneamento-estoques/fiscal/regimes.ts. */
 export const REGIMES_CLIENTE = [
@@ -1177,15 +1189,26 @@ export function faseInicial(dadosFases) {
   return "fase1";
 }
 
-/** Aba de partida de cada fase: sempre a primeira (1.1, 2.1, 3.1). O segundo parâmetro fica só pela compatibilidade das chamadas. */
+/** Aba de partida de cada fase: sempre a primeira (1.1, 2.1, 3.1). */
 export function abaInicialDaFase(fase) {
   if (fase === "fase1") return "preparar";
   if (fase === "fase2") return "premissas";
   return "entregas";
 }
 
-/** Total de itens importados, pela visão geral (soma dos grupos). */
-export const itensDaVisao = (visao) => (visao ? (visao.grupos || []).reduce((s, g) => s + (Number(g.itens) || 0), 0) : null);
+/**
+ * Parâmetros do endereço ao ir para uma fase e aba (irPara da página): troca `fase` e `aba` e tira o que só valia na aba de antes
+ * (`regra`, a regra aberta nas Diretrizes, e `secao`, a rolagem pedida). Com `dest.rolar`, pede a rolagem até a seção (`secao`).
+ */
+export function paramsDoDestino(params, dest, faseAberta) {
+  const n = new URLSearchParams(params);
+  n.set("fase", paramDaArea(dest.fase || faseAberta));
+  n.set("aba", dest.aba);
+  n.delete("regra");
+  n.delete("secao");
+  if (dest.rolar) n.set("secao", dest.rolar);
+  return n;
+}
 
 /** Próximo elemento de uma lista por teclado (setas, Home, End), circular. `lista` = ids na ordem da faixa. */
 export function proximoPorTecla(lista, atual, tecla) {
@@ -1217,7 +1240,12 @@ export function andamentoDaFase(fase, estado, modulos) {
  * "Em andamento · N%". Fechamento: "Após as fases" até as duas estarem liberadas; depois, "Disponível" (nunca trava a consulta).
  * `bloqueio2` = bloqueio da Fase 2 ({codigo, mensagem} | null), calculado por quem chama.
  */
-export function situacaoDasFases({ fases: dadosFases, estado, modulos, bloqueio2 }) {
+export function situacaoDasFases({ fases: dadosFases, estado, modulos, bloqueio2, erro = false }) {
+  // GET fases falhou: nada é afirmado (nem liberada, nem bloqueada); a página oferece Tentar de novo.
+  if (erro && !dadosFases) {
+    const neutro = { texto: "Não foi possível conferir", tom: "neutro", travada: false, detalhe: "Não foi possível conferir a situação das fases agora." };
+    return { fase1: neutro, fase2: neutro, fechamento: neutro };
+  }
   const lib = (f) => !!(dadosFases?.fases || []).find((x) => x.fase === f)?.liberada;
   const andamento = (f) => { const p = andamentoDaFase(f, estado, modulos); return { texto: p == null ? "Em andamento" : `Em andamento · ${p}%`, tom: "alerta", travada: false, detalhe: null }; };
   const liberada = { texto: "Liberada", tom: "ok", travada: false, detalhe: null };

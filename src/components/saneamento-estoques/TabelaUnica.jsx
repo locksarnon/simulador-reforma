@@ -242,6 +242,9 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
         {q.isSuccess ? `${total !== undefined ? total.toLocaleString("pt-BR") : itens.length.toLocaleString("pt-BR")} produto(s) ${temFiltro ? "com estes filtros" : "no projeto"}; ${itens.length.toLocaleString("pt-BR")} carregado(s).` : ""}
         {q.isFetchingNextPage && " Carregando mais…"}
       </p>
+      <p className="flex flex-wrap items-center gap-1.5 text-xs text-foreground/80" data-legenda="alterado">
+        <span className="amostra-celula-alterada" aria-hidden="true" />alterado no saneamento <span className="text-muted-foreground">(passe o mouse na célula para ver como era e como ficou)</span>
+      </p>
       {aviso && <Aviso>{aviso}</Aviso>}
       {painelColunas && extrasDisponiveis?.length > 0 && (
         <div id="san-colunas-erp" className="border border-border bg-card p-3 text-xs" role="group" aria-label="Outras colunas do ERP">
@@ -271,7 +274,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
         : q.isPending ? <EstadoCarregando texto="Carregando os produtos…" />
           : itens.length === 0 ? (
             <EstadoVazio titulo={temFiltro ? "Nenhum produto com estes filtros" : "Nenhum produto importado"}>
-              {temFiltro ? "Mude ou limpe os filtros." : "Importe o cadastro de itens na aba Importação."}
+              {temFiltro ? "Mude ou limpe os filtros." : "Importe o cadastro de itens em Fase 1 > 1.1 Preparar e diretrizes."}
             </EstadoVazio>
           ) : (
             <div ref={setArea} onScroll={aoRolar} className={`${estiloTabela.area} h-[68vh] min-h-[320px]`} tabIndex={0} aria-label="Tabela de produtos por camada. Role para ver mais linhas.">

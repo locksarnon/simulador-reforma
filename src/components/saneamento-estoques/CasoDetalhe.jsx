@@ -8,7 +8,7 @@ import TransformarEmRegra from "./diretrizes/TransformarEmRegra";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Quadro, Rotulo, rotuloCls, Tag, usePodeAlterar } from "./comuns";
 import {
   acoesDoCaso, aposConflito, avisoDeOutrosGrupos, campoAlvoDoCaso, CAMPOS_FORA_DA_GRADE, camposDivergentes, camposDoFatorAOferecer, converterProposta, decisoesDoCaso, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
-  FINALIDADES, fmtData, fmtSaldo, interpretarRespostaParecer, lerParecer, mensagemDeErro, mensagemDoParecer, precisaConfirmarFator, precisaInformarFator, propostaEditavel, propostaParaEnviar, razaoSemAprovar, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloDoValor, rotuloFinalidade, rotuloSituacaoCaso, rotuloTipoCaso, textoDoValor, textoLegivel,
+  FINALIDADES, fmtData, fmtSaldo, interpretarRespostaParecer, lerParecer, mensagemDeErro, mensagemDoParecer, precisaConfirmarFator, precisaInformarFator, propostaEditavel, propostaParaEnviar, razaoSemAprovar, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloDoValor, rotuloFinalidade, rotuloSituacaoCaso, rotuloTipoCaso, textoDoValor, textoLegivel, travaDeDecisao,
 } from "./logica";
 
 /** Item do caso de 1 item pelo detalhe do item (quando o servidor não trouxe o resumo). */
@@ -83,7 +83,7 @@ function ItensDoCaso({ itens, total }) {
 }
 
 /** Detalhe do caso: problema, evidência, dados originais e atuais, proposta editável, justificativa, parecer da IA e as ações. */
-export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, grupoDoRecorte }) {
+export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, grupoDoRecorte, bloqueioFase2 = null }) {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const consulta = useQuery({ queryKey: chaves.caso(casoId), queryFn: () => san.caso(casoId) });
@@ -99,7 +99,11 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
   const [texto, setTexto] = useState("");
   const [aviso, setAviso] = useState(null);
   const [divergencia, setDivergencia] = useState(null); // { campos, vars }
-  const { pode, razao } = usePodeAlterar();
+  const { pode: podeAlterar, razao: razaoAlterar } = usePodeAlterar();
+  // Fase 2 ainda não liberada: as decisões dos casos das camadas travadas ficam desligadas (o servidor as recusaria com o motivo).
+  const trava = caso ? travaDeDecisao(bloqueioFase2, caso.camada) : null;
+  const pode = podeAlterar && !trava;
+  const razao = razaoAlterar || trava || undefined;
 
   // A edição vale para este caso; ao trocar de caso, volta a vir do servidor.
   const edicao = caso ? (edicaoLocal && edicaoLocal.id === caso.id ? edicaoLocal : edicaoInicial(caso)) : null;
@@ -236,7 +240,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
                           {unico && <td className="px-2 py-1.5 tabular-nums">{textoDoValor(pega(original, k), k)}</td>}
                           <td className="px-2 py-1.5 tabular-nums">{textoDoValor(k in (c.atual || {}) ? c.atual[k] : pega(trabalho, k), k)}</td>
                           <td className={`px-2 py-1 ${k === "fatorConversao" && precisaInformarFator(c) ? "bg-amber-500/10" : ""}`}>{k in (edicao.proposta || {}) || editaveisSemProposta.includes(k) ? (propostaEditavel(k)
-                            ? <CampoDaProposta campo={k} valor={edicao.proposta[k]} decisoes={decisoes} destaque={(k === "fatorConversao" && precisaInformarFator(c)) || (k === alvo && !(k in (c.proposta || {})))} disabled={!pode || !acoes.editar || ocupado} aoMudar={(v) => mudarEdicao({ proposta: { ...edicao.proposta, [k]: v } })} />
+                            ? <CampoDaProposta campo={k} valor={edicao.proposta[k]} decisoes={decisoes} destaque={(k === "fatorConversao" && precisaInformarFator(c)) || (k === alvo && !(k in (c.proposta || {})))} disabled={!podeAlterar || !acoes.editar || ocupado} aoMudar={(v) => mudarEdicao({ proposta: { ...edicao.proposta, [k]: v } })} />
                             : <span>{textoDoValor(edicao.proposta[k], k)}</span>) : <span className="text-muted-foreground">—</span>}</td>
                         </tr>
                       ))}
@@ -248,7 +252,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
             )}
 
             <Quadro titulo="Justificativa e fundamento" nivel="h4" corpoCls="grid gap-3 sm:grid-cols-2">
-              <label className="block"><Rotulo>Justificativa</Rotulo><textarea className={`${campoCls} min-h-[84px]`} disabled={!pode || !acoes.editar || ocupado} value={edicao.justificativa} onChange={(e) => mudarEdicao({ justificativa: e.target.value })} /></label>
+              <label className="block"><Rotulo>Justificativa</Rotulo><textarea className={`${campoCls} min-h-[84px]`} disabled={!podeAlterar || !acoes.editar || ocupado} value={edicao.justificativa} onChange={(e) => mudarEdicao({ justificativa: e.target.value })} /></label>
               <label className="block"><Rotulo>Fundamento (norma, artigo, critério)</Rotulo><textarea className={`${campoCls} min-h-[84px]`} disabled value={edicao.fundamento || "—"} readOnly /></label>
             </Quadro>
             {c.impactos?.length > 0 && <Lista titulo="Impactos a conferir" itens={c.impactos} />}
@@ -257,7 +261,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
             {parecer && <ParecerIa parecer={parecer} />}
             {acoes.aprovar && (
             <div>
-              <button type="button" className={botaoSecundario} disabled={!pode || pedirParecer.isPending} title={razao} onClick={() => pedirParecer.mutate()}>
+              <button type="button" className={botaoSecundario} disabled={!podeAlterar || pedirParecer.isPending} title={razaoAlterar} onClick={() => pedirParecer.mutate()}>
                 <Sparkles className="h-4 w-4" aria-hidden="true" />{pedirParecer.isPending ? "Consultando a IA…" : parecer ? "Pedir novo parecer da IA" : "Pedir parecer da IA"}
               </button>
               <span className="ml-2 text-xs text-muted-foreground">A IA só sugere; nunca grava a decisão.</span>
@@ -267,12 +271,13 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
             <TransformarEmRegra key={c.id} projeto={projeto} caso={c} />
 
             <Quadro titulo="Decisão" nivel="h4">
+              {trava && <Aviso tom="bloqueio" titulo="Fase 2 ainda não liberada">{trava} As decisões deste caso ficam desligadas até lá; o rascunho pode ser salvo.</Aviso>}
               {modo && (
                 <div className="space-y-1">
                   <label className="block"><Rotulo>{modo === "rejeitar" ? "Justificativa da rejeição (obrigatória)" : "Que informação falta? (obrigatório)"}</Rotulo><textarea className={`${campoCls} min-h-[64px]`} value={texto} onChange={(e) => setTexto(e.target.value)} /></label>
                   <div className="flex gap-2">
-                    <button type="button" className={modo === "rejeitar" ? botaoPerigo : botaoPrimario} disabled={!texto.trim() || ocupado} onClick={() => (modo === "rejeitar" ? rejeitar : pedir).mutate()}>{modo === "rejeitar" ? "Confirmar rejeição" : "Registrar pedido"}</button>
-                    {modo === "pedir" && aoIrAoProximo && <button type="button" className={botaoPrimario} disabled={!texto.trim() || ocupado} onClick={() => pedir.mutate({ ir: true })}>Registrar e ir ao próximo</button>}
+                    <button type="button" className={modo === "rejeitar" ? botaoPerigo : botaoPrimario} disabled={!pode || !texto.trim() || ocupado} title={razao} onClick={() => (modo === "rejeitar" ? rejeitar : pedir).mutate()}>{modo === "rejeitar" ? "Confirmar rejeição" : "Registrar pedido"}</button>
+                    {modo === "pedir" && aoIrAoProximo && <button type="button" className={botaoPrimario} disabled={!pode || !texto.trim() || ocupado} title={razao} onClick={() => pedir.mutate({ ir: true })}>Registrar e ir ao próximo</button>}
                     <button type="button" className={botaoSecundario} onClick={() => { setModo(null); setTexto(""); }}>Cancelar</button>
                   </div>
                 </div>
@@ -282,8 +287,8 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
                 {acoes.aprovar && <button type="button" className={botaoPrimario} disabled={!pode || ocupado || !!bloqueioAprovar} title={razao || bloqueioAprovar || undefined} onClick={() => aprovarAgora()}>Aprovar</button>}
                 {acoes.aprovar && aoIrAoProximo && <button type="button" className={botaoPrimario} disabled={!pode || ocupado || !!bloqueioAprovar} title={razao || bloqueioAprovar || undefined} onClick={() => aprovarAgora({ ir: true })}>Aprovar e ir ao próximo</button>}
                 {acoes.aprovar && bloqueioAprovar && <span className="text-xs text-muted-foreground">{bloqueioAprovar}</span>}
-                {acoes.salvarRascunho && <button type="button" className={botaoSecundario} disabled={!pode || ocupado || !suja} title={razao} onClick={() => rascunho.mutate()}>Salvar rascunho</button>}
-                {acoes.salvarRascunho && aoIrAoProximo && <button type="button" className={botaoSecundario} disabled={!pode || ocupado} title={razao} onClick={() => rascunho.mutate({ ir: true })}>Salvar e ir ao próximo pendente</button>}
+                {acoes.salvarRascunho && <button type="button" className={botaoSecundario} disabled={!podeAlterar || ocupado || !suja} title={razaoAlterar} onClick={() => rascunho.mutate()}>Salvar rascunho</button>}
+                {acoes.salvarRascunho && aoIrAoProximo && <button type="button" className={botaoSecundario} disabled={!podeAlterar || ocupado} title={razaoAlterar} onClick={() => rascunho.mutate({ ir: true })}>Salvar e ir ao próximo pendente</button>}
                 {acoes.rejeitar && <button type="button" className={botaoPerigo} disabled={!pode || ocupado} title={razao} onClick={() => { setModo("rejeitar"); setTexto(""); }}>Rejeitar…</button>}
                 {acoes.pedirInformacao && <button type="button" className={botaoSecundario} disabled={!pode || ocupado} title={razao} onClick={() => { setModo("pedir"); setTexto(""); }}>Pedir informação…</button>}
                 {acoes.reabrir && <button type="button" className={botaoSecundario} disabled={!pode || ocupado} title={razao} onClick={pedirReabertura}>{acoes.desfaz ? "Desfazer aprovação" : "Reabrir"}</button>}
