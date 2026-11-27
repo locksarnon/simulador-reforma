@@ -99,36 +99,44 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto, p
       {msg && <Aviso tom={msg.tom === "erro" || msg.tom === "alerta" ? msg.tom : "ok"}>{msg.texto}</Aviso>}
 
       {parte !== "premissas" && (
-      <SecaoForm titulo="Fase 1 · Dados do projeto" nivel="h2" idTitulo="san-cfg-dados">
-        <p className="text-sm text-foreground/75">O que a Fase 1 (saneamento do cadastro) usa. Nada aqui depende das atividades do cliente: a importação e as análises da Fase 1 ficam sempre disponíveis.</p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div><SeletorErp id="san-cfg-erp" rotulo="ERP (do cadastro do cliente; pode trocar para este trabalho)" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} /></div>
+      <SecaoForm titulo="Fase 1 · Dados do projeto" nivel="h2" idTitulo="san-cfg-dados" corpoCls="space-y-2"
+        acoes={<button type="button" className={`${botaoPrimario} px-3 py-1 text-sm`} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>}>
+        <p className="text-xs text-foreground/75">Usado pela Fase 1. Não depende das atividades do cliente: importação e análises da Fase 1 ficam sempre disponíveis.</p>
+        <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div><SeletorErp id="san-cfg-erp" rotulo="ERP (pode trocar para este trabalho)" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} /></div>
           <label className="block"><Rotulo>Versão do ERP</Rotulo>{erpEscolhido?.versoes?.length
             ? <select className={campoCls} value={form.erp_versao} onChange={set("erp_versao")}><option value="">Selecione a versão</option>{[...erpEscolhido.versoes, ...(form.erp_versao && !erpEscolhido.versoes.includes(form.erp_versao) ? [form.erp_versao] : [])].map((v) => <option key={v} value={v}>{v}</option>)}</select>
             : <input className={campoCls} value={form.erp_versao} onChange={set("erp_versao")} />}</label>
           <label className="block"><Rotulo>Responsável</Rotulo><input className={campoCls} value={form.responsavel} onChange={set("responsavel")} /></label>
-          <div><Rotulo>Data-base</Rotulo><p className="py-1.5 text-sm">{fmtData(projeto.data_base) || "—"}</p><p className="text-xs text-foreground/75">Vem do projeto de consultoria.</p></div>
-          <label className="block sm:col-span-2"><Rotulo>Estabelecimentos (um por linha; vazio = um só)</Rotulo>
-            <textarea className={`${campoCls} min-h-[72px]`} value={form.estabelecimentos} onChange={set("estabelecimentos")} />
-          </label>
+          <div title="Vem do projeto de consultoria."><Rotulo>Data-base (do projeto de consultoria)</Rotulo><p className="py-1.5 text-sm">{fmtData(projeto.data_base) || "—"}</p></div>
           <div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="san-cfg-corte" className="block"><Rotulo className="mb-0">Corte de movimentação (itens sem movimento desde esta data)</Rotulo></label>
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="san-cfg-corte" className="block"><Rotulo className="mb-0">Corte de movimentação</Rotulo></label>
               <BotaoInfo id="san-cfg-corte-info" rotulo="Corte de movimentação" aberto={infoAberta === "corte"} aoAlternar={() => setInfoAberta(infoAberta === "corte" ? null : "corte")} />
             </div>
-            <input id="san-cfg-corte" type="date" className={`${campoCls} mt-1`} value={form.corte} onChange={set("corte")} />
-            {infoAberta === "corte" && (
-              <p id="san-cfg-corte-info" className="mt-1 border-l-2 border-border pl-3 text-xs text-muted-foreground">
-                Item ativo cuja última movimentação (coluna importada do cadastro) é anterior a esta data é candidato a inativação, na camada Qualidade, por grupo. Sem saldo: propõe inativar. Com saldo: pede regularizar o saldo antes, sem propor inativar. O código que fica numa unificação de códigos não é proposto. Item sem data é tratado à parte. Vazio: o critério não é aplicado, e a Cobertura e o relatório dizem isso. Depois de mudar a data, rode a Qualidade de novo.
-              </p>
-            )}
+            <input id="san-cfg-corte" type="date" className={`${campoCls} mt-0.5`} value={form.corte} onChange={set("corte")} title="Itens sem movimento desde esta data" />
           </div>
-          <label className="block"><Rotulo>Última competência de escrituração já entregue (SPED)</Rotulo>
-            <input type="month" className={campoCls} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
-            <span className="mt-1 block text-xs text-foreground/75">Ajuste com início nesta competência ou antes aparece como “impacto em escrituração já entregue”. Vazio: esse impacto fica “não avaliado” no Excel e no relatório.</span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="san-cfg-competencia" className="block"><Rotulo className="mb-0">Última escrituração entregue (SPED)</Rotulo></label>
+              <BotaoInfo id="san-cfg-competencia-info" rotulo="Última escrituração entregue" aberto={infoAberta === "competencia"} aoAlternar={() => setInfoAberta(infoAberta === "competencia" ? null : "competencia")} />
+            </div>
+            <input id="san-cfg-competencia" type="month" className={`${campoCls} mt-0.5`} value={form.competenciaEntregue} onChange={set("competenciaEntregue")} placeholder="aaaa-mm" />
+          </div>
+          <label className="block sm:col-span-2"><Rotulo>Estabelecimentos (um por linha; vazio = um só)</Rotulo>
+            <textarea rows={1} className={`${campoCls} min-h-[34px] resize-y`} value={form.estabelecimentos} onChange={set("estabelecimentos")} />
           </label>
         </div>
-        <button type="button" className={botaoPrimario} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>
+        {infoAberta === "corte" && (
+          <p id="san-cfg-corte-info" className="border-l-2 border-border pl-3 text-xs text-muted-foreground">
+            Item ativo cuja última movimentação (coluna importada do cadastro) é anterior a esta data é candidato a inativação, na camada Qualidade, por grupo. Sem saldo: propõe inativar. Com saldo: pede regularizar o saldo antes, sem propor inativar. O código que fica numa unificação de códigos não é proposto. Item sem data é tratado à parte. Vazio: o critério não é aplicado, e a Cobertura e o relatório dizem isso. Depois de mudar a data, rode a Qualidade de novo.
+          </p>
+        )}
+        {infoAberta === "competencia" && (
+          <p id="san-cfg-competencia-info" className="border-l-2 border-border pl-3 text-xs text-muted-foreground">
+            Ajuste com início nesta competência ou antes aparece como “impacto em escrituração já entregue”. Vazio: esse impacto fica “não avaliado” no Excel e no relatório.
+          </p>
+        )}
       </SecaoForm>
       )}
 
