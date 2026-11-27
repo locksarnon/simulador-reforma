@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  clienteDoProjeto, finalizar, rotaSaneamento, rotuloDoProjeto, telasDoSaneamento, trilhaDaConsultoria, trilhaDoCliente, trilhaDoProjeto,
+  clienteDoProjeto, finalizar, rotaDeAbrirProjeto, rotaSaneamento, rotuloDoProjeto, telasDoSaneamento, trilhaDaConsultoria, trilhaDoCliente, trilhaDoProjeto,
 } from "./trilhas";
 import { normalizarCrumbs } from "@/components/PageHeader";
 
@@ -65,6 +65,12 @@ describe("trilha padrão da Consultoria", () => {
   it("endereço do saneamento com fase e aba", () => {
     expect(rotaSaneamento("p9", { fase: "fase1", aba: "casos" })).toBe("/diagnostico/projetos/p9/saneamento?fase=1&aba=casos");
     expect(rotaSaneamento("p9")).toBe("/diagnostico/projetos/p9/saneamento");
+  });
+
+  it("clicar no projeto abre onde se trabalha nele: o de Saneamento direto na ferramenta, os demais na página do projeto", () => {
+    expect(rotaDeAbrirProjeto({ id: "p9", servico_consultoria: "saneamento-estoques" })).toBe("/diagnostico/projetos/p9/saneamento");
+    expect(rotaDeAbrirProjeto({ id: "p8", servico_consultoria: "pj-homologacao" })).toBe("/diagnostico/projetos/p8");
+    expect(rotaDeAbrirProjeto({ id: "p7" })).toBe("/diagnostico/projetos/p7");
   });
 });
 

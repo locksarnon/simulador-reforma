@@ -19,6 +19,7 @@ import Importacao from "@/components/saneamento-estoques/Importacao";
 import TabelaUnica from "@/components/saneamento-estoques/TabelaUnica";
 import Unificacoes from "@/components/saneamento-estoques/Unificacoes";
 import RoteiroProjeto from "@/components/saneamento-estoques/RoteiroProjeto";
+import DadosDoProjeto from "@/components/consultoria/DadosDoProjeto";
 import Versoes from "@/components/saneamento-estoques/Versoes";
 import VisaoGeral from "@/components/saneamento-estoques/VisaoGeral";
 import {
@@ -190,7 +191,9 @@ export default function SaneamentoEstoquesPagina() {
 
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada." actions={<RoteiroProjeto />} />
+      {/* O projeto abre direto aqui (sem a página do projeto): os dados dele (situação, data-base, documentos, exclusão) ficam no cabeçalho. */}
+      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada."
+        actions={<div className="flex flex-wrap items-center gap-2"><DadosDoProjeto projeto={diag.data} cliente={cliente} /><RoteiroProjeto /></div>} />
       <div className="px-6 py-5 lg:px-8">{corpo}</div>
     </div>
   );

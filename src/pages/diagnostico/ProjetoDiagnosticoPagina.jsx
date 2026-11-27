@@ -1,13 +1,11 @@
 import { useCatalogoConsultoria } from "@/components/clientes/ServicosConsultoria";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, Navigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Archive, BarChart3, Loader2, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { porDataBase, rotuloPeriodo, tituloPeriodo, valorPeriodo } from "@/lib/dataBase";
-import { useAuth } from "@/lib/AuthContext";
-import { useConfirmar } from "@/components/ConfirmProvider";
-import { toast } from "@/components/ui/use-toast";
+import { useAcoesDoProjeto } from "@/lib/useAcoesDoProjeto";
 import PageHeader from "@/components/PageHeader";
 import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsultoria";
 import AnalisarComIa from "@/components/consultoria/AnalisarComIa";
@@ -19,7 +17,7 @@ import { CAMINHO_REPOSITORIO_XML } from "@/lib/bpoCaminhos";
 import { fmtDataCurta } from "@/lib/servicos";
 import { caminhoDaFerramenta, cobreGrupoInteiro, FERRAMENTAS, SITUACOES_PROJETO } from "@/lib/projetos";
 import { plural } from "@/lib/plural";
-import { trilhaDoProjeto } from "@/lib/trilhas";
+import { rotaDeAbrirProjeto, trilhaDoProjeto } from "@/lib/trilhas";
 import { useClienteDoProjeto } from "@/lib/useClienteDoProjeto";
 
 const campo = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -28,10 +26,6 @@ const dia = (v) => (v ? String(v).slice(0, 10) : "");
 /** Diagnósticos > um projeto: o escopo, a situação, o prazo e, para cada empresa, as ferramentas do diagnóstico. */
 export default function ProjetoDiagnosticoPagina() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const confirmar = useConfirmar();
-  const { user } = useAuth();
   const { empresas, grupos, carregando } = useCarteiras();
   const projeto = useQuery({ queryKey: ["projetos-diagnostico", id], queryFn: () => api.get(`/projetos-diagnostico/${id}`) });
   const [documentos, setDocumentos] = useState(false);
@@ -44,46 +38,27 @@ export default function ProjetoDiagnosticoPagina() {
   const servico = catalogo.data?.find((c) => c.id === p?.servico_consultoria);
   useEffect(() => { if (p && !editando) setRascunho({ nome: p.nome, escopo: p.escopo || "", prazo: dia(p.prazo), ...(p.servico_consultoria ? { periodo_inicio: dia(p.periodo_inicio), periodo_fim: dia(p.periodo_fim) } : {}), responsavel: p.responsavel || "", ...(!p.pessoa_fisica_id && (!p.servico_consultoria || p.empresa_ids.length > 1) ? { empresa_ids: p.empresa_ids } : {}) }); }, [p, editando]);
 
-  const salvar = useMutation({
-    mutationFn: (dados) => api.put(`/projetos-diagnostico/${id}`, dados),
-    onSuccess: (novo) => { qc.setQueryData(["projetos-diagnostico", id], novo); qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] }); qc.invalidateQueries({ queryKey: ["servicos-contratados"] }); setEditando(false); toast({ title: "Diagnóstico atualizado" }); },
-    onError: (e) => toast({ title: "Não foi possível salvar", description: e.message, variant: "destructive" }),
-  });
-  const admin = user?.role === "admin";
-  const pendente = Boolean(p?.exclusao_solicitada_em);
-  const acaoExclusao = admin ? (pendente ? "Aprovar e excluir" : "Excluir projeto") : "Solicitar exclusão";
-  const atualizarProjeto = (novo) => {
-    qc.setQueryData(["projetos-diagnostico", id], novo);
-    qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] });
-  };
-  const exclusao = useMutation({
-    mutationFn: (recusar) => {
-      if (!recusar && admin && pendente) return api.post(`/projetos-diagnostico/${id}/solicitacao-exclusao/aprovar`, {});
-      return api.delete(`/projetos-diagnostico/${id}${recusar ? "/solicitacao-exclusao" : ""}`);
-    },
-    onSuccess: (resposta, recusar) => {
-      if (recusar || resposta.pendente) {
-        atualizarProjeto(recusar ? resposta : resposta.projeto);
-        toast({ title: recusar ? "Solicitação recusada" : "Solicitação enviada ao administrador" });
-        return;
-      }
-      qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] });
-      navigate(p.servico_consultoria ? "/consultoria/projetos" : "/diagnostico");
-    },
-    onError: (e) => toast({ title: "Não foi possível concluir a ação", description: e.message, variant: "destructive" }),
-  });
-  const excluir = async () => {
-    if (await confirmar({
-      titulo: `${acaoExclusao}: ${p.nome}?`,
-      descricao: admin ? "O projeto será excluído. Os trabalhos das empresas permanecem disponíveis." : "O projeto permanece ativo até um administrador autorizar a exclusão.",
-      rotulo: acaoExclusao,
-    })) exclusao.mutate(false);
-  };
+  // Salvar, excluir e pedir exclusão: as mesmas regras dos dados do projeto dentro do Saneamento de estoques.
+  const { admin, pendente, acaoExclusao, salvar, exclusao, excluir } = useAcoesDoProjeto(p, { aoSalvar: () => setEditando(false) });
 
   const cliente = useClienteDoProjeto(p?.servico_consultoria ? p : null);
   const crumbs = trilhaDoProjeto({ projeto: p, cliente });
   if (projeto.isLoading || carregando) return <div><PageHeader crumbs={crumbs} title="Diagnóstico" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
   if (!p) return <div><PageHeader crumbs={crumbs} title="Diagnóstico não encontrado" /><p role="alert" className="p-8 text-sm">Este projeto não existe mais. <Link to="/diagnostico" className="text-primary hover:underline">Voltar aos diagnósticos</Link></p></div>;
+  // Saneamento de estoques: o projeto abre direto na ferramenta, com os dados do projeto no cabeçalho dela. Esta página não é parada:
+  // quem chega por um endereço antigo vai direto para lá.
+  if (p.servico_consultoria === "saneamento-estoques") {
+    return (
+      <div>
+        <PageHeader crumbs={crumbs} title={p.nome} />
+        <p role="status" className="p-8 text-sm text-muted-foreground">
+          <Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Abrindo o Saneamento de estoques e cadastro de produtos…{" "}
+          <Link to={rotaDeAbrirProjeto(p)} className="text-primary hover:underline">Abrir agora</Link>
+        </p>
+        <Navigate to={rotaDeAbrirProjeto(p)} replace />
+      </div>
+    );
+  }
   const daLista = p.empresa_ids.map((eid) => empresas.find((e) => e.id === eid)).filter(Boolean);
   const clientesDocumentos = p.pessoa_fisica_id ? (pessoa ? [{ id: pessoa.id, nome: pessoa.nome }] : []) : daLista.map((e) => ({ id: e.id, nome: e.razao_social }));
   const grupo = grupos.find((g) => g.numero === p.grupo_numero);
@@ -114,15 +89,10 @@ export default function ProjetoDiagnosticoPagina() {
         {servico && <AnalisarComIa projetoId={p.id} servico={servico} />}
         {documentos && servico && <SolicitacoesConsultoria servico={servico}
           clientes={clientesDocumentos} deInicial={dia(p.periodo_inicio)} ateInicial={dia(p.periodo_fim)} aoFechar={() => setDocumentos(false)}
-          caminhoImportacao={p.servico_consultoria === "saneamento-estoques" ? `/diagnostico/projetos/${p.id}/saneamento` : null} />}
+          caminhoImportacao={null} />}
         {(catalogo.isError || pessoas.isError) && p.servico_consultoria && <p role="alert" className="text-sm">Não foi possível carregar os dados do serviço. Atualize para tentar novamente.</p>}
         {servico && !servico.projeto && <p className="rounded-md border bg-card p-3 text-sm">Coleta de documentos disponível. Roteiro fiscal em desenvolvimento.</p>}
         {p.servico_consultoria === "pj-homologacao" && <HomologacaoErp projetoId={p.id} />}
-        {p.servico_consultoria === "saneamento-estoques" && <section className="space-y-2 rounded-lg border bg-card p-4">
-          <h2 className="font-semibold">Saneamento de estoques</h2>
-          <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. Todas as etapas deste projeto, da importação dos arquivos à política de uso, ficam no Saneamento de estoques e cadastro de produtos.</p>
-          <Link to={`/diagnostico/projetos/${p.id}/saneamento`} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">Abrir o Saneamento de estoques e cadastro de produtos</Link>
-        </section>}
         {p.servico_consultoria === "simulador-reforma" && <section className="space-y-2 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Simulador da Reforma Tributária</h2>
           <p className="text-sm text-muted-foreground">{tituloPeriodo(p)}: {valorPeriodo(p, fmtDataCurta)}. Selecione a empresa nas ferramentas de simulação.</p>

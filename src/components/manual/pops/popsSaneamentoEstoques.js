@@ -10,13 +10,13 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Entrar na ferramenta do projeto, saber em que fase e em que aba trabalhar e rodar a análise de cada camada, fase por fase.",
     quem: "Consultor",
     quando: "No início do saneamento e sempre que voltar ao projeto.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Abrir o Saneamento de estoques e cadastro de produtos",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > cartão do projeto (abre direto no Saneamento de estoques e cadastro de produtos)",
     antes: [
       "O projeto deve ter sido aberto na Carteira de Consultoria com o serviço “Saneamento de estoques com foco em IBS e CBS” e a Data-base (POP-CON-01).",
     ],
     passos: [
-      { acao: "Abra o projeto em Projetos.", detalhe: "O quadro “Saneamento de estoques” mostra a Data-base e um botão só, para a ferramenta do projeto." },
-      { acao: "Clique em Abrir o Saneamento de estoques e cadastro de produtos.", detalhe: "Na primeira vez, o saneamento do projeto é criado ao entrar, sem outro clique: enquanto aparece “Abrindo o saneamento”, as atividades do cliente são lidas do CNPJ e a data-base vem do projeto. Se a abertura falhar, a tela mostra o motivo e o botão Tentar de novo." },
+            { acao: "Na página do cliente, clique no cartão do projeto (ou na linha dele em Projetos).", detalhe: "O Saneamento de estoques e cadastro de produtos abre direto, sem a página do projeto. Na primeira vez, o saneamento do projeto é criado ao entrar, sem outro clique: enquanto aparece “Abrindo o saneamento”, as atividades do cliente são lidas do CNPJ e a data-base vem do projeto. Se a abertura falhar, a tela mostra o motivo e o botão Tentar de novo." },
+      { acao: "Para mudar a situação, o nome, a data-base, o prazo, o responsável ou o escopo, abrir os Documentos e solicitações ou excluir o projeto, clique em Dados do projeto, no alto da tela.", detalhe: "Os dados abrem num painel ao lado; Salvar grava e fecha. A exclusão segue a regra de sempre: quem não é administrador solicita, e o administrador aprova ou recusa." },
       { acao: "No alto da página, leia as três fases: Fase 1 · Saneamento, Fase 2 · Tributário e Fechamento.", detalhe: "Cada fase mostra a sua situação. Fase 1: “Em andamento” com o percentual de camadas em dia (camada já analisada, sem caso em aberto nem aguardando informação) ou “Liberada”, quando há versão da Fase 1 liberada. Fase 2: um cadeado com “Bloqueada” enquanto falta algo para começar (passe o mouse para ler o motivo), depois “Em andamento” com o percentual, e “Liberada”. Fechamento: “Após as fases” até as duas estarem liberadas; depois, “Disponível”. A fase aberta fica em verde. O projeto abre na fase em andamento: na Fase 1 enquanto ela não foi liberada; na Fase 2 depois disso; no Fechamento depois de liberada a Fase 2." },
       { acao: "Clique numa fase para ver as abas dela.", detalhe: "As abas de cada fase levam o número da fase. Fase 1: 1.1 Preparar e diretrizes (dados do projeto, importação e, embaixo, as Diretrizes de nomes, atributos, unidades e limites), 1.2 Análise, 1.3 Casos, 1.4 Unificações e 1.5 Entrega da Fase 1. Fase 2: 2.1 Premissas e diretrizes (regime e atividades do cliente e, embaixo, as Diretrizes da classificação fiscal), 2.2 Análise, 2.3 Casos e 2.4 Entrega da Fase 2. Fechamento: 3.1 Entregas finais. À direita das abas, em qualquer fase e sem número, ficam as áreas do projeto inteiro: Tabela, Visão geral, Impacto no SPED e Versões. Na Fase 1, a página abre em 1.1 Preparar e diretrizes enquanto não há itens importados e em 1.2 Análise depois; na Fase 2, em 2.1 Premissas e diretrizes enquanto faltam o regime ou as atividades, e em 2.2 Análise depois. As setas do teclado passam de uma aba para outra." },
       { acao: "Na aba Análise da fase, leia a Cobertura das camadas.", detalhe: "Ela mostra só as camadas da fase aberta. Fase 1: Identificação, Qualidade, Duplicidades, Grupos, Nomes e unidades, Validar NCM e Impacto no SPED (e Estoque, quando o módulo de conciliação está ligado). Fase 2: Finalidade, Classificação NCM, Tratamento tributário e Impacto no SPED. Cada camada tem um quadro com o que falta nela: “N em aberto / N aguardando” (casos que esperam decisão e casos que esperam informação do cliente), “em dia”, “não analisada”, “sem itens” ou “análise indisponível”, e o botão Analisar (ou Analisar de novo). O selo “desatualizada” aparece quando algo de que a camada depende mudou depois da última análise dela (por exemplo, finalidade ou NCM aprovados depois da análise do Tratamento tributário): passe o mouse para ver o quê e desde quando." },
@@ -318,12 +318,13 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     modulo: "carteira-diagnostico",
     codigo: "POP-CON-17",
     titulo: "Pedir um rascunho de parecer com o botão Analisar com IA",
-    objetivo: "Obter, em qualquer serviço de consultoria, um rascunho de apoio montado com o contexto do projeto.",
+    objetivo: "Obter, nos serviços de consultoria que abrem pela página do projeto, um rascunho de apoio montado com o contexto do projeto.",
     quem: "Consultor",
     quando: "Ao começar o parecer de um projeto, para ter um primeiro texto a revisar.",
     caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Analisar com IA",
     antes: [
       "O projeto precisa ser de um serviço do catálogo de consultoria.",
+      "O Saneamento de estoques não tem este quadro: o projeto abre direto na ferramenta, e lá a IA trabalha no parecer de cada caso.",
     ],
     passos: [
       { acao: "Abra o projeto em Projetos e localize o quadro Analisar com IA, abaixo dos dados do projeto.", detalhe: "Se já houver um rascunho, ele aparece em “Último rascunho”, com a data, o modo (rascunho rápido ou com pesquisa externa) e o motor usado." },

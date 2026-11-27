@@ -42,7 +42,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     passos: [
       { acao: "Use a barra acima da tabela, numa linha só: a busca por nome ou documento e as caixas Público (PF e PJ, Pessoa Física ou Pessoa Jurídica), Área, Serviço, Responsável e Situação.", detalhe: "Em Situação, “Contratado · ainda não iniciado” mostra quem tem o serviço sem nenhum projeto aberto." },
       { acao: "Clique na linha do cliente (ou no nome) para abrir os trabalhos dele." },
-      { acao: "Em Projetos em andamento, clique no cartão do projeto (em qualquer ponto dele) para continuar.", detalhe: "Serviços contratados sem projeto aparecem como “Contratado · ainda não iniciado”: clique no cartão para abrir o primeiro projeto." },
+      { acao: "Em Projetos em andamento, clique no cartão do projeto (em qualquer ponto dele) para continuar.", detalhe: "Serviços contratados sem projeto aparecem como “Contratado · ainda não iniciado”: clique no cartão para abrir o primeiro projeto. O projeto de Saneamento de estoques abre direto na ferramenta, com os dados do projeto em Dados do projeto, no alto dela." },
       { acao: "Para ver os encerrados, abra Projetos concluídos ou cancelados e clique no cartão do projeto." },
       { acao: "Para abrir mais um trabalho para o mesmo cliente, clique em Novo projeto e siga os passos do POP-CON-01 a partir do Tipo de trabalho." },
       { acao: "Em cliente pessoa jurídica, Ficha completa leva à ficha do cliente em Clientes." },

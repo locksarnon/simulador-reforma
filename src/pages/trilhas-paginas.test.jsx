@@ -70,3 +70,16 @@ describe("trilha de navegação da Consultoria", () => {
     expect(t[6][1]).toBeNull();
   });
 });
+
+describe("projeto de Saneamento abre direto na ferramenta (sem a página do projeto)", () => {
+  it("o cartão do projeto na página do cliente leva direto ao Saneamento", () => {
+    const html = renderizar("/consultoria/carteira/PJ/e1", "/consultoria/carteira/:tipoCliente/:clienteId", <ConsultoriaPagina carteira />);
+    expect(html).toContain('href="/diagnostico/projetos/p9/saneamento"');
+    expect(html).not.toContain('href="/diagnostico/projetos/p9"');
+  });
+
+  it("os dados do projeto (situação, data-base, documentos, exclusão) ficam no cabeçalho do Saneamento", () => {
+    const html = renderizar("/diagnostico/projetos/p9/saneamento?fase=1&aba=casos", "/diagnostico/projetos/:id/saneamento", <SaneamentoEstoquesPagina />);
+    expect(html).toContain("Dados do projeto");
+  });
+});

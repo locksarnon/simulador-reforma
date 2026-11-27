@@ -208,7 +208,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "O que o botão Analisar com IA faz e o que ele envia?",
-      r: "Em qualquer projeto de serviço de consultoria, monta um rascunho de parecer no roteiro do serviço, com o contexto do projeto (serviço, período ou data-base, regime, setor, UF, porte, CNAE, situação dos documentos e achados) e os trechos da base legal do InTAX. Não envia nome, CNPJ, CPF, e-mail nem endereço do cliente e não muda o projeto: só o último rascunho fica guardado, e o consultor copia, revisa, confere as fontes e assume o texto. O rascunho rápido fica pronto em até um minuto.",
+      r: "Nos projetos de consultoria que abrem pela página do projeto (todos, menos o Saneamento de estoques, que abre direto na ferramenta e tem a IA no parecer de cada caso), monta um rascunho de parecer no roteiro do serviço, com o contexto do projeto (serviço, período ou data-base, regime, setor, UF, porte, CNAE, situação dos documentos e achados) e os trechos da base legal do InTAX. Não envia nome, CNPJ, CPF, e-mail nem endereço do cliente e não muda o projeto: só o último rascunho fica guardado, e o consultor copia, revisa, confere as fontes e assume o texto. O rascunho rápido fica pronto em até um minuto.",
     },
     {
       p: "A IA sabe o que o ERP do cliente permite?",

@@ -27,6 +27,12 @@ export function rotaSaneamento(id, { fase, aba } = {}) {
 }
 export const rotaRoteiroSaneamento = (id) => `/diagnostico/projetos/${id}/saneamento/roteiro`;
 
+/**
+ * Onde o projeto abre quando se clica nele (cartão do cliente, lista de projetos, projeto recém-criado): o de Saneamento de estoques
+ * abre direto na ferramenta, sem parar na página do projeto (os dados do projeto ficam no cabeçalho dela); os demais, na página do projeto.
+ */
+export const rotaDeAbrirProjeto = (p) => (p?.servico_consultoria === "saneamento-estoques" ? rotaSaneamento(p.id) : rotaProjeto(p.id));
+
 /** O último item é a tela aberta: sem link. */
 export function finalizar(crumbs) {
   if (!crumbs.length) return crumbs;

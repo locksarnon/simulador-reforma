@@ -10,7 +10,7 @@ import NovoDiagnosticoDialog from "@/components/diagnostico/NovoDiagnosticoDialo
 import { useCarteiras } from "@/lib/useCarteiras";
 import { fmtDataCurta } from "@/lib/servicos";
 import { SITUACOES_PROJETO } from "@/lib/projetos";
-import { DIAGNOSTICOS, PROJETOS_CONSULTORIA, trilhaDaConsultoria } from "@/lib/trilhas";
+import { DIAGNOSTICOS, PROJETOS_CONSULTORIA, rotaDeAbrirProjeto, trilhaDaConsultoria } from "@/lib/trilhas";
 
 
 /** Diagnósticos > Projetos: cada trabalho pontual com o seu escopo; "Novo diagnóstico" é a ação principal. */
@@ -51,10 +51,10 @@ export default function DiagnosticosPagina({ consultoria = false }) {
               <label className="inline-flex h-8 items-center gap-1.5 text-xs"><input type="checkbox" checked={Boolean(filtro.exclusao)} onChange={(e) => setFiltro((f) => ({ ...f, exclusao: e.target.checked, situacao: e.target.checked ? "todos" : f.situacao }))} /> Exclusão pendente</label>
             </>}
             acoes={<Link to="/consultoria/carteira" className={botaoBarraCls}>Carteira de Consultoria</Link>}
-            aoClicarLinha={(p) => navigate(`/diagnostico/projetos/${p.id}`)}
+            aoClicarLinha={(p) => navigate(rotaDeAbrirProjeto(p))}
             vazio={consultoria ? "Nenhum projeto com esses filtros." : (projetos.data || []).length === 0 ? <>Nenhum diagnóstico ainda. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Criar o primeiro</button></> : "Nenhum diagnóstico com esses filtros."}
             colunas={[
-              { chave: "nome", rotulo: "Diagnóstico", render: (p) => <Link to={`/diagnostico/projetos/${p.id}`} onClick={(e) => e.stopPropagation()} className="font-medium hover:text-primary hover:underline">{p.nome}{p.exclusao_solicitada_em && <span className="block text-xs text-muted-foreground">Exclusão pendente</span>}</Link> },
+              { chave: "nome", rotulo: "Diagnóstico", render: (p) => <Link to={rotaDeAbrirProjeto(p)} onClick={(e) => e.stopPropagation()} className="font-medium hover:text-primary hover:underline">{p.nome}{p.exclusao_solicitada_em && <span className="block text-xs text-muted-foreground">Exclusão pendente</span>}</Link> },
               { chave: "empresas", rotulo: "Empresas", valor: (p) => p.empresa_ids.map((id) => nomeDe.get(id) || "empresa removida").join(", "),
                 render: (p) => <span className="text-xs">{p.pessoa_fisica_id ? "Pessoa física" : p.empresa_ids.slice(0, 3).map((id) => nomeDe.get(id) || "empresa removida").join(", ")}{p.empresa_ids.length > 3 ? ` e mais ${p.empresa_ids.length - 3}` : ""}</span> },
               { chave: "situacao", rotulo: "Situação", valor: (p) => SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao, render: (p) => <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${SITUACOES_PROJETO[p.situacao]?.tom || ""}`}>{SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao}</span> },
