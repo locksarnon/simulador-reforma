@@ -66,8 +66,8 @@ function FichaRapida({ empresa, porTipo, grupo, nomesDaEquipe, tags, aoFechar, a
               <SheetDescription>{[mascararDocumento(empresa.cnpj_cpf), empresa.regime_atual, [empresa.municipio, empresa.uf].filter(Boolean).join("/")].filter(Boolean).join(" · ") || "Sem dados cadastrais"}</SheetDescription>
             </SheetHeader>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => navigate(`/clientes/${empresa.id}`)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground">Abrir ficha completa <ArrowRight className="h-4 w-4" aria-hidden="true" /></button>
-              <button type="button" onClick={aoEditarDados} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar dados</button>
+              <button type="button" onClick={() => navigate(`/clientes/${empresa.id}`)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground">Abrir ficha completa <ArrowRight className="h-4 w-4" aria-hidden="true" /></button>
+              <button type="button" onClick={aoEditarDados} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted"><Pencil className="h-4 w-4" aria-hidden="true" /> Editar dados</button>
             </div>
             <section className="space-y-2">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Serviços contratados</h3>
@@ -205,8 +205,8 @@ export default function ClientesPagina() {
         title={`Clientes${empresas.length ? ` · ${empresas.length}` : ""}`}
         actions={(
           <div className="flex flex-wrap gap-2">
-            <Link to="/clientes/importacao" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><Upload className="h-4 w-4" aria-hidden="true" /> Planilha cadastral</Link>
-            <button type="button" onClick={() => setNovo(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo cliente</button>
+            <Link to="/clientes/importacao" className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted"><Upload className="h-4 w-4" aria-hidden="true" /> Planilha cadastral</Link>
+            <button type="button" onClick={() => setNovo(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo cliente</button>
           </div>
         )}
       />
@@ -228,8 +228,8 @@ export default function ClientesPagina() {
             <select className={campo} value={filtros.uf} onChange={(e) => mudar("uf", e.target.value)}><option value="">Todas</option>{ufs.map((u) => <option key={u}>{u}</option>)}</select></label>
           <label className="space-y-1"><span className="block text-xs text-muted-foreground">Colaborador</span>
             <select className={campo} value={filtros.colaborador} onChange={(e) => mudar("colaborador", e.target.value)}><option value="">Todos</option><option value="sem">Sem colaborador</option>{colaboradores.map((c) => <option key={c.id} value={c.id}>{c.name || c.email}</option>)}</select></label>
-          <button type="button" onClick={recarregar} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
-          <Link to="/clientes/importacao" className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted" title="Importar ou atualizar o cadastro por planilha"><Upload className="h-3.5 w-3.5" aria-hidden="true" /> Importar planilha</Link>
+          <button type="button" onClick={recarregar} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted" title="Buscar de novo"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Atualizar</button>
+          <Link to="/clientes/importacao" className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted" title="Importar ou atualizar o cadastro por planilha"><Upload className="h-3.5 w-3.5" aria-hidden="true" /> Importar planilha</Link>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <FiltroPorTags tags={tags} escolhidas={filtros.tags} modo={filtros.tagModo} aoMudar={(p) => setFiltros((f) => ({ ...f, ...p }))} />
@@ -239,12 +239,12 @@ export default function ClientesPagina() {
         {selecionadas.length > 0 && (
           <div role="status" className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm">
             <span className="font-medium">{plural(selecionadas.length, "marcado", "marcados")}</span>
-            <button type="button" onClick={() => setDialogo({ empresas: selecionadas, servico: null, tipoInicial: "BPO_FISCAL" })} className="rounded-md bg-primary px-3 py-1 text-primary-foreground">Ligar BPO fiscal</button>
-            {!vendoArquivados && <button type="button" onClick={() => setVinculando(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Vincular consultoria</button>}
-            <button type="button" onClick={() => setDialogoTags(selecionadas)} className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Etiquetar</button>
-            {ehAdmin && <Link to="/clientes/carteira" className="rounded-md border border-border bg-background px-3 py-1 hover:bg-muted">Definir colaborador</Link>}
+            <button type="button" onClick={() => setDialogo({ empresas: selecionadas, servico: null, tipoInicial: "BPO_FISCAL" })} className="botao-acao rounded-md bg-primary px-3 py-0.5 text-primary-foreground">Ligar BPO fiscal</button>
+            {!vendoArquivados && <button type="button" onClick={() => setVinculando(selecionadas)} className="botao-acao rounded-md bg-background px-3 py-[3px] hover:bg-muted">Vincular consultoria</button>}
+            <button type="button" onClick={() => setDialogoTags(selecionadas)} className="botao-acao rounded-md bg-background px-3 py-[3px] hover:bg-muted">Etiquetar</button>
+            {ehAdmin && <Link to="/clientes/carteira" className="botao-acao rounded-md bg-background px-3 py-[3px] hover:bg-muted">Definir colaborador</Link>}
             {pode("arquivar_clientes") && (
-              <button type="button" onClick={arquivarEmLote} disabled={!!excluindo} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-60">
+              <button type="button" onClick={arquivarEmLote} disabled={!!excluindo} className="botao-acao botao-acao-perigo inline-flex items-center gap-1.5 rounded-md bg-background px-3 py-[3px] text-destructive hover:bg-destructive/10 disabled:opacity-60">
                 {excluindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Archive className="h-3.5 w-3.5" aria-hidden="true" />}
                 {excluindo ? `${excluindo.feitas} de ${excluindo.total}…` : vendoArquivados ? "Desarquivar" : "Arquivar"}
               </button>

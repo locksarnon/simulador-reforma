@@ -83,7 +83,7 @@ function PedidoPeriodo({ empresaId, aoConcluir }) {
   return (
     <div className="rounded-md border border-border p-2 text-xs space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="inline-flex h-7 items-center rounded-md border border-border px-2 hover:bg-muted">Pedir vários anos</button>
+        <button type="button" onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="botao-acao inline-flex h-7 items-center rounded-md px-2 hover:bg-muted">Pedir vários anos</button>
         {a && (
           <span className="text-muted-foreground">
             {a.situacao === "ANDAMENTO" ? <><Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" aria-hidden="true" />Pedindo {a.de}–{a.ate}: {a.anos_feitos} de {a.anos} anos pesquisados</> : `Último pedido ${a.de}–${a.ate} concluído (${a.escrituracoes.length} escriturações)${a.erros.length ? `; com erro: ${a.erros.join(" · ")}` : ""}. Os arquivos chegam em "Pedidos à Receita".`}
@@ -104,7 +104,7 @@ function PedidoPeriodo({ empresaId, aoConcluir }) {
               <label key={id} className="inline-flex items-center gap-1"><input type="checkbox" checked={esc.has(id)} onChange={() => setEsc((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; })} />{rot}</label>
             ))}
           </fieldset>
-          <button type="submit" disabled={!esc.size || pedir.isPending || a?.situacao === "ANDAMENTO"} className="inline-flex h-7 items-center rounded-md bg-primary px-2 text-primary-foreground disabled:opacity-60">Pedir à Receita</button>
+          <button type="submit" disabled={!esc.size || pedir.isPending || a?.situacao === "ANDAMENTO"} className="botao-acao inline-flex h-7 items-center rounded-md bg-primary px-2 text-primary-foreground disabled:opacity-60">Pedir à Receita</button>
           <span className="text-muted-foreground">Sem custo de API. Arquivos já pedidos ou guardados não são pedidos de novo.</span>
         </form>
       )}

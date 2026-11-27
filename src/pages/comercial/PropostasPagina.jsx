@@ -42,7 +42,7 @@ export function AbaPropostas({ usuario, empresas }) {
       <div className="flex flex-wrap items-end gap-2 text-sm">
         <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">Buscar (cliente ou número)</span><input type="search" className={`${campo} w-full`} value={filtro.busca} onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))} /></label>
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">Situação</span><select className={campo} value={filtro.status} onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value }))}><option value="">Todas</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-        <button type="button" onClick={() => setEditor({ proposta: null })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova proposta</button>
+        <button type="button" onClick={() => setEditor({ proposta: null })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova proposta</button>
       </div>
       {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
       {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar as propostas.</p>}
@@ -100,7 +100,7 @@ export function AbaModelos({ ehAdmin }) {
   return (
     <div className="max-w-3xl space-y-3">
       {!ehAdmin && <p className="text-sm text-muted-foreground">Só administradores mudam modelos.</p>}
-      {ehAdmin && !f && <button type="button" onClick={() => setF(vazio)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo modelo</button>}
+      {ehAdmin && !f && <button type="button" onClick={() => setF(vazio)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo modelo</button>}
       {f && (
         <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(); }} className="space-y-2 rounded-xl border border-border bg-card p-3 text-sm">
           <div className="grid gap-2 md:grid-cols-2">
@@ -110,7 +110,7 @@ export function AbaModelos({ ehAdmin }) {
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Escopo</span><textarea className={`${campo} w-full min-h-[80px]`} value={f.escopo || ""} onChange={(e) => setF({ ...f, escopo: e.target.value })} /></label>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Condições</span><textarea className={`${campo} w-full min-h-[56px]`} value={f.condicoes || ""} onChange={(e) => setF({ ...f, condicoes: e.target.value })} /></label>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Item principal (descrição)</span><input className={`${campo} w-full`} value={f.itens[0]?.descricao || ""} onChange={(e) => setF({ ...f, itens: [{ ...f.itens[0], descricao: e.target.value }, ...f.itens.slice(1)] })} /></label>
-          <div className="flex gap-2"><button type="submit" disabled={salvar.isPending} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground">Salvar</button><button type="button" onClick={() => setF(null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button></div>
+          <div className="flex gap-2"><button type="submit" disabled={salvar.isPending} className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground">Salvar</button><button type="button" onClick={() => setF(null)} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button></div>
         </form>
       )}
       <TabelaPadrao
@@ -155,7 +155,7 @@ export function AbaTabela({ ehAdmin }) {
       </fieldset>
       <fieldset className="grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-5"><legend className="px-1 text-xs font-medium">Por módulo do BPO (R$/mês)</legend>{Object.entries(MODULOS_HONORARIO).map(([k, v]) => <CampoDaTabela atual={atual} mudar={mudar} ehAdmin={ehAdmin} key={k} rotulo={v} grupo="modulos" chave={k} passo={50} />)}</fieldset>
       <fieldset className="grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-3"><legend className="px-1 text-xs font-medium">Multiplicador pela complexidade</legend>{Object.entries(COMPLEXIDADES).map(([k, v]) => <CampoDaTabela atual={atual} mudar={mudar} ehAdmin={ehAdmin} key={k} rotulo={v} grupo="complexidade" chave={k} passo={0.05} />)}</fieldset>
-      {ehAdmin && <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">Salvar a tabela</button>}
+      {ehAdmin && <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending} className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">Salvar a tabela</button>}
     </div>
   );
 }

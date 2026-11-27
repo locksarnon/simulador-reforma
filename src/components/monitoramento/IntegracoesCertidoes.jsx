@@ -45,7 +45,7 @@ export default function IntegracoesCertidoes() {
         {i?.atualizado_em && <p className="text-xs text-muted-foreground">Último ajuste em {quando(i.atualizado_em)}{i.atualizado_por ? ` por ${i.atualizado_por}` : ""}.</p>}
         <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (token.trim()) salvar.mutate(); }}>
           <input type="password" autoComplete="off" className={campo} value={token} onChange={(e) => setToken(e.target.value)} placeholder={i?.configurado ? "Colar um token novo para trocar" : "Token da Infosimples"} aria-label="Token da Infosimples" />
-          <button type="submit" disabled={!token.trim() || salvar.isPending} className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Guardar</button>
+          <button type="submit" disabled={!token.trim() || salvar.isPending} className="botao-acao inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Guardar</button>
           {i?.configurado && <button type="button" disabled={remover.isPending} onClick={() => { if (window.confirm("Remover o token da Infosimples?")) remover.mutate(); }} className={botao}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Remover</button>}
         </form>
       </div>
@@ -92,7 +92,7 @@ function CertificadoBx({ s, aoMudar }) {
       <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (arquivo && senha) enviar.mutate(); }}>
         <CampoArquivo compacto accept=".pfx,.p12,application/x-pkcs12" arquivo={arquivo} titulo="Arraste o certificado ou clique" className="max-w-[260px]" rotulo={`Certificado A1: ${s.rotulo}`} aoEscolher={([f]) => setArquivo(f ?? null)} />
         <input type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Senha do certificado" className="h-8 min-w-[160px] flex-1 rounded-md border border-input bg-background px-2 text-sm" aria-label={`Senha do certificado: ${s.rotulo}`} />
-        <button type="submit" disabled={!arquivo || !senha || enviar.isPending || s.configurando} className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{t ? "Trocar certificado" : "Enviar"}</button>
+        <button type="submit" disabled={!arquivo || !senha || enviar.isPending || s.configurando} className="botao-acao inline-flex h-8 items-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{t ? "Trocar certificado" : "Enviar"}</button>
       </form>
     </div>
   );

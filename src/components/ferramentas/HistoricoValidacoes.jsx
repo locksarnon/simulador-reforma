@@ -64,9 +64,9 @@ export default function HistoricoValidacoes({ onAbrir, abrindo, empresaId }) {
             chave: "acoes", rotulo: "Ações", valor: () => "", ordenavel: false, filtravel: false,
             render: (v) => (
               <span className="inline-flex items-center gap-1">
-                <button type="button" onClick={() => onAbrir(v)} disabled={abrindo === v.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border hover:bg-muted text-xs">{abrindo === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderOpen className="w-3 h-3" />} {v.status === "RASCUNHO" ? "Retomar" : "Abrir"}</button>
-                {v.status !== "RASCUNHO" && <button type="button" onClick={() => baixar(v)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border hover:bg-muted" title="Planilha corrigida" aria-label="Baixar a planilha corrigida"><Download className="w-3 h-3" /></button>}
-                {(user?.role === "admin" || user?.email === v.criado_por) && <button type="button" onClick={() => excluir(v)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border hover:bg-muted text-red-600" title="Excluir" aria-label="Excluir"><Trash2 className="w-3 h-3" /></button>}
+                <button type="button" onClick={() => onAbrir(v)} disabled={abrindo === v.id} className="botao-acao inline-flex items-center gap-1 px-2 py-px rounded-md hover:bg-muted text-xs">{abrindo === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderOpen className="w-3 h-3" />} {v.status === "RASCUNHO" ? "Retomar" : "Abrir"}</button>
+                {v.status !== "RASCUNHO" && <button type="button" onClick={() => baixar(v)} className="botao-acao inline-flex items-center gap-1 px-2 py-[3px] rounded-md hover:bg-muted" title="Planilha corrigida" aria-label="Baixar a planilha corrigida"><Download className="w-3 h-3" /></button>}
+                {(user?.role === "admin" || user?.email === v.criado_por) && <button type="button" onClick={() => excluir(v)} className="botao-acao botao-acao-perigo inline-flex items-center gap-1 px-2 py-[3px] rounded-md hover:bg-muted text-red-600" title="Excluir" aria-label="Excluir"><Trash2 className="w-3 h-3" /></button>}
               </span>
             ),
           },

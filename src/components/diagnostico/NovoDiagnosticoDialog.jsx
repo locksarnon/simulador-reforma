@@ -78,8 +78,8 @@ export default function NovoDiagnosticoDialog({ aberto, aoFechar, empresas, grup
           </div>}
           {erro && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{erro}</p>}
           <DialogFooter>
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={criar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{criar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Criar diagnóstico</button>
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={criar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{criar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Criar diagnóstico</button>
           </DialogFooter>
         </form>
       </DialogContent>

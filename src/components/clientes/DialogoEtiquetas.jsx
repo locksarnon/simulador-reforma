@@ -96,15 +96,15 @@ export default function DialogoEtiquetas({ empresas, tags, porEmpresa, aoFechar,
             <div className="flex gap-1" role="group" aria-label="Cor da nova etiqueta">
               {CORES_DAS_TAGS.map((c) => <button key={c} type="button" aria-pressed={nova.cor === c} aria-label={`Cor ${c}`} onClick={() => setNova((n) => ({ ...n, cor: c }))} className={`h-5 w-5 rounded-full border-2 ${nova.cor === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} />)}
             </div>
-            <button type="submit" disabled={!nova.nome.trim() || criar.isPending} className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 hover:bg-muted disabled:opacity-60">
+            <button type="submit" disabled={!nova.nome.trim() || criar.isPending} className="botao-acao inline-flex items-center gap-1 rounded-md bg-background px-2.5 py-[3px] hover:bg-muted disabled:opacity-60">
               {criar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />} Criar
             </button>
           </div>
         </form>
 
         <DialogFooter>
-          <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Cancelar</button>
-          <button type="button" disabled={semMudanca || salvar.isPending} onClick={() => salvar.mutate()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+          <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted">Cancelar</button>
+          <button type="button" disabled={semMudanca || salvar.isPending} onClick={() => salvar.mutate()} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 text-sm font-medium text-primary-foreground disabled:opacity-60">
             {salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar
           </button>
         </DialogFooter>

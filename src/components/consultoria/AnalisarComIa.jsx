@@ -39,7 +39,7 @@ function Copiar({ texto }) {
     try { await navigator.clipboard.writeText(texto); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch { /* sem permissão da área de transferência */ }
   };
   return (
-    <button type="button" onClick={copiar} className="inline-flex items-center gap-1.5 border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+    <button type="button" onClick={copiar} className="botao-acao inline-flex items-center gap-1.5 px-2 py-[3px] text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
       {copiado ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
       {copiado ? "Copiado" : "Copiar"}
     </button>

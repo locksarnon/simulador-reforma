@@ -122,7 +122,7 @@ export default function CartaoServico({ servico, ultima, base, desligado, aoCons
             {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />} Executar na Receita
           </button>
         ) : (
-          <button type="button" disabled={desligado || consultar.isPending || !!falta} onClick={() => consultar.mutate()} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "Monitoramento desligado" : falta ? motivo(falta) : undefined}>
+          <button type="button" disabled={desligado || consultar.isPending || !!falta} onClick={() => consultar.mutate()} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground disabled:opacity-60" title={desligado ? "Monitoramento desligado" : falta ? motivo(falta) : undefined}>
             {consultar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />} {mostrada ? "Consultar de novo" : "Consultar"}
           </button>
         )}

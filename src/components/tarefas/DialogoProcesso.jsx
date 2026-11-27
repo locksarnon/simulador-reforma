@@ -64,8 +64,8 @@ export default function DialogoProcesso({ processo, colaboradores, aoFechar }) {
           </div>
           <p className="text-[11px] text-muted-foreground">Vazio: vai para o colaborador da empresa.</p>
           <DialogFooter>
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={!f.nome.trim() || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={!f.nome.trim() || salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">
               {salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar
             </button>
           </DialogFooter>

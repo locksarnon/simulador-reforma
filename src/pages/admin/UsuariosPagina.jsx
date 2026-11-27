@@ -41,9 +41,9 @@ function SenhaProvisoria({ dados, aoFechar }) {
         </DialogHeader>
         <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
           <code className="flex-1 select-all text-base tracking-wide" aria-label="Senha provisória">{dados?.senha}</code>
-          <button type="button" onClick={() => copiarTexto(dados.senha, "Senha")} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm hover:bg-muted"><Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copiar</button>
+          <button type="button" onClick={() => copiarTexto(dados.senha, "Senha")} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-2.5 py-[3px] text-sm hover:bg-muted"><Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copiar</button>
         </div>
-        <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground">Já anotei</button></DialogFooter>
+        <DialogFooter><button type="button" onClick={aoFechar} className="botao-acao rounded-md bg-primary px-4 py-1 text-sm font-medium text-primary-foreground">Já anotei</button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -65,9 +65,9 @@ function LinkEnviado({ dados, aoFechar }) {
         </DialogHeader>
         <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
           <code className="min-w-0 flex-1 select-all break-all text-xs" aria-label="Link">{dados?.link}</code>
-          <button type="button" onClick={() => copiarTexto(dados.link, "Link")} className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm hover:bg-muted"><Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copiar link</button>
+          <button type="button" onClick={() => copiarTexto(dados.link, "Link")} className="botao-acao inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-[3px] text-sm hover:bg-muted"><Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copiar link</button>
         </div>
-        <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground">Fechar</button></DialogFooter>
+        <DialogFooter><button type="button" onClick={aoFechar} className="botao-acao rounded-md bg-primary px-4 py-1 text-sm font-medium text-primary-foreground">Fechar</button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -111,8 +111,8 @@ function DialogoUsuario({ alvo, aoFechar, aoSalvar }) {
             </fieldset>
           )}
           <DialogFooter>
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} {convite ? "Enviar convite" : novo ? "Criar conta" : "Salvar"}</button>
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} {convite ? "Enviar convite" : novo ? "Criar conta" : "Salvar"}</button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -186,7 +186,7 @@ export default function UsuariosPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Administração", to: "/area/admin" }, { label: "Usuários e acessos" }]}
         title="Usuários e acessos"
         subtitle="Quem usa o InTAX, com o nível e a situação de cada conta. Clique numa pessoa para definir o nível, as telas e as funções dela. Convide por e-mail, reenvie o convite ou mande o link para a pessoa criar uma senha nova. O histórico de entradas fica em Registro de acesso e IPs."
-        actions={<button type="button" onClick={() => setDialogo({ tipo: "novo" })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><UserPlus className="h-4 w-4" aria-hidden="true" /> Convidar pessoa</button>}
+        actions={<button type="button" onClick={() => setDialogo({ tipo: "novo" })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><UserPlus className="h-4 w-4" aria-hidden="true" /> Convidar pessoa</button>}
       />
       <div className="px-6 lg:px-8 py-6">
         {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}

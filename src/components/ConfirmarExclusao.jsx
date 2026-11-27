@@ -31,8 +31,8 @@ export default function ConfirmarExclusao({ aberto, titulo, rotuloConfirmar = "E
         </AlertDialogHeader>
         {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
         <AlertDialogFooter>
-          <button type="button" disabled={executando} onClick={onFechar} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">Cancelar</button>
-          <button type="button" disabled={executando} onClick={confirmar} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-destructive text-destructive-foreground text-sm font-medium disabled:opacity-50">
+          <button type="button" disabled={executando} onClick={onFechar} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted disabled:opacity-50">Cancelar</button>
+          <button type="button" disabled={executando} onClick={confirmar} className="botao-acao botao-acao-perigo inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-destructive text-destructive-foreground text-sm font-medium disabled:opacity-50">
             {executando && <Loader2 className="w-4 h-4 animate-spin" />} {rotuloConfirmar}
           </button>
         </AlertDialogFooter>

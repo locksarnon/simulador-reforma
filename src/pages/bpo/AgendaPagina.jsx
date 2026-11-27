@@ -36,7 +36,7 @@ function ListaDoDia({ dia, itens, aoAbrir, aoNovo }) {
     <div className="rounded-xl border border-border bg-card p-3 space-y-2">
       <div className="flex items-center gap-2">
         <h2 className="font-heading text-sm font-semibold">{fmtDia(dia)} · {DIAS_DA_SEMANA[(new Date(Date.parse(dia)).getUTCDay() + 6) % 7]}</h2>
-        <button type="button" onClick={() => aoNovo(dia)} className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" /> Evento neste dia</button>
+        <button type="button" onClick={() => aoNovo(dia)} className="botao-acao ml-auto inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" /> Evento neste dia</button>
       </div>
       {itens.length === 0 && <p className="py-3 text-center text-sm text-muted-foreground">Nada neste dia.</p>}
       <ul className="space-y-1.5">
@@ -93,12 +93,12 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
         </div>
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => setDia(andar(visao, dia, -1))} className="rounded-md border border-border p-1.5 hover:bg-muted" aria-label="Anterior"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>
-          <button type="button" onClick={() => setDia(hoje)} className="rounded-md border border-border px-3 py-1 hover:bg-muted">Hoje</button>
+          <button type="button" onClick={() => setDia(hoje)} className="botao-acao rounded-md px-3 py-[3px] hover:bg-muted">Hoje</button>
           <button type="button" onClick={() => setDia(andar(visao, dia, 1))} className="rounded-md border border-border p-1.5 hover:bg-muted" aria-label="Próximo"><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
         </div>
         <h2 className="font-heading text-base font-semibold capitalize" aria-live="polite">{tituloDaVisao(visao, dia)}</h2>
         <div className="ml-auto w-64"><SeletorDeEmpresa empresas={empresas} valor={empresa} aoMudar={setEmpresa} rotulo="Empresa" opcional={false} placeholder="Todas as empresas" /></div>
-        <button type="button" onClick={() => setDialogo({ evento: null, dia: visao === "mes" && dia.slice(0, 7) !== hoje.slice(0, 7) ? dia : hoje })} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo evento</button>
+        <button type="button" onClick={() => setDialogo({ evento: null, dia: visao === "mes" && dia.slice(0, 7) !== hoje.slice(0, 7) ? dia : hoje })} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo evento</button>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Camadas do calendário">
@@ -222,7 +222,7 @@ function AbaTipos({ ehAdmin }) {
         <form onSubmit={(e) => { e.preventDefault(); if (novo.nome.trim()) criar.mutate(); }} className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3 text-sm">
           <label className="space-y-1 flex-1 min-w-[160px]"><span className="block text-xs text-muted-foreground">Novo tipo de evento</span><input className={`${campo} w-full`} value={novo.nome} maxLength={40} onChange={(e) => setNovo((n) => ({ ...n, nome: e.target.value }))} placeholder="Ex.: Fechamento, Treinamento" /></label>
           <div className="flex gap-1" role="group" aria-label="Cor do novo tipo">{CORES_DAS_TAGS.map((c) => <button key={c} type="button" aria-pressed={novo.cor === c} aria-label={`Cor ${c}`} onClick={() => setNovo((n) => ({ ...n, cor: c }))} className={`h-6 w-6 rounded-full border-2 ${novo.cor === c ? "border-foreground" : "border-transparent"}`} style={{ backgroundColor: c }} />)}</div>
-          <button type="submit" disabled={!novo.nome.trim() || criar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Criar</button>
+          <button type="submit" disabled={!novo.nome.trim() || criar.isPending} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Criar</button>
         </form>
       ) : <p className="text-sm text-muted-foreground">Só administradores criam e mudam os tipos de evento.</p>}
       <TabelaPadrao

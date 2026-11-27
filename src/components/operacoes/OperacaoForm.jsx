@@ -255,7 +255,7 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
       <section>
         <h3 className="text-sm font-heading font-medium mb-3 flex items-center gap-1.5">
           Tributos atuais (%) <InfoTooltip pagina="operacao_form" chave="header_tributos_atuais" />
-          <button type="button" onClick={aplicarTabela} className="ml-auto text-xs font-normal px-2.5 py-1 rounded-md border border-border hover:bg-muted" title="Preenche PIS/Cofins pelo regime e o ICMS interestadual pelas UFs">
+          <button type="button" onClick={aplicarTabela} className="botao-acao ml-auto text-xs font-normal px-2.5 py-[3px] rounded-md hover:bg-muted" title="Preenche PIS/Cofins pelo regime e o ICMS interestadual pelas UFs">
             Preencher pela tabela da legislação
           </button>
         </h3>
@@ -407,10 +407,10 @@ export default function OperacaoForm({ initial, empresas, onSave, onCancel }) {
       </section>
 
       <div className="flex justify-end gap-2 pt-2 border-t border-border">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted">
+        <button type="button" onClick={onCancel} className="botao-acao px-4 py-[7px] text-sm rounded-md hover:bg-muted">
           Cancelar
         </button>
-        <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
+        <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
           Salvar operação
         </button>
       </div>

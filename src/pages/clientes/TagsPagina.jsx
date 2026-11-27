@@ -64,14 +64,14 @@ export function PainelDaEtiqueta({ tag, empresas, porEmpresa, ehAdmin, aoApagada
       <form onSubmit={(e) => { e.preventDefault(); if (mudouDados && nome.trim()) salvarDados.mutate(); }} className="flex flex-wrap items-end gap-3 text-sm">
         <label className="space-y-1 flex-1 min-w-[180px]"><span className="block text-xs text-muted-foreground">Nome</span><input className={`${campo} w-full`} value={nome} maxLength={40} onChange={(e) => setNome(e.target.value)} /></label>
         <div className="space-y-1"><span className="block text-xs text-muted-foreground">Cor</span><Cores valor={cor} aoMudar={setCor} rotulo="Cor da etiqueta" /></div>
-        <button type="submit" disabled={!mudouDados || !nome.trim() || salvarDados.isPending} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">Salvar</button>
-        {ehAdmin && <button type="button" onClick={confirmarApagar} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Apagar</button>}
+        <button type="submit" disabled={!mudouDados || !nome.trim() || salvarDados.isPending} className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">Salvar</button>
+        {ehAdmin && <button type="button" onClick={confirmarApagar} className="botao-acao botao-acao-perigo inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Apagar</button>}
       </form>
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-end gap-2 text-sm">
           <h2 className="font-heading text-sm font-semibold">Empresas com esta etiqueta</h2>
-          <button type="button" disabled={(entram === 0 && saem === 0) || salvarEmpresas.isPending} onClick={() => salvarEmpresas.mutate()} className="ml-auto inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+          <button type="button" disabled={(entram === 0 && saem === 0) || salvarEmpresas.isPending} onClick={() => salvarEmpresas.mutate()} className="botao-acao ml-auto inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">
             {salvarEmpresas.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar empresas
           </button>
         </div>
@@ -119,7 +119,7 @@ export default function TagsPagina() {
             <p className="text-xs font-medium">Nova etiqueta</p>
             <input className={`${campo} w-full`} value={nova.nome} maxLength={40} onChange={(e) => setNova((n) => ({ ...n, nome: e.target.value }))} placeholder="Nome da etiqueta" aria-label="Nome da nova etiqueta" />
             <Cores valor={nova.cor} aoMudar={(c) => setNova((n) => ({ ...n, cor: c }))} rotulo="Cor da nova etiqueta" />
-            <button type="submit" disabled={!nova.nome.trim() || criar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Criar etiqueta</button>
+            <button type="submit" disabled={!nova.nome.trim() || criar.isPending} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Criar etiqueta</button>
           </form>
           {carregando && <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
           {erro && <p role="alert" className="text-sm">Não foi possível carregar as etiquetas.</p>}

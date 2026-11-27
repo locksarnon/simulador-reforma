@@ -42,7 +42,7 @@ export function RegistroDeAcesso() {
           </select></label>
         <label className="space-y-1 flex-1 min-w-[180px]"><span className="block text-xs text-muted-foreground">E-mail</span>
           <input type="search" className={`${campo} w-full`} value={filtros.email} onChange={(e) => setFiltros((f) => ({ ...f, email: e.target.value }))} /></label>
-        <button type="button" onClick={() => refetch()} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">{isFetching ? "Atualizando…" : "Atualizar"}</button>
+        <button type="button" onClick={() => refetch()} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">{isFetching ? "Atualizando…" : "Atualizar"}</button>
       </div>
       {isLoading && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
       {error && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar o registro.</p>}
@@ -89,15 +89,15 @@ export function IpsPermitidos() {
           {data.desligada_pelo_servidor && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Desligada no servidor (IP_ALLOWLIST_OFF=1).</p>}
         </div>
         {data.ativo
-          ? <button type="button" onClick={() => restricao.mutate(false)} disabled={restricao.isPending} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-60">Desligar</button>
-          : <button type="button" onClick={ligar} disabled={restricao.isPending || data.ips.length === 0} className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60" title={data.ips.length === 0 ? "Adicione um endereço antes" : undefined}>Ligar a restrição</button>}
+          ? <button type="button" onClick={() => restricao.mutate(false)} disabled={restricao.isPending} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted disabled:opacity-60">Desligar</button>
+          : <button type="button" onClick={ligar} disabled={restricao.isPending || data.ips.length === 0} className="botao-acao rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground disabled:opacity-60" title={data.ips.length === 0 ? "Adicione um endereço antes" : undefined}>Ligar a restrição</button>}
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); adicionar.mutate(novo); }} className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3 text-sm">
         <label className="space-y-1"><span className="block text-xs text-muted-foreground">IP ou faixa (ex.: 200.10.20.0/24)</span><input className={`${campo} w-56`} value={novo.faixa} onChange={(e) => setNovo((n) => ({ ...n, faixa: e.target.value }))} required /></label>
         <label className="space-y-1 flex-1 min-w-[160px]"><span className="block text-xs text-muted-foreground">Descrição (opcional)</span><input className={`${campo} w-full`} value={novo.descricao} maxLength={120} onChange={(e) => setNovo((n) => ({ ...n, descricao: e.target.value }))} placeholder="Escritório, casa da Maria…" /></label>
-        {data.ip_atual && <button type="button" onClick={() => setNovo((n) => ({ ...n, faixa: data.ip_atual }))} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Usar o meu IP</button>}
-        <button type="submit" disabled={adicionar.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Adicionar</button>
+        {data.ip_atual && <button type="button" onClick={() => setNovo((n) => ({ ...n, faixa: data.ip_atual }))} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Usar o meu IP</button>}
+        <button type="submit" disabled={adicionar.isPending} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground disabled:opacity-60"><Plus className="h-4 w-4" aria-hidden="true" /> Adicionar</button>
       </form>
 
       <TabelaPadrao

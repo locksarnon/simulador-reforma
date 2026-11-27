@@ -99,7 +99,7 @@ export default function MonitoramentoPagina() {
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "BPO Fiscal", to: "/area/bpo" }, { label: "Monitoramento fiscal" }]}
         title="Monitoramento fiscal"
         actions={(
-          podeLote && <button type="button" disabled={desligado || rodando || !alvos.length} onClick={() => setPreparando(alvos)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+          podeLote && <button type="button" disabled={desligado || rodando || !alvos.length} onClick={() => setPreparando(alvos)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground disabled:opacity-60">
             {rodando ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {lote.feitas} de {lote.total || "…"}</> : <><RefreshCw className="h-4 w-4" aria-hidden="true" /> Preparar atualização</>}
           </button>
         )}

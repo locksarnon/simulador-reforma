@@ -59,4 +59,4 @@ export function TabelaItens({ itens, colunas, id = "saneamento-itens" }) {
   return <TabelaPadrao id={id} ariaLabel="Itens" colunas={cols} linhas={itens} chaveLinha={(i) => i.linha} tamanhoInicial={50} vazio="Nenhum item." />;
 }
 
-export const Botao = ({ className = "", ...p }) => <button type="button" {...p} className={`px-3 py-1.5 text-sm rounded-md border border-border hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:border-dashed ${className}`} />;
+export const Botao = ({ className = "", ...p }) => <button type="button" {...p} className={`botao-acao px-3 py-[5px] text-sm rounded-md hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed disabled:border-dashed ${className}`} />;

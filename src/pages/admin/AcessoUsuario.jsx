@@ -48,11 +48,11 @@ export function ConteudoAcesso({ dados, eu, salvando, aoSalvar, aoCancelar }) {
           {admin ? "Administrador: tudo liberado." : `${telasMarcadas} de ${todasTelas.length} telas · ${efetivas.funcoes.length} de ${todasFuncoes.length} funções`}
           {!admin && diferentes > 0 && <span className={marca}>{diferentes} diferente{diferentes > 1 ? "s" : ""} do sugerido</span>}
         </span>
-        <button type="button" disabled={admin || !diferentes} onClick={() => setExcecoes(vazias())} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50">
+        <button type="button" disabled={admin || !diferentes} onClick={() => setExcecoes(vazias())} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted disabled:opacity-50">
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Voltar ao sugerido
         </button>
-        {aoCancelar && <button type="button" onClick={aoCancelar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Voltar à lista</button>}
-        <button type="submit" disabled={salvando || !alterado} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+        {aoCancelar && <button type="button" onClick={aoCancelar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Voltar à lista</button>}
+        <button type="submit" disabled={salvando || !alterado} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">
           {salvando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar
         </button>
       </div>

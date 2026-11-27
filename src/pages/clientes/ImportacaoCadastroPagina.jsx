@@ -78,7 +78,7 @@ function AbaEmpresas({ empresas, arquivadas, grupos, podeImportar }) {
         <h2 className="font-heading text-sm font-semibold">Importar empresas de uma planilha</h2>
         <p className="text-muted-foreground">Excel (.xlsx) ou CSV no formato do modelo. Célula vazia não apaga o cadastro.</p>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => exportarLista({ titulo: "Modelo de importação de empresas", colunas: colunasExport, linhas: [{ ...EXEMPLO_MODELO, grupo: grupos[0]?.numero || "001" }], formato: "xlsx" })} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
+          <button type="button" onClick={() => exportarLista({ titulo: "Modelo de importação de empresas", colunas: colunasExport, linhas: [{ ...EXEMPLO_MODELO, grupo: grupos[0]?.numero || "001" }], formato: "xlsx" })} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
           {podeImportar ? <EscolherArquivo rotulo="Escolher a planilha" aoLer={(linhas) => { setFalhas([]); setAnalise(analisarImportacao(linhas, empresas, grupos, arquivadas)); }} /> : <p className="text-xs text-muted-foreground">Seu acesso não permite importar planilhas. Peça ao administrador.</p>}
         </div>
         {!analise && <Erros erros={falhas} />}
@@ -89,8 +89,8 @@ function AbaEmpresas({ empresas, arquivadas, grupos, podeImportar }) {
             {analise.novas.length > 0 && <ul className="max-h-32 overflow-y-auto text-xs">{analise.novas.map((n) => <li key={n.linha}>Nova: {n.dados.razao_social}{n.dados.grupo ? ` (grupo ${n.dados.grupo})` : ""}</li>)}</ul>}
             <Erros erros={analise.erros} />
             <div className="flex gap-2">
-              <button type="button" onClick={() => aplicar.mutate()} disabled={(!analise.novas.length && !analise.atualizar.length) || aplicar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{aplicar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Importar</button>
-              <button type="button" onClick={() => setAnalise(null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
+              <button type="button" onClick={() => aplicar.mutate()} disabled={(!analise.novas.length && !analise.atualizar.length) || aplicar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{aplicar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Importar</button>
+              <button type="button" onClick={() => setAnalise(null)} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
             </div>
           </div>
         )}
@@ -113,7 +113,7 @@ function AbaVinculos({ empresas, ehAdmin }) {
       <h2 className="font-heading text-sm font-semibold">Importar a carteira por colaborador</h2>
       <p className="text-muted-foreground">Colunas "CNPJ/CPF" e "E-mail do colaborador". Vínculos existentes não saem.</p>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => exportarLista({ titulo: "Modelo de vínculos", colunas: [{ chave: "doc", rotulo: "CNPJ/CPF" }, { chave: "email", rotulo: "E-mail do colaborador" }], linhas: [{ doc: empresas[0]?.cnpj_cpf || "00.000.000/0001-00", email: colaboradores[0]?.email || "colaborador@fal" }], formato: "xlsx" })} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
+        <button type="button" onClick={() => exportarLista({ titulo: "Modelo de vínculos", colunas: [{ chave: "doc", rotulo: "CNPJ/CPF" }, { chave: "email", rotulo: "E-mail do colaborador" }], linhas: [{ doc: empresas[0]?.cnpj_cpf || "00.000.000/0001-00", email: colaboradores[0]?.email || "colaborador@fal" }], formato: "xlsx" })} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Baixar o modelo</button>
         {ehAdmin ? <EscolherArquivo rotulo="Escolher a planilha" aoLer={(linhas) => setAnalise(analisarVinculos(linhas, empresas, colaboradores))} /> : <p className="text-xs text-muted-foreground">Só administradores importam.</p>}
       </div>
       {analise && (
@@ -121,8 +121,8 @@ function AbaVinculos({ empresas, ehAdmin }) {
           <ul className="text-xs">{analise.porColaborador.map((g) => <li key={g.user_id}>{g.nome}: {plural(g.empresa_ids.length, "empresa", "empresas")}</li>)}</ul>
           <Erros erros={analise.erros} />
           <div className="flex gap-2">
-            <button type="button" onClick={() => aplicar.mutate()} disabled={!analise.porColaborador.length || aplicar.isPending} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">Importar vínculos</button>
-            <button type="button" onClick={() => setAnalise(null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
+            <button type="button" onClick={() => aplicar.mutate()} disabled={!analise.porColaborador.length || aplicar.isPending} className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">Importar vínculos</button>
+            <button type="button" onClick={() => setAnalise(null)} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
           </div>
         </div>
       )}

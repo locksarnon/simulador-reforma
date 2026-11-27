@@ -165,7 +165,7 @@ export default function CustosPagina() {
   const colunasUsuario = [{ chave: "usuario", rotulo: "Usuário" }, ...colunasDeCusto(integracoes)];
   const aba = params.get("aba") || "mes";
   const mudarAba = (v) => setParams((p) => { const n = new URLSearchParams(p); n.set("aba", v); return n; }, { replace: true });
-  const botaoSalvar = <button type="button" disabled={salvar.isPending} onClick={() => salvar.mutate()} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Salvar preços e custos fixos</button>;
+  const botaoSalvar = <button type="button" disabled={salvar.isPending} onClick={() => salvar.mutate()} className="botao-acao inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Salvar preços e custos fixos</button>;
   const ciclo = d?.ciclo_serpro ? `${diaMes(d.ciclo_serpro.de)} a ${diaMes(new Date(d.ciclo_serpro.ate).getTime() - 86_400_000)}` : "";
 
   return (
@@ -231,7 +231,7 @@ export default function CustosPagina() {
                   </div>
                 ))}
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setFixos((x) => [...x, { rotulo: "", valor: 0 }])} className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" />Custo fixo</button>
+                  <button type="button" onClick={() => setFixos((x) => [...x, { rotulo: "", valor: 0 }])} className="botao-acao inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" />Custo fixo</button>
                   {botaoSalvar}
                 </div>
               </article>

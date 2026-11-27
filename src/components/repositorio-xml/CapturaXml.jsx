@@ -97,7 +97,7 @@ export default function CapturaXml({ empresaId }) {
           documentos={(t) => {
             const aguarda = t.liberado_em && new Date(t.liberado_em).getTime() > Date.now();
             return admin && t.ativo ? (
-              <button type="button" onClick={() => executar.mutate(t.tipo)} disabled={executar.isPending || t.em_execucao || aguarda} title={aguarda ? `Nova consulta a partir de ${fmtDataHora(t.liberado_em)}` : undefined} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border text-xs hover:bg-muted disabled:opacity-50">
+              <button type="button" onClick={() => executar.mutate(t.tipo)} disabled={executar.isPending || t.em_execucao || aguarda} title={aguarda ? `Nova consulta a partir de ${fmtDataHora(t.liberado_em)}` : undefined} className="botao-acao inline-flex items-center gap-1 px-2 py-px rounded-md text-xs hover:bg-muted disabled:opacity-50">
                 {executar.isPending || t.em_execucao ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />} Capturar agora
               </button>
             ) : null;

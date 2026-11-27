@@ -30,11 +30,11 @@ export function CalculadoraHonorarios({ aoUsar, regimeInicial }) {
         {Object.entries(MODULOS_HONORARIO).map(([k, v]) => <button key={k} type="button" aria-pressed={e.modulos.includes(k)} onClick={() => alternar(k)} className={`rounded-full border px-2.5 py-0.5 text-xs ${e.modulos.includes(k) ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}>{v}</button>)}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => calc.mutate()} disabled={calc.isPending} className="rounded-md border border-border bg-background px-3 py-1 text-xs hover:bg-muted">Calcular</button>
+        <button type="button" onClick={() => calc.mutate()} disabled={calc.isPending} className="botao-acao rounded-md bg-background px-3 py-[3px] text-xs hover:bg-muted">Calcular</button>
         {calc.data && (
           <>
             <span className="text-sm">Sugestão: <strong>{brl(calc.data.total)}</strong>/mês <span className="text-[11px] text-muted-foreground">({calc.data.parcelas.map((p) => `${p.descricao}: ${brl(p.valor)}`).join(" + ")}{calc.data.fator !== 1 ? ` × ${String(calc.data.fator).replace(".", ",")}` : ""})</span></span>
-            <button type="button" onClick={() => aoUsar(calc.data.total, e)} className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">Usar como honorário mensal</button>
+            <button type="button" onClick={() => aoUsar(calc.data.total, e)} className="botao-acao rounded-md bg-primary px-3 py-0.5 text-xs font-medium text-primary-foreground">Usar como honorário mensal</button>
           </>
         )}
       </div>
@@ -113,7 +113,7 @@ export default function EditorProposta({ proposta, empresas, aoFechar }) {
               </div>
             ))}
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={() => mudar("itens", [...f.itens, { descricao: "", quantidade: 1, valor_unitario: 0, recorrente: false }])} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" /> Item</button>
+              <button type="button" onClick={() => mudar("itens", [...f.itens, { descricao: "", quantidade: 1, valor_unitario: 0, recorrente: false }])} className="botao-acao inline-flex items-center gap-1 rounded-md px-2.5 py-[3px] text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" aria-hidden="true" /> Item</button>
               <span className="ml-auto text-sm">Honorário mensal: <strong>{brl(t.mensal)}</strong> · Valor único: <strong>{brl(t.unico)}</strong></span>
             </div>
           </div>
@@ -121,8 +121,8 @@ export default function EditorProposta({ proposta, empresas, aoFechar }) {
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Condições (pagamento, reajuste, prazo)</span><textarea className={`${campo} min-h-[64px]`} value={f.condicoes} maxLength={3000} onChange={(e) => mudar("condicoes", e.target.value)} /></label>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Observações</span><textarea className={`${campo} min-h-[48px]`} value={f.observacoes} maxLength={3000} onChange={(e) => mudar("observacoes", e.target.value)} /></label>
           <DialogFooter>
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={!f.cliente_nome.trim() || salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={!f.cliente_nome.trim() || salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -64,7 +64,7 @@ export default function TransicaoPage() {
           <TituloPagina icon={CalendarRange} ajuda={<InfoTooltip pagina="transicao" chave="header" />}>Transição 2026–2033</TituloPagina>
           <p className="text-sm text-muted-foreground">Cronograma paramétrico — fatores de extinção e alíquotas de referência</p>
         </div>
-        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
+        <button onClick={() => { setForm(empty); setEditing("new"); setOpen(true); }} className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
           <Plus className="w-4 h-4" /> Novo ano
         </button>
       </div>
@@ -151,8 +151,8 @@ export default function TransicaoPage() {
             <div><Label className="text-xs">Fonte <InfoTooltip pagina="transicao" chave="fonte" /></Label><Input value={form.fonte} onChange={(e) => set("fonte", e.target.value)} /></div>
             <div className="col-span-2"><Label className="text-xs">Observação <InfoTooltip pagina="transicao" chave="observacao" /></Label><Input value={form.observacao} onChange={(e) => set("observacao", e.target.value)} /></div>
             <div className="col-span-2 flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-              <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+              <button type="button" onClick={() => setOpen(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+              <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
             </div>
           </form>
         </DialogContent>

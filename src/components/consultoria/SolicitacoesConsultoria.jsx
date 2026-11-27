@@ -73,7 +73,7 @@ export default function SolicitacoesConsultoria({ servico, clientes = [], deInic
     {consulta.data && linhas.length > 0 ? <>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <p>{linhas.filter((l) => l.situacao === "VALIDADO").length} validados · {linhas.filter((l) => l.situacao === "RECEBIDO").length} recebidos · {faltam.length} pendências</p>
-        <button disabled={!faltam.length || consulta.isFetching || atualizar.isPending} onClick={emitir} className="rounded bg-primary px-3 py-2 text-primary-foreground disabled:opacity-50">Baixar lista de pendências</button>
+        <button disabled={!faltam.length || consulta.isFetching || atualizar.isPending} onClick={emitir} className="botao-acao rounded bg-primary px-3 py-1.5 text-primary-foreground disabled:opacity-50">Baixar lista de pendências</button>
       </div>
       <div className="space-y-1 text-sm"><p>Importar arquivo no acervo do cliente</p>
         <CampoArquivo rotulo="Importar arquivo no acervo do cliente" disabled={enviar.isPending} aoEscolher={([file]) => { if (file) enviar.mutate(file); }} />

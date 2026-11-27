@@ -61,8 +61,8 @@ export default function ConfiguracaoCaptura() {
             </div>
           )}
           <DialogFooter>
-            <button type="button" onClick={() => setAberto(false)} disabled={salvar.isPending} className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted">Cancelar</button>
-            <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending || !f || (f.ciencia && !c?.ciencia && !f.confirmo_ciencia)} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Salvar</button>
+            <button type="button" onClick={() => setAberto(false)} disabled={salvar.isPending} className="botao-acao h-9 rounded-md px-3 text-sm hover:bg-muted">Cancelar</button>
+            <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending || !f || (f.ciencia && !c?.ciencia && !f.confirmo_ciencia)} className="botao-acao inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Salvar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -40,8 +40,8 @@ export default function EnvioDocumentos({ empresaId, base: baseInformada, marcad
   return (
     <span className="inline-flex flex-wrap items-center gap-2 text-xs">
       <span className={`tabular-nums ${passou ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}`}>{marcados.length} marcado(s) · {tamanhoTexto(total)} de {tamanhoTexto(bytes)} por e-mail</span>
-      <button type="button" disabled={zip.isPending} onClick={() => zip.mutate()} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 hover:bg-muted disabled:opacity-60">{zip.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}Baixar (ZIP)</button>
-      <button type="button" disabled={passou || !pode("enviar_email")} title={!pode("enviar_email") ? motivo("enviar_email") : passou ? "Acima do limite do e-mail: desmarque alguns ou baixe em ZIP" : undefined} onClick={() => setAberto(true)} className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2 font-medium text-primary-foreground disabled:opacity-60"><Mail className="h-3.5 w-3.5" aria-hidden="true" />Enviar por e-mail</button>
+      <button type="button" disabled={zip.isPending} onClick={() => zip.mutate()} className="botao-acao inline-flex h-7 items-center gap-1 rounded-md px-2 hover:bg-muted disabled:opacity-60">{zip.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}Baixar (ZIP)</button>
+      <button type="button" disabled={passou || !pode("enviar_email")} title={!pode("enviar_email") ? motivo("enviar_email") : passou ? "Acima do limite do e-mail: desmarque alguns ou baixe em ZIP" : undefined} onClick={() => setAberto(true)} className="botao-acao inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2 font-medium text-primary-foreground disabled:opacity-60"><Mail className="h-3.5 w-3.5" aria-hidden="true" />Enviar por e-mail</button>
       <Dialog open={aberto} onOpenChange={(v) => !enviar.isPending && setAberto(v)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -57,8 +57,8 @@ export default function EnvioDocumentos({ empresaId, base: baseInformada, marcad
             </ul>
           </div>
           <DialogFooter>
-            <button type="button" onClick={() => setAberto(false)} disabled={enviar.isPending} className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted">Cancelar</button>
-            <button type="button" onClick={() => enviar.mutate()} disabled={enviar.isPending || !f.para.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Enviar</button>
+            <button type="button" onClick={() => setAberto(false)} disabled={enviar.isPending} className="botao-acao h-9 rounded-md px-3 text-sm hover:bg-muted">Cancelar</button>
+            <button type="button" onClick={() => enviar.mutate()} disabled={enviar.isPending || !f.para.trim()} className="botao-acao inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60">{enviar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Enviar</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

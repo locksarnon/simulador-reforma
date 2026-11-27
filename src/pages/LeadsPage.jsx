@@ -65,7 +65,7 @@ export default function LeadsPage() {
           <div>
             <TituloPagina icon={Users}>Leads</TituloPagina>
           </div>
-          <button onClick={exportar} disabled={filtrados.length === 0} className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"><Download className="w-4 h-4" /> Exportar CSV</button>
+          <button onClick={exportar} disabled={filtrados.length === 0} className="botao-acao inline-flex items-center gap-2 px-4 py-[7px] rounded-md text-sm hover:bg-muted disabled:opacity-50"><Download className="w-4 h-4" /> Exportar CSV</button>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

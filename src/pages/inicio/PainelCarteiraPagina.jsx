@@ -81,7 +81,7 @@ export default function PainelCarteiraPagina() {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, { label: "Painel da carteira" }]}
         title="Painel da carteira"
-        actions={<button type="button" onClick={() => refetch()} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" /> Atualizar</button>}
+        actions={<button type="button" onClick={() => refetch()} className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] text-sm hover:bg-muted"><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" /> Atualizar</button>}
       />
       <div className="px-6 lg:px-8 py-6 space-y-4">
         {isLoading && <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
@@ -148,7 +148,7 @@ export default function PainelCarteiraPagina() {
                 {user?.role === "admin" && r.saude.pendentes_de_cnpj > 0 && (
                   <div className="rounded-md bg-muted/40 p-3 text-sm space-y-2">
                     <p>{plural(r.saude.pendentes_de_cnpj, "empresa", "empresas")} com CNPJ não consultado.</p>
-                    <button type="button" onClick={completar} disabled={!!completando && completando.restantes > 0} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-60"><Wand2 className="h-4 w-4" aria-hidden="true" /> Completar pelo CNPJ</button>
+                    <button type="button" onClick={completar} disabled={!!completando && completando.restantes > 0} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground disabled:opacity-60"><Wand2 className="h-4 w-4" aria-hidden="true" /> Completar pelo CNPJ</button>
                     {completando && <p role="status" className="text-xs text-muted-foreground">{plural(completando.feitas, "atualizada", "atualizadas")}{completando.restantes > 0 ? `, faltam ${completando.restantes}…` : "."}{completando.falhas.length ? ` ${completando.falhas.length} sem resposta: ${completando.falhas.slice(0, 3).map((f) => f.razao_social).join(", ")}${completando.falhas.length > 3 ? "…" : ""}` : ""}</p>}
                   </div>
                 )}

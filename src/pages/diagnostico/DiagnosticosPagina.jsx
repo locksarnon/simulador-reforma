@@ -35,7 +35,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
       <PageHeader
         crumbs={[{ label: "Início", to: "/inicio" }, ...(consultoria ? [{ label: "Consultoria Tributária", to: "/area/diagnostico" }, { label: "Projetos" }] : [{ label: "Diagnósticos" }])]}
         title={consultoria ? "Projetos de Consultoria" : "Diagnósticos"}
-        actions={consultoria ? <Link to="/consultoria/carteira" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground">Abrir Carteira de Consultoria</Link> : <button type="button" onClick={() => setNovo(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
+        actions={consultoria ? <Link to="/consultoria/carteira" className="botao-acao rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground">Abrir Carteira de Consultoria</Link> : <button type="button" onClick={() => setNovo(true)} className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Novo diagnóstico</button>}
       />
       <div className="px-6 lg:px-8 py-5 space-y-3">
         <div className="flex flex-wrap items-end gap-2 text-sm">
@@ -46,7 +46,7 @@ export default function DiagnosticosPagina({ consultoria = false }) {
               {Object.entries(SITUACOES_PROJETO).map(([k, s]) => <option key={k} value={k}>{s.rotulo}</option>)}
             </select></label>
           <label className="inline-flex items-center gap-2"><input type="checkbox" checked={Boolean(filtro.exclusao)} onChange={(e) => setFiltro((f) => ({ ...f, exclusao: e.target.checked, situacao: e.target.checked ? "todos" : f.situacao }))} /> Exclusão pendente</label>
-          <Link to="/consultoria/carteira" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Carteira de Consultoria</Link>
+          <Link to="/consultoria/carteira" className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Carteira de Consultoria</Link>
         </div>
         {(projetos.isLoading || carregandoCadastro) ? <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <TabelaPadrao

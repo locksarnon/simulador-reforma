@@ -47,7 +47,7 @@ function FonteEmRevisao({ m, admin, onConferido }) {
       </ul>
       <p className="text-xs">{critica ? "Enquanto não for conferida, esta data não gera lembrete por e-mail. " : ""}Confirme a data no texto oficial antes de agir.</p>
       {admin && (
-        <button type="button" onClick={conferir} disabled={ocupado} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-xs disabled:opacity-50">
+        <button type="button" onClick={conferir} disabled={ocupado} className="botao-acao inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-primary text-primary-foreground text-xs disabled:opacity-50">
           {ocupado ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />} Marcar como conferido
         </button>
       )}

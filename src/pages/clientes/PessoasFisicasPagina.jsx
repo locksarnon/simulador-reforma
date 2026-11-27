@@ -53,7 +53,7 @@ export function DialogoPessoa({ pessoa, empresas, aoFechar, servicoInicial, aoSa
           </div>
           <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Observação</span><textarea className={`${campo} min-h-[56px]`} value={f.observacao} maxLength={2000} onChange={(e) => mudar("observacao", e.target.value)} /></label>
           <ServicosConsultoria publico="PF" selecao={consultoria} mudar={setConsultoria} clienteId={pessoa?.id} />
-          <DialogFooter><button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button><button type="submit" disabled={salvar.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button></DialogFooter>
+          <DialogFooter><button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button><button type="submit" disabled={salvar.isPending} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvar.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -80,7 +80,7 @@ export default function PessoasFisicasPagina() {
         {!isLoading && !error && (
           <TabelaPadrao
             id="pessoas-fisicas" ariaLabel="Pessoas físicas" titulo="Pessoas físicas" linhas={data} vazio="Nenhuma pessoa física ainda."
-            acoes={<button type="button" onClick={() => setDialogo({ pessoa: null })} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova pessoa física</button>}
+            acoes={<button type="button" onClick={() => setDialogo({ pessoa: null })} className="botao-acao inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Nova pessoa física</button>}
             colunas={[
               { chave: "nome", rotulo: "Nome", render: (p) => <span className="font-medium">{p.nome}</span> },
               { chave: "cpf", rotulo: "CPF", render: (p) => <span className="tabular-nums">{p.cpf}</span> },

@@ -115,7 +115,7 @@ export default function CertificadoXml({ empresaId }) {
       )}
 
       <Bloco titulo="Certificado digital A1 do cliente" acao={admin && data?.cofre_configurado && (
-        <button type="button" onClick={abrirEnvio} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium"><KeyRound className="w-4 h-4" /> {ativo ? "Substituir certificado" : "Enviar certificado A1"}</button>
+        <button type="button" onClick={abrirEnvio} className="botao-acao inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm font-medium"><KeyRound className="w-4 h-4" /> {ativo ? "Substituir certificado" : "Enviar certificado A1"}</button>
       )}>
         {!cert ? (
           <p className="text-sm text-muted-foreground">Nenhum certificado guardado para {data?.empresa?.razao_social || "esta empresa"}. O certificado A1 (arquivo .pfx ou .p12) do próprio cliente permite capturar sozinho os XML das notas em que ele é destinatário.</p>
@@ -131,7 +131,7 @@ export default function CertificadoXml({ empresaId }) {
               {cert.revogado_em && <div className="flex gap-2"><dt className="text-muted-foreground">Removido</dt><dd>{cert.revogado_por} em {fmtDataHora(cert.revogado_em)}</dd></div>}
             </dl>
             {admin && cert.situacao !== "REVOGADO" && (
-              <button type="button" onClick={confirmarRemocao} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /> Remover do cofre</button>
+              <button type="button" onClick={confirmarRemocao} className="botao-acao botao-acao-perigo inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /> Remover do cofre</button>
             )}
           </div>
         )}
@@ -144,7 +144,7 @@ export default function CertificadoXml({ empresaId }) {
           <DialogHeader><DialogTitle>PIN do cofre</DialogTitle><DialogDescription>Para remover o certificado, digite o PIN do cofre.</DialogDescription></DialogHeader>
           <form className="space-y-3 text-sm" onSubmit={(e) => { e.preventDefault(); remover.mutate(); }}>
             <input type="password" inputMode="numeric" autoComplete="off" autoFocus aria-label="PIN do cofre" className={campo} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} />
-            <DialogFooter><button type="button" onClick={() => setPedirPin(false)} className="px-3 py-1.5 rounded-md border border-border">Cancelar</button><button type="submit" disabled={pin.length < 4 || remover.isPending} className="px-4 py-1.5 rounded-md bg-destructive text-destructive-foreground disabled:opacity-60">Remover</button></DialogFooter>
+            <DialogFooter><button type="button" onClick={() => setPedirPin(false)} className="botao-acao px-3 py-[5px] rounded-md">Cancelar</button><button type="submit" disabled={pin.length < 4 || remover.isPending} className="px-4 py-1.5 rounded-md bg-destructive text-destructive-foreground disabled:opacity-60">Remover</button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -179,8 +179,8 @@ export default function CertificadoXml({ empresaId }) {
               <input type="password" inputMode="numeric" autoComplete="off" className={campo} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} /></label>}
             {erro && <p role="alert" className="text-destructive">{erro}</p>}
             <DialogFooter>
-              <button type="button" disabled={enviar.isPending} onClick={() => setEnvioAberto(false)} className="px-4 py-2 rounded-md border border-border hover:bg-muted disabled:opacity-50">Cancelar</button>
-              <button type="submit" disabled={enviar.isPending || !arquivo || !senha} className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50">
+              <button type="button" disabled={enviar.isPending} onClick={() => setEnvioAberto(false)} className="botao-acao px-4 py-[7px] rounded-md hover:bg-muted disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={enviar.isPending || !arquivo || !senha} className="botao-acao inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50">
                 {enviar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />} Guardar no cofre
               </button>
             </DialogFooter>

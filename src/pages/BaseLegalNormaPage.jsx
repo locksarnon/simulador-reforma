@@ -189,8 +189,8 @@ export default function BaseLegalNormaPage() {
               {n.ementa && <p className="text-sm text-muted-foreground">{n.ementa}</p>}
               <CabecalhoDaNorma norma={n} total={est.itens.length} chave={chave} novidades={novidades} />
               <div className="flex gap-2 pt-1">
-                {est.itens[0] && <button onClick={() => navigate(`/base-legal/${chave}/${est.itens[0].caminho}`)} className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm">Começar a ler</button>}
-                <a href={n.url_oficial} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> Fonte oficial</a>
+                {est.itens[0] && <button onClick={() => navigate(`/base-legal/${chave}/${est.itens[0].caminho}`)} className="botao-acao px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm">Começar a ler</button>}
+                <a href={n.url_oficial} target="_blank" rel="noreferrer" className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> Fonte oficial</a>
               </div>
               <p className="text-sm text-muted-foreground pt-2">Escolha um artigo ou anexo no índice ao lado.</p>
             </div>
@@ -209,8 +209,8 @@ export default function BaseLegalNormaPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={copiar} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted"><ClipboardCopy className="w-3.5 h-3.5" /> Copiar com citação</button>
-                  <a href={n.url_oficial} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> Fonte oficial</a>
+                  <button onClick={copiar} className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted"><ClipboardCopy className="w-3.5 h-3.5" /> Copiar com citação</button>
+                  <a href={n.url_oficial} target="_blank" rel="noreferrer" className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> Fonte oficial</a>
                 </div>
               </header>
               <SituacaoDoDispositivo disp={disp} chave={chave} />

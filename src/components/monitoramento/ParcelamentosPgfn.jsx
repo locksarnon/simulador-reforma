@@ -45,8 +45,8 @@ function Formulario({ aberto, inicial, aoFechar, aoSalvar, salvando }) {
           <label className="flex items-center gap-2 sm:col-span-2"><input type="checkbox" checked={f.debito_automatico} onChange={(e) => mudar("debito_automatico", e.target.checked)} /> Débito automático ligado</label>
           <label className="space-y-1 sm:col-span-2"><span className="block text-xs text-muted-foreground">Observação</span><textarea className={`${campo} min-h-[60px]`} value={f.observacao} onChange={(e) => mudar("observacao", e.target.value)} /></label>
           <DialogFooter className="sm:col-span-2">
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={salvando} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">{salvando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={salvando} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">{salvando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar</button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -77,9 +77,9 @@ export default function ParcelamentosPgfn({ empresaId }) {
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">Parcelamentos na Receita Federal, PGFN, estado e município</h3>
         </div>
-        <a href={ECAC} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted">Abrir o e-CAC <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a>
-        <a href={REGULARIZE} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted">Abrir o Regularize <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a>
-        <button type="button" onClick={() => abrir(null)} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground"><Plus className="h-3.5 w-3.5" aria-hidden="true" /> Registrar</button>
+        <a href={ECAC} target="_blank" rel="noreferrer" className="botao-acao inline-flex items-center gap-1 rounded-md px-2.5 py-[5px] text-xs hover:bg-muted">Abrir o e-CAC <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a>
+        <a href={REGULARIZE} target="_blank" rel="noreferrer" className="botao-acao inline-flex items-center gap-1 rounded-md px-2.5 py-[5px] text-xs hover:bg-muted">Abrir o Regularize <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></a>
+        <button type="button" onClick={() => abrir(null)} className="botao-acao inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"><Plus className="h-3.5 w-3.5" aria-hidden="true" /> Registrar</button>
       </div>
       {lista.isLoading ? <p className="text-xs text-muted-foreground">Carregando…</p> : (lista.data || []).length === 0 ? <p className="text-xs text-muted-foreground">Nenhum parcelamento registrado.</p> : (
         <ul className="divide-y divide-border/60 text-sm">

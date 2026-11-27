@@ -110,7 +110,7 @@ export default function BaseLegalPage() {
                 <h2 className="text-sm font-semibold">Prefere conversar?</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">O botão <b>Assistente</b> do menu lateral (atalho Ctrl+/) abre a conversa em qualquer tela e guarda as últimas perguntas. A resposta vem só do texto das normas e cita o artigo; dispositivo revogado ou alterado há pouco vem sempre com o aviso.</p>
               </div>
-              <button type="button" onClick={() => abrirAssistente({ sugestoes: setor?.perguntas })} className="inline-flex items-center gap-2 bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">Abrir o assistente{setor ? ` (${setor.nome})` : ""}</button>
+              <button type="button" onClick={() => abrirAssistente({ sugestoes: setor?.perguntas })} className="botao-acao inline-flex items-center gap-2 bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90">Abrir o assistente{setor ? ` (${setor.nome})` : ""}</button>
             </section>
             {admin && <PerguntasRecentes />}
 
@@ -140,7 +140,7 @@ export default function BaseLegalPage() {
                         <span className="inline-flex items-center gap-2">
                           {n.formato !== "externo" && <Link to={"/base-legal/" + n.chave} className="text-primary underline">Ler texto integral</Link>}
                           <a href={n.url_oficial} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary underline"><ExternalLink className="w-3 h-3" />Fonte oficial</a>
-                          {admin && n.formato !== "externo" && <button type="button" disabled={atualizando === n.chave} onClick={() => atualizar(n.chave)} className="inline-flex gap-1 items-center border border-border rounded px-2 py-0.5 disabled:opacity-50">{atualizando === n.chave ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}Atualizar</button>}
+                          {admin && n.formato !== "externo" && <button type="button" disabled={atualizando === n.chave} onClick={() => atualizar(n.chave)} className="botao-acao inline-flex gap-1 items-center rounded px-2 py-px disabled:opacity-50">{atualizando === n.chave ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}Atualizar</button>}
                         </span>
                       ),
                     },

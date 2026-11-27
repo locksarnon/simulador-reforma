@@ -27,7 +27,7 @@ export function ResultadosDaBusca({ busca, termo, carregando = false }) {
       {carregando && !busca && <p className="inline-flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Buscando em todas as normas…</p>}
       {exatos.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {exatos.map((e) => <Link key={e.norma.chave + e.caminho} to={`/base-legal/${e.norma.chave}/${e.caminho}`} className="rounded-md border border-primary px-3 py-1.5 text-sm text-primary hover:bg-primary/5">{e.norma.numero} — {e.rotulo}<Etiquetas achado={{ revogado: e.revogado, norma_situacao: e.norma.situacao }} /></Link>)}
+          {exatos.map((e) => <Link key={e.norma.chave + e.caminho} to={`/base-legal/${e.norma.chave}/${e.caminho}`} className="botao-acao rounded-md px-3 py-[5px] text-sm text-primary hover:bg-primary/5">{e.norma.numero} — {e.rotulo}<Etiquetas achado={{ revogado: e.revogado, norma_situacao: e.norma.situacao }} /></Link>)}
         </div>
       )}
       {busca && lista.length === 0 && exatos.length === 0 && <p className="text-sm text-muted-foreground">Nada encontrado nas normas carregadas para “{termo}”. Tente outras palavras ou o número do artigo.</p>}
@@ -147,7 +147,7 @@ export default function ConsultaBasesLegais({ inicial = "", normas = [], emailPa
         <div className="space-y-5" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm">Resultados para <b>“{enviado.texto}”</b>{enviado.norma ? <> em <b>{consultaveis.find((n) => n.chave === enviado.norma)?.numero ?? enviado.norma}</b></> : " em todas as normas"}</p>
-            <button type="button" onClick={() => { setEnviado(null); setTexto(""); aoConsultar?.(""); }} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><X className="h-3 w-3" aria-hidden="true" />Limpar</button>
+            <button type="button" onClick={() => { setEnviado(null); setTexto(""); aoConsultar?.(""); }} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted"><X className="h-3 w-3" aria-hidden="true" />Limpar</button>
           </div>
           {item && <Troca item={item} aoRepetir={() => resposta.refetch()} emailPadrao={emailPadrao} />}
           {!ia.roda && MOTIVO_SEM_IA[ia.motivo] && <p className="text-xs text-muted-foreground">{MOTIVO_SEM_IA[ia.motivo]}</p>}

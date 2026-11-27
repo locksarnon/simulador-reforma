@@ -92,14 +92,14 @@ export default function AgendaReforma({ empresa = null, admin = false }) {
           <input type="checkbox" checked={passados} onChange={(e) => setPassados(e.target.checked)} /> Mostrar datas já passadas
         </label>
         <div className="flex flex-wrap gap-2 ml-auto">
-          <button type="button" onClick={baixar} disabled={ocupado === "ics"} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">
+          <button type="button" onClick={baixar} disabled={ocupado === "ics"} className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-50">
             {ocupado === "ics" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarPlus className="w-3.5 h-3.5" />} Baixar calendário (.ics)
           </button>
           <button type="button" aria-pressed={lembretes} onClick={() => setLembretes((v) => !v)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm ${lembretes ? "border-primary text-primary bg-primary/5" : "border-border hover:bg-muted"}`}>
             <Mail className="w-3.5 h-3.5" /> Lembretes por e-mail
           </button>
           {admin && (
-            <button type="button" onClick={carregarDatas} disabled={ocupado === "semear"} title="Grava as datas oficiais da lista da FAL, conferindo cada trecho contra a Base legal" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50">
+            <button type="button" onClick={carregarDatas} disabled={ocupado === "semear"} title="Grava as datas oficiais da lista da FAL, conferindo cada trecho contra a Base legal" className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-50">
               {ocupado === "semear" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Atualizar datas oficiais
             </button>
           )}

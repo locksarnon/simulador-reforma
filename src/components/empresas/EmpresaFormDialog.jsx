@@ -128,7 +128,7 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
                 onClick={buscarCnpj}
                 disabled={buscandoCnpj}
                 title="Consultar dados na Receita Federal (BrasilAPI)"
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"
+                className="botao-acao shrink-0 inline-flex items-center gap-1.5 px-3 rounded-md text-sm hover:bg-muted disabled:opacity-50"
               >
                 {buscandoCnpj ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                 Buscar
@@ -192,8 +192,8 @@ export default function EmpresaFormDialog({ open, onOpenChange, editing, grupoNu
           <div><Label className="text-xs">WhatsApp de contato <InfoTooltip text="Número com DDD. O envio por WhatsApp vai pelo agente de WhatsApp do escritório (Administração > Integrações)." /></Label><Input value={form.whatsapp_contato || ""} onChange={(e) => set("whatsapp_contato", e.target.value.replace(/[^\d+() -]/g, "").slice(0, 20))} placeholder="(66) 99999-0000" /></div>
           <div className="col-span-2"><Label className="text-xs">Observação <InfoTooltip pagina="empresas" chave="observacao" /></Label><Input value={form.observacao} onChange={(e) => set("observacao", e.target.value)} /></div>
           <div className="col-span-2 flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => onOpenChange(false)} className="px-4 py-2 text-sm rounded-md border border-border">Cancelar</button>
-            <button type="submit" className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
+            <button type="button" onClick={() => onOpenChange(false)} className="botao-acao px-4 py-[7px] text-sm rounded-md">Cancelar</button>
+            <button type="submit" className="botao-acao px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground">Salvar</button>
           </div>
         </form>
       </DialogContent>

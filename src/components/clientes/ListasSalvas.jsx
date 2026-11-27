@@ -25,8 +25,8 @@ function DialogoSalvar({ nomeInicial, aoSalvar, aoFechar, salvando }) {
             <input className={`${campo} w-full`} value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Agro do BPO sem responsável" autoFocus /></label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={compartilhar} onChange={(e) => setCompartilhar(e.target.checked)} /> Compartilhar com a equipe</label>
           <DialogFooter>
-            <button type="button" onClick={aoFechar} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Cancelar</button>
-            <button type="submit" disabled={!nome.trim() || salvando} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">
+            <button type="button" onClick={aoFechar} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Cancelar</button>
+            <button type="submit" disabled={!nome.trim() || salvando} className="botao-acao inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">
               {salvando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Salvar
             </button>
           </DialogFooter>
@@ -83,7 +83,7 @@ export default function ListasSalvas({ escopo = "empresas", criterios, aoAplicar
           {listas.map((l) => <option key={l.id} value={l.id}>{l.nome}{!l.meu ? ` · ${l.criado_por || "equipe"}` : l.compartilhado ? " · equipe" : ""}</option>)}
         </select></label>
       <button type="button" onClick={() => setAbrir(true)} disabled={criteriosVazios(criterios)} title={criteriosVazios(criterios) ? "Use algum filtro antes de salvar" : "Salvar os filtros atuais"}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50"><Bookmark className="h-3.5 w-3.5" aria-hidden="true" /> Salvar lista</button>
+        className="botao-acao inline-flex items-center gap-1.5 rounded-md px-3 py-[5px] hover:bg-muted disabled:opacity-50"><Bookmark className="h-3.5 w-3.5" aria-hidden="true" /> Salvar lista</button>
       {podeApagar && <button type="button" onClick={confirmarApagar} className="rounded-md p-2 text-destructive hover:bg-destructive/10" aria-label={`Apagar a lista ${atual.nome}`} title="Apagar a lista"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}
       {abrir && <DialogoSalvar nomeInicial={atual?.meu ? atual.nome : ""} salvando={salvar.isPending} aoSalvar={(d) => salvar.mutate(d)} aoFechar={() => setAbrir(false)} />}
     </div>

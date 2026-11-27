@@ -133,7 +133,7 @@ export default function RevisaoSemanalPainel({ admin = false }) {
           <p className="text-xs text-muted-foreground">Uma vez por semana o sistema relê o texto oficial de cada norma (guardando a redação anterior de tudo o que mudou), confere a lista oficial de leis, decretos e medidas provisórias novas, cruza o que os atos novos alteram com o texto compilado das normas, lê os portais da Receita, do CGIBS, da NF-e, da NFS-e, do eSocial, do Confaz e do CARF e faz uma pesquisa na web só em fontes oficiais. O que cita um dispositivo alterado volta para revisão; nada é republicado sozinho.</p>
         </div>
         {admin && (
-          <button type="button" onClick={rodar} disabled={iniciando || data?.estado?.em_andamento} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50">
+          <button type="button" onClick={rodar} disabled={iniciando || data?.estado?.em_andamento} className="botao-acao inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-1.5 text-sm font-medium disabled:opacity-50">
             {iniciando || data?.estado?.em_andamento ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}Rodar a revisão agora
           </button>
         )}

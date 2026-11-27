@@ -73,7 +73,7 @@ function IndicadorSalvo({ salvo, onSalvar }) {
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className={salvo.status === "erro" ? "text-red-600" : salvo.status === "salvo" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>{txt}</span>
-      <button type="button" onClick={onSalvar} className="px-2.5 py-1 rounded-md border border-border hover:bg-muted">Salvar agora</button>
+      <button type="button" onClick={onSalvar} className="botao-acao px-2.5 py-[3px] rounded-md hover:bg-muted">Salvar agora</button>
     </div>
   );
 }
@@ -132,7 +132,7 @@ function Funcao({ f, indice, estado, setEstado }) {
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${st.cor}`}>{st.rotulo}</span>
-          <a href={f.rota} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> Abrir a tela</a>
+          <a href={f.rota} target="_blank" rel="noreferrer" className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted"><ExternalLink className="w-3.5 h-3.5" /> Abrir a tela</a>
         </div>
       </header>
 
@@ -141,7 +141,7 @@ function Funcao({ f, indice, estado, setEstado }) {
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Antes de começar</h3>
             <ul className="list-disc pl-5 text-sm space-y-0.5">{f.preparo.map((x) => <li key={x}>{x}</li>)}</ul>
-            {f.csvTeste && <button onClick={copiarCsv} className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted"><ClipboardCopy className="w-3.5 h-3.5" /> Copiar CSV de teste</button>}
+            {f.csvTeste && <button onClick={copiarCsv} className="botao-acao mt-2 inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted"><ClipboardCopy className="w-3.5 h-3.5" /> Copiar CSV de teste</button>}
           </div>
         )}
 
@@ -294,8 +294,8 @@ export default function RoteiroTestesPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <IndicadorSalvo salvo={salvo} onSalvar={salvarAgora} />
-            <button onClick={copiarRelatorio} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm"><ClipboardCopy className="w-4 h-4" /> Copiar relatório</button>
-            <button onClick={limpar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted"><RotateCcw className="w-4 h-4" /> Recomeçar</button>
+            <button onClick={copiarRelatorio} className="botao-acao inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm"><ClipboardCopy className="w-4 h-4" /> Copiar relatório</button>
+            <button onClick={limpar} className="botao-acao inline-flex items-center gap-2 px-3 py-[7px] rounded-md text-sm hover:bg-muted"><RotateCcw className="w-4 h-4" /> Recomeçar</button>
           </div>
         </div>
 

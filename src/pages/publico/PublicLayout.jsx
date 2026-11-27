@@ -26,7 +26,7 @@ function Inscricao() {
     <form onSubmit={enviar} className="flex flex-col sm:flex-row gap-2 sm:items-center">
       <div className="flex items-center gap-2 text-sm font-medium"><Mail className="w-4 h-4" /> Radar semanal da reforma tributária</div>
       <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" className="h-9 rounded-md border border-input bg-background px-3 text-sm sm:w-64" />
-      <button className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm">Quero receber</button>
+      <button className="botao-acao h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm">Quero receber</button>
       {erro && <span className="text-xs text-destructive">{erro}</span>}
     </form>
   );

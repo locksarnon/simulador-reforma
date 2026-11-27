@@ -161,7 +161,7 @@ export default function FerramentasCreditoEstoque() {
                 Agrupe por tipo de compra. Valor = custo de aquisição pelas regras do IRPJ, separando o nacional do importado; em produto acabado e em elaboração entram só os custos de aquisição das matérias-primas e embalagens (Decreto 12.955, art. 609). Bens de terceiros ficam fora do inventário.
               </p>
             </div>
-            <button type="button" onClick={() => set("itens", [...estado.itens, novoItem()])} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
+            <button type="button" onClick={() => set("itens", [...estado.itens, novoItem()])} className="botao-acao inline-flex items-center gap-2 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90">
               <Plus className="w-4 h-4" /> Adicionar item
             </button>
           </div>
@@ -258,7 +258,7 @@ export default function FerramentasCreditoEstoque() {
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <h2 className="font-heading font-medium text-sm">Cronograma de uso do crédito</h2>
-              <button type="button" onClick={exportar} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted">
+              <button type="button" onClick={exportar} className="botao-acao inline-flex items-center gap-2 px-3 py-[5px] rounded-md text-sm hover:bg-muted">
                 <Download className="w-4 h-4" /> Baixar CSV
               </button>
             </div>

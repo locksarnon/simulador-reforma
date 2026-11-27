@@ -55,7 +55,7 @@ export default function VinculosReceitaPagina() {
   const colunas = [
     { chave: "marcar", rotulo: "Cadastrar", valor: (l) => (l.cliente ? "" : "sim"), render: (l) => (l.cliente ? null : <input type="checkbox" aria-label={`Cadastrar ${l.cnpj}`} checked={marcados.includes(l.cnpj)} onChange={() => setMarcados((m) => (m.includes(l.cnpj) ? m.filter((x) => x !== l.cnpj) : [...m, l.cnpj]))} />) },
     ...COLUNAS_VINCULOS,
-    { chave: "renunciar", rotulo: "Renúncia", valor: () => "", ordenavel: false, render: (l) => <button type="button" onClick={() => setRenunciar(l)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs hover:bg-muted"><LogOut className="h-3.5 w-3.5" aria-hidden="true" /> Renunciar</button> },
+    { chave: "renunciar", rotulo: "Renúncia", valor: () => "", ordenavel: false, render: (l) => <button type="button" onClick={() => setRenunciar(l)} className="botao-acao inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-muted"><LogOut className="h-3.5 w-3.5" aria-hidden="true" /> Renunciar</button> },
   ];
   return (
     <div>
@@ -72,9 +72,9 @@ export default function VinculosReceitaPagina() {
               <TabelaPadrao id="redesim:vinculos" colunas={colunas} linhas={vinculos.data.vinculos} chaveLinha={(l, i) => `${l.cnpj}-${i}`} ariaLabel="Vínculos do escritório na Receita" vazio="A Receita não aponta nenhum CNPJ com o escritório como contador."
                 acoes={(
                   <>
-                    {faltam.length > 0 && <button type="button" onClick={() => setMarcados(marcados.length === faltam.length ? [] : faltam.map((v) => v.cnpj))} className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs hover:bg-muted">{marcados.length === faltam.length ? "Desmarcar todos" : `Marcar os ${faltam.length} que não são clientes`}</button>}
-                    <button type="button" disabled={!marcados.length || importar.isPending || demo} onClick={() => importar.mutate(marcados)} className="inline-flex h-8 items-center gap-1 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground disabled:opacity-60">{importar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />} Cadastrar {marcados.length || ""} no BPO fiscal</button>
-                    <button type="button" onClick={() => vinculos.refetch()} className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Consultar de novo</button>
+                    {faltam.length > 0 && <button type="button" onClick={() => setMarcados(marcados.length === faltam.length ? [] : faltam.map((v) => v.cnpj))} className="botao-acao inline-flex h-8 items-center rounded-md px-2.5 text-xs hover:bg-muted">{marcados.length === faltam.length ? "Desmarcar todos" : `Marcar os ${faltam.length} que não são clientes`}</button>}
+                    <button type="button" disabled={!marcados.length || importar.isPending || demo} onClick={() => importar.mutate(marcados)} className="botao-acao inline-flex h-8 items-center gap-1 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground disabled:opacity-60">{importar.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />} Cadastrar {marcados.length || ""} no BPO fiscal</button>
+                    <button type="button" onClick={() => vinculos.refetch()} className="botao-acao inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs hover:bg-muted"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Consultar de novo</button>
                   </>
                 )} />
             )}
@@ -126,7 +126,7 @@ function DialogoRenuncia({ vinculo, aoFechar, aoEnviar }) {
           <div className="space-y-2 text-sm">
             <p>Solicitação enviada{pedido.demonstracao ? " (demonstração)" : ""}: <span className="font-medium tabular-nums">{pedido.idSolicitacao || "sem número"}</span></p>
             {pedido.idSolicitacao && (
-              <button type="button" disabled={situacao.isPending} onClick={() => situacao.mutate()} className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted disabled:opacity-60">
+              <button type="button" disabled={situacao.isPending} onClick={() => situacao.mutate()} className="botao-acao inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs hover:bg-muted disabled:opacity-60">
                 {situacao.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />} Consultar a situação
               </button>
             )}
@@ -146,7 +146,7 @@ function DialogoRenuncia({ vinculo, aoFechar, aoEnviar }) {
           </div>
         )}
         <DialogFooter>
-          <button type="button" onClick={aoFechar} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm hover:bg-muted">{pedido ? "Fechar" : "Cancelar"}</button>
+          <button type="button" onClick={aoFechar} className="botao-acao inline-flex h-9 items-center rounded-md px-3 text-sm hover:bg-muted">{pedido ? "Fechar" : "Cancelar"}</button>
           {!pedido && (
             <button type="button" disabled={!pronto || enviar.isPending} onClick={() => enviar.mutate()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-amber-600 px-3 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60">
               {enviar.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogOut className="h-4 w-4" aria-hidden="true" />} Enviar a renúncia

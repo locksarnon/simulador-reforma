@@ -63,7 +63,7 @@ export function AbaBloqueios() {
       <form onSubmit={(e) => { e.preventDefault(); add.mutate(); }} className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3 text-sm">
         <label className="space-y-1 flex-1 min-w-[200px]"><span className="block text-xs text-muted-foreground">E-mail</span><input type="email" required className={`${campo} w-full`} value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} /></label>
         <label className="space-y-1 flex-1 min-w-[160px]"><span className="block text-xs text-muted-foreground">Motivo (opcional)</span><input className={`${campo} w-full`} value={novo.motivo} maxLength={200} onChange={(e) => setNovo({ ...novo, motivo: e.target.value })} /></label>
-        <button type="submit" className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Bloquear</button>
+        <button type="submit" className="botao-acao inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground"><Plus className="h-4 w-4" aria-hidden="true" /> Bloquear</button>
       </form>
       <TabelaPadrao
         id="admin-bloqueios" ariaLabel="Lista de bloqueio" titulo="Lista de bloqueio" linhas={data} vazio="Ninguém na lista."
@@ -92,7 +92,7 @@ export function AbaAvisos() {
       <label className="flex items-center gap-2"><input type="checkbox" checked={atual.ativo} onChange={(e) => setC({ ...atual, ativo: e.target.checked })} /> Mandar cópia dos avisos por e-mail</label>
       <label className="block space-y-1"><span className="block text-xs text-muted-foreground">Destinatários (um por linha, até 20)</span><textarea className={`${campo} w-full min-h-[90px]`} value={(atual.destinatarios || []).join("\n")} onChange={(e) => setC({ ...atual, destinatarios: e.target.value.split(/\s*[\n,;]\s*/).filter(Boolean) })} /></label>
       <fieldset className="flex flex-wrap gap-3 rounded-xl border border-border bg-card p-3"><legend className="px-1 text-xs font-medium">Quais avisos</legend>{Object.entries(CATEGORIAS).filter(([k]) => k !== "TAREFA").map(([k, v]) => <label key={k} className="flex items-center gap-1.5"><input type="checkbox" checked={atual.categorias.includes(k)} onChange={() => alternar(k)} /> {v.rotulo}</label>)}</fieldset>
-      <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending} className="rounded-md bg-primary px-4 py-1.5 font-medium text-primary-foreground disabled:opacity-60">Salvar</button>
+      <button type="button" onClick={() => salvar.mutate()} disabled={salvar.isPending} className="botao-acao rounded-md bg-primary px-4 py-1 font-medium text-primary-foreground disabled:opacity-60">Salvar</button>
     </div>
   );
 }

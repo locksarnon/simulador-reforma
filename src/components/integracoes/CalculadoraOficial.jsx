@@ -84,13 +84,13 @@ export default function CalculadoraOficial() {
               ))}</tbody>
             </table>
           </div>
-          <button type="button" disabled={atualizar.isPending} onClick={() => atualizar.mutate(true)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Confirmar troca</button>
+          <button type="button" disabled={atualizar.isPending} onClick={() => atualizar.mutate(true)} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted">Confirmar troca</button>
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={github.isPending} onClick={() => github.mutate()} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">{github.isPending ? "Conferindo…" : "Conferir no GitHub"}</button>
+        <button type="button" disabled={github.isPending} onClick={() => github.mutate()} className="botao-acao rounded-md px-3 py-[5px] text-sm hover:bg-muted">{github.isPending ? "Conferindo…" : "Conferir no GitHub"}</button>
         {e?.versao_nova && !e?.atualizacao?.pedido && (
-          <button type="button" disabled={atualizar.isPending} onClick={() => atualizar.mutate(false)} className="rounded-md border border-primary px-3 py-1.5 text-sm text-primary hover:bg-primary/10">Aplicar versão nova</button>
+          <button type="button" disabled={atualizar.isPending} onClick={() => atualizar.mutate(false)} className="botao-acao rounded-md px-3 py-[5px] text-sm text-primary hover:bg-primary/10">Aplicar versão nova</button>
         )}
       </div>
       <p className="text-xs text-muted-foreground">Toda segunda às 06:40 o InTAX confere no <a className="underline" href={e?.fonte ?? "https://github.com/ReceitaFederal/calculadora-rtc-regime-regular"} target="_blank" rel="noreferrer">GitHub da Receita</a> se saiu versão nova. Ao aplicar, o servidor monta a versão nova, roda a mesma bateria nas duas e só troca sozinho se nada mudar; se mudar, mostra a lista e espera a sua confirmação. Código da Receita Federal sob licença MIT.</p>

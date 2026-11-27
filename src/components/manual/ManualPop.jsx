@@ -58,9 +58,9 @@ function CartaoPop({ pop, aberto, alternar }) {
           )}
           <div className="flex flex-wrap gap-2 print:hidden">
             {modulo?.to && !modulo.externo && (
-              <Link to={modulo.to} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Abrir a tela</Link>
+              <Link to={modulo.to} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />Abrir a tela</Link>
             )}
-            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><Printer className="h-3.5 w-3.5" aria-hidden="true" />Imprimir este POP</button>
+            <button type="button" onClick={() => window.print()} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted"><Printer className="h-3.5 w-3.5" aria-hidden="true" />Imprimir este POP</button>
           </div>
         </div>
       )}

@@ -46,10 +46,10 @@ function Alerta({ a, onFeito }) {
           <p className="text-[11px] text-muted-foreground mt-0.5">{a.origem === "radar" ? "Citada no Radar" : a.origem === "agendada" ? "Revisão semanal" : "Verificação"} · {new Date(a.createdAt).toLocaleDateString("pt-BR")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => agir("aprovar")} disabled={Boolean(ocupado) || (nova && (!urlOficial(url) || paginaDoPortal(url)))} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
+          <button type="button" onClick={() => agir("aprovar")} disabled={Boolean(ocupado) || (nova && (!urlOficial(url) || paginaDoPortal(url)))} className="botao-acao inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50">
             {ocupado === "aprovar" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} {nova ? "Incluir na base" : "Atualizar texto"}
           </button>
-          <button type="button" onClick={() => agir("descartar")} disabled={Boolean(ocupado)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-50"><X className="w-3.5 h-3.5" /> Descartar</button>
+          <button type="button" onClick={() => agir("descartar")} disabled={Boolean(ocupado)} className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-50"><X className="w-3.5 h-3.5" /> Descartar</button>
         </div>
       </div>
       {nova && (
@@ -90,7 +90,7 @@ export default function AlertasBaseLegal() {
     <section className={`rounded-xl border p-4 space-y-2 ${alertas.length ? "border-amber-500/50 bg-amber-50/60 dark:bg-amber-950/10" : "border-border bg-card"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium flex items-center gap-2"><BellRing className="w-4 h-4" /> Atualizações da Base legal {alertas.length > 0 && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{alertas.length}</span>}</h2>
-        <button type="button" onClick={verificar} disabled={verificando} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted disabled:opacity-60">
+        <button type="button" onClick={verificar} disabled={verificando} className="botao-acao inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md text-sm hover:bg-muted disabled:opacity-60">
           {verificando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Verificar agora
         </button>
       </div>

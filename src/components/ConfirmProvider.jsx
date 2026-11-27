@@ -40,8 +40,8 @@ export function ConfirmProvider({ children }) {
             <AlertDialogDescription asChild><div className="text-sm text-muted-foreground whitespace-pre-line">{pedido?.descricao}</div></AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <button type="button" onClick={() => responder(false)} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Cancelar</button>
-            <button type="button" onClick={() => responder(true)} className={`px-4 py-2 rounded-md text-sm font-medium ${pedido?.perigoso ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}>{pedido?.rotulo}</button>
+            <button type="button" onClick={() => responder(false)} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted">Cancelar</button>
+            <button type="button" onClick={() => responder(true)} className={`botao-acao px-4 py-1.5 rounded-md text-sm font-medium ${pedido?.perigoso ? "botao-acao-perigo bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}>{pedido?.rotulo}</button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

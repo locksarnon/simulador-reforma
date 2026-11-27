@@ -75,8 +75,8 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes })
             <p className="font-medium">Nenhuma empresa está na carteira de {TIPOS[tipo].toLowerCase()} ainda.</p>
             
             <div className="flex gap-2">
-              <Link to="/clientes/servicos-contratados" className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground">Definir a carteira</Link>
-              <button type="button" onClick={() => setTodas(true)} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">Ver todas as empresas</button>
+              <Link to="/clientes/servicos-contratados" className="botao-acao rounded-md bg-primary px-3 py-1 text-primary-foreground">Definir a carteira</Link>
+              <button type="button" onClick={() => setTodas(true)} className="botao-acao rounded-md px-3 py-[5px] hover:bg-muted">Ver todas as empresas</button>
             </div>
           </div>
         )}

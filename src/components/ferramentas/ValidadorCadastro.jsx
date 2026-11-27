@@ -363,10 +363,10 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
           <h3 className="font-heading font-semibold text-sm">Como preparar a planilha</h3>
           <p className="text-sm text-muted-foreground">Uma linha por produto. Colunas: <b className="text-foreground">Código, Descrição e NCM</b> (obrigatórias) e Unidade, Origem e cClassTrib (opcionais).</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={baixarModelo} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted">
+            <button type="button" onClick={baixarModelo} className="botao-acao inline-flex items-center gap-2 px-3 py-[7px] rounded-md text-sm hover:bg-muted">
               <Download className="w-4 h-4" /> Baixar planilha modelo
             </button>
-            <button type="button" onClick={copiarCab} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted">
+            <button type="button" onClick={copiarCab} className="botao-acao inline-flex items-center gap-2 px-3 py-[7px] rounded-md text-sm hover:bg-muted">
               {copiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiado ? "Cabeçalho copiado — cole no Excel" : "Copiar cabeçalho"}
             </button>
           </div>
@@ -426,9 +426,9 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         {erro && <p className="text-sm text-destructive">{erro}</p>}
         <div className="flex gap-2">
           {indicadorAutosave}
-          {resultado && <button type="button" onClick={() => setEtapa("resultado")} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Voltar ao resultado</button>}
-          <button type="button" onClick={reiniciar} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">Trocar arquivo</button>
-          <button type="button" disabled={!obrigatoriosOk || carregando} onClick={() => validar()} className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+          {resultado && <button type="button" onClick={() => setEtapa("resultado")} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted">Voltar ao resultado</button>}
+          <button type="button" onClick={reiniciar} className="botao-acao px-4 py-[7px] rounded-md text-sm hover:bg-muted">Trocar arquivo</button>
+          <button type="button" disabled={!obrigatoriosOk || carregando} onClick={() => validar()} className="botao-acao inline-flex items-center gap-2 px-5 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
             {carregando && <Loader2 className="w-4 h-4 animate-spin" />} {carregando ? (modoProjeto ? "Processando…" : "Validando…") : (modoProjeto ? "Processar base" : "Validar cadastro")}
           </button>
         </div>
@@ -508,9 +508,9 @@ export default function ValidadorCadastro({ modo = "interno", empresa, aoProcess
         <div className="flex flex-wrap items-center gap-2 justify-end">
           <div className="flex flex-wrap items-center gap-2">
             {indicadorAutosave}
-            {!publico && resultado.validacao_id && <button type="button" onClick={ajustar} disabled={carregando} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-primary text-primary text-sm hover:bg-primary/5 disabled:opacity-50">{carregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SlidersHorizontal className="w-4 h-4" />} Ajustar parâmetros e refazer</button>}
-            <button type="button" onClick={reiniciar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border text-sm hover:bg-muted"><RotateCcw className="w-4 h-4" /> Validar outro arquivo</button>
-            {!publico && <button type="button" onClick={exportar} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90"><Download className="w-4 h-4" /> Baixar planilha corrigida</button>}
+            {!publico && resultado.validacao_id && <button type="button" onClick={ajustar} disabled={carregando} className="botao-acao inline-flex items-center gap-2 px-3 py-[7px] rounded-md text-primary text-sm hover:bg-primary/5 disabled:opacity-50">{carregando ? <Loader2 className="w-4 h-4 animate-spin" /> : <SlidersHorizontal className="w-4 h-4" />} Ajustar parâmetros e refazer</button>}
+            <button type="button" onClick={reiniciar} className="botao-acao inline-flex items-center gap-2 px-3 py-[7px] rounded-md text-sm hover:bg-muted"><RotateCcw className="w-4 h-4" /> Validar outro arquivo</button>
+            {!publico && <button type="button" onClick={exportar} className="botao-acao inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90"><Download className="w-4 h-4" /> Baixar planilha corrigida</button>}
           </div>
         </div>
         {erro && <p className="text-sm text-destructive">{erro}</p>}
