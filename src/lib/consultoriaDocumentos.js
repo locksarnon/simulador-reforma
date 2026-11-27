@@ -85,3 +85,45 @@ export function arquivoSpedDaLinha(linha, sped, arquivos) {
   const candidatos = arquivos.filter((a) => ids.includes(a.id));
   return candidatos.length === 1 ? candidatos[0].id : null;
 }
+
+const RESOLVIDO = ["RECEBIDO", "VALIDADO", "NAO_APLICAVEL"];
+
+/** "cadastro.xlsx (20/11/2026, ana@fal): Código ← ItemCode, Saldo ← OnHand". */
+export function textoDaEvidencia(auto) {
+  if (!auto) return "";
+  const data = (iso) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  const arquivos = auto.evidencias.map((e) => `${e.arquivo} (${data(e.data)}, ${e.usuario})`).join("; ");
+  const colunas = auto.colunas.map((c) => `${c.rotulo} ← ${c.coluna}`).join(", ");
+  return `Importação no Saneamento: ${arquivos}. Colunas: ${colunas}.`;
+}
+
+/**
+ * Situação de cada linha: o controle manual, a EFD guardada ou a cobertura pela importação do Saneamento (`automaticos` do backend).
+ * A cobertura automática vale enquanto não houver controle manual gravado depois da última importação (`prevalece`).
+ * `grupo`: COBERTO (resolvida com evidência da importação), RESOLVIDO (resolvida à mão ou pela EFD) ou PENDENTE.
+ */
+export function situacaoDasLinhas(linhas, { arquivos = [], controles = [], sped = [], automaticos = [] } = {}) {
+  const porChave = new Map(controles.map((c) => [`${c.item}:${c.periodo}`, c]));
+  const autoPorChave = new Map(automaticos.map((a) => [`${a.item}:${a.periodo}`, a]));
+  return linhas.map((linha) => {
+    const chave = `${linha.item}:${linha.periodo}`;
+    const controle = porChave.get(chave);
+    const automatico = autoPorChave.get(chave) || null;
+    const recebido = arquivoSpedDaLinha(linha, sped, arquivos);
+    const vinculado = arquivos.some((a) => a.id === controle?.arquivo_id) ? controle.arquivo_id : null;
+    let situacao;
+    let origem = "MANUAL";
+    if (automatico && (automatico.prevalece || !controle)) { situacao = automatico.situacao; origem = "AUTOMATICO"; }
+    else if (controle) situacao = controle.arquivo_id && !vinculado ? "PENDENTE" : controle.situacao;
+    else situacao = recebido ? "RECEBIDO" : "PENDENTE";
+    const resolvida = RESOLVIDO.includes(situacao);
+    const grupo = !resolvida ? "PENDENTE" : automatico?.cobertura === "TOTAL" ? "COBERTO" : "RESOLVIDO";
+    return { ...linha, chave, situacao, origem, automatico, grupo, arquivo_id: (controle ? vinculado : recebido) ?? "" };
+  });
+}
+
+/** Texto da lista de pendências (só o que falta; o parcial diz quais campos ainda faltam). */
+export function textoDasPendencias(linhas) {
+  return linhas.filter((l) => l.grupo === "PENDENTE")
+    .map((l) => `- [${l.periodo}] ${l.linha}${l.automatico?.cobertura === "PARCIAL" ? ` (recebido em parte; faltam: ${l.automatico.faltam.join(", ")})` : ""}`).join("\n");
+}

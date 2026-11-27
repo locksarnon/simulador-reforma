@@ -234,5 +234,9 @@ export const SECAO_SANEAMENTO = {
       p: "Qual a diferença entre Analisar com IA e Aprofundar com pesquisa externa?",
       r: "Analisar com IA é o rascunho rápido: usa só o contexto do projeto e a base legal do InTAX, sem web, e leva até um minuto. Aprofundar com pesquisa externa também pesquisa na web (vigência, regulamentação, prazos) e leva até 3 minutos. Nos dois casos o pedido roda no servidor: você pode sair da página, e ao voltar o rascunho está em Último rascunho, com a data, o modo e o motor usados. Se passar do prazo, o pedido é encerrado e aparece Tentar de novo.",
     },
+    {
+      p: "Por que os documentos aparecem como recebidos sozinhos?",
+      r: "Porque a planilha importada no Saneamento já é a prova. Ao confirmar a importação, a janela Documentos e solicitações do projeto confere as colunas mapeadas: com código, descrição, unidade, NCM, grupo e situação (ativo/bloqueado), o Cadastro de itens do ERP fica Recebido; com saldo, o Saldo de estoque na data-base; com última movimentação, a Movimentação dos itens; com referência e fabricante, a Tabela de equivalência de códigos. A linha ganha a etiqueta “automático” e mostra o arquivo, a data, o usuário e as colunas usadas. Se faltou algum campo, a linha fica em Pendente com “Recebido em parte. Faltam: …”: importe outro arquivo com o que falta e a lista soma as importações. NF-e, Bloco H e K, política de cadastro e acesso ao ERP continuam no controle manual. Você pode mudar a situação à mão (a linha mostra “manual”); a próxima importação que cobrir o documento volta a valer, e a opção Automático volta na hora (POP-CON-04).",
+    },
   ],
 };
