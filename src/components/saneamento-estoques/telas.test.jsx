@@ -17,7 +17,7 @@ import Configuracao from "./Configuracao";
 import Impacto from "./Impacto";
 import Importacao, { AvisosDeSeparador, Reimportacao } from "./Importacao";
 import TabelaUnica from "./TabelaUnica";
-import Unificacoes from "./Unificacoes";
+import Unificacoes, { LISTAS_MAPA, textoDoConflito } from "./Unificacoes";
 import Versoes, { ContinuarVersao } from "./Versoes";
 import VisaoGeral from "./VisaoGeral";
 import SaneamentoEstoquesPagina from "@/pages/saneamento-estoques/SaneamentoEstoquesPagina";
@@ -516,8 +516,9 @@ describe("ajustes da revisão C nas telas", () => {
 });
 
 describe("Unificações", () => {
-  const FILTRO = { situacao: "", tipo: "", busca: "", pagina: 1 };
-  const resposta = (linhas, o = {}) => ({ linhas, pagina: 1, limite: 100, total: linhas.length, totalGeral: linhas.length, porSituacao: { PROPOSTA: 1, APROVADA: 1, AGUARDANDO: 0, REGISTRADA: 0 }, porTipo: { UNIFICACAO: 1, INATIVACAO: 1 }, comAlerta: 1, corteDefinido: true, ...o });
+  // Abre na lista de Unificações (o filtro de tipo é o da lista).
+  const FILTRO = { situacao: "", tipo: "UNIFICACAO,TROCA_CODIGO", busca: "", pagina: 1 };
+  const resposta = (linhas, o = {}) => ({ linhas, pagina: 1, limite: 100, total: linhas.length, totalGeral: linhas.length, porSituacao: { PROPOSTA: 1, APROVADA: 1, AGUARDANDO: 0, REGISTRADA: 0 }, porTipo: { UNIFICACAO: 1, INATIVACAO: 1 }, porLista: { UNIFICACOES: 1, INATIVACOES: 1, EQUIVALENCIAS: 0 }, comAlerta: 1, corteDefinido: true, conflitos: [], totalConflitos: 0, ...o });
   const unif = { tipo: "UNIFICACAO", situacao: "PROPOSTA", casoId: "c1", morre: { codigo: "000456", estab: "", descricao: "SEMENTE SOJA", unidade: "SC", saldo: 4 }, fica: { codigo: "00123", descricao: "SEMENTE SOJA 40KG", unidade: "KG", saldo: 1234.5 }, saldoEntra: null, saldoConsolidado: null, acao: "Converter o saldo de 000456 para a unidade de 00123 (KG), transferir para 00123 e inativar 000456", inicio: "2026-12-31T00:00:00.000Z", justificativa: "Mesmo produto.", alertas: ["Unidades diferentes (SC × KG): saldo não somável direto; converter antes de somar (sem fator de conversão aprovado)."], responsavel: "", decididoEm: null };
   const inat = { tipo: "INATIVACAO", situacao: "APROVADA", casoId: "c2", morre: { codigo: "0789", estab: "", descricao: "PEÇA TRATOR", unidade: "UN", saldo: 0 }, fica: null, saldoEntra: null, saldoConsolidado: null, acao: "Inativar 0789", inicio: "2026-12-31T00:00:00.000Z", justificativa: "Sem movimento.", alertas: [], responsavel: "ana@fal.test", decididoEm: "2026-11-20T12:00:00.000Z" };
   it("carregando, erro e vazio", () => {
@@ -525,11 +526,31 @@ describe("Unificações", () => {
     expect(texto(montar(<Unificacoes projeto={projeto()} />, (qc) => falhar(qc, chaves.unificacoes("p1", FILTRO))))).toContain("Não foi possível carregar as unificações");
     expect(texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([], { totalGeral: 0 }))))).toContain("Nenhuma unificação nem inativação ainda");
   });
-  it("mapa: código que morre, que fica, saldos, situação, ação no ERP, alerta, filtro e download", () => {
-    const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif, inat]))));
-    for (const x of ["Código que morre", "Código que fica", "Saldo consolidado", "Ação no ERP", "000456", "00123", "1.234,5", "Inativar 0789", "Proposta", "Aprovada", "converter antes de somar", "Baixar lista (Excel)", "Todas (2)", "Proposta (1)", "Unificação de códigos (1)", "1 linha(s) com alerta de coerência"]) expect(t, x).toContain(x);
+  it("três listas (Unificações, Inativações, Equivalências) com contagem; Unificações: código que sai, que fica, saldos, ação no ERP, alerta e download", () => {
+    const html = montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif])));
+    const t = texto(html);
+    for (const x of ["Unificações (1)", "Inativações (1)", "Equivalências (0)", "Código que sai", "Código que fica", "Saldo consolidado", "Ação no ERP", "000456", "00123", "1.234,5", "Proposta", "converter antes de somar", "Baixar listas (Excel)", "1 linha(s) com alerta de coerência"]) expect(t, x).toContain(x);
+    expect(html).toMatch(/role="tab" aria-selected="true"[^>]*>Unificações/);
     expect(t).not.toContain("c1");
+    expect(t).not.toContain("Código que morre");
     expect(t).not.toContain("corte de movimentação não está definido");
+    // Estabelecimento único: a coluna não aparece.
+    expect(t).not.toContain("Estabelecimento");
+  });
+  it("conflito unificação × inativação: o par em destaque, acima das listas", () => {
+    const conflitos = [{ sai: "000456", fica: "00123", situacaoUnificacao: "PROPOSTA", inativacao: { codigo: "00123", situacao: "APROVADA", origem: "QUALIDADE" } }, { sai: "77", fica: "70", situacaoUnificacao: "APROVADA", inativacao: { codigo: "70", situacao: "INATIVO_NA_BASE", origem: null } }];
+    const html = montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { conflitos, totalConflitos: 2 })));
+    const t = texto(html);
+    for (const x of ["2 conflitos entre unificação e inativação", "000456 → 00123 (unificação proposta) × inativação aprovada de 00123, sem movimentação", "77 → 70 (unificação aprovada) × 70 já está inativo no cadastro", "Rejeitar ou reabrir um dos dois casos"]) expect(t, x).toContain(x);
+    expect(html).toContain('role="alert"');
+    expect(t.indexOf("conflitos entre unificação")).toBeLessThan(t.indexOf("Unificações (1)"));
+    expect(textoDoConflito(conflitos[0])).toBe("000456 → 00123 (unificação proposta) × inativação aprovada de 00123, sem movimentação");
+  });
+  it("cada lista com as suas colunas: Inativações (origem, código, saldo) e Equivalências (códigos relacionados)", () => {
+    const [, inats, equivs] = LISTAS_MAPA;
+    expect(inats.colunas.map((c) => c.rotulo)).toEqual(["Origem", "Código", "Estabelecimento", "Descrição", "Unidade", "Saldo", "Situação", "Ação no ERP", "Início da vigência", "Alerta de coerência", "Justificativa"]);
+    expect(equivs.colunas.map((c) => c.rotulo)).toEqual(["Códigos relacionados", "Ação", "Situação", "Justificativa"]);
+    expect(LISTAS_MAPA.map((l) => l.tipos)).toEqual(["UNIFICACAO,TROCA_CODIGO", "INATIVACAO", "EQUIVALENCIA"]);
   });
   it("tabela densa: textos longos numa linha só, cortados com reticências e com o texto inteiro no título (sem células que quebram)", () => {
     const longa = "Conflito: o código que fica (00123) tem inativação aprovada (Qualidade, sem movimentação): a inativação também está neste mapa; reabrir ou rejeitar o caso de inativação antes de transferir o saldo.";
@@ -547,15 +568,15 @@ describe("Unificações", () => {
     const sem = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { escalaSaldo: 1 }))));
     expect(sem).not.toContain("saldo multiplicado");
   });
-  it("tabela no layout da aba Tabela: cabeçalho fixo, Tipo e Código que morre fixos, selos de situação, contador no topo e páginas", () => {
+  it("tabela no layout da aba Tabela: cabeçalho fixo, Tipo e Código que sai fixos, selos de situação, contador no topo e páginas", () => {
     const html = montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif, inat])));
     const t = texto(html);
     for (const cls of [estiloTabela.area, estiloTabela.cabecalho, estiloTabela.tituloFixo, estiloTabela.linha, estiloTabela.celula]) expect(html, cls).toContain(cls);
-    expect(html).toContain('role="table" aria-label="Unificações e inativações"');
+    expect(html).toContain('role="table" aria-label="Unificações"');
     expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:0/);
-    expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:190px/);
+    expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:170px/);
     expect(html).not.toContain('aria-label="Marcar todas"'); // somente leitura: sem caixas de marcar
-    for (const x of ["Linhas 1 a 2 de 2.", "Página 1 de 1", "Anterior", "Próxima", "Buscar nesta lista", "Filtros por coluna", "Colunas", "Código (que morre ou que fica)", "Buscar"]) expect(t, x).toContain(x);
+    for (const x of ["Linhas 1 a 2 de 2.", "Página 1 de 1", "Anterior", "Próxima", "Buscar nesta lista", "Filtros por coluna", "Colunas", "Código", "Buscar"]) expect(t, x).toContain(x);
     expect(t).not.toContain("Limpar filtros");
     expect(html).toMatch(/border-orange-600\/50[^"]*"[^>]*>Proposta/); // selo de situação com cor e texto
     expect(html).toMatch(/border-emerald-600\/50[^"]*"[^>]*>Aprovada/);

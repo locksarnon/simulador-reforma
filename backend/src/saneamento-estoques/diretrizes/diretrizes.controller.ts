@@ -1,5 +1,8 @@
 import { Body, Controller, Get, Param, Post, Put, Query, StreamableFile } from '@nestjs/common';
 import { gerarPdfPolitica } from '../entregaveis/politica';
+import { nomeDaPolitica } from '../entregaveis/nomes';
+import { politicaComNomesDeUsuarios } from '../entregaveis/usuarios';
+import { PrismaService } from '../../prisma/prisma.service';
 import { AuthUser } from '../../auth/auth.types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SanBibliotecaDiretrizesService } from './biblioteca.service';
@@ -12,7 +15,7 @@ import { SanDiretrizesService } from './diretrizes.service';
  */
 @Controller('saneamento-estoques')
 export class SanDiretrizesController {
-  constructor(private readonly diretrizes: SanDiretrizesService, private readonly biblioteca: SanBibliotecaDiretrizesService) {}
+  constructor(private readonly diretrizes: SanDiretrizesService, private readonly biblioteca: SanBibliotecaDiretrizesService, private readonly prisma?: PrismaService) {}
 
   // ── Diretrizes do projeto ──────────────────────────────────────────────────
   @Get('projetos/:id/diretrizes')
@@ -69,8 +72,10 @@ export class SanDiretrizesController {
   /** PDF da política: regras aprovadas e vigentes (base atual ou a versão liberada, pela foto), procedimentos, quadro por grupo e pendências. */
   @Get('projetos/:id/politica/pdf')
   async politicaPdf(@Param('id') id: string, @Query('versaoId') versaoId?: string) {
-    const buffer = await gerarPdfPolitica(await this.diretrizes.dadosPdfPolitica(id, versaoId || null));
-    const nome = `politica-estoques${versaoId ? '-versao' : ''}.pdf`;
+    // Aprovador e "Aprovada por" pelo nome do cadastro de usuários; o arquivo leva o cliente e a versão (sem versão, a data de hoje).
+    const dados = await politicaComNomesDeUsuarios(this.prisma, await this.diretrizes.dadosPdfPolitica(id, versaoId || null));
+    const buffer = await gerarPdfPolitica(dados);
+    const nome = nomeDaPolitica(dados.identificacao.cliente, dados.identificacao.versao);
     return new StreamableFile(buffer, { type: 'application/pdf', disposition: `attachment; filename="${nome}"` });
   }
 }

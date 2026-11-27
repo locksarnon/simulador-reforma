@@ -10,7 +10,9 @@ import { escalaDaBase } from '../motor/conjuntos';
 import { gerarExcelDeDados, gerarExcelMapa } from './excel';
 import { montarRelatorio } from './relatorio';
 import { carregarPerfil } from '../../erps/erps.service';
-import { contarMapa, filtrarMapa, montarMapa, saldoDe, type CasoMapa, type FiltroMapa, type ItemMapa, type LinhaMapa } from './unificacoes';
+import { conflitosDoMapa, contarMapa, filtrarMapa, montarMapa, saldoDe, type CasoMapa, type FiltroMapa, type ItemMapa, type LinhaMapa } from './unificacoes';
+import { fatiaDoNome, nomeDoExcel, nomeDoMapa, nomeDoRelatorio } from './nomes';
+import { comNomesDeUsuarios, nomeDe, nomesDeUsuarios } from './usuarios';
 
 export type FiltroUnificacoes = FiltroMapa & { pagina?: string | number; limite?: string | number };
 const SITUACOES_MAPA = ['PROPOSTA', 'APROVADA', 'AGUARDANDO', 'REGISTRADA'];
@@ -21,20 +23,13 @@ function listaValida(v: unknown, nome: string, validos: string[]): string | unde
   return t;
 }
 
-/** Nome de arquivo seguro (ASCII, sem espaços): o cliente vira "agropecuaria-crestani-ltda". */
-export function fatiaDoNome(texto: string): string {
-  const s = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-  return s || 'cliente';
-}
+export { fatiaDoNome, nomeDaPolitica, nomeDoExcel, nomeDoMapa, nomeDoRelatorio } from './nomes';
 
 export const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 export const PDF = 'application/pdf';
 
-export function nomeDoExcel(cliente: string, versao: { numero: number } | null, hoje = new Date()): string {
-  const base = `saneamento-estoques_${fatiaDoNome(cliente)}`;
-  return versao ? `${base}_entrega-v${versao.numero}.xlsx` : `${base}_revisao_${hoje.toISOString().slice(0, 10)}.xlsx`;
-}
-export const nomeDoRelatorio = (cliente: string, versao: { numero: number }) => `relatorio-fechamento_${fatiaDoNome(cliente)}_v${versao.numero}.pdf`;
+/** A consulta devolve no máximo 500 pares em conflito (o Excel do mapa traz todos). */
+const comConflitosLimitados = <T extends { conflitos: unknown[] }>(c: T) => ({ ...c, totalConflitos: c.conflitos.length, conflitos: c.conflitos.slice(0, 500) });
 
 /** Entregáveis do Saneamento de Estoques: Excel de 6 abas e relatório de fechamento em PDF. É o provider do token SAN_ENTREGAVEIS. */
 @Injectable()
@@ -58,7 +53,8 @@ export class EntregaveisService implements EntregaveisPort {
     // Foto liberada antes do Cadastro de ERPs não tem erp_id: vale o ERP atual do projeto.
     const erpId = projeto.erp_id !== undefined ? (projeto.erp_id as string | null) : (await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { erp_id: true } }))?.erp_id ?? null;
     const perfilErp = await carregarPerfil(this.prisma, erpId);
-    return { ...dados, perfilErp, projeto: { ...projeto, clienteNome: empresa?.razao_social ?? '', clienteDocumento: empresa?.cnpj_cpf ?? '', diagnosticoNome: diag?.nome ?? '' } };
+    // Quem decidiu, aprovou ou confirmou aparece pelo nome do cadastro de usuários (não pelo e-mail).
+    return comNomesDeUsuarios(this.prisma, { ...dados, perfilErp, projeto: { ...projeto, clienteNome: empresa?.razao_social ?? '', clienteDocumento: empresa?.cnpj_cpf ?? '', diagnosticoNome: diag?.nome ?? '' } });
   }
 
   async excel(projetoId: string, versaoId?: string): Promise<{ buffer: Buffer; nome: string }> {
@@ -96,9 +92,11 @@ export class EntregaveisService implements EntregaveisPort {
     }
     const escala = escalaDaBase(await this.codigosESaldos(projetoId));
     const vinculos = await this.prisma.sanVinculoCodigo.findMany({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'asc' } });
+    const nomes = await nomesDeUsuarios(this.prisma, [...casos.map((c) => c.decididoPor), ...vinculos.map((v) => v.criado_por)]);
+    for (const c of casos) c.decididoPor = nomeDe(nomes, c.decididoPor);
     const linhas = montarMapa({
       liberada: false, dataBase: p.data_base, casos, item: (id) => itens.get(id), escala, perfilErp: await carregarPerfil(this.prisma, p.erp_id),
-      vinculos: vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criado_por ?? '' })),
+      vinculos: vinculos.map((v) => ({ de: v.de, para: v.para, inicio: v.inicio, justificativa: v.justificativa, criadoPor: v.criado_por === 'sistema' ? 'sistema' : nomeDe(nomes, v.criado_por ?? '') })),
     });
     const corte = (p.parametros as { corteMovimentacao?: unknown } | null)?.corteMovimentacao;
     return { linhas, corteDefinido: typeof corte === 'string' && corte !== '', escalaSaldo: escala };
@@ -133,7 +131,7 @@ export class EntregaveisService implements EntregaveisPort {
     const filtradas = filtrarMapa(linhas, filtro);
     return {
       linhas: filtradas.slice((pagina - 1) * limite, pagina * limite), pagina, limite, total: filtradas.length, totalGeral: linhas.length,
-      ...contarMapa(linhas), corteDefinido, escalaSaldo,
+      ...comConflitosLimitados(contarMapa(linhas)), corteDefinido, escalaSaldo,
     };
   }
 
@@ -143,8 +141,9 @@ export class EntregaveisService implements EntregaveisPort {
     const { linhas, escalaSaldo } = await this.mapaAtual(projetoId);
     const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { empresa_id: true } });
     const empresa = p?.empresa_id ? await this.prisma.empresa.findUnique({ where: { id: String(p.empresa_id) }, select: { razao_social: true } }) : null;
-    const nome = `unificacoes-e-inativacoes_${fatiaDoNome(empresa?.razao_social ?? '')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    return { buffer: await gerarExcelMapa(filtrarMapa(linhas, filtro), { escala: escalaSaldo }), nome };
+    const nome = nomeDoMapa(empresa?.razao_social ?? '');
+    // Os conflitos vêm do mapa inteiro (o par pode ter uma linha fora do filtro).
+    return { buffer: await gerarExcelMapa(filtrarMapa(linhas, filtro), { escala: escalaSaldo, conflitos: conflitosDoMapa(linhas) }), nome };
   }
 
   /** Sem `versaoId`, usa a última versão liberada; sem nenhuma versão, recusa. */

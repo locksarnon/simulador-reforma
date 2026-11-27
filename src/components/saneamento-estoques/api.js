@@ -53,7 +53,7 @@ export const san = {
   vinculos: (id) => api.get(`${B}/projetos/${id}/vinculos-codigo`),
   /** Mapa de unificações e inativações (paginado): { linhas, pagina, limite, total, totalGeral, porSituacao, porTipo, comAlerta, corteDefinido }. */
   unificacoes: (id, filtro) => api.get(`${B}/projetos/${id}/unificacoes`, paramsDoMapa(filtro)),
-  baixarUnificacoes: (id, filtro) => api.baixar("GET", enderecoDoMapa(id, filtro), { nome: "saneamento-estoques-unificacoes-e-inativacoes.xlsx" }),
+  baixarUnificacoes: (id, filtro) => api.baixar("GET", enderecoDoMapa(id, filtro), { nome: "saneamento-estoques-unificacoes-e-inativacoes.xlsx", nomeDoServidor: true }),
 
   versoes: (id) => api.get(`${B}/projetos/${id}/versoes`),
   liberarVersao: (id, rotulo, extra) => api.post(`${B}/projetos/${id}/versoes`, { rotulo, ...(extra || {}) }),
@@ -62,9 +62,9 @@ export const san = {
   previaContinuar: (id, versaoId) => api.get(`${B}/projetos/${id}/versoes/${versaoId}/continuar`),
   continuarVersao: (id, versaoId, corpo) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/continuar`, corpo),
   desfazerRestauracao: (id, versaoId, restauracaoId, versao) => api.post(`${B}/projetos/${id}/versoes/${versaoId}/restauracoes/${restauracaoId}/desfazer`, { versao }),
-  baixarEntrega: (id, tipo, versao) => api.baixar("GET", enderecoDeEntrega(id, tipo, versao?.id), { nome: nomeDeEntrega(tipo, versao) }),
+  baixarEntrega: (id, tipo, versao) => api.baixar("GET", enderecoDeEntrega(id, tipo, versao?.id), { nome: nomeDeEntrega(tipo, versao), nomeDoServidor: true }),
   /** Política (PDF): sem versão = a política de agora (Rascunho enquanto houver regra não aprovada); com versão = a congelada nela. */
-  baixarPolitica: (id, versao) => api.baixar("GET", enderecoDaPolitica(id, versao?.id), { nome: nomeDaPolitica(versao) }),
+  baixarPolitica: (id, versao) => api.baixar("GET", enderecoDaPolitica(id, versao?.id), { nome: nomeDaPolitica(versao), nomeDoServidor: true }),
 
   // ── Diretrizes (docs/saneamento-diretrizes.md, seção 11). Toda alteração leva a `versao` que a tela viu. ──
   diretrizes: (id) => api.get(`${B}/projetos/${id}/diretrizes`),

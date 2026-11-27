@@ -9,7 +9,7 @@ import { ASPECTOS, ROTULO_ASPECTO, type Aspecto, type LinhaLimite } from '../../
 import { AMBAR, AMBAR_FUNDO, BORDA, BRANCO, CINZA, FUNDO_CARD, LOGO, MARGEM, MARGEM_TOPO, SITE, TEXTO, VERDE, VERDE_ESCURO } from './estilo';
 import { alturaFluxo, desenharFluxograma, type GeometriaNo } from './fluxograma';
 import { dataBr, juntar, limpar, ordenarPt } from './texto';
-import { limiteNaoConfirmado, textoGrupos, topicosDaRegra } from './topicos';
+import { diferencaDaPadrao, limiteNaoConfirmado, tabelasDoAnexo, textoGrupos, topicosDaRegra } from './topicos';
 import type { DadosPolitica, RegraPolitica } from './tipos';
 
 /** Colunas do quadro de consulta. */
@@ -21,6 +21,15 @@ export const TITULO_POLITICA = 'Política de estoques e cadastro de produtos';
 export const emRascunho = (d: DadosPolitica) => d.identificacao.situacao !== 'APROVADA' || d.regras.some((r) => r.situacao !== 'APROVADA');
 
 const ordemCodigo = (a: RegraPolitica, b: RegraPolitica) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true });
+
+/**
+ * Regra padrão do aspecto (a base de comparação das demais): a aprovada que vale para todos os grupos, senão a primeira aprovada pelo código.
+ * As outras regras do aspecto mostram só o que difere dela.
+ */
+export function regraPadrao(regras: RegraPolitica[], aspecto: Aspecto): RegraPolitica | undefined {
+  const doAspecto = regras.filter((r) => r.aspecto === aspecto && r.situacao === 'APROVADA').sort(ordemCodigo);
+  return doAspecto.find((r) => r.abrangencia.todos) ?? doAspecto[0];
+}
 
 export function textoVersao(v: DadosPolitica['identificacao']['versao']): string {
   if (!v) return 'Base atual (sem versão liberada)';
@@ -169,7 +178,11 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
 
       // ---- Regra (vigente ou em aprovação) ----
       const desenharRegra = (r: RegraPolitica, vigente: boolean) => {
-        const tp = topicosDaRegra(r.conteudo);
+        // A padrão do aspecto aparece inteira; as demais, só no que diferem dela.
+        const padrao = regraPadrao(d.regras, r.aspecto);
+        const completa = topicosDaRegra(r.conteudo);
+        const comparar = !!padrao && padrao !== r;
+        const tp = comparar ? diferencaDaPadrao(completa, topicosDaRegra(padrao.conteudo)) : completa;
         garantir(70);
         pdf.y += 4;
         pdf.font('Helvetica-Bold').fontSize(10.5).fillColor(VERDE_ESCURO).text(`Regra ${limpar(r.codigo)} — ${limpar(r.nome)}`, MARGEM, pdf.y, { width: largura });
@@ -181,6 +194,10 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
           : 'Em aprovação: não vigente';
         pdf.font('Helvetica-Oblique').fontSize(8).fillColor(vigente ? CINZA : AMBAR).text(aprov, MARGEM, pdf.y + 1, { width: largura });
         pdf.y += 5;
+        if (comparar) {
+          const igual = !tp.topicos.length && !tp.tabelas.length;
+          paragrafo(igual ? `Mesmo conteúdo da regra ${limpar(padrao.codigo)}; muda só a abrangência.` : `Igual à regra ${limpar(padrao.codigo)}, exceto:`, { cor: CINZA, tam: 9 });
+        }
         marcadores([...tp.topicos, ...(r.observacao?.trim() ? [`Observação: ${r.observacao.trim()}`] : [])]);
         for (const t of tp.tabelas) {
           rotulo(t.titulo, 44);
@@ -189,13 +206,34 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         pdf.y += 4;
       };
 
-      // ---- 2. Regras vigentes por aspecto ----
+      // ---- 2. Quadro de consulta por grupo (o que o almoxarifado consulta: logo depois da identificação) ----
+      tituloSecao('2. Quadro de consulta por grupo', 70);
+      const porCodigo = new Map(d.regras.map((r) => [r.codigo, r]));
+      const cel = (codigo: string | undefined) => {
+        if (!codigo) return d.antesDasDiretrizes ? 'Não registrada' : 'Sem regra';
+        const r = porCodigo.get(codigo);
+        return r && r.situacao !== 'APROVADA' ? `${codigo} (em aprovação)` : codigo;
+      };
+      if (d.antesDasDiretrizes) paragrafo('Versão liberada antes das Diretrizes: regras não registradas. O quadro mostra só as regras que valiam pelos parâmetros do projeto congelados na versão.');
+      else paragrafo('Código da regra que vale para cada grupo em cada aspecto (seção 3). "Sem regra" indica aspecto ainda sem regra para o grupo; "em aprovação" indica regra ainda não vigente (seção 5).');
+      const grupos = ordenarPt([...new Set(d.quadro.map((q) => q.grupo))]);
+      const porGrupo = new Map(d.quadro.map((q) => [q.grupo, q.codigos]));
+      if (grupos.length) {
+        tabela(
+          ['Grupo', ...ASPECTOS.map((a) => COLUNA_QUADRO[a])],
+          grupos.map((g) => [g, ...ASPECTOS.map((a) => cel(porGrupo.get(g)?.[a]))]),
+          [0.3, 0.14, 0.14, 0.14, 0.14, 0.14],
+        );
+      } else paragrafo('Nenhum grupo importado.', { italico: true, cor: CINZA });
+
+      // ---- 3. Regras vigentes por aspecto ----
       const aprovadas = d.regras.filter((r) => r.situacao === 'APROVADA');
-      tituloSecao('2. Regras vigentes por aspecto', 90);
-      paragrafo('Cada regra tem um código (letra do aspecto e número) usado no quadro de consulta da seção 4. Para cada grupo de itens vale uma regra por aspecto: a regra de grupos específicos prevalece sobre a regra de todos os grupos.');
+      tituloSecao('3. Regras vigentes por aspecto', 90);
+      paragrafo('Cada regra tem um código (letra do aspecto e número) usado no quadro de consulta da seção 2. Para cada grupo de itens vale uma regra por aspecto: a regra de grupos específicos prevalece sobre a regra de todos os grupos. Em cada aspecto, a primeira regra é a padrão; as demais mostram só o que difere dela. Abreviações e termos estão no Anexo.');
       ASPECTOS.forEach((a, i) => {
-        subtitulo(`2.${i + 1} ${ROTULO_ASPECTO[a]}`, 70);
-        const doAspecto = aprovadas.filter((r) => r.aspecto === a).sort(ordemCodigo);
+        subtitulo(`3.${i + 1} ${ROTULO_ASPECTO[a]}`, 70);
+        const padrao = regraPadrao(d.regras, a);
+        const doAspecto = aprovadas.filter((r) => r.aspecto === a).sort((x, y) => Number(y === padrao) - Number(x === padrao) || ordemCodigo(x, y));
         if (!doAspecto.length) {
           const emAprov = d.regras.some((r) => r.aspecto === a && r.situacao !== 'APROVADA');
           paragrafo(`Nenhuma regra aprovada neste aspecto${emAprov ? '; há regra em aprovação (seção 5)' : ''}.`, { italico: true, cor: CINZA });
@@ -203,7 +241,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         doAspecto.forEach((r) => desenharRegra(r, true));
       });
 
-      // ---- 3. Procedimentos ----
+      // ---- 4. Procedimentos ----
       // Título, objetivo e fluxograma juntos: o fluxo inteiro numa página quando cabe numa página; se for maior, começa com
       // pelo menos 4 etapas antes de continuar na página seguinte.
       const inicioProcedimento = (p: (typeof d.procedimentos)[number]) => {
@@ -214,13 +252,13 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         if (inteiro <= limiteInferior - MARGEM_TOPO - 10) return inteiro;
         return hCab + alturaFluxo(pdf, p.fluxo, MARGEM, largura, Math.min(4, p.fluxo.length));
       };
-      tituloSecao('3. Procedimentos', d.procedimentos.length ? inicioProcedimento(d.procedimentos[0]) : 30);
+      tituloSecao('4. Procedimentos', d.procedimentos.length ? inicioProcedimento(d.procedimentos[0]) : 30);
       if (d.notaProcedimentos) paragrafo(d.notaProcedimentos, { italico: true, cor: CINZA });
       if (!d.procedimentos.length) paragrafo('Nenhum procedimento cadastrado.', { italico: true, cor: CINZA });
       d.procedimentos.forEach((p, i) => {
         const titulo = limpar(p.titulo);
         garantir(inicioProcedimento(p));
-        subtitulo(`3.${i + 1} ${titulo}`, 0);
+        subtitulo(`4.${i + 1} ${titulo}`, 0);
         paragrafo(p.objetivo);
         if (p.fluxo.length) {
           rotulo('Fluxograma', 0);
@@ -232,26 +270,6 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         if (p.fundamento?.trim()) { rotulo('Fundamento', 16); paragrafo(p.fundamento); }
         pdf.y += 6;
       });
-
-      // ---- 4. Quadro de consulta por grupo ----
-      tituloSecao('4. Quadro de consulta por grupo', 70);
-      const porCodigo = new Map(d.regras.map((r) => [r.codigo, r]));
-      const cel = (codigo: string | undefined) => {
-        if (!codigo) return d.antesDasDiretrizes ? 'Não registrada' : 'Sem regra';
-        const r = porCodigo.get(codigo);
-        return r && r.situacao !== 'APROVADA' ? `${codigo} (em aprovação)` : codigo;
-      };
-      if (d.antesDasDiretrizes) paragrafo('Versão liberada antes das Diretrizes: regras não registradas. O quadro mostra só as regras que valiam pelos parâmetros do projeto congelados na versão.');
-      else paragrafo('Código da regra que vale para cada grupo em cada aspecto (seção 2). "Sem regra" indica aspecto ainda sem regra para o grupo; "em aprovação" indica regra ainda não vigente (seção 5).');
-      const grupos = ordenarPt([...new Set(d.quadro.map((q) => q.grupo))]);
-      const porGrupo = new Map(d.quadro.map((q) => [q.grupo, q.codigos]));
-      if (grupos.length) {
-        tabela(
-          ['Grupo', ...ASPECTOS.map((a) => COLUNA_QUADRO[a])],
-          grupos.map((g) => [g, ...ASPECTOS.map((a) => cel(porGrupo.get(g)?.[a]))]),
-          [0.3, 0.14, 0.14, 0.14, 0.14, 0.14],
-        );
-      } else paragrafo('Nenhum grupo importado.', { italico: true, cor: CINZA });
 
       // ---- 5. Versão e pendências ----
       tituloSecao('5. Versão e pendências', 60);
@@ -289,6 +307,14 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
         rotulo(`Regras em aprovação (${naoAprovadas.length})`, 40);
         paragrafo('Estas regras ainda não foram aprovadas e não estão vigentes; passam a valer quando aprovadas.', { cor: CINZA, tam: 9 });
         naoAprovadas.forEach((r) => desenharRegra(r, false));
+      }
+
+      // ---- Anexo: abreviações e termos (uma vez só, para todas as regras de nomes) ----
+      const anexo = tabelasDoAnexo(d.regras);
+      if (anexo.length) {
+        tituloSecao('Anexo: abreviações e termos', 70);
+        paragrafo('Valem para as regras de nomes (seção 3.1). Na descrição, a expressão completa pode ser trocada só pela abreviação aprovada; o termo proibido é trocado pelo indicado ou removido.');
+        for (const t of anexo) { rotulo(t.titulo, 44); tabela(t.cabecalho, t.linhas, t.larguras); }
       }
 
       // ---- Cabeçalho corrido, marca d'água e rodapé em todas as páginas ----

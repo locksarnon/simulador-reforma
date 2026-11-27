@@ -16,8 +16,13 @@ import { acaoNoErp, type PerfilErp } from '../../erps/logica';
 export type TipoLinhaMapa = 'UNIFICACAO' | 'INATIVACAO' | 'EQUIVALENCIA' | 'TROCA_CODIGO';
 export type SituacaoMapa = 'PROPOSTA' | 'APROVADA' | 'AGUARDANDO' | 'REGISTRADA';
 export const ROTULO_TIPO_MAPA: Record<TipoLinhaMapa, string> = {
-  UNIFICACAO: 'Unificação de códigos', INATIVACAO: 'Inativação', EQUIVALENCIA: 'Equivalência (nenhum código morre)', TROCA_CODIGO: 'Troca de código',
+  UNIFICACAO: 'Unificação de códigos', INATIVACAO: 'Inativação', EQUIVALENCIA: 'Equivalência (nenhum código sai)', TROCA_CODIGO: 'Troca de código',
 };
+/** As três listas da consulta e do Excel do mapa: cada uma com as colunas que usa. */
+export type ListaMapa = 'UNIFICACOES' | 'INATIVACOES' | 'EQUIVALENCIAS';
+export const TIPOS_DA_LISTA: Record<ListaMapa, TipoLinhaMapa[]> = { UNIFICACOES: ['UNIFICACAO', 'TROCA_CODIGO'], INATIVACOES: ['INATIVACAO'], EQUIVALENCIAS: ['EQUIVALENCIA'] };
+export const ROTULO_LISTA: Record<ListaMapa, string> = { UNIFICACOES: 'Unificações', INATIVACOES: 'Inativações', EQUIVALENCIAS: 'Equivalências' };
+export const listaDoTipo = (t: TipoLinhaMapa): ListaMapa => (t === 'INATIVACAO' ? 'INATIVACOES' : t === 'EQUIVALENCIA' ? 'EQUIVALENCIAS' : 'UNIFICACOES');
 /** De onde vem a inativação: Duplicidades (decisão editada para inativar os códigos de `consolidar`) ou Qualidade (sem movimentação desde o corte). */
 export type OrigemInativacao = 'DUPLICIDADE' | 'QUALIDADE';
 export const ROTULO_INATIVACAO: Record<OrigemInativacao, string> = { DUPLICIDADE: 'Inativação (duplicidade)', QUALIDADE: 'Inativação (sem movimentação)' };
@@ -58,6 +63,16 @@ export type LinhaMapa = {
   morre: Lado | null; fica: Omit<Lado, 'estab'> | null;
   saldoEntra: number | null; saldoConsolidado: number | null;
   acao: string; inicio: Date | null; justificativa: string; alertas: string[]; responsavel: string; decididoEm: Date | null;
+  /** Conflito unificação × inativação desta linha (o par), para o destaque da tela e a aba "Conflitos" do Excel do mapa. */
+  conflito?: ParConflito | null;
+};
+/**
+ * O par em conflito: a unificação (código que sai → código que fica) e a inativação do código que fica (caso de inativação, ou o código já
+ * inativo na base). A recusa na aprovação em lote é de outra rotina; aqui só a apresentação.
+ */
+export type ParConflito = {
+  sai: string; fica: string; situacaoUnificacao: SituacaoMapa;
+  inativacao: { codigo: string; situacao: SituacaoMapa | 'INATIVO_NA_BASE'; origem: OrigemInativacao | null };
 };
 
 const SITUACAO: Record<string, SituacaoMapa> = { PROPOSTO: 'PROPOSTA', RASCUNHO: 'PROPOSTA', APROVADO: 'APROVADA', AGUARDANDO_INFORMACAO: 'AGUARDANDO' };
@@ -108,10 +123,14 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
     if (doFica) {
       const origem = x.l.origem === 'DUPLICIDADE' ? 'Duplicidades' : 'Qualidade, sem movimentação';
       const sai = !inatAprovada && doFica.some((l) => l.situacao === 'APROVADA');
-      for (const l of doFica) l.alertas.push(`Conflito: o código que fica (${l.fica?.codigo}) tem inativação ${sit(x.l.situacao)} (${origem}): ${sai ? 'a inativação ficou fora deste mapa' : 'a inativação também está neste mapa'}; reabrir ou rejeitar o caso de inativação antes de transferir o saldo.`);
+      for (const l of doFica) {
+        l.alertas.push(`Conflito: o código que fica (${l.fica?.codigo}) tem inativação ${sit(x.l.situacao)} (${origem}): ${sai ? 'a inativação ficou fora deste mapa' : 'a inativação também está neste mapa'}; reabrir ou rejeitar o caso de inativação antes de transferir o saldo.`);
+        l.conflito ??= { sai: l.morre?.codigo ?? '', fica: l.fica?.codigo ?? '', situacaoUnificacao: l.situacao, inativacao: { codigo: x.l.morre?.codigo ?? '', situacao: x.l.situacao, origem: x.l.origem } };
+      }
       if (sai) continue;
       const u = doFica[0];
       x.l.alertas.push(`Conflito: ${x.l.morre?.codigo} é o código que fica numa unificação ${sit(u.situacao)} (recebe ${u.morre?.codigo}): não inativar enquanto a unificação valer; rejeitar ou reabrir um dos dois casos.`);
+      x.l.conflito = { sai: u.morre?.codigo ?? '', fica: u.fica?.codigo ?? '', situacaoUnificacao: u.situacao, inativacao: { codigo: x.l.morre?.codigo ?? '', situacao: x.l.situacao, origem: x.l.origem } };
       inat.push(x.l);
       continue;
     }
@@ -126,7 +145,11 @@ export function montarMapa(entrada: EntradaMapa): LinhaMapa[] {
   // Código que fica já inativo (na base ou por decisão aprovada) sem caso de inativação no mapa: o mesmo conflito.
   for (const [id, ls] of cruz.linhasDoQueFica) {
     if (e.item(id)?.ativo !== false) continue;
-    for (const l of ls) if (!l.alertas.some((a) => a.startsWith('Conflito:'))) l.alertas.push(`Conflito: o código que fica (${l.fica?.codigo}) está inativo: reativar o código (ou escolher outro que fique) antes de transferir o saldo.`);
+    for (const l of ls) {
+      if (l.alertas.some((a) => a.startsWith('Conflito:'))) continue;
+      l.alertas.push(`Conflito: o código que fica (${l.fica?.codigo}) está inativo: reativar o código (ou escolher outro que fique) antes de transferir o saldo.`);
+      l.conflito = { sai: l.morre?.codigo ?? '', fica: l.fica?.codigo ?? '', situacaoUnificacao: l.situacao, inativacao: { codigo: l.fica?.codigo ?? '', situacao: 'INATIVO_NA_BASE', origem: null } };
+    }
   }
   // A unificação aprovada gravou o vínculo: a data de início dele (quando informada) vale para a linha.
   const inicioDoVinculo = new Map<string, Date>();
@@ -209,7 +232,9 @@ function linhasDeUnificacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: Linh
     if (!f) alertas.push(qualquerFica ? `O código que fica (${manter}) não está cadastrado no estabelecimento ${m.estab || 'único'}: cadastrar antes de transferir o saldo.` : `O código que fica (${manter}) não foi encontrado na base.`);
     const ref = f ?? qualquerFica ?? null;
     let entra: number | null = null;
-    const unDifere = !!ref && !!chaveUnidade(m.unidade) && !!chaveUnidade(ref.unidade) && chaveUnidade(m.unidade) !== chaveUnidade(ref.unidade);
+    // Sem saldo no código que sai não há o que transferir nem converter: a unidade diferente não pede fator.
+    const semSaldo = m.saldo === 0;
+    const unDifere = !semSaldo && !!ref && !!chaveUnidade(m.unidade) && !!chaveUnidade(ref.unidade) && chaveUnidade(m.unidade) !== chaveUnidade(ref.unidade);
     const conv: Conversao = unDifere ? conversaoDoSaldo(c.proposta, m.unidade, ref!.unidade) : { multiplicador: 1 };
     const semConversao = 'falta' in conv;
     if (m.saldo == null) alertas.push(`Saldo de ${m.codigo} não informado na base: conferir no ERP antes de transferir.`);
@@ -220,12 +245,14 @@ function linhasDeUnificacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: Linh
     if (m.saldo != null && m.saldo < 0) alertas.push(`Saldo negativo em ${m.codigo}: investigar a movimentação antes de transferir.`);
     if (f && f.saldo == null) alertas.push(`Saldo do código que fica (${manter}) não informado na base: o saldo consolidado não foi calculado.`);
     const acao = !ref ? `Conferir o código que fica (${manter}) antes de inativar ${m.codigo}`
+      : semSaldo ? `Inativar o código que sai (${m.codigo}): sem saldo a transferir para ${manter}`
       : m.saldo == null ? `Conferir o saldo de ${m.codigo} no ERP; havendo saldo, transferir para ${manter}; inativar ${m.codigo}`
         : unDifere && semConversao ? `Converter o saldo de ${m.codigo} para a unidade de ${manter} (${ref.unidade}), transferir para ${manter} e inativar ${m.codigo}`
           : m.saldo < 0 ? `Regularizar o saldo negativo de ${m.codigo}; depois transferir para ${manter} e inativar ${m.codigo}`
-            : m.saldo === 0 ? `Inativar ${m.codigo} (sem saldo a transferir); o código que fica é ${manter}`
-              : `Transferir o saldo de ${m.codigo} para ${manter} e inativar ${m.codigo}`;
-    const acaoErp = !ref ? acao : acaoComErp(e, 'CONSOLIDOU_INATIVOU', acao, { sai: m.codigo, fica: manter }, m.saldo != null && m.saldo >= 0 && !(unDifere && semConversao));
+            : `Transferir o saldo de ${m.codigo} para ${manter} e inativar ${m.codigo}`;
+    // Saldo zero: nada de saída e entrada de mercadoria; vale o procedimento de inativação do ERP, depois do texto geral.
+    const acaoErp = !ref ? acao : semSaldo ? acaoComErp(e, 'INATIVOU', acao, { sai: m.codigo }, false)
+      : acaoComErp(e, 'CONSOLIDOU_INATIVOU', acao, { sai: m.codigo, fica: manter }, m.saldo != null && m.saldo >= 0 && !(unDifere && semConversao));
     linhas.push({
       estabFica: f ? f.estab : null,
       fica: f,
@@ -240,7 +267,7 @@ function linhasDeUnificacao(c: CasoMapa, e: EntradaMapa, comum: Comum, out: Linh
   for (const cod of saem) {
     if (achados.has(cod) || cod === manter) continue;
     pares.add(`${cod}\u0001${manter}`);
-    linhas.push({ estabFica: null, fica: null, l: { tipo: 'UNIFICACAO', rotuloTipo: ROTULO_TIPO_MAPA.UNIFICACAO, ...comum, morre: { codigo: cod, estab: '', descricao: '', unidade: '', saldo: null }, fica: { codigo: manter, descricao: qualquerFica?.descricao ?? '', unidade: qualquerFica?.unidade ?? '', saldo: null }, saldoEntra: null, saldoConsolidado: null, acao: `Conferir o código ${cod} no ERP (não está na base importada) antes de inativar`, alertas: [`O código que morre (${cod}) não foi encontrado na base.`] } });
+    linhas.push({ estabFica: null, fica: null, l: { tipo: 'UNIFICACAO', rotuloTipo: ROTULO_TIPO_MAPA.UNIFICACAO, ...comum, morre: { codigo: cod, estab: '', descricao: '', unidade: '', saldo: null }, fica: { codigo: manter, descricao: qualquerFica?.descricao ?? '', unidade: qualquerFica?.unidade ?? '', saldo: null }, saldoEntra: null, saldoConsolidado: null, acao: `Conferir o código ${cod} no ERP (não está na base importada) antes de inativar`, alertas: [`O código que sai (${cod}) não foi encontrado na base.`] } });
   }
   // Consolidado por estabelecimento do que fica: só quando todos os saldos são conhecidos e somáveis.
   const porEstab = new Map<string, LinhaMapa[]>();
@@ -311,7 +338,21 @@ export function contarMapa(linhas: LinhaMapa[]) {
   const porSituacao: Record<string, number> = { PROPOSTA: 0, APROVADA: 0, AGUARDANDO: 0, REGISTRADA: 0 };
   const porTipo: Record<string, number> = { UNIFICACAO: 0, INATIVACAO: 0, EQUIVALENCIA: 0, TROCA_CODIGO: 0 };
   const inativacoesPorOrigem: Record<OrigemInativacao, number> = { DUPLICIDADE: 0, QUALIDADE: 0 };
+  const porLista: Record<ListaMapa, number> = { UNIFICACOES: 0, INATIVACOES: 0, EQUIVALENCIAS: 0 };
   let comAlerta = 0;
-  for (const l of linhas) { porSituacao[l.situacao]++; porTipo[l.tipo]++; if (l.origem) inativacoesPorOrigem[l.origem]++; if (l.alertas.length) comAlerta++; }
-  return { porSituacao, porTipo, inativacoesPorOrigem, comAlerta };
+  for (const l of linhas) { porSituacao[l.situacao]++; porTipo[l.tipo]++; porLista[listaDoTipo(l.tipo)]++; if (l.origem) inativacoesPorOrigem[l.origem]++; if (l.alertas.length) comAlerta++; }
+  return { porSituacao, porTipo, porLista, inativacoesPorOrigem, comAlerta, conflitos: conflitosDoMapa(linhas) };
 }
+
+/** Pares unificação × inativação em conflito, um por par (sem repetir quando o conflito está nas duas linhas). */
+export function conflitosDoMapa(linhas: LinhaMapa[]): ParConflito[] {
+  const vistos = new Set<string>(); const out: ParConflito[] = [];
+  for (const l of linhas) {
+    const c = l.conflito; if (!c) continue;
+    const k = `${c.sai}\u0001${c.fica}\u0001${c.inativacao.codigo}`;
+    if (vistos.has(k)) continue;
+    vistos.add(k); out.push(c);
+  }
+  return out;
+}
+export const ROTULO_SITUACAO_CONFLITO: Record<ParConflito['inativacao']['situacao'], string> = { ...ROTULO_SITUACAO_MAPA, INATIVO_NA_BASE: 'Já inativo na base' };

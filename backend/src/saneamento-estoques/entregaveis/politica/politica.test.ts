@@ -107,19 +107,25 @@ describe('Política: PDF', () => {
     for (const esperado of [
       'Política de estoques e cadastro de produtos', 'Agropecuária Crestani Ltda', 'Versão 2 — Onda 1', 'Vigência a partir de 01/12/2026',
       '1. Identificação', 'SAP Business One', 'DATA DE EMISSÃO', '26/11/2026', 'Pendente de aprovação',
-      '2. Regras vigentes por aspecto', '2.1 Padrão de nomes', 'Regra N01 — Padrão geral de nomes', 'Aplicável a todos os grupos',
+      '2. Quadro de consulta por grupo', '3. Regras vigentes por aspecto', '3.1 Padrão de nomes', 'Regra N01 — Padrão geral de nomes', 'Aplicável a todos os grupos',
       'Regra N02 — Nomes de defensivos agrícolas', 'Aplicável aos grupos: FUNGICIDAS, HERBICIDAS, INSETICIDAS, OUTROS DEFENSIVOS e TRATAMENTO DE SEMENTES',
       'Estrutura: nome + referência + marca + apresentação + complemento', 'Escrita em maiúsculas', 'ABREVIAÇÕES APROVADAS', 'QUILOGRAMA', 'DIAM',
       'Observação: Nome comercial conforme o registro no MAPA.', 'Obrigatórios em todos os itens: princípio ativo, concentração, registro no MAPA e marca', 'Princípio ativo', 'Quando aplicável: produtos com mais de uma formulação registrada', 'Teor de umidade',
       'Unidade de estoque: a menor unidade prática de medida do item', 'Unidade de estoque: L, definida para o grupo', '1 CX = 12 UN',
       'Limite efetivo da descrição: 120 caracteres (NF-e, xProd)', 'não confirmado', 'Leiaute oficial', 'MOC da NF-e, Anexo I, campo I04',
       'cClassTrib', 'entrada, saída e uso interno',
-      '3. Procedimentos', '3.5 Retirada e uso de materiais', 'FLUXOGRAMA', 'Início', 'Fim', 'ALMOXARIFADO', 'Não', 'Sim:',
+      '4. Procedimentos', '4.5 Retirada e uso de materiais', 'FLUXOGRAMA', 'Início', 'Fim', 'ALMOXARIFADO', 'Não', 'Sim:',
       'Devolver o pedido ao requisitante com o motivo', 'REGRAS PRÁTICAS', 'EVIDÊNCIAS A GUARDAR', 'FUNDAMENTO', 'LC 214/2025, art. 57, § 3º',
-      '4. Quadro de consulta por grupo', 'Grupo', 'Nomes', 'Atributos', 'Unidades', 'Limites', 'Fiscal', 'Sem regra', 'N03 (em aprovação)', 'F02 (em aprovação)',
+      'Grupo', 'Nomes', 'Atributos', 'Unidades', 'Limites', 'Fiscal', 'Sem regra', 'N03 (em aprovação)', 'F02 (em aprovação)',
       '5. Versão e pendências', 'liberada em 24/11/2026', 'GRUPOS SEM REGRA', 'LIMITES DE CARACTERES NÃO CONFIRMADOS', 'REGRAS EM APROVAÇÃO (2)',
       'Regra N03 — Nomes de peças de manutenção', 'Em aprovação: não vigente', 'InTAX por FAL Agro',
+      'Igual à regra N01, exceto:', 'Anexo: abreviações e termos', 'TERMOS QUE NÃO PODEM SER USADOS',
     ]) expect(t, esperado).toContain(esperado);
+    // Ordem: identificação, quadro por grupo (o que o almoxarifado consulta), regras, procedimentos, pendências e o anexo.
+    const ordem = ['1. Identificação', '2. Quadro de consulta por grupo', '3. Regras vigentes por aspecto', '4. Procedimentos', '5. Versão e pendências', 'Anexo: abreviações e termos'].map((x) => t.indexOf(x));
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+    // A tabela de abreviações aparece uma vez só (no Anexo), não uma por regra.
+    expect(t.split('ABREVIAÇÕES APROVADAS').length - 1).toBe(1);
     for (const proibido of ['minuta', 'Minuta', 'MINUTA', 'undefined', 'null', 'NaN', '[object', 'MENOR_PRATICA', 'LEIAUTE_OFICIAL', 'QUANDO_APLICAVEL', 'Infinity']) {
       expect(t, proibido).not.toContain(proibido);
     }
@@ -136,8 +142,8 @@ describe('Política: PDF', () => {
       expect(t.indexOf(c), c).toBeGreaterThan(pend);
       expect(t.split(c).length - 1, c).toBe(1);
     }
-    // regra aprovada aparece uma vez, na seção 2
-    expect(t.indexOf('Regra N01')).toBeLessThan(t.indexOf('3. Procedimentos'));
+    // regra aprovada aparece uma vez, na seção 3
+    expect(t.indexOf('Regra N01')).toBeLessThan(t.indexOf('4. Procedimentos'));
     expect(t.split('Regra N01 —').length - 1).toBe(1);
     // aspecto sem regra aprovada não fica vazio
     expect(t).not.toContain('Nenhuma regra aprovada neste aspecto');

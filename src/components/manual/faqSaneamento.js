@@ -36,11 +36,15 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "As tabelas de Casos e de Unificações funcionam como a aba Tabela?",
-      r: "Sim, no Saneamento de estoques as três têm o mesmo layout: contador no topo, cabeçalho e colunas da esquerda fixos ao rolar (Código nos Casos; Tipo e Código que morre nas Unificações), linhas baixas com zebra, selos de situação e textos longos numa linha só (passe o mouse ou clique para ler inteiro). Nos Casos e nas Unificações também há Buscar nesta lista, Filtros por coluna, ordenação pelo título da coluna, Colunas (ocultar e reordenar) e Exportar, sobre o que está carregado na tela. Nos Casos, a lista carrega mais ao rolar até o fim; nas Unificações, as páginas de 100 linhas seguem em Anterior e Próxima (POP-CON-14 e POP-CON-18).",
+      r: "Sim, no Saneamento de estoques as três têm o mesmo layout: contador no topo, cabeçalho e colunas da esquerda fixos ao rolar (Código nos Casos; as duas primeiras de cada lista nas Unificações), linhas baixas com zebra, selos de situação e textos longos numa linha só (passe o mouse ou clique para ler inteiro). Nos Casos e nas Unificações também há Buscar nesta lista, Filtros por coluna, ordenação pelo título da coluna, Colunas (ocultar e reordenar) e Exportar, sobre o que está carregado na tela. Nos Casos, a lista carrega mais ao rolar até o fim; nas Unificações, as páginas de 100 linhas seguem em Anterior e Próxima (POP-CON-14 e POP-CON-18).",
     },
     {
       p: "Como sei quais códigos vão deixar de existir e para onde vai o saldo de cada um?",
-      r: "Na aba Unificações. Cada linha é um código que morre: o estabelecimento, a descrição, a unidade e o saldo dele; o código que fica, com o saldo atual; o saldo que entra e o saldo consolidado; a situação (Proposta ou Aprovada); a ação no ERP (por exemplo, “Transferir o saldo de Y para X e inativar Y”); o início da vigência e a justificativa. Quando as unidades são diferentes sem fator de conversão aprovado (ou o fator não diz de qual unidade para qual), ou falta saldo na base, a coluna Alerta de coerência avisa e o saldo não é somado. Se o código que fica tem inativação proposta ou aprovada, a inativação sai da lista e a linha avisa o conflito. Base com saldo multiplicado por 1.000.000 aparece já dividida. Filtre por situação, tipo e código e clique em Baixar lista (Excel) para mandar a quem faz os ajustes. A mesma lista sai na aba De para e equivalências do Excel; na versão liberada, só o aprovado (POP-CON-18).",
+      r: "Na aba Unificações, em três listas: Unificações (abre nela), Inativações e Equivalências, cada uma com as colunas que usa. Em Unificações, cada linha é um código que sai: a descrição, a unidade e o saldo dele; o código que fica, com o saldo atual; o saldo que entra e o saldo consolidado; a situação (Proposta ou Aprovada); a ação no ERP (por exemplo, “Transferir o saldo de Y para X e inativar Y”; sem saldo no código que sai, só “Inativar o código que sai”); o início da vigência e a justificativa. Em Inativações ficam os códigos só inativados, com a origem (sem movimentação ou duplicidade); em Equivalências, os códigos relacionados que continuam ativos. Quando as unidades são diferentes sem fator de conversão aprovado (ou o fator não diz de qual unidade para qual), ou falta saldo na base, a coluna Alerta de coerência avisa e o saldo não é somado. Base com saldo multiplicado por 1.000.000 aparece já dividida. Filtre por situação e código e clique em Baixar listas (Excel) para mandar a quem faz os ajustes: uma aba por lista e a aba Conflitos. A mesma informação sai na aba De para e equivalências do Excel da entrega; na versão liberada, só o aprovado (POP-CON-18).",
+    },
+    {
+      p: "O que é o quadro vermelho de conflitos na aba Unificações?",
+      r: "É o par unificação × inativação que não pode seguir assim: o código que fica numa unificação também tem inativação (proposta ou aprovada) ou já está inativo no cadastro. O quadro mostra cada par, por exemplo “200 → 100 (unificação proposta) × inativação aprovada de 100, sem movimentação”. Rejeite ou reabra um dos dois casos antes de ajustar o ERP. A tela mostra até 20 pares; o Excel das listas traz todos na aba Conflitos (POP-CON-18).",
     },
     {
       p: "O sistema aponta itens sem movimentação há muito tempo para limpar a base?",
@@ -153,6 +157,22 @@ export const SECAO_SANEAMENTO = {
     {
       p: "A IA sabe o que o ERP do cliente permite?",
       r: "Sim, pelo Cadastro de ERPs. O Analisar com IA e o parecer da IA do saneamento recebem o ERP do cliente com as restrições e as ações no ERP do perfil: as confirmadas como fato, citando o Cadastro de ERPs, e as não confirmadas como “a confirmar”. A IA é orientada a não recomendar o que contraria uma restrição confirmada. ERP sem perfil: valem só as regras gerais.",
+    },
+    {
+      p: "O que muda no Excel da versão liberada em relação ao Excel para revisão?",
+      r: "O da versão liberada é o que vai ao cliente: sem colunas vazias e sem identificador interno; Cenários tributários só com os itens de enquadramento concluído (os que ainda não têm aparecem no Resumo, contados por motivo, como “Finalidade não confirmada”) e a linha “Devolução” só quando o tratamento difere do da aquisição; Pendências e histórico com uma linha por tipo de pendência e grupo (quantos casos, quantos itens e exemplos de código) e só as alterações aprovadas; percentuais e milhares formatados. O Excel para revisão continua completo, para o trabalho interno: um caso por linha, todo o histórico e o identificador interno (POP-CON-16).",
+    },
+    {
+      p: "Por que o relatório de fechamento abre com itens e não com casos?",
+      r: "Porque o cliente lê o resultado: o relatório abre com o Resultado da entrega (itens a inativar, unificações, finalidade definida, descrições padronizadas, unidades e NCM ajustados, enquadramentos) e com as Pendências em itens, por tipo, com quantos grupos cada tipo atinge e quantos itens aguardam o cliente. As restrições do ERP vão no fim, num anexo, com a fonte como link curto (POP-CON-16).",
+    },
+    {
+      p: "Como a política de estoques fica organizada e com que nome o arquivo baixa?",
+      r: "1. Identificação; 2. Quadro de consulta por grupo (a regra que vale para cada grupo em cada aspecto, logo no começo); 3. Regras por aspecto, com a regra padrão inteira e as demais só com o que difere dela; 4. Procedimentos; 5. Versão e pendências; e o Anexo com as abreviações aprovadas e os termos que não podem ser usados, uma vez só para todas as regras de nomes. O arquivo baixa como politica-estoques_(cliente)_v(número).pdf; sem versão liberada, com “revisao” e a data de hoje (POP-CON-16 e POP-CON-19).",
+    },
+    {
+      p: "Por que as datas e os nomes nos arquivos do saneamento mudaram?",
+      r: "Excel, relatório e política usam uma regra só: data no fuso de São Paulo, em dd/mm/aaaa (com a hora quando é o momento de uma liberação ou decisão). Uma decisão às 23h50 sai com o dia em que foi feita. Quem decidiu, aprovou ou confirmou aparece pelo nome do cadastro de usuários; sem nome cadastrado, fica o e-mail. Os arquivos baixam com o nome do cliente e a versão (ou a data, na revisão) (POP-CON-16).",
     },
     {
       p: "Qual a diferença entre Analisar com IA e Aprofundar com pesquisa externa?",

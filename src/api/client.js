@@ -31,6 +31,16 @@ function clearTokens() {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
+/** Nome do arquivo no cabeçalho Content-Disposition (filename="..." ou filename*=UTF-8''...); null quando não vier. */
+export function nomeDoCabecalho(headers) {
+  const cd = headers?.['content-disposition'] ?? headers?.get?.('content-disposition');
+  if (!cd) return null;
+  const utf = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  if (utf) { try { return decodeURIComponent(utf[1].trim()); } catch { /* segue para o filename simples */ } }
+  const simples = /filename="?([^";]+)"?/i.exec(cd);
+  return simples ? simples[1].trim() : null;
+}
+
 const http = axios.create({ baseURL: API_URL });
 
 http.interceptors.request.use((config) => {
@@ -213,8 +223,11 @@ const chamadas = {
     Object.entries(campos).forEach(([k, v]) => { if (v !== undefined && v !== null) form.append(k, typeof v === 'string' ? v : JSON.stringify(v)); });
     try { return (await http.post(url, form, { headers: { 'Content-Type': 'multipart/form-data' } })).data; } catch (err) { throw unwrapError(err); }
   },
-  /** Baixa um arquivo gerado no servidor e dispara o download no navegador. */
-  async baixar(method, url, { body, file, campos, nome } = {}) {
+  /**
+   * Baixa um arquivo gerado no servidor e dispara o download no navegador. Com `nomeDoServidor`, usa o nome do arquivo que o servidor
+   * manda (Content-Disposition: cliente, versão, data) e `nome` só quando ele não vier.
+   */
+  async baixar(method, url, { body, file, campos, nome, nomeDoServidor = false } = {}) {
     try {
       let res;
       if (file) {
@@ -227,7 +240,7 @@ const chamadas = {
       }
       const a = document.createElement('a');
       a.href = URL.createObjectURL(res.data);
-      a.download = nome || 'arquivo';
+      a.download = (nomeDoServidor && nomeDoCabecalho(res.headers)) || nome || 'arquivo';
       document.body.appendChild(a);
       a.click();
       a.remove();

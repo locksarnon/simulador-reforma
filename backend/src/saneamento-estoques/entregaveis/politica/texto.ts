@@ -1,4 +1,5 @@
 /** Utilidades de texto da política: só caracteres que a fonte padrão do PDF (WinAnsi) desenha, listas em português, datas. */
+import { dataBr as dataBrEntrega } from '../formato';
 
 /** Caracteres de 0x80–0x9F do WinAnsi (os demais vão de 0x20–0x7E e 0xA0–0xFF). */
 const WIN_ANSI_EXTRA = new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ');
@@ -31,19 +32,9 @@ export const ordenarPt = (l: string[]) => [...l].sort((a, b) => a.localeCompare(
 /** Primeira letra maiúscula, sem mexer no resto. */
 export const maiuscula = (s: string) => (s ? s[0].toLocaleUpperCase('pt-BR') + s.slice(1) : s);
 
-/** dd/mm/aaaa. Aceita AAAA-MM-DD (sem fuso), ISO completo ou Date; inválido = null. */
+/** dd/mm/aaaa no fuso de São Paulo (a mesma regra de data dos demais entregáveis, formato.ts); inválido = null. */
 export function dataBr(v: string | Date | null | undefined): string | null {
-  if (!v) return null;
-  if (typeof v === 'string') {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
-    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-  }
-  const d = v instanceof Date ? v : new Date(v);
-  if (Number.isNaN(d.getTime())) return null;
-  // Data de calendário no fuso de Brasília (UTC-3, sem horário de verão desde 2019), independente do fuso do servidor.
-  const b = new Date(d.getTime() - 3 * 3600 * 1000);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(b.getUTCDate())}/${p(b.getUTCMonth() + 1)}/${b.getUTCFullYear()}`;
+  return dataBrEntrega(v) || null;
 }
 
 /** Número em português (vírgula decimal, ponto de milhar). */

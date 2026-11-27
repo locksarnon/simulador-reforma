@@ -25,6 +25,8 @@ async function bootstrap() {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // O navegador só lê o nome do arquivo baixado (cliente, versão, data) se o cabeçalho for exposto.
+    exposedHeaders: ['Content-Disposition'],
   });
 
   app.use(helmet({ crossOriginResourcePolicy: false }));

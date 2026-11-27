@@ -12,7 +12,7 @@ export type SecaoPdf = {
   paragrafos?: string[];
   itens?: string[];
   /** Tabela com quebra de linha nas células; `larguras` são frações da largura útil (somam 1). */
-  tabela?: { cabecalho: string[]; linhas: string[][]; larguras?: number[] };
+  tabela?: TabelaPdf;
   /** Comparativo com texto longo (quebra de linha): tema, como era, como fica, base legal. */
   blocos?: { tema: string; era: string; fica: string; base?: string; confirmar?: string }[];
   /** Números-chave em destaque, lado a lado (até 3) — mesmo papel dos cartões de métrica da tela. */
@@ -51,7 +51,8 @@ const SITE = 'simulador.clarityib.com.br';
 
 const cortar = (s: unknown, n: number) => String(s ?? '').slice(0, n);
 
-export type TabelaPdf = { cabecalho: string[]; linhas: string[][]; larguras?: number[] };
+/** `links`: endereço por célula (mesma posição de `linhas`); a célula com endereço vira link clicável (texto curto, sublinhado). */
+export type TabelaPdf = { cabecalho: string[]; linhas: string[][]; larguras?: number[]; links?: (string | null | undefined)[][] };
 
 /**
  * Tabela com quebra de linha nas células, cabeçalho verde e linhas zebradas, a partir de pdf.y. Cabeçalho nunca fica órfão: só começa a
@@ -72,11 +73,14 @@ export function desenharTabela(
     pdf.font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
     return Math.max(20, ...textosDe(cels).map((tx, i) => pdf.heightOfString(tx, { width: ws[i] - 10 }) + 12));
   };
-  const desenhar = (cels: string[], negrito: boolean, h: number, fundo?: string) => {
+  const desenhar = (cels: string[], negrito: boolean, h: number, fundo?: string, links?: (string | null | undefined)[]) => {
     const yy = pdf.y;
     if (fundo) pdf.rect(x, yy, largura, h).fill(fundo);
-    pdf.fillColor(negrito ? BRANCO : TEXTO).font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
-    textosDe(cels).forEach((tx, i) => pdf.text(tx, xs[i] + 6, yy + 6, { width: ws[i] - 10 }));
+    pdf.font(negrito ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    textosDe(cels).forEach((tx, i) => {
+      const link = !negrito && links?.[i] ? String(links[i]) : null;
+      pdf.fillColor(negrito ? BRANCO : link ? VERDE : TEXTO).text(tx, xs[i] + 6, yy + 6, link ? { width: ws[i] - 10, link, underline: true } : { width: ws[i] - 10 });
+    });
     pdf.x = x;
     pdf.y = yy + h;
   };
@@ -90,7 +94,7 @@ export function desenharTabela(
       pdf.addPage();
       desenhar(cab, true, hCab, VERDE);
     }
-    desenhar(l, false, h, i % 2 ? FUNDO_CARD : undefined);
+    desenhar(l, false, h, i % 2 ? FUNDO_CARD : undefined, t.links?.[i]);
   });
 }
 

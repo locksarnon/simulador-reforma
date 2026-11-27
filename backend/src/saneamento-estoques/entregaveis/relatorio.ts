@@ -1,13 +1,15 @@
 /**
- * Relatório de fechamento (PDF padrão FAL/InTAX): monta o DocumentoPdf que o PdfService desenha. Todo texto sai de regras sobre os números reais
- * da versão liberada; não há parágrafo genérico. Só caracteres do alfabeto latino (a fonte padrão do PDF não tem setas).
+ * Relatório de fechamento (PDF padrão FAL/InTAX): monta o DocumentoPdf que o PdfService desenha. Abre com o RESULTADO em itens (o que muda no
+ * cadastro) e as pendências em itens e por tipo; o detalhe por camada vem depois e as restrições do ERP vão num anexo resumido, com a fonte
+ * como link curto. Todo texto sai de regras sobre os números reais da versão liberada. Só caracteres do alfabeto latino (a fonte padrão do
+ * PDF não tem setas).
  */
 import type { DocumentoPdf, SecaoPdf } from '../../pdf/pdf.service';
 import type { DadosEntrega } from '../dados/portas';
 import type { Camada } from '../tipos';
 import {
-  CASO_PENDENTE, ROTULO_CAMADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, paraData, origemDaFinalidade, pct1, rotuloDoCampo, rotuloObrigacao, rotuloTipoAjuste, textoSemEscrituracaoEntregue, txt,
-  mapaDoModelo, type Modelo,
+  CASO_PENDENTE, ROTULO_CAMADA, celula, comMilhar, construirModelo, dataBr, nomeCliente, obj, origemDaFinalidade, pct1, rotuloDoCampo, rotuloObrigacao, rotuloTipoAjuste,
+  rotuloTipoCaso, textoSemEscrituracaoEntregue, txt, mapaDoModelo, type Modelo,
 } from './modelo';
 import type { LinhaMapa } from './unificacoes';
 import { perfilEspecifico, restricoesDoTipo, type PerfilErp } from '../../erps/logica';
@@ -19,8 +21,52 @@ const n = comMilhar;
 const finalidadeConfirmada = (m: Modelo, i: Modelo['itens'][number]) => !!i.finalidade && !origemDaFinalidade(m, i).startsWith('Informada no cadastro');
 const plural = (q: number, um: string, varios: string) => `${n(q)} ${q === 1 ? um : varios}`;
 const parte = (a: number, b: number) => (b > 0 ? pct1(a / b) : '0,0%');
+/** Quantas linhas a tabela de pendências por tipo mostra; o resto vira "Demais tipos". */
+const MAX_TIPOS = 15;
 
 const TIPOS_DECISAO: Record<string, string> = { aprovar: 'aprovações', rejeitar: 'rejeições', desfazer: 'reversões', importar: 'incorporações de reimportação' };
+
+/** O que muda no cadastro, em itens: a abertura do relatório. */
+export type Resultado = {
+  itensInativar: number; unificacoes: number; codigosQueSaem: number; finalidadeDefinida: number; descricoes: number; unidades: number; ncm: number;
+  enquadramentos: number; vinculos: number; itensAjustados: number;
+};
+export function resultadoDaEntrega(m: Modelo): Resultado {
+  const valem = (l: LinhaMapa) => !m.liberada || l.situacao === 'APROVADA';
+  const mapa = mapaDoModelo(m).filter(valem);
+  const inativar = new Set<string>(); const casosUnif = new Set<string>(); let codigosQueSaem = 0;
+  for (const l of mapa) {
+    if (l.tipo === 'INATIVACAO' && l.morre) inativar.add(`${l.morre.codigo}\u0001${l.morre.estab}`);
+    if (l.tipo === 'UNIFICACAO') { codigosQueSaem++; if (l.casoId) casosUnif.add(l.casoId); }
+  }
+  const alterou = (campo: string) => m.itens.filter((i) => i.camposAlterados.includes(campo)).length;
+  const ajustados = new Set<string>(); for (const s of m.itensAjustadosPorCamada.values()) for (const id of s) ajustados.add(id);
+  return {
+    itensInativar: inativar.size, unificacoes: casosUnif.size, codigosQueSaem, finalidadeDefinida: m.itens.filter((i) => finalidadeConfirmada(m, i)).length,
+    descricoes: alterou('descricao'), unidades: alterou('unidade'), ncm: alterou('ncm'),
+    enquadramentos: m.itens.filter((i) => { const x = celula(m, i.id, 'TRIBUTARIO')?.situacao; return (x === 'APROVADO' || x === 'SEM_PROBLEMA') && !!txt(i.campos.cClassTrib ?? i.campos.c_class_trib); }).length,
+    vinculos: m.vinculos.length, itensAjustados: ajustados.size,
+  };
+}
+
+/** Pendências da versão por tipo de caso: itens distintos e grupos atingidos (o relatório fala em itens, não em casos). */
+export type PendenciaPorTipo = { camada: string; tipo: string; itens: number; grupos: number; aguardando: number };
+export function pendenciasPorTipo(m: Modelo): { porTipo: PendenciaPorTipo[]; itens: number; aguardando: number } {
+  const g = new Map<string, { camada: string; tipo: string; itens: Set<string>; grupos: Set<string>; aguardando: Set<string> }>();
+  const todos = new Set<string>(); const aguardando = new Set<string>();
+  for (const c of m.casos) {
+    if (!CASO_PENDENTE.includes(c.situacao)) continue;
+    const k = `${c.camada}\u0001${c.tipo}`;
+    let x = g.get(k); if (!x) { x = { camada: c.camada, tipo: c.tipo, itens: new Set(), grupos: new Set(), aguardando: new Set() }; g.set(k, x); }
+    for (const id of c.itens) {
+      x.itens.add(id); todos.add(id); x.grupos.add(m.porId.get(id)?.grupo || 'Sem grupo');
+      if (c.situacao === 'AGUARDANDO_INFORMACAO') { x.aguardando.add(id); aguardando.add(id); }
+    }
+  }
+  const porTipo = [...g.values()].map((x) => ({ camada: x.camada, tipo: x.tipo, itens: x.itens.size, grupos: x.grupos.size, aguardando: x.aguardando.size }))
+    .sort((a, b) => b.itens - a.itens || a.tipo.localeCompare(b.tipo));
+  return { porTipo, itens: todos.size, aguardando: aguardando.size };
+}
 
 function comentarioDaCamada(m: Modelo, camada: Camada): string | null {
   const c = m.porCamada.get(camada);
@@ -34,15 +80,6 @@ function comentarioDaCamada(m: Modelo, camada: Camada): string | null {
 
   const partes: string[] = [];
   partes.push(`${ROTULO_CAMADA[camada]}: ${n(analisados)} de ${n(c.total)} itens analisados (${parte(analisados, c.total)}), sendo ${n(s.SEM_PROBLEMA ?? 0)} sem problema e ${n(s.APROVADO ?? 0)} com ajuste aprovado.`);
-  if (nCasos === 0) partes.push('Nenhum caso foi aberto.');
-  else {
-    const det = [`${n(casos.APROVADO ?? 0)} aprovado(s)`];
-    if (casos.REJEITADO) det.push(`${n(casos.REJEITADO)} rejeitado(s), mantido o cadastro como estava`);
-    const abertos = (casos.PROPOSTO ?? 0) + (casos.RASCUNHO ?? 0);
-    if (abertos) det.push(`${n(abertos)} ainda em aberto`);
-    if (casos.AGUARDANDO_INFORMACAO) det.push(`${n(casos.AGUARDANDO_INFORMACAO)} aguardando informação`);
-    partes.push(`${plural(nCasos, 'caso gerado', 'casos gerados')}: ${det.join('; ')}.`);
-  }
   const ajustados = m.itensAjustadosPorCamada.get(camada)?.size ?? 0;
   if (ajustados) partes.push(`${plural(ajustados, 'item teve', 'itens tiveram')} campo ajustado por decisão aprovada.`);
 
@@ -116,9 +153,14 @@ function secaoImpactoSped(m: Modelo): SecaoPdf {
   return s;
 }
 
+/** Texto curto do link da fonte: o domínio, sem "www." ("help.sap.com"); endereço inválido fica como veio. */
+export function linkCurto(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+}
+
 /**
- * "Particularidades do ERP <nome>": as restrições do perfil do ERP (Cadastro de ERPs) para os tipos de ajuste dos casos aprovados, com o grau
- * e a fonte. Sem perfil específico (A_DESENVOLVER ou Outro ERP) ou sem restrição aplicável: a seção não entra (valem as regras gerais).
+ * Anexo "Particularidades do ERP <nome>": as restrições do perfil do ERP (Cadastro de ERPs) para os tipos de ajuste dos casos aprovados, com o
+ * grau e a fonte (link curto, clicável). Sem perfil específico (A_DESENVOLVER ou Outro ERP) ou sem restrição aplicável: o anexo não entra.
  */
 export function secaoParticularidadesErp(m: Pick<Modelo, 'casos'>, perfil: PerfilErp | null | undefined): SecaoPdf | null {
   if (!perfilEspecifico(perfil)) return null;
@@ -127,11 +169,12 @@ export function secaoParticularidadesErp(m: Pick<Modelo, 'casos'>, perfil: Perfi
   const r = restricoesDoTipo(perfil, [...tipos]);
   if (!r.length) return null;
   return {
-    titulo: `Particularidades do ERP ${perfil.nome}`,
-    paragrafos: ['Restrições do ERP do cliente para os ajustes aprovados, do Cadastro de ERPs. Os itens "Confirmado" têm fonte na documentação oficial do fornecedor; os marcados "Não confirmado" não têm fonte oficial que os afirme e devem ser conferidos com o fornecedor antes de aplicar. Na Ação no ERP, o texto não confirmado vem marcado "(a confirmar no ERP)".'],
+    titulo: `Anexo: particularidades do ERP ${perfil.nome}`,
+    paragrafos: ['Restrições do ERP para os ajustes aprovados (Cadastro de ERPs). "Não confirmado" = sem fonte oficial que o afirme: conferir com o fornecedor antes de aplicar.'],
     tabela: {
-      cabecalho: ['Ajuste', 'Restrição', 'Grau', 'Fonte'], larguras: [0.2, 0.5, 0.12, 0.18],
-      linhas: r.map((i) => [ROTULO_AJUSTE[i.tipo_ajuste as TipoAjuste] ?? txt(i.tipo_ajuste), i.texto, i.grau === 'CONFIRMADO' ? 'Confirmado' : 'Não confirmado', txt(i.fonte_url)]),
+      cabecalho: ['Ajuste', 'Restrição', 'Grau', 'Fonte'], larguras: [0.19, 0.47, 0.13, 0.21],
+      linhas: r.map((i) => [ROTULO_AJUSTE[i.tipo_ajuste as TipoAjuste] ?? txt(i.tipo_ajuste), i.texto, i.grau === 'CONFIRMADO' ? 'Confirmado' : 'Não confirmado', i.fonte_url ? linkCurto(i.fonte_url) : '-']),
+      links: r.map((i) => [null, null, null, i.fonte_url || null]),
     },
   };
 }
@@ -142,27 +185,48 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   const cliente = nomeCliente(m);
   const totalItens = m.itens.length;
   const completos = m.itens.filter((i) => m.camadas.every((c) => (celula(m, i.id, c)?.situacao ?? 'PENDENTE') !== 'PENDENTE')).length;
-  const ajustados = new Set<string>(); for (const s of m.itensAjustadosPorCamada.values()) for (const id of s) ajustados.add(id);
-  const casosTotal = m.casos.length;
-  const aprovados = m.casos.filter((c) => c.situacao === 'APROVADO').length;
-  const rejeitados = m.casos.filter((c) => c.situacao === 'REJEITADO').length;
-  const pendentes = m.casos.filter((c) => CASO_PENDENTE.includes(c.situacao));
-  const aguardando = pendentes.filter((c) => c.situacao === 'AGUARDANDO_INFORMACAO').length;
-  const naoAprovados = pendentes.filter((c) => c.situacao !== 'AGUARDANDO_INFORMACAO' && Object.keys(c.proposta).length > 0).length;
+  const r = resultadoDaEntrega(m);
+  const pend = pendenciasPorTipo(m);
 
   const secoes: SecaoPdf[] = [];
 
-  // Resumo
-  const resumo = [
-    `Foram recebidos ${plural(totalItens, 'item', 'itens')} do cadastro de ${cliente}${m.dados.importacoes.length ? `, em ${plural(m.dados.importacoes.length, 'importação', 'importações')}` : ''}. Na versão ${v?.numero ?? '-'} (${txt(v?.rotulo)}), ${plural(aprovados, 'caso foi aprovado', 'casos foram aprovados')} e ${plural(ajustados.size, 'item teve', 'itens tiveram')} campo ajustado; ${plural(rejeitados, 'caso foi rejeitado', 'casos foram rejeitados')}, mantido o cadastro como estava.`,
-    pendentes.length
-      ? `Ficam pendentes ${plural(pendentes.length, 'caso', 'casos')} (${n(aguardando)} aguardando informação), que não integram esta entrega.`
-      : 'Não há caso pendente nesta versão.',
-    `${completos === totalItens && totalItens > 0 ? 'Todos os itens tiveram todas as camadas analisadas' : `${n(completos)} de ${n(totalItens)} itens tiveram todas as camadas analisadas (${parte(completos, totalItens)})`}; ${plural(m.impactos.length, 'linha de impacto', 'linhas de impacto')} nas obrigações e ${plural(m.vinculos.length, 'vínculo de código', 'vínculos de código')} registrados.`,
-  ];
+  // Resultado (abre o relatório): o que muda no cadastro, em itens
+  const resultado: string[] = [];
+  if (r.itensInativar) resultado.push(`${plural(r.itensInativar, 'item a inativar', 'itens a inativar')} (sem movimentação desde o corte ou duplicados sem unificação).`);
+  if (r.unificacoes) resultado.push(`${plural(r.unificacoes, 'unificação', 'unificações')}: ${plural(r.codigosQueSaem, 'código deixa', 'códigos deixam')} de existir, com o saldo levado ao código que fica.`);
+  if (r.finalidadeDefinida) resultado.push(`Finalidade definida para ${plural(r.finalidadeDefinida, 'item', 'itens')} (${parte(r.finalidadeDefinida, totalItens)} do cadastro).`);
+  if (r.descricoes) resultado.push(`${plural(r.descricoes, 'descrição padronizada', 'descrições padronizadas')}.`);
+  if (r.unidades) resultado.push(`${plural(r.unidades, 'unidade ajustada', 'unidades ajustadas')}.`);
+  if (r.ncm) resultado.push(`${plural(r.ncm, 'NCM corrigido', 'NCM corrigidos')}.`);
+  if (r.enquadramentos) resultado.push(`Enquadramento tributário (cClassTrib) aprovado ou conferido em ${plural(r.enquadramentos, 'item', 'itens')}.`);
+  if (r.vinculos) resultado.push(`${plural(r.vinculos, 'vínculo de código antigo e novo registrado', 'vínculos de código antigo e novo registrados')}, com data e justificativa.`);
+  if (!resultado.length) resultado.push('Nenhuma alteração do cadastro foi aprovada até esta versão.');
   const marcadasRevisar = [...m.porCamada.values()].reduce((s, x) => s + x.revisar, 0);
-  if (marcadasRevisar) resumo.push(`Atenção: ${plural(marcadasRevisar, 'célula continua marcada', 'células continuam marcadas')} para revisão (a decisão anterior depende de dado que mudou); esses itens saem como "Aguardando revisão" e não como aprovados.`);
-  secoes.push({ titulo: 'Resumo do fechamento', paragrafos: resumo });
+  secoes.push({
+    titulo: 'Resultado da entrega',
+    paragrafos: [`Cadastro de ${cliente} com ${plural(totalItens, 'item', 'itens')}; na versão ${v?.numero ?? '-'} (${txt(v?.rotulo)}), ${plural(r.itensAjustados, 'item teve', 'itens tiveram')} campo ajustado por decisão aprovada.`],
+    destaques: [
+      { rotulo: 'Itens a inativar', valor: n(r.itensInativar), detalhe: parte(r.itensInativar, totalItens) },
+      { rotulo: 'Unificações', valor: n(r.unificacoes), detalhe: plural(r.codigosQueSaem, 'código sai', 'códigos saem') },
+      { rotulo: 'Finalidade definida', valor: n(r.finalidadeDefinida), detalhe: `de ${n(totalItens)} itens` },
+    ],
+    itens: [
+      ...resultado,
+      ...(marcadasRevisar ? [`Atenção: ${plural(marcadasRevisar, 'célula continua marcada', 'células continuam marcadas')} para revisão (a decisão anterior depende de dado que mudou); esses itens saem como "Aguardando revisão" e não como aprovados.`] : []),
+    ],
+  });
+
+  // Pendências em itens e por tipo
+  const linhasPend = pend.porTipo.slice(0, MAX_TIPOS).map((x) => [rotuloTipoCaso(x.tipo), ROTULO_CAMADA[x.camada as Camada] ?? x.camada, n(x.itens), n(x.grupos), x.aguardando ? n(x.aguardando) : '-']);
+  const demais = pend.porTipo.slice(MAX_TIPOS);
+  if (demais.length) linhasPend.push([`Demais tipos (${n(demais.length)})`, '-', n(demais.reduce((s, x) => s + x.itens, 0)), '-', '-']);
+  secoes.push({
+    titulo: 'Pendências',
+    paragrafos: pend.itens
+      ? [`${plural(pend.itens, 'item tem', 'itens têm')} alguma pendência (${parte(pend.itens, totalItens)} do cadastro), em ${plural(pend.porTipo.length, 'tipo', 'tipos')}; ${plural(pend.aguardando, 'item depende', 'itens dependem')} de informação do cliente. Não integram esta entrega; a lista por tipo e grupo está na aba "Pendências e histórico" do Excel. Um item pode aparecer em mais de um tipo.`]
+      : ['Não há pendência nesta versão.'],
+    tabela: pend.itens ? { cabecalho: ['Tipo de pendência', 'Camada', 'Itens', 'Grupos', 'Aguardando o cliente'], larguras: [0.36, 0.22, 0.13, 0.12, 0.17], linhas: linhasPend } : undefined,
+  });
 
   // Itens recebidos e analisados
   const imp = m.dados.importacoes.map((i) => obj(i));
@@ -171,24 +235,23 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
     destaques: [
       { rotulo: 'Itens recebidos', valor: n(totalItens), detalhe: `${plural(m.camadas.length, 'camada', 'camadas')} de análise` },
       { rotulo: 'Com todas as camadas analisadas', valor: n(completos), detalhe: parte(completos, totalItens) },
-      { rotulo: 'Com campo ajustado', valor: n(ajustados.size), detalhe: parte(ajustados.size, totalItens) },
+      { rotulo: 'Com campo ajustado', valor: n(r.itensAjustados), detalhe: parte(r.itensAjustados, totalItens) },
     ],
     tabela: imp.length ? {
       cabecalho: ['Arquivo importado', 'Data', 'Aceitas', 'Rejeitadas', 'Pendentes'], larguras: [0.4, 0.16, 0.14, 0.15, 0.15],
-      linhas: imp.slice(0, 20).map((i) => [txt(i.arquivo), dataBr(paraData(i.createdAt), false), n(Number(i.aceitas) || 0), n(Number(i.rejeitadas) || 0), n(Number(i.pendentes) || 0)]),
+      linhas: imp.slice(0, 20).map((i) => [txt(i.arquivo), dataBr(i.createdAt), n(Number(i.aceitas) || 0), n(Number(i.rejeitadas) || 0), n(Number(i.pendentes) || 0)]),
     } : undefined,
   });
 
-  // Ajustes por categoria
-  const camadasComCaso = [...new Set([...m.camadas, ...m.casosPorCamada.keys()])];
+  // Situação por camada, em itens
   secoes.push({
-    titulo: 'Ajustes por categoria',
-    paragrafos: [`${plural(casosTotal, 'caso gerado', 'casos gerados')} nas camadas de análise; aprovado é o que o consultor decidiu aplicar, rejeitado é o que ele manteve como estava.`],
+    titulo: 'Situação por camada (itens)',
+    paragrafos: ['Situação de cada item em cada camada de análise: aprovado é o ajuste que o consultor decidiu aplicar; pendente é o que ainda não foi decidido ou depende de informação.'],
     tabela: {
-      cabecalho: ['Camada', 'Casos', 'Aprovados', 'Rejeitados', 'Aguardando', 'Em aberto', 'Itens ajustados'], larguras: [0.26, 0.1, 0.12, 0.12, 0.14, 0.12, 0.14],
-      linhas: camadasComCaso.map((c) => {
-        const r = m.casosPorCamada.get(c) ?? {};
-        return [ROTULO_CAMADA[c as Camada] ?? c, n(Object.values(r).reduce((s, x) => s + x, 0)), n(r.APROVADO ?? 0), n(r.REJEITADO ?? 0), n(r.AGUARDANDO_INFORMACAO ?? 0), n((r.PROPOSTO ?? 0) + (r.RASCUNHO ?? 0)), n(m.itensAjustadosPorCamada.get(c)?.size ?? 0)];
+      cabecalho: ['Camada', 'Analisados', 'Sem problema', 'Ajuste aprovado', 'Pendentes', 'Aguardando informação'], larguras: [0.26, 0.14, 0.15, 0.15, 0.14, 0.16],
+      linhas: m.camadas.map((c) => {
+        const x = m.porCamada.get(c)!; const s = x.porSituacao;
+        return [ROTULO_CAMADA[c], parte(x.total - (s.PENDENTE ?? 0), x.total), n(s.SEM_PROBLEMA ?? 0), n(s.APROVADO ?? 0), n((s.PENDENTE ?? 0) + (s.PROPOSTO ?? 0)), n(s.AGUARDANDO_INFORMACAO ?? 0)];
       }),
     },
   });
@@ -213,7 +276,7 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   secoes.push({
     titulo: 'Revisões executadas',
     paragrafos: m.decisoes.length
-      ? [`${plural(m.decisoes.length, 'registro', 'registros')} no histórico de alterações (${detalheTipos}), feitos por ${plural(quem.size, 'pessoa', 'pessoas')}${temDatas ? `, entre ${dataBr(new Date(menorData), false)} e ${dataBr(new Date(maiorData), false)}` : ''}. Cada alteração guarda o valor anterior, o novo valor, o fundamento, o responsável e a data.`]
+      ? [`${plural(m.decisoes.length, 'registro', 'registros')} no histórico de alterações (${detalheTipos}), feitos por ${plural(quem.size, 'pessoa', 'pessoas')}${temDatas ? `, entre ${dataBr(new Date(menorData))} e ${dataBr(new Date(maiorData))}` : ''}. Cada alteração guarda o valor anterior, o novo valor, o fundamento, o responsável e a data.`]
       : ['Nenhuma alteração foi aplicada ao cadastro até esta versão.'],
     tabela: porCampo.size ? {
       cabecalho: ['Campo alterado', 'Alterações aprovadas'], larguras: [0.6, 0.4],
@@ -226,21 +289,13 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   secoes.push({ titulo: 'Comentário por aspecto tratado', paragrafos: comentarios.length ? comentarios : ['Nenhuma camada foi analisada até esta versão.'] });
 
   secoes.push(secaoImpactoSped(m));
-  const erp = secaoParticularidadesErp(m, dados.perfilErp);
-  if (erp) secoes.push(erp);
 
-  // Pendências e limitações
+  // Limitações
   const itens: string[] = [];
-  if (pendentes.length) {
-    const porCamada = new Map<string, number>(); for (const c of pendentes) porCamada.set(c.camada, (porCamada.get(c.camada) ?? 0) + 1);
-    itens.push(`${plural(pendentes.length, 'caso pendente', 'casos pendentes')}: ${[...porCamada].map(([c, q]) => `${ROTULO_CAMADA[c as Camada] ?? c} ${n(q)}`).join('; ')}.`);
-  }
-  if (aguardando) itens.push(`${plural(aguardando, 'caso depende', 'casos dependem')} de informação do cliente; a lista detalhada está na aba "Pendências e histórico" do Excel.`);
-  if (naoAprovados) itens.push(`${plural(naoAprovados, 'ajuste proposto', 'ajustes propostos')} e não aprovado${naoAprovados === 1 ? '' : 's'}: fora desta entrega.`);
-  if (m.impactosExcluidos) itens.push(`${plural(m.impactosExcluidos, 'linha de impacto no SPED', 'linhas de impacto no SPED')} ligada${m.impactosExcluidos === 1 ? '' : 's'} a caso não aprovado: fora desta entrega.`);
+  if (m.impactosExcluidos) itens.push(`${plural(m.impactosExcluidos, 'linha de impacto no SPED', 'linhas de impacto no SPED')} ligada${m.impactosExcluidos === 1 ? '' : 's'} a ajuste não aprovado: fora desta entrega.`);
   const incompletas = m.camadas.filter((c) => { const x = m.porCamada.get(c)!; return (x.porSituacao.PENDENTE ?? 0) > 0; });
-  if (incompletas.length) itens.push(`Cobertura incompleta em: ${incompletas.map((c) => `${ROTULO_CAMADA[c]} (${parte(m.porCamada.get(c)!.total - (m.porCamada.get(c)!.porSituacao.PENDENTE ?? 0), totalItens)})`).join('; ')}.`);
-  const semFin = m.itens.filter((i) => !finalidadeConfirmada(m, i)).length; const semNcm = m.itens.filter((i) => i.ncm.replace(/\D/g, '').length !== 8).length;
+  if (incompletas.length) itens.push(`Análise incompleta em: ${incompletas.map((c) => `${ROTULO_CAMADA[c]} (${parte(m.porCamada.get(c)!.total - (m.porCamada.get(c)!.porSituacao.PENDENTE ?? 0), totalItens)} analisados)`).join('; ')}.`);
+  const semFin = totalItens - r.finalidadeDefinida; const semNcm = m.itens.filter((i) => i.ncm.replace(/\D/g, '').length !== 8).length;
   if (semFin) itens.push(`${plural(semFin, 'item sem finalidade confirmada', 'itens sem finalidade confirmada')}: o enquadramento por cenário depende dela.`);
   if (semNcm) itens.push(`${plural(semNcm, 'item sem NCM de 8 dígitos', 'itens sem NCM de 8 dígitos')}: sem o NCM o enquadramento legal não é definido.`);
   const corte = obj(dados.projeto.parametros).corteMovimentacao;
@@ -249,23 +304,26 @@ export function montarRelatorio(dados: DadosEntrega): DocumentoPdf {
   const desligados = [mod.conciliacao === true ? '' : 'conciliação de estoque', mod.blocosKG === true ? '' : 'Blocos K e G', mod.arquivoErp === true ? '' : 'arquivo para o ERP'].filter(Boolean);
   if (desligados.length) itens.push(`Fora do escopo desta entrega: ${desligados.join(', ')}. O trabalho cobre o cadastro e o tratamento tributário dos itens, não a movimentação do estoque.`);
   itens.push('A análise se apoia na legislação e nas tabelas oficiais carregadas no sistema na data da versão; mudança posterior de norma ou de leiaute exige nova conferência.');
-  secoes.push({ titulo: 'Pendências e limitações', itens });
+  secoes.push({ titulo: 'Limitações', itens });
 
   // Versão liberada
   const fotoCelulas = dados.celulas.length;
   secoes.push({
     titulo: 'Versão liberada',
     paragrafos: [
-      `Versão ${v?.numero ?? '-'} — ${txt(v?.rotulo)}${v ? `, liberada em ${dataBr(paraData(v.criadaEm), false)}` : ''}. A versão congela ${plural(totalItens, 'item', 'itens')} e ${plural(fotoCelulas, 'situação de camada', 'situações de camada')}; somente decisões aprovadas até essa data compõem a entrega, e o Excel desta versão traz o cadastro saneado, o de/para de códigos, os cenários tributários, os impactos no SPED e o histórico por campo.`,
+      `Versão ${v?.numero ?? '-'} — ${txt(v?.rotulo)}${v ? `, liberada em ${dataBr(v.criadaEm)}` : ''}. A versão congela ${plural(totalItens, 'item', 'itens')} e ${plural(fotoCelulas, 'situação de camada', 'situações de camada')}; somente decisões aprovadas até essa data compõem a entrega, e o Excel desta versão traz o cadastro saneado, o de/para de códigos, os cenários tributários, os impactos no SPED, as pendências e o histórico das alterações aprovadas.`,
     ],
     destaques: [
-      { rotulo: 'Casos aprovados', valor: n(aprovados), detalhe: `de ${n(casosTotal)} casos` },
-      { rotulo: 'Pendentes', valor: n(pendentes.length), detalhe: `${n(aguardando)} aguardando informação` },
+      { rotulo: 'Itens ajustados', valor: n(r.itensAjustados), detalhe: `de ${n(totalItens)} itens` },
+      { rotulo: 'Itens com pendência', valor: n(pend.itens), detalhe: `${n(pend.aguardando)} aguardando o cliente` },
       { rotulo: 'Impactos SPED', valor: n(m.impactos.length), detalhe: `${n(m.vinculos.length)} vínculos de código` },
     ],
   });
 
-  const subtitulo = [cliente, `Data-base ${dataBr(paraData(dados.projeto.data_base))}`, v ? `Versão ${v.numero}: ${v.rotulo}` : ''].filter(Boolean).join('  ·  ');
+  const erp = secaoParticularidadesErp(m, dados.perfilErp);
+  if (erp) secoes.push(erp);
+
+  const subtitulo = [cliente, `Data-base ${dataBr(dados.projeto.data_base)}`, v ? `Versão ${v.numero}: ${v.rotulo}` : ''].filter(Boolean).join('  ·  ');
   return {
     titulo: 'Relatório de fechamento: saneamento de estoques e cadastro de produtos',
     marca: 'Consultoria tributária · FAL Agro',
