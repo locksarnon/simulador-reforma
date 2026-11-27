@@ -10,12 +10,14 @@ import { cenariosAplicaveis } from './cenarios';
 
 /** Dependências entre camadas (plano, seção 4): o que passa a "revisar" quando a camada tem caso aprovado/alterado. */
 export const AFETA: Partial<Record<Camada, Camada[]>> = {
-  IDENTIFICACAO: ['NCM', 'TRIBUTARIO', 'OBRIGACOES'],
+  IDENTIFICACAO: ['NCM', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'],
   QUALIDADE: [],
   DUPLICIDADE: ['OBRIGACOES'],
-  GRUPOS_FINALIDADE: ['TRIBUTARIO', 'OBRIGACOES'],
+  GRUPOS_FINALIDADE: ['FINALIDADE', 'TRIBUTARIO', 'OBRIGACOES'],
   NOMES_UNIDADES: ['DUPLICIDADE', 'OBRIGACOES'],
-  NCM: ['TRIBUTARIO', 'OBRIGACOES'],
+  NCM: ['NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'],
+  FINALIDADE: ['TRIBUTARIO', 'OBRIGACOES'],
+  NCM_CLASSIFICACAO: ['TRIBUTARIO', 'OBRIGACOES'],
   TRIBUTARIO: ['OBRIGACOES'],
   OBRIGACOES: [],
 };

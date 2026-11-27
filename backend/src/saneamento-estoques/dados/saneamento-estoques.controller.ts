@@ -54,6 +54,10 @@ export class SaneamentoEstoquesController {
     return p;
   }
 
+  /** Fases do projeto (camadas, versão liberada e o que trava a Fase 2). Só lê. */
+  @Get('projetos/:id/fases')
+  fases(@Param('id') id: string) { return this.projetos.fases(id); }
+
   @Get('projetos/:id/atividades')
   atividades(@Param('id') id: string) { return this.projetos.listarAtividades(id); }
   @Post('projetos/:id/atividades')
@@ -142,7 +146,7 @@ export class SaneamentoEstoquesController {
 
   // ── Versões ────────────────────────────────────────────────────────────────
   @Post('projetos/:id/versoes')
-  criarVersao(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: { rotulo?: string }) { return this.versoes.criar(id, b ?? {}, user); }
+  criarVersao(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: { rotulo?: string; fase?: string }) { return this.versoes.criar(id, b ?? {}, user); }
   @Get('projetos/:id/versoes')
   listarVersoes(@Param('id') id: string) { return this.versoes.listar(id); }
   @Get('projetos/:id/versoes/comparar')

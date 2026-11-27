@@ -149,7 +149,9 @@ export function construirModelo(dados: DadosEntrega): Modelo {
     m.set(camada, { situacao: txt(c.situacao) || 'PENDENTE', revisar: c.revisar === true, casoId: c.caso_id ? txt(c.caso_id) : null });
   }
   const modulos = obj(dados.projeto.modulos);
-  const camadas = CAMADAS.filter((c) => c !== 'ESTOQUE' || modulos.conciliacao === true || presentes.has('ESTOQUE'));
+  // Camadas nascidas da divisão em fases (FINALIDADE, NCM_CLASSIFICACAO) só aparecem se a foto as tem: foto antiga fica como estava.
+  const novas: readonly string[] = ['FINALIDADE', 'NCM_CLASSIFICACAO'];
+  const camadas = CAMADAS.filter((c) => (c !== 'ESTOQUE' || modulos.conciliacao === true || presentes.has('ESTOQUE')) && (!novas.includes(c) || presentes.has(c) || !presentes.size));
 
   const casos: CasoN[] = dados.casos.filter((c) => txt(c.situacao) !== 'OBSOLETO').map((c) => ({
     id: txt(c.id), camada: txt(c.camada), tipo: txt(c.tipo), itens: lista(c.itens).map(txt), problema: txt(c.problema),
@@ -374,7 +376,8 @@ export function origemDaFinalidade(m: Modelo, it: ItemN): string {
   if (!idx) {
     const porItem = new Map<string, CasoN[]>();
     for (const c of m.casos) {
-      if (c.camada !== 'GRUPOS_FINALIDADE' || c.situacao !== 'APROVADO' || !txt(c.proposta.finalidade)) continue;
+      // FINALIDADE (Fase 2) ou GRUPOS_FINALIDADE (fotos de versões anteriores à divisão em fases): os leitores aceitam as duas.
+      if ((c.camada !== 'FINALIDADE' && c.camada !== 'GRUPOS_FINALIDADE') || c.situacao !== 'APROVADO' || !txt(c.proposta.finalidade)) continue;
       for (const id of c.itens) (porItem.get(id) ?? porItem.set(id, []).get(id)!).push(c);
     }
     const aplicadas = new Set(m.decisoes.filter((d) => d.campo === 'finalidade' && d.tipo === 'aprovar' && d.casoId).map((d) => `${d.casoId}\u0001${d.itemId}`));

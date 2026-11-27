@@ -6,3 +6,4 @@ export * from './enquadramento';
 export * from './tributario';
 export * from './impactoSped';
 export * from './aderencia';
+export * from './regimes';

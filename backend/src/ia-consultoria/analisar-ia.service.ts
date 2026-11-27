@@ -72,10 +72,15 @@ export class AnalisarIaService {
     const achados: string[] = [];
     try {
       if (p.servico_consultoria === 'saneamento-estoques') {
-        const san = await this.prisma.sanProjeto.findUnique({ where: { diagnostico_id: p.id }, select: { id: true, atividades_confirmadas_em: true } });
+        const san = await this.prisma.sanProjeto.findUnique({ where: { diagnostico_id: p.id }, select: { id: true, atividades_confirmadas_em: true, parametros: true } });
         if (san) {
           const grupos = await this.prisma.sanCaso.groupBy({ by: ['camada', 'situacao'], where: { projeto_id: san.id }, _count: { _all: true } });
-          achados.push(san.atividades_confirmadas_em ? 'Atividades do cliente confirmadas.' : 'Atividades do cliente ainda NÃO confirmadas: a análise está travada.');
+          // Trava por fase (docs/saneamento-fases.md): a Fase 1 (saneamento do cadastro) é livre; a Fase 2 exige Fase 1 liberada, regime e atividades.
+          const versoes = await this.prisma.sanVersao.findMany({ where: { projeto_id: san.id }, select: { resumo: true } });
+          const fase1 = versoes.some((v) => (v.resumo as { fase?: unknown } | null)?.fase === 'FASE1');
+          const regime = !!(san.parametros as { regimeCliente?: unknown } | null)?.regimeCliente;
+          const faltam = [fase1 ? '' : 'Fase 1 liberada', regime ? '' : 'regime do cliente', san.atividades_confirmadas_em ? '' : 'atividades do cliente confirmadas'].filter(Boolean);
+          achados.push(faltam.length ? `Fase 1 (saneamento do cadastro) livre; Fase 2 (finalidade, classificação NCM e tratamento tributário) travada: falta ${faltam.join(', ')}.` : 'Fase 1 liberada, regime do cliente informado e atividades confirmadas: a Fase 2 está liberada.');
           for (const g of grupos) achados.push(`Casos da camada ${g.camada} em ${g.situacao}: ${g._count._all}`);
         }
       }

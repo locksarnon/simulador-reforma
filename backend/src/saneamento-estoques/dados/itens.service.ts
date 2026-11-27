@@ -84,14 +84,14 @@ export class SanItensService {
    * Uma consulta por página (até 500 itens), com índice GIN em SanCaso.itens; só campos leves.
    */
   /**
-   * Finalidade que a camada Grupos e finalidade propõe e ainda não foi aprovada (caso em aberto), para a tabela mostrar como "sugerida".
+   * Finalidade que a camada Finalidade propõe e ainda não foi aprovada (caso em aberto), para a tabela mostrar como "sugerida".
    * A exceção do item vale mais que o caso do grupo. Item que já tem finalidade não entra.
    */
   private async finalidadesSugeridas(projetoId: string, ids: string[]) {
     const saida = new Map<string, string>();
     if (!ids.length) return saida;
     const casos = await this.prisma.sanCaso.findMany({
-      where: { projeto_id: projetoId, camada: 'GRUPOS_FINALIDADE', tipo: { in: ['FINALIDADE_GRUPO', 'FINALIDADE_EXCECAO'] }, situacao: { in: ['PROPOSTO', 'RASCUNHO'] }, itens: { hasSome: ids } },
+      where: { projeto_id: projetoId, camada: 'FINALIDADE', tipo: { in: ['FINALIDADE_GRUPO', 'FINALIDADE_EXCECAO'] }, situacao: { in: ['PROPOSTO', 'RASCUNHO'] }, itens: { hasSome: ids } },
       select: { tipo: true, itens: true, proposta: true },
     });
     const quer = new Set(ids);
@@ -174,7 +174,10 @@ export class SanItensService {
     };
     for (const i of itens) obter(i.grupo ?? '').itens = i._count._all;
     for (const c of cel) {
+      // Camada que esta versão não conhece (dado antigo ou de outra versão do servidor): não entra na contagem (antes derrubava a tela).
+      if (!(CAMADAS as readonly string[]).includes(c.camada)) continue;
       const g = obter(c.grupo ?? '');
+      if (!(c.situacao in g.camadas[c.camada])) continue;
       g.camadas[c.camada][c.situacao] += c._count._all;
       if (c.revisar) g.camadas[c.camada].revisar += c._count._all;
     }

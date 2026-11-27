@@ -517,7 +517,7 @@ function nomesUnidades(base: AnalisadorCamada, itens: ItemTrabalho[], contexto: 
 export function tipoMudaComAspecto(aspecto: Aspecto, camada: string, tipo: string): boolean {
   if (camada === 'NOMES_UNIDADES') return aspectoDoTipo(tipo) === aspecto;
   if (camada === 'QUALIDADE') return aspecto === 'ATRIBUTOS' && tipo === 'ATRIBUTO_AUSENTE';
-  return aspecto === 'FISCAL' && (camada === 'NCM' || camada === 'TRIBUTARIO');
+  return aspecto === 'FISCAL' && (camada === 'NCM' || camada === 'NCM_CLASSIFICACAO' || camada === 'TRIBUTARIO');
 }
 
 function qualidade(base: AnalisadorCamada, itens: ItemTrabalho[], contexto: ContextoAnalise, indice: IndiceDiretrizes): ResultadoCamada {
@@ -551,7 +551,7 @@ function fiscal(base: AnalisadorCamada, itens: ItemTrabalho[], contexto: Context
     const f = indice.resolver(it.grupo, subgrupoDe(it)).FISCAL;
     if (f) regraDe.set(it.id, f);
     const conteudo = f?.conteudo as RegraFiscal | undefined;
-    const excluido = conteudo && (camada === 'NCM' ? foraDoNcm(it, conteudo) != null : camada === 'TRIBUTARIO' ? !conteudo.validarCClassTrib : false);
+    const excluido = conteudo && (camada === 'NCM' || camada === 'NCM_CLASSIFICACAO' ? foraDoNcm(it, conteudo) != null : camada === 'TRIBUTARIO' ? !conteudo.validarCClassTrib : false);
     if (excluido) fora.push(it.id); else dentro.push(it);
   }
   if (!regraDe.size) return base.analisar(itens, contexto);
@@ -570,7 +570,7 @@ export function envolverComDiretrizes(base: AnalisadorCamada, indice: IndiceDire
   switch (base.camada) {
     case 'NOMES_UNIDADES': return { camada: base.camada, analisar: (itens, ctx) => nomesUnidades(base, itens, ctx, indice) };
     case 'QUALIDADE': return { camada: base.camada, analisar: (itens, ctx) => qualidade(base, itens, ctx, indice) };
-    case 'NCM': case 'TRIBUTARIO': return { camada: base.camada, analisar: (itens, ctx) => fiscal(base, itens, ctx, indice) };
+    case 'NCM': case 'NCM_CLASSIFICACAO': case 'TRIBUTARIO': return { camada: base.camada, analisar: (itens, ctx) => fiscal(base, itens, ctx, indice) };
     default: return base;
   }
 }

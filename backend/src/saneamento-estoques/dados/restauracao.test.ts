@@ -5,7 +5,7 @@ import { SanCasosService } from './casos.service';
 import { SanImportacaoService } from './importacao.service';
 import { type ImportadorPort, type ItemImportado } from './portas';
 import { acrescentar } from './constantes';
-import { criarPrismaFalso } from './prisma-falso';
+import { criarPrismaFalso, liberarFase2 } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 import { camadasDosCampos, diferencasDoTrabalho, gravarItensEmBloco, SanRestauracaoService, type LinhaItem } from './restauracao.service';
 import { SanVersoesService } from './versoes.service';
@@ -74,8 +74,8 @@ describe('regras puras', () => {
   });
 
   it('dependências pela regra da aprovação (camadasAfetadas, com NCM → tributário → obrigações)', () => {
-    expect(camadasDosCampos(['ncm'])).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
-    expect(camadasDosCampos(['descricao'])).toEqual(['NCM', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(camadasDosCampos(['ncm'])).toEqual(['NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
+    expect(camadasDosCampos(['descricao'])).toEqual(['NCM', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
     expect(camadasDosCampos(['unidade'])).toEqual(['DUPLICIDADE', 'OBRIGACOES']);
     expect(camadasDosCampos(['saldo'])).toEqual([]);
   });
@@ -104,7 +104,7 @@ describe('continuar a partir de uma versão liberada', () => {
     const p = await c.restauracao.previa(projetoId, v1.id);
     expect(p.totais).toEqual({ itens: 1, campos: 1, itensNaFoto: 2, itensNovosDepois: 0, itensAusentes: 0, casosDecididosDepois: 1 });
     expect(p.porCampo).toEqual([{ campo: 'ncm', itens: 1 }]);
-    expect(p.camadasRevisar).toEqual(['OBRIGACOES', 'TRIBUTARIO']);
+    expect(p.camadasRevisar).toEqual(['NCM_CLASSIFICACAO', 'OBRIGACOES', 'TRIBUTARIO']);
     expect(p.casosReabertos).toEqual([{ id: casoId, camada: 'NCM' }]);
     expect(p.amostra[0]).toMatchObject({ codigo: '00123', campos: [{ campo: 'ncm', antes: '31051000', depois: '31010000' }] });
     expect(p.versaoProjeto).toBe(versaoProjeto(c));
@@ -155,6 +155,7 @@ describe('continuar a partir de uma versão liberada', () => {
   it('casos decididos depois: só conta decisão de aplicação vigente (rejeitar e desfazer ficam de fora)', async () => {
     const c = montar();
     const { projetoId, v1, ids } = await cenario(c);
+    liberarFase2(c.db, projetoId);
     await c.casos.registrarResultado(projetoId, resultado('TRIBUTARIO', [umCaso('TRIBUTARIO', 'NCM_OUTRO', [ids['00123']], { ncm: '31051000' }, { ncm: '31059000' })]));
     const rejeitado = c.db.sanCaso.find((x) => x.tipo === 'NCM_OUTRO')!;
     await c.casos.rejeitar(rejeitado.id, { versao: rejeitado.versao, justificativa: 'Não procede' }, USER);

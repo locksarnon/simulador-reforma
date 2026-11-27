@@ -250,7 +250,7 @@ describe('Relatório de fechamento (PDF)', () => {
     // Pendências em itens e por tipo.
     const pend = doc.secoes[1];
     expect(pend.paragrafos![0]).toMatch(/^2 itens têm alguma pendência \(66,7% do cadastro\), em 3 tipos; 2 itens dependem de informação do cliente/);
-    expect(pend.tabela!.linhas.find((l) => l[0] === 'Informação insuficiente para o NCM')).toEqual(['Informação insuficiente para o NCM', 'Classificação (NCM)', '2', '2', '2']);
+    expect(pend.tabela!.linhas.find((l) => l[0] === 'Informação insuficiente para o NCM')).toEqual(['Informação insuficiente para o NCM', 'Validar NCM', '2', '2', '2']);
     expect(JSON.stringify(doc)).not.toMatch(/casos aprovados|casos pendentes/i);
     expect(doc.secoes[2].destaques?.[0]).toMatchObject({ rotulo: 'Itens recebidos', valor: '3' });
     expect(doc.secoes[3].tabela!.linhas.find((l) => l[0] === 'Tratamento tributário')).toEqual(['Tratamento tributário', '66,7%', '0', '1', '2', '0']);

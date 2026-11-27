@@ -5,8 +5,9 @@
 import type { Camada } from './tipos';
 
 export const ROTULO_CAMADA: Record<Camada, string> = {
-  IDENTIFICACAO: 'Identificação', QUALIDADE: 'Qualidade', DUPLICIDADE: 'Duplicidades', GRUPOS_FINALIDADE: 'Grupos e finalidade',
-  NOMES_UNIDADES: 'Nomes e unidades', NCM: 'Classificação (NCM)', TRIBUTARIO: 'Tratamento tributário', ESTOQUE: 'Estoque', OBRIGACOES: 'Impacto nas obrigações',
+  IDENTIFICACAO: 'Identificação', QUALIDADE: 'Qualidade', DUPLICIDADE: 'Duplicidades', GRUPOS_FINALIDADE: 'Grupos',
+  NOMES_UNIDADES: 'Nomes e unidades', NCM: 'Validar NCM', ESTOQUE: 'Estoque', FINALIDADE: 'Finalidade', NCM_CLASSIFICACAO: 'Classificação NCM',
+  TRIBUTARIO: 'Tratamento tributário', OBRIGACOES: 'Impacto no SPED',
 };
 const ROTULO_CAMADA_TXT: Record<string, string> = ROTULO_CAMADA;
 

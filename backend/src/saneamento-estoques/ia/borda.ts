@@ -28,6 +28,9 @@ const NCM: Record<string, string> = {
   NCM_INCOMPATIVEL_DESCRICAO: 'NCM sem relação textual com a descrição: classificação ambígua.',
 };
 
+/** Finalidade: camada FINALIDADE (Fase 2); GRUPOS_FINALIDADE só nos casos anteriores à divisão em fases (fotos antigas). */
+const ehFinalidade = (camada: string) => camada === 'FINALIDADE' || camada === 'GRUPOS_FINALIDADE';
+
 export function motivoBorda(c: CasoBorda): Borda | null {
   if (REGRA_DECIDE.has(c.tipo)) return null;
   const ev = evidencias(c);
@@ -35,7 +38,7 @@ export function motivoBorda(c: CasoBorda): Borda | null {
 
   if (c.camada === 'DUPLICIDADE' && DUPLICIDADE[c.tipo]) return { codigo: 'DUPLICIDADE_MISTA', motivo: DUPLICIDADE[c.tipo] };
 
-  if (c.camada === 'NCM') {
+  if (c.camada === 'NCM' || c.camada === 'NCM_CLASSIFICACAO') {
     if (NCM[c.tipo]) return { codigo: 'NCM_AMBIGUO', motivo: NCM[c.tipo] };
     // Mais de um sucessor possível para a classificação encerrada: a escolha depende da característica do produto.
     if (c.tipo === 'NCM_CLASSIFICACAO_ANTIGA' && ev.some((e) => e.rotulo.startsWith('sucessor') && e.valor.includes(','))) {
@@ -44,7 +47,7 @@ export function motivoBorda(c: CasoBorda): Borda | null {
   }
 
   // Crédito de PIS/Cofins sobre item de uso ambíguo (insumo × uso e consumo × manutenção depende do uso real).
-  if ((c.camada === 'TRIBUTARIO' || c.camada === 'GRUPOS_FINALIDADE') && /\b(pis|cofins)\b/.test(texto) && /ambigu|depende do uso|uso incert|pode ser (insumo|uso e consumo|manutencao)/.test(texto)) {
+  if ((c.camada === 'TRIBUTARIO' || ehFinalidade(c.camada)) && /\b(pis|cofins)\b/.test(texto) && /ambigu|depende do uso|uso incert|pode ser (insumo|uso e consumo|manutencao)/.test(texto)) {
     return { codigo: 'CREDITO_PIS_COFINS', motivo: 'Crédito de PIS/Cofins sobre item de uso ambíguo.' };
   }
 
@@ -54,7 +57,7 @@ export function motivoBorda(c: CasoBorda): Borda | null {
   }
 
   // Finalidade com confiança baixa (ex.: o cliente revende e também produz).
-  if (c.camada === 'GRUPOS_FINALIDADE' && (/finalidade/.test(sem(c.tipo)) || ev.some((e) => e.rotulo.includes('finalidade')) || /finalidade/.test(texto))
+  if (ehFinalidade(c.camada) && (/finalidade/.test(sem(c.tipo)) || ev.some((e) => e.rotulo.includes('finalidade')) || /finalidade/.test(texto))
     && (ev.some((e) => /confianca/.test(e.rotulo) && /baixa/.test(e.valor)) || /confianca baixa|confirmar por grupo|pode ser revenda ou insumo/.test(texto))) {
     return { codigo: 'FINALIDADE_INCERTA', motivo: 'Finalidade com confiança baixa: o mesmo item pode ter mais de um uso.' };
   }
@@ -68,9 +71,10 @@ export function motivoBorda(c: CasoBorda): Borda | null {
  */
 export const CANDIDATOS_BORDA: { camada: string; tipos: string[] | null }[] = [
   { camada: 'DUPLICIDADE', tipos: Object.keys(DUPLICIDADE) },
-  { camada: 'NCM', tipos: [...Object.keys(NCM), 'NCM_CLASSIFICACAO_ANTIGA'] },
+  { camada: 'NCM', tipos: ['NCM_CLASSIFICACAO_ANTIGA'] },
+  { camada: 'NCM_CLASSIFICACAO', tipos: Object.keys(NCM) },
   { camada: 'TRIBUTARIO', tipos: null },
-  { camada: 'GRUPOS_FINALIDADE', tipos: null },
+  { camada: 'FINALIDADE', tipos: null },
 ];
 
 export const ehBorda = (c: CasoBorda): boolean => motivoBorda(c) !== null;

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { soDigitos } from '../../classificacao/ncm-classe';
 import {
-  AnalisadorDuplicidade, AnalisadorGrupos, AnalisadorIdentificacao, AnalisadorNcm, AnalisadorNomesUnidades, AnalisadorQualidade, novoCaso, valorComum,
+  AnalisadorDuplicidade, AnalisadorGrupos, AnalisadorIdentificacao, AnalisadorNcm, AnalisadorNcmClassificacao, AnalisadorNomesUnidades, AnalisadorQualidade, novoCaso, valorComum,
   type ContextoMotor, type PapelUnificacao, type ParametrosMotor, type TabelaNcm,
 } from '../motor';
 import {
@@ -36,31 +36,36 @@ export function criarTabelaNcm(linhas: { codigo: string; descricao: string | nul
 }
 
 /**
- * GRUPOS_FINALIDADE = os casos de grupos do motor + a confirmação da finalidade POR GRUPO (plano, seção 5: "confirma por grupo e corrige
- * exceções"; "exceção exige motivo"):
+ * FINALIDADE (Fase 2; até a divisão em fases era parte de GRUPOS_FINALIDADE) = a confirmação da finalidade POR GRUPO (plano, seção 5:
+ * "confirma por grupo e corrige exceções"; "exceção exige motivo"). Os casos de grupo ficam na camada Grupos (GRUPOS_FINALIDADE, Fase 1):
  * - FINALIDADE_GRUPO: os itens do grupo cuja finalidade (informada pelo cliente ou sugerida) é a dominante, ou que não têm sugestão
  *   (herdam a do grupo). A finalidade informada pelo cliente entra aqui para ser confirmada, nunca vira "sem problema" sozinha.
  * - FINALIDADE_EXCECAO: um caso por finalidade diferente da dominante, com os itens que a regra (ou o cliente) manda para ela. Aprovar
  *   exige o motivo escrito pelo consultor. O caso do grupo nunca sobrescreve a finalidade desses itens.
- * Item com finalidade já confirmada por decisão aprovada desta camada (a mesma que está no item) fica "sem problema".
+ * Item com finalidade já confirmada por decisão aprovada desta camada (a mesma que está no item) fica "sem problema". Item sem grupo não tem
+ * finalidade por grupo: fica "aguardando informação" (o grupo é tratado na Fase 1).
  */
-export class AnalisadorGruposFinalidade implements AnalisadorCamada {
-  readonly camada = 'GRUPOS_FINALIDADE' as const;
-  constructor(private readonly grupos: AnalisadorCamada, private readonly atividades: string[], private readonly confirmadas: Map<string, string> = new Map()) {}
+export class AnalisadorFinalidade implements AnalisadorCamada {
+  readonly camada = 'FINALIDADE' as const;
+  constructor(private readonly atividades: string[], private readonly confirmadas: Map<string, string> = new Map()) {}
 
-  analisar(itens: ItemTrabalho[], contexto: ContextoAnalise): ResultadoCamada {
-    const base = this.grupos.analisar(itens, contexto);
+  analisar(itens: ItemTrabalho[]): ResultadoCamada {
     const codigo = new Map(itens.map((i) => [i.id, i.codigo]));
-    const casos: CasoProposto[] = [...base.casos];
+    const casos: CasoProposto[] = [];
     const fin: CasoProposto[] = [];
     const prontos = new Set<string>();
     const semSugestao = new Set<string>();
+    const semGrupo = new Set<string>();
     const motivosSemSugestao: string[] = [];
     const rotulo = (f: Finalidade) => ROTULO_FINALIDADE[f];
     const fundamento = 'Regra interna: sugestão por grupo, nome do item e atividades confirmadas do cliente (a finalidade define o enquadramento tributário).';
+    for (const i of itens) {
+      if (i.grupo) continue;
+      if (i.finalidade && this.confirmadas.get(i.id) === i.finalidade) prontos.add(i.id); else semGrupo.add(i.id);
+    }
     for (const s of sugerirFinalidadePorGrupo(itens, this.atividades)) {
       const doGrupo = itens.filter((i) => (i.grupo ?? '') === (s.grupo ?? ''));
-      if (!s.grupo) continue; // item sem grupo não tem finalidade por grupo
+      if (!s.grupo) continue; // item sem grupo não tem finalidade por grupo (tratado acima)
       if (!s.dominante) { doGrupo.forEach((i) => semSugestao.add(i.id)); motivosSemSugestao.push(`${s.grupo}: ${s.motivoDaRegra || s.motivo}`); continue; }
       const excecao = new Map(s.excecoes.map((x) => [x.itemId, x]));
       const doCaso: ItemTrabalho[] = [];
@@ -75,7 +80,7 @@ export class AnalisadorGruposFinalidade implements AnalisadorCamada {
       const emExcecao = [...porFinalidade.values()].reduce((n, l) => n + l.length, 0);
       if (doCaso.length) {
         fin.push(novoCaso({
-          camada: 'GRUPOS_FINALIDADE', tipo: 'FINALIDADE_GRUPO', itens: doCaso.map((i) => i.id),
+          camada: 'FINALIDADE', tipo: 'FINALIDADE_GRUPO', itens: doCaso.map((i) => i.id),
           problema: `Confirmar a finalidade do grupo "${s.grupo}": ${rotulo(s.dominante)} (confiança ${s.confianca})`,
           evidencia: [
             { rotulo: 'Grupo', valor: `${s.grupo} (${s.total} itens)` },
@@ -94,7 +99,7 @@ export class AnalisadorGruposFinalidade implements AnalisadorCamada {
       }
       for (const [f, lista] of porFinalidade) {
         fin.push(novoCaso({
-          camada: 'GRUPOS_FINALIDADE', tipo: 'FINALIDADE_EXCECAO', itens: lista.map((i) => i.id),
+          camada: 'FINALIDADE', tipo: 'FINALIDADE_EXCECAO', itens: lista.map((i) => i.id),
           problema: `Exceção no grupo "${s.grupo}": ${lista.length} item(ns) com finalidade ${rotulo(f)}, diferente da do grupo (${rotulo(s.dominante)})`,
           evidencia: [
             { rotulo: 'Grupo', valor: `${s.grupo} (${s.total} itens)` },
@@ -110,13 +115,17 @@ export class AnalisadorGruposFinalidade implements AnalisadorCamada {
     }
     casos.push(...fin);
     const emCaso = new Set(casos.flatMap((c) => c.itens));
-    const semProblema = [...new Set([...base.semProblema, ...prontos])].filter((id) => !emCaso.has(id) && !semSugestao.has(id));
-    const semDados = base.semDados ?? (semSugestao.size ? { motivo: `Há grupos sem nenhuma sugestão de finalidade: confirmar com o cliente (${motivosSemSugestao.slice(0, 10).join('; ')}${motivosSemSugestao.length > 10 ? '; …' : ''})`.slice(0, 1000), itens: semSugestao.size } : null);
-    return { camada: 'GRUPOS_FINALIDADE', analisados: itens.length, semDados, casos, semProblema };
+    const semProblema = itens.map((i) => i.id).filter((id) => !emCaso.has(id) && !semSugestao.has(id) && !semGrupo.has(id));
+    const motivos = [
+      ...(semSugestao.size ? [`Há grupos sem nenhuma sugestão de finalidade: confirmar com o cliente (${motivosSemSugestao.slice(0, 10).join('; ')}${motivosSemSugestao.length > 10 ? '; …' : ''})`] : []),
+      ...(semGrupo.size ? [`${semGrupo.size} item(ns) sem grupo: a finalidade por grupo depende do grupo (camada Grupos, Fase 1)`] : []),
+    ];
+    const semDados = motivos.length ? { motivo: motivos.join('. ').slice(0, 1000), itens: semSugestao.size + semGrupo.size } : null;
+    return { camada: 'FINALIDADE', analisados: itens.length, semDados, casos, semProblema };
   }
 }
 
-/** Finalidade confirmada por decisão aprovada da camada GRUPOS_FINALIDADE: item → finalidade aprovada (o último caso aprovado vale). */
+/** Finalidade confirmada por decisão aprovada da camada FINALIDADE: item → finalidade aprovada (o último caso aprovado vale). */
 export function finalidadesConfirmadas(aprovados: { itens: string[]; proposta: unknown }[]): Map<string, string> {
   const m = new Map<string, string>();
   for (const c of aprovados) {
@@ -202,7 +211,7 @@ export class MotorSaneamento implements MotorPort {
   constructor(private readonly prisma: PrismaService, private readonly catalogos: CatalogosFiscaisPrisma) {}
 
   camadas(): Camada[] {
-    return ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'TRIBUTARIO', 'OBRIGACOES'];
+    return ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'];
   }
 
   async preparar(camada: Camada, { projetoId, itens, contexto }: EntradaPreparo): Promise<{ analisador: AnalisadorCamada; contexto: ContextoAnalise }> {
@@ -216,14 +225,15 @@ export class MotorSaneamento implements MotorPort {
       }
       case 'DUPLICIDADE': return { analisador: new AnalisadorDuplicidade(), contexto: ctx };
       case 'NOMES_UNIDADES': return { analisador: new AnalisadorNomesUnidades(), contexto: ctx };
-      case 'GRUPOS_FINALIDADE': {
-        const aprovados = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, camada: 'GRUPOS_FINALIDADE', situacao: 'APROVADO' }, orderBy: { decidido_em: 'asc' }, select: { itens: true, proposta: true } });
-        return { analisador: new AnalisadorGruposFinalidade(new AnalisadorGrupos(), ctx.atividades, finalidadesConfirmadas(aprovados)), contexto: ctx };
+      case 'GRUPOS_FINALIDADE': return { analisador: new AnalisadorGrupos(), contexto: ctx };
+      case 'FINALIDADE': {
+        const aprovados = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, camada: 'FINALIDADE', situacao: 'APROVADO' }, orderBy: { decidido_em: 'asc' }, select: { itens: true, proposta: true } });
+        return { analisador: new AnalisadorFinalidade(ctx.atividades, finalidadesConfirmadas(aprovados)), contexto: ctx };
       }
-      case 'NCM': {
+      case 'NCM': case 'NCM_CLASSIFICACAO': {
         const linhas = await this.prisma.ncm.findMany({ select: { codigo: true, descricao: true, status: true } });
         // Tabela vazia = não carregada: o motor não afirma que o NCM "não existe".
-        return { analisador: new AnalisadorNcm(), contexto: { ...ctx, tabelaNcm: linhas.length ? criarTabelaNcm(linhas) : undefined } as ContextoMotor };
+        return { analisador: camada === 'NCM' ? new AnalisadorNcm() : new AnalisadorNcmClassificacao(), contexto: { ...ctx, tabelaNcm: linhas.length ? criarTabelaNcm(linhas) : undefined } as ContextoMotor };
       }
       case 'TRIBUTARIO': {
         // Exceções por item já aprovadas (EXCECAO_MANUAL ou EXCECAO_ITEM): o item fica fora do conjunto.

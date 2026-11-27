@@ -91,14 +91,21 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
       return 0;
     });
   };
-  const completar = (modelo: string, data: Linha): Linha => {
+  // Chaves únicas já usadas (uma passada por chamada de createMany: conferir linha a linha contra a lista inteira era O(n²) com dezenas de
+  // milhares de células).
+  const chavesUnicas = (modelo: string) => (UNICOS[modelo] ?? []).map((u) => new Set(db[modelo].map((o) => JSON.stringify(u.map((k) => o[k] ?? null)))));
+  const completar = (modelo: string, data: Linha, chaves?: Set<string>[]): Linha => {
     const l: Linha = { ...(PADROES[modelo]?.() ?? {}) };
     aplicarDados(l, data);
     l.id ??= modelo === 'sanVersaoSnapshot' ? undefined : `${modelo.slice(0, 3)}${++seq}`;
     l.createdAt ??= new Date((tempo += 1000));
     l.updatedAt = new Date(tempo);
     if (modelo === 'sanDecisao' || modelo === 'sanDiretrizHistorico') l.quando ??= new Date((tempo += 1000));
-    for (const u of UNICOS[modelo] ?? []) if (db[modelo].some((o) => u.every((k) => o[k] === l[k]))) throw erroUnico();
+    if (chaves) {
+      const ks = (UNICOS[modelo] ?? []).map((u) => JSON.stringify(u.map((k) => l[k] ?? null)));
+      if (ks.some((k, i) => chaves[i].has(k))) throw erroUnico();
+      ks.forEach((k, i) => chaves[i].add(k));
+    } else for (const u of UNICOS[modelo] ?? []) if (db[modelo].some((o) => u.every((k) => o[k] === l[k]))) throw erroUnico();
     return l;
   };
   const projetar = (modelo: string, l: Linha, args: Linha) => {
@@ -125,14 +132,16 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
     create: async (a: Linha) => { const l = completar(nome, a.data); db[nome].push(l); return { ...l }; },
     createMany: async (a: Linha) => {
       let n = 0;
+      const chaves = chavesUnicas(nome);
       for (const d of a.data as Linha[]) {
-        try { const l = completar(nome, d); db[nome].push(l); n++; } catch (e) { if (!a.skipDuplicates || (e as { code?: string }).code !== 'P2002') throw e; }
+        try { const l = completar(nome, d, chaves); db[nome].push(l); n++; } catch (e) { if (!a.skipDuplicates || (e as { code?: string }).code !== 'P2002') throw e; }
       }
       return { count: n };
     },
     createManyAndReturn: async (a: Linha) => {
       const r: Linha[] = [];
-      for (const d of a.data as Linha[]) { const l = completar(nome, d); db[nome].push(l); r.push({ ...l }); }
+      const chaves = chavesUnicas(nome);
+      for (const d of a.data as Linha[]) { const l = completar(nome, d, chaves); db[nome].push(l); r.push({ ...l }); }
       return r;
     },
     update: async (a: Linha) => { const l = candidatos(nome, a.where).find((x) => casa(x, a.where, nome)); if (!l) throw new Error('Registro não encontrado'); aplicarDados(l, a.data); return { ...l }; },
@@ -160,4 +169,20 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
     }
   };
   return { prisma, db };
+}
+
+/**
+ * Testes: deixa a Fase 2 do projeto liberada direto no banco em memória (versão FASE1, regime do cliente e atividades confirmadas), para os
+ * testes das camadas FINALIDADE, NCM_CLASSIFICACAO e TRIBUTARIO que não tratam da trava.
+ */
+export function liberarFase2(db: Record<string, Linha[]>, projetoId: string, regime = 'REGULAR') {
+  const p = db.sanProjeto.find((x) => x.id === projetoId);
+  if (!p) throw new Error('Projeto não encontrado no banco de teste.');
+  p.parametros = { ...(p.parametros ?? {}), regimeCliente: regime };
+  p.atividades_confirmadas_em ??= new Date('2026-11-01T12:00:00Z');
+  p.atividades_confirmadas_por ??= 'teste';
+  if (!db.sanVersao.some((v) => v.projeto_id === projetoId && v.resumo?.fase === 'FASE1')) {
+    const numero = Math.max(0, ...db.sanVersao.filter((v) => v.projeto_id === projetoId).map((v) => v.numero)) + 1;
+    db.sanVersao.push({ id: `fase1-${projetoId}-${numero}`, projeto_id: projetoId, numero, rotulo: 'Cadastro saneado', usuario: 'teste', resumo: { fase: 'FASE1' }, createdAt: new Date('2026-11-02T12:00:00Z') });
+  }
 }

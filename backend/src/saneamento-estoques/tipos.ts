@@ -3,8 +3,11 @@
  * Quem precisar de um campo novo NÃO altera este arquivo: descreve o pedido no relatório final e o integrador decide.
  */
 
-/** Colunas da tabela única (uma por camada de análise). ESTOQUE só existe com o módulo opcional ligado. */
-export const CAMADAS = ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'TRIBUTARIO', 'ESTOQUE', 'OBRIGACOES'] as const;
+/**
+ * Colunas da tabela única (uma por camada de análise), na ordem das fases (docs/saneamento-fases.md): Fase 1 até ESTOQUE, Fase 2 de FINALIDADE
+ * a TRIBUTARIO, OBRIGACOES nas duas. ESTOQUE só existe com o módulo opcional ligado. GRUPOS_FINALIDADE (chave mantida) = só os grupos.
+ */
+export const CAMADAS = ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'ESTOQUE', 'FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'] as const;
 export type Camada = (typeof CAMADAS)[number];
 
 /** As 5 situações de uma célula (item × camada). "Revisão necessária" NÃO é situação: é a marca `revisar`. */

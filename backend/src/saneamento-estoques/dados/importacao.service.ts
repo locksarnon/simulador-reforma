@@ -155,7 +155,7 @@ export class SanImportacaoService {
   ) {}
 
   private async ler(projetoId: string, arquivo: ArquivoImportacao, mapeamento?: Record<string, string>, escalaSaldo = 1) {
-    const p = await this.projetos.exigirConfirmadas(projetoId); // A TRAVA
+    const p = await this.projetos.exigirProjeto(projetoId); // Importação: sem trava de atividades (Fase 1)
     if (!arquivo?.buffer?.length) throw new BadRequestException('Envie o arquivo do cadastro de itens.');
     // Separador decimal com que a importação anterior leu cada coluna numérica: se a leitura mudar, a prévia avisa em destaque.
     const anterior = await this.prisma.sanImportacao.findFirst({ where: { projeto_id: projetoId }, orderBy: { createdAt: 'desc' }, select: { relatorio: true } });

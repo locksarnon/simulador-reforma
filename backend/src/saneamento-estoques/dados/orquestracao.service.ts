@@ -40,13 +40,14 @@ export class SanOrquestracaoService {
   }
 
   /**
-   * Inicia a análise das camadas, na ordem dada, em segundo plano. Confere a trava e as camadas antes de responder; recusa se já houver
+   * Inicia a análise das camadas, na ordem dada, em segundo plano. Confere a trava por fase de cada camada e as camadas antes de responder; recusa se já houver
    * uma análise rodando no projeto. Para na primeira camada que falhar (as anteriores ficam gravadas).
    */
   async iniciarExecucao(projetoId: string, camadasTexto: unknown): Promise<ExecucaoCamadas> {
     if (!Array.isArray(camadasTexto) || !camadasTexto.length) throw new BadRequestException('Informe as camadas a analisar.');
     const camadas = camadasTexto.map((c) => validarCamada(String(c)));
-    await this.projetos.exigirConfirmadas(projetoId);
+    // A trava por fase vale para cada camada pedida: recusa antes de começar se alguma da Fase 2 estiver travada.
+    await this.projetos.exigirLiberadaPara(projetoId, camadas);
     if (this.execucoes.get(projetoId)?.rodando) throw new BadRequestException('Já há uma análise rodando neste projeto. Aguarde terminar.');
     const ex: ExecucaoCamadas = { rodando: true, camadas, atual: camadas[0], feitas: [], erro: null, iniciadaEm: new Date().toISOString(), terminadaEm: null };
     this.execucoes.set(projetoId, ex);
@@ -67,6 +68,11 @@ export class SanOrquestracaoService {
     return ex;
   }
 
+  /** O que impede a Fase 2 neste projeto agora (null = liberada). */
+  async bloqueioDaFase2(projetoId: string) {
+    return this.projetos.bloqueioDaFase2(await this.projetos.exigirProjeto(projetoId));
+  }
+
   /** Camadas que têm analisador conectado. */
   camadasDisponiveis() {
     return this.motor.camadas();
@@ -79,7 +85,7 @@ export class SanOrquestracaoService {
    */
   async executarCamada(projetoId: string, camadaTexto: string, opcoes: { escopo?: Set<string> } = {}) {
     const camada = validarCamada(camadaTexto);
-    const p = await this.projetos.exigirConfirmadas(projetoId); // A TRAVA
+    const p = await this.projetos.exigirLiberadaPara(projetoId, camada); // A TRAVA (por fase)
     if (!camadasAtivas(p.modulos as Json).includes(camada)) throw new BadRequestException('Esta camada não está ligada neste projeto (módulo opcional desligado).');
     if (!this.motor.camadas().includes(camada)) throw new BadRequestException('Esta camada ainda não tem análise conectada neste servidor.');
     const itens: ItemTrabalho[] = [];
@@ -171,7 +177,7 @@ export class SanOrquestracaoService {
 
 /** Camada → camadas cujas decisões ela usa (e os campos do item que essas decisões alteram). Mudou um deles depois da análise: refazer. */
 export const DEPENDENCIAS: Partial<Record<Camada, { camada: Camada; campos: string[] }[]>> = {
-  TRIBUTARIO: [{ camada: 'GRUPOS_FINALIDADE', campos: ['finalidade', 'tambemUsadoComo'] }, { camada: 'NCM', campos: ['ncm'] }],
+  TRIBUTARIO: [{ camada: 'FINALIDADE', campos: ['finalidade', 'tambemUsadoComo'] }, { camada: 'NCM', campos: ['ncm'] }, { camada: 'NCM_CLASSIFICACAO', campos: ['ncm'] }],
 };
 
 /** A camada ficou desatualizada? Só quando foi analisada por inteiro e um campo de que depende mudou depois. Função pura. */

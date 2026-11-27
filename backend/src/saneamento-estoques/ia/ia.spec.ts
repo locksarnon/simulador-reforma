@@ -244,19 +244,19 @@ describe('QA 30 mil: o lote acha os casos de borda mesmo depois de milhares de c
   it('5.001 casos abertos que não são borda criados antes não escondem os 3 de borda (a consulta filtra camada e tipo)', async () => {
     const c = await montar();
     for (let i = 0; i < 5001; i++) await c.novo({ tipo: 'DUPLICIDADE_EXATA', chave: `x${i}` });
-    await c.novo({ camada: 'NCM', tipo: 'NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS', chave: 'n1' });
+    await c.novo({ camada: 'NCM_CLASSIFICACAO', tipo: 'NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS', chave: 'n1' });
     await c.novo({ chave: 'd1' });
     await c.novo({ chave: 'd2' });
     const r = await c.servico.gerarLote('P1', 'u@fal.test');
     expect(r).toMatchObject({ iaDisponivel: true, casosDeBorda: 3, tentados: 3, gerados: 3, restantes: 0 });
-  });
+  }, 30_000); // 5.001 casos no Prisma em memória: com a suíte inteira em paralelo passa dos 5 s padrão
   it('o pré-filtro da consulta cobre toda borda que motivoBorda reconhece', async () => {
     const { CANDIDATOS_BORDA, motivoBorda } = await import('./borda');
     const exemplos = [
-      { camada: 'DUPLICIDADE', tipo: 'ATRIBUTOS_CONFLITANTES' }, { camada: 'NCM', tipo: 'NCM_INCOMPATIVEL_DESCRICAO' },
+      { camada: 'DUPLICIDADE', tipo: 'ATRIBUTOS_CONFLITANTES' }, { camada: 'NCM_CLASSIFICACAO', tipo: 'NCM_INCOMPATIVEL_DESCRICAO' },
       { camada: 'NCM', tipo: 'NCM_CLASSIFICACAO_ANTIGA', evidencia: [{ rotulo: 'Sucessores', valor: '1, 2' }] },
       { camada: 'TRIBUTARIO', tipo: 'AGUARDANDO_INFORMACAO', evidencia: [{ rotulo: 'Candidatos', valor: 'a' }] },
-      { camada: 'GRUPOS_FINALIDADE', tipo: 'FINALIDADE_GRUPO', problema: 'finalidade', evidencia: [{ rotulo: 'Confiança', valor: 'baixa' }] },
+      { camada: 'FINALIDADE', tipo: 'FINALIDADE_GRUPO', problema: 'finalidade', evidencia: [{ rotulo: 'Confiança', valor: 'baixa' }] },
     ];
     for (const e of exemplos) {
       const caso = { problema: 'p', justificativa: 'j', evidencia: [], atual: {}, proposta: {}, ...e } as never;

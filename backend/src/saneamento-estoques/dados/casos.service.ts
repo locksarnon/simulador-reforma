@@ -162,10 +162,10 @@ export class SanCasosService {
    */
   async registrarResultado(projetoId: string, bruto: ResultadoCamada, opcoes: { completo?: boolean; interno?: boolean; escopo?: Set<string> } = {}) {
     const noEscopo = (itens: string[]) => !opcoes.escopo || itens.some((i) => opcoes.escopo!.has(i));
-    const p = await this.projetos.exigirConfirmadas(projetoId); // A TRAVA
     // O teto de casos protege só o POST (corpo HTTP); o caminho interno (executar camada) grava tudo, em blocos, numa transação.
     const r = validarResultado(bruto, { semTeto: opcoes.interno === true });
     const camada = validarCamada(r.camada);
+    const p = await this.projetos.exigirLiberadaPara(projetoId, camada); // A TRAVA (por fase)
     if (!camadasAtivas(p.modulos as Json).includes(camada)) throw new BadRequestException('Esta camada não está ligada neste projeto (módulo opcional desligado).');
     const dataBase = await this.projetos.dataBase(projetoId);
     for (const c of r.casos ?? []) await this.validarExcecaoManual(c, dataBase);

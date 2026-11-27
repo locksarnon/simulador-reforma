@@ -9,7 +9,7 @@ import { SanItensService } from './itens.service';
 import { MotorSaneamento } from './motor.provider';
 import { SanOrquestracaoService } from './orquestracao.service';
 import { motorDeAnalisadores, type ImportadorPort, type ItemImportado } from './portas';
-import { criarPrismaFalso } from './prisma-falso';
+import { criarPrismaFalso, liberarFase2 } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 import { SanVersoesService } from './versoes.service';
 
@@ -41,6 +41,7 @@ async function pronto(c: Ctx, itens: ItemImportado[] = [item('A1', {}, 1), item(
   await c.projetos.confirmarAtividades(p.id, 1, USER);
   c.fila.itens = itens;
   await c.importacao.confirmar(p.id, ARQ, undefined, [], USER);
+  liberarFase2(c.db, p.id); // vários testes daqui gravam casos do TRIBUTARIO (Fase 2)
   const ids = Object.fromEntries(c.db.sanItem.map((i) => [i.codigo, i.id]));
   return { projetoId: p.id, ids };
 }
@@ -212,7 +213,7 @@ describe('M2/M3/M5/A5: decisão segura', () => {
     await c.casos.registrarResultado(projetoId, res('NCM', [caso('NCM', 'NCM_FORMATO', [ids.A1], { ncm: '31010000' }, { ncm: '31051000' }, { afeta: [] })]));
     c.db.sanCelula.filter((x) => x.item_id === ids.A1 && ['TRIBUTARIO', 'OBRIGACOES'].includes(x.camada)).forEach((x) => { x.situacao = 'SEM_PROBLEMA'; });
     await c.casos.aprovar(c.db.sanCaso[0].id, { versao: 1 }, USER);
-    expect(c.db.sanCaso[0].afeta).toEqual(['TRIBUTARIO', 'OBRIGACOES']);
+    expect(c.db.sanCaso[0].afeta).toEqual(['NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
     c.db.sanCelula.forEach((x) => { x.revisar = false; });
     await c.casos.reabrir(c.db.sanCaso[0].id, { versao: 2 }, USER);
     expect(c.db.sanCelula.filter((x) => x.item_id === ids.A1 && x.revisar).map((x) => x.camada).sort()).toEqual(['OBRIGACOES', 'TRIBUTARIO']);
@@ -336,7 +337,7 @@ describe('projeto: atividades, parâmetros e módulos', () => {
     const { projetoId } = await pronto(c);
     await c.projetos.configurar(projetoId, { versao: c.db.sanProjeto[0].versao, parametros: { corteMovimentacao: '2025-01-01', motor: { exigeEstabelecimento: true } } });
     await c.projetos.configurar(projetoId, { versao: c.db.sanProjeto[0].versao, parametros: { corteMovimentacao: '2025-06-01' } });
-    expect(c.db.sanProjeto[0].parametros).toEqual({ corteMovimentacao: '2025-06-01', competenciaEntregue: null, motor: { exigeEstabelecimento: true } });
+    expect(c.db.sanProjeto[0].parametros).toEqual({ regimeCliente: 'REGULAR', corteMovimentacao: '2025-06-01', competenciaEntregue: null, motor: { exigeEstabelecimento: true } });
     expect(c.db.sanCelula.some((x) => x.camada === 'ESTOQUE')).toBe(false);
     await c.projetos.configurar(projetoId, { versao: c.db.sanProjeto[0].versao, modulos: { conciliacao: true } });
     expect(c.db.sanCelula.filter((x) => x.camada === 'ESTOQUE')).toHaveLength(3);

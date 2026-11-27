@@ -149,7 +149,7 @@ export type PreviaAplicacao = {
 
 /** Camada que executa cada aspecto. */
 export const CAMADAS_DO_ASPECTO: Record<Aspecto, string[]> = {
-  NOMES: ['NOMES_UNIDADES'], ATRIBUTOS: ['QUALIDADE'], UNIDADES: ['NOMES_UNIDADES'], LIMITES: ['NOMES_UNIDADES'], FISCAL: ['NCM', 'TRIBUTARIO'],
+  NOMES: ['NOMES_UNIDADES'], ATRIBUTOS: ['QUALIDADE'], UNIDADES: ['NOMES_UNIDADES'], LIMITES: ['NOMES_UNIDADES'], FISCAL: ['NCM', 'NCM_CLASSIFICACAO', 'TRIBUTARIO'],
 };
 
 // ── Política (PDF) ───────────────────────────────────────────────────────────

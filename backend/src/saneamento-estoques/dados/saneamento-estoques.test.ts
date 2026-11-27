@@ -5,7 +5,7 @@ import { SanImportacaoService } from './importacao.service';
 import { SanItensService } from './itens.service';
 import { SanOrquestracaoService } from './orquestracao.service';
 import { motorDeAnalisadores, type ImportadorPort, type ItemImportado, type MotorPort } from './portas';
-import { criarPrismaFalso } from './prisma-falso';
+import { criarPrismaFalso, liberarFase2 } from './prisma-falso';
 import { SanProjetoService } from './projeto.service';
 import { SanVersoesService } from './versoes.service';
 
@@ -66,18 +66,94 @@ describe('projeto e trava de atividades', () => {
     expect(await status(c.projetos.criar('D1', USER))).toBe(409);
   });
 
-  it('importação e análise são recusadas enquanto as atividades não forem confirmadas, e liberadas depois', async () => {
+  it('importação e camadas da Fase 1 não têm trava de atividades', async () => {
     const c = montar({ analisadores: [{ camada: 'NCM', analisar: () => resultado('NCM', []) }] });
     const p = await c.projetos.criar('D1', USER);
     c.fila.itens = [item('1')];
-    expect(await codigoErro(c.importacao.confirmar(p.id, ARQ, undefined, [], USER))).toBe('ATIVIDADES_NAO_CONFIRMADAS');
-    expect(await codigoErro(c.importacao.previa(p.id, ARQ))).toBe('ATIVIDADES_NAO_CONFIRMADAS');
-    expect(await codigoErro(c.orquestracao.executarCamada(p.id, 'NCM'))).toBe('ATIVIDADES_NAO_CONFIRMADAS');
-    expect(await codigoErro(c.casos.registrarResultado(p.id, resultado('NCM', [])))).toBe('ATIVIDADES_NAO_CONFIRMADAS');
+    expect(await codigoErro(c.importacao.previa(p.id, ARQ))).toBeNull();
+    expect((await c.importacao.confirmar(p.id, ARQ, undefined, [], USER)).novos).toBe(1);
+    expect(await codigoErro(c.orquestracao.executarCamada(p.id, 'NCM'))).toBeNull();
+    expect(await codigoErro(c.casos.registrarResultado(p.id, resultado('NCM', [])))).toBeNull();
+    for (const camada of ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'OBRIGACOES'] as const) {
+      expect(await codigoErro(c.casos.registrarResultado(p.id, resultado(camada, []))), camada).toBeNull();
+    }
     const conf = await c.projetos.confirmarAtividades(p.id, 1, USER);
     expect(conf!.atividades_confirmadas_por).toBe(USER.email);
     expect(conf!.atividades_confirmadas_em).toBeInstanceOf(Date);
-    expect((await c.importacao.confirmar(p.id, ARQ, undefined, [], USER)).novos).toBe(1);
+  });
+
+  it('Fase 2 (FINALIDADE, NCM_CLASSIFICACAO, TRIBUTARIO): exige, nesta ordem, Fase 1 liberada, regime do cliente e atividades confirmadas', async () => {
+    const c = montar({ analisadores: (['FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'] as const).map((camada) => ({ camada, analisar: () => resultado(camada, []) })) });
+    const p = await c.projetos.criar('D1', USER);
+    c.fila.itens = [item('1')];
+    await c.importacao.confirmar(p.id, ARQ, undefined, [], USER);
+    const todas = async (codigo: string | null) => {
+      for (const camada of ['FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO'] as const) {
+        expect(await codigoErro(c.orquestracao.executarCamada(p.id, camada)), camada).toBe(codigo);
+        expect(await codigoErro(c.casos.registrarResultado(p.id, resultado(camada, []))), camada).toBe(codigo);
+      }
+      // A análise em segundo plano recusa antes de começar se alguma camada pedida estiver travada.
+      expect(await codigoErro(c.orquestracao.iniciarExecucao(p.id, ['NCM', 'TRIBUTARIO']))).toBe(codigo);
+      // OBRIGACOES roda sem trava.
+      expect(await codigoErro(c.orquestracao.executarCamada(p.id, 'OBRIGACOES'))).toBeNull();
+    };
+    await todas('FASE1_NAO_LIBERADA');
+    expect(await status(c.orquestracao.executarCamada(p.id, 'TRIBUTARIO'))).toBe(400);
+    await c.versoes.criar(p.id, { rotulo: 'Cadastro saneado', fase: 'FASE1' }, USER);
+    await todas('REGIME_NAO_INFORMADO');
+    const proj = await c.projetos.obter(p.id);
+    await c.projetos.configurar(p.id, { versao: proj.versao, regimeCliente: 'REGULAR' });
+    await todas('ATIVIDADES_NAO_CONFIRMADAS');
+    await c.projetos.confirmarAtividades(p.id, (await c.projetos.obter(p.id)).versao, USER);
+    await todas(null);
+    // Uma análise em segundo plano com as camadas liberadas começa.
+    while (c.orquestracao.execucao(p.id)?.rodando) await new Promise((r) => setTimeout(r, 5));
+    expect((await c.orquestracao.iniciarExecucao(p.id, ['FINALIDADE'])).camadas).toEqual(['FINALIDADE']);
+  });
+
+  it('regime do cliente: só da lista, gravado em parametros pelo PUT de configuração; vazio limpa', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    const v = (await c.projetos.obter(p.id)).versao;
+    const err = async (x: Promise<unknown>) => { try { await x; return null; } catch (e) { return { status: (e as { getStatus: () => number }).getStatus(), codigo: (e as { response?: { codigo?: string } }).response?.codigo }; } };
+    expect(await err(c.projetos.configurar(p.id, { versao: v, regimeCliente: 'LUCRO_PRESUMIDO' }))).toEqual({ status: 400, codigo: 'REGIME_INVALIDO' });
+    const a = await c.projetos.configurar(p.id, { versao: v, regimeCliente: 'PRODUTOR_RURAL_CONTRIBUINTE', parametros: { corteMovimentacao: '2025-01-01' } });
+    expect(a.parametros).toMatchObject({ regimeCliente: 'PRODUTOR_RURAL_CONTRIBUINTE', corteMovimentacao: '2025-01-01' });
+    // Dentro de parametros também vale; o que não veio fica como estava.
+    const b = await c.projetos.configurar(p.id, { versao: a.versao, parametros: { regimeCliente: 'SIMPLES_NO_SIMPLES' } });
+    expect(b.parametros).toMatchObject({ regimeCliente: 'SIMPLES_NO_SIMPLES', corteMovimentacao: '2025-01-01' });
+    const d = await c.projetos.configurar(p.id, { versao: b.versao, responsavel: 'Bia' });
+    expect(d.parametros).toMatchObject({ regimeCliente: 'SIMPLES_NO_SIMPLES' });
+    // A tela manda nos dois lugares: vale o de cima, gravado em parametros.regimeCliente.
+    const f = await c.projetos.configurar(p.id, { versao: d.versao, regimeCliente: 'REGULAR', parametros: { regimeCliente: 'REGULAR', competenciaEntregue: '2026-10' } });
+    expect(f.parametros).toMatchObject({ regimeCliente: 'REGULAR', competenciaEntregue: '2026-10', corteMovimentacao: '2025-01-01' });
+    expect(f).not.toHaveProperty('regimeCliente');
+    const e = await c.projetos.configurar(p.id, { versao: f.versao, regimeCliente: '' });
+    expect(e.parametros).not.toHaveProperty('regimeCliente');
+    const { REGIMES_CLIENTE } = await import('../fiscal');
+    expect(REGIMES_CLIENTE.map((r) => r.codigo)).toEqual(['REGULAR', 'SIMPLES_NO_SIMPLES', 'SIMPLES_REGULAR', 'PRODUTOR_RURAL_NAO_CONTRIBUINTE', 'PRODUTOR_RURAL_CONTRIBUINTE']);
+    expect(REGIMES_CLIENTE.every((r) => r.rotulo && /LC 214/.test(r.fundamento))).toBe(true);
+  });
+
+  it('GET fases: camadas por fase (filtradas pelos módulos), versão liberada e o primeiro bloqueio da Fase 2', async () => {
+    const c = montar();
+    const p = await c.projetos.criar('D1', USER);
+    expect((await c.projetos.obter(p.id)).totalItens).toBe(0);
+    const f0 = await c.projetos.fases(p.id);
+    expect(f0.fases.map((f) => f.fase)).toEqual(['FASE1', 'FASE2']);
+    expect(f0.fases[0]).toEqual({ fase: 'FASE1', camadas: ['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'OBRIGACOES'], liberada: null, bloqueio: null });
+    expect(f0.fases[1]).toMatchObject({ fase: 'FASE2', camadas: ['FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES'], liberada: null, bloqueio: { codigo: 'FASE1_NAO_LIBERADA', mensagem: expect.any(String) } });
+    const v1 = await c.versoes.criar(p.id, { rotulo: 'Cadastro saneado', fase: 'FASE1' }, USER);
+    const f1 = await c.projetos.fases(p.id);
+    expect(f1.fases[0].liberada).toEqual({ versaoId: v1.id, numero: 1, em: new Date(v1.createdAt).toISOString() });
+    expect(f1.fases[1].bloqueio?.codigo).toBe('REGIME_NAO_INFORMADO');
+    await c.projetos.configurar(p.id, { versao: (await c.projetos.obter(p.id)).versao, regimeCliente: 'REGULAR', modulos: { conciliacao: true } });
+    const f2 = await c.projetos.fases(p.id);
+    expect(f2.fases[0].camadas).toContain('ESTOQUE');
+    expect(f2.fases[1].bloqueio?.codigo).toBe('ATIVIDADES_NAO_CONFIRMADAS');
+    await c.projetos.confirmarAtividades(p.id, (await c.projetos.obter(p.id)).versao, USER);
+    expect((await c.projetos.fases(p.id)).fases[1].bloqueio).toBeNull();
+    expect(await status(c.projetos.fases('nao-existe'))).toBe(404);
   });
 
   it('exige pelo menos uma atividade mantida e a versão atual; confirmada, não se altera sem reabrir', async () => {
@@ -95,6 +171,7 @@ describe('projeto e trava de atividades', () => {
     const c = montar();
     const { projetoId } = await pronto(c);
     const ids = idsPorCodigo(c);
+    liberarFase2(c.db, projetoId);
     await c.casos.registrarResultado(projetoId, resultado('TRIBUTARIO', [unCaso('TRIBUTARIO', [ids['00123']], { afeta: [], proposta: { finalidade: 'REVENDA' }, atual: { finalidade: null } })]));
     const caso = c.db.sanCaso[0];
     await c.casos.aprovar(caso.id, { versao: 1 }, USER);
@@ -108,7 +185,9 @@ describe('projeto e trava de atividades', () => {
     expect(c.db.sanCelula.find((x) => x.item_id === ids['00123'] && x.camada === 'NCM')!.revisar).toBe(false); // pendente e fora das camadas dependentes
     expect(c.db.sanDecisao).toHaveLength(antes);
     expect(c.db.sanCaso[0].situacao).toBe('APROVADO');
-    expect(await codigoErro(c.importacao.previa(projetoId, ARQ))).toBe('ATIVIDADES_NAO_CONFIRMADAS');
+    // Atividades reabertas: a Fase 2 volta a travar; a importação (Fase 1) segue livre.
+    expect(await codigoErro(c.casos.registrarResultado(projetoId, resultado('TRIBUTARIO', [])))).toBe('ATIVIDADES_NAO_CONFIRMADAS');
+    expect(await codigoErro(c.importacao.previa(projetoId, ARQ))).toBeNull();
   });
 });
 
@@ -122,7 +201,7 @@ describe('itens: id estável, unicidade e reimportação', () => {
     expect(i.original).toEqual(i.trabalho);
     expect(i.versao).toBe(1);
     const camadas = c.db.sanCelula.filter((x) => x.item_id === i.id).map((x) => x.camada);
-    expect(camadas).toHaveLength(8);
+    expect(camadas).toEqual(['IDENTIFICACAO', 'QUALIDADE', 'DUPLICIDADE', 'GRUPOS_FINALIDADE', 'NOMES_UNIDADES', 'NCM', 'FINALIDADE', 'NCM_CLASSIFICACAO', 'TRIBUTARIO', 'OBRIGACOES']);
     expect(camadas).not.toContain('ESTOQUE');
   });
 
@@ -241,6 +320,7 @@ describe('casos: aplicar, histórico, idempotência e concorrência', () => {
     const { projetoId } = await pronto(c);
     const ids = idsPorCodigo(c);
     // camada TRIBUTARIO já aprovada no item 1
+    liberarFase2(c.db, projetoId);
     await c.casos.registrarResultado(projetoId, resultado('TRIBUTARIO', [unCaso('TRIBUTARIO', [ids['00123']], { afeta: [], proposta: { finalidade: 'REVENDA' }, atual: { finalidade: null } })]));
     await c.casos.aprovar(c.db.sanCaso[0].id, { versao: 1 }, USER);
     const decisoesAntes = c.db.sanDecisao.length;
@@ -468,6 +548,12 @@ describe('itens: lista paginada, filtros e visão geral', () => {
     expect(adubos.itens).toBe(4);
     expect(adubos.camadas.NCM).toMatchObject({ PROPOSTO: 2, PENDENTE: 2 });
     expect(v.camadas).not.toContain('ESTOQUE');
+    // As camadas novas da divisão em fases entram na visão geral (antes, camada fora de CAMADAS derrubava a tela).
+    expect(v.camadas).toEqual(expect.arrayContaining(['FINALIDADE', 'NCM_CLASSIFICACAO']));
+    expect(adubos.camadas.FINALIDADE).toMatchObject({ PENDENTE: 4 });
+    expect(adubos.camadas.NCM_CLASSIFICACAO).toMatchObject({ PENDENTE: 4 });
+    c.db.sanCelula.push({ id: 'cel-estranha', projeto_id: projetoId, item_id: ids.P000, camada: 'CAMADA_QUE_NAO_EXISTE', grupo: 'Adubos', situacao: 'PENDENTE', revisar: false });
+    expect((await c.itens.visaoGeral(projetoId)).grupos.find((g) => g.grupo === 'Adubos')!.camadas).not.toHaveProperty('CAMADA_QUE_NAO_EXISTE');
   });
 });
 
@@ -498,5 +584,22 @@ describe('versões', () => {
     expect(exp1.decisoes).toHaveLength(0); // ainda não havia decisões na versão 1
     expect((await c.versoes.exportarAtual(projetoId)).liberada).toBe(false);
     expect((await c.versoes.listar(projetoId)).map((v) => v.numero)).toEqual([2, 1]);
+  });
+
+  it('versão por fase: grava resumo.fase; FASE2 exige uma FASE1 liberada antes; fase inválida é recusada', async () => {
+    const c = montar();
+    const { projetoId } = await pronto(c);
+    expect(await codigoErro(c.versoes.criar(projetoId, { rotulo: 'X', fase: 'FASE3' }, USER))).toBe('FASE_INVALIDA');
+    expect(await codigoErro(c.versoes.criar(projetoId, { rotulo: 'Tributário aprovado', fase: 'FASE2' }, USER))).toBe('FASE1_NAO_LIBERADA');
+    const sem = await c.versoes.criar(projetoId, { rotulo: 'Entrega sem fase' }, USER);
+    expect(sem.resumo).not.toHaveProperty('fase');
+    // Versão sem fase não libera a Fase 2.
+    expect(await codigoErro(c.versoes.criar(projetoId, { rotulo: 'Tributário aprovado', fase: 'FASE2' }, USER))).toBe('FASE1_NAO_LIBERADA');
+    const v1 = await c.versoes.criar(projetoId, { rotulo: 'Cadastro saneado', fase: 'FASE1' }, USER);
+    expect(v1.resumo).toMatchObject({ fase: 'FASE1', itens: 3 });
+    const v2 = await c.versoes.criar(projetoId, { rotulo: 'Tributário aprovado', fase: 'FASE2' }, USER);
+    expect(v2.resumo).toMatchObject({ fase: 'FASE2' });
+    const f = await c.projetos.fases(projetoId);
+    expect(f.fases.map((x) => x.liberada?.numero ?? null)).toEqual([v1.numero, v2.numero]);
   });
 });

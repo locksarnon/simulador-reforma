@@ -61,9 +61,9 @@ describe('análise em segundo plano', () => {
     const { orq, projetoId } = await montar([
       { camada: 'QUALIDADE', analisar: () => vazio('QUALIDADE') },
       { camada: 'NCM', analisar: () => { throw new Error('falhou o NCM'); } },
-      { camada: 'TRIBUTARIO', analisar: () => vazio('TRIBUTARIO') },
+      { camada: 'NOMES_UNIDADES', analisar: () => vazio('NOMES_UNIDADES') },
     ]);
-    await orq.iniciarExecucao(projetoId, ['QUALIDADE', 'NCM', 'TRIBUTARIO']);
+    await orq.iniciarExecucao(projetoId, ['QUALIDADE', 'NCM', 'NOMES_UNIDADES']);
     const fim = await terminar(orq, projetoId);
     expect(fim.feitas.map((f) => f.camada)).toEqual(['QUALIDADE']);
     expect(fim.erro).toEqual({ camada: 'NCM', mensagem: 'falhou o NCM' });

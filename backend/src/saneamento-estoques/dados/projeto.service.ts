@@ -2,9 +2,10 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../../prisma/prisma.service';
 import { CnpjService } from '../../cnpj/cnpj.service';
 import { atualizarEmpresaPeloCnpj } from '../../cnpj/dados-publicos';
-import { ATIVIDADES, ROTULO_ATIVIDADE, ehAtividade, regraDoCnae, soDigitosCnae } from '../fiscal';
+import { ATIVIDADES, ROTULO_ATIVIDADE, ehAtividade, ehRegimeCliente, regraDoCnae, soDigitosCnae } from '../fiscal';
+import type { Camada } from '../tipos';
 import { nomeDoErp } from '../../erps/erps.service';
-import { CAMADAS_DAS_ATIVIDADES, MODULOS_PADRAO, camadasAtivas, conflito, exigirVersao, TX_LONGA, quem, type Json, type Usuario } from './constantes';
+import { CAMADAS_DAS_ATIVIDADES, FASES, LISTA_FASES, MODULOS_PADRAO, camadaTravada, camadasAtivas, conflito, exigirVersao, TX_LONGA, quem, type Fase, type Json, type Usuario } from './constantes';
 
 const texto = (v: unknown, max: number) => { const t = String(v ?? '').trim(); return t ? t.slice(0, max) : null; };
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -47,10 +48,12 @@ async function comErpDoCadastro<T extends { erp?: string | null; erp_id?: string
 export type EntradaConfiguracao = {
   versao?: number; erp?: string | null; erp_id?: string | null; erp_versao?: string | null; estabelecimentos?: string[]; responsavel?: string | null;
   modulos?: Partial<typeof MODULOS_PADRAO>;
-  parametros?: { corteMovimentacao?: string | null; competenciaEntregue?: string | null; motor?: Record<string, unknown> | null };
+  /** Regime do cliente (premissa da Fase 2, lista REGIMES_CLIENTE); null ou '' limpa. Também aceito dentro de `parametros`. */
+  regimeCliente?: string | null;
+  parametros?: { corteMovimentacao?: string | null; competenciaEntregue?: string | null; motor?: Record<string, unknown> | null; regimeCliente?: string | null };
 };
 
-/** Projeto do Saneamento de Estoques: configuração, atividades do cliente e a TRAVA (sem confirmação não há importação nem análise). */
+/** Projeto do Saneamento de Estoques: configuração, atividades do cliente e a TRAVA POR FASE (a Fase 2 exige Fase 1 liberada, regime e atividades). */
 @Injectable()
 export class SanProjetoService {
   private readonly log = new Logger('SanProjetoService');
@@ -124,8 +127,10 @@ export class SanProjetoService {
       tipoDocumento: tipoDeDocumento(empresa?.cnpj_cpf), temCnae: !!empresa && atividadesDoCadastro(empresa).length > 0,
       cnaePrincipal: empresa?.cnae_principal ?? null, dadosPublicosEm: atual,
     };
+    // Quantos itens a base tem: a tela escolhe a aba de abertura sem esperar a visão geral.
+    const totalItens = await this.prisma.sanItem.count({ where: { projeto_id: id } });
     return {
-      ...(await comErpDoCadastro(this.prisma, p)), data_base, atividadesConfirmadas: !!p.atividades_confirmadas_em, cnpjDesatualizado: !!atual && atual !== p.cnpj_versao,
+      ...(await comErpDoCadastro(this.prisma, p)), data_base, totalItens, atividadesConfirmadas: !!p.atividades_confirmadas_em, cnpjDesatualizado: !!atual && atual !== p.cnpj_versao,
       mapaAtividades: mapaDeAtividades(p.atividades.filter((a) => a.mantida).map((a) => a.codigo)), cliente,
       listaAtividades: ATIVIDADES.map((codigo) => ({ codigo, rotulo: ROTULO_ATIVIDADE[codigo] })),
     };
@@ -177,6 +182,14 @@ export class SanProjetoService {
       const motor = e.parametros?.motor !== undefined ? e.parametros.motor : atualParam?.motor;
       dados.parametros = { ...(atualParam ?? {}), corteMovimentacao: corte, competenciaEntregue, ...(motor ? { motor } : {}) };
       if (!motor) delete (dados.parametros as Json).motor;
+    }
+    const regimeBruto = e.regimeCliente !== undefined ? e.regimeCliente : e.parametros?.regimeCliente;
+    if (regimeBruto !== undefined) {
+      const regime = regimeBruto === null || String(regimeBruto).trim() === '' ? null : String(regimeBruto).trim();
+      if (regime !== null && !ehRegimeCliente(regime)) throw new BadRequestException({ statusCode: 400, codigo: 'REGIME_INVALIDO', message: `Regime do cliente inválido: ${regime}. Selecione na lista.` });
+      const base = { ...((dados.parametros as Json | undefined) ?? atualParam ?? {}) };
+      if (regime) base.regimeCliente = regime; else delete base.regimeCliente;
+      dados.parametros = base;
     }
     const atual = await this.prisma.sanProjeto.findUnique({ where: { id } });
     if (!atual) throw new NotFoundException('Projeto de saneamento não encontrado.');
@@ -333,16 +346,62 @@ export class SanProjetoService {
     }).then((p) => (p ? comErpDoCadastro(this.prisma, p) : p));
   }
 
-  /** A trava. Importação e análises chamam isto antes de qualquer coisa. */
-  async exigirConfirmadas(projetoId: string) {
+  /** O projeto (sem trava): importação e camadas da Fase 1 só exigem que ele exista. */
+  async exigirProjeto(projetoId: string) {
     const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId } });
     if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
-    if (!p.atividades_confirmadas_em) {
-      throw new BadRequestException({ statusCode: 400, codigo: 'ATIVIDADES_NAO_CONFIRMADAS', message: 'Confirme as atividades do cliente antes de importar ou analisar.' });
+    return p;
+  }
+
+  /**
+   * A trava por fase (docs/saneamento-fases.md, "Travas"): importação e camadas da Fase 1 são livres; FINALIDADE, NCM_CLASSIFICACAO e
+   * TRIBUTARIO (análise e gravação de casos) exigem, nesta ordem, a Fase 1 liberada, o regime do cliente e as atividades confirmadas.
+   * Recusa com 400 e o `codigo` da primeira condição que falta.
+   */
+  async exigirLiberadaPara(projetoId: string, camadas: string | string[]) {
+    const p = await this.exigirProjeto(projetoId);
+    if (([] as string[]).concat(camadas).some(camadaTravada)) {
+      const b = await this.bloqueioDaFase2(p);
+      if (b) throw new BadRequestException({ statusCode: 400, codigo: b.codigo, message: b.mensagem });
     }
     return p;
   }
+
+  /** A primeira condição da Fase 2 que falta (null = liberada). */
+  async bloqueioDaFase2(p: { id: string; parametros: unknown; atividades_confirmadas_em: Date | null }): Promise<{ codigo: CodigoBloqueio; mensagem: string } | null> {
+    if (!(await this.versaoLiberada(p.id, 'FASE1'))) return { codigo: 'FASE1_NAO_LIBERADA', mensagem: MSG_BLOQUEIO.FASE1_NAO_LIBERADA };
+    if (!ehRegimeCliente((p.parametros as Json | null)?.regimeCliente)) return { codigo: 'REGIME_NAO_INFORMADO', mensagem: MSG_BLOQUEIO.REGIME_NAO_INFORMADO };
+    if (!p.atividades_confirmadas_em) return { codigo: 'ATIVIDADES_NAO_CONFIRMADAS', mensagem: MSG_BLOQUEIO.ATIVIDADES_NAO_CONFIRMADAS };
+    return null;
+  }
+
+  /** A última versão liberada da fase (`resumo.fase`); versões antigas, sem fase, não contam. */
+  async versaoLiberada(projetoId: string, fase: Fase): Promise<{ versaoId: string; numero: number; em: string } | null> {
+    const versoes = await this.prisma.sanVersao.findMany({ where: { projeto_id: projetoId }, orderBy: { numero: 'desc' }, select: { id: true, numero: true, resumo: true, createdAt: true } });
+    const v = versoes.find((x) => (x.resumo as Json | null)?.fase === fase);
+    return v ? { versaoId: v.id, numero: v.numero, em: new Date(v.createdAt).toISOString() } : null;
+  }
+
+  /** As fases do projeto: camadas ativas de cada uma, a versão liberada e o que impede a fase (só a Fase 2 tem trava). */
+  async fases(projetoId: string) {
+    const p = await this.exigirProjeto(projetoId);
+    const ativas = camadasAtivas(p.modulos as Json);
+    const bloqueio2 = await this.bloqueioDaFase2(p);
+    return {
+      fases: await Promise.all(LISTA_FASES.map(async (fase) => ({
+        fase, camadas: (FASES[fase] as readonly Camada[]).filter((c) => ativas.includes(c)), liberada: await this.versaoLiberada(projetoId, fase),
+        bloqueio: fase === 'FASE2' ? bloqueio2 : null,
+      }))),
+    };
+  }
 }
+
+export type CodigoBloqueio = 'FASE1_NAO_LIBERADA' | 'REGIME_NAO_INFORMADO' | 'ATIVIDADES_NAO_CONFIRMADAS';
+export const MSG_BLOQUEIO: Record<CodigoBloqueio, string> = {
+  FASE1_NAO_LIBERADA: 'Libere a Fase 1 (versão "Cadastro saneado") antes de analisar ou decidir as camadas da Fase 2.',
+  REGIME_NAO_INFORMADO: 'Informe o regime do cliente na Configuração antes de analisar ou decidir as camadas da Fase 2.',
+  ATIVIDADES_NAO_CONFIRMADAS: 'Confirme as atividades do cliente antes de analisar ou decidir as camadas da Fase 2.',
+};
 
 /** Mapa das atividades mantidas para a lista fechada (CNAE sem regra fica em `semMapeamento`, nunca é chutado). */
 export function mapaDeAtividades(codigos: string[]) {
