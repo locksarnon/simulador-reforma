@@ -129,7 +129,30 @@ export function TextoLongo({ texto, largura = "max-w-[18rem]" }) {
   );
 }
 
-export const Rotulo = ({ children, className = "" }) => <span className={`mb-1 block text-xs text-muted-foreground ${className}`}>{children}</span>;
+/**
+ * Visual das tabelas do Saneamento (o da aba Tabela): cabeçalho fixo no topo em fundo "muted", linhas de 38 px com zebra, linhas de grade
+ * finas e colunas fixas à esquerda com fundo opaco. A Tabela, os Casos e as Unificações usam as mesmas classes.
+ */
+export const estiloTabela = {
+  area: "relative overflow-auto border border-border bg-card",
+  cabecalho: "sticky top-0 z-30 bg-muted",
+  celula: "flex items-center overflow-hidden border-l border-border/40 px-2",
+  tituloColuna: "flex items-center border-l border-border/70 px-2",
+  tituloFixo: "sticky z-40 flex items-center bg-muted px-2 font-medium",
+  linha: "flex border-b border-border/60 text-[13px]",
+  /** Fundo da linha: marcada, ímpar (zebra) ou par. */
+  fundoLinha: (i, marcado) => (marcado ? "bg-primary/10" : i % 2 ? "bg-muted/20" : "bg-card"),
+  /** Fundo das células fixas (opaco, para o que rola por baixo não aparecer). */
+  fundoFixo: (i, marcado) => (marcado ? "bg-primary/10" : i % 2 ? "bg-muted" : "bg-card"),
+};
+
+/** Situação com cor e texto (casos e linhas das unificações): o texto sempre aparece, a cor só reforça. */
+const TOM_DA_SITUACAO = {
+  PROPOSTO: "alerta", PROPOSTA: "alerta", RASCUNHO: "neutro", APROVADO: "ok", APROVADA: "ok", AGUARDANDO_INFORMACAO: "info", AGUARDANDO: "info", REJEITADO: "neutro", OBSOLETO: "neutro", REGISTRADA: "neutro",
+};
+export const SeloTexto = ({ situacao, children }) => <Tag tom={TOM_DA_SITUACAO[situacao] || "neutro"}>{children}</Tag>;
+
+export const Rotulo =({ children, className = "" }) => <span className={`mb-1 block text-xs text-muted-foreground ${className}`}>{children}</span>;
 
 /** Quem pode alterar dados (função "alterar"). A página informa; sem provedor (testes), vale como permitido. */
 export const PermissaoContext = createContext({ podeAlterar: true });

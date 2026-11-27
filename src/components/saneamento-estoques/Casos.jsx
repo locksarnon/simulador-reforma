@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import TabelaPadrao from "@/components/TabelaPadrao";
 import { san, chaves, atualizarTudo } from "./api";
 import CasoDetalhe from "./CasoDetalhe";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, Rotulo, usePodeAlterar } from "./comuns";
+import TabelaDensa from "./TabelaDensa";
+import { Aviso, botaoPrimario, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, Rotulo, SeloTexto, Tag, TextoLongo, usePodeAlterar } from "./comuns";
 import {
   CAMADAS, corpoDoLote, idsDoLote, lerParecer, loteTemEscolha, mensagemDeErro, montarFiltroCasos, proximoCasoAberto, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo,
   rotuloDoCaso, rotuloSituacaoCaso, SITUACOES_DO_CASO, versoesDaPrevia,
@@ -65,6 +65,8 @@ function PainelDeLote({ projeto, ids, descricao, casos, aoFechar, aoAprovado }) 
   );
 }
 
+const FILTRO_PADRAO = { camada: "", situacao: "ABERTOS", tipo: "", origem: "" };
+
 /** Casos: lista filtrada no servidor (o plano de ajustes é o filtro "em aberto"), detalhe do caso e aprovação em lote. */
 export default function Casos({ projeto, recorte, casoInicial }) {
   const qc = useQueryClient();
@@ -86,14 +88,17 @@ export default function Casos({ projeto, recorte, casoInicial }) {
   const casos = useMemo(() => (q.data ? q.data.pages.flatMap((p) => p.casos) : []), [q.data]);
 
   const colunas = useMemo(() => [
-    { chave: "camada", rotulo: "Camada", valor: (c) => ROTULO_CAMADA[c.camada] },
-    { chave: "tipo", rotulo: "Tipo" },
-    { chave: "problema", rotulo: "Problema", quebrar: true },
-    { chave: "qtdItens", rotulo: "Itens", tipo: "numero", alinhar: "direita" },
-    { chave: "situacao", rotulo: "Situação", valor: (c) => rotuloSituacaoCaso(c.situacao) },
-    { chave: "origem", rotulo: "Origem", valor: (c) => (c.origem === "IA" ? "IA" : "Regra") },
-    { chave: "parecer", rotulo: "Parecer da IA", valor: (c) => { const p = lerParecer(c); return p?.confianca ? ROTULO_CONFIANCA[p.confianca] : p ? "Com parecer" : ""; } },
+    { chave: "camada", rotulo: "Camada", largura: 128, fixa: true, valor: (c) => ROTULO_CAMADA[c.camada] },
+    { chave: "tipo", rotulo: "Tipo", largura: 200, fixa: true },
+    { chave: "problema", rotulo: "Problema", largura: 340, render: (c) => <TextoLongo texto={c.problema} largura="max-w-full" /> },
+    { chave: "qtdItens", rotulo: "Itens", largura: 72, tipo: "numero", alinhar: "direita" },
+    { chave: "situacao", rotulo: "Situação", largura: 170, valor: (c) => rotuloSituacaoCaso(c.situacao), render: (c) => <SeloTexto situacao={c.situacao}>{rotuloSituacaoCaso(c.situacao)}</SeloTexto> },
+    { chave: "origem", rotulo: "Origem", largura: 84, valor: (c) => (c.origem === "IA" ? "IA" : "Regra"), render: (c) => <Tag tom={c.origem === "IA" ? "info" : "neutro"}>{c.origem === "IA" ? "IA" : "Regra"}</Tag> },
+    { chave: "parecer", rotulo: "Parecer da IA", largura: 140, valor: (c) => { const p = lerParecer(c); return p?.confianca ? ROTULO_CONFIANCA[p.confianca] : p ? "Com parecer" : ""; } },
   ], []);
+  const temFiltro = Object.keys(FILTRO_PADRAO).some((k) => filtro[k] !== FILTRO_PADRAO[k]);
+  const contador = `${casos.length.toLocaleString("pt-BR")} caso(s) ${temFiltro || filtro.grupo ? "com estes filtros" : "em aberto"} carregado(s)${q.hasNextPage ? "; há mais casos a carregar (role até o fim ou use Carregar mais casos)" : ""}.${q.isFetchingNextPage ? " Carregando mais…" : ""}`;
+  const carregarMais = () => { if (q.hasNextPage && !q.isFetchingNextPage) q.fetchNextPage(); };
 
   const idsLote = idsDoLote(marcados, casos);
   const descricaoLote = marcados.size
@@ -114,6 +119,7 @@ export default function Casos({ projeto, recorte, casoInicial }) {
           <select className={campoCls} value={filtro.situacao} onChange={mudar("situacao")}><option value="ABERTOS">Em aberto (plano de ajustes)</option><option value="">Todos</option>{Object.entries(SITUACOES_DO_CASO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label className="block"><Rotulo>Origem</Rotulo><select className={campoCls} value={filtro.origem} onChange={mudar("origem")}><option value="">Todas</option><option value="REGRA">Regra</option><option value="IA">IA</option></select></label>
         <label className="block"><Rotulo>Tipo (texto exato)</Rotulo><input className={`${campoCls} w-44`} value={filtro.tipo} onChange={mudar("tipo")} placeholder="Ex.: DUPLICIDADE_EXATA" /></label>
+        {temFiltro && <button type="button" className={botaoSecundario} onClick={() => { setFiltro((f) => ({ ...FILTRO_PADRAO, grupo: f.grupo })); setMarcados(new Set()); }}>Limpar filtros</button>}
         <button type="button" className={botaoPrimario} disabled={!pode || idsLote.length === 0} title={!pode ? razao : "Marque casos na tabela, ou use todos os casos em aberto listados"} onClick={() => setLote(true)}>Aprovar em lote…</button>
       </div>
       {filtro.grupo && (
@@ -132,8 +138,9 @@ export default function Casos({ projeto, recorte, casoInicial }) {
                 {casos.length === 0 && !q.hasNextPage ? (
                   <EstadoVazio titulo="Nenhum caso ainda">Rode as análises pela faixa de cobertura no alto da página, ou importe o cadastro de itens.</EstadoVazio>
                 ) : (
-                  <TabelaPadrao id="saneamento-estoques-casos" ariaLabel="Casos" colunas={colunas} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso com estes filtros." tamanhoInicial={25}
-                    ordemInicial={null} aoClicarLinha={(c) => { setAberto(c.id); setSemProximo(false); }} destaqueLinha={(c) => (c.id === aberto ? "bg-primary/10" : "")} selecao={{ marcadas: marcados, aoMudar: setMarcados }} />
+                  <TabelaDensa id="saneamento-estoques-casos" ariaLabel="Casos" colunas={colunas} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso com estes filtros." contador={contador}
+                    aoClicarLinha={(c) => { setAberto(c.id); setSemProximo(false); }} linhaMarcada={(c) => c.id === aberto} selecao={{ marcadas: marcados, aoMudar: setMarcados }}
+                    aoChegarAoFim={carregarMais} rodape={q.isFetchingNextPage ? "Carregando mais casos…" : null} />
                 )}
                 {q.hasNextPage && <button type="button" className={botaoSecundario} onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>{q.isFetchingNextPage ? "Carregando…" : "Carregar mais casos"}</button>}
               </div>
