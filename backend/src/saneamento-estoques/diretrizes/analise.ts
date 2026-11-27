@@ -344,9 +344,22 @@ function casosLimites(itens: ItemTrabalho[], r: RegraResolvivel, nomesDe: (it: I
 // ── ATRIBUTOS (Qualidade) ────────────────────────────────────────────────────
 
 const CAMPO_PADRAO: Record<string, string> = { MARCA: 'fabricante', REFERENCIA: 'referencia' };
-const PADRAO_NA_DESCRICAO: Record<string, RegExp> = {
+/**
+ * Medida na descrição (sem acento): número com unidade (10MM, 2,5 M, 3/8 POL, 1/2", 20 MILIMETROS), rosca métrica (M8, M10X40, M12X1,5),
+ * medidas cruzadas (10X40, 6X100MM), fração de polegada (1/2, 1.1/4) e diâmetro (Ø10). Na dúvida, conta como presente: o atributo ausente só
+ * aponta o que com certeza não tem medida.
+ */
+const MEDIDAS: RegExp[] = [
+  /\d+([.,]\d+)?\s*(x\s*\d+([.,]\d+)?\s*)*(mm|cm|m|mt|mts|pol|"|'')(?![a-z])/i,
+  /\d+([.,]\d+)?\s*(milimetros?|centimetros?|metros?|polegadas?)(?![a-z])/i,
+  /(?<![a-z0-9])m\s?\d+([.,]\d+)?(\s*x\s*\d+([.,]\d+)?)*(?![a-z0-9])/i,
+  /(?<![a-z0-9])\d+([.,]\d+)?\s*x\s*\d+([.,]\d+)?/i,
+  /(?<![0-9/])\d+([.,-]\d+)?\s*\/\s*\d{1,2}(?![0-9/])/,
+  /[øØ]\s*\d+/,
+];
+const PADRAO_NA_DESCRICAO: Record<string, { test(s: string): boolean }> = {
   CONCENTRACAO: /\d+([.,]\d+)?\s*(%|g\s*\/\s*(l|kg)|ml\s*\/\s*l|mg\s*\/\s*(l|kg)|ppm)/i,
-  DIMENSAO: /\d+([.,]\d+)?\s*(x\s*\d+([.,]\d+)?\s*)*(mm|cm|m|pol|")(?![a-z])/i,
+  DIMENSAO: { test: (s: string) => MEDIDAS.some((re) => re.test(s)) },
 };
 const valorDoCampo = (it: ItemTrabalho, nome: string): string => {
   const direto = campoDe(it, nome);

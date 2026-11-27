@@ -7,6 +7,7 @@ import { AnalisadorQualidade } from '../motor/qualidade';
 import type { ContextoMotor } from '../motor/contexto';
 import type { ItemTrabalho } from '../tipos';
 import { abreviarAte, envolverComDiretrizes, localizar } from './analise';
+import { BIBLIOTECA_INICIAL } from './conteudo/biblioteca';
 import { abreviacoesNoSentidoCerto, canonico, conteudoEfetivo, conteudoPadrao, validarAbrangencia, validarConteudo } from './conteudo-regra';
 import { fecharEscopo, recortarResultado } from './escopo';
 import { alertasDeLimites, converterParametros, limitesEfetivos, linhasDoErp, parametrosDaParticao } from './parametros';
@@ -279,6 +280,24 @@ describe('revisão independente (lógica)', () => {
     const com = envolverComDiretrizes(nomes, criarIndice([u])).analisar(itens, ctx);
     const deG2 = (r: typeof sem) => r.casos.filter((c) => c.itens.some((i) => i === '4' || i === '5')).map((c) => ({ ...c, evidencia: c.evidencia.filter((e) => e.rotulo !== 'Regra') }));
     expect(deG2(com)).toEqual(deG2(sem));
+  });
+  it('regra de NOMES num grupo (QA: PECAS) não cria nem inverte caso de grafia de unidade: a grafia dominante é a da base inteira', () => {
+    const itens = [...['1', '2'].map((id) => it_(id, { unidade: 'UN', grupo: 'PECAS' })), ...['3', '4', '5'].map((id) => it_(id, { unidade: 'UNID', grupo: 'OUTROS' }))];
+    const sem = nomes.analisar(itens, ctx);
+    const n = regra('N01', 'NOMES', { todos: false, grupos: ['PECAS'] }, { capitalizacao: 'PRESERVAR' });
+    const com = envolverComDiretrizes(nomes, criarIndice([n])).analisar(itens, ctx);
+    const unid = (r: typeof sem) => r.casos.filter((c) => c.tipo.startsWith('UNIDADE_'));
+    expect(unid(sem).some((c) => c.tipo === 'UNIDADE_GRAFIA')).toBe(true);
+    expect(unid(com)).toEqual(unid(sem));
+  });
+  it('DIMENSAO (regra da biblioteca "Materiais por medida"): rosca métrica, medida por extenso e polegadas contam; nenhum exemplo correto vira caso', () => {
+    const lib = BIBLIOTECA_INICIAL.find((b) => b.id === 'bib-atributos-medida')!;
+    const a = { ...regra('A01', 'ATRIBUTOS', { todos: true }), conteudo: lib.conteudo };
+    const certos = ['PARAFUSO SEXTAVADO M10X40 ACO 8.8', 'PORCA SEXTAVADA M8 ZINCADA', 'PARAFUSO M12X1,5 ACO', 'CABO DE ACO 20 MILIMETROS', 'TUBO PVC 1/2"', 'NIPLE 3/8 POL',
+      'MANGUEIRA 1.1/4 POL', 'CHAPA 2000X1000X3MM', 'BARRA ROSCADA 5/16', 'ARRUELA LISA 10MM', 'CORRENTE 2 METROS', 'ANEL Ø40'];
+    const itens = [...certos.map((d, i) => it_(String(i + 1), { descricao: d })), it_('99', { descricao: 'PARAFUSO SEXTAVADO ZINCADO' })];
+    const r = envolverComDiretrizes(new AnalisadorQualidade(), criarIndice([a])).analisar(itens, ctx);
+    expect(r.casos.filter((c) => c.tipo === 'ATRIBUTO_AUSENTE').map((c) => c.itens)).toEqual([['99']]);
   });
   it('pendência de limite é um conjunto por regra de LIMITES, mesmo com regras de NOMES diferentes por grupo', () => {
     const l = regra('L01', 'LIMITES', { todos: true }, { linhas: [linha({ destino: 'ERP X', origem: 'ERP', limite: null, confirmado: false })] });

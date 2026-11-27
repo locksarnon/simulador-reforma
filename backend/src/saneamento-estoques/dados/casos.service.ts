@@ -11,11 +11,38 @@ import {
   propostaAplicavel, quem, validarCamada, valorDoCampo, type Json, type SituacaoCaso, type Usuario,
 } from './constantes';
 import { VARIA_POR_ITEM } from '../motor';
+import { canonico } from '../diretrizes/conteudo-regra';
 import type { ParecerIa } from './portas';
 import { SanProjetoService } from './projeto.service';
 import { paramInteiro, paramTexto, validarProposta, validarResultado } from './validacao';
 
 type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
+
+/** O que a análise diz de um caso (o que a reexecução renova num caso proposto e não editado). */
+type ConteudoDoCaso = { problema: string; evidencia: unknown; atual: unknown; proposta: unknown; justificativa: string; fundamento: string | null; afeta: unknown; impactos: unknown };
+const SELECAO_CONTEUDO = { problema: true, evidencia: true, atual: true, proposta: true, justificativa: true, fundamento: true, afeta: true, impactos: true } as const;
+const conteudoDoCaso = (c: CasoProposto): ConteudoDoCaso => ({
+  problema: c.problema, evidencia: c.evidencia ?? [], atual: c.atual ?? {}, proposta: c.proposta ?? {}, justificativa: c.justificativa,
+  fundamento: c.fundamento ?? null, afeta: c.afeta ?? [], impactos: c.impactos ?? [],
+});
+type Ev = { rotulo?: string; valor?: unknown };
+/** Códigos das regras citadas na evidência ("N01 — nome" → N01): renomear a regra não pede revisão. */
+const regraDa = (ev: unknown): string => (Array.isArray(ev) ? (ev as Ev[]).filter((x) => x?.rotulo === 'Regra').map((x) => String(x.valor).split(/;\s*/).map((r) => r.split(' — ')[0].trim()).join('; ')).join('; ') : '');
+const semRegra = (ev: unknown) => (Array.isArray(ev) ? (ev as Ev[]).filter((x) => x?.rotulo !== 'Regra') : []);
+/**
+ * O que mudou entre o caso gravado e o produzido agora (mesma chave). `conteudo` = qualquer campo da análise (renova o caso proposto).
+ * `analise` = mudança que pede revisão de quem já decidiu ou editou: evidência (fora a linha da regra) ou a regra trocada por outra. A linha
+ * "Regra" que só aparece (regra convertida dos parâmetros antigos, mesmo resultado) não conta; a proposta também não (no caso decidido ou em
+ * rascunho, a proposta gravada é a do consultor).
+ */
+export function mudancaDoCaso(e: Partial<ConteudoDoCaso>, c: CasoProposto): { conteudo: boolean; analise: boolean; regra: string | null } {
+  if (e.problema === undefined) return { conteudo: false, analise: false, regra: null };
+  const n = conteudoDoCaso(c);
+  const conteudo = (Object.keys(n) as (keyof ConteudoDoCaso)[]).some((k) => canonico(e[k] ?? null) !== canonico(n[k] ?? null));
+  const ra = regraDa(e.evidencia); const rn = regraDa(n.evidencia);
+  const regraTrocada = !!ra && !!rn && ra !== rn;
+  return { conteudo, analise: regraTrocada || canonico(semRegra(e.evidencia)) !== canonico(semRegra(n.evidencia)), regra: regraTrocada ? rn : null };
+}
 
 /** Itens por bloco na aprovação: lidos de uma vez e gravados num UPDATE só (antes, um UPDATE por item: 3,7 mil idas ao banco num lote). */
 export const BLOCO_APROVACAO = 1000;
@@ -125,10 +152,12 @@ export class SanCasosService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const chaves = casos.map((c) => chaveCaso(camada, c.tipo, c.itens));
-        const ja = new Map<string, { id: string; situacao: string; versao: number }>();
+        const ja = new Map<string, { id: string; situacao: string; versao: number } & Partial<ConteudoDoCaso>>();
         for (const lote of fatiar(chaves, 2000)) {
-          for (const e of await tx.sanCaso.findMany({ where: { projeto_id: projetoId, camada, chave: { in: lote } }, select: { id: true, chave: true, situacao: true, versao: true } })) ja.set(e.chave, e);
+          for (const e of await tx.sanCaso.findMany({ where: { projeto_id: projetoId, camada, chave: { in: lote } }, select: { id: true, chave: true, situacao: true, versao: true, ...SELECAO_CONTEUDO } })) ja.set(e.chave, e as never);
         }
+        const renovados: string[] = [];
+        const aRevisar: { id: string; causa: string }[] = [];
         const situacaoInicial = (c: CasoProposto) => (c.tipo.startsWith('AGUARDANDO') ? 'AGUARDANDO_INFORMACAO' : c.tipo === 'ENQUADRAMENTO_CONFERIDO' ? 'APROVADO' : 'PROPOSTO');
         const tocados = new Set<string>();
         const atualizados: unknown[] = [];
@@ -154,7 +183,21 @@ export class SanCasosService {
           const conferido = c.tipo === 'ENQUADRAMENTO_CONFERIDO';
           const manual = c.tipo === 'EXCECAO_MANUAL';
           const reativar = e.situacao === 'OBSOLETO';
-          if (!conferido && !manual && !reativar) continue;
+          if (!conferido && !manual && !reativar) {
+            // O caso continua sendo produzido (mesma chave), mas o que a análise diz dele mudou (regra nova ou alterada, proposta, evidência).
+            // Proposto e não editado: passa a dizer o que a análise diz agora (mesma linha, versão nova; decisões e versões liberadas ficam).
+            // Em rascunho ou já decidido: nunca se sobrescreve; as células ganham "revisar" com o motivo.
+            const m = mudancaDoCaso(e, c);
+            if (m.conteudo && e.situacao === 'PROPOSTO') {
+              const x = await tx.sanCaso.updateMany({ where: { id: e.id, versao: e.versao, situacao: 'PROPOSTO' }, data: { ...conteudoDoCaso(c), versao: { increment: 1 } } as never });
+              if (x.count === 0) throw conflito();
+              ja.set(chaves[i], { ...e, ...conteudoDoCaso(c), versao: e.versao + 1 });
+              renovados.push(e.id); tocados.add(e.id);
+            } else if (m.analise && e.situacao !== 'PROPOSTO' && e.situacao !== 'OBSOLETO') {
+              aRevisar.push({ id: e.id, causa: m.regra ? `Revisar: a regra mudou (agora ${m.regra}); a análise deste caso mudou depois da decisão.` : 'Revisar: a análise deste caso mudou depois da decisão.' });
+            }
+            continue;
+          }
           if (manual && !reativar) {
             if (!CASO_ABERTO.includes(e.situacao as SituacaoCaso) && e.situacao !== 'AGUARDANDO_INFORMACAO') {
               throw new ConflictException({ statusCode: 409, codigo: 'CASO_JA_DECIDIDO', message: 'Já existe uma exceção decidida para este item. Reabra o caso antes de registrar outra.' });
@@ -206,6 +249,8 @@ export class SanCasosService {
           }
         });
         await this.marcarCelulas(tx, projetoId, camada, pares);
+        // Depois de marcar as células (que limpam "revisar"): caso em rascunho ou decidido cuja análise mudou fica "revisar".
+        for (const a of aRevisar) await tx.sanCelula.updateMany({ where: { projeto_id: projetoId, camada, caso_id: a.id }, data: { revisar: true, revisar_causa: a.causa.slice(0, 300) } });
 
         // Unificação proposta (caso novo): a Qualidade dos mesmos itens fica "revisar" (a inativação por falta de movimento pode ter vindo antes,
         // e o código que fica não pode ser inativado). Mesma regra de dependência da aprovação (`camadasAfetadas`).
@@ -238,8 +283,8 @@ export class SanCasosService {
 
         await this.sincronizarImpactos(tx, projetoId, [...tocados], dataBase);
         return {
-          camada, analisados: r.analisados, casosNovos: unicos.length, casosJaExistentes: casos.length - novos.length - atualizados.length, semProblema: sem, semDados: r.semDados,
-          casosAtualizados: atualizados, casosObsoletos: obsoletos.length,
+          camada, analisados: r.analisados, casosNovos: unicos.length, casosJaExistentes: casos.length - novos.length - atualizados.length - renovados.length, semProblema: sem, semDados: r.semDados,
+          casosAtualizados: atualizados, casosObsoletos: obsoletos.length, casosRenovados: renovados.length, casosParaRevisar: aRevisar.length,
         };
       }, TX_LONGA);
     } catch (e) {

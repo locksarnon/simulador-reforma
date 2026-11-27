@@ -411,10 +411,12 @@ export class SanDiretrizesService {
       for (const t of previa.transferencias) {
         const o = linhas.find((l) => l.id === t.regraId)!;
         const aplicacao = o.aplicacao ? { ...(o.aplicacao as Aplicacao), abrangencia: retirarSobreposicao((o.aplicacao as Aplicacao).abrangencia, r.abrangencia as Abrangencia) } : null;
-        const y = await tx.sanDiretrizRegra.updateMany({ where: { id: o.id, versao: o.versao }, data: { abrangencia: t.abrangenciaDepois as never, aplicacao: (aplicacao ?? undefined) as never, versao: o.versao + 1 } });
+        // A abrangência da regra aprovada mudou: a aprovação cai (volta a rascunho com "revisar") e precisa ser refeita.
+        const queda = this.quedaDeAprovacao(o, `A regra ${o.codigo} perdeu grupos para a regra ${r.codigo}: confira a abrangência e aprove de novo.`);
+        const y = await tx.sanDiretrizRegra.updateMany({ where: { id: o.id, versao: o.versao }, data: { abrangencia: t.abrangenciaDepois as never, aplicacao: (aplicacao ?? undefined) as never, ...queda, versao: o.versao + 1 } as never });
         if (y.count === 0) throw conflito('Outra regra envolvida na transferência foi alterada ao mesmo tempo. Recarregue e tente de novo.');
-        await this.registrar(tx, o, 'TRANSFERIR', usuario, { abrangencia: o.abrangencia }, { abrangencia: t.abrangenciaDepois },
-          `Transferido para a regra ${r.codigo}: ${previa.sobreposicoes.filter((s) => s.regraAtual === o.codigo).map((s) => s.grupo).join(', ')}.`);
+        await this.registrar(tx, o, 'TRANSFERIR', usuario, { abrangencia: o.abrangencia, situacao: o.situacao }, { abrangencia: t.abrangenciaDepois, ...(o.situacao === 'APROVADA' ? { situacao: 'RASCUNHO', revisar: true } : {}) },
+          `Transferido para a regra ${r.codigo}: ${previa.sobreposicoes.filter((s) => s.regraAtual === o.codigo).map((s) => s.grupo).join(', ')}.${o.situacao === 'APROVADA' ? ' Aprovação retirada: a abrangência mudou.' : ''}`);
       }
       await this.registrar(tx, r, 'APLICAR', usuario, { aplicacao: r.aplicacao ?? null }, { aplicacao: aplicacaoDoRascunho(r, conteudo) },
         `Aplicada a ${rotuloAbrangencia(r.abrangencia as Abrangencia)}: ${afetados.length} item(ns) em ${previa.grupos.length} grupo(s); camadas ${previa.camadas.join(', ')}.`);
@@ -530,22 +532,33 @@ export class SanDiretrizesService {
     const idx = criarIndice(rascunhos);
     const aspecto = r.aspecto as Aspecto;
     const doGrupo = (await itensComGrupo(this.prisma, r.projeto_id)).filter((i) => idx.resolver(i.grupo, i.subgrupo)[aspecto]?.id === r.id);
-    const ids = doGrupo.slice(0, MAX_EXEMPLOS).map((i) => i.id);
-    const lidos = ids.length ? await this.prisma.sanItem.findMany({ where: { id: { in: ids } }, orderBy: { id: 'asc' }, select: { id: true, codigo: true, estabelecimento: true, trabalho: true } }) : [];
-    const itens: ItemTrabalho[] = lidos.map((i) => ({ ...(i.trabalho as Json), id: i.id, codigo: String((i.trabalho as Json).codigo ?? i.codigo), estabelecimento: i.estabelecimento || null }) as ItemTrabalho);
     const conteudo = conteudoDe.get(r.id)!;
     // Formato da tela: `itens: [{ codigo, descricaoAtual, descricaoProposta }]` (+ o detalhe do aspecto). descricaoProposta: NOMES = como
     // ficaria; LIMITES = a variante que cabe no menor limite confirmado (null = cabe como está ou precisa de revisão); demais = null.
-    return {
-      regraId: r.id, codigo: r.codigo, aspecto, total: doGrupo.length,
-      itens: itens.map((it) => {
-        const ex = exemploDoItem(it, conteudo, idx.resolver(it.grupo, subgrupoDosCampos(it.campos)).NOMES);
-        return {
-          itemId: it.id, codigo: it.codigo, grupo: it.grupo, subgrupo: subgrupoDosCampos(it.campos), unidade: it.unidade, descricaoAtual: it.descricao,
-          descricaoProposta: (ex.descricaoProposta as string | null | undefined) ?? null, observacao: (ex.observacao as string | undefined) ?? '', ...ex,
-        };
-      }),
+    // Nomes e limites: todos os itens da regra são avaliados e os que MUDAM (proposta ≠ atual) vêm primeiro; `totalMudam` = quantos mudam.
+    const comDescricao = aspecto === 'NOMES' || aspecto === 'LIMITES';
+    const exemplo = (it: ItemTrabalho) => {
+      const ex = exemploDoItem(it, conteudo, idx.resolver(it.grupo, subgrupoDosCampos(it.campos)).NOMES);
+      const descricaoProposta = (ex.descricaoProposta as string | null | undefined) ?? null;
+      return {
+        itemId: it.id, codigo: it.codigo, grupo: it.grupo, subgrupo: subgrupoDosCampos(it.campos), unidade: it.unidade, descricaoAtual: it.descricao,
+        descricaoProposta, muda: descricaoProposta != null && descricaoProposta !== it.descricao, observacao: (ex.observacao as string | undefined) ?? '', ...ex,
+      };
     };
+    const ler = async (ids: string[]) => {
+      const out: ItemTrabalho[] = [];
+      for (const lote of fatiar(ids, 5000)) {
+        const lidos = await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, orderBy: { id: 'asc' }, select: { id: true, codigo: true, estabelecimento: true, trabalho: true } });
+        for (const i of lidos) out.push({ ...(i.trabalho as Json), id: i.id, codigo: String((i.trabalho as Json).codigo ?? i.codigo), estabelecimento: i.estabelecimento || null } as ItemTrabalho);
+      }
+      return out;
+    };
+    if (!comDescricao) {
+      return { regraId: r.id, codigo: r.codigo, aspecto, total: doGrupo.length, totalMudam: null, itens: (await ler(doGrupo.slice(0, MAX_EXEMPLOS).map((i) => i.id))).map(exemplo) };
+    }
+    const todos = (await ler(doGrupo.map((i) => i.id))).map(exemplo);
+    const mudam = todos.filter((x) => x.muda);
+    return { regraId: r.id, codigo: r.codigo, aspecto, total: doGrupo.length, totalMudam: mudam.length, itens: [...mudam, ...todos.filter((x) => !x.muda)].slice(0, MAX_EXEMPLOS) };
   }
 
   // ── Política ───────────────────────────────────────────────────────────────
@@ -573,9 +586,9 @@ export class SanDiretrizesService {
         aprovador: aprovadores.length ? aprovadores.join(', ') : null, dataEmissao: new Date(), erp: await nomeDoErp(this.prisma, proj?.erp_id, proj?.erp),
       },
       regras,
-      procedimentos: d.procedimentos, notaProcedimentos: d.notaProcedimentos,
+      procedimentos: d.procedimentos, notaProcedimentos: d.notaProcedimentos, antesDasDiretrizes: d.antesDasDiretrizes,
       quadro: d.quadro.map(({ grupo, ...cods }) => ({ grupo, codigos: Object.fromEntries(Object.entries(cods).filter(([, v]) => v)) as Partial<Record<Aspecto, string>> })),
-      pendencias: { gruposSemRegra: d.pendencias.gruposSemRegra },
+      pendencias: { gruposSemRegra: d.antesDasDiretrizes ? [] : d.pendencias.gruposSemRegra },
     };
   }
 
@@ -587,7 +600,7 @@ export class SanDiretrizesService {
     const projeto = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true, empresa_id: true, diagnostico_id: true, responsavel: true } });
     if (!projeto) throw new NotFoundException('Projeto de saneamento não encontrado.');
     let diretrizes: Json | null; let versao: Json | null = null; let grupos: string[];
-    let procedimentos: Procedimento[] = PROCEDIMENTOS; let notaProcedimentos: string | null = null;
+    let procedimentos: Procedimento[] = PROCEDIMENTOS; let notaProcedimentos: string | null = null; let antesDasDiretrizes = false;
     if (versaoId) {
       const v = await this.versoes.diretrizesDaVersao(projetoId, versaoId);
       diretrizes = v.diretrizes; versao = { id: v.versao.id, numero: v.versao.numero, rotulo: v.versao.rotulo, criadaEm: v.versao.createdAt };
@@ -597,6 +610,22 @@ export class SanDiretrizesService {
       // Procedimentos congelados na foto; foto anterior a isso usa a redação atual, com nota.
       if (Array.isArray(diretrizes?.procedimentos)) procedimentos = diretrizes.procedimentos as Procedimento[];
       else if (diretrizes) notaProcedimentos = 'Procedimentos na redação vigente na data de emissão deste documento.';
+      if (!diretrizes) {
+        // Versão liberada antes das Diretrizes: as regras vêm dos parâmetros do projeto congelados na foto (os que valiam na análise).
+        antesDasDiretrizes = true;
+        notaProcedimentos = 'Procedimentos na redação vigente na data de emissão deste documento.';
+        const convertidas = converterParametros((await this.versoes.parametrosMotorDaVersao(projetoId, versaoId)) as never);
+        const seq: Partial<Record<Aspecto, number>> = {};
+        const regrasDaFoto = convertidas.map((c) => {
+          seq[c.aspecto] = (seq[c.aspecto] ?? 0) + 1;
+          const codigo = `${PREFIXO_ASPECTO[c.aspecto]}${String(seq[c.aspecto]).padStart(2, '0')}`;
+          return {
+            id: `foto-${codigo}`, codigo, aspecto: c.aspecto, nome: c.nome, abrangencia: { todos: true }, observacao: 'Parâmetros do projeto vigentes na data da versão.',
+            conteudoEfetivo: conteudoEfetivo(c.aspecto, null, c.alteracoes as Partial<ConteudoRegra>), situacao: 'APROVADA', revisar: false, aprovadaPor: null, aprovadaEm: null, ativa: true, legado: true,
+          };
+        });
+        diretrizes = { cabecalho: { vigencia: null, situacao: regrasDaFoto.length ? 'APROVADA' : 'RASCUNHO', revisar: false, versao: 1 }, regras: regrasDaFoto };
+      }
     } else {
       await this.garantir(projetoId);
       diretrizes = await fotoDasDiretrizes(this.prisma, projetoId);
@@ -609,7 +638,7 @@ export class SanDiretrizesService {
     const quadro = grupos.map((grupo) => { const rs = idx.resolver(grupo); return { grupo, NOMES: rs.NOMES?.codigo ?? null, ATRIBUTOS: rs.ATRIBUTOS?.codigo ?? null, UNIDADES: rs.UNIDADES?.codigo ?? null, LIMITES: rs.LIMITES?.codigo ?? null, FISCAL: rs.FISCAL?.codigo ?? null }; });
     const cab = (diretrizes?.cabecalho as Json | undefined) ?? { vigencia: null, situacao: 'RASCUNHO', revisar: false, versao: 1 };
     return {
-      projeto, versao, cabecalho: cab, regras, procedimentos, notaProcedimentos, quadro,
+      projeto, versao, cabecalho: cab, regras, procedimentos, notaProcedimentos, antesDasDiretrizes, quadro,
       pendencias: {
         regrasNaoAprovadas: regras.filter((x) => x.situacao !== 'APROVADA').map((x) => ({ codigo: x.codigo, nome: x.nome, revisar: x.revisar === true })),
         gruposSemRegra: gruposSemRegra(grupos, regras.map((x) => ({ id: String(x.id), codigo: String(x.codigo), aspecto: x.aspecto as Aspecto, abrangencia: x.abrangencia as Abrangencia }))).filter((g) => g.grupos.length),

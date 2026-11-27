@@ -15,6 +15,7 @@ import { AnalisadorNomesUnidades } from '../motor/nomes-unidades';
 import { AnalisadorQualidade } from '../motor/qualidade';
 import { SanBibliotecaDiretrizesService } from './biblioteca.service';
 import { BIBLIOTECA_INICIAL, MODELOS } from './conteudo/biblioteca';
+import { gerarPdfPolitica } from '../entregaveis/politica';
 import { SanDiretrizesService } from './diretrizes.service';
 import type { RegraBiblioteca } from './tipos';
 
@@ -339,7 +340,7 @@ describe('revisão independente (serviço)', () => {
     const c = montar(); const { pid } = await pronto(c, BASE, MOTOR_ANTIGO);
     const d = await c.diretrizes.obter(pid);
     for (const cam of ['NOMES_UNIDADES', 'QUALIDADE']) await c.orq.executarCamada(pid, cam);
-    const antes = retrato(c);
+    const antes = retrato(c, true);
     const n01 = d.regras.find((r) => r.codigo === 'N01')!; const u01 = d.regras.find((r) => r.codigo === 'U01')!;
     expect(n01.conteudoEfetivo).toMatchObject({ abreviacoes: [{ completa: 'ESQUERDO', abreviacao: 'ESQ' }] });
     const n = await c.diretrizes.atualizarRegra(n01.id, { versao: n01.versao, nome: 'Nomes (renomeada)', observacao: 'só o nome', alteracoes: n01.conteudoEfetivo }, USER);
@@ -350,7 +351,7 @@ describe('revisão independente (serviço)', () => {
     const n2 = await c.diretrizes.atualizarRegra(n01.id, { versao: n.versao, abrangencia: { todos: false, grupos: ['G1', 'G2', '(sem grupo)'] } }, USER);
     expect(n2.legado).toBe(true);
     for (const cam of ['NOMES_UNIDADES', 'QUALIDADE']) await c.orq.executarCamada(pid, cam);
-    expect(retrato(c)).toEqual(antes);
+    expect(retrato(c, true)).toEqual(antes); // só a referência da regra na evidência acompanha o nome novo
     const editada = await c.diretrizes.atualizarRegra(n01.id, { versao: n2.versao, alteracoes: { ...n01.conteudoEfetivo, capitalizacao: 'PRESERVAR' } }, USER);
     expect(editada).toMatchObject({ legado: false, pendenteAplicar: true });
   });
@@ -448,5 +449,98 @@ describe('revisão independente (serviço)', () => {
     c.fila.itens = [item('1', { descricao: 'abc', campos: { subgrupo: 'S1' } }, 1), item('2', { descricao: 'abc', campos: { subgrupo: 'S9' } }, 2)];
     const pv = await c.importacao.previa(pid, ARQ);
     expect(pv.diferencas.map((x) => [x.codigo, x.campos.map((y) => [y.campo, y.antes, y.depois])])).toEqual([['2', [['subgrupo', 'S2', 'S9']]]]);
+  });
+});
+
+describe('casos abertos acompanham a regra (QA com Postgres)', () => {
+  it('mudar a regra e reaplicar atualiza a proposta do caso proposto (mesmo caso, versão nova); rascunho fica e ganha "revisar"; aprovar aplica a proposta nova', async () => {
+    const c = montar();
+    const { pid, ids } = await pronto(c, [item('1', { descricao: 'PARAF SEXT M8 ZINCADO' }, 1), item('2', { descricao: 'PARAF SEXT M10 ZINCADO' }, 2)]);
+    let r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'Nomes', abrangencia: { todos: true }, alteracoes: { termosProibidos: [{ termo: 'PARAF', substituicao: 'PARAFUSO' }] } }, USER);
+    r = (await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER)).regra;
+    const casoDe = (id: string) => c.db.sanCaso.find((x) => x.tipo === 'DESCRICAO_FORA_PADRAO' && x.itens[0] === ids[id] && x.situacao !== 'OBSOLETO')!;
+    const c1 = casoDe('1'); const c2 = casoDe('2'); const versao1 = c1.versao;
+    expect(c1.proposta).toEqual({ descricao: 'PARAFUSO SEXT M8 ZINCADO' });
+    // O consultor edita o caso do item 2 (rascunho).
+    await c.casos.salvarRascunho(c2.id, { versao: c2.versao, proposta: { descricao: 'PARAFUSO SEXTAVADO M10 ZINC' } }, USER);
+    r = await c.diretrizes.atualizarRegra(r.id, { versao: r.versao, alteracoes: { termosProibidos: [{ termo: 'PARAF', substituicao: 'PARAFUSO' }, { termo: 'SEXT', substituicao: 'SEXTAVADO' }] } }, USER);
+    await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER);
+    const n1 = c.db.sanCaso.find((x) => x.id === c1.id)!;
+    expect(n1).toMatchObject({ situacao: 'PROPOSTO', proposta: { descricao: 'PARAFUSO SEXTAVADO M8 ZINCADO' } });
+    expect(n1.versao).toBeGreaterThan(versao1);
+    expect(n1.evidencia.some((e: { valor: string }) => e.valor === 'termo proibido: SEXT → SEXTAVADO')).toBe(true);
+    expect(c.db.sanCaso.filter((x) => x.tipo === 'DESCRICAO_FORA_PADRAO' && x.itens[0] === ids['1'])).toHaveLength(1);
+    const n2 = c.db.sanCaso.find((x) => x.id === c2.id)!;
+    expect(n2).toMatchObject({ situacao: 'RASCUNHO', proposta: { descricao: 'PARAFUSO SEXTAVADO M10 ZINC' } });
+    const cel2 = c.db.sanCelula.find((x) => x.item_id === ids['2'] && x.camada === 'NOMES_UNIDADES')!;
+    expect(cel2).toMatchObject({ revisar: true });
+    expect(cel2.revisar_causa).toMatch(/análise deste caso mudou/);
+    // Aprovar o caso renovado grava a proposta nova no item.
+    await c.casos.aprovar(n1.id, { versao: n1.versao }, USER);
+    expect(c.db.sanItem.find((x) => x.id === ids['1'])!.trabalho.descricao).toBe('PARAFUSO SEXTAVADO M8 ZINCADO');
+  });
+  it('trocar a regra do grupo por outra marca "revisar" no caso já decidido; só renomear a regra não marca', async () => {
+    const c = montar();
+    const { pid, ids } = await pronto(c, [item('1', { descricao: 'PARAF SEXT M8 ZINCADO' }, 1)]);
+    let r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'Nomes', abrangencia: { todos: true }, alteracoes: { termosProibidos: [{ termo: 'ZINCADO', substituicao: null }] } }, USER);
+    r = (await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER)).regra;
+    const termo = c.db.sanCaso.find((x) => x.tipo === 'TERMO_PROIBIDO')!;
+    await c.casos.rejeitar(termo.id, { versao: termo.versao, justificativa: 'Zincado é acabamento, fica' }, USER);
+    const cel = () => c.db.sanCelula.find((x) => x.item_id === ids['1'] && x.camada === 'NOMES_UNIDADES')!;
+    r = await c.diretrizes.atualizarRegra(r.id, { versao: r.versao, nome: 'Nomes (outro nome)' }, USER);
+    await c.diretrizes.aplicar(r.id, { versao: r.versao }, USER);
+    expect(c.db.sanCaso.find((x) => x.id === termo.id)!.situacao).toBe('REJEITADO');
+    expect(cel().revisar).toBe(false);
+    const r2 = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'Nomes G1', abrangencia: { todos: false, grupos: ['G1'] }, alteracoes: { termosProibidos: [{ termo: 'ZINCADO', substituicao: null }] } }, USER);
+    await c.diretrizes.aplicar(r2.id, { versao: r2.versao }, USER);
+    expect(c.db.sanCaso.find((x) => x.id === termo.id)!.situacao).toBe('REJEITADO');
+    expect(cel().revisar_causa).toMatch(/a regra mudou \(agora N02/);
+  });
+});
+
+describe('baixas do QA', () => {
+  it('transferência: a regra aprovada que perde o grupo volta a rascunho com "revisar"', async () => {
+    const c = montar(); const { pid } = await pronto(c, BASE);
+    let r1 = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'G1 e G2', abrangencia: { todos: false, grupos: ['G1', 'G2'] }, alteracoes: { capitalizacao: 'MAIUSCULAS' } }, USER);
+    r1 = (await c.diretrizes.aplicar(r1.id, { versao: r1.versao }, USER)).regra;
+    r1 = await c.diretrizes.aprovar(r1.id, { versao: r1.versao }, USER);
+    expect(r1.situacao).toBe('APROVADA');
+    const r2 = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'Só G1', abrangencia: { todos: false, grupos: ['G1'] } }, USER);
+    await c.diretrizes.aplicar(r2.id, { versao: r2.versao, confirmarTransferencia: true }, USER);
+    const depois = (await c.diretrizes.obter(pid)).regras.find((x) => x.id === r1.id)!;
+    expect(depois).toMatchObject({ situacao: 'RASCUNHO', revisar: true, aprovadaPor: null, abrangencia: { todos: false, grupos: ['G2'] } });
+    expect((await c.diretrizes.historico(r1.id)).linhas[0]).toMatchObject({ acao: 'TRANSFERIU' });
+  });
+  it('prévia da regra: os itens que mudam vêm primeiro, com o total dos que mudam', async () => {
+    const c = montar();
+    const base = Array.from({ length: 30 }, (_, i) => item(String(i + 1), { descricao: i >= 25 ? `parafuso ${i}` : `PARAFUSO ${i}` }, i + 1));
+    const { pid } = await pronto(c, base);
+    const r = await c.diretrizes.criarRegra(pid, { aspecto: 'NOMES', nome: 'Maiúsculas', abrangencia: { todos: true }, alteracoes: { capitalizacao: 'MAIUSCULAS' } }, USER);
+    const ex = await c.diretrizes.exemplos(r.id);
+    expect([ex.total, ex.totalMudam, ex.itens.length]).toEqual([30, 5, 20]);
+    expect(ex.itens.slice(0, 5).every((x) => x.muda && x.descricaoProposta !== x.descricaoAtual)).toBe(true);
+    expect(ex.itens.slice(5).every((x) => !x.muda)).toBe(true);
+  });
+  it('PDF de versão liberada antes das Diretrizes: regras derivadas dos parâmetros congelados; sem parâmetros, "não registrada" em vez de "Sem regra"', async () => {
+    const c = montar(); const { pid } = await pronto(c, BASE, { abreviacoesAprovadas: { ESQ: 'ESQUERDO' }, padronizarCaixaAlta: true });
+    const v = await c.versoes.criar(pid, { rotulo: 'Antes' }, USER);
+    // Foto sem a seção das Diretrizes (como as liberadas antes delas).
+    const foto = JSON.parse(JSON.stringify((await c.versoes.foto(pid, v.id)).foto));
+    delete foto.diretrizes;
+    const antiga = await c.prisma.sanVersao.create({ data: { projeto_id: pid, numero: 97, rotulo: 'antiga', usuario: 'x', resumo: {} } });
+    await c.prisma.sanVersaoSnapshot.create({ data: { versao_id: antiga.id, itens: 5, dados: await gzipDaFoto(foto) } });
+    const pdf = await c.diretrizes.dadosPdfPolitica(pid, antiga.id);
+    expect(pdf.antesDasDiretrizes).toBe(true);
+    expect(pdf.regras.map((x) => [x.codigo, x.situacao])).toEqual([['N01', 'APROVADA']]);
+    expect(pdf.regras[0].conteudo).toMatchObject({ capitalizacao: 'MAIUSCULAS', abreviacoes: [{ completa: 'ESQUERDO', abreviacao: 'ESQ' }] });
+    expect(pdf.quadro.find((q) => q.grupo === 'G1')!.codigos).toEqual({ NOMES: 'N01' });
+    expect(pdf.pendencias.gruposSemRegra).toEqual([]);
+    const sem = { ...foto, projeto: { ...foto.projeto, parametros: {} } };
+    const outra = await c.prisma.sanVersao.create({ data: { projeto_id: pid, numero: 96, rotulo: 'sem parâmetros', usuario: 'x', resumo: {} } });
+    await c.prisma.sanVersaoSnapshot.create({ data: { versao_id: outra.id, itens: 5, dados: await gzipDaFoto(sem) } });
+    const vazio = await c.diretrizes.dadosPdfPolitica(pid, outra.id);
+    expect([vazio.antesDasDiretrizes, vazio.regras.length]).toEqual([true, 0]);
+    const buf = await gerarPdfPolitica(vazio as never);
+    expect(buf.length).toBeGreaterThan(1000);
   });
 });

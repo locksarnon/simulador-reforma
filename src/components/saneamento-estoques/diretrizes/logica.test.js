@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  alteracoesParaSalvar, aplicarComPrevia, ASPECTOS, chaveTransferencias, conteudoPadrao, conteudoParaTela, diferencasRegra, ehSobreposicao, enderecoDaPolitica, inicialDoCaso, lerExemplos,
+  alteracoesParaSalvar, aplicarComPrevia, ASPECTOS, chaveTransferencias, conteudoPadrao, conteudoParaTela, diferencasRegra, ehSobreposicao, enderecoDaPolitica, inicialDoCaso, lerExemplos, resumoExemplos,
   lerFator, lerHistorico, lerLimite, mensagemDiretriz, mover, moverPara, nomeDaPolitica, normalizarConteudo, previaEstrutura, regrasPorAspecto, resumoLimites, resumoPrevia,
   subgruposDisponiveis, textoAbrangencia, transferencias, validarRegra,
 } from "./logica";
@@ -226,6 +226,12 @@ describe("transformar em regra, histórico, exemplos e política", () => {
     expect(lerExemplos({ itens: [{ id: "i1", codigo: "1", grupo: "G", descricaoAtual: "a", descricaoProposta: "A" }] })[0]).toMatchObject({ atual: "a", proposta: "A" });
     expect(lerExemplos([{ codigo: "2", descricao: "b", comoFicaria: "B" }])[0]).toMatchObject({ atual: "b", proposta: "B" });
     expect(lerExemplos(null)).toEqual([]);
+    // Prévia da regra: os que mudam primeiro (servidor) e o total dos que mudam; igual ao atual = sem mudança.
+    expect(lerExemplos({ itens: [{ codigo: "3", descricaoAtual: "X", descricaoProposta: "X" }] })[0].muda).toBe(false);
+    expect(lerExemplos({ itens: [{ codigo: "4", descricaoAtual: "x", descricaoProposta: "X", muda: true }] })[0].muda).toBe(true);
+    expect(resumoExemplos({ total: 725, totalMudam: 12 })).toBe("12 de 725 itens mudam com esta regra; os que mudam aparecem primeiro.");
+    expect(resumoExemplos({ total: 3, totalMudam: 0 })).toBe("Nenhum dos 3 itens da regra muda.");
+    expect(resumoExemplos({ total: 3, totalMudam: null })).toBeNull();
   });
   it("endereço e nome do PDF da política, com e sem versão", () => {
     expect(enderecoDaPolitica("p1")).toBe("/saneamento-estoques/projetos/p1/politica/pdf");

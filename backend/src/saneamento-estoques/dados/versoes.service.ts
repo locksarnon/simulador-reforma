@@ -243,6 +243,15 @@ export class SanVersoesService {
     return { versao, diretrizes: s ? ((JSON.parse(texto.slice(s[0], s[1])) as Json | null) ?? null) : null };
   }
 
+  /** Parâmetros do motor congelados na versão (`projeto.parametros.motor` da foto); null = sem parâmetros. Lê só a seção do projeto. */
+  async parametrosMotorDaVersao(projetoId: string, versaoId: string): Promise<Json | null> {
+    const { texto } = await this.textoDaFoto(projetoId, versaoId);
+    const s = secoesDoJson(texto).get('projeto');
+    const projeto = s ? ((JSON.parse(texto.slice(s[0], s[1])) as Json | null) ?? null) : null;
+    const motor = (projeto?.parametros as Json | null | undefined)?.motor;
+    return motor && typeof motor === 'object' ? (motor as Json) : null;
+  }
+
   /** Reduz uma versão ao que a comparação usa e solta o resto (uma foto por vez na memória). */
   private async reduzida(projetoId: string, versaoId: string) {
     const { versao, texto } = await this.textoDaFoto(projetoId, versaoId);

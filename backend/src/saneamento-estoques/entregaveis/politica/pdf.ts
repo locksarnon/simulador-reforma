@@ -237,11 +237,12 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
       tituloSecao('4. Quadro de consulta por grupo', 70);
       const porCodigo = new Map(d.regras.map((r) => [r.codigo, r]));
       const cel = (codigo: string | undefined) => {
-        if (!codigo) return 'Sem regra';
+        if (!codigo) return d.antesDasDiretrizes ? 'Não registrada' : 'Sem regra';
         const r = porCodigo.get(codigo);
         return r && r.situacao !== 'APROVADA' ? `${codigo} (em aprovação)` : codigo;
       };
-      paragrafo('Código da regra que vale para cada grupo em cada aspecto (seção 2). "Sem regra" indica aspecto ainda sem regra para o grupo; "em aprovação" indica regra ainda não vigente (seção 5).');
+      if (d.antesDasDiretrizes) paragrafo('Versão liberada antes das Diretrizes: regras não registradas. O quadro mostra só as regras que valiam pelos parâmetros do projeto congelados na versão.');
+      else paragrafo('Código da regra que vale para cada grupo em cada aspecto (seção 2). "Sem regra" indica aspecto ainda sem regra para o grupo; "em aprovação" indica regra ainda não vigente (seção 5).');
       const grupos = ordenarPt([...new Set(d.quadro.map((q) => q.grupo))]);
       const porGrupo = new Map(d.quadro.map((q) => [q.grupo, q.codigos]));
       if (grupos.length) {

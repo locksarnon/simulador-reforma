@@ -265,14 +265,32 @@ export function aplicarTextos(texto, regra) {
 /** Exemplos reais (rota exemplos): aceita lista ou { itens }, com os nomes de campo que o servidor usar. */
 export function lerExemplos(dados) {
   const lista = Array.isArray(dados) ? dados : Array.isArray(dados?.itens) ? dados.itens : Array.isArray(dados?.exemplos) ? dados.exemplos : [];
-  return lista.map((e, i) => ({
-    id: e.id ?? e.itemId ?? `${i}`,
-    codigo: e.codigo ?? "",
-    grupo: e.grupo ?? "",
-    atual: e.descricaoAtual ?? e.atual ?? e.descricao ?? "",
-    proposta: e.descricaoProposta ?? e.proposta ?? e.comoFicaria ?? e.depois ?? "",
-    observacao: e.observacao ?? e.motivo ?? (Array.isArray(e.apontamentos) ? e.apontamentos.join("; ") : ""),
-  }));
+  return lista.map((e, i) => {
+    const atual = e.descricaoAtual ?? e.atual ?? e.descricao ?? "";
+    const proposta = e.descricaoProposta ?? e.proposta ?? e.comoFicaria ?? e.depois ?? "";
+    return {
+      id: e.id ?? e.itemId ?? `${i}`,
+      codigo: e.codigo ?? "",
+      grupo: e.grupo ?? "",
+      atual,
+      proposta,
+      muda: typeof e.muda === "boolean" ? e.muda : !!proposta && proposta !== atual,
+      observacao: e.observacao ?? e.motivo ?? (Array.isArray(e.apontamentos) ? e.apontamentos.join("; ") : ""),
+    };
+  });
+}
+
+/**
+ * Resumo dos exemplos: quantos itens da regra mudam (o servidor manda primeiro os que mudam). null = o servidor não contou (aspecto sem
+ * descrição proposta).
+ */
+export function resumoExemplos(dados) {
+  const total = Number(dados?.total);
+  const mudam = dados?.totalMudam;
+  if (typeof mudam !== "number" || !Number.isFinite(total)) return null;
+  const fmt = (n) => Number(n).toLocaleString("pt-BR");
+  if (!mudam) return `Nenhum dos ${fmt(total)} ${total === 1 ? "item" : "itens"} da regra muda.`;
+  return `${fmt(mudam)} de ${fmt(total)} ${total === 1 ? "item muda" : "itens mudam"} com esta regra; os que mudam aparecem primeiro.`;
 }
 
 // ── Validação ────────────────────────────────────────────────────────────────

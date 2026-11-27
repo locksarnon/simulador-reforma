@@ -4,7 +4,7 @@ import { Aviso, botaoSecundario, campoCls, Rotulo, Tag } from "../comuns";
 import {
   ABRANGENCIA_CONVERSAO, alternarNaLista, APLICABILIDADE, ATRIBUTOS_SUGERIDOS, AVISO_CONVERSAO_DESCONHECIDA, CAMPO_ITEM, CAPITALIZACOES, CENARIOS_FISCAIS, COMPONENTES_NOME,
   CRITERIO_ESTOQUE, lerExemplos, lerFator, lerLimite, mover, moverPara, novaConversao, novaLinhaLimite, novoAtributo, ONDE_ATRIBUTO, ORIGEM_LIMITE, previaEstrutura,
-  resumoLimites, ROTULO_COMPONENTE, rotuloAtributo, SEPARADORES, TEXTO_AMBIGUO, TEXTO_AUSENTE, TRATAMENTO_EXCESSO, UNIDADES_COMUNS,
+  resumoExemplos, resumoLimites, ROTULO_COMPONENTE, rotuloAtributo, SEPARADORES, TEXTO_AMBIGUO, TEXTO_AUSENTE, TRATAMENTO_EXCESSO, UNIDADES_COMUNS,
 } from "./logica";
 
 const botaoIcone = "inline-flex h-7 w-7 items-center justify-center border border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30";
@@ -121,15 +121,17 @@ export function ExemplosReais({ consulta, salva }) {
   if (consulta.isError) return <p className="text-xs text-muted-foreground" role="alert">Não foi possível carregar os exemplos agora.</p>;
   if (consulta.data === undefined) return <p className="text-xs text-muted-foreground" role="status">Carregando exemplos…</p>;
   const lista = lerExemplos(consulta.data);
+  const resumo = resumoExemplos(consulta.data);
   if (!lista.length) return <p className="text-xs text-muted-foreground">Nenhum item nos grupos desta regra (os grupos aparecem depois de importar o cadastro).</p>;
   return (
     <div className="overflow-x-auto">
+      {resumo && <p className="mb-1 text-xs text-muted-foreground" role="status">{resumo}</p>}
       <table className="w-full text-sm" aria-label="Exemplos com itens reais">
         <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Código</th><th scope="col">Grupo</th><th scope="col">Descrição atual</th><th scope="col">Como ficaria</th><th scope="col">Observação</th></tr></thead>
         <tbody>{lista.map((e) => (
           <tr key={e.id} className={`border-b border-border/60 align-top ${realceVerde}`}>
             <td className="py-1 pr-2 tabular-nums">{e.codigo}</td><td className="pr-2">{e.grupo}</td><td className="pr-2">{e.atual}</td>
-            <td className="pr-2 font-medium">{e.proposta || <span className="text-muted-foreground">sem mudança</span>}</td><td className="text-xs text-muted-foreground">{e.observacao}</td>
+            <td className="pr-2 font-medium">{e.muda ? e.proposta : <span className="text-muted-foreground">sem mudança</span>}</td><td className="text-xs text-muted-foreground">{e.observacao}</td>
           </tr>
         ))}</tbody>
       </table>

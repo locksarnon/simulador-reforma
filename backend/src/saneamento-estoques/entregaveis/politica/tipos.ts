@@ -29,6 +29,8 @@ export type DadosPolitica = {
   procedimentos: Procedimento[];
   /** Nota curta sob o título dos procedimentos (ex.: versão liberada antes de os procedimentos serem congelados na foto). */
   notaProcedimentos?: string | null;
+  /** Versão liberada antes das Diretrizes: aspecto sem regra sai como "não registrada" (não se sabe se havia regra), não "Sem regra". */
+  antesDasDiretrizes?: boolean;
   /** Quadro de consulta: para cada grupo, o código da regra efetiva por aspecto (ausente = grupo sem regra no aspecto). */
   quadro: { grupo: string; codigos: Partial<Record<Aspecto, string>> }[];
   pendencias: {

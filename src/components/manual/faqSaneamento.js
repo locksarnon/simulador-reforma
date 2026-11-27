@@ -12,7 +12,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Aplicar uma regra muda o cadastro na hora?",
-      r: "Não. Aplicar e reanalisar sempre mostra antes a prévia: os grupos, quantos itens serão analisados de novo, quais análises serão refeitas e se algum grupo está em outra regra do mesmo aspecto (nesse caso, é preciso marcar a transferência). Só depois de Confirmar e aplicar as análises rodam, e só para os itens afetados. O resultado são casos para revisar, como sempre: nada é gravado no cadastro sem a sua aprovação. Alterar uma regra já aprovada a devolve a Rascunho e marca “revisar” no que depende dela.",
+      r: "Não. Aplicar e reanalisar sempre mostra antes a prévia: os grupos, quantos itens serão analisados de novo, quais análises serão refeitas e se algum grupo está em outra regra do mesmo aspecto (nesse caso, é preciso marcar a transferência). Só depois de Confirmar e aplicar as análises rodam, e só para os itens afetados. O resultado são casos para revisar, como sempre: nada é gravado no cadastro sem a sua aprovação. Alterar uma regra já aprovada a devolve a Rascunho e marca “revisar” no que depende dela. Ao reaplicar, o caso ainda proposto passa a mostrar a proposta da regra nova; o caso que você já editou ou decidiu não é alterado e ganha “revisar”.",
     },
     {
       p: "Para que serve a Biblioteca de diretrizes?",
