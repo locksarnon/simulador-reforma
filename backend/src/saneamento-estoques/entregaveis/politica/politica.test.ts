@@ -1,9 +1,11 @@
 import { writeFileSync } from 'fs';
 import { describe, expect, it } from 'vitest';
+import { PROCEDIMENTOS } from '../../diretrizes/conteudo/biblioteca';
+import { CONTROLES_INTERNOS } from '../../diretrizes/conteudo/controles-internos';
 import type { Procedimento } from '../../diretrizes/tipos';
 import { GRUPOS_CRESTANI, PROCEDIMENTOS_CRESTANI, REGRAS_CRESTANI, dadosCrestani, quadroDe } from './__fixtures__/crestani';
 import { MARGEM } from './estilo';
-import { gerarPdfPolitica, renderizarPolitica, type ResultadoPolitica } from './pdf';
+import { NOTA_SEM_FASE2, gerarPdfPolitica, renderizarPolitica, type ResultadoPolitica } from './pdf';
 import { dataBr, juntar, limpar } from './texto';
 import { textoGrupos, topicosDaRegra } from './topicos';
 import type { DadosPolitica } from './tipos';
@@ -117,12 +119,12 @@ describe('Política: PDF', () => {
       '4. Procedimentos', '4.5 Retirada e uso de materiais', 'FLUXOGRAMA', 'Início', 'Fim', 'ALMOXARIFADO', 'Não', 'Sim:',
       'Devolver o pedido ao requisitante com o motivo', 'REGRAS PRÁTICAS', 'EVIDÊNCIAS A GUARDAR', 'FUNDAMENTO', 'LC 214/2025, art. 57, § 3º',
       'Grupo', 'Nomes', 'Atributos', 'Unidades', 'Limites', 'Fiscal', 'Sem regra', 'N03 (em aprovação)', 'F02 (em aprovação)',
-      '5. Versão e pendências', 'liberada em 24/11/2026', 'GRUPOS SEM REGRA', 'LIMITES DE CARACTERES NÃO CONFIRMADOS', 'REGRAS EM APROVAÇÃO (2)',
+      '7. Versão e pendências', 'liberada em 24/11/2026', 'GRUPOS SEM REGRA', 'LIMITES DE CARACTERES NÃO CONFIRMADOS', 'REGRAS EM APROVAÇÃO (2)',
       'Regra N03 — Nomes de peças de manutenção', 'Em aprovação: não vigente', 'InTAX por FAL Agro',
       'Igual à regra N01, exceto:', 'Anexo: abreviações e termos', 'TERMOS QUE NÃO PODEM SER USADOS',
     ]) expect(t, esperado).toContain(esperado);
-    // Ordem: identificação, quadro por grupo (o que o almoxarifado consulta), regras, procedimentos, pendências e o anexo.
-    const ordem = ['1. Identificação', '2. Quadro de consulta por grupo', '3. Regras vigentes por aspecto', '4. Procedimentos', '5. Versão e pendências', 'Anexo: abreviações e termos'].map((x) => t.indexOf(x));
+    // Ordem: identificação, quadro por grupo (o que o almoxarifado consulta), regras, procedimentos, controles internos, seção fiscal, pendências e o anexo.
+    const ordem = ['1. Identificação', '2. Quadro de consulta por grupo', '3. Regras vigentes por aspecto', '4. Procedimentos', '5. Controles internos', '6. Seção fiscal', '7. Versão e pendências', 'Anexo: abreviações e termos'].map((x) => t.indexOf(x));
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
     // A tabela de abreviações aparece uma vez só (no Anexo), não uma por regra.
     expect(t.split('ABREVIAÇÕES APROVADAS').length - 1).toBe(1);
@@ -136,7 +138,7 @@ describe('Política: PDF', () => {
 
   it('regra não aprovada não aparece como vigente: só na seção de pendências', async () => {
     const t = corrido(await paginas(await gerarPdfPolitica(dadosCrestani())));
-    const pend = t.indexOf('5.2 Pendências');
+    const pend = t.indexOf('7.2 Pendências');
     expect(pend).toBeGreaterThan(0);
     for (const c of ['Regra N03', 'Regra F02']) {
       expect(t.indexOf(c), c).toBeGreaterThan(pend);
@@ -147,6 +149,54 @@ describe('Política: PDF', () => {
     expect(t.split('Regra N01 —').length - 1).toBe(1);
     // aspecto sem regra aprovada não fica vazio
     expect(t).not.toContain('Nenhuma regra aprovada neste aspecto');
+  }, 60000);
+
+  it('controles internos: capítulo depois dos procedimentos, com cada controle, responsável, frequência, evidência e o fluxograma citado', async () => {
+    const r = await renderizarPolitica(dadosCrestani({ procedimentos: PROCEDIMENTOS }));
+    const t = corrido(await paginas(r.pdf));
+    const ini = t.indexOf('5. Controles internos');
+    const fim = t.indexOf('6. Seção fiscal');
+    expect(ini).toBeGreaterThan(t.indexOf('4. Procedimentos'));
+    expect(fim).toBeGreaterThan(ini);
+    const cap = t.slice(ini, fim);
+    for (const c of CONTROLES_INTERNOS) {
+      expect(cap, c.titulo).toContain(`${c.codigo} — ${c.titulo}`);
+      expect(cap, c.codigo).toContain(c.responsavel);
+    }
+    for (const rot of ['PROCEDIMENTO', 'EVIDÊNCIA A GUARDAR', 'RESPONSÁVEL', 'FREQUÊNCIA', 'FLUXOGRAMA']) expect(cap, rot).toContain(rot);
+    const i = PROCEDIMENTOS.findIndex((p) => p.id === 'proc-unificacao-codigos');
+    expect(cap).toContain(`Seção 4.${i + 1}, ${PROCEDIMENTOS[i].titulo}.`);
+    // os fluxogramas são desenhados só nos procedimentos; os controles citam, não redesenham
+    expect(r.fluxogramas.length).toBe(PROCEDIMENTOS.length);
+    for (const proibido of ['minuta', 'Minuta', 'MINUTA', 'undefined', 'null', 'NaN']) expect(cap, proibido).not.toContain(proibido);
+  }, 60000);
+
+  it('conteúdo dos controles: genérico, completo e com fluxograma que existe', () => {
+    const ids = new Set(PROCEDIMENTOS.map((p) => p.id));
+    expect(new Set(CONTROLES_INTERNOS.map((c) => c.codigo)).size).toBe(CONTROLES_INTERNOS.length);
+    for (const c of CONTROLES_INTERNOS) {
+      expect(c.codigo).toMatch(/^CI\d{2}$/);
+      for (const v of [c.titulo, c.objetivo, c.responsavel, c.frequencia]) expect(v.trim(), c.codigo).not.toBe('');
+      expect(c.procedimento.length, c.codigo).toBeGreaterThan(0);
+      expect(c.evidencia.length, c.codigo).toBeGreaterThan(0);
+      if (c.fluxograma) expect(ids.has(c.fluxograma), c.codigo).toBe(true);
+      expect(JSON.stringify(c), c.codigo).not.toMatch(/minuta|crestani/i);
+    }
+  });
+
+  it('seção fiscal: sem a Fase 2, uma linha; com a Fase 2, as decisões aprovadas', async () => {
+    const sem = corrido(await paginas(await gerarPdfPolitica(dadosCrestani())));
+    expect(sem).toContain(NOTA_SEM_FASE2);
+    const com = corrido(await paginas(await gerarPdfPolitica(dadosCrestani({ procedimentos: PROCEDIMENTOS, fiscal: { fase2: true, finalidadeAprovadas: 12, tributarioAprovadas: 1 } }))));
+    expect(com).not.toContain(NOTA_SEM_FASE2);
+    const sec = com.slice(com.indexOf('6. Seção fiscal'), com.indexOf('7. Versão e pendências'));
+    expect(sec).toContain('Classificação fiscal do item: regras da seção 3.5');
+    expect(sec).toContain('12 decisões aprovadas');
+    expect(sec).toContain('1 decisão aprovada');
+    // versão da Fase 2 (sem contagem): só a referência às regras
+    const versao = corrido(await paginas(await gerarPdfPolitica(dadosCrestani({ fiscal: { fase2: true } }))));
+    expect(versao).not.toContain(NOTA_SEM_FASE2);
+    expect(versao).not.toContain('decisões aprovadas');
   }, 60000);
 
   it('marca RASCUNHO conforme a situação', async () => {

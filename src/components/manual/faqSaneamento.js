@@ -28,7 +28,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Onde baixo a política de cadastro e estoques?",
-      r: "No botão Política (PDF), na aba Diretrizes e na aba Versões. Sem versão, sai a política de agora, marcada Rascunho enquanto houver regra não aprovada; na linha de uma versão liberada, sai a política daquela versão, sempre igual. A política traz a identificação, as regras por aspecto com o código e os grupos, os procedimentos com fluxograma, o quadro de consulta por grupo e as pendências (regras não aprovadas e grupos sem regra) em seção própria.",
+      r: "No botão Política (PDF), na aba Diretrizes e na aba Versões. Sem versão, sai a política de agora, marcada Rascunho enquanto houver regra não aprovada; na linha de uma versão liberada, sai a política daquela versão, sempre igual. A política traz a identificação, as regras por aspecto com o código e os grupos, os procedimentos com fluxograma, os controles internos, a seção fiscal, o quadro de consulta por grupo e as pendências (regras não aprovadas e grupos sem regra) em seção própria.",
     },
     {
       p: "O que muda no saneamento quando o ERP do cliente tem perfil no Cadastro de ERPs?",
@@ -180,7 +180,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Como a política de estoques fica organizada e com que nome o arquivo baixa?",
-      r: "1. Identificação; 2. Quadro de consulta por grupo (a regra que vale para cada grupo em cada aspecto, logo no começo); 3. Regras por aspecto, com a regra padrão inteira e as demais só com o que difere dela; 4. Procedimentos; 5. Versão e pendências; e o Anexo com as abreviações aprovadas e os termos que não podem ser usados, uma vez só para todas as regras de nomes. O arquivo baixa como politica-estoques_(cliente)_v(número).pdf; sem versão liberada, com “revisao” e a data de hoje (POP-CON-16 e POP-CON-19).",
+      r: "1. Identificação; 2. Quadro de consulta por grupo (a regra que vale para cada grupo em cada aspecto, logo no começo); 3. Regras por aspecto, com a regra padrão inteira e as demais só com o que difere dela; 4. Procedimentos; 5. Controles internos (quem faz, quando, como e o que guardar como prova em cada controle: responsáveis, separação de funções, pedido e aprovação de item novo, consulta de duplicidade, alteração, bloqueio por falta de movimento, inativação, unificação, retirada de material, inventário, conferência periódica, indicadores e treinamento); 6. Seção fiscal (sem a Fase 2, uma linha avisa que a parte tributária vem com ela); 7. Versão e pendências; e o Anexo com as abreviações aprovadas e os termos que não podem ser usados, uma vez só para todas as regras de nomes. O arquivo baixa como politica-estoques_(cliente)_v(número).pdf; sem versão liberada, com “revisao” e a data de hoje (POP-CON-16 e POP-CON-19).",
     },
     {
       p: "Por que as datas e os nomes nos arquivos do saneamento mudaram?",

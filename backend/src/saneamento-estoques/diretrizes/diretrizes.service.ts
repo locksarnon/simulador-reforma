@@ -12,6 +12,7 @@ import { fecharEscopo } from './escopo';
 import { validarRegraModelo } from './biblioteca.service';
 import { abrangenciaVazia, abreviacoesNoSentidoCerto, canonico, conferirCoerencia, conteudoEfetivo, mesmoConteudo, texto, validarAbrangencia, validarAspecto, validarConteudo } from './conteudo-regra';
 import { MODELOS, PROCEDIMENTOS } from './conteudo/biblioteca';
+import { CONTROLES_INTERNOS } from './conteudo/controles-internos';
 import {
   aplicacaoDoRascunho, comLinhasDoErp, conteudosDaBiblioteca, efetivoDaLinha, fotoDasDiretrizes, gruposDaBase, itensComGrupo, lerRegras, pendenteAplicar, regraApi, regrasDoProjeto,
   resolviveisAplicadas, situacaoDasDiretrizes, type Aplicacao, type LinhaRegra,
@@ -691,6 +692,16 @@ export class SanDiretrizesService {
       conteudo: x.conteudoEfetivo as ConteudoRegra,
     }));
     const aprovadores = [...new Set(regras.filter((x) => x.situacao === 'APROVADA' && x.aprovadaPor).map((x) => x.aprovadaPor as string))];
+    // Seção fiscal: numa versão, só a da Fase 2 (reproduzível); sem versão, decisões aprovadas de Finalidade ou de Tratamento tributário.
+    let fiscal: { fase2: boolean; finalidadeAprovadas?: number; tributarioAprovadas?: number };
+    if (versaoId) {
+      const v = await this.prisma.sanVersao.findUnique({ where: { id: versaoId }, select: { resumo: true } });
+      fiscal = { fase2: (v?.resumo as Json | null)?.fase === 'FASE2' };
+    } else {
+      const contar = (camada: string) => this.prisma.sanCaso.count({ where: { projeto_id: projetoId, camada, situacao: 'APROVADO' } });
+      const [fin, trib] = await Promise.all([contar('FINALIDADE'), contar('TRIBUTARIO')]);
+      fiscal = { fase2: fin + trib > 0, finalidadeAprovadas: fin, tributarioAprovadas: trib };
+    }
     return {
       identificacao: {
         cliente: emp?.razao_social || emp?.nome_fantasia || '', projeto: diag?.nome ?? '',
@@ -700,6 +711,7 @@ export class SanDiretrizesService {
       },
       regras,
       procedimentos: d.procedimentos, notaProcedimentos: d.notaProcedimentos, antesDasDiretrizes: d.antesDasDiretrizes,
+      controles: CONTROLES_INTERNOS, fiscal,
       quadro: d.quadro.map(({ grupo, ...cods }) => ({ grupo, codigos: Object.fromEntries(Object.entries(cods).filter(([, v]) => v)) as Partial<Record<Aspecto, string>> })),
       pendencias: { gruposSemRegra: d.antesDasDiretrizes ? [] : d.pendencias.gruposSemRegra },
     };
