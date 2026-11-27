@@ -44,7 +44,8 @@ export function decodificarEntidades(s: string): string {
  * as normas gravadas por versão anterior são reprocessadas na próxima leitura, sem contar a diferença como mudança da lei.
  */
 // 3: faixas "Arts. 52 a 58 (Revogados...)", artigo todo riscado com o aviso só no inciso, artigos citados entre aspas, cláusulas do Confaz.
-export const LEITOR_VERSAO = 3;
+// 4: "Artigo 1º" e "Art. 1.000", anexo longo em partes, artigo riscado com o mesmo número de um vigente é redação anterior.
+export const LEITOR_VERSAO = 4;
 
 export const INICIO_RISCADO = '';
 export const FIM_RISCADO = '';
@@ -150,7 +151,11 @@ export function htmlParaTexto(html: string): string {
 
 // "Art. 5º", "Art. 5º-A" e o estilo antigo "Art 5º - texto" (sem ponto): o hífen só é sufixo quando colado ao número ("5º-A"), senão "Art 1º - O imposto" viraria o art. 1-O.
 // "Art. 33, inciso II do caput: ..." (vírgula logo depois do número) é remissão, não o início de um artigo.
-const RE_ARTIGO = /^Art\.?\s*(\d+)(?!\d)\s*(?:º|°|o\b|\.)?(?:\s*-([A-Z]{1,3})\b)?(?!\s*,)/;
+// "Art. 1.000" (regulamentos estaduais com mais de 999 artigos): o ponto é separador de milhar, não o fim do número.
+// "Artigo 1º" por extenso (São Paulo escreve assim) é o mesmo que "Art. 1º".
+const RE_ARTIGO = /^Art(?:igo)?\.?\s*(\d{1,3}(?:\.\d{3})+|\d+)(?!\d)(?!\.\d)\s*(?:º|°|o\b|\.)?(?:\s*-([A-Z]{1,3})\b)?(?!\s*,)/;
+/** "1.000" → "1000" (o número do artigo sem o separador de milhar). */
+const numeroArtigo = (s: string) => s.replace(/\./g, '');
 const RE_ANEXO = /^ANEXO\s+([IVXLC]+(?:-[A-Z])?|[ÚU]NICO)\b/i;
 const RE_SECAO = /^(LIVRO|T[ÍI]TULO|CAP[ÍI]TULO|SE[ÇC][ÃA]O|SUBSE[ÇC][ÃA]O)\s+([IVXLCDM]+(?:-[A-Z])?|[ÚU]NIC[OA]|\d+)\b\s*(.*)$/i;
 const NIVEL: Record<string, number> = { LIVRO: 0, TITULO: 1, CAPITULO: 2, SECAO: 3, SUBSECAO: 4 };
@@ -183,11 +188,28 @@ function notaDoRiscado(bloco: string): string | null {
   return m ? `(${m[1].replace(/\s+/g, ' ').trim()})` : null;
 }
 
+/**
+ * Números dos artigos que têm texto em vigor em algum lugar da norma (fora de citação entre aspas). O artigo riscado com um desses
+ * números é redação anterior (Goiás traz o capítulo antigo inteiro riscado antes do atual), não um artigo revogado a mais.
+ */
+function artigosComTextoVigente(texto: string): Set<string> {
+  const linhas = texto.split('\n').map((b) => semRiscado(b).replace(/[ \t]+/g, ' ').trim());
+  const citadas = linhasCitadas(linhas);
+  const numeros = new Set<string>();
+  linhas.forEach((l, i) => {
+    if (citadas.has(i)) return;
+    const n = numeroDoArtigo(l);
+    if (n) numeros.add(n);
+  });
+  return numeros;
+}
+
 function prepararLinhas(texto: string): { linhas: string[]; riscados: string[][] } {
   const linhas: string[] = [];
   const riscados: string[][] = [];
   let pendente: string[] = [];
   let notaSolta: string | null = null;
+  const comTextoVigente = artigosComTextoVigente(texto);
 
   for (const bruta of texto.split('\n')) {
     const fragmentos = [...bruta.matchAll(RE_RISCADO)].map((m) => m[1].replace(/\s+/g, ' ').trim()).filter((f) => f.length >= 3);
@@ -226,7 +248,7 @@ function prepararLinhas(texto: string): { linhas: string[]; riscados: string[][]
     });
     const proprios: number[] = [...soltos];
     for (const g of grupos) {
-      if (g.numero === numeroAqui || usado === g.indices[0]) { proprios.push(...g.indices); continue; }
+      if (g.numero === numeroAqui || usado === g.indices[0] || comTextoVigente.has(g.numero)) { proprios.push(...g.indices); continue; }
       const cabeca = sequencia[g.indices[0]];
       if (cabeca.length < 20) { proprios.push(...g.indices); continue; }
       if (g.indices.includes(usado)) {
@@ -253,6 +275,23 @@ function prepararLinhas(texto: string): { linhas: string[]; riscados: string[][]
     notaSolta = !faixa && ehSoNota(vigente) && /^\s*\(\s*Revogad/i.test(vigente) ? vigente : null;
   }
   return { linhas, riscados };
+}
+
+/**
+ * Norma publicada em várias páginas (o RICMS/MT sai uma página por capítulo, fora de ordem): cada página é lida sozinha e as listas
+ * se juntam, sem repetir dispositivo (vale o primeiro) e com a ordem refeita.
+ */
+export function juntarPartes(listas: DispositivoExtraido[][]): DispositivoExtraido[] {
+  const vistos = new Set<string>();
+  const saida: DispositivoExtraido[] = [];
+  for (const lista of listas) {
+    for (const d of lista) {
+      if (vistos.has(d.caminho)) continue;
+      vistos.add(d.caminho);
+      saida.push({ ...d, ordem: saida.length + 1 });
+    }
+  }
+  return saida;
 }
 
 /** Divide o texto de uma norma em artigos e anexos, guardando o caminho (Título › Capítulo…). */
@@ -312,7 +351,7 @@ function linhasDeArtigos(linhas: string[]): Set<number> {
   linhas.forEach((l, i) => {
     const peso = citadas.has(i) ? PESO_CITADO : 1;
     const m = RE_ARTIGO.exec(l);
-    if (m) { cand.push({ i, k: chaveArtigo(m[1], m[2]), n: Number(m[1]), peso }); return; }
+    if (m) { cand.push({ i, k: chaveArtigo(numeroArtigo(m[1]), m[2]), n: Number(numeroArtigo(m[1])), peso }); return; }
     const c = clausulaDaLinha(l);
     if (c) cand.push({ i, k: chaveArtigo(String(c.numero), c.sufixo), n: c.numero, peso });
   });
@@ -336,6 +375,28 @@ function linhasDeArtigos(linhas: string[]): Set<number> {
   const aceitos = new Set<number>();
   for (let x = melhor; x >= 0; x = pai[x]) aceitos.add(cand[x].i);
   return aceitos;
+}
+
+/** Anexo acima disto é dividido em partes (o índice de busca lê os primeiros 200 mil caracteres de cada dispositivo). */
+const LIMITE_ANEXO_INTEIRO = 40_000;
+const TAMANHO_PARTE_ANEXO = 15_000;
+
+/** Linhas do anexo em partes de até TAMANHO_PARTE_ANEXO caracteres, sem quebrar linha; a primeira leva o título do anexo. */
+function partesDoAnexo(linhas: string[]): string[] {
+  const partes: string[] = [];
+  let atual: string[] = [];
+  let tamanho = 0;
+  for (const l of linhas) {
+    if (tamanho + l.length > TAMANHO_PARTE_ANEXO && atual.length) {
+      partes.push(atual.join('\n').trim());
+      atual = [];
+      tamanho = 0;
+    }
+    atual.push(l);
+    tamanho += l.length + 1;
+  }
+  if (atual.length) partes.push(atual.join('\n').trim());
+  return partes.filter(Boolean);
 }
 
 const LIMITE_REDACOES = 10;
@@ -374,6 +435,20 @@ function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number, r
   const fechar = () => {
     if (!atual) return;
     atual.d.texto = atual.linhas.join('\n').trim();
+    // Anexo enorme (tabelas de NCM dos regulamentos): vira partes de até ~15 mil caracteres, para a busca alcançar o anexo inteiro e a
+    // IA receber só a parte que interessa. A primeira parte fica com o endereço do anexo (citações antigas continuam valendo).
+    if (atual.d.tipo === 'anexo' && atual.d.texto.length > LIMITE_ANEXO_INTEIRO) {
+      const pedacos = partesDoAnexo(atual.linhas);
+      pedacos.forEach((pedaco, k) => {
+        const d: DispositivoExtraido = k === 0
+          ? { ...atual!.d, texto: pedaco }
+          : novo({ tipo: 'anexo', rotulo: `${atual!.d.rotulo} (continuação ${k + 1})`, caminho: caminhoUnico(`${atual!.d.caminho}-t${k + 1}`), ordem: atual!.d.ordem + k, secao: atual!.d.secao, texto: pedaco, revogado: false });
+        completar(d, k === 0 ? atual!.riscados : []);
+        saida.push(d);
+      });
+      atual = null;
+      return;
+    }
     completar(atual.d, atual.riscados);
     saida.push(atual.d);
     atual = null;
@@ -408,10 +483,11 @@ function extrairSegmento(linhas: string[], prefixo: string, ordemBase: number, r
       const ma = aceitos.has(i) ? RE_ARTIGO.exec(l) : null;
       if (ma) {
         fechar();
-        const num = ma[1];
+        const num = numeroArtigo(ma[1]);
         const suf = ma[2] ? `-${ma[2]}` : '';
+        const exibido = Number(num) >= 1000 ? Number(num).toLocaleString('pt-BR') : num;
         atual = {
-          d: novo({ tipo: 'artigo', rotulo: `${prefixo ? 'ADCT, ' : ''}Art. ${num}${Number(num) <= 9 && !suf ? 'º' : ''}${suf}`, caminho: caminhoUnico(`${prefixo ? `${prefixo}-` : ''}art-${num}${suf.toLowerCase()}`), ordem: ordemBase + saida.length + 1, secao: prefixo ? `ADCT${secaoAtual() ? ' › ' + secaoAtual() : ''}` : secaoAtual(), texto: '', revogado: false }),
+          d: novo({ tipo: 'artigo', rotulo: `${prefixo ? 'ADCT, ' : ''}Art. ${exibido}${Number(num) <= 9 && !suf ? 'º' : ''}${suf}`, caminho: caminhoUnico(`${prefixo ? `${prefixo}-` : ''}art-${num}${suf.toLowerCase()}`), ordem: ordemBase + saida.length + 1, secao: prefixo ? `ADCT${secaoAtual() ? ' › ' + secaoAtual() : ''}` : secaoAtual(), texto: '', revogado: false }),
           linhas: [l],
           riscados: [...(riscados[i] ?? [])],
         };

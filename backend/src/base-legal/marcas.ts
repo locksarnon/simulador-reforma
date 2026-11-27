@@ -124,7 +124,7 @@ export function marcasUnicas(marcas: Marca[]): Marca[] {
   });
 }
 
-const RE_TOKEN_ARTIGO = /^Art\.?\s*\d+\s*(?:º|°|o\b)?(?:-[A-Z]{1,3})?\s*\.?/;
+const RE_TOKEN_ARTIGO = /^Art(?:igo)?\.?\s*\d+(?:\.\d{3})*\s*(?:º|°|o\b)?(?:-[A-Z]{1,3})?\s*\.?/;
 const RE_SO_NOTA = /^\s*[-–—:.;,]*\s*\(?\s*(Revogad[oa]s?|Vetad[oa]s?|Suprimid[oa]s?)\b[^)]*\)?[\s.;,]*$/i;
 const RE_NOTA_COMPLETA = /\(\s*(?:Reda[çc][ãa]o dada|Inclu[íi]d[oa]s?|Acrescid[oa]s?|Revogad[oa]s?|Vetad[oa]s?|Vide|Vig[êe]ncia|Produ[çc][ãa]o de efeitos?|Renumerad[oa]s?|Declarad[oa]|Suprimid[oa]s?|Regulamento)\b[^()]*(?:\([^()]*\)[^()]*)?\)/gi;
 
@@ -179,7 +179,7 @@ export function situacaoDoDispositivo(texto: string): { revogado: boolean; parci
 }
 
 const RE_ESTRUTURA_SUPERIOR = /^\s*((?:ANEXO|LIVRO|T[ÍI]TULO|CAP[ÍI]TULO|SE[ÇC][ÃA]O|SUBSE[ÇC][ÃA]O)\s+(?:[IVXLCDM]+(?:-[A-Z])?|[ÚU]NIC[OA]|\d+)\b)/i;
-const RE_ESTRUTURA = /^\s*(Art\.?\s*\d+\s*(?:º|°|o\b)?(?:-[A-Z]{1,3})?\s*\.?|§\s*\d+\s*[º°o]?\s*(?:-\s*[A-Z]{1,3})?\s*\.?|Parágrafo único\.?|[IVXLCDM]+\s*[-–—]|[a-z]\)|\d{1,2}\s*[.)])/;
+const RE_ESTRUTURA = /^\s*(Art(?:igo)?\.?\s*\d+(?:\.\d{3})*\s*(?:º|°|o\b)?(?:-[A-Z]{1,3})?\s*\.?|§\s*\d+\s*[º°o]?\s*(?:-\s*[A-Z]{1,3})?\s*\.?|Parágrafo único\.?|[IVXLCDM]+\s*[-–—]|[a-z]\)|\d{1,2}\s*[.)])/;
 
 /**
  * Início estrutural de uma linha ("Art. 165.", "§ 2º", "I -", "a)", "ANEXO XIV", "CAPÍTULO IV"): serve para reconstituir o
@@ -192,8 +192,8 @@ export function marcadorEstrutural(linha: string): string | null {
 
 /** "Art. 165-A." → "165-A" (o número do artigo que a linha inicia). */
 export function numeroDoArtigo(linha: string): string | null {
-  const m = /^\s*Art\.?\s*(\d+)\s*(?:º|°|o\b)?(?:-([A-Z]{1,3})\b)?/.exec(linha);
-  return m ? `${m[1]}${m[2] ? `-${m[2]}` : ''}` : null;
+  const m = /^\s*Art(?:igo)?\.?\s*(\d{1,3}(?:\.\d{3})+|\d+)(?!\d)(?!\.\d)\s*(?:º|°|o\b)?(?:-([A-Z]{1,3})\b)?/.exec(linha);
+  return m ? `${m[1].replace(/\./g, '')}${m[2] ? `-${m[2]}` : ''}` : null;
 }
 
 const NUM_FAIXA = String.raw`\d+(?:\s*(?:º|°|o\b))?(?:-[A-Z]{1,3}\b)?`;

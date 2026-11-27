@@ -299,6 +299,27 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
   },
   {
     modulo: "base-legal",
+    codigo: "POP-FIS-11",
+    titulo: "Abrir o RICMS e as regras de um estado",
+    objetivo: "Chegar ao regulamento do ICMS (RICMS), à lei do ICMS e aos fundos de um estado no site oficial, com um clique por UF.",
+    quem: "Consultor",
+    quando: "Sempre que a dúvida for de ICMS de um estado.",
+    caminho: "Menu > Bases legais (abaixo da barra de consulta) ou Bases legais > Base legal e assistente > aba Regras estaduais",
+    antes: [],
+    passos: [
+      { acao: "Em Regras estaduais, clique na UF (PA, MS, MT, MA, SP, MG, GO, BA, PI, TO, RO).", detalhe: "Clicar de novo na mesma UF fecha a lista." },
+      { acao: "Clique no botão da norma: RICMS, Lei do ICMS ou o fundo do estado (FETHAB, FUNDEINFRA, FUNDERSUL, PROALBA...).", detalhe: "O documento abre no site oficial do estado, em outra aba." },
+      { acao: "Leia, abaixo dos botões, o número de cada norma e quando o documento oficial foi conferido ou mudou." },
+    ],
+    resultado: "O documento oficial do estado aberto, com a data da última conferência da revisão semanal.",
+    atencao: [
+      "O texto estadual também está na base (Ler no InTAX), e o assistente responde com ele. Goiás e Mato Grosso do Sul marcam a redação anterior, que fica à parte; nos demais estados o site deixa a redação anterior no meio do texto: confira a vigência do trecho no próprio documento.",
+      "“Mudou em…” é a data em que a revisão semanal achou o texto oficial diferente do da semana anterior: abra e confira o que foi alterado.",
+      "Tocantins: o RICMS não abre em fonte oficial; o botão leva à página da SEFAZ-TO.",
+    ],
+  },
+  {
+    modulo: "base-legal",
     codigo: "POP-FIS-05",
     titulo: "Atualizar normas e revisar os cartões de perguntas frequentes",
     objetivo: "Manter o texto das normas e as respostas revisadas da equipe em dia com a lei.",
@@ -412,6 +433,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     atencao: [
       "O Radar é gerado por IA com busca na web, toda segunda-feira: confira sempre na fonte oficial antes de agir. O que não foi confirmado vem como “A confirmar”.",
       "Se a última geração falhou, a tela mostra “Falha na última geração” com o motivo.",
+      "Norma citada no Radar que ainda não está na Base legal vira aviso em Atualizações da Base legal (administrador). Para incluir, cole o endereço do próprio ato no site oficial (a página ou o PDF com o texto), não a página inicial nem a lista do portal: com esse endereço o botão Incluir na base fica desligado. Se o texto não puder ser lido, nada é cadastrado e o aviso continua pendente.",
     ],
   },
   {
@@ -652,6 +674,7 @@ export const POPS_CONSULTORIA_CONSULTAS_COMERCIAL = [
     resultado: "A edição fica como Enviada, com o número de enviados e de falhas na lista.",
     atencao: [
       "Toda segunda às 8h, se a edição da semana ainda estiver em Rascunho, o sistema aprova e envia sozinho, sem revisão. Para revisar, aprove ou envie antes desse horário.",
+      "A edição é escrita pela IA com o Radar e a revisão semanal das bases legais: resumo do resumo, efeito prático por setor, o que o contador deve preparar e as mudanças nas leis acompanhadas, cada item com o link da fonte. Sem IA, sai uma versão curta.",
       "O envio não pode ser desfeito.",
       "Com alterações não salvas, o botão Aprovar fica bloqueado.",
     ],

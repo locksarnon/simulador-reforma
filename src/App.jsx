@@ -92,6 +92,7 @@ import AcessoUsuarioPagina from '@/pages/admin/AcessoUsuario';
 import AcessosPagina from '@/pages/admin/AcessosPagina';
 import ErpsPagina, { ErpFicha } from '@/pages/admin/ErpsPagina';
 import BibliotecaDiretrizesPagina, { RegraBibliotecaPagina } from '@/pages/admin/BibliotecaDiretrizesPagina';
+import NormasMonitoradasPagina from '@/pages/admin/NormasMonitoradasPagina';
 import PerfilPagina from '@/pages/PerfilPagina';
 import NotificacoesPagina from '@/pages/NotificacoesPagina';
 // Add page imports here
@@ -131,6 +132,7 @@ function App() {
                   <Route path="/bpo/monitoramento/pf/:empresaId" element={<MonitoramentoEmpresaPagina pessoaFisica />} />
                   <Route path="/bpo/monitoramento/:empresaId" element={<MonitoramentoEmpresaPagina />} />
                   <Route path="/admin/parametros-rotinas" element={<ParametrosRotinasPagina />} />
+                  <Route path="/admin/normas-monitoradas" element={<NormasMonitoradasPagina />} />
                   <Route path="/inicio" element={<InicioPagina />} />
                   <Route path="/area/:areaId" element={<AreaPagina />} />
                   <Route path="/em-breve/:moduloId" element={<ModuloEmBreve />} />

@@ -392,6 +392,32 @@ export const ROTEIRO = [
     criterio: "Cartão, nota e marco que citam o artigo alterado entram na lista com o motivo; o cartão some para o consultor até ser revisado; conferir tira o item da lista.",
   },
   {
+    id: "regras-estaduais", grupo: "Inteligência de mercado", titulo: "Regras estaduais: um botão por UF abrindo o RICMS", rota: "/area/conhecimento",
+    objetivo: "Chegar ao RICMS, à lei do ICMS e aos fundos de cada estado no site oficial, com a data em que a revisão semanal conferiu o documento.",
+    preparo: ["Estar logado com acesso à Base legal."],
+    passos: [
+      p("Abra a área \"Bases legais\" no menu.", "Abaixo da barra de consulta, o quadro \"Regras estaduais\" com os botões PA, MS, MT, MA, SP, MG, GO, BA, PI, TO e RO."),
+      p("Clique em \"MT\".", "O botão fica marcado e aparecem os botões RICMS, Lei do ICMS e FETHAB, com o número de cada norma abaixo."),
+      p("Clique em \"RICMS\".", "O regulamento do ICMS de Mato Grosso abre no site da SEFAZ-MT, em outra aba."),
+      p("Abra Base legal e assistente > aba \"Regras estaduais\" e clique em \"GO\".", "Os mesmos botões (Código Tributário, RICMS (RCTE), FUNDEINFRA, PROTEGE); o endereço guarda a UF (?uf=GO)."),
+    ],
+    cuidados: ["O texto estadual não é lido por artigo: é só o link oficial, conferido toda segunda-feira."],
+    criterio: "Cada UF mostra as suas normas e cada botão abre o documento no site oficial do estado.",
+  },
+  {
+    id: "normas-monitoradas", grupo: "Administração", titulo: "Normas monitoradas pela revisão semanal", rota: "/admin/normas-monitoradas",
+    objetivo: "Escolher as normas que a revisão semanal confere e ver o que ela achou nas normas só de referência.",
+    preparo: ["Entrar como administrador."],
+    passos: [
+      p("Abra Administração > Parâmetros e rotinas e clique na aba \"Normas monitoradas\".", "A tabela traz todas as normas do catálogo, todas marcadas na primeira vez, com UF, bloco e como cada uma é conferida."),
+      p("Filtre a coluna UF por \"PA\", desmarque \"Decreto 4.676/2001 (PA)\" e clique em \"Salvar\".", "Aparece \"Normas monitoradas salvas\" com quantas ficaram dentro e fora."),
+      p("Na aba Revisão semanal da Base legal, clique em \"Rodar a revisão agora\" e abra a rodada ao terminar.", "O RICMS do Pará não é conferido; os documentos só de referência marcados aparecem nas anotações (conferidos e os que mudaram)."),
+      p("Volte à aba \"Normas monitoradas\" e clique em \"Marcar todas\" e \"Salvar\".", "Todas voltam a ser monitoradas."),
+    ],
+    cuidados: ["A primeira conferência de um documento só de referência só guarda o ponto de partida: a novidade \"o documento oficial mudou\" aparece a partir da segunda.", "Quem não é administrador vê a lista, mas não altera."],
+    criterio: "A marcação gravada é a que a revisão semanal usa; mudança em documento monitorado vira novidade com o link.",
+  },
+  {
     id: "agenda-reforma", grupo: "Inteligência de mercado", titulo: "Agenda da Reforma (marcos e prazos com fonte oficial)", rota: "/agenda-reforma",
     objetivo: "Conferir as datas da Reforma com a fonte oficial de cada uma, os filtros por regime, UF e empresa, o calendário (.ics) e os lembretes por e-mail.",
     preparo: [

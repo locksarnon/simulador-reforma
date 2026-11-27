@@ -17,6 +17,7 @@ import RevisoesPendentes from "@/components/base-legal/RevisoesPendentes";
 import ConsultaBasesLegais from "@/components/base-legal/ConsultaBasesLegais";
 import NovidadesLegais from "@/components/base-legal/NovidadesLegais";
 import RevisaoSemanalPainel from "@/components/base-legal/RevisaoSemanalPainel";
+import RegrasEstaduais from "@/components/base-legal/RegrasEstaduais";
 import { resumoRevisao } from "@/lib/revisaoLegal";
 import { dataBr, ROTULO_GRUPO_NORMA, situacaoDaNorma } from "@/lib/novidadesLegais";
 
@@ -27,7 +28,7 @@ export const fmtData = (v) => {
   try { return new Date(v).toLocaleDateString("pt-BR", { timeZone: "UTC" }); } catch { return v; }
 };
 
-const ABAS = [["normas", "Normas e assistente"], ["novidades", "Novidades e revogações"], ["revisao", "Revisão semanal"]];
+const ABAS = [["normas", "Normas e assistente"], ["estaduais", "Regras estaduais"], ["novidades", "Novidades e revogações"], ["revisao", "Revisão semanal"]];
 
 /** Base legal (área Bases legais): a consulta em todas as normas (busca no texto e IA), o texto integral de cada norma, o que mudou ou foi revogado e a revisão semanal. */
 export default function BaseLegalPage() {
@@ -90,6 +91,7 @@ export default function BaseLegalPage() {
           ))}
         </div>
 
+        {aba === "estaduais" && <RegrasEstaduais uf={params.get("uf") || ""} aoEscolherUf={(uf) => juntar({ uf })} />}
         {aba === "novidades" && <NovidadesLegais admin={admin} normaInicial={params.get("norma") || ""} />}
         {aba === "revisao" && <RevisaoSemanalPainel admin={admin} />}
 

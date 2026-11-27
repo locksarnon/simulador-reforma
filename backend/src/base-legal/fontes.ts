@@ -29,7 +29,61 @@ export type FonteNorma = {
   /** html (padrão) | pdf | externo (só referência: sem texto por artigo) */
   formato?: 'html' | 'pdf' | 'externo';
   observacao?: string;
+  /** Norma estadual: a UF e o rótulo do botão na tela Regras estaduais ("RICMS", "Lei do ICMS", "FETHAB"). */
+  uf?: string;
+  botao?: string;
+  /**
+   * Só referência: endereço que a revisão semanal confere quando o do botão não serve para isso (em RO o arquivo de cada
+   * consolidação ganha endereço novo; a lista dos arquivos atuais muda quando sai a consolidação nova).
+   */
+  url_monitoramento?: string;
+  /** Norma publicada em várias páginas (o RICMS/MT, uma por capítulo): cada uma é lida e dividida sozinha. */
+  partes?: string[];
+  /** Lista oficial dos arquivos atuais (SEFIN-RO): o texto vem do PDF que ela indica, que muda de endereço a cada consolidação. */
+  lista_de_arquivos?: string;
+  /** Aviso que vai para a IA junto de cada dispositivo desta norma (ex.: texto estadual que mistura redações). */
+  aviso_ia?: string;
 };
+
+/** UFs da tela Regras estaduais, na ordem em que aparecem. */
+export const UFS_REGRAS_ESTADUAIS: { uf: string; nome: string }[] = [
+  { uf: 'PA', nome: 'Pará' }, { uf: 'MS', nome: 'Mato Grosso do Sul' }, { uf: 'MT', nome: 'Mato Grosso' }, { uf: 'MA', nome: 'Maranhão' },
+  { uf: 'SP', nome: 'São Paulo' }, { uf: 'MG', nome: 'Minas Gerais' }, { uf: 'GO', nome: 'Goiás' }, { uf: 'BA', nome: 'Bahia' },
+  { uf: 'PI', nome: 'Piauí' }, { uf: 'TO', nome: 'Tocantins' }, { uf: 'RO', nome: 'Rondônia' },
+];
+
+/** Rótulo do botão de cada norma estadual na tela Regras estaduais (sem rótulo: "Lei" ou "Decreto"). */
+const BOTAO_ESTADUAL: Record<string, string> = {
+  'mt-lei-7098-1998': 'Lei do ICMS', 'mt-dec-2212-2014': 'RICMS', 'mt-lei-7263-2000': 'FETHAB',
+  'go-lei-11651-1991': 'Código Tributário (CTE)', 'go-dec-4852-1997': 'RICMS (RCTE)', 'go-lei-21670-2022': 'FUNDEINFRA', 'go-lei-14469-2003': 'PROTEGE',
+  'ms-lei-1810-1997': 'Lei do ICMS', 'ms-dec-9203-1998': 'RICMS', 'ms-lei-1963-1999': 'FUNDERSUL',
+  'ba-lei-7014-1996': 'Lei do ICMS', 'ba-dec-13780-2012': 'RICMS', 'ba-dec-14500-2013': 'Crédito de grãos', 'ba-lei-7932-2001': 'PROALBA', 'ba-dec-8064-2001': 'Regulamento do PROALBA',
+  'ma-lei-7799-2002': 'Lei do ICMS', 'ma-dec-19714-2003': 'RICMS', 'ma-lei-12428-2024': 'Contribuição de grãos',
+  'pa-lei-5530-1989': 'Lei do ICMS', 'pa-dec-4676-2001': 'RICMS',
+  'sp-lei-6374-1989': 'Lei do ICMS', 'sp-dec-45490-2000': 'RICMS', 'mg-lei-6763-1975': 'Lei do ICMS', 'mg-dec-48589-2023': 'RICMS',
+  'pi-lei-4257-1989': 'Lei do ICMS', 'pi-dec-21866-2023': 'RICMS', 'to-lei-1287-2001': 'Código Tributário', 'to-sefaz-legislacao': 'RICMS (página da SEFAZ-TO)',
+  'ro-lei-688-1996': 'Lei do ICMS', 'ro-dec-22721-2018': 'RICMS',
+  'ms-ricms-anexo-i': 'RICMS – Anexo I (benefícios)',
+  'mg-ricms-anexo-i': 'RICMS – Anexo I (alíquotas)', 'mg-ricms-anexo-ii': 'RICMS – Anexo II (redução de base)', 'mg-ricms-anexo-iii': 'RICMS – Anexo III (crédito acumulado)',
+  'mg-ricms-anexo-iv': 'RICMS – Anexo IV (crédito presumido)', 'mg-ricms-anexo-v': 'RICMS – Anexo V (documentos)', 'mg-ricms-anexo-vi': 'RICMS – Anexo VI (diferimento)',
+  'mg-ricms-anexo-vii': 'RICMS – Anexo VII (ST)', 'mg-ricms-anexo-viii': 'RICMS – Anexo VIII (tributação especial)', 'mg-ricms-anexo-ix': 'RICMS – Anexo IX (suspensão)',
+  'mg-ricms-anexo-x': 'RICMS – Anexo X (isenções)',
+};
+
+/** Assunto de cada anexo do RICMS/MG 2023, como está no título do próprio PDF. */
+const ANEXOS_RICMS_MG: [string, string][] = [
+  ['i', 'das alíquotas'], ['ii', 'da redução de base de cálculo'], ['iii', 'da transferência e da utilização de crédito acumulado'], ['iv', 'do crédito presumido'],
+  ['v', 'das disposições relativas a documentos'], ['vi', 'do diferimento'], ['vii', 'da substituição tributária'], ['viii', 'das disposições especiais de tributação'],
+  ['ix', 'da suspensão'], ['x', 'das isenções'],
+];
+
+/** Páginas do RICMS/MT no portal da SEFAZ-MT (uma por capítulo ou anexo; os números sem conteúdo e os índices ficam de fora). */
+/** Números das páginas conferidas em 26/11/2026 (os que devolvem a página de erro do portal e os índices ficam de fora). */
+const IDS_RICMS_MT = [6, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 87, 88, 89, 93, 94, 95, 96, 97, 98, 99, 102, 103, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 118, 119, 120, 121, 122, 123, 124, 125, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 230, 231, 232, 233, 259, 261, 263, 264, 267, 268, 269, 270, 271, 273, 274, 275, 276, 277, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 321, 322, 323, 324, 325, 326, 327, 328, 329, 330];
+const PAGINAS_RICMS_MT = IDS_RICMS_MT.map((id) => `https://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=${id}`);
+
+/** Aviso que vai para a IA junto de cada dispositivo das normas estaduais cujo site deixa a redação anterior no meio do texto. */
+const AVISO_TEXTO_ESTADUAL = 'texto estadual: o site oficial do estado deixa redações anteriores no meio do texto (notas como "Redação anterior", "Redação original", "efeitos até"); confira a vigência do trecho no documento oficial';
 
 const PLANALTO = 'https://www.planalto.gov.br/ccivil_03';
 const PR = 'Presidência da República';
@@ -104,6 +158,34 @@ export const FONTES_NORMAS: FonteNorma[] = [
     titulo: 'Portaria Conjunta MF/CGIBS nº 7/2026', orgao: 'Ministério da Fazenda e CGIBS', data_publicacao: '2026-04-30',
     url_oficial: `${CGIBS_ARQ}/202604/30094136-sei-mgi-60959979-portaria-conjunta.pdf`, prioridade: 1,
     observacao: 'Publicada junto com o Regulamento do IBS.',
+  },
+  // Atos que o Radar achou em 12/11/2026 e que ficaram cadastrados com o endereço da página inicial do portal (sem texto): as chaves são
+  // as que o Radar criou, para o catálogo corrigir o endereço dessas normas. Endereços conferidos em 26/11/2026 (o leitor acha os artigos).
+  {
+    chave: 'decreto-13140-2026', tipo: 'Decreto', numero: 'Decreto 13.140/2026', grupo: 'reforma',
+    titulo: 'Dispensa de inscrição no CNPJ e de emissão de documentos fiscais eletrônicos do nanoempreendedor e do MEI (no âmbito da União)',
+    orgao: PR, data_publicacao: '2026-10-21',
+    url_oficial: `${PLANALTO}/_ato2023-2026/2026/decreto/D13140.htm`, prioridade: 1,
+    observacao: 'Publicado no DOU de 21/10/2026, edição extra. Regulamenta, no âmbito da União, a LC 123/2006 e a LC 214/2025.',
+  },
+  {
+    chave: 'ato-tecnico-conjunto-rfb-cgibs-5-2026', tipo: 'Ato Técnico Conjunto', numero: 'Ato Técnico Conjunto RFB/CGIBS 5/2026', grupo: 'reforma', formato: 'pdf',
+    titulo: 'Documentação técnica da Plataforma Pública do Split Payment', orgao: 'Receita Federal e Comitê Gestor do IBS',
+    url_oficial: `${CGIBS_ARQ}/202609/24094106-ato-tecnico-conjunto-5-rfb-cgibs-assinado-assinado.pdf`, prioridade: 1,
+    observacao: 'Ato Técnico Conjunto RFB/SUARA/CGIBS/Diretoria-Executiva nº 5, de 22/09/2026. Lista oficial: cgibs.gov.br/atos-tecnicos-conjuntos.',
+  },
+  {
+    chave: 'ato-tecnico-conjunto-rfb-cgibs-9-2026', tipo: 'Ato Técnico Conjunto', numero: 'Ato Técnico Conjunto RFB/CGIBS 9/2026', grupo: 'reforma', formato: 'pdf',
+    titulo: 'Trabalhos conjuntos da Receita Federal e da Diretoria-Executiva do CGIBS para implementar a reforma do consumo',
+    orgao: 'Receita Federal e Comitê Gestor do IBS',
+    url_oficial: `${CGIBS_ARQ}/202610/26090508-20261019-atc-rfb-cgibs-nba-9-2026-assinado-29-as-261026-090221.pdf`, prioridade: 1,
+    observacao: 'Ato Técnico Conjunto RFB/CGIBS nº 9, de 20/10/2026. Lista oficial: cgibs.gov.br/atos-tecnicos-conjuntos.',
+  },
+  {
+    chave: 'ato-tecnico-conjunto-rfb-cgibs-10-2026', tipo: 'Ato Técnico Conjunto', numero: 'Ato Técnico Conjunto RFB/CGIBS 10/2026', grupo: 'operacional', formato: 'pdf',
+    titulo: 'Documentação técnica dos documentos fiscais eletrônicos (aprovação conjunta)', orgao: 'Receita Federal e Comitê Gestor do IBS',
+    url_oficial: `${CGIBS_ARQ}/202610/30102301-atc-10-vf-assinado-assinado-261030-102245.pdf`, prioridade: 1,
+    observacao: 'Ato Técnico Conjunto RFB/SUFIS/CGIBS/Diretoria-Executiva nº 10, de 29/10/2026. Lista oficial: cgibs.gov.br/atos-tecnicos-conjuntos.',
   },
   {
     chave: 'lcp-123-2006', tipo: 'Lei Complementar', numero: 'LC 123/2006', grupo: 'reforma',
@@ -603,23 +685,27 @@ export const FONTES_NORMAS: FonteNorma[] = [
     url_oficial: `${PLANALTO}/_ato2019-2022/2022/decreto/d11158.htm`, prioridade: 1,
     observacao: 'O anexo (TIPI) é PDF escaneado: sem texto por artigo. A classificação por NCM está na tabela do Siscomex carregada à parte.',
   },
-  // ── Legislação estadual (UFs dos clientes): só referência. Os sites estaduais não riscam a redação anterior: ela fica no meio
-  //    do texto (classe em GO, cor verde em MS, blocos "Redação anterior..." em MT, BA, PA e MA), e o leitor a tomaria por vigente.
+  // ── Legislação estadual (UFs dos clientes), com texto. Os sites estaduais não riscam a redação anterior: em GO (classe) e MS (cor
+  //    verde) ela é separada pela marca do site (confaz.ts); nos demais, fica no meio do texto e a IA recebe esse aviso (aviso_ia).
   ...estadual('MT', 'SEFAZ-MT', [
     ['mt-lei-7098-1998', 'Lei', 'Lei 7.098/1998', 'Lei do ICMS de Mato Grosso (consolidada)', '1998-12-30', 'https://app1.sefaz.mt.gov.br/sistema/legislacao/legislacaotribut.nsf/07fa81bed2760c6b84256710004d3940/cc9c3b9886404baa0325678b0043a842?OpenDocument'],
-    ['mt-dec-2212-2014', 'Decreto', 'Decreto 2.212/2014', 'Regulamento do ICMS de Mato Grosso (RICMS/MT)', '2014-03-20', 'http://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=6', 'No portal da SEFAZ-MT o regulamento consolidado é publicado por capítulo, uma página para cada.'],
+    ['mt-dec-2212-2014', 'Decreto', 'Decreto 2.212/2014', 'Regulamento do ICMS de Mato Grosso (RICMS/MT), com os anexos', '2014-03-20', 'https://www.sefaz.mt.gov.br/legislacao/SubIndice.aspx?ID=6', {
+      partes: PAGINAS_RICMS_MT,
+      observacao: 'No portal da SEFAZ-MT o regulamento consolidado sai em uma página por capítulo e anexo; o InTAX lê todas e junta.',
+    }],
     ['mt-lei-7263-2000', 'Lei', 'Lei 7.263/2000', 'Fundo Estadual de Transporte e Habitação (FETHAB)', '2000-03-27', 'https://app1.sefaz.mt.gov.br/sistema/legislacao/legislacaotribut.nsf/07fa81bed2760c6b84256710004d3940/3866792553b6de7b032568b30044c0d4?OpenDocument', 'O art. 7º condiciona o diferimento do ICMS de soja, gado, madeira e feijão à contribuição ao FETHAB.'],
   ]),
   ...estadual('GO', 'Secretaria da Economia de Goiás', [
-    ['go-lei-11651-1991', 'Lei', 'Lei 11.651/1991', 'Código Tributário do Estado de Goiás (CTE)', '1991-12-26', 'https://appasp.economia.go.gov.br/legislacao/arquivos/CTE/CTE.htm'],
-    ['go-dec-4852-1997', 'Decreto', 'Decreto 4.852/1997', 'Regulamento do Código Tributário de Goiás (RCTE), com os anexos em arquivos separados', '1997-12-29', 'https://appasp.economia.go.gov.br/legislacao/arquivos/RCTE/RCTE.htm'],
+    ['go-lei-11651-1991', 'Lei', 'Lei 11.651/1991', 'Código Tributário do Estado de Goiás (CTE)', '1991-12-26', 'https://appasp.economia.go.gov.br/legislacao/arquivos/CTE/CTE.htm', { limpo: true }],
+    ['go-dec-4852-1997', 'Decreto', 'Decreto 4.852/1997', 'Regulamento do Código Tributário de Goiás (RCTE), com os anexos em arquivos separados', '1997-12-29', 'https://appasp.economia.go.gov.br/legislacao/arquivos/RCTE/RCTE.htm', { limpo: true }],
     ['go-lei-21670-2022', 'Lei', 'Lei 21.670/2022', 'Fundo Estadual de Infraestrutura (FUNDEINFRA)', '2022-12-06', 'https://legisla.casacivil.go.gov.br/api/v2/pesquisa/legislacoes/106378/pdf', 'Art. 5º, I: contribuição como condição para a fruição de benefício ou incentivo fiscal. A página oficial registra eficácia suspensa por liminar (ADI 7885) em dispositivos incluídos em 2024.'],
-    ['go-lei-14469-2003', 'Lei', 'Lei 14.469/2003', 'PROTEGE GOIÁS: contribuição para fruição de benefício ou incentivo fiscal', '2003-07-16', 'https://appasp.economia.go.gov.br/legislacao/arquivos/Leis/L_14469.htm'],
+    ['go-lei-14469-2003', 'Lei', 'Lei 14.469/2003', 'PROTEGE GOIÁS: contribuição para fruição de benefício ou incentivo fiscal', '2003-07-16', 'https://appasp.economia.go.gov.br/legislacao/arquivos/Leis/L_14469.htm', { limpo: true }],
   ]),
   ...estadual('MS', 'SEFAZ-MS', [
-    ['ms-lei-1810-1997', 'Lei', 'Lei 1.810/1997', 'Tributos de competência do Estado de Mato Grosso do Sul (ICMS)', '1997-12-22', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/23b657614c182061042579c80053770d/9b9e5fd2565751de042579cf004d33a6?OpenDocument'],
-    ['ms-dec-9203-1998', 'Decreto', 'Decreto 9.203/1998', 'Regulamento do ICMS de Mato Grosso do Sul (RICMS/MS), com os anexos em documentos separados', '1998-09-18', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/7a2675fdf26e910204256b1f005348a7/d3cc39d3a6aeeda803256cc20066f1fb?OpenDocument'],
-    ['ms-lei-1963-1999', 'Lei', 'Lei 1.963/1999', 'Fundo de Desenvolvimento do Sistema Rodoviário (FUNDERSUL)', '1999-06-11', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/23b657614c182061042579c80053770d/0fabf2cd6f2fefed04256ae7004d34c5?OpenDocument', 'O art. 9º condiciona o diferimento do ICMS de produtos agropecuários à contribuição dos produtores.'],
+    ['ms-lei-1810-1997', 'Lei', 'Lei 1.810/1997', 'Tributos de competência do Estado de Mato Grosso do Sul (ICMS)', '1997-12-22', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/23b657614c182061042579c80053770d/9b9e5fd2565751de042579cf004d33a6?OpenDocument', { limpo: true }],
+    ['ms-dec-9203-1998', 'Decreto', 'Decreto 9.203/1998', 'Regulamento do ICMS de Mato Grosso do Sul (RICMS/MS), com os anexos em documentos separados', '1998-09-18', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/7a2675fdf26e910204256b1f005348a7/d3cc39d3a6aeeda803256cc20066f1fb?OpenDocument', { limpo: true }],
+    ['ms-ricms-anexo-i', 'Anexo', 'Anexo I do RICMS', 'RICMS/MS, Anexo I: dos benefícios fiscais (isenções, reduções e outros)', '', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/34248fea4d6a6d2a04256b210079ce20/41ca53122c77084c042579a0004910b8?OpenDocument', { limpo: true }],
+    ['ms-lei-1963-1999', 'Lei', 'Lei 1.963/1999', 'Fundo de Desenvolvimento do Sistema Rodoviário (FUNDERSUL)', '1999-06-11', 'https://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/23b657614c182061042579c80053770d/0fabf2cd6f2fefed04256ae7004d34c5?OpenDocument', { limpo: true, observacao: 'O art. 9º condiciona o diferimento do ICMS de produtos agropecuários à contribuição dos produtores.' }],
   ]),
   ...estadual('BA', 'SEFAZ-BA', [
     ['ba-lei-7014-1996', 'Lei', 'Lei 7.014/1996', 'Lei do ICMS da Bahia (versão com notas da SEFAZ)', '1996-12-04', 'https://mbusca.sefaz.ba.gov.br/DITRI/leis/leis_estaduais/legest_1996_7014_icmscomnotas.pdf'],
@@ -637,13 +723,64 @@ export const FONTES_NORMAS: FonteNorma[] = [
     ['pa-lei-5530-1989', 'Lei', 'Lei 5.530/1989', 'Lei do ICMS do Pará', '1989-01-13', 'https://www.sefa.pa.gov.br/legislacao/interna/lei/lp1989_05530.pdf'],
     ['pa-dec-4676-2001', 'Decreto', 'Decreto 4.676/2001', 'Regulamento do ICMS do Pará (RICMS/PA)', '2001-06-18', 'https://www.sefa.pa.gov.br/legislacao/interna/decreto/dc2001_04676.pdf'],
   ]),
+  ...estadual('SP', 'SEFAZ-SP', [
+    ['sp-lei-6374-1989', 'Lei', 'Lei 6.374/1989', 'Lei do ICMS de São Paulo', '1989-03-01', 'https://legislacao.fazenda.sp.gov.br/Paginas/texto6374.aspx'],
+    ['sp-dec-45490-2000', 'Decreto', 'Decreto 45.490/2000', 'Regulamento do ICMS de São Paulo (RICMS/2000), com os anexos na mesma página', '2000-11-30', 'https://legislacao.fazenda.sp.gov.br/Paginas/textoricms.aspx'],
+  ]),
+  ...estadual('MG', 'SEF-MG', [
+    ['mg-lei-6763-1975', 'Lei', 'Lei 6.763/1975', 'Consolida a legislação tributária de Minas Gerais (o ICMS está no Título II)', '1975-12-26', 'https://www.almg.gov.br/legislacao-mineira/texto/LEI/6763/1975/?cons=1', { orgao: 'Assembleia Legislativa de Minas Gerais' }],
+    ['mg-dec-48589-2023', 'Decreto', 'Decreto 48.589/2023', 'Regulamento do ICMS de Minas Gerais (RICMS/2023), com os anexos em PDFs separados', '2023-03-22', 'https://www.fazenda.mg.gov.br/empresas/legislacao_tributaria/ricms_2023_seco/regulamento2023seco.pdf', { limpo: true }],
+    ...ANEXOS_RICMS_MG.map(([r, assunto]): [string, string, string, string, string, string, ExtraEstadual] => [
+      `mg-ricms-anexo-${r}`, 'Anexo', `Anexo ${r.toUpperCase()} do RICMS/2023`, `RICMS/MG 2023, Anexo ${r.toUpperCase()}: ${assunto}`, '',
+      `https://www.fazenda.mg.gov.br/empresas/legislacao_tributaria/ricms_2023_seco/anexo${r}2023seco.pdf`, { limpo: true },
+    ]),
+  ]),
+  ...estadual('PI', 'SEFAZ-PI', [
+    ['pi-lei-4257-1989', 'Lei', 'Lei 4.257/1989', 'Lei do ICMS do Piauí', '1989-01-06', 'https://portaldalegislacao.sefaz.pi.gov.br/Arquivos/ARQUIVOS_CHRONUS/ARQUIVO_PRINCIPAL_LEGISLACAO/2081/Lei_n_4.257_1989.pdf'],
+    ['pi-dec-21866-2023', 'Decreto', 'Decreto 21.866/2023', 'Regulamento do ICMS do Piauí (RICMS/PI), com os anexos em PDFs separados', '2023-03-06', 'https://portaldalegislacao.sefaz.pi.gov.br/Arquivos/ARQUIVOS_CHRONUS/ARQUIVO_PRINCIPAL_LEGISLACAO/1400/Decreto_n_21.866_2023_-_REGULAMENTO_DO_ICMS_DO_ESTADO_DO_PIAUI.pdf'],
+  ]),
+  ...estadual('TO', 'Assembleia Legislativa do Tocantins', [
+    ['to-lei-1287-2001', 'Lei', 'Lei 1.287/2001', 'Código Tributário do Estado do Tocantins (institui o ICMS)', '2001-12-28', 'https://www.al.to.leg.br/arquivo/68306'],
+    ['to-sefaz-legislacao', 'Página', 'Página da legislação tributária', 'Página oficial da legislação tributária do Tocantins (RICMS)', '', 'https://www.to.gov.br/sefaz/legislacao-tributaria/3lb4r1ekdyvb', {
+      orgao: 'SEFAZ-TO', referencia: true,
+      observacao: 'Em 26/11/2026 o link do RICMS nesta página apontava para um servidor da SEFAZ-TO que não respondia, e o regulamento não foi achado em outro endereço oficial. A revisão semanal avisa quando a página mudar.',
+    }],
+  ]),
+  ...estadual('RO', 'SEFIN-RO', [
+    ['ro-lei-688-1996', 'Lei', 'Lei 688/1996', 'Lei do ICMS de Rondônia (consolidada)', '1996-12-27', 'https://legislacao.sefin.ro.gov.br/normas/77', { listaDeArquivos: 'https://legislacao.sefin.ro.gov.br/link_arquivo/77' }],
+    ['ro-dec-22721-2018', 'Decreto', 'Decreto 22.721/2018', 'Regulamento do ICMS de Rondônia (RICMS/RO), consolidado; anexos em fichas separadas', '2018-04-05', 'https://legislacao.sefin.ro.gov.br/normas/128', { listaDeArquivos: 'https://legislacao.sefin.ro.gov.br/link_arquivo/128' }],
+  ]),
 ];
 
-/** Norma estadual só com o link oficial: o número leva a UF ("Lei 7.098/1998 (MT)") para não se confundir com ato federal. */
-function estadual(uf: string, orgao: string, itens: [string, string, string, string, string, string, string?][]): FonteNorma[] {
-  return itens.map(([chave, tipo, numero, titulo, data, url, observacao]) => ({
-    chave, tipo: `${tipo} estadual`, numero: `${numero} (${uf})`, titulo, orgao, data_publicacao: data, url_oficial: url,
-    prioridade: 1, grupo: 'territorial' as const, formato: 'externo' as const,
-    observacao: observacao ?? 'Texto consolidado no site oficial do estado; a redação anterior fica no meio do texto, por isso a norma fica só como referência.',
-  }));
+type ExtraEstadual = {
+  observacao?: string; orgao?: string; monitorarEm?: string;
+  /** Página que não é norma (só o link). */
+  referencia?: boolean;
+  /** O site separa a redação anterior (GO, MS) ou não a traz (MG "seco", RICMS/MT por capítulo): a IA não precisa do aviso. */
+  limpo?: boolean;
+  partes?: string[];
+  listaDeArquivos?: string;
+};
+
+/** Norma estadual com o texto do site oficial do estado; o número leva a UF ("Lei 7.098/1998 (MT)") para não se confundir com ato federal. */
+function estadual(uf: string, orgao: string, itens: [string, string, string, string, string, string, (string | ExtraEstadual)?][]): FonteNorma[] {
+  return itens.map(([chave, tipo, numero, titulo, data, url, extra]) => {
+    const x: ExtraEstadual = typeof extra === 'string' ? { observacao: extra } : extra ?? {};
+    const referencia = x.referencia === true;
+    return {
+      chave, tipo: `${tipo} estadual`, numero: `${numero} (${uf})`, titulo, orgao: x.orgao ?? orgao, data_publicacao: data || undefined, url_oficial: url,
+      prioridade: 1, grupo: 'territorial' as const, uf, botao: BOTAO_ESTADUAL[chave] ?? tipo,
+      ...(referencia ? { formato: 'externo' as const } : {}),
+      ...(x.monitorarEm ? { url_monitoramento: x.monitorarEm } : {}),
+      ...(x.partes ? { partes: x.partes } : {}),
+      ...(x.listaDeArquivos ? { lista_de_arquivos: x.listaDeArquivos } : {}),
+      ...(!referencia && !x.limpo ? { aviso_ia: AVISO_TEXTO_ESTADUAL } : {}),
+      observacao: x.observacao ?? (x.limpo
+        ? 'Texto lido do site oficial do estado; a redação anterior, que o site marca, fica guardada à parte.'
+        : 'Texto lido do site oficial do estado, que deixa a redação anterior no meio do texto: confira a vigência no documento oficial.'),
+    };
+  });
 }
+
+/** Endereço que a revisão semanal confere em cada norma só de referência (o do botão, salvo quando o catálogo indica outro). */
+export const URL_MONITORAMENTO = new Map(FONTES_NORMAS.filter((f) => f.url_monitoramento).map((f) => [f.chave, f.url_monitoramento as string]));

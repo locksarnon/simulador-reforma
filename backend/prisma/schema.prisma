@@ -981,6 +981,9 @@ model DispositivoLegal {
   temas                 String[] @default([])
   /// Última vez em que o texto deste dispositivo mudou
   alterado_em           DateTime?
+  /// Palavras do texto para a busca: coluna gerada pelo banco a partir do texto (GENERATED ALWAYS ... STORED), criada na migração
+  /// 20261126233000_busca_base_legal_rapida. Nunca é gravada pelo Prisma; só o SQL da busca a lê. O default abaixo só descreve a expressão.
+  busca                 Unsupported("tsvector")? @default(dbgenerated("to_tsvector('portuguese'::regconfig, \"left\"(texto, 200000))"))
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -989,6 +992,9 @@ model DispositivoLegal {
 
   @@unique([norma_id, caminho])
   @@index([norma_id, ordem])
+  @@index([busca], type: Gin, map: "DispositivoLegal_busca_idx")
+  /// Busca literal de códigos (NCM) com ILIKE: trigramas (extensão pg_trgm)
+  @@index([texto(ops: raw("gin_trgm_ops"))], type: Gin, map: "DispositivoLegal_texto_trgm_idx")
 }
 
 /// Remissão de um dispositivo a artigo de outra norma ("(Art. 38 da LC 214/2025)"): mostra o que regulamenta ou reproduz cada artigo.

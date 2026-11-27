@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import ConsultaBasesLegais from "@/components/base-legal/ConsultaBasesLegais";
+import RegrasEstaduais from "@/components/base-legal/RegrasEstaduais";
 import { useAuth } from "@/lib/AuthContext";
 import { sugestoesDoContexto } from "@/lib/assistente";
 import { areaPorId, caminhoDaArea, modulosDaArea, SITUACAO, situacaoDoModulo } from "@/lib/navegacao";
@@ -54,6 +55,13 @@ export function ConsultaDaArea({ user }) {
   );
 }
 
+/** Área "Bases legais": os botões por UF das regras estaduais (RICMS, lei do ICMS, fundos), logo abaixo da consulta. */
+export function RegrasDaArea() {
+  const [params, setParams] = useSearchParams();
+  const escolher = (uf) => setParams((p) => { const n = new URLSearchParams(p); if (uf) n.set("uf", uf); else n.delete("uf"); return n; }, { replace: true });
+  return <RegrasEstaduais compacto uf={params.get("uf") || ""} aoEscolherUf={escolher} />;
+}
+
 /** Página de uma área: o que ela é e os módulos que a pessoa pode usar. */
 export default function AreaPagina() {
   const { areaId } = useParams();
@@ -72,6 +80,7 @@ export default function AreaPagina() {
       />
       <div className="px-6 lg:px-8 py-6 space-y-6">
         {consulta && <ConsultaDaArea user={user} />}
+        {consulta && <RegrasDaArea />}
         {modulos.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Você ainda não tem módulos liberados nesta área.</p>
         ) : (

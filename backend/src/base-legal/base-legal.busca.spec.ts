@@ -54,3 +54,57 @@ describe('busca de texto em todas as normas', () => {
     expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
   });
 });
+
+describe('desempenho da busca (base com os regulamentos estaduais: ~19 mil dispositivos)', () => {
+  it('usa as palavras gravadas na coluna "busca" e nunca recalcula as palavras do texto; o trecho só sai para as 40 linhas devolvidas', async () => {
+    const { service, prisma } = montar([[linha()]]);
+    await service.buscar('icms');
+    const sql = (prisma.$queryRawUnsafe.mock.calls[0] as unknown[])[0] as string;
+    expect(sql).toContain('d."busca" @@ websearch_to_tsquery');
+    expect(sql).toContain('ts_rank_cd(d."busca"');
+    expect(sql).not.toContain('to_tsvector(');
+    expect(sql.indexOf('ts_headline')).toBeLessThan(sql.indexOf('FROM (SELECT'));
+    expect(sql.indexOf('LIMIT 40) d')).toBeGreaterThan(sql.indexOf('FROM (SELECT'));
+  });
+
+  it('o assistente dispensa o trecho destacado (só usa a posição do achado) e a lista de normas do estado vai como parâmetro', async () => {
+    const { service, prisma } = montar([[linha()]]);
+    await service.buscar('soja', ['pa-dec-4676-2001', 'pa-lei-5530-1989'], { trecho: false });
+    const [sql, ...params] = prisma.$queryRawUnsafe.mock.calls[0] as unknown[];
+    expect(sql).not.toContain('ts_headline');
+    expect(sql).not.toContain('d."texto"');
+    expect(sql).toContain('n."chave" = ANY($2)');
+    expect(params).toEqual(['soja', ['pa-dec-4676-2001', 'pa-lei-5530-1989']]);
+  });
+
+  it('código (NCM) procurado literalmente: um LIKE por código escrito na consulta (usa o índice de trigramas), sem os contidos em outro', async () => {
+    const { service, prisma } = montar([[{ chave: 'pa-dec-4676-2001', caminho: 'anexo-ii' }]]);
+    const r = await (service as any).buscarCodigos(['1201.90.00', '12019000', '1201.90.0', '1201.90', '1201.9', '12.01', '1201.90.00'], ['pa-dec-4676-2001']);
+    expect(r).toEqual([{ chave: 'pa-dec-4676-2001', caminho: 'anexo-ii' }]);
+    const [sql, ...params] = prisma.$queryRawUnsafe.mock.calls[0] as unknown[];
+    expect(sql).toContain(`(d."texto" LIKE '%12019000%' OR d."texto" LIKE '%1201.9%' OR d."texto" LIKE '%12.01%')`);
+    expect(sql).not.toContain('ILIKE');
+    expect(sql).toContain('n."chave" = ANY($1)');
+    expect(params).toEqual([['pa-dec-4676-2001']]);
+  });
+
+  it('código completo vem antes da subposição e da posição; a posição com ponto só vale chamada de posição, NCM, TIPI ou código', async () => {
+    const { service, prisma } = montar([[]]);
+    await (service as any).buscarCodigos(['1201.90.00', '12019000', '1201.90', '12.01']);
+    const sql = (prisma.$queryRawUnsafe.mock.calls[0] as unknown[])[0] as string;
+    expect(sql).toContain(`ORDER BY CASE WHEN d."texto" LIKE '%1201.90.00%' OR d."texto" LIKE '%12019000%' THEN 0 WHEN d."texto" LIKE '%1201.90%' THEN 1 ELSE 2 END`);
+    // "12.01" fica no filtro do índice (LIKE), mas só passa com a palavra que o chama de posição, e nunca dentro de data ou de outro número
+    expect(sql).toContain(`WHERE d."revogado" = false AND (d."texto" LIKE '%12019000%' OR d."texto" LIKE '%1201.90%' OR d."texto" LIKE '%12.01%') AND (d."texto" LIKE '%12019000%' OR d."texto" LIKE '%1201.90%' OR d."texto" ~* '(posi[çÇc][ãÃõÕao]|ncm|nbm|tipi|c[óÓo]digo|\\msh\\M)[^;]{0,60}(?<![0-9.])12\\.01(?!\\.?[0-9])')`);
+  });
+
+  it('nada que não seja código (dígitos e pontos) entra na consulta, e sem código válido o banco nem é consultado', async () => {
+    const { service, prisma } = montar([[]]);
+    expect(await (service as any).buscarCodigos(["12'01", '10%_x', 'abc12', '1201.', '.1201'])).toEqual([]);
+    expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
+    await (service as any).buscarCodigos(["1201' OR 1=1 --", '0402.21.10']);
+    const [sql, ...params] = prisma.$queryRawUnsafe.mock.calls[0] as unknown[];
+    expect(sql).toContain(`(d."texto" LIKE '%0402.21.10%')`);
+    expect(sql).not.toContain('OR 1=1');
+    expect(params).toEqual([]);
+  });
+});

@@ -8,6 +8,7 @@ import { temFuncao, temTela } from "@/lib/permissoes";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import { AbasRotinas } from "@/pages/admin/NormasMonitoradasPagina";
 import AvisoDoModo from "@/components/monitoramento/AvisoDoModo";
 import { useEstadoMonitoramento } from "@/lib/monitoramento";
 import { useCarteiras } from "@/lib/useCarteiras";
@@ -118,6 +119,7 @@ export default function ParametrosRotinasPagina() {
   return (
     <div>
       <PageHeader crumbs={crumbs} title="Parâmetros e rotinas" />
+      <AbasRotinas />
       <div className="px-6 lg:px-8 py-5 space-y-4">
         <AvisoDoModo modo={estado.data?.modo} ehAdmin />
         {!cfg ? <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (

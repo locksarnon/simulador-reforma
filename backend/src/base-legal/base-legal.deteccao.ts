@@ -78,6 +78,21 @@ export function urlOficialValida(url: string): boolean {
   }
 }
 
+/**
+ * Página inicial ou lista de um portal ("https://www.cgibs.gov.br", "https://www.gov.br/receitafederal/pt-br",
+ * "https://www.cgibs.gov.br/atos-tecnicos-conjuntos"): não tem o texto de um ato. O Radar guarda o endereço da fonte da notícia, que
+ * muitas vezes é isso; aprovado assim, o ato ficava cadastrado sem texto e a revisão semanal acusava erro toda semana.
+ */
+export function paginaDoPortal(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const partes = u.pathname.split('/').filter((p) => p && !/^[a-z]{2}(-[a-z]{2})?$/i.test(p)); // "pt-br", "en" não contam
+    return partes.length === 0 || (partes.length === 1 && !u.search && !/\.[a-z0-9]{2,5}$/i.test(partes[0]));
+  } catch {
+    return false;
+  }
+}
+
 const PLANALTO = 'https://www.planalto.gov.br/ccivil_03';
 const PERIODOS: [number, number][] = [[2007, 2010], [2011, 2014], [2015, 2018], [2019, 2022], [2023, 2026], [2027, 2030]];
 
