@@ -12,6 +12,8 @@ import { chaves } from "./api";
 import Cobertura, { ordemDeAnalise, seloDaCamada, textoDasAnalises, textoDesatualizada } from "./Cobertura";
 import TabelaUnica, { fixasDaTabela } from "./TabelaUnica";
 import { REGRA_FINALIDADE } from "./logica";
+import { Roteiro } from "./RoteiroProjeto";
+import { FASES_ROTEIRO, situacaoDaEtapa } from "./roteiro";
 import { textoDaLiberacao } from "./Versoes";
 import VisaoGeral, { matrizOrdenada } from "./VisaoGeral";
 import Diretrizes, { GruposSemRegra, PreviaVarias } from "./diretrizes/Diretrizes";
@@ -189,5 +191,34 @@ describe("Diretrizes em lote", () => {
     expect(fora.map((r) => r.codigo)).toEqual(["N01"]);
     expect(resumoPreviaVarias({ regras: [{}], grupos: ["A"], itens: 1, camadas: [] }).textoFeito(1)).toBe("1 regra aplicada: 1 item de 1 grupo foi analisado de novo.");
     expect(falhasDaReanalise({ camadas: [{ camada: "NCM", executada: false, motivo: "fora" }, { camada: "QUALIDADE", executada: true }] })).toEqual(["NCM: fora"]);
+  });
+});
+
+describe("Roteiro do projeto", () => {
+  const estado = new Map([
+    ["IDENTIFICACAO", { camada: "IDENTIFICACAO", abertos: 0, aguardando: 0, aprovados: 3, executadaEm: "2026-11-20T10:00:00Z" }],
+    ["QUALIDADE", { camada: "QUALIDADE", abertos: 12, aguardando: 2, aprovados: 1, executadaEm: "2026-11-20T10:00:00Z" }],
+  ]);
+  const etapa = (fase, id) => FASES_ROTEIRO.find((f) => f.id === fase).etapas.find((e) => e.id === id);
+  it("situação real da Fase 1; Fase 2 e Fechamento como próxima fase", () => {
+    const ctx = { estado, itens: 29694, liberadas: 0 };
+    expect(situacaoDaEtapa("fase1", etapa("fase1", "preparar"), ctx)).toMatchObject({ texto: "Concluída", detalhe: "29.694 itens importados" });
+    expect(situacaoDaEtapa("fase1", etapa("fase1", "identificacao"), ctx)).toMatchObject({ texto: "Concluída", detalhe: "3 aprovados" });
+    expect(situacaoDaEtapa("fase1", etapa("fase1", "qualidade"), ctx)).toMatchObject({ texto: "Em andamento", detalhe: "12 em aberto · 2 aguardando o cliente · 1 aprovados" });
+    expect(situacaoDaEtapa("fase1", etapa("fase1", "duplicidades"), ctx).texto).toBe("Não iniciada");
+    expect(situacaoDaEtapa("fase1", etapa("fase1", "preparar"), { ...ctx, itens: 0 }).texto).toBe("Não iniciada");
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "tratamento"), ctx).texto).toBe("Próxima fase");
+  });
+  it("modo apresentação esconde os números; o detalhe da etapa mostra o que é feito, o que o cliente fornece e recebe", () => {
+    const props = { nome: "Crestani", estado, itens: 29694, liberadas: 0, selecionada: "duplicidades", aoSelecionar: () => {} };
+    const normal = texto(renderToStaticMarkup(<Roteiro {...props} apresentacao={false} />));
+    expect(normal).toContain("12 em aberto");
+    expect(normal).toContain("Fase 1 · Saneamento de estoques");
+    expect(normal).toContain("Crédito do estoque");
+    expect(normal).toContain("O que o cliente fornece");
+    expect(normal).toContain("Mapa de unificações pronto para o time do ERP executar.");
+    const apres = texto(renderToStaticMarkup(<Roteiro {...props} apresentacao />));
+    expect(apres).not.toContain("12 em aberto");
+    expect(apres).toContain("Em andamento");
   });
 });

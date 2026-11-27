@@ -16,6 +16,7 @@ import Impacto from "@/components/saneamento-estoques/Impacto";
 import Importacao from "@/components/saneamento-estoques/Importacao";
 import TabelaUnica from "@/components/saneamento-estoques/TabelaUnica";
 import Unificacoes from "@/components/saneamento-estoques/Unificacoes";
+import RoteiroProjeto from "@/components/saneamento-estoques/RoteiroProjeto";
 import Versoes from "@/components/saneamento-estoques/Versoes";
 import VisaoGeral from "@/components/saneamento-estoques/VisaoGeral";
 import { ABAS, abaInicial, mensagemDeErro, naoEncontrado } from "@/components/saneamento-estoques/logica";
@@ -88,7 +89,7 @@ export default function SaneamentoEstoquesPagina() {
 
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada." />
+      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada." actions={projeto ? <RoteiroProjeto projeto={projeto} nome={nome} /> : null} />
       <div className="px-6 py-5 lg:px-8">{corpo}</div>
     </div>
   );
