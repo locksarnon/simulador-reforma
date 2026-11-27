@@ -464,11 +464,17 @@ export class SanDiretrizesService {
     const grupos = new Set<string>(); const itens = new Set<string>(); const camadas = new Set<string>();
     const sobreposicoes: { regra: string; grupo: string; regraAtual: string }[] = [];
     const entreEscolhidas: { regra: string; grupo: string; regraAtual: string }[] = [];
+    const paresVistos = new Set<string>();
     let transferenciaManual = false;
     for (const r of linhas) {
       const { previa, afetados } = await this.calcularPrevia(r, this.prisma, cache);
       previa.grupos.forEach((g) => grupos.add(g)); afetados.forEach((i) => itens.add(i)); previa.camadas.forEach((c) => camadas.add(c));
-      for (const s of previa.sobreposicoes) (escolhidas.has(s.regraAtual) ? entreEscolhidas : sobreposicoes).push({ regra: r.codigo, ...s });
+      for (const s of previa.sobreposicoes) {
+        if (!escolhidas.has(s.regraAtual)) { sobreposicoes.push({ regra: r.codigo, ...s }); continue; }
+        // Entre as escolhidas, o par aparece pelas duas regras (A disputa com B e B com A): conta uma vez só.
+        const par = JSON.stringify([s.grupo, ...[r.codigo, s.regraAtual].sort()]);
+        if (!paresVistos.has(par)) { paresVistos.add(par); entreEscolhidas.push({ regra: r.codigo, ...s }); }
+      }
       if (previa.transferenciaManual) transferenciaManual = true;
     }
     return {
@@ -500,7 +506,7 @@ export class SanDiretrizesService {
     const linhas = await this.regrasPedidas(projetoId, [...versoes.keys()], versoes);
     const agregada = await this.previaAgregada(linhas);
     if (agregada.entreEscolhidas.length) {
-      throw bad('SOBREPOSICAO_ENTRE_REGRAS', `Regras escolhidas disputam o mesmo grupo: ${agregada.entreEscolhidas.map((s) => `${s.grupo} (${s.regraAtual} e ${s.regra})`).join('; ')}. Ajuste a abrangência de uma delas ou aplique-as separadamente.`);
+      throw bad('SOBREPOSICAO_ENTRE_REGRAS', `Regras escolhidas disputam o mesmo grupo: ${agregada.entreEscolhidas.map((s) => `${s.grupo} (${[s.regra, s.regraAtual].sort().join(' e ')})`).join('; ')}. Ajuste a abrangência de uma delas ou aplique-as separadamente.`);
     }
     if (agregada.sobreposicoes.length && e.confirmarTransferencia !== true) {
       throw new ConflictException({

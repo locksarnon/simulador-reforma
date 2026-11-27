@@ -83,6 +83,10 @@ describe('aplicar várias regras de uma vez', () => {
     // N03 disputa G2 com N02 (escolhida junto) → recusa sem gravar.
     const d = await c.diretrizes.criarRegra(pid, nomes(['G2'], 'Outra G2'), USER);
     expect(await erro(c.diretrizes.aplicarVarias(pid, { regras: [{ id: b.id, versao: b.versao }, { id: d.id, versao: d.versao }] }, USER))).toBe('SOBREPOSICAO_ENTRE_REGRAS');
+    // O par aparece uma vez só na mensagem (não "G2 (N03 e N02); G2 (N02 e N03)").
+    const msg = await c.diretrizes.aplicarVarias(pid, { regras: [{ id: d.id, versao: d.versao }, { id: b.id, versao: b.versao }] }, USER).then(() => '', (e: { response?: { message?: string } }) => e.response?.message ?? '');
+    expect(msg).toContain(`G2 (${[b.codigo, d.codigo].sort().join(' e ')}).`);
+    expect(msg.match(/G2 \(/g)).toHaveLength(1);
     // N04 cobre G1, que é da N01 (fora da seleção): pede confirmar.
     const g = await c.diretrizes.criarRegra(pid, nomes(['G1'], 'Nova G1'), USER);
     {

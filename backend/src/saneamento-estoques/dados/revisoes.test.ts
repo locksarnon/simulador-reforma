@@ -405,4 +405,61 @@ describe('tributário: exceção aprovada, enquadramento conferido e validação
     expect(await codigo(exc({ cClassTrib: '200100', cst: '000' }))).toBe('CST_INCOERENTE');
     expect(await status(exc({ cClassTrib: '200100', cst: '200', origem: 'EXCECAO' }))).toBe(200);
   });
+
+  it('reexecução inteira: o "aguardando" que o motor criou e não produz mais vira OBSOLETO (sem duplicar AGUARDANDO_NCM); o aguardando por pedido do consultor fica', async () => {
+    const cat = catalogos();
+    const c = montar({ motorReal: true, catalogos: cat });
+    const itens = [
+      item('H1', { ncm: '38089329', grupo: 'Herbicidas' }, 1), item('H2', { ncm: '38089329', grupo: 'Herbicidas' }, 2),
+      item('N1', { ncm: null, grupo: 'Herbicidas' }, 3), item('N2', { ncm: null, grupo: 'Embalagens' }, 4),
+      item('P1', { ncm: '31010000', grupo: 'Embalagens' }, 5),
+    ];
+    const { projetoId, ids } = await pronto(c, itens);
+    await c.orq.executarCamada(projetoId, 'TRIBUTARIO');
+    const trib = () => c.db.sanCaso.filter((x) => x.camada === 'TRIBUTARIO');
+    const finH = trib().find((x) => x.tipo === 'AGUARDANDO_FINALIDADE' && x.itens.includes(ids.H1))!;
+    const finP = trib().find((x) => x.tipo === 'AGUARDANDO_FINALIDADE' && x.itens.includes(ids.P1))!;
+    const ncmAntigo = trib().find((x) => x.tipo === 'AGUARDANDO_NCM')!;
+    expect([finH.situacao, finP.situacao, ncmAntigo.situacao]).toEqual(['AGUARDANDO_INFORMACAO', 'AGUARDANDO_INFORMACAO', 'AGUARDANDO_INFORMACAO']);
+    expect([...ncmAntigo.itens].sort()).toEqual([ids.N1, ids.N2].sort());
+    // O consultor reabre o aguardando do P1 e pede uma informação: esse não fica obsoleto.
+    const reaberto = await c.casos.reabrir(finP.id, { versao: finP.versao }, USER);
+    await c.casos.pedirInformacao(finP.id, { versao: reaberto!.versao, motivo: 'Pedir ao cliente a ficha técnica do P1' });
+    // Finalidades aprovadas (Herbicidas = revenda, Embalagens = embalagem).
+    const porGrupo: Record<string, { itens: string[]; finalidade: string }> = { Herbicidas: { itens: [ids.H1, ids.H2, ids.N1], finalidade: 'REVENDA' }, Embalagens: { itens: [ids.N2, ids.P1], finalidade: 'EMBALAGEM' } };
+    await c.casos.registrarResultado(projetoId, res('GRUPOS_FINALIDADE', Object.values(porGrupo).map((g) => caso('GRUPOS_FINALIDADE', 'FINALIDADE_GRUPO', g.itens, { finalidade: null }, { finalidade: g.finalidade }))));
+    for (const f of c.db.sanCaso.filter((x) => x.tipo === 'FINALIDADE_GRUPO')) await c.casos.aprovar(f.id, { versao: f.versao }, USER);
+    expect(c.db.sanItem.every((i) => (i.trabalho as { finalidade?: string }).finalidade)).toBe(true);
+
+    const r = await c.orq.executarCamada(projetoId, 'TRIBUTARIO');
+    expect(r.casosObsoletos).toBe(2);
+    expect(trib().find((x) => x.id === finH.id)!.situacao).toBe('OBSOLETO');
+    expect(trib().find((x) => x.id === ncmAntigo.id)!.situacao).toBe('OBSOLETO');
+    expect(trib().find((x) => x.id === finP.id)).toMatchObject({ situacao: 'AGUARDANDO_INFORMACAO', motivo: 'Pedir ao cliente a ficha técnica do P1' });
+    // Só os AGUARDANDO_NCM novos (um por finalidade) estão vivos, sem sobrepor itens.
+    const ncmVivos = trib().filter((x) => x.tipo === 'AGUARDANDO_NCM' && x.situacao !== 'OBSOLETO');
+    expect(ncmVivos.map((x) => x.itens).flat().sort()).toEqual([ids.N1, ids.N2].sort());
+    expect(ncmVivos).toHaveLength(2);
+    expect(trib().filter((x) => x.tipo === 'AGUARDANDO_FINALIDADE' && x.situacao !== 'OBSOLETO').map((x) => x.id)).toEqual([finP.id]);
+    // As células não apontam mais para os casos obsoletos.
+    const celulas = c.db.sanCelula.filter((x) => x.camada === 'TRIBUTARIO');
+    expect(celulas.some((x) => x.caso_id === finH.id || x.caso_id === ncmAntigo.id)).toBe(false);
+    expect(celulas.find((x) => x.item_id === ids.H1)!.situacao).not.toBe('AGUARDANDO_INFORMACAO');
+  });
+
+  it('reexecução inteira: o "aguardando" do motor com decisão registrada ou em escopo de regra não vira obsoleto', async () => {
+    let saida: (ids: string[]) => ResultadoCamada = () => res('NCM', []) as never;
+    const c = montar({ analisadores: [{ camada: 'NCM', analisar: (itens) => saida(itens.map((i) => i.id)) }] });
+    const { projetoId, ids } = await pronto(c);
+    await c.casos.registrarResultado(projetoId, res('NCM', [caso('NCM', 'AGUARDANDO_NCM', [ids.A1], {}, {}), caso('NCM', 'AGUARDANDO_NCM', [ids.A2], {}, {})]));
+    const [a1, a2] = ['A1', 'A2'].map((k) => c.db.sanCaso.find((x) => x.itens.includes(ids[k]))!);
+    c.db.sanDecisao.push({ id: 'd1', projeto_id: projetoId, item_id: ids.A1, caso_id: a1.id, campo: 'caso:AGUARDANDO_NCM', antes: null, depois: null, fundamento: 'nota', usuario: 'x', tipo: 'nota', quando: new Date() } as never);
+    // reanálise de escopo (Diretrizes) não mexe no aguardando
+    await c.casos.registrarResultado(projetoId, res('NCM', []), { completo: true, escopo: new Set([ids.A2]) });
+    expect(a2.situacao).toBe('AGUARDANDO_INFORMACAO');
+    saida = () => res('NCM', []) as never;
+    const r = await c.orq.executarCamada(projetoId, 'NCM');
+    expect(r.casosObsoletos).toBe(1);
+    expect([a1.situacao, a2.situacao]).toEqual(['AGUARDANDO_INFORMACAO', 'OBSOLETO']);
+  });
 });

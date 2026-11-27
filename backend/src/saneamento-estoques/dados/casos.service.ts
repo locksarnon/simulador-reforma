@@ -142,7 +142,7 @@ export class SanCasosService {
 
   /**
    * Grava o resultado de uma camada: casos novos (sem duplicar os já existentes), células e "aguardando informação" quando faltou dado.
-   * `completo` = a camada foi reexecutada inteira: os casos abertos que ela não produziu mais viram OBSOLETO. `escopo` (Diretrizes: aplicar e
+   * `completo` = a camada foi reexecutada inteira: os casos abertos que ela não produziu mais viram OBSOLETO (sem escopo, também o "aguardando" do motor sem ação do consultor). `escopo` (Diretrizes: aplicar e
    * reanalisar) = só estes itens foram reanalisados: a obsolescência e o "aguardando informação" ficam restritos aos casos e células deles (o
    * resultado já vem recortado por `recortarResultado`, com o escopo fechado).
    */
@@ -185,13 +185,27 @@ export class SanCasosService {
         const atualizados: unknown[] = [];
 
         // Obsolescência: a camada foi reexecutada e não produz mais estes casos (só os ainda sem edição; exceção manual nunca é obsoleta).
+        // Na reexecução inteira (sem escopo) entra também o "aguardando informação" que o MOTOR criou (tipo AGUARDANDO_*, origem REGRA) e em
+        // que ninguém agiu: sem motivo (o pedido de informação do consultor grava o motivo), sem responsável e sem decisão registrada.
+        // O aguardando por pedido do consultor nunca vira obsoleto.
         const obsoletos: string[] = [];
         if (opcoes.completo) {
           const produzidas = new Set(chaves);
-          const abertos: { id: string; chave: string; tipo: string; itens?: string[] }[] = await tx.sanCaso.findMany({ where: { projeto_id: projetoId, camada, situacao: 'PROPOSTO' }, select: { id: true, chave: true, tipo: true, itens: !!opcoes.escopo } });
-          for (const a of abertos) if (!produzidas.has(a.chave) && a.tipo !== 'EXCECAO_MANUAL' && noEscopo(a.itens ?? [])) obsoletos.push(a.id);
+          const situacoes = opcoes.escopo ? ['PROPOSTO'] : ['PROPOSTO', 'AGUARDANDO_INFORMACAO'];
+          const abertos: { id: string; chave: string; tipo: string; situacao: string; origem: string; motivo: string | null; responsavel: string | null; itens?: string[] }[] = await tx.sanCaso.findMany({
+            where: { projeto_id: projetoId, camada, situacao: { in: situacoes } },
+            select: { id: true, chave: true, tipo: true, situacao: true, origem: true, motivo: true, responsavel: true, itens: !!opcoes.escopo },
+          });
+          const doMotorSemAcao = (a: (typeof abertos)[number]) => a.tipo.startsWith('AGUARDANDO') && a.origem === 'REGRA' && !a.motivo && !a.responsavel;
+          const candidatos = abertos.filter((a) => !produzidas.has(a.chave) && a.tipo !== 'EXCECAO_MANUAL' && noEscopo(a.itens ?? []) && (a.situacao === 'PROPOSTO' || doMotorSemAcao(a)));
+          const aguardando = candidatos.filter((a) => a.situacao === 'AGUARDANDO_INFORMACAO').map((a) => a.id);
+          const comDecisao = new Set<string>();
+          for (const lote of fatiar(aguardando, 1000)) {
+            for (const d of await tx.sanDecisao.findMany({ where: { caso_id: { in: lote } }, select: { caso_id: true } })) if (d.caso_id) comDecisao.add(d.caso_id);
+          }
+          for (const a of candidatos) if (!comDecisao.has(a.id)) obsoletos.push(a.id);
           for (const lote of fatiar(obsoletos, 1000)) {
-            await tx.sanCaso.updateMany({ where: { id: { in: lote }, situacao: 'PROPOSTO' }, data: { situacao: 'OBSOLETO', versao: { increment: 1 } } });
+            await tx.sanCaso.updateMany({ where: { id: { in: lote }, situacao: { in: situacoes } }, data: { situacao: 'OBSOLETO', versao: { increment: 1 } } });
             await tx.sanCelula.updateMany({ where: { projeto_id: projetoId, camada, caso_id: { in: lote } }, data: { situacao: 'PENDENTE', caso_id: null, revisar: false, revisar_causa: null } });
             await tx.sanImpactoSped.deleteMany({ where: { projeto_id: projetoId, caso_id: { in: lote } } });
           }
