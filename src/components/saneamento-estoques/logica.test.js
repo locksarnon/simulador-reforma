@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ABAS, abaInicial, acaoDoBloqueio, CAMADAS, camadasDaFase, ehTravaDaFase2, FASES, faseDaCamada, fase1Liberada, itensDaVisao, REGIMES_CLIENTE, regimeDoCliente, ROTULO_CAMADA, rotuloDaFaseLiberada, abaPorTecla, acoesDoCaso, alternarIncorporar, aposConflito, camadasAtivas, camposObrigatoriosSemColuna, casoAberto, celulaDa, colunasDaTabela,
+  ABAS_COMUNS, AREAS, ASPECTOS_DA_FASE, abaInicialDaFase, abasDaArea, andamentoDaFase, areaDoParam, caminhoDaAba, destinoDaAba, faseInicial, paramDaArea, proximoPorTecla, situacaoDasFases, acaoDoBloqueio, CAMADAS, camadasDaFase, ehTravaDaFase2, FASES, faseDaCamada, fase1Liberada, itensDaVisao, REGIMES_CLIENTE, regimeDoCliente, ROTULO_CAMADA, rotuloDaFaseLiberada, acoesDoCaso, alternarIncorporar, aposConflito, camadasAtivas, camposObrigatoriosSemColuna, casoAberto, celulaDa, colunasDaTabela,
   colunasDoArquivo, converterValor, coberturaDeCamadas, corpoDoLote, corrigirMapeamento, ehConflitoVersao, ehReimportacao, ehTravaNaoConfirmada, enderecoDeEntrega,
   estadoDaTrava, formaDaSituacao, gruposDeColunas, itensIncorporaveis, janelaVisivel, larguraTotal, LARGURA_FIXA, lerParecer,
   linhasDeMapeamento, loteTemEscolha, mensagemDeErro, mensagemDoParecer, montarExcecao, montarFiltroCasos, montarFiltroItens, MENSAGEM_TRAVA, nomeDeEntrega, linhaExecutavel, textoExecutadas, precisaCarregarMais,
@@ -68,9 +68,12 @@ describe("fases e camadas (contrato da onda 1)", () => {
     expect(ehTravaDaFase2(erro(400, { codigo: "REGIME_NAO_INFORMADO" }))).toBe(true);
     expect(ehTravaDaFase2(erro(400, { codigo: "OUTRO" }))).toBe(false);
     expect(ehTravaDaFase2(erro(400, { codigo: "toString" }))).toBe(false);
-    expect(acaoDoBloqueio("FASE1_NAO_LIBERADA")).toEqual({ aba: "versoes", rotulo: "Ir para Versões" });
-    expect(acaoDoBloqueio("REGIME_NAO_INFORMADO").aba).toBe("configuracao");
-    expect(acaoDoBloqueio("ATIVIDADES_NAO_CONFIRMADAS").aba).toBe("configuracao");
+    // Onde resolver: Fase 1 > Entrega da Fase 1 (liberar) ou Fase 2 > Premissas (regime e atividades).
+    expect(acaoDoBloqueio("FASE1_NAO_LIBERADA")).toEqual({ fase: "fase1", aba: "entrega", rotulo: "Ir para a Entrega da Fase 1" });
+    expect(acaoDoBloqueio("REGIME_NAO_INFORMADO")).toEqual({ fase: "fase2", aba: "premissas", rotulo: "Ir para as Premissas" });
+    expect(acaoDoBloqueio("ATIVIDADES_NAO_CONFIRMADAS")).toMatchObject({ fase: "fase2", aba: "premissas" });
+    expect(mensagemDeErro(erro(400, { codigo: "FASE1_NAO_LIBERADA" }))).toContain("Fase 1 > Entrega da Fase 1");
+    expect(mensagemDeErro(erro(400, { codigo: "REGIME_NAO_INFORMADO" }))).toContain("Fase 2 > Premissas");
     expect(acaoDoBloqueio(null)).toBeNull();
   });
   it("versões por fase: rótulo e Fase 1 liberada (GET fases ou, sem ele, as versões)", () => {
@@ -390,24 +393,98 @@ describe("cobertura, exceções, impacto e entregas", () => {
   });
 });
 
-describe("abas", () => {
-  it("sem aba na URL: Importação sem itens, Tabela com itens; nenhuma trava decide a aba", () => {
-    expect(abaInicial(null, 0)).toBe("importacao");
-    expect(abaInicial(null, 1200)).toBe("tabela");
-    expect(abaInicial(null, null)).toBe("tabela");
-    expect(abaInicial("versoes", 0)).toBe("versoes");
-    expect(abaInicial("inexistente", 0)).toBe("importacao");
+describe("navegação: fases e abas", () => {
+  const fases = (f1, f2, bloqueio = null) => ({ fases: [{ fase: "FASE1", camadas: [], liberada: f1 ? { versaoId: "v1", numero: 1 } : null, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: f2 ? { versaoId: "v2", numero: 2 } : null, bloqueio }] });
+  it("três fases no primeiro nível, cada uma com as suas abas; as áreas comuns à direita, em todas", () => {
+    expect(AREAS.map((a) => a.rotulo)).toEqual(["Fase 1 · Saneamento", "Fase 2 · Tributário", "Fechamento"]);
+    expect(AREAS.map((a) => a.param)).toEqual(["1", "2", "fechamento"]);
+    expect(abasDaArea("fase1").map((a) => a.rotulo)).toEqual(["Preparar", "Diretrizes", "Análise", "Casos", "Unificações", "Entrega da Fase 1", "Tabela", "Visão geral", "Impacto no SPED", "Versões"]);
+    expect(abasDaArea("fase2").map((a) => a.rotulo)).toEqual(["Premissas", "Diretrizes", "Análise", "Casos", "Entrega da Fase 2", "Tabela", "Visão geral", "Impacto no SPED", "Versões"]);
+    expect(abasDaArea("fechamento").map((a) => a.rotulo)).toEqual(["Entregas finais", "Tabela", "Visão geral", "Impacto no SPED", "Versões"]);
+    expect(ABAS_COMUNS.map((a) => a.id)).toEqual(["tabela", "visao", "impacto", "versoes"]);
+    expect(ASPECTOS_DA_FASE).toEqual({ fase1: ["NOMES", "ATRIBUTOS", "UNIDADES", "LIMITES"], fase2: ["FISCAL"] });
+    expect(areaDoParam("1")).toBe("fase1");
+    expect(areaDoParam("2")).toBe("fase2");
+    expect(areaDoParam("fechamento")).toBe("fechamento");
+    expect(areaDoParam("9")).toBeNull();
+    expect(paramDaArea("fase2")).toBe("2");
+    expect(caminhoDaAba("fase1", "casos")).toBe("Fase 1 > Casos");
+    expect(caminhoDaAba("fase2", "premissas")).toBe("Fase 2 > Premissas");
+    expect(caminhoDaAba("fase1", "tabela")).toBe("Tabela");
+  });
+  it("endereços antigos e atalhos: cada aba antiga vai para a fase e a aba de agora", () => {
+    expect(destinoDaAba("configuracao")).toEqual({ fase: "fase1", aba: "preparar" });
+    expect(destinoDaAba("importacao", { fase: "fase2" })).toEqual({ fase: "fase1", aba: "preparar" });
+    expect(destinoDaAba("unificacoes", { fase: "fase2" })).toEqual({ fase: "fase1", aba: "unificacoes" });
+    expect(destinoDaAba("premissas")).toEqual({ fase: "fase2", aba: "premissas" });
+    expect(destinoDaAba("entregas")).toEqual({ fase: "fechamento", aba: "entregas" });
+    // Abas que existem nas duas fases: a aberta; sem fase aberta, a Fase 1.
+    expect(destinoDaAba("casos")).toEqual({ fase: "fase1", aba: "casos" });
+    expect(destinoDaAba("casos", { fase: "fase2" })).toEqual({ fase: "fase2", aba: "casos" });
+    expect(destinoDaAba("diretrizes", { fase: "fechamento" })).toEqual({ fase: "fase1", aba: "diretrizes" });
+    // A camada decide a fase; Impacto no SPED está nas duas e fica a aberta.
+    expect(destinoDaAba("casos", { fase: "fase1", camada: "TRIBUTARIO" })).toEqual({ fase: "fase2", aba: "casos" });
+    expect(destinoDaAba("casos", { fase: "fase2", camada: "QUALIDADE" })).toEqual({ fase: "fase1", aba: "casos" });
+    expect(destinoDaAba("casos", { fase: "fase2", camada: "OBRIGACOES" })).toEqual({ fase: "fase2", aba: "casos" });
+    expect(destinoDaAba("casos", { camada: "OBRIGACOES" })).toEqual({ fase: "fase1", aba: "casos" });
+    // Áreas comuns: ficam na fase aberta.
+    expect(destinoDaAba("tabela", { fase: "fase2" })).toEqual({ fase: "fase2", aba: "tabela" });
+    expect(destinoDaAba("versoes")).toEqual({ fase: null, aba: "versoes" });
+    expect(destinoDaAba("visao", { fase: "x" })).toEqual({ fase: null, aba: "visao" });
+    // Aba de uma fase pedida em outra: vai para a fase dela.
+    expect(destinoDaAba("preparar", { fase: "fase2" })).toEqual({ fase: "fase1", aba: "preparar" });
+    expect(destinoDaAba("inexistente")).toBeNull();
+    expect(destinoDaAba(null)).toBeNull();
+  });
+  it("ao abrir: a fase em andamento e a aba de partida dela", () => {
+    expect(faseInicial(undefined)).toBe("fase1");
+    expect(faseInicial(fases(false, false))).toBe("fase1");
+    expect(faseInicial(fases(true, false))).toBe("fase2");
+    expect(faseInicial(fases(true, true))).toBe("fechamento");
+    expect(abaInicialDaFase("fase1", { itens: 0 })).toBe("preparar");
+    expect(abaInicialDaFase("fase1", { itens: 1200 })).toBe("analise");
+    expect(abaInicialDaFase("fase1", { itens: null })).toBe("analise");
+    expect(abaInicialDaFase("fase2", { bloqueio: { codigo: "REGIME_NAO_INFORMADO" } })).toBe("premissas");
+    expect(abaInicialDaFase("fase2", { bloqueio: { codigo: "ATIVIDADES_NAO_CONFIRMADAS" } })).toBe("premissas");
+    expect(abaInicialDaFase("fase2", { bloqueio: { codigo: "FASE1_NAO_LIBERADA" } })).toBe("analise");
+    expect(abaInicialDaFase("fase2", {})).toBe("analise");
+    expect(abaInicialDaFase("fechamento")).toBe("entregas");
     expect(itensDaVisao({ grupos: [{ itens: 2 }, { itens: 3 }] })).toBe(5);
     expect(itensDaVisao({ grupos: [] })).toBe(0);
     expect(itensDaVisao(undefined)).toBeNull();
-    expect(ABAS.map((a) => a.id)).toEqual(["configuracao", "importacao", "diretrizes", "tabela", "visao", "casos", "impacto", "unificacoes", "versoes"]);
   });
-  it("setas, Home e End navegam em círculo", () => {
-    expect(abaPorTecla("versoes", "ArrowRight")).toBe("configuracao");
-    expect(abaPorTecla("configuracao", "ArrowLeft")).toBe("versoes");
-    expect(abaPorTecla("tabela", "Home")).toBe("configuracao");
-    expect(abaPorTecla("tabela", "End")).toBe("versoes");
-    expect(abaPorTecla("tabela", "a")).toBeNull();
+  it("situação de cada fase no seletor: andamento em %, liberada, bloqueada com o motivo, fechamento após as fases", () => {
+    const estado = { camadas: [
+      { camada: "IDENTIFICACAO", abertos: 0, aguardando: 0, executadaEm: "2026-11-20T10:00:00Z" },
+      { camada: "QUALIDADE", abertos: 3, aguardando: 0, executadaEm: "2026-11-20T10:00:00Z" },
+      { camada: "DUPLICIDADE", abertos: 0, aguardando: 1, executadaEm: "2026-11-20T10:00:00Z" },
+      { camada: "NCM", abertos: 0, aguardando: 0, executadaEm: null },
+      { camada: "FINALIDADE", abertos: 0, aguardando: 0, executadaEm: "2026-11-20T10:00:00Z" },
+    ] };
+    // Fase 1 (sem o Estoque): 7 camadas, 1 em dia (Identificação) = 14%. Fase 2: 4 camadas, 1 em dia (Finalidade) = 25%.
+    expect(andamentoDaFase("FASE1", estado, {})).toBe(14);
+    expect(andamentoDaFase("FASE2", estado, {})).toBe(25);
+    expect(andamentoDaFase("FASE1", undefined, {})).toBeNull();
+    const s = situacaoDasFases({ fases: fases(false, false), estado, modulos: {}, bloqueio2: { codigo: "FASE1_NAO_LIBERADA", mensagem: "Libere a Fase 1." } });
+    expect(s.fase1).toMatchObject({ texto: "Em andamento · 14%", travada: false });
+    expect(s.fase2).toMatchObject({ texto: "Bloqueada", travada: true, detalhe: "Libere a Fase 1." });
+    expect(s.fechamento).toMatchObject({ texto: "Após as fases", travada: false });
+    const lib = situacaoDasFases({ fases: fases(true, false), estado, modulos: {}, bloqueio2: null });
+    expect(lib.fase1).toMatchObject({ texto: "Liberada", tom: "ok" });
+    expect(lib.fase2.texto).toBe("Em andamento · 25%");
+    const tudo = situacaoDasFases({ fases: fases(true, true), estado: undefined, modulos: {}, bloqueio2: null });
+    expect(tudo.fase2.texto).toBe("Liberada");
+    expect(tudo.fechamento.texto).toBe("Disponível");
+    expect(situacaoDasFases({ fases: undefined, estado: undefined, modulos: {}, bloqueio2: null }).fase1.texto).toBe("Em andamento");
+  });
+  it("setas, Home e End navegam em círculo pela faixa", () => {
+    const ids = abasDaArea("fase1").map((a) => a.id);
+    expect(proximoPorTecla(ids, "versoes", "ArrowRight")).toBe("preparar");
+    expect(proximoPorTecla(ids, "preparar", "ArrowLeft")).toBe("versoes");
+    expect(proximoPorTecla(ids, "casos", "Home")).toBe("preparar");
+    expect(proximoPorTecla(ids, "casos", "End")).toBe("versoes");
+    expect(proximoPorTecla(ids, "entrega", "ArrowRight")).toBe("tabela");
+    expect(proximoPorTecla(ids, "casos", "a")).toBeNull();
   });
 });
 

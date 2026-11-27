@@ -23,9 +23,10 @@ const listaDeEstabelecimentos = (p) => (Array.isArray(p?.estabelecimentos) ? p.e
 /**
  * Configuração do projeto. Fase 1: ERP, estabelecimentos, responsável, data-base, corte e última escrituração entregue, sem trava.
  * Premissas da Fase 2: regime do cliente (obrigatório) e atividades confirmadas; só as análises da Fase 2 dependem delas.
- * Módulos ainda não disponíveis não aparecem.
+ * Módulos ainda não disponíveis não aparecem. `parte`: "dados" (só os dados do projeto: Fase 1 > Preparar), "premissas" (só as premissas:
+ * Fase 2 > Premissas) ou as duas (padrão).
  */
-export default function Configuracao({ projeto, recarregar: recarregarProjeto }) {
+export default function Configuracao({ projeto, recarregar: recarregarProjeto, parte = "tudo" }) {
   const confirmar = useConfirmar();
   const qc = useQueryClient();
   // O projeto e a liberação das fases andam juntos: regime e atividades mudam o bloqueio da Fase 2.
@@ -97,6 +98,7 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto })
     <div className="space-y-6">
       {msg && <Aviso tom={msg.tom === "erro" || msg.tom === "alerta" ? msg.tom : "ok"}>{msg.texto}</Aviso>}
 
+      {parte !== "premissas" && (
       <SecaoForm titulo="Fase 1 · Dados do projeto" nivel="h2" idTitulo="san-cfg-dados">
         <p className="text-sm text-foreground/75">O que a Fase 1 (saneamento do cadastro) usa. Nada aqui depende das atividades do cliente: a importação e as análises da Fase 1 ficam sempre disponíveis.</p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -128,7 +130,9 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto })
         </div>
         <button type="button" className={botaoPrimario} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>
       </SecaoForm>
+      )}
 
+      {parte !== "dados" && (
       <SecaoForm titulo="Premissas da Fase 2" nivel="h2" idTitulo="san-cfg-fase2">
         <p className="text-sm text-foreground/75">A Fase 2 (tributário e Reforma) começa depois de liberada a versão da Fase 1 (Cadastro saneado), com o regime do cliente informado e as atividades confirmadas. Estas premissas só valem para a Fase 2: a Fase 1 segue sem elas.</p>
         <Quadro titulo="Regime do cliente" nivel="h3">
@@ -209,6 +213,7 @@ export default function Configuracao({ projeto, recarregar: recarregarProjeto })
         )}
         </Quadro>
       </SecaoForm>
+      )}
     </div>
   );
 }

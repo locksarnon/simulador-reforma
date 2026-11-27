@@ -190,14 +190,14 @@ export const MENSAGEM_TRAVA = "Confirme as atividades do cliente para analisar a
  * A importação e as camadas da Fase 1 nunca são bloqueadas.
  */
 export const MENSAGEM_BLOQUEIO_FASE2 = {
-  FASE1_NAO_LIBERADA: "Libere uma versão da Fase 1 (Cadastro saneado) na aba Versões para começar a Fase 2.",
-  REGIME_NAO_INFORMADO: "Informe o regime do cliente na Configuração, em Premissas da Fase 2, para analisar a Fase 2.",
-  ATIVIDADES_NAO_CONFIRMADAS: "Confirme as atividades do cliente na Configuração, em Premissas da Fase 2, para analisar a Fase 2.",
+  FASE1_NAO_LIBERADA: "Libere uma versão da Fase 1 (Cadastro saneado) em Fase 1 > Entrega da Fase 1 para começar a Fase 2.",
+  REGIME_NAO_INFORMADO: "Informe o regime do cliente em Fase 2 > Premissas para analisar a Fase 2.",
+  ATIVIDADES_NAO_CONFIRMADAS: "Confirme as atividades do cliente em Fase 2 > Premissas para analisar a Fase 2.",
 };
-/** Onde se resolve cada bloqueio da Fase 2: a aba e o texto do botão. */
+/** Onde se resolve cada bloqueio da Fase 2: a fase, a aba e o texto do botão. */
 export function acaoDoBloqueio(codigo) {
-  if (codigo === "FASE1_NAO_LIBERADA") return { aba: "versoes", rotulo: "Ir para Versões" };
-  if (codigo === "REGIME_NAO_INFORMADO" || codigo === "ATIVIDADES_NAO_CONFIRMADAS") return { aba: "configuracao", rotulo: "Ir para a Configuração" };
+  if (codigo === "FASE1_NAO_LIBERADA") return { fase: "fase1", aba: "entrega", rotulo: "Ir para a Entrega da Fase 1" };
+  if (codigo === "REGIME_NAO_INFORMADO" || codigo === "ATIVIDADES_NAO_CONFIRMADAS") return { fase: "fase2", aba: "premissas", rotulo: "Ir para as Premissas" };
   return null;
 }
 
@@ -1000,37 +1000,153 @@ export function mensagemDoParecer(err) {
   return "A IA não respondeu. O caso segue normalmente, sem parecer; tente de novo mais tarde.";
 }
 
-// ── Abas da página do projeto ────────────────────────────────────────────────
+// ── Navegação da página do projeto: fases (primeiro nível) e abas (segundo nível) ──
 
-export const ABAS = [
-  { id: "configuracao", rotulo: "Configuração" },
-  { id: "importacao", rotulo: "Importação" },
-  { id: "diretrizes", rotulo: "Diretrizes" },
+/**
+ * Primeiro nível: a fase do trabalho. `param` é o valor de `?fase=` na URL; `fase` é a chave do servidor (GET fases), quando existe.
+ * Cada fase tem as suas abas (os mesmos componentes de sempre, filtrados pela fase). As áreas comuns (Tabela, Visão geral, Impacto no
+ * SPED e Versões) mostram o projeto inteiro e ficam à direita da faixa de abas, em qualquer fase.
+ */
+export const AREAS = [
+  {
+    id: "fase1", param: "1", fase: "FASE1", rotulo: "Fase 1 · Saneamento",
+    abas: [
+      { id: "preparar", rotulo: "Preparar" },
+      { id: "diretrizes", rotulo: "Diretrizes" },
+      { id: "analise", rotulo: "Análise" },
+      { id: "casos", rotulo: "Casos" },
+      { id: "unificacoes", rotulo: "Unificações" },
+      { id: "entrega", rotulo: "Entrega da Fase 1" },
+    ],
+  },
+  {
+    id: "fase2", param: "2", fase: "FASE2", rotulo: "Fase 2 · Tributário",
+    abas: [
+      { id: "premissas", rotulo: "Premissas" },
+      { id: "diretrizes", rotulo: "Diretrizes" },
+      { id: "analise", rotulo: "Análise" },
+      { id: "casos", rotulo: "Casos" },
+      { id: "entrega", rotulo: "Entrega da Fase 2" },
+    ],
+  },
+  { id: "fechamento", param: "fechamento", fase: null, rotulo: "Fechamento", abas: [{ id: "entregas", rotulo: "Entregas finais" }] },
+];
+/** Áreas comuns, fora das fases: o projeto inteiro. */
+export const ABAS_COMUNS = [
   { id: "tabela", rotulo: "Tabela" },
   { id: "visao", rotulo: "Visão geral" },
-  { id: "casos", rotulo: "Casos" },
-  { id: "impacto", rotulo: "Impacto nas obrigações" },
-  { id: "unificacoes", rotulo: "Unificações" },
+  { id: "impacto", rotulo: "Impacto no SPED" },
   { id: "versoes", rotulo: "Versões" },
 ];
+/** Aspectos das Diretrizes em cada fase: a Fase 1 padroniza o cadastro; a Fase 2 cuida da classificação fiscal. */
+export const ASPECTOS_DA_FASE = { fase1: ["NOMES", "ATRIBUTOS", "UNIDADES", "LIMITES"], fase2: ["FISCAL"] };
+
+export const areaPorId = (id) => AREAS.find((a) => a.id === id) || null;
+/** `?fase=1|2|fechamento` → id da área (fase1, fase2, fechamento); inválido = null. */
+export const areaDoParam = (valor) => AREAS.find((a) => a.param === valor || a.id === valor)?.id || null;
+export const paramDaArea = (id) => areaPorId(id)?.param || null;
+/** Abas da faixa de uma fase: as da fase e, depois, as comuns. */
+export const abasDaArea = (id) => [...(areaPorId(id)?.abas || []), ...ABAS_COMUNS];
+const ehComum = (aba) => ABAS_COMUNS.some((a) => a.id === aba);
+const temAba = (area, aba) => !!areaPorId(area)?.abas.some((a) => a.id === aba);
+
 /**
- * Aba pedida na URL; sem pedido (ou inválida), a Importação enquanto não há itens importados e a Tabela depois. `itens` = total importado
- * (desconhecido = Tabela). Nenhuma trava decide a aba: as atividades só valem para a Fase 2.
+ * Endereços antigos (`?aba=` da faixa única de nove abas) e atalhos internos (irPara, abrirCasos, abrirTabela, links das Diretrizes)
+ * → fase e aba de agora. Mapa:
+ *   configuracao, importacao → Fase 1 > Preparar        unificacoes, preparar → Fase 1        premissas → Fase 2 > Premissas
+ *   entregas → Fechamento > Entregas finais
+ *   diretrizes, analise, casos, entrega (abas das duas fases) → na fase da camada (`camada`, quando houver; Impacto no SPED está nas
+ *     duas e fica a aberta), senão na fase aberta, senão na Fase 1
+ *   tabela, visao, impacto, versoes → a área comum, na fase aberta (fase = null quando nenhuma está aberta)
+ * Aba desconhecida = null (a página usa a aba de partida da fase).
  */
-export function abaInicial(pedida, itens) {
-  if (ABAS.some((a) => a.id === pedida)) return pedida;
-  return itens != null && Number(itens) === 0 ? "importacao" : "tabela";
+export function destinoDaAba(aba, { fase = null, camada = null } = {}) {
+  if (!aba) return null;
+  const aberta = areaPorId(fase) ? fase : null;
+  if (ehComum(aba)) return { fase: aberta, aba };
+  if (aba === "configuracao" || aba === "importacao") return { fase: "fase1", aba: "preparar" };
+  const areas = AREAS.filter((a) => temAba(a.id, aba)).map((a) => a.id);
+  if (!areas.length) return null;
+  // A camada decide a fase (Impacto no SPED está nas duas: fica a aberta, se ela tiver a camada).
+  if (camada) {
+    const comCamada = areas.filter((a) => areaPorId(a).fase && FASES[areaPorId(a).fase].includes(camada));
+    if (comCamada.length) return { fase: comCamada.includes(aberta) ? aberta : comCamada[0], aba };
+  }
+  return { fase: areas.includes(aberta) ? aberta : areas[0], aba };
 }
+
+/**
+ * Fase em que o projeto abre: a que está em andamento. Fechamento só com a Fase 2 liberada; Fase 2 com a Fase 1 liberada; senão a Fase 1.
+ * `dadosFases` = resposta de GET fases (sem ela, a Fase 1).
+ */
+export function faseInicial(dadosFases) {
+  const lib = (f) => !!(dadosFases?.fases || []).find((x) => x.fase === f)?.liberada;
+  if (lib("FASE2")) return "fechamento";
+  if (lib("FASE1")) return "fase2";
+  return "fase1";
+}
+
+/**
+ * Aba de partida de cada fase. Fase 1: Preparar enquanto não há itens importados (`itens` = 0), senão Análise (itens desconhecidos = Análise).
+ * Fase 2: Premissas enquanto o bloqueio é o regime ou as atividades, senão Análise. Fechamento: Entregas finais.
+ */
+export function abaInicialDaFase(fase, { itens = null, bloqueio = null } = {}) {
+  if (fase === "fase1") return itens != null && Number(itens) === 0 ? "preparar" : "analise";
+  if (fase === "fase2") return bloqueio?.codigo === "REGIME_NAO_INFORMADO" || bloqueio?.codigo === "ATIVIDADES_NAO_CONFIRMADAS" ? "premissas" : "analise";
+  return "entregas";
+}
+
 /** Total de itens importados, pela visão geral (soma dos grupos). */
 export const itensDaVisao = (visao) => (visao ? (visao.grupos || []).reduce((s, g) => s + (Number(g.itens) || 0), 0) : null);
-/** Próxima aba por teclado (setas, Home, End), circular. */
-export function abaPorTecla(atual, tecla) {
-  const i = ABAS.findIndex((a) => a.id === atual);
-  if (tecla === "ArrowRight") return ABAS[(i + 1) % ABAS.length].id;
-  if (tecla === "ArrowLeft") return ABAS[(i - 1 + ABAS.length) % ABAS.length].id;
-  if (tecla === "Home") return ABAS[0].id;
-  if (tecla === "End") return ABAS[ABAS.length - 1].id;
+
+/** Próximo elemento de uma lista por teclado (setas, Home, End), circular. `lista` = ids na ordem da faixa. */
+export function proximoPorTecla(lista, atual, tecla) {
+  const i = lista.indexOf(atual);
+  if (tecla === "ArrowRight") return lista[(i + 1) % lista.length];
+  if (tecla === "ArrowLeft") return lista[(i - 1 + lista.length) % lista.length];
+  if (tecla === "Home") return lista[0];
+  if (tecla === "End") return lista[lista.length - 1];
   return null;
+}
+
+/**
+ * Andamento de uma fase pelas camadas dela (GET estado-camadas): uma camada está "em dia" quando já foi analisada e não tem caso em aberto
+ * nem aguardando informação. % = camadas em dia ÷ camadas da fase (as ativas do projeto; Impacto no SPED conta nas duas fases).
+ * Sem a resposta: null.
+ */
+export function andamentoDaFase(fase, estado, modulos) {
+  if (!estado) return null;
+  const camadas = camadasDaFase(fase, modulos);
+  if (!camadas.length) return null;
+  const porCamada = new Map((estado.camadas || []).map((l) => [l.camada, l]));
+  const emDia = camadas.filter((c) => { const l = porCamada.get(c); return l && l.executadaEm && !Number(l.abertos) && !Number(l.aguardando); }).length;
+  return Math.round((emDia / camadas.length) * 100);
+}
+
+/**
+ * Situação de cada passo do seletor de fases: `{ texto, tom, travada, detalhe }`.
+ * Fase 1: "Liberada" (há versão da Fase 1) ou "Em andamento · N%". Fase 2: "Bloqueada" com o motivo (cadeado), "Liberada" ou
+ * "Em andamento · N%". Fechamento: "Após as fases" até as duas estarem liberadas; depois, "Disponível" (nunca trava a consulta).
+ * `bloqueio2` = bloqueio da Fase 2 ({codigo, mensagem} | null), calculado por quem chama.
+ */
+export function situacaoDasFases({ fases: dadosFases, estado, modulos, bloqueio2 }) {
+  const lib = (f) => !!(dadosFases?.fases || []).find((x) => x.fase === f)?.liberada;
+  const andamento = (f) => { const p = andamentoDaFase(f, estado, modulos); return { texto: p == null ? "Em andamento" : `Em andamento · ${p}%`, tom: "alerta", travada: false, detalhe: null }; };
+  const liberada = { texto: "Liberada", tom: "ok", travada: false, detalhe: null };
+  return {
+    fase1: lib("FASE1") ? liberada : andamento("FASE1"),
+    fase2: bloqueio2 ? { texto: "Bloqueada", tom: "neutro", travada: true, detalhe: bloqueio2.mensagem } : lib("FASE2") ? liberada : andamento("FASE2"),
+    fechamento: lib("FASE1") && lib("FASE2") ? { texto: "Disponível", tom: "ok", travada: false, detalhe: null } : { texto: "Após as fases", tom: "neutro", travada: false, detalhe: null },
+  };
+}
+
+/** Caminho legível de uma aba, para avisos e manual: "Fase 1 > Casos", ou só "Tabela" para as áreas comuns. */
+export function caminhoDaAba(fase, aba) {
+  const comum = ABAS_COMUNS.find((a) => a.id === aba);
+  if (comum) return comum.rotulo;
+  const area = areaPorId(fase);
+  const r = area?.abas.find((a) => a.id === aba)?.rotulo;
+  return area && r ? `${area.rotulo.split(" · ")[0]} > ${r}` : r || "";
 }
 
 /**
@@ -1054,7 +1170,7 @@ export function avisoDeOutrosGrupos(dados, grupoDoRecorte) {
 export const REGRA_FINALIDADE = [
   "Item que já tem finalidade (informada na base ou aprovada num caso) fica com ela.",
   "Sem finalidade, o sistema lê o grupo e a descrição, nesta ordem: material de terceiros ou consignado → Material de terceiros; grupo de manutenção, peças de reposição ou oficina (e peças pelo nome, como rolamento, retentor, correia, filtro de óleo) → Manutenção; embalagens e sacarias → Embalagem; EPI, uniforme, limpeza, escritório, refeitório, informática e bens de pequeno valor → Uso e consumo; máquinas, veículos, implementos e equipamentos → Imobilizado; matéria-prima → Matéria-prima.",
-  "Insumo agropecuário (defensivo, adubo, fertilizante, semente, inoculante, ração, sal mineral, vacina, medicamento veterinário) depende das atividades (CNAE) confirmadas na Configuração, em Premissas da Fase 2: só produção → Insumo de produção; só revenda ou comércio → Revenda; produção e revenda juntas → sugestão de confiança baixa, a confirmar. Sem atividade confirmada, não há sugestão.",
+  "Insumo agropecuário (defensivo, adubo, fertilizante, semente, inoculante, ração, sal mineral, vacina, medicamento veterinário) depende das atividades (CNAE) confirmadas em Fase 2 > Premissas: só produção → Insumo de produção; só revenda ou comércio → Revenda; produção e revenda juntas → sugestão de confiança baixa, a confirmar. Sem atividade confirmada, não há sugestão.",
   "Combustível e lubrificante (diesel, gasolina, Arla, graxa, óleo de motor) → Insumo de produção quando o cliente produz, transporta ou industrializa; nos demais casos, sem sugestão.",
   "Grupos ambíguos (serviços, taxas, diversos, outros, plantel ou rebanho, produção) ficam sem sugestão: a finalidade se confirma com o cliente. Materiais de construção, lonas e beneficiamento recebem sugestão de confiança baixa, com alternativas.",
   "A finalidade do grupo é a mais frequente entre os itens do grupo (caso \"Confirmar a finalidade do grupo\"). O item que a regra manda para outra finalidade vira caso de exceção, que exige o motivo escrito para aprovar.",

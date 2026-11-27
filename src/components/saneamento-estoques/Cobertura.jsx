@@ -66,11 +66,12 @@ export const faseDaExecucao = (ex) => (ex?.camadas?.length ? LISTA_FASES.find((f
 const COR_FASE = { FASE1: "border-l-teal-600", FASE2: "border-l-violet-600" };
 
 /**
- * Cobertura, acima de todas as abas, agrupada por fase: "Fase 1 · Saneamento de estoques" e "Fase 2 · Tributário e Reforma". Em cada fase,
+ * Cobertura das camadas, agrupada por fase: "Fase 1 · Saneamento de estoques" e "Fase 2 · Tributário e Reforma". Em cada fase,
  * um quadro por camada com o que falta (casos em aberto e aguardando, desatualizada) e o botão de analisar a camada, e "Analisar a fase (na
  * ordem)". A Fase 2 mostra o bloqueio (Fase 1 não liberada, regime ou atividades) com o atalho para resolver, e fica sem botões até lá.
+ * Com `fase` (aba Análise de cada fase): só o bloco daquela fase, sem o aviso do bloqueio (a página já o mostra no alto da fase).
  */
-export default function Cobertura({ projeto, aoIrPara }) {
+export default function Cobertura({ projeto, aoIrPara, fase: soFase = null }) {
   const qc = useQueryClient();
   const { pode, razao } = usePodeAlterar();
   const ativas = camadasAtivas(projeto.modulos);
@@ -108,7 +109,7 @@ export default function Cobertura({ projeto, aoIrPara }) {
   const porCamada = new Map((estado.data?.camadas || []).map((l) => [l.camada, l]));
   const analisar = (lista) => { setErroInicio(null); iniciar.mutate(lista); };
 
-  const blocos = LISTA_FASES.map((fase) => {
+  const blocos = LISTA_FASES.filter((f) => !soFase || f === soFase).map((fase) => {
     const camadas = FASES[fase].filter((c) => ativas.includes(c));
     const cobertura = coberturaDeCamadas(camadas, disponiveis.data, visao.data);
     return { fase, cobertura, ordem: ordemDeAnalise(cobertura), bloqueio: bloqueioDaFase(fase, fases.data, { carregando: fases.isPending }) };
@@ -133,8 +134,8 @@ export default function Cobertura({ projeto, aoIrPara }) {
                     <Play className="h-3.5 w-3.5" aria-hidden="true" />{faseRodando === fase && progresso ? `Analisando ${progresso.atual} de ${progresso.total}…` : "Analisar a fase (na ordem)"}
                   </button>
                 </div>
-                {bloqueio && (
-                  <Aviso tom="bloqueio" titulo={bloqueio.codigo ? "Fase 2 ainda não liberada" : undefined}acao={acao && aoIrPara ? <button type="button" className={botaoSecundario} onClick={() => aoIrPara(acao.aba)}>{acao.rotulo}</button> : null}>
+                {bloqueio && !soFase && (
+                  <Aviso tom="bloqueio" titulo={bloqueio.codigo ? "Fase 2 ainda não liberada" : undefined}acao={acao && aoIrPara ? <button type="button" className={botaoSecundario} onClick={() => aoIrPara(acao)}>{acao.rotulo}</button> : null}>
                     {bloqueio.mensagem}
                   </Aviso>
                 )}

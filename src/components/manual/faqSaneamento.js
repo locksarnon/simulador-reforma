@@ -1,6 +1,6 @@
 /**
  * FAQ do Saneamento de Estoques e Cadastro de Produtos (serviço da Consultoria Tributária) e do botão Analisar com IA.
- * Os textos de abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-20 e, na Administração, POP-ADM-26 (Biblioteca de diretrizes).
+ * Os textos de fases, abas, botões e situações são os reais das telas. Passo a passo: POP-CON-09 a POP-CON-20 e, na Administração, POP-ADM-26 (Biblioteca de diretrizes).
  */
 export const SECAO_SANEAMENTO = {
   titulo: "Saneamento de estoques e cadastro de produtos (consultoria)",
@@ -8,7 +8,7 @@ export const SECAO_SANEAMENTO = {
   itens: [
     {
       p: "O que são as Diretrizes do saneamento?",
-      r: "São as regras do cliente, por aspecto e por grupo, que comandam as análises e, aprovadas, formam a política de cadastro e estoques. Ficam na aba Diretrizes, entre a Importação e as análises, e podem ser abertas a qualquer momento (antes da importação, só para Todos os grupos). São 5 aspectos, cada regra com um código: Padrão de nomes (N01…), Atributos técnicos (A01…), Unidades e embalagens (U01…), Limites de caracteres (L01…) e Classificação fiscal (F01…). Cada grupo tem no máximo uma regra por aspecto: Todos os grupos é o padrão, e a regra de um grupo é a exceção. O quadro Grupos sem regra mostra o que falta (POP-CON-19).",
+      r: "São as regras do cliente, por aspecto e por grupo, que comandam as análises e, aprovadas, formam a política de cadastro e estoques. Ficam na aba Diretrizes de cada fase (Fase 1 > Diretrizes, com nomes, atributos, unidades e limites; Fase 2 > Diretrizes, com a classificação fiscal) e podem ser abertas a qualquer momento (antes da importação, só para Todos os grupos). São 5 aspectos, cada regra com um código: Padrão de nomes (N01…), Atributos técnicos (A01…), Unidades e embalagens (U01…), Limites de caracteres (L01…) e Classificação fiscal (F01…). Cada grupo tem no máximo uma regra por aspecto: Todos os grupos é o padrão, e a regra de um grupo é a exceção. O quadro Grupos sem regra mostra o que falta (POP-CON-19).",
     },
     {
       p: "Aplicar uma regra muda o cadastro na hora?",
@@ -28,11 +28,11 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Onde baixo a política de cadastro e estoques?",
-      r: "No botão Política (PDF), na aba Diretrizes e na aba Versões. Sem versão, sai a política de agora, marcada Rascunho enquanto houver regra não aprovada; na linha de uma versão liberada, sai a política daquela versão, sempre igual. A política traz a identificação, as regras por aspecto com o código e os grupos, os procedimentos com fluxograma, os controles internos, a seção fiscal, o quadro de consulta por grupo e as pendências (regras não aprovadas e grupos sem regra) em seção própria.",
+      r: "No botão Política (PDF), nas Diretrizes, no quadro Para revisão da Entrega da Fase 1 (ou da Fase 2) e na linha de cada versão liberada, em Fechamento > Entregas finais. Sem versão, sai a política de agora, marcada Rascunho enquanto houver regra não aprovada; na linha de uma versão liberada, sai a política daquela versão, sempre igual. A política traz a identificação, as regras por aspecto com o código e os grupos, os procedimentos com fluxograma, os controles internos, a seção fiscal, o quadro de consulta por grupo e as pendências (regras não aprovadas e grupos sem regra) em seção própria.",
     },
     {
       p: "O que muda no saneamento quando o ERP do cliente tem perfil no Cadastro de ERPs?",
-      r: "O projeto abre com o ERP do cadastro do cliente (dá para trocar na Configuração, só para este trabalho). Com o perfil do ERP: a Importação mostra as consultas de extração com o botão Copiar e já reconhece as colunas do export (no SAP Business One, o NCM vem de ONCM.NcmCode pelo JOIN, nunca da chave interna OITM.NCMCode); o detalhe do caso e a aba Impacto nas obrigações mostram as restrições do ERP para o tipo de ajuste, com grau e fonte; a coluna Ação no ERP das Unificações e do Excel usa o procedimento do ERP (no SAP Business One, a unificação é saída de mercadoria OIGE do código que sai, entrada OIGN no que fica e inativação do que sai); e o relatório PDF traz a seção “Particularidades do ERP (nome)”. ERP com perfil a desenvolver ou Outro ERP (sem perfil) usa só as regras gerais, sem alertas específicos.",
+      r: "O projeto abre com o ERP do cadastro do cliente (dá para trocar em Fase 1 > Preparar, só para este trabalho). Com o perfil do ERP: a importação mostra as consultas de extração com o botão Copiar e já reconhece as colunas do export (no SAP Business One, o NCM vem de ONCM.NcmCode pelo JOIN, nunca da chave interna OITM.NCMCode); o detalhe do caso e o Impacto no SPED mostram as restrições do ERP para o tipo de ajuste, com grau e fonte; a coluna Ação no ERP das Unificações e do Excel usa o procedimento do ERP (no SAP Business One, a unificação é saída de mercadoria OIGE do código que sai, entrada OIGN no que fica e inativação do que sai); e o relatório PDF traz a seção “Particularidades do ERP (nome)”. ERP com perfil a desenvolver ou Outro ERP (sem perfil) usa só as regras gerais, sem alertas específicos.",
     },
     {
       p: "As tabelas de Casos e de Unificações funcionam como a aba Tabela?",
@@ -40,15 +40,15 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Como sei quais códigos vão deixar de existir e para onde vai o saldo de cada um?",
-      r: "Na aba Unificações, em três listas: Unificações (abre nela), Inativações e Equivalências, cada uma com as colunas que usa. Em Unificações, cada linha é um código que sai: a descrição, a unidade e o saldo dele; o código que fica, com o saldo atual; o saldo que entra e o saldo consolidado; a situação (Proposta ou Aprovada); a ação no ERP (por exemplo, “Transferir o saldo de Y para X e inativar Y”; sem saldo no código que sai, só “Inativar o código que sai”); o início da vigência e a justificativa. Em Inativações ficam os códigos só inativados, com a origem (sem movimentação ou duplicidade); em Equivalências, os códigos relacionados que continuam ativos. Quando as unidades são diferentes sem fator de conversão aprovado (ou o fator não diz de qual unidade para qual), ou falta saldo na base, a coluna Alerta de coerência avisa e o saldo não é somado. Base com saldo multiplicado por 1.000.000 aparece já dividida. Filtre por situação e código e clique em Baixar listas (Excel) para mandar a quem faz os ajustes: uma aba por lista e a aba Conflitos. A mesma informação sai na aba De para e equivalências do Excel da entrega; na versão liberada, só o aprovado (POP-CON-18).",
+      r: "Em Fase 1 > Unificações, em três listas: Unificações (abre nela), Inativações e Equivalências, cada uma com as colunas que usa. Em Unificações, cada linha é um código que sai: a descrição, a unidade e o saldo dele; o código que fica, com o saldo atual; o saldo que entra e o saldo consolidado; a situação (Proposta ou Aprovada); a ação no ERP (por exemplo, “Transferir o saldo de Y para X e inativar Y”; sem saldo no código que sai, só “Inativar o código que sai”); o início da vigência e a justificativa. Em Inativações ficam os códigos só inativados, com a origem (sem movimentação ou duplicidade); em Equivalências, os códigos relacionados que continuam ativos. Quando as unidades são diferentes sem fator de conversão aprovado (ou o fator não diz de qual unidade para qual), ou falta saldo na base, a coluna Alerta de coerência avisa e o saldo não é somado. Base com saldo multiplicado por 1.000.000 aparece já dividida. Filtre por situação e código e clique em Baixar listas (Excel) para mandar a quem faz os ajustes: uma aba por lista e a aba Conflitos. A mesma informação sai na aba De para e equivalências do Excel da entrega; na versão liberada, só o aprovado (POP-CON-18).",
     },
     {
-      p: "O que é o quadro vermelho de conflitos na aba Unificações?",
+      p: "O que é o quadro vermelho de conflitos em Fase 1 > Unificações?",
       r: "É o par unificação × inativação que não pode seguir assim: o código que fica numa unificação também tem inativação (proposta ou aprovada) ou já está inativo no cadastro. O quadro mostra cada par, por exemplo “200 → 100 (unificação proposta) × inativação aprovada de 100, sem movimentação”. Rejeite ou reabra um dos dois casos antes de ajustar o ERP. A tela mostra até 20 pares; o Excel das listas traz todos na aba Conflitos (POP-CON-18).",
     },
     {
       p: "O sistema aponta itens sem movimentação há muito tempo para limpar a base?",
-      r: "Sim, na camada Qualidade, se a importação trouxer a coluna da última movimentação e o Corte de movimentação estiver informado na Configuração. Item ativo (ou de situação não informada) cuja última movimentação é anterior ao corte entra num caso por grupo. Sem saldo, o caso propõe inativar; aprovar inativa os itens, eles entram na aba Unificações com a ação “Inativar” e o checklist do SPED ganha o ajuste “Inativou código”, só com o 0200 (o código deixa de ser apresentado quando não for referenciado nos demais blocos e não pode ser reutilizado) e o H010 (código inativado não pode ter saldo no inventário). Os registros de troca de código (0205, 0221 e C170) ficam só na consolidação (unificação). Com saldo, o caso não propõe inativar: pede regularizar o saldo antes. O código que fica numa unificação não é proposto; se a Qualidade rodou antes, propor ou aprovar a unificação marca a Qualidade como “revisar” e a aba Unificações mostra o conflito. Sem o corte, o critério não é aplicado, e a Cobertura e o relatório dizem isso.",
+      r: "Sim, na camada Qualidade, se a importação trouxer a coluna da última movimentação e o Corte de movimentação estiver informado em Fase 1 > Preparar. Item ativo (ou de situação não informada) cuja última movimentação é anterior ao corte entra num caso por grupo. Sem saldo, o caso propõe inativar; aprovar inativa os itens, eles entram em Fase 1 > Unificações com a ação “Inativar” e o checklist do SPED ganha o ajuste “Inativou código”, só com o 0200 (o código deixa de ser apresentado quando não for referenciado nos demais blocos e não pode ser reutilizado) e o H010 (código inativado não pode ter saldo no inventário). Os registros de troca de código (0205, 0221 e C170) ficam só na consolidação (unificação). Com saldo, o caso não propõe inativar: pede regularizar o saldo antes. O código que fica numa unificação não é proposto; se a Qualidade rodou antes, propor ou aprovar a unificação marca a Qualidade como “revisar” e Unificações mostra o conflito. Sem o corte, o critério não é aplicado, e a Cobertura das camadas (aba Análise) e o relatório dizem isso.",
     },
     {
       p: "O que é a finalidade e o enquadramento legal de um item?",
@@ -64,23 +64,27 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Como o sistema sugere a finalidade de cada grupo na camada Finalidade?",
-      r: "A finalidade é da Fase 2 (Tributário e Reforma): sai da camada Grupos, que na Fase 1 só organiza a estrutura de grupos. O sistema lê o nome do grupo e do item (no singular ou no plural) e as atividades confirmadas nas Premissas da Fase 2. Fertilizantes, corretivos, defensivos, sementes, mudas e nutrição, vacinas e medicamentos da pecuária são insumo agropecuário: Insumo de produção para quem produz, Revenda para quem revende insumos. Combustíveis e lubrificantes são Insumo de produção quando o cliente tem atividade que os consome. Peças, filtros, pneus, parafusos, ferramentas e materiais de oficina vão para Manutenção; EPI, uniformes, limpeza, copa, expediente, informática e medicamentos de saúde ocupacional, para Uso e consumo. Grupos que dependem do uso (materiais de construção, lonas e plásticos, beneficiamento ou industrialização) recebem sugestão de confiança baixa com as alternativas no caso. Plantel, Produção, serviços, taxas e grupos genéricos ficam sem sugestão, com o motivo, e vão para confirmar com o cliente: o sistema nunca inventa a finalidade. Na aba Tabela, a finalidade proposta aparece como “sugerida” até o caso ser aprovado em Casos, e o botão “i” no título da coluna Finalidade mostra esta regra.",
+      r: "A finalidade é da Fase 2 (Tributário e Reforma): sai da camada Grupos, que na Fase 1 só organiza a estrutura de grupos. O sistema lê o nome do grupo e do item (no singular ou no plural) e as atividades confirmadas em Fase 2 > Premissas. Fertilizantes, corretivos, defensivos, sementes, mudas e nutrição, vacinas e medicamentos da pecuária são insumo agropecuário: Insumo de produção para quem produz, Revenda para quem revende insumos. Combustíveis e lubrificantes são Insumo de produção quando o cliente tem atividade que os consome. Peças, filtros, pneus, parafusos, ferramentas e materiais de oficina vão para Manutenção; EPI, uniformes, limpeza, copa, expediente, informática e medicamentos de saúde ocupacional, para Uso e consumo. Grupos que dependem do uso (materiais de construção, lonas e plásticos, beneficiamento ou industrialização) recebem sugestão de confiança baixa com as alternativas no caso. Plantel, Produção, serviços, taxas e grupos genéricos ficam sem sugestão, com o motivo, e vão para confirmar com o cliente: o sistema nunca inventa a finalidade. Na aba Tabela, a finalidade proposta aparece como “sugerida” até o caso ser aprovado em Casos, e o botão “i” no título da coluna Finalidade mostra esta regra.",
     },
     {
       p: "Por que preciso confirmar as atividades do cliente?",
-      r: "Porque a finalidade e o tratamento tributário, que são da Fase 2, dependem do que o cliente realmente faz. As atividades vêm do CNAE principal e dos secundários do CNPJ; na Configuração, em Premissas da Fase 2, você mantém as que valem, exclui as outras e acrescenta as que faltam. A importação e toda a Fase 1 seguem sem essa confirmação. Enquanto não clicar em Confirmo as atividades, só as análises da Fase 2 ficam bloqueadas. Reabrir para alterar bloqueia de novo a Fase 2 e marca como “revisar” o que já tinha sido trabalhado, sem apagar nenhuma decisão.",
+      r: "Porque a finalidade e o tratamento tributário, que são da Fase 2, dependem do que o cliente realmente faz. As atividades vêm do CNAE principal e dos secundários do CNPJ; em Fase 2 > Premissas, você mantém as que valem, exclui as outras e acrescenta as que faltam. A importação e toda a Fase 1 seguem sem essa confirmação. Enquanto não clicar em Confirmo as atividades, só as análises da Fase 2 ficam bloqueadas. Reabrir para alterar bloqueia de novo a Fase 2 e marca como “revisar” o que já tinha sido trabalhado, sem apagar nenhuma decisão.",
     },
     {
       p: "O que falta para começar a Fase 2 (Tributário e Reforma)?",
-      r: "Três passos, nesta ordem: liberar uma versão da Fase 1 (Cadastro saneado) na aba Versões; informar o regime do cliente no IBS e na CBS; e confirmar as atividades do cliente. Os dois últimos ficam na aba Configuração, em Premissas da Fase 2. Na Cobertura das camadas, o bloco da Fase 2 mostra o aviso “Fase 2 ainda não liberada” com o que falta e um botão que leva à aba certa; até lá, os botões da Fase 2 ficam apagados. A Fase 1 nunca fica bloqueada (POP-CON-09 e POP-CON-10).",
+      r: "Três passos, nesta ordem: liberar uma versão da Fase 1 (Cadastro saneado) em Fase 1 > Entrega da Fase 1; informar o regime do cliente no IBS e na CBS; e confirmar as atividades do cliente. Os dois últimos ficam em Fase 2 > Premissas. No alto da página, a Fase 2 aparece com um cadeado e “Bloqueada”; ao abri-la, o aviso “Fase 2 ainda não liberada” diz o que falta e tem um botão que leva ao lugar certo (Ir para a Entrega da Fase 1 ou Ir para as Premissas). Dá para consultar as abas da Fase 2 nesse meio-tempo, mas os botões de análise dela ficam apagados; as Premissas seguem editáveis. A Fase 1 nunca fica bloqueada (POP-CON-09 e POP-CON-10).",
+    },
+    {
+      p: "Como a página do saneamento está organizada?",
+      r: "Em três fases, no alto: Fase 1 · Saneamento, Fase 2 · Tributário e Fechamento, cada uma com a sua situação (andamento em percentual, Liberada, Bloqueada ou Após as fases). Cada fase tem as suas abas: Fase 1, Preparar, Diretrizes, Análise, Casos, Unificações e Entrega da Fase 1; Fase 2, Premissas, Diretrizes, Análise, Casos e Entrega da Fase 2; Fechamento, Entregas finais. À direita das abas, em qualquer fase, ficam Tabela, Visão geral, Impacto no SPED e Versões, que mostram o projeto inteiro. O projeto abre na fase em andamento (POP-CON-09).",
     },
     {
       p: "Como fica a Cobertura das camadas agora que o trabalho é em fases?",
-      r: "Ela mostra dois blocos. Fase 1 · Saneamento de estoques: Identificação, Qualidade, Duplicidades, Grupos, Nomes e unidades, Validar NCM e Impacto no SPED. Fase 2 · Tributário e Reforma: Finalidade, Classificação NCM (reclassificação: NCM incompatível com a descrição, informação insuficiente ou diferente entre itens iguais), Tratamento tributário e Impacto no SPED. Cada bloco tem o botão Analisar a fase (na ordem) e cada camada o seu botão Analisar. Impacto no SPED aparece nas duas fases porque roda no fim de cada uma.",
+      r: "Ela fica na aba Análise de cada fase e mostra só as camadas daquela fase. Fase 1 · Saneamento de estoques: Identificação, Qualidade, Duplicidades, Grupos, Nomes e unidades, Validar NCM e Impacto no SPED. Fase 2 · Tributário e Reforma: Finalidade, Classificação NCM (reclassificação: NCM incompatível com a descrição, informação insuficiente ou diferente entre itens iguais), Tratamento tributário e Impacto no SPED. Cada fase tem o botão Analisar a fase (na ordem) e cada camada o seu botão Analisar. Impacto no SPED aparece nas duas fases porque roda no fim de cada uma.",
     },
     {
       p: "Qual a diferença entre exportação para revisão e entrega liberada?",
-      r: "A exportação para revisão (quadro Para revisão, na aba Versões) é a base de agora, com o que ainda está proposto ou pendente marcado no Excel; serve para conferir o trabalho e não vai ao cliente. A entrega liberada vem de uma versão liberada: é uma foto da base que não muda depois e leva só os dados aprovados, informando o que ficou de fora e as pendências.",
+      r: "A exportação para revisão (quadro Para revisão, na Entrega da Fase 1 ou da Fase 2) é a base de agora, com o que ainda está proposto ou pendente marcado no Excel; serve para conferir o trabalho e não vai ao cliente. A entrega liberada vem de uma versão liberada: é uma foto da base que não muda depois e leva só os dados aprovados, informando o que ficou de fora e as pendências.",
     },
     {
       p: "O que significa a marca “revisar”?",
@@ -104,7 +108,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Como decido milhares de casos de uma vez, inclusive os que não têm proposta?",
-      r: "Na aba Casos, filtre (por exemplo, Tipo “NCM inexistente”), não marque nada e clique em Decidir em lote…: o lote vale para todos os casos em aberto do filtro, não só os carregados na tela. Escolha Aprovar, Pedir informação ou Rejeitar, escreva o texto comum (obrigatório para pedir informação e rejeitar), veja a prévia e confirme. O InTAX decide em rodadas de até 2.000 casos sozinho, mostrando o progresso; se algum caso ficar para depois, a tela diz quantos e oferece Continuar. As exceções aparecem com o código e a descrição do item (POP-CON-14).",
+      r: "Na aba Casos da fase, escolha a camada e filtre (por exemplo, Tipo “NCM inexistente”), não marque nada e clique em Decidir em lote…: o lote vale para todos os casos em aberto do filtro, não só os carregados na tela. Escolha Aprovar, Pedir informação ou Rejeitar, escreva o texto comum (obrigatório para pedir informação e rejeitar), veja a prévia e confirme. O InTAX decide em rodadas de até 2.000 casos sozinho, mostrando o progresso; se algum caso ficar para depois, a tela diz quantos e oferece Continuar. As exceções aparecem com o código e a descrição do item. Com “Todas da fase” no filtro de camada, o lote vale só para as linhas marcadas (POP-CON-14).",
     },
     {
       p: "Por que a aba Casos mostra grupos em vez de um caso por linha?",
@@ -112,7 +116,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Como decidir os casos no Excel?",
-      r: "Na aba Casos, escolha a Camada, clique em Planilha de decisão e em Baixar planilha da camada. Em cada linha (um caso), escolha a Decisão na lista (Aprovar, Rejeitar ou Pedir informação), escreva o Motivo quando for rejeitar, pedir informação ou aprovar exceção, e use Valor corrigido só se discordar da proposta, no campo indicado (NCM, descrição ou unidade). As outras colunas ficam travadas. Depois, em Planilha de decisão > Reimportar, veja a prévia: ela conta o que será feito e lista as linhas recusadas com o motivo (por exemplo, caso que mudou depois que a planilha foi baixada ou NCM que não existe). Só então clique em Aplicar as decisões. Cada decisão fica no histórico com quem, quando e a marca do arquivo; reimportar o mesmo arquivo não decide de novo (POP-CON-14).",
+      r: "Na aba Casos da fase, escolha a Camada, clique em Planilha de decisão e em Baixar planilha da camada. Em cada linha (um caso), escolha a Decisão na lista (Aprovar, Rejeitar ou Pedir informação), escreva o Motivo quando for rejeitar, pedir informação ou aprovar exceção, e use Valor corrigido só se discordar da proposta, no campo indicado (NCM, descrição ou unidade). As outras colunas ficam travadas. Depois, em Planilha de decisão > Reimportar, veja a prévia: ela conta o que será feito e lista as linhas recusadas com o motivo (por exemplo, caso que mudou depois que a planilha foi baixada ou NCM que não existe). Só então clique em Aplicar as decisões. Cada decisão fica no histórico com quem, quando e a marca do arquivo; reimportar o mesmo arquivo não decide de novo (POP-CON-14).",
     },
     {
       p: "O caso de NCM inexistente não traz proposta. Como corrijo o NCM?",
@@ -136,7 +140,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Como marco que um ajuste já foi feito no ERP?",
-      r: "Na aba Unificações, na coluna Executado no ERP (logo depois da Ação no ERP), marque a caixa da linha. Só a linha aprovada tem a caixa; a proposta mostra um traço. Ficam registrados a data, a hora e quem marcou, e acima da tabela aparece “X de Y ações executadas no ERP”, contando a lista inteira. Desmarque se marcou por engano. O Excel das listas e o Excel da entrega trazem as colunas Executado no ERP, Executado em e Executado por (POP-CON-18).",
+      r: "Em Fase 1 > Unificações, na coluna Executado no ERP (logo depois da Ação no ERP), marque a caixa da linha. Só a linha aprovada tem a caixa; a proposta mostra um traço. Ficam registrados a data, a hora e quem marcou, e acima da tabela aparece “X de Y ações executadas no ERP”, contando a lista inteira. Desmarque se marcou por engano. O Excel das listas e o Excel da entrega trazem as colunas Executado no ERP, Executado em e Executado por (POP-CON-18).",
     },
     {
       p: "O que o Excel e o relatório em PDF trazem?",
@@ -148,11 +152,11 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Quando o impacto no SPED é “escrituração já entregue”?",
-      r: "Quando o início do ajuste (a data-base do projeto) cai na Última competência de escrituração já entregue, informada na aba Configuração, ou antes dela. Sem essa competência, o Excel e o relatório dizem “não avaliado (competência entregue não informada)”, e não “nenhuma linha”. A retificação e a transmissão continuam fora do serviço.",
+      r: "Quando o início do ajuste (a data-base do projeto) cai na Última competência de escrituração já entregue, informada em Fase 1 > Preparar, ou antes dela. Sem essa competência, o Excel e o relatório dizem “não avaliado (competência entregue não informada)”, e não “nenhuma linha”. A retificação e a transmissão continuam fora do serviço.",
     },
     {
       p: "Dá para voltar a base de trabalho a uma versão liberada e continuar dali?",
-      r: "Sim. Na aba Versões, clique em Continuar a partir desta versão na linha da versão. A Prévia mostra quantos itens e campos voltam aos valores dela, quantos casos aprovados depois voltam a proposto e quais camadas ficam marcadas “revisar”. Com a Justificativa preenchida (ao menos 10 caracteres), clique em Restaurar e continuar. Nada é apagado: cada campo grava uma decisão no histórico do item; o caso aprovado depois cujo valor deixa de valer volta a proposto (com a célula e o impacto no SPED), e dá para aprovar de novo ou rejeitar; itens importados depois da versão ficam como estão. Para voltar atrás, use Desfazer restauração, embaixo do rótulo da versão: os valores e os casos aprovados voltam. Se outra pessoa alterar a base depois da prévia, a restauração é recusada e é preciso refazer a prévia.",
+      r: "Sim. Em Versões (à direita das abas), clique em Continuar a partir desta versão na linha da versão. A Prévia mostra quantos itens e campos voltam aos valores dela, quantos casos aprovados depois voltam a proposto e quais camadas ficam marcadas “revisar”. Com a Justificativa preenchida (ao menos 10 caracteres), clique em Restaurar e continuar. Nada é apagado: cada campo grava uma decisão no histórico do item; o caso aprovado depois cujo valor deixa de valer volta a proposto (com a célula e o impacto no SPED), e dá para aprovar de novo ou rejeitar; itens importados depois da versão ficam como estão. Para voltar atrás, use Desfazer restauração, embaixo do rótulo da versão: os valores e os casos aprovados voltam. Se outra pessoa alterar a base depois da prévia, a restauração é recusada e é preciso refazer a prévia.",
     },
     {
       p: "Como sei o que vai na versão liberada antes de liberar?",
@@ -172,7 +176,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Onde ficam os módulos opcionais (Conciliação de estoque, Blocos K e G do SPED, Arquivo para o ERP)?",
-      r: "Ainda não estão disponíveis nesta versão do serviço, por isso não aparecem na Configuração. Quando existirem, aparecem lá para ligar.",
+      r: "Ainda não estão disponíveis nesta versão do serviço, por isso não aparecem em Fase 1 > Preparar. Quando existirem, aparecem lá para ligar.",
     },
     {
       p: "A prévia avisa “Saldos muito altos”. O que fazer?",
