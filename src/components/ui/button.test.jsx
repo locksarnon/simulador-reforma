@@ -22,9 +22,9 @@ describe("Button: contorno verde com relevo nos botões de ação", () => {
     expect(classe({ variant: "link" })).not.toContain("botao-acao");
   });
 
-  it("a classe está definida no CSS com borda de 2px e respeita movimento reduzido", () => {
+  it("a classe está definida no CSS com borda fina (1,5px) e respeita movimento reduzido", () => {
     const css = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../index.css"), "utf8");
-    expect(css).toMatch(/\.botao-acao \{[^}]*border-width: 2px/);
+    expect(css).toMatch(/\.botao-acao \{[^}]*border-width: 1.5px/);
     expect(css).toMatch(/prefers-reduced-motion: reduce\)[^@]*\.botao-acao:hover/);
   });
 });

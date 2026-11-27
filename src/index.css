@@ -206,15 +206,21 @@ select[class~="border-border"] {
   --botao-perigo-borda: 0 72% 55%;
   --botao-perigo-relevo: 0 63% 26%;
 }
+/* Relevo "tecnológico": contorno verde fino e nítido, brilho no topo (luz de cima), sombra difusa em camadas;
+   ao passar o mouse sobe 1px com halo verde suave; ao clicar afunda com sombra interna. */
 .botao-acao {
   --botao-cor-borda: var(--botao-borda);
   --botao-cor-relevo: var(--botao-relevo);
-  border-width: 2px;
+  border-width: 1.5px;
   border-style: solid;
-  border-color: hsl(var(--botao-cor-borda));
-  box-shadow: 0 2px 0 0 hsl(var(--botao-cor-relevo)), 0 3px 6px -2px rgb(0 0 0 / .15);
-  transition: transform 120ms ease-out, box-shadow 120ms ease-out, background-color 120ms ease-out,
-    color 120ms ease-out, border-color 120ms ease-out, opacity 120ms ease-out;
+  border-color: hsl(var(--botao-cor-borda) / .85);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / .16) 0%, rgb(255 255 255 / 0) 55%, rgb(0 0 0 / .04) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / .35),
+    0 1px 2px rgb(0 0 0 / .08),
+    0 2px 6px -1px hsl(var(--botao-cor-relevo) / .18);
+  transition: transform 160ms cubic-bezier(.2, .8, .2, 1), box-shadow 160ms ease-out, background-color 160ms ease-out,
+    color 160ms ease-out, border-color 160ms ease-out, opacity 160ms ease-out;
 }
 .botao-acao.botao-acao-perigo {
   --botao-cor-borda: var(--botao-perigo-borda);
@@ -222,15 +228,29 @@ select[class~="border-border"] {
 }
 .botao-acao:hover {
   transform: translateY(-1px);
-  box-shadow: 0 3px 0 0 hsl(var(--botao-cor-relevo)), 0 5px 10px -3px rgb(0 0 0 / .22);
+  border-color: hsl(var(--botao-cor-borda));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / .45),
+    0 0 0 3px hsl(var(--botao-cor-borda) / .12),
+    0 4px 12px -2px hsl(var(--botao-cor-relevo) / .28),
+    0 2px 4px rgb(0 0 0 / .08);
 }
 .botao-acao:active {
-  transform: translateY(1px);
-  box-shadow: 0 1px 0 0 hsl(var(--botao-cor-relevo)), 0 1px 2px -1px rgb(0 0 0 / .15);
+  transform: translateY(0.5px);
+  box-shadow:
+    inset 0 2px 4px rgb(0 0 0 / .16),
+    0 0 0 2px hsl(var(--botao-cor-borda) / .10);
 }
 .botao-acao:focus-visible {
   outline: none;
-  box-shadow: 0 2px 0 0 hsl(var(--botao-cor-relevo)), 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / .35),
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--ring));
+}
+.dark .botao-acao:not(:hover):not(:active):not(:focus-visible) {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / .08) 0%, rgb(255 255 255 / 0) 60%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .10), 0 1px 2px rgb(0 0 0 / .4), 0 2px 8px -2px hsl(var(--botao-cor-borda) / .25);
 }
 .botao-acao:disabled,
 .botao-acao[aria-disabled="true"],
