@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle2, History, Play, Save } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import { atualizarTudo, chaves, san } from "../api";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls, MarcaRevisar, Rotulo, Tag, usePodeAlterar } from "../comuns";
+import { Aviso, botaoPrimario, botaoSecundario, campoCls, MarcaRevisar, Rotulo, rotuloCls, SecaoForm, Tag, usePodeAlterar } from "../comuns";
 import { ehConflitoVersao, fmtDataHora } from "../logica";
 import { BlocoDoAspecto, ExemplosReais, SeletorMultiplo } from "./Blocos";
 import {
@@ -39,8 +39,8 @@ export function PreviaAplicar({ previa, aoConfirmar, aoCancelar, ocupado }) {
       <h3 className="text-sm font-semibold">Antes de aplicar, confira o que muda</h3>
       <p className="text-sm">{r.texto}</p>
       <dl className="grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
-        <dt className="text-muted-foreground">Grupos</dt><dd>{r.grupos.length ? r.grupos.join(", ") : "Nenhum grupo com itens importados"}</dd>
-        <dt className="text-muted-foreground">Análises refeitas</dt><dd>{r.camadas.length ? r.camadas.join(", ") : "—"}</dd>
+        <dt className={rotuloCls}>Grupos</dt><dd>{r.grupos.length ? r.grupos.join(", ") : "Nenhum grupo com itens importados"}</dd>
+        <dt className={rotuloCls}>Análises refeitas</dt><dd>{r.camadas.length ? r.camadas.join(", ") : "—"}</dd>
       </dl>
       {sobrepoe && (
         <Aviso tom="alerta" titulo="Grupos já cobertos por outra regra do mesmo aspecto">
@@ -231,12 +231,12 @@ export default function FormularioRegra({ projeto, dados, regraId: regraIdInicia
       </header>
       {msg && <Aviso tom={msg.tom === "erro" ? "erro" : msg.tom === "alerta" ? "alerta" : "ok"}>{msg.texto}</Aviso>}
 
-      <section aria-label="Identificação" className="grid gap-3 sm:grid-cols-2">
+      <SecaoForm titulo="Identificação" corpoCls="grid gap-4 sm:grid-cols-2">
         <label className="block"><Rotulo>Aspecto</Rotulo>
           <select className={campoCls} disabled={desabilitado || !!regraId} value={form.aspecto} onChange={(e) => { const a = e.target.value; setForm((f) => ({ ...f, aspecto: a, bibliotecaId: null, conteudo: conteudoParaTela(a, conteudoPadrao(a)) })); setBase(null); }}>
             {ASPECTOS.map((a) => <option key={a} value={a}>{ROTULO_ASPECTO[a]}</option>)}
           </select>
-          <span className="mt-1 block text-xs text-muted-foreground">{SOBRE_ASPECTO[form.aspecto]}</span>
+          <span className="mt-1 block text-xs text-foreground/75">{SOBRE_ASPECTO[form.aspecto]}</span>
         </label>
         <label className="block"><Rotulo>Nome da regra</Rotulo><input className={campoCls} disabled={desabilitado} maxLength={160} value={form.nome} onChange={(e) => set({ nome: e.target.value })} placeholder="Ex.: Descrição de peças de manutenção" /></label>
         {!regraId && (
@@ -245,11 +245,11 @@ export default function FormularioRegra({ projeto, dados, regraId: regraIdInicia
               <option value="">{biblioteca.isError ? "Biblioteca indisponível agora" : biblioteca.data === undefined ? "Carregando a biblioteca…" : modelosDoAspecto.length ? "Regra nova, sem modelo" : "Nenhuma regra deste aspecto na biblioteca"}</option>
               {modelosDoAspecto.map((r) => <option key={r.id} value={r.id}>{r.nome}{r.indicadaPara ? ` — ${r.indicadaPara}` : ""} (versão {r.versao})</option>)}
             </select>
-            <span className="mt-1 block text-xs text-muted-foreground">O conteúdo da biblioteca é carregado abaixo; ajuste só o que for diferente para este cliente.</span>
+            <span className="mt-1 block text-xs text-foreground/75">O conteúdo da biblioteca é carregado abaixo; ajuste só o que for diferente para este cliente.</span>
           </label>
         )}
         <div className="space-y-2 sm:col-span-2">
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={desabilitado} checked={form.todos} onChange={(e) => set({ todos: e.target.checked })} />Todos os grupos <span className="text-xs text-muted-foreground">(padrão; vale também para grupos novos)</span></label>
+          <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" disabled={desabilitado} checked={form.todos} onChange={(e) => set({ todos: e.target.checked })} />Todos os grupos <span className="text-xs font-normal text-foreground/75">(padrão; vale também para grupos novos)</span></label>
           {!form.todos && (gruposDisponiveis.length ? (
             <SeletorMultiplo rotulo="Grupos abrangidos" opcoes={gruposDisponiveis} marcados={form.grupos} aoMudar={(grupos) => set({ grupos, subgrupos: form.subgrupos.filter((s) => subgruposDisponiveis(dados.grupos, grupos).includes(s)) })} desabilitado={desabilitado}
               rotuloDe={(g) => (itensDoGrupo.has(g) ? `${g} (${Number(itensDoGrupo.get(g) || 0).toLocaleString("pt-BR")} itens)` : g)} />
@@ -258,25 +258,24 @@ export default function FormularioRegra({ projeto, dados, regraId: regraIdInicia
           <AvisoTransferencia lista={transf} confirmado={!transferenciaPendente} aoConfirmar={(ok) => setTransfConfirmada(ok ? chaveT : "")} />
         </div>
         <label className="block sm:col-span-2"><Rotulo>Observação</Rotulo><textarea className={`${campoCls} min-h-[56px]`} disabled={desabilitado} maxLength={2000} value={form.observacao} onChange={(e) => set({ observacao: e.target.value })} /></label>
-      </section>
+      </SecaoForm>
 
-      <section aria-label={ROTULO_ASPECTO[form.aspecto]} className="space-y-2">
-        <h3 className="text-sm font-semibold">{ROTULO_ASPECTO[form.aspecto]}</h3>
+      <SecaoForm titulo={ROTULO_ASPECTO[form.aspecto]}>
         <BlocoDoAspecto aspecto={form.aspecto} valor={form.conteudo} aoMudar={(conteudo) => set({ conteudo })} desabilitado={desabilitado}
           exemplos={temExemplos || !regraId ? <ExemplosReais consulta={exemplos} salva={!!regraId} /> : null} />
-      </section>
+      </SecaoForm>
 
       {erros.length > 0 && <Aviso tom="erro" titulo="Corrija antes de salvar"><ul className="list-disc pl-5">{erros.map((e) => <li key={e}>{e}</li>)}</ul></Aviso>}
       {previa && <PreviaAplicar previa={previa.dados} ocupado={previa.enviando}aoConfirmar={(r) => previa.resolver(r)} aoCancelar={() => previa.resolver(false)} />}
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+      <SecaoForm titulo="Ações" corpoCls="flex flex-wrap items-center gap-2">
         <button type="button" className={botaoSecundario} disabled={desabilitado || (!suja && !!regraId)} title={razao} onClick={() => salvar.mutate()}><Save className="h-4 w-4" aria-hidden="true" />{salvar.isPending ? "Salvando…" : "Salvar rascunho"}</button>
         <button type="button" className={botaoPrimario} disabled={desabilitado || !!previa} title={razao || "Mostra antes quantos grupos e itens serão analisados de novo"} onClick={() => aplicar.mutate()}><Play className="h-4 w-4" aria-hidden="true" />{aplicar.isPending && !previa ? "Preparando a prévia…" : "Aplicar e reanalisar"}</button>
         <button type="button" className={botaoPrimario} disabled={desabilitado || !regraId || suja || regraServidor?.situacao === "APROVADA"} title={razao || (!regraId || suja ? "Salve o rascunho antes de aprovar" : regraServidor?.situacao === "APROVADA" ? "A regra já está aprovada" : undefined)} onClick={pedirAprovacao}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{aprovar.isPending ? "Aprovando…" : "Aprovar"}</button>
         <button type="button" className={botaoSecundario} disabled={!regraId} aria-expanded={verHistorico} onClick={() => setVerHistorico((v) => !v)}><History className="h-4 w-4" aria-hidden="true" />Histórico</button>
         {suja && regraId && <span className="text-xs text-amber-800 dark:text-amber-200" role="status">Há alterações não salvas. Aplicar salva o rascunho antes.</span>}
-      </div>
-      {verHistorico && regraId && <section aria-label="Histórico" className="space-y-2"><h3 className="text-sm font-semibold">Histórico da regra</h3><HistoricoRegra consulta={historico} id={`historico-regra-${regraId}`} /></section>}
+      </SecaoForm>
+      {verHistorico && regraId && <SecaoForm titulo="Histórico da regra" ariaLabel="Histórico"><HistoricoRegra consulta={historico} id={`historico-regra-${regraId}`} /></SecaoForm>}
     </article>
   );
 }

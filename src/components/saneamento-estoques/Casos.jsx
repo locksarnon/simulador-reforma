@@ -3,7 +3,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { san, chaves, atualizarTudo } from "./api";
 import CasoDetalhe from "./CasoDetalhe";
 import TabelaDensa from "./TabelaDensa";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, Rotulo, SeloTexto, Tag, TextoLongo, usePodeAlterar } from "./comuns";
+import { Aviso, botaoPrimario, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, faixaQuadroCls, quadroCls, Rotulo, SeloTexto, Tag, TextoLongo, usePodeAlterar } from "./comuns";
 import {
   CAMADAS, corpoDoLote, idsDoLote, lerParecer, loteTemEscolha, mensagemDeErro, montarFiltroCasos, proximoCasoAberto, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo,
   rotuloDoCaso, rotuloSituacaoCaso, SITUACOES_DO_CASO, versoesDaPrevia,
@@ -24,8 +24,8 @@ function PainelDeLote({ projeto, ids, descricao, casos, aoFechar, aoAprovado }) 
   const p = previa.data;
   const linhaDeExcecao = (x) => `${rotuloDoCaso(casos, x.casoId)} [${String(x.casoId).slice(0, 8)}]: ${x.motivo}`;
   return (
-    <section aria-label="Aprovação em lote" className="space-y-3 border border-primary/40 bg-card p-4">
-      <div className="flex items-center justify-between"><h3 className="font-semibold">Aprovar em lote</h3><button type="button" className={botaoSecundario} onClick={aoFechar}>Fechar</button></div>
+    <section aria-label="Aprovação em lote" className={`space-y-3 ${quadroCls}`}>
+      <div className={`-mx-3 -mt-3 mb-2 flex items-center justify-between ${faixaQuadroCls}`}><h3 className="text-sm font-semibold text-foreground">Aprovar em lote</h3><button type="button" className={`${botaoSecundario} bg-card`} onClick={aoFechar}>Fechar</button></div>
       <p className="text-sm text-muted-foreground">{descricao} Primeiro veja a prévia: quais itens e campos mudam e quais casos ficam de fora. Só então aprove.</p>
       <label className="block"><Rotulo>Fundamento comum (opcional)</Rotulo><input className={campoCls} value={fundamento} onChange={(e) => setFundamento(e.target.value)} /></label>
       <button type="button" className={botaoSecundario} disabled={previa.isPending || !loteTemEscolha(envio)} onClick={() => previa.mutate()}>{previa.isPending ? "Calculando…" : "Ver a prévia"}</button>
@@ -40,14 +40,14 @@ function PainelDeLote({ projeto, ids, descricao, casos, aoFechar, aoAprovado }) 
       {p && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.aprovaveis.length}</div>casos aprováveis</div>
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.excecoes.length}</div>exceções (ficam de fora)</div>
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.itensAfetados.toLocaleString("pt-BR")}</div>itens afetados</div>
-            <div className="border border-border p-2"><div className="text-xl font-semibold tabular-nums">{p.camposAfetados.toLocaleString("pt-BR")}</div>campos alterados</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.aprovaveis.length}</div>casos aprováveis</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.excecoes.length}</div>exceções (ficam de fora)</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.itensAfetados.toLocaleString("pt-BR")}</div>itens afetados</div>
+            <div className="border border-foreground/30 bg-card p-2"><div className="text-xl font-semibold tabular-nums">{p.camposAfetados.toLocaleString("pt-BR")}</div>campos alterados</div>
           </div>
           {p.restantes > 0 && <Aviso tom="alerta">Ainda restam {p.restantes.toLocaleString("pt-BR")} casos além do limite do lote: repita depois.</Aviso>}
           {p.aprovaveis.length > 0 && (
-            <div className="max-h-64 overflow-auto border border-border">
+            <div className="max-h-64 overflow-auto border border-foreground/30 bg-card">
               <table className="w-full text-xs" aria-label="Casos que serão aprovados">
                 <thead className="sticky top-0 bg-muted text-left text-muted-foreground"><tr><th scope="col" className="px-2 py-1">Camada</th><th scope="col">Tipo</th><th scope="col" className="text-right">Itens</th><th scope="col">Campos afetados</th></tr></thead>
                 <tbody>{p.aprovaveis.map((a) => <tr key={a.casoId} className="border-t border-border/60"><td className="px-2 py-1">{ROTULO_CAMADA[a.camada]}</td><td>{a.tipo}</td><td className="text-right tabular-nums">{a.itens}</td><td>{a.campos.length ? a.campos.map(rotuloDoCampo).join(", ") : "nenhum (só alerta)"}</td></tr>)}</tbody>

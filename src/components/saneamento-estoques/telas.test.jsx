@@ -68,6 +68,15 @@ describe("Configuração", () => {
     expect(t).toContain("Reabrir para alterar");
     expect(t).not.toContain("Acrescentar");
   });
+  it("seções com faixa de título (linha verde), borda nítida, rótulos legíveis e campos em fundo de campo", () => {
+    const html = montar(<Configuracao projeto={projeto()} recarregar={() => {}} />);
+    for (const [id, t] of [["san-cfg-dados", "Dados do projeto"], ["san-cfg-ativ", "Atividades do cliente"], ["san-cfg-mod", "Módulos opcionais"]]) {
+      expect(html, t).toMatch(new RegExp(`<section aria-labelledby="${id}" class="border border-foreground/50 bg-card[^"]*"><div class="[^"]*border-b-2 border-primary bg-muted[^"]*"><h2 id="${id}"[^>]*>${t}</h2>`));
+    }
+    expect(html).toContain("w-full border border-foreground/60 bg-background");
+    expect(html).toContain("mb-1 block text-xs font-medium text-foreground/80");
+    expect(html).not.toMatch(/<(input|select|textarea)[^>]*border-border/);
+  });
   it("CNPJ desatualizado pede para revisar as atividades", () => {
     expect(texto(montar(<Configuracao projeto={projeto({ cnpjDesatualizado: true })} recarregar={() => {}} />))).toContain("Revisar atividades");
   });

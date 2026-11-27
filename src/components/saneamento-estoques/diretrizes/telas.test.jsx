@@ -246,3 +246,53 @@ describe("Biblioteca de diretrizes (Administração)", () => {
     for (const s of ["Modelo FAL — Revenda de insumos agro", "Limites oficiais", "Todos os grupos", "Regra não encontrada na biblioteca", "Peças"]) expect(m, s).toContain(s);
   });
 });
+
+describe("padrão de cores dos formulários (quadros, seções, rótulos e campos)", () => {
+  const nada = () => {};
+  const comuns = { faixaQuadro: "bg-primary/10", corpoQuadro: "bg-muted p-3", bordaQuadro: "border-foreground/50", campo: "border border-foreground/60 bg-background", rotulo: "font-medium text-foreground/80", faixaSecao: "border-b-2 border-primary bg-muted" };
+  const quadros = (html) => html.match(/<li[^>]*class="border border-foreground\/50 bg-card shadow-sm[^"]*"/g) || [];
+  it("Limites: cada Limite N é um quadro com borda nítida, faixa de cabeçalho com título e selos, corpo com fundo próprio e espaço entre os quadros", () => {
+    const valor = conteudoParaTela("LIMITES", { linhas: [
+      { destino: "SPED", campo: "0200", campoItem: "descricao", limite: 100, origem: "LEIAUTE_OFICIAL", confirmado: true, tratamento: "SUGERIR_ABREVIACAO", preservar: [] },
+      { destino: "ERP", campo: "Nome", campoItem: "descricao", limite: null, origem: "ERP", confirmado: false, tratamento: "SOLICITAR_REVISAO", preservar: [] },
+    ] });
+    const html = montar(<BlocoLimites valor={valor} aoMudar={nada} />);
+    expect(quadros(html)).toHaveLength(2);
+    expect(html).toContain('class="space-y-4" aria-label="Linhas de limite"');
+    expect(html).toMatch(/bg-primary\/10[^"]*"><span id="[^"]+" class="text-sm font-semibold text-foreground">Limite 1<\/span>/);
+    expect(html).toMatch(/Limite 2<\/span><span[^>]*>ERP<\/span><span[^>]*>Não confirmado/);
+    expect(html).toContain(comuns.corpoQuadro);
+    expect(html).toContain('aria-label="Remover o limite 1"');
+    // campos em fundo de campo e borda forte; rótulos legíveis; nada do cinza pálido antigo nos campos
+    expect(html).toContain(comuns.campo);
+    expect(html).toContain(comuns.rotulo);
+    expect(html).not.toMatch(/<(input|select|textarea)[^>]*border-border/);
+  });
+  it("Atributos, Nomes, Unidades e Fiscal usam o mesmo quadro (atributo como quadro; seções com faixa)", () => {
+    const atr = montar(<BlocoAtributos valor={{ atributos: [{ atributo: "fabricante", onde: "DESCRICAO", aplicabilidade: "OBRIGATORIO" }] }} aoMudar={nada} />);
+    expect(quadros(atr)).toHaveLength(1);
+    for (const html of [atr, montar(<BlocoNomes valor={conteudoPadrao("NOMES")} aoMudar={nada} />), montar(<BlocoUnidades valor={conteudoPadrao("UNIDADES")} aoMudar={nada} />), montar(<BlocoFiscal valor={conteudoPadrao("FISCAL")} aoMudar={nada} />)]) {
+      expect(html).toContain(comuns.faixaQuadro);
+      expect(html).toContain(comuns.bordaQuadro);
+      expect(html).not.toContain("<legend");
+    }
+  });
+  it("formulário da regra: Identificação, o bloco do aspecto e Ações com faixa de título que marca o início e o fim", () => {
+    const html = montar(<FormularioRegra projeto={projeto()} dados={DADOS} regraId="r2" aoFechar={() => {}} />, comDiretrizes());
+    const faixas = html.match(new RegExp(`${comuns.faixaSecao}[^"]*"><h3 id="[^"]+" class="text-sm font-semibold text-foreground">([^<]+)</h3>`, "g")) || [];
+    const titulos = faixas.map((f) => f.replace(/.*>([^<]+)<\/h3>$/, "$1"));
+    expect(titulos).toHaveLength(3); // Identificação, o bloco do aspecto e Ações
+    expect(titulos[0]).toBe("Identificação");
+    expect(titulos[2]).toBe("Ações");
+    expect(html).toMatch(/<section aria-labelledby="[^"]+" class="border border-foreground\/50 bg-card/);
+    expect(html).toContain(comuns.campo);
+  });
+  it("lista de regras e detalhe do caso no mesmo padrão", () => {
+    const lista = montar(<Diretrizes projeto={projeto()} />, comDiretrizes());
+    expect(lista).toMatch(/<header class="[^"]*border-foreground\/50 bg-primary\/10/);
+    const caso = { id: "c1", camada: "NCM", situacao: "PROPOSTO", origem: "REGRA", itens: ["i1", "i2"], problema: "NCM inválido", evidencia: [{ rotulo: "NCM", valor: "1005901" }], atual: { ncm: "1005901" }, proposta: { ncm: "10059010" }, versao: 1 };
+    const det = montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), caso));
+    for (const t of ["Evidência", "Dados e proposta", "Justificativa e fundamento", "Decisão"]) expect(det, t).toMatch(new RegExp(`class="[^"]*(bg-primary/10)[^"]*"[^>]*>(<[^>]+>)?${t}<`));
+    expect(det).toContain(comuns.campo);
+  });
+});

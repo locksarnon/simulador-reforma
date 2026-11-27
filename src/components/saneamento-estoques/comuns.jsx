@@ -1,9 +1,16 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useId, useState } from "react";
 import { semFuncao } from "@/lib/permissoes";
 import { AlertTriangle, Check, CheckCircle2, Circle, Clock, Diamond, Info, Loader2, Lock, RefreshCw, Square } from "lucide-react";
 import { formaDaSituacao, mensagemDeErro, SITUACOES, textoDaCelula } from "./logica";
 
-export const campoCls = "w-full border border-border bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
+/**
+ * Cores dos formulários: só tokens do tema. As bordas derivam do texto do tema para passar de 3:1 (WCAG AA para bordas) nos dois temas:
+ * campo com 60% (cerca de 3,8:1 sobre o fundo do quadro e 4,4:1 sobre branco no claro; 5:1 no escuro) e quadro com 50% (cerca de 3,3:1 no
+ * claro e 4,4:1 no escuro). O token --input (62% de luminosidade no claro) dá cerca de 2,8:1 sobre branco, por isso o campo não o usa aqui.
+ */
+export const bordaCampo = "border-foreground/60";
+export const bordaQuadro = "border-foreground/50";
+export const campoCls = "w-full border border-foreground/60 bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
 export const botaoPrimario = "inline-flex items-center gap-1.5 bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 export const botaoSecundario = "inline-flex items-center gap-1.5 border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 export const botaoPerigo = "inline-flex items-center gap-1.5 border border-destructive/50 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
@@ -152,7 +159,64 @@ const TOM_DA_SITUACAO = {
 };
 export const SeloTexto = ({ situacao, children }) => <Tag tom={TOM_DA_SITUACAO[situacao] || "neutro"}>{children}</Tag>;
 
-export const Rotulo =({ children, className = "" }) => <span className={`mb-1 block text-xs text-muted-foreground ${className}`}>{children}</span>;
+/** Rótulo do campo: texto secundário mais escuro (80% do texto do tema), peso médio e separado do valor. */
+export const rotuloCls = "mb-1 block text-xs font-medium text-foreground/80";
+export const Rotulo = ({ children, className = "" }) => <span className={`${rotuloCls} ${className}`}>{children}</span>;
+
+/** Texto de apoio (dicas, "vem do projeto…"): 75% do texto do tema, legível também sobre o fundo dos quadros. */
+export const textoApoioCls = "text-xs text-foreground/75";
+/** Faixas e corpos do padrão (as mesmas do SecaoForm e do Quadro), para telas que montam a seção sem o componente. */
+export const faixaSecaoCls = "border-b-2 border-primary bg-muted px-4 py-2";
+export const faixaQuadroCls = `border-b ${bordaQuadro} bg-primary/10 px-3 py-1.5`;
+/** Seção com o título como primeiro filho: `secaoCls` no contêiner (p-4) e `tituloSecaoCls` no título, que vira a faixa. */
+export const secaoCls = `border ${bordaQuadro} bg-card p-4`;
+export const tituloSecaoCls = `-mx-4 -mt-4 mb-3 ${faixaSecaoCls} text-sm font-semibold text-foreground`;
+/** Quadro com o título como primeiro filho: `quadroCls` no contêiner (p-3) e `tituloQuadroCls` no título, que vira a faixa. */
+export const quadroCls = `border ${bordaQuadro} bg-muted p-3 shadow-sm`;
+export const tituloQuadroCls = `-mx-3 -mt-3 mb-2 ${faixaQuadroCls} text-sm font-semibold text-foreground`;
+
+/**
+ * Seção do formulário (Identificação, o bloco do aspecto, Ações, Dados do projeto…): borda nítida e faixa de título com a linha verde
+ * embaixo, para ver onde a seção começa e termina. `nivel` é a tag do título (h2, h3…); `idTitulo` liga o aria-labelledby.
+ */
+export function SecaoForm({ titulo, nivel: Titulo = "h3", idTitulo, ariaLabel, acoes, children, className = "", corpoCls = "" }) {
+  const gerado = useId();
+  const id = idTitulo || `${gerado}-t`;
+  return (
+    <section aria-label={ariaLabel} aria-labelledby={ariaLabel ? undefined : id} className={`border ${bordaQuadro} bg-card ${className}`}>
+      <div className={`flex flex-wrap items-center gap-2 ${faixaSecaoCls}`}>
+        <Titulo id={id} className="text-sm font-semibold text-foreground">{titulo}</Titulo>
+        {acoes && <div className="ml-auto flex flex-wrap items-center gap-2">{acoes}</div>}
+      </div>
+      <div className={`p-4 ${corpoCls || "space-y-3"}`}>{children}</div>
+    </section>
+  );
+}
+
+/**
+ * Quadro (repetível ou de um assunto: Limite N, atributo, Componentes e ordem, Evidência…): borda nítida, faixa de cabeçalho em verde
+ * suave com o título em negrito e os selos, corpo com fundo próprio (diferente do formulário em volta) e os campos em fundo de campo.
+ * Em lista, use `as="li"` num contêiner com espaço visível entre os quadros (space-y-4).
+ */
+export function Quadro({ titulo, nivel: Titulo = "span", selos, acoes, dica, children, as: Elemento = "div", ariaLabel, className = "", corpoCls = "" }) {
+  const id = useId();
+  const grupo = Elemento === "li" || Elemento === "section" ? {} : { role: "group" };
+  return (
+    <Elemento {...grupo} aria-label={ariaLabel} aria-labelledby={!ariaLabel && titulo ? `${id}-t` : undefined} className={`border ${bordaQuadro} bg-card shadow-sm ${className}`}>
+      {(titulo || selos || acoes) && (
+        <div className={`flex flex-wrap items-center gap-2 ${faixaQuadroCls}`}>
+          {titulo && <Titulo id={`${id}-t`} className="text-sm font-semibold text-foreground">{titulo}</Titulo>}
+          {selos}
+          {acoes && <div className="ml-auto flex flex-wrap items-center gap-1">{acoes}</div>}
+        </div>
+      )}
+      <div className={`bg-muted p-3 ${corpoCls || "space-y-2"}`}>
+        {dica && <p className={textoApoioCls}>{dica}</p>}
+        {children}
+      </div>
+    </Elemento>
+  );
+}
 
 /** Quem pode alterar dados (função "alterar"). A página informa; sem provedor (testes), vale como permitido. */
 export const PermissaoContext = createContext({ podeAlterar: true });

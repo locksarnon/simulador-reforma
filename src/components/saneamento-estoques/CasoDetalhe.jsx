@@ -5,7 +5,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { AlertasErp, usePerfilErp } from "@/components/erps/erps";
 import { san, chaves, atualizarTudo } from "./api";
 import TransformarEmRegra from "./diretrizes/TransformarEmRegra";
-import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Rotulo, Tag, usePodeAlterar } from "./comuns";
+import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Quadro, Rotulo, rotuloCls, Tag, usePodeAlterar } from "./comuns";
 import {
   acoesDoCaso, aposConflito, avisoDeOutrosGrupos, camposDivergentes, camposDoFatorAOferecer, converterProposta, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
   FINALIDADES, interpretarRespostaParecer, lerParecer, mensagemDeErro, mensagemDoParecer, precisaConfirmarFator, precisaInformarFator, propostaEditavel, razaoSemAprovar, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloFinalidade, rotuloSituacaoCaso, textoDoValor,
@@ -177,23 +177,23 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
             )}
 
             {c.evidencia?.length > 0 && (
-              <section aria-label="Evidência"><h4 className="mb-1 text-sm font-semibold">Evidência</h4>
-                <dl className="grid gap-x-4 gap-y-0.5 text-sm sm:grid-cols-[max-content_1fr]">{c.evidencia.map((e) => <div key={e.rotulo} className="contents"><dt className="text-muted-foreground">{e.rotulo}</dt><dd>{e.valor}</dd></div>)}</dl>
-              </section>
+              <Quadro as="section" ariaLabel="Evidência" titulo="Evidência" nivel="h4">
+                <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">{c.evidencia.map((e) => <div key={e.rotulo} className="contents"><dt className={`${rotuloCls} mb-0 sm:pt-px`}>{e.rotulo}</dt><dd>{e.valor}</dd></div>)}</dl>
+              </Quadro>
             )}
 
             {campos.length > 0 && (
-              <section aria-label="Dados e proposta"><h4 className="mb-1 text-sm font-semibold">Dados e proposta</h4>
+              <Quadro as="section" ariaLabel="Dados e proposta" titulo="Dados e proposta" nivel="h4">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Campo</th>{unico && <th scope="col">Original (importado)</th>}<th scope="col">Atual</th><th scope="col">Proposta (editável)</th></tr></thead>
+                  <table className="w-full border border-foreground/30 bg-card text-sm">
+                    <thead><tr className="border-b border-foreground/50 bg-primary/10 text-left text-xs font-medium text-foreground/80"><th scope="col" className="px-2 py-1.5">Campo</th>{unico && <th scope="col" className="px-2">Original (importado)</th>}<th scope="col" className="px-2">Atual</th><th scope="col" className="px-2">Proposta (editável)</th></tr></thead>
                     <tbody>
                       {campos.map((k) => (
-                        <tr key={k} className="border-b border-border/60 align-top">
-                          <th scope="row" className="py-1.5 pr-2 text-left font-normal">{rotuloDoCampo(k)}</th>
-                          {unico && <td className="pr-2 tabular-nums">{textoDoValor(pega(original, k))}</td>}
-                          <td className="pr-2 tabular-nums">{textoDoValor(k in (c.atual || {}) ? c.atual[k] : pega(trabalho, k))}</td>
-                          <td className={k === "fatorConversao" && precisaInformarFator(c) ? "bg-amber-500/10" : ""}>{k in (edicao.proposta || {}) || doFator.includes(k) ? (propostaEditavel(k)
+                        <tr key={k} className="border-b border-foreground/20 align-top last:border-b-0">
+                          <th scope="row" className="px-2 py-1.5 text-left font-medium">{rotuloDoCampo(k)}</th>
+                          {unico && <td className="px-2 py-1.5 tabular-nums">{textoDoValor(pega(original, k))}</td>}
+                          <td className="px-2 py-1.5 tabular-nums">{textoDoValor(k in (c.atual || {}) ? c.atual[k] : pega(trabalho, k))}</td>
+                          <td className={`px-2 py-1 ${k === "fatorConversao" && precisaInformarFator(c) ? "bg-amber-500/10" : ""}`}>{k in (edicao.proposta || {}) || doFator.includes(k) ? (propostaEditavel(k)
                             ? <CampoDaProposta campo={k} valor={edicao.proposta[k]} destaque={k === "fatorConversao" && precisaInformarFator(c)} disabled={!pode || !acoes.editar || ocupado} aoMudar={(v) => mudarEdicao({ proposta: { ...edicao.proposta, [k]: v } })} />
                             : <span>{textoDoValor(edicao.proposta[k])}</span>) : <span className="text-muted-foreground">—</span>}</td>
                         </tr>
@@ -201,14 +201,14 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
                     </tbody>
                   </table>
                 </div>
-                {Object.keys(c.proposta || {}).length === 0 && <p className="mt-1 text-sm text-muted-foreground">Este caso não traz alteração proposta: não há o que aprovar. Rejeite ou peça informação.</p>}
-              </section>
+                {Object.keys(c.proposta || {}).length === 0 && <p className="text-sm text-foreground/75">Este caso não traz alteração proposta: não há o que aprovar. Rejeite ou peça informação.</p>}
+              </Quadro>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <Quadro titulo="Justificativa e fundamento" nivel="h4" corpoCls="grid gap-3 sm:grid-cols-2">
               <label className="block"><Rotulo>Justificativa</Rotulo><textarea className={`${campoCls} min-h-[84px]`} disabled={!pode || !acoes.editar || ocupado} value={edicao.justificativa} onChange={(e) => mudarEdicao({ justificativa: e.target.value })} /></label>
               <label className="block"><Rotulo>Fundamento (norma, artigo, critério)</Rotulo><textarea className={`${campoCls} min-h-[84px]`} disabled value={edicao.fundamento || "—"} readOnly /></label>
-            </div>
+            </Quadro>
             {c.impactos?.length > 0 && <Lista titulo="Impactos a conferir" itens={c.impactos} />}
             <AlertasErp perfil={perfilErp} tipos={c.tiposAjuste || []} />
 
@@ -224,7 +224,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
 
             <TransformarEmRegra key={c.id} projeto={projeto} caso={c} />
 
-            <div className="space-y-2 border-t border-border pt-3">
+            <Quadro titulo="Decisão" nivel="h4">
               {modo && (
                 <div className="space-y-1">
                   <label className="block"><Rotulo>{modo === "rejeitar" ? "Justificativa da rejeição (obrigatória)" : "Que informação falta? (obrigatório)"}</Rotulo><textarea className={`${campoCls} min-h-[64px]`} value={texto} onChange={(e) => setTexto(e.target.value)} /></label>
@@ -245,7 +245,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
                 {acoes.pedirInformacao && <button type="button" className={botaoSecundario} disabled={!pode || ocupado} title={razao} onClick={() => { setModo("pedir"); setTexto(""); }}>Pedir informação…</button>}
                 {acoes.reabrir && <button type="button" className={botaoSecundario} disabled={!pode || ocupado} title={razao} onClick={pedirReabertura}>{acoes.desfaz ? "Desfazer aprovação" : "Reabrir"}</button>}
               </div>
-            </div>
+            </Quadro>
           </article>
         );
       }}
