@@ -5,7 +5,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissao } from '../../permissoes/permissao.decorator';
 import type { ResultadoCamada } from '../tipos';
 import { SanCasosService, type EntradaAprovar, type EntradaLote, type EntradaLoteDecisao, type FiltroCasos, type FiltroCasosAgrupados } from './casos.service';
-import { SanImportacaoService, type EscolhaIncorporar } from './importacao.service';
+import { SanImportacaoService, exigirTratamentoSemData, type EscolhaIncorporar } from './importacao.service';
 import { SanImpactosService, type EntradaImpacto, type EntradaVinculo, type FiltroImpactos } from './impactos.service';
 import { SanItensService, type FiltroItens } from './itens.service';
 import { SanOrquestracaoService } from './orquestracao.service';
@@ -46,9 +46,9 @@ export class SaneamentoEstoquesController {
   @Get('projetos/:id')
   obter(@Param('id') id: string) { return this.projetos.obter(id); }
   @Put('projetos/:id')
-  async configurar(@Param('id') id: string, @Body() b: EntradaConfiguracao) {
+  async configurar(@Param('id') id: string, @Body() b: EntradaConfiguracao, @CurrentUser() user?: AuthUser) {
     const antes = ((await this.projetos.obter(id)).parametros as { competenciaEntregue?: unknown } | null)?.competenciaEntregue ?? null;
-    const p = await this.projetos.configurar(id, b ?? {});
+    const p = await this.projetos.configurar(id, b ?? {}, user);
     // Mudou a última competência entregue: as linhas de impacto no SPED são reclassificadas (escrituração já entregue ou não).
     if (((p.parametros as { competenciaEntregue?: unknown } | null)?.competenciaEntregue ?? null) !== antes) await this.casos.sincronizarTodosImpactos(id);
     return p;
@@ -82,8 +82,10 @@ export class SaneamentoEstoquesController {
   @Post('projetos/:id/importacoes')
   @Permissao('importar')
   @UseInterceptors(FileInterceptor('arquivo', { limits: { fileSize: MAX_ARQUIVO } }))
-  importar(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('incorporar') incorporar?: string, @Body('escalaSaldo') escalaSaldo?: string) {
-    return this.importacao.confirmar(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(mapeamento, undefined), json<EscolhaIncorporar>(incorporar, []), user, escalaSaldo);
+  importar(@CurrentUser() user: AuthUser, @Param('id') id: string, @UploadedFile() f: Express.Multer.File, @Body('mapeamento') mapeamento?: string, @Body('incorporar') incorporar?: string, @Body('escalaSaldo') escalaSaldo?: string, @Body('semDataMovimentacao') semData?: string) {
+    // Tratamento dos itens sem data de última movimentação: obrigatório em toda importação (400 sem ele, antes de ler o arquivo).
+    const tratamento = exigirTratamentoSemData(semData);
+    return this.importacao.confirmar(id, { buffer: f?.buffer, nome: f?.originalname ?? 'arquivo' }, json(mapeamento, undefined), json<EscolhaIncorporar>(incorporar, []), user, escalaSaldo, tratamento);
   }
   @Get('projetos/:id/importacoes')
   importacoes(@Param('id') id: string) { return this.importacao.listar(id); }

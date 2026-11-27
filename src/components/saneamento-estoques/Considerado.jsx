@@ -193,7 +193,7 @@ export default function Considerado({ projetoId, camada, rotulo, dados, aoIrPara
                 return (
                   <li key={c.id} className="flex flex-wrap items-baseline gap-1.5">
                     <span aria-hidden="true">•</span>
-                    <span>{c.texto}{c.origem === "CONFIGURACAO" ? `: ${c.valorConfiguracao ? fmtData(c.valorConfiguracao) : "corte não definido (critério não aplicado)"}` : ""}</span>
+                    <span>{c.texto}{c.origem === "CONFIGURACAO" ? `: ${c.textoConfiguracao || (c.valorConfiguracao ? fmtData(c.valorConfiguracao) : "corte não definido (critério não aplicado)")}` : ""}</span>
                     {c.origem === "DIRETRIZES" && aoIrPara && <button type="button" className="text-primary underline" onClick={() => aoIrPara(destinoDasDiretrizes(camada))}>Ver nas Diretrizes</button>}
                     {c.origem === "CONFIGURACAO" && aoIrPara && <button type="button" className="text-primary underline" onClick={() => aoIrPara(DESTINO_CONFIGURACAO)}>Alterar em {caminhoDaAba(DESTINO_CONFIGURACAO.fase, DESTINO_CONFIGURACAO.aba)}</button>}
                   </li>

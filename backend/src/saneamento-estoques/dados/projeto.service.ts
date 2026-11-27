@@ -5,6 +5,7 @@ import { atualizarEmpresaPeloCnpj } from '../../cnpj/dados-publicos';
 import { ATIVIDADES, ROTULO_ATIVIDADE, ehAtividade, ehRegimeCliente, regraDoCnae, soDigitosCnae } from '../fiscal';
 import type { Camada } from '../tipos';
 import { nomeDoErp } from '../../erps/erps.service';
+import { chavesDaEscolhaSemData, validarTratamentoSemData } from '../sem-data-movimentacao';
 import { CAMADAS_DAS_ATIVIDADES, FASES, LISTA_FASES, MODULOS_PADRAO, camadaTravada, camadasAtivas, conflito, exigirVersao, TX_LONGA, quem, type Fase, type Json, type Usuario } from './constantes';
 
 const texto = (v: unknown, max: number) => { const t = String(v ?? '').trim(); return t ? t.slice(0, max) : null; };
@@ -68,7 +69,11 @@ export type EntradaConfiguracao = {
   modulos?: Partial<typeof MODULOS_PADRAO>;
   /** Regime do cliente (premissa da Fase 2, lista REGIMES_CLIENTE); null ou '' limpa. Também aceito dentro de `parametros`. */
   regimeCliente?: string | null;
-  parametros?: { corteMovimentacao?: string | null; competenciaEntregue?: string | null; motor?: Record<string, unknown> | null; regimeCliente?: string | null };
+  parametros?: {
+    corteMovimentacao?: string | null; competenciaEntregue?: string | null; motor?: Record<string, unknown> | null; regimeCliente?: string | null;
+    /** Tratamento dos itens sem data de última movimentação (SEM_MOVIMENTACAO | DEPOIS), escolhido na importação e editável em 1.1 Dados do projeto. */
+    semDataMovimentacao?: string | null;
+  };
 };
 
 /** Projeto do Saneamento de Estoques: configuração, atividades do cliente e a TRAVA POR FASE (a Fase 2 exige Fase 1 liberada, regime e atividades). */
@@ -162,7 +167,7 @@ export class SanProjetoService {
     return this.obter(p.id);
   }
 
-  async configurar(id: string, e: EntradaConfiguracao) {
+  async configurar(id: string, e: EntradaConfiguracao, usuario?: Usuario) {
     const versao = exigirVersao(e.versao);
     const dados: Json = {};
     // A coluna `erp` guarda o texto original (registro histórico do que estava digitado): uma vez gravado, não muda, nem quando a tela devolve o
@@ -206,6 +211,12 @@ export class SanProjetoService {
       definir.corteMovimentacao = corte;
       definir.competenciaEntregue = competenciaEntregue;
       if (e.parametros?.motor !== undefined) { if (e.parametros.motor) definir.motor = e.parametros.motor; else remover.push('motor'); }
+      // Tratamento dos itens sem data: só troca entre as duas opções (não volta a "não escolhido"); mudou, Qualidade e Duplicidades ficam desatualizadas.
+      if (e.parametros?.semDataMovimentacao !== undefined) {
+        const t = validarTratamentoSemData(e.parametros.semDataMovimentacao);
+        if (!t.ok) throw new BadRequestException({ statusCode: 400, codigo: t.codigo, message: t.erro });
+        Object.assign(definir, chavesDaEscolhaSemData(atualParam, t.valor, { por: quem(usuario), em: new Date().toISOString(), origem: 'CONFIGURACAO' }));
+      }
     }
     const regimeBruto = e.regimeCliente !== undefined ? e.regimeCliente : e.parametros?.regimeCliente;
     if (regimeBruto !== undefined) {

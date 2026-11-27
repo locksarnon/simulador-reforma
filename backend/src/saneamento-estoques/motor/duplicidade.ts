@@ -169,7 +169,8 @@ export class AnalisadorDuplicidade implements AnalisadorCamada {
     const produtos = montarProdutos(itens);
     const escala = escalaDaBase(itens);
     const corte = contexto.corteMovimentacao ?? null;
-    const semData = par.semDataMovimentacao ?? 'SINALIZAR';
+    // Considerar sem movimentação (decisão na importação): o código sem data não é desconhecido, é parado (como ANTERIOR_AO_CORTE).
+    const semData = (par.semDataMovimentacao ?? 'SINALIZAR') === 'SINALIZAR' ? 'SINALIZAR' : 'ANTERIOR_AO_CORTE';
     const comTexto = produtos.filter((p) => txt(p.rep.descricao));
 
     // Critérios do projeto ("O que foi considerado"): similaridade mínima e embalagens diferentes = itens diferentes.

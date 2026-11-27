@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { camadasAtivas, quem, validarCamada, type Json, type Usuario } from '../dados/constantes';
 import { ROTULO_CAMADA } from '../rotulos';
+import { textoTratamentoSemData, tratamentoSemDataDe } from '../sem-data-movimentacao';
 import type { Camada } from '../tipos';
 import {
   MAX_HISTORICO, criterioPorChave, criteriosDaCamada, textoDoValor, validarValor, valorCriterio,
@@ -48,7 +49,10 @@ export class SanCriteriosService {
         camada, rotulo: ROTULO_CAMADA[camada], alteradoEm: alteradoEm[camada] ?? null,
         criterios: criteriosDaCamada(camada).map((c) => ({
           id: c.id, texto: c.texto, origem: c.origem ?? null,
-          ...(c.origem === 'CONFIGURACAO' ? { valorConfiguracao: (par.corteMovimentacao as string | null | undefined) ?? null } : {}),
+          // Corte: a data (a tela formata). Itens sem data: o texto pronto (tratamento, quem e quando), em `textoConfiguracao`.
+          ...(c.origem === 'CONFIGURACAO' ? (c.configuracao === 'SEM_DATA'
+            ? { valorConfiguracao: tratamentoSemDataDe(par), textoConfiguracao: textoTratamentoSemData(par) }
+            : { valorConfiguracao: (par.corteMovimentacao as string | null | undefined) ?? null }) : {}),
           ...(c.parametro ? { parametro: { ...c.parametro, valor: valorCriterio(gravados, camada, c.parametro.chave), alterado: gravados[camada]?.[c.parametro.chave] !== undefined && valorCriterio(gravados, camada, c.parametro.chave) !== c.parametro.padrao } } : {}),
         })),
         manuais: manuais.filter((m) => m.camada === camada),

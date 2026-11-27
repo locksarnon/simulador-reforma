@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet } from "lucide-react";
 import CampoArquivo from "@/components/ui/CampoArquivo";
@@ -11,7 +11,10 @@ import {
   alternarIncorporar, camposObrigatoriosSemColuna, colunasDoArquivo, corpoIncorporar, corrigirMapeamento, ehReimportacao, fmtDataHora, itensIncorporaveis,
   linhasDeMapeamento, mapeamentoMudou, mensagemDeErro, MODOS_INCORPORAR, quantosIncorporar, resumirRelatorio, ROTULO_CERTEZA, rotuloDoCampo, textoDoValor,
 } from "./logica";
-import { escalaAplicada, escalaDetectada, exemplosDaColuna, fmtNumero, seloDoMapeamento, textoEscalaAplicada, textoEscalaSaldo } from "./importacaoTela";
+import {
+  bloqueioDaConfirmacao, escalaAplicada, escalaDetectada, exemplosDaColuna, fmtNumero, MENSAGEM_SEM_TRATAMENTO, rotuloTratamentoSemData, seloDoMapeamento, textoEscalaAplicada, textoEscalaSaldo,
+  textoItensSemData, textoTratamentoNaImportacao, TRATAMENTOS_SEM_DATA,
+} from "./importacaoTela";
 import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const ROTULO_LINHA = { ACEITA: "Aceita", REJEITADA: "Rejeitada", PENDENTE: "Pendente" };
@@ -69,7 +72,32 @@ export function EscalaDoSaldo({ relatorio, aoEscolher, carregando }) {
   );
 }
 
-export function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carregando }) {
+/**
+ * Linha logo abaixo de "Última movimentação" no mapeamento: tratamento para itens sem data, obrigatório (nada pré-selecionado). Sem a escolha,
+ * a prévia não é atualizada e a importação não é confirmada.
+ */
+export function TratamentoSemData({ previa, valor, aoEscolher }) {
+  const contagem = textoItensSemData(previa);
+  const atual = previa?.semDataMovimentacao?.tratamentoAtual;
+  return (
+    <fieldset className={`space-y-1 border p-2 ${valor ? "border-border" : "border-amber-600/60 bg-amber-600/5"}`} aria-describedby="san-imp-semdata-info">
+      <legend className="px-1 text-sm font-medium">Tratamento para itens sem data de última movimentação<span className="text-destructive" aria-label="obrigatório"> *</span></legend>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {TRATAMENTOS_SEM_DATA.map((t) => (
+          <label key={t.valor} className="flex items-center gap-2 text-sm" title={t.ajuda}>
+            <input type="radio" name="san-imp-semdata" value={t.valor} checked={valor === t.valor} onChange={() => aoEscolher(t.valor)} />{t.rotulo}
+          </label>
+        ))}
+      </div>
+      <p id="san-imp-semdata-info" className="text-xs text-muted-foreground">
+        {contagem ? `${contagem} ` : ""}{valor ? TRATAMENTOS_SEM_DATA.find((t) => t.valor === valor)?.ajuda : "Escolha uma opção para continuar."}
+        {atual && !valor ? ` Escolha atual do projeto: ${rotuloTratamentoSemData(atual)}.` : ""}
+      </p>
+    </fieldset>
+  );
+}
+
+export function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carregando, semData, aoEscolherSemData }) {
   const colunas = colunasDoArquivo(previa);
   const linhas = linhasDeMapeamento(previa, mapeamento);
   const faltam = camposObrigatoriosSemColuna(mapeamento ?? previa.mapeamento);
@@ -82,8 +110,8 @@ export function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carreg
       <table className="w-full text-sm" aria-label="Mapeamento de colunas">
         <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Campo do sistema</th><th scope="col">Coluna do arquivo</th><th scope="col">Exemplos</th><th scope="col">Certeza</th></tr></thead>
         <tbody>
-          {linhas.map((l) => (
-            <tr key={l.campo} className="border-b border-border/60">
+          {linhas.map((l) => (<Fragment key={l.campo}>
+            <tr className="border-b border-border/60">
               <th scope="row" className="py-1.5 pr-2 text-left font-normal">{l.rotulo}{l.obrigatorio && <span className="text-destructive" aria-label="obrigatório"> *</span>}</th>
               <td className="pr-2">
                 {colunas.length ? (
@@ -98,11 +126,15 @@ export function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carreg
               <td className="max-w-[16rem] truncate pr-2 text-xs text-muted-foreground" title={exemplosDaColuna(previa, l.coluna).join(" · ")}>{exemplosDaColuna(previa, l.coluna).join(" · ") || "—"}</td>
               <td><Selo selo={seloDoMapeamento(previa, l.campo, l.coluna)} /></td>
             </tr>
-          ))}
+            {l.campo === "ultimaMovimentacao" && aoEscolherSemData && (
+              <tr className="border-b border-border/60"><td colSpan={4} className="py-1.5"><TratamentoSemData previa={previa} valor={semData} aoEscolher={aoEscolherSemData} /></td></tr>
+            )}
+          </Fragment>))}
         </tbody>
       </table>
       {faltam.length > 0 && <Aviso tom="alerta">Escolha a coluna de: {faltam.join(", ")}.</Aviso>}
-      {mudou && <button type="button" className={botaoSecundario} onClick={aoAtualizar} disabled={carregando || faltam.length > 0}>Atualizar a prévia com este mapeamento</button>}
+      {mudou && aoEscolherSemData && !semData && <Aviso tom="alerta">{MENSAGEM_SEM_TRATAMENTO}</Aviso>}
+      {mudou && <button type="button" className={botaoSecundario} onClick={aoAtualizar} disabled={carregando || faltam.length > 0 || (!!aoEscolherSemData && !semData)} title={aoEscolherSemData && !semData ? MENSAGEM_SEM_TRATAMENTO : undefined}>Atualizar a prévia com este mapeamento</button>}
     </section>
   );
 }
@@ -217,6 +249,7 @@ export function AvisosDeSeparador({ relatorio }) {
 export function Resultado({ r, aoIrParaDiretrizes }) {
   const rel = resumirRelatorio(r);
   const escala = textoEscalaAplicada(r.escalaSaldo);
+  const semData = textoTratamentoNaImportacao(r.semDataMovimentacao);
   return (
     <section aria-labelledby="san-imp-res" className="space-y-3 border border-emerald-600/50 bg-emerald-600/5 p-4">
       <h3 id="san-imp-res" className="font-semibold">Relatório da importação</h3>
@@ -228,6 +261,7 @@ export function Resultado({ r, aoIrParaDiretrizes }) {
       <MotivosAgrupados titulo="Linhas rejeitadas" grupos={rel.motivosRejeicao} />
       <MotivosAgrupados titulo="Linhas pendentes (aceitas com dado faltando)" grupos={rel.motivosPendencia} />
       {escala && <p className="text-sm">{escala}</p>}
+      {semData && <p className="text-sm">{semData}</p>}
       {rel.avisos.map((a, n) => <Aviso key={`${n}-${a}`} tom="alerta">{a}</Aviso>)}
       {aoIrParaDiretrizes && <button type="button" className={botaoPrimario} onClick={aoIrParaDiretrizes}>Ir para Diretrizes</button>}
     </section>
@@ -266,6 +300,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaDiret
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
   const [chaveArquivo, setChaveArquivo] = useState(0);
+  // Tratamento dos itens sem data: começa vazio a cada arquivo; sem ele, a prévia não é atualizada e a importação não é confirmada.
+  const [semData, setSemData] = useState(null);
 
   // `m`: mapeamento corrigido (null = o sugerido); `escala`: divisor do saldo escolhido (1 = como veio).
   const ler = useMutation({
@@ -280,8 +316,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaDiret
     onError: (e) => setErro(mensagemDeErro(e)),
   });
   const confirmar = useMutation({
-    mutationFn: () => san.importar(projeto.id, arquivo, mapeamento ?? previa.mapeamento, corpoIncorporar(modo, escolhidos), escalaAplicada(previa.relatorio)),
-    onSuccess: (r) => { setResultado(r); setPrevia(null); setArquivo(null); setChaveArquivo((k) => k + 1); setErro(null); atualizarTudo(qc, projeto.id);
+    mutationFn: () => san.importar(projeto.id, arquivo, mapeamento ?? previa.mapeamento, corpoIncorporar(modo, escolhidos), escalaAplicada(previa.relatorio), semData),
+    onSuccess: (r) => { setResultado(r); setPrevia(null); setArquivo(null); setSemData(null); setChaveArquivo((k) => k + 1); setErro(null); atualizarTudo(qc, projeto.id);
       // Documentos e solicitações do projeto: a importação cobre o cadastro, o saldo, a movimentação e a equivalência de códigos.
       qc.invalidateQueries({ queryKey: ["consultoria", "documentos"] }); },
     onError: (e) => setErro(mensagemDeErro(e)),
@@ -292,6 +328,7 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaDiret
   const rel = previa ? resumirRelatorio(previa.relatorio) : null;
   const mapeamentoPendente = previa && mapeamentoMudou(efetivo, previa.mapeamento);
   const reimport = ehReimportacao(previa);
+  const bloqueio = previa ? bloqueioDaConfirmacao({ podeImportar, semData, ocupado: confirmar.isPending || paginar.isPending, faltam, mapeamentoPendente, aceitas: rel.aceitas + rel.pendentes }) : null;
 
   return (
     <div className="space-y-5">
@@ -303,7 +340,7 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaDiret
         <ConsultasErp perfil={perfilErp} />
         <div className="flex flex-wrap items-center gap-2">
           <CampoArquivo key={chaveArquivo} accept=".xlsx,.xls,.csv" icone={FileSpreadsheet} arquivo={arquivo} rotulo="Arquivo do cadastro de itens" dica="Excel (.xlsx, .xls) ou CSV" className="w-full sm:w-auto sm:min-w-[22rem]"
-            aoEscolher={([f]) => { setArquivo(f || null); setPrevia(null); setMapeamento(null); setResultado(null); setErro(null); }} />
+            aoEscolher={([f]) => { setArquivo(f || null); setPrevia(null); setMapeamento(null); setResultado(null); setErro(null); setSemData(null); }} />
           <button type="button" className={botaoPrimario} disabled={!arquivo || ler.isPending || confirmar.isPending} onClick={() => ler.mutate({ m: null })}>{ler.isPending ? "Lendo…" : "Ler e mostrar a prévia"}</button>
         </div>
       </section>
@@ -313,7 +350,8 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaDiret
 
       {previa && (
         <>
-          <Mapeamento previa={previa} mapeamento={mapeamento} aoCorrigir={setMapeamento} aoAtualizar={() => ler.mutate({ m: mapeamento, escala: escalaAplicada(previa.relatorio) })} carregando={ler.isPending} />
+          <Mapeamento previa={previa} mapeamento={mapeamento} aoCorrigir={setMapeamento} aoAtualizar={() => ler.mutate({ m: mapeamento, escala: escalaAplicada(previa.relatorio) })} carregando={ler.isPending}
+            semData={semData} aoEscolherSemData={setSemData} />
           <section aria-labelledby="san-imp-prev" className={`space-y-3 ${secaoCls}`}>
             <h2 id="san-imp-prev" className={tituloSecaoCls}>2. Prévia</h2>
             <div className="grid grid-cols-3 gap-2"><Numero rotulo="Linhas aceitas" valor={rel.aceitas} /><Numero rotulo="Rejeitadas" valor={rel.rejeitadas} tom={rel.rejeitadas ? "erro" : undefined} /><Numero rotulo="Pendentes" valor={rel.pendentes} tom={rel.pendentes ? "alerta" : undefined} /></div>
@@ -328,7 +366,9 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaDiret
             <h2 id="san-imp-conf" className={tituloSecaoCls}>3. Confirmar</h2>
             {mapeamentoPendente && <Aviso tom="alerta">O mapeamento foi corrigido: atualize a prévia antes de confirmar.</Aviso>}
             <AvisosDeSeparador relatorio={previa.relatorio} />
-            <button type="button" className={botaoPrimario} disabled={!podeImportar || confirmar.isPending || paginar.isPending || faltam.length > 0 || mapeamentoPendente || rel.aceitas + rel.pendentes === 0} onClick={() => confirmar.mutate()}>
+            {!semData && <Aviso tom="alerta">{MENSAGEM_SEM_TRATAMENTO}</Aviso>}
+            {semData && <p className="text-sm">Itens sem data de última movimentação: <strong>{rotuloTratamentoSemData(semData)}</strong>.</p>}
+            <button type="button" className={botaoPrimario} disabled={!!bloqueio} title={bloqueio || undefined} onClick={() => confirmar.mutate()}>
               {confirmar.isPending ? "Importando…" : reimport ? `Confirmar (${quantosIncorporar(previa, modo, escolhidos).toLocaleString("pt-BR")} item(ns) com diferenças incorporadas)` : "Confirmar importação"}
             </button>
           </section>
