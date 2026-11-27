@@ -72,7 +72,7 @@ describe('planilha de decisão: exportação', () => {
   it('uma linha por caso aberto da camada, colunas travadas, decisão em lista, aba protegida, itens e controle', async () => {
     const t = await montar();
     const { buffer, nome } = await t.planilha.baixar(t.projetoId, 'NCM');
-    expect(nome).toMatch(/^Planilha de decisao - Classificacao \(NCM\) - \d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(nome).toMatch(/^Planilha de decisao - Validar NCM -\d{4}-\d{2}-\d{2}\.xlsx$/);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer as never);
     expect(wb.worksheets.map((w) => w.name)).toEqual([ABA_CASOS, ABA_ITENS, ABA_CONTROLE]);
@@ -128,7 +128,7 @@ describe('planilha de decisão: prévia', () => {
     const motivo = (id: string) => r.recusadas.find((x) => x.casoId === id)?.motivo;
     expect(motivo(inexistente.id)).toMatch(/NCM corrigido inválido/);
     expect(motivo(ausente.id)).toMatch(/Rejeitar exige o Motivo/);
-    expect(motivo(excecao.id)).toMatch(/camada Grupos e finalidade/);
+    expect(motivo(excecao.id)).toMatch(/camada Grupos,/);
     expect(motivo('nao-existe')).toMatch(/não pertence a este projeto/);
     expect(r.arquivo.sha).toBe(sha256Curto(arq));
     // A prévia não grava nada.
@@ -155,7 +155,7 @@ describe('planilha de decisão: prévia', () => {
   it('planilha de outra camada: recusa o arquivo inteiro', async () => {
     const t = await montar();
     const { buffer } = await t.planilha.baixar(t.projetoId, 'NCM');
-    await expect(t.planilha.previa(t.projetoId, 'GRUPOS_FINALIDADE', { buffer, nome: 'x.xlsx' })).rejects.toThrow(/camada Classificação \(NCM\)/);
+    await expect(t.planilha.previa(t.projetoId, 'GRUPOS_FINALIDADE', { buffer, nome: 'x.xlsx' })).rejects.toThrow(/camada Validar NCM/);
     await expect(t.planilha.previa(t.projetoId, 'NCM', { buffer, nome: 'x.csv' })).rejects.toThrow(/\.xlsx/);
   });
 });
