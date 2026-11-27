@@ -207,7 +207,8 @@ select[class~="border-border"] {
   --botao-perigo-relevo: 0 63% 26%;
 }
 /* Relevo "tecnológico": contorno verde fino e nítido, brilho no topo (luz de cima), sombra difusa em camadas;
-   ao passar o mouse sobe 1px com halo verde suave; ao clicar afunda com sombra interna. */
+   ao passar o mouse sobe 2px e cresce 2% com halo verde suave (o ícone acompanha), com retorno em mola;
+   ao clicar aperta (encolhe 3%) com sombra interna. Movimento reduzido: sem deslocamento. */
 .botao-acao {
   --botao-cor-borda: var(--botao-borda);
   --botao-cor-relevo: var(--botao-relevo);
@@ -219,15 +220,19 @@ select[class~="border-border"] {
     inset 0 1px 0 rgb(255 255 255 / .35),
     0 1px 2px rgb(0 0 0 / .08),
     0 2px 6px -1px hsl(var(--botao-cor-relevo) / .18);
-  transition: transform 160ms cubic-bezier(.2, .8, .2, 1), box-shadow 160ms ease-out, background-color 160ms ease-out,
+  transition: transform 220ms cubic-bezier(.34, 1.56, .64, 1), box-shadow 200ms ease-out, background-color 160ms ease-out,
     color 160ms ease-out, border-color 160ms ease-out, opacity 160ms ease-out;
+  will-change: transform;
 }
+.botao-acao svg { transition: transform 220ms cubic-bezier(.34, 1.56, .64, 1); }
+.botao-acao:hover:not(:disabled) svg { transform: translateX(1px) scale(1.12); }
+.botao-acao:active:not(:disabled) svg { transform: scale(.92); }
 .botao-acao.botao-acao-perigo {
   --botao-cor-borda: var(--botao-perigo-borda);
   --botao-cor-relevo: var(--botao-perigo-relevo);
 }
 .botao-acao:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.02);
   border-color: hsl(var(--botao-cor-borda));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / .45),
@@ -236,7 +241,8 @@ select[class~="border-border"] {
     0 2px 4px rgb(0 0 0 / .08);
 }
 .botao-acao:active {
-  transform: translateY(0.5px);
+  transform: translateY(1px) scale(.97);
+  transition-duration: 80ms;
   box-shadow:
     inset 0 2px 4px rgb(0 0 0 / .16),
     0 0 0 2px hsl(var(--botao-cor-borda) / .10);
@@ -261,5 +267,6 @@ select[class~="border-border"] {
 @media (prefers-reduced-motion: reduce) {
   .botao-acao { transition: background-color 120ms, color 120ms, border-color 120ms, opacity 120ms; }
   .botao-acao:hover,
-  .botao-acao:active { transform: none; }
+  .botao-acao:active,
+  .botao-acao svg { transform: none !important; }
 }
