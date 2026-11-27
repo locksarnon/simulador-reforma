@@ -7,9 +7,12 @@ import { san, chaves, atualizarTudo } from "./api";
 import TransformarEmRegra from "./diretrizes/TransformarEmRegra";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, Quadro, Rotulo, rotuloCls, Tag, usePodeAlterar } from "./comuns";
 import {
-  acoesDoCaso, aposConflito, avisoDeOutrosGrupos, camposDivergentes, camposDoFatorAOferecer, converterProposta, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
-  FINALIDADES, interpretarRespostaParecer, lerParecer, mensagemDeErro, mensagemDoParecer, precisaConfirmarFator, precisaInformarFator, propostaEditavel, razaoSemAprovar, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloFinalidade, rotuloSituacaoCaso, textoDoValor,
+  acoesDoCaso, aposConflito, avisoDeOutrosGrupos, campoAlvoDoCaso, CAMPOS_FORA_DA_GRADE, camposDivergentes, camposDoFatorAOferecer, converterProposta, decisoesDoCaso, edicaoInicial, edicaoSuja, ehAtividadesConfirmadas, ehConflitoVersao, ehPropostaDesatualizada, etiquetaDeEnquadramento,
+  FINALIDADES, fmtData, fmtSaldo, interpretarRespostaParecer, lerParecer, mensagemDeErro, mensagemDoParecer, precisaConfirmarFator, precisaInformarFator, propostaEditavel, propostaParaEnviar, razaoSemAprovar, ROTULO_CAMADA, ROTULO_CONFIANCA, rotuloDoCampo, rotuloDoValor, rotuloFinalidade, rotuloSituacaoCaso, rotuloTipoCaso, textoDoValor, textoLegivel,
 } from "./logica";
+
+/** Item do caso de 1 item pelo detalhe do item (quando o servidor não trouxe o resumo). */
+const trabalhoDoItem = (d) => (d?.trabalho ? { id: d.id, ...d.trabalho, codigo: d.trabalho.codigo ?? d.codigo } : null);
 
 function Lista({ titulo, itens }) {
   if (!itens?.length) return null;
@@ -34,7 +37,14 @@ export function ParecerIa({ parecer }) {
   );
 }
 
-function CampoDaProposta({ campo, valor, disabled, aoMudar, destaque }) {
+function CampoDaProposta({ campo, valor, disabled, aoMudar, destaque, decisoes }) {
+  if (campo === "decisao" && decisoes?.length) {
+    return (
+      <select className={campoCls} disabled={disabled} value={valor || ""} aria-label={`Proposta para ${rotuloDoCampo(campo)}`} onChange={(e) => aoMudar(e.target.value)}>
+        {!valor && <option value="" disabled>Escolha a decisão</option>}{decisoes.map((d) => <option key={d} value={d}>{rotuloDoValor(d)}</option>)}
+      </select>
+    );
+  }
   if (campo === "finalidade") {
     // Sem opção vazia: a finalidade de um grupo não pode ser apagada por engano.
     return (
@@ -45,6 +55,31 @@ function CampoDaProposta({ campo, valor, disabled, aoMudar, destaque }) {
   }
   // Guarda o texto como foi digitado (0,05 continua digitável); a conversão para número só acontece ao salvar.
   return <input className={`${campoCls} ${destaque ? "ring-2 ring-amber-500" : ""}`} inputMode={destaque ? "decimal" : undefined} disabled={disabled} value={valor ?? ""} aria-label={`Proposta para ${rotuloDoCampo(campo)}`} onChange={(e) => aoMudar(e.target.value)} />;
+}
+
+/** O item do caso (caso de 1 item) ou a tabela resumida dos itens (conjunto): código, descrição, grupo, NCM, unidade, saldo e movimentação. */
+function ItensDoCaso({ itens, total }) {
+  if (!itens?.length) return null;
+  if (total === 1) {
+    const i = itens[0];
+    const linhas = [["Código", i.codigo], ["Descrição", i.descricao], ["Grupo", i.grupo], ["NCM", i.ncm], ["Unidade", i.unidade], ["Saldo", fmtSaldo(i.saldo)], ["Última movimentação", fmtData(i.ultimaMovimentacao)]];
+    return (
+      <Quadro as="section" ariaLabel="Item" titulo="Item" nivel="h4">
+        <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">{linhas.map(([r, v]) => <div key={r} className="contents"><dt className={`${rotuloCls} mb-0 sm:pt-px`}>{r}</dt><dd className="min-w-0 break-words">{textoDoValor(v)}</dd></div>)}</dl>
+      </Quadro>
+    );
+  }
+  return (
+    <Quadro as="section" ariaLabel="Itens do caso" titulo={`Itens do caso (${total.toLocaleString("pt-BR")})`} nivel="h4">
+      <div className="max-h-64 overflow-auto border border-foreground/30 bg-card">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-muted text-left text-muted-foreground"><tr>{["Código", "Descrição", "Grupo", "NCM", "Unidade", "Saldo"].map((t) => <th key={t} scope="col" className={`px-2 py-1 ${t === "Saldo" ? "text-right" : ""}`}>{t}</th>)}</tr></thead>
+          <tbody>{itens.map((i) => <tr key={i.id} className="border-t border-border/60 align-top"><td className="px-2 py-1">{i.codigo}</td><td className="px-2 py-1">{textoDoValor(i.descricao)}</td><td className="px-2 py-1">{textoDoValor(i.grupo)}</td><td className="px-2 py-1">{textoDoValor(i.ncm)}</td><td className="px-2 py-1">{textoDoValor(i.unidade)}</td><td className="px-2 py-1 text-right tabular-nums">{fmtSaldo(i.saldo) || "—"}</td></tr>)}</tbody>
+        </table>
+      </div>
+      {total > itens.length && <p className="text-xs text-muted-foreground">Mostrando {itens.length.toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")} itens.</p>}
+    </Quadro>
+  );
 }
 
 /** Detalhe do caso: problema, evidência, dados originais e atuais, proposta editável, justificativa, parecer da IA e as ações. */
@@ -100,7 +135,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
   const montarProposta = () => {
     const r = converterProposta(edicao.proposta, caso.proposta);
     if (r.invalidos.length) throw new Error(`Digite um número válido em: ${r.invalidos.map(rotuloDoCampo).join(", ")}.`);
-    return r.valor;
+    return propostaParaEnviar(r.valor, caso.proposta);
   };
   const rascunho = useMutation({ mutationFn: () => san.salvarRascunho(casoId, { versao: caso.versao, proposta: montarProposta(), justificativa: edicao.justificativa }), onSuccess: depois("Rascunho salvo."), onError: falhou });
   const aprovar = useMutation({
@@ -148,7 +183,12 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
       {(c) => {
         // Unificação com unidades diferentes: os campos do fator (com a direção) aparecem para preencher, mesmo sem estar na proposta.
         const doFator = camposDoFatorAOferecer(c, edicao.proposta);
-        const campos = [...new Set([...Object.keys(c.atual || {}), ...Object.keys(edicao.proposta || {}), ...doFator])];
+        // O campo que o tipo corrige (NCM, descrição, unidade) fica sempre editável, mesmo sem proposta.
+        const alvo = campoAlvoDoCaso(c);
+        const editaveisSemProposta = [...doFator, ...(alvo ? [alvo] : [])];
+        const campos = [...new Set([...Object.keys(c.atual || {}), ...Object.keys(edicao.proposta || {}), ...editaveisSemProposta])].filter((k) => !CAMPOS_FORA_DA_GRADE.includes(k));
+        const decisoes = decisoesDoCaso(edicao.proposta);
+        const resumo = c.resumoItens || (trabalhoDoItem(item.data) ? [trabalhoDoItem(item.data)] : []);
         const original = item.data?.original;
         const trabalho = item.data?.trabalho;
         const pega = (parte, k) => (parte ? (k in parte ? parte[k] : parte.campos?.[k]) : undefined);
@@ -158,12 +198,12 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
           <article className="space-y-4 border border-border bg-card p-4" aria-label="Detalhe do caso">
             <header className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <Tag>{ROTULO_CAMADA[c.camada]}</Tag><Tag tom={c.situacao === "APROVADO" ? "ok" : "info"}>{rotuloSituacaoCaso(c.situacao)}</Tag>
+                <Tag>{ROTULO_CAMADA[c.camada]}</Tag><Tag>{rotuloTipoCaso(c.tipo)}</Tag><Tag tom={c.situacao === "APROVADO" ? "ok" : "info"}>{rotuloSituacaoCaso(c.situacao)}</Tag>
                 <Tag tom={c.origem === "IA" ? "info" : "neutro"}>Origem: {c.origem === "IA" ? "IA" : "regra"}</Tag>
                 <Tag>{c.itens.length.toLocaleString("pt-BR")} {c.itens.length === 1 ? "item" : "itens"}</Tag>
                 {etiquetaDeEnquadramento(origemProposta) && <Tag tom={origemProposta === "EXCECAO" ? "alerta" : "info"}>{etiquetaDeEnquadramento(origemProposta)}</Tag>}
               </div>
-              <h3 className="text-base font-semibold">{c.problema}</h3>
+              <h3 className="text-base font-semibold">{textoLegivel(c.problema)}</h3>
               {c.motivo && <p className="text-sm text-muted-foreground">Motivo registrado: {c.motivo}</p>}
             </header>
 
@@ -176,9 +216,11 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
               </Aviso>
             )}
 
+            <ItensDoCaso itens={resumo} total={c.itens.length} />
+
             {c.evidencia?.length > 0 && (
               <Quadro as="section" ariaLabel="Evidência" titulo="Evidência" nivel="h4">
-                <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">{c.evidencia.map((e) => <div key={e.rotulo} className="contents"><dt className={`${rotuloCls} mb-0 sm:pt-px`}>{e.rotulo}</dt><dd>{e.valor}</dd></div>)}</dl>
+                <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">{c.evidencia.map((e) => <div key={e.rotulo} className="contents"><dt className={`${rotuloCls} mb-0 sm:pt-px`}>{e.rotulo}</dt><dd>{e.valor === true || e.valor === false || e.valor === "true" || e.valor === "false" ? textoDoValor(e.valor) : textoLegivel(e.valor)}</dd></div>)}</dl>
               </Quadro>
             )}
 
@@ -191,17 +233,17 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
                       {campos.map((k) => (
                         <tr key={k} className="border-b border-foreground/20 align-top last:border-b-0">
                           <th scope="row" className="px-2 py-1.5 text-left font-medium">{rotuloDoCampo(k)}</th>
-                          {unico && <td className="px-2 py-1.5 tabular-nums">{textoDoValor(pega(original, k))}</td>}
-                          <td className="px-2 py-1.5 tabular-nums">{textoDoValor(k in (c.atual || {}) ? c.atual[k] : pega(trabalho, k))}</td>
-                          <td className={`px-2 py-1 ${k === "fatorConversao" && precisaInformarFator(c) ? "bg-amber-500/10" : ""}`}>{k in (edicao.proposta || {}) || doFator.includes(k) ? (propostaEditavel(k)
-                            ? <CampoDaProposta campo={k} valor={edicao.proposta[k]} destaque={k === "fatorConversao" && precisaInformarFator(c)} disabled={!pode || !acoes.editar || ocupado} aoMudar={(v) => mudarEdicao({ proposta: { ...edicao.proposta, [k]: v } })} />
-                            : <span>{textoDoValor(edicao.proposta[k])}</span>) : <span className="text-muted-foreground">—</span>}</td>
+                          {unico && <td className="px-2 py-1.5 tabular-nums">{textoDoValor(pega(original, k), k)}</td>}
+                          <td className="px-2 py-1.5 tabular-nums">{textoDoValor(k in (c.atual || {}) ? c.atual[k] : pega(trabalho, k), k)}</td>
+                          <td className={`px-2 py-1 ${k === "fatorConversao" && precisaInformarFator(c) ? "bg-amber-500/10" : ""}`}>{k in (edicao.proposta || {}) || editaveisSemProposta.includes(k) ? (propostaEditavel(k)
+                            ? <CampoDaProposta campo={k} valor={edicao.proposta[k]} decisoes={decisoes} destaque={(k === "fatorConversao" && precisaInformarFator(c)) || (k === alvo && !(k in (c.proposta || {})))} disabled={!pode || !acoes.editar || ocupado} aoMudar={(v) => mudarEdicao({ proposta: { ...edicao.proposta, [k]: v } })} />
+                            : <span>{textoDoValor(edicao.proposta[k], k)}</span>) : <span className="text-muted-foreground">—</span>}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {Object.keys(c.proposta || {}).length === 0 && <p className="text-sm text-foreground/75">Este caso não traz alteração proposta: não há o que aprovar. Rejeite ou peça informação.</p>}
+                {Object.keys(c.proposta || {}).length === 0 && <p className="text-sm text-foreground/75">{alvo && acoes.editar ? `Este caso não traz proposta: digite o valor correto em ${rotuloDoCampo(alvo)} para aprovar, ou rejeite ou peça informação.` : "Este caso não traz alteração proposta: não há o que aprovar. Rejeite ou peça informação."}</p>}
               </Quadro>
             )}
 
@@ -230,6 +272,7 @@ export default function CasoDetalhe({ projeto, casoId, aoIrAoProximo, aoMudou, g
                   <label className="block"><Rotulo>{modo === "rejeitar" ? "Justificativa da rejeição (obrigatória)" : "Que informação falta? (obrigatório)"}</Rotulo><textarea className={`${campoCls} min-h-[64px]`} value={texto} onChange={(e) => setTexto(e.target.value)} /></label>
                   <div className="flex gap-2">
                     <button type="button" className={modo === "rejeitar" ? botaoPerigo : botaoPrimario} disabled={!texto.trim() || ocupado} onClick={() => (modo === "rejeitar" ? rejeitar : pedir).mutate()}>{modo === "rejeitar" ? "Confirmar rejeição" : "Registrar pedido"}</button>
+                    {modo === "pedir" && aoIrAoProximo && <button type="button" className={botaoPrimario} disabled={!texto.trim() || ocupado} onClick={() => pedir.mutate({ ir: true })}>Registrar e ir ao próximo</button>}
                     <button type="button" className={botaoSecundario} onClick={() => { setModo(null); setTexto(""); }}>Cancelar</button>
                   </div>
                 </div>

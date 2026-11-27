@@ -41,6 +41,9 @@ export const san = {
   pedirParecerIa: (casoId) => api.post(`${B}/casos/${casoId}/parecer-ia`, {}),
   lotePrevia: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/previa`, corpo),
   loteAprovar: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/aprovar`, corpo),
+  /** Pedir informação ou rejeitar em lote, com o texto comum e as versões da prévia. */
+  loteRejeitar: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/rejeitar`, corpo),
+  lotePedirInformacao: (id, corpo) => api.post(`${B}/projetos/${id}/casos/lote/pedir-informacao`, corpo),
 
   /** Paginado: { linhas, proximo, total, totalGeral, porTipo }. */
   impactos: (id, params) => api.get(`${B}/projetos/${id}/impactos-sped`, params),
