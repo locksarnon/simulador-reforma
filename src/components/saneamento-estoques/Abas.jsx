@@ -41,8 +41,9 @@ export function SeletorDeFases({ atual, situacoes, aoMudar }) {
 }
 
 /**
- * Faixa de abas de uma fase (segundo nível): as abas da fase e, à direita, as áreas comuns (Tabela, Visão geral, Impacto no SPED e
- * Versões), que mostram o projeto inteiro. Setas do teclado percorrem a faixa toda.
+ * Faixa de abas de uma fase (segundo nível): as abas da fase, numeradas pela fase (1.1, 1.2…; o número vem de numeroDaAba), e, à direita,
+ * as áreas comuns sem número (Tabela, Visão geral, Impacto no SPED e Versões), que mostram o projeto inteiro. Setas do teclado percorrem a
+ * faixa toda.
  */
 export default function Abas({ fase, atual, aoMudar }) {
   const lista = abasDaArea(fase);
@@ -52,7 +53,7 @@ export default function Abas({ fase, atual, aoMudar }) {
     <button key={a.id} type="button" role="tab" id={`san-aba-${a.id}`} aria-selected={atual === a.id} aria-controls="san-painel" tabIndex={atual === a.id ? 0 : -1}
       onClick={() => aoMudar(a.id)} onKeyDown={aoTeclar(ids, atual, aoMudar, "san-aba-")}
       className={`-mb-px border-b-2 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${atual === a.id ? "border-primary font-semibold" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-      {a.rotulo}
+      {a.numero && <><span className="tabular-nums">{a.numero}</span>{" "}</>}{a.rotulo}
     </button>
   );
   return (

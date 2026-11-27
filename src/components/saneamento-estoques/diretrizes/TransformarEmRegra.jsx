@@ -15,8 +15,8 @@ import { ABRANGENCIA_TODOS, ASPECTOS, inicialDoCaso, mensagemDiretriz, ROTULO_AS
 export function ResultadoTransformacao({ resultado, destino, aspecto = null }) {
   const id = resultado?.id || resultado?.regra?.id;
   const codigo = resultado?.codigo || resultado?.regra?.codigo;
-  // A regra fiscal fica nas Diretrizes da Fase 2; as outras, nas da Fase 1.
-  const destinoDir = `?fase=${(aspecto || resultado?.aspecto || resultado?.regra?.aspecto) === "FISCAL" ? "2" : "1"}&aba=diretrizes&regra=${encodeURIComponent(id || "")}`;
+  // A regra fiscal fica nas Diretrizes da Fase 2 (2.1 Premissas e diretrizes); as outras, nas da Fase 1 (1.1 Preparar e diretrizes).
+  const destinoDir = `?${(aspecto || resultado?.aspecto || resultado?.regra?.aspecto) === "FISCAL" ? "fase=2&aba=premissas" : "fase=1&aba=preparar"}&regra=${encodeURIComponent(id || "")}`;
   const abrir = id && <Link className={botaoSecundario} to={destinoDir}>Abrir nas Diretrizes</Link>;
   if (destino === "BIBLIOTECA") {
     return (

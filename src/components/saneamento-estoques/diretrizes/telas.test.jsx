@@ -46,13 +46,13 @@ const comDiretrizes = (dados = DADOS) => (qc) => {
 };
 
 describe("aba Diretrizes na página do saneamento", () => {
-  it("fica entre Preparar e Análise na Fase 1, e entre Premissas e Análise na Fase 2", () => {
-    const t = texto(montar(<Abas fase="fase1" atual="diretrizes" aoMudar={() => {}} />));
-    expect(t.indexOf("Preparar")).toBeLessThan(t.indexOf("Diretrizes"));
-    expect(t.indexOf("Diretrizes")).toBeLessThan(t.indexOf("Análise"));
-    const t2 = texto(montar(<Abas fase="fase2" atual="diretrizes" aoMudar={() => {}} />));
-    expect(t2.indexOf("Premissas")).toBeLessThan(t2.indexOf("Diretrizes"));
-    expect(t2.indexOf("Diretrizes")).toBeLessThan(t2.indexOf("Análise"));
+  it("fica junto com Preparar (1.1 Preparar e diretrizes) na Fase 1 e com Premissas (2.1 Premissas e diretrizes) na Fase 2, antes da Análise", () => {
+    const t = texto(montar(<Abas fase="fase1" atual="preparar" aoMudar={() => {}} />));
+    expect(t).toContain("1.1 Preparar e diretrizes 1.2 Análise");
+    expect(t).not.toMatch(/\d\.\d Diretrizes/);
+    const t2 = texto(montar(<Abas fase="fase2" atual="premissas" aoMudar={() => {}} />));
+    expect(t2).toContain("2.1 Premissas e diretrizes 2.2 Análise");
+    expect(t2).not.toMatch(/\d\.\d Diretrizes/);
   });
   it("por fase: a Fase 1 mostra nomes, atributos, unidades e limites; a Fase 2, só a classificação fiscal", () => {
     const f1 = texto(montar(<Diretrizes projeto={projeto()} aspectos={["NOMES", "ATRIBUTOS", "UNIDADES", "LIMITES"]} />, comDiretrizes()));
@@ -159,7 +159,7 @@ describe("blocos por aspecto", () => {
   it("B. Atributos: lista + outro, onde (com o campo) e quando aplicável (com a condição)", () => {
     const valor = { aspecto: "ATRIBUTOS", atributos: [{ atributo: "PRINCIPIO_ATIVO", onde: "AMBOS", campo: "Princípio", aplicabilidade: "QUANDO_APLICAVEL", condicao: "defensivos" }] };
     const t = texto(montar(<BlocoAtributos valor={valor} aoMudar={nada} />));
-    for (const s of ["Atributos exigidos", "Princípio ativo", "Onde deve constar", "Campo próprio (coluna do cadastro)", "Exigência", "Quando se aplica"]) expect(t, s).toContain(s);
+    for (const s of ["Atributos exigidos", "Princípio ativo", "Onde deve constar", "Campo próprio", "Exigência", "Quando se aplica"]) expect(t, s).toContain(s);
   });
   it("C. Unidades: critério, unidades permitidas, conversões e o aviso fixo", () => {
     const valor = conteudoParaTela("UNIDADES", { criterioEstoque: "DEFINIDA", unidadeDefinida: "KG", unidadesCompra: ["SC"], conversoes: [{ origem: "SC", destino: "KG", fator: 50, abrangencia: "GRUPO" }] });
@@ -223,9 +223,9 @@ describe("Política (PDF) e Transformar em regra", () => {
     const t = texto(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "F02" }} destino="PROJETO" />));
     expect(t).toContain("Regra F02 criada em rascunho");
     expect(t).toContain("Abrir nas Diretrizes");
-    expect(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "N02" }} destino="PROJETO" />)).toContain('href="/?fase=1&amp;aba=diretrizes&amp;regra=r9"');
-    // A regra fiscal abre nas Diretrizes da Fase 2.
-    expect(montar(<ResultadoTransformacao resultado={{ id: "r8", codigo: "F02", aspecto: "FISCAL" }} destino="PROJETO" />)).toContain('href="/?fase=2&amp;aba=diretrizes&amp;regra=r8"');
+    // As Diretrizes da Fase 1 ficam em 1.1 Preparar e diretrizes; a regra fiscal abre nas da Fase 2, em 2.1 Premissas e diretrizes.
+    expect(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "N02" }} destino="PROJETO" />)).toContain('href="/?fase=1&amp;aba=preparar&amp;regra=r9"');
+    expect(montar(<ResultadoTransformacao resultado={{ id: "r8", codigo: "F02", aspecto: "FISCAL" }} destino="PROJETO" />)).toContain('href="/?fase=2&amp;aba=premissas&amp;regra=r8"');
     const bib = texto(montar(<ResultadoTransformacao resultado={{ id: "r10", codigo: "F03" }} destino="BIBLIOTECA" />));
     expect(bib).toContain("Regra criada na biblioteca e F03 em rascunho neste projeto");
     expect(bib).toContain("sem códigos de item deste cliente");
@@ -274,7 +274,7 @@ describe("padrão de cores dos formulários (quadros, seções, rótulos e campo
     ] });
     const html = montar(<BlocoLimites valor={valor} aoMudar={nada} />);
     expect(quadros(html)).toHaveLength(2);
-    expect(html).toContain('class="space-y-4" aria-label="Linhas de limite"');
+    expect(html).toContain('class="space-y-3" aria-label="Linhas de limite"');
     expect(html).toMatch(/bg-primary\/10[^"]*"><span id="[^"]+" class="text-sm font-semibold text-foreground">Limite 1<\/span>/);
     expect(html).toMatch(/Limite 2<\/span><span[^>]*>ERP<\/span><span[^>]*>Não confirmado/);
     expect(html).toContain(comuns.corpoQuadro);
@@ -310,5 +310,46 @@ describe("padrão de cores dos formulários (quadros, seções, rótulos e campo
     const det = montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), caso));
     for (const t of ["Evidência", "Dados e proposta", "Justificativa e fundamento", "Decisão"]) expect(det, t).toMatch(new RegExp(`class="[^"]*(bg-primary/10)[^"]*"[^>]*>(<[^>]+>)?${t}<`));
     expect(det).toContain(comuns.campo);
+  });
+});
+
+describe("Diretrizes compactas (campos lado a lado, rótulos de mesma altura, explicações no botão i)", () => {
+  const nada = () => {};
+  const ROT = "flex h-5 items-center gap-1 whitespace-nowrap text-xs font-medium";
+  it("Limites: até 4 campos por linha, rótulos de mesma altura ligados ao campo, explicação da ordem de confiança atrás do i", () => {
+    const valor = conteudoParaTela("LIMITES", { linhas: [{ destino: "SPED", campo: "0200", campoItem: "descricao", limite: 100, origem: "LEIAUTE_OFICIAL", confirmado: true, tratamento: "SUGERIR_ABREVIACAO", preservar: [] }] });
+    const html = montar(<BlocoLimites valor={valor} aoMudar={nada} />);
+    expect(html).toContain("lg:grid-cols-4");
+    expect(html).toContain(ROT);
+    // Cada rótulo aponta para o seu campo (label for = id do campo).
+    const fors = [...html.matchAll(/<label for="([^"]+)"/g)].map((m) => m[1]);
+    expect(fors.length).toBeGreaterThanOrEqual(8);
+    for (const id of fors) expect(html).toContain(`id="${id}"`);
+    // A explicação fica atrás do "i" (fechado por padrão).
+    expect(html).toContain('aria-label="Sobre: Como o limite é escolhido"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(texto(html)).not.toContain("Ordem de confiança");
+    expect(texto(html)).toContain("Confirmado na fonte");
+  });
+  it("seções dos blocos: a dica fica no i da faixa (Nomes, Unidades); campos curtos lado a lado", () => {
+    const nomes = montar(<BlocoNomes valor={conteudoPadrao("NOMES")} aoMudar={nada} />);
+    expect(nomes).toContain('aria-label="Sobre: Componentes e ordem"');
+    expect(texto(nomes)).not.toContain("Arraste ou use as setas");
+    expect(nomes).toContain("lg:grid-cols-4");
+    const un = montar(<BlocoUnidades valor={conteudoPadrao("UNIDADES")} aoMudar={nada} />);
+    expect(un).toContain('aria-label="Sobre: Conversões"');
+    expect(texto(un)).not.toContain("Fator: quantas unidades");
+    expect(un).toContain("lg:grid-cols-3");
+  });
+  it("lista de regras e formulário: o que cada aspecto cobre fica no i; Identificação em até 4 colunas", () => {
+    const lista = montar(<Diretrizes projeto={projeto()} aspectos={["NOMES"]} />, comDiretrizes());
+    expect(lista).toContain('aria-label="Sobre: Padrão de nomes"');
+    expect(lista).toContain('aria-label="Sobre: Grupos sem regra"');
+    expect(texto(lista)).not.toContain("Grupo sem regra entra na política como pendência");
+    const form = montar(<FormularioRegra projeto={projeto()} dados={DADOS} inicial={{ aspecto: "NOMES" }} aoFechar={() => {}} />, comDiretrizes());
+    expect(form).toContain("lg:grid-cols-4");
+    expect(form).toContain('aria-label="Sobre: Aspecto"');
+    expect(form).toContain('aria-label="Sobre: Partir de uma regra da biblioteca (opcional)"');
+    expect(texto(form)).not.toContain("O conteúdo da biblioteca é carregado abaixo");
   });
 });

@@ -648,14 +648,17 @@ describe("Cobertura, abas e página", () => {
   });
   it("abas da fase e, à direita, as áreas comuns, com a atual marcada", () => {
     const html = montar(<Abas fase="fase1" atual="casos" aoMudar={() => {}} />);
-    expect(texto(html)).toContain("Preparar Diretrizes Análise Casos Unificações Entrega da Fase 1");
+    expect(texto(html)).toContain("1.1 Preparar e diretrizes 1.2 Análise 1.3 Casos 1.4 Unificações 1.5 Entrega da Fase 1");
     expect(texto(html)).toContain("Tabela Visão geral Impacto no SPED Versões");
     expect(html).toMatch(/id="san-aba-casos" aria-selected="true"/);
-    expect((html.match(/role="tab"/g) || []).length).toBe(10);
+    expect((html.match(/role="tab"/g) || []).length).toBe(9);
+    // O número fica dentro do botão da aba (nome acessível "1.3 Casos"); as áreas comuns não têm número.
+    expect(html).toMatch(/id="san-aba-casos"[^>]*><span class="tabular-nums">1\.3<\/span> Casos<\/button>/);
+    expect(html).toMatch(/id="san-aba-tabela"[^>]*>Tabela<\/button>/);
     const f2 = montar(<Abas fase="fase2" atual="premissas" aoMudar={() => {}} />);
-    expect(texto(f2)).toContain("Premissas Diretrizes Análise Casos Entrega da Fase 2");
+    expect(texto(f2)).toContain("2.1 Premissas e diretrizes 2.2 Análise 2.3 Casos 2.4 Entrega da Fase 2");
     expect(texto(f2)).not.toContain("Unificações");
-    expect((f2.match(/role="tab"/g) || []).length).toBe(9);
+    expect((f2.match(/role="tab"/g) || []).length).toBe(8);
     expect((montar(<Abas fase="fechamento" atual="entregas" aoMudar={() => {}} />).match(/role="tab"/g) || []).length).toBe(5);
   });
   const rota = (qc) => renderToStaticMarkup(
@@ -676,7 +679,7 @@ describe("Cobertura, abas e página", () => {
     const t = texto(rota(ok));
     expect(t).toContain("Saneamento de estoques e cadastro de produtos");
     expect(t).toContain("Fase 1 · Saneamento");
-    // Sem itens importados abre na Fase 1 > Preparar (dados do projeto e importação), mesmo sem as atividades confirmadas.
+    // Sem itens importados abre na Fase 1 > 1.1 Preparar e diretrizes (dados do projeto, importação e diretrizes), mesmo sem as atividades confirmadas.
     expect(t).toContain("Ler e mostrar a prévia");
     expect(t).toContain("Fase 1 · Dados do projeto");
     expect(t).not.toContain("Confirmo as atividades");

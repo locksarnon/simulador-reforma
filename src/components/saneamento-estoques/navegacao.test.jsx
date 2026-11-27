@@ -202,16 +202,19 @@ describe("Página: fases no primeiro nível", () => {
   });
   it("cada fase com as suas abas; as áreas comuns em todas; a Análise só com as camadas da fase", () => {
     const f1 = pagina("/s/d1?fase=1&aba=analise");
-    expect(texto(f1)).toContain("Preparar Diretrizes Análise Casos Unificações Entrega da Fase 1");
+    expect(texto(f1)).toContain("1.1 Preparar e diretrizes 1.2 Análise 1.3 Casos 1.4 Unificações 1.5 Entrega da Fase 1");
     expect(texto(f1)).toContain("Tabela Visão geral Impacto no SPED Versões");
     expect(texto(f1)).not.toContain("Premissas");
     expect(selecionada(f1, "san-aba-analise")).toBe(true);
     const f2 = pagina("/s/d1?fase=2&aba=analise", { dadosFases: fases({ f1: true }) });
-    expect(texto(f2)).toContain("Premissas Diretrizes Análise Casos Entrega da Fase 2");
+    expect(texto(f2)).toContain("2.1 Premissas e diretrizes 2.2 Análise 2.3 Casos 2.4 Entrega da Fase 2");
     expect(texto(f2)).not.toContain("Unificações");
     expect(texto(f2)).not.toContain("Preparar");
     const fe = texto(pagina("/s/d1?fase=fechamento"));
-    expect(fe).toContain("Entregas finais");
+    expect(fe).toContain("3.1 Entregas finais");
+    // Áreas comuns sem número.
+    expect(texto(f1)).toContain("Projeto inteiro: Tabela Visão geral");
+    expect(texto(f1)).not.toMatch(/\d\.\d Tabela/);
     expect(fe).toContain("Entregas liberadas");
     expect(fe).toContain("Roteiro do projeto");
     expect(fe).toContain("O fechamento reúne as entregas depois de liberadas a Fase 1 e a Fase 2.");
@@ -253,9 +256,46 @@ describe("Página: fases no primeiro nível", () => {
     // Sem a resposta das fases ainda: espera.
     expect(texto(pagina("/s/d1", { dadosFases: null }))).toContain("Abrindo a fase em andamento");
   });
+  it("abas juntadas: 1.1 Preparar e diretrizes (dados, importação e Diretrizes da Fase 1) e 2.1 Premissas e diretrizes (premissas e Diretrizes da Fase 2)", () => {
+    const comDiretrizes = (qc) => qc.setQueryData(chaves.diretrizes("p1"), { cabecalho: { situacao: "RASCUNHO", versao: 1 }, grupos: [], gruposSemRegra: [], atualizacoesBiblioteca: [],
+      regras: [{ id: "r1", aspecto: "NOMES", codigo: "N01", nome: "Nomes", abrangencia: { todos: true }, conteudoEfetivo: conteudoPadrao("NOMES"), situacao: "RASCUNHO", versao: 1 },
+        { id: "r3", aspecto: "FISCAL", codigo: "F01", nome: "Fiscal", abrangencia: { todos: true }, conteudoEfetivo: conteudoPadrao("FISCAL"), situacao: "RASCUNHO", versao: 1 }] });
+    const montarCom = (local, opcoes = {}) => {
+      const qc = novoCliente();
+      qc.setQueryData(chaves.projeto("d1"), projeto({ totalItens: 3 }));
+      qc.setQueryData(chaves.fases("p1"), opcoes.dadosFases || fases());
+      qc.setQueryData(chaves.estadoCamadas("p1"), estado);
+      qc.setQueryData(chaves.importacoes("p1"), []);
+      comDiretrizes(qc);
+      return renderToStaticMarkup(<QueryClientProvider client={qc}><StaticRouter location={local}><Routes><Route path="/s/:id" element={<SaneamentoEstoquesPagina />} /></Routes></StaticRouter></QueryClientProvider>);
+    };
+    const f1 = montarCom("/s/d1?fase=1&aba=preparar");
+    const t1 = texto(f1);
+    // Dados do projeto, depois a importação, depois as Diretrizes da Fase 1 (só os aspectos dela).
+    expect(t1.indexOf("Fase 1 · Dados do projeto")).toBeGreaterThan(-1);
+    expect(t1.indexOf("Fase 1 · Dados do projeto")).toBeLessThan(t1.indexOf("Diretrizes da Fase 1"));
+    expect(f1).toContain('id="san-diretrizes"');
+    expect(t1).toContain("N01");
+    expect(t1).not.toContain("F01");
+    const f2 = montarCom("/s/d1?fase=2&aba=premissas", { dadosFases: fases({ f1: true }) });
+    const t2 = texto(f2);
+    expect(t2.indexOf("Premissas da Fase 2")).toBeGreaterThan(-1);
+    expect(t2.indexOf("Premissas da Fase 2")).toBeLessThan(t2.indexOf("Diretrizes da Fase 2"));
+    expect(t2).toContain("F01");
+    expect(t2).not.toContain("N01");
+    // "Abrir nas Diretrizes" (endereço antigo e o de agora): a aba juntada da fase da regra, com a regra aberta.
+    for (const local of ["/s/d1?fase=2&aba=diretrizes&regra=r3", "/s/d1?fase=2&aba=premissas&regra=r3"]) {
+      const html = montarCom(local, { dadosFases: fases({ f1: true }) });
+      expect(selecionada(html, "san-aba-premissas"), local).toBe(true);
+      expect(texto(html), local).toContain("Regra F01");
+    }
+    const n = montarCom("/s/d1?fase=1&aba=diretrizes&regra=r1");
+    expect(selecionada(n, "san-aba-preparar")).toBe(true);
+    expect(texto(n)).toContain("Regra N01");
+  });
   it("endereços antigos seguem valendo: cada ?aba= antiga abre a fase e a aba de agora", () => {
     const casos = [["configuracao", "san-fase-fase1", "san-aba-preparar"], ["importacao", "san-fase-fase1", "san-aba-preparar"], ["casos", "san-fase-fase1", "san-aba-casos"],
-      ["diretrizes", "san-fase-fase1", "san-aba-diretrizes"], ["unificacoes", "san-fase-fase1", "san-aba-unificacoes"], ["versoes", "san-fase-fase1", "san-aba-versoes"],
+      ["diretrizes", "san-fase-fase1", "san-aba-preparar"], ["preparar", "san-fase-fase1", "san-aba-preparar"], ["unificacoes", "san-fase-fase1", "san-aba-unificacoes"], ["versoes", "san-fase-fase1", "san-aba-versoes"],
       ["tabela", "san-fase-fase1", "san-aba-tabela"], ["visao", "san-fase-fase1", "san-aba-visao"], ["impacto", "san-fase-fase1", "san-aba-impacto"]];
     for (const [aba, fase, alvo] of casos) {
       const html = pagina(`/s/d1?aba=${aba}`);

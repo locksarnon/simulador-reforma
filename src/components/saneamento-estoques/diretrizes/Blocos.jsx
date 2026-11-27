@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from "lucide-react";
-import { Aviso, bordaCampo, botaoSecundario, campoCls, Quadro, Rotulo, rotuloCls, Tag } from "../comuns";
+import { bordaCampo, botaoSecundario, CampoCompacto, campoCls, campoCompactoCls, Quadro, Rotulo, rotuloCls, rotuloCompactoCls, Tag, useExplicacao } from "../comuns";
 import {
   ABRANGENCIA_CONVERSAO, alternarNaLista, APLICABILIDADE, ATRIBUTOS_SUGERIDOS, AVISO_CONVERSAO_DESCONHECIDA, CAMPO_ITEM, CAPITALIZACOES, CENARIOS_FISCAIS, COMPONENTES_NOME,
   CRITERIO_ESTOQUE, lerExemplos, lerFator, lerLimite, mover, moverPara, novaConversao, novaLinhaLimite, novoAtributo, ONDE_ATRIBUTO, ORIGEM_LIMITE, previaEstrutura,
@@ -11,16 +11,31 @@ const botaoIcone = "inline-flex h-7 w-7 items-center justify-center border borde
 /** Realce verde do InTAX ao passar o mouse (o mesmo das linhas da tabela padrão). */
 export const realceVerde = "transition-[background-color,box-shadow] hover:bg-gradient-to-r hover:from-primary/30 hover:via-primary/12 hover:to-transparent hover:shadow-[inset_3px_0_0_0_hsl(var(--primary))]";
 
-/** Assunto dentro do bloco do aspecto: o quadro padrão do Saneamento (faixa de título, corpo com fundo próprio). */
-function Secao({ titulo, children, dica }) {
-  return <Quadro titulo={titulo} dica={dica}>{children}</Quadro>;
+/**
+ * Assunto dentro do bloco do aspecto: o quadro padrão do Saneamento (faixa de título fina, corpo com fundo próprio). A `dica` fica atrás
+ * do botão "i" na faixa, em vez de um parágrafo sempre à vista.
+ */
+function Secao({ titulo, children, dica, className = "" }) {
+  const info = useExplicacao(titulo, dica);
+  return <Quadro titulo={titulo} acoes={info.botao} className={className}>{info.texto}{children}</Quadro>;
+}
+/** Grade dos campos curtos: até 4 por linha nas telas grandes, rótulos de mesma altura (campos alinhados) e pouco espaço vertical. */
+const gradeCampos = "grid items-start gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-4";
+/** Caixa de marcar na grade: rótulo vazio da mesma altura e a caixa na altura do campo, alinhada aos vizinhos. */
+function MarcarNaGrade({ rotulo, children, className = "" }) {
+  return (
+    <div className={className}>
+      <span className={rotuloCompactoCls} aria-hidden="true">{rotulo || " "}</span>
+      <div className="mt-1 flex min-h-[34px] items-center">{children}</div>
+    </div>
+  );
 }
 /** Tabela editável dentro de um quadro: cabeçalho em faixa verde suave, linhas separadas e campos em fundo de campo. */
 const tabelaQuadroCls = "w-full border border-foreground/30 bg-card text-sm";
 const cabecalhoQuadroCls = "border-b border-foreground/50 bg-primary/10 text-left text-xs font-medium text-foreground/80";
 
 /** Lista de marcar com filtro digitável (grupos, unidades). `extra` permite acrescentar um valor que não está na lista. */
-export function SeletorMultiplo({ rotulo, opcoes, marcados, aoMudar, desabilitado, rotuloDe = (o) => o, permitirOutro = false, alturaMax = "max-h-48" }) {
+export function SeletorMultiplo({ rotulo, opcoes, marcados, aoMudar, desabilitado, rotuloDe = (o) => o, permitirOutro = false, alturaMax = "max-h-40" }) {
   const id = useId();
   const [filtro, setFiltro] = useState("");
   const [outro, setOutro] = useState("");
@@ -57,17 +72,17 @@ function TabelaLinhas({ rotulo, colunas, linhas, aoMudar, nova, desabilitado, va
     <div className="space-y-1">
       <div className="overflow-x-auto">
         <table className={tabelaQuadroCls} aria-label={rotulo}>
-          <thead><tr className={cabecalhoQuadroCls}>{colunas.map((c) => <th key={c.chave} scope="col" className="px-2 py-1.5 font-medium">{c.rotulo}</th>)}<th scope="col" className="w-10"><span className="sr-only">Remover</span></th></tr></thead>
+          <thead><tr className={cabecalhoQuadroCls}>{colunas.map((c) => <th key={c.chave} scope="col" className="px-2 py-1 font-medium">{c.rotulo}</th>)}<th scope="col" className="w-10"><span className="sr-only">Remover</span></th></tr></thead>
           <tbody>
             {linhas.length === 0 && <tr><td colSpan={colunas.length + 1} className="px-2 py-2 text-xs text-foreground/75">{vazio}</td></tr>}
             {linhas.map((l, i) => (
               <tr key={i} className="border-b border-foreground/20 align-top last:border-b-0">
                 {colunas.map((c) => (
-                  <td key={c.chave} className="px-2 py-1.5">{c.render ? c.render(l, (v) => set(i, c.chave, v), i) : (
+                  <td key={c.chave} className="px-2 py-1">{c.render ? c.render(l, (v) => set(i, c.chave, v), i) : (
                     <input className={campoCls} disabled={desabilitado} aria-label={`${c.rotulo}, linha ${i + 1}`} value={l[c.chave] ?? ""} onChange={(e) => set(i, c.chave, e.target.value)} placeholder={c.placeholder} />
                   )}</td>
                 ))}
-                <td className="py-1.5 pr-2">{!desabilitado && <button type="button" className={botaoIcone} aria-label={`Remover a linha ${i + 1} de ${rotulo}`} onClick={() => aoMudar(linhas.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}</td>
+                <td className="py-1 pr-2">{!desabilitado && <button type="button" className={botaoIcone} aria-label={`Remover a linha ${i + 1} de ${rotulo}`} onClick={() => aoMudar(linhas.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}</td>
               </tr>
             ))}
           </tbody>
@@ -142,30 +157,34 @@ export function BlocoNomes({ valor, aoMudar, desabilitado, exemplos }) {
   const previa = previaEstrutura(valor);
   const sepConhecido = SEPARADORES.some((s) => s.valor === valor.separador);
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <Secao titulo="Componentes e ordem" dica="Arraste ou use as setas para mudar a ordem. Marque os componentes que não podem faltar.">
         <Componentes valor={valor} aoMudar={aoMudar} desabilitado={desabilitado} />
       </Secao>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block"><Rotulo>Separador entre componentes</Rotulo>
-          <select className={campoCls} disabled={desabilitado} value={sepConhecido ? valor.separador : "__outro"} onChange={(e) => set("separador")(e.target.value === "__outro" ? "" : e.target.value)}>
-            {SEPARADORES.map((s) => <option key={s.rotulo} value={s.valor}>{s.rotulo}</option>)}<option value="__outro">Outro</option>
-          </select>
-          {!sepConhecido && <input className={`${campoCls} mt-1`} disabled={desabilitado} aria-label="Outro separador" value={valor.separador} onChange={(e) => set("separador")(e.target.value)} />}
-        </label>
-        <label className="block"><Rotulo>Maiúsculas e minúsculas</Rotulo>
-          <select className={campoCls} disabled={desabilitado} value={valor.capitalizacao} onChange={(e) => set("capitalizacao")(e.target.value)}>{Object.entries(CAPITALIZACOES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-        </label>
-        <label className="flex items-center gap-2 text-sm sm:mt-5"><input type="checkbox" disabled={desabilitado} checked={!!valor.removerEspacosDuplicados} onChange={(e) => set("removerEspacosDuplicados")(e.target.checked)} />Remover espaços duplicados</label>
+      <div className={gradeCampos}>
+        <CampoCompacto rotulo="Separador entre componentes">{(id) => (
+          <>
+            <select id={id} className={campoCompactoCls} disabled={desabilitado} value={sepConhecido ? valor.separador : "__outro"} onChange={(e) => set("separador")(e.target.value === "__outro" ? "" : e.target.value)}>
+              {SEPARADORES.map((s) => <option key={s.rotulo} value={s.valor}>{s.rotulo}</option>)}<option value="__outro">Outro</option>
+            </select>
+            {!sepConhecido && <input className={campoCompactoCls} disabled={desabilitado} aria-label="Outro separador" value={valor.separador} onChange={(e) => set("separador")(e.target.value)} />}
+          </>
+        )}</CampoCompacto>
+        <CampoCompacto rotulo="Maiúsculas e minúsculas">{(id) => (
+          <select id={id} className={campoCompactoCls} disabled={desabilitado} value={valor.capitalizacao} onChange={(e) => set("capitalizacao")(e.target.value)}>{Object.entries(CAPITALIZACOES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+        )}</CampoCompacto>
+        <MarcarNaGrade><label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={desabilitado} checked={!!valor.removerEspacosDuplicados} onChange={(e) => set("removerEspacosDuplicados")(e.target.checked)} />Remover espaços duplicados</label></MarcarNaGrade>
       </div>
-      <Secao titulo="Abreviações aprovadas" dica="Só estas abreviações podem ser usadas, inclusive para caber no limite de caracteres.">
-        <TabelaLinhas rotulo="Abreviações aprovadas" desabilitado={desabilitado} linhas={valor.abreviacoes} aoMudar={set("abreviacoes")} nova={() => ({ completa: "", abreviacao: "" })} vazio="Nenhuma abreviação cadastrada."
-          colunas={[{ chave: "completa", rotulo: "Expressão completa", placeholder: "Ex.: Caixa" }, { chave: "abreviacao", rotulo: "Abreviação", placeholder: "Ex.: CX" }]} />
-      </Secao>
-      <Secao titulo="Termos proibidos e substituições" dica="Substituição vazia: o termo é só apontado (ou removido na proposta).">
-        <TabelaLinhas rotulo="Termos proibidos" desabilitado={desabilitado} linhas={valor.termosProibidos.map((t) => ({ ...t, substituicao: t.substituicao ?? "" }))} aoMudar={set("termosProibidos")} nova={() => ({ termo: "", substituicao: "" })} vazio="Nenhum termo proibido cadastrado."
-          colunas={[{ chave: "termo", rotulo: "Termo proibido", placeholder: "Ex.: Diversos" }, { chave: "substituicao", rotulo: "Substituir por (opcional)" }]} />
-      </Secao>
+      <div className="grid items-start gap-2 lg:grid-cols-2">
+        <Secao titulo="Abreviações aprovadas" dica="Só estas abreviações podem ser usadas, inclusive para caber no limite de caracteres.">
+          <TabelaLinhas rotulo="Abreviações aprovadas" desabilitado={desabilitado} linhas={valor.abreviacoes} aoMudar={set("abreviacoes")} nova={() => ({ completa: "", abreviacao: "" })} vazio="Nenhuma abreviação cadastrada."
+            colunas={[{ chave: "completa", rotulo: "Expressão completa", placeholder: "Ex.: Caixa" }, { chave: "abreviacao", rotulo: "Abreviação", placeholder: "Ex.: CX" }]} />
+        </Secao>
+        <Secao titulo="Termos proibidos e substituições" dica="Substituição vazia: o termo é só apontado (ou removido na proposta).">
+          <TabelaLinhas rotulo="Termos proibidos" desabilitado={desabilitado} linhas={valor.termosProibidos.map((t) => ({ ...t, substituicao: t.substituicao ?? "" }))} aoMudar={set("termosProibidos")} nova={() => ({ termo: "", substituicao: "" })} vazio="Nenhum termo proibido cadastrado."
+            colunas={[{ chave: "termo", rotulo: "Termo proibido", placeholder: "Ex.: Diversos" }, { chave: "substituicao", rotulo: "Substituir por (opcional)" }]} />
+        </Secao>
+      </div>
       <Secao titulo="Prévia">
         <dl className="grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
           <dt className={rotuloCls}>Estrutura</dt><dd>{previa.estrutura}</dd>
@@ -186,33 +205,33 @@ export function BlocoAtributos({ valor, aoMudar, desabilitado }) {
   const alternar = (atr) => aoMudar({ ...valor, atributos: marcados.includes(atr) ? valor.atributos.filter((a) => a.atributo !== atr) : [...valor.atributos, novoAtributo(atr)] });
   const acrescentar = () => { const v = outro.trim(); if (v && !marcados.some((m) => m.toLocaleLowerCase("pt-BR") === v.toLocaleLowerCase("pt-BR"))) aoMudar({ ...valor, atributos: [...valor.atributos, novoAtributo(v)] }); setOutro(""); };
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <Secao titulo="Atributos exigidos" dica="Marque os atributos que o item precisa ter. Atributo ausente vira pendência; a IA só sugere de onde tirar, nunca preenche.">
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {ATRIBUTOS_SUGERIDOS.map((a) => <label key={a} className="flex items-center gap-1.5 text-sm"><input type="checkbox" disabled={desabilitado} checked={marcados.includes(a)} onChange={() => alternar(a)} />{rotuloAtributo(a)}</label>)}
+          {!desabilitado && (
+            <span className="flex gap-1">
+              <input className={`${campoCls} w-48`} placeholder="Outro atributo" aria-label="Outro atributo" value={outro} onChange={(e) => setOutro(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); acrescentar(); } }} />
+              <button type="button" className={botaoSecundario} disabled={!outro.trim()} onClick={acrescentar}><Plus className="h-4 w-4" aria-hidden="true" />Acrescentar</button>
+            </span>
+          )}
         </div>
-        {!desabilitado && (
-          <div className="flex gap-1">
-            <input className={`${campoCls} w-56`} placeholder="Outro atributo" aria-label="Outro atributo" value={outro} onChange={(e) => setOutro(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); acrescentar(); } }} />
-            <button type="button" className={botaoSecundario} disabled={!outro.trim()} onClick={acrescentar}><Plus className="h-4 w-4" aria-hidden="true" />Acrescentar</button>
-          </div>
-        )}
       </Secao>
       {valor.atributos.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum atributo marcado.</p> : (
-        <ul className="space-y-4" aria-label="Como cada atributo deve constar">
+        <ul className="space-y-2" aria-label="Como cada atributo deve constar">
           {valor.atributos.map((a, i) => (
-            <Quadro as="li" key={`${a.atributo}-${i}`} titulo={rotuloAtributo(a.atributo) || `Atributo ${i + 1}`} corpoCls="grid gap-3 sm:grid-cols-3">
-              <label className="block"><Rotulo>Onde deve constar</Rotulo>
-                <select className={campoCls} disabled={desabilitado} value={a.onde} onChange={(e) => set(i, { onde: e.target.value })}>{Object.entries(ONDE_ATRIBUTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-              </label>
+            <Quadro as="li" key={`${a.atributo}-${i}`} titulo={rotuloAtributo(a.atributo) || `Atributo ${i + 1}`} corpoCls={gradeCampos}>
+              <CampoCompacto rotulo="Onde deve constar">{(id) => (
+                <select id={id} className={campoCompactoCls} disabled={desabilitado} value={a.onde} onChange={(e) => set(i, { onde: e.target.value })}>{Object.entries(ONDE_ATRIBUTO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+              )}</CampoCompacto>
               {a.onde !== "DESCRICAO" ? (
-                <label className="block"><Rotulo>Campo próprio (coluna do cadastro)</Rotulo><input className={campoCls} disabled={desabilitado} value={a.campo ?? ""} onChange={(e) => set(i, { campo: e.target.value })} placeholder="Ex.: Fabricante" /></label>
+                <CampoCompacto rotulo="Campo próprio" info="A coluna do cadastro de itens em que o atributo fica (ex.: Fabricante).">{(id) => <input id={id} className={campoCompactoCls} disabled={desabilitado} value={a.campo ?? ""} onChange={(e) => set(i, { campo: e.target.value })} placeholder="Ex.: Fabricante" />}</CampoCompacto>
               ) : <div className="hidden sm:block" />}
-              <label className="block"><Rotulo>Exigência</Rotulo>
-                <select className={campoCls} disabled={desabilitado} value={a.aplicabilidade} onChange={(e) => set(i, { aplicabilidade: e.target.value })}>{Object.entries(APLICABILIDADE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-              </label>
+              <CampoCompacto rotulo="Exigência">{(id) => (
+                <select id={id} className={campoCompactoCls} disabled={desabilitado} value={a.aplicabilidade} onChange={(e) => set(i, { aplicabilidade: e.target.value })}>{Object.entries(APLICABILIDADE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+              )}</CampoCompacto>
               {a.aplicabilidade === "QUANDO_APLICAVEL" && (
-                <label className="block sm:col-span-3"><Rotulo>Quando se aplica</Rotulo><input className={campoCls} disabled={desabilitado} value={a.condicao ?? ""} onChange={(e) => set(i, { condicao: e.target.value })} placeholder="Ex.: defensivos com princípio ativo registrado" /></label>
+                <CampoCompacto rotulo="Quando se aplica">{(id) => <input id={id} className={campoCompactoCls} disabled={desabilitado} value={a.condicao ?? ""} onChange={(e) => set(i, { condicao: e.target.value })} placeholder="Ex.: defensivos com princípio ativo registrado" />}</CampoCompacto>
               )}
             </Quadro>
           ))}
@@ -228,19 +247,22 @@ export function BlocoUnidades({ valor, aoMudar, desabilitado }) {
   const set = (k) => (v) => aoMudar({ ...valor, [k]: v });
   const id = useId();
   return (
-    <div className="space-y-3">
-      <Secao titulo="Unidade de estoque">
-        <div role="radiogroup" aria-label="Critério da unidade de estoque" className="space-y-1">
-          {Object.entries(CRITERIO_ESTOQUE).map(([k, v]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="radio" name={`${id}-crit`} disabled={desabilitado} checked={valor.criterioEstoque === k} onChange={() => set("criterioEstoque")(k)} />{v}</label>)}
-        </div>
-        {valor.criterioEstoque === "DEFINIDA" && (
-          <label className="block max-w-xs"><Rotulo>Unidade definida</Rotulo>
-            <input className={campoCls} list={`${id}-un`} disabled={desabilitado} value={valor.unidadeDefinida ?? ""} onChange={(e) => set("unidadeDefinida")(e.target.value.toUpperCase())} placeholder="Ex.: KG" />
-            <datalist id={`${id}-un`}>{UNIDADES_COMUNS.map((u) => <option key={u} value={u} />)}</datalist>
-          </label>
-        )}
-      </Secao>
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="space-y-2">
+      {/* Unidade de estoque e as unidades permitidas lado a lado (três colunas nas telas grandes). */}
+      <div className="grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <Secao titulo="Unidade de estoque" className="sm:col-span-2 lg:col-span-1">
+          <div role="radiogroup" aria-label="Critério da unidade de estoque" className="space-y-1">
+            {Object.entries(CRITERIO_ESTOQUE).map(([k, v]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="radio" name={`${id}-crit`} disabled={desabilitado} checked={valor.criterioEstoque === k} onChange={() => set("criterioEstoque")(k)} />{v}</label>)}
+          </div>
+          {valor.criterioEstoque === "DEFINIDA" && (
+            <CampoCompacto rotulo="Unidade definida" className="max-w-[10rem]">{(campo) => (
+              <>
+                <input id={campo} className={campoCompactoCls} list={`${id}-un`} disabled={desabilitado} value={valor.unidadeDefinida ?? ""} onChange={(e) => set("unidadeDefinida")(e.target.value.toUpperCase())} placeholder="Ex.: KG" />
+                <datalist id={`${id}-un`}>{UNIDADES_COMUNS.map((u) => <option key={u} value={u} />)}</datalist>
+              </>
+            )}</CampoCompacto>
+          )}
+        </Secao>
         <SeletorMultiplo rotulo="Unidades de compra permitidas" opcoes={UNIDADES_COMUNS} marcados={valor.unidadesCompra} aoMudar={set("unidadesCompra")} desabilitado={desabilitado} permitirOutro />
         <SeletorMultiplo rotulo="Unidades de saída permitidas" opcoes={UNIDADES_COMUNS} marcados={valor.unidadesSaida} aoMudar={set("unidadesSaida")} desabilitado={desabilitado} permitirOutro />
       </div>
@@ -256,7 +278,7 @@ export function BlocoUnidades({ valor, aoMudar, desabilitado }) {
             { chave: "abrangencia", rotulo: "Vale para", render: (l, mudar, i) => <select className={campoCls} disabled={desabilitado} aria-label={`Vale para, linha ${i + 1}`} value={l.abrangencia} onChange={(e) => mudar(e.target.value)}>{Object.entries(ABRANGENCIA_CONVERSAO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select> },
             { chave: "codigoProduto", rotulo: "Código do produto", render: (l, mudar, i) => (l.abrangencia === "PRODUTO" ? <input className={campoCls} disabled={desabilitado} aria-label={`Código do produto, linha ${i + 1}`} value={l.codigoProduto ?? ""} onChange={(e) => mudar(e.target.value)} /> : <span className="text-xs text-muted-foreground">—</span>) },
           ]} />
-        <Aviso tom="alerta">{AVISO_CONVERSAO_DESCONHECIDA}</Aviso>
+        <p className="flex items-start gap-1 text-xs text-amber-800 dark:text-amber-200"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{AVISO_CONVERSAO_DESCONHECIDA}</p>
       </Secao>
     </div>
   );
@@ -268,32 +290,37 @@ export function BlocoLimites({ valor, aoMudar, desabilitado, exemplos }) {
   const linhas = valor.linhas;
   const set = (i, parte) => aoMudar({ ...valor, linhas: linhas.map((l, j) => (j === i ? { ...l, ...parte } : l)) });
   const resumo = resumoLimites(linhas);
+  const ordem = useExplicacao("Como o limite é escolhido", "Ordem de confiança: o leiaute oficial é o teto; depois o ERP e o limite próprio do cliente. Vale o menor limite confirmado. Limite vazio = não confirmado (fica pendente). O texto nunca é cortado: o excesso gera uma proposta ou um pedido de revisão.");
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Ordem de confiança: o leiaute oficial é o teto; depois o ERP e o limite próprio do cliente. Vale o menor limite confirmado. Limite vazio = não confirmado (fica pendente). O texto nunca é cortado: o excesso gera uma proposta ou um pedido de revisão.</p>
+    <div className="space-y-2">
+      <p className="flex items-center gap-1 text-xs font-medium">Como o limite é escolhido {ordem.botao}</p>
+      {ordem.texto}
       {linhas.length === 0 && <p className="text-sm text-muted-foreground">Nenhum limite cadastrado.</p>}
-      <ul className="space-y-4" aria-label="Linhas de limite">
+      <ul className="space-y-3" aria-label="Linhas de limite">
         {linhas.map((l, i) => {
           const lim = lerLimite(l.limite);
           return (
             <Quadro as="li" key={i} titulo={`Limite ${i + 1}`}
               selos={<><Tag tom={l.origem === "LEIAUTE_OFICIAL" ? "info" : "neutro"}>{ORIGEM_LIMITE[l.origem]}</Tag>{lim.valor === null || !l.confirmado ? <Tag tom="alerta">Não confirmado</Tag> : <Tag tom="ok">Confirmado</Tag>}</>}
               acoes={!desabilitado && <button type="button" className={`${botaoIcone} bg-card`} aria-label={`Remover o limite ${i + 1}`} onClick={() => aoMudar({ ...valor, linhas: linhas.filter((_, j) => j !== i) })}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>}>
-              <div className="grid gap-3 sm:grid-cols-4">
-                <label className="block"><Rotulo>Destino</Rotulo><input className={campoCls} disabled={desabilitado} value={l.destino} onChange={(e) => set(i, { destino: e.target.value })} placeholder="Ex.: SPED EFD ICMS/IPI" /></label>
-                <label className="block"><Rotulo>Campo do destino</Rotulo><input className={campoCls} disabled={desabilitado} value={l.campo} onChange={(e) => set(i, { campo: e.target.value })} placeholder="Ex.: 0200 DESCR_ITEM" /></label>
-                <label className="block"><Rotulo>Campo do item</Rotulo><select className={campoCls} disabled={desabilitado} value={l.campoItem} onChange={(e) => set(i, { campoItem: e.target.value })}>{Object.entries(CAMPO_ITEM).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-                <label className="block"><Rotulo>Limite (caracteres)</Rotulo>
-                  <input className={`${campoCls} ${lim.invalido ? "ring-2 ring-destructive" : ""}`} inputMode="numeric" disabled={desabilitado} aria-invalid={lim.invalido} value={l.limite ?? ""} onChange={(e) => set(i, { limite: e.target.value, ...(String(e.target.value).trim() ? {} : { confirmado: false }) })} placeholder="Vazio = não confirmado" />
-                  {lim.invalido && <span className="text-xs text-destructive">Digite um número inteiro.</span>}
-                </label>
-                <label className="block"><Rotulo>Origem</Rotulo><select className={campoCls} disabled={desabilitado} value={l.origem} onChange={(e) => set(i, { origem: e.target.value })}>{Object.entries(ORIGEM_LIMITE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-                <label className="block sm:col-span-2"><Rotulo>Referência e versão (documento, versão, vigência)</Rotulo><input className={campoCls} disabled={desabilitado} value={l.referencia ?? ""} onChange={(e) => set(i, { referencia: e.target.value })} placeholder="Ex.: Guia Prático da EFD ICMS/IPI, versão 3.1.8" /></label>
-                <label className="block"><Rotulo>Endereço da fonte</Rotulo><input className={campoCls} disabled={desabilitado} value={l.url ?? ""} onChange={(e) => set(i, { url: e.target.value })} placeholder="https://" /></label>
-                <label className="flex items-center gap-2 text-sm font-medium sm:mt-5"><input type="checkbox" disabled={desabilitado || lim.valor === null} checked={lim.valor !== null && !!l.confirmado} onChange={(e) => set(i, { confirmado: e.target.checked })} />Confirmado na fonte</label>
-                <label className="block"><Rotulo>Tratamento do excesso</Rotulo><select className={campoCls} disabled={desabilitado} value={l.tratamento} onChange={(e) => set(i, { tratamento: e.target.value })}>{Object.entries(TRATAMENTO_EXCESSO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-                <div className="sm:col-span-3"><Rotulo>Componentes a preservar</Rotulo>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1">{COMPONENTES_NOME.map((c) => <label key={c} className="flex items-center gap-1 text-sm"><input type="checkbox" disabled={desabilitado} checked={(l.preservar || []).includes(c)} onChange={() => set(i, { preservar: alternarNaLista(l.preservar || [], c) })} />{ROTULO_COMPONENTE[c]}</label>)}</div>
+              {/* Campos curtos em até 4 por linha; rótulos de mesma altura deixam os campos alinhados. */}
+              <div className={gradeCampos}>
+                <CampoCompacto rotulo="Destino">{(id) => <input id={id} className={campoCompactoCls} disabled={desabilitado} value={l.destino} onChange={(e) => set(i, { destino: e.target.value })} placeholder="Ex.: SPED EFD ICMS/IPI" />}</CampoCompacto>
+                <CampoCompacto rotulo="Campo do destino">{(id) => <input id={id} className={campoCompactoCls} disabled={desabilitado} value={l.campo} onChange={(e) => set(i, { campo: e.target.value })} placeholder="Ex.: 0200 DESCR_ITEM" />}</CampoCompacto>
+                <CampoCompacto rotulo="Campo do item">{(id) => <select id={id} className={campoCompactoCls} disabled={desabilitado} value={l.campoItem} onChange={(e) => set(i, { campoItem: e.target.value })}>{Object.entries(CAMPO_ITEM).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}</CampoCompacto>
+                <CampoCompacto rotulo="Limite (caracteres)" info="Vazio = não confirmado: o limite fica pendente e a caixa Confirmado na fonte fica desligada.">{(id) => (
+                  <>
+                    <input id={id} className={`${campoCompactoCls} ${lim.invalido ? "ring-2 ring-destructive" : ""}`} inputMode="numeric" disabled={desabilitado} aria-invalid={lim.invalido} value={l.limite ?? ""} onChange={(e) => set(i, { limite: e.target.value, ...(String(e.target.value).trim() ? {} : { confirmado: false }) })} placeholder="Vazio = não confirmado" />
+                    {lim.invalido && <span className="text-xs text-destructive">Digite um número inteiro.</span>}
+                  </>
+                )}</CampoCompacto>
+                <CampoCompacto rotulo="Origem">{(id) => <select id={id} className={campoCompactoCls} disabled={desabilitado} value={l.origem} onChange={(e) => set(i, { origem: e.target.value })}>{Object.entries(ORIGEM_LIMITE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}</CampoCompacto>
+                <MarcarNaGrade rotulo="Fonte"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" disabled={desabilitado || lim.valor === null} checked={lim.valor !== null && !!l.confirmado} onChange={(e) => set(i, { confirmado: e.target.checked })} />Confirmado na fonte</label></MarcarNaGrade>
+                <CampoCompacto rotulo="Tratamento do excesso">{(id) => <select id={id} className={campoCompactoCls} disabled={desabilitado} value={l.tratamento} onChange={(e) => set(i, { tratamento: e.target.value })}>{Object.entries(TRATAMENTO_EXCESSO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}</CampoCompacto>
+                <CampoCompacto rotulo="Endereço da fonte">{(id) => <input id={id} className={campoCompactoCls} disabled={desabilitado} value={l.url ?? ""} onChange={(e) => set(i, { url: e.target.value })} placeholder="https://" />}</CampoCompacto>
+                <CampoCompacto rotulo="Referência e versão" info="Documento, versão e vigência da fonte do limite." className="sm:col-span-2">{(id) => <input id={id} className={campoCompactoCls} disabled={desabilitado} value={l.referencia ?? ""} onChange={(e) => set(i, { referencia: e.target.value })} placeholder="Ex.: Guia Prático da EFD ICMS/IPI, versão 3.1.8" />}</CampoCompacto>
+                <div role="group" aria-label="Componentes a preservar" className="sm:col-span-2"><span className={rotuloCompactoCls} aria-hidden="true">Componentes a preservar</span>
+                  <div className="mt-1 flex min-h-[34px] flex-wrap items-center gap-x-3 gap-y-1">{COMPONENTES_NOME.map((c) => <label key={c} className="flex items-center gap-1 text-sm"><input type="checkbox" disabled={desabilitado} checked={(l.preservar || []).includes(c)} onChange={() => set(i, { preservar: alternarNaLista(l.preservar || [], c) })} />{ROTULO_COMPONENTE[c]}</label>)}</div>
                 </div>
               </div>
             </Quadro>
@@ -325,7 +352,8 @@ export function BlocoLimites({ valor, aoMudar, desabilitado, exemplos }) {
 export function BlocoFiscal({ valor, aoMudar, desabilitado }) {
   const set = (k) => (v) => aoMudar({ ...valor, [k]: v });
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
+      <div className="grid items-start gap-2 lg:grid-cols-2">
       <Secao titulo="NCM">
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={desabilitado} checked={!!valor.validarNcm} onChange={(e) => set("validarNcm")(e.target.checked)} />Validar o NCM</label>
         <Rotulo>Exceções justificadas (itens ou grupos não sujeitos à classificação)</Rotulo>
@@ -338,7 +366,8 @@ export function BlocoFiscal({ valor, aoMudar, desabilitado }) {
           {Object.entries(CENARIOS_FISCAIS).map(([k, v]) => <label key={k} className="flex items-center gap-1.5 text-sm"><input type="checkbox" disabled={desabilitado} checked={valor.cenarios.includes(k)} onChange={() => set("cenarios")(alternarNaLista(valor.cenarios, k))} />{v}</label>)}
         </div>
       </Secao>
-      <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted-foreground" aria-label="Regras fixas">
+      </div>
+      <ul className="list-disc space-y-0.5 pl-5 text-xs text-foreground/75" aria-label="Regras fixas">
         <li>{TEXTO_AUSENTE}</li>
         <li>{TEXTO_AMBIGUO}</li>
       </ul>

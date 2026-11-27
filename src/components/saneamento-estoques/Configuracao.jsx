@@ -5,7 +5,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { chaves, san } from "./api";
 import { SeletorErp, useErps } from "@/components/erps/erps";
 import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
-import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Quadro, Rotulo, SecaoForm, Tag, usePodeAlterar } from "./comuns";
+import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Quadro, Rotulo, rotuloCompactoCls, SecaoForm, Tag, usePodeAlterar } from "./comuns";
 import {
   efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtCnae, fmtData, fmtDataHora, mensagemDeErro, motivoDaAtividade, motivoListaVazia,
   regimeDoCliente, REGIMES_CLIENTE, textoBuscaCnpj,
@@ -23,11 +23,11 @@ const listaDeEstabelecimentos = (p) => (Array.isArray(p?.estabelecimentos) ? p.e
 /**
  * Configuração do projeto. Fase 1: ERP, estabelecimentos, responsável, data-base, corte e última escrituração entregue, sem trava.
  * Premissas da Fase 2: regime do cliente (obrigatório) e atividades confirmadas; só as análises da Fase 2 dependem delas.
- * Módulos ainda não disponíveis não aparecem. `parte`: "dados" (só os dados do projeto: Fase 1 > Preparar), "premissas" (só as premissas:
- * Fase 2 > Premissas) ou as duas (padrão).
+ * Módulos ainda não disponíveis não aparecem. `parte`: "dados" (só os dados do projeto: Fase 1 > 1.1 Preparar e diretrizes), "premissas" (só as
+ * premissas: Fase 2 > 2.1 Premissas e diretrizes) ou as duas (padrão).
  */
 /** Rótulo dos campos compactos: mesma altura em todos (com ou sem o botão "i"), para os campos ficarem alinhados. */
-const ROT = "flex h-5 items-center gap-1 whitespace-nowrap text-xs font-medium";
+const ROT = rotuloCompactoCls;
 
 export default function Configuracao({ projeto, recarregar: recarregarProjeto, parte = "tudo" }) {
   const confirmar = useConfirmar();

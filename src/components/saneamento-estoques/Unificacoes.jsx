@@ -157,7 +157,7 @@ export default function Unificacoes({ projeto }) {
           return (
             <>
               <Conflitos conflitos={d.conflitos} total={d.totalConflitos} />
-              {d.corteDefinido === false && <Aviso tom="alerta">O corte de movimentação não está definido em Fase 1 &gt; Preparar: os itens sem movimentação a longa data não foram avaliados para inativação.</Aviso>}
+              {d.corteDefinido === false && <Aviso tom="alerta">O corte de movimentação não está definido em Fase 1 &gt; 1.1 Preparar e diretrizes: os itens sem movimentação a longa data não foram avaliados para inativação.</Aviso>}
               <div className="flex flex-wrap gap-1 border-b border-border" role="tablist" aria-label="Listas">
                 {LISTAS_MAPA.map((l) => (
                   <button key={l.id} type="button" role="tab" aria-selected={lista === l.id} onClick={() => trocarLista(l.id)}

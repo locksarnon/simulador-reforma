@@ -37,6 +37,20 @@ function EntregasFinais({ projeto, fasesLiberadas }) {
   );
 }
 
+const ID_DIRETRIZES = "san-diretrizes";
+/** Leva a tela até as Diretrizes, que ficam embaixo, na mesma aba (botão "Ir para Diretrizes" do resultado da importação). */
+const rolarParaDiretrizes = () => document.getElementById(ID_DIRETRIZES)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+
+/** As Diretrizes dentro da aba que junta os dados da fase e as diretrizes: faixa de título fina e só os aspectos da fase. */
+function SecaoDiretrizes({ projeto, fase }) {
+  return (
+    <section id={ID_DIRETRIZES} aria-labelledby={`${ID_DIRETRIZES}-t`} className="scroll-mt-4 space-y-2">
+      <h2 id={`${ID_DIRETRIZES}-t`} className="border-b-2 border-primary pb-1 text-sm font-semibold text-foreground">Diretrizes {fase === "fase2" ? "da Fase 2 (classificação fiscal)" : "da Fase 1 (nomes, atributos, unidades e limites)"}</h2>
+      <Diretrizes projeto={projeto} aspectos={ASPECTOS_DA_FASE[fase]} rolarAoAbrir />
+    </section>
+  );
+}
+
 /** O conteúdo da aba: as áreas comuns (projeto inteiro) e as abas de cada fase, com os componentes de sempre filtrados pela fase. */
 function Painel({ projeto, fase, aba, irPara, podeImportar, recarregar, recorte, casoInicial, abrirCasos, abrirTabela, fasesLiberadas }) {
   if (aba === "tabela") return <TabelaUnica key={JSON.stringify(recorte || {})} projeto={projeto} recorte={recorte} aoAbrirCaso={(id) => abrirCasos({}, id)} />;
@@ -46,16 +60,25 @@ function Painel({ projeto, fase, aba, irPara, podeImportar, recarregar, recorte,
   if (fase === "fechamento") return <EntregasFinais projeto={projeto} fasesLiberadas={fasesLiberadas} />;
   const faseServidor = areaPorId(fase).fase;
   const camadas = camadasDaFase(faseServidor, projeto.modulos);
+  // 1.1 Preparar e diretrizes (Fase 1) e 2.1 Premissas e diretrizes (Fase 2): os dados da fase e, embaixo, as Diretrizes dela.
+  const diretrizes = <SecaoDiretrizes key={fase} projeto={projeto} fase={fase} />;
   if (aba === "preparar") {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <Configuracao projeto={projeto} recarregar={recarregar} parte="dados" />
-        <Importacao projeto={projeto} podeImportar={podeImportar} aoIrParaDiretrizes={() => irPara({ fase: "fase1", aba: "diretrizes" })} />
+        <Importacao projeto={projeto} podeImportar={podeImportar} aoIrParaDiretrizes={rolarParaDiretrizes} />
+        {diretrizes}
       </div>
     );
   }
-  if (aba === "premissas") return <Configuracao projeto={projeto} recarregar={recarregar} parte="premissas" />;
-  if (aba === "diretrizes") return <Diretrizes key={fase} projeto={projeto} aspectos={ASPECTOS_DA_FASE[fase]} />;
+  if (aba === "premissas") {
+    return (
+      <div className="space-y-4">
+        <Configuracao projeto={projeto} recarregar={recarregar} parte="premissas" />
+        {diretrizes}
+      </div>
+    );
+  }
   if (aba === "analise") return <Cobertura projeto={projeto} fase={faseServidor} aoIrPara={irPara} />;
   if (aba === "casos") return <Casos key={`${fase}|${recorte?.camada}|${recorte?.grupo}|${casoInicial}`} projeto={projeto} recorte={recorte} casoInicial={casoInicial} camadasPermitidas={camadas} />;
   if (aba === "unificacoes") return <Unificacoes projeto={projeto} />;
