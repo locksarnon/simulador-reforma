@@ -233,6 +233,7 @@ export const POST_DE_LEITURA = [
   'calculadora-rfb/conferir-operacao',
   'saneamento-estoques/projetos/:id/importacoes/previa',
   'saneamento-estoques/projetos/:id/casos/lote/previa',
+  'saneamento-estoques/projetos/:id/camadas/:camada/planilha/previa',
 ];
 
 const segmentos = (rota: string) => rota.split('/').filter(Boolean);

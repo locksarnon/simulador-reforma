@@ -96,6 +96,11 @@ export const san = {
   historicoBiblioteca: (regraId) => api.get(`${B}/biblioteca/${regraId}/historico`),
   procedimentos: () => api.get(`${B}/biblioteca/procedimentos`),
   modelos: () => api.get(`${B}/biblioteca/modelos`),
+
+  // ── Planilha de decisão por camada: baixar, prévia da reimportação (só lê) e aplicar (com confirmação). ──
+  baixarPlanilhaDecisao: (id, camada) => api.baixar("GET", `${B}/projetos/${id}/camadas/${camada}/planilha`, { nome: `planilha-de-decisao-${camada}.xlsx`, nomeDoServidor: true }),
+  previaPlanilhaDecisao: (id, camada, arquivo) => api.upload(`${B}/projetos/${id}/camadas/${camada}/planilha/previa`, arquivo),
+  aplicarPlanilhaDecisao: (id, camada, arquivo) => api.upload(`${B}/projetos/${id}/camadas/${camada}/planilha/aplicar`, arquivo, { confirmar: "true" }),
 };
 
 export const chaves = {

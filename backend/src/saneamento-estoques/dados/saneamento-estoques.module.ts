@@ -15,6 +15,8 @@ import { SanProjetoService } from './projeto.service';
 import { SanRestauracaoService } from './restauracao.service';
 import { SaneamentoEstoquesController } from './saneamento-estoques.controller';
 import { SanVersoesService } from './versoes.service';
+import { SanPlanilhaDecisaoController } from './planilha-decisao.controller';
+import { SanPlanilhaDecisaoService } from './planilha-decisao.service';
 import { SanBibliotecaDiretrizesService } from '../diretrizes/biblioteca.service';
 import { SanDiretrizesController } from '../diretrizes/diretrizes.controller';
 import { SanDiretrizesService } from '../diretrizes/diretrizes.service';
@@ -25,10 +27,10 @@ import { SanDiretrizesService } from '../diretrizes/diretrizes.service';
  */
 @Module({
   imports: [CnpjModule],
-  controllers: [SaneamentoEstoquesController, SanDiretrizesController],
+  controllers: [SaneamentoEstoquesController, SanDiretrizesController, SanPlanilhaDecisaoController],
   providers: [
     SanProjetoService, SanImportacaoService, SanItensService, SanCasosService, SanVersoesService, SanImpactosService, SanOrquestracaoService, SanRestauracaoService,
-    SanDiretrizesService, SanBibliotecaDiretrizesService,
+    SanDiretrizesService, SanBibliotecaDiretrizesService, SanPlanilhaDecisaoService,
     CatalogosFiscaisPrisma,
     { provide: SAN_IMPORTADOR, useClass: ImportadorPlanilha },
     { provide: SAN_MOTOR, useClass: MotorSaneamento },

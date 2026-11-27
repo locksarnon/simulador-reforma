@@ -103,6 +103,10 @@ export const SECAO_SANEAMENTO = {
       r: "Porque a caixa Agrupar casos iguais vem marcada: casos da mesma camada, do mesmo tipo, de itens do mesmo grupo de produtos e com a mesma proposta viram uma linha só, com quantos Casos e quantos Itens ela junta (o contador no alto diz “N grupo(s) (M caso(s))”). Caso de conjunto, que já reúne vários itens, fica numa linha sozinho. Clique na linha para ver o que os casos têm em comum e a lista deles (clique num caso para abri-lo; Voltar ao grupo retorna). O botão Decidir os N caso(s) do grupo em lote… abre o lote de sempre com todos os casos do grupo, com a prévia e as mesmas exceções; marcar várias linhas e clicar em Decidir em lote… junta os casos dos grupos marcados. Nada muda nos casos: desmarque a caixa para voltar à lista de um caso por linha (POP-CON-14).",
     },
     {
+      p: "Como decidir os casos no Excel?",
+      r: "Na aba Casos, escolha a Camada, clique em Planilha de decisão e em Baixar planilha da camada. Em cada linha (um caso), escolha a Decisão na lista (Aprovar, Rejeitar ou Pedir informação), escreva o Motivo quando for rejeitar, pedir informação ou aprovar exceção, e use Valor corrigido só se discordar da proposta, no campo indicado (NCM, descrição ou unidade). As outras colunas ficam travadas. Depois, em Planilha de decisão > Reimportar, veja a prévia: ela conta o que será feito e lista as linhas recusadas com o motivo (por exemplo, caso que mudou depois que a planilha foi baixada ou NCM que não existe). Só então clique em Aplicar as decisões. Cada decisão fica no histórico com quem, quando e a marca do arquivo; reimportar o mesmo arquivo não decide de novo (POP-CON-14).",
+    },
+    {
       p: "O caso de NCM inexistente não traz proposta. Como corrijo o NCM?",
       r: "Abra o caso: o quadro Item mostra o código, a descrição, o grupo, o NCM, a unidade, o saldo e a última movimentação, e em Dados e proposta o NCM fica editável mesmo sem proposta. Digite o NCM certo e clique em Aprovar. Vale igual para a descrição e a unidade nos casos de um item de Nomes e unidades e de Qualidade (POP-CON-14).",
     },
