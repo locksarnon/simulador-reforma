@@ -13,8 +13,8 @@ const COR = {
 };
 
 /** Conteúdo do roteiro (separado da janela para os testes e a impressão). */
-export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecionada, aoSelecionar }) {
-  const ctx = { estado, itens, liberadas };
+export function Roteiro({ nome, estado, itens, liberadas, projeto, fases, apresentacao, selecionada, aoSelecionar }) {
+  const ctx = { estado, itens, liberadas, projeto, fases };
   const sel = selecionada && FASES_ROTEIRO.flatMap((f) => f.etapas.map((e) => ({ f, e }))).find((x) => x.e.id === selecionada);
   return (
     <div className="space-y-4">
@@ -45,13 +45,14 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
               })}
             </ol>
             {f.liberacao && (() => {
-              const s = situacaoDaLiberacao(f.id, liberadas);
+              const s = situacaoDaLiberacao(f.id, ctx);
               return (
                 <div className="border-2 border-dashed border-border bg-card px-3 py-2" title={f.liberacao.recebe}>
                   <span className="flex items-center justify-between gap-2">
                     <span><span className="block text-sm font-semibold">{f.liberacao.titulo}</span><span className="block text-xs text-muted-foreground">{f.liberacao.resumo}</span></span>
                     <Tag tom={s.tom}>{s.texto}</Tag>
                   </span>
+                  {!apresentacao && s.detalhe && <span className="mt-1 block text-xs text-muted-foreground">{s.detalhe}</span>}
                   <span className="mt-1 block text-xs text-muted-foreground">{f.liberacao.recebe}</span>
                 </div>
               );
@@ -95,6 +96,7 @@ export default function RoteiroProjeto({ projeto, nome }) {
   const estado = useQuery({ queryKey: chaves.estadoCamadas(projeto.id), queryFn: () => san.estadoCamadas(projeto.id), enabled: aberto });
   const visao = useQuery({ queryKey: chaves.visao(projeto.id), queryFn: () => san.visaoGeral(projeto.id), enabled: aberto });
   const versoes = useQuery({ queryKey: chaves.versoes(projeto.id), queryFn: () => san.versoes(projeto.id), enabled: aberto });
+  const fases = useQuery({ queryKey: chaves.fases(projeto.id), queryFn: () => san.fases(projeto.id), enabled: aberto });
   const porCamada = new Map((estado.data?.camadas || []).map((l) => [l.camada, l]));
   const itens = (visao.data?.grupos || []).reduce((s, g) => s + (Number(g.itens) || 0), 0);
   const liberadas = Array.isArray(versoes.data) ? versoes.data.length : 0;
@@ -124,8 +126,8 @@ export default function RoteiroProjeto({ projeto, nome }) {
               <button type="button" className={`${botaoSecundario} nao-imprimir px-2 py-1 text-sm`} onClick={imprimir}><Printer className="h-4 w-4" aria-hidden="true" />Imprimir ou salvar em PDF</button>
               <button type="button" className="nao-imprimir p-1 text-muted-foreground hover:text-foreground" aria-label="Fechar o roteiro" onClick={() => setAberto(false)}><X className="h-5 w-5" aria-hidden="true" /></button>
             </div>
-            <p className="nao-imprimir mb-3 text-xs text-muted-foreground">Clique numa etapa para ver o que é feito, o que o cliente fornece e o que recebe. A situação da Fase 1 vem do projeto; o Modo apresentação esconde os números internos.</p>
-            <Roteiro nome={nome} estado={porCamada} itens={itens} liberadas={liberadas} apresentacao={apresentacao} selecionada={selecionada} aoSelecionar={setSelecionada} />
+            <p className="nao-imprimir mb-3 text-xs text-muted-foreground">Clique numa etapa para ver o que é feito, o que o cliente fornece e o que recebe. A situação de cada etapa vem do projeto (camadas, premissas e liberações); o Modo apresentação esconde os números internos.</p>
+            <Roteiro nome={nome} estado={porCamada} itens={itens} liberadas={liberadas} projeto={projeto} fases={fases.data} apresentacao={apresentacao} selecionada={selecionada} aoSelecionar={setSelecionada} />
           </div>
         </Janela>
       )}

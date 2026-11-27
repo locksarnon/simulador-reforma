@@ -66,15 +66,6 @@ export function Aviso({ tom = "info", titulo, children, acao, className = "" }) 
   );
 }
 
-/** Mensagem de trava: aparece onde uma ação depende das atividades confirmadas. */
-export function AvisoDeTrava({ mensagem, aoConfirmar }) {
-  return (
-    <Aviso tom="bloqueio" titulo={mensagem} acao={aoConfirmar && <button type="button" className={botaoSecundario} onClick={aoConfirmar}>Ir para a Configuração</button>}>
-      A importação e as análises ficam bloqueadas até o consultor revisar e confirmar as atividades do cliente.
-    </Aviso>
-  );
-}
-
 export function EstadoCarregando({ texto = "Carregando…" }) {
   return (
     <div role="status" aria-live="polite" className="flex items-center gap-2 border border-border bg-card p-6 text-sm text-muted-foreground">

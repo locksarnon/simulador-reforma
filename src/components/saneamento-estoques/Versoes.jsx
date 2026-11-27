@@ -6,7 +6,7 @@ import { atualizarTudo, chaves, renovarAposRestauracao, san } from "./api";
 import { BotaoPolitica } from "./diretrizes/Diretrizes";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, Carregar, EstadoCarregando, faixaSecaoCls, Rotulo, secaoCls, Tag, tituloSecaoCls, usePodeAlterar } from "./comuns";
 import {
-  avisosDaLiberacao, dadosDoErro, fmtDataHora, JUSTIFICATIVA_MINIMA, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
+  avisosDaLiberacao, dadosDoErro, fase1Liberada, fmtDataHora, JUSTIFICATIVA_MINIMA, rotuloDaFaseLiberada, linhasDaPrevia, mensagemDeErro, podeRestaurar, restauracoesDaVersao, ROTULO_CAMADA, rotuloDoCampo, rotuloSituacao,
   textoDoValor, versaoCriada,
 } from "./logica";
 
@@ -171,6 +171,11 @@ export default function Versoes({ projeto }) {
   const confirmar = useConfirmar();
   const q = useQuery({ queryKey: chaves.versoes(projeto.id), queryFn: () => san.versoes(projeto.id) });
   const [rotulo, setRotulo] = useState("");
+  // Fase da liberação: Fase 1 (Cadastro saneado) ou Fase 2 (Tributário aprovado, só depois de uma Fase 1 liberada).
+  const fases = useQuery({ queryKey: chaves.fases(projeto.id), queryFn: () => san.fases(projeto.id) });
+  const [fase, setFase] = useState("FASE1");
+  const podeFase2 = fase1Liberada(fases.data, q.data);
+  const faseEnviada = fase === "FASE2" && !podeFase2 ? "FASE1" : fase;
   const [a, setA] = useState("");
   const [b, setB] = useState("");
   const [msg, setMsg] = useState(null);
@@ -178,7 +183,7 @@ export default function Versoes({ projeto }) {
   const [continuarDe, setContinuarDe] = useState(null);
   const { pode, razao } = usePodeAlterar();
   const liberar = useMutation({
-    mutationFn: (extra) => san.liberarVersao(projeto.id, rotulo.trim(), extra),
+    mutationFn: (extra) => san.liberarVersao(projeto.id, rotulo.trim(), { fase: faseEnviada, ...(extra || {}) }),
     onSuccess: (v) => {
       const lista = avisosDaLiberacao(v);
       // O servidor pediu confirmação (avisos e nada criado): mostra antes de liberar de fato.
@@ -186,6 +191,7 @@ export default function Versoes({ projeto }) {
       setAvisos(null); setRotulo("");
       setMsg({ tom: lista.length ? "alerta" : "ok", texto: `Versão ${v.numero} liberada.${lista.length ? ` Avisos: ${lista.join(" ")}` : ""}` });
       qc.invalidateQueries({ queryKey: chaves.versoes(projeto.id) });
+      qc.invalidateQueries({ queryKey: chaves.fases(projeto.id) });
     },
     onError: (e) => {
       const lista = avisosDaLiberacao(dadosDoErro(e));
@@ -198,7 +204,7 @@ export default function Versoes({ projeto }) {
     const conta = textoDaLiberacao(estado);
     const ok = await confirmar({ titulo: "Liberar uma versão?", rotulo: "Liberar", perigoso: false, descricao: `${conta ? `${conta}
 
-` : ""}Guarda uma foto da base como está agora, com o rótulo "${rotulo.trim()}". A versão liberada não muda depois.` });
+` : ""}Guarda uma foto da base como está agora, como ${rotuloDaFaseLiberada(faseEnviada)}, com o rótulo "${rotulo.trim()}". A versão liberada não muda depois.` });
     if (ok) liberar.mutate();
   };
 
@@ -213,6 +219,16 @@ export default function Versoes({ projeto }) {
       <section aria-labelledby="san-ver-lib" className={`space-y-2 ${secaoCls}`}>
         <h2 id="san-ver-lib" className={tituloSecaoCls}>Liberar uma versão</h2>
         <p className="text-sm text-muted-foreground">A versão liberada é a entrega: só os dados aprovados, com as exclusões e pendências informadas.</p>
+        <fieldset className="space-y-1">
+          <legend className="mb-1 text-sm font-medium">Fase desta liberação</legend>
+          {["FASE1", "FASE2"].map((f) => (
+            <label key={f} className={`flex items-center gap-2 text-sm ${f === "FASE2" && !podeFase2 ? "text-muted-foreground" : ""}`}>
+              <input type="radio" name="san-ver-fase" value={f} checked={faseEnviada === f} disabled={f === "FASE2" && !podeFase2} onChange={() => setFase(f)} />
+              {rotuloDaFaseLiberada(f)}
+            </label>
+          ))}
+          {!podeFase2 && <p className="text-xs text-muted-foreground">A Fase 2 (Tributário aprovado) fica disponível depois de liberada uma versão da Fase 1 (Cadastro saneado).</p>}
+        </fieldset>
         <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (rotulo.trim()) pedirLiberacao(); }}>
           <label className="block min-w-[240px] flex-1"><Rotulo>Rótulo da versão</Rotulo><input className={campoCls} value={rotulo} onChange={(e) => setRotulo(e.target.value)} placeholder="Ex.: Entrega 1" maxLength={120} /></label>
           <button type="submit" className={botaoPrimario} disabled={!pode || !rotulo.trim() || liberar.isPending} title={razao}>{liberar.isPending ? "Liberando…" : "Liberar versão"}</button>
@@ -232,7 +248,7 @@ export default function Versoes({ projeto }) {
             <>
               <div className="overflow-x-auto border border-border bg-card">
                 <table className="w-full text-sm" aria-label="Versões liberadas">
-                  <thead><tr className="bg-muted/50 text-left text-xs text-muted-foreground"><th scope="col" className="px-2 py-1.5">Comparar</th><th scope="col">Versão</th><th scope="col">Rótulo</th><th scope="col">Liberada por</th><th scope="col">Quando</th><th scope="col" className="text-right">Itens</th><th scope="col" className="text-right">Casos abertos</th><th scope="col">Baixar</th><th scope="col">Continuar</th></tr></thead>
+                  <thead><tr className="bg-muted/50 text-left text-xs text-muted-foreground"><th scope="col" className="px-2 py-1.5">Comparar</th><th scope="col">Versão</th><th scope="col">Fase</th><th scope="col">Rótulo</th><th scope="col">Liberada por</th><th scope="col">Quando</th><th scope="col" className="text-right">Itens</th><th scope="col" className="text-right">Casos abertos</th><th scope="col">Baixar</th><th scope="col">Continuar</th></tr></thead>
                   <tbody>
                     {lista.map((v) => (
                       <tr key={v.id} className="border-t border-border/60 align-top">
@@ -240,7 +256,7 @@ export default function Versoes({ projeto }) {
                           <label className="mr-2 text-xs"><input type="radio" name="comparar-a" checked={a === v.id} onChange={() => setA(v.id)} aria-label={`Versão ${v.numero} como a primeira da comparação (antes)`} /> A</label>
                           <label className="text-xs"><input type="radio" name="comparar-b" checked={b === v.id} onChange={() => setB(v.id)} aria-label={`Versão ${v.numero} como a segunda da comparação (depois)`} /> B</label>
                         </td>
-                        <td className="whitespace-nowrap tabular-nums">{v.numero} <Tag tom="ok">Liberada</Tag></td><td>{v.rotulo}<Restauracoes projeto={projeto} versao={v} /></td><td>{v.usuario}</td><td>{fmtDataHora(v.createdAt)}</td>
+                        <td className="whitespace-nowrap tabular-nums">{v.numero} <Tag tom="ok">Liberada</Tag></td><td className="whitespace-nowrap">{rotuloDaFaseLiberada(v.resumo?.fase) || "—"}</td><td>{v.rotulo}<Restauracoes projeto={projeto} versao={v} /></td><td>{v.usuario}</td><td>{fmtDataHora(v.createdAt)}</td>
                         <td className="text-right tabular-nums">{(v.resumo?.itens ?? 0).toLocaleString("pt-BR")}</td><td className="text-right tabular-nums">{(v.resumo?.casosAbertos ?? 0).toLocaleString("pt-BR")}</td>
                         <td className="py-1"><Entrega projetoId={projeto.id} versao={v} rotulo={`versão ${v.numero}`} /></td>
                         <td className="py-1"><button type="button" className={botaoSecundario} disabled={!pode} title={razao} onClick={() => setContinuarDe(v)} aria-label={`Continuar a partir da versão ${v.numero}`}><History className="h-4 w-4" aria-hidden="true" />Continuar a partir desta versão</button></td>

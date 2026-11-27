@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ABAS, abaBloqueada, abaInicial, abaPorTecla, acoesDoCaso, alternarIncorporar, aposConflito, camadasAtivas, camposObrigatoriosSemColuna, casoAberto, celulaDa, colunasDaTabela,
+  ABAS, abaInicial, acaoDoBloqueio, CAMADAS, camadasDaFase, ehTravaDaFase2, FASES, faseDaCamada, fase1Liberada, itensDaVisao, REGIMES_CLIENTE, regimeDoCliente, ROTULO_CAMADA, rotuloDaFaseLiberada, abaPorTecla, acoesDoCaso, alternarIncorporar, aposConflito, camadasAtivas, camposObrigatoriosSemColuna, casoAberto, celulaDa, colunasDaTabela,
   colunasDoArquivo, converterValor, coberturaDeCamadas, corpoDoLote, corrigirMapeamento, ehConflitoVersao, ehReimportacao, ehTravaNaoConfirmada, enderecoDeEntrega,
   estadoDaTrava, formaDaSituacao, gruposDeColunas, itensIncorporaveis, janelaVisivel, larguraTotal, LARGURA_FIXA, lerParecer,
   linhasDeMapeamento, loteTemEscolha, mensagemDeErro, mensagemDoParecer, montarExcecao, montarFiltroCasos, montarFiltroItens, MENSAGEM_TRAVA, nomeDeEntrega, precisaCarregarMais,
@@ -38,17 +38,58 @@ describe("situações das células", () => {
     expect(celulaDa({ celulas: [] }, "NCM")).toBeNull();
     expect(camadasAtivas({ conciliacao: false })).not.toContain("ESTOQUE");
     expect(camadasAtivas({ conciliacao: true })).toContain("ESTOQUE");
-    expect(camadasAtivas(undefined)).toHaveLength(8);
+    expect(camadasAtivas(undefined)).toHaveLength(10);
   });
 });
 
-describe("trava das atividades", () => {
+describe("fases e camadas (contrato da onda 1)", () => {
+  it("camadas na ordem do contrato, com rótulos e fase de cada uma", () => {
+    expect(CAMADAS).toEqual(["IDENTIFICACAO", "QUALIDADE", "DUPLICIDADE", "GRUPOS_FINALIDADE", "NOMES_UNIDADES", "NCM", "ESTOQUE", "FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO", "OBRIGACOES"]);
+    expect(ROTULO_CAMADA).toMatchObject({ GRUPOS_FINALIDADE: "Grupos", NCM: "Validar NCM", FINALIDADE: "Finalidade", NCM_CLASSIFICACAO: "Classificação NCM", OBRIGACOES: "Impacto no SPED" });
+    for (const c of CAMADAS) expect(ROTULO_CAMADA[c]).toBeTruthy();
+    expect(FASES.FASE1).toEqual(["IDENTIFICACAO", "QUALIDADE", "DUPLICIDADE", "GRUPOS_FINALIDADE", "NOMES_UNIDADES", "NCM", "ESTOQUE", "OBRIGACOES"]);
+    expect(FASES.FASE2).toEqual(["FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO", "OBRIGACOES"]);
+    expect(faseDaCamada("OBRIGACOES")).toBe("FASE1");
+    expect(faseDaCamada("FINALIDADE")).toBe("FASE2");
+    expect(faseDaCamada("NCM_CLASSIFICACAO")).toBe("FASE2");
+    expect(camadasDaFase("FASE1", {})).not.toContain("ESTOQUE");
+    expect(camadasDaFase("FASE1", { conciliacao: true })).toContain("ESTOQUE");
+  });
+  it("regimes do cliente com rótulo e fundamento", () => {
+    expect(REGIMES_CLIENTE.map((r) => r.codigo)).toEqual(["REGULAR", "SIMPLES_NO_SIMPLES", "SIMPLES_REGULAR", "PRODUTOR_RURAL_NAO_CONTRIBUINTE", "PRODUTOR_RURAL_CONTRIBUINTE"]);
+    for (const r of REGIMES_CLIENTE) { expect(r.rotulo).not.toContain("_"); expect(r.fundamento).toContain("LC 214"); }
+    expect(regimeDoCliente("PRODUTOR_RURAL_CONTRIBUINTE").fundamento).toContain("art. 165");
+    expect(regimeDoCliente("X")).toBeNull();
+  });
+  it("travas da Fase 2: mensagem clara e onde resolver", () => {
+    expect(mensagemDeErro(erro(400, { codigo: "FASE1_NAO_LIBERADA" }))).toContain("Libere uma versão da Fase 1");
+    expect(mensagemDeErro(erro(400, { codigo: "REGIME_NAO_INFORMADO" }))).toContain("Informe o regime do cliente");
+    expect(mensagemDeErro(erro(400, { codigo: "ATIVIDADES_NAO_CONFIRMADAS" }))).toContain("Confirme as atividades do cliente");
+    expect(ehTravaDaFase2(erro(400, { codigo: "REGIME_NAO_INFORMADO" }))).toBe(true);
+    expect(ehTravaDaFase2(erro(400, { codigo: "OUTRO" }))).toBe(false);
+    expect(ehTravaDaFase2(erro(400, { codigo: "toString" }))).toBe(false);
+    expect(acaoDoBloqueio("FASE1_NAO_LIBERADA")).toEqual({ aba: "versoes", rotulo: "Ir para Versões" });
+    expect(acaoDoBloqueio("REGIME_NAO_INFORMADO").aba).toBe("configuracao");
+    expect(acaoDoBloqueio("ATIVIDADES_NAO_CONFIRMADAS").aba).toBe("configuracao");
+    expect(acaoDoBloqueio(null)).toBeNull();
+  });
+  it("versões por fase: rótulo e Fase 1 liberada (GET fases ou, sem ele, as versões)", () => {
+    expect(rotuloDaFaseLiberada("FASE1")).toBe("Fase 1 · Cadastro saneado");
+    expect(rotuloDaFaseLiberada("FASE2")).toBe("Fase 2 · Tributário aprovado");
+    expect(rotuloDaFaseLiberada(undefined)).toBe("");
+    expect(fase1Liberada({ fases: [{ fase: "FASE1", liberada: { versaoId: "v", numero: 1 } }] }, [])).toBe(true);
+    expect(fase1Liberada({ fases: [{ fase: "FASE1", liberada: null }] }, [{ resumo: { fase: "FASE1" } }])).toBe(false);
+    expect(fase1Liberada(undefined, [{ resumo: { fase: "FASE1" } }])).toBe(true);
+    expect(fase1Liberada(undefined, [{ resumo: {} }])).toBe(false);
+  });
+});
+
+describe("atividades do cliente (premissa da Fase 2)", () => {
   const ativ = (n) => Array.from({ length: n }, (_, i) => ({ id: String(i), mantida: true }));
-  it("sem confirmação bloqueia, com a mensagem do plano", () => {
+  it("sem confirmação: pode confirmar e editar; nada é bloqueado na Fase 1", () => {
     const t = estadoDaTrava({ atividadesConfirmadas: false, atividades: ativ(2) });
-    expect(t.bloqueada).toBe(true);
-    expect(t.mensagem).toBe("Confirme as atividades do cliente para continuar");
-    expect(MENSAGEM_TRAVA).toBe(t.mensagem);
+    expect(t.bloqueada).toBeUndefined();
+    expect(MENSAGEM_TRAVA).toBe("Confirme as atividades do cliente para analisar a Fase 2");
     expect(t.podeConfirmar).toBe(true);
     expect(t.editavel).toBe(true);
   });
@@ -60,16 +101,9 @@ describe("trava das atividades", () => {
   });
   it("confirmada libera e trava a edição; o CNPJ desatualizado só avisa", () => {
     const t = estadoDaTrava({ atividadesConfirmadas: true, atividades: ativ(1), cnpjDesatualizado: true });
-    expect(t.bloqueada).toBe(false);
+    expect(t.confirmada).toBe(true);
     expect(t.editavel).toBe(false);
     expect(t.revisarAtividades).toBe(true);
-    expect(t.mensagem).toBeNull();
-  });
-  it("só a importação fica travada por inteiro", () => {
-    const aberto = { atividadesConfirmadas: false, atividades: [] };
-    expect(abaBloqueada("importacao", aberto)).toBe(true);
-    expect(abaBloqueada("tabela", aberto)).toBe(false);
-    expect(abaBloqueada("importacao", { atividadesConfirmadas: true })).toBe(false);
   });
 });
 
@@ -144,7 +178,10 @@ describe("virtualização", () => {
     const grupos = gruposDeColunas(col);
     expect(grupos.map((g) => g.camada)).toEqual(camadasAtivas({}));
     expect(grupos.reduce((s, g) => s + g.largura, 0)).toBe(col.reduce((s, c) => s + c.largura, 0));
-    expect(col.filter((c) => c.tipo === "situacao")).toHaveLength(8);
+    expect(col.filter((c) => c.tipo === "situacao")).toHaveLength(10);
+    // A coluna Finalidade fica sob a camada Finalidade (Fase 2); Grupos só com o grupo.
+    expect(col.find((c) => c.id === "finalidade").camada).toBe("FINALIDADE");
+    expect(col.find((c) => c.id === "grupo").camada).toBe("GRUPOS_FINALIDADE");
   });
 });
 
@@ -291,11 +328,13 @@ describe("cobertura, exceções, impacto e entregas", () => {
   });
   it("a exceção de item vira um caso individual e exige motivo", () => {
     const item = { id: "i1", codigo: "001", estabelecimento: null, trabalho: { finalidade: "REVENDA" } };
-    const r = montarExcecao({ camada: "GRUPOS_FINALIDADE", item, valores: { finalidade: "USO_CONSUMO" }, motivo: "Item de uso interno" });
+    const r = montarExcecao({ camada: "FINALIDADE", item, valores: { finalidade: "USO_CONSUMO" }, motivo: "Item de uso interno" });
+    expect(r.casos[0].afeta).toEqual(["TRIBUTARIO", "OBRIGACOES"]);
+    expect(() => montarExcecao({ camada: "GRUPOS_FINALIDADE", item, valores: { finalidade: "USO_CONSUMO" }, motivo: "m" })).toThrow("não admite");
     expect(r.casos).toHaveLength(1);
     expect(r.casos[0]).toMatchObject({ itens: ["i1"], proposta: { finalidade: "USO_CONSUMO" }, atual: { finalidade: "REVENDA" }, origem: "REGRA", justificativa: "Item de uso interno" });
-    expect(() => montarExcecao({ camada: "GRUPOS_FINALIDADE", item, valores: { finalidade: "USO_CONSUMO" }, motivo: " " })).toThrow("motivo");
-    expect(() => montarExcecao({ camada: "GRUPOS_FINALIDADE", item, valores: {}, motivo: "x" })).toThrow("valor");
+    expect(() => montarExcecao({ camada: "FINALIDADE", item, valores: { finalidade: "USO_CONSUMO" }, motivo: " " })).toThrow("motivo");
+    expect(() => montarExcecao({ camada: "FINALIDADE", item, valores: {}, motivo: "x" })).toThrow("valor");
     expect(() => montarExcecao({ camada: "NCM", item, valores: {}, motivo: "x" })).toThrow("não admite");
     expect(montarExcecao({ camada: "TRIBUTARIO", item, valores: { cClassTrib: "000001" }, motivo: "m" }).casos[0].proposta.origem).toBe("EXCECAO");
   });
@@ -339,11 +378,15 @@ describe("cobertura, exceções, impacto e entregas", () => {
 });
 
 describe("abas", () => {
-  it("sem aba na URL: Configuração até confirmar as atividades, Tabela depois", () => {
-    expect(abaInicial(null, { atividadesConfirmadas: false })).toBe("configuracao");
-    expect(abaInicial(null, { atividadesConfirmadas: true })).toBe("tabela");
-    expect(abaInicial("versoes", { atividadesConfirmadas: false })).toBe("versoes");
-    expect(abaInicial("inexistente", { atividadesConfirmadas: true })).toBe("tabela");
+  it("sem aba na URL: Importação sem itens, Tabela com itens; nenhuma trava decide a aba", () => {
+    expect(abaInicial(null, 0)).toBe("importacao");
+    expect(abaInicial(null, 1200)).toBe("tabela");
+    expect(abaInicial(null, null)).toBe("tabela");
+    expect(abaInicial("versoes", 0)).toBe("versoes");
+    expect(abaInicial("inexistente", 0)).toBe("importacao");
+    expect(itensDaVisao({ grupos: [{ itens: 2 }, { itens: 3 }] })).toBe(5);
+    expect(itensDaVisao({ grupos: [] })).toBe(0);
+    expect(itensDaVisao(undefined)).toBeNull();
     expect(ABAS.map((a) => a.id)).toEqual(["configuracao", "importacao", "diretrizes", "tabela", "visao", "casos", "impacto", "unificacoes", "versoes"]);
   });
   it("setas, Home e End navegam em círculo", () => {
@@ -471,7 +514,7 @@ describe("continuar a partir de uma versão", () => {
     const l = linhasDaPrevia(previa({ casosDecididosDepois: 1, itensNovosDepois: 2, itensAusentes: 1 }, { camadasRevisar: ["NCM", "TRIBUTARIO"], ignorados: [{ campo: "codigo" }] }));
     expect(l[0]).toBe("3 itens e 5 campos voltam aos valores da versão 2.");
     expect(l.join(" ")).toContain("1 caso aprovado depois desta versão volta a proposto");
-    expect(l.join(" ")).toContain("Ficam “revisar” nos itens restaurados: NCM");
+    expect(l.join(" ")).toContain("Ficam “revisar” nos itens restaurados: Validar NCM");
     expect(l.join(" ")).toContain("2 itens importados depois desta versão não estão na foto e ficam como estão.");
     expect(l.join(" ")).toContain("1 item da foto não existe mais na base e fica de fora.");
     expect(l.join(" ")).toContain("1 código continua como está");

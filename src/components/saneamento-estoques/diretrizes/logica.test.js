@@ -193,7 +193,7 @@ describe("Aplicar e reanalisar: prévia sempre antes", () => {
     expect(aplicar).toHaveBeenCalledWith({ confirmarTransferencia: true });
   });
   it("resumo da prévia com rótulos das análises", () => {
-    expect(resumoPrevia({ grupos: ["A", "B"], itens: 1234, camadas: ["NCM", "TRIBUTARIO"], sobreposicoes: [] })).toMatchObject({ texto: "1.234 itens de 2 grupos serão analisados de novo.", camadas: ["NCM", "Tratamento tributário"] });
+    expect(resumoPrevia({ grupos: ["A", "B"], itens: 1234, camadas: ["NCM", "TRIBUTARIO"], sobreposicoes: [] })).toMatchObject({ texto: "1.234 itens de 2 grupos serão analisados de novo.", camadas: ["Validar NCM", "Tratamento tributário"] });
     expect(resumoPrevia({ grupos: ["A"], itens: 1, camadas: [] }).texto).toBe("1 item de 1 grupo será analisado de novo.");
   });
 });

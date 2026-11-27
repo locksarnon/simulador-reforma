@@ -2,12 +2,14 @@
  * Roteiro do projeto (botão no alto do Saneamento): as fases e etapas do trabalho, em linguagem para o cliente, com a situação real de cada
  * etapa quando ela já existe no projeto. Plano em docs/saneamento-fases.md.
  */
+import { regimeDoCliente } from "./logica";
 
 export const SITUACAO_ETAPA = {
   CONCLUIDA: { texto: "Concluída", tom: "ok" },
   ANDAMENTO: { texto: "Em andamento", tom: "alerta" },
   NAO_INICIADA: { texto: "Não iniciada", tom: "neutro" },
   PROXIMA_FASE: { texto: "Próxima fase", tom: "neutro" },
+  AGUARDANDO_LIBERACAO: { texto: "Aguardando liberação", tom: "neutro" },
 };
 
 /** `camada`: camada do sistema que mede a etapa (situação real). `faz`: o que é feito; `fornece`: o que o cliente entrega; `recebe`: o que ele recebe. */
@@ -59,13 +61,13 @@ export const FASES_ROTEIRO = [
     id: "fase2", titulo: "Fase 2 · Tributário e Reforma",
     objetivo: "Cada item, em cada operação, com o tratamento de IBS e CBS (cClassTrib, CST e fundamento legal) e o crédito do estoque de transição.",
     etapas: [
-      { id: "premissas", titulo: "Premissas", resumo: "Regime e participantes", faz: "Definimos o regime do cliente no IBS e na CBS, as atividades (CNAE) e os tipos de participante previstos na LC 214 (contribuinte, Simples, produtor rural, exterior e outros).", fornece: "Regime tributário e perfil de clientes e fornecedores.", recebe: "Premissas registradas, com o fundamento de cada uma." },
-      { id: "finalidade", titulo: "Finalidade", resumo: "Tipo do item 0200", faz: "Classificamos cada grupo pelo tipo do item do registro 0200 da EFD (revenda, matéria-prima, embalagem, uso e consumo, imobilizado, outros insumos), com as exceções por item.", fornece: "Confirmação do uso real dos itens.", recebe: "Tipo do item aprovado por grupo e exceções." },
-      { id: "ncm2", titulo: "NCM", resumo: "Reclassificação", faz: "Revisamos o NCM incompatível com a descrição ou divergente entre itens iguais.", fornece: "Fichas técnicas, quando necessárias.", recebe: "NCM revisados com evidência." },
+      { id: "premissas", titulo: "Premissas", resumo: "Regime e participantes", premissas: true, faz: "Definimos o regime do cliente no IBS e na CBS, as atividades (CNAE) e os tipos de participante previstos na LC 214 (contribuinte, Simples, produtor rural, exterior e outros).", fornece: "Regime tributário e perfil de clientes e fornecedores.", recebe: "Premissas registradas, com o fundamento de cada uma." },
+      { id: "finalidade", titulo: "Finalidade", resumo: "Tipo do item 0200", camada: "FINALIDADE", faz: "Classificamos cada grupo pelo tipo do item do registro 0200 da EFD (revenda, matéria-prima, embalagem, uso e consumo, imobilizado, outros insumos), com as exceções por item.", fornece: "Confirmação do uso real dos itens.", recebe: "Tipo do item aprovado por grupo e exceções." },
+      { id: "ncm2", titulo: "NCM", resumo: "Reclassificação", camada: "NCM_CLASSIFICACAO", faz: "Revisamos o NCM incompatível com a descrição ou divergente entre itens iguais.", fornece: "Fichas técnicas, quando necessárias.", recebe: "NCM revisados com evidência." },
       { id: "operacoes", titulo: "Operações", resumo: "CFOP × participante", faz: "Mapeamos as operações do cliente (compra, venda, transferência, devolução, remessa) a partir do CFOP e do ERP.", fornece: "Operações usadas no ERP.", recebe: "Mapa de operações." },
-      { id: "tratamento", titulo: "Tratamento", resumo: "cClassTrib e CST", faz: "Montamos a matriz operação × participante × NCM × tipo do item com cClassTrib, CST e fundamento legal.", fornece: "—", recebe: "Matriz tributária para parametrizar o ERP." },
+      { id: "tratamento", titulo: "Tratamento", resumo: "cClassTrib e CST", camada: "TRIBUTARIO", faz: "Montamos a matriz operação × participante × NCM × tipo do item com cClassTrib, CST e fundamento legal.", fornece: "—", recebe: "Matriz tributária para parametrizar o ERP." },
       { id: "estoque", titulo: "Crédito do estoque", resumo: "Transição para 2027", faz: "Apuramos o crédito presumido de CBS sobre o estoque existente na transição (LC 214, art. 381; Decreto 12.955, arts. 605 a 611).", fornece: "Inventário da data de corte.", recebe: "Memória de cálculo do crédito." },
-      { id: "sped2", titulo: "SPED tributário", resumo: "Reflexos do tratamento", faz: "Indicamos os reflexos do NCM e do tratamento tributário nas obrigações.", fornece: "—", recebe: "Checklist das obrigações." },
+      { id: "sped2", titulo: "SPED tributário", resumo: "Reflexos do tratamento", camada: "OBRIGACOES", faz: "Indicamos os reflexos do NCM e do tratamento tributário nas obrigações.", fornece: "—", recebe: "Checklist das obrigações." },
     ],
     liberacao: { titulo: "Liberação", resumo: "Tributário aprovado", recebe: "Matriz tributária aprovada e crédito do estoque." },
   },
@@ -82,18 +84,14 @@ export const FASES_ROTEIRO = [
   },
 ];
 
-/**
- * Situação de uma etapa da Fase 1 a partir do projeto. `estado`: linhas de estado-camadas por camada; `itens`: total importado;
- * `liberadas`: versões liberadas. Fase 2 e Fechamento: "Próxima fase" (ainda não medidas pelo sistema).
- */
-export function situacaoDaEtapa(fase, etapa, { estado, itens, liberadas }) {
-  if (fase !== "fase1") return { ...SITUACAO_ETAPA.PROXIMA_FASE, detalhe: null };
-  if (etapa.id === "preparar") return itens > 0 ? { ...SITUACAO_ETAPA.CONCLUIDA, detalhe: `${fmt(itens)} itens importados` } : { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
-  if (etapa.id === "erp") return liberadas > 0 ? { ...SITUACAO_ETAPA.ANDAMENTO, detalhe: `${liberadas} versão(ões) liberada(s)` } : { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
-  const e = estado?.get(etapa.camada);
+/** Resposta de GET fases: a linha de uma fase ("fase1" → FASE1). */
+const linhaDaFase = (fases, faseId) => (fases?.fases || []).find((l) => l.fase === (faseId === "fase1" ? "FASE1" : faseId === "fase2" ? "FASE2" : null)) || null;
+
+/** Situação de uma etapa medida por camada: casos em aberto, aguardando e aprovados. Nada analisado: null. */
+function situacaoDaCamada(e) {
   if (!e || !e.executadaEm) {
     const abertos = Number(e?.abertos) || 0;
-    if (!abertos) return { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
+    if (!abertos) return null;
   }
   const abertos = Number(e.abertos) || 0; const aguardando = Number(e.aguardando) || 0; const aprovados = Number(e.aprovados) || 0;
   if (abertos || aguardando) {
@@ -103,7 +101,41 @@ export function situacaoDaEtapa(fase, etapa, { estado, itens, liberadas }) {
   return { ...SITUACAO_ETAPA.CONCLUIDA, detalhe: aprovados ? `${fmt(aprovados)} aprovados` : null };
 }
 
-/** Liberação da Fase 1: concluída quando há versão liberada. */
-export const situacaoDaLiberacao = (fase, liberadas) => (fase === "fase1" && liberadas > 0 ? SITUACAO_ETAPA.CONCLUIDA : fase === "fase1" ? SITUACAO_ETAPA.NAO_INICIADA : SITUACAO_ETAPA.PROXIMA_FASE);
+/**
+ * Situação de uma etapa a partir do projeto. `estado`: linhas de estado-camadas por camada; `itens`: total importado; `liberadas`: versões
+ * liberadas; `projeto`: regime (parametros.regimeCliente) e atividades confirmadas; `fases`: resposta de GET fases (liberação e bloqueio).
+ * Na Fase 2, as etapas com camada seguem a camada; com a fase bloqueada, "Aguardando liberação". Operações, Crédito do estoque e o
+ * Fechamento ainda não são medidos pelo sistema: "Próxima fase".
+ */
+export function situacaoDaEtapa(fase, etapa, { estado, itens, liberadas, projeto, fases } = {}) {
+  if (fase === "fase1") {
+    if (etapa.id === "preparar") return itens > 0 ? { ...SITUACAO_ETAPA.CONCLUIDA, detalhe: `${fmt(itens)} itens importados` } : { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
+    if (etapa.id === "erp") return liberadas > 0 ? { ...SITUACAO_ETAPA.ANDAMENTO, detalhe: `${liberadas} versão(ões) liberada(s)` } : { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
+    return situacaoDaCamada(estado?.get(etapa.camada)) || { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
+  }
+  if (fase === "fase2" && etapa.premissas) {
+    const regime = regimeDoCliente(projeto?.parametros?.regimeCliente);
+    const atividades = !!projeto?.atividadesConfirmadas;
+    const detalhe = [regime ? `Regime: ${regime.rotulo}` : "Regime não informado", atividades ? "atividades confirmadas" : "atividades a confirmar"].join(" · ");
+    if (regime && atividades) return { ...SITUACAO_ETAPA.CONCLUIDA, detalhe };
+    if (regime || atividades) return { ...SITUACAO_ETAPA.ANDAMENTO, detalhe };
+    return { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
+  }
+  if (fase === "fase2" && etapa.camada) {
+    // Impacto no SPED também roda na Fase 1: na Fase 2, enquanto a fase está bloqueada, todas as etapas medidas aguardam a liberação.
+    const bloqueio = linhaDaFase(fases, "fase2")?.bloqueio;
+    if (bloqueio) return { ...SITUACAO_ETAPA.AGUARDANDO_LIBERACAO, detalhe: bloqueio.mensagem || null };
+    return situacaoDaCamada(estado?.get(etapa.camada)) || { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
+  }
+  return { ...SITUACAO_ETAPA.PROXIMA_FASE, detalhe: null };
+}
+
+/** Liberação de uma fase: concluída quando GET fases traz a versão liberada dela (sem a resposta, a Fase 1 vale pelas versões liberadas). */
+export function situacaoDaLiberacao(fase, { liberadas, fases } = {}) {
+  if (fase !== "fase1" && fase !== "fase2") return { ...SITUACAO_ETAPA.PROXIMA_FASE, detalhe: null };
+  const linha = linhaDaFase(fases, fase);
+  const liberada = linha ? !!linha.liberada : fase === "fase1" && liberadas > 0;
+  return liberada ? { ...SITUACAO_ETAPA.CONCLUIDA, detalhe: linha?.liberada?.numero ? `Versão ${linha.liberada.numero}` : null } : { ...SITUACAO_ETAPA.NAO_INICIADA, detalhe: null };
+}
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");

@@ -59,6 +59,8 @@ export const san = {
   baixarUnificacoes: (id, filtro) => api.baixar("GET", enderecoDoMapa(id, filtro), { nome: "saneamento-estoques-unificacoes-e-inativacoes.xlsx", nomeDoServidor: true }),
 
   versoes: (id) => api.get(`${B}/projetos/${id}/versoes`),
+  /** { fases: [{ fase: "FASE1"|"FASE2", camadas, liberada: { versaoId, numero, em } | null, bloqueio: { codigo, mensagem } | null }] }. */
+  fases: (id) => api.get(`${B}/projetos/${id}/fases`),
   liberarVersao: (id, rotulo, extra) => api.post(`${B}/projetos/${id}/versoes`, { rotulo, ...(extra || {}) }),
   compararVersoes: (id, a, b) => api.get(`${B}/projetos/${id}/versoes/comparar`, { a, b }),
   /** Continuar a partir de uma versão liberada: prévia (só lê), restauração ({ versao, previa, justificativa }) e desfazer. */
@@ -110,6 +112,7 @@ export const chaves = {
   impactos: (projetoId, tipo = "") => ["san", projetoId, "impactos", tipo],
   unificacoes: (projetoId, filtro) => ["san", projetoId, "unificacoes", filtro],
   versoes: (projetoId) => ["san", projetoId, "versoes"],
+  fases: (projetoId) => ["san", projetoId, "fases"],
   continuar: (projetoId, versaoId) => ["san", projetoId, "continuar", versaoId],
   importacoes: (projetoId) => ["san", projetoId, "importacoes"],
   diretrizes: (projetoId) => ["san", projetoId, "diretrizes"],

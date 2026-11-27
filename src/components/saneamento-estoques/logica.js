@@ -5,24 +5,66 @@
 
 // ── Camadas e situações ──────────────────────────────────────────────────────
 
-export const CAMADAS = ["IDENTIFICACAO", "QUALIDADE", "DUPLICIDADE", "GRUPOS_FINALIDADE", "NOMES_UNIDADES", "NCM", "TRIBUTARIO", "ESTOQUE", "OBRIGACOES"];
+export const CAMADAS = [
+  "IDENTIFICACAO", "QUALIDADE", "DUPLICIDADE", "GRUPOS_FINALIDADE", "NOMES_UNIDADES", "NCM", "ESTOQUE", "FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO", "OBRIGACOES",
+];
 
-/** Título do grupo de colunas de cada camada na tabela única. */
+/** Título do grupo de colunas de cada camada na tabela única. GRUPOS_FINALIDADE é só "Grupos" (a finalidade virou camada da Fase 2). */
 export const ROTULO_CAMADA = {
-  IDENTIFICACAO: "Identificação", QUALIDADE: "Qualidade", DUPLICIDADE: "Duplicidades", GRUPOS_FINALIDADE: "Grupos e finalidade",
-  NOMES_UNIDADES: "Nomes e unidades", NCM: "NCM", TRIBUTARIO: "Tratamento tributário", ESTOQUE: "Estoque", OBRIGACOES: "Impacto nas obrigações",
+  IDENTIFICACAO: "Identificação", QUALIDADE: "Qualidade", DUPLICIDADE: "Duplicidades", GRUPOS_FINALIDADE: "Grupos",
+  NOMES_UNIDADES: "Nomes e unidades", NCM: "Validar NCM", ESTOQUE: "Estoque", FINALIDADE: "Finalidade", NCM_CLASSIFICACAO: "Classificação NCM",
+  TRIBUTARIO: "Tratamento tributário", OBRIGACOES: "Impacto no SPED",
 };
+
+/**
+ * Fases do trabalho (backend dados/constantes.ts FASES). Impacto no SPED roda no fim de cada fase; o Estoque é da Fase 1 (só com o módulo
+ * de conciliação). As camadas da Fase 2 exigem a Fase 1 liberada, o regime do cliente e as atividades confirmadas.
+ */
+export const FASES = {
+  FASE1: ["IDENTIFICACAO", "QUALIDADE", "DUPLICIDADE", "GRUPOS_FINALIDADE", "NOMES_UNIDADES", "NCM", "ESTOQUE", "OBRIGACOES"],
+  FASE2: ["FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO", "OBRIGACOES"],
+};
+export const LISTA_FASES = ["FASE1", "FASE2"];
+export const ROTULO_FASE = { FASE1: "Fase 1 · Saneamento de estoques", FASE2: "Fase 2 · Tributário e Reforma" };
+/** Nome da liberação de cada fase (a versão "Cadastro saneado" e a "Tributário aprovado"). */
+export const ROTULO_LIBERACAO = { FASE1: "Cadastro saneado", FASE2: "Tributário aprovado" };
+/** Primeira fase que contém a camada (Impacto no SPED = Fase 1). */
+export const faseDaCamada = (c) => LISTA_FASES.find((f) => FASES[f].includes(c)) || null;
+/** Camadas da fase entre as ativas do projeto (Estoque só com o módulo de conciliação). */
+export const camadasDaFase = (fase, modulos) => (FASES[fase] || []).filter((c) => camadasAtivas(modulos).includes(c));
+/** Camadas que só rodam depois da Fase 1 liberada, com o regime e as atividades. Impacto no SPED roda sem trava. */
+export const CAMADAS_TRAVADAS_FASE2 = ["FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO"];
+
+/** Regime do cliente no IBS e na CBS (premissa obrigatória da Fase 2). Espelha backend/src/saneamento-estoques/fiscal/regimes.ts. */
+export const REGIMES_CLIENTE = [
+  { codigo: "REGULAR", rotulo: "Regime regular", fundamento: "LC 214/2025, arts. 21 e 41" },
+  { codigo: "SIMPLES_NO_SIMPLES", rotulo: "Simples Nacional, recolhendo IBS e CBS no Simples", fundamento: "LC 214/2025, art. 47, § 9º" },
+  { codigo: "SIMPLES_REGULAR", rotulo: "Simples Nacional, recolhendo IBS e CBS no regime regular", fundamento: "LC 214/2025, art. 41, § 3º" },
+  { codigo: "PRODUTOR_RURAL_NAO_CONTRIBUINTE", rotulo: "Produtor rural não contribuinte", fundamento: "LC 214/2025, art. 164" },
+  { codigo: "PRODUTOR_RURAL_CONTRIBUINTE", rotulo: "Produtor rural contribuinte (por opção)", fundamento: "LC 214/2025, art. 165" },
+];
+/** Texto da fase de uma liberação: "Fase 1 · Cadastro saneado". Versão antiga (sem fase) = vazio. */
+export const rotuloDaFaseLiberada = (fase) => (ROTULO_LIBERACAO[fase] ? `${fase === "FASE1" ? "Fase 1" : "Fase 2"} · ${ROTULO_LIBERACAO[fase]}` : "");
+/** Há Fase 1 liberada? Pela resposta de GET fases; sem ela, pelas versões liberadas (resumo.fase). */
+export function fase1Liberada(dadosFases, versoes) {
+  const f1 = (dadosFases?.fases || []).find((f) => f.fase === "FASE1");
+  if (f1) return !!f1.liberada;
+  return (Array.isArray(versoes) ? versoes : []).some((v) => v?.resumo?.fase === "FASE1");
+}
+export const regimeDoCliente = (codigo) => REGIMES_CLIENTE.find((r) => r.codigo === codigo) || null;
 
 /** Campos do item que cada camada revisa (visão focada). `campos.*` = campo extra da importação. */
 export const CAMPOS_DA_CAMADA = {
   IDENTIFICACAO: ["codigo", "estabelecimento", "descricao", "referencia", "fabricante"],
   QUALIDADE: ["descricao", "unidade", "ncm", "ativo", "ultimaMovimentacao"],
   DUPLICIDADE: ["codigo", "descricao", "unidade", "fabricante", "referencia"],
-  GRUPOS_FINALIDADE: ["grupo", "finalidade", "tambemUsadoComo"],
+  GRUPOS_FINALIDADE: ["grupo"],
   NOMES_UNIDADES: ["descricao", "unidade"],
   NCM: ["ncm", "descricao"],
-  TRIBUTARIO: ["ncm", "finalidade", "cClassTrib", "cst"],
   ESTOQUE: ["saldo", "unidade", "ultimaMovimentacao"],
+  FINALIDADE: ["grupo", "finalidade", "tambemUsadoComo"],
+  NCM_CLASSIFICACAO: ["ncm", "descricao"],
+  TRIBUTARIO: ["ncm", "finalidade", "cClassTrib", "cst"],
   OBRIGACOES: ["codigo", "unidade", "ncm"],
 };
 
@@ -54,7 +96,7 @@ export const ROTULO_TIPO_CASO = {
   DUPLICIDADE_COM_SALDO: "Duplicidade com saldo", APRESENTACOES_DISTINTAS: "Apresentações distintas", ATRIBUTOS_CONFLITANTES: "Atributos conflitantes",
   REFERENCIA_COINCIDENTE: "Mesma referência do fabricante", REFERENCIA_COINCIDENTE_CONDICAO_DIFERENTE: "Mesma referência, condição diferente (original × paralelo)",
   REFERENCIA_FABRICANTES_DIFERENTES: "Mesma referência, fabricantes diferentes", REFERENCIA_COINCIDENTE_SEM_FABRICANTE: "Mesma referência, sem fabricante",
-  // Grupos e finalidade
+  // Grupos e finalidade (casos da camada Grupos e da camada Finalidade)
   ITEM_SEM_GRUPO: "Item sem grupo", GRUPO_GENERICO: "Grupo genérico", GRUPO_NOME_VARIANTE: "Nome de grupo variante", GRUPOS_SOBREPOSTOS: "Grupos sobrepostos",
   ITEM_DESLOCADO: "Item fora do grupo", NECESSIDADE_NOVO_GRUPO: "Necessidade de grupo novo", FINALIDADE_GRUPO: "Finalidade do grupo", FINALIDADE_EXCECAO: "Exceção à finalidade do grupo",
   FINALIDADE_SUGERIDA: "Finalidade sugerida",
@@ -139,19 +181,33 @@ export function situacaoAgregada(contagem) {
 }
 export const totalDeCelulas = (contagem) => LISTA_SITUACOES.reduce((s, k) => s + (Number(contagem?.[k]) || 0), 0);
 
-// ── Trava das atividades ─────────────────────────────────────────────────────
+// ── Atividades (premissa da Fase 2) e trava da Fase 2 ───────────────────────
 
-export const MENSAGEM_TRAVA = "Confirme as atividades do cliente para continuar";
+export const MENSAGEM_TRAVA = "Confirme as atividades do cliente para analisar a Fase 2";
 
-/** O que a tela mostra e bloqueia conforme o projeto (campos `atividadesConfirmadas`, `cnpjDesatualizado` e `atividades`). */
+/**
+ * Mensagens dos bloqueios da Fase 2 (erro 400 do servidor ou `bloqueio` de GET fases), na ordem em que o servidor confere.
+ * A importação e as camadas da Fase 1 nunca são bloqueadas.
+ */
+export const MENSAGEM_BLOQUEIO_FASE2 = {
+  FASE1_NAO_LIBERADA: "Libere uma versão da Fase 1 (Cadastro saneado) na aba Versões para começar a Fase 2.",
+  REGIME_NAO_INFORMADO: "Informe o regime do cliente na Configuração, em Premissas da Fase 2, para analisar a Fase 2.",
+  ATIVIDADES_NAO_CONFIRMADAS: "Confirme as atividades do cliente na Configuração, em Premissas da Fase 2, para analisar a Fase 2.",
+};
+/** Onde se resolve cada bloqueio da Fase 2: a aba e o texto do botão. */
+export function acaoDoBloqueio(codigo) {
+  if (codigo === "FASE1_NAO_LIBERADA") return { aba: "versoes", rotulo: "Ir para Versões" };
+  if (codigo === "REGIME_NAO_INFORMADO" || codigo === "ATIVIDADES_NAO_CONFIRMADAS") return { aba: "configuracao", rotulo: "Ir para a Configuração" };
+  return null;
+}
+
+/** Estado das atividades do cliente (campos `atividadesConfirmadas`, `cnpjDesatualizado` e `atividades`). Só a Fase 2 depende delas. */
 export function estadoDaTrava(projeto) {
   const atividades = projeto?.atividades || [];
   const mantidas = atividades.filter((a) => a.mantida).length;
   const confirmada = !!projeto?.atividadesConfirmadas;
   return {
     confirmada,
-    bloqueada: !confirmada,
-    mensagem: confirmada ? null : MENSAGEM_TRAVA,
     mantidas,
     podeConfirmar: !confirmada && mantidas >= 1,
     motivoSemConfirmar: confirmada ? null : mantidas < 1 ? "Mantenha ou acrescente pelo menos uma atividade." : null,
@@ -159,10 +215,6 @@ export function estadoDaTrava(projeto) {
     editavel: !confirmada,
   };
 }
-
-/** Abas que a trava bloqueia por inteiro. A tabela, a visão geral e os casos continuam legíveis; só as análises ficam travadas. */
-export const ABAS_BLOQUEADAS_PELA_TRAVA = ["importacao"];
-export const abaBloqueada = (aba, projeto) => estadoDaTrava(projeto).bloqueada && ABAS_BLOQUEADAS_PELA_TRAVA.includes(aba);
 
 /** Módulos opcionais: nesta entrega nenhum é ligável. */
 export const MODULOS_OPCIONAIS = [
@@ -194,6 +246,8 @@ export const codigoDoErro = (err) => dadosDoErro(err).codigo || null;
 /** 409 CONFLITO_VERSAO: outra pessoa gravou antes. (Um 409 sem código também é tratado como conflito de versão.) */
 export const ehConflitoVersao = (err) => err?.status === 409 && (codigoDoErro(err) === "CONFLITO_VERSAO" || !codigoDoErro(err));
 export const ehTravaNaoConfirmada = (err) => err?.status === 400 && codigoDoErro(err) === "ATIVIDADES_NAO_CONFIRMADAS";
+/** Erro 400 de uma trava da Fase 2 (Fase 1 não liberada, regime não informado, atividades não confirmadas). */
+export const ehTravaDaFase2 = (err) => err?.status === 400 && Object.hasOwn(MENSAGEM_BLOQUEIO_FASE2, codigoDoErro(err) ?? "");
 export const naoEncontrado = (err) => err?.status === 404;
 
 export const ehErroDeRede = (err) => !err?.status && /Network Error|timeout|ECONNABORTED|ERR_NETWORK/i.test(`${err?.message || ""} ${err?.code || ""}`);
@@ -206,7 +260,7 @@ export const exigeConfirmarFator = (err) => err?.status === 400 && codigoDoErro(
 export function mensagemDeErro(err, padrao = "Não foi possível concluir. Tente de novo.") {
   if (ehErroDeRede(err)) return "Sem conexão com o servidor ou o tempo esgotou. Verifique a rede e tente de novo.";
   if (ehConflitoVersao(err)) return "Outra pessoa alterou este registro depois que você o abriu. Recarregamos os dados e mantivemos o que você digitou: confira e salve de novo.";
-  if (ehTravaNaoConfirmada(err)) return `${MENSAGEM_TRAVA}.`;
+  if (ehTravaDaFase2(err)) return MENSAGEM_BLOQUEIO_FASE2[codigoDoErro(err)];
   const m = err?.message;
   return m && !/^Request failed with status code/.test(m) ? m : padrao;
 }
@@ -732,7 +786,7 @@ export const ROTULO_COBERTURA = {
 
 /** Camadas em que o consultor pode registrar exceção de um item (caso individual): campos que ele informa. */
 export const EXCECOES_POR_CAMADA = {
-  GRUPOS_FINALIDADE: [{ campo: "finalidade", rotulo: "Finalidade deste item", tipo: "finalidade" }],
+  FINALIDADE: [{ campo: "finalidade", rotulo: "Finalidade deste item", tipo: "finalidade" }],
   TRIBUTARIO: [{ campo: "cClassTrib", rotulo: "cClassTrib", tipo: "texto" }, { campo: "cst", rotulo: "CST", tipo: "texto" }],
   // Conversão de unidade decidida por conjunto: o item de conteúdo diferente (outro fator) vira exceção.
   NOMES_UNIDADES: [
@@ -767,7 +821,7 @@ export function montarExcecao({ camada, item, valores, motivo }) {
     casos: [{
       camada, tipo: "EXCECAO_MANUAL", itens: [item.id], problema: `Exceção do item ${item.codigo}: tratamento diferente do conjunto`,
       evidencia: [{ rotulo: "Item", valor: `${item.codigo}${item.estabelecimento ? ` (${item.estabelecimento})` : ""}` }], atual, proposta,
-      justificativa: String(motivo).trim(), fundamento: null, impactos: [], origem: "REGRA", afeta: camada === "GRUPOS_FINALIDADE" ? ["TRIBUTARIO", "OBRIGACOES"] : camada === "NOMES_UNIDADES" ? ["DUPLICIDADE", "OBRIGACOES"] : ["OBRIGACOES"],
+      justificativa: String(motivo).trim(), fundamento: null, impactos: [], origem: "REGRA", afeta: camada === "FINALIDADE" ?["TRIBUTARIO", "OBRIGACOES"] : camada === "NOMES_UNIDADES" ? ["DUPLICIDADE", "OBRIGACOES"] : ["OBRIGACOES"],
     }],
   };
 }
@@ -786,7 +840,8 @@ export const LARGURA_FIXA = COLUNAS_FIXAS.reduce((s, c) => s + c.largura, 0);
 /** Colunas rolantes: uma por camada ativa (a situação), mais os campos que a camada exibe na própria lista. */
 export function colunasDaTabela(camadas) {
   const extras = {
-    GRUPOS_FINALIDADE: [{ id: "grupo", titulo: "Grupo", largura: 170 }, { id: "finalidade", titulo: "Finalidade", largura: 200 }],
+    GRUPOS_FINALIDADE: [{ id: "grupo", titulo: "Grupo", largura: 170 }],
+    FINALIDADE: [{ id: "finalidade", titulo: "Finalidade", largura: 200 }],
     TRIBUTARIO: [{ id: "conjunto", titulo: "Enquadramento", largura: 360 }],
   };
   return camadas.flatMap((camada) => [
@@ -943,11 +998,16 @@ export const ABAS = [
   { id: "unificacoes", rotulo: "Unificações" },
   { id: "versoes", rotulo: "Versões" },
 ];
-/** Aba pedida na URL; sem pedido (ou inválida), a Configuração enquanto as atividades não estão confirmadas e a Tabela depois. */
-export function abaInicial(pedida, projeto) {
+/**
+ * Aba pedida na URL; sem pedido (ou inválida), a Importação enquanto não há itens importados e a Tabela depois. `itens` = total importado
+ * (desconhecido = Tabela). Nenhuma trava decide a aba: as atividades só valem para a Fase 2.
+ */
+export function abaInicial(pedida, itens) {
   if (ABAS.some((a) => a.id === pedida)) return pedida;
-  return projeto && !projeto.atividadesConfirmadas ? "configuracao" : "tabela";
+  return itens != null && Number(itens) === 0 ? "importacao" : "tabela";
 }
+/** Total de itens importados, pela visão geral (soma dos grupos). */
+export const itensDaVisao = (visao) => (visao ? (visao.grupos || []).reduce((s, g) => s + (Number(g.itens) || 0), 0) : null);
 /** Próxima aba por teclado (setas, Home, End), circular. */
 export function abaPorTecla(atual, tecla) {
   const i = ABAS.findIndex((a) => a.id === atual);
@@ -979,7 +1039,7 @@ export function avisoDeOutrosGrupos(dados, grupoDoRecorte) {
 export const REGRA_FINALIDADE = [
   "Item que já tem finalidade (informada na base ou aprovada num caso) fica com ela.",
   "Sem finalidade, o sistema lê o grupo e a descrição, nesta ordem: material de terceiros ou consignado → Material de terceiros; grupo de manutenção, peças de reposição ou oficina (e peças pelo nome, como rolamento, retentor, correia, filtro de óleo) → Manutenção; embalagens e sacarias → Embalagem; EPI, uniforme, limpeza, escritório, refeitório, informática e bens de pequeno valor → Uso e consumo; máquinas, veículos, implementos e equipamentos → Imobilizado; matéria-prima → Matéria-prima.",
-  "Insumo agropecuário (defensivo, adubo, fertilizante, semente, inoculante, ração, sal mineral, vacina, medicamento veterinário) depende das atividades (CNAE) confirmadas na Configuração: só produção → Insumo de produção; só revenda ou comércio → Revenda; produção e revenda juntas → sugestão de confiança baixa, a confirmar. Sem atividade confirmada, não há sugestão.",
+  "Insumo agropecuário (defensivo, adubo, fertilizante, semente, inoculante, ração, sal mineral, vacina, medicamento veterinário) depende das atividades (CNAE) confirmadas na Configuração, em Premissas da Fase 2: só produção → Insumo de produção; só revenda ou comércio → Revenda; produção e revenda juntas → sugestão de confiança baixa, a confirmar. Sem atividade confirmada, não há sugestão.",
   "Combustível e lubrificante (diesel, gasolina, Arla, graxa, óleo de motor) → Insumo de produção quando o cliente produz, transporta ou industrializa; nos demais casos, sem sugestão.",
   "Grupos ambíguos (serviços, taxas, diversos, outros, plantel ou rebanho, produção) ficam sem sugestão: a finalidade se confirma com o cliente. Materiais de construção, lonas e beneficiamento recebem sugestão de confiança baixa, com alternativas.",
   "A finalidade do grupo é a mais frequente entre os itens do grupo (caso \"Confirmar a finalidade do grupo\"). O item que a regra manda para outra finalidade vira caso de exceção, que exige o motivo escrito para aprovar.",
