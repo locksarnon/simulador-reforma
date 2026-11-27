@@ -20,6 +20,7 @@ import {
   Check,
 } from './shared/xml-utils';
 import { parseXml, getFirst, getFirstDeep, getAll, getText, getTextDeep, getAttr, identificarTipoXml, MAX_ITENS } from './shared/xml-parser';
+import { chaveArmazenamentoSegura, pareceUrl } from './shared/chave-armazenamento';
 import {
   lerCte,
   lerEventoCte,
@@ -92,7 +93,14 @@ const ITEM_BULK_BATCH = 500;
 const ARQ_BULK_BATCH = 500;
 const CONFIRMAR_BULK_BATCH = 500;
 
-type ArquivoInput = { nome: string; file_url: string; storage_key?: string; tamanho?: number };
+/** file_url é aceito por compatibilidade, mas nunca é baixado: o conteúdo vem do armazenamento pela storage_key. */
+type ArquivoInput = { nome: string; storage_key: string; file_url?: string; tamanho?: number };
+type ArquivoReg = { id: string; lote_id: string; grupo_id: string; nome: string; storage_key: string };
+
+const ERRO_CHAVE_LEGADA = 'Arquivo antigo sem chave de armazenamento: envie o XML de novo.';
+
+/** Decodifica como UTF-8, igual ao Response.text() usado antes (inclusive tirando o BOM), para o hash não mudar. */
+const decodificador = new TextDecoder('utf-8');
 type ProcessarLoteBody = { grupo_id: string; idempotency_key: string; arquivos: ArquivoInput[] };
 type ConfirmarBody = { lote_id: string; perspectivas_ids: string[] };
 
@@ -124,6 +132,14 @@ export class ImportacaoXmlService {
     if (arquivos.length > MAX_ARQUIVOS) {
       throw new BadRequestException(`Limite máximo de ${MAX_ARQUIVOS} arquivos por lote.`);
     }
+    // Defesa em profundidade: o controlador já exige a chave do próprio
+    // usuário; aqui vale para qualquer chamador (também o repositório de XML).
+    const semChave = arquivos.find((a) => !chaveArmazenamentoSegura(a?.storage_key));
+    if (semChave) {
+      throw new BadRequestException(
+        `Arquivo "${String(semChave?.nome ?? '').slice(0, 120)}" sem chave de armazenamento válida: envie o XML de novo pela tela de importação.`,
+      );
+    }
 
     const grupo = await this.prisma.grupo.findUnique({ where: { id: grupo_id } }).catch(() => null);
     if (!grupo) throw new NotFoundException('Grupo não localizado.');
@@ -142,12 +158,9 @@ export class ImportacaoXmlService {
       lote_id: lote.id,
       grupo_id,
       nome_original: a.nome,
-      // storage_key é a chave do objeto no MinIO (pra re-assinar a URL depois,
-      // no reprocessamento) — file_url é só a URL pré-assinada, que expira em
-      // 24h. Se o cliente não mandar storage_key (uploads antigos), cai no
-      // file_url mesmo — reprocessar um lote desses não vai funcionar depois
-      // que a URL expirar, mas o processamento imediato funciona igual.
-      storage_key: a.storage_key || a.file_url,
+      // storage_key é a chave do objeto no MinIO: o processamento e o
+      // reprocessamento leem o XML direto do bucket por ela (nunca por URL).
+      storage_key: a.storage_key,
       tamanho_bytes: a.tamanho || 0,
       status_tecnico: 'PENDENTE' as const,
     }));
@@ -162,7 +175,7 @@ export class ImportacaoXmlService {
       lote_id: lote.id,
       grupo_id,
       nome: arquivos[idx].nome,
-      file_url: arquivos[idx].file_url,
+      storage_key: arquivos[idx].storage_key,
     }));
 
     // Processamento assíncrono (fire-and-forget): a resposta volta com o lote em RECEBIDO.
@@ -176,7 +189,7 @@ export class ImportacaoXmlService {
   private async processarLote(
     loteId: string,
     grupoId: string,
-    arquivosReg: { id: string; lote_id: string; grupo_id: string; nome: string; file_url: string }[],
+    arquivosReg: ArquivoReg[],
   ) {
     try {
       await this.prisma.importacaoXMLLote.update({ where: { id: loteId }, data: { status: 'PROCESSANDO' } });
@@ -210,8 +223,7 @@ export class ImportacaoXmlService {
   // Retoma um lote FALHOU/PROCESSADO_COM_FALHAS sem reenviar arquivos: só
   // reprocessa o que ficou PENDENTE ou FALHOU tecnicamente (arquivos já
   // CONCLUIDOs não são tocados de novo, pra não duplicar itens/operações).
-  // A URL de download original expira em 24h — aqui é sempre re-assinada a
-  // partir da storage_key salva no MinIO antes de tentar de novo.
+  // O XML é relido direto do MinIO pela storage_key salva (sem URL).
 
   async reprocessarLote(body: { lote_id: string }) {
     const loteId = body?.lote_id;
@@ -233,7 +245,9 @@ export class ImportacaoXmlService {
         lote_id: loteId,
         grupo_id: lote.grupo_id,
         nome: arq.nome_original,
-        file_url: await this.storage.getPresignedUrl(arq.storage_key || ''),
+        // Linhas antigas guardavam o file_url aqui; essas não são baixadas
+        // (processarArquivos marca o arquivo com erro pedindo novo envio).
+        storage_key: arq.storage_key || '',
       })),
     );
 
@@ -283,7 +297,7 @@ export class ImportacaoXmlService {
   /** Núcleo do processamento — baixa, valida e grava itens para uma lista de arquivos. Não toca no status do lote. */
   private async processarArquivos(
     grupoId: string,
-    arquivosReg: { id: string; lote_id: string; grupo_id: string; nome: string; file_url: string }[],
+    arquivosReg: ArquivoReg[],
   ) {
     {
       // Empresa.grupo guarda o código de negócio (Grupo.numero), não o id do
@@ -358,9 +372,9 @@ export class ImportacaoXmlService {
         const parsed = await Promise.all(
           batch.map(async (arq) => {
             try {
-              const resp = await fetch(arq.file_url);
-              if (!resp.ok) throw new Error(`Falha ao baixar arquivo: ${resp.status}`);
-              const content = await resp.text();
+              // Nunca baixa URL: lê o objeto do bucket pela chave.
+              if (pareceUrl(arq.storage_key) || !chaveArmazenamentoSegura(arq.storage_key)) throw new Error(ERRO_CHAVE_LEGADA);
+              const content = decodificador.decode(await this.storage.getObjectBuffer(arq.storage_key));
               const hash = sha256(content);
               const doc = parseXml(content);
               const tipoXml = identificarTipoXml(doc);

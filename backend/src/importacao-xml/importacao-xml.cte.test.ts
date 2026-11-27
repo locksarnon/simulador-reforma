@@ -13,7 +13,7 @@ import {
 } from './shared/cte-fixtures';
 
 // ── montagem do serviço com dependências simuladas (nenhum banco é tocado) ──────────────────────────────────────
-const servico = (prisma: any = {}) => new ImportacaoXmlService(prisma, {} as any, { ajustesDaEmpresa: async () => ({}) } as any);
+const servico = (prisma: any = {}, storage: any = {}) => new ImportacaoXmlService(prisma, storage, { ajustesDaEmpresa: async () => ({}) } as any);
 
 const EMP_TRANSP = { id: 'db-transp', id_empresa: 'EMP-T', regime_atual: 'Lucro Presumido', status: 'Ativa' };
 const EMP_EMBARC = { id: 'db-embarc', id_empresa: 'EMP-E', regime_atual: 'Lucro Real', status: 'Ativa' };
@@ -363,9 +363,12 @@ describe('processarArquivos — CT-e no laço de processamento do lote', () => {
       operacao: { update: async ({ where, data }: any) => { operacoesAtualizadas.push({ id: where.id, data }); return {}; } },
       $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
     };
-    vi.stubGlobal('fetch', async (url: string) => ({ ok: true, status: 200, text: async () => arquivos[url] }));
-    const arquivosReg = Object.keys(arquivos).map((url, i) => ({ id: `a${i + 1}`, lote_id: 'lote-1', grupo_id: 'grp-1', nome: `f${i + 1}.xml`, file_url: url }));
-    return { servico: servico(prisma), arquivosReg, itensCriados, itensAtualizados, arquivosAtualizados, lotesAtualizados, operacoesAtualizadas };
+    // O XML vem do armazenamento pela chave; a rede nunca é usada.
+    const fetchEspiao = vi.fn(async () => { throw new Error('fetch não pode ser chamado'); });
+    vi.stubGlobal('fetch', fetchEspiao);
+    const storage = { getObjectBuffer: vi.fn(async (chave: string) => Buffer.from(arquivos[chave], 'utf8')) };
+    const arquivosReg = Object.keys(arquivos).map((chave, i) => ({ id: `a${i + 1}`, lote_id: 'lote-1', grupo_id: 'grp-1', nome: `f${i + 1}.xml`, storage_key: chave }));
+    return { servico: servico(prisma, storage), storage, fetchEspiao, arquivosReg, itensCriados, itensAtualizados, arquivosAtualizados, lotesAtualizados, operacoesAtualizadas };
   }
 
   it('importa o CT-e (antes ignorado), mantém MDF-e ignorado e conta tudo no lote', async () => {
@@ -575,5 +578,51 @@ describe('processarArquivos — CT-e no laço de processamento do lote', () => {
     await (amb.servico as any).processarArquivos('grp-1', amb.arquivosReg);
     expect(amb.arquivosAtualizados[0]).toMatchObject({ situacao_fiscal: 'EVENTO_PENDENTE' });
     expect(amb.arquivosAtualizados[0].erro_processamento).toContain('ainda não foi importado');
+  });
+
+  // ── leitura pelo armazenamento (sem fetch de URL: correção de SSRF) ──
+  it('lê cada XML do armazenamento pela chave e nunca chama fetch', async () => {
+    const amb = montarAmbiente({ 'u/cte.xml': xmlCte({ ibscbs: true }) });
+    const r = await (amb.servico as any).processarArquivos('grp-1', amb.arquivosReg);
+    expect(r).toMatchObject({ arquivosValidos: 1, arquivosInvalidos: 0 });
+    expect(amb.storage.getObjectBuffer).toHaveBeenCalledWith('u/cte.xml');
+    expect(amb.fetchEspiao).not.toHaveBeenCalled();
+  });
+
+  it('decodifica como o Response.text() de antes: UTF-8 e sem o BOM inicial (o hash não muda)', async () => {
+    const xml = xmlCte({ ibscbs: true });
+    const comBom = montarAmbiente({ 'u/cte.xml': xml });
+    comBom.storage.getObjectBuffer.mockImplementation(async () => Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(xml, 'utf8')]));
+    await (comBom.servico as any).processarArquivos('grp-1', comBom.arquivosReg);
+    const semBom = montarAmbiente({ 'u/cte.xml': xml });
+    await (semBom.servico as any).processarArquivos('grp-1', semBom.arquivosReg);
+    const hash = (a: any[]) => a.find((x) => x.hash_sha256)?.hash_sha256;
+    expect(hash(comBom.arquivosAtualizados)).toBeTruthy();
+    expect(hash(comBom.arquivosAtualizados)).toBe(hash(semBom.arquivosAtualizados));
+  });
+
+  it('reprocessar: linha antiga com URL no lugar da chave fica com erro pedindo novo envio, sem fetch, e o resto do lote segue', async () => {
+    const amb = montarAmbiente({ 'u/cte.xml': xmlCte({ ibscbs: true }) });
+    const p = (amb.servico as any).prisma;
+    const findManyOriginal = p.importacaoXMLArquivo.findMany;
+    p.importacaoXMLLote.findUnique = async () => ({ id: 'lote-1', grupo_id: 'grp-1', status: 'FALHOU' });
+    p.importacaoXMLArquivo.findMany = async (args: any) =>
+      args.where.lote_id
+        ? [
+            { id: 'velho', nome_original: 'velho.xml', storage_key: 'http://169.254.169.254/latest/meta-data/' },
+            { id: 'novo', nome_original: 'novo.xml', storage_key: 'u/cte.xml' },
+          ]
+        : findManyOriginal(args);
+    const r = await amb.servico.reprocessarLote({ lote_id: 'lote-1' });
+    expect(r.reprocessados).toBe(2);
+    expect(amb.fetchEspiao).not.toHaveBeenCalled();
+    expect(amb.storage.getObjectBuffer).toHaveBeenCalledTimes(1);
+    expect(amb.storage.getObjectBuffer).toHaveBeenCalledWith('u/cte.xml');
+    expect(amb.arquivosAtualizados.find((a) => a.id === 'velho')).toMatchObject({
+      status_tecnico: 'FALHOU',
+      situacao_fiscal: 'ERRO_PROCESSAMENTO',
+      erro_processamento: expect.stringContaining('sem chave de armazenamento'),
+    });
+    expect(amb.arquivosAtualizados.find((a) => a.id === 'novo')).toMatchObject({ status_tecnico: 'CONCLUIDO' });
   });
 });
