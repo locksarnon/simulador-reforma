@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Camada, ContextoAnalise, ItemTrabalho } from '../tipos';
 import { camadasAtivas, propostaAplicavel, validarCamada, type Json } from './constantes';
@@ -22,6 +22,16 @@ export interface ExecucaoCamadas {
   terminadaEm: string | null;
 }
 
+/** Por quanto tempo a análise em segundo plano já terminada continua consultável (depois sai da memória). */
+export const RETER_EXECUCAO_MS = 30 * 60_000;
+export const MSG_ANALISE_RODANDO = 'Há uma análise rodando neste projeto. Aguarde terminar e tente de novo.';
+
+/** O que fica guardado de uma camada analisada: só contagens (a lista de casos atualizados vira o número deles). */
+export function resumoDaCamada(r: Record<string, unknown>, camada: Camada): Record<string, unknown> & { camada: Camada } {
+  const { casosAtualizados, ...resto } = r;
+  return { ...resto, casosAtualizados: Array.isArray(casosAtualizados) ? casosAtualizados.length : (casosAtualizados ?? 0), camada };
+}
+
 /** Roda uma camada: lê os itens, chama o analisador (função pura) e grava casos e células. Os analisadores entram por injeção (SAN_MOTOR). */
 @Injectable()
 export class SanOrquestracaoService {
@@ -33,10 +43,33 @@ export class SanOrquestracaoService {
   ) {}
 
   private readonly execucoes = new Map<string, ExecucaoCamadas>();
+  /** Projetos com análise síncrona em curso (camada avulsa ou reanálise das Diretrizes): uma análise por projeto de cada vez. */
+  private readonly ocupados = new Set<string>();
 
-  /** Situação da análise em segundo plano do projeto (a última, mesmo terminada); null se nenhuma rodou desde que o servidor subiu. */
+  /** Situação da análise em segundo plano do projeto (a última, mesmo terminada); null se nenhuma rodou ou se terminou há mais de 30 min. */
   execucao(projetoId: string): ExecucaoCamadas | null {
+    this.descartarTerminadas();
     return this.execucoes.get(projetoId) ?? null;
+  }
+
+  /** Tira da memória as análises terminadas há mais de RETER_EXECUCAO_MS. */
+  private descartarTerminadas(agora = Date.now()) {
+    for (const [id, ex] of this.execucoes) if (!ex.rodando && ex.terminadaEm && agora - Date.parse(ex.terminadaEm) > RETER_EXECUCAO_MS) this.execucoes.delete(id);
+  }
+
+  /** Há análise rodando no projeto (em segundo plano ou síncrona)? */
+  analiseRodando(projetoId: string): boolean {
+    return !!this.execucoes.get(projetoId)?.rodando || this.ocupados.has(projetoId);
+  }
+
+  /**
+   * Roda `fn` com o projeto travado para outras análises: a análise em segundo plano, a camada avulsa e a reanálise das Diretrizes não
+   * correm juntas no mesmo projeto (409 com MSG_ANALISE_RODANDO). A conferência e a marca são síncronas (sem espera entre elas).
+   */
+  async comTravaDeAnalise<T>(projetoId: string, fn: () => Promise<T>): Promise<T> {
+    if (this.analiseRodando(projetoId)) throw new ConflictException({ statusCode: 409, codigo: 'ANALISE_EM_ANDAMENTO', message: MSG_ANALISE_RODANDO });
+    this.ocupados.add(projetoId);
+    try { return await fn(); } finally { this.ocupados.delete(projetoId); }
   }
 
   /**
@@ -49,13 +82,15 @@ export class SanOrquestracaoService {
     // A trava por fase vale para cada camada pedida: recusa antes de começar se alguma da Fase 2 estiver travada.
     await this.projetos.exigirLiberadaPara(projetoId, camadas);
     if (this.execucoes.get(projetoId)?.rodando) throw new BadRequestException('Já há uma análise rodando neste projeto. Aguarde terminar.');
+    if (this.ocupados.has(projetoId)) throw new ConflictException({ statusCode: 409, codigo: 'ANALISE_EM_ANDAMENTO', message: MSG_ANALISE_RODANDO });
+    this.descartarTerminadas();
     const ex: ExecucaoCamadas = { rodando: true, camadas, atual: camadas[0], feitas: [], erro: null, iniciadaEm: new Date().toISOString(), terminadaEm: null };
     this.execucoes.set(projetoId, ex);
     void (async () => {
       for (const camada of camadas) {
         ex.atual = camada;
         try {
-          ex.feitas.push({ ...(await this.executarCamada(projetoId, camada) as Record<string, unknown>), camada });
+          ex.feitas.push(resumoDaCamada(await this.executarCamada(projetoId, camada, { dentroDaTrava: true }) as Record<string, unknown>, camada));
         } catch (e) {
           ex.erro = { camada, mensagem: e instanceof Error ? e.message : String(e) };
           break;
@@ -83,7 +118,13 @@ export class SanOrquestracaoService {
    * pelos casos de conjunto, ver diretrizes/escopo.ts). As regras APLICADAS do projeto comandam as camadas (diretrizes/analise.ts); sem
    * regra aplicada, a camada roda exatamente como antes.
    */
-  async executarCamada(projetoId: string, camadaTexto: string, opcoes: { escopo?: Set<string> } = {}) {
+  async executarCamada(projetoId: string, camadaTexto: string, opcoes: { escopo?: Set<string>; dentroDaTrava?: boolean } = {}) {
+    // `dentroDaTrava`: chamada de quem já trava o projeto (a análise em segundo plano, a reanálise das Diretrizes).
+    if (!opcoes.dentroDaTrava) return this.comTravaDeAnalise(projetoId, () => this.rodarCamada(projetoId, camadaTexto, opcoes));
+    return this.rodarCamada(projetoId, camadaTexto, opcoes);
+  }
+
+  private async rodarCamada(projetoId: string, camadaTexto: string, opcoes: { escopo?: Set<string> }) {
     const camada = validarCamada(camadaTexto);
     const p = await this.projetos.exigirLiberadaPara(projetoId, camada); // A TRAVA (por fase)
     if (!camadasAtivas(p.modulos as Json).includes(camada)) throw new BadRequestException('Esta camada não está ligada neste projeto (módulo opcional desligado).');

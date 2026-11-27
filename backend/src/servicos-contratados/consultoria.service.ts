@@ -150,14 +150,14 @@ export class ConsultoriaService {
       select: { arquivo: true, usuario: true, createdAt: true, mapeamento: true }, orderBy: { createdAt: 'desc' } });
   }
 
-  /** O documento tem evidência da importação (coberto ou parcial) no período 'aaaa-mm-dd/aaaa-mm-dd'? Então a situação manual dispensa arquivo. */
+  /** O documento está coberto POR INTEIRO pela importação no período 'aaaa-mm-dd/aaaa-mm-dd'? Então a situação manual dispensa arquivo (cobertura parcial exige a evidência). */
   private async cobertoPelaImportacao(servico: string, empresaId: string | null, item: string, periodo: string) {
     const m = /^(\d{4}-\d{2}-\d{2})\/(\d{4}-\d{2}-\d{2})$/.exec(periodo);
     if (!empresaId || !m || !REGRAS_AUTOMATICAS[servico]?.some((r) => r.item === item)) return false;
     const inicio = new Date(m[1] + 'T00:00:00.000Z'), fim = new Date(m[2] + 'T00:00:00.000Z');
     if (isNaN(+inicio) || isNaN(+fim)) return false;
     fim.setUTCDate(fim.getUTCDate() + 1);
-    return documentosAutomaticos(servico, periodo, await this.importacoesDoServico(servico, empresaId, inicio, fim)).some((d) => d.item === item);
+    return documentosAutomaticos(servico, periodo, await this.importacoesDoServico(servico, empresaId, inicio, fim)).some((d) => d.item === item && d.cobertura === 'TOTAL');
   }
 
   async controlarDocumento(servico: string, id: string, entrada: Record<string, unknown>, email?: string) {

@@ -94,6 +94,8 @@ describe('projeto e trava de atividades', () => {
       }
       // A análise em segundo plano recusa antes de começar se alguma camada pedida estiver travada.
       expect(await codigoErro(c.orquestracao.iniciarExecucao(p.id, ['NCM', 'TRIBUTARIO']))).toBe(codigo);
+      // Espera a análise em segundo plano (quando liberada) terminar: com ela rodando, outra análise no projeto é recusada (409).
+      for (let n = 0; n < 400 && c.orquestracao.execucao(p.id)?.rodando; n++) await new Promise((ok) => setTimeout(ok, 5));
       // OBRIGACOES roda sem trava.
       expect(await codigoErro(c.orquestracao.executarCamada(p.id, 'OBRIGACOES'))).toBeNull();
     };

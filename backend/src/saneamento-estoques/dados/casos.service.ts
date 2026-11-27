@@ -9,7 +9,7 @@ import { mapaExcecoes, regravarImpactosDosCasos, semExcecoes } from './impactos-
 import { tiposDeAjusteDoCaso } from './ajustes';
 import { rotuloDoCampo, rotuloTipoCaso } from '../rotulos';
 import {
-  CASO_ABERTO, CELULA_DO_CASO, acrescentar, EXCECAO_VIVA, TIPOS_EXCECAO, TX_LONGA, aplicarCampo, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, ehExcecao, exigirVersao, fatiar, igual,
+  CASO_ABERTO, CELULA_DO_CASO, acrescentar, EXCECAO_VIVA, TIPOS_EXCECAO, TX_LONGA, aplicarCampo, camadaTravada, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, ehExcecao, exigirVersao, fatiar, igual,
   propostaAplicavel, quem, validarCamada, valorDoCampo, type Json, type SituacaoCaso, type Usuario,
 } from './constantes';
 import { VARIA_POR_ITEM } from '../motor';
@@ -90,6 +90,9 @@ type GrupoDeCasos = {
 /** Casos lidos por vez na leitura agrupada; ids de cada grupo na lista (o detalhe do grupo traz todos); linhas de casos no detalhe. */
 const JANELA_AGRUPAR = 5000;
 export const IDS_POR_GRUPO = 500;
+/** Agrupamento de casos guardado para a paginação e o detalhe: validade e quantos ficam (os mais recentes). */
+export const CACHE_AGRUPADOS_MS = 60_000;
+const MAX_CACHE_AGRUPADOS = 6;
 const CASOS_DO_GRUPO = 500;
 /** Busca sem acento e sem caixa. */
 const normalizarBusca = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
@@ -456,45 +459,9 @@ export class SanCasosService {
     const chaveF = paramTexto(f.chave, 'chave');
     const busca = normalizarBusca(paramTexto(f.busca, 'busca') ?? '');
     const where = await this.filtroDosCasos(projetoId, f);
-    const grupos = new Map<string, GrupoDeCasos>();
-    let totalCasos = 0;
-    let apos: string | undefined;
-    for (;;) {
-      const janela: CasoParaGrupo[] = await this.prisma.sanCaso.findMany({
-        where: { ...where, ...(apos ? { id: where.id ? { ...(where.id as Json), gt: apos } : { gt: apos } } : {}) } as never,
-        select: { id: true, camada: true, tipo: true, itens: true, problema: true, proposta: true, atual: true, situacao: true },
-        orderBy: { id: 'asc' }, take: JANELA_AGRUPAR,
-      });
-      if (!janela.length) break;
-      apos = janela[janela.length - 1].id;
-      const soltos = [...new Set(janela.filter((c) => c.itens.length === 1).map((c) => c.itens[0]))];
-      const grupoDoItem = new Map<string, string>();
-      for (const lote of fatiar(soltos, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, grupo: true } })) grupoDoItem.set(i.id, i.grupo ?? '');
-      for (const c of janela) {
-        const conjunto = c.itens.length !== 1;
-        const grupo = conjunto ? null : grupoDoItem.get(c.itens[0]) ?? '';
-        const proposta = canonico(c.proposta ?? {});
-        if (busca && !normalizarBusca(`${c.problema} ${grupo ?? ''} ${rotuloTipoCaso(c.tipo)} ${proposta}`).includes(busca)) continue;
-        const chave = conjunto ? `c:${c.id}` : `g:${createHash('sha1').update(`${c.camada}\u0000${c.tipo}\u0000${grupo}\u0000${proposta}`).digest('hex').slice(0, 24)}`;
-        if (chaveF && chave !== chaveF) continue;
-        totalCasos++;
-        const atual = canonico(c.atual ?? {});
-        let g = grupos.get(chave);
-        if (!g) {
-          g = { chave, camada: c.camada, tipo: c.tipo, grupo, conjunto, problema: c.problema, problemaVaria: false, proposta: (c.proposta as Json) ?? {}, atual: (c.atual as Json) ?? {}, atualCanon: atual, atualVaria: false, casos: 0, itens: 0, ids: [], situacoes: {} };
-          grupos.set(chave, g);
-        }
-        g.casos++;
-        g.itens += c.itens.length;
-        if (!g.problemaVaria && g.problema !== c.problema) g.problemaVaria = true;
-        if (!g.atualVaria && g.atualCanon !== atual) g.atualVaria = true;
-        if (chaveF || g.ids.length < IDS_POR_GRUPO) g.ids.push(c.id);
-        g.situacoes[c.situacao] = (g.situacoes[c.situacao] ?? 0) + 1;
-      }
-      if (janela.length < JANELA_AGRUPAR) break;
-    }
+    const { grupos, totalCasos } = await this.gruposDosCasos(projetoId, where, busca);
     const saida = ({ atualCanon: _a, atualVaria, ids, ...g }: GrupoDeCasos, todos: boolean) => ({ // eslint-disable-line @typescript-eslint/no-unused-vars
-      ...g, atual: atualVaria ? null : g.atual, atualVaria, ids: todos ? ids : ids.slice(0, IDS_POR_GRUPO), idsCompletos: todos || ids.length >= g.casos,
+      ...g, atual: atualVaria ? null : g.atual, atualVaria, ids: todos ? ids : ids.slice(0, IDS_POR_GRUPO), idsCompletos: todos || g.casos <= IDS_POR_GRUPO,
     });
     if (chaveF) {
       const g = grupos.get(chaveF);
@@ -522,6 +489,73 @@ export class SanCasosService {
       tipos = gb.map((x) => ({ tipo: x.tipo, n: x._count._all })).sort((a, b) => b.n - a.n || a.tipo.localeCompare(b.tipo));
     }
     return { grupos: pagina, totalGrupos: lista.length, totalCasos, proximo: inicio + limite < lista.length ? String(inicio + limite) : null, ...(tipos ? { tipos } : {}) };
+  }
+
+  /** Agrupamentos recentes (projeto + filtro + busca), reaproveitados enquanto os casos e os itens do projeto não mudarem (marcaDosCasos). */
+  private readonly cacheAgrupados = new Map<string, { marca: string; em: number; grupos: Map<string, GrupoDeCasos>; totalCasos: number }>();
+
+  /** Marca da situação dos casos e dos itens do projeto: muda quando um caso ou item é criado, alterado ou apagado. */
+  private async marcaDosCasos(projetoId: string): Promise<string> {
+    const [n, caso, item] = await Promise.all([
+      this.prisma.sanCaso.count({ where: { projeto_id: projetoId } }),
+      this.prisma.sanCaso.findFirst({ where: { projeto_id: projetoId }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+      this.prisma.sanItem.findFirst({ where: { projeto_id: projetoId }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+    ]);
+    return `${n}|${caso ? +new Date(caso.updatedAt) : 0}|${item ? +new Date(item.updatedAt) : 0}`;
+  }
+
+  /**
+   * Os grupos de casos do filtro (todos os ids de cada grupo). A paginação e o detalhe de um grupo reaproveitam o mesmo agrupamento por até
+   * CACHE_AGRUPADOS_MS, enquanto a marca dos casos e itens do projeto for a mesma (decisão, reanálise ou reimportação refazem o agrupamento).
+   */
+  private async gruposDosCasos(projetoId: string, where: Json, busca: string): Promise<{ grupos: Map<string, GrupoDeCasos>; totalCasos: number }> {
+    const chaveCache = createHash('sha1').update(`${projetoId}\u0000${JSON.stringify(where)}\u0000${busca}`).digest('hex');
+    const marca = await this.marcaDosCasos(projetoId);
+    const agora = Date.now();
+    for (const [k, v] of this.cacheAgrupados) if (agora - v.em > CACHE_AGRUPADOS_MS) this.cacheAgrupados.delete(k);
+    const guardado = this.cacheAgrupados.get(chaveCache);
+    if (guardado && guardado.marca === marca) return guardado;
+    const grupos = new Map<string, GrupoDeCasos>();
+    let totalCasos = 0;
+    let apos: string | undefined;
+    for (;;) {
+      const janela: CasoParaGrupo[] = await this.prisma.sanCaso.findMany({
+        where: { ...where, ...(apos ? { id: where.id ? { ...(where.id as Json), gt: apos } : { gt: apos } } : {}) } as never,
+        select: { id: true, camada: true, tipo: true, itens: true, problema: true, proposta: true, atual: true, situacao: true },
+        orderBy: { id: 'asc' }, take: JANELA_AGRUPAR,
+      });
+      if (!janela.length) break;
+      apos = janela[janela.length - 1].id;
+      const soltos = [...new Set(janela.filter((c) => c.itens.length === 1).map((c) => c.itens[0]))];
+      const grupoDoItem = new Map<string, string>();
+      for (const lote of fatiar(soltos, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, grupo: true } })) grupoDoItem.set(i.id, i.grupo ?? '');
+      for (const c of janela) {
+        const conjunto = c.itens.length !== 1;
+        const grupo = conjunto ? null : grupoDoItem.get(c.itens[0]) ?? '';
+        const proposta = canonico(c.proposta ?? {});
+        if (busca && !normalizarBusca(`${c.problema} ${grupo ?? ''} ${rotuloTipoCaso(c.tipo)} ${proposta}`).includes(busca)) continue;
+        const chave = conjunto ? `c:${c.id}` : `g:${createHash('sha1').update(`${c.camada}\u0000${c.tipo}\u0000${grupo}\u0000${proposta}`).digest('hex').slice(0, 24)}`;
+        totalCasos++;
+        const atual = canonico(c.atual ?? {});
+        let g = grupos.get(chave);
+        if (!g) {
+          g = { chave, camada: c.camada, tipo: c.tipo, grupo, conjunto, problema: c.problema, problemaVaria: false, proposta: (c.proposta as Json) ?? {}, atual: (c.atual as Json) ?? {}, atualCanon: atual, atualVaria: false, casos: 0, itens: 0, ids: [], situacoes: {} };
+          grupos.set(chave, g);
+        }
+        g.casos++;
+        g.itens += c.itens.length;
+        if (!g.problemaVaria && g.problema !== c.problema) g.problemaVaria = true;
+        if (!g.atualVaria && g.atualCanon !== atual) g.atualVaria = true;
+        g.ids.push(c.id);
+        g.situacoes[c.situacao] = (g.situacoes[c.situacao] ?? 0) + 1;
+      }
+      if (janela.length < JANELA_AGRUPAR) break;
+    }
+    const r = { marca, em: agora, grupos, totalCasos };
+    this.cacheAgrupados.delete(chaveCache);
+    this.cacheAgrupados.set(chaveCache, r);
+    while (this.cacheAgrupados.size > MAX_CACHE_AGRUPADOS) this.cacheAgrupados.delete(this.cacheAgrupados.keys().next().value as string);
+    return r;
   }
 
   /** O `where` da lista de casos (camada, situação, grupo do item pela célula, tipo, origem, item), para a leitura agrupada. */
@@ -591,6 +625,7 @@ export class SanCasosService {
     if (e.responsavel !== undefined) dados.responsavel = texto(e.responsavel, 120);
     return this.prisma.$transaction(async (tx) => {
       const c = await this.carregar(tx, id);
+      await this.exigirFaseLiberada(c);
       if (!CASO_ABERTO.includes(c.situacao as SituacaoCaso) && c.situacao !== 'AGUARDANDO_INFORMACAO') throw new BadRequestException('Só dá para editar um caso em aberto. Reabra o caso antes.');
       if (proposta !== undefined) { dados.proposta = proposta; dados.afeta = this.afetaDe(c, proposta); }
       const r = await tx.sanCaso.updateMany({ where: { id, versao, situacao: c.situacao }, data: dados as never });
@@ -668,11 +703,12 @@ export class SanCasosService {
   }
 
   /** Aprova e APLICA ao trabalho, gravando uma decisão por campo. Idempotente: caso já aprovado devolve o estado sem gravar de novo. */
-  async aprovar(id: string, e: EntradaAprovar, usuario?: Usuario, interno: { dataBase?: string } = {}) {
+  async aprovar(id: string, e: EntradaAprovar, usuario?: Usuario, interno: { dataBase?: string; liberada?: boolean } = {}) {
     const editada = e.proposta !== undefined ? this.normalizarFator(validarProposta(e.proposta)) : undefined;
     return this.prisma.$transaction(async (tx) => {
       const todo = await this.carregar(tx, id);
       if (todo.situacao === 'APROVADO') return { caso: todo, jaAplicado: true };
+      if (!interno.liberada) await this.exigirFaseLiberada(todo);
       // Caso de regra (conjunto ou um item): o item com exceção própria fica fora (a exceção vale mais), e também o item que tem caso
       // individual em edição (rascunho) na mesma camada e no mesmo campo; os demais recebem a decisão, item a item.
       const camposDaProposta = Object.keys(propostaAplicavel(todo.camada, editada ?? ((todo.proposta as Json) ?? {})));
@@ -719,12 +755,13 @@ export class SanCasosService {
     }, TX_LONGA);
   }
 
-  async rejeitar(id: string, e: { versao?: number; justificativa?: string }, usuario?: Usuario, interno: { dataBase?: string } = {}) {
+  async rejeitar(id: string, e: { versao?: number; justificativa?: string }, usuario?: Usuario, interno: { dataBase?: string; liberada?: boolean } = {}) {
     const justificativa = texto(e.justificativa, 4000);
     if (!justificativa) throw new BadRequestException('Rejeitar exige uma justificativa.');
     return this.prisma.$transaction(async (tx) => {
       const c = await this.carregar(tx, id);
       if (c.situacao === 'REJEITADO') return { caso: c, jaAplicado: true };
+      if (!interno.liberada) await this.exigirFaseLiberada(c);
       const versao = exigirVersao(e.versao);
       if (c.versao !== versao) throw conflito();
       if (c.situacao === 'APROVADO') throw new BadRequestException('O caso já foi aprovado. Reabra (desfaça) antes de rejeitar.');
@@ -745,12 +782,13 @@ export class SanCasosService {
     }, TX_LONGA);
   }
 
-  async pedirInformacao(id: string, e: { versao?: number; motivo?: string }, interno: { dataBase?: string } = {}) {
+  async pedirInformacao(id: string, e: { versao?: number; motivo?: string }, interno: { dataBase?: string; liberada?: boolean } = {}) {
     const motivo = texto(e.motivo, 4000);
     if (!motivo) throw new BadRequestException('Diga que informação falta.');
     const versao = exigirVersao(e.versao);
     return this.prisma.$transaction(async (tx) => {
       const c = await this.carregar(tx, id);
+      if (!interno.liberada) await this.exigirFaseLiberada(c);
       if (!CASO_ABERTO.includes(c.situacao as SituacaoCaso)) throw new BadRequestException('Só dá para pedir informação de um caso em aberto.');
       const r = await tx.sanCaso.updateMany({ where: { id, versao }, data: { situacao: 'AGUARDANDO_INFORMACAO', motivo, versao: { increment: 1 } } });
       if (r.count === 0) throw conflito();
@@ -915,6 +953,7 @@ export class SanCasosService {
     const abertos = brutos.filter((c) => CASO_ABERTO.includes(c.situacao as SituacaoCaso)).map((c) => ({ casoId: c.id, versao: c.versao }));
     return {
       casos: casos.length, total, proximo, inexistentes: inexistentes.length, aprovaveis, excecoes, abertos, itensAfetados: afetadosItens.size, camposAfetados,
+      camadas: [...new Set(brutos.map((c) => c.camada))],
       vinculosACriar: aprovaveis.reduce((s, a) => s + a.vinculos.length, 0),
     };
   }
@@ -928,6 +967,8 @@ export class SanCasosService {
     const orcamento = orcamentoDoLote(e.orcamentoMs);
     const inicio = Date.now(); // o orçamento conta a requisição inteira (a prévia refeita também)
     const previa = await this.lotePrevia(projetoId, e);
+    // A trava por fase vale para o lote inteiro: com caso de camada da Fase 2 travada, nada é decidido (o mesmo 400 da decisão individual).
+    await this.projetos.exigirLiberadaPara(projetoId, previa.camadas);
     const excecoes = [...previa.excecoes];
     const dataBase = await this.projetos.dataBase(projetoId);
     const restantes: string[] = [];
@@ -942,7 +983,7 @@ export class SanCasosService {
       if (e.versoes[a.casoId] !== a.versao) { excecoes.push({ casoId: a.casoId, motivo: 'O caso mudou depois da prévia. Refaça a prévia.', ...id }); continue; }
       try {
         const t0 = Date.now();
-        await this.aprovar(a.casoId, { versao: a.versao, fundamento: e.fundamento }, usuario, { dataBase });
+        await this.aprovar(a.casoId, { versao: a.versao, fundamento: e.fundamento }, usuario, { dataBase, liberada: true });
         msPorItem = Math.max(msPorItem, (Date.now() - t0) / Math.max(1, a.itens));
         aprovados++;
       } catch (err) {
@@ -965,6 +1006,8 @@ export class SanCasosService {
     const orcamento = orcamentoDoLote(e.orcamentoMs);
     const inicio = Date.now();
     const { casos, inexistentes } = await this.casosDoLote(projetoId, e);
+    // A trava por fase vale para o lote inteiro (os casos da prévia): com camada da Fase 2 travada, nada é decidido.
+    await this.projetos.exigirLiberadaPara(projetoId, [...new Set(casos.filter((c) => e.versoes![c.id] !== undefined).map((c) => c.camada))]);
     const itens = new Map<string, { trabalho: unknown }>();
     const primeiros = [...new Set(casos.map((c) => c.itens[0]).filter(Boolean))];
     for (const lote of fatiar(primeiros, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, trabalho: true } })) itens.set(i.id, i);
@@ -979,8 +1022,8 @@ export class SanCasosService {
       if (e.versoes[c.id] !== c.versao) { excecoes.push({ casoId: c.id, motivo: 'O caso mudou depois da prévia. Refaça a prévia.', ...id }); continue; }
       if (decididos > 0 && Date.now() - inicio > orcamento) { restantes.push(c.id); continue; }
       try {
-        if (acao === 'rejeitar') await this.rejeitar(c.id, { versao: c.versao, justificativa: textoComum }, usuario, { dataBase });
-        else await this.pedirInformacao(c.id, { versao: c.versao, motivo: textoComum }, { dataBase });
+        if (acao === 'rejeitar') await this.rejeitar(c.id, { versao: c.versao, justificativa: textoComum }, usuario, { dataBase, liberada: true });
+        else await this.pedirInformacao(c.id, { versao: c.versao, motivo: textoComum }, { dataBase, liberada: true });
         decididos++;
       } catch (err) {
         const msg = (err as { response?: { message?: string } }).response?.message ?? (err as Error).message;
@@ -991,6 +1034,14 @@ export class SanCasosService {
   }
 
   // ── Internos ───────────────────────────────────────────────────────────────
+
+  /**
+   * A trava por fase na decisão (docs/saneamento-fases.md, "Travas"): caso de FINALIDADE, NCM_CLASSIFICACAO ou TRIBUTARIO só é decidido
+   * (aprovar, rejeitar, pedir informação, rascunho) com a Fase 1 liberada, o regime do cliente e as atividades confirmadas. Ler é livre.
+   */
+  private async exigirFaseLiberada(c: Pick<CasoLinha, 'projeto_id' | 'camada'>) {
+    if (camadaTravada(c.camada)) await this.projetos.exigirLiberadaPara(c.projeto_id, c.camada);
+  }
 
   private async carregar(tx: Tx, id: string): Promise<CasoLinha> {
     const c = await tx.sanCaso.findUnique({ where: { id } });

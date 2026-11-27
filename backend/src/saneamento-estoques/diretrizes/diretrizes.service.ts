@@ -374,7 +374,8 @@ export class SanDiretrizesService {
   }
 
   /**
-   * Reexecuta só os itens afetados (orquestração existente, com escopo), uma vez por camada: `porCamada` junta os itens de todas as regras
+   * Reexecuta só os itens afetados (orquestração existente, com escopo), uma vez por camada (quem chama já travou o projeto para outras
+   * análises: aplicar e aplicar várias): `porCamada` junta os itens de todas as regras
    * aplicadas juntas. Falha de uma camada não desfaz a aplicação: vem no retorno.
    */
   private async reanalisarCamadas(projetoId: string, porCamada: Map<Camada, Set<string>>, total: number) {
@@ -393,7 +394,7 @@ export class SanDiretrizesService {
         if (bloqueio) { out.push({ camada, executada: false, codigo: bloqueio.codigo, motivo: bloqueio.mensagem }); puladas.push(camada); continue; }
       }
       try {
-        const g = await this.orquestracao.executarCamada(projetoId, camada, { escopo: porCamada.get(camada) });
+        const g = await this.orquestracao.executarCamada(projetoId, camada, { escopo: porCamada.get(camada), dentroDaTrava: true });
         out.push({ camada, executada: true, casosNovos: g.casosNovos, casosObsoletos: g.casosObsoletos, semProblema: g.semProblema, semDados: g.semDados ?? null });
       } catch (e) {
         out.push({ camada, executada: false, motivo: (e as Error).message });
@@ -438,7 +439,13 @@ export class SanDiretrizesService {
       `Aplicada a ${rotuloAbrangencia(r.abrangencia as Abrangencia)}: ${afetados.length} item(ns) em ${previa.grupos.length} grupo(s); camadas ${previa.camadas.join(', ')}.`);
   }
 
+  /** Aplicar e reanalisar com o projeto travado para outras análises (409 se já houver uma rodando: nada é aplicado). */
   async aplicar(regraId: string, b: unknown, usuario: Usuario) {
+    const { projeto_id } = await this.carregar(regraId);
+    return this.orquestracao.comTravaDeAnalise(projeto_id, () => this.aplicarNaTrava(regraId, b, usuario));
+  }
+
+  private async aplicarNaTrava(regraId: string, b: unknown, usuario: Usuario) {
     const e = corpo(b);
     const versao = exigirVersao(e.versao);
     const r = await this.carregar(regraId);
@@ -503,7 +510,12 @@ export class SanDiretrizesService {
    * confirmada, tudo numa transação), e reanalisa UMA vez por camada os itens afetados por todas. Duas regras escolhidas que disputam o
    * mesmo grupo: recusa (a pessoa decide qual fica).
    */
+  /** Aplicar várias com o projeto travado para outras análises (409 se já houver uma rodando: nada é aplicado). */
   async aplicarVarias(projetoId: string, b: unknown, usuario: Usuario) {
+    return this.orquestracao.comTravaDeAnalise(projetoId, () => this.aplicarVariasNaTrava(projetoId, b, usuario));
+  }
+
+  private async aplicarVariasNaTrava(projetoId: string, b: unknown, usuario: Usuario) {
     const e = corpo(b);
     const pedidas = Array.isArray(e.regras) ? e.regras : [];
     const versoes = new Map<string, number>();
@@ -694,14 +706,15 @@ export class SanDiretrizesService {
     const diag = await this.prisma.projetoDiagnostico.findUnique({ where: { id: d.projeto.diagnostico_id }, select: { nome: true } });
     const emp = await this.prisma.empresa.findUnique({ where: { id: d.projeto.empresa_id }, select: { razao_social: true, nome_fantasia: true } });
     const proj = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { erp: true, erp_id: true, parametros: true, modulos: true } });
-    // Critérios das análises: os congelados na versão (reproduzível); sem versão, os de agora.
-    const parametrosCriterios = versaoId ? await this.versoes.parametrosDaVersao(projetoId, versaoId) : (proj?.parametros as Json | null | undefined) ?? null;
-    const regras = d.regras.map((x) => ({
+    // Critérios das análises e módulos: os congelados na versão (reproduzível); sem versão, os de agora.
+    const daFoto = versaoId ? await this.versoes.projetoDaVersao(projetoId, versaoId) : null;
+    const parametrosCriterios = versaoId ? ((daFoto?.parametros as Json | null | undefined) ?? null) : (proj?.parametros as Json | null | undefined) ?? null;
+    const modulos = ((versaoId ? daFoto?.modulos : undefined) ?? proj?.modulos) as Json | null | undefined;
+    const todasRegras = d.regras.map((x) => ({
       codigo: String(x.codigo), aspecto: x.aspecto as Aspecto, nome: String(x.nome), abrangencia: x.abrangencia as Abrangencia, situacao: x.situacao as 'RASCUNHO' | 'APROVADA',
       observacao: (x.observacao as string | null) ?? null, aprovadaPor: (x.aprovadaPor as string | null) ?? null, aprovadaEm: (x.aprovadaEm as string | null) ?? null, revisar: x.revisar === true,
       conteudo: x.conteudoEfetivo as ConteudoRegra,
     }));
-    const aprovadores = [...new Set(regras.filter((x) => x.situacao === 'APROVADA' && x.aprovadaPor).map((x) => x.aprovadaPor as string))];
     // Seção fiscal: numa versão, só a da Fase 2 (reproduzível); sem versão, decisões aprovadas de Finalidade ou de Tratamento tributário.
     let fiscal: { fase2: boolean; finalidadeAprovadas?: number; tributarioAprovadas?: number };
     if (versaoId) {
@@ -712,6 +725,12 @@ export class SanDiretrizesService {
       const [fin, trib] = await Promise.all([contar('FINALIDADE'), contar('TRIBUTARIO')]);
       fiscal = { fase2: fin + trib > 0, finalidadeAprovadas: fin, tributarioAprovadas: trib };
     }
+    // Sem a Fase 2 (versão da Fase 1, ou base sem decisão tributária aprovada), a política não leva conteúdo tributário: nem as regras do
+    // aspecto Fiscal (seção 3 e coluna do quadro), nem os critérios das camadas da Fase 2.
+    const regras = fiscal.fase2 ? todasRegras : todasRegras.filter((x) => x.aspecto !== 'FISCAL');
+    const camadasDosCriterios = camadasAtivas(modulos).filter((c) => fiscal.fase2 || !camadaTravada(c));
+    const aprovadores = [...new Set(regras.filter((x) => x.situacao === 'APROVADA' && x.aprovadaPor).map((x) => x.aprovadaPor as string))];
+    const semFiscal = <T extends { aspecto: string }>(xs: T[]) => (fiscal.fase2 ? xs : xs.filter((x) => x.aspecto !== 'FISCAL'));
     return {
       identificacao: {
         cliente: emp?.razao_social || emp?.nome_fantasia || '', projeto: diag?.nome ?? '',
@@ -722,9 +741,9 @@ export class SanDiretrizesService {
       regras,
       procedimentos: d.procedimentos, notaProcedimentos: d.notaProcedimentos, antesDasDiretrizes: d.antesDasDiretrizes,
       controles: CONTROLES_INTERNOS, fiscal,
-      criterios: criteriosParaPolitica(parametrosCriterios, camadasAtivas(proj?.modulos as Json | null | undefined)),
-      quadro: d.quadro.map(({ grupo, ...cods }) => ({ grupo, codigos: Object.fromEntries(Object.entries(cods).filter(([, v]) => v)) as Partial<Record<Aspecto, string>> })),
-      pendencias: { gruposSemRegra: d.antesDasDiretrizes ? [] : d.pendencias.gruposSemRegra },
+      criterios: criteriosParaPolitica(parametrosCriterios, camadasDosCriterios),
+      quadro: d.quadro.map(({ grupo, ...cods }) => ({ grupo, codigos: Object.fromEntries(Object.entries(cods).filter(([k, v]) => v && (fiscal.fase2 || k !== 'FISCAL'))) as Partial<Record<Aspecto, string>> })),
+      pendencias: { gruposSemRegra: d.antesDasDiretrizes ? [] : semFiscal(d.pendencias.gruposSemRegra) },
     };
   }
 

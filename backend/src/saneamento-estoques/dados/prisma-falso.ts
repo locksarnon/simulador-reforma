@@ -144,8 +144,8 @@ export function criarPrismaFalso(sementes: Record<string, Linha[]> = {}) {
       for (const d of a.data as Linha[]) { const l = completar(nome, d, chaves); db[nome].push(l); r.push({ ...l }); }
       return r;
     },
-    update: async (a: Linha) => { const l = candidatos(nome, a.where).find((x) => casa(x, a.where, nome)); if (!l) throw new Error('Registro não encontrado'); aplicarDados(l, a.data); return { ...l }; },
-    updateMany: async (a: Linha) => { const ls = candidatos(nome, a.where).filter((x) => casa(x, a.where, nome)); ls.forEach((l) => aplicarDados(l, a.data)); return { count: ls.length }; },
+    update: async (a: Linha) => { const l = candidatos(nome, a.where).find((x) => casa(x, a.where, nome)); if (!l) throw new Error('Registro não encontrado'); aplicarDados(l, a.data); l.updatedAt = new Date((tempo += 1)); return { ...l }; },
+    updateMany: async (a: Linha) => { const ls = candidatos(nome, a.where).filter((x) => casa(x, a.where, nome)); ls.forEach((l) => { aplicarDados(l, a.data); l.updatedAt = new Date((tempo += 1)); }); return { count: ls.length }; },
     deleteMany: async (a: Linha) => { const antes = db[nome].length; db[nome] = db[nome].filter((x) => !casa(x, a.where, nome)); return { count: antes - db[nome].length }; },
     groupBy: async (a: Linha) => {
       const grupos = new Map<string, Linha>();

@@ -152,7 +152,7 @@ describe('parecer da IA no caso de borda', () => {
     const depois = { ...c.db.sanCaso[0] }; const gravado = depois.parecer_ia; delete (depois as Record<string, unknown>).parecer_ia;
     // gravar o parecer sobe a versão do caso (a tela que o tem aberto passa a ver o aviso e recebe 409 ao gravar); o resto fica igual.
     expect(depois.versao).toBe((antesCaso as { versao: number }).versao + 1);
-    delete (depois as Record<string, unknown>).versao; delete (antesCaso as Record<string, unknown>).versao;
+    delete (depois as Record<string, unknown>).versao; delete (antesCaso as Record<string, unknown>).versao; delete (depois as Record<string, unknown>).updatedAt; delete (antesCaso as Record<string, unknown>).updatedAt;
     expect(depois).toEqual(antesCaso);
     expect(JSON.stringify(c.db.sanItem)).toBe(antesItens);
     expect(c.db.sanDecisao).toHaveLength(0);

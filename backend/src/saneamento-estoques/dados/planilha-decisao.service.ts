@@ -56,6 +56,8 @@ export class SanPlanilhaDecisaoService {
   /** Excel da camada: os casos em aberto (proposto, em rascunho) e os aguardando informação. */
   async baixar(projetoId: string, camadaBruta: string): Promise<{ buffer: Buffer; nome: string }> {
     const { camada, projeto } = await this.camadaDoProjeto(projetoId, camadaBruta);
+    // Baixar é o primeiro passo da decisão: camada da Fase 2 travada recusa com o mesmo 400 da decisão na tela.
+    await this.projetos.exigirLiberadaPara(projetoId, camada);
     const casos = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, camada, situacao: { in: SITUACOES_DA_PLANILHA } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
     if (casos.length > MAX_LINHAS) throw new BadRequestException(`A camada tem ${casos.length.toLocaleString('pt-BR')} casos em aberto; a planilha aceita até ${MAX_LINHAS.toLocaleString('pt-BR')}.`);
     const itens = await this.itensPorId(projetoId, casos.flatMap((c) => c.itens));
@@ -163,6 +165,8 @@ export class SanPlanilhaDecisaoService {
     if (!(opcoes.confirmar === true || opcoes.confirmar === 'true' || opcoes.confirmar === '1')) throw new BadRequestException('Veja a prévia e confirme ("confirmar") antes de aplicar a planilha.');
     const orcamento = orcamentoDoLote(opcoes.orcamentoMs);
     const inicio = Date.now();
+    // A trava por fase vale para a planilha inteira (camada da Fase 2 travada: nada é aplicado).
+    await this.projetos.exigirLiberadaPara(projetoId, validarCamada(camada));
     const { linhas, casos, sha } = await this.conferir(projetoId, camada, arq);
     const sufixo = sufixoDaPlanilha(arq.nome, sha);
     const dataBase = await this.projetos.dataBase(projetoId);
@@ -175,15 +179,15 @@ export class SanPlanilhaDecisaoService {
       if (feitas > 0 && Date.now() - inicio > orcamento) { restantes++; continue; }
       const c = casos.get(l.casoId)!;
       try {
-        if (l.acao === 'rejeitar') { await this.casos.rejeitar(c.id, { versao: c.versao, justificativa: comSufixo(l.motivo) }, usuario, { dataBase }); aplicadas.rejeitar++; }
-        else if (l.acao === 'pedir') { await this.casos.pedirInformacao(c.id, { versao: c.versao, motivo: comSufixo(l.motivo) }, { dataBase }); aplicadas.pedirInformacao++; }
+        if (l.acao === 'rejeitar') { await this.casos.rejeitar(c.id, { versao: c.versao, justificativa: comSufixo(l.motivo) }, usuario, { dataBase, liberada: true }); aplicadas.rejeitar++; }
+        else if (l.acao === 'pedir') { await this.casos.pedirInformacao(c.id, { versao: c.versao, motivo: comSufixo(l.motivo) }, { dataBase, liberada: true }); aplicadas.pedirInformacao++; }
         else {
           let versao = c.versao;
           if (c.situacao === 'AGUARDANDO_INFORMACAO') { await this.casos.reabrir(c.id, { versao }, usuario); versao++; }
           const proposta = l.campo && l.valor != null ? { ...((c.proposta as Json) ?? {}), [l.campo]: l.valor } : undefined;
           const texto = l.motivo ? { justificativa: comSufixo(l.motivo) } : { fundamento: comSufixo(c.fundamento || c.justificativa || 'Aprovado pela planilha de decisão') };
           try {
-            await this.casos.aprovar(c.id, { versao, ...(proposta ? { proposta } : {}), ...texto }, usuario, { dataBase });
+            await this.casos.aprovar(c.id, { versao, ...(proposta ? { proposta } : {}), ...texto }, usuario, { dataBase, liberada: true });
           } catch (e) {
             if (versao !== c.versao) throw new Error(`O caso voltou a proposto, mas não foi aprovado: ${mensagem(e)}`);
             throw e;

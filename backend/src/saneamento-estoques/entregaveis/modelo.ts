@@ -7,6 +7,7 @@ import type { DadosEntrega } from '../dados/portas';
 import { ROTULO_CAMADA, rotuloDoCampo, rotuloDoCaso, rotuloDoValor, rotuloTipoCaso } from '../rotulos';
 import { escalaDaBase } from '../motor/conjuntos';
 import { CAMPOS_TOPO } from '../dados/constantes';
+import { tiposDeAjusteDoCaso } from '../dados/ajustes';
 import { montarMapa, saldoDe, type Executadas, type LinhaMapa } from './unificacoes';
 
 type Json = Record<string, unknown>;
@@ -227,8 +228,26 @@ export function construirModelo(dados: DadosEntrega): Modelo {
   const camadas = (CAMADAS as readonly Camada[]).filter((c) => (c !== 'ESTOQUE' || modulos.conciliacao === true || presentes.has('ESTOQUE')) && (!novas.includes(c) || presentes.has(c) || !presentes.size))
     .filter((c) => !soFase1 || !CAMADAS_FASE2.includes(c));
 
-  const casos: CasoN[] = dados.casos.filter((c) => txt(c.situacao) !== 'OBSOLETO' && !(soFase1 && fase2Ids.has(txt(c.id)))).map((c) => ({
-    id: txt(c.id), camada: txt(c.camada), tipo: txt(c.tipo), itens: lista(c.itens).map(txt), problema: txt(c.problema),
+  // Fase 1: o caso de impacto no SPED (Obrigações) junta ajustes de todas as camadas (ex.: "Mudou NCM" vem de NCM e de Classificação NCM).
+  // Na entrega da Fase 1 ele fica só com os itens que têm o ajuste vindo de caso da Fase 1; sem nenhum, sai.
+  const ajustesDaFase1 = new Map<string, Set<string>>();
+  if (soFase1) {
+    for (const c of dados.casos) {
+      const o = { camada: txt(c.camada), tipo: txt(c.tipo) };
+      if (o.camada === 'OBRIGACOES' || ehDaFase2(o) || !['PROPOSTO', 'RASCUNHO', 'APROVADO'].includes(txt(c.situacao))) continue;
+      const tipos = tiposDeAjusteDoCaso({ camada: o.camada, tipo: o.tipo, proposta: obj(c.proposta) });
+      for (const i of lista(c.itens).map(txt)) { let t = ajustesDaFase1.get(i); if (!t) { t = new Set(); ajustesDaFase1.set(i, t); } for (const x of tipos) t.add(x); }
+    }
+  }
+  const itensDoCaso = (c: Record<string, unknown>): string[] => {
+    const itens = lista(c.itens).map(txt);
+    const tipo = txt(c.tipo);
+    if (!soFase1 || txt(c.camada) !== 'OBRIGACOES' || !tipo.startsWith('IMPACTO_')) return itens;
+    const ajuste = tipo.slice('IMPACTO_'.length);
+    return itens.filter((i) => ajustesDaFase1.get(i)?.has(ajuste));
+  };
+  const casos: CasoN[] = dados.casos.filter((c) => txt(c.situacao) !== 'OBSOLETO' && !(soFase1 && fase2Ids.has(txt(c.id))) && !(soFase1 && txt(c.camada) === 'OBRIGACOES' && txt(c.tipo).startsWith('IMPACTO_') && !itensDoCaso(c).length)).map((c) => ({
+    id: txt(c.id), camada: txt(c.camada), tipo: txt(c.tipo), itens: itensDoCaso(c), problema: txt(c.problema),
     evidencia: lista(c.evidencia).map((e) => ({ rotulo: txt(obj(e).rotulo), valor: txt(obj(e).valor) })), atual: obj(c.atual), proposta: obj(c.proposta),
     justificativa: txt(c.justificativa), fundamento: txt(c.fundamento), situacao: txt(c.situacao), motivo: txt(c.motivo), responsavel: txt(c.responsavel),
     decididoPor: txt(c.decidido_por), decididoEm: paraData(c.decidido_em), criadoEm: paraData(c.createdAt),

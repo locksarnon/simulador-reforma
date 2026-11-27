@@ -16,6 +16,7 @@ import { diferencaDaPadrao, limiteNaoConfirmado, tabelasDoAnexo, textoGrupos, to
 import type { DadosPolitica, RegraPolitica } from './tipos';
 import { criteriosParaPolitica } from '../../criterios/politica';
 import { CAMADAS } from '../../tipos';
+import { CAMADAS_TRAVADAS_FASE2 } from '../../dados/constantes';
 
 /** Colunas do quadro de consulta. */
 const COLUNA_QUADRO: Record<Aspecto, string> = { NOMES: 'Nomes', ATRIBUTOS: 'Atributos', UNIDADES: 'Unidades', LIMITES: 'Limites', FISCAL: 'Fiscal' };
@@ -57,7 +58,18 @@ export async function gerarPdfPolitica(dados: DadosPolitica): Promise<Buffer> {
 }
 
 /** Igual a gerarPdfPolitica, devolvendo também a posição das formas dos fluxogramas (conferência em teste). */
-export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica> {
+export function renderizarPolitica(entrada: DadosPolitica): Promise<ResultadoPolitica> {
+  // Entrega sem a Fase 2 (fiscal.fase2 = false): sem conteúdo tributário. As regras do aspecto Fiscal saem da seção 3, da coluna do quadro
+  // e das pendências (a seção 6 fica com a linha de que a parte tributária vem com a Fase 2).
+  const semFiscal = entrada.fiscal?.fase2 === false;
+  const d: DadosPolitica = semFiscal
+    ? {
+      ...entrada, regras: entrada.regras.filter((r) => r.aspecto !== 'FISCAL'),
+      quadro: entrada.quadro.map((q) => ({ ...q, codigos: Object.fromEntries(Object.entries(q.codigos).filter(([k]) => k !== 'FISCAL')) })),
+      pendencias: { ...entrada.pendencias, gruposSemRegra: entrada.pendencias.gruposSemRegra.filter((g) => g.aspecto !== 'FISCAL') },
+    }
+    : entrada;
+  const aspectos = semFiscal ? ASPECTOS.filter((a) => a !== 'FISCAL') : [...ASPECTOS];
   return new Promise((resolve, reject) => {
     const id = d.identificacao;
     const rascunho = emRascunho(d);
@@ -238,9 +250,9 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
       const porGrupo = new Map(d.quadro.map((q) => [q.grupo, q.codigos]));
       if (grupos.length) {
         tabela(
-          ['Grupo', ...ASPECTOS.map((a) => COLUNA_QUADRO[a])],
-          grupos.map((g) => [g, ...ASPECTOS.map((a) => cel(porGrupo.get(g)?.[a]))]),
-          [0.3, 0.14, 0.14, 0.14, 0.14, 0.14],
+          ['Grupo', ...aspectos.map((a) => COLUNA_QUADRO[a])],
+          grupos.map((g) => [g, ...aspectos.map((a) => cel(porGrupo.get(g)?.[a]))]),
+          [0.3, ...aspectos.map(() => 0.7 / aspectos.length)],
         );
       } else paragrafo('Nenhum grupo importado.', { italico: true, cor: CINZA });
 
@@ -248,7 +260,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
       const aprovadas = d.regras.filter((r) => r.situacao === 'APROVADA');
       tituloSecao('3. Regras vigentes por aspecto', 90);
       paragrafo('Cada regra tem um código (letra do aspecto e número) usado no quadro de consulta da seção 2. Para cada grupo de itens vale uma regra por aspecto: a regra de grupos específicos prevalece sobre a regra de todos os grupos. Em cada aspecto, a primeira regra é a padrão; as demais mostram só o que difere dela. Abreviações e termos estão no Anexo.');
-      ASPECTOS.forEach((a, i) => {
+      aspectos.forEach((a, i) => {
         subtitulo(`3.${i + 1} ${ROTULO_ASPECTO[a]}`, 70);
         const padrao = regraPadrao(d.regras, a);
         const doAspecto = aprovadas.filter((r) => r.aspecto === a).sort((x, y) => Number(y === padrao) - Number(x === padrao) || ordemCodigo(x, y));
@@ -322,7 +334,7 @@ export function renderizarPolitica(d: DadosPolitica): Promise<ResultadoPolitica>
       } else paragrafo(NOTA_SEM_FASE2);
 
       // ---- 7. Critérios das análises (o que cada camada considera; ausente = critérios padrão do sistema) ----
-      const criterios = d.criterios ?? criteriosParaPolitica(null, [...CAMADAS]);
+      const criterios = d.criterios ?? criteriosParaPolitica(null, CAMADAS.filter((c) => !semFiscal || !CAMADAS_TRAVADAS_FASE2.includes(c)));
       tituloSecao(`${SECAO_CRITERIOS}. Critérios das análises`, 60);
       paragrafo('O que cada camada de análise considerou, com os valores definidos no projeto. As verificações manuais foram acrescentadas pela equipe: o sistema não as aplica sozinho, elas são conferidas por quem revisa o cadastro.');
       if (!criterios.length) paragrafo('Nenhuma camada de análise no projeto.', { italico: true, cor: CINZA });

@@ -103,6 +103,42 @@ describe('migração da divisão em fases', () => {
     expect(db.sanCaso.find((c) => c.id === 'k-fin')!.camada).toBe('FINALIDADE');
   });
 
+  it('colisão de chave: a célula da camada nova continua com o caso que já estava nela; a conferência de chave é uma consulta por lote', async () => {
+    const { prisma, db, cel } = antigo();
+    db.sanCaso.push({ id: 'k-novo', projeto_id: 'P1', camada: 'FINALIDADE', tipo: 'FINALIDADE_GRUPO', itens: ['i1', 'i2'], chave: chaveCaso('FINALIDADE', 'FINALIDADE_GRUPO', ['i1', 'i2']), situacao: 'PROPOSTO', createdAt: d('2026-11-03T00:00:00Z') });
+    // A análise nova já rodou: as células das camadas novas existem e as de i1 e i2 em FINALIDADE apontam para o caso novo.
+    for (const i of ['i1', 'i2', 'i3']) for (const camada of ['FINALIDADE', 'NCM_CLASSIFICACAO']) {
+      const doNovo = camada === 'FINALIDADE' && i !== 'i3';
+      db.sanCelula.push({ id: `n-${i}-${camada}`, projeto_id: 'P1', item_id: i, camada, grupo: 'Adubos', situacao: doNovo ? 'PROPOSTO' : 'PENDENTE', revisar: false, revisar_causa: null, caso_id: doNovo ? 'k-novo' : null });
+    }
+    let porChave = 0; let porUm = 0;
+    const findMany = prisma.sanCaso.findMany; const findFirst = prisma.sanCaso.findFirst;
+    prisma.sanCaso.findMany = async (a: { where?: { chave?: unknown } }) => { if (a?.where?.chave) porChave++; return findMany(a); };
+    prisma.sanCaso.findFirst = async (a: unknown) => { porUm++; return findFirst(a); };
+    await new SanMigracaoFasesService(prisma as never).migrar();
+    expect(db.sanCaso.find((c) => c.id === 'k-fin')).toMatchObject({ camada: 'FINALIDADE', chave: `${chaveCaso('FINALIDADE', 'FINALIDADE_GRUPO', ['i1', 'i2'])}:k-fin` });
+    expect(cel('i1', 'FINALIDADE')).toMatchObject({ situacao: 'PROPOSTO', caso_id: 'k-novo' });
+    expect(cel('i2', 'FINALIDADE')).toMatchObject({ situacao: 'PROPOSTO', caso_id: 'k-novo' });
+    // Sem colisão (k-exc, i3): o estado vai para a célula nova, como antes.
+    expect(cel('i3', 'FINALIDADE')).toMatchObject({ situacao: 'PROPOSTO', caso_id: 'k-exc' });
+    expect(porChave).toBe(2); // uma por camada nova (FINALIDADE e NCM_CLASSIFICACAO), não uma por caso
+    expect(porUm).toBe(0);
+  });
+
+  it('as datas de análise copiadas entram em parametros.execucoes sem apagar o que outra rotina gravou no meio', async () => {
+    const { prisma, db } = antigo();
+    // Outra rotina grava em parametros no meio da migração do projeto (depois que ela já leu os parâmetros).
+    const contar = prisma.sanItem.count;
+    prisma.sanItem.count = async (a: unknown) => {
+      const p = db.sanProjeto[0];
+      p.parametros = { ...p.parametros, acoesExecutadas: { k: { em: 'x', por: 'y' } } };
+      return contar(a);
+    };
+    await new SanMigracaoFasesService(prisma as never).migrar();
+    expect(db.sanProjeto[0].parametros.acoesExecutadas).toEqual({ k: { em: 'x', por: 'y' } });
+    expect(db.sanProjeto[0].parametros.execucoes).toMatchObject({ FINALIDADE: '2026-11-01T11:00:00.000Z', NCM_CLASSIFICACAO: '2026-11-01T12:00:00.000Z' });
+  });
+
   it('casoDaCelula: exceção viva vale mais; depois, o mais recente', () => {
     const m = casoDaCelula([
       { id: 'a', tipo: 'FINALIDADE_GRUPO', itens: ['x', 'y'], situacao: 'PROPOSTO', createdAt: d('2026-01-03') },

@@ -78,11 +78,28 @@ export type LinhaMapa = {
 /** Só a ação decidida (aprovada) ou registrada pode ser executada no ERP: é a base do contador "X de Y executadas". */
 export const linhaExecutavel = (l: Pick<LinhaMapa, 'situacao'>) => l.situacao === 'APROVADA' || l.situacao === 'REGISTRADA';
 
+/** Parte da chave com "\" e "|" escapados (código com "|" não quebra a chave; código sem esses caracteres fica igual ao de antes). */
+const escaparParte = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+
 /** Chave da linha do mapa: caso|código que sai|estabelecimento (unificação e inativação), caso (equivalência), vinculo|de|para (troca). */
 export function chaveDaLinha(l: Pick<LinhaMapa, 'tipo' | 'casoId' | 'morre' | 'fica'>): string {
-  if (l.tipo === 'TROCA_CODIGO') return `vinculo|${l.morre?.codigo ?? ''}|${l.fica?.codigo ?? ''}`;
+  if (l.tipo === 'TROCA_CODIGO') return `vinculo|${escaparParte(l.morre?.codigo ?? '')}|${escaparParte(l.fica?.codigo ?? '')}`;
   if (l.tipo === 'EQUIVALENCIA') return l.casoId ?? '';
-  return `${l.casoId ?? ''}|${l.morre?.codigo ?? ''}|${l.morre?.estab ?? ''}`;
+  return `${l.casoId ?? ''}|${escaparParte(l.morre?.codigo ?? '')}|${escaparParte(l.morre?.estab ?? '')}`;
+}
+
+/** As partes da chave (o inverso de chaveDaLinha): separa nos "|" não escapados e tira o escape. */
+export function partesDaChave(chave: string): string[] {
+  const partes: string[] = [];
+  let atual = '';
+  for (let i = 0; i < chave.length; i++) {
+    const ch = chave[i];
+    if (ch === '\\' && i + 1 < chave.length) { atual += chave[++i]; continue; }
+    if (ch === '|') { partes.push(atual); atual = ''; continue; }
+    atual += ch;
+  }
+  partes.push(atual);
+  return partes;
 }
 /**
  * O par em conflito: a unificação (código que sai → código que fica) e a inativação do código que fica (caso de inativação, ou o código já
