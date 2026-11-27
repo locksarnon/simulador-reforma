@@ -23,6 +23,12 @@ export class SanDiretrizesController {
   aplicarModelo(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: unknown) { return this.diretrizes.aplicarModelo(id, b, user); }
   @Post('projetos/:id/diretrizes/regras')
   criarRegra(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: unknown) { return this.diretrizes.criarRegra(id, b, user); }
+  /** Só lê: prévia agregada de várias regras (`regras` = ids separados por vírgula). */
+  @Get('projetos/:id/diretrizes/aplicar-varias/previa')
+  previaVarias(@Param('id') id: string, @Query('regras') regras?: string) { return this.diretrizes.previaVarias(id, regras); }
+  /** Aplica várias regras de uma vez ({ regras: [{ id, versao }], confirmarTransferencia? }) com uma só reanálise. */
+  @Post('projetos/:id/diretrizes/aplicar-varias')
+  aplicarVarias(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: unknown) { return this.diretrizes.aplicarVarias(id, b, user); }
   @Post('projetos/:id/diretrizes/transformar')
   transformar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: unknown) { return this.diretrizes.transformar(id, b, user); }
 

@@ -27,6 +27,8 @@ export const san = {
   visaoGeral: (id) => api.get(`${B}/projetos/${id}/visao-geral`),
   camadasDisponiveis: () => api.get(`${B}/camadas-disponiveis`),
   executarCamada: (id, camada) => api.post(`${B}/projetos/${id}/camadas/${camada}/executar`, {}),
+  /** { camadas: [{ camada, abertos, aguardando, aprovados, executadaEm, desatualizada }], abertos, aguardando, aprovados, efeitos }. */
+  estadoCamadas: (id) => api.get(`${B}/projetos/${id}/estado-camadas`),
 
   casos: (id, params) => api.get(`${B}/projetos/${id}/casos`, params),
   registrarCasos: (id, resultado) => api.post(`${B}/projetos/${id}/casos`, resultado),
@@ -63,6 +65,9 @@ export const san = {
   // ── Diretrizes (docs/saneamento-diretrizes.md, seção 11). Toda alteração leva a `versao` que a tela viu. ──
   diretrizes: (id) => api.get(`${B}/projetos/${id}/diretrizes`),
   salvarCabecalhoDiretrizes: (id, corpo) => api.put(`${B}/projetos/${id}/diretrizes`, corpo),
+  /** Várias regras de uma vez: prévia agregada (só lê) e aplicação com uma só reanálise. */
+  previaAplicarVarias: (id, ids) => api.get(`${B}/projetos/${id}/diretrizes/aplicar-varias/previa`, { regras: ids.join(",") }),
+  aplicarVarias: (id, corpo) => api.post(`${B}/projetos/${id}/diretrizes/aplicar-varias`, corpo),
   aplicarModelo: (id, modeloId) => api.post(`${B}/projetos/${id}/diretrizes/aplicar-modelo`, { modeloId }),
   criarRegra: (id, corpo) => api.post(`${B}/projetos/${id}/diretrizes/regras`, corpo),
   alterarRegra: (regraId, corpo) => api.put(`${B}/diretrizes/regras/${regraId}`, corpo),
@@ -90,6 +95,7 @@ export const chaves = {
   itens: (projetoId, filtro) => ["san", projetoId, "itens", filtro],
   visao: (projetoId) => ["san", projetoId, "visao"],
   camadas: () => ["san", "camadas-disponiveis"],
+  estadoCamadas: (projetoId) => ["san", projetoId, "estado-camadas"],
   casos: (projetoId, filtro) => ["san", projetoId, "casos", filtro],
   caso: (casoId) => ["san", "caso", casoId],
   gruposDoCaso: (projetoId, casoId) => ["san", projetoId, "caso-grupos", casoId],

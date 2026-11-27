@@ -408,9 +408,10 @@ describe("Cobertura, abas e página", () => {
       qc.setQueryData(chaves.camadas(), ["QUALIDADE", "TRIBUTARIO"]);
     });
     const t = texto(html);
-    expect(t).toContain("Com dados");
-    expect(t).toContain("Depende de informação");
-    expect(t).toContain("Análise ainda não disponível");
+    expect(t).toContain("Qualidade analisada");
+    expect(t).toContain("Tratamento tributário 1 aguardando");
+    expect(t).toContain("análise indisponível");
+    expect(t).toContain("Analisar todas (na ordem)");
   });
   it("cobertura: sem confirmação as análises ficam bloqueadas", () => {
     const html = montar(<Cobertura projeto={projeto()} />, (qc) => { qc.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [] }); qc.setQueryData(chaves.camadas(), ["QUALIDADE"]); });

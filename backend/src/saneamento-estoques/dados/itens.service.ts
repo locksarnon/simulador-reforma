@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CAMADAS, SITUACOES } from '../tipos';
 import { camadasAtivas, validarCamada, type Json } from './constantes';
@@ -33,15 +34,48 @@ export class SanItensService {
     const busca = (f.busca ?? '').trim();
     if (busca) where.OR = [{ codigo: { contains: busca, mode: 'insensitive' } }, { descricao: { contains: busca, mode: 'insensitive' } }];
     const ordem = f.ordem === 'grupo' ? [{ grupo: 'asc' }, { codigo: 'asc' }, { id: 'asc' }] : [{ codigo: 'asc' }, { id: 'asc' }];
-    const linhas = await this.prisma.sanItem.findMany({
-      where: where as never, orderBy: ordem as never, take: limite + 1, ...(f.cursor ? { cursor: { id: f.cursor }, skip: 0 } : {}),
-      select: { id: true, codigo: true, estabelecimento: true, descricao: true, grupo: true, finalidade: true, conjunto_chave: true, ativo: true, versao: true, celulas: { select: { camada: true, situacao: true, revisar: true, revisar_causa: true, caso_id: true } } },
-    });
+    const select = { id: true, codigo: true, estabelecimento: true, descricao: true, grupo: true, finalidade: true, conjunto_chave: true, ativo: true, versao: true, celulas: { select: { camada: true, situacao: true, revisar: true, revisar_causa: true, caso_id: true } } };
+    // Com SQL: código só de dígitos ordena como número (2 antes de 10); sem SQL (testes em memória), a ordem do texto.
+    const ids = typeof (this.prisma as unknown as { $queryRaw?: unknown }).$queryRaw === 'function'
+      ? await this.idsNaOrdemNumerica(projetoId, { ...f, camada: celula.camada as string | undefined, busca }, limite + 1)
+      : null;
+    const linhas = ids
+      ? await this.prisma.sanItem.findMany({ where: { id: { in: ids } }, select }).then((ls) => { const m = new Map(ls.map((l) => [l.id, l])); return ids.map((id) => m.get(id)!).filter(Boolean); })
+      : await this.prisma.sanItem.findMany({ where: where as never, orderBy: ordem as never, take: limite + 1, ...(f.cursor ? { cursor: { id: f.cursor }, skip: 0 } : {}), select });
     const total = f.cursor ? undefined : await this.prisma.sanItem.count({ where: where as never });
     const pagina = linhas.slice(0, limite);
     const enq = await this.enquadramentos(projetoId, pagina.map((x) => x.id));
     const proximo = linhas.length > limite ? linhas[limite].id : null;
     return { itens: pagina.map((x) => ({ ...x, enquadramento: enq.get(x.id) ?? null })), proximo, ...(total === undefined ? {} : { total }) };
+  }
+
+  /**
+   * Ids da página na ordem de trabalho, com os mesmos filtros da lista. A chave de ordem do código é o código com zeros à esquerda quando ele
+   * só tem dígitos (ordem numérica: 2, 10, 100) e o próprio texto nos demais. O cursor (id) entra na página seguinte, como no caminho Prisma.
+   */
+  private async idsNaOrdemNumerica(projetoId: string, f: { camada?: string; situacao?: string; revisar: boolean; grupo?: string; busca: string; ordem?: string; cursor?: string }, take: number): Promise<string[]> {
+    const chave = Prisma.sql`(CASE WHEN i."codigo" ~ '^[0-9]{1,40}$' THEN lpad(i."codigo", 40, '0') ELSE i."codigo" END)`;
+    const conds: Prisma.Sql[] = [Prisma.sql`i."projeto_id" = ${projetoId}`];
+    const cel: Prisma.Sql[] = [];
+    if (f.camada) cel.push(Prisma.sql`c."camada" = ${f.camada}`);
+    if (f.situacao) cel.push(Prisma.sql`c."situacao" = ${f.situacao}`);
+    if (f.revisar) cel.push(Prisma.sql`c."revisar" = true`);
+    if (cel.length) conds.push(Prisma.sql`EXISTS (SELECT 1 FROM "SanCelula" c WHERE c."item_id" = i."id" AND ${Prisma.join(cel, ' AND ')})`);
+    if (f.grupo !== undefined && f.grupo !== '') conds.push(f.grupo === '(sem grupo)' ? Prisma.sql`i."grupo" IS NULL` : Prisma.sql`i."grupo" = ${f.grupo}`);
+    if (f.busca) {
+      const termo = `%${f.busca.replace(/[\\%_]/g, (x) => `\\${x}`)}%`;
+      conds.push(Prisma.sql`(i."codigo" ILIKE ${termo} OR i."descricao" ILIKE ${termo})`);
+    }
+    const porGrupo = f.ordem === 'grupo';
+    // Grupo vazio por último (como o Prisma em ordem crescente): primeiro os que têm grupo, depois o grupo, a chave do código, o código e o id.
+    const campos = (x: string) => (porGrupo ? Prisma.sql`(${Prisma.raw(x)}."grupo" IS NULL), COALESCE(${Prisma.raw(x)}."grupo", ''), ` : Prisma.empty);
+    if (f.cursor) {
+      const ref = Prisma.sql`(SELECT ${campos('r')}(CASE WHEN r."codigo" ~ '^[0-9]{1,40}$' THEN lpad(r."codigo", 40, '0') ELSE r."codigo" END), r."codigo", r."id" FROM "SanItem" r WHERE r."id" = ${f.cursor})`;
+      conds.push(Prisma.sql`ROW(${campos('i')}${chave}, i."codigo", i."id") >= ${ref}`);
+    }
+    const ordem = Prisma.sql`${campos('i')}${chave}, i."codigo", i."id"`;
+    const linhas: { id: string }[] = await this.prisma.$queryRaw`SELECT i."id" FROM "SanItem" i WHERE ${Prisma.join(conds, ' AND ')} ORDER BY ${ordem} LIMIT ${take}`;
+    return linhas.map((l) => l.id);
   }
 
   /**

@@ -101,6 +101,9 @@ export class SaneamentoEstoquesController {
   camadasDisponiveis() { return this.orquestracao.camadasDisponiveis(); }
   @Post('projetos/:id/camadas/:camada/executar')
   executar(@Param('id') id: string, @Param('camada') camada: string) { return this.orquestracao.executarCamada(id, camada); }
+  /** Só lê: casos em aberto, aguardando e aprovados por camada, última análise completa, camada desatualizada e o que os aprovados fazem. */
+  @Get('projetos/:id/estado-camadas')
+  estadoCamadas(@Param('id') id: string) { return this.orquestracao.estadoDasCamadas(id); }
   /** Cria casos em lote a partir de um ResultadoCamada (o mesmo caminho do executar). */
   @Post('projetos/:id/casos')
   registrar(@Param('id') id: string, @Body() r: ResultadoCamada) { return this.casos.registrarResultado(id, r); }

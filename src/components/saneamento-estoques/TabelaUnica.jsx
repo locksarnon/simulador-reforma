@@ -12,6 +12,12 @@ import {
 const ALTURA_CABECALHO = 56;
 const FILTRO_VAZIO = { busca: "", camada: "", situacao: "", grupo: "", revisar: false, ordem: "codigo" };
 
+/** Colunas fixas da tabela: sem "Estabelec." quando há estabelecimento único (o projeto com até um e os itens com no máximo um). */
+export function fixasDaTabela(estabelecimentos, itens) {
+  const varios = (Array.isArray(estabelecimentos) ? estabelecimentos : []).length > 1 || new Set((itens || []).map((i) => i.estabelecimento).filter(Boolean)).size > 1;
+  return varios ? COLUNAS_FIXAS : COLUNAS_FIXAS.filter((c) => c.id !== "estabelecimento");
+}
+
 /** Lista paginada (cursor) acumulada numa só sequência. */
 function useItens(projetoId, filtro) {
   const q = useInfiniteQuery({
@@ -59,7 +65,10 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
   const grupos = visao.data?.grupos?.map((g) => g.grupo) || [];
 
   const colunas = useMemo(() => colunasDaTabela(camadas), [camadas]);
-  const larg = larguraTotal(colunas);
+  // Estabelecimento só aparece quando o projeto tem mais de um (ou o cadastro traz algum).
+  const fixas = useMemo(() => fixasDaTabela(projeto.estabelecimentos, itens), [projeto.estabelecimentos, itens]);
+  const larguraFixa = fixas.reduce((s, c) => s + c.largura, 0);
+  const larg = larguraTotal(colunas) - LARGURA_FIXA + larguraFixa;
   const gruposCab = useMemo(() => gruposDeColunas(colunas), [colunas]);
   const janela = janelaVisivel({ rolagem, alturaVisivel, alturaLinha: ALTURA_LINHA, total: itens.length });
 
@@ -150,11 +159,11 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
             </EstadoVazio>
           ) : (
             <div ref={setArea} onScroll={aoRolar} className={`${estiloTabela.area} h-[68vh] min-h-[320px]`} tabIndex={0} aria-label="Tabela de produtos por camada. Role para ver mais linhas.">
-              <div role="table" aria-label="Produtos e situação de cada camada" aria-rowcount={(total ?? itens.length) + 2} aria-colcount={COLUNAS_FIXAS.length + colunas.length} style={{ width: larg }}>
+              <div role="table" aria-label="Produtos e situação de cada camada" aria-rowcount={(total ?? itens.length) + 2} aria-colcount={fixas.length + colunas.length} style={{ width: larg }}>
                 {/* Cabeçalho: grupos (camadas) e colunas, fixo no topo; as 3 primeiras colunas também ficam fixas à esquerda. */}
                 <div role="rowgroup" className={estiloTabela.cabecalho} style={{ height: ALTURA_CABECALHO }}>
                   <div role="row" className="flex border-b border-border/70" style={{ height: ALTURA_CABECALHO / 2 }}>
-                    <div className="sticky left-0 z-40 bg-muted" style={{ width: LARGURA_FIXA }} />
+                    <div className="sticky left-0 z-40 bg-muted" style={{ width: larguraFixa }} />
                     {gruposCab.map((g) => (
                       <div key={g.camada} role="columnheader" style={{ width: g.largura }} className="border-l border-border/70 px-1">
                         <button type="button" aria-pressed={filtro.camada === g.camada} onClick={() => alternarCamada(g.camada)} title="Mostrar só os produtos com situação nesta camada"
@@ -165,8 +174,8 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
                     ))}
                   </div>
                   <div role="row" className="flex text-xs text-muted-foreground" style={{ height: ALTURA_CABECALHO / 2 }}>
-                    {COLUNAS_FIXAS.map((c, n) => (
-                      <div key={c.id} role="columnheader" className={estiloTabela.tituloFixo} style={{ width: c.largura, left: COLUNAS_FIXAS.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>{c.titulo}</div>
+                    {fixas.map((c, n) => (
+                      <div key={c.id} role="columnheader" className={estiloTabela.tituloFixo} style={{ width: c.largura, left: fixas.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>{c.titulo}</div>
                     ))}
                     {colunas.map((c) => <div key={c.id} role="columnheader" className={estiloTabela.tituloColuna} style={{ width: c.largura }}>{c.titulo}</div>)}
                   </div>
@@ -177,8 +186,8 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
                     const marcado = selecao?.id === item.id;
                     return (
                       <div key={item.id} role="row" aria-rowindex={i + 3} aria-selected={marcado} className={`absolute left-0 ${estiloTabela.linha} ${estiloTabela.fundoLinha(i, marcado)}`} style={{ top: i * ALTURA_LINHA, height: ALTURA_LINHA, width: larg }}>
-                        {COLUNAS_FIXAS.map((c, n) => (
-                          <div key={c.id} role="cell" className={`sticky z-10 flex items-center overflow-hidden px-2 ${estiloTabela.fundoFixo(i, marcado)} ${c.id === "codigo" ? "font-medium tabular-nums" : ""}`} style={{ width: c.largura, left: COLUNAS_FIXAS.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>
+                        {fixas.map((c, n) => (
+                          <div key={c.id} role="cell" className={`sticky z-10 flex items-center overflow-hidden px-2 ${estiloTabela.fundoFixo(i, marcado)} ${c.id === "codigo" ? "font-medium tabular-nums" : ""}`} style={{ width: c.largura, left: fixas.slice(0, n).reduce((s, x) => s + x.largura, 0) }}>
                             <span className="truncate" title={c.id === "descricao" ? item.descricao : undefined}>{c.id === "estabelecimento" ? item.estabelecimento || "—" : item[c.id]}</span>
                             {c.id === "descricao" && item.ativo === false && <Tag className="ml-1">inativo</Tag>}
                           </div>
@@ -201,7 +210,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
                     );
                   })}
                   {q.hasNextPage && itens.length > 0 && janela.fim >= itens.length && (
-                    <div className="absolute left-0 px-3 py-2 text-xs text-muted-foreground" style={{ top: itens.length * ALTURA_LINHA, width: LARGURA_FIXA }}>Carregando mais produtos…</div>
+                    <div className="absolute left-0 px-3 py-2 text-xs text-muted-foreground" style={{ top: itens.length * ALTURA_LINHA, width: larguraFixa }}>Carregando mais produtos…</div>
                   )}
                 </div>
               </div>

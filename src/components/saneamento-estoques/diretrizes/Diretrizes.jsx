@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookCopy, FileText, Pencil, Plus } from "lucide-react";
+import { BookCopy, CheckCircle2, FileText, Pencil, Play, Plus } from "lucide-react";
 import { api } from "@/api/client";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { atualizarTudo, chaves, san } from "../api";
@@ -9,7 +9,11 @@ import { Aviso, bordaQuadro, botaoPrimario, botaoSecundario, campoCls, Carregar,
 import { ehConflitoVersao, fmtData, fmtDataHora, mensagemDeErro } from "../logica";
 import { realceVerde } from "./Blocos";
 import FormularioRegra from "./FormularioRegra";
-import { ASPECTOS, atualizacaoDa, mensagemDiretriz, regrasPorAspecto, ROTULO_ASPECTO, SITUACAO_REGRA, SOBRE_ASPECTO, textoAbrangencia } from "./logica";
+import Janela from "./Janela";
+import {
+  ASPECTOS, atualizacaoDa, falhasDaReanalise, gruposSemRegraAgrupados, mensagemDiretriz, regrasParaAplicar, regrasPorAspecto, resumoPreviaVarias, ROTULO_ASPECTO, separarParaAprovar,
+  SITUACAO_REGRA, SOBRE_ASPECTO, textoAbrangencia,
+} from "./logica";
 
 /** Botão "Política (PDF)": sem versão, a política de agora (marcada Rascunho enquanto houver regra não aprovada); com versão, a congelada nela. */
 export function BotaoPolitica({ projetoId, versao = null, rotulo = "Política (PDF)" }) {
@@ -50,13 +54,15 @@ export function CabecalhoDiretrizes({ projeto, cabecalho, cliente, ultimaImporta
 }
 
 /** Uma regra na lista: código, nome, grupos, situação, revisar e o aviso de atualização da biblioteca (com "Adotar"). */
-function LinhaRegra({ regra, atualizacao, aoAbrir, aoAdotar, adotando, pode, razao }) {
+function LinhaRegra({ regra, atualizacao, aoAbrir, aoAdotar, adotando, pode, razao, marcada, aoMarcar }) {
   return (
     <li className={`flex flex-wrap items-center gap-2 border-b border-foreground/20 px-3 py-1.5 text-sm last:border-b-0 ${realceVerde}`}>
+      {aoMarcar && <input type="checkbox" checked={!!marcada} onChange={() => aoMarcar(regra.id)} aria-label={`Marcar a regra ${regra.codigo}`} />}
       <span className="w-12 font-mono font-semibold">{regra.codigo}</span>
       <button type="button" className="min-w-[12rem] flex-1 text-left font-medium text-primary underline-offset-2 hover:underline" onClick={aoAbrir}>{regra.nome}</button>
       <span className="text-xs font-medium text-foreground/80">Grupos:</span><TextoLongo texto={textoAbrangencia(regra.abrangencia)} largura="max-w-[22rem]" />
       <Tag tom={regra.situacao === "APROVADA" ? "ok" : "neutro"}>{SITUACAO_REGRA[regra.situacao] || "Rascunho"}</Tag>
+      {regra.pendenteAplicar && regra.ativa !== false && <Tag tom="alerta">Não aplicada</Tag>}
       {regra.revisar && <MarcaRevisar causa="Algo de que esta regra depende mudou: confira." />}
       {regra.bibliotecaId && <Tag tom="info">Biblioteca{regra.bibliotecaVersao ? ` v${regra.bibliotecaVersao}` : ""}</Tag>}
       {atualizacao && (
@@ -71,9 +77,8 @@ function LinhaRegra({ regra, atualizacao, aoAbrir, aoAdotar, adotando, pode, raz
 }
 
 /** Regras do projeto por aspecto (5 seções) e o quadro "Grupos sem regra". */
-export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, pode, razao }) {
+export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, pode, razao, selecionadas, aoMarcar }) {
   const porAspecto = regrasPorAspecto(dados.regras);
-  const semRegra = new Map((dados.gruposSemRegra || []).map((g) => [g.aspecto, g.grupos || []]));
   return (
     <div className="space-y-5">
       {ASPECTOS.map((a) => (
@@ -86,28 +91,83 @@ export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, po
           <p className="border-b border-foreground/20 bg-muted px-3 py-1.5 text-xs text-foreground/75">{SOBRE_ASPECTO[a]}</p>
           {porAspecto[a].length === 0 ? <p className="px-3 py-2 text-sm text-foreground/75">Nenhuma regra deste aspecto.</p> : (
             <ul className="py-1" aria-label={`Regras: ${ROTULO_ASPECTO[a]}`}>
-              {porAspecto[a].map((r) => <LinhaRegra key={r.id} regra={r} atualizacao={atualizacaoDa(r, dados.atualizacoesBiblioteca)} aoAbrir={() => aoAbrir(r.id)} aoAdotar={() => aoAdotar(r)} adotando={adotandoId === r.id} pode={pode} razao={razao} />)}
+              {porAspecto[a].map((r) => <LinhaRegra key={r.id} regra={r} atualizacao={atualizacaoDa(r, dados.atualizacoesBiblioteca)} aoAbrir={() => aoAbrir(r.id)} aoAdotar={() => aoAdotar(r)} adotando={adotandoId === r.id} pode={pode} razao={razao} marcada={selecionadas?.has(r.id)} aoMarcar={aoMarcar} />)}
             </ul>
           )}
         </section>
       ))}
-      <Quadro as="section" titulo="Grupos sem regra" nivel="h3">
-        {(dados.grupos || []).length === 0 ? <p className="text-sm text-foreground/75">Os grupos aparecem depois de importar o cadastro de itens.</p> : (
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {ASPECTOS.map((a) => {
-              const g = semRegra.get(a) || [];
-              return (
-                <li key={a} className="space-y-1 border border-foreground/30 bg-card p-2 text-xs">
-                  <span className="block font-medium">{ROTULO_ASPECTO[a]}</span>
-                  {g.length === 0 ? <Tag tom="ok">Todos os grupos têm regra</Tag> : <><Tag tom="alerta">{g.length} {g.length === 1 ? "grupo pendente" : "grupos pendentes"}</Tag><TextoLongo texto={g.join(", ")} largura="max-w-full" /></>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <p className="text-xs text-foreground/75">Grupo sem regra entra na política como pendência, nunca como regra vigente.</p>
-      </Quadro>
+      <GruposSemRegra dados={dados} />
     </div>
+  );
+}
+
+/**
+ * "Grupos sem regra": a contagem por aspecto e, uma vez só, a lista dos grupos (juntos os que faltam nos mesmos aspectos), expansível.
+ */
+export function GruposSemRegra({ dados }) {
+  const { porAspecto, conjuntos } = gruposSemRegraAgrupados(dados.gruposSemRegra);
+  return (
+    <Quadro as="section" titulo="Grupos sem regra" nivel="h3">
+      {(dados.grupos || []).length === 0 ? <p className="text-sm text-foreground/75">Os grupos aparecem depois de importar o cadastro de itens.</p> : (
+        <>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="Grupos sem regra por aspecto">
+            {ASPECTOS.map((a) => (
+              <li key={a} className="inline-flex items-center gap-1">
+                <span className="font-medium">{ROTULO_ASPECTO[a]}</span>
+                {porAspecto[a] === 0 ? <Tag tom="ok">Todos os grupos têm regra</Tag> : <Tag tom="alerta">{porAspecto[a]} {porAspecto[a] === 1 ? "grupo pendente" : "grupos pendentes"}</Tag>}
+              </li>
+            ))}
+          </ul>
+          {conjuntos.map((c) => (
+            <details key={c.aspectos.join("|")} className="text-xs">
+              <summary className="cursor-pointer font-medium">{c.grupos.length} {c.grupos.length === 1 ? "grupo" : "grupos"} sem regra de {c.aspectos.map((a) => ROTULO_ASPECTO[a].toLocaleLowerCase("pt-BR")).join(", ")}</summary>
+              <p className="mt-1 max-h-40 overflow-auto text-foreground/80">{c.grupos.join(", ")}</p>
+            </details>
+          ))}
+        </>
+      )}
+      <p className="text-xs text-foreground/75">Grupo sem regra entra na política como pendência, nunca como regra vigente.</p>
+    </Quadro>
+  );
+}
+
+/**
+ * Prévia agregada de aplicar várias regras: regras, grupos, itens e análises refeitas (uma reanálise só). Regras escolhidas que disputam
+ * o mesmo grupo impedem aplicar; grupo de regra fora da seleção exige marcar a transferência.
+ */
+export function PreviaVarias({ previa, aoConfirmar, aoCancelar, ocupado }) {
+  const [transferir, setTransferir] = useState(false);
+  const r = resumoPreviaVarias(previa);
+  const sobrepoe = r.sobreposicoes.length > 0;
+  const disputa = r.entreEscolhidas.length > 0;
+  return (
+    <Janela titulo="Prévia: aplicar as regras" aoFechar={ocupado ? undefined : aoCancelar}>
+      <section aria-label="Prévia da aplicação das regras" className="space-y-2 border-2 border-primary/60 bg-card p-3">
+        <h3 className="text-sm font-semibold">Antes de aplicar, confira o que muda</h3>
+        <p className="text-sm">{r.texto}</p>
+        <dl className="grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
+          <dt className={rotuloCls}>Regras</dt><dd><TextoLongo texto={(previa.regras || []).map((x) => `${x.codigo} ${x.nome}`).join("; ")} largura="max-w-full" /></dd>
+          <dt className={rotuloCls}>Grupos</dt><dd>{r.grupos.length ? <TextoLongo texto={r.grupos.join(", ")} largura="max-w-full" /> : "Nenhum grupo com itens importados"}</dd>
+          <dt className={rotuloCls}>Análises refeitas</dt><dd>{r.camadas.length ? r.camadas.join(", ") : "—"}</dd>
+        </dl>
+        {disputa && (
+          <Aviso tom="erro" titulo="Regras escolhidas disputam o mesmo grupo">
+            <ul className="list-disc pl-5">{r.entreEscolhidas.map((s) => <li key={`${s.grupo}-${s.regra}-${s.regraAtual}`}>{s.grupo}: {s.regraAtual} e {s.regra}</li>)}</ul>
+            Tire uma delas da seleção ou ajuste a abrangência.
+          </Aviso>
+        )}
+        {sobrepoe && !disputa && (
+          <Aviso tom="alerta" titulo="Grupos já cobertos por outra regra do mesmo aspecto">
+            <ul className="list-disc pl-5">{r.sobreposicoes.map((s) => <li key={`${s.grupo}-${s.regra}-${s.regraAtual}`}>{s.grupo}: hoje na regra {s.regraAtual}, passa para {s.regra}</li>)}</ul>
+            <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={transferir} onChange={(e) => setTransferir(e.target.checked)} />Confirmo transferir esses grupos (o histórico fica)</label>
+          </Aviso>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={botaoPrimario} disabled={ocupado || disputa || (sobrepoe && !transferir)} onClick={() => aoConfirmar({ confirmarTransferencia: transferir })}><Play className="h-4 w-4" aria-hidden="true" />{ocupado ? "Aplicando e reanalisando…" : "Confirmar e aplicar"}</button>
+          <button type="button" className={botaoSecundario} disabled={ocupado} onClick={aoCancelar}>Cancelar</button>
+        </div>
+      </section>
+    </Janela>
   );
 }
 
@@ -121,7 +181,7 @@ function AplicarModelo({ projeto, pode, razao, aoAplicou }) {
   const escolhido = lista.find((m) => m.id === modeloId);
   const aplicar = useMutation({ mutationFn: () => san.aplicarModelo(projeto.id, modeloId), onSuccess: (r) => { setAberto(false); setModeloId(""); aoAplicou({ tom: "ok", texto: textoModeloAplicado(r, escolhido) }); }, onError: (e) => aoAplicou({ tom: "erro", texto: mensagemDiretriz(e) }) });
   const pedir = async () => {
-    const ok = await confirmar({ titulo: "Aplicar o modelo?", rotulo: "Aplicar modelo", perigoso: false, descricao: `As regras de "${escolhido?.nome}" entram em rascunho. Regras que o projeto já tem não são duplicadas. Depois, abra cada regra e use Aplicar e reanalisar.` });
+    const ok = await confirmar({ titulo: "Aplicar o modelo?", rotulo: "Aplicar modelo", perigoso: false, descricao: `As regras de "${escolhido?.nome}" entram em rascunho. Regras que o projeto já tem não são duplicadas. Depois, use Aplicar todas as regras: uma prévia só e uma reanálise só.` });
     if (ok) aplicar.mutate();
   };
   if (!aberto) return <button type="button" className={botaoSecundario} disabled={!pode} title={razao} onClick={() => setAberto(true)}><BookCopy className="h-4 w-4" aria-hidden="true" />Aplicar modelo da biblioteca</button>;
@@ -179,6 +239,46 @@ export default function Diretrizes({ projeto }) {
     if (ok) adotar.mutate(r);
   };
 
+  // Várias regras: seleção, prévia agregada (aplicar todas ou as marcadas) e aprovar as marcadas.
+  const [selecionadas, setSelecionadas] = useState(() => new Set());
+  const [previaVarias, setPreviaVarias] = useState(null); // { dados, regras }
+  const marcar = (id) => setSelecionadas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const buscarPrevia = useMutation({
+    mutationFn: (regras) => san.previaAplicarVarias(projeto.id, regras.map((r) => r.id)).then((dados) => ({ dados, regras })),
+    onSuccess: (p) => { setMsg(null); setPreviaVarias(p); },
+    onError: (e) => setMsg({ tom: "erro", texto: mensagemDiretriz(e) }),
+  });
+  const aplicarVarias = useMutation({
+    mutationFn: ({ regras, confirmarTransferencia }) => san.aplicarVarias(projeto.id, { regras: regras.map((r) => ({ id: r.id, versao: r.versao })), ...(confirmarTransferencia ? { confirmarTransferencia: true } : {}) }),
+    onSuccess: async (r) => {
+      const falhas = falhasDaReanalise(r.reanalise);
+      setPreviaVarias(null); setSelecionadas(new Set());
+      setMsg({ tom: falhas.length ? "alerta" : "ok", texto: `${resumoPreviaVarias(r.previa).textoFeito(r.aplicadas)}${falhas.length ? ` Não reanalisado: ${falhas.join("; ")}.` : ""}` });
+      await atualizarTudo(qc, projeto.id);
+    },
+    onError: async (e) => { setPreviaVarias(null); setMsg({ tom: "erro", texto: mensagemDiretriz(e) }); await qc.invalidateQueries({ queryKey: chaves.diretrizes(projeto.id) }); },
+  });
+  const aprovarVarias = useMutation({
+    mutationFn: async (regras) => {
+      const erros = [];
+      for (const r of regras) { try { await san.aprovarRegra(r.id, r.versao); } catch (e) { erros.push(`${r.codigo}: ${mensagemDiretriz(e)}`); } }
+      return { aprovadas: regras.length - erros.length, erros };
+    },
+    onSuccess: async ({ aprovadas, erros }) => {
+      setSelecionadas(new Set());
+      setMsg({ tom: erros.length ? "alerta" : "ok", texto: `${aprovadas} ${aprovadas === 1 ? "regra aprovada" : "regras aprovadas"}.${erros.length ? ` Não aprovadas: ${erros.join("; ")}` : ""}` });
+      await atualizarTudo(qc, projeto.id);
+    },
+  });
+  const pedirAprovacaoVarias = async (regras) => {
+    const { aprovaveis, fora } = separarParaAprovar(regras);
+    if (!aprovaveis.length) { setMsg({ tom: "alerta", texto: "Nenhuma das regras marcadas pode ser aprovada agora: aplique antes as que estão como Não aplicada." }); return; }
+    const ok = await confirmar({ titulo: `Aprovar ${aprovaveis.length} ${aprovaveis.length === 1 ? "regra" : "regras"}?`, rotulo: "Aprovar", perigoso: false,
+      descricao: `${aprovaveis.map((r) => r.codigo).join(", ")} passam a valer na política do cliente. Você fica registrado como aprovador.${fora.length ? `\nFicam de fora (não aplicadas ou já aprovadas): ${fora.map((r) => r.codigo).join(", ")}.` : ""}` });
+    if (ok) aprovarVarias.mutate(aprovaveis);
+  };
+  const ocupadoVarias = buscarPrevia.isPending || aplicarVarias.isPending || aprovarVarias.isPending;
+
   const abrir = (regraId) => { setMsg(null); setEdicao({ regraId }); };
   const nova = (aspecto) => { setMsg(null); setEdicao({ inicial: { aspecto } }); };
   const fechar = () => {
@@ -194,6 +294,8 @@ export default function Diretrizes({ projeto }) {
           if (!existe) return <Aviso tom="alerta" titulo="Regra não encontrada" acao={<button type="button" className={botaoSecundario} onClick={fechar}>Voltar às diretrizes</button>}>A regra pode ter sido removida ou é de outro projeto.</Aviso>;
           return <FormularioRegra key={edicao.regraId || `nova-${edicao.inicial?.aspecto}`} projeto={projeto} dados={dados} regraId={edicao.regraId || null} inicial={edicao.inicial || null} aoFechar={fechar} />;
         }
+        const pendentes = regrasParaAplicar(dados.regras);
+        const marcadas = (dados.regras || []).filter((r) => selecionadas.has(r.id));
         return (
           <div className="space-y-4">
             <CabecalhoDiretrizes key={`${dados.cabecalho?.versao}-${dados.cabecalho?.vigencia}`} projeto={projeto} cabecalho={dados.cabecalho} cliente={cliente.data?.razao_social || cliente.data?.nome} ultimaImportacao={ultimaImportacao}
@@ -209,7 +311,18 @@ export default function Diretrizes({ projeto }) {
               <AplicarModelo projeto={projeto} pode={pode} razao={razao} aoAplicou={async (m) => { setMsg(m); if (m.tom === "ok") await atualizarTudo(qc, projeto.id); }} />
               <BotaoPolitica projetoId={projeto.id} />
             </div>
-            <ListaDeRegras dados={dados} aoAbrir={abrir} aoNova={nova} aoAdotar={pedirAdocao} adotandoId={adotar.isPending ? adotar.variables?.id : null} pode={pode} razao={razao} />
+            {(dados.regras || []).length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 border-y border-border py-2" role="group" aria-label="Ações em várias regras">
+                <button type="button" className={botaoPrimario} disabled={!pode || ocupadoVarias || !pendentes.length} title={razao || (!pendentes.length ? "Todas as regras já estão aplicadas como estão" : "Uma prévia só e uma reanálise só")} onClick={() => buscarPrevia.mutate(pendentes)}>
+                  <Play className="h-4 w-4" aria-hidden="true" />{buscarPrevia.isPending ? "Preparando a prévia…" : `Aplicar todas as regras (${pendentes.length})`}
+                </button>
+                <button type="button" className={botaoSecundario} disabled={!pode || ocupadoVarias || !marcadas.length} title={razao} onClick={() => buscarPrevia.mutate(marcadas)}>Aplicar selecionadas ({marcadas.length})</button>
+                <button type="button" className={botaoSecundario} disabled={!pode || ocupadoVarias || !marcadas.length} title={razao} onClick={() => pedirAprovacaoVarias(marcadas)}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{aprovarVarias.isPending ? "Aprovando…" : `Aprovar selecionadas (${marcadas.length})`}</button>
+                {marcadas.length > 0 && <button type="button" className="text-xs underline" onClick={() => setSelecionadas(new Set())}>Limpar seleção</button>}
+              </div>
+            )}
+            <ListaDeRegras dados={dados} aoAbrir={abrir} aoNova={nova} aoAdotar={pedirAdocao} adotandoId={adotar.isPending ? adotar.variables?.id : null} pode={pode} razao={razao} selecionadas={selecionadas} aoMarcar={marcar} />
+            {previaVarias && <PreviaVarias previa={previaVarias.dados} ocupado={aplicarVarias.isPending} aoCancelar={() => setPreviaVarias(null)} aoConfirmar={({ confirmarTransferencia }) => aplicarVarias.mutate({ regras: previaVarias.regras, confirmarTransferencia })} />}
           </div>
         );
       }}
