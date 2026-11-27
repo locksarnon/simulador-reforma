@@ -3,9 +3,10 @@ import TabelaPadrao from "@/components/TabelaPadrao";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import AvisoFalhaAtualizar from "@/components/AvisoFalhaAtualizar";
 import { campoBarraCls } from "@/lib/estiloTabela";
 import { useCarteiras } from "@/lib/useCarteiras";
-import { fmtDataCurta, MODULOS_BPO, naCarteira, SITUACOES, TIPOS, TOM_DA_SITUACAO } from "@/lib/servicos";
+import { casaTextoDaEmpresa, fmtDataCurta, MODULOS_BPO, naCarteira, SITUACOES, TIPOS, TOM_DA_SITUACAO } from "@/lib/servicos";
 import { caminhoDoRepositorio } from "@/lib/bpoCaminhos";
 import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa } from "@/lib/tags";
 import { useColaboradores, useTags } from "@/lib/useTags";
@@ -15,8 +16,6 @@ import ListasSalvas from "@/components/clientes/ListasSalvas";
 import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 import { plural } from "@/lib/plural";
 
-const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const digitos = (s) => String(s || "").replace(/\D/g, "");
 const FILTROS_VAZIOS = { busca: "", situacao: "", grupo: "", tags: [], tagModo: "qualquer", colaborador: "" };
 
 /** Caminhos que a carteira oferece para entrar numa empresa. */
@@ -29,7 +28,7 @@ const ACOES = {
  * trabalhar em cada uma. Se nada foi marcado ainda, a página explica como marcar e oferece ver todas as empresas.
  */
 export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes }) {
-  const { empresas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
+  const { empresas, grupos, servicos, mapa, carregando, erro, falhaAoAtualizar, recarregar } = useCarteiras();
   const { tags, porEmpresa, mapa: mapaTags } = useTags();
   const { data: colaboradores = [] } = useColaboradores();
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
@@ -39,12 +38,10 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes })
   const daCarteira = useMemo(() => empresas.filter((e) => naCarteira(mapa.get(e.id)?.[tipo])), [empresas, mapa, tipo]);
   const ninguemMarcado = !carregando && !erro && servicos.length > 0 && daCarteira.length === 0;
   const base = todas ? empresas : daCarteira;
+  // O texto da busca fica com a tabela: todas as colunas + nome, código ou CNPJ só com dígitos (casaTextoDaEmpresa).
   const lista = useMemo(() => {
-    const t = semAcento(filtros.busca).trim();
-    const d = digitos(filtros.busca);
     const buscadas = base.filter((e) => (!filtros.grupo || e.grupo === filtros.grupo)
-      && (!filtros.situacao || mapa.get(e.id)?.[tipo]?.situacao === filtros.situacao)
-      && (!t || semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t) || (d.length >= 3 && digitos(e.cnpj_cpf).includes(d))));
+      && (!filtros.situacao || mapa.get(e.id)?.[tipo]?.situacao === filtros.situacao));
     return filtrarPorColaborador(filtrarPorTags(buscadas, porEmpresa, filtros.tags, filtros.tagModo), colaboradores, filtros.colaborador)
       .sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR"));
   }, [base, filtros, mapa, tipo, porEmpresa, colaboradores]);
@@ -83,10 +80,12 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes })
         <div className="rounded-xl border border-border bg-card p-3 space-y-3">
           {carregando && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
           {!carregando && erro && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
+          {falhaAoAtualizar && <AvisoFalhaAtualizar aoTentar={recarregar} />}
           {!carregando && !erro && (
             <TabelaPadrao
               id={`carteira-${tipo}`} ariaLabel={`Empresas da carteira: ${titulo}`} colunas={colunas} linhas={lista}
-              busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Nome, código ou CNPJ", rotulo: "Buscar por nome, código ou CNPJ" }}
+              busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Buscar em todas as colunas", rotulo: "Buscar em todas as colunas (nome, código, CNPJ, grupo, responsável…)", corresponde: casaTextoDaEmpresa }}
+              totalSemFiltro={base.length}
               filtrosExtras={<>
                 <select aria-label="Situação" className={campoBarraCls} value={filtros.situacao} onChange={(e) => mudar("situacao", e.target.value)}>
                   <option value="">Situação: todas</option>{Object.entries(SITUACOES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -106,7 +105,7 @@ export default function CarteiraPagina({ tipo, area, titulo, subtitulo, acoes })
               vazio={ninguemMarcado ? "Nenhuma empresa na carteira." : servicos.length === 0 && empresas.length === 0 ? "Nenhuma empresa cadastrada." : "Nenhuma empresa com esses filtros."}
             />
           )}
-          <p className="text-xs text-muted-foreground">{plural(lista.length, "empresa", "empresas")} {todas ? "(todas)" : "na carteira"}.</p>
+          <p className="text-xs text-muted-foreground">{plural(base.length, "empresa", "empresas")} {todas ? "(todas)" : "na carteira"}.</p>
         </div>
       </div>
       {dialogoTags && <DialogoEtiquetas empresas={dialogoTags} tags={tags} porEmpresa={porEmpresa} aoFechar={() => setDialogoTags(null)} />}

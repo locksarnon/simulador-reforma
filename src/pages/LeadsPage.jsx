@@ -17,6 +17,7 @@ const COR_DEST = {
 };
 const ORIGEM = { calculadora: "Calculadora", consulta_ncm: "Consulta NCM", validador_cadastro: "Validador", site: "Site" };
 
+const semAcentoLead = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const fmtData = (v) => new Date(v).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 /** Funil comercial: contatos captados pelas ferramentas públicas, já pontuados e encaminhados. */
@@ -28,11 +29,8 @@ export default function LeadsPage() {
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState(null);
 
-  const filtrados = useMemo(() => {
-    const t = busca.trim().toLowerCase();
-    return leads.filter((l) => (!destino || l.destino === destino) && (!status || l.status === status)
-      && (!t || `${l.nome} ${l.email} ${l.empresa || ""}`.toLowerCase().includes(t)));
-  }, [leads, destino, status, busca]);
+  // O texto da busca fica com a tabela (todas as colunas); aqui só destino e status.
+  const filtrados = useMemo(() => leads.filter((l) => (!destino || l.destino === destino) && (!status || l.status === status)), [leads, destino, status]);
 
   const kpis = useMemo(() => ({
     total: leads.length,
@@ -49,7 +47,10 @@ export default function LeadsPage() {
   const exportar = () => {
     const cab = ["Data", "Nome", "E-mail", "Telefone", "Empresa", "Cargo", "Porte", "Perfil", "Origem", "Score", "Destino", "Status", "Newsletter"];
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const linhas = filtrados.map((l) => [fmtData(l.createdAt), l.nome, l.email, l.telefone, l.empresa, l.cargo, l.porte, l.perfil, ORIGEM[l.origem] || l.origem, l.score, DESTINOS[l.destino] || l.destino, l.status, l.consentimento_email ? "sim" : "não"].map(esc).join(";"));
+    // O CSV leva o que a busca deixou: o texto em qualquer campo exportado.
+    const t = semAcentoLead(busca).trim();
+    const linhas = filtrados.map((l) => [fmtData(l.createdAt), l.nome, l.email, l.telefone, l.empresa, l.cargo, l.porte, l.perfil, ORIGEM[l.origem] || l.origem, l.score, DESTINOS[l.destino] || l.destino, l.status, l.consentimento_email ? "sim" : "não"])
+      .filter((campos) => !t || semAcentoLead(campos.join(" ")).includes(t)).map((campos) => campos.map(esc).join(";"));
     const blob = new Blob(["﻿" + [cab.map(esc).join(";"), ...linhas].join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -76,7 +77,8 @@ export default function LeadsPage() {
         </div>
 
         <TabelaPadrao id="leads" ariaLabel="Leads" linhas={filtrados} ordemInicial={{ chave: "createdAt", dir: -1 }}
-          busca={{ valor: busca, aoMudar: setBusca, placeholder: "Nome, e-mail ou empresa", rotulo: "Buscar por nome, e-mail ou empresa" }}
+          busca={{ valor: busca, aoMudar: setBusca, placeholder: "Buscar em todas as colunas", rotulo: "Buscar leads em todas as colunas (nome, e-mail, empresa, cargo…)" }}
+          totalSemFiltro={leads.length}
           filtrosExtras={<>
             <select aria-label="Destino" value={destino} onChange={(e) => setDestino(e.target.value)} className={campoBarraCls}><option value="">Destino: todos</option>{Object.entries(DESTINOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
             <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={campoBarraCls}><option value="">Status: todos</option>{STATUS.map((s) => <option key={s}>{s}</option>)}</select>

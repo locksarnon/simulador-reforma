@@ -15,7 +15,7 @@ export const POPS_BPO = [
     antes: ["O BPO fiscal da empresa marcado como Ativo ou Pausado em Clientes > Serviços contratados."],
     passos: [
       { acao: "Abra a Carteira do BPO.", detalhe: "A tabela mostra Empresa, CNPJ/CPF, Etiquetas, Grupo, Situação, Responsável, Desde, Módulos ligados e Ir para." },
-      { acao: "Use a barra acima da lista, numa linha só: o campo de busca (nome, código ou CNPJ) e as caixas Situação, Grupo e Colaborador.", detalhe: "Cada caixa mostra o que filtra na primeira opção, como “Situação: todas”. Em Colaborador, a opção Sem colaborador mostra as empresas que ninguém atende." },
+      { acao: "Use a barra acima da lista, numa linha só: o campo de busca (procura em todas as colunas: nome, código, CNPJ, grupo, responsável…) e as caixas Situação, Grupo e Colaborador.", detalhe: "Cada caixa mostra o que filtra na primeira opção, como “Situação: todas”. Em Colaborador, a opção Sem colaborador mostra as empresas que ninguém atende." },
       { acao: "Se precisar, clique em Etiquetas para filtrar por etiquetas e salve o filtro com Salvar lista; para usar de novo, escolha-o em “Lista salva: escolha…”." },
       { acao: "Marque Mostrar todas as empresas para ver também as que não estão na carteira.", detalhe: "O rodapé informa quantas empresas aparecem e se são da carteira ou todas." },
       { acao: "Na coluna Etiquetas, clique em + etiqueta (ou editar) para mudar as etiquetas daquela empresa." },
@@ -300,7 +300,7 @@ export const POPS_BPO = [
     antes: [],
     passos: [
       { acao: "Use os cartões do topo para filtrar: Minhas em aberto, Atrasadas, Vencem hoje, Próximos 7 dias e Sem responsável." },
-      { acao: "Escolha Em aberto, Concluídas ou Canceladas e, se quiser, filtre na barra acima da lista: busca (título ou empresa), “Responsável: todos” e “Empresa: todas”.", detalhe: "“Nova tarefa” fica à direita, na linha de Em aberto, Concluídas e Canceladas." },
+      { acao: "Escolha Em aberto, Concluídas ou Canceladas e, se quiser, filtre na barra acima da lista: busca (procura em todas as colunas: título, empresa, descrição, competência, prioridade…), “Responsável: todos” e “Empresa: todas”.", detalhe: "“Nova tarefa” fica à direita, na linha de Em aberto, Concluídas e Canceladas." },
       { acao: "Para criar, clique em Nova tarefa." },
       { acao: "Preencha Título, Empresa (opcional), Descrição (opcional), Responsável, Prazo (opcional), Prioridade e Situação, e clique em Salvar." },
       { acao: "Para começar uma tarefa, clique no botão Marcar como em andamento da linha." },

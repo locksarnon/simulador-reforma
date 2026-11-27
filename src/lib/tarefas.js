@@ -66,8 +66,13 @@ const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, ""
  * Filtros da lista de tarefas (feitos no navegador, sobre as tarefas já carregadas):
  * busca, responsável ("", "eu", "sem" ou id), empresa (id) e atalho de prazo ("", "atrasadas", "hoje", "semana").
  */
-export function filtrarTarefas(tarefas, { busca = "", responsavel = "", empresa = "", atalho = "" } = {}, { usuarioId, nomeDaEmpresa, hoje = hojeBR() } = {}) {
+export function casaTextoDaTarefa(x, busca, nomeDaEmpresa) {
   const t = semAcento(busca).trim();
+  if (!t) return true;
+  return semAcento(x.titulo).includes(t) || semAcento(x.descricao).includes(t) || semAcento(nomeDaEmpresa?.(x.empresa_id)).includes(t);
+}
+
+export function filtrarTarefas(tarefas, { busca = "", responsavel = "", empresa = "", atalho = "" } = {}, { usuarioId, nomeDaEmpresa, hoje = hojeBR() } = {}) {
   return (tarefas || []).filter((x) => {
     if (responsavel === "eu" && x.responsavel !== usuarioId) return false;
     if (responsavel === "sem" && x.responsavel) return false;
@@ -80,8 +85,7 @@ export function filtrarTarefas(tarefas, { busca = "", responsavel = "", empresa 
       if (atalho === "hoje" && d !== 0) return false;
       if (atalho === "semana" && (d < 0 || d > 6)) return false;
     }
-    if (!t) return true;
-    return semAcento(x.titulo).includes(t) || semAcento(x.descricao).includes(t) || semAcento(nomeDaEmpresa?.(x.empresa_id)).includes(t);
+    return casaTextoDaTarefa(x, busca, nomeDaEmpresa);
   });
 }
 

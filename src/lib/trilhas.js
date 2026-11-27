@@ -70,11 +70,15 @@ export const trilhaDaConsultoria = (...telas) => finalizar([INICIO, AREA_CONSULT
 export const trilhaDoCliente = (cliente, ...telas) => finalizar([INICIO, AREA_CONSULTORIA, CARTEIRA_CONSULTORIA,
   { label: cliente?.nome || "Cliente", ...(cliente?.id ? { to: rotaClienteConsultoria(cliente) } : {}) }, ...telas]);
 
+/** Enquanto o projeto ou o cliente carregam: só "Início > Consultoria Tributária", para a trilha não pular de forma. */
+export const TRILHA_CARREGANDO = [INICIO, AREA_CONSULTORIA];
+
 /**
  * Projeto (e as telas dentro dele): com cliente único, pela Carteira de Consultoria e o cliente; senão, pela lista de projetos
- * (consultoria) ou de diagnósticos.
+ * (consultoria) ou de diagnósticos. `carregando` (ou o cliente ainda carregando) = TRILHA_CARREGANDO.
  */
-export function trilhaDoProjeto({ projeto: p, cliente, telas = [] }) {
+export function trilhaDoProjeto({ projeto: p, cliente, telas = [], carregando = false }) {
+  if (carregando || cliente?.carregando) return TRILHA_CARREGANDO;
   const id = p?.id;
   const nomeCliente = cliente?.nome || "";
   const projetoItem = { label: rotuloDoProjeto(p?.nome, nomeCliente) || "Projeto", ...(id ? { to: rotaProjeto(id) } : {}) };

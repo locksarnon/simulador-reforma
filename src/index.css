@@ -127,8 +127,9 @@
   h1, h2, h3 { text-wrap: balance; letter-spacing: -0.01em; }
   table, .tabular-nums { font-variant-numeric: tabular-nums; }
   /* Títulos de toda tabela do InTAX: verde-escuro e texto branco (também na impressão). A linha de filtros digitáveis
-     dentro do cabeçalho (classe linha-filtros) fica clara. Prioridade zero (:where): uma classe no próprio título ainda manda. */
-  :where(thead) :where(th) {
+     dentro do cabeçalho (classe linha-filtros) fica clara. Prioridade zero (:where): uma classe no próprio título ainda manda.
+     Calendários (dias da semana) não são lista: a tabela com a classe sem-cabecalho-verde mantém o estilo próprio. */
+  :where(table:not(.sem-cabecalho-verde) > thead) :where(th) {
     background-color: hsl(var(--cabecalho-tabela));
     color: hsl(var(--cabecalho-tabela-texto));
     -webkit-print-color-adjust: exact;
@@ -149,10 +150,18 @@
 
 /* Texto cinza, escuro ou verde dentro dos títulos de tabela (ícones de ordenar, links, dicas) segue o branco do título. */
 .cabecalho-tabela :is(.text-muted-foreground, .text-foreground, .text-primary, a),
-thead tr:not(.linha-filtros) th :is(.text-muted-foreground, .text-foreground, .text-primary, a) { color: inherit; }
-thead tr:not(.linha-filtros) th:is(.text-muted-foreground, .text-foreground, .text-primary) { color: hsl(var(--cabecalho-tabela-texto)); }
+table:not(.sem-cabecalho-verde) > thead tr:not(.linha-filtros) th :is(.text-muted-foreground, .text-foreground, .text-primary, a) { color: inherit; }
+table:not(.sem-cabecalho-verde) > thead tr:not(.linha-filtros) th:is(.text-muted-foreground, .text-foreground, .text-primary) { color: hsl(var(--cabecalho-tabela-texto)); }
 .cabecalho-tabela :is(button, a):hover,
-thead tr:not(.linha-filtros) th :is(button, a):hover { color: inherit; text-decoration: underline; }
+table:not(.sem-cabecalho-verde) > thead tr:not(.linha-filtros) th :is(button, a):hover { color: inherit; text-decoration: underline; }
+
+/* Impressão: a tabela volta ao layout automático (sem as larguras fixas medidas na tela), sem largura mínima, e o texto
+   quebra em vez de ser cortado com reticências, para nada sumir do papel. */
+@media print {
+  table { table-layout: auto !important; min-width: 0 !important; width: 100% !important; }
+  th, td { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; word-break: break-word; width: auto !important; }
+  th .truncate, td .truncate { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; }
+}
 
 /* Rolagem sem barra aparente (menu lateral e painéis): continua rolando com a roda, o toque e o teclado. */
 @layer utilities {
@@ -263,7 +272,6 @@ select[class~="border-border"] {
     0 3px 6px -3px hsl(var(--botao-cor-relevo) / .18);
   transition: transform 220ms cubic-bezier(.34, 1.56, .64, 1), box-shadow 200ms ease-out, background-color 160ms ease-out,
     color 160ms ease-out, border-color 160ms ease-out, opacity 160ms ease-out;
-  will-change: transform;
 }
 .botao-acao svg { transition: transform 220ms cubic-bezier(.34, 1.56, .64, 1); }
 .botao-acao:hover:not(:disabled) svg { transform: translateX(1px) scale(1.12); }
@@ -282,6 +290,8 @@ select[class~="border-border"] {
     0 2px 3px -1px rgb(0 0 0 / .07),
     0 6px 12px -6px hsl(var(--botao-cor-relevo) / .25);
 }
+/* Dentro de célula de tabela (larguras fixas, overflow escondido): só sobe 1px, sem crescer, para não ser cortado. */
+:is(td, th) .botao-acao:hover { transform: translateY(-1px); }
 .botao-acao:active {
   transform: translateY(1px) scale(.97);
   transition-duration: 80ms;

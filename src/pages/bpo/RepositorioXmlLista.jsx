@@ -36,7 +36,8 @@ export default function RepositorioXmlLista() {
   const { data: empresas, isLoading, isError } = useQuery({ queryKey: ["empresas", "bpo-lista"], queryFn: () => api.entities.Empresa.list() });
   const { data: grupos } = useQuery({ queryKey: ["grupos"], queryFn: () => api.entities.Grupo.list() });
   const { data: captura } = useQuery({ queryKey: ["captura-xml", "empresas"], queryFn: () => api.get("/captura-xml/empresas"), staleTime: 60_000 });
-  const linhas = useMemo(() => filtrarEmpresas(empresas, grupos, busca), [empresas, grupos, busca]);
+  // O texto da busca fica com a tabela: todas as colunas + a regra de filtrarEmpresas (município, CNPJ sem pontuação), em corresponde.
+  const linhas = useMemo(() => filtrarEmpresas(empresas, grupos, ""), [empresas, grupos]);
 
   return (
     <div>
@@ -51,7 +52,7 @@ export default function RepositorioXmlLista() {
           : (
             <TabelaPadrao
               id="repositorio-xml-empresas" ariaLabel="Empresas do Repositório de XML" linhas={linhas} chaveLinha={(l) => l.empresa.id}
-              busca={{ valor: busca, aoMudar: setBusca, placeholder: "Empresa, CNPJ ou grupo", rotulo: "Buscar empresa por nome, CNPJ ou grupo" }}
+              busca={{ valor: busca, aoMudar: setBusca, placeholder: "Buscar em todas as colunas", rotulo: "Buscar empresa em todas as colunas (nome, código, CNPJ, grupo, UF…)", corresponde: (l, texto) => filtrarEmpresas([l.empresa], grupos, texto).length > 0 }}
               aoClicarLinha={(l) => navigate(caminhoDoRepositorio(l.empresa.id))}
               vazio={(empresas || []).length === 0
                 ? <>Nenhuma empresa cadastrada. Cadastre as empresas em <Link to="/" className="text-primary hover:underline">Clientes</Link>.</>

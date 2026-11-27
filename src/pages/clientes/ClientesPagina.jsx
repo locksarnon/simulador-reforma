@@ -10,6 +10,7 @@ import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import PageHeader from "@/components/PageHeader";
+import AvisoFalhaAtualizar from "@/components/AvisoFalhaAtualizar";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import BotaoFiltro from "@/components/BotaoFiltro";
 import { botaoBarraCls, campoBarraCls } from "@/lib/estiloTabela";
@@ -27,7 +28,7 @@ import { EtiquetasDaEmpresa } from "@/components/clientes/TagChip";
 import { useCarteiras } from "@/lib/useCarteiras";
 import { useColaboradores, useTags } from "@/lib/useTags";
 import { aplicarCriterios, filtrarPorColaborador, filtrarPorTags, tagsDaEmpresa } from "@/lib/tags";
-import { contarRapidos, filtrarClientes, FILTROS_RAPIDOS, grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
+import { casaBusca, contarRapidos, filtrarClientes, FILTROS_RAPIDOS, grupoVisivel, mascararDocumento, rotuloDoGrupo } from "@/lib/clientes";
 import { SITUACOES, TIPOS_OFERECIDOS } from "@/lib/servicos";
 import { indexarConsultoria, temCnpj } from "@/lib/consultoria";
 import { arquivarCliente, CHAVES_APOS_ARQUIVAR, desarquivarCliente, TEXTO_ARQUIVAR } from "@/lib/arquivamento";
@@ -127,7 +128,7 @@ export default function ClientesPagina() {
   const { pode } = usePermissoes();
   const qc = useQueryClient();
   const confirmar = useConfirmar();
-  const { empresas: ativas, arquivadas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
+  const { empresas: ativas, arquivadas, grupos, servicos, mapa, carregando, erro, falhaAoAtualizar, recarregar } = useCarteiras();
   const { tags, porEmpresa, mapa: mapaTags } = useTags();
   const { data: colaboradores = [] } = useColaboradores();
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
@@ -152,8 +153,10 @@ export default function ClientesPagina() {
   const contagem = useMemo(() => ({ ...contarRapidos(ativas, mapa, atendidas, comConsultoria), arquivados: arquivadas.length }), [ativas, arquivadas, mapa, atendidas, comConsultoria]);
   const regimes = useMemo(() => [...new Set(empresas.map((e) => e.regime_atual).filter(Boolean))].sort(), [empresas]);
   const ufs = useMemo(() => [...new Set(empresas.map((e) => e.uf).filter(Boolean))].sort(), [empresas]);
+  // O texto da busca não filtra aqui: a tabela busca em todas as colunas (e-mail, WhatsApp, etiqueta, equipe, regime…) somado
+  // a casaBusca (CNPJ só com dígitos, código, grupo), em `busca.corresponde`.
   const lista = useMemo(() => {
-    const base = filtrarClientes(empresas, vendoArquivados ? { ...filtros, rapido: "todos" } : filtros, mapa, grupos, atendidas, comConsultoria);
+    const base = filtrarClientes(empresas, { ...filtros, busca: "", ...(vendoArquivados ? { rapido: "todos" } : {}) }, mapa, grupos, atendidas, comConsultoria);
     return filtrarPorColaborador(filtrarPorTags(base, porEmpresa, filtros.tags, filtros.tagModo), colaboradores, filtros.colaborador);
   }, [empresas, filtros, mapa, grupos, atendidas, porEmpresa, colaboradores, vendoArquivados, comConsultoria]);
   const sugestoes = useMemo(() => [...new Set(servicos.map((s) => s.responsavel).filter(Boolean))].sort(), [servicos]);
@@ -234,11 +237,18 @@ export default function ClientesPagina() {
         )}
 
         {carregando && <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
-        {!carregando && erro && <p className="py-10 text-center text-sm" role="alert">Não foi possível carregar os clientes. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
+        {!carregando && erro && (
+          <div className="space-y-2 py-10 text-center text-sm">
+            <p role="alert">Não foi possível carregar os clientes. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>
+            <Link to="/clientes/importacao" className={botaoBarraCls} title="Importar ou atualizar o cadastro por planilha"><Upload className="h-3.5 w-3.5" aria-hidden="true" /> Importar planilha</Link>
+          </div>
+        )}
+        {falhaAoAtualizar && <AvisoFalhaAtualizar aoTentar={recarregar} />}
         {!carregando && !erro && (
           <TabelaPadrao
             id="clientes-lista" ariaLabel="Clientes" colunas={colunas} linhas={lista}
-            busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Nome, CNPJ/CPF, cidade ou grupo", rotulo: "Buscar clientes por nome, CNPJ/CPF, cidade ou grupo" }}
+            busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Buscar em todas as colunas", rotulo: "Buscar clientes em todas as colunas (nome, CNPJ/CPF, cidade, grupo, e-mail, etiqueta…)", corresponde: (e, texto) => casaBusca(e, texto, grupos.find((g) => g.numero === e.grupo)) }}
+            totalSemFiltro={empresas.length}
             filtrosExtras={<>
               <select aria-label="Regime" className={campoBarraCls} value={filtros.regime} onChange={(e) => mudar("regime", e.target.value)}><option value="">Regime: todos</option>{regimes.map((r) => <option key={r}>{r}</option>)}<option value="—">Sem regime</option></select>
               <select aria-label="UF" className={campoBarraCls} value={filtros.uf} onChange={(e) => mudar("uf", e.target.value)}><option value="">UF: todas</option>{ufs.map((u) => <option key={u}>{u}</option>)}</select>
@@ -253,7 +263,6 @@ export default function ClientesPagina() {
             vazio={empresas.length === 0 ? <>Cadastre o primeiro cliente. <button type="button" onClick={() => setNovo(true)} className="text-primary hover:underline">Novo cliente</button></> : <>Nenhum cliente com esses filtros. <button type="button" onClick={() => setFiltros(FILTROS_VAZIOS)} className="text-primary hover:underline">Limpar filtros</button></>}
           />
         )}
-        <p className="text-xs text-muted-foreground">{lista.length} de {plural(empresas.length, "cliente", "clientes")}</p>
       </div>
 
       <FichaRapida

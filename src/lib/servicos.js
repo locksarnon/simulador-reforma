@@ -58,14 +58,19 @@ export const fmtDataCurta = (v) => (v ? new Date(v).toLocaleDateString("pt-BR", 
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const digitos = (s) => String(s || "").replace(/\D/g, "");
 
+/** O texto casa com a empresa pelo nome, código ou CNPJ/CPF (só os dígitos, com ou sem pontuação)? */
+export function casaTextoDaEmpresa(e, busca) {
+  const t = semAcento(busca).trim();
+  if (!t) return true;
+  const d = digitos(busca);
+  return semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t) || (d.length >= 3 && digitos(e.cnpj_cpf).includes(d));
+}
+
 /** Filtra empresas por texto (nome, código ou CNPJ), grupo e carteira. `comConsultoria`: ids com serviço de consultoria vinculado. */
 export function filtrarEmpresas(empresas, mapa, { busca = "", grupo = "", carteira = "" } = {}, comConsultoria = new Set()) {
-  const t = semAcento(busca).trim();
-  const d = digitos(busca);
   return (empresas || []).filter((e) => {
     if (grupo && e.grupo !== grupo) return false;
     if (carteira && carteiraDaEmpresa(mapa.get(e.id), comConsultoria.has(e.id)) !== carteira) return false;
-    if (!t) return true;
-    return semAcento(e.razao_social).includes(t) || semAcento(e.id_empresa).includes(t) || (d.length >= 3 && digitos(e.cnpj_cpf).includes(d));
+    return casaTextoDaEmpresa(e, busca);
   });
 }

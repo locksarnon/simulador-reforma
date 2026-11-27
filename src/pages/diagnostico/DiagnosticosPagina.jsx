@@ -21,14 +21,13 @@ export default function DiagnosticosPagina({ consultoria = false }) {
   const [novo, setNovo] = useState(false);
   const [filtro, setFiltro] = useState({ busca: "", situacao: "abertos" });
   const nomeDe = useMemo(() => new Map(empresas.map((e) => [e.id, e.razao_social])), [empresas]);
+  // O texto da busca fica com a tabela: nome do projeto, empresas, situação, prazo… (todas as colunas).
   const lista = useMemo(() => {
-    const q = filtro.busca.trim().toLowerCase();
     return (projetos.data || [])
       .filter((p) => consultoria || !p.pessoa_fisica_id)
       .filter((p) => filtro.situacao === "todos" || (filtro.situacao === "abertos" ? ["EM_ANDAMENTO", "PAUSADO"].includes(p.situacao) : p.situacao === filtro.situacao))
-      .filter((p) => !filtro.exclusao || p.exclusao_solicitada_em)
-      .filter((p) => !q || p.nome.toLowerCase().includes(q) || p.empresa_ids.some((id) => (nomeDe.get(id) || "").toLowerCase().includes(q)));
-  }, [projetos.data, filtro, nomeDe, consultoria]);
+      .filter((p) => !filtro.exclusao || p.exclusao_solicitada_em);
+  }, [projetos.data, filtro.situacao, filtro.exclusao, consultoria]);
   const atrasado = (p) => p.prazo && ["EM_ANDAMENTO", "PAUSADO"].includes(p.situacao) && new Date(p.prazo) < new Date(new Date().toISOString().slice(0, 10));
 
   return (
@@ -42,7 +41,8 @@ export default function DiagnosticosPagina({ consultoria = false }) {
         {(projetos.isLoading || carregandoCadastro) ? <p className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p> : (
           <TabelaPadrao
             id="diagnosticos-projetos" ariaLabel="Projetos de diagnóstico" linhas={lista}
-            busca={{ valor: filtro.busca, aoMudar: (v) => setFiltro((f) => ({ ...f, busca: v })), placeholder: "Nome do projeto ou da empresa", rotulo: "Buscar pelo nome do projeto ou da empresa" }}
+            busca={{ valor: filtro.busca, aoMudar: (v) => setFiltro((f) => ({ ...f, busca: v })), placeholder: "Buscar em todas as colunas", rotulo: "Buscar projetos em todas as colunas (projeto, empresa, situação…)" }}
+            totalSemFiltro={(projetos.data || []).filter((p) => consultoria || !p.pessoa_fisica_id).length}
             filtrosExtras={<>
               <select aria-label="Situação" className={campoBarraCls} value={filtro.situacao} onChange={(e) => setFiltro((f) => ({ ...f, situacao: e.target.value }))}>
                 <option value="abertos">Situação: em andamento e pausados</option><option value="todos">Situação: todas</option>

@@ -15,7 +15,8 @@ import {
  */
 
 /**
- * Trilha sempre no mesmo formato: começa por "Início" e o último item (a tela aberta) fica sem link.
+ * Trilha sempre no mesmo formato: começa por "Início" e o último item, quando é a tela aberta (sem `to` ou com `to` igual ao
+ * endereço atual), fica sem link; se ele aponta para outra tela (ex.: a ficha do cliente), o link continua.
  * A raiz antiga "DataHub" (nome técnico) vira "Início > área da tela", tirada do catálogo do menu pelo endereço aberto; trilha
  * que não começa por "Início" ganha o "Início" na frente. Assim toda tela mostra o mesmo caminho do menu, mesmo as que ainda
  * montam o breadcrumb à moda antiga. A trilha da Consultoria (cliente, projeto, saneamento) vem pronta de `@/lib/trilhas`.
@@ -30,7 +31,9 @@ export function normalizarCrumbs(crumbs, pathname) {
     if (area && area.id !== "inicio") raiz.push({ label: area.titulo, to: caminhoDaArea(area.id) });
     lista = [...raiz, ...crumbs.slice(1)];
   } else if (crumbs[0].label !== "Início") lista = [inicio, ...crumbs];
-  const { to: _atual, ...ultimo } = lista[lista.length - 1];
+  const { to: destino, ...ultimo } = lista[lista.length - 1];
+  const semBarra = (s) => String(s || "").replace(/\/+$/, "") || "/";
+  if (destino && semBarra(destino) !== semBarra(pathname)) return lista;
   return [...lista.slice(0, -1), ultimo];
 }
 export default function PageHeader({ crumbs: crumbsBrutos = [], title, subtitle, actions }) {

@@ -40,7 +40,7 @@ export default function FiltroPorTags({ tags, escolhidas, modo, aoMudar, compact
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <button type="button" aria-label="Filtrar por etiquetas" className={`${botaoBarraCls} ${escolhidas.length ? "bg-primary/10 text-primary" : ""}`}>
+          <button type="button" aria-label={escolhidas.length ? `Filtrar por etiquetas (${escolhidas.length} ${escolhidas.length === 1 ? "ligada" : "ligadas"})` : "Filtrar por etiquetas"} className={`${botaoBarraCls} ${escolhidas.length ? "bg-primary/10 text-primary" : ""}`}>
             <Tag className="h-3.5 w-3.5" aria-hidden="true" /> Etiquetas{escolhidas.length > 0 && <span className="tabular-nums">: {escolhidas.length}</span>}
             <ChevronDown className="h-3 w-3 opacity-60" aria-hidden="true" />
           </button>

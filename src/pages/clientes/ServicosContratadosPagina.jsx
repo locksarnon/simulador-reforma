@@ -8,10 +8,11 @@ import { useAuth } from "@/lib/AuthContext";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { toast } from "@/components/ui/use-toast";
 import PageHeader from "@/components/PageHeader";
+import AvisoFalhaAtualizar from "@/components/AvisoFalhaAtualizar";
 import { campoBarraCls } from "@/lib/estiloTabela";
 import DialogoServico from "@/components/clientes/DialogoServico";
 import { useCarteiras } from "@/lib/useCarteiras";
-import { carteiraDaEmpresa, filtrarEmpresas, fmtDataCurta, naCarteira, SITUACOES, TIPOS_OFERECIDOS, TOM_DA_SITUACAO } from "@/lib/servicos";
+import { carteiraDaEmpresa, casaTextoDaEmpresa, filtrarEmpresas, fmtDataCurta, naCarteira, SITUACOES, TIPOS_OFERECIDOS, TOM_DA_SITUACAO } from "@/lib/servicos";
 import { indexarConsultoria, temCnpj } from "@/lib/consultoria";
 import { useCatalogoConsultoria, useVinculosConsultoria } from "@/components/clientes/ServicosConsultoria";
 import DialogoVincularConsultoria from "@/components/clientes/DialogoVincularConsultoria";
@@ -50,7 +51,7 @@ export function SeloDoServico({ servico, aoEditar, rotuloVazio = "Definir" }) {
  * Tributária cada empresa tem. As carteiras do BPO fiscal e da Consultoria saem daqui.
  */
 export default function ServicosContratadosPagina() {
-  const { empresas, grupos, servicos, mapa, carregando, erro, recarregar } = useCarteiras();
+  const { empresas, grupos, servicos, mapa, carregando, erro, falhaAoAtualizar, recarregar } = useCarteiras();
   const catalogo = useCatalogoConsultoria();
   const vinculos = useVinculosConsultoria();
   const consultoriaDe = useMemo(() => indexarConsultoria(vinculos.data, catalogo.data), [vinculos.data, catalogo.data]);
@@ -69,7 +70,8 @@ export default function ServicosContratadosPagina() {
   const [dialogoTags, setDialogoTags] = useState(null); // empresas a etiquetar
 
   const lista = useMemo(() => {
-    const base = filtrarEmpresas(empresas, mapa, filtros, comConsultoria);
+    // O texto da busca fica com a tabela (todas as colunas + nome, código ou CNPJ só com dígitos).
+    const base = filtrarEmpresas(empresas, mapa, { ...filtros, busca: "" }, comConsultoria);
     const comTags = filtrarPorTags(base, porEmpresa, filtros.tags, filtros.tagModo);
     return filtrarPorColaborador(comTags, colaboradores, filtros.colaborador).sort((a, b) => a.razao_social.localeCompare(b.razao_social, "pt-BR"));
   }, [empresas, mapa, filtros, porEmpresa, colaboradores, comConsultoria]);
@@ -155,10 +157,12 @@ export default function ServicosContratadosPagina() {
 
           {carregando && <p className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p>}
           {!carregando && erro && <p className="py-8 text-center text-sm" role="alert">Não foi possível carregar. <button type="button" onClick={recarregar} className="text-primary hover:underline">Tentar de novo</button></p>}
+          {falhaAoAtualizar && <AvisoFalhaAtualizar aoTentar={recarregar} />}
           {!carregando && !erro && (
             <TabelaPadrao
               id="servicos-contratados" ariaLabel="Serviços contratados por empresa" colunas={colunas} linhas={lista}
-              busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Nome, código ou CNPJ", rotulo: "Buscar por nome, código ou CNPJ" }}
+              busca={{ valor: filtros.busca, aoMudar: (v) => mudar("busca", v), placeholder: "Buscar em todas as colunas", rotulo: "Buscar em todas as colunas (nome, código, CNPJ, grupo, etiqueta…)", corresponde: casaTextoDaEmpresa }}
+              totalSemFiltro={empresas.length}
               filtrosExtras={<>
                 <select aria-label="Carteira" className={campoBarraCls} value={filtros.carteira} onChange={(e) => mudar("carteira", e.target.value)}>{CARTEIRAS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select>
                 <select aria-label="Grupo" className={`${campoBarraCls} max-w-[12rem]`} value={filtros.grupo} onChange={(e) => mudar("grupo", e.target.value)}>
@@ -174,7 +178,6 @@ export default function ServicosContratadosPagina() {
               vazio={empresas.length === 0 ? <>Nenhuma empresa cadastrada. <Link to="/" className="text-primary hover:underline">Cadastre o cliente em Clientes</Link>.</> : "Nenhuma empresa com esses filtros."}
             />
           )}
-          <p className="text-xs text-muted-foreground">{lista.length} de {plural(empresas.length, "empresa", "empresas")}</p>
         </div>
       </div>
       {dialogo && <DialogoServico aberto empresas={dialogo.empresas} servico={dialogo.servico} tipoInicial={dialogo.tipoInicial} sugestoes={sugestoes} aoFechar={() => { setDialogo(null); setMarcadas(new Set()); }} />}

@@ -115,7 +115,7 @@ function AbaCalendario({ usuario, empresas, colaboradores, tipos }) {
 
       {visao === "mes" && (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[720px] table-fixed text-sm" aria-label={`Calendário de ${tituloDaVisao("mes", dia)}`}>
+          <table className="sem-cabecalho-verde w-full min-w-[720px] table-fixed text-sm" aria-label={`Calendário de ${tituloDaVisao("mes", dia)}`}>
             <thead><tr>{DIAS_DA_SEMANA.map((d) => <th key={d} className="border-b border-border py-1.5 text-xs font-medium uppercase text-muted-foreground">{d}</th>)}</tr></thead>
             <tbody>
               {gradeDoMes(ano, mes).map((semana) => (

@@ -81,7 +81,7 @@ export default function ProjetoDiagnosticoPagina() {
   };
 
   const cliente = useClienteDoProjeto(p?.servico_consultoria ? p : null);
-  const crumbs = trilhaDoProjeto({ projeto: p, cliente });
+  const crumbs = trilhaDoProjeto({ projeto: p, cliente, carregando: projeto.isLoading });
   if (projeto.isLoading || carregando) return <div><PageHeader crumbs={crumbs} title="Diagnóstico" /><p className="p-8 text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin" aria-hidden="true" /> Carregando…</p></div>;
   if (!p) return <div><PageHeader crumbs={crumbs} title="Diagnóstico não encontrado" /><p role="alert" className="p-8 text-sm">Este projeto não existe mais. <Link to="/diagnostico" className="text-primary hover:underline">Voltar aos diagnósticos</Link></p></div>;
   const daLista = p.empresa_ids.map((eid) => empresas.find((e) => e.id === eid)).filter(Boolean);
