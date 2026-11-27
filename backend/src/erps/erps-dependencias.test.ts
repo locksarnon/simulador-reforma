@@ -130,9 +130,9 @@ describe('nome do ERP nos entregáveis e na foto da versão', () => {
     const m = montarEntrega({});
     const v = await m.versoes.criar('P1', { rotulo: 'Entrega 1' }, { email: 'ana@fal.test' });
     const doc = (await import('../saneamento-estoques/entregaveis/relatorio')).montarRelatorio(await m.s.dados('P1', v.id));
-    const sec = doc.secoes.find((x) => x.titulo === 'Particularidades do ERP SAP Business One');
+    const sec = doc.secoes.find((x) => x.titulo === 'Anexo: particularidades do ERP SAP Business One');
     expect(sec).toBeTruthy();
-    expect(sec!.paragrafos![0]).toMatch(/"Não confirmado" não têm fonte oficial/);
+    expect(sec!.paragrafos![0]).toMatch(/"Não confirmado" = sem fonte oficial/);
     expect((await m.s.relatorio('P1', v.id)).buffer.subarray(0, 4).toString()).toBe('%PDF');
   });
 
