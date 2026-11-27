@@ -151,9 +151,9 @@ describe("cartões das tarefas se atualizam ao voltar para a aba (achado 5)", ()
 });
 
 describe("trilha (achados 6 e 7)", () => {
-  it("o último item só perde o link quando é a tela aberta", () => {
-    const t = normalizarCrumbs([{ label: "Clientes", to: "/" }, { label: "EXTRA", to: "/clientes/E1" }], "/workroom/1/empresas/E1/servicos");
-    expect(t[t.length - 1]).toEqual({ label: "EXTRA", to: "/clientes/E1" });
+  it("o último item é a tela aberta (sem link); a Sala de trabalho termina na aba aberta, e o cliente antes dela mantém o link", () => {
+    const t = normalizarCrumbs([{ label: "Clientes", to: "/" }, { label: "EXTRA", to: "/clientes/E1" }, { label: "Serviços" }], "/workroom/1/empresas/E1/servicos");
+    expect(t[t.length - 2]).toEqual({ label: "EXTRA", to: "/clientes/E1" });
     const atual = normalizarCrumbs([{ label: "Clientes", to: "/" }, { label: "Grupo", to: "/workroom/1/" }], "/workroom/1");
     expect(atual[atual.length - 1].to).toBeUndefined();
     expect(ler("pages/EmpresaWorkroom.jsx")).toContain("...(abaAtual ? [{ label: abaAtual.label }] : [])");

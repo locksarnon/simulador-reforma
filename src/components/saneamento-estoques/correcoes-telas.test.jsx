@@ -236,8 +236,8 @@ describe("Textos atualizados", () => {
     expect(pop).not.toContain("Alterar na Configuração");
     expect(pop).toContain("Não foi possível conferir");
   });
-  it("o link 'Importe outro arquivo no Saneamento' leva à Fase 1 > 1.1 Preparar", () => {
+  it("o projeto de Saneamento não passa mais pela página do projeto: o atalho de importação dela não existe para o Saneamento", () => {
     const fonte = fs.readFileSync(new URL("../../pages/diagnostico/ProjetoDiagnosticoPagina.jsx", import.meta.url), "utf8");
-    expect(fonte).toContain("/saneamento?fase=1&aba=preparar` : null} />}");
+    expect(fonte).toContain("caminhoImportacao={null}");
   });
 });

@@ -31,14 +31,12 @@ export function normalizarCrumbs(crumbs, pathname, search = "") {
     if (area && area.id !== "inicio") raiz.push({ label: area.titulo, to: caminhoDaArea(area.id) });
     lista = [...raiz, ...crumbs.slice(1)];
   } else if (crumbs[0].label !== "Início") lista = [inicio, ...crumbs];
-  // Nenhum item leva ao endereço já aberto: o clique não faria nada (caminho "morto"), então o item fica sem link.
-  // O último item só mantém o link quando leva a OUTRA tela (ex.: Sala de trabalho > ficha do cliente).
+  // O último item é a tela aberta (sem link). Nenhum outro item leva ao endereço já aberto: o clique não faria nada (caminho
+  // "morto"), então ele também fica sem link.
+  const { to: _atual, ...ultimo } = lista[lista.length - 1];
   const aberto = `${pathname}${search}`;
-  const semBarra = (x) => String(x || "").replace(//+(?=?|$)/, "") || "/";
-  const morto = (to) => !to || semBarra(to) === semBarra(aberto) || semBarra(to) === semBarra(pathname);
-  const semLinkMorto = (c) => { if (!c.to || !morto(c.to)) return c; const { to: _mesmo, ...resto } = c; return resto; };
-  const { to: destino, ...ultimo } = lista[lista.length - 1];
-  return [...lista.slice(0, -1).map(semLinkMorto), morto(destino) ? ultimo : { ...ultimo, to: destino }];
+  const semLinkMorto = (c) => { if (c.to !== aberto) return c; const { to: _mesmo, ...resto } = c; return resto; };
+  return [...lista.slice(0, -1).map(semLinkMorto), ultimo];
 }
 
 /**
