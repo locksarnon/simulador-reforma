@@ -316,7 +316,7 @@ export function proximoPendente(itens, indiceAtual, camada, camadas = CAMADAS) {
 const vazio = (v) => v === undefined || v === null || v === "" || v === false;
 
 /** Parâmetros da lista de itens: só o que foi preenchido (o servidor recusa situação inválida, então nada de campo vazio). */
-export function montarFiltroItens(f = {}, { cursor, limite = 300 } = {}) {
+export function montarFiltroItens(f = {}, { cursor, limite = 300, extras } = {}) {
   const p = {};
   if (!vazio(f.camada)) p.camada = f.camada;
   if (!vazio(f.situacao)) p.situacao = f.situacao;
@@ -325,6 +325,8 @@ export function montarFiltroItens(f = {}, { cursor, limite = 300 } = {}) {
   if (!vazio(f.busca) && String(f.busca).trim()) p.busca = String(f.busca).trim();
   if (f.ordem === "grupo") p.ordem = "grupo";
   if (cursor) p.cursor = cursor;
+  // Colunas extras do ERP escolhidas na tela: só elas vêm do servidor.
+  if (Array.isArray(extras) && extras.length) p.extras = JSON.stringify(extras);
   p.limite = limite;
   return p;
 }
@@ -875,6 +877,67 @@ export function gruposDeColunas(colunas) {
     else grupos.push({ camada: c.camada, largura: c.largura });
   }
   return grupos;
+}
+
+// ── Tabela única: dados do item (como era × como ficou) e colunas extras do ERP ──
+
+/** Grupos de colunas que não são camada: os dados do cadastro em par e as colunas extras escolhidas. */
+export const GRUPO_CADASTRO = "CADASTRO";
+export const GRUPO_EXTRAS = "EXTRAS_ERP";
+export const ROTULO_GRUPO_TABELA = { [GRUPO_CADASTRO]: "Dados do item", [GRUPO_EXTRAS]: "Outras colunas do ERP" };
+/** Rótulo do campo no título do par (o catálogo da importação manda; "Ativo" vira a pergunta que a coluna responde). */
+const ROTULO_DO_PAR = { ativo: "Ativo/inativo", estabelecimento: "Estabelecimento" };
+const LARGURA_PAR = { descricao: 260, unidade: 110, ncm: 120, saldo: 110, ultimaMovimentacao: 140, ativo: 130, finalidade: 170 };
+
+/**
+ * Colunas "<Campo> (como era)" e "<Campo> (como ficou)" de cada campo fundamental importado (lista do servidor, na ordem do catálogo da
+ * importação). `fundamentais`: [{ campo, rotulo }].
+ */
+export function colunasDoCadastro(fundamentais) {
+  return (fundamentais || []).flatMap(({ campo, rotulo }) => {
+    const nome = ROTULO_DO_PAR[campo] || rotulo || rotuloDoCampo(campo);
+    const largura = LARGURA_PAR[campo] || 150;
+    return [
+      { id: `era:${campo}`, titulo: `${nome} (como era)`, largura, camada: GRUPO_CADASTRO, tipo: "era", campo },
+      { id: `ficou:${campo}`, titulo: `${nome} (como ficou)`, largura, camada: GRUPO_CADASTRO, tipo: "ficou", campo },
+    ];
+  });
+}
+
+/** Colunas extras do ERP escolhidas (uma por nome, valor atual). */
+export const colunasExtras = (nomes) => (nomes || []).map((nome) => ({ id: `extra:${nome}`, titulo: nome, largura: 150, camada: GRUPO_EXTRAS, tipo: "extra", campo: nome }));
+
+/** Par [como era, como ficou] do campo no item da lista ([null, null] quando nenhum dos dois tem valor). */
+export const parDoItem = (item, coluna) => (coluna.tipo === "extra" ? item?.extras?.[coluna.campo] : item?.como?.[coluna.campo]) || [null, null];
+/** O valor mudou entre o importado e o atual. */
+export const mudouPar = (par) => JSON.stringify(par?.[0] ?? null) !== JSON.stringify(par?.[1] ?? null);
+
+/** Valor do cadastro para a tela: saldo com vírgula, data dd/mm/aaaa, ativo/inativo, rótulo da finalidade; vazio = "—". */
+export function textoDoCadastro(campo, v) {
+  if (v === null || v === undefined || v === "") return "—";
+  if (campo === "ativo") return v === true || v === "true" ? "Ativo" : v === false || v === "false" ? "Inativo" : String(v);
+  if (campo === "saldo" && typeof v === "number") return v.toLocaleString("pt-BR", { maximumFractionDigits: 6 });
+  if (campo === "ultimaMovimentacao") return fmtData(v);
+  if (campo === "finalidade") return rotuloFinalidade(v);
+  return textoDoValor(v, campo);
+}
+
+/** Dica da célula "como ficou": os dois valores quando mudou. */
+export function dicaDoPar(campo, par) {
+  const a = textoDoCadastro(campo, par?.[0]); const b = textoDoCadastro(campo, par?.[1]);
+  return mudouPar(par) ? `Como era: ${a}\nComo ficou: ${b}` : b;
+}
+
+/** Colunas extras do ERP escolhidas, guardadas por projeto neste navegador (falha de armazenamento = nenhuma escolhida). */
+const chaveExtras = (projetoId) => `saneamento-estoques-tabela-extras:${projetoId}`;
+export function lerExtrasEscolhidas(projetoId) {
+  try {
+    const v = JSON.parse(globalThis.localStorage?.getItem(chaveExtras(projetoId)) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch { return []; }
+}
+export function gravarExtrasEscolhidas(projetoId, nomes) {
+  try { globalThis.localStorage?.setItem(chaveExtras(projetoId), JSON.stringify(nomes || [])); } catch { /* sem armazenamento: vale só nesta visita */ }
 }
 
 // ── Edição da proposta de um caso ────────────────────────────────────────────

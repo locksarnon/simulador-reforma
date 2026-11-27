@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ChevronsDown, RotateCcw } from "lucide-react";
+import { ChevronsDown, Columns3, RotateCcw } from "lucide-react";
 import AlcaLargura from "@/components/AlcaLargura";
 import { cabecalhoTabelaCls } from "@/lib/estiloTabela";
 import { limitarLargura, medirColunasNaturais, useEfeitoDeLayout, useLargurasColunas } from "@/lib/useLargurasColunas";
@@ -8,9 +8,14 @@ import { san, chaves } from "./api";
 import { Aviso, BotaoInfo, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, estiloTabela, SeloSituacao, Tag } from "./comuns";
 import VisaoFocada from "./VisaoFocada";
 import {
-  ALTURA_LINHA, camadasAtivas, celulaDa, colunasDaTabela, COLUNAS_FIXAS, gruposDeColunas, janelaVisivel, larguraTotal, LARGURA_FIXA, LISTA_SITUACOES, montarFiltroItens,
-  precisaCarregarMais, proximoPendente, ROTULO_CAMADA, rolagemParaLinha, REGRA_FINALIDADE, rotuloFinalidade, rotuloSituacao, textoDaCelula, textoDoEnquadramento,
+  ALTURA_LINHA, camadasAtivas, celulaDa, colunasDaTabela, colunasDoCadastro, colunasExtras, COLUNAS_FIXAS, dicaDoPar, gravarExtrasEscolhidas, gruposDeColunas, janelaVisivel,
+  larguraTotal, LARGURA_FIXA, lerExtrasEscolhidas, LISTA_SITUACOES, montarFiltroItens, mudouPar, parDoItem, precisaCarregarMais, proximoPendente, ROTULO_CAMADA, ROTULO_GRUPO_TABELA,
+  rolagemParaLinha, REGRA_FINALIDADE, rotuloFinalidade, rotuloSituacao, textoDaCelula, textoDoCadastro, textoDoEnquadramento,
 } from "./logica";
+
+/** Rótulo do grupo de colunas: a camada ou um dos grupos do cadastro (dados do item, outras colunas do ERP). */
+const rotuloDoGrupo = (g) => ROTULO_GRUPO_TABELA[g] || ROTULO_CAMADA[g] || g;
+const ehColunaDoCadastro = (c) => c.tipo === "era" || c.tipo === "ficou" || c.tipo === "extra";
 
 const ALTURA_CABECALHO = 56;
 const FILTRO_VAZIO = { busca: "", camada: "", situacao: "", grupo: "", revisar: false, ordem: "codigo" };
@@ -29,6 +34,9 @@ export function textoParaMedir(item, id) {
   if (id === "grupo") return { texto: item.grupo || "(sem grupo)" };
   if (id === "finalidade") return { texto: rotuloFinalidade(item.finalidade || item.finalidadeSugerida), extra: !item.finalidade && item.finalidadeSugerida ? 76 : 0 };
   if (id === "conjunto") { const e = textoDoEnquadramento(item); return { texto: e.texto, extra: e.origem ? 76 : 0 }; }
+  // Pares do cadastro (era:campo / ficou:campo) e extras do ERP (extra:nome).
+  const m = /^(era|ficou|extra):(.*)$/.exec(String(id));
+  if (m) { const tipo = m[1]; const campo = m[2]; const par = parDoItem(item, { tipo, campo }); return { texto: textoDoCadastro(campo, tipo === "era" ? par[0] : par[1]) }; }
   return null; // situação: selo, medido na tela
 }
 
@@ -51,17 +59,25 @@ function medirTextosCarregados(itens, ids, fonte) {
   } catch { return {}; }
 }
 
-/** Lista paginada (cursor) acumulada numa só sequência. */
-function useItens(projetoId, filtro) {
+/** Lista paginada (cursor) acumulada numa só sequência. `extras`: colunas extras do ERP escolhidas (só elas vêm do servidor). */
+function useItens(projetoId, filtro, extras) {
   const q = useInfiniteQuery({
-    queryKey: chaves.itens(projetoId, filtro),
-    queryFn: ({ pageParam }) => san.itens(projetoId, montarFiltroItens(filtro, { cursor: pageParam })),
+    queryKey: chaves.itens(projetoId, extras.length ? { ...filtro, extras } : filtro),
+    queryFn: ({ pageParam }) => san.itens(projetoId, montarFiltroItens(filtro, { cursor: pageParam, extras })),
     initialPageParam: undefined,
     getNextPageParam: (ultima) => ultima.proximo || undefined,
     gcTime: 60_000, // não guarda listas gigantes de filtros que já saíram da tela
   });
   const itens = useMemo(() => (q.data ? q.data.pages.flatMap((p) => p.itens) : []), [q.data]);
   return { q, itens, total: q.data?.pages?.[0]?.total };
+}
+
+/** Célula do cadastro: "como era", "como ficou" (verde-claro quando mudou, dica com os dois valores) ou coluna extra do ERP. */
+function CelulaCadastro({ item, coluna }) {
+  const par = parDoItem(item, coluna);
+  const texto = textoDoCadastro(coluna.campo, coluna.tipo === "era" ? par[0] : par[1]);
+  const dica = coluna.tipo === "era" ? texto : dicaDoPar(coluna.campo, par);
+  return <span className={`block truncate ${coluna.campo === "saldo" ? "tabular-nums" : ""}`} title={dica}>{texto === "—" ? <span className="text-muted-foreground">—</span> : texto}</span>;
 }
 
 function Celula({ item, coluna }) {
@@ -104,14 +120,24 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
   const [regraAberta, setRegraAberta] = useState(false);
   const [area, setArea] = useState(null);
   const quadro = useRef(0);
-  const { q, itens, total } = useItens(projeto.id, filtro);
+  // Colunas do cadastro (pares como era × como ficou) e colunas extras do ERP; as extras escolhidas ficam guardadas por projeto.
+  const colunasQ = useQuery({ queryKey: chaves.colunasDosItens(projeto.id), queryFn: () => san.colunasDosItens(projeto.id), staleTime: 60_000 });
+  const [extrasEscolhidas, setExtrasEscolhidas] = useState(() => lerExtrasEscolhidas(projeto.id));
+  const [painelColunas, setPainelColunas] = useState(false);
+  const extrasDisponiveis = Array.isArray(colunasQ.data?.extras) ? colunasQ.data.extras : null;
+  const extras = useMemo(() => (extrasDisponiveis ? extrasEscolhidas.filter((n) => extrasDisponiveis.includes(n)) : extrasEscolhidas), [extrasEscolhidas, extrasDisponiveis]);
+  const escolherExtras = (nomes) => { setExtrasEscolhidas(nomes); gravarExtrasEscolhidas(projeto.id, nomes); };
+  const alternarExtra = (nome) => escolherExtras(extrasEscolhidas.includes(nome) ? extrasEscolhidas.filter((n) => n !== nome) : [...extrasEscolhidas, nome]);
+  const { q, itens, total } = useItens(projeto.id, filtro, extras);
   const visao = useQuery({ queryKey: chaves.visao(projeto.id), queryFn: () => san.visaoGeral(projeto.id) });
   const grupos = visao.data?.grupos?.map((g) => g.grupo) || [];
 
   const larguras = useLargurasColunas("saneamento-estoques-tabela-unica");
   const [tabelaEl, setTabelaEl] = useState(null);
   const ajustar = (c) => ({ ...c, largura: larguras.larguraDe(c.id, c.largura) });
-  const colunas = useMemo(() => colunasDaTabela(camadas), [camadas]).map(ajustar);
+  const fundamentais = colunasQ.data?.fundamentais;
+  // Ordem: dados do item (pares), outras colunas do ERP escolhidas, depois as camadas (como antes).
+  const colunas = useMemo(() => [...colunasDoCadastro(fundamentais), ...colunasExtras(extras), ...colunasDaTabela(camadas)], [fundamentais, extras, camadas]).map(ajustar);
   // Estabelecimento só aparece quando o projeto tem mais de um (ou o cadastro traz algum).
   const fixas = useMemo(() => fixasDaTabela(projeto.estabelecimentos, itens), [projeto.estabelecimentos, itens]).map(ajustar);
   const esquerdas = fixas.map((_, n) => fixas.slice(0, n).reduce((s, x) => s + x.largura, 0));
@@ -205,6 +231,11 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
         <label className="flex items-center gap-1.5 pb-2 text-sm"><input type="checkbox" checked={filtro.revisar} onChange={mudar("revisar")} />Só marcadas "revisar"</label>
         {temFiltro && <button type="button" className={botaoSecundario} onClick={() => { setBusca(""); setFiltro(FILTRO_VAZIO); }}>Limpar filtros</button>}
         <button type="button" className={botaoSecundario} onClick={irAoProximoPendente} disabled={!itens.length}><ChevronsDown className="h-4 w-4" aria-hidden="true" />Ir ao próximo pendente</button>
+        {extrasDisponiveis?.length > 0 && (
+          <button type="button" className={botaoSecundario} aria-expanded={painelColunas} aria-controls="san-colunas-erp" onClick={() => setPainelColunas((x) => !x)} title="Escolher as outras colunas do ERP que aparecem na tabela">
+            <Columns3 className="h-4 w-4" aria-hidden="true" />Colunas{extras.length ? ` (${extras.length})` : ""}
+          </button>
+        )}
         {larguras.personalizadas && <button type="button" className={botaoSecundario} onClick={larguras.restaurar} title="Volta cada coluna ao tamanho do conteúdo"><RotateCcw className="h-4 w-4" aria-hidden="true" />Restaurar larguras</button>}
       </div>
       <p className="text-xs text-muted-foreground" aria-live="polite">
@@ -212,6 +243,23 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
         {q.isFetchingNextPage && " Carregando mais…"}
       </p>
       {aviso && <Aviso>{aviso}</Aviso>}
+      {painelColunas && extrasDisponiveis?.length > 0 && (
+        <div id="san-colunas-erp" className="border border-border bg-card p-3 text-xs" role="group" aria-label="Outras colunas do ERP">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <span className="font-semibold">Outras colunas do ERP (ficam ocultas até você marcar)</span>
+            <span className="flex gap-3">
+              <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => escolherExtras([...extrasDisponiveis])}>Mostrar todas</button>
+              <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => escolherExtras([])}>Ocultar todas</button>
+              <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setPainelColunas(false)}>Fechar</button>
+            </span>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
+            {extrasDisponiveis.map((nome) => (
+              <label key={nome} className="flex min-w-0 items-center gap-1.5"><input type="checkbox" checked={extras.includes(nome)} onChange={() => alternarExtra(nome)} /><span className="truncate" title={nome}>{nome}</span></label>
+            ))}
+          </div>
+        </div>
+      )}
       {regraAberta && (
         <div id="san-regra-finalidade" className="border border-border bg-card p-3 text-xs">
           <div className="mb-1 flex items-center justify-between gap-2"><span className="font-semibold">Como o sistema chega à finalidade</span><button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setRegraAberta(false)}>Fechar</button></div>
@@ -232,7 +280,12 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
                 <div role="rowgroup" className={estiloTabela.cabecalho} style={{ height: ALTURA_CABECALHO }}>
                   <div role="row" className={`flex border-b border-white/20 ${cabecalhoTabelaCls}`} style={{ height: ALTURA_CABECALHO / 2 }}>
                     <div className="sticky left-0 z-40 bg-cabecalho" style={{ width: larguraFixa }} />
-                    {gruposCab.map((g) => (
+                    {gruposCab.map((g) => ROTULO_GRUPO_TABELA[g.camada] ? (
+                      <div key={g.camada} role="columnheader" style={{ width: g.largura }} className="flex items-center border-l border-white/20 px-2"
+                        title={g.camada === "CADASTRO" ? "Cada campo do cadastro em duas colunas: como veio na importação e como está agora, com as decisões aplicadas" : undefined}>
+                        <span className="truncate text-xs font-semibold">{ROTULO_GRUPO_TABELA[g.camada]}</span>
+                      </div>
+                    ) : (
                       <div key={g.camada} role="columnheader" style={{ width: g.largura }} className="border-l border-white/20 px-1">
                         <button type="button" aria-pressed={filtro.camada === g.camada} onClick={() => alternarCamada(g.camada)} title="Mostrar só os produtos com situação nesta camada"
                           className={`h-full w-full truncate px-1 text-left text-xs font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${filtro.camada === g.camada ? "bg-white/20" : ""}`}>
@@ -252,7 +305,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
                       <div key={c.id} role="columnheader" data-coluna={c.id} className={`${estiloTabela.tituloColuna} gap-1`} style={{ width: c.largura }}>
                         <span className="truncate">{c.titulo}</span>
                         {c.id === "finalidade" && <BotaoInfo id="san-regra-finalidade" rotulo="regra da finalidade" pequeno aberto={regraAberta} aoAlternar={() => setRegraAberta((x) => !x)} />}
-                        <AlcaLargura rotulo={`${c.titulo} (${ROTULO_CAMADA[c.camada]})`} largura={c.largura} aoMudar={(px, { final }) => larguras.definir(c.id, px, { gravar: final })} aoAutoAjustar={() => larguras.autoAjustar(c.id)} />
+                        <AlcaLargura rotulo={ehColunaDoCadastro(c) ? c.titulo : `${c.titulo} (${rotuloDoGrupo(c.camada)})`} largura={c.largura} aoMudar={(px, { final }) => larguras.definir(c.id, px, { gravar: final })} aoAutoAjustar={() => larguras.autoAjustar(c.id)} />
                       </div>
                     ))}
                   </div>
@@ -271,6 +324,14 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
                         ))}
                         {colunas.map((c) => {
                           const cel = c.tipo === "situacao" ? celulaDa(item, c.camada) : null;
+                          if (ehColunaDoCadastro(c)) {
+                            const alterada = c.tipo !== "era" && mudouPar(parDoItem(item, c));
+                            return (
+                              <div key={c.id} role="cell" data-coluna={c.id} data-alterada={alterada || undefined} className={`${estiloTabela.celula} ${alterada ? "celula-alterada" : ""}`} style={{ width: c.largura }}>
+                                <CelulaCadastro item={item} coluna={c} />
+                              </div>
+                            );
+                          }
                           return (
                             <div key={c.id} role="cell" data-coluna={c.id} className={estiloTabela.celula} style={{ width: c.largura }}>
                               {c.tipo === "situacao" ? (

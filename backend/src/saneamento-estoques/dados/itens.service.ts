@@ -4,11 +4,64 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CAMADAS, SITUACOES } from '../tipos';
 import { camadasAtivas, validarCamada, type Json } from './constantes';
 import { paramInteiro, paramTexto } from './validacao';
+import { CAMPOS_BASE, ROTULO_CAMPO as ROTULO_CAMPO_IMPORTACAO } from '../importacao/tipos';
 
 export type FiltroItens = {
   camada?: string; situacao?: string; revisar?: boolean; grupo?: string; busca?: string;
   ordem?: 'codigo' | 'grupo'; cursor?: string; limite?: number | string;
+  /** Lista JSON dos nomes das colunas extras do ERP que a tela escolheu mostrar (as demais não vêm). */
+  extras?: string;
 };
+
+/**
+ * Campos fundamentais da importação que a Tabela mostra em par "como era" × "como ficou": todo o catálogo da importação (CAMPOS_BASE),
+ * menos código e estabelecimento (a chave do item, que não muda e já fica fixa à esquerda). Campo novo no catálogo entra sozinho.
+ */
+export const CAMPOS_PAREADOS: readonly string[] = CAMPOS_BASE.filter((c) => c !== 'codigo' && c !== 'estabelecimento');
+/** Até quantas colunas extras do ERP a lista devolve por pedido. */
+const MAX_EXTRAS = 60;
+const NOMES_PROIBIDOS = ['__proto__', 'constructor', 'prototype'];
+
+/** Valor do campo no JSON do item: campo de topo ou, se não houver (ex.: subgrupo), o de `campos` (como a visão focada). */
+function valorDe(parte: Json | null | undefined, campo: string): unknown {
+  if (!parte || typeof parte !== 'object') return null;
+  if (campo in parte) return parte[campo] ?? null;
+  const campos = parte.campos as Json | undefined;
+  return campos && typeof campos === 'object' ? campos[campo] ?? null : null;
+}
+const vazio = (v: unknown) => v === null || v === undefined || v === '';
+
+/** Lê o parâmetro `extras` (lista JSON de nomes de colunas extras); ausente = nenhuma. */
+export function lerExtras(bruto: unknown): string[] {
+  const t = paramTexto(bruto, 'extras');
+  if (!t) return [];
+  let v: unknown;
+  try { v = JSON.parse(t); } catch { throw new BadRequestException('Colunas extras inválidas (use uma lista de nomes).'); }
+  if (!Array.isArray(v) || v.length > MAX_EXTRAS || v.some((x) => typeof x !== 'string' || !x || x.length > 200 || NOMES_PROIBIDOS.includes(x))) {
+    throw new BadRequestException(`Colunas extras inválidas (até ${MAX_EXTRAS} nomes).`);
+  }
+  return [...new Set(v as string[])];
+}
+
+/**
+ * Pares "como era" (original da primeira importação, o mesmo da visão focada) × "como ficou" (base de trabalho) do item, só com os campos
+ * que têm valor em algum dos dois (resposta compacta para 30 mil linhas). Extras: só os nomes pedidos.
+ */
+export function paresDoItem(original: Json | null | undefined, trabalho: Json | null | undefined, extras: string[]) {
+  const como: Record<string, [unknown, unknown]> = {};
+  for (const c of CAMPOS_PAREADOS) {
+    const a = valorDe(original, c); const b = valorDe(trabalho, c);
+    if (!vazio(a) || !vazio(b)) como[c] = [a, b];
+  }
+  if (!extras.length) return { como };
+  const campoDe = (parte: Json | null | undefined, nome: string) => { const cs = parte?.campos as Json | undefined; return cs && typeof cs === 'object' && Object.hasOwn(cs, nome) ? cs[nome] ?? null : null; };
+  const ext: Record<string, [unknown, unknown]> = {};
+  for (const nome of extras) {
+    const a = campoDe(original, nome); const b = campoDe(trabalho, nome);
+    if (!vazio(a) || !vazio(b)) ext[nome] = [a, b];
+  }
+  return { como, extras: ext };
+}
 
 @Injectable()
 export class SanItensService {
@@ -21,6 +74,7 @@ export class SanItensService {
       camada: paramTexto(bruto.camada, 'camada'), situacao: paramTexto(bruto.situacao, 'situacao'), grupo: paramTexto(bruto.grupo, 'grupo'), busca: paramTexto(bruto.busca, 'busca'),
       ordem: paramTexto(bruto.ordem, 'ordem') as FiltroItens['ordem'], cursor: paramTexto(bruto.cursor, 'cursor'), revisar: bruto.revisar === true,
     };
+    const extras = lerExtras(bruto.extras);
     const limite = Math.min(Math.max(paramInteiro(bruto.limite, 'limite') ?? 100, 1), 500);
     if (f.situacao && !(SITUACOES as readonly string[]).includes(f.situacao)) throw new BadRequestException('Situação inválida.');
     if (f.ordem && f.ordem !== 'codigo' && f.ordem !== 'grupo') throw new BadRequestException('Ordem inválida (use codigo ou grupo).');
@@ -34,7 +88,7 @@ export class SanItensService {
     const busca = (f.busca ?? '').trim();
     if (busca) where.OR = [{ codigo: { contains: busca, mode: 'insensitive' } }, { descricao: { contains: busca, mode: 'insensitive' } }];
     const ordem = f.ordem === 'grupo' ? [{ grupo: 'asc' }, { codigo: 'asc' }, { id: 'asc' }] : [{ codigo: 'asc' }, { id: 'asc' }];
-    const select = { id: true, codigo: true, estabelecimento: true, descricao: true, grupo: true, finalidade: true, conjunto_chave: true, ativo: true, versao: true, celulas: { select: { camada: true, situacao: true, revisar: true, revisar_causa: true, caso_id: true } } };
+    const select = { id: true, codigo: true, estabelecimento: true, descricao: true, grupo: true, finalidade: true, conjunto_chave: true, ativo: true, versao: true, original: true, trabalho: true, celulas: { select: { camada: true, situacao: true, revisar: true, revisar_causa: true, caso_id: true } } };
     // Com SQL: código só de dígitos ordena como número (2 antes de 10); sem SQL (testes em memória), a ordem do texto.
     const ids = typeof (this.prisma as unknown as { $queryRaw?: unknown }).$queryRaw === 'function'
       ? await this.idsNaOrdemNumerica(projetoId, { ...f, camada: celula.camada as string | undefined, busca }, limite + 1)
@@ -47,7 +101,50 @@ export class SanItensService {
     const enq = await this.enquadramentos(projetoId, pagina.map((x) => x.id));
     const sug = await this.finalidadesSugeridas(projetoId, pagina.filter((x) => !x.finalidade).map((x) => x.id));
     const proximo = linhas.length > limite ? linhas[limite].id : null;
-    return { itens: pagina.map((x) => ({ ...x, enquadramento: enq.get(x.id) ?? null, finalidadeSugerida: sug.get(x.id) ?? null })), proximo, ...(total === undefined ? {} : { total }) };
+    // original e trabalho inteiros não saem daqui: só os pares dos campos com valor e os extras pedidos.
+    const itens = pagina.map(({ original, trabalho, ...x }) => ({
+      ...x, ...paresDoItem(original as Json, trabalho as Json, extras), enquadramento: enq.get(x.id) ?? null, finalidadeSugerida: sug.get(x.id) ?? null,
+    }));
+    return { itens, proximo, ...(total === undefined ? {} : { total }) };
+  }
+
+  /**
+   * Colunas da Tabela: os campos fundamentais que o projeto importou (mapeados em alguma importação ou com valor em algum item, original ou
+   * atual), na ordem do catálogo da importação, e os nomes das colunas extras do ERP (`campos`, fora os fundamentais) para escolher.
+   * Duas consultas agregadas no banco (sem trazer os itens).
+   */
+  async colunas(projetoId: string) {
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true } });
+    if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
+    const presentes = new Set<string>();
+    const imps = await this.prisma.sanImportacao.findMany({ where: { projeto_id: projetoId }, select: { mapeamento: true } });
+    for (const i of imps) for (const [k, v] of Object.entries((i.mapeamento ?? {}) as Json)) if (!vazio(v) && CAMPOS_PAREADOS.includes(k)) presentes.add(k);
+    const extras = new Set<string>();
+    if (typeof (this.prisma as unknown as { $queryRaw?: unknown }).$queryRaw === 'function') {
+      // Os nomes dos campos vêm do catálogo fixo (CAMPOS_BASE), nunca do pedido: podem entrar no SQL como texto.
+      const tem = (parte: string, c: string) => {
+        const v = `COALESCE(i."${parte}"->'${c}', i."${parte}"->'campos'->'${c}')`;
+        return `(${v} IS NOT NULL AND ${v} NOT IN ('null'::jsonb, '""'::jsonb))`;
+      };
+      const colunas = CAMPOS_PAREADOS.map((c) => `bool_or(${tem('original', c)} OR ${tem('trabalho', c)}) AS "${c}"`).join(', ');
+      const [r] = await this.prisma.$queryRaw<Record<string, boolean | null>[]>`SELECT ${Prisma.raw(colunas)} FROM "SanItem" i WHERE i."projeto_id" = ${projetoId}`;
+      for (const c of CAMPOS_PAREADOS) if (r?.[c]) presentes.add(c);
+      const objeto = (parte: string) => Prisma.raw(`(CASE WHEN jsonb_typeof(i."${parte}"->'campos') = 'object' THEN i."${parte}"->'campos' ELSE '{}'::jsonb END)`);
+      const ks = await this.prisma.$queryRaw<{ k: string }[]>`SELECT DISTINCT t.k FROM "SanItem" i CROSS JOIN LATERAL (SELECT jsonb_object_keys(${objeto('original')}) UNION SELECT jsonb_object_keys(${objeto('trabalho')})) AS t(k) WHERE i."projeto_id" = ${projetoId} ORDER BY t.k LIMIT 1000`;
+      for (const { k } of ks) extras.add(k);
+    } else {
+      // Sem SQL (testes em memória): percorre os itens.
+      const itens = await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId }, select: { original: true, trabalho: true } });
+      for (const it of itens) for (const parte of [it.original, it.trabalho] as (Json | null)[]) {
+        for (const c of CAMPOS_PAREADOS) if (!vazio(valorDe(parte, c))) presentes.add(c);
+        for (const k of Object.keys((parte?.campos as Json | undefined) ?? {})) extras.add(k);
+      }
+    }
+    const rotulos = ROTULO_CAMPO_IMPORTACAO as Record<string, string>;
+    return {
+      fundamentais: CAMPOS_PAREADOS.filter((c) => presentes.has(c)).map((campo) => ({ campo, rotulo: rotulos[campo] ?? campo })),
+      extras: [...extras].filter((k) => !CAMPOS_PAREADOS.includes(k) && !NOMES_PROIBIDOS.includes(k)).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    };
   }
 
   /**

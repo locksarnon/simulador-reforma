@@ -57,6 +57,8 @@
     /* Títulos das tabelas: verde-escuro com texto branco (contraste 8:1, WCAG AA). */
     --cabecalho-tabela: 152 62% 22%;
     --cabecalho-tabela-texto: 0 0% 100%;
+    /* Célula com valor alterado (Tabela do saneamento: "como ficou" diferente de "como era"): o verde-claro do Excel, #E2F0D9. */
+    --celula-alterada: 97 45% 90%;
   }
 
   .dark {
@@ -103,6 +105,7 @@
     --rail-primary: 152 58% 50%;
     --cabecalho-tabela: 152 52% 24%;
     --cabecalho-tabela-texto: 0 0% 100%;
+    --celula-alterada: 100 32% 22%;
   }
 }
 
@@ -130,6 +133,9 @@
   }
   :where(thead tr.linha-filtros) :where(th) { background-color: transparent; color: inherit; }
 }
+
+/* Valor alterado numa célula (o verde-claro do Excel; no tema escuro, um verde escuro com o mesmo papel). */
+.celula-alterada { background-color: hsl(var(--celula-alterada)); }
 
 /* Texto cinza, escuro ou verde dentro dos títulos de tabela (ícones de ordenar, links, dicas) segue o branco do título. */
 .cabecalho-tabela :is(.text-muted-foreground, .text-foreground, .text-primary, a),
