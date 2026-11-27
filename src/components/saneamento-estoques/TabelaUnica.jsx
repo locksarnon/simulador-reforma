@@ -46,7 +46,7 @@ function Celula({ item, coluna }) {
     );
   }
   if (coluna.id === "finalidade" && !item.finalidade && item.finalidadeSugerida) {
-    // Proposta da camada Grupos e finalidade ainda não aprovada: aparece como sugerida até o caso ser aprovado.
+    // Proposta da camada Finalidade ainda não aprovada: aparece como sugerida até o caso ser aprovado.
     const t = rotuloFinalidade(item.finalidadeSugerida);
     return <span className="flex min-w-0 items-center gap-1" title={`${t} (sugerida: aprove o caso em Casos para confirmar)`}><span className="truncate italic text-muted-foreground">{t}</span><Tag tom="info">sugerida</Tag></span>;
   }
@@ -55,7 +55,7 @@ function Celula({ item, coluna }) {
 }
 
 /** Tabela única: uma linha por produto, colunas agrupadas por camada, janela de linhas (virtualização) e páginas por cursor. */
-export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaConfiguracao }) {
+export default function TabelaUnica({ projeto, recorte, aoAbrirCaso }) {
   const camadas = useMemo(() => camadasAtivas(projeto.modulos), [projeto.modulos]);
   const [filtro, setFiltro] = useState(() => ({ ...FILTRO_VAZIO, ...(recorte || {}) }));
   const [busca, setBusca] = useState(filtro.busca);
@@ -167,7 +167,7 @@ export default function TabelaUnica({ projeto, recorte, aoAbrirCaso, aoIrParaCon
         : q.isPending ? <EstadoCarregando texto="Carregando os produtos…" />
           : itens.length === 0 ? (
             <EstadoVazio titulo={temFiltro ? "Nenhum produto com estes filtros" : "Nenhum produto importado"}>
-              {temFiltro ? "Mude ou limpe os filtros." : projeto.atividadesConfirmadas ? "Importe o cadastro de itens na aba Importação." : <>Confirme as atividades do cliente para continuar.{aoIrParaConfiguracao && <> <button type="button" className="text-primary underline" onClick={aoIrParaConfiguracao}>Ir para a Configuração</button></>}</>}
+              {temFiltro ? "Mude ou limpe os filtros." : "Importe o cadastro de itens na aba Importação."}
             </EstadoVazio>
           ) : (
             <div ref={setArea} onScroll={aoRolar} className={`${estiloTabela.area} h-[68vh] min-h-[320px]`} tabIndex={0} aria-label="Tabela de produtos por camada. Role para ver mais linhas.">

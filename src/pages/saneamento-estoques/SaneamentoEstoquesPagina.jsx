@@ -19,15 +19,14 @@ import Unificacoes from "@/components/saneamento-estoques/Unificacoes";
 import RoteiroProjeto from "@/components/saneamento-estoques/RoteiroProjeto";
 import Versoes from "@/components/saneamento-estoques/Versoes";
 import VisaoGeral from "@/components/saneamento-estoques/VisaoGeral";
-import { ABAS, abaInicial, mensagemDeErro, naoEncontrado } from "@/components/saneamento-estoques/logica";
+import { ABAS, abaInicial, itensDaVisao, mensagemDeErro, naoEncontrado } from "@/components/saneamento-estoques/logica";
 
 
 function Painel({ projeto, aba, irPara, podeImportar, recarregar, recorte, casoInicial, abrirCasos, abrirTabela }) {
-  const configuracao = () => irPara("configuracao");
   if (aba === "configuracao") return <Configuracao projeto={projeto} recarregar={recarregar} />;
-  if (aba === "importacao") return <Importacao projeto={projeto} podeImportar={podeImportar} aoIrParaConfiguracao={configuracao} aoIrParaDiretrizes={() => irPara("diretrizes")} />;
+  if (aba === "importacao") return <Importacao projeto={projeto} podeImportar={podeImportar} aoIrParaDiretrizes={() => irPara("diretrizes")} />;
   if (aba === "diretrizes") return <Diretrizes projeto={projeto} />;
-  if (aba === "tabela") return <TabelaUnica key={JSON.stringify(recorte || {})} projeto={projeto} recorte={recorte} aoAbrirCaso={(id) => abrirCasos({}, id)} aoIrParaConfiguracao={configuracao} />;
+  if (aba === "tabela") return <TabelaUnica key={JSON.stringify(recorte || {})} projeto={projeto} recorte={recorte} aoAbrirCaso={(id) => abrirCasos({}, id)} />;
   if (aba === "visao") return <VisaoGeral projeto={projeto} aoAbrirCasos={abrirCasos} aoAbrirTabela={abrirTabela} />;
   if (aba === "casos") return <Casos key={`${recorte?.camada}|${recorte?.grupo}|${casoInicial}`} projeto={projeto} recorte={recorte} casoInicial={casoInicial} />;
   if (aba === "impacto") return <Impacto projeto={projeto} />;
@@ -52,10 +51,12 @@ export default function SaneamentoEstoquesPagina() {
   const naoAberto = consulta.isError && naoEncontrado(consulta.error);
   const tentou = useRef(false);
   useEffect(() => { if (naoAberto && !tentou.current) { tentou.current = true; abrir.mutate(); } }, [naoAberto, abrir]);
-  // A aba de partida é decidida uma vez: confirmar ou reabrir as atividades não troca de aba sozinho.
+  // A aba de partida é decidida uma vez (Importação sem itens, Tabela com itens): importar não troca de aba sozinho.
+  const visao = useQuery({ queryKey: chaves.visao(projeto?.id), queryFn: () => san.visaoGeral(projeto.id), enabled: !!projeto?.id });
+  const itensConhecidos = visao.isError ? null : visao.data !== undefined ? itensDaVisao(visao.data) : undefined;
   const [padrao, setPadrao] = useState(null);
-  useEffect(() => { if (projeto && !padrao) setPadrao(abaInicial(null, projeto)); }, [projeto, padrao]);
-  const aba = ABAS.some((a) => a.id === params.get("aba")) ? params.get("aba") : padrao || abaInicial(null, projeto);
+  useEffect(() => { if (projeto && !padrao && itensConhecidos !== undefined) setPadrao(abaInicial(null, itensConhecidos)); }, [projeto, padrao, itensConhecidos]);
+  const aba = ABAS.some((a) => a.id === params.get("aba")) ? params.get("aba") : padrao || abaInicial(null, itensConhecidos ?? null);
   const podeAlterar = temFuncao(user, "alterar");
 
   const irPara = (a) => setParams((p) => { const n = new URLSearchParams(p); n.set("aba", a); return n; }, { replace: false });
@@ -77,7 +78,7 @@ export default function SaneamentoEstoquesPagina() {
       <PermissaoContext.Provider value={{ podeAlterar }}>
       <div className="space-y-4">
         {!podeAlterar && <Aviso tom="alerta">{semFuncao("alterar")} Você pode consultar, mas não gravar.</Aviso>}
-        <Cobertura projeto={projeto} />
+        <Cobertura projeto={projeto} aoIrPara={irPara} />
         <Abas atual={aba} aoMudar={(a) => { if (a !== "casos" && a !== "tabela") { setRecorte(null); setCasoInicial(null); } irPara(a); }} />
         <div role="tabpanel" id="san-painel" aria-labelledby={`san-aba-${aba}`}>
           <Painel projeto={projeto} aba={aba} irPara={irPara} podeImportar={temFuncao(user, "importar")} recarregar={recarregar} recorte={recorte} casoInicial={casoInicial} abrirCasos={abrirCasos} abrirTabela={abrirTabela} />

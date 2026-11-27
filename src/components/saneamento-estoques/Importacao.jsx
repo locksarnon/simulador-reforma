@@ -6,9 +6,9 @@ import { semFuncao } from "@/lib/permissoes";
 import { ConsultasErp, usePerfilErp } from "@/components/erps/erps";
 import { colunasDoExportDoPerfil } from "@/lib/erps";
 import { san, chaves, atualizarTudo } from "./api";
-import { Aviso, AvisoDeTrava, botaoPrimario, botaoSecundario, Carregar, campoCls, secaoCls, Tag, tituloSecaoCls } from "./comuns";
+import { Aviso, botaoPrimario, botaoSecundario, Carregar, campoCls, secaoCls, Tag, tituloSecaoCls } from "./comuns";
 import {
-  alternarIncorporar, camposObrigatoriosSemColuna, colunasDoArquivo, corpoIncorporar, corrigirMapeamento, ehReimportacao, estadoDaTrava, fmtDataHora, itensIncorporaveis,
+  alternarIncorporar, camposObrigatoriosSemColuna, colunasDoArquivo, corpoIncorporar, corrigirMapeamento, ehReimportacao, fmtDataHora, itensIncorporaveis,
   linhasDeMapeamento, mapeamentoMudou, mensagemDeErro, MODOS_INCORPORAR, quantosIncorporar, resumirRelatorio, ROTULO_CERTEZA, rotuloDoCampo, textoDoValor,
 } from "./logica";
 import { escalaAplicada, escalaDetectada, exemplosDaColuna, fmtNumero, seloDoMapeamento, textoEscalaAplicada, textoEscalaSaldo } from "./importacaoTela";
@@ -249,10 +249,9 @@ function Historico({ projetoId }) {
   );
 }
 
-/** Importação: arquivo → mapeamento → prévia → (reimportação: o que incorporar) → confirmação → relatório. Bloqueada pela trava das atividades. */
-export default function Importacao({ projeto, podeImportar = true, aoIrParaConfiguracao, aoIrParaDiretrizes }) {
+/** Importação: arquivo → mapeamento → prévia → (reimportação: o que incorporar) → confirmação → relatório. Sem trava: a importação nunca depende das atividades. */
+export default function Importacao({ projeto, podeImportar = true, aoIrParaDiretrizes }) {
   const qc = useQueryClient();
-  const trava = estadoDaTrava(projeto);
   const [arquivo, setArquivo] = useState(null);
   const perfilErp = usePerfilErp(projeto.erp_id).data;
   const [previa, setPrevia] = useState(null);
@@ -280,8 +279,6 @@ export default function Importacao({ projeto, podeImportar = true, aoIrParaConfi
     onSuccess: (r) => { setResultado(r); setPrevia(null); setArquivo(null); setChaveArquivo((k) => k + 1); setErro(null); atualizarTudo(qc, projeto.id); },
     onError: (e) => setErro(mensagemDeErro(e)),
   });
-
-  if (trava.bloqueada) return <AvisoDeTrava mensagem={trava.mensagem} aoConfirmar={aoIrParaConfiguracao} />;
 
   const efetivo = mapeamento ?? previa?.mapeamento;
   const faltam = previa ? camposObrigatoriosSemColuna(efetivo) : [];

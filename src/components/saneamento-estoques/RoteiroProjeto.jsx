@@ -31,8 +31,8 @@ function Traco({ aceso, horizontal = false }) {
 }
 
 /** Conteúdo do roteiro (separado da janela para os testes e a impressão). */
-export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecionada, aoSelecionar }) {
-  const ctx = { estado, itens, liberadas };
+export function Roteiro({ nome, estado, itens, liberadas, projeto, fases, apresentacao, selecionada, aoSelecionar }) {
+  const ctx = { estado, itens, liberadas, projeto, fases };
   const pos = selecionada ? ORDEM.indexOf(selecionada) : -1;
   const ir = (n) => aoSelecionar(ORDEM[Math.max(0, Math.min(ORDEM.length - 1, n))]);
   return (
@@ -91,7 +91,7 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
                   })}
                 </ol>
                 {f.liberacao && (() => {
-                  const s = situacaoDaLiberacao(f.id, liberadas);
+                  const s = situacaoDaLiberacao(f.id, ctx);
                   return (
                     <>
                       <Traco aceso={pos > ultima} />
@@ -100,6 +100,7 @@ export function Roteiro({ nome, estado, itens, liberadas, apresentacao, selecion
                           <span><span className="block text-sm font-semibold">{f.liberacao.titulo}</span><span className="block text-xs text-muted-foreground">{f.liberacao.resumo}</span></span>
                           <Tag tom={s.tom}>{s.texto}</Tag>
                         </span>
+                        {!apresentacao && s.detalhe && <span className="mt-1 block text-xs text-muted-foreground">{s.detalhe}</span>}
                         <span className="mt-1 block text-xs text-muted-foreground">{f.liberacao.recebe}</span>
                       </div>
                     </>
@@ -165,6 +166,7 @@ export function PainelRoteiro({ projeto, nome }) {
   const estado = useQuery({ queryKey: chaves.estadoCamadas(projeto.id), queryFn: () => san.estadoCamadas(projeto.id) });
   const visao = useQuery({ queryKey: chaves.visao(projeto.id), queryFn: () => san.visaoGeral(projeto.id) });
   const versoes = useQuery({ queryKey: chaves.versoes(projeto.id), queryFn: () => san.versoes(projeto.id) });
+  const fases = useQuery({ queryKey: chaves.fases(projeto.id), queryFn: () => san.fases(projeto.id) });
   const porCamada = new Map((estado.data?.camadas || []).map((l) => [l.camada, l]));
   const itens = (visao.data?.grupos || []).reduce((s, g) => s + (Number(g.itens) || 0), 0);
   const liberadas = Array.isArray(versoes.data) ? versoes.data.length : 0;
@@ -186,7 +188,7 @@ export function PainelRoteiro({ projeto, nome }) {
               <button type="button" className={`${botaoSecundario} nao-imprimir px-2 py-1 text-sm`} onClick={imprimir}><Printer className="h-4 w-4" aria-hidden="true" />Imprimir ou salvar em PDF</button>
             </div>
             <p className="nao-imprimir mb-3 text-xs text-muted-foreground">Clique numa etapa (ou use Próxima etapa) para acender o caminho e ver o que é feito, o que o cliente fornece e o que recebe; dentro dela, Ver o que é verificado abre o detalhe. A situação da Fase 1 vem do projeto; o Modo apresentação esconde os números internos.</p>
-            <Roteiro nome={nome} estado={porCamada} itens={itens} liberadas={liberadas} apresentacao={apresentacao} selecionada={selecionada} aoSelecionar={setSelecionada} />
+            <Roteiro nome={nome} estado={porCamada} itens={itens} liberadas={liberadas} projeto={projeto} fases={fases.data} apresentacao={apresentacao} selecionada={selecionada} aoSelecionar={setSelecionada} />
           </div>
     </>
   );

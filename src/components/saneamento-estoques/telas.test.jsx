@@ -94,7 +94,7 @@ describe("Configuração", () => {
   });
   it("seções com faixa de título (linha verde), borda nítida, rótulos legíveis e campos em fundo de campo", () => {
     const html = montar(<Configuracao projeto={projeto()} recarregar={() => {}} />);
-    for (const [id, t] of [["san-cfg-dados", "Dados do projeto"], ["san-cfg-ativ", "Atividades do cliente"]]) {
+    for (const [id, t] of [["san-cfg-dados", "Fase 1 · Dados do projeto"], ["san-cfg-fase2", "Premissas da Fase 2"]]) {
       expect(html, t).toMatch(new RegExp(`<section aria-labelledby="${id}" class="border border-foreground/50 bg-card[^"]*"><div class="[^"]*border-b-2 border-primary bg-muted[^"]*"><h2 id="${id}"[^>]*>${t}</h2>`));
     }
     expect(texto(html)).not.toContain("Módulos opcionais"); // nenhum disponível: a seção não aparece
@@ -103,16 +103,32 @@ describe("Configuração", () => {
     expect(html).toContain("mb-1 block text-xs font-medium text-foreground/80");
     expect(html).not.toMatch(/<(input|select|textarea)[^>]*border-border/);
   });
+  it("Fase 1 sem trava; Premissas da Fase 2 com o regime (lista com fundamento) e as atividades dentro, dizendo que só a Fase 2 depende delas", () => {
+    const html = montar(<Configuracao projeto={projeto()} recarregar={() => {}} />);
+    const t = texto(html);
+    expect(t).toContain("a importação e as análises da Fase 1 ficam sempre disponíveis");
+    expect(t).toContain("Regime do cliente no IBS e na CBS (obrigatório para a Fase 2)");
+    for (const r of ["Regime regular", "Simples Nacional, recolhendo IBS e CBS no Simples", "Produtor rural não contribuinte", "Produtor rural contribuinte (por opção)"]) expect(t).toContain(r);
+    expect(t).toContain("Sem o regime, as análises da Fase 2 ficam bloqueadas");
+    expect(t).toContain("Só a Fase 2 depende desta confirmação");
+    expect(t).not.toContain("Sem esta confirmação não há importação nem análise");
+    expect(t).not.toContain("PRODUTOR_RURAL");
+    // As atividades ficam dentro da seção das premissas.
+    expect(html.indexOf("Premissas da Fase 2")).toBeLessThan(html.indexOf("Confirmo as atividades"));
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Salvar o regime/);
+    const comRegime = texto(montar(<Configuracao projeto={projeto({ parametros: { regimeCliente: "SIMPLES_REGULAR" } })} recarregar={() => {}} />));
+    expect(comRegime).toContain("Fundamento: LC 214/2025, art. 41, § 3º.");
+  });
   it("CNPJ desatualizado pede para revisar as atividades", () => {
     expect(texto(montar(<Configuracao projeto={projeto({ cnpjDesatualizado: true })} recarregar={() => {}} />))).toContain("Revisar atividades");
   });
 });
 
 describe("Importação", () => {
-  it("bloqueada pela trava: diz o que fazer e não mostra o envio de arquivo", () => {
+  it("sem trava: com as atividades ainda não confirmadas, o envio do arquivo aparece", () => {
     const t = texto(montar(<Importacao projeto={projeto()} podeImportar />));
-    expect(t).toContain("Confirme as atividades do cliente para continuar");
-    expect(t).not.toContain("Ler e mostrar a prévia");
+    expect(t).not.toContain("Confirme as atividades");
+    expect(t).toContain("Ler e mostrar a prévia");
   });
   const liberada = projeto({ atividadesConfirmadas: true });
   it("carregando, vazio e erro do histórico", () => {
@@ -146,13 +162,16 @@ describe("Tabela única", () => {
     expect(t).toContain("Nenhum produto importado");
     expect(t).toContain("Importe o cadastro");
   });
-  it("vazio com atividades não confirmadas: mostra a trava", () => {
-    expect(texto(montar(<TabelaUnica projeto={projeto()} />, (qc) => qc.setQueryData(chaves.itens("p1", filtroInicial), pagina([]))))).toContain("Confirme as atividades do cliente para continuar");
+  it("vazio com atividades não confirmadas: só manda importar, sem trava", () => {
+    const t = texto(montar(<TabelaUnica projeto={projeto()} />, (qc) => qc.setQueryData(chaves.itens("p1", filtroInicial), pagina([]))));
+    expect(t).toContain("Importe o cadastro de itens na aba Importação");
+    expect(t).not.toContain("Confirme as atividades");
   });
   it("com dados: colunas fixas, camadas, situações em texto e a marca revisar", () => {
     const html = montar(<TabelaUnica projeto={liberada} />, (qc) => qc.setQueryData(chaves.itens("p1", filtroInicial), pagina([item(), item({ id: "i2", codigo: "000124", celulas: [{ camada: "NCM", situacao: "AGUARDANDO_INFORMACAO", revisar: false }] })], { total: 30000 })));
     const t = texto(html);
-    for (const c of ["Identificação", "Qualidade", "Duplicidades", "Grupos e finalidade", "Nomes e unidades", "NCM", "Tratamento tributário", "Impacto nas obrigações"]) expect(t).toContain(c);
+    for (const c of ["Identificação", "Qualidade", "Duplicidades", "Grupos", "Nomes e unidades", "Validar NCM", "Finalidade", "Classificação NCM", "Tratamento tributário", "Impacto no SPED"]) expect(t).toContain(c);
+    expect(t).not.toContain("Grupos e finalidade");
     expect(t).not.toContain(" Estoque ");
     expect(t).toContain("000123");
     expect(t).toContain("Proposto");
@@ -435,6 +454,21 @@ describe("Versões", () => {
     expect(t).toContain("Relatório PDF");
     expect(t).toContain("Marque A (antes) e B (depois)");
     expect(t).toContain("Continuar a partir desta versão");
+    expect(t).toContain("Liberada — Entrega 1"); // versão antiga, sem fase
+  });
+  it("liberar por fase: Fase 2 só depois de uma Fase 1 liberada; a lista mostra a fase de cada versão", () => {
+    const v1 = { id: "v1", numero: 1, rotulo: "Saneado", usuario: "a", createdAt: "2026-11-20T12:00:00Z", resumo: { itens: 5, fase: "FASE1" } };
+    const fases = (liberada) => ({ fases: [{ fase: "FASE1", camadas: [], liberada, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: null, bloqueio: null }] });
+    const sem = montar(<Versoes projeto={projeto()} />, (qc) => { qc.setQueryData(chaves.versoes("p1"), []); qc.setQueryData(chaves.fases("p1"), fases(null)); });
+    expect(texto(sem)).toContain("Fase desta liberação");
+    expect(sem).toMatch(/<input type="radio" name="san-ver-fase" checked="" value="FASE1"/);
+    expect(sem).toMatch(/<input type="radio" name="san-ver-fase" disabled="" value="FASE2"/);
+    expect(texto(sem)).toContain("fica disponível depois de liberada uma versão da Fase 1");
+    const com = montar(<Versoes projeto={projeto()} />, (qc) => { qc.setQueryData(chaves.versoes("p1"), [v1]); qc.setQueryData(chaves.fases("p1"), fases({ versaoId: "v1", numero: 1, em: "2026-11-20T12:00:00Z" })); });
+    expect(com).not.toMatch(/disabled="" value="FASE2"/);
+    expect(texto(com)).toContain("Fase 1 · Cadastro saneado");
+    expect(texto(com)).toContain("Fase 2 · Tributário aprovado");
+    expect(texto(com)).not.toContain("fica disponível depois");
   });
   it("mostra as restaurações feitas a partir da versão, com Desfazer (ou o selo de desfeita)", () => {
     const r = (o) => ({ id: "r1", quando: "2026-11-21T12:00:00Z", usuario: "ana@x.com", justificativa: "Cliente pediu voltar", itens: 3, campos: 5, casosDecididosDepois: 1, desfeita: null, ...o });
@@ -488,12 +522,17 @@ describe("Cobertura, abas e página", () => {
     expect(t).toContain("Qualidade analisada");
     expect(t).toContain("Tratamento tributário 1 aguardando");
     expect(t).toContain("análise indisponível");
-    expect(t).toContain("Analisar todas (na ordem)");
+    expect(t).toContain("Analisar a fase (na ordem)");
   });
-  it("cobertura: sem confirmação as análises ficam bloqueadas", () => {
-    const html = montar(<Cobertura projeto={projeto()} />, (qc) => { qc.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [] }); qc.setQueryData(chaves.camadas(), ["QUALIDADE"]); });
-    expect(texto(html)).toContain("as análises ficam bloqueadas");
-    expect(html).toMatch(/<button[^>]*disabled/);
+  it("cobertura: sem confirmação das atividades a Fase 1 segue liberada", () => {
+    const html = montar(<Cobertura projeto={projeto()} />, (qc) => {
+      qc.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [{ grupo: "A", itens: 1, camadas: { QUALIDADE: { PENDENTE: 1 } } }] });
+      qc.setQueryData(chaves.camadas(), ["QUALIDADE"]);
+      qc.setQueryData(chaves.fases("p1"), { fases: [{ fase: "FASE1", camadas: [], liberada: null, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: null, bloqueio: { codigo: "FASE1_NAO_LIBERADA", mensagem: "Libere a Fase 1." } }] });
+    });
+    expect(texto(html)).not.toContain("as análises ficam bloqueadas");
+    expect(html).toContain('aria-label="Analisar Qualidade"');
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar Qualidade"/);
   });
   it("as nove abas, com a atual marcada (Diretrizes entre a Importação e as análises)", () => {
     const html = montar(<Abas atual="casos" aoMudar={() => {}} />);
@@ -512,11 +551,15 @@ describe("Cobertura, abas e página", () => {
     nao.getQueryCache().build(nao, { queryKey: chaves.projeto("d1") }).setState({ status: "error", error: Object.assign(new Error("Este projeto ainda não foi aberto."), { status: 404 }), fetchStatus: "idle", data: undefined, errorUpdateCount: 1 });
     expect(texto(rota(nao))).toContain("Abrindo o saneamento"); // criado ao entrar, sem a tela intermediária
     expect(texto(rota(nao))).not.toContain("Abrir o saneamento deste projeto");
-    const ok = novoCliente(); ok.setQueryData(chaves.projeto("d1"), projeto());
+    const ok = novoCliente(); ok.setQueryData(chaves.projeto("d1"), projeto()); ok.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [] });
     const t = texto(rota(ok));
     expect(t).toContain("Saneamento de estoques e cadastro de produtos");
     expect(t).toContain("Cobertura das camadas");
-    expect(t).toContain("Confirmo as atividades");
+    // Sem itens importados abre na Importação, mesmo sem as atividades confirmadas (nenhuma trava na Fase 1).
+    expect(t).toContain("Ler e mostrar a prévia");
+    expect(t).not.toContain("Confirmo as atividades");
+    const comItens = novoCliente(); comItens.setQueryData(chaves.projeto("d1"), projeto()); comItens.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [{ grupo: "A", itens: 3, camadas: {} }] });
+    expect(texto(rota(comItens))).toContain("Buscar por código ou descrição");
   });
 });
 

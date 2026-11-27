@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Lock, Plus, RefreshCw } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
-import { san } from "./api";
+import { chaves, san } from "./api";
 import { SeletorErp, useErps } from "@/components/erps/erps";
 import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
-import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Rotulo, SecaoForm, Tag, usePodeAlterar } from "./comuns";
+import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Quadro, Rotulo, SecaoForm, Tag, usePodeAlterar } from "./comuns";
 import {
   efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtCnae, fmtData, fmtDataHora, mensagemDeErro, motivoDaAtividade, motivoListaVazia,
-  textoBuscaCnpj,
+  regimeDoCliente, REGIMES_CLIENTE, textoBuscaCnpj,
 } from "./logica";
 
 /** Origem da atividade numa etiqueta só: "CNPJ · principal", "CNPJ · secundário" ou "Manual". */
@@ -20,9 +20,18 @@ export function rotuloDaOrigem(a, projeto) {
 
 const listaDeEstabelecimentos = (p) => (Array.isArray(p?.estabelecimentos) ? p.estabelecimentos : []);
 
-/** Configuração do projeto: ERP, estabelecimentos, responsável, data-base, corte e atividades com a trava. Módulos ainda não disponíveis não aparecem. */
-export default function Configuracao({ projeto, recarregar }) {
+/**
+ * Configuração do projeto. Fase 1: ERP, estabelecimentos, responsável, data-base, corte e última escrituração entregue, sem trava.
+ * Premissas da Fase 2: regime do cliente (obrigatório) e atividades confirmadas; só as análises da Fase 2 dependem delas.
+ * Módulos ainda não disponíveis não aparecem.
+ */
+export default function Configuracao({ projeto, recarregar: recarregarProjeto }) {
   const confirmar = useConfirmar();
+  const qc = useQueryClient();
+  // O projeto e a liberação das fases andam juntos: regime e atividades mudam o bloqueio da Fase 2.
+  const recarregar = () => { recarregarProjeto(); qc.invalidateQueries({ queryKey: chaves.fases(projeto.id) }); };
+  const regimeSalvo = projeto.parametros?.regimeCliente ?? "";
+  const [regime, setRegime] = useState(regimeSalvo);
   const trava = estadoDaTrava(projeto);
   const { pode, razao } = usePodeAlterar();
   const [form, setForm] = useState(() => ({
@@ -58,7 +67,12 @@ export default function Configuracao({ projeto, recarregar }) {
     mutationFn: () => san.adicionarAtividade(projeto.id, novaAtividade),
     onSuccess: () => { setNovaAtividade({ codigo: "", descricao: "" }); aoConcluir()(); }, onError: aoFalhar,
   });
-  const confirmarAtividades = useMutation({ mutationFn: () => san.confirmarAtividades(projeto.id, projeto.versao), onSuccess: aoConcluir("Atividades confirmadas. A importação e as análises estão liberadas."), onError: aoFalhar });
+  const salvarRegime = useMutation({
+    // O regime vai no campo próprio e também dentro dos parâmetros (onde o servidor o guarda), para os outros parâmetros ficarem como estão.
+    mutationFn: () => san.configurar(projeto.id, { versao: projeto.versao, regimeCliente: regime, parametros: { ...(projeto.parametros || {}), regimeCliente: regime } }),
+    onSuccess: aoConcluir("Regime do cliente salvo."), onError: aoFalhar,
+  });
+  const confirmarAtividades = useMutation({ mutationFn: () => san.confirmarAtividades(projeto.id, projeto.versao), onSuccess: aoConcluir("Atividades confirmadas. Esta premissa da Fase 2 está registrada."), onError: aoFalhar });
   const reabrir = useMutation({ mutationFn: () => san.reabrirAtividades(projeto.id, projeto.versao), onSuccess: aoConcluir("Atividades reabertas."), onError: aoFalhar });
   const buscarCnpj = useMutation({
     mutationFn: () => san.buscarAtividadesCnpj(projeto.id, projeto.versao),
@@ -73,7 +87,7 @@ export default function Configuracao({ projeto, recarregar }) {
   const pedirReabertura = async () => {
     const ok = await confirmar({
       titulo: "Reabrir as atividades?", rotulo: "Reabrir",
-      descricao: "Importação e análises voltam a ficar bloqueadas até nova confirmação.\nAs células de Grupos e finalidade, Tratamento tributário e Impacto nas obrigações já trabalhadas ficam marcadas \"revisar\". Nenhuma decisão é apagada.",
+      descricao: "As análises da Fase 2 (Finalidade, Classificação NCM e Tratamento tributário) ficam bloqueadas até nova confirmação. A importação e a Fase 1 seguem normalmente.\nAs células de Finalidade, Tratamento tributário e Impacto no SPED já trabalhadas ficam marcadas \"revisar\". Nenhuma decisão é apagada.",
     });
     if (ok) reabrir.mutate();
   };
@@ -83,7 +97,8 @@ export default function Configuracao({ projeto, recarregar }) {
     <div className="space-y-6">
       {msg && <Aviso tom={msg.tom === "erro" || msg.tom === "alerta" ? msg.tom : "ok"}>{msg.texto}</Aviso>}
 
-      <SecaoForm titulo="Dados do projeto" nivel="h2" idTitulo="san-cfg-dados">
+      <SecaoForm titulo="Fase 1 · Dados do projeto" nivel="h2" idTitulo="san-cfg-dados">
+        <p className="text-sm text-foreground/75">O que a Fase 1 (saneamento do cadastro) usa. Nada aqui depende das atividades do cliente: a importação e as análises da Fase 1 ficam sempre disponíveis.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><SeletorErp id="san-cfg-erp" rotulo="ERP (do cadastro do cliente; pode trocar para este trabalho)" registro={form} aoMudar={(v) => setForm((f) => ({ ...f, erp_id: v.erp_id, erp: f.erp || v.erp || "" }))} /></div>
           <label className="block"><Rotulo>Versão do ERP</Rotulo>{erpEscolhido?.versoes?.length
@@ -114,8 +129,24 @@ export default function Configuracao({ projeto, recarregar }) {
         <button type="button" className={botaoPrimario} disabled={!pode || salvar.isPending} title={razao} onClick={() => salvar.mutate()}>{salvar.isPending ? "Salvando…" : "Salvar configuração"}</button>
       </SecaoForm>
 
-      <SecaoForm titulo="Atividades do cliente" nivel="h2" idTitulo="san-cfg-ativ" acoes={atividades.length > 0 ? botaoBuscarCnpj : null}>
-        <p className="text-sm text-foreground/75">Vêm do CNAE principal e dos secundários do CNPJ. Mantenha as que o cliente realmente exerce, exclua as outras e acrescente as que faltam. Sem esta confirmação não há importação nem análise. “Buscar atividades pelo CNPJ” consulta a Receita agora e acrescenta os CNAEs que faltam, sem apagar nada.</p>
+      <SecaoForm titulo="Premissas da Fase 2" nivel="h2" idTitulo="san-cfg-fase2">
+        <p className="text-sm text-foreground/75">A Fase 2 (tributário e Reforma) começa depois de liberada a versão da Fase 1 (Cadastro saneado), com o regime do cliente informado e as atividades confirmadas. Estas premissas só valem para a Fase 2: a Fase 1 segue sem elas.</p>
+        <Quadro titulo="Regime do cliente" nivel="h3">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block min-w-[280px] flex-1"><Rotulo>Regime do cliente no IBS e na CBS (obrigatório para a Fase 2)</Rotulo>
+              <select className={campoCls} value={regime} onChange={(e) => setRegime(e.target.value)} disabled={!pode}>
+                <option value="">Selecione o regime</option>
+                {REGIMES_CLIENTE.map((r) => <option key={r.codigo} value={r.codigo}>{r.rotulo}</option>)}
+              </select>
+            </label>
+            <button type="button" className={botaoPrimario} disabled={!pode || !regime || regime === regimeSalvo || salvarRegime.isPending} title={razao} onClick={() => salvarRegime.mutate()}>{salvarRegime.isPending ? "Salvando…" : "Salvar o regime"}</button>
+          </div>
+          {regimeDoCliente(regime) ? <p className="text-xs text-foreground/75">Fundamento: {regimeDoCliente(regime).fundamento}.</p>
+            : <p className="text-xs text-foreground/75">Sem o regime, as análises da Fase 2 ficam bloqueadas.</p>}
+          {regime !== regimeSalvo && regimeSalvo && <p className="text-xs text-foreground/75">Regime salvo: {regimeDoCliente(regimeSalvo)?.rotulo || regimeSalvo}. Clique em Salvar o regime para trocar.</p>}
+        </Quadro>
+        <Quadro titulo="Atividades do cliente" nivel="h3" acoes={atividades.length > 0 ? botaoBuscarCnpj : null}>
+        <p className="text-sm text-foreground/75">Vêm do CNAE principal e dos secundários do CNPJ. Mantenha as que o cliente realmente exerce, exclua as outras e acrescente as que faltam. Só a Fase 2 depende desta confirmação (a finalidade sugerida e o tratamento tributário leem as atividades); a importação e a Fase 1 seguem sem ela. “Buscar atividades pelo CNPJ” consulta a Receita agora e acrescenta os CNAEs que faltam, sem apagar nada.</p>
         {trava.revisarAtividades && <Aviso tom="alerta" titulo="Revisar atividades">Os dados do CNPJ do cliente mudaram depois que o projeto foi aberto. Confira se as atividades abaixo ainda valem; o que já foi feito não é bloqueado.</Aviso>}
         {trava.confirmada && (
           <Aviso tom="ok" titulo="Atividades confirmadas" acao={<button type="button" className={botaoSecundario} onClick={pedirReabertura} disabled={!pode || reabrir.isPending} title={razao}>Reabrir para alterar</button>}>
@@ -176,6 +207,7 @@ export default function Configuracao({ projeto, recarregar }) {
             <span className="text-xs text-muted-foreground">Registra quem confirmou e quando.</span>
           </div>
         )}
+        </Quadro>
       </SecaoForm>
     </div>
   );

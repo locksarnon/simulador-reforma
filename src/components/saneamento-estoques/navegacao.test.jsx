@@ -9,11 +9,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "a@b.c" } }) }));
 
 import { chaves } from "./api";
-import Cobertura, { ordemDeAnalise, seloDaCamada, textoDasAnalises, textoDesatualizada } from "./Cobertura";
+import Cobertura, { bloqueioDaFase, faseDaExecucao, ordemDeAnalise, seloDaCamada, textoDasAnalises, textoDesatualizada } from "./Cobertura";
 import TabelaUnica, { fixasDaTabela } from "./TabelaUnica";
 import { REGRA_FINALIDADE } from "./logica";
 import { Roteiro } from "./RoteiroProjeto";
-import { FASES_ROTEIRO, situacaoDaEtapa } from "./roteiro";
+import { FASES_ROTEIRO, situacaoDaEtapa, situacaoDaLiberacao } from "./roteiro";
 import { textoDaLiberacao } from "./Versoes";
 import VisaoGeral, { matrizOrdenada } from "./VisaoGeral";
 import Diretrizes, { GruposSemRegra, PreviaVarias } from "./diretrizes/Diretrizes";
@@ -35,28 +35,75 @@ describe("Cobertura das camadas", () => {
   const estado = { camadas: [
     { camada: "QUALIDADE", abertos: 9265, aguardando: 12, aprovados: 0, executadaEm: "2026-11-20T10:00:00Z", desatualizada: null },
     { camada: "NCM", abertos: 0, aguardando: 0, aprovados: 4, executadaEm: "2026-11-20T10:00:00Z", desatualizada: null },
-    { camada: "TRIBUTARIO", abertos: 3, aguardando: 0, aprovados: 0, executadaEm: "2026-11-20T10:00:00Z", desatualizada: { por: ["GRUPOS_FINALIDADE"], desde: "2026-11-21T12:00:00Z" } },
+    { camada: "TRIBUTARIO", abertos: 3, aguardando: 0, aprovados: 0, executadaEm: "2026-11-20T10:00:00Z", desatualizada: { por: ["FINALIDADE"], desde: "2026-11-21T12:00:00Z" } },
   ] };
-  const preparar = (qc) => { qc.setQueryData(chaves.visao("p1"), visao); qc.setQueryData(chaves.camadas(), ["QUALIDADE", "NCM", "TRIBUTARIO"]); qc.setQueryData(chaves.estadoCamadas("p1"), estado); };
-  it("selo por camada: em aberto / aguardando, em dia, desatualizada; e Analisar todas (na ordem)", () => {
+  const fasesLiberadas = { fases: [{ fase: "FASE1", camadas: [], liberada: { versaoId: "v1", numero: 1, em: "2026-11-20T10:00:00Z" }, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: null, bloqueio: null }] };
+  const preparar = (qc, fases = fasesLiberadas) => { qc.setQueryData(chaves.visao("p1"), visao); qc.setQueryData(chaves.camadas(), ["QUALIDADE", "NCM", "TRIBUTARIO"]); qc.setQueryData(chaves.estadoCamadas("p1"), estado); qc.setQueryData(chaves.fases("p1"), fases); };
+  it("selo por camada: em aberto / aguardando, em dia, desatualizada; e Analisar a fase (na ordem)", () => {
     const html = montar(<Cobertura projeto={projeto()} />, preparar);
     const t = texto(html);
     expect(t).toContain("Qualidade 9.265 em aberto / 12 aguardando");
-    expect(t).toContain("NCM em dia");
+    expect(t).toContain("Validar NCM em dia");
     expect(t).toContain("Tratamento tributário 3 em aberto desatualizada");
-    expect(t).toContain("Analisar todas (na ordem)");
+    expect(t).toContain("Analisar a fase (na ordem)");
     expect(html).toContain('aria-label="Analisar Qualidade"');
-    expect(t).not.toMatch(/GRUPOS_FINALIDADE|TRIBUTARIO/);
+    expect(t).not.toMatch(/GRUPOS_FINALIDADE|TRIBUTARIO|FASE1|FASE2/);
+  });
+  it("agrupada por fase: Fase 1 com as camadas do saneamento, Fase 2 com Finalidade, Classificação NCM, Tratamento tributário e Impacto no SPED", () => {
+    const html = montar(<Cobertura projeto={projeto()} />, preparar);
+    const t = texto(html);
+    const i1 = t.indexOf("Fase 1 · Saneamento de estoques"); const i2 = t.indexOf("Fase 2 · Tributário e Reforma");
+    expect(i1).toBeGreaterThan(-1);
+    expect(i2).toBeGreaterThan(i1);
+    const fase1 = t.slice(i1, i2); const fase2 = t.slice(i2);
+    for (const c of ["Identificação", "Qualidade", "Duplicidades", "Grupos", "Nomes e unidades", "Validar NCM", "Impacto no SPED"]) expect(fase1, c).toContain(c);
+    for (const c of ["Finalidade", "Classificação NCM", "Tratamento tributário", "Impacto no SPED"]) expect(fase2, c).toContain(c);
+    expect(fase1).not.toContain("Tratamento tributário");
+    expect(fase2).not.toContain("Duplicidades");
+    expect((html.match(/Analisar a fase \(na ordem\)/g) || []).length).toBe(2);
+    expect(html).toContain('aria-label="Analisar a Fase 1 (na ordem)"');
+    expect(html).toContain('aria-label="Analisar a Fase 2 (na ordem)"');
+    expect(t).toContain("Cobertura das camadas");
+    expect(t).not.toContain("ainda não liberada");
+  });
+  it("Fase 2 bloqueada: mostra o motivo do servidor, o atalho para resolver e desliga os botões só da Fase 2", () => {
+    const bloq = (codigo, mensagem) => ({ fases: [{ fase: "FASE1", camadas: [], liberada: null, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: null, bloqueio: { codigo, mensagem } }] });
+    const html = montar(<Cobertura projeto={projeto()} aoIrPara={() => {}} />, (qc) => preparar(qc, bloq("FASE1_NAO_LIBERADA", "Libere a versão da Fase 1 antes.")));
+    const t = texto(html);
+    expect(t).toContain("Fase 2 ainda não liberada");
+    expect(t).toContain("Libere a versão da Fase 1 antes.");
+    expect(t).toContain("Ir para Versões");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar a Fase 2 \(na ordem\)"/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar Tratamento tributário"/);
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar a Fase 1 \(na ordem\)"/);
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar Qualidade"/);
+    const regime = texto(montar(<Cobertura projeto={projeto()} aoIrPara={() => {}} />, (qc) => preparar(qc, bloq("REGIME_NAO_INFORMADO", ""))));
+    expect(regime).toContain("Informe o regime do cliente");
+    expect(regime).toContain("Ir para a Configuração");
+    const ativ = texto(montar(<Cobertura projeto={projeto()} aoIrPara={() => {}} />, (qc) => preparar(qc, bloq("ATIVIDADES_NAO_CONFIRMADAS", "Confirme as atividades."))));
+    expect(ativ).toContain("Ir para a Configuração");
+  });
+  it("funções da fase: bloqueio pela resposta (ou falta dela) e fase da análise em andamento", () => {
+    expect(bloqueioDaFase("FASE1", undefined)).toBeNull();
+    expect(bloqueioDaFase("FASE2", undefined, { carregando: true }).mensagem).toContain("Conferindo");
+    expect(bloqueioDaFase("FASE2", undefined).mensagem).toContain("Não foi possível conferir");
+    expect(bloqueioDaFase("FASE2", { fases: [{ fase: "FASE2", bloqueio: null }] })).toBeNull();
+    expect(bloqueioDaFase("FASE2", { fases: [{ fase: "FASE2", bloqueio: { codigo: "REGIME_NAO_INFORMADO" } }] }).mensagem).toContain("regime do cliente");
+    expect(faseDaExecucao({ camadas: ["QUALIDADE", "NCM"] })).toBe("FASE1");
+    expect(faseDaExecucao({ camadas: ["FINALIDADE", "OBRIGACOES"] })).toBe("FASE2");
+    expect(faseDaExecucao({ camadas: ["OBRIGACOES"] })).toBe("FASE1");
+    expect(faseDaExecucao(null)).toBeNull();
   });
   it("análise em segundo plano: mostra o andamento vindo do servidor e avisa que pode sair da tela", () => {
     const html = montar(<Cobertura projeto={projeto()} />, (qc) => {
       preparar(qc);
-      qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: true, camadas: ["QUALIDADE", "NCM", "TRIBUTARIO"], atual: "NCM", feitas: [{ camada: "QUALIDADE" }], erro: null, iniciadaEm: "2026-11-27T09:00:00Z", terminadaEm: null } });
+      qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: true, camadas: ["QUALIDADE", "NCM", "OBRIGACOES"], atual: "NCM", feitas: [{ camada: "QUALIDADE" }], erro: null, iniciadaEm: "2026-11-27T09:00:00Z", terminadaEm: null } });
     });
     const t = texto(html);
     expect(t).toContain("Analisando 2 de 3…");
+    expect((t.match(/Analisando 2 de 3/g) || []).length).toBe(1); // só no botão da fase que está rodando
     expect(t).toContain("pode sair desta tela ou do sistema, ela continua");
-    expect(t).toContain("NCM analisando…");
+    expect(t).toContain("Validar NCM analisando…");
   });
   it("análise terminada há pouco: resumo com Fechar; parada por erro diz onde", () => {
     const agora = new Date().toISOString();
@@ -64,7 +111,7 @@ describe("Cobertura das camadas", () => {
     expect(ok).toContain("2 camadas analisadas, na ordem; 5 caso(s) novo(s).");
     expect(ok).toContain("Fechar");
     const erro = texto(montar(<Cobertura projeto={projeto()} />, (qc) => { preparar(qc); qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: false, camadas: ["QUALIDADE", "NCM"], atual: null, feitas: [{ camada: "QUALIDADE" }], erro: { camada: "NCM", mensagem: "falhou" }, iniciadaEm: agora, terminadaEm: agora } }); }));
-    expect(erro).toContain("1 camada(s) analisada(s); parou em NCM: falhou");
+    expect(erro).toContain("1 camada(s) analisada(s); parou em Validar NCM: falhou");
     const antiga = texto(montar(<Cobertura projeto={projeto()} />, (qc) => { preparar(qc); qc.setQueryData(chaves.analises("p1"), { execucao: { rodando: false, camadas: ["NCM"], atual: null, feitas: [{ camada: "NCM", casosNovos: 1 }], erro: null, iniciadaEm: "2026-01-01T00:00:00Z", terminadaEm: "2026-01-01T00:01:00Z" } }); }));
     expect(antiga).not.toContain("Fechar");
   });
@@ -73,7 +120,7 @@ describe("Cobertura das camadas", () => {
     expect(seloDaCamada({ estado: "NAO_ANALISADA", aguardando: 0 }, { abertos: 0, aguardando: 0 }).texto).toBe("não analisada");
     expect(seloDaCamada({ estado: "COM_DADOS", aguardando: 0 }, { abertos: 0, aguardando: 2 })).toEqual({ texto: "2 aguardando", tom: "alerta" });
     expect(ordemDeAnalise([{ camada: "A", analisavel: true, estado: "COM_DADOS" }, { camada: "B", analisavel: false, estado: "SEM_ANALISE" }, { camada: "C", analisavel: true, estado: "SEM_ITENS" }])).toEqual(["A"]);
-    expect(textoDesatualizada({ por: ["GRUPOS_FINALIDADE", "NCM"], desde: "2026-11-21T12:00:00Z" })).toMatch(/^Grupos e finalidade e NCM: decisões de \d\d\/11\/2026/);
+    expect(textoDesatualizada({ por: ["FINALIDADE", "NCM_CLASSIFICACAO"], desde: "2026-11-21T12:00:00Z" })).toMatch(/^Finalidade e Classificação NCM: decisões de \d\d\/11\/2026/);
     expect(textoDasAnalises([{ camada: "NCM", analisados: 10, casosNovos: 2, casosJaExistentes: 1 }, { camada: "TRIBUTARIO", analisados: 10, casosNovos: 3, casosJaExistentes: 0, semDados: { itens: 1, motivo: "x" } }]))
       .toBe("2 camadas analisadas, na ordem; 5 caso(s) novo(s). Faltou dado em: Tratamento tributário.");
   });
@@ -190,7 +237,7 @@ describe("Diretrizes em lote", () => {
     expect(aprovaveis.map((r) => r.codigo)).toEqual(["N02"]);
     expect(fora.map((r) => r.codigo)).toEqual(["N01"]);
     expect(resumoPreviaVarias({ regras: [{}], grupos: ["A"], itens: 1, camadas: [] }).textoFeito(1)).toBe("1 regra aplicada: 1 item de 1 grupo foi analisado de novo.");
-    expect(falhasDaReanalise({ camadas: [{ camada: "NCM", executada: false, motivo: "fora" }, { camada: "QUALIDADE", executada: true }] })).toEqual(["NCM: fora"]);
+    expect(falhasDaReanalise({ camadas: [{ camada: "NCM", executada: false, motivo: "fora" }, { camada: "QUALIDADE", executada: true }] })).toEqual(["Validar NCM: fora"]);
   });
 });
 
@@ -200,14 +247,36 @@ describe("Roteiro do projeto", () => {
     ["QUALIDADE", { camada: "QUALIDADE", abertos: 12, aguardando: 2, aprovados: 1, executadaEm: "2026-11-20T10:00:00Z" }],
   ]);
   const etapa = (fase, id) => FASES_ROTEIRO.find((f) => f.id === fase).etapas.find((e) => e.id === id);
-  it("situação real da Fase 1; Fase 2 e Fechamento como próxima fase", () => {
+  it("situação real da Fase 1; Fase 2 pelas camadas, premissas e liberação; o que ainda não é medido como próxima fase", () => {
     const ctx = { estado, itens: 29694, liberadas: 0 };
     expect(situacaoDaEtapa("fase1", etapa("fase1", "preparar"), ctx)).toMatchObject({ texto: "Concluída", detalhe: "29.694 itens importados" });
     expect(situacaoDaEtapa("fase1", etapa("fase1", "identificacao"), ctx)).toMatchObject({ texto: "Concluída", detalhe: "3 aprovados" });
     expect(situacaoDaEtapa("fase1", etapa("fase1", "qualidade"), ctx)).toMatchObject({ texto: "Em andamento", detalhe: "12 em aberto · 2 aguardando o cliente · 1 aprovados" });
     expect(situacaoDaEtapa("fase1", etapa("fase1", "duplicidades"), ctx).texto).toBe("Não iniciada");
     expect(situacaoDaEtapa("fase1", etapa("fase1", "preparar"), { ...ctx, itens: 0 }).texto).toBe("Não iniciada");
-    expect(situacaoDaEtapa("fase2", etapa("fase2", "tratamento"), ctx).texto).toBe("Próxima fase");
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "tratamento"), ctx).texto).toBe("Não iniciada");
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "operacoes"), ctx).texto).toBe("Próxima fase");
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "estoque"), ctx).texto).toBe("Próxima fase");
+    expect(situacaoDaEtapa("fechamento", etapa("fechamento", "parecer"), ctx).texto).toBe("Próxima fase");
+    // Camadas da Fase 2: finalidade, NCM (reclassificação), tratamento e SPED tributário.
+    expect(etapa("fase2", "finalidade").camada).toBe("FINALIDADE");
+    expect(etapa("fase2", "ncm2").camada).toBe("NCM_CLASSIFICACAO");
+    expect(etapa("fase2", "tratamento").camada).toBe("TRIBUTARIO");
+    expect(etapa("fase2", "sped2").camada).toBe("OBRIGACOES");
+    const comTrib = new Map([["TRIBUTARIO", { camada: "TRIBUTARIO", abertos: 4, aguardando: 0, aprovados: 2, executadaEm: "2026-11-20T10:00:00Z" }]]);
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "tratamento"), { ...ctx, estado: comTrib })).toMatchObject({ texto: "Em andamento", detalhe: "4 em aberto · 2 aprovados" });
+    const bloqueada = { fases: [{ fase: "FASE1", liberada: null, bloqueio: null }, { fase: "FASE2", liberada: null, bloqueio: { codigo: "FASE1_NAO_LIBERADA", mensagem: "Libere a Fase 1." } }] };
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "finalidade"), { ...ctx, fases: bloqueada })).toMatchObject({ texto: "Aguardando liberação", detalhe: "Libere a Fase 1." });
+    // Premissas: regime e atividades.
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "premissas"), { ...ctx, projeto: {} }).texto).toBe("Não iniciada");
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "premissas"), { ...ctx, projeto: { parametros: { regimeCliente: "REGULAR" } } })).toMatchObject({ texto: "Em andamento", detalhe: "Regime: Regime regular · atividades a confirmar" });
+    expect(situacaoDaEtapa("fase2", etapa("fase2", "premissas"), { ...ctx, projeto: { parametros: { regimeCliente: "REGULAR" }, atividadesConfirmadas: true } }).texto).toBe("Concluída");
+    // Liberações pela resposta de GET fases (sem ela, a Fase 1 pelas versões).
+    const liberadas = { fases: [{ fase: "FASE1", liberada: { versaoId: "v1", numero: 2 } }, { fase: "FASE2", liberada: null }] };
+    expect(situacaoDaLiberacao("fase1", { fases: liberadas })).toMatchObject({ texto: "Concluída", detalhe: "Versão 2" });
+    expect(situacaoDaLiberacao("fase2", { fases: liberadas }).texto).toBe("Não iniciada");
+    expect(situacaoDaLiberacao("fase1", { liberadas: 1 }).texto).toBe("Concluída");
+    expect(situacaoDaLiberacao("fechamento", {}).texto).toBe("Próxima fase");
   });
   it("modo apresentação esconde os números; o detalhe da etapa mostra o que é feito, o que o cliente fornece e recebe", () => {
     const props = { nome: "Crestani", estado, itens: 29694, liberadas: 0, selecionada: "duplicidades", aoSelecionar: () => {} };

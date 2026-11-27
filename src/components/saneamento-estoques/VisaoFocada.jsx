@@ -68,7 +68,7 @@ function FormularioDeExcecao({ projeto, item, dadosDoItem, camada, aoRegistrar }
   return (
     <form onSubmit={enviar} className={`space-y-2 ${quadroCls}`} aria-label="Exceção deste item">
       <h4 className={tituloQuadroCls}>Exceção só para este item</h4>
-      <p className={textoApoioCls}>{camada === "GRUPOS_FINALIDADE" ? "A finalidade é confirmada por grupo; use isto só se este item for diferente do grupo." : camada === "NOMES_UNIDADES" ? "A conversão de unidade é decidida por conjunto (mesma unidade e mesmo fator); use isto só se o conteúdo deste item for diferente. Aprovar o conjunto não mexe no item que tem exceção." : "O item herda o tratamento do conjunto; use isto só se ele for diferente."} Abre um caso individual, que precisa ser aprovado.</p>
+      <p className={textoApoioCls}>{camada === "FINALIDADE" ? "A finalidade é confirmada por grupo; use isto só se este item for diferente do grupo." : camada === "NOMES_UNIDADES" ? "A conversão de unidade é decidida por conjunto (mesma unidade e mesmo fator); use isto só se o conteúdo deste item for diferente. Aprovar o conjunto não mexe no item que tem exceção." : "O item herda o tratamento do conjunto; use isto só se ele for diferente."} Abre um caso individual, que precisa ser aprovado.</p>
       {campos.map((c) => (
         <label key={c.campo} className="block"><Rotulo>{c.rotulo}</Rotulo>
           {c.tipo === "finalidade" ? (
