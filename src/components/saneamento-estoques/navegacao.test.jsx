@@ -59,9 +59,8 @@ describe("Cobertura numa linha", () => {
     qc.setQueryData(chaves.projeto("d1"), projeto());
     return texto(renderToStaticMarkup(<QueryClientProvider client={qc}><StaticRouter location={local}><Routes><Route path="/s/:id" element={<SaneamentoEstoquesPagina />} /></Routes></StaticRouter></QueryClientProvider>));
   };
-  it("a faixa só aparece em Configuração, Importação e Visão geral", () => {
-    for (const aba of ["configuracao", "importacao", "visao"]) expect(rota(`/s/d1?aba=${aba}`), aba).toContain("Cobertura das camadas");
-    for (const aba of ["casos", "tabela", "versoes", "diretrizes", "unificacoes", "impacto"]) expect(rota(`/s/d1?aba=${aba}`), aba).not.toContain("Cobertura das camadas");
+  it("a Cobertura aparece acima de todas as abas", () => {
+    for (const aba of ["configuracao", "importacao", "visao", "casos", "tabela", "versoes", "diretrizes", "unificacoes", "impacto"]) expect(rota(`/s/d1?aba=${aba}`), aba).toContain("Cobertura das camadas");
   });
 });
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play, RotateCw } from "lucide-react";
 import { chaves, san, atualizarTudo } from "./api";
-import { Aviso, botaoPrimario, Tag, usePodeAlterar } from "./comuns";
+import { Aviso, botaoPrimario, botaoSecundario, Tag, usePodeAlterar } from "./comuns";
 import { camadasAtivas, coberturaDeCamadas, estadoDaTrava, fmtDataHora, mensagemDeErro, ROTULO_CAMADA } from "./logica";
 
 const fmt = (n) => Number(n || 0).toLocaleString("pt-BR");
@@ -47,8 +47,8 @@ export function textoDasAnalises(feitas) {
 }
 
 /**
- * Cobertura: uma linha com o que falta em cada camada (casos em aberto e aguardando, camada desatualizada) e "Analisar todas (na ordem)".
- * Cada camada também pode ser analisada sozinha (botão ao lado do selo).
+ * Cobertura, acima de todas as abas: um quadro por camada com o que falta (casos em aberto e aguardando, desatualizada) e o botão de
+ * analisar a camada; "Analisar todas (na ordem)" no alto.
  */
 export default function Cobertura({ projeto }) {
   const qc = useQueryClient();
@@ -85,42 +85,44 @@ export default function Cobertura({ projeto }) {
   const analisar = (lista) => { setResultado(null); executar.mutate(lista); };
 
   return (
-    <section aria-labelledby="san-cobertura" className="border border-border bg-card px-3 py-2 text-xs">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <h2 id="san-cobertura" className="text-xs font-semibold">Cobertura das camadas</h2>
-        {visao.isError || disponiveis.isError ? <span className="text-muted-foreground" role="alert">Não foi possível carregar a cobertura agora.</span>
-          : !pronto ? <span className="text-muted-foreground" role="status">Carregando a cobertura…</span>
-            : (
-              <ul className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1" aria-label="Situação de cada camada">
-                {cobertura.map((c) => {
-                  const e = porCamada.get(c.camada);
-                  const selo = seloDaCamada(c, e);
-                  const rodando = executar.isPending && progresso?.camada === c.camada;
-                  return (
-                    <li key={c.camada} className="inline-flex items-center gap-1 whitespace-nowrap">
-                      <span className="font-medium">{ROTULO_CAMADA[c.camada]}</span>
-                      <Tag tom={selo.tom}>{rodando ? "analisando…" : selo.texto}</Tag>
-                      {e?.desatualizada && <span title={textoDesatualizada(e.desatualizada)}><Tag tom="alerta">desatualizada</Tag></span>}
-                      {c.analisavel && c.estado !== "SEM_ITENS" && (
-                        <button type="button" className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-40" disabled={!!bloqueio || executar.isPending}
-                          title={bloqueio || `Analisar ${ROTULO_CAMADA[c.camada]}${e?.executadaEm ? ` (última análise: ${fmtDataHora(e.executadaEm)})` : ""}`}
-                          aria-label={`Analisar ${ROTULO_CAMADA[c.camada]}`} onClick={() => analisar([c.camada])}>
-                          <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+    <section aria-labelledby="san-cobertura" className="space-y-2 border border-border bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 id="san-cobertura" className="text-sm font-semibold">Cobertura das camadas</h2>
         <button type="button" className={`${botaoPrimario} ml-auto px-2 py-1 text-xs`} disabled={!pronto || !!bloqueio || executar.isPending || !ordem.length}
           title={bloqueio || (!ordem.length ? "Importe o cadastro de itens antes" : `Analisa ${ordem.length} camada(s), uma depois da outra, na ordem das abas`)} onClick={() => analisar(ordem)}>
           <Play className="h-3.5 w-3.5" aria-hidden="true" />{executar.isPending && progresso ? `Analisando ${progresso.atual} de ${progresso.total}…` : "Analisar todas (na ordem)"}
         </button>
       </div>
-      {trava.bloqueada && <p className="mt-1 text-muted-foreground">{trava.mensagem}: as análises ficam bloqueadas até lá.</p>}
-      {resultado?.tom === "erro" && <div className="mt-2"><Aviso tom="erro">{resultado.texto}</Aviso></div>}
-      {resultado?.tom === "ok" && <div className="mt-2"><Aviso tom={resultado.feitas.some((r) => r.semDados) ? "alerta" : "ok"}>{textoDasAnalises(resultado.feitas)}</Aviso></div>}
+      {visao.isError || disponiveis.isError ? <p className="text-sm text-muted-foreground" role="alert">Não foi possível carregar a cobertura agora.</p>
+        : !pronto ? <p className="text-sm text-muted-foreground" role="status">Carregando a cobertura…</p>
+          : (
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-label="Situação de cada camada">
+              {cobertura.map((c) => {
+                const e = porCamada.get(c.camada);
+                const selo = seloDaCamada(c, e);
+                const rodando = executar.isPending && progresso?.camada === c.camada;
+                return (
+                  <li key={c.camada} className="flex flex-col gap-1 border border-border p-2 text-xs">
+                    <span className="font-medium">{ROTULO_CAMADA[c.camada]}</span>
+                    <span className="flex flex-wrap gap-1">
+                      <Tag tom={selo.tom}>{rodando ? "analisando…" : selo.texto}</Tag>
+                      {e?.desatualizada && <span title={textoDesatualizada(e.desatualizada)}><Tag tom="alerta">desatualizada</Tag></span>}
+                    </span>
+                    {c.analisavel && (
+                      <button type="button" className={`${botaoSecundario} mt-auto px-2 py-1 text-xs`} disabled={!!bloqueio || c.estado === "SEM_ITENS" || executar.isPending}
+                        title={bloqueio || (c.estado === "SEM_ITENS" ? "Importe o cadastro de itens antes" : e?.executadaEm ? `Última análise: ${fmtDataHora(e.executadaEm)}` : undefined)}
+                        aria-label={`Analisar ${ROTULO_CAMADA[c.camada]}`} onClick={() => analisar([c.camada])}>
+                        <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />{rodando ? "Analisando…" : c.estado === "NAO_ANALISADA" || c.estado === "SEM_ITENS" ? "Analisar" : "Analisar de novo"}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+      {trava.bloqueada && <p className="text-xs text-muted-foreground">{trava.mensagem}: as análises ficam bloqueadas até lá.</p>}
+      {resultado?.tom === "erro" && <Aviso tom="erro">{resultado.texto}</Aviso>}
+      {resultado?.tom === "ok" && <Aviso tom={resultado.feitas.some((r) => r.semDados) ? "alerta" : "ok"}>{textoDasAnalises(resultado.feitas)}</Aviso>}
     </section>
   );
 }

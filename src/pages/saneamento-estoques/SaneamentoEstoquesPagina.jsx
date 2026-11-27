@@ -20,8 +20,6 @@ import Versoes from "@/components/saneamento-estoques/Versoes";
 import VisaoGeral from "@/components/saneamento-estoques/VisaoGeral";
 import { ABAS, abaInicial, mensagemDeErro, naoEncontrado } from "@/components/saneamento-estoques/logica";
 
-/** A faixa de Cobertura (o que falta em cada camada e "Analisar todas") só onde se prepara e acompanha a análise. */
-const ABAS_COM_COBERTURA = ["configuracao", "importacao", "visao"];
 
 function Painel({ projeto, aba, irPara, podeImportar, recarregar, recorte, casoInicial, abrirCasos, abrirTabela }) {
   const configuracao = () => irPara("configuracao");
@@ -78,7 +76,7 @@ export default function SaneamentoEstoquesPagina() {
       <PermissaoContext.Provider value={{ podeAlterar }}>
       <div className="space-y-4">
         {!podeAlterar && <Aviso tom="alerta">{semFuncao("alterar")} Você pode consultar, mas não gravar.</Aviso>}
-        {ABAS_COM_COBERTURA.includes(aba) && <Cobertura projeto={projeto} />}
+        <Cobertura projeto={projeto} />
         <Abas atual={aba} aoMudar={(a) => { if (a !== "casos" && a !== "tabela") { setRecorte(null); setCasoInicial(null); } irPara(a); }} />
         <div role="tabpanel" id="san-painel" aria-labelledby={`san-aba-${aba}`}>
           <Painel projeto={projeto} aba={aba} irPara={irPara} podeImportar={temFuncao(user, "importar")} recarregar={recarregar} recorte={recorte} casoInicial={casoInicial} abrirCasos={abrirCasos} abrirTabela={abrirTabela} />
