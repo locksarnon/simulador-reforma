@@ -340,6 +340,63 @@ describe('lote com prévia e exceções', () => {
     expect(c.db.sanCaso.filter((x) => x.situacao === 'APROVADO')).toHaveLength(2);
     expect(r2.excecoes).toHaveLength(2);
   });
+
+  it('exceções e aprováveis trazem o tipo e o primeiro item (código e descrição), nunca só o id; o conflito cita o outro caso pelo item', async () => {
+    const c = montar();
+    const { projetoId } = await dois(c);
+    const p = await c.casos.lotePrevia(projetoId, { filtro: { camada: 'NCM' } });
+    expect(p.aprovaveis[0]).toMatchObject({ tipo: 'A', codigo: '00123', descricao: 'Produto 00123', qtdItens: 1 });
+    const conflito = p.excecoes.find((e) => e.motivo.includes('Conflita'))!;
+    expect(conflito).toMatchObject({ tipo: 'D', codigo: '00123', descricao: 'Produto 00123' });
+    expect(conflito.motivo).not.toContain(c.db.sanCaso[0].id);
+    expect(p.excecoes.find((e) => e.tipo === 'C')!.motivo).toContain('"NCM"');
+    expect(p).toMatchObject({ total: 4, proximo: null });
+    expect(p.abertos.map((a) => a.casoId).sort()).toEqual(c.db.sanCaso.map((x) => x.id).sort());
+  });
+
+  it('pelo filtro, a rodada começa depois de "apos" e aceita grupo e situação (só em aberto)', async () => {
+    const c = montar();
+    const { projetoId } = await dois(c);
+    const ordenados = c.db.sanCaso.map((x) => x.id).sort();
+    const p = await c.casos.lotePrevia(projetoId, { filtro: { camada: 'NCM' }, apos: ordenados[1] });
+    expect(p.casos).toBe(2);
+    expect(p.total).toBe(4);
+    const porGrupo = await c.casos.lotePrevia(projetoId, { filtro: { grupo: 'Sementes' } });
+    expect(porGrupo.casos).toBe(1); // só o caso do item 00125 (grupo Sementes)
+    // Situação fora do aberto não amplia o recorte: continuam só os casos em aberto.
+    expect((await c.casos.lotePrevia(projetoId, { filtro: { situacao: 'APROVADO' } })).casos).toBe(4);
+  });
+
+  it('pedir informação e rejeitar em lote: texto e versões obrigatórios, caso que mudou vira exceção, cada caso decidido na sua transação', async () => {
+    const c = montar();
+    const { projetoId } = await dois(c);
+    const ids = c.db.sanCaso.map((x) => x.id);
+    const p = await c.casos.lotePrevia(projetoId, { ids });
+    const versoes = Object.fromEntries(p.abertos.map((a) => [a.casoId, a.versao]));
+    expect(await status(c.casos.loteDecidir(projetoId, 'pedir', { ids, versoes, texto: ' ' }, USER))).toBe(400);
+    expect(await status(c.casos.loteDecidir(projetoId, 'pedir', { ids, texto: 'Ficha técnica' }, USER))).toBe(400);
+    c.db.sanCaso[3].versao = 7; // alguém mexeu no caso D depois da prévia
+    const r = await c.casos.loteDecidir(projetoId, 'pedir', { ids: [ids[0], ids[1], ids[3]], versoes, texto: 'Ficha técnica do fabricante' }, USER);
+    expect(r).toMatchObject({ decididos: 2, restantes: [] });
+    expect(r.excecoes).toEqual([expect.objectContaining({ casoId: ids[3], tipo: 'D', codigo: '00123' })]);
+    expect(c.db.sanCaso.filter((x) => x.situacao === 'AGUARDANDO_INFORMACAO').map((x) => x.motivo)).toEqual(['Ficha técnica do fabricante', 'Ficha técnica do fabricante']);
+    const r2 = await c.casos.loteDecidir(projetoId, 'rejeitar', { ids, versoes: { ...versoes, [ids[3]]: 7 }, texto: 'Mantém como está' }, USER);
+    expect(r2.decididos).toBe(2); // C e D; A e B já não estão em aberto
+    expect(r2.excecoes.filter((e) => e.motivo.includes('não em aberto'))).toHaveLength(2);
+    expect(c.db.sanCaso.filter((x) => x.situacao === 'REJEITADO')).toHaveLength(2);
+    expect(c.db.sanDecisao.filter((d) => d.tipo === 'rejeitar').every((d) => d.fundamento === 'Mantém como está')).toBe(true);
+  });
+
+  it('a lista traz o primeiro item de cada caso e a contagem por tipo; o detalhe traz o resumo dos itens', async () => {
+    const c = montar();
+    const { projetoId } = await dois(c);
+    const l = await c.casos.listar(projetoId, { camada: 'NCM', tipo: 'A' });
+    expect(l.casos).toHaveLength(1);
+    expect(l.casos[0].item).toEqual({ codigo: '00123', descricao: 'Produto 00123', grupo: 'Adubos' });
+    expect(l.tipos!.map((t) => [t.tipo, t.n])).toEqual([['A', 1], ['B', 1], ['C', 1], ['D', 1]]);
+    const d = await c.casos.obter(c.db.sanCaso[2].id);
+    expect(d.resumoItens).toEqual([expect.objectContaining({ codigo: '00125', descricao: 'Produto 00125', grupo: 'Sementes', ncm: '31010000', unidade: 'UN' })]);
+  });
 });
 
 describe('camadas: executar e registrar resultado', () => {

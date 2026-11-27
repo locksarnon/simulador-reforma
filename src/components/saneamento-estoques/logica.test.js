@@ -6,7 +6,7 @@ import {
   linhasDeMapeamento, loteTemEscolha, mensagemDeErro, mensagemDoParecer, montarExcecao, montarFiltroCasos, montarFiltroItens, MENSAGEM_TRAVA, nomeDeEntrega, precisaCarregarMais,
   proximoCasoAberto, proximoPendente, resumirRelatorio, rolagemParaLinha, rotuloSituacao, situacaoAgregada, textoDaCelula, textoDoConjunto, versoesDaPrevia, edicaoSuja, edicaoInicial,
   paginasDeImpacto, corpoIncorporar, quantosIncorporar, lerNumeroBr, ALTURA_LINHA, LISTA_SITUACOES, fmtData, converterProposta, razaoSemAprovar, efeitoDaAtividade, interpretarRespostaParecer, textoDoEnquadramento, avisosDaLiberacao,
-  versaoCriada, idsDoLote, rotuloDoCaso, rotuloSituacaoCaso, ehErroDeRede, ehPropostaDesatualizada, camposDivergentes, casoValeParaEnquadramento,
+  versaoCriada, filtroAdmiteLote, fatiarIds, somarPrevias, linhaDeExcecao, identificacaoDoCaso, rotuloSituacaoCaso, ehErroDeRede, ehPropostaDesatualizada, camposDivergentes, casoValeParaEnquadramento,
   justificativaBasta, podeRestaurar, fmtCnae, motivoDaAtividade, motivoListaVazia, textoBuscaCnpj, restauracoesDaVersao, linhasDaPrevia, paramsDoMapa, enderecoDoMapa, fmtSaldo,
 } from "./logica";
 
@@ -195,11 +195,15 @@ describe("casos: ações, próximo e lote", () => {
   });
   it("lote: ids marcados ou filtro; a aprovação usa as versões da prévia", () => {
     expect(corpoDoLote({ ids: ["1", "2"], fundamento: " F " })).toEqual({ ids: ["1", "2"], fundamento: "F" });
-    expect(corpoDoLote({ filtro: { camada: "NCM", tipo: "", origem: "IA" } })).toEqual({ filtro: { camada: "NCM", origem: "IA" } });
-    expect(loteTemEscolha(corpoDoLote({ filtro: { camada: "", tipo: "", origem: "" } }))).toBe(false);
+    // Sem marcação, o lote é o FILTRO INTEIRO (só os casos em aberto), lido em rodadas a partir de "apos".
+    expect(corpoDoLote({ filtro: { camada: "NCM", tipo: "", origem: "IA", situacao: "ABERTOS" } })).toEqual({ filtro: { camada: "NCM", origem: "IA", situacao: "PROPOSTO,RASCUNHO" } });
+    expect(corpoDoLote({ filtro: { grupo: "Adubos", situacao: "RASCUNHO" }, apos: "c9" })).toEqual({ filtro: { grupo: "Adubos", situacao: "RASCUNHO" }, apos: "c9" });
+    expect(corpoDoLote({ filtro: { situacao: "" } }).filtro.situacao).toBe("PROPOSTO,RASCUNHO");
+    expect(loteTemEscolha(corpoDoLote({ filtro: {} }))).toBe(true);
     expect(loteTemEscolha(corpoDoLote({ ids: ["1"] }))).toBe(true);
     expect(versoesDaPrevia({ aprovaveis: [{ casoId: "a", versao: 2 }, { casoId: "b", versao: 5 }] })).toEqual({ a: 2, b: 5 });
     expect(versoesDaPrevia(null)).toEqual({});
+    expect(versoesDaPrevia({ aprovaveis: [], abertos: [{ casoId: "c", versao: 3 }] }, "pedir")).toEqual({ c: 3 });
   });
   it("converte o texto digitado conforme o valor anterior", () => {
     expect(converterValor("12,5", 3)).toBe(12.5);
@@ -411,12 +415,20 @@ describe("revisão C: datas, proposta, parecer, lote e enquadramento", () => {
     expect(interpretarRespostaParecer({ motivo: "sem_resposta" })).toMatchObject({ ok: false, texto: "A IA não está disponível agora; o caso segue sem parecer." });
     expect(interpretarRespostaParecer(null).ok).toBe(false);
   });
-  it("lote: o recorte é o que a tela mostra, e a exceção identifica o caso", () => {
-    const casos = [{ id: "a1", situacao: "PROPOSTO", camada: "NCM", problema: "NCM curto" }, { id: "b2", situacao: "APROVADO" }, { id: "c3", situacao: "RASCUNHO" }, { id: "d4", situacao: "OBSOLETO" }];
-    expect(idsDoLote(new Set(), casos)).toEqual(["a1", "c3"]);
-    expect(idsDoLote(new Set(["b2"]), casos)).toEqual(["b2"]);
-    expect(rotuloDoCaso(casos, "a1")).toBe("NCM: NCM curto");
-    expect(rotuloDoCaso(casos, "zzzzzzzzzz")).toBe("Caso zzzzzzzz");
+  it("lote: o filtro inteiro em rodadas de 2000, as prévias somadas, e a exceção identifica o caso pelo item (nunca pelo id)", () => {
+    expect(filtroAdmiteLote({ situacao: "ABERTOS" })).toBe(true);
+    expect(filtroAdmiteLote({ situacao: "" })).toBe(true);
+    expect(filtroAdmiteLote({ situacao: "APROVADO" })).toBe(false);
+    expect(fatiarIds(Array.from({ length: 4500 }, (_, i) => String(i))).map((x) => x.length)).toEqual([2000, 2000, 500]);
+    const soma = somarPrevias([{ total: 2500, casos: 2000, aprovaveis: [{ casoId: "a" }], excecoes: [], abertos: [{ casoId: "a" }, { casoId: "b" }], itensAfetados: 3, camposAfetados: 4 }, { total: 2500, casos: 500, aprovaveis: [], excecoes: [{ casoId: "c" }], abertos: [{ casoId: "c" }], itensAfetados: 1, camposAfetados: 1 }]);
+    expect(soma).toMatchObject({ total: 2500, casos: 2500, itensAfetados: 4, camposAfetados: 5 });
+    expect(soma.abertos).toHaveLength(3);
+    expect(identificacaoDoCaso({ codigo: "2186", descricao: "RETENTOR", qtdItens: 1 })).toBe("2186 — RETENTOR");
+    expect(identificacaoDoCaso({ codigo: "12320", descricao: "CONECTOR", qtdItens: 3 })).toBe("3 itens (1º: 12320) — CONECTOR");
+    const linha = linhaDeExcecao({ casoId: "cmwyd00v123", tipo: "NCM_INEXISTENTE", codigo: "2186", descricao: "RETENTOR", qtdItens: 1, motivo: "Falta informação." });
+    expect(linha).toBe("NCM inexistente · 2186 — RETENTOR: Falta informação.");
+    expect(linha).not.toContain("cmwyd00v");
+    expect(linhaDeExcecao({ casoId: "x", motivo: "Caso inexistente neste projeto." })).toBe("Caso fora deste projeto: Caso inexistente neste projeto.");
   });
   it("coluna tributária: enquadramento do servidor com etiqueta; 'Aguardando revisão' se revisar", () => {
     const item = { conjunto_chave: "1|REVENDA", celulas: [{ camada: "TRIBUTARIO", situacao: "PROPOSTO", revisar: false }], enquadramento: { enquadramentoLegal: "Alíquota padrão", artigo: "art. 11", cClassTrib: "000001", cst: "000", origem: "EXCECAO" } };

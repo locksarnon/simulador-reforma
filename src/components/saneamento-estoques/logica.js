@@ -26,13 +26,76 @@ export const CAMPOS_DA_CAMADA = {
   OBRIGACOES: ["codigo", "unidade", "ncm"],
 };
 
+// ── Rótulos (o mesmo dicionário do material do cliente: backend/src/saneamento-estoques/rotulos.ts; o teste confere que são iguais) ──
+
+/** Campos do item e da proposta. Nenhum código interno de campo aparece na tela. */
 export const ROTULO_CAMPO = {
   codigo: "Código", estabelecimento: "Estabelecimento", descricao: "Descrição", unidade: "Unidade", ncm: "NCM", grupo: "Grupo", ativo: "Ativo",
   saldo: "Saldo", ultimaMovimentacao: "Última movimentação", fabricante: "Fabricante", referencia: "Referência", finalidade: "Finalidade",
   tambemUsadoComo: "Também usado como", fatorConversao: "Fator de conversão", unidadeCompra: "Unidade de compra", cClassTrib: "cClassTrib", cst: "CST", enquadramentoLegal: "Enquadramento legal", artigo: "Artigo", origem: "Origem",
-  fatorSituacao: "Situação do fator", exigeFator: "Exige fator (informativo)", fatorDe: "Fator: 1 unidade de", fatorPara: "Fator: equivale a (unidade)",
+  fatorSituacao: "Situação do fator", exigeFator: "Exige fator", fatorDe: "Fator: 1 unidade de", fatorPara: "Fator: equivale a (unidade)",
+  decisao: "Decisão", manter: "Código mantido", consolidar: "Código consolidado", ajustes: "Ajustes", valorOriginal: "Valor original", valorProposto: "Valor proposto",
+  tipoImpacto: "Tipo de impacto", codigoAntigo: "Código antigo", decisoesPossiveis: "Decisões possíveis", codigos: "Códigos", descricoes: "Descrições",
+  tratamentoDoSaldo: "Tratamento do saldo", arvore: "Árvore de grupos", subgrupos: "Subgrupos",
 };
-export const rotuloDoCampo = (c) => ROTULO_CAMPO[c] || c;
+export const rotuloDoCampo = (c) => { const k = String(c ?? "").replace(/^campos\./, ""); return ROTULO_CAMPO[k] || k; };
+
+/** Tipos de caso: a coluna, o filtro e o lote mostram sempre o rótulo. */
+export const ROTULO_TIPO_CASO = {
+  // Identificação e qualidade
+  CODIGO_AUSENTE: "Código ausente", CODIGO_REPETIDO: "Código repetido", CODIGO_FORMATO: "Formato do código", CODIGO_ZEROS_ESQUERDA: "Zeros à esquerda no código",
+  CODIGO_ANTIGO: "Código antigo", CODIGO_ANTIGO_EM_USO: "Código antigo em uso", CODIGO_DESCRICOES_DIVERGENTES: "Mesmo código com descrições diferentes",
+  ESTABELECIMENTO_AUSENTE: "Estabelecimento ausente", CAMPO_OBRIGATORIO_VAZIO: "Campo obrigatório vazio", DESCRICAO_INSUFICIENTE: "Descrição insuficiente",
+  SALDO_INVALIDO: "Saldo inválido", SALDO_NEGATIVO: "Saldo negativo", SEM_DATA_MOVIMENTACAO: "Sem data de movimentação", DATA_MOVIMENTACAO_INVALIDA: "Data de movimentação inválida",
+  ITEM_INATIVO_COM_USO: "Item inativo com uso", SEM_MOVIMENTACAO: "Sem movimentação desde o corte (inativar)",
+  SEM_MOVIMENTACAO_COM_SALDO: "Sem movimentação desde o corte, com saldo", UNIDADE_AUSENTE: "Unidade ausente", NCM_AUSENTE: "NCM ausente",
+  // Duplicidade
+  DUPLICIDADE_EXATA: "Duplicidade exata", DUPLICIDADE_INDICACAO_ALTA: "Indício alto de duplicidade", DUPLICIDADE_INDICACAO_POSSIVEL: "Possível duplicidade",
+  DUPLICIDADE_COM_SALDO: "Duplicidade com saldo", APRESENTACOES_DISTINTAS: "Apresentações distintas", ATRIBUTOS_CONFLITANTES: "Atributos conflitantes",
+  REFERENCIA_COINCIDENTE: "Mesma referência do fabricante", REFERENCIA_COINCIDENTE_CONDICAO_DIFERENTE: "Mesma referência, condição diferente (original × paralelo)",
+  REFERENCIA_FABRICANTES_DIFERENTES: "Mesma referência, fabricantes diferentes", REFERENCIA_COINCIDENTE_SEM_FABRICANTE: "Mesma referência, sem fabricante",
+  // Grupos e finalidade
+  ITEM_SEM_GRUPO: "Item sem grupo", GRUPO_GENERICO: "Grupo genérico", GRUPO_NOME_VARIANTE: "Nome de grupo variante", GRUPOS_SOBREPOSTOS: "Grupos sobrepostos",
+  ITEM_DESLOCADO: "Item fora do grupo", NECESSIDADE_NOVO_GRUPO: "Necessidade de grupo novo", FINALIDADE_GRUPO: "Finalidade do grupo", FINALIDADE_EXCECAO: "Exceção à finalidade do grupo",
+  FINALIDADE_SUGERIDA: "Finalidade sugerida",
+  // Nomes e unidades
+  DESCRICAO_FORA_DO_PADRAO: "Descrição fora do padrão", TERMO_GENERICO: "Descrição com termo genérico", ABREVIACAO_ESCONDE_ATRIBUTO: "Abreviação que esconde atributo",
+  CARACTERES_INVALIDOS: "Caracteres inválidos", TAMANHO_EXCEDIDO: "Tamanho acima do limite do ERP", UNIDADE_CONVERSAO: "Conversão de unidade",
+  UNIDADE_GRAFIA: "Grafia da unidade", UNIDADE_SEM_REGRA: "Unidade sem regra", UNIDADE_INCOMPATIVEL: "Unidade incompatível",
+  DESCRICAO_FORA_PADRAO: "Descrição fora do padrão da regra", TERMO_PROIBIDO: "Termo proibido na descrição", COMPONENTE_AUSENTE: "Componente ausente na descrição",
+  UNIDADE_NAO_PERMITIDA: "Unidade não permitida", UNIDADE_FORA_CRITERIO: "Unidade fora do critério", EXCEDE_LIMITE_DESTINO: "Acima do limite de caracteres",
+  LIMITE_NAO_CONFIRMADO: "Limite de caracteres não confirmado", ATRIBUTO_AUSENTE: "Atributo obrigatório ausente",
+  // NCM
+  NCM_FORMATO: "Formato do NCM", NCM_INEXISTENTE: "NCM inexistente", NCM_NAO_VIGENTE: "NCM não vigente", NCM_CLASSIFICACAO_ANTIGA: "NCM de classificação antiga", NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS: "NCM diferente entre itens iguais",
+  NCM_INCOMPATIVEL_DESCRICAO: "NCM incompatível com a descrição", NCM_INCOERENTE: "NCM incoerente", NCM_INFO_INSUFICIENTE: "Informação insuficiente para o NCM",
+  NCM_PREENCHIMENTO_INVALIDO: "Preenchimento inválido do NCM",
+  // Tratamento tributário
+  ENQUADRAMENTO_CONJUNTO: "Enquadramento do conjunto", ENQUADRAMENTO_CONFERIDO: "Enquadramento conferido", EXCECAO_ITEM: "Exceção do item", EXCECAO_MANUAL: "Exceção do item",
+  AGUARDANDO_NCM: "Aguardando NCM", AGUARDANDO_FINALIDADE: "Aguardando finalidade", AGUARDANDO_INFORMACAO: "Aguardando informação",
+  // Obrigações
+  IMPACTO_MUDOU_CODIGO_DESCRICAO: "Impacto: código ou descrição", IMPACTO_MUDOU_UNIDADE: "Impacto: unidade ou conversão", IMPACTO_CONSOLIDOU_INATIVOU: "Impacto: consolidação de código", IMPACTO_INATIVOU: "Impacto: inativação de código",
+  IMPACTO_MUDOU_NCM: "Impacto: NCM", IMPACTO_MUDOU_TRATAMENTO: "Impacto: tratamento (CST/cClassTrib)", IMPACTO_ITEM_ATIVO_IMOBILIZADO: "Impacto: bem do ativo imobilizado",
+};
+/** Rótulo do tipo de caso; o que não estiver no dicionário vira texto legível (nunca o código com sublinhado). */
+export function rotuloTipoCaso(tipo) {
+  if (ROTULO_TIPO_CASO[tipo]) return ROTULO_TIPO_CASO[tipo];
+  const t = String(tipo ?? "").toLowerCase().replace(/_+/g, " ").trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : "";
+}
+
+/** Valores codificados (decisões, finalidades, situação do fator, tipo de impacto). */
+export const ROTULO_VALOR = {
+  REVENDA: "Revenda", MATERIA_PRIMA: "Matéria-prima", INSUMO_PRODUCAO: "Insumo de produção", EMBALAGEM: "Embalagem", USO_CONSUMO: "Uso e consumo", MANUTENCAO: "Manutenção",
+  IMOBILIZADO: "Imobilizado", MATERIAL_TERCEIROS: "Material de terceiros", HERDADO: "Herdado do conjunto", EXCECAO: "Exceção do item", INFORMAR: "a informar", CONFIRMAR: "a confirmar",
+  INFORMADO: "informado", DEFINIDO: "definido", CADASTRAL_FUTURO: "Ajuste cadastral futuro", REGULARIZACAO_SALDO: "Regularização de saldo",
+  ESCRITURACAO_ENTREGUE: "Impacto em escrituração já entregue", PROPOR_CONSOLIDACAO: "Propor consolidação", SOLICITAR_INFORMACAO: "Solicitar informação",
+  RELACIONAR_APRESENTACOES: "Relacionar apresentações", PROPOR_INATIVACAO: "Propor inativação", REGULARIZAR_SALDO: "Regularizar o saldo antes de inativar",
+  MANTER_DISTINTOS: "Manter distintos", CORRIGIR_IDENTIFICACAO: "Corrigir a identificação", RELACIONAR_EQUIVALENTES: "Relacionar equivalentes", SIM: "Sim", NAO: "Não",
+  true: "Sim", false: "Não",
+};
+export const rotuloDoValor = (v) => ROTULO_VALOR[v] ?? v;
+/** Campos cujo valor é um código (o texto mostra o rótulo). Descrição, grupo e afins nunca passam pelo dicionário. */
+const CAMPOS_CODIFICADOS = ["decisao", "finalidade", "tambemUsadoComo", "fatorSituacao", "origem", "tipoImpacto", "exigeFator", "ativo"];
 
 export const FINALIDADES = ["REVENDA", "MATERIA_PRIMA", "INSUMO_PRODUCAO", "EMBALAGEM", "USO_CONSUMO", "MANUTENCAO", "IMOBILIZADO", "MATERIAL_TERCEIROS"];
 export const ROTULO_FINALIDADE = {
@@ -253,7 +316,7 @@ export function razaoSemAprovar(caso, proposta, justificativa) {
   const p = proposta ?? caso.proposta ?? {};
   if (caso.tipo === "FINALIDADE_EXCECAO" && String(justificativa ?? caso.justificativa ?? "").trim().length < 5) return "Exceção exige motivo: escreva na justificativa por que estes itens têm finalidade diferente da do grupo.";
   if (caso.situacao === "AGUARDANDO_INFORMACAO" || String(caso.tipo || "").startsWith("AGUARDANDO")) return "O caso aguarda informação: não há o que aprovar. Reabra quando a informação chegar.";
-  if (Object.keys(p).length === 0) return "Não há proposta: não há alteração para aprovar. Rejeite ou peça informação.";
+  if (Object.keys(propostaParaEnviar(p, caso.proposta)).length === 0) return campoAlvoDoCaso(caso) ? `Digite o valor correto em ${rotuloDoCampo(campoAlvoDoCaso(caso))} para aprovar, ou rejeite ou peça informação.` : "Não há proposta: não há alteração para aprovar. Rejeite ou peça informação.";
   if (p.decisao === "SOLICITAR_INFORMACAO") return "A decisão proposta é solicitar informação ao cliente: use “Pedir informação” ou escolha outra decisão antes de aprovar.";
   if (precisaInformarFator(caso) && !fatorOk(p.fatorConversao)) return "Informe o fator de conversão (número maior que zero) para aprovar a mudança de unidade.";
   return null;
@@ -352,31 +415,43 @@ export function proximoCasoAberto(casos, id) {
 
 // ── Lote ─────────────────────────────────────────────────────────────────────
 
-/** Corpo da prévia e da aprovação do lote: ids marcados ou, sem marcação, o filtro (camada, tipo, origem). */
-export function corpoDoLote({ ids, filtro, fundamento } = {}) {
+/** Casos por chamada do lote (o limite do servidor). */
+export const MAX_LOTE = 2000;
+/**
+ * Corpo da prévia do lote: os ids marcados ou, sem marcação, o FILTRO INTEIRO da lista (camada, tipo, origem, grupo e situação em aberto),
+ * lido pelo servidor em rodadas de até 2000 a partir de `apos`.
+ */
+export function corpoDoLote({ ids, filtro, fundamento, apos } = {}) {
   const corpo = {};
   if (ids && ids.length) corpo.ids = ids;
   else {
     const f = {};
-    for (const k of ["camada", "tipo", "origem"]) if (filtro && !vazio(filtro[k])) f[k] = filtro[k];
+    for (const k of ["camada", "tipo", "origem", "grupo"]) if (filtro && !vazio(filtro[k])) f[k] = filtro[k];
+    const sit = filtro?.situacao;
+    f.situacao = !vazio(sit) && sit !== "ABERTOS" && casoAberto({ situacao: sit }) ? sit : "PROPOSTO,RASCUNHO";
     corpo.filtro = f;
+    if (apos) corpo.apos = apos;
   }
   if (fundamento && String(fundamento).trim()) corpo.fundamento = String(fundamento).trim();
   return corpo;
 }
-/** Rótulo de um caso para as exceções do lote: camada e problema (o servidor só devolve o id). */
-export function rotuloDoCaso(casos, id) {
-  const c = (casos || []).find((x) => x.id === id);
-  return c ? `${ROTULO_CAMADA[c.camada] || c.camada}: ${c.problema}` : `Caso ${String(id).slice(0, 8)}`;
-}
-/** Ids do lote = exatamente os casos que a tela mostra em aberto (ou os marcados), no máximo 2000. */
-export function idsDoLote(marcados, listados) {
-  if (marcados && marcados.size) return [...marcados].slice(0, 2000);
-  return (listados || []).filter(casoAberto).map((c) => c.id).slice(0, 2000);
+/** O filtro da lista admite lote? Só quando ele pode trazer casos em aberto (em aberto, todos, proposto ou rascunho). */
+export const filtroAdmiteLote = (filtro) => vazio(filtro?.situacao) || filtro.situacao === "ABERTOS" || casoAberto({ situacao: filtro.situacao });
+/** Ids marcados, em rodadas de até 2000. */
+export const fatiarIds = (ids, n = MAX_LOTE) => { const r = []; for (let i = 0; i < ids.length; i += n) r.push(ids.slice(i, i + n)); return r; };
+/** Junta as prévias das rodadas numa só (aprováveis, exceções, em aberto e os totais). */
+export function somarPrevias(previas) {
+  const soma = { total: 0, casos: 0, aprovaveis: [], excecoes: [], abertos: [], itensAfetados: 0, camposAfetados: 0 };
+  for (const p of previas || []) {
+    soma.casos += p.casos || 0; soma.itensAfetados += p.itensAfetados || 0; soma.camposAfetados += p.camposAfetados || 0;
+    soma.aprovaveis.push(...(p.aprovaveis || [])); soma.excecoes.push(...(p.excecoes || [])); soma.abertos.push(...(p.abertos || []));
+  }
+  soma.total = Math.max(soma.casos, ...(previas || []).map((p) => p.total || 0));
+  return soma;
 }
 export const loteTemEscolha = (corpo) => !!(corpo?.ids?.length || (corpo?.filtro && Object.keys(corpo.filtro).length));
-/** A aprovação exige as versões que a prévia mostrou. */
-export const versoesDaPrevia = (previa) => Object.fromEntries((previa?.aprovaveis || []).map((a) => [a.casoId, a.versao]));
+/** A decisão exige as versões que a prévia mostrou: dos aprováveis (aprovar) ou de todos os em aberto (pedir informação, rejeitar). */
+export const versoesDaPrevia = (previa, acao = "aprovar") => Object.fromEntries(((acao === "aprovar" ? previa?.aprovaveis : previa?.abertos) || []).map((a) => [a.casoId, a.versao]));
 
 // ── Importação: mapeamento de colunas e relatório ────────────────────────────
 
@@ -552,7 +627,70 @@ export const fmtData = (iso) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
   return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso);
 };
-export const textoDoValor = (v) => (v === null || v === undefined || v === "" ? "—" : typeof v === "boolean" ? (v ? "Sim" : "Não") : Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v));
+/**
+ * Valor legível: vazio = "—"; sim/não para booleanos (e "true"/"false"); com `campo` codificado (decisão, finalidade...), o rótulo do código;
+ * listas separadas por vírgula; nunca o JSON cru de um objeto.
+ */
+export function textoDoValor(v, campo) {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean" || v === "true" || v === "false") return v === true || v === "true" ? "Sim" : "Não";
+  const rotular = (x) => (campo && CAMPOS_CODIFICADOS.includes(campo) ? rotuloDoValor(String(x)) : String(x));
+  if (Array.isArray(v)) return v.map(rotular).join(", ");
+  if (typeof v === "object") return Object.entries(v).map(([k, x]) => `${rotuloDoCampo(k)}: ${textoDoValor(x, k)}`).join("; ");
+  return rotular(v);
+}
+
+/** Texto do motor com o acento que faltou ("confiança media" → "confiança média"). */
+export const textoLegivel = (t) => String(t ?? "").replace(/(confiança:? )media\b/gi, "$1média").replace(/^media( \()/i, "média$1");
+
+// ── Detalhe do caso: decisão, itens e campo-alvo ─────────────────────────────
+
+/** Campos que não entram na grade "Dados e proposta": as decisões possíveis viram a lista do campo Decisão; códigos e descrições, a tabela de itens. */
+export const CAMPOS_FORA_DA_GRADE = ["decisoesPossiveis", "codigos", "descricoes"];
+/** Decisões que o caso admite (a proposta traz "A | B | C"); a decisão atual entra sempre. */
+export function decisoesDoCaso(proposta) {
+  const lista = String(proposta?.decisoesPossiveis ?? "").split("|").map((x) => x.trim()).filter(Boolean);
+  const atual = proposta?.decisao;
+  return atual && !lista.includes(atual) ? [atual, ...lista] : lista;
+}
+/**
+ * Campo que o tipo de caso corrige (NCM, descrição ou unidade): fica sempre editável, mesmo quando o caso não traz proposta, para o consultor
+ * digitar o valor certo. Null quando o tipo não corrige um campo só.
+ */
+export function campoAlvoDoCaso(caso) {
+  const t = String(caso?.tipo || "");
+  if ((caso?.itens?.length ?? 0) !== 1) return null; // conjunto: um valor só para todos os itens não é correção, é decisão da proposta
+  if (!t || t.startsWith("AGUARDANDO") || t.startsWith("IMPACTO_") || caso?.camada === "DUPLICIDADE") return null;
+  if (t.startsWith("NCM_")) return "ncm";
+  if (t.startsWith("UNIDADE_") && t !== "UNIDADE_CONVERSAO") return "unidade";
+  if (["DESCRICAO_FORA_DO_PADRAO", "DESCRICAO_FORA_PADRAO", "TERMO_GENERICO", "TERMO_PROIBIDO", "COMPONENTE_AUSENTE", "ABREVIACAO_ESCONDE_ATRIBUTO", "CARACTERES_INVALIDOS", "DESCRICAO_INSUFICIENTE"].includes(t)) return "descricao";
+  if (["TAMANHO_EXCEDIDO", "EXCEDE_LIMITE_DESTINO"].includes(t)) {
+    const k = Object.keys(caso?.proposta || {}).find((x) => ["descricao", "unidade"].includes(x)) || Object.keys(caso?.atual || {}).find((x) => ["descricao", "unidade"].includes(x));
+    return k || null;
+  }
+  return null;
+}
+/** A proposta a enviar: o campo vazio que o caso não propunha (campo-alvo deixado em branco) não vai. */
+export function propostaParaEnviar(valor, original) {
+  return Object.fromEntries(Object.entries(valor || {}).filter(([k, v]) => (v !== null && v !== "") || k in (original || {})));
+}
+/** Identificação curta do caso na lista e no lote: código e descrição do item; no conjunto, "N itens" e o primeiro código. */
+export function identificacaoDoCaso({ codigo, descricao, qtdItens } = {}) {
+  const n = Number(qtdItens) || 0;
+  const cod = codigo ? (n > 1 ? `${n.toLocaleString("pt-BR")} itens (1º: ${codigo})` : String(codigo)) : n > 1 ? `${n.toLocaleString("pt-BR")} itens` : "";
+  return [cod, descricao].filter(Boolean).join(" — ");
+}
+/** Linha de exceção do lote: tipo, item e o motivo (o id do caso nunca aparece). */
+export const linhaDeExcecao = (x) => {
+  const quem = [x.tipo ? rotuloTipoCaso(x.tipo) : "", identificacaoDoCaso(x)].filter(Boolean).join(" · ");
+  return `${quem || "Caso fora deste projeto"}: ${x.motivo}`;
+};
+/** Opções do filtro de tipo: rótulo e contagem, em ordem alfabética do rótulo; o tipo escolhido fica na lista mesmo sem casos. */
+export function opcoesDeTipo(tipos, escolhido) {
+  const lista = (tipos || []).map((t) => ({ valor: t.tipo, rotulo: `${rotuloTipoCaso(t.tipo)} (${Number(t.n).toLocaleString("pt-BR")})` }));
+  if (escolhido && !lista.some((o) => o.valor === escolhido)) lista.push({ valor: escolhido, rotulo: `${rotuloTipoCaso(escolhido)} (0)` });
+  return lista.sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+}
 
 /** "Conjunto" da coluna Tratamento tributário: NCM e finalidade separados. */
 export function textoDoConjunto(chave) {

@@ -36,7 +36,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "As tabelas de Casos e de Unificações funcionam como a aba Tabela?",
-      r: "Sim, no Saneamento de estoques as três têm o mesmo layout: contador no topo, cabeçalho e colunas da esquerda fixos ao rolar (Camada e Tipo nos Casos; Tipo e Código que morre nas Unificações), linhas baixas com zebra, selos de situação e textos longos numa linha só (passe o mouse ou clique para ler inteiro). Nos Casos e nas Unificações também há Buscar nesta lista, Filtros por coluna, ordenação pelo título da coluna, Colunas (ocultar e reordenar) e Exportar, sobre o que está carregado na tela. Nos Casos, a lista carrega mais ao rolar até o fim; nas Unificações, as páginas de 100 linhas seguem em Anterior e Próxima (POP-CON-14 e POP-CON-18).",
+      r: "Sim, no Saneamento de estoques as três têm o mesmo layout: contador no topo, cabeçalho e colunas da esquerda fixos ao rolar (Código nos Casos; Tipo e Código que morre nas Unificações), linhas baixas com zebra, selos de situação e textos longos numa linha só (passe o mouse ou clique para ler inteiro). Nos Casos e nas Unificações também há Buscar nesta lista, Filtros por coluna, ordenação pelo título da coluna, Colunas (ocultar e reordenar) e Exportar, sobre o que está carregado na tela. Nos Casos, a lista carrega mais ao rolar até o fim; nas Unificações, as páginas de 100 linhas seguem em Anterior e Próxima (POP-CON-14 e POP-CON-18).",
     },
     {
       p: "Como sei quais códigos vão deixar de existir e para onde vai o saldo de cada um?",
@@ -84,7 +84,15 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Por que não consigo aprovar uma duplicidade com a decisão “solicitar informação”?",
-      r: "Porque aprovar essa decisão não muda nada: falta a informação do cliente. Use Pedir informação… (o caso passa a Aguardando informação) ou escolha outra decisão na proposta e então aprove. No lote, esses casos ficam de fora, com o motivo na prévia.",
+      r: "Porque aprovar essa decisão não muda nada: falta a informação do cliente. Use Pedir informação… (o caso passa a Aguardando informação) ou escolha outra decisão na lista Decisão da proposta e então aprove. Ao aprovar em lote, esses casos ficam de fora, com o motivo na prévia.",
+    },
+    {
+      p: "Como decido milhares de casos de uma vez, inclusive os que não têm proposta?",
+      r: "Na aba Casos, filtre (por exemplo, Tipo “NCM inexistente”), não marque nada e clique em Decidir em lote…: o lote vale para todos os casos em aberto do filtro, não só os carregados na tela. Escolha Aprovar, Pedir informação ou Rejeitar, escreva o texto comum (obrigatório para pedir informação e rejeitar), veja a prévia e confirme. O InTAX decide em rodadas de até 2.000 casos sozinho, mostrando o progresso; se algum caso ficar para depois, a tela diz quantos e oferece Continuar. As exceções aparecem com o código e a descrição do item (POP-CON-14).",
+    },
+    {
+      p: "O caso de NCM inexistente não traz proposta. Como corrijo o NCM?",
+      r: "Abra o caso: o quadro Item mostra o código, a descrição, o grupo, o NCM, a unidade, o saldo e a última movimentação, e em Dados e proposta o NCM fica editável mesmo sem proposta. Digite o NCM certo e clique em Aprovar. Vale igual para a descrição e a unidade nos casos de um item de Nomes e unidades e de Qualidade (POP-CON-14).",
     },
     {
       p: "O que significa cada situação da tabela?",

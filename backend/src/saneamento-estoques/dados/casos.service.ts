@@ -6,6 +6,7 @@ import { camadasAfetadas, lerFator } from '../motor';
 import { CAMADAS, type Camada, type CasoProposto, type ResultadoCamada } from '../tipos';
 import { mapaExcecoes, regravarImpactosDosCasos, semExcecoes } from './impactos-casos';
 import { tiposDeAjusteDoCaso } from './ajustes';
+import { rotuloDoCampo, rotuloTipoCaso } from '../rotulos';
 import {
   CASO_ABERTO, CELULA_DO_CASO, acrescentar, EXCECAO_VIVA, TIPOS_EXCECAO, TX_LONGA, aplicarCampo, camadasAtivas, chaveCaso, conflito, derivadosDoTrabalho, ehExcecao, exigirVersao, fatiar, igual,
   propostaAplicavel, quem, validarCamada, valorDoCampo, type Json, type SituacaoCaso, type Usuario,
@@ -84,8 +85,25 @@ export type EntradaAprovar = {
   /** Confirma o fator de conversão sugerido pela descrição (situação CONFIRMAR). */
   confirmarFator?: boolean;
 };
-export type EntradaLote = { ids?: string[]; filtro?: { camada?: string; tipo?: string; origem?: string }; versoes?: Record<string, number>; fundamento?: string; orcamentoMs?: unknown };
-type Excecao = { casoId: string; motivo: string };
+/**
+ * Lote: `ids` (até 2000) ou `filtro` (os casos em aberto da camada, tipo, origem, grupo e situação). Pelo filtro, cada chamada lê uma janela de
+ * até 2000 casos a partir de `apos` (id): a resposta traz `proximo` enquanto houver mais, e a tela percorre o filtro inteiro em rodadas.
+ */
+export type EntradaLote = {
+  ids?: string[]; filtro?: { camada?: string; tipo?: string; origem?: string; grupo?: string; situacao?: string }; apos?: string;
+  versoes?: Record<string, number>; fundamento?: string; orcamentoMs?: unknown;
+};
+/** Pedir informação ou rejeitar em lote: o mesmo recorte, as versões da prévia e o texto comum (motivo ou justificativa). */
+export type EntradaLoteDecisao = EntradaLote & { texto?: string };
+/** Identificação do caso no lote: tipo, quantos itens e o primeiro item (código e descrição), para a tela nunca mostrar o id. */
+type Identificacao = { tipo?: string; qtdItens?: number; codigo?: string; descricao?: string };
+type Excecao = { casoId: string; motivo: string } & Identificacao;
+/** Situação do caso por extenso, nas mensagens do lote. */
+const SITUACAO_LEGIVEL: Record<string, string> = {
+  PROPOSTO: 'proposto', RASCUNHO: 'em rascunho', APROVADO: 'aprovado', REJEITADO: 'rejeitado', AGUARDANDO_INFORMACAO: 'aguardando informação', OBSOLETO: 'substituído',
+};
+/** Itens que o detalhe do caso mostra (o bloco do item; nos conjuntos, a tabela resumida). */
+const RESUMO_ITENS = 50;
 
 /** Aprovar "solicitar informação" não decide nada: o caso vai para "Aguardando informação" pelo botão próprio, ou a decisão muda antes. */
 const MSG_PEDE_INFORMACAO = 'A decisão proposta é solicitar informação ao cliente: aprovar não decide nada. Use "Pedir informação" (o caso fica Aguardando informação) ou escolha outra decisão na proposta antes de aprovar.';
@@ -371,15 +389,38 @@ export class SanCasosService {
     const linhas = await this.prisma.sanCaso.findMany({
       where: where as never, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limite + 1, ...(cursor ? { cursor: { id: cursor } } : {}),
     });
-    const pagina = linhas.slice(0, limite).map(({ itens, ...resto }) => ({ ...resto, qtdItens: itens.length, itens: itens.slice(0, 20) }));
-    return { casos: pagina, proximo: linhas.length > limite ? linhas[limite].id : null };
+    // O primeiro item de cada caso (código, descrição, grupo): a lista mostra o item, não só o problema.
+    const primeiros = [...new Set(linhas.slice(0, limite).map((c) => c.itens[0]).filter(Boolean))];
+    const itens = new Map<string, { codigo: string; descricao: string; grupo: string | null }>();
+    for (const lote of fatiar(primeiros, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { id: { in: lote } }, select: { id: true, codigo: true, descricao: true, grupo: true } })) itens.set(i.id, i);
+    const pagina = linhas.slice(0, limite).map(({ itens: ids, ...resto }) => {
+      const i = itens.get(ids[0]);
+      return { ...resto, qtdItens: ids.length, itens: ids.slice(0, 20), item: i ? { codigo: i.codigo, descricao: i.descricao, grupo: i.grupo } : null };
+    });
+    // Primeira página: quantos casos há por tipo no filtro (sem o próprio tipo), para a lista de tipos com contagem.
+    let tipos: { tipo: string; n: number }[] | undefined;
+    if (!cursor) {
+      const { tipo: _t, ...semTipo } = where; // eslint-disable-line @typescript-eslint/no-unused-vars
+      const g = await this.prisma.sanCaso.groupBy({ by: ['tipo'], where: semTipo as never, _count: { _all: true } });
+      tipos = g.map((x) => ({ tipo: x.tipo, n: x._count._all })).sort((a, b) => b.n - a.n || a.tipo.localeCompare(b.tipo));
+    }
+    return { casos: pagina, proximo: linhas.length > limite ? linhas[limite].id : null, ...(tipos ? { tipos } : {}) };
   }
 
   async obter(id: string) {
     const c = await this.prisma.sanCaso.findUnique({ where: { id } });
     if (!c) throw new NotFoundException('Caso não encontrado.');
+    // Os primeiros itens do caso (código, descrição, grupo, NCM, unidade, saldo, última movimentação): o detalhe mostra sempre o item.
+    const ids = c.itens.slice(0, RESUMO_ITENS);
+    const lidos = new Map((await this.prisma.sanItem.findMany({ where: { id: { in: ids } }, select: { id: true, codigo: true, trabalho: true } })).map((i) => [i.id, i] as const));
+    const resumoItens = ids.flatMap((id) => {
+      const i = lidos.get(id);
+      if (!i) return [];
+      const t = (i.trabalho as Json) ?? {};
+      return [{ id: i.id, codigo: i.codigo, descricao: t.descricao ?? null, grupo: t.grupo ?? null, ncm: t.ncm ?? null, unidade: t.unidade ?? null, saldo: t.saldo ?? null, ultimaMovimentacao: t.ultimaMovimentacao ?? null }];
+    });
     // Tipos de ajuste do caso: a tela mostra as restrições do ERP do projeto para eles (Cadastro de ERPs).
-    return { ...c, tiposAjuste: tiposDeAjusteDoCaso(c) };
+    return { ...c, tiposAjuste: tiposDeAjusteDoCaso(c), resumoItens };
   }
 
   /** Histórico por campo de um item (mais recente primeiro). */
@@ -538,7 +579,7 @@ export class SanCasosService {
     }, TX_LONGA);
   }
 
-  async rejeitar(id: string, e: { versao?: number; justificativa?: string }, usuario?: Usuario) {
+  async rejeitar(id: string, e: { versao?: number; justificativa?: string }, usuario?: Usuario, interno: { dataBase?: string } = {}) {
     const justificativa = texto(e.justificativa, 4000);
     if (!justificativa) throw new BadRequestException('Rejeitar exige uma justificativa.');
     return this.prisma.$transaction(async (tx) => {
@@ -559,12 +600,12 @@ export class SanCasosService {
       const r = await tx.sanCaso.updateMany({ where: { id, versao }, data: { situacao: 'REJEITADO', motivo: justificativa, decidido_por: quem(usuario), decidido_em: new Date(), versao: { increment: 1 } } });
       if (r.count === 0) throw conflito();
       await this.celulasDoCaso(tx, c, 'REJEITADO', false);
-      await this.sincronizarImpactos(tx, c.projeto_id, [id], await this.projetos.dataBase(c.projeto_id));
+      await this.sincronizarImpactos(tx, c.projeto_id, [id], interno.dataBase ?? (await this.projetos.dataBase(c.projeto_id)));
       return { caso: await tx.sanCaso.findUnique({ where: { id } }), jaAplicado: false };
     }, TX_LONGA);
   }
 
-  async pedirInformacao(id: string, e: { versao?: number; motivo?: string }) {
+  async pedirInformacao(id: string, e: { versao?: number; motivo?: string }, interno: { dataBase?: string } = {}) {
     const motivo = texto(e.motivo, 4000);
     if (!motivo) throw new BadRequestException('Diga que informação falta.');
     const versao = exigirVersao(e.versao);
@@ -574,7 +615,7 @@ export class SanCasosService {
       const r = await tx.sanCaso.updateMany({ where: { id, versao }, data: { situacao: 'AGUARDANDO_INFORMACAO', motivo, versao: { increment: 1 } } });
       if (r.count === 0) throw conflito();
       await this.celulasDoCaso(tx, c, 'AGUARDANDO_INFORMACAO', false);
-      await this.sincronizarImpactos(tx, c.projeto_id, [id], await this.projetos.dataBase(c.projeto_id));
+      await this.sincronizarImpactos(tx, c.projeto_id, [id], interno.dataBase ?? (await this.projetos.dataBase(c.projeto_id)));
       return tx.sanCaso.findUnique({ where: { id } });
     });
   }
@@ -632,33 +673,55 @@ export class SanCasosService {
       const achados = await this.prisma.sanCaso.findMany({ where: { projeto_id: projetoId, id: { in: ids } } });
       const existem = new Set(achados.map((c) => c.id));
       // Id que não existe neste projeto não some em silêncio: a prévia o lista entre as exceções.
-      return { casos: achados, inexistentes: ids.filter((x) => !existem.has(x)) };
+      return { casos: achados, inexistentes: ids.filter((x) => !existem.has(x)), total: ids.length, proximo: null as string | null };
     }
     const f = e.filtro ?? {};
-    if (!f.camada && !f.tipo && !f.origem) throw new BadRequestException('Escolha os casos do lote (lista de ids ou filtro por camada, tipo ou origem).');
-    const where: Json = { projeto_id: projetoId, situacao: { in: CASO_ABERTO } };
+    if (!f.camada && !f.tipo && !f.origem && !f.grupo && !f.situacao) throw new BadRequestException('Escolha os casos do lote (lista de ids ou filtro por camada, tipo, origem, grupo ou situação).');
+    // Só casos em aberto; a situação do filtro só restringe (proposto ou rascunho).
+    const sits = String(f.situacao ?? '').split(',').map((x) => x.trim()).filter((x) => CASO_ABERTO.includes(x as SituacaoCaso));
+    const where: Json = { projeto_id: projetoId, situacao: { in: sits.length ? sits : CASO_ABERTO } };
     if (f.camada) where.camada = validarCamada(String(f.camada));
     if (f.tipo) where.tipo = String(f.tipo);
     if (f.origem) where.origem = String(f.origem);
-    const achados = await this.prisma.sanCaso.findMany({ where: where as never, orderBy: { id: 'asc' }, take: MAX_LOTE + 1 });
-    if (achados.length > MAX_LOTE) throw new BadRequestException(`O filtro traz mais de ${MAX_LOTE} casos. Restrinja por camada, tipo ou origem.`);
-    return { casos: achados, inexistentes: [] as string[] };
+    const idF: Json = {};
+    if (f.grupo) {
+      // Casos cujos itens estão no grupo (o mesmo recorte da lista de casos).
+      const cel = await this.prisma.sanCelula.findMany({
+        where: { projeto_id: projetoId, grupo: f.grupo === '(sem grupo)' ? '' : String(f.grupo), caso_id: { not: null }, ...(f.camada ? { camada: validarCamada(String(f.camada)) } : {}) },
+        select: { caso_id: true }, distinct: ['caso_id'],
+      });
+      idF.in = [...new Set(cel.map((c) => c.caso_id as string))];
+    }
+    const total = await this.prisma.sanCaso.count({ where: { ...where, ...(f.grupo ? { id: idF } : {}) } as never });
+    if (e.apos !== undefined && typeof e.apos !== 'string') throw new BadRequestException('"apos" deve ser o id do último caso da rodada anterior.');
+    if (e.apos) idF.gt = e.apos;
+    const janela = await this.prisma.sanCaso.findMany({ where: { ...where, ...(Object.keys(idF).length ? { id: idF } : {}) } as never, orderBy: { id: 'asc' }, take: MAX_LOTE + 1 });
+    const casos = janela.slice(0, MAX_LOTE);
+    // Mais de 2000 no filtro: esta rodada leva os 2000 primeiros; `proximo` diz de onde a próxima começa.
+    return { casos, inexistentes: [] as string[], total, proximo: janela.length > MAX_LOTE ? casos[casos.length - 1].id : null };
+  }
+
+  /** Tipo, quantidade de itens e o primeiro item (código e descrição) do caso, lidos do mapa de itens já carregado. */
+  private identificar(c: Pick<CasoLinha, 'tipo' | 'itens'>, itens: Map<string, { trabalho: unknown }>): Identificacao {
+    const t = (itens.get(c.itens[0])?.trabalho as Json | undefined) ?? {};
+    return { tipo: c.tipo, qtdItens: c.itens.length, ...(t.codigo != null ? { codigo: String(t.codigo) } : {}), ...(t.descricao != null ? { descricao: String(t.descricao) } : {}) };
   }
 
   /** Prévia: mostra itens, campos afetados, vínculos a criar e as exceções (que ficam de fora). Não grava nada. */
   async lotePrevia(projetoId: string, e: EntradaLote) {
-    const { casos: brutos, inexistentes } = await this.casosDoLote(projetoId, e);
+    const { casos: brutos, inexistentes, total, proximo } = await this.casosDoLote(projetoId, e);
     // Conjunto: o item com exceção própria fica fora (como na aprovação individual).
     const excecoesPorCamada = new Map<string, Map<string, string>>();
     for (const camada of new Set(brutos.filter((c) => !ehExcecao(c.tipo)).map((c) => c.camada))) excecoesPorCamada.set(camada, await this.mapaExcecoes(this.prisma, projetoId, camada));
     const casos: CasoLinha[] = [];
     for (const c of brutos) casos.push(await this.semExcecoes(this.prisma, c, excecoesPorCamada.get(c.camada) ?? new Map()));
-    const itensIds = [...new Set(casos.flatMap((c) => c.itens))];
+    const itensIds = [...new Set([...casos.flatMap((c) => c.itens), ...brutos.map((c) => c.itens[0]).filter(Boolean)])];
     const itens = new Map<string, { id: string; trabalho: unknown; versao: number }>();
     for (const lote of fatiar(itensIds, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, trabalho: true, versao: true } })) itens.set(i.id, i);
+    const ident = new Map(brutos.map((c) => [c.id, this.identificar(c, itens)] as const));
     const excecoes: Excecao[] = inexistentes.map((casoId) => ({ casoId, motivo: 'Caso inexistente neste projeto.' }));
     const quemMuda = new Map<string, { valor: unknown; casoId: string }>();
-    const aprovaveis: { casoId: string; versao: number; camada: string; tipo: string; itens: number; campos: string[]; vinculos: { de: string; para: string }[] }[] = [];
+    const aprovaveis: ({ casoId: string; versao: number; camada: string; tipo: string; itens: number; campos: string[]; vinculos: { de: string; para: string }[] } & Identificacao)[] = [];
     const afetadosItens = new Set<string>();
     let camposAfetados = 0;
     for (const c of casos) {
@@ -666,7 +729,7 @@ export class SanCasosService {
       const proposta = propostaAplicavel(c.camada, completa);
       const atual = (c.atual as Json) ?? {};
       let motivo: string | null = null;
-      if (!CASO_ABERTO.includes(c.situacao as SituacaoCaso)) motivo = `O caso está "${c.situacao}", não em aberto.`;
+      if (!CASO_ABERTO.includes(c.situacao as SituacaoCaso)) motivo = `O caso está ${SITUACAO_LEGIVEL[c.situacao] ?? c.situacao}, não em aberto.`;
       else if (c.tipo === 'DUPLICIDADE_COM_SALDO') motivo = 'Duplicidade com saldo ou movimentação: exige transferência de saldo e decisão individual.';
       else if (c.tipo.startsWith('AGUARDANDO')) motivo = 'Falta informação para decidir este caso.';
       else if (completa.decisao === 'SOLICITAR_INFORMACAO') motivo = MSG_PEDE_INFORMACAO;
@@ -681,7 +744,7 @@ export class SanCasosService {
         for (const campo of Object.keys(atual)) {
           if (!(campo in proposta) || atual[campo] === VARIA_POR_ITEM) continue; // varia por item: a conferência é na aprovação, item a item
           const dif = c.itens.find((i) => !igual(valorDoCampo(itens.get(i)!.trabalho as Json, campo), atual[campo]));
-          if (dif) { motivo = `O valor de "${campo}" mudou desde que o caso foi proposto.`; break; }
+          if (dif) { motivo = `O valor de "${rotuloDoCampo(campo)}" mudou desde que o caso foi proposto.`; break; }
         }
       }
       if (!motivo) {
@@ -689,12 +752,12 @@ export class SanCasosService {
           for (const i of c.itens) {
             const k = `${i}\u0000${campo}`;
             const outro = quemMuda.get(k);
-            if (outro && !igual(outro.valor, proposta[campo])) { motivo = `Conflita com o caso ${outro.casoId} (mesmo item e campo, valores diferentes).`; break; }
+            if (outro && !igual(outro.valor, proposta[campo])) { const o = ident.get(outro.casoId); motivo = `Conflita com outro caso do lote (${rotuloTipoCaso(o?.tipo ?? '')}${o?.codigo ? `, item ${o.codigo}` : ''}): mesmo item e campo, valores diferentes.`; break; }
           }
           if (motivo) break;
         }
       }
-      if (motivo) { excecoes.push({ casoId: c.id, motivo }); continue; }
+      if (motivo) { excecoes.push({ casoId: c.id, motivo, ...ident.get(c.id) }); continue; }
       const campos = new Set<string>();
       for (const campo of Object.keys(proposta)) for (const i of c.itens) {
         quemMuda.set(`${i}\u0000${campo}`, { valor: proposta[campo], casoId: c.id });
@@ -706,9 +769,14 @@ export class SanCasosService {
       }
       if (c.tipo === 'CODIGO_ANTIGO' && atual.codigoAntigo && atual.codigo) vinculos.push({ de: String(atual.codigoAntigo), para: String(atual.codigo) });
       if (proposta.codigo !== undefined) for (const i of c.itens) { const antes = valorDoCampo(itens.get(i)!.trabalho as Json, 'codigo'); if (antes && antes !== proposta.codigo) vinculos.push({ de: String(antes), para: String(proposta.codigo) }); }
-      aprovaveis.push({ casoId: c.id, versao: c.versao, camada: c.camada, tipo: c.tipo, itens: c.itens.length, campos: [...campos], vinculos });
+      aprovaveis.push({ ...ident.get(c.id), casoId: c.id, versao: c.versao, camada: c.camada, tipo: c.tipo, itens: c.itens.length, campos: [...campos], vinculos });
     }
-    return { casos: casos.length, inexistentes: inexistentes.length, aprovaveis, excecoes, itensAfetados: afetadosItens.size, camposAfetados, vinculosACriar: aprovaveis.reduce((s, a) => s + a.vinculos.length, 0) };
+    // Em aberto (com a versão): o recorte de "Pedir informação" e "Rejeitar" em lote, que valem para todo caso em aberto, com ou sem proposta.
+    const abertos = brutos.filter((c) => CASO_ABERTO.includes(c.situacao as SituacaoCaso)).map((c) => ({ casoId: c.id, versao: c.versao }));
+    return {
+      casos: casos.length, total, proximo, inexistentes: inexistentes.length, aprovaveis, excecoes, abertos, itensAfetados: afetadosItens.size, camposAfetados,
+      vinculosACriar: aprovaveis.reduce((s, a) => s + a.vinculos.length, 0),
+    };
   }
 
   /**
@@ -730,7 +798,8 @@ export class SanCasosService {
     for (const a of previa.aprovaveis) {
       const gasto = Date.now() - inicio;
       if (gasto > orcamento || (aprovados > 0 && gasto + estimativaDoCaso(a.itens, msPorItem) > orcamento)) { restantes.push(a.casoId); continue; }
-      if (e.versoes[a.casoId] !== a.versao) { excecoes.push({ casoId: a.casoId, motivo: 'O caso mudou depois da prévia. Refaça a prévia.' }); continue; }
+      const id = { tipo: a.tipo, qtdItens: a.qtdItens, codigo: a.codigo, descricao: a.descricao };
+      if (e.versoes[a.casoId] !== a.versao) { excecoes.push({ casoId: a.casoId, motivo: 'O caso mudou depois da prévia. Refaça a prévia.', ...id }); continue; }
       try {
         const t0 = Date.now();
         await this.aprovar(a.casoId, { versao: a.versao, fundamento: e.fundamento }, usuario, { dataBase });
@@ -738,10 +807,47 @@ export class SanCasosService {
         aprovados++;
       } catch (err) {
         const msg = (err as { response?: { message?: string } }).response?.message ?? (err as Error).message;
-        excecoes.push({ casoId: a.casoId, motivo: msg });
+        excecoes.push({ casoId: a.casoId, motivo: msg, ...id });
       }
     }
     return { aprovados, excecoes, restantes };
+  }
+
+  /**
+   * Pedir informação ou rejeitar em lote, com o texto comum: só casos em aberto, na versão que a prévia mostrou (`versoes`). Cada caso na sua
+   * transação (as mesmas garantias da decisão individual: versão, conflito 409, células e impactos); falha de um vira exceção e não derruba
+   * os outros. Orçamento de tempo como o do aprovar: o que não coube volta em `restantes`.
+   */
+  async loteDecidir(projetoId: string, acao: 'rejeitar' | 'pedir', e: EntradaLoteDecisao, usuario?: Usuario) {
+    const textoComum = texto(e.texto, 4000);
+    if (!textoComum) throw new BadRequestException(acao === 'rejeitar' ? 'Rejeitar exige uma justificativa.' : 'Diga que informação falta.');
+    if (!e.versoes || !Object.keys(e.versoes).length) throw new BadRequestException('Faça a prévia do lote antes e envie as versões que ela mostrou ("versoes").');
+    const orcamento = orcamentoDoLote(e.orcamentoMs);
+    const inicio = Date.now();
+    const { casos, inexistentes } = await this.casosDoLote(projetoId, e);
+    const itens = new Map<string, { trabalho: unknown }>();
+    const primeiros = [...new Set(casos.map((c) => c.itens[0]).filter(Boolean))];
+    for (const lote of fatiar(primeiros, 5000)) for (const i of await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: lote } }, select: { id: true, trabalho: true } })) itens.set(i.id, i);
+    const excecoes: Excecao[] = inexistentes.map((casoId) => ({ casoId, motivo: 'Caso inexistente neste projeto.' }));
+    const restantes: string[] = [];
+    const dataBase = await this.projetos.dataBase(projetoId);
+    let decididos = 0;
+    for (const c of casos) {
+      if (e.versoes[c.id] === undefined) continue; // fora da prévia: não faz parte deste lote
+      const id = this.identificar(c, itens);
+      if (!CASO_ABERTO.includes(c.situacao as SituacaoCaso)) { excecoes.push({ casoId: c.id, motivo: `O caso está ${SITUACAO_LEGIVEL[c.situacao] ?? c.situacao}, não em aberto.`, ...id }); continue; }
+      if (e.versoes[c.id] !== c.versao) { excecoes.push({ casoId: c.id, motivo: 'O caso mudou depois da prévia. Refaça a prévia.', ...id }); continue; }
+      if (decididos > 0 && Date.now() - inicio > orcamento) { restantes.push(c.id); continue; }
+      try {
+        if (acao === 'rejeitar') await this.rejeitar(c.id, { versao: c.versao, justificativa: textoComum }, usuario, { dataBase });
+        else await this.pedirInformacao(c.id, { versao: c.versao, motivo: textoComum }, { dataBase });
+        decididos++;
+      } catch (err) {
+        const msg = (err as { response?: { message?: string } }).response?.message ?? (err as Error).message;
+        excecoes.push({ casoId: c.id, motivo: msg, ...id });
+      }
+    }
+    return { decididos, excecoes, restantes };
   }
 
   // ── Internos ───────────────────────────────────────────────────────────────

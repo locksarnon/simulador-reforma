@@ -30,10 +30,11 @@ describe("BAIXO 5: exigeFator é só informativo", () => {
   });
   it("na tela do caso aparecem como texto, sem campo de edição", () => {
     const html = montar(<CasoDetalhe projeto={projeto} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), conversao()));
-    expect(html).not.toContain('aria-label="Proposta para Exige fator (informativo)"');
+    expect(html).not.toContain('aria-label="Proposta para Exige fator"');
     expect(html).not.toContain('aria-label="Proposta para Situação do fator"');
     expect(html).toContain('aria-label="Proposta para Fator de conversão"');
-    expect(texto(html)).toContain("Exige fator (informativo)");
+    expect(texto(html)).toContain("Exige fator");
+    expect(texto(html)).not.toContain("NAO");
   });
 });
 

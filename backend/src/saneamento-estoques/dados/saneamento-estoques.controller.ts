@@ -4,7 +4,7 @@ import { AuthUser } from '../../auth/auth.types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissao } from '../../permissoes/permissao.decorator';
 import type { ResultadoCamada } from '../tipos';
-import { SanCasosService, type EntradaAprovar, type EntradaLote, type FiltroCasos } from './casos.service';
+import { SanCasosService, type EntradaAprovar, type EntradaLote, type EntradaLoteDecisao, type FiltroCasos } from './casos.service';
 import { SanImportacaoService, type EscolhaIncorporar } from './importacao.service';
 import { SanImpactosService, type EntradaImpacto, type EntradaVinculo, type FiltroImpactos } from './impactos.service';
 import { SanItensService, type FiltroItens } from './itens.service';
@@ -110,6 +110,10 @@ export class SaneamentoEstoquesController {
   lotePrevia(@Param('id') id: string, @Body() b: EntradaLote) { return this.casos.lotePrevia(id, b ?? {}); }
   @Post('projetos/:id/casos/lote/aprovar')
   loteAprovar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: EntradaLote) { return this.casos.loteAprovar(id, b ?? {}, user); }
+  @Post('projetos/:id/casos/lote/rejeitar')
+  loteRejeitar(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: EntradaLoteDecisao) { return this.casos.loteDecidir(id, 'rejeitar', b ?? {}, user); }
+  @Post('projetos/:id/casos/lote/pedir-informacao')
+  lotePedirInformacao(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: EntradaLoteDecisao) { return this.casos.loteDecidir(id, 'pedir', b ?? {}, user); }
   @Get('casos/:casoId')
   caso(@Param('casoId') id: string) { return this.casos.obter(id); }
   @Get('casos/:casoId/grupos')

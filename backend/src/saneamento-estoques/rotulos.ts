@@ -21,6 +21,8 @@ export const ROTULO_TIPO_CASO: Record<string, string> = {
   // Duplicidade
   DUPLICIDADE_EXATA: 'Duplicidade exata', DUPLICIDADE_INDICACAO_ALTA: 'Indício alto de duplicidade', DUPLICIDADE_INDICACAO_POSSIVEL: 'Possível duplicidade',
   DUPLICIDADE_COM_SALDO: 'Duplicidade com saldo', APRESENTACOES_DISTINTAS: 'Apresentações distintas', ATRIBUTOS_CONFLITANTES: 'Atributos conflitantes',
+  REFERENCIA_COINCIDENTE: 'Mesma referência do fabricante', REFERENCIA_COINCIDENTE_CONDICAO_DIFERENTE: 'Mesma referência, condição diferente (original × paralelo)',
+  REFERENCIA_FABRICANTES_DIFERENTES: 'Mesma referência, fabricantes diferentes', REFERENCIA_COINCIDENTE_SEM_FABRICANTE: 'Mesma referência, sem fabricante',
   // Grupos e finalidade
   ITEM_SEM_GRUPO: 'Item sem grupo', GRUPO_GENERICO: 'Grupo genérico', GRUPO_NOME_VARIANTE: 'Nome de grupo variante', GRUPOS_SOBREPOSTOS: 'Grupos sobrepostos',
   ITEM_DESLOCADO: 'Item fora do grupo', NECESSIDADE_NOVO_GRUPO: 'Necessidade de grupo novo', FINALIDADE_GRUPO: 'Finalidade do grupo', FINALIDADE_EXCECAO: 'Exceção à finalidade do grupo',
@@ -29,8 +31,11 @@ export const ROTULO_TIPO_CASO: Record<string, string> = {
   DESCRICAO_FORA_DO_PADRAO: 'Descrição fora do padrão', TERMO_GENERICO: 'Descrição com termo genérico', ABREVIACAO_ESCONDE_ATRIBUTO: 'Abreviação que esconde atributo',
   CARACTERES_INVALIDOS: 'Caracteres inválidos', TAMANHO_EXCEDIDO: 'Tamanho acima do limite do ERP', UNIDADE_CONVERSAO: 'Conversão de unidade',
   UNIDADE_GRAFIA: 'Grafia da unidade', UNIDADE_SEM_REGRA: 'Unidade sem regra', UNIDADE_INCOMPATIVEL: 'Unidade incompatível',
+  DESCRICAO_FORA_PADRAO: 'Descrição fora do padrão da regra', TERMO_PROIBIDO: 'Termo proibido na descrição', COMPONENTE_AUSENTE: 'Componente ausente na descrição',
+  UNIDADE_NAO_PERMITIDA: 'Unidade não permitida', UNIDADE_FORA_CRITERIO: 'Unidade fora do critério', EXCEDE_LIMITE_DESTINO: 'Acima do limite de caracteres',
+  LIMITE_NAO_CONFIRMADO: 'Limite de caracteres não confirmado', ATRIBUTO_AUSENTE: 'Atributo obrigatório ausente',
   // NCM
-  NCM_FORMATO: 'Formato do NCM', NCM_INEXISTENTE: 'NCM inexistente', NCM_CLASSIFICACAO_ANTIGA: 'NCM de classificação antiga', NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS: 'NCM diferente entre itens iguais',
+  NCM_FORMATO: 'Formato do NCM', NCM_INEXISTENTE: 'NCM inexistente', NCM_NAO_VIGENTE: 'NCM não vigente', NCM_CLASSIFICACAO_ANTIGA: 'NCM de classificação antiga', NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS: 'NCM diferente entre itens iguais',
   NCM_INCOMPATIVEL_DESCRICAO: 'NCM incompatível com a descrição', NCM_INCOERENTE: 'NCM incoerente', NCM_INFO_INSUFICIENTE: 'Informação insuficiente para o NCM',
   NCM_PREENCHIMENTO_INVALIDO: 'Preenchimento inválido do NCM',
   // Tratamento tributário
@@ -57,7 +62,8 @@ export const ROTULO_CAMPO: Record<string, string> = {
   exigeFator: 'Exige fator', ncm: 'NCM', grupo: 'Grupo', finalidade: 'Finalidade', tambemUsadoComo: 'Também usado como', ativo: 'Ativo', saldo: 'Saldo',
   cClassTrib: 'cClassTrib', cst: 'CST', enquadramentoLegal: 'Enquadramento legal', artigo: 'Artigo', origem: 'Origem', decisao: 'Decisão', manter: 'Código mantido',
   consolidar: 'Código consolidado', ajustes: 'Ajustes', valorOriginal: 'Valor original', valorProposto: 'Valor proposto', tipoImpacto: 'Tipo de impacto',
-  codigoAntigo: 'Código antigo', fabricante: 'Fabricante', referencia: 'Referência',
+  codigoAntigo: 'Código antigo', fabricante: 'Fabricante', referencia: 'Referência', estabelecimento: 'Estabelecimento', ultimaMovimentacao: 'Última movimentação',
+  decisoesPossiveis: 'Decisões possíveis', codigos: 'Códigos', descricoes: 'Descrições', tratamentoDoSaldo: 'Tratamento do saldo', arvore: 'Árvore de grupos', subgrupos: 'Subgrupos',
 };
 const VALORES: Record<string, string> = {
   REVENDA: 'Revenda', MATERIA_PRIMA: 'Matéria-prima', INSUMO_PRODUCAO: 'Insumo de produção', EMBALAGEM: 'Embalagem', USO_CONSUMO: 'Uso e consumo', MANUTENCAO: 'Manutenção',
@@ -66,6 +72,9 @@ const VALORES: Record<string, string> = {
   ESCRITURACAO_ENTREGUE: 'Impacto em escrituração já entregue', PROPOR_CONSOLIDACAO: 'Propor consolidação', SOLICITAR_INFORMACAO: 'Solicitar informação',
   RELACIONAR_APRESENTACOES: 'Relacionar apresentações', PROPOR_INATIVACAO: 'Propor inativação', REGULARIZAR_SALDO: 'Regularizar o saldo antes de inativar',
   MANTER_DISTINTOS: 'Manter distintos', CORRIGIR_IDENTIFICACAO: 'Corrigir a identificação', RELACIONAR_EQUIVALENTES: 'Relacionar equivalentes', SIM: 'Sim', NAO: 'Não',
+  true: 'Sim', false: 'Não',
 };
 export const rotuloDoCampo = (k: string) => ROTULO_CAMPO[k.replace(/^campos\./, '')] ?? k.replace(/^campos\./, '');
 export const rotuloDoValor = (v: string) => VALORES[v] ?? v;
+/** Os valores rotulados (decisões, finalidades, situação do fator): a tela usa o mesmo dicionário (src/components/saneamento-estoques/logica.js). */
+export const ROTULO_VALOR: Readonly<Record<string, string>> = VALORES;

@@ -27,7 +27,8 @@ function gravarPreferencia(id, v) {
  * e o verde do InTAX ao passar o mouse, rolagem dentro da área (vertical e horizontal), contador no topo e "carregar mais" ao chegar ao fim.
  * Mantém as funções da tabela padrão: busca na lista, filtro digitável por coluna, ordenação pelo cabeçalho, colunas ocultáveis e
  * reordenáveis (guardadas neste navegador), exportação do que está filtrado e caixas de marcar (`selecao`).
- * Colunas: { chave, rotulo, largura (px), fixa, valor(linha), render(linha), tipo, alinhar, ordenavel, filtravel, dica }.
+ * Colunas: { chave, rotulo, largura (px), fixa, valor(linha), render(linha), tipo, alinhar, ordenavel, filtravel, dica, oculta, elastica }.
+ * `oculta`: começa escondida (quem nunca mexeu nas colunas); `elastica`: cresce para ocupar a sobra da largura (a `largura` é o mínimo).
  */
 export default function TabelaDensa({
   id, ariaLabel, colunas, linhas = [], chaveLinha = (l, i) => l.id ?? i, vazio = "Nada para mostrar.", aoClicarLinha, linhaMarcada, selecao,
@@ -39,7 +40,7 @@ export default function TabelaDensa({
     const salvo = (pref?.ordem || []).filter((k) => todas.includes(k));
     return [...salvo, ...todas.filter((k) => !salvo.includes(k))];
   });
-  const [ocultas, setOcultas] = useState(() => (pref?.ocultas || []).filter((k) => todas.includes(k)));
+  const [ocultas, setOcultas] = useState(() => (pref?.ocultas ? pref.ocultas.filter((k) => todas.includes(k)) : colunas.filter((c) => c.oculta).map((c) => c.chave)));
   const [busca, setBusca] = useState("");
   const [filtros, setFiltros] = useState({});
   const [verFiltros, setVerFiltros] = useState(false);
@@ -105,7 +106,7 @@ export default function TabelaDensa({
                 </li>
               ); })}
             </ul>
-            <button type="button" onClick={() => { setOrdemColunas(todas); setOcultas([]); }} className="mt-1 inline-flex w-full items-center justify-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted"><RotateCcw className="h-3 w-3" aria-hidden="true" /> Restaurar colunas</button>
+            <button type="button" onClick={() => { setOrdemColunas(todas); setOcultas(colunas.filter((c) => c.oculta).map((c) => c.chave)); }} className="mt-1 inline-flex w-full items-center justify-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted"><RotateCcw className="h-3 w-3" aria-hidden="true" /> Restaurar colunas</button>
           </PopoverContent>
         </Popover>
         <BotaoExportar titulo={ariaLabel || "Tabela"} linhas={filtradas.map((l) => Object.fromEntries(visiveis.map((c) => [c.chave, textoDaColuna(c, l)])))} colunas={visiveis.map((c) => ({ chave: c.chave, rotulo: c.rotulo }))} />
@@ -126,7 +127,7 @@ export default function TabelaDensa({
                 const Icone = !ativa ? ArrowUpDown : ordem.dir === 1 ? ArrowUp : ArrowDown;
                 return (
                   <div key={c.chave} role="columnheader" aria-sort={ativa ? (ordem.dir === 1 ? "ascending" : "descending") : "none"} title={c.dica}
-                    className={`${c.fixa ? estiloTabela.tituloFixo : `${estiloTabela.tituloColuna} font-medium`} ${ALINHAR[c.alinhar] || ""}`} style={{ width: larguraDe(c), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
+                    className={`${c.fixa ? estiloTabela.tituloFixo : `${estiloTabela.tituloColuna} font-medium`} ${ALINHAR[c.alinhar] || ""}`} style={{ width: larguraDe(c), ...(c.elastica && !c.fixa ? { flexGrow: 1, flexShrink: 0 } : {}), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
                     {c.ordenavel === false ? <span className="truncate">{c.rotulo}</span> : (
                       <button type="button" onClick={() => ordenar(c.chave)} title={c.dica || "Ordenar"}
                         className={`inline-flex min-w-0 items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ativa ? "text-foreground" : ""}`}>
@@ -141,7 +142,7 @@ export default function TabelaDensa({
               <div role="row" className="flex border-b border-border/70" style={{ height: ALTURA_TITULOS + 2 }}>
                 {selecao && <div role="columnheader" aria-label="Marcar" className="sticky left-0 z-40 bg-muted" style={{ width: LARGURA_MARCAR }} />}
                 {visiveis.map((c) => (
-                  <div key={c.chave} role="columnheader" aria-label={`Filtro de ${c.rotulo}`} className={`${c.fixa ? "sticky z-40 bg-muted" : "border-l border-border/70"} flex items-center px-1`} style={{ width: larguraDe(c), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
+                  <div key={c.chave} role="columnheader" aria-label={`Filtro de ${c.rotulo}`} className={`${c.fixa ? "sticky z-40 bg-muted" : "border-l border-border/70"} flex items-center px-1`} style={{ width: larguraDe(c), ...(c.elastica && !c.fixa ? { flexGrow: 1, flexShrink: 0 } : {}), ...(c.fixa ? { left: esquerda[c.chave] } : {}) }}>
                     {c.filtravel === false ? null : <input value={filtros[c.chave] ?? ""} onChange={(e) => setFiltros((f) => ({ ...f, [c.chave]: e.target.value }))} placeholder="Filtrar" aria-label={`Filtrar ${c.rotulo}`} className="h-6 w-full border border-border bg-background px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />}
                   </div>
                 ))}
@@ -173,7 +174,7 @@ export default function TabelaDensa({
                       return <div key={c.chave} role="cell" className={`${f.className} ${ALINHAR[c.alinhar] || ""}`} style={{ ...f.style, width: larguraDe(c) }}>{f.sobre}<span className="relative min-w-0 max-w-full">{conteudo}</span></div>;
                     }
                     const esq = proximaEhPrimeira() ? "shadow-[inset_3px_0_0_0_transparent] group-hover:shadow-[inset_3px_0_0_0_hsl(var(--primary))]" : "";
-                    return <div key={c.chave} role="cell" className={`${estiloTabela.celula} ${ALINHAR[c.alinhar] || ""} ${esq}`} style={{ width: larguraDe(c) }}><span className="min-w-0 max-w-full">{conteudo}</span></div>;
+                    return <div key={c.chave} role="cell" className={`${estiloTabela.celula} ${ALINHAR[c.alinhar] || ""} ${esq}`} style={{ width: larguraDe(c), ...(c.elastica ? { flexGrow: 1, flexShrink: 0 } : {}) }}><span className="min-w-0 max-w-full">{conteudo}</span></div>;
                   })}
                 </div>
               );

@@ -197,23 +197,23 @@ describe("Visão geral", () => {
 
 describe("Casos", () => {
   const filtro = { camada: "", situacao: "ABERTOS", tipo: "", origem: "", grupo: "" };
-  const caso = { id: "c1", camada: "NCM", tipo: "NCM_INVALIDO", itens: ["i1"], qtdItens: 1, problema: "NCM com 7 dígitos", situacao: "PROPOSTO", origem: "REGRA", versao: 1, parecer_ia: null };
+  const caso = { id: "c1", camada: "NCM", tipo: "NCM_FORMATO", itens: ["i1"], qtdItens: 1, problema: "NCM com 7 dígitos", situacao: "PROPOSTO", origem: "REGRA", versao: 1, parecer_ia: null, item: { codigo: "2186", descricao: "RETENTOR 45X62", grupo: "Peças" } };
   const chaveLista = chaves.casos("p1", filtro);
   const seed = (casos) => (qc) => qc.setQueryData(chaveLista, { pages: [{ casos, proximo: null }], pageParams: [undefined] });
   it("carregando, erro e vazio", () => {
     expect(texto(montar(<Casos projeto={projeto()} />))).toContain("Carregando os casos");
     expect(texto(montar(<Casos projeto={projeto()} />, (qc) => falhar(qc, chaveLista)))).toContain("Não foi possível carregar os casos");
-    expect(texto(montar(<Casos projeto={projeto()} />, seed([])))).toContain("Nenhum caso ainda");
+    expect(texto(montar(<Casos projeto={projeto()} />, seed([])))).toContain("Nenhum caso em aberto com este filtro");
   });
   it("lista os casos e oferece o lote", () => {
     const t = texto(montar(<Casos projeto={projeto()} />, seed([caso])));
     expect(t).toContain("NCM com 7 dígitos");
-    expect(t).toContain("Aprovar em lote");
+    expect(t).toContain("Decidir em lote");
     expect(t).toContain("Em aberto (plano de ajustes)");
     expect(t).toContain("Escolha um caso");
   });
   it("tabela no layout da aba Tabela: cabeçalho fixo, colunas fixas, linhas de 38 px com zebra, selo de situação e contador no topo", () => {
-    const outro = { ...caso, id: "c2", camada: "QUALIDADE", tipo: "SEM_MOVIMENTO", situacao: "RASCUNHO", origem: "IA", problema: "Item parado desde o corte de movimentação, sem saldo, no grupo Ferragens e em outros quatro grupos do cadastro de itens" };
+    const outro = { ...caso, id: "c2", camada: "QUALIDADE", tipo: "SEM_MOVIMENTACAO", qtdItens: 12, situacao: "RASCUNHO", origem: "IA", problema: "Item parado desde o corte de movimentação, sem saldo, no grupo Ferragens e em outros quatro grupos do cadastro de itens" };
     const html = montar(<Casos projeto={projeto()} />, seed([caso, outro]));
     const t = texto(html);
     // mesmas classes da aba Tabela
@@ -223,8 +223,13 @@ describe("Casos", () => {
     expect(html).toContain('role="table" aria-label="Casos"');
     expect(html).toContain("min-height:38px");
     expect(html).toContain(estiloTabela.fundoFixo(1, false)); // zebra nas colunas fixas
-    expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:36px/); // Camada fixa logo depois da caixa de marcar
-    for (const x of ["Camada", "Tipo", "Problema", "Itens", "Situação", "Origem", "Parecer da IA", "Proposto", "Rascunho", "Regra", "IA", "2 caso(s) em aberto carregado(s).", "Buscar nesta lista", "Filtros por coluna", "Colunas"]) expect(t, x).toContain(x);
+    expect(html).toMatch(/class="sticky z-10[^"]*"[^>]*style="left:36px/); // Código fixo logo depois da caixa de marcar
+    for (const x of ["Código", "Descrição", "Grupo", "Problema", "Itens", "Situação", "Camada", "Proposto", "Rascunho", "2186", "RETENTOR 45X62", "Peças", "12 itens (1º: 2186)", "2 carregado(s).", "Buscar nesta lista", "Filtros por coluna", "Colunas"]) expect(t, x).toContain(x);
+    // Origem, Parecer da IA e Tipo começam ocultas (o consultor liga em Colunas); nenhum código interno de tipo na lista.
+    expect(html).not.toContain('aria-label="Filtrar Origem"');
+    expect(html).not.toMatch(/role="columnheader"[^>]*>(?:(?!<\/div>).)*Origem/);
+    expect(t).not.toContain("NCM_FORMATO");
+    expect(t).not.toContain("SEM_MOVIMENTACAO");
     expect(html).toContain('aria-label="Marcar todas"');
     expect(html).toContain('aria-label="Marcar a linha"');
     expect(html).toContain('aria-sort="none"');
@@ -234,13 +239,22 @@ describe("Casos", () => {
   });
   it("lista com mais páginas: o contador avisa e o botão Carregar mais casos continua", () => {
     const t = texto(montar(<Casos projeto={projeto()} />, (qc) => qc.setQueryData(chaveLista, { pages: [{ casos: [caso], proximo: "c9" }], pageParams: [undefined] })));
-    expect(t).toContain("há mais casos a carregar");
+    expect(t).toContain("role até o fim para carregar mais");
     expect(t).toContain("Carregar mais casos");
   });
   it("recorte da visão geral: aviso do grupo, filtro de camada e Limpar filtros (que mantém o recorte)", () => {
     const f = { camada: "NCM", situacao: "ABERTOS", tipo: "", origem: "", grupo: "Ferragens" };
     const t = texto(montar(<Casos projeto={projeto()} recorte={{ camada: "NCM", grupo: "Ferragens" }} />, (qc) => qc.setQueryData(chaves.casos("p1", f), { pages: [{ casos: [caso], proximo: null }], pageParams: [undefined] })));
-    for (const x of ["Recorte da visão geral", "Ferragens", "Tirar o recorte", "Limpar filtros", "1 caso(s) com estes filtros carregado(s)."]) expect(t, x).toContain(x);
+    for (const x of ["Recorte da visão geral", "Ferragens", "Tirar o recorte", "Limpar filtros", "1 carregado(s)."]) expect(t, x).toContain(x);
+  });
+  it("filtro de tipo em lista, com rótulo e contagem; o contador mostra o total do filtro", () => {
+    const html = montar(<Casos projeto={projeto()} />, (qc) => qc.setQueryData(chaveLista, { pages: [{ casos: [caso], proximo: "c9", tipos: [{ tipo: "NCM_FORMATO", n: 1200 }, { tipo: "ABREVIACAO_ESCONDE_ATRIBUTO", n: 3 }] }], pageParams: [undefined] }));
+    const t = texto(html);
+    expect(t).toContain("Formato do NCM (1.200)");
+    expect(t).toContain("Abreviação que esconde atributo (3)");
+    expect(t).toContain("1.203 caso(s) em aberto");
+    expect(t).not.toContain("ABREVIACAO_ESCONDE_ATRIBUTO");
+    expect(t).not.toContain("texto exato");
   });
 });
 
@@ -266,6 +280,23 @@ describe("Detalhe do caso", () => {
     expect(html).toMatch(/aria-label="Proposta para Fator[^"]*conver/i);
     const sem = montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), { ...dup, evidencia: [] }));
     expect(sem).not.toContain("Proposta para Fator: 1 unidade de");
+  });
+  it("caso de 1 item: bloco fixo do item e o campo-alvo (NCM) editável mesmo sem proposta", () => {
+    const ncm = { ...caso, camada: "NCM", tipo: "NCM_INEXISTENTE", itens: ["i1"], problema: "NCM 12022090 não existe na tabela", atual: { ncm: "12022090" }, proposta: {}, resumoItens: [{ id: "i1", codigo: "2186", descricao: "RETENTOR 45X62", grupo: "Peças", ncm: "12022090", unidade: "UN", saldo: 24, ultimaMovimentacao: "2025-03-10" }] };
+    const html = montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), ncm));
+    const t = texto(html);
+    for (const x of ["Item", "2186", "RETENTOR 45X62", "Peças", "UN", "24", "10/03/2025", "NCM inexistente", "digite o valor correto em NCM"]) expect(t, x).toContain(x);
+    expect(html).toContain('aria-label="Proposta para NCM"');
+  });
+  it("duplicidade: decisão em lista rotulada, itens em tabela, decisões possíveis fora da grade, nada de código interno", () => {
+    const dup = { ...caso, camada: "DUPLICIDADE", tipo: "DUPLICIDADE_EXATA", itens: ["i1", "i2"], problema: "2 códigos iguais", evidencia: [], atual: { codigos: "100 | 200", descricoes: "LUVA | LUVA" },
+      proposta: { decisao: "PROPOR_INATIVACAO", decisoesPossiveis: "MANTER_DISTINTOS | PROPOR_CONSOLIDACAO | PROPOR_INATIVACAO | SOLICITAR_INFORMACAO", manter: "100", consolidar: "200" },
+      resumoItens: [{ id: "i1", codigo: "100", descricao: "LUVA", grupo: "EPI", ncm: null, unidade: "UN", saldo: 0 }, { id: "i2", codigo: "200", descricao: "LUVA", grupo: "EPI", ncm: null, unidade: "PAR", saldo: 3 }] };
+    const html = montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), dup));
+    const t = texto(html);
+    expect(html).toMatch(/<select[^>]*aria-label="Proposta para Decisão"/);
+    for (const x of ["Propor inativação", "Manter distintos", "Propor consolidação", "Itens do caso (2)", "Código mantido", "Duplicidade exata"]) expect(t, x).toContain(x);
+    for (const x of ["PROPOR_INATIVACAO", "MANTER_DISTINTOS", "Decisões possíveis", "decisoesPossiveis", "DUPLICIDADE_EXATA", "codigos"]) expect(t, x).not.toContain(x);
   });
   it("caso aprovado oferece desfazer, não aprovar", () => {
     const t = texto(montar(<CasoDetalhe projeto={projeto()} casoId="c1" />, (qc) => qc.setQueryData(chaves.caso("c1"), { ...caso, situacao: "APROVADO" })));
