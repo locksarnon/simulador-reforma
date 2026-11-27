@@ -99,6 +99,10 @@ export const SECAO_SANEAMENTO = {
       r: "Na aba Casos, filtre (por exemplo, Tipo “NCM inexistente”), não marque nada e clique em Decidir em lote…: o lote vale para todos os casos em aberto do filtro, não só os carregados na tela. Escolha Aprovar, Pedir informação ou Rejeitar, escreva o texto comum (obrigatório para pedir informação e rejeitar), veja a prévia e confirme. O InTAX decide em rodadas de até 2.000 casos sozinho, mostrando o progresso; se algum caso ficar para depois, a tela diz quantos e oferece Continuar. As exceções aparecem com o código e a descrição do item (POP-CON-14).",
     },
     {
+      p: "Como decidir os casos no Excel?",
+      r: "Na aba Casos, escolha a Camada, clique em Planilha de decisão e em Baixar planilha da camada. Em cada linha (um caso), escolha a Decisão na lista (Aprovar, Rejeitar ou Pedir informação), escreva o Motivo quando for rejeitar, pedir informação ou aprovar exceção, e use Valor corrigido só se discordar da proposta, no campo indicado (NCM, descrição ou unidade). As outras colunas ficam travadas. Depois, em Planilha de decisão > Reimportar, veja a prévia: ela conta o que será feito e lista as linhas recusadas com o motivo (por exemplo, caso que mudou depois que a planilha foi baixada ou NCM que não existe). Só então clique em Aplicar as decisões. Cada decisão fica no histórico com quem, quando e a marca do arquivo; reimportar o mesmo arquivo não decide de novo (POP-CON-14).",
+    },
+    {
       p: "O caso de NCM inexistente não traz proposta. Como corrijo o NCM?",
       r: "Abra o caso: o quadro Item mostra o código, a descrição, o grupo, o NCM, a unidade, o saldo e a última movimentação, e em Dados e proposta o NCM fica editável mesmo sem proposta. Digite o NCM certo e clique em Aprovar. Vale igual para a descrição e a unidade nos casos de um item de Nomes e unidades e de Qualidade (POP-CON-14).",
     },

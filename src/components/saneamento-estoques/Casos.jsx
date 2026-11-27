@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { san, chaves, atualizarTudo } from "./api";
 import CasoDetalhe from "./CasoDetalhe";
+import PlanilhaDecisao from "./PlanilhaDecisao";
 import TabelaDensa from "./TabelaDensa";
 import { Aviso, botaoPerigo, botaoPrimario, botaoSecundario, campoCls, EstadoCarregando, EstadoErro, EstadoVazio, faixaQuadroCls, quadroCls, Rotulo, SeloTexto, Tag, TextoLongo, usePodeAlterar } from "./comuns";
 import {
@@ -230,6 +231,7 @@ export default function Casos({ projeto, recorte, casoInicial }) {
         <label className="block"><Rotulo>Origem</Rotulo><select className={campoCls} value={filtro.origem} onChange={mudar("origem")}><option value="">Todas</option><option value="REGRA">Regra</option><option value="IA">IA</option></select></label>
         {temFiltro && <button type="button" className={botaoSecundario} onClick={() => trocarFiltro({ ...FILTRO_PADRAO, grupo: filtro.grupo })}>Limpar filtros</button>}
         <button type="button" className={botaoPrimario} disabled={!pode || !podeLote} title={!pode ? razao : "Marque casos na tabela, ou decida todos os casos em aberto do filtro"} onClick={() => setLote(true)}>Decidir em lote…</button>
+        <PlanilhaDecisao projeto={projeto} camada={filtro.camada} aoMudou={recarregar} />
       </div>
       {filtro.grupo && (
         <Aviso titulo="Recorte da visão geral" acao={<button type="button" className={botaoSecundario} onClick={() => trocarFiltro({ ...filtro, grupo: "" })}>Tirar o recorte</button>}>
