@@ -93,6 +93,8 @@ export class SaneamentoEstoquesController {
   listarItens(@Param('id') id: string, @Query() q: FiltroItens & { revisar?: string }) {
     return this.itens.listar(id, { ...q, revisar: q.revisar === 'true' || q.revisar === '1' });
   }
+  @Get('projetos/:id/itens-colunas')
+  colunasDosItens(@Param('id') id: string) { return this.itens.colunas(id); }
   @Get('projetos/:id/visao-geral')
   visaoGeral(@Param('id') id: string) { return this.itens.visaoGeral(id); }
   @Get('itens/:itemId')
