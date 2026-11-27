@@ -42,3 +42,28 @@ export function camposDoCnpj(d: DadosCnpj, atual: { uf?: string | null; municipi
     dados_publicos_em: new Date(),
   };
 }
+
+/** Quanto se espera pela consulta pública do CNPJ antes de desistir (a BrasilAPI às vezes não responde). */
+export const ESPERA_CONSULTA_CNPJ_MS = 20_000;
+
+type ConsultaCnpj = { consultar(cnpj: string): Promise<DadosCnpj> };
+type EmpresaComDocumento = { id: string; cnpj_cpf?: string | null; uf?: string | null; municipio?: string | null };
+type PrismaEmpresa = { empresa: { update(a: { where: { id: string }; data: ReturnType<typeof camposDoCnpj> }): Promise<unknown> } };
+
+/**
+ * Consulta o CNPJ da empresa e grava os dados públicos no cadastro (o mesmo caminho do cadastro do cliente e de quem mais
+ * atualiza pela Receita). Lança se o documento não for CNPJ, se a consulta falhar ou se passar do tempo; quem chama decide se
+ * a falha impede ou só vira aviso.
+ */
+export async function atualizarEmpresaPeloCnpj<T>(prisma: PrismaEmpresa, cnpj: ConsultaCnpj, empresa: EmpresaComDocumento, esperaMs = ESPERA_CONSULTA_CNPJ_MS): Promise<T> {
+  const doc = String(empresa.cnpj_cpf ?? '').replace(/\D/g, '');
+  if (doc.length !== 14) throw new Error('O cliente não tem CNPJ: os dados da Receita só valem para empresas.');
+  let relogio: ReturnType<typeof setTimeout> | undefined;
+  const limite = new Promise<never>((_, rejeitar) => { relogio = setTimeout(() => rejeitar(new Error('a consulta ao CNPJ não respondeu a tempo.')), esperaMs); });
+  try {
+    const dados = await Promise.race([cnpj.consultar(doc), limite]);
+    return (await prisma.empresa.update({ where: { id: empresa.id }, data: camposDoCnpj(dados, empresa) })) as T;
+  } finally {
+    if (relogio) clearTimeout(relogio);
+  }
+}

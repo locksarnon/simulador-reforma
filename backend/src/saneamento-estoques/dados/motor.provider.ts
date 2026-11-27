@@ -55,12 +55,13 @@ export class AnalisadorGruposFinalidade implements AnalisadorCamada {
     const fin: CasoProposto[] = [];
     const prontos = new Set<string>();
     const semSugestao = new Set<string>();
+    const motivosSemSugestao: string[] = [];
     const rotulo = (f: Finalidade) => ROTULO_FINALIDADE[f];
     const fundamento = 'Regra interna: sugestão por grupo, nome do item e atividades confirmadas do cliente (a finalidade define o enquadramento tributário).';
     for (const s of sugerirFinalidadePorGrupo(itens, this.atividades)) {
       const doGrupo = itens.filter((i) => (i.grupo ?? '') === (s.grupo ?? ''));
       if (!s.grupo) continue; // item sem grupo não tem finalidade por grupo
-      if (!s.dominante) { doGrupo.forEach((i) => semSugestao.add(i.id)); continue; }
+      if (!s.dominante) { doGrupo.forEach((i) => semSugestao.add(i.id)); motivosSemSugestao.push(`${s.grupo}: ${s.motivoDaRegra || s.motivo}`); continue; }
       const excecao = new Map(s.excecoes.map((x) => [x.itemId, x]));
       const doCaso: ItemTrabalho[] = [];
       const porFinalidade = new Map<Finalidade, ItemTrabalho[]>();
@@ -81,6 +82,8 @@ export class AnalisadorGruposFinalidade implements AnalisadorCamada {
             ...Object.entries(s.distribuicao).map(([f, n]) => ({ rotulo: `Sugestão: ${rotulo(f as Finalidade)}`, valor: `${n} itens` })),
             { rotulo: 'Sem sugestão', valor: `${s.semSugestao} itens` },
             { rotulo: 'Confiança', valor: `${s.confianca} (${Math.round(s.proporcao * 100)}% no dominante)` },
+            ...(s.motivoDaRegra ? [{ rotulo: 'Motivo da sugestão', valor: s.motivoDaRegra }] : []),
+            ...(s.alternativas.length ? [{ rotulo: 'Alternativas a confirmar', valor: s.alternativas.map(rotulo).join(', ') }] : []),
             ...(informadas ? [{ rotulo: 'Informada pelo cliente', valor: `${informadas} item(ns) deste caso já vieram com esta finalidade na base: aprovar confirma` }] : []),
             ...(emExcecao ? [{ rotulo: 'Exceções', valor: `${emExcecao} item(ns) com outra finalidade estão em caso próprio de exceção (exige motivo)` }] : []),
           ],
@@ -108,7 +111,7 @@ export class AnalisadorGruposFinalidade implements AnalisadorCamada {
     casos.push(...fin);
     const emCaso = new Set(casos.flatMap((c) => c.itens));
     const semProblema = [...new Set([...base.semProblema, ...prontos])].filter((id) => !emCaso.has(id) && !semSugestao.has(id));
-    const semDados = base.semDados ?? (semSugestao.size ? { motivo: 'Há grupos sem nenhuma sugestão de finalidade: confirmar com o cliente', itens: semSugestao.size } : null);
+    const semDados = base.semDados ?? (semSugestao.size ? { motivo: `Há grupos sem nenhuma sugestão de finalidade: confirmar com o cliente (${motivosSemSugestao.slice(0, 10).join('; ')}${motivosSemSugestao.length > 10 ? '; …' : ''})`.slice(0, 1000), itens: semSugestao.size } : null);
     return { camada: 'GRUPOS_FINALIDADE', analisados: itens.length, semDados, casos, semProblema };
   }
 }

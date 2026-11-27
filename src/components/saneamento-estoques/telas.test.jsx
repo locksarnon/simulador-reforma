@@ -67,6 +67,32 @@ describe("Configuração", () => {
     expect(t).toContain("Reabrir para alterar");
     expect(t).not.toContain("Acrescentar");
   });
+  it("lista vazia: diz o motivo e oferece buscar pelo CNPJ; pessoa física marca na lista", () => {
+    const pj = montar(<Configuracao projeto={projeto({ atividades: [], cliente: { tipoDocumento: "PJ", temCnae: false } })} recarregar={() => {}} />);
+    expect(texto(pj)).toContain("O cadastro do cliente não tem CNAE e a consulta ao CNPJ não trouxe atividades");
+    expect(pj).toMatch(/<button[^>]*>[^]*?Buscar atividades pelo CNPJ/);
+    const pf = texto(montar(<Configuracao projeto={projeto({ atividades: [], cliente: { tipoDocumento: "PF" } })} recarregar={() => {}} />));
+    expect(pf).toContain("Pessoa física: marque na lista");
+    expect(pf).not.toContain("Consultando o CNPJ");
+    expect(pf.match(/Buscar atividades pelo CNPJ/g)).toHaveLength(1); // só a menção no texto de ajuda; sem botão
+  });
+  it("com atividades: o botão de buscar pelo CNPJ fica ao lado da lista; CNAE formatado, origem, rótulo e motivo do mapeamento", () => {
+    const t = texto(montar(<Configuracao projeto={projeto({
+      atividades: [atividade({ codigo: "0111301", descricao: "Cultivo de arroz" }), atividade({ id: "a2", codigo: "6911701", descricao: "Advocacia" })],
+      cliente: { tipoDocumento: "PJ", temCnae: true, cnaePrincipal: "0111301" },
+      mapaAtividades: { mapeadas: [{ codigo: "0111301", atividade: "PRODUCAO_AGRICOLA", rotulo: "Produção agrícola (lavoura, sementes e mudas)", motivo: "CNAE 01.1: cultivo de lavouras temporárias" }], semMapeamento: ["6911701"] },
+      listaAtividades: [{ codigo: "PECUARIA", rotulo: "Pecuária (criação de animais)" }],
+    })} recarregar={() => {}} />));
+    expect(t.match(/Buscar atividades pelo CNPJ/g).length).toBeGreaterThanOrEqual(2);
+    expect(t).toContain("0111-3/01");
+    expect(t).toContain("principal");
+    expect(t).toContain("secundário");
+    expect(t).toContain("Vira: Produção agrícola (lavoura, sementes e mudas)");
+    expect(t).not.toContain("Vira: PRODUCAO_AGRICOLA");
+    expect(t).toContain("CNAE 01.1: cultivo de lavouras temporárias");
+    expect(t).toContain("CNAE sem atividade correspondente — inclua manualmente se aplicável");
+    expect(t).toContain("Pecuária (criação de animais)");
+  });
   it("CNPJ desatualizado pede para revisar as atividades", () => {
     expect(texto(montar(<Configuracao projeto={projeto({ cnpjDesatualizado: true })} recarregar={() => {}} />))).toContain("Revisar atividades");
   });

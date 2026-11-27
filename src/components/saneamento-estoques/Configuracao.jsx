@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Lock, Plus } from "lucide-react";
+import { Lock, Plus, RefreshCw } from "lucide-react";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { san } from "./api";
 import { SeletorErp, useErps } from "@/components/erps/erps";
 import { erpDoRegistro, vinculoErpParaSalvar } from "@/lib/erps";
 import { Aviso, BotaoInfo, botaoPrimario, botaoSecundario, campoCls, Rotulo, Tag, usePodeAlterar } from "./comuns";
-import { efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtData, fmtDataHora, mensagemDeErro, MODULOS_OPCIONAIS } from "./logica";
+import {
+  efeitoDaAtividade, ehAtividadesConfirmadas, ehConflitoVersao, estadoDaTrava, fmtCnae, fmtData, fmtDataHora, mensagemDeErro, motivoDaAtividade, motivoListaVazia,
+  MODULOS_OPCIONAIS, textoBuscaCnpj,
+} from "./logica";
 
 const listaDeEstabelecimentos = (p) => (Array.isArray(p?.estabelecimentos) ? p.estabelecimentos : []);
 
@@ -50,6 +53,15 @@ export default function Configuracao({ projeto, recarregar }) {
   });
   const confirmarAtividades = useMutation({ mutationFn: () => san.confirmarAtividades(projeto.id, projeto.versao), onSuccess: aoConcluir("Atividades confirmadas. A importação e as análises estão liberadas."), onError: aoFalhar });
   const reabrir = useMutation({ mutationFn: () => san.reabrirAtividades(projeto.id, projeto.versao), onSuccess: aoConcluir("Atividades reabertas."), onError: aoFalhar });
+  const buscarCnpj = useMutation({
+    mutationFn: () => san.buscarAtividadesCnpj(projeto.id, projeto.versao),
+    onSuccess: (r) => { setMsg({ tom: r?.aviso && !r?.acrescentadas?.length ? "alerta" : "ok", texto: textoBuscaCnpj(r) }); recarregar(); }, onError: aoFalhar,
+  });
+  const botaoBuscarCnpj = (
+    <button type="button" className={botaoSecundario} disabled={!pode || buscarCnpj.isPending} title={razao || "Consulta o CNPJ agora, atualiza os dados públicos do cliente e acrescenta os CNAEs que faltam (nada é apagado)."} onClick={() => buscarCnpj.mutate()}>
+      <RefreshCw className="h-4 w-4" aria-hidden="true" />{buscarCnpj.isPending ? "Consultando o CNPJ…" : "Buscar atividades pelo CNPJ"}
+    </button>
+  );
 
   const pedirReabertura = async () => {
     const ok = await confirmar({
@@ -62,7 +74,7 @@ export default function Configuracao({ projeto, recarregar }) {
   const atividades = projeto.atividades || [];
   return (
     <div className="space-y-6">
-      {msg && <Aviso tom={msg.tom === "erro" ? "erro" : "ok"}>{msg.texto}</Aviso>}
+      {msg && <Aviso tom={msg.tom === "erro" || msg.tom === "alerta" ? msg.tom : "ok"}>{msg.texto}</Aviso>}
 
       <section aria-labelledby="san-cfg-dados" className="space-y-3 border border-border bg-card p-4">
         <h2 id="san-cfg-dados" className="font-semibold">Dados do projeto</h2>
@@ -97,8 +109,11 @@ export default function Configuracao({ projeto, recarregar }) {
       </section>
 
       <section aria-labelledby="san-cfg-ativ" className="space-y-3 border border-border bg-card p-4">
-        <h2 id="san-cfg-ativ" className="font-semibold">Atividades do cliente</h2>
-        <p className="text-sm text-muted-foreground">Vêm do CNAE principal e dos secundários do CNPJ. Mantenha as que o cliente realmente exerce, exclua as outras e acrescente as que faltam. Sem esta confirmação não há importação nem análise.</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="san-cfg-ativ" className="font-semibold">Atividades do cliente</h2>
+          {atividades.length > 0 && botaoBuscarCnpj}
+        </div>
+        <p className="text-sm text-muted-foreground">Vêm do CNAE principal e dos secundários do CNPJ. Mantenha as que o cliente realmente exerce, exclua as outras e acrescente as que faltam. Sem esta confirmação não há importação nem análise. “Buscar atividades pelo CNPJ” consulta a Receita agora e acrescenta os CNAEs que faltam, sem apagar nada.</p>
         {trava.revisarAtividades && <Aviso tom="alerta" titulo="Revisar atividades">Os dados do CNPJ do cliente mudaram depois que o projeto foi aberto. Confira se as atividades abaixo ainda valem; o que já foi feito não é bloqueado.</Aviso>}
         {trava.confirmada && (
           <Aviso tom="ok" titulo="Atividades confirmadas" acao={<button type="button" className={botaoSecundario} onClick={pedirReabertura} disabled={!pode || reabrir.isPending} title={razao}>Reabrir para alterar</button>}>
@@ -106,7 +121,9 @@ export default function Configuracao({ projeto, recarregar }) {
           </Aviso>
         )}
         {atividades.length === 0 ? (
-          <p className="text-sm text-muted-foreground">O CNPJ não trouxe atividades. Acrescente pelo menos uma abaixo (cliente pessoa física: marque à mão).</p>
+          <Aviso tom="alerta" titulo="Nenhuma atividade na lista" acao={projeto.cliente?.tipoDocumento === "PF" ? null : botaoBuscarCnpj}>
+            {motivoListaVazia(projeto)}
+          </Aviso>
         ) : (
           <table className="w-full text-sm" aria-label="Atividades do cliente">
             <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="w-16 py-1">Manter</th><th scope="col">Código</th><th scope="col">Descrição</th><th scope="col">Origem</th>{projeto.mapaAtividades && <th scope="col">Efeito nas sugestões</th>}</tr></thead>
@@ -116,10 +133,18 @@ export default function Configuracao({ projeto, recarregar }) {
                   <td className="py-1.5">
                     <input type="checkbox" checked={!!a.mantida} disabled={!pode || !trava.editavel || alternar.isPending} title={razao} aria-label={`${a.mantida ? "Excluir" : "Manter"} a atividade ${a.codigo}`} onChange={() => alternar.mutate({ id: a.id, mantida: !a.mantida })} />
                   </td>
-                  <td className="tabular-nums">{a.codigo}</td>
+                  <td className="tabular-nums">{fmtCnae(a.codigo)}</td>
                   <td className={a.mantida ? "" : "line-through"}>{a.descricao}{!a.mantida && <Tag className="ml-2">excluída</Tag>}</td>
-                  <td><Tag tom={a.origem === "CNPJ" ? "info" : "neutro"}>{a.origem === "CNPJ" ? "CNPJ" : "Manual"}</Tag></td>
-                  {projeto.mapaAtividades && <td className="text-xs">{efeitoDaAtividade(projeto.mapaAtividades, a.codigo) || "—"}</td>}
+                  <td>
+                    <Tag tom={a.origem === "CNPJ" ? "info" : "neutro"}>{a.origem === "CNPJ" ? "CNPJ" : "Manual"}</Tag>
+                    {a.origem === "CNPJ" && projeto.cliente?.cnaePrincipal && <span className="ml-1 text-xs text-muted-foreground">{String(projeto.cliente.cnaePrincipal) === String(a.codigo) ? "principal" : "secundário"}</span>}
+                  </td>
+                  {projeto.mapaAtividades && (
+                    <td className="text-xs">
+                      {a.mantida ? (efeitoDaAtividade(projeto.mapaAtividades, a.codigo) || "—") : "—"}
+                      {a.mantida && motivoDaAtividade(projeto.mapaAtividades, a.codigo) && <span className="block text-muted-foreground">{motivoDaAtividade(projeto.mapaAtividades, a.codigo)}</span>}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -127,6 +152,15 @@ export default function Configuracao({ projeto, recarregar }) {
         )}
         {trava.editavel && (
           <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); acrescentar.mutate(); }}>
+            {Array.isArray(projeto.listaAtividades) && projeto.listaAtividades.length > 0 && (
+              <label className="block"><Rotulo>Da lista de atividades</Rotulo>
+                <select className={`${campoCls} w-64`} value={projeto.listaAtividades.some((x) => x.codigo === novaAtividade.codigo) ? novaAtividade.codigo : ""}
+                  onChange={(e) => { const x = projeto.listaAtividades.find((l) => l.codigo === e.target.value); setNovaAtividade(x ? { codigo: x.codigo, descricao: x.rotulo } : { codigo: "", descricao: "" }); }}>
+                  <option value="">Escolha (ou digite um CNAE ao lado)</option>
+                  {projeto.listaAtividades.filter((x) => !atividades.some((a) => a.codigo === x.codigo && a.mantida)).map((x) => <option key={x.codigo} value={x.codigo}>{x.rotulo}</option>)}
+                </select>
+              </label>
+            )}
             <label className="block"><Rotulo>Código (CNAE ou outro)</Rotulo><input className={`${campoCls} w-40`} value={novaAtividade.codigo} onChange={(e) => setNovaAtividade((n) => ({ ...n, codigo: e.target.value }))} /></label>
             <label className="block min-w-[220px] flex-1"><Rotulo>Descrição</Rotulo><input className={campoCls} value={novaAtividade.descricao} onChange={(e) => setNovaAtividade((n) => ({ ...n, descricao: e.target.value }))} /></label>
             <button type="submit" className={botaoSecundario} disabled={!pode || acrescentar.isPending || !novaAtividade.codigo.trim() || !novaAtividade.descricao.trim()}><Plus className="h-4 w-4" aria-hidden="true" />Acrescentar</button>

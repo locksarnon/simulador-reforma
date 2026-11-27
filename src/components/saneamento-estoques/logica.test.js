@@ -7,7 +7,7 @@ import {
   proximoCasoAberto, proximoPendente, resumirRelatorio, rolagemParaLinha, rotuloSituacao, situacaoAgregada, textoDaCelula, textoDoConjunto, versoesDaPrevia, edicaoSuja, edicaoInicial,
   paginasDeImpacto, corpoIncorporar, quantosIncorporar, lerNumeroBr, ALTURA_LINHA, LISTA_SITUACOES, fmtData, converterProposta, razaoSemAprovar, efeitoDaAtividade, interpretarRespostaParecer, textoDoEnquadramento, avisosDaLiberacao,
   versaoCriada, idsDoLote, rotuloDoCaso, rotuloSituacaoCaso, ehErroDeRede, ehPropostaDesatualizada, camposDivergentes, casoValeParaEnquadramento,
-  justificativaBasta, podeRestaurar, restauracoesDaVersao, linhasDaPrevia, paramsDoMapa, enderecoDoMapa, fmtSaldo,
+  justificativaBasta, podeRestaurar, fmtCnae, motivoDaAtividade, motivoListaVazia, textoBuscaCnpj, restauracoesDaVersao, linhasDaPrevia, paramsDoMapa, enderecoDoMapa, fmtSaldo,
 } from "./logica";
 
 const erro = (status, data) => Object.assign(new Error(data?.message || "x"), { status, response: { data } });
@@ -387,9 +387,22 @@ describe("revisão C: datas, proposta, parecer, lote e enquadramento", () => {
   it("mapa de atividades: em que o CNAE vira, ou sem efeito; ausente não quebra", () => {
     const mapa = { mapeadas: [{ codigo: "4623-1/99", atividade: "COMERCIO", rotulo: "Comércio atacadista" }], semMapeamento: ["9999-9/99"] };
     expect(efeitoDaAtividade(mapa, "4623-1/99")).toBe("Vira: Comércio atacadista");
-    expect(efeitoDaAtividade(mapa, "9999-9/99")).toBe("Sem efeito nas sugestões");
+    expect(efeitoDaAtividade(mapa, "9999-9/99")).toBe("CNAE sem atividade correspondente — inclua manualmente se aplicável");
     expect(efeitoDaAtividade(mapa, "1111")).toBeNull();
     expect(efeitoDaAtividade(undefined, "1")).toBeNull();
+    // Mostra o rótulo, nunca o código interno; um CNAE que vira duas atividades mostra as duas; o motivo vem da regra CNAE → atividade.
+    const duas = { mapeadas: [{ codigo: "4683400", atividade: "REVENDA_INSUMOS", rotulo: "Revenda de insumos agropecuários", motivo: "CNAE 46.83-4: atacadista de defensivos" }, { codigo: "4683400", atividade: "COMERCIO_ATACADISTA", rotulo: "Comércio atacadista" }], semMapeamento: [] };
+    expect(efeitoDaAtividade(duas, "4683400")).toBe("Vira: Revenda de insumos agropecuários e Comércio atacadista");
+    expect(motivoDaAtividade(duas, "4683400")).toBe("CNAE 46.83-4: atacadista de defensivos");
+    expect(motivoDaAtividade(duas, "1")).toBeNull();
+  });
+  it("CNAE formatado, motivo da lista vazia e mensagem da busca pelo CNPJ", () => {
+    expect(fmtCnae("0111301")).toBe("0111-3/01");
+    expect(fmtCnae("PRODUCAO_AGRICOLA")).toBe("PRODUCAO_AGRICOLA");
+    expect(motivoListaVazia({ cliente: { tipoDocumento: "PF" } })).toContain("Pessoa física: marque na lista");
+    expect(motivoListaVazia({ cliente: { tipoDocumento: "PJ", temCnae: false } })).toContain("O cadastro do cliente não tem CNAE e a consulta ao CNPJ não trouxe atividades");
+    expect(textoBuscaCnpj({ acrescentadas: [{ codigo: "1" }, { codigo: "2" }], aviso: null })).toBe("2 atividades acrescentadas pelo CNPJ.");
+    expect(textoBuscaCnpj({ acrescentadas: [], aviso: "Nenhuma atividade nova" })).toBe("Nenhuma atividade nova");
   });
   it("parecer da IA: só é sucesso quando veio o parecer; cada motivo tem a sua mensagem", () => {
     expect(interpretarRespostaParecer({ parecer: { recomendacao: "x" } })).toEqual({ ok: true, texto: "Parecer da IA gerado." });

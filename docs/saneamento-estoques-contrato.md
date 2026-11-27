@@ -36,8 +36,8 @@ Servidor = fonte da verdade. Análises rodam no servidor como funções puras (`
 ## API (prefixo `/saneamento-estoques`, tela de permissão `carteira-diagnostico`)
 | Rota | O que faz |
 |---|---|
-| POST projetos {diagnostico_id} · GET projetos/por-diagnostico/:id · GET/PUT projetos/:id | criar a partir do projeto de consultoria · obter (atividades, `atividadesConfirmadas`, `cnpjDesatualizado`) · configurar (`versao` obrigatória) |
-| GET/POST projetos/:id/atividades · PUT …/:atividadeId {mantida} · POST …/confirmar {versao} · POST …/reabrir {versao} | atividades e trava |
+| POST projetos {diagnostico_id} · GET projetos/por-diagnostico/:id · GET/PUT projetos/:id | criar a partir do projeto de consultoria (PJ sem CNAE no cadastro: consulta o CNPJ antes; falha vira `avisoAtividades`, não impede) · obter (atividades, `atividadesConfirmadas`, `cnpjDesatualizado`, `mapaAtividades` com rótulo e motivo, `cliente` {tipoDocumento, temCnae, cnaePrincipal}, `listaAtividades`) · configurar (`versao` obrigatória) |
+| GET/POST projetos/:id/atividades · PUT …/:atividadeId {mantida} · POST …/confirmar {versao} · POST …/reabrir {versao} · POST …/buscar-cnpj {versao} | atividades e trava; buscar-cnpj consulta o CNPJ, atualiza os dados públicos do cliente e acrescenta os CNAEs que faltam (origem CNPJ, sem apagar manuais nem reativar excluídas); confirmadas: não acrescenta, devolve `pendentes` e o projeto fica com `cnpjDesatualizado`; PF: 400 |
 | POST projetos/:id/importacoes/previa · POST projetos/:id/importacoes · GET …/importacoes | multipart `arquivo`, `mapeamento` (JSON), `incorporar` (JSON de ids). Prévia é POST de leitura |
 | GET projetos/:id/itens?camada&situacao&revisar&grupo&busca&ordem(codigo\|grupo)&cursor&limite | lista paginada por cursor (`proximo`), `total` na 1ª página |
 | GET projetos/:id/visao-geral · GET itens/:itemId · GET itens/:itemId/historico?campo | grupo×camada×situação; item completo; histórico por campo |

@@ -136,8 +136,9 @@ describe('finalidade', () => {
       item('gx', { descricao: 'LUVA', grupo: 'Defensivos' }), item('gy', { descricao: 'PRODUTO Y', grupo: 'Defensivos' }),
     ];
     const [g] = sugerirFinalidadePorGrupo(itens, ['REVENDA_INSUMOS']);
-    expect(g).toMatchObject({ grupo: 'Defensivos', total: 6, dominante: 'REVENDA', semSugestao: 1 });
-    expect(g.distribuicao).toEqual({ REVENDA: 4, USO_CONSUMO: 1 });
+    // O grupo "Defensivos" (plural) já indica insumo: o item sem indício no nome herda do grupo.
+    expect(g).toMatchObject({ grupo: 'Defensivos', total: 6, dominante: 'REVENDA', semSugestao: 0 });
+    expect(g.distribuicao).toEqual({ REVENDA: 5, USO_CONSUMO: 1 });
     expect(g.excecoes.map((e) => e.itemId)).toEqual(['gx']);
   });
   it('contexto do grupo com dominante ≥70% resolve item sem indício', () => {

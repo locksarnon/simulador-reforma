@@ -259,13 +259,46 @@ export function razaoSemAprovar(caso, proposta, justificativa) {
   return null;
 }
 
-/** Em que atividade cada CNAE vira (mapaAtividades do projeto); ausente = não mostra nada. */
+export const CNAE_SEM_ATIVIDADE = "CNAE sem atividade correspondente — inclua manualmente se aplicável";
+
+/** Em que atividade cada CNAE vira (mapaAtividades do projeto), pelo rótulo; ausente = não mostra nada. Um CNAE pode virar mais de uma. */
 export function efeitoDaAtividade(mapa, codigo) {
   if (!mapa) return null;
-  const m = (mapa.mapeadas || []).find((x) => String(x.codigo) === String(codigo));
-  if (m) return `Vira: ${m.rotulo || m.atividade}`;
-  if ((mapa.semMapeamento || []).map(String).includes(String(codigo))) return "Sem efeito nas sugestões";
+  const ms = (mapa.mapeadas || []).filter((x) => String(x.codigo) === String(codigo));
+  if (ms.length) return `Vira: ${[...new Set(ms.map((m) => m.rotulo || m.atividade))].join(" e ")}`;
+  if ((mapa.semMapeamento || []).map(String).includes(String(codigo))) return CNAE_SEM_ATIVIDADE;
   return null;
+}
+
+/** Por que o CNAE vira aquela atividade (a regra CNAE → atividade, com a divisão, grupo ou classe do CNAE 2.0). */
+export function motivoDaAtividade(mapa, codigo) {
+  const m = (mapa?.mapeadas || []).find((x) => String(x.codigo) === String(codigo));
+  return m?.motivo || null;
+}
+
+/** CNAE em 7 dígitos formatado (0111-3/01); outro código (item da lista de atividades) fica como está. */
+export function fmtCnae(codigo) {
+  const bruto = String(codigo ?? "");
+  const d = bruto.replace(/\D/g, "");
+  return /^[\d.\-/]+$/.test(bruto) && d.length === 7 ? `${d.slice(0, 4)}-${d[4]}/${d.slice(5)}` : bruto;
+}
+
+/**
+ * Por que a lista de atividades está vazia, pelo cadastro do cliente (campo `cliente` do projeto): pessoa física marca na lista; empresa
+ * sem CNAE busca pelo CNPJ.
+ */
+export function motivoListaVazia(projeto) {
+  const c = projeto?.cliente;
+  if (c?.tipoDocumento === "PF") return "Pessoa física: marque na lista as atividades que o cliente exerce.";
+  if (c?.tipoDocumento === "SEM_DOCUMENTO") return "O cadastro do cliente não tem CNPJ nem CNAE: acrescente as atividades à mão (ou informe o CNPJ no cadastro e busque).";
+  return "O cadastro do cliente não tem CNAE e a consulta ao CNPJ não trouxe atividades. Busque de novo pelo CNPJ ou acrescente à mão.";
+}
+
+/** Mensagem depois de "Buscar atividades pelo CNPJ" (resposta da rota buscar-cnpj). */
+export function textoBuscaCnpj(r) {
+  if (r?.aviso) return r.aviso;
+  const n = r?.acrescentadas?.length || 0;
+  return n === 1 ? "1 atividade acrescentada pelo CNPJ." : `${n} atividades acrescentadas pelo CNPJ.`;
 }
 
 /** Liberar versão: o servidor pode devolver avisos (células em revisar) pedindo confirmação explícita. */

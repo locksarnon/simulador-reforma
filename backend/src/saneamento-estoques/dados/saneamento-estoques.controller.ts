@@ -58,6 +58,9 @@ export class SaneamentoEstoquesController {
   atividades(@Param('id') id: string) { return this.projetos.listarAtividades(id); }
   @Post('projetos/:id/atividades')
   adicionarAtividade(@Param('id') id: string, @Body() b: { codigo?: string; descricao?: string }) { return this.projetos.adicionarAtividade(id, b ?? {}); }
+  /** Consulta o CNPJ agora, atualiza os dados públicos do cliente e acrescenta os CNAEs que faltam (sem apagar nada). PF: 400. */
+  @Post('projetos/:id/atividades/buscar-cnpj')
+  buscarAtividadesPeloCnpj(@Param('id') id: string, @Body() b: { versao?: number }) { return this.projetos.buscarAtividadesPeloCnpj(id, b?.versao); }
   @Post('projetos/:id/atividades/confirmar')
   confirmarAtividades(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() b: { versao?: number }) { return this.projetos.confirmarAtividades(id, b?.versao, user); }
   @Post('projetos/:id/atividades/reabrir')

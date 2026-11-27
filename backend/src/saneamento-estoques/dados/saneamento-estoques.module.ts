@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CnpjModule } from '../../cnpj/cnpj.module';
 import { SanCasosService } from './casos.service';
 import { SanImportacaoService } from './importacao.service';
 import { SanImpactosService } from './impactos.service';
@@ -23,6 +24,7 @@ import { SanDiretrizesService } from '../diretrizes/diretrizes.service';
  * ia/ e entregaveis/ terminarem, o integrador troca as duas linhas marcadas "TROCAR" abaixo por useClass/useFactory dos módulos deles.
  */
 @Module({
+  imports: [CnpjModule],
   controllers: [SaneamentoEstoquesController, SanDiretrizesController],
   providers: [
     SanProjetoService, SanImportacaoService, SanItensService, SanCasosService, SanVersoesService, SanImpactosService, SanOrquestracaoService, SanRestauracaoService,

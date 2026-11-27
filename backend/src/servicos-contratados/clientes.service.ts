@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { PrismaService } from '../prisma/prisma.service';
 import { exigirFuncao } from '../permissoes/permissoes';
 import { CnpjService } from '../cnpj/cnpj.service';
-import { camposDoCnpj } from '../cnpj/dados-publicos';
+import { atualizarEmpresaPeloCnpj } from '../cnpj/dados-publicos';
 import { servicosConsultoria } from './consultoria.service';
 import { TIPOS_DE_SERVICO } from './servicos-contratados.service';
 
@@ -53,7 +53,7 @@ export class ClientesService {
     if (doc.length !== 14) { if (exigir) throw new BadRequestException('O cliente não tem CNPJ: os dados da Receita só valem para empresas.'); return e; }
     if (!this.cnpj) return e;
     try {
-      return await this.prisma.empresa.update({ where: { id }, data: camposDoCnpj(await this.cnpj.consultar(doc), e) });
+      return await atualizarEmpresaPeloCnpj<typeof e>(this.prisma as never, this.cnpj, e);
     } catch (err) {
       if (exigir) throw new BadRequestException(`Não foi possível consultar o CNPJ agora: ${(err as Error).message}`);
       return e;

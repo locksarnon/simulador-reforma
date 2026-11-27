@@ -11,6 +11,7 @@ export const san = {
   configurar: (id, corpo) => api.put(`${B}/projetos/${id}`, corpo),
   adicionarAtividade: (id, corpo) => api.post(`${B}/projetos/${id}/atividades`, corpo),
   alterarAtividade: (id, atividadeId, mantida) => api.put(`${B}/projetos/${id}/atividades/${atividadeId}`, { mantida }),
+  buscarAtividadesCnpj: (id, versao) => api.post(`${B}/projetos/${id}/atividades/buscar-cnpj`, { versao }),
   confirmarAtividades: (id, versao) => api.post(`${B}/projetos/${id}/atividades/confirmar`, { versao }),
   reabrirAtividades: (id, versao) => api.post(`${B}/projetos/${id}/atividades/reabrir`, { versao }),
 

@@ -47,6 +47,14 @@ export const SECAO_SANEAMENTO = {
       r: "A finalidade diz para que o cliente usa o item: Revenda, Matéria-prima, Insumo de produção, Embalagem, Uso e consumo, Manutenção, Imobilizado ou Material de terceiros. O enquadramento legal é o texto da lei e o artigo que sustentam o tratamento tributário (cClassTrib e CST) do item, e depende do NCM e da finalidade. Ambos saem na aba Cenários tributários do Excel. O sistema sugere, o consultor confirma: o texto da lei prevalece sobre qualquer sugestão.",
     },
     {
+      p: "As Atividades do cliente vieram vazias. O que faço?",
+      r: "Leia o aviso “Nenhuma atividade na lista”. Se o cliente é empresa, o cadastro não tinha CNAE e a consulta ao CNPJ não trouxe atividades (ou falhou ao abrir o projeto): clique em Buscar atividades pelo CNPJ, que consulta a Receita, atualiza os dados públicos do cliente e acrescenta os CNAEs. Se é pessoa física, escolha as atividades em Da lista de atividades e clique em Acrescentar. O mesmo botão, ao lado do título, atualiza a lista a qualquer momento sem apagar nada; com as atividades confirmadas, ele só avisa o que falta e mostra “Revisar atividades”. Passo a passo: POP-CON-10.",
+    },
+    {
+      p: "Como o sistema sugere a finalidade de cada grupo em Grupos e finalidade?",
+      r: "Pelo nome do grupo e do item (no singular ou no plural) e pelas atividades confirmadas. Fertilizantes, corretivos, defensivos, sementes, mudas e nutrição, vacinas e medicamentos da pecuária são insumo agropecuário: Insumo de produção para quem produz, Revenda para quem revende insumos. Combustíveis e lubrificantes são Insumo de produção quando o cliente tem atividade que os consome. Peças, filtros, pneus, parafusos, ferramentas e materiais de oficina vão para Manutenção; EPI, uniformes, limpeza, copa, expediente, informática e medicamentos de saúde ocupacional, para Uso e consumo. Grupos que dependem do uso (materiais de construção, lonas e plásticos, beneficiamento ou industrialização) recebem sugestão de confiança baixa com as alternativas no caso. Plantel, Produção, serviços, taxas e grupos genéricos ficam sem sugestão, com o motivo, e vão para confirmar com o cliente: o sistema nunca inventa a finalidade.",
+    },
+    {
       p: "Por que preciso confirmar as atividades do cliente?",
       r: "Porque a finalidade e o tratamento tributário dependem do que o cliente realmente faz. As atividades vêm do CNAE principal e dos secundários do CNPJ; você mantém as que valem, exclui as outras e acrescenta as que faltam. Enquanto não clicar em Confirmo as atividades, a importação e as análises ficam bloqueadas. Reabrir para alterar bloqueia de novo e marca como “revisar” o que já tinha sido trabalhado, sem apagar nenhuma decisão.",
     },
