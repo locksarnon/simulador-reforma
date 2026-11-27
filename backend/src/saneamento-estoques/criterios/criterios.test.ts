@@ -222,6 +222,27 @@ describe('acrescentar critério em texto livre (IA falsa)', () => {
     expect(r.iaDisponivel).toBe(true);
     if (r.resultado === 'MANUAL') expect(r.manual).toMatchObject({ camada: 'QUALIDADE', nota: null });
   });
+  it('projeto e camada conferidos ANTES da IA paga; proposta para camada desligada vira verificação manual; limite também sem e-mail', async () => {
+    let chamadas = 0;
+    const contando = (resposta: string) => ({ iaConfigurada: () => true, ia: async () => { chamadas++; return resposta; } });
+    const { servico, projetoId } = await montar();
+    const manual = '{"tipo":"MANUAL","explicacao":"x"}';
+    const s = new SanCriteriosIaService(servico, contando(manual) as never);
+    await expect(s.normalizar('nao-existe', 'DUPLICIDADE', 'Critério qualquer de teste', USER)).rejects.toThrow('Projeto de saneamento não encontrado');
+    await expect(s.normalizar(projetoId, 'ESTOQUE', 'Critério qualquer de teste', USER)).rejects.toThrow('não está ligada');
+    expect(chamadas).toBe(0);
+    // A IA propõe ajuste numa camada que não está ligada no projeto: não vira proposta, fica como verificação manual da camada pedida.
+    const listar = servico.listar.bind(servico);
+    const semDuplicidade = Object.assign(Object.create(servico), { listar: async (id: string) => { const l = await listar(id); return { ...l, camadas: l.camadas.filter((x) => x.camada !== 'DUPLICIDADE') }; } });
+    const r = await new SanCriteriosIaService(semDuplicidade, contando('{"tipo":"PARAMETRO","camada":"DUPLICIDADE","chave":"similaridadeMinima","valor":90,"explicacao":"x"}') as never)
+      .normalizar(projetoId, 'QUALIDADE', 'Só indicar duplicidade acima de 90%', USER);
+    expect(r.resultado).toBe('MANUAL');
+    if (r.resultado === 'MANUAL') expect(r.manual.camada).toBe('QUALIDADE');
+    // Sem e-mail: o limite (60 por hora) vale pelo id do usuário.
+    const sem = new SanCriteriosIaService(servico, contando(manual) as never);
+    for (let i = 0; i < 60; i++) await sem.normalizar(projetoId, 'QUALIDADE', `Critério manual número ${i}`, { id: 'u1' } as never);
+    await expect(sem.normalizar(projetoId, 'QUALIDADE', 'Mais um critério manual', { id: 'u1' } as never)).rejects.toThrow('Muitos critérios');
+  });
   it('IA fora do ar ou com erro: grava como manual, com a nota', async () => {
     for (const cliente of [ia(null), ia(new Error('timeout'))]) {
       const { servico, projetoId } = await montar();

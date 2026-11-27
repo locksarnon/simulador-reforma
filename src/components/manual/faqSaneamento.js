@@ -28,7 +28,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "Onde baixo a política de cadastro e estoques?",
-      r: "No botão Política (PDF), nas Diretrizes, no quadro Para revisão da Entrega da Fase 1 (ou da Fase 2) e na linha de cada versão liberada, em Fechamento > 3.1 Entregas finais. Sem versão, sai a política de agora, marcada Rascunho enquanto houver regra não aprovada; na linha de uma versão liberada, sai a política daquela versão, sempre igual. A política traz a identificação, as regras por aspecto com o código e os grupos, os procedimentos com fluxograma, os controles internos, a seção fiscal, o quadro de consulta por grupo e as pendências (regras não aprovadas e grupos sem regra) em seção própria.",
+      r: "No botão Política (PDF), nas Diretrizes, no quadro Para revisão da Entrega da Fase 1 (ou da Fase 2) e na linha de cada versão liberada, em Fechamento > 3.1 Entregas finais. Sem versão, sai a política de agora, marcada Rascunho enquanto houver regra não aprovada; na linha de uma versão liberada, sai a política daquela versão, sempre igual. A política traz a identificação, as regras por aspecto com o código e os grupos, os procedimentos com fluxograma, os controles internos, a seção fiscal, o quadro de consulta por grupo e as pendências (regras não aprovadas e grupos sem regra) em seção própria. Sem a Fase 2 (versão da Fase 1 ou base sem decisão tributária aprovada), a política sai sem conteúdo tributário: sem as regras de Classificação fiscal, sem a coluna Fiscal no quadro e sem os critérios das camadas da Fase 2.",
     },
     {
       p: "O que muda no saneamento quando o ERP do cliente tem perfil no Cadastro de ERPs?",
@@ -76,7 +76,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "O que falta para começar a Fase 2 (Tributário e Reforma)?",
-      r: "Três passos, nesta ordem: liberar uma versão da Fase 1 (Cadastro saneado) em Fase 1 > 1.5 Entrega da Fase 1; informar o regime do cliente no IBS e na CBS; e confirmar as atividades do cliente. Os dois últimos ficam em Fase 2 > 2.1 Premissas e diretrizes. No alto da página, a Fase 2 aparece com um cadeado e “Bloqueada”; ao abri-la, o aviso “Fase 2 ainda não liberada” diz o que falta e tem um botão que leva ao lugar certo (Ir para a Entrega da Fase 1 ou Ir para as Premissas). Dá para consultar as abas da Fase 2 nesse meio-tempo, mas os botões de análise dela ficam apagados; as Premissas seguem editáveis. A Fase 1 nunca fica bloqueada (POP-CON-09 e POP-CON-10).",
+      r: "Três passos, nesta ordem: liberar uma versão da Fase 1 (Cadastro saneado) em Fase 1 > 1.5 Entrega da Fase 1; informar o regime do cliente no IBS e na CBS; e confirmar as atividades do cliente. Os dois últimos ficam em Fase 2 > 2.1 Premissas e diretrizes. No alto da página, a Fase 2 aparece com um cadeado e “Bloqueada”; ao abri-la, o aviso “Fase 2 ainda não liberada” diz o que falta e tem um botão que leva ao lugar certo (Ir para a Entrega da Fase 1 ou Ir para as Premissas). Dá para consultar as abas e os casos da Fase 2 nesse meio-tempo, mas a análise e as decisões dela (aprovar, rejeitar, pedir informação, salvar rascunho, decidir em lote e a planilha de decisão) são recusadas com a mensagem do que falta; as Premissas seguem editáveis. A Fase 1 nunca fica bloqueada (POP-CON-09 e POP-CON-10).",
     },
     {
       p: "Como a página do saneamento está organizada?",

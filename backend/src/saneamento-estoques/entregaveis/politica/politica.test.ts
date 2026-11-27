@@ -184,6 +184,20 @@ describe('Política: PDF', () => {
     }
   });
 
+  it('entrega sem a Fase 2 (fiscal.fase2 = false): sem a coluna Fiscal no quadro, sem o aspecto Classificação fiscal na seção 3 e sem as regras F', async () => {
+    const sem = corrido(await paginas(await gerarPdfPolitica(dadosCrestani({ fiscal: { fase2: false } }))));
+    const quadro = sem.slice(sem.indexOf('2. Quadro de consulta por grupo'), sem.indexOf('3. Regras vigentes por aspecto'));
+    expect(quadro).toContain('Limites');
+    expect(quadro).not.toContain('Fiscal');
+    const regras = sem.slice(sem.indexOf('3. Regras vigentes por aspecto'), sem.indexOf('4. Procedimentos'));
+    expect(regras).not.toContain('Classificação fiscal');
+    expect(sem).not.toMatch(/\bF0[12]\b/);
+    expect(sem).toContain(NOTA_SEM_FASE2);
+    // Com a Fase 2, tudo volta.
+    const com = corrido(await paginas(await gerarPdfPolitica(dadosCrestani({ fiscal: { fase2: true } }))));
+    expect(com.slice(com.indexOf('3. Regras vigentes por aspecto'), com.indexOf('4. Procedimentos'))).toContain('3.5 Classificação fiscal');
+  }, 60000);
+
   it('seção fiscal: sem a Fase 2, uma linha; com a Fase 2, as decisões aprovadas', async () => {
     const sem = corrido(await paginas(await gerarPdfPolitica(dadosCrestani())));
     expect(sem).toContain(NOTA_SEM_FASE2);

@@ -11,7 +11,7 @@ import { escalaDaBase } from '../motor/conjuntos';
 import { gerarExcelDeDados, gerarExcelMapa } from './excel';
 import { montarRelatorio } from './relatorio';
 import { carregarPerfil } from '../../erps/erps.service';
-import { conflitosDoMapa, contarMapa, filtrarMapa, montarMapa, saldoDe, type CasoMapa, type Executadas, type FiltroMapa, type ItemMapa, type LinhaMapa, type MarcaExecutado } from './unificacoes';
+import { conflitosDoMapa, contarMapa, filtrarMapa, montarMapa, partesDaChave, saldoDe, type CasoMapa, type Executadas, type FiltroMapa, type ItemMapa, type LinhaMapa, type MarcaExecutado } from './unificacoes';
 import { fatiaDoNome, nomeDoExcel, nomeDoMapa, nomeDoRelatorio } from './nomes';
 import { comNomesDeUsuarios, nomeDe, nomesDeUsuarios } from './usuarios';
 
@@ -54,6 +54,10 @@ export function executadasDe(parametros: unknown): Executadas {
   return out;
 }
 const MAX_CHAVE = 600;
+/** Máximo de linhas marcadas "Executado no ERP" por projeto (a marca fica em `parametros`, lido inteiro em cada consulta do projeto). */
+export const MAX_EXECUTADAS = 20_000;
+/** A marca cabe? Remarcar uma linha já marcada sempre cabe; linha nova, só abaixo do limite. */
+export const cabeMaisUmaExecutada = (executadas: Executadas, chave: string, max = MAX_EXECUTADAS) => chave in executadas || Object.keys(executadas).length < max;
 const objeto = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
 /** A consulta devolve no máximo 500 pares em conflito (o Excel do mapa traz todos). */
@@ -207,9 +211,13 @@ export class EntregaveisService implements EntregaveisPort {
   private async validarChave(projetoId: string, bruta: unknown, exigirAprovado: boolean): Promise<string> {
     const chave = typeof bruta === 'string' ? bruta.trim() : '';
     if (!chave || chave.length > MAX_CHAVE) throw new BadRequestException('Informe a linha do mapa (campo "chave").');
-    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true } });
+    const p = await this.prisma.sanProjeto.findUnique({ where: { id: projetoId }, select: { id: true, parametros: true } });
     if (!p) throw new NotFoundException('Projeto de saneamento não encontrado.');
-    const partes = chave.split('|');
+    // Limite de marcas por projeto (só ao marcar uma linha nova; desmarcar e remarcar a mesma sempre podem).
+    if (exigirAprovado && !cabeMaisUmaExecutada(executadasDe(p.parametros), chave)) {
+      throw new BadRequestException(`O projeto já tem ${MAX_EXECUTADAS.toLocaleString('pt-BR')} linhas marcadas como executadas no ERP (o limite).`);
+    }
+    const partes = partesDaChave(chave);
     if (partes[0] === 'vinculo') {
       if (partes.length !== 3 || !partes[1] || !partes[2]) throw new BadRequestException('Linha do mapa inválida.');
       const v = await this.prisma.sanVinculoCodigo.findFirst({ where: { projeto_id: projetoId, de: partes[1], para: partes[2] }, select: { id: true } });
@@ -217,9 +225,19 @@ export class EntregaveisService implements EntregaveisPort {
       return chave;
     }
     if (partes.length !== 1 && partes.length !== 3) throw new BadRequestException('Linha do mapa inválida.');
-    const caso = await this.prisma.sanCaso.findFirst({ where: { id: partes[0], projeto_id: projetoId }, select: { camada: true, situacao: true } });
+    const caso = await this.prisma.sanCaso.findFirst({ where: { id: partes[0], projeto_id: projetoId }, select: { camada: true, situacao: true, itens: true, proposta: true } });
     if (!caso || !['DUPLICIDADE', 'QUALIDADE'].includes(caso.camada)) throw new NotFoundException('Esta ação não pertence ao mapa de unificações deste projeto.');
     if (exigirAprovado && caso.situacao !== 'APROVADO') throw new BadRequestException('Só a ação aprovada pode ser marcada como executada no ERP: aprove o caso antes.');
+    // Linha de item (unificação ou inativação): o código que sai e o estabelecimento têm de ser de um item do caso (ou, na unificação, um
+    // código de `consolidar` que não está na base: linha sem estabelecimento). Desmarcar não confere (o caso pode ter mudado depois).
+    if (partes.length === 3 && exigirAprovado) {
+      const [, codigo, estab] = partes;
+      if (!codigo) throw new BadRequestException('Linha do mapa inválida.');
+      const itens = await this.prisma.sanItem.findMany({ where: { projeto_id: projetoId, id: { in: caso.itens } }, select: { codigo: true, estabelecimento: true, trabalho: true } });
+      const doCaso = itens.some((i) => String(((i.trabalho as Record<string, unknown> | null)?.codigo) ?? i.codigo) === codigo && (i.estabelecimento ?? '') === estab);
+      const consolidar = String(((caso.proposta as Record<string, unknown> | null)?.consolidar) ?? '').split('|').map((x) => x.trim()).filter(Boolean);
+      if (!doCaso && !(estab === '' && consolidar.includes(codigo))) throw new NotFoundException('Esta linha não pertence ao caso indicado no mapa de unificações.');
+    }
     return chave;
   }
 

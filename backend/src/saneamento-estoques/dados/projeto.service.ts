@@ -14,6 +14,24 @@ const digitos = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 
 type EmpresaCnae = { cnpj_cpf?: string | null; cnae_principal?: string | null; cnae_descricao?: string | null; cnaes_secundarios?: unknown };
 
+type TxParametros = { sanProjeto: Pick<PrismaService['sanProjeto'], 'findUnique' | 'update'>; $executeRaw?: unknown };
+
+/**
+ * Grava em `SanProjeto.parametros` só as chaves dadas (`definir`) e apaga as de `remover`, de forma atômica no Postgres (jsonb || e -): as
+ * demais chaves, gravadas ao mesmo tempo por outras rotinas (execucoes, criterios, acoesExecutadas...), não são sobrescritas. Sem SQL
+ * bruto (Prisma em memória dos testes), lê e mescla.
+ */
+export async function gravarChavesDosParametros(tx: TxParametros, projetoId: string, definir: Json, remover: string[] = []) {
+  if (typeof tx.$executeRaw === 'function') {
+    await (tx as unknown as PrismaService).$executeRaw`UPDATE "SanProjeto" SET "parametros" = (COALESCE("parametros", '{}'::jsonb) || ${JSON.stringify(definir)}::jsonb) - ${remover}::text[] WHERE "id" = ${projetoId}`;
+    return;
+  }
+  const p = await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: { parametros: true } });
+  const novo: Json = { ...((p?.parametros as Json | null) ?? {}), ...definir };
+  for (const k of remover) delete novo[k];
+  await tx.sanProjeto.update({ where: { id: projetoId }, data: { parametros: novo as never } });
+}
+
 /** PJ (CNPJ, 14 dígitos), PF (CPF, 11) ou sem documento no cadastro. */
 export function tipoDeDocumento(cnpjCpf: unknown): 'PJ' | 'PF' | 'SEM_DOCUMENTO' {
   const d = digitos(cnpjCpf);
@@ -171,7 +189,11 @@ export class SanProjetoService {
       const lista = [...new Set((e.estabelecimentos ?? []).map((s) => String(s).trim()).filter(Boolean))].slice(0, 200);
       dados.estabelecimentos = lista;
     }
+    // `parametros` é dividido com outras gravações (datas das análises, critérios, marcas "Executado no ERP"): a Configuração grava só as
+    // chaves dela, de forma atômica (gravarChavesDosParametros), sem regravar o objeto inteiro lido antes.
     const atualParam = (await this.prisma.sanProjeto.findUnique({ where: { id }, select: { parametros: true } }))?.parametros as Json | undefined;
+    const definir: Json = {};
+    const remover: string[] = [];
     if (e.parametros !== undefined) {
       const corte = e.parametros?.corteMovimentacao !== undefined ? e.parametros.corteMovimentacao : ((atualParam?.corteMovimentacao as string | null | undefined) ?? null);
       if (corte !== null && !ISO.test(corte)) throw new BadRequestException('O corte de movimentação deve ser uma data (aaaa-mm-dd).');
@@ -180,18 +202,16 @@ export class SanProjetoService {
       const bruta = e.parametros?.competenciaEntregue !== undefined ? e.parametros.competenciaEntregue : ((atualParam?.competenciaEntregue as string | null | undefined) ?? null);
       const competenciaEntregue = bruta === '' ? null : bruta;
       if (competenciaEntregue !== null && !COMPETENCIA.test(String(competenciaEntregue))) throw new BadRequestException('A última competência de escrituração já entregue deve ser um mês (aaaa-mm).');
-      // Mescla: o que não veio fica como estava (o `motor` só muda se vier).
-      const motor = e.parametros?.motor !== undefined ? e.parametros.motor : atualParam?.motor;
-      dados.parametros = { ...(atualParam ?? {}), corteMovimentacao: corte, competenciaEntregue, ...(motor ? { motor } : {}) };
-      if (!motor) delete (dados.parametros as Json).motor;
+      // Só as chaves que a Configuração controla; o que não veio fica como estava (o `motor` só muda se vier).
+      definir.corteMovimentacao = corte;
+      definir.competenciaEntregue = competenciaEntregue;
+      if (e.parametros?.motor !== undefined) { if (e.parametros.motor) definir.motor = e.parametros.motor; else remover.push('motor'); }
     }
     const regimeBruto = e.regimeCliente !== undefined ? e.regimeCliente : e.parametros?.regimeCliente;
     if (regimeBruto !== undefined) {
       const regime = regimeBruto === null || String(regimeBruto).trim() === '' ? null : String(regimeBruto).trim();
       if (regime !== null && !ehRegimeCliente(regime)) throw new BadRequestException({ statusCode: 400, codigo: 'REGIME_INVALIDO', message: `Regime do cliente inválido: ${regime}. Selecione na lista.` });
-      const base = { ...((dados.parametros as Json | undefined) ?? atualParam ?? {}) };
-      if (regime) base.regimeCliente = regime; else delete base.regimeCliente;
-      dados.parametros = base;
+      if (regime) definir.regimeCliente = regime; else remover.push('regimeCliente');
     }
     const atual = await this.prisma.sanProjeto.findUnique({ where: { id } });
     if (!atual) throw new NotFoundException('Projeto de saneamento não encontrado.');
@@ -203,6 +223,7 @@ export class SanProjetoService {
     await this.prisma.$transaction(async (tx) => {
       const r = await tx.sanProjeto.updateMany({ where: { id, versao }, data: { ...dados, versao: { increment: 1 } } as never });
       if (r.count === 0) throw conflito();
+      if (Object.keys(definir).length || remover.length) await gravarChavesDosParametros(tx, id, definir, remover);
       if (dados.modulos && camadasAtivas(dados.modulos as Json).includes('ESTOQUE')) {
         let cursor: string | undefined;
         for (;;) {

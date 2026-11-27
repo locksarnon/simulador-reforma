@@ -26,12 +26,17 @@ export class SanCriteriosIaService {
     const camada = validarCamada(String(camadaTexto));
     const texto = String(textoBruto ?? '').replace(/\s+/g, ' ').trim();
     if (texto.length < 5) throw new BadRequestException('Escreva o critério em uma frase.');
+    // O projeto (e a camada ligada nele) antes de qualquer chamada paga à IA: projeto inexistente é 404; camada desligada, 400.
+    const lista = await this.criterios.listar(projetoId);
+    const ativas = lista.camadas.map((x) => x.camada);
+    if (!ativas.includes(camada)) throw new BadRequestException('Esta camada não está ligada neste projeto.');
     const comoManual = async (explicacao: string, nota: string | null, iaDisponivel: boolean) => {
       const r = await this.criterios.incluirManual(projetoId, camada, texto, usuario, nota);
       return { resultado: 'MANUAL' as const, iaDisponivel, explicacao, manual: r.manual, camadas: r.camadas, historico: r.historico };
     };
     if (!this.base.iaConfigurada()) return comoManual('A IA não está disponível agora.', NOTA_IA_INDISPONIVEL, false);
-    if (usuario?.email) this.limite.consumir(usuario.email);
+    // Limite por usuário: pelo e-mail ou, sem ele, pelo id (sem nenhum dos dois, um balde comum).
+    this.limite.consumir(usuario?.email || (usuario as { id?: string } | undefined)?.id || 'sem-usuario');
     let resposta: string;
     try {
       resposta = await comPrazo(this.base.ia(montarPromptNormalizacao(camada, texto), PRAZO_MS), PRAZO_MS + 5_000);
@@ -41,8 +46,9 @@ export class SanCriteriosIaService {
     }
     const n = lerNormalizacao(resposta);
     if (n.tipo === 'MANUAL') return comoManual(n.explicacao, null, true);
+    // Proposta para camada desligada no projeto (a IA escolheu outra camada): não vira ajuste; fica como verificação manual.
+    if (!ativas.includes(n.camada)) return comoManual('O critério corresponde a uma camada que não está ligada neste projeto.', null, true);
     const c = criterioPorChave(n.camada, n.chave)!;
-    const lista = await this.criterios.listar(projetoId);
     const atual = lista.camadas.find((x) => x.camada === n.camada)?.criterios.find((x) => x.id === c.id)?.parametro?.valor
       ?? valorCriterio({} as CriteriosGravados, n.camada, n.chave);
     return {

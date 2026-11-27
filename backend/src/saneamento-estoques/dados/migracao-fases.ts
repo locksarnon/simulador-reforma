@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Camada } from '../tipos';
 import {
@@ -28,6 +29,29 @@ export function casoDaCelula(casos: CasoMig[]): Map<string, CasoMig> {
     }
   }
   return out;
+}
+
+const temSqlBruto = (tx: unknown) => typeof (tx as { $executeRaw?: unknown }).$executeRaw === 'function';
+
+/** Muda a camada e a chave dos casos: um UPDATE por bloco no Postgres; sem SQL bruto (testes), um por caso. */
+async function moverCasos(tx: Tx, camada: string, casos: { id: string; chave: string }[]) {
+  for (const lote of fatiar(casos, 2000)) {
+    if (temSqlBruto(tx)) {
+      await tx.$executeRaw(Prisma.sql`UPDATE "SanCaso" AS c SET "camada" = ${camada}, "chave" = v.chave, "updatedAt" = now()
+        FROM jsonb_to_recordset(${JSON.stringify(lote)}::jsonb) AS v(id text, chave text) WHERE c."id" = v.id`);
+    } else for (const c of lote) await tx.sanCaso.update({ where: { id: c.id }, data: { camada, chave: c.chave } });
+  }
+}
+
+/** Acrescenta as datas copiadas a `parametros.execucoes` sem regravar o resto de `parametros` (atômico no Postgres; nos testes, lê e mescla). */
+async function gravarExecucoes(tx: Tx, projetoId: string, copiadas: Record<string, string>) {
+  if (temSqlBruto(tx)) {
+    await tx.$executeRaw`UPDATE "SanProjeto" SET "parametros" = jsonb_set(COALESCE("parametros", '{}'::jsonb), '{execucoes}', COALESCE("parametros"->'execucoes', '{}'::jsonb) || ${JSON.stringify(copiadas)}::jsonb) WHERE "id" = ${projetoId}`;
+    return;
+  }
+  const p = await tx.sanProjeto.findUnique({ where: { id: projetoId }, select: { parametros: true } });
+  const par = (p?.parametros ?? {}) as Json;
+  await tx.sanProjeto.update({ where: { id: projetoId }, data: { parametros: { ...par, execucoes: { ...((par.execucoes as Json | undefined) ?? {}), ...copiadas } } as never } });
 }
 
 /** Agrupa as células pelo estado a gravar: uma atualização por estado (com 30 mil itens são poucos estados distintos). */
@@ -84,6 +108,7 @@ export class SanMigracaoFasesService implements OnApplicationBootstrap {
     if (!proj) return r;
     const parametros = (proj.parametros ?? {}) as Json;
     const execucoes = { ...((parametros.execucoes as Record<string, string> | undefined) ?? {}) };
+    const copiadas: Record<string, string> = {};
     // Primeira vez = o projeto ainda não tem nenhuma célula das camadas novas (projeto aberto depois da divisão já nasce com elas).
     const primeiraVez = (await tx.sanCelula.count({ where: { projeto_id: projetoId, camada: { in: NOVAS } } })) === 0;
     const nItens = await tx.sanItem.count({ where: { projeto_id: projetoId } });
@@ -107,19 +132,26 @@ export class SanMigracaoFasesService implements OnApplicationBootstrap {
         const semCaso = await tx.sanCelula.findMany({ where: { projeto_id: projetoId, camada: antiga, caso_id: null, situacao: { in: ['SEM_PROBLEMA', 'AGUARDANDO_INFORMACAO'] } }, select: { item_id: true, situacao: true, revisar_causa: true } });
         await this.gravar(tx, projetoId, nova, semCaso.map((c) => ({ item: c.item_id, estado: { situacao: c.situacao, caso_id: null, revisar: false, revisar_causa: c.situacao === 'AGUARDANDO_INFORMACAO' ? c.revisar_causa : null } })), true);
       }
-      if (primeiraVez && execucoes[antiga] && !execucoes[nova]) { execucoes[nova] = execucoes[antiga]; r.execucoesCopiadas++; }
+      if (primeiraVez && execucoes[antiga] && !execucoes[nova]) { execucoes[nova] = execucoes[antiga]; copiadas[nova] = execucoes[antiga]; r.execucoesCopiadas++; }
 
       // 3. Casos que mudam de camada (chave recalculada; o id fica).
       const movidos: CasoMig[] = await tx.sanCaso.findMany({
         where: { projeto_id: projetoId, camada: antiga, tipo: { in: [...TIPOS_DA_CAMADA_NOVA[nova]] } }, select: { id: true, tipo: true, itens: true, situacao: true, createdAt: true },
       });
       if (!movidos.length) continue;
-      for (const c of movidos) {
-        let chave = chaveCaso(nova, c.tipo, c.itens);
-        // Já existe caso igual na camada nova (a análise nova rodou antes da migração): a chave do antigo ganha o id para não colidir.
-        if (await tx.sanCaso.findFirst({ where: { projeto_id: projetoId, chave, NOT: { id: c.id } }, select: { id: true } })) chave = `${chave}:${c.id}`;
-        await tx.sanCaso.update({ where: { id: c.id }, data: { camada: nova, chave } });
+      // Chave nova de cada caso; colisão = já existe caso igual na camada nova (a análise nova rodou antes da migração): a chave do antigo
+      // ganha o id para não colidir. A conferência é por lote (uma consulta por bloco de chaves), não uma por caso.
+      const novas = movidos.map((c) => ({ id: c.id, chave: chaveCaso(nova, c.tipo, c.itens) }));
+      const colidem = new Set<string>();
+      for (const lote of fatiar(novas, 1000)) {
+        const donos = new Map(lote.map((x) => [x.chave, x.id] as const));
+        for (const e of await tx.sanCaso.findMany({ where: { projeto_id: projetoId, chave: { in: [...donos.keys()] } }, select: { id: true, chave: true } })) {
+          const dono = donos.get(e.chave);
+          if (dono && dono !== e.id) colidem.add(dono);
+        }
       }
+      for (const x of novas) if (colidem.has(x.id)) x.chave = `${x.chave}:${x.id}`;
+      await moverCasos(tx, nova, novas);
       r.casosMovidos += movidos.length;
       const ids = movidos.map((c) => c.id);
 
@@ -128,7 +160,10 @@ export class SanMigracaoFasesService implements OnApplicationBootstrap {
       for (const lote of fatiar(ids, 1000)) {
         for (const c of await tx.sanCelula.findMany({ where: { projeto_id: projetoId, camada: antiga, caso_id: { in: lote } }, select: { item_id: true, situacao: true, revisar: true, revisar_causa: true, caso_id: true } })) apontadas.push(c);
       }
-      await this.gravar(tx, projetoId, nova, apontadas.map((c) => ({ item: c.item_id, estado: { situacao: c.situacao, caso_id: c.caso_id, revisar: c.revisar, revisar_causa: c.revisar_causa } })), false);
+      // O caso que colidiu tem um igual já na camada nova, dono da célula nova: o estado do antigo só vai para a célula ainda pendente.
+      const estado = (c: (typeof apontadas)[number]) => ({ item: c.item_id, estado: { situacao: c.situacao, caso_id: c.caso_id, revisar: c.revisar, revisar_causa: c.revisar_causa } });
+      await this.gravar(tx, projetoId, nova, apontadas.filter((c) => !colidem.has(String(c.caso_id))).map(estado), false);
+      await this.gravar(tx, projetoId, nova, apontadas.filter((c) => colidem.has(String(c.caso_id))).map(estado), true);
 
       // 5. A célula antiga volta ao caso vivo que sobrou na camada (exceção primeiro, depois o mais recente), ou sem problema/pendente.
       const itensAntigos = apontadas.map((c) => c.item_id);
@@ -151,9 +186,7 @@ export class SanMigracaoFasesService implements OnApplicationBootstrap {
       })), true);
     }
 
-    if (r.execucoesCopiadas) {
-      await tx.sanProjeto.update({ where: { id: projetoId }, data: { parametros: { ...parametros, execucoes } as never } });
-    }
+    if (r.execucoesCopiadas) await gravarExecucoes(tx, projetoId, copiadas);
     return r;
   }
 
