@@ -196,7 +196,7 @@ export const BACKEND_FUNCTIONS = [
     input: {
       grupo_id: "string (obrigatório)",
       idempotency_key: "string UUID (obrigatório)",
-      arquivos: "Array<{ nome: string, file_url: string, storage_key?: string, tamanho?: number }> (obrigatório, máx 5000)",
+      arquivos: "Array<{ nome: string, storage_key: string, tamanho?: number }> (obrigatório, máx 5000; storage_key = a chave devolvida pelo POST /uploads ao próprio usuário; file_url é ignorado)",
     },
     output: {
       success: "{ lote_id: string, status: 'RECEBIDO' }",
@@ -204,7 +204,7 @@ export const BACKEND_FUNCTIONS = [
     },
     fluxo: [
       "1. Auth (JWT, guard global) — rejeita se não logado",
-      "2. Validação de payload (grupo_id, idempotency_key, arquivos não vazios, máx 5000)",
+      "2. Validação de payload (grupo_id, idempotency_key, arquivos não vazios, máx 5000; cada storage_key no formato do upload e com o prefixo do usuário, senão 400)",
       "3. Valida grupo existe (Grupo.get)",
       "4. Idempotência: filter ImportacaoXMLLote por (grupo_id, idempotency_key) — retorna existente se encontrado",
       "5. Cria lote (status RECEBIDO)",
@@ -216,7 +216,7 @@ export const BACKEND_FUNCTIONS = [
       "A. Update lote → PROCESSANDO",
       "B. Load: Empresas (filter por grupo), CstIbsCbs, ClassTrib, CredPres, HistoricoXML (filter por grupo)",
       "C. Loop em batches de 50 arquivos:",
-      "  C1. Promise.all: fetch + sha256 + parseXml + identificarTipoXml (paralelo)",
+      "  C1. Promise.all: leitura do MinIO pela storage_key (getObjectBuffer, UTF-8) + sha256 + parseXml + identificarTipoXml (paralelo)",
       "  C2. Sequencial: dedup hash → dedup chave → documentos (NF-e, CT-e) → preparar itens em memória; os eventos só são lidos e guardados",
       "  C3. Flush: bulkUpdate arquivos (500) + bulkCreate itens (500)",
       "D. Flush remainder; depois aplica os eventos (cancelamento só com retorno 135, 136 ou 155 da SEFAZ; apropriação 211110), já com os documentos do envio gravados, em qualquer ordem dos arquivos",
@@ -271,7 +271,7 @@ export const BACKEND_FUNCTIONS = [
     fluxo: [
       "1. Carrega o lote (404 se não existir)",
       "2. Busca os arquivos do lote com status_tecnico PENDENTE ou FALHOU (nada a fazer → devolve reprocessados: 0)",
-      "3. Re-assina a URL de download a partir da storage_key salva no MinIO (a URL original expira em 24h)",
+      "3. Relê cada XML direto do MinIO pela storage_key salva (nenhuma URL é baixada; linha antiga com URL no lugar da chave fica com erro pedindo novo envio)",
       "4. Lote → PROCESSANDO e processa só esses arquivos (os CONCLUIDOs não são tocados, para não duplicar itens/operações)",
       "5. Soma os contadores novos aos do lote e recalcula o status final",
     ],

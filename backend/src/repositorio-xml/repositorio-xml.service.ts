@@ -478,7 +478,7 @@ export class RepositorioXmlService {
 
     const arquivos = await emLotes(docs, PARALELISMO, async (d) => ({
       nome: d.nome_original || nomeBase(d.storage_key!),
-      file_url: await this.storage.getPresignedUrl(d.storage_key!),
+      // O importador lê o XML direto do MinIO pela chave (sem URL).
       storage_key: d.storage_key!,
       tamanho: d.tamanho_bytes,
     }));

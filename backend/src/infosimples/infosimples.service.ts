@@ -100,6 +100,23 @@ export function lerCrf(d: Record<string, unknown>): Omit<ResultadoCertidao, 'com
   };
 }
 
+/**
+ * O servidor só baixa comprovante de endereço da própria Infosimples: https na porta padrão, sem usuário/senha, no domínio
+ * infosimples.com (e subdomínios, como storage.infosimples.com) ou no bucket dela no Google Cloud Storage
+ * (storage.googleapis.com/infosimples...). Qualquer outro endereço vindo da resposta é ignorado (proteção contra SSRF).
+ */
+export function linkComprovantePermitido(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || u.username || u.password || (u.port !== '' && u.port !== '443')) return false;
+    const host = u.hostname.toLowerCase();
+    if (host === 'infosimples.com' || host.endsWith('.infosimples.com')) return true;
+    return host === 'storage.googleapis.com' && /^\/infosimples[a-z0-9-]*\//i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
 /** Links (https) dentro dos dados devolvidos: site_receipt, url do PDF da certidão etc. */
 export function linksDosDados(d: Record<string, unknown>): string[] {
   const l: string[] = [];
@@ -221,14 +238,27 @@ export class InfosimplesService {
     return { http: r.status, resposta };
   }
 
+  /**
+   * Pede um comprovante só se o endereço for da Infosimples (linkComprovantePermitido) e sem seguir redirecionamento
+   * (um 3xx não é "ok" e é ignorado). Endereço de fora é pulado com aviso no log.
+   */
+  private async baixarComprovante(u: string): Promise<Response | null> {
+    if (!linkComprovantePermitido(u)) {
+      this.log.warn(`Comprovante da Infosimples ignorado: endereço fora da Infosimples (${String(u).slice(0, 200)})`);
+      return null;
+    }
+    const r = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(60_000) });
+    if (!r.ok) { void r.body?.cancel().catch(() => undefined); return null; }
+    return r;
+  }
+
   /** Os comprovantes em PDF (site_receipts) de uma consulta; HTML e falhas de download são ignorados. */
   async comprovantesPdf(urls: string[]): Promise<Buffer[]> {
     const out: Buffer[] = [];
     for (const u of urls.slice(0, 5)) {
-      if (!/^https:\/\//.test(u)) continue;
       try {
-        const r = await fetch(u, { signal: AbortSignal.timeout(60_000) });
-        if (!r.ok) continue;
+        const r = await this.baixarComprovante(u);
+        if (!r) continue;
         const b = Buffer.from(await r.arrayBuffer());
         if (/pdf/i.test(r.headers.get('content-type') ?? '') || b.subarray(0, 4).toString() === '%PDF') out.push(b);
       } catch (e) { this.log.warn(`Comprovante da Infosimples: ${(e as Error).message}`); }
@@ -240,10 +270,9 @@ export class InfosimplesService {
   private async comprovante(urls: string[]): Promise<ResultadoCertidao['comprovante']> {
     let html: ResultadoCertidao['comprovante'] = null;
     for (const u of urls) {
-      if (!/^https:\/\//.test(u)) continue;
       try {
-        const r = await fetch(u, { signal: AbortSignal.timeout(60_000) });
-        if (!r.ok) continue;
+        const r = await this.baixarComprovante(u);
+        if (!r) continue;
         const buffer = Buffer.from(await r.arrayBuffer());
         const tipo = r.headers.get('content-type') ?? '';
         if (/pdf/i.test(tipo) || buffer.subarray(0, 4).toString() === '%PDF') return { buffer, tipo: 'application/pdf', extensao: 'pdf' };

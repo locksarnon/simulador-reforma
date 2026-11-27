@@ -16,6 +16,7 @@ export type ContextoDaPergunta = { ufs: string[]; ncms: (NcmDaPergunta & { descr
 /** Aviso que vai junto de cada dispositivo das normas estaduais cujo site mistura redações (fontes.ts). */
 const AVISO_IA = new Map(FONTES_NORMAS.filter((f) => f.aviso_ia).map((f) => [f.chave, f.aviso_ia as string]));
 import { pdfParaTexto } from './pdf-norma';
+import { fetchOficial } from './fetch-oficial';
 import { frasePorImpacto, MudancaDispositivo } from './revisao-legal.regras';
 import { ResumoRevisao, RevisaoLegalService } from './revisao-legal.service';
 import { plural } from '../common/plural';
@@ -318,25 +319,25 @@ export class BaseLegalService {
   async baixarBruto(url: string, opcoes: { maxBytes?: number; timeoutMs?: number; aceitar?: string } = {}): Promise<{ corpo: Buffer; tipo: string; url: string }> {
     if (!urlOficialValida(url)) throw new BadRequestException('URL fora dos sites oficiais aceitos (gov.br, jus.br e leg.br, por https)');
     const limite = opcoes.maxBytes ?? MAX_BYTES_FONTE;
-    const resp = await fetch(url, {
+    // Redirecionamentos seguidos à mão, cada destino conferido antes de ser pedido.
+    const { resp, url: final } = await fetchOficial(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)', ...(opcoes.aceitar ? { Accept: opcoes.aceitar } : {}) },
       signal: AbortSignal.timeout(opcoes.timeoutMs ?? 180_000),
     });
     if (!resp.ok) throw new BadRequestException(`Fonte oficial respondeu ${resp.status}`);
-    if (resp.url && !urlOficialValida(resp.url)) throw new BadRequestException('A fonte oficial redirecionou para fora dos sites oficiais.');
     if (Number(resp.headers.get('content-length') || 0) > limite) throw new BadRequestException('A fonte oficial é grande demais para carregar.');
     const corpo = Buffer.from(await resp.arrayBuffer());
     if (corpo.length > limite) throw new BadRequestException('A fonte oficial é grande demais para carregar.');
-    return { corpo, tipo: resp.headers.get('content-type') || '', url: resp.url || url };
+    return { corpo, tipo: resp.headers.get('content-type') || '', url: final };
   }
 
   /** O endereço oficial abre? Confere só a resposta, sem baixar o corpo (serve para descartar links que a pesquisa na web inventou). */
   async urlResponde(url: string): Promise<boolean> {
     if (!urlOficialValida(url)) return false;
     try {
-      const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)' }, signal: AbortSignal.timeout(25_000) });
+      const { resp } = await fetchOficial(url, { headers: { 'User-Agent': 'Mozilla/5.0 (InTAX base legal)' }, signal: AbortSignal.timeout(25_000) });
       void resp.body?.cancel().catch(() => undefined);
-      return resp.ok && (!resp.url || urlOficialValida(resp.url));
+      return resp.ok;
     } catch {
       return false;
     }
