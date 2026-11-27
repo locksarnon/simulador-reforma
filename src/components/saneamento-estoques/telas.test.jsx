@@ -470,6 +470,55 @@ describe("Versões", () => {
     expect(texto(com)).toContain("Fase 2 · Tributário aprovado");
     expect(texto(com)).not.toContain("fica disponível depois");
   });
+  it("por aba: Entrega da Fase 1 e da Fase 2 com a fase fixa; Versões com a história e a comparação; Entregas finais com os arquivos", () => {
+    const v1 = { id: "v1", numero: 1, rotulo: "Saneado", usuario: "a", createdAt: "2026-11-20T12:00:00Z", resumo: { itens: 5, fase: "FASE1" } };
+    const v2 = { id: "v2", numero: 2, rotulo: "Tributário", usuario: "a", createdAt: "2026-11-25T12:00:00Z", resumo: { itens: 5, fase: "FASE2" } };
+    const fases = (liberada) => ({ fases: [{ fase: "FASE1", camadas: [], liberada, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: null, bloqueio: null }] });
+    const seed = (lista, lib) => (qc) => { qc.setQueryData(chaves.versoes("p1"), lista); qc.setQueryData(chaves.fases("p1"), fases(lib)); };
+    // Entrega da Fase 1: fase fixa, sem a escolha; "Só a Fase 1" já marcada; só as versões da Fase 1; sem comparar nem continuar.
+    const e1 = montar(<Versoes projeto={projeto()} modo="fase" fase="FASE1" />, seed([v2, v1], { versaoId: "v1" }));
+    const t1 = texto(e1);
+    expect(t1).toContain("Fase desta liberação: Fase 1 · Cadastro saneado");
+    expect(e1).not.toContain('name="san-ver-fase"');
+    expect(e1).toMatch(/<input type="checkbox" checked=""\/>Só a Fase 1/);
+    expect(t1).toContain("Liberar a versão da Fase 1");
+    expect(t1).toContain("Versões liberadas da Fase 1");
+    expect(t1).toContain("Saneado");
+    expect(t1).not.toContain("Fase 2 · Tributário aprovado");
+    expect(t1).not.toContain("Marque A (antes)");
+    expect(t1).not.toContain("Continuar a partir desta versão");
+    // Entrega da Fase 2 sem Fase 1 liberada: o botão de liberar fica apagado e a tela diz por quê; o Excel de revisão sai com a base inteira.
+    const e2 = montar(<Versoes projeto={projeto()} modo="fase" fase="FASE2" />, seed([], null));
+    expect(texto(e2)).toContain("Fase desta liberação: Fase 2 · Tributário aprovado");
+    expect(texto(e2)).toContain("fica disponível depois de liberada uma versão da Fase 1");
+    expect(e2).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Liberar a versão da Fase 2/);
+    expect(texto(e2)).not.toContain("Só a Fase 1");
+    expect(texto(e2)).toContain("Nenhuma versão da Fase 2 liberada");
+    // Versões (área comum): todas, com comparar e continuar; sem revisão nem liberação.
+    const h = texto(montar(<Versoes projeto={projeto()} modo="historico" />, seed([v2, v1], { versaoId: "v1" })));
+    expect(h).toContain("Marque A (antes)");
+    expect(h).toContain("Continuar a partir desta versão");
+    expect(h).toContain("Saneado");
+    expect(h).toContain("Tributário");
+    expect(h).not.toContain("Para revisão");
+    expect(h).not.toContain("Liberar uma versão");
+    // Entregas finais: as versões com Excel, relatório PDF e política; sem liberar nem comparar.
+    const fe = texto(montar(<Versoes projeto={projeto()} modo="fechamento" />, seed([v2, v1], { versaoId: "v1" })));
+    expect(fe).toContain("Entregas liberadas");
+    expect(fe).toContain("Excel da base antes × depois");
+    expect(fe).toContain("Relatório PDF");
+    expect(fe).not.toContain("Liberar uma versão");
+    expect(fe).not.toContain("Marque A (antes)");
+  });
+  it("Configuração por parte: Preparar só com os dados do projeto; Premissas só com o regime e as atividades", () => {
+    const dados = texto(montar(<Configuracao projeto={projeto()} recarregar={() => {}} parte="dados" />));
+    expect(dados).toContain("Fase 1 · Dados do projeto");
+    expect(dados).not.toContain("Premissas da Fase 2");
+    const prem = texto(montar(<Configuracao projeto={projeto()} recarregar={() => {}} parte="premissas" />));
+    expect(prem).toContain("Premissas da Fase 2");
+    expect(prem).toContain("Regime do cliente");
+    expect(prem).not.toContain("Fase 1 · Dados do projeto");
+  });
   it("fase: a revisão pode sair só com a Fase 1 (sem a parte tributária) e a versão mostra a fase gravada nela", () => {
     const html = montar(<Versoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.versoes("p1"), [
       { id: "v2", numero: 2, rotulo: "Cadastro saneado", usuario: "ana@x.com", createdAt: "2026-11-20T12:00:00Z", resumo: { itens: 500, casosAbertos: 0, fase: "FASE1" } },
@@ -546,11 +595,17 @@ describe("Cobertura, abas e página", () => {
     expect(html).toContain('aria-label="Analisar Qualidade"');
     expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar Qualidade"/);
   });
-  it("as nove abas, com a atual marcada (Diretrizes entre a Importação e as análises)", () => {
-    const html = montar(<Abas atual="casos" aoMudar={() => {}} />);
-    expect(texto(html)).toContain("Configuração Importação Diretrizes Tabela Visão geral Casos Impacto nas obrigações Unificações Versões");
-    expect(html).toContain('aria-selected="true"');
-    expect((html.match(/role="tab"/g) || []).length).toBe(9);
+  it("abas da fase e, à direita, as áreas comuns, com a atual marcada", () => {
+    const html = montar(<Abas fase="fase1" atual="casos" aoMudar={() => {}} />);
+    expect(texto(html)).toContain("Preparar Diretrizes Análise Casos Unificações Entrega da Fase 1");
+    expect(texto(html)).toContain("Tabela Visão geral Impacto no SPED Versões");
+    expect(html).toMatch(/id="san-aba-casos" aria-selected="true"/);
+    expect((html.match(/role="tab"/g) || []).length).toBe(10);
+    const f2 = montar(<Abas fase="fase2" atual="premissas" aoMudar={() => {}} />);
+    expect(texto(f2)).toContain("Premissas Diretrizes Análise Casos Entrega da Fase 2");
+    expect(texto(f2)).not.toContain("Unificações");
+    expect((f2.match(/role="tab"/g) || []).length).toBe(9);
+    expect((montar(<Abas fase="fechamento" atual="entregas" aoMudar={() => {}} />).match(/role="tab"/g) || []).length).toBe(5);
   });
   const rota = (qc) => renderToStaticMarkup(
     <QueryClientProvider client={qc}><StaticRouter location="/diagnostico/projetos/d1/saneamento"><Routes><Route path="/diagnostico/projetos/:id/saneamento" element={<SaneamentoEstoquesPagina />} /></Routes></StaticRouter></QueryClientProvider>,
@@ -563,15 +618,20 @@ describe("Cobertura, abas e página", () => {
     nao.getQueryCache().build(nao, { queryKey: chaves.projeto("d1") }).setState({ status: "error", error: Object.assign(new Error("Este projeto ainda não foi aberto."), { status: 404 }), fetchStatus: "idle", data: undefined, errorUpdateCount: 1 });
     expect(texto(rota(nao))).toContain("Abrindo o saneamento"); // criado ao entrar, sem a tela intermediária
     expect(texto(rota(nao))).not.toContain("Abrir o saneamento deste projeto");
-    const ok = novoCliente(); ok.setQueryData(chaves.projeto("d1"), projeto()); ok.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [] });
+    const semFases = novoCliente(); semFases.setQueryData(chaves.projeto("d1"), projeto()); semFases.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [] });
+    expect(texto(rota(semFases))).toContain("Abrindo a fase em andamento"); // espera saber a fase em andamento antes de abrir
+    const fases = { fases: [{ fase: "FASE1", camadas: [], liberada: null, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: null, bloqueio: { codigo: "FASE1_NAO_LIBERADA", mensagem: "Libere a Fase 1." } }] };
+    const ok = novoCliente(); ok.setQueryData(chaves.projeto("d1"), projeto()); ok.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [] }); ok.setQueryData(chaves.fases("p1"), fases);
     const t = texto(rota(ok));
     expect(t).toContain("Saneamento de estoques e cadastro de produtos");
-    expect(t).toContain("Cobertura das camadas");
-    // Sem itens importados abre na Importação, mesmo sem as atividades confirmadas (nenhuma trava na Fase 1).
+    expect(t).toContain("Fase 1 · Saneamento");
+    // Sem itens importados abre na Fase 1 > Preparar (dados do projeto e importação), mesmo sem as atividades confirmadas.
     expect(t).toContain("Ler e mostrar a prévia");
+    expect(t).toContain("Fase 1 · Dados do projeto");
     expect(t).not.toContain("Confirmo as atividades");
-    const comItens = novoCliente(); comItens.setQueryData(chaves.projeto("d1"), projeto()); comItens.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [{ grupo: "A", itens: 3, camadas: {} }] });
-    expect(texto(rota(comItens))).toContain("Buscar por código ou descrição");
+    expect(t).not.toContain("Cobertura das camadas");
+    const comItens = novoCliente(); comItens.setQueryData(chaves.projeto("d1"), projeto()); comItens.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [{ grupo: "A", itens: 3, camadas: {} }] }); comItens.setQueryData(chaves.fases("p1"), fases);
+    expect(texto(rota(comItens))).toContain("Cobertura das camadas"); // com itens, abre na Análise
   });
 });
 
@@ -711,7 +771,7 @@ describe("Unificações", () => {
   });
   it("sem corte definido, avisa que os itens parados não foram avaliados", () => {
     const t = texto(montar(<Unificacoes projeto={projeto()} />, (qc) => qc.setQueryData(chaves.unificacoes("p1", FILTRO), resposta([unif], { corteDefinido: false }))));
-    expect(t).toContain("O corte de movimentação não está definido na Configuração");
+    expect(t).toContain("O corte de movimentação não está definido em Fase 1");
   });
   it("Configuração: corte de movimentação editável, com o botão de explicação", () => {
     const html = montar(<Configuracao projeto={projeto({ parametros: { corteMovimentacao: "2024-01-01" } })} recarregar={() => {}} />);

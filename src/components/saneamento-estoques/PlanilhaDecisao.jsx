@@ -53,7 +53,7 @@ function TabelaRecusadas({ linhas }) {
 }
 
 /** Conteúdo do painel (separado do diálogo para os testes). `inicial` = estado de partida (prévia, resultado). */
-export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial = {} }) {
+export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial = {}, camadas = null }) {
   const { pode, razao } = usePodeAlterar();
   const [camada, setCamada] = useState(camadaInicial);
   const [arquivo, setArquivo] = useState(inicial.arquivo || null);
@@ -79,7 +79,7 @@ export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial =
     <div className="space-y-4 text-sm">
       <label className="block"><Rotulo>Camada</Rotulo>
         <select className={campoCls} value={camada} disabled={!!ocupado} onChange={(e) => trocarCamada(e.target.value)}>
-          <option value="">Escolha a camada…</option>{CAMADAS.filter((c) => c !== "ESTOQUE" || projeto.modulos?.conciliacao).map((c) => <option key={c} value={c}>{ROTULO_CAMADA[c] || c}</option>)}
+          <option value="">Escolha a camada…</option>{(camadas || CAMADAS).filter((c) => c !== "ESTOQUE" || projeto.modulos?.conciliacao).map((c) => <option key={c} value={c}>{ROTULO_CAMADA[c] || c}</option>)}
         </select>
       </label>
       {!camada && <Aviso tom="alerta">A planilha é de uma camada por vez: escolha a camada acima.</Aviso>}
@@ -125,8 +125,8 @@ export function PainelPlanilha({ projeto, camadaInicial = "", aoMudou, inicial =
   );
 }
 
-/** Botão "Planilha de decisão" da aba Casos: baixar a planilha da camada, reimportar com prévia e aplicar. */
-export default function PlanilhaDecisao({ projeto, camada = "", aoMudou }) {
+/** Botão "Planilha de decisão" da aba Casos: baixar a planilha da camada, reimportar com prévia e aplicar. `camadas`: só as da fase. */
+export default function PlanilhaDecisao({ projeto, camada = "", camadas = null, aoMudou }) {
   const [aberto, setAberto] = useState(false);
   return (
     <>
@@ -139,7 +139,7 @@ export default function PlanilhaDecisao({ projeto, camada = "", aoMudou }) {
             <DialogTitle>Planilha de decisão</DialogTitle>
             <DialogDescription>Decida os casos de uma camada no Excel, um por linha, e reimporte: a prévia mostra o que será feito antes de aplicar.</DialogDescription>
           </DialogHeader>
-          {aberto && <PainelPlanilha key={camada} projeto={projeto} camadaInicial={camada} aoMudou={aoMudou} />}
+          {aberto && <PainelPlanilha key={camada} projeto={projeto} camadaInicial={camada} camadas={camadas} aoMudou={aoMudou} />}
         </DialogContent>
       </Dialog>
     </>

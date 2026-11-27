@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConfirmar } from "@/components/ConfirmProvider";
 import { san, chaves, atualizarTudo } from "./api";
@@ -215,11 +215,19 @@ export function DetalheDoGrupo({ grupo, dados, carregando, erro, aoTentar, aoAbr
   );
 }
 
-/** Casos: lista filtrada no servidor (o plano de ajustes é o filtro "em aberto"), agrupada ou um a um, detalhe do caso e decisão em lote. */
-export default function Casos({ projeto, recorte, casoInicial, agruparInicial = true }) {
+/** Quantas páginas a mais a lista busca sozinha para achar casos da fase (com "Todas da fase"); depois, só pelo botão. */
+const PAGINAS_EXTRAS_DA_FASE = 5;
+
+/**
+ * Casos: lista filtrada no servidor (o plano de ajustes é o filtro "em aberto"), agrupada ou um a um, detalhe do caso e decisão em lote.
+ * `camadasPermitidas` (aba Casos de cada fase): o filtro de camada só oferece as camadas da fase e "Todas da fase" mostra só os casos
+ * delas. O servidor filtra uma camada por vez; em "Todas da fase" a lista é filtrada aqui, a contagem é a do que já foi carregado e a
+ * decisão em lote sem marcação fica desligada (escolha uma camada ou marque as linhas), para nunca decidir casos da outra fase.
+ */
+export default function Casos({ projeto, recorte, casoInicial, agruparInicial = true, camadasPermitidas = null }) {
   const qc = useQueryClient();
   const { pode, razao } = usePodeAlterar();
-  const [filtro, setFiltro] = useState(() => ({ camada: recorte?.camada || "", situacao: recorte?.situacao || "ABERTOS", tipo: "", origem: "", grupo: recorte?.grupo || "" }));
+  const [filtro, setFiltro] = useState(() => ({ camada: recorte?.camada && (!camadasPermitidas || camadasPermitidas.includes(recorte.camada)) ? recorte.camada : "", situacao: recorte?.situacao || "ABERTOS", tipo: "", origem: "", grupo: recorte?.grupo || "" }));
   const [agrupar, setAgrupar] = useState(agruparInicial);
   const [aberto, setAberto] = useState(casoInicial || null);
   const [grupoAberto, setGrupoAberto] = useState(null); // a linha (grupo) aberta à direita
@@ -258,11 +266,20 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
     gcTime: 60_000,
   });
   const ativa = agrupar ? qg : q;
-  const casos = useMemo(() => (q.data ? q.data.pages.flatMap((p) => p.casos) : []), [q.data]);
-  const grupos = useMemo(() => (qg.data ? qg.data.pages.flatMap((p) => p.grupos) : []), [qg.data]);
+  // "Todas da fase": o servidor devolve todas as camadas; ficam só as da fase.
+  const soDaFase = !!camadasPermitidas && !filtro.camada;
+  const daFase = (x) => !soDaFase || camadasPermitidas.includes(x.camada);
+  const casos = useMemo(() => (q.data ? q.data.pages.flatMap((p) => p.casos).filter(daFase) : []), [q.data, soDaFase, camadasPermitidas]);
+  const grupos = useMemo(() => (qg.data ? qg.data.pages.flatMap((p) => p.grupos).filter(daFase) : []), [qg.data, soDaFase, camadasPermitidas]);
+  const visiveis = agrupar ? grupos.length : casos.length;
+  const paginasCarregadas = ativa.data?.pages?.length || 0;
+  useEffect(() => {
+    // Poucas linhas da fase na primeira leva: busca mais algumas páginas sozinha (o resto, pelo botão Carregar mais).
+    if (soDaFase && visiveis < 50 && ativa.hasNextPage && !ativa.isFetchingNextPage && paginasCarregadas <= PAGINAS_EXTRAS_DA_FASE) ativa.fetchNextPage();
+  }, [soDaFase, visiveis, ativa, paginasCarregadas]);
   const casosDoGrupo = qd.data?.casos || [];
   const tipos = ativa.data?.pages?.[0]?.tipos;
-  const total = tipos ? tipos.filter((t) => !filtro.tipo || t.tipo === filtro.tipo).reduce((s, t) => s + t.n, 0) : null;
+  const total = tipos && !soDaFase ? tipos.filter((t) => !filtro.tipo || t.tipo === filtro.tipo).reduce((s, t) => s + t.n, 0) : null;
 
   const colunas = useMemo(() => [
     { chave: "codigo", rotulo: "Código", largura: 110, fixa: true, valor: codigoDaLinha },
@@ -280,7 +297,9 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   const emAberto = filtro.situacao === "ABERTOS";
   const sufixo = `${emAberto ? " em aberto" : ""}${temFiltro || filtro.grupo ? " com estes filtros" : ""}`;
   const primeiraG = qg.data?.pages?.[0];
-  const contador = agrupar
+  const contador = soDaFase
+    ? `${n(visiveis)} ${agrupar ? "grupo(s)" : "caso(s)"}${emAberto ? " em aberto" : ""} desta fase carregado(s)${ativa.hasNextPage ? " (role até o fim para carregar mais)" : ""}${ativa.isFetchingNextPage ? ". Carregando mais…" : "."}`
+    : agrupar
     ? [primeiraG ? `${contadorDeGrupos(primeiraG.totalGrupos, primeiraG.totalCasos)}${sufixo}` : null,
       `${n(grupos.length)} grupo(s) carregado(s)${qg.hasNextPage ? " (role até o fim para carregar mais)" : ""}`].filter(Boolean).join("; ") + (qg.isFetchingNextPage ? ". Carregando mais…" : ".")
     : [total != null ? `${n(total)} caso(s)${sufixo}` : null,
@@ -288,7 +307,7 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   const carregarMais = () => { if (ativa.hasNextPage && !ativa.isFetchingNextPage) ativa.fetchNextPage(); };
 
   const idsMarcados = [...marcados];
-  const podeLote = idsMarcados.length > 0 || (filtroAdmiteLote(filtro) && (total == null || total > 0));
+  const podeLote = idsMarcados.length > 0 || (!soDaFase && filtroAdmiteLote(filtro) && (total == null || total > 0));
   const descricaoLote = idsMarcados.length
     ? `${n(idsMarcados.length)} caso(s) marcado(s).`
     : `Todos os casos em aberto deste filtro${total != null && emAberto ? ` (${n(total)})` : ""}, inclusive os que a lista ainda não carregou.`;
@@ -335,7 +354,7 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-2" role="search" aria-label="Filtros dos casos">
-        <label className="block"><Rotulo>Camada</Rotulo><select className={campoCls} value={filtro.camada} onChange={mudar("camada")}><option value="">Todas</option>{CAMADAS.map((c) => <option key={c} value={c}>{ROTULO_CAMADA[c]}</option>)}</select></label>
+        <label className="block"><Rotulo>Camada</Rotulo><select className={campoCls} value={filtro.camada} onChange={mudar("camada")}><option value="">{camadasPermitidas ? "Todas da fase" : "Todas"}</option>{(camadasPermitidas || CAMADAS).map((c) => <option key={c} value={c}>{ROTULO_CAMADA[c]}</option>)}</select></label>
         <label className="block"><Rotulo>Situação do caso</Rotulo>
           <select className={campoCls} value={filtro.situacao} onChange={mudar("situacao")}><option value="ABERTOS">Em aberto (plano de ajustes)</option><option value="">Todos</option>{Object.entries(SITUACOES_DO_CASO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         <label className="block"><Rotulo>Tipo</Rotulo>
@@ -345,8 +364,8 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
           <input type="checkbox" checked={agrupar} onChange={(e) => trocarAgrupar(e.target.checked)} />Agrupar casos iguais
         </label>
         {temFiltro && <button type="button" className={botaoSecundario} onClick={() => trocarFiltro({ ...FILTRO_PADRAO, grupo: filtro.grupo })}>Limpar filtros</button>}
-        <button type="button" className={botaoPrimario} disabled={!pode || !podeLote || buscandoIds} title={!pode ? razao : agrupar ? "Marque grupos na tabela, ou decida todos os casos em aberto do filtro" : "Marque casos na tabela, ou decida todos os casos em aberto do filtro"} onClick={abrirLote}>{buscandoIds ? "Juntando os casos…" : "Decidir em lote…"}</button>
-        <PlanilhaDecisao projeto={projeto} camada={filtro.camada} aoMudou={recarregar} />
+        <button type="button" className={botaoPrimario} disabled={!pode || !podeLote || buscandoIds} title={!pode ? razao : soDaFase && !idsMarcados.length ? "Escolha uma camada desta fase, ou marque linhas na tabela, para decidir em lote" : agrupar ? "Marque grupos na tabela, ou decida todos os casos em aberto do filtro" : "Marque casos na tabela, ou decida todos os casos em aberto do filtro"} onClick={abrirLote}>{buscandoIds ? "Juntando os casos…" : "Decidir em lote…"}</button>
+        <PlanilhaDecisao projeto={projeto} camada={filtro.camada} camadas={camadasPermitidas} aoMudou={recarregar} />
       </div>
       {filtro.grupo && (
         <Aviso titulo="Recorte da visão geral" acao={<button type="button" className={botaoSecundario} onClick={() => trocarFiltro({ ...filtro, grupo: "" })}>Tirar o recorte</button>}>
@@ -365,14 +384,14 @@ export default function Casos({ projeto, recorte, casoInicial, agruparInicial = 
               <div className="min-w-0 space-y-2">
                 {agrupar ? (
                   grupos.length === 0 && !qg.hasNextPage ? (
-                    <EstadoVazio titulo={vazioTitulo}>Troque os filtros, ou rode as análises pela faixa de cobertura no alto da página.</EstadoVazio>
+                    <EstadoVazio titulo={vazioTitulo}>Troque os filtros, ou rode as análises na aba Análise da fase.</EstadoVazio>
                   ) : (
                     <TabelaDensa id="saneamento-estoques-casos-agrupados" ariaLabel="Casos agrupados" colunas={COLUNAS_AGRUPADAS} linhas={grupos} chaveLinha={(g) => g.chave} vazio="Nenhum grupo com estes filtros." contador={contador}
                       aoClicarLinha={(g) => { setGrupoAberto(g); setAberto(null); setSemProximo(false); }} linhaMarcada={(g) => g.chave === grupoAberto?.chave} selecao={{ marcadas: marcados, aoMudar: (m) => { setMarcados(m); fecharLote(); } }}
                       aoChegarAoFim={carregarMais} rodape={qg.isFetchingNextPage ? "Carregando mais grupos…" : null} />
                   )
                 ) : casos.length === 0 && !q.hasNextPage ? (
-                  <EstadoVazio titulo={vazioTitulo}>Troque os filtros, ou rode as análises pela faixa de cobertura no alto da página.</EstadoVazio>
+                  <EstadoVazio titulo={vazioTitulo}>Troque os filtros, ou rode as análises na aba Análise da fase.</EstadoVazio>
                 ) : (
                   <TabelaDensa id="saneamento-estoques-casos-v2" ariaLabel="Casos" colunas={colunas} linhas={casos} chaveLinha={(c) => c.id} vazio="Nenhum caso com estes filtros." contador={contador}
                     aoClicarLinha={(c) => { setAberto(c.id); setSemProximo(false); }} linhaMarcada={(c) => c.id === aberto} selecao={{ marcadas: marcados, aoMudar: (m) => { setMarcados(m); setLote(false); } }}

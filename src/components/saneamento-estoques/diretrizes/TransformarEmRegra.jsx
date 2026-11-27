@@ -12,10 +12,12 @@ import { ABRANGENCIA_TODOS, ASPECTOS, inicialDoCaso, mensagemDiretriz, ROTULO_AS
  * Mensagem depois de transformar: regra do projeto (abrir nas Diretrizes para ver a prévia e aplicar). Destino biblioteca: a regra-modelo
  * fica na biblioteca (sem código de item do cliente) e o projeto ganha a regra em rascunho que parte dela, com as exceções do caso.
  */
-export function ResultadoTransformacao({ resultado, destino }) {
+export function ResultadoTransformacao({ resultado, destino, aspecto = null }) {
   const id = resultado?.id || resultado?.regra?.id;
   const codigo = resultado?.codigo || resultado?.regra?.codigo;
-  const abrir = id && <Link className={botaoSecundario} to={`?aba=diretrizes&regra=${encodeURIComponent(id)}`}>Abrir nas Diretrizes</Link>;
+  // A regra fiscal fica nas Diretrizes da Fase 2; as outras, nas da Fase 1.
+  const destinoDir = `?fase=${(aspecto || resultado?.aspecto || resultado?.regra?.aspecto) === "FISCAL" ? "2" : "1"}&aba=diretrizes&regra=${encodeURIComponent(id || "")}`;
+  const abrir = id && <Link className={botaoSecundario} to={destinoDir}>Abrir nas Diretrizes</Link>;
   if (destino === "BIBLIOTECA") {
     return (
       <Aviso tom="ok" titulo={`Regra criada na biblioteca e ${codigo || "a regra"} em rascunho neste projeto`.replace("  ", " ")} acao={abrir}>
@@ -24,7 +26,7 @@ export function ResultadoTransformacao({ resultado, destino }) {
     );
   }
   return (
-    <Aviso tom="ok" titulo={`Regra ${codigo || ""} criada em rascunho`.replace("  ", " ")} acao={id && <Link className={botaoSecundario} to={`?aba=diretrizes&regra=${encodeURIComponent(id)}`}>Abrir nas Diretrizes</Link>}>
+    <Aviso tom="ok" titulo={`Regra ${codigo || ""} criada em rascunho`.replace("  ", " ")} acao={id && <Link className={botaoSecundario} to={destinoDir}>Abrir nas Diretrizes</Link>}>
       Nada foi reanalisado ainda. Abra a regra para conferir, ver a prévia do impacto e só então aplicar.
     </Aviso>
   );
@@ -64,7 +66,7 @@ export default function TransformarEmRegra({ projeto, caso, abertoInicial = fals
     <section aria-label="Transformar em regra" className={`space-y-3 ${quadroCls}`}>
       <h4 className={tituloQuadroCls}>Transformar em regra</h4>
       <p className={textoApoioCls}>A regra nasce em rascunho. Nada é reanalisado até você conferir a prévia do impacto e aplicar.</p>
-      {transformar.isSuccess ? <ResultadoTransformacao resultado={transformar.data} destino={f.destino} /> : (
+      {transformar.isSuccess ? <ResultadoTransformacao resultado={transformar.data} destino={f.destino} aspecto={f.aspecto} /> : (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block"><Rotulo>Aspecto</Rotulo><select className={campoCls} value={f.aspecto} onChange={(e) => set({ aspecto: e.target.value })}>{ASPECTOS.map((a) => <option key={a} value={a}>{ROTULO_ASPECTO[a]}</option>)}</select></label>

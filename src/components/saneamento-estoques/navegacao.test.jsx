@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 vi.mock("@/lib/AuthContext", () => ({ useAuth: () => ({ user: { role: "admin", email: "a@b.c" } }) }));
 
 import { chaves } from "./api";
+import Casos from "./Casos";
 import Cobertura, { bloqueioDaFase, faseDaExecucao, ordemDeAnalise, seloDaCamada, textoDasAnalises, textoDesatualizada } from "./Cobertura";
 import TabelaUnica, { fixasDaTabela } from "./TabelaUnica";
 import { REGRA_FINALIDADE } from "./logica";
@@ -72,16 +73,16 @@ describe("Cobertura das camadas", () => {
     const t = texto(html);
     expect(t).toContain("Fase 2 ainda não liberada");
     expect(t).toContain("Libere a versão da Fase 1 antes.");
-    expect(t).toContain("Ir para Versões");
+    expect(t).toContain("Ir para a Entrega da Fase 1");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar a Fase 2 \(na ordem\)"/);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar Tratamento tributário"/);
     expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar a Fase 1 \(na ordem\)"/);
     expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar Qualidade"/);
     const regime = texto(montar(<Cobertura projeto={projeto()} aoIrPara={() => {}} />, (qc) => preparar(qc, bloq("REGIME_NAO_INFORMADO", ""))));
     expect(regime).toContain("Informe o regime do cliente");
-    expect(regime).toContain("Ir para a Configuração");
+    expect(regime).toContain("Ir para as Premissas");
     const ativ = texto(montar(<Cobertura projeto={projeto()} aoIrPara={() => {}} />, (qc) => preparar(qc, bloq("ATIVIDADES_NAO_CONFIRMADAS", "Confirme as atividades."))));
-    expect(ativ).toContain("Ir para a Configuração");
+    expect(ativ).toContain("Ir para as Premissas");
   });
   it("funções da fase: bloqueio pela resposta (ou falta dela) e fase da análise em andamento", () => {
     expect(bloqueioDaFase("FASE1", undefined)).toBeNull();
@@ -124,13 +125,145 @@ describe("Cobertura das camadas", () => {
     expect(textoDasAnalises([{ camada: "NCM", analisados: 10, casosNovos: 2, casosJaExistentes: 1 }, { camada: "TRIBUTARIO", analisados: 10, casosNovos: 3, casosJaExistentes: 0, semDados: { itens: 1, motivo: "x" } }]))
       .toBe("2 camadas analisadas, na ordem; 5 caso(s) novo(s). Faltou dado em: Tratamento tributário.");
   });
-  const rota = (local) => {
+  it("na aba Análise de cada fase, só as camadas daquela fase (sem o aviso, que a página mostra no alto da fase)", () => {
+    const bloq = { fases: [{ fase: "FASE1", camadas: [], liberada: null, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: null, bloqueio: { codigo: "FASE1_NAO_LIBERADA", mensagem: "Libere a Fase 1." } }] };
+    const f1 = texto(montar(<Cobertura projeto={projeto()} fase="FASE1" />, (qc) => preparar(qc, bloq)));
+    expect(f1).toContain("Fase 1 · Saneamento de estoques");
+    expect(f1).toContain("Qualidade");
+    expect(f1).not.toContain("Fase 2 · Tributário e Reforma");
+    expect(f1).not.toContain("Tratamento tributário");
+    const html2 = montar(<Cobertura projeto={projeto()} fase="FASE2" />, (qc) => preparar(qc, bloq));
+    const f2 = texto(html2);
+    expect(f2).toContain("Tratamento tributário");
+    expect(f2).not.toContain("Duplicidades");
+    expect(f2).not.toContain("Fase 2 ainda não liberada");
+    expect(html2).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar a Fase 2 \(na ordem\)"/);
+  });
+});
+
+describe("Casos por fase", () => {
+  const filtro = { camada: "", situacao: "ABERTOS", tipo: "", origem: "", grupo: "" };
+  const caso = (o) => ({ id: "c1", camada: "NCM", tipo: "NCM_FORMATO", itens: ["i1"], qtdItens: 1, problema: "NCM com 7 dígitos", situacao: "PROPOSTO", origem: "REGRA", versao: 1, parecer_ia: null, item: { codigo: "2186", descricao: "RETENTOR", grupo: "Peças" }, ...o });
+  const seed = (qc) => qc.setQueryData(chaves.casos("p1", filtro), { pages: [{ casos: [caso(), caso({ id: "c2", camada: "TRIBUTARIO", tipo: "X", problema: "Sem cClassTrib" })], proximo: null, tipos: [{ tipo: "NCM_FORMATO", n: 1 }, { tipo: "X", n: 1 }] }], pageParams: [undefined] });
+  const fase2 = ["FINALIDADE", "NCM_CLASSIFICACAO", "TRIBUTARIO", "OBRIGACOES"];
+  it("o filtro de camada só oferece as camadas da fase; Todas da fase mostra só os casos delas e o lote sem marcação fica desligado", () => {
+    const html = montar(<Casos projeto={projeto()} agruparInicial={false} camadasPermitidas={fase2} />, seed);
+    const t = texto(html);
+    expect(t).toContain("Todas da fase");
+    expect(html).toContain('<option value="TRIBUTARIO">Tratamento tributário</option>');
+    expect(html).not.toContain('<option value="QUALIDADE">');
+    expect(t).toContain("Sem cClassTrib");
+    expect(t).not.toContain("NCM com 7 dígitos");
+    expect(t).toContain("1 caso(s) em aberto desta fase carregado(s).");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Decidir em lote/);
+    // Sem fase: todas as camadas, como antes.
+    const todas = texto(montar(<Casos projeto={projeto()} agruparInicial={false} />, seed));
+    expect(todas).toContain("NCM com 7 dígitos");
+    expect(todas).toContain("Sem cClassTrib");
+  });
+  it("recorte de camada de outra fase não vale (fica Todas da fase)", () => {
+    const t = texto(montar(<Casos projeto={projeto()} agruparInicial={false} camadasPermitidas={fase2} recorte={{ camada: "QUALIDADE" }} />, seed));
+    expect(t).toContain("Sem cClassTrib");
+    expect(t).not.toContain("NCM com 7 dígitos");
+  });
+});
+
+describe("Página: fases no primeiro nível", () => {
+  const fases = ({ f1 = false, f2 = false, bloqueio = null } = {}) => ({ fases: [{ fase: "FASE1", camadas: [], liberada: f1 ? { versaoId: "v1", numero: 1, em: "2026-11-20T10:00:00Z" } : null, bloqueio: null }, { fase: "FASE2", camadas: [], liberada: f2 ? { versaoId: "v2", numero: 2, em: "2026-11-25T10:00:00Z" } : null, bloqueio }] });
+  const estado = { camadas: [{ camada: "IDENTIFICACAO", abertos: 0, aguardando: 0, executadaEm: "2026-11-20T10:00:00Z" }, { camada: "QUALIDADE", abertos: 5, aguardando: 0, executadaEm: "2026-11-20T10:00:00Z" }] };
+  const pagina = (local, { dadosFases = fases(), projetoExtra = {}, itens = 3 } = {}) => {
     const qc = novoCliente();
-    qc.setQueryData(chaves.projeto("d1"), projeto());
-    return texto(renderToStaticMarkup(<QueryClientProvider client={qc}><StaticRouter location={local}><Routes><Route path="/s/:id" element={<SaneamentoEstoquesPagina />} /></Routes></StaticRouter></QueryClientProvider>));
+    qc.setQueryData(chaves.projeto("d1"), projeto({ totalItens: itens, ...projetoExtra }));
+    if (dadosFases) qc.setQueryData(chaves.fases("p1"), dadosFases);
+    qc.setQueryData(chaves.estadoCamadas("p1"), estado);
+    qc.setQueryData(chaves.versoes("p1"), []);
+    qc.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [{ grupo: "A", itens: 3, camadas: { QUALIDADE: { PROPOSTO: 3 }, TRIBUTARIO: { PENDENTE: 3 } } }] });
+    qc.setQueryData(chaves.camadas(), ["QUALIDADE", "TRIBUTARIO"]);
+    return renderToStaticMarkup(<QueryClientProvider client={qc}><StaticRouter location={local}><Routes><Route path="/s/:id" element={<SaneamentoEstoquesPagina />} /></Routes></StaticRouter></QueryClientProvider>);
   };
-  it("a Cobertura aparece acima de todas as abas", () => {
-    for (const aba of ["configuracao", "importacao", "visao", "casos", "tabela", "versoes", "diretrizes", "unificacoes", "impacto"]) expect(rota(`/s/d1?aba=${aba}`), aba).toContain("Cobertura das camadas");
+  const selecionada = (html, id) => new RegExp(`id="${id}" aria-selected="true"`).test(html);
+  it("seletor de fases: três passos com a situação (andamento em %, cadeado com o motivo, após as fases) e a fase aberta marcada", () => {
+    const html = pagina("/s/d1?fase=1&aba=analise", { dadosFases: fases({ bloqueio: { codigo: "FASE1_NAO_LIBERADA", mensagem: "Libere a Fase 1." } }) });
+    const t = texto(html);
+    expect(html).toContain('role="tablist" aria-label="Fases do projeto"');
+    expect(t).toContain("Fase 1 · Saneamento Em andamento · 14%");
+    expect(t).toContain("Fase 2 · Tributário Bloqueada : Libere a Fase 1.");
+    expect(t).toContain("Fechamento Após as fases");
+    expect(selecionada(html, "san-fase-fase1")).toBe(true);
+    expect(selecionada(html, "san-fase-fase2")).toBe(false);
+    expect(html).toMatch(/id="san-fase-fase1"[^>]*class="[^"]*border-primary bg-primary\/10/);
+    expect(t).not.toContain("Fase 2 ainda não liberada"); // o aviso só aparece dentro da Fase 2
+    const lib = texto(pagina("/s/d1?fase=1", { dadosFases: fases({ f1: true }) }));
+    expect(lib).toContain("Fase 1 · Saneamento Liberada");
+  });
+  it("cada fase com as suas abas; as áreas comuns em todas; a Análise só com as camadas da fase", () => {
+    const f1 = pagina("/s/d1?fase=1&aba=analise");
+    expect(texto(f1)).toContain("Preparar Diretrizes Análise Casos Unificações Entrega da Fase 1");
+    expect(texto(f1)).toContain("Tabela Visão geral Impacto no SPED Versões");
+    expect(texto(f1)).not.toContain("Premissas");
+    expect(selecionada(f1, "san-aba-analise")).toBe(true);
+    const f2 = pagina("/s/d1?fase=2&aba=analise", { dadosFases: fases({ f1: true }) });
+    expect(texto(f2)).toContain("Premissas Diretrizes Análise Casos Entrega da Fase 2");
+    expect(texto(f2)).not.toContain("Unificações");
+    expect(texto(f2)).not.toContain("Preparar");
+    const fe = texto(pagina("/s/d1?fase=fechamento"));
+    expect(fe).toContain("Entregas finais");
+    expect(fe).toContain("Entregas liberadas");
+    expect(fe).toContain("Roteiro do projeto");
+    expect(fe).toContain("O fechamento reúne as entregas depois de liberadas a Fase 1 e a Fase 2.");
+  });
+  it("a Cobertura não fica mais acima de tudo: só na aba Análise", () => {
+    for (const aba of ["preparar", "casos", "tabela", "versoes", "diretrizes", "unificacoes", "impacto", "entrega"]) expect(texto(pagina(`/s/d1?fase=1&aba=${aba}`)), aba).not.toContain("Cobertura das camadas");
+    expect(texto(pagina("/s/d1?fase=1&aba=analise"))).toContain("Cobertura das camadas");
+  });
+  it("Fase 2 bloqueada: abre para consulta, com o aviso e o botão que leva a resolver; as Premissas seguem editáveis", () => {
+    const html = pagina("/s/d1?fase=2&aba=analise", { dadosFases: fases({ bloqueio: { codigo: "FASE1_NAO_LIBERADA", mensagem: "Libere a Fase 1." } }) });
+    const t = texto(html);
+    expect(t).toContain("Fase 2 ainda não liberada");
+    expect(t).toContain("Libere a Fase 1.");
+    expect(t).toContain("Ir para a Entrega da Fase 1");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Analisar a Fase 2 \(na ordem\)"/);
+    const regime = pagina("/s/d1?fase=2&aba=analise", { dadosFases: fases({ f1: true, bloqueio: { codigo: "REGIME_NAO_INFORMADO", mensagem: "" } }) });
+    expect(texto(regime)).toContain("Ir para as Premissas");
+    expect(texto(regime)).toContain("Informe o regime do cliente");
+    const prem = pagina("/s/d1?fase=2&aba=premissas", { dadosFases: fases({ f1: true, bloqueio: { codigo: "REGIME_NAO_INFORMADO", mensagem: "" } }) });
+    expect(texto(prem)).toContain("Regime do cliente");
+    expect(texto(prem)).not.toContain("Ir para as Premissas"); // já está onde se resolve
+    expect(prem).not.toMatch(/<select[^>]*disabled=""[^>]*><option value="">Selecione o regime/);
+    expect(texto(prem)).not.toContain("Fase 1 · Dados do projeto");
+  });
+  it("ao abrir sem endereço: a fase em andamento e a aba de partida dela", () => {
+    // Nada liberado: Fase 1; sem itens, Preparar; com itens, Análise.
+    expect(selecionada(pagina("/s/d1", { itens: 0 }), "san-aba-preparar")).toBe(true);
+    expect(selecionada(pagina("/s/d1", { itens: 40 }), "san-aba-analise")).toBe(true);
+    // Fase 1 liberada: Fase 2; bloqueada pelo regime, nas Premissas; sem bloqueio, na Análise.
+    const f2 = pagina("/s/d1", { dadosFases: fases({ f1: true, bloqueio: { codigo: "REGIME_NAO_INFORMADO", mensagem: "" } }) });
+    expect(selecionada(f2, "san-fase-fase2")).toBe(true);
+    expect(selecionada(f2, "san-aba-premissas")).toBe(true);
+    expect(selecionada(pagina("/s/d1", { dadosFases: fases({ f1: true }) }), "san-aba-analise")).toBe(true);
+    // As duas liberadas: Fechamento.
+    const fe = pagina("/s/d1", { dadosFases: fases({ f1: true, f2: true }) });
+    expect(selecionada(fe, "san-fase-fechamento")).toBe(true);
+    expect(selecionada(fe, "san-aba-entregas")).toBe(true);
+    expect(texto(fe)).toContain("Fechamento Disponível");
+    // Sem a resposta das fases ainda: espera.
+    expect(texto(pagina("/s/d1", { dadosFases: null }))).toContain("Abrindo a fase em andamento");
+  });
+  it("endereços antigos seguem valendo: cada ?aba= antiga abre a fase e a aba de agora", () => {
+    const casos = [["configuracao", "san-fase-fase1", "san-aba-preparar"], ["importacao", "san-fase-fase1", "san-aba-preparar"], ["casos", "san-fase-fase1", "san-aba-casos"],
+      ["diretrizes", "san-fase-fase1", "san-aba-diretrizes"], ["unificacoes", "san-fase-fase1", "san-aba-unificacoes"], ["versoes", "san-fase-fase1", "san-aba-versoes"],
+      ["tabela", "san-fase-fase1", "san-aba-tabela"], ["visao", "san-fase-fase1", "san-aba-visao"], ["impacto", "san-fase-fase1", "san-aba-impacto"]];
+    for (const [aba, fase, alvo] of casos) {
+      const html = pagina(`/s/d1?aba=${aba}`);
+      expect(selecionada(html, fase), aba).toBe(true);
+      expect(selecionada(html, alvo), aba).toBe(true);
+    }
+    // Área comum pedida com a Fase 2 aberta fica na Fase 2.
+    const tab2 = pagina("/s/d1?fase=2&aba=tabela", { dadosFases: fases({ f1: true }) });
+    expect(selecionada(tab2, "san-fase-fase2")).toBe(true);
+    expect(selecionada(tab2, "san-aba-tabela")).toBe(true);
+    // Aba da Fase 1 pedida na Fase 2 vai para a Fase 1.
+    expect(selecionada(pagina("/s/d1?fase=2&aba=unificacoes"), "san-fase-fase1")).toBe(true);
   });
 });
 

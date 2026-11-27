@@ -46,10 +46,24 @@ const comDiretrizes = (dados = DADOS) => (qc) => {
 };
 
 describe("aba Diretrizes na página do saneamento", () => {
-  it("fica entre Importação e as análises", () => {
-    const t = texto(montar(<Abas atual="diretrizes" aoMudar={() => {}} />));
-    expect(t.indexOf("Importação")).toBeLessThan(t.indexOf("Diretrizes"));
-    expect(t.indexOf("Diretrizes")).toBeLessThan(t.indexOf("Tabela"));
+  it("fica entre Preparar e Análise na Fase 1, e entre Premissas e Análise na Fase 2", () => {
+    const t = texto(montar(<Abas fase="fase1" atual="diretrizes" aoMudar={() => {}} />));
+    expect(t.indexOf("Preparar")).toBeLessThan(t.indexOf("Diretrizes"));
+    expect(t.indexOf("Diretrizes")).toBeLessThan(t.indexOf("Análise"));
+    const t2 = texto(montar(<Abas fase="fase2" atual="diretrizes" aoMudar={() => {}} />));
+    expect(t2.indexOf("Premissas")).toBeLessThan(t2.indexOf("Diretrizes"));
+    expect(t2.indexOf("Diretrizes")).toBeLessThan(t2.indexOf("Análise"));
+  });
+  it("por fase: a Fase 1 mostra nomes, atributos, unidades e limites; a Fase 2, só a classificação fiscal", () => {
+    const f1 = texto(montar(<Diretrizes projeto={projeto()} aspectos={["NOMES", "ATRIBUTOS", "UNIDADES", "LIMITES"]} />, comDiretrizes()));
+    for (const x of ["Padrão de nomes", "Atributos técnicos", "Unidades e embalagens", "Limites de caracteres", "N01"]) expect(f1, x).toContain(x);
+    expect(f1).not.toContain("Classificação fiscal");
+    expect(f1).not.toContain("F01");
+    const f2 = texto(montar(<Diretrizes projeto={projeto()} aspectos={["FISCAL"]} />, comDiretrizes()));
+    expect(f2).toContain("Classificação fiscal");
+    expect(f2).toContain("F01");
+    expect(f2).not.toContain("Padrão de nomes");
+    expect(f2).not.toContain("N01");
   });
   it("cabeçalho só mostra cliente, base importada (a mais recente), ERP do cadastro e data-base; vigência editável; situação com revisar", () => {
     const html = montar(<Diretrizes projeto={projeto()} />, comDiretrizes());
@@ -209,7 +223,9 @@ describe("Política (PDF) e Transformar em regra", () => {
     const t = texto(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "F02" }} destino="PROJETO" />));
     expect(t).toContain("Regra F02 criada em rascunho");
     expect(t).toContain("Abrir nas Diretrizes");
-    expect(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "F02" }} destino="PROJETO" />)).toContain('href="/?aba=diretrizes&amp;regra=r9"');
+    expect(montar(<ResultadoTransformacao resultado={{ id: "r9", codigo: "N02" }} destino="PROJETO" />)).toContain('href="/?fase=1&amp;aba=diretrizes&amp;regra=r9"');
+    // A regra fiscal abre nas Diretrizes da Fase 2.
+    expect(montar(<ResultadoTransformacao resultado={{ id: "r8", codigo: "F02", aspecto: "FISCAL" }} destino="PROJETO" />)).toContain('href="/?fase=2&amp;aba=diretrizes&amp;regra=r8"');
     const bib = texto(montar(<ResultadoTransformacao resultado={{ id: "r10", codigo: "F03" }} destino="BIBLIOTECA" />));
     expect(bib).toContain("Regra criada na biblioteca e F03 em rascunho neste projeto");
     expect(bib).toContain("sem códigos de item deste cliente");

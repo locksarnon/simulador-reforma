@@ -76,12 +76,12 @@ function LinhaRegra({ regra, atualizacao, aoAbrir, aoAdotar, adotando, pode, raz
   );
 }
 
-/** Regras do projeto por aspecto (5 seções) e o quadro "Grupos sem regra". */
-export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, pode, razao, selecionadas, aoMarcar }) {
+/** Regras do projeto por aspecto (as 5 seções, ou só os `aspectos` da fase) e o quadro "Grupos sem regra". */
+export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, pode, razao, selecionadas, aoMarcar, aspectos = ASPECTOS }) {
   const porAspecto = regrasPorAspecto(dados.regras);
   return (
     <div className="space-y-5">
-      {ASPECTOS.map((a) => (
+      {aspectos.map((a) => (
         <section key={a} aria-labelledby={`dir-asp-${a}`} className={`border ${bordaQuadro} bg-card shadow-sm`}>
           <header className={`flex flex-wrap items-center gap-2 border-b ${bordaQuadro} bg-primary/10 px-3 py-2`}>
             <h3 id={`dir-asp-${a}`} className="text-sm font-semibold text-foreground">{ROTULO_ASPECTO[a]}</h3>
@@ -96,7 +96,7 @@ export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, po
           )}
         </section>
       ))}
-      <GruposSemRegra dados={dados} />
+      <GruposSemRegra dados={dados} aspectos={aspectos} />
     </div>
   );
 }
@@ -104,14 +104,14 @@ export function ListaDeRegras({ dados, aoAbrir, aoNova, aoAdotar, adotandoId, po
 /**
  * "Grupos sem regra": a contagem por aspecto e, uma vez só, a lista dos grupos (juntos os que faltam nos mesmos aspectos), expansível.
  */
-export function GruposSemRegra({ dados }) {
-  const { porAspecto, conjuntos } = gruposSemRegraAgrupados(dados.gruposSemRegra);
+export function GruposSemRegra({ dados, aspectos = ASPECTOS }) {
+  const { porAspecto, conjuntos } = gruposSemRegraAgrupados((dados.gruposSemRegra || []).filter((g) => aspectos.includes(g.aspecto)));
   return (
     <Quadro as="section" titulo="Grupos sem regra" nivel="h3">
       {(dados.grupos || []).length === 0 ? <p className="text-sm text-foreground/75">Os grupos aparecem depois de importar o cadastro de itens.</p> : (
         <>
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="Grupos sem regra por aspecto">
-            {ASPECTOS.map((a) => (
+            {aspectos.map((a) => (
               <li key={a} className="inline-flex items-center gap-1">
                 <span className="font-medium">{ROTULO_ASPECTO[a]}</span>
                 {porAspecto[a] === 0 ? <Tag tom="ok">Todos os grupos têm regra</Tag> : <Tag tom="alerta">{porAspecto[a]} {porAspecto[a] === 1 ? "grupo pendente" : "grupos pendentes"}</Tag>}
@@ -208,8 +208,12 @@ export function textoModeloAplicado(r, modelo) {
   return `${nome} foi aplicado: ${criadas} ${criadas === 1 ? "regra criada" : "regras criadas"} em rascunho${Number.isFinite(ja) && ja > 0 ? `; ${ja} já ${ja === 1 ? "existia" : "existiam"}` : ""}.`;
 }
 
-/** Aba Diretrizes do projeto: cabeçalho, modelo, regras por aspecto, grupos sem regra, Política (PDF) e o formulário da regra. */
-export default function Diretrizes({ projeto }) {
+/**
+ * Aba Diretrizes do projeto: cabeçalho, modelo, regras por aspecto, grupos sem regra, Política (PDF) e o formulário da regra. `aspectos`:
+ * os aspectos que a fase mostra (Fase 1: nomes, atributos, unidades e limites; Fase 2: classificação fiscal); aplicar e aprovar em lote
+ * ficam nas regras desses aspectos. Uma regra aberta pelo endereço abre mesmo sendo de outro aspecto.
+ */
+export default function Diretrizes({ projeto, aspectos = ASPECTOS }) {
   const qc = useQueryClient();
   const confirmar = useConfirmar();
   const { pode, razao } = usePodeAlterar();
@@ -294,8 +298,9 @@ export default function Diretrizes({ projeto }) {
           if (!existe) return <Aviso tom="alerta" titulo="Regra não encontrada" acao={<button type="button" className={botaoSecundario} onClick={fechar}>Voltar às diretrizes</button>}>A regra pode ter sido removida ou é de outro projeto.</Aviso>;
           return <FormularioRegra key={edicao.regraId || `nova-${edicao.inicial?.aspecto}`} projeto={projeto} dados={dados} regraId={edicao.regraId || null} inicial={edicao.inicial || null} aoFechar={fechar} />;
         }
-        const pendentes = regrasParaAplicar(dados.regras);
-        const marcadas = (dados.regras || []).filter((r) => selecionadas.has(r.id));
+        const daFase = { ...dados, regras: (dados.regras || []).filter((r) => aspectos.includes(r.aspecto)) };
+        const pendentes = regrasParaAplicar(daFase.regras);
+        const marcadas = daFase.regras.filter((r) => selecionadas.has(r.id));
         return (
           <div className="space-y-4">
             <CabecalhoDiretrizes key={`${dados.cabecalho?.versao}-${dados.cabecalho?.vigencia}`} projeto={projeto} cabecalho={dados.cabecalho} cliente={cliente.data?.razao_social || cliente.data?.nome} ultimaImportacao={ultimaImportacao}
@@ -307,11 +312,11 @@ export default function Diretrizes({ projeto }) {
               </Aviso>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className={botaoPrimario} disabled={!pode} title={razao} onClick={() => nova("NOMES")}><Plus className="h-4 w-4" aria-hidden="true" />Adicionar regra</button>
+              <button type="button" className={botaoPrimario} disabled={!pode} title={razao} onClick={() => nova(aspectos[0])}><Plus className="h-4 w-4" aria-hidden="true" />Adicionar regra</button>
               <AplicarModelo projeto={projeto} pode={pode} razao={razao} aoAplicou={async (m) => { setMsg(m); if (m.tom === "ok") await atualizarTudo(qc, projeto.id); }} />
               <BotaoPolitica projetoId={projeto.id} />
             </div>
-            {(dados.regras || []).length > 0 && (
+            {daFase.regras.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 border-y border-border py-2" role="group" aria-label="Ações em várias regras">
                 <button type="button" className={botaoPrimario} disabled={!pode || ocupadoVarias || !pendentes.length} title={razao || (!pendentes.length ? "Todas as regras já estão aplicadas como estão" : "Uma prévia só e uma reanálise só")} onClick={() => buscarPrevia.mutate(pendentes)}>
                   <Play className="h-4 w-4" aria-hidden="true" />{buscarPrevia.isPending ? "Preparando a prévia…" : `Aplicar todas as regras (${pendentes.length})`}
@@ -321,7 +326,7 @@ export default function Diretrizes({ projeto }) {
                 {marcadas.length > 0 && <button type="button" className="text-xs underline" onClick={() => setSelecionadas(new Set())}>Limpar seleção</button>}
               </div>
             )}
-            <ListaDeRegras dados={dados} aoAbrir={abrir} aoNova={nova} aoAdotar={pedirAdocao} adotandoId={adotar.isPending ? adotar.variables?.id : null} pode={pode} razao={razao} selecionadas={selecionadas} aoMarcar={marcar} />
+            <ListaDeRegras dados={daFase} aspectos={aspectos} aoAbrir={abrir} aoNova={nova} aoAdotar={pedirAdocao} adotandoId={adotar.isPending ? adotar.variables?.id : null} pode={pode} razao={razao} selecionadas={selecionadas} aoMarcar={marcar} />
             {previaVarias && <PreviaVarias previa={previaVarias.dados} ocupado={aplicarVarias.isPending} aoCancelar={() => setPreviaVarias(null)} aoConfirmar={({ confirmarTransferencia }) => aplicarVarias.mutate({ regras: previaVarias.regras, confirmarTransferencia })} />}
           </div>
         );
