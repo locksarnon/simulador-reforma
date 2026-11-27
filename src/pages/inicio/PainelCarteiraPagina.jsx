@@ -40,7 +40,7 @@ export function Distribuicao({ titulo, dados, vazio }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <table className="sr-only"><caption>{titulo}</caption><tbody>{linhas.map((l) => <tr key={l.nome}><td>{l.nome}</td><td>{l.total}</td></tr>)}</tbody></table>
+          <table className="sr-only"><caption>{titulo}</caption><thead><tr><th scope="col">Nome</th><th scope="col">Total</th></tr></thead><tbody>{linhas.map((l) => <tr key={l.nome}><td>{l.nome}</td><td>{l.total}</td></tr>)}</tbody></table>
         </>
       )}
     </section>

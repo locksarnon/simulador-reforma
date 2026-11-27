@@ -135,8 +135,9 @@ export const estiloTabela = {
   area: "relative overflow-auto border border-border bg-card",
   cabecalho: "sticky top-0 z-30 bg-muted",
   celula: "flex items-center overflow-hidden border-l border-border/40 px-2",
-  tituloColuna: "flex items-center border-l border-border/70 px-2",
-  tituloFixo: "sticky z-40 flex items-center bg-muted px-2 font-medium",
+  /** Títulos: verde-escuro com texto branco (o padrão de tabela do InTAX, token --cabecalho-tabela); `relative` para a alça de largura. */
+  tituloColuna: "cabecalho-tabela relative flex items-center border-l border-white/20 bg-cabecalho px-2 text-cabecalho-foreground",
+  tituloFixo: "cabecalho-tabela sticky z-40 flex items-center bg-cabecalho px-2 font-medium text-cabecalho-foreground",
   linha: "flex border-b border-border/60 text-[13px]",
   /** Fundo da linha: marcada, ímpar (zebra) ou par. */
   fundoLinha: (i, marcado) => (marcado ? "bg-primary/10" : i % 2 ? "bg-muted/20" : "bg-card"),

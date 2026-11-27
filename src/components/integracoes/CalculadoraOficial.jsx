@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const dataBr = (iso) => (iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
 const dia = (iso) => (iso ? new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "—");
@@ -26,7 +27,7 @@ export function ComparacaoTabelas({ c }) {
         <details key={g} className="rounded-md border border-border">
           <summary className="cursor-pointer px-3 py-1.5">{g}: <strong>{n}</strong>{SO_INFORMA.has(g) ? " (informativo)" : ""}</summary>
           <div className="max-h-56 overflow-auto border-t border-border">
-            <table className="w-full text-xs"><tbody>{c.lista.filter((d) => d.grupo === g).map((d, i) => (
+            <table className="w-full text-xs"><thead className="sticky top-0"><tr className="text-left"><th scope="col" className="p-1.5">Item</th><th scope="col" className="p-1.5">InTAX</th><th scope="col" className="p-1.5">Calculadora</th><th scope="col" className="p-1.5">Observação</th></tr></thead><tbody>{c.lista.filter((d) => d.grupo === g).map((d, i) => (
               <tr key={i} className="border-t border-border/60 first:border-0"><td className="p-1.5 whitespace-nowrap">{d.chave}</td><td className="p-1.5">InTAX: {d.intax}</td><td className="p-1.5">Calculadora: {d.oficial}</td><td className="p-1.5 text-muted-foreground">{d.observacao ?? ""}</td></tr>
             ))}</tbody></table>
           </div>
@@ -76,9 +77,10 @@ export default function CalculadoraOficial() {
       {etapa === "AGUARDANDO_CONFIRMACAO" && bateria && (
         <div className="space-y-2">
           <p className="text-sm">{bateria.diferencas} de {bateria.casos} casos mudam ({bateria.versao_antes?.versaoDb ?? "—"} → {bateria.versao_depois?.versaoDb ?? "—"}).</p>
+          <BuscaNaTabela />
           <div className="max-h-64 overflow-auto rounded-md border border-border">
             <table className="w-full text-xs">
-              <thead className="bg-muted/50 text-left"><tr><th className="p-2">Caso</th><th className="p-2">Antes</th><th className="p-2">Depois</th></tr></thead>
+              <thead className="sticky top-0 text-left"><tr><th className="p-2">Caso</th><th className="p-2">Antes</th><th className="p-2">Depois</th></tr></thead>
               <tbody>{bateria.lista.map((d) => (
                 <tr key={d.caso} className="border-t border-border/60 align-top"><td className="p-2 whitespace-nowrap">{d.caso}</td><td className="p-2 font-mono break-all">{JSON.stringify(d.antes)}</td><td className="p-2 font-mono break-all">{JSON.stringify(d.depois)}</td></tr>
               ))}</tbody>

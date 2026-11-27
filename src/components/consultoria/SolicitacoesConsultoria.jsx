@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import CampoArquivo from "@/components/ui/CampoArquivo";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { linhasDoPeriodo, arquivoSpedDaLinha, itensDoServico } from "@/lib/consultoriaDocumentos";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const estados = { PENDENTE: "Não localizado", RECEBIDO: "Recebido", VALIDADO: "Validado", DIVERGENTE: "Divergente", NAO_APLICAVEL: "Não aplicável" };
 const campo = "rounded border bg-background p-2";
@@ -80,6 +81,7 @@ export default function SolicitacoesConsultoria({ servico, clientes = [], deInic
       </div>
       {enviar.isPending && <p role="status">Importando arquivo…</p>}
       {xml.length > 0 && <p className="text-sm"><Link className="text-primary underline" to={caminhoDoRepositorio(cliente)}>XML no repositório</Link> · {xml.map(({ tipo, total }) => `${tipo}: ${total}`).join(" · ")} por data de emissão. Confira o tipo de operação e a cobertura antes de validar.</p>}
+      <BuscaNaTabela />
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
         <thead><tr><th className="p-2">Documento</th><th className="p-2">Período</th><th className="p-2">Evidência do repositório</th><th className="p-2">Situação</th></tr></thead>
         <tbody>{linhas.map((l) => <tr key={l.chave} className="border-t">

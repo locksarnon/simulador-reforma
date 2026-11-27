@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { api } from "@/api/client";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const CHAVE_NORMA = "lcp-214-2025";
 
@@ -16,6 +17,12 @@ export function interpretarBaseLei(texto) {
  * Painel lateral com o texto do anexo da LC 214/2025, com o item citado destacado — consulta sem sair da tela do validador.
  * O texto vem da Base legal do próprio InTAX (a mesma do menu Base legal).
  */
+/** Títulos quando o anexo não traz a linha "ITEM | ...": Item, Descrição, NCM/NBS e, se houver mais colunas, Coluna N. */
+export function titulosPadrao(itens) {
+  const n = Math.max(1, ...itens.map((l) => String(l).split(" | ").length));
+  return Array.from({ length: n }, (_, i) => ["Item", "Descrição", "NCM/NBS"][i] || `Coluna ${i + 1}`);
+}
+
 export default function AnexoLeiPainel({ baseLei, onFechar }) {
   const alvo = useMemo(() => interpretarBaseLei(baseLei), [baseLei]);
   const { data, isLoading, error } = useQuery({
@@ -53,10 +60,11 @@ export default function AnexoLeiPainel({ baseLei, onFechar }) {
           {isLoading && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando o anexo…</p>}
           {error && <p className="text-destructive">Não foi possível carregar o anexo: {error.message}</p>}
           {titulo.map((t, i) => <p key={i} className={i === 0 ? "font-semibold" : "text-muted-foreground"}>{t}</p>)}
-          {itens.length > 0 && (
+          {itens.length > 0 && (<>
+            <BuscaNaTabela />
             <div className="overflow-x-auto">
               <table className="text-xs border-collapse w-full">
-                {cabecalho && <thead><tr className="bg-muted">{cabecalho.map((c, k) => <th key={k} className="whitespace-nowrap border border-border px-2 py-1 text-left">{c}</th>)}</tr></thead>}
+                {<thead><tr>{(cabecalho || titulosPadrao(itens)).map((c, k) => <th key={k} className="whitespace-nowrap border border-border px-2 py-1 text-left">{c}</th>)}</tr></thead>}
                 <tbody>
                   {itens.map((celulas, i) => {
                     const destaque = alvo?.item && celulas[0].trim() === alvo.item;
@@ -69,7 +77,7 @@ export default function AnexoLeiPainel({ baseLei, onFechar }) {
                 </tbody>
               </table>
             </div>
-          )}
+          </>)}
           {data && itens.length === 0 && titulo.length === 0 && <p className="text-muted-foreground">O anexo não tem texto carregado na Base legal.</p>}
         </div>
       </SheetContent>

@@ -37,6 +37,10 @@ module.exports = {
   				DEFAULT: 'hsl(var(--secondary))',
   				foreground: 'hsl(var(--secondary-foreground))'
   			},
+  			cabecalho: {
+  				DEFAULT: 'hsl(var(--cabecalho-tabela))',
+  				foreground: 'hsl(var(--cabecalho-tabela-texto))'
+  			},
   			muted: {
   				DEFAULT: 'hsl(var(--muted))',
   				foreground: 'hsl(var(--muted-foreground))'

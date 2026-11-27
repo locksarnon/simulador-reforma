@@ -5,6 +5,7 @@ import CampoArquivo from "@/components/ui/CampoArquivo";
 import { san } from "./api";
 import { Aviso, botaoPrimario, botaoSecundario, campoCls, Rotulo, usePodeAlterar } from "./comuns";
 import { CAMADAS, mensagemDeErro, ROTULO_CAMADA, rotuloTipoCaso } from "./logica";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const n = (v) => Number(v || 0).toLocaleString("pt-BR");
 
@@ -42,6 +43,8 @@ const identificacao = (x) => [x.codigo, x.tipo ? rotuloTipoCaso(x.tipo) : null].
 function TabelaRecusadas({ linhas }) {
   if (!linhas?.length) return null;
   return (
+    <>
+    <BuscaNaTabela />
     <div className="max-h-56 overflow-auto border border-foreground/30 bg-card">
       <table className="w-full text-xs" aria-label="Linhas recusadas">
         <thead className="sticky top-0 bg-muted text-left text-muted-foreground"><tr><th scope="col" className="px-2 py-1">Linha</th><th scope="col">Item e tipo</th><th scope="col" className="px-2">Motivo</th></tr></thead>
@@ -49,6 +52,7 @@ function TabelaRecusadas({ linhas }) {
       </table>
       {linhas.length > 300 && <p className="px-2 py-1 text-xs text-muted-foreground">Mostrando 300 de {n(linhas.length)}.</p>}
     </div>
+    </>
   );
 }
 

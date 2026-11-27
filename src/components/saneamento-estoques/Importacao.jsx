@@ -12,6 +12,7 @@ import {
   linhasDeMapeamento, mapeamentoMudou, mensagemDeErro, MODOS_INCORPORAR, quantosIncorporar, resumirRelatorio, ROTULO_CERTEZA, rotuloDoCampo, textoDoValor,
 } from "./logica";
 import { escalaAplicada, escalaDetectada, exemplosDaColuna, fmtNumero, seloDoMapeamento, textoEscalaAplicada, textoEscalaSaldo } from "./importacaoTela";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 const ROTULO_LINHA = { ACEITA: "Aceita", REJEITADA: "Rejeitada", PENDENTE: "Pendente" };
 
@@ -77,6 +78,7 @@ export function Mapeamento({ previa, mapeamento, aoCorrigir, aoAtualizar, carreg
     <section aria-labelledby="san-imp-map" className={`space-y-2 ${secaoCls}`}>
       <h3 id="san-imp-map" className={tituloSecaoCls}>Colunas do arquivo</h3>
       <p className="text-sm text-muted-foreground">O sistema sugeriu o que cada coluna significa. Confira e corrija o que estiver errado; código e descrição são obrigatórios.</p>
+      <BuscaNaTabela />
       <table className="w-full text-sm" aria-label="Mapeamento de colunas">
         <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th scope="col" className="py-1">Campo do sistema</th><th scope="col">Coluna do arquivo</th><th scope="col">Exemplos</th><th scope="col">Certeza</th></tr></thead>
         <tbody>
@@ -111,6 +113,7 @@ function Amostra({ previa }) {
   return (
     <section aria-labelledby="san-imp-am" className="space-y-1">
       <h3 id="san-imp-am" className="text-sm font-semibold">{linhas.length ? "As 10 primeiras linhas" : "Primeiros itens novos"}</h3>
+      <BuscaNaTabela />
       <div className="overflow-x-auto border border-border bg-card">
         <table className="w-full text-xs" aria-label="Amostra da prévia">
           <thead><tr className="bg-muted/50 text-left text-muted-foreground"><th scope="col" className="px-2 py-1">{linhas.length ? "Linha" : "#"}</th><th scope="col">Código</th><th scope="col">Descrição</th>{linhas.length > 0 && <><th scope="col">Situação</th><th scope="col">Observação</th></>}</tr></thead>
@@ -174,6 +177,7 @@ export function Reimportacao({ previa, escolhidos, aoMudar, modo, aoMudarModo, a
               <span className="text-sm text-muted-foreground">{escolhidos.size.toLocaleString("pt-BR")} item(ns) marcados (em todas as páginas)</span>
             </div>
           )}
+          <BuscaNaTabela />
           <div className="max-h-96 overflow-auto border border-border">
             <table className="w-full text-xs" aria-label="Diferenças por item">
               <thead className="sticky top-0 bg-muted text-left text-muted-foreground"><tr><th scope="col" className="w-8 px-2 py-1">Trazer</th><th scope="col">Código</th><th scope="col">Estabelecimento</th><th scope="col">Campos alterados (antes → depois)</th></tr></thead>
@@ -236,14 +240,15 @@ function Historico({ projetoId }) {
     <section aria-labelledby="san-imp-hist" className="space-y-1">
       <h3 id="san-imp-hist" className="text-sm font-semibold">Importações anteriores</h3>
       <Carregar consulta={q} textoErro="Não foi possível carregar as importações." vazio={(d) => (d.length ? null : "Nenhuma importação feita ainda.")}>
-        {(lista) => (
+        {(lista) => (<>
+          <BuscaNaTabela />
           <div className="overflow-x-auto border border-border bg-card">
             <table className="w-full text-xs" aria-label="Importações anteriores">
               <thead><tr className="bg-muted/50 text-left text-muted-foreground"><th scope="col" className="px-2 py-1">Quando</th><th scope="col">Arquivo</th><th scope="col">Usuário</th><th scope="col" className="text-right">Aceitas</th><th scope="col" className="text-right">Rejeitadas</th><th scope="col" className="pr-2 text-right">Pendentes</th></tr></thead>
               <tbody>{lista.map((i) => <tr key={i.id} className="border-t border-border/60"><td className="px-2 py-1">{fmtDataHora(i.createdAt)}</td><td>{i.arquivo}</td><td>{i.usuario}</td><td className="text-right tabular-nums">{i.aceitas}</td><td className="text-right tabular-nums">{i.rejeitadas}</td><td className="pr-2 text-right tabular-nums">{i.pendentes}</td></tr>)}</tbody>
             </table>
           </div>
-        )}
+        </>)}
       </Carregar>
     </section>
   );

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { chaves, san } from "./api";
 import { Carregar, MarcaRevisar } from "./comuns";
 import { LISTA_SITUACOES, ROTULO_CAMADA, rotuloSituacao, situacaoAgregada, SITUACOES, totalDeCelulas } from "./logica";
+import BuscaNaTabela from "@/components/BuscaNaTabela";
 
 /** Resumo de uma célula da matriz: "12 pend · 3 prop · 5 aprov". */
 export function resumoDeContagem(c) {
@@ -52,13 +53,14 @@ export default function VisaoGeral({ projeto, aoAbrirCasos, aoAbrirTabela }) {
         return (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Grupos do maior para o menor. Em cor, só o que pede ação: pendente e aguardando informação. Clique numa célula para abrir os casos; no nome do grupo, para ver os produtos.</p>
+            <BuscaNaTabela />
             <div className="max-h-[70vh] overflow-auto border border-border bg-card">
               <table className="w-full text-sm" aria-label="Situação por grupo e camada">
                 <thead className="sticky top-0 z-20">
                   <tr className="bg-muted text-left text-xs text-muted-foreground">
-                    <th scope="col" className="sticky left-0 z-30 w-56 min-w-[14rem] bg-muted px-2 py-2">Grupo de produtos</th>
-                    <th scope="col" className="bg-muted px-2 text-right">Itens</th>
-                    {d.camadas.map((c) => <th key={c} scope="col" className="min-w-[130px] bg-muted px-2">{ROTULO_CAMADA[c]}</th>)}
+                    <th scope="col" className="sticky left-0 z-30 w-56 min-w-[14rem] bg-cabecalho px-2 py-2 text-cabecalho-foreground">Grupo de produtos</th>
+                    <th scope="col" className="bg-cabecalho px-2 text-right text-cabecalho-foreground">Itens</th>
+                    {d.camadas.map((c) => <th key={c} scope="col" className="min-w-[130px] bg-cabecalho px-2 text-cabecalho-foreground">{ROTULO_CAMADA[c]}</th>)}
                   </tr>
                 </thead>
                 <tbody>
