@@ -16,7 +16,7 @@ import { escalaDaBase } from '../motor/conjuntos';
 import { dadosBase } from './__fixtures__/dados';
 import { construirModelo, mapaDoModelo } from './modelo';
 import { montarRelatorio } from './relatorio';
-import { contarMapa, conversaoDoSaldo, filtrarMapa, montarMapa, type CasoMapa, type ItemMapa } from './unificacoes';
+import { conflitosDoMapa, contarMapa, conversaoDoSaldo, filtrarMapa, montarMapa, type CasoMapa, type ItemMapa } from './unificacoes';
 
 const USER = { email: 'consultor@fal.test' };
 const it_ = (id: string, codigo: string, o: Partial<ItemMapa> = {}): ItemMapa => ({ id, codigo, estab: '', descricao: `ITEM ${codigo}`, unidade: 'KG', saldo: 0, ...o });
@@ -34,7 +34,8 @@ describe('mapa de unificações (puro)', () => {
       ['UNIFICACAO', '200', '100', 10, 4, 14, 'APROVADA'], ['UNIFICACAO', '300', '100', 10, 0, 14, 'APROVADA'],
     ]);
     expect(l[0].acao).toBe('Transferir o saldo de 200 para 100 e inativar 200');
-    expect(l[1].acao).toBe('Inativar 300 (sem saldo a transferir); o código que fica é 100');
+    // Sem saldo no código que sai: só inativar (sem saída e entrada de mercadoria).
+    expect(l[1].acao).toBe('Inativar o código que sai (300): sem saldo a transferir para 100');
     expect(l[0].inicio?.toISOString().slice(0, 10)).toBe('2026-12-31'); // sem vínculo com data: a data-base
   });
 
@@ -61,7 +62,7 @@ describe('mapa de unificações (puro)', () => {
     expect(m.acao).toContain('Conferir o saldo de 200 no ERP');
     expect(f.alertas.join(' ')).toContain('não está cadastrado no estabelecimento F');
     expect(f.fica?.saldo).toBeNull();
-    expect(fora.alertas).toEqual(['O código que morre (999) não foi encontrado na base.']);
+    expect(fora.alertas).toEqual(['O código que sai (999) não foi encontrado na base.']);
   });
 
   it('situação: liberada só aprovadas; revisão traz propostas e aguardando; rejeitado e obsoleto nunca', () => {
@@ -123,9 +124,12 @@ describe('mapa de unificações (puro)', () => {
     expect(Date.now() - inicio).toBeLessThan(5000);
     const buf = await gerarExcelMapa(l);
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf as never);
-    const ws = wb.getWorksheet('Unificações e inativações')!;
-    expect(ws.rowCount).toBe(30_001);
+    // Uma aba por lista, cada uma com as suas colunas.
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Unificações', 'Inativações']);
+    const ws = wb.getWorksheet('Unificações')!;
+    expect(ws.rowCount).toBe(20_001);
     expect(ws.getRow(2).getCell(2).value).toBe('00000-1');
+    expect(wb.getWorksheet('Inativações')!.rowCount).toBe(10_001);
   }, 120_000);
 });
 
@@ -193,11 +197,13 @@ describe('sem movimentação e unificações: fluxo com o banco falso', () => {
     // Excel só do mapa, pela rota.
     const ctrl = new EntregaveisController(c.entregas);
     const arq = await ctrl.unificacoesExcel(p.id, { situacao: 'APROVADA' });
-    expect(arq.getHeaders().disposition).toMatch(/^attachment; filename="unificacoes-e-inativacoes_agropecuaria-teste-ltda_\d{4}-\d{2}-\d{2}\.xlsx"$/);
+    expect(arq.getHeaders().disposition).toMatch(/^attachment; filename="unificacoes-e-inativacoes_agropecuaria-teste-ltda_\d{2}-\d{2}-\d{4}\.xlsx"$/);
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(arq.getStream().read() as never);
-    const ws = wb.getWorksheet('Unificações e inativações')!;
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Inativações']);
+    const ws = wb.getWorksheet('Inativações')!;
     expect(ws.rowCount).toBe(2);
-    expect(ws.getRow(2).getCell(14).value).toBe('Inativar 400');
+    expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(['Origem', 'Código', 'Descrição', 'Unidade', 'Saldo', 'Situação', 'Ação no ERP', 'Início da vigência', 'Justificativa', 'Responsável', 'Data da decisão']); // sem Marca: nenhuma linha aberta no filtro
+    expect(ws.getRow(2).getCell(7).value).toBe('Inativar 400');
   });
 });
 
@@ -230,14 +236,15 @@ describe('mapa: nota da escala do saldo no Excel (revisão, achado 5)', () => {
     const porId = new Map(itens.map((i) => [i.id, i]));
     const l = montarMapa({ liberada: false, dataBase: null, item: (id) => porId.get(id), vinculos: [], escala: 1e6, casos: [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200') })] });
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l, { escala: 1e6 })) as never);
-    const ws = wb.getWorksheet('Unificações e inativações')!;
+    const ws = wb.getWorksheet('Unificações')!;
     expect(notaDaEscala(1e6)).toBe('Saldos divididos por 1.000.000 (escala detectada na base: o ERP mostra os valores multiplicados)');
     expect(textos(ws)).toContain(notaDaEscala(1e6));
-    expect(ws.getRow(1).getCell(6).value).toBe('Saldo (código que morre) ÷ 1.000.000');
-    expect(ws.getRow(1).getCell(12).value).toBe('Saldo consolidado ÷ 1.000.000');
-    expect(ws.getRow(2).getCell(6).value).toBe(3);
+    const cab = (ws.getRow(1).values as unknown[]).slice(1).map(String);
+    expect(cab).toContain('Saldo (código que sai) ÷ 1.000.000');
+    expect(cab).toContain('Saldo consolidado ÷ 1.000.000');
+    expect(ws.getRow(2).getCell(cab.indexOf('Saldo (código que sai) ÷ 1.000.000') + 1).value).toBe(3);
     const sem = new ExcelJS.Workbook(); await sem.xlsx.load((await gerarExcelMapa(l)) as never);
-    expect(textos(sem.getWorksheet('Unificações e inativações')!).join(' ')).not.toMatch(/Saldos divididos|÷/);
+    expect(textos(sem.getWorksheet('Unificações')!).join(' ')).not.toMatch(/Saldos divididos|÷/);
   });
   it('aba De para e equivalências da entrega: a mesma nota quando a base tem a escala', async () => {
     const d = dadosBase(false);
@@ -272,6 +279,37 @@ describe('mapa: unificação × inativação (achado 3a)', () => {
   it('o código que fica já inativo (ativo = não) também gera o conflito', () => {
     const l = mapa([it_('a', '100', { ativo: false }), it_('b', '200')], [caso({ itens: ['a', 'b'], proposta: consolida('100', '200') })]);
     expect(l[0].alertas.join(' ')).toContain('Conflito: o código que fica (100) está inativo');
+    expect(conflitosDoMapa(l)).toEqual([{ sai: '200', fica: '100', situacaoUnificacao: 'APROVADA', inativacao: { codigo: '100', situacao: 'INATIVO_NA_BASE', origem: null } }]);
+  });
+  it('o par em conflito vai uma vez só para a contagem, a tela e a aba "Conflitos" do Excel do mapa', async () => {
+    const itens = [it_('a', '100'), it_('b', '200'), it_('c', '300')];
+    const l = mapa(itens, [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200'), situacao: 'PROPOSTO' }), semMov('q', ['a', 'c'], 'APROVADO')]);
+    const pares = contarMapa(l).conflitos;
+    expect(pares).toEqual([{ sai: '200', fica: '100', situacaoUnificacao: 'PROPOSTA', inativacao: { codigo: '100', situacao: 'APROVADA', origem: 'QUALIDADE' } }]);
+    expect(contarMapa(l).porLista).toEqual({ UNIFICACOES: 1, INATIVACOES: 2, EQUIVALENCIAS: 0 });
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l)) as never);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Conflitos', 'Unificações', 'Inativações']);
+    const ws = wb.getWorksheet('Conflitos')!;
+    expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(['Código que sai', 'Código que fica', 'Situação da unificação', 'Código inativado', 'Situação da inativação', 'Origem da inativação', 'O que fazer']);
+    expect((ws.getRow(2).values as unknown[]).slice(1, 7)).toEqual(['200', '100', 'Proposta', '100', 'Aprovada', 'Inativação (sem movimentação)']);
+    expect(String(ws.getRow(2).getCell(7).value)).toContain('rejeitar ou reabrir um dos dois casos');
+  });
+});
+
+describe('mapa: unificação sem saldo (avaliação A13)', () => {
+  it('saldo 0 nos dois códigos: "Inativar o código que sai", sem saída e entrada de mercadoria (OIGE/OIGN), mesmo com perfil SAP', () => {
+    const itens = [it_('a', '100', { saldo: 0 }), it_('b', '200', { saldo: 0, unidade: 'CX' })];
+    const porId = new Map(itens.map((i) => [i.id, i]));
+    const perfilErp = { id: 'sap', nome: 'SAP Business One', situacao: 'DESENVOLVIDO', itens: [
+      { id: 'x1', tipo: 'ACAO_NO_ERP', tipo_ajuste: 'CONSOLIDOU_INATIVOU', chave: 'Unificação', texto: 'Saída de mercadoria (OIGE) de {sai}; entrada (OIGN) em {fica}; depois inativar {sai}', campo_erp: null, fonte_url: null, grau: 'CONFIRMADO', ordem: 1, ativo: true },
+      { id: 'x2', tipo: 'ACAO_NO_ERP', tipo_ajuste: 'INATIVOU', chave: 'Inativação', texto: 'Inativar {sai} no cadastro (frozenFor = Y)', campo_erp: null, fonte_url: null, grau: 'CONFIRMADO', ordem: 2, ativo: true },
+    ] } as never;
+    const [u] = montarMapa({ liberada: false, dataBase: null, item: (id) => porId.get(id), vinculos: [], perfilErp, casos: [caso({ itens: ['a', 'b'], proposta: consolida('100', '200') })] });
+    expect(u.acao).toContain('Inativar o código que sai (200): sem saldo a transferir para 100');
+    expect(u.acao).not.toMatch(/OIGE|OIGN/);
+    // Sem saldo, a unidade diferente não pede fator.
+    expect(u.alertas).toEqual([]);
+    expect([u.saldoEntra, u.saldoConsolidado]).toEqual([0, 0]);
   });
 });
 

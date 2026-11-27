@@ -106,3 +106,22 @@ describe("api.visualizar", () => {
     await expect(api.visualizar("get", "/x/pdf")).rejects.toThrow(/bloqueou a nova aba.*Baixar o PDF/);
   });
 });
+
+describe("api.baixar com o nome do servidor", () => {
+  it("usa o nome do Content-Disposition (cliente, versão, data) e, sem ele, o nome pedido", async () => {
+    const link = { click: vi.fn(), remove: vi.fn(), href: "", download: "" };
+    Object.defineProperty(globalThis, "document", { configurable: true, value: { createElement: () => link, body: { appendChild: vi.fn() } } });
+    URL.createObjectURL = vi.fn(() => "blob:teste");
+    URL.revokeObjectURL = vi.fn();
+    request.mockResolvedValue({ data: new Blob(["x"]), headers: { "content-disposition": 'attachment; filename="politica-estoques_crestani_v2.pdf"' } });
+    await api.baixar("get", "/x/pdf", { nome: "politica.pdf", nomeDoServidor: true });
+    expect(link.download).toBe("politica-estoques_crestani_v2.pdf");
+    request.mockResolvedValue({ data: new Blob(["x"]), headers: {} });
+    await api.baixar("get", "/x/pdf", { nome: "politica.pdf", nomeDoServidor: true });
+    expect(link.download).toBe("politica.pdf");
+    // Sem a opção, vale o nome pedido mesmo com o cabeçalho.
+    request.mockResolvedValue({ data: new Blob(["x"]), headers: { "content-disposition": 'attachment; filename="outro.pdf"' } });
+    await api.baixar("get", "/x/pdf", { nome: "pedido.pdf" });
+    expect(link.download).toBe("pedido.pdf");
+  });
+});

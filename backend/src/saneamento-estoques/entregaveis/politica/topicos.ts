@@ -54,22 +54,44 @@ function nomes(c: RegraNomes): Topicos {
   }
   t.push(c.capitalizacao === 'MAIUSCULAS' ? 'Escrita em maiúsculas' : c.capitalizacao === 'MINUSCULAS' ? 'Escrita em minúsculas' : 'Maiúsculas e minúsculas mantidas como cadastradas');
   if (c.removerEspacosDuplicados) t.push('Sem espaços duplicados nem espaços no início ou no fim');
-  if (c.abreviacoes.length) t.push('Só as abreviações da tabela abaixo; outras abreviações não são usadas');
+  if (c.abreviacoes.length) t.push('Só as abreviações aprovadas (Anexo); outras abreviações não são usadas');
+  if (c.termosProibidos.length) t.push('Termos que não podem ser usados: os do Anexo, com o termo a usar no lugar');
   t.push('A padronização reordena e ajusta o que já consta da descrição; componente ausente é informado pelo responsável pelo cadastro, nunca presumido');
-  const tabelas: TabelaTopico[] = [];
-  if (c.abreviacoes.length) {
-    tabelas.push({
-      titulo: 'Abreviações aprovadas', cabecalho: ['Expressão completa', 'Abreviação aprovada'], larguras: [0.6, 0.4],
-      linhas: [...c.abreviacoes].sort((a, b) => a.completa.localeCompare(b.completa, 'pt-BR')).map((a) => [a.completa, a.abreviacao]),
-    });
-  }
-  if (c.termosProibidos.length) {
-    tabelas.push({
-      titulo: 'Termos que não podem ser usados', cabecalho: ['Termo', 'Usar no lugar'], larguras: [0.5, 0.5],
-      linhas: [...c.termosProibidos].sort((a, b) => a.termo.localeCompare(b.termo, 'pt-BR')).map((x) => [x.termo, x.substituicao ?? 'Remover o termo']),
-    });
-  }
-  return { topicos: t, tabelas };
+  // Abreviações e termos ficam no Anexo da política (uma tabela só para todas as regras de nomes): ver tabelasDoAnexo.
+  return { topicos: t, tabelas: [] };
+}
+
+/**
+ * Tabelas do Anexo: abreviações aprovadas e termos que não podem ser usados, uma vez só para todas as regras de nomes. Com mais de uma regra,
+ * a coluna "Regras" diz em quais vale a linha ("Todas" quando vale em todas).
+ */
+export function tabelasDoAnexo(regras: { codigo: string; conteudo: ConteudoRegra }[]): TabelaTopico[] {
+  const nomesR = regras.filter((r) => r.conteudo.aspecto === 'NOMES').sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true })) as { codigo: string; conteudo: RegraNomes }[];
+  const varias = nomesR.length > 1;
+  const juntarLinhas = (pares: { chave: string; cols: string[]; regra: string }[]) => {
+    const m = new Map<string, { cols: string[]; regras: string[] }>();
+    for (const p of pares) {
+      const x = m.get(p.chave);
+      if (x) { if (!x.regras.includes(p.regra)) x.regras.push(p.regra); } else m.set(p.chave, { cols: p.cols, regras: [p.regra] });
+    }
+    return [...m.values()].sort((a, b) => a.cols[0].localeCompare(b.cols[0], 'pt-BR')).map((x) => (varias ? [...x.cols, x.regras.length === nomesR.length ? 'Todas' : x.regras.join(', ')] : x.cols));
+  };
+  const abrev = juntarLinhas(nomesR.flatMap((r) => r.conteudo.abreviacoes.map((a) => ({ chave: `${a.completa}\u0001${a.abreviacao}`, cols: [a.completa, a.abreviacao], regra: r.codigo }))));
+  const termos = juntarLinhas(nomesR.flatMap((r) => r.conteudo.termosProibidos.map((x) => ({ chave: `${x.termo}\u0001${x.substituicao ?? ''}`, cols: [x.termo, x.substituicao ?? 'Remover o termo'], regra: r.codigo }))));
+  const out: TabelaTopico[] = [];
+  if (abrev.length) out.push({ titulo: 'Abreviações aprovadas', cabecalho: ['Expressão completa', 'Abreviação aprovada', ...(varias ? ['Regras'] : [])], larguras: varias ? [0.46, 0.3, 0.24] : [0.6, 0.4], linhas: abrev });
+  if (termos.length) out.push({ titulo: 'Termos que não podem ser usados', cabecalho: ['Termo', 'Usar no lugar', ...(varias ? ['Regras'] : [])], larguras: varias ? [0.38, 0.38, 0.24] : [0.5, 0.5], linhas: termos });
+  return out;
+}
+
+/**
+ * O que a regra tem de diferente da regra padrão do aspecto: só os tópicos e as tabelas que a padrão não tem (ou tem diferente). Vazio =
+ * mesmo conteúdo da padrão (muda só a abrangência).
+ */
+export function diferencaDaPadrao(regra: Topicos, padrao: Topicos): Topicos {
+  const temTopico = new Set(padrao.topicos);
+  const temTabela = new Set(padrao.tabelas.map((x) => JSON.stringify(x)));
+  return { topicos: regra.topicos.filter((x) => !temTopico.has(x)), tabelas: regra.tabelas.filter((x) => !temTabela.has(JSON.stringify(x))) };
 }
 
 function atributos(c: RegraAtributos): Topicos {

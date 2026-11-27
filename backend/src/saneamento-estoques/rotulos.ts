@@ -29,6 +29,9 @@ export const ROTULO_TIPO_CASO: Record<string, string> = {
   DESCRICAO_FORA_DO_PADRAO: 'Descrição fora do padrão', TERMO_GENERICO: 'Descrição com termo genérico', ABREVIACAO_ESCONDE_ATRIBUTO: 'Abreviação que esconde atributo',
   CARACTERES_INVALIDOS: 'Caracteres inválidos', TAMANHO_EXCEDIDO: 'Tamanho acima do limite do ERP', UNIDADE_CONVERSAO: 'Conversão de unidade',
   UNIDADE_GRAFIA: 'Grafia da unidade', UNIDADE_SEM_REGRA: 'Unidade sem regra', UNIDADE_INCOMPATIVEL: 'Unidade incompatível',
+  DESCRICAO_FORA_PADRAO: 'Descrição fora do padrão', TERMO_PROIBIDO: 'Termo proibido na descrição', COMPONENTE_AUSENTE: 'Componente ausente na descrição',
+  UNIDADE_NAO_PERMITIDA: 'Unidade não permitida', UNIDADE_FORA_CRITERIO: 'Unidade fora do critério do grupo', EXCEDE_LIMITE_DESTINO: 'Acima do limite de caracteres',
+  LIMITE_NAO_CONFIRMADO: 'Limite de caracteres não confirmado', ATRIBUTO_AUSENTE: 'Atributo ausente',
   // NCM
   NCM_FORMATO: 'Formato do NCM', NCM_INEXISTENTE: 'NCM inexistente', NCM_CLASSIFICACAO_ANTIGA: 'NCM de classificação antiga', NCM_DIVERGENTE_ENTRE_ITENS_IGUAIS: 'NCM diferente entre itens iguais',
   NCM_INCOMPATIVEL_DESCRICAO: 'NCM incompatível com a descrição', NCM_INCOERENTE: 'NCM incoerente', NCM_INFO_INSUFICIENTE: 'Informação insuficiente para o NCM',

@@ -80,13 +80,16 @@ describe('perfil do ERP nos casos e no relatório', () => {
   it('PDF: "Particularidades do ERP <nome>" com as restrições dos ajustes aprovados, grau e fonte; sem perfil específico, nada', () => {
     const casos = [{ situacao: 'APROVADO', camada: 'DUPLICIDADE', tipo: 'DUPLICIDADE_EXATA', proposta: { decisao: 'PROPOR_CONSOLIDACAO', manter: '1', consolidar: '2' } }] as never;
     const s = secaoParticularidadesErp({ casos }, SAP)!;
-    expect(s.titulo).toBe('Particularidades do ERP SAP Business One');
+    expect(s.titulo).toBe('Anexo: particularidades do ERP SAP Business One');
     expect(s.tabela!.linhas.map((l) => l[0])).toEqual(Array(4).fill('Consolidou código (unificação)'));
     // Parte confirmada e parte não confirmada em itens separados (fusão não documentada × OWTR; custo médio é pista da Community).
     expect(s.tabela!.linhas.map((l) => l[2])).toEqual(['Não confirmado', 'Confirmado', 'Não confirmado', 'Confirmado']);
     expect(s.tabela!.linhas[3][1]).toMatch(/versão 9\.0/);
-    expect(s.paragrafos![0]).toMatch(/"Não confirmado" não têm fonte oficial/);
-    expect(s.tabela!.linhas[0][3]).toMatch(/^https:\/\//);
+    expect(s.paragrafos![0]).toMatch(/"Não confirmado" = sem fonte oficial/);
+    // Fonte como link curto (o domínio), com o endereço completo no link da célula.
+    expect(s.tabela!.linhas[0][3]).toMatch(/^[a-z0-9.-]+\.[a-z]{2,}$/);
+    expect(s.tabela!.links![0][3]).toMatch(/^https:\/\//);
+    expect(s.tabela!.links![0].slice(0, 3)).toEqual([null, null, null]);
     expect(secaoParticularidadesErp({ casos }, OUTRO)).toBeNull();
     expect(secaoParticularidadesErp({ casos }, null)).toBeNull();
     // Caso não aprovado não entra.
@@ -97,10 +100,10 @@ describe('perfil do ERP nos casos e no relatório', () => {
     const base = dadosBase(true);
     const com = JSON.stringify(montarRelatorio({ ...base, perfilErp: SAP }));
     const sem = JSON.stringify(montarRelatorio(base));
-    expect(sem).not.toContain('Particularidades do ERP');
+    expect(sem).not.toContain('particularidades do ERP');
     const tipos = new Set<string>();
     for (const c of base.casos as { situacao: string; camada: string; tipo: string; proposta: unknown }[]) if (c.situacao === 'APROVADO') for (const t of tiposDeAjusteDoCaso(c)) tipos.add(t);
     const temRestricao = SAP.itens.some((i) => i.tipo === 'RESTRICAO' && i.tipo_ajuste && tipos.has(i.tipo_ajuste));
-    expect(com.includes('Particularidades do ERP SAP Business One')).toBe(temRestricao);
+    expect(com.includes('Anexo: particularidades do ERP SAP Business One')).toBe(temRestricao);
   });
 });

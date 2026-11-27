@@ -49,11 +49,7 @@ export function resumoCampos(o: unknown): string {
 
 export const comMilhar = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 export const pct1 = (x: number) => `${(Math.round(x * 1000) / 10).toFixed(1).replace('.', ',')}%`;
-export const dataBr = (d: Date | null, utc = true) => {
-  if (!d) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return utc ? `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}` : `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
-};
+export { dataBr, dataExcel } from './formato';
 
 const igual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
@@ -241,7 +237,23 @@ export const nomeCliente = (m: Modelo) => projetoTexto(m, 'clienteNome') || '—
 
 export type LinhaCenario = {
   cenario: string; enquadramentoLegal: string; artigo: string; cst: string; cClassTrib: string; origem: string; observacao: string; situacao: string; marca: string;
+  /** Crédito do cenário (para comparar a devolução com a aquisição). */
+  credito?: string;
+  /** Por que o item fica sem enquadramento (contagem do Resumo na entrega liberada); vazio quando há enquadramento. */
+  motivoFora?: string;
 };
+/** Linha de cenário com enquadramento concluído (aprovado ou conferido sem problema, com cClassTrib): a única que vai na entrega liberada. */
+export const cenarioEnquadrado = (l: LinhaCenario) => l.cenario !== '—' && !!l.cClassTrib && (l.situacao === 'Aprovado' || l.situacao === 'Sem problema');
+/**
+ * Entrega liberada: a "Devolução" só sai quando o tratamento difere do da aquisição (CST, cClassTrib, enquadramento, artigo ou crédito).
+ * Igual, a linha é omitida e vale a da aquisição (regra escrita no Resumo).
+ */
+export function devolucaoIgualAquisicao(linhas: LinhaCenario[], l: LinhaCenario): boolean {
+  if (l.cenario !== ROTULO_CENARIO.DEVOLUCAO) return false;
+  const a = linhas[0];
+  if (!a || a === l) return false;
+  return a.cst === l.cst && a.cClassTrib === l.cClassTrib && a.enquadramentoLegal === l.enquadramentoLegal && a.artigo === l.artigo && (a.credito ?? '') === (l.credito ?? '');
+}
 
 // "Em regra" não afirma crédito: a descrição traz as condições do art. 47 (débito extinto, documento idôneo) e a classe de alíquota zero
 // já chega como "a verificar".
@@ -272,7 +284,7 @@ export function linhasDeCenario(m: Modelo, it: ItemN): LinhaCenario[] {
   const cel = celula(m, it.id, 'TRIBUTARIO');
   // Entrega liberada: item com célula marcada "revisar" (NCM ou finalidade mudou depois da decisão) não sai como aprovado nem com o enquadramento antigo.
   if (m.liberada && cel?.revisar) {
-    return [{ cenario: '—', enquadramentoLegal: '', artigo: '', cst: '', cClassTrib: '', origem: '', situacao: 'Aguardando revisão', marca: '', observacao: 'A decisão anterior depende de dado que mudou depois dela: revisar o enquadramento antes de usar.' }];
+    return [{ cenario: '—', enquadramentoLegal: '', artigo: '', cst: '', cClassTrib: '', origem: '', situacao: 'Aguardando revisão', marca: '', observacao: 'A decisão anterior depende de dado que mudou depois dela: revisar o enquadramento antes de usar.', motivoFora: 'Aguardando revisão (NCM ou finalidade mudou depois da decisão)' }];
   }
   const casos = m.casosDoItem.get(it.id) ?? [];
   const decidida = cel?.situacao === 'APROVADO' || cel?.situacao === 'SEM_PROBLEMA';
@@ -283,7 +295,7 @@ export function linhasDeCenario(m: Modelo, it: ItemN): LinhaCenario[] {
   const ehConjunto = (c: CasoN) => c.tipo === 'ENQUADRAMENTO_CONJUNTO' || c.tipo === 'ENQUADRAMENTO_CONFERIDO';
   const conjunto = casos.find((c) => ehConjunto(c) && (c.situacao === 'APROVADO' || (!m.liberada && c.situacao !== 'REJEITADO')));
 
-  let base: Omit<LinhaCenario, 'cenario' | 'observacao'>; let obsBase = ''; let fonteCredito: CasoN | undefined = conjunto;
+  let base: Omit<LinhaCenario, 'cenario' | 'observacao'>; let obsBase = ''; let fonteCredito: CasoN | undefined = conjunto; let motivoFora = '';
   const situacaoCel = ROTULO_SITUACAO[cel?.situacao ?? 'PENDENTE'] ?? 'Pendente';
   if (decidida && informada) {
     const p = obj(aprovado?.proposta);
@@ -307,25 +319,29 @@ export function linhasDeCenario(m: Modelo, it: ItemN): LinhaCenario[] {
   } else if (aguardando) {
     base = { enquadramentoLegal: '', artigo: '', cst: '', cClassTrib: '', origem: '', situacao: 'Aguardando informação', marca: '' };
     obsBase = aguardando.motivo || aguardando.justificativa; fonteCredito = undefined;
+    motivoFora = rotuloTipoCaso(aguardando.tipo);
   } else if (!m.liberada && informada) {
     base = { enquadramentoLegal: '', artigo: '', cst: txt(it.campos.cst), cClassTrib: informada, origem: 'Informado no cadastro', situacao: situacaoCel, marca: 'Informado no cadastro, ainda não conferido' };
     fonteCredito = undefined;
   } else {
     base = { enquadramentoLegal: '', artigo: '', cst: '', cClassTrib: '', origem: '', situacao: situacaoCel, marca: '' };
     fonteCredito = undefined;
+    motivoFora = 'Enquadramento ainda não aprovado';
   }
+  if (!motivoFora && !base.cClassTrib) motivoFora = 'Enquadramento ainda não aprovado';
 
   const cenarios = it.finalidade ? CENARIOS[it.finalidade] ?? [] : [];
   if (cenarios.length === 0) {
     const motivo = !it.finalidade ? 'Finalidade não confirmada: o cenário depende dela' : 'Material de terceiros: o tratamento depende da operação e não foi conferido nesta base';
-    return [{ cenario: '—', enquadramentoLegal: '', artigo: '', cst: '', cClassTrib: '', origem: '', situacao: base.situacao, marca: '', observacao: [motivo, obsBase].filter(Boolean).join(' · ') }];
+    return [{ cenario: '—', enquadramentoLegal: '', artigo: '', cst: '', cClassTrib: '', origem: '', situacao: base.situacao, marca: '', observacao: [motivo, obsBase].filter(Boolean).join(' · '), motivoFora: !it.finalidade ? 'Finalidade não confirmada' : 'Material de terceiros (operação não conferida)' }];
   }
   return cenarios.map((c) => {
     const rotuloBase = ROTULO_CENARIO[c as keyof typeof ROTULO_CENARIO];
     const nota = notaDoCenario(c, it.finalidade!);
+    const credito = textoCredito(fonteCredito, rotuloBase);
     return {
-      ...base, cenario: rotuloDoCenario(c, it.finalidade!),
-      observacao: [nota, textoCredito(fonteCredito, rotuloBase), obsBase].filter(Boolean).join(' · '),
+      ...base, cenario: rotuloDoCenario(c, it.finalidade!), credito, motivoFora,
+      observacao: [nota, credito, obsBase].filter(Boolean).join(' · '),
     };
   });
 }
