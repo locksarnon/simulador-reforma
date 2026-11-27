@@ -83,6 +83,10 @@ export const SECAO_SANEAMENTO = {
       r: "Em três fases, no alto: Fase 1 · Saneamento, Fase 2 · Tributário e Fechamento, cada uma com a sua situação (andamento em percentual, Liberada, Bloqueada ou Após as fases). Cada fase tem as suas abas, com o número da fase: Fase 1, 1.1 Preparar e diretrizes, 1.2 Análise, 1.3 Casos, 1.4 Unificações e 1.5 Entrega da Fase 1; Fase 2, 2.1 Premissas e diretrizes, 2.2 Análise, 2.3 Casos e 2.4 Entrega da Fase 2; Fechamento, 3.1 Entregas finais. As Diretrizes ficam embaixo da primeira aba de cada fase. À direita das abas, em qualquer fase e sem número, ficam Tabela, Visão geral, Impacto no SPED e Versões, que mostram o projeto inteiro: são botões lado a lado, e o aberto fica em verde cheio. O projeto abre na fase em andamento, sempre na primeira aba dela (POP-CON-09); se não for possível conferir a situação das fases, as três mostram “Não foi possível conferir” e o aviso no alto traz Tentar de novo.",
     },
     {
+      p: "Para onde leva cada item da trilha no alto do saneamento?",
+      r: "A trilha é Início > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > fase > aba. O cliente leva à página dele na Carteira de Consultoria, com os cartões dos projetos. Como o projeto abre direto na ferramenta, ele é a raiz das telas do saneamento: clicar no projeto leva à tela em que ele abre (a fase em andamento, na primeira aba), e clicar na fase leva à primeira aba dela. O item que levaria à tela já aberta fica sem link, na cor da tela aberta, porque o clique não mudaria nada. Voltar volta à tela anterior; aberto numa aba nova, sem tela anterior no InTAX, sobe um nível na trilha (POP-CON-09).",
+    },
+    {
       p: "Como fica a Cobertura das camadas agora que o trabalho é em fases?",
       r: "Ela fica na aba Análise de cada fase e mostra só as camadas daquela fase. Fase 1 · Saneamento de estoques: Identificação, Qualidade, Duplicidades, Grupos, Nomes e unidades, Validar NCM e Impacto no SPED. Fase 2 · Tributário e Reforma: Finalidade, Classificação NCM (reclassificação: NCM incompatível com a descrição, informação insuficiente ou diferente entre itens iguais), Tratamento tributário e Impacto no SPED. Cada fase tem o botão Analisar a fase (na ordem) e cada camada o seu botão Analisar. Impacto no SPED aparece nas duas fases porque roda no fim de cada uma.",
     },
@@ -208,7 +212,7 @@ export const SECAO_SANEAMENTO = {
     },
     {
       p: "O que o botão Analisar com IA faz e o que ele envia?",
-      r: "Em qualquer projeto de serviço de consultoria, monta um rascunho de parecer no roteiro do serviço, com o contexto do projeto (serviço, período ou data-base, regime, setor, UF, porte, CNAE, situação dos documentos e achados) e os trechos da base legal do InTAX. Não envia nome, CNPJ, CPF, e-mail nem endereço do cliente e não muda o projeto: só o último rascunho fica guardado, e o consultor copia, revisa, confere as fontes e assume o texto. O rascunho rápido fica pronto em até um minuto.",
+      r: "Nos projetos de consultoria que abrem pela página do projeto (todos, menos o Saneamento de estoques, que abre direto na ferramenta e tem a IA no parecer de cada caso), monta um rascunho de parecer no roteiro do serviço, com o contexto do projeto (serviço, período ou data-base, regime, setor, UF, porte, CNAE, situação dos documentos e achados) e os trechos da base legal do InTAX. Não envia nome, CNPJ, CPF, e-mail nem endereço do cliente e não muda o projeto: só o último rascunho fica guardado, e o consultor copia, revisa, confere as fontes e assume o texto. O rascunho rápido fica pronto em até um minuto.",
     },
     {
       p: "A IA sabe o que o ERP do cliente permite?",

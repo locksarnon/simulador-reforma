@@ -19,6 +19,7 @@ import Importacao from "@/components/saneamento-estoques/Importacao";
 import TabelaUnica from "@/components/saneamento-estoques/TabelaUnica";
 import Unificacoes from "@/components/saneamento-estoques/Unificacoes";
 import RoteiroProjeto from "@/components/saneamento-estoques/RoteiroProjeto";
+import DadosDoProjeto from "@/components/consultoria/DadosDoProjeto";
 import Versoes from "@/components/saneamento-estoques/Versoes";
 import VisaoGeral from "@/components/saneamento-estoques/VisaoGeral";
 import {
@@ -181,7 +182,13 @@ export default function SaneamentoEstoquesPagina() {
   };
 
   const cliente = useClienteDoProjeto(diag.data);
-  const crumbs = trilhaDoProjeto({ projeto: diag.data || { id, servico_consultoria: "saneamento-estoques" }, cliente, telas: telasDoSaneamento(id, esperandoFase ? {} : { fase, aba }) });
+  // Na trilha, o projeto leva à tela em que ele abre (a fase em andamento, na primeira aba); estando nela, o projeto fica sem link.
+  const partida = inicio || { fase: faseInicial(fasesQ.data), aba: abaInicialDaFase(faseInicial(fasesQ.data)) };
+  const crumbs = trilhaDoProjeto({
+    projeto: diag.data || { id, servico_consultoria: "saneamento-estoques" }, cliente,
+    telas: telasDoSaneamento(id, esperandoFase ? {} : { fase, aba }),
+    noInicioDoProjeto: esperandoFase || (fase === partida.fase && aba === partida.aba),
+  });
 
   let corpo;
   if (naoAberto && abrir.isError) {
@@ -228,7 +235,9 @@ export default function SaneamentoEstoquesPagina() {
 
   return (
     <div>
-      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada." actions={<RoteiroProjeto />} />
+      {/* O projeto abre direto aqui (sem a página do projeto): os dados dele (situação, data-base, documentos, exclusão) ficam no cabeçalho. */}
+      <PageHeader crumbs={crumbs} title="Saneamento de estoques e cadastro de produtos" subtitle="Cadastro de itens, qualidade, duplicidades, NCM e tratamento tributário para IBS e CBS, com revisão por camada."
+        actions={<div className="flex flex-wrap items-center gap-2"><DadosDoProjeto projeto={diag.data} cliente={cliente} /><RoteiroProjeto /></div>} />
       <div className="px-6 py-5 lg:px-8">{corpo}</div>
     </div>
   );

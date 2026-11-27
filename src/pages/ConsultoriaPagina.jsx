@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import PageHeader from "@/components/PageHeader";
 import TabelaPadrao from "@/components/TabelaPadrao";
 import CartaoClicavel from "@/components/CartaoClicavel";
+import { rotaDeAbrirProjeto } from "@/lib/trilhas";
 import OrganogramaServicos from "@/components/consultoria/OrganogramaServicos";
 import SolicitacoesConsultoria from "@/components/consultoria/SolicitacoesConsultoria";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -57,7 +58,8 @@ export default function ConsultoriaPagina({ carteira = false }) {
       qc.invalidateQueries({ queryKey: ["consultoria", "vinculos"] });
       qc.invalidateQueries({ queryKey: ["projetos-diagnostico"] });
       setPainel(null);
-      navigate(`/diagnostico/projetos/${resultado.id}`);
+      // Projeto novo abre onde se trabalha nele (o de Saneamento, direto na ferramenta).
+      navigate(rotaDeAbrirProjeto({ id: resultado.id, servico_consultoria: resultado.servico_consultoria ?? escolha }));
     },
   });
   function configurar(servico = "") {
@@ -123,7 +125,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
     // O cartão inteiro abre o projeto (CartaoClicavel), não só o link.
     const renderProjeto = (p) => {
       const s = servicos.find((s) => s.id === p.servico_consultoria);
-      return <CartaoClicavel key={p.id} titulo={s?.nome || p.nome} para={`/diagnostico/projetos/${p.id}`} acao={emAberto.includes(p) ? "Continuar projeto" : "Abrir projeto"}
+      return <CartaoClicavel key={p.id} titulo={s?.nome || p.nome} para={rotaDeAbrirProjeto(p)} acao={emAberto.includes(p) ? "Continuar projeto" : "Abrir projeto"}
         detalhe={`${rotuloPeriodo(p, fmtDataCurta)} · ${!s?.projeto && p.situacao === "EM_ANDAMENTO" ? "Em coleta de documentos" : SITUACOES_PROJETO[p.situacao]?.rotulo || p.situacao}`} />;
     };
 
@@ -172,7 +174,7 @@ export default function ConsultoriaPagina({ carteira = false }) {
               </fieldset>
               {abrirProjeto.data?.sobrepostos && <div className="space-y-2 text-sm">
                 <p>Já há projetos com período sobreposto:</p>
-                {abrirProjeto.data.sobrepostos.map((p) => <Link key={p.id} className="block text-primary underline" to={`/diagnostico/projetos/${p.id}`}>{p.nome} · {rotuloPeriodo({ ...p, servico_consultoria: escolha }, fmtDataCurta)}</Link>)}
+                {abrirProjeto.data.sobrepostos.map((p) => <Link key={p.id} className="block text-primary underline" to={rotaDeAbrirProjeto({ ...p, servico_consultoria: p.servico_consultoria ?? escolha })}>{p.nome} · {rotuloPeriodo({ ...p, servico_consultoria: escolha }, fmtDataCurta)}</Link>)}
                 <button type="button" className={botao} disabled={abrirProjeto.isPending} onClick={() => abrirProjeto.mutate(true)}>Criar novo projeto mesmo assim</button>
               </div>}
               {abrirProjeto.isError && <p role="alert">{abrirProjeto.error.message}</p>}

@@ -10,13 +10,13 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Entrar na ferramenta do projeto, saber em que fase e em que aba trabalhar e rodar a análise de cada camada, fase por fase.",
     quem: "Consultor",
     quando: "No início do saneamento e sempre que voltar ao projeto.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Abrir o Saneamento de estoques e cadastro de produtos",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > cartão do projeto (abre direto no Saneamento de estoques e cadastro de produtos)",
     antes: [
       "O projeto deve ter sido aberto na Carteira de Consultoria com o serviço “Saneamento de estoques com foco em IBS e CBS” e a Data-base (POP-CON-01).",
     ],
     passos: [
-      { acao: "Abra o projeto em Projetos.", detalhe: "O quadro “Saneamento de estoques” mostra a Data-base e um botão só, para a ferramenta do projeto." },
-      { acao: "Clique em Abrir o Saneamento de estoques e cadastro de produtos.", detalhe: "Na primeira vez, o saneamento do projeto é criado ao entrar, sem outro clique: enquanto aparece “Abrindo o saneamento”, as atividades do cliente são lidas do CNPJ e a data-base vem do projeto. Se a abertura falhar, a tela mostra o motivo e o botão Tentar de novo." },
+            { acao: "Na página do cliente, clique no cartão do projeto (ou na linha dele em Projetos).", detalhe: "O Saneamento de estoques e cadastro de produtos abre direto, sem a página do projeto. Na primeira vez, o saneamento do projeto é criado ao entrar, sem outro clique: enquanto aparece “Abrindo o saneamento”, as atividades do cliente são lidas do CNPJ e a data-base vem do projeto. Se a abertura falhar, a tela mostra o motivo e o botão Tentar de novo." },
+      { acao: "Para mudar a situação, o nome, a data-base, o prazo, o responsável ou o escopo, abrir os Documentos e solicitações ou excluir o projeto, clique em Dados do projeto, no alto da tela.", detalhe: "Os dados abrem num painel ao lado; Salvar grava e fecha. A exclusão segue a regra de sempre: quem não é administrador solicita, e o administrador aprova ou recusa." },
       { acao: "No alto da página, leia as três fases: Fase 1 · Saneamento, Fase 2 · Tributário e Fechamento.", detalhe: "Cada fase mostra a sua situação. Fase 1: “Em andamento” com o percentual de camadas em dia (camada já analisada, sem caso em aberto nem aguardando informação) ou “Liberada”, quando há versão da Fase 1 liberada. Fase 2: um cadeado com “Bloqueada” enquanto falta algo para começar (passe o mouse para ler o motivo), depois “Em andamento” com o percentual, e “Liberada”. Fechamento: “Após as fases” até as duas estarem liberadas; depois, “Disponível”. A fase aberta fica em verde. O projeto abre na fase em andamento: na Fase 1 enquanto ela não foi liberada; na Fase 2 depois disso; no Fechamento depois de liberada a Fase 2." },
       { acao: "Clique numa fase para ver as abas dela.", detalhe: "As abas de cada fase levam o número da fase. Fase 1: 1.1 Preparar e diretrizes (dados do projeto, importação e, embaixo, as Diretrizes de nomes, atributos, unidades e limites), 1.2 Análise, 1.3 Casos, 1.4 Unificações e 1.5 Entrega da Fase 1. Fase 2: 2.1 Premissas e diretrizes (regime e atividades do cliente e, embaixo, as Diretrizes da classificação fiscal), 2.2 Análise, 2.3 Casos e 2.4 Entrega da Fase 2. Fechamento: 3.1 Entregas finais. À direita das abas, em qualquer fase e sem número, ficam as áreas do projeto inteiro, como botões lado a lado (o aberto em verde cheio, os outros com contorno verde): Tabela, Visão geral, Impacto no SPED e Versões. Ao entrar numa fase, a página abre sempre na primeira aba dela (1.1, 2.1, 3.1). As setas do teclado passam de uma aba para outra." },
       { acao: "Na aba Análise da fase, leia a Cobertura das camadas.", detalhe: "Ela mostra só as camadas da fase aberta. Fase 1: Identificação, Qualidade, Duplicidades, Grupos, Nomes e unidades, Validar NCM e Impacto no SPED (e Estoque, quando o módulo de conciliação está ligado). Fase 2: Finalidade, Classificação NCM, Tratamento tributário e Impacto no SPED. Cada camada tem um quadro com o que falta nela: “N em aberto / N aguardando” (casos que esperam decisão e casos que esperam informação do cliente), “em dia”, “não analisada”, “sem itens” ou “análise indisponível”, e o botão Analisar (ou Analisar de novo). O selo “desatualizada” aparece quando algo de que a camada depende mudou depois da última análise dela (por exemplo, finalidade ou NCM aprovados depois da análise do Tratamento tributário): passe o mouse para ver o quê e desde quando." },
@@ -26,6 +26,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
       { acao: "Clique em Analisar a fase (na ordem).", detalhe: "As camadas da fase rodam uma depois da outra, na ordem do trabalho, e o botão mostra o andamento (“Analisando 3 de 7…”). A análise roda no servidor: você pode ir para outra aba, outra tela ou fechar o sistema, que ela continua; ao voltar, a aba Análise mostra o andamento e, no fim, o resumo (quantas camadas foram analisadas, quantos casos novos surgiram e em quais faltou dado; feche com Fechar). Enquanto uma análise roda no projeto, os botões ficam bloqueados. Para analisar uma camada só, use o botão ao lado do selo dela (a dica mostra a data da última análise)." },
       { acao: "Na Fase 2, leia o aviso “Fase 2 ainda não liberada”, quando aparecer no alto da fase, e clique no botão dele.", detalhe: "A Fase 2 só começa depois de três passos, nesta ordem: liberar uma versão da Fase 1 (Cadastro saneado) em Fase 1 > 1.5 Entrega da Fase 1 (POP-CON-16), informar o regime do cliente e confirmar as atividades do cliente em Fase 2 > 2.1 Premissas e diretrizes (POP-CON-10). O aviso diz o que falta e o botão leva ao lugar certo (Ir para a Entrega da Fase 1 ou Ir para as Premissas). Até lá, você pode abrir e consultar as abas e os casos da Fase 2, mas a análise e as decisões dela (aprovar, rejeitar, pedir informação, rascunho, lote e planilha de decisão) são recusadas; as Premissas seguem editáveis, porque é nelas que se libera a fase." },
       { acao: "Para apresentar o trabalho ao cliente, clique em Roteiro do projeto, no alto da página (ou em Fechamento > 3.1 Entregas finais).", detalhe: "Abre uma tela própria com o desenho das fases (Fase 1, Saneamento de estoques; Fase 2, Tributário e Reforma; Fechamento) com as etapas de cada uma. A situação de cada etapa vem do projeto (Concluída, Em andamento, Não iniciada): as etapas da Fase 1 e, na Fase 2, Premissas (regime e atividades), Finalidade, NCM, Tratamento e SPED tributário; enquanto a Fase 2 não está liberada, as etapas dela aparecem como Aguardando liberação. As liberações mostram a versão liberada de cada fase. Operações, Crédito do estoque e o Fechamento ainda aparecem como Próxima fase. Clique numa etapa (ou use Próxima etapa) para acender o caminho até ela e abrir, dentro do card, o que é feito, o que o cliente fornece e o que recebe; Ver o que é verificado abre a lista do que é conferido na etapa. Modo apresentação esconde os números internos; Imprimir ou salvar em PDF gera o roteiro com o detalhe de todas as etapas." },
+      { acao: "Para sair do Saneamento, use a trilha no alto da tela: clique no nome do cliente para voltar à página dele, com os cartões dos projetos.", detalhe: "Cada item da trilha com link leva àquele nível: o projeto, à tela em que ele abre (a fase em andamento, na primeira aba); a fase, à primeira aba dela. O item que levaria à tela já aberta fica sem link, na cor da tela aberta. Voltar volta à tela anterior; aberto numa aba nova, sem tela anterior no InTAX, sobe um nível na trilha." },
     ],
     resultado: "O projeto fica aberto na fase em andamento, com as abas da fase e o que falta em cada camada à vista, e a análise rodada onde há dados.",
     atencao: [
@@ -43,7 +44,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Registrar os dados do projeto (Fase 1) e, para a Fase 2, o regime do cliente e o que ele realmente faz.",
     quem: "Consultor",
     quando: "Antes da primeira importação (dados do projeto), antes da Fase 2 (premissas) e sempre que o CNPJ, o regime ou o negócio do cliente mudar.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Fase 1 > 1.1 Preparar e diretrizes (dados do projeto) e Fase 2 > 2.1 Premissas e diretrizes (regime e atividades)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Fase 1 > 1.1 Preparar e diretrizes (dados do projeto) e Fase 2 > 2.1 Premissas e diretrizes (regime e atividades)",
     antes: [
       "O projeto precisa estar aberto no Saneamento (POP-CON-09).",
     ],
@@ -77,7 +78,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Trazer a planilha do ERP para o saneamento, conferindo as colunas e a prévia antes de gravar.",
     quem: "Consultor",
     quando: "Na primeira carga e a cada nova extração do ERP.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Fase 1 > 1.1 Preparar e diretrizes (quadros de importação, abaixo dos dados do projeto)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Fase 1 > 1.1 Preparar e diretrizes (quadros de importação, abaixo dos dados do projeto)",
     antes: [
       "Dados do projeto salvos (POP-CON-10). A importação não depende da confirmação das atividades do cliente.",
       "Planilha (.xlsx) ou CSV exportado do ERP, com ao menos código e descrição do item.",
@@ -116,7 +117,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Ver todos os itens com a situação de cada camada, achar o que está pendente e registrar exceções de um item.",
     quem: "Consultor",
     quando: "Durante a revisão do cadastro.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Tabela (à direita das abas, em qualquer fase)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Tabela (à direita das abas, em qualquer fase)",
     antes: [
       "Itens importados (POP-CON-11) e análises rodadas na aba Análise de cada fase (POP-CON-09).",
     ],
@@ -145,7 +146,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Enxergar, por grupo de produtos, em que situação está cada camada e abrir o que precisa de decisão.",
     quem: "Consultor",
     quando: "Para planejar o trabalho e acompanhar o avanço.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Visão geral (à direita das abas, em qualquer fase)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Visão geral (à direita das abas, em qualquer fase)",
     antes: [
       "Itens importados (POP-CON-11). Sem eles, a Visão geral diz “Nada para mostrar ainda”.",
     ],
@@ -168,7 +169,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Tratar cada problema encontrado, com decisão do consultor e registro do fundamento.",
     quem: "Consultor",
     quando: "Depois das análises, até zerar os casos em aberto.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Fase 1 > 1.3 Casos (ou Fase 2 > 2.3 Casos)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Fase 1 > 1.3 Casos (ou Fase 2 > 2.3 Casos)",
     antes: [
       "Análises rodadas (POP-CON-09). Sem casos no filtro, a tela diz “Nenhum caso em aberto com este filtro”.",
     ],
@@ -214,7 +215,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Ver o que conferir nas obrigações acessórias a cada ajuste aprovado e os códigos que foram trocados.",
     quem: "Consultor",
     quando: "Depois de aprovar ajustes, e antes de entregar ao cliente.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Impacto no SPED (à direita das abas, em qualquer fase)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Impacto no SPED (à direita das abas, em qualquer fase)",
     antes: [
       "Camada Impacto no SPED analisada (na aba Análise da fase) e ajustes aprovados. Sem isso, a tela diz “Nenhum impacto registrado ainda”.",
     ],
@@ -247,7 +248,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Guardar a foto da base como entrega, comparar duas versões, gerar os arquivos para revisão interna ou para o cliente e, se preciso, voltar a base de trabalho aos valores de uma versão liberada.",
     quem: "Consultor",
     quando: "Para conferir o andamento (revisão) e ao fechar uma entrega (versão liberada).",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Fase 1 > 1.5 Entrega da Fase 1, Fase 2 > 2.4 Entrega da Fase 2, Versões (à direita das abas) e Fechamento > 3.1 Entregas finais",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Fase 1 > 1.5 Entrega da Fase 1, Fase 2 > 2.4 Entrega da Fase 2, Versões (à direita das abas) e Fechamento > 3.1 Entregas finais",
     antes: [
       "Decisões aprovadas para entregar (POP-CON-14) e o impacto nas obrigações conferido (POP-CON-15).",
     ],
@@ -286,7 +287,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Saber quais códigos saem, para onde vai o saldo de cada um, quais só se inativam e quais ficam relacionados, e o que fazer no ERP, inclusive com os itens sem movimentação a longa data.",
     quem: "Consultor",
     quando: "Depois de decidir os casos de Duplicidades e de Qualidade, antes de mandar os ajustes ao cliente e antes de liberar uma versão.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Fase 1 > 1.4 Unificações",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Fase 1 > 1.4 Unificações",
     antes: [
       "Para os itens parados: Corte de movimentação informado em Fase 1 > 1.1 Preparar e diretrizes (POP-CON-10) e a coluna da última movimentação importada no cadastro (POP-CON-11).",
       "Camadas Duplicidades e Qualidade analisadas em Fase 1 > 1.2 Análise (POP-CON-09).",
@@ -320,12 +321,13 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     modulo: "carteira-diagnostico",
     codigo: "POP-CON-17",
     titulo: "Pedir um rascunho de parecer com o botão Analisar com IA",
-    objetivo: "Obter, em qualquer serviço de consultoria, um rascunho de apoio montado com o contexto do projeto.",
+    objetivo: "Obter, nos serviços de consultoria que abrem pela página do projeto, um rascunho de apoio montado com o contexto do projeto.",
     quem: "Consultor",
     quando: "Ao começar o parecer de um projeto, para ter um primeiro texto a revisar.",
     caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Analisar com IA",
     antes: [
       "O projeto precisa ser de um serviço do catálogo de consultoria.",
+      "O Saneamento de estoques não tem este quadro: o projeto abre direto na ferramenta, e lá a IA trabalha no parecer de cada caso.",
     ],
     passos: [
       { acao: "Abra o projeto em Projetos e localize o quadro Analisar com IA, abaixo dos dados do projeto.", detalhe: "Se já houver um rascunho, ele aparece em “Último rascunho”, com a data, o modo (rascunho rápido ou com pesquisa externa) e o motor usado." },
@@ -351,7 +353,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Definir as regras do cliente por aspecto e por grupo (nomes, atributos, unidades, limites de caracteres e classificação fiscal), que comandam as análises e, aprovadas, formam a política de cadastro e estoques.",
     quem: "Consultor responsável pelo projeto (aprova as regras)",
     quando: "No começo do trabalho, antes de revisar os casos, e sempre que um critério do cliente mudar. A aba pode ser aberta a qualquer momento, inclusive antes da importação.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Fase 1 > 1.1 Preparar e diretrizes (embaixo: nomes, atributos, unidades e limites) ou Fase 2 > 2.1 Premissas e diretrizes (embaixo: classificação fiscal)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Fase 1 > 1.1 Preparar e diretrizes (embaixo: nomes, atributos, unidades e limites) ou Fase 2 > 2.1 Premissas e diretrizes (embaixo: classificação fiscal)",
     antes: [
       "O projeto precisa estar aberto no Saneamento (POP-CON-09).",
       "Para regras por grupo, o cadastro de itens importado (POP-CON-11). Antes disso, só há regras para Todos os grupos, e a aba avisa que os grupos aparecem depois de importar.",
@@ -386,7 +388,7 @@ export const POPS_SANEAMENTO_ESTOQUES = [
     objetivo: "Levar para as Diretrizes uma decisão tomada num item, para que ela valha para os outros itens do grupo (ou para todos os projetos, pela biblioteca).",
     quem: "Consultor (criar na biblioteca: só o administrador)",
     quando: "Ao decidir um caso cujo critério deve se repetir em outros itens.",
-    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Saneamento de estoques > Fase 1 > 1.3 Casos (ou Fase 2 > 2.3 Casos) > (caso)",
+    caminho: "Menu > Consultoria Tributária > Carteira de Consultoria > (cliente) > (projeto) > Fase 1 > 1.3 Casos (ou Fase 2 > 2.3 Casos) > (caso)",
     antes: [
       "Caso aberto no detalhe (POP-CON-14).",
     ],
