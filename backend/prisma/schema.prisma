@@ -1121,6 +1121,8 @@ model PerguntaLegal {
   aprofundada     Boolean @default(false)
   ressalvas       String?
   fontes_externas Json?
+  /// Pergunta prática: passo a passo e cálculo modelo conferido pelo InTAX ({ passos, calculo, sem_calculo }), para o relatório.
+  pratica         Json?
   createdAt   DateTime @default(now())
 
   @@index([createdAt])

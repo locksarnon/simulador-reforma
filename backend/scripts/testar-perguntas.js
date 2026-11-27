@@ -19,7 +19,11 @@ const EXEMPLOS = [
   'trator novo tem desconto de icms?',
   'o ipi da soja no para',
   'posso tirar nota sem cnpj?',
+  // Perguntas práticas: passo a passo e cálculo modelo conferido.
+  'como calculo o icms de uma venda de adubo de 100 mil reais dentro do ms? me da um exemplo',
+  'o que eu faço para emitir a nota da venda de soja com diferimento no mato grosso?',
 ];
+const { PRAZO_RESPOSTA_PONTE_MS, PRAZO_RESPOSTA_RESERVA_MS } = require('../dist/base-legal/base-legal.service');
 
 (async () => {
   const prisma = new PrismaClient();
@@ -35,12 +39,27 @@ const EXEMPLOS = [
       try { termos = await base.termosDaPergunta(pergunta); } catch (e) { termos = []; }
       const cands = await base.candidatos(pergunta, termos, contexto);
       let saida = null;
-      try { saida = validarResposta(lerJson(await base.ia(promptResposta(pergunta, cands, contexto.texto))), cands); } catch (e) { saida = { erro: e.message }; }
+      let modelo = null;
+      try {
+        // Mesmo caminho e mesmos prazos da pergunta na tela (Claude Fable 5.2 pela ponte; reserva se falhar).
+        const r = await base.iaComModelo(promptResposta(pergunta, cands, contexto.texto), PRAZO_RESPOSTA_RESERVA_MS, PRAZO_RESPOSTA_PONTE_MS);
+        modelo = r.modelo;
+        saida = validarResposta(lerJson(r.texto), cands);
+      } catch (e) { saida = { erro: e.message }; }
+      const calc = saida.pratica && saida.pratica.calculo;
       console.log(JSON.stringify({
-        pergunta, segundos: Math.round((Date.now() - t0) / 1000), ufs: contexto.ufs, ncms: contexto.ncms, termos,
+        pergunta, segundos: Math.round((Date.now() - t0) / 1000), modelo, ufs: contexto.ufs, ncms: contexto.ncms, termos,
         dispositivos: cands.map((c) => `${c.numero} ${c.rotulo}${c.nota ? ' (trecho)' : ''}`),
         resposta: saida.resposta ?? saida.erro, suficiente: saida.suficiente, ressalvas: saida.ressalvas,
         fundamentos: (saida.fundamentos || []).map((f) => `${f.numero} ${f.rotulo}`),
+        passos: saida.pratica ? saida.pratica.passos : null,
+        calculo: calc ? [
+          ...calc.premissas.map((p) => `${p.descricao}: ${p.valor_texto} (exemplo)`),
+          ...calc.parametros.map((p) => `${p.descricao}: ${p.valor_texto} (${p.fundamento.numero}, ${p.fundamento.rotulo})`),
+          ...calc.linhas.map((l) => `${l.descricao}: ${l.conta} = ${l.valor_texto}`),
+          ...calc.ajustes.map((a) => `AJUSTE: ${a}`),
+        ] : null,
+        sem_calculo: saida.pratica ? saida.pratica.sem_calculo : null,
       }, null, 1));
     }
   } finally {

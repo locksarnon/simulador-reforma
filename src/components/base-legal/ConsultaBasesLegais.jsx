@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { Troca } from "@/components/assistente/AssistenteGlobal";
 import { Trecho } from "@/components/base-legal/Trecho";
 import { MAXIMO_PERGUNTA } from "@/lib/assistente";
+import { perguntarAoAssistente } from "@/lib/perguntarAssistente";
 import { decidirIa, etiquetasDoAchado, limparConsulta, MOTIVO_SEM_IA, normasConsultaveis } from "@/lib/consultaLegal";
 
 const CLASSE_ETIQUETA = {
@@ -90,14 +91,15 @@ export default function ConsultaBasesLegais({ inicial = "", normas = [], emailPa
   });
   const resposta = useQuery({
     queryKey: ["bases-legais-ia", enviado?.texto, Boolean(enviado?.aprofundar)],
-    queryFn: () => api.post(enviado.aprofundar ? "/base-legal/perguntar-aprofundado" : "/base-legal/perguntar", { pergunta: enviado.texto }),
+    queryFn: () => perguntarAoAssistente(enviado.texto, enviado.aprofundar),
     enabled: Boolean(enviado) && ia.roda, staleTime: Infinity, gcTime: 30 * 60_000, retry: false, refetchOnWindowFocus: false,
   });
 
   const consultaveis = normasConsultaveis(normas);
   const item = enviado && ia.roda ? {
     id: `consulta-${enviado.em}`, pergunta: enviado.texto, aprofundada: enviado.aprofundar, inicio: enviado.em, revisados,
-    estado: resposta.isError ? "erro" : resposta.data ? "ok" : "carregando", resultado: resposta.data, erro: resposta.error?.message,
+    // "Tentar de novo" também trava a tela (refetch depois de um erro ainda tem isError até terminar).
+    estado: resposta.isFetching ? "carregando" : resposta.isError ? "erro" : resposta.data ? "ok" : "carregando", resultado: resposta.data, erro: resposta.error?.message,
   } : null;
 
   return (
@@ -149,7 +151,7 @@ export default function ConsultaBasesLegais({ inicial = "", normas = [], emailPa
             <p className="text-sm">Resultados para <b>“{enviado.texto}”</b>{enviado.norma ? <> em <b>{consultaveis.find((n) => n.chave === enviado.norma)?.numero ?? enviado.norma}</b></> : " em todas as normas"}</p>
             <button type="button" onClick={() => { setEnviado(null); setTexto(""); aoConsultar?.(""); }} className="botao-acao inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-xs hover:bg-muted"><X className="h-3 w-3" aria-hidden="true" />Limpar</button>
           </div>
-          {item && <Troca item={item} aoRepetir={() => resposta.refetch()} emailPadrao={emailPadrao} />}
+          {item && <Troca item={item} aoRepetir={() => { setEnviado((e) => ({ ...e, em: Date.now() })); resposta.refetch(); }} emailPadrao={emailPadrao} />}
           {!ia.roda && MOTIVO_SEM_IA[ia.motivo] && <p className="text-xs text-muted-foreground">{MOTIVO_SEM_IA[ia.motivo]}</p>}
           <ResultadosDaBusca busca={busca} termo={enviado.texto} carregando={buscando} />
         </div>

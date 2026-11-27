@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ExternalLink, Globe, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api } from "@/api/client";
 import TabelaPadrao from "@/components/TabelaPadrao";
+import PraticaDaResposta, { MotorDaResposta } from "@/components/base-legal/PraticaDaResposta";
 
 export function Fundamentos({ itens }) {
   if (!itens?.length) return null;
@@ -66,6 +67,8 @@ export function Resultado({ r }) {
           </div>
         </div>
       )}
+      {!semIa && <MotorDaResposta modelo={r.modelo} />}
+      {!semIa && <PraticaDaResposta pratica={r.pratica} />}
       {r.ressalvas && <p className="text-sm rounded-lg bg-muted/60 p-3"><b>Atenção:</b> {r.ressalvas}</p>}
       <Fundamentos itens={r.fundamentos} />
       <FontesExternas itens={r.fontes_externas} />

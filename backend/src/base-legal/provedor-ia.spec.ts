@@ -37,9 +37,9 @@ describe('ponte do Claude Code (créditos da conta, sem chave de API)', () => {
     expect(com({ ...ponte, GEMINI_API_KEY: 'g', IA_ASSISTENTE: 'gemini' }).provedorIa()).toBe('gemini');
     expect(com({ ...ponte, ANTHROPIC_API_KEY: 'k', IA_ASSISTENTE: 'claude' }).provedorIa()).toBe('claude');
   });
-  it('o modelo registrado é o pedido à ponte, ou claude-code quando não se escolhe', () => {
-    expect(com({ ...ponte }).modeloAtual()).toBe('claude-code');
-    expect(com({ ...ponte, CLAUDE_CODE_MODEL: 'claude-fable-5-2' }).modeloAtual()).toBe('claude-fable-5-2');
+  it('a ponte responde com o Claude Fable 5.2 quando o ambiente não escolhe outro modelo', () => {
+    expect(com({ ...ponte }).modeloAtual()).toBe('claude-fable-5-2');
+    expect(com({ ...ponte, CLAUDE_CODE_MODEL: 'claude-opus-5-5' }).modeloAtual()).toBe('claude-opus-5-5');
   });
 });
 
@@ -62,5 +62,31 @@ describe('prazo pedido à ponte', () => {
   it('a pesquisa externa aceita o prazo de quem chama; ia() mantém o mínimo de 90 s de antes', async () => {
     expect((await comFetch((s) => s.iaComBusca('p', 170_000))).corpos[0]).toMatchObject({ busca: true, timeout_ms: 165_000 });
     expect((await comFetch((s) => s.ia('p', 30_000))).corpos[0]).toMatchObject({ timeout_ms: 85_000 });
+  });
+  it('pede o Claude Fable 5.2 à ponte e dá à resposta consultiva o prazo longo (os termos, o curto)', async () => {
+    const { corpos } = await comFetch(async (s) => {
+      await s.termosDaPergunta('como calculo o ICMS do adubo no MS?');
+      await s.iaComModelo('resposta', 45_000, 150_000);
+    });
+    expect(corpos[0]).toMatchObject({ modelo: 'claude-fable-5-2', timeout_ms: 40_000 });
+    expect(corpos[1]).toMatchObject({ modelo: 'claude-fable-5-2', timeout_ms: 145_000 });
+  });
+});
+
+describe('reserva pela API da Anthropic', () => {
+  it('pede à API um id de modelo da API (Fable 5.2 por padrão), mesmo que a ponte use outro apelido', async () => {
+    const env = { CLAUDE_BRIDGE_URL: 'http://ponte', CLAUDE_BRIDGE_TOKEN: 'segredo-bem-comprido-123456', CLAUDE_CODE_MODEL: 'fable', ANTHROPIC_API_KEY: 'k' };
+    const modelos: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url: unknown, init?: { body?: string }) => {
+      if (String(url).includes('ponte')) return new Response(JSON.stringify({ erro: 'Tempo esgotado' }), { status: 502 });
+      modelos.push(JSON.parse(String(init?.body)).model);
+      return new Response(JSON.stringify({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', model: 'claude-fable-5-2' }), { status: 200 });
+    }) as never;
+    try {
+      const r = await com(env).iaComModelo('p', 10_000, 10_000);
+      expect(r.modelo).toBe('claude-fable-5-2');
+      expect(modelos).toEqual(['claude-fable-5-2']);
+    } finally { globalThis.fetch = original; }
   });
 });

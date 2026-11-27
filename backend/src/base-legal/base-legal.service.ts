@@ -27,6 +27,13 @@ const MAX_BYTES_FONTE = 40 * 1024 * 1024;
 const PERDA_MAXIMA_AUTOMATICA = 0.3;
 /** Daqui para cima, a regra acima vale; norma pequena pode mesmo encolher. */
 const MINIMO_PARA_GUARDA = 20;
+/**
+ * Prazos da pergunta ao assistente. A ponte do Claude Code (Fable 5.2) encerra o processo no prazo dela (no máximo 175 s); a reserva
+ * (API da Anthropic ou Gemini) tem prazo próprio. A tela fica travada a espera inteira: termos ≤ 45 s, resposta consultiva ≤ 150 s.
+ */
+export const PRAZO_TERMOS_PONTE_MS = 45_000;
+export const PRAZO_RESPOSTA_PONTE_MS = 150_000;
+export const PRAZO_RESPOSTA_RESERVA_MS = 45_000;
 
 export type OpcoesImportacao = {
   /** Grava mesmo que o texto seja idêntico ao já guardado (reprocessa com o leitor atual). */
@@ -658,8 +665,14 @@ export class BaseLegalService {
     return gemini ? 'gemini' : null;
   }
 
+  /** A ponte do Claude Code da VPS responde com o Claude Fable 5.2, a menos que o ambiente escolha outro modelo. */
   private ponte() {
-    return { url: this.config.get<string>('CLAUDE_BRIDGE_URL')!.trim(), token: this.config.get<string>('CLAUDE_BRIDGE_TOKEN')!.trim(), modelo: (this.config.get<string>('CLAUDE_CODE_MODEL') || '').trim() || undefined };
+    return { url: this.config.get<string>('CLAUDE_BRIDGE_URL')!.trim(), token: this.config.get<string>('CLAUDE_BRIDGE_TOKEN')!.trim(), modelo: (this.config.get<string>('CLAUDE_CODE_MODEL') || '').trim() || MODELO_CLAUDE_PADRAO };
+  }
+
+  /** Modelo pedido à API da Anthropic (reserva da ponte): um id da API, nunca o apelido que a ponte aceite. */
+  private modeloDaApi(): string {
+    return (this.config.get<string>('ANTHROPIC_MODEL') || '').trim() || MODELO_CLAUDE_PADRAO;
   }
 
   iaConfigurada(): boolean {
@@ -669,10 +682,8 @@ export class BaseLegalService {
   /** Nome do modelo que está respondendo (para registrar na pergunta). */
   modeloAtual(): string {
     const p = this.provedorIa();
-    if (p === 'claude-code') return (this.config.get<string>('CLAUDE_CODE_MODEL') || '').trim() || 'claude-code';
-    return p === 'claude'
-      ? this.config.get<string>('ANTHROPIC_MODEL') || MODELO_CLAUDE_PADRAO
-      : this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
+    if (p === 'claude-code') return this.ponte().modelo;
+    return p === 'claude' ? this.modeloDaApi() : this.config.get<string>('GEMINI_MODEL') || 'gemini-3.5-flash';
   }
 
   /** Resposta em texto (JSON no prompt). Claude quando configurado; se ele falhar e houver chave do Gemini, o Gemini responde. */
@@ -696,7 +707,7 @@ export class BaseLegalService {
     }
     if (this.provedorIa() === 'claude' || (this.provedorIa() === 'claude-code' && this.config.get<string>('ANTHROPIC_API_KEY'))) {
       try {
-        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, timeoutMs });
+        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloDaApi(), prompt, timeoutMs });
         return { texto: r.texto, modelo: r.modelo };
       } catch (e) {
         if (!this.config.get<string>('GEMINI_API_KEY')) throw e;
@@ -719,7 +730,7 @@ export class BaseLegalService {
     }
     if (this.provedorIa() === 'claude' || (this.provedorIa() === 'claude-code' && this.config.get<string>('ANTHROPIC_API_KEY'))) {
       try {
-        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloAtual(), prompt, busca: true, ...(timeoutMs ? { timeoutMs } : {}) });
+        const r = await perguntarAoClaude({ apiKey: this.config.get<string>('ANTHROPIC_API_KEY')!.trim(), modelo: this.modeloDaApi(), prompt, busca: true, ...(timeoutMs ? { timeoutMs } : {}) });
         return { texto: r.texto, grounding: r.grounding, modelo: r.modelo };
       } catch (e) {
         if (!this.config.get<string>('GEMINI_API_KEY')) throw e;
@@ -916,33 +927,33 @@ export class BaseLegalService {
     });
   }
 
-  /** Pergunta livre: recupera dispositivos, pede a resposta ao Gemini só com esse material e valida as citações. */
+  /**
+   * Pergunta livre: recupera dispositivos, pede a resposta consultiva (Claude Fable 5.2 pela ponte da VPS; o Gemini só se ele falhar)
+   * só com esse material e valida citações, passo a passo e cálculo modelo. Devolve o modelo que de fato respondeu.
+   */
   async perguntar(email: string, perguntaBruta: string) {
     const pergunta = (perguntaBruta || '').trim().slice(0, 600);
     if (pergunta.length < 8) throw new BadRequestException('Escreva a pergunta com um pouco mais de detalhe.');
     this.checarLimite(email);
 
     let iaDisponivel = this.iaConfigurada();
-    let termos: string[] = [];
-    if (iaDisponivel) {
-      try {
-        const t = lerJson<{ termos?: unknown }>(await this.ia(promptTermos(pergunta), 30_000));
-        termos = (Array.isArray(t?.termos) ? t.termos : []).map(String).map((x) => x.slice(0, 60)).slice(0, 12);
-      } catch (e) {
-        this.log.warn(`Termos via IA falharam: ${(e as Error).message}`);
-      }
-    }
-
-    const contexto = await this.contextoDaPergunta(pergunta);
+    // Os termos (IA) e o contexto (UF, NCM) não dependem um do outro: correm juntos.
+    const [termos, contexto] = await Promise.all([
+      iaDisponivel ? this.termosDaPergunta(pergunta).catch((e) => { this.log.warn(`Termos via IA falharam: ${(e as Error).message}`); return [] as string[]; }) : Promise.resolve([] as string[]),
+      this.contextoDaPergunta(pergunta),
+    ]);
     const cands = await this.candidatos(pergunta, termos, contexto);
     let saida: ReturnType<typeof validarResposta> = { resposta: '', suficiente: false, ressalvas: null, fundamentos: [] };
     let motivo: 'ok' | 'sem_ia' | 'sem_base' | 'erro_ia' = 'ok';
+    let modelo: string | null = null;
 
     if (!cands.length) motivo = 'sem_base';
     else if (!iaDisponivel) motivo = 'sem_ia';
     else {
       try {
-        saida = validarResposta(lerJson(await this.ia(promptResposta(pergunta, cands, contexto.texto))), cands);
+        const r = await this.iaComModelo(promptResposta(pergunta, cands, contexto.texto), PRAZO_RESPOSTA_RESERVA_MS, PRAZO_RESPOSTA_PONTE_MS);
+        modelo = r.modelo;
+        saida = validarResposta(lerJson(r.texto), cands);
       } catch (e) {
         iaDisponivel = false;
         motivo = 'erro_ia';
@@ -952,17 +963,18 @@ export class BaseLegalService {
 
     if (!saida.resposta) saida = respostaDeApoio(cands, motivo === 'sem_ia' || motivo === 'erro_ia');
 
-    const modelo = this.modeloAtual();
     const reg = await this.prisma.perguntaLegal.create({
       data: {
         user_email: email, pergunta, resposta: saida.resposta || null, fundamentos: saida.fundamentos as object,
-        suficiente: saida.suficiente, modelo: iaDisponivel ? modelo : null,
+        suficiente: saida.suficiente, modelo: iaDisponivel ? modelo : null, ressalvas: saida.ressalvas,
+        ...(saida.pratica ? { pratica: saida.pratica as object } : {}),
       },
     });
     return {
       id: reg.id,
       motivo,
       ...saida,
+      modelo: iaDisponivel ? modelo : null,
       // Quando a IA não respondeu, ainda entregamos os dispositivos achados.
       relacionados: saida.suficiente ? [] : cands.slice(0, 6).map((c) => ({ norma: c.chave, numero: c.numero, rotulo: c.rotulo, caminho: c.caminho, secao: c.secao })),
       aviso: AVISO_ASSISTENTE,
@@ -971,7 +983,7 @@ export class BaseLegalService {
 
   /** Palavras-chave jurídicas da pergunta (a IA reescreve na linguagem da lei). */
   async termosDaPergunta(pergunta: string): Promise<string[]> {
-    const t = lerJson<{ termos?: unknown }>(await this.ia(promptTermos(pergunta), 30_000));
+    const t = lerJson<{ termos?: unknown }>((await this.iaComModelo(promptTermos(pergunta), 30_000, PRAZO_TERMOS_PONTE_MS)).texto);
     return (Array.isArray(t?.termos) ? t.termos : []).map(String).map((x) => x.slice(0, 60)).slice(0, 12);
   }
 
