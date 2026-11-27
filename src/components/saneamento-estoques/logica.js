@@ -1114,13 +1114,10 @@ export function faseInicial(dadosFases) {
   return "fase1";
 }
 
-/**
- * Aba de partida de cada fase. Fase 1: Preparar enquanto não há itens importados (`itens` = 0), senão Análise (itens desconhecidos = Análise).
- * Fase 2: Premissas enquanto o bloqueio é o regime ou as atividades, senão Análise. Fechamento: Entregas finais.
- */
-export function abaInicialDaFase(fase, { itens = null, bloqueio = null } = {}) {
-  if (fase === "fase1") return itens != null && Number(itens) === 0 ? "preparar" : "analise";
-  if (fase === "fase2") return bloqueio?.codigo === "REGIME_NAO_INFORMADO" || bloqueio?.codigo === "ATIVIDADES_NAO_CONFIRMADAS" ? "premissas" : "analise";
+/** Aba de partida de cada fase: sempre a primeira (1.1, 2.1, 3.1). O segundo parâmetro fica só pela compatibilidade das chamadas. */
+export function abaInicialDaFase(fase) {
+  if (fase === "fase1") return "preparar";
+  if (fase === "fase2") return "premissas";
   return "entregas";
 }
 

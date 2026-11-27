@@ -240,14 +240,14 @@ describe("Página: fases no primeiro nível", () => {
     expect(texto(prem)).not.toContain("Fase 1 · Dados do projeto");
   });
   it("ao abrir sem endereço: a fase em andamento e a aba de partida dela", () => {
-    // Nada liberado: Fase 1; sem itens, Preparar; com itens, Análise.
+    // Nada liberado: Fase 1, sempre na primeira aba (1.1), com ou sem itens.
     expect(selecionada(pagina("/s/d1", { itens: 0 }), "san-aba-preparar")).toBe(true);
-    expect(selecionada(pagina("/s/d1", { itens: 40 }), "san-aba-analise")).toBe(true);
-    // Fase 1 liberada: Fase 2; bloqueada pelo regime, nas Premissas; sem bloqueio, na Análise.
+    expect(selecionada(pagina("/s/d1", { itens: 40 }), "san-aba-preparar")).toBe(true);
+    // Fase 1 liberada: Fase 2, sempre na primeira aba (2.1).
     const f2 = pagina("/s/d1", { dadosFases: fases({ f1: true, bloqueio: { codigo: "REGIME_NAO_INFORMADO", mensagem: "" } }) });
     expect(selecionada(f2, "san-fase-fase2")).toBe(true);
     expect(selecionada(f2, "san-aba-premissas")).toBe(true);
-    expect(selecionada(pagina("/s/d1", { dadosFases: fases({ f1: true }) }), "san-aba-analise")).toBe(true);
+    expect(selecionada(pagina("/s/d1", { dadosFases: fases({ f1: true }) }), "san-aba-premissas")).toBe(true);
     // As duas liberadas: Fechamento.
     const fe = pagina("/s/d1", { dadosFases: fases({ f1: true, f2: true }) });
     expect(selecionada(fe, "san-fase-fechamento")).toBe(true);

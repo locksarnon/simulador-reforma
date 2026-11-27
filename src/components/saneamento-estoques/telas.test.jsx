@@ -685,7 +685,7 @@ describe("Cobertura, abas e página", () => {
     expect(t).not.toContain("Confirmo as atividades");
     expect(t).not.toContain("Cobertura das camadas");
     const comItens = novoCliente(); comItens.setQueryData(chaves.projeto("d1"), projeto()); comItens.setQueryData(chaves.visao("p1"), { camadas: [], grupos: [{ grupo: "A", itens: 3, camadas: {} }] }); comItens.setQueryData(chaves.fases("p1"), fases);
-    expect(texto(rota(comItens))).toContain("Cobertura das camadas"); // com itens, abre na Análise
+    expect(texto(rota(comItens))).not.toContain("Cobertura das camadas"); // com itens também abre na 1.1 (Preparar e diretrizes)
   });
 });
 

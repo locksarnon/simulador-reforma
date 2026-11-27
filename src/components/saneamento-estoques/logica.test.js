@@ -472,12 +472,12 @@ describe("navegação: fases e abas", () => {
     expect(faseInicial(fases(true, false))).toBe("fase2");
     expect(faseInicial(fases(true, true))).toBe("fechamento");
     expect(abaInicialDaFase("fase1", { itens: 0 })).toBe("preparar");
-    expect(abaInicialDaFase("fase1", { itens: 1200 })).toBe("analise");
-    expect(abaInicialDaFase("fase1", { itens: null })).toBe("analise");
+    expect(abaInicialDaFase("fase1", { itens: 1200 })).toBe("preparar");
+    expect(abaInicialDaFase("fase1", { itens: null })).toBe("preparar");
     expect(abaInicialDaFase("fase2", { bloqueio: { codigo: "REGIME_NAO_INFORMADO" } })).toBe("premissas");
     expect(abaInicialDaFase("fase2", { bloqueio: { codigo: "ATIVIDADES_NAO_CONFIRMADAS" } })).toBe("premissas");
-    expect(abaInicialDaFase("fase2", { bloqueio: { codigo: "FASE1_NAO_LIBERADA" } })).toBe("analise");
-    expect(abaInicialDaFase("fase2", {})).toBe("analise");
+    expect(abaInicialDaFase("fase2", { bloqueio: { codigo: "FASE1_NAO_LIBERADA" } })).toBe("premissas");
+    expect(abaInicialDaFase("fase2", {})).toBe("premissas");
     expect(abaInicialDaFase("fechamento")).toBe("entregas");
     expect(itensDaVisao({ grupos: [{ itens: 2 }, { itens: 3 }] })).toBe(5);
     expect(itensDaVisao({ grupos: [] })).toBe(0);
