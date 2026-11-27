@@ -7,10 +7,10 @@ import { criarPrismaFalso } from '../dados/prisma-falso';
 import type { DadosEntrega } from '../dados/portas';
 import { EntregaveisController } from './entregaveis.controller';
 import { EntregaveisService, fatiaDoNome, nomeDaPolitica, nomeDoExcel, nomeDoRelatorio } from './entregaveis.service';
-import { NOMES_ABAS } from './excel';
+import { ABAS_DE_CARGA_NO_ERP_DA_ENTREGA, NOMES_ABAS } from './excel';
 import { CAMADAS_TESTE, dadosBase, itensTabela, trab, type Linha } from './__fixtures__/dados';
 import { montarRelatorio } from './relatorio';
-import { tirarLinhaDaLogo } from '../../marca/__fixtures__/excel-com-logo';
+import { ABAS_DE_CARGA_NO_ERP, semLogoDeCargaNoErp, tirarLinhaDaLogo } from '../../marca/__fixtures__/excel-com-logo';
 
 const svc = () => new EntregaveisService(new PdfService(), {} as never, {} as never);
 /** Abre o Excel, confere a logo da FAL na linha 1 de cada aba e tira essa linha (as conferências por posição partem dos títulos). */
@@ -34,9 +34,32 @@ describe('Excel: 6 abas', () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual([...NOMES_ABAS]);
     for (const nome of NOMES_ABAS.slice(1)) {
       const ws = wb.getWorksheet(nome)!;
-      expect(ws.views[0]).toMatchObject({ state: 'frozen', ySplit: 2 }); // logo da FAL + títulos
+      // logo da FAL + títulos; aba de carga no ERP: só os títulos (sem a logo)
+      expect(ws.views[0]).toMatchObject({ state: 'frozen', ySplit: (ABAS_DE_CARGA_NO_ERP_DA_ENTREGA as readonly string[]).includes(nome) ? 1 : 2 });
       expect(ws.autoFilter).toBeTruthy();
       expect(ws.getRow(1).getCell(1).font?.bold).toBe(true);
+    }
+  });
+
+  it('abas de carga no ERP (Cadastro saneado, De para e equivalências) saem sem a logo, títulos na linha 1 e filtro a partir dela; o Resumo e as demais têm a logo', async () => {
+    expect([...ABAS_DE_CARGA_NO_ERP_DA_ENTREGA]).toEqual(['Cadastro saneado', 'De para e equivalências']);
+    for (const liberada of [true, false]) {
+      const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await svc().gerarExcel(dadosBase(liberada))) as never);
+      for (const nome of ABAS_DE_CARGA_NO_ERP_DA_ENTREGA) {
+        const ws = wb.getWorksheet(nome)!;
+        semLogoDeCargaNoErp(ws);
+        expect(ABAS_DE_CARGA_NO_ERP['saneamento-estoques/entregaveis/excel.ts'].abas).toContain(nome);
+        expect(ws.getRow(1).getCell(1).value).toBe(nome === 'Cadastro saneado' ? 'Código' : 'Tipo de registro');
+        expect(String(ws.getRow(2).getCell(1).value ?? '')).not.toBe('');
+        expect(String(ws.autoFilter)).toMatch(/^A1:/);
+      }
+      for (const nome of wb.worksheets.map((w) => w.name).filter((n) => !(ABAS_DE_CARGA_NO_ERP_DA_ENTREGA as readonly string[]).includes(n))) {
+        const ws = wb.getWorksheet(nome)!;
+        expect(ws.getImages().length, nome).toBe(1);
+        expect(ws.getImages()[0].range.tl.nativeRow, nome).toBe(0);
+        expect(ws.getRow(1).cellCount, nome).toBe(0);
+      }
+      expect(wb.getWorksheet(NOMES_ABAS[0])!.getImages()).toHaveLength(1);
     }
   });
 
@@ -376,12 +399,12 @@ describe('30 mil linhas', () => {
     const contagens: number[] = []; let primeiro = ''; let ultimo = '';
     for await (const ws of leitor as unknown as AsyncIterable<AsyncIterable<{ getCell: (n: number) => { value: unknown } }>>) {
       let c = 0; let p = ''; let u = '';
-      // Linha 1 = logo da FAL (vazia), linha 2 = títulos, linha 3 = primeiro item.
-      for await (const row of ws) { c++; if (c === 3) p = String(row.getCell(1).value); u = String(row.getCell(1).value); }
+      // Cadastro saneado (carga no ERP, sem a logo): linha 1 = títulos, linha 2 = primeiro item.
+      for await (const row of ws) { c++; if (c === 2) p = String(row.getCell(1).value); u = String(row.getCell(1).value); }
       contagens.push(c);
-      if (c === N + 2 && !primeiro) { primeiro = p; ultimo = u; }
+      if (c === N + 1 && !primeiro) { primeiro = p; ultimo = u; }
     }
-    expect(contagens).toContain(N + 2);
+    expect(contagens).toContain(N + 1);
     expect(primeiro).toBe('00000000');
     expect(ultimo).toBe('00029999');
   }, 240_000);

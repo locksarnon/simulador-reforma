@@ -570,8 +570,10 @@ export class ProdutosService {
         throw new BadRequestException(`A cópia saneada completa desta planilha teria ${(dim.total * dim.cabecalho.length).toLocaleString('pt-BR')} células (${dim.total.toLocaleString('pt-BR')} linhas x ${dim.cabecalho.length} colunas), acima do limite de 2,5 milhões. Baixe o relatório sem a seleção de exclusões ou envie a planilha só com as colunas necessárias.`);
       }
       const original = await this.lerArquivo(file);
+      // Cópia da planilha do ERP sem as duplicidades excluídas, para carga de volta no ERP (SAP DTW e parecidos): sem a logo da FAL, com os
+      // títulos na linha 1 (exceção da regra da logo, src/marca/logo-fal.ts). As outras abas continuam com a logo.
       const saneada = wb.addWorksheet('Cadastro saneado');
-      cabecalhoFalExcel(wb, saneada);
+      cabecalhoFalExcel(wb, saneada, { cargaNoErp: true });
       saneada.addRow(original.cabecalho);
       const linhasAnalisadas = new Set(r.itens.map(i => i.linha));
       original.linhas.forEach((linha, i) => { if (linhasAnalisadas.has(i + 2) && !exclusoes.has(i + 2)) saneada.addRow(linha); });

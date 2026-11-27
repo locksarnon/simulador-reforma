@@ -72,6 +72,20 @@ describe("Logo da FAL: Excel (exceljs)", () => {
     expect(lido.getWorksheet("A").getRow(2).getCell(1).value).toBe("Título");
     expect(lido.model.media.length).toBe(1);
   });
+  it("aba de carga no ERP (cargaNoErp): sem a logo, títulos na linha 1; a outra aba da pasta mantém a logo", async () => {
+    const logo = await carregarLogoFal();
+    const wb = new ExcelJS.Workbook();
+    const resumo = wb.addWorksheet("Resumo"); const carga = wb.addWorksheet("Carga");
+    expect(cabecalhoFalExcel(wb, resumo, logo)).toBe(LINHAS_LOGO_FAL);
+    expect(cabecalhoFalExcel(wb, carga, logo, { cargaNoErp: true })).toBe(0);
+    carga.addRow(["ItemCode", "ItemName"]); carga.addRow(["001", "Milho"]);
+    const lido = new ExcelJS.Workbook();
+    await lido.xlsx.load(await wb.xlsx.writeBuffer());
+    expect(lido.getWorksheet("Resumo").getImages().length).toBe(1);
+    expect(lido.getWorksheet("Carga").getImages().length).toBe(0);
+    expect(lido.getWorksheet("Carga").getRow(1).values.slice(1)).toEqual(["ItemCode", "ItemName"]);
+    expect(lido.getWorksheet("Carga").getRow(2).getCell(1).value).toBe("001");
+  });
 });
 
 describe("Logo da FAL: impressão do navegador", () => {
@@ -83,6 +97,14 @@ describe("Logo da FAL: impressão do navegador", () => {
 });
 
 // ── Trava estática ─────────────────────────────────────────────────────────
+
+/**
+ * Exceção aprovada: abas de dados para CARGA NO ERP (SAP DTW e parecidos esperam os títulos na linha 1) saem sem a logo. Lista fechada:
+ * arquivo → motivo. Só estes arquivos podem usar `cargaNoErp: true`.
+ */
+const ABAS_DE_CARGA_NO_ERP = {
+  "components/saneamento/listasFinais.js": "Lista final corrigida (cadastro saneado), Desduplicações (código de origem → mantido) e Candidatos à inativação",
+};
 
 /** Geradores que recebem a logo pronta de quem chama (não podem importar marcaFal) — com o motivo. */
 const LOGO_RECEBIDA = {
@@ -106,6 +128,13 @@ describe("Logo da FAL: trava para gerador novo", () => {
     expect(geradores.length).toBeGreaterThan(8);
     const sem = geradores.filter((f) => !LOGO_RECEBIDA[f.nome] && !usaMarca(f.texto)).map((f) => f.nome);
     expect(sem, "gerador sem a logo da FAL: use cabecalhoFalExcel / logoFalNasPaginasPdf de src/lib/marcaFal.js").toEqual([]);
+  });
+  it("aba sem logo só para carga no ERP, nos arquivos da lista fechada (ABAS_DE_CARGA_NO_ERP)", async () => {
+    const comExcecao = fontes.filter((f) => !["lib/marcaFal.js", "components/saneamento/arquivoXlsx.js"].includes(f.nome) && /cargaNoErp: true/.test(f.texto)).map((f) => f.nome).sort();
+    expect(comExcecao, "aba sem a logo fora da lista de carga no ERP").toEqual(Object.keys(ABAS_DE_CARGA_NO_ERP).sort());
+    const { ABAS_DE_CARGA_NO_ERP: nomes } = await import("@/components/saneamento/listasFinais");
+    expect(nomes).toEqual(["Lista final corrigida", "Desduplicações", "Candidatos à inativação"]);
+    expect(nomes.filter((n) => /resumo/i.test(n))).toEqual([]);
   });
   it("os da allow-list continuam recebendo a logo de quem chama", () => {
     for (const nome of Object.keys(LOGO_RECEBIDA)) {

@@ -35,6 +35,15 @@ type Col = { cab: string; larg: number; tipo?: TipoCol; sempre?: boolean };
 type LinhaV = { v: Valor[]; destaque?: boolean; cores?: (string | undefined)[] };
 
 export const NOMES_ABAS = ['Resumo da entrega', 'Cadastro saneado', 'De para e equivalências', 'Cenários tributários', 'Impactos no SPED', 'Pendências e histórico'] as const;
+/**
+ * Abas de dados feitas para CARGA NO ERP (SAP DTW e ferramentas parecidas leem os títulos na linha 1): saem sem a logo da FAL, com os títulos
+ * na linha 1 e os dados a partir da linha 2. O Resumo e as demais abas continuam com a logo. Lista conferida pela trava (src/marca/logo-fal.test.ts).
+ *  - "Cadastro saneado": a base do ERP inteira (todas as colunas que vieram do ERP) já saneada, item a item — a base da carga de cadastro (oItems);
+ *  - "De para e equivalências": código que sai → código que fica, por linha — a base das cargas de unificação e inativação.
+ */
+export const ABAS_DE_CARGA_NO_ERP_DA_ENTREGA = [NOMES_ABAS[1], NOMES_ABAS[2]] as const;
+/** Excel da consulta "Unificações": as três listas (Unificações, Inativações, Equivalências) são de carga no ERP; "Conflitos" (o que resolver antes) leva a logo. */
+export const ABAS_DE_CARGA_NO_ERP_DO_MAPA = (Object.keys(TIPOS_DA_LISTA) as ListaMapa[]).map((l) => ROTULO_LISTA[l]);
 /** Entrega da Fase 1: as mesmas abas, sem "Cenários tributários". */
 export const NOMES_ABAS_FASE1 = NOMES_ABAS.filter((n) => n !== 'Cenários tributários');
 
@@ -78,11 +87,12 @@ function estiloCompartilhado(fmt: string | undefined, fundo: string | undefined)
 
 type Aba = { ws: ExcelJS.Worksheet; cols: Col[]; linhas: number; add(valores: Valor[], destaque?: boolean, cores?: (string | undefined)[]): void; fim(): void };
 
-function criarAba(wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Col[], cor: string, congelarColunas: number): Aba {
-  // Logo da FAL na linha 1; títulos na linha 2 (o congelamento inclui as duas).
-  const ws = wb.addWorksheet(nome, { properties: { tabColor: { argb: cor } }, views: [{ state: 'frozen', xSplit: congelarColunas, ySplit: 1 + LINHAS_LOGO_FAL }] });
+function criarAba(wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Col[], cor: string, congelarColunas: number, cargaNoErp = false): Aba {
+  // Logo da FAL na linha 1; títulos na linha 2 (o congelamento inclui as duas). Aba de carga no ERP: sem a logo, títulos na linha 1.
+  const topo = cargaNoErp ? 0 : LINHAS_LOGO_FAL;
+  const ws = wb.addWorksheet(nome, { properties: { tabColor: { argb: cor } }, views: [{ state: 'frozen', xSplit: congelarColunas, ySplit: 1 + topo }] });
   ws.columns = cols.map((c) => ({ width: c.larg }));
-  reservarLinhaLogoFal(ws);
+  reservarLinhaLogoFal(ws, { cargaNoErp });
   const cab = ws.addRow(cols.map((c) => c.cab));
   cab.height = 30;
   cab.eachCell((c) => {
@@ -108,8 +118,8 @@ function criarAba(wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Co
       aba.linhas++;
     },
     fim() {
-      const ate = Math.max(2, aba.linhas + 1) + LINHAS_LOGO_FAL;
-      ws.autoFilter = { from: { row: 1 + LINHAS_LOGO_FAL, column: 1 }, to: { row: ate, column: cols.length } } as never;
+      const ate = Math.max(2, aba.linhas + 1) + topo;
+      ws.autoFilter = { from: { row: 1 + topo, column: 1 }, to: { row: ate, column: cols.length } } as never;
       ws.commit();
     },
   };
@@ -128,7 +138,7 @@ const respirar = (aba: Aba): Promise<void> | undefined => (aba.linhas % 1000 ===
  */
 async function escreverAba(
   wb: ExcelJS.stream.xlsx.WorkbookWriter, nome: string, cols: Col[], gerar: () => Iterable<LinhaV>,
-  o: { cor: string; congelar: number; tirarVazias: boolean; depois?: (aba: Aba) => void; usadas?: boolean[] },
+  o: { cor: string; congelar: number; tirarVazias: boolean; depois?: (aba: Aba) => void; usadas?: boolean[]; cargaNoErp?: boolean },
 ): Promise<Aba> {
   let manter = cols.map((_, i) => i);
   // `usadas`: quem chama já sabe quais colunas têm valor (a base de 30 mil itens não passa duas vezes pelo gerador).
@@ -139,7 +149,7 @@ async function escreverAba(
     if (algum) manter = manter.filter((i) => usado[i]);
   }
   const congelar = manter.filter((i) => i < o.congelar).length;
-  const aba = criarAba(wb, nome, manter.map((i) => cols[i]), o.cor, congelar);
+  const aba = criarAba(wb, nome, manter.map((i) => cols[i]), o.cor, congelar, o.cargaNoErp);
   for (const l of gerar()) { aba.add(manter.map((i) => l.v[i]), l.destaque, l.cores ? manter.map((i) => l.cores![i]) : undefined); await respirar(aba); }
   o.depois?.(aba);
   aba.fim();
@@ -433,7 +443,7 @@ async function abaCadastro(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): P
       yield { v, cores, destaque: !m.liberada && temProposta };
     }
   }
-  await escreverAba(wb, NOMES_ABAS[1], cols, gerar, { cor: m.liberada ? VERDE : LARANJA, congelar: 1, tirarVazias: m.liberada, usadas });
+  await escreverAba(wb, NOMES_ABAS[1], cols, gerar, { cor: m.liberada ? VERDE : LARANJA, congelar: 1, tirarVazias: m.liberada, usadas, cargaNoErp: true });
 }
 
 // ── Mapa de unificações (aba "De para e equivalências" e Excel da consulta "Unificações") ─────────────
@@ -478,7 +488,7 @@ async function abaDePara(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo): Pro
       yield { v, destaque: !m.liberada && aberta(l) };
     }
   }
-  await escreverAba(wb, NOMES_ABAS[2], colunasDoMapa(m.liberada, escala), gerar, { cor: m.liberada ? VERDE : LARANJA, congelar: 2, tirarVazias: m.liberada, depois: comNotaDaEscala(escala) });
+  await escreverAba(wb, NOMES_ABAS[2], colunasDoMapa(m.liberada, escala), gerar, { cor: m.liberada ? VERDE : LARANJA, congelar: 2, tirarVazias: m.liberada, depois: comNotaDaEscala(escala), cargaNoErp: true });
 }
 
 /** Colunas e valores de cada uma das três listas do mapa (tela e Excel da consulta "Unificações"): cada lista só com as colunas que usa. */
@@ -563,12 +573,12 @@ export async function gerarExcelMapa(linhas: LinhaMapa[], opcoes: { liberada?: b
         yield { v, destaque: !opcoes.liberada && aberta(l) };
       }
     }
-    await escreverAba(wb, ROTULO_LISTA[lista], cols, gerar, { cor: lista === 'UNIFICACOES' ? VERDE : lista === 'INATIVACOES' ? LARANJA : 'FF5B6B63', congelar: 2, tirarVazias: true, depois: lista === 'EQUIVALENCIAS' ? undefined : comNotaDaEscala(escala) });
+    await escreverAba(wb, ROTULO_LISTA[lista], cols, gerar, { cor: lista === 'UNIFICACOES' ? VERDE : lista === 'INATIVACOES' ? LARANJA : 'FF5B6B63', congelar: 2, tirarVazias: true, depois: lista === 'EQUIVALENCIAS' ? undefined : comNotaDaEscala(escala), cargaNoErp: true });
   }
   await wb.commit();
   await fim;
-  // O gravador em fluxo não aceita imagem: a logo da FAL entra no arquivo pronto, na linha 1 reservada de cada aba.
-  return logoFalNoXlsx(Buffer.concat(partes));
+  // O gravador em fluxo não aceita imagem: a logo da FAL entra no arquivo pronto, na linha 1 reservada de cada aba (menos nas listas de carga no ERP).
+  return logoFalNoXlsx(Buffer.concat(partes), { abasDeCargaNoErp: ABAS_DE_CARGA_NO_ERP_DO_MAPA });
 }
 
 async function abaCenarios(wb: ExcelJS.stream.xlsx.WorkbookWriter, m: Modelo, cen: Cenarios | null): Promise<void> {
@@ -714,6 +724,6 @@ export async function gerarExcelDeDados(dados: DadosEntrega, opcoes: { consumir?
   await abaPendencias(wb, m);
   await wb.commit();
   await fim;
-  // O gravador em fluxo não aceita imagem: a logo da FAL entra no arquivo pronto, na linha 1 reservada de cada aba.
-  return logoFalNoXlsx(Buffer.concat(partes));
+  // O gravador em fluxo não aceita imagem: a logo da FAL entra no arquivo pronto, na linha 1 reservada de cada aba (menos nas de carga no ERP).
+  return logoFalNoXlsx(Buffer.concat(partes), { abasDeCargaNoErp: ABAS_DE_CARGA_NO_ERP_DA_ENTREGA });
 }

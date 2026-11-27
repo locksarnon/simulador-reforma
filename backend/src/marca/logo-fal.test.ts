@@ -12,6 +12,8 @@ import { dadosCrestani } from '../saneamento-estoques/entregaveis/politica/__fix
 import { comLogoFal, emailLayout } from '../mail/mail.service';
 import { comprovanteDosDados } from '../infosimples/infosimples.service';
 import { CID_LOGO_FAL, LOGO_FAL, comLogoFalNoEmail } from './logo-fal';
+import { ABAS_DE_CARGA_NO_ERP } from './__fixtures__/excel-com-logo';
+import { ABAS_DE_CARGA_NO_ERP_DA_ENTREGA, ABAS_DE_CARGA_NO_ERP_DO_MAPA } from '../saneamento-estoques/entregaveis/excel';
 
 type PaginaPdf = { getOperatorList: () => Promise<{ fnArray: number[] }> };
 /** Quantas imagens cada página do PDF pinta. */
@@ -113,6 +115,16 @@ describe('Logo da FAL: trava para gerador novo', () => {
     expect(geradores.length).toBeGreaterThan(5);
     const sem = geradores.filter((f) => !LAYOUT_OFICIAL[f.nome] && !usaMarca(f.texto)).map((f) => f.nome);
     expect(sem, 'gerador sem a logo da FAL: use cabecalhoFalExcel / reservarLinhaLogoFal+logoFalNoXlsx / desenharLogoFal de src/marca/logo-fal.ts').toEqual([]);
+  });
+  it('aba sem logo só para carga no ERP, nos geradores da lista fechada (ABAS_DE_CARGA_NO_ERP em __fixtures__/excel-com-logo.ts)', () => {
+    const usaExcecao = (t: string) => /cargaNoErp: true|abasDeCargaNoErp:/.test(t);
+    const comExcecao = fontes.filter((f) => f.nome !== 'marca/logo-fal.ts' && usaExcecao(f.texto)).map((f) => f.nome).sort();
+    expect(comExcecao, 'aba sem a logo fora da lista de carga no ERP: só planilha de carga no ERP pode sair sem a logo').toEqual(Object.keys(ABAS_DE_CARGA_NO_ERP).sort());
+    for (const nome of Object.keys(ABAS_DE_CARGA_NO_ERP)) expect(usaMarca(fontes.find((f) => f.nome === nome)!.texto), nome).toBe(true);
+    // As abas que o gerador do saneamento deixa sem a logo são exatamente as da lista.
+    expect([...ABAS_DE_CARGA_NO_ERP_DA_ENTREGA, ...ABAS_DE_CARGA_NO_ERP_DO_MAPA].sort()).toEqual([...ABAS_DE_CARGA_NO_ERP['saneamento-estoques/entregaveis/excel.ts'].abas].sort());
+    // Nenhuma aba de Resumo entra na exceção.
+    for (const { abas } of Object.values(ABAS_DE_CARGA_NO_ERP)) expect(abas.filter((a) => /resumo/i.test(a))).toEqual([]);
   });
   it('o desenho dos documentos fiscais oficiais segue isolado em pintor.ts (allow-list)', () => {
     for (const nome of Object.keys(LAYOUT_OFICIAL)) expect(fontes.some((f) => f.nome === nome), nome).toBe(true);

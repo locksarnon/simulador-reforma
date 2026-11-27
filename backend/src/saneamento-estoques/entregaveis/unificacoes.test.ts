@@ -11,13 +11,13 @@ import { criarPrismaFalso } from '../dados/prisma-falso';
 import { SanProjetoService } from '../dados/projeto.service';
 import { EntregaveisController } from './entregaveis.controller';
 import { EntregaveisService } from './entregaveis.service';
-import { gerarExcelMapa, gerarExcelDeDados, notaDaEscala } from './excel';
+import { ABAS_DE_CARGA_NO_ERP_DO_MAPA, gerarExcelMapa, gerarExcelDeDados, notaDaEscala } from './excel';
 import { escalaDaBase } from '../motor/conjuntos';
 import { dadosBase } from './__fixtures__/dados';
 import { construirModelo, mapaDoModelo } from './modelo';
 import { montarRelatorio } from './relatorio';
 import { conflitosDoMapa, contarMapa, conversaoDoSaldo, filtrarMapa, montarMapa, type CasoMapa, type ItemMapa } from './unificacoes';
-import { tirarLinhaDaLogo } from '../../marca/__fixtures__/excel-com-logo';
+import { ABAS_DE_CARGA_NO_ERP, semLogoDeCargaNoErp, tirarLinhaDaLogo } from '../../marca/__fixtures__/excel-com-logo';
 
 const USER = { email: 'consultor@fal.test' };
 const it_ = (id: string, codigo: string, o: Partial<ItemMapa> = {}): ItemMapa => ({ id, codigo, estab: '', descricao: `ITEM ${codigo}`, unidade: 'KG', saldo: 0, ...o });
@@ -294,6 +294,25 @@ describe('mapa: unificação × inativação (achado 3a)', () => {
     expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(['Código que sai', 'Código que fica', 'Situação da unificação', 'Código inativado', 'Situação da inativação', 'Origem da inativação', 'O que fazer']);
     expect((ws.getRow(2).values as unknown[]).slice(1, 7)).toEqual(['200', '100', 'Proposta', '100', 'Aprovada', 'Inativação (sem movimentação)']);
     expect(String(ws.getRow(2).getCell(7).value)).toContain('rejeitar ou reabrir um dos dois casos');
+  });
+  it('Excel do mapa: as listas (carga no ERP) saem sem a logo, títulos na linha 1 e congelamento/filtro nela; "Conflitos" mantém a logo', async () => {
+    expect(ABAS_DE_CARGA_NO_ERP_DO_MAPA).toEqual(['Unificações', 'Inativações', 'Equivalências']);
+    for (const n of ABAS_DE_CARGA_NO_ERP_DO_MAPA) expect(ABAS_DE_CARGA_NO_ERP['saneamento-estoques/entregaveis/excel.ts'].abas).toContain(n);
+    const itens = [it_('a', '100'), it_('b', '200'), it_('c', '300')];
+    const l = mapa(itens, [caso({ id: 'u', itens: ['a', 'b'], proposta: consolida('100', '200'), situacao: 'PROPOSTO' }), semMov('q', ['a', 'c'], 'APROVADO')]);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load((await gerarExcelMapa(l)) as never);
+    const conflitos = wb.getWorksheet('Conflitos')!;
+    expect(conflitos.getImages()).toHaveLength(1);
+    expect(conflitos.getImages()[0].range.tl.nativeRow).toBe(0);
+    expect(conflitos.getRow(2).getCell(1).value).toBe('Código que sai');
+    for (const [nome, titulo] of [['Unificações', 'Tipo de registro'], ['Inativações', 'Origem']] as const) {
+      const ws = wb.getWorksheet(nome)!;
+      semLogoDeCargaNoErp(ws);
+      expect(ws.getRow(1).getCell(1).value).toBe(titulo);
+      expect(ws.getRow(2).getCell(2).value).not.toBeNull();
+      expect(ws.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
+      expect(String(ws.autoFilter)).toMatch(/^A1:/);
+    }
   });
 });
 
